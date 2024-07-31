@@ -15,7 +15,7 @@
   (target configVersion.ml)
   (mode (promote (until-clean) (only configVersion.ml))) ; replace existing file in source tree, even if releasing (only overrides)
   (deps (universe)) ; do not cache, always regenerate
-  (action (pipe-stdout (bash "git describe --all --long --dirty || echo \"n/a\"") (with-stdout-to %{target} (bash "xargs printf '(* Automatically regenerated, changes do not persist! *)\nlet version = \"%s\"'")))))
+  (action (pipe-stdout (bash "git describe --all --long --dirty || echo \"n/a\"") (with-stdout-to %{target} (bash "xargs printf '(* Automatically regenerated, changes do not persist! *)\nlet version = Sys.opaque_identity \"%s\"'")))))
 
 (rule
   (target configProfile.ml)
@@ -31,7 +31,7 @@
   (target configDatetime.ml)
   (mode (promote (until-clean) (only configDatetime.ml))) ; replace existing file in source tree, even if releasing (only overrides)
   (deps (universe)) ; do not cache, always regenerate
-  (action (pipe-stdout (bash "date +\"%Y-%m-%dT%H:%M:%S\" || echo \"n/a\"") (with-stdout-to %{target} (bash "xargs printf '(* Automatically regenerated, changes do not persist! *)\nlet datetime = \"%s\"'")))))
+  (action (pipe-stdout (bash "date +\"%Y-%m-%dT%H:%M:%S\" || echo \"n/a\"") (with-stdout-to %{target} (bash "xargs printf '(* Automatically regenerated, changes do not persist! *)\nlet datetime = Sys.opaque_identity \"%s\"'")))))
 
 (env
   (_

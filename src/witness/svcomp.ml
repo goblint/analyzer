@@ -60,6 +60,11 @@ struct
     | Unknown -> "unknown"
 end
 
+exception Error of string
+
+let errorwith s = raise (Error s)
+
+
 module type TaskResult =
 sig
   module Arg: MyARG.S

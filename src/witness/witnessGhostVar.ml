@@ -1,12 +1,12 @@
 (** Ghost variables for YAML witnesses. *)
 
 type t =
-  | Locked of LockDomain.Addr.t (* TODO: change *)
+  | Locked of LockDomain.MustLock.t
   | Multithreaded
 [@@deriving eq, ord, hash]
 
 let name_varinfo = function
-  | Locked (Addr (v, os)) ->
+  | Locked (v, os) ->
     let name =
       if CilType.Varinfo.equal v LibraryFunctions.verifier_atomic_var then
         invalid_arg "__VERIFIER_atomic"
@@ -16,16 +16,13 @@ let name_varinfo = function
       else
         Basetype.Variables.show v
     in
-    let rec offs: LockDomain.Addr.Offs.t -> string = function
+    let rec offs: Offset.Z.t -> string = function
       | `NoOffset -> ""
       | `Field (f, os') -> "_" ^ f.fname ^ offs os'
       | `Index (i, os') ->
-        match ValueDomain.ID.to_int i with
-        | Some i -> assert Z.Compare.(i >= Z.zero); "_" ^ Z.to_string i
-        | _ -> assert false (* must locksets cannot have ambiguous indices *)
+        assert Z.Compare.(i >= Z.zero); "_" ^ Z.to_string i
     in
     name ^ offs os ^ "_locked"
-  | Locked _ -> assert false
   | Multithreaded -> "multithreaded"
 
 let show = name_varinfo

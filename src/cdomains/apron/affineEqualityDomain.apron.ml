@@ -181,7 +181,7 @@ struct
             else if Z.lt coeff Z.minus_one then Z.to_string coeff
             else Format.asprintf "+%s" (Z.to_string coeff)
           in
-          coeff_str ^ Var.to_string var
+          coeff_str ^ Var.show var
       in
       let const_to_str vl =
         if Z.equal vl Z.zero then
@@ -203,11 +203,10 @@ struct
     | Some m when Matrix.is_empty m -> "⊤"
     | Some m ->
       let constraint_list = List.init (Matrix.num_rows m) (fun i -> vec_to_constraint (conv_to_ints @@ Matrix.get_row m i) t.env) in
-      Format.asprintf "%s" ("[|"^ (String.concat "; " constraint_list) ^"|]")
+      "[|"^ (String.concat "; " constraint_list) ^"|]"
 
   let pretty () (x:t) = text (show x)
-  let printXml f x = BatPrintf.fprintf f "<value>\n<map>\n<key>\nmatrix\n</key>\n<value>\n%s</value>\n<key>\nenv\n</key>\n<value>\n%s</value>\n</map>\n</value>\n" (XmlUtil.escape (Format.asprintf "%s" (show x) )) (XmlUtil.escape (Format.asprintf "%a" (Environment.print: Format.formatter -> Environment.t -> unit) (x.env)))
-
+  let printXml f x = BatPrintf.fprintf f "<value>\n<map>\n<key>\nmatrix\n</key>\n<value>\n%s</value>\n<key>\nenv\n</key>\n<value>\n%a</value>\n</map>\n</value>\n" (XmlUtil.escape (show x)) Environment.printXml x.env
   let eval_interval ask = Bounds.bound_texpr
 
   let name () = "affeq"
@@ -257,7 +256,7 @@ struct
   let meet t1 t2 = timing_wrap "meet" (meet t1) t2
 
   let leq t1 t2 =
-    let env_comp = Environment.compare t1.env t2.env in (* Apron's Environment.compare has defined return values. *)
+    let env_comp = Environment.cmp t1.env t2.env in (* Apron's Environment.cmp has defined return values. *)
     if env_comp = -2 || env_comp > 0 then
       (* -2:  environments are not compatible (a variable has different types in the 2 environements *)
       (* -1: if env1 is a subset of env2,  (OK)  *)
@@ -334,7 +333,7 @@ struct
     else
       match Option.get a.d, Option.get b.d with
       | x, y when is_top_env a || is_top_env b -> {d = Some (Matrix.empty ()); env = Environment.lce a.env b.env}
-      | x, y when (Environment.compare a.env b.env <> 0) ->
+      | x, y when (Environment.cmp a.env b.env <> 0) ->
         let sup_env = Environment.lce a.env b.env in
         let mod_x = dim_add (Environment.dimchange a.env sup_env) x in
         let mod_y = dim_add (Environment.dimchange b.env sup_env) y in
@@ -430,8 +429,8 @@ struct
 
   let assign_exp ask t var exp no_ov =
     let res = assign_exp ask t var exp no_ov in
-    if M.tracing then M.tracel "ops" "assign_exp t:\n %s \n var: %s \n exp: %a\n no_ov: %b -> \n %s"
-        (show t) (Var.to_string var) d_exp exp (Lazy.force no_ov) (show res) ;
+    if M.tracing then M.tracel "ops" "assign_exp t:\n %s \n var: %a \n exp: %a\n no_ov: %b -> \n %s"
+        (show t) Var.pretty var d_exp exp (Lazy.force no_ov) (show res);
     res
 
   let assign_var (t: VarManagement(Vc)(Mx).t) v v' =
@@ -441,7 +440,7 @@ struct
 
   let assign_var t v v' =
     let res = assign_var t v v' in
-    if M.tracing then M.tracel "ops" "assign_var t:\n %s \n v: %s \n v': %s\n -> %s" (show t) (Var.to_string v) (Var.to_string v') (show res) ;
+    if M.tracing then M.tracel "ops" "assign_var t:\n %s \n v: %a \n v': %a\n -> %s" (show t) Var.pretty v Var.pretty v' (show res);
     res
 
   let assign_var_parallel t vv's =
@@ -499,7 +498,7 @@ struct
 
   let substitute_exp ask t var exp no_ov =
     let res = substitute_exp ask t var exp no_ov in
-    if M.tracing then M.tracel "ops" "Substitute_expr t: \n %s \n var: %s \n exp: %a \n -> \n %s" (show t) (Var.to_string var) d_exp exp (show res);
+    if M.tracing then M.tracel "ops" "Substitute_expr t: \n %s \n var: %a \n exp: %a \n -> \n %s" (show t) Var.pretty var d_exp exp (show res);
     res
 
   let substitute_exp ask t var exp no_ov = timing_wrap "substitution" (substitute_exp ask t var exp) no_ov

@@ -18,7 +18,7 @@ jobs:
         os:
           - ubuntu-latest
         ocaml-compiler:
-          - ocaml-variants.4.14.0+options,ocaml-option-flambda # matches opam lock file
+          - ocaml-variants.4.14.2+options,ocaml-option-flambda # matches opam lock file
           # don't add any other because they won't be used
 
     runs-on: ${{ matrix.os }}
@@ -35,10 +35,9 @@ jobs:
           # otherwise setup-ocaml pins non-locked dependencies
           # https://github.com/ocaml/setup-ocaml/issues/166
           OPAMLOCKED: locked
-        uses: ocaml/setup-ocaml@v2
+        uses: ocaml/setup-ocaml@v3
         with:
           ocaml-compiler: ${{ matrix.ocaml-compiler }}
-          opam-depext-flags: --with-test # doesn't work (https://github.com/ocaml/opam/issues/5836)
 
       - name: Install graph-easy # TODO: remove if depext --with-test works
         if: ${{ matrix.os == 'ubuntu-latest' }}

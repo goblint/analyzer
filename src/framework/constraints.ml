@@ -575,8 +575,14 @@ struct
     let liftmap f = List.map (fun (x) -> (x, max 0 (cg_val ctx - 1))) f in
     liftmap (S.threadenter (conv ctx) ~multiple lval f args)
 
+  let query ctx (type a) (q: a Queries.t):a Queries.result =
+    match q with
+    | Queries.GasExhausted ->
+      let (d,i) = ctx.local in
+      (i <= 0)
+    | _ -> S.query (conv ctx) q
+
   let sync ctx reason                             = S.sync (conv ctx) reason, cg_val ctx
-  let query ctx q                                 = S.query (conv ctx) q
   let assign ctx lval expr                        = S.assign (conv ctx) lval expr, cg_val ctx
   let vdecl ctx v                                 = S.vdecl (conv ctx) v, cg_val ctx
   let body ctx fundec                             = S.body (conv ctx) fundec, cg_val ctx
@@ -624,9 +630,10 @@ struct
 
   let sync ctx =
     match ctx.prev_node, Cfg.prev ctx.prev_node with
-    | _, _ :: _ :: _ (* Join in CFG. *)
-    | FunctionEntry _, _ -> (* Function entry, also needs sync because partial contexts joined by solver, see 00-sanity/35-join-contexts. *)
+    | _, _ :: _ :: _ -> (* Join in CFG. *)
       S.sync ctx `Join
+    | FunctionEntry _, _ -> (* Function entry, also needs sync because partial contexts joined by solver, see 00-sanity/35-join-contexts. *)
+      S.sync ctx `JoinCall
     | _, _ -> S.sync ctx `Normal
 
   let side_context sideg f c =
@@ -706,11 +713,13 @@ struct
 
   let tf_assign var edge prev_node lv e getl sidel getg sideg d =
     let ctx, r, spawns = common_ctx var edge prev_node d getl sidel getg sideg in
-    common_join ctx (S.assign ctx lv e) !r !spawns
+    let d = S.assign ctx lv e in (* Force transfer function to be evaluated before dereferencing in common_join argument. *)
+    common_join ctx d !r !spawns
 
   let tf_vdecl var edge prev_node v getl sidel getg sideg d =
     let ctx, r, spawns = common_ctx var edge prev_node d getl sidel getg sideg in
-    common_join ctx (S.vdecl ctx v) !r !spawns
+    let d = S.vdecl ctx v in (* Force transfer function to be evaluated before dereferencing in common_join argument. *)
+    common_join ctx d !r !spawns
 
   let normal_return r fd ctx sideg =
     let spawning_return = S.return ctx r fd in
@@ -725,7 +734,7 @@ struct
 
   let tf_ret var edge prev_node ret fd getl sidel getg sideg d =
     let ctx, r, spawns = common_ctx var edge prev_node d getl sidel getg sideg in
-    let d =
+    let d = (* Force transfer function to be evaluated before dereferencing in common_join argument. *)
       if (CilType.Fundec.equal fd MyCFG.dummy_func ||
           List.mem fd.svar.vname (get_string_list "mainfun")) &&
          get_bool "kernel"
@@ -740,11 +749,13 @@ struct
     let c: unit -> S.C.t = snd var |> Obj.obj in
     side_context sideg fd (c ());
     let ctx, r, spawns = common_ctx var edge prev_node d getl sidel getg sideg in
-    common_join ctx (S.body ctx fd) !r !spawns
+    let d = S.body ctx fd in (* Force transfer function to be evaluated before dereferencing in common_join argument. *)
+    common_join ctx d !r !spawns
 
   let tf_test var edge prev_node e tv getl sidel getg sideg d =
     let ctx, r, spawns = common_ctx var edge prev_node d getl sidel getg sideg in
-    common_join ctx (S.branch ctx e tv) !r !spawns
+    let d = S.branch ctx e tv in (* Force transfer function to be evaluated before dereferencing in common_join argument. *)
+    common_join ctx d !r !spawns
 
   let tf_normal_call ctx lv e (f:fundec) args getl sidel getg sideg =
     let combine (cd, fc, fd) =
@@ -863,11 +874,13 @@ struct
 
   let tf_asm var edge prev_node getl sidel getg sideg d =
     let ctx, r, spawns = common_ctx var edge prev_node d getl sidel getg sideg in
-    common_join ctx (S.asm ctx) !r !spawns
+    let d = S.asm ctx in (* Force transfer function to be evaluated before dereferencing in common_join argument. *)
+    common_join ctx d !r !spawns
 
   let tf_skip var edge prev_node getl sidel getg sideg d =
     let ctx, r, spawns = common_ctx var edge prev_node d getl sidel getg sideg in
-    common_join ctx (S.skip ctx) !r !spawns
+    let d = S.skip ctx in (* Force transfer function to be evaluated before dereferencing in common_join argument. *)
+    common_join ctx d !r !spawns
 
   let tf var getl sidel getg sideg prev_node edge d =
     begin match edge with

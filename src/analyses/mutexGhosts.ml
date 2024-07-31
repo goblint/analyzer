@@ -13,7 +13,7 @@ struct
   module ThreadCreate = Printable.UnitConf (struct let name = "threadcreate" end)
   module V =
   struct
-    include Printable.Either3 (Node) (LockDomain.Addr) (ThreadCreate)
+    include Printable.Either3 (Node) (LockDomain.MustLock) (ThreadCreate)
     let node x = `Left x
     let lock x = `Middle x
     let threadcreate = `Right ()
@@ -58,6 +58,11 @@ struct
     let create_threadcreate threadcreate = `Lifted2 (`Lifted2 threadcreate)
   end
 
+  let mustlock_of_addr (addr: LockDomain.Addr.t): LockDomain.MustLock.t option =
+    match addr with
+    | Addr mv when LockDomain.Mval.is_definite mv -> Some (LockDomain.MustLock.of_mval mv)
+    | _ -> None
+
   let event ctx e octx =
     let verifier_atomic_addr = LockDomain.Addr.of_var LibraryFunctions.verifier_atomic_var in
     begin match e with
@@ -67,7 +72,9 @@ struct
           let (locked, _, _) = G.node (ctx.global (V.node ctx.prev_node)) in
           if Locked.cardinal locked > 1 then (
             Locked.iter (fun lock ->
-                ctx.sideg (V.lock lock) (G.create_lock true)
+                Option.iter (fun lock ->
+                    ctx.sideg (V.lock lock) (G.create_lock true)
+                  ) (mustlock_of_addr lock)
               ) locked
           );
         )
@@ -77,7 +84,9 @@ struct
           let (_, unlocked, _) = G.node (ctx.global (V.node ctx.prev_node)) in
           if Locked.cardinal unlocked > 1 then (
             Locked.iter (fun lock ->
-                ctx.sideg (V.lock lock) (G.create_lock true)
+                Option.iter (fun lock ->
+                    ctx.sideg (V.lock lock) (G.create_lock true)
+                  ) (mustlock_of_addr lock)
               ) unlocked
           );
         )
@@ -92,8 +101,7 @@ struct
     ctx.local
 
   let ghost_var_available ctx = function
-    | WitnessGhost.Var.Locked (Addr (v, o) as lock) -> not (LockDomain.Addr.Offs.contains_index o) && not (G.lock (ctx.global (V.lock lock)))
-    | Locked _ -> false
+    | WitnessGhost.Var.Locked ((v, o) as lock) -> not (Offset.Z.contains_index o) && not (G.lock (ctx.global (V.lock lock)))
     | Multithreaded -> true
 
   let ghost_var_available ctx v =
@@ -111,31 +119,31 @@ struct
           let entries =
             (* TODO: do variable_entry-s only once *)
             Locked.fold (fun l acc ->
-                if ghost_var_available ctx (Locked l) then (
+                match mustlock_of_addr l with
+                | Some l when ghost_var_available ctx (Locked l) ->
                   let entry = WitnessGhost.variable_entry ~task (Locked l) in
                   Queries.YS.add entry acc
-                )
-                else
+                | _ ->
                   acc
               ) (Locked.union locked unlocked) (Queries.YS.empty ())
           in
           let entries =
             Locked.fold (fun l acc ->
-                if ghost_var_available ctx (Locked l) then (
+                match mustlock_of_addr l with
+                | Some l when ghost_var_available ctx (Locked l) ->
                   let entry = WitnessGhost.update_entry ~task ~node:g (Locked l) GoblintCil.one in
                   Queries.YS.add entry acc
-                )
-                else
+                | _ ->
                   acc
               ) locked entries
           in
           let entries =
             Unlocked.fold (fun l acc ->
-                if ghost_var_available ctx (Locked l) then (
+                match mustlock_of_addr l with
+                | Some l when ghost_var_available ctx (Locked l) ->
                   let entry = WitnessGhost.update_entry ~task ~node:g (Locked l) GoblintCil.zero in
                   Queries.YS.add entry acc
-                )
-                else
+                | _ ->
                   acc
               ) unlocked entries
           in

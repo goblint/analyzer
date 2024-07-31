@@ -209,15 +209,14 @@ struct
       MustLockset.disjoint held_locks protecting
     | Queries.MayBePublicWithout _ when MustLocksetRW.is_all ls -> false
     | Queries.MayBePublicWithout {global=v; write; without_mutex; protection} ->
-      let held_locks = MustLocksetRW.to_must_lockset @@ fst @@ Arg.remove' ctx ~warn:false without_mutex in
+      let held_locks = MustLockset.remove without_mutex (MustLocksetRW.to_must_lockset ls) in
       let protecting = protecting ~write protection v in
       (* TODO: unsound in 29/24, why did we do this before? *)
       (* if Mutexes.mem verifier_atomic (Lockset.export_locks (Lockset.remove (without_mutex, true) ctx.local)) then
         false
       else *)
       MustLockset.disjoint held_locks protecting
-    | Queries.MustBeProtectedBy {mutex = Addr mutex_mv; global=v; write; protection} when Mval.is_definite mutex_mv -> (* only definite Addrs can be in must-locksets to begin with, anything else cannot protect anything *)
-      let ml = LockDomain.MustLock.of_mval mutex_mv in
+    | Queries.MustBeProtectedBy {mutex = ml; global=v; write; protection} ->
       let protecting = protecting ~write protection v in
       (* TODO: unsound in 29/24, why did we do this before? *)
       (* if LockDomain.Addr.equal mutex (LockDomain.Addr.of_var LF.verifier_atomic_var) then

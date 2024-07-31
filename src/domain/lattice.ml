@@ -277,6 +277,8 @@ struct
   let narrow x y =
     match (x,y) with
     | (`Lifted x, `Lifted y) -> `Lifted (Base.narrow x y)
+    | (_, `Bot) -> `Bot
+    | (`Top, y) -> y
     | _ -> x
 end
 
@@ -337,6 +339,8 @@ struct
     | (`Lifted x, `Lifted y) ->
       (try `Lifted (Base.narrow x y)
        with Uncomparable -> `Bot)
+    | (_, `Bot) -> `Bot
+    | (`Top, y) -> y
     | _ -> x
 end
 
@@ -408,6 +412,8 @@ struct
     match (x,y) with
     | (`Lifted1 x, `Lifted1 y) -> `Lifted1 (Base1.narrow x y)
     | (`Lifted2 x, `Lifted2 y) -> `Lifted2 (Base2.narrow x y)
+    | (_, `Bot) -> `Bot
+    | (`Top, y) -> y
     | _ -> x
 
 end
@@ -539,6 +545,7 @@ struct
   let narrow x y =
     match (x,y) with
     | (`Lifted x, `Lifted y) -> `Lifted (Base.narrow x y)
+    | (_, `Bot) -> `Bot
     | _ -> x
 end
 
@@ -580,6 +587,7 @@ struct
   let narrow x y =
     match (x,y) with
     | (`Lifted x, `Lifted y) -> `Lifted (Base.narrow x y)
+    | (`Top, y) -> y
     | _ -> x
 
   let pretty_diff () (x,y) =

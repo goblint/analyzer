@@ -322,6 +322,13 @@ struct
              f (Result.top ()) (!base_id, spec !base_id, assoc !base_id ctx.local) *)
           | Queries.DYojson ->
             `Lifted (D.to_yojson ctx.local)
+          | Queries.GasExhausted ->
+            if (get_int "ana.context.gas_value" >= 0) then
+              (* There is a lifter above this that will answer it, save to ask *)
+              ctx.ask (Queries.GasExhausted)
+            else
+              (* Abort to avoid infinite recursion *)
+              false
           | _ ->
             let r = fold_left (f ~q) (Result.top ()) @@ spec_list ctx.local in
             do_sideg ctx !sides;

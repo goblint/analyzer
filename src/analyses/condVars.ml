@@ -116,7 +116,7 @@ struct
     match rval with
     | BinOp (op, _, _, _) when is_cmp op -> (* logical expression *)
       save_expr lval rval
-    | Lval k when Option.is_some (mustPointTo ctx (AddrOf k) >? flip D.get d) -> (* var-eq for transitive closure *)
+    | Lval k -> (* var-eq for transitive closure *)
       mustPointTo ctx (AddrOf k) >? flip D.get_elt d |> Option.map (save_expr lval) |? d
     | _ -> d
 
