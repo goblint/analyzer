@@ -1,4 +1,4 @@
-// PARAM: --set ana.activated[+] mutexGhosts --set ana.activated[+] pthreadMutexType --set ana.malloc.unique_address_count 1
+// PARAM: --set ana.activated[+] mutexGhosts --set ana.malloc.unique_address_count 1
 #include <pthread.h>
 #include <goblint.h>
 
@@ -18,11 +18,11 @@ void *t_fun(void *arg) {
   return NULL;
 }
 
-int main() { pthread_mutexattr_t attr; pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_NORMAL); // https://github.com/goblint/analyzer/pull/1414
+int main() {
   m1 = malloc(sizeof(pthread_mutex_t));
-  pthread_mutex_init(m1, &attr);
+  pthread_mutex_init(m1, NULL);
   m2 = malloc(sizeof(pthread_mutex_t));
-  pthread_mutex_init(m2, &attr);
+  pthread_mutex_init(m2, NULL);
 
   pthread_t id;
   pthread_create(&id, NULL, t_fun, NULL);

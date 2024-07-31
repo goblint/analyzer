@@ -1,4 +1,4 @@
-  $ goblint --set ana.base.privatization protection --enable witness.yaml.enabled --set ana.activated[+] mutexGhosts --set ana.activated[+] pthreadMutexType  --set ana.malloc.unique_address_count 1 --set witness.yaml.entry-types '["flow_insensitive_invariant", "ghost_variable", "ghost_update"]' 66-ghost-alloc-lock.c
+  $ goblint --set ana.base.privatization protection --enable witness.yaml.enabled --set ana.activated[+] mutexGhosts  --set ana.malloc.unique_address_count 1 --set witness.yaml.entry-types '["flow_insensitive_invariant", "ghost_variable", "ghost_update"]' 66-ghost-alloc-lock.c
   [Success][Assert] Assertion "g1 == 0" will succeed (66-ghost-alloc-lock.c:31:3-31:27)
   [Success][Assert] Assertion "g2 == 0" will succeed (66-ghost-alloc-lock.c:34:3-34:27)
   [Info][Deadcode] Logical lines of code (LLoC) summary:
@@ -24,7 +24,7 @@
       column: 3
       function: main
   - entry_type: ghost_update
-    variable: alloc_m817990718_locked
+    variable: alloc_m861095507_locked
     expression: "1"
     location:
       file_name: 66-ghost-alloc-lock.c
@@ -33,7 +33,7 @@
       column: 3
       function: main
   - entry_type: ghost_update
-    variable: alloc_m817990718_locked
+    variable: alloc_m861095507_locked
     expression: "1"
     location:
       file_name: 66-ghost-alloc-lock.c
@@ -42,7 +42,7 @@
       column: 3
       function: t_fun
   - entry_type: ghost_update
-    variable: alloc_m817990718_locked
+    variable: alloc_m861095507_locked
     expression: "0"
     location:
       file_name: 66-ghost-alloc-lock.c
@@ -51,7 +51,7 @@
       column: 3
       function: main
   - entry_type: ghost_update
-    variable: alloc_m817990718_locked
+    variable: alloc_m861095507_locked
     expression: "0"
     location:
       file_name: 66-ghost-alloc-lock.c
@@ -60,7 +60,7 @@
       column: 3
       function: t_fun
   - entry_type: ghost_update
-    variable: alloc_m334174073_locked
+    variable: alloc_m559918035_locked
     expression: "1"
     location:
       file_name: 66-ghost-alloc-lock.c
@@ -69,7 +69,7 @@
       column: 3
       function: main
   - entry_type: ghost_update
-    variable: alloc_m334174073_locked
+    variable: alloc_m559918035_locked
     expression: "1"
     location:
       file_name: 66-ghost-alloc-lock.c
@@ -78,7 +78,7 @@
       column: 3
       function: t_fun
   - entry_type: ghost_update
-    variable: alloc_m334174073_locked
+    variable: alloc_m559918035_locked
     expression: "0"
     location:
       file_name: 66-ghost-alloc-lock.c
@@ -87,7 +87,7 @@
       column: 3
       function: main
   - entry_type: ghost_update
-    variable: alloc_m334174073_locked
+    variable: alloc_m559918035_locked
     expression: "0"
     location:
       file_name: 66-ghost-alloc-lock.c
@@ -101,23 +101,23 @@
     type: int
     initial: "0"
   - entry_type: ghost_variable
-    variable: alloc_m817990718_locked
+    variable: alloc_m861095507_locked
     scope: global
     type: int
     initial: "0"
   - entry_type: ghost_variable
-    variable: alloc_m334174073_locked
+    variable: alloc_m559918035_locked
     scope: global
     type: int
     initial: "0"
   - entry_type: flow_insensitive_invariant
     flow_insensitive_invariant:
-      string: '! multithreaded || (alloc_m817990718_locked || g2 == 0)'
+      string: '! multithreaded || (alloc_m861095507_locked || g2 == 0)'
       type: assertion
       format: C
   - entry_type: flow_insensitive_invariant
     flow_insensitive_invariant:
-      string: '! multithreaded || (alloc_m334174073_locked || g1 == 0)'
+      string: '! multithreaded || (alloc_m559918035_locked || g1 == 0)'
       type: assertion
       format: C
   - entry_type: flow_insensitive_invariant

@@ -1,4 +1,4 @@
-// PARAM: --set ana.activated[+] mutexGhosts --set ana.activated[+] pthreadMutexType
+// PARAM: --set ana.activated[+] mutexGhosts
 #include <pthread.h>
 #include <goblint.h>
 
