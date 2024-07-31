@@ -556,6 +556,8 @@ module C2PO = struct
       (* compute the minimal representative of all remaining edges *)
       in update_min_repr (uf, set, map) min_representatives queue
 
+    let compute_minimal_representatives a = Timing.wrap "c2po-compute-min-repr" compute_minimal_representatives a
+
     (** Computes the initial map of minimal representatives.
           It maps each element `e` in the set to `(e, 0)`. *)
     let initial_minimal_representatives set =
@@ -663,8 +665,8 @@ module C2PO = struct
     match cc with
     | None -> None
     | Some cc ->
-      let min_repr = MRMap.compute_minimal_representatives (cc.uf, cc.set, cc.map) in
       Some {cc with normal_form = lazy(
+          let min_repr = MRMap.compute_minimal_representatives (cc.uf, cc.set, cc.map) in
           get_normal_conjunction cc (fun t -> match MRMap.find_opt t min_repr with | None -> t,Z.zero | Some minr -> minr)
         )}
 
