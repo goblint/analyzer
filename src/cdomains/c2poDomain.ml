@@ -100,6 +100,17 @@ module D = struct
 
   let join a b = Timing.wrap "join" (join a) b
 
+  let widen_automata a' b' =
+    (* we calculate the join and then restrict to the term set of a' *)
+    match a',b' with
+    | None, b -> b
+    | a, None -> a
+    | Some a, Some b ->
+      match join (Some a) (Some b) with
+      | None -> None
+      | Some join_result ->
+        remove_terms (fun t -> not @@ SSet.mem t a.set) join_result
+
   let widen_eq_classes a' b' =
     let res =
       match a',b' with
@@ -121,7 +132,9 @@ module D = struct
     reset_normal_form res
 
   let widen a b = if M.tracing then M.trace "c2po-widen" "WIDEN\n";
-    if GobConfig.get_bool "ana.c2po.precise_join" then join a b(*TODO*) else widen_eq_classes a b
+    if GobConfig.get_bool "ana.c2po.precise_join" then
+      widen_automata a b
+    else widen_eq_classes a b
 
   let meet a' b' =
     if M.tracing then M.trace "c2po-meet" "MEET x= %s; y=%s" (show a') (show b');
