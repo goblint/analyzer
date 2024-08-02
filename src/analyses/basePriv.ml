@@ -683,6 +683,131 @@ struct
 end
 
 
+(** Vojdani privatization with eager reading. *)
+module VojdaniPriv: S =
+struct
+  include NoFinalize
+  include ConfCheck.RequireMutexActivatedInit
+  open Protection
+
+  module D = Lattice.Unit
+
+  module Wrapper = NoWrapper (VD)
+  module G = Wrapper.G
+  module V = VarinfoV
+
+  let startstate () = ()
+
+  let read_global (ask: Queries.ask) getg (st: BaseComponents (D).t) x =
+    let getg = Wrapper.getg ask getg in
+    if is_unprotected ask ~write:false x then
+      VD.join (CPA.find x st.cpa) (getg x)
+    else
+      CPA.find x st.cpa
+
+  let write_global ?(invariant=false) (ask: Queries.ask) getg sideg (st: BaseComponents (D).t) x v =
+    let sideg = Wrapper.sideg ask sideg in
+    if not invariant then (
+      if is_unprotected ask ~write:false x then
+        sideg x v;
+      if !earlyglobs then (* earlyglobs workaround for 13/60 *)
+        sideg x v
+    );
+    {st with cpa = CPA.add x v st.cpa}
+
+  let lock ask getg (st: BaseComponents (D).t) m =
+    let getg = Wrapper.getg ask getg in
+    CPA.fold (fun x v (st: BaseComponents (D).t) ->
+        if is_protected_by ask ~write:false m x && is_unprotected ask ~write:false x then ( (* is_in_Gm *)
+          {st with cpa = CPA.add x (VD.join (CPA.find x st.cpa) (getg x)) st.cpa}
+        )
+        else
+          st
+      ) st.cpa st
+
+  let unlock ask getg sideg (st: BaseComponents (D).t) m =
+    let sideg = Wrapper.sideg ask sideg in
+    (* TODO: what about G_m globals in cpa that weren't actually written? *)
+    CPA.fold (fun x v (st: BaseComponents (D).t) ->
+        if is_protected_by ask ~write:false m x then ( (* is_in_Gm *)
+          if is_unprotected_without ask ~write:false x m then (* is_in_V' *)
+            sideg x v;
+          st
+        )
+        else
+          st
+      ) st.cpa st
+
+  let sync ask getg sideg (st: BaseComponents (D).t) reason =
+    let branched_sync () =
+      (* required for branched thread creation *)
+      let sideg = Wrapper.sideg ask sideg in
+      CPA.fold (fun x v (st: BaseComponents (D).t) ->
+          if is_global ask x && is_unprotected ask ~write:false x then (
+            sideg x v;
+            st
+          )
+          else
+            st
+        ) st.cpa st
+    in
+    match reason with
+    | `Join when ConfCheck.branched_thread_creation () ->
+      branched_sync ()
+    | `JoinCall when ConfCheck.branched_thread_creation_at_call ask ->
+      branched_sync ()
+    | `Join
+    | `JoinCall
+    | `Return
+    | `Normal
+    | `Init
+    | `Thread ->
+      st
+
+  let escape ask getg sideg (st: BaseComponents (D).t) escaped =
+    let sideg = Wrapper.sideg ask sideg in
+    let cpa' = CPA.fold (fun x v acc ->
+        if EscapeDomain.EscapedVars.mem x escaped then (
+          sideg x v;
+          acc
+        )
+        else
+          acc
+      ) st.cpa st.cpa
+    in
+    {st with cpa = cpa'}
+
+  let enter_multithreaded ask getg sideg (st: BaseComponents (D).t) =
+    let sideg = Wrapper.sideg ask sideg in
+    CPA.fold (fun x v (st: BaseComponents (D).t) ->
+        if is_global ask x then (
+          sideg x v;
+          st
+        )
+        else
+          st
+      ) st.cpa st
+
+  let threadenter ask st = st
+  let threadspawn ask get set st = st
+
+  let thread_join ?(force=false) ask get e st = st
+  let thread_return ask get set tid st = st
+
+  let iter_sys_vars getg vq vf =
+    match vq with
+    | VarQuery.Global g ->
+      vf g;
+    | _ -> ()
+
+  let invariant_global ask getg g =
+    let getg = Wrapper.getg ask getg in
+    ValueDomain.invariant_global getg g
+
+  let invariant_vars ask getg st = protected_vars ask
+end
+
+
 module type PerGlobalPrivParam =
 sig
   (** Whether to also check unprotectedness by reads for extra precision. *)
@@ -1909,6 +2034,7 @@ let priv_module: (module S) Lazy.t =
     let module Priv: S =
       (val match get_string "ana.base.privatization" with
         | "none" -> (module NonePriv: S)
+        | "vojdani" -> (module VojdaniPriv: S)
         | "mutex-oplus" -> (module PerMutexOplusPriv)
         | "mutex-meet" -> (module PerMutexMeetPriv)
         | "mutex-meet-tid" -> (module PerMutexMeetTIDPriv (ThreadDigest))
