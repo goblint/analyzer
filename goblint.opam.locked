@@ -128,7 +128,7 @@ build: [
   ["dune" "install" "-p" name "--create-install-files" name]
 ]
 dev-repo: "git+https://github.com/goblint/analyzer.git"
-available: os-family != "bsd" & os-distribution != "alpine" & arch != "arm64"
+available: os-family != "bsd" & os-distribution != "alpine"
 conflicts: [
   "result" {< "1.5"}
   "ez-conf-lib" {= "1"}
