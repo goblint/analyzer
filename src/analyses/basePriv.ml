@@ -691,22 +691,18 @@ struct
   open Protection
 
   module D = Lattice.Unit
-
-  module Wrapper = NoWrapper (VD)
-  module G = Wrapper.G
+  module G = VD
   module V = VarinfoV
 
   let startstate () = ()
 
   let read_global (ask: Queries.ask) getg (st: BaseComponents (D).t) x =
-    let getg = Wrapper.getg ask getg in
     if is_unprotected ask ~write:false x then
       VD.join (CPA.find x st.cpa) (getg x)
     else
       CPA.find x st.cpa
 
   let write_global ?(invariant=false) (ask: Queries.ask) getg sideg (st: BaseComponents (D).t) x v =
-    let sideg = Wrapper.sideg ask sideg in
     if not invariant then (
       if is_unprotected ask ~write:false x then
         sideg x v;
@@ -716,7 +712,6 @@ struct
     {st with cpa = CPA.add x v st.cpa}
 
   let lock ask getg (st: BaseComponents (D).t) m =
-    let getg = Wrapper.getg ask getg in
     CPA.fold (fun x v (st: BaseComponents (D).t) ->
         if is_protected_by ask ~write:false m x && is_unprotected ask ~write:false x then ( (* is_in_Gm *)
           {st with cpa = CPA.add x (VD.join (CPA.find x st.cpa) (getg x)) st.cpa}
@@ -726,7 +721,6 @@ struct
       ) st.cpa st
 
   let unlock ask getg sideg (st: BaseComponents (D).t) m =
-    let sideg = Wrapper.sideg ask sideg in
     (* TODO: what about G_m globals in cpa that weren't actually written? *)
     CPA.fold (fun x v (st: BaseComponents (D).t) ->
         if is_protected_by ask ~write:false m x then ( (* is_in_Gm *)
@@ -741,7 +735,6 @@ struct
   let sync ask getg sideg (st: BaseComponents (D).t) reason =
     let branched_sync () =
       (* required for branched thread creation *)
-      let sideg = Wrapper.sideg ask sideg in
       CPA.fold (fun x v (st: BaseComponents (D).t) ->
           if is_global ask x && is_unprotected ask ~write:false x then (
             sideg x v;
@@ -765,7 +758,6 @@ struct
       st
 
   let escape ask getg sideg (st: BaseComponents (D).t) escaped =
-    let sideg = Wrapper.sideg ask sideg in
     let cpa' = CPA.fold (fun x v acc ->
         if EscapeDomain.EscapedVars.mem x escaped then (
           sideg x v;
@@ -778,7 +770,6 @@ struct
     {st with cpa = cpa'}
 
   let enter_multithreaded ask getg sideg (st: BaseComponents (D).t) =
-    let sideg = Wrapper.sideg ask sideg in
     CPA.fold (fun x v (st: BaseComponents (D).t) ->
         if is_global ask x then (
           sideg x v;
@@ -801,7 +792,6 @@ struct
     | _ -> ()
 
   let invariant_global ask getg g =
-    let getg = Wrapper.getg ask getg in
     ValueDomain.invariant_global getg g
 
   let invariant_vars ask getg st = protected_vars ask
