@@ -64,7 +64,7 @@ depends: [
   "fileutils" {= "0.6.4"}
   "fmt" {= "0.9.0"}
   "fpath" {= "0.7.3"}
-  "goblint-cil" {= "2.0.3"}
+  "goblint-cil" {= "2.0.4"}
   "hex" {= "1.5.0"}
   "integers" {= "0.7.0"}
   "json-data-encoding" {= "1.0.1"}
@@ -128,20 +128,13 @@ build: [
   ["dune" "install" "-p" name "--create-install-files" name]
 ]
 dev-repo: "git+https://github.com/goblint/analyzer.git"
-available: os-distribution != "alpine" & arch != "arm64"
+available: os-family != "bsd" & os-distribution != "alpine"
 conflicts: [
   "result" {< "1.5"}
   "ez-conf-lib" {= "1"}
 ]
 post-messages: [
   "Do not benchmark Goblint on OCaml 5 (https://goblint.readthedocs.io/en/latest/user-guide/benchmarking/)." {ocaml:version >= "5.0.0"}
-]
-# TODO: manually reordered to avoid opam pin crash: https://github.com/ocaml/opam/issues/4936
-pin-depends: [
-  [
-    "goblint-cil.2.0.3"
-    "git+https://github.com/goblint/cil.git#ae3a4949d478fad77e004c6fe15a7c83427df59f"
-  ]
 ]
 depexts: ["libgraph-easy-perl"] {os-distribution = "ubuntu" & with-test}
 description: """\

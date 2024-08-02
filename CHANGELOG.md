@@ -1,3 +1,22 @@
+## v2.4.0
+* Remove unmaintained analyses: spec, file (#1281).
+* Add linear two-variable equalities analysis (#1297, #1412, #1466).
+* Add callstring, loopfree callstring and context gas analyses (#1038, #1340, #1379, #1427, #1439).
+* Add non-relational thread-modular value analyses with thread IDs (#1366, #1398, #1399).
+* Add NULL byte array domain (#1076).
+* Fix spurious overflow warnings from internal evaluations (#1406, #1411, #1511).
+* Refactor non-definite mutex handling to fix unsoundness (#1430, #1500, #1503, #1409).
+* Fix non-relational thread-modular value analysis unsoundness with ambiguous points-to sets (#1457, #1458).
+* Fix mutex type analysis unsoundness and enable it by default (#1414, #1416, #1510).
+* Add points-to set refinement on mutex path splitting (#1287, #1343, #1374, #1396, #1407).
+* Improve narrowing operators (#1502, #1540, #1543).
+* Extract automatic configuration tuning for soundness (#1369).
+* Fix many locations in witnesses (#1355, #1372, #1400, #1403).
+* Improve output readability (#1294, #1312, #1405, #1497).
+* Refactor logging (#1117).
+* Modernize all library function specifications (#1029, #688, #1174, #1289, #1447, #1487).
+* Remove OCaml 4.10, 4.11, 4.12 and 4.13 support (#1448).
+
 ## v2.3.0
 Functionally equivalent to Goblint in SV-COMP 2024.
 

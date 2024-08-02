@@ -698,6 +698,7 @@ struct
     | AAddrOf of t
     | AIndex of t * t
     | AQuestion of t * t * t
+    | AAssign of t * t
   [@@deriving eq, ord, hash]
 
   let name () = "attrparam"
