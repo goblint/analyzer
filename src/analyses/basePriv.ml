@@ -251,6 +251,94 @@ struct
   let invariant_vars ask getg st = []
 end
 
+module NonePriv3: S =
+struct
+  include NoFinalize
+
+  module G = VD
+  module V = VarinfoV
+  module D = Lattice.Unit
+
+  let init () = ()
+
+  let startstate () = ()
+
+  let lock ask getg st m = st
+  let unlock ask getg sideg st m = st
+
+  let read_global (ask: Queries.ask) getg (st: BaseComponents (D).t) x =
+    getg x
+
+  let write_global ?(invariant=false) (ask: Queries.ask) getg sideg (st: BaseComponents (D).t) x v =
+    if not invariant then
+      sideg x v;
+    st
+
+  let sync ask getg sideg (st: BaseComponents (D).t) reason =
+    let branched_sync () =
+      (* required for branched thread creation *)
+      CPA.fold (fun x v (st: BaseComponents (D).t) ->
+          if is_global ask x then (
+            sideg x v;
+            {st with cpa = CPA.remove x st.cpa}
+          )
+          else
+            st
+        ) st.cpa st
+    in
+    match reason with
+    | `Join when ConfCheck.branched_thread_creation () ->
+      branched_sync ()
+    | `JoinCall when ConfCheck.branched_thread_creation_at_call ask ->
+      branched_sync ()
+    | `Join
+    | `JoinCall
+    | `Return
+    | `Normal
+    | `Init
+    | `Thread ->
+      st
+
+  let escape ask getg sideg (st: BaseComponents (D).t) escaped =
+    let cpa' = CPA.fold (fun x v acc ->
+        if EscapeDomain.EscapedVars.mem x escaped then (
+          sideg x v;
+          CPA.remove x acc
+        )
+        else
+          acc
+      ) st.cpa st.cpa
+    in
+    {st with cpa = cpa'}
+
+  let enter_multithreaded ask getg sideg (st: BaseComponents (D).t) =
+    CPA.fold (fun x v (st: BaseComponents (D).t) ->
+        if is_global ask x then (
+          sideg x v;
+          {st with cpa = CPA.remove x st.cpa}
+        )
+        else
+          st
+      ) st.cpa st
+
+  let threadenter ask st = st
+  let threadspawn ask get set st = st
+
+  let thread_join ?(force=false) ask get e st = st
+  let thread_return ask get set tid st = st
+
+  let iter_sys_vars getg vq vf =
+    match vq with
+    | VarQuery.Global g ->
+      vf g;
+    | _ -> ()
+
+  let invariant_global ask getg g =
+    ValueDomain.invariant_global getg g
+
+  let invariant_vars ask getg st = []
+end
+
 
 module PerMutexPrivBase =
 struct
@@ -2090,6 +2178,7 @@ let priv_module: (module S) Lazy.t =
       (val match get_string "ana.base.privatization" with
         | "none" -> (module NonePriv: S)
         | "none2" -> (module NonePriv2: S)
+        | "none3" -> (module NonePriv3: S)
         | "vojdani" -> (module VojdaniPriv: S)
         | "mutex-oplus" -> (module PerMutexOplusPriv)
         | "mutex-meet" -> (module PerMutexMeetPriv)
