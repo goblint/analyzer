@@ -536,7 +536,7 @@ module C2PO = struct
        - The map with the minimal representatives
        - The union find tree. This might have changed because of path compression. *)
     let compute_minimal_representatives (uf, set, map) =
-      if M.tracing then M.trace "c2po" "compute_minimal_representatives\n";
+      if M.tracing then M.trace "c2po-normal-form" "compute_minimal_representatives\n";
       let atoms = SSet.get_atoms set in
       (* process all atoms in increasing order *)
       let atoms =
@@ -667,9 +667,10 @@ module C2PO = struct
     | Some cc ->
       Some {cc with normal_form = lazy(
           let min_repr = MRMap.compute_minimal_representatives (cc.uf, cc.set, cc.map) in
-          get_normal_conjunction cc (fun t -> match MRMap.find_opt t min_repr with | None -> t,Z.zero | Some minr -> minr)
+          if M.tracing then M.trace "c2po-min-repr" "COMPUTE MIN REPR: %s" (MRMap.show_min_rep min_repr);
+          let conj = get_normal_conjunction cc (fun t -> match MRMap.find_opt t min_repr with | None -> t,Z.zero | Some minr -> minr)
+          in if M.tracing then M.trace "c2po-equal" "COMPUTE NORMAL FORM: %s" (show_conj conj); conj
         )}
-
 
   let show_all x = "Normal form:\n" ^
                    show_conj((get_conjunction x)) ^

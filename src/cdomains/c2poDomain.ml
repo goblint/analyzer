@@ -81,7 +81,7 @@ module D = struct
       | None, b -> b
       | a, None -> a
       | Some a, Some b ->
-        if  exactly_equal a b then
+        if exactly_equal a b then
           a'
         else
           (if M.tracing then M.tracel "c2po-join" "JOIN AUTOMATON. FIRST ELEMENT: %s\nSECOND ELEMENT: %s\n"
@@ -89,11 +89,12 @@ module D = struct
            let cc = fst(join_cc_function a b) in
            let cmap1, cmap2 = fst(Disequalities.comp_map a.uf), fst(Disequalities.comp_map b.uf)
            in let cc = Option.map (fun cc -> join_bldis a.bldis b.bldis a b cc cmap1 cmap2) cc in
-           Option.bind cc (fun cc -> join_neq a.diseq b.diseq a b cc cmap1 cmap2))
+           let cc = Option.bind cc (fun cc -> join_neq a.diseq b.diseq a b cc cmap1 cmap2)
+           in reset_normal_form cc)
     in
     if M.tracing then M.tracel "c2po-join" "JOIN. JOIN: %s\n"
         (show_all res);
-    reset_normal_form res
+    res
 
   let join a b = if GobConfig.get_bool "ana.c2po.precise_join" then
       (if M.tracing then M.trace "c2po-join" "Join Automaton"; join a b join_eq) else (if M.tracing then M.trace "c2po-join" "Join Eq classes"; join a b join_eq_no_automata)
@@ -109,7 +110,7 @@ module D = struct
       match join (Some a) (Some b) with
       | None -> None
       | Some join_result ->
-        remove_terms (fun t -> not @@ SSet.mem t a.set) join_result
+        reset_normal_form @@ remove_terms (fun t -> not @@ SSet.mem t a.set) join_result
 
   let widen_eq_classes a' b' =
     let res =
@@ -125,11 +126,12 @@ module D = struct
            let cc = fst(widen_eq_no_automata a b) in
            let cmap1, cmap2 = fst(Disequalities.comp_map a.uf), fst(Disequalities.comp_map b.uf)
            in let cc = Option.bind cc (fun cc -> join_neq a.diseq b.diseq a b cc cmap1 cmap2) in
-           Option.map (fun cc -> join_bldis a.bldis b.bldis a b cc cmap1 cmap2) cc)
+           let cc = Option.map (fun cc -> join_bldis a.bldis b.bldis a b cc cmap1 cmap2) cc in
+           reset_normal_form cc)
     in
     if M.tracing then M.tracel "c2po-join" "WIDEN. WIDEN: %s\n"
         (show_all res);
-    reset_normal_form res
+    res
 
   let widen a b = if M.tracing then M.trace "c2po-widen" "WIDEN\n";
     if GobConfig.get_bool "ana.c2po.precise_join" then
