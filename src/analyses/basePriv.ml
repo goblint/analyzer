@@ -707,42 +707,37 @@ struct
       if is_unprotected ask ~write:false x then
         sideg x v;
       if !earlyglobs then (* earlyglobs workaround for 13/60 *)
-        sideg x v
+        sideg x v (* TODO: is this needed for anything? 13/60 doesn't work for other reasons *)
     );
     {st with cpa = CPA.add x v st.cpa}
 
   let lock ask getg (st: BaseComponents (D).t) m =
-    CPA.fold (fun x v (st: BaseComponents (D).t) ->
-        if is_protected_by ask ~write:false m x && is_unprotected ask ~write:false x then ( (* is_in_Gm *)
-          {st with cpa = CPA.add x (VD.join (CPA.find x st.cpa) (getg x)) st.cpa}
-        )
+    let cpa' = CPA.mapi (fun x v ->
+        if is_protected_by ask ~write:false m x && is_unprotected ask ~write:false x then (* is_in_Gm *)
+          VD.join (CPA.find x st.cpa) (getg x)
         else
-          st
-      ) st.cpa st
+          v
+      ) st.cpa
+    in
+    {st with cpa = cpa'}
 
   let unlock ask getg sideg (st: BaseComponents (D).t) m =
-    (* TODO: what about G_m globals in cpa that weren't actually written? *)
-    CPA.fold (fun x v (st: BaseComponents (D).t) ->
+    CPA.iter (fun x v  ->
         if is_protected_by ask ~write:false m x then ( (* is_in_Gm *)
           if is_unprotected_without ask ~write:false x m then (* is_in_V' *)
-            sideg x v;
-          st
+            sideg x v
         )
-        else
-          st
-      ) st.cpa st
+      ) st.cpa;
+    st
 
   let sync ask getg sideg (st: BaseComponents (D).t) reason =
     let branched_sync () =
       (* required for branched thread creation *)
-      CPA.fold (fun x v (st: BaseComponents (D).t) ->
-          if is_global ask x && is_unprotected ask ~write:false x then (
-            sideg x v;
-            st
-          )
-          else
-            st
-        ) st.cpa st
+      CPA.iter (fun x v ->
+          if is_global ask x && is_unprotected ask ~write:false x then
+            sideg x v
+        ) st.cpa;
+      st
     in
     match reason with
     | `Join when ConfCheck.branched_thread_creation () ->
@@ -758,26 +753,18 @@ struct
       st
 
   let escape ask getg sideg (st: BaseComponents (D).t) escaped =
-    let cpa' = CPA.fold (fun x v acc ->
-        if EscapeDomain.EscapedVars.mem x escaped then (
-          sideg x v;
-          acc
-        )
-        else
-          acc
-      ) st.cpa st.cpa
-    in
-    {st with cpa = cpa'}
+    CPA.iter (fun x v ->
+        if EscapeDomain.EscapedVars.mem x escaped then
+          sideg x v
+      ) st.cpa;
+    st
 
   let enter_multithreaded ask getg sideg (st: BaseComponents (D).t) =
-    CPA.fold (fun x v (st: BaseComponents (D).t) ->
-        if is_global ask x then (
-          sideg x v;
-          st
-        )
-        else
-          st
-      ) st.cpa st
+    CPA.iter (fun x v ->
+        if is_global ask x then
+          sideg x v
+      ) st.cpa;
+    st
 
   let threadenter ask st = st
   let threadspawn ask get set st = st
