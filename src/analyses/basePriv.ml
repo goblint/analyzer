@@ -174,6 +174,84 @@ struct
   let invariant_vars ask getg st = []
 end
 
+module NonePriv2: S =
+struct
+  include NoFinalize
+
+  module G = VD
+  module V = VarinfoV
+  module D = Lattice.Unit
+
+  let init () = ()
+
+  let startstate () = ()
+
+  let lock ask getg st m = st
+  let unlock ask getg sideg st m = st
+
+  let read_global (ask: Queries.ask) getg (st: BaseComponents (D).t) x =
+    VD.join (CPA.find x st.cpa) (getg x)
+
+  let write_global ?(invariant=false) (ask: Queries.ask) getg sideg (st: BaseComponents (D).t) x v =
+    if not invariant then
+      sideg x v;
+    {st with cpa = CPA.add x v st.cpa} (* TODO: pointless when invariant *)
+
+  let sync ask getg sideg (st: BaseComponents (D).t) reason =
+    let branched_sync () =
+      (* required for branched thread creation *)
+      CPA.iter (fun x v ->
+          if is_global ask x then
+            sideg x v
+        ) st.cpa;
+      st
+    in
+    match reason with
+    | `Join when ConfCheck.branched_thread_creation () ->
+      branched_sync ()
+    | `JoinCall when ConfCheck.branched_thread_creation_at_call ask ->
+      branched_sync ()
+    | `Join
+    | `JoinCall
+    | `Return
+    | `Normal
+    | `Init
+    | `Thread ->
+      st
+
+  let escape ask getg sideg (st: BaseComponents (D).t) escaped =
+    CPA.iter (fun x v ->
+        if EscapeDomain.EscapedVars.mem x escaped then
+          sideg x v
+      ) st.cpa;
+    st
+
+  let enter_multithreaded ask getg sideg (st: BaseComponents (D).t) =
+    CPA.iter (fun x v ->
+        if is_global ask x then
+          sideg x v
+      ) st.cpa;
+    st
+
+  let threadenter ask st = st
+  let threadspawn ask get set st = st
+
+  let thread_join ?(force=false) ask get e st = st
+  let thread_return ask get set tid st = st
+
+  let iter_sys_vars getg vq vf =
+    match vq with
+    | VarQuery.Global g ->
+      vf g;
+    | _ -> ()
+
+  let invariant_global ask getg g =
+    ValueDomain.invariant_global getg g
+
+  let invariant_vars ask getg st = []
+end
+
+
 module PerMutexPrivBase =
 struct
   include NoFinalize
@@ -2011,6 +2089,7 @@ let priv_module: (module S) Lazy.t =
     let module Priv: S =
       (val match get_string "ana.base.privatization" with
         | "none" -> (module NonePriv: S)
+        | "none2" -> (module NonePriv2: S)
         | "vojdani" -> (module VojdaniPriv: S)
         | "mutex-oplus" -> (module PerMutexOplusPriv)
         | "mutex-meet" -> (module PerMutexMeetPriv)
