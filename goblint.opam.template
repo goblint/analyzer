@@ -1,10 +1,9 @@
 # on `dune build` goblint.opam will be generated from goblint.opam.template and dune-project
 # also remember to generate/adjust goblint.opam.locked!
 available: os-family != "bsd" & os-distribution != "alpine"
-# pin-depends: [
-  # published goblint-cil 2.0.4 is currently up-to-date, so no pin needed
-  # [ "goblint-cil.2.0.3" "git+https://github.com/goblint/cil.git#ae3a4949d478fad77e004c6fe15a7c83427df59f" ]
-# ]
+pin-depends: [
+  [ "goblint-cil.2.0.4" "git+https://github.com/goblint/cil.git#317e26d48b06d5cdc4acff3df1a6824587052b53" ]
+]
 depexts: [
   ["libgraph-easy-perl"] {os-distribution = "ubuntu" & with-test}
 ]

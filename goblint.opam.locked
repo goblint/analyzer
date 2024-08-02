@@ -136,6 +136,12 @@ conflicts: [
 post-messages: [
   "Do not benchmark Goblint on OCaml 5 (https://goblint.readthedocs.io/en/latest/user-guide/benchmarking/)." {ocaml:version >= "5.0.0"}
 ]
+pin-depends: [
+  [
+    "goblint-cil.2.0.4"
+    "git+https://github.com/goblint/cil.git#317e26d48b06d5cdc4acff3df1a6824587052b53"
+  ]
+]
 depexts: ["libgraph-easy-perl"] {os-distribution = "ubuntu" & with-test}
 description: """\
 Goblint is a sound static analysis framework for C programs using abstract interpretation.
