@@ -667,14 +667,14 @@ struct
 
   let threadenter ctx ~multiple lval f args =
     let st = ctx.local in
+    (* TODO: HACK: Simulate enter_multithreaded for first entering thread to publish global inits before analyzing thread.
+       Otherwise thread is analyzed with no global inits, reading globals gives bot, which turns into top, which might get published...
+       sync `Thread doesn't help us here, it's not specific to entering multithreaded mode.
+       EnterMultithreaded events only execute after threadenter and threadspawn. *)
+    if not (ThreadFlag.has_ever_been_multi (Analyses.ask_of_ctx ctx)) then
+      ignore (Priv.enter_multithreaded (Analyses.ask_of_ctx ctx) ctx.global ctx.sideg st);
     match Cilfacade.find_varinfo_fundec f with
     | fd ->
-      (* TODO: HACK: Simulate enter_multithreaded for first entering thread to publish global inits before analyzing thread.
-         Otherwise thread is analyzed with no global inits, reading globals gives bot, which turns into top, which might get published...
-         sync `Thread doesn't help us here, it's not specific to entering multithreaded mode.
-         EnterMultithreaded events only execute after threadenter and threadspawn. *)
-      if not (ThreadFlag.has_ever_been_multi (Analyses.ask_of_ctx ctx)) then
-        ignore (Priv.enter_multithreaded (Analyses.ask_of_ctx ctx) ctx.global ctx.sideg st);
       let st' = Priv.threadenter (Analyses.ask_of_ctx ctx) ctx.global st in
       let new_rel = make_callee_rel ~thread:true ctx fd args in
       [{st' with rel = new_rel}]
