@@ -2149,7 +2149,7 @@ struct
       end
     | _, _ when get_bool "sem.unknown_function.spawn" ->
       (* TODO: Remove sem.unknown_function.spawn check because it is (and should be) really done in LibraryFunctions.
-         But here we consider all non-ThreadCrate functions also unknown, so old-style LibraryFunctions access
+         But here we consider all non-ThreadCreate functions also unknown, so old-style LibraryFunctions access
          definitions using `Write would still spawn because they are not truly unknown functions (missing from LibraryFunctions).
          Need this to not have memmove spawn in SV-COMP. *)
       let shallow_args = LibraryDesc.Accesses.find desc.accs { kind = Spawn; deep = false } args in
