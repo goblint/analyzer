@@ -132,7 +132,7 @@ struct
            let t = D.remove_may_equal_terms ask s lterm ctx.local in
            begin match desc.special exprs with
              | Malloc _ | Calloc _ | Alloca _ ->
-               reset_normal_form @@ add_block_diseqs t lterm
+               add_block_diseqs t lterm
              | _ -> t
            end)
         with (T.UnsupportedCilExpression _) -> D.top ()
@@ -143,7 +143,7 @@ struct
         ctx.local
       else
         branch ctx exp true
-    | _ -> t
+    | _ -> reset_normal_form t
 
   let duplicated_variable var = { var with vid = - var.vid - 4; vname = "c2po__" ^ var.vname ^ "'" }
   let original_variable var = { var with vid = - (var.vid + 4); vname = String.lchop ~n:11 @@ String.rchop var.vname }
