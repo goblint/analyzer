@@ -45,6 +45,7 @@ Goblint includes analyses for assertions, overflows, deadlocks, etc and can be e
     (ppx_deriving (>= 6.0.2))
     (ppx_deriving_hash (>= 0.1.2))
     (ppx_deriving_yojson (>= 3.7.0))
+    (ppx_blob (>= 0.8.0))
     (ounit2 :with-test)
     (qcheck-ounit :with-test)
     (odoc :with-doc)
