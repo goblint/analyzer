@@ -448,7 +448,7 @@ module PerMutexMeetTIDPriv (Digest: Digest): S =
 struct
   open Queries.Protection
   include PerMutexMeetPrivBase
-  include PerMutexTidCommon (Digest) (CPA)
+  include PerMutexTidCommonNC (Digest) (CPA)
 
   let iter_sys_vars getg vq vf =
     match vq with
