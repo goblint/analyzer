@@ -1,5 +1,5 @@
 // PARAM: --set ana.malloc.wrappers "['ldv_malloc']"
-
+// NOCRASH
 #include <stdlib.h>
 
 typedef unsigned long __kernel_ulong_t;

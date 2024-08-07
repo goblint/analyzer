@@ -1,5 +1,6 @@
 // PARAM: --enable ana.int.interval_set --enable ana.int.def_exc
 // from: ldv-linux-3.0/usb_urb-drivers-vhost-vhost_net.ko.cil.out.i
+// NOCHECK
 typedef unsigned long long u64;
 
 int main( )

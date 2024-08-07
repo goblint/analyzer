@@ -1,6 +1,6 @@
 // PARAM: --enable ana.sv-comp.functions
 // manually minimized from sv-benchmarks/c/seq-mthreaded/pals_lcr.3.ufo.UNBOUNDED.pals.c
-// used to not reach fixpoint due to def_exc range
+// FIXPOINT: used to not reach fixpoint due to def_exc range
 _Bool __VERIFIER_nondet_bool(void) ;
 
 _Bool mode1  ;

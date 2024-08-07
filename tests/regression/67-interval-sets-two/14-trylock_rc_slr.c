@@ -1,4 +1,5 @@
 // PARAM: --enable ana.int.interval_set --set solver slr3t
+// NOCHECK
 #include <pthread.h>
 
 pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;

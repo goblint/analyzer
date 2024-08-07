@@ -79,9 +79,9 @@
     "result": {
       "title": "result",
       "description":
-        "Result style: none, fast_xml, json, pretty, json-messages, sarif.",
+        "Result style: none, fast_xml, json, pretty, pretty-deterministic, json-messages, sarif.",
       "type": "string",
-      "enum": ["none", "fast_xml", "json", "pretty", "json-messages", "sarif"],
+      "enum": ["none", "fast_xml", "json", "pretty", "pretty-deterministic", "json-messages", "sarif"],
       "default": "none"
     },
     "solver": {

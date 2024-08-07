@@ -1,5 +1,5 @@
-(executable
- (name yamlWitnessStrip)
+(executables
+ (names yamlWitnessStrip yamlWitnessStripDiff)
  (libraries
    batteries.unthreaded
    goblint_std

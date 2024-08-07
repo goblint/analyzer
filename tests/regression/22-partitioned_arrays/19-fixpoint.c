@@ -1,4 +1,5 @@
 // PARAM: --set ana.base.arrays.domain partitioned
+// FIXPOINT
 #include <pthread.h>
 
 int stored_elements[20];

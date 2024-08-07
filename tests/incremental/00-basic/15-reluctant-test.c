@@ -1,5 +1,5 @@
 #include <goblint.h>
-// This test used to resulted in an unreached fixpoint in the incremental implementation.
+// FIXPOINT: This test used to resulted in an unreached fixpoint in the incremental implementation.
 
 int g = 3;
 

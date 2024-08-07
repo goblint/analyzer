@@ -1,4 +1,5 @@
 // https://github.com/goblint/analyzer/issues/554
+// FIXPOINT
 int a;
 
 int main() { c(&a); }

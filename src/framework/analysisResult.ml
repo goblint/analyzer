@@ -45,6 +45,18 @@ struct
     let defline () = dprintf "OTHERS -> Not available\n" in
     dprintf "@[Mapping {\n  @[%t%t@]}@]" content defline
 
+  let pretty_deterministic () mapping =
+    let bindings =
+      to_list mapping
+      |> List.sort [%ord: ResultNode.t * Range.t]
+    in
+    let f dok (key, st) =
+      dok ++ dprintf "%a ->@?  @[%a@]\n" ResultNode.pretty key Range.pretty st
+    in
+    let content () = List.fold_left f nil bindings in
+    let defline () = dprintf "OTHERS -> Not available\n" in
+    dprintf "@[Mapping {\n  @[%t%t@]}@]" content defline
+
   include C
 
   let printXml f xs =
@@ -91,6 +103,7 @@ struct
     let out = Messages.get_out result_name !Messages.out in
     match get_string "result" with
     | "pretty" -> ignore (fprintf out "%a\n" pretty (Lazy.force table))
+    | "pretty-deterministic" -> ignore (fprintf out "%a\n" pretty_deterministic (Lazy.force table))
     | "fast_xml" ->
       let module SH = BatHashtbl.Make (Basetype.RawStrings) in
       let file2funs = SH.create 100 in

@@ -1,5 +1,5 @@
 #include<stdio.h>
-
+// CRAM
 int myVar = 1;
 
 int main() {

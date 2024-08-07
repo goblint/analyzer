@@ -8,7 +8,7 @@ int main()
 
   t = &c;
 
-  // Type of *t and c do not match, this caused a crash before
+  // NOCRASH: Type of *t and c do not match, this caused a crash before
   if(*t == 'a') {
     t++;
   }
@@ -18,7 +18,7 @@ int main()
 
 int other()
 {
-  // Same problem, but a bit more involved
+  // NOCRASH: Same problem, but a bit more involved
   unsigned char *t;
   char buf[100] = "bliblablubapk\r";
 

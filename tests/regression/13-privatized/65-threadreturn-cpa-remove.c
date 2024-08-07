@@ -1,5 +1,5 @@
 #include <pthread.h>
-
+// NOCHECK
 int d;
 pthread_t g;
 enum { b } c() {}

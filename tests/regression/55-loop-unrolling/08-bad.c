@@ -1,4 +1,5 @@
 // PARAM: --set exp.unrolling-factor 1 --enable dbg.run_cil_check
+// CRAM
 int main() {
   int m;
 

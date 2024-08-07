@@ -1,6 +1,6 @@
   $ goblint --set lib.activated '[]' --set exp.unrolling-factor 1 --enable justcil --set dbg.justcil-printer clean 08-bad.c
-  [Info] unrolling loop at 08-bad.c:8:7-8:23 with factor 1
-  [Info] unrolling loop at 08-bad.c:14:8-14:24 with factor 1
+  [Info] unrolling loop at 08-bad.c:9:7-9:23 with factor 1
+  [Info] unrolling loop at 08-bad.c:15:8-15:24 with factor 1
   int main(void) 
   { 
     int m ;

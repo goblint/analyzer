@@ -1,4 +1,5 @@
 //PARAM: --set ana.activated[+] useAfterFree
+// NOCHECK
 #include <stdlib.h>
 
 int *global;

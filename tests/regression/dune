@@ -2,7 +2,8 @@
  (_
   (binaries
     ./cfg/util/cfgDot.exe
-    ../util/yamlWitnessStrip.exe)))
+    ../util/yamlWitnessStrip.exe
+    ../util/yamlWitnessStripDiff.exe)))
 
 (rule
  (alias runtest)
@@ -24,4 +25,5 @@
  (alias runcramtest)
  (deps
    (package goblint)
-   %{bin:yamlWitnessStrip}))
+   %{bin:yamlWitnessStrip}
+   %{bin:yamlWitnessStripDiff}))
