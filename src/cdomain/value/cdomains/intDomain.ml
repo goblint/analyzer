@@ -582,6 +582,59 @@ module IntervalArith (Ints_t : IntOps.IntOps) = struct
     List.exists (Z.equal l) ts
 end
 
+module IntInvariant =
+struct
+  let of_int e ik x =
+    if get_bool "witness.invariant.exact" then
+      Invariant.of_exp Cil.(BinOp (Eq, e, kintegerCilint ik x, intType))
+    else
+      Invariant.none
+
+  let of_incl_list e ik ps =
+    match ps with
+    | [_; _] when ik = IBool && not (get_bool "witness.invariant.inexact-type-bounds") ->
+      assert (List.mem Z.zero ps);
+      assert (List.mem Z.one ps);
+      Invariant.none
+    | [_] when get_bool "witness.invariant.exact" ->
+      Invariant.none
+    | _ :: _ :: _
+    | [_] | [] ->
+      List.fold_left (fun a x ->
+          let i = Invariant.of_exp Cil.(BinOp (Eq, e, kintegerCilint ik x, intType)) in
+          Invariant.(a || i) [@coverage off] (* bisect_ppx cannot handle redefined (||) *)
+        ) (Invariant.bot ()) ps
+
+  let of_interval_opt e ik = function
+    | (Some x1, Some x2) when Z.equal x1 x2 ->
+      of_int e ik x1
+    | x1_opt, x2_opt ->
+      let (min_ik, max_ik) = Size.range ik in
+      let inexact_type_bounds = get_bool "witness.invariant.inexact-type-bounds" in
+      let i1 =
+        match x1_opt, inexact_type_bounds with
+        | Some x1, false when Z.equal min_ik x1 -> Invariant.none
+        | Some x1, _ -> Invariant.of_exp Cil.(BinOp (Le, kintegerCilint ik x1, e, intType))
+        | None, _ -> Invariant.none
+      in
+      let i2 =
+        match x2_opt, inexact_type_bounds with
+        | Some x2, false when Z.equal x2 max_ik -> Invariant.none
+        | Some x2, _ -> Invariant.of_exp Cil.(BinOp (Le, e, kintegerCilint ik x2, intType))
+        | None, _ -> Invariant.none
+      in
+      Invariant.(i1 && i2)
+
+  let of_interval e ik (x1, x2) =
+    of_interval_opt e ik (Some x1, Some x2)
+
+  let of_excl_list e ik ns =
+    List.fold_left (fun a x ->
+        let i = Invariant.of_exp Cil.(BinOp (Ne, e, kintegerCilint ik x, intType)) in
+        Invariant.(a && i)
+      ) (Invariant.top ()) ns
+end
+
 module IntervalFunctor (Ints_t : IntOps.IntOps): SOverflow with type int_t = Ints_t.t and type t = (Ints_t.t * Ints_t.t) option =
 struct
   let name () = "intervals"
@@ -915,21 +968,10 @@ struct
       else if Ints_t.compare y2 x1 <= 0 then of_bool ik false
       else top_bool
 
-  let invariant_ikind e ik x =
-    match x with
-    | Some (x1, x2) when Ints_t.compare x1 x2 = 0 ->
-      if get_bool "witness.invariant.exact" then
-        let x1 = Ints_t.to_bigint x1 in
-        Invariant.of_exp Cil.(BinOp (Eq, e, kintegerCilint ik x1, intType))
-      else
-        Invariant.top ()
+  let invariant_ikind e ik = function
     | Some (x1, x2) ->
-      let (min_ik, max_ik) = range ik in
-      let (x1', x2') = BatTuple.Tuple2.mapn (Ints_t.to_bigint) (x1, x2) in
-      let inexact_type_bounds = get_bool "witness.invariant.inexact-type-bounds" in
-      let i1 = if inexact_type_bounds || Ints_t.compare min_ik x1 <> 0 then Invariant.of_exp Cil.(BinOp (Le, kintegerCilint ik x1', e, intType)) else Invariant.none in
-      let i2 = if inexact_type_bounds || Ints_t.compare x2 max_ik <> 0 then Invariant.of_exp Cil.(BinOp (Le, e, kintegerCilint ik x2', intType)) else Invariant.none in
-      Invariant.(i1 && i2)
+      let (x1', x2') = BatTuple.Tuple2.mapn Ints_t.to_bigint (x1, x2) in
+      IntInvariant.of_interval e ik (x1', x2')
     | None -> Invariant.none
 
   let arbitrary ik =
@@ -2297,25 +2339,14 @@ struct
   let invariant_ikind e ik (x:t) =
     match x with
     | `Definite x ->
-      if get_bool "witness.invariant.exact" then
-        Invariant.of_exp Cil.(BinOp (Eq, e, kintegerCilint ik x, intType))
-      else
-        Invariant.top ()
+      IntInvariant.of_int e ik x
     | `Excluded (s, r) ->
       (* Emit range invariant if tighter than ikind bounds.
          This can be more precise than interval, which has been widened. *)
       let (rmin, rmax) = (Exclusion.min_of_range r, Exclusion.max_of_range r) in
-      let (ikmin, ikmax) =
-        let ikr = size ik in
-        (Exclusion.min_of_range ikr, Exclusion.max_of_range ikr)
-      in
-      let inexact_type_bounds = get_bool "witness.invariant.inexact-type-bounds" in
-      let imin = if inexact_type_bounds || Z.compare ikmin rmin <> 0 then Invariant.of_exp Cil.(BinOp (Le, kintegerCilint ik rmin, e, intType)) else Invariant.none in
-      let imax = if inexact_type_bounds || Z.compare rmax ikmax <> 0 then Invariant.of_exp Cil.(BinOp (Le, e, kintegerCilint ik rmax, intType)) else Invariant.none in
-      S.fold (fun x a ->
-          let i = Invariant.of_exp Cil.(BinOp (Ne, e, kintegerCilint ik x, intType)) in
-          Invariant.(a && i)
-        ) s Invariant.(imin && imax)
+      let ri = IntInvariant.of_interval e ik (rmin, rmax) in
+      let si = IntInvariant.of_excl_list e ik (S.elements s) in
+      Invariant.(ri && si)
     | `Bot -> Invariant.none
 
   let arbitrary ik =
@@ -2731,32 +2762,16 @@ module Enums : S with type int_t = Z.t = struct
   let ne ik x y = c_lognot ik (eq ik x y)
 
   let invariant_ikind e ik x =
-    let inexact_type_bounds = get_bool "witness.invariant.inexact-type-bounds" in
     match x with
-    | Inc ps when not inexact_type_bounds && ik = IBool && is_top_of ik x ->
-      Invariant.none
     | Inc ps ->
-      if BISet.cardinal ps > 1 || get_bool "witness.invariant.exact" then
-        BISet.fold (fun x a ->
-            let i = Invariant.of_exp Cil.(BinOp (Eq, e, kintegerCilint ik x, intType)) in
-            Invariant.(a || i) [@coverage off] (* bisect_ppx cannot handle redefined (||) *)
-          ) ps (Invariant.bot ())
-      else
-        Invariant.top ()
+      IntInvariant.of_incl_list e ik (BISet.elements ps)
     | Exc (ns, r) ->
       (* Emit range invariant if tighter than ikind bounds.
          This can be more precise than interval, which has been widened. *)
       let (rmin, rmax) = (Exclusion.min_of_range r, Exclusion.max_of_range r) in
-      let (ikmin, ikmax) =
-        let ikr = size ik in
-        (Exclusion.min_of_range ikr, Exclusion.max_of_range ikr)
-      in
-      let imin = if inexact_type_bounds || Z.compare ikmin rmin <> 0 then Invariant.of_exp Cil.(BinOp (Le, kintegerCilint ik rmin, e, intType)) else Invariant.none in
-      let imax = if inexact_type_bounds || Z.compare rmax ikmax <> 0 then Invariant.of_exp Cil.(BinOp (Le, e, kintegerCilint ik rmax, intType)) else Invariant.none in
-      BISet.fold (fun x a ->
-          let i = Invariant.of_exp Cil.(BinOp (Ne, e, kintegerCilint ik x, intType)) in
-          Invariant.(a && i)
-        ) ns Invariant.(imin && imax)
+      let ri = IntInvariant.of_interval e ik (rmin, rmax) in
+      let nsi = IntInvariant.of_excl_list e ik (BISet.elements ns) in
+      Invariant.(ri && nsi)
 
 
   let arbitrary ik =
@@ -2779,7 +2794,7 @@ module Enums : S with type int_t = Z.t = struct
     | Inc e, Some (c, m) -> Inc (BISet.filter (contains c m) e)
     | _ -> a
 
-  let refine_with_interval ik a b = a
+  let refine_with_interval ik a b = a (* TODO: refine inclusion (exclusion?) set *)
 
   let refine_with_excl_list ik a b =
     match b with
@@ -3243,10 +3258,7 @@ struct
     match x with
     | x when is_top x -> Invariant.top ()
     | Some (c, m) when m =: Z.zero ->
-      if get_bool "witness.invariant.exact" then
-        Invariant.of_exp Cil.(BinOp (Eq, e, Cil.kintegerCilint ik c, intType))
-      else
-        Invariant.top ()
+      IntInvariant.of_int e ik c
     | Some (c, m) ->
       let open Cil in
       let (c, m) = BatTuple.Tuple2.mapn (fun a -> kintegerCilint ik a) (c, m) in
@@ -3524,7 +3536,7 @@ module IntDomTupleImpl = struct
     let merge ps =
       let (vs, rs) = List.split ps in
       let (mins, maxs) = List.split rs in
-      (List.concat vs, (List.min mins, List.max maxs))
+      (List.concat vs |> List.sort_uniq Z.compare, (List.min mins, List.max maxs))
     in
     mapp2 { fp2 = fun (type a) (module I:SOverflow with type t = a and type int_t = int_t) -> I.to_excl_list } x |> flat merge
 
@@ -3565,7 +3577,7 @@ module IntDomTupleImpl = struct
     in
     [(fun (a, b, c, d, e) -> refine_with_excl_list ik (a, b, c, d, e) (to_excl_list (a, b, c, d, e)));
      (fun (a, b, c, d, e) -> refine_with_incl_list ik (a, b, c, d, e) (to_incl_list (a, b, c, d, e)));
-     (fun (a, b, c, d, e) -> maybe refine_with_interval ik (a, b, c, d, e) b);
+     (fun (a, b, c, d, e) -> maybe refine_with_interval ik (a, b, c, d, e) b); (* TODO: get interval across all domains with minimal and maximal *)
      (fun (a, b, c, d, e) -> maybe refine_with_congruence ik (a, b, c, d, e) d)]
 
   let refine ik ((a, b, c, d, e) : t ) : t =
@@ -3777,19 +3789,47 @@ module IntDomTupleImpl = struct
     | Some v when not (GobConfig.get_bool "dbg.full-output") -> BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (Z.to_string v)
     | _ -> BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (show x)
 
-  let invariant_ikind e ik x =
-    match to_int x with
-    | Some v ->
-      if get_bool "witness.invariant.exact" then
-        (* If definite, output single equality instead of every subdomain repeating same equality *)
-        Invariant.of_exp Cil.(BinOp (Eq, e, kintegerCilint ik v, intType))
-      else
-        Invariant.top ()
-    | None ->
-      let is = to_list (mapp { fp = fun (type a) (module I:SOverflow with type t = a) -> I.invariant_ikind e ik } x)
-      in List.fold_left (fun a i ->
+  let invariant_ikind e ik ((_, _, _, x_cong, x_intset) as x) =
+    (* TODO: do refinement before to ensure incl_list being more precise than intervals, etc (https://github.com/goblint/analyzer/pull/1517#discussion_r1693998515), requires refine functions to actually refine that *)
+    let simplify_int fallback =
+      match to_int x with
+      | Some v ->
+        (* If definite, output single equality instead of every subdomain repeating same equality (or something less precise). *)
+        IntInvariant.of_int e ik v
+      | None ->
+        fallback ()
+    in
+    let simplify_all () =
+      match to_incl_list x with
+      | Some ps ->
+        (* If inclusion set, output disjunction of equalities because it subsumes interval(s), exclusion set and congruence. *)
+        IntInvariant.of_incl_list e ik ps
+      | None ->
+        (* Get interval bounds from all domains (intervals and exclusion set ranges). *)
+        let min = minimal x in
+        let max = maximal x in
+        let ns = Option.map fst (to_excl_list x) |? [] in (* Ignore exclusion set bit range, known via interval bounds already. *)
+        (* "Refine" out-of-bounds exclusions for simpler output. *)
+        let ns = Option.map_default (fun min -> List.filter (Z.leq min) ns) ns min in
+        let ns = Option.map_default (fun max -> List.filter (Z.geq max) ns) ns max in
+        Invariant.(
+          IntInvariant.of_interval_opt e ik (min, max) && (* Output best interval bounds once instead of multiple subdomains repeating them (or less precise ones). *)
+          IntInvariant.of_excl_list e ik ns &&
+          Option.map_default (I4.invariant_ikind e ik) Invariant.none x_cong && (* Output congruence as is. *)
+          Option.map_default (I5.invariant_ikind e ik) Invariant.none x_intset (* Output interval sets as is. *)
+        )
+    in
+    let simplify_none () =
+      let is = to_list (mapp { fp = fun (type a) (module I:SOverflow with type t = a) -> I.invariant_ikind e ik } x) in
+      List.fold_left (fun a i ->
           Invariant.(a && i)
         ) (Invariant.top ()) is
+    in
+    match GobConfig.get_string "ana.base.invariant.int.simplify" with
+    | "none" -> simplify_none ()
+    | "int" -> simplify_int simplify_none
+    | "all" -> simplify_int simplify_all
+    | _ -> assert false
 
   let arbitrary ik = QCheck.(set_print show @@ tup5 (option (I1.arbitrary ik)) (option (I2.arbitrary ik)) (option (I3.arbitrary ik)) (option (I4.arbitrary ik)) (option (I5.arbitrary ik)))
 
