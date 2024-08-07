@@ -158,7 +158,7 @@ struct
     local variables of the caller and the pointers that were modified by the function. *)
   let enter ctx var_opt f args =
     (* add duplicated variables, and set them equal to the original variables *)
-    let added_equalities = T.filter_valid_pointers (List.map (fun v -> Equal (T.term_of_varinfo (ShadowVar v), T.term_of_varinfo (NormalVar v), Z.zero)) f.sformals) in
+    let added_equalities = T.filter_valid_pointers (List.map (fun v -> Equal (T.term_of_varinfo (DuplicVar v), T.term_of_varinfo (NormalVar v), Z.zero)) f.sformals) in
     let state_with_duplicated_vars = meet_conjs_opt added_equalities ctx.local in
     if M.tracing then M.trace "c2po-function" "ENTER1: var_opt: %a; state: %s; state_with_duplicated_vars: %s\n" d_lval (BatOption.default (Var (Var.dummy_varinfo (TVoid [])), NoOffset) var_opt) (D.show ctx.local) (D.show state_with_duplicated_vars);
     (* remove callee vars that are not reachable and not global *)
@@ -180,7 +180,7 @@ struct
     let og_t = t in
     (* assign function parameters to duplicated values *)
     let arg_assigns = GobList.combine_short f.sformals args in
-    let state_with_assignments = List.fold_left (fun st (var, exp) -> assign_term st (ask_of_ctx ctx) (T.term_of_varinfo (ShadowVar var)) (T.of_cil ask exp) var.vtype) ctx.local arg_assigns in
+    let state_with_assignments = List.fold_left (fun st (var, exp) -> assign_term st (ask_of_ctx ctx) (T.term_of_varinfo (DuplicVar var)) (T.of_cil ask exp) var.vtype) ctx.local arg_assigns in
     if M.tracing then M.trace "c2po-function" "COMBINE_ASSIGN0: state_with_assignments: %s\n" (D.show state_with_assignments);
     (*remove all variables that were tainted by the function*)
     let tainted = ask.f (MayBeTainted)
@@ -195,7 +195,7 @@ struct
   let combine_assign ctx var_opt expr f args t_context_opt t (ask: Queries.ask) =
     (* assign function parameters to duplicated values *)
     let arg_assigns = GobList.combine_short f.sformals args in
-    let state_with_assignments = List.fold_left (fun st (var, exp) -> assign_term st (ask_of_ctx ctx) (T.term_of_varinfo (ShadowVar var)) (T.of_cil ask exp) var.vtype) ctx.local arg_assigns in
+    let state_with_assignments = List.fold_left (fun st (var, exp) -> assign_term st (ask_of_ctx ctx) (T.term_of_varinfo (DuplicVar var)) (T.of_cil ask exp) var.vtype) ctx.local arg_assigns in
     let t = D.meet state_with_assignments t in
     let t = match var_opt with
       | None -> t

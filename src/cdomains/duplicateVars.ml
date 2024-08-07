@@ -3,6 +3,9 @@ open GoblintCil
 open Batteries
 open GoblintCil
 
+(** Variable Type used by the C-2PO  Analysis.
+It contains normal variables with a varinfo as well as auxiliary variables for
+assignment and return and duplicated variables for remembering the value of variables at the beginning of a function. *)
 module VarType = struct
   let equal_typ _ _ = true
   let hash_typ _ = 0
@@ -11,22 +14,22 @@ module VarType = struct
   type t = AssignAux of (typ[@compare.ignore][@eq.ignore][@hash.ignore])
          | ReturnAux of (typ[@compare.ignore][@eq.ignore][@hash.ignore])
          | NormalVar of Varinfo.t
-         | ShadowVar of Varinfo.t [@@deriving eq,ord,hash]
+         | DuplicVar of Varinfo.t [@@deriving eq,ord,hash]
 
   let from_varinfo normal duplicated =
-    List.map (fun v -> NormalVar v) normal @ List.map (fun v -> ShadowVar v) duplicated
+    List.map (fun v -> NormalVar v) normal @ List.map (fun v -> DuplicVar v) duplicated
 
   let show v = match v with
     | AssignAux t -> "AuxAssign"
     | ReturnAux t -> "AuxReturn"
     | NormalVar v -> v.vname
-    | ShadowVar v -> "c2po__" ^ v.vname ^ "'"
+    | DuplicVar v -> "c2po__" ^ v.vname ^ "'"
 
   let name_varinfo v = match v with
     | AssignAux t -> "AuxAssign"
     | ReturnAux t -> "AuxReturn"
     | NormalVar v -> string_of_int v.vid
-    | ShadowVar v -> "c2po__" ^ string_of_int v.vid ^ "'"
+    | DuplicVar v -> "c2po__" ^ string_of_int v.vid ^ "'"
 
 
   (* Description that gets appended to the varinfo-name in user output. *)
@@ -49,6 +52,6 @@ struct
     | AssignAux t -> {var with vtype = t}
     | ReturnAux t -> {var with vtype = t}
     | NormalVar v -> v
-    | ShadowVar v -> {v with vid = var.vid}
+    | DuplicVar v -> {v with vid = var.vid}
 
 end
