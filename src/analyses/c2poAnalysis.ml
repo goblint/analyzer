@@ -64,9 +64,9 @@ struct
       end
     | _ -> Result.top q
 
-  let assign_term t ask lterm expr lval_t =
+  let assign_term t ask lterm rhs lval_t =
     (* ignore assignments to values that are not 64 bits *)
-    match T.get_element_size_in_bits lval_t, T.of_cil ask expr with
+    match T.get_element_size_in_bits lval_t, rhs with
     (* Indefinite assignment *)
     | s, (None, _) -> D.remove_may_equal_terms ask s lterm t
     (* Definite assignment *)
@@ -93,7 +93,8 @@ struct
       D.top ()
 
   let assign ctx lval expr =
-    let res = reset_normal_form @@ assign_lval ctx.local (ask_of_ctx ctx) lval expr in
+    let ask = (ask_of_ctx ctx) in
+    let res = reset_normal_form @@ assign_lval ctx.local ask lval (T.of_cil ask expr) in
     if M.tracing then M.trace "c2po-assign" "ASSIGN: var: %a; expr: %a; result: %s. UF: %s\n" d_lval lval d_plainexp expr (D.show res) (Option.map_default (fun r -> TUF.show_uf r.uf) "None" res); res
 
   let branch ctx e pos =
@@ -170,7 +171,7 @@ struct
 
   let remove_out_of_scope_vars t f =
     let local_vars = f.sformals @ f.slocals in
-    let duplicated_vars = List.map duplicated_variable f.sformals in
+    let duplicated_vars = f.sformals in
     D.remove_terms_containing_variables (ReturnAux (TVoid [])::from_varinfo local_vars duplicated_vars) t
 
   (*ctx caller, t callee, ask callee, t_context_opt context vom callee -> C.t
@@ -179,7 +180,7 @@ struct
     let og_t = t in
     (* assign function parameters to duplicated values *)
     let arg_assigns = GobList.combine_short f.sformals args in
-    let state_with_assignments = List.fold_left (fun st (var, exp) -> assign_term st (ask_of_ctx ctx) (T.term_of_varinfo (ShadowVar var)) exp var.vtype) ctx.local arg_assigns in
+    let state_with_assignments = List.fold_left (fun st (var, exp) -> assign_term st (ask_of_ctx ctx) (T.term_of_varinfo (ShadowVar var)) (T.of_cil ask exp) var.vtype) ctx.local arg_assigns in
     if M.tracing then M.trace "c2po-function" "COMBINE_ASSIGN0: state_with_assignments: %s\n" (D.show state_with_assignments);
     (*remove all variables that were tainted by the function*)
     let tainted = ask.f (MayBeTainted)
@@ -194,11 +195,11 @@ struct
   let combine_assign ctx var_opt expr f args t_context_opt t (ask: Queries.ask) =
     (* assign function parameters to duplicated values *)
     let arg_assigns = GobList.combine_short f.sformals args in
-    let state_with_assignments = List.fold_left (fun st (var, exp) -> assign_term st (ask_of_ctx ctx) (T.term_of_varinfo (ShadowVar var)) exp var.vtype) ctx.local arg_assigns in
+    let state_with_assignments = List.fold_left (fun st (var, exp) -> assign_term st (ask_of_ctx ctx) (T.term_of_varinfo (ShadowVar var)) (T.of_cil ask exp) var.vtype) ctx.local arg_assigns in
     let t = D.meet state_with_assignments t in
     let t = match var_opt with
       | None -> t
-      | Some var -> assign_lval t ask var (MayBeEqual.return_lval (typeOfLval var))
+      | Some var -> assign_lval t ask var (Some (MayBeEqual.return_var (typeOfLval var)), Some Z.zero)
     in
     if M.tracing then M.trace "c2po-function" "COMBINE_ASSIGN2: assigning return value: %s\n" (D.show_all t);
     let t = reset_normal_form @@ remove_out_of_scope_vars t f

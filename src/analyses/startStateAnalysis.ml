@@ -35,7 +35,7 @@ struct
         | Some v -> if M.tracing then M.trace "c2po-tainted" "QUERY %a : res = %a\n" d_exp exp AD.pretty v;v
         | None -> Value.top()
       end
-    | AddrOf (Var x, NoOffset) -> if is_wrpointer_ghost_variable x then (let res = get_value ask (AddrOf (Var (original_variable x), NoOffset)) in if M.tracing then M.trace "c2po-tainted" "QUERY %a, id: %d : res = %a\n" d_exp exp x.vid AD.pretty res;res) else Value.top()
+    | AddrOf (Var x, NoOffset) -> if is_c2po_ghost_variable x then (let res = get_value ask (AddrOf (Var (original_variable x), NoOffset)) in if M.tracing then M.trace "c2po-tainted" "QUERY %a, id: %d : res = %a\n" d_exp exp x.vid AD.pretty res;res) else Value.top()
     | _ -> Value.top ()
 
   let startcontext () = D.empty ()
@@ -52,8 +52,9 @@ struct
   let body ctx (f:fundec) =
     (* assign function parameters *)
     List.fold_left (fun st var -> let value = get_value (ask_of_ctx ctx) (Lval (Var var, NoOffset)) in
-                     if M.tracing then M.trace "startState" "added value: var: %a; value: %a" d_lval (Var (duplicated_variable var), NoOffset) Value.pretty value;
-                     D.add (duplicated_variable var) value st) (D.empty()) f.sformals
+                     let duplicated_var = to_varinfo (ShadowVar var) in
+                     if M.tracing then M.trace "startState" "added value: var: %a; value: %a" d_lval (Var duplicated_var, NoOffset) Value.pretty value;
+                     D.add duplicated_var value st) (D.empty()) f.sformals
 end
 
 let _ =

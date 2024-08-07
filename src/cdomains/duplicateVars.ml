@@ -19,7 +19,7 @@ module Var = struct
   let duplicated_variable var = { var with vid = - var.vid - 4; vname = "c2po__" ^ var.vname ^ "'" }
   let original_variable var = { var with vid = - (var.vid + 4); vname = String.lchop ~n:6 @@ String.rchop var.vname }
 
-  let is_wrpointer_ghost_variable x = x.vid < 0 && String.starts_with x.vname "c2po__"
+  let is_c2po_ghost_variable x = x.vid < 0 && String.starts_with x.vname "c2po__"
   let to_varinfo v = match v with
     | AssignAux t -> dummy_varinfo t
     | ReturnAux t -> return_varinfo t
