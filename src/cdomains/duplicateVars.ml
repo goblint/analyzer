@@ -4,8 +4,8 @@ open Batteries
 open GoblintCil
 
 (** Variable Type used by the C-2PO  Analysis.
-It contains normal variables with a varinfo as well as auxiliary variables for
-assignment and return and duplicated variables for remembering the value of variables at the beginning of a function. *)
+    It contains normal variables with a varinfo as well as auxiliary variables for
+    assignment and return and duplicated variables for remembering the value of variables at the beginning of a function. *)
 module VarType = struct
   let equal_typ _ _ = true
   let hash_typ _ = 0
