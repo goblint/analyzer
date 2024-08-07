@@ -88,7 +88,7 @@ class exp_contains_anon_type_visitor = object
   inherit nopCilVisitor
   method! vtype (t: typ) =
     match t with
-    | TComp ({cname; _}, _) when BatString.starts_with_stdlib ~prefix:"__anon" cname ->
+    | TComp ({cname; _}, _) when String.starts_with ~prefix:"__anon" cname ->
       raise Stdlib.Exit
     | _ ->
       DoChildren
@@ -102,7 +102,7 @@ let exp_contains_anon_type =
 
 
 (* TODO: synchronize magic constant with BaseDomain *)
-let var_is_heap {vname; _} = BatString.starts_with vname "(alloc@"
+let var_is_heap {vname; _} = String.starts_with vname ~prefix:"(alloc@"
 
 let reset_lazy () =
   ResettableLazy.reset exclude_vars_regexp

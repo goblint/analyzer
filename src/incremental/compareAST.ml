@@ -73,7 +73,7 @@ let forward_list_equal ?(propF = (&&>>)) f l1 l2 ~(rename_mapping: rename_mappin
 let compare_name (a: string) (b: string) =
   let anon_struct = "__anonstruct_" in
   let anon_union = "__anonunion_" in
-  if a = b then true else BatString.(starts_with a anon_struct && starts_with b anon_struct || starts_with a anon_union && starts_with b anon_union)
+  if a = b then true else String.(starts_with a ~prefix:anon_struct && starts_with b ~prefix:anon_struct || starts_with a ~prefix:anon_union && starts_with b ~prefix:anon_union)
 
 let rec eq_constant ~(rename_mapping: rename_mapping) ~(acc: (typ * typ) list) (a: constant) (b: constant) : bool * rename_mapping =
   match a, b with
