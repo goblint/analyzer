@@ -7,6 +7,8 @@ open GoblintCil
     It contains normal variables with a varinfo as well as auxiliary variables for
     assignment and return and duplicated variables for remembering the value of variables at the beginning of a function. *)
 module VarType = struct
+  (* the hash/compare values should not depend on the type.
+     But they have to be defined even though they are not used, for some reason.*)
   let equal_typ _ _ = true
   let hash_typ _ = 0
   let compare_typ _ _ = 0
@@ -31,11 +33,8 @@ module VarType = struct
     | NormalVar v -> string_of_int v.vid
     | DuplicVar v -> "c2po__" ^ string_of_int v.vid ^ "'"
 
-
   (* Description that gets appended to the varinfo-name in user output. *)
   let describe_varinfo (var: varinfo) v =
-    (* let loc = UpdateCil.getLoc node in
-       CilType.Location.show loc *)
     show v
 end
 

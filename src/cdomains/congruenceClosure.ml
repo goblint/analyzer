@@ -80,11 +80,6 @@ module C2PO = struct
       | None -> false
       | Some set -> TSet.mem v' set
 
-    let filter_if (map:t) p =
-      TMap.filter_map (fun _ t_set ->
-          let filtered_set = TSet.filter p t_set in
-          if TSet.is_empty filtered_set then None else Some filtered_set) map
-
     let filter_map f (diseq:t) =
       TMap.filter_map
         (fun _ s -> let set = TSet.filter_map f s in
@@ -361,14 +356,6 @@ module C2PO = struct
       List.fold_left (fun s (v,z,v',r) ->
           s ^ "\t" ^ T.show v' ^ ( if Z.equal r Z.zero then "" else if Z.leq r Z.zero then (Z.to_string r) else (" + " ^ Z.to_string r) )^ " --> "
           ^ T.show v^ "+"^ Z.to_string z ^  "\n") "" clist
-
-    let filter_if map p =
-      TMap.filter_map (fun _ zmap ->
-          let zmap = ZMap.filter_map
-              (fun _ t_set -> let filtered_set = TSet.filter p t_set in
-                if TSet.is_empty filtered_set then None else Some filtered_set) zmap
-          in if ZMap.is_empty zmap then None else Some zmap) map
-
     let filter_map f (diseq:t) =
       TMap.filter_map
         (fun _ zmap ->

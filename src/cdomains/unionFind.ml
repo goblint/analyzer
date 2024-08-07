@@ -142,6 +142,7 @@ module T = struct
       and None if the result is not a pointer. *)
   let rec type_of_element typ =
     match typ with
+    | TNamed (typinfo, _) -> type_of_element typinfo.ttype
     | TArray (typ, _, _) -> type_of_element typ
     | TPtr (typ, _) -> Some typ
     | _ -> None
@@ -188,6 +189,8 @@ module T = struct
     else
       aux_term_of_varinfo vinfo
 
+  (** Convert a Cil offset to an integer offset.
+      Copied from memOutOfBounds.ml. *)
   let cil_offs_to_idx (ask: Queries.ask) offs typ =
     (* TODO: Some duplication with convert_offset in base.ml and cil_offs_to_idx in memOutOfBounds.ml,
        unclear how to immediately get more reuse *)
@@ -218,6 +221,8 @@ module T = struct
     in
     PreValueDomain.Offs.to_index ?typ:(Some (convert_type typ)) (convert_offset offs)
 
+  (** Convert an offset to an integer of Z, if posible.
+      Otherwise, this throws UnsupportedCilExpression. *)
   let z_of_offset ask offs typ =
     match IntDomain.IntDomTuple.to_int @@ cil_offs_to_idx ask offs typ with
     | Some i -> i
@@ -225,7 +230,8 @@ module T = struct
     | exception (SizeOfError _) -> if M.tracing then M.trace "c2po-invalidate" "REASON: unknown offset";
       raise (UnsupportedCilExpression "unknown offset")
 
-  let can_be_dereferenced = function
+  let rec can_be_dereferenced = function
+    | TNamed (typinfo, _) -> can_be_dereferenced typinfo.ttype
     | TPtr _| TArray _| TComp _ -> true
     | _ -> false
 
@@ -260,6 +266,7 @@ module T = struct
           BinOp (PlusPI, cil_t, to_cil_constant off (Some typ), typ)
     in if M.tracing then M.trace "c2po-2cil" "exp: %a; offset: %s; res: %a" d_exp cil_t (Z.to_string off) d_exp res;res
 
+  (** Returns the integer offset of a field of a struct. *)
   let get_field_offset finfo = match IntDomain.IntDomTuple.to_int (PreValueDomain.Offs.to_index (`Field (finfo, `NoOffset))) with
     | Some i -> i
     | None -> raise (UnsupportedCilExpression "unknown offset")
@@ -566,16 +573,6 @@ module UnionFind = struct
     | None -> true
     | Some (parent_t, _) -> T.equal v parent_t
 
-  (** The difference between `show_uf` and `show_uf_ugly` is that `show_uf` prints the elements
-      grouped by equivalence classes, while this function just prints them in any order.
-
-      Throws "Unknown value" if v is not present in the data structure. *)
-  let show_uf_ugly uf =
-    List.fold_left (fun s (v, (refv, size)) ->
-        s ^ "\t" ^ (if is_root uf v then "Root: " else "") ^ T.show v ^
-        "; Parent: " ^ T.show (fst refv) ^ "; offset: " ^ Z.to_string (snd refv) ^ "; size: " ^ string_of_int size ^ "\n")
-      "" (ValMap.bindings uf) ^ "\n"
-
   (**
      For a variable t it returns the reference variable v and the offset r.
      This find performs path compression.
@@ -608,13 +605,6 @@ module UnionFind = struct
            in v',r',uf
          else search v' (v :: list)
        in search v' [v])
-
-  (** Returns None if the value v is not present in the datat structure or if the data structure is in an invalid state.*)
-  let find_opt uf v = match find uf v with
-    | exception (UnknownValue _)
-    | exception Not_found
-    | exception (InvalidUnionFind _) -> None
-    | res -> Some res
 
   (**
      For a variable t it returns the reference variable v and the offset r.
@@ -673,6 +663,7 @@ module UnionFind = struct
           "; o: " ^ Z.to_string (snd t) ^ "; s: " ^ string_of_int size ^")\n") "" eq_class
       ^ "----\n") "" (get_eq_classes uf) ^ "\n"
 
+  (** Returns a list of representative elements.*)
   let get_representatives uf =
     List.filter_map (fun (el,_) -> if is_root uf el then Some el else None) (TMap.bindings uf)
 end
@@ -735,15 +726,4 @@ module LookupMap = struct
     match find_opt v map with
     | None -> []
     | Some zmap -> zmap_bindings zmap
-
-  (** Filters elements from the mapped values which fulfil the predicate p. *)
-  let filter_if (map:t) p =
-    TMap.filter_map (fun _ zmap ->
-        let zmap = ZMap.filter (fun key value -> p value) zmap
-        in if ZMap.is_empty zmap then None else Some zmap) map
-
-  (** Maps elements from the mapped values by applying the function f to them. *)
-  let map_values (map:t) f =
-    TMap.map (fun zmap ->
-        ZMap.map f zmap) map
 end
