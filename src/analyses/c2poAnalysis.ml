@@ -4,7 +4,6 @@ open Analyses
 open GoblintCil
 open C2poDomain
 open CongruenceClosure
-open C2PO
 open Batteries
 open SingleThreadedLifter
 open DuplicateVars
