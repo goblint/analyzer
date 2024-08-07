@@ -1,4 +1,8 @@
-
+(**
+   The Union Find is used by the C-2PO Analysis.
+   This file contains the code for a quantitative union find and the quantitative finite automata.
+   They will be necessary in order to construct the congruence closure of terms.
+*)
 open Batteries
 open GoblintCil
 open DuplicateVars
@@ -726,4 +730,14 @@ module LookupMap = struct
     match find_opt v map with
     | None -> []
     | Some zmap -> zmap_bindings zmap
+
+  (** Find all elements that are in the same equivalence class as t,
+      given the cmap. *)
+  let comp_t_cmap_repr cmap t =
+    match TMap.find_opt t cmap with
+    | None -> [Z.zero, t]
+    | Some zmap ->
+      List.concat_map
+        (fun (z, set) ->
+           List.cartesian_product [z] (TSet.to_list set)) (ZMap.bindings zmap)
 end

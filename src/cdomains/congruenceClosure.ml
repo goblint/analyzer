@@ -52,30 +52,20 @@ module BlDis = struct
     List.fold (fun bldiseq t2 ->
         add_block_diseq bldiseq (t1, t2)) bldiseq tlist
 
-  (** Find all elements that are in the same equivalence class as t,
-      given the cmap, but only those that are now representatives in the union find uf. *)
-  let comp_t_cmap_repr cmap t uf =
-    match TMap.find_opt t cmap with
-    | None -> [Z.zero, t]
-    | Some zmap ->
-      List.concat_map
-        (fun (z, set) ->
-           List.cartesian_product [z] (TSet.to_list (*TSet.filter (TUF.is_root uf*) set)) (ZMap.bindings zmap)
-
   (** For each block disequality bl(t1) != bl(t2) we add all disequalities
       that follow from equalities. I.e., if t1 = z1 + t1' and t2 = z2 + t2',
-      then we add the disequaity  bl(t1') != bl(t2'),
-      but only for t1' and t2' which are roots in uf.
+      then we add the disequaity  bl(t1') != bl(t2').
   *)
-  let element_closure bldis cmap uf =
+  let element_closure bldis cmap =
     let comp_closure = function
       | BlNequal (r1,r2) ->
-        let eq_class1, eq_class2 = comp_t_cmap_repr cmap r1 uf, comp_t_cmap_repr cmap r2 uf in
+        let eq_class1, eq_class2 = LMap.comp_t_cmap_repr cmap r1, LMap.comp_t_cmap_repr cmap r2 in
         List.cartesian_product (List.map snd eq_class1) (List.map snd eq_class2)
       | _ -> []
     in
     List.concat_map comp_closure bldis
 
+  (** Returns true if bl(v) != bl(v'). *)
   let map_set_mem v v' (map:t) = match TMap.find_opt v map with
     | None -> false
     | Some set -> TSet.mem v' set
@@ -84,12 +74,6 @@ module BlDis = struct
     TMap.filter_map
       (fun _ s -> let set = TSet.filter_map f s in
         if TSet.is_empty set then None else Some set) diseq
-
-  let shift v r v' (map:t) =
-    match TMap.find_opt v' map with
-    | None -> map
-    | Some tset ->
-      TMap.remove v' (TMap.add v tset map)
 
   let term_set bldis =
     TSet.of_enum (TMap.keys bldis)
@@ -154,8 +138,6 @@ module Disequalities = struct
         match ZMap.find_opt r imap with
         | None -> ZMap.add r (TSet.singleton v') imap
         | Some set -> ZMap.add r (TSet.add v' set) imap) map
-
-  let shift = LMap.shift
 
   let map_set_mem (v,r) v' (map:t) = match TMap.find_opt v map with
     | None -> false
@@ -266,16 +248,19 @@ module Disequalities = struct
 
   (** Initialize the list of disequalities taking only implicit dis-equalities into account.
 
-      Returns: List of non-trivially implied dis-equalities *)
+      Returns: List of dis-equalities implied by the equalities. *)
   let init_neq (uf,cmap,arg) =
     List.fold_left (check_neq (uf,arg)) [] (TMap.bindings cmap)
 
+  (** Initialize the list of disequalities taking only implicit dis-equalities into account.
+
+      Returns: List of dis-equalities implied by the block disequalities. *)
   let init_neg_block_diseq (uf, bldis, cmap, arg) =
     List.fold_left (check_neq_bl (uf,arg)) [] (TMap.bindings bldis)
 
   (** Initialize the list of disequalities taking explicit dis-equalities into account.
 
-      Parameters: union-find partition, explicit disequalities.battrs
+      Parameters: union-find partition, explicit disequalities.
 
       Returns: list of normalized provided dis-equalities *)
   let init_list_neq uf neg =
@@ -356,13 +341,7 @@ module Disequalities = struct
     List.fold_left (fun s (v,z,v',r) ->
         s ^ "\t" ^ T.show v' ^ ( if Z.equal r Z.zero then "" else if Z.leq r Z.zero then (Z.to_string r) else (" + " ^ Z.to_string r) )^ " --> "
         ^ T.show v^ "+"^ Z.to_string z ^  "\n") "" clist
-  let filter_map f (diseq:t) =
-    TMap.filter_map
-      (fun _ zmap ->
-         let zmap = ZMap.filter_map
-             (fun _ s -> let set = TSet.filter_map f s in
-               if TSet.is_empty set then None else Some set)
-             zmap in if ZMap.is_empty zmap then None else Some zmap) diseq
+
 
   let get_disequalities = List.map
       (fun (t1, z, t2) ->
@@ -375,7 +354,7 @@ module Disequalities = struct
   *)
   let element_closure diseqs cmap uf =
     let comp_closure (r1,r2,z) =
-      let eq_class1, eq_class2 = BlDis.comp_t_cmap_repr cmap r1 uf, BlDis.comp_t_cmap_repr cmap r2 uf in
+      let eq_class1, eq_class2 = LMap.comp_t_cmap_repr cmap r1, LMap.comp_t_cmap_repr cmap r2 in
       List.map (fun ((z1, nt1),(z2, nt2)) ->
           (nt1, nt2, Z.(-z2+z+z1)))
         (List.cartesian_product eq_class1 eq_class2)
@@ -437,9 +416,9 @@ module SSet = struct
 
   (** Sometimes it's important to keep the dereferenced term,
       even if it's not technically possible to dereference it from a point of view of the C types.
-      We still need the dereferenced term for he correctness of some algorithms,
+      We still need the dereferenced term for the correctness of some algorithms,
       and the resulting expression will never be used, so it doesn't need to be a
-      C expression hat makes sense. *)
+      C expression that makes sense. *)
   let deref_term_even_if_its_not_possible min_term z set =
     match deref_term min_term z set with
     | result -> result
@@ -500,15 +479,14 @@ module MRMap = struct
 
         parameters:
 
-      - `(uf, map)` represent the union find data structure and the corresponding lookup map.
+      - `(uf, set, map)` represent the union find data structure and the corresponding term set and lookup map.
       - `min_representatives` maps each representative of the union find data structure to the minimal representative of the equivalence class.
       - `queue` contains the states that need to be processed.
         The states of the automata are the equivalence classes and each state of the automata is represented by the representative term.
         Therefore the queue is a list of representative terms.
 
       Returns:
-      - The map with the minimal representatives
-      - The union find tree. This might have changed because of path compression. *)
+      - The updated `min_representatives` map with the minimal representatives*)
   let update_min_repr (uf, set, map) min_representatives queue =
     (* order queue by size of the current min representative *)
     let queue =
@@ -520,8 +498,8 @@ module MRMap = struct
      Computes a map that maps each representative of an equivalence class to the minimal representative of the equivalence class.
 
      Returns:
-     - The map with the minimal representatives
-     - The union find tree. This might have changed because of path compression. *)
+     - The map with the minimal representatives.
+  *)
   let compute_minimal_representatives (uf, set, map) =
     if M.tracing then M.trace "c2po-normal-form" "compute_minimal_representatives\n";
     let atoms = SSet.get_atoms set in
@@ -586,6 +564,8 @@ let get_transitions (uf, map) =
 let exactly_equal cc1 cc2 =
   cc1.uf == cc2.uf && cc1.map == cc2.map && cc1.diseq == cc2.diseq && cc1.bldis == cc2.bldis
 
+(** Converts the domain representation to a conjunction, using
+    the function `get_normal_repr` to compute the representatives that need to be used in the conjunction.*)
 let get_normal_conjunction cc get_normal_repr =
   let normalize_equality (t1, t2, z) =
     if T.equal t1 t2 && Z.(equal z zero) then None else
@@ -630,24 +610,24 @@ let get_normal_conjunction cc get_normal_repr =
   (* all propositions *)
   BatList.sort_unique (T.compare_v_prop) (conjunctions_of_atoms @ conjunctions_of_transitions @ disequalities @ conjunctions_of_bl_diseqs)
 
-(* Runtime = O(nr. of atoms) + O(nr. transitions in the automata)
-   Basically runtime = O(size of result) if we hadn't removed the trivial conjunctions. *)
-(** Returns the canonical normal form of the data structure in form of a sorted list of conjunctions.  *)
+(** Returns the canonical normal form of the data structure in form of a sorted list of conjunctions. *)
 let get_normal_form cc =
   if M.tracing && not (Lazy.is_val cc.normal_form) then M.trace "c2po-normal-form" "Computing normal form";
   Lazy.force cc.normal_form
 
-(** COnverts normal form to string, but only if it was already computed. *)
+(** Converts the normal form to string, but only if it was already computed. *)
 let show_normal_form normal_form =
   if Lazy.is_val normal_form then show_conj (Lazy.force normal_form)
   else "not computed"
 
-(* Runtime = O(nr. of atoms) + O(nr. transitions in the automata)
-     Basically runtime = O(size of result if we hadn't removed the trivial conjunctions). *)
-(** Returns a list of conjunctions that follow from the data structure in form of a sorted list of conjunctions.  *)
+(** Returns a list of conjunctions that follow from the data structure in form of a sorted list of conjunctions.
+    This is not a normal form, but it is useful to print information
+    about the current state of the analysis. *)
 let get_conjunction cc =
   get_normal_conjunction cc (fun t -> t,Z.zero)
 
+(** Sets the normal_form to an uncomputed value,
+    that will be lazily computed when it is needed. *)
 let reset_normal_form cc =
   match cc with
   | None -> None
@@ -674,28 +654,22 @@ let show_all x = "Normal form:\n" ^
                  ^ "\nMin repr:\n"
                  ^ show_normal_form x.normal_form
 
-(** Splits the conjunction into two groups: the first one contains all equality propositions,
-    and the second one contains all inequality propositions.  *)
+(** Splits the conjunction into three groups: the first one contains all equality propositions,
+    the second one contains all inequality propositions
+    and the third one contains all block disequality propositions.  *)
 let split conj = List.fold_left (fun (pos,neg,bld) -> function
     | Equal (t1,t2,r) -> ((t1,t2,r)::pos,neg,bld)
     | Nequal(t1,t2,r) -> (pos,(t1,t2,r)::neg,bld)
     | BlNequal (t1,t2) -> (pos,neg,(t1,t2)::bld)) ([],[],[]) conj
 
 (**
-   returns {uf, set, map, min_repr}, where:
-
-   - `uf` = empty union find structure where the elements are all subterms occuring in the conjunction.
-
-   - `set` = set of all subterms occuring in the conjunction.
-
-   - `map` = for each subterm *(z + t') the map maps t' to a map that maps z to *(z + t').
-
-   - `min_repr` = maps each representative of an equivalence class to the minimal representative of the equivalence class.
+   Returns \{uf, set, map, normal_form, bldis, diseq\},
+   where all data structures are initialized with an empty map/set.
 *)
 let init_cc =
   {uf = TUF.empty; set = SSet.empty; map = LMap.empty; normal_form = lazy([]); diseq = Disequalities.empty; bldis = BlDis.empty}
 
-(** closure of disequalities *)
+(** Computes the closure of disequalities. *)
 let congruence_neq cc neg =
   try
     let neg = Tuple3.second (split(Disequalities.get_disequalities cc.diseq)) @ neg in
@@ -778,7 +752,7 @@ let rec closure (uf, map, new_repr) = function
        closure (uf, map, new_repr) rest
     )
 
-(** Update block disequalities with the new representatives, *)
+(** Update block disequalities with the new representatives. *)
 let update_bldis new_repr bldis =
   let bldis = BlDis.map_lhs bldis (TMap.bindings new_repr) in
   (* update block disequalities with the new representatives *)
@@ -796,7 +770,7 @@ let update_bldis new_repr bldis =
 
    - `map` maps reference variables v to a map that maps integers z to terms that are equivalent to *(v + z).
 
-   - `diseq` are the disequalities between the new representatives.
+   - `diseq` doesn't change (it must be updated later to the new representatives).
 
    - `bldis` are the block disequalities between the new representatives.
 
@@ -876,7 +850,8 @@ let rec eq_query cc (t1,t2,r) =
   else
     (* If the equality is *(t1' + z1) = *(t2' + z2), then we check if the two pointers are equal,
        i.e. if t1' + z1 = t2' + z2.
-        This is useful when the dereferenced elements are not pointers. *)
+       This is useful when the dereferenced elements are not pointers and therefore not stored in our data strutcure.
+       But we still know that they are equal if the pointers are equal. *)
   if Z.equal r Z.zero then
     match t1,t2 with
     | Deref (t1', z1, _),  Deref (t2', z2, _) ->
@@ -935,8 +910,8 @@ let add_eq cc (t1, t2, r) =
   let cc = closure cc [v1, v2, Z.(r2 - r1 + r)] in
   cc
 
-(** adds block disequalities to cc:
-    fo each representative t in cc it adds the disequality bl(lterm) != bl(t)*)
+(** Adds block disequalities to cc:
+    for each representative t in cc it adds the disequality bl(lterm) != bl(t)*)
 let add_block_diseqs cc lterm =
   match cc with
   | None -> cc
@@ -945,17 +920,18 @@ let add_block_diseqs cc lterm =
     Some {cc with bldis}
 
 (* Remove variables: *)
+
 let remove_terms_from_eq predicate cc =
   let insert_terms cc = List.fold (fun cc t -> snd (insert cc t)) cc in
   (* start from all initial states that are still valid and find new representatives if necessary *)
   (* new_reps maps each representative term to the new representative of the equivalence class *)
-  (*but new_reps contains an element but not necessarily the representative!!*)
+  (* but new_reps contains an element but not necessarily the representative *)
   let find_new_repr state old_rep old_z new_reps =
     match LMap.find_opt old_rep new_reps with
     | Some (new_rep,z) -> new_rep, Z.(old_z - z), new_reps
     | None -> if not @@ predicate old_rep then
-        old_rep, old_z, TMap.add old_rep (old_rep, Z.zero) new_reps else (*we keep the same representative as before*)
-        (* the representative need to be removed from the data structure: state is the new repr.*)
+        old_rep, old_z, TMap.add old_rep (old_rep, Z.zero) new_reps else (* <- we keep the same representative as before *)
+        (* the representative need to be removed from the data structure: state is the new repr->*)
         state, Z.zero, TMap.add old_rep (state, old_z) new_reps in
   let add_atom (uf, new_reps, new_cc, reachable_old_reps) state =
     let old_rep, old_z, uf = TUF.find uf state in
@@ -984,7 +960,7 @@ let remove_terms_from_eq predicate cc =
           ) term_set; !res
       with Found -> !res
     in
-    (* find successor term -> find any  element in equivalence class that can be dereferenced *)
+    (* find successor term -> find any element in equivalence class that can be dereferenced *)
     match List.find_map_opt find_successor_in_set (ZMap.bindings @@ TMap.find old_rep cmap) with
     | Some successor_term -> if (not @@ predicate successor_term && T.check_valid_pointer (T.to_cil successor_term)) then
         let new_cc = insert_terms new_cc [successor_term] in
@@ -992,7 +968,7 @@ let remove_terms_from_eq predicate cc =
         | Some (new_rep_s,z2) -> (* the successor already has a new representative, therefore we can just add it to the lookup map*)
           uf, new_reps, closure new_cc [(successor_term, new_rep_s, Z.(old_z_s-z2))], reachable_old_reps
         | None -> (* the successor state was not visited yet, therefore we need to find the new representative of the state.
-                     -> we choose a successor term *(t+z) for any
+                     -> we choose a successor term *(t+z) for any t
                      -> we need add the successor state to the list of states that still need to be visited
                   *)
           uf, TMap.add old_rep_s (successor_term, old_z_s) new_reps, new_cc, (old_rep_s, successor_term, old_z_s)::reachable_old_reps
@@ -1063,12 +1039,11 @@ let remove_terms predicate cc =
 
 let remove_terms p cc = Timing.wrap "removing terms" (remove_terms p) cc
 
-(* join version 1: by using the automaton *)
-
 let show_pmap pmap=
   List.fold_left (fun s ((r1,r2,z1),(t,z2)) ->
       s ^ ";; " ^ "("^T.show r1^","^T.show r2 ^ ","^Z.to_string z1^") --> ("^ T.show t ^ Z.to_string z2 ^ ")") ""(Map.bindings pmap)
 
+(** Join version 1: by using the automaton. *)
 let join_eq cc1 cc2 =
   let atoms = SSet.get_atoms (SSet.inter cc1.set cc2.set) in
   let mappings = List.map
@@ -1104,8 +1079,7 @@ let join_eq cc1 cc2 =
   in
   add_edges_to_map pmap cc working_set
 
-(* join version 2: just look at equivalence classes and not the automaton. *)
-
+(** Join version 2: just look at equivalence classes and not the automaton. *)
 let product_no_automata_over_terms cc1 cc2 terms =
   let cc1, cc2 = Option.get (insert_set (Some cc1) terms), Option.get (insert_set (Some cc2) terms) in
   let mappings = List.map
@@ -1119,10 +1093,8 @@ let product_no_automata_over_terms cc1 cc2 terms =
       add_eq cc (new_term, c, Z.(-c1_off + a_off)), pmap in
   List.fold_left add_term (Some init_cc, Map.empty) mappings
 
-(** Here we do the join without using the automata, because apparently
-    we don't want to describe the automaton in the paper...
-
-    We construct a new cc that contains the elements of cc1.set U cc2.set
+(** Here we do the join without using the automata.
+    We construct a new cc that contains the elements of cc1.set U cc2.set.
     and two elements are in the same equivalence class iff they are in the same eq. class
     both in cc1 and in cc2. *)
 let join_eq_no_automata cc1 cc2 =
@@ -1149,24 +1121,22 @@ let join_neq diseq1 diseq2 cc1 cc2 cc cmap1 cmap2 =
 
 (** Joins the block disequalities bldiseq1 and bldiseq2, given a congruence closure data structure.
 
-    This is done by checing for each block disequality if it is implied by both cc. *)
+    This is done by checking for each block disequality if it is implied by both cc. *)
 let join_bldis bldiseq1 bldiseq2 cc1 cc2 cc cmap1 cmap2 =
   let bldiseq1 = BlDis.to_conj bldiseq1 in
   let bldiseq2 = BlDis.to_conj bldiseq2 in
   (* keep all disequalities from diseq1 that are implied by cc2 and
      those from diseq2 that are implied by cc1 *)
-  let diseq1 = List.filter (block_neq_query (Some cc2)) (BlDis.element_closure bldiseq1 cmap1 cc.uf) in
-  let diseq2 = List.filter (block_neq_query (Some cc1)) (BlDis.element_closure bldiseq2 cmap2 cc.uf) in
+  let diseq1 = List.filter (block_neq_query (Some cc2)) (BlDis.element_closure bldiseq1 cmap1) in
+  let diseq2 = List.filter (block_neq_query (Some cc1)) (BlDis.element_closure bldiseq2 cmap2) in
   let cc = Option.get (insert_set (Some cc) (fst @@ SSet.subterms_of_conj (List.map (fun (a,b) -> (a,b,Z.zero)) (diseq1 @ diseq2)))) in
   let diseqs_ref_terms = List.filter (fun (t1,t2) -> TUF.is_root cc.uf t1 && TUF.is_root cc.uf t2) (diseq1 @ diseq2) in
   let bldis = List.fold BlDis.add_block_diseq BlDis.empty diseqs_ref_terms
   in (if M.tracing then M.trace "c2po-neq" "join_bldis: %s\n\n" (show_conj (BlDis.to_conj bldis)));
   {cc with bldis}
 
-(* Check for equality of two congruence closures,
-   by comparing the equivalence classes instead of computing the minimal_representative. *)
-
-(** Compares the equivalence classes of cc1 and those of cc2. *)
+(** Check for equality of two congruence closures,
+    by comparing the equivalence classes instead of computing the minimal_representative. *)
 let equal_eq_classes cc1 cc2 =
   let comp1, comp2 = fst(Disequalities.comp_map cc1.uf), fst(Disequalities.comp_map cc2.uf) in
   (* they should have the same number of equivalence classes *)
