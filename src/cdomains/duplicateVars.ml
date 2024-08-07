@@ -3,7 +3,7 @@ open GoblintCil
 open Batteries
 open GoblintCil
 
-module Var = struct
+module VarType = struct
   let equal_typ _ _ = true
   let hash_typ _ = 0
   let compare_typ _ _ = 0
@@ -13,19 +13,6 @@ module Var = struct
          | NormalVar of Varinfo.t
          | ShadowVar of Varinfo.t [@@deriving eq,ord,hash]
 
-  let dummy_varinfo typ: varinfo = {dummyFunDec.svar with vid=(-1);vtype=typ;vname="c2po__@dummy"}
-  let return_varinfo typ = {dummyFunDec.svar with vtype=typ;vid=(-2);vname="c2po__@return"}
-
-  let duplicated_variable var = { var with vid = - var.vid - 4; vname = "c2po__" ^ var.vname ^ "'" }
-  let original_variable var = { var with vid = - (var.vid + 4); vname = String.lchop ~n:6 @@ String.rchop var.vname }
-
-  let is_c2po_ghost_variable x = x.vid < 0 && String.starts_with x.vname "c2po__"
-  let to_varinfo v = match v with
-    | AssignAux t -> dummy_varinfo t
-    | ReturnAux t -> return_varinfo t
-    | NormalVar v -> v
-    | ShadowVar v -> duplicated_variable v
-
   let from_varinfo normal duplicated =
     List.map (fun v -> NormalVar v) normal @ List.map (fun v -> ShadowVar v) duplicated
 
@@ -34,4 +21,34 @@ module Var = struct
     | ReturnAux t -> "AuxReturn"
     | NormalVar v -> v.vname
     | ShadowVar v -> "c2po__" ^ v.vname ^ "'"
+
+  let name_varinfo v = match v with
+    | AssignAux t -> "AuxAssign"
+    | ReturnAux t -> "AuxReturn"
+    | NormalVar v -> string_of_int v.vid
+    | ShadowVar v -> "c2po__" ^ string_of_int v.vid ^ "'"
+
+
+  (* Description that gets appended to the varinfo-name in user output. *)
+  let describe_varinfo (var: varinfo) v =
+    (* let loc = UpdateCil.getLoc node in
+       CilType.Location.show loc *)
+    show v
+end
+
+module VarVarinfoMap = RichVarinfo.BiVarinfoMap.Make(VarType)
+
+
+module Var =
+struct
+  include VarType
+  let dummy_varinfo typ: varinfo = VarVarinfoMap.to_varinfo (AssignAux typ)
+  let return_varinfo typ = VarVarinfoMap.to_varinfo (ReturnAux typ)
+  let to_varinfo v = let var = VarVarinfoMap.to_varinfo v in
+    match v with
+    | AssignAux t -> {var with vtype = t}
+    | ReturnAux t -> {var with vtype = t}
+    | NormalVar v -> v
+    | ShadowVar v -> {v with vid = var.vid}
+
 end
