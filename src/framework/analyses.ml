@@ -14,8 +14,7 @@ type fundecs = fundec list * fundec list * fundec list
 
 module Var =
 struct
-  type t = Node.t [@@deriving eq, ord, hash]
-  let relift = Node.relift
+  type t = Node.t [@@deriving eq, ord, hash, relift]
 
   let printXml f n =
     let l = Node.location n in
