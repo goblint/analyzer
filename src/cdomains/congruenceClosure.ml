@@ -2,7 +2,7 @@
 include UnionFind
 open Batteries
 open GoblintCil
-module Var = CilType.Varinfo
+open DuplicateVars
 module M = Messages
 
 (** Quantitative congruence closure on terms *)
@@ -1240,13 +1240,12 @@ module MayBeEqual = struct
   open C2PO
 
   module AD = Queries.AD
-  open DuplicateVars.Var
+  open Var
 
   let dummy_var typ = T.aux_term_of_varinfo (AssignAux typ)
-  let dummy_lval typ = Lval (Var (to_varinfo (AssignAux typ)), NoOffset)
+  let dummy_lval_print typ = Lval (Var (to_varinfo (AssignAux typ)), NoOffset)
 
   let return_var typ = T.aux_term_of_varinfo (ReturnAux typ)
-  let return_lval typ = Lval (Var (to_varinfo (ReturnAux typ)), NoOffset)
 
   let ask_may_point_to (ask: Queries.ask) exp =
     match ask.f (MayPointTo exp) with

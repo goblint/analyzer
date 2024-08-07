@@ -122,7 +122,7 @@ struct
       | Some e ->
         assign_return (ask_of_ctx ctx) ctx.local (MayBeEqual.return_var (typeOf e)) e
       | None -> ctx.local
-    in if M.tracing then M.trace "c2po-function" "RETURN: exp_opt: %a; state: %s; result: %s\n" d_exp (BatOption.default (MayBeEqual.dummy_lval (TVoid [])) exp_opt) (D.show ctx.local) (D.show res);res
+    in if M.tracing then M.trace "c2po-function" "RETURN: exp_opt: %a; state: %s; result: %s\n" d_exp (BatOption.default (MayBeEqual.dummy_lval_print (TVoid [])) exp_opt) (D.show ctx.local) (D.show res);res
 
   (** var_opt is the variable we assign to. It has type lval. v=malloc.*)
   let special ctx var_opt v exprs =

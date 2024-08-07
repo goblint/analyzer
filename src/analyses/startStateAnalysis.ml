@@ -35,7 +35,7 @@ struct
         | Some v -> if M.tracing then M.trace "c2po-tainted" "QUERY %a : res = %a\n" d_exp exp AD.pretty v;v
         | None -> Value.top()
       end
-    | AddrOf (Var x, NoOffset) -> if is_c2po_ghost_variable x then (let res = get_value ask (AddrOf (Var (original_variable x), NoOffset)) in if M.tracing then M.trace "c2po-tainted" "QUERY %a, id: %d : res = %a\n" d_exp exp x.vid AD.pretty res;res) else Value.top()
+    | AddrOf (Var x, NoOffset) -> (*TODO will original_variable still work?*)if is_c2po_ghost_variable x then (let res = get_value ask (AddrOf (Var (original_variable x), NoOffset)) in if M.tracing then M.trace "c2po-tainted" "QUERY %a, id: %d : res = %a\n" d_exp exp x.vid AD.pretty res;res) else Value.top()
     | _ -> Value.top ()
 
   let startcontext () = D.empty ()
