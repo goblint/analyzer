@@ -12,5 +12,5 @@ let relift_deriving = ReliftDeriver.register ()
 
 (* TODO: needs https://github.com/ocaml-ppx/ppxlib/pull/124 to include eq, ord, hash *)
 (* let _ = Ppxlib.Deriving.add_alias "printable" [
-    relift_deriving;
-  ] *)
+       relift_deriving;
+     ] *)
