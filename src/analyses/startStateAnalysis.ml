@@ -1,5 +1,5 @@
 (** Remembers the abstract address value of each parameter at the beginning of each function by adding a ghost variable for each parameter.
-    Used by the wrpointer anaylysis. *)
+    Used by the c2po anaylysis. *)
 
 open GoblintCil
 open Batteries
@@ -32,10 +32,10 @@ struct
       If e is an unknown variable or an expression that is not simply a variable, then it returns top. *)
   let eval (ask: Queries.ask) (d: D.t) (exp: exp): Value.t = match exp with
     | Lval (Var x, NoOffset) -> begin match D.find_opt x d with
-        | Some v -> if M.tracing then M.trace "wrpointer-tainted" "QUERY %a : res = %a\n" d_exp exp AD.pretty v;v
+        | Some v -> if M.tracing then M.trace "c2po-tainted" "QUERY %a : res = %a\n" d_exp exp AD.pretty v;v
         | None -> Value.top()
       end
-    | AddrOf (Var x, NoOffset) -> if is_wrpointer_ghost_variable x then (let res = get_value ask (AddrOf (Var (original_variable x), NoOffset)) in if M.tracing then M.trace "wrpointer-tainted" "QUERY %a, id: %d : res = %a\n" d_exp exp x.vid AD.pretty res;res) else Value.top()
+    | AddrOf (Var x, NoOffset) -> if is_wrpointer_ghost_variable x then (let res = get_value ask (AddrOf (Var (original_variable x), NoOffset)) in if M.tracing then M.trace "c2po-tainted" "QUERY %a, id: %d : res = %a\n" d_exp exp x.vid AD.pretty res;res) else Value.top()
     | _ -> Value.top ()
 
   let startcontext () = D.empty ()
