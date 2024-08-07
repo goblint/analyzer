@@ -1154,6 +1154,26 @@
             }
           },
           "additionalProperties": false
+        },
+        "var_eq": {
+          "title": "ana.var_eq",
+          "type": "object",
+          "properties": {
+            "invariant": {
+              "title": "ana.var_eq.invariant",
+              "type": "object",
+              "properties": {
+                "enabled": {
+                  "title": "ana.var_eq.invariant.enabled",
+                  "description": "Generate var_eq analysis invariants",
+                  "type": "boolean",
+                  "default": true
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "additionalProperties": false
         }
       },
       "additionalProperties": false
