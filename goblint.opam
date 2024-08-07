@@ -45,6 +45,7 @@ depends: [
   "ppx_deriving" {>= "6.0.2"}
   "ppx_deriving_hash" {>= "0.1.2"}
   "ppx_deriving_yojson" {>= "3.7.0"}
+  "ppxlib" {>= "0.30.0"}
   "ounit2" {with-test}
   "qcheck-ounit" {with-test}
   "odoc" {with-doc}
