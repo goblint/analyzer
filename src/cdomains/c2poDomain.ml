@@ -5,7 +5,7 @@ open GoblintCil
 open CongruenceClosure
 open C2PO
 module M = Messages
-module Var = CilType.Varinfo
+open DuplicateVars
 
 module D = struct
 
@@ -192,7 +192,7 @@ module D = struct
       It removes all terms which contain one of the "vars",
       while maintaining all equalities about variables that are not being removed.*)
   let remove_terms_containing_variables vars cc =
-    if M.tracing then M.trace "c2po" "remove_terms_containing_variables: %s\n" (List.fold_left (fun s v -> s ^"; " ^v.vname) "" vars);
+    if M.tracing then M.trace "c2po" "remove_terms_containing_variables: %s\n" (List.fold_left (fun s v -> s ^"; " ^Var.show v) "" vars);
     Option.bind cc (remove_terms (T.contains_variable vars))
 
   (** Remove terms from the data structure.
@@ -200,8 +200,8 @@ module D = struct
       except the global vars are also keeped (when vstorage = static),
       while maintaining all equalities about variables that are not being removed.*)
   let remove_terms_not_containing_variables vars cc =
-    if M.tracing then M.trace "c2po" "remove_terms_not_containing_variables: %s\n" (List.fold_left (fun s v -> s ^"; " ^v.vname) "" vars);
-    Option.bind cc (remove_terms (fun t -> (not (T.get_var t).vglob) && not (T.contains_variable vars t)))
+    if M.tracing then M.trace "c2po" "remove_terms_not_containing_variables: %s\n" (List.fold_left (fun s v -> s ^"; " ^Var.show v) "" vars);
+    Option.bind cc (remove_terms (fun t -> (not (Var.to_varinfo (T.get_var t)).vglob) && not (T.contains_variable vars t)))
 
   (** Remove terms from the data structure.
       It removes all terms that may be changed after an assignment to "term".*)
@@ -221,5 +221,5 @@ module D = struct
   let remove_vars_not_in_scope scope cc =
     Option.bind cc (fun cc -> remove_terms (fun t ->
         let var = T.get_var t in
-        InvariantCil.var_is_tmp var || not (InvariantCil.var_is_in_scope scope var)) cc)
+        InvariantCil.var_is_tmp (Var.to_varinfo var) || not (InvariantCil.var_is_in_scope scope (Var.to_varinfo var))) cc)
 end

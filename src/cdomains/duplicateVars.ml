@@ -10,7 +10,7 @@ module Var = struct
 
   type t = AssignAux of (typ[@compare.ignore][@eq.ignore][@hash.ignore])
          | ReturnAux of (typ[@compare.ignore][@eq.ignore][@hash.ignore])
-         | VarNormal of Varinfo.t
+         | NormalVar of Varinfo.t
          | ShadowVar of Varinfo.t [@@deriving eq,ord,hash]
 
   let dummy_varinfo typ: varinfo = {dummyFunDec.svar with vid=(-1);vtype=typ;vname="c2po__@dummy"}
@@ -23,6 +23,15 @@ module Var = struct
   let to_varinfo v = match v with
     | AssignAux t -> dummy_varinfo t
     | ReturnAux t -> return_varinfo t
-    | VarNormal v -> v
+    | NormalVar v -> v
     | ShadowVar v -> duplicated_variable v
+
+  let from_varinfo normal duplicated =
+    List.map (fun v -> NormalVar v) normal @ List.map (fun v -> ShadowVar v) duplicated
+
+  let show v = match v with
+    | AssignAux t -> "AuxAssign"
+    | ReturnAux t -> "AuxReturn"
+    | NormalVar v -> v.vname
+    | ShadowVar v -> "c2po__" ^ v.vname ^ "'"
 end

@@ -1,7 +1,7 @@
 
 open Batteries
 open GoblintCil
-module Var = CilType.Varinfo
+open DuplicateVars
 module M = Messages
 
 exception Unsat
@@ -78,9 +78,6 @@ module T = struct
   let rec get_size_in_bits typ = match typ with
     | TArray (typ, _, _) -> (* we treat arrays like pointers *)
       get_size_in_bits (TPtr (typ,[]))
-    (* | TComp (compinfo, _) ->
-       if List.is_empty compinfo.cfields then Z.zero else
-        get_size_in_bits (List.first compinfo.cfields).ftype *)
     | _ -> match Z.of_int (bitsSizeOf typ) with
       | exception GoblintCil__Cil.SizeOfError (msg,_) when msg ="abstract type"-> Z.one
       | exception GoblintCil__Cil.SizeOfError (msg,_) ->
@@ -121,6 +118,7 @@ module T = struct
   (** Returns true if the second parameter contains one of the variables defined in the list "variables". *)
   let contains_variable variables term = List.mem_cmp Var.compare (get_var term) variables
 
+  (** Use query EvalInt for an expression. *)
   let eval_int (ask:Queries.ask) exp =
     match Cilfacade.get_ikind_exp exp with
     | exception Invalid_argument _ -> raise (UnsupportedCilExpression "non-constant value")
@@ -140,8 +138,8 @@ module T = struct
     | i -> Some i
     | exception (UnsupportedCilExpression _) -> None
 
-  (*returns Some type for a pointer to a type
-    and None if the result is not a pointer*)
+  (** Returns Some type for a pointer to a type
+      and None if the result is not a pointer. *)
   let rec type_of_element typ =
     match typ with
     | TArray (typ, _, _) -> type_of_element typ
@@ -176,12 +174,17 @@ module T = struct
     | TPtr _ -> true
     | _ -> false
 
+  let rec is_float = function
+    | TNamed (typinfo, _) -> is_float typinfo.ttype
+    | TFloat _ -> true
+    | _ -> false
+
   let aux_term_of_varinfo vinfo =
-    Aux (vinfo, Lval (Var vinfo, NoOffset))
+    Aux (vinfo, Lval (Var (Var.to_varinfo vinfo), NoOffset))
 
   let term_of_varinfo vinfo =
-    if is_struct_type vinfo.vtype || vinfo.vaddrof then
-      Deref (Addr vinfo, Z.zero, Lval (Var vinfo, NoOffset))
+    if is_struct_type (Var.to_varinfo vinfo).vtype || (Var.to_varinfo vinfo).vaddrof then
+      Deref (Addr vinfo, Z.zero, Lval (Var (Var.to_varinfo vinfo), NoOffset))
     else
       aux_term_of_varinfo vinfo
 
@@ -228,12 +231,12 @@ module T = struct
 
   let type_of_term =
     function
-    | Addr v -> TPtr (v.vtype, [])
+    | Addr v -> TPtr ((Var.to_varinfo v).vtype, [])
     | Aux (_, exp) | Deref (_, _, exp) -> typeOf exp
 
   let to_cil =
     function
-    | (Addr v) -> AddrOf (Var v, NoOffset)
+    | (Addr v) -> AddrOf (Var (Var.to_varinfo v), NoOffset)
     | Aux (_, exp) | (Deref (_, _, exp)) -> exp
 
   let default_int_type = ILong
@@ -279,10 +282,9 @@ module T = struct
       else raise (UnsupportedCilExpression "Field on a non-compound")
     with | Cilfacade.TypeOfError _ -> raise (UnsupportedCilExpression "typeOf error")
 
-  let is_float = function
-    | TFloat _ -> true
-    | _ -> false
-
+  (** Returns true if the Cil expression represents a 64 bit data type,
+      which is not a float. So it must be either a pointer or an integer
+      that has the same size as a pointer.*)
   let check_valid_pointer term =
     match typeOf term with (* we want to make sure that the expression is valid *)
     | exception GoblintCil__Errormsg.Error -> false
@@ -290,9 +292,12 @@ module T = struct
       if get_size_in_bits typ <> bitsSizeOfPtr () || is_float typ then false
       else true
 
+  (** Only keeps the variables that are actually pointers (or 64-bit integers). *)
   let filter_valid_pointers =
     List.filter (function | Equal(t1,t2,_)| Nequal(t1,t2,_) |BlNequal(t1,t2)-> check_valid_pointer (to_cil t1) && check_valid_pointer (to_cil t2))
 
+  (** Get a Cil expression that is equivalent to *(exp + offset),
+      by taking into account type correctness.*)
   let dereference_exp exp offset =
     if M.tracing then M.trace "c2po-deref" "exp: %a, offset: %s" d_exp exp (Z.to_string offset);
     let res =
@@ -336,7 +341,7 @@ module T = struct
     | AlignOfE _ -> raise (UnsupportedCilExpression "unsupported AlignOf")
     | Lval lval -> Some (of_lval ask lval), Z.zero
     | StartOf lval  -> Some (of_lval ask lval), Z.zero
-    | AddrOf (Var var, NoOffset) -> Some (Addr var), Z.zero
+    | AddrOf (Var var, NoOffset) -> Some (Addr (Var.NormalVar var)), Z.zero
     | AddrOf (Mem exp, NoOffset) -> of_cil ask exp
     | UnOp (op,exp,typ) -> begin match op with
         | Neg -> let off = eval_int ask exp in None, Z.(-off)
@@ -374,9 +379,9 @@ module T = struct
   and of_lval ask lval =
     let res =
       match lval with
-      | (Var var, off) -> if is_struct_type var.vtype then of_offset ask (Addr var) off var.vtype (Lval lval)
+      | (Var var, off) -> if is_struct_type var.vtype then of_offset ask (Addr (Var.NormalVar var)) off var.vtype (Lval lval)
         else
-          of_offset ask (term_of_varinfo var) off var.vtype (Lval lval)
+          of_offset ask (term_of_varinfo (Var.NormalVar var)) off var.vtype (Lval lval)
       | (Mem exp, off) ->
         begin match of_cil ask exp with
           | (Some term, offset) ->
@@ -396,8 +401,6 @@ module T = struct
         | t -> M.trace "c2po-cil-conversion" "lval: %a --> %s\n" d_plainlval lval (show t))
   ;res
 
-  (** Converts the negated expresion to a term if neg = true.
-      If neg = false then it simply converts the expression to a term. *)
   let rec of_cil_neg ask neg e = match e with
     | UnOp (op,exp,typ)->
       begin match op with
@@ -406,6 +409,8 @@ module T = struct
       end
     | _ -> if neg then raise (UnsupportedCilExpression "unsupported UnOp Neg") else of_cil ask e
 
+  (** Converts the negated expression to a term if neg = true.
+      If neg = false then it simply converts the expression to a term. *)
   let of_cil_neg ask neg e =
     match is_float (typeOf e) with
     | exception GoblintCil__Errormsg.Error | true -> None, None
@@ -463,7 +468,7 @@ module T = struct
 
   (** `prop_of_cil e pos` parses the expression `e` (or `not e` if `pos = false`) and
       returns a list of length 1 with the parsed expresion or an empty list if
-        the expression can't be expressed with the data type `prop`. *)
+        the expression can't be expressed with the type `prop`. *)
   let rec prop_of_cil ask e pos =
     let e = Cil.constFold false e in
     match e with

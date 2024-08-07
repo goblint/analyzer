@@ -64,28 +64,33 @@ struct
       end
     | _ -> Result.top q
 
-  let assign_lval t ask lval expr =
+  let assign_term t ask lterm expr lval_t =
     (* ignore assignments to values that are not 64 bits *)
-    let lval_t = typeOfLval lval in
-    match T.get_element_size_in_bits lval_t, T.of_lval ask lval, T.of_cil ask expr with
+    match T.get_element_size_in_bits lval_t, T.of_cil ask expr with
     (* Indefinite assignment *)
-    | s, lterm, (None, _) -> D.remove_may_equal_terms ask s lterm t
+    | s, (None, _) -> D.remove_may_equal_terms ask s lterm t
     (* Definite assignment *)
-    | s, lterm, (Some term, Some offset) ->
+    | s, (Some term, Some offset) ->
       let dummy_var = MayBeEqual.dummy_var lval_t in
       if M.tracing then M.trace "c2po-assign" "assigning: var: %s; expr: %s + %s. \nTo_cil: lval: %a; expr: %a\n" (T.show lterm) (T.show term) (Z.to_string offset) d_exp (T.to_cil lterm) d_exp (T.to_cil term);
       t |> meet_conjs_opt [Equal (dummy_var, term, offset)] |>
       D.remove_may_equal_terms ask s lterm |>
       meet_conjs_opt [Equal (lterm, dummy_var, Z.zero)] |>
-      D.remove_terms_containing_variable @@ dummy_varinfo lval_t
-    | exception (T.UnsupportedCilExpression _) -> if M.tracing then M.trace
+      D.remove_terms_containing_variable @@ AssignAux lval_t
+    | _ -> (* this is impossible *) D.top ()
+
+  let assign_lval t ask lval expr =
+    let lval_t = typeOfLval lval in
+    match T.of_lval ask lval with
+    | lterm -> assign_term t ask lterm expr lval_t
+    | exception (T.UnsupportedCilExpression _) ->
+      (* the assigned variables couldn't be parsed, so we don't know which addresses were written to.
+         We have to forget all the information we had.
+         This should almost never happen.
+         Except if the left hand side is a complicated expression like myStruct.field1[i]->field2[z+k], and Goblint can't infer the offset.*)
+      if M.tracing then M.trace
           "c2po-invalidate" "INVALIDATE lval: %a" d_lval lval;
       D.top ()
-    (* the assigned variables couldn't be parsed, so we don't know which addresses were written to.
-       We have to forget all the information we had.
-       This should almost never happen.
-       Except if the left hand side is a complicated expression like myStruct.field1[i]->field2[z+k], and Goblint can't infer the offset.*)
-    | _ -> D.top ()
 
   let assign ctx lval expr =
     let res = reset_normal_form @@ assign_lval ctx.local (ask_of_ctx ctx) lval expr in
@@ -152,12 +157,12 @@ struct
     local variables of the caller and the pointers that were modified by the function. *)
   let enter ctx var_opt f args =
     (* add duplicated variables, and set them equal to the original variables *)
-    let added_equalities = T.filter_valid_pointers (List.map (fun v -> Equal (T.term_of_varinfo (duplicated_variable v), T.term_of_varinfo v, Z.zero)) f.sformals) in
+    let added_equalities = T.filter_valid_pointers (List.map (fun v -> Equal (T.term_of_varinfo (ShadowVar v), T.term_of_varinfo (NormalVar v), Z.zero)) f.sformals) in
     let state_with_duplicated_vars = meet_conjs_opt added_equalities ctx.local in
     if M.tracing then M.trace "c2po-function" "ENTER1: var_opt: %a; state: %s; state_with_duplicated_vars: %s\n" d_lval (BatOption.default (Var (dummy_varinfo (TVoid [])), NoOffset) var_opt) (D.show ctx.local) (D.show state_with_duplicated_vars);
     (* remove callee vars that are not reachable and not global *)
     let reachable_variables =
-      f.sformals @ f.slocals @ List.map duplicated_variable f.sformals @ reachable_from_args ctx args
+      from_varinfo (f.sformals @ f.slocals @ reachable_from_args ctx args) f.sformals
     in
     let new_state = D.remove_terms_not_containing_variables reachable_variables state_with_duplicated_vars in
     if M.tracing then M.trace "c2po-function" "ENTER2: result: %s\n" (D.show new_state);
@@ -166,7 +171,7 @@ struct
   let remove_out_of_scope_vars t f =
     let local_vars = f.sformals @ f.slocals in
     let duplicated_vars = List.map duplicated_variable f.sformals in
-    D.remove_terms_containing_variables (return_varinfo (TVoid [])::local_vars @ duplicated_vars) t
+    D.remove_terms_containing_variables (ReturnAux (TVoid [])::from_varinfo local_vars duplicated_vars) t
 
   (*ctx caller, t callee, ask callee, t_context_opt context vom callee -> C.t
      expr funktionsaufruf*)
@@ -174,7 +179,7 @@ struct
     let og_t = t in
     (* assign function parameters to duplicated values *)
     let arg_assigns = GobList.combine_short f.sformals args in
-    let state_with_assignments = List.fold_left (fun st (var, exp) -> assign_lval st (ask_of_ctx ctx) (Var (duplicated_variable var), NoOffset) exp) ctx.local arg_assigns in
+    let state_with_assignments = List.fold_left (fun st (var, exp) -> assign_term st (ask_of_ctx ctx) (T.term_of_varinfo (ShadowVar var)) exp var.vtype) ctx.local arg_assigns in
     if M.tracing then M.trace "c2po-function" "COMBINE_ASSIGN0: state_with_assignments: %s\n" (D.show state_with_assignments);
     (*remove all variables that were tainted by the function*)
     let tainted = ask.f (MayBeTainted)
@@ -189,7 +194,7 @@ struct
   let combine_assign ctx var_opt expr f args t_context_opt t (ask: Queries.ask) =
     (* assign function parameters to duplicated values *)
     let arg_assigns = GobList.combine_short f.sformals args in
-    let state_with_assignments = List.fold_left (fun st (var, exp) -> assign_lval st (ask_of_ctx ctx) (Var (duplicated_variable var), NoOffset) exp) ctx.local arg_assigns in
+    let state_with_assignments = List.fold_left (fun st (var, exp) -> assign_term st (ask_of_ctx ctx) (T.term_of_varinfo (ShadowVar var)) exp var.vtype) ctx.local arg_assigns in
     let t = D.meet state_with_assignments t in
     let t = match var_opt with
       | None -> t

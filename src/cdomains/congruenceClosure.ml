@@ -1242,11 +1242,11 @@ module MayBeEqual = struct
   module AD = Queries.AD
   open DuplicateVars.Var
 
-  let dummy_var var = T.aux_term_of_varinfo (dummy_varinfo var)
-  let dummy_lval var = Lval (Var (dummy_varinfo var), NoOffset)
+  let dummy_var typ = T.aux_term_of_varinfo (AssignAux typ)
+  let dummy_lval typ = Lval (Var (to_varinfo (AssignAux typ)), NoOffset)
 
-  let return_var var = T.aux_term_of_varinfo (return_varinfo var)
-  let return_lval var = Lval (Var (return_varinfo var), NoOffset)
+  let return_var typ = T.aux_term_of_varinfo (ReturnAux typ)
+  let return_lval typ = Lval (Var (to_varinfo (ReturnAux typ)), NoOffset)
 
   let ask_may_point_to (ask: Queries.ask) exp =
     match ask.f (MayPointTo exp) with
@@ -1257,7 +1257,7 @@ module MayBeEqual = struct
     let equal_terms = if TMap.mem term cc.uf then
         let comp = Disequalities.comp_t cc.uf term in
         let valid_term (t,z) =
-          T.is_ptr_type (T.type_of_term t) && (T.get_var t).vid > 0 in
+          T.is_ptr_type (T.type_of_term t) && (to_varinfo (T.get_var t)).vid > 0 in
         List.filter valid_term comp
       else [(term,Z.zero)]
     in
