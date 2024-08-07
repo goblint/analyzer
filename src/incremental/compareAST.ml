@@ -210,6 +210,7 @@ and eq_attrparam (a: attrparam) (b: attrparam) ~(rename_mapping: rename_mapping)
   | AAddrOf attrparam1, AAddrOf attrparam2 -> eq_attrparam attrparam1 attrparam2 ~rename_mapping ~acc
   | AIndex (left1, right1), AIndex (left2, right2) -> eq_attrparam left1 left2 ~rename_mapping ~acc &&>> eq_attrparam right1 right2 ~acc
   | AQuestion (left1, middle1, right1), AQuestion (left2, middle2, right2) -> eq_attrparam left1 left2 ~rename_mapping ~acc &&>> eq_attrparam middle1 middle2 ~acc &&>> eq_attrparam right1 right2 ~acc
+  | AAssign (left1, right1), AAssign (left2, right2) -> eq_attrparam left1 left2 ~rename_mapping ~acc &&>> eq_attrparam right1 right2 ~acc
   | a, b -> a = b, rename_mapping
 
 and eq_attribute (a: attribute) (b: attribute) ~(acc: (typ * typ) list) ~(rename_mapping: rename_mapping) = match a, b with
