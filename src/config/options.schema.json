@@ -795,6 +795,18 @@
                   "type": "boolean",
                   "default": true
                 },
+                "local": {
+                  "title": "ana.base.invariant.local",
+                  "description": "Keep local variables in invariants",
+                  "type": "boolean",
+                  "default": true
+                },
+                "global": {
+                  "title": "ana.base.invariant.global",
+                  "description": "Keep global variables in invariants",
+                  "type": "boolean",
+                  "default": true
+                },
                 "blobs": {
                   "title": "ana.base.invariant.blobs",
                   "description": "Whether to dump assertions about all blobs. Enabling this option may lead to unsound asserts.",

@@ -1183,6 +1183,9 @@ struct
     not is_alloc || (is_alloc && not (ctx.ask (Queries.IsHeapVar v)))
 
   let query_invariant ctx context =
+    let keep_local = GobConfig.get_bool "ana.base.invariant.local" in
+    let keep_global = GobConfig.get_bool "ana.base.invariant.global" in
+
     let cpa = ctx.local.BaseDomain.cpa in
     let ask = Analyses.ask_of_ctx ctx in
 
@@ -1195,6 +1198,13 @@ struct
     in
     let module I = ValueDomain.ValueInvariant (Arg) in
 
+    let var_filter v =
+      if is_global ask v then
+        keep_global
+      else
+        keep_local
+    in
+
     let var_invariant ?offset v =
       if not (InvariantCil.var_is_heap v) then
         I.key_invariant v ?offset (Arg.find v)
@@ -1205,14 +1215,23 @@ struct
     if Lval.Set.is_top context.Invariant.lvals then (
       if !earlyglobs || ThreadFlag.has_ever_been_multi ask then (
         let cpa_invariant =
-          CPA.fold (fun k v a ->
-              if not (is_global ask k) then
-                Invariant.(a && var_invariant k)
-              else
-                a
-            ) cpa Invariant.none
+          if keep_local then (
+            CPA.fold (fun k v a ->
+                if not (is_global ask k) then
+                  Invariant.(a && var_invariant k)
+                else
+                  a
+              ) cpa Invariant.none
+          )
+          else
+            Invariant.none
         in
-        let priv_vars = Priv.invariant_vars ask (priv_getg ctx.global) ctx.local in
+        let priv_vars =
+          if keep_global then
+            Priv.invariant_vars ask (priv_getg ctx.global) ctx.local
+          else
+            []
+        in
         let priv_invariant =
           List.fold_left (fun acc v ->
               Invariant.(var_invariant v && acc)
@@ -1222,7 +1241,10 @@ struct
       )
       else (
         CPA.fold (fun k v a ->
-            Invariant.(a && var_invariant k)
+            if var_filter k then
+              Invariant.(a && var_invariant k)
+            else
+              a
           ) cpa Invariant.none
       )
     )
@@ -1230,7 +1252,7 @@ struct
       Lval.Set.fold (fun k a ->
           let i =
             match k with
-            | (Var v, offset) when not (InvariantCil.var_is_heap v) ->
+            | (Var v, offset) when var_filter v && not (InvariantCil.var_is_heap v) ->
               (try I.key_invariant_lval v ~offset ~lval:k (Arg.find v) with Not_found -> Invariant.none)
             | _ -> Invariant.none
           in
@@ -1245,7 +1267,7 @@ struct
       Invariant.none
 
   let query_invariant_global ctx g =
-    if GobConfig.get_bool "ana.base.invariant.enabled" then (
+    if GobConfig.get_bool "ana.base.invariant.enabled" && GobConfig.get_bool "ana.base.invariant.global" then (
       (* Currently these global invariants are only sound with earlyglobs enabled for both single- and multi-threaded programs.
          Otherwise, the values of globals in single-threaded mode are not accounted for.
          They are also made sound without earlyglobs using the multithreaded mode ghost variable. *)
