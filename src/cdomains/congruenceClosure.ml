@@ -1240,11 +1240,11 @@ module MayBeEqual = struct
   open C2PO
 
   module AD = Queries.AD
-  let dummy_varinfo typ: varinfo = {dummyFunDec.svar with vid=(-1);vtype=typ;vname="c2po__@dummy"}
+  open DuplicateVars.Var
+
   let dummy_var var = T.aux_term_of_varinfo (dummy_varinfo var)
   let dummy_lval var = Lval (Var (dummy_varinfo var), NoOffset)
 
-  let return_varinfo typ = {dummyFunDec.svar with vtype=typ;vid=(-2);vname="c2po__@return"}
   let return_var var = T.aux_term_of_varinfo (return_varinfo var)
   let return_lval var = Lval (Var (return_varinfo var), NoOffset)
 

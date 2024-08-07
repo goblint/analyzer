@@ -402,6 +402,7 @@ module CilType = CilType
 module Cilfacade = Cilfacade
 module CilLocation = CilLocation
 module RichVarinfo = RichVarinfo
+module DuplicateVars = DuplicateVars
 
 module CilCfg = CilCfg
 module LoopUnrolling = LoopUnrolling

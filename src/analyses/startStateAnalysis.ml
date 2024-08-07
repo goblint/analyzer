@@ -4,7 +4,7 @@
 open GoblintCil
 open Batteries
 open Analyses
-
+open DuplicateVars.Var
 
 (*First all parameters (=formals) of the function are duplicated (by negating their ID),
     then we remember the value of each local variable at the beginning of the function
@@ -19,12 +19,6 @@ struct
   module C = D
 
   include Analyses.IdentitySpec
-
-
-  let duplicated_variable var = { var with vid = - var.vid - 4; vname = "wrpointer__" ^ var.vname ^ "'" }
-  let original_variable var = { var with vid = - (var.vid + 4); vname = String.lchop ~n:11 @@ String.rchop var.vname }
-  let return_varinfo = {dummyFunDec.svar with vid=(-2);vname="wrpointer__@return"}
-  let is_wrpointer_ghost_variable x = x.vid < 0 && String.starts_with x.vname "wrpointer__"
 
   let ask_may_point_to (ask: Queries.ask) exp =
     match ask.f (MayPointTo exp) with

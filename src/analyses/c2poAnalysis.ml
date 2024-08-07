@@ -7,6 +7,7 @@ open CongruenceClosure
 open C2PO
 open Batteries
 open SingleThreadedLifter
+open DuplicateVars.Var
 
 module Spec =
 struct
@@ -76,7 +77,7 @@ struct
       t |> meet_conjs_opt [Equal (dummy_var, term, offset)] |>
       D.remove_may_equal_terms ask s lterm |>
       meet_conjs_opt [Equal (lterm, dummy_var, Z.zero)] |>
-      D.remove_terms_containing_variable @@ MayBeEqual.dummy_varinfo lval_t
+      D.remove_terms_containing_variable @@ dummy_varinfo lval_t
     | exception (T.UnsupportedCilExpression _) -> if M.tracing then M.trace
           "c2po-invalidate" "INVALIDATE lval: %a" d_lval lval;
       D.top ()
@@ -145,9 +146,6 @@ struct
         branch ctx exp true
     | _ -> reset_normal_form t
 
-  let duplicated_variable var = { var with vid = - var.vid - 4; vname = "c2po__" ^ var.vname ^ "'" }
-  let original_variable var = { var with vid = - (var.vid + 4); vname = String.lchop ~n:11 @@ String.rchop var.vname }
-
   (*First all local variables of the function are duplicated (by negating their ID),
     then we remember the value of each local variable at the beginning of the function
     by using the analysis startState. This way we can infer the relations between the
@@ -156,7 +154,7 @@ struct
     (* add duplicated variables, and set them equal to the original variables *)
     let added_equalities = T.filter_valid_pointers (List.map (fun v -> Equal (T.term_of_varinfo (duplicated_variable v), T.term_of_varinfo v, Z.zero)) f.sformals) in
     let state_with_duplicated_vars = meet_conjs_opt added_equalities ctx.local in
-    if M.tracing then M.trace "c2po-function" "ENTER1: var_opt: %a; state: %s; state_with_duplicated_vars: %s\n" d_lval (BatOption.default (Var (MayBeEqual.dummy_varinfo (TVoid [])), NoOffset) var_opt) (D.show ctx.local) (D.show state_with_duplicated_vars);
+    if M.tracing then M.trace "c2po-function" "ENTER1: var_opt: %a; state: %s; state_with_duplicated_vars: %s\n" d_lval (BatOption.default (Var (dummy_varinfo (TVoid [])), NoOffset) var_opt) (D.show ctx.local) (D.show state_with_duplicated_vars);
     (* remove callee vars that are not reachable and not global *)
     let reachable_variables =
       f.sformals @ f.slocals @ List.map duplicated_variable f.sformals @ reachable_from_args ctx args
@@ -168,7 +166,7 @@ struct
   let remove_out_of_scope_vars t f =
     let local_vars = f.sformals @ f.slocals in
     let duplicated_vars = List.map duplicated_variable f.sformals in
-    D.remove_terms_containing_variables (MayBeEqual.return_varinfo (TVoid [])::local_vars @ duplicated_vars) t
+    D.remove_terms_containing_variables (return_varinfo (TVoid [])::local_vars @ duplicated_vars) t
 
   (*ctx caller, t callee, ask callee, t_context_opt context vom callee -> C.t
      expr funktionsaufruf*)
@@ -185,7 +183,7 @@ struct
     let local = D.remove_tainted_terms (ask_of_ctx ctx) tainted state_with_assignments in
     let t = D.meet local t in
     let t = reset_normal_form @@ remove_out_of_scope_vars t f in
-    if M.tracing then M.trace "c2po-function" "COMBINE_ASSIGN1: var_opt: %a; local_state: %s; t_state: %s; meeting everything: %s\n" d_lval (BatOption.default (Var (MayBeEqual.dummy_varinfo (TVoid[])), NoOffset) var_opt) (D.show ctx.local) (D.show og_t) (D.show t);t
+    if M.tracing then M.trace "c2po-function" "COMBINE_ASSIGN1: var_opt: %a; local_state: %s; t_state: %s; meeting everything: %s\n" d_lval (BatOption.default (Var (dummy_varinfo (TVoid[])), NoOffset) var_opt) (D.show ctx.local) (D.show og_t) (D.show t);t
 
   (*ctx.local is after combine_env, t callee*)
   let combine_assign ctx var_opt expr f args t_context_opt t (ask: Queries.ask) =
