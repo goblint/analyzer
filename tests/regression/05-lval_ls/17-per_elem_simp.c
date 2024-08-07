@@ -21,7 +21,7 @@ struct t {
 void* f(struct t* in) {
   start_unpack(in);
   pthread_mutex_lock(&(in->lock));
-  in->data++; // NOWARN
+  in->data++; // NORACE
   pthread_mutex_unlock(&(in->lock));
   end_unpack(in);
   return 0;
