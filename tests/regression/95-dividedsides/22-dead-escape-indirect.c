@@ -5,24 +5,22 @@
 int b = 0;
 int *a = &b;
 
+void g (int k, int *i) {
+  if (k > 20) {
+    a = &i;
+  }
+}
+
 void* f(void *d) {
   int i = 0;
 
   for(int j = 0, k = 0; j < 10; j++) {
-    if (k > 20) {
-      a = &i;
-    }
+    g(k, &i);
     k = j;
   }
   i++;
 
-  // The unknowns for protected:i etc. exist.
-  // Also, i is in the global set of escapees.
-  // However, locally i is known not to have escaped,
-  // so none of these unknowns are queried and this check
-  // succeeds whether eliminate-dead is on or not.
   __goblint_check(i == 1);
-  // Paradoxically, a != &i is not known without eliminate-dead.
   __goblint_check(a != &i);
   return NULL;
 }
