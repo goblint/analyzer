@@ -33,6 +33,8 @@ jobs:
           - os: ubuntu-latest
             ocaml-compiler: 4.14.x
             z3: true
+          - os: macos-latest
+            ocaml-compiler: 4.14.x
 
     # customize name to use readable string for apron instead of just a boolean
     # workaround for missing ternary operator: https://github.com/actions/runner/issues/409
