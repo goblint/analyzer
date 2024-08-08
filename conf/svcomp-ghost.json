@@ -144,9 +144,9 @@
       ]
     },
     "invariant": {
-      "loop-head": false,
+      "loop-head": true,
       "after-lock": true,
-      "other": false,
+      "other": true,
       "accessed": false,
       "exact": true,
       "all-locals": false,
