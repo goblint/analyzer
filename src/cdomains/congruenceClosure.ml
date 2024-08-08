@@ -1252,12 +1252,12 @@ module MayBeEqual = struct
     in
     List.fold intersect_query_result (AD.top()) equal_terms
 
-  (**Find out if an addresse is possibly equal to one of the adresses in `adresses` by using the MayPointTo query. *)
-  let may_point_to_address (ask:Queries.ask) adresses t2 off cc =
+  (**Find out if an addresse is possibly equal to one of the addresses in `addresses` by using the MayPointTo query. *)
+  let may_point_to_address (ask:Queries.ask) addresses t2 off cc =
     match T.to_cil_sum off (T.to_cil t2) with
     | exception (T.UnsupportedCilExpression _) -> true
     | exp2 ->
-      let mpt1 = adresses in
+      let mpt1 = addresses in
       let mpt2 = may_point_to_all_equal_terms ask exp2 cc t2 off in
       let res = try not (AD.is_bot (AD.meet mpt1 mpt2))
         with IntDomain.ArithmeticOnIntegerBot _ -> true
@@ -1307,12 +1307,12 @@ module MayBeEqual = struct
       if M.tracing then M.tracel "c2po-maypointto" "MAY BE EQUAL: %s %s: %b\n" (T.show t1) (T.show t2) res;
       res
 
-  (**Returns true if `t2` or any subterm of `t2` may possibly point to one of the adresses in `adresses`.*)
-  let rec may_point_to_one_of_these_adresses ask adresses cc t2 =
+  (**Returns true if `t2` or any subterm of `t2` may possibly point to one of the addresses in `addresses`.*)
+  let rec may_point_to_one_of_these_addresses ask addresses cc t2 =
     match t2 with
     |  Deref (v, z',_) ->
-      (may_point_to_address ask adresses v z' cc)
-      || (may_point_to_one_of_these_adresses ask adresses cc v)
+      (may_point_to_address ask addresses v z' cc)
+      || (may_point_to_one_of_these_addresses ask addresses cc v)
     | Addr _ -> false
-    | Aux (v,e) -> may_point_to_address ask adresses (Addr v) Z.zero cc
+    | Aux (v,e) -> may_point_to_address ask addresses (Addr v) Z.zero cc
 end

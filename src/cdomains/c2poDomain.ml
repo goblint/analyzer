@@ -210,10 +210,10 @@ module D = struct
     Option.bind cc (remove_terms (MayBeEqual.may_be_equal ask cc s term))
 
   (** Remove terms from the data structure.
-      It removes all terms that may point to one of the tainted adresses.*)
-  let remove_tainted_terms ask adress cc =
-    if M.tracing then M.tracel "c2po-tainted" "remove_tainted_terms: %a\n" MayBeEqual.AD.pretty adress;
-    Option.bind cc (fun cc -> remove_terms (MayBeEqual.may_point_to_one_of_these_adresses ask adress cc) cc)
+      It removes all terms that may point to one of the tainted addresses.*)
+  let remove_tainted_terms ask address cc =
+    if M.tracing then M.tracel "c2po-tainted" "remove_tainted_terms: %a\n" MayBeEqual.AD.pretty address;
+    Option.bind cc (fun cc -> remove_terms (MayBeEqual.may_point_to_one_of_these_addresses ask address cc) cc)
 
   (** Remove terms from the data structure.
       It removes all terms that are not in the scope, and also those that are tmp variables.*)
