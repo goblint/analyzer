@@ -141,6 +141,25 @@ struct
       };
     metadata = metadata ();
   }
+
+  let ghost_variable ~task ~variable ~type_ ~(initial): Entry.t = {
+    entry_type = GhostVariable {
+        variable;
+        scope = "global";
+        type_;
+        initial;
+      };
+    metadata = metadata ~task ();
+  }
+
+  let ghost_update ~task ~location ~variable ~(expression): Entry.t = {
+    entry_type = GhostUpdate {
+        variable;
+        expression;
+        location;
+      };
+    metadata = metadata ~task ();
+  }
 end
 
 let yaml_entries_to_file yaml_entries file =
@@ -306,18 +325,60 @@ struct
     (* Generate flow-insensitive invariants *)
     let entries =
       if entry_type_enabled YamlWitnessType.FlowInsensitiveInvariant.entry_type then (
+        let ns = lazy (R.ask_global InvariantGlobalNodes) in
         GHT.fold (fun g v acc ->
             match g with
             | `Left g -> (* Spec global *)
-              begin match R.ask_global (InvariantGlobal (Obj.repr g)) with
-                | `Lifted inv ->
+              begin match R.ask_global (InvariantGlobal (Obj.repr g)), GobConfig.get_bool "witness.invariant.flow_insensitive-as-location" with
+                | `Lifted inv, false ->
                   let invs = WitnessUtil.InvariantExp.process_exp inv in
                   List.fold_left (fun acc inv ->
                       let invariant = Entry.invariant (CilType.Exp.show inv) in
                       let entry = Entry.flow_insensitive_invariant ~task ~invariant in
                       entry :: acc
                     ) acc invs
-                | `Bot | `Top -> (* global bot might only be possible for alloc variables, if at all, so emit nothing *)
+                | `Lifted inv, true ->
+                  (* TODO: or do at location_invariant loop for each node and query if should also do global invariants there? *)
+                  let invs = WitnessUtil.InvariantExp.process_exp inv in
+                  Queries.NS.fold (fun n acc ->
+                      let fundec = Node.find_fundec n in
+                      match WitnessInvariant.location_location n with (* if after thread create node happens to be loop node *)
+                      | Some loc ->
+                        let location_function = fundec.svar.vname in
+                        let location = Entry.location ~location:loc ~location_function in
+                        List.fold_left (fun acc inv ->
+                            let invariant = Entry.invariant (CilType.Exp.show inv) in
+                            let entry = Entry.location_invariant ~task ~location ~invariant in
+                            entry :: acc
+                          ) acc invs
+                      | None -> acc
+                    ) (Lazy.force ns) acc
+                | `Bot, _ | `Top, _ -> (* global bot might only be possible for alloc variables, if at all, so emit nothing *)
+                  acc
+              end
+            | `Right _ -> (* contexts global *)
+              acc
+          ) gh entries
+      )
+      else
+        entries
+    in
+
+    (* Generate flow-insensitive entries (ghost variables and ghost updates) *)
+    let entries =
+      if true then (
+        GHT.fold (fun g v acc ->
+            match g with
+            | `Left g -> (* Spec global *)
+              begin match R.ask_global (YamlEntryGlobal (Obj.repr g, task)) with
+                | `Lifted _ as inv ->
+                  Queries.YS.fold (fun entry acc ->
+                      if BatList.mem_cmp YamlWitnessType.Entry.compare entry acc then (* TODO: be efficient *)
+                        acc
+                      else
+                        entry :: acc
+                    ) inv acc
+                | `Top ->
                   acc
               end
             | `Right _ -> (* contexts global *)
@@ -821,7 +882,7 @@ struct
         None
       | _ ->
         incr cnt_unsupported;
-        M.info_noloc ~category:Witness "cannot validate entry of type %s" target_type;
+        M.warn_noloc ~category:Witness "cannot validate entry of type %s" target_type;
         None
     in
 
@@ -833,7 +894,7 @@ struct
           Option.to_list yaml_certificate_entry @ yaml_entry :: yaml_entries'
         | Error (`Msg e) ->
           incr cnt_error;
-          M.info_noloc ~category:Witness "couldn't parse entry: %s" e;
+          M.error_noloc ~category:Witness "couldn't parse entry: %s" e;
           yaml_entry :: yaml_entries'
       ) [] yaml_entries
     in
