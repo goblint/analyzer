@@ -42,7 +42,7 @@ module BlDis = struct
   (**
      params:
 
-     t1-> a term that is NOT present in the data structure
+     t1-> a term that is not necessarily present in the data structure
 
      tlist: a list of representative terms
 
@@ -164,7 +164,7 @@ module Disequalities = struct
       )
         ([],uf) (TMap.bindings uf))
 
-  (** arg:
+  (** Returns: "arg" map:
 
       maps each representative term t to a map that maps an integer Z to
       a list of representatives t' of v where *(v + z') is
@@ -535,6 +535,23 @@ struct
   let hash x y = 0
 end
 
+(**
+   This is the type for the abstract domain.
+
+   - `uf` is the union find tree
+
+   - `set` is the set of terms that are currently considered.
+     It is the set of terms that have a mapping in the `uf` tree.
+
+   - `map` maps reference variables v to a map that maps integers z to terms that are equivalent to *(v + z).
+     It represents the transitions of the quantitative finite automata.
+
+   - `normal_form` is the unique normal form of the domain element, it is a lazily computed when needed and stored such that it can be used again later.
+
+   - `diseq` represents the block disequalities. It is a map that maps each term to a set of terms that are definitely in a different block.
+
+   - `bldis` represents the disequalities. It is a map from a term t1 to a map from an integer z to a set of terms T, which represents the disequality t1 != z + t2 for each t2 in T.
+*)
 type t = {uf: TUF.t;
           set: SSet.t;
           map: LMap.t;
@@ -921,6 +938,7 @@ let add_block_diseqs cc lterm =
 
 (* Remove variables: *)
 
+(** Removes terms from the union find and the lookup map. *)
 let remove_terms_from_eq predicate cc =
   let insert_terms cc = List.fold (fun cc t -> snd (insert cc t)) cc in
   (* start from all initial states that are still valid and find new representatives if necessary *)
@@ -1043,7 +1061,9 @@ let show_pmap pmap=
   List.fold_left (fun s ((r1,r2,z1),(t,z2)) ->
       s ^ ";; " ^ "("^T.show r1^","^T.show r2 ^ ","^Z.to_string z1^") --> ("^ T.show t ^ Z.to_string z2 ^ ")") ""(Map.bindings pmap)
 
-(** Join version 1: by using the automaton. *)
+(** Join version 1: by using the automaton.
+    The product automaton of cc1 and cc2 is computed and then we add the terms to the right equivalence class. We also add new terms in order to have some terms for each state in
+    the automaton. *)
 let join_eq cc1 cc2 =
   let atoms = SSet.get_atoms (SSet.inter cc1.set cc2.set) in
   let mappings = List.map
@@ -1207,11 +1227,14 @@ module MayBeEqual = struct
     | exception (IntDomain.ArithmeticOnIntegerBot _) -> AD.top ()
     | res -> res
 
+  (** Ask MayPointTo not only for the term `term`, but also
+      for all terms that are in the same equivalence class as `term`. Then meet the result.
+  *)
   let may_point_to_all_equal_terms ask exp cc term offset =
     let equal_terms = if TMap.mem term cc.uf then
         let comp = Disequalities.comp_t cc.uf term in
         let valid_term (t,z) =
-          T.is_ptr_type (T.type_of_term t) && (to_varinfo (T.get_var t)).vid > 0 in
+          T.is_ptr_type (T.type_of_term t) in
         List.filter valid_term comp
       else [(term,Z.zero)]
     in
@@ -1229,7 +1252,7 @@ module MayBeEqual = struct
     in
     List.fold intersect_query_result (AD.top()) equal_terms
 
-  (**Find out if two addresses are possibly equal by using the MayPointTo query. *)
+  (**Find out if an addresse is possibly equal to one of the adresses in `adresses` by using the MayPointTo query. *)
   let may_point_to_address (ask:Queries.ask) adresses t2 off cc =
     match T.to_cil_sum off (T.to_cil t2) with
     | exception (T.UnsupportedCilExpression _) -> true
@@ -1242,6 +1265,7 @@ module MayBeEqual = struct
       if M.tracing then M.tracel "c2po-maypointto2" "QUERY MayPointTo. \nres: %a;\nt2: %s; exp2: %a; res: %a; \nmeet: %a; result: %s\n"
           AD.pretty mpt1 (T.show t2) d_plainexp exp2 AD.pretty mpt2 AD.pretty (try AD.meet mpt1 mpt2 with IntDomain.ArithmeticOnIntegerBot _ -> AD.bot ()) (string_of_bool res); res
 
+  (** Find out if two addresses `t1` and `t2` are possibly equal by using the MayPointTo query. *)
   let may_point_to_same_address (ask:Queries.ask) t1 t2 off cc =
     if T.equal t1 t2 then true else
       let exp1 = T.to_cil t1 in
@@ -1250,6 +1274,7 @@ module MayBeEqual = struct
       if M.tracing && res then M.tracel "c2po-maypointto2" "QUERY MayPointTo. \nres: %a;\nt1: %s; exp1: %a;\n"
           AD.pretty mpt1 (T.show t1) d_plainexp exp1; res
 
+  (** Returns true if `t1` and `t2` may possibly be equal or may possibly overlap. *)
   let rec may_be_equal ask cc s t1 t2 =
     let there_is_an_overlap s s' diff =
       if Z.(gt diff zero) then Z.(lt diff s') else Z.(lt (-diff) s)
@@ -1282,6 +1307,7 @@ module MayBeEqual = struct
       if M.tracing then M.tracel "c2po-maypointto" "MAY BE EQUAL: %s %s: %b\n" (T.show t1) (T.show t2) res;
       res
 
+  (**Returns true if `t2` or any subterm of `t2` may possibly point to one of the adresses in `adresses`.*)
   let rec may_point_to_one_of_these_adresses ask adresses cc t2 =
     match t2 with
     |  Deref (v, z',_) ->

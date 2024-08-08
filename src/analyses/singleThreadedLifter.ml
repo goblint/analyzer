@@ -1,4 +1,5 @@
-(** A 2-pointer analysis for C. I made this in a few days so please don't judge the code quality. ([2cpo])*)
+(** This lifter transforms any analysis into a single threaded analysis by returning top when the code might be multi-threaded.
+*)
 
 open Analyses
 

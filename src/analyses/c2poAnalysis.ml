@@ -1,4 +1,4 @@
-(** A Weakly-Relational Pointer Analysis. The analysis can infer equalities and disequalities between terms which are built from pointer variables, with the addition of constants and dereferencing. ([c2po])*)
+(** C-2PO: A Weakly-Relational Pointer Analysis for C based on 2 Pointer Logic. The analysis can infer equalities and disequalities between terms which are built from pointer variables, with the addition of constants and dereferencing. ([c2po])*)
 
 open Analyses
 open GoblintCil
@@ -18,7 +18,7 @@ struct
   let name () = "c2po"
   let startcontext () = D.empty ()
 
-  (* find reachable variables in a function *)
+  (** Find reachable variables in a function *)
   let reachable_from_args ctx args =
     let res =
       List.fold (fun vs e -> vs @ (ctx.ask (ReachableFrom e) |> Queries.AD.to_var_may)) [] args in
@@ -37,6 +37,7 @@ struct
     in if M.tracing then M.trace "c2po" "EVAL_GUARD:\n Actual guard: %a; prop_list: %s; res = %s\n"
         d_exp e (show_conj prop_list) (Option.map_default string_of_bool "None" res); res
 
+  (**Convert a conjunction to an invariant.*)
   let conj_to_invariant ask conjs t =
     List.fold (fun a prop -> match T.prop_to_cil prop with
         | exception (T.UnsupportedCilExpression _) ->  a
@@ -63,6 +64,8 @@ struct
       end
     | _ -> Result.top q
 
+  (** Assign the term `lterm` to the right hand side rhs, that is already
+      converted to a C-2PO term. *)
   let assign_term t ask lterm rhs lval_t =
     (* ignore assignments to values that are not 64 bits *)
     match T.get_element_size_in_bits lval_t, rhs with
@@ -78,6 +81,8 @@ struct
       D.remove_terms_containing_variable @@ AssignAux lval_t
     | _ -> (* this is impossible *) D.top ()
 
+  (** Assign Cil Lval to a right hand side that is already converted to
+      C-2PO terms.*)
   let assign_lval t ask lval expr =
     let lval_t = typeOfLval lval in
     match T.of_lval ask lval with
@@ -151,10 +156,10 @@ struct
         branch ctx exp true
     | _ -> reset_normal_form t
 
-  (*First all local variables of the function are duplicated (by negating their ID),
-    then we remember the value of each local variable at the beginning of the function
-    by using the analysis startState. This way we can infer the relations between the
-    local variables of the caller and the pointers that were modified by the function. *)
+  (**First all local variables of the function are duplicated (by negating their ID),
+     then we remember the value of each local variable at the beginning of the function
+     by using the analysis startState. This way we can infer the relations between the
+     local variables of the caller and the pointers that were modified by the function. *)
   let enter ctx var_opt f args =
     (* add duplicated variables, and set them equal to the original variables *)
     let added_equalities = T.filter_valid_pointers (List.map (fun v -> Equal (T.term_of_varinfo (DuplicVar v), T.term_of_varinfo (NormalVar v), Z.zero)) f.sformals) in
@@ -173,8 +178,6 @@ struct
     let duplicated_vars = f.sformals in
     D.remove_terms_containing_variables (ReturnAux (TVoid [])::Var.from_varinfo local_vars duplicated_vars) t
 
-  (*ctx caller, t callee, ask callee, t_context_opt context vom callee -> C.t
-     expr funktionsaufruf*)
   let combine_env ctx var_opt expr f args t_context_opt t (ask: Queries.ask) =
     let og_t = t in
     (* assign function parameters to duplicated values *)
@@ -190,7 +193,6 @@ struct
     let t = reset_normal_form @@ remove_out_of_scope_vars t f in
     if M.tracing then M.trace "c2po-function" "COMBINE_ASSIGN1: var_opt: %a; local_state: %s; t_state: %s; meeting everything: %s\n" d_lval (BatOption.default (Var (Var.dummy_varinfo (TVoid[])), NoOffset) var_opt) (D.show ctx.local) (D.show og_t) (D.show t);t
 
-  (*ctx.local is after combine_env, t callee*)
   let combine_assign ctx var_opt expr f args t_context_opt t (ask: Queries.ask) =
     (* assign function parameters to duplicated values *)
     let arg_assigns = GobList.combine_short f.sformals args in

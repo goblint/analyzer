@@ -1,3 +1,7 @@
+(** Used by C2poDomain and StartStateAnalysis.
+    Contains functions to duplicate variables in order to have shadow variables for each function parameter,
+    that can be used to remeber the initial value of these parameters.
+    It uses RichVarinfo to create the duplicated variables. *)
 open CilType
 open GoblintCil
 open Batteries
@@ -39,7 +43,6 @@ module VarType = struct
 end
 
 module VarVarinfoMap = RichVarinfo.BiVarinfoMap.Make(VarType)
-
 
 module Var =
 struct

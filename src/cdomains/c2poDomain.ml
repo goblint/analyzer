@@ -1,4 +1,4 @@
-(** Domain for weakly relational pointer analysis. *)
+(** Domain for weakly relational pointer analysis C-2PO. *)
 
 open Batteries
 open GoblintCil
@@ -196,7 +196,7 @@ module D = struct
 
   (** Remove terms from the data structure.
       It removes all terms which do not contain one of the "vars",
-      except the global vars are also keeped (when vstorage = static),
+      except the global vars are also kept (when vglob = true),
       while maintaining all equalities about variables that are not being removed.*)
   let remove_terms_not_containing_variables vars cc =
     if M.tracing then M.trace "c2po" "remove_terms_not_containing_variables: %s\n" (List.fold_left (fun s v -> s ^"; " ^Var.show v) "" vars);
@@ -210,10 +210,10 @@ module D = struct
     Option.bind cc (remove_terms (MayBeEqual.may_be_equal ask cc s term))
 
   (** Remove terms from the data structure.
-      It removes all terms that may point to the same address as "tainted".*)
-  let remove_tainted_terms ask address cc =
-    if M.tracing then M.tracel "c2po-tainted" "remove_tainted_terms: %a\n" MayBeEqual.AD.pretty address;
-    Option.bind cc (fun cc -> remove_terms (MayBeEqual.may_point_to_one_of_these_adresses ask address cc) cc)
+      It removes all terms that may point to one of the tainted adresses.*)
+  let remove_tainted_terms ask adress cc =
+    if M.tracing then M.tracel "c2po-tainted" "remove_tainted_terms: %a\n" MayBeEqual.AD.pretty adress;
+    Option.bind cc (fun cc -> remove_terms (MayBeEqual.may_point_to_one_of_these_adresses ask adress cc) cc)
 
   (** Remove terms from the data structure.
       It removes all terms that are not in the scope, and also those that are tmp variables.*)
