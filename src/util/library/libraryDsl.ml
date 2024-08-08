@@ -61,16 +61,16 @@ let rec accs: type k r. (k, r) args_desc -> Accesses.t = fun args_desc args ->
         | Some args -> (acc, arg :: args) :: List.remove_assoc acc accs''
         | None -> (acc, [arg]) :: accs''
       ) accs'' arg_desc.accesses
-  | _, _ -> invalid_arg "accs"
+  | _, _ -> []
 
 let special ?(attrs:attr list=[]) args_desc special_cont = {
-  special = Fun.flip (match_args args_desc) special_cont;
+  special = (fun args -> try Fun.flip (match_args args_desc) special_cont args with _ -> Unknown);
   accs = accs args_desc;
   attrs;
 }
 
 let special' ?(attrs:attr list=[]) args_desc special_cont = {
-  special = (fun args -> Fun.flip (match_args args_desc) (special_cont ()) args); (* eta-expanded such that special_cont is re-executed on each call instead of once during LibraryFunctions construction *)
+  special = (fun args -> try Fun.flip (match_args args_desc) (special_cont ()) args with _ -> Unknown); (* eta-expanded such that special_cont is re-executed on each call instead of once during LibraryFunctions construction *)
   accs = accs args_desc;
   attrs;
 }

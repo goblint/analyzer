@@ -92,6 +92,7 @@ module Malloc_null = Malloc_null
 module MemLeak = MemLeak
 module UseAfterFree = UseAfterFree
 module MemOutOfBounds = MemOutOfBounds
+module C2poAnalysis = C2poAnalysis
 
 (** {2 Concurrency}
 
@@ -169,6 +170,8 @@ module UnassumeAnalysis = UnassumeAnalysis
 module ExpRelation = ExpRelation
 module AbortUnless = AbortUnless
 module PtranalAnalysis = PtranalAnalysis
+module StartStateAnalysis = StartStateAnalysis
+module SingleThreadedLifter = SingleThreadedLifter
 
 
 (** {1 Domains}
@@ -271,6 +274,10 @@ module AccessDomain = AccessDomain
 module MusteqDomain = MusteqDomain
 module RegionDomain = RegionDomain
 module StackDomain = StackDomain
+
+module CongruenceClosure = CongruenceClosure
+module UnionFind = UnionFind
+module C2poDomain = C2poDomain
 
 (** {2 Testing}
 
@@ -395,6 +402,7 @@ module CilType = CilType
 module Cilfacade = Cilfacade
 module CilLocation = CilLocation
 module RichVarinfo = RichVarinfo
+module DuplicateVars = DuplicateVars
 
 module CilCfg = CilCfg
 module LoopUnrolling = LoopUnrolling
