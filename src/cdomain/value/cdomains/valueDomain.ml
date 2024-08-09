@@ -982,26 +982,29 @@ struct
           end
         | Blob (x,s,orig), _ ->
           begin
-            let l', o' = shift_one_over l o in
-            let x = zero_init_calloced_memory orig x t in
-            (* Strong update of scalar variable is possible if the variable is unique and size of written value matches size of blob being written to. *)
-            let do_strong_update =
-              begin match v with
-                | (Var var, _) ->
-                  let blob_size_opt = ID.to_int s in
-                  not @@ ask.is_multiple var
-                  && Option.is_some blob_size_opt (* Size of blob is known *)
-                  && ((
-                      not @@ Cil.isVoidType t     (* Size of value is known *)
-                      && Z.equal (Option.get blob_size_opt) (Z.of_int @@ Cil.alignOf_int t)
-                    ) || blob_destructive)
-                | _ -> false
-              end
-            in
-            if do_strong_update then
-              Blob ((do_update_offset ask x offs value exp l' o' v t), s, orig)
-            else
-              mu (Blob (join x (do_update_offset ask x offs value exp l' o' v t), s, orig))
+            match offs, value with
+            | `NoOffset, Blob (x2, s2, orig2) -> mu (Blob (join x x2, ID.join s s2,ZeroInit.join orig orig2))
+            | _ ->
+              let l', o' = shift_one_over l o in
+              let x = zero_init_calloced_memory orig x t in
+              (* Strong update of scalar variable is possible if the variable is unique and size of written value matches size of blob being written to. *)
+              let do_strong_update =
+                begin match v with
+                  | (Var var, _) ->
+                    let blob_size_opt = ID.to_int s in
+                    not @@ ask.is_multiple var
+                    && Option.is_some blob_size_opt (* Size of blob is known *)
+                    && ((
+                        not @@ Cil.isVoidType t     (* Size of value is known *)
+                        && Z.equal (Option.get blob_size_opt) (Z.of_int @@ Cil.alignOf_int t)
+                      ) || blob_destructive)
+                  | _ -> false
+                end
+              in
+              if do_strong_update then
+                Blob ((do_update_offset ask x offs value exp l' o' v t), s, orig)
+              else
+                mu (Blob (join x (do_update_offset ask x offs value exp l' o' v t), s, orig))
           end
         | Thread _, _ ->
           (* hack for pthread_t variables *)
