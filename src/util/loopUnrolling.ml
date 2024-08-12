@@ -311,7 +311,7 @@ class loopUnrollingCallVisitor = object
 
   method! vinst = function
     | Call (_,Lval ((Var info), NoOffset),args,_,_) when LibraryFunctions.is_special info -> (
-        Goblint_backtrace.protect ~mark:(fun () -> Cilfacade.FunVarinfo info) ~finally:Fun.id @@ fun () ->
+        Goblint_backtrace.wrap_val ~mark:(Cilfacade.FunVarinfo info) @@ fun () ->
         let desc = LibraryFunctions.find info in
         match desc.special args with
         | Malloc _

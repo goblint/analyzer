@@ -63,7 +63,7 @@ struct
         List.exists (fun (_, edge) ->
             match edge with
             | Proc (_, Lval (Var fv, NoOffset), args) when LibraryFunctions.is_special fv ->
-              Goblint_backtrace.protect ~mark:(fun () -> Cilfacade.FunVarinfo fv) ~finally:Fun.id @@ fun () ->
+              Goblint_backtrace.wrap_val ~mark:(Cilfacade.FunVarinfo fv) @@ fun () ->
               let desc = LibraryFunctions.find fv in
               begin match desc.special args with
                 | Lock _ -> true

@@ -68,7 +68,7 @@ let functionArgs fd = (ResettableLazy.force functionCallMaps).argLists |> Functi
 
 let findMallocWrappers () =
   let isMalloc f =
-    Goblint_backtrace.protect ~mark:(fun () -> Cilfacade.FunVarinfo f) ~finally:Fun.id @@ fun () ->
+    Goblint_backtrace.wrap_val ~mark:(Cilfacade.FunVarinfo f) @@ fun () ->
     if LibraryFunctions.is_special f then (
       let desc = LibraryFunctions.find f in
       match functionArgs f with
@@ -154,7 +154,7 @@ let disableIntervalContextsInRecursiveFunctions () =
 
 let hasFunction pred =
   let relevant_static var =
-    Goblint_backtrace.protect ~mark:(fun () -> Cilfacade.FunVarinfo var) ~finally:Fun.id @@ fun () ->
+    Goblint_backtrace.wrap_val ~mark:(Cilfacade.FunVarinfo var) @@ fun () ->
     if LibraryFunctions.is_special var then
       let desc = LibraryFunctions.find var in
       GobOption.exists (fun args -> pred (desc.special args)) (functionArgs var)
@@ -162,7 +162,7 @@ let hasFunction pred =
       false
   in
   let relevant_dynamic var =
-    Goblint_backtrace.protect ~mark:(fun () -> Cilfacade.FunVarinfo var) ~finally:Fun.id @@ fun () ->
+    Goblint_backtrace.wrap_val ~mark:(Cilfacade.FunVarinfo var) @@ fun () ->
     if LibraryFunctions.is_special var then
       let desc = LibraryFunctions.find var in
       (* We don't really have arguments at hand, so we cheat and just feed it a list of MyCFG.unknown_exp of appropriate length *)

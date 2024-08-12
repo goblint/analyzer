@@ -44,7 +44,7 @@ struct
       let is_lock exp args =
         match exp with
         | Lval(Var v,_) when LibraryFunctions.is_special v ->
-          Goblint_backtrace.protect ~mark:(fun () -> Cilfacade.FunVarinfo v) ~finally:Fun.id @@ fun () ->
+          Goblint_backtrace.wrap_val ~mark:(Cilfacade.FunVarinfo v) @@ fun () ->
           let desc = LibraryFunctions.find v in
           (match desc.special args with
            | Lock _ -> true
