@@ -33,16 +33,6 @@ module T = struct
   type t = term [@@deriving eq, ord, hash]
   type v_prop = prop [@@deriving hash]
 
-  let compare t1 t2 =
-    match t1,t2 with
-    | Addr v1, Addr v2
-    | Aux (v1,_), Aux (v2,_) -> Var.compare v1 v2
-    | Deref (t1,z1,_), Deref (t2,z2,_) -> let c = compare t1 t2 in
-      if c = 0 then Z.compare z1 z2 else c
-    | Addr _, _
-    | _, Deref _ -> -1
-    | _ -> 1
-
   let normal_form_prop = function
     | Equal (t1,t2,z) | Nequal (t1,t2,z) ->
       if compare t1 t2 < 0 || (compare t1 t2 = 0 && Z.geq z Z.zero) then (t1,t2,z) else
