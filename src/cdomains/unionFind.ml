@@ -35,7 +35,8 @@ module T = struct
 
   let normal_form_prop = function
     | Equal (t1,t2,z) | Nequal (t1,t2,z) ->
-      if compare t1 t2 < 0 || (compare t1 t2 = 0 && Z.geq z Z.zero) then (t1,t2,z) else
+      let cmp = compare t1 t2 in
+      if cmp < 0 || (cmp = 0 && Z.geq z Z.zero) then (t1,t2,z) else
         (t2,t1,Z.(-z))
     | BlNequal (t1,t2) ->
       if compare t1 t2 < 0 then (t1,t2,Z.zero) else
