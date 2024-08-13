@@ -134,8 +134,7 @@ module T = struct
   (** Returns Some type for a pointer to a type
       and None if the result is not a pointer. *)
   let rec type_of_element typ =
-    match typ with
-    | TNamed (typinfo, _) -> type_of_element typinfo.ttype
+    match Cil.unrollType typ with
     | TArray (typ, _, _) -> type_of_element typ
     | TPtr (typ, _) -> Some typ
     | _ -> None
@@ -148,29 +147,19 @@ module T = struct
     | Some typ -> get_size_in_bits typ
     | None -> Z.one
 
-  let rec is_array_type = function
-    | TNamed (typinfo, _) -> is_array_type typinfo.ttype
-    | TArray _ -> true
-    | _ -> false
-
-  let rec is_struct_type = function
-    | TNamed (typinfo, _) -> is_struct_type typinfo.ttype
+  let is_struct_type t =
+    match Cil.unrollType t with
     | TComp _ -> true
     | _ -> false
 
-  let rec is_struct_ptr_type = function
-    | TNamed (typinfo, _) -> is_struct_ptr_type typinfo.ttype
+  let is_struct_ptr_type t =
+    match Cil.unrollType t with
     | TPtr(typ,_) -> is_struct_type typ
     | _ -> false
 
-  let rec is_ptr_type = function
-    | TNamed (typinfo, _) -> is_ptr_type typinfo.ttype
+  let is_ptr_type t =
+    match Cil.unrollType t with
     | TPtr _ -> true
-    | _ -> false
-
-  let rec is_float = function
-    | TNamed (typinfo, _) -> is_float typinfo.ttype
-    | TFloat _ -> true
     | _ -> false
 
   let aux_term_of_varinfo vinfo =
@@ -223,8 +212,8 @@ module T = struct
     | exception (SizeOfError _) -> if M.tracing then M.trace "c2po-invalidate" "REASON: unknown offset";
       raise (UnsupportedCilExpression "unknown offset")
 
-  let rec can_be_dereferenced = function
-    | TNamed (typinfo, _) -> can_be_dereferenced typinfo.ttype
+  let can_be_dereferenced t =
+    match Cil.unrollType t with
     | TPtr _| TArray _| TComp _ -> true
     | _ -> false
 
@@ -289,7 +278,7 @@ module T = struct
     match typeOf term with (* we want to make sure that the expression is valid *)
     | exception GoblintCil__Errormsg.Error -> false
     | typ -> (* we only track equalties between pointers (variable of size 64)*)
-      if get_size_in_bits typ <> bitsSizeOfPtr () || is_float typ then false
+      if get_size_in_bits typ <> bitsSizeOfPtr () || Cilfacade.isFloatType typ then false
       else true
 
   (** Only keeps the variables that are actually pointers (or 64-bit integers). *)
@@ -412,7 +401,7 @@ module T = struct
   (** Converts the negated expression to a term if neg = true.
       If neg = false then it simply converts the expression to a term. *)
   let of_cil_neg ask neg e =
-    match is_float (typeOf e) with
+    match Cilfacade.isFloatType (typeOf e) with
     | exception GoblintCil__Errormsg.Error | true -> None, None
     | false ->
       let res = match of_cil_neg ask neg (Cil.constFold false e) with
