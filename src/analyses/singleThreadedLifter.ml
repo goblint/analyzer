@@ -1,4 +1,4 @@
-(** This lifter transforms any analysis into a single threaded analysis by returning top when the code might be multi-threaded.
+(** This lifter takes an analysis that only works for single-threaded code and allows it to run on multi-threaded programs by returning top when the code might be multi-threaded.
 *)
 
 open Analyses
