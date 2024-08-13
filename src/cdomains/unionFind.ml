@@ -276,7 +276,7 @@ module T = struct
       that has the same size as a pointer.*)
   let check_valid_pointer term =
     match typeOf term with (* we want to make sure that the expression is valid *)
-    | exception GoblintCil__Errormsg.Error -> false
+    | exception Cilfacade.TypeOfError _ -> false
     | typ -> (* we only track equalties between pointers (variable of size 64)*)
       if get_size_in_bits typ <> bitsSizeOfPtr () || Cilfacade.isFloatType typ then false
       else true
@@ -402,7 +402,8 @@ module T = struct
       If neg = false then it simply converts the expression to a term. *)
   let of_cil_neg ask neg e =
     match Cilfacade.isFloatType (typeOf e) with
-    | exception GoblintCil__Errormsg.Error | true -> None, None
+    | exception Cilfacade.TypeOfError _
+    | true -> None, None
     | false ->
       let res = match of_cil_neg ask neg (Cil.constFold false e) with
         | exception (UnsupportedCilExpression s) -> if M.tracing then M.trace "c2po-cil-conversion" "unsupported exp: %a\n%s\n" d_plainexp e s;
