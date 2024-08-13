@@ -10,9 +10,13 @@ module M = Messages
 
 exception Unsat
 
-type ('v, 't) term = Addr of 'v | Aux of 'v * 't | Deref of ('v, 't) term * Z.t * 't [@@deriving eq, ord, hash]
-type ('v, 't) prop = Equal of ('v, 't) term * ('v, 't) term * Z.t | Nequal of ('v, 't) term * ('v, 't) term * Z.t
-                   | BlNequal of ('v, 't) term * ('v, 't) term
+(* equality of terms should not depend on the expression *)
+let compare_exp _ _ = 0
+let equal_exp _ _ = true
+let hash_exp _ = 1
+type term = Addr of Var.t | Aux of Var.t * (exp[@compare.ignore][@eq.ignore][@hash.ignore]) | Deref of term * Z.t * (exp[@compare.ignore][@eq.ignore][@hash.ignore]) [@@deriving eq, ord, hash]
+type prop = Equal of term * term * Z.t | Nequal of term * term * Z.t
+          | BlNequal of term * term
 [@@deriving eq, ord, hash]
 
 (** The terms consist of address constants and dereferencing function with sum of an integer.
@@ -25,14 +29,9 @@ module T = struct
 
   let bitsSizeOfPtr () = Z.of_int @@ bitsSizeOf (TPtr (TVoid [],[]))
 
-  (* equality of terms should not depend on the expression *)
-  let compare_exp _ _ = 0
-  let equal_exp _ _ = true
-  let hash_exp _ = 1
-
   (* we store the varinfo and the Cil expression corresponding to the term in the data type *)
-  type t = (Var.t, exp[@compare.ignore][@eq.ignore][@hash.ignore]) term [@@deriving eq, ord, hash]
-  type v_prop = (Var.t, exp[@hash.ignore]) prop [@@deriving hash]
+  type t = term [@@deriving eq, ord, hash]
+  type v_prop = prop [@@deriving hash]
 
   let compare t1 t2 =
     match t1,t2 with
