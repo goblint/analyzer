@@ -150,8 +150,11 @@ struct
       let cdef_ancestor = P.common_suffix p p' in
       P.equal p cdef_ancestor
 
-  let may_create (p,s) (p',s') =
-    S.subset (S.union (S.of_list p) s) (S.union (S.of_list p') s')
+  let may_create ((p, s) as t) ((p', s') as t') =
+    if is_unique t' then
+      is_must_parent t t' (* unique must be created by something unique (that's a prefix) *)
+    else
+      S.subset (S.union (S.of_list p) s) (S.union (S.of_list p') s')
 
   let compose ((p, s) as current) ni =
     if BatList.mem_cmp Base.compare ni p then (
