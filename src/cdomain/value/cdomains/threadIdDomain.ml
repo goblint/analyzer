@@ -154,7 +154,9 @@ struct
     if is_unique t' then
       is_must_parent t t' (* unique must be created by something unique (that's a prefix) *)
     else
-      S.subset (S.union (S.of_list p) s) (S.union (S.of_list p') s')
+      let cdef_ancestor = P.common_suffix p p' in
+      (P.equal cdef_ancestor p || P.equal cdef_ancestor p') && (* prefixes must not be incompatible (one is prefix of another or vice versa), because compose cannot fix incompatibility there *)
+      S.subset (S.union (S.of_list p) s) (S.union (S.of_list p') s') (* elements must be contained, because compose can only add them *)
 
   let compose ((p, s) as current) ni =
     if BatList.mem_cmp Base.compare ni p then (
