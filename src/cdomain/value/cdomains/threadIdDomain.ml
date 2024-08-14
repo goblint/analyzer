@@ -164,7 +164,7 @@ struct
         (* TODO: avoid length calculations? *)
         let dp' = BatList.take (List.length p - List.length cdef_ancestor) p in (* elements removed from prefix *)
         S.subset (S.of_list dp') s' (* removed elements become part of set, must be contained, because compose can only add them *)
-        (* TODO: also check disjointness *)
+        (* no need to check disjointness, because if t' is well-formed, then s' won't have anything from cdef_ancestor anyway *)
       )
       else
         false (* prefixes must not be incompatible (one is prefix of another or vice versa), because compose cannot fix incompatibility there *)
