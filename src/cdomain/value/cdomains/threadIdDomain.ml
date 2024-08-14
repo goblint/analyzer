@@ -160,10 +160,14 @@ struct
         let dp = BatList.take (List.length p' - List.length cdef_ancestor) p' in (* elements added to prefix *)
         S.disjoint (S.of_list p) (S.union (S.of_list dp) s') (* added elements must not appear in p, otherwise compose would become shorter and non-unique *)
       )
-      else ( (* p is not prefix of p' *)
-        P.equal cdef_ancestor p' && (* prefixes must not be incompatible (one is prefix of another or vice versa), because compose cannot fix incompatibility there *)
-        S.subset (S.union (S.of_list p) s) (S.union (S.of_list p') s') (* elements must be contained, because compose can only add them *)
+      else if P.equal cdef_ancestor p' then ( (* p is not prefix of p', but p' is prefix of p *)
+        (* TODO: avoid length calculations? *)
+        let dp' = BatList.take (List.length p - List.length cdef_ancestor) p in (* elements removed from prefix *)
+        S.subset (S.of_list dp') s' (* removed elements become part of set, must be contained, because compose can only add them *)
+        (* TODO: also check disjointness *)
       )
+      else
+        false (* prefixes must not be incompatible (one is prefix of another or vice versa), because compose cannot fix incompatibility there *)
     )
     else ( (* both are non-unique *)
       let cdef_ancestor = P.common_suffix p p' in
