@@ -155,8 +155,15 @@ struct
       is_must_parent t t' (* unique must be created by something unique (that's a prefix) *)
     else if is_unique t then ( (* t' is already non-unique *)
       let cdef_ancestor = P.common_suffix p p' in
-      (P.equal cdef_ancestor p || P.equal cdef_ancestor p') && (* prefixes must not be incompatible (one is prefix of another or vice versa), because compose cannot fix incompatibility there *)
-      S.subset (S.union (S.of_list p) s) (S.union (S.of_list p') s') (* elements must be contained, because compose can only add them *)
+      if P.equal cdef_ancestor p then ( (* p is prefix of p' *)
+        (* TODO: avoid length calculations? *)
+        let dp = BatList.take (List.length p' - List.length cdef_ancestor) p' in (* elements added to prefix *)
+        S.disjoint (S.of_list p) (S.union (S.of_list dp) s') (* added elements must not appear in p, otherwise compose would become shorter and non-unique *)
+      )
+      else ( (* p is not prefix of p' *)
+        P.equal cdef_ancestor p' && (* prefixes must not be incompatible (one is prefix of another or vice versa), because compose cannot fix incompatibility there *)
+        S.subset (S.union (S.of_list p) s) (S.union (S.of_list p') s') (* elements must be contained, because compose can only add them *)
+      )
     )
     else ( (* both are non-unique *)
       let cdef_ancestor = P.common_suffix p p' in
