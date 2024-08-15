@@ -140,16 +140,16 @@ struct
   let is_unique (_, s) =
     S.is_empty s
 
-  let is_must_parent (p,s) (p',s') =
-    if not (S.is_empty s) then
+  let is_must_parent ((p, s) as t) ((p', s') as t') =
+    if not (is_unique t) then
       false
-    else if P.equal p' p && S.is_empty s' then (* s is already empty *)
-      (* We do not consider a thread its own parent *)
-      false
-    else
+    else if is_unique t' && P.equal p p' then (* t is already unique, so no need to compare sets *)
+      false (* thread is not its own parent *)
+    else ( (* both are unique, but different *)
       match GobList.remove_common_prefix Base.equal (List.rev p) (List.rev p') with (* prefixes are stored reversed *)
-      | [], _ -> true
+      | [], _ -> true (* p is prefix of p' *)
       | _ :: _, _ -> false
+    )
 
   let may_create ((p, s) as t) ((p', s') as t') =
     if is_unique t' then
