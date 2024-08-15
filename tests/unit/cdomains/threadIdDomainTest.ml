@@ -93,6 +93,8 @@ let test_history_may_create _ =
   assert_equal true (may_create (main >> a >> b >> b) (main >> a >> b >> a));
   assert_equal true (may_create (main >> a >> b >> b) (main >> b >> b >> a));
   assert_equal true (may_create (main >> a >> b >> b) (main >> b >> a >> b));
+
+  (* 4f6a7637b8d0dc723fe382f94bed6c822cd4a2ce passes all... *)
   ()
 
 let tests =
