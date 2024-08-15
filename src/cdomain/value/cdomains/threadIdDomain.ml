@@ -147,36 +147,26 @@ struct
       (* We do not consider a thread its own parent *)
       false
     else
-      match GobList.remove_common_prefix Base.equal (List.rev p) (List.rev p') with
+      match GobList.remove_common_prefix Base.equal (List.rev p) (List.rev p') with (* prefixes are stored reversed *)
       | [], _ -> true
       | _ :: _, _ -> false
 
   let may_create ((p, s) as t) ((p', s') as t') =
     if is_unique t' then
       is_must_parent t t' (* unique must be created by something unique (that's a prefix) *)
-    else if is_unique t then ( (* t' is already non-unique *)
-      match GobList.remove_common_prefix Base.equal (List.rev p) (List.rev p') with
-      | [], dp -> (* p is prefix of p' *)
-        (* dp = elements added to prefix *)
-        (* S.disjoint (S.of_list p) (S.union (S.of_list dp) s') (* added elements must not appear in p, otherwise compose would become shorter and non-unique *) *)
-        (* no need to check disjointness, because if t' is well-formed, then dp and s' won't have anything from cdef_ancestor anyway *)
-        true
-      | dp', [] -> (* p is not prefix of p', but p' is prefix of p *)
-        (* dp' = elements removed from prefix *)
-        S.subset (S.of_list dp') s' (* removed elements become part of set, must be contained, because compose can only add them *)
-        (* no need to check disjointness, because if t' is well-formed, then s' won't have anything from cdef_ancestor anyway *)
-      | _ :: _, _ :: _ -> (* prefixes must not be incompatible (one is prefix of another or vice versa), because compose cannot fix incompatibility there *)
-        false
-    )
-    else ( (* both are non-unique *)
-      match GobList.remove_common_prefix Base.equal (List.rev p) (List.rev p') with
+    else ( (* t' is already non-unique (but doesn't matter) *)
+      match GobList.remove_common_prefix Base.equal (List.rev p) (List.rev p') with (* prefixes are stored reversed *)
+      | [], dp when is_unique t -> (* p is prefix of p' *)
+        (* dp = elements added to prefix (reversed, but doesn't matter) *)
+        true (* all elements are contained: p is prefix of p' and s is empty (due to uniqueness) *)
       | dp', [] -> (* p' is prefix of p *)
-        (* dp' = elements removed from prefix *)
-        S.subset (S.union (S.of_list dp') s) s' (* elements must be contained, because compose can only add them *)
-        (* can just subset s' thanks to well-formedness conditions *)
-        (* no need to check disjointness, because if t' is well-formed, then s' won't have anything from cdef_ancestor anyway *)
-      | _, _ :: _ -> (* p' must be prefix of p, because non-unique compose can only shorten prefix *)
-        false
+        (* dp' = elements removed from prefix (reversed, but doesn't matter) *)
+        S.subset (S.of_list dp') s' && (* removed elements become part of set, must be contained, because compose can only add them *)
+        S.subset s s' (* set elements must be contained, because compose can only add them *)
+      | [], _ :: _ -> (* p is strict prefix of p' and t is non-unique *)
+        false (* composing to non-unique cannot lengthen prefix *)
+      | _ :: _, _ :: _ -> (* prefixes are incompatible *)
+        false (* composing cannot fix incompatibility there *)
     )
 
   let compose ((p, s) as current) ni =
