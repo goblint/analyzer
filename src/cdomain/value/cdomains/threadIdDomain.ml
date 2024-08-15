@@ -145,7 +145,7 @@ struct
       false
     else if is_unique t' && P.equal p p' then (* t is already unique, so no need to compare sets *)
       false (* thread is not its own parent *)
-    else ( (* both are unique, but different *)
+    else ( (* t is already unique, so no need to check sets *)
       match GobList.remove_common_prefix Base.equal (List.rev p) (List.rev p') with (* prefixes are stored reversed *)
       | [], _ -> true (* p is prefix of p' *)
       | _ :: _, _ -> false
