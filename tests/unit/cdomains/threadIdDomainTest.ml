@@ -50,9 +50,9 @@ let test_history_may_create _ =
   assert_equal true (may_create main (main >> a));
   assert_equal true (may_create main (main >> a >> b));
   assert_equal true (may_create (main >> a) (main >> a >> b));
-  assert_equal false (may_create (main >> a) (main >> a));
-  assert_equal false (may_create (main >> b) (main >> a >> b));
-  assert_equal false (may_create (main >> a >> a) (main >> a >> b));
+  assert_equal false (may_create (main >> a) (main >> a)); (* infeasible for race: definitely_not_started allows equality *)
+  assert_equal false (may_create (main >> b) (main >> a >> b)); (* 53-races-mhp/04-not-created2 *)
+  assert_equal false (may_create (main >> a >> a) (main >> a >> b)); (* infeasible for race: cannot create non-unique (main >> a >> a) before unique (main >> a >> b) *)
 
   (* unique creates non-unique and is prefix: added elements cannot be in prefix *)
   assert_equal true (may_create main (main >> a >> a));
@@ -64,22 +64,22 @@ let test_history_may_create _ =
   assert_equal true (may_create (main >> a) (main >> a >> a));
   assert_equal true (may_create (main >> a >> b) (main >> a >> b >> b));
   assert_equal true (may_create (main >> a >> b) (main >> a >> b >> a));
-  assert_equal false (may_create (main >> a >> b) (main >> a >> a));
-  assert_equal false (may_create (main >> a >> b) (main >> b >> b));
+  assert_equal false (may_create (main >> a >> b) (main >> a >> a)); (* infeasible for race: definitely_not_started requires (main >> a), where this must happen, to be must parent for (main >> a >> a), which it is not *)
+  assert_equal false (may_create (main >> a >> b) (main >> b >> b)); (* infeasible for race: definitely_not_started requires (main >> a), where this must happen, to be must parent for (main >> b >> b), which it is not *)
 
   (* unique creates non-unique and prefixes are incompatible *)
-  assert_equal false (may_create (main >> a) (main >> b >> a >> a));
-  assert_equal false (may_create (main >> a >> b) (main >> b >> a >> c >> c));
-  assert_equal false (may_create (main >> a >> b) (main >> a >> c >> d >> d));
+  assert_equal false (may_create (main >> a) (main >> b >> a >> a)); (* 53-races-mhp/05-not-created3 *)
+  assert_equal false (may_create (main >> a >> b) (main >> b >> a >> c >> c)); (* infeasible for race: definitely_not_started requires (main >> a), where this must happen, to be must parent for (main >> b >> a >> c >> c), which it is not *)
+  assert_equal false (may_create (main >> a >> b) (main >> a >> c >> d >> d)); (* 53-races-mhp/06-not-created4, also passes with simple may_create *)
 
   (* non-unique creates non-unique: prefix must not lengthen *)
-  assert_equal false (may_create (main >> a >> a) (main >> a >> b >> b));
-  assert_equal false (may_create (main >> a >> a) (main >> b >> a >> a));
+  assert_equal false (may_create (main >> a >> a) (main >> a >> b >> b)); (* infeasible for race: cannot create non-unique (main >> a >> a) before unique prefix-ed (main >> a >> b >> b) *)
+  assert_equal false (may_create (main >> a >> a) (main >> b >> a >> a)); (* 53-races-mhp/07-not-created5 *)
   (* non-unique creates non-unique: prefix must be compatible *)
-  assert_equal false (may_create (main >> a >> b >> c >> c) (main >> b >> a >> c >> c));
+  assert_equal false (may_create (main >> a >> b >> c >> c) (main >> b >> a >> c >> c)); (* infeasible for race: definitely_not_started requires (main >> a >> b or main >> a >> b >> c), where this must happen, to be must parent for (main >> b >> a >> c >> c), which it is not *)
   (* non-unique creates non-unique: elements must not be removed *)
-  assert_equal false (may_create (main >> a >> b >> b) (main >> a >> c >> c)); (* from set *)
-  assert_equal false (may_create (main >> a >> b >> b) (main >> b >> b)); (* from prefix *)
+  assert_equal false (may_create (main >> a >> b >> b) (main >> a >> c >> c)); (* from set *) (* 53-races-mhp/08-not-created6, also passes with simple may_create *)
+  assert_equal false (may_create (main >> a >> b >> b) (main >> b >> b)); (* from prefix *) (* infeasible for race: definitely_not_started requires (main >> a or main >> a >> b), where this must happen, to be must parent for (main >> b >> b), which it is not *)
   (* non-unique creates non-unique: removed elements and set must be in new set *)
   (* assert_equal false (may_create (main >> a >> b >> c >> c) (main >> a >> c >> c)); *)
   (* TODO: cannot test due because by construction after prefix check? *)
