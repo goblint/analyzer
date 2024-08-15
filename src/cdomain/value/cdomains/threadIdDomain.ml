@@ -147,40 +147,36 @@ struct
       (* We do not consider a thread its own parent *)
       false
     else
-      let cdef_ancestor = P.common_suffix p p' in
-      P.equal p cdef_ancestor
+      match GobList.remove_common_prefix Base.equal (List.rev p) (List.rev p') with
+      | [], _ -> true
+      | _ :: _, _ -> false
 
   let may_create ((p, s) as t) ((p', s') as t') =
     if is_unique t' then
       is_must_parent t t' (* unique must be created by something unique (that's a prefix) *)
     else if is_unique t then ( (* t' is already non-unique *)
-      let cdef_ancestor = P.common_suffix p p' in
-      if P.equal cdef_ancestor p then ( (* p is prefix of p' *)
-        (* let dp = elements added to prefix *)
+      match GobList.remove_common_prefix Base.equal (List.rev p) (List.rev p') with
+      | [], dp -> (* p is prefix of p' *)
+        (* dp = elements added to prefix *)
         (* S.disjoint (S.of_list p) (S.union (S.of_list dp) s') (* added elements must not appear in p, otherwise compose would become shorter and non-unique *) *)
         (* no need to check disjointness, because if t' is well-formed, then dp and s' won't have anything from cdef_ancestor anyway *)
         true
-      )
-      else if P.equal cdef_ancestor p' then ( (* p is not prefix of p', but p' is prefix of p *)
-        (* TODO: avoid length calculations? *)
-        let dp' = BatList.take (List.length p - List.length cdef_ancestor) p in (* elements removed from prefix *)
+      | dp', [] -> (* p is not prefix of p', but p' is prefix of p *)
+        (* dp' = elements removed from prefix *)
         S.subset (S.of_list dp') s' (* removed elements become part of set, must be contained, because compose can only add them *)
         (* no need to check disjointness, because if t' is well-formed, then s' won't have anything from cdef_ancestor anyway *)
-      )
-      else
-        false (* prefixes must not be incompatible (one is prefix of another or vice versa), because compose cannot fix incompatibility there *)
+      | _ :: _, _ :: _ -> (* prefixes must not be incompatible (one is prefix of another or vice versa), because compose cannot fix incompatibility there *)
+        false
     )
     else ( (* both are non-unique *)
-      let cdef_ancestor = P.common_suffix p p' in
-      if P.equal cdef_ancestor p' then ( (* p' is prefix of p *)
-        (* TODO: avoid length calculations? *)
-        let dp' = BatList.take (List.length p - List.length cdef_ancestor) p in (* elements removed from prefix *)
+      match GobList.remove_common_prefix Base.equal (List.rev p) (List.rev p') with
+      | dp', [] -> (* p' is prefix of p *)
+        (* dp' = elements removed from prefix *)
         S.subset (S.union (S.of_list dp') s) s' (* elements must be contained, because compose can only add them *)
         (* can just subset s' thanks to well-formedness conditions *)
         (* no need to check disjointness, because if t' is well-formed, then s' won't have anything from cdef_ancestor anyway *)
-      )
-      else
-        false (* p' must be prefix of p, because non-unique compose can only shorten prefix *)
+      | _, _ :: _ -> (* p' must be prefix of p, because non-unique compose can only shorten prefix *)
+        false
     )
 
   let compose ((p, s) as current) ni =

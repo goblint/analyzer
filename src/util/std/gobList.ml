@@ -30,6 +30,11 @@ let rec fold_while_some (f : 'a -> 'b -> 'a option) (acc: 'a) (xs: 'b list): 'a 
 
 let equal = List.eq
 
+let rec remove_common_prefix eq l1 l2 =
+  match l1, l2 with
+  | x1 :: l1', x2 :: l2' when eq x1 x2 -> remove_common_prefix eq l1' l2'
+  | _, _ -> (l1, l2)
+
 (** Given a predicate and a list, returns two lists [(l1, l2)].
     [l1] contains the prefix of the list until the last element that satisfies the predicate, [l2] contains all subsequent elements. The order of elements is preserved. *)
 let until_last_with (pred: 'a -> bool) (xs: 'a list) =
