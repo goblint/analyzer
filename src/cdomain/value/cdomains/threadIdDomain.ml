@@ -159,6 +159,7 @@ struct
         (* TODO: avoid length calculations? *)
         let dp = BatList.take (List.length p' - List.length cdef_ancestor) p' in (* elements added to prefix *)
         S.disjoint (S.of_list p) (S.union (S.of_list dp) s') (* added elements must not appear in p, otherwise compose would become shorter and non-unique *)
+        (* TODO: no need to check disjointness, because if t' is well-formed, then dp and s' won't have anything from cdef_ancestor anyway? *)
       )
       else if P.equal cdef_ancestor p' then ( (* p is not prefix of p', but p' is prefix of p *)
         (* TODO: avoid length calculations? *)
@@ -173,6 +174,7 @@ struct
       let cdef_ancestor = P.common_suffix p p' in
       P.equal cdef_ancestor p' && (* p' must be prefix of p, because non-unique compose can only shorten prefix *)
       S.subset (S.union (S.of_list p) s) (S.union (S.of_list p') s') (* elements must be contained, because compose can only add them *)
+      (* TODO: can just subset s' thanks to well-formedness conditions? *)
     )
 
   let compose ((p, s) as current) ni =
