@@ -37,6 +37,7 @@ let equal = List.eq
     This can be used to check being a prefix in both directions simultaneously:
     - if [l1' = []], then [l1] is a prefix of [l2],
     - if [l2' = []], then [l2] is a prefix of [l1].
+
     In other cases, the common prefix is not returned (i.e. reconstructed) for efficiency reasons.
 
     @param eq equality predicate for elements *)
