@@ -481,13 +481,13 @@ module Base =
 
             let y_sides = HM.find divided_side_effects y in
             let (old_side, narrow_gas) = HM.find_default y_sides x (S.Dom.bot (), narrow_sides_gas_default) in
+            let phase = if phase == D_Box then
+                if S.Dom.leq d old_side then D_Narrow else D_Widen
+              else
+                phase
+            in
             (* Potential optimization: don't widen locally if joining does not affect the combined value *)
             if not (phase = D_Narrow && narrow_gas = Some (0, D_Widen)) then (
-              let phase = if phase == D_Box then
-                  if S.Dom.leq d old_side then D_Narrow else D_Widen
-                else
-                  phase
-              in
               let (new_side, narrow_gas) = match phase with
                 | D_Widen -> (
                     let tmp = S.Dom.join old_side d in
