@@ -1730,7 +1730,12 @@ struct
     let update_one (x : Addr.t) store =
       match x with
       | Addr x -> update_one_addr x store
-      | NullPtr
+      | NullPtr ->
+        begin match get_string "sem.null-pointer.dereference" with
+          | "assume_none" -> D.bot ()
+          | "assume_top" -> store
+          | _ -> assert false
+        end
       | UnknownPtr
       | StrPtr _ -> store
     in
@@ -2032,7 +2037,7 @@ struct
     )
 
   let invalidate ?(deep=true) ~ctx (st:store) (exps: exp list): store =
-    if M.tracing && exps <> [] then M.tracel "invalidate" "Will invalidate expressions [%a]" (d_list ", " d_plainexp) exps;
+    if M.tracing && exps <> [] then M.tracel "invalidate" "Will invalidate expressions [%a]" (d_list ", " d_exp) exps;
     if exps <> [] then M.info ~category:Imprecise "Invalidating expressions: %a" (d_list ", " d_exp) exps;
     (* To invalidate a single address, we create a pair with its corresponding
      * top value. *)

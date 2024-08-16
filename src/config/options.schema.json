@@ -1474,7 +1474,7 @@
           "properties": {
             "dereference": {
               "title": "sem.null-pointer.dereference",
-              "description": "NULL pointer dereference handling. assume_top: assume it results in a top value, assume_none: assume it doesn't happen",
+              "description": "NULL pointer dereference handling. assume_top: reading returns top value, writing is ignored; assume_none: assumes that reading or writing to NULL pointer does not happen",
               "type": "string",
               "enum": ["assume_top", "assume_none"],
               "default": "assume_none"
