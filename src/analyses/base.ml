@@ -2045,7 +2045,7 @@ struct
       List.map mpt exps
     )
 
-  let invalidate ?(deep=true) ~ctx (st:store) (exps: exp list): store =
+  let invalidate ~(must: bool) ?(deep=true) ~ctx (st:store) (exps: exp list): store =
     if M.tracing && exps <> [] then M.tracel "invalidate" "Will invalidate expressions [%a]" (d_list ", " d_plainexp) exps;
     if exps <> [] then M.info ~category:Imprecise "Invalidating expressions: %a" (d_list ", " d_exp) exps;
     (* To invalidate a single address, we create a pair with its corresponding
@@ -2072,7 +2072,15 @@ struct
       let vs = List.map (Tuple3.third) invalids' in
       M.tracel "invalidate" "Setting addresses [%a] to values [%a]" (d_list ", " AD.pretty) addrs (d_list ", " VD.pretty) vs
     );
-    set_many ~ctx st invalids'
+    (* copied from set_many *)
+    let f (acc: store) ((lval:AD.t),(typ:Cil.typ),(value:value)): store =
+      let acc' = set ~ctx acc lval typ value in
+      if must then
+        acc'
+      else
+        D.join acc acc'
+    in
+    List.fold_left f st invalids'
 
 
   let make_entry ?(thread=false) (ctx:(D.t, G.t, C.t, V.t) Analyses.ctx) fundec args: D.t =
@@ -2211,8 +2219,8 @@ struct
     in
     (* TODO: what about escaped local variables? *)
     (* invalidate arguments and non-static globals for unknown functions *)
-    let st' = invalidate ~deep:false ~ctx ctx.local shallow_addrs in
-    invalidate ~deep:true ~ctx st' deep_addrs
+    let st' = invalidate ~must:false ~deep:false ~ctx ctx.local shallow_addrs in
+    invalidate ~must:false ~deep:true ~ctx st' deep_addrs
 
   let check_invalid_mem_dealloc ctx special_fn ptr =
     let has_non_heap_var = AD.exists (function
@@ -2302,7 +2310,7 @@ struct
     let invalidate_ret_lv st = match lv with
       | Some lv ->
         if M.tracing then M.tracel "invalidate" "Invalidating lhs %a for function call %s" d_plainlval lv f.vname;
-        invalidate ~deep:false ~ctx st [Cil.mkAddrOrStartOf lv]
+        invalidate ~must:true ~deep:false ~ctx st [Cil.mkAddrOrStartOf lv]
       | None -> st
     in
     let addr_type_of_exp exp =
@@ -2636,14 +2644,14 @@ struct
         | Int n when GobOption.exists (Z.equal Z.zero) (ID.to_int n) -> st
         | Address ret_a ->
           begin match eval_rv ~ctx st id with
-            | Thread a when ValueDomain.Threads.is_top a -> invalidate ~ctx st [ret_var]
+            | Thread a when ValueDomain.Threads.is_top a -> invalidate ~must:true ~ctx st [ret_var]
             | Thread a ->
               let v = List.fold VD.join (VD.bot ()) (List.map (fun x -> G.thread (ctx.global (V.thread x))) (ValueDomain.Threads.elements a)) in
               (* TODO: is this type right? *)
               set ~ctx st ret_a (Cilfacade.typeOf ret_var) v
-            | _      -> invalidate ~ctx st [ret_var]
+            | _      -> invalidate ~must:true ~ctx st [ret_var]
           end
-        | _      -> invalidate ~ctx st [ret_var]
+        | _      -> invalidate ~must:true ~ctx st [ret_var]
       in
       let st' = invalidate_ret_lv st' in
       Priv.thread_join (Analyses.ask_of_ctx ctx) (priv_getg ctx.global) id st'
