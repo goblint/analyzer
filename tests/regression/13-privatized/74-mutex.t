@@ -170,11 +170,11 @@ Same with ghost_instrumentation and invariant_set entries.
   $ yamlWitnessStrip < witness.yml
   - entry_type: ghost_instrumentation
     ghost_variables:
-    - name: multithreaded
+    - name: m_locked
       scope: global
       type: int
       initial: "0"
-    - name: m_locked
+    - name: multithreaded
       scope: global
       type: int
       initial: "0"
@@ -182,29 +182,11 @@ Same with ghost_instrumentation and invariant_set entries.
     - location:
         file_name: 74-mutex.c
         file_hash: $FILE_HASH
-        line: 38
-        column: 3
-        function: main
+        line: 20
+        column: 5
+        function: producer
       updates:
       - ghost_variable: m_locked
-        expression: "0"
-    - location:
-        file_name: 74-mutex.c
-        file_hash: $FILE_HASH
-        line: 36
-        column: 3
-        function: main
-      updates:
-      - ghost_variable: m_locked
-        expression: "1"
-    - location:
-        file_name: 74-mutex.c
-        file_hash: $FILE_HASH
-        line: 34
-        column: 3
-        function: main
-      updates:
-      - ghost_variable: multithreaded
         expression: "1"
     - location:
         file_name: 74-mutex.c
@@ -218,12 +200,30 @@ Same with ghost_instrumentation and invariant_set entries.
     - location:
         file_name: 74-mutex.c
         file_hash: $FILE_HASH
-        line: 20
-        column: 5
-        function: producer
+        line: 34
+        column: 3
+        function: main
+      updates:
+      - ghost_variable: multithreaded
+        expression: "1"
+    - location:
+        file_name: 74-mutex.c
+        file_hash: $FILE_HASH
+        line: 36
+        column: 3
+        function: main
       updates:
       - ghost_variable: m_locked
         expression: "1"
+    - location:
+        file_name: 74-mutex.c
+        file_hash: $FILE_HASH
+        line: 38
+        column: 3
+        function: main
+      updates:
+      - ghost_variable: m_locked
+        expression: "0"
   - entry_type: invariant_set
     content:
     - invariant:
@@ -234,7 +234,7 @@ Same with ghost_instrumentation and invariant_set entries.
           line: 36
           column: 3
           function: main
-        value: '! multithreaded || (m_locked || used == 0)'
+        value: '! multithreaded || (0 <= used && used <= 1)'
         format: c_expression
     - invariant:
         type: location_invariant
@@ -244,7 +244,7 @@ Same with ghost_instrumentation and invariant_set entries.
           line: 36
           column: 3
           function: main
-        value: '! multithreaded || (0 <= used && used <= 1)'
+        value: '! multithreaded || (m_locked || used == 0)'
         format: c_expression
 
 Same with mutex-meet.
