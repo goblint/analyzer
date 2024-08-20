@@ -13,10 +13,10 @@ sig
   val is_unique: t -> bool
 
   (** Overapproximates whether the first TID can be involved in the creation fo the second TID*)
-  val may_create: t -> t -> bool
+  val may_be_ancestor: t -> t -> bool
 
   (** Is the first TID a must parent of the second thread. Always false if the first TID is not unique *)
-  val is_must_parent: t -> t -> bool
+  val must_be_ancestor: t -> t -> bool
 end
 
 module type Stateless =
@@ -87,8 +87,8 @@ struct
     | _ -> false
 
   let is_unique _ = false (* TODO: should this consider main unique? *)
-  let may_create _ _ = true
-  let is_must_parent _ _ = false
+  let may_be_ancestor _ _ = true
+  let must_be_ancestor _ _ = false
 end
 
 
@@ -140,7 +140,7 @@ struct
   let is_unique (_, s) =
     S.is_empty s
 
-  let is_must_parent ((p, s) as t) ((p', s') as t') =
+  let must_be_ancestor ((p, s) as t) ((p', s') as t') =
     if not (is_unique t) then
       false
     else if is_unique t' && P.equal p p' then (* t is already unique, so no need to compare sets *)
@@ -151,9 +151,9 @@ struct
       | _ :: _, _ -> false
     )
 
-  let may_create ((p, s) as t) ((p', s') as t') =
+  let may_be_ancestor ((p, s) as t) ((p', s') as t') =
     if is_unique t' then
-      is_must_parent t t' (* unique must be created by something unique (that's a prefix) *)
+      must_be_ancestor t t' (* unique must be created by something unique (that's a prefix) *)
     else ( (* t' is already non-unique (but doesn't matter) *)
       match GobList.remove_common_prefix Base.equal (List.rev p) (List.rev p') with (* prefixes are stored reversed *)
       | [], dp when is_unique t -> (* p is prefix of p' *)
@@ -258,8 +258,8 @@ struct
 
   let is_main = unop H.is_main P.is_main
   let is_unique = unop H.is_unique P.is_unique
-  let may_create = binop H.may_create P.may_create
-  let is_must_parent = binop H.is_must_parent P.is_must_parent
+  let may_be_ancestor = binop H.may_be_ancestor P.may_be_ancestor
+  let must_be_ancestor = binop H.must_be_ancestor P.must_be_ancestor
 
   let created x d =
     let lifth x' d' =
@@ -355,14 +355,14 @@ struct
     | Thread tid -> FlagConfiguredTID.is_unique tid
     | UnknownThread -> false
 
-  let may_create t1 t2 =
+  let may_be_ancestor t1 t2 =
     match t1, t2 with
-    | Thread tid1, Thread tid2 -> FlagConfiguredTID.may_create tid1 tid2
+    | Thread tid1, Thread tid2 -> FlagConfiguredTID.may_be_ancestor tid1 tid2
     | _, _ -> true
 
-  let is_must_parent t1 t2 =
+  let must_be_ancestor t1 t2 =
     match t1, t2 with
-    | Thread tid1, Thread tid2 -> FlagConfiguredTID.is_must_parent tid1 tid2
+    | Thread tid1, Thread tid2 -> FlagConfiguredTID.must_be_ancestor tid1 tid2
     | _, _ -> false
 
   module D = FlagConfiguredTID.D
