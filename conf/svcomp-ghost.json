@@ -136,11 +136,10 @@
     },
     "yaml": {
       "enabled": true,
-      "format-version": "0.1",
+      "format-version": "2.1",
       "entry-types": [
         "flow_insensitive_invariant",
-        "ghost_variable",
-        "ghost_update"
+        "ghost_instrumentation"
       ]
     },
     "invariant": {
@@ -150,7 +149,7 @@
       "accessed": false,
       "exact": true,
       "all-locals": false,
-      "flow_insensitive-as": "location_invariant",
+      "flow_insensitive-as": "invariant_set-location_invariant",
       "exclude-vars": [
         "tmp\\(___[0-9]+\\)?",
         "cond",
