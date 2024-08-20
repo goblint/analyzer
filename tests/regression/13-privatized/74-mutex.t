@@ -84,7 +84,7 @@
 
 Flow-insensitive invariants as location invariants.
 
-  $ goblint --enable ana.sv-comp.functions --set ana.base.privatization protection --enable witness.yaml.enabled --set ana.activated[+] mutexGhosts --set witness.yaml.entry-types '["flow_insensitive_invariant", "ghost_variable", "ghost_update"]' --enable witness.invariant.flow_insensitive-as-location 74-mutex.c
+  $ goblint --enable ana.sv-comp.functions --set ana.base.privatization protection --enable witness.yaml.enabled --set ana.activated[+] mutexGhosts --set witness.yaml.entry-types '["flow_insensitive_invariant", "ghost_variable", "ghost_update"]' --set witness.invariant.flow_insensitive-as location_invariant 74-mutex.c
   [Success][Assert] Assertion "used == 0" will succeed (74-mutex.c:37:3-37:29)
   [Warning][Deadcode] Function 'producer' has dead code:
     on line 26 (74-mutex.c:26-26)
@@ -148,9 +148,9 @@ Earlyglobs shouldn't cause protected writes in multithreaded mode from being imm
     unsafe: 0
     total memory locations: 1
 
-Same with ghost_instrumentation entry.
+Same with ghost_instrumentation and invariant_set entries.
 
-  $ goblint --enable ana.sv-comp.functions --set ana.base.privatization protection --enable witness.yaml.enabled --set ana.activated[+] mutexGhosts --set witness.yaml.entry-types '["flow_insensitive_invariant", "ghost_instrumentation"]' 74-mutex.c
+  $ goblint --enable ana.sv-comp.functions --set ana.base.privatization protection --enable witness.yaml.enabled --set ana.activated[+] mutexGhosts --set witness.yaml.entry-types '["flow_insensitive_invariant", "ghost_instrumentation"]' --set witness.invariant.flow_insensitive-as invariant_set-location_invariant 74-mutex.c
   [Success][Assert] Assertion "used == 0" will succeed (74-mutex.c:37:3-37:29)
   [Warning][Deadcode] Function 'producer' has dead code:
     on line 26 (74-mutex.c:26-26)
@@ -160,7 +160,7 @@ Same with ghost_instrumentation entry.
     total lines: 15
   [Warning][Deadcode][CWE-571] condition '1' (possibly inserted by CIL) is always true (74-mutex.c:19:10-19:11)
   [Info][Witness] witness generation summary:
-    total generation entries: 3
+    total generation entries: 2
   [Info][Race] Memory locations race summary:
     safe: 1
     vulnerable: 0
@@ -224,16 +224,28 @@ Same with ghost_instrumentation entry.
       updates:
       - ghost_variable: m_locked
         expression: "1"
-  - entry_type: flow_insensitive_invariant
-    flow_insensitive_invariant:
-      string: '! multithreaded || (m_locked || used == 0)'
-      type: assertion
-      format: C
-  - entry_type: flow_insensitive_invariant
-    flow_insensitive_invariant:
-      string: '! multithreaded || (0 <= used && used <= 1)'
-      type: assertion
-      format: C
+  - entry_type: invariant_set
+    content:
+    - invariant:
+        type: location_invariant
+        location:
+          file_name: 74-mutex.c
+          file_hash: $FILE_HASH
+          line: 36
+          column: 3
+          function: main
+        value: '! multithreaded || (m_locked || used == 0)'
+        format: c_expression
+    - invariant:
+        type: location_invariant
+        location:
+          file_name: 74-mutex.c
+          file_hash: $FILE_HASH
+          line: 36
+          column: 3
+          function: main
+        value: '! multithreaded || (0 <= used && used <= 1)'
+        format: c_expression
 
 Same with mutex-meet.
 

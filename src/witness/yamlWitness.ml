@@ -347,22 +347,23 @@ struct
         entries
     in
 
+    let invariant_global_nodes = lazy (R.ask_global InvariantGlobalNodes) in
+
     (* Generate flow-insensitive invariants *)
     let entries =
       if entry_type_enabled YamlWitnessType.FlowInsensitiveInvariant.entry_type then (
-        let ns = lazy (R.ask_global InvariantGlobalNodes) in
         GHT.fold (fun g v acc ->
             match g with
             | `Left g -> (* Spec global *)
-              begin match R.ask_global (InvariantGlobal (Obj.repr g)), GobConfig.get_bool "witness.invariant.flow_insensitive-as-location" with
-                | `Lifted inv, false ->
+              begin match R.ask_global (InvariantGlobal (Obj.repr g)), GobConfig.get_string "witness.invariant.flow_insensitive-as" with
+                | `Lifted inv, "flow_insensitive_invariant" ->
                   let invs = WitnessUtil.InvariantExp.process_exp inv in
                   List.fold_left (fun acc inv ->
                       let invariant = Entry.invariant (CilType.Exp.show inv) in
                       let entry = Entry.flow_insensitive_invariant ~task ~invariant in
                       entry :: acc
                     ) acc invs
-                | `Lifted inv, true ->
+                | `Lifted inv, "location_invariant" ->
                   (* TODO: or do at location_invariant loop for each node and query if should also do global invariants there? *)
                   let invs = WitnessUtil.InvariantExp.process_exp inv in
                   Queries.NS.fold (fun n acc ->
@@ -377,7 +378,8 @@ struct
                             entry :: acc
                           ) acc invs
                       | None -> acc
-                    ) (Lazy.force ns) acc
+                    ) (Lazy.force invariant_global_nodes) acc
+                | `Lifted _, _
                 | `Bot, _ | `Top, _ -> (* global bot might only be possible for alloc variables, if at all, so emit nothing *)
                   acc
               end
@@ -516,12 +518,12 @@ struct
 
     (* Generate invariant set *)
     let entries =
-      if entry_type_enabled YamlWitnessType.InvariantSet.entry_type then (
+      if entry_type_enabled YamlWitnessType.InvariantSet.entry_type || entry_type_enabled YamlWitnessType.FlowInsensitiveInvariant.entry_type && GobConfig.get_string "witness.invariant.flow_insensitive-as" = "invariant_set-location_invariant" then (
         let invariants = [] in
 
         (* Generate location invariants *)
         let invariants =
-          if invariant_type_enabled YamlWitnessType.InvariantSet.LocationInvariant.invariant_type then (
+          if entry_type_enabled YamlWitnessType.InvariantSet.entry_type && invariant_type_enabled YamlWitnessType.InvariantSet.LocationInvariant.invariant_type then (
             LH.fold (fun loc ns acc ->
                 let inv = List.fold_left (fun acc n ->
                     let local = try NH.find (Lazy.force nh) n with Not_found -> Spec.D.bot () in
@@ -550,7 +552,7 @@ struct
 
         (* Generate loop invariants *)
         let invariants =
-          if invariant_type_enabled YamlWitnessType.InvariantSet.LoopInvariant.invariant_type then (
+          if entry_type_enabled YamlWitnessType.InvariantSet.entry_type && invariant_type_enabled YamlWitnessType.InvariantSet.LoopInvariant.invariant_type then (
             LH.fold (fun loc ns acc ->
                 if WitnessInvariant.emit_loop_head then ( (* TODO: remove double condition? *)
                   let inv = List.fold_left (fun acc n ->
@@ -575,6 +577,40 @@ struct
                 else
                   acc
               ) (Lazy.force loop_nodes) invariants
+          )
+          else
+            invariants
+        in
+
+        (* Generate flow-insensitive invariants as location invariants *)
+        let invariants =
+          if entry_type_enabled YamlWitnessType.FlowInsensitiveInvariant.entry_type && GobConfig.get_string "witness.invariant.flow_insensitive-as" = "invariant_set-location_invariant" then (
+            GHT.fold (fun g v acc ->
+                match g with
+                | `Left g -> (* Spec global *)
+                  begin match R.ask_global (InvariantGlobal (Obj.repr g)) with
+                    | `Lifted inv ->
+                      (* TODO: or do at location_invariant loop for each node and query if should also do global invariants there? *)
+                      let invs = WitnessUtil.InvariantExp.process_exp inv in
+                      Queries.NS.fold (fun n acc ->
+                          let fundec = Node.find_fundec n in
+                          match WitnessInvariant.location_location n with (* if after thread create node happens to be loop node *)
+                          | Some loc ->
+                            let location_function = fundec.svar.vname in
+                            let location = Entry.location ~location:loc ~location_function in
+                            List.fold_left (fun acc inv ->
+                                let invariant = CilType.Exp.show inv in
+                                let invariant = Entry.location_invariant' ~location ~invariant in
+                                invariant :: acc
+                              ) acc invs
+                          | None -> acc
+                        ) (Lazy.force invariant_global_nodes) acc
+                    | `Bot | `Top -> (* global bot might only be possible for alloc variables, if at all, so emit nothing *)
+                      acc
+                  end
+                | `Right _ -> (* contexts global *)
+                  acc
+              ) gh invariants
           )
           else
             invariants

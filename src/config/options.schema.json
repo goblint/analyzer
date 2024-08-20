@@ -2604,11 +2604,12 @@
               "type": "boolean",
               "default": true
             },
-            "flow_insensitive-as-location": {
-              "title": "witness.invariant.flow_insensitive-as-location",
+            "flow_insensitive-as": {
+              "title": "witness.invariant.flow_insensitive-as",
               "description": "Emit flow-insensitive invariants as location invariants at certain locations.",
-              "type": "boolean",
-              "default": false
+              "type": "string",
+              "enum": ["flow_insensitive_invariant", "location_invariant", "invariant_set-location_invariant"],
+              "default": "flow_insensitive_invariant"
             }
           },
           "additionalProperties": false

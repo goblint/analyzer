@@ -150,7 +150,7 @@
       "accessed": false,
       "exact": true,
       "all-locals": false,
-      "flow_insensitive-as-location": true,
+      "flow_insensitive-as": "location_invariant",
       "exclude-vars": [
         "tmp\\(___[0-9]+\\)?",
         "cond",
