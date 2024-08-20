@@ -485,6 +485,99 @@ struct
     {variable; expression; location}
 end
 
+module GhostInstrumentation =
+struct
+
+  module Variable =
+  struct
+    type t = {
+      name: string;
+      scope: string;
+      type_: string;
+      initial: string;
+    }
+    [@@deriving eq, ord, hash]
+
+    let to_yaml {name; scope; type_; initial} =
+      `O [
+        ("name", `String name);
+        ("scope", `String scope);
+        ("type", `String type_);
+        ("initial", `String initial);
+      ]
+
+    let of_yaml y =
+      let open GobYaml in
+      let+ name = y |> find "name" >>= to_string
+      and+ scope = y |> find "scope" >>= to_string
+      and+ type_ = y |> find "type" >>= to_string
+      and+ initial = y |> find "initial" >>= to_string in
+      {name; scope; type_; initial}
+  end
+
+  module Update =
+  struct
+    type t = {
+      ghost_variable: string;
+      expression: string;
+    }
+    [@@deriving eq, ord, hash]
+
+    let to_yaml {ghost_variable; expression} =
+      `O [
+        ("ghost_variable", `String ghost_variable);
+        ("expression", `String expression);
+      ]
+
+    let of_yaml y =
+      let open GobYaml in
+      let+ ghost_variable = y |> find "ghost_variable" >>= to_string
+      and+ expression = y |> find "expression" >>= to_string in
+      {ghost_variable; expression}
+  end
+
+  module LocationUpdate =
+  struct
+    type t = {
+      location: Location.t;
+      updates: Update.t list;
+    }
+    [@@deriving eq, ord, hash]
+
+    let to_yaml {location; updates} =
+      `O [
+        ("location", Location.to_yaml location);
+        ("updates", `A (List.map Update.to_yaml updates));
+      ]
+
+    let of_yaml y =
+      let open GobYaml in
+      let+ location = y |> find "location" >>= Location.of_yaml
+      and+ updates = y |> find "updates" >>= list >>= list_map Update.of_yaml in
+      {location; updates}
+  end
+
+  type t = {
+    ghost_variables: Variable.t list;
+    ghost_updates: LocationUpdate.t list;
+  }
+  [@@deriving eq, ord, hash]
+
+  let entry_type = "ghost_instrumentation"
+
+  let to_yaml' {ghost_variables; ghost_updates} =
+    [
+      ("ghost_variables", `A (List.map Variable.to_yaml ghost_variables));
+      ("ghost_updates", `A (List.map LocationUpdate.to_yaml ghost_updates));
+    ]
+
+  let of_yaml y =
+    let open GobYaml in
+    let+ ghost_variables = y |> find "ghost_variables" >>= list >>= list_map Variable.of_yaml
+    and+ ghost_updates = y |> find "ghost_updates" >>= list >>= list_map LocationUpdate.of_yaml in
+    {ghost_variables; ghost_updates}
+end
+
 (* TODO: could maybe use GADT, but adds ugly existential layer to entry type pattern matching *)
 module EntryType =
 struct
@@ -498,6 +591,7 @@ struct
     | InvariantSet of InvariantSet.t
     | GhostVariable of GhostVariable.t
     | GhostUpdate of GhostUpdate.t
+    | GhostInstrumentation of GhostInstrumentation.t
   [@@deriving eq, ord, hash]
 
   let entry_type = function
@@ -510,6 +604,7 @@ struct
     | InvariantSet _ -> InvariantSet.entry_type
     | GhostVariable _ -> GhostVariable.entry_type
     | GhostUpdate _ -> GhostUpdate.entry_type
+    | GhostInstrumentation _ -> GhostInstrumentation.entry_type
 
   let to_yaml' = function
     | LocationInvariant x -> LocationInvariant.to_yaml' x
@@ -521,6 +616,7 @@ struct
     | InvariantSet x -> InvariantSet.to_yaml' x
     | GhostVariable x -> GhostVariable.to_yaml' x
     | GhostUpdate x -> GhostUpdate.to_yaml' x
+    | GhostInstrumentation x -> GhostInstrumentation.to_yaml' x
 
   let of_yaml y =
     let open GobYaml in
@@ -552,6 +648,9 @@ struct
     else if entry_type = GhostUpdate.entry_type then
       let+ x = y |> GhostUpdate.of_yaml in
       GhostUpdate x
+    else if entry_type = GhostInstrumentation.entry_type then
+      let+ x = y |> GhostInstrumentation.of_yaml in
+      GhostInstrumentation x
     else
       Error (`Msg ("entry_type " ^ entry_type))
 end

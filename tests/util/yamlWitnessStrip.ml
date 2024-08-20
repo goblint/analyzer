@@ -26,6 +26,9 @@ struct
       in
       {invariant_type}
     in
+    let ghost_location_update_strip_file_hash (x: GhostInstrumentation.LocationUpdate.t): GhostInstrumentation.LocationUpdate.t =
+      {x with location = location_strip_file_hash x.location}
+    in
     let entry_type: EntryType.t =
       match entry_type with
       | LocationInvariant x ->
@@ -46,6 +49,8 @@ struct
         GhostVariable x (* no location to strip *)
       | GhostUpdate x ->
         GhostUpdate {x with location = location_strip_file_hash x.location}
+      | GhostInstrumentation x ->
+        GhostInstrumentation {x with ghost_updates = List.map ghost_location_update_strip_file_hash x.ghost_updates}
     in
     {entry_type}
 

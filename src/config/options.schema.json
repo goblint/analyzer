@@ -2648,7 +2648,8 @@
                   "precondition_loop_invariant_certificate",
                   "invariant_set",
                   "ghost_variable",
-                  "ghost_update"
+                  "ghost_update",
+                  "ghost_instrumentation"
                 ]
               },
               "default": [

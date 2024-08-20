@@ -160,6 +160,31 @@ struct
       };
     metadata = metadata ~task ();
   }
+
+  let ghost_variable' ~variable ~type_ ~(initial): GhostInstrumentation.Variable.t = {
+    name = variable;
+    scope = "global";
+    type_;
+    initial;
+  }
+
+  let ghost_update' ~variable ~(expression): GhostInstrumentation.Update.t = {
+    ghost_variable = variable;
+    expression;
+  }
+
+  let ghost_location_update' ~location ~(updates): GhostInstrumentation.LocationUpdate.t = {
+    location;
+    updates;
+  }
+
+  let ghost_instrumentation ~task ~variables ~(location_updates): Entry.t = {
+    entry_type = GhostInstrumentation {
+        ghost_variables = variables;
+        ghost_updates = location_updates;
+      };
+    metadata = metadata ~task ();
+  }
 end
 
 let yaml_entries_to_file yaml_entries file =
