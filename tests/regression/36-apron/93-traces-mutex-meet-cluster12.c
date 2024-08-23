@@ -9,7 +9,17 @@ int h = 0;
 int i = 0;
 pthread_mutex_t A = PTHREAD_MUTEX_INITIALIZER;
 
-void *t_fun(void *arg) {
+void *t1_fun(void *arg) {
+  pthread_mutex_lock(&A);
+  int y = __VERIFIER_nondet_int();
+  g = y;
+  h = y;
+  i = y;
+  pthread_mutex_unlock(&A);
+  return NULL;
+}
+
+void *t2_fun(void *arg) {
   int x;
   pthread_mutex_lock(&A);
   x = h;
@@ -18,26 +28,23 @@ void *t_fun(void *arg) {
   return NULL;
 }
 
-int main(void) {
-  pthread_t id;
-  pthread_create(&id, NULL, t_fun, NULL);
-
+void *t3_fun(void *arg) {
   pthread_mutex_lock(&A);
   g = __VERIFIER_nondet_int();
   h = __VERIFIER_nondet_int();
-  i = __VERIFIER_nondet_int();
   pthread_mutex_unlock(&A);
+  return NULL;
+}
 
-  pthread_mutex_lock(&A);
-  int y = __VERIFIER_nondet_int();
-  g = y;
-  h = y;
-  i = y;
-  pthread_mutex_unlock(&A);
+int main(void) {
+  pthread_t id1, id2, id3;
+  pthread_create(&id1, NULL, t1_fun, NULL);
+  pthread_create(&id2, NULL, t2_fun, NULL);
 
   pthread_mutex_lock(&A);
   __goblint_check(g == h);
-  __goblint_check(h == i);
   pthread_mutex_unlock(&A);
+
+  pthread_create(&id3, NULL, t3_fun, NULL);
   return 0;
 }
