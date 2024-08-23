@@ -9,16 +9,6 @@ int h = 0;
 int i = 0;
 pthread_mutex_t A = PTHREAD_MUTEX_INITIALIZER;
 
-void *t1_fun(void *arg) {
-  pthread_mutex_lock(&A);
-  int y = __VERIFIER_nondet_int();
-  g = y;
-  h = y;
-  i = y;
-  pthread_mutex_unlock(&A);
-  return NULL;
-}
-
 void *t2_fun(void *arg) {
   int x;
   pthread_mutex_lock(&A);
@@ -37,8 +27,12 @@ void *t3_fun(void *arg) {
 }
 
 int main(void) {
-  pthread_t id1, id2, id3;
-  pthread_create(&id1, NULL, t1_fun, NULL);
+  int y = __VERIFIER_nondet_int();
+  g = y;
+  h = y;
+  i = y;
+
+  pthread_t id2, id3;
   pthread_create(&id2, NULL, t2_fun, NULL);
 
   pthread_mutex_lock(&A);
