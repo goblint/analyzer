@@ -186,7 +186,7 @@ Same with ghost_instrumentation and invariant_set entries.
         column: 5
         function: producer
       updates:
-      - ghost_variable: m_locked
+      - variable: m_locked
         expression: "1"
     - location:
         file_name: 74-mutex.c
@@ -195,7 +195,7 @@ Same with ghost_instrumentation and invariant_set entries.
         column: 5
         function: producer
       updates:
-      - ghost_variable: m_locked
+      - variable: m_locked
         expression: "0"
     - location:
         file_name: 74-mutex.c
@@ -204,7 +204,7 @@ Same with ghost_instrumentation and invariant_set entries.
         column: 3
         function: main
       updates:
-      - ghost_variable: multithreaded
+      - variable: multithreaded
         expression: "1"
     - location:
         file_name: 74-mutex.c
@@ -213,7 +213,7 @@ Same with ghost_instrumentation and invariant_set entries.
         column: 3
         function: main
       updates:
-      - ghost_variable: m_locked
+      - variable: m_locked
         expression: "1"
     - location:
         file_name: 74-mutex.c
@@ -222,7 +222,7 @@ Same with ghost_instrumentation and invariant_set entries.
         column: 3
         function: main
       updates:
-      - ghost_variable: m_locked
+      - variable: m_locked
         expression: "0"
   - entry_type: invariant_set
     content:

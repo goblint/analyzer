@@ -169,7 +169,7 @@ struct
   }
 
   let ghost_update' ~variable ~(expression): GhostInstrumentation.Update.t = {
-    ghost_variable = variable;
+    variable;
     expression;
   }
 

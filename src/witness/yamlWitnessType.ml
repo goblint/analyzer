@@ -518,22 +518,22 @@ struct
   module Update =
   struct
     type t = {
-      ghost_variable: string;
+      variable: string;
       expression: string;
     }
     [@@deriving eq, ord, hash]
 
-    let to_yaml {ghost_variable; expression} =
+    let to_yaml {variable; expression} =
       `O [
-        ("ghost_variable", `String ghost_variable);
+        ("variable", `String variable);
         ("expression", `String expression);
       ]
 
     let of_yaml y =
       let open GobYaml in
-      let+ ghost_variable = y |> find "ghost_variable" >>= to_string
+      let+ variable = y |> find "variable" >>= to_string
       and+ expression = y |> find "expression" >>= to_string in
-      {ghost_variable; expression}
+      {variable; expression}
   end
 
   module LocationUpdate =
