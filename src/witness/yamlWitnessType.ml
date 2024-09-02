@@ -566,15 +566,18 @@ struct
   let entry_type = "ghost_instrumentation"
 
   let to_yaml' {ghost_variables; ghost_updates} =
-    [
-      ("ghost_variables", `A (List.map Variable.to_yaml ghost_variables));
-      ("ghost_updates", `A (List.map LocationUpdate.to_yaml ghost_updates));
+    [("content",
+      `O [
+        ("ghost_variables", `A (List.map Variable.to_yaml ghost_variables));
+        ("ghost_updates", `A (List.map LocationUpdate.to_yaml ghost_updates));
+      ])
     ]
 
   let of_yaml y =
     let open GobYaml in
-    let+ ghost_variables = y |> find "ghost_variables" >>= list >>= list_map Variable.of_yaml
-    and+ ghost_updates = y |> find "ghost_updates" >>= list >>= list_map LocationUpdate.of_yaml in
+    let* content = y |> find "content" in
+    let+ ghost_variables = content |> find "ghost_variables" >>= list >>= list_map Variable.of_yaml
+    and+ ghost_updates = content |> find "ghost_updates" >>= list >>= list_map LocationUpdate.of_yaml in
     {ghost_variables; ghost_updates}
 end
 

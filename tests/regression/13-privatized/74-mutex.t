@@ -169,61 +169,62 @@ Same with ghost_instrumentation and invariant_set entries.
 
   $ yamlWitnessStrip < witness.yml
   - entry_type: ghost_instrumentation
-    ghost_variables:
-    - name: m_locked
-      scope: global
-      type: int
-      initial: "0"
-    - name: multithreaded
-      scope: global
-      type: int
-      initial: "0"
-    ghost_updates:
-    - location:
-        file_name: 74-mutex.c
-        file_hash: $FILE_HASH
-        line: 20
-        column: 5
-        function: producer
-      updates:
-      - variable: m_locked
-        expression: "1"
-    - location:
-        file_name: 74-mutex.c
-        file_hash: $FILE_HASH
-        line: 23
-        column: 5
-        function: producer
-      updates:
-      - variable: m_locked
-        expression: "0"
-    - location:
-        file_name: 74-mutex.c
-        file_hash: $FILE_HASH
-        line: 34
-        column: 3
-        function: main
-      updates:
-      - variable: multithreaded
-        expression: "1"
-    - location:
-        file_name: 74-mutex.c
-        file_hash: $FILE_HASH
-        line: 36
-        column: 3
-        function: main
-      updates:
-      - variable: m_locked
-        expression: "1"
-    - location:
-        file_name: 74-mutex.c
-        file_hash: $FILE_HASH
-        line: 38
-        column: 3
-        function: main
-      updates:
-      - variable: m_locked
-        expression: "0"
+    content:
+      ghost_variables:
+      - name: m_locked
+        scope: global
+        type: int
+        initial: "0"
+      - name: multithreaded
+        scope: global
+        type: int
+        initial: "0"
+      ghost_updates:
+      - location:
+          file_name: 74-mutex.c
+          file_hash: $FILE_HASH
+          line: 20
+          column: 5
+          function: producer
+        updates:
+        - variable: m_locked
+          expression: "1"
+      - location:
+          file_name: 74-mutex.c
+          file_hash: $FILE_HASH
+          line: 23
+          column: 5
+          function: producer
+        updates:
+        - variable: m_locked
+          expression: "0"
+      - location:
+          file_name: 74-mutex.c
+          file_hash: $FILE_HASH
+          line: 34
+          column: 3
+          function: main
+        updates:
+        - variable: multithreaded
+          expression: "1"
+      - location:
+          file_name: 74-mutex.c
+          file_hash: $FILE_HASH
+          line: 36
+          column: 3
+          function: main
+        updates:
+        - variable: m_locked
+          expression: "1"
+      - location:
+          file_name: 74-mutex.c
+          file_hash: $FILE_HASH
+          line: 38
+          column: 3
+          function: main
+        updates:
+        - variable: m_locked
+          expression: "0"
   - entry_type: invariant_set
     content:
     - invariant:
