@@ -1,2 +1,6 @@
 (cram
  (deps (glob_files *.c)))
+
+(cram
+ (applies_to 04-priv_multi)
+ (enabled_if (<> %{system} macosx)))

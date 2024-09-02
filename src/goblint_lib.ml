@@ -108,6 +108,7 @@ module MutexAnalysis = MutexAnalysis
 module MayLocks = MayLocks
 module SymbLocks = SymbLocks
 module Deadlock = Deadlock
+module MutexGhosts = MutexGhosts
 
 (** {3 Threads}
 
@@ -337,6 +338,7 @@ module Graphml = Graphml
 
 module YamlWitness = YamlWitness
 module YamlWitnessType = YamlWitnessType
+module WitnessGhost = WitnessGhost
 module WideningTokens = WideningTokens
 
 (** {3 Violation}
