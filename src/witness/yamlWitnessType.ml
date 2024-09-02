@@ -488,13 +488,34 @@ end
 module GhostInstrumentation =
 struct
 
+  module Initial =
+  struct
+    type t = {
+      value: string;
+      format: string;
+    }
+    [@@deriving eq, ord, hash]
+
+    let to_yaml {value; format} =
+      `O [
+        ("value", `String value);
+        ("format", `String format);
+      ]
+
+    let of_yaml y =
+      let open GobYaml in
+      let+ value = y |> find "value" >>= to_string
+      and+ format = y |> find "format" >>= to_string in
+      {value; format}
+  end
+
   module Variable =
   struct
     type t = {
       name: string;
       scope: string;
       type_: string;
-      initial: string;
+      initial: Initial.t;
     }
     [@@deriving eq, ord, hash]
 
@@ -503,7 +524,7 @@ struct
         ("name", `String name);
         ("scope", `String scope);
         ("type", `String type_);
-        ("initial", `String initial);
+        ("initial", Initial.to_yaml initial);
       ]
 
     let of_yaml y =
@@ -511,7 +532,7 @@ struct
       let+ name = y |> find "name" >>= to_string
       and+ scope = y |> find "scope" >>= to_string
       and+ type_ = y |> find "type" >>= to_string
-      and+ initial = y |> find "initial" >>= to_string in
+      and+ initial = y |> find "initial" >>= Initial.of_yaml in
       {name; scope; type_; initial}
   end
 
@@ -519,21 +540,24 @@ struct
   struct
     type t = {
       variable: string;
-      expression: string;
+      value: string;
+      format: string;
     }
     [@@deriving eq, ord, hash]
 
-    let to_yaml {variable; expression} =
+    let to_yaml {variable; value; format} =
       `O [
         ("variable", `String variable);
-        ("expression", `String expression);
+        ("value", `String value);
+        ("format", `String format);
       ]
 
     let of_yaml y =
       let open GobYaml in
       let+ variable = y |> find "variable" >>= to_string
-      and+ expression = y |> find "expression" >>= to_string in
-      {variable; expression}
+      and+ value = y |> find "value" >>= to_string
+      and+ format = y |> find "format" >>= to_string in
+      {variable; value; format}
   end
 
   module LocationUpdate =

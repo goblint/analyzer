@@ -174,11 +174,15 @@ Same with ghost_instrumentation and invariant_set entries.
       - name: m_locked
         scope: global
         type: int
-        initial: "0"
+        initial:
+          value: "0"
+          format: c_expression
       - name: multithreaded
         scope: global
         type: int
-        initial: "0"
+        initial:
+          value: "0"
+          format: c_expression
       ghost_updates:
       - location:
           file_name: 74-mutex.c
@@ -188,7 +192,8 @@ Same with ghost_instrumentation and invariant_set entries.
           function: producer
         updates:
         - variable: m_locked
-          expression: "1"
+          value: "1"
+          format: c_expression
       - location:
           file_name: 74-mutex.c
           file_hash: $FILE_HASH
@@ -197,7 +202,8 @@ Same with ghost_instrumentation and invariant_set entries.
           function: producer
         updates:
         - variable: m_locked
-          expression: "0"
+          value: "0"
+          format: c_expression
       - location:
           file_name: 74-mutex.c
           file_hash: $FILE_HASH
@@ -206,7 +212,8 @@ Same with ghost_instrumentation and invariant_set entries.
           function: main
         updates:
         - variable: multithreaded
-          expression: "1"
+          value: "1"
+          format: c_expression
       - location:
           file_name: 74-mutex.c
           file_hash: $FILE_HASH
@@ -215,7 +222,8 @@ Same with ghost_instrumentation and invariant_set entries.
           function: main
         updates:
         - variable: m_locked
-          expression: "1"
+          value: "1"
+          format: c_expression
       - location:
           file_name: 74-mutex.c
           file_hash: $FILE_HASH
@@ -224,7 +232,8 @@ Same with ghost_instrumentation and invariant_set entries.
           function: main
         updates:
         - variable: m_locked
-          expression: "0"
+          value: "0"
+          format: c_expression
   - entry_type: invariant_set
     content:
     - invariant:

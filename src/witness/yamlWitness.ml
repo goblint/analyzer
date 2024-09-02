@@ -165,12 +165,16 @@ struct
     name = variable;
     scope = "global";
     type_;
-    initial;
+    initial = {
+      value = initial;
+      format = "c_expression";
+    };
   }
 
   let ghost_update' ~variable ~(expression): GhostInstrumentation.Update.t = {
     variable;
-    expression;
+    value = expression;
+    format = "c_expression";
   }
 
   let ghost_location_update' ~location ~(updates): GhostInstrumentation.LocationUpdate.t = {
