@@ -712,7 +712,7 @@ let linux_userspace_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("__errno", unknown []);
     ("__errno_location", unknown []);
     ("__h_errno_location", unknown []);
-    ("__printf_chk", unknown [drop "flag" []; drop "format" [r]]);
+    ("__printf_chk", unknown (drop "flag" [] :: drop "format" [r] :: VarArgs (drop' [r])));
     ("__fprintf_chk", unknown (drop "stream" [r_deep; w_deep] :: drop "flag" [] :: drop "format" [r] :: VarArgs (drop' [r])));
     ("__vfprintf_chk", unknown [drop "stream" [r_deep; w_deep]; drop "flag" []; drop "format" [r]; drop "ap" [r_deep]]);
     ("sysinfo", unknown [drop "info" [w_deep]]);
