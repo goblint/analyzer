@@ -236,6 +236,7 @@ module T = struct
           | Some t -> get_element_size_in_bits t
           | None -> Z.one
         in
+        if Z.lt (Z.abs z) typ_size && Z.gt (Z.abs z) Z.zero then raise (UnsupportedCilExpression "Cil can't represent something like &(c->d).") else
         if Z.equal typ_size Z.zero then Z.zero else
           Z.(z /typ_size) in
     Const (CInt (z, default_int_type, Some (Z.to_string z)))
@@ -243,10 +244,8 @@ module T = struct
   let to_cil_sum off cil_t =
     let res =
       if Z.(equal zero off) then cil_t else
-        match typeOf cil_t with
-        | TPtr (TComp (cinfo, _), _) -> raise (UnsupportedCilExpression "Cil can't represent something like &(c->d).")
-        | typ ->
-          BinOp (PlusPI, cil_t, to_cil_constant off (Some typ), typ)
+        let typ = typeOf cil_t in
+        BinOp (PlusPI, cil_t, to_cil_constant off (Some typ), typ)
     in if M.tracing then M.trace "c2po-2cil" "exp: %a; offset: %s; res: %a" d_exp cil_t (Z.to_string off) d_exp res;res
 
   (** Returns the integer offset of a field of a struct. *)

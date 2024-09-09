@@ -424,7 +424,10 @@ module SSet = struct
     | result -> result
     | exception (T.UnsupportedCilExpression _) ->
       let random_type = (TPtr (TPtr (TInt (ILong,[]),[]),[])) in (*the type is not so important for min_repr and get_normal_form*)
-      Deref (min_term, z, Lval (Mem (BinOp (PlusPI, T.to_cil(min_term), T.to_cil_constant z (Some random_type), random_type)), NoOffset))
+      let cil_off = match T.to_cil_constant z (Some random_type) with
+        | exception (T.UnsupportedCilExpression _) -> Const (CInt (Z.zero, T.default_int_type, Some (Z.to_string z)))
+        | exp -> exp in
+      Deref (min_term, z, Lval (Mem (BinOp (PlusPI, T.to_cil(min_term), cil_off, random_type)), NoOffset))
 
 end
 
