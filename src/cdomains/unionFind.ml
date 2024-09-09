@@ -14,10 +14,31 @@ exception Unsat
 let compare_exp _ _ = 0
 let equal_exp _ _ = true
 let hash_exp _ = 1
-type term = Addr of Var.t | Aux of Var.t * (exp[@compare.ignore][@eq.ignore][@hash.ignore]) | Deref of term * Z.t * (exp[@compare.ignore][@eq.ignore][@hash.ignore]) [@@deriving eq, ord, hash]
-type prop = Equal of term * term * Z.t | Nequal of term * term * Z.t
-          | BlNequal of term * term
-[@@deriving eq, ord, hash]
+
+type term = Addr of Var.t | Aux of Var.t * exp | Deref of term * Z.t * exp [@@deriving eq, hash, ord]
+
+let normal_form_tuple_3 (t1,t2,z) =
+  let cmp = compare_term t1 t2 in
+  if cmp < 0 || (cmp = 0 && Z.geq z Z.zero) then (t1,t2,z) else
+    (t2,t1,Z.(-z))
+
+let normal_form_tuple_2 (t1,t2) =
+  if compare_term t1 t2 < 0 then (t1,t2) else
+    (t2,t1)
+
+(** Two propositions are equal if they are syntactically equal
+    or if one is t_1 = z + t_2 and the other t_2 = - z + t_1. *)
+let tuple3_equal p1 p2 = Tuple3.eq equal_term equal_term Z.equal (normal_form_tuple_3 p1) (normal_form_tuple_3 p2)
+let tuple3_cmp p1 p2 = Tuple3.comp compare_term compare_term Z.compare (normal_form_tuple_3 p1) (normal_form_tuple_3 p2)
+let tuple3_hash p1 = Hashtbl.hash (normal_form_tuple_3 p1)
+let tuple2_equal p1 p2 = Tuple2.eq equal_term equal_term (normal_form_tuple_2 p1) (normal_form_tuple_2 p2)
+let tuple2_cmp p1 p2 = Tuple2.comp compare_term compare_term (normal_form_tuple_2 p1) (normal_form_tuple_2 p2)
+let tuple2_hash p1 = Hashtbl.hash (normal_form_tuple_2 p1)
+
+type prop = Equal of ((term * term * Z.t) [@equal tuple3_equal][@compare tuple3_cmp][@hash tuple3_hash])
+          | Nequal of ((term * term * Z.t) [@equal tuple3_equal][@compare tuple3_cmp][@hash tuple3_hash])
+          | BlNequal of ((term * term) [@equal tuple2_equal][@compare tuple2_cmp][@hash tuple2_hash])
+[@@deriving eq, hash, ord]
 
 (** The terms consist of address constants and dereferencing function with sum of an integer.
     The dereferencing function is parametrized by the size of the element in the memory.
@@ -30,36 +51,8 @@ module T = struct
   let bitsSizeOfPtr () = Z.of_int @@ bitsSizeOf (TPtr (TVoid [],[]))
 
   (* we store the varinfo and the Cil expression corresponding to the term in the data type *)
-  type t = term [@@deriving eq, ord, hash]
-  type v_prop = prop [@@deriving hash]
-
-  let normal_form_prop = function
-    | Equal (t1,t2,z) | Nequal (t1,t2,z) ->
-      let cmp = compare t1 t2 in
-      if cmp < 0 || (cmp = 0 && Z.geq z Z.zero) then (t1,t2,z) else
-        (t2,t1,Z.(-z))
-    | BlNequal (t1,t2) ->
-      if compare t1 t2 < 0 then (t1,t2,Z.zero) else
-        (t2,t1,Z.zero)
-
-  (** Two propositions are equal if they are syntactically equal
-      or if one is t_1 = z + t_2 and the other t_2 = - z + t_1. *)
-  let equal_v_prop p1 p2 =
-    match p1, p2 with
-    | Equal (a,b,c), Equal (a',b',c') -> Tuple3.eq equal equal Z.equal (normal_form_prop p1) (normal_form_prop p2)
-    | Nequal (a,b,c), Nequal (a',b',c') -> Tuple3.eq equal equal Z.equal (normal_form_prop p1) (normal_form_prop p2)
-    | BlNequal (a,b), BlNequal (a',b') -> Tuple3.eq equal equal Z.equal (normal_form_prop p1) (normal_form_prop p2)
-    | _ -> false
-
-  let compare_v_prop p1 p2 =
-    match p1, p2 with
-    | Equal (a,b,c), Equal (a',b',c') -> Tuple3.comp compare compare Z.compare (normal_form_prop p1) (normal_form_prop p2)
-    | Nequal (a,b,c), Nequal (a',b',c') -> Tuple3.comp compare compare Z.compare (normal_form_prop p1) (normal_form_prop p2)
-    | BlNequal (a,b), BlNequal (a',b') -> Tuple3.comp compare compare Z.compare (normal_form_prop p1) (normal_form_prop p2)
-    | Equal _, _ -> -1
-    | _, Equal _ -> 1
-    | _, BlNequal _ -> -1
-    | BlNequal _ , _ -> 1
+  type t = term[@@deriving eq, hash, ord]
+  type v_prop = prop[@@deriving eq, hash, ord]
 
   let props_equal = List.equal equal_v_prop
 
@@ -99,6 +92,16 @@ module T = struct
     | Deref (Addr v, z, exp) when Z.equal z Z.zero -> Var.show v ^ show_type exp
     | Deref (t, z, exp) when Z.equal z Z.zero -> "*" ^ show t^ show_type exp
     | Deref (t, z, exp) -> "*(" ^ Z.to_string z ^ "+" ^ show t ^ ")"^ show_type exp
+
+  let show_prop = function
+    | Equal (t1,t2,r) when Z.equal r Z.zero -> show t1 ^ " = " ^ show t2
+    | Equal (t1,t2,r) -> show t1 ^ " = " ^ Z.to_string r ^ "+" ^ show t2
+    | Nequal (t1,t2,r) when Z.equal r Z.zero -> show t1 ^ " != " ^ show t2
+    | Nequal (t1,t2,r) -> show t1 ^ " != " ^ Z.to_string r ^ "+" ^ show t2
+    | BlNequal (t1,t2) -> "bl(" ^ show t1 ^ ") != bl(" ^ show t2 ^ ")"
+
+  let equal_v_prop a b = let res = equal_v_prop a b in
+    print_string ((show_prop a)^"; "^(show_prop b)^"; "^string_of_bool res ^"\n"); res
 
   (** Returns true if the first parameter is a subterm of the second one. *)
   let rec is_subterm st term = equal st term || match term with

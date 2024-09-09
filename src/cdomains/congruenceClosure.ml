@@ -563,15 +563,8 @@ type t = {uf: TUF.t;
           bldis: BlDis.t}
 [@@deriving eq, ord, hash]
 
-let string_of_prop = function
-  | Equal (t1,t2,r) when Z.equal r Z.zero -> T.show t1 ^ " = " ^ T.show t2
-  | Equal (t1,t2,r) -> T.show t1 ^ " = " ^ Z.to_string r ^ "+" ^ T.show t2
-  | Nequal (t1,t2,r) when Z.equal r Z.zero -> T.show t1 ^ " != " ^ T.show t2
-  | Nequal (t1,t2,r) -> T.show t1 ^ " != " ^ Z.to_string r ^ "+" ^ T.show t2
-  | BlNequal (t1,t2) -> "bl(" ^ T.show t1 ^ ") != bl(" ^ T.show t2 ^ ")"
-
 let show_conj list = List.fold_left
-    (fun s d -> s ^ "\t" ^ string_of_prop d ^ ";\n") "" list
+    (fun s d -> s ^ "\t" ^ T.show_prop d ^ ";\n") "" list
 
 (** Returns a list of all the transition that are present in the automata. *)
 let get_transitions (uf, map) =
