@@ -585,7 +585,8 @@ let do_analyze change_info merged_AST =
         (* Cilfacade.current_file := ast'; *)
     in
 
-    Timing.wrap "analysis" (control_analyze merged_AST) funs
+    Timing.wrap "analysis" (control_analyze merged_AST) funs;
+    GobSys.(self_signal (signal_of_string (get_string "dbg.solver-signal")));
   )
 
 let do_html_output () =
