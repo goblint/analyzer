@@ -71,8 +71,9 @@ module C2PODomain = struct
         (show_all res);
     res
 
-  let join a b = if GobConfig.get_bool "ana.c2po.precise_join" then
-      (if M.tracing then M.trace "c2po-join" "Join Automaton"; join_f a b join_eq) else (if M.tracing then M.trace "c2po-join" "Join Eq classes"; join_f a b join_eq_no_automata)
+  let join a b = match GobConfig.get_string "ana.c2po.join_algorithm" with
+    | "precise" -> if M.tracing then M.trace "c2po-join" "Join Automaton"; join_f a b join_eq
+    | _ -> if M.tracing then M.trace "c2po-join" "Join Eq classes"; join_f a b join_eq_no_automata
 
   let join a b = Timing.wrap "join" (join a) b
 
@@ -84,9 +85,10 @@ module C2PODomain = struct
   let widen_eq_classes a b = join_f a b widen_eq_no_automata
 
   let widen a b = if M.tracing then M.trace "c2po-widen" "WIDEN\n";
-    if GobConfig.get_bool "ana.c2po.precise_join" then
-      widen_automata a b
-    else widen_eq_classes a b
+    match GobConfig.get_string "ana.c2po.join_algorithm" with
+    | "precise" -> widen_automata a b
+    | _ -> widen_eq_classes a b
+
 
   let meet a b =
     if M.tracing then M.trace "c2po-meet" "MEET x= %s; y=%s" (show a) (show b);
