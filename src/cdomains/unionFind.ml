@@ -100,9 +100,6 @@ module T = struct
     | Nequal (t1,t2,r) -> show t1 ^ " != " ^ Z.to_string r ^ "+" ^ show t2
     | BlNequal (t1,t2) -> "bl(" ^ show t1 ^ ") != bl(" ^ show t2 ^ ")"
 
-  let equal_v_prop a b = let res = equal_v_prop a b in
-    print_string ((show_prop a)^"; "^(show_prop b)^"; "^string_of_bool res ^"\n"); res
-
   (** Returns true if the first parameter is a subterm of the second one. *)
   let rec is_subterm st term = equal st term || match term with
     | Deref (t, _, _) -> is_subterm st t
