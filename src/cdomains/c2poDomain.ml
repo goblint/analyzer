@@ -114,7 +114,12 @@ module C2PODomain = struct
     | exception Unsat -> false
     | x -> x
 
-  let pretty_diff () (x,y) = Pretty.dprintf "" (* TODO *)
+  let pretty_diff () (x,y) =
+    let x_conj = get_conjunction x in
+    let y_conj = get_conjunction y in
+    let x_diff = List.filter (fun a -> not (List.mem_cmp compare_prop a y_conj)) x_conj in
+    let y_diff = List.filter (fun a -> not (List.mem_cmp compare_prop a x_conj)) y_conj in
+    Pretty.dprintf ("Additional propositions of first element:\n%s\nAdditional propositions of second element:\n%s\n") (show_conj x_diff) (show_conj y_diff)
 
 end
 
