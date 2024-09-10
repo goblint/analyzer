@@ -81,6 +81,7 @@ module LinearTwoVarEqualityAnalysis = LinearTwoVarEqualityAnalysis
 module VarEq = VarEq
 module CondVars = CondVars
 module TmpSpecial = TmpSpecial
+module C2poAnalysis = C2poAnalysis
 
 (** {2 Heap}
 
@@ -92,7 +93,6 @@ module Malloc_null = Malloc_null
 module MemLeak = MemLeak
 module UseAfterFree = UseAfterFree
 module MemOutOfBounds = MemOutOfBounds
-module C2poAnalysis = C2poAnalysis
 
 (** {2 Concurrency}
 
@@ -249,6 +249,13 @@ module ApronDomain = ApronDomain
 module AffineEqualityDomain = AffineEqualityDomain
 module LinearTwoVarEqualityDomain = LinearTwoVarEqualityDomain
 
+(** {5 2-Pointer Logic}
+
+    Domains for {!C2poAnalysis}. *)
+module CongruenceClosure = CongruenceClosure
+module UnionFind = UnionFind
+module C2poDomain = C2poDomain
+
 (** {3 Concurrency} *)
 
 module MutexAttrDomain = MutexAttrDomain
@@ -274,10 +281,6 @@ module AccessDomain = AccessDomain
 module MusteqDomain = MusteqDomain
 module RegionDomain = RegionDomain
 module StackDomain = StackDomain
-
-module CongruenceClosure = CongruenceClosure
-module UnionFind = UnionFind
-module C2poDomain = C2poDomain
 
 (** {2 Testing}
 
