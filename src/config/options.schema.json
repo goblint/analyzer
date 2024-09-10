@@ -2608,7 +2608,8 @@
                   "precondition_loop_invariant",
                   "loop_invariant_certificate",
                   "precondition_loop_invariant_certificate",
-                  "invariant_set"
+                  "invariant_set",
+                  "violation_sequence"
                 ]
               },
               "default": [
