@@ -43,7 +43,10 @@ module C2PODomain = struct
 
   let equal a b =
     if M.tracing then M.trace "c2po-normal-form" "COMPUTING EQUAL";
-    if GobConfig.get_bool "ana.c2po.normal_form" then equal_normal_form a b else equal_standard a b
+    match GobConfig.get_string "ana.c2po.normal_form" with
+    | "normal_form" -> equal_normal_form a b
+    | _ -> equal_standard a b
+
 
   let equal a b = Timing.wrap "c2po-equal" (equal a) b
 
