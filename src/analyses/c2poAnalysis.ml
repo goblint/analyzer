@@ -73,7 +73,7 @@ struct
       t |> meet_conjs_opt [Equal (dummy_var, term, offset)] |>
       D.remove_may_equal_terms ask s lterm |>
       meet_conjs_opt [Equal (lterm, dummy_var, Z.zero)] |>
-      D.remove_terms_containing_variable @@ AssignAux lval_t
+      D.remove_terms_containing_aux_variable
     | _ -> (* this is impossible *) C2PODomain.top ()
 
   (** Assign Cil Lval to a right hand side that is already converted to
@@ -188,7 +188,8 @@ struct
   let remove_out_of_scope_vars t f =
     let local_vars = f.sformals @ f.slocals in
     let duplicated_vars = f.sformals in
-    D.remove_terms_containing_variables (ReturnAux (TVoid [])::Var.from_varinfo local_vars duplicated_vars) t
+    let t = D.remove_terms_containing_return_variable t in
+    D.remove_terms_containing_variables (Var.from_varinfo local_vars duplicated_vars) t
 
   let combine_env ctx var_opt expr f args t_context_opt t (ask: Queries.ask) =
     match ctx.local with

@@ -156,11 +156,18 @@ module D = struct
     | `Bot ->  BatPrintf.fprintf f "<value>\nbottom\n</value>\n"
 
   (** Remove terms from the data structure.
-      It removes all terms for which "var" is a subterm,
+      It removes all terms that contain an AssignAux variable,
       while maintaining all equalities about variables that are not being removed.*)
-  let remove_terms_containing_variable var cc =
-    if M.tracing then M.trace "c2po" "remove_terms_containing_variable: %s\n" (T.show (Addr var));
-    remove_terms (fun t -> Var.equal (T.get_var t) var) cc
+  let remove_terms_containing_aux_variable cc =
+    if M.tracing then M.trace "c2po" "remove_terms_containing_aux_variable\n";
+    remove_terms (fun t -> Var.is_assign_aux (T.get_var t)) cc
+
+  (** Remove terms from the data structure.
+      It removes all terms that contain an ReturnAux variable,
+      while maintaining all equalities about variables that are not being removed.*)
+  let remove_terms_containing_return_variable cc =
+    if M.tracing then M.trace "c2po" "remove_terms_containing_aux_variable\n";
+    remove_terms (fun t -> Var.is_return_aux (T.get_var t)) cc
 
   (** Remove terms from the data structure.
       It removes all terms which contain one of the "vars",

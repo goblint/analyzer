@@ -2,8 +2,6 @@
 
 open GoblintCil
 
-val single: name:string -> (unit -> varinfo)
-
 module type VarinfoMap =
 sig
   type t
@@ -14,10 +12,31 @@ sig
   val bindings: unit -> (t * varinfo) list
 end
 
+module VarinfoDescription:
+sig
+  type t = {
+    vname_: string;
+    vtype_: typ option;
+    vattr_: attributes option;
+    vstorage_: storage option;
+    vglob_: bool option;
+    vinline_: bool option;
+    vdecl_: location option;
+    vinit_: initinfo option;
+    vaddrof_: bool option;
+    vreferenced_: bool option;
+  }
+  val from_varinfo: varinfo -> t
+  val empty: string -> t
+  val update_varinfo: varinfo -> t -> varinfo
+end
+
+val single: name:string -> (unit -> varinfo)
+
 module type G =
 sig
   include Hashtbl.HashedType
-  val name_varinfo: t -> string
+  val varinfo_attributes: t -> VarinfoDescription.t
 end
 
 module type H =

@@ -1,12 +1,5 @@
 open GoblintCil
 
-let create_var name = Cilfacade.create_var @@ makeGlobalVar name voidType
-
-let single ~name =
-  let vi = lazy (create_var name) in
-  fun () ->
-    Lazy.force vi
-
 module type VarinfoMap =
 sig
   type t
@@ -17,10 +10,78 @@ sig
   val bindings: unit -> (t * varinfo) list
 end
 
+module VarinfoDescription = struct
+  (**This type is equal to `varinfo`, but the fields are not mutable and they are optional.
+     Only the name is not optional. *)
+  type t = {
+    vname_: string;
+    vtype_: typ option;
+    vattr_: attributes option;
+    vstorage_: storage option;
+    vglob_: bool option;
+    vinline_: bool option;
+    vdecl_: location option;
+    vinit_: initinfo option;
+    vaddrof_: bool option;
+    vreferenced_: bool option;
+  }
+
+  let from_varinfo (v: varinfo) =
+    {vname_=v.vname;
+     vtype_=Some v.vtype;
+     vattr_=Some v.vattr;
+     vstorage_=Some v.vstorage;
+     vglob_=Some v.vglob;
+     vinline_=Some v.vinline;
+     vdecl_=Some v.vdecl;
+     vinit_=Some v.vinit;
+     vaddrof_=Some v.vaddrof;
+     vreferenced_=Some v.vreferenced}
+
+  let empty name =
+    {vname_=name;
+     vtype_=None;
+     vattr_=None;
+     vstorage_=None;
+     vglob_=None;
+     vinline_=None;
+     vdecl_=None;
+     vinit_=None;
+     vaddrof_=None;
+     vreferenced_=None}
+
+  let update_varinfo (v: varinfo) (update: t) =
+    let open Batteries in
+    {vname=update.vname_;
+     vtype=Option.default v.vtype update.vtype_;
+     vattr=Option.default v.vattr update.vattr_;
+     vstorage=Option.default v.vstorage update.vstorage_;
+     vglob=Option.default v.vglob update.vglob_;
+     vinline=Option.default v.vinline update.vinline_;
+     vdecl=Option.default v.vdecl update.vdecl_;
+     vinit=Option.default v.vinit update.vinit_;
+     vid=v.vid;
+     vaddrof=Option.default v.vaddrof update.vaddrof_;
+     vreferenced=Option.default v.vreferenced update.vreferenced_;
+     vdescr=v.vdescr;
+     vdescrpure=v.vdescrpure;
+     vhasdeclinstruction=v.vhasdeclinstruction}
+end
+
+let create_var (vd: VarinfoDescription.t) =
+  Cilfacade.create_var (
+    VarinfoDescription.update_varinfo (makeGlobalVar vd.vname_ voidType) vd
+  )
+
+let single ~name =
+  let vi = lazy (create_var (VarinfoDescription.empty name)) in
+  fun () ->
+    Lazy.force vi
+
 module type G =
 sig
   include Hashtbl.HashedType
-  val name_varinfo: t -> string
+  val varinfo_attributes: t -> VarinfoDescription.t
 end
 
 module type H =
@@ -47,7 +108,7 @@ struct
     try
       XH.find !xh x
     with Not_found ->
-      let vi = create_var (X.name_varinfo x) in
+      let vi = create_var (X.varinfo_attributes x) in
       store_f x vi;
       vi
 
