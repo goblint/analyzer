@@ -513,10 +513,41 @@ struct
   let names x = Format.asprintf "%d" x
 end
 
+module type Gas = sig
+  module M:Lattice.S
+  val startgas: unit -> M.t
+  val is_exhausted: fundec -> M.t -> bool
+  val is_any_exhausted: M.t -> bool
+  val callee_gas: fundec -> M.t -> M.t
+  val thread_gas: varinfo -> M.t -> M.t
+end
+
+module GlobalGas:Gas = struct
+  module M = Lattice.Chain (IntConf)
+  let startgas () = get_int "ana.context.gas_value"
+
+  let is_any_exhausted v = v <= 0
+  let is_exhausted _  = is_any_exhausted
+
+  (* callee gas = caller gas - 1 *)
+  let callee_gas f v = max 0 (v - 1)
+  let thread_gas f v =  max 0 (v - 1)
+end
+
+module PerFunctionGas:Gas = struct
+  module M = Lattice.Chain (IntConf)
+  let startgas () = get_int "ana.context.gas_value"
+  let is_exhausted f v = v <= 0
+  let is_any_exhausted v = v <= 0
+  let callee_gas f v = max 0 (v - 1)
+  let thread_gas f v =  max 0 (v - 1)
+end
+
+
 (** Lifts a [Spec] with the context gas variable. The gas variable limits the number of context-sensitively analyzed function calls in a call stack.
     For every function call the gas is reduced. If the gas is zero, the remaining function calls are analyzed without context-information *)
-module ContextGasLifter (S:Spec)
-  : Spec with module D = Lattice.Prod (S.D) (Lattice.Chain (IntConf))
+module ContextGasLifter (Gas:Gas) (S:Spec)
+  : Spec with module D = Lattice.Prod (S.D) (Gas.M)
           and module C = Printable.Option (S.C) (NoContext)
           and module G = S.G
 =
@@ -529,7 +560,7 @@ struct
     let printXml f (x,y) =
       BatPrintf.fprintf f "\n%a<analysis name=\"context gas value\">\n%a\n</analysis>" Base1.printXml x Base2.printXml y
   end
-  module D = Context_Gas_Prod (S.D) (Lattice.Chain (IntConf)) (* Product of S.D and an integer, tracking the context gas value *)
+  module D = Context_Gas_Prod (S.D) (Gas.M) (* Product of S.D and an integer, tracking the context gas value *)
   module C = Printable.Option (S.C) (NoContext)
   module G = S.G
   module V = S.V
@@ -549,37 +580,36 @@ struct
 
   let startcontext () = Some (S.startcontext ())
   let name () = S.name ()^" with context gas"
-  let startstate v = S.startstate v, get_int "ana.context.gas_value"
-  let exitstate v = S.exitstate v, get_int "ana.context.gas_value"
+  let startstate v = S.startstate v, Gas.startgas ()
+  let exitstate v = S.exitstate v, Gas.startgas ()
   let morphstate v (d,i) = S.morphstate v d, i
 
   let conv (ctx:(D.t,G.t,C.t,V.t) ctx): (S.D.t,G.t,S.C.t,V.t)ctx =
-    if (cg_val ctx <= 0)
-    then {ctx with local = fst ctx.local
-                 ; split = (fun d es -> ctx.split (d, cg_val ctx) es)
-                 ; context = (fun () -> ctx_failwith "no context (contextGas = 0)")}
-    else {ctx with local = fst ctx.local
-                 ; split = (fun d es -> ctx.split (d, cg_val ctx) es)
-                 ; context = (fun () -> Option.get (ctx.context ()))}
+    {ctx with local = fst ctx.local
+            ; split = (fun d es -> ctx.split (d, cg_val ctx) es)
+            ; context = (fun () -> match ctx.context () with Some c -> c | None -> ctx_failwith "no context (contextGas = 0)")}
 
   let context ctx fd (d,i) =
     (* only keep context if the context gas is greater zero *)
-    if i <= 0 then None else Some (S.context (conv ctx) fd d)
+    if Gas.is_exhausted fd i then
+      None
+    else
+      Some (S.context (conv ctx) fd d)
 
   let enter ctx r f args =
-    (* callee gas = caller gas - 1 *)
-    let liftmap_tup = List.map (fun (x,y) -> (x, cg_val ctx), (y, max 0 (cg_val ctx - 1))) in
+    let liftmap_tup = List.map (fun (x,y) -> (x, cg_val ctx), (y, Gas.callee_gas f (cg_val ctx))) in
     liftmap_tup (S.enter (conv ctx) r f args)
 
   let threadenter ctx ~multiple lval f args =
-    let liftmap f = List.map (fun (x) -> (x, max 0 (cg_val ctx - 1))) f in
+    let liftmap d = List.map (fun (x) -> (x, Gas.thread_gas f (cg_val ctx))) d in
     liftmap (S.threadenter (conv ctx) ~multiple lval f args)
 
   let query ctx (type a) (q: a Queries.t):a Queries.result =
     match q with
     | Queries.GasExhausted ->
+      (* The query is only used in a way where overapproximating gas exhaustion is not harmful *)
       let (d,i) = ctx.local in
-      (i <= 0)
+      Gas.is_any_exhausted i
     | _ -> S.query (conv ctx) q
 
   let sync ctx reason                             = S.sync (conv ctx) reason, cg_val ctx
