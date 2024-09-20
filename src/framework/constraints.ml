@@ -507,10 +507,9 @@ struct
 end
 
 module NoContext = struct let name = "no context" end
-module IntConf =
-struct
-  let n () = max_int
-  let names x = Format.asprintf "%d" x
+
+module type GasVal = sig
+  val n: unit -> int
 end
 
 module type Gas = sig
@@ -522,9 +521,9 @@ module type Gas = sig
   val thread_gas: varinfo -> M.t -> M.t
 end
 
-module GlobalGas:Gas = struct
-  module M = Lattice.Chain (IntConf)
-  let startgas () = get_int "ana.context.gas_value"
+module GlobalGas(GasVal:GasVal):Gas = struct
+  module M = Lattice.Chain (struct include GasVal let names x = Format.asprintf "%d" x end)
+  let startgas () = M.top () (*  get_int "ana.context.gas_value" *)
 
   let is_any_exhausted v = v <= 0
   let is_exhausted _  = is_any_exhausted
@@ -534,13 +533,14 @@ module GlobalGas:Gas = struct
   let thread_gas f v =  max 0 (v - 1)
 end
 
-module PerFunctionGas:Gas = struct
-  module M = Lattice.Chain (IntConf)
-  let startgas () = get_int "ana.context.gas_value"
-  let is_exhausted f v = v <= 0
-  let is_any_exhausted v = v <= 0
-  let callee_gas f v = max 0 (v - 1)
-  let thread_gas f v =  max 0 (v - 1)
+module PerFunctionGas(GasVal:GasVal):Gas = struct
+  module V = Lattice.Chain (struct include GasVal let names x = Format.asprintf "%d" x end)
+  module M = MapDomain.MapTop_LiftBot(CilType.Fundec)(V)
+  let startgas () = M.empty ()  (* get_int "ana.context.gas_value" *)
+  let is_exhausted f v = (* v <= 0 *) true
+  let is_any_exhausted v = (* v <= 0 *) true
+  let callee_gas f v = v  (* max 0 (v - 1) *)
+  let thread_gas f v = v (*  max 0 (v - 1) *)
 end
 
 

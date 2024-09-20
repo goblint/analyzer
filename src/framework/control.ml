@@ -20,10 +20,15 @@ let spec_module: (module Spec) Lazy.t = lazy (
   let open Batteries in
   (* apply functor F on module X if opt is true *)
   let lift opt (module F : S2S) (module X : Spec) = (module (val if opt then (module F (X)) else (module X) : Spec) : Spec) in
+  let module GasVal = struct
+    (* Chain lattice has elements [0,n-1], but we want [0,gas_value] *)
+    let n () = get_int "ana.context.gas_value" + 1
+  end
+  in
   let module S1 =
     (val
       (module MCP.MCP2 : Spec)
-      |> lift (get_int "ana.context.gas_value" >= 0) (module ContextGasLifter(GlobalGas))
+      |> lift (get_int "ana.context.gas_value" >= 0) (module ContextGasLifter(GlobalGas(GasVal)))
       |> lift true (module WidenContextLifterSide) (* option checked in functor *)
       (* hashcons before witness to reduce duplicates, because witness re-uses contexts in domain and requires tag for PathSensitive3 *)
       |> lift (get_bool "ana.opt.hashcons" || arg_enabled) (module HashconsContextLifter)
