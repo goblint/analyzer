@@ -542,7 +542,12 @@ module PerFunctionGas(GasVal:GasVal):Gas = struct
   let callee_gas f v =
     let c = Option.default (G.top ()) (M.find_opt f v) in
     M.add f (max 0 c-1) v
-  let thread_gas f v = v (*  max 0 (v - 1) *)
+  let thread_gas f v =
+    match Cilfacade.find_varinfo_fundec f with
+    | fd ->
+      callee_gas fd v
+    | exception Not_found ->
+      callee_gas Cil.dummyFunDec v
 end
 
 
