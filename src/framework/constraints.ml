@@ -530,16 +530,18 @@ module GlobalGas(GasVal:GasVal):Gas = struct
 
   (* callee gas = caller gas - 1 *)
   let callee_gas f v = max 0 (v - 1)
-  let thread_gas f v =  max 0 (v - 1)
+  let thread_gas f v = max 0 (v - 1)
 end
 
 module PerFunctionGas(GasVal:GasVal):Gas = struct
-  module V = Lattice.Chain (struct include GasVal let names x = Format.asprintf "%d" x end)
-  module M = MapDomain.MapTop_LiftBot(CilType.Fundec)(V)
-  let startgas () = M.empty ()  (* get_int "ana.context.gas_value" *)
-  let is_exhausted f v = (* v <= 0 *) true
-  let is_any_exhausted v = (* v <= 0 *) true
-  let callee_gas f v = v  (* max 0 (v - 1) *)
+  module G = Lattice.Chain (struct include GasVal let names x = Format.asprintf "%d" x end)
+  module M = MapDomain.MapTop_LiftBot(CilType.Fundec)(G)
+  let startgas () = M.empty ()
+  let is_exhausted f v = GobOption.exists (fun g -> g <= 0) (M.find_opt f v)  (* v <= 0 *)
+  let is_any_exhausted v = M.exists (fun _ g -> g <=0) v
+  let callee_gas f v =
+    let c = Option.default (G.top ()) (M.find_opt f v) in
+    M.add f (max 0 c-1) v
   let thread_gas f v = v (*  max 0 (v - 1) *)
 end
 
