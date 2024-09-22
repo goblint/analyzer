@@ -1,3 +1,6 @@
+(** Lifts a [Spec] with the context gas variable. The gas variable limits the number of context-sensitively analyzed function calls in a call stack.
+    For every function call the gas is reduced. If the gas is zero, the remaining function calls are analyzed without context-information *)
+
 open Batteries
 open GoblintCil
 open MyCFG
@@ -17,8 +20,6 @@ module type Gas = sig
   val thread_gas: varinfo -> M.t -> M.t
 end
 
-(** Lifts a [Spec] with the context gas variable. The gas variable limits the number of context-sensitively analyzed function calls in a call stack.
-    For every function call the gas is reduced. If the gas is zero, the remaining function calls are analyzed without context-information *)
 module ContextGasLifter (Gas:Gas) (S:Spec)
   : Spec with module D = Lattice.Prod (S.D) (Gas.M)
           and module C = Printable.Option (S.C) (NoContext)
