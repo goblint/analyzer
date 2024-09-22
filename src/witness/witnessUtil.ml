@@ -63,6 +63,7 @@ struct
         List.exists (fun (_, edge) ->
             match edge with
             | Proc (_, Lval (Var fv, NoOffset), args) when LibraryFunctions.is_special fv ->
+              Goblint_backtrace.wrap_val ~mark:(Cilfacade.FunVarinfo fv) @@ fun () ->
               let desc = LibraryFunctions.find fv in
               begin match desc.special args with
                 | Lock _ -> true
@@ -209,7 +210,7 @@ struct
           let typ = TEnum (e, []) in
           let name = "enum " ^ ename in
           Hashtbl.replace genv name (Cabs2cil.EnvTyp typ, loc);
-          List.iter (fun (name, exp, loc) ->
+          List.iter (fun (name, _, exp, loc) ->
               Hashtbl.replace genv name (Cabs2cil.EnvEnum (exp, typ), loc)
             ) eitems
         | Cil.GVar (v, _, loc)

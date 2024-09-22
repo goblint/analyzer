@@ -11,6 +11,7 @@
    goblint_logs
    goblint_config
    goblint_tracing
+   goblint_backtrace
    goblint-cil
    fpath
    yojson

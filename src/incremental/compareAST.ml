@@ -73,7 +73,7 @@ let forward_list_equal ?(propF = (&&>>)) f l1 l2 ~(rename_mapping: rename_mappin
 let compare_name (a: string) (b: string) =
   let anon_struct = "__anonstruct_" in
   let anon_union = "__anonunion_" in
-  if a = b then true else BatString.(starts_with a anon_struct && starts_with b anon_struct || starts_with a anon_union && starts_with b anon_union)
+  if a = b then true else String.(starts_with a ~prefix:anon_struct && starts_with b ~prefix:anon_struct || starts_with a ~prefix:anon_union && starts_with b ~prefix:anon_union)
 
 let rec eq_constant ~(rename_mapping: rename_mapping) ~(acc: (typ * typ) list) (a: constant) (b: constant) : bool * rename_mapping =
   match a, b with
@@ -178,8 +178,8 @@ and eq_typ_acc ?(fun_parameter_name_comparison_enabled: bool = true) (a: typ) (b
   if Messages.tracing then Messages.traceu "compareast" "eq_typ_acc %a vs %a" d_type a d_type b;
   (r, updated_rename_mapping)
 
-and eq_eitems (a: string * exp * location) (b: string * exp * location) ~(rename_mapping: rename_mapping) ~(acc: (typ * typ) list) = match a, b with
-    (name1, exp1, _l1), (name2, exp2, _l2) -> (name1 = name2, rename_mapping) &&>> eq_exp exp1 exp2 ~acc
+and eq_eitems (a: string * attributes * exp * location) (b: string * attributes * exp * location) ~(rename_mapping: rename_mapping) ~(acc: (typ * typ) list) = match a, b with
+    (name1, attr1, exp1, _l1), (name2, attr2, exp2, _l2) -> (name1 = name2, rename_mapping) &&>> forward_list_equal (eq_attribute ~acc) attr1 attr2 &&>> eq_exp exp1 exp2 ~acc
 (* Ignore location *)
 
 and eq_enuminfo (a: enuminfo) (b: enuminfo) ~(rename_mapping: rename_mapping) ~(acc: (typ * typ) list) =
