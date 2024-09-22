@@ -611,7 +611,6 @@ struct
   let query ctx (type a) (q: a Queries.t):a Queries.result =
     match q with
     | Queries.GasExhausted f ->
-      (* The query is only used in a way where overapproximating gas exhaustion is not harmful *)
       let (d,i) = ctx.local in
       Gas.is_exhausted f i
     | _ -> S.query (conv ctx) q
