@@ -508,10 +508,6 @@ end
 
 module NoContext = struct let name = "no context" end
 
-module type GasVal = sig
-  val n: unit -> int
-end
-
 module type Gas = sig
   module M:Lattice.S
   val startgas: unit -> M.t
@@ -519,34 +515,6 @@ module type Gas = sig
   val callee_gas: fundec -> M.t -> M.t
   val thread_gas: varinfo -> M.t -> M.t
 end
-
-module GlobalGas(GasVal:GasVal):Gas = struct
-  module M = Lattice.Chain (struct include GasVal let names x = Format.asprintf "%d" x end)
-  let startgas () = M.top () (* M.top () yields maximal gas value *)
-
-  let is_exhausted _ v  = v <= 0
-
-  (* callee gas = caller gas - 1 *)
-  let callee_gas f v = max 0 (v - 1)
-  let thread_gas f v = max 0 (v - 1)
-end
-
-module PerFunctionGas(GasVal:GasVal):Gas = struct
-  module G = Lattice.Chain (struct include GasVal let names x = Format.asprintf "%d" x end)
-  module M = MapDomain.MapTop_LiftBot(CilType.Fundec)(G)
-  let startgas () = M.empty ()
-  let is_exhausted f v = GobOption.exists (fun g -> g <= 0) (M.find_opt f v)  (* v <= 0 *)
-  let callee_gas f v =
-    let c = Option.default (G.top ()) (M.find_opt f v) in
-    M.add f (max 0 c-1) v
-  let thread_gas f v =
-    match Cilfacade.find_varinfo_fundec f with
-    | fd ->
-      callee_gas fd v
-    | exception Not_found ->
-      callee_gas Cil.dummyFunDec v
-end
-
 
 (** Lifts a [Spec] with the context gas variable. The gas variable limits the number of context-sensitively analyzed function calls in a call stack.
     For every function call the gas is reduced. If the gas is zero, the remaining function calls are analyzed without context-information *)
@@ -630,6 +598,45 @@ struct
   let threadspawn ctx ~multiple lval f args fctx  = S.threadspawn (conv ctx) ~multiple lval f args (conv fctx), cg_val ctx
   let event ctx e octx                            = S.event (conv ctx) e (conv octx), cg_val ctx
 end
+
+let get_gas_lifter () =
+  let module GasChain = Lattice.Chain (struct
+      (* Chain lattice has elements [0,n-1], but we want [0,gas_value] *)
+      let n () = get_int "ana.context.gas_value" + 1
+      let names x = Format.asprintf "%d" x
+    end)
+  in
+  if get_string "ana.context.gas_scope" = "global" then
+    let module GlobalGas:Gas = struct
+      module M = GasChain
+      let startgas () = M.top () (* M.top () yields maximal gas value *)
+
+      let is_exhausted _ v  = v <= 0
+
+      (* callee gas = caller gas - 1 *)
+      let callee_gas f v = max 0 (v - 1)
+      let thread_gas f v = max 0 (v - 1)
+    end
+    in
+    (module ContextGasLifter(GlobalGas):Spec2Spec)
+  else
+    let module PerFunctionGas:Gas = struct
+      module G = GasChain
+      module M = MapDomain.MapTop_LiftBot(CilType.Fundec)(G)
+      let startgas () = M.empty ()
+      let is_exhausted f v = GobOption.exists (fun g -> g <= 0) (M.find_opt f v)  (* v <= 0 *)
+      let callee_gas f v =
+        let c = Option.default (G.top ()) (M.find_opt f v) in
+        M.add f (max 0 c-1) v
+      let thread_gas f v =
+        match Cilfacade.find_varinfo_fundec f with
+        | fd ->
+          callee_gas fd v
+        | exception Not_found ->
+          callee_gas Cil.dummyFunDec v
+    end
+    in
+    (module ContextGasLifter(PerFunctionGas):Spec2Spec)
 
 
 module type Increment =

@@ -274,6 +274,8 @@ sig
   val event : (D.t, G.t, C.t, V.t) ctx -> Events.t -> (D.t, G.t, C.t, V.t) ctx -> D.t
 end
 
+module type Spec2Spec = functor (S: Spec) -> Spec
+
 module type MCPA =
 sig
   include Printable.S
