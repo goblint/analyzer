@@ -516,7 +516,6 @@ module type Gas = sig
   module M:Lattice.S
   val startgas: unit -> M.t
   val is_exhausted: fundec -> M.t -> bool
-  val is_any_exhausted: M.t -> bool
   val callee_gas: fundec -> M.t -> M.t
   val thread_gas: varinfo -> M.t -> M.t
 end
@@ -525,7 +524,6 @@ module GlobalGas(GasVal:GasVal):Gas = struct
   module M = Lattice.Chain (struct include GasVal let names x = Format.asprintf "%d" x end)
   let startgas () = M.top () (*  get_int "ana.context.gas_value" *)
 
-  let is_any_exhausted v = v <= 0
   let is_exhausted _  = is_any_exhausted
 
   (* callee gas = caller gas - 1 *)
@@ -538,7 +536,6 @@ module PerFunctionGas(GasVal:GasVal):Gas = struct
   module M = MapDomain.MapTop_LiftBot(CilType.Fundec)(G)
   let startgas () = M.empty ()
   let is_exhausted f v = GobOption.exists (fun g -> g <= 0) (M.find_opt f v)  (* v <= 0 *)
-  let is_any_exhausted v = M.exists (fun _ g -> g <=0) v
   let callee_gas f v =
     let c = Option.default (G.top ()) (M.find_opt f v) in
     M.add f (max 0 c-1) v
@@ -613,10 +610,10 @@ struct
 
   let query ctx (type a) (q: a Queries.t):a Queries.result =
     match q with
-    | Queries.GasExhausted ->
+    | Queries.GasExhausted f ->
       (* The query is only used in a way where overapproximating gas exhaustion is not harmful *)
       let (d,i) = ctx.local in
-      Gas.is_any_exhausted i
+      Gas.is_exhausted f i
     | _ -> S.query (conv ctx) q
 
   let sync ctx reason                             = S.sync (conv ctx) reason, cg_val ctx
@@ -669,8 +666,8 @@ struct
     match ctx.prev_node, Cfg.prev ctx.prev_node with
     | _, _ :: _ :: _ -> (* Join in CFG. *)
       S.sync ctx `Join
-    | FunctionEntry _, _ -> (* Function entry, also needs sync because partial contexts joined by solver, see 00-sanity/35-join-contexts. *)
-      S.sync ctx `JoinCall
+    | FunctionEntry f, _ -> (* Function entry, also needs sync because partial contexts joined by solver, see 00-sanity/35-join-contexts. *)
+      S.sync ctx (`JoinCall f)
     | _, _ -> S.sync ctx `Normal
 
   let side_context sideg f c =
