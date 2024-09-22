@@ -524,7 +524,7 @@ module GlobalGas(GasVal:GasVal):Gas = struct
   module M = Lattice.Chain (struct include GasVal let names x = Format.asprintf "%d" x end)
   let startgas () = M.top () (*  get_int "ana.context.gas_value" *)
 
-  let is_exhausted _  = is_any_exhausted
+  let is_exhausted _ v  = v <= 0
 
   (* callee gas = caller gas - 1 *)
   let callee_gas f v = max 0 (v - 1)
