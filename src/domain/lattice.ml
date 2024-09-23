@@ -45,9 +45,6 @@ exception BotValue
 (** Exception raised by a bottomless lattice in place of a bottom value.
     Surrounding lattice functors may handle this on their own. *)
 
-exception Unsupported of string
-let unsupported x = raise (Unsupported x)
-
 exception Invalid_widen of Pretty.doc
 
 let () = Printexc.register_printer (function
@@ -93,10 +90,10 @@ struct
   include Base
   let leq = equal
   let join x y =
-    if equal x y then x else raise (Unsupported "fake join") (* TODO: TopValue? *)
+    if equal x y then x else raise TopValue
   let widen = join
   let meet x y =
-    if equal x y then x else raise (Unsupported "fake meet") (* TODO: BotValue? *)
+    if equal x y then x else raise BotValue
   let narrow = meet
   include NoBotTop
 
@@ -394,11 +391,11 @@ struct
     | (x, `Bot) -> x
     | (`Lifted1 x, `Lifted1 y) -> begin
         try `Lifted1 (Base1.join x y)
-        with Unsupported _ | TopValue -> `Top
+        with TopValue -> `Top
       end
     | (`Lifted2 x, `Lifted2 y) -> begin
         try `Lifted2 (Base2.join x y)
-        with Unsupported _ | TopValue -> `Top
+        with TopValue -> `Top
       end
     | _ -> `Top
 
@@ -410,11 +407,11 @@ struct
     | (x, `Top) -> x
     | (`Lifted1 x, `Lifted1 y) -> begin
         try `Lifted1 (Base1.meet x y)
-        with Unsupported _ | BotValue -> `Bot
+        with BotValue -> `Bot
       end
     | (`Lifted2 x, `Lifted2 y) -> begin
         try `Lifted2 (Base2.meet x y)
-        with Unsupported _ | BotValue -> `Bot
+        with BotValue -> `Bot
       end
     | _ -> `Bot
 
@@ -581,10 +578,7 @@ end
 module Liszt (Base: S) =
 struct
   include Printable.Liszt (Base)
-  let bot () = raise (Unsupported "bot?")
-  let is_top _ = false
-  let top () = raise (Unsupported "top?")
-  let is_bot _ = false
+  include NoBotTop
 
   let leq =
     let f acc x y = Base.leq x y && acc in
