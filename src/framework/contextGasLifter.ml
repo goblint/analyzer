@@ -34,7 +34,7 @@ struct
     let printXml f (x,y) =
       BatPrintf.fprintf f "\n%a<analysis name=\"context gas value\">\n%a\n</analysis>" Base1.printXml x Base2.printXml y
   end
-  module D = Context_Gas_Prod (S.D) (Gas.M) (* Product of S.D and an integer, tracking the context gas value *)
+  module D = Context_Gas_Prod (S.D) (Gas.M) (* Product of S.D and a value from the gas module, tracking the context gas value *)
   module C = Printable.Option (S.C) (NoContext)
   module G = S.G
   module V = S.V
