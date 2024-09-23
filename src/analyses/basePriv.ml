@@ -31,7 +31,7 @@ sig
   val lock: Q.ask -> (V.t -> G.t) -> BaseComponents (D).t -> LockDomain.MustLock.t -> BaseComponents (D).t
   val unlock: Q.ask -> (V.t -> G.t) -> (V.t -> G.t -> unit) -> BaseComponents (D).t -> LockDomain.MustLock.t -> BaseComponents (D).t
 
-  val sync: Q.ask -> (V.t -> G.t) -> (V.t -> G.t -> unit) -> BaseComponents (D).t -> [`Normal | `Join | `JoinCall | `Return | `Init | `Thread] -> BaseComponents (D).t
+  val sync: Q.ask -> (V.t -> G.t) -> (V.t -> G.t -> unit) -> BaseComponents (D).t -> [`Normal | `Join | `JoinCall of CilType.Fundec.t | `Return | `Init | `Thread] -> BaseComponents (D).t
 
   val escape: Q.ask -> (V.t -> G.t) -> (V.t -> G.t -> unit) -> BaseComponents (D).t -> EscapeDomain.EscapedVars.t -> BaseComponents (D).t
   val enter_multithreaded: Q.ask -> (V.t -> G.t) -> (V.t -> G.t -> unit) -> BaseComponents (D).t -> BaseComponents (D).t
@@ -322,10 +322,10 @@ struct
     match reason with
     | `Join when ConfCheck.branched_thread_creation () ->
       branched_sync ()
-    | `JoinCall when ConfCheck.branched_thread_creation_at_call ask ->
+    | `JoinCall f when ConfCheck.branched_thread_creation_at_call ask f ->
       branched_sync ()
     | `Join
-    | `JoinCall
+    | `JoinCall _
     | `Return
     | `Normal
     | `Init
@@ -433,10 +433,10 @@ struct
     match reason with
     | `Join when ConfCheck.branched_thread_creation () ->
       branched_sync ()
-    | `JoinCall when ConfCheck.branched_thread_creation_at_call ask ->
+    | `JoinCall f when ConfCheck.branched_thread_creation_at_call ask f ->
       branched_sync ()
     | `Join
-    | `JoinCall
+    | `JoinCall _
     | `Return
     | `Normal
     | `Init
@@ -802,10 +802,10 @@ struct
     match reason with
     | `Join when ConfCheck.branched_thread_creation () ->
       branched_sync ()
-    | `JoinCall when ConfCheck.branched_thread_creation_at_call ask ->
+    | `JoinCall f when ConfCheck.branched_thread_creation_at_call ask f ->
       branched_sync ()
     | `Join
-    | `JoinCall
+    | `JoinCall _
     | `Return
     | `Normal
     | `Init
@@ -1055,7 +1055,7 @@ struct
     | `Return
     | `Normal
     | `Join (* TODO: no problem with branched thread creation here? *)
-    | `JoinCall
+    | `JoinCall _
     | `Init
     | `Thread ->
       st
@@ -1111,7 +1111,7 @@ struct
     | `Return
     | `Normal
     | `Join (* TODO: no problem with branched thread creation here? *)
-    | `JoinCall
+    | `JoinCall _
     | `Init
     | `Thread ->
       st
@@ -1183,7 +1183,7 @@ struct
     | `Return
     | `Normal
     | `Join (* TODO: no problem with branched thread creation here? *)
-    | `JoinCall
+    | `JoinCall _
     | `Init
     | `Thread ->
       st
@@ -1342,7 +1342,7 @@ struct
     | `Return
     | `Normal
     | `Join (* TODO: no problem with branched thread creation here? *)
-    | `JoinCall
+    | `JoinCall _
     | `Init
     | `Thread ->
       st
@@ -1521,7 +1521,7 @@ struct
     | `Return
     | `Normal
     | `Join (* TODO: no problem with branched thread creation here? *)
-    | `JoinCall
+    | `JoinCall _
     | `Init
     | `Thread ->
       st
@@ -1704,7 +1704,7 @@ struct
     | `Return
     | `Normal
     | `Join (* TODO: no problem with branched thread creation here? *)
-    | `JoinCall
+    | `JoinCall _
     | `Init
     | `Thread ->
       st

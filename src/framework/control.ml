@@ -10,7 +10,7 @@ open ConstrSys
 open GobConfig
 open Constraints
 
-module type S2S = functor (X : Spec) -> Spec
+module type S2S = Spec2Spec
 
 (* spec is lazy, so HConsed table in Hashcons lifters is preserved between analyses in server mode *)
 let spec_module: (module Spec) Lazy.t = lazy (
@@ -23,7 +23,7 @@ let spec_module: (module Spec) Lazy.t = lazy (
   let module S1 =
     (val
       (module MCP.MCP2 : Spec)
-      |> lift (get_int "ana.context.gas_value" >= 0) (module ContextGasLifter)
+      |> lift (get_int "ana.context.gas_value" >= 0) (ContextGasLifter.get_gas_lifter ())
       |> lift true (module WidenContextLifterSide) (* option checked in functor *)
       (* hashcons before witness to reduce duplicates, because witness re-uses contexts in domain and requires tag for PathSensitive3 *)
       |> lift (get_bool "ana.opt.hashcons" || arg_enabled) (module HashconsContextLifter)

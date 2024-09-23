@@ -26,6 +26,7 @@ module Constraints = Constraints
 module AnalysisState = AnalysisState
 module AnalysisStateUtil = AnalysisStateUtil
 module ControlSpecC = ControlSpecC
+module ContextGasLifter = ContextGasLifter
 
 (** Master control program (MCP) is the analysis specification for the dynamic product of activated analyses. *)
 

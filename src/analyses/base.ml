@@ -453,7 +453,7 @@ struct
     else
       ctx.local
 
-  let sync ctx reason = sync' (reason :> [`Normal | `Join | `JoinCall | `Return | `Init | `Thread]) ctx
+  let sync ctx reason = sync' (reason :> [`Normal | `Join | `JoinCall of CilType.Fundec.t | `Return | `Init | `Thread]) ctx
 
   let publish_all ctx reason =
     ignore (sync' reason ctx)
