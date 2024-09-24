@@ -9,7 +9,7 @@ open Analyses
 open ConstrSys
 open GobConfig
 open Constraints
-open SpecLifters
+open LongjmpLifter
 
 module type S2S = Spec2Spec
 
