@@ -176,7 +176,7 @@ module PtranalAnalysis = PtranalAnalysis
 
     Transformations of analyses into extended analyses. *)
 
-module SpecLifters = SpecLifters
+module RecursionTermLifter = RecursionTermLifter
 module ContextGasLifter = ContextGasLifter
 module WideningTokens = WideningTokens
 
