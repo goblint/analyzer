@@ -9,6 +9,7 @@ open Analyses
 open ConstrSys
 open GobConfig
 open Constraints
+open SpecLifters
 
 module type S2S = Spec2Spec
 
@@ -39,8 +40,8 @@ let spec_module: (module Spec) Lazy.t = lazy (
       (* Widening tokens must be outside of hashcons, because widening token domain ignores token sets for identity, so hashcons doesn't allow adding tokens.
          Also must be outside of deadcode, because deadcode splits (like mutex lock event) don't pass on tokens. *)
       |> lift (get_bool "ana.widen.tokens") (module WideningTokens.Lifter)
-      |> lift true (module LongjmpLifter)
-      |> lift termination_enabled (module RecursionTermLifter) (* Always activate the recursion termination analysis, when the loop termination analysis is activated*)
+      |> lift true (module LongjmpLifter.Lifter)
+      |> lift termination_enabled (module RecursionTermLifter.Lifter) (* Always activate the recursion termination analysis, when the loop termination analysis is activated*)
     )
   in
   GobConfig.building_spec := false;
@@ -90,7 +91,7 @@ struct
   end
   module Slvr  = (GlobSolverFromEqSolver (Goblint_solver.Selector.Make (PostSolverArg))) (EQSys) (LHT) (GHT)
   (* The comparator *)
-  module CompareGlobSys = Constraints.CompareGlobSys (SpecSys)
+  module CompareGlobSys = CompareConstraints.CompareGlobSys (SpecSys)
 
   (* Triple of the function, context, and the local value. *)
   module RT = AnalysisResult.ResultType2 (Spec)
@@ -521,15 +522,15 @@ struct
             if get_bool "dbg.compare_runs.globsys" then
               CompareGlobSys.compare (d1, d2) r1 r2;
 
-            let module CompareEqSys = Constraints.CompareEqSys (S2) (VH) in
+            let module CompareEqSys = CompareConstraints.CompareEqSys (S2) (VH) in
             if get_bool "dbg.compare_runs.eqsys" then
               CompareEqSys.compare (d1, d2) r1' r2';
 
-            let module CompareGlobal = Constraints.CompareGlobal (EQSys.GVar) (EQSys.G) (GHT) in
+            let module CompareGlobal = CompareConstraints.CompareGlobal (EQSys.GVar) (EQSys.G) (GHT) in
             if get_bool "dbg.compare_runs.global" then
               CompareGlobal.compare (d1, d2) (snd r1) (snd r2);
 
-            let module CompareNode = Constraints.CompareNode (Spec.C) (EQSys.D) (LHT) in
+            let module CompareNode = CompareConstraints.CompareNode (Spec.C) (EQSys.D) (LHT) in
             if get_bool "dbg.compare_runs.node" then
               CompareNode.compare (d1, d2) (fst r1) (fst r2);
 
