@@ -50,12 +50,10 @@ let init_options () =
   Cabs2cil.addNestedScopeAttr := get_bool "cil.addNestedScopeAttr";
 
   if get_bool "ana.sv-comp.enabled" then (
-    let machine = match get_string "exp.architecture" with
+    Cil.envMachine := match get_string "exp.architecture" with
       | "32bit" -> Machdep.gcc32
       | "64bit" -> Machdep.gcc64
       | _ -> assert false
-    in
-    Machdep.theMachine := Option.get machine
   )
 
 let init () =
