@@ -36,3 +36,5 @@ let postsolving = ref false
 
 (* None if verification is disabled, Some true if verification succeeded, Some false if verification failed *)
 let verified : bool option ref = ref None
+
+let widening = ref false
