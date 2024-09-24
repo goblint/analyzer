@@ -47,7 +47,16 @@ let init_options () =
   Mergecil.merge_inlines := get_bool "cil.merge.inlines";
   Cil.cstd := Cil.cstd_of_string (get_string "cil.cstd");
   Cil.gnu89inline := get_bool "cil.gnu89inline";
-  Cabs2cil.addNestedScopeAttr := get_bool "cil.addNestedScopeAttr"
+  Cabs2cil.addNestedScopeAttr := get_bool "cil.addNestedScopeAttr";
+
+  if get_bool "ana.sv-comp.enabled" then (
+    let machine = match get_string "exp.architecture" with
+      | "32bit" -> Machdep.gcc32
+      | "64bit" -> Machdep.gcc64
+      | _ -> assert false
+    in
+    Machdep.theMachine := Option.get machine
+  )
 
 let init () =
   initCIL ();
