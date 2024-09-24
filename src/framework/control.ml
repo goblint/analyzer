@@ -8,7 +8,7 @@ open MyCFG
 open Analyses
 open ConstrSys
 open GobConfig
-open Constraints
+open SpecLifters
 
 module type S2S = Spec2Spec
 
