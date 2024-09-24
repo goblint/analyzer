@@ -2,8 +2,7 @@ open GoblintCil
 open Analyses
 
 
-(** Add cycle detection in the context-sensitive dynamic function call graph to an analysis *)
-module RecursionTermLifter (S: Spec)
+module Lifter (S: Spec)
   : Spec with module D = S.D
           and module C = S.C
 =

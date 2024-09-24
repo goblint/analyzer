@@ -40,8 +40,8 @@ let spec_module: (module Spec) Lazy.t = lazy (
       (* Widening tokens must be outside of hashcons, because widening token domain ignores token sets for identity, so hashcons doesn't allow adding tokens.
          Also must be outside of deadcode, because deadcode splits (like mutex lock event) don't pass on tokens. *)
       |> lift (get_bool "ana.widen.tokens") (module WideningTokens.Lifter)
-      |> lift true (module LongjmpLifter.LongjmpLifter)
-      |> lift termination_enabled (module RecursionTermLifter.RecursionTermLifter) (* Always activate the recursion termination analysis, when the loop termination analysis is activated*)
+      |> lift true (module LongjmpLifter.Lifter)
+      |> lift termination_enabled (module RecursionTermLifter.Lifter) (* Always activate the recursion termination analysis, when the loop termination analysis is activated*)
     )
   in
   GobConfig.building_spec := false;

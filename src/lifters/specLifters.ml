@@ -1,3 +1,5 @@
+(** Various simple and old analysis lifters. *)
+
 open Batteries
 open GoblintCil
 open Analyses

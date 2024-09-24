@@ -3,7 +3,7 @@ open Analyses
 open GobConfig
 
 
-module LongjmpLifter (S: Spec): Spec =
+module Lifter (S: Spec): Spec =
 struct
   include S
 
