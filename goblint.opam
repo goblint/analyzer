@@ -97,7 +97,7 @@ dev-repo: "git+https://github.com/goblint/analyzer.git"
 # also remember to generate/adjust goblint.opam.locked!
 available: os-family != "bsd" & os-distribution != "alpine" & (arch != "arm64" | os = "macos")
 pin-depends: [
-  [ "goblint-cil.2.0.4" "git+https://github.com/goblint/cil.git#73d02511a0366816d428853634fb939bd2f0a1b7" ]
+  [ "goblint-cil.2.0.4" "git+https://github.com/goblint/cil.git#9f4fac450c02bc61a13717784515056b185794cd" ]
 ]
 depexts: [
   ["libgraph-easy-perl"] {os-distribution = "ubuntu" & with-test}
