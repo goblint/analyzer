@@ -24,6 +24,8 @@ struct
     else
       Some false
 
+  let of_var v: t = (v, `NoOffset)
+
   let of_mval ((v, o): Mval.t): t =
     (v, Offset.Poly.map_indices (fun i -> IndexDomain.to_int i |> Option.get) o)
 

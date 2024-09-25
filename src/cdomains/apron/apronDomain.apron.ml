@@ -283,7 +283,7 @@ struct
   let assign_exp_with ask nd v e no_ov =
     match Convert.texpr1_of_cil_exp ask nd (A.env nd) e no_ov with
     | texpr1 ->
-      if M.tracing then M.trace "apron" "assign_exp converted: %s" (Format.asprintf "%a" Texpr1.print texpr1);
+      if M.tracing then M.trace "apron" "assign_exp converted: %a" Texpr1.pretty texpr1;
       A.assign_texpr_with Man.mgr nd v texpr1 None
     | exception Convert.Unsupported_CilExp _ ->
       if M.tracing then M.trace "apron" "assign_exp unsupported";
@@ -442,7 +442,7 @@ struct
   let invariant _ = []
 
   let show (x:t) =
-    Format.asprintf "%a (env: %a)" A.print x (Environment.print: Format.formatter -> Environment.t -> unit) (A.env x)
+    GobFormat.asprintf "%a (env: %a)" A.print x Environment.pp (A.env x)
   let pretty () (x:t) = text (show x)
 
   let equal x y =
@@ -454,7 +454,7 @@ struct
   let compare (x: t) (y: t): int =
     failwith "Apron.Abstract1 doesn't have total order" (* https://github.com/antoinemine/apron/issues/99 *)
 
-  let printXml f x = BatPrintf.fprintf f "<value>\n<map>\n<key>\nconstraints\n</key>\n<value>\n%s</value>\n<key>\nenv\n</key>\n<value>\n%s</value>\n</map>\n</value>\n" (XmlUtil.escape (Format.asprintf "%a" A.print x)) (XmlUtil.escape (Format.asprintf "%a" (Environment.print: Format.formatter -> Environment.t -> unit) (A.env x)))
+  let printXml f x = BatPrintf.fprintf f "<value>\n<map>\n<key>\nconstraints\n</key>\n<value>\n%s</value>\n<key>\nenv\n</key>\n<value>\n%a</value>\n</map>\n</value>\n" (XmlUtil.escape (GobFormat.asprint A.print x)) Environment.printXml (A.env x)
 
   let to_yojson (x: t) =
     let constraints =
@@ -463,11 +463,9 @@ struct
       |> Lincons1Set.elements
       |> List.map (fun lincons1 -> `String (Lincons1.show lincons1))
     in
-    let env = `String (Format.asprintf "%a" (Environment.print: Format.formatter -> Environment.t -> unit) (A.env x))
-    in
     `Assoc [
       ("constraints", `List constraints);
-      ("env", env);
+      ("env", Environment.to_yojson (A.env x));
     ]
 
   let unify x y =
@@ -533,9 +531,9 @@ struct
     | _ ->
       begin match Convert.tcons1_of_cil_exp ask d (A.env d) e negate no_ov with
         | tcons1 ->
-          if M.tracing then M.trace "apron" "assert_constraint %a %s" d_exp e (Format.asprintf "%a" Tcons1.print tcons1);
+          if M.tracing then M.trace "apron" "assert_constraint %a %a" d_exp e Tcons1.pretty tcons1;
           if M.tracing then M.trace "apron" "assert_constraint st: %a" D.pretty d;
-          if M.tracing then M.trace "apron" "assert_constraint tcons1: %s" (Format.asprintf "%a" Tcons1.print tcons1);
+          if M.tracing then M.trace "apron" "assert_constraint tcons1: %a" Tcons1.pretty tcons1;
           let r = meet_tcons ask d tcons1 e in
           if M.tracing then M.trace "apron" "assert_constraint r: %a" D.pretty r;
           r
@@ -598,7 +596,7 @@ struct
     let x_cons = A.to_lincons_array Man.mgr x_j in
     let y_cons = A.to_lincons_array Man.mgr y_j in
     let try_add_con j con1 =
-      if M.tracing then M.tracei "apron" "try_add_con %s" (Format.asprintf "%a" (Lincons1.print: Format.formatter -> Lincons1.t -> unit) con1);
+      if M.tracing then M.tracei "apron" "try_add_con %a" Lincons1.pretty con1;
       let t = meet_lincons j con1 in
       let t_x = A.change_environment Man.mgr t x_env false in
       let t_y = A.change_environment Man.mgr t y_env false in
@@ -637,7 +635,7 @@ struct
       in
       let env_exists_mem_con1 env con1 =
         let r = env_exists_mem_con1 env con1 in
-        if M.tracing then M.trace "apron" "env_exists_mem_con1 %s %s -> %B" (Format.asprintf "%a" (Environment.print: Format.formatter -> Environment.t -> unit) env) (Lincons1.show con1) r;
+        if M.tracing then M.trace "apron" "env_exists_mem_con1 %a %a -> %B" Environment.pretty env Lincons1.pretty con1 r;
         r
       in
       (* Heuristically reorder constraints to pass 36/12 with singlethreaded->multithreaded mode switching. *)
