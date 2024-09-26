@@ -326,6 +326,7 @@ class Project
       if obj =~ /#line ([0-9]+).*$/ then
         i = $1.to_i - 1
       end
+      # test annotations are stored by line, use impossible line -42 for these metaproperties
       if obj =~ /NOCRASH/ then
         tests[-42] = "nocrash"
       elsif obj =~ /FIXPOINT/ then
@@ -369,6 +370,7 @@ class Project
       end
     end
     case lines[0]
+    # test annotations are stored by line, use impossible line -1 for these whole-program properties
     when /NONTERM/
       tests[-1] = "nonterm"
     when /TERM/
