@@ -1909,14 +1909,14 @@ struct
       in
       begin match current_val with
         | Bot -> (* current value is VD Bot *)
-          begin match Addr.to_mval (AD.choose lval_val) with
-            | Some (x,offs) ->
+          begin match AD.to_mval lval_val with
+            | [(x,offs)] ->
               let t = v.vtype in
               let iv = VD.bot_value ~varAttr:v.vattr t in (* correct bottom value for top level variable *)
-              if M.tracing then M.tracel "set" "init bot value: %a" VD.pretty iv;
+              if M.tracing then M.tracel "set" "init bot value (%a): %a" d_plaintype t VD.pretty iv;
               let nv = VD.update_offset (Queries.to_value_domain_ask (Analyses.ask_of_ctx ctx)) iv offs rval_val (Some  (Lval lval)) lval t in (* do desired update to value *)
               set_savetop ~ctx  ctx.local (AD.of_var v) lval_t nv ~lval_raw:lval ~rval_raw:rval (* set top-level variable to updated value *)
-            | None ->
+            | _ ->
               set_savetop ~ctx ctx.local lval_val lval_t rval_val ~lval_raw:lval ~rval_raw:rval
           end
         | _ ->
