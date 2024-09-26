@@ -1,7 +1,7 @@
 // PARAM: --set ana.path_sens[+] mutex
 #include <assert.h>
 #include <pthread.h>
-
+// CRAM
 pthread_mutex_t m = PTHREAD_MUTEX_INITIALIZER;
 
 int main() {
