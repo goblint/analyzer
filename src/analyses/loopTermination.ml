@@ -42,33 +42,33 @@ struct
   let startstate _ = ()
   let exitstate = startstate
 
-  let find_loop ~loop_counter =
-    VarToStmt.find loop_counter !loop_counters
-
   (** Recognizes a call of [__goblint_bounded] to check the EvalInt of the
    * respective loop counter variable at that position. *)
   let special ctx (lval : lval option) (f : varinfo) (arglist : exp list) =
-    if !AnalysisState.postsolving then
+    if !AnalysisState.postsolving then (
       match f.vname, arglist with
-        "__goblint_bounded", [Lval (Var loop_counter, NoOffset)] ->
-        (try
-           let loop_statement = find_loop ~loop_counter in
-           let bound = ask_bound ctx loop_counter in
-           let is_bounded = bound <> `Top in
-           ctx.sideg () (G.add (`Lifted loop_statement) is_bounded (ctx.global ()));
-           let loc = M.Location.CilLocation (Cilfacade.get_stmtLoc loop_statement) in
-           begin match bound with
-             | `Top ->
-               M.warn ~category:Termination ~loc "The program might not terminate! (Loop analysis)"
-             | `Lifted bound ->
-               (* TODO: aggregate these per loop (if unrolled) and warn using WarnGlobal? *)
-               if GobConfig.get_bool "dbg.termination-bounds" then
-                 M.success ~category:Termination ~loc "Loop terminates: bounded by %a iteration(s)" IntDomain.IntDomTuple.pretty bound;
-           end
-         with Not_found ->
-           failwith "Encountered a call to __goblint_bounded with an unknown loop counter variable.")
+      | "__goblint_bounded", [Lval (Var loop_counter, NoOffset)] ->
+        begin match VarToStmt.find_opt loop_counter !loop_counters with
+          | Some loop_statement ->
+            let bound = ask_bound ctx loop_counter in
+            let is_bounded = bound <> `Top in
+            ctx.sideg () (G.add (`Lifted loop_statement) is_bounded (ctx.global ()));
+            let loc = M.Location.CilLocation (Cilfacade.get_stmtLoc loop_statement) in
+            begin match bound with
+              | `Top ->
+                M.warn ~category:Termination ~loc "The program might not terminate! (Loop analysis)"
+              | `Lifted bound ->
+                (* TODO: aggregate these per loop (if unrolled) and warn using WarnGlobal? *)
+                if GobConfig.get_bool "dbg.termination-bounds" then
+                  M.success ~category:Termination ~loc "Loop terminates: bounded by %a iteration(s)" IntDomain.IntDomTuple.pretty bound;
+            end
+          | None ->
+            failwith "Encountered a call to __goblint_bounded with an unknown loop counter variable."
+        end
+      | "__goblint_bounded", _ ->
+        failwith "__goblint_bounded call unexpected arguments"
       | _ -> ()
-    else ()
+    )
 
   let query ctx (type a) (q: a Queries.t): a Queries.result =
     match q with
