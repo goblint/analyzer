@@ -210,35 +210,27 @@ let constBefore var loop f =
   in
   fst @@ lastAssignmentToVarBeforeLoop (Some Z.zero) f.sbody.bstmts (*the top level call should never return false*)
 
-let rec loopIterations start diff comp =
-  let flip = function
-    | Lt -> Gt
-    | Gt -> Lt
-    | Ge -> Le
-    | Le -> Ge
-    | s -> s
-  in let loopIterations' goal shouldBeExact =
-       let range = Z.sub goal start in
-       if Z.equal diff Z.zero || Z.equal range Z.zero || (Z.gt diff Z.zero && Z.lt range Z.zero) ||  (Z.lt diff Z.zero && Z.gt range Z.zero) then
-         None (*unfitting parameters*)
-       else (
-         let roundedDown = Z.div range diff in
-         let isExact = Z.equal (Z.mul roundedDown diff) range in
-         if isExact then
-           Some roundedDown
-         else if shouldBeExact then
-           None
-         else
-           Some (Z.succ roundedDown)
-       )
-  in
-  match comp with
-  | BinOp (op, (Const _ as c), var, t) -> loopIterations start diff (BinOp (flip op, var, c, t))
-  | BinOp (Lt, _, (Const (CInt (cint,_,_) )), _) -> if Z.lt diff Z.zero then None else loopIterations' cint false
-  | BinOp (Gt, _, (Const (CInt (cint,_,_) )), _) -> if Z.gt diff Z.zero then None else loopIterations' cint false
-  | BinOp (Le, _, (Const (CInt (cint,_,_) )), _) -> if Z.lt diff Z.zero then None else loopIterations' (Z.succ cint) false
-  | BinOp (Ge, _, (Const (CInt (cint,_,_) )), _) -> if Z.gt diff Z.zero then None else loopIterations' (Z.pred cint) false
-  | BinOp (Ne, _, (Const (CInt (cint,_,_) )), _) -> loopIterations' cint true
+let loopIterations start diff goal shouldBeExact =
+  let range = Z.sub goal start in
+  if Z.equal diff Z.zero || Z.equal range Z.zero || (Z.gt diff Z.zero && Z.lt range Z.zero) ||  (Z.lt diff Z.zero && Z.gt range Z.zero) then
+    None (*unfitting parameters*)
+  else (
+    let roundedDown = Z.div range diff in
+    let isExact = Z.equal (Z.mul roundedDown diff) range in
+    if isExact then
+      Some roundedDown
+    else if shouldBeExact then
+      None
+    else
+      Some (Z.succ roundedDown)
+  )
+let adjustGoal diff goal op =
+  match op with
+  | Lt -> if Z.lt diff Z.zero then None else Some goal
+  | Gt -> if Z.gt diff Z.zero then None else Some goal
+  | Le -> if Z.lt diff Z.zero then None else Some (Z.succ goal)
+  | Ge -> if Z.gt diff Z.zero then None else Some (Z.pred goal)
+  | Ne -> Some goal
   | _ -> failwith "unexpected comparison in loopIterations"
 
 let ( >>= ) = Option.bind
@@ -250,9 +242,12 @@ let fixedLoopSize loopStatement func =
       !compOption
     with | WrongOrMultiple ->  None
   in let getLoopVar = function
-      | BinOp (op, (Const (CInt (goal, _, _) )), Lval ((Var info), NoOffset), (TInt _))
-      | BinOp (op, Lval ((Var info), NoOffset), (Const (CInt (goal, _, _) )), (TInt _)) when isCompare op && not info.vglob->
-        Some (info, goal)
+      | BinOp (op, (Const (CInt (goal, _, _) )), Lval ((Var varinfo), NoOffset), (TInt _)) when isCompare op && not varinfo.vglob ->
+        (* TODO: define isCompare and flip in cilfacade and refactor to use instead of the many separately defined similar functions *)
+        let flip = function | Lt -> Gt | Gt -> Lt | Ge -> Le | Le -> Ge | s -> s in
+        Some (flip op, varinfo, goal)
+      | BinOp (op, Lval ((Var varinfo), NoOffset), (Const (CInt (goal, _, _) )), (TInt _)) when isCompare op && not varinfo.vglob ->
+        Some (op, varinfo, goal)
       | _ -> None
   in let getsPointedAt var = try
          let visitor = new isPointedAtVisitor(var) in
@@ -268,7 +263,7 @@ let fixedLoopSize loopStatement func =
   in
 
   findBreakComparison >>= fun comparison ->
-  getLoopVar comparison >>= fun (var, goal) ->
+  getLoopVar comparison >>= fun (op, var, goal) ->
   if getsPointedAt var then
     None
   else
@@ -278,7 +273,8 @@ let fixedLoopSize loopStatement func =
     Logs.debug "variable: %s" var.vname;
     Logs.debug "start: %a" GobZ.pretty start;
     Logs.debug "diff: %a" GobZ.pretty diff;
-    let iterations = loopIterations start diff comparison in
+    adjustGoal diff goal op >>= fun goal ->
+    let iterations = loopIterations start diff goal (op=Ne) in
     match iterations with
     | None -> Logs.debug "iterations failed"; None
     | Some s ->
