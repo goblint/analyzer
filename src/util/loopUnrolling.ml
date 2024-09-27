@@ -468,6 +468,8 @@ class loopUnrollingVisitor(func, totalLoops) = object
 end
 
 let unroll_loops fd totalLoops =
-  Cil.populateLabelAlphaTable fd;
-  let thisVisitor = new loopUnrollingVisitor(fd, totalLoops) in
-  ignore (visitCilFunction thisVisitor fd)
+  if not (Cil.hasAttribute "goblint_stub" fd.svar.vattr) then (
+    Cil.populateLabelAlphaTable fd;
+    let thisVisitor = new loopUnrollingVisitor(fd, totalLoops) in
+    ignore (visitCilFunction thisVisitor fd)
+  )
