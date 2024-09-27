@@ -270,21 +270,21 @@ let loopIterations start diff goal shouldBeExact =
       Some (Z.succ roundedDown)
   )
 
-let ( >>= ) = Option.bind
 let fixedLoopSize loopStatement func =
-  findBreakComparison loopStatement >>= fun comparison ->
-  getLoopVar comparison >>= fun (op, var, goal) ->
+  let open GobOption.Syntax in
+  let* comparison = findBreakComparison loopStatement in
+  let* op, var, goal = getLoopVar comparison in
   if getsPointedAt var func then
     None
   else
-    constBefore var loopStatement func >>= fun start ->
-    assignmentDifference loopStatement var >>= fun diff ->
+    let* start = constBefore var loopStatement func in
+    let* diff = assignmentDifference loopStatement var in
+    let* goal = adjustGoal diff goal op in
+    let iterations = loopIterations start diff goal (op=Ne) in
     Logs.debug "comparison: %a" CilType.Exp.pretty comparison;
     Logs.debug "variable: %s" var.vname;
     Logs.debug "start: %a" GobZ.pretty start;
     Logs.debug "diff: %a" GobZ.pretty diff;
-    adjustGoal diff goal op >>= fun goal ->
-    let iterations = loopIterations start diff goal (op=Ne) in
     match iterations with
     | None -> Logs.debug "iterations failed"; None
     | Some s ->
