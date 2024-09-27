@@ -691,9 +691,10 @@ struct
     )
 
   let write yaml_validate_result entrystates =
-    match !AnalysisState.verified with
-    | Some false -> print_svcomp_result "ERROR (verify)"
-    | _ ->
+    match !AnalysisState.verified, !AnalysisState.unsound_both_branches_dead with
+    | _, Some true -> print_svcomp_result "ERROR (both branches dead)"
+    | Some false, _ -> print_svcomp_result "ERROR (verify)"
+    | _, _ ->
       match yaml_validate_result with
       | Some (Stdlib.Error msg) ->
         print_svcomp_result ("ERROR (" ^ msg ^ ")")

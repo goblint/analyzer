@@ -695,6 +695,10 @@ struct
       | x -> BatPrintf.fprintf f "<analysis name=\"dead-branch-lifter\">%a</analysis>" printXml x
   end
 
+  let init marshal =
+    init marshal;
+    AnalysisState.unsound_both_branches_dead := Some false
+
   let conv (ctx: (_, G.t, _, V.t) ctx): (_, S.G.t, _, S.V.t) ctx =
     { ctx with
       global = (fun v -> G.s (ctx.global (V.s v)));
@@ -717,6 +721,7 @@ struct
                 let cilinserted = if loc.synthetic then "(possibly inserted by CIL) " else "" in
                 M.warn ~loc:(Node g) ~tags:[CWE (if tv then 571 else 570)] ~category:Deadcode "condition '%a' %sis always %B" d_exp exp cilinserted tv
               | `Bot when not (CilType.Exp.equal exp one) -> (* all branches dead *)
+                AnalysisState.unsound_both_branches_dead := Some true;
                 M.msg_final Error ~category:Analyzer ~tags:[Category Unsound] "Both branches dead";
                 M.error ~loc:(Node g) ~category:Analyzer ~tags:[Category Unsound] "both branches over condition '%a' are dead" d_exp exp
               | `Bot (* all branches dead, fine at our inserted Neg(1)-s because no Pos(1) *)
