@@ -235,7 +235,7 @@ let adjustGoal diff goal op =
 
 let ( >>= ) = Option.bind
 let fixedLoopSize loopStatement func =
-  let findBreakComparison = try (*find a single break in the else branch of a toplevel if*)
+  let findBreakComparison loopStatement = try (*find a single break in the else branch of a toplevel if*)
       let compOption = ref None in
       let visitor = new findBreakVisitor(compOption) in
       ignore @@ visitCilBlock visitor (loopBody loopStatement);
@@ -249,7 +249,7 @@ let fixedLoopSize loopStatement func =
       | BinOp (op, Lval ((Var varinfo), NoOffset), (Const (CInt (goal, _, _) )), (TInt _)) when isCompare op && not varinfo.vglob ->
         Some (op, varinfo, goal)
       | _ -> None
-  in let getsPointedAt var = try
+  in let getsPointedAt var func = try
          let visitor = new isPointedAtVisitor(var) in
          ignore  @@ visitCilFunction visitor func;
          false
@@ -262,9 +262,9 @@ let fixedLoopSize loopStatement func =
        with | WrongOrMultiple ->  None
   in
 
-  findBreakComparison >>= fun comparison ->
+  findBreakComparison loopStatement >>= fun comparison ->
   getLoopVar comparison >>= fun (op, var, goal) ->
-  if getsPointedAt var then
+  if getsPointedAt var func then
     None
   else
     constBefore var loopStatement func >>= fun start ->
