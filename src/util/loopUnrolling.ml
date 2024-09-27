@@ -250,9 +250,9 @@ let fixedLoopSize loopStatement func =
       !compOption
     with | WrongOrMultiple ->  None
   in let getLoopVar = function
-      | BinOp (op, (Const (CInt _ )), Lval ((Var info), NoOffset), (TInt _))
-      | BinOp (op, Lval ((Var info), NoOffset), (Const (CInt _ )), (TInt _)) when isCompare op && not info.vglob->
-        Some info
+      | BinOp (op, (Const (CInt (goal, _, _) )), Lval ((Var info), NoOffset), (TInt _))
+      | BinOp (op, Lval ((Var info), NoOffset), (Const (CInt (goal, _, _) )), (TInt _)) when isCompare op && not info.vglob->
+        Some (info, goal)
       | _ -> None
   in let getsPointedAt var = try
          let visitor = new isPointedAtVisitor(var) in
@@ -268,7 +268,7 @@ let fixedLoopSize loopStatement func =
   in
 
   findBreakComparison >>= fun comparison ->
-  getLoopVar comparison >>= fun var ->
+  getLoopVar comparison >>= fun (var, goal) ->
   if getsPointedAt var then
     None
   else
