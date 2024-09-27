@@ -347,15 +347,11 @@ let loop_unrolling_factor loopStatement func totalLoops =
         Found -> true
     in
     (*unroll up to near an instruction count, higher if the loop uses malloc/lock/threads *)
-    let targetInstructions = if unrollFunctionCalled then 50 else 25 in
     let loopStats = AutoTune0.collectFactors visitCilStmt loopStatement in
     if loopStats.instructions > 0 then
-      let fixedLoop = fixedLoopSize loopStatement func in
-      (* Unroll at least 10 times if there are only few (17?) loops *)
-      let unroll_min = if totalLoops < 17 && AutoTune0.isActivated "forceLoopUnrollForFewLoops" then 10 else 0 in
-      match fixedLoop with
-      | Some i -> if i * loopStats.instructions < 100 then (Logs.debug "fixed loop size"; i) else max unroll_min (100 / loopStats.instructions)
-      | _ -> max unroll_min (targetInstructions / loopStats.instructions)
+      match fixedLoopSize loopStatement func with
+      | Some i when i <= 20 -> Logs.debug "fixed loop size %d" i; i
+      | _ -> 4
     else
       (* Don't unroll empty (= while(1){}) loops*)
       0
