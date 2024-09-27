@@ -49,12 +49,11 @@ let init_options () =
   Cil.gnu89inline := get_bool "cil.gnu89inline";
   Cabs2cil.addNestedScopeAttr := get_bool "cil.addNestedScopeAttr";
 
-  if get_bool "ana.sv-comp.enabled" then (
-    Cil.envMachine := match get_string "exp.architecture" with
-      | "32bit" -> Machdep.gcc32
-      | "64bit" -> Machdep.gcc64
-      | _ -> assert false
-  )
+  Cil.envMachine := match get_string "exp.architecture" with
+    | "host" -> Some Machdep.gcc
+    | "32bit" -> Machdep.gcc32
+    | "64bit" -> Machdep.gcc64
+    | _ -> assert false
 
 let init () =
   initCIL ();

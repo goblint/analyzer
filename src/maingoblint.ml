@@ -275,14 +275,12 @@ let preprocess_files () =
   (* Preprocessor flags *)
   let cppflags = ref (get_string_list "pre.cppflags") in
 
-  if get_bool "ana.sv-comp.enabled" then (
-    let architecture_flag = match get_string "exp.architecture" with
-      | "32bit" -> "-m32"
-      | "64bit" -> "-m64"
-      | _ -> assert false
-    in
-    cppflags := architecture_flag :: !cppflags
-  );
+  cppflags := begin match get_string "exp.architecture" with
+    | "host" -> !cppflags
+    | "32bit" -> "-m32" :: !cppflags
+    | "64bit" -> "-m64" :: !cppflags
+    | _ -> assert false
+  end;
 
   (* the base include directory *)
   (* TODO: any better way? dune executable promotion doesn't add _build sites *)

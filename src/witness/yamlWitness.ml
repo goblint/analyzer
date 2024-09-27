@@ -203,7 +203,7 @@ struct
     let data_model = match GobConfig.get_string "exp.architecture" with
       | "64bit" -> "LP64"
       | "32bit" -> "ILP32"
-      | _ -> failwith "invalid architecture"
+      | _ -> failwith "invalid SV-COMP architecture"
     in
     let specification = Option.map (fun (module Task: Svcomp.Task) ->
         Svcomp.Specification.to_string Task.specification

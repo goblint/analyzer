@@ -124,7 +124,11 @@ let write_file filename (module Task:Task) (module TaskResult:WitnessTaskResult)
   GML.write_metadata g "programfile" programfile;
   let programhash = Sha256.(to_hex (file programfile)) in
   GML.write_metadata g "programhash" programhash;
-  GML.write_metadata g "architecture" (get_string "exp.architecture");
+  let architecture = match GobConfig.get_string "exp.architecture" with
+    | ("64bit" | "32bit") as architecture -> architecture
+    | _ -> failwith "invalid SV-COMP architecture"
+  in
+  GML.write_metadata g "architecture" architecture;
   GML.write_metadata g "creationtime" (TimeUtil.iso8601_now ());
 
   let write_node ?(entry=false) node =
