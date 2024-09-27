@@ -62,7 +62,8 @@ struct
                M.warn ~category:Termination ~loc "The program might not terminate! (Loop analysis)"
              | `Lifted bound ->
                (* TODO: aggregate these per loop (if unrolled) and warn using WarnGlobal? *)
-               M.success ~category:Termination ~loc "Loop terminates: bounded by %a iteration(s)" IntDomain.IntDomTuple.pretty bound;
+               if GobConfig.get_bool "dbg.termination-bounds" then
+                 M.success ~category:Termination ~loc "Loop terminates: bounded by %a iteration(s)" IntDomain.IntDomTuple.pretty bound;
            end
          with Not_found ->
            failwith "Encountered a call to __goblint_bounded with an unknown loop counter variable.")
