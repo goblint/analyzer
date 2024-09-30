@@ -307,6 +307,11 @@ class arrayVisitor = object
 end
 let annotateArrays loopBody = ignore @@ visitCilBlock (new arrayVisitor) loopBody
 
+let max_default_unrolls_per_spec (spec: Svcomp.Specification.t) =
+  match spec with
+  | NoDataRace -> 0
+  | _ -> 4
+
 let loop_unrolling_factor loopStatement func totalLoops =
   let configFactor = get_int "exp.unrolling-factor" in
   if AutoTune0.isActivated "loopUnrollHeuristic" then
@@ -314,7 +319,10 @@ let loop_unrolling_factor loopStatement func totalLoops =
     if loopStats.instructions > 0 then
       match fixedLoopSize loopStatement func with
       | Some i when i <= 20 -> Logs.debug "fixed loop size %d" i; i
-      | _ -> 4
+      | _ ->
+        match Svcomp.Specification.of_option () with
+        | [] -> 4
+        | specs -> BatList.max @@ List.map max_default_unrolls_per_spec specs
     else
       (* Don't unroll empty (= while(1){}) loops*)
       0
