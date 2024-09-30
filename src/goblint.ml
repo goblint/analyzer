@@ -65,6 +65,7 @@ let main () =
       do_gobview file;
       do_stats ();
       Goblint_timing.teardown_tef ();
+      (* TODO: generalize exit codes for AnalysisState.unsound_both_branches_dead? *)
       if !AnalysisState.verified = Some false then exit 3 (* verifier failed! *)
     )
   with
