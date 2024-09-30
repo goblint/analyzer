@@ -241,7 +241,7 @@ let assignmentDifference loop var =
   try
     let diff = ref None in
     let visitor = new findAssignmentConstDiff (diff, var) in
-    ignore @@ visitCilStmt visitor loop;
+    ignore @@ visitCilBlock visitor loop;
     !diff
   with WrongOrMultiple ->
     None
@@ -278,7 +278,7 @@ let fixedLoopSize loopStatement func =
     None
   else
     let* start = constBefore var loopStatement func in
-    let* diff = assignmentDifference loopStatement var in
+    let* diff = assignmentDifference (loopBody loopStatement) var in
     let* goal = adjustGoal diff goal op in
     let iterations = loopIterations start diff goal (op=Ne) in
     Logs.debug "comparison: %a" CilType.Exp.pretty comparison;
