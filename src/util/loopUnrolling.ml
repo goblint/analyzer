@@ -210,89 +210,91 @@ let constBefore var loop f =
   in
   fst @@ lastAssignmentToVarBeforeLoop (Some Z.zero) f.sbody.bstmts (*the top level call should never return false*)
 
-let rec loopIterations start diff comp =
-  let flip = function
-    | Lt -> Gt
-    | Gt -> Lt
-    | Ge -> Le
-    | Le -> Ge
-    | s -> s
-  in let loopIterations' goal shouldBeExact =
-       let range = Z.sub goal start in
-       if Z.equal diff Z.zero || Z.equal range Z.zero || (Z.gt diff Z.zero && Z.lt range Z.zero) ||  (Z.lt diff Z.zero && Z.gt range Z.zero) then
-         None (*unfitting parameters*)
-       else (
-         let roundedDown = Z.div range diff in
-         let isExact = Z.equal (Z.mul roundedDown diff) range in
-         if isExact then
-           Some roundedDown
-         else if shouldBeExact then
-           None
-         else
-           Some (Z.succ roundedDown)
-       )
-  in
-  match comp with
-  | BinOp (op, (Const _ as c), var, t) -> loopIterations start diff (BinOp (flip op, var, c, t))
-  | BinOp (Lt, _, (Const (CInt (cint,_,_) )), _) -> if Z.lt diff Z.zero then None else loopIterations' cint false
-  | BinOp (Gt, _, (Const (CInt (cint,_,_) )), _) -> if Z.gt diff Z.zero then None else loopIterations' cint false
-  | BinOp (Le, _, (Const (CInt (cint,_,_) )), _) -> if Z.lt diff Z.zero then None else loopIterations' (Z.succ cint) false
-  | BinOp (Ge, _, (Const (CInt (cint,_,_) )), _) -> if Z.gt diff Z.zero then None else loopIterations' (Z.pred cint) false
-  | BinOp (Ne, _, (Const (CInt (cint,_,_) )), _) -> loopIterations' cint true
+(*find a single break in the else branch of a toplevel if*)
+let findBreakComparison loopStatement =
+  try
+    let compOption = ref None in
+    let visitor = new findBreakVisitor (compOption) in
+    ignore @@ visitCilBlock visitor (loopBody loopStatement);
+    !compOption
+  with WrongOrMultiple ->
+    None
+
+let getLoopVar = function
+  | BinOp (op, (Const (CInt (goal, _, _) )), Lval ((Var varinfo), NoOffset), (TInt _)) when isCompare op && not varinfo.vglob ->
+    (* TODO: define isCompare and flip in cilfacade and refactor to use instead of the many separately defined similar functions *)
+    let flip = function | Lt -> Gt | Gt -> Lt | Ge -> Le | Le -> Ge | s -> s in
+    Some (flip op, varinfo, goal)
+  | BinOp (op, Lval ((Var varinfo), NoOffset), (Const (CInt (goal, _, _) )), (TInt _)) when isCompare op && not varinfo.vglob ->
+    Some (op, varinfo, goal)
+  | _ -> None
+
+let getsPointedAt var func =
+  try
+    let visitor = new isPointedAtVisitor (var) in
+    ignore  @@ visitCilFunction visitor func;
+    false
+  with Found ->
+    true
+
+let assignmentDifference loop var =
+  try
+    let diff = ref None in
+    let visitor = new findAssignmentConstDiff (diff, var) in
+    ignore @@ visitCilBlock visitor loop;
+    !diff
+  with WrongOrMultiple ->
+    None
+
+let adjustGoal diff goal op =
+  match op with
+  | Lt -> if Z.lt diff Z.zero then None else Some goal
+  | Gt -> if Z.gt diff Z.zero then None else Some goal
+  | Le -> if Z.lt diff Z.zero then None else Some (Z.succ goal)
+  | Ge -> if Z.gt diff Z.zero then None else Some (Z.pred goal)
+  | Ne -> Some goal
   | _ -> failwith "unexpected comparison in loopIterations"
 
-let ( >>= ) = Option.bind
-let fixedLoopSize loopStatement func =
-  let findBreakComparison = try (*find a single break in the else branch of a toplevel if*)
-      let compOption = ref None in
-      let visitor = new findBreakVisitor(compOption) in
-      ignore @@ visitCilBlock visitor (loopBody loopStatement);
-      !compOption
-    with | WrongOrMultiple ->  None
-  in let getLoopVar = function
-      | BinOp (op, (Const (CInt _ )), Lval ((Var info), NoOffset), (TInt _))
-      | BinOp (op, Lval ((Var info), NoOffset), (Const (CInt _ )), (TInt _)) when isCompare op && not info.vglob->
-        Some info
-      | _ -> None
-  in let getsPointedAt var = try
-         let visitor = new isPointedAtVisitor(var) in
-         ignore  @@ visitCilFunction visitor func;
-         false
-       with | Found -> true
-  in let assignmentDifference loop var = try
-         let diff = ref None in
-         let visitor = new findAssignmentConstDiff(diff, var) in
-         ignore @@ visitCilBlock visitor loop;
-         !diff
-       with | WrongOrMultiple ->  None
-  in
+let loopIterations start diff goal shouldBeExact =
+  let range = Z.sub goal start in
+  if Z.equal diff Z.zero || Z.equal range Z.zero || (Z.gt diff Z.zero && Z.lt range Z.zero) ||  (Z.lt diff Z.zero && Z.gt range Z.zero) then
+    None (*unfitting parameters*)
+  else (
+    let roundedDown = Z.div range diff in
+    let isExact = Z.equal (Z.mul roundedDown diff) range in
+    if isExact then
+      Some roundedDown
+    else if shouldBeExact then
+      None
+    else
+      Some (Z.succ roundedDown)
+  )
 
-  findBreakComparison >>= fun comparison ->
-  getLoopVar comparison >>= fun var ->
-  if getsPointedAt var then
+let fixedLoopSize loopStatement func =
+  let open GobOption.Syntax in
+  let* comparison = findBreakComparison loopStatement in
+  let* op, var, goal = getLoopVar comparison in
+  if getsPointedAt var func then
     None
   else
-    constBefore var loopStatement func >>= fun start ->
-    assignmentDifference (loopBody loopStatement) var >>= fun diff ->
-    Logs.debug "comparison: ";
-    Pretty.fprint stderr (dn_exp () comparison) ~width:max_int;
-    Logs.debug "";
-    Logs.debug "variable: ";
-    Logs.debug "%s" var.vname;
-    Logs.debug "start:";
-    Logs.debug "%s" @@ Z.to_string start;
-    Logs.debug "diff:";
-    Logs.debug "%s" @@ Z.to_string diff;
-    let iterations = loopIterations start diff comparison in
+    let* start = constBefore var loopStatement func in
+    let* diff = assignmentDifference (loopBody loopStatement) var in
+    let* goal = adjustGoal diff goal op in
+    let iterations = loopIterations start diff goal (op=Ne) in
+    Logs.debug "comparison: %a" CilType.Exp.pretty comparison;
+    Logs.debug "variable: %s" var.vname;
+    Logs.debug "start: %a" GobZ.pretty start;
+    Logs.debug "diff: %a" GobZ.pretty diff;
     match iterations with
     | None -> Logs.debug "iterations failed"; None
     | Some s ->
       try
         let s' = Z.to_int s in
-        Logs.debug "iterations:";
-        Logs.debug "%d" s';
+        Logs.debug "iterations: %d" s';
         Some s'
-      with Z.Overflow -> Logs.debug "iterations too big for integer"; None
+      with Z.Overflow ->
+        Logs.debug "iterations too big for integer";
+        None
 
 
 class arrayVisitor = object
@@ -425,6 +427,8 @@ class loopUnrollingVisitor(func, totalLoops) = object
 end
 
 let unroll_loops fd totalLoops =
-  Cil.populateLabelAlphaTable fd;
-  let thisVisitor = new loopUnrollingVisitor(fd, totalLoops) in
-  ignore (visitCilFunction thisVisitor fd)
+  if not (Cil.hasAttribute "goblint_stub" fd.svar.vattr) then (
+    Cil.populateLabelAlphaTable fd;
+    let thisVisitor = new loopUnrollingVisitor(fd, totalLoops) in
+    ignore (visitCilFunction thisVisitor fd)
+  )
