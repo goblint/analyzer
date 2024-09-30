@@ -2,7 +2,7 @@
 # also remember to generate/adjust goblint.opam.locked!
 available: os-family != "bsd" & os-distribution != "alpine" & (arch != "arm64" | os = "macos")
 pin-depends: [
-  [ "goblint-cil.2.0.4" "git+https://github.com/goblint/cil.git#04b8a45a7d20425c7b6c8abe1ad094abc063922b" ]
+  [ "goblint-cil.2.0.4" "git+https://github.com/goblint/cil.git#9f4fac450c02bc61a13717784515056b185794cd" ]
 ]
 depexts: [
   ["libgraph-easy-perl"] {os-distribution = "ubuntu" & with-test}

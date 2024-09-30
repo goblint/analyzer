@@ -5,8 +5,8 @@ open Maingoblint
 (** the main function *)
 let main () =
   try
-    Cilfacade.init ();
     Maingoblint.parse_arguments ();
+    Cilfacade.init ();
 
     (* Timing. *)
     Maingoblint.reset_stats ();
