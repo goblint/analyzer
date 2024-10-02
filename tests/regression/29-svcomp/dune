@@ -14,3 +14,7 @@
 
 (cram
  (deps (glob_files *.c)))
+
+(cram
+ (applies_to 36-svcomp-arch)
+ (enabled_if (<> %{system} macosx))) ; https://dune.readthedocs.io/en/stable/reference/boolean-language.html
