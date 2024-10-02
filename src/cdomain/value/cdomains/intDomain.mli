@@ -436,23 +436,3 @@ module Reverse (Base: IkindUnawareS): IkindUnawareS with type t = Base.t and typ
 (* module IncExcInterval : S with type t = [ | `Excluded of Interval.t| `Included of Interval.t ] *)
 (** Inclusive and exclusive intervals. Warning: NOT A LATTICE *)
 module Enums : S with type int_t = Z.t
-
-(** {b Boolean domains} *)
-
-module type BooleansNames =
-sig
-  val truename: string
-  (** The name of the [true] abstract value *)
-
-  val falsename: string
-  (** The name of the [false] abstract value *)
-end
-(** Parameter signature for the [MakeBooleans] functor. *)
-
-module MakeBooleans (Names: BooleansNames): IkindUnawareS with type t = bool
-(** Creates an abstract domain for integers represented by boolean values. *)
-
-(*
-module None: S with type t = unit
-(** Domain with nothing in it. *)
-*)

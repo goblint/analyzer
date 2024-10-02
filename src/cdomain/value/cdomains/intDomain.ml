@@ -2376,66 +2376,6 @@ struct
   let project ik p t = t
 end
 
-(* BOOLEAN DOMAINS *)
-
-module type BooleansNames =
-sig
-  val truename: string
-  val falsename: string
-end
-
-module MakeBooleans (N: BooleansNames) =
-struct
-  type int_t = IntOps.Int64Ops.t
-  type t = bool [@@deriving eq, ord, hash, to_yojson]
-  let name () = "booleans"
-  let top () = true
-  let bot () = false
-  let top_of ik = top ()
-  let bot_of ik = bot ()
-  let show x = if x then N.truename else N.falsename
-  include Std (struct type nonrec t = t let name = name let top_of = top_of let bot_of = bot_of let show = show let equal = equal end)
-  let is_top x = x (* override Std *)
-
-  let equal_to i x = if x then `Top else failwith "unsupported: equal_to with bottom"
-  let cast_to ?(suppress_ovwarn=false) ?torg _ x = x (* ok since there's no smaller ikind to cast to *)
-
-  let leq x y = not x || y
-  let join = (||)
-  let widen = join
-  let meet = (&&)
-  let narrow = meet
-
-  let of_bool x = x
-  let to_bool x = Some x
-  let of_int x  = x = Int64.zero
-  let to_int x  = if x then None else Some Int64.zero
-
-  let neg x = x
-  let add x y = x || y
-  let sub x y = x || y
-  let mul x y = x && y
-  let div x y = true
-  let rem x y = true
-  let lt n1 n2 = true
-  let gt n1 n2 = true
-  let le n1 n2 = true
-  let ge n1 n2 = true
-  let eq n1 n2 = true
-  let ne n1 n2 = true
-  let lognot x = true
-  let logand x y = x && y
-  let logor  x y = x || y
-  let logxor x y = x && not y || not x && y
-  let shift_left  n1 n2 = n1
-  let shift_right n1 n2 = n1
-  let c_lognot = (not)
-  let c_logand = (&&)
-  let c_logor  = (||)
-  let arbitrary () = QCheck.bool
-  let invariant _ _ = Invariant.none (* TODO *)
-end
-
 (* Inclusion/Exclusion sets. Go to top on arithmetic operations (except for some easy cases, e.g. multiplication with 0). Joins on widen, i.e. precise integers as long as not derived from arithmetic expressions. *)
 module Enums : S with type int_t = Z.t = struct
   module R = Interval32 (* range for exclusion *)
