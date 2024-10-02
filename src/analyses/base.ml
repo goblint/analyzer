@@ -171,7 +171,7 @@ struct
    * Abstract evaluation functions
    **************************************************************************)
 
-  let iDtoIdx = ID.cast_to (Cilfacade.ptrdiff_ikind ())
+  let iDtoIdx x = ID.cast_to (Cilfacade.ptrdiff_ikind ()) x
 
   let unop_ID = function
     | Neg  -> ID.neg
