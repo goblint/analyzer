@@ -2,13 +2,20 @@
 
 module Bool =
 struct
-  include Basetype.RawBools
-  (* type t = bool
-     let equal = Bool.equal
-     let compare = Bool.compare
-     let relift x = x
-     let arbitrary () = QCheck.bool *)
+  include Printable.StdLeaf
+  type t = bool [@@deriving eq, ord, hash]
+  let name () = "bool"
 
+  let show x = if x then "true" else "false"
+  include Printable.SimpleShow (struct
+      type nonrec t = t
+      let show = show
+    end)
+  let to_yojson = [%to_yojson: bool] (* override to_yojson from SimpleShow *)
+
+  let arbitrary () = QCheck.bool
+
+  (* For Lattice.S *)
   let pretty_diff () (x,y) = GoblintCil.Pretty.dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
 end
 

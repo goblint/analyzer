@@ -69,7 +69,7 @@ end
 (* ZeroInit is false if malloc was used to allocate memory and true if calloc was used *)
 module ZeroInit : ZeroInit =
 struct
-  include Lattice.Fake(Basetype.RawBools)
+  include Lattice.Fake (BoolDomain.Bool)
   let name () = "zeroinit"
 
   let is_malloc x = not x
