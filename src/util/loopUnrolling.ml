@@ -310,6 +310,7 @@ let annotateArrays loopBody = ignore @@ visitCilBlock (new arrayVisitor) loopBod
 let max_default_unrolls_per_spec (spec: Svcomp.Specification.t) =
   match spec with
   | NoDataRace -> 0
+  | NoOverflow -> 2
   | _ -> 4
 
 let loop_unrolling_factor loopStatement func totalLoops =
