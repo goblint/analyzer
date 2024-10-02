@@ -307,57 +307,23 @@ class arrayVisitor = object
 end
 let annotateArrays loopBody = ignore @@ visitCilBlock (new arrayVisitor) loopBody
 
-(*unroll loops that handle locks, threads and mallocs, asserts and reach_error*)
-class loopUnrollingCallVisitor = object
-  inherit nopCilVisitor
-
-  method! vinst = function
-    | Call (_,Lval ((Var info), NoOffset),args,_,_) when LibraryFunctions.is_special info -> (
-        Goblint_backtrace.wrap_val ~mark:(Cilfacade.FunVarinfo info) @@ fun () ->
-        let desc = LibraryFunctions.find info in
-        match desc.special args with
-        | Malloc _
-        | Calloc _
-        | Realloc _
-        | Alloca _
-        | Lock _
-        | Unlock _
-        | ThreadCreate _
-        | Assert _
-        | Bounded _
-        | ThreadJoin _ ->
-          raise Found;
-        | _ ->
-          if List.mem "specification" @@ get_string_list "ana.autotune.activated" && get_string "ana.specification" <> "" then (
-            if Svcomp.is_error_function' info (SvcompSpec.of_option ()) then
-              raise Found
-          );
-          DoChildren
-      )
-    | _ -> DoChildren
-
-end
+let max_default_unrolls_per_spec (spec: Svcomp.Specification.t) =
+  match spec with
+  | NoDataRace -> 0
+  | NoOverflow -> 2
+  | _ -> 4
 
 let loop_unrolling_factor loopStatement func totalLoops =
   let configFactor = get_int "exp.unrolling-factor" in
   if AutoTune0.isActivated "loopUnrollHeuristic" then
-    let unrollFunctionCalled = try
-        let thisVisitor = new loopUnrollingCallVisitor in
-        ignore (visitCilStmt thisVisitor loopStatement);
-        false;
-      with
-        Found -> true
-    in
-    (*unroll up to near an instruction count, higher if the loop uses malloc/lock/threads *)
-    let targetInstructions = if unrollFunctionCalled then 50 else 25 in
     let loopStats = AutoTune0.collectFactors visitCilStmt loopStatement in
     if loopStats.instructions > 0 then
-      let fixedLoop = fixedLoopSize loopStatement func in
-      (* Unroll at least 10 times if there are only few (17?) loops *)
-      let unroll_min = if totalLoops < 17 && AutoTune0.isActivated "forceLoopUnrollForFewLoops" then 10 else 0 in
-      match fixedLoop with
-      | Some i -> if i * loopStats.instructions < 100 then (Logs.debug "fixed loop size"; i) else max unroll_min (100 / loopStats.instructions)
-      | _ -> max unroll_min (targetInstructions / loopStats.instructions)
+      match fixedLoopSize loopStatement func with
+      | Some i when i <= 20 -> Logs.debug "fixed loop size %d" i; i
+      | _ ->
+        match Svcomp.Specification.of_option () with
+        | [] -> 4
+        | specs -> BatList.max @@ List.map max_default_unrolls_per_spec specs
     else
       (* Don't unroll empty (= while(1){}) loops*)
       0
