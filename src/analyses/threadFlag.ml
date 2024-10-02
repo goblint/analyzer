@@ -54,13 +54,15 @@ struct
 
   module A =
   struct
-    include BoolDomain.Bool
-    let name () = "multi"
-    let may_race m1 m2 = m1 && m2 (* kill access when single threaded *)
-    let should_print m = not m
+    include Flag
+    let name () = "flag"
+    let may_race f1 f2 =
+      (* TODO: no longer accounts for MustBeSingleThreaded from other analyses via is_currently_multi *)
+      Flag.is_multi f1 && Flag.is_multi f2 && (* both must be multi-threaded *)
+      (Flag.is_not_main f1 || Flag.is_not_main f2) (* at least one must be non-main *)
+    let should_print f = not (Flag.is_multi f)
   end
-  let access ctx _ =
-    is_currently_multi (Analyses.ask_of_ctx ctx)
+  let access ctx _ = ctx.local
 
   let threadenter ctx ~multiple lval f args =
     if not (has_ever_been_multi (Analyses.ask_of_ctx ctx)) then
