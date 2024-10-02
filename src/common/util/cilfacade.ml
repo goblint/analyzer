@@ -50,10 +50,16 @@ let init_options () =
   Cabs2cil.addNestedScopeAttr := get_bool "cil.addNestedScopeAttr";
 
   if get_bool "ana.sv-comp.enabled" then (
-    Cil.envMachine := match get_string "exp.architecture" with
+    let machine = match get_string "exp.architecture" with
       | "32bit" -> Machdep.gcc32
       | "64bit" -> Machdep.gcc64
       | _ -> assert false
+    in
+    match machine with
+    | Some _ -> Cil.envMachine := machine
+    | None ->
+      GobRef.wrap AnalysisState.should_warn true (fun () -> Messages.msg_final Error ~category:Unsound "Machine definition not available for selected architecture");
+      Logs.error "Machine definition not available for selected architecture, defaulting to host"
   )
 
 let init () =
