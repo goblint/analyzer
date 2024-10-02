@@ -452,10 +452,6 @@ end
 module MakeBooleans (Names: BooleansNames): IkindUnawareS with type t = bool
 (** Creates an abstract domain for integers represented by boolean values. *)
 
-module Booleans: IkindUnawareS with type t = bool
-(** Boolean abstract domain, where true is output "True" and false is output
-  * "False" *)
-
 (*
 module None: S with type t = unit
 (** Domain with nothing in it. *)

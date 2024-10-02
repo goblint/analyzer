@@ -2436,12 +2436,6 @@ struct
   let invariant _ _ = Invariant.none (* TODO *)
 end
 
-module Booleans = MakeBooleans (
-  struct
-    let truename = "True"
-    let falsename = "False"
-  end)
-
 (* Inclusion/Exclusion sets. Go to top on arithmetic operations (except for some easy cases, e.g. multiplication with 0). Joins on widen, i.e. precise integers as long as not derived from arithmetic expressions. *)
 module Enums : S with type int_t = Z.t = struct
   module R = Interval32 (* range for exclusion *)
