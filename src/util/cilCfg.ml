@@ -6,7 +6,7 @@ open GoblintCil
 include CilCfg0
 
 
-class countLoopsVisitor(count) = object
+class countLoopsVisitor count maxNests = object
   inherit nopCilVisitor
 
   val mutable nests = 0
@@ -19,16 +19,22 @@ class countLoopsVisitor(count) = object
       DoChildren
 
   method! vstmt stmt = match stmt.skind with
-    | Loop _ -> incr count; DoChildren
+    | Loop _ ->
+      incr count;
+      nests <- nests + 1;
+      maxNests := max nests !maxNests;
+      ChangeDoChildrenPost (stmt, fun x -> nests <- nests - 1; stmt)
     | _ -> DoChildren
 
 end
 
 let loopCount file =
   let count = ref 0 in
-  let visitor = new countLoopsVisitor(count) in
+  let maxNests = ref 0 in
+  let visitor = new countLoopsVisitor count maxNests in
   ignore (visitCilFileSameGlobals visitor file);
   Logs.debug "total loops (before unrolling): %d" !count;
+  Logs.debug "max nests: %d" !maxNests;
   !count
 
 
