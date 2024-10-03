@@ -28,6 +28,7 @@ let loopCount file =
   let count = ref 0 in
   let visitor = new countLoopsVisitor(count) in
   ignore (visitCilFileSameGlobals visitor file);
+  Logs.debug "total loops (before unrolling): %d" !count;
   !count
 
 
