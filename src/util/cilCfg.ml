@@ -9,6 +9,15 @@ include CilCfg0
 class countLoopsVisitor(count) = object
   inherit nopCilVisitor
 
+  val mutable nests = 0
+
+  method! vfunc fd =
+    (* do not count loops in goblint stub functions *)
+    if Cil.hasAttribute "goblint_stub" fd.svar.vattr then
+      SkipChildren
+    else
+      DoChildren
+
   method! vstmt stmt = match stmt.skind with
     | Loop _ -> incr count; DoChildren
     | _ -> DoChildren
