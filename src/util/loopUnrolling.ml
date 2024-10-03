@@ -316,17 +316,12 @@ let max_default_unrolls_per_spec (spec: Svcomp.Specification.t) =
 let loop_unrolling_factor loopStatement func totalLoops =
   let configFactor = get_int "exp.unrolling-factor" in
   if AutoTune0.isActivated "loopUnrollHeuristic" then
-    let loopStats = AutoTune0.collectFactors visitCilStmt loopStatement in
-    if loopStats.instructions > 0 then
-      match fixedLoopSize loopStatement func with
-      | Some i when i <= 20 -> Logs.debug "fixed loop size %d" i; i
-      | _ ->
-        match Svcomp.Specification.of_option () with
-        | [] -> 4
-        | specs -> BatList.max @@ List.map max_default_unrolls_per_spec specs
-    else
-      (* Don't unroll empty (= while(1){}) loops*)
-      0
+    match fixedLoopSize loopStatement func with
+    | Some i when i <= 20 -> Logs.debug "fixed loop size %d" i; i
+    | _ ->
+      match Svcomp.Specification.of_option () with
+      | [] -> 4
+      | specs -> BatList.max @@ List.map max_default_unrolls_per_spec specs
   else
     configFactor
 
