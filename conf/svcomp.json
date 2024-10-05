@@ -45,27 +45,6 @@
     "context": {
       "widen": false
     },
-    "malloc": {
-      "wrappers": [
-        "kmalloc",
-        "__kmalloc",
-        "usb_alloc_urb",
-        "__builtin_alloca",
-        "kzalloc",
-
-        "ldv_malloc",
-
-        "kzalloc_node",
-        "ldv_zalloc",
-        "kmalloc_array",
-        "kcalloc",
-
-        "ldv_xmalloc",
-        "ldv_xzalloc",
-        "ldv_calloc",
-        "ldv_kzalloc"
-      ]
-    },
     "base": {
       "arrays": {
         "domain": "partitioned"
