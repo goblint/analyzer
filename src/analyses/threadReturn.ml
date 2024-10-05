@@ -12,7 +12,7 @@ struct
   include Analyses.IdentitySpec
 
   let name () = "threadreturn"
-  module D = IntDomain.Booleans
+  module D = BoolDomain.MayBool
   include Analyses.ValueContexts(D)
 
   (* transfer functions *)
