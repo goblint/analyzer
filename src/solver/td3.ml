@@ -284,6 +284,7 @@ module Base =
       let narrow_sides_gas_default = GobConfig.get_int "solvers.td3.narrow-sides.narrow-gas" in
       let narrow_sides_gas_default = if narrow_sides_gas_default < 0 then None else Some (narrow_sides_gas_default, D_Widen) in
       let narrow_sides_eliminate_dead = GobConfig.get_bool "solvers.td3.narrow-sides.eliminate-dead" in
+      let apinis = GobConfig.get_bool "solvers.td3.narrow-sides.apinis" in
 
       let reluctant = GobConfig.get_bool "incremental.reluctant.enabled" in
 
@@ -488,6 +489,68 @@ module Base =
       and reduce_side_narrow_gas (gas, phase) =
         if phase = D_Widen then gas - 1, D_Narrow else (gas, phase)
       and divided_side (phase:divided_side_phase) ?(do_destabilize=true) ?x y d : bool =
+        if apinis then divided_side_apinis phase ~do_destabilize:do_destabilize ?x y d
+        else divided_side_ours phase ~do_destabilize:do_destabilize ?x y d
+      and divided_side_apinis (phase:divided_side_phase) ?(do_destabilize=true) ?x y d : bool =
+        if tracing then trace "side" "divided side to %a from %a ## value: %a" S.Var.pretty_trace y (Pretty.docOpt (S.Var.pretty_trace ())) x S.Dom.pretty d;
+        if tracing then trace "sol2" "divided side to %a from %a ## value: %a" S.Var.pretty_trace y (Pretty.docOpt (S.Var.pretty_trace ())) x S.Dom.pretty d;
+        if Hooks.system y <> None then (
+          Logs.warn "side-effect to unknown w/ rhs: %a, contrib: %a" S.Var.pretty_trace y S.Dom.pretty d;
+        );
+        assert (Hooks.system y = None);
+        assert (phase = D_Box || x = None);
+        init y;
+        if tracing then trace "sol2" "stable add %a" S.Var.pretty_trace y;
+        HM.replace stable y ();
+
+        match x with
+        | Some x -> (
+            let sided = match HM.find_option sides y with
+              | Some sides -> VS.mem x sides
+              | None -> false in
+            if not sided then add_sides y x;
+            let init_divided_side_effects y = if not (HM.mem divided_side_effects y) then HM.replace divided_side_effects y (HM.create 10) in
+            init_divided_side_effects y;
+
+            let y_sides = HM.find divided_side_effects y in
+            let (old_side, _) = HM.find_default y_sides x (S.Dom.bot(), None) in
+            HM.replace y_sides x (d, None);
+
+            if not (S.Dom.equal old_side d) then (
+              if tracing then trace "side" "divided side to %a from %a changed (phase: %s) Old value: %a ## New value: %a" S.Var.pretty_trace y S.Var.pretty_trace x (show_divided_side_phase phase) S.Dom.pretty old_side S.Dom.pretty d;
+
+              let y_oldval = HM.find rho y in
+              let y_newval = combined_side y in
+              let y_newval = box y_oldval y_newval in
+              if not (S.Dom.equal y_newval y_oldval) then (
+                if tracing then trace "side" "value of %a changed by side from %a (phase: %s, grew: %b, shrank: %b) Old value: %a ## New value: %a"
+                    S.Var.pretty_trace y S.Var.pretty_trace x (show_divided_side_phase phase) (S.Dom.leq y_oldval y_newval) (S.Dom.leq y_newval y_oldval) S.Dom.pretty y_oldval S.Dom.pretty y_newval;
+                HM.replace rho y y_newval;
+                if do_destabilize then
+                  destabilize y;
+              );
+              true
+            ) else
+              false
+          )
+        | None -> (
+            let orphaned = HM.find_default orphan_side_effects y (S.Dom.bot ()) in
+            (* If there is a guarantee that there are only finitely many orphaned side-effects, *)
+            let wd = S.Dom.widen orphaned (S.Dom.join orphaned d) in
+            HM.replace orphan_side_effects y wd;
+            if tracing then trace "side" "orphaned side to %a" S.Var.pretty_trace y;
+            let y_oldval = HM.find rho y in
+            if not (S.Dom.leq wd y_oldval) then (
+              let y_newval = combined_side y in
+              let y_newval = box y_oldval y_newval in
+              HM.replace rho y y_newval;
+              if do_destabilize then
+                destabilize y;
+              true
+            ) else
+              false
+          )
+      and divided_side_ours (phase:divided_side_phase) ?(do_destabilize=true) ?x y d : bool =
         if tracing then trace "side" "divided side to %a from %a ## value: %a" S.Var.pretty_trace y (Pretty.docOpt (S.Var.pretty_trace ())) x S.Dom.pretty d;
         if tracing then trace "sol2" "divided side to %a from %a ## value: %a" S.Var.pretty_trace y (Pretty.docOpt (S.Var.pretty_trace ())) x S.Dom.pretty d;
         if Hooks.system y <> None then (

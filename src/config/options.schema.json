@@ -2399,6 +2399,12 @@
                   "description": "side-effects that no longer occur are narrowed with bot.",
                   "type": "boolean",
                   "default": false
+                },
+                "apinis": {
+                  "title": "solvers.td3.narrow-sides.apinis",
+                  "description": "apply warrowing to globals instead of contributions; Enabling this option is incompatible with stable and immediate-growth and ignores conservative-widen and narrow-gas.",
+                  "type": "boolean",
+                  "default": false
                 }
               },
               "additionalProperties": false
