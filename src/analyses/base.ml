@@ -3091,8 +3091,8 @@ struct
       set ~ctx ctx.local (eval_lv ~ctx ctx.local lval) (Cilfacade.typeOfLval lval) (Thread (ValueDomain.Threads.singleton tid))
     | Events.Assert exp ->
       assert_fn ctx exp true
-    | Events.Unassume {exp; uuids} ->
-      Timing.wrap "base unassume" (unassume ctx exp) uuids
+    | Events.Unassume {exp; tokens} ->
+      Timing.wrap "base unassume" (unassume ctx exp) tokens
     | Events.Longjmped {lval} ->
       begin match lval with
         | Some lval ->

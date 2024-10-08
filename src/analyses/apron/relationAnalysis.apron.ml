@@ -701,7 +701,7 @@ struct
       Priv.escape ctx.node (Analyses.ask_of_ctx ctx) ctx.global ctx.sideg st escaped
     | Assert exp ->
       assert_fn ctx exp true
-    | Events.Unassume {exp = e; uuids} ->
+    | Events.Unassume {exp = e; tokens} ->
       let e_orig = e in
       let ask = Analyses.ask_of_ctx ctx in
       let e = replace_deref_exps ctx.ask e in
@@ -737,7 +737,7 @@ struct
 
       (* TODO: parallel write_global? *)
       let st =
-        WideningTokens.with_side_tokens (WideningTokens.TS.of_list uuids) (fun () ->
+        WideningTokens.with_side_tokens (WideningTokens.TS.of_list tokens) (fun () ->
             VH.fold (fun v v_in st ->
                 (* TODO: is this sideg fine? *)
                 write_global ask ctx.global ctx.sideg st v v_in

@@ -29,7 +29,7 @@ struct
 
   type inv = {
     exp: Cil.exp;
-    uuid: string;
+    token: WideningTokens.Token.t;
   }
 
   let invs: inv NH.t = NH.create 100
@@ -101,7 +101,7 @@ struct
               match InvariantParser.parse_cil inv_parser ~check:false ~fundec ~loc inv_cabs with
               | Ok inv_exp ->
                 M.debug ~category:Witness ~loc:msgLoc "located invariant to %a: %a" Node.pretty n Cil.d_exp inv_exp;
-                NH.add invs n {exp = inv_exp; uuid}
+                NH.add invs n {exp = inv_exp; token = (uuid, None)} (* TODO: Some *)
               | Error e ->
                 M.error ~category:Witness ~loc:msgLoc "CIL couldn't parse invariant: %s" inv;
                 M.info ~category:Witness ~loc:msgLoc "invariant has undefined variables or side effects: %s" inv
@@ -154,7 +154,7 @@ struct
                     M.debug ~category:Witness ~loc:msgLoc "located invariant to %a: %a" Node.pretty n Cil.d_exp inv_exp;
                     if not (NH.mem pre_invs n) then
                       NH.replace pre_invs n (EH.create 10);
-                    EH.add (NH.find pre_invs n) pre_exp {exp = inv_exp; uuid}
+                    EH.add (NH.find pre_invs n) pre_exp {exp = inv_exp; token = (uuid, None)} (* TODO: Some *)
                   | Error e ->
                     M.error ~category:Witness ~loc:msgLoc "CIL couldn't parse invariant: %s" inv;
                     M.info ~category:Witness ~loc:msgLoc "invariant has undefined variables or side effects: %s" inv
@@ -262,9 +262,9 @@ struct
       M.info ~category:Witness "unassume invariant: %a" CilType.Exp.pretty e;
       if not !AnalysisState.postsolving then (
         if not (GobConfig.get_bool "ana.unassume.precheck" && Queries.ID.to_bool (ctx.ask (EvalInt e)) = Some false) then (
-          let uuids = x.uuid :: List.map (fun {uuid; _} -> uuid) xs in
-          ctx.emit (Unassume {exp = e; uuids});
-          List.iter WideningTokens.add uuids
+          let tokens = x.token :: List.map (fun {token; _} -> token) xs in
+          ctx.emit (Unassume {exp = e; tokens});
+          List.iter WideningTokens.add tokens
         )
       );
       ctx.local
