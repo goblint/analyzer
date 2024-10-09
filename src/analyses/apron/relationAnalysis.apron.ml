@@ -690,7 +690,7 @@ struct
           Priv.lock ask ctx.global st m
         ) st addr
     | Events.Unlock addr when ThreadFlag.has_ever_been_multi ask -> (* TODO: is this condition sound? *)
-      WideningTokens.with_local_side_tokens (fun () ->
+      WideningTokenLifter.with_local_side_tokens (fun () ->
           CommonPriv.lift_unlock ask (fun st m ->
               Priv.unlock ask ctx.global ctx.sideg st m
             ) st addr
@@ -737,7 +737,7 @@ struct
 
       (* TODO: parallel write_global? *)
       let st =
-        WideningTokens.with_side_tokens (WideningTokens.TS.of_list tokens) (fun () ->
+        WideningTokenLifter.with_side_tokens (WideningTokenLifter.TS.of_list tokens) (fun () ->
             VH.fold (fun v v_in st ->
                 (* TODO: is this sideg fine? *)
                 write_global ask ctx.global ctx.sideg st v v_in
@@ -771,7 +771,7 @@ struct
       let new_value = RD.join old_value st in
       PCU.RH.replace results ctx.node new_value;
     end;
-    WideningTokens.with_local_side_tokens (fun () ->
+    WideningTokenLifter.with_local_side_tokens (fun () ->
         Priv.sync (Analyses.ask_of_ctx ctx) ctx.global ctx.sideg ctx.local (reason :> [`Normal | `Join | `JoinCall of CilType.Fundec.t | `Return | `Init | `Thread])
       )
 

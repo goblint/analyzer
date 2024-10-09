@@ -6,7 +6,7 @@
 
     @see <http://www2.in.tum.de/bib/files/mihaila13widening.pdf> Mihaila, B., Sepp, A. & Simon, A. Widening as Abstract Domain. *)
 
-include WideningTokens0
+module Token = WideningToken
 
 (** Widening token set. *)
 module TS = SetDomain.ToppedSet (Token) (struct let topname = "Top" end)

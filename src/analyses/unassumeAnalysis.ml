@@ -29,7 +29,7 @@ struct
 
   type inv = {
     exp: Cil.exp;
-    token: WideningTokens.Token.t;
+    token: WideningToken.t;
   }
 
   let invs: inv NH.t = NH.create 100
@@ -264,7 +264,7 @@ struct
         if not (GobConfig.get_bool "ana.unassume.precheck" && Queries.ID.to_bool (ctx.ask (EvalInt e)) = Some false) then (
           let tokens = x.token :: List.map (fun {token; _} -> token) xs in
           ctx.emit (Unassume {exp = e; tokens});
-          List.iter WideningTokens.add tokens
+          List.iter WideningTokenLifter.add tokens
         )
       );
       ctx.local
