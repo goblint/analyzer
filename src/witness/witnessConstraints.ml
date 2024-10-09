@@ -92,9 +92,44 @@ struct
     let printXml f (d, _) = Dom.printXml f d
   end
 
-  module G = Spec.G
+  (* Two global invariants:
+     1. Spec.V -> Spec.G  --  used for S
+     2. node * Spec.C -> TODO  --  used for path dependencies *)
+
+  module V =
+  struct
+    include Printable.EitherConf (struct let expand1 = false let expand2 = true end) (Spec.V) (Printable.Prod (Node) (Spec.C))
+    (* let name () = "DeadBranch" *)
+    let spec x = `Left x
+    let path x = `Right x
+    let is_write_only = function
+      | `Left x -> Spec.V.is_write_only x
+      | `Right _ -> true
+  end
+
+  module G =
+  struct
+    include Lattice.Lift2 (Spec.G) (Lattice.Unit)
+    (* let name () = "deadbranch" *)
+
+    let spec = function
+      | `Bot -> Spec.G.bot ()
+      | `Lifted1 x -> x
+      | _ -> failwith "PathSensitive3.spec"
+    let path = function
+      | `Bot -> Lattice.Unit.bot ()
+      | `Lifted2 x -> x
+      | _ -> failwith "PathSensitive3.path"
+    let create_spec spec = `Lifted1 spec
+    let create_path path = `Lifted2 path
+
+    let printXml f = function
+      | `Lifted1 x -> Spec.G.printXml f x
+      (* | `Lifted2 x -> BatPrintf.fprintf f "<analysis name=\"dead-branch\">%a</analysis>" EM.printXml x *)
+      | x -> BatPrintf.fprintf f "<analysis name=\"dead-branch-lifter\">%a</analysis>" printXml x
+  end
+
   module C = Spec.C
-  module V = Spec.V
   module P = UnitP
 
   let name () = "PathSensitive3("^Spec.name ()^")"
@@ -130,6 +165,8 @@ struct
   let conv ctx x =
     let rec ctx' =
       { ctx with
+        global = (fun v -> G.spec (ctx.global (V.spec v)));
+        sideg = (fun v g -> ctx.sideg (V.spec v) (G.create_spec g));
         local = x;
         ask = (fun (type a) (q: a Queries.t) -> Spec.query ctx' q);
         split;
@@ -223,6 +260,28 @@ struct
 
   let query ctx (type a) (q: a Queries.t): a Queries.result =
     match q with
+    | WarnGlobal g ->
+      let g: V.t = Obj.obj g in
+      begin match g with
+        | `Left g ->
+          Spec.query (conv ctx (Spec.D.bot ())) (WarnGlobal (Obj.repr g)) (* TODO: conv without local *)
+        | `Right g ->
+          ()
+      end
+    | InvariantGlobal g ->
+      let g: V.t = Obj.obj g in
+      begin match g with
+        | `Left g ->
+          Spec.query (conv ctx (Spec.D.bot ())) (InvariantGlobal (Obj.repr g)) (* TODO: conv without local *)
+        | `Right g ->
+          Queries.Result.top q
+      end
+    | IterSysVars (vq, vf) ->
+      (* vars for S *)
+      let vf' x = vf (Obj.repr (V.spec (Obj.obj x))) in
+      Spec.query (conv ctx (Spec.D.bot ())) (IterSysVars (vq, vf')); (* TODO: conv without local *)
+
+      (* TODO: path nodes? *)
     | Queries.IterPrevVars f ->
       if M.tracing then M.tracei "witness" "IterPrevVars";
       Dom.iter (fun x r ->
