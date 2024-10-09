@@ -297,7 +297,7 @@ struct
               f (I.to_int x) (n, Obj.repr c, I.to_int j) e
             ) r;
           if M.tracing then M.traceu "witness" "" (* unindent! *)
-        ) (fst ctx.local);
+        ) (G.path (ctx.global (V.path (ctx.node, ctx.context ()))));
       (* check that sync mappings don't leak into solution (except Function) *)
       (* TODO: disabled because we now use and leave Sync for every tf,
          such that threadspawn after tf could look up state before tf *)
