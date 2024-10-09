@@ -98,7 +98,7 @@ struct
 
   module V =
   struct
-    include Printable.EitherConf (struct let expand1 = false let expand2 = true end) (Spec.V) (Printable.Prod (Node) (Spec.C))
+    include Printable.EitherConf (struct let expand1 = false let expand2 = true end) (Spec.V) (Printable.Prod (Node) (CC))
     (* let name () = "DeadBranch" *)
     let spec x = `Left x
     let path x = `Right x
@@ -109,7 +109,7 @@ struct
 
   module G =
   struct
-    include Lattice.Lift2 (Spec.G) (Lattice.Unit)
+    include Lattice.Lift2 (Spec.G) (Dom) (* TODO: only Set(I * InlineEdgePrintable) instead of VIES *)
     (* let name () = "deadbranch" *)
 
     let spec = function
@@ -117,7 +117,7 @@ struct
       | `Lifted1 x -> x
       | _ -> failwith "PathSensitive3.spec"
     let path = function
-      | `Bot -> Lattice.Unit.bot ()
+      | `Bot -> Dom.bot ()
       | `Lifted2 x -> x
       | _ -> failwith "PathSensitive3.path"
     let create_spec spec = `Lifted1 spec
@@ -195,7 +195,9 @@ struct
       with Deadcode -> (xs, sync)
     in
     let d = Dom.fold_keys h (fst ctx.local) (Dom.empty (), Sync.bot ()) in
-    if Dom.is_bot (fst d) then raise Deadcode else d
+    if Dom.is_bot (fst d) then raise Deadcode else
+      if !AnalysisState.postsolving then ctx.sideg (V.path (ctx.node, ctx.context ())) (G.create_path (fst d));
+      d
 
   (* TODO???? *)
   let map_event ctx e =
@@ -207,7 +209,9 @@ struct
       with Deadcode -> (xs, sync)
     in
     let d = Dom.fold_keys h (fst ctx.local) (Dom.empty (), Sync.bot ()) in
-    if Dom.is_bot (fst d) then raise Deadcode else d
+    if Dom.is_bot (fst d) then raise Deadcode else
+      if !AnalysisState.postsolving then ctx.sideg (V.path (ctx.node, ctx.context ())) (G.create_path (fst d));
+      d
 
 
   let fold' ctx f g h a =
@@ -366,7 +370,9 @@ struct
       with Deadcode -> (y, sync)
     in
     let d = Dom.fold_keys k (fst d) (Dom.bot (), Sync.bot ()) in
-    if Dom.is_bot (fst d) then raise Deadcode else d
+    if Dom.is_bot (fst d) then raise Deadcode else
+      if !AnalysisState.postsolving then ctx.sideg (V.path (ctx.node, ctx.context ())) (G.create_path (fst d));
+      d
 
   let combine_assign ctx l fe f a fc d  f_ask =
     (* Consider call edge done after entire call-assign. *)
@@ -388,5 +394,7 @@ struct
       with Deadcode -> (y, sync)
     in
     let d = Dom.fold_keys k (fst d) (Dom.bot (), Sync.bot ()) in
-    if Dom.is_bot (fst d) then raise Deadcode else d
+    if Dom.is_bot (fst d) then raise Deadcode else
+      if !AnalysisState.postsolving then ctx.sideg (V.path (ctx.node, ctx.context ())) (G.create_path (fst d));
+      d
 end
