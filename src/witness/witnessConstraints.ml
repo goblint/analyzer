@@ -335,7 +335,7 @@ struct
 
   let enter ctx l f a =
     let g xs x' ys =
-      let ys' = List.map (fun (x,y) ->
+      let ys' = List.map (fun (x,(y: Sync.key)) ->
           (* R.bot () isn't right here? doesn't actually matter? *)
           let yr =
             if should_inline f then
@@ -352,6 +352,7 @@ struct
               M.debug ~category:Witness ~tags:[Category Analyzer] "PathSensitive3 sync predecessor not found";
               SyncSet.bot ()
           in
+          if !AnalysisState.postsolving then ctx.sideg (V.path (Node.FunctionEntry f, context ctx f (Dom.singleton y yr, Sync.bot ()))) (G.create_path (Dom.singleton y yr));
           ((Dom.singleton x (R.bot ()), Sync.singleton x syncs), (Dom.singleton y yr, Sync.bot ()))
         ) ys
       in
@@ -370,9 +371,7 @@ struct
       with Deadcode -> (y, sync)
     in
     let d = Dom.fold_keys k (fst d) (Dom.bot (), Sync.bot ()) in
-    if Dom.is_bot (fst d) then raise Deadcode else
-      if !AnalysisState.postsolving then ctx.sideg (V.path (ctx.node, ctx.context ())) (G.create_path (fst d));
-      d
+    if Dom.is_bot (fst d) then raise Deadcode else d
 
   let combine_assign ctx l fe f a fc d  f_ask =
     (* Consider call edge done after entire call-assign. *)
