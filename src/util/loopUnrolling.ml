@@ -119,6 +119,20 @@ class findAssignmentConstDiff((diff: Z.t option ref), var) = object
     | _ -> SkipChildren
 end
 
+class findStmtContainsInstructions = object
+  inherit nopCilVisitor
+  method! vinst = function
+    | Set _
+    | Call _ -> raise Found
+    | _ -> DoChildren
+end
+
+let containsInstructions stmt =
+  try
+    ignore @@ visitCilStmt (new findStmtContainsInstructions) stmt; false
+  with Found ->
+    true
+
 let isCompare = function
   | Lt | Gt |	Le | Ge | Ne -> true (*an loop that test for equality can not be of the type we look for*)
   | _ -> false
@@ -315,15 +329,18 @@ let max_default_unrolls_per_spec (spec: Svcomp.Specification.t) =
 
 let loop_unrolling_factor loopStatement func totalLoops =
   let configFactor = get_int "exp.unrolling-factor" in
-  if AutoTune0.isActivated "loopUnrollHeuristic" then
-    match fixedLoopSize loopStatement func with
-    | Some i when i <= 20 -> Logs.debug "fixed loop size %d" i; i
-    | _ ->
-      match Svcomp.Specification.of_option () with
-      | [] -> 4
-      | specs -> BatList.max @@ List.map max_default_unrolls_per_spec specs
-  else
-    configFactor
+  if containsInstructions loopStatement then
+    if AutoTune0.isActivated "loopUnrollHeuristic" then
+      match fixedLoopSize loopStatement func with
+      | Some i when i <= 20 -> Logs.debug "fixed loop size %d" i; i
+      | _ ->
+        match Svcomp.Specification.of_option () with
+        | [] -> 4
+        | specs -> BatList.max @@ List.map max_default_unrolls_per_spec specs
+    else
+      configFactor
+  else (* Don't unroll empty (= while(1){}) loops*)
+    0
 
 (*actual loop unrolling*)
 
