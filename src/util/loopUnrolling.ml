@@ -164,7 +164,6 @@ let constBefore var loop f =
             else
               current
           in
-          (* let current' = current in *)
           match st.skind with
           | Instr list -> (
               match lastAssignToVar var list with
