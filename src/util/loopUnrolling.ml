@@ -154,7 +154,16 @@ let constBefore var loop f =
   let targetLocation = loopLocation loop
   in let rec lastAssignmentToVarBeforeLoop (current: (Z.t option)) (statements: stmt list) = match statements with
       | st::stmts -> (
-          let current' = if st.labels <> [] then (Logs.debug "has Label"; (None)) else current in
+          let current' =
+            (* If there exists labels that are not the ones inserted by loop unrolling, forget the found assigned constant value *)
+            if List.exists (function
+                | Label (s,_,_) -> not (String.starts_with ~prefix:"loop_continue" s || String.starts_with ~prefix:"loop_end" s)
+                | _ -> true) st.labels
+            then
+              (Logs.debug "has Label"; (None))
+            else
+              current
+          in
           match st.skind with
           | Instr list -> (
               match lastAssignToVar var list with
@@ -220,13 +229,21 @@ let findBreakComparison loopStatement =
   with WrongOrMultiple ->
     None
 
-let getLoopVar = function
+let getLoopVar loopStatement func = function
   | BinOp (op, (Const (CInt (goal, _, _) )), Lval ((Var varinfo), NoOffset), (TInt _)) when isCompare op && not varinfo.vglob ->
     (* TODO: define isCompare and flip in cilfacade and refactor to use instead of the many separately defined similar functions *)
     let flip = function | Lt -> Gt | Gt -> Lt | Ge -> Le | Le -> Ge | s -> s in
     Some (flip op, varinfo, goal)
   | BinOp (op, Lval ((Var varinfo), NoOffset), (Const (CInt (goal, _, _) )), (TInt _)) when isCompare op && not varinfo.vglob ->
     Some (op, varinfo, goal)
+  (* When loop condition has a comparison between variables, we assume that the left one is the counter and right one is the bound.
+     TODO: can we do something more meaningful instead of this assumption? *)
+  | BinOp (op, Lval ((Var varinfo), NoOffset), Lval ((Var varinfo2), NoOffset), (TInt _)) 
+  | BinOp (op, CastE ((TInt _), (Lval ((Var varinfo), NoOffset))), Lval ((Var varinfo2), NoOffset), (TInt _)) when isCompare op && not varinfo.vglob && not varinfo2.vglob ->
+    begin match constBefore varinfo2 loopStatement func with
+      | Some goal -> Logs.debug "const: %a %a" CilType.Varinfo.pretty varinfo2 GobZ.pretty goal; Some (op, varinfo, goal)
+      | None -> None
+    end;
   | _ -> None
 
 let getsPointedAt var func =
@@ -273,7 +290,7 @@ let loopIterations start diff goal shouldBeExact =
 let fixedLoopSize loopStatement func =
   let open GobOption.Syntax in
   let* comparison = findBreakComparison loopStatement in
-  let* op, var, goal = getLoopVar comparison in
+  let* op, var, goal = getLoopVar loopStatement func comparison in
   if getsPointedAt var func then
     None
   else
