@@ -268,8 +268,10 @@ let fixedLoopSize loopStatement func =
   if getsPointedAt var func then
     None
   else
-    let* start = constBefore var loopStatement func in
-    let* diff = assignmentDifference (loopBody loopStatement) var in
+    let diff = Option.value (assignmentDifference (loopBody loopStatement) var) ~default:Z.one in
+    (* Assume var start value if there was no constant assignment to the var before loop;
+       Assume it to be 0, if loop is increasing and 11 (TODO: can we do better than just 11?) if loop is decreasing *)
+    let start = Option.value (constBefore var loopStatement func) ~default:(if diff < Z.zero then Z.of_int 11 else Z.zero) in
     let* goal = adjustGoal diff goal op in
     let iterations = loopIterations start diff goal (op=Ne) in
     Logs.debug "comparison: %a" CilType.Exp.pretty comparison;

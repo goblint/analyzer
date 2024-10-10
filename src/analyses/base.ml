@@ -34,8 +34,6 @@ module MainFunctor (Priv:BasePriv.S) (RVEval:BaseDomain.ExpEvaluator with type t
 struct
   include Analyses.DefaultSpec
 
-  exception Top
-
   module Dom    = BaseDomain.DomFunctor (Priv.D) (RVEval)
   type t = Dom.t
   module D      = Dom

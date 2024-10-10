@@ -11,8 +11,6 @@ open Analyses
 
 module Spec =
 struct
-  exception Top
-
   include Analyses.DefaultSpec
 
   module D =
