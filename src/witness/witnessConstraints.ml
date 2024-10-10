@@ -51,10 +51,32 @@ struct
     include DisjointDomain.ProjectiveMap (Spec.D) (V) (J) (R)
   end
 
-  module Dom =
+  module Dom0 =
   struct
     module V = R
     include SpecDMap (R)
+
+    let name () = "PathSensitive (" ^ name () ^ ")"
+
+    let printXml f x =
+      let print_one x r =
+        (* BatPrintf.fprintf f "\n<path>%a</path>" Spec.D.printXml x *)
+        BatPrintf.fprintf f "\n<path>%a<analysis name=\"witness\">%a</analysis></path>" Spec.D.printXml x V.printXml r
+      in
+      iter print_one x
+
+    let map_keys f m =
+      fold (fun e r acc ->
+          add (f e) r acc
+        ) m (empty ())
+    let choose_key m = fst (choose m)
+    let fold_keys f m a = fold (fun e _ acc -> f e acc) m a
+  end
+
+  module Dom =
+  struct
+    module V = Lattice.Unit
+    include SpecDMap (Lattice.Unit)
 
     let name () = "PathSensitive (" ^ name () ^ ")"
 
@@ -109,7 +131,7 @@ struct
 
   module G =
   struct
-    include Lattice.Lift2 (Spec.G) (Dom) (* TODO: only Set(I * InlineEdgePrintable) instead of VIES *)
+    include Lattice.Lift2 (Spec.G) (Dom0) (* TODO: only Set(I * InlineEdgePrintable) instead of VIES *)
     (* let name () = "deadbranch" *)
 
     let spec = function
@@ -117,7 +139,7 @@ struct
       | `Lifted1 x -> x
       | _ -> failwith "PathSensitive3.spec"
     let path = function
-      | `Bot -> Dom.bot ()
+      | `Bot -> Dom0.bot ()
       | `Lifted2 x -> x
       | _ -> failwith "PathSensitive3.path"
     let create_spec spec = `Lifted1 spec
@@ -138,8 +160,8 @@ struct
   let init = Spec.init
   let finalize = Spec.finalize
 
-  let exitstate  v = (Dom.singleton (Spec.exitstate  v) (R.bot ()), Sync.bot ())
-  let startstate v = (Dom.singleton (Spec.startstate v) (R.bot ()), Sync.bot ())
+  let exitstate  v = (Dom.singleton (Spec.exitstate  v) (), Sync.bot ())
+  let startstate v = (Dom.singleton (Spec.startstate v) (), Sync.bot ())
   let morphstate v (d, _) = (Dom.map_keys (Spec.morphstate v) d, Sync.bot ())
 
   let step n c i e = R.singleton ((n, c, i), e)
@@ -173,7 +195,8 @@ struct
       }
     and split y es =
       let yr = step_ctx_edge ctx x in
-      ctx.split (Dom.singleton y yr, Sync.bot ()) es
+      (* TODO: side *)
+      ctx.split (Dom.singleton y (), Sync.bot ()) es
     in
     ctx'
 
@@ -191,13 +214,13 @@ struct
     let h x (xs, sync) =
       try
         let x' = g (f (conv ctx x)) in
-        (Dom.add x' (step_ctx_edge ctx x) xs, Sync.add x' (SyncSet.singleton x) sync)
+        (Dom0.add x' (step_ctx_edge ctx x) xs, Sync.add x' (SyncSet.singleton x) sync)
       with Deadcode -> (xs, sync)
     in
-    let d = Dom.fold_keys h (fst ctx.local) (Dom.empty (), Sync.bot ()) in
-    if Dom.is_bot (fst d) then raise Deadcode else
+    let d = Dom.fold_keys h (fst ctx.local) (Dom0.empty (), Sync.bot ()) in
+    if Dom0.is_bot (fst d) then raise Deadcode else
       if !AnalysisState.postsolving then ctx.sideg (V.path (ctx.node, ctx.context ())) (G.create_path (fst d));
-      d
+      (Dom0.fold_keys (fun x acc -> Dom.add x () acc) (fst d) (Dom.empty ()), snd d)
 
   (* TODO???? *)
   let map_event ctx e =
@@ -205,13 +228,13 @@ struct
     let h x (xs, sync) =
       try
         let x' = Spec.event (conv ctx x) e (conv ctx x) in
-        (Dom.add x' (step_ctx_edge ctx x) xs, Sync.add x' (SyncSet.singleton x) sync)
+        (Dom0.add x' (step_ctx_edge ctx x) xs, Sync.add x' (SyncSet.singleton x) sync)
       with Deadcode -> (xs, sync)
     in
-    let d = Dom.fold_keys h (fst ctx.local) (Dom.empty (), Sync.bot ()) in
-    if Dom.is_bot (fst d) then raise Deadcode else
+    let d = Dom.fold_keys h (fst ctx.local) (Dom0.empty (), Sync.bot ()) in
+    if Dom0.is_bot (fst d) then raise Deadcode else
       if !AnalysisState.postsolving then ctx.sideg (V.path (ctx.node, ctx.context ())) (G.create_path (fst d));
-      d
+      (Dom0.fold_keys (fun x acc -> Dom.add x () acc) (fst d) (Dom.empty ()), snd d)
 
 
   let fold' ctx f g h a =
@@ -247,7 +270,8 @@ struct
     let g xs x' ys =
       let ys' = List.map (fun y ->
           let yr = step ctx.prev_node (ctx.context ()) x' (ThreadEntry (lval, f, args)) (nosync x') in (* threadenter called on before-sync state *)
-          (Dom.singleton y yr, Sync.bot ())
+          (* TODO: side *)
+          (Dom.singleton y (), Sync.bot ())
         ) ys
       in
       ys' @ xs
@@ -288,7 +312,7 @@ struct
       (* TODO: path nodes? *)
     | Queries.IterPrevVars f ->
       if M.tracing then M.tracei "witness" "IterPrevVars";
-      Dom.iter (fun x r ->
+      Dom0.iter (fun x r ->
           if M.tracing then M.tracei "witness" "x = %a" Spec.D.pretty x;
           R.iter (function ((n, c, j), e) ->
               if M.tracing then M.tracec "witness" "n = %a" Node.pretty_plain n;
@@ -352,8 +376,8 @@ struct
               M.debug ~category:Witness ~tags:[Category Analyzer] "PathSensitive3 sync predecessor not found";
               SyncSet.bot ()
           in
-          if !AnalysisState.postsolving then ctx.sideg (V.path (Node.FunctionEntry f, context ctx f (Dom.singleton y yr, Sync.bot ()))) (G.create_path (Dom.singleton y yr));
-          ((Dom.singleton x (R.bot ()), Sync.singleton x syncs), (Dom.singleton y yr, Sync.bot ()))
+          if !AnalysisState.postsolving then ctx.sideg (V.path (Node.FunctionEntry f, context ctx f (Dom.singleton y (), Sync.bot ()))) (G.create_path (Dom0.singleton y yr));
+          ((Dom.singleton x (), Sync.singleton x syncs), (Dom.singleton y (), Sync.bot ()))
         ) ys
       in
       ys' @ xs
@@ -389,11 +413,11 @@ struct
       in
       try
         let x' = Spec.combine_assign (conv ctx cd) l fe f a fc x f_ask in
-        (Dom.add x' r y, Sync.add x' (SyncSet.singleton x) sync)
+        (Dom0.add x' r y, Sync.add x' (SyncSet.singleton x) sync)
       with Deadcode -> (y, sync)
     in
-    let d = Dom.fold_keys k (fst d) (Dom.bot (), Sync.bot ()) in
-    if Dom.is_bot (fst d) then raise Deadcode else
+    let d = Dom.fold_keys k (fst d) (Dom0.bot (), Sync.bot ()) in
+    if Dom0.is_bot (fst d) then raise Deadcode else
       if !AnalysisState.postsolving then ctx.sideg (V.path (ctx.node, ctx.context ())) (G.create_path (fst d));
-      d
+      (Dom0.fold_keys (fun x acc -> Dom.add x () acc) (fst d) (Dom.empty ()), snd d)
 end
