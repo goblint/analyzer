@@ -154,7 +154,17 @@ let constBefore var loop f =
   let targetLocation = loopLocation loop
   in let rec lastAssignmentToVarBeforeLoop (current: (Z.t option)) (statements: stmt list) = match statements with
       | st::stmts -> (
-          let current' = if st.labels <> [] then (Logs.debug "has Label"; (None)) else current in
+          let current' =
+            (* If there exists labels that are not the ones inserted by loop unrolling, forget the found assigned constant value *)
+            if List.exists (function
+                | Label (s,_,_) -> not (String.starts_with ~prefix:"loop_continue" s || String.starts_with ~prefix:"loop_end" s)
+                | _ -> true) st.labels
+            then
+              (Logs.debug "has Label"; (None))
+            else
+              current
+          in
+          (* let current' = current in *)
           match st.skind with
           | Instr list -> (
               match lastAssignToVar var list with
