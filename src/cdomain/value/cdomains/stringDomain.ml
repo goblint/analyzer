@@ -72,7 +72,7 @@ let to_string_length x =
 
 let to_exp = function
   | Some x -> GoblintCil.mkString x
-  | None -> raise (Lattice.Unsupported "Cannot express unknown string pointer as expression.")
+  | None -> failwith "Cannot express unknown string pointer as expression."
 
 let semantic_equal x y =
   match x, y with
