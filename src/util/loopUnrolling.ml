@@ -119,6 +119,20 @@ class findAssignmentConstDiff((diff: Z.t option ref), var) = object
     | _ -> SkipChildren
 end
 
+class findStmtContainsInstructions = object
+  inherit nopCilVisitor
+  method! vinst = function
+    | Set _
+    | Call _ -> raise Found
+    | _ -> DoChildren
+end
+
+let containsInstructions stmt =
+  try
+    ignore @@ visitCilStmt (new findStmtContainsInstructions) stmt; false
+  with Found ->
+    true
+
 let isCompare = function
   | Lt | Gt |	Le | Ge | Ne -> true (*an loop that test for equality can not be of the type we look for*)
   | _ -> false
@@ -334,9 +348,8 @@ let max_default_unrolls_per_spec (spec: Svcomp.Specification.t) =
 
 let loop_unrolling_factor loopStatement func totalLoops =
   let configFactor = get_int "exp.unrolling-factor" in
-  if AutoTune0.isActivated "loopUnrollHeuristic" then
-    let loopStats = AutoTune0.collectFactors visitCilStmt loopStatement in
-    if loopStats.instructions > 0 then
+  if containsInstructions loopStatement then
+    if AutoTune0.isActivated "loopUnrollHeuristic" then
       match fixedLoopSize loopStatement func with
       | Some i when i <= 20 -> Logs.debug "fixed loop size %d" i; i
       | _ ->
@@ -344,10 +357,9 @@ let loop_unrolling_factor loopStatement func totalLoops =
         | [] -> 4
         | specs -> BatList.max @@ List.map max_default_unrolls_per_spec specs
     else
-      (* Don't unroll empty (= while(1){}) loops*)
-      0
-  else
-    configFactor
+      configFactor
+  else (* Don't unroll empty (= while(1){}) loops*)
+    0
 
 (*actual loop unrolling*)
 
@@ -426,16 +438,19 @@ let copy_and_patch_labels break_target current_continue_target stmts =
   let patchLabelsVisitor = new patchLabelsGotosVisitor(StatementHashTable.find_opt gotos) in
   List.map (visitCilStmt patchLabelsVisitor) stmts'
 
-class loopUnrollingVisitor(func, totalLoops) = object
+class loopUnrollingVisitor (func, totalLoops) = object
   (* Labels are simply handled by giving them a fresh name. Jumps coming from outside will still always go to the original label! *)
   inherit nopCilVisitor
 
-  method! vstmt s =
-    let duplicate_and_rem_labels s =
-      match s.skind with
-      | Loop (b,loc, loc2, break , continue) ->
-        let factor = loop_unrolling_factor s func totalLoops in
-        if(factor > 0) then (
+  val mutable nests = 0
+
+  method! vstmt stmt =
+    let duplicate_and_rem_labels stmt =
+      match stmt.skind with
+      | Loop (b, loc, loc2, break, continue) ->
+        nests <- nests - 1; Logs.debug "nests: %i" nests;
+        let factor = loop_unrolling_factor stmt func totalLoops in
+        if factor > 0 then (
           Logs.info "unrolling loop at %a with factor %d" CilType.Location.pretty loc factor;
           annotateArrays b;
           (* top-level breaks should immediately go to the end of the loop, and not just break out of the current iteration *)
@@ -447,11 +462,14 @@ class loopUnrollingVisitor(func, totalLoops) = object
               one_copy_stmts @ [current_continue_target]
             )
           in
-          mkStmt (Block (mkBlock (List.flatten copies @ [s; break_target])))
-        ) else s (*no change*)
-      | _ -> s
+          mkStmt (Block (mkBlock (List.flatten copies @ [stmt; break_target])))
+        ) else stmt (*no change*)
+      | _ -> stmt
     in
-    ChangeDoChildrenPost(s, duplicate_and_rem_labels)
+    match stmt.skind with
+    | Loop _ when nests + 1 < 4 -> nests <- nests + 1; ChangeDoChildrenPost(stmt, duplicate_and_rem_labels)
+    | Loop _ -> SkipChildren
+    | _ -> ChangeDoChildrenPost(stmt, duplicate_and_rem_labels)
 end
 
 let unroll_loops fd totalLoops =
