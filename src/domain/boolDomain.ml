@@ -45,7 +45,7 @@ struct
   let is_bot x = x = false
   let top () = true
   let is_top x = x = true
-  let leq x y = x == y || y
+  let leq x y = x = y || y
   let join = (||)
   let widen = (||)
   let meet = (&&)
@@ -67,7 +67,7 @@ struct
   let is_bot x = x = true
   let top () = false
   let is_top x = x = false
-  let leq x y = x == y || x
+  let leq x y = x = y || x
   let join = (&&)
   let widen = (&&)
   let meet = (||)

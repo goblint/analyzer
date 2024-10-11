@@ -91,7 +91,7 @@ and eq_exp (a: exp) (b: exp) ~(rename_mapping: rename_mapping) ~(acc: (typ * typ
   | AlignOf typ1, AlignOf typ2 -> eq_typ_acc typ1 typ2 ~rename_mapping ~acc
   | AlignOfE exp1, AlignOfE exp2 -> eq_exp exp1 exp2 ~rename_mapping ~acc
   | UnOp (op1, exp1, typ1), UnOp (op2, exp2, typ2) ->
-    ((op1 == op2), rename_mapping) &&>> eq_exp exp1 exp2 ~acc &&>> eq_typ_acc typ1 typ2 ~acc
+    (CilType.Unop.equal op1 op2, rename_mapping) &&>> eq_exp exp1 exp2 ~acc &&>> eq_typ_acc typ1 typ2 ~acc
   | BinOp (op1, left1, right1, typ1), BinOp (op2, left2, right2, typ2) ->  (op1 = op2, rename_mapping) &&>> eq_exp left1 left2 ~acc &&>> eq_exp right1 right2 ~acc &&>> eq_typ_acc typ1 typ2 ~acc
   | CastE (typ1, exp1), CastE (typ2, exp2) -> eq_typ_acc typ1 typ2 ~rename_mapping ~acc &&>> eq_exp exp1 exp2 ~acc
   | AddrOf lv1, AddrOf lv2 -> eq_lval lv1 lv2 ~rename_mapping ~acc

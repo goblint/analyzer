@@ -19,7 +19,7 @@ let name_of_global_col gc = match gc.def with
     | None -> raise (Failure "empty global record")
 
 let compare_global_col gc1 gc2 = compare (name_of_global_col gc1) (name_of_global_col gc2)
-let equal_name_global_col gc1 gc2 = compare_global_col gc1 gc2 == 0
+let equal_name_global_col gc1 gc2 = compare_global_col gc1 gc2 = 0
 
 let get_varinfo gc = match gc.decls, gc.def with
   | _, Some (Var v) -> v

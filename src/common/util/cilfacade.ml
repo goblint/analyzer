@@ -474,8 +474,8 @@ let rec pretty_typsig_like_typ (nameOpt: Pretty.doc option) () ts =
     (* ignore the const attribute for arrays *)
     let a' = dropAttributes [ "pconst" ] a in
     let name' =
-      if a' == [] then name else
-      if nameOpt == None then printAttributes a' else
+      if a' = [] then name else
+      if nameOpt = None then printAttributes a' else
         text "(" ++ printAttributes a' ++ name ++ text ")"
     in
     pretty_typsig_like_typ
@@ -488,8 +488,8 @@ let rec pretty_typsig_like_typ (nameOpt: Pretty.doc option) () ts =
 
   | TSFun (restyp, args, isvararg, a) ->
     let name' =
-      if a == [] then name else
-      if nameOpt == None then printAttributes a else
+      if a = [] then name else
+      if nameOpt = None then printAttributes a else
         text "(" ++ printAttributes a ++ name ++ text ")"
     in
     pretty_typsig_like_typ
