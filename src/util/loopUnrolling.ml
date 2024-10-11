@@ -68,7 +68,7 @@ class isPointedAtVisitor(var) = object
   inherit nopCilVisitor
 
   method! vexpr = function
-    | AddrOf (Var info, NoOffset) when info.vid == var.vid -> raise Found
+    | AddrOf (Var info, NoOffset) when CilType.Varinfo.equal info var -> raise Found
     | _ -> DoChildren
 end
 
@@ -76,7 +76,7 @@ class hasAssignmentVisitor(var) = object
   inherit nopCilVisitor
 
   method! vinst = function
-    | Set ((Var info, NoOffset),_,_,_) when info.vid == var.vid -> raise Found
+    | Set ((Var info, NoOffset),_,_,_) when CilType.Varinfo.equal info var -> raise Found
     | _ -> SkipChildren
 end
 

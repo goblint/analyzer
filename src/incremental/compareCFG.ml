@@ -18,7 +18,7 @@ let (&&<>) (prev_result: bool * rename_mapping) f : bool * rename_mapping =
 let eq_node (x, fun1) (y, fun2) ~rename_mapping =
   let isPseudoReturn f sid =
     let pid = Cilfacade.get_pseudo_return_id f in
-    sid == pid in
+    sid = pid in
   match x,y with
   | Statement s1, Statement s2 ->
     let p1 = isPseudoReturn fun1 s1.sid in
