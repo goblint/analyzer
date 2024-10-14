@@ -121,12 +121,15 @@ let get_gas_lifter () =
     (module ContextGasLifter(GlobalGas):Spec2Spec)
   else
     let module PerFunctionGas:Gas = struct
-      module G = GasChain
-      module M = MapDomain.MapTop_LiftBot(CilType.Fundec)(G)
+      (* The order is reversed here to ensure that the minimum is used *)
+      (* 5 join 4 = 4 *)
+      module G = Lattice.Reverse(GasChain)
+      (* Missing bindings are bot, i.e., have maximal gas for this function *)
+      module M = MapDomain.MapBot_LiftTop(CilType.Fundec)(G)
       let startgas () = M.empty ()
       let is_exhausted f v = GobOption.exists (fun g -> g <= 0) (M.find_opt f v)  (* v <= 0 *)
       let callee_gas f v =
-        let c = Option.default (G.top ()) (M.find_opt f v) in
+        let c = Option.default (G.bot ()) (M.find_opt f v) in
         M.add f (max 0 c-1) v
       let thread_gas f v =
         match Cilfacade.find_varinfo_fundec f with
