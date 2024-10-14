@@ -1611,7 +1611,8 @@ struct
       ) l (VD.bot ())
     in
     let weaks = UnwrappedG.weak (getg (V.global x)) in
-    let d_m_weak = GWeak.fold (fun s' gweakw' acc ->
+    (* d_m_weak and d_g_weak happen to coincide *)
+    let d_weak = GWeak.fold (fun s' gweakw' acc ->
         if MustLockset.disjoint s s' then
           GWeakW.fold (fun w' v acc ->
               if MinLocksets.exists (fun s'' -> MustLockset.disjoint s'' w') p_x then
@@ -1623,7 +1624,6 @@ struct
           acc
       ) weaks (VD.bot ())
     in
-    let d_m = VD.join d_m_sync d_m_weak in
     let d_g_sync = MustLockset.fold (fun m acc ->
         if MinLocksets.exists (fun s''' -> not (MustLockset.mem m s''')) p_x then
           let syncs = UnwrappedG.sync (getg (V.mutex m)) in
@@ -1643,9 +1643,13 @@ struct
           acc
       ) s (VD.bot ())
     in
-    let d_g_weak = d_m_weak in (* happen to coincide *)
-    let d_g = VD.join d_g_sync d_g_weak in
-    let d = VD.join d_cpa (VD.meet d_m d_g) in
+    (* We want to join with
+       d_m \sqcap d_g =   (by def)
+       (d_m_weak \sqcup d_m_sync) \sqcap (d_g_weak \sqcup d_g_sync) =   (by d_m_weak = d_g_weak)
+       (d_weak \sqcup d_m_sync) \sqcap (d_weak \sqcup d_g_sync) \sqgeq   (by (even non-distributive) lattice identity (Davey & Priestley, Lemma 4.1(i) dual))
+       d_weak \sqcup (d_m_sync \sqcap d_g_sync)
+        *)
+    let d = VD.join d_cpa (VD.join d_weak (VD.meet d_m_sync d_g_sync)) in
     d
 
   let write_global ?(invariant=false) ask getg sideg (st: BaseComponents (D).t) x v =
