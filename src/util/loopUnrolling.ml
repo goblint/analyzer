@@ -243,28 +243,25 @@ let findBreakComparison loopStatement =
   with WrongOrMultiple ->
     None
 
-let getLoopVar loopStatement func = function
-  | BinOp (op, Const (CInt (goal, _, _)), Lval (Var varinfo, NoOffset), TInt _)
-  | BinOp (op, Const (CInt (goal, _, _)), CastE (TInt _, Lval (Var varinfo, NoOffset)), TInt _)
-  | BinOp (op, CastE (TInt _, Const (CInt (goal, _, _))), Lval (Var varinfo, NoOffset), TInt _)
-  | BinOp (op, CastE (TInt _, Const (CInt (goal, _, _))), CastE (TInt _, Lval (Var varinfo, NoOffset)), TInt _) when isCompare op && not varinfo.vglob ->
+let findLoopVarAndGoal loopStatement func (op, exp1, exp2) =
+  match Cil.stripCasts exp1, Cil.stripCasts exp2 with
+  | Const (CInt (goal, _, _)), Lval (Var varinfo, NoOffset) when not varinfo.vglob ->
     (* TODO: define isCompare and flip in cilfacade and refactor to use instead of the many separately defined similar functions *)
     let flip = function | Lt -> Gt | Gt -> Lt | Ge -> Le | Le -> Ge | s -> s in
     Some (flip op, varinfo, goal)
-  | BinOp (op, Lval (Var varinfo, NoOffset), Const (CInt (goal, _, _)), TInt _)
-  | BinOp (op, Lval (Var varinfo, NoOffset), CastE (TInt _, Const (CInt (goal, _, _))), TInt _)
-  | BinOp (op, CastE (TInt _, Lval (Var varinfo, NoOffset)), Const (CInt (goal, _, _)), TInt _) 
-  | BinOp (op, CastE (TInt _, Lval (Var varinfo, NoOffset)), CastE (TInt _, Const (CInt (goal, _, _))), TInt _) when isCompare op && not varinfo.vglob ->
+  | Lval (Var varinfo, NoOffset), Const (CInt (goal, _, _)) when not varinfo.vglob ->
     Some (op, varinfo, goal)
-  (* When loop condition has a comparison between variables, we assume that the left one is the counter and right one is the bound.
-     TODO: can we do something more meaningful instead of this assumption? *)
-  | BinOp (op, Lval (Var varinfo, NoOffset), Lval (Var varinfo2, NoOffset), TInt _)
-  | BinOp (op, Lval (Var varinfo, NoOffset), CastE (TInt _, Lval (Var varinfo2, NoOffset)), TInt _) 
-  | BinOp (op, CastE (TInt _, Lval (Var varinfo, NoOffset)), Lval (Var varinfo2, NoOffset), TInt _) when isCompare op && not varinfo.vglob && not varinfo2.vglob ->
+  | Lval (Var varinfo, NoOffset), Lval (Var varinfo2, NoOffset) when not varinfo.vglob && not varinfo2.vglob ->
+    (* When loop condition has a comparison between variables, we assume that the left one is the counter and right one is the bound.
+       TODO: can we do something more meaningful instead of this assumption? *)
     begin match constBefore varinfo2 loopStatement func with
       | Some goal -> Logs.debug "const: %a %a" CilType.Varinfo.pretty varinfo2 GobZ.pretty goal; Some (op, varinfo, goal)
       | None -> None
     end;
+  | _ -> None
+
+let getLoopVar loopStatement func = function
+  | BinOp (op, exp1, exp2, TInt _) when isCompare op -> findLoopVarAndGoal loopStatement func (op, exp1, exp2)
   | _ -> None
 
 let getsPointedAt var func =
