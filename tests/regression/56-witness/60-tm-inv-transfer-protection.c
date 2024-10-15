@@ -1,4 +1,4 @@
-// PARAM: --set solvers.td3.side_widen always --enable ana.int.interval --set ana.base.privatization protection
+// PARAM: --set solvers.td3.side_widen always --set solvers.td3.side_widen_gas 0 --enable ana.int.interval --set ana.base.privatization protection
 #include <pthread.h>
 #include <goblint.h>
 
