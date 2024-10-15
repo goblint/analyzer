@@ -37,11 +37,11 @@ module ConstrSys = struct
     3. z := y
     4. w := w + 1 [also g := 42; _ := z]
     *)
-  let system : LVar.t -> ((LVar.t -> D.t) -> (LVar.t -> D.t -> unit) -> (GVar.t -> G.t) -> (GVar.t -> G.t -> unit) -> D.t) option = function
-    | "x" -> Some (fun loc _ glob gside -> glob "g")
-    | "y" -> Some (fun loc _ glob gside -> (ignore (loc "x"); Int.of_int (Z.of_int64 8L)))
-    | "z" -> Some (fun loc _ glob gside -> (ignore (loc "y"); loc "y"))
-    | "w" -> Some (fun loc _ glob gside -> (gside "g" (Int.of_int (Z.of_int64 42L)); ignore (loc "z"); try Int.add (loc "w") (Int.of_int (Z.of_int64 1L)) with IntDomain.ArithmeticOnIntegerBot _ -> Int.top ()))
+  let system : LVar.t -> ((LVar.t -> D.t) -> (LVar.t -> D.t -> unit) -> (LVar.t -> unit) -> (GVar.t -> G.t) -> (GVar.t -> G.t -> unit) -> (GVar.t -> unit) -> D.t) option = function
+    | "x" -> Some (fun loc _ _ glob gside gdemand -> glob "g")
+    | "y" -> Some (fun loc _ _ glob gside gdemand -> (ignore (loc "x"); Int.of_int (Z.of_int64 8L)))
+    | "z" -> Some (fun loc _ _ glob gside gdemand -> (ignore (loc "y"); loc "y"))
+    | "w" -> Some (fun loc _ _ glob gside gdemand -> (gside "g" (Int.of_int (Z.of_int64 42L)); ignore (loc "z"); try Int.add (loc "w") (Int.of_int (Z.of_int64 1L)) with IntDomain.ArithmeticOnIntegerBot _ -> Int.top ()))
     | _   -> None
 
   let iter_vars _ _ _ _ _ = ()

@@ -13,12 +13,12 @@ module Make =
 
     open S.Dom
 
-    let eq x get set =
+    let eq x get set demand =
       match S.system x with
       | None -> bot ()
       | Some f ->
         eval_rhs_event x;
-        f get set
+        f get set demand
 
     let solve st vs =
       let infl = HM.create 10 in
@@ -54,7 +54,7 @@ module Make =
       while not (VS.is_empty !vs) do
         let x, vs' = VS.pop !vs in
         let _ = vs := vs' in
-        set x (eq x (eval x) set)
+        set x (eq x (eval x) set (ignore % (eval x)))
       done;
       stop_event ();
       rho

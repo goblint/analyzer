@@ -44,7 +44,7 @@ module WP =
           HM.replace called x ();
           let old = HM.find rho x in
           let l = HM.create 10 in
-          let tmp = eq x (eval l x) (side l) in
+          let tmp = eq x (eval l x) (side l) (ignore % (eval l x) ) in
           let tmp = S.Dom.join tmp (try HM.find rho' x with Not_found -> S.Dom.bot ()) in
           if tracing then trace "sol" "Var: %a" S.Var.pretty_trace x ;
           if tracing then trace "sol" "Contrib:%a" S.Dom.pretty tmp;
@@ -67,12 +67,12 @@ module WP =
             (solve[@tailcall]) x Narrow;
           );
         )
-      and eq x get set =
+      and eq x get set demand =
         if tracing then trace "sol2" "eq %a" S.Var.pretty_trace x;
         eval_rhs_event x;
         match S.system x with
         | None -> S.Dom.bot ()
-        | Some f -> f get set
+        | Some f -> f get set demand
       and simple_solve l x y =
         if tracing then trace "sol2" "simple_solve %a (rhs: %b)" S.Var.pretty_trace y (S.system y <> None);
         if S.system y = None then init y;
@@ -81,7 +81,7 @@ module WP =
         if HM.mem l y then HM.find l y
         else (
           HM.replace called y ();
-          let tmp = eq y (eval l x) (side l) in
+          let tmp = eq y (eval l x) (side l) (ignore % (eval l x)) in
           HM.remove called y;
           if HM.mem rho y then (HM.remove l y; solve y Widen; HM.find rho y)
           else (HM.replace l y tmp; tmp)
@@ -154,7 +154,7 @@ module WP =
           let eq x =
             match S.system x with
             | None -> if HM.mem rho x then HM.find rho x else S.Dom.bot ()
-            | Some f -> f get check_side
+            | Some f -> f get check_side (ignore % get)
           in
           if HM.mem rho x then (
             let d1 = HM.find rho x in

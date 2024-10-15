@@ -42,13 +42,13 @@ module Make =
           HM.replace infl x VS.empty
         end;
         HM.replace stable x ();
-        set x (eq x (eval x) set)
+        set x (eq x (eval x) set (ignore ))
 
-      and eq x get set =
+      and eq x get set demand =
         eval_rhs_event x;
         match S.system x with
         | None  -> S.Dom.bot ()
-        | Some f -> f get set
+        | Some f -> f get set demand
 
       and eval x y =
         get_var_event y;

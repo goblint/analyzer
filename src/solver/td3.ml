@@ -27,7 +27,7 @@ sig
   val print_data: unit -> unit
   (** Print additional solver data statistics. *)
 
-  val system: S.v -> ((S.v -> S.d) -> (S.v -> S.d -> unit) -> S.d) option
+  val system: S.v -> ((S.v -> S.d) -> (S.v -> S.d -> unit) -> (S.v -> unit) -> S.d) option
   (** Wrap [S.system]. Always use this hook instead of [S.system]! *)
 
   val delete_marked: S.v list -> unit
@@ -315,7 +315,7 @@ module Base =
             | _ ->
               (* The RHS is re-evaluated, all deps are re-trigerred *)
               HM.replace dep x VS.empty;
-              eq x (eval l x) (side ~x)
+              eq x (eval l x) (side ~x) (ignore )
           in
           HM.remove called x;
           let old = HM.find rho x in (* d from older solve *) (* find old value after eq since wpoint restarting in eq/eval might have changed it meanwhile *)
@@ -364,11 +364,11 @@ module Base =
             )
           )
         )
-      and eq x get set =
+      and eq x get set demand =
         if tracing then trace "sol2" "eq %a" S.Var.pretty_trace x;
         match Hooks.system x with
         | None -> S.Dom.bot ()
-        | Some f -> f get set
+        | Some f -> f get set demand
       and simple_solve l x y =
         if tracing then trace "sol2" "simple_solve %a (rhs: %b)" S.Var.pretty_trace y (Hooks.system y <> None);
         if Hooks.system y = None then (init y; HM.replace stable y (); HM.find rho y) else
@@ -378,7 +378,7 @@ module Base =
         if cache && HM.mem l y then HM.find l y
         else (
           HM.replace called y ();
-          let eqd = eq y (eval l x) (side ~x) in
+          let eqd = eq y (eval l x) (side ~x) (ignore) in
           HM.remove called y;
           if HM.mem wpoint y then (HM.remove l y; solve y Widen; HM.find rho y)
           else (if cache then HM.replace l y eqd; eqd)
@@ -818,7 +818,7 @@ module Base =
         HM.replace visited x ();
         match Hooks.system x with
         | None -> if HM.mem rho x then HM.find rho x else (Logs.warn "TDFP Found variable %a w/o rhs and w/o value in rho" S.Var.pretty_trace x; S.Dom.bot ())
-        | Some f -> f (get ~check) (check_side x)
+        | Some f -> f (get ~check) (check_side x) (ignore )
       and get ?(check=false) x =
         if HM.mem visited x then (
           HM.find rho x
@@ -1069,9 +1069,9 @@ module Basic: GenericEqIncrSolver =
         match S.system x with
         | None -> None
         | Some f ->
-          let f' get set =
+          let f' get set demand =
             eval_rhs_event x;
-            f get set
+            f get set demand
           in
           Some f'
 
@@ -1110,7 +1110,7 @@ module DepVals: GenericEqIncrSolver =
         | None -> None
         | Some f ->
           let dep_vals = !current_dep_vals in
-          let f' get set =
+          let f' get set demand =
             let all_deps_unchanged =
               match HM.find_option dep_vals x with
               | None -> None
@@ -1137,7 +1137,7 @@ module DepVals: GenericEqIncrSolver =
               eval_rhs_event x;
               (* Reset dep_vals to [] *)
               HM.replace dep_vals x (S.Dom.bot (),[]);
-              let res = f get set in
+              let res = f get set demand in
               (* Insert old value of last RHS evaluation *)
               HM.replace dep_vals x (res, snd (HM.find dep_vals x));
               res

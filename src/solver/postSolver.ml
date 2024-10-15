@@ -157,8 +157,8 @@ struct
   let system x =
     match S.system x, VH.find_option starth x with
     | f_opt, None -> f_opt
-    | None, Some d -> Some (fun _ _ -> d)
-    | Some f, Some d -> Some (fun get set -> S.Dom.join (f get set) d)
+    | None, Some d -> Some (fun _ _ _ -> d)
+    | Some f, Some d -> Some (fun get set demand -> S.Dom.join (f get set demand) d)
 end
 
 (** Postsolver for incremental. *)
@@ -206,7 +206,11 @@ struct
         (* check before recursing *)
         one_var y
       in
-      let rhs = f get set in
+      let demand y =
+        (* TODO: Implementation for demand *)
+        ()
+      in
+      let rhs = f get set demand in
       if M.tracing then M.trace "postsolver" "one_constraint %a %a" S.Var.pretty_trace x S.Dom.pretty rhs;
       PS.one_constraint ~vh ~x ~rhs
     in

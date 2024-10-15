@@ -44,7 +44,7 @@ sig
   module Dom : Lattice.S with type t = d
 
   (** The system in functional form. *)
-  val system : v -> ((v -> d) -> (v -> d -> unit) -> d) m
+  val system : v -> ((v -> d) -> (v -> d -> unit) -> (v -> unit) -> d) m
 
   val sys_change: (v -> d) -> v sys_change_info
   (** Compute incremental constraint system change from old solution. *)
@@ -61,7 +61,7 @@ sig
 
   module D : Lattice.S
   module G : Lattice.S
-  val system : LVar.t -> ((LVar.t -> D.t) -> (LVar.t -> D.t -> unit) -> (GVar.t -> G.t) -> (GVar.t -> G.t -> unit) -> D.t) option
+  val system : LVar.t -> ((LVar.t -> D.t) -> (LVar.t -> D.t -> unit) -> (LVar.t -> unit) -> (GVar.t -> G.t) -> (GVar.t -> G.t -> unit) -> (GVar.t -> unit) -> D.t) option
   val iter_vars: (LVar.t -> D.t) -> (GVar.t -> G.t) -> VarQuery.t -> LVar.t VarQuery.f -> GVar.t VarQuery.f -> unit
   val sys_change: (LVar.t -> D.t) -> (GVar.t -> G.t) -> [`L of LVar.t | `G of GVar.t] sys_change_info
 end
@@ -194,14 +194,14 @@ struct
   let l, g = (fun x -> `L x), (fun x -> `G x)
   let lD, gD = (fun x -> `Lifted2 x), (fun x -> `Lifted1 x)
 
-  let conv f get set =
-    f (getL % get % l) (fun x v -> set (l x) (lD v))
-      (getG % get % g) (fun x v -> set (g x) (gD v))
+  let conv f get set demand  =
+    f (getL % get % l) (fun x v -> set (l x) (lD v)) (ignore )
+      (getG % get % g) (fun x v -> set (g x) (gD v)) (ignore )
     |> lD
 
   let system = function
     | `G _ -> None
-    | `L x -> Option.map conv (S.system x)
+    | `L x -> Option.map conv (S.system x) 
 
   let sys_change get =
     S.sys_change (getL % get % l) (getG % get % g)

@@ -149,7 +149,7 @@ module SLR3term =
           );
           HM.replace wpoint y ()
         in
-        let tmp = eq x eval side in
+        let tmp = eq x eval side (ignore % eval) in
         let tmp = S.Dom.join tmp (sides x) in
         let val_new, b_new =
           if wpx then
@@ -184,11 +184,11 @@ module SLR3term =
           HM.replace infl x VS.empty
         end;
         b_new
-      and eq x get set =
+      and eq x get set demand =
         eval_rhs_event x;
         match S.system x with
         | None -> S.Dom.bot ()
-        | Some f -> f get set
+        | Some f -> f get set demand
       in
 
       let set_start (x,d) =

@@ -57,7 +57,7 @@ module WP =
           let wpx = HM.mem wpoint x in
           init x;
           let old = HM.find rho x in
-          let tmp' = eq x (eval x) (side x) in
+          let tmp' = eq x (eval x) (side x) (ignore % eval x) in
           let tmp = S.Dom.join tmp' (sides x) in
           if tracing then trace "sol" "Var: %a" S.Var.pretty_trace x ;
           if tracing then trace "sol" "Contrib:%a" S.Dom.pretty tmp;
@@ -73,7 +73,7 @@ module WP =
           );
           (solve[@tailcall]) x
         )
-      and eq x get set =
+      and eq x get set demand =
         if tracing then trace "sol2" "eq %a" S.Var.pretty_trace x;
         eval_rhs_event x;
         match S.system x with
@@ -87,7 +87,7 @@ module WP =
             );
             set y d
           in
-          f get sidef
+          f get sidef demand
       and eval x y =
         if tracing then trace "sol2" "eval %a ## %a" S.Var.pretty_trace x S.Var.pretty_trace y;
         get_var_event y;

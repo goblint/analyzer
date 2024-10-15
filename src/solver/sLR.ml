@@ -60,7 +60,7 @@ module SLR3 =
           HM.remove wpoint x;
           HM.replace stable x ();
           let old = HM.find rho x in
-          let tmp = eq x (eval x) (side x) in
+          let tmp = eq x (eval x) (side x) (ignore % eval x) in
           let tmp = S.Dom.join tmp (sides x) in
           if tracing then trace "sol" "Var: %a" S.Var.pretty_trace x ;
           if tracing then trace "sol" "Contrib:%a" S.Dom.pretty tmp;
@@ -85,7 +85,7 @@ module SLR3 =
           done;
         end;
         assert (HM.mem stable x)
-      and eq x get set =
+      and eq x get set demand =
         eval_rhs_event x;
         match S.system x with
         | None -> S.Dom.bot ()
@@ -98,7 +98,7 @@ module SLR3 =
             );
             set y d
           in
-          f get sidef
+          f get sidef demand
       and eval x y =
         get_var_event y;
         if not (HM.mem rho y) then init y;
@@ -308,7 +308,7 @@ module Make0 =
       let _ = List.iter (fun (x,v) -> XY.set_value (x,x) v; T.update T.set x (P.single x)) st in
       let _ = work := H.merge (H.from_list list) !work in
 
-      let eq x get set =
+      let eq x get set demand =
         match S.system x with
         | None -> S.Dom.bot ()
         | Some f ->
@@ -317,7 +317,7 @@ module Make0 =
             let _ = X.get_key x in (* set priority immediately! *)
             h_find_default sides x (S.Dom.bot ()) |> S.Dom.join v |> HM.replace sides x
           in
-          let d = f get collect_set in
+          let d = f get collect_set demand in
           HM.iter set sides;
           d
       in
@@ -397,7 +397,7 @@ module Make0 =
           let _ = P.insert stable x in
           let old = X.get_value x in
 
-          let tmp = do_side x (eq x (eval x) (side x)) in
+          let tmp = do_side x (eq x (eval x) (side x) (ignore )) in
           let use_box = (not (V.ver>1)) || HM.mem wpoint x in
           let restart_mode_x = h_find_default restart_mode x (2*GobConfig.get_int "solvers.slr4.restart_count") in
           let rstrt = use_box && (V.ver>3) && D.leq tmp old && restart_mode_x <> 0 in

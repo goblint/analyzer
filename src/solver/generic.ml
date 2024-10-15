@@ -173,7 +173,7 @@ module DirtyBoxSolver : GenericEqSolver =
           H.replace stbl x ();
           (* set the new value for [x] *)
           eval_rhs_event x;
-          Option.may (fun f -> set x (f (eval x) set)) (S.system x)
+          Option.may (fun f -> set x (f (eval x) set demand)) (S.system x)
         end
 
       (* return the value for [y] and mark its influence on [x] *)
@@ -204,6 +204,7 @@ module DirtyBoxSolver : GenericEqSolver =
           (* solve all dependencies *)
           solve_all deps
         end
+      and demand x = ()
 
       (* solve all elements of the list *)
       and solve_all xs =
@@ -255,7 +256,7 @@ module SoundBoxSolverImpl =
           (* set the new value for [x] *)
           eval_rhs_event x;
           let set_x d = if H.mem called x then set x d in
-          Option.may (fun f -> set_x (f (eval x) side)) (S.system x);
+          Option.may (fun f -> set_x (f (eval x) side demand)) (S.system x);
           (* remove [x] from called *)
           H.remove called x
         end
@@ -269,6 +270,8 @@ module SoundBoxSolverImpl =
         H.replace infl y (x :: h_find_default infl y []);
         (* return the value for [y] *)
         H.find sol y
+
+      and demand x = ()
 
       (* this is the function we give to [S.system] *)
       and side x d =
@@ -363,10 +366,11 @@ module PreciseSideEffectBoxSolver : GenericEqSolver =
           H.remove sols x;
           (* set the new value for [x] *)
           eval_rhs_event x;
-          Option.may (fun f -> set x (f (eval x) (side x))) (S.system x);
+          Option.may (fun f -> set x (f (eval x) (side x) demand )) (S.system x);
           (* remove [x] from called *)
           H.remove called x
         end
+      and demand x = ()
 
       (* return the value for [y] and mark its influence on [x] *)
       and eval x y =

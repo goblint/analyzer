@@ -98,7 +98,7 @@ module Make =
           );
           HM.replace wpoint y ()
         in
-        let tmp = eq x eval side in
+        let tmp = eq x eval side (ignore % eval) in
         let tmp = S.Dom.join tmp (sides x) in
         (* if (b && not (S.Dom.leq old tmp)) then ( *)
         (*   trace "sol" "Var: %a\nOld: %a\nTmp: %a" S.Var.pretty_trace x S.Dom.pretty old S.Dom.pretty tmp; *)
@@ -163,11 +163,11 @@ module Make =
         let w = try HM.find set x with Not_found -> VS.empty in
         let v = Enum.fold (fun d z -> try S.Dom.join d (HPM.find rho' (z,x)) with Not_found -> d) (S.Dom.bot ()) (VS.enum w)
         in if tracing then trace "sol" "SIDES: Var: %a\nVal: %a" S.Var.pretty_trace x S.Dom.pretty v; v
-      and eq x get set =
+      and eq x get set demand =
         eval_rhs_event x;
         match S.system x with
         | None -> S.Dom.bot ()
-        | Some f -> f get set
+        | Some f -> f get set demand
       in
 
       let set_start (x,d) =
