@@ -285,13 +285,13 @@ struct
       match S.system x with
       | None -> None
       | Some f ->
-        let f' get set =
+        let f' get set demand =
           let old_current_var = !current_var in
           current_var := Some x;
           Fun.protect ~finally:(fun () ->
               current_var := old_current_var
             ) (fun () ->
-              f get set
+              f get set demand
             )
         in
         Some f'
