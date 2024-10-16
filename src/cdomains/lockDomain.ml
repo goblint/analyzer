@@ -24,6 +24,8 @@ struct
     else
       Some false
 
+  let of_var v: t = (v, `NoOffset)
+
   let of_mval ((v, o): Mval.t): t =
     (v, Offset.Poly.map_indices (fun i -> IndexDomain.to_int i |> Option.get) o)
 
@@ -40,7 +42,7 @@ struct
 end
 
 (* true means exclusive lock and false represents reader lock*)
-module RW   = IntDomain.Booleans
+module RW   = BoolDomain.MayBool (* TODO: name booleans? *)
 
 (* pair Addr and RW; also change pretty printing*)
 module MakeRW (P: Printable.S) =

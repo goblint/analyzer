@@ -6,7 +6,8 @@ open GobApron
 
 module M = Messages
 
-let int_of_scalar ?round (scalar: Scalar.t) =
+
+let int_of_scalar ?(scalewith=Z.one) ?round (scalar: Scalar.t) =
   if Scalar.is_infty scalar <> 0 then (* infinity means unbounded *)
     None
   else
@@ -20,23 +21,26 @@ let int_of_scalar ?round (scalar: Scalar.t) =
         | None when Stdlib.Float.is_integer f -> Some f
         | None -> None
       in
-      Z.of_float f
+      Z.(of_float f * scalewith)
     | Mpqf scalar -> (* octMPQ, boxMPQ, polkaMPQ *)
       let n = Mpqf.get_num scalar in
       let d = Mpqf.get_den scalar in
+      let scale = Z_mlgmpidl.mpz_of_z scalewith in
       let+ z =
         if Mpzf.cmp_int d 1 = 0 then (* exact integer (denominator 1) *)
-          Some n
+          Some (Mpzf.mul scale n)
         else
           begin match round with
-            | Some `Floor -> Some (Mpzf.fdiv_q n d) (* floor division *)
-            | Some `Ceil -> Some (Mpzf.cdiv_q n d) (* ceiling division *)
-            | None -> None
+            | Some `Floor -> Some (Mpzf.mul scale (Mpzf.fdiv_q n d)) (* floor division *)
+            | Some `Ceil ->  Some (Mpzf.mul scale (Mpzf.cdiv_q n d)) (* ceiling division *)
+            | None -> let product = Mpzf.mul scale n in if Mpz.divisible_p product d then
+                Some (Mpzf.divexact product d) (* scale, preferably with common denominator *)
+              else None
           end
       in
       Z_mlgmpidl.z_of_mpzf z
     | _ ->
-      failwith ("int_of_scalar: unsupported: " ^ Scalar.to_string scalar)
+      failwith ("int_of_scalar: unsupported: " ^ Scalar.show scalar)
 
 
 module type ConvertArg =
@@ -136,7 +140,7 @@ struct
             let expr =
               (** simplify asks for a constant value of some subexpression e, similar to a constant fold. In particular but not exclusively
                   this query is answered by the 2 var equalities domain itself. This normalizes arbitrary expressions to a point where they
-                  might be able to be represented by means of 2 var equalities 
+                  might be able to be represented by means of 2 var equalities
 
                   This simplification happens during a time, when there are temporary variables a#in and a#out part of the expression,
                   but are not represented in the ctx, thus queries may result in top for these variables. Wrapping this in speculative
@@ -196,7 +200,7 @@ struct
     in
     let exp = Cil.constFold false exp in
     let res = conv exp in
-    if M.tracing then M.trace "relation" "texpr1_expr_of_cil_exp: %a -> %s (%b)" d_plainexp exp (Format.asprintf "%a" Texpr1.print_expr res) (Lazy.force no_ov);
+    if M.tracing then M.trace "relation" "texpr1_expr_of_cil_exp: %a -> %a (%b)" d_plainexp exp Texpr1.Expr.pretty res (Lazy.force no_ov);
     res
 
   let texpr1_of_cil_exp ask d env e no_ov =
@@ -245,11 +249,11 @@ module CilOfApron (V: SV) =
 struct
   exception Unsupported_Linexpr1
 
-  let cil_exp_of_linexpr1 (linexpr1:Linexpr1.t) =
+  let cil_exp_of_linexpr1 ?scalewith (linexpr1:Linexpr1.t) =
     let longlong = TInt(ILongLong,[]) in
     let coeff_to_const consider_flip (c:Coeff.union_5) = match c with
       | Scalar c ->
-        (match int_of_scalar c with
+        (match int_of_scalar ?scalewith c with
          | Some i ->
            let ci,truncation = truncateCilint ILongLong i in
            if truncation = NoTruncation then
@@ -263,15 +267,14 @@ struct
                else
                  Const (CInt(i,ILongLong,None)), false
            else
-             (M.warn ~category:Analyzer "Invariant Apron: coefficient is not int: %s" (Scalar.to_string c); raise Unsupported_Linexpr1)
+             (M.warn ~category:Analyzer "Invariant Apron: coefficient is not int: %a" Scalar.pretty c; raise Unsupported_Linexpr1)
          | None -> raise Unsupported_Linexpr1)
       | _ -> raise Unsupported_Linexpr1
     in
     let expr = ref (fst @@ coeff_to_const false (Linexpr1.get_cst linexpr1)) in
     let append_summand (c:Coeff.union_5) v =
       match V.to_cil_varinfo v with
-      | Some vinfo ->
-        (* TODO: What to do with variables that have a type that cannot be stored into ILongLong to avoid overflows? *)
+      | Some vinfo when IntDomain.Size.is_cast_injective ~from_type:vinfo.vtype ~to_type:(TInt(ILongLong,[]))   ->
         let var = Cilfacade.mkCast ~e:(Lval(Var vinfo,NoOffset)) ~newt:longlong in
         let coeff, flip = coeff_to_const true c in
         let prod = BinOp(Mult, coeff, var, longlong) in
@@ -279,17 +282,45 @@ struct
           expr := BinOp(MinusA,!expr,prod,longlong)
         else
           expr := BinOp(PlusA,!expr,prod,longlong)
-      | None -> M.warn ~category:Analyzer "Invariant Apron: cannot convert to cil var: %s"  (Var.to_string v); raise Unsupported_Linexpr1
+      | None -> M.warn ~category:Analyzer "Invariant Apron: cannot convert to cil var: %a" Var.pretty v; raise Unsupported_Linexpr1
+      | _ -> M.warn ~category:Analyzer "Invariant Apron: cannot convert to cil var in overflow preserving manner: %a" Var.pretty v; raise Unsupported_Linexpr1
     in
     Linexpr1.iter append_summand linexpr1;
     !expr
 
 
+  let lcm_den linexpr1 =
+    let exception UnsupportedScalar
+    in
+    let frac_of_scalar scalar =
+      if Scalar.is_infty scalar <> 0 then (* infinity means unbounded *)
+        None
+      else match scalar with
+        | Float f -> if Stdlib.Float.is_integer f then Some (Q.of_float f) else None
+        | Mpqf f -> Some (Z_mlgmpidl.q_of_mpqf f)
+        | _ -> raise UnsupportedScalar
+    in
+    let extract_den (c:Coeff.union_5) =
+      match c with
+      | Scalar c -> BatOption.map Q.den (frac_of_scalar c)
+      | _ -> None
+    in
+    let lcm_denom = ref (BatOption.default Z.one (extract_den (Linexpr1.get_cst linexpr1))) in
+    let lcm_coeff (c:Coeff.union_5) _ =
+      match (extract_den c) with
+      | Some z -> lcm_denom := Z.lcm z !lcm_denom
+      | _      -> ()
+    in
+    try
+      Linexpr1.iter lcm_coeff linexpr1; !lcm_denom
+    with UnsupportedScalar -> Z.one
+
   let cil_exp_of_lincons1 (lincons1:Lincons1.t) =
     let zero = Cil.kinteger ILongLong 0 in
     try
       let linexpr1 = Lincons1.get_linexpr1 lincons1 in
-      let cilexp = cil_exp_of_linexpr1 linexpr1 in
+      let common_denominator = lcm_den linexpr1 in
+      let cilexp = cil_exp_of_linexpr1 ~scalewith:common_denominator linexpr1 in
       match Lincons1.get_typ lincons1 with
       | EQ -> Some (Cil.constFold false @@ BinOp(Eq, cilexp, zero, TInt(IInt,[])))
       | SUPEQ -> Some (Cil.constFold false @@ BinOp(Ge, cilexp, zero, TInt(IInt,[])))

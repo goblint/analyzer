@@ -5,8 +5,8 @@ index 7c862a107..a043e249c 100644
 @@ -2,6 +2,7 @@
  struct s_t ;
  typedef struct s_t s_t;
- 
+
 +// Dummy change
  union union_t {
      int i;
-     s_t *s[sizeof(s_t *)]; // This caused problems
+     s_t *s[sizeof(s_t *)]; // NOCRASH: This caused problems

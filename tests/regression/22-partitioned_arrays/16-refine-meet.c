@@ -1,4 +1,5 @@
 // PARAM: --set ana.base.arrays.domain partitioned
+// NOCHECK
 int garr[7];
 
 int main(int argc, char **argv)

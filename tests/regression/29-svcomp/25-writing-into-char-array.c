@@ -1,3 +1,4 @@
+// NOCHECK
 #include<stdio.h>
 struct __anonstruct_mbox_t_232 {
    int one;

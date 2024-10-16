@@ -25,7 +25,7 @@ let recursive_int = lazy (
   let res = ref (Z.of_int 2) in (* Use OS X as the default, it doesn't have the enum *)
   GoblintCil.iterGlobals !Cilfacade.current_file (function
       | GEnumTag (einfo, _) ->
-        List.iter (fun (name, exp, _) ->
+        List.iter (fun (name, _, exp, _) ->
             if name = "PTHREAD_MUTEX_RECURSIVE" then
               res := Option.get @@ GoblintCil.getInteger exp
           ) einfo.eitems

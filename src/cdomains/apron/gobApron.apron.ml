@@ -1,6 +1,19 @@
 open Batteries
 include Apron
 
+module Scalar =
+struct
+  include Scalar
+
+  let pp = print
+  include Printable.SimpleFormat (
+    struct
+      type nonrec t = t
+      let pp = pp
+    end
+    )
+end
+
 module Coeff =
 struct
   include Coeff
@@ -11,6 +24,15 @@ end
 module Var =
 struct
   include Var
+
+  let pp = print
+  include Printable.SimpleFormat (
+    struct
+      type nonrec t = t
+      let pp = pp
+    end
+    )
+
   let equal x y = Var.compare x y = 0
 end
 
@@ -18,8 +40,17 @@ module Lincons1 =
 struct
   include Lincons1
 
-  let show = Format.asprintf "%a" print
-  let compare x y = String.compare (show x) (show y) (* HACK *)
+  let pp = print
+  include Printable.SimpleFormat (
+    struct
+      type nonrec t = t
+      let pp = pp
+    end
+    )
+
+  let compare x y =
+    (* TODO: implement proper total Lincons1 order *)
+    String.compare (show x) (show y) (* HACK *)
 
   let num_vars x =
     (* Apron.Linexpr0.get_size returns some internal nonsense, so we count ourselves. *)
@@ -43,11 +74,62 @@ struct
     |> of_enum
 end
 
+module Texpr1 =
+struct
+  include Texpr1
+
+  let pp = print
+  include Printable.SimpleFormat (
+    struct
+      type nonrec t = t
+      let pp = pp
+    end
+    )
+
+  module Expr =
+  struct
+    type t = expr
+
+    let pp = print_expr
+    include Printable.SimpleFormat (
+      struct
+        type nonrec t = t
+        let pp = pp
+      end
+      )
+  end
+end
+
+module Tcons1 =
+struct
+  include Tcons1
+
+  let pp = print
+  include Printable.SimpleFormat (
+    struct
+      type nonrec t = t
+      let pp = pp
+    end
+    )
+end
+
 (** A few code elements for environment changes from functions as remove_vars etc. have been moved to sharedFunctions as they are needed in a similar way inside affineEqualityDomain.
     A module that includes various methods used by variable handling operations such as add_vars, remove_vars etc. in apronDomain and affineEqualityDomain. *)
 module Environment =
 struct
   include Environment
+
+  let pp: Format.formatter -> Environment.t -> unit = Environment.print
+  include Printable.SimpleFormat (
+    struct
+      type nonrec t = t
+      let pp = pp
+    end
+    )
+
+  let compare (x: t) (y: t): int =
+    (* TODO: implement total Environment order in OCaml *)
+    failwith "Apron.Environment doesn't have total order" (* https://github.com/antoinemine/apron/issues/99 *)
 
   let ivars_only env =
     let ivs, fvs = Environment.vars env in
