@@ -110,7 +110,7 @@ depends: [
   "uutf" {= "1.0.3" & with-doc}
   "yaml" {= "3.2.0"}
   "yojson" {= "2.2.1"}
-  "zarith" {= "1.13"}
+  "zarith" {= "1.14"}
 ]
 build: [
   ["dune" "subst"] {dev}
