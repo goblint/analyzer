@@ -777,33 +777,37 @@ struct
             | _ -> assert false
           end
         | Const _ , _ -> st (* nothing to do *)
-        | CastE ((TFloat (_, _)), e), Float c ->
-          (match unrollType (Cilfacade.typeOf e), FD.get_fkind c with
-           | TFloat (FLongDouble as fk, _), FFloat
-           | TFloat (FDouble as fk, _), FFloat
-           | TFloat (FLongDouble as fk, _), FDouble
-           | TFloat (fk, _), FLongDouble
-           | TFloat (FDouble as fk, _), FDouble
-           | TFloat (FFloat as fk, _), FFloat -> inv_exp (Float (FD.cast_to fk c)) e st
-           | _ -> fallback (fun () -> Pretty.text "CastE: incompatible types") st)
-        | CastE ((TInt (ik, _)) as t, e), Int c
-        | CastE ((TEnum ({ekind = ik; _ }, _)) as t, e), Int c -> (* Can only meet the t part of an Lval in e with c (unless we meet with all overflow possibilities)! Since there is no good way to do this, we only continue if e has no values outside of t. *)
-          (match eval e st with
-           | Int i ->
-             (match unrollType (Cilfacade.typeOf e) with
-              | (TInt(ik_e, _) as t')
-              | (TEnum ({ekind = ik_e; _ }, _) as t') ->
-                if VD.is_dynamically_safe_cast t t' (Int i) then
-                  (* let c' = ID.cast_to ik_e c in *)
-                  (* Suppressing overflow warnings as this is not a computation that comes from the program *)
-                  let res_range = (ID.cast_to ~suppress_ovwarn:true ik (ID.top_of ik_e)) in
-                  let c' = ID.cast_to ik_e (ID.meet c res_range) in (* TODO: cast without overflow, is this right for normal invariant? *)
-                  if M.tracing then M.tracel "inv" "cast: %a from %a to %a: i = %a; cast c = %a to %a = %a" d_exp e d_ikind ik_e d_ikind ik ID.pretty i ID.pretty c d_ikind ik_e ID.pretty c';
-                  inv_exp (Int c') e st
-                else
-                  fallback (fun () -> Pretty.dprintf "CastE: %a evaluates to %a which is bigger than the type it is cast to which is %a" d_plainexp e ID.pretty i CilType.Typ.pretty t) st
-              | x -> fallback (fun () -> Pretty.dprintf "CastE: e did evaluate to Int, but the type did not match %a" CilType.Typ.pretty t) st)
-           | v -> fallback (fun () -> Pretty.dprintf "CastE: e did not evaluate to Int, but %a" VD.pretty v) st)
+        | CastE (t, e), c_typed ->
+          begin match Cil.unrollType t, c_typed with
+            | TFloat (_, _), Float c ->
+              (match unrollType (Cilfacade.typeOf e), FD.get_fkind c with
+               | TFloat (FLongDouble as fk, _), FFloat
+               | TFloat (FDouble as fk, _), FFloat
+               | TFloat (FLongDouble as fk, _), FDouble
+               | TFloat (fk, _), FLongDouble
+               | TFloat (FDouble as fk, _), FDouble
+               | TFloat (FFloat as fk, _), FFloat -> inv_exp (Float (FD.cast_to fk c)) e st
+               | _ -> fallback (fun () -> Pretty.text "CastE: incompatible types") st)
+            | (TInt (ik, _) as t), Int c
+            | (TEnum ({ekind = ik; _ }, _) as t), Int c -> (* Can only meet the t part of an Lval in e with c (unless we meet with all overflow possibilities)! Since there is no good way to do this, we only continue if e has no values outside of t. *)
+              (match eval e st with
+               | Int i ->
+                 (match unrollType (Cilfacade.typeOf e) with
+                  | (TInt(ik_e, _) as t')
+                  | (TEnum ({ekind = ik_e; _ }, _) as t') ->
+                    if VD.is_dynamically_safe_cast t t' (Int i) then
+                      (* let c' = ID.cast_to ik_e c in *)
+                      (* Suppressing overflow warnings as this is not a computation that comes from the program *)
+                      let res_range = (ID.cast_to ~suppress_ovwarn:true ik (ID.top_of ik_e)) in
+                      let c' = ID.cast_to ik_e (ID.meet c res_range) in (* TODO: cast without overflow, is this right for normal invariant? *)
+                      if M.tracing then M.tracel "inv" "cast: %a from %a to %a: i = %a; cast c = %a to %a = %a" d_exp e d_ikind ik_e d_ikind ik ID.pretty i ID.pretty c d_ikind ik_e ID.pretty c';
+                      inv_exp (Int c') e st
+                    else
+                      fallback (fun () -> Pretty.dprintf "CastE: %a evaluates to %a which is bigger than the type it is cast to which is %a" d_plainexp e ID.pretty i CilType.Typ.pretty t) st
+                  | x -> fallback (fun () -> Pretty.dprintf "CastE: e did evaluate to Int, but the type did not match %a" CilType.Typ.pretty t) st)
+               | v -> fallback (fun () -> Pretty.dprintf "CastE: e did not evaluate to Int, but %a" VD.pretty v) st)
+            | _, _ -> fallback (fun () -> Pretty.dprintf "CastE: %a not implemented" d_plainexp (CastE (t, e))) st
+          end
         | e, _ -> fallback (fun () -> Pretty.dprintf "%a not implemented" d_plainexp e) st
     in
     if eval_bool exp st = Some (not tv) then contra st (* we already know that the branch is dead *)
