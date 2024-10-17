@@ -212,7 +212,7 @@ struct
     let res = Result.create 113 in
 
     (* Adding the state at each system variable to the final result *)
-    let add_local_var (n,es) state =
+    let add_local_var (n,(es,_)) state =
       (* Not using Node.location here to have updated locations in incremental analysis.
           See: https://github.com/goblint/analyzer/issues/290#issuecomment-881258091. *)
       let loc = UpdateCil.getLoc n in
@@ -477,12 +477,12 @@ struct
     in
     let startvars' =
       if get_bool "exp.forward" then
-        List.map (fun (n,e) -> (MyCFG.FunctionEntry n, Spec.context (ctx e) n e)) startvars
+        List.map (fun (n,e) -> (MyCFG.FunctionEntry n, (Spec.context (ctx e) n e, LoopCounts.empty ()))) startvars
       else
-        List.map (fun (n,e) -> (MyCFG.Function n, Spec.context (ctx e) n e)) startvars
+        List.map (fun (n,e) -> (MyCFG.Function n, (Spec.context (ctx e) n e, LoopCounts.empty ()))) startvars
     in
 
-    let entrystates = List.map (fun (n,e) -> (MyCFG.FunctionEntry n, Spec.context (ctx e) n e), e) startvars in
+    let entrystates = List.map (fun (n,e) -> (MyCFG.FunctionEntry n, (Spec.context (ctx e) n e, LoopCounts.empty ())), e) startvars in
     let entrystates_global = GHT.to_list gh in
 
     let uncalled_dead = ref 0 in

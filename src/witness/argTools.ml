@@ -61,7 +61,7 @@ struct
 
   module Query = ResultQuery.Query (SpecSys)
 
-  let get: node * Spec.C.t -> Spec.D.t =
+  let get: node * (Spec.C.t * Analyses.LoopCounts.t) -> Spec.D.t =
     fun nc -> LHT.find_default lh nc (Spec.D.bot ())
 
   let ask_indices lvar =
@@ -75,13 +75,13 @@ struct
 
   module Node =
   struct
-    type t = Node.t * Spec.C.t * int [@@deriving eq, ord, hash]
+    type t = Node.t * (Spec.C.t * Analyses.LoopCounts.t) * int [@@deriving eq, ord, hash]
 
-    let cfgnode (n, c, i) = n
-    let context_id (n, c, i) = Spec.C.tag c
-    let path_id (n, c, i) = i
+    let cfgnode (n, _, _) = n
+    let context_id (_, (c,_), _) = Spec.C.tag c
+    let path_id (_, _, i) = i
 
-    let to_string (n, c, i) =
+    let to_string (n, (c,_), i) =
       (* copied from NodeCtxStackGraphMlWriter *)
       let c_tag = Spec.C.tag c in
       let i_str = string_of_int i in
@@ -106,7 +106,7 @@ struct
 
   module NHT = BatHashtbl.Make (Node)
 
-  let create entrystates: (module BiArg with type Node.t = MyCFG.node * Spec.C.t * int) =
+  let create entrystates: (module BiArg with type Node.t = MyCFG.node * (Spec.C.t * Analyses.LoopCounts.t) * int) =
     let (witness_prev_map, witness_prev, witness_next) =
       (* Get all existing vars *)
       let vars = NHT.create 100 in
@@ -121,7 +121,7 @@ struct
       let next = NHT.create 100 in
       LHT.iter (fun lvar local ->
           ignore (ask_local lvar ~local (Queries.IterPrevVars (fun i (prev_node, prev_c_obj, j) edge ->
-              let prev_lvar: NHT.key = (prev_node, Obj.obj prev_c_obj, j) in
+              let prev_lvar: NHT.key = (prev_node, (Obj.obj prev_c_obj, Analyses.LoopCounts.empty ()), j) in
               (* Exclude accumulated prevs, which were pruned *)
               if NHT.mem vars prev_lvar then (
                 let lvar' = (fst lvar, snd lvar, i) in
@@ -184,7 +184,7 @@ struct
         R.ask_local (n, c) (PathQuery (i, q))
     end
     in
-    (module Arg: BiArg with type Node.t = MyCFG.node * Spec.C.t * int)
+    (module Arg: BiArg with type Node.t = MyCFG.node * (Spec.C.t * Analyses.LoopCounts.t) * int)
 
   let create entrystates =
     Timing.wrap "arg create" create entrystates

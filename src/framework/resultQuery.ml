@@ -6,15 +6,15 @@ module Query (SpecSys: SpecSys) =
 struct
   open SpecSys
 
-  let ask_local (gh: EQSys.G.t GHT.t) (lvar:EQSys.LVar.t) local =
+  let ask_local (gh: EQSys.G.t GHT.t) ((n,(c,l)):EQSys.LVar.t) local =
     (* build a ctx for using the query system *)
     let rec ctx =
       { ask    = (fun (type a) (q: a Queries.t) -> Spec.query ctx q)
       ; emit   = (fun _ -> failwith "Cannot \"emit\" in witness context.")
-      ; node   = fst lvar
+      ; node   = n
       ; prev_node = MyCFG.dummy_node
-      ; control_context = (fun () -> Obj.magic (snd lvar)) (* magic is fine because Spec is top-level Control Spec *)
-      ; context = (fun () -> snd lvar)
+      ; control_context = (fun () -> Obj.magic c) (* magic is fine because Spec is top-level Control Spec *)
+      ; context = (fun () -> c)
       ; edge    = MyCFG.Skip
       ; local  = local
       ; global = (fun g -> try EQSys.G.spec (GHT.find gh (EQSys.GVar.spec g)) with Not_found -> Spec.G.bot ()) (* see 29/29 on why fallback is needed *)

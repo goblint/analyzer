@@ -47,6 +47,38 @@ struct
   let is_write_only _ = false
 end
 
+module CountParam =
+struct
+  let n () = GobConfig.get_int "exp.unrolling-factor" + 1
+  let names = string_of_int
+end
+module Count = Lattice.Chain (CountParam)
+module LoopCounts = MapDomain.MapBot (Node) (Count)
+
+module UnrollVarF (LD: Printable.S) =
+struct
+
+  type t = Node.t * (LD.t * LoopCounts.t) [@@deriving eq, ord, hash]
+  let relift (n,(x,l)) = n, (LD.relift x, LoopCounts.relift l)
+
+  let getLocation (n,(d,l)) = Node.location n
+
+  let pretty_trace () ((n,(c,l)) as x) =
+    if get_bool "dbg.trace.context" then dprintf "(%a, %a) on %a" Node.pretty_trace n LD.pretty c CilType.Location.pretty (getLocation x)
+    (* if get_bool "dbg.trace.context" then dprintf "(%a, %d) on %a" Node.pretty_trace n (LD.tag c) CilType.Location.pretty (getLocation x) *)
+    else dprintf "%a on %a" Node.pretty_trace n CilType.Location.pretty (getLocation x)
+
+  let printXml f (n,(c,l)) =
+    Var.printXml f n;
+    BatPrintf.fprintf f "<context>\n";
+    LD.printXml f c;
+    BatPrintf.fprintf f "</context>\n"
+
+  let var_id (n,_) = Var.var_id n
+  let node (n,_) = n
+  let is_write_only _ = false
+end
+
 module type SpecSysVar =
 sig
   include Printable.S
@@ -434,7 +466,7 @@ end
 module type SpecSys =
 sig
   module Spec: Spec
-  module EQSys: ConstrSys.GlobConstrSys with module LVar = VarF (Spec.C)
+  module EQSys: ConstrSys.GlobConstrSys with module LVar = UnrollVarF (Spec.C)
                                and module GVar = GVarF (Spec.V)
                                and module D = Spec.D
                                and module G = GVarG (Spec.G) (Spec.C)

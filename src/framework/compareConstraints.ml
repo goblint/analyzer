@@ -184,7 +184,7 @@ struct
     Logs.newline ();
 end
 
-module CompareNode (C: Printable.S) (D: Lattice.S) (LH: Hashtbl.S with type key = VarF (C).t) =
+module CompareNode (C: Printable.S) (D: Lattice.S) (LH: Hashtbl.S with type key = UnrollVarF (C).t) =
 struct
   module Node =
   struct

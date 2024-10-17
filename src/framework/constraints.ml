@@ -18,18 +18,18 @@ end
 (** The main point of this file---generating a [GlobConstrSys] from a [Spec]. *)
 module FromSpec (S:Spec) (Cfg:CfgBackward) (I: Increment)
   : sig
-    include GlobConstrSys with module LVar = VarF (S.C)
+    include GlobConstrSys with module LVar = UnrollVarF (S.C)
                            and module GVar = GVarF (S.V)
                            and module D = S.D
                            and module G = GVarG (S.G) (S.C)
   end
 =
 struct
-  type lv = MyCFG.node * S.C.t
+  type lv = MyCFG.node * (S.C.t * LoopCounts.t)
   (* type gv = varinfo *)
   type ld = S.D.t
   (* type gd = S.G.t *)
-  module LVar = VarF (S.C)
+  module LVar = UnrollVarF (S.C)
   module GVar = GVarF (S.V)
   module D = S.D
   module G = GVarG (S.G) (S.C)
@@ -50,17 +50,17 @@ struct
     if !AnalysisState.postsolving then
       sideg (GVar.contexts f) (G.create_contexts (G.CSet.singleton c))
 
-  let common_ctx var edge prev_node pval (getl:lv -> ld) sidel getg sideg : (D.t, S.G.t, S.C.t, S.V.t) ctx * D.t list ref * (lval option * varinfo * exp list * D.t * bool) list ref =
+  let common_ctx (n,(c,l)) edge prev_node pval (getl:lv -> ld) sidel getg sideg : (D.t, S.G.t, S.C.t, S.V.t) ctx * D.t list ref * (lval option * varinfo * exp list * D.t * bool) list ref =
     let r = ref [] in
     let spawns = ref [] in
     (* now watch this ... *)
     let rec ctx =
       { ask     = (fun (type a) (q: a Queries.t) -> S.query ctx q)
       ; emit    = (fun _ -> failwith "emit outside MCP")
-      ; node    = fst var
+      ; node    = n
       ; prev_node = prev_node
-      ; control_context = snd var |> Obj.obj
-      ; context = snd var |> Obj.obj
+      ; control_context = c |> Obj.obj
+      ; context = c |> Obj.obj
       ; edge    = edge
       ; local   = pval
       ; global  = (fun g -> G.spec (getg (GVar.spec g)))
@@ -77,8 +77,8 @@ struct
           match Cilfacade.find_varinfo_fundec f with
           | fd ->
             let c = S.context ctx fd d in
-            sidel (FunctionEntry fd, c) d;
-            ignore (getl (Function fd, c))
+            sidel (FunctionEntry fd, (c, l)) d;
+            ignore (getl (Function fd, (c, l)))
           | exception Not_found ->
             (* unknown function *)
             M.error ~category:Imprecise ~tags:[Category Unsound] "Created a thread from unknown function %s" f.vname
@@ -156,7 +156,7 @@ struct
   let tf_entry var edge prev_node fd getl sidel getg sideg d =
     (* Side effect function context here instead of at sidel to FunctionEntry,
        because otherwise context for main functions (entrystates) will be missing or pruned during postsolving. *)
-    let c: unit -> S.C.t = snd var |> Obj.obj in
+    let c: unit -> S.C.t = fst (snd var) |> Obj.obj in
     side_context sideg fd (c ());
     let ctx, r, spawns = common_ctx var edge prev_node d getl sidel getg sideg in
     let d = S.body ctx fd in (* Force transfer function to be evaluated before dereferencing in common_join argument. *)
@@ -167,7 +167,7 @@ struct
     let d = S.branch ctx e tv in (* Force transfer function to be evaluated before dereferencing in common_join argument. *)
     common_join ctx d !r !spawns
 
-  let tf_normal_call ctx lv e (f:fundec) args getl sidel getg sideg =
+  let tf_normal_call var ctx lv e (f:fundec) args getl sidel getg sideg =
     let combine (cd, fc, fd) =
       if M.tracing then M.traceli "combine" "local: %a" S.D.pretty cd;
       if M.tracing then M.trace "combine" "function: %a" S.D.pretty fd;
@@ -222,8 +222,8 @@ struct
     in
     let paths = S.enter ctx lv f args in
     let paths = List.map (fun (c,v) -> (c, S.context ctx f v, v)) paths in
-    List.iter (fun (c,fc,v) -> if not (S.D.is_bot v) then sidel (FunctionEntry f, fc) v) paths;
-    let paths = List.map (fun (c,fc,v) -> (c, fc, if S.D.is_bot v then v else getl (Function f, fc))) paths in
+    List.iter (fun (c,fc,v) -> if not (S.D.is_bot v) then sidel (FunctionEntry f, (fc, snd (snd var))) v) paths;
+    let paths = List.map (fun (c,fc,v) -> (c, fc, if S.D.is_bot v then v else getl (Function f, (fc, snd (snd var))))) paths in
     (* Don't filter bot paths, otherwise LongjmpLifter is not called. *)
     (* let paths = List.filter (fun (c,fc,v) -> not (D.is_bot v)) paths in *)
     let paths = List.map (Tuple3.map2 Option.some) paths in
@@ -261,7 +261,7 @@ struct
                 M.info ~category:Analyzer "Using special for defined function %s" f.vname;
                 tf_special_call ctx lv f args
               | fd ->
-                tf_normal_call ctx lv e fd args getl sidel getg sideg
+                tf_normal_call var ctx lv e fd args getl sidel getg sideg
               | exception Not_found ->
                 tf_special_call ctx lv f args)
           end
@@ -325,12 +325,12 @@ struct
         d
       )
 
-  let tf (v,c) (edges, u) getl sidel getg sideg =
-    let pval = getl (u,c) in
+  let tf (v,(c,l)) (edges, u) getl sidel getg sideg =
+    let pval = getl (u,(c,l)) in
     let _, locs = List.fold_right (fun (f,e) (t,xs) -> f, (f,t)::xs) edges (Node.location v,[]) in
-    List.fold_left2 (|>) pval (List.map (tf (v,Obj.repr (fun () -> c)) getl sidel getg sideg u) edges) locs
+    List.fold_left2 (|>) pval (List.map (tf (v,(Obj.repr (fun () -> c),l)) getl sidel getg sideg u) edges) locs
 
-  let tf (v,c) (e,u) getl sidel getg sideg =
+  let tf (v,(c,l)) (e,u) getl sidel getg sideg =
     let old_node = !current_node in
     let old_fd = Option.map Node.find_fundec old_node |? Cil.dummyFunDec in
     let new_fd = Node.find_fundec v in
@@ -345,17 +345,17 @@ struct
         if not (CilType.Fundec.equal old_fd new_fd) then
           Timing.Program.exit new_fd.svar.vname
       ) (fun () ->
-        let d       = tf (v,c) (e,u) getl sidel getg sideg in
+        let d       = tf (v,(c,l)) (e,u) getl sidel getg sideg in
         d
       )
 
-  let system (v,c) =
+  let system (v,(c,l)) =
     match v with
     | FunctionEntry _ ->
       None
     | _ ->
       let tf getl sidel getg sideg =
-        let tf' eu = tf (v,c) eu getl sidel getg sideg in
+        let tf' eu = tf (v,(c,l)) eu getl sidel getg sideg in
 
         match NodeH.find_option CfgTools.node_scc_global v with
         | Some scc when NodeH.mem scc.prev v && NodeH.length scc.prev = 1 ->
@@ -406,7 +406,7 @@ struct
       let fd = Option.default_delayed (fun () -> Node.find_fundec node) fundec in
       let cs = G.contexts (getg (GVar.contexts fd)) in
       G.CSet.iter (fun c ->
-          fl (node, c)
+          fl (node, (c, LoopCounts.empty ())) (* TODO: empty map *)
         ) cs
     | _ ->
       ()
