@@ -6,8 +6,7 @@
 
     @see <http://www2.in.tum.de/bib/files/mihaila13widening.pdf> Mihaila, B., Sepp, A. & Simon, A. Widening as Abstract Domain. *)
 
-(** Widening token. *)
-module Token = Basetype.RawStrings (* Change to variant type if need other tokens than witness UUIDs. *)
+module Token = WideningToken
 
 (** Widening token set. *)
 module TS = SetDomain.ToppedSet (Token) (struct let topname = "Top" end)
