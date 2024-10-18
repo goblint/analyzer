@@ -20,9 +20,10 @@ let reset_lazy () =
 
 
 type t = string option [@@deriving eq, ord, hash]
+(** [None] means top. *)
 
 let hash x =
-  if get_string_domain () = Disjoint then
+  if get_string_domain () <> Unit then
     hash x
   else
     13859
