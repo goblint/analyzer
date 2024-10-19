@@ -20,6 +20,7 @@ struct
   struct
     include Node
     let is_write_only _ = true
+    let is_category x c = false
   end
   module G = AccessDomain.EventSet
 

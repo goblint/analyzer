@@ -6,6 +6,7 @@ module type SysVar =
 sig
   type t
   val is_write_only: t -> bool
+  val is_category: t -> Variables.category -> bool
 end
 
 module type VarType =
@@ -159,6 +160,10 @@ struct
   let is_write_only = function
     | `L a -> LV.is_write_only a
     | `G a -> GV.is_write_only a
+
+  let is_category x c = match x with
+    | `L x -> LV.is_category x c
+    | `G x -> GV.is_category x c
 end
 
 

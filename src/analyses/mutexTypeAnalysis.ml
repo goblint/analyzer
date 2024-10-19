@@ -18,6 +18,7 @@ struct
   module V = struct
     include Printable.Prod(CilType.Varinfo)(O) (* TODO: use Mval.Unit *)
     let is_write_only _ = false
+    let is_category _ _ = false
   end
 
   module G = MAttr

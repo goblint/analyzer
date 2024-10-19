@@ -19,6 +19,7 @@ struct
     struct
       include Lock
       let is_write_only _ = true
+      let is_category _ _ = false
     end
 
     module G = MapDomain.MapBot (Lock) (MayLockEventPairs)

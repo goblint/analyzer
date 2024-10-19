@@ -1287,6 +1287,9 @@ struct
     let is_write_only = function
       | `Left x -> S.V.is_write_only x
       | `Right _ -> true
+    let is_category x c = match x with
+      | `Left x -> S.V.is_category x c
+      | `Right _ -> false
   end
 
   module EM =
@@ -1423,6 +1426,10 @@ struct
     let is_write_only = function
       | `Left x -> S.V.is_write_only x
       | _ -> false
+    let is_category x c = match x with
+      | `Left x -> S.V.is_category x c
+      | _ -> false
+
   end
 
   module G =
@@ -1982,6 +1989,7 @@ struct
     let var_id _ = "nodes"
     let node x = x
     let is_write_only _ = false
+    let is_category _ _ = false
   end
   module NH = Hashtbl.Make (Node)
 

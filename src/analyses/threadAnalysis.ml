@@ -18,6 +18,7 @@ struct
   struct
     include T
     include StdV
+    let is_category x c = match c with | Variables.Concurrency -> true | _ -> false
   end
   module P = IdentityP (D)
 

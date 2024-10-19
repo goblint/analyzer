@@ -46,12 +46,15 @@ struct
   let var_id (n,_) = Var.var_id n
   let node (n,_) = n
   let is_write_only _ = false
+  let is_category _ _ = false
 end
 
 module type SpecSysVar =
 sig
   include Printable.S
   include ConstrSys.SysVar with type t := t
+
+  val is_category: t -> Variables.category -> bool
 end
 
 module GVarF (V: SpecSysVar) =
@@ -68,6 +71,9 @@ struct
   let is_write_only = function
     | `Left x -> V.is_write_only x
     | `Right _ -> true
+  let is_category x c = match x with
+    | `Left x -> V.is_category x c
+    | `Right _ -> false
 end
 
 module GVarFC (V:SpecSysVar) (C:Printable.S) =
@@ -84,6 +90,9 @@ struct
   let is_write_only = function
     | `Left x -> V.is_write_only x
     | `Right _ -> true
+  let is_category x c = match x with
+    | `Left x -> V.is_category x c
+    | `Right _ -> false
 end
 
 module GVarG (G: Lattice.S) (C: Printable.S) =
@@ -304,6 +313,7 @@ type increment_data = {
 module StdV =
 struct
   let is_write_only _ = false
+  let is_category x c = false
 end
 
 module UnitV =

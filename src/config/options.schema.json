@@ -2063,6 +2063,12 @@
           "title": "dbg.compare_runs",
           "type": "object",
           "properties": {
+            "varfilter": {
+              "title": "dbg.compare_runs.varfilter",
+              "type": "array",
+              "items": { "type": "string" },
+              "default": []
+            },
             "globsys": {
               "title": "dbg.compare_runs.globsys",
               "description": "Compare GlobConstrSys in compare_runs",

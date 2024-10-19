@@ -51,6 +51,9 @@ struct
     let priv x = `Left x
     let thread x = `Right x
     include StdV
+    let is_category x c = match x with
+      | `Left x -> (match c with | Variables.Privatization | Variables.Concurrency -> true | _ -> false)
+      | `Right x -> (match c with | Variables.Concurrency -> true | _ -> false)
   end
 
   module G =

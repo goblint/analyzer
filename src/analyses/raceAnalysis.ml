@@ -144,6 +144,7 @@ struct
     let access x = `Left x
     let vars x = `Right x
     let is_write_only _ = true
+    let is_category x c = false
   end
 
   module MemoSet = SetDomain.Make (Access.Memo)

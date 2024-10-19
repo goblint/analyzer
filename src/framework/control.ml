@@ -525,8 +525,16 @@ struct
               CompareEqSys.compare (d1, d2) r1' r2';
 
             let module CompareGlobal = Constraints.CompareGlobal (EQSys.GVar) (EQSys.G) (GHT) in
-            if get_bool "dbg.compare_runs.global" then
-              CompareGlobal.compare (d1, d2) (snd r1) (snd r2);
+            if get_bool "dbg.compare_runs.global" then (
+              let filters = get_string_list "dbg.compare_runs.varfilter" in
+              let filters = List.map Variables.from_str filters in
+              let my_filter = if not @@ List.is_empty filters then
+                  (fun (x:EQSys.GVar.t) _ -> List.fold (fun b c -> (EQSys.GVar.is_category x c) || b) false filters)
+                else
+                  (fun _ _ -> true) in
+              CompareGlobal.compare (d1, d2) (GHT.filteri my_filter (snd r1)) (GHT.filteri my_filter (snd r2));
+              (*CompareGlobal.compare (d1, d2) (snd r1) (snd r2);*)
+            );
 
             let module CompareNode = Constraints.CompareNode (Spec.C) (EQSys.D) (LHT) in
             if get_bool "dbg.compare_runs.node" then

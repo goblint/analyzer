@@ -25,6 +25,7 @@ struct
   struct
     include TID
     include StdV
+    let is_category x c = match c with | Variables.Concurrency -> true | _ -> false
   end
 
   (* transfer functions *)

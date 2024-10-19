@@ -40,6 +40,9 @@ struct
       let is_write_only = function
         | `Left _ -> false
         | `Right _ -> true
+      let is_category x c = match c with
+        | Variables.Mutex | Variables.Concurrency -> true
+        | _ -> false
     end
 
     module MakeP (G0: Lattice.S) = struct
