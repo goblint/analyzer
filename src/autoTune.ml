@@ -194,7 +194,7 @@ let reduceThreadAnalyses () =
   let isThreadCreate (desc: LibraryDesc.t) args =
     match desc.special args with
     | LibraryDesc.ThreadCreate _ -> true
-    | _ -> false
+    | _ -> LibraryDesc.Accesses.find_kind desc.accs Spawn args <> []
   in
   let hasThreadCreate = hasFunction isThreadCreate in
   if not @@ hasThreadCreate then (
