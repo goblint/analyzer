@@ -17,7 +17,8 @@ module WP =
     struct
       type t = S.Var.t * S.Var.t [@@deriving eq, hash]
     end
-
+    
+    module HPM = Hashtbl.Make (P)
     type phase = Widen | Narrow
 
     let solve st vs =
@@ -25,12 +26,19 @@ module WP =
       let infl   = HM.create  10 in (* y -> xs *)
       let called = HM.create  10 in
       let rho    = HM.create  10 in
-      let rho'   = HM.create  10 in
+      let rho'   = HPM.create 10 in (* x,y -> d *)
+      let set    = HM.create  10 in (* y -> xs *)
       let wpoint = HM.create  10 in
+      let sidevs = HM.create  10 in (* side-effected variables *)
 
       let add_infl y x =
         if tracing then trace "sol2" "add_infl %a %a" S.Var.pretty_trace y S.Var.pretty_trace x;
         HM.replace infl y (VS.add x (try HM.find infl y with Not_found -> VS.empty))
+      in
+      let add_set x y d =
+        HM.replace set y (VS.add x (try HM.find set y with Not_found -> VS.empty));
+        HPM.add rho' (x,y) d;
+        HM.replace sidevs y ()
       in
       let rec destabilize x =
         if tracing then trace "sol2" "destabilize %a" S.Var.pretty_trace x;
@@ -48,8 +56,8 @@ module WP =
           let wpx = HM.mem wpoint x in
           init x;
           let old = HM.find rho x in
-          let tmp = eq x (eval x) side demand in
-          let tmp = S.Dom.join tmp (try HM.find rho' x with Not_found -> S.Dom.bot ()) in
+          let tmp' = eq x (eval x) (side x) (ignore % eval x) in
+          let tmp = S.Dom.join tmp' (sides x) in
           if tracing then trace "sol" "Var: %a" S.Var.pretty_trace x ;
           if tracing then trace "sol" "Contrib:%a" S.Dom.pretty tmp;
           HM.remove called x;
@@ -74,20 +82,33 @@ module WP =
         eval_rhs_event x;
         match S.system x with
         | None -> S.Dom.bot ()
-        | Some f -> f get set demand
+        | Some f -> 
+          let effects = ref Set.empty in
+          let sidef y d =
+            if not (Set.mem y !effects) then (
+              HPM.replace rho' (x,y) (S.Dom.bot ());
+              effects := Set.add y !effects
+            );
+            set y d
+          in
+          f get sidef demand
       and eval x y =
         if tracing then trace "sol2" "eval %a ## %a" S.Var.pretty_trace x S.Var.pretty_trace y;
         get_var_event y;
-        if HM.mem called y then HM.replace wpoint y ();
+        if HM.mem called y || S.system y = None then HM.replace wpoint y ();
         solve y Widen;
         add_infl y x;
         HM.find rho y
-      and side y d =
-        let old = try HM.find rho' y with Not_found -> S.Dom.bot () in
-        if not (S.Dom.leq d old) then (
-          HM.replace rho' y (S.Dom.widen old d);
+      and sides x =
+        let w = try HM.find set x with Not_found -> VS.empty in
+        let d = Enum.fold (fun d y -> let r = try S.Dom.join d (HPM.find rho' (y,x)) with Not_found -> d in if tracing then trace "sol2" "sides: side %a from %a: %a" S.Var.pretty_trace x S.Var.pretty_trace y S.Dom.pretty r; r) (S.Dom.bot ()) (VS.enum w) in
+        if tracing then trace "sol2" "sides %a ## %a" S.Var.pretty_trace x S.Dom.pretty d;
+        d
+      and side x y d =
+        let old = try HPM.find rho' (x,y) with Not_found -> S.Dom.bot () in
+        if not (S.Dom.equal old d) then (
+          add_set x y (S.Dom.join old d);
           HM.remove stable y;
-          init y;
           solve y Widen;
         )
       and demand y = ()
@@ -96,13 +117,14 @@ module WP =
         if not (HM.mem rho x) then (
           new_var_event x;
           HM.replace rho  x (S.Dom.bot ())
-        )
+        );
+
       in
 
       let set_start (x,d) =
         if tracing then trace "sol2" "set_start %a ## %a" S.Var.pretty_trace x S.Dom.pretty d;
         init x;
-        HM.replace rho x d;
+        add_set x x d;
         solve x Widen
       in
 
@@ -115,10 +137,17 @@ module WP =
        * - reachable from any of the queried variables vs, or
        * - effected by side-effects and have no constraints on their own (this should be the case for all of our analyses)
        *)
+      let keys h = HM.fold (fun k _ a -> k::a) h [] in
+      let n = ref 1 in
+
       let rec solve_sidevs () =
-        let non_stable = List.filter (neg (HM.mem stable)) vs in
-        if non_stable <> [] then (
-          List.iter (fun x -> solve x Widen) non_stable;
+        let gs = keys sidevs in
+        HM.clear sidevs;
+        if gs <> [] then (
+          if tracing then trace "sol2" "Round %d: %d side-effected variables to solve" !n (List.length gs);
+          incr n;
+          List.iter (fun x -> solve x Widen) gs;
+          List.iter (fun x -> solve x Widen) vs;
           solve_sidevs ()
         )
       in
@@ -127,7 +156,8 @@ module WP =
 
       HM.clear stable;
       HM.clear infl  ;
-      HM.clear rho'  ;
+      HM.clear set   ;
+      HPM.clear rho' ;
 
       rho
 
