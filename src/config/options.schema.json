@@ -1544,6 +1544,19 @@
             }
           },
           "additionalProperties": false
+        },
+        "atexit": {
+          "title": "sem.atexit",
+          "type": "object",
+          "properties": {
+            "ignore": {
+              "title": "sem.atexit.ignore",
+              "description": "Ignore atexit callbacks (unsound).",
+              "type": "boolean",
+              "default": false
+            }
+          },
+          "additionalProperties": false
         }
       },
       "additionalProperties": false

@@ -145,7 +145,7 @@ let c_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("_setjmp", special [__ "env" [w]] @@ fun env -> Setjmp { env }); (* only has one underscore *)
     ("setjmp", special [__ "env" [w]] @@ fun env -> Setjmp { env });
     ("longjmp", special [__ "env" [r]; __ "value" []] @@ fun env value -> Longjmp { env; value });
-    ("atexit", unknown [drop "function" [s]]);
+    ("atexit", unknown [drop "function" [if_ (fun () -> not (get_bool "sem.atexit.ignore")) s]]);
     ("atoi", unknown [drop "nptr" [r]]);
     ("atol", unknown [drop "nptr" [r]]);
     ("atoll", unknown [drop "nptr" [r]]);
