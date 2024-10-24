@@ -157,7 +157,7 @@ let hasFunction pred =
     Goblint_backtrace.wrap_val ~mark:(Cilfacade.FunVarinfo var) @@ fun () ->
     if LibraryFunctions.is_special var then
       let desc = LibraryFunctions.find var in
-      GobOption.exists (fun args -> pred (desc.special args)) (functionArgs var)
+      GobOption.exists (fun args -> pred desc args) (functionArgs var)
     else
       false
   in
@@ -169,7 +169,7 @@ let hasFunction pred =
       match unrollType var.vtype with
       | TFun (_, args, _, _) ->
         let args = BatOption.map_default (List.map (fun (x,_,_) -> MyCFG.unknown_exp)) [] args in
-        pred (desc.special args)
+        pred desc args
       | _ -> false
     else
       false
@@ -191,9 +191,10 @@ let enableAnalyses anas =
 
 let notNeccessaryThreadAnalyses = ["race"; "deadlock"; "maylocks"; "symb_locks"; "thread"; "threadid"; "threadJoins"; "threadreturn"; "mhp"; "region"; "pthreadMutexType"]
 let reduceThreadAnalyses () =
-  let isThreadCreate = function
+  let isThreadCreate (desc: LibraryDesc.t) args =
+    match desc.special args with
     | LibraryDesc.ThreadCreate _ -> true
-    | _ -> false
+    | _ -> LibraryDesc.Accesses.find_kind desc.accs Spawn args <> []
   in
   let hasThreadCreate = hasFunction isThreadCreate in
   if not @@ hasThreadCreate then (
@@ -446,7 +447,8 @@ let wideningOption factors file =
   }
 
 let activateTmpSpecialAnalysis () =
-  let isMathFun = function
+  let isMathFun (desc: LibraryDesc.t) args =
+    match desc.special args with
     | LibraryDesc.Math _ -> true
     | _ -> false
   in
