@@ -24,8 +24,8 @@ module WP =
       let stable = HM.create  10 in
       let infl   = HM.create  10 in (* y -> xs *)
       let called = HM.create  10 in
-      let rho    = HM.create  10 in
-      let rho'   = HM.create  10 in
+      let rho    = HM.create  10 in (* rho for right-hand side values *)
+      let rho'   = HM.create  10 in (* rho for start and side effect values *)
       let wpoint = HM.create  10 in
 
       let add_infl y x =
@@ -101,7 +101,7 @@ module WP =
       let set_start (x,d) =
         if tracing then trace "sol2" "set_start %a ## %a" S.Var.pretty_trace x S.Dom.pretty d;
         init x;
-        HM.replace rho x d;
+        HM.replace rho' x d;
         solve x Widen
       in
 
