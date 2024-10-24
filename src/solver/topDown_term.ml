@@ -85,7 +85,7 @@ module WP =
       and side y d =
         let old = try HM.find rho' y with Not_found -> S.Dom.bot () in
         if not (S.Dom.leq d old) then (
-          HM.replace rho' y (S.Dom.widen old d);
+          HM.replace rho' y (S.Dom.widen old (S.Dom.join old d));
           HM.remove stable y;
           init y;
           solve y Widen;

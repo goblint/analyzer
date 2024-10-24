@@ -66,7 +66,7 @@ module SLR3 =
           if tracing then trace "sol" "Contrib:%a" S.Dom.pretty tmp;
           let tmp =
             if wpx then
-              if HM.mem globals x then S.Dom.widen old tmp
+              if HM.mem globals x then S.Dom.widen old tmp (* TODO: no join in second argument, can call widen incorrectly? *)
               else box old tmp
             else tmp
           in
