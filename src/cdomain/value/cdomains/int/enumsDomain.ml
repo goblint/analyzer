@@ -1,4 +1,6 @@
 open IntDomain0
+open IntervalDomain
+open DefExcDomain
 open GoblintCil
 
 
