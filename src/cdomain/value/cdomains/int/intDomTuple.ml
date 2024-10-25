@@ -1,4 +1,5 @@
 open IntDomain0
+open CongruenceDomain
 open GoblintCil
 open Pretty
 open PrecisionUtil
