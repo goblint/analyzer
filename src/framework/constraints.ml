@@ -83,7 +83,7 @@ struct
             (* unknown function *)
             M.error ~category:Imprecise ~tags:[Category Unsound] "Created a thread from unknown function %s" f.vname;
             (* actual implementation (e.g. invalidation) is done by threadenter *)
-            (* must still sync for side effects, e.g. none privatization soundness in 02-base/51-spawn-special *)
+            (* must still sync for side effects, e.g. old sync-based none privatization soundness in 02-base/51-spawn-special *)
             let rec sync_ctx =
               { ctx with
                 ask = (fun (type a) (q: a Queries.t) -> S.query sync_ctx q);
