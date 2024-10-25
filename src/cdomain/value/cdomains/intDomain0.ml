@@ -1681,7 +1681,7 @@ struct
   let meet x y = if equal x y then x else bot ()
 end
 
-module Flat (Base: IkindUnawareS) = (* identical to Lift, but goes to `Top/`Bot if Base raises Unknown/Error *)
+module Flat (Base: IkindUnawareS): IkindUnawareS with type t = [ `Bot | `Lifted of Base.t | `Top ] and type int_t = Base.int_t = (* identical to Lift, but goes to `Top/`Bot if Base raises Unknown/Error *)
 struct
   type int_t = Base.int_t
   include Lattice.FlatConf (struct
@@ -1762,7 +1762,7 @@ struct
     | `Top | `Bot -> Invariant.none
 end
 
-module Lift (Base: IkindUnawareS) = (* identical to Flat, but does not go to `Top/Bot` if Base raises Unknown/Error *)
+module Lift (Base: IkindUnawareS): IkindUnawareS with type t = [ `Bot | `Lifted of Base.t | `Top ] and type int_t = Base.int_t = (* identical to Flat, but does not go to `Top/Bot` if Base raises Unknown/Error *)
 struct
   include Lattice.LiftPO (struct
       include Printable.DefaultConf
