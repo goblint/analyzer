@@ -5,8 +5,8 @@ open Maingoblint
 (** the main function *)
 let main () =
   try
-    Cilfacade.init ();
     Maingoblint.parse_arguments ();
+    Cilfacade.init ();
 
     (* Timing. *)
     Maingoblint.reset_stats ();
@@ -65,6 +65,7 @@ let main () =
       do_gobview file;
       do_stats ();
       Goblint_timing.teardown_tef ();
+      (* TODO: generalize exit codes for AnalysisState.unsound_both_branches_dead? *)
       if !AnalysisState.verified = Some false then exit 3 (* verifier failed! *)
     )
   with

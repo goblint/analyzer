@@ -36,7 +36,7 @@ module type S =
     val lock: Q.ask -> (V.t -> G.t) -> relation_components_t -> LockDomain.MustLock.t -> relation_components_t
     val unlock: Q.ask -> (V.t -> G.t) -> (V.t -> G.t -> unit) -> relation_components_t -> LockDomain.MustLock.t -> relation_components_t
 
-    val sync: Q.ask -> (V.t -> G.t) -> (V.t -> G.t -> unit) -> relation_components_t -> [`Normal | `Join | `JoinCall | `Return | `Init | `Thread] -> relation_components_t
+    val sync: Q.ask -> (V.t -> G.t) -> (V.t -> G.t -> unit) -> relation_components_t -> [`Normal | `Join | `JoinCall of CilType.Fundec.t | `Return | `Init | `Thread] -> relation_components_t
 
     val escape: Node.t -> Q.ask -> (V.t -> G.t) -> (V.t -> G.t -> unit) -> relation_components_t -> EscapeDomain.EscapedVars.t -> relation_components_t
     val enter_multithreaded: Q.ask -> (V.t -> G.t) -> (V.t -> G.t -> unit) -> relation_components_t -> relation_components_t
@@ -113,10 +113,10 @@ struct
     match reason with
     | `Join when ConfCheck.branched_thread_creation () ->
       branched_sync ()
-    | `JoinCall when ConfCheck.branched_thread_creation () ->
+    | `JoinCall _ when ConfCheck.branched_thread_creation () ->
       branched_sync ()
     | `Join
-    | `JoinCall
+    | `JoinCall _
     | `Normal
     | `Init
     | `Thread
@@ -385,10 +385,10 @@ struct
       end
     | `Join when ConfCheck.branched_thread_creation () ->
       branched_sync ()
-    | `JoinCall when ConfCheck.branched_thread_creation_at_call ask ->
+    | `JoinCall f when ConfCheck.branched_thread_creation_at_call ask f ->
       branched_sync ()
     | `Join
-    | `JoinCall
+    | `JoinCall _
     | `Normal
     | `Init
     | `Thread ->
@@ -674,10 +674,10 @@ struct
       end
     | `Join when ConfCheck.branched_thread_creation () ->
       branched_sync ()
-    | `JoinCall when ConfCheck.branched_thread_creation_at_call ask ->
+    | `JoinCall f when ConfCheck.branched_thread_creation_at_call ask f ->
       branched_sync ()
     | `Join
-    | `JoinCall
+    | `JoinCall _
     | `Normal
     | `Init
     | `Thread ->
@@ -1230,10 +1230,10 @@ struct
     | `Return -> st (* TODO: implement? *)
     | `Join when ConfCheck.branched_thread_creation () ->
       branched_sync ()
-    | `JoinCall when ConfCheck.branched_thread_creation_at_call ask ->
+    | `JoinCall f when ConfCheck.branched_thread_creation_at_call ask f ->
       branched_sync ()
     | `Join
-    | `JoinCall
+    | `JoinCall _
     | `Normal
     | `Init
     | `Thread ->

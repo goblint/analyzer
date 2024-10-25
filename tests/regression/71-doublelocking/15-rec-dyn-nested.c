@@ -1,5 +1,5 @@
 // PARAM: --set ana.activated[+] 'pthreadMutexType'
-// Check we don't have a stack overflow because of tracking multiplicities
+// NOCRASH: Check we don't have a stack overflow because of tracking multiplicities
 #define _GNU_SOURCE
 #include<pthread.h>
 #include<stdio.h>

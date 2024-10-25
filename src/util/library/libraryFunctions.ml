@@ -145,7 +145,7 @@ let c_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("_setjmp", special [__ "env" [w]] @@ fun env -> Setjmp { env }); (* only has one underscore *)
     ("setjmp", special [__ "env" [w]] @@ fun env -> Setjmp { env });
     ("longjmp", special [__ "env" [r]; __ "value" []] @@ fun env value -> Longjmp { env; value });
-    ("atexit", unknown [drop "function" [s]]);
+    ("atexit", unknown [drop "function" [if_ (fun () -> not (get_bool "sem.atexit.ignore")) s]]);
     ("atoi", unknown [drop "nptr" [r]]);
     ("atol", unknown [drop "nptr" [r]]);
     ("atoll", unknown [drop "nptr" [r]]);
@@ -712,7 +712,7 @@ let linux_userspace_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("__errno", unknown []);
     ("__errno_location", unknown []);
     ("__h_errno_location", unknown []);
-    ("__printf_chk", unknown [drop "flag" []; drop "format" [r]]);
+    ("__printf_chk", unknown (drop "flag" [] :: drop "format" [r] :: VarArgs (drop' [r])));
     ("__fprintf_chk", unknown (drop "stream" [r_deep; w_deep] :: drop "flag" [] :: drop "format" [r] :: VarArgs (drop' [r])));
     ("__vfprintf_chk", unknown [drop "stream" [r_deep; w_deep]; drop "flag" []; drop "format" [r]; drop "ap" [r_deep]]);
     ("sysinfo", unknown [drop "info" [w_deep]]);

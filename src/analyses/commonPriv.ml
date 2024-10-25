@@ -61,7 +61,7 @@ struct
       true
 
   (** Whether branched thread creation at start nodes of procedures needs to be handled by [sync `JoinCall] of privatization. *)
-  let branched_thread_creation_at_call (ask:Queries.ask) =
+  let branched_thread_creation_at_call (ask:Queries.ask) f =
     let threadflag_active = List.mem "threadflag" (GobConfig.get_string_list "ana.activated") in
     if threadflag_active then
       let sens = GobConfig.get_string_list "ana.ctx_sens" in
@@ -74,7 +74,7 @@ struct
       if not threadflag_ctx_sens then
         true
       else
-        ask.f (Queries.GasExhausted)
+        ask.f (Queries.GasExhausted f)
     else
       true
 end

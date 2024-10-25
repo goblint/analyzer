@@ -1,6 +1,6 @@
 // PARAM: --set ana.base.arrays.domain unroll --set ana.base.arrays.unrolling-factor 5
 //from sv-comp test c/aws-c-common/aws_array_eq_c_str_ignore_case_harness.i
-
+// NOCRASH
 typedef long unsigned int size_t;
 typedef unsigned char uint8_t;
 

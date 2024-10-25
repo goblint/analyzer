@@ -85,6 +85,7 @@ depends: [
   "ordering" {= "3.16.0"}
   "ounit2" {= "2.2.7" & with-test}
   "pp" {= "1.2.0"}
+  "ppx_blob" {= "0.9.0"}
   "ppx_derivers" {= "1.2.1"}
   "ppx_deriving" {= "6.0.2"}
   "ppx_deriving_hash" {= "0.1.2"}
@@ -109,7 +110,7 @@ depends: [
   "uutf" {= "1.0.3" & with-doc}
   "yaml" {= "3.2.0"}
   "yojson" {= "2.2.1"}
-  "zarith" {= "1.13"}
+  "zarith" {= "1.14"}
 ]
 build: [
   ["dune" "subst"] {dev}
@@ -139,7 +140,15 @@ post-messages: [
 pin-depends: [
   [
     "goblint-cil.2.0.4"
-    "git+https://github.com/goblint/cil.git#04b8a45a7d20425c7b6c8abe1ad094abc063922b"
+    "git+https://github.com/goblint/cil.git#9f4fac450c02bc61a13717784515056b185794cd"
+  ]
+  [
+    "camlidl.1.12"
+    "git+https://github.com/xavierleroy/camlidl.git#1c1e87e3f56c2c6b3226dd0af3510ef414b462d0"
+  ]
+  [
+    "apron.v0.9.15"
+    "git+https://github.com/antoinemine/apron.git#418a217c7a70dae3f422678f3aaba38ae374d91a"
   ]
 ]
 depexts: ["libgraph-easy-perl"] {os-distribution = "ubuntu" & with-test}

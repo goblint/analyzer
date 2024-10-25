@@ -79,9 +79,9 @@
     "result": {
       "title": "result",
       "description":
-        "Result style: none, fast_xml, json, pretty, json-messages, sarif.",
+        "Result style: none, fast_xml, json, pretty, pretty-deterministic, json-messages, sarif.",
       "type": "string",
-      "enum": ["none", "fast_xml", "json", "pretty", "json-messages", "sarif"],
+      "enum": ["none", "fast_xml", "json", "pretty", "pretty-deterministic", "json-messages", "sarif"],
       "default": "none"
     },
     "solver": {
@@ -998,6 +998,14 @@
               "type": "integer",
               "default": -1
             },
+            "gas_scope": {
+              "title": "ana.context.gas_scope",
+              "description":
+                "Whether the gas should be  'global' (default) or per 'function'",
+              "type": "string",
+              "enum": ["global","function"],
+              "default": "global"
+            },
             "callString_length": {
               "title": "ana.context.callString_length",
               "description": "Length of the call string that should be used as context for the call_string and/or call_site analyses. In case the value is zero, the analysis is context-insensitive. For a negative value, an infinite call string is used! For this option to have an effect, one of the analyses in `callstring.ml` must be activated.",
@@ -1533,6 +1541,19 @@
               "description": "Standard assert refines state",
               "type": "boolean",
               "default": true
+            }
+          },
+          "additionalProperties": false
+        },
+        "atexit": {
+          "title": "sem.atexit",
+          "type": "object",
+          "properties": {
+            "ignore": {
+              "title": "sem.atexit.ignore",
+              "description": "Ignore atexit callbacks (unsound).",
+              "type": "boolean",
+              "default": false
             }
           },
           "additionalProperties": false
@@ -2608,7 +2629,8 @@
                   "precondition_loop_invariant",
                   "loop_invariant_certificate",
                   "precondition_loop_invariant_certificate",
-                  "invariant_set"
+                  "invariant_set",
+                  "violation_sequence"
                 ]
               },
               "default": [

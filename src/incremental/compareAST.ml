@@ -73,7 +73,7 @@ let forward_list_equal ?(propF = (&&>>)) f l1 l2 ~(rename_mapping: rename_mappin
 let compare_name (a: string) (b: string) =
   let anon_struct = "__anonstruct_" in
   let anon_union = "__anonunion_" in
-  if a = b then true else BatString.(starts_with a anon_struct && starts_with b anon_struct || starts_with a anon_union && starts_with b anon_union)
+  if a = b then true else String.(starts_with a ~prefix:anon_struct && starts_with b ~prefix:anon_struct || starts_with a ~prefix:anon_union && starts_with b ~prefix:anon_union)
 
 let rec eq_constant ~(rename_mapping: rename_mapping) ~(acc: (typ * typ) list) (a: constant) (b: constant) : bool * rename_mapping =
   match a, b with
@@ -91,7 +91,7 @@ and eq_exp (a: exp) (b: exp) ~(rename_mapping: rename_mapping) ~(acc: (typ * typ
   | AlignOf typ1, AlignOf typ2 -> eq_typ_acc typ1 typ2 ~rename_mapping ~acc
   | AlignOfE exp1, AlignOfE exp2 -> eq_exp exp1 exp2 ~rename_mapping ~acc
   | UnOp (op1, exp1, typ1), UnOp (op2, exp2, typ2) ->
-    ((op1 == op2), rename_mapping) &&>> eq_exp exp1 exp2 ~acc &&>> eq_typ_acc typ1 typ2 ~acc
+    (CilType.Unop.equal op1 op2, rename_mapping) &&>> eq_exp exp1 exp2 ~acc &&>> eq_typ_acc typ1 typ2 ~acc
   | BinOp (op1, left1, right1, typ1), BinOp (op2, left2, right2, typ2) ->  (op1 = op2, rename_mapping) &&>> eq_exp left1 left2 ~acc &&>> eq_exp right1 right2 ~acc &&>> eq_typ_acc typ1 typ2 ~acc
   | CastE (typ1, exp1), CastE (typ2, exp2) -> eq_typ_acc typ1 typ2 ~rename_mapping ~acc &&>> eq_exp exp1 exp2 ~acc
   | AddrOf lv1, AddrOf lv2 -> eq_lval lv1 lv2 ~rename_mapping ~acc
