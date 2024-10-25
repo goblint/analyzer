@@ -1,5 +1,6 @@
 include IntDomain0
 
+include IntervalSetDomain
 include DefExcDomain
 include EnumsDomain
 include CongruenceDomain

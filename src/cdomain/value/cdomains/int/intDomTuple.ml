@@ -1,4 +1,5 @@
 open IntDomain0
+open IntervalSetDomain
 open DefExcDomain
 open EnumsDomain
 open CongruenceDomain

@@ -1078,7 +1078,7 @@ end
 module IntIkind = struct let ikind () = Cil.IInt end
 module Interval = IntervalFunctor (IntOps.BigIntOps)
 module Interval32 = IntDomWithDefaultIkind (IntDomLifter (SOverflowUnlifter (IntervalFunctor (IntOps.Int64Ops)))) (IntIkind)
-module IntervalSet = IntervalSetFunctor (IntOps.BigIntOps)
+
 module Integers (Ints_t : IntOps.IntOps): IkindUnawareS with type t = Ints_t.t and type int_t = Ints_t.t = (* no top/bot, order is <= *)
 struct
   include Printable.Std
