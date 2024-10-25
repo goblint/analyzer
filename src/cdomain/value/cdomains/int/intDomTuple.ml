@@ -1,4 +1,5 @@
 open IntDomain0
+open EnumsDomain
 open CongruenceDomain
 open GoblintCil
 open Pretty
