@@ -2651,6 +2651,15 @@ struct
     | Unknown, "__goblint_assume_join" ->
       let id = List.hd args in
       Priv.thread_join ~force:true (Analyses.ask_of_ctx ctx) (priv_getg ctx.global) id st
+    | ThreadSelf, _ ->
+      begin match lv, ThreadId.get_current (Analyses.ask_of_ctx ctx) with
+        | Some lv, `Lifted tid ->
+          set ~ctx st (eval_lv ~ctx st lv) (Cilfacade.typeOfLval lv) (Thread (ValueDomain.Threads.singleton tid))
+        | Some lv, _ ->
+          invalidate_ret_lv st
+        | None, _ ->
+          st
+      end
     | Alloca size, _ -> begin
         match lv with
         | Some lv ->

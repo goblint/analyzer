@@ -7,7 +7,7 @@ int g = 10;
 
 void *t_fun(void *arg) {
   pthread_join(mainid, NULL);
-  g++; // TODO NORACE
+  g++; // NORACE
   return NULL;
 }
 
@@ -18,6 +18,6 @@ int main(void) {
   pthread_t id2;
   pthread_create(&id2, NULL, t_fun, NULL);
 
-  g++; // TODO NORACE
+  g++; // NORACE
   return 0;
 }
