@@ -21,7 +21,7 @@ int main(void) {
   pthread_t id2;
   pthread_create(&id2, NULL, t_fun, NULL);
 
-  g++; // TODO NORACE
+  g++; // NORACE
   printf("main: %d\n", g);
 
   pthread_exit(NULL); // exit main thread but keep id2 alive, otherwise main returning kills id2
