@@ -87,7 +87,7 @@ let exp_contains_tmp e =
 class exp_contains_anon_type_visitor = object
   inherit nopCilVisitor
   method! vtype (t: typ) =
-    match t with
+    match t with (* TODO: unrolltype? *)
     | TComp ({cname; _}, _) when String.starts_with ~prefix:"__anon" cname ->
       raise Stdlib.Exit
     | _ ->

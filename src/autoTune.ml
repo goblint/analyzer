@@ -278,7 +278,7 @@ class addTypeAttributeVisitor = object
     let is_important_type (t: typ): bool = match t with
       | TNamed (info, attr) -> List.mem info.tname ["pthread_mutex_t"; "spinlock_t"; "pthread_t"]
       | TInt (IInt, attr) -> hasAttribute "mutex" attr
-      | _ -> false
+      | _ -> false (* TODO: unrolltype? *)
     in
     if is_important_type typ && not @@ hasAttribute "goblint_array_domain" (typeAttrs typ) then
       ChangeTo (typeAddAttributes [Attr ("goblint_array_domain", [AStr "unroll"])] typ)

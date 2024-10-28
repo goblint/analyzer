@@ -2906,7 +2906,7 @@ struct
         let (min_ikorg, max_ikorg) = range ikorg in
         ikorg = t || (max_t >=: max_ikorg && min_t <=: min_ikorg)
       in
-      match torg with
+      match torg with (* TODO: unrolltype? *)
       | Some (Cil.TInt (ikorg, _)) when p ikorg ->
         if M.tracing then M.trace "cong-cast" "some case";
         x

@@ -269,7 +269,7 @@ struct
         match rem_fields with
         | [] -> second_choice
         | h::t -> begin
-            match (h.ftype, get_bool "ana.base.structs.key.prefer-ptrs", get_bool "ana.base.structs.key.avoid-ints") with
+            match (h.ftype, get_bool "ana.base.structs.key.prefer-ptrs", get_bool "ana.base.structs.key.avoid-ints") with (* TODO: unrolltype? *)
             | (TPtr (_, _), _, _) -> h
             | (TInt (_, _), true, _)
             | (TInt (_, _), _, true) -> first_appropriate_key t second_choice
@@ -277,7 +277,7 @@ struct
             | (_, false, _) -> h
             | (_, _, false) -> first_appropriate_key t second_choice
             | (_, _, _) ->
-              let second = match second_choice.ftype with
+              let second = match second_choice.ftype with (* TODO: unrolltype? *)
                 | TInt (_,_) -> h
                 | _ -> second_choice
               in first_appropriate_key t second
@@ -503,8 +503,8 @@ struct
   let chosen_domain () = get_string "ana.base.structs.domain"
 
   let pick_combined setting (comp: compinfo) =
-    let all_bool () = List.for_all (fun f -> match f.ftype with TInt(IBool, _) -> true | _ -> false) comp.cfields in
-    let has_ptr () = List.exists (fun f -> match f.ftype with TPtr(_, _) -> true | _ -> false) comp.cfields in
+    let all_bool () = List.for_all (fun f -> match f.ftype with TInt(IBool, _) -> true | _ -> false) comp.cfields in (* TODO: unrolltype? *)
+    let has_ptr () = List.exists (fun f -> match f.ftype with TPtr(_, _) -> true | _ -> false) comp.cfields in (* TODO: unrolltype? *)
     match setting with
     | "combined-sk" -> if has_ptr () then "keyed" else "simple"
     | "combined-all" ->

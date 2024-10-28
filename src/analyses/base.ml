@@ -925,7 +925,7 @@ struct
     (* | Lval (Mem e, ofs) -> get ~ctx st (eval_lv ~ctx (Mem e, ofs)) *)
     | (Mem e, ofs) ->
       (*if M.tracing then M.tracel "cast" "Deref: lval: %a" d_plainlval lv;*)
-      let rec contains_vla (t:typ) = match t with
+      let rec contains_vla (t:typ) = match t with (* TODO: unrolltype? *)
         | TPtr (t, _) -> contains_vla t
         | TArray(t, None, args) -> true
         | TArray(t, Some exp, args) when isConstant exp -> contains_vla t
@@ -1417,7 +1417,7 @@ struct
         match eval_rv_address ~ctx ctx.local e with
         | Address a ->
           let slen = Seq.map String.length (List.to_seq (AD.to_string a)) in
-          let lenOf = function
+          let lenOf = function (* TODO: unrolltype? *)
             | TArray (_, l, _) -> (try Some (lenOfArray l) with LenOfArray -> None)
             | _ -> None
           in
@@ -1995,7 +1995,7 @@ struct
       match exp with
       | None -> nst
       | Some exp ->
-        let t_override = match Cilfacade.fundec_return_type fundec with
+        let t_override = match Cilfacade.fundec_return_type fundec with (* TODO: unrolltype? *)
           | TVoid _ -> M.warn ~category:M.Category.Program "Returning a value from a void function"; assert false
           | ret -> ret
         in
@@ -2267,7 +2267,7 @@ struct
         let pts_elems_to_sizes (addr: Queries.AD.elt) =
           begin match addr with
             | Addr (v, _) ->
-              begin match v.vtype with
+              begin match v.vtype with (* TODO: unrolltype? *)
                 | TArray (item_typ, _, _) ->
                   let item_typ_size_in_bytes = size_of_type_in_bytes item_typ in
                   begin match ctx.ask (Queries.EvalLength ptr) with

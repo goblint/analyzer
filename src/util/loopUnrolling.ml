@@ -260,7 +260,7 @@ let findLoopVarAndGoal loopStatement func (op, exp1, exp2) =
     end;
   | _ -> None
 
-let getLoopVar loopStatement func = function
+let getLoopVar loopStatement func = function (* TODO: unrolltype? *)
   | BinOp (op, exp1, exp2, TInt _) when isCompare op -> findLoopVarAndGoal loopStatement func (op, exp1, exp2)
   | _ -> None
 

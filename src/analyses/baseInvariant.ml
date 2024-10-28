@@ -207,7 +207,7 @@ struct
       | BinOp(op, rval, Lval x, typ) -> derived_invariant (BinOp(switchedOp op, Lval x, rval, typ)) tv
       | BinOp(op, CastE (t1, c1), CastE (t2, c2), t) when (op = Eq || op = Ne) && typeSig t1 = typeSig t2 && VD.is_statically_safe_cast t1 (Cilfacade.typeOf c1) && VD.is_statically_safe_cast t2 (Cilfacade.typeOf c2)
         -> derived_invariant (BinOp (op, c1, c2, t)) tv
-      | BinOp(op, CastE (TInt (ik, _) as t1, Lval x), rval, typ) ->
+      | BinOp(op, CastE (TInt (ik, _) as t1, Lval x), rval, typ) -> (* TODO: unrolltype? *)
         begin match eval_rv ~ctx st (Lval x) with
           | Int v ->
             if VD.is_dynamically_safe_cast t1 (Cilfacade.typeOfLval x) (Int v) then
@@ -216,7 +216,7 @@ struct
               `NotUnderstood
           | _ -> `NotUnderstood
         end
-      | BinOp(op, rval, CastE (TInt (_, _) as ti, Lval x), typ) ->
+      | BinOp(op, rval, CastE (TInt (_, _) as ti, Lval x), typ) -> (* TODO: unrolltype? *)
         derived_invariant (BinOp (switchedOp op, CastE(ti, Lval x), rval, typ)) tv
       | BinOp(op, (Const _ | AddrOf _), rval, typ) ->
         (* This is last such that we never reach here with rval being Lval (it is swapped around). *)
@@ -562,7 +562,7 @@ struct
       else
         match exp, c_typed with
         | UnOp (LNot, e, _), Int c ->
-          (match Cilfacade.typeOf e with
+          (match Cilfacade.typeOf e with (* TODO: unrolltype? *)
            | TInt  _ | TPtr _ ->
              let ikind = Cilfacade.get_ikind_exp e in
              let c' =
@@ -777,7 +777,7 @@ struct
             | _ -> assert false
           end
         | Const _ , _ -> st (* nothing to do *)
-        | CastE ((TFloat (_, _)), e), Float c ->
+        | CastE ((TFloat (_, _)), e), Float c -> (* TODO: unrolltype? *)
           (match unrollType (Cilfacade.typeOf e), FD.get_fkind c with
            | TFloat (FLongDouble as fk, _), FFloat
            | TFloat (FDouble as fk, _), FFloat
@@ -786,7 +786,7 @@ struct
            | TFloat (FDouble as fk, _), FDouble
            | TFloat (FFloat as fk, _), FFloat -> inv_exp (Float (FD.cast_to fk c)) e st
            | _ -> fallback (fun () -> Pretty.text "CastE: incompatible types") st)
-        | CastE ((TInt (ik, _)) as t, e), Int c
+        | CastE ((TInt (ik, _)) as t, e), Int c (* TODO: unrolltype? *)
         | CastE ((TEnum ({ekind = ik; _ }, _)) as t, e), Int c -> (* Can only meet the t part of an Lval in e with c (unless we meet with all overflow possibilities)! Since there is no good way to do this, we only continue if e has no values outside of t. *)
           (match eval e st with
            | Int i ->

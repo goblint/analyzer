@@ -93,7 +93,7 @@ struct
                 set_mem_safety_flag InvalidDeref;
                 M.warn "Var %a is potentially accessed out-of-scope. Invalid memory access may occur" CilType.Varinfo.pretty v
               );
-              begin match v.vtype with
+              begin match v.vtype with (* TODO: unrolltype? *)
                 | TArray (item_typ, _, _) ->
                   let item_typ_size_in_bytes = size_of_type_in_bytes item_typ in
                   begin match ctx.ask (Queries.EvalLength ptr) with
@@ -127,7 +127,7 @@ struct
          `Top)
 
   let get_ptr_deref_type ptr_typ =
-    match ptr_typ with
+    match ptr_typ with (* TODO: unrolltype? *)
     | TPtr (t, _) -> Some t
     | _ -> None
 

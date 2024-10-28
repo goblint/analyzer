@@ -332,7 +332,7 @@ struct
             | ts when Queries.TS.is_top ts ->
               ()
             | ts ->
-              let f = function
+              let f = function (* TODO: unrolltype? *)
                 | TComp (_, _) -> true
                 | _ -> false
               in

@@ -11,7 +11,7 @@ let addThreshold t_ref z = t_ref := Thresholds.add z !t_ref
 class extractThresholdsFromConditionsVisitor(upper_thresholds,lower_thresholds, octagon_thresholds) = object
   inherit nopCilVisitor
 
-  method! vexpr = function
+  method! vexpr = function (* TODO: unrolltype? *)
     (* Comparisons of type: 10 <= expr, expr >= 10, expr < 10, 10 > expr *)
     | BinOp (Le, (Const (CInt(i,_,_))), _, (TInt _))
     | BinOp (Ge, _, (Const (CInt(i,_,_))), (TInt _))
