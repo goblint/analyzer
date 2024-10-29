@@ -1194,373 +1194,273 @@ end
 (* BitField arithmetic, without any overflow handling etc. *)
 module BitFieldArith (Ints_t : IntOps.IntOps) = struct
 
-  let of_int (z,o) = (Ints_t.lognot @@ Ints_t.of_int z, Ints_t.of_int o)
+  let zero_mask = Ints_t.zero
+  let one_mask = Ints_t.lognot zero_mask
 
-  let logneg (z,o) = (o,z)
+  let of_int v = (Ints_t.lognot v, v)
 
-  let logand  (z1,o1) (z2,o2) = (Ints_t.logor z1 z2, Ints_t.logand o1 o2)
+  let lognot (z,o) = (o,z)
 
-  let logor (z1,o1)  (z2,o2)  = (Ints_t.logand z1 z2, Ints_t.logor o1 o2)
+  let logand (z1,o1) (z2,o2) = (Ints_t.logor z1 z2, Ints_t.logand o1 o2)
 
-  let logxor (z1,o1)  (z2,o2) =  (Ints_t.logor (Ints_t.logand z1 (Ints_t.lognot o2)) (Ints_t.logand (Ints_t.lognot o1) o2), 
-                                  Ints_t.logor (Ints_t.logand o1 (Ints_t.lognot o2)) (Ints_t.logand (Ints_t.lognot o1) o2))
-  let shift_left (z,o) n =  failwith "Not implemented"
+  let logor (z1,o1)  (z2,o2) = (Ints_t.logand z1 z2, Ints_t.logor o1 o2)
 
-  let shift_right (z,o) n =  failwith "Not implemented"
+  let logxor (z1,o1)  (z2,o2) = (Ints_t.logor (Ints_t.logand z1 z2) (Ints_t.logand o1 o2), 
+                                 Ints_t.logor (Ints_t.logand z1 o2) (Ints_t.logand o1 z2))
 
-  let to_int (x1, x2) =
-    if Ints_t.equal x1 x2 then Some x1 else None
+  let shift_left (z1,o1) (z2,o2) = failwith "Not implemented"
+
+  let shift_right (z1,o1) (z2,o2) = failwith "Not implemented"
+
+  let join (z1,o1) (z2,o2) = (Ints_t.logor z1 z2, Ints_t.logor o1 o2)
+
+  let meet (z1,o1) (z2,o2) = (Ints_t.logand z1 z2, Ints_t.logand o1 o2)
+
+  let nabla x y= if x = Ints_t.logor x y then x else one_mask
+
+  let widen (z1,o1) (z2,o2) = (nabla z1 z2, nabla o1 o2)
+
+  let zero = of_int (Ints_t.of_int 0)
+  let one = of_int (Ints_t.of_int 1)
+  
+  let topbool = join zero one
+
+  let eq (z1,o1) (z2,o2) = (Ints_t.equal z1 z2 && Ints_t.equal o1 o2)
+
+  let includes (z1,o1) (z2,o2) = (Ints_t.logor (Ints_t.lognot z1 ) z2 = one_mask) && 
+                                 (Ints_t.logor (Ints_t.lognot o1 ) o2 = one_mask)
+
+  let is_constant (z,o) = (Ints_t.logxor z o) = one_mask
 
 end
 
+module BitfieldFunctor (Ints_t : IntOps.IntOps): SOverflow with type int_t = Ints_t.t and type t = (Ints_t.t * Ints_t.t) = struct
+  let name () = "bitfield"
+  type int_t = Ints_t.t
+  type t = (Ints_t.t * Ints_t.t) [@@deriving eq, ord, hash]
+  module BArith = BitFieldArith (Ints_t)
 
 
-module BitfieldFunctor (Ints_t : IntOps.IntOps): SOverflow with type int_t = Ints_t.t and type t = (Ints_t.t * Ints_t.t) option =
-  struct
-    let name () = "bitfield"
-    type int_t = Ints_t.t
-    type t = (Ints_t.t * Ints_t.t) option [@@deriving eq, ord, hash]
-    module BArith = BitFieldArith (Ints_t)
-  
-    let range ik = BatTuple.Tuple2.mapn Ints_t.of_bigint (Size.range ik)
-  
-    let top () = Some (Ints_t.lognot (Ints_t.zero), Ints_t.zero)
-    let top_of ik = Some (range ik)
-    let bot () = Some (Ints_t.zero, Ints_t.zero)
-    let bot_of ik = bot () (* TODO: improve *)
+  let top () = (Ints_t.lognot (Ints_t.zero),  Ints_t.lognot (Ints_t.zero))
+  let top_of ik = top ()
+  let bot () = (Ints_t.zero, Ints_t.zero)
+  let bot_of ik = bot () 
 
-    let show = function None -> "bottom" | Some (x,y) ->  Format.sprintf "z=%08x, o=%08x" (Ints_t.to_int x) (Ints_t.to_int y)
-  
-    include Std (struct type nonrec t = t let name = name let top_of = top_of let bot_of = bot_of let show = show let equal = equal end)
-  
-    let equal_to i = function
-      | None -> failwith "unsupported: equal_to with bottom"
-      | Some (a, b) ->
-        if a = b && b = i then `Eq else if Ints_t.compare a i <= 0 && Ints_t.compare i b <=0 then `Top else `Neq
-  
-    let norm ?(suppress_ovwarn=false) ?(cast=false) ik : (t -> t * overflow_info) = function None -> (None, {underflow=false; overflow=false}) | Some (x,y) ->
-      if Ints_t.compare x y > 0 then
-        (None,{underflow=false; overflow=false})
-      else (
-        let (min_ik, max_ik) = range ik in
-        let underflow = Ints_t.compare min_ik x > 0 in
-        let overflow = Ints_t.compare max_ik y < 0 in
-        let ov_info = { underflow = underflow && not suppress_ovwarn; overflow = overflow && not suppress_ovwarn } in
-        let v =
-          if underflow || overflow then
-            if should_wrap ik then (* could add [|| cast], but that's GCC implementation-defined behavior: https://gcc.gnu.org/onlinedocs/gcc/Integers-implementation.html#Integers-implementation *)
-              (* We can only soundly wrap if at most one overflow occurred, otherwise the minimal and maximal values of the interval *)
-              (* on Z will not safely contain the minimal and maximal elements after the cast *)
-              let diff = Ints_t.abs (Ints_t.sub max_ik min_ik) in
-              let resdiff = Ints_t.abs (Ints_t.sub y x) in
-              if Ints_t.compare resdiff diff > 0 then
-                top_of ik
-              else
-                let l = Ints_t.of_bigint @@ Size.cast ik (Ints_t.to_bigint x) in
-                let u = Ints_t.of_bigint @@ Size.cast ik (Ints_t.to_bigint y) in
-                if Ints_t.compare l u <= 0 then
-                  Some (l, u)
-                else
-                  (* Interval that wraps around (begins to the right of its end). We can not represent such intervals *)
-                  top_of ik
-            else if not cast && should_ignore_overflow ik then
-              let tl, tu = BatOption.get @@ top_of ik in
-              Some (Ints_t.max tl x, Ints_t.min tu y)
-            else
-              top_of ik
-          else
-            Some (x,y)
-        in
-        (v, ov_info)
-      )
-  
-    let leq (x:t) (y:t) =
-      match x, y with
-      | None, _ -> true
-      | Some _, None -> false
-      | Some (x1,x2), Some (y1,y2) -> Ints_t.compare x1 y1 >= 0 && Ints_t.compare x2 y2 <= 0
-  
-    let join ik (x:t) y =
-      match x, y with
-      | None, z | z, None -> z
-      | Some (x1,x2), Some (y1,y2) -> norm ik @@ Some (Ints_t.min x1 y1, Ints_t.max x2 y2) |> fst
-  
-    let meet ik (x:t) y =
-      match x, y with
-      | None, z | z, None -> None
-      | Some (x1,x2), Some (y1,y2) -> norm ik @@ Some (Ints_t.max x1 y1, Ints_t.min x2 y2) |> fst
-  
-    (* TODO: change to_int signature so it returns a big_int *)
-    let to_int x = Option.bind x (BArith.to_int)
-    let of_interval ?(suppress_ovwarn=false) ik (x,y) = norm ~suppress_ovwarn ik @@ Some (x,y)
-    let of_int ik (x: int_t) = of_interval ik (x,x)
+  let show t = 
+    if t = bot () then "bot" else
+    if t = top () then "top" else
+      let (z,o) = t in
+      if BArith.is_constant t then 
+        Format.sprintf "[%08X, %08X] (unique: %d)" (Ints_t.to_int z) (Ints_t.to_int o) (Ints_t.to_int o)
+      else 
+        Format.sprintf "[%08X, %08X]" (Ints_t.to_int z) (Ints_t.to_int o)
 
-  
-    let of_bool _ik = function true -> top () | false -> bot ()
-    let to_bool (a: t) = match a with
-      | None -> None
-      | Some (l, u) when Ints_t.compare l Ints_t.zero = 0 && Ints_t.compare u Ints_t.zero = 0 -> Some false
-      | x -> if leq( bot ()) x then None else Some true
-  
-    let starting ?(suppress_ovwarn=false) ik n =
-      norm ~suppress_ovwarn ik @@ Some (n, snd (range ik))
-  
-    let ending ?(suppress_ovwarn=false) ik n =
-      norm ~suppress_ovwarn ik @@ Some (fst (range ik), n)
-  
-  
-    let cast_to ?(suppress_ovwarn=false) ?torg ?no_ov t = norm ~cast:true t (* norm does all overflow handling *)
-  
+  include Std (struct type nonrec t = t let name = name let top_of = top_of let bot_of = bot_of let show = show let equal = equal end)
 
-    let widen ik x y =
-      match x, y with
-      | None, z | z, None -> z
-      | Some (l0,u0), Some (l1,u1) ->
-        let nabla x y= (if x = Ints_t.logor x y then y else  (Ints_t.of_int (-1) )) in
-        Some (nabla l0 l1, nabla u0 u1)
+  let join ik x y = BArith.join x y
 
+  let meet ik x y = BArith.meet x y
+
+  let range ik = BatTuple.Tuple2.mapn Ints_t.of_bigint (Size.range ik)
+
+  let norm ?(suppress_ovwarn=false) ?(cast=false) ik (z,o)  =
+    M.trace "bitfield" "norm";
+    ((z,o), {underflow=false; overflow=false})
+
+  let to_int (z,o) = if is_bot (z,o) then None else
+      if BArith.is_constant (z,o) then Some o
+      else None
+
+  let equal_to i (u,l) = 
+    M.trace "bitfield" "equal_to";
+    if BArith.of_int i = (u,l) then `Eq
+    else if BArith.includes (u,l) (BArith.of_int i) then `Top
+    else `Neq
+
+  let of_interval ?(suppress_ovwarn=false) ik (x,y) =
+    M.trace "bitfield" "of_interval";
+    failwith "Not implemented"
+
+  let of_int ik (x: int_t) = (BArith.of_int x, {underflow=false; overflow=false})
+
+  let of_bool _ik = function true -> BArith.one | false -> BArith.zero
   
-    let narrow ik x y = None  
+  let to_bool d=
+      M.trace "bitfield" "to_bool";
+    if not (BArith.includes BArith.zero d ) then Some true
+    else if BArith.eq d BArith.zero then Some false
+    else None
+
+  let starting ?(suppress_ovwarn=false) ik n = 
+    M.trace "bitfield" "starting";
+    (top(), {underflow=false; overflow=false})
   
-    let log f ~annihilator ik i1 i2 =
-      match is_bot i1, is_bot i2 with
-      | true, true -> bot_of ik
-      | true, _
-      | _   , true -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show i1) (show i2)))
-      | _ ->
-        match to_bool i1, to_bool i2 with
-        | Some x, _ when x = annihilator -> of_bool ik annihilator
-        | _, Some y when y = annihilator -> of_bool ik annihilator
-        | Some x, Some y -> of_bool ik (f x y)
-        | _              -> top_of ik
+  let ending ?(suppress_ovwarn=false) ik n = 
+    M.trace "bitfield" "ending";
+    (top(), {underflow=false; overflow=false})
   
-    let c_logor = log (||) ~annihilator:true
-    let c_logand = log (&&) ~annihilator:false
-  
-    let log1 f ik i1 =
-      if is_bot i1 then
-        bot_of ik
-      else
-        match to_bool i1 with
-        | Some x -> of_bool ik (f ik x)
-        | _      -> top_of ik
-  
-    let c_lognot = log1 (fun _ik -> not)
-  
-    let bit f ik i1 i2 =
-      match is_bot i1, is_bot i2 with
-      | true, true -> bot_of ik
-      | true, _
-      | _   , true -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show i1) (show i2)))
-      | _ ->
-        match to_int i1, to_int i2 with
-        | Some x, Some y -> (try of_int ik (f ik x y) |> fst with Division_by_zero -> top_of ik)
-        | _              -> top_of ik
-  
-    let bitcomp f ik i1 i2 =
-      match is_bot i1, is_bot i2 with
-      | true, true -> (bot_of ik,{underflow=false; overflow=false})
-      | true, _
-      | _   , true -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show i1) (show i2)))
-      | _ ->
-        match to_int i1, to_int i2 with
-        | Some x, Some y -> (try of_int ik (f ik x y) with Division_by_zero | Invalid_argument _ -> (top_of ik,{underflow=false; overflow=false}))
-        | _              -> (top_of ik,{underflow=true; overflow=true})
-  
-    let logxor = bit (fun _ik -> Ints_t.logxor)
-  
-    let logand ik i1 i2 =
-      match is_bot i1, is_bot i2 with
-      | true, true -> bot_of ik
-      | true, _
-      | _   , true -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show i1) (show i2)))
-      | _ ->
-        match to_int i1, to_int i2 with
-        | Some x, Some y -> (try of_int ik (Ints_t.logand x y) |> fst with Division_by_zero -> top_of ik)
-        | _, Some y when Ints_t.equal y Ints_t.zero -> of_int ik Ints_t.zero |> fst
-        | _, Some y when Ints_t.equal y Ints_t.one -> of_interval ik (Ints_t.zero, Ints_t.one) |> fst
-        | _ -> top_of ik
-  
-    let logor  = bit (fun _ik -> Ints_t.logor)
-  
-    let bit1 f ik i1 =
-      if is_bot i1 then
-        bot_of ik
-      else
-        match to_int i1 with
-        | Some x -> of_int ik (f ik x) |> fst
-        | _      -> top_of ik
-  
-    let lognot = bit1 (fun _ik -> Ints_t.lognot)
-    let shift_right = bitcomp (fun _ik x y -> Ints_t.shift_right x (Ints_t.to_int y))
-  
-    let neg ?no_ov ik v=(None,{underflow=false; overflow=false}) 
-  
-   
-  
-    let add ?no_ov ik x y=(None,{underflow=false; overflow=false})
-    let mul ?no_ov ik x y=(None,{underflow=false; overflow=false})
-    let sub ?no_ov ik x y=(None,{underflow=false; overflow=false})
-  
-    let shift_left ik a b =(None,{underflow=false; overflow=false})
-  
-    let rem ik x y = match x, y with
-      | None, None -> None
-      | None, _ | _, None -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y)))
-      | Some (xl, xu), Some (yl, yu) ->
-        if is_top_of ik x && is_top_of ik y then
-          (* This is needed to preserve soundness also on things bigger than int32 e.g.  *)
-          (* x:     3803957176L -> T in Interval32 *)
-          (* y:     4209861404L -> T in Interval32 *)
-          (* x % y: 3803957176L -> T in Interval32 *)
-          (* T in Interval32 is [-2147483648,2147483647] *)
-          (* the code below computes [-2147483647,2147483647] for this though which is unsound *)
-          top_of ik
-        else
-          (* If we have definite values, Ints_t.rem will give a definite result.
-           * Otherwise we meet with a [range] the result can be in.
-           * This range is [0, min xu b] if x is positive, and [max xl -b, min xu b] if x can be negative.
-           * The precise bound b is one smaller than the maximum bound. Negative y give the same result as positive. *)
-          let pos x = if Ints_t.compare x Ints_t.zero < 0 then Ints_t.neg x else x in
-          let b = Ints_t.sub (Ints_t.max (pos yl) (pos yu)) Ints_t.one in
-          let range = if Ints_t.compare xl Ints_t.zero>= 0 then Some (Ints_t.zero, Ints_t.min xu b) else Some (Ints_t.max xl (Ints_t.neg b), Ints_t.min (Ints_t.max (pos xl) (pos xu)) b) in
-          meet ik (bit (fun _ik -> Ints_t.rem) ik x y) range
-  
-    let rec div ?no_ov ik x y =(None,{underflow=false; overflow=false})
-  
+  let cast_to ?(suppress_ovwarn=false) ?torg ?no_ov t = 
+    M.trace "bitfield" "cast_to";
+    norm ~cast:true t (* norm does all overflow handling *)
+
+  let widen ik x y = BArith.widen x y
+
+  let narrow ik x y = meet ik x y  
+
+  let log1 f ik i1 = match to_bool i1 with
+    | None -> top_of ik
+    | Some x -> of_bool ik (f x)
+
+  let log2 f ik i1 i2 = match (to_bool i1, to_bool i2) with
+    | None, None -> top_of ik
+    | None, Some x | Some x, None -> of_bool ik x
+    | Some x, Some y -> of_bool ik (f x y)
+
+  let c_logor ik i1 i2 = log2 (||) ik i1 i2
+      
+  let c_logand ik i1 i2 = log2 (&&) ik i1 i2
+
+  let c_lognot ik i1 = log1 not ik i1
+
+  let xor a b = (a && not b) || (not a && b)
+
+  let logxor ik i1 i2 = BArith.logxor i1 i2
+
+  let logand ik i1 i2 = BArith.logand i1 i2
+
+  let logor  ik i1 i2 = BArith.logor i1 i2
+
+  let lognot ik i1 = BArith.lognot i1
+
+  let neg ?no_ov ik v =
+    M.trace "bitfield" "neg";
+    failwith "Not implemented"
+
+  let shift_right ik a b = 
+    M.trace "bitfield" "shift_right";
+    failwith "Not implemented"
+
+  let shift_left ik a b =
+    M.trace "bitfield" "shift_left";
+    failwith "Not implemented"
+
+  let add ?no_ov ik x y=(top_of ik,{underflow=false; overflow=false})
+  let mul ?no_ov ik x y=(top_of ik,{underflow=false; overflow=false})
+  let sub ?no_ov ik x y=(top_of ik,{underflow=false; overflow=false})
+
+  let shift_left ik a b =(top_of ik,{underflow=false; overflow=false})
+
+  let rem ik x y = 
+    M.trace "bitfield" "rem";
+    top_of ik
+
+  let rec div ?no_ov ik x y =(top_of ik,{underflow=false; overflow=false})
+
+
+  let eq ik x y =
+    M.trace "bitfield" "eq";
+    if BArith.is_constant x && BArith.is_constant y then of_bool ik (BArith.eq x y) 
+                else if not (BArith.includes x y || (BArith.includes y x)) then of_bool ik false
+                else BArith.topbool
+
     let ne ik x y =
-      match x, y with
-      | None, None -> bot_of ik
-      | None, _ | _, None -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y)))
-      | Some (x1,x2), Some (y1,y2) ->
-        if Ints_t.compare y2 x1 < 0 || Ints_t.compare x2 y1 < 0 then
-          of_bool ik true
-        else if Ints_t.compare x2 y1 <= 0 && Ints_t.compare y2 x1 <= 0 then
-          of_bool ik false
-        else top ()
-  
-    let eq ik x y =
-      match x, y with
-      | None, None -> bot_of ik
-      | None, _ | _, None -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y)))
-      | Some (x1,x2), Some (y1,y2) ->
-        if Ints_t.compare y2 x1 <= 0 && Ints_t.compare x2 y1 <= 0 then
-          of_bool ik true
-        else if Ints_t.compare y2 x1 < 0 || Ints_t.compare x2 y1 < 0 then
-          of_bool ik false
-        else top ()
-  
-    let ge ik x y =
-      match x, y with
-      | None, None -> bot_of ik
-      | None, _ | _, None -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y)))
-      | Some (x1,x2), Some (y1,y2) ->
-        if Ints_t.compare y2 x1 <= 0 then of_bool ik true
-        else if Ints_t.compare x2 y1 < 0 then of_bool ik false
-        else top ()
-  
-    let le ik x y =
-      match x, y with
-      | None, None -> bot_of ik
-      | None, _ | _, None -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y)))
-      | Some (x1,x2), Some (y1,y2) ->
-        if Ints_t.compare x2 y1 <= 0 then of_bool ik true
-        else if Ints_t.compare  y2 x1 < 0 then of_bool ik false
-        else top ()
-  
-    let gt ik x y =
-      match x, y with
-      | None, None -> bot_of ik
-      | None, _ | _, None -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y)))
-      | Some (x1,x2), Some (y1,y2) ->
-        if Ints_t.compare y2 x1 < 0 then of_bool ik true
-        else if Ints_t.compare x2 y1 <= 0 then of_bool ik false
-        else top ()
-  
-    let lt ik x y =
-      match x, y with
-      | None, None -> bot_of ik
-      | None, _ | _, None -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y)))
-      | Some (x1,x2), Some (y1,y2) ->
-        if Ints_t.compare x2 y1 < 0 then of_bool ik true
-        else if Ints_t.compare y2 x1 <= 0 then of_bool ik false
-        else top ()
-  
-    let invariant_ikind e ik = function
-      | Some (x1, x2) ->
-        let (x1', x2') = BatTuple.Tuple2.mapn Ints_t.to_bigint (x1, x2) in
-        IntInvariant.of_interval e ik (x1', x2')
-      | None -> Invariant.none
-  
-    let arbitrary ik =
-      let open QCheck.Iter in
-      (* let int_arb = QCheck.map ~rev:Ints_t.to_bigint Ints_t.of_bigint GobQCheck.Arbitrary.big_int in *)
-      (* TODO: apparently bigints are really slow compared to int64 for domaintest *)
-      let int_arb = QCheck.map ~rev:Ints_t.to_int64 Ints_t.of_int64 GobQCheck.Arbitrary.int64 in
-      let pair_arb = QCheck.pair int_arb int_arb in
-      let shrink = function
-        | Some (l, u) -> (return None) <+> (GobQCheck.shrink pair_arb (l, u) >|= of_interval ik >|= fst)
-        | None -> empty
-      in
-      QCheck.(set_shrink shrink @@ set_print show @@ map (*~rev:BatOption.get*) (fun x -> of_interval ik x |> fst ) pair_arb)
-  
-    let modulo n k =
-      let result = Ints_t.rem n k in
-      if Ints_t.compare result Ints_t.zero >= 0 then result
-      else Ints_t.add result  k
-  
-    let refine_with_congruence ik (intv : t) (cong : (int_t * int_t ) option) : t =
-      match intv, cong with
-      | Some (x, y), Some (c, m) ->
-        if Ints_t.equal m Ints_t.zero && (Ints_t.compare c x < 0 || Ints_t.compare c y > 0) then None
-        else if Ints_t.equal m Ints_t.zero then
-          Some (c, c)
-        else
-          let (min_ik, max_ik) = range ik in
-          let rcx =
-            if Ints_t.equal x min_ik then x else
-              Ints_t.add x (modulo (Ints_t.sub c x) (Ints_t.abs m)) in
-          let lcy =
-            if Ints_t.equal y max_ik then y else
-              Ints_t.sub y (modulo (Ints_t.sub y c) (Ints_t.abs m)) in
-          if Ints_t.compare rcx lcy > 0 then None
-          else if Ints_t.equal rcx lcy then norm ik @@ Some (rcx, rcx) |> fst
-          else norm ik @@ Some (rcx, lcy) |> fst
-      | _ -> None
-  
+      if BArith.is_constant x && BArith.is_constant y then of_bool ik (not (BArith.eq x y)) 
+      else if not (BArith.includes x y || (BArith.includes y x)) then of_bool ik true
+      else BArith.topbool
 
+
+  let leq (x:t) (y:t) = BArith.includes x y
+
+  type comparison_result = 
+    | Less
+    | LessOrEqual
+    | Greater
+    | GreaterOrEqual
+    | Unknown
+
+let compare_bitfields ?(strict=true) ?(signed=false) (z1,o1) (z2,o2) =
+  M.trace "bitfield" "compare_bitfields";
+  let bit_length = Sys.word_size - 2 in  (* Set bit length based on system word size *)
+  let sign_bit_position = if signed then bit_length - 1 else -1 in
+  let result = ref Unknown in
+
+  (* Helper function to check bits at each position *)
+  let get_bit mask pos = ((Ints_t.to_int mask) lsr pos) land 1 = 1 in
+
+  (* Iterate from Most Significant Bit (MSB) to Least Significant Bit (LSB) *)
+  for i = bit_length - 1 downto 0 do
+    let bit1_zero = get_bit z1 i in
+    let bit1_one = get_bit o1 i in
+    let bit2_zero = get_bit z2 i in
+    let bit2_one = get_bit o2 i in
+
+    (* Check if bits at position i are both known *)
+    if (bit1_zero || bit1_one) && (bit2_zero || bit2_one) then
+      if bit1_zero && bit2_one then begin
+        result := if strict then Less else LessOrEqual;
+        raise Exit
+      end else if bit1_one && bit2_zero then begin
+        result := if strict then Greater else GreaterOrEqual;
+        raise Exit
+      end else if (bit1_one = bit2_one) && (bit1_zero = bit2_zero) then
+        () (* Equal bits, continue checking lower bits *)
+      else
+        result := Unknown (* Unknown bit situation, stop *)
+    else
+      result := Unknown; 
+      raise Exit
+  done;
+
+  (* Handle sign bit adjustment if signed *)
+  if signed && !result <> Unknown then
+    match !result with
+    | Less when get_bit o1 sign_bit_position <> get_bit o2 sign_bit_position -> result := Greater
+    | Greater when get_bit o1 sign_bit_position <> get_bit o2 sign_bit_position -> result := Less
+    | _ -> ();
+  else ();
+
+  (* Handle non-strict inequalities for unknowns *)
+  if not strict && !result = Unknown then begin
+    if (Ints_t.logand z1 o2) =  Ints_t.zero then result := LessOrEqual
+    else if (Ints_t.logand o1 z2) = Ints_t.zero then result := GreaterOrEqual
+  end;
+  !result
+
+  let ge ik x y = if compare_bitfields x y = GreaterOrEqual then of_bool ik true else BArith.topbool
+
+  let le ik x y = if compare_bitfields x y = LessOrEqual then of_bool ik true else BArith.topbool
+
+  let gt ik x y = if compare_bitfields x y = Greater then of_bool ik true else BArith.topbool
+
+  let lt ik x y = if compare_bitfields x y = Less then of_bool ik true else BArith.topbool
+
+  let invariant_ikind e ik = 
+    M.trace "bitfield" "invariant_ikind";
+    failwith "Not implemented"
+
+  let arbitrary ik = 
+    M.trace "bitfield" "arbitrary";
+    failwith "Not implemented"
+    
+
+  let refine_with_congruence ik (intv : t) (cong : (int_t * int_t ) option) : t =
+    M.trace "bitfield" "refine_with_congruence";
+    top_of ik
   
-    let refine_with_interval ik a b = meet ik a b
-  
-    let refine_with_excl_list ik (intv : t) (excl : (int_t list * (int64 * int64)) option) : t =
-      match intv, excl with
-      | None, _ | _, None -> intv
-      | Some(l, u), Some(ls, (rl, rh)) ->
-        let rec shrink op b =
-          let new_b = (op b (Ints_t.of_int(Bool.to_int(BatList.mem_cmp Ints_t.compare b ls)))) in
-          if not (Ints_t.equal b new_b) then shrink op new_b else new_b
-        in
-        let (min_ik, max_ik) = range ik in
-        let l' = if Ints_t.equal l min_ik then l else shrink Ints_t.add l in
-        let u' = if Ints_t.equal u max_ik then u else shrink Ints_t.sub u in
-        let intv' = norm ik @@ Some (l', u') |> fst in
-        let range = norm ~suppress_ovwarn:true ik (Some (Ints_t.of_bigint (Size.min_from_bit_range rl), Ints_t.of_bigint (Size.max_from_bit_range rh))) |> fst in
-        meet ik intv' range
-  
-    let refine_with_incl_list ik (intv: t) (incl : (int_t list) option) : t =
-      match intv, incl with
-      | None, _ | _, None -> intv
-      | Some(l, u), Some(ls) ->
-        let rec min m1 ms = match ms with | [] -> m1 | x::xs -> match m1 with
-          | None -> min (Some x) xs | Some m -> if Ints_t.compare m x < 0 then min (Some m) xs else min (Some x) xs in
-        let rec max m1 ms = match ms with | [] -> m1 | x::xs -> match m1 with
-          | None -> max (Some x) xs | Some m -> if Ints_t.compare m x > 0 then max (Some m) xs else max (Some x) xs in
-        match min None ls, max None ls with
-        | Some m1, Some m2 -> refine_with_interval ik (Some(l, u)) (Some (m1, m2))
-        | _, _-> intv
-  
-    let project ik p t = t
-  end
+  let refine_with_interval ik a b = 
+    M.trace "bitfield" "refine_with_interval";
+    top_of ik
+
+  let refine_with_excl_list ik (intv : t) (excl : (int_t list * (int64 * int64)) option) : t = 
+    M.trace "bitfield" "refine_with_excl_list";
+    top_of ik
+
+  let refine_with_incl_list ik (intv: t) (incl : (int_t list) option) : t =
+    M.trace "bitfield" "refine_with_incl_list";
+    top_of ik
+
+  let project ik p t = t
+end
   
 
 (** IntervalSetFunctor that is not just disjunctive completion of intervals, but attempts to be precise for wraparound arithmetic for unsigned types *)
