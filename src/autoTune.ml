@@ -250,22 +250,16 @@ let focusOnTermination (spec: Svcomp.Specification.t) =
 let focusOnTermination () =
   List.iter focusOnTermination (Svcomp.Specification.of_option ())
 
-let focusOnReachSafety (spec: Svcomp.Specification.t) = ()
+let reachSafety (spec: Svcomp.Specification.t) = ()
 
-let focusOnReachSafety () =
-  List.iter focusOnReachSafety (Svcomp.Specification.of_option ())
-
-let focusOnConcurrencySafety (spec: Svcomp.Specification.t) =
+let concurrencySafety (spec: Svcomp.Specification.t) =
   match spec with
   | NoDataRace -> (*enable all thread analyses*)
     Logs.info "Specification: NoDataRace -> enabling thread analyses \"%s\"" (String.concat ", " notNeccessaryThreadAnalyses);
     enableAnalyses notNeccessaryThreadAnalyses;
   | _ -> ()
 
-let focusOnConcurrencySafety () =
-  List.iter focusOnConcurrencySafety (Svcomp.Specification.of_option ())
-
-let focusOnNoOverflows (spec: Svcomp.Specification.t) =
+let noOverflows (spec: Svcomp.Specification.t) =
   match spec with
   | NoOverflow ->
     (*We focus on integer analysis*)
@@ -276,8 +270,8 @@ let focusOnNoOverflows (spec: Svcomp.Specification.t) =
     end
   | _ -> ()
 
-let focusOnNoOverflows () =
-  List.iter focusOnNoOverflows (Svcomp.Specification.of_option ())
+let focusOn (f : SvcompSpec.t -> unit) =
+  List.iter f (Svcomp.Specification.of_option ())
 
 (*Detect enumerations and enable the "ana.int.enums" option*)
 exception EnumFound
@@ -544,14 +538,11 @@ let chooseConfig file =
   if isActivated "mallocWrappers" then
     findMallocWrappers ();
 
-  if isActivated "reachSafetySpecification" then
-    focusOnReachSafety ();
+  if isActivated "reachSafetySpecification" then focusOn reachSafety;
 
-  if isActivated "concurrencySafetySpecification" then
-    focusOnConcurrencySafety ();
+  if isActivated "concurrencySafetySpecification" then focusOn concurrencySafety;
 
-  if isActivated "noOverflows" then
-    focusOnNoOverflows ();
+  if isActivated "noOverflows" then focusOn noOverflows;
 
   if isActivated "enums" && hasEnums file then
     set_bool "ana.int.enums" true;
