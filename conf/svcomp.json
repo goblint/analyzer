@@ -60,6 +60,7 @@
         "singleThreaded",
         "mallocWrappers",
         "noRecursiveIntervals",
+        "specification",
         "enums",
         "congruence",
         "octagon",
