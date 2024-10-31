@@ -44,6 +44,26 @@ class functionVisitor(calling, calledBy, argLists, dynamicallyCalled) = object
     DoChildren
 end
 
+exception Found
+class findAllocsNotInLoops = object
+  inherit nopCilVisitor
+
+  method! vstmt stmt =
+    match stmt.skind with
+    | Loop _ -> SkipChildren
+    | _ -> DoChildren
+
+  method! vinst = function
+    | Call (_, Lval (Var f, NoOffset), args,_,_) ->
+      let desc = LibraryFunctions.find f in
+      begin match desc.special args with
+        | Malloc _
+        | Alloca _ -> raise Found
+        | _ -> DoChildren
+      end
+    | _ -> DoChildren
+end
+
 type functionCallMaps = {
   calling: FunctionSet.t FunctionCallMap.t;
   calledBy: (FunctionSet.t * int) FunctionCallMap.t;
