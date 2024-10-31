@@ -525,21 +525,6 @@ let isActivated a = get_bool "ana.autotune.enabled" && List.mem a @@ get_string_
 
 let isTerminationTask () = List.mem Svcomp.Specification.Termination (Svcomp.Specification.of_option ())
 
-let specificationReachSafetyIsActivated () =
-  isActivated "reachSafetySpecification"
-
-let specificationConcurrencySafetyIsActivated () =
-  isActivated "concurrencySafetySpecification"
-
-let specificationNoOverflowsIsActivated () =
-  isActivated "noOverflows"
-
-let specificationTerminationIsActivated () =
-  isActivated "termination"
-
-let specificationMemSafetyIsActivated () =
-  isActivated "memsafetySpecification"
-
 let chooseConfig file =
   let factors = collectFactors visitCilFileSameGlobals file in
   let fileCompplexity = estimateComplexity factors file in
@@ -559,13 +544,13 @@ let chooseConfig file =
   if isActivated "mallocWrappers" then
     findMallocWrappers ();
 
-  if specificationReachSafetyIsActivated () then
+  if isActivated "reachSafetySpecification" then
     focusOnReachSafety ();
 
-  if specificationConcurrencySafetyIsActivated () then
+  if isActivated "concurrencySafetySpecification" then
     focusOnConcurrencySafety ();
 
-  if specificationNoOverflowsIsActivated () then
+  if isActivated "noOverflows" then
     focusOnNoOverflows ();
 
   if isActivated "enums" && hasEnums file then
