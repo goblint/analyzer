@@ -250,13 +250,25 @@ let focusOnTermination (spec: Svcomp.Specification.t) =
 let focusOnTermination () =
   List.iter focusOnTermination (Svcomp.Specification.of_option ())
 
-let focusOnSpecification (spec: Svcomp.Specification.t) =
+let focusOnReachSafety (spec: Svcomp.Specification.t) = ()
+
+let focusOnReachSafety () =
+  List.iter focusOnReachSafety (Svcomp.Specification.of_option ())
+
+let focusOnConcurrencySafety (spec: Svcomp.Specification.t) =
   match spec with
-  | UnreachCall s -> ()
   | NoDataRace -> (*enable all thread analyses*)
     Logs.info "Specification: NoDataRace -> enabling thread analyses \"%s\"" (String.concat ", " notNeccessaryThreadAnalyses);
     enableAnalyses notNeccessaryThreadAnalyses;
-  | NoOverflow -> (*We focus on integer analysis*)
+  | _ -> ()
+
+let focusOnConcurrencySafety () =
+  List.iter focusOnConcurrencySafety (Svcomp.Specification.of_option ())
+
+let focusOnNoOverflows (spec: Svcomp.Specification.t) =
+  match spec with
+  | NoOverflow ->
+    (*We focus on integer analysis*)
     set_bool "ana.int.def_exc" true;
     begin
       try ignore @@ visitCilFileSameGlobals (new findAllocsNotInLoops) (!Cilfacade.current_file)
@@ -264,8 +276,8 @@ let focusOnSpecification (spec: Svcomp.Specification.t) =
     end
   | _ -> ()
 
-let focusOnSpecification () =
-  List.iter focusOnSpecification (Svcomp.Specification.of_option ())
+let focusOnNoOverflows () =
+  List.iter focusOnNoOverflows (Svcomp.Specification.of_option ())
 
 (*Detect enumerations and enable the "ana.int.enums" option*)
 exception EnumFound
@@ -513,8 +525,14 @@ let isActivated a = get_bool "ana.autotune.enabled" && List.mem a @@ get_string_
 
 let isTerminationTask () = List.mem Svcomp.Specification.Termination (Svcomp.Specification.of_option ())
 
-let specificationIsActivated () =
-  isActivated "specification" && get_string "ana.specification" <> ""
+let specificationReachSafetyIsActivated () =
+  isActivated "reachSafetySpecification"
+
+let specificationConcurrencySafetyIsActivated () =
+  isActivated "concurrencySafetySpecification"
+
+let specificationNoOverflowsIsActivated () =
+  isActivated "noOverflows"
 
 let specificationTerminationIsActivated () =
   isActivated "termination"
@@ -541,8 +559,14 @@ let chooseConfig file =
   if isActivated "mallocWrappers" then
     findMallocWrappers ();
 
-  if specificationIsActivated () then
-    focusOnSpecification ();
+  if specificationReachSafetyIsActivated () then
+    focusOnReachSafety ();
+
+  if specificationConcurrencySafetyIsActivated () then
+    focusOnConcurrencySafety ();
+
+  if specificationNoOverflowsIsActivated () then
+    focusOnNoOverflows ();
 
   if isActivated "enums" && hasEnums file then
     set_bool "ana.int.enums" true;

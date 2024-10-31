@@ -535,7 +535,6 @@
                 "enum": [
                   "congruence",
                   "singleThreaded",
-                  "specification",
                   "mallocWrappers",
                   "noRecursiveIntervals",
                   "enums",
@@ -545,6 +544,9 @@
                   "octagon",
                   "wideningThresholds",
                   "memsafetySpecification",
+                  "reachSafetySpecification",
+                  "concurrencySafetySpecification",
+                  "noOverflows",
                   "termination",
                   "tmpSpecialAnalysis"
                 ]
@@ -552,7 +554,6 @@
               "default": [
                 "congruence",
                 "singleThreaded",
-                "specification",
                 "mallocWrappers",
                 "noRecursiveIntervals",
                 "enums",
@@ -561,6 +562,9 @@
                 "octagon",
                 "wideningThresholds",
                 "memsafetySpecification",
+                "reachSafetySpecification",
+                "concurrencySafetySpecification",
+                "noOverflows",
                 "termination",
                 "tmpSpecialAnalysis"
               ]

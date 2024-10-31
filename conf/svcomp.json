@@ -60,13 +60,13 @@
         "singleThreaded",
         "mallocWrappers",
         "noRecursiveIntervals",
-        "specification",
         "enums",
         "congruence",
         "octagon",
         "wideningThresholds",
         "loopUnrollHeuristic",
         "memsafetySpecification",
+        "noOverflows",
         "termination",
         "tmpSpecialAnalysis"
       ]
