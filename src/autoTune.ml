@@ -257,7 +257,11 @@ let focusOnSpecification (spec: Svcomp.Specification.t) =
     Logs.info "Specification: NoDataRace -> enabling thread analyses \"%s\"" (String.concat ", " notNeccessaryThreadAnalyses);
     enableAnalyses notNeccessaryThreadAnalyses;
   | NoOverflow -> (*We focus on integer analysis*)
-    set_bool "ana.int.def_exc" true
+    set_bool "ana.int.def_exc" true;
+    begin
+      try ignore @@ visitCilFileSameGlobals (new findAllocsNotInLoops) (!Cilfacade.current_file)
+      with Found -> set_int "ana.malloc.unique_address_count" 1;
+    end
   | _ -> ()
 
 let focusOnSpecification () =
