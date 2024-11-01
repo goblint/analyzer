@@ -1227,6 +1227,12 @@ struct
     let name () = "V"
   end
 
+  module DV2 =
+  struct
+    include MapDomain.MapBot_LiftTop (LockDomain.MustLock) (MayVars)
+    let name () = "V2"
+  end
+
   module L =
   struct
     include MapDomain.MapBot_LiftTop (LockDomain.MustLock) (MinLocksets)
@@ -1242,7 +1248,7 @@ struct
   open Locksets
 
   open LockCenteredD
-  module D = Lattice.Prod (DV) (L)
+  module D = Lattice.Prod3 (DV) (DV2) (L)
 
   module Wrapper = Wrapper (G)
   module UnwrappedG = G
@@ -1251,7 +1257,7 @@ struct
   let invariant_global ask getg = invariant_global ask (Wrapper.getg ask getg)
   let invariant_vars ask getg = invariant_vars ask (Wrapper.getg ask getg)
 
-  let startstate () = (DV.bot (), L.bot ())
+  let startstate () = (DV.bot (), DV2.bot (), L.bot ())
 
   let lockset_init = MustLockset.all ()
 
@@ -1265,7 +1271,7 @@ struct
   let read_global ask getg (st: BaseComponents (D).t) x =
     let getg = Wrapper.getg ask getg in
     let s = current_lockset ask in
-    let (vv, l) = st.priv in
+    let (vv, vv2, l) = st.priv in
     let d_cpa = CPA.find x st.cpa in
     let d_sync = L.fold (fun m bs acc ->
         if not (MustVars.mem x (DV.find m vv)) then
@@ -1309,10 +1315,11 @@ struct
     let sideg = Wrapper.sideg ask sideg in
     let getg = Wrapper.getg ask getg in
     let s = current_lockset ask in
-    let (vv, l) = st.priv in
-    let v' = L.fold (fun m _ acc ->
-        DV.add m (MustVars.add x (DV.find m acc)) acc
-      ) l vv
+    let (vv, vv2, l) = st.priv in
+    let (v', v2') = L.fold (fun m _ (acc1, acc2) ->
+        DV.add m (MustVars.add x (DV.find m acc1)) acc1,
+        DV2.add m (MayVars.add x (DV2.find m acc2)) acc2
+      ) l (vv, vv2)
     in
     let cpa' = CPA.add x v st.cpa in
     if not invariant && not (!earlyglobs && is_excluded_from_earlyglobs x) then (
@@ -1320,20 +1327,22 @@ struct
       sideg (V.global x) (UnwrappedG.create_weak (GWeak.singleton s v))
       (* Unlock after invariant will still side effect refined value from CPA, because cannot distinguish from non-invariant write. *)
     );
-    {st with cpa = cpa'; priv = (v', l)}
+    {st with cpa = cpa'; priv = (v', v2', l)}
 
   let lock ask getg (st: BaseComponents (D).t) m =
     let s = current_lockset ask in
-    let (v, l) = st.priv in
+    let (v, v2, l) = st.priv in
     let v' = DV.add m (MustVars.empty ()) v in
+    let v2' = DV2.add m (MayVars.empty ()) v2 in
     let l' = L.add m (MinLocksets.singleton s) l in
-    {st with priv = (v', l')}
+    {st with priv = (v', v2', l')}
 
   let unlock ask getg sideg (st: BaseComponents (D).t) m =
     let sideg = Wrapper.sideg ask sideg in
     let getg = Wrapper.getg ask getg in
     let s = MustLockset.remove m (current_lockset ask) in
-    let is_in_G x _ = is_global ask x in
+    let (_, v2, _) = st.priv in
+    let is_in_G x _ = is_global ask x && MayVars.mem x (DV2.find m v2) in
     let side_cpa = CPA.filter is_in_G st.cpa in
     let side_cpa = CPA.mapi (fun x v ->
         let v = distr_init getg x v in

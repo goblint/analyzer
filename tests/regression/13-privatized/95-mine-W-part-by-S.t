@@ -84,10 +84,10 @@ Write-Centered succeeds:
     unsafe: 0
     total memory locations: 2
 
-TODO Lock-Centered should also succeed, but doesn't:
+Lock-Centered (with may-V) also succeeds:
 
   $ goblint --set ana.base.privatization lock 95-mine-W-part-by-S.c
-  [Warning][Assert] Assertion "g == 8" is unknown. (95-mine-W-part-by-S.c:28:3-28:26)
+  [Success][Assert] Assertion "g == 8" will succeed (95-mine-W-part-by-S.c:28:3-28:26)
   [Info][Deadcode] Logical lines of code (LLoC) summary:
     live: 17
     dead: 0
