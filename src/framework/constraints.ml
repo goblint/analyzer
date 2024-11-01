@@ -16,7 +16,7 @@ end
 
 
 (** The main point of this file---generating a [GlobConstrSys] from a [Spec]. *)
-module FromSpec (S:Spec) (Cfg:CfgBackward) (I: Increment)
+module FromSpec (S:Spec) (Cfg:CfgBidirSkip) (I: Increment)
   : sig
     include GlobConstrSys with module LVar = UnrollVarF (S.C)
                            and module GVar = GVarF (S.V)
@@ -291,6 +291,20 @@ struct
     let ctx, r, spawns = common_ctx var edge prev_node d getl sidel getg sideg in
     let d = S.skip ctx in (* Force transfer function to be evaluated before dereferencing in common_join argument. *)
     common_join ctx d !r !spawns
+
+  let find_loop_head = function
+    | Statement s ->
+      let n' = Statement (LoopUnrolling.find_original s) in
+      let prevs = Cfg.prev n' in
+      Stdlib.List.find_map (fun (edges, prev) ->
+          let stmts = Cfg.skippedByEdge prev edges n' in
+          Stdlib.List.find_map (fun s ->
+              match s.GoblintCil.skind with
+              | Loop (block, loc, _, cont_opt, break_opt) -> Some (block, loc, cont_opt, break_opt)
+              | _ -> None
+            ) stmts
+        ) prevs
+    | FunctionEntry _ | Function _ -> None
 
   let tf var getl sidel getg sideg prev_node edge d =
     begin match edge with
