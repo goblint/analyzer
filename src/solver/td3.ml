@@ -289,7 +289,7 @@ module Base =
               destabilize_vs y || b || was_stable && List.mem_cmp S.Var.compare y vs
             else
               true
-          ) w false
+          ) w false (* nosemgrep: fold-exists *) (* does side effects *)
       and solve ?reuse_eq x phase =
         if tracing then trace "sol2" "solve %a, phase: %s, called: %b, stable: %b, wpoint: %b" S.Var.pretty_trace x (show_phase phase) (HM.mem called x) (HM.mem stable x) (HM.mem wpoint x);
         init x;
