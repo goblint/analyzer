@@ -132,7 +132,66 @@ let () = Printexc.register_printer (function
     | _ -> None (* for other exceptions *)
   )
 
+(* Find real (i.e. non-empty) successor of statement.
+    CIL CFG contains some unnecessary intermediate statements.
+    The first return value is the next real successor, the second argument
+    is the list of skipped intermediate statements.
+    If stmt is succ of parent, then optional argument parent must be passed
+    to also detect cycle ending with parent itself.
+    If not_found is true, then a stmt without succs will raise Not_found
+    instead of returning that stmt. *)
+let find_real_stmt ?parent ?(not_found=false) stmt =
+  if Messages.tracing then Messages.tracei "cfg" "find_real_stmt not_found=%B stmt=%d" not_found stmt.sid;
+  let rec find visited_stmts stmt =
+    if Messages.tracing then
+      Messages.trace "cfg" "find_real_stmt visited=[%a] stmt=%d: %a"
+        (d_list "; " (fun () x -> Pretty.text (string_of_int x)))
+        (List.map (fun s -> s.sid) visited_stmts) stmt.sid dn_stmt stmt;
+    if
+      GobOption.exists (CilType.Stmt.equal stmt) parent
+      || List.exists (CilType.Stmt.equal stmt) visited_stmts
+    then
+      stmt, visited_stmts (* cycle *)
+    else
+      match stmt.skind with
+      | Goto _ (* 1 succ *)
+      | Instr [] (* CIL inserts like unlabelled goto, 0-1 succs *)
+      | Block _ (* just container for stmts, 0-1 succs *)
+      | Loop _ -> (* just container for (prepared) body, 1 succ *)
+        begin match stmt.succs with
+          | [] ->
+            if not_found then
+              raise Not_found
+            else
+              stmt, visited_stmts
+          | [next] ->
+            find (stmt :: visited_stmts) next
+          | _ -> (* >1 succ *)
+            failwith "MyCFG.createCFG.find_real_stmt: >1 succ"
+        end
 
+      | Instr _
+      | If _
+      | Return _ ->
+        stmt, visited_stmts
+
+      | Continue _
+      | Break _
+      | Switch _ ->
+        (* Should be removed by Cil.prepareCFG. *)
+        failwith "MyCFG.createCFG: unprepared stmt"
+
+      | ComputedGoto _->
+        failwith "MyCFG.createCFG: unsupported stmt"
+  in
+  try
+    (* rev_path is the stack of all visited statements, excluding the final statement *)
+    let final_stmt, rev_path = find [] stmt in
+    if Messages.tracing then Messages.traceu "cfg" "-> %d" final_stmt.sid;
+    final_stmt, List.rev rev_path
+  with Not_found ->
+    if Messages.tracing then Messages.traceu "cfg" "-> Not_found";
+    raise Not_found
 
 let createCFG (file: file) =
   let cfgF = H.create 113 in
@@ -166,67 +225,6 @@ let createCFG (file: file) =
     addEdge ?skippedStatements fromNode (Node.location fromNode, edge) toNode
   in
 
-  (* Find real (i.e. non-empty) successor of statement.
-     CIL CFG contains some unnecessary intermediate statements.
-     The first return value is the next real successor, the second argument
-     is the list of skipped intermediate statements.
-     If stmt is succ of parent, then optional argument parent must be passed
-     to also detect cycle ending with parent itself.
-     If not_found is true, then a stmt without succs will raise Not_found
-     instead of returning that stmt. *)
-  let find_real_stmt ?parent ?(not_found=false) stmt =
-    if Messages.tracing then Messages.tracei "cfg" "find_real_stmt not_found=%B stmt=%d" not_found stmt.sid;
-    let rec find visited_stmts stmt =
-      if Messages.tracing then
-        Messages.trace "cfg" "find_real_stmt visited=[%a] stmt=%d: %a"
-          (d_list "; " (fun () x -> Pretty.text (string_of_int x)))
-          (List.map (fun s -> s.sid) visited_stmts) stmt.sid dn_stmt stmt;
-      if
-        GobOption.exists (CilType.Stmt.equal stmt) parent
-        || List.exists (CilType.Stmt.equal stmt) visited_stmts
-      then
-        stmt, visited_stmts (* cycle *)
-      else
-        match stmt.skind with
-        | Goto _ (* 1 succ *)
-        | Instr [] (* CIL inserts like unlabelled goto, 0-1 succs *)
-        | Block _ (* just container for stmts, 0-1 succs *)
-        | Loop _ -> (* just container for (prepared) body, 1 succ *)
-          begin match stmt.succs with
-            | [] ->
-              if not_found then
-                raise Not_found
-              else
-                stmt, visited_stmts
-            | [next] ->
-              find (stmt :: visited_stmts) next
-            | _ -> (* >1 succ *)
-              failwith "MyCFG.createCFG.find_real_stmt: >1 succ"
-          end
-
-        | Instr _
-        | If _
-        | Return _ ->
-          stmt, visited_stmts
-
-        | Continue _
-        | Break _
-        | Switch _ ->
-          (* Should be removed by Cil.prepareCFG. *)
-          failwith "MyCFG.createCFG: unprepared stmt"
-
-        | ComputedGoto _->
-          failwith "MyCFG.createCFG: unsupported stmt"
-    in
-    try
-      (* rev_path is the stack of all visited statements, excluding the final statement *)
-      let final_stmt, rev_path = find [] stmt in
-      if Messages.tracing then Messages.traceu "cfg" "-> %d" final_stmt.sid;
-      final_stmt, List.rev rev_path
-    with Not_found ->
-      if Messages.tracing then Messages.traceu "cfg" "-> Not_found";
-      raise Not_found
-  in
   addEdge_fromLoc (FunctionEntry dummy_func) (Ret (None, dummy_func)) (Function dummy_func);
   (* We iterate over all globals looking for functions: *)
   iterGlobals file (fun glob ->
