@@ -26,7 +26,7 @@ Miné without thread IDs even succeeds:
     unsafe: 0
     total memory locations: 2
 
-TODO: Our Miné with W should also succeed, but doesn't:
+Our Miné with W doesn't succeed with W partitioning due to initialization:
 
   $ goblint --set ana.base.privatization mine-W 95-mine-W-part-by-S.c
   [Warning][Assert] Assertion "g == 8" is unknown. (95-mine-W-part-by-S.c:28:3-28:26)
@@ -40,10 +40,10 @@ TODO: Our Miné with W should also succeed, but doesn't:
     unsafe: 0
     total memory locations: 2
 
-The noinit variant makes no difference:
+But the noinit variant succeeds:
 
   $ goblint --set ana.base.privatization mine-W-noinit 95-mine-W-part-by-S.c
-  [Warning][Assert] Assertion "g == 8" is unknown. (95-mine-W-part-by-S.c:28:3-28:26)
+  [Success][Assert] Assertion "g == 8" will succeed (95-mine-W-part-by-S.c:28:3-28:26)
   [Info][Deadcode] Logical lines of code (LLoC) summary:
     live: 17
     dead: 0

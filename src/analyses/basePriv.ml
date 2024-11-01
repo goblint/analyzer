@@ -1135,9 +1135,9 @@ struct
     include SetDomain.ToppedSet (Basetype.Variables) (struct let topname = "All variables" end)
     let name () = "W"
   end
-  module D = W
+  module D = MapDomain.MapBot (MustLockset) (W)
 
-  let startstate () = W.empty ()
+  let startstate () = D.empty ()
 
   let read_global ask getg (st: BaseComponents (D).t) x =
     let s = current_lockset ask in
@@ -1154,7 +1154,7 @@ struct
     if not invariant && not (!earlyglobs && is_excluded_from_earlyglobs x) then
       sideg (V.global x) (G.create_weak (GWeak.singleton s v));
     let w' = if not invariant then
-        W.add x st.priv
+        D.join st.priv (D.singleton s (W.singleton x))
       else
         st.priv (* No need to add invariant to W because it doesn't matter for reads after invariant, only unlocks. *)
     in
@@ -1173,7 +1173,14 @@ struct
 
   let unlock ask getg sideg (st: BaseComponents (D).t) m =
     let s = MustLockset.remove m (current_lockset ask) in
-    let is_in_W x _ = W.mem x st.priv in
+    let w = D.fold (fun s' w acc ->
+        if MustLockset.mem m s' then
+          W.join w acc
+        else
+          acc
+      ) st.priv (W.empty ())
+    in
+    let is_in_W x _ = W.mem x w in
     let side_cpa = CPA.filter is_in_W st.cpa in
     sideg (V.mutex m) (G.create_sync (GSync.singleton s side_cpa));
     st
@@ -1194,7 +1201,7 @@ struct
       CPA.fold (fun x v (st: BaseComponents (D).t) ->
           if is_global ask x then (
             sideg (V.global x) (G.create_weak (GWeak.singleton (MustLockset.empty ()) v));
-            {st with priv = W.add x st.priv} (* TODO: is this add necessary? *)
+            {st with priv = D.join st.priv (D.singleton (MustLockset.empty ()) (W.singleton x))} (* TODO: is this add necessary? *)
           )
           else
             st

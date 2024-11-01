@@ -1,4 +1,4 @@
-// PARAM: --set ana.base.privatization mine-W
+// PARAM: --set ana.base.privatization mine-W-noinit
 #include <pthread.h>
 #include <goblint.h>
 
