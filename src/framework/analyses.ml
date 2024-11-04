@@ -64,7 +64,7 @@ struct
   let getLocation (n,(d,l)) = Node.location n
 
   let pretty_trace () ((n,(c,l)) as x) =
-    if get_bool "dbg.trace.context" then dprintf "(%a, %a) on %a" Node.pretty_trace n LD.pretty c CilType.Location.pretty (getLocation x)
+    if get_bool "dbg.trace.context" then dprintf "(%a, (%a, %a)) on %a" Node.pretty_trace n LD.pretty c LoopCounts.pretty l CilType.Location.pretty (getLocation x)
     (* if get_bool "dbg.trace.context" then dprintf "(%a, %d) on %a" Node.pretty_trace n (LD.tag c) CilType.Location.pretty (getLocation x) *)
     else dprintf "%a on %a" Node.pretty_trace n CilType.Location.pretty (getLocation x)
 

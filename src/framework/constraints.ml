@@ -315,6 +315,47 @@ struct
       | _ -> DoChildren
   end
 
+  let from_loop_head (v,(c,l)) (edges, u) (block, loc, cont_opt, break_opt) =
+    (* When exiting the loop, we calculate the state based on the loop head of the last unrolled iteration *)
+    let cont_node = Option.map (fun x -> Statement (fst (CfgTools.find_real_stmt x))) cont_opt in
+    let break_node = Option.map (fun x -> Statement (fst (CfgTools.find_real_stmt x))) break_opt in
+    match break_node with
+    | Some b when Node.equal b v ->
+      Logs.info "current node: %a\n loopcount: %a\n prev node: %a\n continue: %a\n break node: %a" Node.pretty v LoopCounts.pretty l Node.pretty u (Pretty.docOpt (Node.pretty ())) cont_node (Pretty.docOpt (Node.pretty ())) break_node;
+      (u, (c, LoopCounts.add u 5 l)) (* TODO: value hardcoded *)
+    | _ -> (u,(c,l))
+
+  exception WrongCase
+  let to_loop_head (v,(c,l)) (edges, u) (block, loc, cont_opt, break_opt) =
+    (* When calculating the state in the loop head *)
+    try
+      (* We either enter the loop for the first time *)
+      ignore @@ visitCilBlock (new loop_end_visitor u) block;
+      Logs.info "Loop entry edge\n current node: %a\n prev node: %a" Node.pretty v Node.pretty u;
+      if LoopCounts.find v l = 0 then
+        (u, (c, LoopCounts.remove v l))
+      else
+        raise WrongCase
+    with Found ->
+      (* Or come from within the loop using a back edge *)
+      Logs.info "Back edge\n current node: %a\n prev node: %a" Node.pretty v Node.pretty u;
+      if LoopCounts.find v l = 0 then
+        raise WrongCase
+      else
+        (u, (c, LoopCounts.add v (LoopCounts.find v l - 1) l))
+
+  let unroll (v,(c,l)) (edges, u) : lv =
+    match find_loop_head u, find_loop_head v with
+    | Some head_u, Some head_v ->
+      (* TODO: is this correct? *)
+      let (u',(c',l')) = from_loop_head (v,(c,l)) (edges, u) head_u in
+      to_loop_head (v,(c',l')) (edges, u') head_v
+    | Some head_u, _ ->
+      from_loop_head (v,(c,l)) (edges, u) head_u
+    | _, Some head_v ->
+      to_loop_head (v,(c,l)) (edges, u) head_v
+    | _, _ -> (u,(c,l))
+
   let tf var getl sidel getg sideg prev_node edge d =
     begin match edge with
       | Assign (lv,rv) -> tf_assign var edge prev_node lv rv
@@ -349,9 +390,12 @@ struct
       )
 
   let tf (v,(c,l)) (edges, u) getl sidel getg sideg =
-    let pval = getl (u,(c,l)) in
-    let _, locs = List.fold_right (fun (f,e) (t,xs) -> f, (f,t)::xs) edges (Node.location v,[]) in
-    List.fold_left2 (|>) pval (List.map (tf (v,(Obj.repr (fun () -> c),l)) getl sidel getg sideg u) edges) locs
+    match unroll (v,(c,l)) (edges, u) with
+    | var ->
+      let pval = getl var in
+      let _, locs = List.fold_right (fun (f,e) (t,xs) -> f, (f,t)::xs) edges (Node.location v,[]) in
+      List.fold_left2 (|>) pval (List.map (tf (v,(Obj.repr (fun () -> c),l)) getl sidel getg sideg u) edges) locs
+    | exception WrongCase -> S.D.bot ()
 
   let tf (v,(c,l)) (e,u) getl sidel getg sideg =
     let old_node = !current_node in
