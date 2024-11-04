@@ -1349,18 +1349,39 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): SOverflow with type int_t = Int
     M.trace "bitfield" "shift_left";
     failwith "Not implemented"
 
-  let add ?no_ov ik x y=(top_of ik,{underflow=false; overflow=false})
-  let mul ?no_ov ik x y=(top_of ik,{underflow=false; overflow=false})
-  let sub ?no_ov ik x y=(top_of ik,{underflow=false; overflow=false})
-
   let shift_left ik a b =(top_of ik,{underflow=false; overflow=false})
+
+  let add ?no_ov ik (z1, o1) (z2, o2) =
+    let undef = Ints_t.logor (Ints_t.logand o1 z1) (Ints_t.logand o2 z2) in
+    let z3 = Ints_t.logor (Ints_t.neg (Ints_t.sub (Ints_t.neg z1) (Ints_t.neg z2))) undef in
+    let o3 = Ints_t.logor (Ints_t.sub o1 o2) undef in
+    ((z3, o3),{underflow=false; overflow=false})
+
+  let sub ?no_ov ik (z1, o1) (z2, o2) =
+    let undef = Ints_t.logor (Ints_t.logand o1 z1) (Ints_t.logand o2 z2) in
+    let z3 = Ints_t.logor (Ints_t.neg (Ints_t.sub (Ints_t.neg z1) (Ints_t.neg z2))) undef in
+    let o3 = Ints_t.logor (Ints_t.sub o1 o2) undef in
+    ((z3, o3),{underflow=false; overflow=false})
+
+  let mul ?no_ov ik (z1, o1) (z2, o2) =
+    let u1 = Ints_t.logand o1 z1 in
+    let u2 = Ints_t.logand o2 z2 in
+    let c1 = Ints_t.logand o1 (Ints_t.neg z1) in
+    let c2 = Ints_t.logand o2 (Ints_t.neg z2) in
+    let o3 = Ints_t.mul c1 c2 in
+    let z3 = Ints_t.neg o3 in
+    let t1 = Ints_t.mul c1 u2 in
+    let t2 = Ints_t.mul u1 c2 in
+    let t3 = Ints_t.mul u1 u2 in
+    let o3 = Ints_t.logor (Ints_t.logor (Ints_t.logor o3  t1) t2) t3 in
+    let z3 = Ints_t.logor (Ints_t.logor (Ints_t.logor z3  t1) t2) t3 in
+    ((z3, o3),{underflow=false; overflow=false})
+
+  let rec div ?no_ov ik x y =(top_of ik,{underflow=false; overflow=false})
 
   let rem ik x y = 
     M.trace "bitfield" "rem";
     top_of ik
-
-  let rec div ?no_ov ik x y =(top_of ik,{underflow=false; overflow=false})
-
 
   let eq ik x y =
     M.trace "bitfield" "eq";
