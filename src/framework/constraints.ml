@@ -306,6 +306,15 @@ struct
         ) prevs
     | FunctionEntry _ | Function _ -> None
 
+  exception Found
+  class loop_end_visitor v = object
+    inherit nopCilVisitor
+
+    method! vstmt = function
+      | s when Node.equal (Statement s) v -> raise Found
+      | _ -> DoChildren
+  end
+
   let tf var getl sidel getg sideg prev_node edge d =
     begin match edge with
       | Assign (lv,rv) -> tf_assign var edge prev_node lv rv
