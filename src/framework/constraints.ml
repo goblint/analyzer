@@ -321,9 +321,12 @@ struct
     let break_node = Option.map (fun x -> Statement (fst (CfgTools.find_real_stmt x))) break_opt in
     match break_node with
     | Some b when Node.equal b v ->
-      Logs.info "current node: %a\n loopcount: %a\n prev node: %a\n continue: %a\n break node: %a" Node.pretty v LoopCounts.pretty l Node.pretty u (Pretty.docOpt (Node.pretty ())) cont_node (Pretty.docOpt (Node.pretty ())) break_node;
-      (u, (c, LoopCounts.add u 5 l)) (* TODO: value hardcoded *)
-    | _ -> (u,(c,l))
+      let l = LoopCounts.add u 5 l in (* TODO: value hardcoded *)
+      Logs.info "Out of loop \n current node: %a\n loopcount: %a\n prev node: %a\n continue: %a\n break node: %a" Node.pretty v LoopCounts.pretty l Node.pretty u (Pretty.docOpt (Node.pretty ())) cont_node (Pretty.docOpt (Node.pretty ())) break_node;
+      (u, (c, l))
+    | _ ->
+      Logs.info "Into loop\n current node: %a\n loopcount: %a\n prev node: %a\n continue: %a\n break node: %a" Node.pretty v LoopCounts.pretty l Node.pretty u (Pretty.docOpt (Node.pretty ())) cont_node (Pretty.docOpt (Node.pretty ())) break_node;
+      (u, (c, l))
 
   exception WrongCase
   let to_loop_head (v,(c,l)) (edges, u) (block, loc, cont_opt, break_opt) =
@@ -331,18 +334,20 @@ struct
     try
       (* We either enter the loop for the first time *)
       ignore @@ visitCilBlock (new loop_end_visitor u) block;
-      Logs.info "Loop entry edge\n current node: %a\n prev node: %a" Node.pretty v Node.pretty u;
-      if LoopCounts.find v l = 0 then
-        (u, (c, LoopCounts.remove v l))
+      if LoopCounts.find v l = 0 then (
+        let l = LoopCounts.remove v l in
+        Logs.info "Loop entry edge\n current node: %a\n loopcount: %a\n prev node: %a" Node.pretty v LoopCounts.pretty l Node.pretty u;
+        (u, (c, l)))
       else
         raise WrongCase
     with Found ->
       (* Or come from within the loop using a back edge *)
-      Logs.info "Back edge\n current node: %a\n prev node: %a" Node.pretty v Node.pretty u;
       if LoopCounts.find v l = 0 then
         raise WrongCase
-      else
-        (u, (c, LoopCounts.add v (LoopCounts.find v l - 1) l))
+      else (
+        let l = LoopCounts.add v (LoopCounts.find v l - 1) l in
+        Logs.info "Back edge\n current node: %a\n loopcount: %a\n prev node: %a" Node.pretty v LoopCounts.pretty l Node.pretty u;
+        (u, (c, l)))
 
   let unroll (v,(c,l)) (edges, u) : lv =
     match find_loop_head u, find_loop_head v with
