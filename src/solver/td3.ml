@@ -49,7 +49,7 @@ module Base =
     open SolverBox.Warrow (S.Dom)
     include Generic.SolverStats (S) (HM)
     module VS = Set.Make (S.Var)
-    let exists_key f hm = HM.fold (fun k _ a -> a || f k) hm false
+    let exists_key f hm = HM.exists (fun k _ -> f k) hm
 
     type solver_data = {
       st: (S.Var.t * S.Dom.t) list; (* needed to destabilize start functions if their start state changed because of some changed global initializer *)
