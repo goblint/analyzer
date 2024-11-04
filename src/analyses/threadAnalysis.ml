@@ -106,7 +106,7 @@ struct
       match creator with
       | `Lifted ctid -> (repeated || multiple, TS.singleton ctid, false)
       | `Top         -> (true, TS.bot (), false)
-      | `Bot         -> (false || multiple, TS.bot (), false)
+      | `Bot         -> (multiple, TS.bot (), false)
     in
     ctx.sideg tid eff;
     D.join ctx.local (D.singleton tid)
