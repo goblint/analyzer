@@ -321,12 +321,11 @@ struct
     let break_node = Option.map (fun x -> Statement (fst (CfgTools.find_real_stmt x))) break_opt in
     match break_node with
     | Some b when Node.equal b v ->
-      let l = LoopCounts.add u max_iter l in
-      Logs.info "Out of loop \n current node: %a\n loopcount: %a\n prev node: %a\n continue: %a\n break node: %a" Node.pretty v LoopCounts.pretty l Node.pretty u (Pretty.docOpt (Node.pretty ())) cont_node (Pretty.docOpt (Node.pretty ())) break_node;
-      (u, (c, l))
+      Logs.info "Out of loop \n current node: %a\n loopcount before: %a\n prev node: %a\n continue: %a\n break node: %a" Node.pretty v LoopCounts.pretty l Node.pretty u (Pretty.docOpt (Node.pretty ())) cont_node (Pretty.docOpt (Node.pretty ())) break_node;
+      List.init (max_iter + 1) (fun i -> (u, (c, LoopCounts.add u i l)))
     | _ ->
       Logs.info "Into loop\n current node: %a\n loopcount: %a\n prev node: %a\n continue: %a\n break node: %a" Node.pretty v LoopCounts.pretty l Node.pretty u (Pretty.docOpt (Node.pretty ())) cont_node (Pretty.docOpt (Node.pretty ())) break_node;
-      (u, (c, l))
+      [(u, (c, l))]
 
   exception WrongCase
   let to_loop_head (v,(c,l)) (edges, u) (block, loc, cont_opt, break_opt) max_iter =
@@ -358,10 +357,11 @@ struct
     match find_loop_head u, find_loop_head v with
     | Some head_u, Some head_v ->
       (* TODO: is this correct? *)
-      let (u',(c',l')) = from_loop_head (v,(c,l)) (edges, u) head_u max_iter in
+      let open GobList.Syntax in
+      let* (u',(c',l')) = from_loop_head (v,(c,l)) (edges, u) head_u max_iter in
       to_loop_head (v,(c',l')) (edges, u') head_v max_iter
     | Some head_u, _ ->
-      [from_loop_head (v,(c,l)) (edges, u) head_u max_iter]
+      from_loop_head (v,(c,l)) (edges, u) head_u max_iter
     | _, Some head_v ->
       to_loop_head (v,(c,l)) (edges, u) head_v max_iter
     | _, _ -> [(u,(c,l))]
