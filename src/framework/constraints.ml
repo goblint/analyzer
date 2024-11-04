@@ -315,13 +315,13 @@ struct
       | _ -> DoChildren
   end
 
-  let from_loop_head (v,(c,l)) (edges, u) (block, loc, cont_opt, break_opt) =
+  let from_loop_head (v,(c,l)) (edges, u) (block, loc, cont_opt, break_opt) max_iter =
     (* When exiting the loop, we calculate the state based on the loop head of the last unrolled iteration *)
     let cont_node = Option.map (fun x -> Statement (fst (CfgTools.find_real_stmt x))) cont_opt in
     let break_node = Option.map (fun x -> Statement (fst (CfgTools.find_real_stmt x))) break_opt in
     match break_node with
     | Some b when Node.equal b v ->
-      let l = LoopCounts.add u 5 l in (* TODO: value hardcoded *)
+      let l = LoopCounts.add u max_iter l in
       Logs.info "Out of loop \n current node: %a\n loopcount: %a\n prev node: %a\n continue: %a\n break node: %a" Node.pretty v LoopCounts.pretty l Node.pretty u (Pretty.docOpt (Node.pretty ())) cont_node (Pretty.docOpt (Node.pretty ())) break_node;
       (u, (c, l))
     | _ ->
@@ -329,7 +329,7 @@ struct
       (u, (c, l))
 
   exception WrongCase
-  let to_loop_head (v,(c,l)) (edges, u) (block, loc, cont_opt, break_opt) =
+  let to_loop_head (v,(c,l)) (edges, u) (block, loc, cont_opt, break_opt) max_iter =
     (* When calculating the state in the loop head *)
     try
       (* We either enter the loop for the first time *)
@@ -337,7 +337,8 @@ struct
       if LoopCounts.find v l = 0 then (
         let l = LoopCounts.remove v l in
         Logs.info "Loop entry edge\n current node: %a\n loopcount: %a\n prev node: %a" Node.pretty v LoopCounts.pretty l Node.pretty u;
-        (u, (c, l)))
+        [(u, (c, l))]
+      )
       else
         raise WrongCase
     with Found ->
@@ -345,21 +346,25 @@ struct
       if LoopCounts.find v l = 0 then
         raise WrongCase
       else (
-        let l = LoopCounts.add v (LoopCounts.find v l - 1) l in
+        let l' = LoopCounts.add v (LoopCounts.find v l - 1) l in
         Logs.info "Back edge\n current node: %a\n loopcount: %a\n prev node: %a" Node.pretty v LoopCounts.pretty l Node.pretty u;
-        (u, (c, l)))
+        if LoopCounts.find v l = max_iter then
+          [(u, (c, l')); (u, (c, l))]
+        else
+          [(u, (c, l'))]
+      )
 
-  let unroll (v,(c,l)) (edges, u) : lv =
+  let unroll (v,(c,l)) (edges, u) max_iter : lv list =
     match find_loop_head u, find_loop_head v with
     | Some head_u, Some head_v ->
       (* TODO: is this correct? *)
-      let (u',(c',l')) = from_loop_head (v,(c,l)) (edges, u) head_u in
-      to_loop_head (v,(c',l')) (edges, u') head_v
+      let (u',(c',l')) = from_loop_head (v,(c,l)) (edges, u) head_u max_iter in
+      to_loop_head (v,(c',l')) (edges, u') head_v max_iter
     | Some head_u, _ ->
-      from_loop_head (v,(c,l)) (edges, u) head_u
+      [from_loop_head (v,(c,l)) (edges, u) head_u max_iter]
     | _, Some head_v ->
-      to_loop_head (v,(c,l)) (edges, u) head_v
-    | _, _ -> (u,(c,l))
+      to_loop_head (v,(c,l)) (edges, u) head_v max_iter
+    | _, _ -> [(u,(c,l))]
 
   let tf var getl sidel getg sideg prev_node edge d =
     begin match edge with
@@ -395,12 +400,18 @@ struct
       )
 
   let tf (v,(c,l)) (edges, u) getl sidel getg sideg =
-    match unroll (v,(c,l)) (edges, u) with
-    | var ->
-      let pval = getl var in
-      let _, locs = List.fold_right (fun (f,e) (t,xs) -> f, (f,t)::xs) edges (Node.location v,[]) in
-      List.fold_left2 (|>) pval (List.map (tf (v,(Obj.repr (fun () -> c),l)) getl sidel getg sideg u) edges) locs
-    | exception WrongCase -> S.D.bot ()
+    match unroll (v,(c,l)) (edges, u) 10 (* TODO: value hardcoded *) with
+    | vars ->
+      let res = List.fold_left (fun acc var ->
+          let pval = getl var in
+          let _, locs = List.fold_right (fun (f,e) (t,xs) -> f, (f,t)::xs) edges (Node.location v,[]) in
+          let res = List.fold_left2 (|>) pval (List.map (tf (v,(Obj.repr (fun () -> c),l)) getl sidel getg sideg u) edges) locs in
+          S.D.join acc res
+        ) (S.D.bot () ) vars
+      in
+      res
+    | exception WrongCase ->
+      S.D.bot ()
 
   let tf (v,(c,l)) (e,u) getl sidel getg sideg =
     let old_node = !current_node in
@@ -430,7 +441,7 @@ struct
         let tf' eu = tf (v,(c,l)) eu getl sidel getg sideg in
 
         match NodeH.find_option CfgTools.node_scc_global v with
-        | Some scc when NodeH.mem scc.prev v && NodeH.length scc.prev = 1 ->
+        | Some scc when false && NodeH.mem scc.prev v && NodeH.length scc.prev = 1 ->
           (* Limited to loops with only one entry node. Otherwise unsound as is. *)
           (* TODO: Is it possible to do soundly for multi-entry loops? *)
           let stricts = NodeH.find_default scc.prev v [] in
