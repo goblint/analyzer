@@ -1197,7 +1197,13 @@ module BitFieldArith (Ints_t : IntOps.IntOps) = struct
   let zero_mask = Ints_t.zero
   let one_mask = Ints_t.lognot zero_mask
 
+  let is_const (z,o) = (Ints_t.logxor z o) = one_mask
+
   let of_int v = (Ints_t.lognot v, v)
+  let to_int (z, o) = if is_const (z,o) then Some o else None
+
+  let zero = of_int (Ints_t.of_int 0)
+  let one = of_int (Ints_t.of_int 1)
 
   let lognot (z,o) = (o,z)
 
@@ -1208,11 +1214,56 @@ module BitFieldArith (Ints_t : IntOps.IntOps) = struct
   let logxor (z1,o1)  (z2,o2) = (Ints_t.logor (Ints_t.logand z1 z2) (Ints_t.logand o1 o2), 
                                  Ints_t.logor (Ints_t.logand z1 o2) (Ints_t.logand o1 z2))
 
-  let shift_left (z1,o1) (z2,o2) = failwith "Not implemented"
-
-  let shift_right (z1,o1) (z2,o2) = failwith "Not implemented"
-
   let join (z1,o1) (z2,o2) = (Ints_t.logor z1 z2, Ints_t.logor o1 o2)
+
+  let get_bit mask pos = ((Ints_t.to_int mask) lsr pos) land 1 = 1
+  let set_bit ?(zero=true) mask pos =
+    let one_mask = Ints_t.shift_left Ints_t.one pos in
+    if zero then
+      let zero_mask = Ints_t.lognot one_mask in
+      Ints_t.logand mask zero_mask
+    else
+      Ints_t.logor mask one_mask
+
+  let break_down ikind_size (z, o) : Ints_t.t list option =
+    (* check if the abstract bitfield has undefined bits i.e. at some pos i the bit is neither 1 or 0 *)
+    if Ints_t.compare (Ints_t.lognot @@ Ints_t.logor (Ints_t.lognot z) o) Ints_t.zero = 0
+      then None
+      else
+        let result = ref [o] in
+        for i = ikind_size - 1 downto 0 do
+          if get_bit z i = get_bit o i then
+            let with_one = !result in
+            let with_zero = List.map (fun elm -> set_bit elm i) with_one in
+            result := with_one @ with_zero
+        done;
+        Some (!result)
+
+  let shift_left ikind_size (z1,o1) (z2,o2) =
+    let shift_by n (z, o) =
+      let z_or_mask = Ints_t.sub (Ints_t.shift_left Ints_t.one n) Ints_t.one in
+      (Ints_t.logor (Ints_t.shift_left z n) z_or_mask, Ints_t.shift_left o n)
+    in
+    if is_const (z2, o2) then shift_by (Ints_t.to_int o2) (z1, o1) |> Option.some
+    else
+      (* naive impl in O(n^2) *)
+      match break_down ikind_size (z2, o2) with None -> None
+      | Some c_lst ->
+        List.map (fun c -> shift_by (Ints_t.to_int c) (z1, o1)) c_lst
+      |> List.fold_left join zero
+      |> Option.some
+
+  let shift_right ikind_size (z1,o1) (z2,o2) =
+    let shift_by n (z, o) = (Ints_t.shift_right z n, Ints_t.shift_right o n) 
+    in
+    if is_const (z2, o2) then shift_by (Ints_t.to_int o2) (z1, o1) |> Option.some
+    else
+      (* naive impl in O(n^2) *)
+      match break_down ikind_size (z2, o2) with None -> None
+      | Some c_lst ->
+        List.map (fun c -> shift_by (Ints_t.to_int c) (z1, o1)) c_lst
+      |> List.fold_left join zero
+      |> Option.some
 
   let meet (z1,o1) (z2,o2) = (Ints_t.logand z1 z2, Ints_t.logand o1 o2)
 
@@ -1220,17 +1271,12 @@ module BitFieldArith (Ints_t : IntOps.IntOps) = struct
 
   let widen (z1,o1) (z2,o2) = (nabla z1 z2, nabla o1 o2)
 
-  let zero = of_int (Ints_t.of_int 0)
-  let one = of_int (Ints_t.of_int 1)
-  
-  let topbool = join zero one
+  let top_bool = join zero one
 
   let eq (z1,o1) (z2,o2) = (Ints_t.equal z1 z2 && Ints_t.equal o1 o2)
 
   let includes (z1,o1) (z2,o2) = (Ints_t.logor (Ints_t.lognot z1 ) z2 = one_mask) && 
                                  (Ints_t.logor (Ints_t.lognot o1 ) o2 = one_mask)
-
-  let is_constant (z,o) = (Ints_t.logxor z o) = one_mask
 
 end
 
@@ -1250,7 +1296,7 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): SOverflow with type int_t = Int
     if t = bot () then "bot" else
     if t = top () then "top" else
       let (z,o) = t in
-      if BArith.is_constant t then 
+      if BArith.is_const t then 
         Format.sprintf "[%08X, %08X] (unique: %d)" (Ints_t.to_int z) (Ints_t.to_int o) (Ints_t.to_int o)
       else 
         Format.sprintf "[%08X, %08X]" (Ints_t.to_int z) (Ints_t.to_int o)
@@ -1268,7 +1314,7 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): SOverflow with type int_t = Int
     ((z,o), {underflow=false; overflow=false})
 
   let to_int (z,o) = if is_bot (z,o) then None else
-      if BArith.is_constant (z,o) then Some o
+      if BArith.is_const (z,o) then Some o
       else None
 
   let equal_to i (u,l) = 
@@ -1338,11 +1384,21 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): SOverflow with type int_t = Int
 
   let shift_right ik a b = 
     M.trace "bitfield" "shift_right";
-    failwith "Not implemented"
+    failwith "TODO"
+    (*
+    match BArith.shift_right ik a b with
+    | None -> (bot (), {underflow=false; overflow=false}) (*TODO*)
+    | Some x -> (x, {underflow=false; overflow=false}) (*TODO*)
+    *)
 
   let shift_left ik a b =
     M.trace "bitfield" "shift_left";
-    failwith "Not implemented"
+    failwith "TODO"
+    (*
+    match BArith.shift_left ik a b with
+    | None -> (bot (), {underflow=false; overflow=false}) (*TODO*)
+    | Some x -> (x, {underflow=false; overflow=false}) (*TODO*)
+    *)
 
   let add ?no_ov ik x y=(top_of ik,{underflow=false; overflow=false})
   let mul ?no_ov ik x y=(top_of ik,{underflow=false; overflow=false})
@@ -1359,14 +1415,14 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): SOverflow with type int_t = Int
 
   let eq ik x y =
     M.trace "bitfield" "eq";
-    if BArith.is_constant x && BArith.is_constant y then of_bool ik (BArith.eq x y) 
+    if BArith.is_const x && BArith.is_const y then of_bool ik (BArith.eq x y) 
                 else if not (BArith.includes x y || (BArith.includes y x)) then of_bool ik false
-                else BArith.topbool
+                else BArith.top_bool
 
     let ne ik x y =
-      if BArith.is_constant x && BArith.is_constant y then of_bool ik (not (BArith.eq x y)) 
+      if BArith.is_const x && BArith.is_const y then of_bool ik (not (BArith.eq x y)) 
       else if not (BArith.includes x y || (BArith.includes y x)) then of_bool ik true
-      else BArith.topbool
+      else BArith.top_bool
 
 
   let leq (x:t) (y:t) = BArith.includes x y
@@ -1385,14 +1441,14 @@ let compare_bitfields ?(strict=true) ?(signed=false) (z1,o1) (z2,o2) =
   let result = ref Unknown in
 
   (* Helper function to check bits at each position *)
-  let get_bit mask pos = ((Ints_t.to_int mask) lsr pos) land 1 = 1 in
+  (* let get_bit mask pos = ((Ints_t.to_int mask) lsr pos) land 1 = 1 in *)
 
   (* Iterate from Most Significant Bit (MSB) to Least Significant Bit (LSB) *)
   for i = bit_length - 1 downto 0 do
-    let bit1_zero = get_bit z1 i in
-    let bit1_one = get_bit o1 i in
-    let bit2_zero = get_bit z2 i in
-    let bit2_one = get_bit o2 i in
+    let bit1_zero = BArith.get_bit z1 i in
+    let bit1_one = BArith.get_bit o1 i in
+    let bit2_zero = BArith.get_bit z2 i in
+    let bit2_one = BArith.get_bit o2 i in
 
     (* Check if bits at position i are both known *)
     if (bit1_zero || bit1_one) && (bit2_zero || bit2_one) then
@@ -1414,8 +1470,8 @@ let compare_bitfields ?(strict=true) ?(signed=false) (z1,o1) (z2,o2) =
   (* Handle sign bit adjustment if signed *)
   if signed && !result <> Unknown then
     match !result with
-    | Less when get_bit o1 sign_bit_position <> get_bit o2 sign_bit_position -> result := Greater
-    | Greater when get_bit o1 sign_bit_position <> get_bit o2 sign_bit_position -> result := Less
+    | Less when BArith.get_bit o1 sign_bit_position <> BArith.get_bit o2 sign_bit_position -> result := Greater
+    | Greater when BArith.get_bit o1 sign_bit_position <> BArith.get_bit o2 sign_bit_position -> result := Less
     | _ -> ();
   else ();
 
@@ -1426,13 +1482,13 @@ let compare_bitfields ?(strict=true) ?(signed=false) (z1,o1) (z2,o2) =
   end;
   !result
 
-  let ge ik x y = if compare_bitfields x y = GreaterOrEqual then of_bool ik true else BArith.topbool
+  let ge ik x y = if compare_bitfields x y = GreaterOrEqual then of_bool ik true else BArith.top_bool
 
-  let le ik x y = if compare_bitfields x y = LessOrEqual then of_bool ik true else BArith.topbool
+  let le ik x y = if compare_bitfields x y = LessOrEqual then of_bool ik true else BArith.top_bool
 
-  let gt ik x y = if compare_bitfields x y = Greater then of_bool ik true else BArith.topbool
+  let gt ik x y = if compare_bitfields x y = Greater then of_bool ik true else BArith.top_bool
 
-  let lt ik x y = if compare_bitfields x y = Less then of_bool ik true else BArith.topbool
+  let lt ik x y = if compare_bitfields x y = Less then of_bool ik true else BArith.top_bool
 
   let invariant_ikind e ik = 
     M.trace "bitfield" "invariant_ikind";
