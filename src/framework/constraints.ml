@@ -333,65 +333,62 @@ struct
     visitCilFile (new loop_heads_visitor) !Cilfacade.current_file;
     loop_heads
 
-  exception Found
-  class loop_end_visitor v = object
-    inherit nopCilVisitor
-
-    method! vstmt = function
-      | s when Node.equal (Statement s) v -> raise Found
-      | _ -> DoChildren
-  end
-
-  let from_loop_head (v,(c,l)) (edges, u) (block, loc, cont_opt, break_opt) max_iter =
-    (* When exiting the loop, we calculate the state based on the loop head of the last unrolled iteration *)
-    let cont_node = Option.map (fun x -> Statement (fst (CfgTools.find_real_stmt x))) cont_opt in
-    let break_node = Option.map (fun x -> Statement (fst (CfgTools.find_real_stmt x))) break_opt in
-    match break_node with
-    | Some b when Node.equal b v ->
-      Logs.info "Out of loop \n current node: %a\n loopcount before: %a\n prev node: %a\n continue: %a\n break node: %a" Node.pretty v LoopCounts.pretty l Node.pretty u (Pretty.docOpt (Node.pretty ())) cont_node (Pretty.docOpt (Node.pretty ())) break_node;
-      List.init (max_iter + 1) (fun i -> (u, (c, LoopCounts.add u i l)))
-    | _ ->
-      Logs.info "Into loop\n current node: %a\n loopcount: %a\n prev node: %a\n continue: %a\n break node: %a" Node.pretty v LoopCounts.pretty l Node.pretty u (Pretty.docOpt (Node.pretty ())) cont_node (Pretty.docOpt (Node.pretty ())) break_node;
-      [(u, (c, l))]
-
   exception WrongCase
-  let to_loop_head (v,(c,l)) (edges, u) (block, loc, cont_opt, break_opt) max_iter =
-    (* When calculating the state in the loop head *)
-    try
-      (* We either enter the loop for the first time *)
-      ignore @@ visitCilBlock (new loop_end_visitor u) block;
-      if LoopCounts.find v l = 0 then (
-        let l = LoopCounts.remove v l in
-        Logs.info "Loop entry edge\n current node: %a\n loopcount: %a\n prev node: %a" Node.pretty v LoopCounts.pretty l Node.pretty u;
-        [(u, (c, l))]
-      )
-      else
-        raise WrongCase
-    with Found ->
-      (* Or come from within the loop using a back edge *)
-      if LoopCounts.find v l = 0 then
-        raise WrongCase
-      else (
-        let l' = LoopCounts.add v (LoopCounts.find v l - 1) l in
-        Logs.info "Back edge\n current node: %a\n loopcount: %a\n prev node: %a" Node.pretty v LoopCounts.pretty l Node.pretty u;
-        if LoopCounts.find v l = max_iter then
-          [(u, (c, l')); (u, (c, l))]
-        else
-          [(u, (c, l'))]
-      )
+  let into_new_loop (v,(c,l)) (edges, u) max_iter =
+    (* We enter the loop for the first time *)
+    if LoopCounts.find v l = 0 then (
+      let l = LoopCounts.remove v l in
+      Logs.debug "Loop entry edge\n current node: %a\n loopcount: %a\n prev node: %a" Node.pretty v LoopCounts.pretty l Node.pretty u;
+      [(u, (c, l))]
+    )
+    else
+      raise WrongCase
 
-  let unroll (v,(c,l)) (edges, u) max_iter : lv list =
-    match find_loop_head u, find_loop_head v with
-    | Some head_u, Some head_v ->
-      (* TODO: is this correct? *)
-      let open GobList.Syntax in
-      let* (u',(c',l')) = from_loop_head (v,(c,l)) (edges, u) head_u max_iter in
-      to_loop_head (v,(c',l')) (edges, u') head_v max_iter
-    | Some head_u, _ ->
-      from_loop_head (v,(c,l)) (edges, u) head_u max_iter
-    | _, Some head_v ->
-      to_loop_head (v,(c,l)) (edges, u) head_v max_iter
-    | _, _ -> [(u,(c,l))]
+  let back_edge (v,(c,l)) (edges, u) max_iter =
+    (* Or come from within the loop using a back edge *)
+    if LoopCounts.find v l = 0 then
+      raise WrongCase
+    else (
+      let l' = LoopCounts.add v (LoopCounts.find v l - 1) l in
+      Logs.debug "Back edge\n current node: %a\n loopcount: %a\n prev node: %a" Node.pretty v LoopCounts.pretty l Node.pretty u;
+      if LoopCounts.find v l = max_iter then
+        [(u, (c, l')); (u, (c, l))]
+      else
+        [(u, (c, l'))]
+    )
+
+  let out_of_loop (v,(c,l)) (edges, u) max_iter =
+    Logs.info "Out of loop";
+    let l = List.init (max_iter + 1) (fun i -> (u, (c, LoopCounts.add u i l))) in
+    List.iter (fun (u, (c,l)) -> Logs.debug "current node: %a\n\tloopcount: %a\n\tprev node: %a" Node.pretty v LoopCounts.pretty l Node.pretty u) l;
+    l
+
+  let unroll (v,(c,l)) (edges, u) max_iter =
+    let open GobList.Syntax in
+    match NodeH.find_default loop_heads u Set.empty, NodeH.find_default loop_heads v Set.empty with
+    (* exiting the loop: u is within more loops than v *)
+    | u_heads, v_heads when not (Set.is_empty (Set.diff u_heads v_heads)) ->
+      begin match find_loop_head v with
+        | Some _ -> (
+            let* (u',(c',l')) = out_of_loop (v,(c,l)) (edges, u) max_iter in
+            back_edge (v,(c',l')) (edges, u') max_iter
+          )
+        | None ->
+          out_of_loop (v,(c,l)) (edges, u) max_iter
+      end
+    (* stay within the same loop *)
+    | u_heads, v_heads when not (Set.is_empty u_heads) && Set.equal u_heads v_heads ->
+      begin match find_loop_head v with
+        | Some _ ->
+          back_edge (v,(c,l)) (edges, u) max_iter
+        | None ->
+          [(u, (c, l))]
+      end
+    (* entering the loop: u is in less loops than v *)
+    | u_heads, v_heads when not (Set.is_empty (Set.diff v_heads u_heads)) ->
+      into_new_loop (v,(c,l)) (edges, u) max_iter
+    | _, _ ->
+      [(u, (c, l))]
 
   let tf var getl sidel getg sideg prev_node edge d =
     begin match edge with
