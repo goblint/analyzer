@@ -609,3 +609,156 @@ module ArrayMatrix: AbstractMatrix =
 
     let map2i_with f m v = timing_wrap "map2i_with" (map2i_with f m) v
   end
+
+
+(** Sparse matrix implementation.
+    It provides a normalization function to reduce a matrix into reduced row echelon form.
+    Operations exploit that the input matrix/matrices are in reduced row echelon form already. *)
+module SparseMatrix: AbstractMatrix =
+  functor (A: RatOps) (V: AbstractVector) ->
+  struct
+    include ConvenienceOps(A)
+    module V = V(A)
+
+    (*Array of arrays implementation. One array per row containing tuple of column index and value*)
+    type t = (int * A.t) array array [@@deriving eq, ord, hash]
+
+    let show x =
+      failwith "TODO"
+
+    let empty () =
+      Array.make_matrix 0 0 (0, A.zero)
+
+    let num_rows m =
+      failwith "TODO"
+
+    let is_empty m =
+      num_rows m = 0
+
+    let num_cols m =
+      failwith "TODO"
+
+    let copy m =
+      failwith "TODO"
+
+    let copy m =
+      failwith "TODO"
+
+    let add_empty_columns m cols =
+      failwith "TODO"
+
+    let add_empty_columns m cols =
+      timing_wrap "add_empty_cols" (add_empty_columns m) cols
+
+    let append_row m row  =
+    failwith "TODO"
+
+    let get_row m n =
+      failwith "TODO"
+
+    let remove_row m n =
+      failwith "TODO"
+
+    let get_col m n =
+      failwith "TODO"
+
+    let get_col m n =
+      timing_wrap "get_col" (get_col m) n
+
+    let set_col_with m new_col n =
+      failwith "TODO"
+
+    let set_col_with m new_col n = timing_wrap "set_col" (set_col_with m new_col) n
+
+    let set_col m new_col n = 
+      failwith "TODO"
+
+    let append_matrices m1 m2  =
+      failwith "TODO"
+
+    let equal m1 m2 = timing_wrap "equal" (equal m1) m2
+
+    let reduce_col_with m j =
+      failwith "TODO"
+
+    let reduce_col_with m j  = timing_wrap "reduce_col_with" (reduce_col_with m) j
+    let reduce_col m j =
+      failwith "TODO"
+
+    let del_col m j =
+      failwith "TODO"
+
+    let del_cols m cols =
+      failwith "TODO"
+
+    let del_cols m cols = timing_wrap "del_cols" (del_cols m) cols
+
+    let map2i f m v =
+      failwith "TODO"
+
+    let remove_zero_rows m =
+      failwith "TODO"
+
+    let rref_with m =
+      failwith "TODO"
+
+    let rref_with m = timing_wrap "rref_with" rref_with m
+
+    let init_with_vec v =
+      failwith "TODO"
+
+
+    let reduce_col_with_vec m j v =
+      failwith "TODO"
+
+    let get_pivot_positions m = 
+      failwith "TODO"
+
+    let rref_vec m pivot_positions v =
+      failwith "TODO"
+
+   
+    let rref_vec_with m v =
+      (*This function yields the same result as appending vector v to m and normalizing it afterwards would. However, it is usually faster than performing those ops manually.*)
+      (*m must be in rref form and contain the same num of cols as v*)
+      (*If m is empty then v is simply normalized and returned*)
+      failwith "TODO"
+
+    let rref_vec_with m v = timing_wrap "rref_vec_with" (rref_vec_with m) v
+
+    let rref_matrix_with m1 m2 =
+      (*Similar to rref_vec_with but takes two matrices instead.*)
+      (*ToDo Could become inefficient for large matrices since pivot_elements are always recalculated + many row additions*)
+      failwith "TODO"
+
+    let rref_matrix_with m1 m2 = timing_wrap "rref_matrix_with" (rref_matrix_with m1) m2
+
+    let normalize_with m = 
+      failwith "TODO"
+
+    let normalize_with m = timing_wrap "normalize_with" normalize_with m
+
+    let normalize m =
+      failwith "TODO"
+
+    let is_covered_by m1 m2 =
+      failwith "TODO"
+
+    let is_covered_by m1 m2 = timing_wrap "is_covered_by" (is_covered_by m1) m2
+
+    let find_opt f m =
+      failwith "TODO"
+
+    let map2 f m v =
+      failwith "TODO"
+
+    let map2_with f m v =
+      failwith "TODO"
+
+    let map2_with f m v = timing_wrap "map2_with" (map2_with f m) v
+
+    let map2i_with f m v =
+      failwith "TODO"
+
+    let map2i_with f m v = timing_wrap "map2i_with" (map2i_with f m) v
+  end
