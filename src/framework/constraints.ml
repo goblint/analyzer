@@ -306,6 +306,33 @@ struct
         ) prevs
     | FunctionEntry _ | Function _ -> None
 
+  let loop_heads : Node.t Set.t NodeH.t = NodeH.create 100
+  class loop_heads_visitor = object
+    inherit nopCilVisitor
+
+    val mutable heads = Set.empty
+
+    method! vstmt stmt =
+      let node = Statement stmt in
+      let rem_heads stmt =
+        match stmt.GoblintCil.skind with
+        | Loop _ -> heads <- Set.remove node heads; stmt
+        | _ -> stmt 
+      in
+      match stmt.GoblintCil.skind with
+      | Loop _ ->
+        heads <- Set.add node heads;
+        NodeH.add loop_heads node heads;
+        ChangeDoChildrenPost(stmt, rem_heads);
+      | _ ->
+        NodeH.add loop_heads node heads;
+        DoChildren
+  end
+
+  let loop_heads : Node.t Set.t NodeH.t =
+    visitCilFile (new loop_heads_visitor) !Cilfacade.current_file;
+    loop_heads
+
   exception Found
   class loop_end_visitor v = object
     inherit nopCilVisitor
