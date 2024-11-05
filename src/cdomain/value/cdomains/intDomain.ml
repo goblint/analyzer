@@ -1230,7 +1230,7 @@ module BitFieldArith (Ints_t : IntOps.IntOps) = struct
   let max_shift (ik: Cil.ikind) =
     let ilog2 n =
       let rec aux n acc =
-        if n = 1 then acc
+        if n <= 1 then acc
         else aux (n lsr 1) (acc + 1)
       in aux n 0
   in
