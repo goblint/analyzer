@@ -1217,7 +1217,7 @@ module BitFieldArith (Ints_t : IntOps.IntOps) = struct
   let join (z1,o1) (z2,o2) = (Ints_t.logor z1 z2, Ints_t.logor o1 o2)
 
   let get_bit mask pos = ((Ints_t.to_int mask) lsr pos) land 1 = 1
-  let set_bit ?(zero=true) mask pos =
+  let set_bit ?(zero=false) mask pos =
     let one_mask = Ints_t.shift_left Ints_t.one pos in
     if zero then
       let zero_mask = Ints_t.lognot one_mask in
@@ -1225,43 +1225,50 @@ module BitFieldArith (Ints_t : IntOps.IntOps) = struct
     else
       Ints_t.logor mask one_mask
 
-  let break_down ikind_size (z, o) : Ints_t.t list option =
+  (* max number of (left or right) shifts on an ikind s.t. 0 results from it *)
+  (* TODO hard coded. Other impl? *)
+  let max_shift (ik: Cil.ikind) =
+    let ilog2 n =
+      let rec aux n acc =
+        if n = 1 then acc
+        else aux (n lsr 1) (acc + 1)
+  in
+    Cil.bytesSizeOfInt ik * 8 |> ilog2
+
+  (* concretizes an abstract bitfield into a set of minimal bitfields that represent concrete numbers
+      used for shifting bitfields for an ikind in WC O( 2^(log(n)) ) with n = ikind size *)
+  let break_down ik (z, o) : Ints_t.t list option =
     (* check if the abstract bitfield has undefined bits i.e. at some pos i the bit is neither 1 or 0 *)
-    if Ints_t.compare (Ints_t.lognot @@ Ints_t.logor (Ints_t.lognot z) o) Ints_t.zero = 0
+    if Ints_t.compare (Ints_t.lognot @@ Ints_t.logor z o) Ints_t.zero = 0
       then None
       else
-        let result = ref [o] in
-        for i = ikind_size - 1 downto 0 do
+        let n = max_shift ik in
+        let zero_extend_mask = Ints_t.shift_left Ints_t.one n
+        |> fun x -> Ints_t.sub x Ints_t.one
+        |> Ints_t.lognot in
+        let result = ref [Ints_t.logand o zero_extend_mask] in
+        for i = 0 to n - 1 do
           if get_bit z i = get_bit o i then
             let with_one = !result in
-            let with_zero = List.map (fun elm -> set_bit elm i) with_one in
+            let with_zero = List.map (fun elm -> set_bit ~zero:true elm i) with_one in
             result := with_one @ with_zero
         done;
         Some (!result)
 
-  let shift_left ikind_size (z1,o1) (z2,o2) =
+  let shift ?left ik a n =
     let shift_by n (z, o) =
-      let z_or_mask = Ints_t.sub (Ints_t.shift_left Ints_t.one n) Ints_t.one in
-      (Ints_t.logor (Ints_t.shift_left z n) z_or_mask, Ints_t.shift_left o n)
+      if left then
+        let z_or_mask = Ints_t.sub (Ints_t.shift_left Ints_t.one n) Ints_t.one
+        in (Ints_t.logor (Ints_t.shift_left z n) z_or_mask, Ints_t.shift_left o n)
+      else
+        (Ints_t.shift_right z n, Ints_t.shift_right o n) in
+        if is_const (z2, o2) then shift_by (Ints_t.to_int o2) (z1, o1) |> Option.some
     in
-    if is_const (z2, o2) then shift_by (Ints_t.to_int o2) (z1, o1) |> Option.some
+    if is_const n then shift_by (Ints_t.to_int @@ snd n) a |> Option.some
     else
-      (* naive impl in O(n^2) *)
-      match break_down ikind_size (z2, o2) with None -> None
+      match break_down ik n with None -> None
       | Some c_lst ->
-        List.map (fun c -> shift_by (Ints_t.to_int c) (z1, o1)) c_lst
-      |> List.fold_left join zero
-      |> Option.some
-
-  let shift_right ikind_size (z1,o1) (z2,o2) =
-    let shift_by n (z, o) = (Ints_t.shift_right z n, Ints_t.shift_right o n) 
-    in
-    if is_const (z2, o2) then shift_by (Ints_t.to_int o2) (z1, o1) |> Option.some
-    else
-      (* naive impl in O(n^2) *)
-      match break_down ikind_size (z2, o2) with None -> None
-      | Some c_lst ->
-        List.map (fun c -> shift_by (Ints_t.to_int c) (z1, o1)) c_lst
+        List.map (fun c -> shift_by (Ints_t.to_int @@ snd n) a) c_lst
       |> List.fold_left join zero
       |> Option.some
 
@@ -1382,23 +1389,19 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): SOverflow with type int_t = Int
     M.trace "bitfield" "neg";
     failwith "Not implemented"
 
+  (*TODO no overflow handling for shifts?*)
+  (*TODO move shift impl here due to dependancy to ikind?*)
   let shift_right ik a b = 
     M.trace "bitfield" "shift_right";
-    failwith "TODO"
-    (*
-    match BArith.shift_right ik a b with
-    | None -> (bot (), {underflow=false; overflow=false}) (*TODO*)
-    | Some x -> (x, {underflow=false; overflow=false}) (*TODO*)
-    *)
+    match BArith.shift ~left:false ik a b with
+    | None -> (bot (), {underflow=false; overflow=false})
+    | Some x -> (x, {underflow=false; overflow=false})
 
   let shift_left ik a b =
     M.trace "bitfield" "shift_left";
-    failwith "TODO"
-    (*
-    match BArith.shift_left ik a b with
-    | None -> (bot (), {underflow=false; overflow=false}) (*TODO*)
-    | Some x -> (x, {underflow=false; overflow=false}) (*TODO*)
-    *)
+    match BArith.shift ~left:true ik a b with
+    | None -> (bot (), {underflow=false; overflow=false})
+    | Some x -> (x, {underflow=false; overflow=false})
 
   let add ?no_ov ik x y=(top_of ik,{underflow=false; overflow=false})
   let mul ?no_ov ik x y=(top_of ik,{underflow=false; overflow=false})
