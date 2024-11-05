@@ -292,20 +292,6 @@ struct
     let d = S.skip ctx in (* Force transfer function to be evaluated before dereferencing in common_join argument. *)
     common_join ctx d !r !spawns
 
-  let find_loop_head = function
-    | Statement s ->
-      let n' = Statement (LoopUnrolling.find_original s) in
-      let prevs = Cfg.prev n' in
-      Stdlib.List.find_map (fun (edges, prev) ->
-          let stmts = Cfg.skippedByEdge prev edges n' in
-          Stdlib.List.find_map (fun s ->
-              match s.GoblintCil.skind with
-              | Loop (block, loc, _, cont_opt, break_opt) -> Some (block, loc, cont_opt, break_opt)
-              | _ -> None
-            ) stmts
-        ) prevs
-    | FunctionEntry _ | Function _ -> None
-
   let loop_heads : Node.t Set.t NodeH.t = NodeH.create 100
   class loop_heads_visitor = object
     inherit nopCilVisitor
@@ -313,7 +299,7 @@ struct
     val mutable heads = Set.empty
 
     method! vstmt stmt =
-      let node = Statement stmt in
+      let node = Statement (fst (CfgTools.find_real_stmt stmt)) in
       let rem_heads stmt =
         match stmt.GoblintCil.skind with
         | Loop _ -> heads <- Set.remove node heads; stmt
@@ -368,22 +354,17 @@ struct
     match NodeH.find_default loop_heads u Set.empty, NodeH.find_default loop_heads v Set.empty with
     (* exiting the loop: u is within more loops than v *)
     | u_heads, v_heads when not (Set.is_empty (Set.diff u_heads v_heads)) ->
-      begin match find_loop_head v with
-        | Some _ -> (
-            let* (u',(c',l')) = out_of_loop (v,(c,l)) (edges, u) max_iter in
-            back_edge (v,(c',l')) (edges, u') max_iter
-          )
-        | None ->
-          out_of_loop (v,(c,l)) (edges, u) max_iter
-      end
+      if Set.mem v v_heads then (
+        let* (u',(c',l')) = out_of_loop (v,(c,l)) (edges, u) max_iter in
+        back_edge (v,(c',l')) (edges, u') max_iter)
+      else
+        out_of_loop (v,(c,l)) (edges, u) max_iter
     (* stay within the same loop *)
     | u_heads, v_heads when not (Set.is_empty u_heads) && Set.equal u_heads v_heads ->
-      begin match find_loop_head v with
-        | Some _ ->
-          back_edge (v,(c,l)) (edges, u) max_iter
-        | None ->
-          [(u, (c, l))]
-      end
+      if Set.mem v v_heads then
+        back_edge (v,(c,l)) (edges, u) max_iter
+      else
+        [(u, (c, l))]
     (* entering the loop: u is in less loops than v *)
     | u_heads, v_heads when not (Set.is_empty (Set.diff v_heads u_heads)) ->
       into_new_loop (v,(c,l)) (edges, u) max_iter
