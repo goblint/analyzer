@@ -1351,33 +1351,13 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): SOverflow with type int_t = Int
 
   let shift_left ik a b =(top_of ik,{underflow=false; overflow=false})
 
-  let add ?no_ov ik (z1, o1) (z2, o2) =
-    let undef = Ints_t.logor (Ints_t.logand o1 z1) (Ints_t.logand o2 z2) in
-    let z3 = Ints_t.logor (Ints_t.neg (Ints_t.sub (Ints_t.neg z1) (Ints_t.neg z2))) undef in
-    let o3 = Ints_t.logor (Ints_t.sub o1 o2) undef in
-    ((z3, o3),{underflow=false; overflow=false})
+  let add ?no_ov ik (z1, o1) (z2, o2) = (top_of ik,{underflow=false; overflow=false})
 
-  let sub ?no_ov ik (z1, o1) (z2, o2) =
-    let undef = Ints_t.logor (Ints_t.logand o1 z1) (Ints_t.logand o2 z2) in
-    let z3 = Ints_t.logor (Ints_t.neg (Ints_t.sub (Ints_t.neg z1) (Ints_t.neg z2))) undef in
-    let o3 = Ints_t.logor (Ints_t.sub o1 o2) undef in
-    ((z3, o3),{underflow=false; overflow=false})
+  let sub ?no_ov ik (z1, o1) (z2, o2) = (top_of ik,{underflow=false; overflow=false})
 
-  let mul ?no_ov ik (z1, o1) (z2, o2) =
-    let u1 = Ints_t.logand o1 z1 in
-    let u2 = Ints_t.logand o2 z2 in
-    let c1 = Ints_t.logand o1 (Ints_t.neg z1) in
-    let c2 = Ints_t.logand o2 (Ints_t.neg z2) in
-    let o3 = Ints_t.mul c1 c2 in
-    let z3 = Ints_t.neg o3 in
-    let t1 = Ints_t.mul c1 u2 in
-    let t2 = Ints_t.mul u1 c2 in
-    let t3 = Ints_t.mul u1 u2 in
-    let o3 = Ints_t.logor (Ints_t.logor (Ints_t.logor o3  t1) t2) t3 in
-    let z3 = Ints_t.logor (Ints_t.logor (Ints_t.logor z3  t1) t2) t3 in
-    ((z3, o3),{underflow=false; overflow=false})
+  let mul ?no_ov ik (z1, o1) (z2, o2) = (top_of ik,{underflow=false; overflow=false})
 
-  let rec div ?no_ov ik x y =(top_of ik,{underflow=false; overflow=false})
+  let rec div ?no_ov ik x y = (top_of ik,{underflow=false; overflow=false})
 
   let rem ik x y = 
     M.trace "bitfield" "rem";
@@ -1395,7 +1375,7 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): SOverflow with type int_t = Int
     else BArith.topbool
 
 
-  let leq (x:t) (y:t) = (BArith.max x) <= (BArith.min y)
+  let leq (x:t) (y:t) = BArith.includes x y
 
   type comparison_result = 
     | Less
@@ -1452,21 +1432,13 @@ let compare_bitfields ?(strict=true) ?(signed=false) (z1,o1) (z2,o2) =
   end;
   !result
 
-  let ge ik x y = if (BArith.min x) >= (BArith.max y) then of_bool ik true 
-                  else if (BArith.max x) < (BArith.min y) then of_bool ik false 
-                  else BArith.topbool
+  let ge ik x y = if compare_bitfields x y = GreaterOrEqual then of_bool ik true else BArith.topbool
 
-  let le ik x y = if (BArith.max x) <= (BArith.min y) then of_bool ik true 
-                  else if (BArith.min x) > (BArith.max y) then of_bool ik false 
-                  else BArith.topbool
+  let le ik x y = if compare_bitfields x y = LessOrEqual then of_bool ik true else BArith.topbool
 
-  let gt ik x y = if (BArith.min x) > (BArith.max y) then of_bool ik true 
-                  else if (BArith.max x) <= (BArith.min y) then of_bool ik false 
-                  else BArith.topbool
+  let gt ik x y = if compare_bitfields x y = Greater then of_bool ik true else BArith.topbool
 
-  let lt ik x y = if (BArith.max x) < (BArith.min y) then of_bool ik true 
-                  else if (BArith.min x) >= (BArith.max y) then of_bool ik false 
-                  else BArith.topbool
+  let lt ik x y = if compare_bitfields x y = Less then of_bool ik true else BArith.topbool
 
   let invariant_ikind e ik = 
     M.trace "bitfield" "invariant_ikind";
