@@ -131,7 +131,7 @@ let reexamine f1 f2 (same : biDirectionNodeMap) (diffNodes1 : unit NH.t) (module
           false
         end in
     let cond n2 = Node.equal n2 (FunctionEntry f2) || check_all_nodes_in_same (List.map snd (CfgNew.prev n2)) n2 in
-    let forall = NH.fold (fun n2 n1 acc -> acc && cond n2) same.node2to1 true in
+    let forall = NH.fold (fun n2 n1 acc -> acc && cond n2) same.node2to1 true in (* nosemgrep: fold-for_all *) (* cond does side effects *)
     if not forall then repeat () in
   repeat ();
   NH.to_seq same.node1to2, NH.to_seq_keys diffNodes1
