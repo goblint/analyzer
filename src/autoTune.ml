@@ -250,8 +250,6 @@ let focusOnTermination (spec: Svcomp.Specification.t) =
 let focusOnTermination () =
   List.iter focusOnTermination (Svcomp.Specification.of_option ())
 
-let reachSafety (spec: Svcomp.Specification.t) = ()
-
 let concurrencySafety (spec: Svcomp.Specification.t) =
   match spec with
   | NoDataRace -> (*enable all thread analyses*)
@@ -537,8 +535,6 @@ let chooseConfig file =
 
   if isActivated "mallocWrappers" then
     findMallocWrappers ();
-
-  if isActivated "reachSafetySpecification" then focusOn reachSafety;
 
   if isActivated "concurrencySafetySpecification" then focusOn concurrencySafety;
 
