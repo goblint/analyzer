@@ -51,8 +51,13 @@ class findAllocsInLoops = object
   val mutable inloop = false
 
   method! vstmt stmt =
+    let outOfLoop stmt =
+      match stmt.skind with
+      | Loop _ -> inloop <- false; stmt
+      | _ -> stmt
+    in
     match stmt.skind with
-    | Loop _ -> inloop <- true; DoChildren
+    | Loop _ -> inloop <- true; ChangeDoChildrenPost(stmt, outOfLoop)
     | _ -> DoChildren
 
   method! vinst = function
