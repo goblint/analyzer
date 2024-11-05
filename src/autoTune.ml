@@ -45,12 +45,14 @@ class functionVisitor(calling, calledBy, argLists, dynamicallyCalled) = object
 end
 
 exception Found
-class findAllocsNotInLoops = object
+class findAllocsInLoops = object
   inherit nopCilVisitor
+
+  val mutable inloop = false
 
   method! vstmt stmt =
     match stmt.skind with
-    | Loop _ -> SkipChildren
+    | Loop _ -> inloop <- true; DoChildren
     | _ -> DoChildren
 
   method! vinst = function
@@ -58,7 +60,7 @@ class findAllocsNotInLoops = object
       let desc = LibraryFunctions.find f in
       begin match desc.special args with
         | Malloc _
-        | Alloca _ -> raise Found
+        | Alloca _ when inloop -> raise Found
         | _ -> DoChildren
       end
     | _ -> DoChildren
@@ -263,8 +265,10 @@ let noOverflows (spec: Svcomp.Specification.t) =
     (*We focus on integer analysis*)
     set_bool "ana.int.def_exc" true;
     begin
-      try ignore @@ visitCilFileSameGlobals (new findAllocsNotInLoops) (!Cilfacade.current_file)
-      with Found -> set_int "ana.malloc.unique_address_count" 1;
+      try
+        ignore @@ visitCilFileSameGlobals (new findAllocsInLoops) (!Cilfacade.current_file);
+        set_int "ana.malloc.unique_address_count" 1
+      with Found -> set_int "ana.malloc.unique_address_count" 0;
     end
   | _ -> ()
 
