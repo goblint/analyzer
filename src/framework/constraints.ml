@@ -322,7 +322,7 @@ struct
     loop_heads
 
   exception WrongCase
-  let into_new_loop (v,(c,l)) (edges, u) max_iter =
+  let enter_loop (v,(c,l)) (edges, u) max_iter =
     (* We enter the loop for the first time *)
     if LoopCounts.find v l = 0 then (
       let l = LoopCounts.remove v l in
@@ -345,7 +345,7 @@ struct
         [(u, (c, l'))]
     )
 
-  let out_of_loop (v,(c,l)) (edges, u) max_iter =
+  let exit_loop (v,(c,l)) (edges, u) max_iter =
     Logs.info "Out of loop";
     let l = List.init (max_iter + 1) (fun i -> (u, (c, LoopCounts.add u i l))) in
     List.iter (fun (u, (c,l)) -> Logs.debug "current node: %a\n\tloopcount: %a\n\tprev node: %a" Node.pretty v LoopCounts.pretty l Node.pretty u) l;
@@ -357,10 +357,10 @@ struct
     (* exiting the loop: u is within more loops than v *)
     | u_heads, v_heads when not (NodeSet.is_empty (NodeSet.diff u_heads v_heads)) ->
       if NodeSet.mem v v_heads then (
-        let* (u',(c',l')) = out_of_loop (v,(c,l)) (edges, u) max_iter in
+        let* (u',(c',l')) = exit_loop (v,(c,l)) (edges, u) max_iter in
         back_edge (v,(c',l')) (edges, u') max_iter)
       else
-        out_of_loop (v,(c,l)) (edges, u) max_iter
+        exit_loop (v,(c,l)) (edges, u) max_iter
     (* stay within the same loop *)
     | u_heads, v_heads when not (NodeSet.is_empty u_heads) && NodeSet.equal u_heads v_heads ->
       if NodeSet.mem v v_heads then
@@ -369,7 +369,7 @@ struct
         [(u, (c, l))]
     (* entering the loop: u is in less loops than v *)
     | u_heads, v_heads when not (NodeSet.is_empty (NodeSet.diff v_heads u_heads)) ->
-      into_new_loop (v,(c,l)) (edges, u) max_iter
+      enter_loop (v,(c,l)) (edges, u) max_iter
     | _, _ ->
       [(u, (c, l))]
 
