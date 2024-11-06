@@ -892,7 +892,9 @@ struct
     | true when !cnt_disabled > 0 ->
       Error "witness disabled"
     | _ when !cnt_refuted > 0 ->
-      Ok (Svcomp.Result.False None)
+      (* Refuted only when assuming the invariant is reachable. *)
+      (* Ok (Svcomp.Result.False None) *) (* Wasn't a problem because valid*->correctness->false gave 0 points under old validator track scoring schema: https://doi.org/10.1007/978-3-031-22308-2_8. *)
+      Ok Svcomp.Result.Unknown (* Now valid*->correctness->false gives 1p (negative) points under new validator track scoring schema: https://doi.org/10.1007/978-3-031-57256-2_15. *)
     | _ when !cnt_unconfirmed > 0 ->
       Ok Unknown
     | _ ->
