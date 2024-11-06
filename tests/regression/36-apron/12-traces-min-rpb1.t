@@ -13,6 +13,9 @@
     write with [lock:{A}, thread:[main, t_fun@12-traces-min-rpb1.c:25:3-25:40]] (conf. 110)  (exp: & g) (12-traces-min-rpb1.c:14:3-14:8)
     read with [mhp:{created={[main, t_fun@12-traces-min-rpb1.c:25:3-25:40]}}, thread:[main]] (conf. 110)  (exp: & g) (12-traces-min-rpb1.c:27:3-27:26)
   [Info][Witness] witness generation summary:
+    location invariants: 3
+    loop invariants: 0
+    flow-insensitive invariants: 0
     total generation entries: 3
   [Info][Race] Memory locations race summary:
     safe: 0
