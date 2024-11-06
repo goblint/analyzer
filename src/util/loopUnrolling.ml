@@ -442,6 +442,8 @@ let copy_and_patch_labels break_target current_continue_target stmts =
   let patchLabelsVisitor = new patchLabelsGotosVisitor(StatementHashTable.find_opt gotos) in
   List.map (visitCilStmt patchLabelsVisitor) stmts'
 
+let factorH = MyCFG.NodeH.create 100
+
 class loopUnrollingVisitor (func, totalLoops) = object
   (* Labels are simply handled by giving them a fresh name. Jumps coming from outside will still always go to the original label! *)
   inherit nopCilVisitor
@@ -455,18 +457,10 @@ class loopUnrollingVisitor (func, totalLoops) = object
         nests <- nests - 1; Logs.debug "nests: %i" nests;
         let factor = loop_unrolling_factor stmt func totalLoops in
         if factor > 0 then (
+          MyCFG.NodeH.add factorH (Statement (fst (CfgTools.find_real_stmt stmt))) factor;
           Logs.info "unrolling loop at %a with factor %d" CilType.Location.pretty loc factor;
           annotateArrays b;
-          (* top-level breaks should immediately go to the end of the loop, and not just break out of the current iteration *)
-          let break_target = { (Cil.mkEmptyStmt ()) with labels = [Label (Cil.freshLabel "loop_end",loc, false)]} in
-          let copies = List.init factor (fun i ->
-              (* continues should go to the next unrolling *)
-              let current_continue_target = { (Cil.mkEmptyStmt ()) with labels = [Label (Cil.freshLabel ("loop_continue_" ^ (string_of_int i)),loc, false)]} in
-              let one_copy_stmts = copy_and_patch_labels break_target current_continue_target b.bstmts in
-              one_copy_stmts @ [current_continue_target]
-            )
-          in
-          mkStmt (Block (mkBlock (List.flatten copies @ [stmt; break_target])))
+          stmt
         ) else stmt (*no change*)
       | _ -> stmt
     in

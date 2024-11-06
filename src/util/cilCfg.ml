@@ -43,10 +43,9 @@ let createCFG (fileAST: file) =
   iterGlobals fileAST (fun glob ->
       match glob with
       | GFun(fd,_) ->
-        (* before prepareCfg so continues still appear as such *)
-        if (get_int "exp.unrolling-factor")>0 || AutoTune0.isActivated "loopUnrollHeuristic" then LoopUnrolling.unroll_loops fd loops;
         prepareCFG fd;
-        computeCFGInfo fd true
+        computeCFGInfo fd true;
+        if (get_int "exp.unrolling-factor")>0 || AutoTune0.isActivated "loopUnrollHeuristic" then LoopUnrolling.unroll_loops fd loops;
       | _ -> ()
     );
   if get_bool "dbg.run_cil_check" then assert (Check.checkFile [] fileAST);

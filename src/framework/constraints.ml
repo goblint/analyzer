@@ -345,7 +345,7 @@ struct
   let exit_loop max_iter x l : LoopCounts.t list =
     List.init (max_iter + 1) (fun i -> LoopCounts.add x i l)
 
-  let unroll (v,(c,l)) (edges, u) max_iter =
+  let unroll (v,(c,l)) (edges, u) =
     let open GobList.Syntax in
     let u_heads = NodeH.find_default loop_heads u NodeSet.empty in
     let v_heads = NodeH.find_default loop_heads v NodeSet.empty in
@@ -355,7 +355,10 @@ struct
     (* For each node 'u' within a loop from where the loop is exited,
        add loop counts from 0 up to the max nr of unroll iterations (max_iter).
        For nested loops we have to add (combinations of) loop counts for all of the nests. *)
-    let ls = NodeSet.fold (fun exit ls -> List.concat_map (exit_loop max_iter exit) ls) exits [l] in
+    let ls = NodeSet.fold (fun exit ls ->
+        let unroll_factor = NodeH.find_default LoopUnrolling.factorH exit 0 in
+        List.concat_map (exit_loop unroll_factor exit) ls
+      ) exits [l] in
     (* For each node 'u' that is not in the same loop as node 'v',
        i.e. the loop is entered for the first time from 'u',
        if loop counts have reached 0, remove the loop counts to take the entry edge. *)
@@ -365,7 +368,8 @@ struct
        - If the loop count includes max_iter, keep it to represent any remaining loop iterations that were not unrolled.
        - If loop counts has reached 0 for 'v', stop calculating further loop counts, as unrolling stops and loop entry edge must be taken instead. *)
     if is_back_edge then
-      List.concat_map (back_edge max_iter v) ls
+      let unroll_factor = NodeH.find_default LoopUnrolling.factorH v 0 in
+      List.concat_map (back_edge unroll_factor v) ls
     else
       ls
 
@@ -408,7 +412,7 @@ struct
         let _, locs = List.fold_right (fun (f,e) (t,xs) -> f, (f,t)::xs) edges (Node.location v,[]) in
         let res = List.fold_left2 (|>) pval (List.map (tf (v,(Obj.repr (fun () -> c),l)) getl sidel getg sideg u) edges) locs in
         S.D.join acc res
-      ) (S.D.bot ()) (unroll (v,(c,l)) (edges, u) 10) (* TODO: value hardcoded *)
+      ) (S.D.bot ()) (unroll (v,(c,l)) (edges, u))
 
   let tf (v,(c,l)) (e,u) getl sidel getg sideg =
     let old_node = !current_node in
