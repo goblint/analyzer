@@ -322,15 +322,19 @@ struct
     loop_heads
 
   let back_edge max_iter v l : LoopCounts.t list =
-    if LoopCounts.find v l = 0 then
-      []
-    else (
-      let l' = LoopCounts.add v (LoopCounts.find v l - 1) l in
-      if LoopCounts.find v l = max_iter then
-        [l'; l]
-      else
-        [l']
-    )
+    let v_loop_count = LoopCounts.find v l in
+    (* If the loop count has reached 0 and loop count is not equal to max_iter,
+       i.e. it is the "first" iteration of the loop,
+       we do not take the back edge anymore, and instead take the entry edge.
+       If loop counts is same as max_iter,
+       i.e. it has reached the last iteration of the loop,
+       we have to take the back edge once to represent all remaining loop iterations. *)
+    let ls = if v_loop_count = max_iter then [l] else [] in
+    (* If loop counts is greater than 0, we decrement it. *)
+    if v_loop_count <> 0 then
+      LoopCounts.add v (v_loop_count - 1) l :: ls
+    else
+      ls
 
   let enter_loop x l : LoopCounts.t option =
     if LoopCounts.find x l = 0 then
