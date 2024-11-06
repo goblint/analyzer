@@ -326,7 +326,7 @@ struct
     (* We enter the loop for the first time *)
     if LoopCounts.find v l = 0 then (
       let l = LoopCounts.remove v l in
-      Logs.debug "Loop entry edge\n current node: %a\n loopcount: %a\n prev node: %a" Node.pretty v LoopCounts.pretty l Node.pretty u;
+      Logs.info "Loop entry edge\n current node: %a\n loopcount: %a\n prev node: %a" Node.pretty v LoopCounts.pretty l Node.pretty u;
       [(u, (c, l))]
     )
     else
@@ -338,29 +338,35 @@ struct
       raise WrongCase
     else (
       let l' = LoopCounts.add v (LoopCounts.find v l - 1) l in
-      Logs.debug "Back edge\n current node: %a\n loopcount: %a\n prev node: %a" Node.pretty v LoopCounts.pretty l Node.pretty u;
-      if LoopCounts.find v l = max_iter then
-        [(u, (c, l')); (u, (c, l))]
+      Logs.info "Back edge\n current node: %a\n loopcount: %a\n prev node: %a" Node.pretty v LoopCounts.pretty l' Node.pretty u;
+      if LoopCounts.find v l = max_iter then (
+        Logs.info "\tcurrent node: %a\n\tloopcount: %a\n\tprev node: %a\n max_iter:%i" Node.pretty v LoopCounts.pretty l Node.pretty u max_iter;
+        [(u, (c, l')); (u, (c, l))])
       else
         [(u, (c, l'))]
     )
 
   let exit_loop (v,(c,l)) (edges, u) max_iter =
-    Logs.info "Out of loop";
-    let l = List.init (max_iter + 1) (fun i -> (u, (c, LoopCounts.add u i l))) in
-    List.iter (fun (u, (c,l)) -> Logs.debug "current node: %a\n\tloopcount: %a\n\tprev node: %a" Node.pretty v LoopCounts.pretty l Node.pretty u) l;
-    l
+    List.init (max_iter + 1) (fun i -> (u, (c, LoopCounts.add u i l)))
 
   let unroll (v,(c,l)) (edges, u) max_iter =
     let open GobList.Syntax in
     match NodeH.find_default loop_heads u NodeSet.empty, NodeH.find_default loop_heads v NodeSet.empty with
     (* exiting the loop: u is within more loops than v *)
     | u_heads, v_heads when not (NodeSet.is_empty (NodeSet.diff u_heads v_heads)) ->
+      Logs.info "back and exit to %a " Node.pretty v;
       if NodeSet.mem v v_heads then (
         let* (u',(c',l')) = exit_loop (v,(c,l)) (edges, u) max_iter in
-        back_edge (v,(c',l')) (edges, u') max_iter)
-      else
-        exit_loop (v,(c,l)) (edges, u) max_iter
+        let l = back_edge (v,(c',l')) (edges, u') max_iter in
+        Logs.info "Loop exit-back edge";
+        List.iter (fun (u, (c,l)) -> Logs.info "current node: %a\n\tloopcount: %a\n\tprev node: %a" Node.pretty v LoopCounts.pretty l Node.pretty u) l;
+        l
+      ) else (
+        Logs.info "Loop exit edge";
+        let l = exit_loop (v,(c,l)) (edges, u) max_iter in
+        List.iter (fun (u, (c,l)) -> Logs.info "current node: %a\n\tloopcount: %a\n\tprev node: %a" Node.pretty v LoopCounts.pretty l Node.pretty u) l;
+        l
+      )
     (* stay within the same loop *)
     | u_heads, v_heads when not (NodeSet.is_empty u_heads) && NodeSet.equal u_heads v_heads ->
       if NodeSet.mem v v_heads then
