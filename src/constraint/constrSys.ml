@@ -195,8 +195,8 @@ struct
   let lD, gD = (fun x -> `Lifted2 x), (fun x -> `Lifted1 x)
 
   let conv f get set demand  =
-    f (getL % get % l) (fun x v -> set (l x) (lD v)) (ignore )
-      (getG % get % g) (fun x v -> set (g x) (gD v)) (ignore )
+    f (getL % get % l) (fun x v -> set (l x) (lD v)) (demand % l)
+      (getG % get % g) (fun x v -> set (g x) (gD v)) (demand % g)
     |> lD
 
   let system = function

@@ -63,6 +63,7 @@ module Base =
       var_messages: Message.t HM.t; (** Messages from right-hand sides of variables. Used for incremental postsolving. *)
       rho_write: S.Dom.t HM.t HM.t; (** Side effects from variables to write-only variables with values. Used for fast incremental restarting of write-only variables. *)
       dep: VS.t HM.t; (** Dependencies of variables. Inverse of [infl]. Used for fast pre-reachable pruning in incremental postsolving. *)
+      weak_dep: VS.t HM.t; (** Map of weak dependencies. "caller" -> "end of function" **)
     }
 
     type marshal = solver_data
@@ -79,6 +80,7 @@ module Base =
       var_messages = HM.create 10;
       rho_write = HM.create 10;
       dep = HM.create 10;
+      weak_dep = HM.create 10;
     }
 
     let print_data data =
@@ -125,6 +127,7 @@ module Base =
         var_messages = HM.copy data.var_messages;
         rho_write = HM.map (fun x w -> HM.copy w) data.rho_write; (* map copies outer HM *)
         dep = HM.copy data.dep;
+        weak_dep = HM.copy data.weak_dep;
       }
 
     (* The following hack is for fixing hashconsing.
@@ -189,7 +192,12 @@ module Base =
       HM.iter (fun k v ->
           HM.replace dep (S.Var.relift k) (VS.map S.Var.relift v)
         ) data.dep;
-      {st; infl; sides; rho; wpoint; stable; side_dep; side_infl; var_messages; rho_write; dep}
+      let weak_dep = HM.create (HM.length data.weak_dep) in
+      HM.iter (fun k v ->
+          HM.replace weak_dep (S.Var.relift k) (VS.map S.Var.relift v)
+        ) data.weak_dep;
+      
+      {st; infl; sides; rho; wpoint; stable; side_dep; side_infl; var_messages; rho_write; dep; weak_dep}
 
     type phase = Widen | Narrow [@@deriving show] (* used in inner solve *)
 
@@ -251,6 +259,7 @@ module Base =
       let var_messages = data.var_messages in
       let rho_write = data.rho_write in
       let dep = data.dep in
+      let weak_dep = data.weak_dep in
 
       let () = print_solver_stats := fun () ->
           print_data data;
@@ -315,7 +324,7 @@ module Base =
             | _ ->
               (* The RHS is re-evaluated, all deps are re-trigerred *)
               HM.replace dep x VS.empty;
-              eq x (eval l x) (side ~x) (ignore )
+              eq x (eval l x) (side ~x) (demand_thr x)
           in
           HM.remove called x;
           let old = HM.find rho x in (* d from older solve *) (* find old value after eq since wpoint restarting in eq/eval might have changed it meanwhile *)
@@ -378,11 +387,15 @@ module Base =
         if cache && HM.mem l y then HM.find l y
         else (
           HM.replace called y ();
-          let eqd = eq y (eval l x) (side ~x) (ignore) in
+          let eqd = eq y (eval l x) (side ~x) (demand_thr x) in
           HM.remove called y;
           if HM.mem wpoint y then (HM.remove l y; solve y Widen; HM.find rho y)
           else (if cache then HM.replace l y eqd; eqd)
         )
+      and demand_thr x y =
+        if tracing then trace "sol2" "demand weak dep %a from %a" S.Var.pretty_trace y S.Var.pretty_trace x;
+        HM.replace weak_dep x (VS.add y (try HM.find weak_dep x with Not_found -> VS.empty));
+        
       and eval l x y =
         if tracing then trace "sol2" "eval %a ## %a" S.Var.pretty_trace x S.Var.pretty_trace y;
         get_var_event y;
@@ -787,6 +800,17 @@ module Base =
       let i = ref 0 in
       let rec solver () = (* as while loop in paper *)
         incr i;
+        let to_list (acc: S.v list ) (v: VS.t) = VS.fold (fun el acc -> el :: acc) v acc in
+        let hm_keys (hm: VS.t HM.t) = HM.fold (fun k v acc -> to_list acc v) hm [] in
+        let unstable_wk_dps = List.filter (neg (HM.mem stable)) (hm_keys weak_dep)  in
+        if List.length unstable_wk_dps = 0 then (
+          if tracing then trace "sol2" "unstable_wk_deps is empty";
+        ) else (
+          if tracing then trace "sol2" "unstable_wk_deps length %i" (List.length unstable_wk_dps);
+        );
+        List.iter (fun x -> solve x Widen) unstable_wk_dps;
+      
+        
         let unstable_vs = List.filter (neg (HM.mem stable)) vs in
         if unstable_vs <> [] then (
           if Logs.Level.should_log Debug then (
@@ -818,7 +842,7 @@ module Base =
         HM.replace visited x ();
         match Hooks.system x with
         | None -> if HM.mem rho x then HM.find rho x else (Logs.warn "TDFP Found variable %a w/o rhs and w/o value in rho" S.Var.pretty_trace x; S.Dom.bot ())
-        | Some f -> f (get ~check) (check_side x) (ignore )
+        | Some f -> f (get ~check) (check_side x) (ignore % get ~check)
       and get ?(check=false) x =
         if HM.mem visited x then (
           HM.find rho x
@@ -1047,7 +1071,7 @@ module Base =
       print_data_verbose data "Data after postsolve";
 
       verify_data data;
-      (rho, {st; infl; sides; rho; wpoint; stable; side_dep; side_infl; var_messages; rho_write; dep})
+      (rho, {st; infl; sides; rho; wpoint; stable; side_dep; side_infl; var_messages; rho_write; dep; weak_dep})
   end
 
 (** TD3 with no hooks. *)

@@ -50,7 +50,7 @@ struct
     if !AnalysisState.postsolving then
       sideg (GVar.contexts f) (G.create_contexts (G.CSet.singleton c))
 
-  let common_ctx var edge prev_node pval (getl:lv -> ld) sidel demandl getg sideg demandg : (D.t, S.G.t, S.C.t, S.V.t) ctx * D.t list ref * (lval option * varinfo * exp list * D.t * bool) list ref =
+  let common_ctx var edge prev_node pval (getl:lv -> ld) sidel (demandl: lv -> unit) getg sideg demandg : (D.t, S.G.t, S.C.t, S.V.t) ctx * D.t list ref * (lval option * varinfo * exp list * D.t * bool) list ref =
     let r = ref [] in
     let spawns = ref [] in
     (* now watch this ... *)
@@ -78,7 +78,8 @@ struct
           | fd ->
             let c = S.context ctx fd d in
             sidel (FunctionEntry fd, c) d;
-            ignore (getl (Function fd, c))
+            demandl (Function fd, c);
+
           | exception Not_found ->
             (* unknown function *)
             M.error ~category:Imprecise ~tags:[Category Unsound] "Created a thread from unknown function %s" f.vname
