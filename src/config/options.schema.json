@@ -2659,7 +2659,7 @@
             },
             "strict": {
               "title": "witness.yaml.strict",
-              "description": "",
+              "description": "Fail YAML witness validation if there's an error/unsupported/disabled entry.",
               "type": "boolean",
               "default": false
             },
