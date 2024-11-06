@@ -608,7 +608,7 @@ struct
 
     let inv_parser = InvariantParser.create FileCfg.file in
 
-    let yaml = match Yaml_unix.of_file (Fpath.v (GobConfig.get_string "witness.yaml.validate")) with
+    let yaml = match GobResult.Syntax.(Fpath.of_string (GobConfig.get_string "witness.yaml.validate") >>= Yaml_unix.of_file) with
       | Ok yaml -> yaml
       | Error (`Msg m) ->
         Logs.error "Yaml_unix.of_file: %s" m;
