@@ -1189,53 +1189,35 @@ struct
   let project ik p t = t
 end
 
-
-
-(* BitField arithmetic, without any overflow handling etc. *)
 module BitFieldArith (Ints_t : IntOps.IntOps) = struct
-
   let zero_mask = Ints_t.zero
   let one_mask = Ints_t.lognot zero_mask
 
-  let of_int v = (Ints_t.lognot v, v)
+  let of_int x = (Ints_t.lognot x, x) 
+  let join (z1,o1) (z2,o2) = (Ints_t.logor z1 z2, Ints_t.logor o1 o2)
+
+  let meet (z1,o1) (z2,o2) = (Ints_t.logand z1 z2, Ints_t.logand o1 o2)
+
+  let is_constant (z,o) = (Ints_t.logxor z o) = one_mask
+
+  let eq (z1,o1) (z2,o2) = (Ints_t.equal z1 z2) && (Ints_t.equal o1 o2)
+
+  let nabla x y= if x = Ints_t.logor x y then x else one_mask
+
+  let widen (z1,o1) (z2,o2) = (nabla z1 z2, nabla o1 o2)            
 
   let lognot (z,o) = (o,z)
+  
+  let logxor (z1,o1)  (z2,o2) = (Ints_t.logor (Ints_t.logand z1 z2) (Ints_t.logand o1 o2), 
+                                 Ints_t.logor (Ints_t.logand z1 o2) (Ints_t.logand o1 z2))
 
   let logand (z1,o1) (z2,o2) = (Ints_t.logor z1 z2, Ints_t.logand o1 o2)
 
   let logor (z1,o1)  (z2,o2) = (Ints_t.logand z1 z2, Ints_t.logor o1 o2)
 
-  let logxor (z1,o1)  (z2,o2) = (Ints_t.logor (Ints_t.logand z1 z2) (Ints_t.logand o1 o2), 
-                                 Ints_t.logor (Ints_t.logand z1 o2) (Ints_t.logand o1 z2))
-
-  let shift_left (z1,o1) (z2,o2) = failwith "Not implemented"
-
-  let shift_right (z1,o1) (z2,o2) = failwith "Not implemented"
-
-  let join (z1,o1) (z2,o2) = (Ints_t.logor z1 z2, Ints_t.logor o1 o2)
-
-  let meet (z1,o1) (z2,o2) = (Ints_t.logand z1 z2, Ints_t.logand o1 o2)
-
-  let nabla x y= if x = Ints_t.logor x y then x else one_mask
-
-  let widen (z1,o1) (z2,o2) = (nabla z1 z2, nabla o1 o2)
-
-  let zero = of_int Ints_t.zero
   let one = of_int Ints_t.one
-  
-  let topbool = join zero one
-
-  let eq (z1,o1) (z2,o2) = (Ints_t.equal z1 z2 && Ints_t.equal o1 o2)
-
-  let includes (z1,o1) (z2,o2) = (Ints_t.logor (Ints_t.lognot z1 ) z2 = one_mask) && 
-                                 (Ints_t.logor (Ints_t.lognot o1 ) o2 = one_mask)
-
-  let is_constant (z,o) = (Ints_t.logxor z o) = one_mask
-
-  (* assumes that no invalid state can be reached*)
-  let max (z,o) = (if o < Ints_t.zero then Ints_t.neg z else o)
-
-  let min (z,o) = (if o < Ints_t.zero then o else Ints_t.neg z)
+  let zero = of_int Ints_t.zero
+  let top_bool = join one zero
 
 end
 
@@ -1243,13 +1225,69 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): SOverflow with type int_t = Int
   let name () = "bitfield"
   type int_t = Ints_t.t
   type t = (Ints_t.t * Ints_t.t) [@@deriving eq, ord, hash]
+
   module BArith = BitFieldArith (Ints_t)
 
-
-  let top () = (Ints_t.lognot (Ints_t.zero),  Ints_t.lognot (Ints_t.zero))
+  let top () = (BArith.one_mask, BArith.one_mask)
+  let bot () = (BArith.zero_mask, BArith.zero_mask)
   let top_of ik = top ()
-  let bot () = (Ints_t.zero, Ints_t.zero)
   let bot_of ik = bot () 
+
+
+
+  let range ik (z,o) = 
+    let knownBitMask = Ints_t.logxor z o in
+    let unknownBitMask = Ints_t.lognot knownBitMask in
+    let impossibleBitMask = Ints_t.lognot (Ints_t.logor z o) in
+    let guaranteedBits = Ints_t.logand o knownBitMask in
+
+    if impossibleBitMask <> BArith.zero_mask then
+      failwith "Impossible bitfield"
+    else
+
+    let min=if isSigned ik then
+      let signBitMask = Ints_t.shift_left Ints_t.one (Size.bit ik - 1) in
+      let worstPossibleUnknownBits = Ints_t.logand unknownBitMask signBitMask in
+      Size.cast ik (Ints_t.to_bigint (Ints_t.logor guaranteedBits worstPossibleUnknownBits))
+    else
+      let worstPossibleUnknownBits = Ints_t.logand unknownBitMask BArith.zero_mask in
+      Size.cast ik (Ints_t.to_bigint (Ints_t.logor guaranteedBits worstPossibleUnknownBits))
+
+    in 
+    let (_,fullMask) = Size.range ik in
+    let worstPossibleUnknownBits = Ints_t.logand unknownBitMask (Ints_t.of_bigint fullMask) in
+
+    let max =if isSigned ik then
+      Size.cast ik (Ints_t.to_bigint (Ints_t.logor guaranteedBits worstPossibleUnknownBits))
+    else
+      Size.cast ik (Ints_t.to_bigint (Ints_t.logor guaranteedBits worstPossibleUnknownBits))
+
+    in (min,max)
+
+   
+ let get_bit n i = (Ints_t.logand (Ints_t.shift_right n (i-1)) Ints_t.one) 
+
+
+  let norm ?(suppress_ovwarn=false) ik (z,o) = 
+    let (min_ik, max_ik) = Size.range ik in
+
+    let (min,max) = range ik (z,o) in
+    let underflow = Z.compare min min_ik < 0 in
+    let overflow = Z.compare max max_ik > 0 in
+
+    let new_bitfield=
+     (if isSigned ik then
+      let newz = Ints_t.logor (Ints_t.logand z (Ints_t.of_bigint max_ik)) (Ints_t.mul (Ints_t.of_bigint min_ik) (get_bit z (Size.bit ik))) in
+      let newo = Ints_t.logor (Ints_t.logand o (Ints_t.of_bigint max_ik)) (Ints_t.mul (Ints_t.of_bigint min_ik) (get_bit o (Size.bit ik))) in
+      (newz,newo)
+    else
+      let newz = Ints_t.logor z (Ints_t.neg (Ints_t.of_bigint (Z.add max_ik Z.one))) in
+      let newo = Ints_t.logand o (Ints_t.of_bigint max_ik) in
+      (newz,newo))
+    in
+    if suppress_ovwarn then (new_bitfield, {underflow=false; overflow=false})
+    else (new_bitfield, {underflow=underflow; overflow=overflow})
+
 
   let show t = 
     if t = bot () then "bot" else
@@ -1262,53 +1300,42 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): SOverflow with type int_t = Int
 
   include Std (struct type nonrec t = t let name = name let top_of = top_of let bot_of = bot_of let show = show let equal = equal end)
 
-  let join ik x y = BArith.join x y
 
-  let meet ik x y = BArith.meet x y
+  let join ik b1 b2 = (norm ik @@ (BArith.join b1 b2) ) |> fst
 
-  let range ik = BatTuple.Tuple2.mapn Ints_t.of_bigint (Size.range ik)
+  let meet ik x y = (norm ik @@ (BArith.meet x y)) |> fst
 
-  let norm ?(suppress_ovwarn=false) ?(cast=false) ik (z,o)  =
-    M.trace "bitfield" "norm";
-    ((z,o), {underflow=false; overflow=false})
+  let leq (x:t) (y:t) = (BArith.join x y) = y
+
+  let of_int ik (x: int_t) = (norm ik @@ BArith.of_int x) 
 
   let to_int (z,o) = if is_bot (z,o) then None else
       if BArith.is_constant (z,o) then Some o
       else None
 
-  let equal_to i (u,l) = 
-    M.trace "bitfield" "equal_to";
-    if BArith.of_int i = (u,l) then `Eq
-    else if BArith.includes (u,l) (BArith.of_int i) then `Top
+  let equal_to i bf = 
+    if BArith.of_int i = bf then `Eq
+    else if leq (BArith.of_int i) bf then `Top
     else `Neq
 
   let of_interval ?(suppress_ovwarn=false) ik (x,y) =
     M.trace "bitfield" "of_interval";
     failwith "Not implemented"
 
-  let of_int ik (x: int_t) = (BArith.of_int x, {underflow=false; overflow=false})
-
   let of_bool _ik = function true -> BArith.one | false -> BArith.zero
   
   let to_bool d =
-      M.trace "bitfield" "to_bool";
-    if not (BArith.includes d BArith.zero ) then Some true
+    if not (leq BArith.zero d) then Some true
     else if BArith.eq d BArith.zero then Some false
     else None
 
-  let starting ?(suppress_ovwarn=false) ik n = 
-    M.trace "bitfield" "starting";
-    (top(), {underflow=false; overflow=false})
+  let starting ?(suppress_ovwarn=false) ik n = (norm ~suppress_ovwarn ik @@ BArith.of_int n)
   
-  let ending ?(suppress_ovwarn=false) ik n = 
-    M.trace "bitfield" "ending";
-    (top(), {underflow=false; overflow=false})
+  let ending ?(suppress_ovwarn=false) ik n = (norm ~suppress_ovwarn ik @@ BArith.of_int n)
   
-  let cast_to ?(suppress_ovwarn=false) ?torg ?no_ov t = 
-    M.trace "bitfield" "cast_to";
-    norm ~cast:true t (* norm does all overflow handling *)
+  let cast_to ?(suppress_ovwarn=false) ?torg ?no_ov t = norm ~suppress_ovwarn t
 
-  let widen ik x y = BArith.widen x y
+  let widen ik x y = (norm ik @@ BArith.widen x y) |> fst
 
   let narrow ik x y = meet ik x y  
 
@@ -1337,6 +1364,11 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): SOverflow with type int_t = Int
 
   let lognot ik i1 = BArith.lognot i1
 
+  let eq ik x y =
+    if BArith.is_constant x && BArith.is_constant y then of_bool ik (BArith.eq x y) 
+    else if not (leq x y || leq y x) then of_bool ik false
+    else BArith.top_bool
+
   let neg ?no_ov ik v =
     M.trace "bitfield" "neg";
     failwith "Not implemented"
@@ -1363,90 +1395,33 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): SOverflow with type int_t = Int
     M.trace "bitfield" "rem";
     top_of ik
 
-  let eq ik x y =
-    M.trace "bitfield" "eq";
-    if BArith.is_constant x && BArith.is_constant y then of_bool ik (BArith.eq x y) 
-                else if not (BArith.includes x y || (BArith.includes y x)) then of_bool ik false
-                else BArith.topbool
-
+ 
   let ne ik x y =
     if BArith.is_constant x && BArith.is_constant y then of_bool ik (not (BArith.eq x y)) 
-    else if not (BArith.includes x y || (BArith.includes y x)) then of_bool ik true
-    else BArith.topbool
+    else if not (leq x y || leq y x) then of_bool ik true
+    else BArith.top_bool
+
+  let le ik x y = failwith "Not implemented"
+
+  let ge ik x y = failwith "Not implemented"
 
 
-  let leq (x:t) (y:t) = BArith.includes x y
+  let gt ik x y =failwith "Not implemented"
 
-  type comparison_result = 
-    | Less
-    | LessOrEqual
-    | Greater
-    | GreaterOrEqual
-    | Unknown
-
-let compare_bitfields ?(strict=true) ?(signed=false) (z1,o1) (z2,o2) =
-  M.trace "bitfield" "compare_bitfields";
-  let bit_length = Sys.word_size - 2 in  (* Set bit length based on system word size *)
-  let sign_bit_position = if signed then bit_length - 1 else -1 in
-  let result = ref Unknown in
-
-  (* Helper function to check bits at each position *)
-  let get_bit mask pos = ((Ints_t.to_int mask) lsr pos) land 1 = 1 in
-
-  (* Iterate from Most Significant Bit (MSB) to Least Significant Bit (LSB) *)
-  for i = bit_length - 1 downto 0 do
-    let bit1_zero = get_bit z1 i in
-    let bit1_one = get_bit o1 i in
-    let bit2_zero = get_bit z2 i in
-    let bit2_one = get_bit o2 i in
-
-    (* Check if bits at position i are both known *)
-    if (bit1_zero || bit1_one) && (bit2_zero || bit2_one) then
-      if bit1_zero && bit2_one then begin
-        result := if strict then Less else LessOrEqual;
-        raise Exit
-      end else if bit1_one && bit2_zero then begin
-        result := if strict then Greater else GreaterOrEqual;
-        raise Exit
-      end else if (bit1_one = bit2_one) && (bit1_zero = bit2_zero) then
-        () (* Equal bits, continue checking lower bits *)
-      else
-        result := Unknown (* Unknown bit situation, stop *)
-    else
-      result := Unknown; 
-      raise Exit
-  done;
-
-  (* Handle sign bit adjustment if signed *)
-  if signed && !result <> Unknown then
-    match !result with
-    | Less when get_bit o1 sign_bit_position <> get_bit o2 sign_bit_position -> result := Greater
-    | Greater when get_bit o1 sign_bit_position <> get_bit o2 sign_bit_position -> result := Less
-    | _ -> ();
-  else ();
-
-  (* Handle non-strict inequalities for unknowns *)
-  if not strict && !result = Unknown then begin
-    if (Ints_t.logand z1 o2) =  Ints_t.zero then result := LessOrEqual
-    else if (Ints_t.logand o1 z2) = Ints_t.zero then result := GreaterOrEqual
-  end;
-  !result
-
-  let ge ik x y = if compare_bitfields x y = GreaterOrEqual then of_bool ik true else BArith.topbool
-
-  let le ik x y = if compare_bitfields x y = LessOrEqual then of_bool ik true else BArith.topbool
-
-  let gt ik x y = if compare_bitfields x y = Greater then of_bool ik true else BArith.topbool
-
-  let lt ik x y = if compare_bitfields x y = Less then of_bool ik true else BArith.topbool
+  let lt ik x y =failwith "Not implemented"
 
   let invariant_ikind e ik = 
     M.trace "bitfield" "invariant_ikind";
     failwith "Not implemented"
 
   let arbitrary ik = 
-    M.trace "bitfield" "arbitrary";
-    failwith "Not implemented"
+    let open QCheck.Iter in
+    let int_arb = QCheck.map ~rev:Ints_t.to_int64 Ints_t.of_int64 GobQCheck.Arbitrary.int64 in
+    let pair_arb = QCheck.pair int_arb int_arb in
+    let shrink = function
+      | (z, o) -> (GobQCheck.shrink pair_arb (z, o) >|= fun (z, o) -> norm ik (z, o) |> fst)
+    in
+    QCheck.(set_shrink shrink @@ set_print show @@ map (*~rev:BatOption.get*) (fun x -> norm ik x |> fst ) pair_arb)
     
 
   let refine_with_congruence ik (intv : t) (cong : (int_t * int_t ) option) : t =
