@@ -292,24 +292,22 @@ struct
     let d = S.skip ctx in (* Force transfer function to be evaluated before dereferencing in common_join argument. *)
     common_join ctx d !r !spawns
 
-  module NodeSet = Set.Make (Node)
-
-  let loop_heads : NodeSet.t NodeH.t = NodeH.create 100
+  let loop_heads : (Node.t list) NodeH.t = NodeH.create 100
   class loop_heads_visitor = object
     inherit nopCilVisitor
 
-    val mutable heads = NodeSet.empty
+    val mutable heads = []
 
     method! vstmt stmt =
       let node = Statement (fst (CfgTools.find_real_stmt stmt)) in
       let rem_heads stmt =
         match stmt.GoblintCil.skind with
-        | Loop _ -> heads <- NodeSet.remove node heads; stmt
+        | Loop _ -> heads <- List.tl heads; stmt
         | _ -> stmt
       in
       match stmt.GoblintCil.skind with
       | Loop _ ->
-        heads <- NodeSet.add node heads;
+        heads <- node :: heads;
         NodeH.add loop_heads node heads;
         ChangeDoChildrenPost(stmt, rem_heads);
       | _ ->
@@ -317,7 +315,7 @@ struct
         DoChildren
   end
 
-  let loop_heads : NodeSet.t NodeH.t =
+  let loop_heads : (Node.t list) NodeH.t =
     visitCilFile (new loop_heads_visitor) !Cilfacade.current_file;
     loop_heads
 
@@ -347,15 +345,15 @@ struct
 
   let unroll (v,(c,l)) (edges, u) =
     let open GobList.Syntax in
-    let u_heads = NodeH.find_default loop_heads u NodeSet.empty in
-    let v_heads = NodeH.find_default loop_heads v NodeSet.empty in
-    let exits = NodeSet.diff u_heads v_heads in
-    let entries = NodeSet.diff v_heads u_heads in
-    let is_back_edge = NodeSet.mem v v_heads && NodeSet.mem v u_heads in
+    let u_heads = NodeH.find_default loop_heads u [] in
+    let v_heads = NodeH.find_default loop_heads v [] in
+    let exits = List.filter (fun u -> not (List.mem u v_heads)) u_heads in
+    let entries = List.filter (fun v -> not (List.mem v u_heads)) v_heads in
+    let is_back_edge = List.mem v v_heads && List.mem v u_heads in
     (* For each node 'u' that is not in the same loop as node 'v',
        i.e. the loop is entered for the first time from 'u',
        if loop counts have reached 0, remove the loop counts to take the entry edge. *)
-    let ls = NodeSet.fold (fun entry ls -> List.filter_map (enter_loop entry) ls) entries [l] in
+    let ls = List.fold_left (fun ls entry -> List.filter_map (enter_loop entry) ls) [l] entries in
     (* For each back edge 'u' -> 'v':
        - Decrement the loop count by one to reflect one (done) iteration through the loop.
        - If the loop count includes max_iter, keep it to represent any remaining loop iterations that were not unrolled.
@@ -370,10 +368,10 @@ struct
     (* For each node 'u' within a loop from where the loop is exited,
        add loop counts from 0 up to the max nr of unroll iterations (max_iter).
        For nested loops we have to add (combinations of) loop counts for all of the nests. *)
-    NodeSet.fold (fun exit ls ->
+    List.fold_left (fun ls exit ->
         let unroll_factor = NodeH.find_default MyCFG.factorH exit 0 in
-        List.concat_map (exit_loop unroll_factor exit) ls
-      ) exits ls
+        List.concat_map (fun a -> exit_loop unroll_factor exit a) ls
+      ) ls exits
 
   let tf var getl sidel getg sideg prev_node edge d =
     begin match edge with
