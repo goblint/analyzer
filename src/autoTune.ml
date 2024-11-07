@@ -61,7 +61,7 @@ class findAllocsInLoops = object
     | _ -> DoChildren
 
   method! vinst = function
-    | Call (_, Lval (Var f, NoOffset), args,_,_) ->
+    | Call (_, Lval (Var f, NoOffset), args,_,_) when LibraryFunctions.is_special f ->
       Goblint_backtrace.protect ~mark:(fun () -> Cilfacade.FunVarinfo f) ~finally:Fun.id @@ fun () ->
       let desc = LibraryFunctions.find f in
       begin match desc.special args with
