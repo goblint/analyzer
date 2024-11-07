@@ -85,4 +85,5 @@ sig
 end
 
 (* TODO: move back to LoopUnrolling, now here to break dependency cycle *)
+let factor0: int Cilfacade.StmtH.t = Cilfacade.StmtH.create 100
 let factorH: int NodeH.t = NodeH.create 100

@@ -456,7 +456,8 @@ class loopUnrollingVisitor (func, totalLoops) = object
         nests <- nests - 1; Logs.debug "nests: %i" nests;
         let factor = loop_unrolling_factor stmt func totalLoops in
         if factor > 0 then (
-          MyCFG.NodeH.add MyCFG.factorH (Statement (fst (CfgTools.find_real_stmt stmt))) factor;
+          (* MyCFG.NodeH.add MyCFG.factorH (Statement (fst (CfgTools.find_real_stmt stmt))) factor; *)
+          Cilfacade.StmtH.add MyCFG.factor0 stmt factor;
           Logs.info "unrolling loop at %a with factor %d" CilType.Location.pretty loc factor;
           annotateArrays b;
           stmt

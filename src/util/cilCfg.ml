@@ -43,9 +43,12 @@ let createCFG (fileAST: file) =
   iterGlobals fileAST (fun glob ->
       match glob with
       | GFun(fd,_) ->
+        if (get_int "exp.unrolling-factor")>0 || AutoTune0.isActivated "loopUnrollHeuristic" then LoopUnrolling.unroll_loops fd loops; (* must be done before prepareCFG, otherwise cannot find breaks *)
         prepareCFG fd;
         computeCFGInfo fd true;
-        if (get_int "exp.unrolling-factor")>0 || AutoTune0.isActivated "loopUnrollHeuristic" then LoopUnrolling.unroll_loops fd loops;
+        Cilfacade.StmtH.iter (fun stmt factor ->
+            MyCFG.NodeH.add MyCFG.factorH (Statement (fst (CfgTools.find_real_stmt stmt))) factor (* must be done after computeCFGInfo, otherwise no succs *)
+          ) MyCFG.factor0
       | _ -> ()
     );
   if get_bool "dbg.run_cil_check" then assert (Check.checkFile [] fileAST);
