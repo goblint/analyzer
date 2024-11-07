@@ -622,7 +622,7 @@ module SparseMatrix: AbstractMatrix =
 
     (*Array of arrays implementation. One array per row containing tuple of column index and value*)
     type t = {
-      entries : (int * A.t) array array;
+      entries : (int * A.t) list list;
       column_count : int
     } [@@deriving eq, ord, hash]
 
@@ -630,16 +630,16 @@ module SparseMatrix: AbstractMatrix =
       failwith "TODO"
 
     let empty () =
-      failwith "TODO"
+      {entries = []; column_count = 0}
 
     let num_rows m =
-      failwith "TODO"
+      List.length m.entries
 
     let is_empty m =
       num_rows m = 0
 
     let num_cols m =
-      failwith "TODO"
+      m.column_count
 
     let copy m =
       failwith "TODO"
@@ -654,7 +654,7 @@ module SparseMatrix: AbstractMatrix =
       timing_wrap "add_empty_cols" (add_empty_columns m) cols
 
     let append_row m row  =
-    failwith "TODO"
+      failwith "TODO"
 
     let get_row m n =
       failwith "TODO"
@@ -663,7 +663,15 @@ module SparseMatrix: AbstractMatrix =
       failwith "TODO"
 
     let get_col m n =
-      failwith "TODO"
+      (* Uses the fact that row is sorted to return Zero when index n is exceeded *)
+      let rec get_col_from_row row =
+        match row with
+        | [] -> A.zero
+        | (col_idx, value)::_ when col_idx = n -> value
+        | (col_idx, _)::_ when col_idx > n -> A.zero
+        | _::cs -> get_col_from_row cs
+      in
+      V.of_list @@ List.map (fun row -> get_col_from_row row ) m.entries
 
     let get_col m n =
       timing_wrap "get_col" (get_col m) n
@@ -720,7 +728,7 @@ module SparseMatrix: AbstractMatrix =
     let rref_vec m pivot_positions v =
       failwith "TODO"
 
-   
+
     let rref_vec_with m v =
       (*This function yields the same result as appending vector v to m and normalizing it afterwards would. However, it is usually faster than performing those ops manually.*)
       (*m must be in rref form and contain the same num of cols as v*)
