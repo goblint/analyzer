@@ -352,26 +352,28 @@ struct
     let exits = NodeSet.diff u_heads v_heads in
     let entries = NodeSet.diff v_heads u_heads in
     let is_back_edge = NodeSet.mem v v_heads && NodeSet.mem v u_heads in
-    (* For each node 'u' within a loop from where the loop is exited,
-       add loop counts from 0 up to the max nr of unroll iterations (max_iter).
-       For nested loops we have to add (combinations of) loop counts for all of the nests. *)
-    let ls = NodeSet.fold (fun exit ls ->
-        let unroll_factor = NodeH.find_default MyCFG.factorH exit 0 in
-        List.concat_map (exit_loop unroll_factor exit) ls
-      ) exits [l] in
     (* For each node 'u' that is not in the same loop as node 'v',
        i.e. the loop is entered for the first time from 'u',
        if loop counts have reached 0, remove the loop counts to take the entry edge. *)
-    let ls = NodeSet.fold (fun entry ls -> List.filter_map (enter_loop entry) ls) entries ls in
+    let ls = NodeSet.fold (fun entry ls -> List.filter_map (enter_loop entry) ls) entries [l] in
     (* For each back edge 'u' -> 'v':
        - Decrement the loop count by one to reflect one (done) iteration through the loop.
        - If the loop count includes max_iter, keep it to represent any remaining loop iterations that were not unrolled.
        - If loop counts has reached 0 for 'v', stop calculating further loop counts, as unrolling stops and loop entry edge must be taken instead. *)
-    if is_back_edge then
-      let unroll_factor = NodeH.find_default MyCFG.factorH v 0 in
-      List.concat_map (back_edge unroll_factor v) ls
-    else
-      ls
+    let ls =
+      if is_back_edge then
+        let unroll_factor = NodeH.find_default MyCFG.factorH v 0 in
+        List.concat_map (back_edge unroll_factor v) ls
+      else
+        ls
+    in
+    (* For each node 'u' within a loop from where the loop is exited,
+       add loop counts from 0 up to the max nr of unroll iterations (max_iter).
+       For nested loops we have to add (combinations of) loop counts for all of the nests. *)
+    NodeSet.fold (fun exit ls ->
+        let unroll_factor = NodeH.find_default MyCFG.factorH exit 0 in
+        List.concat_map (exit_loop unroll_factor exit) ls
+      ) exits ls
 
   let tf var getl sidel getg sideg prev_node edge d =
     begin match edge with
