@@ -83,3 +83,6 @@ sig
   val file: Cil.file
   module Cfg: CfgBidirSkip
 end
+
+(* TODO: move back to LoopUnrolling, now here to break dependency cycle *)
+let factorH: int NodeH.t = NodeH.create 100

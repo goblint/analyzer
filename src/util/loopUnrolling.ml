@@ -442,7 +442,6 @@ let copy_and_patch_labels break_target current_continue_target stmts =
   let patchLabelsVisitor = new patchLabelsGotosVisitor(StatementHashTable.find_opt gotos) in
   List.map (visitCilStmt patchLabelsVisitor) stmts'
 
-let factorH = MyCFG.NodeH.create 100
 
 class loopUnrollingVisitor (func, totalLoops) = object
   (* Labels are simply handled by giving them a fresh name. Jumps coming from outside will still always go to the original label! *)
@@ -457,7 +456,7 @@ class loopUnrollingVisitor (func, totalLoops) = object
         nests <- nests - 1; Logs.debug "nests: %i" nests;
         let factor = loop_unrolling_factor stmt func totalLoops in
         if factor > 0 then (
-          MyCFG.NodeH.add factorH (Statement (fst (CfgTools.find_real_stmt stmt))) factor;
+          MyCFG.NodeH.add MyCFG.factorH (Statement (fst (CfgTools.find_real_stmt stmt))) factor;
           Logs.info "unrolling loop at %a with factor %d" CilType.Location.pretty loc factor;
           annotateArrays b;
           stmt

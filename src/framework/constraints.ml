@@ -356,7 +356,7 @@ struct
        add loop counts from 0 up to the max nr of unroll iterations (max_iter).
        For nested loops we have to add (combinations of) loop counts for all of the nests. *)
     let ls = NodeSet.fold (fun exit ls ->
-        let unroll_factor = NodeH.find_default LoopUnrolling.factorH exit 0 in
+        let unroll_factor = NodeH.find_default MyCFG.factorH exit 0 in
         List.concat_map (exit_loop unroll_factor exit) ls
       ) exits [l] in
     (* For each node 'u' that is not in the same loop as node 'v',
@@ -368,7 +368,7 @@ struct
        - If the loop count includes max_iter, keep it to represent any remaining loop iterations that were not unrolled.
        - If loop counts has reached 0 for 'v', stop calculating further loop counts, as unrolling stops and loop entry edge must be taken instead. *)
     if is_back_edge then
-      let unroll_factor = NodeH.find_default LoopUnrolling.factorH v 0 in
+      let unroll_factor = NodeH.find_default MyCFG.factorH v 0 in
       List.concat_map (back_edge unroll_factor v) ls
     else
       ls

@@ -8,4 +8,4 @@ val unroll_loops: GoblintCil.fundec -> int -> unit
 val find_original: GoblintCil.stmt -> GoblintCil.stmt
 (** Find original un-unrolled instance of the statement. *)
 
-val factorH : int CfgTools.NH.t
+(* val factorH : int CfgTools.NH.t *)
