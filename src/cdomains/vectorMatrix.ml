@@ -621,13 +621,16 @@ module SparseMatrix: AbstractMatrix =
     module V = V(A)
 
     (*Array of arrays implementation. One array per row containing tuple of column index and value*)
-    type t = (int * A.t) array array [@@deriving eq, ord, hash]
+    type t = {
+      entries : (int * A.t) array array;
+      column_count : int
+    } [@@deriving eq, ord, hash]
 
     let show x =
       failwith "TODO"
 
     let empty () =
-      Array.make_matrix 0 0 (0, A.zero)
+      failwith "TODO"
 
     let num_rows m =
       failwith "TODO"
