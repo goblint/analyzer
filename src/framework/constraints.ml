@@ -343,7 +343,7 @@ struct
   let exit_loop max_iter x l : LoopCounts.t list =
     List.init (max_iter + 1) (fun i -> LoopCounts.add x i l)
 
-  let unroll (v,(c,l)) (edges, u) =
+  let unroll (v,(c,l)) (edges, u) getl =
     let open GobList.Syntax in
     let u_heads = NodeH.find_default loop_heads u [] in
     let v_heads = NodeH.find_default loop_heads v [] in
@@ -368,10 +368,12 @@ struct
     (* For each node 'u' within a loop from where the loop is exited,
        add loop counts from 0 up to the max nr of unroll iterations (max_iter).
        For nested loops we have to add (combinations of) loop counts for all of the nests. *)
-    List.fold_left (fun ls exit ->
+    let ls = List.fold_left (fun ls exit ->
         let unroll_factor = NodeH.find_default MyCFG.factorH exit 0 in
         List.concat_map (fun a -> exit_loop unroll_factor exit a) ls
       ) ls exits
+    in
+    List.map (fun l -> getl (u,(c,l))) ls
 
   let tf var getl sidel getg sideg prev_node edge d =
     begin match edge with
@@ -407,12 +409,11 @@ struct
       )
 
   let tf (v,(c,l)) (edges, u) getl sidel getg sideg =
-    List.fold_left (fun acc l' ->
-        let pval = getl (u,(c,l')) in
+    List.fold_left (fun acc pval ->
         let _, locs = List.fold_right (fun (f,e) (t,xs) -> f, (f,t)::xs) edges (Node.location v,[]) in
         let res = List.fold_left2 (|>) pval (List.map (tf (v,(Obj.repr (fun () -> c),l)) getl sidel getg sideg u) edges) locs in
         S.D.join acc res
-      ) (S.D.bot ()) (unroll (v,(c,l)) (edges, u))
+      ) (S.D.bot ()) (unroll (v,(c,l)) (edges, u) getl)
 
   let tf (v,(c,l)) (e,u) getl sidel getg sideg =
     let old_node = !current_node in
