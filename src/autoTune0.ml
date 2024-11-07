@@ -28,6 +28,8 @@ let printFactors f =
   Logs.debug "arrayVars: (%d,%d)" (fst f.arrayVars) (snd f.arrayVars);
   Logs.debug "pointerVars: (%d,%d)" (fst f.pointerVars) (snd f.pointerVars)
 
+(* TODO: Can have mutual recursion between class and let? *)
+let collectFactors' = ref (fun _ _ -> assert false)
 
 class collectComplexityFactorsVisitor(factors) = object
   inherit nopCilVisitor
@@ -58,9 +60,24 @@ class collectComplexityFactorsVisitor(factors) = object
     | _ -> DoChildren
 
   method! vstmt stmt = match stmt.skind with
-    | Loop _ ->
+    | Loop (b, _, _, _, _) ->
+      (* Compensate for old static unrolling by just multiplying the factors. *)
+      let mul = CfgTools.NH.find_default MyCFG.factorH (Statement (fst (CfgTools.find_real_stmt stmt))) 0 in
+      (* Logs.debug "%a mul %d" Node.pretty (Statement stmt) mul; *)
+      let loopFactors = !collectFactors' visitCilBlock b in
+      factors.functions <- factors.functions + (1 + mul) * loopFactors.functions;
+      factors.functionCalls <- factors.functionCalls + (1 + mul) * loopFactors.functionCalls;
+      factors.loops <- factors.loops + (1 + mul) * loopFactors.loops;
+      factors.loopBreaks <- factors.loopBreaks + (1 + mul) * loopFactors.loopBreaks;
+      factors.controlFlowStatements <- factors.controlFlowStatements + (1 + mul) * loopFactors.controlFlowStatements;
+      factors.expressions <- factors.expressions + (1 + mul) * loopFactors.expressions;
+      factors.instructions <- factors.instructions + (1 + mul) * loopFactors.instructions;
+      factors.integralVars <- (fst factors.integralVars + (1 + mul) * fst loopFactors.integralVars, snd factors.integralVars + (1 + mul) * snd loopFactors.integralVars);
+      factors.arrayVars <- (fst factors.arrayVars + (1 + mul) * fst loopFactors.arrayVars, snd factors.arrayVars + (1 + mul) * snd loopFactors.arrayVars);
+      factors.pointerVars <- (fst factors.pointerVars + (1 + mul) * fst loopFactors.pointerVars, snd factors.pointerVars + (1 + mul) * snd loopFactors.pointerVars);
+
       factors.controlFlowStatements <- factors.controlFlowStatements + 1;
-      factors.loops <- factors.loops + 1; DoChildren
+      factors.loops <- factors.loops + 1; SkipChildren
     | If _
     | Switch _
     | Goto _
@@ -90,6 +107,8 @@ let collectFactors visitAction visitedObject =
   let visitor = new collectComplexityFactorsVisitor(factors) in
   ignore (visitAction visitor visitedObject);
   factors
+
+let () = collectFactors' := collectFactors
 
 let is_large_array = function
   | TArray (_,Some (Const (CInt (i,_,_))),_) -> i > Z.of_int @@ 10 * get_int "ana.base.arrays.unrolling-factor"
