@@ -77,8 +77,8 @@ struct
           match Cilfacade.find_varinfo_fundec f with
           | fd ->
             let c = S.context ctx fd d in
-            sidel (FunctionEntry fd, (c, l)) d;
-            ignore (getl (Function fd, (c, l)))
+            sidel (FunctionEntry fd, (c, LoopCounts.empty ())) d;
+            ignore (getl (Function fd, (c, LoopCounts.empty ())))
           | exception Not_found ->
             (* unknown function *)
             M.error ~category:Imprecise ~tags:[Category Unsound] "Created a thread from unknown function %s" f.vname
@@ -222,8 +222,8 @@ struct
     in
     let paths = S.enter ctx lv f args in
     let paths = List.map (fun (c,v) -> (c, S.context ctx f v, v)) paths in
-    List.iter (fun (c,fc,v) -> if not (S.D.is_bot v) then sidel (FunctionEntry f, (fc, snd (snd var))) v) paths;
-    let paths = List.map (fun (c,fc,v) -> (c, fc, if S.D.is_bot v then v else getl (Function f, (fc, snd (snd var))))) paths in
+    List.iter (fun (c,fc,v) -> if not (S.D.is_bot v) then sidel (FunctionEntry f, (fc, LoopCounts.empty ())) v) paths;
+    let paths = List.map (fun (c,fc,v) -> (c, fc, if S.D.is_bot v then v else getl (Function f, (fc, LoopCounts.empty ())))) paths in
     (* Don't filter bot paths, otherwise LongjmpLifter is not called. *)
     (* let paths = List.filter (fun (c,fc,v) -> not (D.is_bot v)) paths in *)
     let paths = List.map (Tuple3.map2 Option.some) paths in
@@ -305,7 +305,7 @@ struct
       let rem_heads stmt =
         match stmt.GoblintCil.skind with
         | Loop _ -> heads <- NodeSet.remove node heads; stmt
-        | _ -> stmt 
+        | _ -> stmt
       in
       match stmt.GoblintCil.skind with
       | Loop _ ->
