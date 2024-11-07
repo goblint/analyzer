@@ -1191,13 +1191,14 @@ end
 
 
 
-(* BitField arithmetic, without any overflow handling etc. *)
-module BitFieldArith (Ints_t : IntOps.IntOps) = struct
+(* Bitfield arithmetic, without any overflow handling etc. *)
+module BitfieldArith (Ints_t : IntOps.IntOps) = struct
 
   let zero_mask = Ints_t.zero
   let one_mask = Ints_t.lognot zero_mask
 
   let is_const (z,o) = (Ints_t.logxor z o) = one_mask
+  let is_undefined (z,o) = Ints_t.compare (Ints_t.lognot @@ Ints_t.logor z o) Ints_t.zero = 0
 
   let of_int v = (Ints_t.lognot v, v)
   let to_int (z, o) = if is_const (z,o) then Some o else None
@@ -1225,8 +1226,6 @@ module BitFieldArith (Ints_t : IntOps.IntOps) = struct
     else
       Ints_t.logor mask one_mask
 
-  (* max number of (left or right) shifts on an ikind s.t. 0 results from it *)
-  (* TODO hard coded. Other impl? *)
   let max_shift (ik: Cil.ikind) =
     let ilog2 n =
       let rec aux n acc =
@@ -1234,27 +1233,33 @@ module BitFieldArith (Ints_t : IntOps.IntOps) = struct
         else aux (n lsr 1) (acc + 1)
       in aux n 0
   in
-    Cil.bytesSizeOfInt ik * 8 |> ilog2
+    Size.bit ik |> ilog2
+
+  let break_down_to_const_bitfields ik_size one_mask (z,o) : (Ints_t.t * Ints_t.t) list option =
+    if is_undefined (z,o)
+      then None (* cannot break down due to undefined bits *)
+      else
+        let z_masked = Int_t.logand z (Ints_t.lognot one_mask) in
+        let o_masked = Ints_t.logand o one_mask in
+        let result = ref [(z_masked, o_masked)] in
+        for i = 0 to ik_size - 1 do
+          if get_bit z i = get_bit o i then
+            let with_one = !result in
+            let with_zero = List.map (fun (z,o) -> (set_bit ~zero:false z i, set_bit ~zero:true o i)) with_one in
+            result := with_one @ with_zero
+        done;
+    Some (!result)
 
   (* concretizes an abstract bitfield into a set of minimal bitfields that represent concrete numbers
       used for shifting bitfields for an ikind in WC O( 2^(log(n)) ) with n = ikind size *)
-  let break_down ik (z, o) : Ints_t.t list option =
-    (* check if the abstract bitfield has undefined bits i.e. at some pos i the bit is neither 1 or 0 *)
-    if Ints_t.compare (Ints_t.lognot @@ Ints_t.logor z o) Ints_t.zero = 0
-      then None
-      else
-        let n = max_shift ik in
-        let zero_extend_mask = Ints_t.shift_left Ints_t.one n
-        |> fun x -> Ints_t.sub x Ints_t.one
-        |> Ints_t.lognot in
-        let result = ref [Ints_t.logand o zero_extend_mask] in
-        for i = 0 to n - 1 do
-          if get_bit z i = get_bit o i then
-            let with_one = !result in
-            let with_zero = List.map (fun elm -> set_bit ~zero:true elm i) with_one in
-            result := with_one @ with_zero
-        done;
-        Some (!result)
+  let break_down_to_consts ik (z, o) : Ints_t.t list option =
+    let n = max_shift ik in
+    let zero_extend_mask = Ints_t.shift_left Ints_t.one n
+    |> fun x -> Ints_t.sub x Ints_t.one
+    |> Ints_t.lognot in
+    match break_down_to_const_bitfields n zero_extend_mask with
+    | None -> None
+    | Some c_bf_lst = List.map snd c_bf_lst
 
   let shift ?left ik a n =
     let shift_by n (z, o) =
@@ -1262,12 +1267,11 @@ module BitFieldArith (Ints_t : IntOps.IntOps) = struct
         let z_or_mask = Ints_t.sub (Ints_t.shift_left Ints_t.one n) Ints_t.one
         in (Ints_t.logor (Ints_t.shift_left z n) z_or_mask, Ints_t.shift_left o n)
       else
-        (Ints_t.shift_right z n, Ints_t.shift_right o n) in
-        if is_const (z2, o2) then shift_by (Ints_t.to_int o2) (z1, o1) |> Option.some
+        (Ints_t.shift_right z n, Ints_t.shift_right o n)
     in
     if is_const n then shift_by (Ints_t.to_int @@ snd n) a |> Option.some
     else
-      match break_down ik n with None -> None
+      match break_down_to_consts ik n with None -> None
       | Some c_lst ->
         List.map (fun c -> shift_by (Ints_t.to_int @@ snd n) a) c_lst
       |> List.fold_left join zero
@@ -1292,7 +1296,7 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): SOverflow with type int_t = Int
   let name () = "bitfield"
   type int_t = Ints_t.t
   type t = (Ints_t.t * Ints_t.t) [@@deriving eq, ord, hash]
-  module BArith = BitFieldArith (Ints_t)
+  module BArith = BitfieldArith (Ints_t)
 
 
   let top () = (Ints_t.lognot (Ints_t.zero),  Ints_t.lognot (Ints_t.zero))
