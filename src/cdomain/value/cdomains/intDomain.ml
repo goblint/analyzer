@@ -1217,49 +1217,45 @@ module BitfieldArith (Ints_t : IntOps.IntOps) = struct
 
   let join (z1,o1) (z2,o2) = (Ints_t.logor z1 z2, Ints_t.logor o1 o2)
 
-  let get_bit mask pos = ((Ints_t.to_int mask) lsr pos) land 1 = 1
-  let set_bit ?(zero=false) mask pos =
+  let get_bit bf pos = Ints_t.logand Ints_t.one @@ Ints_t.shift_right bf (pos-1)
+  let set_bit ?(zero=false) bf pos =
     let one_mask = Ints_t.shift_left Ints_t.one pos in
     if zero then
       let zero_mask = Ints_t.lognot one_mask in
-      Ints_t.logand mask zero_mask
+      Ints_t.logand bf zero_mask
     else
-      Ints_t.logor mask one_mask
+      Ints_t.logor bf one_mask
 
-  let max_shift (ik: Cil.ikind) =
+  let max_shift ik =
     let ilog2 n =
       let rec aux n acc =
         if n <= 1 then acc
         else aux (n lsr 1) (acc + 1)
       in aux n 0
-  in
+    in
     Size.bit ik |> ilog2
 
-  let break_down_to_const_bitfields ik_size one_mask (z,o) : (Ints_t.t * Ints_t.t) list option =
+  let break_down_to_const_bitfields ik_size one_mask (z,o) =
     if is_undefined (z,o)
-      then None (* cannot break down due to undefined bits *)
+      then None
       else
         let z_masked = Int_t.logand z (Ints_t.lognot one_mask) in
         let o_masked = Ints_t.logand o one_mask in
-        let result = ref [(z_masked, o_masked)] in
-        for i = 0 to ik_size - 1 do
-          if get_bit z i = get_bit o i then
-            let with_one = !result in
-            let with_zero = List.map (fun (z,o) -> (set_bit ~zero:false z i, set_bit ~zero:true o i)) with_one in
-            result := with_one @ with_zero
-        done;
-    Some (!result)
+        let rec break_down c_lst i =
+          if i < ik_size then
+            if get_bit z i = get_bit o i then
+              with_zero = List.map (fun (z,o) -> (set_bit z i, set_bit ~zero:true o i)) c_lst in
+              break_down (c_lst @ with_zero) (i+1)
+            else
+              break_down c_lst (i+1)
+          else c_lst
+        in break_down [(z_masked, o_masked)] 0 |> Option.some
 
-  (* concretizes an abstract bitfield into a set of minimal bitfields that represent concrete numbers
-      used for shifting bitfields for an ikind in WC O( 2^(log(n)) ) with n = ikind size *)
-  let break_down_to_consts ik (z, o) : Ints_t.t list option =
+  let break_down_to_consts ik (z, o) =
     let n = max_shift ik in
-    let zero_extend_mask = Ints_t.shift_left Ints_t.one n
-    |> fun x -> Ints_t.sub x Ints_t.one
-    |> Ints_t.lognot in
-    match break_down_to_const_bitfields n zero_extend_mask with
-    | None -> None
-    | Some c_bf_lst = List.map snd c_bf_lst
+    let zero_extend_mask = Ints_t.lognot @@ Ints_t.sub (Ints_t.shift_left Ints_t.one n) Ints_t.one
+    in
+    Option.map (List.map snd) (break_down_to_const_bitfields n zero_extend_mask)
 
   let shift ?left ik a n =
     let shift_by n (z, o) =
@@ -1271,11 +1267,8 @@ module BitfieldArith (Ints_t : IntOps.IntOps) = struct
     in
     if is_const n then shift_by (Ints_t.to_int @@ snd n) a |> Option.some
     else
-      match break_down_to_consts ik n with None -> None
-      | Some c_lst ->
-        List.map (fun c -> shift_by (Ints_t.to_int @@ snd n) a) c_lst
-      |> List.fold_left join zero
-      |> Option.some
+      break_down_to_consts ik n
+      |> Option.map (fun c_lst -> List.map (fun c -> shift_by c a) c_lst |> List.fold_left join zero)
 
   let meet (z1,o1) (z2,o2) = (Ints_t.logand z1 z2, Ints_t.logand o1 o2)
 
