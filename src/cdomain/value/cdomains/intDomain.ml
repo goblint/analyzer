@@ -1235,21 +1235,23 @@ module BitfieldArith (Ints_t : IntOps.IntOps) = struct
     in
     Size.bit ik |> ilog2
 
-  let break_down_to_const_bitfields ik_size one_mask (z,o) =
+  let break_down_to_const_bitfields ik_size suffix_mask (z,o) =
     if is_undefined (z,o)
       then None
       else
-        let z_masked = Int_t.logand z (Ints_t.lognot one_mask) in
-        let o_masked = Ints_t.logand o one_mask in
+        let z_prefix = Int_t.logand z (Ints_t.lognot suffix_mask) in
+        let o_suffix = Ints_t.logand o suffix_mask in
         let rec break_down c_lst i =
           if i < ik_size then
             if get_bit z i = get_bit o i then
-              with_zero = List.map (fun (z,o) -> (set_bit z i, set_bit ~zero:true o i)) c_lst in
-              break_down (c_lst @ with_zero) (i+1)
+              List.fold_left2 (
+                fun acc (z1,o1) (z2,o2) -> (set_bit z1 i, set_bit ~zero:true o1 i) :: (set_bit ~zero:true z2 i, o2) :: acc
+              ) [] c_lst c_lst
+              |> fun c_lst -> break_down c_lst (i+1)
             else
               break_down c_lst (i+1)
           else c_lst
-        in break_down [(z_masked, o_masked)] 0 |> Option.some
+        in break_down [(z_prefix, o_suffix)] 0 |> Option.some
 
   let break_down_to_consts ik (z, o) =
     let n = max_shift ik in
@@ -1257,7 +1259,7 @@ module BitfieldArith (Ints_t : IntOps.IntOps) = struct
     in
     Option.map (List.map snd) (break_down_to_const_bitfields n zero_extend_mask)
 
-  let shift ?left ik a n =
+  let shift ?left ik bf n =
     let shift_by n (z, o) =
       if left then
         let z_or_mask = Ints_t.sub (Ints_t.shift_left Ints_t.one n) Ints_t.one
@@ -1265,10 +1267,10 @@ module BitfieldArith (Ints_t : IntOps.IntOps) = struct
       else
         (Ints_t.shift_right z n, Ints_t.shift_right o n)
     in
-    if is_const n then shift_by (Ints_t.to_int @@ snd n) a |> Option.some
+    if is_const n then shift_by (Ints_t.to_int @@ snd n) bf |> Option.some
     else
       break_down_to_consts ik n
-      |> Option.map (fun c_lst -> List.map (fun c -> shift_by c a) c_lst |> List.fold_left join zero)
+      |> Option.map (fun c_lst -> List.map (fun c -> shift_by c bf) c_lst |> List.fold_left join zero)
 
   let meet (z1,o1) (z2,o2) = (Ints_t.logand z1 z2, Ints_t.logand o1 o2)
 
@@ -1387,14 +1389,14 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): SOverflow with type int_t = Int
     M.trace "bitfield" "neg";
     failwith "Not implemented"
 
-  (*TODO no overflow handling for shifts?*)
-  (*TODO move shift impl here due to dependancy to ikind?*)
+  (*TODO norming*)
   let shift_right ik a b = 
     M.trace "bitfield" "shift_right";
     match BArith.shift ~left:false ik a b with
     | None -> (bot (), {underflow=false; overflow=false})
     | Some x -> (x, {underflow=false; overflow=false})
 
+  (*TODO norming*)
   let shift_left ik a b =
     M.trace "bitfield" "shift_left";
     match BArith.shift ~left:true ik a b with
