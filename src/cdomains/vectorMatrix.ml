@@ -697,10 +697,35 @@ module SparseMatrix: AbstractMatrix =
       failwith "TODO"
 
     let del_col m j =
-      failwith "TODO"
+      if is_empty m then m else
+        let del_col_from_row row =
+          List.filter_map (fun (col_idx, value) ->
+              if col_idx = j then
+                None
+              else if col_idx > j then
+                Some (col_idx - 1, value)
+              else
+                Some (col_idx, value)
+            ) row
+        in
+        let new_entries = List.map (fun row -> del_col_from_row row) m.entries in
+        {entries = new_entries; column_count = m.column_count - 1}
 
+    (* TODO: Might be more efficient to check for each entry how much to reduce their index and not by recursively calling del_col *)
     let del_cols m cols =
-      failwith "TODO"
+      let cols = Array.to_list cols in (* TODO: Get away from Arrays *)
+      let to_delete_count = List.length cols in
+      if to_delete_count = 0 || is_empty m then m
+      else
+      if num_cols m = to_delete_count then empty () else
+        let sorted_cols = List.sort_uniq Stdlib.compare cols in (* Apron Docs:  Repetitions are meaningless (and are not correct specification)*)
+        let rec del_cols_aux m cols deleted_col_count =
+          match cols with
+          | [] -> m
+          | col_idx::cs ->
+            let m' = del_col m (col_idx - deleted_col_count) in (* Taking already deleted cols into account because of new index *)
+            del_cols_aux m' cs (deleted_col_count + 1)
+        in del_cols_aux m sorted_cols 0
 
     let del_cols m cols = timing_wrap "del_cols" (del_cols m) cols
 
