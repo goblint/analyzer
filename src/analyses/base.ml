@@ -2172,11 +2172,7 @@ struct
         in
         List.filter_map (create_thread ~multiple (Some (Mem id, NoOffset)) (Some ptc_arg)) start_funvars_with_unknown
       end
-    | _, _ when get_bool "sem.unknown_function.spawn" ->
-      (* TODO: Remove sem.unknown_function.spawn check because it is (and should be) really done in LibraryFunctions.
-         But here we consider all non-ThreadCreate functions also unknown, so old-style LibraryFunctions access
-         definitions using `Write would still spawn because they are not truly unknown functions (missing from LibraryFunctions).
-         Need this to not have memmove spawn in SV-COMP. *)
+    | _, _ ->
       let shallow_args = LibraryDesc.Accesses.find desc.accs { kind = Spawn; deep = false } args in
       let deep_args = LibraryDesc.Accesses.find desc.accs { kind = Spawn; deep = true } args in
       let shallow_flist = collect_invalidate ~deep:false ~ctx ctx.local shallow_args in
@@ -2185,7 +2181,6 @@ struct
       let addrs = List.concat_map AD.to_var_may flist in
       if addrs <> [] then M.debug ~category:Analyzer "Spawning non-unique functions from unknown function: %a" (d_list ", " CilType.Varinfo.pretty) addrs;
       List.filter_map (create_thread ~multiple:true None None) addrs
-    | _, _ -> []
 
   let assert_fn ctx e refine =
     (* make the state meet the assertion in the rest of the code *)
@@ -2656,6 +2651,15 @@ struct
     | Unknown, "__goblint_assume_join" ->
       let id = List.hd args in
       Priv.thread_join ~force:true (Analyses.ask_of_ctx ctx) (priv_getg ctx.global) id st
+    | ThreadSelf, _ ->
+      begin match lv, ThreadId.get_current (Analyses.ask_of_ctx ctx) with
+        | Some lv, `Lifted tid ->
+          set ~ctx st (eval_lv ~ctx st lv) (Cilfacade.typeOfLval lv) (Thread (ValueDomain.Threads.singleton tid))
+        | Some lv, _ ->
+          invalidate_ret_lv st
+        | None, _ ->
+          st
+      end
     | Alloca size, _ -> begin
         match lv with
         | Some lv ->

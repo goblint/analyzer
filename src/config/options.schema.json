@@ -535,7 +535,6 @@
                 "enum": [
                   "congruence",
                   "singleThreaded",
-                  "specification",
                   "mallocWrappers",
                   "noRecursiveIntervals",
                   "enums",
@@ -545,6 +544,8 @@
                   "octagon",
                   "wideningThresholds",
                   "memsafetySpecification",
+                  "concurrencySafetySpecification",
+                  "noOverflows",
                   "termination",
                   "tmpSpecialAnalysis"
                 ]
@@ -552,7 +553,6 @@
               "default": [
                 "congruence",
                 "singleThreaded",
-                "specification",
                 "mallocWrappers",
                 "noRecursiveIntervals",
                 "enums",
@@ -561,6 +561,8 @@
                 "octagon",
                 "wideningThresholds",
                 "memsafetySpecification",
+                "concurrencySafetySpecification",
+                "noOverflows",
                 "termination",
                 "tmpSpecialAnalysis"
               ]
@@ -1541,6 +1543,19 @@
               "description": "Standard assert refines state",
               "type": "boolean",
               "default": true
+            }
+          },
+          "additionalProperties": false
+        },
+        "atexit": {
+          "title": "sem.atexit",
+          "type": "object",
+          "properties": {
+            "ignore": {
+              "title": "sem.atexit.ignore",
+              "description": "Ignore atexit callbacks (unsound).",
+              "type": "boolean",
+              "default": false
             }
           },
           "additionalProperties": false
