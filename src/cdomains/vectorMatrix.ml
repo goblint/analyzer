@@ -114,6 +114,11 @@ sig
   val of_array: num array -> t
 
   val copy: t -> t
+
+  val of_sparse_list: (int * num) list -> int -> t
+
+  val to_sparse_list: t -> (int * num) list
+
 end
 
 (** Some functions inside have the suffix _with, which means that the function has side effects. *)
@@ -272,6 +277,20 @@ module ArrayVector: AbstractVector =
     let copy v = Array.copy v
 
     let mapi_with f v = Array.iteri (fun i x -> v.(i) <- f i x) v
+
+    let of_sparse_list ls col_count =
+      let vec = Array.make col_count A.zero in
+      List.iter (fun (idx, value) -> vec.(idx) <- value) ls;
+      vec
+
+    let to_sparse_list v = 
+      let rec aux idx acc =
+        if idx < 0 then acc
+        else
+          let value = v.(idx) in
+          let acc = if value <> A.zero then (idx, value):: acc else acc in
+          aux (idx - 1) acc
+      in aux (length v - 1) []
   end
 
 open Batteries.Array
@@ -620,14 +639,14 @@ module SparseMatrix: AbstractMatrix =
     include ConvenienceOps(A)
     module V = V(A)
 
-    (*Array of arrays implementation. One array per row containing tuple of column index and value*)
+    (* Array of arrays implementation. One array per row containing tuple of column index and value *)
     type t = {
       entries : (int * A.t) list list;
       column_count : int
     } [@@deriving eq, ord, hash]
 
     let show x =
-      failwith "TODO"
+      List.fold_left (^) " " (List.map (fun row -> V.show @@ V.of_sparse_list row x.column_count) x.entries)
 
     let empty () =
       {entries = []; column_count = 0}
@@ -642,10 +661,10 @@ module SparseMatrix: AbstractMatrix =
       m.column_count
 
     let copy m =
-      failwith "TODO"
+      {entries = m.entries; column_count = m.column_count} (* Lists are immutable, so this should suffice? A.t is mutuable currently, but is treated like its not in ArrayMatrix*)
 
     let copy m =
-      failwith "TODO"
+      timing_wrap "copy" (copy) m
 
     let add_empty_columns m cols =
       failwith "TODO"
@@ -654,13 +673,20 @@ module SparseMatrix: AbstractMatrix =
       timing_wrap "add_empty_cols" (add_empty_columns m) cols
 
     let append_row m row  =
-      failwith "TODO"
+      {entries = m.entries @ [V.to_sparse_list row]; column_count = m.column_count}
 
     let get_row m n =
-      failwith "TODO"
+      V.of_sparse_list (List.nth m.entries n) m.column_count
 
     let remove_row m n =
-      failwith "TODO"
+      let rec aux idx entries = match idx, entries with
+        | i, x :: xs when i = n -> xs
+        | _, x :: xs -> x :: aux (idx + 1) xs
+        | _, _ -> failwith "trying to remove out of bounds row"
+      in 
+      let new_entries = aux 0 m.entries in
+      let new_col_count = if new_entries = [] then 0 else m.column_count in
+      {entries = new_entries; column_count = new_col_count}
 
     let get_col m n =
       (* Uses the fact that row is sorted to return Zero when index n is exceeded *)
