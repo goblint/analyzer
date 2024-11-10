@@ -63,53 +63,50 @@ module Base : GenericEqSolver =
           ) w
       in
 
-      let rec iterate x = (* ~(inner) solve in td3*)
-        let query x y = (* ~eval in td3 *)
-          if tracing then trace "solver_query" "entering query for %a; stable %b; called %b" S.Var.pretty_trace y (HM.mem stable y) (HM.mem called y);
-          get_var_event y;
-          if not (HM.mem called y) then (
-            if S.system y = None then (
-              init y;
-              HM.replace stable y ()
-            ) else (
-              HM.replace called y ();
-              if tracing then trace "iter" "iterate called from query";
-              iterate y;
-              HM.remove called y)
+      let rec query x y = (* ~eval in td3 *)
+        if tracing then trace "solver_query" "entering query for %a; stable %b; called %b" S.Var.pretty_trace y (HM.mem stable y) (HM.mem called y);
+        get_var_event y;
+        if not (HM.mem called y) then (
+          if S.system y = None then (
+            init y;
+            HM.replace stable y ()
           ) else (
-            if tracing && not (HM.mem wpoint y) then trace "wpoint" "query adding wpoint %a" S.Var.pretty_trace y;
-            HM.replace wpoint y ();
-          );
-          let tmp = HM.find rho y in
-          add_infl y x;
-          if tracing then trace "answer" "exiting query for %a\nanswer: %a" S.Var.pretty_trace y S.Dom.pretty tmp;
-          tmp
+            HM.replace called y ();
+            if tracing then trace "iter" "iterate called from query";
+            iterate y;
+            HM.remove called y)
+        ) else (
+          if tracing && not (HM.mem wpoint y) then trace "wpoint" "query adding wpoint %a" S.Var.pretty_trace y;
+          HM.replace wpoint y ();
+        );
+        let tmp = HM.find rho y in
+        add_infl y x;
+        if tracing then trace "answer" "exiting query for %a\nanswer: %a" S.Var.pretty_trace y S.Dom.pretty tmp;
+        tmp
+
+      and side x y d = (* side from x to y; only to variables y w/o rhs; x only used for trace *)
+        if tracing then trace "side" "side to %a (wpx: %b) from %a; value: %a" S.Var.pretty_trace y (HM.mem wpoint y) S.Var.pretty_trace x S.Dom.pretty d;
+        assert (S.system y = None);
+        init y;
+        let widen a b =
+          if M.tracing then M.trace "wpoint" "side widen %a" S.Var.pretty_trace y;
+          S.Dom.widen a (S.Dom.join a b)
         in
+        let op a b = if HM.mem wpoint y then widen a b else S.Dom.join a b
+        in
+        let old = HM.find rho y in
+        let tmp = op old d in
+        HM.replace stable y ();
+        if not (S.Dom.leq tmp old) then (
+          if tracing && not (S.Dom.is_bot old) then trace "update" "side to %a (wpx: %b) from %a new: %a" S.Var.pretty_trace y (HM.mem wpoint y) S.Var.pretty_trace x S.Dom.pretty tmp;
+          HM.replace rho y tmp;
+          destabilize y;
+          (* make y a widening point. This will only matter for the next side _ y.  *)
+          if tracing && not (HM.mem wpoint y) then trace "wpoint" "side adding wpoint %a" S.Var.pretty_trace y;
+          HM.replace wpoint y ()
+        )
 
-        let side x y d = (* side from x to y; only to variables y w/o rhs; x only used for trace *)
-          if tracing then trace "side" "side to %a (wpx: %b) from %a; value: %a" S.Var.pretty_trace y (HM.mem wpoint y) S.Var.pretty_trace x S.Dom.pretty d;
-          assert (S.system y = None);
-          init y;
-          let widen a b =
-            if M.tracing then M.trace "wpoint" "side widen %a" S.Var.pretty_trace y;
-            S.Dom.widen a (S.Dom.join a b)
-          in
-          let op a b = if HM.mem wpoint y then widen a b else S.Dom.join a b
-          in
-          let old = HM.find rho y in
-          let tmp = op old d in
-          HM.replace stable y ();
-          if not (S.Dom.leq tmp old) then (
-            if tracing && not (S.Dom.is_bot old) then trace "update" "side to %a (wpx: %b) from %a new: %a" S.Var.pretty_trace y (HM.mem wpoint y) S.Var.pretty_trace x S.Dom.pretty tmp;
-            HM.replace rho y tmp;
-            destabilize y;
-            (* make y a widening point. This will only matter for the next side _ y.  *)
-            if tracing && not (HM.mem wpoint y) then trace "wpoint" "side adding wpoint %a" S.Var.pretty_trace y;
-            HM.replace wpoint y ()
-          )
-        in  
-
-        (* begining of iterate*)
+      and iterate x = (* ~(inner) solve in td3*)
         if tracing then trace "iter" "begin iterate %a, called: %b, stable: %b, wpoint: %b" S.Var.pretty_trace x (HM.mem called x) (HM.mem stable x) (HM.mem wpoint x);
         init x;
         assert (S.system x <> None);
