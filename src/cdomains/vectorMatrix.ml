@@ -114,6 +114,11 @@ sig
   val of_array: num array -> t
 
   val copy: t -> t
+
+  val of_sparse_list: (int * num) list -> int -> t
+
+  val to_sparse_list: t -> (int * num) list
+
 end
 
 (** Some functions inside have the suffix _with, which means that the function has side effects. *)
@@ -272,6 +277,20 @@ module ArrayVector: AbstractVector =
     let copy v = Array.copy v
 
     let mapi_with f v = Array.iteri (fun i x -> v.(i) <- f i x) v
+
+    let of_sparse_list ls col_count =
+      let vec = Array.make col_count A.zero in
+      List.iter (fun (idx, value) -> vec.(idx) <- value) ls;
+      vec
+
+    let to_sparse_list v = 
+      let rec aux idx acc =
+        if idx < 0 then acc
+        else
+          let value = v.(idx) in
+          let acc = if value <> A.zero then (idx, value):: acc else acc in
+          aux (idx - 1) acc
+      in aux (length v - 1) []
   end
 
 open Batteries.Array
@@ -620,14 +639,14 @@ module SparseMatrix: AbstractMatrix =
     include ConvenienceOps(A)
     module V = V(A)
 
-    (*Array of arrays implementation. One array per row containing tuple of column index and value*)
+    (* Array of arrays implementation. One array per row containing tuple of column index and value *)
     type t = {
       entries : (int * A.t) list list;
       column_count : int
     } [@@deriving eq, ord, hash]
 
     let show x =
-      failwith "TODO"
+      List.fold_left (^) " " (List.map (fun row -> V.show @@ V.of_sparse_list row x.column_count) x.entries)
 
     let empty () =
       {entries = []; column_count = 0}
@@ -644,10 +663,10 @@ module SparseMatrix: AbstractMatrix =
       m.column_count
 
     let copy m =
-      {entries = m.entries; column_count = m.column_count}
+      {entries = m.entries; column_count = m.column_count} (* Lists are immutable, so this should suffice? A.t is mutuable currently, but is treated like its not in ArrayMatrix*)
 
     let copy m =
-      failwith "TODO"
+      timing_wrap "copy" (copy) m
 
     let add_empty_columns m (cols : int enumerable) =
       let colsL = Array.to_list(cols) in
@@ -691,13 +710,20 @@ module SparseMatrix: AbstractMatrix =
       timing_wrap "add_empty_cols" (add_empty_columns m) cols
 
     let append_row m row  =
-      failwith "TODO"
+      {entries = m.entries @ [V.to_sparse_list row]; column_count = m.column_count}
 
     let get_row m n =
-      failwith "TODO"
+      V.of_sparse_list (List.nth m.entries n) m.column_count
 
     let remove_row m n =
-      failwith "TODO"
+      let rec aux idx entries = match idx, entries with
+        | i, x :: xs when i = n -> xs
+        | _, x :: xs -> x :: aux (idx + 1) xs
+        | _, _ -> failwith "trying to remove out of bounds row"
+      in 
+      let new_entries = aux 0 m.entries in
+      let new_col_count = if new_entries = [] then 0 else m.column_count in
+      {entries = new_entries; column_count = new_col_count}
 
     let get_col m n =
       (* Uses the fact that row is sorted to return Zero when index n is exceeded *)
@@ -734,10 +760,35 @@ module SparseMatrix: AbstractMatrix =
       failwith "TODO"
 
     let del_col m j =
-      failwith "TODO"
+      if is_empty m then m else
+        let del_col_from_row row =
+          List.filter_map (fun (col_idx, value) ->
+              if col_idx = j then
+                None
+              else if col_idx > j then
+                Some (col_idx - 1, value)
+              else
+                Some (col_idx, value)
+            ) row
+        in
+        let new_entries = List.map (fun row -> del_col_from_row row) m.entries in
+        {entries = new_entries; column_count = m.column_count - 1}
 
+    (* TODO: Might be more efficient to check for each entry how much to reduce their index and not by recursively calling del_col *)
     let del_cols m cols =
-      failwith "TODO"
+      let cols = Array.to_list cols in (* TODO: Get away from Arrays *)
+      let to_delete_count = List.length cols in
+      if to_delete_count = 0 || is_empty m then m
+      else
+      if num_cols m = to_delete_count then empty () else
+        let sorted_cols = List.sort_uniq Stdlib.compare cols in (* Apron Docs:  Repetitions are meaningless (and are not correct specification)*)
+        let rec del_cols_aux m cols deleted_col_count =
+          match cols with
+          | [] -> m
+          | col_idx::cs ->
+            let m' = del_col m (col_idx - deleted_col_count) in (* Taking already deleted cols into account because of new index *)
+            del_cols_aux m' cs (deleted_col_count + 1)
+        in del_cols_aux m sorted_cols 0
 
     let del_cols m cols = timing_wrap "del_cols" (del_cols m) cols
 
