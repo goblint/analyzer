@@ -637,20 +637,57 @@ module SparseMatrix: AbstractMatrix =
 
     let is_empty m =
       num_rows m = 0
+      (*This should be different if the implimentation is sound*)
+      (*m.column_count = 0*)
 
     let num_cols m =
       m.column_count
 
     let copy m =
-      failwith "TODO"
+      {entries = m.entries; column_count = m.column_count}
 
     let copy m =
       failwith "TODO"
 
-    let add_empty_columns m cols =
-      failwith "TODO"
+    let add_empty_columns m (cols : int enumerable) =
+      let colsL = Array.to_list(cols) in
+      let emptyT = A.zero in
+      let rec list_of_all_before_index idx cols =
+        (*This should return two arrays
+          all the idices before idx and all those after, but I'm not sure if inclusive or not
+          e.g. list_of_all_before_index 3 [1,2,3,4] = ([1,2], [3,4]) or = ([1,2,3], [4])
+          right now its of the first form!
+        *)
+        match  cols with
+        | x::xs -> 
+          if x < idx 
+            then 
+              let (h,t) = list_of_all_before_index idx xs in
+              (x::h, t)
+            else ([],x::xs)
+        | [] -> ([],[])
+      in
+      (*This could easily be abstracted into the above functions, but its nice to have 
+      it here for readability and debugging*)
+      let rec make_empty_entries_for_idxs idxs =
+        match idxs with
+        | x::xs -> (x, emptyT)::(make_empty_entries_for_idxs xs) 
+        | [] -> []
+      in
+      let rec add_column_element r cols = 
+        match r with
+        | (idx, _)::xs -> 
+          let (bef,aft) = list_of_all_before_index idx cols in
+          (make_empty_entries_for_idxs bef)@(add_column_element xs aft)
+        | [] -> []
+      in
+      let rec add_empty_columns_on_list m cols =
+        match m with
+        | x::xs -> (add_column_element x cols)::(add_empty_columns_on_list xs cols)
+        | [] -> []
+      in {entries = add_empty_columns_on_list m.entries colsL; column_count = m.column_count + Array.length cols}
 
-    let add_empty_columns m cols =
+    let add_empty_columns m (cols : int enumerable) =
       timing_wrap "add_empty_cols" (add_empty_columns m) cols
 
     let append_row m row  =
