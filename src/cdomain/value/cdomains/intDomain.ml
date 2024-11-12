@@ -1535,15 +1535,15 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): SOverflow with type int_t = Int
 
   let refine_with_congruence ik (intv : t) (cong : (int_t * int_t ) option) : t =
     M.trace "bitfield" "refine_with_congruence";
-    top_of ik
+    t
   
   let refine_with_interval ik a b = 
     M.trace "bitfield" "refine_with_interval";
-    top_of ik
+    t
 
   let refine_with_excl_list ik (intv : t) (excl : (int_t list * (int64 * int64)) option) : t = 
     M.trace "bitfield" "refine_with_excl_list";
-    top_of ik
+    t
 
   let refine_with_incl_list ik t (incl : (int_t list) option) : t =
     (* loop over all included ints *)
