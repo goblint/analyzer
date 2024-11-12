@@ -1235,14 +1235,16 @@ module BitfieldArith (Ints_t : IntOps.IntOps) = struct
     in
     Size.bit ik |> ilog2
 
-  let break_down_to_const_bitfields ik_size suffix_mask (z,o) =
+  let break_down_log ik (z,o) =
     if is_undefined (z,o)
       then None
       else
+        let n = max_shift ik in
+        let suffix_mask = Ints_t.lognot @@ Ints_t.sub (Ints_t.shift_left Ints_t.one n) Ints_t.one in
         let z_prefix = Int_t.logand z (Ints_t.lognot suffix_mask) in
         let o_suffix = Ints_t.logand o suffix_mask in
         let rec break_down c_lst i =
-          if i < ik_size then
+          if i < n then
             if get_bit z i = get_bit o i then
               List.fold_left2 (
                 fun acc (z1,o1) (z2,o2) -> (set_bit z1 i, set_bit ~zero:true o1 i) :: (set_bit ~zero:true z2 i, o2) :: acc
@@ -1253,11 +1255,7 @@ module BitfieldArith (Ints_t : IntOps.IntOps) = struct
           else c_lst
         in break_down [(z_prefix, o_suffix)] 0 |> Option.some
 
-  let break_down_to_consts ik (z, o) =
-    let n = max_shift ik in
-    let zero_extend_mask = Ints_t.lognot @@ Ints_t.sub (Ints_t.shift_left Ints_t.one n) Ints_t.one
-    in
-    Option.map (List.map snd) (break_down_to_const_bitfields n zero_extend_mask)
+  let break_down ik bf = Option.map (List.map snd) (break_down_log ik bf)
 
   let shift ?left ik bf n =
     let shift_by n (z, o) =
@@ -1269,7 +1267,7 @@ module BitfieldArith (Ints_t : IntOps.IntOps) = struct
     in
     if is_const n then shift_by (Ints_t.to_int @@ snd n) bf |> Option.some
     else
-      break_down_to_consts ik n
+      break_down ik n
       |> Option.map (fun c_lst -> List.map (fun c -> shift_by c bf) c_lst |> List.fold_left join zero)
 
   let meet (z1,o1) (z2,o2) = (Ints_t.logand z1 z2, Ints_t.logand o1 o2)
@@ -1392,16 +1390,12 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): SOverflow with type int_t = Int
   (*TODO norming*)
   let shift_right ik a b = 
     M.trace "bitfield" "shift_right";
-    match BArith.shift ~left:false ik a b with
-    | None -> (bot (), {underflow=false; overflow=false})
-    | Some x -> (x, {underflow=false; overflow=false})
+    norm ik @@ BArith.shift ~left:false ik a b |> Option.value ~default: (bot ())
 
   (*TODO norming*)
   let shift_left ik a b =
     M.trace "bitfield" "shift_left";
-    match BArith.shift ~left:true ik a b with
-    | None -> (bot (), {underflow=false; overflow=false})
-    | Some x -> (x, {underflow=false; overflow=false})
+    norm ik @@ BArith.shift ~left:true ik a b |> Option.value ~default: (bot ())
 
   let add ?no_ov ik x y=(top_of ik,{underflow=false; overflow=false})
   let mul ?no_ov ik x y=(top_of ik,{underflow=false; overflow=false})
