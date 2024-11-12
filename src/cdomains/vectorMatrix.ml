@@ -83,6 +83,8 @@ sig
 
   val map_with: (num -> num) -> t -> unit
 
+  val map: (num -> num) -> t -> t
+
   val compare_length_with: t -> int -> int
 
   val of_list: num list -> t
@@ -99,6 +101,8 @@ sig
 
   val rev_with: t -> unit
 
+  val rev: t -> t
+
   val map2i: (int -> num -> num -> num) -> t -> t -> t
 
   val map2i_with: (int -> num -> num -> num) -> t -> t -> unit
@@ -106,6 +110,8 @@ sig
   val mapi: (int -> num -> num) -> t -> t
 
   val mapi_with: (int -> num -> num) -> t -> unit
+
+  val mapi: (int -> num -> num) -> t -> t
 
   val find2i: (num -> num -> bool) -> t -> t -> int
 
@@ -179,6 +185,8 @@ sig
   val map2: (vec -> num -> vec) -> t -> vec -> t
 
   val map2_with: (vec -> num -> vec) -> t -> vec -> unit
+
+  val map2: (vec -> num -> vec) -> t -> vec -> t
 
   val map2i: (int -> vec-> num -> vec) -> t -> vec -> t
 
@@ -270,13 +278,25 @@ module ArrayVector: AbstractVector =
 
     let rev_with v = Array.rev_in_place v
 
+    let rev v = Array.rev v
+
     let map_with f v = Array.modify f v
 
+    let map f v = Array.map f v
+
     let map2_with f v1 v2 = Array.iter2i (fun i x y -> v1.(i) <- f x y) v1 v2
+
+    let map2 f v1 v2 =
+      let copy_v1 = copy v1 in
+      map2_with f copy_v1 v2; copy_v1
 
     let copy v = Array.copy v
 
     let mapi_with f v = Array.iteri (fun i x -> v.(i) <- f i x) v
+
+    let mapi f v =
+      let copy = copy v in
+      mapi_with f copy; copy
 
     let of_sparse_list ls col_count =
       let vec = Array.make col_count A.zero in
