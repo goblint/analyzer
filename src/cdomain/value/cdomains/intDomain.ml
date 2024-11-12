@@ -1233,9 +1233,15 @@ module BitFieldArith (Ints_t : IntOps.IntOps) = struct
   let is_constant (z,o) = (Ints_t.logxor z o) = one_mask
 
   (* assumes that no invalid state can be reached*)
-  let max (z,o) = (if o < Ints_t.zero then Ints_t.neg z else o)
+  let max ik (z,o) = 
+    let z_cast = Size.cast ik (Ints_t.to_bigint (Ints_t.lognot z)) in
+    let o_cast = Size.cast ik (Ints_t.to_bigint z) in
+    Z.max z_cast o_cast
 
-  let min (z,o) = (if o < Ints_t.zero then o else Ints_t.neg z)
+  let min ik (z,o) = 
+    let z_cast = Size.cast ik (Ints_t.to_bigint (Ints_t.lognot z)) in
+    let o_cast = Size.cast ik (Ints_t.to_bigint z) in
+    Z.min z_cast o_cast
 
 end
 
@@ -1337,10 +1343,6 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): SOverflow with type int_t = Int
 
   let lognot ik i1 = BArith.lognot i1
 
-  let neg ?no_ov ik v =
-    M.trace "bitfield" "neg";
-    failwith "Not implemented"
-
   let shift_right ik a b = 
     M.trace "bitfield" "shift_right";
     failwith "Not implemented"
@@ -1351,17 +1353,85 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): SOverflow with type int_t = Int
 
   let shift_left ik a b =(top_of ik,{underflow=false; overflow=false})
 
-  let add ?no_ov ik (z1, o1) (z2, o2) = (top_of ik,{underflow=false; overflow=false})
+  (*
+  add, sub and mul based on the paper 
+  "Sound, Precise, and Fast Abstract Interpretation with Tristate Numbers"
+  of Vishwanathan et al.
+  *)
 
-  let sub ?no_ov ik (z1, o1) (z2, o2) = (top_of ik,{underflow=false; overflow=false})
+  let add ?no_ov ik (z1, o1) (z2, o2) =
+    let pv = Ints_t.logand o1 (Ints_t.lognot z1) in
+    let pm = Ints_t.logand o1 z1 in
+    let qv = Ints_t.logand o2 (Ints_t.lognot z2) in
+    let qm = Ints_t.logand o2 z2 in
+    let sv = Ints_t.add pv qv in
+    let sm = Ints_t.add pm qm in
+    let sigma = Ints_t.add sv sm in
+    let chi = Ints_t.logxor sigma sv in
+    let mu = Ints_t.logor (Ints_t.logor pm qm) chi in
+    let rv = Ints_t.logand sv (Ints_t.lognot mu) in
+    let rm = mu in 
+    let o3 = Ints_t.logor rv rm in 
+    let z3 = Ints_t.logor (Ints_t.lognot rv) rm in
+    ((z3, o3),{underflow=false; overflow=false})
 
-  let mul ?no_ov ik (z1, o1) (z2, o2) = (top_of ik,{underflow=false; overflow=false})
+  let sub ?no_ov ik (z1, o1) (z2, o2) =
+    let pv = Ints_t.logand o1 (Ints_t.lognot z1) in
+    let pm = Ints_t.logand o1 z1 in
+    let qv = Ints_t.logand o2 (Ints_t.lognot z2) in
+    let qm = Ints_t.logand o2 z2 in
+    let dv = Ints_t.sub pv qv in
+    let alpha = Ints_t.add dv pm in
+    let beta = Ints_t.sub dv qm in
+    let chi = Ints_t.logxor alpha beta in
+    let mu = Ints_t.logor (Ints_t.logor pm qm) chi in
+    let rv = Ints_t.logand dv (Ints_t.lognot mu) in
+    let rm = mu in 
+    let o3 = Ints_t.logor rv rm in 
+    let z3 = Ints_t.logor (Ints_t.lognot rv) rm in
+    ((z3, o3),{underflow=false; overflow=false})
 
-  let rec div ?no_ov ik x y = (top_of ik,{underflow=false; overflow=false})
+  let mul ?no_ov ik (z1, o1) (z2, o2) =
+    let z1 = ref z1 in
+    let o1 = ref o1 in
+    let z2 = ref z2 in 
+    let o2 = ref o2 in
+    let z3 = ref BArith.one_mask in 
+    let o3 = ref BArith.zero_mask in 
+    for i = Size.bit ik downto 0 do 
+      if Ints_t.logand !o1 Ints_t.one == Ints_t.one then 
+        if Ints_t.logand !z1 Ints_t.one == Ints_t.one then 
+          let tmp = Ints_t.add (Ints_t.logand !z3 !o3) !o2 in 
+          z3 := Ints_t.logor !z3 tmp;
+          o3 := Ints_t.logor !o3 tmp
+        else
+          let tmp = fst (add ik (!z3, !o3) (!z2, !o2)) in 
+          z3 := fst tmp;
+          o3 := snd tmp
+      ;
+      z1 := Ints_t.shift_right !z1 1;
+      o1 := Ints_t.shift_right !o1 1;
+      z2 := Ints_t.shift_left !z2 1;
+      o2 := Ints_t.shift_left !o2 1;
+    done;
+    ((!z3, !o3),{underflow=false; overflow=false})
+
+  let rec div ?no_ov ik (z1, o1) (z2, o2) =
+    if BArith.is_constant (z1, o1) && BArith.is_constant (z2, o2) then (let res = Ints_t.div z1 z2 in ((res, Ints_t.lognot res),{underflow=false; overflow=false}))
+    else (top_of ik,{underflow=false; overflow=false})
 
   let rem ik x y = 
     M.trace "bitfield" "rem";
-    top_of ik
+    if BArith.is_constant x && BArith.is_constant y then (
+    (* x % y = x - (x / y) * y *)
+    let tmp = fst (div ik x y) in
+    let tmp = fst (mul ik tmp y) in 
+    fst (sub ik x tmp))
+    else top_of ik
+
+  let neg ?no_ov ik x =
+    M.trace "bitfield" "neg";
+    sub ?no_ov ik BArith.zero x
 
   let eq ik x y =
     M.trace "bitfield" "eq";
@@ -1432,13 +1502,21 @@ let compare_bitfields ?(strict=true) ?(signed=false) (z1,o1) (z2,o2) =
   end;
   !result
 
-  let ge ik x y = if compare_bitfields x y = GreaterOrEqual then of_bool ik true else BArith.topbool
+  let ge ik x y = if (BArith.min ik x) >= (BArith.max ik y) then of_bool ik true 
+                  else if (BArith.max ik x) < (BArith.min ik y) then of_bool ik false 
+                  else BArith.topbool
 
-  let le ik x y = if compare_bitfields x y = LessOrEqual then of_bool ik true else BArith.topbool
+  let le ik x y = if (BArith.max ik x) <= (BArith.min ik y) then of_bool ik true 
+                  else if (BArith.min ik x) > (BArith.max ik y) then of_bool ik false 
+                  else BArith.topbool
 
-  let gt ik x y = if compare_bitfields x y = Greater then of_bool ik true else BArith.topbool
+  let gt ik x y = if (BArith.min ik x) > (BArith.max ik y) then of_bool ik true 
+                  else if (BArith.max ik x) <= (BArith.min ik y) then of_bool ik false 
+                  else BArith.topbool
 
-  let lt ik x y = if compare_bitfields x y = Less then of_bool ik true else BArith.topbool
+  let lt ik x y = if (BArith.max ik x) < (BArith.min ik y) then of_bool ik true 
+                  else if (BArith.min ik x) >= (BArith.max ik y) then of_bool ik false 
+                  else BArith.topbool
 
   let invariant_ikind e ik = 
     M.trace "bitfield" "invariant_ikind";
@@ -1448,7 +1526,6 @@ let compare_bitfields ?(strict=true) ?(signed=false) (z1,o1) (z2,o2) =
     M.trace "bitfield" "arbitrary";
     failwith "Not implemented"
     
-
   let refine_with_congruence ik (intv : t) (cong : (int_t * int_t ) option) : t =
     M.trace "bitfield" "refine_with_congruence";
     top_of ik
