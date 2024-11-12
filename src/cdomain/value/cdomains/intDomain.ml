@@ -1198,7 +1198,7 @@ module BitfieldArith (Ints_t : IntOps.IntOps) = struct
   let one_mask = Ints_t.lognot zero_mask
 
   let is_const (z,o) = (Ints_t.logxor z o) = one_mask
-  let is_undefined (z,o) = Ints_t.compare (Ints_t.lognot @@ Ints_t.logor z o) Ints_t.zero = 0
+  let is_undef (z,o) = Ints_t.compare (Ints_t.lognot @@ Ints_t.logor z o) Ints_t.zero = 0
 
   let of_int v = (Ints_t.lognot v, v)
   let to_int (z, o) = if is_const (z,o) then Some o else None
@@ -1232,43 +1232,46 @@ module BitfieldArith (Ints_t : IntOps.IntOps) = struct
         if n <= 1 then acc
         else aux (n lsr 1) (acc + 1)
       in aux n 0
-    in
-    Size.bit ik |> ilog2
+    in ilog2 (Size.bit ik)
 
-  let break_down_log ik (z,o) =
-    if is_undefined (z,o)
-      then None
+  let break_down_log ik (z,o) = if is_undef (z,o) then None
+    else
+      let n = max_shift ik in
+      let rec break_down c_lst i = if i >= n then c_lst
       else
-        let n = max_shift ik in
-        let suffix_mask = Ints_t.lognot @@ Ints_t.sub (Ints_t.shift_left Ints_t.one n) Ints_t.one in
-        let z_prefix = Int_t.logand z (Ints_t.lognot suffix_mask) in
-        let o_suffix = Ints_t.logand o suffix_mask in
-        let rec break_down c_lst i =
-          if i < n then
-            if get_bit z i = get_bit o i then
-              List.fold_left2 (
-                fun acc (z1,o1) (z2,o2) -> (set_bit z1 i, set_bit ~zero:true o1 i) :: (set_bit ~zero:true z2 i, o2) :: acc
-              ) [] c_lst c_lst
-              |> fun c_lst -> break_down c_lst (i+1)
-            else
-              break_down c_lst (i+1)
-          else c_lst
-        in break_down [(z_prefix, o_suffix)] 0 |> Option.some
+        if get_bit z i = get_bit o i then
+          List.fold_left2 (
+            fun acc (z1,o1) (z2,o2) -> (set_bit z1 i, set_bit ~zero:true o1 i) :: (set_bit ~zero:true z2 i, o2) :: acc
+          ) [] c_lst c_lst
+          |> fun c_lst -> break_down c_lst (i+1)
+        else
+          break_down c_lst (i+1)
+      in
+      let sfx_mask = Ints_t.lognot @@ Ints_t.sub (Ints_t.shift_left Ints_t.one n) Ints_t.one in
+      break_down [(Ints_t.logand z (Ints_t.lognot sfx_msk), Ints_t.logand o sfx_msk)] 0 |> Option.some
 
   let break_down ik bf = Option.map (List.map snd) (break_down_log ik bf)
 
-  let shift ?left ik bf n =
-    let shift_by n (z, o) =
-      if left then
-        let z_or_mask = Ints_t.sub (Ints_t.shift_left Ints_t.one n) Ints_t.one
-        in (Ints_t.logor (Ints_t.shift_left z n) z_or_mask, Ints_t.shift_left o n)
+  let shift_right ik bf n_bf =
+    let shift_right bf (z,o) =
+      let sign_msk = Ints_t.shift_left one_mask (Size.bit ik - n) in
+      if isSigned ik then
+        (Ints_t.shift_right z n, Ints_t.logor (Ints_t.shift_right o n) sign_msk)
       else
-        (Ints_t.shift_right z n, Ints_t.shift_right o n)
-    in
-    if is_const n then shift_by (Ints_t.to_int @@ snd n) bf |> Option.some
+        (Ints_t.logor (Ints_t.shift_right z n) sign_msk, Ints_t.shift_right o n)
+      in
+    if is_const n_bf then Some (shift_right bf (Ints_t.to_int @@ snd n_bf))
     else
-      break_down ik n
-      |> Option.map (fun c_lst -> List.map (fun c -> shift_by c bf) c_lst |> List.fold_left join zero)
+      Option.map (fun c_lst -> List.map (shift_right bf) c_lst |> List.fold_left join zero) (break_down ik n_bf)
+
+  let shift_left ik bf n_bf =
+    let shift_left bf (z,o) =
+        let z_msk = Ints_t.sub (Ints_t.shift_left Ints_t.one n) Ints_t.one
+        in (Ints_t.logor (Ints_t.shift_left z n) z_msk, Ints_t.shift_left o n)
+      in
+    if is_const n then Some (shift_left bf (Ints_t.to_int @@ snd n_bf))
+    else
+      Option.map (fun c_lst -> List.map (shift_left bf) c_lst |> List.fold_left join zero) (break_down ik n_bf)
 
   let meet (z1,o1) (z2,o2) = (Ints_t.logand z1 z2, Ints_t.logand o1 o2)
 
@@ -1400,8 +1403,6 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): SOverflow with type int_t = Int
   let add ?no_ov ik x y=(top_of ik,{underflow=false; overflow=false})
   let mul ?no_ov ik x y=(top_of ik,{underflow=false; overflow=false})
   let sub ?no_ov ik x y=(top_of ik,{underflow=false; overflow=false})
-
-  let shift_left ik a b =(top_of ik,{underflow=false; overflow=false})
 
   let rem ik x y = 
     M.trace "bitfield" "rem";
