@@ -672,6 +672,7 @@ module SparseVector: AbstractVector =
       if n >= v.len then v else (*could be left out but maybe performance??*)
         {entries = keep_vals_vec v.entries n; len=n}
 
+
     let remove_val v n = 
       let dec_idx v = 
         List.map (fun (a,b) -> (a-1, b)) v
@@ -681,15 +682,15 @@ module SparseVector: AbstractVector =
         | x::xs -> 
           if fst x = n then dec_idx xs else 
           if fst x > n then dec_idx (x::xs) else
-            x::(remove_val_vec xs n)  
+          x::(remove_val_vec xs n)  
         | [] -> []
       in
       if n >= v.len then v else (*could be left out but maybe performance??*)
-        {entries = remove_val_vec v.entries n; len = v.len - 1}
+      {entries = remove_val_vec v.entries n; len = v.len - 1}
 
     let set_val v n m = 
       failwith "TODO"
-
+  
     let set_val_with v n m =
       failwith "TODO"
 
@@ -711,7 +712,7 @@ module SparseVector: AbstractVector =
     let length v =
       failwith "TODO"
 
-    let map2 f v v' = 
+      let map2 f v v' = 
       failwith "TODO"
 
     let map2_with f v v' = 
