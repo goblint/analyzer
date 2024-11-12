@@ -29,7 +29,7 @@ struct
       m
     else (
       Array.modifyi (+) ch.dim;
-      let m' = if not del then let m = copy m in Array.fold_left (fun y x -> reduce_col_with y x; y) m ch.dim else m in
+      let m' = if not del then let m = copy m in Array.fold_left (fun y x -> reduce_col y x) m ch.dim else m in
       remove_zero_rows @@ del_cols m' ch.dim)
 
   let dim_remove ch m ~del = VectorMatrix.timing_wrap "dim remove" (fun del -> dim_remove ch m ~del:del) del
@@ -59,7 +59,7 @@ struct
     let open Apron.Texpr1 in
     let exception NotLinear in
     let zero_vec = Vector.zero_vec @@ Environment.size t.env + 1 in
-    let neg v = Vector.map_with Mpqf.neg v; v in
+    let neg v = Vector.map Mpqf.neg v in
     let is_const_vec v = Vector.compare_length_with (Vector.filteri (fun i x -> (*Inefficient*)
         Vector.compare_length_with v (i + 1) > 0 && x <>: Mpqf.zero) v) 1 = 0
     in
@@ -75,13 +75,13 @@ struct
         Vector.set_val zero_vec ((Vector.length zero_vec) - 1) (of_union x)
       | Var x ->
         let zero_vec_cp = Vector.copy zero_vec in
-        let entry_only v = Vector.set_val_with v (Environment.dim_of_var t.env x) Mpqf.one; v in
+        let entry_only v = Vector.set_val v (Environment.dim_of_var t.env x) Mpqf.one in
         begin match t.d with
           | Some m ->
             let row = Matrix.find_opt (fun r -> Vector.nth r (Environment.dim_of_var t.env x) =: Mpqf.one) m in
             begin match row with
               | Some v when is_const_vec v ->
-                Vector.set_val_with zero_vec_cp ((Vector.length zero_vec) - 1) (Vector.nth v (Vector.length v - 1)); zero_vec_cp
+                Vector.set_val zero_vec_cp ((Vector.length zero_vec) - 1) (Vector.nth v (Vector.length v - 1))
               | _ -> entry_only zero_vec_cp
             end
           | None -> entry_only zero_vec_cp end
@@ -91,17 +91,17 @@ struct
       | Binop (Add, e1, e2, _, _) ->
         let v1 = convert_texpr e1 in
         let v2 = convert_texpr e2 in
-        Vector.map2_with (+:) v1 v2; v1
+        Vector.map2 (+:) v1 v2
       | Binop (Sub, e1, e2, _, _) ->
         let v1 = convert_texpr e1 in
         let v2 = convert_texpr e2 in
-        Vector.map2_with (+:) v1 (neg @@ v2); v1
+        Vector.map2 (+:) v1 (neg @@ v2)
       | Binop (Mul, e1, e2, _, _) ->
         let v1 = convert_texpr e1 in
         let v2 = convert_texpr e2 in
         begin match to_constant_opt v1, to_constant_opt v2 with
-          | _, Some c -> Vector.apply_with_c_with ( *:) c v1; v1
-          | Some c, _ -> Vector.apply_with_c_with ( *:) c v2; v2
+          | _, Some c -> Vector.apply_with_c ( *:) c v1
+          | Some c, _ -> Vector.apply_with_c ( *:) c v2
           | _, _ -> raise NotLinear
         end
       | Binop _ -> raise NotLinear
@@ -294,18 +294,17 @@ struct
             (a, b, max)
           else
             (
-              Vector.rev_with col_a;
-              Vector.rev_with col_b;
+              let col_a = Vector.rev col_a in
+              let col_b = Vector.rev col_b in
               let i = Vector.find2i (<>:) col_a col_b in
               let (x, y) = Vector.nth col_a i, Vector.nth col_b i in
               let r, diff = Vector.length col_a - (i + 1), x -: y  in
               let a_r, b_r = Matrix.get_row a r, Matrix.get_row b r in
-              Vector.map2_with (-:) col_a col_b;
-              Vector.rev_with col_a;
+              let col_a = Vector.map2 (-:) col_a col_b in
+              let col_a = Vector.rev col_a in
               let multiply_by_t m t =
-                Matrix.map2i_with (fun i' x c -> if i' <= max then (let beta = c /: diff in
-                                                                    Vector.map2_with (fun u j -> u -: (beta *: j)) x t); x) m col_a;
-                m
+                Matrix.map2i (fun i' x c -> if i' <= max then (let beta = c /: diff in Vector.map2 (fun u j -> u -: (beta *: j)) x t) else x) m col_a;
+
               in
               Matrix.remove_row (multiply_by_t a a_r) r, Matrix.remove_row (multiply_by_t b b_r) r, (max - 1)
             )
