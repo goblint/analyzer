@@ -320,6 +320,25 @@ struct
     ]
 end
 
+
+module BitfieldTest (B : IntDomain.SOverflow with type int_t = Z.t) = 
+struct 
+  module B = IntDomain.SOverflowUnlifter (B)
+  let ik      = Cil.IInt
+  let i65536  = B.of_Bitfield
+  let i65537  = I.of_interval ik (Z.zero, of_int 65537)
+  let imax    = I.of_interval ik (Z.zero, of_int 2147483647)
+  let imin    = I.of_interval ik (of_int (-2147483648), Z.zero)
+end
+
+module Bitfield = BitfieldTest(IntDomain.Bitfield)
+
+
+module test = 
+struct
+  module B = IntDomain.Bitfield
+  B.
+end
 let test () =
   "intDomainTest" >::: [
     "int_Integers"  >::: A.test ();
