@@ -1221,7 +1221,7 @@ module BitFieldArith (Ints_t : IntOps.IntOps) = struct
     let impossibleBitMask = Ints_t.lognot (Ints_t.logor z o) in
     let guaranteedBits = Ints_t.logand o knownBitMask in
 
-    if impossibleBitMask <> BArith.zero_mask then
+    if impossibleBitMask <> zero_mask then
       failwith "Impossible bitfield"
     else
 
@@ -1230,7 +1230,7 @@ module BitFieldArith (Ints_t : IntOps.IntOps) = struct
       let worstPossibleUnknownBits = Ints_t.logand unknownBitMask signBitMask in
       Size.cast ik (Ints_t.to_bigint (Ints_t.logor guaranteedBits worstPossibleUnknownBits))
     else
-      let worstPossibleUnknownBits = Ints_t.logand unknownBitMask BArith.zero_mask in
+      let worstPossibleUnknownBits = Ints_t.logand unknownBitMask zero_mask in
       Size.cast ik (Ints_t.to_bigint (Ints_t.logor guaranteedBits worstPossibleUnknownBits))
 
   let max ik (z,o) =
@@ -1239,9 +1239,12 @@ module BitFieldArith (Ints_t : IntOps.IntOps) = struct
     let impossibleBitMask = Ints_t.lognot (Ints_t.logor z o) in
     let guaranteedBits = Ints_t.logand o knownBitMask in
 
-    if impossibleBitMask <> BArith.zero_mask then
+    if impossibleBitMask <> zero_mask then
       failwith "Impossible bitfield"
     else
+
+    let (_,fullMask) = Size.range ik in
+    let worstPossibleUnknownBits = Ints_t.logand unknownBitMask (Ints_t.of_bigint fullMask) in
 
     if isSigned ik then
       Size.cast ik (Ints_t.to_bigint (Ints_t.logor guaranteedBits worstPossibleUnknownBits))
@@ -1470,19 +1473,19 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): SOverflow with type int_t = Int
 
   let ge ik x y = if (BArith.min ik x) >= (BArith.max ik y) then of_bool ik true 
     else if (BArith.max ik x) < (BArith.min ik y) then of_bool ik false 
-    else BArith.topbool
+    else BArith.top_bool
 
   let le ik x y = if (BArith.max ik x) <= (BArith.min ik y) then of_bool ik true 
     else if (BArith.min ik x) > (BArith.max ik y) then of_bool ik false 
-    else BArith.topbool
+    else BArith.top_bool
 
   let gt ik x y = if (BArith.min ik x) > (BArith.max ik y) then of_bool ik true 
     else if (BArith.max ik x) <= (BArith.min ik y) then of_bool ik false 
-    else BArith.topbool
+    else BArith.top_bool
 
   let lt ik x y = if (BArith.max ik x) < (BArith.min ik y) then of_bool ik true 
     else if (BArith.min ik x) >= (BArith.max ik y) then of_bool ik false 
-    else BArith.topbool
+    else BArith.top_bool
 
 
   let invariant_ikind e ik (z,o) = 
@@ -1544,10 +1547,12 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): SOverflow with type int_t = Int
 
   let refine_with_incl_list ik t (incl : (int_t list) option) : t =
     (* loop over all included ints *)
-    match incl with
+    let incl_list_masks = match incl with
     | None -> t
     | Some ls -> 
-      List.fold_left (fun acc x -> BArith.join acc (BArith.of_int x)) t ls
+      List.fold_left (fun acc x -> BArith.join acc (BArith.of_int x)) (bot()) ls
+    in 
+    BArith.meet t incl_list_masks
 
   let arbitrary ik = 
     let open QCheck.Iter in
