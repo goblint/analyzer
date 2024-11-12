@@ -656,8 +656,8 @@ module SparseMatrix: AbstractMatrix =
 
     let is_empty m =
       num_rows m = 0
-      (*This should be different if the implimentation is sound*)
-      (*m.column_count = 0*)
+    (*This should be different if the implimentation is sound*)
+    (*m.column_count = 0*)
 
     let num_cols m =
       m.column_count
@@ -680,14 +680,14 @@ module SparseMatrix: AbstractMatrix =
         match  cols with
         | x::xs -> 
           if x < idx 
-            then 
-              let (h,t) = list_of_all_before_index idx xs in
-              (x::h, t)
-            else ([],x::xs)
+          then 
+            let (h,t) = list_of_all_before_index idx xs in
+            (x::h, t)
+          else ([],x::xs)
         | [] -> ([],[])
       in
       (*This could easily be abstracted into the above functions, but its nice to have 
-      it here for readability and debugging*)
+        it here for readability and debugging*)
       let rec make_empty_entries_for_idxs idxs =
         match idxs with
         | x::xs -> (x, emptyT)::(make_empty_entries_for_idxs xs) 
@@ -745,7 +745,18 @@ module SparseMatrix: AbstractMatrix =
     let set_col_with m new_col n = timing_wrap "set_col" (set_col_with m new_col) n
 
     let set_col m new_col n = 
-      failwith "TODO"
+      let rec set_col_in_row row value =
+        match row with
+        | [] -> if value =: A.zero then [] else [(n, value)]
+        | (col_idx, v)::cs when col_idx > n -> if value =: A.zero then (col_idx, v)::cs else (n, value)::(col_idx, v)::cs
+        | (col_idx, v)::cs when col_idx = n -> if value =: A.zero then cs else (n, value)::cs 
+        | (col_idx, v)::cs -> (col_idx, v)::(set_col_in_row cs value)
+      in
+      let new_entries = List.mapi (fun row_idx row -> 
+          let value = V.nth new_col row_idx in
+          set_col_in_row row value
+        ) m.entries in
+      {entries = new_entries; column_count = m.column_count}
 
     let append_matrices m1 m2  =
       failwith "TODO"
