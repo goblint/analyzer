@@ -207,8 +207,7 @@ struct
         one_var y
       in
       let demand y =
-        (* TODO: Implementation for demand *)
-        ()
+        one_var y;
       in
       let rhs = f get set demand in
       if M.tracing then M.trace "postsolver" "one_constraint %a %a" S.Var.pretty_trace x S.Dom.pretty rhs;
