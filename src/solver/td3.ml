@@ -238,6 +238,7 @@ module Base =
 
       let narrow_reuse = GobConfig.get_bool "solvers.td3.narrow-reuse" in
       let remove_wpoint = GobConfig.get_bool "solvers.td3.remove-wpoint" in
+      let eager_solve_wk_deps = GobConfig.get_bool "solvers.td3.wk_deps.eager" in
 
       let side_dep = data.side_dep in
       let side_infl = data.side_infl in
@@ -395,6 +396,10 @@ module Base =
       and demand_thr x y =
         if tracing then trace "sol2" "demand weak dep %a from %a" S.Var.pretty_trace y S.Var.pretty_trace x;
         HM.replace weak_dep x (VS.add y (try HM.find weak_dep x with Not_found -> VS.empty));
+        (* TODO: should we check if it is already added? and solve if it is not*)
+        if eager_solve_wk_deps then (
+          solve y Widen;
+        );
         
       and eval l x y =
         if tracing then trace "sol2" "eval %a ## %a" S.Var.pretty_trace x S.Var.pretty_trace y;

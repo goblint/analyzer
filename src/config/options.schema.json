@@ -2417,6 +2417,19 @@
               "description": "Check TD3 data structure invariants",
               "type": "boolean",
               "default": false
+            },
+            "wk_deps": {
+              "title": "solvers.td3.wk_deps",
+              "type": "object",
+              "properties": {
+                "eager": {
+                  "title": "solvers.td3.wk_deps.eager",
+                  "description": "Should weak dependencies be solved immediately when first added to wk_deps",
+                  "type": "boolean",
+                  "default": false
+                }
+              },
+              "additionalProperties": false
             }
           },
           "additionalProperties": false
