@@ -397,7 +397,7 @@ module Make0 =
           let _ = P.insert stable x in
           let old = X.get_value x in
 
-          let tmp = do_side x (eq x (eval x) (side x) (ignore )) in
+          let tmp = do_side x (eq x (eval x) (side x) (ignore % eval x)) in
           let use_box = (not (V.ver>1)) || HM.mem wpoint x in
           let restart_mode_x = h_find_default restart_mode x (2*GobConfig.get_int "solvers.slr4.restart_count") in
           let rstrt = use_box && (V.ver>3) && D.leq tmp old && restart_mode_x <> 0 in
