@@ -2632,6 +2632,19 @@
               "description": "Maximal number of Domains that the solver can use in parallel. Only applies, when a solver of the 'td_parallel_*' family is used. If left at -1, the value of jobs will be used.",
               "type": "integer",
               "default": -1
+            },
+            "wk_deps": {
+              "title": "solvers.td3.wk_deps",
+              "type": "object",
+              "properties": {
+                "eager": {
+                  "title": "solvers.td3.wk_deps.eager",
+                  "description": "Should weak dependencies be solved immediately when first added to wk_deps",
+                  "type": "boolean",
+                  "default": false
+                }
+              },
+              "additionalProperties": false
             }
           },
           "additionalProperties": false
