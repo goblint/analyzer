@@ -831,10 +831,9 @@ module Base =
         ) else (
           if tracing then trace "sol2" "unstable_wk_deps length %i" (List.length unstable_wk_dps);
         );
-        List.iter (fun x -> solve x Widen) unstable_wk_dps;
 
-
-        let unstable_vs = List.filter (neg (HM.mem stable)) vs in
+        let interesting_vs = List.append (List.append List.([]) unstable_wk_dps ) vs in
+        let unstable_vs = List.filter (neg (HM.mem stable)) (interesting_vs) in
         if unstable_vs <> [] then (
           if Logs.Level.should_log Debug then (
             if !i = 1 then Logs.newline ();
