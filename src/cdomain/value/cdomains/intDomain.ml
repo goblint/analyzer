@@ -1533,17 +1533,17 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): SOverflow with type int_t = Int
     M.trace "bitfield" "invariant_ikind";
     failwith "Not implemented"
 
-  let refine_with_congruence ik (intv : t) (cong : (int_t * int_t ) option) : t =
+  let refine_with_congruence ik bf (cong : (int_t * int_t ) option) : t =
     M.trace "bitfield" "refine_with_congruence";
-    t
+    bf
   
-  let refine_with_interval ik a b = 
+  let refine_with_interval ik bf (intv : (int_t * int_t) option) : t =
     M.trace "bitfield" "refine_with_interval";
-    t
+    bf
 
-  let refine_with_excl_list ik (intv : t) (excl : (int_t list * (int64 * int64)) option) : t = 
+  let refine_with_excl_list ik bf (excl : (int_t list * (int64 * int64)) option) : t = 
     M.trace "bitfield" "refine_with_excl_list";
-    t
+    bf
 
   let refine_with_incl_list ik t (incl : (int_t list) option) : t =
     (* loop over all included ints *)
