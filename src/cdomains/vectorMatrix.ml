@@ -689,8 +689,16 @@ module SparseVector: AbstractVector =
       {entries = remove_val_vec v.entries n; len = v.len - 1}
 
     let set_val v n m = 
-      failwith "TODO"
-  
+      let rec set_val_vec v n m =
+        match v with 
+        | x::xs -> if fst x = n then (n, m)::xs else 
+            if fst x < n then x::(set_val_vec xs n m)
+            else v
+        | [] -> [] 
+      in
+    if n >= v.len then failwith "Out of bounds" else
+    {entries=set_val_vec v.entries n m; len=v.len}
+
     let set_val_with v n m =
       failwith "TODO"
 
