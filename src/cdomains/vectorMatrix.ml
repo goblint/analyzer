@@ -4,46 +4,13 @@ open Batteries
 module Array = Batteries.Array
 module M = Messages
 
+open RatOps
+open ConvenienceOps
+
 (* let timing_wrap = Timing.wrap *)
 (* Disable timing of VectorMatrix and AffineEqualityDomain.
    This is cleaner than a timing functor because the timed functions also call each other. *)
 let timing_wrap _ f x = f x
-
-(** Abstracts the functions of the Mpqf module for rationals from Apron that implements multi-precision rationals.
-    One could later exchange "Mpqf" with a different module that provides the functions specified by this interface. *)
-module type RatOps =
-sig
-  type t [@@deriving eq, ord, hash]
-  val add : t -> t -> t
-  val sub : t -> t -> t
-  val mul : t -> t -> t
-  val div : t -> t -> t
-  val neg : t -> t
-  val abs : t -> t
-  val to_string:  t -> string
-  val of_int: int -> t
-  val zero: t
-  val one: t
-  val get_den: t -> Z.t
-  val get_num: t -> Z.t
-end
-
-(** It provides more readable infix operators for the functions of RatOps.
-    It is designed to be included by modules that make use of RatOps's functions. *)
-module ConvenienceOps (A: RatOps) =
-struct
-  let ( *: ) = A.mul
-  let (+:) = A.add
-  let (-:) = A.sub
-  let (/:) = A.div
-  let (=:) x y = A.equal x y
-  let (<>:) x y = not (A.equal x y)
-  let (<:) x y = A.compare x y < 0
-  let (>:) x y = A.compare x y > 0
-  let (<=:) x y = A.compare x y <= 0
-  let (>=:) x y = A.compare x y >= 0
-  let of_int x = A.of_int x
-end
 
 (** High-level abstraction of a vector. *)
 module type Vector =
@@ -650,11 +617,11 @@ module ArrayMatrix: AbstractMatrix =
   end
 
 
-  module SparseVector: AbstractVector =
+module SparseVector: AbstractVector =
   functor (A: RatOps) ->
   struct
     include ConvenienceOps (A)
-    
+
     type t = {
       entries: (int * A.t) list ;
       len: int
@@ -662,15 +629,15 @@ module ArrayMatrix: AbstractMatrix =
 
     let show v = 
       failwith "TODO"
-    
+
     let keep_vals v n = 
       let rec keep_vals_vec v n =
-          match v with 
-          | x::xs -> if fst x > n then [] else x::(keep_vals_vec xs n)
-          | [] -> []
+        match v with 
+        | x::xs -> if fst x > n then [] else x::(keep_vals_vec xs n)
+        | [] -> []
       in
       if n >= v.len then v else (*could be left out but maybe performance??*)
-      {entries = keep_vals_vec v.entries n; len=n}
+        {entries = keep_vals_vec v.entries n; len=n}
 
     let remove_val v n = 
       let dec_idx v = 
@@ -681,15 +648,15 @@ module ArrayMatrix: AbstractMatrix =
         | x::xs -> 
           if fst x = n then dec_idx xs else 
           if fst x > n then dec_idx (x::xs) else
-          x::(remove_val_vec xs n)  
+            x::(remove_val_vec xs n)  
         | [] -> []
       in
       if n >= v.len then v else (*could be left out but maybe performance??*)
-      {entries = remove_val_vec v.entries n; len = v.len - 1}
+        {entries = remove_val_vec v.entries n; len = v.len - 1}
 
     let set_val v n m = 
       failwith "TODO"
-  
+
     let set_val_with v n m =
       failwith "TODO"
 
@@ -710,7 +677,7 @@ module ArrayMatrix: AbstractMatrix =
 
     let length v =
       failwith "TODO"
-  
+
     let map2 f v v' = 
       failwith "TODO"
 
@@ -742,7 +709,7 @@ module ArrayMatrix: AbstractMatrix =
       failwith "TODO"
 
     let exists f v  = 
-    failwith "TODO"
+      failwith "TODO"
 
     let rev v = 
       failwith "TODO"
@@ -770,7 +737,7 @@ module ArrayMatrix: AbstractMatrix =
 
     let of_array a =
       failwith "TODO"
-   
+
     let copy v = v 
 
     let of_sparse_list ls col_count =

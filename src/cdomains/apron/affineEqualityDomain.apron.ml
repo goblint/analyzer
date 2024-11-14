@@ -10,7 +10,9 @@ open GoblintCil
 open Pretty
 module M = Messages
 open GobApron
+
 open VectorMatrix
+open ConvenienceOps
 
 module Mpqf = SharedFunctions.Mpqf
 
