@@ -475,19 +475,19 @@ module ArrayMatrix: AbstractMatrix =
         for i = 0 to num_rows-1 do
           let exception Found in
           try (
-            for j = i to num_cols -2 do
+            for j = i to num_cols -2 do (* Find pivot *)
               for k = i to num_rows -1 do
                 if m.(k).(j) <>: A.zero then
                   (
                     if k <> i then swap_rows k i;
                     let piv = m.(i).(j) in
-                    Array.iteri(fun j' x -> m.(i).(j') <- x /: piv) m.(i);
-                    for l = 0 to num_rows-1 do
+                    Array.iteri(fun j' x -> m.(i).(j') <- x /: piv) m.(i); (* Normalize pivot *)
+                    for l = 0 to num_rows-1 do (* Subtract from each row *)
                       if l <> i && m.(l).(j) <>: A.zero then (
                         let is_only_zero = ref true in
                         let m_lj = m.(l).(j) in
                         for k = 0 to num_cols - 2 do
-                          m.(l).(k) <- m.(l).(k) -: m.(i).(k) *: m_lj /: m.(i).(j);
+                          m.(l).(k) <- m.(l).(k) -: m.(i).(k) *: m_lj /: m.(i).(j); (* Subtraction *)
                           if m.(l).(k) <>: A.zero then is_only_zero := false;
                         done;
                         let k_end = num_cols - 1 in
@@ -650,11 +650,11 @@ module ArrayMatrix: AbstractMatrix =
   end
 
 
-  module SparseVector: AbstractVector =
+module SparseVector: AbstractVector =
   functor (A: RatOps) ->
   struct
     include ConvenienceOps (A)
-    
+
     type t = {
       entries: (int * A.t) list ;
       len: int
@@ -662,15 +662,15 @@ module ArrayMatrix: AbstractMatrix =
 
     let show v = 
       failwith "TODO"
-    
+
     let keep_vals v n = 
       let rec keep_vals_vec v n =
-          match v with 
-          | x::xs -> if fst x > n then [] else x::(keep_vals_vec xs n)
-          | [] -> []
+        match v with 
+        | x::xs -> if fst x > n then [] else x::(keep_vals_vec xs n)
+        | [] -> []
       in
       if n >= v.len then v else (*could be left out but maybe performance??*)
-      {entries = keep_vals_vec v.entries n; len=n}
+        {entries = keep_vals_vec v.entries n; len=n}
 
     let remove_val v n = 
       let dec_idx v = 
@@ -681,15 +681,15 @@ module ArrayMatrix: AbstractMatrix =
         | x::xs -> 
           if fst x = n then dec_idx xs else 
           if fst x > n then dec_idx (x::xs) else
-          x::(remove_val_vec xs n)  
+            x::(remove_val_vec xs n)  
         | [] -> []
       in
       if n >= v.len then v else (*could be left out but maybe performance??*)
-      {entries = remove_val_vec v.entries n; len = v.len - 1}
+        {entries = remove_val_vec v.entries n; len = v.len - 1}
 
     let set_val v n m = 
       failwith "TODO"
-  
+
     let set_val_with v n m =
       failwith "TODO"
 
@@ -710,7 +710,7 @@ module ArrayMatrix: AbstractMatrix =
 
     let length v =
       failwith "TODO"
-  
+
     let map2 f v v' = 
       failwith "TODO"
 
@@ -742,7 +742,7 @@ module ArrayMatrix: AbstractMatrix =
       failwith "TODO"
 
     let exists f v  = 
-    failwith "TODO"
+      failwith "TODO"
 
     let rev v = 
       failwith "TODO"
@@ -770,7 +770,7 @@ module ArrayMatrix: AbstractMatrix =
 
     let of_array a =
       failwith "TODO"
-   
+
     let copy v = v 
 
     let of_sparse_list ls col_count =
@@ -996,6 +996,53 @@ module SparseMatrix: AbstractMatrix =
     let normalize_with m = timing_wrap "normalize_with" normalize_with m
 
     let normalize m =
+      let entries = m.entries in
+      let col_count = m.column_count in
+      let swap_rows m r1_idx r2_idx =
+        List.mapi (fun i row -> 
+            if i = r1_idx then List.nth m r2_idx
+            else if i = r2_idx then List.nth m r1_idx
+            else row
+          ) entries
+      in 
+      let sub_rows row pivot_row : (int * A.t) list =
+        failwith "TODO"
+      in
+      let div_row row pivot =
+        List.map (fun (idx, value) -> (idx, value /: pivot)) row
+      in
+      let dec_mat_2D m = 
+        m 
+      in
+      let rec find_pivot_in_col m row_idx col_idx = 
+        match m with
+        | ((idx, value)::_)::xs -> if idx = col_idx then Some (row_idx, value) else find_pivot_in_col xs (row_idx + 1) col_idx
+        | ([])::xs -> find_pivot_in_col xs (row_idx + 1) col_idx
+        | [] -> None
+      in 
+      (* let rec find_pivot m col_idx row_idx =
+         if col_idx >= col_count then None else 
+          match find_pivot_in_col m col_idx row_idx with
+          | Some (row_idx, value) -> Some (row_idx, value)
+          | None -> find_pivot m (col_idx + 1) row_idx
+         in *)
+      let rec main_loop m m' row_idx col_idx : (int * A.t) list list = 
+        match find_pivot_in_col m' row_idx col_idx with
+        | None -> (
+            if col_idx = (col_count - 1)
+            then m 
+            else main_loop m m' row_idx (col_idx + 1)
+          )
+        | Some (piv_row_idx, piv_val) -> (
+            let m = if piv_row_idx <> row_idx then swap_rows m row_idx piv_row_idx else m in
+            let m = List.map (fun row -> div_row row piv_val) m in
+            let piv_row = (List.nth m row_idx) in
+            let m = List.mapi (fun idx row -> if idx <> row_idx then sub_rows row piv_row else row) m in
+            let m' = dec_mat_2D m in
+            failwith "TODO"
+          )
+
+      in 
       failwith "TODO"
 
     let is_covered_by m1 m2 =
