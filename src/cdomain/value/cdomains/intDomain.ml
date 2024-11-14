@@ -1533,17 +1533,26 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): SOverflow with type int_t = Int
     M.trace "bitfield" "invariant_ikind";
     failwith "Not implemented"
 
-  let refine_with_congruence ik bf (cong : (int_t * int_t ) option) : t =
-    M.trace "bitfield" "refine_with_congruence";
-    bf
-  
+  let refine_with_congruence ik bf ((cong) : (int_t * int_t ) option) : t =
+    let is_power_of_two x = Ints_t.(logand x (sub x one) = zero) in
+    match bf, cong with
+    | (z,o), Some (c, m) ->
+      if is_power_of_two m then
+        let congruenceMask = Ints_t.lognot m in
+        let newz = Ints_t.logor (Ints_t.logand (Ints_t.lognot congruenceMask) z) (Ints_t.logand congruenceMask (Ints_t.lognot c)) in
+        let newo = Ints_t.logor (Ints_t.logand (Ints_t.lognot congruenceMask) o) (Ints_t.logand congruenceMask c) in
+        norm ik (newz, newo) |> fst
+      else
+        top_of ik
+    | _ -> top_of ik
+
   let refine_with_interval ik bf (int: (int_t * int_t) option) : t =
     M.trace "bitfield" "refine_with_interval";
-    bf
+    norm ik bf |> fst
 
   let refine_with_excl_list ik bf (excl : (int_t list * (int64 * int64)) option) : t = 
     M.trace "bitfield" "refine_with_excl_list";
-    bf
+    norm ik bf |> fst
 
   let refine_with_incl_list ik t (incl : (int_t list) option) : t =
     (* loop over all included ints *)
@@ -1552,7 +1561,8 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): SOverflow with type int_t = Int
     | Some ls -> 
       List.fold_left (fun acc x -> BArith.join acc (BArith.of_int x)) (bot()) ls
     in 
-    BArith.meet t incl_list_masks
+    let res = BArith.meet t incl_list_masks in
+    norm ik res |> fst
 
   let arbitrary ik = 
     let open QCheck.Iter in
