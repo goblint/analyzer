@@ -1190,18 +1190,20 @@ struct
 end
 
 (* Bitfield arithmetic, without any overflow handling etc. *)
-module BitFieldArith (Ints_t : IntOps.IntOps) = struct
+module BitfieldArith (Ints_t : IntOps.IntOps) = struct
+
+  let of_int x = (Ints_t.lognot x, x) 
+
   let one = of_int Ints_t.one
   let zero = of_int Ints_t.zero
-  let top_bool = join one zero
 
   let zero_mask = Ints_t.zero
   let one_mask = Ints_t.lognot zero_mask
-
-  let of_int x = (Ints_t.lognot x, x) 
   
   let join (z1,o1) (z2,o2) = (Ints_t.logor z1 z2, Ints_t.logor o1 o2)
   let meet (z1,o1) (z2,o2) = (Ints_t.logand z1 z2, Ints_t.logand o1 o2)
+
+  let top_bool = join one zero
 
   let is_const (z,o) = (Ints_t.logxor z o) = one_mask
   let is_undef (z,o) = Ints_t.compare (Ints_t.lognot @@ Ints_t.logor z o) Ints_t.zero = 0
@@ -1240,7 +1242,7 @@ module BitFieldArith (Ints_t : IntOps.IntOps) = struct
       in aux n 0
     in ilog2 (Size.bit ik)
 
-  let break_down_log ik (z,o) = if is_undef (z,o) then None
+  let break_down_log ik (z,o) : (Ints_t.t * Ints_t.t) list option = if is_undef (z,o) then None
     else
       let n = max_shift ik in
       let rec break_down c_lst i = if i >= n then c_lst
@@ -1253,29 +1255,29 @@ module BitFieldArith (Ints_t : IntOps.IntOps) = struct
         else
           break_down c_lst (i+1)
       in
-      let sfx_mask = Ints_t.lognot @@ Ints_t.sub (Ints_t.shift_left Ints_t.one n) Ints_t.one in
-      break_down [(Ints_t.logand z (Ints_t.lognot sfx_msk), Ints_t.logand o sfx_msk)] 0 |> Option.some
+      let sufx_msk = Ints_t.lognot @@ Ints_t.sub (Ints_t.shift_left Ints_t.one n) Ints_t.one in
+      break_down [(Ints_t.logand z (Ints_t.lognot sufx_msk), Ints_t.logand o sufx_msk)] 0 |> Option.some
 
-  let break_down ik bf = Option.map (List.map snd) (break_down_log ik bf)
+  let break_down ik bf = Option.map (fun c_bf_lst -> List.map snd c_bf_lst |> List.map Ints_t.to_int) (break_down_log ik bf)
 
   let shift_right ik bf n_bf =
-    let shift_right bf (z,o) =
-      let sign_msk = Ints_t.shift_left one_mask (Size.bit ik - n) in
+    let shift_right (z,o) c =
+      let sign_msk = Ints_t.shift_left one_mask (Size.bit ik - c) in
       if isSigned ik then
-        (Ints_t.shift_right z n, Ints_t.logor (Ints_t.shift_right o n) sign_msk)
+        (Ints_t.shift_right z c, Ints_t.logor (Ints_t.shift_right o c) sign_msk)
       else
-        (Ints_t.logor (Ints_t.shift_right z n) sign_msk, Ints_t.shift_right o n)
+        (Ints_t.logor (Ints_t.shift_right z c) sign_msk, Ints_t.shift_right o c)
       in
     if is_const n_bf then Some (shift_right bf (Ints_t.to_int @@ snd n_bf))
     else
       Option.map (fun c_lst -> List.map (shift_right bf) c_lst |> List.fold_left join zero) (break_down ik n_bf)
 
   let shift_left ik bf n_bf =
-    let shift_left bf (z,o) =
-        let z_msk = Ints_t.sub (Ints_t.shift_left Ints_t.one n) Ints_t.one
-        in (Ints_t.logor (Ints_t.shift_left z n) z_msk, Ints_t.shift_left o n)
+    let shift_left (z,o) c =
+        let z_msk = Ints_t.sub (Ints_t.shift_left Ints_t.one c) Ints_t.one
+        in (Ints_t.logor (Ints_t.shift_left z c) z_msk, Ints_t.shift_left o c)
       in
-    if is_const n then Some (shift_left bf (Ints_t.to_int @@ snd n_bf))
+    if is_const n_bf then Some (shift_left bf (Ints_t.to_int @@ snd n_bf))
     else
       Option.map (fun c_lst -> List.map (shift_left bf) c_lst |> List.fold_left join zero) (break_down ik n_bf)
 
@@ -1434,11 +1436,11 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): SOverflow with type int_t = Int
 
   let shift_right ik a b = 
     M.trace "bitfield" "shift_right";
-    norm ik @@ BArith.shift ~left:false ik a b |> Option.value ~default: (bot ())
+    norm ik @@ (BArith.shift_right ik a b |> Option.value ~default: (bot ()))
 
   let shift_left ik a b =
     M.trace "bitfield" "shift_left";
-    norm ik @@ BArith.shift ~left:true ik a b |> Option.value ~default: (bot ())
+    norm ik @@ (BArith.shift_left ik a b |> Option.value ~default: (bot ()))
 
   (* Arith *)
 
@@ -1594,16 +1596,13 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): SOverflow with type int_t = Int
     failwith "Not implemented"
 
   let refine_with_congruence ik (intv : t) (cong : (int_t * int_t ) option) : t =
-    M.trace "bitfield" "refine_with_congruence";
-    t
+    M.trace "bitfield" "refine_with_congruence"; bot ()
   
   let refine_with_interval ik a b = 
-    M.trace "bitfield" "refine_with_interval";
-    t
+    M.trace "bitfield" "refine_with_interval"; bot ()
 
   let refine_with_excl_list ik (intv : t) (excl : (int_t list * (int64 * int64)) option) : t = 
-    M.trace "bitfield" "refine_with_excl_list";
-    t
+    M.trace "bitfield" "refine_with_excl_list"; bot ()
 
   let refine_with_incl_list ik t (incl : (int_t list) option) : t =
     (* loop over all included ints *)
