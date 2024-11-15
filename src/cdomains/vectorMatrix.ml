@@ -896,7 +896,7 @@ module SparseMatrix: AbstractMatrix =
       timing_wrap "get_col" (get_col m) n
 
     let set_col_with m new_col n =
-      failwith "TODO"
+      failwith "Do not use!"
 
     let set_col_with m new_col n = timing_wrap "set_col" (set_col_with m new_col) n
 
@@ -915,12 +915,13 @@ module SparseMatrix: AbstractMatrix =
       {entries = new_entries; column_count = m.column_count}
 
     let append_matrices m1 m2  =
-      failwith "TODO"
+      let new_entries = List.append m1.entries m2.entries in
+      {entries = new_entries; column_count = m1.column_count}
 
     let equal m1 m2 = timing_wrap "equal" (equal m1) m2
 
     let reduce_col_with m j =
-      failwith "TODO"
+      failwith "Do not use!"
 
     let reduce_col_with m j  = timing_wrap "reduce_col_with" (reduce_col_with m) j
     let reduce_col m j =
@@ -960,13 +961,26 @@ module SparseMatrix: AbstractMatrix =
     let del_cols m cols = timing_wrap "del_cols" (del_cols m) cols
 
     let map2i f m v =
-      failwith "TODO"
+      let f' index row num =  V.to_sparse_list @@ f index (V.of_sparse_list row m.column_count) num in
+      (* TODO: Do we need to consider different lengths here?
+         let vector_length = List.length (V.to_list v) in
+         let new_entries =
+         List.mapi (fun index row ->
+          if index < vector_length then
+            let num = V.nth v index in
+            f' index row num
+          else row
+         ) m.entries
+         in
+      *)
+      let new_entries = List.map2i f' m.entries (V.to_list v) in
+      {entries = new_entries; column_count = m.column_count}
 
     let remove_zero_rows m =
       failwith "TODO"
 
     let rref_with m =
-      failwith "TODO"
+      failwith "Do not use!"
 
     let rref_with m = timing_wrap "rref_with" rref_with m
 
@@ -988,19 +1002,19 @@ module SparseMatrix: AbstractMatrix =
       (*This function yields the same result as appending vector v to m and normalizing it afterwards would. However, it is usually faster than performing those ops manually.*)
       (*m must be in rref form and contain the same num of cols as v*)
       (*If m is empty then v is simply normalized and returned*)
-      failwith "TODO"
+      failwith "Do not use!"
 
     let rref_vec_with m v = timing_wrap "rref_vec_with" (rref_vec_with m) v
 
     let rref_matrix_with m1 m2 =
       (*Similar to rref_vec_with but takes two matrices instead.*)
       (*ToDo Could become inefficient for large matrices since pivot_elements are always recalculated + many row additions*)
-      failwith "TODO"
+      failwith "Do not use!"
 
     let rref_matrix_with m1 m2 = timing_wrap "rref_matrix_with" (rref_matrix_with m1) m2
 
     let normalize_with m = 
-      failwith "TODO"
+      failwith "Do not use!"
 
     let normalize_with m = timing_wrap "normalize_with" normalize_with m
 
@@ -1054,24 +1068,44 @@ module SparseMatrix: AbstractMatrix =
       in 
       failwith "TODO"
 
+
     let is_covered_by m1 m2 =
       failwith "TODO"
 
     let is_covered_by m1 m2 = timing_wrap "is_covered_by" (is_covered_by m1) m2
 
     let find_opt f m =
-      failwith "TODO"
+      let rec find_opt_vec_list f m =
+        match m with
+        | [] -> None
+        | x::xs -> if f x then Some x else find_opt_vec_list f xs
+      in
+      let m_vector = List.map (fun row -> V.of_sparse_list row m.column_count) m.entries in
+      find_opt_vec_list f m_vector
 
     let map2 f m v =
-      failwith "TODO"
+      let f' row num =  V.to_sparse_list @@ f (V.of_sparse_list row m.column_count) num in
+      (* TODO: Do we need to consider different lengths here?
+         let vector_length = List.length (V.to_list v) in
+         let new_entries = 
+         List.mapi (fun index row ->
+         if index < vector_length then
+          let num = V.nth v index in
+          f' row num
+         else row
+         ) m.entries
+         in
+      *)
+      let new_entries = List.map2 f' m.entries (V.to_list v) in
+      {entries = new_entries; column_count = m.column_count}
 
     let map2_with f m v =
-      failwith "TODO"
+      failwith "Do not use!"
 
     let map2_with f m v = timing_wrap "map2_with" (map2_with f m) v
 
     let map2i_with f m v =
-      failwith "TODO"
+      failwith "Do not use!"
 
     let map2i_with f m v = timing_wrap "map2i_with" (map2i_with f m) v
   end
