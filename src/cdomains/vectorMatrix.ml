@@ -176,7 +176,11 @@ sig
 
   val normalize_with: t -> bool
 
+  val rref_vec: t -> vec -> t Option.t (* added to remove side effects in affineEqualityDomain*)
+
   val rref_vec_with: t -> vec -> t Option.t
+
+  val rref_matrix: t -> t -> t Option.t (* this as well *)
 
   val rref_matrix_with: t -> t -> t Option.t
 
@@ -186,7 +190,7 @@ sig
 
   val map2_with: (vec -> num -> vec) -> t -> vec -> unit
 
-  val map2: (vec -> num -> vec) -> t -> vec -> t
+  val map2: (vec -> num -> vec) -> t -> vec -> t (* why is this here twice??*)
 
   val map2i: (int -> vec-> num -> vec) -> t -> vec -> t
 
@@ -523,7 +527,7 @@ module ArrayMatrix: AbstractMatrix =
       let pivot_elements = Array.make (num_rows m) 0
       in Array.iteri (fun i x -> pivot_elements.(i) <- Array.findi (fun z -> z =: A.one) x) m; pivot_elements
 
-    let rref_vec m pivot_positions v =
+    let rref_vec_helper m pivot_positions v =
       let insert = ref (-1) in
       for j = 0 to Array.length v -2 do
         if v.(j) <>: A.zero then
@@ -561,9 +565,14 @@ module ArrayMatrix: AbstractMatrix =
             Array.iteri (fun j x -> v.(j) <- x /: v_i) v; Some (init_with_vec @@ V.of_array v)
       else
         let pivot_elements = get_pivot_positions m in
-        rref_vec m pivot_elements v
+        rref_vec_helper m pivot_elements v
 
     let rref_vec_with m v = timing_wrap "rref_vec_with" (rref_vec_with m) v
+
+    let rref_vec m v = (* !! There was another rref_vec function that has been renamed to rref_vec_helper !!*)
+      let m' = copy m in
+      let v' = V.copy v in 
+      rref_vec_with m' v'
 
     let rref_matrix_with m1 m2 =
       (*Similar to rref_vec_with but takes two matrices instead.*)
@@ -574,7 +583,7 @@ module ArrayMatrix: AbstractMatrix =
       try (
         for i = 0 to num_rows s_m - 1 do
           let pivot_elements = get_pivot_positions !b in
-          let res = rref_vec !b pivot_elements s_m.(i) in
+          let res = rref_vec_helper !b pivot_elements s_m.(i) in
           match res with
           | None -> raise Unsolvable
           | Some res -> b := res
@@ -584,6 +593,11 @@ module ArrayMatrix: AbstractMatrix =
       with Unsolvable -> None
 
     let rref_matrix_with m1 m2 = timing_wrap "rref_matrix_with" (rref_matrix_with m1) m2
+
+    let rref_matrix m1 m2 = 
+      let m1' = copy m1 in
+      let m2' = copy m2 in 
+      rref_matrix_with m1' m2'
 
     let normalize_with m =
       rref_with m
