@@ -1,3 +1,17 @@
+## v2.5.0 (unreleased)
+Functionally equivalent to Goblint in SV-COMP 2025.
+
+### SV-COMP 2025
+* Improve invariants (#1361, #1362, #1375, #1328, #1493, #1356).
+* Simplify invariants (#1436, #1517).
+* Improve YAML witness locations (#1355, #1372, #1400, #1403).
+* Improve autotuner (#1469, #1450, #1612, #1604, #1181).
+* Loop unrolling (#1582, #1583, #1584, #1516, #1590, #1595, #1599).
+* Add abortUnless to svcomp (#1464).
+* Fix spurious overflow warnings (#1511).
+* Add primitive YAML violation witness rejection (#1301, #1512).
+* Machdep support (#54, #1574).
+
 ## v2.4.0
 * Remove unmaintained analyses: spec, file (#1281).
 * Add linear two-variable equalities analysis (#1297, #1412, #1466).
