@@ -1,6 +1,10 @@
 ## v2.5.0 (unreleased)
 Functionally equivalent to Goblint in SV-COMP 2025.
 
+* Cleanup (#1095, #1523, #1554, #1575, #1588, #1597, #1614).
+* Reduce hash collisions (#1594, #1602).
+* Context gas per function (#1569, #1570, #1598).
+
 ### SV-COMP 2025
 * Improve invariants (#1361, #1362, #1375, #1328, #1493, #1356).
 * Simplify invariants (#1436, #1517).
