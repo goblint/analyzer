@@ -1020,12 +1020,16 @@ module SparseMatrix: AbstractMatrix =
 
     let rref_vec_with m v = timing_wrap "rref_vec_with" (rref_vec_with m) v
 
+    let rref_vec m v = failwith "TODO"
+
     let rref_matrix_with m1 m2 =
       (*Similar to rref_vec_with but takes two matrices instead.*)
       (*ToDo Could become inefficient for large matrices since pivot_elements are always recalculated + many row additions*)
       failwith "Do not use!"
 
     let rref_matrix_with m1 m2 = timing_wrap "rref_matrix_with" (rref_matrix_with m1) m2
+
+    let rref_matrix m1 m2 = failwith "TODO"
 
     let normalize_with m = 
       failwith "Do not use!"
