@@ -1,20 +1,13 @@
 ## v2.5.0 (unreleased)
 Functionally equivalent to Goblint in SV-COMP 2025.
 
-* Cleanup (#1095, #1523, #1554, #1575, #1588, #1597, #1614).
-* Reduce hash collisions (#1594, #1602).
-* Context gas per function (#1569, #1570, #1598).
-
-### SV-COMP 2025
-* Improve invariants (#1361, #1362, #1375, #1328, #1493, #1356).
-* Simplify invariants (#1436, #1517).
-* Improve YAML witness locations (#1355, #1372, #1400, #1403).
-* Improve autotuner (#1469, #1450, #1612, #1604, #1181).
-* Loop unrolling (#1582, #1583, #1584, #1516, #1590, #1595, #1599).
-* Add abortUnless to svcomp (#1464).
-* Fix spurious overflow warnings (#1511).
-* Add primitive YAML violation witness rejection (#1301, #1512).
-* Machdep support (#54, #1574).
+* Add 32bit vs 64bit architecture support (#54, #1574).
+* Add per-function context gas analysis (#1569, #1570, #1598).
+* Adapt automatic static loop unrolling (#1516, #1582, #1583, #1584, #1590, #1595, #1599).
+* Adapt automatic configuration tuning (#1450, #1612, #1181, #1604).
+* Simplify non-relational integer invariants in witnesses (#1517).
+* Fix excessive hash collisions (#1594, #1602).
+* Clean up various code (#1095, #1523, #1554, #1575, #1588, #1597, #1614).
 
 ## v2.4.0
 * Remove unmaintained analyses: spec, file (#1281).
@@ -28,7 +21,7 @@ Functionally equivalent to Goblint in SV-COMP 2025.
 * Fix mutex type analysis unsoundness and enable it by default (#1414, #1416, #1510).
 * Add points-to set refinement on mutex path splitting (#1287, #1343, #1374, #1396, #1407).
 * Improve narrowing operators (#1502, #1540, #1543).
-* Extract automatic configuration tuning for soundness (#1369).
+* Extract automatic configuration tuning for soundness (#1469).
 * Fix many locations in witnesses (#1355, #1372, #1400, #1403).
 * Improve output readability (#1294, #1312, #1405, #1497).
 * Refactor logging (#1117).
