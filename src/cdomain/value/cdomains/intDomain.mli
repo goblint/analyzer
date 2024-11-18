@@ -402,11 +402,15 @@ module Lifted : IkindUnawareS with type t = [`Top | `Lifted of int64 | `Bot] and
 
 module IntervalFunctor(Ints_t : IntOps.IntOps): SOverflow with type int_t = Ints_t.t and type t = (Ints_t.t * Ints_t.t) option
 
+module BitFieldFunctor(Ints_t : IntOps.IntOps): SOverflow with type int_t = Ints_t.t and type t = (Ints_t.t * Ints_t.t)
+
 module IntervalSetFunctor(Ints_t : IntOps.IntOps): SOverflow with type int_t = Ints_t.t and type t = (Ints_t.t * Ints_t.t) list
 
 module Interval32 :Y with (* type t = (IntOps.Int64Ops.t * IntOps.Int64Ops.t) option and *) type int_t = IntOps.Int64Ops.t
 
 module Interval : SOverflow with type int_t = Z.t
+
+module BitField : SOverflow with type int_t = Z.t
 
 module IntervalSet : SOverflow with type int_t = Z.t
 
