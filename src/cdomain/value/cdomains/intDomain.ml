@@ -1211,7 +1211,7 @@ module BitfieldArith (Ints_t : IntOps.IntOps) = struct
   let bits_undef (z,o) = Ints_t.lognot (Ints_t.logxor z o)
 
   let is_const (z,o) = (Ints_t.logxor z o) = one_mask
-  let is_undef (z,o) = Ints_t.compare (bits_undef (z,o)) Ints_t.zero != 0
+  let is_invalid (z,o) = Ints_t.compare (Ints_t.lognot (Ints_t.logand z o)) Ints_t.zero != 0
 
   let nabla x y= if x = Ints_t.logor x y then x else one_mask
 
@@ -1246,7 +1246,7 @@ module BitfieldArith (Ints_t : IntOps.IntOps) = struct
       in aux n 0
     in ilog2 (Size.bit ik)
 
-  let break_down_lsb ik (z,o) : (Ints_t.t * Ints_t.t) list option = if is_undef (z,o) then None
+  let break_down_lsb ik (z,o) : (Ints_t.t * Ints_t.t) list option = if is_invalid (z,o) then None
     else
       let rec break_down c_lst i = if i < 0 then c_lst
       else
@@ -1340,7 +1340,7 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): SOverflow with type int_t = Int
   let range ik bf = (BArith.min ik bf, BArith.max ik bf)
 
   let norm ?(suppress_ovwarn=false) ik (z,o) = 
-    if BArith.is_undef (z,o) then 
+    if BArith.is_invalid (z,o) then 
       ((z,o), {underflow=false; overflow=false})
     else
     let (min_ik, max_ik) = Size.range ik in
