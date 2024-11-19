@@ -1330,7 +1330,7 @@ module BitfieldArith (Ints_t : IntOps.IntOps) = struct
   
 end
 
-module BitFieldFunctor (Ints_t : IntOps.IntOps): SOverflow with type int_t = Ints_t.t and type t = (Ints_t.t * Ints_t.t) = struct
+module BitfieldFunctor (Ints_t : IntOps.IntOps): SOverflow with type int_t = Ints_t.t and type t = (Ints_t.t * Ints_t.t) = struct
   let name () = "bitfield"
   type int_t = Ints_t.t
   type t = (Ints_t.t * Ints_t.t) [@@deriving eq, ord, hash]
@@ -2219,7 +2219,7 @@ end
 
 module IntIkind = struct let ikind () = Cil.IInt end
 module Interval = IntervalFunctor (IntOps.BigIntOps)
-module BitField = BitFieldFunctor (IntOps.BigIntOps)
+module Bitfield = BitfieldFunctor (IntOps.BigIntOps)
 module Interval32 = IntDomWithDefaultIkind (IntDomLifter (SOverflowUnlifter (IntervalFunctor (IntOps.Int64Ops)))) (IntIkind)
 module IntervalSet = IntervalSetFunctor (IntOps.BigIntOps)
 module Integers (Ints_t : IntOps.IntOps): IkindUnawareS with type t = Ints_t.t and type int_t = Ints_t.t = (* no top/bot, order is <= *)
@@ -3893,7 +3893,7 @@ module IntDomTupleImpl = struct
   module I3 = SOverflowLifter (Enums)
   module I4 = SOverflowLifter (Congruence)
   module I5 = IntervalSetFunctor (IntOps.BigIntOps)
-  module I6 = BitFieldFunctor (IntOps.BigIntOps)
+  module I6 = BitfieldFunctor (IntOps.BigIntOps)
 
   type t = I1.t option * I2.t option * I3.t option * I4.t option * I5.t option * I6.t option
   [@@deriving eq, ord, hash]

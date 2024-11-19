@@ -250,7 +250,7 @@ struct
   ]
 end
 
-module BitFieldTest (I : IntDomain.SOverflow with type int_t = Z.t) =
+module BitfieldTest (I : IntDomain.SOverflow with type int_t = Z.t) =
 struct
 module I = IntDomain.SOverflowUnlifter (I)
 
@@ -683,7 +683,7 @@ module I = IntDomain.SOverflowUnlifter (I)
 end
 
 module Interval    = IntervalTest (IntDomain.Interval)
-module BitField    = BitFieldTest (IntDomain.BitField)
+module Bitfield    = BitfieldTest (IntDomain.Bitfield)
 module IntervalSet = IntervalTest (IntDomain.IntervalSet)
 
 module Congruence =
@@ -754,7 +754,7 @@ struct
 end
 
 
-module BitfieldTest (B : IntDomain.SOverflow with type int_t = Z.t) = 
+module TEMPDEBUG_TODO_REMOVE_TEST (B : IntDomain.SOverflow with type int_t = Z.t) = 
 struct 
   module B = IntDomain.SOverflowUnlifter (B)
   let ik      = Cil.IUChar
@@ -779,7 +779,7 @@ struct
     ]
 end
 
-module Bitfield = BitfieldTest(IntDomain.Bitfield)
+module TEMPDEBUG_TODO_REMOVE = TEMPDEBUG_TODO_REMOVE_TEST(IntDomain.Bitfield)
 
 let test () =
   "intDomainTest" >::: [
@@ -791,9 +791,9 @@ let test () =
     "test_meet"     >::  test_meet;
     "test_excl_list">::  test_ex_set;
     "interval" >::: Interval.test ();
-    "bitField" >::: BitField.test ();
+    "bitfield" >::: Bitfield.test ();
     "intervalSet" >::: IntervalSet.test ();
     "congruence" >::: Congruence.test ();
     "intDomTuple" >::: IntDomTuple.test ();
-    "bitfield" >::: Bitfield.test ();
+    "TEMPDEBUG_TODO_REMOVE" >::: TEMPDEBUG_TODO_REMOVE.test ();
   ]
