@@ -1271,7 +1271,7 @@ module BitfieldArith (Ints_t : IntOps.IntOps) = struct
   let shift_right ik bf n_bf =
     let shift_right (z,o) c =
       let sign_msk = Ints_t.shift_left one_mask (Size.bit ik - c) in
-      if isSigned ik then
+      if (isSigned ik) && ((Ints_t.to_int o) < 0) then
         (Ints_t.shift_right z c, Ints_t.logor (Ints_t.shift_right o c) sign_msk)
       else
         (Ints_t.logor (Ints_t.shift_right z c) sign_msk, Ints_t.shift_right o c)
