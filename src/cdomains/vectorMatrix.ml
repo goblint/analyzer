@@ -121,7 +121,7 @@ sig
 
   val copy: t -> t
 
-  val of_sparse_list: (int * num) list -> int -> t
+  val of_sparse_list: int -> (int * num) list -> t
 
   val to_sparse_list: t -> (int * num) list
 
@@ -302,7 +302,7 @@ module ArrayVector: AbstractVector =
       let copy = copy v in
       mapi_with f copy; copy
 
-    let of_sparse_list ls col_count =
+    let of_sparse_list col_count ls =
       let vec = Array.make col_count A.zero in
       List.iter (fun (idx, value) -> vec.(idx) <- value) ls;
       vec
@@ -719,26 +719,26 @@ module SparseVector: AbstractVector =
 
     let insert_val n m t = 
       failwith "TODO"
-    
+
     let mul_vec_scal v s = 
       {entries= (List.map (fun (idx, va) -> (idx, va *: s)) v.entries); len=v.len}
-      
-    
+
+
     let add_vec v1 v2 = 
       let rec add_vec m s =
-      match m, s with
+        match m, s with
         | ((xidx, xv)::xs, (yidx,yv)::ys) -> (
-          match xidx - yidx with
-          | d when d = 0 && (xv +: yv = A.zero) -> (xidx, xv +: yv)::(add_vec xs ys)
-          | d when d < 0 -> (xidx, xv)::(add_vec xs ((yidx, yv)::ys))
-          | d when d > 0 -> (yidx, yv)::(add_vec ((xidx, xv)::xs) ys)
-          | _ -> add_vec xs ys ) (* remove row when is (0, 0) *)
+            match xidx - yidx with
+            | d when d = 0 && (xv +: yv = A.zero) -> (xidx, xv +: yv)::(add_vec xs ys)
+            | d when d < 0 -> (xidx, xv)::(add_vec xs ((yidx, yv)::ys))
+            | d when d > 0 -> (yidx, yv)::(add_vec ((xidx, xv)::xs) ys)
+            | _ -> add_vec xs ys ) (* remove row when is (0, 0) *)
         | ([], y::ys) -> y::(add_vec [] ys)
         | (x::xs, []) -> x::(add_vec xs [])
         | ([],[]) -> []
       in 
-    if v1.len <> v2.len then failwith "Different Vector length" else
-    {entries= add_vec v1.entries v2.entries; len=v1.len}
+      if v1.len <> v2.len then failwith "Different Vector length" else
+        {entries= add_vec v1.entries v2.entries; len=v1.len}
 
     let sub_vec v1 v2 = (*change to duplicate def of add if performance*)
       add_vec v1 ({entries= (List.map (fun (idx, va) -> (idx, A.zero -: va)) v2.entries); len=v2.len})
@@ -820,8 +820,8 @@ module SparseVector: AbstractVector =
 
     let copy v = v 
 
-    let of_sparse_list ls col_count =
-      failwith "TODO"
+    let of_sparse_list col_count ls =
+      {entries = ls; len = col_count}
 
     let to_sparse_list v = 
       v.entries
@@ -847,7 +847,7 @@ module SparseMatrix: AbstractMatrix =
     let tM e l = {entries= e; column_count=l}
 
     let show x =
-      List.fold_left (^) "" (List.map (fun row -> V.show @@ V.of_sparse_list row x.column_count) x.entries)
+      List.fold_left (^) "" (List.map (fun row -> V.show @@ V.of_sparse_list x.column_count row) x.entries)
 
     let empty () =
       {entries = []; column_count = 0}
@@ -909,7 +909,7 @@ module SparseMatrix: AbstractMatrix =
       {entries = m.entries @ [V.to_sparse_list row]; column_count = V.length row}
 
     let get_row m n =
-      V.of_sparse_list (List.nth m.entries n) m.column_count
+      V.of_sparse_list m.column_count (List.nth m.entries n)
 
     let remove_row m n =
       let rec aux idx entries = match idx, entries with
@@ -1037,7 +1037,7 @@ module SparseMatrix: AbstractMatrix =
     let del_cols m cols = timing_wrap "del_cols" (del_cols m) cols
 
     let map2i f m v =
-      let f' index row num =  V.to_sparse_list @@ f index (V.of_sparse_list row m.column_count) num in
+      let f' index row num =  V.to_sparse_list @@ f index (V.of_sparse_list m.column_count row) num in
       (* TODO: Do we need to consider different lengths here?
          let vector_length = List.length (V.to_list v) in
          let new_entries =
@@ -1113,11 +1113,11 @@ module SparseMatrix: AbstractMatrix =
       let rec sub_rows minu subt : (int * A.t) list =
         match minu, subt with
         | ((xidx, xv)::xs, (yidx,yv)::ys) -> (
-          match xidx - yidx with
-          | d when d = 0 && xv <> yv -> (xidx, xv -: yv)::(sub_rows xs ys)
-          | d when d < 0 -> (xidx, xv)::(sub_rows xs ((yidx, yv)::ys))
-          | d when d > 0 -> (yidx, A.zero -: yv)::(sub_rows ((xidx, xv)::xs) ys)
-          | _ -> sub_rows xs ys ) (* remove row when is (0, 0) *)
+            match xidx - yidx with
+            | d when d = 0 && xv <> yv -> (xidx, xv -: yv)::(sub_rows xs ys)
+            | d when d < 0 -> (xidx, xv)::(sub_rows xs ((yidx, yv)::ys))
+            | d when d > 0 -> (yidx, A.zero -: yv)::(sub_rows ((xidx, xv)::xs) ys)
+            | _ -> sub_rows xs ys ) (* remove row when is (0, 0) *)
         | ([], (yidx, yv)::ys) -> (yidx, A.zero -: yv)::(sub_rows [] ys)
         | ((xidx, xv)::xs, []) -> (xidx, xv)::(sub_rows xs [])
         | ([],[]) -> []
@@ -1141,23 +1141,23 @@ module SparseMatrix: AbstractMatrix =
           | None -> find_pivot m (col_idx + 1) row_idx
          in *)
       let rec main_loop m m' row_idx col_idx : (int * A.t) list list = 
-        match find_pivot_in_col m' row_idx col_idx with
-        | None -> (
-            if col_idx = (col_count - 1)
-            then m 
-            else main_loop m m' row_idx (col_idx + 1)
-          )
-        | Some (piv_row_idx, piv_val) -> (
-            let m = if piv_row_idx <> row_idx then swap_rows m row_idx piv_row_idx else m in
-            let m = List.map (fun row -> div_row row piv_val) m in
-            let piv_row = (List.nth m row_idx) in
-            let m = List.mapi (fun idx row -> if idx <> row_idx then sub_rows row piv_row else row) m in
-            let m' = dec_mat_2D m in
-            failwith "TODO"
-          )
+        if col_idx = (col_count - 1) (* In this case the whole bottom of the matrix starting from row_index is Zero, so it is normalized *)
+        then m
+        else
+          match find_pivot_in_col m' row_idx col_idx with
+          | None -> main_loop m m' row_idx (col_idx + 1)
+          | Some (piv_row_idx, piv_val) -> (
+              let m = if piv_row_idx <> row_idx then swap_rows m row_idx piv_row_idx else m in
+              let normalized_m = List.mapi (fun idx row -> if idx = row_idx then div_row row piv_val else row) m in
+              let piv_row = (List.nth normalized_m row_idx) in
+              let subtracted_m = List.mapi (fun idx row -> if idx <> row_idx then sub_rows row piv_row else row) normalized_m in
+              let m' = dec_mat_2D m in
+              main_loop subtracted_m m' (row_idx + 1) (col_idx + 1)
+            )
 
       in 
-      failwith "TODO"
+      let e' = main_loop m.entries m.entries 0 0 in
+      Some {entries = e'; column_count = m.column_count}
 
 
     let is_covered_by m1 m2 =
@@ -1171,11 +1171,11 @@ module SparseMatrix: AbstractMatrix =
         | [] -> None
         | x::xs -> if f x then Some x else find_opt_vec_list f xs
       in
-      let m_vector = List.map (fun row -> V.of_sparse_list row m.column_count) m.entries in
+      let m_vector = List.map (fun row -> V.of_sparse_list m.column_count row) m.entries in
       find_opt_vec_list f m_vector
 
     let map2 f m v =
-      let f' row num =  V.to_sparse_list @@ f (V.of_sparse_list row m.column_count) num in
+      let f' row num =  V.to_sparse_list @@ f (V.of_sparse_list m.column_count row) num in
       (* TODO: Do we need to consider different lengths here?
          let vector_length = List.length (V.to_list v) in
          let new_entries = 
