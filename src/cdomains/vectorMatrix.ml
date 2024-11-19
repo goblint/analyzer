@@ -176,7 +176,11 @@ sig
 
   val normalize_with: t -> bool
 
+  val rref_vec: t -> vec -> t Option.t (* added to remove side effects in affineEqualityDomain*)
+
   val rref_vec_with: t -> vec -> t Option.t
+
+  val rref_matrix: t -> t -> t Option.t (* this as well *)
 
   val rref_matrix_with: t -> t -> t Option.t
 
@@ -186,7 +190,7 @@ sig
 
   val map2_with: (vec -> num -> vec) -> t -> vec -> unit
 
-  val map2: (vec -> num -> vec) -> t -> vec -> t
+  val map2: (vec -> num -> vec) -> t -> vec -> t (* why is this here twice??*)
 
   val map2i: (int -> vec-> num -> vec) -> t -> vec -> t
 
@@ -523,7 +527,7 @@ module ArrayMatrix: AbstractMatrix =
       let pivot_elements = Array.make (num_rows m) 0
       in Array.iteri (fun i x -> pivot_elements.(i) <- Array.findi (fun z -> z =: A.one) x) m; pivot_elements
 
-    let rref_vec m pivot_positions v =
+    let rref_vec_helper m pivot_positions v =
       let insert = ref (-1) in
       for j = 0 to Array.length v -2 do
         if v.(j) <>: A.zero then
@@ -561,9 +565,14 @@ module ArrayMatrix: AbstractMatrix =
             Array.iteri (fun j x -> v.(j) <- x /: v_i) v; Some (init_with_vec @@ V.of_array v)
       else
         let pivot_elements = get_pivot_positions m in
-        rref_vec m pivot_elements v
+        rref_vec_helper m pivot_elements v
 
     let rref_vec_with m v = timing_wrap "rref_vec_with" (rref_vec_with m) v
+
+    let rref_vec m v = (* !! There was another rref_vec function that has been renamed to rref_vec_helper !!*)
+      let m' = copy m in
+      let v' = V.copy v in 
+      rref_vec_with m' v'
 
     let rref_matrix_with m1 m2 =
       (*Similar to rref_vec_with but takes two matrices instead.*)
@@ -574,7 +583,7 @@ module ArrayMatrix: AbstractMatrix =
       try (
         for i = 0 to num_rows s_m - 1 do
           let pivot_elements = get_pivot_positions !b in
-          let res = rref_vec !b pivot_elements s_m.(i) in
+          let res = rref_vec_helper !b pivot_elements s_m.(i) in
           match res with
           | None -> raise Unsolvable
           | Some res -> b := res
@@ -584,6 +593,11 @@ module ArrayMatrix: AbstractMatrix =
       with Unsolvable -> None
 
     let rref_matrix_with m1 m2 = timing_wrap "rref_matrix_with" (rref_matrix_with m1) m2
+
+    let rref_matrix m1 m2 = 
+      let m1' = copy m1 in
+      let m2' = copy m2 in 
+      rref_matrix_with m1' m2'
 
     let normalize_with m =
       rref_with m
@@ -896,7 +910,7 @@ module SparseMatrix: AbstractMatrix =
       timing_wrap "get_col" (get_col m) n
 
     let set_col_with m new_col n =
-      failwith "TODO"
+      failwith "Do not use!"
 
     let set_col_with m new_col n = timing_wrap "set_col" (set_col_with m new_col) n
 
@@ -915,12 +929,13 @@ module SparseMatrix: AbstractMatrix =
       {entries = new_entries; column_count = m.column_count}
 
     let append_matrices m1 m2  =
-      failwith "TODO"
+      let new_entries = List.append m1.entries m2.entries in
+      {entries = new_entries; column_count = m1.column_count}
 
     let equal m1 m2 = timing_wrap "equal" (equal m1) m2
 
     let reduce_col_with m j =
-      failwith "TODO"
+      failwith "Do not use!"
 
     let reduce_col_with m j  = timing_wrap "reduce_col_with" (reduce_col_with m) j
     let reduce_col m j =
@@ -960,13 +975,26 @@ module SparseMatrix: AbstractMatrix =
     let del_cols m cols = timing_wrap "del_cols" (del_cols m) cols
 
     let map2i f m v =
-      failwith "TODO"
+      let f' index row num =  V.to_sparse_list @@ f index (V.of_sparse_list row m.column_count) num in
+      (* TODO: Do we need to consider different lengths here?
+         let vector_length = List.length (V.to_list v) in
+         let new_entries =
+         List.mapi (fun index row ->
+          if index < vector_length then
+            let num = V.nth v index in
+            f' index row num
+          else row
+         ) m.entries
+         in
+      *)
+      let new_entries = List.map2i f' m.entries (V.to_list v) in
+      {entries = new_entries; column_count = m.column_count}
 
     let remove_zero_rows m =
       failwith "TODO"
 
     let rref_with m =
-      failwith "TODO"
+      failwith "Do not use!"
 
     let rref_with m = timing_wrap "rref_with" rref_with m
 
@@ -988,19 +1016,23 @@ module SparseMatrix: AbstractMatrix =
       (*This function yields the same result as appending vector v to m and normalizing it afterwards would. However, it is usually faster than performing those ops manually.*)
       (*m must be in rref form and contain the same num of cols as v*)
       (*If m is empty then v is simply normalized and returned*)
-      failwith "TODO"
+      failwith "Do not use!"
 
     let rref_vec_with m v = timing_wrap "rref_vec_with" (rref_vec_with m) v
+
+    let rref_vec m v = failwith "TODO"
 
     let rref_matrix_with m1 m2 =
       (*Similar to rref_vec_with but takes two matrices instead.*)
       (*ToDo Could become inefficient for large matrices since pivot_elements are always recalculated + many row additions*)
-      failwith "TODO"
+      failwith "Do not use!"
 
     let rref_matrix_with m1 m2 = timing_wrap "rref_matrix_with" (rref_matrix_with m1) m2
 
+    let rref_matrix m1 m2 = failwith "TODO"
+
     let normalize_with m = 
-      failwith "TODO"
+      failwith "Do not use!"
 
     let normalize_with m = timing_wrap "normalize_with" normalize_with m
 
@@ -1067,24 +1099,44 @@ module SparseMatrix: AbstractMatrix =
       in 
       failwith "TODO"
 
+
     let is_covered_by m1 m2 =
       failwith "TODO"
 
     let is_covered_by m1 m2 = timing_wrap "is_covered_by" (is_covered_by m1) m2
 
     let find_opt f m =
-      failwith "TODO"
+      let rec find_opt_vec_list f m =
+        match m with
+        | [] -> None
+        | x::xs -> if f x then Some x else find_opt_vec_list f xs
+      in
+      let m_vector = List.map (fun row -> V.of_sparse_list row m.column_count) m.entries in
+      find_opt_vec_list f m_vector
 
     let map2 f m v =
-      failwith "TODO"
+      let f' row num =  V.to_sparse_list @@ f (V.of_sparse_list row m.column_count) num in
+      (* TODO: Do we need to consider different lengths here?
+         let vector_length = List.length (V.to_list v) in
+         let new_entries = 
+         List.mapi (fun index row ->
+         if index < vector_length then
+          let num = V.nth v index in
+          f' row num
+         else row
+         ) m.entries
+         in
+      *)
+      let new_entries = List.map2 f' m.entries (V.to_list v) in
+      {entries = new_entries; column_count = m.column_count}
 
     let map2_with f m v =
-      failwith "TODO"
+      failwith "Do not use!"
 
     let map2_with f m v = timing_wrap "map2_with" (map2_with f m) v
 
     let map2i_with f m v =
-      failwith "TODO"
+      failwith "Do not use!"
 
     let map2i_with f m v = timing_wrap "map2i_with" (map2i_with f m) v
   end
