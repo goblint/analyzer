@@ -1368,7 +1368,7 @@ module BitFieldFunctor (Ints_t : IntOps.IntOps): SOverflow with type int_t = Int
     if t = bot () then "bot" else
     if t = top () then "top" else
       let (z,o) = t in
-      if BArith.is_constant t then 
+      if BArith.is_const t then 
         Format.sprintf "{%08X, %08X} (unique: %d)" (Ints_t.to_int z) (Ints_t.to_int o) (Ints_t.to_int o)
       else 
         Format.sprintf "{%08X, %08X}" (Ints_t.to_int z) (Ints_t.to_int o)
