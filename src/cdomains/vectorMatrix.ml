@@ -718,6 +718,28 @@ module SparseVector: AbstractVector =
 
     let insert_val n m t = 
       failwith "TODO"
+    
+    let mul_vec_scal v s = 
+      {entries= (List.map (fun (idx, va) -> (idx, va *: s)) v.entries); len=v.len}
+    
+    let add_vec v1 v2 = 
+      let rec add_vec m s =
+      match m, s with
+        | ((xidx, xv)::xs, (yidx,yv)::ys) -> (
+          match xidx - yidx with
+          | d when d = 0 && (xv +: yv = A.zero) -> (xidx, xv +: yv)::(add_vec xs ys)
+          | d when d < 0 -> (xidx, xv)::(add_vec xs ((yidx, yv)::ys))
+          | d when d > 0 -> (yidx, yv)::(add_vec ((xidx, xv)::xs) ys)
+          | _ -> add_vec xs ys ) (* remove row when is (0, 0) *)
+        | ([], y::ys) -> y::(add_vec [] ys)
+        | (x::xs, []) -> x::(add_vec xs [])
+        | ([],[]) -> []
+      in 
+    if v1.len <> v2.len then failwith "Different Vector length" else
+    {entries= add_vec v1.entries v2.entries; len=v1.len}
+
+    let sub_vec v1 v2 = (*change to duplicate def of add if performance*)
+      add_vec v1 ({entries= (List.map (fun (idx, va) -> (idx, A.zero -: va)) v2.entries); len=v2.len})
 
     let apply_with_c f m v = 
       failwith "TODO"
@@ -820,6 +842,8 @@ module SparseMatrix: AbstractMatrix =
       column_count : int
     } [@@deriving eq, ord, hash]
 
+    let tM e l = {entries= e; column_count=l}
+
     let show x =
       List.fold_left (^) "" (List.map (fun row -> V.show @@ V.of_sparse_list row x.column_count) x.entries)
 
@@ -838,7 +862,7 @@ module SparseMatrix: AbstractMatrix =
       m.column_count
 
     let copy m =
-      {entries = m.entries; column_count = m.column_count} (* Lists are immutable, so this should suffice? A.t is mutuable currently, but is treated like its not in ArrayMatrix*)
+      m (* Lists are immutable, so this should suffice? A.t is mutuable currently, but is treated like its not in ArrayMatrix*)
 
     let copy m =
       timing_wrap "copy" (copy) m
@@ -874,7 +898,7 @@ module SparseMatrix: AbstractMatrix =
         match m with
         | x::xs -> (add_column_element x cols)::(add_empty_columns_on_list xs cols)
         | [] -> []
-      in {entries = add_empty_columns_on_list m.entries colsL; column_count = m.column_count + Array.length cols}
+      in tM (add_empty_columns_on_list m.entries colsL) (m.column_count + Array.length cols)
 
     let add_empty_columns m (cols : int enumerable) =
       timing_wrap "add_empty_cols" (add_empty_columns m) cols
