@@ -696,22 +696,22 @@ module SparseVector: AbstractVector =
         | x::xs -> 
           if fst x = n then dec_idx xs else 
           if fst x > n then dec_idx (x::xs) else
-          x::(remove_val_vec xs n)  
+            x::(remove_val_vec xs n)  
         | [] -> []
       in
       if n >= v.len then v else (*could be left out but maybe performance??*)
-      {entries = remove_val_vec v.entries n; len = v.len - 1}
+        {entries = remove_val_vec v.entries n; len = v.len - 1}
 
     let set_val v n m = 
       let rec set_val_vec v n m =
         match v with 
         | x::xs -> if fst x = n then (n, m)::xs else 
-            if fst x < n then x::(set_val_vec xs n m)
-            else v
+          if fst x < n then x::(set_val_vec xs n m)
+          else v
         | [] -> [] 
       in
-    if n >= v.len then failwith "Out of bounds" else
-    {entries=set_val_vec v.entries n m; len=v.len}
+      if n >= v.len then failwith "Out of bounds" else
+        {entries=set_val_vec v.entries n m; len=v.len}
 
     let set_val_with v n m =
       failwith "TODO"
@@ -734,7 +734,7 @@ module SparseVector: AbstractVector =
     let length v =
       failwith "TODO"
 
-      let map2 f v v' = 
+    let map2 f v v' = 
       failwith "TODO"
 
     let map2_with f v v' = 
@@ -821,7 +821,7 @@ module SparseMatrix: AbstractMatrix =
     } [@@deriving eq, ord, hash]
 
     let show x =
-      List.fold_left (^) " " (List.map (fun row -> V.show @@ V.of_sparse_list row x.column_count) x.entries)
+      List.fold_left (^) "" (List.map (fun row -> V.show @@ V.of_sparse_list row x.column_count) x.entries)
 
     let empty () =
       {entries = []; column_count = 0}
@@ -880,7 +880,7 @@ module SparseMatrix: AbstractMatrix =
       timing_wrap "add_empty_cols" (add_empty_columns m) cols
 
     let append_row m row  =
-      {entries = m.entries @ [V.to_sparse_list row]; column_count = m.column_count}
+      {entries = m.entries @ [V.to_sparse_list row]; column_count = V.length row}
 
     let get_row m n =
       V.of_sparse_list (List.nth m.entries n) m.column_count
@@ -939,7 +939,43 @@ module SparseMatrix: AbstractMatrix =
 
     let reduce_col_with m j  = timing_wrap "reduce_col_with" (reduce_col_with m) j
     let reduce_col m j =
-      failwith "TODO"
+      if is_empty m then m 
+      else
+        let rec find_pivot idx entries = (* Finds non-zero element in row j and return pair of row idx and the pivot value *)
+          match entries with
+          | [] -> None
+          | row :: rest -> match (List.assoc_opt j row) with
+            | None -> find_pivot (idx - 1) rest
+            | Some value -> Some (idx, value)
+        in
+        match (find_pivot (num_rows m - 1) (List.rev m.entries)) with
+        | None -> m (* column is already filled with zeroes *)
+        | Some (row_idx, pivot) -> 
+          let pivot_row = List.nth m.entries row_idx in
+          let entries' = 
+            List.mapi(fun idx row ->
+                if idx = row_idx then 
+                  [] 
+                else
+                  match (List.assoc_opt j row) with (* Find column element in row and, if it exists, subtract row *)
+                  | None -> row
+                  | Some row_value -> (let s = row_value /: pivot in
+                                       let rec merge acc piv_row cur_row = 
+                                         match piv_row, cur_row with 
+                                         | [], [] -> acc 
+                                         | [], (i, value) :: rest -> merge ((i, value) :: acc) piv_row rest
+                                         | (i, value) :: rest, [] -> let new_value = A.zero -: s *: value in merge ((i, new_value) :: acc) rest cur_row
+                                         | (i, piv_val) :: piv_rest, (j, cur_val) :: cur_rest -> 
+                                           if i = j then 
+                                             let new_value = cur_val -: s *: piv_val in merge ((i, new_value) :: acc) piv_rest cur_rest 
+                                           else if i < j then 
+                                             let new_value = A.zero -: s *: piv_val in merge ((i, new_value) :: acc) piv_rest cur_row
+                                           else 
+                                             merge ((j, cur_val) :: acc) piv_row cur_rest
+                                       in List.rev @@ merge [] pivot_row row)
+              ) m.entries
+          in 
+          {entries = entries'; column_count = m.column_count}
 
     let del_col m j =
       if is_empty m then m else
@@ -991,7 +1027,9 @@ module SparseMatrix: AbstractMatrix =
       {entries = new_entries; column_count = m.column_count}
 
     let remove_zero_rows m =
-      failwith "TODO"
+      let entries' = List.filter (fun row -> row <> []) m.entries in
+      if List.length entries' = 0 then empty() else
+        {entries = entries'; column_count = m.column_count}
 
     let rref_with m =
       failwith "Do not use!"
@@ -1002,7 +1040,7 @@ module SparseMatrix: AbstractMatrix =
       failwith "TODO"
 
 
-    let reduce_col_with_vec m j v =
+    let reduce_col_with_vec m j v = 
       failwith "TODO"
 
     let get_pivot_positions m = 
