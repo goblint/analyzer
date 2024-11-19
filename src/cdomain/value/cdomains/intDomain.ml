@@ -1206,8 +1206,8 @@ module BitfieldArith (Ints_t : IntOps.IntOps) = struct
   let top_bool = join one zero
 
   let bits_known (z,o) = Ints_t.logxor z o
-  let bits_unknown bf = Ints_t.lognot @@ known_bits bf
-  let bits_set bf = Ints_t.logand (snd bf) @@ known_bits bf
+  let bits_unknown bf = Ints_t.lognot @@ bits_known bf
+  let bits_set bf = Ints_t.logand (snd bf) @@ bits_known bf
   let bits_undef (z,o) = Ints_t.lognot (Ints_t.logxor z o)
 
   let is_const (z,o) = (Ints_t.logxor z o) = one_mask
@@ -1230,7 +1230,7 @@ module BitfieldArith (Ints_t : IntOps.IntOps) = struct
 
   let join (z1,o1) (z2,o2) = (Ints_t.logor z1 z2, Ints_t.logor o1 o2)
 
-  let make_bitone_msk pos = Ints_t.shift_left one pos
+  let make_bitone_msk pos = Ints_t.shift_left Ints_t.one pos
   let make_bitzero_msk pos = Ints_t.lognot @@ make_bitone_msk pos
   let make_lsb_bitmask pos = Ints_t.sub (make_bitone_msk pos) Ints_t.one
   let make_msb_bitmask pos = Ints_t.lognot @@ make_lsb_bitmask pos
@@ -1293,7 +1293,7 @@ module BitfieldArith (Ints_t : IntOps.IntOps) = struct
     
   let min ik (z,o) = 
     let unknownBitMask = bits_unknown (z,o) in
-    let impossibleBitMask = bits_undef in
+    let impossibleBitMask = bits_undef (z,o) in
     let guaranteedBits = bits_set (z,o) in
 
     if impossibleBitMask <> zero_mask then
