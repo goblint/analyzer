@@ -1521,7 +1521,7 @@ module BitFieldFunctor (Ints_t : IntOps.IntOps): SOverflow with type int_t = Int
     norm ik (!z3, !o3)
 
   let rec div ?no_ov ik (z1, o1) (z2, o2) =
-    let res = if BArith.is_constant (z1, o1) && BArith.is_constant (z2, o2) then (let tmp = Ints_t.div z1 z2 in (tmp, Ints_t.lognot tmp)) else top_of ik in
+    let res = if BArith.is_const (z1, o1) && BArith.is_const (z2, o2) then (let tmp = Ints_t.div z1 z2 in (tmp, Ints_t.lognot tmp)) else top_of ik in
     norm ik res
 
   let rem ik x y = 
