@@ -1,3 +1,4 @@
+//PARAM: --enable ana.int.bitfield
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
