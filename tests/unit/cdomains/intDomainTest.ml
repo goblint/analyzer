@@ -460,33 +460,26 @@ module I = IntDomain.SOverflowUnlifter (I)
     assert_bool "-13 ?= not (4 | 12)" (I.equal_to (of_int (-13)) (I.lognot ik b12) = `Top);
     assert_bool "-5 ?= not (4 | 12)" (I.equal_to (of_int (-5)) (I.lognot ik b12) = `Top)
 
+  (* TODO assumes join to be correct *)
+  let assert_shift shift symb ik a b res =
+    let lst2bf lst = List.map (fun x -> I.of_int ik @@ of_int x) lst |> List.fold_left (I.join ik) (I.bot ()) in
+    let stat1 = lst2bf a in
+    let stat2 = lst2bf b in
+    let eval = (shift ik stat1 stat2) in
+    let eq = lst2bf res in
+    let out_string = I.show stat1 ^ symb ^ I.show stat2 ^ " should be : \"" ^ I.show eq ^ "\" but was \"" ^ I.show eval  ^ "\"" in
+    OUnit2.assert_equal ~cmp:(fun x y -> Option.value ~default:false  @@ I.to_bool @@ I.eq ik x y) ~msg:out_string eq eval (* TODO msg *)
+
+  let assert_shift_left ik a b res = assert_shift I.shift_left "<<" ik a b res
+  let assert_shift_right ik a b res = assert_shift I.shift_right ">>" ik a b res
+
   let test_shift_left _ =
-    let stat1 = I.of_int ik (of_int 2) in
-    let stat2 = I.of_int ik (of_int 1) in
-    let eval = (I.shift_left ik stat1 stat2) in
-    let eq = (of_int(4)) in
-    assert_bool ("2 << 1 should be: \"4\" but was: \"" ^ I.show eval ^ "\"") (I.equal_to eq eval = `Eq);
-
-    let stat1 = I.of_int ik (of_int (-2)) in
-    let stat2 = I.of_int ik (of_int 1) in
-    let eval = (I.shift_left ik stat1 stat2) in
-    let eq = (of_int(-4)) in
-    assert_bool ("2 << 1 should be: \"4\" but was: \"" ^ I.show eval ^ "\"") (I.equal_to eq eval = `Eq)
-
+    assert_shift_left ik [2] [1] [4];
+    assert_shift_left ik [-2] [1] [-4]
 
   let test_shift_right _ =
-    let stat1 = I.of_int ik (of_int (4)) in
-    let stat2 = I.of_int ik (of_int 1) in
-    let eval = (I.shift_right ik stat1 stat2) in
-    let eq = (of_int (2)) in
-    assert_bool ("4 >> 1 should be: \"2\" but was: \"" ^ I.show eval ^ "\"" ^ I.show stat1) (I.equal_to eq eval = `Eq);
-
-    let stat1 = I.of_int ik (of_int (-4)) in
-    let stat2 = I.of_int ik (of_int 1) in
-    let eval = (I.shift_right ik stat1 stat2) in
-    let eq = (of_int (-2)) in
-    assert_bool ("4 >> 1 should be: \"2\" but was: \"" ^ I.show eval ^ "\"" ^ I.show stat1) (I.equal_to eq eval = `Eq)
-
+    assert_shift_right ik [4] [1] [2];
+    assert_shift_right ik [-4] [1] [-2]
 
   (* Arith *)
 
