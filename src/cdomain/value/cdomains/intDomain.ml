@@ -1340,6 +1340,9 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): SOverflow with type int_t = Int
   let range ik bf = (BArith.min ik bf, BArith.max ik bf)
 
   let norm ?(suppress_ovwarn=false) ik (z,o) = 
+    if BArith.is_undef (z,o) then 
+      ((z,o), {underflow=false; overflow=false})
+    else
     let (min_ik, max_ik) = Size.range ik in
 
     let (min,max) = range ik (z,o) in
@@ -1399,9 +1402,9 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): SOverflow with type int_t = Int
   let of_interval ?(suppress_ovwarn=false) ik (x,y) =
     (* naive implentation -> horrible O(n) runtime *)
     let (min_ik, max_ik) = Size.range ik in
-    let current = ref (min_ik) in
+    let current = ref (Z.of_int (Ints_t.to_int x)) in
     let bf = ref (bot ()) in
-    while Z.leq !current max_ik do
+    while Z.leq !current (Z.of_int (Ints_t.to_int y)) do
       bf := BArith.join !bf (BArith.of_int (Ints_t.of_bigint !current));
       current := Z.add !current Z.one
     done;
@@ -1423,14 +1426,16 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): SOverflow with type int_t = Int
     | None -> top_of ik
     | Some x -> of_bool ik (f x)
 
-  let log2 f ik i1 i2 = match (to_bool i1, to_bool i2) with
-    | None, None -> top_of ik
-    | None, Some x | Some x, None -> of_bool ik x
+  let log2 f ~annihilator ik i1 i2 = match to_bool i1, to_bool i2 with
+    | Some x, _ when x = annihilator -> of_bool ik annihilator
+    | _, Some y when y = annihilator -> of_bool ik annihilator
     | Some x, Some y -> of_bool ik (f x y)
-  let c_logor ik i1 i2 = log2 (||) ik i1 i2
+    | _              -> top_of ik
 
-  let c_logand ik i1 i2 = log2 (&&) ik i1 i2
+  let c_logor = log2 (||) ~annihilator:true
 
+  let c_logand = log2 (&&) ~annihilator:false
+      
   let c_lognot ik i1 = log1 not ik i1
 
 
