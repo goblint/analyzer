@@ -674,6 +674,7 @@ module SparseVector: AbstractVector =
       len: int
     }[@@deriving eq, ord, hash]
 
+    let tV e l = {entries=e; len=l}
     let show v = 
       failwith "TODO"
 
@@ -721,6 +722,7 @@ module SparseVector: AbstractVector =
     
     let mul_vec_scal v s = 
       {entries= (List.map (fun (idx, va) -> (idx, va *: s)) v.entries); len=v.len}
+      
     
     let add_vec v1 v2 = 
       let rec add_vec m s =
