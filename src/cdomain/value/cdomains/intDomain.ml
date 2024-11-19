@@ -1086,11 +1086,10 @@ end
 (* Bitfield arithmetic, without any overflow handling etc. *)
 module BitfieldArith (Ints_t : IntOps.IntOps) = struct
 
-  let of_int x = (Ints_t.lognot x, x) 
-
-
   let zero_mask = Ints_t.zero
   let one_mask = Ints_t.lognot zero_mask
+
+  let of_int x = (Ints_t.lognot x, x) 
 
   let join (z1,o1) (z2,o2) = (Ints_t.logor z1 z2, Ints_t.logor o1 o2)
   let meet (z1,o1) (z2,o2) = (Ints_t.logand z1 z2, Ints_t.logand o1 o2)
@@ -1210,11 +1209,27 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): SOverflow with type int_t = Int
 
   module BArith = BitfieldArith (Ints_t)
 
+  let top () = (BArith.one_mask, BArith.one_mask)
+  let bot () = (BArith.zero_mask, BArith.zero_mask)
+  let top_of ik = top ()
+  let bot_of ik = bot ()
+
+  let show t = 
+    if t = bot () then "bot" else
+    if t = top () then "top" else
+      let (z,o) = t in
+      if BArith.is_const t then 
+        Format.sprintf "{%08X, %08X} (unique: %d)" (Ints_t.to_int z) (Ints_t.to_int o) (Ints_t.to_int o)
+      else 
+        Format.sprintf "{%08X, %08X}" (Ints_t.to_int z) (Ints_t.to_int o)
+
+  include Std (struct type nonrec t = t let name = name let top_of = top_of let bot_of = bot_of let show = show let equal = equal end)
+
   let range ik bf = (BArith.min ik bf, BArith.max ik bf)
 
   let norm ?(suppress_ovwarn=false) ik (z,o) = 
     if BArith.is_invalid (z,o) then 
-      ((z,o), {underflow=false; overflow=false})
+      (bot (), {underflow=false; overflow=false})
     else
       let (min_ik, max_ik) = Size.range ik in
 
@@ -1235,21 +1250,6 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): SOverflow with type int_t = Int
       if suppress_ovwarn then (new_bitfield, {underflow=false; overflow=false})
       else (new_bitfield, {underflow=underflow; overflow=overflow})
 
-  let top () = (BArith.one_mask, BArith.one_mask)
-  let bot () = (BArith.zero_mask, BArith.zero_mask)
-  let top_of ik = (norm ik (top ())) |> fst
-  let bot_of ik = bot ()
-
-  let show t = 
-    if t = bot () then "bot" else
-    if t = top () then "top" else
-      let (z,o) = t in
-      if BArith.is_const t then 
-        Format.sprintf "{%08X, %08X} (unique: %d)" (Ints_t.to_int z) (Ints_t.to_int o) (Ints_t.to_int o)
-      else 
-        Format.sprintf "{%08X, %08X}" (Ints_t.to_int z) (Ints_t.to_int o)
-
-  include Std (struct type nonrec t = t let name = name let top_of = top_of let bot_of = bot_of let show = show let equal = equal end)
 
   let join ik b1 b2 = (norm ik @@ (BArith.join b1 b2) ) |> fst
 
@@ -1473,8 +1473,6 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): SOverflow with type int_t = Int
       (norm ~suppress_ovwarn ik @@ (top ()))
 
 
-
-
   let refine_with_congruence ik bf ((cong) : (int_t * int_t ) option) : t =
     let is_power_of_two x = Ints_t.(logand x (sub x one) = zero) in
     match bf, cong with
@@ -1500,12 +1498,21 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): SOverflow with type int_t = Int
   let arbitrary ik = 
     let open QCheck.Iter in
     let int_arb = QCheck.map ~rev:Ints_t.to_int64 Ints_t.of_int64 GobQCheck.Arbitrary.int64 in
-    (*let pair_arb = QCheck.pair int_arb int_arb in*)
-    let shrink = function
-      | (z, o) -> (GobQCheck.shrink int_arb z >|= fun z -> (z, o)) <+> (GobQCheck.shrink int_arb o >|= fun o -> (z, o))
+    let pair_arb = QCheck.pair int_arb int_arb in
+    let shrink (z, o) =
+      (GobQCheck.shrink pair_arb (z, o) 
+       >|= (fun (new_z, new_o) -> 
+           (* Randomly flip bits to be opposite *)
+           let random_mask = Ints_t.of_int64 (Random.int64 (Int64.of_int (Size.bits ik |> snd))) in
+           let unsure_bitmask= Ints_t.logand new_z new_o in
+           let canceled_bits=Ints_t.logand unsure_bitmask random_mask in
+           let flipped_z = Ints_t.logor new_z canceled_bits in
+           let flipped_o = Ints_t.logand new_o (Ints_t.lognot canceled_bits) in
+           norm ik (flipped_z, flipped_o) |> fst
+         ))
     in
-    QCheck.(set_shrink shrink @@ set_print show @@ map (fun i -> of_int ik i |> fst ) int_arb)
-  (* QCheck.(set_shrink shrink @@ set_print show @@ map (fun (i1,i2) -> norm ik (join ik (fst (of_int ik i1)) (fst (of_int ik i2))) |> fst ) pair_arb)*)
+
+    QCheck.(set_shrink shrink @@ set_print show @@ map (fun (i1,i2) -> norm ik (i1,i2) |> fst ) pair_arb)
 
   let project ik p t = t
 end
