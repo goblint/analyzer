@@ -1226,8 +1226,6 @@ module BitfieldArith (Ints_t : IntOps.IntOps) = struct
 
   let logor (z1,o1)  (z2,o2) = (Ints_t.logand z1 z2, Ints_t.logor o1 o2)
 
-  let join (z1,o1) (z2,o2) = (Ints_t.logor z1 z2, Ints_t.logor o1 o2)
-
   let make_bitone_msk pos = Ints_t.shift_left Ints_t.one pos
   let make_bitzero_msk pos = Ints_t.lognot @@ make_bitone_msk pos
   let make_lsb_bitmask pos = Ints_t.sub (make_bitone_msk pos) Ints_t.one
@@ -1289,35 +1287,47 @@ module BitfieldArith (Ints_t : IntOps.IntOps) = struct
     if is_const n_bf then Some (shift_left bf (Ints_t.to_int @@ snd n_bf))
     else Option.map (fun c_lst -> List.map (shift_left bf) c_lst |> List.fold_left join zero) (break_down ik n_bf)
     
-  let min ik (z,o) = 
-    let unknownBitMask = bits_unknown (z,o) in
-    let impossibleBitMask = bits_undef (z,o) in
-    let guaranteedBits = bits_set (z,o) in
-
-    if impossibleBitMask <> zero_mask then
-      failwith "Impossible bitfield"
-    else
-
-    if isSigned ik then
-      let signBitMask = make_bitone_msk (Size.bit ik - 1) in
-      let worstPossibleUnknownBits = Ints_t.logand unknownBitMask signBitMask in
-      Size.cast ik (Ints_t.to_bigint (Ints_t.logor guaranteedBits worstPossibleUnknownBits))
-    else
-      Size.cast ik (Ints_t.to_bigint guaranteedBits)
-
-  let max ik (z,o) =
-    let unknownBitMask = bits_unknown (z,o) in
-    let impossibleBitMask = bits_undef (z,o) in
-    let guaranteedBits = bits_set (z,o) in
-
-    if impossibleBitMask <> zero_mask then
-      failwith "Impossible bitfield"
-    else
-
-    let (_,fullMask) = Size.range ik in
-    let worstPossibleUnknownBits = Ints_t.logand unknownBitMask (Ints_t.of_bigint fullMask) in (* Necessary? *)
-    Size.cast ik (Ints_t.to_bigint (Ints_t.logor guaranteedBits worstPossibleUnknownBits))
-
+    let min ik (z,o) = 
+      let knownBitMask = Ints_t.logxor z o in
+      let unknownBitMask = Ints_t.lognot knownBitMask in
+      let impossibleBitMask = Ints_t.lognot (Ints_t.logor z o) in
+      let guaranteedBits = Ints_t.logand o knownBitMask in
+  
+      if impossibleBitMask <> zero_mask then
+        failwith "Impossible bitfield"
+      else
+  
+      if isSigned ik then
+        let signBitMask = Ints_t.shift_left Ints_t.one (Size.bit ik - 1) in
+        let worstPossibleUnknownBits = Ints_t.logand unknownBitMask signBitMask in
+        Size.cast ik (Ints_t.to_bigint (Ints_t.logor guaranteedBits worstPossibleUnknownBits))
+      else
+        let worstPossibleUnknownBits = Ints_t.logand unknownBitMask zero_mask in
+        Size.cast ik (Ints_t.to_bigint (Ints_t.logor guaranteedBits worstPossibleUnknownBits))
+  
+    let max ik (z,o) =
+      let knownBitMask = Ints_t.logxor z o in
+      let unknownBitMask = Ints_t.lognot knownBitMask in
+      let impossibleBitMask = Ints_t.lognot (Ints_t.logor z o) in
+      let guaranteedBits = Ints_t.logand o knownBitMask in
+  
+      if impossibleBitMask <> zero_mask then
+        failwith "Impossible bitfield"
+      else
+  
+      let (_,fullMask) = Size.range ik in
+      let worstPossibleUnknownBits = Ints_t.logand unknownBitMask (Ints_t.of_bigint fullMask) in
+  
+      if isSigned ik then
+        Size.cast ik (Ints_t.to_bigint (Ints_t.logor guaranteedBits worstPossibleUnknownBits))
+      else
+        Size.cast ik (Ints_t.to_bigint (Ints_t.logor guaranteedBits worstPossibleUnknownBits))
+  
+  
+    let one = of_int Ints_t.one
+    let zero = of_int Ints_t.zero
+    let top_bool = join one zero
+  
 end
 
 module BitFieldFunctor (Ints_t : IntOps.IntOps): SOverflow with type int_t = Ints_t.t and type t = (Ints_t.t * Ints_t.t) = struct
