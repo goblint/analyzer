@@ -1211,7 +1211,7 @@ module BitfieldArith (Ints_t : IntOps.IntOps) = struct
   let bits_undef (z,o) = Ints_t.lognot (Ints_t.logxor z o)
 
   let is_const (z,o) = (Ints_t.logxor z o) = one_mask
-  let is_invalid (z,o) = Ints_t.compare (Ints_t.lognot (Ints_t.logand z o)) Ints_t.zero != 0
+  let is_invalid (z,o) = Ints_t.compare (Ints_t.lognot (Ints_t.logor z o)) Ints_t.zero != 0
 
   let nabla x y= if x = Ints_t.logor x y then x else one_mask
 
@@ -1513,13 +1513,13 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): SOverflow with type int_t = Int
     let accv = ref BArith.zero_mask in 
     let accm = ref BArith.zero_mask in 
     let size = if isSigned ik then Size.bit ik - 1 else Size.bit ik in
-    let bitmask = Ints_t.of_int(Z.to_int(Z.lognot (fst (Size.range ik)))) in
+    let bitmask = Ints_t.of_bigint (fst (Size.range ik)) in
     let signBitUndef1 = Ints_t.logand (Ints_t.logand z1 o1) bitmask in
     let signBitUndef2 = Ints_t.logand (Ints_t.logand z2 o2) bitmask in
     let signBitUndef = Ints_t.logor signBitUndef1 signBitUndef2 in
     let signBitDefO = Ints_t.logand (Ints_t.logxor o1 o2) bitmask in
     let signBitDefZ = Ints_t.logand (Ints_t.lognot (Ints_t.logxor o1 o2)) bitmask in
-    for i = size downto 0 do             
+    for i = size downto 0 do 
       (if Ints_t.logand !pm Ints_t.one == Ints_t.one then 
         accm := snd(add_paper Ints_t.zero !accm Ints_t.zero (Ints_t.logor !qv !qm))
       else if Ints_t.logand !pv Ints_t.one == Ints_t.one then
@@ -1530,9 +1530,10 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): SOverflow with type int_t = Int
       pm := Ints_t.shift_right !pm 1;
       qv := Ints_t.shift_left !qv 1;
       qm := Ints_t.shift_left !qm 1;
-    done;   
-    let o3 = ref(Ints_t.logor !accv !accm) in 
-    let z3 = ref(Ints_t.logor (Ints_t.lognot !accv) !accm) in
+    done; 
+    let (rv, rm) = add_paper !accv Ints_t.zero Ints_t.zero !accm in 
+    let o3 = ref(Ints_t.logor rv rm) in 
+    let z3 = ref(Ints_t.logor (Ints_t.lognot rv) rm) in
     if isSigned ik then z3 := Ints_t.logor signBitUndef (Ints_t.logor signBitDefZ !z3);
     if isSigned ik then o3 := Ints_t.logor signBitUndef (Ints_t.logor signBitDefO !o3);
     norm ik (!z3, !o3)
