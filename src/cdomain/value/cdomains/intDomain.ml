@@ -1465,11 +1465,7 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): SOverflow with type int_t = Int
   of Vishwanathan et al.
   *)
 
-  let add ?no_ov ik (z1, o1) (z2, o2) =
-    let pv = Ints_t.logand o1 (Ints_t.lognot z1) in
-    let pm = Ints_t.logand o1 z1 in
-    let qv = Ints_t.logand o2 (Ints_t.lognot z2) in
-    let qm = Ints_t.logand o2 z2 in
+  let add_paper pv pm qv qm = 
     let sv = Ints_t.add pv qv in
     let sm = Ints_t.add pm qm in
     let sigma = Ints_t.add sv sm in
@@ -1477,6 +1473,14 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): SOverflow with type int_t = Int
     let mu = Ints_t.logor (Ints_t.logor pm qm) chi in
     let rv = Ints_t.logand sv (Ints_t.lognot mu) in
     let rm = mu in 
+    (rv, rm)
+
+  let add ?no_ov ik (z1, o1) (z2, o2) =
+    let pv = Ints_t.logand o1 (Ints_t.lognot z1) in
+    let pm = Ints_t.logand o1 z1 in
+    let qv = Ints_t.logand o2 (Ints_t.lognot z2) in
+    let qm = Ints_t.logand o2 z2 in
+    let (rv, rm) = add_paper pv pm qv qm in 
     let o3 = Ints_t.logor rv rm in 
     let z3 = Ints_t.logor (Ints_t.lognot rv) rm in
     norm ik (z3, o3)
@@ -1502,42 +1506,39 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): SOverflow with type int_t = Int
     sub ?no_ov ik BArith.zero x
 
   let mul ?no_ov ik (z1, o1) (z2, o2) =
-    let z1 = ref z1 in
-    let o1 = ref o1 in
-    let z2 = ref z2 in 
-    let o2 = ref o2 in
-    let z3 = ref BArith.one_mask in 
-    let o3 = ref BArith.zero_mask in 
+    let pm = ref (Ints_t.logand z1 o1) in
+    let pv = ref (Ints_t.logand o1 (Ints_t.lognot z1)) in 
+    let qm = ref (Ints_t.logand z2 o2) in
+    let qv = ref (Ints_t.logand o2 (Ints_t.lognot z2)) in 
+    let accv = ref BArith.zero_mask in 
+    let accm = ref BArith.zero_mask in 
     let size = if isSigned ik then Size.bit ik - 1 else Size.bit ik in
     let bitmask = Ints_t.of_int(Z.to_int(Z.lognot (fst (Size.range ik)))) in
-    let signBitUndef1 = Ints_t.logand (Ints_t.logand !z1 !o1) bitmask in
-    let signBitUndef2 = Ints_t.logand (Ints_t.logand !z2 !o2) bitmask in
+    let signBitUndef1 = Ints_t.logand (Ints_t.logand z1 o1) bitmask in
+    let signBitUndef2 = Ints_t.logand (Ints_t.logand z2 o2) bitmask in
     let signBitUndef = Ints_t.logor signBitUndef1 signBitUndef2 in
-    let signBitDefO = Ints_t.logand (Ints_t.logxor !o1 !o2) bitmask in
-    let signBitDefZ = Ints_t.logand (Ints_t.lognot (Ints_t.logxor !o1 !o2)) bitmask in
+    let signBitDefO = Ints_t.logand (Ints_t.logxor o1 o2) bitmask in
+    let signBitDefZ = Ints_t.logand (Ints_t.lognot (Ints_t.logxor o1 o2)) bitmask in
     for i = size downto 0 do             
-      (if Ints_t.logand !o1 Ints_t.one == Ints_t.one then 
-        if Ints_t.logand !z1 Ints_t.one == Ints_t.one then 
-          let tmp = Ints_t.add (Ints_t.logand !z3 !o3) !o2 in 
-          z3 := Ints_t.logor !z3 tmp;
-          o3 := Ints_t.logor !o3 tmp
-        else
-          let tmp = fst (add ik (!z3, !o3) (!z2, !o2)) in 
-          z3 := fst tmp;
-          o3 := snd tmp;);
+      (if Ints_t.logand !pm Ints_t.one == Ints_t.one then 
+        accm := snd(add_paper Ints_t.zero !accm Ints_t.zero (Ints_t.logor !qv !qm))
+      else if Ints_t.logand !pv Ints_t.one == Ints_t.one then
+        accv := fst(add_paper !accv Ints_t.zero !qv Ints_t.zero);
+        accm := snd(add_paper Ints_t.zero !accm Ints_t.zero !qm));
 
-      z1 := Ints_t.shift_right !z1 1;
-      o1 := Ints_t.shift_right !o1 1;
-      z2 := Ints_t.shift_left !z2 1;
-      o2 := Ints_t.shift_left !o2 1;
+      pv := Ints_t.shift_right !pv 1;
+      pm := Ints_t.shift_right !pm 1;
+      qv := Ints_t.shift_left !qv 1;
+      qm := Ints_t.shift_left !qm 1;
     done;   
+    let o3 = ref(Ints_t.logor !accv !accm) in 
+    let z3 = ref(Ints_t.logor (Ints_t.lognot !accv) !accm) in
     if isSigned ik then z3 := Ints_t.logor signBitUndef (Ints_t.logor signBitDefZ !z3);
     if isSigned ik then o3 := Ints_t.logor signBitUndef (Ints_t.logor signBitDefO !o3);
-
     norm ik (!z3, !o3)
 
   let rec div ?no_ov ik (z1, o1) (z2, o2) =
-    let res = if BArith.is_const (z1, o1) && BArith.is_const (z2, o2) then (let tmp = Ints_t.div z1 z2 in (tmp, Ints_t.lognot tmp)) else top_of ik in
+    let res = if BArith.is_const (z1, o1) && BArith.is_const (z2, o2) then (let tmp = Ints_t.div z1 z2 in (Ints_t.lognot tmp, tmp)) else top_of ik in
     norm ik res
 
   let rem ik x y = 
