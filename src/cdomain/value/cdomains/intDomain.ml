@@ -1282,7 +1282,7 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): SOverflow with type int_t = Int
          let newo = Ints_t.logor (Ints_t.logand o (Ints_t.of_bigint max_ik)) (Ints_t.mul (Ints_t.of_bigint min_ik) (get_bit o (Size.bit ik))) in
          (newz,newo)
        else
-         let newz = Ints_t.logor z (Ints_t.neg (Ints_t.of_bigint max_ik)) in
+         let newz = Ints_t.logor z (Ints_t.lognot (Ints_t.of_bigint max_ik)) in
          let newo = Ints_t.logand o (Ints_t.of_bigint max_ik) in
          (newz,newo))
     in
@@ -1292,7 +1292,7 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): SOverflow with type int_t = Int
   let top () = (BArith.one_mask, BArith.one_mask)
   let bot () = (BArith.zero_mask, BArith.zero_mask)
   let top_of ik = (norm ik (top ())) |> fst
-  let bot_of ik = (norm ik (bot ())) |> fst
+  let bot_of ik = bot ()
 
   let show t = 
     if t = bot () then "bot" else
