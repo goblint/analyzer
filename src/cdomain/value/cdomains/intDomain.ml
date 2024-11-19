@@ -1124,7 +1124,7 @@ module BitfieldArith (Ints_t : IntOps.IntOps) = struct
   let make_lsb_bitmask pos = Ints_t.sub (make_bitone_msk pos) Ints_t.one
   let make_msb_bitmask pos = Ints_t.lognot @@ make_lsb_bitmask pos
 
-  let get_bit bf pos = Ints_t.logand Ints_t.one @@ Ints_t.shift_right bf (pos-1)
+  let get_bit bf pos = Ints_t.logand Ints_t.one @@ Ints_t.shift_right bf pos
   let set_bit ?(zero=false) bf pos =
     if zero then
       Ints_t.logand bf @@ make_bitzero_msk pos

@@ -475,11 +475,15 @@ struct
 
   let test_shift_left _ =
     assert_shift_left ik [2] [1] [4];
-    assert_shift_left ik [-2] [1] [-4]
+    assert_shift_left ik [-2] [1] [-4];
+    assert_shift_left ik [1; 8; 16] [1; 2] [2; 4; 16; 32; 64];
+    assert_shift_left ik [1; 16] [28; 31; 32; 33] [0; 1 lsr 28; 1 lsr 32; 1 lsr 32]
 
   let test_shift_right _ =
     assert_shift_right ik [4] [1] [2];
-    assert_shift_right ik [-4] [1] [-2]
+    assert_shift_right ik [-4] [1] [-2];
+    assert_shift_right ik [1; 8; 16] [1; 2] [0; 2; 4; 8];
+    assert_shift_right ik [1; 16; Int.max_int] [16; 32; 64; 128] [0; 16; Sys.word_size] (* TODO *)
 
   (* Arith *)
 
