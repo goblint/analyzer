@@ -408,6 +408,8 @@ module Interval32 :Y with (* type t = (IntOps.Int64Ops.t * IntOps.Int64Ops.t) op
 
 module Interval : SOverflow with type int_t = Z.t
 
+module Bitfield : SOverflow with type int_t = Z.t
+
 module IntervalSet : SOverflow with type int_t = Z.t
 
 module Congruence : S with type int_t = Z.t
