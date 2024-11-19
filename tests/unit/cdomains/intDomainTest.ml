@@ -461,10 +461,32 @@ module I = IntDomain.SOverflowUnlifter (I)
     assert_bool "-5 ?= not (4 | 12)" (I.equal_to (of_int (-5)) (I.lognot ik b12) = `Top)
 
   let test_shift_left _ =
-    ()
+    let stat1 = I.of_int ik (of_int 2) in
+    let stat2 = I.of_int ik (of_int 1) in
+    let eval = (I.shift_left ik stat1 stat2) in
+    let eq = (of_int(4)) in
+    assert_bool ("2 << 1 should be: \"4\" but was: \"" ^ I.show eval ^ "\"") (I.equal_to eq eval = `Eq);
+
+    let stat1 = I.of_int ik (of_int (-2)) in
+    let stat2 = I.of_int ik (of_int 1) in
+    let eval = (I.shift_left ik stat1 stat2) in
+    let eq = (of_int(-4)) in
+    assert_bool ("2 << 1 should be: \"4\" but was: \"" ^ I.show eval ^ "\"") (I.equal_to eq eval = `Eq)
+
 
   let test_shift_right _ =
-    ()
+    let stat1 = I.of_int ik (of_int (4)) in
+    let stat2 = I.of_int ik (of_int 1) in
+    let eval = (I.shift_right ik stat1 stat2) in
+    let eq = (of_int (2)) in
+    assert_bool ("4 >> 1 should be: \"2\" but was: \"" ^ I.show eval ^ "\"" ^ I.show stat1) (I.equal_to eq eval = `Eq);
+
+    let stat1 = I.of_int ik (of_int (-4)) in
+    let stat2 = I.of_int ik (of_int 1) in
+    let eval = (I.shift_right ik stat1 stat2) in
+    let eq = (of_int (-2)) in
+    assert_bool ("4 >> 1 should be: \"2\" but was: \"" ^ I.show eval ^ "\"" ^ I.show stat1) (I.equal_to eq eval = `Eq)
+
 
   (* Arith *)
 
