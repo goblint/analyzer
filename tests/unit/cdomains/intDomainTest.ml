@@ -250,7 +250,440 @@ struct
   ]
 end
 
+module BitFieldTest (I : IntDomain.SOverflow with type int_t = Z.t) =
+struct
+module I = IntDomain.SOverflowUnlifter (I)
+
+  let ik = Cil.IInt
+
+  let assert_equal x y =
+    OUnit.assert_equal ~printer:I.show x y
+
+
+  let test_of_int_to_int _ =
+    let b1 = I.of_int ik (of_int 17) in
+    OUnit.assert_equal 17 (I.to_int b1 |> Option.get |> to_int)
+
+  let test_to_int_of_int _ =
+    OUnit.assert_equal None (I.to_int (I.bot_of ik));
+    OUnit.assert_equal (of_int 13) (I.to_int (I.of_int ik (of_int 13)) |> Option.get);
+    OUnit.assert_equal None (I.to_int (I.top_of ik));
+    OUnit.assert_equal None (I.to_int (I.join ik (I.of_int ik (of_int 13)) (I.of_int ik (of_int 14))))
+
+  let test_equal_to _ =
+    let b1 = I.join ik (I.of_int ik (of_int 4)) (I.of_int ik (of_int 2)) in
+    OUnit.assert_equal `Top (I.equal_to (Z.of_int 4) b1);
+    OUnit.assert_equal `Top (I.equal_to (Z.of_int 2) b1);
+
+    OUnit.assert_equal `Top (I.equal_to (Z.of_int 0) b1);
+    OUnit.assert_equal `Top (I.equal_to (Z.of_int 6) b1);
+
+    OUnit.assert_equal `Neq (I.equal_to (Z.of_int 1) b1);
+    OUnit.assert_equal `Neq (I.equal_to (Z.of_int 3) b1);
+    OUnit.assert_equal `Neq (I.equal_to (Z.of_int 5) b1);
+
+    let b2 =I.of_int ik (of_int 123) in
+    OUnit.assert_equal `Eq (I.equal_to (Z.of_int 123) b2)
+
+  let test_join _ =
+    let b1 = I.of_int ik (of_int 9) in
+    let b2 = I.of_int ik (of_int 2) in
+    let bjoin = I.join ik b1 b2 in
+    assert_bool "num1 leq join" (I.leq b1 bjoin);
+    assert_bool "num2 leq join" (I.leq b2 bjoin);
+
+
+    OUnit.assert_equal `Top (I.equal_to (Z.of_int 9) bjoin);
+    OUnit.assert_equal `Top (I.equal_to (Z.of_int 2) bjoin);
+    OUnit.assert_equal `Top (I.equal_to (Z.of_int 11) bjoin)
+
+  let test_meet _ =
+    let b1 = I.of_int ik (of_int 5) in
+    let b2 = I.of_int ik (of_int 3) in
+    let bf12 = I.join ik b1 b2 in
+
+    let b3 = I.of_int ik (of_int 7) in
+    let b4 = I.of_int ik (of_int 4) in
+    let bf34 = I.join ik b3 b4 in
+
+    let bmeet2 = I.meet ik bf12 bf34 in
+
+    OUnit.assert_equal `Top (I.equal_to (Z.of_int 5) bmeet2);
+    OUnit.assert_equal `Top (I.equal_to (Z.of_int 7) bmeet2)
+
+  let test_leq_1 _ =
+    let b1 = I.of_int ik (of_int 13) in
+    let b2 = I.of_int ik (of_int 5) in
+
+    let bjoin = I.join ik b1 b2 in
+
+    OUnit.assert_bool "13 leq 13" (I.leq b1 b1);
+    OUnit.assert_bool "5 leq 5" (I.leq b2 b2);
+
+    OUnit.assert_bool "5 leq 13" (I.leq b2 bjoin);
+    OUnit.assert_bool "not 13 leq 5" (not (I.leq bjoin b2))
+
+  let test_leq_2 _ =
+    let b1 = I.of_int ik (of_int 7) in
+
+    OUnit.assert_bool "bot leq 7" (I.leq (I.bot_of ik) b1);
+    OUnit.assert_bool "7 leq top" (I.leq b1 (I.top_of ik))
+
+  let test_wrap_1 _ =
+    let z = of_int 31376 in
+    let b_uint8 = I.of_int IChar z in
+    let b_sint8 = I.of_int ISChar z in
+    let b_uint16 = I.of_int IUShort z in
+    let b_sint16 = I.of_int IShort z in
+
+    (* See https://www.simonv.fr/TypesConvert/?integers *)
+    assert_equal (I.of_int IChar (of_int 144)) b_uint8;
+    assert_equal (I.of_int ISChar (of_int (-112))) b_sint8;
+    assert_equal (I.of_int IUShort (of_int 31376)) b_uint16;
+    assert_equal (I.of_int IShort (of_int 31376)) b_sint16
+
+  let test_wrap_2 _ =
+    let z1 = of_int 30867 in
+    let z2 = of_int 30870 in
+    let join_cast_unsigned = I.join IChar (I.of_int IChar z1) (I.of_int IChar z2) in
+
+    let expected_unsigned = I.join IChar (I.of_int IChar (of_int 147)) (I.of_int IChar (of_int 150)) in
+
+    let expected_signed = I.join IChar (I.of_int IChar (of_int (-106))) (I.of_int IChar (of_int (-109))) in
+
+    assert_equal expected_unsigned join_cast_unsigned;
+    assert_equal expected_signed join_cast_unsigned
+
+  let test_widen_1 _ =
+    let b1 = I.of_int ik (of_int 3) in
+    let b2 = I.of_int ik (of_int 17) in
+
+    (* widen both masks *)
+    assert_equal (I.top_of ik) (I.widen ik b1 b2);
+
+    (* no widening *)
+    let bjoin = I.join ik b1 b2 in
+    assert_equal bjoin (I.widen ik bjoin b1)
+
+
+  let test_widen_2 _ =
+    let b1 = I.of_int ik (of_int 123613) in
+    let b2 = I.of_int ik (of_int 613261) in
+
+    (* no widening needed *)
+    assert_bool "join leq widen" (I.leq (I.join ik b1 b2) (I.widen ik b1 b2))
+
+  let test_of_interval _ =
+    let intvl= (of_int 3, of_int 17) in
+    let b1 = I.of_interval ik intvl in
+
+    for i = 3 to 17 do
+      assert_bool (string_of_int i) (I.equal_to (of_int i) b1 = `Top)
+    done
+
+  let test_of_bool _ =
+    let b1 = I.of_bool ik true in
+    let b2 = I.of_bool ik false in
+
+    assert_bool "true" (I.equal_to (of_int 1) b1 = `Eq);
+    assert_bool "false" (I.equal_to (of_int 0) b2 = `Eq)
+
+  let test_to_bool _ =
+    let b1 = I.of_int ik (of_int 3) in
+    let b2 = I.of_int ik (of_int (-6)) in
+    let b3 = I.of_int ik (of_int 0) in
+
+    let b12 = I.join ik b1 b2 in
+    let b13 = I.join ik b1 b3 in
+    let b23 = I.join ik b2 b3 in
+
+    assert_bool "3" (I.to_bool b1 = Some true);
+    assert_bool "-6" (I.to_bool b2 = Some true);
+    assert_bool "0" (I.to_bool b3 = Some false);
+
+    assert_bool "3 | -6" (I.to_bool b12 = Some true);
+    assert_bool "3 | 0" (I.to_bool b13 = None);
+    assert_bool "-6 | 0" (I.to_bool b23 = None)
+
+  let test_cast_to _ =
+    let b1 = I.of_int ik (of_int 1234) in
+    
+    assert_equal (I.of_int IChar (of_int (210))) (I.cast_to IChar b1);
+    assert_equal (I.of_int ISChar (of_int (-46))) (I.cast_to ISChar b1);
+
+    assert_equal (I.of_int IUInt128 (of_int 1234)) (I.cast_to IUInt128 b1)
+
+  (* Bitwise  *)
+
+  let test_logxor _ =
+    let b1 = I.of_int ik (of_int 5) in
+    let b2 = I.of_int ik (of_int 17) in
+
+    assert_equal (I.of_int ik (of_int 20)) (I.logxor ik b1 b2);
+
+    let b12 = I.join ik b1 b2 in
+    let b3 = I.of_int ik (of_int 13) in
+    assert_bool "8 ?= 13 xor (5 | 17)" (I.equal_to (of_int 8) (I.logxor ik b12 b3) = `Top);
+    assert_bool "28 ?= 13 xor (5 | 17)" (I.equal_to (of_int 28) (I.logxor ik b12 b3) = `Top)
+
+  let test_logand _ =
+    let b1 = I.of_int ik (of_int 7) in
+    let b2 = I.of_int ik (of_int 13) in
+
+    assert_equal (I.of_int ik (of_int 5)) (I.logand ik b1 b2);
+
+    let b12 = I.join ik b1 b2 in
+    let b3 = I.of_int ik (of_int 12) in
+    assert_bool "4 ?= 12 and (7 | 12)" (I.equal_to (of_int 4) (I.logand ik b12 b3) = `Top);
+    assert_bool "12 ?= 12 and (7 | 12)" (I.equal_to (of_int 12) (I.logand ik b12 b3) = `Top)
+
+
+  let test_logor _ =
+    let b1 = I.of_int ik (of_int 5) in
+    let b2 = I.of_int ik (of_int 17) in
+
+    assert_equal (I.of_int ik (of_int 21)) (I.logor ik b1 b2);
+
+    let b12 = I.join ik b1 b2 in
+    let b3 = I.of_int ik (of_int 13) in
+    assert_bool "13 ?= 13 or (5 | 17)" (I.equal_to (of_int 13) (I.logor ik b12 b3) = `Top);
+    assert_bool "29 ?= 13 or (5 | 17)" (I.equal_to (of_int 29) (I.logor ik b12 b3) = `Top)
+
+ let test_lognot _ =
+    let b1 = I.of_int ik (of_int 4) in
+    let b2 = I.of_int ik (of_int 12) in
+
+    (* assumes two's complement *)
+    assert_equal (I.of_int ik (of_int (-5))) (I.lognot ik b1);
+
+    let b12= I.join ik b1 b2 in
+    assert_bool "-13 ?= not (4 | 12)" (I.equal_to (of_int (-13)) (I.lognot ik b12) = `Top);
+    assert_bool "-5 ?= not (4 | 12)" (I.equal_to (of_int (-5)) (I.lognot ik b12) = `Top)
+
+  let test_shift_left _ =
+    let stat1 = I.of_int ik (of_int 2) in
+    let stat2 = I.of_int ik (of_int 1) in
+    let eval = (I.shift_left ik stat1 stat2) in
+    let eq = (of_int(4)) in
+    assert_bool ("2 << 1 should be: \"4\" but was: \"" ^ I.show eval ^ "\"") (I.equal_to eq eval = `Eq);
+
+    let stat1 = I.of_int ik (of_int (-2)) in
+    let stat2 = I.of_int ik (of_int 1) in
+    let eval = (I.shift_left ik stat1 stat2) in
+    let eq = (of_int(-4)) in
+    assert_bool ("2 << 1 should be: \"4\" but was: \"" ^ I.show eval ^ "\"") (I.equal_to eq eval = `Eq)
+
+
+  let test_shift_right _ =
+    let stat1 = I.of_int ik (of_int (4)) in
+    let stat2 = I.of_int ik (of_int 1) in
+    let eval = (I.shift_right ik stat1 stat2) in
+    let eq = (of_int (2)) in
+    assert_bool ("4 >> 1 should be: \"2\" but was: \"" ^ I.show eval ^ "\"" ^ I.show stat1) (I.equal_to eq eval = `Eq);
+
+    let stat1 = I.of_int ik (of_int (-4)) in
+    let stat2 = I.of_int ik (of_int 1) in
+    let eval = (I.shift_right ik stat1 stat2) in
+    let eq = (of_int (-2)) in
+    assert_bool ("4 >> 1 should be: \"2\" but was: \"" ^ I.show eval ^ "\"" ^ I.show stat1) (I.equal_to eq eval = `Eq)
+
+
+  (* Arith *)
+
+
+  (* Comparisons *)
+
+  let test_eq _ =
+    let b1 = I.of_int ik (of_int 5) in
+    let b2 = I.of_int ik (of_int 17) in
+
+    assert_bool "5 == 5" (I.eq ik b1 b1 = I.of_bool ik true);
+    assert_bool "5 == 17" (I.eq ik b1 b2 = I.of_bool ik false);
+
+    let b12 = I.join ik b1 b2 in
+    assert_bool "5 == (5 | 17)" (I.eq ik b1 b12 = (I.join ik (I.of_bool ik true) (I.of_bool ik false)))
+
+  let test_ne _ =
+    let b1 = I.of_int ik (of_int 5) in
+    let b2 = I.of_int ik (of_int 17) in
+
+    assert_bool "5 != 5" (I.ne ik b1 b1 = I.of_bool ik false);
+    assert_bool "5 != 17" (I.ne ik b1 b2 = I.of_bool ik true);
+
+    let b12 = I.join ik b1 b2 in
+    assert_bool "5 != (5 | 17)" (I.ne ik b1 b12 = (I.join ik (I.of_bool ik false) (I.of_bool ik true)))
+
+  let test_le _ =
+    let b1 = I.of_int ik (of_int 5) in
+    let b2 = I.of_int ik (of_int 14) in
+
+    assert_bool "5 <= 5" (I.le ik b1 b1 = I.of_bool ik true);
+    assert_bool "5 <= 14" (I.le ik b1 b2 = I.of_bool ik true);
+    assert_bool "14 <= 5" (I.le ik b2 b1 = I.of_bool ik false);
+
+    let b12 = I.join ik b1 b2 in
+
+    let b3 = I.of_int ik (of_int 17) in
+    assert_bool "17 <= (5 | 14)" (I.le ik b3 b12 = I.of_bool ik false);
+
+    let b4 = I.of_int ik (of_int 13) in
+    assert_bool "13 <= (5 | 14)" (I.le ik b4 b12 = (I.join ik (I.of_bool ik false) (I.of_bool ik true)));
+
+    let b5 = I.of_int ik (of_int 5) in
+    assert_bool "5 <= (5 | 14)" (I.le ik b5 b12 = I.join ik (I.of_bool ik true) (I.of_bool ik false));
+
+    let b6 = I.of_int ik (of_int 4) in
+    assert_bool "4 <= (5 | 14)" (I.le ik b6 b12 = I.of_bool ik true)
+
+    
+  let test_ge _ =
+    let b1 = I.of_int ik (of_int 5) in
+    let b2 = I.of_int ik (of_int 14) in
+
+    assert_bool "5 >= 5" (I.ge ik b1 b1 = I.of_bool ik true);
+    assert_bool "5 >= 14" (I.ge ik b1 b2 = I.of_bool ik false);
+    assert_bool "14 >= 5" (I.ge ik b2 b1 = I.of_bool ik true);
+
+    let b12 = I.join ik b1 b2 in
+
+    let b3 = I.of_int ik (of_int 2) in
+    assert_bool "2 >= (5 | 14)" (I.ge ik b3 b12 = I.of_bool ik false);
+
+    let b4 = I.of_int ik (of_int 13) in
+    assert_bool "13 >= (5 | 14)" (I.ge ik b4 b12 = (I.join ik (I.of_bool ik true) (I.of_bool ik false)));
+
+    let b6 = I.of_int ik (of_int 15) in
+    assert_bool "15 >= (5 | 14)" (I.ge ik b6 b12 = I.of_bool ik true)
+
+  let test_lt _ =
+    let b1 = I.of_int ik (of_int 7) in
+    let b2 = I.of_int ik (of_int 13) in
+
+    assert_bool "7 < 7" (I.lt ik b1 b1 = I.of_bool ik false);
+    assert_bool "7 < 13" (I.lt ik b1 b2 = I.of_bool ik true);
+
+    let b12 = I.join ik b1 b2 in
+    let b3 = I.of_int ik (of_int 4) in
+    assert_bool "4 < (7 | 13)" (I.lt ik b3 b12 = I.of_bool ik true);
+
+    let b4 = I.of_int ik (of_int 8) in
+    assert_bool "8 < (7 | 13)" (I.lt ik b4 b12 = I.join ik (I.of_bool ik false) (I.of_bool ik true))
+
+  let test_gt _ =
+    let b1 = I.of_int ik (of_int 5) in
+    let b2 = I.of_int ik (of_int 14) in
+
+
+    assert_bool "5 > 5" (I.gt ik b1 b1 = I.of_bool ik false);
+    assert_bool "5 > 14" (I.gt ik b1 b2 = I.of_bool ik false);
+    assert_bool "14 > 5" (I.gt ik b2 b1 = I.of_bool ik true);
+
+    let b12 = I.join ik b1 b2 in
+
+    let b3 = I.of_int ik (of_int 2) in
+    assert_bool "2 > (5 | 14)" (I.gt ik b3 b12 = I.of_bool ik false);
+
+    let b4 = I.of_int ik (of_int 13) in
+    assert_bool "13 > (5 | 14)" (I.gt ik b4 b12 = (I.join ik (I.of_bool ik false) (I.of_bool ik true)));
+
+    let b5 = I.of_int ik (of_int 5) in
+    assert_bool "5 > (5 | 14)" (I.gt ik b5 b12 = I.join ik (I.of_bool ik false) (I.of_bool ik true));
+
+    let b6 = I.of_int ik (of_int 4) in
+    assert_bool "4 > (5 | 14)" (I.gt ik b6 b12 = (I.of_bool ik false) )
+
+  let test_starting _ =
+    let bf1 = I.starting ik (of_int 17) in
+
+    assert_bool "17" (I.equal_to (of_int 17) bf1 = `Top);
+    assert_bool "18" (I.equal_to (of_int 18) bf1 = `Top);
+
+    assert_bool "-3" (I.equal_to (of_int (-3)) bf1 = `Neq);
+
+    let bf2 = I.starting ik (of_int (-17)) in
+
+    assert_bool "-16" (I.equal_to (of_int (-16)) bf2 = `Top);
+    assert_bool "-17" (I.equal_to (of_int (-17)) bf2 = `Top)
+
+
+  let test_ending _ =
+    let bf = I.ending ik (of_int 17) in
+
+    assert_bool "-4" (I.equal_to (of_int (-4)) bf = `Top);
+    assert_bool "16" (I.equal_to (of_int 16) bf = `Top);
+
+    let bf2 = I.ending ik (of_int (-17)) in
+
+    assert_bool "-16" (I.equal_to (of_int (-16)) bf2 = `Top);
+    assert_bool "-18" (I.equal_to (of_int (-18)) bf2 = `Top);
+
+    assert_bool "17" (I.equal_to (of_int 17) bf2 = `Neq)
+
+  let test_refine_with_congruence _ =
+    let bf = I.top_of ik in
+
+    let bf_refined1= I.refine_with_congruence ik bf (Some (Z.of_int 3, Z.of_int 4)) in
+    assert_bool "3" (I.equal_to (of_int 3) bf_refined1 = `Top);
+    let bf_refined2= I.refine_with_congruence ik bf_refined1 (Some (Z.of_int 1, Z.of_int 1)) in
+    assert_bool "1" (I.equal_to (of_int 1) bf_refined2 = `Eq);
+    let bf_refined3= I.refine_with_congruence ik bf_refined2 (Some (Z.of_int 5, Z.of_int 0)) in
+    assert_bool "5" (I.equal_to (of_int 5) bf_refined3 = `Eq)
+
+  let test_refine_with_inclusion_list _ =
+    let bf = I.top_of ik in
+
+    let list = List.map of_int [-2;3;23; 26] in
+    let bf_refined = I.refine_with_incl_list ik bf (Some list) in
+
+    List.iter (fun i -> assert_bool (Z.to_string i) (I.equal_to i bf_refined = `Top)) list
+
+  let test () =[
+    "test_of_int_to_int" >:: test_of_int_to_int;
+    "test_to_int_of_int" >:: test_to_int_of_int;
+    "test_equal_to" >:: test_equal_to;
+
+    "test_join" >:: test_join;
+    "test_meet" >:: test_meet;
+
+    "test_leq_1" >:: test_leq_1;
+    "test_leq_2" >:: test_leq_2;
+
+    "test_wrap_1" >:: test_wrap_1;
+    "test_wrap_2" >:: test_wrap_2;
+
+    "test_widen_1" >:: test_widen_1;
+    "test_widen_2" >:: test_widen_2;
+
+    "test_of_interval" >:: test_of_interval;
+    "test_of_bool" >:: test_of_bool;
+    "test_to_bool" >:: test_to_bool;
+    "test_cast_to" >:: test_cast_to;
+
+    "test_logxor" >:: test_logxor;
+    "test_logand" >:: test_logand;
+    "test_logor" >:: test_logor;
+    "test_lognot" >:: test_lognot;
+    "test_shift_left" >:: test_shift_left;
+    "test_shift_right" >:: test_shift_right;
+
+    "test_eq" >:: test_eq;
+    "test_ne" >:: test_ne;
+    "test_le" >:: test_le;
+    "test_ge" >:: test_ge;
+    "test_lt" >:: test_lt;
+    "test_gt" >:: test_gt;
+
+    "test_starting" >:: test_starting;
+    "test_ending" >:: test_ending;
+
+    "test_refine_with_congruence" >:: test_refine_with_congruence;
+    "test_refine_with_inclusion_list" >:: test_refine_with_inclusion_list;
+    ]
+
+end
+
 module Interval    = IntervalTest (IntDomain.Interval)
+module BitField    = BitFieldTest (IntDomain.BitField)
 module IntervalSet = IntervalTest (IntDomain.IntervalSet)
 
 module Congruence =
@@ -358,6 +791,7 @@ let test () =
     "test_meet"     >::  test_meet;
     "test_excl_list">::  test_ex_set;
     "interval" >::: Interval.test ();
+    "bitField" >::: BitField.test ();
     "intervalSet" >::: IntervalSet.test ();
     "congruence" >::: Congruence.test ();
     "intDomTuple" >::: IntDomTuple.test ();
