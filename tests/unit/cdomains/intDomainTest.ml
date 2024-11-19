@@ -753,6 +753,34 @@ struct
     ]
 end
 
+
+module BitfieldTest (B : IntDomain.SOverflow with type int_t = Z.t) = 
+struct 
+  module B = IntDomain.SOverflowUnlifter (B)
+  let ik      = Cil.IUChar
+
+ let of_list ik is = List.fold_left (fun acc x -> B.join ik acc (B.of_int ik x)) (B.bot ()) is
+
+  let v1 = Z.of_int 0
+  let v2 = Z.of_int 13
+  let vr = Z.mul v1 v2
+
+  let is = [0;1;2;3;4;5;6;7]
+  let res = [0;13;26;39;52;65;78;91]
+
+  let b1 = of_list ik (List.map Z.of_int is)
+  let b2 = B.of_int ik v2
+  let br = of_list ik (List.map Z.of_int res)
+
+  let test_add _ = assert_equal ~cmp:B.leq ~printer:B.show br (B.mul ik b2 b1)
+
+  let test () =  [
+    "test_add" >:: test_add;
+    ]
+end
+
+module Bitfield = BitfieldTest(IntDomain.Bitfield)
+
 let test () =
   "intDomainTest" >::: [
     "int_Integers"  >::: A.test ();
@@ -767,4 +795,5 @@ let test () =
     "intervalSet" >::: IntervalSet.test ();
     "congruence" >::: Congruence.test ();
     "intDomTuple" >::: IntDomTuple.test ();
+    "bitfield" >::: Bitfield.test ();
   ]

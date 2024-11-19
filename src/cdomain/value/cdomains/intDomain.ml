@@ -1334,6 +1334,7 @@ module BitFieldFunctor (Ints_t : IntOps.IntOps): SOverflow with type int_t = Int
   let name () = "bitfield"
   type int_t = Ints_t.t
   type t = (Ints_t.t * Ints_t.t) [@@deriving eq, ord, hash]
+
   module BArith = BitfieldArith (Ints_t)
 
   let range ik bf = (BArith.min ik bf, BArith.max ik bf)
@@ -1367,10 +1368,10 @@ module BitFieldFunctor (Ints_t : IntOps.IntOps): SOverflow with type int_t = Int
     if t = bot () then "bot" else
     if t = top () then "top" else
       let (z,o) = t in
-      if BArith.is_const t then 
-        Format.sprintf "[%08X, %08X] (unique: %d)" (Ints_t.to_int z) (Ints_t.to_int o) (Ints_t.to_int o)
+      if BArith.is_constant t then 
+        Format.sprintf "{%08X, %08X} (unique: %d)" (Ints_t.to_int z) (Ints_t.to_int o) (Ints_t.to_int o)
       else 
-        Format.sprintf "[%08X, %08X]" (Ints_t.to_int z) (Ints_t.to_int o)
+        Format.sprintf "{%08X, %08X}" (Ints_t.to_int z) (Ints_t.to_int o)
 
   include Std (struct type nonrec t = t let name = name let top_of = top_of let bot_of = bot_of let show = show let equal = equal end)
 
@@ -1502,8 +1503,15 @@ module BitFieldFunctor (Ints_t : IntOps.IntOps): SOverflow with type int_t = Int
     let o2 = ref o2 in
     let z3 = ref BArith.one_mask in 
     let o3 = ref BArith.zero_mask in 
-    for i = Size.bit ik downto 0 do 
-      if Ints_t.logand !o1 Ints_t.one == Ints_t.one then 
+    let size = if isSigned ik then Size.bit ik - 1 else Size.bit ik in
+    let bitmask = Ints_t.of_int(Z.to_int(Z.lognot (fst (Size.range ik)))) in
+    let signBitUndef1 = Ints_t.logand (Ints_t.logand !z1 !o1) bitmask in
+    let signBitUndef2 = Ints_t.logand (Ints_t.logand !z2 !o2) bitmask in
+    let signBitUndef = Ints_t.logor signBitUndef1 signBitUndef2 in
+    let signBitDefO = Ints_t.logand (Ints_t.logxor !o1 !o2) bitmask in
+    let signBitDefZ = Ints_t.logand (Ints_t.lognot (Ints_t.logxor !o1 !o2)) bitmask in
+    for i = size downto 0 do             
+      (if Ints_t.logand !o1 Ints_t.one == Ints_t.one then 
         if Ints_t.logand !z1 Ints_t.one == Ints_t.one then 
           let tmp = Ints_t.add (Ints_t.logand !z3 !o3) !o2 in 
           z3 := Ints_t.logor !z3 tmp;
@@ -1511,13 +1519,16 @@ module BitFieldFunctor (Ints_t : IntOps.IntOps): SOverflow with type int_t = Int
         else
           let tmp = fst (add ik (!z3, !o3) (!z2, !o2)) in 
           z3 := fst tmp;
-          o3 := snd tmp;
+          o3 := snd tmp;);
 
       z1 := Ints_t.shift_right !z1 1;
       o1 := Ints_t.shift_right !o1 1;
       z2 := Ints_t.shift_left !z2 1;
       o2 := Ints_t.shift_left !o2 1;
-    done;
+    done;   
+    if isSigned ik then z3 := Ints_t.logor signBitUndef (Ints_t.logor signBitDefZ !z3);
+    if isSigned ik then o3 := Ints_t.logor signBitUndef (Ints_t.logor signBitDefO !o3);
+
     norm ik (!z3, !o3)
 
   let rec div ?no_ov ik (z1, o1) (z2, o2) =
@@ -1628,16 +1639,16 @@ module BitFieldFunctor (Ints_t : IntOps.IntOps): SOverflow with type int_t = Int
       List.fold_left (fun acc i -> BArith.join acc (BArith.of_int i)) (bot_of ik) ls
     in
     meet ik t joined
-
+    
   let arbitrary ik = 
     let open QCheck.Iter in
-    let int_arb1 = QCheck.map ~rev:Ints_t.to_int64 Ints_t.of_int64 GobQCheck.Arbitrary.int64 in
-    let int_arb2 = QCheck.map ~rev:Ints_t.to_int64 Ints_t.of_int64 GobQCheck.Arbitrary.int64 in
-    let pair_arb = QCheck.pair int_arb1 int_arb2 in
+    let int_arb = QCheck.map ~rev:Ints_t.to_int64 Ints_t.of_int64 GobQCheck.Arbitrary.int64 in
+    (*let pair_arb = QCheck.pair int_arb int_arb in*)
     let shrink = function
-      | (z, o) -> (GobQCheck.shrink int_arb1 z >|= fun z -> (z, o)) <+> (GobQCheck.shrink int_arb2 o >|= fun o -> (z, o))
+      | (z, o) -> (GobQCheck.shrink int_arb z >|= fun z -> (z, o)) <+> (GobQCheck.shrink int_arb o >|= fun o -> (z, o))
     in
-    QCheck.(set_shrink shrink @@ set_print show @@ map (fun x -> norm ik x |> fst ) pair_arb)
+    QCheck.(set_shrink shrink @@ set_print show @@ map (fun i -> of_int ik i |> fst ) int_arb)
+    (* QCheck.(set_shrink shrink @@ set_print show @@ map (fun (i1,i2) -> norm ik (join ik (fst (of_int ik i1)) (fst (of_int ik i2))) |> fst ) pair_arb)*)
 
   let project ik p t = t
 end
