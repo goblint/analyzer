@@ -252,7 +252,7 @@ end
 
 module BitfieldTest (I : IntDomain.SOverflow with type int_t = Z.t) =
 struct
-module I = IntDomain.SOverflowUnlifter (I)
+  module I = IntDomain.SOverflowUnlifter (I)
 
   let ik = Cil.IInt
 
@@ -407,7 +407,7 @@ module I = IntDomain.SOverflowUnlifter (I)
 
   let test_cast_to _ =
     let b1 = I.of_int ik (of_int 1234) in
-    
+
     assert_equal (I.of_int IChar (of_int (210))) (I.cast_to IChar b1);
     assert_equal (I.of_int ISChar (of_int (-46))) (I.cast_to ISChar b1);
 
@@ -449,7 +449,7 @@ module I = IntDomain.SOverflowUnlifter (I)
     assert_bool "13 ?= 13 or (5 | 17)" (I.equal_to (of_int 13) (I.logor ik b12 b3) = `Top);
     assert_bool "29 ?= 13 or (5 | 17)" (I.equal_to (of_int 29) (I.logor ik b12 b3) = `Top)
 
- let test_lognot _ =
+  let test_lognot _ =
     let b1 = I.of_int ik (of_int 4) in
     let b2 = I.of_int ik (of_int 12) in
 
@@ -528,7 +528,7 @@ module I = IntDomain.SOverflowUnlifter (I)
     let b6 = I.of_int ik (of_int 4) in
     assert_bool "4 <= (5 | 14)" (I.le ik b6 b12 = I.of_bool ik true)
 
-    
+
   let test_ge _ =
     let b1 = I.of_int ik (of_int 5) in
     let b2 = I.of_int ik (of_int 14) in
@@ -671,7 +671,7 @@ module I = IntDomain.SOverflowUnlifter (I)
 
     "test_refine_with_congruence" >:: test_refine_with_congruence;
     "test_refine_with_inclusion_list" >:: test_refine_with_inclusion_list;
-    ]
+  ]
 
 end
 
@@ -752,7 +752,7 @@ struct
   module B = IntDomain.SOverflowUnlifter (B)
   let ik      = Cil.IUChar
 
- let of_list ik is = List.fold_left (fun acc x -> B.join ik acc (B.of_int ik x)) (B.bot ()) is
+  let of_list ik is = List.fold_left (fun acc x -> B.join ik acc (B.of_int ik x)) (B.bot ()) is
 
   let v1 = Z.of_int 0
   let v2 = Z.of_int 13
@@ -769,7 +769,7 @@ struct
 
   let test () =  [
     "test_add" >:: test_add;
-    ]
+  ]
 end
 
 module TEMPDEBUG_TODO_REMOVE = TEMPDEBUG_TODO_REMOVE_TEST(IntDomain.Bitfield)
