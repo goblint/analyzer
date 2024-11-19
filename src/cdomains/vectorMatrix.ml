@@ -713,8 +713,8 @@ module SparseVector: AbstractVector =
       if n >= v.len then failwith "Out of bounds" else
         {entries=set_val_vec v.entries n m; len=v.len}
 
-    let set_val_with v n m =
-      failwith "TODO"
+    let set_val_with = 
+      failwith "deprecated"
 
     let insert_val n m t = 
       failwith "TODO"
@@ -800,7 +800,7 @@ module SparseVector: AbstractVector =
       failwith "TODO"
 
     let to_sparse_list v = 
-      failwith "TODO"
+      v.entries
 
   end 
 
@@ -1085,19 +1085,15 @@ module SparseMatrix: AbstractMatrix =
           ) entries
       in 
       let rec sub_rows minu subt : (int * A.t) list =
-        match (minu, subt) with
-        | ((xidx, xv)::xs, (yidx,yv)::ys) -> 
-          if xidx = yidx && xv <> yv
-          then (xidx, xv -: yv)::(sub_rows xs ys)
-          else 
-          if xidx < yidx 
-          then (xidx, xv)::(sub_rows xs ((yidx, yv)::ys))
-          else 
-          if xidx > yidx
-          then (yidx, A.zero -: yv)::(sub_rows ((xidx, xv)::xs) ys)
-          else sub_rows xs ys  
-        | ([], (yidx, yv)::ys) -> (yidx, A.zero -: yv)::(sub_rows [] ys) 
-        | ((xidx, xv)::xs, []) -> (xidx, xv)::(sub_rows xs []) 
+        match minu, subt with
+        | ((xidx, xv)::xs, (yidx,yv)::ys) -> (
+          match xidx - yidx with
+          | d when d = 0 && xv <> yv -> (xidx, xv -: yv)::(sub_rows xs ys)
+          | d when d < 0 -> (xidx, xv)::(sub_rows xs ((yidx, yv)::ys))
+          | d when d > 0 -> (yidx, A.zero -: yv)::(sub_rows ((xidx, xv)::xs) ys)
+          | _ -> sub_rows xs ys ) (* remove row when is (0, 0) *)
+        | ([], (yidx, yv)::ys) -> (yidx, A.zero -: yv)::(sub_rows [] ys)
+        | ((xidx, xv)::xs, []) -> (xidx, xv)::(sub_rows xs [])
         | ([],[]) -> []
       in
       let div_row row pivot =
