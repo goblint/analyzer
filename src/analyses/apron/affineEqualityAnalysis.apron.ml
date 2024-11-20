@@ -4,11 +4,14 @@
 
 open Analyses
 
+open ArrayVector
+open ArrayMatrix
+
 include RelationAnalysis
 
 let spec_module: (module MCPSpec) Lazy.t =
   lazy (
-    let module AD = AffineEqualityDomain.D2 (VectorMatrix.ArrayVector) (VectorMatrix.ArrayMatrix) in
+    let module AD = AffineEqualityDomain.D2 (ArrayVector) (ArrayMatrix) in
     let module Priv = (val RelationPriv.get_priv ()) in
     let module Spec =
     struct
