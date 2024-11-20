@@ -166,19 +166,19 @@ module ArrayMatrix: AbstractMatrix =
         for i = 0 to num_rows-1 do
           let exception Found in
           try (
-            for j = i to num_cols -2 do
+            for j = i to num_cols -2 do (* Find pivot *)
               for k = i to num_rows -1 do
                 if m.(k).(j) <>: A.zero then
                   (
                     if k <> i then swap_rows k i;
                     let piv = m.(i).(j) in
-                    Array.iteri(fun j' x -> m.(i).(j') <- x /: piv) m.(i);
-                    for l = 0 to num_rows-1 do
+                    Array.iteri(fun j' x -> m.(i).(j') <- x /: piv) m.(i); (* Normalize pivot *)
+                    for l = 0 to num_rows-1 do (* Subtract from each row *)
                       if l <> i && m.(l).(j) <>: A.zero then (
                         let is_only_zero = ref true in
                         let m_lj = m.(l).(j) in
                         for k = 0 to num_cols - 2 do
-                          m.(l).(k) <- m.(l).(k) -: m.(i).(k) *: m_lj /: m.(i).(j);
+                          m.(l).(k) <- m.(l).(k) -: m.(i).(k) *: m_lj /: m.(i).(j); (* Subtraction *)
                           if m.(l).(k) <>: A.zero then is_only_zero := false;
                         done;
                         let k_end = num_cols - 1 in
@@ -214,7 +214,7 @@ module ArrayMatrix: AbstractMatrix =
       let pivot_elements = Array.make (num_rows m) 0
       in Array.iteri (fun i x -> pivot_elements.(i) <- Array.findi (fun z -> z =: A.one) x) m; pivot_elements
 
-    let rref_vec m pivot_positions v =
+    let rref_vec_helper m pivot_positions v =
       let insert = ref (-1) in
       for j = 0 to Array.length v -2 do
         if v.(j) <>: A.zero then
@@ -252,9 +252,14 @@ module ArrayMatrix: AbstractMatrix =
             Array.iteri (fun j x -> v.(j) <- x /: v_i) v; Some (init_with_vec @@ V.of_array v)
       else
         let pivot_elements = get_pivot_positions m in
-        rref_vec m pivot_elements v
+        rref_vec_helper m pivot_elements v
 
     let rref_vec_with m v = Timing.wrap "rref_vec_with" (rref_vec_with m) v
+
+    let rref_vec m v = (* !! There was another rref_vec function that has been renamed to rref_vec_helper !!*)
+      let m' = copy m in
+      let v' = V.copy v in 
+      rref_vec_with m' v'
 
     let rref_matrix_with m1 m2 =
       (*Similar to rref_vec_with but takes two matrices instead.*)
@@ -265,7 +270,7 @@ module ArrayMatrix: AbstractMatrix =
       try (
         for i = 0 to num_rows s_m - 1 do
           let pivot_elements = get_pivot_positions !b in
-          let res = rref_vec !b pivot_elements s_m.(i) in
+          let res = rref_vec_helper !b pivot_elements s_m.(i) in
           match res with
           | None -> raise Unsolvable
           | Some res -> b := res
@@ -275,6 +280,11 @@ module ArrayMatrix: AbstractMatrix =
       with Unsolvable -> None
 
     let rref_matrix_with m1 m2 = Timing.wrap "rref_matrix_with" (rref_matrix_with m1) m2
+
+    let rref_matrix m1 m2 = 
+      let m1' = copy m1 in
+      let m2' = copy m2 in 
+      rref_matrix_with m1' m2'
 
     let normalize_with m =
       rref_with m

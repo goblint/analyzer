@@ -74,7 +74,7 @@ sig
 
   val copy: t -> t
 
-  val of_sparse_list: (int * num) list -> int -> t
+  val of_sparse_list: int -> (int * num) list -> t
 
   val to_sparse_list: t -> (int * num) list
 

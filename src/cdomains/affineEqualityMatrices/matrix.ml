@@ -39,7 +39,11 @@ sig
 
   val normalize_with: t -> bool
 
+  val rref_vec: t -> vec -> t Option.t (* added to remove side effects in affineEqualityDomain*)
+
   val rref_vec_with: t -> vec -> t Option.t
+
+  val rref_matrix: t -> t -> t Option.t (* this as well *)
 
   val rref_matrix_with: t -> t -> t Option.t
 
@@ -49,7 +53,7 @@ sig
 
   val map2_with: (vec -> num -> vec) -> t -> vec -> unit
 
-  val map2: (vec -> num -> vec) -> t -> vec -> t
+  val map2: (vec -> num -> vec) -> t -> vec -> t (* why is this here twice??*)
 
   val map2i: (int -> vec-> num -> vec) -> t -> vec -> t
 

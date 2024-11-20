@@ -12,6 +12,7 @@ module SparseVector: AbstractVector =
       len: int
     }[@@deriving eq, ord, hash]
 
+    let tV e l = {entries=e; len=l}
     let show v = 
       failwith "TODO"
 
@@ -23,6 +24,7 @@ module SparseVector: AbstractVector =
       in
       if n >= v.len then v else (*could be left out but maybe performance??*)
         {entries = keep_vals_vec v.entries n; len=n}
+
 
     let remove_val v n = 
       let dec_idx v = 
@@ -40,13 +42,44 @@ module SparseVector: AbstractVector =
         {entries = remove_val_vec v.entries n; len = v.len - 1}
 
     let set_val v n m = 
-      failwith "TODO"
+      let rec set_val_vec v n m =
+        match v with 
+        | x::xs -> if fst x = n then (n, m)::xs else 
+          if fst x < n then x::(set_val_vec xs n m)
+          else v
+        | [] -> [] 
+      in
+      if n >= v.len then failwith "Out of bounds" else
+        {entries=set_val_vec v.entries n m; len=v.len}
 
-    let set_val_with v n m =
-      failwith "TODO"
+    let set_val_with = 
+      failwith "deprecated"
 
     let insert_val n m t = 
       failwith "TODO"
+
+    let mul_vec_scal v s = 
+      {entries= (List.map (fun (idx, va) -> (idx, va *: s)) v.entries); len=v.len}
+
+
+    let add_vec v1 v2 = 
+      let rec add_vec m s =
+        match m, s with
+        | ((xidx, xv)::xs, (yidx,yv)::ys) -> (
+            match xidx - yidx with
+            | d when d = 0 && (xv +: yv = A.zero) -> (xidx, xv +: yv)::(add_vec xs ys)
+            | d when d < 0 -> (xidx, xv)::(add_vec xs ((yidx, yv)::ys))
+            | d when d > 0 -> (yidx, yv)::(add_vec ((xidx, xv)::xs) ys)
+            | _ -> add_vec xs ys ) (* remove row when is (0, 0) *)
+        | ([], y::ys) -> y::(add_vec [] ys)
+        | (x::xs, []) -> x::(add_vec xs [])
+        | ([],[]) -> []
+      in 
+      if v1.len <> v2.len then failwith "Different Vector length" else
+        {entries= add_vec v1.entries v2.entries; len=v1.len}
+
+    let sub_vec v1 v2 = (*change to duplicate def of add if performance*)
+      add_vec v1 ({entries= (List.map (fun (idx, va) -> (idx, A.zero -: va)) v2.entries); len=v2.len})
 
     let apply_with_c f m v = 
       failwith "TODO"
@@ -125,10 +158,10 @@ module SparseVector: AbstractVector =
 
     let copy v = v 
 
-    let of_sparse_list ls col_count =
-      failwith "TODO"
+    let of_sparse_list col_count ls =
+      {entries = ls; len = col_count}
 
     let to_sparse_list v = 
-      failwith "TODO"
+      v.entries
 
   end 
