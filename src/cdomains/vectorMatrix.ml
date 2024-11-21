@@ -456,11 +456,8 @@ module ArrayMatrix: AbstractMatrix =
           m'
 
     let del_cols m cols = timing_wrap "del_cols" (del_cols m) cols
-
-    let map2i f m v =
-      let f' x (i,y) = V.to_array @@ f i (V.of_array x) y in
-      let range_array = Array.init (V.length v) Fun.id in
-      Array.map2 f' m (Array.combine range_array (V.to_array v))
+        
+    
 
     let remove_zero_rows m =
       Array.filter (fun x -> Array.exists (fun y -> y <>: A.zero) x) m
@@ -661,6 +658,18 @@ module ArrayMatrix: AbstractMatrix =
         done
 
     let map2i_with f m v = timing_wrap "map2i_with" (map2i_with f m) v
+
+
+    (* Deprecated
+    let map2i f m v =
+      let f' x (i,y) = V.to_array @@ f i (V.of_array x) y in
+      let range_array = Array.init (V.length v) Fun.id in
+      Array.map2 f' m (Array.combine range_array (V.to_array v))
+    *)
+    let map2i f m v =
+      let m' = copy m in
+      map2i_with f m' v;
+      m'
   end
 
 
