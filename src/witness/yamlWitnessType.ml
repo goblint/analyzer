@@ -693,12 +693,6 @@ struct
 
   let name () = "YAML entry"
 
-  let show _ = "TODO"
-  include Printable.SimpleShow (struct
-      type nonrec t = t
-      let show = show
-    end)
-
   let to_yaml {entry_type; metadata} =
     `O ([
         ("entry_type", `String (EntryType.entry_type entry_type));
@@ -710,4 +704,10 @@ struct
     let+ metadata = y |> find "metadata" >>= Metadata.of_yaml
     and+ entry_type = y |> EntryType.of_yaml in
     {entry_type; metadata}
+
+  let pp ppf x = Yaml.pp ppf (to_yaml x)
+  include Printable.SimpleFormat (struct
+      type nonrec t = t
+      let pp = pp
+    end)
 end
