@@ -25,48 +25,6 @@
       - location:
           file_name: 65-ghost-ambiguous-lock.c
           file_hash: $FILE_HASH
-          line: 10
-          column: 3
-          function: t_fun
-        updates: []
-      - location:
-          file_name: 65-ghost-ambiguous-lock.c
-          file_hash: $FILE_HASH
-          line: 13
-          column: 3
-          function: t_fun
-        updates: []
-      - location:
-          file_name: 65-ghost-ambiguous-lock.c
-          file_hash: $FILE_HASH
-          line: 14
-          column: 3
-          function: t_fun
-        updates: []
-      - location:
-          file_name: 65-ghost-ambiguous-lock.c
-          file_hash: $FILE_HASH
-          line: 17
-          column: 3
-          function: t_fun
-        updates: []
-      - location:
-          file_name: 65-ghost-ambiguous-lock.c
-          file_hash: $FILE_HASH
-          line: 22
-          column: 3
-          function: fun
-        updates: []
-      - location:
-          file_name: 65-ghost-ambiguous-lock.c
-          file_hash: $FILE_HASH
-          line: 24
-          column: 3
-          function: fun
-        updates: []
-      - location:
-          file_name: 65-ghost-ambiguous-lock.c
-          file_hash: $FILE_HASH
           line: 29
           column: 3
           function: main
@@ -74,20 +32,6 @@
         - variable: multithreaded
           value: "1"
           format: c_expression
-      - location:
-          file_name: 65-ghost-ambiguous-lock.c
-          file_hash: $FILE_HASH
-          line: 35
-          column: 3
-          function: main
-        updates: []
-      - location:
-          file_name: 65-ghost-ambiguous-lock.c
-          file_hash: $FILE_HASH
-          line: 37
-          column: 3
-          function: main
-        updates: []
   - entry_type: flow_insensitive_invariant
     flow_insensitive_invariant:
       string: '! multithreaded || (0 <= g2 && g2 <= 1)'

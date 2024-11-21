@@ -218,8 +218,11 @@ struct
                 else
                   (variables', updates)
               in
-              let location_update = WitnessGhost.location_update' ~node ~updates in
-              (variables', location_update :: location_updates)
+              match updates with
+              | [] -> (variables', location_updates) (* don't add location_update with no updates *)
+              | _ ->
+                let location_update = WitnessGhost.location_update' ~node ~updates in
+                (variables', location_update :: location_updates)
             ) nodes (VariableSet.empty, [])
           in
           let entry = WitnessGhost.instrumentation_entry ~task ~variables:(VariableSet.elements variables) ~location_updates in

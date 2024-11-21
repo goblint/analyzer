@@ -26,20 +26,6 @@
       - location:
           file_name: 92-idx_priv.c
           file_hash: $FILE_HASH
-          line: 8
-          column: 3
-          function: t_fun
-        updates: []
-      - location:
-          file_name: 92-idx_priv.c
-          file_hash: $FILE_HASH
-          line: 11
-          column: 3
-          function: t_fun
-        updates: []
-      - location:
-          file_name: 92-idx_priv.c
-          file_hash: $FILE_HASH
           line: 20
           column: 3
           function: main
@@ -47,20 +33,6 @@
         - variable: multithreaded
           value: "1"
           format: c_expression
-      - location:
-          file_name: 92-idx_priv.c
-          file_hash: $FILE_HASH
-          line: 21
-          column: 3
-          function: main
-        updates: []
-      - location:
-          file_name: 92-idx_priv.c
-          file_hash: $FILE_HASH
-          line: 23
-          column: 3
-          function: main
-        updates: []
   - entry_type: flow_insensitive_invariant
     flow_insensitive_invariant:
       string: '! multithreaded || (0 <= data && data <= 1)'
