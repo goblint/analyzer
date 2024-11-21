@@ -35,9 +35,9 @@ include Printable.SimpleShow (struct
 let describe_varinfo _ _ = ""
 
 let typ = function
-  | Locked _ -> GoblintCil.intType
+  | Locked _
   | Multithreaded -> GoblintCil.intType
 
 let initial = function
-  | Locked _ -> GoblintCil.zero
+  | Locked _
   | Multithreaded -> GoblintCil.zero

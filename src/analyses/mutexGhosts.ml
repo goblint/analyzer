@@ -10,7 +10,6 @@ struct
   include UnitAnalysis.Spec
   let name () = "mutexGhosts"
 
-  (* module ThreadCreate = Printable.UnitConf (struct let name = "threadcreate" end) *)
   module V =
   struct
     include Printable.Either3 (Node) (LockDomain.MustLock) (BoolDomain.Bool)
