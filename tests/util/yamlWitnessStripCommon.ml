@@ -74,10 +74,6 @@ struct
         InvariantSet {content = List.sort InvariantSet.Invariant.compare (List.map invariant_strip_file_hash x.content)} (* Sort, so order is deterministic regardless of Goblint. *)
       | ViolationSequence x ->
         ViolationSequence {content = List.map segment_strip_file_hash x.content}
-      | GhostVariable x ->
-        GhostVariable x (* no location to strip *)
-      | GhostUpdate x ->
-        GhostUpdate {x with location = location_strip_file_hash x.location}
       | GhostInstrumentation x ->
         GhostInstrumentation { (* Sort, so order is deterministic regardless of Goblint. *)
           ghost_variables = List.sort GhostInstrumentation.Variable.compare x.ghost_variables;

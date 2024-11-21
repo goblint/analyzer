@@ -2673,8 +2673,6 @@
                   "precondition_loop_invariant_certificate",
                   "invariant_set",
                   "violation_sequence",
-                  "ghost_variable",
-                  "ghost_update",
                   "ghost_instrumentation"
                 ]
               },

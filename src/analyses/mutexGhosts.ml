@@ -122,54 +122,6 @@ struct
     | YamlEntryGlobal (g, task) ->
       let g: V.t = Obj.obj g in
       begin match g with
-        | `Left g' when YamlWitness.entry_type_enabled YamlWitnessType.GhostVariable.entry_type && YamlWitness.entry_type_enabled YamlWitnessType.GhostUpdate.entry_type ->
-          let (locked, unlocked, multithread) = G.node (ctx.global g) in
-          let g = g' in
-          let entries =
-            (* TODO: do variable_entry-s only once *)
-            Locked.fold (fun l acc ->
-                match mustlock_of_addr l with
-                | Some l when ghost_var_available ctx (Locked l) ->
-                  let entry = WitnessGhost.variable_entry ~task (Locked l) in
-                  Queries.YS.add entry acc
-                | _ ->
-                  acc
-              ) (Locked.union locked unlocked) (Queries.YS.empty ())
-          in
-          let entries =
-            Locked.fold (fun l acc ->
-                match mustlock_of_addr l with
-                | Some l when ghost_var_available ctx (Locked l) ->
-                  let entry = WitnessGhost.update_entry ~task ~node:g (Locked l) GoblintCil.one in
-                  Queries.YS.add entry acc
-                | _ ->
-                  acc
-              ) locked entries
-          in
-          let entries =
-            Unlocked.fold (fun l acc ->
-                match mustlock_of_addr l with
-                | Some l when ghost_var_available ctx (Locked l) ->
-                  let entry = WitnessGhost.update_entry ~task ~node:g (Locked l) GoblintCil.zero in
-                  Queries.YS.add entry acc
-                | _ ->
-                  acc
-              ) unlocked entries
-          in
-          let entries =
-            if not (GobConfig.get_bool "exp.earlyglobs") && multithread then (
-              if ghost_var_available ctx Multithreaded then (
-                let entry = WitnessGhost.variable_entry ~task Multithreaded in
-                let entry' = WitnessGhost.update_entry ~task ~node:g Multithreaded GoblintCil.one in
-                Queries.YS.add entry (Queries.YS.add entry' entries)
-              )
-              else
-                entries
-            )
-            else
-              entries
-          in
-          entries
         | `Right true when YamlWitness.entry_type_enabled YamlWitnessType.GhostInstrumentation.entry_type ->
           let nodes = G.update (ctx.global g) in
           let (variables, location_updates) = NodeSet.fold (fun node (variables, location_updates) ->

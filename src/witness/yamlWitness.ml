@@ -149,25 +149,6 @@ struct
     metadata = metadata ();
   }
 
-  let ghost_variable ~task ~variable ~type_ ~(initial): Entry.t = {
-    entry_type = GhostVariable {
-        variable;
-        scope = "global";
-        type_;
-        initial;
-      };
-    metadata = metadata ~task ();
-  }
-
-  let ghost_update ~task ~location ~variable ~(expression): Entry.t = {
-    entry_type = GhostUpdate {
-        variable;
-        expression;
-        location;
-      };
-    metadata = metadata ~task ();
-  }
-
   let ghost_variable' ~variable ~type_ ~(initial): GhostInstrumentation.Variable.t = {
     name = variable;
     scope = "global";
@@ -410,9 +391,10 @@ struct
         entries
     in
 
-    (* Generate flow-insensitive entries (ghost variables and ghost updates) *)
+    (* Generate flow-insensitive entries (ghost instrumentation) *)
     let entries =
-      if (entry_type_enabled YamlWitnessType.GhostVariable.entry_type && entry_type_enabled YamlWitnessType.GhostUpdate.entry_type) || entry_type_enabled YamlWitnessType.GhostInstrumentation.entry_type then (
+      if entry_type_enabled YamlWitnessType.GhostInstrumentation.entry_type then (
+        (* TODO: only at most one ghost_instrumentation entry can ever be produced, so this fold and deduplication is overkill *)
         let module EntrySet = Queries.YS in
         fst @@ GHT.fold (fun g v accs ->
             match g with
