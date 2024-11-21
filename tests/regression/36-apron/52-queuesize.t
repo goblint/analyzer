@@ -53,7 +53,7 @@ Without diff-box:
       column: 3
       function: push
     location_invariant:
-      string: 2147483647LL - (long long )capacity >= 0LL
+      string: '- ((long long )capacity) >= -2147483647LL'
       type: assertion
       format: C
   - entry_type: location_invariant
@@ -86,8 +86,7 @@ Without diff-box:
       column: 3
       function: push
     location_invariant:
-      string: ((0LL - (long long )capacity) + (long long )free) + (long long )used ==
-        0LL
+      string: (- ((long long )capacity) + (long long )free) + (long long )used == 0LL
       type: assertion
       format: C
   - entry_type: location_invariant
@@ -98,7 +97,7 @@ Without diff-box:
       column: 3
       function: pop
     location_invariant:
-      string: 2147483647LL - (long long )capacity >= 0LL
+      string: '- ((long long )capacity) >= -2147483647LL'
       type: assertion
       format: C
   - entry_type: location_invariant
@@ -131,8 +130,7 @@ Without diff-box:
       column: 3
       function: pop
     location_invariant:
-      string: ((0LL - (long long )capacity) + (long long )free) + (long long )used ==
-        0LL
+      string: (- ((long long )capacity) + (long long )free) + (long long )used == 0LL
       type: assertion
       format: C
 
@@ -211,8 +209,7 @@ With diff-box:
       column: 3
       function: push
     location_invariant:
-      string: ((0LL - (long long )capacity) + (long long )free) + (long long )used ==
-        0LL
+      string: (- ((long long )capacity) + (long long )free) + (long long )used == 0LL
       type: assertion
       format: C
   - entry_type: location_invariant
@@ -245,8 +242,7 @@ With diff-box:
       column: 3
       function: pop
     location_invariant:
-      string: ((0LL - (long long )capacity) + (long long )free) + (long long )used ==
-        0LL
+      string: (- ((long long )capacity) + (long long )free) + (long long )used == 0LL
       type: assertion
       format: C
 
@@ -262,7 +258,7 @@ Compare witnesses:
       column: 3
       function: push
     location_invariant:
-      string: 2147483647LL - (long long )capacity >= 0LL
+      string: '- ((long long )capacity) >= -2147483647LL'
       type: assertion
       format: C
   - entry_type: location_invariant
@@ -273,7 +269,7 @@ Compare witnesses:
       column: 3
       function: pop
     location_invariant:
-      string: 2147483647LL - (long long )capacity >= 0LL
+      string: '- ((long long )capacity) >= -2147483647LL'
       type: assertion
       format: C
   ---

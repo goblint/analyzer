@@ -29,7 +29,7 @@
       column: 3
       function: main
     location_invariant:
-      string: (0LL - (long long )g) + (long long )h == 0LL
+      string: '- ((long long )g) + (long long )h == 0LL'
       type: assertion
       format: C
   - entry_type: location_invariant
@@ -40,7 +40,7 @@
       column: 3
       function: t_fun
     location_invariant:
-      string: (0LL - (long long )g) + (long long )h == 0LL
+      string: '- ((long long )g) + (long long )h == 0LL'
       type: assertion
       format: C
   - entry_type: location_invariant
@@ -51,6 +51,6 @@
       column: 3
       function: t_fun
     location_invariant:
-      string: (0LL - (long long )g) + (long long )h == 0LL
+      string: '- ((long long )g) + (long long )h == 0LL'
       type: assertion
       format: C

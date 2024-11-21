@@ -288,16 +288,14 @@ struct
       raise Unsupported_Linexpr1
 
   let cil_exp_of_linexpr1 ?scalewith (linexpr1:Linexpr1.t) =
-    let expr = ref (fst @@ coeff_to_const ~scalewith false (Linexpr1.get_cst linexpr1)) in
+    let (const, _) = coeff_to_const ~scalewith false (Coeff.neg (Linexpr1.get_cst linexpr1)) in
+    let terms = ref [] in
     let append_summand (c:Coeff.union_5) v =
-      let prod, flip = cil_exp_of_linexpr1_term ~scalewith c v in
-      if flip then
-        expr := BinOp(MinusA,!expr,prod,longlong)
-      else
-        expr := BinOp(PlusA,!expr,prod,longlong)
+      if not (Coeff.is_zero c) then
+        terms := cil_exp_of_linexpr1_term ~scalewith c v :: !terms
     in
     Linexpr1.iter append_summand linexpr1;
-    !expr
+    !terms, const
 
 
   let lcm_den linexpr1 =
@@ -331,12 +329,26 @@ struct
     try
       let linexpr1 = Lincons1.get_linexpr1 lincons1 in
       let common_denominator = lcm_den linexpr1 in
-      let cilexp = cil_exp_of_linexpr1 ~scalewith:common_denominator linexpr1 in
+      let terms, const = cil_exp_of_linexpr1 ~scalewith:common_denominator linexpr1 in
+      let lhs =
+        List.fold_right (fun (term, flip) acc ->
+            match acc, flip with
+            | None, false ->
+              Some term
+            | None, true ->
+              Some (UnOp (Neg, term, longlong))
+            | Some exp, _ ->
+              let op = if flip then MinusA else PlusA in
+              Some (BinOp (op, exp, term, longlong))
+          ) terms None
+      in
+      let lhs = Option.default zero lhs in
+      let rhs = const in
       match Lincons1.get_typ lincons1 with
-      | EQ -> Some (Cil.constFold false @@ BinOp(Eq, cilexp, zero, TInt(IInt,[])))
-      | SUPEQ -> Some (Cil.constFold false @@ BinOp(Ge, cilexp, zero, TInt(IInt,[])))
-      | SUP -> Some (Cil.constFold false @@ BinOp(Gt, cilexp, zero, TInt(IInt,[])))
-      | DISEQ -> Some (Cil.constFold false @@ BinOp(Ne, cilexp, zero, TInt(IInt,[])))
+      | EQ -> Some (Cil.constFold false @@ BinOp(Eq, lhs, rhs, TInt(IInt,[])))
+      | SUPEQ -> Some (Cil.constFold false @@ BinOp(Ge, lhs, rhs, TInt(IInt,[])))
+      | SUP -> Some (Cil.constFold false @@ BinOp(Gt, lhs, rhs, TInt(IInt,[])))
+      | DISEQ -> Some (Cil.constFold false @@ BinOp(Ne, lhs, rhs, TInt(IInt,[])))
       | EQMOD _ -> None
     with
       Unsupported_Linexpr1 -> None
