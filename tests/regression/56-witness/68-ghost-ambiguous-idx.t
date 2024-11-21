@@ -1,4 +1,4 @@
-  $ goblint --set ana.base.privatization protection --enable witness.yaml.enabled --set ana.activated[+] mutexGhosts --set witness.yaml.entry-types '["flow_insensitive_invariant", "ghost_variable", "ghost_update"]' 68-ghost-ambiguous-idx.c
+  $ goblint --set ana.base.privatization protection --enable witness.yaml.enabled --set ana.activated[+] mutexGhosts --set witness.yaml.entry-types '["flow_insensitive_invariant", "ghost_instrumentation"]' 68-ghost-ambiguous-idx.c
   [Warning][Assert] Assertion "data == 0" is unknown. (68-ghost-ambiguous-idx.c:24:3-24:29)
   [Warning][Unknown] unlocking mutex (m[4]) which may not be held (68-ghost-ambiguous-idx.c:25:3-25:30)
   [Info][Deadcode] Logical lines of code (LLoC) summary:
@@ -10,7 +10,7 @@
     write with [lock:{m[4]}, thread:[main, t_fun@68-ghost-ambiguous-idx.c:20:3-20:40]] (conf. 110)  (exp: & data) (68-ghost-ambiguous-idx.c:10:3-10:9)
     read with [mhp:{created={[main, t_fun@68-ghost-ambiguous-idx.c:20:3-20:40]}}, thread:[main]] (conf. 110)  (exp: & data) (68-ghost-ambiguous-idx.c:24:3-24:29)
   [Info][Witness] witness generation summary:
-    total generation entries: 3
+    total generation entries: 2
   [Info][Race] Memory locations race summary:
     safe: 0
     vulnerable: 0
@@ -18,20 +18,54 @@
     total memory locations: 1
 
   $ yamlWitnessStrip < witness.yml
-  - entry_type: ghost_update
-    variable: multithreaded
-    expression: "1"
-    location:
-      file_name: 68-ghost-ambiguous-idx.c
-      file_hash: $FILE_HASH
-      line: 20
-      column: 3
-      function: main
-  - entry_type: ghost_variable
-    variable: multithreaded
-    scope: global
-    type: int
-    initial: "0"
+  - entry_type: ghost_instrumentation
+    content:
+      ghost_variables:
+      - name: multithreaded
+        scope: global
+        type: int
+        initial:
+          value: "0"
+          format: c_expression
+      ghost_updates:
+      - location:
+          file_name: 68-ghost-ambiguous-idx.c
+          file_hash: $FILE_HASH
+          line: 8
+          column: 3
+          function: t_fun
+        updates: []
+      - location:
+          file_name: 68-ghost-ambiguous-idx.c
+          file_hash: $FILE_HASH
+          line: 11
+          column: 3
+          function: t_fun
+        updates: []
+      - location:
+          file_name: 68-ghost-ambiguous-idx.c
+          file_hash: $FILE_HASH
+          line: 20
+          column: 3
+          function: main
+        updates:
+        - variable: multithreaded
+          value: "1"
+          format: c_expression
+      - location:
+          file_name: 68-ghost-ambiguous-idx.c
+          file_hash: $FILE_HASH
+          line: 23
+          column: 3
+          function: main
+        updates: []
+      - location:
+          file_name: 68-ghost-ambiguous-idx.c
+          file_hash: $FILE_HASH
+          line: 25
+          column: 3
+          function: main
+        updates: []
   - entry_type: flow_insensitive_invariant
     flow_insensitive_invariant:
       string: '! multithreaded || (0 <= data && data <= 1)'

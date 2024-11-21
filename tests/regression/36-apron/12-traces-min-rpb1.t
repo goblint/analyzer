@@ -56,7 +56,7 @@
       format: C
 
 
-  $ goblint --enable warn.deterministic --set ana.activated[+] apron --set ana.path_sens[+] threadflag --enable ana.sv-comp.functions --enable witness.yaml.enabled --set ana.activated[+] mutexGhosts --set witness.yaml.entry-types '["flow_insensitive_invariant", "ghost_variable", "ghost_update"]' 12-traces-min-rpb1.c --enable ana.apron.invariant.diff-box
+  $ goblint --enable warn.deterministic --set ana.activated[+] apron --set ana.path_sens[+] threadflag --enable ana.sv-comp.functions --enable witness.yaml.enabled --set ana.activated[+] mutexGhosts --set witness.yaml.entry-types '["flow_insensitive_invariant", "ghost_instrumentation"]' 12-traces-min-rpb1.c --enable ana.apron.invariant.diff-box
   [Warning][Assert] Assertion "g == h" is unknown. (12-traces-min-rpb1.c:27:3-27:26)
   [Success][Assert] Assertion "g == h" will succeed (12-traces-min-rpb1.c:16:3-16:26)
   [Success][Assert] Assertion "g == h" will succeed (12-traces-min-rpb1.c:29:3-29:26)
@@ -76,82 +76,95 @@
     dead: 0
     total lines: 18
   [Info][Witness] witness generation summary:
-    total generation entries: 10
+    total generation entries: 2
 
   $ yamlWitnessStrip < witness.yml
-  - entry_type: ghost_update
-    variable: multithreaded
-    expression: "1"
-    location:
-      file_name: 12-traces-min-rpb1.c
-      file_hash: $FILE_HASH
-      line: 25
-      column: 3
-      function: main
-  - entry_type: ghost_update
-    variable: A_locked
-    expression: "1"
-    location:
-      file_name: 12-traces-min-rpb1.c
-      file_hash: $FILE_HASH
-      line: 28
-      column: 3
-      function: main
-  - entry_type: ghost_update
-    variable: A_locked
-    expression: "1"
-    location:
-      file_name: 12-traces-min-rpb1.c
-      file_hash: $FILE_HASH
-      line: 18
-      column: 3
-      function: t_fun
-  - entry_type: ghost_update
-    variable: A_locked
-    expression: "1"
-    location:
-      file_name: 12-traces-min-rpb1.c
-      file_hash: $FILE_HASH
-      line: 13
-      column: 3
-      function: t_fun
-  - entry_type: ghost_update
-    variable: A_locked
-    expression: "0"
-    location:
-      file_name: 12-traces-min-rpb1.c
-      file_hash: $FILE_HASH
-      line: 30
-      column: 3
-      function: main
-  - entry_type: ghost_update
-    variable: A_locked
-    expression: "0"
-    location:
-      file_name: 12-traces-min-rpb1.c
-      file_hash: $FILE_HASH
-      line: 19
-      column: 3
-      function: t_fun
-  - entry_type: ghost_update
-    variable: A_locked
-    expression: "0"
-    location:
-      file_name: 12-traces-min-rpb1.c
-      file_hash: $FILE_HASH
-      line: 17
-      column: 3
-      function: t_fun
-  - entry_type: ghost_variable
-    variable: multithreaded
-    scope: global
-    type: int
-    initial: "0"
-  - entry_type: ghost_variable
-    variable: A_locked
-    scope: global
-    type: int
-    initial: "0"
+  - entry_type: ghost_instrumentation
+    content:
+      ghost_variables:
+      - name: A_locked
+        scope: global
+        type: int
+        initial:
+          value: "0"
+          format: c_expression
+      - name: multithreaded
+        scope: global
+        type: int
+        initial:
+          value: "0"
+          format: c_expression
+      ghost_updates:
+      - location:
+          file_name: 12-traces-min-rpb1.c
+          file_hash: $FILE_HASH
+          line: 13
+          column: 3
+          function: t_fun
+        updates:
+        - variable: A_locked
+          value: "1"
+          format: c_expression
+      - location:
+          file_name: 12-traces-min-rpb1.c
+          file_hash: $FILE_HASH
+          line: 17
+          column: 3
+          function: t_fun
+        updates:
+        - variable: A_locked
+          value: "0"
+          format: c_expression
+      - location:
+          file_name: 12-traces-min-rpb1.c
+          file_hash: $FILE_HASH
+          line: 18
+          column: 3
+          function: t_fun
+        updates:
+        - variable: A_locked
+          value: "1"
+          format: c_expression
+      - location:
+          file_name: 12-traces-min-rpb1.c
+          file_hash: $FILE_HASH
+          line: 19
+          column: 3
+          function: t_fun
+        updates:
+        - variable: A_locked
+          value: "0"
+          format: c_expression
+      - location:
+          file_name: 12-traces-min-rpb1.c
+          file_hash: $FILE_HASH
+          line: 25
+          column: 3
+          function: main
+        updates:
+        - variable: multithreaded
+          value: "1"
+          format: c_expression
+      - location:
+          file_name: 12-traces-min-rpb1.c
+          file_hash: $FILE_HASH
+          line: 28
+          column: 3
+          function: main
+        updates:
+        - variable: A_locked
+          value: "1"
+          format: c_expression
+      - location:
+          file_name: 12-traces-min-rpb1.c
+          file_hash: $FILE_HASH
+          line: 30
+          column: 3
+          function: main
+        updates:
+        - variable: A_locked
+          value: "0"
+          format: c_expression
   - entry_type: flow_insensitive_invariant
     flow_insensitive_invariant:
       string: '! multithreaded || (A_locked || ((0LL - (long long )g) + (long long )h

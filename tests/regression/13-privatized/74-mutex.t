@@ -1,4 +1,4 @@
-  $ goblint --enable ana.sv-comp.functions --set ana.base.privatization protection --enable witness.yaml.enabled --set ana.activated[+] mutexGhosts --set witness.yaml.entry-types '["flow_insensitive_invariant", "ghost_variable", "ghost_update"]' 74-mutex.c
+  $ goblint --enable ana.sv-comp.functions --set ana.base.privatization protection --enable witness.yaml.enabled --set ana.activated[+] mutexGhosts --set witness.yaml.entry-types '["flow_insensitive_invariant", "ghost_instrumentation"]' 74-mutex.c
   [Success][Assert] Assertion "used == 0" will succeed (74-mutex.c:37:3-37:29)
   [Warning][Deadcode] Function 'producer' has dead code:
     on line 26 (74-mutex.c:26-26)
@@ -8,7 +8,7 @@
     total lines: 15
   [Warning][Deadcode][CWE-571] condition '1' (possibly inserted by CIL) is always true (74-mutex.c:19:10-19:11)
   [Info][Witness] witness generation summary:
-    total generation entries: 9
+    total generation entries: 3
   [Info][Race] Memory locations race summary:
     safe: 1
     vulnerable: 0
@@ -16,61 +16,72 @@
     total memory locations: 1
 
   $ yamlWitnessStrip < witness.yml | tee witness.flow_insensitive.yml
-  - entry_type: ghost_update
-    variable: multithreaded
-    expression: "1"
-    location:
-      file_name: 74-mutex.c
-      file_hash: $FILE_HASH
-      line: 34
-      column: 3
-      function: main
-  - entry_type: ghost_update
-    variable: m_locked
-    expression: "1"
-    location:
-      file_name: 74-mutex.c
-      file_hash: $FILE_HASH
-      line: 36
-      column: 3
-      function: main
-  - entry_type: ghost_update
-    variable: m_locked
-    expression: "1"
-    location:
-      file_name: 74-mutex.c
-      file_hash: $FILE_HASH
-      line: 20
-      column: 5
-      function: producer
-  - entry_type: ghost_update
-    variable: m_locked
-    expression: "0"
-    location:
-      file_name: 74-mutex.c
-      file_hash: $FILE_HASH
-      line: 38
-      column: 3
-      function: main
-  - entry_type: ghost_update
-    variable: m_locked
-    expression: "0"
-    location:
-      file_name: 74-mutex.c
-      file_hash: $FILE_HASH
-      line: 23
-      column: 5
-      function: producer
-  - entry_type: ghost_variable
-    variable: multithreaded
-    scope: global
-    type: int
-    initial: "0"
-  - entry_type: ghost_variable
-    variable: m_locked
-    scope: global
-    type: int
-    initial: "0"
+  - entry_type: ghost_instrumentation
+    content:
+      ghost_variables:
+      - name: m_locked
+        scope: global
+        type: int
+        initial:
+          value: "0"
+          format: c_expression
+      - name: multithreaded
+        scope: global
+        type: int
+        initial:
+          value: "0"
+          format: c_expression
+      ghost_updates:
+      - location:
+          file_name: 74-mutex.c
+          file_hash: $FILE_HASH
+          line: 20
+          column: 5
+          function: producer
+        updates:
+        - variable: m_locked
+          value: "1"
+          format: c_expression
+      - location:
+          file_name: 74-mutex.c
+          file_hash: $FILE_HASH
+          line: 23
+          column: 5
+          function: producer
+        updates:
+        - variable: m_locked
+          value: "0"
+          format: c_expression
+      - location:
+          file_name: 74-mutex.c
+          file_hash: $FILE_HASH
+          line: 34
+          column: 3
+          function: main
+        updates:
+        - variable: multithreaded
+          value: "1"
+          format: c_expression
+      - location:
+          file_name: 74-mutex.c
+          file_hash: $FILE_HASH
+          line: 36
+          column: 3
+          function: main
+        updates:
+        - variable: m_locked
+          value: "1"
+          format: c_expression
+      - location:
+          file_name: 74-mutex.c
+          file_hash: $FILE_HASH
+          line: 38
+          column: 3
+          function: main
+        updates:
+        - variable: m_locked
+          value: "0"
+          format: c_expression
   - entry_type: flow_insensitive_invariant
     flow_insensitive_invariant:
       string: '! multithreaded || (m_locked || used == 0)'
@@ -84,7 +95,7 @@
 
 Flow-insensitive invariants as location invariants.
 
-  $ goblint --enable ana.sv-comp.functions --set ana.base.privatization protection --enable witness.yaml.enabled --set ana.activated[+] mutexGhosts --set witness.yaml.entry-types '["flow_insensitive_invariant", "ghost_variable", "ghost_update"]' --set witness.invariant.flow_insensitive-as location_invariant 74-mutex.c
+  $ goblint --enable ana.sv-comp.functions --set ana.base.privatization protection --enable witness.yaml.enabled --set ana.activated[+] mutexGhosts --set witness.yaml.entry-types '["flow_insensitive_invariant", "ghost_instrumentation"]' --set witness.invariant.flow_insensitive-as location_invariant 74-mutex.c
   [Success][Assert] Assertion "used == 0" will succeed (74-mutex.c:37:3-37:29)
   [Warning][Deadcode] Function 'producer' has dead code:
     on line 26 (74-mutex.c:26-26)
@@ -94,7 +105,7 @@ Flow-insensitive invariants as location invariants.
     total lines: 15
   [Warning][Deadcode][CWE-571] condition '1' (possibly inserted by CIL) is always true (74-mutex.c:19:10-19:11)
   [Info][Witness] witness generation summary:
-    total generation entries: 9
+    total generation entries: 3
   [Info][Race] Memory locations race summary:
     safe: 1
     vulnerable: 0
@@ -104,7 +115,7 @@ Flow-insensitive invariants as location invariants.
   $ yamlWitnessStrip < witness.yml > witness.location.yml
 
   $ diff witness.flow_insensitive.yml witness.location.yml
-  56,57c56,63
+  67,68c67,74
   < - entry_type: flow_insensitive_invariant
   <   flow_insensitive_invariant:
   ---
@@ -116,7 +127,7 @@ Flow-insensitive invariants as location invariants.
   >     column: 3
   >     function: main
   >   location_invariant:
-  61,62c67,74
+  72,73c78,85
   < - entry_type: flow_insensitive_invariant
   <   flow_insensitive_invariant:
   ---
@@ -259,7 +270,7 @@ Same with ghost_instrumentation and invariant_set entries.
 
 Same with mutex-meet.
 
-  $ goblint --enable ana.sv-comp.functions --set ana.base.privatization mutex-meet --enable witness.yaml.enabled --set ana.activated[+] mutexGhosts --set witness.yaml.entry-types '["flow_insensitive_invariant", "ghost_variable", "ghost_update"]' 74-mutex.c
+  $ goblint --enable ana.sv-comp.functions --set ana.base.privatization mutex-meet --enable witness.yaml.enabled --set ana.activated[+] mutexGhosts --set witness.yaml.entry-types '["flow_insensitive_invariant", "ghost_instrumentation"]' 74-mutex.c
   [Success][Assert] Assertion "used == 0" will succeed (74-mutex.c:37:3-37:29)
   [Warning][Deadcode] Function 'producer' has dead code:
     on line 26 (74-mutex.c:26-26)
@@ -269,7 +280,7 @@ Same with mutex-meet.
     total lines: 15
   [Warning][Deadcode][CWE-571] condition '1' (possibly inserted by CIL) is always true (74-mutex.c:19:10-19:11)
   [Info][Witness] witness generation summary:
-    total generation entries: 9
+    total generation entries: 3
   [Info][Race] Memory locations race summary:
     safe: 1
     vulnerable: 0
@@ -277,61 +288,72 @@ Same with mutex-meet.
     total memory locations: 1
 
   $ yamlWitnessStrip < witness.yml
-  - entry_type: ghost_update
-    variable: multithreaded
-    expression: "1"
-    location:
-      file_name: 74-mutex.c
-      file_hash: $FILE_HASH
-      line: 34
-      column: 3
-      function: main
-  - entry_type: ghost_update
-    variable: m_locked
-    expression: "1"
-    location:
-      file_name: 74-mutex.c
-      file_hash: $FILE_HASH
-      line: 36
-      column: 3
-      function: main
-  - entry_type: ghost_update
-    variable: m_locked
-    expression: "1"
-    location:
-      file_name: 74-mutex.c
-      file_hash: $FILE_HASH
-      line: 20
-      column: 5
-      function: producer
-  - entry_type: ghost_update
-    variable: m_locked
-    expression: "0"
-    location:
-      file_name: 74-mutex.c
-      file_hash: $FILE_HASH
-      line: 38
-      column: 3
-      function: main
-  - entry_type: ghost_update
-    variable: m_locked
-    expression: "0"
-    location:
-      file_name: 74-mutex.c
-      file_hash: $FILE_HASH
-      line: 23
-      column: 5
-      function: producer
-  - entry_type: ghost_variable
-    variable: multithreaded
-    scope: global
-    type: int
-    initial: "0"
-  - entry_type: ghost_variable
-    variable: m_locked
-    scope: global
-    type: int
-    initial: "0"
+  - entry_type: ghost_instrumentation
+    content:
+      ghost_variables:
+      - name: m_locked
+        scope: global
+        type: int
+        initial:
+          value: "0"
+          format: c_expression
+      - name: multithreaded
+        scope: global
+        type: int
+        initial:
+          value: "0"
+          format: c_expression
+      ghost_updates:
+      - location:
+          file_name: 74-mutex.c
+          file_hash: $FILE_HASH
+          line: 20
+          column: 5
+          function: producer
+        updates:
+        - variable: m_locked
+          value: "1"
+          format: c_expression
+      - location:
+          file_name: 74-mutex.c
+          file_hash: $FILE_HASH
+          line: 23
+          column: 5
+          function: producer
+        updates:
+        - variable: m_locked
+          value: "0"
+          format: c_expression
+      - location:
+          file_name: 74-mutex.c
+          file_hash: $FILE_HASH
+          line: 34
+          column: 3
+          function: main
+        updates:
+        - variable: multithreaded
+          value: "1"
+          format: c_expression
+      - location:
+          file_name: 74-mutex.c
+          file_hash: $FILE_HASH
+          line: 36
+          column: 3
+          function: main
+        updates:
+        - variable: m_locked
+          value: "1"
+          format: c_expression
+      - location:
+          file_name: 74-mutex.c
+          file_hash: $FILE_HASH
+          line: 38
+          column: 3
+          function: main
+        updates:
+        - variable: m_locked
+          value: "0"
+          format: c_expression
   - entry_type: flow_insensitive_invariant
     flow_insensitive_invariant:
       string: '! multithreaded || (m_locked || used == 0)'

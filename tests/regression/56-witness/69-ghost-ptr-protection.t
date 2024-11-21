@@ -1,4 +1,4 @@
-  $ goblint --set ana.base.privatization protection --enable witness.yaml.enabled --set ana.activated[+] mutexGhosts --set witness.yaml.entry-types '["flow_insensitive_invariant", "ghost_variable", "ghost_update"]' 69-ghost-ptr-protection.c
+  $ goblint --set ana.base.privatization protection --enable witness.yaml.enabled --set ana.activated[+] mutexGhosts --set witness.yaml.entry-types '["flow_insensitive_invariant", "ghost_instrumentation"]' 69-ghost-ptr-protection.c
   [Success][Assert] Assertion "*p != 0" will succeed (69-ghost-ptr-protection.c:26:3-26:27)
   [Info][Deadcode] Logical lines of code (LLoC) summary:
     live: 15
@@ -9,7 +9,7 @@
     write with [lock:{m2}, thread:[main, t_fun@69-ghost-ptr-protection.c:22:3-22:40]] (conf. 110)  (exp: & p) (69-ghost-ptr-protection.c:15:3-15:9)
     read with [mhp:{created={[main, t_fun@69-ghost-ptr-protection.c:22:3-22:40]}}, lock:{m1}, thread:[main]] (conf. 110)  (exp: & p) (69-ghost-ptr-protection.c:26:3-26:27)
   [Info][Witness] witness generation summary:
-    total generation entries: 12
+    total generation entries: 5
   [Info][Race] Memory locations race summary:
     safe: 2
     vulnerable: 0
@@ -19,66 +19,78 @@
 Should not contain unsound flow-insensitive invariant m2_locked || (p == & g && *p == 0):
 
   $ yamlWitnessStrip < witness.yml
-  - entry_type: ghost_update
-    variable: multithreaded
-    expression: "1"
-    location:
-      file_name: 69-ghost-ptr-protection.c
-      file_hash: $FILE_HASH
-      line: 22
-      column: 3
-      function: main
-  - entry_type: ghost_update
-    variable: m2_locked
-    expression: "1"
-    location:
-      file_name: 69-ghost-ptr-protection.c
-      file_hash: $FILE_HASH
-      line: 13
-      column: 3
-      function: t_fun
-  - entry_type: ghost_update
-    variable: m2_locked
-    expression: "0"
-    location:
-      file_name: 69-ghost-ptr-protection.c
-      file_hash: $FILE_HASH
-      line: 16
-      column: 3
-      function: t_fun
-  - entry_type: ghost_update
-    variable: m1_locked
-    expression: "1"
-    location:
-      file_name: 69-ghost-ptr-protection.c
-      file_hash: $FILE_HASH
-      line: 23
-      column: 3
-      function: main
-  - entry_type: ghost_update
-    variable: m1_locked
-    expression: "0"
-    location:
-      file_name: 69-ghost-ptr-protection.c
-      file_hash: $FILE_HASH
-      line: 28
-      column: 3
-      function: main
-  - entry_type: ghost_variable
-    variable: multithreaded
-    scope: global
-    type: int
-    initial: "0"
-  - entry_type: ghost_variable
-    variable: m2_locked
-    scope: global
-    type: int
-    initial: "0"
-  - entry_type: ghost_variable
-    variable: m1_locked
-    scope: global
-    type: int
-    initial: "0"
+  - entry_type: ghost_instrumentation
+    content:
+      ghost_variables:
+      - name: m1_locked
+        scope: global
+        type: int
+        initial:
+          value: "0"
+          format: c_expression
+      - name: m2_locked
+        scope: global
+        type: int
+        initial:
+          value: "0"
+          format: c_expression
+      - name: multithreaded
+        scope: global
+        type: int
+        initial:
+          value: "0"
+          format: c_expression
+      ghost_updates:
+      - location:
+          file_name: 69-ghost-ptr-protection.c
+          file_hash: $FILE_HASH
+          line: 13
+          column: 3
+          function: t_fun
+        updates:
+        - variable: m2_locked
+          value: "1"
+          format: c_expression
+      - location:
+          file_name: 69-ghost-ptr-protection.c
+          file_hash: $FILE_HASH
+          line: 16
+          column: 3
+          function: t_fun
+        updates:
+        - variable: m2_locked
+          value: "0"
+          format: c_expression
+      - location:
+          file_name: 69-ghost-ptr-protection.c
+          file_hash: $FILE_HASH
+          line: 22
+          column: 3
+          function: main
+        updates:
+        - variable: multithreaded
+          value: "1"
+          format: c_expression
+      - location:
+          file_name: 69-ghost-ptr-protection.c
+          file_hash: $FILE_HASH
+          line: 23
+          column: 3
+          function: main
+        updates:
+        - variable: m1_locked
+          value: "1"
+          format: c_expression
+      - location:
+          file_name: 69-ghost-ptr-protection.c
+          file_hash: $FILE_HASH
+          line: 28
+          column: 3
+          function: main
+        updates:
+        - variable: m1_locked
+          value: "0"
+          format: c_expression
   - entry_type: flow_insensitive_invariant
     flow_insensitive_invariant:
       string: '! multithreaded || (m2_locked || ((0 <= *p && *p <= 1) && p == & g))'

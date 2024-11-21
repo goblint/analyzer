@@ -1,4 +1,4 @@
-  $ goblint --set ana.base.privatization protection --enable witness.yaml.enabled --set ana.activated[+] mutexGhosts --set witness.yaml.entry-types '["flow_insensitive_invariant", "ghost_variable", "ghost_update"]' 04-priv_multi.c
+  $ goblint --set ana.base.privatization protection --enable witness.yaml.enabled --set ana.activated[+] mutexGhosts --set witness.yaml.entry-types '["flow_insensitive_invariant", "ghost_instrumentation"]' 04-priv_multi.c
   [Success][Assert] Assertion "p == 5" will succeed (04-priv_multi.c:50:7-50:30)
   [Success][Assert] Assertion "A == B" will succeed (04-priv_multi.c:71:5-71:28)
   [Warning][Deadcode] Function 'dispose' has dead code:
@@ -16,7 +16,7 @@
   [Warning][Deadcode][CWE-571] condition '1' (possibly inserted by CIL) is always true (04-priv_multi.c:45:10-45:11)
   [Warning][Deadcode][CWE-571] condition 'B > 0' is always true (04-priv_multi.c:47:9-47:14)
   [Info][Witness] witness generation summary:
-    total generation entries: 19
+    total generation entries: 4
   [Info][Race] Memory locations race summary:
     safe: 2
     vulnerable: 0
@@ -24,138 +24,158 @@
     total memory locations: 2
 
   $ yamlWitnessStrip < witness.yml | tee witness.flow_insensitive.yml
-  - entry_type: ghost_update
-    variable: mutex_B_locked
-    expression: "1"
-    location:
-      file_name: 04-priv_multi.c
-      file_hash: $FILE_HASH
-      line: 69
-      column: 5
-      function: main
-  - entry_type: ghost_update
-    variable: mutex_B_locked
-    expression: "1"
-    location:
-      file_name: 04-priv_multi.c
-      file_hash: $FILE_HASH
-      line: 46
-      column: 5
-      function: dispose
-  - entry_type: ghost_update
-    variable: mutex_B_locked
-    expression: "1"
-    location:
-      file_name: 04-priv_multi.c
-      file_hash: $FILE_HASH
-      line: 29
-      column: 7
-      function: process
-  - entry_type: ghost_update
-    variable: mutex_B_locked
-    expression: "0"
-    location:
-      file_name: 04-priv_multi.c
-      file_hash: $FILE_HASH
-      line: 73
-      column: 5
-      function: main
-  - entry_type: ghost_update
-    variable: mutex_B_locked
-    expression: "0"
-    location:
-      file_name: 04-priv_multi.c
-      file_hash: $FILE_HASH
-      line: 49
-      column: 7
-      function: dispose
-  - entry_type: ghost_update
-    variable: mutex_B_locked
-    expression: "0"
-    location:
-      file_name: 04-priv_multi.c
-      file_hash: $FILE_HASH
-      line: 32
-      column: 7
-      function: process
-  - entry_type: ghost_update
-    variable: mutex_A_locked
-    expression: "1"
-    location:
-      file_name: 04-priv_multi.c
-      file_hash: $FILE_HASH
-      line: 68
-      column: 5
-      function: main
-  - entry_type: ghost_update
-    variable: mutex_A_locked
-    expression: "1"
-    location:
-      file_name: 04-priv_multi.c
-      file_hash: $FILE_HASH
-      line: 26
-      column: 5
-      function: process
-  - entry_type: ghost_update
-    variable: mutex_A_locked
-    expression: "1"
-    location:
-      file_name: 04-priv_multi.c
-      file_hash: $FILE_HASH
-      line: 15
-      column: 5
-      function: generate
-  - entry_type: ghost_update
-    variable: mutex_A_locked
-    expression: "0"
-    location:
-      file_name: 04-priv_multi.c
-      file_hash: $FILE_HASH
-      line: 74
-      column: 5
-      function: main
-  - entry_type: ghost_update
-    variable: mutex_A_locked
-    expression: "0"
-    location:
-      file_name: 04-priv_multi.c
-      file_hash: $FILE_HASH
-      line: 34
-      column: 7
-      function: process
-  - entry_type: ghost_update
-    variable: mutex_A_locked
-    expression: "0"
-    location:
-      file_name: 04-priv_multi.c
-      file_hash: $FILE_HASH
-      line: 18
-      column: 5
-      function: generate
-  - entry_type: ghost_update
-    variable: multithreaded
-    expression: "1"
-    location:
-      file_name: 04-priv_multi.c
-      file_hash: $FILE_HASH
-      line: 63
-      column: 3
-      function: main
-  - entry_type: ghost_variable
-    variable: mutex_B_locked
-    scope: global
-    type: int
-    initial: "0"
-  - entry_type: ghost_variable
-    variable: mutex_A_locked
-    scope: global
-    type: int
-    initial: "0"
-  - entry_type: ghost_variable
-    variable: multithreaded
-    scope: global
-    type: int
-    initial: "0"
+  - entry_type: ghost_instrumentation
+    content:
+      ghost_variables:
+      - name: multithreaded
+        scope: global
+        type: int
+        initial:
+          value: "0"
+          format: c_expression
+      - name: mutex_A_locked
+        scope: global
+        type: int
+        initial:
+          value: "0"
+          format: c_expression
+      - name: mutex_B_locked
+        scope: global
+        type: int
+        initial:
+          value: "0"
+          format: c_expression
+      ghost_updates:
+      - location:
+          file_name: 04-priv_multi.c
+          file_hash: $FILE_HASH
+          line: 15
+          column: 5
+          function: generate
+        updates:
+        - variable: mutex_A_locked
+          value: "1"
+          format: c_expression
+      - location:
+          file_name: 04-priv_multi.c
+          file_hash: $FILE_HASH
+          line: 18
+          column: 5
+          function: generate
+        updates:
+        - variable: mutex_A_locked
+          value: "0"
+          format: c_expression
+      - location:
+          file_name: 04-priv_multi.c
+          file_hash: $FILE_HASH
+          line: 26
+          column: 5
+          function: process
+        updates:
+        - variable: mutex_A_locked
+          value: "1"
+          format: c_expression
+      - location:
+          file_name: 04-priv_multi.c
+          file_hash: $FILE_HASH
+          line: 29
+          column: 7
+          function: process
+        updates:
+        - variable: mutex_B_locked
+          value: "1"
+          format: c_expression
+      - location:
+          file_name: 04-priv_multi.c
+          file_hash: $FILE_HASH
+          line: 32
+          column: 7
+          function: process
+        updates:
+        - variable: mutex_B_locked
+          value: "0"
+          format: c_expression
+      - location:
+          file_name: 04-priv_multi.c
+          file_hash: $FILE_HASH
+          line: 34
+          column: 7
+          function: process
+        updates:
+        - variable: mutex_A_locked
+          value: "0"
+          format: c_expression
+      - location:
+          file_name: 04-priv_multi.c
+          file_hash: $FILE_HASH
+          line: 46
+          column: 5
+          function: dispose
+        updates:
+        - variable: mutex_B_locked
+          value: "1"
+          format: c_expression
+      - location:
+          file_name: 04-priv_multi.c
+          file_hash: $FILE_HASH
+          line: 49
+          column: 7
+          function: dispose
+        updates:
+        - variable: mutex_B_locked
+          value: "0"
+          format: c_expression
+      - location:
+          file_name: 04-priv_multi.c
+          file_hash: $FILE_HASH
+          line: 63
+          column: 3
+          function: main
+        updates:
+        - variable: multithreaded
+          value: "1"
+          format: c_expression
+      - location:
+          file_name: 04-priv_multi.c
+          file_hash: $FILE_HASH
+          line: 68
+          column: 5
+          function: main
+        updates:
+        - variable: mutex_A_locked
+          value: "1"
+          format: c_expression
+      - location:
+          file_name: 04-priv_multi.c
+          file_hash: $FILE_HASH
+          line: 69
+          column: 5
+          function: main
+        updates:
+        - variable: mutex_B_locked
+          value: "1"
+          format: c_expression
+      - location:
+          file_name: 04-priv_multi.c
+          file_hash: $FILE_HASH
+          line: 73
+          column: 5
+          function: main
+        updates:
+        - variable: mutex_B_locked
+          value: "0"
+          format: c_expression
+      - location:
+          file_name: 04-priv_multi.c
+          file_hash: $FILE_HASH
+          line: 74
+          column: 5
+          function: main
+        updates:
+        - variable: mutex_A_locked
+          value: "0"
+          format: c_expression
   - entry_type: flow_insensitive_invariant
     flow_insensitive_invariant:
       string: '! multithreaded || (mutex_B_locked || (mutex_A_locked || B == 5))'
@@ -174,7 +194,7 @@
 
 Flow-insensitive invariants as location invariants.
 
-  $ goblint --set ana.base.privatization protection --enable witness.yaml.enabled --set ana.activated[+] mutexGhosts --set witness.yaml.entry-types '["flow_insensitive_invariant", "ghost_variable", "ghost_update"]' --set witness.invariant.flow_insensitive-as location_invariant 04-priv_multi.c
+  $ goblint --set ana.base.privatization protection --enable witness.yaml.enabled --set ana.activated[+] mutexGhosts --set witness.yaml.entry-types '["flow_insensitive_invariant", "ghost_instrumentation"]' --set witness.invariant.flow_insensitive-as location_invariant 04-priv_multi.c
   [Success][Assert] Assertion "p == 5" will succeed (04-priv_multi.c:50:7-50:30)
   [Success][Assert] Assertion "A == B" will succeed (04-priv_multi.c:71:5-71:28)
   [Warning][Deadcode] Function 'dispose' has dead code:
@@ -192,7 +212,7 @@ Flow-insensitive invariants as location invariants.
   [Warning][Deadcode][CWE-571] condition '1' (possibly inserted by CIL) is always true (04-priv_multi.c:45:10-45:11)
   [Warning][Deadcode][CWE-571] condition 'B > 0' is always true (04-priv_multi.c:47:9-47:14)
   [Info][Witness] witness generation summary:
-    total generation entries: 25
+    total generation entries: 10
   [Info][Race] Memory locations race summary:
     safe: 2
     vulnerable: 0
@@ -204,7 +224,7 @@ Flow-insensitive invariants as location invariants.
 Location invariant at `for` loop in `main` should be on column 3, not 7.
 
   $ diff witness.flow_insensitive.yml witness.location.yml
-  133,134c133,140
+  153,154c153,160
   < - entry_type: flow_insensitive_invariant
   <   flow_insensitive_invariant:
   ---
@@ -216,7 +236,7 @@ Location invariant at `for` loop in `main` should be on column 3, not 7.
   >     column: 3
   >     function: main
   >   location_invariant:
-  138,139c144,151
+  158,159c164,171
   < - entry_type: flow_insensitive_invariant
   <   flow_insensitive_invariant:
   ---
@@ -228,7 +248,7 @@ Location invariant at `for` loop in `main` should be on column 3, not 7.
   >     column: 3
   >     function: main
   >   location_invariant:
-  143,144c155,228
+  163,164c175,248
   < - entry_type: flow_insensitive_invariant
   <   flow_insensitive_invariant:
   ---
