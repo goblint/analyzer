@@ -114,6 +114,8 @@ struct
   let ghost_var_available ctx v =
     WitnessGhost.enabled () && ghost_var_available ctx v
 
+  module VariableSet = Set.Make (YamlWitnessType.GhostInstrumentation.Variable)
+
   let query ctx (type a) (q: a Queries.t): a Queries.result =
     match q with
     | GhostVarAvailable v -> ghost_var_available ctx v
@@ -173,15 +175,11 @@ struct
           let (variables, location_updates) = NodeSet.fold (fun node (variables, location_updates) ->
               let (locked, unlocked, multithread) = G.node (ctx.global (V.node node)) in
               let variables' =
-                (* TODO: do variable_entry-s only once *)
                 Locked.fold (fun l acc ->
                     match mustlock_of_addr l with
                     | Some l when ghost_var_available ctx (Locked l) ->
                       let variable = WitnessGhost.variable' (Locked l) in
-                      if BatList.mem_cmp YamlWitnessType.GhostInstrumentation.Variable.compare variable acc then (* TODO: be efficient *)
-                        acc
-                      else
-                        variable :: acc
+                      VariableSet.add variable acc
                     | _ ->
                       acc
                   ) (Locked.union locked unlocked) variables
@@ -211,12 +209,7 @@ struct
                   if ghost_var_available ctx Multithreaded then (
                     let variable = WitnessGhost.variable' Multithreaded in
                     let update = WitnessGhost.update' Multithreaded GoblintCil.one in
-                    let variables' =
-                      if BatList.mem_cmp YamlWitnessType.GhostInstrumentation.Variable.compare variable variables' then (* TODO: be efficient *)
-                        variables'
-                      else
-                        variable :: variables'
-                    in
+                    let variables' = VariableSet.add variable variables' in
                     (variables', update :: updates)
                   )
                   else
@@ -227,9 +220,9 @@ struct
               in
               let location_update = WitnessGhost.location_update' ~node ~updates in
               (variables', location_update :: location_updates)
-            ) nodes ([], [])
+            ) nodes (VariableSet.empty, [])
           in
-          let entry = WitnessGhost.instrumentation_entry ~task ~variables ~location_updates in
+          let entry = WitnessGhost.instrumentation_entry ~task ~variables:(VariableSet.elements variables) ~location_updates in
           Queries.YS.singleton entry
         | `Left _ -> Queries.Result.top q
         | `Middle _ -> Queries.Result.top q

@@ -398,23 +398,24 @@ struct
     (* Generate flow-insensitive entries (ghost variables and ghost updates) *)
     let entries =
       if (entry_type_enabled YamlWitnessType.GhostVariable.entry_type && entry_type_enabled YamlWitnessType.GhostUpdate.entry_type) || entry_type_enabled YamlWitnessType.GhostInstrumentation.entry_type then (
-        GHT.fold (fun g v acc ->
+        let module EntrySet = Queries.YS in
+        fst @@ GHT.fold (fun g v accs ->
             match g with
             | `Left g -> (* Spec global *)
               begin match R.ask_global (YamlEntryGlobal (Obj.repr g, task)) with
                 | `Lifted _ as inv ->
-                  Queries.YS.fold (fun entry acc ->
-                      if BatList.mem_cmp YamlWitnessType.Entry.compare entry acc then (* TODO: be efficient *)
-                        acc
+                  Queries.YS.fold (fun entry (acc, acc') ->
+                      if EntrySet.mem entry acc' then (* deduplicate only with other global entries because local ones have different locations anyway *)
+                        accs
                       else
-                        entry :: acc
-                    ) inv acc
+                        (entry :: acc, EntrySet.add entry acc')
+                    ) inv accs
                 | `Top ->
-                  acc
+                  accs
               end
             | `Right _ -> (* contexts global *)
-              acc
-          ) gh entries
+              accs
+          ) gh (entries, EntrySet.empty ())
       )
       else
         entries
