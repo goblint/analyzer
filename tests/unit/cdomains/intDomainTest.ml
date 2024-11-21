@@ -487,6 +487,85 @@ struct
 
   (* Arith *)
 
+  let print_err_message bf1 bf2 bfr = 
+    I.show bfr ^ " on input " ^ I.show bf1 ^ " and " ^ I.show bf2
+
+  let ik_arithu = Cil.IUChar
+
+  let ik_ariths = Cil.IChar
+
+  let of_list ik is = List.fold_left (fun acc x -> I.join ik acc (I.of_int ik x)) (I.bot ()) is
+
+  let result_list op is1 is2 = List.concat (List.map (fun x -> List.map (op x) is2) is1)
+
+  let generate_test ?(debug=false) opc opa ik is1 is2 = 
+    let zs1 = List.map Z.of_int is1 in 
+    let zs2 = List.map Z.of_int is2 in 
+    let res = of_list ik (result_list opc zs1 zs2) in 
+    let bs1 = of_list ik zs1 in 
+    let bs2 = of_list ik zs2 in 
+    let bsr = opa ik bs1 bs2 in
+    OUnit2.assert_equal ~cmp:I.leq ~printer:(print_err_message bs1 bs2) res bsr
+
+  let c1 = [99]
+  let c2 = [186]
+  let c3 = [-64]
+  let c4 = [-104]
+
+  let is1 = [8; 45; 89; 128]
+  let is2 = [5; 69; 72; 192]
+  let is3 = [-11; -42; -99; -120]
+  let is4 = [-16; -64; -87; -111]
+  let is5 = [-64; -14; 22; 86]
+
+  let testsuite = [c1;c2;c3;c4;is1;is2;is3;is4]
+  let testsuite_unsigned = [c1;c2;is1;is2]
+
+  let arith_testsuite ?(debug=false) opc opa ts ik = 
+    List.map (fun x -> List.map (generate_test opc opa ik x) ts) ts
+
+  let test_add _ = 
+    let _ = arith_testsuite Z.add I.add testsuite ik_arithu in
+    let _ = arith_testsuite Z.add I.add testsuite ik_ariths in 
+    ()
+
+  let test_sub _ = 
+    let _ = arith_testsuite Z.sub I.sub testsuite ik_arithu in
+    let _ = arith_testsuite Z.sub I.sub testsuite ik_ariths in 
+    ()
+
+  let test_mul _ =     
+    let _ = arith_testsuite Z.mul I.mul testsuite ik_arithu in
+    let _ = arith_testsuite Z.mul I.mul testsuite ik_ariths in 
+    ()
+
+  let test_div _ = 
+    let _ = arith_testsuite Z.div I.div testsuite_unsigned ik_arithu in
+    let _ = arith_testsuite Z.div I.div testsuite IShort in 
+    ()
+
+  let test_rem _ = 
+    let _ = arith_testsuite Z.rem I.rem testsuite_unsigned ik_arithu in
+    let _ = arith_testsuite Z.rem I.rem testsuite IShort in 
+    ()
+
+  let test_neg _ = 
+    let print_neg_err_message bfi bfr = 
+      I.show bfr ^ " on input " ^ I.show bfi
+    in
+    let generate_test_neg opc opa ik is = 
+      let zs = List.map Z.of_int is in 
+      let res = of_list ik (List.map opc zs) in 
+      let bs = of_list ik zs in 
+      OUnit2.assert_equal ~cmp:I.leq ~printer:(print_neg_err_message bs) res (opa ik bs)
+    in 
+    let neg_testsuite opc opa ik = 
+      let testsuite = [c1;c2;c3;c4;is1;is2;is3;is4] in
+      List.map (generate_test_neg opc opa ik) testsuite
+    in
+    let _ = neg_testsuite Z.neg I.neg ik_arithu in
+    let _ = neg_testsuite Z.neg I.neg ik_ariths in 
+    ()
 
   (* Comparisons *)
 
@@ -662,6 +741,13 @@ struct
     "test_lognot" >:: test_lognot;
     "test_shift_left" >:: test_shift_left;
     "test_shift_right" >:: test_shift_right;
+
+    "test_add" >:: test_add;
+    "test_sub" >:: test_sub;
+    "test_mul" >:: test_mul;
+    "test_div" >:: test_div;
+    "test_rem" >:: test_rem;
+    
 
     "test_eq" >:: test_eq;
     "test_ne" >:: test_ne;

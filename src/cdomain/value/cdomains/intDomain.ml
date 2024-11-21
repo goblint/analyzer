@@ -1259,7 +1259,7 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): SOverflow with type int_t = Int
 
   let widen ik x y = (norm ik @@ BArith.widen x y) |> fst
 
-  let narrow ik x y = norm ik x |> fst
+  let narrow ik x y = meet ik x y
 
   let of_int ik (x: int_t) = (norm ik @@ BArith.of_int x) 
 
