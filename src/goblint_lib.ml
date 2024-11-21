@@ -430,7 +430,7 @@ module BaseInvariant = BaseInvariant
 module CommonPriv = CommonPriv
 module WideningThresholds = WideningThresholds
 
-(*module VectorMatrix = VectorMatrix (*Why is this needed anyway?*)*)
+module AffineEquality = AffineEquality 
 module SharedFunctions = SharedFunctions
 module GobApron = GobApron
 
