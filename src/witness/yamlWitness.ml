@@ -397,7 +397,7 @@ struct
 
     (* Generate flow-insensitive entries (ghost variables and ghost updates) *)
     let entries =
-      if true then (
+      if (entry_type_enabled YamlWitnessType.GhostVariable.entry_type && entry_type_enabled YamlWitnessType.GhostUpdate.entry_type) || entry_type_enabled YamlWitnessType.GhostInstrumentation.entry_type then (
         GHT.fold (fun g v acc ->
             match g with
             | `Left g -> (* Spec global *)
