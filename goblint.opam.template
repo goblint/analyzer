@@ -2,7 +2,11 @@
 # also remember to generate/adjust goblint.opam.locked!
 available: os-family != "bsd" & os-distribution != "alpine" & (arch != "arm64" | os = "macos")
 pin-depends: [
-  [ "goblint-cil.2.0.4" "git+https://github.com/goblint/cil.git#04b8a45a7d20425c7b6c8abe1ad094abc063922b" ]
+  [ "goblint-cil.2.0.4" "git+https://github.com/goblint/cil.git#9f4fac450c02bc61a13717784515056b185794cd" ]
+  # pinned for stability (https://github.com/goblint/analyzer/issues/1520), remove after new camlidl release
+  [ "camlidl.1.12" "git+https://github.com/xavierleroy/camlidl.git#1c1e87e3f56c2c6b3226dd0af3510ef414b462d0" ]
+  # pinned for stability (https://github.com/goblint/analyzer/issues/1520), remove after new apron release
+  [ "apron.v0.9.15" "git+https://github.com/antoinemine/apron.git#418a217c7a70dae3f422678f3aaba38ae374d91a" ]
 ]
 depexts: [
   ["libgraph-easy-perl"] {os-distribution = "ubuntu" & with-test}

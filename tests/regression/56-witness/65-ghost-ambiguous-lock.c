@@ -1,7 +1,7 @@
 // PARAM: --set ana.activated[+] mutexGhosts
 #include <pthread.h>
 #include <goblint.h>
-
+// CRAM
 int g1, g2;
 pthread_mutex_t m1 = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t m2 = PTHREAD_MUTEX_INITIALIZER;
