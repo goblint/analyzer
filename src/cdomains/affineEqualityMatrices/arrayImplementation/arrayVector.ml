@@ -90,7 +90,7 @@ module ArrayVector: AbstractVector =
       let copy = copy v in
       mapi_with f copy; copy
 
-    let of_sparse_list ls col_count =
+    let of_sparse_list col_count ls =
       let vec = Array.make col_count A.zero in
       List.iter (fun (idx, value) -> vec.(idx) <- value) ls;
       vec

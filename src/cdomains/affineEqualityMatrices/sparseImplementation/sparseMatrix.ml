@@ -3,6 +3,9 @@ open AbstractVector
 open RatOps
 open ConvenienceOps
 
+open BatList
+module List = BatList
+
 (** Sparse matrix implementation.
     It provides a normalization function to reduce a matrix into reduced row echelon form.
     Operations exploit that the input matrix/matrices are in reduced row echelon form already. *)
@@ -43,7 +46,7 @@ module SparseMatrix: AbstractMatrix =
     let copy m =
       Timing.wrap "copy" (copy) m
 
-    let add_empty_columns m (cols : int enumerable) =
+    let add_empty_columns m cols =
       let colsL = List.sort (fun a b -> a-b) (Array.to_list cols) in
       let emptyT = A.zero in
       let rec list_of_all_before_index idx cols =
@@ -76,7 +79,7 @@ module SparseMatrix: AbstractMatrix =
         | [] -> []
       in tM (add_empty_columns_on_list m.entries colsL) (m.column_count + Array.length cols)
 
-    let add_empty_columns m (cols : int enumerable) =
+    let add_empty_columns m cols =
       Timing.wrap "add_empty_cols" (add_empty_columns m) cols
 
     let append_row m row  =
