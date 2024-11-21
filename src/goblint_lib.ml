@@ -431,15 +431,16 @@ module CommonPriv = CommonPriv
 module WideningThresholds = WideningThresholds
 
 (* There might be a more elegant solution. *)
-module AbstractVector = AbstractVector 
-module ArrayMatrix = ArrayMatrix
-module SparseMatrix = SparseMatrix
-module Matrix = Matrix
-module AbstractMatrix = AbstractMatrix
-module ConvenienceOps = ConvenienceOps
-module SparseVector = SparseVector
-module RatOps = RatOps
 module Vector = Vector
+module Matrix = Matrix
+module AbstractVector = AbstractVector 
+module AbstractMatrix = AbstractMatrix
+module ArrayVector = ArrayVector
+module ArrayMatrix = ArrayMatrix
+module SparseVector = SparseVector
+module SparseMatrix = SparseMatrix
+module RatOps = RatOps
+module ConvenienceOps = ConvenienceOps
 
 module SharedFunctions = SharedFunctions
 module GobApron = GobApron
