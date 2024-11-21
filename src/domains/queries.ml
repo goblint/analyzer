@@ -131,9 +131,9 @@ type _ t =
   | TmpSpecial:  Mval.Exp.t -> ML.t t
   | MaySignedOverflow: exp -> MayBool.t t
   | GasExhausted: MustBool.t t
-  | YamlEntryGlobal: Obj.t * YamlWitnessType.Task.t -> YS.t t
+  | YamlEntryGlobal: Obj.t * YamlWitnessType.Task.t -> YS.t t (** YAML witness entries for a global unknown ([Obj.t] represents [Spec.V.t]) and YAML witness task. *)
   | GhostVarAvailable: WitnessGhostVar.t -> MayBool.t t
-  | InvariantGlobalNodes: NS.t t (* TODO: V.t argument? *)
+  | InvariantGlobalNodes: NS.t t (** Nodes where YAML witness flow-insensitive invariants should be emitted as location invariants (if [witness.invariant.flow_insensitive-as] is configured to do so). *) (* [Spec.V.t] argument (as [Obj.t]) could be added, if this should be different for different flow-insensitive invariants. *)
 
 type 'a result = 'a
 
