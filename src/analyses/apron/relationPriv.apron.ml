@@ -722,7 +722,7 @@ struct
         let one_var = GobConfig.get_bool "ana.relation.invariant.one-var" in
         let exact = GobConfig.get_bool "witness.invariant.exact" in
 
-        let rel = keep_only_protected_globals ask m' (get_m_with_mutex_inits ask getg m') in (* TODO: disjunct with mutex_inits instead of join? *)
+        let rel = keep_only_protected_globals ask m' (get_m_with_mutex_inits ask getg m') in (* Could be more precise if mutex_inits invariant is added by disjunction instead of joining abstract values. *)
         let inv =
           RD.invariant rel
           |> List.enum
