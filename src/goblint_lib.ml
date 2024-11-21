@@ -430,7 +430,17 @@ module BaseInvariant = BaseInvariant
 module CommonPriv = CommonPriv
 module WideningThresholds = WideningThresholds
 
-module AffineEquality = AffineEquality 
+(* There might be a more elegant solution. *)
+module AbstractVector = AbstractVector 
+module ArrayMatrix = ArrayMatrix
+module SparseMatrix = SparseMatrix
+module Matrix = Matrix
+module AbstractMatrix = AbstractMatrix
+module ConvenienceOps = ConvenienceOps
+module SparseVector = SparseVector
+module RatOps = RatOps
+module Vector = Vector
+
 module SharedFunctions = SharedFunctions
 module GobApron = GobApron
 
