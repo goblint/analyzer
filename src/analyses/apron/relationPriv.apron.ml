@@ -747,7 +747,7 @@ struct
       else
         Invariant.none
     | g -> (* global *)
-      Invariant.none (* TODO: ? *)
+      Invariant.none (* Could output unprotected one-variable (so non-relational) invariants, but probably not very useful. [BasePriv] does those anyway. *)
 end
 
 (** May written variables. *)

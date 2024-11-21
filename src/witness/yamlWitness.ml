@@ -354,11 +354,13 @@ struct
     let invariant_global_nodes = lazy (R.ask_global InvariantGlobalNodes) in
 
     let fold_flow_insensitive_as_location ~inv f acc =
-      (* TODO: or do at location_invariant loop for each node and query if should also do global invariants there? *)
+      (* Currently same invariants (from InvariantGlobal query) for all nodes (from InvariantGlobalNodes query).
+         The alternative would be querying InvariantGlobal per local unknown when looping over them to generate location invariants.
+         See: https://github.com/goblint/analyzer/pull/1394#discussion_r1698149514. *)
       let invs = WitnessUtil.InvariantExp.process_exp inv in
       Queries.NS.fold (fun n acc ->
           let fundec = Node.find_fundec n in
-          match WitnessInvariant.location_location n with (* if after thread create node happens to be loop node *)
+          match WitnessInvariant.location_location n with (* Not just using Node.location because it returns expression location which may be invalid for location invariant (e.g. inside conditional). *)
           | Some loc ->
             let location_function = fundec.svar.vname in
             let location = Entry.location ~location:loc ~location_function in
@@ -374,7 +376,7 @@ struct
       if entry_type_enabled YamlWitnessType.FlowInsensitiveInvariant.entry_type then (
         GHT.fold (fun g v acc ->
             match g with
-            | `Left g -> (* Spec global *)
+            | `Left g -> (* global unknown from analysis Spec *)
               begin match R.ask_global (InvariantGlobal (Obj.repr g)), GobConfig.get_string "witness.invariant.flow_insensitive-as" with
                 | `Lifted inv, "flow_insensitive_invariant" ->
                   let invs = WitnessUtil.InvariantExp.process_exp inv in
@@ -393,7 +395,7 @@ struct
                 | `Bot, _ | `Top, _ -> (* global bot might only be possible for alloc variables, if at all, so emit nothing *)
                   acc
               end
-            | `Right _ -> (* contexts global *)
+            | `Right _ -> (* global unknown for FromSpec contexts *)
               acc
           ) gh entries
       )
@@ -407,7 +409,7 @@ struct
         let module EntrySet = Queries.YS in
         fst @@ GHT.fold (fun g v accs ->
             match g with
-            | `Left g -> (* Spec global *)
+            | `Left g -> (* global unknown from analysis Spec *)
               begin match R.ask_global (YamlEntryGlobal (Obj.repr g, task)) with
                 | `Lifted _ as inv ->
                   Queries.YS.fold (fun entry (acc, acc') ->
@@ -419,7 +421,7 @@ struct
                 | `Top ->
                   accs
               end
-            | `Right _ -> (* contexts global *)
+            | `Right _ -> (* global unknown for FromSpec contexts *)
               accs
           ) gh (entries, EntrySet.empty ())
       )
@@ -598,7 +600,7 @@ struct
           if entry_type_enabled YamlWitnessType.FlowInsensitiveInvariant.entry_type && GobConfig.get_string "witness.invariant.flow_insensitive-as" = "invariant_set-location_invariant" then (
             GHT.fold (fun g v acc ->
                 match g with
-                | `Left g -> (* Spec global *)
+                | `Left g -> (* global unknown from analysis Spec *)
                   begin match R.ask_global (InvariantGlobal (Obj.repr g)) with
                     | `Lifted inv ->
                       fold_flow_insensitive_as_location ~inv (fun ~location ~inv acc ->
@@ -609,7 +611,7 @@ struct
                     | `Bot | `Top -> (* global bot might only be possible for alloc variables, if at all, so emit nothing *)
                       acc
                   end
-                | `Right _ -> (* contexts global *)
+                | `Right _ -> (* global unknown for FromSpec contexts *)
                   acc
               ) gh invariants
           )
