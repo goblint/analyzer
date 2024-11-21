@@ -891,7 +891,10 @@ struct
       else if VD.equal (getg (V.protected g')) (getg (V.unprotected g')) then
         Invariant.none (* don't output protected invariant because it's the same as unprotected *)
       else (
-        let inv = ValueDomain.invariant_global (fun g -> getg (V.protected g)) g' in (* TODO: This takes protected values of every [g], not just [g'], which might be unsound with pointers. See: https://github.com/goblint/analyzer/pull/1394#discussion_r1698136411. *)
+        (* Only read g' as protected, everything else (e.g. pointed to variables) may be unprotected.
+           See 56-witness/69-ghost-ptr-protection and https://github.com/goblint/analyzer/pull/1394#discussion_r1698136411. *)
+        let read_global g = getg (if CilType.Varinfo.equal g g' then V.protected g else V.unprotected g) in
+        let inv = ValueDomain.invariant_global read_global g' in
         (* Very conservative about multiple (write-)protecting mutexes: invariant is not claimed when any of them is held.
            It should be possible to be more precise because writes only happen with all of them held,
            but conjunction is unsound when one of the mutexes is temporarily unlocked.

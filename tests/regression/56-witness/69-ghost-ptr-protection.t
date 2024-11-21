@@ -16,7 +16,7 @@
     unsafe: 1
     total memory locations: 3
 
-TODO: Should not contain unsound flow-insensitive invariant m2_locked || (p == & g && *p == 0):
+Should not contain unsound flow-insensitive invariant m2_locked || (p == & g && *p == 0):
 
   $ yamlWitnessStrip < witness.yml
   - entry_type: ghost_update
@@ -81,7 +81,7 @@ TODO: Should not contain unsound flow-insensitive invariant m2_locked || (p == &
     initial: "0"
   - entry_type: flow_insensitive_invariant
     flow_insensitive_invariant:
-      string: '! multithreaded || (m2_locked || (p == & g && *p == 0))'
+      string: '! multithreaded || (m2_locked || ((0 <= *p && *p <= 1) && p == & g))'
       type: assertion
       format: C
   - entry_type: flow_insensitive_invariant
