@@ -464,7 +464,6 @@ struct
     variable: string;
     expression: string;
     location: Location.t;
-    (* TODO: branching? *)
   }
   [@@deriving eq, ord, hash]
 
