@@ -1101,6 +1101,9 @@ module BitfieldArith (Ints_t : IntOps.IntOps) = struct
 
   let bits_known (z,o) = Ints_t.logxor z o
   let bits_unknown bf = Ints_t.lognot @@ bits_known bf
+
+  let bits_impossible (z,o) = Ints_t.lognot @@ Ints_t.logor z o
+
   let bits_set bf = Ints_t.logand (snd bf) @@ bits_known bf
 
   let is_const (z,o) = (Ints_t.logxor z o) = one_mask
@@ -1214,14 +1217,31 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): SOverflow with type int_t = Int
   let top_of ik = top ()
   let bot_of ik = bot ()
 
+  let to_pretty_bits (z,o) = 
+    let known = BArith.bits_known (z,o) in
+    let impossible = BArith.bits_impossible (z,o) in
+
+    let max_bits = 16 in
+
+    let rec to_pretty_bits' known_mask impossible_mask o_mask max_bits acc =
+      if max_bits < 0 || o_mask = Ints_t.zero then acc
+      else
+        let current_bit_known = Ints_t.logand known_mask Ints_t.one in
+        let current_bit_impossible = Ints_t.logand impossible_mask Ints_t.one in
+        let value = Ints_t.logand o_mask Ints_t.one in
+        let acc' = (if current_bit_impossible = Ints_t.one then "⊥" else if current_bit_known = Ints_t.one then string_of_int (Ints_t.to_int value) else "⊤") ^ acc in
+        to_pretty_bits' (Ints_t.shift_right known_mask 1) (Ints_t.shift_right impossible_mask 1) (Ints_t.shift_right o_mask 1) (max_bits - 1) acc'
+    in
+    to_pretty_bits' known impossible o max_bits ""
+
   let show t = 
     if t = bot () then "bot" else
     if t = top () then "top" else
       let (z,o) = t in
       if BArith.is_const t then 
-        Format.sprintf "{%08X, %08X} (unique: %d)" (Ints_t.to_int z) (Ints_t.to_int o) (Ints_t.to_int o)
+        Format.sprintf "{%d, %d} {%s} (unique: %d)" (Ints_t.to_int z) (Ints_t.to_int o) (to_pretty_bits t) (Ints_t.to_int o)
       else 
-        Format.sprintf "{%08X, %08X}" (Ints_t.to_int z) (Ints_t.to_int o)
+        Format.sprintf "{%d, %d} {%s}" (Ints_t.to_int z) (Ints_t.to_int o) (to_pretty_bits t)
 
   include Std (struct type nonrec t = t let name = name let top_of = top_of let bot_of = bot_of let show = show let equal = equal end)
 
