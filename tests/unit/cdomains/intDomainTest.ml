@@ -845,10 +845,10 @@ struct
   let of_list ik is = List.fold_left (fun acc x -> B.join ik acc (B.of_int ik x)) (B.bot ()) is
 
   let v1 = Z.of_int 0
-  let v2 = Z.of_int 13
+  let v2 = Z.of_int 2
   let vr = Z.mul v1 v2
 
-  let is = [0;1;2;3;4;5;6;7]
+  let is = [-3;3]
   let res = [0;13;26;39;52;65;78;91]
 
   let b1 = of_list ik (List.map Z.of_int is)
@@ -857,8 +857,10 @@ struct
 
   let test_add _ = assert_equal ~cmp:B.leq ~printer:B.show br (B.mul ik b2 b1)
 
+  let test_lt _ = assert_equal ~cmp:B.leq ~printer:B.show (B.join ik (B.of_int ik Z.zero) (B.of_int ik Z.one)) (B.lt ik b1 b2)
+
   let test () =  [
-    "test_add" >:: test_add;
+    "test_lt" >:: test_lt;
   ]
 end
 

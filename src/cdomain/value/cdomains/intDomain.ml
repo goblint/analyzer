@@ -1181,24 +1181,18 @@ module BitfieldArith (Ints_t : IntOps.IntOps) = struct
     else Option.map (fun c_lst -> List.map (shift_left bf) c_lst |> List.fold_left join zero) (break_down ik n_bf)
 
   let min ik (z,o) = 
-    let unknownBitMask = bits_unknown (z,o) in
-    let guaranteedBits = bits_set (z,o) in
-
-    if isSigned ik then
-      let signBitMask = Ints_t.shift_left Ints_t.one (Size.bit ik - 1) in
-      let worstPossibleUnknownBits = Ints_t.logand unknownBitMask signBitMask in
-      Size.cast ik (Ints_t.to_bigint (Ints_t.logor guaranteedBits worstPossibleUnknownBits))
-    else
-      Size.cast ik (Ints_t.to_bigint  guaranteedBits )
+    let signBit = Ints_t.shift_left Ints_t.one ((Size.bit ik) - 1) in 
+    let signMask = Ints_t.lognot (Ints_t.of_bigint (snd (Size.range ik))) in
+    let isNegative = Ints_t.logand signBit o <> Ints_t.zero in
+    if isSigned ik && isNegative then Ints_t.to_bigint(Ints_t.logor signMask (Ints_t.lognot z))
+    else Ints_t.to_bigint(Ints_t.lognot z)
 
   let max ik (z,o) =
-    let unknownBitMask = bits_unknown (z,o) in
-    let guaranteedBits = bits_set (z,o) in
-
-    let (_,fullMask) = Size.range ik in
-    let worstPossibleUnknownBits = Ints_t.logand unknownBitMask (Ints_t.of_bigint fullMask) in
-
-    Size.cast ik (Ints_t.to_bigint (Ints_t.logor guaranteedBits worstPossibleUnknownBits))
+    let signBit = Ints_t.shift_left Ints_t.one ((Size.bit ik) - 1) in 
+    let signMask = Ints_t.of_bigint (snd (Size.range ik)) in
+    let isPositive = Ints_t.logand signBit z <> Ints_t.zero in
+    if isSigned ik && isPositive then Ints_t.to_bigint(Ints_t.logand signMask o)
+    else Ints_t.to_bigint o
 
 end
 
@@ -1336,6 +1330,7 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): SOverflow with type int_t = Int
   add, sub and mul based on the paper 
   "Sound, Precise, and Fast Abstract Interpretation with Tristate Numbers"
   of Vishwanathan et al.
+  https://doi.org/10.1109/CGO53902.2022.9741267 
   *)
 
   let add_paper pv pm qv qm = 
@@ -1394,10 +1389,10 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): SOverflow with type int_t = Int
     let signBitDefZ = Ints_t.logand (Ints_t.lognot (Ints_t.logxor o1 o2)) bitmask in
     for _ = size downto 0 do 
       (if Ints_t.logand !pm Ints_t.one == Ints_t.one then 
-         accm := snd(add_paper Ints_t.zero !accm Ints_t.zero (Ints_t.logor !qv !qm))
-       else if Ints_t.logand !pv Ints_t.one == Ints_t.one then
-         accv := fst(add_paper !accv Ints_t.zero !qv Ints_t.zero);
-       accm := snd(add_paper Ints_t.zero !accm Ints_t.zero !qm));
+        accm := snd(add_paper Ints_t.zero !accm Ints_t.zero (Ints_t.logor !qv !qm))
+      else if Ints_t.logand !pv Ints_t.one == Ints_t.one then
+        accv := fst(add_paper !accv Ints_t.zero !qv Ints_t.zero);
+        accm := snd(add_paper Ints_t.zero !accm Ints_t.zero !qm));
 
       pv := Ints_t.shift_right !pv 1;
       pm := Ints_t.shift_right !pm 1;
@@ -1444,7 +1439,6 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): SOverflow with type int_t = Int
   let lt ik x y = if (BArith.max ik x) < (BArith.min ik y) then of_bool ik true 
     else if (BArith.min ik x) >= (BArith.max ik y) then of_bool ik false 
     else BArith.top_bool
-
 
   let gt ik x y = lt ik y x
 
