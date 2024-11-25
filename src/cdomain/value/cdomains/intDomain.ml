@@ -1139,6 +1139,24 @@ module BitfieldArith (Ints_t : IntOps.IntOps) = struct
 
   let get_bit bf pos = Ints_t.one &: (bf <<: pos)
 
+  let min ik (z,o) = 
+    let unknownBitMask = bits_unknown (z,o) in
+    let guaranteedBits = bits_set (z,o) in
+    if isSigned ik then
+      let signBitMask = Ints_t.shift_left Ints_t.one (Size.bit ik - 1) in
+      let worstPossibleUnknownBits = Ints_t.logand unknownBitMask signBitMask in
+      Size.cast ik (Ints_t.to_bigint (Ints_t.logor guaranteedBits worstPossibleUnknownBits))
+    else
+      Size.cast ik (Ints_t.to_bigint  guaranteedBits )
+
+  let max ik (z,o) =
+    let unknownBitMask = bits_unknown (z,o) in
+    let guaranteedBits = bits_set (z,o) in
+    let (_,fullMask) = Size.range ik in
+    let worstPossibleUnknownBits = Ints_t.logand unknownBitMask (Ints_t.of_bigint fullMask) in
+    Size.cast ik (Ints_t.to_bigint (Ints_t.logor guaranteedBits worstPossibleUnknownBits))
+
+
   (* Worst Case asymptotic runtime: O(2^n). *)
   let rec concretize (z,o) =
     if is_const (z,o) then [o]
@@ -1166,7 +1184,8 @@ module BitfieldArith (Ints_t : IntOps.IntOps) = struct
     else
       let join_shrs c_lst = List.map (shift_right ik bf) c_lst |> List.fold_left join zero in
       let max_bit = Z.log2up (Z.of_int @@ Size.bit ik) in 
-      concretize (fst bf &: make_msb_bitmask max_bit, snd bf &: make_lsb_bitmask max_bit) (* O( 2^(log(n)) ) *)
+      if Z.to_int (min ik bf) >= max_bit then zero
+      else concretize (make_msb_bitmask max_bit, snd bf &: make_lsb_bitmask max_bit) (* O( 2^(log(n)) ) *)
       |> join_shrs
 
   let shift_left _ (z,o) c =
@@ -1178,25 +1197,9 @@ module BitfieldArith (Ints_t : IntOps.IntOps) = struct
     else
       let join_shls c_lst = List.map (shift_left ik bf) c_lst |> List.fold_left join zero in
       let max_bit = Z.log2up (Z.of_int @@ Size.bit ik) in
-      concretize (fst bf &: make_msb_bitmask max_bit, snd bf &: make_lsb_bitmask max_bit) (* O( 2^(log(n)) ) *)
+      if Z.to_int (min ik bf) >= max_bit then zero
+      else concretize (make_msb_bitmask max_bit, snd bf &: make_lsb_bitmask max_bit) (* O( 2^(log(n)) ) *)
       |> join_shls
-
-  let min ik (z,o) = 
-    let unknownBitMask = bits_unknown (z,o) in
-    let guaranteedBits = bits_set (z,o) in
-    if isSigned ik then
-      let signBitMask = Ints_t.shift_left Ints_t.one (Size.bit ik - 1) in
-      let worstPossibleUnknownBits = Ints_t.logand unknownBitMask signBitMask in
-      Size.cast ik (Ints_t.to_bigint (Ints_t.logor guaranteedBits worstPossibleUnknownBits))
-    else
-      Size.cast ik (Ints_t.to_bigint  guaranteedBits )
-
-  let max ik (z,o) =
-    let unknownBitMask = bits_unknown (z,o) in
-    let guaranteedBits = bits_set (z,o) in
-    let (_,fullMask) = Size.range ik in
-    let worstPossibleUnknownBits = Ints_t.logand unknownBitMask (Ints_t.of_bigint fullMask) in
-    Size.cast ik (Ints_t.to_bigint (Ints_t.logor guaranteedBits worstPossibleUnknownBits))
 
 end
 
