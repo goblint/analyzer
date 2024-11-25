@@ -1326,12 +1326,12 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): SOverflow with type int_t = Int
 
   let shift_right ik a b = 
     M.trace "bitfield" "shift_right";
-    if BArith.is_invalid b || BArith.is_invalid a then (bot (), {underflow=false; overflow=false})
+    if BArith.is_invalid b || BArith.is_invalid a || BArith.(min ik b < Z.zero) then (bot (), {underflow=false; overflow=false})
     else norm ik (BArith.shift_right ik a b)
 
   let shift_left ik a b =
     M.trace "bitfield" "shift_left";
-    if BArith.is_invalid b || BArith.is_invalid a then (bot (), {underflow=false; overflow=false})
+    if BArith.is_invalid b || BArith.is_invalid a || BArith.(min ik b < Z.zero) then (bot (), {underflow=false; overflow=false})
     else norm ik (BArith.shift_left ik a b)
 
   (* Arith *)
