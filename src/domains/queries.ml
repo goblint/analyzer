@@ -38,7 +38,7 @@ module Unit = Lattice.Unit
 
 module ProtectionKind =
 struct
-  type t = ReadWrite | Write [@@deriving ord, hash]
+  type t = Read | ReadWrite | Write [@@deriving ord, hash]
 end
 
 (** Different notions of protection for a global variables g by a mutex m

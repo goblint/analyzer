@@ -67,7 +67,7 @@ struct
         in
         match kind with
         | Queries.ProtectionKind.Write -> w
-        | ReadWrite -> rw
+        | Read | ReadWrite -> rw
     end
 
     (** Collects information about which variables are protected by which mutexes *)
@@ -83,7 +83,7 @@ struct
         let wlocks =
           match kind with
           | Queries.ProtectionKind.Write -> locks
-          | ReadWrite -> MustLockset.all ()
+          | Read | ReadWrite -> MustLockset.all ()
         in
         if recovered then
           (* If we are in single-threaded mode again, this does not need to be added to set of mutexes protecting in mt-mode only *)
@@ -105,7 +105,7 @@ struct
         let vs_empty = VarSet.empty () in
         match kind with
         | Queries.ProtectionKind.Write -> ((vs_empty, vs), (vs_empty, vs))
-        | ReadWrite -> ((vs, vs_empty), (vs, vs_empty))
+        | Read | ReadWrite -> ((vs, vs_empty), (vs, vs_empty))
     end
 
     module G =
@@ -296,9 +296,9 @@ struct
             let locks = MustLocksetRW.to_must_lockset (MustLocksetRW.filter snd (fst octx.local)) in
             let kind = match kind with
               | Write | Free -> Queries.ProtectionKind.Write
-              | Read -> ReadWrite
+              | Read -> Read
               | Call
-              | Spawn -> ReadWrite (* TODO: nonsense? *)
+              | Spawn -> Read (* TODO: nonsense? *)
             in
             let s = GProtecting.make ~kind ~recovered:is_recovered_to_st locks in
             ctx.sideg (V.protecting v) (G.create_protecting s);
