@@ -747,7 +747,7 @@ struct
   let write_global ?(invariant=false) (ask: Queries.ask) getg sideg (st: BaseComponents (D).t) x v =
     let sideg = Wrapper.sideg ask sideg in
     if not invariant then (
-      if not (Param.handle_atomic && ask.f MustBeAtomic) then
+      if not (Param.handle_atomic && ask.f MustBeAtomic) && (not Param.check_read_unprotected || is_unprotected ask ~write:false x) then
         sideg (V.unprotected x) v; (* Delay publishing unprotected write in the atomic section. *)
       if !earlyglobs then (* earlyglobs workaround for 13/60 *)
         sideg (V.protected x) v
