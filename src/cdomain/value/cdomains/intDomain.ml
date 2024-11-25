@@ -1185,7 +1185,7 @@ module BitfieldArith (Ints_t : IntOps.IntOps) = struct
       let join_shrs c_lst = List.map (shift_right ik bf) c_lst |> List.fold_left join zero in
       let max_bit = Z.log2up (Z.of_int @@ Size.bit ik) in 
       if Z.to_int (min ik bf) >= max_bit then zero
-      else concretize (make_msb_bitmask max_bit, snd bf &: make_lsb_bitmask max_bit) (* O( 2^(log(n)) ) *)
+      else concretize (make_msb_bitmask max_bit |: fst bf, snd bf &: make_lsb_bitmask max_bit) (* O( 2^(log(n)) ) *)
       |> join_shrs
 
   let shift_left _ (z,o) c =
@@ -1198,7 +1198,7 @@ module BitfieldArith (Ints_t : IntOps.IntOps) = struct
       let join_shls c_lst = List.map (shift_left ik bf) c_lst |> List.fold_left join zero in
       let max_bit = Z.log2up (Z.of_int @@ Size.bit ik) in
       if Z.to_int (min ik bf) >= max_bit then zero
-      else concretize (make_msb_bitmask max_bit, snd bf &: make_lsb_bitmask max_bit) (* O( 2^(log(n)) ) *)
+      else concretize (make_msb_bitmask max_bit |: fst bf, snd bf &: make_lsb_bitmask max_bit) (* O( 2^(log(n)) ) *)
       |> join_shls
 
 end
