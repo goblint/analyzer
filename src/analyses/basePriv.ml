@@ -653,7 +653,7 @@ struct
 
   let threadspawn (ask:Queries.ask) get set (st: BaseComponents (D).t) =
     let is_recovered_st = ask.f (Queries.MustBeSingleThreaded {since_start = false}) && not @@ ask.f (Queries.MustBeSingleThreaded {since_start = true}) in
-    let unprotected_after x = ask.f (Q.MayBePublic {global=x; write=true; protection=Weak}) in
+    let unprotected_after x = ask.f (Q.MayBePublic {global=x; kind=Write; protection=Weak}) in
     if is_recovered_st then
       (* Remove all things that are now unprotected *)
       let cpa' = CPA.fold (fun x v cpa ->
@@ -771,7 +771,7 @@ struct
           (* Extra precision in implementation to pass tests:
              If global is read-protected by multiple locks,
              then inner unlock shouldn't yet publish. *)
-          if not Param.check_read_unprotected || is_unprotected_without ask ~write:false x m then
+          if not Param.check_read_unprotected || is_unprotected_without ask ~kind:ReadWrite x m then
             sideg (V.protected x) v;
           if atomic then
             sideg (V.unprotected x) v; (* Publish delayed unprotected write as if it were protected by the atomic section. *)
