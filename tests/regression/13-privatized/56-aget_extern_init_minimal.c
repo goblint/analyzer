@@ -1,7 +1,7 @@
 // SKIP
 #include <pthread.h>
 #include <stdlib.h>
-
+// NOCHECK
 extern int optind ;
 
 pthread_t hthread  ;
