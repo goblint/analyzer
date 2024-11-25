@@ -59,25 +59,31 @@ struct
 
       let name () = "strong protection * weak protection"
 
-      let get ~write protection (s,w) =
+      let get ~kind protection (s,w) =
         let (rw, w) = match protection with
           | Queries.Protection.Strong -> s
           | Weak -> w
         in
-        if write then w else rw
+        match kind with
+        | Queries.ProtectionKind.Write -> w
+        | ReadWrite -> rw
     end
 
     (** Collects information about which variables are protected by which mutexes *)
     module GProtecting: sig
       include Lattice.S
-      val make: write:bool -> recovered:bool -> MustLockset.t -> t
-      val get: write:bool -> Queries.Protection.t -> t -> MustLockset.t
+      val make: kind:Queries.ProtectionKind.t -> recovered:bool -> MustLockset.t -> t
+      val get: kind:Queries.ProtectionKind.t -> Queries.Protection.t -> t -> MustLockset.t
     end = struct
       include MakeP (MustLockset)
 
-      let make ~write ~recovered locks =
+      let make ~kind ~recovered locks =
         (* If the access is not a write, set to T so intersection with current write-protecting is identity *)
-        let wlocks = if write then locks else MustLockset.all () in
+        let wlocks =
+          match kind with
+          | Queries.ProtectionKind.Write -> locks
+          | ReadWrite -> MustLockset.all ()
+        in
         if recovered then
           (* If we are in single-threaded mode again, this does not need to be added to set of mutexes protecting in mt-mode only *)
           ((locks, wlocks), (MustLockset.all (), MustLockset.all ()))
@@ -89,17 +95,16 @@ struct
     (** Collects information about which mutex protects which variable *)
     module GProtected: sig
       include Lattice.S
-      val make: write:bool -> VarSet.t -> t
-      val get: write:bool -> Queries.Protection.t -> t -> VarSet.t
+      val make: kind:Queries.ProtectionKind.t -> VarSet.t -> t
+      val get: kind:Queries.ProtectionKind.t -> Queries.Protection.t -> t -> VarSet.t
     end = struct
       include MakeP (VarSet)
 
-      let make ~write vs =
+      let make ~kind vs =
         let vs_empty = VarSet.empty () in
-        if write then
-          ((vs_empty, vs), (vs_empty, vs))
-        else
-          ((vs, vs_empty), (vs, vs_empty))
+        match kind with
+        | Queries.ProtectionKind.Write -> ((vs_empty, vs), (vs_empty, vs))
+        | ReadWrite -> ((vs, vs_empty), (vs, vs_empty))
     end
 
     module G =
@@ -198,43 +203,43 @@ struct
   let query (man: (D.t, _, _, V.t) man) (type a) (q: a Queries.t): a Queries.result =
     let ls, m = man.local in
     (* get the set of mutexes protecting the variable v in the given mode *)
-    let protecting ~write mode v = GProtecting.get ~write mode (G.protecting (man.global (V.protecting v))) in
+    let protecting ~kind mode v = GProtecting.get ~kind mode (G.protecting (man.global (V.protecting v))) in
     match q with
     | Queries.MayBePublic _ when MustLocksetRW.is_all ls -> false
-    | Queries.MayBePublic {global=v; write; protection} ->
+    | Queries.MayBePublic {global=v; kind; protection} ->
       let held_locks = MustLocksetRW.to_must_lockset (MustLocksetRW.filter snd ls) in
-      let protecting = protecting ~write protection v in
+      let protecting = protecting ~kind protection v in
       (* TODO: unsound in 29/24, why did we do this before? *)
       (* if Mutexes.mem verifier_atomic (Lockset.export_locks man.local) then
         false
       else *)
       MustLockset.disjoint held_locks protecting
     | Queries.MayBePublicWithout _ when MustLocksetRW.is_all ls -> false
-    | Queries.MayBePublicWithout {global=v; write; without_mutex; protection} ->
+    | Queries.MayBePublicWithout {global=v; kind; without_mutex; protection} ->
       let held_locks = MustLockset.remove without_mutex (MustLocksetRW.to_must_lockset ls) in
-      let protecting = protecting ~write protection v in
+      let protecting = protecting ~kind protection v in
       (* TODO: unsound in 29/24, why did we do this before? *)
       (* if Mutexes.mem verifier_atomic (Lockset.export_locks (Lockset.remove (without_mutex, true) man.local)) then
         false
       else *)
       MustLockset.disjoint held_locks protecting
-    | Queries.MustBeProtectedBy {mutex = ml; global=v; write; protection} ->
-      let protecting = protecting ~write protection v in
+    | Queries.MustBeProtectedBy {mutex = ml; global=v; kind; protection} ->
+      let protecting = protecting ~kind protection v in
       (* TODO: unsound in 29/24, why did we do this before? *)
       (* if LockDomain.Addr.equal mutex (LockDomain.Addr.of_var LF.verifier_atomic_var) then
         true
       else *)
       MustLockset.mem ml protecting
-    | Queries.MustProtectingLocks {global; write} ->
-      protecting ~write Strong global
+    | Queries.MustProtectingLocks {global; kind} ->
+      protecting ~kind Strong global
     | Queries.MustLockset ->
       let held_locks = MustLocksetRW.to_must_lockset (MustLocksetRW.filter snd ls) in
       held_locks
     | Queries.MustBeAtomic ->
       let held_locks = MustLocksetRW.to_must_lockset (MustLocksetRW.filter snd ls) in
       MustLockset.mem (LF.verifier_atomic_var, `NoOffset) held_locks (* TODO: Mval.of_var *)
-    | Queries.MustProtectedVars {mutex; write} ->
-      let protected = GProtected.get ~write Strong (G.protected (man.global (V.protected mutex))) in
+    | Queries.MustProtectedVars {mutex; kind} ->
+      let protected = GProtected.get ~kind Strong (G.protected (man.global (V.protected mutex))) in
       VarSet.fold (fun v acc ->
           Queries.VS.add v acc
         ) protected (Queries.VS.empty ())
@@ -245,13 +250,13 @@ struct
       begin match g with
         | `Left g' -> (* protecting *)
           if GobConfig.get_bool "dbg.print_protection" then (
-            let protecting = GProtecting.get ~write:false Strong (G.protecting (man.global g)) in (* readwrite protecting *)
+            let protecting = GProtecting.get ~kind:ReadWrite Strong (G.protecting (man.global g)) in (* readwrite protecting *)
             let s = MustLockset.cardinal protecting in
             M.info_noloc ~category:Race "Variable %a read-write protected by %d mutex(es): %a" CilType.Varinfo.pretty g' s MustLockset.pretty protecting
           )
         | `Right m -> (* protected *)
           if GobConfig.get_bool "dbg.print_protection" then (
-            let protected = GProtected.get ~write:false Strong (G.protected (man.global g)) in (* readwrite protected *)
+            let protected = GProtected.get ~kind:ReadWrite Strong (G.protected (man.global g)) in (* readwrite protected *)
             let s = VarSet.cardinal protected in
             max_protected := max !max_protected s;
             sum_protected := !sum_protected + s;
@@ -293,21 +298,21 @@ struct
         | Some v ->
           if not (MustLocksetRW.is_all (fst oman.local)) then
             let locks = MustLocksetRW.to_must_lockset (MustLocksetRW.filter snd (fst oman.local)) in
-            let write = match kind with
-              | Write | Free -> true
-              | Read -> false
+            let kind = match kind with
+              | Write | Free -> Queries.ProtectionKind.Write
+              | Read -> ReadWrite
               | Call
-              | Spawn -> false (* TODO: nonsense? *)
+              | Spawn -> ReadWrite (* TODO: nonsense? *)
             in
-            let s = GProtecting.make ~write ~recovered:is_recovered_to_st locks in
+            let s = GProtecting.make ~kind ~recovered:is_recovered_to_st locks in
             man.sideg (V.protecting v) (G.create_protecting s);
 
             if !AnalysisState.postsolving then (
-              let protecting mode = GProtecting.get ~write mode (G.protecting (man.global (V.protecting v))) in
+              let protecting mode = GProtecting.get ~kind mode (G.protecting (man.global (V.protecting v))) in
               let held_strong = protecting Strong in
               let held_weak = protecting Weak in
               let vs = VarSet.singleton v in
-              let protected = G.create_protected @@ GProtected.make ~write vs in
+              let protected = G.create_protected @@ GProtected.make ~kind vs in
               MustLockset.iter (fun ml -> man.sideg (V.protected ml) protected) held_strong;
               (* If the mutex set here is top, it is actually not accessed *)
               if is_recovered_to_st && not @@ MustLockset.is_all held_weak then
