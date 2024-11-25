@@ -43,10 +43,10 @@ struct
     end
 
     module MakeP (G0: Lattice.S) = struct
-      module ReadWrite =
+      module Read =
       struct
         include G0
-        let name () = "readwrite"
+        let name () = "read"
       end
 
       module Write =
@@ -55,19 +55,20 @@ struct
         let name () = "write"
       end
 
-      module P = Lattice.Prod (ReadWrite) (Write)
+      module P = Lattice.Prod (Read) (Write)
       include Lattice.Prod (P) (P)
 
       let name () = "strong protection * weak protection"
 
       let get ~kind protection (s,w) =
-        let (rw, w) = match protection with
+        let (r, w) = match protection with
           | Queries.Protection.Strong -> s
           | Weak -> w
         in
         match kind with
         | Queries.ProtectionKind.Write -> w
-        | Read | ReadWrite -> rw
+        | Read -> r
+        | ReadWrite -> G0.join r w
     end
 
     (** Collects information about which variables are protected by which mutexes *)
@@ -79,17 +80,17 @@ struct
       include MakeP (MustLockset)
 
       let make ~kind ~recovered locks =
-        (* If the access is not a write, set to T so intersection with current write-protecting is identity *)
-        let wlocks =
+        let locks =
           match kind with
-          | Queries.ProtectionKind.Write -> locks
-          | Read | ReadWrite -> MustLockset.all ()
+          | Queries.ProtectionKind.Write -> (MustLockset.all (), locks)
+          | Read -> (locks, MustLockset.all ()) (* If the access is not a write, set to T so intersection with current write-protecting is identity *)
+          | ReadWrite -> (locks, locks) (* TODO: should never happen? *)
         in
         if recovered then
           (* If we are in single-threaded mode again, this does not need to be added to set of mutexes protecting in mt-mode only *)
-          ((locks, wlocks), (MustLockset.all (), MustLockset.all ()))
+          (locks, (MustLockset.all (), MustLockset.all ()))
         else
-          ((locks, wlocks), (locks, wlocks))
+          (locks, locks)
     end
 
 
@@ -105,7 +106,8 @@ struct
         let vs_empty = VarSet.empty () in
         match kind with
         | Queries.ProtectionKind.Write -> ((vs_empty, vs), (vs_empty, vs))
-        | Read | ReadWrite -> ((vs, vs_empty), (vs, vs_empty))
+        | Read -> ((vs, vs_empty), (vs, vs_empty))
+        | ReadWrite -> ((vs, vs), (vs, vs)) (* TODO: should never happen? *)
     end
 
     module G =
