@@ -198,20 +198,8 @@ module ListMatrix: AbstractMatrix =
     let del_cols m cols = Timing.wrap "del_cols" (del_cols m) cols
 
     let map2i f m v =
-      let f' index row num =  V.to_sparse_list @@ f index (V.of_sparse_list m.column_count row) num in
-      (* TODO: Do we need to consider different lengths here?
-         let vector_length = List.length (V.to_list v) in
-         let new_entries =
-         List.mapi (fun index row ->
-          if index < vector_length then
-            let num = V.nth v index in
-            f' index row num
-          else row
-         ) m.entries
-         in
-      *)
-      let new_entries = List.map2i f' m.entries (V.to_list v) in
-      {entries = new_entries; column_count = m.column_count}
+      let vector_length = V.length v in
+      List.mapi (fun index row -> if index < vector_length then f index row (V.nth v index) else row) m
 
     let remove_zero_rows m =
       List.filter (fun row -> not (V.is_zero_vec row)) m
@@ -324,29 +312,11 @@ module ListMatrix: AbstractMatrix =
     let is_covered_by m1 m2 = Timing.wrap "is_covered_by" (is_covered_by m1) m2
 
     let find_opt f m =
-      let rec find_opt_vec_list f m =
-        match m with
-        | [] -> None
-        | x::xs -> if f x then Some x else find_opt_vec_list f xs
-      in
-      let m_vector = List.map (fun row -> V.of_sparse_list m.column_count row) m.entries in
-      find_opt_vec_list f m_vector
+      List.find_opt f m
 
     let map2 f m v =
-      let f' row num =  V.to_sparse_list @@ f (V.of_sparse_list m.column_count row) num in
-      (* TODO: Do we need to consider different lengths here?
-         let vector_length = List.length (V.to_list v) in
-         let new_entries = 
-         List.mapi (fun index row ->
-         if index < vector_length then
-          let num = V.nth v index in
-          f' row num
-         else row
-         ) m.entries
-         in
-      *)
-      let new_entries = List.map2 f' m.entries (V.to_list v) in
-      {entries = new_entries; column_count = m.column_count}
+      let vector_length = V.length v in
+      List.mapi (fun index row -> if index < vector_length then f row (V.nth v index) else row ) m
 
     let map2_with f m v =
       failwith "Do not use!"
