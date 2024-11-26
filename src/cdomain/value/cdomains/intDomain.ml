@@ -1092,7 +1092,6 @@ module BitfieldArith (Ints_t : IntOps.IntOps) = struct
   let (!:) = Ints_t.lognot
   let (<<:) = Ints_t.shift_left
   let (>>:) = Ints_t.shift_right
-  (* Shift-in ones *)
   let ( >>. ) = fun a b -> Ints_t.shift_right a b |: !:(Ints_t.sub (Ints_t.one <<: b) Ints_t.one)
   let (<:) = fun a b -> Ints_t.compare a b < 0
   let (=:) = fun a b -> Ints_t.compare a b = 0
@@ -1111,6 +1110,7 @@ module BitfieldArith (Ints_t : IntOps.IntOps) = struct
 
   let bits_known (z,o) = z ^: o
   let bits_unknown bf = !:(bits_known bf)
+  let bits_set bf = (snd bf) &: (bits_known bf)
 
   let is_const (z,o) = (z ^: o) =: one_mask
   let is_invalid (z,o) = not ((!:(z |: o)) =: Ints_t.zero)
@@ -1169,9 +1169,9 @@ module BitfieldArith (Ints_t : IntOps.IntOps) = struct
   let shift_right ik (z,o) c =
     let sign_msk = make_msb_bitmask (Size.bit ik - c) in
     if (isSigned ik) && (o <: Ints_t.zero) then
-      (z <<: c, (o <<: c) |: sign_msk)
+      (z >>: c, (o >>: c) |: sign_msk)
     else
-      ((z <<: c) |: sign_msk, o <<: c)
+      ((z >>: c) |: sign_msk, o >>: c)
 
   let shift_right ik bf possible_shifts =
     if is_const possible_shifts then shift_right ik bf (get_c possible_shifts)
