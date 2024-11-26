@@ -51,6 +51,8 @@ module ArrayVector: AbstractVector =
 
     let zero_vec n = Array.make n A.zero
 
+    let is_zero_vec v = not (Array.exists (fun x -> x <>: A.zero) v)
+
     let nth = Array.get
 
     let map2i f v1 v2 =

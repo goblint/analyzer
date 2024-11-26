@@ -90,6 +90,8 @@ module SparseVector: AbstractVector =
     let zero_vec n = 
       failwith "TODO"
 
+    let is_zero_vec v = (v.entries = [])
+
     let nth v n = 
       failwith "TODO"
 

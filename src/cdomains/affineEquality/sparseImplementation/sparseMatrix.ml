@@ -128,7 +128,7 @@ module ListMatrix: AbstractMatrix =
     let reduce_col m j =
       if is_empty m then m 
       else
-        let rec find_pivot idx entries = (* Finds non-zero element in row j and return pair of row idx and the pivot value *)
+        let rec find_pivot idx entries = (* Finds non-zero element in column j and returns pair of row idx and the pivot value *)
           match entries with
           | [] -> None
           | row :: rest -> match (List.assoc_opt j row) with

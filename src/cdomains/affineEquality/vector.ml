@@ -22,6 +22,8 @@ sig
 
   val zero_vec: int -> t
 
+  val is_zero_vec: t -> bool
+
   val nth: t -> int -> num
 
   val length: t -> int
