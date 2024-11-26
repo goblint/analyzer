@@ -26,36 +26,36 @@ module SparseVector: AbstractVector =
         {entries = keep_vals_vec v.entries n; len=n}
 
 
-    let remove_val v n = 
+    let remove_nth v n = 
       let dec_idx v = 
         List.map (fun (a,b) -> (a-1, b)) v
       in
-      let rec remove_val_vec v n =
+      let rec remove_nth_vec v n =
         match v with 
         | x::xs -> 
           if fst x = n then dec_idx xs else 
           if fst x > n then dec_idx (x::xs) else
-            x::(remove_val_vec xs n)  
+            x::(remove_nth_vec xs n)  
         | [] -> []
       in
       if n >= v.len then v else (*could be left out but maybe performance??*)
-        {entries = remove_val_vec v.entries n; len = v.len - 1}
+        {entries = remove_nth_vec v.entries n; len = v.len - 1}
 
-    let set_val v n m = 
-      let rec set_val_vec v n m =
+    let set_nth v n m = 
+      let rec set_nth_vec v n m =
         match v with 
         | x::xs -> if fst x = n then (n, m)::xs else 
-          if fst x < n then x::(set_val_vec xs n m)
+          if fst x < n then x::(set_nth_vec xs n m)
           else v
         | [] -> [] 
       in
       if n >= v.len then failwith "Out of bounds" else
-        {entries=set_val_vec v.entries n m; len=v.len}
+        {entries=set_nth_vec v.entries n m; len=v.len}
 
-    let set_val_with = 
+    let set_nth_with = 
       failwith "deprecated"
 
-    let insert_val n m t = 
+    let insert_val_at n m t = 
       failwith "TODO"
 
     let mul_vec_scal v s = 

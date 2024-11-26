@@ -8,13 +8,13 @@ sig
 
   val keep_vals: t -> int ->  t
 
-  val remove_val: t -> int ->  t
+  val remove_nth: t -> int ->  t
 
-  val set_val: t -> int -> num ->  t
+  val set_nth: t -> int -> num ->  t
 
-  val set_val_with: t -> int -> num -> unit
+  val set_nth_with: t -> int -> num -> unit
 
-  val insert_val: int -> num ->  t ->  t
+  val insert_val_at: int -> num ->  t ->  t
 
   val apply_with_c: (num -> num -> num) -> num ->  t ->  t
 
@@ -25,8 +25,6 @@ sig
   val is_zero_vec: t -> bool
 
   val nth: t -> int -> num
-
-  val remove_nth: t -> int -> t
 
   val length: t -> int
 
