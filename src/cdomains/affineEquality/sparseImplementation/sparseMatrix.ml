@@ -33,7 +33,7 @@ module ListMatrix: AbstractMatrix =
     let num_cols m = if m = [] then 0 else V.length (hd m)
 
     let copy m = m
-       (* Lists are immutable, so this should suffice? A.t is mutuable currently, but is treated like its not in ArrayMatrix*)
+    (* Lists are immutable, so this should suffice? A.t is mutuable currently, but is treated like its not in ArrayMatrix*)
 
     let copy m =
       Timing.wrap "copy" (copy) m
@@ -95,18 +95,7 @@ module ListMatrix: AbstractMatrix =
     let set_col_with m new_col n = Timing.wrap "set_col" (set_col_with m new_col) n
 
     let set_col m new_col n = 
-      let rec set_col_in_row row value =
-        match row with
-        | [] -> if value =: A.zero then [] else [(n, value)]
-        | (col_idx, v)::cs when col_idx > n -> if value =: A.zero then (col_idx, v)::cs else (n, value)::(col_idx, v)::cs
-        | (col_idx, v)::cs when col_idx = n -> if value =: A.zero then cs else (n, value)::cs 
-        | (col_idx, v)::cs -> (col_idx, v)::(set_col_in_row cs value)
-      in
-      let new_entries = List.mapi (fun row_idx row -> 
-          let value = V.nth new_col row_idx in
-          set_col_in_row row value
-        ) m.entries in
-      {entries = new_entries; column_count = m.column_count}
+      List.mapi (fun row_idx row -> V.set_nth row n (V.nth new_col row_idx)) m 
 
     let append_matrices m1 m2  = (* keeps dimensions of first matrix, what if dimensions differ?*)
       m1 @ m2
@@ -157,19 +146,8 @@ module ListMatrix: AbstractMatrix =
           {entries = entries'; column_count = m.column_count}
 
     let del_col m j =
-      if is_empty m then m else
-        let del_col_from_row row =
-          List.filter_map (fun (col_idx, value) ->
-              if col_idx = j then
-                None
-              else if col_idx > j then
-                Some (col_idx - 1, value)
-              else
-                Some (col_idx, value)
-            ) row
-        in
-        let new_entries = List.map (fun row -> del_col_from_row row) m.entries in
-        {entries = new_entries; column_count = m.column_count - 1}
+      List.map (fun row -> V.remove_nth row j) m
+
 
     (* TODO: Might be more efficient to check for each entry how much to reduce their index and not by recursively calling del_col *)
     let del_cols m cols =
