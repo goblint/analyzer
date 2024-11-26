@@ -1083,9 +1083,7 @@ struct
   let project ik p t = t
 end
 
-(* Bitfield arithmetic, without any overflow handling etc. *)
-module BitfieldArith (Ints_t : IntOps.IntOps) = struct
-
+module BitfieldInfixOps (Ints_t : IntOps.IntOps) = struct
   let (&:) = Ints_t.logand
   let (|:) = Ints_t.logor
   let (^:) = Ints_t.logxor
@@ -1095,6 +1093,18 @@ module BitfieldArith (Ints_t : IntOps.IntOps) = struct
   let ( >>. ) = fun a b -> Ints_t.shift_right a b |: !:(Ints_t.sub (Ints_t.one <<: b) Ints_t.one)
   let (<:) = fun a b -> Ints_t.compare a b < 0
   let (=:) = fun a b -> Ints_t.compare a b = 0
+
+  let (+:) = Ints_t.add
+  let (-:) = Ints_t.sub
+  let ( *: ) = Ints_t.mul
+  let (/:) = Ints_t.div
+  let (%:) = Ints_t.rem
+end
+
+(* Bitfield arithmetic, without any overflow handling etc. *)
+module BitfieldArith (Ints_t : IntOps.IntOps) = struct
+
+  include BitfieldInfixOps (Ints_t)
 
   let zero_mask = Ints_t.zero
   let one_mask = !:zero_mask
@@ -1111,6 +1121,7 @@ module BitfieldArith (Ints_t : IntOps.IntOps) = struct
   let bits_known (z,o) = z ^: o
   let bits_unknown bf = !:(bits_known bf)
   let bits_set bf = (snd bf) &: (bits_known bf)
+  let bits_invalid (z,o) = !:(z |: o)
 
   let is_const (z,o) = (z ^: o) =: one_mask
   let is_invalid (z,o) = not ((!:(z |: o)) =: Ints_t.zero)
@@ -1196,41 +1207,61 @@ module BitfieldArith (Ints_t : IntOps.IntOps) = struct
 end
 
 module BitfieldFunctor (Ints_t : IntOps.IntOps): SOverflow with type int_t = Ints_t.t and type t = (Ints_t.t * Ints_t.t) = struct
+
+  include BitfieldInfixOps (Ints_t)
+
   let name () = "bitfield"
   type int_t = Ints_t.t
   type t = (Ints_t.t * Ints_t.t) [@@deriving eq, ord, hash]
 
   module BArith = BitfieldArith (Ints_t)
 
-  let (+:) = Ints_t.add
-  let (-:) = Ints_t.sub
-  let ( *: ) = Ints_t.mul
-  let (/:) = Ints_t.div
-  let (%:) = Ints_t.rem
-  let (&:) = Ints_t.logand
-  let (|:) = Ints_t.logor
-  let (^:) = Ints_t.logxor
-  let (!:) = Ints_t.lognot
-  let (<<:) = Ints_t.shift_left
-  let (>>:) = Ints_t.shift_right
-  (* Shift-in ones *)
-  let ( >>. ) = fun a b -> Ints_t.shift_right a b |: !:(Ints_t.sub (Ints_t.one <<: b) Ints_t.one)
-  let (<:) = fun a b -> Ints_t.compare a b < 0
-  let (=:) = fun a b -> Ints_t.compare a b = 0
-
   let top () = (BArith.one_mask, BArith.one_mask)
   let bot () = (BArith.zero_mask, BArith.zero_mask)
   let top_of ik = top ()
   let bot_of ik = bot ()
 
+  let to_pretty_bits (z,o) = 
+    let known_bits = BArith.bits_known (z,o) in
+    let invalid_bits = BArith.bits_invalid (z,o) in
+    let num_bits_to_print = 8 in
+    let rec to_pretty_bits' known_mask impossible_mask o_mask max_bits acc =
+      if o_mask = Ints_t.zero then "0"
+      else
+        let current_bit_known = known_mask &: Ints_t.one in
+        let current_bit_impossible = impossible_mask &: Ints_t.one in
+        let bit_value = o_mask &: Ints_t.one in
+        let next_bit_string =
+          if current_bit_impossible = Ints_t.one
+            then "⊥"
+            else if current_bit_known = Ints_t.one || current_bit_known = Ints_t.zero
+              then string_of_int (Ints_t.to_int bit_value) else "⊤" in
+        to_pretty_bits' (known_mask <<: 1) (impossible_mask <<: 1) (o_mask <<: 1) (max_bits - 1) (next_bit_string ^ acc)
+    in
+    to_pretty_bits' known_bits invalid_bits o num_bits_to_print ""
+
   let show t = 
     if t = bot () then "bot" else
     if t = top () then "top" else
+      let string_of_bitfield (z,o) =
+        let max_num_unknown_bits_to_concretize = Z.log2 @@ Z.of_int (Sys.word_size) |> fun x -> x lsr 2 in
+        let num_bits_unknown =
+          try 
+            BArith.bits_unknown (z,o) |> fun i -> Z.popcount @@ Z.of_int @@ Ints_t.to_int i
+          with Z.Overflow -> max_num_unknown_bits_to_concretize + 1
+        in
+        if num_bits_unknown > max_num_unknown_bits_to_concretize then
+          Format.sprintf "(%08X, %08X)" (Ints_t.to_int z) (Ints_t.to_int o)
+        else
+        (* TODO: Might be a source of long running tests.*)
+          BArith.concretize (z,o) |> List.map string_of_int |> String.concat "; "
+          |> fun s -> "{" ^ s ^ "}"
+      in
       let (z,o) = t in
       if BArith.is_const t then 
-        Format.sprintf "{%08X, %08X} (unique: %d)" (Ints_t.to_int z) (Ints_t.to_int o) (Ints_t.to_int o)
+        Format.sprintf "%s | %s (unique: %d)" (string_of_bitfield (z,o)) (to_pretty_bits t) (Ints_t.to_int o)
       else 
-        Format.sprintf "{%08X, %08X}" (Ints_t.to_int z) (Ints_t.to_int o)
+        Format.sprintf "%s | %s" (string_of_bitfield (z,o)) (to_pretty_bits t)
 
   include Std (struct type nonrec t = t let name = name let top_of = top_of let bot_of = bot_of let show = show let equal = equal end)
 
