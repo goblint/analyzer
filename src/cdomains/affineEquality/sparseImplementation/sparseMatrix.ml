@@ -229,7 +229,6 @@ module ListMatrix: AbstractMatrix =
     let init_with_vec v =
       [v]
 
-
     let reduce_col_with_vec m j v = 
       failwith "TODO"
 
