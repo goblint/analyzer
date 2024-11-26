@@ -33,7 +33,7 @@ module ListMatrix: AbstractMatrix =
     let num_cols m = if m = [] then 0 else V.length (hd m)
 
     let copy m = m
-       (* Lists are immutable, so this should suffice? A.t is mutuable currently, but is treated like its not in ArrayMatrix*)
+    (* Lists are immutable, so this should suffice? A.t is mutuable currently, but is treated like its not in ArrayMatrix*)
 
     let copy m =
       Timing.wrap "copy" (copy) m
