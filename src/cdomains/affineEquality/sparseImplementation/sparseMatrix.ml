@@ -18,27 +18,22 @@ module ListMatrix: AbstractMatrix =
     type t = V.t list (*List of rows*)
     [@@deriving eq, ord, hash]
 
-    let tM e l = {entries= e; column_count=l}
-
     let show x =
-      List.fold_left (^) "" (List.map (fun row -> V.show @@ V.of_sparse_list x.column_count row) x.entries)
+      List.fold_left (^) "" (List.map (fun x -> (V.show x) ^ "\n") x)
 
-    let empty () =
-      {entries = []; column_count = 0}
+    let empty () = []
 
-    let num_rows m =
-      List.length m.entries
+    let num_rows = List.length
 
     let is_empty m =
       num_rows m = 0
     (*This should be different if the implimentation is sound*)
     (*m.column_count = 0*)
 
-    let num_cols m =
-      m.column_count
+    let num_cols m = if m = [] then 0 else V.length (hd m)
 
-    let copy m =
-      m (* Lists are immutable, so this should suffice? A.t is mutuable currently, but is treated like its not in ArrayMatrix*)
+    let copy m = m
+       (* Lists are immutable, so this should suffice? A.t is mutuable currently, but is treated like its not in ArrayMatrix*)
 
     let copy m =
       Timing.wrap "copy" (copy) m
