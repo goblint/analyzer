@@ -98,7 +98,7 @@ module ListMatrix: AbstractMatrix =
       Timing.wrap "get_col" (get_col m) n
 
     let set_col_with m new_col n =
-      failwith "Do not use!"
+      failwith "deprecated"
 
     let set_col_with m new_col n = Timing.wrap "set_col" (set_col_with m new_col) n
 
@@ -111,7 +111,7 @@ module ListMatrix: AbstractMatrix =
     let equal m1 m2 = Timing.wrap "equal" (equal m1) m2
 
     let reduce_col_with m j =
-      failwith "Do not use!"
+      failwith "deprecated"
 
     let reduce_col_with m j  = Timing.wrap "reduce_col_with" (reduce_col_with m) j
     let reduce_col m j =
@@ -183,7 +183,7 @@ module ListMatrix: AbstractMatrix =
       List.filter (fun row -> not (V.is_zero_vec row)) m
 
     let rref_with m =
-      failwith "Do not use!"
+      failwith "deprecated"
 
     let rref_with m = Timing.wrap "rref_with" rref_with m
 
@@ -196,31 +196,8 @@ module ListMatrix: AbstractMatrix =
     let get_pivot_positions m = 
       failwith "TODO"
 
-    let rref_vec m pivot_positions v =
-      failwith "TODO"
-
-
-    let rref_vec_with m v =
-      (*This function yields the same result as appending vector v to m and normalizing it afterwards would. However, it is usually faster than performing those ops manually.*)
-      (*m must be in rref form and contain the same num of cols as v*)
-      (*If m is empty then v is simply normalized and returned*)
-      failwith "Do not use!"
-
-    let rref_vec_with m v = Timing.wrap "rref_vec_with" (rref_vec_with m) v
-
-    let rref_vec m v = failwith "TODO"
-
-    let rref_matrix_with m1 m2 =
-      (*Similar to rref_vec_with but takes two matrices instead.*)
-      (*ToDo Could become inefficient for large matrices since pivot_elements are always recalculated + many row additions*)
-      failwith "Do not use!"
-
-    let rref_matrix_with m1 m2 = Timing.wrap "rref_matrix_with" (rref_matrix_with m1) m2
-
-    let rref_matrix m1 m2 = failwith "TODO"
-
     let normalize_with m = 
-      failwith "Do not use!"
+      failwith "deprecated"
 
     let normalize_with m = Timing.wrap "normalize_with" normalize_with m
 
@@ -283,6 +260,36 @@ module ListMatrix: AbstractMatrix =
       let e' = main_loop m.entries m.entries 0 0 in
       Some {entries = e'; column_count = m.column_count}
 
+    let rref_vec_helper m pivot_positions v =
+      failwith "TODO"
+
+    let rref_vec_with m v =
+      (*This function yields the same result as appending vector v to m and normalizing it afterwards would. However, it is usually faster than performing those ops manually.*)
+      (*m must be in rref form and contain the same num of cols as v*)
+      (*If m is empty then v is simply normalized and returned*)
+      failwith "deprecated"
+
+    let rref_vec_with m v = Timing.wrap "rref_vec_with" (rref_vec_with m) v
+
+    (*This function yields the same result as appending vector v to m and normalizing it afterwards would. However, it is usually faster than performing those ops manually.*)
+    (*m must be in rref form and contain the same num of cols as v*)
+    (*If m is empty then v is simply normalized and returned*)
+    (* TODO: OPTIMIZE! *)
+    let rref_vec m v =
+      normalize @@ append_matrices m (init_with_vec v)
+
+    let rref_matrix_with m1 m2 =
+      (*Similar to rref_vec_with but takes two matrices instead.*)
+      (*ToDo Could become inefficient for large matrices since pivot_elements are always recalculated + many row additions*)
+      failwith "deprecated"
+
+    let rref_matrix_with m1 m2 = Timing.wrap "rref_matrix_with" (rref_matrix_with m1) m2
+
+    (*Similar to rref_vec_with but takes two matrices instead.*)
+    (*ToDo Could become inefficient for large matrices since pivot_elements are always recalculated + many row additions*)
+    (*TODO: OPTIMIZE!*)
+    let rref_matrix m1 m2 =
+      normalize @@ append_matrices m1 m2
 
     let is_covered_by m1 m2 =
       failwith "TODO"
@@ -297,7 +304,7 @@ module ListMatrix: AbstractMatrix =
       List.mapi (fun index row -> if index < vector_length then f row (V.nth v index) else row ) m
 
     let map2_with f m v =
-      failwith "Do not use!"
+      failwith "deprecated"
 
     let map2_with f m v = Timing.wrap "map2_with" (map2_with f m) v
 
