@@ -9,17 +9,14 @@ module List = BatList
 (** Sparse matrix implementation.
     It provides a normalization function to reduce a matrix into reduced row echelon form.
     Operations exploit that the input matrix/matrices are in reduced row echelon form already. *)
-module SparseMatrix: AbstractMatrix =
+module ListMatrix: AbstractMatrix =
   functor (A: RatOps) (V: AbstractVector) ->
   struct
     include ConvenienceOps(A)
     module V = V(A)
 
-    (* Array of arrays implementation. One array per row containing tuple of column index and value *)
-    type t = {
-      entries : (int * A.t) list list;
-      column_count : int
-    } [@@deriving eq, ord, hash]
+    type t = V.t list (*List of rows*)
+    [@@deriving eq, ord, hash]
 
     let tM e l = {entries= e; column_count=l}
 
