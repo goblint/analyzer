@@ -84,15 +84,7 @@ module ListMatrix: AbstractMatrix =
       List.remove_at n m
 
     let get_col m n =
-      (* Uses the fact that row is sorted to return Zero when index n is exceeded *)
-      let rec get_col_from_row row =
-        match row with
-        | [] -> A.zero
-        | (col_idx, value)::_ when col_idx = n -> value
-        | (col_idx, _)::_ when col_idx > n -> A.zero
-        | _::cs -> get_col_from_row cs
-      in
-      V.of_list @@ List.map (fun row -> get_col_from_row row ) m.entries
+      V.of_list @@ List.map (fun row -> V.nth row n) m (* builds full col including zeros, maybe use sparselist instead? *)
 
     let get_col m n =
       Timing.wrap "get_col" (get_col m) n

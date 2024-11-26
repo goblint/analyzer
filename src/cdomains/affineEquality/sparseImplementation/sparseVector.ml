@@ -93,7 +93,13 @@ module SparseVector: AbstractVector =
     let is_zero_vec v = (v.entries = [])
 
     let nth v n = 
-      failwith "TODO"
+      if n >= v.len then failwith "V.nth out of bounds"
+      else
+        let rec nth v = match v with
+          | [] -> A.zero
+          | (col_idx, value) :: xs when col_idx = n -> value
+          | (col_idx, value) :: xs -> nth xs 
+        in nth v.entries
 
     let length v =
       failwith "TODO"
