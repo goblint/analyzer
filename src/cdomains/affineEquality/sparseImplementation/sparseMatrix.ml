@@ -38,8 +38,8 @@ module ListMatrix: AbstractMatrix =
     let copy m =
       Timing.wrap "copy" (copy) m
 
-    let add_empty_columns m cols =
-      (*let colsL = List.sort (fun a b -> a-b) (Array.to_list cols) in
+    let add_empty_columns m cols = failwith "TODO"
+    (*let colsL = List.sort (fun a b -> a-b) (Array.to_list cols) in
       let emptyT = A.zero in
       let rec list_of_all_before_index idx cols =
         match  cols with
@@ -70,7 +70,6 @@ module ListMatrix: AbstractMatrix =
         | x::xs -> (add_column_element x cols)::(add_empty_columns_on_list xs cols)
         | [] -> []
       in tM (add_empty_columns_on_list m.entries colsL) (m.column_count + Array.length cols)*)
-      failwith "TODO"
 
     let add_empty_columns m cols =
       Timing.wrap "add_empty_cols" (add_empty_columns m) cols
@@ -150,10 +149,11 @@ module ListMatrix: AbstractMatrix =
       List.map (fun row -> V.remove_nth row j) m
 
     let del_cols m cols =
-      if (Array.length cols) = num_cols m then empty() else
-      let cols = Array.to_list cols in 
-      let sorted_cols = List.sort_uniq Stdlib.compare cols in (* Apron Docs:  Repetitions are meaningless (and are not correct specification), maybe use List instead?*)
-      List.map (fun row -> V.remove_at_indices row sorted_cols) m
+      if (Array.length cols) = num_cols m then empty() 
+      else
+        let cols = Array.to_list cols in 
+        let sorted_cols = List.sort_uniq Stdlib.compare cols in (* Apron Docs:  Repetitions are meaningless (and are not correct specification), maybe use List instead?*)
+        List.map (fun row -> V.remove_at_indices row sorted_cols) m
 
     let del_cols m cols = Timing.wrap "del_cols" (del_cols m) cols
 
