@@ -79,16 +79,16 @@ struct
           | Scalar Mpqf x -> x
           | Scalar Mpfrf x -> Mpfr.to_mpq x
         in
-        Vector.set_val zero_vec ((Vector.length zero_vec) - 1) (of_union x)
+        Vector.set_nth zero_vec ((Vector.length zero_vec) - 1) (of_union x)
       | Var x ->
         let zero_vec_cp = Vector.copy zero_vec in
-        let entry_only v = Vector.set_val v (Environment.dim_of_var t.env x) Mpqf.one in
+        let entry_only v = Vector.set_nth v (Environment.dim_of_var t.env x) Mpqf.one in
         begin match t.d with
           | Some m ->
             let row = Matrix.find_opt (fun r -> Vector.nth r (Environment.dim_of_var t.env x) =: Mpqf.one) m in
             begin match row with
               | Some v when is_const_vec v ->
-                Vector.set_val zero_vec_cp ((Vector.length zero_vec) - 1) (Vector.nth v (Vector.length v - 1))
+                Vector.set_nth zero_vec_cp ((Vector.length zero_vec) - 1) (Vector.nth v (Vector.length v - 1))
               | _ -> entry_only zero_vec_cp
             end
           | None -> entry_only zero_vec_cp end
@@ -406,7 +406,7 @@ struct
     let assign_uninvertible_rel x var b env =
       let b_length = Vector.length b in
       Vector.mapi_with (fun i z -> if i < b_length - 1 then Mpqf.neg z else z) b;
-      Vector.set_val_with b (Environment.dim_of_var env var) Mpqf.one;
+      Vector.set_nth_with b (Environment.dim_of_var env var) Mpqf.one;
       let opt_m = Matrix.rref_vec_with x b in
       if Option.is_none opt_m then bot () else
         {d = opt_m; env = env}
@@ -520,7 +520,7 @@ struct
     let meet_vec e =
       (* Flip the sign of the const. val in coeff vec *)
       let coeff = Vector.nth e (Vector.length e - 1) in
-      Vector.set_val_with e (Vector.length e - 1) (Mpqf.neg coeff);
+      Vector.set_nth_with e (Vector.length e - 1) (Mpqf.neg coeff);
       if is_bot t then
         bot ()
       else

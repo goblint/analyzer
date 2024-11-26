@@ -41,6 +41,17 @@ module SparseVector: AbstractVector =
       if n >= v.len then v else (*could be left out but maybe performance??*)
         {entries = remove_nth_vec v.entries n; len = v.len - 1}
 
+    let remove_at_indices v idx = 
+      let rec remove_indices_helper vec idx deleted_count = 
+        match vec, idx with 
+        | [], [] -> []
+        | [], (y :: ys) -> failwith "remove at indices: no more columns to delete"
+        | ((col_idx, value) :: xs), [] -> (col_idx - deleted_count, value) :: remove_indices_helper xs idx deleted_count
+        | ((col_idx, value) :: xs), (y :: ys) when y = col_idx -> remove_indices_helper xs ys (deleted_count + 1)
+        | ((col_idx, value) :: xs), (y :: ys) -> (col_idx - deleted_count, value) :: remove_indices_helper xs idx deleted_count
+      in
+      {entries = remove_indices_helper v.entries idx 0; len = v.len - List.length idx}
+
     let set_nth v n m = 
       let rec set_nth_vec v n m =
         match v with 

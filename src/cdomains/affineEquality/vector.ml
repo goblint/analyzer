@@ -10,6 +10,8 @@ sig
 
   val remove_nth: t -> int ->  t
 
+  val remove_at_indices: t -> int list -> t
+
   val set_nth: t -> int -> num ->  t
 
   val set_nth_with: t -> int -> num -> unit

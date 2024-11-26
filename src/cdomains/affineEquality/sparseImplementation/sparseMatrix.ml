@@ -39,7 +39,7 @@ module ListMatrix: AbstractMatrix =
       Timing.wrap "copy" (copy) m
 
     let add_empty_columns m cols =
-      let colsL = List.sort (fun a b -> a-b) (Array.to_list cols) in
+      (*let colsL = List.sort (fun a b -> a-b) (Array.to_list cols) in
       let emptyT = A.zero in
       let rec list_of_all_before_index idx cols =
         match  cols with
@@ -69,7 +69,8 @@ module ListMatrix: AbstractMatrix =
         match m with
         | x::xs -> (add_column_element x cols)::(add_empty_columns_on_list xs cols)
         | [] -> []
-      in tM (add_empty_columns_on_list m.entries colsL) (m.column_count + Array.length cols)
+      in tM (add_empty_columns_on_list m.entries colsL) (m.column_count + Array.length cols)*)
+      failwith "TODO"
 
     let add_empty_columns m cols =
       Timing.wrap "add_empty_cols" (add_empty_columns m) cols
@@ -148,22 +149,11 @@ module ListMatrix: AbstractMatrix =
     let del_col m j =
       List.map (fun row -> V.remove_nth row j) m
 
-
-    (* TODO: Might be more efficient to check for each entry how much to reduce their index and not by recursively calling del_col *)
     let del_cols m cols =
-      let cols = Array.to_list cols in (* TODO: Get away from Arrays *)
-      let to_delete_count = List.length cols in
-      if to_delete_count = 0 || is_empty m then m
-      else
-      if num_cols m = to_delete_count then empty () else
-        let sorted_cols = List.sort_uniq Stdlib.compare cols in (* Apron Docs:  Repetitions are meaningless (and are not correct specification)*)
-        let rec del_cols_aux m cols deleted_col_count =
-          match cols with
-          | [] -> m
-          | col_idx::cs ->
-            let m' = del_col m (col_idx - deleted_col_count) in (* Taking already deleted cols into account because of new index *)
-            del_cols_aux m' cs (deleted_col_count + 1)
-        in del_cols_aux m sorted_cols 0
+      if (Array.length cols) = num_cols m then empty() else
+      let cols = Array.to_list cols in 
+      let sorted_cols = List.sort_uniq Stdlib.compare cols in (* Apron Docs:  Repetitions are meaningless (and are not correct specification), maybe use List instead?*)
+      List.map (fun row -> V.remove_at_indices row sorted_cols) m
 
     let del_cols m cols = Timing.wrap "del_cols" (del_cols m) cols
 

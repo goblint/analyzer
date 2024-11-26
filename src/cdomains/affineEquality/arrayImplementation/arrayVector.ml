@@ -34,6 +34,8 @@ module ArrayVector: AbstractVector =
       if n >= Array.length v then failwith "n outside of Array range" else
         Array.init (Array.length v - 1) (fun i -> if i < n then Array.get v i else Array.get v (i + 1)) (* TODO: remove_at? *)
 
+    let remove_at_indices v idx = failwith "TODO"
+
     let set_nth_with v n new_val =
       if n >= Array.length v then failwith "n outside of Array range" else
         Array.set v n new_val
