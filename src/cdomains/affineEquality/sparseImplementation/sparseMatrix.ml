@@ -146,7 +146,9 @@ module ListMatrix: AbstractMatrix =
           {entries = entries'; column_count = m.column_count}
 
     let del_col m j =
-      List.map (fun row -> V.remove_nth row j) m
+      if num_cols m = 1 then empty () 
+      else 
+        List.map (fun row -> V.remove_nth row j) m
 
     let del_cols m cols =
       if (Array.length cols) = num_cols m then empty() 

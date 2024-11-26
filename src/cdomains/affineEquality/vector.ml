@@ -36,7 +36,7 @@ sig
 
   val findi: (num -> bool) ->  t -> int
 
-  val find_opt: (num -> bool) -> t -> t Option.t
+  val find_opt: (num -> bool) -> t -> num Option.t
 
   val map: (num -> num) -> t -> t
 

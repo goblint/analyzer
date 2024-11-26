@@ -41,6 +41,19 @@ module SparseVector: AbstractVector =
       if n >= v.len then v else (*could be left out but maybe performance??*)
         {entries = remove_nth_vec v.entries n; len = v.len - 1}
 
+    (* TODO: Which of both remmove_nth should we use *)
+    let remove_nth v n =
+      if n >= v.len then failwith "Out of bounds"
+      else
+        let new_entries = List.filter_map (fun (col_idx, value) ->
+            if col_idx = n 
+            then None
+            else if col_idx > n 
+            then Some (col_idx - 1, value)
+            else Some (col_idx, value)
+          ) v.entries in
+        {entries = new_entries; len = v.len - 1}
+
     let remove_at_indices v idx = 
       let rec remove_indices_helper vec idx deleted_count = 
         match vec, idx with 
@@ -52,16 +65,14 @@ module SparseVector: AbstractVector =
       in
       {entries = remove_indices_helper v.entries idx 0; len = v.len - List.length idx}
 
-    let set_nth v n m = 
-      let rec set_nth_vec v n m =
-        match v with 
-        | x::xs -> if fst x = n then (n, m)::xs else 
-          if fst x < n then x::(set_nth_vec xs n m)
-          else v
-        | [] -> [] 
-      in
-      if n >= v.len then failwith "Out of bounds" else
-        {entries=set_nth_vec v.entries n m; len=v.len}
+    let set_nth v n num = 
+      if n >= v.len then failwith "Out of bounds" 
+      else
+        let new_entries = List.map (fun (col_idx, value) ->
+            if col_idx = n then (col_idx, num) else (col_idx, value)
+          ) v.entries
+        in
+        {entries= new_entries; len=v.len}
 
     let set_nth_with = 
       failwith "deprecated"
@@ -108,12 +119,13 @@ module SparseVector: AbstractVector =
       else
         let rec nth v = match v with
           | [] -> A.zero
+          | (col_idx, value) :: xs when col_idx > n -> A.zero
           | (col_idx, value) :: xs when col_idx = n -> value
           | (col_idx, value) :: xs -> nth xs 
         in nth v.entries
 
     let length v =
-      failwith "TODO"
+      v.len
 
     let map2 f v v' = 
       failwith "TODO"
@@ -183,10 +195,7 @@ module SparseVector: AbstractVector =
     let to_sparse_list v = 
       v.entries
 
-    let remove_nth v n =
-      failwith "TODO"
-
     let find_opt f v =
-      failwith "TODO"
+      failwith "TODO: Do we need this?"
 
   end 
