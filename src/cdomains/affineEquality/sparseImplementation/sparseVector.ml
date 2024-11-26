@@ -166,4 +166,10 @@ module SparseVector: AbstractVector =
     let to_sparse_list v = 
       v.entries
 
+    let remove_nth v n =
+      failwith "TODO"
+
+    let find_opt f v =
+      failwith "TODO"
+
   end 

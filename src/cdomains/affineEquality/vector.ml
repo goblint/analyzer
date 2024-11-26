@@ -26,6 +26,8 @@ sig
 
   val nth: t -> int -> num
 
+  val remove_nth: t -> int -> t
+
   val length: t -> int
 
   val map2: (num -> num -> num) -> t -> t -> t
@@ -33,6 +35,8 @@ sig
   val map2_with: (num -> num -> num) -> t -> t -> unit
 
   val findi: (num -> bool) ->  t -> int
+
+  val find_opt: (num -> bool) -> t -> t Option.t
 
   val map: (num -> num) -> t -> t
 

@@ -105,4 +105,10 @@ module ArrayVector: AbstractVector =
           let acc = if value <> A.zero then (idx, value):: acc else acc in
           aux (idx - 1) acc
       in aux (length v - 1) []
+
+    let remove_nth v n =
+      failwith "TODO"
+
+    let find_opt f v =
+      failwith "TODO"
   end
