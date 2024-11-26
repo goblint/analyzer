@@ -80,20 +80,13 @@ module ListMatrix: AbstractMatrix =
       Timing.wrap "add_empty_cols" (add_empty_columns m) cols
 
     let append_row m row  =
-      {entries = m.entries @ [V.to_sparse_list row]; column_count = V.length row}
+      m @ [row]
 
     let get_row m n =
-      V.of_sparse_list m.column_count (List.nth m.entries n)
+      List.nth m n
 
     let remove_row m n =
-      let rec aux idx entries = match idx, entries with
-        | i, x :: xs when i = n -> xs
-        | _, x :: xs -> x :: aux (idx + 1) xs
-        | _, _ -> failwith "trying to remove out of bounds row"
-      in 
-      let new_entries = aux 0 m.entries in
-      let new_col_count = if new_entries = [] then 0 else m.column_count in
-      {entries = new_entries; column_count = new_col_count}
+      List.remove_at n m
 
     let get_col m n =
       (* Uses the fact that row is sorted to return Zero when index n is exceeded *)
@@ -128,9 +121,8 @@ module ListMatrix: AbstractMatrix =
         ) m.entries in
       {entries = new_entries; column_count = m.column_count}
 
-    let append_matrices m1 m2  =
-      let new_entries = List.append m1.entries m2.entries in
-      {entries = new_entries; column_count = m1.column_count}
+    let append_matrices m1 m2  = (* keeps dimensions of first matrix, what if dimensions differ?*)
+      m1 @ m2
 
     let equal m1 m2 = Timing.wrap "equal" (equal m1) m2
 
@@ -227,9 +219,7 @@ module ListMatrix: AbstractMatrix =
       {entries = new_entries; column_count = m.column_count}
 
     let remove_zero_rows m =
-      let entries' = List.filter (fun row -> row <> []) m.entries in
-      if List.length entries' = 0 then empty() else
-        {entries = entries'; column_count = m.column_count}
+      List.filter (fun row -> not (V.is_zero_vec row)) m
 
     let rref_with m =
       failwith "Do not use!"
@@ -237,7 +227,7 @@ module ListMatrix: AbstractMatrix =
     let rref_with m = Timing.wrap "rref_with" rref_with m
 
     let init_with_vec v =
-      failwith "TODO"
+      [v]
 
 
     let reduce_col_with_vec m j v = 
