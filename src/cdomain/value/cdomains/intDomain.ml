@@ -13,45 +13,6 @@ exception Unknown
 exception Error
 exception ArithmeticOnIntegerBot of string
 
-
-
-(* Custom Tuple6 as Batteries only provides up to Tuple5 *)
-module Tuple6 = struct
-
-  let first (a,_,_,_,_, _) = a
-  let second (_,b,_,_,_, _) = b
-  let third (_,_,c,_,_, _) = c
-  let fourth (_,_,_,d,_, _) = d
-  let fifth (_,_,_,_,e, _) = e
-  let sixth (_,_,_,_,_, f) = f
-
-  let map1 fn (a, b, c, d, e, f) = (fn a, b, c, d, e, f)
-  let map2 fn (a, b, c, d, e, f) = (a, fn b, c, d, e, f)
-  let map3 fn (a, b, c, d, e, f) = (a, b, fn c, d, e, f)
-  let map4 fn (a, b, c, d, e, f) = (a, b, c, fn d, e, f)
-  let map5 fn (a, b, c, d, e, f) = (a, b, c, d, fn e, f)
-  let map6 fn (a, b, c, d, e, f) = (a, b, c, d, e, fn f)
-
-  let enum (a,b,c,d,e,f) = BatList.enum [a;b;c;d;e;f] (* Make efficient? *)
-
-end
-
-(* Prevent compile warnings *)
-let _ = Tuple6.first
-let _ = Tuple6.second
-let _ = Tuple6.third
-let _ = Tuple6.fourth
-let _ = Tuple6.fifth
-let _ = Tuple6.sixth
-
-let _ = Tuple6.map1
-let _ = Tuple6.map2
-let _ = Tuple6.map3
-let _ = Tuple6.map4
-let _ = Tuple6.map5
-let _ = Tuple6.map6
-
-
 (** Define records that hold mutable variables representing different Configuration values.
   * These values are used to keep track of whether or not the corresponding Config values are en-/disabled  *)
 type ana_int_config_values = {
@@ -3776,8 +3737,8 @@ module IntDomTupleImpl = struct
   let name () = "intdomtuple"
 
   (* The Interval domain can lead to too many contexts for recursive functions (top is [min,max]), but we don't want to drop all ints as with `ana.base.context.int`. TODO better solution? *)
-  let no_interval = Tuple6.map2 (const None)
-  let no_intervalSet = Tuple6.map5 (const None)
+  let no_interval = GobTuple.Tuple6.map2 (const None)
+  let no_intervalSet = GobTuple.Tuple6.map5 (const None)
 
   type 'a m = (module SOverflow with type t = 'a)
   type 'a m2 = (module SOverflow with type t = 'a and type int_t = int_t )
@@ -3836,7 +3797,7 @@ module IntDomTupleImpl = struct
   let opt_map2 f ?no_ov =
     curry @@ function Some x, Some y -> Some (f ?no_ov x y) | _ -> None
 
-  let to_list x = Tuple6.enum x |> List.of_enum |> List.filter_map identity (* contains only the values of activated domains *)
+  let to_list x = GobTuple.Tuple6.enum x |> List.of_enum |> List.filter_map identity (* contains only the values of activated domains *)
   let to_list_some x = List.filter_map identity @@ to_list x (* contains only the Some-values of activated domains *)
 
   let exists = function
@@ -4097,7 +4058,7 @@ module IntDomTupleImpl = struct
 
   (* fp: projections *)
   let equal_to i x =
-    let xs = mapp2 { fp2 = fun (type a) (module I:SOverflow with type t = a and type int_t = int_t) -> I.equal_to i } x |> Tuple6.enum |> List.of_enum |> List.filter_map identity in
+    let xs = mapp2 { fp2 = fun (type a) (module I:SOverflow with type t = a and type int_t = int_t) -> I.equal_to i } x |> GobTuple.Tuple6.enum |> List.of_enum |> List.filter_map identity in
     if List.mem `Eq xs then `Eq else
     if List.mem `Neq xs then `Neq else
       `Top 
