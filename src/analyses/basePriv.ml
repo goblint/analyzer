@@ -956,6 +956,12 @@ struct
   (* weak: G -> (2^M -> D) *)
   (* sync: M -> (2^M -> (G -> D)) *)
   include AbstractLockCenteredBase (VD) (CPA)
+
+  module W =
+  struct
+    include MapDomain.MapBot (LockDomain.MustLock) (MayVars)
+    let name () = "W"
+  end
 end
 
 module MinePrivBase =
@@ -1130,14 +1136,9 @@ struct
   include LockCenteredBase
   open Locksets
 
-  module W =
-  struct
-    include SetDomain.ToppedSet (Basetype.Variables) (struct let topname = "All variables" end)
-    let name () = "W"
-  end
-  module D = MapDomain.MapBot (MustLockset) (W)
+  module D = W
 
-  let startstate () = D.empty ()
+  let startstate () = W.empty ()
 
   let read_global ask getg (st: BaseComponents (D).t) x =
     let s = current_lockset ask in
@@ -1153,8 +1154,11 @@ struct
     let cpa' = CPA.add x v st.cpa in
     if not invariant && not (!earlyglobs && is_excluded_from_earlyglobs x) then
       sideg (V.global x) (G.create_weak (GWeak.singleton s v));
-    let w' = if not invariant then
-        D.join st.priv (D.singleton s (W.singleton x))
+    let w' = if not invariant then (
+        MustLockset.fold (fun m acc ->
+            W.join acc (W.singleton m (MayVars.singleton x))
+          ) s st.priv
+      )
       else
         st.priv (* No need to add invariant to W because it doesn't matter for reads after invariant, only unlocks. *)
     in
@@ -1169,18 +1173,13 @@ struct
           acc
       ) (G.sync (getg (V.mutex m))) st.cpa
     in
+    (* Could set W m to empty here (like Lock-Centered) but Miné doesn't and mentions this over-approximation. *)
     {st with cpa = cpa'}
 
   let unlock ask getg sideg (st: BaseComponents (D).t) m =
     let s = MustLockset.remove m (current_lockset ask) in
-    let w = D.fold (fun s' w acc ->
-        if MustLockset.mem m s' then
-          W.join w acc
-        else
-          acc
-      ) st.priv (W.empty ())
-    in
-    let is_in_W x _ = W.mem x w in
+    let w = W.find m st.priv in
+    let is_in_W x _ = MayVars.mem x w in
     let side_cpa = CPA.filter is_in_W st.cpa in
     sideg (V.mutex m) (G.create_sync (GSync.singleton s side_cpa));
     st
@@ -1201,7 +1200,7 @@ struct
       CPA.fold (fun x v (st: BaseComponents (D).t) ->
           if is_global ask x then (
             sideg (V.global x) (G.create_weak (GWeak.singleton (MustLockset.empty ()) v));
-            {st with priv = D.join st.priv (D.singleton (MustLockset.empty ()) (W.singleton x))} (* TODO: is this add necessary? *)
+            st
           )
           else
             st
@@ -1227,12 +1226,6 @@ struct
     let name () = "V"
   end
 
-  module DV2 =
-  struct
-    include MapDomain.MapBot_LiftTop (LockDomain.MustLock) (MayVars)
-    let name () = "V2"
-  end
-
   module L =
   struct
     include MapDomain.MapBot_LiftTop (LockDomain.MustLock) (MinLocksets)
@@ -1248,7 +1241,7 @@ struct
   open Locksets
 
   open LockCenteredD
-  module D = Lattice.Prod3 (DV) (DV2) (L)
+  module D = Lattice.Prod3 (DV) (W) (L)
 
   module Wrapper = Wrapper (G)
   module UnwrappedG = G
@@ -1257,7 +1250,7 @@ struct
   let invariant_global ask getg = invariant_global ask (Wrapper.getg ask getg)
   let invariant_vars ask getg = invariant_vars ask (Wrapper.getg ask getg)
 
-  let startstate () = (DV.bot (), DV2.bot (), L.bot ())
+  let startstate () = (DV.bot (), W.bot (), L.bot ())
 
   let lockset_init = MustLockset.all ()
 
@@ -1271,7 +1264,7 @@ struct
   let read_global ask getg (st: BaseComponents (D).t) x =
     let getg = Wrapper.getg ask getg in
     let s = current_lockset ask in
-    let (vv, vv2, l) = st.priv in
+    let (vv, _, l) = st.priv in
     let d_cpa = CPA.find x st.cpa in
     let d_sync = L.fold (fun m bs acc ->
         if not (MustVars.mem x (DV.find m vv)) then
@@ -1315,11 +1308,11 @@ struct
     let sideg = Wrapper.sideg ask sideg in
     let getg = Wrapper.getg ask getg in
     let s = current_lockset ask in
-    let (vv, vv2, l) = st.priv in
-    let (v', v2') = L.fold (fun m _ (acc1, acc2) ->
+    let (vv, w, l) = st.priv in
+    let (v', w') = L.fold (fun m _ (acc1, acc2) ->
         DV.add m (MustVars.add x (DV.find m acc1)) acc1,
-        DV2.add m (MayVars.add x (DV2.find m acc2)) acc2
-      ) l (vv, vv2)
+        W.add m (MayVars.add x (W.find m acc2)) acc2
+      ) l (vv, w)
     in
     let cpa' = CPA.add x v st.cpa in
     if not invariant && not (!earlyglobs && is_excluded_from_earlyglobs x) then (
@@ -1327,22 +1320,23 @@ struct
       sideg (V.global x) (UnwrappedG.create_weak (GWeak.singleton s v))
       (* Unlock after invariant will still side effect refined value from CPA, because cannot distinguish from non-invariant write. *)
     );
-    {st with cpa = cpa'; priv = (v', v2', l)}
+    {st with cpa = cpa'; priv = (v', w', l)}
 
   let lock ask getg (st: BaseComponents (D).t) m =
     let s = current_lockset ask in
-    let (v, v2, l) = st.priv in
+    let (v, w, l) = st.priv in
     let v' = DV.add m (MustVars.empty ()) v in
-    let v2' = DV2.add m (MayVars.empty ()) v2 in
+    let w' = W.add m (MayVars.empty ()) w in
     let l' = L.add m (MinLocksets.singleton s) l in
-    {st with priv = (v', v2', l')}
+    {st with priv = (v', w', l')}
 
   let unlock ask getg sideg (st: BaseComponents (D).t) m =
     let sideg = Wrapper.sideg ask sideg in
     let getg = Wrapper.getg ask getg in
     let s = MustLockset.remove m (current_lockset ask) in
-    let (_, v2, _) = st.priv in
-    let is_in_G x _ = is_global ask x && MayVars.mem x (DV2.find m v2) in
+    let (_, w, _) = st.priv in
+    let w = W.find m w in
+    let is_in_G x _ = is_global ask x && MayVars.mem x w in (* TODO: is_global check unnecessary? *)
     let side_cpa = CPA.filter is_in_G st.cpa in
     let side_cpa = CPA.mapi (fun x v ->
         let v = distr_init getg x v in
