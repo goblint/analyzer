@@ -1232,16 +1232,13 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): SOverflow with type int_t = Int
         let acc' = (if current_bit_impossible = Ints_t.one then "⊥" else if current_bit_known = Ints_t.one then string_of_int (Ints_t.to_int value) else "⊤") ^ acc in
         to_pretty_bits' (Ints_t.shift_right known_mask 1) (Ints_t.shift_right impossible_mask 1) (Ints_t.shift_right o_mask 1) (max_bits - 1) acc'
     in
-    to_pretty_bits' known impossible o max_bits ""
+    "0b"^to_pretty_bits' known impossible o max_bits ""
 
   let show t = 
     if t = bot () then "bot" else
     if t = top () then "top" else
       let (z,o) = t in
-      if BArith.is_const t then 
-        Format.sprintf "{%d, %d} {%s} (unique: %d)" (Ints_t.to_int z) (Ints_t.to_int o) (to_pretty_bits t) (Ints_t.to_int o)
-      else 
-        Format.sprintf "{%d, %d} {%s}" (Ints_t.to_int z) (Ints_t.to_int o) (to_pretty_bits t)
+        Format.sprintf "{zs:%d, os:%d} %s" (Ints_t.to_int z) (Ints_t.to_int o) (to_pretty_bits t) 
 
   include Std (struct type nonrec t = t let name = name let top_of = top_of let bot_of = bot_of let show = show let equal = equal end)
 
@@ -1435,13 +1432,24 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): SOverflow with type int_t = Int
     let res = if BArith.is_const (z1, o1) && BArith.is_const (z2, o2) then (let tmp = Ints_t.div z1 z2 in (Ints_t.lognot tmp, tmp)) else top_of ik in
     norm ik res
 
+  let is_power_of_two x = Ints_t.(logand x (sub x one) = zero)
+
   let rem ik x y = 
-    M.trace "bitfield" "rem";
     if BArith.is_const x && BArith.is_const y then (
       (* x % y = x - (x / y) * y *)
       let tmp = fst (div ik x y) in
       let tmp = fst (mul ik tmp y) in 
       fst (sub ik x tmp))
+    else if BArith.is_const y && is_power_of_two (snd y) then (
+      let mask = Ints_t.sub (snd y) Ints_t.one in
+      print_endline (Ints_t.to_string mask);
+     print_endline (Ints_t.to_string (Ints_t.lognot mask));
+      let newz = Ints_t.logor (fst x) (Ints_t.lognot mask) in
+      let newo = Ints_t.logand (snd x) mask in
+      print_endline (Ints_t.to_string newz);
+      print_endline (Ints_t.to_string newo);
+      norm ik (newz, newo) |> fst
+    )
     else top_of ik
 
   let eq ik x y = 
@@ -1494,9 +1502,8 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): SOverflow with type int_t = Int
 
 
   let refine_with_congruence ik bf ((cong) : (int_t * int_t ) option) : t =
-    let is_power_of_two x = Ints_t.(logand x (sub x one) = zero) in
     match bf, cong with
-    | (z,o), Some (c, m) when is_power_of_two m ->
+    | (z,o), Some (c, m) when is_power_of_two m && m <> Ints_t.one ->
       let congruenceMask = Ints_t.lognot m in
       let newz = Ints_t.logor (Ints_t.logand (Ints_t.lognot congruenceMask) z) (Ints_t.logand congruenceMask (Ints_t.lognot c)) in
       let newo = Ints_t.logor (Ints_t.logand (Ints_t.lognot congruenceMask) o) (Ints_t.logand congruenceMask c) in
