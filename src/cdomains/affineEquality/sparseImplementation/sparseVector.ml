@@ -2,6 +2,9 @@ open AbstractVector
 open RatOps
 open ConvenienceOps
 
+open BatList
+module List = BatList
+
 module SparseVector: AbstractVector =
   functor (A: RatOps) ->
   struct
@@ -77,8 +80,14 @@ module SparseVector: AbstractVector =
     let set_nth_with = 
       failwith "deprecated"
 
-    let insert_val_at n m t = 
-      failwith "TODO"
+    let insert_val_at n new_val v = 
+      if n > v.len then failwith "n too large" else (* Does this happen? Otherwise we can omit this comparison, here right now to be semantically equivalent *)
+        let entries' = List.fold_left (fun acc (idx, value) -> 
+            if idx < n then (idx, value) :: acc 
+            else if idx = n then (n, new_val) :: (idx + 1, value) :: acc 
+            else (idx + 1, value) :: acc
+          ) [] (List.rev v.entries) in
+        {entries = entries'; len = v.len + 1}
 
     let mul_vec_scal v s = 
       {entries= (List.map (fun (idx, va) -> (idx, va *: s)) v.entries); len=v.len}
@@ -110,14 +119,14 @@ module SparseVector: AbstractVector =
       failwith "TODO"
 
     let zero_vec n = 
-      failwith "TODO"
+      {entries = []; len = n}
 
     let is_zero_vec v = (v.entries = [])
 
     let nth v n = 
       if n >= v.len then failwith "V.nth out of bounds"
       else
-        let rec nth v = match v with
+        let rec nth v = match v with (* List.assoc would also work, but we use the fact that v is sorted *)
           | [] -> A.zero
           | (col_idx, value) :: xs when col_idx > n -> A.zero
           | (col_idx, value) :: xs when col_idx = n -> value
@@ -143,19 +152,22 @@ module SparseVector: AbstractVector =
       failwith "TODO"
 
     let compare_length_with v n = 
-      failwith "TODO"
+      Int.compare v.len n
 
     let of_list l = 
-      failwith "TODO"
+      let entries' = List.rev @@ List.fold_lefti (fun acc i x -> if x <> A.zero then (i, x) :: acc else acc) [] l
+      in {entries = entries'; len = List.length l}
 
     let to_list v = 
-      failwith "TODO"
+      let l = List.init v.len (fun _ -> A.zero) in 
+      List.fold_left (fun acc (idx, value) -> (List.modify_at idx (fun _ -> value) acc)) l v.entries
 
     let filteri f v = 
       failwith "TODO"
 
     let append v v' = 
-      failwith "TODO"
+      let entries' = v.entries @ List.map (fun (idx, value) -> (idx + v.len), value) v'.entries in
+      {entries = entries'; len = v.len + v'.len}
 
     let exists f v  = 
       failwith "TODO"
