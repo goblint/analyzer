@@ -16,7 +16,7 @@
 (homepage "https://goblint.in.tum.de")
 (documentation "https://goblint.readthedocs.io/en/latest/")
 (authors "Simmo Saan" "Michael Schwarz" "Julian Erhard" "Sarah Tilscher" "Karoliine Holter" "Ralf Vogler" "Kalmer Apinis" "Vesal Vojdani" ) ; same authors as in .zenodo.json and CITATION.cff
-(maintainers "Simmo Saan <simmo.saan@gmail.com>" "Michael Schwarz <michael.schwarz93@gmail.com>" "Karoliine Holter")
+(maintainers "Simmo Saan <simmo.saan@gmail.com>" "Michael Schwarz <michael.schwarz93@gmail.com>" "Karoliine Holter <karoliine.holter@ut.ee>")
 (license MIT)
 
 (package
