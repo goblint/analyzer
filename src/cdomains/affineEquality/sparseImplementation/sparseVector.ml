@@ -17,7 +17,7 @@ module SparseVector: AbstractVector =
       len: int
     }[@@deriving eq, ord, hash]
 
-    let tV e l = {entries=e; len=l}
+    let to_vector e l = {entries=e; len=l}
 
     let keep_vals v n = 
       let rec keep_vals_vec v n =
@@ -117,7 +117,7 @@ module SparseVector: AbstractVector =
           res@(map2_nonzero_aux xtail ytail)
       in 
       if v1.len <> v2.len then raise (Invalid_argument "Different lengths") else
-        tV (map2_nonzero_aux v1.entries v2.entries) v1.len
+        to_vector (map2_nonzero_aux v1.entries v2.entries) v1.len
 
 
     let apply_with_c f m v = 
