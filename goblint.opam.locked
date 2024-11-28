@@ -64,7 +64,7 @@ depends: [
   "fileutils" {= "0.6.4"}
   "fmt" {= "0.9.0"}
   "fpath" {= "0.7.3"}
-  "goblint-cil" {= "2.0.4"}
+  "goblint-cil" {= "2.0.5"}
   "hex" {= "1.5.0"}
   "integers" {= "0.7.0"}
   "json-data-encoding" {= "1.0.1"}
@@ -138,10 +138,6 @@ post-messages: [
   "Do not benchmark Goblint on OCaml 5 (https://goblint.readthedocs.io/en/latest/user-guide/benchmarking/)." {ocaml:version >= "5.0.0"}
 ]
 pin-depends: [
-  [
-    "goblint-cil.2.0.4"
-    "git+https://github.com/goblint/cil.git#9f4fac450c02bc61a13717784515056b185794cd"
-  ]
   [
     "camlidl.1.12"
     "git+https://github.com/xavierleroy/camlidl.git#1c1e87e3f56c2c6b3226dd0af3510ef414b462d0"
