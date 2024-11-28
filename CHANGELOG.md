@@ -1,4 +1,4 @@
-## v2.5.0 (unreleased)
+## v2.5.0
 Functionally equivalent to Goblint in SV-COMP 2025.
 
 * Add 32bit vs 64bit architecture support (#54, #1574).
