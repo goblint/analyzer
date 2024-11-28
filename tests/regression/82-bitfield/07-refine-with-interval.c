@@ -8,5 +8,18 @@ int main() {
 
   if (a <= 4) {
     __goblint_assert((a & 0x10) == 0); // SUCCESS
+
+    int b = ~0x7;
+    __goblint_assert((a & b) == 0);  // SUCCESS
+  }
+
+  if (a > 8 && a < 15) {
+    __goblint_assert((a & 8) == 8);  // SUCCESS
+  }
+
+  int b = rand() - 512;
+
+  if(-4 <= b && b <= -2) {
+    __goblint_assert((b & 4) == 4);  // SUCCESS
   }
 }

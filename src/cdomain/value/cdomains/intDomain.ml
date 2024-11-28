@@ -1290,15 +1290,44 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): SOverflow with type int_t = Int
     else `Neq
 
   let of_interval ?(suppress_ovwarn=false) ik (x,y) =
-    (* naive implentation -> horrible O(n) runtime *)
     let (min_ik, max_ik) = Size.range ik in
-    let current = ref (Z.max (Z.of_int (Ints_t.to_int x)) min_ik) in
-    let bf = ref (bot ()) in
-    while Z.leq !current (Z.min (Z.of_int (Ints_t.to_int y)) max_ik) do
-      bf := BArith.join !bf (BArith.of_int (Ints_t.of_bigint !current));
-      current := Z.add !current Z.one
-    done;
-    norm ~suppress_ovwarn ik !bf
+    let startv = Ints_t.max x (Ints_t.of_bigint min_ik) in
+    let endv= Ints_t.min y (Ints_t.of_bigint max_ik) in
+    
+    let rec analyze_bits pos (acc_z, acc_o) =
+      if pos < 0 then (acc_z, acc_o)
+      else
+        let position = Ints_t.shift_left Ints_t.one pos in
+        let mask = Ints_t.sub position Ints_t.one in
+        let remainder = Ints_t.logand startv mask in
+
+        let without_remainder = Ints_t.sub startv remainder in
+        let bigger_number = Ints_t.add without_remainder position in
+        
+        let bit_status =
+          if Ints_t.compare bigger_number endv <= 0 then
+            `top
+          else 
+            if Ints_t.equal (Ints_t.logand (Ints_t.shift_right startv pos) Ints_t.one) Ints_t.one then
+              `one
+            else
+              `zero
+        in
+
+        let new_acc = 
+          match bit_status with
+          | `top -> (Ints_t.logor position acc_z, Ints_t.logor position acc_o)
+          | `one -> (Ints_t.logand (Ints_t.lognot position) acc_z, Ints_t.logor position acc_o)
+          | `zero -> (Ints_t.logor position acc_z, Ints_t.logand (Ints_t.lognot position) acc_o)
+
+        in 
+        analyze_bits (pos - 1) new_acc
+    in
+    
+    let result = analyze_bits (Size.bit ik - 1) (bot()) in
+    let casted = (Ints_t.of_bigint (Size.cast ik ((Ints_t.to_bigint (fst result)))), Ints_t.of_bigint (Size.cast ik ((Ints_t.to_bigint (snd result))))) in
+    norm ~suppress_ovwarn ik casted
+ 
 
   let of_bool _ik = function true -> BArith.one | false -> BArith.zero
 
@@ -1481,25 +1510,12 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): SOverflow with type int_t = Int
     IntInvariant.of_interval e ik range
 
   let starting ?(suppress_ovwarn=false) ik n = 
-    if Ints_t.compare n Ints_t.zero >= 0 then
-      (* sign bit can only be 0, as all numbers will be positive *)
-      let signBitMask = Ints_t.shift_left Ints_t.one (Size.bit ik - 1) in
-      let zs = BArith.one_mask in
-      let os = Ints_t.logand (Ints_t.lognot signBitMask) BArith.one_mask in
-      (norm ~suppress_ovwarn ik @@ (zs,os))
-    else 
-      (norm ~suppress_ovwarn ik @@ (top ()))
+    let (min_ik, max_ik) = Size.range ik in
+    of_interval ~suppress_ovwarn ik (n, Ints_t.of_bigint max_ik)
 
   let ending ?(suppress_ovwarn=false) ik n =
-    if isSigned ik && Ints_t.compare n Ints_t.zero <= 0 then
-      (* sign bit can only be 1, as all numbers will be negative *)
-      let signBitMask = Ints_t.shift_left Ints_t.one (Size.bit ik - 1) in
-      let zs = Ints_t.logand (Ints_t.lognot signBitMask) BArith.one_mask in
-      let os = BArith.one_mask in
-      (norm ~suppress_ovwarn ik @@ (zs,os))
-    else 
-      (norm ~suppress_ovwarn ik @@ (top ()))
-
+    let (min_ik, max_ik) = Size.range ik in
+    of_interval ~suppress_ovwarn ik (Ints_t.of_bigint min_ik, n)
 
   let refine_with_congruence ik bf ((cong) : (int_t * int_t ) option) : t =
     match bf, cong with
@@ -1510,7 +1526,10 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): SOverflow with type int_t = Int
       norm ik (newz, newo) |> fst
     | _ -> norm ik bf |> fst
 
-  let refine_with_interval ik t i = norm ik t |> fst
+  let refine_with_interval ik t itv = 
+    match itv with
+    | None -> norm ik t |> fst
+    | Some (l, u) -> meet ik t (of_interval ik (l, u) |> fst)
 
   let refine_with_excl_list ik t (excl : (int_t list * (int64 * int64)) option) : t = norm ik t |> fst
 
