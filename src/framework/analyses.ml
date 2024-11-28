@@ -14,8 +14,7 @@ type fundecs = fundec list * fundec list * fundec list
 
 module Var =
 struct
-  type t = Node.t [@@deriving eq, ord, hash]
-  let relift = Node.relift
+  type t = Node.t [@@deriving eq, ord, hash, relift]
 
   let printXml f n =
     let l = Node.location n in
@@ -209,7 +208,7 @@ sig
   val context: (D.t, G.t, C.t, V.t) ctx -> fundec -> D.t -> C.t
   val startcontext: unit -> C.t
 
-  val sync  : (D.t, G.t, C.t, V.t) ctx -> [`Normal | `Join | `JoinCall | `Return] -> D.t
+  val sync  : (D.t, G.t, C.t, V.t) ctx -> [`Normal | `Join | `JoinCall of CilType.Fundec.t | `Return] -> D.t
   val query : (D.t, G.t, C.t, V.t) ctx -> 'a Queries.t -> 'a Queries.result
 
   (** A transfer function which handles the assignment of a rval to a lval, i.e.,
@@ -274,6 +273,8 @@ sig
 
   val event : (D.t, G.t, C.t, V.t) ctx -> Events.t -> (D.t, G.t, C.t, V.t) ctx -> D.t
 end
+
+module type Spec2Spec = functor (S: Spec) -> Spec
 
 module type MCPA =
 sig

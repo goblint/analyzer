@@ -1,6 +1,6 @@
 //PARAM: --set ana.activated '["constants"]'
 // intentional explicit ana.activated to do tutorial in isolation
-
+// NOCHECK
 int main(){
     int x = 3;
     int y = 4;

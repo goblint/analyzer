@@ -1,7 +1,6 @@
 (** SV-COMP tasks and results. *)
 
 open GoblintCil
-open Batteries
 
 module Specification = SvcompSpec
 
@@ -27,9 +26,9 @@ let is_error_function f =
 (* TODO: unused, but should be used? *)
 let is_special_function f =
   let loc = f.vdecl in
-  let is_svcomp = String.ends_with loc.file "sv-comp.c" in (* only includes/sv-comp.c functions, not __VERIFIER_assert in benchmark *)
+  let is_svcomp = String.ends_with loc.file ~suffix:"sv-comp.c" in (* only includes/sv-comp.c functions, not __VERIFIER_assert in benchmark *)
   let is_verifier = match f.vname with
-    | fname when String.starts_with fname "__VERIFIER" -> true
+    | fname when String.starts_with fname ~prefix:"__VERIFIER" -> true
     | fname -> is_error_function f
   in
   is_svcomp && is_verifier

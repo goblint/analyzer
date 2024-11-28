@@ -34,8 +34,6 @@ module MainFunctor (Priv:BasePriv.S) (RVEval:BaseDomain.ExpEvaluator with type t
 struct
   include Analyses.DefaultSpec
 
-  exception Top
-
   module Dom    = BaseDomain.DomFunctor (Priv.D) (RVEval)
   type t = Dom.t
   module D      = Dom
@@ -171,7 +169,7 @@ struct
    * Abstract evaluation functions
    **************************************************************************)
 
-  let iDtoIdx = ID.cast_to (Cilfacade.ptrdiff_ikind ())
+  let iDtoIdx x = ID.cast_to (Cilfacade.ptrdiff_ikind ()) x
 
   let unop_ID = function
     | Neg  -> ID.neg
@@ -447,13 +445,13 @@ struct
     in
     if M.tracing then M.tracel "sync" "sync multi=%B earlyglobs=%B" multi !earlyglobs;
     if !earlyglobs || multi then
-      WideningTokens.with_local_side_tokens (fun () ->
+      WideningTokenLifter.with_local_side_tokens (fun () ->
           Priv.sync (Analyses.ask_of_ctx ctx) (priv_getg ctx.global) (priv_sideg ctx.sideg) ctx.local reason
         )
     else
       ctx.local
 
-  let sync ctx reason = sync' (reason :> [`Normal | `Join | `JoinCall | `Return | `Init | `Thread]) ctx
+  let sync ctx reason = sync' (reason :> [`Normal | `Join | `JoinCall of CilType.Fundec.t | `Return | `Init | `Thread]) ctx
 
   let publish_all ctx reason =
     ignore (sync' reason ctx)
@@ -1909,14 +1907,14 @@ struct
       in
       begin match current_val with
         | Bot -> (* current value is VD Bot *)
-          begin match Addr.to_mval (AD.choose lval_val) with
-            | Some (x,offs) ->
+          begin match AD.to_mval lval_val with
+            | [(x,offs)] ->
               let t = v.vtype in
               let iv = VD.bot_value ~varAttr:v.vattr t in (* correct bottom value for top level variable *)
-              if M.tracing then M.tracel "set" "init bot value: %a" VD.pretty iv;
+              if M.tracing then M.tracel "set" "init bot value (%a): %a" d_plaintype t VD.pretty iv;
               let nv = VD.update_offset (Queries.to_value_domain_ask (Analyses.ask_of_ctx ctx)) iv offs rval_val (Some  (Lval lval)) lval t in (* do desired update to value *)
               set_savetop ~ctx  ctx.local (AD.of_var v) lval_t nv ~lval_raw:lval ~rval_raw:rval (* set top-level variable to updated value *)
-            | None ->
+            | _ ->
               set_savetop ~ctx ctx.local lval_val lval_t rval_val ~lval_raw:lval ~rval_raw:rval
           end
         | _ ->
@@ -2045,7 +2043,7 @@ struct
       List.map mpt exps
     )
 
-  let invalidate ?(deep=true) ~ctx (st:store) (exps: exp list): store =
+  let invalidate ~(must: bool) ?(deep=true) ~ctx (st:store) (exps: exp list): store =
     if M.tracing && exps <> [] then M.tracel "invalidate" "Will invalidate expressions [%a]" (d_list ", " d_plainexp) exps;
     if exps <> [] then M.info ~category:Imprecise "Invalidating expressions: %a" (d_list ", " d_exp) exps;
     (* To invalidate a single address, we create a pair with its corresponding
@@ -2072,7 +2070,15 @@ struct
       let vs = List.map (Tuple3.third) invalids' in
       M.tracel "invalidate" "Setting addresses [%a] to values [%a]" (d_list ", " AD.pretty) addrs (d_list ", " VD.pretty) vs
     );
-    set_many ~ctx st invalids'
+    (* copied from set_many *)
+    let f (acc: store) ((lval:AD.t),(typ:Cil.typ),(value:value)): store =
+      let acc' = set ~ctx acc lval typ value in
+      if must then
+        acc'
+      else
+        D.join acc acc'
+    in
+    List.fold_left f st invalids'
 
 
   let make_entry ?(thread=false) (ctx:(D.t, G.t, C.t, V.t) Analyses.ctx) fundec args: D.t =
@@ -2166,11 +2172,7 @@ struct
         in
         List.filter_map (create_thread ~multiple (Some (Mem id, NoOffset)) (Some ptc_arg)) start_funvars_with_unknown
       end
-    | _, _ when get_bool "sem.unknown_function.spawn" ->
-      (* TODO: Remove sem.unknown_function.spawn check because it is (and should be) really done in LibraryFunctions.
-         But here we consider all non-ThreadCrate functions also unknown, so old-style LibraryFunctions access
-         definitions using `Write would still spawn because they are not truly unknown functions (missing from LibraryFunctions).
-         Need this to not have memmove spawn in SV-COMP. *)
+    | _, _ ->
       let shallow_args = LibraryDesc.Accesses.find desc.accs { kind = Spawn; deep = false } args in
       let deep_args = LibraryDesc.Accesses.find desc.accs { kind = Spawn; deep = true } args in
       let shallow_flist = collect_invalidate ~deep:false ~ctx ctx.local shallow_args in
@@ -2179,7 +2181,6 @@ struct
       let addrs = List.concat_map AD.to_var_may flist in
       if addrs <> [] then M.debug ~category:Analyzer "Spawning non-unique functions from unknown function: %a" (d_list ", " CilType.Varinfo.pretty) addrs;
       List.filter_map (create_thread ~multiple:true None None) addrs
-    | _, _ -> []
 
   let assert_fn ctx e refine =
     (* make the state meet the assertion in the rest of the code *)
@@ -2211,8 +2212,8 @@ struct
     in
     (* TODO: what about escaped local variables? *)
     (* invalidate arguments and non-static globals for unknown functions *)
-    let st' = invalidate ~deep:false ~ctx ctx.local shallow_addrs in
-    invalidate ~deep:true ~ctx st' deep_addrs
+    let st' = invalidate ~must:false ~deep:false ~ctx ctx.local shallow_addrs in
+    invalidate ~must:false ~deep:true ~ctx st' deep_addrs
 
   let check_invalid_mem_dealloc ctx special_fn ptr =
     let has_non_heap_var = AD.exists (function
@@ -2302,7 +2303,7 @@ struct
     let invalidate_ret_lv st = match lv with
       | Some lv ->
         if M.tracing then M.tracel "invalidate" "Invalidating lhs %a for function call %s" d_plainlval lv f.vname;
-        invalidate ~deep:false ~ctx st [Cil.mkAddrOrStartOf lv]
+        invalidate ~must:true ~deep:false ~ctx st [Cil.mkAddrOrStartOf lv]
       | None -> st
     in
     let addr_type_of_exp exp =
@@ -2636,20 +2637,29 @@ struct
         | Int n when GobOption.exists (Z.equal Z.zero) (ID.to_int n) -> st
         | Address ret_a ->
           begin match eval_rv ~ctx st id with
-            | Thread a when ValueDomain.Threads.is_top a -> invalidate ~ctx st [ret_var]
+            | Thread a when ValueDomain.Threads.is_top a -> invalidate ~must:true ~ctx st [ret_var]
             | Thread a ->
               let v = List.fold VD.join (VD.bot ()) (List.map (fun x -> G.thread (ctx.global (V.thread x))) (ValueDomain.Threads.elements a)) in
               (* TODO: is this type right? *)
               set ~ctx st ret_a (Cilfacade.typeOf ret_var) v
-            | _      -> invalidate ~ctx st [ret_var]
+            | _      -> invalidate ~must:true ~ctx st [ret_var]
           end
-        | _      -> invalidate ~ctx st [ret_var]
+        | _      -> invalidate ~must:true ~ctx st [ret_var]
       in
       let st' = invalidate_ret_lv st' in
       Priv.thread_join (Analyses.ask_of_ctx ctx) (priv_getg ctx.global) id st'
     | Unknown, "__goblint_assume_join" ->
       let id = List.hd args in
       Priv.thread_join ~force:true (Analyses.ask_of_ctx ctx) (priv_getg ctx.global) id st
+    | ThreadSelf, _ ->
+      begin match lv, ThreadId.get_current (Analyses.ask_of_ctx ctx) with
+        | Some lv, `Lifted tid ->
+          set ~ctx st (eval_lv ~ctx st lv) (Cilfacade.typeOfLval lv) (Thread (ValueDomain.Threads.singleton tid))
+        | Some lv, _ ->
+          invalidate_ret_lv st
+        | None, _ ->
+          st
+      end
     | Alloca size, _ -> begin
         match lv with
         | Some lv ->
@@ -3050,7 +3060,7 @@ struct
     (* Perform actual [set]-s with final unassumed values.
        This invokes [Priv.write_global], which was suppressed above. *)
     let e_d' =
-      WideningTokens.with_side_tokens (WideningTokens.TS.of_list uuids) (fun () ->
+      WideningTokenLifter.with_side_tokens (WideningTokenLifter.TS.of_list uuids) (fun () ->
           CPA.fold (fun x v acc ->
               let addr: AD.t = AD.of_mval (x, `NoOffset) in
               set ~ctx ~invariant:false acc addr x.vtype v
@@ -3069,7 +3079,7 @@ struct
           Priv.lock ask (priv_getg ctx.global) st m
         ) st addr
     | Events.Unlock addr when ThreadFlag.has_ever_been_multi ask -> (* TODO: is this condition sound? *)
-      WideningTokens.with_local_side_tokens (fun () ->
+      WideningTokenLifter.with_local_side_tokens (fun () ->
           CommonPriv.lift_unlock ask (fun st m ->
               Priv.unlock ask (priv_getg ctx.global) (priv_sideg ctx.sideg) st m
             ) st addr
@@ -3083,8 +3093,8 @@ struct
       set ~ctx ctx.local (eval_lv ~ctx ctx.local lval) (Cilfacade.typeOfLval lval) (Thread (ValueDomain.Threads.singleton tid))
     | Events.Assert exp ->
       assert_fn ctx exp true
-    | Events.Unassume {exp; uuids} ->
-      Timing.wrap "base unassume" (unassume ctx exp) uuids
+    | Events.Unassume {exp; tokens} ->
+      Timing.wrap "base unassume" (unassume ctx exp) tokens
     | Events.Longjmped {lval} ->
       begin match lval with
         | Some lval ->

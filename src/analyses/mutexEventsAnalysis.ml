@@ -5,7 +5,6 @@
 module M = Messages
 module Addr = ValueDomain.Addr
 module LF = LibraryFunctions
-open Batteries
 open GoblintCil
 open Analyses
 open GobConfig
@@ -52,12 +51,12 @@ struct
 
   let return ctx exp fundec : D.t =
     (* deprecated but still valid SV-COMP convention for atomic block *)
-    if get_bool "ana.sv-comp.functions" && String.starts_with fundec.svar.vname "__VERIFIER_atomic_" then
+    if get_bool "ana.sv-comp.functions" && String.starts_with fundec.svar.vname ~prefix:"__VERIFIER_atomic_" then
       ctx.emit (Events.Unlock (LockDomain.Addr.of_var LF.verifier_atomic_var))
 
   let body ctx f : D.t =
     (* deprecated but still valid SV-COMP convention for atomic block *)
-    if get_bool "ana.sv-comp.functions" && String.starts_with f.svar.vname "__VERIFIER_atomic_" then
+    if get_bool "ana.sv-comp.functions" && String.starts_with f.svar.vname ~prefix:"__VERIFIER_atomic_" then
       ctx.emit (Events.Lock (LockDomain.Addr.of_var LF.verifier_atomic_var, true))
 
   let special (ctx: (unit, _, _, _) ctx) lv f arglist : D.t =

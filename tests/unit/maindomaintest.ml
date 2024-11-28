@@ -28,9 +28,6 @@ let domains: (module Lattice.S) list = [
   (* (module IntDomainProperties.IntegerSet); (* TODO: top properties error *) *)
   (module IntDomain.Lifted); (* not abstraction of IntegerSet *)
 
-  (* TODO: move to intDomains if passing *)
-  (module IntDomain.Booleans);
-
   (* TODO: fix *)
   (* (module IntDomain.Enums); *)
   (* (module IntDomain.IntDomTuple); *)

@@ -33,17 +33,6 @@ struct
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape (show x))
 end
 
-module RawBools: Printable.S with type t = bool =
-struct
-  include Printable.StdLeaf
-  open Pretty
-  type t = bool [@@deriving eq, ord, hash, to_yojson]
-  let show (x:t) =  if x then "true" else "false"
-  let pretty () x = text (show x)
-  let name () = "raw bools"
-  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (show x)
-end
-
 module CilExp =
 struct
   include CilType.Exp

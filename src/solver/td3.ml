@@ -49,7 +49,7 @@ module Base =
     open SolverBox.Warrow (S.Dom)
     include Generic.SolverStats (S) (HM)
     module VS = Set.Make (S.Var)
-    let exists_key f hm = HM.fold (fun k _ a -> a || f k) hm false
+    let exists_key f hm = HM.exists (fun k _ -> f k) hm
 
     type solver_data = {
       st: (S.Var.t * S.Dom.t) list; (* needed to destabilize start functions if their start state changed because of some changed global initializer *)
@@ -289,7 +289,7 @@ module Base =
               destabilize_vs y || b || was_stable && List.mem_cmp S.Var.compare y vs
             else
               true
-          ) w false
+          ) w false (* nosemgrep: fold-exists *) (* does side effects *)
       and solve ?reuse_eq x phase =
         if tracing then trace "sol2" "solve %a, phase: %s, called: %b, stable: %b, wpoint: %b" S.Var.pretty_trace x (show_phase phase) (HM.mem called x) (HM.mem stable x) (HM.mem wpoint x);
         init x;
