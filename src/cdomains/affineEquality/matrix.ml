@@ -71,4 +71,6 @@ sig
 
   val copy: t -> t
 
+  val swap_rows: t -> int -> int -> t
+
 end

@@ -355,4 +355,7 @@ module ArrayMatrix: AbstractMatrix =
       map2i_with f m' v;
       m'
 
+    let swap_rows m j k =
+      failwith "TODO"
+
   end
