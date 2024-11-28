@@ -18,8 +18,8 @@ sig
 
   val insert_val_at: int -> num ->  t ->  t
 
-  val map_preserve_zero: ((int * num) -> (int * num)) -> t -> t
-  val map2_preserve_zero: ((int * num) -> (int * num) -> (int * num)) -> t ->  t -> t 
+  val map_preserve_zero: (num -> num) -> t -> t
+  val map2_preserve_zero: (num -> num -> num) -> t ->  t -> t 
   val apply_with_c: (num -> num -> num) -> num ->  t ->  t
 
   val apply_with_c_with: (num -> num -> num) -> num -> t -> unit
