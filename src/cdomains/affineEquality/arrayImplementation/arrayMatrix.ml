@@ -321,8 +321,6 @@ module ArrayMatrix: AbstractMatrix =
     let find_opt f m =
       let f' x = f (V.of_array x) in Option.map V.of_array (Array.find_opt f' m)
 
-    let map2 f m v =
-      let f' x y = V.to_array @@ f (V.of_array x) y in Array.map2 f' m (V.to_array v)
 
     let map2_with f m v =
       if num_rows m = V.length v then
@@ -331,6 +329,16 @@ module ArrayMatrix: AbstractMatrix =
         for i = 0 to Stdlib.min (num_rows m) (V.length v) -1  do
           m.(i) <- V.to_array @@ f (V.of_array m.(i)) (V.nth v i)
         done
+
+    (* Deprecated
+       let map2 f m v =
+       let f' x y = V.to_array @@ f (V.of_array x) y in Array.map2 f' m (V.to_array v)
+    *)
+
+    let map2 f m v =
+      let m' = copy m in
+      map2_with f m' v;
+      m'
 
     let map2_with f m v = Timing.wrap "map2_with" (map2_with f m) v
 
