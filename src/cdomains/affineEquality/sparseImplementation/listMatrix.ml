@@ -178,6 +178,12 @@ module ListMatrix: AbstractMatrix =
     let swap_rows m j k =
       List.mapi (fun i row -> if i = j then List.nth m k else if i = k then List.nth m k else row) m
 
+    let is_valid_affeq_matrix m = 
+      let col_count = num_cols m in
+      List.exists (fun row -> (* Invalid if row is zero, but coefficient is not zero *)
+          V.fold_left_preserve_zero (fun found_non_zero (col_idx, value) -> if col_idx = col_count - 1 && (not found_non_zero) && (value <>: A.zero) then false else found_non_zero) false row
+        ) m
+
     let normalize (m : t) : t Option.t =
       let col_count = num_cols m in
 
@@ -204,7 +210,7 @@ module ListMatrix: AbstractMatrix =
           if piv_col = (num_cols m) then None else Some (piv_row, piv_col, piv_val)
       in
       let rec main_loop (m : t) (m' : t) (row_idx : int) (col_idx : int) : t = 
-        if col_idx = (col_count - 1) then m  (* In this case the whole bottom of the matrix starting from row_index is Zero, so it is normalized *)
+        if col_idx = (col_count - 2) then m  (* In this case the whole bottom of the matrix starting from row_index is Zero, so it is normalized *)
         else
           match find_pivot m' row_idx col_idx with
           | None -> m (* No pivot found means already normalized*)
@@ -217,7 +223,7 @@ module ListMatrix: AbstractMatrix =
               main_loop subtracted_m m' (row_idx + 1) (piv_col_idx + 1)) (* We start at piv_col_idx + 1 because every other col before that is zero at the bottom*)
       in 
       let m' = main_loop m m 0 0 in
-      Some m'
+      if is_valid_affeq_matrix m' then Some m' else None
 
     let rref_vec_helper m pivot_positions v =
       failwith "TODO"
