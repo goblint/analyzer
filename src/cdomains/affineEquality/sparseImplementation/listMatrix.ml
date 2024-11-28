@@ -198,7 +198,7 @@ module ListMatrix: AbstractMatrix =
               let row_first_non_zero = get_first_non_zero row in
               match row_first_non_zero with
               | None -> (cur_row, cur_col, cur_val)
-              | Some (col_idx, value) -> if col_idx < cur_col then (i, col_idx, value) else (cur_row, cur_col, cur_val)
+              | Some (col_idx, value) -> if col_idx < cur_col then (row_idx + i, col_idx, value) else (cur_row, cur_col, cur_val)
             ) (num_rows m, num_cols m, A.zero) m (* Initializing with max, so num_cols m indicates that pivot is not found *)
           in
           if piv_col = (num_cols m) then None else Some (piv_row, piv_col, piv_val)

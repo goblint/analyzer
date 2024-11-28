@@ -151,7 +151,10 @@ module SparseVector: AbstractVector =
       failwith "deprecated"
 
     let findi f v = 
-      failwith "TODO"
+      if f A.zero then  
+        fst @@ List.findi (fun i (idx, value) -> if idx > i then true else f value) v.entries (* Here fst is the iteration variable i, not the tuple idx *)
+      else
+        fst @@ List.find (fun (idx, value) -> f value) v.entries (* Here fst is the idx contained in the found tuple *)
 
     let map f v = 
       failwith "TODO"
