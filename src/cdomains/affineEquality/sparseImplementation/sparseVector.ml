@@ -143,7 +143,7 @@ module SparseVector: AbstractVector =
       failwith "TODO"
 
     let map2_with f v v' = 
-      failwith "TODO"
+      failwith "deprecated"
 
     let findi f v = 
       failwith "TODO"
@@ -173,9 +173,14 @@ module SparseVector: AbstractVector =
       {entries = entries'; len = v.len + v'.len}
 
     let exists f v  = 
-      failwith "TODO"
+      let c = v.len in
+      let rec exists_aux at f v =
+        match v with
+        | [] -> if at = 0 then false else f A.zero
+        | (xi, xv)::xs -> if f xv then true else exists_aux (at - 1) f xs
+      in (exists_aux c f v.entries)
 
-    let rev v = 
+      let rev v = 
       failwith "TODO"
 
     let rev_with v = 
