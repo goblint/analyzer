@@ -169,74 +169,52 @@ module ListMatrix: AbstractMatrix =
 
     let normalize_with m = Timing.wrap "normalize_with" normalize_with m
 
+    let sub_rows (minu : V.t) (subt : V.t) : V.t =
+      V.map2_preserve_zero (-:) minu subt
+
+    let div_row (row : V.t) (pivot : A.t) : V.t =
+      V.map_preserve_zero (fun a -> a /: pivot) row
+
+    let swap_rows m j k =
+      List.mapi (fun i row -> if i = j then List.nth m k else if i = k then List.nth m k else row) m
+
     let normalize (m : t) : t Option.t =
-      let entries = m in
       let col_count = num_cols m in
-      let swap_rows (m : t) (r1_idx : int) (r2_idx : int) : t =
-        failwith "TODO"
-        (*
-        List.mapi (fun i row -> 
-            if i = r1_idx then List.nth m r2_idx
-            else if i = r2_idx then List.nth m r1_idx
-            else row
-          ) entries*)
-      in 
-      let rec sub_rows (minu : V.t) (subt : V.t) : (int * A.t) list =
-        failwith "TODO"
-        (*
-        match minu, subt with
-        | ((xidx, xv)::xs, (yidx,yv)::ys) -> (
-            match xidx - yidx with
-            | d when d = 0 && xv <> yv -> (xidx, xv -: yv)::(sub_rows xs ys)
-            | d when d < 0 -> (xidx, xv)::(sub_rows xs ((yidx, yv)::ys))
-            | d when d > 0 -> (yidx, A.zero -: yv)::(sub_rows ((xidx, xv)::xs) ys)
-            | _ -> sub_rows xs ys ) (* remove row when is (0, 0) *)
-        | ([], (yidx, yv)::ys) -> (yidx, A.zero -: yv)::(sub_rows [] ys)
-        | ((xidx, xv)::xs, []) -> (xidx, xv)::(sub_rows xs [])
-        | ([],[]) -> []
-          *)
-      in
-      let div_row (row : V.t) (pivot : A.t) : V.t =
-        failwith "TODO"
-        (*
-        List.map (fun (idx, value) -> (idx, value /: pivot)) row
-        *)
-      in
-      let dec_mat_2D (m : t) : t = 
+
+      let dec_mat_2D (m : t) (row_idx : int) (col_idx : int) : t = 
         m 
       in
-      let rec find_pivot_in_col (m : t) (row_idx : int) (col_idx : int) : (int * A.t) Option.t   = 
-        failwith "TODO"
-        (*
-        match m with
-        | ((idx, value)::_)::xs -> if idx = col_idx then Some (row_idx, value) else find_pivot_in_col xs (row_idx + 1) col_idx
-        | ([])::xs -> find_pivot_in_col xs (row_idx + 1) col_idx
-        | [] -> None
-        *)
-      in 
-      (* let rec find_pivot m col_idx row_idx =
-         if col_idx >= col_count then None else 
-          match find_pivot_in_col m col_idx row_idx with
-          | Some (row_idx, value) -> Some (row_idx, value)
-          | None -> find_pivot m (col_idx + 1) row_idx
-         in *)
+      (* Function for finding a pivot in an extracted part of the matrix (row_idx and col_idx indicate which part of the original matrix) *)
+      let rec find_pivot (m : t) (row_idx : int) (col_idx : int) : (int * int * A.t) Option.t =
+        if col_idx >= col_count then None else 
+          let get_first_non_zero v =  (* Returns (col_idx, value) of first non-zero row*)
+            let v' = V.to_sparse_list v in
+            match v' with
+            | [] -> None
+            | (idx, value)::_ -> Some (idx, value)
+          in
+          (* Finding pivot by extracting the minimum column index of the first non zero value of each row*)
+          let (piv_row, piv_col, piv_val) = List.fold_lefti (fun (cur_row, cur_col, cur_val) i row  -> 
+              let row_first_non_zero = get_first_non_zero row in
+              match row_first_non_zero with
+              | None -> (cur_row, cur_col, cur_val)
+              | Some (col_idx, value) -> if col_idx < cur_col then (i, col_idx, value) else (cur_row, cur_col, cur_val)
+            ) (num_rows m, num_cols m, A.zero) m (* Initializing with max, so num_cols m indicates that pivot is not found *)
+          in
+          if piv_col = (num_cols m) then None else Some (piv_row, piv_col, piv_val)
+      in
       let rec main_loop (m : t) (m' : t) (row_idx : int) (col_idx : int) : t = 
-        failwith "TODO"
-        (*
-        if col_idx = (col_count - 1) (* In this case the whole bottom of the matrix starting from row_index is Zero, so it is normalized *)
-        then m
+        if col_idx = (col_count - 1) then m  (* In this case the whole bottom of the matrix starting from row_index is Zero, so it is normalized *)
         else
-          match find_pivot_in_col m' row_idx col_idx with
-          | None -> main_loop m m' row_idx (col_idx + 1)
-          | Some (piv_row_idx, piv_val) -> (
+          match find_pivot m' row_idx col_idx with
+          | None -> m (* No pivot found means already normalized*)
+          | Some (piv_row_idx, piv_col_idx, piv_val) -> (
               let m = if piv_row_idx <> row_idx then swap_rows m row_idx piv_row_idx else m in
               let normalized_m = List.mapi (fun idx row -> if idx = row_idx then div_row row piv_val else row) m in
               let piv_row = (List.nth normalized_m row_idx) in
               let subtracted_m = List.mapi (fun idx row -> if idx <> row_idx then sub_rows row piv_row else row) normalized_m in
-              let m' = dec_mat_2D m in
-              main_loop subtracted_m m' (row_idx + 1) (col_idx + 1)
-            )
-            *)
+              let m' = dec_mat_2D m (row_idx + 1) (piv_col_idx + 1) in
+              main_loop subtracted_m m' (row_idx + 1) (piv_col_idx + 1)) (* We start at piv_col_idx + 1 because every other col before that is zero at the bottom*)
       in 
       let m' = main_loop m m 0 0 in
       Some m'
