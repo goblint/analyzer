@@ -3,7 +3,9 @@ open RatOps
 open ConvenienceOps
 
 open BatList
+open BatArray
 module List = BatList
+module Array = BatArray
 
 module SparseVector: AbstractVector =
   functor (A: RatOps) ->
@@ -116,7 +118,7 @@ module SparseVector: AbstractVector =
       failwith "TODO"
 
     let apply_with_c_with f m v = 
-      failwith "TODO"
+      failwith "deprecated"
 
     let zero_vec n = 
       {entries = []; len = n}
@@ -173,31 +175,36 @@ module SparseVector: AbstractVector =
       failwith "TODO"
 
     let rev v = 
-      failwith "TODO"
+      let entries' = List.rev @@ List.map (fun (idx, value) -> (v.len - idx, value)) v.entries in 
+      {entries = entries'; len = v.len}
 
     let rev_with v = 
-      failwith "TODO"
+      failwith "deprecated"
 
     let map2i f v v' = 
       failwith "TODO"
 
     let map2i_with f v v' = 
-      failwith "TODO"
+      failwith "deprecated"
 
     let mapi f v  = 
       failwith "TODO"
 
     let mapi_with f v = 
-      failwith "TODO"
+      failwith "deprecated"
 
     let find2i f v v' = 
       failwith "TODO"
 
     let to_array v = 
-      failwith "TODO"
+      let vec = Array.make v.len A.zero in 
+      List.iter (fun (idx, value) -> vec.(idx) <- value) v.entries;
+      vec
 
     let of_array a =
-      failwith "TODO"
+      let len' = Array.length a in
+      let entries' = List.rev @@ Array.fold_lefti (fun acc i x -> if x <> A.zero then (i, x) :: acc else acc ) [] a in
+      {entries = entries'; len = len'}
 
     let copy v = v 
 
