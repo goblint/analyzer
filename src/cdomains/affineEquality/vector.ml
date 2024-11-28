@@ -22,9 +22,9 @@ sig
 
   val map2_preserve_zero: (num -> num -> num) -> t ->  t -> t
 
-  val fold_left_preserve_zero: ('acc -> num -> 'acc) -> t -> 'acc
+  val fold_left_preserve_zero: ('acc -> num -> 'acc) -> 'acc -> t -> 'acc
 
-  val fold_left2_preserve_zero: ('acc -> num -> num -> 'acc) -> t -> t -> 'acc
+  val fold_left2_preserve_zero: ('acc -> num -> num -> 'acc) -> 'acc -> t -> t -> 'acc
 
   val apply_with_c: (num -> num -> num) -> num ->  t ->  t
 

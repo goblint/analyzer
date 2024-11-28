@@ -119,14 +119,15 @@ module SparseVector: AbstractVector =
       if v1.len <> v2.len then raise (Invalid_argument "Different lengths") else
         to_vector (map2_nonzero_aux v1.entries v2.entries) v1.len
 
-    let fold_left_preserve_zero f v =
-      failwith "TODO"
+    let fold_left_preserve_zero f acc v =
+      List.fold_left (fun acc (_, value) -> f acc value) acc v.entries
 
-    let fold_left2_preserve_zero f v v' =
-      failwith "TODO"
+    let fold_left2_preserve_zero f acc v v' =
+      List.fold_left2 (fun acc (_, value) (_, value') -> f acc value value') acc v.entries v'.entries
 
-    let apply_with_c f m v = 
-      failwith "TODO"
+    let apply_with_c f c v =
+      let entries' = List.map (fun (idx, value) -> (idx, f value c)) v.entries in
+      {entries = entries'; len = v.len}
 
     let apply_with_c_with f m v = 
       failwith "deprecated"

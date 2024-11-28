@@ -115,16 +115,10 @@ module ArrayVector: AbstractVector =
     let map_preserve_zero f v = failwith "TODO"
     let map2_preserve_zero f v1 v2 = failwith "TODO"
 
-    let fold_left_preserve_zero f v =
+    let fold_left_preserve_zero f acc v =
       failwith "TODO"
 
-    let fold_left2_preserve_zero f v v' =
-      failwith "TODO"
-
-    let fold_left_preserve_zero f v =
-      failwith "TODO"
-
-    let fold_left2_preserve_zero f v v' =
+    let fold_left2_preserve_zero f acc v v' =
       failwith "TODO"
 
     let findi_val_opt f v =
