@@ -445,7 +445,7 @@ struct
     in
     if M.tracing then M.tracel "sync" "sync multi=%B earlyglobs=%B" multi !earlyglobs;
     if !earlyglobs || multi then
-      WideningTokens.with_local_side_tokens (fun () ->
+      WideningTokenLifter.with_local_side_tokens (fun () ->
           Priv.sync (Analyses.ask_of_ctx ctx) (priv_getg ctx.global) (priv_sideg ctx.sideg) ctx.local reason
         )
     else
@@ -3060,7 +3060,7 @@ struct
     (* Perform actual [set]-s with final unassumed values.
        This invokes [Priv.write_global], which was suppressed above. *)
     let e_d' =
-      WideningTokens.with_side_tokens (WideningTokens.TS.of_list uuids) (fun () ->
+      WideningTokenLifter.with_side_tokens (WideningTokenLifter.TS.of_list uuids) (fun () ->
           CPA.fold (fun x v acc ->
               let addr: AD.t = AD.of_mval (x, `NoOffset) in
               set ~ctx ~invariant:false acc addr x.vtype v
@@ -3079,7 +3079,7 @@ struct
           Priv.lock ask (priv_getg ctx.global) st m
         ) st addr
     | Events.Unlock addr when ThreadFlag.has_ever_been_multi ask -> (* TODO: is this condition sound? *)
-      WideningTokens.with_local_side_tokens (fun () ->
+      WideningTokenLifter.with_local_side_tokens (fun () ->
           CommonPriv.lift_unlock ask (fun st m ->
               Priv.unlock ask (priv_getg ctx.global) (priv_sideg ctx.sideg) st m
             ) st addr
@@ -3093,8 +3093,8 @@ struct
       set ~ctx ctx.local (eval_lv ~ctx ctx.local lval) (Cilfacade.typeOfLval lval) (Thread (ValueDomain.Threads.singleton tid))
     | Events.Assert exp ->
       assert_fn ctx exp true
-    | Events.Unassume {exp; uuids} ->
-      Timing.wrap "base unassume" (unassume ctx exp) uuids
+    | Events.Unassume {exp; tokens} ->
+      Timing.wrap "base unassume" (unassume ctx exp) tokens
     | Events.Longjmped {lval} ->
       begin match lval with
         | Some lval ->
