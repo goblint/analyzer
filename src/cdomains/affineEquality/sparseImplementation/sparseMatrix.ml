@@ -184,18 +184,22 @@ module ListMatrix: AbstractMatrix =
       failwith "deprecated"
 
     let normalize_with m = Timing.wrap "normalize_with" normalize_with m
-
-    let normalize m =
-      let entries = m.entries in
-      let col_count = m.column_count in
-      let swap_rows m r1_idx r2_idx =
+    
+    let normalize (m : t) : t Option.t =
+      let entries = m in
+      let col_count = num_cols m in
+      let swap_rows (m : t) (r1_idx : int) (r2_idx : int) : t =
+        failwith "TODO"
+        (*
         List.mapi (fun i row -> 
             if i = r1_idx then List.nth m r2_idx
             else if i = r2_idx then List.nth m r1_idx
             else row
-          ) entries
+          ) entries*)
       in 
-      let rec sub_rows minu subt : (int * A.t) list =
+      let rec sub_rows (minu : V.t) (subt : V.t) : (int * A.t) list =
+        failwith "TODO"
+        (*
         match minu, subt with
         | ((xidx, xv)::xs, (yidx,yv)::ys) -> (
             match xidx - yidx with
@@ -206,18 +210,25 @@ module ListMatrix: AbstractMatrix =
         | ([], (yidx, yv)::ys) -> (yidx, A.zero -: yv)::(sub_rows [] ys)
         | ((xidx, xv)::xs, []) -> (xidx, xv)::(sub_rows xs [])
         | ([],[]) -> []
+          *)
       in
-      let div_row row pivot =
+      let div_row (row : V.t) (pivot : A.t) : V.t =
+        failwith "TODO"
+        (*
         List.map (fun (idx, value) -> (idx, value /: pivot)) row
+        *)
       in
-      let dec_mat_2D m = 
+      let dec_mat_2D (m : t) : t = 
         m 
       in
-      let rec find_pivot_in_col m row_idx col_idx = 
+      let rec find_pivot_in_col (m : t) (row_idx : int) (col_idx : int) : (int * A.t) Option.t   = 
+        failwith "TODO"
+        (*
         match m with
         | ((idx, value)::_)::xs -> if idx = col_idx then Some (row_idx, value) else find_pivot_in_col xs (row_idx + 1) col_idx
         | ([])::xs -> find_pivot_in_col xs (row_idx + 1) col_idx
         | [] -> None
+        *)
       in 
       (* let rec find_pivot m col_idx row_idx =
          if col_idx >= col_count then None else 
@@ -225,7 +236,9 @@ module ListMatrix: AbstractMatrix =
           | Some (row_idx, value) -> Some (row_idx, value)
           | None -> find_pivot m (col_idx + 1) row_idx
          in *)
-      let rec main_loop m m' row_idx col_idx : (int * A.t) list list = 
+      let rec main_loop (m : t) (m' : t) (row_idx : int) (col_idx : int) : t = 
+        failwith "TODO"
+        (*
         if col_idx = (col_count - 1) (* In this case the whole bottom of the matrix starting from row_index is Zero, so it is normalized *)
         then m
         else
@@ -239,10 +252,10 @@ module ListMatrix: AbstractMatrix =
               let m' = dec_mat_2D m in
               main_loop subtracted_m m' (row_idx + 1) (col_idx + 1)
             )
-
+            *)
       in 
-      let e' = main_loop m.entries m.entries 0 0 in
-      Some {entries = e'; column_count = m.column_count}
+      let m' = main_loop m m 0 0 in
+      Some m'
 
     let rref_vec_helper m pivot_positions v =
       failwith "TODO"
