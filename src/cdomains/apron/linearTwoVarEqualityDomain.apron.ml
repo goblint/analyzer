@@ -244,6 +244,18 @@ module EqualitiesConjunction = struct
     if M.tracing then M.tracel "meet_with_one_conj" "meet_with_one_conj conj: %s eq: var_%d=%s  ->  %s " (show (snd ts)) i (Rhs.show (var,offs,divi)) (show (snd res))
   ; res
 
+  let get_equivalent_expressions econ i =
+    let ropt,_,_ = get_rhs econ i in
+    let clusterrefvar = snd @@ BatOption.get ropt in
+    List.filter (fun (_,(refvaropt,_,_)) -> BatOption.map_default (fun (_,x) -> x = clusterrefvar) true refvaropt) (IntMap.bindings (snd econ)) (* obtain all variables in the equivalence clas  *)
+
+  let get_equivalent_expressions econ i = timing_wrap "get_eq_expressions" (get_equivalent_expressions econ) i
+
+  let get_equivalent_expressions econ i =
+    let res = get_equivalent_expressions econ i in
+    if M.tracing then M.tracel "equivalencegroup" "get_eq_expressions var_%d : { %s }" i  (String.concat ", " @@ List.map (fun (i,rhs) -> Printf.sprintf "var_%d = %s" i (Rhs.show rhs)) res);
+    res
+
   (** affine transform variable i allover conj with transformer (Some (coeff,i)+offs)/divi *)
   let affine_transform econ i (coeff, j, offs, divi) =
     if nontrivial econ i then (* i cannot occur on any other rhs apart from itself *)
@@ -698,6 +710,65 @@ struct
 
   let substitute_exp ask t var exp no_ov = timing_wrap "substitution" (substitute_exp ask t var exp) no_ov
 
+  let refine_value_domains (ctx:('a,'b,'c,'d) Analyses.ctx) t tcons =
+    match t.d with
+    | None -> []
+    | Some d -> 
+      let constyp = Tcons1.get_typ tcons in
+      let match_compa = if constyp = SUP then Gt else Ge in
+      let mkconstraint coff index cst =
+        let varifo = Option.get @@ V.to_cil_varinfo (Environment.var_of_dim t.env index) in
+        let ik = Cilfacade.get_ikind (varifo.vtype) in
+        let lval = Lval (Var varifo, NoOffset) in
+        let monom = BinOp (Mult,Cil.kintegerCilint ik coff,lval,TInt (ik,[])) in
+        BinOp (match_compa, monom ,Cil.kintegerCilint ik cst,Cil.intType)
+      in
+      match simplified_monomials_from_texp t (Texpr1.to_expr @@ Tcons1.get_texpr1 tcons) with
+      | None -> []
+      | Some (sum_of_terms, (constant,divisor)) ->(
+          match sum_of_terms,constyp with 
+          | [(coeff, index, divi)], SUP   
+          | [(coeff, index, divi)], SUPEQ -> 
+
+            let coeff = Z.(mul coeff divisor) in
+            let constant = Z.(mul constant divi) in
+            (* let constant = Z.(if constyp = SUP then sub constant one else constant) in
+               let constyp = Lincons0.SUPEQ in *)
+
+            (* now we have coeff*var_index + constant SUP(EQ) 0 *)
+            let opstr =Lincons0.string_of_typ constyp in
+            M.trace "refinevalues" "Refining due to %d: %s*%s + %s %s 0" index (Z.to_string (coeff)) (Var.to_string @@ Environment.var_of_dim t.env index)  (Z.to_string (constant)) opstr;
+
+            (* make var_index = var_index explicit in conlist *)
+            let conlist = (index,(Some(Z.one,index),Z.zero,Z.one))::EConj.get_equivalent_expressions d index in
+            let conlist = List.map (fun (var,(rhsrep,rhsoffs,rhsdivi)) ->
+                let rhscoeff = BatOption.map_default (fst) Z.zero rhsrep in
+                let zsign z = Z.sign z |> Z.of_int in
+                let inverse vv tt= 
+                  let xx,yy,zz = snd @@ EqualitiesConjunction.inverse vv tt in 
+                  BatOption.map_default (fst) Z.zero xx ,yy,zz
+                in
+
+                (*                                          coeff*var_index + constant SUP(EQ) 0 *)
+                (* and rhsdivi*var_var - rhsoffs = rhscoeff      *var_index*)
+                (* establish the 2vareq for var_index: *)
+                let (newcoeff,newoffs,newdivi) = inverse 0(*var_var*) (rhscoeff,0(*var_index*),rhsoffs,rhsdivi) in
+                if M.tracing then M.trace "refinevalues" "2linvareq: var_%s = (%s*var_%s + %s)/%s"  (Var.to_string @@ Environment.var_of_dim t.env index) (Z.to_string newcoeff) (Var.to_string @@ Environment.var_of_dim t.env var) (Z.to_string newoffs) (Z.to_string newdivi);
+                (* multiply with var_index's old coefficient (i.e. substitute /var_index): *)
+                let (newcoeff,newoffs,newdivi) = Z.(coeff*newcoeff,coeff*newoffs,newdivi) in
+                (* and add the constant: *)
+                let (newcoeff,newoffs,newdivi) = Z.(newcoeff,newoffs+(constant*newdivi),newdivi) in
+                (* Now get rid of divisor, except for sign: *)
+                let (newcoeff,newoffs,newdivi) = Z.(newcoeff*abs newdivi,newoffs * abs newdivi,of_int (sign newdivi)) in
+                (* Do the division, respecting the sign *)
+                let (newcoeff,newoffs,newdivi) = Z.(zsign newcoeff,(div newoffs (abs newcoeff))+ zsign (rem newoffs (abs newcoeff)),newdivi) in
+                (* multiply with the divisor, which is only ever 1 or -1 anyway *)
+                let (newcoeff,newoffs,newdivi) = Z.(newdivi*newcoeff,newoffs*newdivi,one) in
+                if M.tracing then M.trace "refinevalues" "=> (%s*var_%s +%s) / %s %s 0"  (Z.to_string newcoeff) (Var.to_string @@ Environment.var_of_dim t.env var) (Z.to_string newoffs) (Z.to_string newdivi) opstr;
+                mkconstraint newcoeff var (Z.neg newoffs)) conlist in
+            M.trace "refinevalues" "Resulting refining assertions %s" (String.concat " ; " (List.map (fun c -> Pretty.sprint ~width:80 (d_exp () c)) conlist));
+            conlist
+          | _ -> [] )
 
   (** Assert a constraint expression.
       The overflow is completely handled by the flag "no_ov",
@@ -729,10 +800,10 @@ struct
               | _ -> bot_env (* all other results are violating the guard *)
             end
           | [(coeff, index, divi)] -> (* guard has a single reference variable only *)
-            if Tcons1.get_typ tcons = EQ then
-              meet_with_one_conj t index (Rhs.canonicalize (None, Z.neg @@ Z.(divi*constant),Z.(coeff*divisor)))
-            else
-              t (* only EQ is supported in equality based domains *)
+            begin match Tcons1.get_typ tcons with
+              | EQ -> meet_with_one_conj t index (Rhs.canonicalize (None, Z.neg @@ Z.(divi*constant),Z.(coeff*divisor)))
+              | _ -> t (* only EQ is supported in equality based domains *)
+            end
           | [(c1,var1,d1); (c2,var2,d2)] -> (* two variables in relation needs a little sorting out *)
             begin match Tcons1.get_typ tcons with
               | EQ -> (* c1*var1/d1 + c2*var2/d2 +constant/divisor = 0*)
@@ -748,7 +819,6 @@ struct
           | _ -> t (* For equalities of more then 2 vars we just return t *))
 
   let meet_tcons ask t tcons original_expr no_ov  =
-    if M.tracing then M.tracel "meet_tcons" "meet_tcons with expr: %a no_ov:%b" d_exp original_expr (Lazy.force no_ov);
     meet_tcons ask t tcons original_expr no_ov
 
   let meet_tcons t tcons expr = timing_wrap "meet_tcons" (meet_tcons t tcons) expr
@@ -809,6 +879,8 @@ struct
 
   let cil_exp_of_lincons1 = Convert.cil_exp_of_lincons1
 
+  let tcons1_of_cil_exp = Convert.tcons1_of_cil_exp
+
   let env t = t.env
 
   type marshal = t
@@ -819,7 +891,7 @@ struct
 
 end
 
-module D2: RelationDomain.RD with type var = Var.t =
+module D2 =
 struct
   module D = D
   module ConvArg = struct
