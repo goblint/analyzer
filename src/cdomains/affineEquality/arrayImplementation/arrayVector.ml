@@ -30,19 +30,21 @@ module ArrayVector: AbstractVector =
     let compare_length_with v len =
       Int.compare (Array.length v) len
 
-    let remove_val v n =
+    let remove_nth v n =
       if n >= Array.length v then failwith "n outside of Array range" else
         Array.init (Array.length v - 1) (fun i -> if i < n then Array.get v i else Array.get v (i + 1)) (* TODO: remove_at? *)
 
-    let set_val_with v n new_val =
+    let remove_at_indices v idx = failwith "TODO"
+
+    let set_nth_with v n new_val =
       if n >= Array.length v then failwith "n outside of Array range" else
         Array.set v n new_val
 
-    let set_val v n new_val =
+    let set_nth v n new_val =
       let copy = copy v in
-      set_val_with copy n new_val; copy
+      set_nth_with copy n new_val; copy
 
-    let insert_val n new_val v =
+    let insert_val_at n new_val v =
       if n > Array.length v then failwith "n too large" else
         Array.init (Array.length v + 1) (fun i -> if i < n then Array.get v i else if i = n then new_val else Array.get v (i -1)) (* insert? *)
 
@@ -106,8 +108,6 @@ module ArrayVector: AbstractVector =
           aux (idx - 1) acc
       in aux (length v - 1) []
 
-    let remove_nth v n =
-      failwith "TODO"
 
     let find_opt f v =
       failwith "TODO"

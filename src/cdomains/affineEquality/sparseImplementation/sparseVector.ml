@@ -2,6 +2,9 @@ open AbstractVector
 open RatOps
 open ConvenienceOps
 
+open BatList
+module List = BatList
+
 module SparseVector: AbstractVector =
   functor (A: RatOps) ->
   struct
@@ -26,37 +29,65 @@ module SparseVector: AbstractVector =
         {entries = keep_vals_vec v.entries n; len=n}
 
 
-    let remove_val v n = 
+    let remove_nth v n = 
       let dec_idx v = 
         List.map (fun (a,b) -> (a-1, b)) v
       in
-      let rec remove_val_vec v n =
+      let rec remove_nth_vec v n =
         match v with 
         | x::xs -> 
           if fst x = n then dec_idx xs else 
           if fst x > n then dec_idx (x::xs) else
-            x::(remove_val_vec xs n)  
+            x::(remove_nth_vec xs n)  
         | [] -> []
       in
       if n >= v.len then v else (*could be left out but maybe performance??*)
-        {entries = remove_val_vec v.entries n; len = v.len - 1}
+        {entries = remove_nth_vec v.entries n; len = v.len - 1}
 
-    let set_val v n m = 
-      let rec set_val_vec v n m =
-        match v with 
-        | x::xs -> if fst x = n then (n, m)::xs else 
-          if fst x < n then x::(set_val_vec xs n m)
-          else v
-        | [] -> [] 
+    (* TODO: Which of both remmove_nth should we use *)
+    let remove_nth v n =
+      if n >= v.len then failwith "Out of bounds"
+      else
+        let new_entries = List.filter_map (fun (col_idx, value) ->
+            if col_idx = n 
+            then None
+            else if col_idx > n 
+            then Some (col_idx - 1, value)
+            else Some (col_idx, value)
+          ) v.entries in
+        {entries = new_entries; len = v.len - 1}
+
+    let remove_at_indices v idx = 
+      let rec remove_indices_helper vec idx deleted_count = 
+        match vec, idx with 
+        | [], [] -> []
+        | [], (y :: ys) -> failwith "remove at indices: no more columns to delete"
+        | ((col_idx, value) :: xs), [] -> (col_idx - deleted_count, value) :: remove_indices_helper xs idx deleted_count
+        | ((col_idx, value) :: xs), (y :: ys) when y = col_idx -> remove_indices_helper xs ys (deleted_count + 1)
+        | ((col_idx, value) :: xs), (y :: ys) -> (col_idx - deleted_count, value) :: remove_indices_helper xs idx deleted_count
       in
-      if n >= v.len then failwith "Out of bounds" else
-        {entries=set_val_vec v.entries n m; len=v.len}
+      {entries = remove_indices_helper v.entries idx 0; len = v.len - List.length idx}
 
-    let set_val_with = 
+    let set_nth v n num = 
+      if n >= v.len then failwith "Out of bounds" 
+      else
+        let new_entries = List.map (fun (col_idx, value) ->
+            if col_idx = n then (col_idx, num) else (col_idx, value)
+          ) v.entries
+        in
+        {entries= new_entries; len=v.len}
+
+    let set_nth_with = 
       failwith "deprecated"
 
-    let insert_val n m t = 
-      failwith "TODO"
+    let insert_val_at n new_val v = 
+      if n > v.len then failwith "n too large" else (* Does this happen? Otherwise we can omit this comparison, here right now to be semantically equivalent *)
+        let entries' = List.fold_left (fun acc (idx, value) -> 
+            if idx < n then (idx, value) :: acc 
+            else if idx = n then (n, new_val) :: (idx + 1, value) :: acc 
+            else (idx + 1, value) :: acc
+          ) [] (List.rev v.entries) in
+        {entries = entries'; len = v.len + 1}
 
     let mul_vec_scal v s = 
       {entries= (List.map (fun (idx, va) -> (idx, va *: s)) v.entries); len=v.len}
@@ -88,15 +119,22 @@ module SparseVector: AbstractVector =
       failwith "TODO"
 
     let zero_vec n = 
-      failwith "TODO"
+      {entries = []; len = n}
 
     let is_zero_vec v = (v.entries = [])
 
     let nth v n = 
-      failwith "TODO"
+      if n >= v.len then failwith "V.nth out of bounds"
+      else
+        let rec nth v = match v with (* List.assoc would also work, but we use the fact that v is sorted *)
+          | [] -> A.zero
+          | (col_idx, value) :: xs when col_idx > n -> A.zero
+          | (col_idx, value) :: xs when col_idx = n -> value
+          | (col_idx, value) :: xs -> nth xs 
+        in nth v.entries
 
     let length v =
-      failwith "TODO"
+      v.len
 
     let map2 f v v' = 
       failwith "TODO"
@@ -114,19 +152,22 @@ module SparseVector: AbstractVector =
       failwith "TODO"
 
     let compare_length_with v n = 
-      failwith "TODO"
+      Int.compare v.len n
 
     let of_list l = 
-      failwith "TODO"
+      let entries' = List.rev @@ List.fold_lefti (fun acc i x -> if x <> A.zero then (i, x) :: acc else acc) [] l
+      in {entries = entries'; len = List.length l}
 
     let to_list v = 
-      failwith "TODO"
+      let l = List.init v.len (fun _ -> A.zero) in 
+      List.fold_left (fun acc (idx, value) -> (List.modify_at idx (fun _ -> value) acc)) l v.entries
 
     let filteri f v = 
       failwith "TODO"
 
     let append v v' = 
-      failwith "TODO"
+      let entries' = v.entries @ List.map (fun (idx, value) -> (idx + v.len), value) v'.entries in
+      {entries = entries'; len = v.len + v'.len}
 
     let exists f v  = 
       failwith "TODO"
@@ -166,10 +207,7 @@ module SparseVector: AbstractVector =
     let to_sparse_list v = 
       v.entries
 
-    let remove_nth v n =
-      failwith "TODO"
-
     let find_opt f v =
-      failwith "TODO"
+      failwith "TODO: Do we need this?"
 
   end 

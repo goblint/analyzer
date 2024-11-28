@@ -8,13 +8,15 @@ sig
 
   val keep_vals: t -> int ->  t
 
-  val remove_val: t -> int ->  t
+  val remove_nth: t -> int ->  t
 
-  val set_val: t -> int -> num ->  t
+  val remove_at_indices: t -> int list -> t
 
-  val set_val_with: t -> int -> num -> unit
+  val set_nth: t -> int -> num ->  t
 
-  val insert_val: int -> num ->  t ->  t
+  val set_nth_with: t -> int -> num -> unit
+
+  val insert_val_at: int -> num ->  t ->  t
 
   val apply_with_c: (num -> num -> num) -> num ->  t ->  t
 
@@ -26,8 +28,6 @@ sig
 
   val nth: t -> int -> num
 
-  val remove_nth: t -> int -> t
-
   val length: t -> int
 
   val map2: (num -> num -> num) -> t -> t -> t
@@ -36,7 +36,7 @@ sig
 
   val findi: (num -> bool) ->  t -> int
 
-  val find_opt: (num -> bool) -> t -> t Option.t
+  val find_opt: (num -> bool) -> t -> num Option.t
 
   val map: (num -> num) -> t -> t
 
