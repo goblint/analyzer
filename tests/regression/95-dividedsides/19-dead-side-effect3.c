@@ -1,4 +1,4 @@
-// PARAM: --enable ana.int.interval --enable solvers.td3.narrow-sides.enabled --enable solvers.td3.narrow-sides.eliminate-dead --enable ana.base.priv.protection.changes-only
+// PARAM: --enable ana.int.interval --enable solvers.td3.narrow-globs.enabled --enable solvers.td3.narrow-globs.eliminate-dead --enable ana.base.priv.protection.changes-only
 #include <pthread.h>
 #include <goblint.h>
 pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;

@@ -1,4 +1,4 @@
-// PARAM: --enable solvers.td3.narrow-sides.enabled --enable ana.int.interval --enable solvers.td3.narrow-sides.eliminate-dead --enable ana.base.priv.protection.changes-only
+// PARAM: --enable solvers.td3.narrow-globs.enabled --enable ana.int.interval --enable solvers.td3.narrow-globs.eliminate-dead --enable ana.base.priv.protection.changes-only
 #include <pthread.h>
 #include <goblint.h>
 

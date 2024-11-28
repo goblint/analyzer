@@ -73,14 +73,14 @@ module Base =
     type marshal = solver_data
 
     let create_empty_data () =
-      let narrow_sides = GobConfig.get_bool "solvers.td3.narrow-sides.enabled" in
+      let narrow_globs = GobConfig.get_bool "solvers.td3.narrow-globs.enabled" in
       {
       st = [];
       infl = HM.create 10;
       sides = HM.create 10;
       prev_sides = HM.create 10;
-      divided_side_effects = HM.create (if narrow_sides then 10 else 0);
-      orphan_side_effects = HM.create (if narrow_sides then 10 else 0);
+      divided_side_effects = HM.create (if narrow_globs then 10 else 0);
+      orphan_side_effects = HM.create (if narrow_globs then 10 else 0);
       rho = HM.create 10;
       wpoint = HM.create 10;
       stable = HM.create 10;
@@ -276,13 +276,13 @@ module Base =
          These don't have to be re-verified and warnings can be reused. *)
       let superstable = HM.copy stable in
 
-      let narrow_sides = GobConfig.get_bool "solvers.td3.narrow-sides.enabled" in
-      let narrow_sides_stable = GobConfig.get_bool "solvers.td3.narrow-sides.stable" in
-      let narrow_sides_conservative_widen = GobConfig.get_bool "solvers.td3.narrow-sides.conservative-widen" in
-      let narrow_sides_immediate_growth = GobConfig.get_bool "solvers.td3.narrow-sides.immediate-growth" in
-      let narrow_sides_gas_default = GobConfig.get_int "solvers.td3.narrow-sides.narrow-gas" in
-      let narrow_sides_gas_default = if narrow_sides_gas_default < 0 then None else Some (narrow_sides_gas_default, D_Widen) in
-      let narrow_sides_eliminate_dead = GobConfig.get_bool "solvers.td3.narrow-sides.eliminate-dead" in
+      let narrow_globs = GobConfig.get_bool "solvers.td3.narrow-globs.enabled" in
+      let narrow_globs_stable = GobConfig.get_bool "solvers.td3.narrow-globs.stable" in
+      let narrow_globs_conservative_widen = GobConfig.get_bool "solvers.td3.narrow-globs.conservative-widen" in
+      let narrow_globs_immediate_growth = GobConfig.get_bool "solvers.td3.narrow-globs.immediate-growth" in
+      let narrow_globs_gas_default = GobConfig.get_int "solvers.td3.narrow-globs.narrow-gas" in
+      let narrow_globs_gas_default = if narrow_globs_gas_default < 0 then None else Some (narrow_globs_gas_default, D_Widen) in
+      let narrow_globs_eliminate_dead = GobConfig.get_bool "solvers.td3.narrow-globs.eliminate-dead" in
 
       let reluctant = GobConfig.get_bool "incremental.reluctant.enabled" in
 
@@ -353,11 +353,11 @@ module Base =
             | _ ->
               (* The RHS is re-evaluated, all deps are re-trigerred *)
               HM.replace dep x VS.empty;
-              if narrow_sides then
+              if narrow_globs then
                 let acc = HM.create 0 in
                 let changed = HM.create 0 in
                 Fun.protect ~finally:(fun () -> (
-                      if narrow_sides_eliminate_dead then begin
+                      if narrow_globs_eliminate_dead then begin
                         let prev_sides_x = HM.find_option prev_sides x in
                         begin match prev_sides_x with
                           | Some prev_sides_x -> VS.iter (fun y ->
@@ -376,14 +376,14 @@ module Base =
                         else
                           HM.replace prev_sides x !new_sides;
                       end;
-                      if narrow_sides_immediate_growth && not narrow_sides_stable then
+                      if narrow_globs_immediate_growth && not narrow_globs_stable then
                         HM.iter (fun y acc -> if not @@ HM.mem changed y then ignore @@ divided_side D_Narrow ~x y acc) acc
                       else (
-                        begin if not narrow_sides_immediate_growth then
-                            let op = if narrow_sides_stable then D_Widen else D_Box in
+                        begin if not narrow_globs_immediate_growth then
+                            let op = if narrow_globs_stable then D_Widen else D_Box in
                             HM.iter (fun y acc -> ignore @@ divided_side op ~x y acc) acc
                         end;
-                        if narrow_sides_stable && HM.mem stable x then
+                        if narrow_globs_stable && HM.mem stable x then
                           HM.iter (fun y acc -> ignore @@ divided_side D_Narrow ~x y acc) acc
                       )
                     )) (fun () -> eq x (eval l x) (side_acc acc changed x))
@@ -450,9 +450,9 @@ module Base =
         match new_acc with
         | Some new_acc -> (
             HM.replace acc y new_acc;
-            if narrow_sides_immediate_growth then (
+            if narrow_globs_immediate_growth then (
               let y_changed = divided_side D_Widen ~x y new_acc in
-              if y_changed && not @@ narrow_sides_stable then
+              if y_changed && not @@ narrow_globs_stable then
                 HM.replace changed y ();
             )
           )
@@ -480,7 +480,7 @@ module Base =
             init_divided_side_effects y;
 
             let y_sides = HM.find divided_side_effects y in
-            let (old_side, narrow_gas) = HM.find_default y_sides x (S.Dom.bot (), narrow_sides_gas_default) in
+            let (old_side, narrow_gas) = HM.find_default y_sides x (S.Dom.bot (), narrow_globs_gas_default) in
             let phase = if phase == D_Box then
                 if S.Dom.leq d old_side then D_Narrow else D_Widen
               else
@@ -492,7 +492,7 @@ module Base =
                 | D_Widen -> (
                     let tmp = S.Dom.join old_side d in
                     if not @@ S.Dom.equal tmp old_side then
-                      (if narrow_sides_conservative_widen && (S.Dom.leq tmp (HM.find rho y)) then
+                      (if narrow_globs_conservative_widen && (S.Dom.leq tmp (HM.find rho y)) then
                          tmp
                        else
                          S.Dom.widen old_side tmp), Option.map (fun (x, _) -> (x, D_Widen)) narrow_gas
@@ -568,8 +568,8 @@ module Base =
         else (
           HM.replace called y ();
           let eqd =
-            if narrow_sides then
-              failwith "narrow-sides not yet implemented for simple solve"
+            if narrow_globs then
+              failwith "narrow-globs not yet implemented for simple solve"
             else
               eq y (eval l x) (side ~x)
             in
@@ -690,7 +690,7 @@ module Base =
         if tracing then trace "sol2" "set_start %a ## %a" S.Var.pretty_trace x S.Dom.pretty d;
         init x;
         (* TODO: SIDE make this change-proof *)
-        if narrow_sides then
+        if narrow_globs then
           ignore @@ divided_side ~do_destabilize:false D_Widen x d
         else
           HM.replace rho x d;

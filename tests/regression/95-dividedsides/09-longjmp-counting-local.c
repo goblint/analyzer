@@ -1,4 +1,4 @@
-// PARAM: --enable solvers.td3.narrow-sides.enabled --enable ana.int.interval --disable exp.volatiles_are_top
+// PARAM: --enable solvers.td3.narrow-globs.enabled --enable ana.int.interval --disable exp.volatiles_are_top
 #include <setjmp.h>
 #include <assert.h>
 #include <goblint.h>

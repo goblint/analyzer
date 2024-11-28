@@ -1,4 +1,4 @@
-// PARAM: --enable ana.int.interval --enable ana.int.enums --enable solvers.td3.narrow-sides.enabled --enable exp.earlyglobs --set ana.setjmp.split none --disable exp.volatiles_are_top
+// PARAM: --enable ana.int.interval --enable ana.int.enums --enable solvers.td3.narrow-globs.enabled --enable exp.earlyglobs --set ana.setjmp.split none --disable exp.volatiles_are_top
 #include <goblint.h>
 #include <setjmp.h>
 #include <stdlib.h>

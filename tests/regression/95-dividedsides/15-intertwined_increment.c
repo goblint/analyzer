@@ -1,4 +1,4 @@
-// PARAM: --enable ana.int.interval --enable solvers.td3.narrow-sides.enabled 
+// PARAM: --enable ana.int.interval --enable solvers.td3.narrow-globs.enabled 
 #include <pthread.h>
 #include <stdio.h>
 

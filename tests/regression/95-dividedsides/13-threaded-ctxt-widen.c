@@ -1,4 +1,4 @@
-// PARAM: --enable ana.int.interval_set --set ana.context.gas_value 0 --enable solvers.td3.narrow-sides.enabled --enable solvers.td3.narrow-sides.stable
+// PARAM: --enable ana.int.interval_set --set ana.context.gas_value 0 --enable solvers.td3.narrow-globs.enabled --enable solvers.td3.narrow-globs.stable
 #include <pthread.h>
 
 pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;

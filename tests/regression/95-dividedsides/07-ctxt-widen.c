@@ -1,4 +1,4 @@
-// PARAM: --enable ana.int.interval_set --set ana.context.gas_value 0 --enable solvers.td3.narrow-sides.enabled  --enable solvers.td3.narrow-sides.stable
+// PARAM: --enable ana.int.interval_set --set ana.context.gas_value 0 --enable solvers.td3.narrow-globs.enabled  --enable solvers.td3.narrow-globs.stable
 // Taken from context gas tests, where the assertions were unknown.
 #include <stdio.h>
 

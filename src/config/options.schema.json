@@ -2435,42 +2435,42 @@
               "type": "boolean",
               "default": true
             },
-            "narrow-sides": {
-              "title": "solvers.td3.narrow-sides",
+            "narrow-globs": {
+              "title": "solvers.td3.narrow-globs",
               "type": "object",
               "properties": {
                 "enabled": {
-                  "title": "solvers.td3.narrow-sides.enabled",
+                  "title": "solvers.td3.narrow-globs.enabled",
                   "description": "Individually track side-effects from different unknowns to enable narrowing of globals.",
                   "type": "boolean",
                   "default": false
                 },
                 "stable": {
-                  "title": "solvers.td3.narrow-sides.stable",
+                  "title": "solvers.td3.narrow-globs.stable",
                   "description": "Controls when to narrow. true: If unknown remains stable after evaluating its rhs, apply all sides with narrowing. false: Apply sides that did not increase with narrowing.",
                   "type": "boolean",
                   "default": false
                 },
                 "conservative-widen": {
-                  "title": "solvers.td3.narrow-sides.conservative-widen",
+                  "title": "solvers.td3.narrow-globs.conservative-widen",
                   "description": "Controls when to widen divided sides. true: Only widen on a side-effect, if joining would affect the overall value of the global. false: Always widen increasing/incomparable side-effects",
                   "type": "boolean",
                   "default": true
                 },
                 "immediate-growth": {
-                  "title": "solvers.td3.narrow-sides.immediate-growth",
+                  "title": "solvers.td3.narrow-globs.immediate-growth",
                   "description": "Controls when growing side-effects are applied. true: immediately when they are triggered. false: after the source unknown has been fully evaluated",
                   "type": "boolean",
                   "default": true
                 },
                 "narrow-gas": {
-                  "title": "solvers.td3.narrow-sides.narrow-gas",
+                  "title": "solvers.td3.narrow-globs.narrow-gas",
                   "description": "Limits the number of times a side-effect can switch from widening to narrowing to enforce termination. 0 disables narrowing, -1 allows narrowing infinitely often.",
                   "type": "integer",
                   "default": -1
                 },
                 "eliminate-dead": {
-                  "title": "solvers.td3.narrow-sides.eliminate-dead",
+                  "title": "solvers.td3.narrow-globs.eliminate-dead",
                   "description": "side-effects that no longer occur are narrowed with bot.",
                   "type": "boolean",
                   "default": false

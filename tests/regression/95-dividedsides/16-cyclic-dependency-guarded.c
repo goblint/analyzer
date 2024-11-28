@@ -1,4 +1,4 @@
-// PARAM: --enable solvers.td3.narrow-sides.enabled --enable solvers.td3.narrow-sides.stable --set solvers.td3.narrow-sides.narrow-gas 9 --enable ana.int.interval
+// PARAM: --enable solvers.td3.narrow-globs.enabled --enable solvers.td3.narrow-globs.stable --set solvers.td3.narrow-globs.narrow-gas 9 --enable ana.int.interval
 
 // This is supposed to check if the solver terminates
 #include <pthread.h>
