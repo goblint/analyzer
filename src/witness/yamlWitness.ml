@@ -249,6 +249,11 @@ struct
 
     let entries = [] in
 
+    let cnt_loop_invariant = ref 0 in
+    let cnt_location_invariant = ref 0 in
+    let cnt_flow_insensitive_invariant = ref 0 in
+    (* TODO: precondition invariants? *)
+
     (* Generate location invariants (without precondition) *)
     let entries =
       if entry_type_enabled YamlWitnessType.LocationInvariant.entry_type then (
@@ -268,6 +273,7 @@ struct
               List.fold_left (fun acc inv ->
                   let invariant = Entry.invariant (CilType.Exp.show inv) in
                   let entry = Entry.location_invariant ~task ~location ~invariant in
+                  incr cnt_location_invariant;
                   entry :: acc
                 ) acc invs
             | `Bot | `Top -> (* TODO: 0 for bot (dead code)? *)
@@ -297,6 +303,7 @@ struct
                 List.fold_left (fun acc inv ->
                     let invariant = Entry.invariant (CilType.Exp.show inv) in
                     let entry = Entry.loop_invariant ~task ~location ~invariant in
+                    incr cnt_loop_invariant;
                     entry :: acc
                   ) acc invs
               | `Bot | `Top -> (* TODO: 0 for bot (dead code)? *)
@@ -322,6 +329,7 @@ struct
                   List.fold_left (fun acc inv ->
                       let invariant = Entry.invariant (CilType.Exp.show inv) in
                       let entry = Entry.flow_insensitive_invariant ~task ~invariant in
+                      incr cnt_flow_insensitive_invariant;
                       entry :: acc
                     ) acc invs
                 | `Bot | `Top -> (* global bot might only be possible for alloc variables, if at all, so emit nothing *)
@@ -459,6 +467,7 @@ struct
                   List.fold_left (fun acc inv ->
                       let invariant = CilType.Exp.show inv in
                       let invariant = Entry.location_invariant' ~location ~invariant in
+                      incr cnt_location_invariant;
                       invariant :: acc
                     ) acc invs
                 | `Bot | `Top -> (* TODO: 0 for bot (dead code)? *)
@@ -488,6 +497,7 @@ struct
                     List.fold_left (fun acc inv ->
                         let invariant = CilType.Exp.show inv in
                         let invariant = Entry.loop_invariant' ~location ~invariant in
+                        incr cnt_loop_invariant;
                         invariant :: acc
                       ) acc invs
                   | `Bot | `Top -> (* TODO: 0 for bot (dead code)? *)
@@ -512,6 +522,9 @@ struct
     let yaml_entries = List.rev_map YamlWitnessType.Entry.to_yaml entries in (* reverse to make entries in file in the same order as generation messages *)
 
     M.msg_group Info ~category:Witness "witness generation summary" [
+      (Pretty.dprintf "location invariants: %d" !cnt_location_invariant, None);
+      (Pretty.dprintf "loop invariants: %d" !cnt_loop_invariant, None);
+      (Pretty.dprintf "flow-insensitive invariants: %d" !cnt_flow_insensitive_invariant, None);
       (Pretty.dprintf "total generation entries: %d" (List.length yaml_entries), None);
     ];
 
@@ -595,7 +608,7 @@ struct
 
     let inv_parser = InvariantParser.create FileCfg.file in
 
-    let yaml = match Yaml_unix.of_file (Fpath.v (GobConfig.get_string "witness.yaml.validate")) with
+    let yaml = match GobResult.Syntax.(Fpath.of_string (GobConfig.get_string "witness.yaml.validate") >>= Yaml_unix.of_file) with
       | Ok yaml -> yaml
       | Error (`Msg m) ->
         Logs.error "Yaml_unix.of_file: %s" m;
@@ -879,7 +892,9 @@ struct
     | true when !cnt_disabled > 0 ->
       Error "witness disabled"
     | _ when !cnt_refuted > 0 ->
-      Ok (Svcomp.Result.False None)
+      (* Refuted only when assuming the invariant is reachable. *)
+      (* Ok (Svcomp.Result.False None) *) (* Wasn't a problem because valid*->correctness->false gave 0 points under old validator track scoring schema: https://doi.org/10.1007/978-3-031-22308-2_8. *)
+      Ok Svcomp.Result.Unknown (* Now valid*->correctness->false gives 1p (negative) points under new validator track scoring schema: https://doi.org/10.1007/978-3-031-57256-2_15. *)
     | _ when !cnt_unconfirmed > 0 ->
       Ok Unknown
     | _ ->

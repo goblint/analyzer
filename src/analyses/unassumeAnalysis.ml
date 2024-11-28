@@ -71,7 +71,7 @@ struct
         | _ -> ()
       );
 
-    let yaml = match Yaml_unix.of_file (Fpath.v (GobConfig.get_string "witness.yaml.unassume")) with
+    let yaml = match GobResult.Syntax.(Fpath.of_string (GobConfig.get_string "witness.yaml.unassume") >>= Yaml_unix.of_file) with
       | Ok yaml -> yaml
       | Error (`Msg m) ->
         Logs.error "Yaml_unix.of_file: %s" m;
