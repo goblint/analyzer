@@ -19,7 +19,13 @@ sig
   val insert_val_at: int -> num ->  t ->  t
 
   val map_preserve_zero: (num -> num) -> t -> t
-  val map2_preserve_zero: (num -> num -> num) -> t ->  t -> t 
+
+  val map2_preserve_zero: (num -> num -> num) -> t ->  t -> t
+  
+  val fold_left_preserve_zero: ('acc -> num -> 'acc) -> t -> 'acc
+
+  val fold_left2_preserve_zero: ('acc -> num -> num -> 'acc) -> t -> t -> 'acc
+
   val apply_with_c: (num -> num -> num) -> num ->  t ->  t
 
   val apply_with_c_with: (num -> num -> num) -> num -> t -> unit

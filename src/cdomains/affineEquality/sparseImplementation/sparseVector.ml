@@ -117,8 +117,13 @@ module SparseVector: AbstractVector =
           res@(map2_nonzero_aux xtail ytail)
       in 
       if v1.len <> v2.len then raise (Invalid_argument "Different lengths") else
-        to_vector (map2_nonzero_aux v1.entries v2.entries) v1.len
+      to_vector (map2_nonzero_aux v1.entries v2.entries) v1.len
 
+    let fold_left_preserve_zero f v =
+      failwith "TODO"
+
+    let fold_left2_preserve_zero f v v' =
+      failwith "TODO"
 
     let apply_with_c f m v = 
       failwith "TODO"
@@ -143,10 +148,24 @@ module SparseVector: AbstractVector =
 
     let length v =
       v.len
+    
+    let of_list l = 
+      let entries' = List.rev @@ List.fold_lefti (fun acc i x -> if x <> A.zero then (i, x) :: acc else acc) [] l
+      in {entries = entries'; len = List.length l}
 
+    let to_list v = 
+      let[@tail_mod_cons] rec extend_zero_aux i v' =
+      if i >= v.len then failwith "out of Bounds for to_list" else (*can probably be removed*)
+      match v' with
+      | (xi,xv)::xs -> if xi = i then xv::(extend_zero_aux (i+1) xs) else A.zero::(extend_zero_aux (i+1) v')
+      | [] -> []
+    in 
+    (extend_zero_aux 0 v.entries)
+  
     let map2 f v v' = 
-      failwith "TODO"
-
+      if v.len <> v'.len then failwith "Unequal vector length" else 
+      of_list (List.map2 f (to_list v) (to_list v'))
+    
     let map2_with f v v' = 
       failwith "deprecated"
 
@@ -157,21 +176,13 @@ module SparseVector: AbstractVector =
         fst @@ List.find (fun (idx, value) -> f value) v.entries (* Here fst is the idx contained in the found tuple *)
 
     let map f v = 
-      failwith "TODO"
+      of_list (List.map f (to_list v))
 
     let map_with f v  = 
-      failwith "TODO"
+      failwith "deprecated"
 
     let compare_length_with v n = 
       Int.compare v.len n
-
-    let of_list l = 
-      let entries' = List.rev @@ List.fold_lefti (fun acc i x -> if x <> A.zero then (i, x) :: acc else acc) [] l
-      in {entries = entries'; len = List.length l}
-
-    let to_list v = 
-      let l = List.init v.len (fun _ -> A.zero) in 
-      List.fold_left (fun acc (idx, value) -> (List.modify_at idx (fun _ -> value) acc)) l v.entries
 
     let filteri f v = 
       failwith "TODO"
@@ -196,20 +207,19 @@ module SparseVector: AbstractVector =
       failwith "deprecated"
 
     let map2i f v v' = 
-      failwith "TODO"
+      of_list (List.map2i f (to_list v) (to_list v'))
 
     let map2i_with f v v' = 
       failwith "deprecated"
 
     let mapi f v  = 
-      failwith "TODO"
+      of_list (List.mapi f (to_list v))
 
     let mapi_with f v = 
       failwith "deprecated"
 
     let find2i f v v' = 
       failwith "TODO"
-
     let to_array v = 
       let vec = Array.make v.len A.zero in 
       List.iter (fun (idx, value) -> vec.(idx) <- value) v.entries;
