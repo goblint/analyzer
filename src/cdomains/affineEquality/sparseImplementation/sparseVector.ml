@@ -91,28 +91,31 @@ module SparseVector: AbstractVector =
           ) [] (List.rev v.entries) in
         {entries = entries'; len = v.len + 1}
 
-    let mul_vec_scal v s = 
-      {entries= (List.map (fun (idx, va) -> (idx, va *: s)) v.entries); len=v.len}
+    let map_preserve_zero f v = tV ((List.map f) v.entries) v.len
 
-
-    let add_vec v1 v2 = 
-      let rec add_vec m s =
-        match m, s with
-        | ((xidx, xv)::xs, (yidx,yv)::ys) -> (
-            match xidx - yidx with
-            | d when d = 0 && (xv +: yv = A.zero) -> (xidx, xv +: yv)::(add_vec xs ys)
-            | d when d < 0 -> (xidx, xv)::(add_vec xs ((yidx, yv)::ys))
-            | d when d > 0 -> (yidx, yv)::(add_vec ((xidx, xv)::xs) ys)
-            | _ -> add_vec xs ys ) (* remove row when is (0, 0) *)
-        | ([], y::ys) -> y::(add_vec [] ys)
-        | (x::xs, []) -> x::(add_vec xs [])
-        | ([],[]) -> []
+    let map2_preserve_zero f v1 v2 = 
+      let rec map2_nonzero_aux v1 v2 =
+        match v1, v2 with 
+        | [], [] -> []
+        | x , y -> 
+          let cons, xtail, ytail =
+            match x, y with
+            | (xidx, xv)::xs, (yidx,yv)::ys -> (
+                match xidx - yidx with
+                | d when d < 0 -> (xidx, f xv A.zero), xs, v2
+                | d when d > 0 -> (yidx, f A.zero yv), v1, ys
+                | _            -> (xidx, f xv yv)    , xs, ys
+              )
+            | (xidx, xv)::xs, [] -> (xidx, f xv A.zero), xs, []
+            | [], (yidx, yv)::ys -> (yidx, f A.zero yv), [], ys
+            | [],[] -> raise (Failure "Should never be reached")
+          in 
+          let res = if snd cons = A.zero then [] else [cons] in
+          res@(map2_nonzero_aux xtail ytail)
       in 
-      if v1.len <> v2.len then failwith "Different Vector length" else
-        {entries= add_vec v1.entries v2.entries; len=v1.len}
+      if v1.len <> v2.len then raise (Invalid_argument "Different lengths") else
+        tV (map2_nonzero_aux v1.entries v2.entries) v1.len
 
-    let sub_vec v1 v2 = (*change to duplicate def of add if performance*)
-      add_vec v1 ({entries= (List.map (fun (idx, va) -> (idx, A.zero -: va)) v2.entries); len=v2.len})
 
     let apply_with_c f m v = 
       failwith "TODO"
@@ -142,7 +145,7 @@ module SparseVector: AbstractVector =
       failwith "TODO"
 
     let map2_with f v v' = 
-      failwith "TODO"
+      failwith "deprecated"
 
     let findi f v = 
       failwith "TODO"
@@ -172,7 +175,12 @@ module SparseVector: AbstractVector =
       {entries = entries'; len = v.len + v'.len}
 
     let exists f v  = 
-      failwith "TODO"
+      let c = v.len in
+      let rec exists_aux at f v =
+        match v with
+        | [] -> if at = 0 then false else f A.zero
+        | (xi, xv)::xs -> if f xv then true else exists_aux (at - 1) f xs
+      in (exists_aux c f v.entries)
 
     let rev v = 
       let entries' = List.rev @@ List.map (fun (idx, value) -> (v.len - idx, value)) v.entries in 
