@@ -21,7 +21,7 @@ sig
   val map_preserve_zero: (num -> num) -> t -> t
 
   val map2_preserve_zero: (num -> num -> num) -> t ->  t -> t
-  
+
   val fold_left_preserve_zero: ('acc -> num -> 'acc) -> t -> 'acc
 
   val fold_left2_preserve_zero: ('acc -> num -> num -> 'acc) -> t -> t -> 'acc
@@ -43,6 +43,9 @@ sig
   val map2_with: (num -> num -> num) -> t -> t -> unit
 
   val findi: (num -> bool) ->  t -> int
+
+  (* Returns optional tuple of position and value which was found*)
+  val findi_val_opt: (num -> bool) ->  t -> (int * num) Option.t
 
   val find_opt: (num -> bool) -> t -> num Option.t
 

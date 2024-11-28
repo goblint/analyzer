@@ -117,7 +117,7 @@ module SparseVector: AbstractVector =
           res@(map2_nonzero_aux xtail ytail)
       in 
       if v1.len <> v2.len then raise (Invalid_argument "Different lengths") else
-      to_vector (map2_nonzero_aux v1.entries v2.entries) v1.len
+        to_vector (map2_nonzero_aux v1.entries v2.entries) v1.len
 
     let fold_left_preserve_zero f v =
       failwith "TODO"
@@ -148,24 +148,24 @@ module SparseVector: AbstractVector =
 
     let length v =
       v.len
-    
+
     let of_list l = 
       let entries' = List.rev @@ List.fold_lefti (fun acc i x -> if x <> A.zero then (i, x) :: acc else acc) [] l
       in {entries = entries'; len = List.length l}
 
     let to_list v = 
       let[@tail_mod_cons] rec extend_zero_aux i v' =
-      if i >= v.len then failwith "out of Bounds for to_list" else (*can probably be removed*)
-      match v' with
-      | (xi,xv)::xs -> if xi = i then xv::(extend_zero_aux (i+1) xs) else A.zero::(extend_zero_aux (i+1) v')
-      | [] -> []
-    in 
-    (extend_zero_aux 0 v.entries)
-  
+        if i >= v.len then failwith "out of Bounds for to_list" else (*can probably be removed*)
+          match v' with
+          | (xi,xv)::xs -> if xi = i then xv::(extend_zero_aux (i+1) xs) else A.zero::(extend_zero_aux (i+1) v')
+          | [] -> []
+      in 
+      (extend_zero_aux 0 v.entries)
+
     let map2 f v v' = 
       if v.len <> v'.len then failwith "Unequal vector length" else 
-      of_list (List.map2 f (to_list v) (to_list v'))
-    
+        of_list (List.map2 f (to_list v) (to_list v'))
+
     let map2_with f v v' = 
       failwith "deprecated"
 
@@ -174,6 +174,17 @@ module SparseVector: AbstractVector =
         fst @@ List.findi (fun i (idx, value) -> if idx > i then true else f value) v.entries (* Here fst is the iteration variable i, not the tuple idx *)
       else
         fst @@ List.find (fun (idx, value) -> f value) v.entries (* Here fst is the idx contained in the found tuple *)
+
+    let findi_val_opt f v =
+      if f A.zero then  
+        (
+          let i, (col_idx, value) = List.findi (fun i (idx, value) -> if idx > i then true else f value) v.entries  in
+          if i < col_idx then (* In this case, Zero was the first element found because iteration index i is smaller than "found" value *)
+            Some (i, A.zero)
+          else Some (col_idx, value)
+        )
+      else
+        Some (List.find (fun (idx, value) -> f value) v.entries) 
 
     let map f v = 
       of_list (List.map f (to_list v))
