@@ -106,44 +106,28 @@ module ListMatrix: AbstractMatrix =
       failwith "deprecated"
 
     let reduce_col_with m j  = Timing.wrap "reduce_col_with" (reduce_col_with m) j
-    let reduce_col m j =
+    let reduce_col m j = 
       if is_empty m then m 
       else
         let rec find_pivot idx entries = (* Finds non-zero element in column j and returns pair of row idx and the pivot value *)
           match entries with
           | [] -> None
-          | row :: rest -> match (List.assoc_opt j row) with
-            | None -> find_pivot (idx - 1) rest
-            | Some value -> Some (idx, value)
+          | row :: rest -> let value = V.nth row j in 
+            if value =: A.zero then find_pivot (idx - 1) rest else Some (idx, value)
         in
-        match (find_pivot (num_rows m - 1) (List.rev m.entries)) with
+        match (find_pivot (num_rows m - 1) (List.rev m)) with
         | None -> m (* column is already filled with zeroes *)
         | Some (row_idx, pivot) -> 
-          let pivot_row = List.nth m.entries row_idx in
-          let entries' = 
-            List.mapi(fun idx row ->
-                if idx = row_idx then 
-                  [] 
-                else
-                  match (List.assoc_opt j row) with (* Find column element in row and, if it exists, subtract row *)
-                  | None -> row
-                  | Some row_value -> (let s = row_value /: pivot in
-                                       let rec merge acc piv_row cur_row = 
-                                         match piv_row, cur_row with 
-                                         | [], [] -> acc 
-                                         | [], (i, value) :: rest -> merge ((i, value) :: acc) piv_row rest
-                                         | (i, value) :: rest, [] -> let new_value = A.zero -: s *: value in merge ((i, new_value) :: acc) rest cur_row
-                                         | (i, piv_val) :: piv_rest, (j, cur_val) :: cur_rest -> 
-                                           if i = j then 
-                                             let new_value = cur_val -: s *: piv_val in merge ((i, new_value) :: acc) piv_rest cur_rest 
-                                           else if i < j then 
-                                             let new_value = A.zero -: s *: piv_val in merge ((i, new_value) :: acc) piv_rest cur_row
-                                           else 
-                                             merge ((j, cur_val) :: acc) piv_row cur_rest
-                                       in List.rev @@ merge [] pivot_row row)
-              ) m.entries
-          in 
-          {entries = entries'; column_count = m.column_count}
+          let pivot_row = List.nth m row_idx in
+          List.mapi (fun idx row ->
+              if idx = row_idx then 
+                V.zero_vec (num_cols m)
+              else
+                let row_value = V.nth row j in 
+                if row_value = A.zero then row
+                else (let s = row_value /: pivot in
+                      V.map2_preserve_zero (fun x y -> x -: s *: y) row pivot_row)            
+            ) m
 
     let del_col m j =
       if num_cols m = 1 then empty () 

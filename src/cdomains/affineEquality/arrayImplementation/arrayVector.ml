@@ -111,4 +111,7 @@ module ArrayVector: AbstractVector =
 
     let find_opt f v =
       failwith "TODO"
+
+    let map_preserve_zero f v = failwith "TODO"
+    let map2_preserve_zero f v1 v2 = failwith "TODO"
   end

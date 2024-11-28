@@ -18,8 +18,6 @@ module SparseVector: AbstractVector =
     }[@@deriving eq, ord, hash]
 
     let tV e l = {entries=e; len=l}
-    let show v = 
-      failwith "TODO"
 
     let keep_vals v n = 
       let rec keep_vals_vec v n =
@@ -91,8 +89,13 @@ module SparseVector: AbstractVector =
           ) [] (List.rev v.entries) in
         {entries = entries'; len = v.len + 1}
 
-    let map_preserve_zero f v = tV ((List.map f) v.entries) v.len
+    let map_preserve_zero f v = (* map for functions f such that f 0 = 0 since f won't be applied to zero values. See also map *)
+      let entries' = List.filter_map (
+          fun (idx, value) -> let new_val = f value in 
+            if new_val = A.zero then None else Some (idx, new_val)) v.entries in 
+      {entries = entries'; len = v.len}
 
+    (* map for functions f such that f 0 0 = 0 since f won't be applied to if both values are zero. See also map *)
     let map2_preserve_zero f v1 v2 = 
       let rec map2_nonzero_aux v1 v2 =
         match v1, v2 with 
@@ -224,5 +227,14 @@ module SparseVector: AbstractVector =
 
     let find_opt f v =
       failwith "TODO: Do we need this?"
+
+    let show v = 
+      let t = to_list v in 
+      let rec list_str l =
+        match l with
+        | [] -> "]"
+        | x :: xs -> (A.to_string x) ^" "^(list_str xs)
+      in
+      "["^list_str t^"\n"
 
   end 
