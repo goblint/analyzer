@@ -184,7 +184,7 @@ module ListMatrix: AbstractMatrix =
       failwith "deprecated"
 
     let normalize_with m = Timing.wrap "normalize_with" normalize_with m
-    
+
     let normalize (m : t) : t Option.t =
       let entries = m in
       let col_count = num_cols m in
