@@ -121,14 +121,17 @@ struct
 
     let add ctx ((addr, rw): AddrRW.t): D.t =
       match addr with
-      | Addr mv ->
+      | Addr ((v, o) as mv) ->
         let (s, m) = ctx.local in
         let s' = MustLocksetRW.add_mval_rw (mv, rw) s in
         let m' =
-          if MutexTypeAnalysis.must_be_recursive ctx mv then
-            MustMultiplicity.increment mv m
-          else
+          match ctx.ask (Queries.MutexType (v, Offset.Unit.of_offs o)) with
+          | `Lifted Recursive -> MustMultiplicity.increment mv m
+          | `Lifted NonRec ->
+            if MustLocksetRW.mem_mval mv s then
+              M.error ~category:M.Category.Behavior.Undefined.double_locking "Acquiring a non-recursive mutex that is already held";
             m
+          | `Bot | `Top -> m
         in
         (s', m')
       | NullPtr ->
