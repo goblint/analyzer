@@ -139,7 +139,7 @@ post-messages: [
 ]
 pin-depends: [
   [
-    "oblint-cil.2.0.5"
+    "goblint-cil.2.0.5"
     "git+https://github.com/goblint/cil.git#c79208b21ea61d7b72eae29a18c1ddeda4795dfd"
   ]
   [
