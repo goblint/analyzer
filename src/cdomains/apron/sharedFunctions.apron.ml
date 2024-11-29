@@ -288,7 +288,7 @@ struct
       raise Unsupported_Linexpr1
 
   let cil_exp_of_linexpr1 ?scalewith (linexpr1:Linexpr1.t) =
-    let const = coeff_to_const ~scalewith true (Coeff.neg (Linexpr1.get_cst linexpr1)) in
+    let const = coeff_to_const ~scalewith true (Linexpr1.get_cst linexpr1) in
     let terms = ref [] in
     let append_summand (c:Coeff.union_5) v =
       if not (Coeff.is_zero c) then
@@ -345,9 +345,9 @@ struct
       let rhs = fold_terms nterms in
       let (lhs, rhs) =
         if constflip then
-          BinOp (PlusA, lhs, const, longlong), rhs
-        else
           lhs, BinOp (PlusA, rhs, const, longlong)
+        else
+          BinOp (PlusA, lhs, const, longlong), rhs
       in
       match Lincons1.get_typ lincons1 with
       | EQ -> Some (Cil.constFold false @@ BinOp(Eq, lhs, rhs, TInt(IInt,[])))
