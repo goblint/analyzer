@@ -438,7 +438,7 @@ module AbstractMatrix = AbstractMatrix
 module ArrayVector = ArrayVector
 module ArrayMatrix = ArrayMatrix
 module SparseVector = SparseVector
-module SparseMatrix = SparseMatrix
+module ListMatrix = ListMatrix
 module RatOps = RatOps
 module ConvenienceOps = ConvenienceOps
 

@@ -62,11 +62,24 @@ module SparseVector: AbstractVector =
         match vec, idx with 
         | [], [] -> []
         | [], (y :: ys) -> failwith "remove at indices: no more columns to delete"
-        | ((col_idx, value) :: xs), [] -> (col_idx - deleted_count, value) :: remove_indices_helper xs idx deleted_count
+        | ((col_idx, value) :: xs), [] -> (col_idx - deleted_count, value) :: remove_indices_helper xs [] deleted_count
         | ((col_idx, value) :: xs), (y :: ys) when y = col_idx -> remove_indices_helper xs ys (deleted_count + 1)
+        | ((col_idx, value) :: xs), (y :: ys) when y < col_idx -> remove_indices_helper vec ys (deleted_count + 1) 
         | ((col_idx, value) :: xs), (y :: ys) -> (col_idx - deleted_count, value) :: remove_indices_helper xs idx deleted_count
       in
       {entries = remove_indices_helper v.entries idx 0; len = v.len - List.length idx}
+
+    let insert_zero_at_indices v idx = 
+      let rec add_indices_helper vec idx added_count = 
+        match vec, idx with 
+        | [], [] -> []
+        | [], (y :: ys) -> [] (* inserting at the end only means changing the dimension *)
+        | ((col_idx, value) :: xs), [] -> (col_idx + added_count, value) :: add_indices_helper xs [] added_count
+        | ((col_idx, value) :: xs), ((i, count) :: ys) when i = col_idx -> add_indices_helper vec ys (added_count + count)
+        | ((col_idx, value) :: xs), ((i, count) :: ys) when i < col_idx -> (col_idx + added_count + count, value) :: add_indices_helper xs ys (added_count + count)
+        | ((col_idx, value) :: xs), ((i, count) :: ys) -> (col_idx + added_count, value) :: add_indices_helper xs idx added_count
+      in
+      {entries = add_indices_helper v.entries idx 0; len = v.len + List.length idx}
 
     let set_nth v n num = 
       if n >= v.len then failwith "Out of bounds" 

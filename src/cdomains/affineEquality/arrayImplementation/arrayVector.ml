@@ -36,6 +36,8 @@ module ArrayVector: AbstractVector =
 
     let remove_at_indices v idx = failwith "TODO"
 
+    let insert_zero_at_indices v idx = failwith "TODO"
+
     let set_nth_with v n new_val =
       if n >= Array.length v then failwith "n outside of Array range" else
         Array.set v n new_val

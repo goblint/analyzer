@@ -38,38 +38,17 @@ module ListMatrix: AbstractMatrix =
     let copy m =
       Timing.wrap "copy" (copy) m
 
-    let add_empty_columns m cols = failwith "TODO"
-    (*let colsL = List.sort (fun a b -> a-b) (Array.to_list cols) in
-      let emptyT = A.zero in
-      let rec list_of_all_before_index idx cols =
-        match  cols with
-        | x::xs -> 
-          if x < idx 
-          then 
-            let (h,t) = list_of_all_before_index idx xs in
-            (x::h, t)
-          else ([],x::xs)
-        | [] -> ([],[])
+    let add_empty_columns m cols = 
+      let cols = Array.to_list cols in 
+      let sorted_cols = List.sort Stdlib.compare cols in
+      let rec count_sorted_occ acc cols last count = 
+        match cols with
+        | [] -> acc
+        | (x :: xs) when x = last -> count_sorted_occ acc xs x (count + 1)
+        | (x :: xs) -> count_sorted_occ ((last, count) :: acc) xs x 1
       in
-      (*This could easily be abstracted into the above functions, but its nice to have 
-        it here for readability and debugging*)
-      let rec make_empty_entries_for_idxs idxs =
-        match idxs with
-        | x::xs -> (x, emptyT)::(make_empty_entries_for_idxs xs) 
-        | [] -> []
-      in
-      let rec add_column_element r cols = 
-        match r with
-        | (idx, _)::xs -> 
-          let (bef,aft) = list_of_all_before_index idx cols in
-          (make_empty_entries_for_idxs bef)@(add_column_element xs aft)
-        | [] -> []
-      in
-      let rec add_empty_columns_on_list m cols =
-        match m with
-        | x::xs -> (add_column_element x cols)::(add_empty_columns_on_list xs cols)
-        | [] -> []
-      in tM (add_empty_columns_on_list m.entries colsL) (m.column_count + Array.length cols)*)
+      let occ_cols = count_sorted_occ [] sorted_cols (-1) 0 in
+      List.map (fun row -> V.insert_zero_at_indices row occ_cols) m
 
     let add_empty_columns m cols =
       Timing.wrap "add_empty_cols" (add_empty_columns m) cols
