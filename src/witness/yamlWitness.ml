@@ -385,6 +385,7 @@ struct
                   fold_flow_insensitive_as_location ~inv (fun ~location ~inv acc ->
                       let invariant = Entry.invariant (CilType.Exp.show inv) in
                       let entry = Entry.location_invariant ~task ~location ~invariant in
+                      incr cnt_location_invariant;
                       entry :: acc
                     ) acc
                 | `Lifted _, _
@@ -605,6 +606,7 @@ struct
                       fold_flow_insensitive_as_location ~inv (fun ~location ~inv acc ->
                           let invariant = CilType.Exp.show inv in
                           let invariant = Entry.location_invariant' ~location ~invariant in
+                          incr cnt_location_invariant;
                           invariant :: acc
                         ) acc
                     | `Bot | `Top -> (* global bot might only be possible for alloc variables, if at all, so emit nothing *)

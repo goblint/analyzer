@@ -215,7 +215,7 @@ Flow-insensitive invariants as location invariants.
   [Warning][Deadcode][CWE-571] condition '1' (possibly inserted by CIL) is always true (04-priv_multi.c:45:10-45:11)
   [Warning][Deadcode][CWE-571] condition 'B > 0' is always true (04-priv_multi.c:47:9-47:14)
   [Info][Witness] witness generation summary:
-    location invariants: 0
+    location invariants: 9
     loop invariants: 0
     flow-insensitive invariants: 0
     total generation entries: 10
