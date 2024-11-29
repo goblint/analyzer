@@ -4,6 +4,9 @@
     dead: 0
     total lines: 19
   [Info][Witness] witness generation summary:
+    location invariants: 0
+    loop invariants: 0
+    flow-insensitive invariants: 3
     total generation entries: 4
   [Info][Race] Memory locations race summary:
     safe: 2
@@ -168,6 +171,9 @@ protection doesn't have precise protected invariant for g2.
     dead: 0
     total lines: 19
   [Info][Witness] witness generation summary:
+    location invariants: 0
+    loop invariants: 0
+    flow-insensitive invariants: 4
     total generation entries: 5
   [Info][Race] Memory locations race summary:
     safe: 2
@@ -337,6 +343,9 @@ protection-read has precise protected invariant for g2.
     dead: 0
     total lines: 19
   [Info][Witness] witness generation summary:
+    location invariants: 0
+    loop invariants: 0
+    flow-insensitive invariants: 4
     total generation entries: 5
   [Info][Race] Memory locations race summary:
     safe: 2

@@ -4,6 +4,9 @@
     dead: 0
     total lines: 23
   [Info][Witness] witness generation summary:
+    location invariants: 0
+    loop invariants: 0
+    flow-insensitive invariants: 2
     total generation entries: 3
   [Info][Race] Memory locations race summary:
     safe: 2

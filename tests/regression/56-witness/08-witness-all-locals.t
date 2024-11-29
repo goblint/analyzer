@@ -4,6 +4,9 @@
     dead: 0
     total lines: 4
   [Info][Witness] witness generation summary:
+    location invariants: 3
+    loop invariants: 0
+    flow-insensitive invariants: 0
     total generation entries: 3
 
   $ yamlWitnessStrip < witness.yml
@@ -50,6 +53,9 @@ Fewer entries are emitted if locals from nested block scopes are excluded:
     dead: 0
     total lines: 4
   [Info][Witness] witness generation summary:
+    location invariants: 2
+    loop invariants: 0
+    flow-insensitive invariants: 0
     total generation entries: 2
 
   $ yamlWitnessStrip < witness.yml

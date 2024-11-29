@@ -9,6 +9,9 @@
     write with [lock:{m2}, thread:[main, t_fun@69-ghost-ptr-protection.c:22:3-22:40]] (conf. 110)  (exp: & p) (69-ghost-ptr-protection.c:15:3-15:9)
     read with [mhp:{created={[main, t_fun@69-ghost-ptr-protection.c:22:3-22:40]}}, lock:{m1}, thread:[main]] (conf. 110)  (exp: & p) (69-ghost-ptr-protection.c:26:3-26:27)
   [Info][Witness] witness generation summary:
+    location invariants: 0
+    loop invariants: 0
+    flow-insensitive invariants: 4
     total generation entries: 5
   [Info][Race] Memory locations race summary:
     safe: 2

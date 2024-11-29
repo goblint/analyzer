@@ -8,6 +8,9 @@
     total lines: 15
   [Warning][Deadcode][CWE-571] condition '1' (possibly inserted by CIL) is always true (74-mutex.c:19:10-19:11)
   [Info][Witness] witness generation summary:
+    location invariants: 0
+    loop invariants: 0
+    flow-insensitive invariants: 2
     total generation entries: 3
   [Info][Race] Memory locations race summary:
     safe: 1
@@ -105,6 +108,9 @@ Flow-insensitive invariants as location invariants.
     total lines: 15
   [Warning][Deadcode][CWE-571] condition '1' (possibly inserted by CIL) is always true (74-mutex.c:19:10-19:11)
   [Info][Witness] witness generation summary:
+    location invariants: 0
+    loop invariants: 0
+    flow-insensitive invariants: 0
     total generation entries: 3
   [Info][Race] Memory locations race summary:
     safe: 1
@@ -171,6 +177,9 @@ Same with ghost_instrumentation and invariant_set entries.
     total lines: 15
   [Warning][Deadcode][CWE-571] condition '1' (possibly inserted by CIL) is always true (74-mutex.c:19:10-19:11)
   [Info][Witness] witness generation summary:
+    location invariants: 0
+    loop invariants: 0
+    flow-insensitive invariants: 0
     total generation entries: 2
   [Info][Race] Memory locations race summary:
     safe: 1
@@ -280,6 +289,9 @@ Same with mutex-meet.
     total lines: 15
   [Warning][Deadcode][CWE-571] condition '1' (possibly inserted by CIL) is always true (74-mutex.c:19:10-19:11)
   [Info][Witness] witness generation summary:
+    location invariants: 0
+    loop invariants: 0
+    flow-insensitive invariants: 2
     total generation entries: 3
   [Info][Race] Memory locations race summary:
     safe: 1

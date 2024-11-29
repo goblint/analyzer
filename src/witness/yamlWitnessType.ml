@@ -450,15 +450,35 @@ struct
 
   module Constraint =
   struct
+
+    module Value =
+    struct
+      type t =
+        | String of string
+        | Int of int (* Why doesn't format consider ints (for switch branches) as strings here, like everywhere else? *)
+      [@@deriving eq, ord, hash]
+
+      let to_yaml = function
+        | String s -> GobYaml.string s
+        | Int i -> GobYaml.int i
+
+      let of_yaml y =
+        let open GobYaml in
+        match y with
+        | `String s -> Ok (String s)
+        | `Float f -> Ok (Int (int_of_float f))
+        | _ -> Error (`Msg "Expected a string or integer value")
+    end
+
     type t = {
-      value: string;
+      value: Value.t;
       format: string option;
     }
     [@@deriving eq, ord, hash]
 
     let to_yaml {value; format} =
       `O ([
-          ("value", `String value);
+          ("value", Value.to_yaml value);
         ] @ (match format with
           | Some format -> [
               ("format", `String format);
@@ -469,7 +489,7 @@ struct
 
     let of_yaml y =
       let open GobYaml in
-      let+ value = y |> find "value" >>= to_string
+      let+ value = y |> find "value" >>= Value.of_yaml
       and+ format = y |> Yaml.Util.find "format" >>= option_map to_string in
       {value; format}
   end
