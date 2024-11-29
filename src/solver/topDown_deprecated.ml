@@ -4,8 +4,6 @@ open Batteries
 open ConstrSys
 open Messages
 
-exception SolverCannotDoGlobals
-
 
 (** modified SLR3 as top down solver *)
 module TD3 =

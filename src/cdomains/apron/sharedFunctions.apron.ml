@@ -40,7 +40,7 @@ let int_of_scalar ?(scalewith=Z.one) ?round (scalar: Scalar.t) =
       in
       Z_mlgmpidl.z_of_mpzf z
     | _ ->
-      failwith ("int_of_scalar: unsupported: " ^ Scalar.to_string scalar)
+      failwith ("int_of_scalar: unsupported: " ^ Scalar.show scalar)
 
 
 module type ConvertArg =
@@ -133,7 +133,7 @@ struct
           else
             failwith "texpr1_expr_of_cil_exp: globals must be replaced with temporary locals"
         | Const (CInt (i, _, _)) ->
-          Cst (Coeff.s_of_mpqf (Mpqf.of_mpz (Z_mlgmpidl.mpz_of_z i)))
+          Cst (Coeff.s_of_z i)
         | exp ->
           match Cilfacade.get_ikind_exp exp with
           | ik ->
@@ -175,7 +175,7 @@ struct
                     (* convert response to a constant *)
                     let const = IntDomain.IntDomTuple.to_int @@ IntDomain.IntDomTuple.cast_to t_ik res in
                     match const with
-                    | Some c -> Cst (Coeff.s_of_mpqf (Mpqf.of_mpz (Z_mlgmpidl.mpz_of_z c))) (* Got a constant value -> use it straight away *)
+                    | Some c -> Cst (Coeff.s_of_z c) (* Got a constant value -> use it straight away *)
                     (* I gotten top, we can not guarantee injectivity *)
                     | None -> if IntDomain.IntDomTuple.is_top_of t_ik res then raise (Unsupported_CilExp (Cast_not_injective t))
                       else ( (* Got a ranged value different from top, so let's check bounds manually *)
@@ -200,7 +200,7 @@ struct
     in
     let exp = Cil.constFold false exp in
     let res = conv exp in
-    if M.tracing then M.trace "relation" "texpr1_expr_of_cil_exp: %a -> %s (%b)" d_plainexp exp (Format.asprintf "%a" Texpr1.print_expr res) (Lazy.force no_ov);
+    if M.tracing then M.trace "relation" "texpr1_expr_of_cil_exp: %a -> %a (%b)" d_plainexp exp Texpr1.Expr.pretty res (Lazy.force no_ov);
     res
 
   let texpr1_of_cil_exp ask d env e no_ov =
@@ -267,7 +267,7 @@ struct
                else
                  Const (CInt(i,ILongLong,None)), false
            else
-             (M.warn ~category:Analyzer "Invariant Apron: coefficient is not int: %s" (Scalar.to_string c); raise Unsupported_Linexpr1)
+             (M.warn ~category:Analyzer "Invariant Apron: coefficient is not int: %a" Scalar.pretty c; raise Unsupported_Linexpr1)
          | None -> raise Unsupported_Linexpr1)
       | _ -> raise Unsupported_Linexpr1
     in
@@ -282,8 +282,8 @@ struct
           expr := BinOp(MinusA,!expr,prod,longlong)
         else
           expr := BinOp(PlusA,!expr,prod,longlong)
-      | None -> M.warn ~category:Analyzer "Invariant Apron: cannot convert to cil var: %s"  (Var.to_string v); raise Unsupported_Linexpr1
-      | _ -> M.warn ~category:Analyzer "Invariant Apron: cannot convert to cil var in overflow preserving manner: %s"  (Var.to_string v); raise Unsupported_Linexpr1
+      | None -> M.warn ~category:Analyzer "Invariant Apron: cannot convert to cil var: %a" Var.pretty v; raise Unsupported_Linexpr1
+      | _ -> M.warn ~category:Analyzer "Invariant Apron: cannot convert to cil var in overflow preserving manner: %a" Var.pretty v; raise Unsupported_Linexpr1
     in
     Linexpr1.iter append_summand linexpr1;
     !expr

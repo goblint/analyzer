@@ -1,4 +1,5 @@
 // PARAM: --enable ana.int.enums
+// NOTIMEOUT
 int main(void) {
     unsigned char c;
     int top;

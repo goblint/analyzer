@@ -24,6 +24,8 @@
 
     All changes must be committed because the working tree is not checked.
 
+    The warning `[FAIL] opam field doc cannot be parsed by dune-release` is fine and can be ignored (see <https://github.com/ocamllabs/dune-release/issues/154>).
+
 8. Check that "unlocked" workflow passes on GitHub Actions.
 
     It can be run manually on the release branch for checking.
@@ -36,12 +38,13 @@
     1. Pull Docker image: `docker pull ocaml/opam:ubuntu-22.04-ocaml-4.14` (or newer).
     2. Extract distribution archive.
     3. Run Docker container in extracted directory: `docker run -it --rm -v $(pwd):/goblint ocaml/opam:ubuntu-22.04-ocaml-4.14` (or newer).
-    4. Navigate to distribution archive inside Docker container: `cd /goblint`.
-    5. Install and test package from distribution archive: `opam-2.1 install --with-test .`.
-    6. Activate opam environment: `eval $(opam env)`.
-    7. Check version: `goblint --version`.
-    8. Check that analysis works: `goblint -v tests/regression/04-mutex/01-simple_rc.c`.
-    9. Exit Docker container.
+    4. Update opam-repository from git: `opam-2.1 repository add git git+https://github.com/ocaml/opam-repository.git && opam-2.1 update`.
+    5. Navigate to distribution archive inside Docker container: `cd /goblint`.
+    6. Install and test package from distribution archive: `opam-2.1 install --with-test .`.
+    7. Activate opam environment: `eval $(opam env)`.
+    8. Check version: `goblint --version`.
+    9. Check that analysis works: `goblint -v tests/regression/04-mutex/01-simple_rc.c`.
+    10. Exit Docker container.
 
 12. Temporarily enable Zenodo GitHub webhook.
 
@@ -73,6 +76,8 @@
 4. Update SV-COMP year in `scripts/sv-comp/archive.sh`.
 
     This includes: git tag name, git tag message and zipped conf file.
+
+5. Open MR with conf file name to the [bench-defs](https://gitlab.com/sosy-lab/sv-comp/bench-defs) repository.
 
 ### For each prerun
 

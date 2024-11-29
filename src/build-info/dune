@@ -3,7 +3,7 @@
 (library
   (name goblint_build_info)
   (public_name goblint.build-info)
-  (libraries dune-build-info batteries.unthreaded))
+  (libraries dune-build-info))
 
 (rule
   (target configVersion.ml)

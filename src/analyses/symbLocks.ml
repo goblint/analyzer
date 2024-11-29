@@ -21,8 +21,6 @@ module Spec =
 struct
   include Analyses.DefaultSpec
 
-  exception Top
-
   module D = SymbLocksDomain.Symbolic
   include Analyses.ValueContexts(D)
 

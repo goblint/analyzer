@@ -23,6 +23,7 @@ module CfgTools = CfgTools
 module Analyses = Analyses
 module ConstrSys = ConstrSys
 module Constraints = Constraints
+module CompareConstraints = CompareConstraints
 module AnalysisState = AnalysisState
 module AnalysisStateUtil = AnalysisStateUtil
 module ControlSpecC = ControlSpecC
@@ -169,6 +170,20 @@ module UnassumeAnalysis = UnassumeAnalysis
 module ExpRelation = ExpRelation
 module AbortUnless = AbortUnless
 module PtranalAnalysis = PtranalAnalysis
+
+
+(** {1 Analysis lifters}
+
+    Transformations of analyses into extended analyses. *)
+
+module SpecLifters = SpecLifters
+module LongjmpLifter = LongjmpLifter
+module RecursionTermLifter = RecursionTermLifter
+module ContextGasLifter = ContextGasLifter
+module WideningToken = WideningToken
+module WideningTokenLifter = WideningTokenLifter
+
+module WitnessConstraints = WitnessConstraints
 
 
 (** {1 Domains}
@@ -326,7 +341,6 @@ module WitnessUtil = WitnessUtil
     Automaton-based GraphML witnesses used in SV-COMP. *)
 
 module MyARG = MyARG
-module WitnessConstraints = WitnessConstraints
 module ArgTools = ArgTools
 module Witness = Witness
 module Graphml = Graphml
@@ -337,7 +351,6 @@ module Graphml = Graphml
 
 module YamlWitness = YamlWitness
 module YamlWitnessType = YamlWitnessType
-module WideningTokens = WideningTokens
 
 (** {3 Violation}
 

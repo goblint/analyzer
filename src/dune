@@ -71,7 +71,7 @@
   (flags :standard -open Goblint_std -open Goblint_logs)
   (ocamlopt_flags :standard -no-float-const-prop)
   (preprocess
-    (pps ppx_deriving.std ppx_deriving_hash ppx_deriving_yojson ppx_blob))
+    (pps ppx_deriving.std ppx_deriving_hash ppx_deriving_yojson ppx_blob ppx_deriving_printable ppx_deriving_lattice))
   (instrumentation (backend bisect_ppx))
 )
 

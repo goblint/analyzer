@@ -1,4 +1,5 @@
 // PARAM: --enable ana.int.interval  --set ana.base.arrays.domain partitioned
+// NOCHECK
 int main(void)
 {
   int arr[260];
