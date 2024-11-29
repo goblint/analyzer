@@ -737,7 +737,7 @@ struct
 
             (* now we have coeff*var_index + constant SUP(EQ) 0 *)
             let opstr =Lincons0.string_of_typ constyp in
-            M.trace "refinevalues" "Refining due to %d: %s*%s + %s %s 0" index (Z.to_string (coeff)) (Var.to_string @@ Environment.var_of_dim t.env index)  (Z.to_string (constant)) opstr;
+            if M.tracing then M.trace "refinevalues" "Refining due to %d: %s*%s + %s %s 0" index (Z.to_string (coeff)) (Var.to_string @@ Environment.var_of_dim t.env index)  (Z.to_string (constant)) opstr;
 
             (* make var_index = var_index explicit in conlist *)
             let conlist = (index,(Some(Z.one,index),Z.zero,Z.one))::EConj.get_equivalent_expressions d index in
@@ -766,7 +766,7 @@ struct
                 let (newcoeff,newoffs,newdivi) = Z.(newdivi*newcoeff,newoffs*newdivi,one) in
                 if M.tracing then M.trace "refinevalues" "=> (%s*var_%s +%s) / %s %s 0"  (Z.to_string newcoeff) (Var.to_string @@ Environment.var_of_dim t.env var) (Z.to_string newoffs) (Z.to_string newdivi) opstr;
                 mkconstraint newcoeff var (Z.neg newoffs)) conlist in
-            M.trace "refinevalues" "Resulting refining assertions %s" (String.concat " ; " (List.map (fun c -> Pretty.sprint ~width:80 (d_exp () c)) conlist));
+            if M.tracing then M.trace "refinevalues" "Resulting refining assertions %s" (String.concat " ; " (List.map (fun c -> Pretty.sprint ~width:80 (d_exp () c)) conlist));
             conlist
           | _ -> [] )
 
