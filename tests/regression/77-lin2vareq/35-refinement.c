@@ -10,7 +10,7 @@ void main() {
   int d = 13*a+11;
   int e = a;
 
-  if (b < 5){ // a  < 1
+  if (b < 5){ // a  > -1
     
     __goblint_check(1 == 1); //SUCCESS
     __goblint_check(a > -1); //SUCCESS
@@ -34,6 +34,11 @@ void main() {
       __goblint_check(b > -4);  //SUCCESS
       __goblint_check(c >  0);  //SUCCESS
       __goblint_check(d < 24);  //SUCCESS
+
+      if (b < 3) {
+        __goblint_check(0); //NOWARN (unreachable)
+        b = 1701;
+      }
 
       // in theory, if we knew about a being constant, we could infer the following:
       __goblint_check(b == 3);  //UNKNOWN
