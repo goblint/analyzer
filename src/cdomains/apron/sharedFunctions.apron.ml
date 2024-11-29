@@ -279,7 +279,7 @@ struct
       let var = Cilfacade.mkCast ~e:(Lval(Var vinfo,NoOffset)) ~newt:longlong in
       let coeff, flip = coeff_to_const ~scalewith true c in
       let prod = BinOp(Mult, coeff, var, longlong) in
-      prod, flip
+      flip, prod
     | None ->
       M.warn ~category:Analyzer "Invariant Apron: cannot convert to cil var: %a" Var.pretty v;
       raise Unsupported_Linexpr1
@@ -330,8 +330,9 @@ struct
       let linexpr1 = Lincons1.get_linexpr1 lincons1 in
       let common_denominator = lcm_den linexpr1 in
       let terms, const = cil_exp_of_linexpr1 ~scalewith:common_denominator linexpr1 in
+      let terms = List.sort [%ord: bool * CilType.Exp.t] terms in (* sort positive terms to be first *)
       let lhs =
-        List.fold_right (fun (term, flip) acc ->
+        List.fold_left (fun acc (flip, term) ->
             match acc, flip with
             | None, false ->
               Some term
@@ -340,7 +341,7 @@ struct
             | Some exp, _ ->
               let op = if flip then MinusA else PlusA in
               Some (BinOp (op, exp, term, longlong))
-          ) terms None
+          ) None terms
       in
       let lhs = Option.default zero lhs in
       let rhs = const in

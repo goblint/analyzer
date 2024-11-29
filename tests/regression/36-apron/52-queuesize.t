@@ -86,7 +86,7 @@ Without diff-box:
       column: 3
       function: push
     location_invariant:
-      string: (- ((long long )capacity) + (long long )free) + (long long )used == 0LL
+      string: ((long long )free + (long long )used) - (long long )capacity == 0LL
       type: assertion
       format: C
   - entry_type: location_invariant
@@ -130,7 +130,7 @@ Without diff-box:
       column: 3
       function: pop
     location_invariant:
-      string: (- ((long long )capacity) + (long long )free) + (long long )used == 0LL
+      string: ((long long )free + (long long )used) - (long long )capacity == 0LL
       type: assertion
       format: C
 
@@ -209,7 +209,7 @@ With diff-box:
       column: 3
       function: push
     location_invariant:
-      string: (- ((long long )capacity) + (long long )free) + (long long )used == 0LL
+      string: ((long long )free + (long long )used) - (long long )capacity == 0LL
       type: assertion
       format: C
   - entry_type: location_invariant
@@ -242,7 +242,7 @@ With diff-box:
       column: 3
       function: pop
     location_invariant:
-      string: (- ((long long )capacity) + (long long )free) + (long long )used == 0LL
+      string: ((long long )free + (long long )used) - (long long )capacity == 0LL
       type: assertion
       format: C
 
