@@ -288,7 +288,7 @@ struct
       raise Unsupported_Linexpr1
 
   let cil_exp_of_linexpr1 ?scalewith (linexpr1:Linexpr1.t) =
-    let (const, _) = coeff_to_const ~scalewith false (Coeff.neg (Linexpr1.get_cst linexpr1)) in
+    let const = coeff_to_const ~scalewith true (Coeff.neg (Linexpr1.get_cst linexpr1)) in
     let terms = ref [] in
     let append_summand (c:Coeff.union_5) v =
       if not (Coeff.is_zero c) then
@@ -329,22 +329,26 @@ struct
     try
       let linexpr1 = Lincons1.get_linexpr1 lincons1 in
       let common_denominator = lcm_den linexpr1 in
-      let terms, const = cil_exp_of_linexpr1 ~scalewith:common_denominator linexpr1 in
-      let terms = List.sort [%ord: bool * CilType.Exp.t] terms in (* sort positive terms to be first *)
-      let lhs =
-        List.fold_left (fun acc (flip, term) ->
-            match acc, flip with
-            | None, false ->
-              Some term
-            | None, true ->
-              Some (UnOp (Neg, term, longlong))
-            | Some exp, _ ->
-              let op = if flip then MinusA else PlusA in
-              Some (BinOp (op, exp, term, longlong))
+      let terms, (const, constflip) = cil_exp_of_linexpr1 ~scalewith:common_denominator linexpr1 in
+      let (nterms, pterms) = List.partition fst terms in
+      let nterms = List.map snd nterms in
+      let pterms = List.map snd pterms in
+      let fold_terms terms =
+        List.fold_left (fun acc term ->
+            match acc with
+            | None -> Some term
+            | Some exp -> Some (BinOp (PlusA, exp, term, longlong))
           ) None terms
+        |> Option.default zero
       in
-      let lhs = Option.default zero lhs in
-      let rhs = const in
+      let lhs = fold_terms pterms in
+      let rhs = fold_terms nterms in
+      let (lhs, rhs) =
+        if constflip then
+          BinOp (PlusA, lhs, const, longlong), rhs
+        else
+          lhs, BinOp (PlusA, rhs, const, longlong)
+      in
       match Lincons1.get_typ lincons1 with
       | EQ -> Some (Cil.constFold false @@ BinOp(Eq, lhs, rhs, TInt(IInt,[])))
       | SUPEQ -> Some (Cil.constFold false @@ BinOp(Ge, lhs, rhs, TInt(IInt,[])))
