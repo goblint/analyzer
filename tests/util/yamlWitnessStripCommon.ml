@@ -50,6 +50,12 @@ struct
     let segment_strip_file_hash ({segment}: ViolationSequence.Segment.t): ViolationSequence.Segment.t =
       {segment = List.map waypoint_strip_file_hash segment}
     in
+    let ghost_location_update_strip_file_hash (x: GhostInstrumentation.LocationUpdate.t): GhostInstrumentation.LocationUpdate.t =
+      {
+        location = location_strip_file_hash x.location;
+        updates = List.sort GhostInstrumentation.Update.compare x.updates
+      }
+    in
     let entry_type: EntryType.t =
       match entry_type with
       | LocationInvariant x ->
@@ -65,9 +71,14 @@ struct
       | PreconditionLoopInvariantCertificate x ->
         PreconditionLoopInvariantCertificate {x with target = target_strip_file_hash x.target}
       | InvariantSet x ->
-        InvariantSet {content = List.map invariant_strip_file_hash x.content}
+        InvariantSet {content = List.sort InvariantSet.Invariant.compare (List.map invariant_strip_file_hash x.content)} (* Sort, so order is deterministic regardless of Goblint. *)
       | ViolationSequence x ->
         ViolationSequence {content = List.map segment_strip_file_hash x.content}
+      | GhostInstrumentation x ->
+        GhostInstrumentation { (* Sort, so order is deterministic regardless of Goblint. *)
+          ghost_variables = List.sort GhostInstrumentation.Variable.compare x.ghost_variables;
+          ghost_updates = List.sort GhostInstrumentation.LocationUpdate.compare (List.map ghost_location_update_strip_file_hash x.ghost_updates);
+        }
     in
     {entry_type}
 

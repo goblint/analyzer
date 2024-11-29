@@ -223,6 +223,8 @@ struct
         true
       else *)
       MustLockset.mem ml protecting
+    | Queries.MustProtectingLocks g ->
+      protecting ~write:true Strong g
     | Queries.MustLockset ->
       let held_locks = MustLocksetRW.to_must_lockset (MustLocksetRW.filter snd ls) in
       held_locks
