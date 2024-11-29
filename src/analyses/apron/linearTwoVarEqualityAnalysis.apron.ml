@@ -14,6 +14,21 @@ let spec_module: (module MCPSpec) Lazy.t =
     struct
       include SpecFunctor (Priv) (AD) (RelationPrecCompareUtil.DummyUtil)
       let name () = "lin2vareq"
+      let branch ctx e b =
+        if M.tracing then M.trace "lin2vareq" "Branching";
+        let res = branch ctx e b in
+        let st = ctx.local in
+        let ask = Analyses.ask_of_ctx ctx in
+        let _ = assign_from_globals_wrapper ask ctx.global st e (fun d e' ->
+            try
+              let tcons = AD.tcons1_of_cil_exp ask d d.env e (not b) (no_overflow ask e) in
+              let constraintlist = AD.refine_value_domains ctx d tcons in
+              List.iter (fun e -> ctx.emit (Events.Assert e))  constraintlist;
+              d
+            with _  -> d)
+        in
+        res
+
     end
     in
     (module Spec)
