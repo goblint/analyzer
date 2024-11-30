@@ -84,11 +84,20 @@ module SparseVector: AbstractVector =
     let set_nth v n num = 
       if n >= v.len then failwith "Out of bounds" 
       else
-        let new_entries = List.map (fun (col_idx, value) ->
-            if col_idx = n then (col_idx, num) else (col_idx, value)
-          ) v.entries
-        in
-        {entries= new_entries; len=v.len}
+        let rev_entries', _ = List.fold_lefti (fun (acc, found) i (idx, value) -> 
+            if found then ((idx, value) :: acc, true)
+            else 
+            if i = v.len - 1 then 
+              if idx = n then (if num <>: A.zero then (n, num) :: acc, true else acc, true)
+              else if idx > n then (if num <>: A.zero then (idx, value) :: (n, num) :: acc, true else (idx, value) :: acc, true)
+              else failwith "Out of bounds (Should not be reachable)"
+            else
+            if idx < n then ((idx, value) :: acc, false)
+            else if idx = n then (if num <>: A.zero then (n, num) :: acc , true else acc, true)
+            else (if num <>: A.zero then (idx, value) :: (n, num) :: acc, true else (idx, value) :: acc, true)
+
+          ) ([], false) v.entries in
+        {entries = List.rev rev_entries'; len = v.len}
 
     let set_nth_with = 
       failwith "deprecated"
