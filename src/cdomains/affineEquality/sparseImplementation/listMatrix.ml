@@ -69,7 +69,8 @@ module ListMatrix: AbstractMatrix =
       Timing.wrap "get_col" (get_col m) n
 
     let set_col m new_col n = 
-      List.mapi (fun row_idx row -> V.set_nth row n (V.nth new_col row_idx)) m 
+      (* List.mapi (fun row_idx row -> V.set_nth row n (V.nth new_col row_idx)) m *)
+      List.map2 (fun row value -> V.set_nth row n value) m (V.to_list new_col)
 
     let append_matrices m1 m2  = (* keeps dimensions of first matrix, what if dimensions differ?*)
       m1 @ m2
@@ -105,17 +106,18 @@ module ListMatrix: AbstractMatrix =
         List.map (fun row -> V.remove_nth row j) m
 
     let del_cols m cols =
-      if (Array.length cols) = num_cols m then empty() 
+      let cols = Array.to_list cols in (* TODO: Is it possible to use list for Apron dimchange? *)
+      let sorted_cols = List.sort_uniq Stdlib.compare cols in (* Apron Docs:  Repetitions are meaningless (and are not correct specification) *)
+      if (List.length cols) = num_cols m then empty() 
       else
-        let cols = Array.to_list cols in 
-        let sorted_cols = List.sort_uniq Stdlib.compare cols in (* Apron Docs:  Repetitions are meaningless (and are not correct specification), maybe use List instead?*)
         List.map (fun row -> V.remove_at_indices row sorted_cols) m
 
     let del_cols m cols = Timing.wrap "del_cols" (del_cols m) cols
 
     let map2i f m v =
       let vector_length = V.length v in
-      List.mapi (fun index row -> if index < vector_length then f index row (V.nth v index) else row) m
+      (* List.mapi (fun index row -> if index < vector_length then f index row (V.nth v index) else row) m *)
+      List.map2i (fun index row value -> if index < vector_length then f index row value else row) m (V.to_list v)
 
     let remove_zero_rows m =
       List.filter (fun row -> not (V.is_zero_vec row)) m
