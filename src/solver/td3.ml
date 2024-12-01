@@ -497,11 +497,7 @@ module Base =
                          S.Dom.widen old_side tmp), Option.map (fun (x, _) -> (x, D_Widen)) narrow_gas
                     else old_side, narrow_gas)
                 | D_Narrow ->
-                  (* TODO: This manual "narrowing" to bot is not nice!
-                     Also, it could break analyses that rely on non-identity addons to values,
-                     like wideningThresholds. Remove this, once domains are fixed so narrowing
-                     with bottom produces bottom. *)
-                  let result = if S.Dom.is_bot d then d else S.Dom.narrow old_side d in
+                  let result = S.Dom.narrow old_side d in
                   let narrow_gas = if not @@ S.Dom.equal result old_side then
                       Option.map reduce_side_narrow_gas narrow_gas
                     else
