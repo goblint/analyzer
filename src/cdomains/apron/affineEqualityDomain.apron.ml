@@ -20,7 +20,7 @@ open Batteries
 module Array = Batteries.Array
 
 module Mpqf = SharedFunctions.Mpqf
-module Mpqf = SharedFunctions.Mpqf
+
 
 module AffineEqualityMatrix (Vec: AbstractVector) (Mx: AbstractMatrix) =
 struct
