@@ -486,7 +486,6 @@ module Base =
               else
                 phase
             in
-            (* Potential optimization: don't widen locally if joining does not affect the combined value *)
             if not (phase = D_Narrow && narrow_gas = Some (0, D_Widen)) then (
               let (new_side, narrow_gas) = match phase with
                 | D_Widen -> (
