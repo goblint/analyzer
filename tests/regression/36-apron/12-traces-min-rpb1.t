@@ -173,7 +173,6 @@
           format: c_expression
   - entry_type: flow_insensitive_invariant
     flow_insensitive_invariant:
-      string: '! multithreaded || (A_locked || ((long long )g >= (long long )h && (long
-        long )h >= (long long )g))'
+      string: '! multithreaded || (A_locked || (long long )g == (long long )h)'
       type: assertion
       format: C
