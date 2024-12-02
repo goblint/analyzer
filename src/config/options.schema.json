@@ -2461,7 +2461,7 @@
                   "title": "solvers.td3.narrow-globs.narrow-gas",
                   "description": "Limits the number of times a side-effect can switch from widening to narrowing to enforce termination. 0 disables narrowing, -1 allows narrowing infinitely often.",
                   "type": "integer",
-                  "default": -1
+                  "default": 5
                 },
                 "eliminate-dead": {
                   "title": "solvers.td3.narrow-globs.eliminate-dead",
