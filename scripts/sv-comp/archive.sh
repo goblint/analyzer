@@ -4,7 +4,7 @@
 
 make clean
 
-git tag -m "SV-COMP 2024" svcomp24
+git tag -m "SV-COMP 2025" svcomp25
 
 dune build --profile=release src/goblint.exe
 rm -f goblint
@@ -32,8 +32,8 @@ zip goblint/scripts/sv-comp/goblint.zip \
     goblint/lib/libboxD.so \
     goblint/lib/libpolkaMPQ.so \
     goblint/lib/LICENSE.APRON \
-    goblint/conf/svcomp24.json \
-    goblint/conf/svcomp24-validate.json \
+    goblint/conf/svcomp25.json \
+    goblint/conf/svcomp25-validate.json \
     goblint/lib/libc/stub/include/assert.h \
     goblint/lib/goblint/runtime/include/goblint.h \
     goblint/lib/libc/stub/src/stdlib.c \

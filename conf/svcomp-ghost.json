@@ -1,0 +1,139 @@
+{
+  "ana": {
+    "sv-comp": {
+      "enabled": true,
+      "functions": true
+    },
+    "int": {
+      "def_exc": true,
+      "enums": false,
+      "interval": true
+    },
+    "float": {
+      "interval": true,
+      "evaluate_math_functions": true
+    },
+    "activated": [
+      "base",
+      "threadid",
+      "threadflag",
+      "threadreturn",
+      "mallocWrapper",
+      "mutexEvents",
+      "mutex",
+      "access",
+      "race",
+      "escape",
+      "expRelation",
+      "mhp",
+      "assert",
+      "var_eq",
+      "symb_locks",
+      "region",
+      "thread",
+      "threadJoins",
+      "abortUnless",
+      "mutexGhosts",
+      "pthreadMutexType"
+    ],
+    "path_sens": [
+      "mutex",
+      "malloc_null",
+      "uninit",
+      "expsplit",
+      "activeSetjmp",
+      "memLeak",
+      "threadflag"
+    ],
+    "context": {
+      "widen": false
+    },
+    "base": {
+      "arrays": {
+        "domain": "partitioned"
+      },
+      "invariant": {
+        "local": false,
+        "global": true
+      }
+    },
+    "relation": {
+      "invariant": {
+        "local": false,
+        "global": true,
+        "one-var": false
+      }
+    },
+    "apron": {
+      "invariant": {
+        "diff-box": true
+      }
+    },
+    "var_eq": {
+      "invariant": {
+        "enabled": false
+      }
+    },
+    "race": {
+      "free": false,
+      "call": false
+    },
+    "autotune": {
+      "enabled": true,
+      "activated": [
+        "singleThreaded",
+        "mallocWrappers",
+        "noRecursiveIntervals",
+        "enums",
+        "congruence",
+        "octagon",
+        "wideningThresholds",
+        "loopUnrollHeuristic",
+        "memsafetySpecification",
+        "noOverflows",
+        "termination",
+        "tmpSpecialAnalysis"
+      ]
+    }
+  },
+  "exp": {
+    "region-offsets": true
+  },
+  "solver": "td3",
+  "sem": {
+    "unknown_function": {
+      "spawn": false
+    },
+    "int": {
+      "signed_overflow": "assume_none"
+    },
+    "null-pointer": {
+      "dereference": "assume_none"
+    }
+  },
+  "witness": {
+    "graphml": {
+      "enabled": false
+    },
+    "yaml": {
+      "enabled": true,
+      "format-version": "2.1",
+      "entry-types": [
+        "flow_insensitive_invariant",
+        "ghost_instrumentation"
+      ]
+    },
+    "invariant": {
+      "loop-head": true,
+      "after-lock": true,
+      "other": true,
+      "accessed": false,
+      "exact": true,
+      "all-locals": false,
+      "flow_insensitive-as": "invariant_set-location_invariant"
+    }
+  },
+  "pre": {
+    "enabled": false
+  }
+}

@@ -77,6 +77,8 @@
 
     This includes: git tag name, git tag message and zipped conf file.
 
+5. Open MR with conf file name to the [bench-defs](https://gitlab.com/sosy-lab/sv-comp/bench-defs) repository.
+
 ### For each prerun
 
 1. Update opam pins:
