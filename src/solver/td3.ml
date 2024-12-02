@@ -51,14 +51,14 @@ module Base =
     module VS = Set.Make (S.Var)
     let exists_key f hm = HM.exists (fun k _ -> f k) hm
 
-    type divided_side_phase = D_Widen | D_Narrow | D_Box [@@deriving show]
+    type divided_side_mode = D_Widen | D_Narrow | D_Box [@@deriving show]
 
     type solver_data = {
       st: (S.Var.t * S.Dom.t) list; (* needed to destabilize start functions if their start state changed because of some changed global initializer *)
       infl: VS.t HM.t;
       sides: VS.t HM.t;
       prev_sides: VS.t HM.t;
-      divided_side_effects: ((S.Dom.t * (int *  divided_side_phase) option) HM.t) HM.t;
+      divided_side_effects: ((S.Dom.t * (int *  divided_side_mode) option) HM.t) HM.t;
       orphan_side_effects: S.Dom.t HM.t;
       rho: S.Dom.t HM.t;
       wpoint: unit HM.t;
@@ -277,7 +277,6 @@ module Base =
       let superstable = HM.copy stable in
 
       let narrow_globs = GobConfig.get_bool "solvers.td3.narrow-globs.enabled" in
-      let narrow_globs_stable = GobConfig.get_bool "solvers.td3.narrow-globs.stable" in
       let narrow_globs_conservative_widen = GobConfig.get_bool "solvers.td3.narrow-globs.conservative-widen" in
       let narrow_globs_immediate_growth = GobConfig.get_bool "solvers.td3.narrow-globs.immediate-growth" in
       let narrow_globs_gas_default = GobConfig.get_int "solvers.td3.narrow-globs.narrow-gas" in
@@ -376,15 +375,10 @@ module Base =
                         else
                           HM.replace prev_sides x !new_sides;
                       end;
-                      if narrow_globs_immediate_growth && not narrow_globs_stable then
+                      if narrow_globs_immediate_growth then
                         HM.iter (fun y acc -> if not @@ HM.mem changed y then ignore @@ divided_side D_Narrow ~x y acc) acc
                       else (
-                        begin if not narrow_globs_immediate_growth then
-                            let op = if narrow_globs_stable then D_Widen else D_Box in
-                            HM.iter (fun y acc -> ignore @@ divided_side op ~x y acc) acc
-                        end;
-                        if narrow_globs_stable && HM.mem stable x then
-                          HM.iter (fun y acc -> ignore @@ divided_side D_Narrow ~x y acc) acc
+                        HM.iter (fun y acc -> ignore @@ divided_side D_Box ~x y acc) acc
                       )
                     )) (fun () -> eq x (eval l x) (side_acc acc changed x))
               else
@@ -452,14 +446,14 @@ module Base =
             HM.replace acc y new_acc;
             if narrow_globs_immediate_growth then (
               let y_changed = divided_side D_Widen ~x y new_acc in
-              if y_changed && not @@ narrow_globs_stable then
+              if y_changed then
                 HM.replace changed y ();
             )
           )
         | _ -> ()
       and reduce_side_narrow_gas (gas, phase) =
         if phase = D_Widen then gas - 1, D_Narrow else (gas, phase)
-      and divided_side (phase:divided_side_phase) ?(do_destabilize=true) ?x y d : bool =
+      and divided_side (phase:divided_side_mode) ?(do_destabilize=true) ?x y d : bool =
         if tracing then trace "side" "divided side to %a from %a ## value: %a" S.Var.pretty_trace y (Pretty.docOpt (S.Var.pretty_trace ())) x S.Dom.pretty d;
         if tracing then trace "sol2" "divided side to %a from %a ## value: %a" S.Var.pretty_trace y (Pretty.docOpt (S.Var.pretty_trace ())) x S.Dom.pretty d;
         if Hooks.system y <> None then (
@@ -508,7 +502,7 @@ module Base =
               in
 
               if not (S.Dom.equal old_side new_side) then (
-                if tracing then trace "side" "divided side to %a from %a changed (phase: %s) Old value: %a ## New value: %a" S.Var.pretty_trace y S.Var.pretty_trace x (show_divided_side_phase phase) S.Dom.pretty old_side S.Dom.pretty new_side;
+                if tracing then trace "side" "divided side to %a from %a changed (phase: %s) Old value: %a ## New value: %a" S.Var.pretty_trace y S.Var.pretty_trace x (show_divided_side_mode phase) S.Dom.pretty old_side S.Dom.pretty new_side;
 
                 if S.Dom.is_bot new_side && narrow_gas = None then
                   HM.remove y_sides x
@@ -521,8 +515,8 @@ module Base =
                   else
                     combined_side y in
                 if not (S.Dom.equal y_newval y_oldval) then (
-                  if tracing then trace "side" "value of %a changed by side from %a (phase: %s, grew: %b, shrank: %b) Old value: %a ## New value: %a"
-                      S.Var.pretty_trace y S.Var.pretty_trace x (show_divided_side_phase phase) (S.Dom.leq y_oldval y_newval) (S.Dom.leq y_newval y_oldval) S.Dom.pretty y_oldval S.Dom.pretty y_newval;
+                  if tracing then trace "side" "value of %a changed by side from %a (phase: %s) Old value: %a ## New value: %a"
+                      S.Var.pretty_trace y S.Var.pretty_trace x (show_divided_side_mode phase) S.Dom.pretty y_oldval S.Dom.pretty y_newval;
                   HM.replace rho y y_newval;
                   if do_destabilize then
                     destabilize y;
@@ -540,7 +534,7 @@ module Base =
             if tracing then trace "side" "orphaned side to %a" S.Var.pretty_trace y;
             let y_oldval = HM.find rho y in
             if not (S.Dom.leq wd y_oldval) then (
-              if tracing then trace "side" "orphaned side changed %a (phase: %s)" S.Var.pretty_trace y (show_divided_side_phase phase);
+              if tracing then trace "side" "orphaned side changed %a (phase: %s)" S.Var.pretty_trace y (show_divided_side_mode phase);
               HM.replace rho y (S.Dom.join wd y_oldval);
               if do_destabilize then
                 destabilize y;

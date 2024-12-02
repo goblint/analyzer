@@ -1,4 +1,4 @@
-// PARAM: --enable solvers.td3.narrow-globs.enabled --enable solvers.td3.narrow-globs.stable --enable ana.int.interval --enable ana.base.priv.protection.changes-only
+// PARAM: --enable solvers.td3.narrow-globs.enabled --enable ana.int.interval --enable ana.base.priv.protection.changes-only
 #include <pthread.h>
 #include <goblint.h>
 #include <unistd.h>

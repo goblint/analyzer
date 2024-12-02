@@ -1,4 +1,4 @@
-// PARAM: --enable ana.int.interval --enable ana.int.interval_threshold_widening --set ana.int.interval_threshold_widening_constants comparisons --enable solvers.td3.narrow-globs.enabled --enable solvers.td3.narrow-globs.stable
+// PARAM: --enable ana.int.interval --enable ana.int.interval_threshold_widening --set ana.int.interval_threshold_widening_constants comparisons --enable solvers.td3.narrow-globs.enabled
 #include <pthread.h>
 
 //TODO: this tests that threshold widening also narrows correctly. This should not be in this folder
@@ -7,9 +7,10 @@ int glob = 0;
 
 void *thread(void *data) {
     int ub = *(int*)data;
-    for(int i = 0; i < ub; i++) {
+    for(int i = 0; i < 256;) {
+        i += 2;
         pthread_mutex_lock(&mutex);
-        glob = i + 2;
+        glob = i;
         pthread_mutex_unlock(&mutex);
     }
     return NULL;
