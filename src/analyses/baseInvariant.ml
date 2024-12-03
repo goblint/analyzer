@@ -395,10 +395,26 @@ struct
             | Le, Some false -> meet_bin (ID.starting ikind (Z.succ l2)) (ID.ending ikind (Z.pred u1))
             | _, _ -> a, b)
          | _ -> a, b)
-      | BOr | BXor as op->
-        if M.tracing then M.tracel "inv" "Unhandled operator %a" d_binop op;
+      | BOr as op->
+        if M.tracing then M.tracel "inv" "Unhandled operator %a" d_binop op;          
         (* Be careful: inv_exp performs a meet on both arguments of the BOr / BXor. *)
         a, b
+      | BXor as op ->
+        if M.tracing then M.tracel "inv" "Unhandled operator %a" d_binop op;
+        let a' = match ID.to_int b, ID.to_int c with 
+          Some b, Some c -> (let res = IntDomain.Bitfield.to_int (IntDomain.Bitfield.logxor ikind (fst (IntDomain.Bitfield.of_int ikind b)) (fst (IntDomain.Bitfield.of_int ikind c))) in 
+            match res with 
+            Some r -> ID.meet a (ID.of_int ikind r) |
+            None -> a) |
+          _, _ -> a      
+        in let b' = match ID.to_int a, ID.to_int c with 
+        Some a, Some c -> (let res = IntDomain.Bitfield.to_int (IntDomain.Bitfield.logxor ikind (fst (IntDomain.Bitfield.of_int ikind a)) (fst (IntDomain.Bitfield.of_int ikind c))) in 
+          match res with 
+          Some r -> ID.meet b (ID.of_int ikind r) |
+          None -> b) |
+        _, _ -> b  
+        (* Be careful: inv_exp performs a meet on both arguments of the BOr / BXor. *)
+        in a', b'
       | LAnd ->
         if ID.to_bool c = Some true then
           meet_bin c c
