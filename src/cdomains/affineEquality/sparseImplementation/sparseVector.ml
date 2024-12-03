@@ -214,7 +214,7 @@ module SparseVector: AbstractVector =
     let append v v' = 
       let entries' = v.entries @ List.map (fun (idx, value) -> (idx + v.len), value) v'.entries in
       {entries = entries'; len = v.len + v'.len}
-
+          
     let exists f v  = 
       let c = v.len in
       let rec exists_aux at f v =

@@ -207,20 +207,39 @@ module ListMatrix: AbstractMatrix =
     let delete_row_with_pivots row pivots m = 
       failwith "TODO"
 
+    (* Assumes that the first row of the matrix is already the pivot row fitting to the vector. *)
+    let rec is_linearly_independent_rref v m = 
+      match m with
+      | [] -> not @@ V.is_zero_vec v
+      | x::xs ->
+        let pivot_opt = V.findi_val_opt ((<>:) A.zero) v in
+        match pivot_opt with
+        | None -> true (* When we found no pivot, the vector is already A.zero. *)
+        | Some (pivot_id, pivot) ->
+          let new_v = V.map2_preserve_zero (fun v1 v2 -> v1 -: (pivot *: v2)) v x in
+          is_linearly_independent_rref new_v xs
+
     let is_covered_by m1 m2 =
       if num_rows m1 > num_rows m2 then false else
-        let pivots = get_pivot_positions m2 in (* TODO: Lazy? *)
-        try
-          let _ = List.map2i (fun i row1 row2 ->
-              if not @@ V.exists2 (<>:) row1 row2 
-              then V.zero_vec (V.length row1) else
-                let row1 = delete_row_with_pivots row1 pivots m2 in 
-                if V.nth row1 (V.length row1 - 1) <>: A.zero
-                then raise Stdlib.Exit 
-                else V.zero_vec (V.length row1)
-            ) m1 m2 in
-          true
-        with Stdlib.Exit -> false
+        let rec is_covered_by_helper m1 m2 = 
+          match m1 with 
+          | [] -> true
+          | v1::vs1 -> 
+            let first_non_zero = V.findi_val_opt ((<>:) A.zero) v1 in
+            match first_non_zero with
+            | None -> true  (* vs1 must also be zero-vectors because of rref *)
+            | Some (idx, _) -> 
+              let m' = List.drop_while (fun v2 -> 
+                  match V.findi_val_opt ((<>:) A.zero) v2 with
+                  | None -> true  (* In this case, m2 only has zero rows after that *)
+                  | Some (idx', _) -> idx' < idx
+                ) m2 in (* Only consider the part of m2 where the pivot is at a position useful for deleting first_non_zero of v1*)
+              let linearly_indep = is_linearly_independent_rref v1 m' in 
+              if linearly_indep then false else is_covered_by_helper vs1 m'
+        in is_covered_by_helper m1 m2
+
+
+
 
     let is_covered_by m1 m2 = Timing.wrap "is_covered_by" (is_covered_by m1) m2
 
