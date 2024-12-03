@@ -2012,24 +2012,19 @@ end
 let priv_module: (module S) Lazy.t =
   lazy (
     let changes_only = get_bool "ana.base.priv.protection.changes-only" in
+    let module ProtDom: ProtectionDom = (val if changes_only then (module ProtectionChangesOnlySide : ProtectionDom) else (module ProtectionCPASide)) in
     let module Priv: S =
       (val match get_string "ana.base.privatization" with
         | "none" -> (module NonePriv: S)
         | "mutex-oplus" -> (module PerMutexOplusPriv)
         | "mutex-meet" -> (module PerMutexMeetPriv)
         | "mutex-meet-tid" -> (module PerMutexMeetTIDPriv (ThreadDigest))
-        | "protection" when changes_only -> (module ProtectionBasedPriv (ProtectionChangesOnlySide) (struct let check_read_unprotected = false let handle_atomic = false end)(NoWrapper))
-        | "protection" -> (module ProtectionBasedPriv (ProtectionCPASide) (struct let check_read_unprotected = false let handle_atomic = false end)(NoWrapper))
-        | "protection-tid" when changes_only -> (module ProtectionBasedPriv (ProtectionChangesOnlySide) (struct let check_read_unprotected = false let handle_atomic = false end)(DigestWrapper(ThreadNotStartedDigest)))
-        | "protection-tid" -> (module ProtectionBasedPriv (ProtectionCPASide) (struct let check_read_unprotected = false let handle_atomic = false end)(DigestWrapper(ThreadNotStartedDigest)))
-        | "protection-atomic" when changes_only -> (module ProtectionBasedPriv (ProtectionChangesOnlySide) (struct let check_read_unprotected = false let handle_atomic = true end)(NoWrapper)) (* experimental *)
-        | "protection-atomic" -> (module ProtectionBasedPriv (ProtectionCPASide) (struct let check_read_unprotected = false let handle_atomic = true end)(NoWrapper)) (* experimental *)
-        | "protection-read" when changes_only -> (module ProtectionBasedPriv (ProtectionChangesOnlySide) (struct let check_read_unprotected = true let handle_atomic = false end)(NoWrapper))
-        | "protection-read" -> (module ProtectionBasedPriv (ProtectionCPASide) (struct let check_read_unprotected = true let handle_atomic = false end)(NoWrapper))
-        | "protection-read-tid" when changes_only -> (module ProtectionBasedPriv (ProtectionChangesOnlySide) (struct let check_read_unprotected = true let handle_atomic = false end)(DigestWrapper(ThreadNotStartedDigest)))
-        | "protection-read-tid" -> (module ProtectionBasedPriv (ProtectionCPASide) (struct let check_read_unprotected = true let handle_atomic = false end)(DigestWrapper(ThreadNotStartedDigest)))
-        | "protection-read-atomic" when changes_only -> (module ProtectionBasedPriv (ProtectionChangesOnlySide) (struct let check_read_unprotected = true let handle_atomic = true end)(NoWrapper)) (* experimental *)
-        | "protection-read-atomic" -> (module ProtectionBasedPriv (ProtectionCPASide) (struct let check_read_unprotected = true let handle_atomic = true end)(NoWrapper)) (* experimental *)
+        | "protection" -> (module ProtectionBasedPriv (ProtDom) (struct let check_read_unprotected = false let handle_atomic = false end)(NoWrapper))
+        | "protection-tid" -> (module ProtectionBasedPriv (ProtDom) (struct let check_read_unprotected = false let handle_atomic = false end)(DigestWrapper(ThreadNotStartedDigest)))
+        | "protection-atomic" -> (module ProtectionBasedPriv (ProtDom) (struct let check_read_unprotected = false let handle_atomic = true end)(NoWrapper)) (* experimental *)
+        | "protection-read" -> (module ProtectionBasedPriv (ProtDom) (struct let check_read_unprotected = true let handle_atomic = false end)(NoWrapper))
+        | "protection-read-tid" -> (module ProtectionBasedPriv (ProtDom) (struct let check_read_unprotected = true let handle_atomic = false end)(DigestWrapper(ThreadNotStartedDigest)))
+        | "protection-read-atomic" -> (module ProtectionBasedPriv (ProtDom) (struct let check_read_unprotected = true let handle_atomic = true end)(NoWrapper)) (* experimental *)
         | "mine" -> (module MinePriv)
         | "mine-nothread" -> (module MineNoThreadPriv)
         | "mine-W" -> (module MineWPriv (struct let side_effect_global_init = true end))
