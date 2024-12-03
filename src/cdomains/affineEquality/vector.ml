@@ -12,11 +12,21 @@ sig
 
   val remove_at_indices: t -> int list -> t
 
+  val insert_zero_at_indices: t -> (int * int) list -> t
+
   val set_nth: t -> int -> num ->  t
 
   val set_nth_with: t -> int -> num -> unit
 
   val insert_val_at: int -> num ->  t ->  t
+
+  val map_preserve_zero: (num -> num) -> t -> t
+
+  val map2_preserve_zero: (num -> num -> num) -> t ->  t -> t
+
+  val fold_left_preserve_zero: ('acc -> num -> 'acc) -> 'acc -> t -> 'acc
+
+  val fold_left2_preserve_zero: ('acc -> num -> num -> 'acc) -> 'acc -> t -> t -> 'acc
 
   val apply_with_c: (num -> num -> num) -> num ->  t ->  t
 
@@ -35,6 +45,9 @@ sig
   val map2_with: (num -> num -> num) -> t -> t -> unit
 
   val findi: (num -> bool) ->  t -> int
+
+  (* Returns optional tuple of position and value which was found*)
+  val findi_val_opt: (num -> bool) ->  t -> (int * num) Option.t
 
   val find_opt: (num -> bool) -> t -> num Option.t
 
@@ -55,6 +68,8 @@ sig
   val append: t -> t -> t
 
   val exists: (num -> bool) -> t -> bool
+
+  val exists2: (num -> num -> bool) -> t -> t -> bool
 
   val rev: t -> t
 
