@@ -252,9 +252,10 @@ end
 
 module BitfieldTest (I : IntDomain.SOverflow with type int_t = Z.t) =
 struct
-module I = IntDomain.SOverflowUnlifter (I)
+  module I = IntDomain.SOverflowUnlifter (I)
 
   let ik = Cil.IInt
+  let ik_char = Cil.IChar
 
   let assert_equal x y =
     OUnit.assert_equal ~printer:I.show x y
@@ -289,9 +290,9 @@ module I = IntDomain.SOverflowUnlifter (I)
     let b1 = I.of_int ik (of_int 9) in
     let b2 = I.of_int ik (of_int 2) in
     let bjoin = I.join ik b1 b2 in
+
     assert_bool "num1 leq join" (I.leq b1 bjoin);
     assert_bool "num2 leq join" (I.leq b2 bjoin);
-
 
     OUnit.assert_equal `Top (I.equal_to (Z.of_int 9) bjoin);
     OUnit.assert_equal `Top (I.equal_to (Z.of_int 2) bjoin);
@@ -373,13 +374,19 @@ module I = IntDomain.SOverflowUnlifter (I)
     (* no widening needed *)
     assert_bool "join leq widen" (I.leq (I.join ik b1 b2) (I.widen ik b1 b2))
 
-  let test_of_interval _ =
-    let intvl= (of_int 3, of_int 17) in
-    let b1 = I.of_interval ik intvl in
-
-    for i = 3 to 17 do
-      assert_bool (string_of_int i) (I.equal_to (of_int i) b1 = `Top)
+  let assert_of_interval lb ub =
+    let intvl = (of_int lb, of_int ub) in 
+    let bf = I.of_interval ik intvl in
+    let print_err_message i = "Missing value: " ^ string_of_int i ^ " in [" ^ string_of_int lb ^ ", " ^ string_of_int ub ^ "]" in
+    for i = lb to ub do
+      assert_bool (print_err_message i) (I.equal_to (of_int i) bf = `Top)
     done
+
+  let test_of_interval _ =
+    assert_of_interval 3 17;
+    assert_of_interval (-17) (-3);
+    assert_of_interval (-3) 17;
+    assert_of_interval (-17) 3
 
   let test_of_bool _ =
     let b1 = I.of_bool ik true in
@@ -407,7 +414,7 @@ module I = IntDomain.SOverflowUnlifter (I)
 
   let test_cast_to _ =
     let b1 = I.of_int ik (of_int 1234) in
-    
+
     assert_equal (I.of_int IChar (of_int (210))) (I.cast_to IChar b1);
     assert_equal (I.of_int ISChar (of_int (-46))) (I.cast_to ISChar b1);
 
@@ -449,7 +456,7 @@ module I = IntDomain.SOverflowUnlifter (I)
     assert_bool "13 ?= 13 or (5 | 17)" (I.equal_to (of_int 13) (I.logor ik b12 b3) = `Top);
     assert_bool "29 ?= 13 or (5 | 17)" (I.equal_to (of_int 29) (I.logor ik b12 b3) = `Top)
 
- let test_lognot _ =
+  let test_lognot _ =
     let b1 = I.of_int ik (of_int 4) in
     let b2 = I.of_int ik (of_int 12) in
 
@@ -460,36 +467,124 @@ module I = IntDomain.SOverflowUnlifter (I)
     assert_bool "-13 ?= not (4 | 12)" (I.equal_to (of_int (-13)) (I.lognot ik b12) = `Top);
     assert_bool "-5 ?= not (4 | 12)" (I.equal_to (of_int (-5)) (I.lognot ik b12) = `Top)
 
+  let of_list ik is = List.fold_left (fun acc x -> I.join ik acc (I.of_int ik x)) (I.bot ()) is
+
+  let assert_shift shift symb ik a b expected_values = 
+    let bf1 = of_list ik (List.map of_int a) in
+    let bf2 = of_list ik (List.map of_int b) in
+    let bf_shift_resolution = (shift ik bf1 bf2) in
+    let x = of_list ik (List.map of_int expected_values) in
+    let output_string = I.show bf1 ^ symb ^ I.show bf2 ^ " was: " ^ I.show bf_shift_resolution ^ " but should be: " ^  I.show x in
+    let output  = "Test shift ("^ I.show bf1 ^ symb ^ I.show bf2  ^ ") failed: " ^ output_string in
+    assert_bool (output) (I.equal bf_shift_resolution x)
+
+  let assert_shift_left ik a b res = assert_shift I.shift_left " << " ik a b res
+  let assert_shift_right ik a b res = assert_shift I.shift_right " >> " ik a b res
+
   let test_shift_left _ =
-    let stat1 = I.of_int ik (of_int 2) in
-    let stat2 = I.of_int ik (of_int 1) in
-    let eval = (I.shift_left ik stat1 stat2) in
-    let eq = (of_int(4)) in
-    assert_bool ("2 << 1 should be: \"4\" but was: \"" ^ I.show eval ^ "\"") (I.equal_to eq eval = `Eq);
-
-    let stat1 = I.of_int ik (of_int (-2)) in
-    let stat2 = I.of_int ik (of_int 1) in
-    let eval = (I.shift_left ik stat1 stat2) in
-    let eq = (of_int(-4)) in
-    assert_bool ("2 << 1 should be: \"4\" but was: \"" ^ I.show eval ^ "\"") (I.equal_to eq eval = `Eq)
-
+    assert_shift_left ik_char [-3] [7] [-128];
+    assert_shift_left ik [-3] [7] [-384];
+    assert_shift_left ik [2] [1; 2] [2; 4; 8; 16];
+    assert_shift_left ik [1; 2] [1] [2; 4];
+    assert_shift_left ik [-1; 1] [1] [-2; 2];
+    assert_shift_left ik [-1] [4] [-16];
+    assert_shift_left ik [-1] [1] [-2];
+    assert_shift_left ik [-1] [2] [-4];
+    assert_shift_left ik [-1] [3] [-8];
+    assert_shift_left ik [-2] [1; 2] [-2; -4; -8; -16];
+    assert_shift_left ik [-1] [1; 2] [-1; -2; -4; -8];
+    assert_shift_left ik [1073741824] [128; 384] [0];
+    assert_shift_left ik [1073741824] [0; 128; 384] [1073741824]
 
   let test_shift_right _ =
-    let stat1 = I.of_int ik (of_int (4)) in
-    let stat2 = I.of_int ik (of_int 1) in
-    let eval = (I.shift_right ik stat1 stat2) in
-    let eq = (of_int (2)) in
-    assert_bool ("4 >> 1 should be: \"2\" but was: \"" ^ I.show eval ^ "\"" ^ I.show stat1) (I.equal_to eq eval = `Eq);
-
-    let stat1 = I.of_int ik (of_int (-4)) in
-    let stat2 = I.of_int ik (of_int 1) in
-    let eval = (I.shift_right ik stat1 stat2) in
-    let eq = (of_int (-2)) in
-    assert_bool ("4 >> 1 should be: \"2\" but was: \"" ^ I.show eval ^ "\"" ^ I.show stat1) (I.equal_to eq eval = `Eq)
+    assert_shift_right ik [4] [1] [2];
+    assert_shift_right ik [-4] [1] [-2];
+    assert_shift_right ik [1] [1] [0];
+    assert_shift_right ik [1] [1; 2] [0; 1];
+    assert_shift_right ik [1; 2] [1; 2] [0; 1; 2; 3];
+    assert_shift_right ik [32] [64; 2] [8; 32];
+    assert_shift_right ik [32] [128; 384] [0]
 
 
   (* Arith *)
 
+  let print_err_message bf1 bf2 bfr = 
+    I.show bfr ^ " on input " ^ I.show bf1 ^ " and " ^ I.show bf2
+
+  let ik_arithu = Cil.IUChar
+
+  let ik_ariths = Cil.IChar
+
+  let result_list op is1 is2 = List.concat (List.map (fun x -> List.map (op x) is2) is1)
+
+  let generate_test ?(debug=false) opc opa ik is1 is2 = 
+    let zs1 = List.map Z.of_int is1 in 
+    let zs2 = List.map Z.of_int is2 in 
+    let res = of_list ik (result_list opc zs1 zs2) in 
+    let bs1 = of_list ik zs1 in 
+    let bs2 = of_list ik zs2 in 
+    let bsr = opa ik bs1 bs2 in
+    OUnit2.assert_equal ~cmp:I.leq ~printer:(print_err_message bs1 bs2) res bsr
+
+  let c1 = [99]
+  let c2 = [186]
+  let c3 = [-64]
+  let c4 = [-104]
+
+  let is1 = [8; 45; 89; 128]
+  let is2 = [5; 69; 72; 192]
+  let is3 = [-11; -42; -99; -120]
+  let is4 = [-16; -64; -87; -111]
+  let is5 = [-64; -14; 22; 86]
+
+  let testsuite = [c1;c2;c3;c4;is1;is2;is3;is4]
+  let testsuite_unsigned = [c1;c2;is1;is2]
+
+  let arith_testsuite ?(debug=false) opc opa ts ik = 
+    List.iter (fun x -> List.iter (generate_test opc opa ik x) ts) ts
+
+  let test_add _ = 
+    let _ = arith_testsuite Z.add I.add testsuite ik_arithu in
+    let _ = arith_testsuite Z.add I.add testsuite ik_ariths in 
+    ()
+
+  let test_sub _ = 
+    let _ = arith_testsuite Z.sub I.sub testsuite ik_arithu in
+    let _ = arith_testsuite Z.sub I.sub testsuite ik_ariths in 
+    ()
+
+  let test_mul _ =     
+    let _ = arith_testsuite Z.mul I.mul testsuite ik_arithu in
+    let _ = arith_testsuite Z.mul I.mul testsuite ik_ariths in 
+    ()
+
+  let test_div _ = 
+    let _ = arith_testsuite Z.div I.div testsuite_unsigned ik_arithu in
+    let _ = arith_testsuite Z.div I.div testsuite IShort in 
+    ()
+
+  let test_rem _ = 
+    let _ = arith_testsuite Z.rem I.rem testsuite_unsigned ik_arithu in
+    let _ = arith_testsuite Z.rem I.rem testsuite IShort in 
+    ()
+
+  let test_neg _ = 
+    let print_neg_err_message bfi bfr = 
+      I.show bfr ^ " on input " ^ I.show bfi
+    in
+    let generate_test_neg opc opa ik is = 
+      let zs = List.map Z.of_int is in 
+      let res = of_list ik (List.map opc zs) in 
+      let bs = of_list ik zs in 
+      OUnit2.assert_equal ~cmp:I.leq ~printer:(print_neg_err_message bs) res (opa ik bs)
+    in 
+    let neg_testsuite opc opa ik = 
+      let testsuite = [c1;c2;c3;c4;is1;is2;is3;is4] in
+      List.map (generate_test_neg opc opa ik) testsuite
+    in
+    let _ = neg_testsuite Z.neg I.neg ik_arithu in
+    let _ = neg_testsuite Z.neg I.neg ik_ariths in 
+    ()
 
   (* Comparisons *)
 
@@ -535,7 +630,7 @@ module I = IntDomain.SOverflowUnlifter (I)
     let b6 = I.of_int ik (of_int 4) in
     assert_bool "4 <= (5 | 14)" (I.le ik b6 b12 = I.of_bool ik true)
 
-    
+
   let test_ge _ =
     let b1 = I.of_int ik (of_int 5) in
     let b2 = I.of_int ik (of_int 14) in
@@ -572,7 +667,6 @@ module I = IntDomain.SOverflowUnlifter (I)
   let test_gt _ =
     let b1 = I.of_int ik (of_int 5) in
     let b2 = I.of_int ik (of_int 14) in
-
 
     assert_bool "5 > 5" (I.gt ik b1 b1 = I.of_bool ik false);
     assert_bool "5 > 14" (I.gt ik b1 b2 = I.of_bool ik false);
@@ -637,6 +731,10 @@ module I = IntDomain.SOverflowUnlifter (I)
 
     List.iter (fun i -> assert_bool (Z.to_string i) (I.equal_to i bf_refined = `Top)) list
 
+  (*
+  let test_refine_with_exclusion_list _ = failwith "TODO"
+  *)
+
   let test () =[
     "test_of_int_to_int" >:: test_of_int_to_int;
     "test_to_int_of_int" >:: test_to_int_of_int;
@@ -654,6 +752,7 @@ module I = IntDomain.SOverflowUnlifter (I)
     "test_widen_1" >:: test_widen_1;
     "test_widen_2" >:: test_widen_2;
 
+    
     "test_of_interval" >:: test_of_interval;
     "test_of_bool" >:: test_of_bool;
     "test_to_bool" >:: test_to_bool;
@@ -663,8 +762,16 @@ module I = IntDomain.SOverflowUnlifter (I)
     "test_logand" >:: test_logand;
     "test_logor" >:: test_logor;
     "test_lognot" >:: test_lognot;
+    
     "test_shift_left" >:: test_shift_left;
     "test_shift_right" >:: test_shift_right;
+
+    "test_add" >:: test_add;
+    "test_sub" >:: test_sub;
+    "test_mul" >:: test_mul;
+    "test_div" >:: test_div;
+    "test_rem" >:: test_rem;
+    
 
     "test_eq" >:: test_eq;
     "test_ne" >:: test_ne;
@@ -678,7 +785,8 @@ module I = IntDomain.SOverflowUnlifter (I)
 
     "test_refine_with_congruence" >:: test_refine_with_congruence;
     "test_refine_with_inclusion_list" >:: test_refine_with_inclusion_list;
-    ]
+    (*"test_refine_with_exclusion_list" >:: test_refine_with_exclusion_list;*)
+  ]
 
 end
 
@@ -759,13 +867,13 @@ struct
   module B = IntDomain.SOverflowUnlifter (B)
   let ik      = Cil.IUChar
 
- let of_list ik is = List.fold_left (fun acc x -> B.join ik acc (B.of_int ik x)) (B.bot ()) is
+  let of_list ik is = List.fold_left (fun acc x -> B.join ik acc (B.of_int ik x)) (B.bot ()) is
 
   let v1 = Z.of_int 0
-  let v2 = Z.of_int 13
+  let v2 = Z.of_int 2
   let vr = Z.mul v1 v2
 
-  let is = [0;1;2;3;4;5;6;7]
+  let is = [-3;3]
   let res = [0;13;26;39;52;65;78;91]
 
   let b1 = of_list ik (List.map Z.of_int is)
@@ -774,9 +882,11 @@ struct
 
   let test_add _ = assert_equal ~cmp:B.leq ~printer:B.show br (B.mul ik b2 b1)
 
+  let test_lt _ = assert_equal ~cmp:B.leq ~printer:B.show (B.join ik (B.of_int ik Z.zero) (B.of_int ik Z.one)) (B.lt ik b1 b2)
+
   let test () =  [
-    "test_add" >:: test_add;
-    ]
+    "test_lt" >:: test_lt;
+  ]
 end
 
 module TEMPDEBUG_TODO_REMOVE = TEMPDEBUG_TODO_REMOVE_TEST(IntDomain.Bitfield)
