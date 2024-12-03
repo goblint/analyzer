@@ -431,12 +431,6 @@ module Base =
             )
           )
         )
-      and combined_side y =
-        let combined = match HM.find_option divided_side_effects y with
-          | Some map -> HM.fold (fun _ (value, _) acc -> S.Dom.join acc value) map (S.Dom.bot ())
-          | None -> S.Dom.bot () in
-        let orphaned = HM.find_default orphan_side_effects y (S.Dom.bot()) in
-        S.Dom.join combined orphaned
       and side_acc acc changed x y d =
         let new_acc = match HM.find_option acc y with
           | Some acc -> if not @@ S.Dom.leq d acc then Some (S.Dom.join acc d) else None
@@ -451,8 +445,6 @@ module Base =
             )
           )
         | _ -> ()
-      and reduce_side_narrow_gas (gas, phase) =
-        if phase = D_Widen then gas - 1, D_Narrow else (gas, phase)
       and divided_side (phase:divided_side_mode) ?(do_destabilize=true) ?x y d : bool =
         if tracing then trace "side" "divided side to %a from %a ## value: %a" S.Var.pretty_trace y (Pretty.docOpt (S.Var.pretty_trace ())) x S.Dom.pretty d;
         if tracing then trace "sol2" "divided side to %a from %a ## value: %a" S.Var.pretty_trace y (Pretty.docOpt (S.Var.pretty_trace ())) x S.Dom.pretty d;
@@ -493,7 +485,7 @@ module Base =
                 | D_Narrow ->
                   let result = S.Dom.narrow old_side d in
                   let narrow_gas = if not @@ S.Dom.equal result old_side then
-                      Option.map reduce_side_narrow_gas narrow_gas
+                      Option.map (fun (gas, phase) -> if phase = D_Widen then gas - 1, D_Narrow else (gas, phase)) narrow_gas
                     else
                       narrow_gas
                   in
@@ -508,6 +500,13 @@ module Base =
                   HM.remove y_sides x
                 else
                   HM.replace y_sides x (new_side, narrow_gas);
+
+                let combined_side y =
+                  let combined = match HM.find_option divided_side_effects y with
+                    | Some map -> HM.fold (fun _ (value, _) acc -> S.Dom.join acc value) map (S.Dom.bot ())
+                    | None -> S.Dom.bot () in
+                  let orphaned = HM.find_default orphan_side_effects y (S.Dom.bot()) in
+                  S.Dom.join combined orphaned in
                 let y_oldval = HM.find rho y in
                 let y_newval = if S.Dom.leq old_side new_side then
                     (* If new side is strictly greater than the old one, the value of y can only increase. *)
