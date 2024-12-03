@@ -1121,7 +1121,7 @@ module BitfieldArith (Ints_t : IntOps.IntOps) = struct
   let top_bool = join one zero
 
   let bits_known (z,o) = z ^: o
-  let bits_unknown (z,o) = z &: o
+  let bits_unknown (z,o) = !:(bits_known (z,o))
   let bits_set bf = (snd bf) &: (bits_known bf)
   let bits_invalid (z,o) = !:(z |: o)
 
@@ -1262,7 +1262,7 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): SOverflow with type int_t = Int
         let next_bit_string =
           if current_bit_impossible = Ints_t.one
             then "⊥"
-            else if current_bit_known = Ints_t.one || current_bit_known = Ints_t.zero
+            else if current_bit_known = Ints_t.one
               then string_of_int (Ints_t.to_int bit_value) else "⊤" in
         to_pretty_bits' (known_mask >>: 1) (impossible_mask >>: 1) (o_mask >>: 1) (max_bits - 1) (next_bit_string ^ acc)
     in
@@ -1277,8 +1277,14 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): SOverflow with type int_t = Int
   include Std (struct type nonrec t = t let name = name let top_of = top_of let bot_of = bot_of let show = show let equal = equal end)
 
   let range ik bf = (BArith.min ik bf, BArith.max ik bf)
-  let minimal bf = Option.some (BArith.bits_known bf) (* TODO signedness info in type? No ik here! *)
-  let maximal bf = BArith.(bits_known bf |: bits_unknown bf) |> Option.some (* TODO signedness info in type? No ik here! *)
+
+  let maximal (z,o) = let isPositive = z < Ints_t.zero in
+    if o < Ints_t.zero && isPositive then (match Ints_t.upper_bound with Some maxVal -> Some (maxVal &: o) | None -> None )
+    else Some o 
+
+  let minimal (z,o) = let isNegative = o < Ints_t.zero in
+    if z < Ints_t.zero && isNegative then (match Ints_t.lower_bound with Some minVal -> Some (minVal |: (!:z)) | None -> None )
+    else Some (!:z)
 
   let norm ?(suppress_ovwarn=false) ik (z,o) = 
     if BArith.is_invalid (z,o) then 
@@ -1504,18 +1510,14 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): SOverflow with type int_t = Int
 
   let rem ik x y = 
     if BArith.is_const x && BArith.is_const y then (
-      (* x % y = x - (x / y) * y *)
-      let tmp = fst (div ik x y) in
-      let tmp = fst (mul ik tmp y) in 
-      fst (sub ik x tmp))
+      let def_x = Option.get (to_int x) in
+      let def_y = Option.get (to_int y) in
+      fst (of_int ik (Ints_t.rem def_x def_y))
+    )
     else if BArith.is_const y && is_power_of_two (snd y) then (
       let mask = Ints_t.sub (snd y) Ints_t.one in
-      print_endline (Ints_t.to_string mask);
-     print_endline (Ints_t.to_string (Ints_t.lognot mask));
       let newz = Ints_t.logor (fst x) (Ints_t.lognot mask) in
       let newo = Ints_t.logand (snd x) mask in
-      print_endline (Ints_t.to_string newz);
-      print_endline (Ints_t.to_string newo);
       norm ik (newz, newo) |> fst
     )
     else top_of ik
