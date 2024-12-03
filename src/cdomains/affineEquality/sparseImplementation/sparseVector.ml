@@ -4,6 +4,7 @@ open ConvenienceOps
 
 open BatList
 open BatArray
+
 module List = BatList
 module Array = BatArray
 
@@ -99,9 +100,6 @@ module SparseVector: AbstractVector =
           ) ([], false) v.entries in
         {entries = List.rev rev_entries'; len = v.len}
 
-    let set_nth_with = 
-      failwith "deprecated"
-
     let insert_val_at n new_val v = 
       if n > v.len then failwith "n too large" else (* Does this happen? Otherwise we can omit this comparison, here right now to be semantically equivalent *)
         let entries' = List.fold_left (fun acc (idx, value) -> 
@@ -150,9 +148,6 @@ module SparseVector: AbstractVector =
       let entries' = List.map (fun (idx, value) -> (idx, f value c)) v.entries in
       {entries = entries'; len = v.len}
 
-    let apply_with_c_with f m v = 
-      failwith "deprecated"
-
     let zero_vec n = 
       {entries = []; len = n}
 
@@ -188,8 +183,6 @@ module SparseVector: AbstractVector =
       if v.len <> v'.len then failwith "Unequal vector length" else 
         of_list (List.map2 f (to_list v) (to_list v'))
 
-    let map2_with f v v' = 
-      failwith "deprecated"
 
     let findi f v = 
       if f A.zero then  
@@ -212,14 +205,11 @@ module SparseVector: AbstractVector =
     let map f v = 
       of_list (List.map f (to_list v))
 
-    let map_with f v  = 
-      failwith "deprecated"
-
     let compare_length_with v n = 
       Int.compare v.len n
 
-    let filteri f v = 
-      failwith "TODO"
+    let filteri f v = (* TODO: optimize! *)
+      of_list (List.filteri f (to_list v))
 
     let append v v' = 
       let entries' = v.entries @ List.map (fun (idx, value) -> (idx + v.len), value) v'.entries in
@@ -233,29 +223,20 @@ module SparseVector: AbstractVector =
         | (xi, xv)::xs -> if f xv then true else exists_aux (at - 1) f xs
       in (exists_aux c f v.entries)
 
-    let exists2 f v1 v2 =
-      failwith "TODO"
+    let exists2 f v1 v2 = (* TODO: optimize! *)
+      List.exists2 f (to_list v1) (to_list v2)
 
     let rev v = 
       let entries' = List.rev @@ List.map (fun (idx, value) -> (v.len - idx, value)) v.entries in 
       {entries = entries'; len = v.len}
 
-    let rev_with v = 
-      failwith "deprecated"
-
-    let map2i f v v' = 
+    let map2i f v v' = (* TODO: optimize! *)
       of_list (List.map2i f (to_list v) (to_list v'))
 
-    let map2i_with f v v' = 
-      failwith "deprecated"
-
-    let mapi f v  = 
+    let mapi f v  = (* TODO: optimize! *)
       of_list (List.mapi f (to_list v))
 
-    let mapi_with f v = 
-      failwith "deprecated"
-
-    let find2i f v v' = 
+    let find2i f v v' = (* TODO: optimize! *)
       failwith "TODO"
 
     let to_array v = 
@@ -276,8 +257,8 @@ module SparseVector: AbstractVector =
     let to_sparse_list v = 
       v.entries
 
-    let find_opt f v =
-      failwith "TODO: Do we need this?"
+    let find_opt f v = (* TODO: Do we need this? And optimize!!!*)
+      List.find_opt f (to_list v)
 
     let show v = 
       let t = to_list v in 
@@ -288,4 +269,27 @@ module SparseVector: AbstractVector =
       in
       "["^list_str t^"\n"
 
+    (* ------------------- Deprecated ------------------- *)
+    let mapi_with f v = 
+      failwith "deprecated"
+
+    let map2i_with f v v' = 
+      failwith "deprecated"
+
+
+    let rev_with v = 
+      failwith "deprecated"
+
+    let map_with f v  = 
+      failwith "deprecated"
+
+
+    let map2_with f v v' = 
+      failwith "deprecated"
+
+    let apply_with_c_with f m v = 
+      failwith "deprecated"
+
+    let set_nth_with = 
+      failwith "deprecated"
   end 
