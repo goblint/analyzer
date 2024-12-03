@@ -1083,129 +1083,158 @@ struct
   let project ik p t = t
 end
 
+module BitfieldInfixOps (Ints_t : IntOps.IntOps) = struct
+  let (&:) = Ints_t.logand
+  let (|:) = Ints_t.logor
+  let (^:) = Ints_t.logxor
+  let (!:) = Ints_t.lognot
+  let (<<:) = Ints_t.shift_left
+  let (>>:) = Ints_t.shift_right
+  let (<:) = fun a b -> Ints_t.compare a b < 0
+  let (=:) = fun a b -> Ints_t.compare a b = 0
+  let (>:) = fun a b -> Ints_t.compare a b > 0
+
+  let (+:) = Ints_t.add
+  let (-:) = Ints_t.sub
+  let ( *: ) = Ints_t.mul
+  let (/:) = Ints_t.div
+  let (%:) = Ints_t.rem
+
+  let (>>.) = fun a b -> a >>: b |: !:((Ints_t.one <<: b) -: Ints_t.one)
+end
+
 (* Bitfield arithmetic, without any overflow handling etc. *)
 module BitfieldArith (Ints_t : IntOps.IntOps) = struct
 
+  include BitfieldInfixOps (Ints_t)
+
   let zero_mask = Ints_t.zero
-  let one_mask = Ints_t.lognot zero_mask
+  let one_mask = !:zero_mask
 
-  let of_int x = (Ints_t.lognot x, x) 
+  let of_int x = (!:x, x) 
 
-  let join (z1,o1) (z2,o2) = (Ints_t.logor z1 z2, Ints_t.logor o1 o2)
-  let meet (z1,o1) (z2,o2) = (Ints_t.logand z1 z2, Ints_t.logand o1 o2)
+  let join (z1,o1) (z2,o2) = (z1 |: z2, o1 |: o2)
+  let meet (z1,o1) (z2,o2) = (z1 &: z2, o1 &: o2)
 
   let one = of_int Ints_t.one
   let zero = of_int Ints_t.zero
-
   let top_bool = join one zero
 
-  let bits_known (z,o) = Ints_t.logxor z o
-  let bits_unknown bf = Ints_t.lognot @@ bits_known bf
+  let bits_known (z,o) = z ^: o
+  let bits_unknown (z,o) = z &: o
+  let bits_set bf = (snd bf) &: (bits_known bf)
+  let bits_invalid (z,o) = !:(z |: o)
 
-  let bits_impossible (z,o) = Ints_t.lognot @@ Ints_t.logor z o
+  let is_const (z,o) = (z ^: o) =: one_mask
+  let is_invalid (z,o) = not ((!:(z |: o)) =: Ints_t.zero)
 
-  let bits_set bf = Ints_t.logand (snd bf) @@ bits_known bf
-
-  let is_const (z,o) = (Ints_t.logxor z o) = one_mask
-  let is_invalid (z,o) = Ints_t.compare (Ints_t.lognot (Ints_t.logor z o)) Ints_t.zero != 0
-
-  let nabla x y= if x = Ints_t.logor x y then x else one_mask
+  let nabla x y= if x =: (x |: y) then x else one_mask
 
   let widen (z1,o1) (z2,o2) = (nabla z1 z2, nabla o1 o2)            
 
   let lognot (z,o) = (o,z)
 
-  let logxor (z1,o1)  (z2,o2) = (Ints_t.logor (Ints_t.logand z1 z2) (Ints_t.logand o1 o2), 
-                                 Ints_t.logor (Ints_t.logand z1 o2) (Ints_t.logand o1 z2))
+  let logxor (z1,o1)  (z2,o2) = ((z1 &: z2) |: (o1 &: o2), 
+                                 (z1 &: o2) |: (o1 &: z2))
 
-  let logand (z1,o1) (z2,o2) = (Ints_t.logor z1 z2, Ints_t.logand o1 o2)
+  let logand (z1,o1) (z2,o2) = (z1 |: z2, o1 &: o2)
 
-  let logor (z1,o1)  (z2,o2) = (Ints_t.logand z1 z2, Ints_t.logor o1 o2)
+  let logor (z1,o1)  (z2,o2) = (z1 &: z2, o1 |: o2)
 
-  let make_bitone_msk pos = Ints_t.shift_left Ints_t.one pos
-  let make_bitzero_msk pos = Ints_t.lognot @@ make_bitone_msk pos
-  let make_lsb_bitmask pos = Ints_t.sub (make_bitone_msk pos) Ints_t.one
-  let make_msb_bitmask pos = Ints_t.lognot @@ make_lsb_bitmask pos
+  let make_bitone_msk pos = Ints_t.one <<: pos
+  let make_lsb_bitmask pos =
+    let bitmsk = make_bitone_msk pos in
+    if bitmsk =: Ints_t.zero then Ints_t.zero
+    else Ints_t.sub bitmsk Ints_t.one
+  let make_msb_bitmask pos = !:(make_lsb_bitmask pos)
 
-  let get_bit bf pos = Ints_t.logand Ints_t.one @@ Ints_t.shift_right bf pos
-  let set_bit ?(zero=false) bf pos =
-    if zero then
-      Ints_t.logand bf @@ make_bitzero_msk pos
-    else
-      Ints_t.logor bf @@ make_bitone_msk pos
-
-  let log2_bitcnt ik =
-    let ilog2 n =
-      let rec aux n acc =
-        if n <= 1 then acc
-        else aux (n lsr 1) (acc + 1)
-      in aux n 0
-    in ilog2 (Size.bit ik)
-
-  let break_down_lsb ik (z,o) : (Ints_t.t * Ints_t.t) list option = if is_invalid (z,o) then None
-    else
-      let rec break_down c_lst i = if i < 0 then c_lst
-        else
-        if get_bit z i = get_bit o i then
-          List.fold_left2 (
-            fun acc (z1,o1) (z2,o2) -> (set_bit z1 i, set_bit ~zero:true o1 i) :: (set_bit ~zero:true z2 i, o2) :: acc
-          ) [] c_lst c_lst
-          |> fun c_lst -> break_down c_lst (i-1)
-        else
-          break_down c_lst (i-1)
-      in
-      let lsb_bitcnt_log_ik = log2_bitcnt ik + 1 in (* ilog2 bitcnt of ik ceiled *)
-      let pfx_msk = make_msb_bitmask lsb_bitcnt_log_ik in
-      let sufx_msk = make_lsb_bitmask lsb_bitcnt_log_ik in
-      let msb_msk = Ints_t.logand (bits_set (z,o)) pfx_msk in (* shift a b = zero when min{b} > ceil(ilog2 a) *)
-      if Ints_t.compare msb_msk Ints_t.zero = 0
-      then break_down [(Ints_t.logand z pfx_msk, Ints_t.logand o sufx_msk)] (lsb_bitcnt_log_ik - 1) |> Option.some
-      else Some ([of_int @@ Ints_t.of_int (lsb_bitcnt_log_ik)])
-
-  let break_down ik bf = Option.map (fun c_bf_lst -> List.map snd c_bf_lst |> List.map Ints_t.to_int) (break_down_lsb ik bf)
-
-  let shift_right ik bf n_bf =
-    let shift_right (z,o) c =
-      let sign_msk = Ints_t.shift_left one_mask (Size.bit ik - c) in
-      if (isSigned ik) && ((Ints_t.to_int o) < 0) then
-        (Ints_t.shift_right z c, Ints_t.logor (Ints_t.shift_right o c) sign_msk)
-      else
-        (Ints_t.logor (Ints_t.shift_right z c) sign_msk, Ints_t.shift_right o c)
-    in
-    if is_const n_bf then Some (shift_right bf (Ints_t.to_int @@ snd n_bf))
-    else Option.map (fun c_lst -> List.map (shift_right bf) c_lst |> List.fold_left join zero) (break_down ik n_bf)
-
-  let shift_left ik bf n_bf =
-    let shift_left (z,o) c =
-      let z_msk = Ints_t.sub (Ints_t.shift_left Ints_t.one c) Ints_t.one in
-      (Ints_t.logor (Ints_t.shift_left z c) z_msk, Ints_t.shift_left o c)
-    in
-    if is_const n_bf then Some (shift_left bf (Ints_t.to_int @@ snd n_bf))
-    else Option.map (fun c_lst -> List.map (shift_left bf) c_lst |> List.fold_left join zero) (break_down ik n_bf)
+  let get_bit bf pos = Ints_t.one &: (bf >>: pos)
 
   let min ik (z,o) = 
-    let unknownBitMask = bits_unknown (z,o) in
-    let guaranteedBits = bits_set (z,o) in
-
-    if isSigned ik then
-      let signBitMask = Ints_t.shift_left Ints_t.one (Size.bit ik - 1) in
-      let worstPossibleUnknownBits = Ints_t.logand unknownBitMask signBitMask in
-      Size.cast ik (Ints_t.to_bigint (Ints_t.logor guaranteedBits worstPossibleUnknownBits))
-    else
-      Size.cast ik (Ints_t.to_bigint  guaranteedBits )
+    let signBit = Ints_t.one <<: ((Size.bit ik) - 1) in 
+    let signMask = !: (Ints_t.of_bigint (snd (Size.range ik))) in
+    let isNegative = signBit &: o <> Ints_t.zero in
+    if isSigned ik && isNegative then Ints_t.to_bigint(signMask |: (!: z))
+    else Ints_t.to_bigint(!: z)
 
   let max ik (z,o) =
-    let unknownBitMask = bits_unknown (z,o) in
-    let guaranteedBits = bits_set (z,o) in
+    let signBit = Ints_t.one <<: ((Size.bit ik) - 1) in 
+    let signMask = Ints_t.of_bigint (snd (Size.range ik)) in
+    let isPositive = signBit &: z <> Ints_t.zero in
+    if isSigned ik && isPositive then Ints_t.to_bigint(signMask &: o)
+    else Ints_t.to_bigint o 
 
-    let (_,fullMask) = Size.range ik in
-    let worstPossibleUnknownBits = Ints_t.logand unknownBitMask (Ints_t.of_bigint fullMask) in
+  (* Worst Case asymptotic runtime: O(2^n). *)
+  let rec concretize (z,o) =
+    if is_const (z,o) then [o]
+    else
+      let is_bit_unknown = not ((bits_unknown (z,o) &: Ints_t.one) =: Ints_t.zero) in
+      let bit = o &: Ints_t.one in
+      let shifted_z, shifted_o = (z >>. 1, o >>: 1) in
+      if is_bit_unknown
+        then concretize (shifted_z, shifted_o) |> List.concat_map (fun c -> [c <<: 1; (c <<: 1) |: Ints_t.one])
+        else concretize (shifted_z, shifted_o) |> List.map (fun c -> c <<: 1 |: bit)
 
-    Size.cast ik (Ints_t.to_bigint (Ints_t.logor guaranteedBits worstPossibleUnknownBits))
+  let concretize bf = List.map Ints_t.to_int (concretize bf)
+
+  let get_o (_,o) = Ints_t.to_int o
+
+  let shift_right_action ik (z,o) c =
+    let sign_msk = make_msb_bitmask (Size.bit ik - c) in
+    if (isSigned ik) && (o <: Ints_t.zero) then
+      (z >>: c, (o >>: c) |: sign_msk)
+    else
+      ((z >>: c) |: sign_msk, o >>: c)
+
+  let shift_right ik (z1, o1) (z2, o2) = 
+    if is_const (z2, o2) 
+      then 
+        shift_right_action ik (z1, o1) (Ints_t.to_int o2)
+    else
+      let max_bit = Z.log2up (Z.of_int (Size.bit ik)) in
+      let mask_usefull_bits = !:(one_mask<<:max_bit) in
+      let concrete_values = concretize ((z2 &: mask_usefull_bits), (o2 &: mask_usefull_bits)) in
+      if (((o2 &: mask_usefull_bits) == Ints_t.of_int 0) && (z2 != one_mask)) || (List.length concrete_values) == 0 
+        then 
+          (one_mask, zero_mask)
+      else 
+        let (v1, v2) = (ref zero_mask, ref zero_mask) in
+        List.iter (fun x -> let (a, b) = (shift_right_action ik (z1, o1) x) in
+          v1 := !v1 |: a;
+          v2 := !v2 |: b
+        ) concrete_values;
+        (!v1, !v2)
+
+  let shift_left_action _ (z,o) c =
+    let z_msk = make_lsb_bitmask c in
+    ((z <<: c) |: z_msk, o <<: c)
+
+  let shift_left ik (z1, o1) (z2, o2) = 
+    (* (one_mask, Ints_t.of_int (Size.bit ik)) *)
+    if is_const (z2, o2) 
+      then 
+        shift_left_action ik (z1, o1) (Ints_t.to_int o2)
+    else
+      let max_bit = Z.log2up (Z.of_int (Size.bit ik)) in
+      let mask_usefull_bits = !:(one_mask <<: max_bit) in
+      let concrete_values = concretize ((z2 &: mask_usefull_bits), (o2 &: mask_usefull_bits)) in
+      if (((o2 &: mask_usefull_bits) == Ints_t.of_int 0) && (z2 != one_mask)) || (List.length concrete_values) == 0 
+      then 
+        (one_mask, zero_mask)
+      else 
+        let (v1, v2) = (ref zero_mask, ref zero_mask) in
+        List.iter (fun x -> let (a, b) = (shift_left_action ik (z1, o1) x) in
+          v1 := !v1 |: a;
+          v2 := !v2 |: b
+        ) concrete_values;
+        (!v1, !v2)
 
 end
 
 module BitfieldFunctor (Ints_t : IntOps.IntOps): SOverflow with type int_t = Ints_t.t and type t = (Ints_t.t * Ints_t.t) = struct
+
+  include BitfieldInfixOps (Ints_t)
+
   let name () = "bitfield"
   type int_t = Ints_t.t
   type t = (Ints_t.t * Ints_t.t) [@@deriving eq, ord, hash]
@@ -1218,21 +1247,26 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): SOverflow with type int_t = Int
   let bot_of ik = bot ()
 
   let to_pretty_bits (z,o) = 
-    let known = BArith.bits_known (z,o) in
-    let impossible = BArith.bits_impossible (z,o) in
-
-    let max_bits = 16 in
-
+    let known_bits = BArith.bits_known (z,o) in
+    let invalid_bits = BArith.bits_invalid (z,o) in
+    let num_bits_to_print = Sys.word_size in
     let rec to_pretty_bits' known_mask impossible_mask o_mask max_bits acc =
-      if max_bits < 0 || o_mask = Ints_t.zero then acc
+      if max_bits < 0 then
+        if o_mask = Ints_t.zero && String.empty = acc
+          then "0" else acc
+      else if o_mask = Ints_t.zero then acc
       else
-        let current_bit_known = Ints_t.logand known_mask Ints_t.one in
-        let current_bit_impossible = Ints_t.logand impossible_mask Ints_t.one in
-        let value = Ints_t.logand o_mask Ints_t.one in
-        let acc' = (if current_bit_impossible = Ints_t.one then "⊥" else if current_bit_known = Ints_t.one then string_of_int (Ints_t.to_int value) else "⊤") ^ acc in
-        to_pretty_bits' (Ints_t.shift_right known_mask 1) (Ints_t.shift_right impossible_mask 1) (Ints_t.shift_right o_mask 1) (max_bits - 1) acc'
+        let current_bit_known = known_mask &: Ints_t.one in
+        let current_bit_impossible = impossible_mask &: Ints_t.one in
+        let bit_value = o_mask &: Ints_t.one in
+        let next_bit_string =
+          if current_bit_impossible = Ints_t.one
+            then "⊥"
+            else if current_bit_known = Ints_t.one || current_bit_known = Ints_t.zero
+              then string_of_int (Ints_t.to_int bit_value) else "⊤" in
+        to_pretty_bits' (known_mask >>: 1) (impossible_mask >>: 1) (o_mask >>: 1) (max_bits - 1) (next_bit_string ^ acc)
     in
-    "0b"^to_pretty_bits' known impossible o max_bits ""
+    "0b" ^ to_pretty_bits' known_bits invalid_bits o num_bits_to_print ""
 
   let show t = 
     if t = bot () then "bot" else
@@ -1243,26 +1277,28 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): SOverflow with type int_t = Int
   include Std (struct type nonrec t = t let name = name let top_of = top_of let bot_of = bot_of let show = show let equal = equal end)
 
   let range ik bf = (BArith.min ik bf, BArith.max ik bf)
+  let minimal bf = Option.some (BArith.bits_known bf) (* TODO signedness info in type? No ik here! *)
+  let maximal bf = BArith.(bits_known bf |: bits_unknown bf) |> Option.some (* TODO signedness info in type? No ik here! *)
 
   let norm ?(suppress_ovwarn=false) ik (z,o) = 
     if BArith.is_invalid (z,o) then 
       (bot (), {underflow=false; overflow=false})
     else
       let (min_ik, max_ik) = Size.range ik in
-
+      let wrap ik (z,o) = 
+        if isSigned ik then
+          let newz = (z &: (Ints_t.of_bigint max_ik)) |: ((Ints_t.of_bigint min_ik) *: (BArith.get_bit z (Size.bit ik - 1))) in
+          let newo = (o &: (Ints_t.of_bigint max_ik)) |: ((Ints_t.of_bigint min_ik) *: (BArith.get_bit o (Size.bit ik - 1))) in
+          (newz,newo)
+        else
+          let newz = z |: !:(Ints_t.of_bigint max_ik) in
+          let newo = o &: (Ints_t.of_bigint max_ik) in
+          (newz,newo)
+      in
       let (min,max) = range ik (z,o) in
       let underflow = Z.compare min min_ik < 0 in
       let overflow = Z.compare max max_ik > 0 in
-
-      let new_bitfield=
-        (if isSigned ik then
-           let newz = Ints_t.logor (Ints_t.logand z (Ints_t.of_bigint max_ik)) (Ints_t.mul (Ints_t.of_bigint min_ik) (BArith.get_bit z (Size.bit ik - 1))) in
-           let newo = Ints_t.logor (Ints_t.logand o (Ints_t.of_bigint max_ik)) (Ints_t.mul (Ints_t.of_bigint min_ik) (BArith.get_bit o (Size.bit ik - 1))) in
-           (newz,newo)
-         else
-           let newz = Ints_t.logor z (Ints_t.lognot (Ints_t.of_bigint max_ik)) in
-           let newo = Ints_t.logand o (Ints_t.of_bigint max_ik) in
-           (newz,newo))
+      let new_bitfield = wrap ik (z,o)
       in
       if suppress_ovwarn then (new_bitfield, {underflow=false; overflow=false})
       else (new_bitfield, {underflow=underflow; overflow=overflow})
@@ -1370,11 +1406,13 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): SOverflow with type int_t = Int
 
   let shift_right ik a b = 
     M.trace "bitfield" "shift_right";
-    norm ik @@ (BArith.shift_right ik a b |> Option.value ~default: (bot ()))
+    if BArith.is_invalid b || BArith.is_invalid a || (isSigned ik && BArith.min ik b < Z.zero) then (bot (), {underflow=false; overflow=false})
+    else norm ik (BArith.shift_right ik a b)
 
   let shift_left ik a b =
     M.trace "bitfield" "shift_left";
-    norm ik @@ (BArith.shift_left ik a b |> Option.value ~default: (bot ()))
+    if BArith.is_invalid b || BArith.is_invalid a || (isSigned ik && BArith.min ik b < Z.zero) then (bot (), {underflow=false; overflow=false})
+    else norm ik (BArith.shift_left ik a b)
 
   (* Arith *)
 
@@ -1382,42 +1420,43 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): SOverflow with type int_t = Int
   add, sub and mul based on the paper 
   "Sound, Precise, and Fast Abstract Interpretation with Tristate Numbers"
   of Vishwanathan et al.
+  https://doi.org/10.1109/CGO53902.2022.9741267 
   *)
 
   let add_paper pv pm qv qm = 
-    let sv = Ints_t.add pv qv in
-    let sm = Ints_t.add pm qm in
-    let sigma = Ints_t.add sv sm in
-    let chi = Ints_t.logxor sigma sv in
-    let mu = Ints_t.logor (Ints_t.logor pm qm) chi in
-    let rv = Ints_t.logand sv (Ints_t.lognot mu) in
+    let sv = pv +: qv in
+    let sm = pm +: qm in
+    let sigma = sv +: sm in
+    let chi = sigma ^: sv in
+    let mu = pm |: qm |: chi in
+    let rv = sv &: !:mu in
     let rm = mu in 
     (rv, rm)
 
   let add ?no_ov ik (z1, o1) (z2, o2) =
-    let pv = Ints_t.logand o1 (Ints_t.lognot z1) in
-    let pm = Ints_t.logand o1 z1 in
-    let qv = Ints_t.logand o2 (Ints_t.lognot z2) in
-    let qm = Ints_t.logand o2 z2 in
+    let pv = o1 &: !:z1 in
+    let pm = o1 &: z1 in
+    let qv = o2 &: !:z2 in
+    let qm = o2 &: z2 in
     let (rv, rm) = add_paper pv pm qv qm in 
-    let o3 = Ints_t.logor rv rm in 
-    let z3 = Ints_t.logor (Ints_t.lognot rv) rm in
+    let o3 = rv |: rm in 
+    let z3 = !:rv |: rm in
     norm ik (z3, o3)
 
   let sub ?no_ov ik (z1, o1) (z2, o2) =
-    let pv = Ints_t.logand o1 (Ints_t.lognot z1) in
-    let pm = Ints_t.logand o1 z1 in
-    let qv = Ints_t.logand o2 (Ints_t.lognot z2) in
-    let qm = Ints_t.logand o2 z2 in
-    let dv = Ints_t.sub pv qv in
-    let alpha = Ints_t.add dv pm in
-    let beta = Ints_t.sub dv qm in
-    let chi = Ints_t.logxor alpha beta in
-    let mu = Ints_t.logor (Ints_t.logor pm qm) chi in
-    let rv = Ints_t.logand dv (Ints_t.lognot mu) in
+    let pv = o1 &: !:z1 in
+    let pm = o1 &: z1 in
+    let qv = o2 &: !:z2 in
+    let qm = o2 &: z2 in
+    let dv = pv -: qv in
+    let alpha = dv +: pm in
+    let beta = dv -: qm in
+    let chi = alpha ^: beta in
+    let mu = pm |: qm |: chi in
+    let rv = dv &: !:mu in
     let rm = mu in 
-    let o3 = Ints_t.logor rv rm in 
-    let z3 = Ints_t.logor (Ints_t.lognot rv) rm in
+    let o3 = rv |: rm in 
+    let z3 = !:rv |: rm in
     norm ik (z3, o3)
 
   let neg ?no_ov ik x =
@@ -1425,40 +1464,40 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): SOverflow with type int_t = Int
     sub ?no_ov ik BArith.zero x
 
   let mul ?no_ov ik (z1, o1) (z2, o2) =
-    let pm = ref (Ints_t.logand z1 o1) in
-    let pv = ref (Ints_t.logand o1 (Ints_t.lognot z1)) in 
-    let qm = ref (Ints_t.logand z2 o2) in
-    let qv = ref (Ints_t.logand o2 (Ints_t.lognot z2)) in 
+    let pm = ref (z1 &: o1) in
+    let pv = ref (o1 &: !:z1) in 
+    let qm = ref (z2 &: o2) in
+    let qv = ref (o2 &: !:z2) in 
     let accv = ref BArith.zero_mask in 
     let accm = ref BArith.zero_mask in 
     let size = if isSigned ik then Size.bit ik - 1 else Size.bit ik in
     let bitmask = Ints_t.of_bigint (fst (Size.range ik)) in
-    let signBitUndef1 = Ints_t.logand (Ints_t.logand z1 o1) bitmask in
-    let signBitUndef2 = Ints_t.logand (Ints_t.logand z2 o2) bitmask in
-    let signBitUndef = Ints_t.logor signBitUndef1 signBitUndef2 in
-    let signBitDefO = Ints_t.logand (Ints_t.logxor o1 o2) bitmask in
-    let signBitDefZ = Ints_t.logand (Ints_t.lognot (Ints_t.logxor o1 o2)) bitmask in
+    let signBitUndef1 = z1 &: o1 &: bitmask in
+    let signBitUndef2 = z2 &: o2 &: bitmask in
+    let signBitUndef = signBitUndef1 |: signBitUndef2 in
+    let signBitDefO = (o1 ^: o2) &: bitmask in
+    let signBitDefZ = !:(o1 ^: o2) &: bitmask in
     for _ = size downto 0 do 
-      (if Ints_t.logand !pm Ints_t.one == Ints_t.one then 
-         accm := snd(add_paper Ints_t.zero !accm Ints_t.zero (Ints_t.logor !qv !qm))
-       else if Ints_t.logand !pv Ints_t.one == Ints_t.one then
-         accv := fst(add_paper !accv Ints_t.zero !qv Ints_t.zero);
-       accm := snd(add_paper Ints_t.zero !accm Ints_t.zero !qm));
+      (if !pm &: Ints_t.one == Ints_t.one then 
+        accm := snd(add_paper Ints_t.zero !accm Ints_t.zero (!qv |: !qm))
+      else if !pv &: Ints_t.one == Ints_t.one then
+        accv := fst(add_paper !accv Ints_t.zero !qv Ints_t.zero);
+        accm := snd(add_paper Ints_t.zero !accm Ints_t.zero !qm));
 
-      pv := Ints_t.shift_right !pv 1;
-      pm := Ints_t.shift_right !pm 1;
-      qv := Ints_t.shift_left !qv 1;
-      qm := Ints_t.shift_left !qm 1;
+      pv := !pv >>: 1;
+      pm := !pm >>: 1;
+      qv := !qv <<: 1;
+      qm := !qm <<: 1;
     done; 
     let (rv, rm) = add_paper !accv Ints_t.zero Ints_t.zero !accm in 
-    let o3 = ref(Ints_t.logor rv rm) in 
-    let z3 = ref(Ints_t.logor (Ints_t.lognot rv) rm) in
-    if isSigned ik then z3 := Ints_t.logor signBitUndef (Ints_t.logor signBitDefZ !z3);
-    if isSigned ik then o3 := Ints_t.logor signBitUndef (Ints_t.logor signBitDefO !o3);
+    let o3 = ref(rv |: rm) in 
+    let z3 = ref(!:rv |: rm) in
+    if isSigned ik then z3 := signBitUndef |: signBitDefZ |: !z3;
+    if isSigned ik then o3 := signBitUndef |: signBitDefO |: !o3;
     norm ik (!z3, !o3)
 
   let div ?no_ov ik (z1, o1) (z2, o2) =
-    let res = if BArith.is_const (z1, o1) && BArith.is_const (z2, o2) then (let tmp = Ints_t.div z1 z2 in (Ints_t.lognot tmp, tmp)) else top_of ik in
+    let res = if BArith.is_const (z1, o1) && BArith.is_const (z2, o2) then (let tmp = z1 /: z2 in (!:tmp, tmp)) else top_of ik in
     norm ik res
 
   let is_power_of_two x = Ints_t.(logand x (sub x one) = zero)
@@ -1481,7 +1520,7 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): SOverflow with type int_t = Int
     )
     else top_of ik
 
-  let eq ik x y = 
+  let eq ik x y =
     if (BArith.max ik x) <= (BArith.min ik y) && (BArith.min ik x) >= (BArith.max ik y) then of_bool ik true 
     else if (BArith.min ik x) > (BArith.max ik y) || (BArith.max ik x) < (BArith.min ik y) then of_bool ik false 
     else BArith.top_bool
@@ -1502,7 +1541,6 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): SOverflow with type int_t = Int
     else if (BArith.min ik x) >= (BArith.max ik y) then of_bool ik false 
     else BArith.top_bool
 
-
   let gt ik x y = lt ik y x
 
   let invariant_ikind e ik (z,o) = 
@@ -1518,11 +1556,12 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): SOverflow with type int_t = Int
     of_interval ~suppress_ovwarn ik (Ints_t.of_bigint min_ik, n)
 
   let refine_with_congruence ik bf ((cong) : (int_t * int_t ) option) : t =
+    let is_power_of_two x = (x &: (x -: Ints_t.one) = Ints_t.zero) in
     match bf, cong with
     | (z,o), Some (c, m) when is_power_of_two m && m <> Ints_t.one ->
-      let congruenceMask = Ints_t.lognot m in
-      let newz = Ints_t.logor (Ints_t.logand (Ints_t.lognot congruenceMask) z) (Ints_t.logand congruenceMask (Ints_t.lognot c)) in
-      let newo = Ints_t.logor (Ints_t.logand (Ints_t.lognot congruenceMask) o) (Ints_t.logand congruenceMask c) in
+      let congruenceMask = !:m in
+      let newz = (!:congruenceMask &: z) |: (congruenceMask &: !:c) in
+      let newo = (!:congruenceMask &: o) |: (congruenceMask &: c) in
       norm ik (newz, newo) |> fst
     | _ -> norm ik bf |> fst
 
@@ -1550,14 +1589,13 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): SOverflow with type int_t = Int
        >|= (fun (new_z, new_o) -> 
            (* Randomly flip bits to be opposite *)
            let random_mask = Ints_t.of_int64 (Random.int64 (Int64.of_int (Size.bits ik |> snd))) in
-           let unsure_bitmask= Ints_t.logand new_z new_o in
-           let canceled_bits=Ints_t.logand unsure_bitmask random_mask in
-           let flipped_z = Ints_t.logor new_z canceled_bits in
-           let flipped_o = Ints_t.logand new_o (Ints_t.lognot canceled_bits) in
+           let unsure_bitmask= new_z &: new_o in
+           let canceled_bits= unsure_bitmask &: random_mask in
+           let flipped_z = new_z |: canceled_bits in
+           let flipped_o = new_o &: !:canceled_bits in
            norm ik (flipped_z, flipped_o) |> fst
          ))
     in
-
     QCheck.(set_shrink shrink @@ set_print show @@ map (fun (i1,i2) -> norm ik (i1,i2) |> fst ) pair_arb)
 
   let project ik p t = t

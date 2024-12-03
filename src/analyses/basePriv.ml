@@ -1040,11 +1040,11 @@ struct
     let s = MustLockset.remove m (current_lockset ask) in
     let t = current_thread ask in
     let side_cpa = CPA.filter (fun x _ ->
-        GWeak.fold (fun s' tm acc ->
+        GWeak.exists (fun s' tm ->
             (* TODO: swap 2^M and T partitioning for lookup by t here first? *)
             let v = ThreadMap.find t tm in
-            (MustLockset.mem m s' && not (VD.is_bot v)) || acc
-          ) (G.weak (getg (V.global x))) false
+            (MustLockset.mem m s' && not (VD.is_bot v))
+          ) (G.weak (getg (V.global x)))
       ) st.cpa
     in
     sideg (V.mutex m) (G.create_sync (GSync.singleton s side_cpa));
@@ -1098,9 +1098,9 @@ struct
   let unlock ask getg sideg (st: BaseComponents (D).t) m =
     let s = MustLockset.remove m (current_lockset ask) in
     let side_cpa = CPA.filter (fun x _ ->
-        GWeak.fold (fun s' v acc ->
-            (MustLockset.mem m s' && not (VD.is_bot v)) || acc
-          ) (G.weak (getg (V.global x))) false
+        GWeak.exists (fun s' v ->
+            (MustLockset.mem m s' && not (VD.is_bot v))
+          ) (G.weak (getg (V.global x)))
       ) st.cpa
     in
     sideg (V.mutex m) (G.create_sync (GSync.singleton s side_cpa));
