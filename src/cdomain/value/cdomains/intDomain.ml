@@ -1179,36 +1179,6 @@ module BitfieldArith (Ints_t : IntOps.IntOps) = struct
 
   let get_o (_,o) = Ints_t.to_int o
 
-  (* let shift_right ik (z,o) c =
-    let sign_msk = make_msb_bitmask (Size.bit ik - c) in
-    if (isSigned ik) && (o <: Ints_t.zero) then
-      (z >>: c, (o >>: c) |: sign_msk)
-    else
-      ((z >>: c) |: sign_msk, o >>: c)
-
-  let shift_right ik bf possible_shifts =
-    if is_const possible_shifts then shift_right ik bf (get_o possible_shifts)
-    else
-      let join_shrs c_lst = List.map (shift_right ik bf) c_lst |> List.fold_left join zero in
-      let max_bit = Z.log2up (Z.of_int @@ Size.bit ik) in 
-      if Z.to_int (min ik bf) >= max_bit then zero
-      else concretize (fst bf |: make_msb_bitmask max_bit, snd bf &: make_lsb_bitmask max_bit) (* O( 2^(log(n)) ) *)
-      |> join_shrs
-
-  let shift_left _ (z,o) c =
-    let z_msk = make_lsb_bitmask c in
-    ((z <<: c) |: z_msk, o <<: c)
-
-  let shift_left ik bf possible_shifts =
-    if is_const possible_shifts then shift_left ik bf (get_o possible_shifts)
-    else
-      let join_shls c_lst = List.map (shift_left ik bf) c_lst |> List.fold_left join zero in
-      let max_bit = Z.log2up (Z.of_int @@ Size.bit ik) in
-      if Z.to_int (min ik bf) >= max_bit then zero
-      else concretize (fst bf |: make_msb_bitmask max_bit, snd bf &: make_lsb_bitmask max_bit) (* O( 2^(log(n)) ) *)
-      |> join_shls *)
-
-
   let shift_right_action ik (z,o) c =
     let sign_msk = make_msb_bitmask (Size.bit ik - c) in
     if (isSigned ik) && (o <: Ints_t.zero) then

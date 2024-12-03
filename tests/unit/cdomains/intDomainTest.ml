@@ -469,14 +469,6 @@ struct
 
   let of_list ik is = List.fold_left (fun acc x -> I.join ik acc (I.of_int ik x)) (I.bot ()) is
 
-  let assert_shift_xx shift symb ik a b expected_values =
-    let bs1 = of_list ik (List.map of_int a) in
-    let bs2 = of_list ik (List.map of_int b) in
-    let bf_shift_res = (shift ik bs1 bs2) in
-    let output_string = I.show bs1 ^ symb ^ I.show bs2 in
-    let output_string elm = "Test shift (bf" ^ symb ^ string_of_int elm  ^ ") failed: " ^ output_string in
-    List.iter (fun v -> assert_bool (output_string v) (let test_result = I.equal_to (of_int v) bf_shift_res in test_result = `Top || test_result = `Eq)) expected_values
-
   let assert_shift shift symb ik a b expected_values = 
     let bf1 = of_list ik (List.map of_int a) in
     let bf2 = of_list ik (List.map of_int b) in
@@ -503,25 +495,13 @@ struct
     assert_shift_left ik [-1] [1; 2] [-1; -2; -4; -8]
 
 
-    (* assert_shift_left ik [1] [64] [0];
-    assert_shift_left ik [1] [64; 128] [0] *)
-
   let test_shift_right _ =
     assert_shift_right ik [4] [1] [2];
     assert_shift_right ik [-4] [1] [-2];
     assert_shift_right ik [1] [1] [0];
     assert_shift_right ik [1] [1; 2] [0; 1];
     assert_shift_right ik [1; 2] [1; 2] [0; 1; 2; 3]
-    
 
-
-    (* assert_shift_right ik [8; 64] [3; 5] [0; 1; 2; 8];
-    assert_shift_right ik [8; 64] [1] [4; 32];
-    assert_shift_right ik [8; 64] [3; 5] [0; 1; 2; 4; 8; 32];
-    assert_shift_right ik [-2; 16] [1; 2] [-1; 0; 4; 8];
-    assert_shift_right ik [2; -16] [1; 2] [-8; -4; 0; 1];
-    assert_shift_right ik [-2; -16] [1; 2] [-8; -4; -1; 0];
-    assert_shift_right ik [-53; 17; -24; 48] [3; 7] [-6; -3; 0; 2; 9] *)
 
   (* Arith *)
 
