@@ -492,15 +492,18 @@ struct
     assert_shift_left ik [-1] [2] [-4];
     assert_shift_left ik [-1] [3] [-8];
     assert_shift_left ik [-2] [1; 2] [-2; -4; -8; -16];
-    assert_shift_left ik [-1] [1; 2] [-1; -2; -4; -8]
-
+    assert_shift_left ik [-1] [1; 2] [-1; -2; -4; -8];
+    assert_shift_left ik [1073741824] [128; 384] [0];
+    assert_shift_left ik [1073741824] [0; 128; 384] [1073741824]
 
   let test_shift_right _ =
     assert_shift_right ik [4] [1] [2];
     assert_shift_right ik [-4] [1] [-2];
     assert_shift_right ik [1] [1] [0];
     assert_shift_right ik [1] [1; 2] [0; 1];
-    assert_shift_right ik [1; 2] [1; 2] [0; 1; 2; 3]
+    assert_shift_right ik [1; 2] [1; 2] [0; 1; 2; 3];
+    assert_shift_right ik [32] [64; 2] [8; 32];
+    assert_shift_right ik [32] [128; 384] [0]
 
 
   (* Arith *)

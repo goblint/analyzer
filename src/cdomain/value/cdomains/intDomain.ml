@@ -1187,12 +1187,16 @@ module BitfieldArith (Ints_t : IntOps.IntOps) = struct
       ((z >>: c) |: sign_msk, o >>: c)
 
   let shift_right ik (z1, o1) (z2, o2) = 
-    if is_const (z2, o2) then shift_right_action ik (z1, o1) (Ints_t.to_int o2)
+    if is_const (z2, o2) 
+      then 
+        shift_right_action ik (z1, o1) (Ints_t.to_int o2)
     else
       let max_bit = Z.log2up (Z.of_int (Size.bit ik)) in
-      let mask = !:(one_mask<<:max_bit) in
-      let concrete_values = concretize ((z2 &: mask), (o2 &: mask)) in
-      if (List.length concrete_values) == 0 then (one_mask, zero_mask)
+      let mask_usefull_bits = !:(one_mask<<:max_bit) in
+      let concrete_values = concretize ((z2 &: mask_usefull_bits), (o2 &: mask_usefull_bits)) in
+      if (((o2 &: mask_usefull_bits) == Ints_t.of_int 0) && (z2 != one_mask)) || (List.length concrete_values) == 0 
+        then 
+          (one_mask, zero_mask)
       else 
         let (v1, v2) = (ref zero_mask, ref zero_mask) in
         List.iter (fun x -> let (a, b) = (shift_right_action ik (z1, o1) x) in
@@ -1207,12 +1211,16 @@ module BitfieldArith (Ints_t : IntOps.IntOps) = struct
 
   let shift_left ik (z1, o1) (z2, o2) = 
     (* (one_mask, Ints_t.of_int (Size.bit ik)) *)
-    if is_const (z2, o2) then shift_left_action ik (z1, o1) (Ints_t.to_int o2)
+    if is_const (z2, o2) 
+      then 
+        shift_left_action ik (z1, o1) (Ints_t.to_int o2)
     else
       let max_bit = Z.log2up (Z.of_int (Size.bit ik)) in
-      let mask = !:(one_mask<<:max_bit) in
-      let concrete_values = concretize ((z2 &: mask), (o2 &: mask)) in
-      if (List.length concrete_values) == 0 then (one_mask, zero_mask)
+      let mask_usefull_bits = !:(one_mask <<: max_bit) in
+      let concrete_values = concretize ((z2 &: mask_usefull_bits), (o2 &: mask_usefull_bits)) in
+      if (((o2 &: mask_usefull_bits) == Ints_t.of_int 0) && (z2 != one_mask)) || (List.length concrete_values) == 0 
+      then 
+        (one_mask, zero_mask)
       else 
         let (v1, v2) = (ref zero_mask, ref zero_mask) in
         List.iter (fun x -> let (a, b) = (shift_left_action ik (z1, o1) x) in
