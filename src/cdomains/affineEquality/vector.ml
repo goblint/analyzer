@@ -69,6 +69,8 @@ sig
 
   val exists: (num -> bool) -> t -> bool
 
+  val exists2: (num -> num -> bool) -> t -> t -> bool
+
   val rev: t -> t
 
   val rev_with: t -> unit

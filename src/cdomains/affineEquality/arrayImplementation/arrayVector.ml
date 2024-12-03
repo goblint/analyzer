@@ -126,4 +126,7 @@ module ArrayVector: AbstractVector =
     let findi_val_opt f v =
       failwith "TODO"
 
+    let exists2 f v1 v1 =
+      failwith "TODO / deprecated"
+
   end

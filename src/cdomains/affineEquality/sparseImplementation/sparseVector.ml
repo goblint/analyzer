@@ -198,6 +198,7 @@ module SparseVector: AbstractVector =
       else
         fst @@ List.find (fun (idx, value) -> f value) v.entries (* Here fst is the idx contained in the found tuple *)
 
+    (* Returns optional of (index * value) where f evaluated to true *)
     let findi_val_opt f v =
       if f A.zero then  
         (
@@ -233,6 +234,9 @@ module SparseVector: AbstractVector =
         | (xi, xv)::xs -> if f xv then true else exists_aux (at - 1) f xs
       in (exists_aux c f v.entries)
 
+    let exists2 f v1 v2 =
+      failwith "TODO"
+
     let rev v = 
       let entries' = List.rev @@ List.map (fun (idx, value) -> (v.len - idx, value)) v.entries in 
       {entries = entries'; len = v.len}
@@ -254,6 +258,7 @@ module SparseVector: AbstractVector =
 
     let find2i f v v' = 
       failwith "TODO"
+
     let to_array v = 
       let vec = Array.make v.len A.zero in 
       List.iter (fun (idx, value) -> vec.(idx) <- value) v.entries;

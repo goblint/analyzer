@@ -129,7 +129,8 @@ module ListMatrix: AbstractMatrix =
       failwith "TODO"
 
     let get_pivot_positions m = 
-      failwith "TODO"
+      List.mapi (fun i row -> V.findi (fun z -> z =: A.one) row) m
+
 
     let sub_rows (minu : V.t) (subt : V.t) : V.t =
       V.map2_preserve_zero (-:) minu subt
@@ -197,8 +198,24 @@ module ListMatrix: AbstractMatrix =
     let rref_matrix m1 m2 =
       normalize @@ append_matrices m1 m2
 
-    let is_covered_by m1 m2 =
+
+    let delete_row_with_pivots row pivots m = 
       failwith "TODO"
+
+    let is_covered_by m1 m2 =
+      if num_rows m1 > num_rows m2 then false else
+        let pivots = get_pivot_positions m2 in (* TODO: Lazy? *)
+        try
+          let _ = List.map2i (fun i row1 row2 ->
+              if not @@ V.exists2 (<>:) row1 row2 
+              then V.zero_vec (V.length row1) else
+                let row1 = delete_row_with_pivots row1 pivots m2 in 
+                if V.nth row1 (V.length row1 - 1) <>: A.zero
+                then raise Stdlib.Exit 
+                else V.zero_vec (V.length row1)
+            ) m1 m2 in
+          true
+        with Stdlib.Exit -> false
 
     let is_covered_by m1 m2 = Timing.wrap "is_covered_by" (is_covered_by m1) m2
 
