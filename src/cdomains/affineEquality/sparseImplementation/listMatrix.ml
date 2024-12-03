@@ -38,38 +38,17 @@ module ListMatrix: AbstractMatrix =
     let copy m =
       Timing.wrap "copy" (copy) m
 
-    let add_empty_columns m cols = failwith "TODO"
-    (*let colsL = List.sort (fun a b -> a-b) (Array.to_list cols) in
-      let emptyT = A.zero in
-      let rec list_of_all_before_index idx cols =
-        match  cols with
-        | x::xs -> 
-          if x < idx 
-          then 
-            let (h,t) = list_of_all_before_index idx xs in
-            (x::h, t)
-          else ([],x::xs)
-        | [] -> ([],[])
+    let add_empty_columns m cols = 
+      let cols = Array.to_list cols in 
+      let sorted_cols = List.sort Stdlib.compare cols in
+      let rec count_sorted_occ acc cols last count = 
+        match cols with
+        | [] -> acc
+        | (x :: xs) when x = last -> count_sorted_occ acc xs x (count + 1)
+        | (x :: xs) -> count_sorted_occ ((last, count) :: acc) xs x 1
       in
-      (*This could easily be abstracted into the above functions, but its nice to have 
-        it here for readability and debugging*)
-      let rec make_empty_entries_for_idxs idxs =
-        match idxs with
-        | x::xs -> (x, emptyT)::(make_empty_entries_for_idxs xs) 
-        | [] -> []
-      in
-      let rec add_column_element r cols = 
-        match r with
-        | (idx, _)::xs -> 
-          let (bef,aft) = list_of_all_before_index idx cols in
-          (make_empty_entries_for_idxs bef)@(add_column_element xs aft)
-        | [] -> []
-      in
-      let rec add_empty_columns_on_list m cols =
-        match m with
-        | x::xs -> (add_column_element x cols)::(add_empty_columns_on_list xs cols)
-        | [] -> []
-      in tM (add_empty_columns_on_list m.entries colsL) (m.column_count + Array.length cols)*)
+      let occ_cols = count_sorted_occ [] sorted_cols (-1) 0 in
+      List.map (fun row -> V.insert_zero_at_indices row occ_cols) m
 
     let add_empty_columns m cols =
       Timing.wrap "add_empty_cols" (add_empty_columns m) cols
@@ -89,23 +68,15 @@ module ListMatrix: AbstractMatrix =
     let get_col m n =
       Timing.wrap "get_col" (get_col m) n
 
-    let set_col_with m new_col n =
-      failwith "deprecated"
-
-    let set_col_with m new_col n = Timing.wrap "set_col" (set_col_with m new_col) n
-
     let set_col m new_col n = 
-      List.mapi (fun row_idx row -> V.set_nth row n (V.nth new_col row_idx)) m 
+      (* List.mapi (fun row_idx row -> V.set_nth row n (V.nth new_col row_idx)) m *)
+      List.map2 (fun row value -> V.set_nth row n value) m (V.to_list new_col)
 
     let append_matrices m1 m2  = (* keeps dimensions of first matrix, what if dimensions differ?*)
       m1 @ m2
 
     let equal m1 m2 = Timing.wrap "equal" (equal m1) m2
 
-    let reduce_col_with m j =
-      failwith "deprecated"
-
-    let reduce_col_with m j  = Timing.wrap "reduce_col_with" (reduce_col_with m) j
     let reduce_col m j = 
       if is_empty m then m 
       else
@@ -135,25 +106,21 @@ module ListMatrix: AbstractMatrix =
         List.map (fun row -> V.remove_nth row j) m
 
     let del_cols m cols =
-      if (Array.length cols) = num_cols m then empty() 
+      let cols = Array.to_list cols in (* TODO: Is it possible to use list for Apron dimchange? *)
+      let sorted_cols = List.sort_uniq Stdlib.compare cols in (* Apron Docs:  Repetitions are meaningless (and are not correct specification) *)
+      if (List.length cols) = num_cols m then empty() 
       else
-        let cols = Array.to_list cols in 
-        let sorted_cols = List.sort_uniq Stdlib.compare cols in (* Apron Docs:  Repetitions are meaningless (and are not correct specification), maybe use List instead?*)
         List.map (fun row -> V.remove_at_indices row sorted_cols) m
 
     let del_cols m cols = Timing.wrap "del_cols" (del_cols m) cols
 
     let map2i f m v =
       let vector_length = V.length v in
-      List.mapi (fun index row -> if index < vector_length then f index row (V.nth v index) else row) m
+      (* List.mapi (fun index row -> if index < vector_length then f index row (V.nth v index) else row) m *)
+      List.map2i (fun index row value -> if index < vector_length then f index row value else row) m (V.to_list v)
 
     let remove_zero_rows m =
       List.filter (fun row -> not (V.is_zero_vec row)) m
-
-    let rref_with m =
-      failwith "deprecated"
-
-    let rref_with m = Timing.wrap "rref_with" rref_with m
 
     let init_with_vec v =
       [v]
@@ -164,11 +131,6 @@ module ListMatrix: AbstractMatrix =
     let get_pivot_positions m = 
       failwith "TODO"
 
-    let normalize_with m = 
-      failwith "deprecated"
-
-    let normalize_with m = Timing.wrap "normalize_with" normalize_with m
-
     let sub_rows (minu : V.t) (subt : V.t) : V.t =
       V.map2_preserve_zero (-:) minu subt
 
@@ -176,37 +138,39 @@ module ListMatrix: AbstractMatrix =
       V.map_preserve_zero (fun a -> a /: pivot) row
 
     let swap_rows m j k =
-      List.mapi (fun i row -> if i = j then List.nth m k else if i = k then List.nth m k else row) m
+      List.mapi (fun i row -> if i = j then List.nth m k else if i = k then List.nth m j else row) m
 
-    let normalize (m : t) : t Option.t =
+    let is_valid_affeq_matrix m = 
+      failwith "TODO"
+      (*
       let col_count = num_cols m in
+      List.exists (fun row -> (* Invalid if row is zero, but coefficient is not zero *)
+           V.fold_left_preserve_zero (fun found_non_zero (col_idx, value) -> if col_idx = col_count - 1 && (not found_non_zero) && (value <>: A.zero) then false else found_non_zero) false row 
+        ) m
+      *)
 
+    let normalize m =
+      let col_count = num_cols m in
       let dec_mat_2D (m : t) (row_idx : int) (col_idx : int) : t = 
         m 
       in
-      (* Function for finding a pivot in an extracted part of the matrix (row_idx and col_idx indicate which part of the original matrix) *)
-      let rec find_pivot (m : t) (row_idx : int) (col_idx : int) : (int * int * A.t) Option.t =
+      (* Function for finding first pivot in an extracted part of the matrix (row_idx and col_idx indicate which part of the original matrix) *)
+      let find_first_pivot m row_idx col_idx =
         if col_idx >= col_count then None else 
-          let get_first_non_zero v =  (* Returns (col_idx, value) of first non-zero row*)
-            let v' = V.to_sparse_list v in
-            match v' with
-            | [] -> None
-            | (idx, value)::_ -> Some (idx, value)
-          in
           (* Finding pivot by extracting the minimum column index of the first non zero value of each row*)
           let (piv_row, piv_col, piv_val) = List.fold_lefti (fun (cur_row, cur_col, cur_val) i row  -> 
-              let row_first_non_zero = get_first_non_zero row in
+              let row_first_non_zero = V.findi_val_opt ((<>:) A.zero) row in
               match row_first_non_zero with
               | None -> (cur_row, cur_col, cur_val)
-              | Some (col_idx, value) -> if col_idx < cur_col then (i, col_idx, value) else (cur_row, cur_col, cur_val)
+              | Some (col_idx, value) -> if col_idx < cur_col then (row_idx + i, col_idx, value) else (cur_row, cur_col, cur_val)
             ) (num_rows m, num_cols m, A.zero) m (* Initializing with max, so num_cols m indicates that pivot is not found *)
           in
           if piv_col = (num_cols m) then None else Some (piv_row, piv_col, piv_val)
       in
-      let rec main_loop (m : t) (m' : t) (row_idx : int) (col_idx : int) : t = 
-        if col_idx = (col_count - 1) then m  (* In this case the whole bottom of the matrix starting from row_index is Zero, so it is normalized *)
+      let rec main_loop m m' row_idx col_idx = 
+        if col_idx = (col_count - 2) then m  (* In this case the whole bottom of the matrix starting from row_index is Zero, so it is normalized *)
         else
-          match find_pivot m' row_idx col_idx with
+          match find_first_pivot m' row_idx col_idx with
           | None -> m (* No pivot found means already normalized*)
           | Some (piv_row_idx, piv_col_idx, piv_val) -> (
               let m = if piv_row_idx <> row_idx then swap_rows m row_idx piv_row_idx else m in
@@ -217,18 +181,8 @@ module ListMatrix: AbstractMatrix =
               main_loop subtracted_m m' (row_idx + 1) (piv_col_idx + 1)) (* We start at piv_col_idx + 1 because every other col before that is zero at the bottom*)
       in 
       let m' = main_loop m m 0 0 in
-      Some m'
+      if is_valid_affeq_matrix m' then Some m' else None
 
-    let rref_vec_helper m pivot_positions v =
-      failwith "TODO"
-
-    let rref_vec_with m v =
-      (*This function yields the same result as appending vector v to m and normalizing it afterwards would. However, it is usually faster than performing those ops manually.*)
-      (*m must be in rref form and contain the same num of cols as v*)
-      (*If m is empty then v is simply normalized and returned*)
-      failwith "deprecated"
-
-    let rref_vec_with m v = Timing.wrap "rref_vec_with" (rref_vec_with m) v
 
     (*This function yields the same result as appending vector v to m and normalizing it afterwards would. However, it is usually faster than performing those ops manually.*)
     (*m must be in rref form and contain the same num of cols as v*)
@@ -236,13 +190,6 @@ module ListMatrix: AbstractMatrix =
     (* TODO: OPTIMIZE! *)
     let rref_vec m v =
       normalize @@ append_matrices m (init_with_vec v)
-
-    let rref_matrix_with m1 m2 =
-      (*Similar to rref_vec_with but takes two matrices instead.*)
-      (*ToDo Could become inefficient for large matrices since pivot_elements are always recalculated + many row additions*)
-      failwith "deprecated"
-
-    let rref_matrix_with m1 m2 = Timing.wrap "rref_matrix_with" (rref_matrix_with m1) m2
 
     (*Similar to rref_vec_with but takes two matrices instead.*)
     (*ToDo Could become inefficient for large matrices since pivot_elements are always recalculated + many row additions*)
@@ -262,13 +209,56 @@ module ListMatrix: AbstractMatrix =
       let vector_length = V.length v in
       List.mapi (fun index row -> if index < vector_length then f row (V.nth v index) else row ) m
 
+    let rref_vec_helper m pivot_positions v =
+      failwith "TODO"
+
+
+    (* ------------------------- Deprecated ------------------------*)
+
+    let rref_vec_with m v =
+      (*This function yields the same result as appending vector v to m and normalizing it afterwards would. However, it is usually faster than performing those ops manually.*)
+      (*m must be in rref form and contain the same num of cols as v*)
+      (*If m is empty then v is simply normalized and returned*)
+      failwith "deprecated"
+
+    let rref_vec_with m v = Timing.wrap "rref_vec_with" (rref_vec_with m) v
+    let rref_with m =
+      failwith "deprecated"
+
+    let reduce_col_with m j =
+      failwith "deprecated"
+
+    let reduce_col_with m j  = Timing.wrap "reduce_col_with" (reduce_col_with m) j
+
+
+    let rref_with m = Timing.wrap "rref_with" rref_with m
+
+    let normalize_with m = 
+      failwith "deprecated"
+
+    let normalize_with m = Timing.wrap "normalize_with" normalize_with m
+
+
+    let set_col_with m new_col n =
+      failwith "deprecated"
+
+    let set_col_with m new_col n = Timing.wrap "set_col" (set_col_with m new_col) n
+
     let map2_with f m v =
       failwith "deprecated"
 
     let map2_with f m v = Timing.wrap "map2_with" (map2_with f m) v
 
     let map2i_with f m v =
-      failwith "Do not use!"
+      failwith "deprecated"
 
     let map2i_with f m v = Timing.wrap "map2i_with" (map2i_with f m) v
+
+    let rref_matrix_with m1 m2 =
+      (*Similar to rref_vec_with but takes two matrices instead.*)
+      (*ToDo Could become inefficient for large matrices since pivot_elements are always recalculated + many row additions*)
+      failwith "deprecated"
+
+    let rref_matrix_with m1 m2 = Timing.wrap "rref_matrix_with" (rref_matrix_with m1) m2
+
   end

@@ -36,6 +36,8 @@ module ArrayVector: AbstractVector =
 
     let remove_at_indices v idx = failwith "TODO"
 
+    let insert_zero_at_indices v idx = failwith "TODO"
+
     let set_nth_with v n new_val =
       if n >= Array.length v then failwith "n outside of Array range" else
         Array.set v n new_val
@@ -114,4 +116,14 @@ module ArrayVector: AbstractVector =
 
     let map_preserve_zero f v = failwith "TODO"
     let map2_preserve_zero f v1 v2 = failwith "TODO"
+
+    let fold_left_preserve_zero f acc v =
+      failwith "TODO"
+
+    let fold_left2_preserve_zero f acc v v' =
+      failwith "TODO"
+
+    let findi_val_opt f v =
+      failwith "TODO"
+
   end

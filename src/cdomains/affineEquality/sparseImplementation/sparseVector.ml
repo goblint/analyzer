@@ -62,20 +62,42 @@ module SparseVector: AbstractVector =
         match vec, idx with 
         | [], [] -> []
         | [], (y :: ys) -> failwith "remove at indices: no more columns to delete"
-        | ((col_idx, value) :: xs), [] -> (col_idx - deleted_count, value) :: remove_indices_helper xs idx deleted_count
+        | ((col_idx, value) :: xs), [] -> (col_idx - deleted_count, value) :: remove_indices_helper xs [] deleted_count
         | ((col_idx, value) :: xs), (y :: ys) when y = col_idx -> remove_indices_helper xs ys (deleted_count + 1)
+        | ((col_idx, value) :: xs), (y :: ys) when y < col_idx -> remove_indices_helper vec ys (deleted_count + 1) 
         | ((col_idx, value) :: xs), (y :: ys) -> (col_idx - deleted_count, value) :: remove_indices_helper xs idx deleted_count
       in
       {entries = remove_indices_helper v.entries idx 0; len = v.len - List.length idx}
 
+    let insert_zero_at_indices v idx = 
+      let rec add_indices_helper vec idx added_count = 
+        match vec, idx with 
+        | [], [] -> []
+        | [], (y :: ys) -> [] (* inserting at the end only means changing the dimension *)
+        | ((col_idx, value) :: xs), [] -> (col_idx + added_count, value) :: add_indices_helper xs [] added_count
+        | ((col_idx, value) :: xs), ((i, count) :: ys) when i = col_idx -> add_indices_helper vec ys (added_count + count)
+        | ((col_idx, value) :: xs), ((i, count) :: ys) when i < col_idx -> (col_idx + added_count + count, value) :: add_indices_helper xs ys (added_count + count)
+        | ((col_idx, value) :: xs), ((i, count) :: ys) -> (col_idx + added_count, value) :: add_indices_helper xs idx added_count
+      in
+      {entries = add_indices_helper v.entries idx 0; len = v.len + List.length idx}
+
     let set_nth v n num = 
       if n >= v.len then failwith "Out of bounds" 
       else
-        let new_entries = List.map (fun (col_idx, value) ->
-            if col_idx = n then (col_idx, num) else (col_idx, value)
-          ) v.entries
-        in
-        {entries= new_entries; len=v.len}
+        let rev_entries', _ = List.fold_lefti (fun (acc, found) i (idx, value) -> 
+            if found then ((idx, value) :: acc, true)
+            else 
+            if i = v.len - 1 then 
+              if idx = n then (if num <>: A.zero then (n, num) :: acc, true else acc, true)
+              else if idx > n then (if num <>: A.zero then (idx, value) :: (n, num) :: acc, true else (idx, value) :: acc, true)
+              else failwith "Out of bounds (Should not be reachable)"
+            else
+            if idx < n then ((idx, value) :: acc, false)
+            else if idx = n then (if num <>: A.zero then (n, num) :: acc , true else acc, true)
+            else (if num <>: A.zero then (idx, value) :: (n, num) :: acc, true else (idx, value) :: acc, true)
+
+          ) ([], false) v.entries in
+        {entries = List.rev rev_entries'; len = v.len}
 
     let set_nth_with = 
       failwith "deprecated"
@@ -119,9 +141,15 @@ module SparseVector: AbstractVector =
       if v1.len <> v2.len then raise (Invalid_argument "Different lengths") else
         to_vector (map2_nonzero_aux v1.entries v2.entries) v1.len
 
+    let fold_left_preserve_zero f acc v =
+      List.fold_left (fun acc (_, value) -> f acc value) acc v.entries
 
-    let apply_with_c f m v = 
-      failwith "TODO"
+    let fold_left2_preserve_zero f acc v v' =
+      List.fold_left2 (fun acc (_, value) (_, value') -> f acc value value') acc v.entries v'.entries
+
+    let apply_with_c f c v =
+      let entries' = List.map (fun (idx, value) -> (idx, f value c)) v.entries in
+      {entries = entries'; len = v.len}
 
     let apply_with_c_with f m v = 
       failwith "deprecated"
@@ -144,31 +172,51 @@ module SparseVector: AbstractVector =
     let length v =
       v.len
 
-    let map2 f v v' = 
-      failwith "TODO"
-
-    let map2_with f v v' = 
-      failwith "deprecated"
-
-    let findi f v = 
-      failwith "TODO"
-
-    let map f v = 
-      failwith "TODO"
-
-    let map_with f v  = 
-      failwith "TODO"
-
-    let compare_length_with v n = 
-      Int.compare v.len n
-
     let of_list l = 
       let entries' = List.rev @@ List.fold_lefti (fun acc i x -> if x <> A.zero then (i, x) :: acc else acc) [] l
       in {entries = entries'; len = List.length l}
 
     let to_list v = 
-      let l = List.init v.len (fun _ -> A.zero) in 
-      List.fold_left (fun acc (idx, value) -> (List.modify_at idx (fun _ -> value) acc)) l v.entries
+      let[@tail_mod_cons] rec extend_zero_aux i v' =
+        if i >= v.len then failwith "out of Bounds for to_list" else (*can probably be removed*)
+          match v' with
+          | (xi,xv)::xs -> if xi = i then xv::(extend_zero_aux (i+1) xs) else A.zero::(extend_zero_aux (i+1) v')
+          | [] -> []
+      in 
+      (extend_zero_aux 0 v.entries)
+
+    let map2 f v v' = 
+      if v.len <> v'.len then failwith "Unequal vector length" else 
+        of_list (List.map2 f (to_list v) (to_list v'))
+
+    let map2_with f v v' = 
+      failwith "deprecated"
+
+    let findi f v = 
+      if f A.zero then  
+        fst @@ List.findi (fun i (idx, value) -> if idx > i then true else f value) v.entries (* Here fst is the iteration variable i, not the tuple idx *)
+      else
+        fst @@ List.find (fun (idx, value) -> f value) v.entries (* Here fst is the idx contained in the found tuple *)
+
+    let findi_val_opt f v =
+      if f A.zero then  
+        (
+          let i, (col_idx, value) = List.findi (fun i (idx, value) -> if idx > i then true else f value) v.entries  in
+          if i < col_idx then (* In this case, Zero was the first element found because iteration index i is smaller than "found" value *)
+            Some (i, A.zero)
+          else Some (col_idx, value)
+        )
+      else
+        Some (List.find (fun (idx, value) -> f value) v.entries) 
+
+    let map f v = 
+      of_list (List.map f (to_list v))
+
+    let map_with f v  = 
+      failwith "deprecated"
+
+    let compare_length_with v n = 
+      Int.compare v.len n
 
     let filteri f v = 
       failwith "TODO"
@@ -193,20 +241,19 @@ module SparseVector: AbstractVector =
       failwith "deprecated"
 
     let map2i f v v' = 
-      failwith "TODO"
+      of_list (List.map2i f (to_list v) (to_list v'))
 
     let map2i_with f v v' = 
       failwith "deprecated"
 
     let mapi f v  = 
-      failwith "TODO"
+      of_list (List.mapi f (to_list v))
 
     let mapi_with f v = 
       failwith "deprecated"
 
     let find2i f v v' = 
       failwith "TODO"
-
     let to_array v = 
       let vec = Array.make v.len A.zero in 
       List.iter (fun (idx, value) -> vec.(idx) <- value) v.entries;
