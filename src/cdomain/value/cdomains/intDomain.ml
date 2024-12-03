@@ -1500,7 +1500,7 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): SOverflow with type int_t = Int
     let res = if BArith.is_const (z1, o1) && BArith.is_const (z2, o2) then (let tmp = z1 /: z2 in (!:tmp, tmp)) else top_of ik in
     norm ik res
 
-  let is_power_of_two x = (x &: (x -: Ints_t.one) = Ints_t.zero) 
+  let is_power_of_two x = Ints_t.(logand x (sub x one) = zero)
 
   let rem ik x y = 
     if BArith.is_const x && BArith.is_const y then (
@@ -1556,6 +1556,7 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): SOverflow with type int_t = Int
     of_interval ~suppress_ovwarn ik (Ints_t.of_bigint min_ik, n)
 
   let refine_with_congruence ik bf ((cong) : (int_t * int_t ) option) : t =
+    let is_power_of_two x = (x &: (x -: Ints_t.one) = Ints_t.zero) in
     match bf, cong with
     | (z,o), Some (c, m) when is_power_of_two m && m <> Ints_t.one ->
       let congruenceMask = !:m in
