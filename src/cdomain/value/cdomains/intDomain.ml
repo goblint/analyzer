@@ -1179,7 +1179,7 @@ module BitfieldArith (Ints_t : IntOps.IntOps) = struct
 
   let get_o (_,o) = Ints_t.to_int o
 
-  let shift_right ik (z,o) c =
+  (* let shift_right ik (z,o) c =
     let sign_msk = make_msb_bitmask (Size.bit ik - c) in
     if (isSigned ik) && (o <: Ints_t.zero) then
       (z >>: c, (o >>: c) |: sign_msk)
@@ -1206,7 +1206,50 @@ module BitfieldArith (Ints_t : IntOps.IntOps) = struct
       let max_bit = Z.log2up (Z.of_int @@ Size.bit ik) in
       if Z.to_int (min ik bf) >= max_bit then zero
       else concretize (fst bf |: make_msb_bitmask max_bit, snd bf &: make_lsb_bitmask max_bit) (* O( 2^(log(n)) ) *)
-      |> join_shls
+      |> join_shls *)
+
+
+  let shift_right_action ik (z,o) c =
+    let sign_msk = make_msb_bitmask (Size.bit ik - c) in
+    if (isSigned ik) && (o <: Ints_t.zero) then
+      (z >>: c, (o >>: c) |: sign_msk)
+    else
+      ((z >>: c) |: sign_msk, o >>: c)
+
+  let shift_right ik (z1, o1) (z2, o2) = 
+    if is_const (z2, o2) then shift_right_action ik (z1, o1) (Ints_t.to_int o2)
+    else
+      let max_bit = Z.log2up (Z.of_int (Size.bit ik)) in
+      let mask = !:(one_mask<<:max_bit) in
+      let concrete_values = concretize ((z2 &: mask), (o2 &: mask)) in
+      if (List.length concrete_values) == 0 then (one_mask, zero_mask)
+      else 
+        let (v1, v2) = (ref zero_mask, ref zero_mask) in
+        List.iter (fun x -> let (a, b) = (shift_right_action ik (z1, o1) x) in
+          v1 := !v1 |: a;
+          v2 := !v2 |: b
+        ) concrete_values;
+        (!v1, !v2)
+
+  let shift_left_action _ (z,o) c =
+    let z_msk = make_lsb_bitmask c in
+    ((z <<: c) |: z_msk, o <<: c)
+
+  let shift_left ik (z1, o1) (z2, o2) = 
+    (* (one_mask, Ints_t.of_int (Size.bit ik)) *)
+    if is_const (z2, o2) then shift_left_action ik (z1, o1) (Ints_t.to_int o2)
+    else
+      let max_bit = Z.log2up (Z.of_int (Size.bit ik)) in
+      let mask = !:(one_mask<<:max_bit) in
+      let concrete_values = concretize ((z2 &: mask), (o2 &: mask)) in
+      if (List.length concrete_values) == 0 then (one_mask, zero_mask)
+      else 
+        let (v1, v2) = (ref zero_mask, ref zero_mask) in
+        List.iter (fun x -> let (a, b) = (shift_left_action ik (z1, o1) x) in
+          v1 := !v1 |: a;
+          v2 := !v2 |: b
+        ) concrete_values;
+        (!v1, !v2)
 
 end
 
@@ -1250,25 +1293,11 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): SOverflow with type int_t = Int
   let show t = 
     if t = bot () then "bot" else
     if t = top () then "top" else
-      let string_of_bitfield (z,o) =
-        let max_num_unknown_bits_to_concretize = Z.log2 @@ Z.of_int (Sys.word_size) |> fun x -> x lsr 2 in
-        let num_bits_unknown =
-          try 
-            BArith.bits_unknown (z,o) |> fun i -> Z.popcount @@ Z.of_int @@ Ints_t.to_int i
-          with Z.Overflow -> max_num_unknown_bits_to_concretize + 1
-        in
-        if num_bits_unknown > max_num_unknown_bits_to_concretize then
-          Format.sprintf "(%016X, %016X)" (Ints_t.to_int z) (Ints_t.to_int o)
-        else
-        (* TODO: Might be a source of long running tests.*)
-          BArith.concretize (z,o) |> List.map string_of_int |> String.concat "; "
-          |> fun s -> "{" ^ s ^ "}"
-      in
       let (z,o) = t in
       if BArith.is_const t then 
-        Format.sprintf "%s | %s (unique: %d)" (string_of_bitfield (z,o)) (to_pretty_bits t) (Ints_t.to_int o)
+        Format.sprintf "{%08X, %08X} (unique: %d)" (Ints_t.to_int z) (Ints_t.to_int o) (Ints_t.to_int o)
       else 
-        Format.sprintf "%s | %s" (string_of_bitfield (z,o)) (to_pretty_bits t)
+        Format.sprintf "{%08X, %08X}" (Ints_t.to_int z) (Ints_t.to_int o)
 
   include Std (struct type nonrec t = t let name = name let top_of = top_of let bot_of = bot_of let show = show let equal = equal end)
 

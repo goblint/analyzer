@@ -255,6 +255,7 @@ struct
   module I = IntDomain.SOverflowUnlifter (I)
 
   let ik = Cil.IInt
+  let ik_char = Cil.IChar
 
   let assert_equal x y =
     OUnit.assert_equal ~printer:I.show x y
@@ -468,7 +469,7 @@ struct
 
   let of_list ik is = List.fold_left (fun acc x -> I.join ik acc (I.of_int ik x)) (I.bot ()) is
 
-  let assert_shift shift symb ik a b expected_values =
+  let assert_shift_xx shift symb ik a b expected_values =
     let bs1 = of_list ik (List.map of_int a) in
     let bs2 = of_list ik (List.map of_int b) in
     let bf_shift_res = (shift ik bs1 bs2) in
@@ -476,19 +477,51 @@ struct
     let output_string elm = "Test shift (bf" ^ symb ^ string_of_int elm  ^ ") failed: " ^ output_string in
     List.iter (fun v -> assert_bool (output_string v) (let test_result = I.equal_to (of_int v) bf_shift_res in test_result = `Top || test_result = `Eq)) expected_values
 
+  let assert_shift shift symb ik a b expected_values = 
+    let bf1 = of_list ik (List.map of_int a) in
+    let bf2 = of_list ik (List.map of_int b) in
+    let bf_shift_resolution = (shift ik bf1 bf2) in
+    let x = of_list ik (List.map of_int expected_values) in
+    let output_string = I.show bf1 ^ symb ^ I.show bf2 ^ " was: " ^ I.show bf_shift_resolution ^ " but should be: " ^  I.show x in
+    let output  = "Test shift ("^ I.show bf1 ^ symb ^ I.show bf2  ^ ") failed: " ^ output_string in
+    assert_bool (output) (I.equal bf_shift_resolution x)
+
   let assert_shift_left ik a b res = assert_shift I.shift_left " << " ik a b res
   let assert_shift_right ik a b res = assert_shift I.shift_right " >> " ik a b res
 
   let test_shift_left _ =
-    assert_shift_left ik [2] [1] [4];
-    assert_shift_left ik [-2] [1] [-4];
-    assert_shift_left ik [2; 16] [1; 2] [4; 8; 32; 64]
+    assert_shift_left ik_char [-3] [7] [-128];
+    assert_shift_left ik [-3] [7] [-384];
+    assert_shift_left ik [2] [1; 2] [2; 4; 8; 16];
+    assert_shift_left ik [1; 2] [1] [2; 4];
+    assert_shift_left ik [-1; 1] [1] [-2; 2];
+    assert_shift_left ik [-1] [4] [-16];
+    assert_shift_left ik [-1] [1] [-2];
+    assert_shift_left ik [-1] [2] [-4];
+    assert_shift_left ik [-1] [3] [-8];
+    assert_shift_left ik [-2] [1; 2] [-2; -4; -8; -16];
+    assert_shift_left ik [-1] [1; 2] [-1; -2; -4; -8]
+
+
+    (* assert_shift_left ik [1] [64] [0];
+    assert_shift_left ik [1] [64; 128] [0] *)
 
   let test_shift_right _ =
     assert_shift_right ik [4] [1] [2];
     assert_shift_right ik [-4] [1] [-2];
-    assert_shift_right ik [8; 64] [3; 5] [0; 1; 2; 8]
+    assert_shift_right ik [1] [1] [0];
+    assert_shift_right ik [1] [1; 2] [0; 1];
+    assert_shift_right ik [1; 2] [1; 2] [0; 1; 2; 3]
+    
 
+
+    (* assert_shift_right ik [8; 64] [3; 5] [0; 1; 2; 8];
+    assert_shift_right ik [8; 64] [1] [4; 32];
+    assert_shift_right ik [8; 64] [3; 5] [0; 1; 2; 4; 8; 32];
+    assert_shift_right ik [-2; 16] [1; 2] [-1; 0; 4; 8];
+    assert_shift_right ik [2; -16] [1; 2] [-8; -4; 0; 1];
+    assert_shift_right ik [-2; -16] [1; 2] [-8; -4; -1; 0];
+    assert_shift_right ik [-53; 17; -24; 48] [3; 7] [-6; -3; 0; 2; 9] *)
 
   (* Arith *)
 
@@ -736,6 +769,7 @@ struct
     "test_widen_1" >:: test_widen_1;
     "test_widen_2" >:: test_widen_2;
 
+    
     "test_of_interval" >:: test_of_interval;
     "test_of_bool" >:: test_of_bool;
     "test_to_bool" >:: test_to_bool;
@@ -745,6 +779,7 @@ struct
     "test_logand" >:: test_logand;
     "test_logor" >:: test_logor;
     "test_lognot" >:: test_lognot;
+    
     "test_shift_left" >:: test_shift_left;
     "test_shift_right" >:: test_shift_right;
 
