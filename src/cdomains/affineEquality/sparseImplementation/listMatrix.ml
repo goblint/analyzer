@@ -100,6 +100,16 @@ module ListMatrix: AbstractMatrix =
                       V.map2_preserve_zero (fun x y -> x -: s *: y) row pivot_row)            
             ) m
 
+    let reduce_col_with_vec m j v = 
+      let pivot_element = V.nth v j in
+      if pivot_element = A.zero then m
+      else List.mapi (fun idx row ->
+          let row_value = V.nth row j in 
+          if row_value = A.zero then row
+          else (let s = row_value /: pivot_element in
+                V.map2_preserve_zero (fun x y -> x -: s *: y) row v)            
+        ) m
+
     let del_col m j =
       if num_cols m = 1 then empty () 
       else 
@@ -125,12 +135,8 @@ module ListMatrix: AbstractMatrix =
     let init_with_vec v =
       [v]
 
-    let reduce_col_with_vec m j v = 
-      failwith "TODO"
-
     let get_pivot_positions m = 
       List.mapi (fun i row -> V.findi (fun z -> z =: A.one) row) m
-
 
     let sub_rows (minu : V.t) (subt : V.t) : V.t =
       V.map2_preserve_zero (-:) minu subt
@@ -225,9 +231,6 @@ module ListMatrix: AbstractMatrix =
     let map2 f m v =
       let vector_length = V.length v in
       List.mapi (fun index row -> if index < vector_length then f row (V.nth v index) else row ) m
-
-    let rref_vec_helper m pivot_positions v =
-      failwith "TODO"
 
 
     (* ------------------------- Deprecated ------------------------*)

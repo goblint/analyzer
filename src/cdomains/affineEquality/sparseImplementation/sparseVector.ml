@@ -106,10 +106,9 @@ module SparseVector: AbstractVector =
       if n > v.len then failwith "n too large" else (* Does this happen? Otherwise we can omit this comparison, here right now to be semantically equivalent *)
         let entries' = List.fold_left (fun acc (idx, value) -> 
             if idx < n then (idx, value) :: acc 
-            else if idx = n then (n, new_val) :: (idx + 1, value) :: acc 
-            else (idx + 1, value) :: acc
+            else (idx + 1, value) :: acc 
           ) [] (List.rev v.entries) in
-        {entries = entries'; len = v.len + 1}
+        {entries = List.sort (fun (i, _) (j, _) -> Int.compare i j) entries'; len = v.len + 1}
 
     let map_preserve_zero f v = (* map for functions f such that f 0 = 0 since f won't be applied to zero values. See also map *)
       let entries' = List.filter_map (
