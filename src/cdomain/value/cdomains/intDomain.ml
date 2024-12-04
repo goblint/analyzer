@@ -1121,7 +1121,7 @@ module BitfieldArith (Ints_t : IntOps.IntOps) = struct
   let top_bool = join one zero
 
   let bits_known (z,o) = z ^: o
-  let bits_unknown (z,o) = !:(bits_known (z,o))
+  let bits_unknown (z,o) = z &: o
   let bits_set bf = (snd bf) &: (bits_known bf)
   let bits_invalid (z,o) = !:(z |: o)
 
