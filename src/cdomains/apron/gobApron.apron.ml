@@ -38,6 +38,28 @@ struct
   let equal x y = Var.compare x y = 0
 end
 
+module Linexpr0 =
+struct
+  include Linexpr0
+
+  let neg (linexpr0: t): t =
+    let r = copy linexpr0 in
+    let n = Linexpr0.get_size r in
+    for i = 0 to n - 1 do
+      Linexpr0.set_coeff r i (Coeff.neg (Linexpr0.get_coeff r i))
+    done;
+    Linexpr0.set_cst r (Coeff.neg (Linexpr0.get_cst r));
+    r
+end
+
+module Linexpr1 =
+struct
+  include Linexpr1
+
+  let neg (linexpr1: t): t =
+    {linexpr0 = Linexpr0.neg linexpr1.linexpr0; env = linexpr1.env}
+end
+
 module Lincons1 =
 struct
   include Lincons1
@@ -62,6 +84,9 @@ struct
           incr size
       ) x;
     !size
+
+  let flip (lincons1: t): t =
+    make (Linexpr1.neg (get_linexpr1 lincons1)) (get_typ lincons1)
 end
 
 module Lincons1Set =
@@ -74,6 +99,25 @@ struct
         Lincons1.{lincons0; env = array_env}
       )
     |> of_enum
+
+  let simplify (lincons1s: t): t =
+    fold (fun lincons1 acc ->
+        match Lincons1.get_typ lincons1 with
+        | SUPEQ ->
+          let flipped = Lincons1.flip lincons1 in
+          if mem flipped lincons1s then (
+            if Lincons1.compare lincons1 flipped < 0 then (
+              Lincons1.set_typ flipped EQ; (* reuse flipped copy for equality *)
+              add flipped acc
+            )
+            else
+              acc
+          )
+          else
+            add lincons1 acc
+        | _ ->
+          add lincons1 acc
+      ) lincons1s empty
 end
 
 module Texpr1 =

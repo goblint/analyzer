@@ -552,7 +552,9 @@ struct
     |> Enum.map (fun (lincons0: Lincons0.t) ->
         Lincons1.{lincons0; env = array_env}
       )
-    |> List.of_enum
+    |> Lincons1Set.of_enum
+    |> Lincons1Set.simplify
+    |> Lincons1Set.elements
 end
 
 (** With heterogeneous environments. *)
@@ -928,6 +930,7 @@ struct
     let lcb = D.to_lincons_array (D.of_lincons_array (BoxD.to_lincons_array b)) in (* convert through D to make lincons use the same format *)
     let lcd = D.to_lincons_array d in
     Lincons1Set.(diff (of_earray lcd) (of_earray lcb))
+    |> Lincons1Set.simplify
     |> Lincons1Set.elements
 end
 
