@@ -19,7 +19,7 @@ module ListMatrix: AbstractMatrix =
     [@@deriving eq, ord, hash]
 
     let show x =
-      List.fold_left (^) "" (List.map (fun x -> (V.show x) ^ "\n") x)
+      List.fold_left (^) "" (List.map (fun x -> (V.show x)) x)
 
     let empty () = []
 
@@ -204,7 +204,7 @@ module ListMatrix: AbstractMatrix =
       normalize @@ append_matrices m1 m2
 
 
-    let delete_row_with_pivots row pivots m = 
+    let delete_row_with_pivots row pivots m2 = 
       failwith "TODO"
 
     (* Assumes that the first row of the matrix is already the pivot row fitting to the vector. *)

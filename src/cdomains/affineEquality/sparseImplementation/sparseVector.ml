@@ -172,10 +172,11 @@ module SparseVector: AbstractVector =
 
     let to_list v = 
       let[@tail_mod_cons] rec extend_zero_aux i v' =
-        if i >= v.len then failwith "out of Bounds for to_list" else (*can probably be removed*)
-          match v' with
-          | (xi,xv)::xs -> if xi = i then xv::(extend_zero_aux (i+1) xs) else A.zero::(extend_zero_aux (i+1) v')
-          | [] -> []
+        if i >= v.len then [] else (*can probably be removed*)
+          match v', i with
+          | (xi,xv)::xs, _ -> if xi = i then xv::(extend_zero_aux (i+1) xs) else A.zero ::(extend_zero_aux (i+1) v')
+          | [], j when i < v.len -> A.zero :: (extend_zero_aux (i+1) v')
+          | [], _ -> []
       in 
       (extend_zero_aux 0 v.entries)
 
@@ -265,31 +266,31 @@ module SparseVector: AbstractVector =
       let rec list_str l =
         match l with
         | [] -> "]"
-        | x :: xs -> (A.to_string x) ^" "^(list_str xs)
+        | x :: xs -> " " ^ (A.to_string x) ^ (list_str xs)
       in
       "["^list_str t^"\n"
 
     (* ------------------- Deprecated ------------------- *)
     let mapi_with f v = 
-      failwith "deprecated"
+      failwith "mapi_with deprecated"
 
     let map2i_with f v v' = 
-      failwith "deprecated"
+      failwith "map2i_with deprecated"
 
 
     let rev_with v = 
-      failwith "deprecated"
+      failwith "rev_with deprecated"
 
     let map_with f v  = 
-      failwith "deprecated"
+      failwith "map_with deprecated"
 
 
     let map2_with f v v' = 
-      failwith "deprecated"
+      failwith "map2_with deprecated"
 
     let apply_with_c_with f m v = 
-      failwith "deprecated"
+      failwith "apply_with_c_with deprecated"
 
-    let set_nth_with = 
-      failwith "deprecated"
+    let set_nth_with f n num = (
+      failwith "set_nth_with deprecated")
   end 
