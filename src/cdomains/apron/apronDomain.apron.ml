@@ -486,32 +486,6 @@ sig
   val invariant: t -> Lincons1.t list
 end
 
-(* TODO: move these somewhere better *)
-let flip_lincons1 (lincons1: Lincons1.t): Lincons1.t =
-  let r = Lincons1.copy lincons1 in
-  let linexpr0 = r.lincons0.linexpr0 in
-  let n = Linexpr0.get_size linexpr0 in
-  for i = 0 to n - 1 do
-    Linexpr0.set_coeff linexpr0 i (Coeff.neg (Linexpr0.get_coeff linexpr0 i))
-  done;
-  Lincons1.set_cst r (Coeff.neg (Lincons1.get_cst r));
-  r
-
-let simplify_eqs (lincons1s: Lincons1Set.t): Lincons1Set.t =
-  Lincons1Set.fold (fun lincons1 acc ->
-      let flipped = flip_lincons1 lincons1 in
-      if Lincons1Set.mem flipped lincons1s then (
-        if Lincons1.compare lincons1 flipped < 0 then (
-          Lincons1.set_typ flipped EQ; (* reuse flipped copy for equality *)
-          Lincons1Set.add flipped acc
-        )
-        else
-          acc
-      )
-      else
-        Lincons1Set.add lincons1 acc
-    ) lincons1s Lincons1Set.empty
-
 module DWithOps (Man: Manager) (D: SLattice with type t = Man.mt A.t) =
 struct
   include D
@@ -579,7 +553,7 @@ struct
         Lincons1.{lincons0; env = array_env}
       )
     |> Lincons1Set.of_enum
-    |> simplify_eqs
+    |> Lincons1Set.simplify
     |> Lincons1Set.elements
 end
 
@@ -956,7 +930,7 @@ struct
     let lcb = D.to_lincons_array (D.of_lincons_array (BoxD.to_lincons_array b)) in (* convert through D to make lincons use the same format *)
     let lcd = D.to_lincons_array d in
     Lincons1Set.(diff (of_earray lcd) (of_earray lcb))
-    |> simplify_eqs
+    |> Lincons1Set.simplify
     |> Lincons1Set.elements
 end
 
