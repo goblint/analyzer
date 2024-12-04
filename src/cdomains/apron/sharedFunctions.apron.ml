@@ -260,14 +260,14 @@ struct
         let ci,truncation = truncateCilint ILongLong i in
         if truncation = NoTruncation then
           if Z.compare i Z.zero >= 0 then
-            Const (CInt(i,ILongLong,None)), false
+            false, Const (CInt(i,ILongLong,None))
           else
             (* attempt to negate if that does not cause an overflow *)
             let cneg, truncation = truncateCilint ILongLong (Z.neg i) in
             if truncation = NoTruncation then
-              Const (CInt((Z.neg i),ILongLong,None)), true
+              true, Const (CInt((Z.neg i),ILongLong,None))
             else
-              Const (CInt(i,ILongLong,None)), false
+              false, Const (CInt(i,ILongLong,None))
         else
           (M.warn ~category:Analyzer "Invariant Apron: coefficient is not int: %a" Scalar.pretty c; raise Unsupported_Linexpr1)
       | None -> raise Unsupported_Linexpr1)
@@ -277,7 +277,7 @@ struct
     match V.to_cil_varinfo v with
     | Some vinfo when IntDomain.Size.is_cast_injective ~from_type:vinfo.vtype ~to_type:(TInt(ILongLong,[]))   ->
       let var = Cilfacade.mkCast ~e:(Lval(Var vinfo,NoOffset)) ~newt:longlong in
-      let coeff, flip = coeff_to_const ~scalewith c in
+      let flip, coeff = coeff_to_const ~scalewith c in
       let prod = BinOp(Mult, coeff, var, longlong) in
       flip, prod
     | None ->
@@ -288,14 +288,13 @@ struct
       raise Unsupported_Linexpr1
 
   let cil_exp_of_linexpr1 ?scalewith (linexpr1:Linexpr1.t) =
-    let const = coeff_to_const ~scalewith (Linexpr1.get_cst linexpr1) in
-    let terms = ref [] in
+    let terms = ref [coeff_to_const ~scalewith (Linexpr1.get_cst linexpr1)] in
     let append_summand (c:Coeff.union_5) v =
       if not (Coeff.is_zero c) then
         terms := cil_exp_of_linexpr1_term ~scalewith c v :: !terms
     in
     Linexpr1.iter append_summand linexpr1;
-    !terms, const
+    !terms
 
 
   let lcm_den linexpr1 =
@@ -329,10 +328,8 @@ struct
     try
       let linexpr1 = Lincons1.get_linexpr1 lincons1 in
       let common_denominator = lcm_den linexpr1 in
-      let terms, (const, constflip) = cil_exp_of_linexpr1 ~scalewith:common_denominator linexpr1 in
-      let (nterms, pterms) = List.partition fst terms in
-      let nterms = List.map snd nterms in
-      let pterms = List.map snd pterms in
+      let terms = cil_exp_of_linexpr1 ~scalewith:common_denominator linexpr1 in
+      let (nterms, pterms) = Tuple2.mapn (List.map snd) (List.partition fst terms) in
       let fold_terms terms =
         List.fold_left (fun acc term ->
             match acc with
@@ -343,18 +340,15 @@ struct
       in
       let lhs = fold_terms pterms in
       let rhs = fold_terms nterms in
-      let (lhs, rhs) =
-        if constflip then
-          lhs, BinOp (PlusA, rhs, const, longlong)
-        else
-          BinOp (PlusA, lhs, const, longlong), rhs
+      let binop =
+        match Lincons1.get_typ lincons1 with
+        | EQ -> Eq
+        | SUPEQ -> Ge
+        | SUP -> Gt
+        | DISEQ -> Ne
+        | EQMOD _ -> raise Unsupported_Linexpr1
       in
-      match Lincons1.get_typ lincons1 with
-      | EQ -> Some (Cil.constFold false @@ BinOp(Eq, lhs, rhs, TInt(IInt,[])))
-      | SUPEQ -> Some (Cil.constFold false @@ BinOp(Ge, lhs, rhs, TInt(IInt,[])))
-      | SUP -> Some (Cil.constFold false @@ BinOp(Gt, lhs, rhs, TInt(IInt,[])))
-      | DISEQ -> Some (Cil.constFold false @@ BinOp(Ne, lhs, rhs, TInt(IInt,[])))
-      | EQMOD _ -> None
+      Some (Cil.constFold false @@ BinOp(binop, lhs, rhs, TInt(IInt,[])))
     with
       Unsupported_Linexpr1 -> None
 end
