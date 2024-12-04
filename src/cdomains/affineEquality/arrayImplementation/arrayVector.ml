@@ -129,4 +129,7 @@ module ArrayVector: AbstractVector =
     let exists2 f v1 v1 =
       failwith "TODO / deprecated"
 
+    let starting_from_nth n v =
+      failwith "TODO / deprecated"
+
   end

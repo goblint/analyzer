@@ -215,7 +215,7 @@ module SparseVector: AbstractVector =
     let append v v' = 
       let entries' = v.entries @ List.map (fun (idx, value) -> (idx + v.len), value) v'.entries in
       {entries = entries'; len = v.len + v'.len}
-          
+
     let exists f v  = 
       let c = v.len in
       let rec exists_aux at f v =
@@ -261,6 +261,10 @@ module SparseVector: AbstractVector =
     let find_opt f v = (* TODO: Do we need this? And optimize!!!*)
       List.find_opt f (to_list v)
 
+    let starting_from_nth n v =
+      let entries' = List.filter_map (fun (idx, value) -> if idx < n then None else Some (idx - n, value)) v.entries in
+      {entries = entries'; len = v.len - n}
+
     let show v = 
       let t = to_list v in 
       let rec list_str l =
@@ -293,4 +297,5 @@ module SparseVector: AbstractVector =
 
     let set_nth_with f n num = (
       failwith "set_nth_with deprecated")
+
   end 

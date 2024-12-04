@@ -148,17 +148,18 @@ module ListMatrix: AbstractMatrix =
       List.mapi (fun i row -> if i = j then List.nth m k else if i = k then List.nth m j else row) m
 
     let is_valid_affeq_matrix m = 
-      failwith "TODO"
-     (*
       let col_count = num_cols m in
-      List.exists (fun row -> (* Invalid if row is zero, but coefficient is not zero *)
-           V.fold_left_preserve_zero (fun found_non_zero (col_idx, value) -> if col_idx = col_count - 1 && (not found_non_zero) && (value <>: A.zero) then false else found_non_zero) false row 
-      *)
+      let row_is_invalid row = (* TODO: Vector findi_opt *)
+        match V.findi_val_opt ((<>:) A.zero) row with
+        | Some (idx, _) -> if idx = col_count - 1 then true else false (* If all cofactors of the affeq are zero, but the constant is non-zero, the row is invalid *)
+        | None -> false (* Full zero row is not invalid *)
+      in
+      List.exists row_is_invalid m
 
     let normalize m =
       let col_count = num_cols m in
       let dec_mat_2D (m : t) (row_idx : int) (col_idx : int) : t = 
-        m 
+        List.filteri_map (fun i row -> if i < row_idx then None else Some (V.starting_from_nth col_idx row)) m
       in
       (* Function for finding first pivot in an extracted part of the matrix (row_idx and col_idx indicate which part of the original matrix) *)
       let find_first_pivot m row_idx col_idx =
@@ -187,7 +188,7 @@ module ListMatrix: AbstractMatrix =
               main_loop subtracted_m m' (row_idx + 1) (piv_col_idx + 1)) (* We start at piv_col_idx + 1 because every other col before that is zero at the bottom*)
       in 
       let m' = main_loop m m 0 0 in
-      if is_valid_affeq_matrix m' then Some m' else None
+      if is_valid_affeq_matrix m' then Some m' else None (* TODO: We can check this for each row, using the helper function row_is_invalid *)
 
 
     (*This function yields the same result as appending vector v to m and normalizing it afterwards would. However, it is usually faster than performing those ops manually.*)

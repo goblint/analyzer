@@ -99,4 +99,7 @@ sig
 
   val to_sparse_list: t -> (int * num) list
 
+  (* Returns the part of the vector starting from index n*)
+  val starting_from_nth : int -> t -> t
+
 end
