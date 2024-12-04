@@ -252,14 +252,14 @@ struct
   let longlong = TInt(ILongLong,[])
 
 
-  let coeff_to_const ~scalewith consider_flip (c:Coeff.union_5) =
+  let coeff_to_const ~scalewith (c:Coeff.union_5) =
     match c with
     | Scalar c ->
       (match int_of_scalar ?scalewith c with
       | Some i ->
         let ci,truncation = truncateCilint ILongLong i in
         if truncation = NoTruncation then
-          if not consider_flip || Z.compare i Z.zero >= 0 then
+          if Z.compare i Z.zero >= 0 then
             Const (CInt(i,ILongLong,None)), false
           else
             (* attempt to negate if that does not cause an overflow *)
@@ -277,7 +277,7 @@ struct
     match V.to_cil_varinfo v with
     | Some vinfo when IntDomain.Size.is_cast_injective ~from_type:vinfo.vtype ~to_type:(TInt(ILongLong,[]))   ->
       let var = Cilfacade.mkCast ~e:(Lval(Var vinfo,NoOffset)) ~newt:longlong in
-      let coeff, flip = coeff_to_const ~scalewith true c in
+      let coeff, flip = coeff_to_const ~scalewith c in
       let prod = BinOp(Mult, coeff, var, longlong) in
       flip, prod
     | None ->
@@ -288,7 +288,7 @@ struct
       raise Unsupported_Linexpr1
 
   let cil_exp_of_linexpr1 ?scalewith (linexpr1:Linexpr1.t) =
-    let const = coeff_to_const ~scalewith true (Linexpr1.get_cst linexpr1) in
+    let const = coeff_to_const ~scalewith (Linexpr1.get_cst linexpr1) in
     let terms = ref [] in
     let append_summand (c:Coeff.union_5) v =
       if not (Coeff.is_zero c) then
