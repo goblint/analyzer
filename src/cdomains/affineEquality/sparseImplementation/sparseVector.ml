@@ -108,14 +108,14 @@ module SparseVector: AbstractVector =
           ) [] (List.rev v.entries) in
         {entries = List.sort (fun (i, _) (j, _) -> Int.compare i j) entries'; len = v.len + 1}
 
-    let map_f_preserve_zero f v = (* map for functions f such that f 0 = 0 since f won't be applied to zero values. See also map *)
+    let map_f_preserves_zero f v = (* map for functions f such that f 0 = 0 since f won't be applied to zero values. See also map *)
       let entries' = List.filter_map (
           fun (idx, value) -> let new_val = f value in 
             if new_val = A.zero then None else Some (idx, new_val)) v.entries in 
       {entries = entries'; len = v.len}
 
     (* map for functions f such that f 0 0 = 0 since f won't be applied to if both values are zero. See also map *)
-    let map2_f_preserve_zero f v1 v2 =
+    let map2_f_preserves_zero f v1 v2 =
       let f_rem_zero acc idx e1 e2 =
         let r = f e1 e2 in 
         if r =: A.zero then acc else (idx, r)::acc
@@ -135,11 +135,23 @@ module SparseVector: AbstractVector =
         to_vector (List.rev (aux [] v1.entries v2.entries)) v1.len
 
 
-    let fold_left_f_preserve_zero f acc v =
+    let fold_left_f_preserves_zero f acc v =
       List.fold_left (fun acc (_, value) -> f acc value) acc v.entries
 
-    let fold_left2_f_preserve_zero f acc v v' =
-      List.fold_left2 (fun acc (_, value) (_, value') -> f acc value value') acc v.entries v'.entries
+    let fold_left2_f_preserves_zero f acc v v' =  
+      let rec aux acc v1 v2 =
+        match v1, v2 with 
+        | [], [] -> acc 
+        | [], (yidx, yval)::ys -> aux (f acc A.zero yval) [] ys
+        | (xidx, xval)::xs, [] -> aux (f acc xval A.zero) xs []
+        | (xidx, xval)::xs, (yidx, yval)::ys -> 
+          match xidx - yidx with
+          | d when d < 0 -> aux (f acc xval A.zero) xs v2
+          | d when d > 0 -> aux (f acc A.zero yval) v1 ys
+          | _            -> aux (f acc xval yval) xs ys
+      in
+      if v.len <> v'.len then raise (Invalid_argument "Unequal lengths") else 
+        (aux acc v.entries v'.entries)
 
     let apply_with_c f c v =
       let entries' = List.map (fun (idx, value) -> (idx, f value c)) v.entries in
