@@ -33,11 +33,13 @@ struct
 
 
   let dim_remove (ch: Apron.Dim.change) m ~del =
+    let () = Printf.printf "Before dim_remove m:\n%s" (show m) in
     if Array.length ch.dim = 0 || is_empty m then
       m
     else (
       Array.modifyi (+) ch.dim;
       let m' = if not del then let m = copy m in Array.fold_left (fun y x -> reduce_col y x) m ch.dim else m in
+      let () = Printf.printf "After dim_remove m':\n%s" (show (remove_zero_rows @@ del_cols m' ch.dim)) in
       remove_zero_rows @@ del_cols m' ch.dim)
 
   let dim_remove ch m ~del = Timing.wrap "dim remove" (fun del -> dim_remove ch m ~del:del) del
@@ -348,6 +350,7 @@ struct
 
   let join a b =
     let res = join a b in
+    let () = Printf.printf "join a: %s b: %s -> %s \n" (show a) (show b) (show res) in
     if M.tracing then M.tracel "join" "join a: %s b: %s -> %s " (show a) (show b) (show res) ;
     res
 
@@ -368,6 +371,7 @@ struct
   let remove_rels_with_var x var env = Timing.wrap "remove_rels_with_var" remove_rels_with_var x var env 
 
   let forget_vars t vars =
+    let () = Printf.printf "forget_vars m:\n%s" (show t) in
     if is_bot t || is_top_env t || vars = [] then
       t
     else
@@ -409,7 +413,8 @@ struct
     in
     (* let assign_uninvertible_rel x var b env = Timing.wrap "assign_uninvertible" (assign_uninvertible_rel x var b) env in *)
     let is_invertible v = Vector.nth v @@ Environment.dim_of_var t.env var <>: Mpqf.zero
-    in let affineEq_vec = get_coeff_vec t texp
+    in let affineEq_vec = get_coeff_vec t texp in
+    let () = Printf.printf "After affineEq_vec m:\n%s\n" (Vector.show (Option.get affineEq_vec))
     in if is_bot t then t else let m = Option.get t.d in
       match affineEq_vec with
       | Some v when is_top_env t -> if is_invertible v then t else assign_uninvertible_rel m var v t.env
@@ -445,13 +450,15 @@ struct
     res
 
   let assign_var_parallel t vv's =
+    let () = Printf.printf "Before assign_var_parallel m:\n%s\n" (show t) in
     let assigned_vars = List.map fst vv's in
     let t = add_vars t assigned_vars in
     let primed_vars = List.init (List.length assigned_vars) (fun i -> Var.of_string (Int.to_string i  ^"'")) in (* TODO: we use primed vars in analysis, conflict? *)
     let t_primed = add_vars t primed_vars in
     let multi_t = List.fold_left2 (fun t' v_prime (_,v') -> assign_var t' v_prime v') t_primed primed_vars vv's in
+    let () = Printf.printf "After assign_var_parallel multi_t:\n%s\n" (show multi_t) in
     match multi_t.d with
-    | Some m when not @@ is_top_env multi_t -> let () = Printf.printf "Matrix in Domain m:\n%s" (Matrix.show m) in
+    | Some m when not @@ is_top_env multi_t -> let () = Printf.printf "Matrix in Domain m:\n%s\n" (Matrix.show m) in
       let replace_col m x y =
         let dim_x, dim_y = Environment.dim_of_var multi_t.env x, Environment.dim_of_var multi_t.env y in
         let col_x = Matrix.get_col m dim_x in
@@ -459,6 +466,7 @@ struct
       in
       let m_cp = Matrix.copy m in
       let switched_m = List.fold_left2 replace_col m_cp primed_vars assigned_vars in
+      let () = Printf.printf "Switched Matrix in Domain switched_m:\n%s\n" (Matrix.show switched_m) in
       let res = drop_vars {d = Some switched_m; env = multi_t.env} primed_vars ~del:true in
       let x = Option.get res.d in
       (match Matrix.normalize x with 

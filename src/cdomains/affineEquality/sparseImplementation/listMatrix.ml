@@ -39,6 +39,7 @@ module ListMatrix: AbstractMatrix =
       Timing.wrap "copy" (copy) m
 
     let add_empty_columns m cols = 
+      let () = Printf.printf "Before add_empty_columns m:\n%s\n" (show m) in
       let cols = Array.to_list cols in 
       let sorted_cols = List.sort Stdlib.compare cols in
       let rec count_sorted_occ acc cols last count = 
@@ -48,12 +49,15 @@ module ListMatrix: AbstractMatrix =
         | (x :: xs) -> count_sorted_occ ((last, count) :: acc) xs x 1
       in
       let occ_cols = count_sorted_occ [] sorted_cols (-1) 0 in
+      let () = Printf.printf "After add_empty_columns m:\n%s\n" (show (List.map (fun row -> V.insert_zero_at_indices row occ_cols) m)) in
       List.map (fun row -> V.insert_zero_at_indices row occ_cols) m
 
     let add_empty_columns m cols =
       Timing.wrap "add_empty_cols" (add_empty_columns m) cols
 
     let append_row m row  =
+    let () = Printf.printf "Before append_row m:\n%s\n" (show m) in
+    let () = Printf.printf "After append_row m:\n%s\n" (show ( m @ [row])) in
       m @ [row]
 
     let get_row m n =
@@ -69,7 +73,9 @@ module ListMatrix: AbstractMatrix =
       Timing.wrap "get_col" (get_col m) n
 
     let set_col m new_col n = 
+      let () = Printf.printf "Before set_col m:\n%s\n" (show m) in
       (* List.mapi (fun row_idx row -> V.set_nth row n (V.nth new_col row_idx)) m *)
+      let () = Printf.printf "After set_col m:\n%s\n" (show (List.map2 (fun row value -> V.set_nth row n value) m (V.to_list new_col))) in
       List.map2 (fun row value -> V.set_nth row n value) m (V.to_list new_col)
 
     let append_matrices m1 m2  = (* keeps dimensions of first matrix, what if dimensions differ?*)
@@ -263,7 +269,9 @@ module ListMatrix: AbstractMatrix =
       List.find_opt f m
 
     let map2 f m v =
+      let () = Printf.printf "Before map2 we have m:\n%s\n" (show m) in
       let vector_length = V.length v in
+      let () = Printf.printf "After map2 we have m:\n%s\n" (show (List.mapi (fun index row -> if index < vector_length then f row (V.nth v index) else row ) m)) in
       List.mapi (fun index row -> if index < vector_length then f row (V.nth v index) else row ) m
 
 

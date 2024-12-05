@@ -4,6 +4,7 @@ open ConvenienceOps
 
 open BatList
 open BatArray
+open Batteries
 
 module List = BatList
 module Array = BatArray
@@ -19,6 +20,20 @@ module SparseVector: AbstractVector =
     }[@@deriving eq, ord, hash]
 
     let to_vector e l = {entries=e; len=l}
+
+    let to_list v = 
+      let[@tail_mod_cons] rec extend_zero_aux i v' =
+        if i >= v.len then [] else (*can probably be removed*)
+          match v', i with
+          | (xi,xv)::xs, _ -> if xi = i then xv::(extend_zero_aux (i+1) xs) else A.zero ::(extend_zero_aux (i+1) v')
+          | [], j when i < v.len -> A.zero :: (extend_zero_aux (i+1) v')
+          | [], _ -> []
+      in 
+      (extend_zero_aux 0 v.entries)
+
+    let of_list l = 
+      let entries' = List.rev @@ List.fold_lefti (fun acc i x -> if x <> A.zero then (i, x) :: acc else acc) [] l
+      in {entries = entries'; len = List.length l}
 
     let keep_vals v n = 
       let rec keep_vals_vec v n =
@@ -82,7 +97,8 @@ module SparseVector: AbstractVector =
       in
       {entries = add_indices_helper v.entries idx 0; len = v.len + List.length idx}
 
-    let set_nth v n num = 
+    let set_nth v n num = (* TODO: Optimize! *)
+      (*
       if n >= v.len then failwith "Out of bounds" 
       else
         let rev_entries', _ = List.fold_lefti (fun (acc, found) i (idx, value) -> 
@@ -99,6 +115,8 @@ module SparseVector: AbstractVector =
 
           ) ([], false) v.entries in
         {entries = List.rev rev_entries'; len = v.len}
+        *)
+      of_list @@ List.mapi (fun i x -> if i = n then num else x) (to_list v)
 
     let insert_val_at n new_val v = 
       if n > v.len then failwith "n too large" else (* Does this happen? Otherwise we can omit this comparison, here right now to be semantically equivalent *)
@@ -153,17 +171,14 @@ module SparseVector: AbstractVector =
       if v.len <> v'.len then raise (Invalid_argument "Unequal lengths") else 
         (aux acc v.entries v'.entries)
 
-    let apply_with_c f c v =
-      let entries' = List.map (fun (idx, value) -> (idx, f value c)) v.entries in
-      {entries = entries'; len = v.len}
 
     let zero_vec n = 
       {entries = []; len = n}
 
     let is_zero_vec v = (v.entries = [])
 
-    let nth v n = 
-      if n >= v.len then failwith "V.nth out of bounds"
+    let nth v n = (* Note: This exception HAS TO BE THROWN! It is expected by the domain *)
+      if n >= v.len then raise (Invalid_argument "Cannot access vector element (out of bounds)")
       else
         let rec nth v = match v with (* List.assoc would also work, but we use the fact that v is sorted *)
           | [] -> A.zero
@@ -175,24 +190,12 @@ module SparseVector: AbstractVector =
     let length v =
       v.len
 
-    let of_list l = 
-      let entries' = List.rev @@ List.fold_lefti (fun acc i x -> if x <> A.zero then (i, x) :: acc else acc) [] l
-      in {entries = entries'; len = List.length l}
-
-    let to_list v = 
-      let[@tail_mod_cons] rec extend_zero_aux i v' =
-        if i >= v.len then [] else (*can probably be removed*)
-          match v', i with
-          | (xi,xv)::xs, _ -> if xi = i then xv::(extend_zero_aux (i+1) xs) else A.zero ::(extend_zero_aux (i+1) v')
-          | [], j when i < v.len -> A.zero :: (extend_zero_aux (i+1) v')
-          | [], _ -> []
-      in 
-      (extend_zero_aux 0 v.entries)
-
     let map2 f v v' = 
       if v.len <> v'.len then failwith "Unequal vector length" else 
         of_list (List.map2 f (to_list v) (to_list v'))
 
+    let apply_with_c f c v  = (* TODO: optimize! *)
+      of_list @@ List.map (fun value -> f value c) (to_list v)
 
     let findi f v = 
       if f A.zero then  
@@ -246,7 +249,7 @@ module SparseVector: AbstractVector =
       of_list (List.mapi f (to_list v))
 
     let find2i f v v' = (* TODO: optimize! *)
-      failwith "TODO"
+      fst @@ List.findi (fun _ (val1, val2) -> (uncurry f) (val1, val2)) (List.combine (to_list v) (to_list v'))
 
     let to_array v = 
       let vec = Array.make v.len A.zero in 
