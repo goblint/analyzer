@@ -215,7 +215,7 @@ module ListMatrix: AbstractMatrix =
       | x::xs ->
         let pivot_opt = V.findi_val_opt ((<>:) A.zero) v in
         match pivot_opt with
-        | None -> true (* When we found no pivot, the vector is already A.zero. *)
+        | None -> false (* When we found no pivot, the vector is already A.zero. *)
         | Some (pivot_id, pivot) ->
           let new_v = V.map2_preserve_zero (fun v1 v2 -> v1 -: (pivot *: v2)) v x in
           is_linearly_independent_rref new_v xs
@@ -238,10 +238,7 @@ module ListMatrix: AbstractMatrix =
               let linearly_indep = is_linearly_independent_rref v1 m' in 
               if linearly_indep then false else is_covered_by_helper vs1 m'
         in is_covered_by_helper m1 m2
-
-
-
-
+              
     let is_covered_by m1 m2 = Timing.wrap "is_covered_by" (is_covered_by m1) m2
 
     let find_opt f m =

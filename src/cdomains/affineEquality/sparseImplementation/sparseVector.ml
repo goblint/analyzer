@@ -193,15 +193,14 @@ module SparseVector: AbstractVector =
 
     (* Returns optional of (index * value) where f evaluated to true *)
     let findi_val_opt f v =
-      if f A.zero then  
-        (
-          let i, (col_idx, value) = List.findi (fun i (idx, value) -> if idx > i then true else f value) v.entries  in
-          if i < col_idx then (* In this case, Zero was the first element found because iteration index i is smaller than "found" value *)
-            Some (i, A.zero)
-          else Some (col_idx, value)
-        )
-      else
-        Some (List.find (fun (idx, value) -> f value) v.entries) 
+      let rec find_zero_or_val vec last_col_idx =
+            match vec, last_col_idx with
+            | [], _ -> if v.len <> last_col_idx + 1 && f A.zero then Some (last_col_idx + 1, A.zero) else None
+            | (idx, value) :: xs, i -> 
+              if idx <> last_col_idx + 1 && f A.zero then Some (last_col_idx + 1, A.zero) 
+              else if f value then Some (idx, value) 
+              else find_zero_or_val xs idx
+      in find_zero_or_val v.entries (-1)
 
     let map f v = 
       of_list (List.map f (to_list v))
