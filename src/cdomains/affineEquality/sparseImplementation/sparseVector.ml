@@ -138,8 +138,20 @@ module SparseVector: AbstractVector =
     let fold_left_f_preserves_zero f acc v =
       List.fold_left (fun acc (_, value) -> f acc value) acc v.entries
 
-    let fold_left2_f_preserves_zero f acc v v' =
-      List.fold_left2 (fun acc (_, value) (_, value') -> f acc value value') acc v.entries v'.entries
+    let fold_left2_f_preserves_zero f acc v v' =  
+      let rec aux acc v1 v2 =
+        match v1, v2 with 
+        | [], [] -> acc 
+        | [], (yidx, yval)::ys -> aux (f acc A.zero yval) [] ys
+        | (xidx, xval)::xs, [] -> aux (f acc xval A.zero) xs []
+        | (xidx, xval)::xs, (yidx, yval)::ys -> 
+          match xidx - yidx with
+          | d when d < 0 -> aux (f acc xval A.zero) xs v2
+          | d when d > 0 -> aux (f acc A.zero yval) v1 ys
+          | _            -> aux (f acc xval yval) xs ys
+      in
+      if v.len <> v'.len then raise (Invalid_argument "Unequal lengths") else 
+        (aux acc v.entries v'.entries)
 
     let apply_with_c f c v =
       let entries' = List.map (fun (idx, value) -> (idx, f value c)) v.entries in
