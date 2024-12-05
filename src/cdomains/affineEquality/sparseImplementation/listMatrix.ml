@@ -97,7 +97,7 @@ module ListMatrix: AbstractMatrix =
                 let row_value = V.nth row j in 
                 if row_value = A.zero then row
                 else (let s = row_value /: pivot in
-                      V.map2_preserve_zero (fun x y -> x -: s *: y) row pivot_row)            
+                      V.map2_f_preserve_zero (fun x y -> x -: s *: y) row pivot_row)            
             ) m
 
     let reduce_col_with_vec m j v = 
@@ -107,7 +107,7 @@ module ListMatrix: AbstractMatrix =
           let row_value = V.nth row j in 
           if row_value = A.zero then row
           else (let s = row_value /: pivot_element in
-                V.map2_preserve_zero (fun x y -> x -: s *: y) row v)            
+                V.map2_f_preserve_zero (fun x y -> x -: s *: y) row v)            
         ) m
 
     let del_col m j =
@@ -139,10 +139,10 @@ module ListMatrix: AbstractMatrix =
       List.mapi (fun i row -> V.findi (fun z -> z =: A.one) row) m
 
     let sub_rows (minu : V.t) (subt : V.t) : V.t =
-      V.map2_preserve_zero (-:) minu subt
+      V.map2_f_preserve_zero (-:) minu subt
 
     let div_row (row : V.t) (pivot : A.t) : V.t =
-      V.map_preserve_zero (fun a -> a /: pivot) row
+      V.map_f_preserve_zero (fun a -> a /: pivot) row
 
     let swap_rows m j k =
       List.mapi (fun i row -> if i = j then List.nth m k else if i = k then List.nth m j else row) m
@@ -216,7 +216,7 @@ module ListMatrix: AbstractMatrix =
         match pivot_opt with
         | None -> false (* When we found no pivot, the vector is already A.zero. *)
         | Some (pivot_id, pivot) ->
-          let new_v = V.map2_preserve_zero (fun v1 v2 -> v1 -: (pivot *: v2)) v x in
+          let new_v = V.map2_f_preserve_zero (fun v1 v2 -> v1 -: (pivot *: v2)) v x in
           is_linearly_independent_rref new_v xs
 
     let is_covered_by m1 m2 =
