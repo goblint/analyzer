@@ -451,7 +451,7 @@ struct
     let t_primed = add_vars t primed_vars in
     let multi_t = List.fold_left2 (fun t' v_prime (_,v') -> assign_var t' v_prime v') t_primed primed_vars vv's in
     match multi_t.d with
-    | Some m when not @@ is_top_env multi_t ->
+    | Some m when not @@ is_top_env multi_t -> let () = Printf.printf "Matrix in Domain m:\n%s" (Matrix.show m) in
       let replace_col m x y =
         let dim_x, dim_y = Environment.dim_of_var multi_t.env x, Environment.dim_of_var multi_t.env y in
         let col_x = Matrix.get_col m dim_x in

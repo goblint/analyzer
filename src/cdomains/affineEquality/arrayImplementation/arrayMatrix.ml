@@ -288,7 +288,9 @@ module ArrayMatrix: AbstractMatrix =
 
     let normalize m =
       let copy = copy m in
+      let () = Printf.printf "Before normalizing we have m:\n%s" (show m) in
       if normalize_with copy then
+        let () = Printf.printf "After normalizing we have m:\n%s" (show copy) in
         Some copy
       else
         None
@@ -297,6 +299,8 @@ module ArrayMatrix: AbstractMatrix =
       (*Performs a partial rref reduction to check if concatenating both matrices and afterwards normalizing them would yield a matrix <> m2 *)
       (*Both input matrices must be in rref form!*)
       if num_rows m1 > num_rows m2 then false else
+        let m1' = copy m1 in
+        let m2' = copy m2 in
         let p2 = lazy (get_pivot_positions m2) in
         try (
           for i = 0 to num_rows m1 - 1 do
@@ -312,6 +316,7 @@ module ArrayMatrix: AbstractMatrix =
               if m1_i. (num_cols m1 - 1) <>: A.zero then
                 raise Stdlib.Exit
           done;
+          (*let () = Printf.printf "m1: %sand m2: %s return true in is_covered_by.\n" (show m1') (show m2') in*)
           true
         )
         with Stdlib.Exit -> false;;

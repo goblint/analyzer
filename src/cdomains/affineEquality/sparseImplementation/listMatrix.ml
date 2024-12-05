@@ -90,6 +90,7 @@ module ListMatrix: AbstractMatrix =
       V.map2_f_preserve_zero (fun x y -> x -: s *: y) row1 row2
 
     let reduce_col m j = 
+      let () = Printf.printf "We are reducing matrix m:\n%s with %i\n" (show m) j in
       if is_empty m then m 
       else
         let rec find_pivot idx entries = (* Finds non-zero element in column j and returns pair of row idx and the pivot value *)
@@ -160,6 +161,7 @@ module ListMatrix: AbstractMatrix =
       List.mapi (fun i row -> if i = j then List.nth m k else if i = k then List.nth m j else row) m
 
     let normalize m =
+      let () = Printf.printf "Before normalizing we have m:\n%s" (show m) in
       let col_count = num_cols m in
       let dec_mat_2D (m : t) (row_idx : int) (col_idx : int) : t = 
         List.filteri_map (fun i row -> if i < row_idx then None else Some (V.starting_from_nth col_idx row)) m
@@ -203,6 +205,7 @@ module ListMatrix: AbstractMatrix =
               main_loop subtracted_m m' (row_idx + 1) (piv_col_idx + 1)) (* We start at piv_col_idx + 1 because every other col before that is zero at the bottom*)
       in 
       let m' = main_loop m m 0 0 in
+      let () = Printf.printf "After normalizing we have m:\n%s" (show m') in
       if affeq_rows_are_valid m' then Some m' else None (* TODO: We can check this for each row, using the helper function row_is_invalid *)
 
 
