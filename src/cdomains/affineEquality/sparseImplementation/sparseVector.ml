@@ -132,7 +132,7 @@ module SparseVector: AbstractVector =
           | _            -> aux (f_rem_zero acc xidx xval yval) xs ys
       in
       if v1.len <> v2.len then raise (Invalid_argument "Unequal lengths") else 
-      to_vector (List.rev (aux [] v1.entries v2.entries)) v1.len
+        to_vector (List.rev (aux [] v1.entries v2.entries)) v1.len
 
 
     let fold_left_f_preserve_zero f acc v =
@@ -191,12 +191,12 @@ module SparseVector: AbstractVector =
     (* Returns optional of (index * value) where f value evaluated to true *)
     let findi_val_opt f v =
       let rec find_zero_or_val vec last_col_idx =
-            match vec, last_col_idx with
-            | [], _ -> if v.len <> last_col_idx + 1 && f A.zero then Some (last_col_idx + 1, A.zero) else None
-            | (idx, value) :: xs, i -> 
-              if idx <> last_col_idx + 1 && f A.zero then Some (last_col_idx + 1, A.zero) 
-              else if f value then Some (idx, value) 
-              else find_zero_or_val xs idx
+        match vec, last_col_idx with
+        | [], _ -> if v.len <> last_col_idx + 1 && f A.zero then Some (last_col_idx + 1, A.zero) else None
+        | (idx, value) :: xs, i -> 
+          if idx <> last_col_idx + 1 && f A.zero then Some (last_col_idx + 1, A.zero) 
+          else if f value then Some (idx, value) 
+          else find_zero_or_val xs idx
       in find_zero_or_val v.entries (-1)
 
     let map f v = 

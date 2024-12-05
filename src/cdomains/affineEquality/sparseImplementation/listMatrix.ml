@@ -77,6 +77,18 @@ module ListMatrix: AbstractMatrix =
 
     let equal m1 m2 = Timing.wrap "equal" (equal m1) m2
 
+    let sub_rows (minu : V.t) (subt : V.t) : V.t =
+      V.map2_f_preserve_zero (-:) minu subt
+
+    let div_row (row : V.t) (pivot : A.t) : V.t =
+      V.map_f_preserve_zero (fun a -> a /: pivot) row
+
+    let swap_rows m j k =
+      List.mapi (fun i row -> if i = j then List.nth m k else if i = k then List.nth m j else row) m
+
+    let sub_scaled_row row1 row2 s =
+      V.map2_f_preserve_zero (fun x y -> x -: s *: y) row1 row2
+
     let reduce_col m j = 
       if is_empty m then m 
       else
@@ -97,7 +109,7 @@ module ListMatrix: AbstractMatrix =
                 let row_value = V.nth row j in 
                 if row_value = A.zero then row
                 else (let s = row_value /: pivot in
-                      V.map2_f_preserve_zero (fun x y -> x -: s *: y) row pivot_row)            
+                      sub_scaled_row row pivot_row s)            
             ) m
 
     let reduce_col_with_vec m j v = 
@@ -153,17 +165,18 @@ module ListMatrix: AbstractMatrix =
         List.filteri_map (fun i row -> if i < row_idx then None else Some (V.starting_from_nth col_idx row)) m
       in
       (* Function for finding first pivot in an extracted part of the matrix (row_idx and col_idx indicate which part of the original matrix) *)
-      let find_first_pivot m row_idx col_idx =
+      let find_first_pivot m' row_idx col_idx =
         if col_idx >= col_count then None else 
           (* Finding pivot by extracting the minimum column index of the first non zero value of each row*)
           let (piv_row, piv_col, piv_val) = List.fold_lefti (fun (cur_row, cur_col, cur_val) i row  -> 
               let row_first_non_zero = V.findi_val_opt ((<>:) A.zero) row in
               match row_first_non_zero with
               | None -> (cur_row, cur_col, cur_val)
-              | Some (col_idx, value) -> if col_idx < cur_col then (row_idx + i, col_idx, value) else (cur_row, cur_col, cur_val)
-            ) (num_rows m, num_cols m, A.zero) m (* Initializing with max, so num_cols m indicates that pivot is not found *)
+              | Some (idx, value) -> let () = Printf.printf "We found first non-zero at index %i in row %i\n" idx i in
+                if idx < cur_col then (row_idx + i, idx, value) else (cur_row, cur_col, cur_val)
+            ) (num_rows m', num_cols m', A.zero) m' (* Initializing with max, so num_cols m indicates that pivot is not found *)
           in
-          if piv_col = (num_cols m) then None else Some (piv_row, piv_col, piv_val)
+          if piv_col = (num_cols m') then None else Some (piv_row, piv_col + col_idx, piv_val)
       in
       let affeq_rows_are_valid m = (* Check if the semantics of an rref-affeq matrix are correct *)
         let col_count = num_cols m in
@@ -179,10 +192,13 @@ module ListMatrix: AbstractMatrix =
           match find_first_pivot m' row_idx col_idx with
           | None -> m (* No pivot found means already normalized*)
           | Some (piv_row_idx, piv_col_idx, piv_val) -> (
+              let () = Printf.printf "The current matrix is: \n%s and the pivot is (%i, %i, %s)\n" (show m) piv_row_idx piv_col_idx (A.to_string piv_val) in
               let m = if piv_row_idx <> row_idx then swap_rows m row_idx piv_row_idx else m in
               let normalized_m = List.mapi (fun idx row -> if idx = row_idx then div_row row piv_val else row) m in
               let piv_row = (List.nth normalized_m row_idx) in
-              let subtracted_m = List.mapi (fun idx row -> if idx <> row_idx then sub_rows row piv_row else row) normalized_m in
+              let subtracted_m = List.mapi (fun idx row -> if idx <> row_idx then 
+                                               let scale = V.nth row piv_col_idx in
+                                               sub_scaled_row row piv_row scale else row) normalized_m in
               let m' = dec_mat_2D m (row_idx + 1) (piv_col_idx + 1) in
               main_loop subtracted_m m' (row_idx + 1) (piv_col_idx + 1)) (* We start at piv_col_idx + 1 because every other col before that is zero at the bottom*)
       in 
