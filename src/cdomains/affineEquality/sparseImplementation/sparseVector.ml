@@ -191,7 +191,7 @@ module SparseVector: AbstractVector =
       else
         fst @@ List.find (fun (idx, value) -> f value) v.entries (* Here fst is the idx contained in the found tuple *)
 
-    (* Returns optional of (index * value) where f evaluated to true *)
+    (* Returns optional of (index * value) where f value evaluated to true *)
     let findi_val_opt f v =
       let rec find_zero_or_val vec last_col_idx =
             match vec, last_col_idx with

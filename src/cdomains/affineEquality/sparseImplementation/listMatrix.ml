@@ -147,15 +147,6 @@ module ListMatrix: AbstractMatrix =
     let swap_rows m j k =
       List.mapi (fun i row -> if i = j then List.nth m k else if i = k then List.nth m j else row) m
 
-    let is_valid_affeq_matrix m = 
-      let col_count = num_cols m in
-      let row_is_invalid row = (* TODO: Vector findi_opt *)
-        match V.findi_val_opt ((<>:) A.zero) row with
-        | Some (idx, _) -> if idx = col_count - 1 then true else false (* If all cofactors of the affeq are zero, but the constant is non-zero, the row is invalid *)
-        | None -> false (* Full zero row is not invalid *)
-      in
-      List.exists row_is_invalid m
-
     let normalize m =
       let col_count = num_cols m in
       let dec_mat_2D (m : t) (row_idx : int) (col_idx : int) : t = 
@@ -174,6 +165,14 @@ module ListMatrix: AbstractMatrix =
           in
           if piv_col = (num_cols m) then None else Some (piv_row, piv_col, piv_val)
       in
+      let affeq_rows_are_valid m = (* Check if the semantics of an rref-affeq matrix are correct *)
+        let col_count = num_cols m in
+        let row_is_valid row = (* TODO: Vector findi_opt *)
+          match V.findi_val_opt ((<>:) A.zero) row with
+          | Some (idx, _) -> if idx < col_count - 1 then true else false (* If all cofactors of the affeq are zero, but the constant is non-zero, the row is invalid *)
+          | None -> true (* Full zero row is valid *)
+        in
+        List.for_all row_is_valid m in
       let rec main_loop m m' row_idx col_idx = 
         if col_idx = (col_count - 2) then m  (* In this case the whole bottom of the matrix starting from row_index is Zero, so it is normalized *)
         else
@@ -188,7 +187,7 @@ module ListMatrix: AbstractMatrix =
               main_loop subtracted_m m' (row_idx + 1) (piv_col_idx + 1)) (* We start at piv_col_idx + 1 because every other col before that is zero at the bottom*)
       in 
       let m' = main_loop m m 0 0 in
-      if is_valid_affeq_matrix m' then Some m' else None (* TODO: We can check this for each row, using the helper function row_is_invalid *)
+      if affeq_rows_are_valid m' then Some m' else None (* TODO: We can check this for each row, using the helper function row_is_invalid *)
 
 
     (*This function yields the same result as appending vector v to m and normalizing it afterwards would. However, it is usually faster than performing those ops manually.*)
@@ -238,7 +237,7 @@ module ListMatrix: AbstractMatrix =
               let linearly_indep = is_linearly_independent_rref v1 m' in 
               if linearly_indep then false else is_covered_by_helper vs1 m'
         in is_covered_by_helper m1 m2
-              
+
     let is_covered_by m1 m2 = Timing.wrap "is_covered_by" (is_covered_by m1) m2
 
     let find_opt f m =
