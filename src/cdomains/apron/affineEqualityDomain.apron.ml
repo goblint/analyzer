@@ -298,7 +298,9 @@ struct
         in
         let case_three a b col_a col_b max =
           let col_a, col_b = Vector.copy col_a, Vector.copy col_b in
+          let () = Printf.printf "Before keep_vals: \ncol_a: %s col_b: %s\n" (Vector.show col_a) (Vector.show col_b) in
           let col_a, col_b = Vector.keep_vals col_a max, Vector.keep_vals col_b max in
+          let () = Printf.printf "After keep_vals: \ncol_a: %s col_b: %s\n" (Vector.show col_a) (Vector.show col_b) in
           if Vector.equal col_a col_b then
             (a, b, max)
           else
@@ -312,6 +314,7 @@ struct
               let col_a = Vector.map2 (-:) col_a col_b in
               let col_a = Vector.rev col_a in
               let multiply_by_t m t =
+                let () = Printf.printf "Before multiply_by_t col_a: %s" (Vector.show col_a) in
                 Matrix.map2i (fun i' x c -> if i' <= max then (let beta = c /: diff in Vector.map2 (fun u j -> u -: (beta *: j)) x t) else x) m col_a;
 
               in

@@ -97,7 +97,7 @@ module ListMatrix: AbstractMatrix =
       V.map2_f_preserves_zero (fun x y -> x -: s *: y) row1 row2
 
     let reduce_col m j = 
-      let () = Printf.printf "We are reducing matrix m:\n%s with %i\n" (show m) j in
+      let () = Printf.printf "Matrix: reduce_col %i of m:\n%s\n" j (show m) in
       if is_empty m then m 
       else
         let rec find_pivot idx entries = (* Finds non-zero element in column j and returns pair of row idx and the pivot value *)
@@ -121,6 +121,7 @@ module ListMatrix: AbstractMatrix =
             ) m
 
     let reduce_col_with_vec m j v = 
+      let () = Printf.printf "Before reduce_col_with_vec %i with vec %s of m:\n%s\n" j (V.show v) (show m) in
       let pivot_element = V.nth v j in
       if pivot_element = A.zero then m
       else List.mapi (fun idx row ->
@@ -144,13 +145,15 @@ module ListMatrix: AbstractMatrix =
 
     let del_cols m cols = Timing.wrap "del_cols" (del_cols m) cols
 
-    let map2i f m v=
+    let map2i f m v =
+      let () = Printf.printf "Before map2i m:\n%sv:%s\n" (show m) (V.show v) in
       let rec map2i_min i acc m v =
         match m, v with
         | [], _ | _, [] -> List.rev acc
         | row :: rs, value :: vs ->
           map2i_min (i + 1) (f i row value :: acc) rs vs
-      in
+      in  
+      let () = Printf.printf "After map2i m:\n%s\n" (show (map2i_min 0 [] m (V.to_list v))) in
       map2i_min 0 [] m (V.to_list v)
 
     let remove_zero_rows m =

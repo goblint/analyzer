@@ -81,6 +81,7 @@ module ArrayMatrix: AbstractMatrix =
              Array.blit m (n + 1) new_matrix n (num_rows new_matrix - n)); new_matrix
 
     let get_col m n =
+      let () = Printf.printf "get_col %i of m:\n%s\n%s\n" n (show m) (V.show (V.of_array @@ Array.init (Array.length m) (fun i -> m.(i).(n)))) in
       V.of_array @@ Array.init (Array.length m) (fun i -> m.(i).(n))
 
     let get_col m n = Timing.wrap "get_col" (get_col m) n
@@ -206,11 +207,13 @@ module ArrayMatrix: AbstractMatrix =
 
 
     let reduce_col_with_vec m j v =
+      let () = Printf.printf "Matrix: Before reduce_col_with_vec %i with vec %s of m:\n%s\n" j (V.show (V.of_array v)) (show m) in
       for i = 0 to num_rows m - 1 do
         if m.(i).(j) <>: A.zero then
           let beta = m.(i).(j) /: v.(j) in
           Array.iteri (fun j' x ->  m.(i).(j') <- x -: beta *: v.(j')) m.(i)
       done
+
 
     let get_pivot_positions m =
       let pivot_elements = Array.make (num_rows m) 0
@@ -373,8 +376,10 @@ module ArrayMatrix: AbstractMatrix =
        Array.map2 f' m (Array.combine range_array (V.to_array v))
     *)
     let map2i f m v =
+      let () = Printf.printf "Before map2i m:\n%sv:%s\n" (show m) (V.show v) in
       let m' = copy m in
       map2i_with f m' v;
+      let () = Printf.printf "After map2i m:\n%s\n" (show m') in
       m'
 
     let swap_rows m j k =
