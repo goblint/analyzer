@@ -423,11 +423,12 @@ struct
     (* let assign_uninvertible_rel x var b env = Timing.wrap "assign_uninvertible" (assign_uninvertible_rel x var b) env in *)
     let is_invertible v = Vector.nth v @@ Environment.dim_of_var t.env var <>: Mpqf.zero
     in let affineEq_vec = get_coeff_vec t texp in
-    let () = Printf.printf "After affineEq_vec m:\n%s\n" (Vector.show (Option.get affineEq_vec))
-    in if is_bot t then t else let m = Option.get t.d in
+    if is_bot t then t else let m = Option.get t.d in
       match affineEq_vec with
-      | Some v when is_top_env t -> if is_invertible v then t else assign_uninvertible_rel m var v t.env
-      | Some v -> if is_invertible v then let t' = assign_invertible_rels (Matrix.copy m) var v t.env in {d = t'.d; env = t'.env}
+      | Some v when is_top_env t -> let () = Printf.printf "After affineEq_vec m:\n%s\n" (Vector.show v) in
+        if is_invertible v then t else assign_uninvertible_rel m var v t.env
+      | Some v -> let () = Printf.printf "After affineEq_vec m:\n%s\n" (Vector.show v) in
+        if is_invertible v then let t' = assign_invertible_rels (Matrix.copy m) var v t.env in {d = t'.d; env = t'.env}
         else let new_m = Matrix.remove_zero_rows @@ remove_rels_with_var m var t.env 
           in assign_uninvertible_rel new_m var v t.env
       | None -> {d = Some (Matrix.remove_zero_rows @@ remove_rels_with_var m var t.env); env = t.env}
