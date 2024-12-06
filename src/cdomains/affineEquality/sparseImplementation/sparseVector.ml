@@ -59,8 +59,7 @@ module SparseVector: AbstractVector =
       if n >= v.len then failwith "Out of bounds"
       else
         let new_entries = List.filter_map (fun (col_idx, value) ->
-            if col_idx = n 
-            then None
+            if col_idx = n then None
             else if col_idx > n 
             then Some (col_idx - 1, value)
             else Some (col_idx, value)
@@ -108,7 +107,7 @@ module SparseVector: AbstractVector =
       if n > v.len then failwith "n too large" else (* Does this happen? Otherwise we can omit this comparison, here right now to be semantically equivalent *)
         let entries' = List.fold_left (fun acc (idx, value) -> 
             if idx < n then (idx, value) :: acc 
-            else (idx + 1, value) :: acc 
+            else (idx + 1, value) :: (idx, new_val):: acc 
           ) [] (List.rev v.entries) in
         {entries = List.sort (fun (i, _) (j, _) -> Int.compare i j) entries'; len = v.len + 1}
 
