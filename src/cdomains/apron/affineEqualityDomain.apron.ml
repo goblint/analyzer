@@ -257,6 +257,7 @@ struct
 
   let meet t1 t2 =
     let res = meet t1 t2 in
+    let () = Printf.printf "meet a: %s b: %s -> %s \n" (show t1) (show t2) (show res) in
     if M.tracing then M.tracel "meet" "meet a: %s b: %s -> %s " (show t1) (show t2) (show res) ;
     res
 
@@ -283,6 +284,7 @@ struct
 
   let leq t1 t2 =
     let res = leq t1 t2 in
+    let () = Printf.printf "leq a: %s b: %s -> %b \n" (show t1) (show t2) res in
     if M.tracing then M.tracel "leq" "leq a: %s b: %s -> %b " (show t1) (show t2) res ;
     res
 
@@ -355,6 +357,7 @@ struct
     res
 
   let widen a b =
+    let () = Printf.printf "Widen a: %s b: %s\n" (show a) (show b) in
     if Environment.equal a.env b.env then
       join a b
     else

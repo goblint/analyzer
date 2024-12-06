@@ -23,11 +23,10 @@ module SparseVector: AbstractVector =
 
     let to_list v = 
       let[@tail_mod_cons] rec extend_zero_aux i v' =
-        if i >= v.len then [] else (*can probably be removed*)
-          match v', i with
-          | (xi,xv)::xs, _ -> if xi = i then xv::(extend_zero_aux (i+1) xs) else A.zero ::(extend_zero_aux (i+1) v')
-          | [], j when i < v.len -> A.zero :: (extend_zero_aux (i+1) v')
-          | [], _ -> []
+        match v', i with
+        | (xi,xv)::xs, _ -> if xi = i then xv::(extend_zero_aux (i+1) xs) else A.zero ::(extend_zero_aux (i+1) v')
+        | [], j when i < v.len -> A.zero :: (extend_zero_aux (i+1) v')
+        | [], _ -> []
       in 
       (extend_zero_aux 0 v.entries)
 
@@ -36,13 +35,8 @@ module SparseVector: AbstractVector =
       in {entries = entries'; len = List.length l}
 
     let keep_vals v n = 
-      let rec keep_vals_vec v n =
-        match v with 
-        | x::xs -> if fst x > n then [] else x::(keep_vals_vec xs n)
-        | [] -> []
-      in
-      if n >= v.len then v else (*could be left out but maybe performance??*)
-        {entries = keep_vals_vec v.entries n; len=n}
+      if n >= v.len then v else
+        {entries = take_while (fun (idx, _) -> idx < n) v.entries; len=n}
 
 
     let remove_nth v n = 
@@ -98,25 +92,17 @@ module SparseVector: AbstractVector =
       {entries = add_indices_helper v.entries idx 0; len = v.len + List.length idx}
 
     let set_nth v n num = (* TODO: Optimize! *)
-      (*
       if n >= v.len then failwith "Out of bounds" 
       else
-        let rev_entries', _ = List.fold_lefti (fun (acc, found) i (idx, value) -> 
-            if found then ((idx, value) :: acc, true)
-            else 
-            if i = v.len - 1 then 
-              if idx = n then (if num <>: A.zero then (n, num) :: acc, true else acc, true)
-              else if idx > n then (if num <>: A.zero then (idx, value) :: (n, num) :: acc, true else (idx, value) :: acc, true)
-              else failwith "Out of bounds (Should not be reachable)"
-            else
-            if idx < n then ((idx, value) :: acc, false)
-            else if idx = n then (if num <>: A.zero then (n, num) :: acc , true else acc, true)
-            else (if num <>: A.zero then (idx, value) :: (n, num) :: acc, true else (idx, value) :: acc, true)
-
-          ) ([], false) v.entries in
-        {entries = List.rev rev_entries'; len = v.len}
-        *)
-      of_list @@ List.mapi (fun i x -> if i = n then num else x) (to_list v)
+        (* of_list @@ List.mapi (fun i x -> if i = n then num else x) (to_list v) *)
+        let rec set_nth_helper vec acc =
+          match vec with
+          | [] -> if num <>: A.zero then List.rev ((n, num) :: acc) else List.rev acc
+          | (idx, value) :: xs when n = idx -> if num <>: A.zero then List.rev_append ((idx, num) :: acc) xs else List.rev_append acc xs
+          | (idx, value) :: xs when n < idx -> if num <>: A.zero then List.rev_append ((n, num) :: acc) vec else List.rev_append acc ((idx, value) :: xs)
+          | x :: xs -> set_nth_helper xs (x :: acc)
+        in
+        {entries = set_nth_helper v.entries []; len = v.len}
 
     let insert_val_at n new_val v = 
       if n > v.len then failwith "n too large" else (* Does this happen? Otherwise we can omit this comparison, here right now to be semantically equivalent *)
@@ -190,7 +176,7 @@ module SparseVector: AbstractVector =
     let length v =
       v.len
 
-    let map2 f v v' = 
+    let map2 f v v' = (* TODO: Optimize! *)
       if v.len <> v'.len then failwith "Unequal vector length" else 
         of_list (List.map2 f (to_list v) (to_list v'))
 

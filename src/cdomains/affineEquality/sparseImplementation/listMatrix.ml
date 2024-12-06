@@ -56,8 +56,8 @@ module ListMatrix: AbstractMatrix =
       Timing.wrap "add_empty_cols" (add_empty_columns m) cols
 
     let append_row m row  =
-    let () = Printf.printf "Before append_row m:\n%s\n" (show m) in
-    let () = Printf.printf "After append_row m:\n%s\n" (show ( m @ [row])) in
+      let () = Printf.printf "Before append_row m:\n%s\n" (show m) in
+      let () = Printf.printf "After append_row m:\n%s\n" (show ( m @ [row])) in
       m @ [row]
 
     let get_row m n =
@@ -67,6 +67,7 @@ module ListMatrix: AbstractMatrix =
       List.remove_at n m
 
     let get_col m n =
+      let () = Printf.printf "get_col %i of m:\n%s\n%s\n" n (show m) (V.show (V.of_list @@ List.map (fun row -> V.nth row n) m)) in
       V.of_list @@ List.map (fun row -> V.nth row n) m (* builds full col including zeros, maybe use sparselist instead? *)
 
     let get_col m n =
