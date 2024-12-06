@@ -144,10 +144,14 @@ module ListMatrix: AbstractMatrix =
 
     let del_cols m cols = Timing.wrap "del_cols" (del_cols m) cols
 
-    let map2i f m v =
-      let vector_length = V.length v in
-      (* List.mapi (fun index row -> if index < vector_length then f index row (V.nth v index) else row) m *)
-      List.map2i (fun index row value -> if index < vector_length then f index row value else row) m (V.to_list v)
+    let map2i f m v=
+      let rec map2i_min i acc m v =
+        match m, v with
+        | [], _ | _, [] -> List.rev acc
+        | row :: rs, value :: vs ->
+          map2i_min (i + 1) (f i row value :: acc) rs vs
+      in
+      map2i_min 0 [] m (V.to_list v)
 
     let remove_zero_rows m =
       List.filter (fun row -> not (V.is_zero_vec row)) m
