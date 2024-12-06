@@ -11,6 +11,7 @@ module Vector = SparseVector (D)
 module Matrix = ListMatrix (D) (SparseVector)
 
 let normalize _ =
+  (* Example from a [Youtube video](https://www.youtube.com/watch?v=TYs4h-AoqyQ)*)
   let width = 4 in
   let int x = D.of_int x in
   let any_matrix =
