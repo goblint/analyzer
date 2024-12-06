@@ -415,6 +415,7 @@ struct
       let b_length = Vector.length b in
       let b = Vector.mapi (fun i z -> if i < b_length - 1 then Mpqf.neg z else z) b in
       let b = Vector.set_nth b (Environment.dim_of_var env var) Mpqf.one in
+      let () = Printf.printf "Before Matrix.rref_vec x:\n%s b:\n%s\n" (Matrix.show x) (Vector.show b) in
       match Matrix.rref_vec x b with
       | None -> bot ()
       | some_matrix -> {d = some_matrix; env = env}

@@ -98,7 +98,7 @@ module ListMatrix: AbstractMatrix =
       V.map2_f_preserves_zero (fun x y -> x -: s *: y) row1 row2
 
     let reduce_col m j = 
-      let () = Printf.printf "Matrix: reduce_col %i of m:\n%s\n" j (show m) in
+      let () = Printf.printf "Before reduce_col %i of m:\n%s\n" j (show m) in
       if is_empty m then m 
       else
         let rec find_pivot idx entries = (* Finds non-zero element in column j and returns pair of row idx and the pivot value *)
@@ -108,8 +108,18 @@ module ListMatrix: AbstractMatrix =
             if value =: A.zero then find_pivot (idx - 1) rest else Some (idx, value)
         in
         match (find_pivot (num_rows m - 1) (List.rev m)) with
-        | None -> m (* column is already filled with zeroes *)
+        | None -> let () = Printf.printf "After reduce_col %i of m:\n%s\n" j (show m) in m (* column is already filled with zeroes *)
         | Some (row_idx, pivot) -> 
+          let () = Printf.printf "After reduce_col %i of m:\n%s\n" j (show (let pivot_row = List.nth m row_idx in
+                                                                            List.mapi (fun idx row ->
+                                                                                if idx = row_idx then 
+                                                                                  V.zero_vec (num_cols m)
+                                                                                else
+                                                                                  let row_value = V.nth row j in 
+                                                                                  if row_value = A.zero then row
+                                                                                  else (let s = row_value /: pivot in
+                                                                                        sub_scaled_row row pivot_row s)            
+                                                                              ) m)) in
           let pivot_row = List.nth m row_idx in
           List.mapi (fun idx row ->
               if idx = row_idx then 
@@ -140,7 +150,8 @@ module ListMatrix: AbstractMatrix =
     let del_cols m cols =
       let cols = Array.to_list cols in (* TODO: Is it possible to use list for Apron dimchange? *)
       let sorted_cols = List.sort_uniq Stdlib.compare cols in (* Apron Docs:  Repetitions are meaningless (and are not correct specification) *)
-      if (List.length cols) = num_cols m then empty() 
+      let () = Printf.printf "Before del_cols cols_length=%i sorted_length=%i \nm:\n%s\n" (List.length cols) (List.length sorted_cols) (show m) in
+      if (List.length sorted_cols) = num_cols m then empty() 
       else
         List.map (fun row -> V.remove_at_indices row sorted_cols) m
 
@@ -189,7 +200,7 @@ module ListMatrix: AbstractMatrix =
               let row_first_non_zero = V.findi_val_opt ((<>:) A.zero) row in
               match row_first_non_zero with
               | None -> (cur_row, cur_col, cur_val)
-              | Some (idx, value) -> let () = Printf.printf "We found first non-zero at index %i in row %i\n" idx i in
+              | Some (idx, value) -> (* let () = Printf.printf "We found first non-zero at index %i in row %i\n" idx i in *)
                 if idx < cur_col then (row_idx + i, idx, value) else (cur_row, cur_col, cur_val)
             ) (num_rows m', num_cols m', A.zero) m' (* Initializing with max, so num_cols m indicates that pivot is not found *)
           in
@@ -209,7 +220,7 @@ module ListMatrix: AbstractMatrix =
           match find_first_pivot m' row_idx col_idx with
           | None -> m (* No pivot found means already normalized*)
           | Some (piv_row_idx, piv_col_idx, piv_val) -> (
-              let () = Printf.printf "The current matrix is: \n%s and the pivot is (%i, %i, %s)\n" (show m) piv_row_idx piv_col_idx (A.to_string piv_val) in
+              (* let () = Printf.printf "The current matrix is: \n%s and the pivot is (%i, %i, %s)\n" (show m) piv_row_idx piv_col_idx (A.to_string piv_val) in *)
               let m = if piv_row_idx <> row_idx then swap_rows m row_idx piv_row_idx else m in
               let normalized_m = List.mapi (fun idx row -> if idx = row_idx then div_row row piv_val else row) m in
               let piv_row = (List.nth normalized_m row_idx) in
@@ -229,12 +240,14 @@ module ListMatrix: AbstractMatrix =
     (*If m is empty then v is simply normalized and returned*)
     (* TODO: OPTIMIZE! *)
     let rref_vec m v =
+      let () = Printf.printf "Before rref_vec we have m:\n%sv: %s\n" (show m) (V.show v) in
       normalize @@ append_matrices m (init_with_vec v)
 
     (*Similar to rref_vec_with but takes two matrices instead.*)
     (*ToDo Could become inefficient for large matrices since pivot_elements are always recalculated + many row additions*)
     (*TODO: OPTIMIZE!*)
     let rref_matrix m1 m2 =
+      let () = Printf.printf "Before rref_matrix m1 m2\nm1: %s\nm2: %s\n" (show m1) (show m2) in
       normalize @@ append_matrices m1 m2
 
 

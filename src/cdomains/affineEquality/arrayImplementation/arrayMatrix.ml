@@ -124,8 +124,10 @@ module ArrayMatrix: AbstractMatrix =
 
     let reduce_col_with m j  = Timing.wrap "reduce_col_with" (reduce_col_with m) j
     let reduce_col m j =
+      let () = Printf.printf "Before reduce_col %i of m:\n%s\n" j (show m) in
       let copy = copy m in
       reduce_col_with copy j;
+      let () = Printf.printf "After reduce_col %i of m:\n%s\n" j (show copy) in
       copy
 
     let del_col m j =
@@ -208,7 +210,6 @@ module ArrayMatrix: AbstractMatrix =
 
 
     let reduce_col_with_vec m j v =
-      let () = Printf.printf "Matrix: Before reduce_col_with_vec %i with vec %s of m:\n%s\n" j (V.show (V.of_array v)) (show m) in
       for i = 0 to num_rows m - 1 do
         if m.(i).(j) <>: A.zero then
           let beta = m.(i).(j) /: v.(j) in
@@ -288,6 +289,7 @@ module ArrayMatrix: AbstractMatrix =
     let rref_matrix_with m1 m2 = Timing.wrap "rref_matrix_with" (rref_matrix_with m1) m2
 
     let rref_matrix m1 m2 = 
+      let () = Printf.printf "Before rref_matrix m1 m2\nm1: %s\nm2: %s\n" (show m1) (show m2) in
       let m1' = copy m1 in
       let m2' = copy m2 in 
       rref_matrix_with m1' m2'

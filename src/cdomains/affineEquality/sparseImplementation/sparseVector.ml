@@ -66,11 +66,13 @@ module SparseVector: AbstractVector =
           ) v.entries in
         {entries = new_entries; len = v.len - 1}
 
+    (* Note: It is assumed and necessary here that idx is sorted!!! *)
     let remove_at_indices v idx = 
       let rec remove_indices_helper vec idx deleted_count = 
         match vec, idx with 
         | [], [] -> []
-        | [], (y :: ys) -> failwith "remove at indices: no more columns to delete"
+        | [], (y :: ys) when deleted_count >= v.len || y >= v.len -> failwith "remove at indices: no more columns to delete"
+        | [], (y :: ys) -> remove_indices_helper [] ys (deleted_count + 1) (* Removing zero (also in next iteration, else failwith ) *)
         | ((col_idx, value) :: xs), [] -> (col_idx - deleted_count, value) :: remove_indices_helper xs [] deleted_count
         | ((col_idx, value) :: xs), (y :: ys) when y = col_idx -> remove_indices_helper xs ys (deleted_count + 1)
         | ((col_idx, value) :: xs), (y :: ys) when y < col_idx -> remove_indices_helper vec ys (deleted_count + 1) 
