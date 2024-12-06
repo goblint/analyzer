@@ -71,6 +71,7 @@ module ArrayMatrix: AbstractMatrix =
       V.of_array m.(n)
 
     let remove_row m n =
+      let () = Printf.printf "Before remove_row %i of m:\n%s\n" n (show m) in
       let new_matrix = Array.make_matrix (num_rows m - 1) (num_cols m) A.zero in
       if not @@ is_empty new_matrix then
         if n = 0 then

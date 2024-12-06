@@ -224,7 +224,7 @@ module SparseVector: AbstractVector =
       List.exists2 f (to_list v1) (to_list v2)
 
     let rev v = 
-      let entries' = List.rev @@ List.map (fun (idx, value) -> (v.len - idx, value)) v.entries in 
+      let entries' = List.rev @@ List.map (fun (idx, value) -> (v.len - 1 - idx, value)) v.entries in 
       {entries = entries'; len = v.len}
 
     let map2i f v v' = (* TODO: optimize! *)

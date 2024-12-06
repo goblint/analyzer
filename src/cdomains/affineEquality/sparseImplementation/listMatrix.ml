@@ -64,6 +64,7 @@ module ListMatrix: AbstractMatrix =
       List.nth m n
 
     let remove_row m n =
+      let () = Printf.printf "Before remove_row %i of m:\n%s\n" n (show m) in
       List.remove_at n m
 
     let get_col m n =
@@ -149,9 +150,9 @@ module ListMatrix: AbstractMatrix =
       let () = Printf.printf "Before map2i m:\n%sv:%s\n" (show m) (V.show v) in
       let rec map2i_min i acc m v =
         match m, v with
-        | [], _ | _, [] -> List.rev acc
-        | row :: rs, value :: vs ->
-          map2i_min (i + 1) (f i row value :: acc) rs vs
+        | [], _  -> List.rev acc
+        | row :: rs, [] -> List.rev_append (row :: acc) rs
+        | row :: rs, value :: vs -> map2i_min (i + 1) (f i row value :: acc) rs vs
       in  
       let () = Printf.printf "After map2i m:\n%s\n" (show (map2i_min 0 [] m (V.to_list v))) in
       map2i_min 0 [] m (V.to_list v)

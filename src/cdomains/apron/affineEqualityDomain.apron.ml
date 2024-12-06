@@ -305,8 +305,10 @@ struct
             (a, b, max)
           else
             (
+              let () = Printf.printf "Before rev col_a: %s col_b: %s\n" (Vector.show col_a) (Vector.show col_b) in
               let col_a = Vector.rev col_a in
               let col_b = Vector.rev col_b in
+              let () = Printf.printf "After rev col_a: %s col_b: %s\n" (Vector.show col_a) (Vector.show col_b) in
               let i = Vector.find2i (<>:) col_a col_b in
               let (x, y) = Vector.nth col_a i, Vector.nth col_b i in
               let r, diff = Vector.length col_a - (i + 1), x -: y  in
