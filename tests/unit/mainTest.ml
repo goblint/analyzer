@@ -7,6 +7,7 @@ let all_tests =
     MapDomainTest.test ();
     SolverTest.test ();
     LvalTest.test ();
+    SparseMatrixImplementationTest.tests ;
     CompilationDatabaseTest.tests;
     LibraryDslTest.tests;
     CilfacadeTest.tests;
@@ -15,6 +16,8 @@ let all_tests =
     IntOpsTest.tests;
   ]
 
+let subset_tests = "" >::: [SparseMatrixImplementationTest.tests]
+
 let () =
   print_string "\027[0;1munit: \027[0;0;00m";
-  run_test_tt_main all_tests
+  run_test_tt_main subset_tests
