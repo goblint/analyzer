@@ -269,6 +269,7 @@ sig
 
   val refine_with_congruence: Cil.ikind -> t -> (int_t * int_t) option -> t
   val refine_with_interval: Cil.ikind -> t -> (int_t * int_t) option -> t
+  val refine_with_bitfield: Cil.ikind -> t -> (int_t * int_t) -> t
   val refine_with_excl_list: Cil.ikind -> t -> (int_t list * (int64 * int64)) option -> t
   val refine_with_incl_list: Cil.ikind -> t -> int_t list option -> t
 
