@@ -6,6 +6,8 @@ open Goblint_lib
 open OUnit2
 open SparseVector
 open ListMatrix
+open ArrayVector
+open ArrayMatrix
 module D = SharedFunctions.Mpqf
 module Vector = SparseVector (D)
 module Matrix = ListMatrix (D) (SparseVector)

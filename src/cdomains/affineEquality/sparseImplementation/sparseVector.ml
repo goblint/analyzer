@@ -268,7 +268,7 @@ module SparseVector: AbstractVector =
       let rec list_str l =
         match l with
         | [] -> "]"
-        | x :: xs -> " " ^ (A.to_string x) ^ (list_str xs)
+        | x :: xs -> (A.to_string x) ^ " " ^ (list_str xs)
       in
       "["^list_str t^"\n"
 

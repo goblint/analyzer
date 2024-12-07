@@ -150,7 +150,7 @@ module ListMatrix: AbstractMatrix =
     let del_cols m cols =
       let cols = Array.to_list cols in (* TODO: Is it possible to use list for Apron dimchange? *)
       let sorted_cols = List.sort_uniq Stdlib.compare cols in (* Apron Docs:  Repetitions are meaningless (and are not correct specification) *)
-      let () = Printf.printf "Before del_cols cols_length=%i sorted_length=%i \nm:\n%s\n" (List.length cols) (List.length sorted_cols) (show m) in
+      let () = Printf.printf "Before del_cols cols_length=%i \nm:\n%s\n" (List.length cols) (show m) in
       if (List.length sorted_cols) = num_cols m then empty() 
       else
         List.map (fun row -> V.remove_at_indices row sorted_cols) m
@@ -241,7 +241,10 @@ module ListMatrix: AbstractMatrix =
     (* TODO: OPTIMIZE! *)
     let rref_vec m v =
       let () = Printf.printf "Before rref_vec we have m:\n%sv: %s\n" (show m) (V.show v) in
-      normalize @@ append_matrices m (init_with_vec v)
+      match normalize @@ append_matrices m (init_with_vec v) with
+      | Some res -> let () = Printf.printf "After rref_vec we have m:\n%s\n" (show res) in 
+        Some (remove_zero_rows res) 
+      | None -> None
 
     (*Similar to rref_vec_with but takes two matrices instead.*)
     (*ToDo Could become inefficient for large matrices since pivot_elements are always recalculated + many row additions*)

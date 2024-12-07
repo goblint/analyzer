@@ -139,6 +139,7 @@ module ArrayMatrix: AbstractMatrix =
 
     let del_cols m cols =
       let n_c = Array.length cols in
+      let () = Printf.printf "Before del_cols cols_length=%i \nm:\n%s\n" n_c (show m) in
       if n_c = 0 || is_empty m then m
       else
         let m_r, m_c = num_rows m, num_cols m in
@@ -210,6 +211,7 @@ module ArrayMatrix: AbstractMatrix =
 
 
     let reduce_col_with_vec m j v =
+      let () = Printf.printf "Before reduce_col_with_vec %i with vec %s of m:\n%s\n" j (V.show (V.of_array v)) (show m) in
       for i = 0 to num_rows m - 1 do
         if m.(i).(j) <>: A.zero then
           let beta = m.(i).(j) /: v.(j) in
@@ -245,12 +247,25 @@ module ArrayMatrix: AbstractMatrix =
         else (Array.blit m 0 new_m 0 i; new_m.(i) <- v; Array.blit m i new_m (i + 1) (Array.length m - j));
         Some new_m
 
+    let normalize_with m =
+      rref_with m
 
+    let normalize_with m = Timing.wrap "normalize_with" normalize_with m
+
+    let normalize m =
+      let copy = copy m in
+      let () = Printf.printf "Before normalizing we have m:\n%s" (show m) in
+      if normalize_with copy then
+        let () = Printf.printf "After normalizing we have m:\n%s" (show copy) in
+        Some copy
+      else
+        let () = Printf.printf "No normalization" in
+        None
     let rref_vec_with m v =
       (*This function yields the same result as appending vector v to m and normalizing it afterwards would. However, it is usually faster than performing those ops manually.*)
       (*m must be in rref form and contain the same num of cols as v*)
       (*If m is empty then v is simply normalized and returned*)
-      let v = V.to_array v in
+      (*let v = V.to_array v in
       if is_empty m then
         match Array.findi (fun x -> x <>: A.zero) v with
         | exception Not_found -> None
@@ -259,14 +274,19 @@ module ArrayMatrix: AbstractMatrix =
             Array.iteri (fun j x -> v.(j) <- x /: v_i) v; Some (init_with_vec @@ V.of_array v)
       else
         let pivot_elements = get_pivot_positions m in
-        rref_vec_helper m pivot_elements v
+        rref_vec_helper m pivot_elements v*)
+      normalize @@ append_row m v
 
     let rref_vec_with m v = Timing.wrap "rref_vec_with" (rref_vec_with m) v
 
     let rref_vec m v = (* !! There was another rref_vec function that has been renamed to rref_vec_helper !!*)
+      let () = Printf.printf "Before rref_vec we have m:\n%sv: %s\n" (show m) (V.show v) in 
       let m' = copy m in
       let v' = V.copy v in 
-      rref_vec_with m' v'
+      match rref_vec_with m' v' with
+      | Some res -> let () = Printf.printf "After rref_vec we have m:\n%s\n" (show res) in 
+        Some (remove_zero_rows res)
+      | None -> None
 
     let rref_matrix_with m1 m2 =
       (*Similar to rref_vec_with but takes two matrices instead.*)
@@ -293,20 +313,6 @@ module ArrayMatrix: AbstractMatrix =
       let m1' = copy m1 in
       let m2' = copy m2 in 
       rref_matrix_with m1' m2'
-
-    let normalize_with m =
-      rref_with m
-
-    let normalize_with m = Timing.wrap "normalize_with" normalize_with m
-
-    let normalize m =
-      let copy = copy m in
-      let () = Printf.printf "Before normalizing we have m:\n%s" (show m) in
-      if normalize_with copy then
-        let () = Printf.printf "After normalizing we have m:\n%s" (show copy) in
-        Some copy
-      else
-        None
 
     let is_covered_by m1 m2 =
       (*Performs a partial rref reduction to check if concatenating both matrices and afterwards normalizing them would yield a matrix <> m2 *)
@@ -354,10 +360,10 @@ module ArrayMatrix: AbstractMatrix =
     *)
 
     let map2 f m v =
-      let () = Printf.printf "Before map2 m:\n%s\n" (show m) in
+      let () = Printf.printf "Before map2 we have m:\n%s\n" (show m) in
       let m' = copy m in
       map2_with f m' v;
-      let () = Printf.printf "After map2 m:\n%s\n" (show m') in
+      let () = Printf.printf "After map2 we have m:\n%s\n" (show m') in
       m'
 
     let map2_with f m v = Timing.wrap "map2_with" (map2_with f m) v
