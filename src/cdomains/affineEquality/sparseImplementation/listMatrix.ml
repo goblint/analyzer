@@ -193,18 +193,20 @@ module ListMatrix: AbstractMatrix =
         List.filteri_map (fun i row -> if i < row_idx then None else Some (V.starting_from_nth col_idx row)) m
       in
       (* Function for finding first pivot in an extracted part of the matrix (row_idx and col_idx indicate which part of the original matrix) *)
+      (* The last column represents the constant in the affeq *)
       let find_first_pivot m' row_idx col_idx =
         if col_idx >= col_count then None else 
+          let max_piv_col_idx = num_cols m' - 2 in (* col at num_cols - 1 is the constant of the affeq *)
           (* Finding pivot by extracting the minimum column index of the first non zero value of each row*)
           let (piv_row, piv_col, piv_val) = List.fold_lefti (fun (cur_row, cur_col, cur_val) i row  -> 
               let row_first_non_zero = V.findi_val_opt ((<>:) A.zero) row in
               match row_first_non_zero with
               | None -> (cur_row, cur_col, cur_val)
               | Some (idx, value) -> (* let () = Printf.printf "We found first non-zero at index %i in row %i\n" idx i in *)
-                if idx < cur_col then (row_idx + i, idx, value) else (cur_row, cur_col, cur_val)
-            ) (num_rows m', num_cols m', A.zero) m' (* Initializing with max, so num_cols m indicates that pivot is not found *)
+                if idx < cur_col then (i, idx, value) else (cur_row, cur_col, cur_val)
+            ) (num_rows m', max_piv_col_idx + 1, A.zero) m' (* Initializing with max, so num_cols m indicates that pivot is not found *)
           in
-          if piv_col = (num_cols m') then None else Some (piv_row, piv_col + col_idx, piv_val)
+          if piv_col = (max_piv_col_idx + 1) then None else Some (row_idx + piv_row, col_idx + piv_col, piv_val)
       in
       let affeq_rows_are_valid m = (* Check if the semantics of an rref-affeq matrix are correct *)
         let col_count = num_cols m in
@@ -227,7 +229,7 @@ module ListMatrix: AbstractMatrix =
               let subtracted_m = List.mapi (fun idx row -> if idx <> row_idx then 
                                                let scale = V.nth row piv_col_idx in
                                                sub_scaled_row row piv_row scale else row) normalized_m in
-              let m' = dec_mat_2D m (row_idx + 1) (piv_col_idx + 1) in
+              let m' = dec_mat_2D subtracted_m (row_idx + 1) (piv_col_idx + 1) in
               main_loop subtracted_m m' (row_idx + 1) (piv_col_idx + 1)) (* We start at piv_col_idx + 1 because every other col before that is zero at the bottom*)
       in 
       let m' = main_loop m m 0 0 in
