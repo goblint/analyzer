@@ -12,6 +12,8 @@ module D = SharedFunctions.Mpqf
 module Vector = SparseVector (D)
 module Matrix = ListMatrix (D) (SparseVector)
 
+let int x = D.of_int x
+
 (** This function runs the equality assertion with the solution after normalizing the matrix. *)
 let normalize_and_assert (matrix : Matrix.t) (solution : Matrix.t) =
   let get_dimensions m = (Matrix.num_rows m, Matrix.num_cols m) in
@@ -26,16 +28,15 @@ let normalize_and_assert (matrix : Matrix.t) (solution : Matrix.t) =
   else
     match Matrix.normalize matrix with
     | None ->
-        assert_failure "The matrix is normalizable but was not normalized!"
+      assert_failure "The matrix is normalizable but was not normalized!"
     | Some reduced_matrix -> assert_equal reduced_matrix solution
 
 (**
-  Example from a [Youtube video](https://www.youtube.com/watch?v=TYs4h-AoqyQ)
-  but extended by a solution vector b = [0;0;25]^T.
+   Example from a [Youtube video](https://www.youtube.com/watch?v=TYs4h-AoqyQ)
+   but extended by a solution vector b = [0;0;25]^T.
 *)
 let standard_normalize _ =
   let width = 5 in
-  let int x = D.of_int x in
   let any_matrix =
     Matrix.append_row
       (Matrix.append_row
@@ -57,8 +58,7 @@ let standard_normalize _ =
   normalize_and_assert any_matrix normalized_matrix
 
 let should_just_sort_normalize _ =
-  let width = 10 in
-  let int x = D.of_int x in
+  let width = 7 in
   let chaotic_matrix =
     Matrix.append_row
       (Matrix.append_row
@@ -82,11 +82,33 @@ let should_just_sort_normalize _ =
   in
   normalize_and_assert chaotic_matrix sorted_matrix
 
+let should_eliminate_rows _ =
+  let width = 3 in
+  let linearly_dependent_rows =
+    Matrix.append_row
+      (Matrix.append_row
+         (Matrix.append_row (Matrix.empty ())
+            (Vector.of_sparse_list width [ (0, int 1); (2, int 4) ]))
+         (Vector.of_sparse_list width [ (0, int 2); (2, int 8) ]))
+      (Vector.of_sparse_list width [ (0, int 3); (2, int 12) ])
+  in
+
+  let minimized_matrix =
+    Matrix.append_row
+      (Matrix.append_row
+         (Matrix.append_row (Matrix.empty ())
+            (Vector.of_sparse_list width [ (0, int 1); (2, int 4) ]))
+         (Vector.zero_vec width))
+      (Vector.zero_vec width)
+  in
+  normalize_and_assert linearly_dependent_rows minimized_matrix
+
 let tests =
   "SparseMatrixImplementationTest"
   >::: [
-         "standard" >:: standard_normalize;
-         "should_sort" >:: should_just_sort_normalize;
-       ]
+    "standard" >:: standard_normalize;
+    "should_sort" >:: should_just_sort_normalize;
+    "should_eliminate" >:: should_eliminate_rows;
+  ]
 
 let () = run_test_tt_main tests
