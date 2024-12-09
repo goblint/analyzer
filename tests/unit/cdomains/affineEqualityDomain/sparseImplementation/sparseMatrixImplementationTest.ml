@@ -151,15 +151,49 @@ let does_handle_fractions _ =
   in
   normalize_and_assert any_matrix normalized_matrix
 
+let does_negate_negative _ =
+  let width = 5 in
+  let negative_matrix =
+    Matrix.append_row
+      (Matrix.append_row (Matrix.empty ())
+         (Vector.of_sparse_list width [ (0, int (-1)); (3, int (-3)) ]))
+      (Vector.of_sparse_list width [ (2, int (-1)); (4, int (-5)) ])
+  in
+
+  let negated_matrix =
+    Matrix.append_row
+      (Matrix.append_row (Matrix.empty ())
+         (Vector.of_sparse_list width [ (0, int 1); (3, int 3) ]))
+      (Vector.of_sparse_list width [ (2, int 1); (4, int 5) ])
+  in
+  normalize_and_assert negative_matrix negated_matrix
+
+(**
+   Normalization is idempotent.
+*)
+let does_not_change_normalized_matrix _ =
+  let width = 5 in
+  let already_normalized =
+    Matrix.append_row
+      (Matrix.append_row
+         (Matrix.append_row (Matrix.empty ())
+            (Vector.of_sparse_list width [ (0, int 1); (3, int 1) ]))
+         (Vector.of_sparse_list width [ (1, int 1); (3, int 3) ]))
+      (Vector.of_sparse_list width [ (2, int 1); (3, int 1) ])
+  in
+  normalize_and_assert already_normalized already_normalized
+
 let tests =
   "SparseMatrixImplementationTest"
   >::: [
     "can solve a standard normalization" >:: standard_normalize;
     "does sort already reduzed" >:: does_just_sort;
     "does eliminate dependent rows" >:: does_eliminate_dependent_rows;
-    (* Looks like deadlocking or inifinite execution when the bottom tests are activated. *)
+    (* Looks like the tests are deadlock or inifinite execution when those are activated. *)
     (*"can handle float domain" >:: does_handle_floats;*)
     (*"can handle fraction domain" >:: does_handle_fractions;*)
+    "does negate negative matrix" >:: does_negate_negative;
+    "does not change already normalized matrix" >:: does_not_change_normalized_matrix;
   ]
 
 let () = run_test_tt_main tests
