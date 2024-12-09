@@ -1,280 +1,10 @@
-(** OCaml implementations of vectors and matrices. *)
+open AbstractVector
+open RatOps
+open ConvenienceOps
+open AbstractMatrix
 
 open Batteries
 module Array = Batteries.Array
-module M = Messages
-
-(* let timing_wrap = Timing.wrap *)
-(* Disable timing of VectorMatrix and AffineEqualityDomain.
-   This is cleaner than a timing functor because the timed functions also call each other. *)
-let timing_wrap _ f x = f x
-
-(** Abstracts the functions of the Mpqf module for rationals from Apron that implements multi-precision rationals.
-    One could later exchange "Mpqf" with a different module that provides the functions specified by this interface. *)
-module type RatOps =
-sig
-  type t [@@deriving eq, ord, hash]
-  val add : t -> t -> t
-  val sub : t -> t -> t
-  val mul : t -> t -> t
-  val div : t -> t -> t
-  val neg : t -> t
-  val abs : t -> t
-  val to_string:  t -> string
-  val of_int: int -> t
-  val zero: t
-  val one: t
-  val get_den: t -> Z.t
-  val get_num: t -> Z.t
-end
-
-(** It provides more readable infix operators for the functions of RatOps.
-    It is designed to be included by modules that make use of RatOps's functions. *)
-module ConvenienceOps (A: RatOps) =
-struct
-  let ( *: ) = A.mul
-  let (+:) = A.add
-  let (-:) = A.sub
-  let (/:) = A.div
-  let (=:) x y = A.equal x y
-  let (<>:) x y = not (A.equal x y)
-  let (<:) x y = A.compare x y < 0
-  let (>:) x y = A.compare x y > 0
-  let (<=:) x y = A.compare x y <= 0
-  let (>=:) x y = A.compare x y >= 0
-  let of_int x = A.of_int x
-end
-
-(** High-level abstraction of a vector. *)
-module type Vector =
-sig
-  type num
-  type t [@@deriving eq, ord, hash]
-
-  val show: t -> string
-
-  val keep_vals: t -> int ->  t
-
-  val remove_val: t -> int ->  t
-
-  val set_val: t -> int -> num ->  t
-
-  val set_val_with: t -> int -> num -> unit
-
-  val insert_val: int -> num ->  t ->  t
-
-  val apply_with_c: (num -> num -> num) -> num ->  t ->  t
-
-  val apply_with_c_with: (num -> num -> num) -> num -> t -> unit
-
-  val zero_vec: int -> t
-
-  val nth: t -> int -> num
-
-  val length: t -> int
-
-  val map2: (num -> num -> num) -> t -> t -> t
-
-  val map2_with: (num -> num -> num) -> t -> t -> unit
-
-  val findi: (num -> bool) ->  t -> int
-
-  val map: (num -> num) -> t -> t
-
-  val map_with: (num -> num) -> t -> unit
-
-  val compare_length_with: t -> int -> int
-
-  val of_list: num list -> t
-
-  val to_list: t -> num list
-
-  val filteri: (int -> num -> bool) -> t -> t
-
-  val append: t -> t -> t
-
-  val exists: (num -> bool) -> t -> bool
-
-  val rev: t -> t
-
-  val rev_with: t -> unit
-
-  val map2i: (int -> num -> num -> num) -> t -> t -> t
-
-  val map2i_with: (int -> num -> num -> num) -> t -> t -> unit
-
-  val mapi: (int -> num -> num) -> t -> t
-
-  val mapi_with: (int -> num -> num) -> t -> unit
-
-  val find2i: (num -> num -> bool) -> t -> t -> int
-
-  val to_array: t -> num array
-
-  val of_array: num array -> t
-
-  val copy: t -> t
-end
-
-(** Some functions inside have the suffix _with, which means that the function has side effects. *)
-module type AbstractVector =
-  functor (A: RatOps) ->
-  sig
-    include Vector with type num:= A.t
-  end
-
-
-(** High-level abstraction of a matrix. *)
-module type Matrix =
-sig
-  type num
-  type vec
-  type t [@@deriving eq, ord, hash]
-
-  val empty: unit -> t (* TODO: needs unit? *)
-
-  val is_empty: t -> bool
-
-  val show: t -> string
-
-  val add_empty_columns: t -> int array -> t
-
-  val append_row: t -> vec -> t
-
-  val get_row: t -> int -> vec
-
-  val del_col: t -> int -> t
-
-  val del_cols: t -> int array -> t
-
-  val remove_row: t -> int -> t
-
-  val get_col: t -> int -> vec
-
-  val append_matrices: t -> t -> t
-
-  val num_rows: t -> int
-
-  val num_cols: t -> int
-
-  val reduce_col: t -> int -> t
-
-  val reduce_col_with: t -> int -> unit
-
-  val normalize: t -> t Option.t (*Gauss-Jordan Elimination to get matrix in reduced row echelon form (rref) + deletion of zero rows. None matrix has no solution*)
-
-  val normalize_with: t -> bool
-
-  val rref_vec_with: t -> vec -> t Option.t
-
-  val rref_matrix_with: t -> t -> t Option.t
-
-  val find_opt: (vec -> bool) -> t -> vec option
-
-  val map2: (vec -> num -> vec) -> t -> vec -> t
-
-  val map2_with: (vec -> num -> vec) -> t -> vec -> unit
-
-  val map2i: (int -> vec-> num -> vec) -> t -> vec -> t
-
-  val map2i_with: (int -> vec -> num -> vec) -> t -> vec -> unit
-
-  val set_col: t -> vec -> int -> t
-
-  val set_col_with: t -> vec -> int -> t
-
-  val init_with_vec: vec -> t
-
-  val remove_zero_rows: t -> t
-
-  val is_covered_by: t -> t -> bool
-
-  val copy: t -> t
-
-end
-
-(** Some functions inside have the suffix _with, which means that the function has side effects. *)
-module type AbstractMatrix =
-  functor (A: RatOps) (V: AbstractVector) ->
-  sig
-    include Matrix with type vec := V(A).t and type num := A.t
-  end
-
-
-(** Array-based vector implementation. *)
-module ArrayVector: AbstractVector =
-  functor (A: RatOps) ->
-  struct
-    include ConvenienceOps (A)
-    include Array
-    type t = A.t array [@@deriving eq, ord, hash]
-
-    let show t =
-      let t = Array.to_list t in
-      let rec list_str l =
-        match l with
-        | [] -> "]"
-        | x :: xs -> (A.to_string x) ^" "^(list_str xs)
-      in
-      "["^list_str t^"\n"
-
-    let keep_vals v n =
-      if n >= Array.length v then v else
-        Array.filteri (fun i x -> i < n) v (* TODO: take? *)
-
-    let compare_length_with v len =
-      Int.compare (Array.length v) len
-
-    let remove_val v n =
-      if n >= Array.length v then failwith "n outside of Array range" else
-        Array.init (Array.length v - 1) (fun i -> if i < n then Array.get v i else Array.get v (i + 1)) (* TODO: remove_at? *)
-
-    let set_val_with v n new_val =
-      if n >= Array.length v then failwith "n outside of Array range" else
-        Array.set v n new_val
-
-    let set_val v n new_val =
-      let copy = copy v in
-      set_val_with copy n new_val; copy
-
-    let insert_val n new_val v =
-      if n > Array.length v then failwith "n too large" else
-        Array.init (Array.length v + 1) (fun i -> if i < n then Array.get v i else if i = n then new_val else Array.get v (i -1)) (* insert? *)
-
-    let apply_with_c f c v =
-      Array.map (fun x -> f x c) v
-
-    let zero_vec n = Array.make n A.zero
-
-    let nth = Array.get
-
-    let map2i f v1 v2 =
-      let f' i = uncurry (f i) in
-      Array.mapi f' (Array.combine v1 v2) (* TODO: iter2i? *)
-
-    let map2i_with f v1 v2 = Array.iter2i (fun i x y -> v1.(i) <- f i x y) v1 v2
-
-    let find2i f v1 v2 =
-      Array.findi (uncurry f) (Array.combine v1 v2) (* TODO: iter2i? *)
-
-    let to_array v = v
-
-    let of_array v = v
-
-    let apply_with_c_with f c v = Array.modify (fun x -> f x c) v
-
-    let rev_with v = Array.rev_in_place v
-
-    let map_with f v = Array.modify f v
-
-    let map2_with f v1 v2 = Array.iter2i (fun i x y -> v1.(i) <- f x y) v1 v2
-
-    let copy v = Array.copy v
-
-    let mapi_with f v = Array.iteri (fun i x -> v.(i) <- f i x) v
-  end
-
-open Batteries.Array
 
 (** Array-based matrix implementation.
     It provides a normalization function to reduce a matrix into reduced row echelon form.
@@ -306,13 +36,14 @@ module ArrayMatrix: AbstractMatrix =
       let cp = Array.make_matrix (num_rows m) (num_cols m) A.zero in
       Array.iteri (fun i x -> Array.blit x 0 cp.(i) 0 (num_cols m)) m; cp
 
-    let copy m = timing_wrap "copy" (copy) m
+    let copy m = Timing.wrap "copy" (copy) m
 
     let add_empty_columns m cols =
+      let () = Printf.printf "Before add_empty_columns m:\n%s\n" (show m) in
       let nnc = Array.length cols in
       if is_empty m || nnc = 0 then m else
         let nr, nc = num_rows m, num_cols m in
-        let m' = make_matrix nr (nc + nnc) A.zero in
+        let m' = Array.make_matrix nr (nc + nnc) A.zero in
         for i = 0 to nr - 1 do
           let offset = ref 0 in
           for j = 0 to nc - 1 do
@@ -320,24 +51,28 @@ module ArrayMatrix: AbstractMatrix =
             m'.(i).(j + !offset) <- m.(i).(j);
           done
         done;
+        let () = Printf.printf "After add_empty_columns m:\n%s\n" (show m') in
         m'
 
-    let add_empty_columns m cols = timing_wrap "add_empty_cols" (add_empty_columns m) cols
+    let add_empty_columns m cols = Timing.wrap "add_empty_cols" (add_empty_columns m) cols
 
     let append_row m row  =
+      let () = Printf.printf "Before append_row m:\n%s\n" (show m) in
       let size = num_rows m in
-      let new_matrix = make_matrix (size + 1) (num_cols m) A.zero in
+      let new_matrix = Array.make_matrix (size + 1) (num_cols m) A.zero in
       for i = 0 to size - 1 do
         new_matrix.(i) <- m.(i)
       done;
       new_matrix.(size) <- V.to_array row;
+      let () = Printf.printf "After append_row m:\n%s\n" (show new_matrix) in
       new_matrix
 
     let get_row m n =
       V.of_array m.(n)
 
     let remove_row m n =
-      let new_matrix = make_matrix (num_rows m - 1) (num_cols m) A.zero in
+      let () = Printf.printf "Before remove_row %i of m:\n%s\n" n (show m) in
+      let new_matrix = Array.make_matrix (num_rows m - 1) (num_cols m) A.zero in
       if not @@ is_empty new_matrix then
         if n = 0 then
           Array.blit m 1 new_matrix 0 (num_rows m - 1)
@@ -347,25 +82,29 @@ module ArrayMatrix: AbstractMatrix =
              Array.blit m (n + 1) new_matrix n (num_rows new_matrix - n)); new_matrix
 
     let get_col m n =
+      let () = Printf.printf "get_col %i of m:\n%s\n%s\n" n (show m) (V.show (V.of_array @@ Array.init (Array.length m) (fun i -> m.(i).(n)))) in
       V.of_array @@ Array.init (Array.length m) (fun i -> m.(i).(n))
 
-    let get_col m n = timing_wrap "get_col" (get_col m) n
+    let get_col m n = Timing.wrap "get_col" (get_col m) n
 
     let set_col_with m new_col n =
       for i = 0 to num_rows m - 1 do
         m.(i).(n) <- V.nth new_col i
-      done; m
+      done;
+      let () = Printf.printf "After set_col m:\n%s\n" (show m) in
+      m
 
-    let set_col_with m new_col n = timing_wrap "set_col" (set_col_with m new_col) n
+    let set_col_with m new_col n = Timing.wrap "set_col" (set_col_with m new_col) n
 
     let set_col m new_col n =
+      let () = Printf.printf "Before set_col m:\n%s\n" (show m) in
       let copy = copy m in
       set_col_with copy new_col n
 
     let append_matrices m1 m2  =
       Array.append m1 m2
 
-    let equal m1 m2 = timing_wrap "equal" (equal m1) m2
+    let equal m1 m2 = Timing.wrap "equal" (equal m1) m2
 
     let reduce_col_with m j =
       if not @@ is_empty m then
@@ -383,10 +122,12 @@ module ArrayMatrix: AbstractMatrix =
          done;
          if !r >= 0 then Array.fill m.(!r) 0 (num_cols m) A.zero)
 
-    let reduce_col_with m j  = timing_wrap "reduce_col_with" (reduce_col_with m) j
+    let reduce_col_with m j  = Timing.wrap "reduce_col_with" (reduce_col_with m) j
     let reduce_col m j =
+      let () = Printf.printf "Before reduce_col %i of m:\n%s\n" j (show m) in
       let copy = copy m in
       reduce_col_with copy j;
+      let () = Printf.printf "After reduce_col %i of m:\n%s\n" j (show copy) in
       copy
 
     let del_col m j =
@@ -398,6 +139,7 @@ module ArrayMatrix: AbstractMatrix =
 
     let del_cols m cols =
       let n_c = Array.length cols in
+      let () = Printf.printf "Before del_cols cols_length=%i \nm:\n%s\n" n_c (show m) in
       if n_c = 0 || is_empty m then m
       else
         let m_r, m_c = num_rows m, num_cols m in
@@ -412,12 +154,7 @@ module ArrayMatrix: AbstractMatrix =
           done;
           m'
 
-    let del_cols m cols = timing_wrap "del_cols" (del_cols m) cols
-
-    let map2i f m v =
-      let f' x (i,y) = V.to_array @@ f i (V.of_array x) y in
-      let range_array = Array.init (V.length v) Fun.id in
-      Array.map2 f' m (Array.combine range_array (V.to_array v))
+    let del_cols m cols = Timing.wrap "del_cols" (del_cols m) cols
 
     let remove_zero_rows m =
       Array.filter (fun x -> Array.exists (fun y -> y <>: A.zero) x) m
@@ -436,19 +173,19 @@ module ArrayMatrix: AbstractMatrix =
         for i = 0 to num_rows-1 do
           let exception Found in
           try (
-            for j = i to num_cols -2 do
+            for j = i to num_cols -2 do (* Find pivot *)
               for k = i to num_rows -1 do
                 if m.(k).(j) <>: A.zero then
                   (
                     if k <> i then swap_rows k i;
                     let piv = m.(i).(j) in
-                    Array.iteri(fun j' x -> m.(i).(j') <- x /: piv) m.(i);
-                    for l = 0 to num_rows-1 do
+                    Array.iteri(fun j' x -> m.(i).(j') <- x /: piv) m.(i); (* Normalize pivot *)
+                    for l = 0 to num_rows-1 do (* Subtract from each row *)
                       if l <> i && m.(l).(j) <>: A.zero then (
                         let is_only_zero = ref true in
                         let m_lj = m.(l).(j) in
                         for k = 0 to num_cols - 2 do
-                          m.(l).(k) <- m.(l).(k) -: m.(i).(k) *: m_lj /: m.(i).(j);
+                          m.(l).(k) <- m.(l).(k) -: m.(i).(k) *: m_lj /: m.(i).(j); (* Subtraction *)
                           if m.(l).(k) <>: A.zero then is_only_zero := false;
                         done;
                         let k_end = num_cols - 1 in
@@ -466,7 +203,7 @@ module ArrayMatrix: AbstractMatrix =
         true)
       with Unsolvable -> false
 
-    let rref_with m = timing_wrap "rref_with" rref_with m
+    let rref_with m = Timing.wrap "rref_with" rref_with m
 
     let init_with_vec v =
       let new_matrix = Array.make_matrix 1 (V.length v) A.zero in
@@ -474,17 +211,19 @@ module ArrayMatrix: AbstractMatrix =
 
 
     let reduce_col_with_vec m j v =
+      let () = Printf.printf "Before reduce_col_with_vec %i with vec %s of m:\n%s\n" j (V.show (V.of_array v)) (show m) in
       for i = 0 to num_rows m - 1 do
         if m.(i).(j) <>: A.zero then
           let beta = m.(i).(j) /: v.(j) in
           Array.iteri (fun j' x ->  m.(i).(j') <- x -: beta *: v.(j')) m.(i)
       done
 
+
     let get_pivot_positions m =
       let pivot_elements = Array.make (num_rows m) 0
       in Array.iteri (fun i x -> pivot_elements.(i) <- Array.findi (fun z -> z =: A.one) x) m; pivot_elements
 
-    let rref_vec m pivot_positions v =
+    let rref_vec_helper m pivot_positions v =
       let insert = ref (-1) in
       for j = 0 to Array.length v -2 do
         if v.(j) <>: A.zero then
@@ -508,12 +247,25 @@ module ArrayMatrix: AbstractMatrix =
         else (Array.blit m 0 new_m 0 i; new_m.(i) <- v; Array.blit m i new_m (i + 1) (Array.length m - j));
         Some new_m
 
+    let normalize_with m =
+      rref_with m
 
+    let normalize_with m = Timing.wrap "normalize_with" normalize_with m
+
+    let normalize m =
+      let copy = copy m in
+      let () = Printf.printf "Before normalizing we have m:\n%s" (show m) in
+      if normalize_with copy then
+        let () = Printf.printf "After normalizing we have m:\n%s" (show copy) in
+        Some copy
+      else
+        let () = Printf.printf "No normalization" in
+        None
     let rref_vec_with m v =
       (*This function yields the same result as appending vector v to m and normalizing it afterwards would. However, it is usually faster than performing those ops manually.*)
       (*m must be in rref form and contain the same num of cols as v*)
       (*If m is empty then v is simply normalized and returned*)
-      let v = V.to_array v in
+      (*let v = V.to_array v in
       if is_empty m then
         match Array.findi (fun x -> x <>: A.zero) v with
         | exception Not_found -> None
@@ -522,9 +274,19 @@ module ArrayMatrix: AbstractMatrix =
             Array.iteri (fun j x -> v.(j) <- x /: v_i) v; Some (init_with_vec @@ V.of_array v)
       else
         let pivot_elements = get_pivot_positions m in
-        rref_vec m pivot_elements v
+        rref_vec_helper m pivot_elements v*)
+      normalize @@ append_row m v
 
-    let rref_vec_with m v = timing_wrap "rref_vec_with" (rref_vec_with m) v
+    let rref_vec_with m v = Timing.wrap "rref_vec_with" (rref_vec_with m) v
+
+    let rref_vec m v = (* !! There was another rref_vec function that has been renamed to rref_vec_helper !!*)
+      let () = Printf.printf "Before rref_vec we have m:\n%sv: %s\n" (show m) (V.show v) in 
+      let m' = copy m in
+      let v' = V.copy v in 
+      match rref_vec_with m' v' with
+      | Some res -> let () = Printf.printf "After rref_vec we have m:\n%s\n" (show res) in 
+        Some (remove_zero_rows res)
+      | None -> None
 
     let rref_matrix_with m1 m2 =
       (*Similar to rref_vec_with but takes two matrices instead.*)
@@ -535,7 +297,7 @@ module ArrayMatrix: AbstractMatrix =
       try (
         for i = 0 to num_rows s_m - 1 do
           let pivot_elements = get_pivot_positions !b in
-          let res = rref_vec !b pivot_elements s_m.(i) in
+          let res = rref_vec_helper !b pivot_elements s_m.(i) in
           match res with
           | None -> raise Unsolvable
           | Some res -> b := res
@@ -544,24 +306,20 @@ module ArrayMatrix: AbstractMatrix =
       )
       with Unsolvable -> None
 
-    let rref_matrix_with m1 m2 = timing_wrap "rref_matrix_with" (rref_matrix_with m1) m2
+    let rref_matrix_with m1 m2 = Timing.wrap "rref_matrix_with" (rref_matrix_with m1) m2
 
-    let normalize_with m =
-      rref_with m
-
-    let normalize_with m = timing_wrap "normalize_with" normalize_with m
-
-    let normalize m =
-      let copy = copy m in
-      if normalize_with copy then
-        Some copy
-      else
-        None
+    let rref_matrix m1 m2 = 
+      let () = Printf.printf "Before rref_matrix m1 m2\nm1: %s\nm2: %s\n" (show m1) (show m2) in
+      let m1' = copy m1 in
+      let m2' = copy m2 in 
+      rref_matrix_with m1' m2'
 
     let is_covered_by m1 m2 =
       (*Performs a partial rref reduction to check if concatenating both matrices and afterwards normalizing them would yield a matrix <> m2 *)
       (*Both input matrices must be in rref form!*)
       if num_rows m1 > num_rows m2 then false else
+        let m1' = copy m1 in
+        let m2' = copy m2 in
         let p2 = lazy (get_pivot_positions m2) in
         try (
           for i = 0 to num_rows m1 - 1 do
@@ -577,17 +335,16 @@ module ArrayMatrix: AbstractMatrix =
               if m1_i. (num_cols m1 - 1) <>: A.zero then
                 raise Stdlib.Exit
           done;
+          (*let () = Printf.printf "m1: %sand m2: %s return true in is_covered_by.\n" (show m1') (show m2') in*)
           true
         )
         with Stdlib.Exit -> false;;
 
-    let is_covered_by m1 m2 = timing_wrap "is_covered_by" (is_covered_by m1) m2
+    let is_covered_by m1 m2 = Timing.wrap "is_covered_by" (is_covered_by m1) m2
 
     let find_opt f m =
       let f' x = f (V.of_array x) in Option.map V.of_array (Array.find_opt f' m)
 
-    let map2 f m v =
-      let f' x y = V.to_array @@ f (V.of_array x) y in Array.map2 f' m (V.to_array v)
 
     let map2_with f m v =
       if num_rows m = V.length v then
@@ -597,7 +354,19 @@ module ArrayMatrix: AbstractMatrix =
           m.(i) <- V.to_array @@ f (V.of_array m.(i)) (V.nth v i)
         done
 
-    let map2_with f m v = timing_wrap "map2_with" (map2_with f m) v
+    (* Deprecated
+       let map2 f m v =
+       let f' x y = V.to_array @@ f (V.of_array x) y in Array.map2 f' m (V.to_array v)
+    *)
+
+    let map2 f m v =
+      let () = Printf.printf "Before map2 we have m:\n%s\n" (show m) in
+      let m' = copy m in
+      map2_with f m' v;
+      let () = Printf.printf "After map2 we have m:\n%s\n" (show m') in
+      m'
+
+    let map2_with f m v = Timing.wrap "map2_with" (map2_with f m) v
 
     let map2i_with f m v =
       if num_rows m = V.length v then
@@ -607,5 +376,22 @@ module ArrayMatrix: AbstractMatrix =
           m.(i) <- V.to_array @@ f i (V.of_array m.(i)) (V.nth v i)
         done
 
-    let map2i_with f m v = timing_wrap "map2i_with" (map2i_with f m) v
+    let map2i_with f m v = Timing.wrap "map2i_with" (map2i_with f m) v    
+
+    (* Deprecated
+       let map2i f m v =
+       let f' x (i,y) = V.to_array @@ f i (V.of_array x) y in
+       let range_array = Array.init (V.length v) Fun.id in
+       Array.map2 f' m (Array.combine range_array (V.to_array v))
+    *)
+    let map2i f m v =
+      let () = Printf.printf "Before map2i m:\n%sv:%s\n" (show m) (V.show v) in
+      let m' = copy m in
+      map2i_with f m' v;
+      let () = Printf.printf "After map2i m:\n%s\n" (show m') in
+      m'
+
+    let swap_rows m j k =
+      failwith "TODO"
+
   end
