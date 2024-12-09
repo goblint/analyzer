@@ -256,6 +256,7 @@ struct
 
   let ik = Cil.IInt
   let ik_char = Cil.IChar
+  let ik_uchar = Cil.IUChar
 
   let assert_equal x y =
     OUnit.assert_equal ~printer:I.show x y
@@ -468,42 +469,76 @@ struct
     assert_bool "-5 ?= not (4 | 12)" (I.equal_to (of_int (-5)) (I.lognot ik b12) = `Top)
 
   let of_list ik is = List.fold_left (fun acc x -> I.join ik acc (I.of_int ik x)) (I.bot ()) is
+  let cart_op op a b = List.map (BatTuple.Tuple2.uncurry op) (BatList.cartesian_product a b)
 
-  let assert_shift shift symb ik a b expected_values = 
-    let bf1 = of_list ik (List.map of_int a) in
-    let bf2 = of_list ik (List.map of_int b) in
-    let bf_shift_resolution = (shift ik bf1 bf2) in
-    let x = of_list ik (List.map of_int expected_values) in
-    let output_string = I.show bf1 ^ symb ^ I.show bf2 ^ " was: " ^ I.show bf_shift_resolution ^ " but should be: " ^  I.show x in
-    let output  = "Test shift ("^ I.show bf1 ^ symb ^ I.show bf2  ^ ") failed: " ^ output_string in
-    assert_bool (output) (I.equal bf_shift_resolution x)
+  let assert_shift shift ik a b expected = 
+    let symb, shift_op_bf, shift_op_int = match shift with
+      | `L -> " << ", I.shift_left ik, Int.shift_left
+      | `R -> " >> ", I.shift_right ik, Int.shift_right
+    in
+    let bf_a = of_list ik (List.map of_int a) in
+    let bf_b = of_list ik (List.map of_int b) in
+    let result = (shift_op_bf bf_a bf_b) in
+    let expected = match expected with
+      | `B bf -> bf
+      | `I is -> of_list ik (List.map of_int is)
+    in
+    let output_string = "was: " ^ I.show result ^ " but should be: " ^  I.show expected in
+    let output_string  = "Test shift ("^ I.show bf_a ^ symb ^ I.show bf_b  ^ ") failed: " ^ output_string in
+    assert_bool output_string (I.equal result expected)
 
-  let assert_shift_left ik a b res = assert_shift I.shift_left " << " ik a b res
-  let assert_shift_right ik a b res = assert_shift I.shift_right " >> " ik a b res
+  let assert_shift_left ik a b expected = assert_shift `L ik a b expected
+  let assert_shift_right ik a b expected = assert_shift `R ik a b expected
 
-  let test_shift_left _ =
-    assert_shift_left ik_char [-3] [7] [-128];
-    assert_shift_left ik [-3] [7] [-384];
-    assert_shift_left ik [2] [1; 2] [2; 4; 8; 16];
-    assert_shift_left ik [1; 2] [1] [2; 4];
-    assert_shift_left ik [-1; 1] [1] [-2; 2];
-    assert_shift_left ik [-1] [4] [-16];
-    assert_shift_left ik [-1] [1] [-2];
-    assert_shift_left ik [-1] [2] [-4];
-    assert_shift_left ik [-1] [3] [-8];
-    assert_shift_left ik [-2] [1; 2] [-2; -4; -8; -16];
-    assert_shift_left ik [-1] [1; 2] [-1; -2; -4; -8];
-    assert_shift_left ik [1073741824] [128; 384] [0];
-    assert_shift_left ik [1073741824] [0; 128; 384] [1073741824]
+  let list_from_set_gen gen =
+    let open QCheck2.Gen in
+    let module S = Set.Make(Int) in
+    list gen >>= fun lst ->
+      let set = List.fold_left (fun acc x -> S.add x acc) S.empty lst in
+      return (S.elements set) 
 
-  let test_shift_right _ =
-    assert_shift_right ik [4] [1] [2];
-    assert_shift_right ik [-4] [1] [-2];
-    assert_shift_right ik [1] [1] [0];
-    assert_shift_right ik [1] [1; 2] [0; 1];
-    assert_shift_right ik [1; 2] [1; 2] [0; 1; 2; 3];
-    assert_shift_right ik [32] [64; 2] [8; 32];
-    assert_shift_right ik [32] [128; 384] [0]
+  let test_shift ik name c_op a_op =
+    let shift_test_printer (a,b) = Printf.sprintf "a: [%s], b: [%s]"
+      (String.concat ", " (List.map string_of_int a))
+      (String.concat ", " (List.map string_of_int b))
+    in
+    let of_list ik is = of_list ik (List.map of_int is) in
+    let open QCheck2 in
+    let a_gen =
+      list_from_set_gen Gen.small_signed_int
+    in
+    let b_gen =
+      let precision = snd @@ IntDomain.Size.bits ik in
+      list_from_set_gen (Gen.int_range 0 precision)
+    in
+    Test.make ~name:name ~print:shift_test_printer (Gen.pair a_gen b_gen)
+    (fun (a,b) ->
+      let expected = cart_op c_op a b |> of_list ik in
+      let result = a_op ik (of_list ik a) (of_list ik b) in
+      let test_result = I.equal result expected in
+      test_result
+    )
+
+  let test_shift_left = QCheck_ounit.to_ounit2_test (test_shift ik "test shift left" Int.shift_left I.shift_left)
+  let test_shift_right = QCheck_ounit.to_ounit2_test (test_shift ik "test shift right" Int.shift_right I.shift_right)
+
+  let test_shift_left = [
+    test_shift_left;
+    "shift left edge cases" >:: fun _ ->
+    assert_shift_left ik_char [85] [4; 6] (`B (I.bot ()));
+
+    assert_shift_left ik [1073741824] [1; 128; 384] (`B (I.bot ()));
+    assert_shift_left ik [1073741824] [0; 128; 384] (`I [1073741824])
+  ]
+
+  let test_shift_right = [
+    test_shift_right;
+    "shift right edge cases" >:: fun _ ->
+    assert_shift_right ik_char [85] [8] (`B (I.bot ()));
+    assert_shift_right ik_uchar [85] [9] (`B (I.bot ()));
+
+    assert_shift_right ik [32] [128; 384] (`B (I.bot ()))
+  ]
 
 
   (* Arith *)
@@ -763,8 +798,8 @@ struct
     "test_logor" >:: test_logor;
     "test_lognot" >:: test_lognot;
     
-    "test_shift_left" >:: test_shift_left;
-    "test_shift_right" >:: test_shift_right;
+    "test_shift_left" >::: test_shift_left;
+    "test_shift_right" >::: test_shift_right;
 
     "test_add" >:: test_add;
     "test_sub" >:: test_sub;
