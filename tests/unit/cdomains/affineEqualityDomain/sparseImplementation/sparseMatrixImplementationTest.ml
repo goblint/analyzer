@@ -12,7 +12,13 @@ module D = SharedFunctions.Mpqf
 module Vector = SparseVector (D)
 module Matrix = ListMatrix (D) (SparseVector)
 
+(** Shorthands for common functions. *)
 let int x = D.of_int x
+
+let frac numerator denominator = D.of_frac numerator denominator
+
+(** Shorthands for common functions. *)
+let float x = D.of_float x
 
 (** This function runs the equality assertion with the solution after normalizing the matrix. *)
 let normalize_and_assert (matrix : Matrix.t) (solution : Matrix.t) =
@@ -57,7 +63,10 @@ let standard_normalize _ =
   in
   normalize_and_assert any_matrix normalized_matrix
 
-let should_just_sort_normalize _ =
+(**
+   Normalization just sorts the matrix, as the rows are already reduced. 
+*)
+let does_just_sort _ =
   let width = 7 in
   let chaotic_matrix =
     Matrix.append_row
@@ -82,7 +91,10 @@ let should_just_sort_normalize _ =
   in
   normalize_and_assert chaotic_matrix sorted_matrix
 
-let should_eliminate_rows _ =
+(**
+   Normalization should eliminate both linearly dependent rows.
+*)
+let does_eliminate_dependent_rows _ =
   let width = 3 in
   let linearly_dependent_rows =
     Matrix.append_row
@@ -103,12 +115,51 @@ let should_eliminate_rows _ =
   in
   normalize_and_assert linearly_dependent_rows minimized_matrix
 
+let does_handle_floats _ =
+  let width = 3 in
+  let any_matrix =
+    Matrix.append_row
+      (Matrix.append_row (Matrix.empty ())
+         (Vector.of_sparse_list width [ (0, float 5.); (2, float (1. /. 2.)) ]))
+      (Vector.of_sparse_list width
+         [ (0, float (1. /. 4.)); (2, float 23.); (2, float 2.) ])
+  in
+
+  let normalized_matrix =
+    Matrix.append_row
+      (Matrix.append_row (Matrix.empty ())
+         (Vector.of_sparse_list width [ (0, float 1.); (2, float (1. /. 10.)) ]))
+      (Vector.of_sparse_list width [ (2, float 1.); (2, float (79. /. 920.)) ])
+  in
+  normalize_and_assert any_matrix normalized_matrix
+
+let does_handle_fractions _ =
+  let width = 3 in
+  let any_matrix =
+    Matrix.append_row
+      (Matrix.append_row (Matrix.empty ())
+         (Vector.of_sparse_list width [ (0, frac 5 1); (2, frac 1 2) ]))
+      (Vector.of_sparse_list width
+         [ (0, frac 1 4); (2, frac 23 1); (2, frac 2 1) ])
+  in
+
+  let normalized_matrix =
+    Matrix.append_row
+      (Matrix.append_row (Matrix.empty ())
+         (Vector.of_sparse_list width [ (0, frac 1 1); (2, frac 1 10) ]))
+      (Vector.of_sparse_list width [ (2, frac 1 1); (2, frac 79 920) ])
+  in
+  normalize_and_assert any_matrix normalized_matrix
+
 let tests =
   "SparseMatrixImplementationTest"
   >::: [
-    "standard" >:: standard_normalize;
-    "should_sort" >:: should_just_sort_normalize;
-    "should_eliminate" >:: should_eliminate_rows;
+    "can solve a standard normalization" >:: standard_normalize;
+    "does sort already reduzed" >:: does_just_sort;
+    "does eliminate dependent rows" >:: does_eliminate_dependent_rows;
+    (* Looks like deadlocking or inifinite execution when the bottom tests are activated. *)
+    (*"can handle float domain" >:: does_handle_floats;*)
+    (*"can handle fraction domain" >:: does_handle_fractions;*)
   ]
 
 let () = run_test_tt_main tests
