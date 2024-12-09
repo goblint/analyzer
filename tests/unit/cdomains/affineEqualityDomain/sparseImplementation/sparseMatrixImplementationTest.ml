@@ -13,8 +13,12 @@ module Vector = SparseVector (D)
 module Matrix = ListMatrix (D) (SparseVector)
 
 let normalize _ =
-  (* Example from a [Youtube video](https://www.youtube.com/watch?v=TYs4h-AoqyQ)*)
-  let width = 4 in
+  (*
+    Example from a [Youtube video](https://www.youtube.com/watch?v=TYs4h-AoqyQ)
+    but extended by a solution vector b = [0;0;25]^T.
+  *)
+
+  let width = 5 in
   let int x = D.of_int x in
   let any_matrix =
     Matrix.append_row
@@ -25,7 +29,7 @@ let normalize _ =
          )
          (Vector.of_sparse_list width [ (0, int 2); (1, int 3); (2, int 4) ])
       )
-      (Vector.of_sparse_list width [ (0, int 1); (1, int 1); (2, int 2); (3, int 4) ]
+      (Vector.of_sparse_list width [ (0, int 1); (1, int 1); (2, int 2); (3, int 4); (4, int 25)]
       )
   in
   let normalized_matrix =
@@ -33,11 +37,11 @@ let normalize _ =
       (Matrix.append_row
          (Matrix.append_row 
             (Matrix.empty ())
-            (Vector.of_sparse_list width [ (0,int 1); (2,int 2) ])
+            (Vector.of_sparse_list width [ (0,int 1); (2,int 2); (4, int 3)])
          )
-         (Vector.of_sparse_list width [ (1,int 1) ])
+         (Vector.of_sparse_list width [ (1,int 1); (4, int (-2)) ])
       )
-      (Vector.of_sparse_list width [ (3,int 1) ]
+      (Vector.of_sparse_list width [ (3,int 1); (4, int 6)]
       )
   in
   match Matrix.normalize any_matrix with
