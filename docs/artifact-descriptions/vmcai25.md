@@ -236,6 +236,16 @@ More recent versions of Ultimate can be found at <https://github.com/ultimate-pa
 
 The Goblint analyzer (<https://goblint.in.tum.de>) is developed by TU Munich and University of Tartu. The source code for Goblint at the time of evaluation can be found in this artifact in the `~/goblint` directory.
 
+The code for this paper is the following:
+
+1. `src/witness/witnessGhostVar.ml` and `src/witness/witnessGhost.ml` define the data types for ghost variables.
+2. `src/analyses/mutexGhosts.ml` defines the analysis which determines the ghost variables for a specific program and their updates.
+3. `src/analyses/basePriv.ml` lines 342-365 define the invariants with mutex ghost variables from non-relational _mutex-meet_ analysis.
+4. `src/analyses/apron/relationPriv.apron.ml` lines 717-750 define the invariants with mutex ghost variables from relational _mutex-meet_ analysis.
+5. `src/analyses/base.ml` lines 1269-1289 and `src/analyses/apron/relationAnalysis.apron.ml` lines 637-644 define the wrapping of the invariants with multithreaded mode ghost variables.
+6. `src/analyses/basePriv.ml` lines 882-909 define the invariants with mutex ghost variables from (non-relational) _protection_ analysis.
+7. `src/witness/yamlWitness.ml` lines 398-421 and 589-621 define the YAML output of ghost variables, their updates and the invariants.
+
 More recent versions of Goblint can be found at <https://github.com/goblint>.
 
 ----------------------------------------------------------------------------------
