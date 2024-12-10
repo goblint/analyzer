@@ -164,22 +164,22 @@ This script behaves similarly to the smaller variants in the previous sections.
 Note however:
 
 - By default the experiments require 16 GB of memory per benchmark (this configuration was used for the experiments in the paper).
-  To reproduce this, you will have to modify the VM's settings in VirtualBox and increase the available memory (shutdown the machine while doing so).
+    To reproduce this, you will have to modify the VM's settings in VirtualBox and increase the available memory (shutdown the machine while doing so).
 
-  Alternatively, you can run the experiments with a reduced memory limit.
-  To do so, modify the environment variable `BENCHMARK_PARAMS`.
-  For instance, the following allows only 4GB of memory per benchmark:
+    Alternatively, you can run the experiments with a reduced memory limit.
+    To do so, modify the environment variable `BENCHMARK_PARAMS`.
+    For instance, the following allows only 4GB of memory per benchmark:
 
-      BENCHMARK_PARAMS="-M 4GB" ~/scripts/full-run.sh
+        BENCHMARK_PARAMS="-M 4GB" ~/scripts/full-run.sh
 
 - The full evaluation for the paper required around 3 days.
-  In this evaluation, we used the benchexec tool to run 14 validation tasks in parallel (occupying up to 28 cores at a time).
+    In this evaluation, we used the benchexec tool to run 14 validation tasks in parallel (occupying up to 28 cores at a time).
 
-  By default, the provided script only runs one benchmark at a time.
-  If you have sufficient cores and memory available (adjust the VM settings accordingly), you can run multiple benchmarks in parallel by setting the environment variable `BENCHEXEC_THREADS`. You may also execute the experiments with a reduced timeout.
-  For instance, the following command runs 4 benchmarks in parallel at a time (occupying up to 8 cores), and gives each benchmark a 300s timeout and 4GB memory limit:
+    By default, the provided script only runs one benchmark at a time.
+    If you have sufficient cores and memory available (adjust the VM settings accordingly), you can run multiple benchmarks in parallel by setting the environment variable `BENCHEXEC_THREADS`. You may also execute the experiments with a reduced timeout.
+    For instance, the following command runs 4 benchmarks in parallel at a time (occupying up to 8 cores), and gives each benchmark a 300s timeout and 4GB memory limit:
 
-      BENCHEXEC_THREADS=4 BENCHMARK_PARAMS="-T 300s -M 4GB" ~/scripts/full-run.sh
+        BENCHEXEC_THREADS=4 BENCHMARK_PARAMS="-T 300s -M 4GB" ~/scripts/full-run.sh
 
 Naturally, changes to the timeout or memory are expected to affect the evaluation numbers.
 
@@ -202,6 +202,7 @@ The table contains the following configurations :
   In this mode, described in the paper, GemCutter only checks if the given witness' invariants are correct, but does not prove the corresponding program correct.
 
 The summary table shows how many benchmarks were analysed and the results.
+
 - The row `correct true` indicates tasks that were successfully verified (for `verify`), or where the witness was confirmed resp. validated (for the other configurations).
 - The row `correct false` indicates that a bug was found (for `verify`), resp. that witness validation failed and a witness was rejected.
   The latter only happens for programs that are incorrect, hence there can be no valid correctness witness and rejection is expected.
@@ -266,23 +267,23 @@ The benchmarks are written in C and use POSIX threads (`pthreads`) to model conc
 ## EXTENDING & REUSING THIS ARTIFACT
 
 * **Building a modified version of the VM:** This VM was created using the `vagrant` tool (<https://developer.hashicorp.com/vagrant/>).
-  The `Vagrantfile` used to build the artifact, along with several other files used in the build, is included in the directory `~/artifact`.
-  This can be used to inspect the setup of the VM, and even build a modified version.
+    The `Vagrantfile` used to build the artifact, along with several other files used in the build, is included in the directory `~/artifact`.
+    This can be used to inspect the setup of the VM, and even build a modified version.
 
-  Note that, to rebuild the VM, some files (e.g. scripts, evaluation results, this README) need to be extracted from the image and placed in a suitable location on your machine.
+    Note that, to rebuild the VM, some files (e.g. scripts, evaluation results, this README) need to be extracted from the image and placed in a suitable location on your machine.
 
 * **Adding benchmarks:** You can easily add your own benchmarks programs written in C.
-	C programs should contain an empty function called `reach_error()`. Goblint and GemCutter then check that this function is never invoked. Certain (gcc) preprocessing steps may be necessary, e.g. to resolve `#include`s. See the SV-COMP benchmarks for examples (the preprocessed files typically have the extension `.i`).
+    C programs should contain an empty function called `reach_error()`. Goblint and GemCutter then check that this function is never invoked. Certain (gcc) preprocessing steps may be necessary, e.g. to resolve `#include`s. See the SV-COMP benchmarks for examples (the preprocessed files typically have the extension `.i`).
 
-  To run the evaluation on your own programs, you must edit the benchmark definition files `~/witness-generation/goblint.xml.template` resp. `~/witness-validation/gemcutter.xml.template`.
-  Replace the `<include>` path specified in the task set `minimal` with your own path.
-  You can then simply run `~/scripts/quick-run.sh`.
+    To run the evaluation on your own programs, you must edit the benchmark definition files `~/witness-generation/goblint.xml.template` resp. `~/witness-validation/gemcutter.xml.template`.
+    Replace the `<include>` path specified in the task set `minimal` with your own path.
+    You can then simply run `~/scripts/quick-run.sh`.
 
 * **Adding more tools:** As described above, you can reuse the `Vagrantfile` for this artifact and extend it with whatever installation measures are necessary for an additional tool. Also note, that in order to run other tools with BenchExec, you must write a *tool info module* in python (<https://github.com/sosy-lab/benchexec/blob/main/doc/tool-integration.md>).
 
-  Create a new benchmark definition file for your tool (<https://github.com/sosy-lab/benchexec/blob/main/doc/benchexec.md>).
-  The existing files `~/witness-generation/goblint.xml.template` resp. `~/witness-validation/gemcutter.xml.template` can serve as an example.
+    Create a new benchmark definition file for your tool (<https://github.com/sosy-lab/benchexec/blob/main/doc/benchexec.md>).
+    The existing files `~/witness-generation/goblint.xml.template` resp. `~/witness-validation/gemcutter.xml.template` can serve as an example.
 
-  If you are planning to support generation or validation of correctness witnesses using the proposed format, take a look at the YAML schema definition for the format linked in the paper.
-  The schema is also available in this artifact as `~/artifact-files/correctness-witness-schema.yml`.
+    If you are planning to support generation or validation of correctness witnesses using the proposed format, take a look at the YAML schema definition for the format linked in the paper.
+    The schema is also available in this artifact as `~/artifact-files/correctness-witness-schema.yml`.
 
