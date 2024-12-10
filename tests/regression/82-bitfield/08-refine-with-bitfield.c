@@ -43,7 +43,6 @@ int main() {
   // Testing OR operations with patterns
   int OR_MASK = 0x55;  // 01010101 in binary
   if ((a | OR_MASK) == 0x55) {
-    __goblint_assert(a == 0);              // Only possible if a is 0
     __goblint_assert((a | 0xFF) == 0xFF);  // ORing with all 1s gives all 1s
   }
 
@@ -74,7 +73,7 @@ int main() {
   if ((a & SHIFT_MASK) == SHIFT_MASK) {
     __goblint_assert((a & 12) == 12);         // Both bits must be set
     __goblint_assert(((a >> 2) & 3) == 3);    // When shifted right, lowest bits must be 11
-    __goblint_assert(((a << 2) & 12) == 12);  // When shifted left, highest bits must be 1100
+    __goblint_assert(((a << 2) & 48) == 48);  // When shifted left, highest bits must be 11
   }
 
   int SHIFTED = 0x7 << 3;  // 111000 in binary
@@ -89,10 +88,9 @@ int main() {
   }
 
   // Testing bitwise complement
-  int COMP_MASK = ~0xF0;  // Complement of 11110000
+  int COMP_MASK = ~0x0F;
   if ((a & COMP_MASK) == 0x0F) {
-    __goblint_assert((a & 0xF0) == 0);     // Upper 4 bits must be 0
-    __goblint_assert((a & 0x0F) == 0x0F);  // Lower 4 bits must be all 1s
+    __goblint_check(0);  // NOWARN (unreachable)
   }
 
   return 0;

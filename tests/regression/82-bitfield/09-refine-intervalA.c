@@ -11,10 +11,10 @@ int main() {
 
   if ((a & inv_mask) == 0) {
     __goblint_check(a <= 14);  // SUCCESS
-    __goblint_check(a >= 1);   // SUCCESS
+    __goblint_check(a >= 0);   // SUCCESS
 
-    if (1 <= a && a <= 14) {
-      printf("a is in the interval [1, 14]\n");
+    if (0 <= a && a <= 14) {
+      printf("a is in the interval [0, 14]\n");
     } else {
       __goblint_check(0);  // NOWARN (unreachable)
     }
