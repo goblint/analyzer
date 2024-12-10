@@ -13,45 +13,6 @@ exception Unknown
 exception Error
 exception ArithmeticOnIntegerBot of string
 
-
-
-(* Custom Tuple6 as Batteries only provides up to Tuple5 *)
-module Tuple6 = struct
-
-  let first (a,_,_,_,_, _) = a
-  let second (_,b,_,_,_, _) = b
-  let third (_,_,c,_,_, _) = c
-  let fourth (_,_,_,d,_, _) = d
-  let fifth (_,_,_,_,e, _) = e
-  let sixth (_,_,_,_,_, f) = f
-
-  let map1 fn (a, b, c, d, e, f) = (fn a, b, c, d, e, f)
-  let map2 fn (a, b, c, d, e, f) = (a, fn b, c, d, e, f)
-  let map3 fn (a, b, c, d, e, f) = (a, b, fn c, d, e, f)
-  let map4 fn (a, b, c, d, e, f) = (a, b, c, fn d, e, f)
-  let map5 fn (a, b, c, d, e, f) = (a, b, c, d, fn e, f)
-  let map6 fn (a, b, c, d, e, f) = (a, b, c, d, e, fn f)
-
-  let enum (a,b,c,d,e,f) = BatList.enum [a;b;c;d;e;f] (* Make efficient? *)
-
-end
-
-(* Prevent compile warnings *)
-let _ = Tuple6.first
-let _ = Tuple6.second
-let _ = Tuple6.third
-let _ = Tuple6.fourth
-let _ = Tuple6.fifth
-let _ = Tuple6.sixth
-
-let _ = Tuple6.map1
-let _ = Tuple6.map2
-let _ = Tuple6.map3
-let _ = Tuple6.map4
-let _ = Tuple6.map5
-let _ = Tuple6.map6
-
-
 (** Define records that hold mutable variables representing different Configuration values.
   * These values are used to keep track of whether or not the corresponding Config values are en-/disabled  *)
 type ana_int_config_values = {
@@ -1252,34 +1213,55 @@ module BitfieldArith (Ints_t : IntOps.IntOps) = struct
 
   let get_o (_,o) = Ints_t.to_int o
 
-  let shift_right ik (z,o) c =
+  let shift_right_action ik (z,o) c =
     let sign_msk = make_msb_bitmask (Size.bit ik - c) in
     if (isSigned ik) && (o <: Ints_t.zero) then
       (z >>: c, (o >>: c) |: sign_msk)
     else
       ((z >>: c) |: sign_msk, o >>: c)
 
-  let shift_right ik bf possible_shifts =
-    if is_const possible_shifts then shift_right ik bf (get_o possible_shifts)
+  let shift_right ik (z1, o1) (z2, o2) = 
+    if is_const (z2, o2) 
+      then 
+        shift_right_action ik (z1, o1) (Ints_t.to_int o2)
     else
-      let join_shrs c_lst = List.map (shift_right ik bf) c_lst |> List.fold_left join zero in
-      let max_bit = Z.log2up (Z.of_int @@ Size.bit ik) in 
-      if Z.to_int (min ik bf) >= max_bit then zero
-      else concretize (fst bf |: make_msb_bitmask max_bit, snd bf &: make_lsb_bitmask max_bit) (* O( 2^(log(n)) ) *)
-      |> join_shrs
+      let max_bit = Z.log2up (Z.of_int (Size.bit ik)) in
+      let mask_usefull_bits = !:(one_mask<<:max_bit) in
+      let concrete_values = concretize ((z2 &: mask_usefull_bits), (o2 &: mask_usefull_bits)) in
+      if (((o2 &: mask_usefull_bits) == Ints_t.of_int 0) && (z2 != one_mask)) || (List.length concrete_values) == 0 
+        then 
+          (one_mask, zero_mask)
+      else 
+        let (v1, v2) = (ref zero_mask, ref zero_mask) in
+        List.iter (fun x -> let (a, b) = (shift_right_action ik (z1, o1) x) in
+          v1 := !v1 |: a;
+          v2 := !v2 |: b
+        ) concrete_values;
+        (!v1, !v2)
 
-  let shift_left _ (z,o) c =
+  let shift_left_action _ (z,o) c =
     let z_msk = make_lsb_bitmask c in
     ((z <<: c) |: z_msk, o <<: c)
 
-  let shift_left ik bf possible_shifts =
-    if is_const possible_shifts then shift_left ik bf (get_o possible_shifts)
+  let shift_left ik (z1, o1) (z2, o2) = 
+    (* (one_mask, Ints_t.of_int (Size.bit ik)) *)
+    if is_const (z2, o2) 
+      then 
+        shift_left_action ik (z1, o1) (Ints_t.to_int o2)
     else
-      let join_shls c_lst = List.map (shift_left ik bf) c_lst |> List.fold_left join zero in
-      let max_bit = Z.log2up (Z.of_int @@ Size.bit ik) in
-      if Z.to_int (min ik bf) >= max_bit then zero
-      else concretize (fst bf |: make_msb_bitmask max_bit, snd bf &: make_lsb_bitmask max_bit) (* O( 2^(log(n)) ) *)
-      |> join_shls
+      let max_bit = Z.log2up (Z.of_int (Size.bit ik)) in
+      let mask_usefull_bits = !:(one_mask <<: max_bit) in
+      let concrete_values = concretize ((z2 &: mask_usefull_bits), (o2 &: mask_usefull_bits)) in
+      if (((o2 &: mask_usefull_bits) == Ints_t.of_int 0) && (z2 != one_mask)) || (List.length concrete_values) == 0 
+      then 
+        (one_mask, zero_mask)
+      else 
+        let (v1, v2) = (ref zero_mask, ref zero_mask) in
+        List.iter (fun x -> let (a, b) = (shift_left_action ik (z1, o1) x) in
+          v1 := !v1 |: a;
+          v2 := !v2 |: b
+        ) concrete_values;
+        (!v1, !v2)
 
 end
 
@@ -1320,25 +1302,25 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): SOverflow with type int_t = Int
     in
     "0b" ^ to_pretty_bits' known_bits invalid_bits o num_bits_to_print ""
 
-    let show t = 
-      if t = bot () then "bot" else
-      if t = top () then "top" else
-        let (z,o) = t in
-          Format.sprintf "{zs:%d, os:%d} %s" (Ints_t.to_int z) (Ints_t.to_int o) (to_pretty_bits t) 
+  let show t = 
+    if t = bot () then "bot" else
+    if t = top () then "top" else
+      let (z,o) = t in
+        Format.sprintf "{zs:%d, os:%d} %s" (Ints_t.to_int z) (Ints_t.to_int o) (to_pretty_bits t) 
 
   include Std (struct type nonrec t = t let name = name let top_of = top_of let bot_of = bot_of let show = show let equal = equal end)
 
   let range ik bf = (BArith.min ik bf, BArith.max ik bf)
-  
+
   let maximal (z,o) = let isPositive = z < Ints_t.zero in
-  if o < Ints_t.zero && isPositive then (match Ints_t.upper_bound with Some maxVal -> Some (maxVal &: o) | None -> None )
-  else Some o 
+    if o < Ints_t.zero && isPositive then (match Ints_t.upper_bound with Some maxVal -> Some (maxVal &: o) | None -> None )
+    else Some o 
 
   let minimal (z,o) = let isNegative = o < Ints_t.zero in
-  if z < Ints_t.zero && isNegative then (match Ints_t.lower_bound with Some minVal -> Some (minVal |: (!:z)) | None -> None )
-  else Some (!:z)
+    if z < Ints_t.zero && isNegative then (match Ints_t.lower_bound with Some minVal -> Some (minVal |: (!:z)) | None -> None )
+    else Some (!:z)
 
-  let norm ?(debug=false) ?(suppress_ovwarn=false) ik (z,o) = 
+  let norm ?(suppress_ovwarn=false) ik (z,o) = 
     if BArith.is_invalid ik (z,o) then 
       (bot (), {underflow=false; overflow=false})
     else      
@@ -1361,6 +1343,7 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): SOverflow with type int_t = Int
       if suppress_ovwarn then (new_bitfield, {underflow=false; overflow=false})
       else (new_bitfield, {underflow=underflow; overflow=overflow})
 
+  let cast_to ?(suppress_ovwarn=false) ?torg ?no_ov t = norm ~suppress_ovwarn t
 
   let join ik b1 b2 = (norm ik @@ (BArith.join b1 b2) ) |> fst
 
@@ -1382,6 +1365,8 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): SOverflow with type int_t = Int
     if BArith.of_int i = bf then `Eq
     else if leq (BArith.of_int i) bf then `Top
     else `Neq
+
+  (* Conversions *)
 
   let of_interval ?(suppress_ovwarn=false) ik (x,y) =
     let (min_ik, max_ik) = Size.range ik in
@@ -1418,8 +1403,16 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): SOverflow with type int_t = Int
         analyze_bits (pos - 1) new_acc
     in      
     let result = analyze_bits (Size.bit ik - 1) (bot()) in
-    let casted = (Ints_t.of_bigint (Size.cast ik ((Ints_t.to_bigint (fst result)))), Ints_t.of_bigint (Size.cast ik ((Ints_t.to_bigint (snd result))))) 
-    in norm ~debug:true ~suppress_ovwarn ik casted
+    let casted = (Ints_t.of_bigint (Size.cast ik ((Ints_t.to_bigint (fst result)))), Ints_t.of_bigint (Size.cast ik ((Ints_t.to_bigint (snd result))))) in
+    norm ~suppress_ovwarn ik casted
+
+
+  let of_bool _ik = function true -> BArith.one | false -> BArith.zero
+
+  let to_bool d =
+    if not (leq BArith.zero d) then Some true
+    else if d = BArith.zero then Some false
+    else None
 
   let of_bitfield ik x = norm ik x |> fst
 
@@ -1435,16 +1428,6 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): SOverflow with type int_t = Int
       let o = !:mod_mask |: c in 
       norm ik (z,o) |> fst
     else top_of ik
-
-  let of_bool _ik = function true -> BArith.one | false -> BArith.zero
-
-  let to_bool d =
-    if not (leq BArith.zero d) then Some true
-    else if d = BArith.zero then Some false
-    else None
-
-  let cast_to ?(suppress_ovwarn=false) ?torg ?no_ov t = norm ~suppress_ovwarn t
-
 
   (* Logic *)
 
@@ -1576,10 +1559,18 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): SOverflow with type int_t = Int
     norm ik res
 
   let rem ik x y = 
-    M.trace "bitfield" "rem";
-    match to_int x, to_int y with
-    Some a, Some b -> fst (of_int ik (Ints_t.rem a b)) |
-    _, _ -> top_of ik
+    if BArith.is_const x && BArith.is_const y then (
+      let def_x = Option.get (to_int x) in
+      let def_y = Option.get (to_int y) in
+      fst (of_int ik (Ints_t.rem def_x def_y))
+    )
+    else if BArith.is_const y && is_power_of_two (snd y) then (
+      let mask = Ints_t.sub (snd y) Ints_t.one in
+      let newz = Ints_t.logor (fst x) (Ints_t.lognot mask) in
+      let newo = Ints_t.logand (snd x) mask in
+      norm ik (newz, newo) |> fst
+    )
+    else top_of ik
 
   let eq ik x y =
     if (BArith.max ik x) <= (BArith.min ik y) && (BArith.min ik x) >= (BArith.max ik y) then of_bool ik true 
@@ -1604,6 +1595,8 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): SOverflow with type int_t = Int
 
   let gt ik x y = lt ik y x
 
+  (* Invariant *)
+
   let invariant_ikind e ik (z,o) = 
     let range = range ik (z,o) in
     IntInvariant.of_interval e ik range
@@ -1616,10 +1609,12 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): SOverflow with type int_t = Int
     let (min_ik, max_ik) = Size.range ik in
     of_interval ~suppress_ovwarn ik (Ints_t.of_bigint min_ik, n)
 
+  (* Refinements *)
+
   let refine_with_congruence ik bf ((cong) : (int_t * int_t ) option) : t =
     match bf, cong with
-    | (z,o), Some (c,m) when m = Ints_t.zero -> norm ik (!: c, c) |> fst
-    | (z,o), Some (c,m) when is_power_of_two m && m <> Ints_t.one ->
+    | (z,o), Some (c, m) when m = Ints_t.zero -> norm ik (!: c, c) |> fst
+    | (z,o), Some (c, m) when is_power_of_two m && m <> Ints_t.one ->
       let congruenceMask = !:m in
       let newz = (!:congruenceMask &: z) |: (congruenceMask &: !:c) in
       let newo = (!:congruenceMask &: o) |: (congruenceMask &: c) in
@@ -1642,6 +1637,9 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): SOverflow with type int_t = Int
         List.fold_left (fun acc i -> BArith.join acc (BArith.of_int i)) (bot_of ik) ls
     in
     meet ik t joined
+
+
+  (* Unit Tests *)
 
   let arbitrary ik = 
     let open QCheck.Iter in
@@ -3964,8 +3962,8 @@ module IntDomTupleImpl = struct
   let name () = "intdomtuple"
 
   (* The Interval domain can lead to too many contexts for recursive functions (top is [min,max]), but we don't want to drop all ints as with `ana.base.context.int`. TODO better solution? *)
-  let no_interval = Tuple6.map2 (const None)
-  let no_intervalSet = Tuple6.map5 (const None)
+  let no_interval = GobTuple.Tuple6.map2 (const None)
+  let no_intervalSet = GobTuple.Tuple6.map5 (const None)
 
   type 'a m = (module SOverflow with type t = 'a)
   type 'a m2 = (module SOverflow with type t = 'a and type int_t = int_t )
@@ -4024,7 +4022,7 @@ module IntDomTupleImpl = struct
   let opt_map2 f ?no_ov =
     curry @@ function Some x, Some y -> Some (f ?no_ov x y) | _ -> None
 
-  let to_list x = Tuple6.enum x |> List.of_enum |> List.filter_map identity (* contains only the values of activated domains *)
+  let to_list x = GobTuple.Tuple6.enum x |> List.of_enum |> List.filter_map identity (* contains only the values of activated domains *)
   let to_list_some x = List.filter_map identity @@ to_list x (* contains only the Some-values of activated domains *)
 
   let exists = function
@@ -4304,7 +4302,7 @@ module IntDomTupleImpl = struct
 
   (* fp: projections *)
   let equal_to i x =
-    let xs = mapp2 { fp2 = fun (type a) (module I:SOverflow with type t = a and type int_t = int_t) -> I.equal_to i } x |> Tuple6.enum |> List.of_enum |> List.filter_map identity in
+    let xs = mapp2 { fp2 = fun (type a) (module I:SOverflow with type t = a and type int_t = int_t) -> I.equal_to i } x |> GobTuple.Tuple6.enum |> List.of_enum |> List.filter_map identity in
     if List.mem `Eq xs then `Eq else
     if List.mem `Neq xs then `Neq else
       `Top 

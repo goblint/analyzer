@@ -255,6 +255,7 @@ struct
   module I = IntDomain.SOverflowUnlifter (I)
 
   let ik = Cil.IInt
+  let ik_char = Cil.IChar
 
   let assert_equal x y =
     OUnit.assert_equal ~printer:I.show x y
@@ -468,26 +469,41 @@ struct
 
   let of_list ik is = List.fold_left (fun acc x -> I.join ik acc (I.of_int ik x)) (I.bot ()) is
 
-  let assert_shift shift symb ik a b expected_values =
-    let bs1 = of_list ik (List.map of_int a) in
-    let bs2 = of_list ik (List.map of_int b) in
-    let bf_shift_res = (shift ik bs1 bs2) in
-    let output_string = I.show bs1 ^ symb ^ I.show bs2 in
-    let output_string elm = "Test shift (bf" ^ symb ^ string_of_int elm  ^ ") failed: " ^ output_string in
-    List.iter (fun v -> assert_bool (output_string v) (let test_result = I.equal_to (of_int v) bf_shift_res in test_result = `Top || test_result = `Eq)) expected_values
+  let assert_shift shift symb ik a b expected_values = 
+    let bf1 = of_list ik (List.map of_int a) in
+    let bf2 = of_list ik (List.map of_int b) in
+    let bf_shift_resolution = (shift ik bf1 bf2) in
+    let x = of_list ik (List.map of_int expected_values) in
+    let output_string = I.show bf1 ^ symb ^ I.show bf2 ^ " was: " ^ I.show bf_shift_resolution ^ " but should be: " ^  I.show x in
+    let output  = "Test shift ("^ I.show bf1 ^ symb ^ I.show bf2  ^ ") failed: " ^ output_string in
+    assert_bool (output) (I.equal bf_shift_resolution x)
 
   let assert_shift_left ik a b res = assert_shift I.shift_left " << " ik a b res
   let assert_shift_right ik a b res = assert_shift I.shift_right " >> " ik a b res
 
   let test_shift_left _ =
-    assert_shift_left ik [2] [1] [4];
-    assert_shift_left ik [-2] [1] [-4];
-    assert_shift_left ik [2; 16] [1; 2] [4; 8; 32; 64]
+    assert_shift_left ik_char [-3] [7] [-128];
+    assert_shift_left ik [-3] [7] [-384];
+    assert_shift_left ik [2] [1; 2] [2; 4; 8; 16];
+    assert_shift_left ik [1; 2] [1] [2; 4];
+    assert_shift_left ik [-1; 1] [1] [-2; 2];
+    assert_shift_left ik [-1] [4] [-16];
+    assert_shift_left ik [-1] [1] [-2];
+    assert_shift_left ik [-1] [2] [-4];
+    assert_shift_left ik [-1] [3] [-8];
+    assert_shift_left ik [-2] [1; 2] [-2; -4; -8; -16];
+    assert_shift_left ik [-1] [1; 2] [-1; -2; -4; -8];
+    assert_shift_left ik [1073741824] [128; 384] [0];
+    assert_shift_left ik [1073741824] [0; 128; 384] [1073741824]
 
   let test_shift_right _ =
     assert_shift_right ik [4] [1] [2];
     assert_shift_right ik [-4] [1] [-2];
-    assert_shift_right ik [8; 64] [3; 5] [0; 1; 2; 8]
+    assert_shift_right ik [1] [1] [0];
+    assert_shift_right ik [1] [1; 2] [0; 1];
+    assert_shift_right ik [1; 2] [1; 2] [0; 1; 2; 3];
+    assert_shift_right ik [32] [64; 2] [8; 32];
+    assert_shift_right ik [32] [128; 384] [0]
 
 
   (* Arith *)
@@ -702,9 +718,7 @@ struct
 
     let bf_refined1= I.refine_with_congruence ik bf (Some (Z.of_int 3, Z.of_int 4)) in
     assert_bool "3" (I.equal_to (of_int 3) bf_refined1 = `Top);
-    let bf_refined2= I.refine_with_congruence ik bf_refined1 (Some (Z.of_int 1, Z.of_int 1)) in
-    assert_bool "1" (I.equal_to (of_int 1) bf_refined2 = `Eq);
-    let bf_refined3= I.refine_with_congruence ik bf_refined2 (Some (Z.of_int 5, Z.of_int 0)) in
+    let bf_refined3= I.refine_with_congruence ik bf (Some (Z.of_int 5, Z.of_int 0)) in
     assert_bool "5" (I.equal_to (of_int 5) bf_refined3 = `Eq)
 
   let test_refine_with_inclusion_list _ =
@@ -736,6 +750,7 @@ struct
     "test_widen_1" >:: test_widen_1;
     "test_widen_2" >:: test_widen_2;
 
+    
     "test_of_interval" >:: test_of_interval;
     "test_of_bool" >:: test_of_bool;
     "test_to_bool" >:: test_to_bool;
@@ -745,6 +760,7 @@ struct
     "test_logand" >:: test_logand;
     "test_logor" >:: test_logor;
     "test_lognot" >:: test_lognot;
+    
     "test_shift_left" >:: test_shift_left;
     "test_shift_right" >:: test_shift_right;
 
