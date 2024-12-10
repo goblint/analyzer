@@ -183,6 +183,54 @@ let does_not_change_normalized_matrix _ =
   in
   normalize_and_assert already_normalized already_normalized
 
+(**
+   Normalization works on an empty matrix.
+*)
+let normalize_empty _ =
+  let width = 3 in
+  let empty_matrix =
+    Matrix.append_row
+      (Matrix.append_row
+         (Matrix.append_row (Matrix.empty ()) (Vector.zero_vec width))
+         (Vector.zero_vec width))
+      (Vector.zero_vec width)
+  in
+  normalize_and_assert empty_matrix empty_matrix
+
+let normalize_two_columns _ =
+  let width = 2 in
+  let two_col_matrix =
+    Matrix.append_row
+      (Matrix.append_row (Matrix.empty ())
+         (Vector.of_sparse_list width [ (0, int 3); (1, int 2) ]))
+      (Vector.of_sparse_list width [ (0, int 9); (1, int 6) ])
+  in
+  let normalized_matrix =
+    Matrix.append_row
+      (Matrix.append_row (Matrix.empty ())
+         (Vector.of_sparse_list width
+            [ (0, int 1); (1, D.div (int 2) (int 3)) ]))
+      (Vector.of_sparse_list width [])
+  in
+  normalize_and_assert two_col_matrix normalized_matrix
+
+let int_domain_to_rational _ =
+  let width = 3 in
+  let int_matrix =
+    Matrix.append_row
+      (Matrix.append_row (Matrix.empty ())
+         (Vector.of_sparse_list width [ (0, int 3); (2, int 1) ]))
+      (Vector.of_sparse_list width [ (0, int 2); (1, int 1); (2, int 1) ])
+  in
+  let normalized_matrix =
+    Matrix.append_row
+      (Matrix.append_row (Matrix.empty ())
+         (Vector.of_sparse_list width
+            [ (0, int 1); (2, D.div (int 1) (int 3)) ]))
+      (Vector.of_sparse_list width [ (1, int 1); (2, D.div (int 1) (int 3)) ])
+  in
+  normalize_and_assert int_matrix normalized_matrix
+
 let tests =
   "SparseMatrixImplementationTest"
   >::: [
@@ -193,7 +241,11 @@ let tests =
     (*"can handle float domain" >:: does_handle_floats;*)
     (*"can handle fraction domain" >:: does_handle_fractions;*)
     "does negate negative matrix" >:: does_negate_negative;
-    "does not change already normalized matrix" >:: does_not_change_normalized_matrix;
+    "does not change already normalized matrix"
+    >:: does_not_change_normalized_matrix;
+    "does not change an empty matrix" >:: normalize_empty;
+    "can correctly normalize a two column matrix" >:: normalize_two_columns;
+    "can handle a rational solution" >:: int_domain_to_rational;
   ]
 
 let () = run_test_tt_main tests
