@@ -241,25 +241,25 @@ let is_covered_big _ =
      [int 0; int 0; int 1; frac (-1) 3; frac 1 3; int 0; frac 1 3];
      [int 0; int 0; int 0; int 0; int 0; int 1; int 0]] in
 
-   let result = Matrix.is_covered_by m1 m2 in
-   assert_bool "Matrix m1 is covered by m2, but was false" (result)
+  let result = Matrix.is_covered_by m1 m2 in
+  assert_bool "Matrix m1 is covered by m2, but was false" (result)
 
-  let tests =
-    "SparseMatrixImplementationTest"
-    >::: [
-      "can solve a standard normalization" >:: standard_normalize;
-      "does sort already reduzed" >:: does_just_sort;
-      "does eliminate dependent rows" >:: does_eliminate_dependent_rows;
-      (* Looks like the tests are deadlock or inifinite execution when those are activated. *)
-      (*"can handle float domain" >:: does_handle_floats;*)
-      (*"can handle fraction domain" >:: does_handle_fractions;*)
-      "does negate negative matrix" >:: does_negate_negative;
-      "does not change already normalized matrix" >:: does_not_change_normalized_matrix;
-      "m1 is covered by m2" >:: is_covered_by_simple;
-      "m1 is covered by m2 with vector in first row" >:: is_covered_by_vector_first_row;
-      "zero vector is covered by m2" >:: is_zero_vec_covered;
-      "m1 is not covered by m2" >:: is_not_covered;
-      "m1 is covered by m2 with big matrix" >:: is_covered_big;
-    ]
+let tests =
+  "SparseMatrixImplementationTest"
+  >::: [
+    "can solve a standard normalization" >:: standard_normalize;
+    "does sort already reduzed" >:: does_just_sort;
+    "does eliminate dependent rows" >:: does_eliminate_dependent_rows;
+    (* Looks like the tests are deadlock or inifinite execution when those are activated. *)
+    (*"can handle float domain" >:: does_handle_floats;*)
+    (*"can handle fraction domain" >:: does_handle_fractions;*)
+    "does negate negative matrix" >:: does_negate_negative;
+    "does not change already normalized matrix" >:: does_not_change_normalized_matrix;
+    "m1 is covered by m2" >:: is_covered_by_simple;
+    "m1 is covered by m2 with vector in first row" >:: is_covered_by_vector_first_row;
+    "zero vector is covered by m2" >:: is_zero_vec_covered;
+    "m1 is not covered by m2" >:: is_not_covered;
+    "m1 is covered by m2 with big matrix" >:: is_covered_big;
+  ]
 
 let () = run_test_tt_main tests
