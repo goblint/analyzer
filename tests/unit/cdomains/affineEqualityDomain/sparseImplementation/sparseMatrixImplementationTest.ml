@@ -20,6 +20,12 @@ let frac numerator denominator = D.of_frac numerator denominator
 (** Shorthands for common functions. *)
 let float x = D.of_float x
 
+let make_matrix_of_2d_list l =
+  List.fold_left
+    (fun acc row -> Matrix.append_row acc (Vector.of_list row))
+    (Matrix.empty ())
+    l
+
 (** This function runs the equality assertion with the solution after normalizing the matrix. *)
 let normalize_and_assert (matrix : Matrix.t) (solution : Matrix.t) =
   let get_dimensions m = (Matrix.num_rows m, Matrix.num_cols m) in
@@ -183,17 +189,77 @@ let does_not_change_normalized_matrix _ =
   in
   normalize_and_assert already_normalized already_normalized
 
-let tests =
-  "SparseMatrixImplementationTest"
-  >::: [
-    "can solve a standard normalization" >:: standard_normalize;
-    "does sort already reduzed" >:: does_just_sort;
-    "does eliminate dependent rows" >:: does_eliminate_dependent_rows;
-    (* Looks like the tests are deadlock or inifinite execution when those are activated. *)
-    (*"can handle float domain" >:: does_handle_floats;*)
-    (*"can handle fraction domain" >:: does_handle_fractions;*)
-    "does negate negative matrix" >:: does_negate_negative;
-    "does not change already normalized matrix" >:: does_not_change_normalized_matrix;
-  ]
+let is_covered_by_simple _ =
+  let m1 = Matrix.init_with_vec (Vector.of_list [int 1; int 1; int 2; int 10]) in
+  let m2 = Matrix.append_row 
+      (Matrix.append_row 
+         (Matrix.empty ()) 
+         (Vector.of_list [int 1; int 1; int 0; int 6])) 
+      (Vector.of_list [int 0; int 0; int 1; int 2]) in
+  let result = Matrix.is_covered_by m1 m2 in
+  assert_bool "Matrix m1 is covered by m2, but was false" result
+
+let is_covered_by_vector_first_row _ =
+  let m1 = Matrix.init_with_vec (Vector.of_list [int 1; int 2; int 0; int 7]) in
+  let m2 = Matrix.append_row 
+      (Matrix.append_row 
+         (Matrix.empty ()) 
+         (Vector.of_list [int 1; int 2; int 0; int 7])) 
+      (Vector.of_list [int 0; int 0; int 1; int 2]) in
+  let result = Matrix.is_covered_by m1 m2 in
+  assert_bool "Matrix m1 is covered by m2, but was false" result
+
+let is_zero_vec_covered _ = 
+  let m1 = Matrix.init_with_vec (Vector.zero_vec 4) in
+  let m2 = Matrix.append_row 
+      (Matrix.append_row 
+         (Matrix.empty ()) 
+         (Vector.of_list [int 1; int 2; int 0; int 7])) 
+      (Vector.of_list [int 0; int 0; int 1; int 2]) in
+  let result = Matrix.is_covered_by m1 m2 in
+  assert_bool "Matrix m1 is covered by m2, but was false" result
+
+let is_not_covered _ =
+  let m1 = Matrix.init_with_vec (Vector.of_list [int 1; int 1; int 2; int 10]) in
+  let m2 = Matrix.append_row 
+      (Matrix.append_row 
+         (Matrix.empty ()) 
+         (Vector.of_list [int 1; int 1; int 0; int 6])) 
+      (Vector.of_list [int 0; int 0; int 1; int 3]) in
+  let result = Matrix.is_covered_by m2 m1 in
+  assert_bool "Matrix m1 is not covered by m2, but was true" (not result)
+
+let is_covered_big _ =
+  let m1 = make_matrix_of_2d_list @@
+    [[int 1; int 0; int 0; int 0; int 0; int (-1); int 0];
+     [int 0; int 1; int 0; int 0; int 0; int (-2); int 0];
+     [int 0; int 0; int 1;  (frac (-1) 3); frac 1 3; int 0; frac 1 3]] in
+
+  let m2 = make_matrix_of_2d_list @@
+    [[int 1; int 0; int 0; int 0; int 0; int 0; int 0];
+     [int 0; int 1; int 0; int 0; int 0; int 0; int 0];
+     [int 0; int 0; int 1; frac (-1) 3; frac 1 3; int 0; frac 1 3];
+     [int 0; int 0; int 0; int 0; int 0; int 1; int 0]] in
+
+   let result = Matrix.is_covered_by m1 m2 in
+   assert_bool "Matrix m1 is covered by m2, but was false" (result)
+
+  let tests =
+    "SparseMatrixImplementationTest"
+    >::: [
+      "can solve a standard normalization" >:: standard_normalize;
+      "does sort already reduzed" >:: does_just_sort;
+      "does eliminate dependent rows" >:: does_eliminate_dependent_rows;
+      (* Looks like the tests are deadlock or inifinite execution when those are activated. *)
+      (*"can handle float domain" >:: does_handle_floats;*)
+      (*"can handle fraction domain" >:: does_handle_fractions;*)
+      "does negate negative matrix" >:: does_negate_negative;
+      "does not change already normalized matrix" >:: does_not_change_normalized_matrix;
+      "m1 is covered by m2" >:: is_covered_by_simple;
+      "m1 is covered by m2 with vector in first row" >:: is_covered_by_vector_first_row;
+      "zero vector is covered by m2" >:: is_zero_vec_covered;
+      "m1 is not covered by m2" >:: is_not_covered;
+      "m1 is covered by m2 with big matrix" >:: is_covered_big;
+    ]
 
 let () = run_test_tt_main tests
