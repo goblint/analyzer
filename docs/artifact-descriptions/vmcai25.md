@@ -36,7 +36,7 @@ The final section gives information on how to reuse this artifact.
 The artifact is a virtual machine (VM). Follow these steps to set it up:
 
 * If you have not done so already, install VirtualBox.
-  (https://www.virtualbox.org/wiki/Downloads)
+  (<https://www.virtualbox.org/wiki/Downloads>)
 * Download the artifact.
 * Import the artifact via the VirtualBox UI (`File > Import Appliance`)
   or by running `VBoxManage import ghost-witnesses.ova`.
@@ -65,7 +65,7 @@ The times for the Table 2 are given first in seconds and then pretty-printed as 
 
 For a more detailed inspection and visualization of the data, take a look at the generated HTML report.
 Just open the file `~/witness-validation/paper-evaluation/results.2024-09-24_22-00-48.table.html` in firefox.
-For detailed information, see the "Evaluation Results" section below.
+For detailed information, see the ["Evaluation Results" section](#evaluation-results) below.
 
 ### 3. Quick Test of the Benchmark Setup
 
@@ -220,7 +220,7 @@ Clicking on a status shows the complete GemCutter log for the benchmark run.
 
 > **Note:** If you are trying to view logs for individual runs through the HTML table (by clicking on the evaluation result `true` or `false`), you may encounter a warning because browsers block access to local files. Follow the instructions in the message to enable log viewing.
 
-As described above (in section _2. Inspect the evaluation results_), the artifact provides python scripts to directly extract the data shown in the paper from the benchmark results.
+As described above (in [section _2. Inspect the evaluation results_](#2-inspect-the-evaluation-results)), the artifact provides python scripts to directly extract the data shown in the paper from the benchmark results.
 
 
 ## Source Code
