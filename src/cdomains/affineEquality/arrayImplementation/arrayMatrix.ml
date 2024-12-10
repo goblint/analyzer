@@ -39,7 +39,7 @@ module ArrayMatrix: AbstractMatrix =
     let copy m = Timing.wrap "copy" (copy) m
 
     let add_empty_columns m cols =
-      let () = Printf.printf "Before add_empty_columns m:\n%sindices: %s\n" (show m) (Array.fold_right (fun x s -> s ^ (Int.to_string x) ^ ",") cols "") in
+      let () = Printf.printf "Before add_empty_columns m:\n%sindices: %s\n" (show m) (Array.fold_right (fun x s -> (Int.to_string x) ^ "," ^ s) cols "") in
       let nnc = Array.length cols in
       if is_empty m || nnc = 0 then m else
         let nr, nc = num_rows m, num_cols m in
@@ -284,7 +284,7 @@ module ArrayMatrix: AbstractMatrix =
       let m' = copy m in
       let v' = V.copy v in 
       match rref_vec_with m' v' with
-      | Some res -> let () = Printf.printf "After rref_vec we have m:\n%s\n" (show res) in 
+      | Some res -> let () = Printf.printf "After rref_vec, before removing zero rows, we have m:\n%s\n" (show res) in 
         Some (remove_zero_rows res)
       | None -> let () = Printf.printf "After rref_vec there is no normalization\n" in None
 
@@ -312,7 +312,9 @@ module ArrayMatrix: AbstractMatrix =
       let () = Printf.printf "Before rref_matrix m1 m2\nm1: %s\nm2: %s\n" (show m1) (show m2) in
       let m1' = copy m1 in
       let m2' = copy m2 in 
-      rref_matrix_with m1' m2'
+      match rref_matrix_with m1' m2' with
+      | Some m -> let () = Printf.printf "After rref_matrix m:\n %s\n" (show m) in Some m
+      | None -> let () = Printf.printf "No normalization for rref_matrix found" in None
 
     let is_covered_by m1 m2 =
       (*Performs a partial rref reduction to check if concatenating both matrices and afterwards normalizing them would yield a matrix <> m2 *)

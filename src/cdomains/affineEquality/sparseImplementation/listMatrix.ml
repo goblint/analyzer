@@ -38,22 +38,50 @@ module ListMatrix: AbstractMatrix =
     let copy m =
       Timing.wrap "copy" (copy) m
 
-    let add_empty_columns m cols = 
-      let () = Printf.printf "Before add_empty_columns m:\n%sindices: %s\n" (show m) (Array.fold_right (fun x s -> s ^ (Int.to_string x) ^ ",") cols "") in
+    (* This uses the logic from ArrayMatrix to add empty_columns*)
+    let add_empty_columns (m : t) (cols : int array) : t =
+      let nr = num_rows m in
+      let nc = if nr = 0 then 0 else num_cols m in
+      let nnc = Array.length cols in
+
+      (* If no rows or no new columns, just return m as is *)
+      if nr = 0 || nnc = 0 then m
+      else
+        (* Create a new list of rows with additional columns. *)
+        let new_rows =
+          List.map (fun row ->
+              let old_row_arr = V.to_array row in
+              let new_row_arr = Array.make (nc + nnc) A.zero in
+
+              let offset = ref 0 in
+              for j = 0 to nc - 1 do
+                (* Check if we need to insert zero columns before placing old_row_arr.(j) *)
+                while !offset < nnc && !offset + j = cols.(!offset) do
+                  incr offset
+                done;
+                new_row_arr.(j + !offset) <- old_row_arr.(j);
+              done;
+
+              V.of_array new_row_arr
+            ) m
+        in
+
+        new_rows      
+    (*let () = Printf.printf "Before add_empty_columns m:\n%sindices: %s\n" (show m) (Array.fold_right (fun x s -> (Int.to_string x) ^ "," ^ s) cols "") in
       let cols = Array.to_list cols in 
       let sorted_cols = List.sort Stdlib.compare cols in
       let rec count_sorted_occ acc cols last count =
-        match cols with
-        | [] -> if count > 0 then (last, count) :: acc else acc
-        | x :: xs when x = last -> count_sorted_occ acc xs x (count + 1)
-        | x :: xs -> let acc = if count > 0 then (last, count) :: acc else acc in
-          count_sorted_occ acc xs x 1      
+      match cols with
+      | [] -> if count > 0 then (last, count) :: acc else acc
+      | x :: xs when x = last -> count_sorted_occ acc xs x (count + 1)
+      | x :: xs -> let acc = if count > 0 then (last, count) :: acc else acc in
+        count_sorted_occ acc xs x 1      
       in
       let occ_cols = List.rev @@ count_sorted_occ [] sorted_cols 0 0 in
       (*let () = Printf.printf "sorted cols is: %s\n" (List.fold_right (fun x s -> (Int.to_string x) ^ s) sorted_cols "") in 
-        let () = Printf.printf "sorted_occ is: %s\n" (List.fold_right (fun (i, count) s -> "(" ^ (Int.to_string i) ^ "," ^ (Int.to_string count) ^ ")" ^ s) occ_cols "") in*)
+      let () = Printf.printf "sorted_occ is: %s\n" (List.fold_right (fun (i, count) s -> "(" ^ (Int.to_string i) ^ "," ^ (Int.to_string count) ^ ")" ^ s) occ_cols "") in*)
       let () = Printf.printf "After add_empty_columns m:\n%s\n" (show (List.map (fun row -> V.insert_zero_at_indices row occ_cols (List.length cols)) m)) in
-      List.map (fun row -> V.insert_zero_at_indices row occ_cols (List.length cols)) m
+      List.map (fun row -> V.insert_zero_at_indices row occ_cols (List.length cols)) m*)
 
     let add_empty_columns m cols =
       Timing.wrap "add_empty_cols" (add_empty_columns m) cols
@@ -220,7 +248,7 @@ module ListMatrix: AbstractMatrix =
         in
         List.for_all row_is_valid m in
       let rec main_loop m m' row_idx col_idx = 
-        if col_idx = (col_count - 2) then m  (* In this case the whole bottom of the matrix starting from row_index is Zero, so it is normalized *)
+        if col_idx >= (col_count - 1) then m  (* In this case the whole bottom of the matrix starting from row_index is Zero, so it is normalized *)
         else
           match find_first_pivot m' row_idx col_idx with
           | None -> m (* No pivot found means already normalized*)
@@ -247,7 +275,7 @@ module ListMatrix: AbstractMatrix =
     let rref_vec m v =
       let () = Printf.printf "Before rref_vec we have m:\n%sv: %s\n" (show m) (V.show v) in
       match normalize @@ append_matrices m (init_with_vec v) with
-      | Some res -> let () = Printf.printf "After rref_vec we have m:\n%s\n" (show res) in 
+      | Some res -> let () = Printf.printf "After rref_vec, before removing zero rows, we have m:\n%s\n" (show res) in 
         Some (remove_zero_rows res) 
       | None -> let () = Printf.printf "After rref_vec there is no normalization\n " in None
 
@@ -256,7 +284,9 @@ module ListMatrix: AbstractMatrix =
     (*TODO: OPTIMIZE!*)
     let rref_matrix m1 m2 =
       let () = Printf.printf "Before rref_matrix m1 m2\nm1: %s\nm2: %s\n" (show m1) (show m2) in
-      normalize @@ append_matrices m1 m2
+      match normalize @@ append_matrices m1 m2 with
+      | Some m -> let () = Printf.printf "After rref_matrix m, before removing zero rows:\n %s\n" (show m) in Some (remove_zero_rows m)
+      | None -> let () = Printf.printf "No normalization for rref_matrix found" in None
 
 
     let delete_row_with_pivots row pivots m2 = 
