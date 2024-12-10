@@ -57,14 +57,12 @@ module ArrayMatrix: AbstractMatrix =
     let add_empty_columns m cols = Timing.wrap "add_empty_cols" (add_empty_columns m) cols
 
     let append_row m row  =
-      let () = Printf.printf "Before append_row m:\n%s\n" (show m) in
       let size = num_rows m in
       let new_matrix = Array.make_matrix (size + 1) (num_cols m) A.zero in
       for i = 0 to size - 1 do
         new_matrix.(i) <- m.(i)
       done;
       new_matrix.(size) <- V.to_array row;
-      let () = Printf.printf "After append_row m:\n%s\n" (show new_matrix) in
       new_matrix
 
     let get_row m n =
@@ -319,12 +317,12 @@ module ArrayMatrix: AbstractMatrix =
     let is_covered_by m1 m2 =
       (*Performs a partial rref reduction to check if concatenating both matrices and afterwards normalizing them would yield a matrix <> m2 *)
       (*Both input matrices must be in rref form!*)
+      let () = Printf.printf "Is m1 covered by m2?\n m1:\n%sm2:\n%s" (show m1) (show m2) in
       if num_rows m1 > num_rows m2 then false else
-        let m1' = copy m1 in
-        let m2' = copy m2 in
         let p2 = lazy (get_pivot_positions m2) in
         try (
           for i = 0 to num_rows m1 - 1 do
+            (* check if there are rows in m1 and m2 that aren't equal *)
             if Array.exists2 (<>:) m1.(i) m2.(i) then
               let m1_i = Array.copy m1.(i) in
               for j = 0 to Array.length m1_i - 2 do

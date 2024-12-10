@@ -87,8 +87,6 @@ module ListMatrix: AbstractMatrix =
       Timing.wrap "add_empty_cols" (add_empty_columns m) cols
 
     let append_row m row  =
-      let () = Printf.printf "Before append_row m:\n%s\n" (show m) in
-      let () = Printf.printf "After append_row m:\n%s\n" (show ( m @ [row])) in
       m @ [row]
 
     let get_row m n =
@@ -305,23 +303,28 @@ module ListMatrix: AbstractMatrix =
           is_linearly_independent_rref new_v xs
 
     let is_covered_by m1 m2 =
+      Printf.printf "Is m1 covered by m2?\n m1:\n%sm2:\n%s" (show m1) (show m2);
+      match normalize @@ append_matrices m2 m1 with
+      | None -> false
+      | Some m -> let m2' = remove_zero_rows m in List.for_all2 (fun x y -> V.equal x y) m2 m2'
+    (*let () = Printf.printf "Is m1 covered by m2?\n m1:\n%sm2:\n%s" (show m1) (show m2) in
       if num_rows m1 > num_rows m2 then false else
-        let rec is_covered_by_helper m1 m2 = 
-          match m1 with 
-          | [] -> true
-          | v1::vs1 -> 
-            let first_non_zero = V.findi_val_opt ((<>:) A.zero) v1 in
-            match first_non_zero with
-            | None -> true  (* vs1 must also be zero-vectors because of rref *)
-            | Some (idx, _) -> 
-              let m' = List.drop_while (fun v2 -> 
-                  match V.findi_val_opt ((<>:) A.zero) v2 with
-                  | None -> true  (* In this case, m2 only has zero rows after that *)
-                  | Some (idx', _) -> idx' < idx
-                ) m2 in (* Only consider the part of m2 where the pivot is at a position useful for deleting first_non_zero of v1*)
-              let linearly_indep = is_linearly_independent_rref v1 m' in 
-              if linearly_indep then false else is_covered_by_helper vs1 m'
-        in is_covered_by_helper m1 m2
+      let rec is_covered_by_helper m1 m2 = 
+        match m1 with 
+        | [] -> true
+        | v1::vs1 -> 
+          let first_non_zero = V.findi_val_opt ((<>:) A.zero) v1 in
+          match first_non_zero with
+          | None -> true  (* vs1 must also be zero-vectors because of rref *)
+          | Some (idx, _) -> 
+            let m' = List.drop_while (fun v2 -> 
+                match V.findi_val_opt ((<>:) A.zero) v2 with
+                | None -> true  (* In this case, m2 only has zero rows after that *)
+                | Some (idx', _) -> idx' < idx
+              ) m2 in (* Only consider the part of m2 where the pivot is at a position useful for deleting first_non_zero of v1*)
+            let linearly_indep = is_linearly_independent_rref v1 m' in 
+            if linearly_indep then false else is_covered_by_helper vs1 m'
+      in is_covered_by_helper m1 m2*)
 
     let is_covered_by m1 m2 = Timing.wrap "is_covered_by" (is_covered_by m1) m2
 
