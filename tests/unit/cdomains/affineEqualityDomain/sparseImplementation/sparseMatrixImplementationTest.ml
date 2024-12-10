@@ -33,8 +33,7 @@ let normalize_and_assert (matrix : Matrix.t) (solution : Matrix.t) =
       "The matrix to normalize and the solution have different dimensions!"
   else
     match Matrix.normalize matrix with
-    | None ->
-      assert_failure "The matrix is normalizable but was not normalized!"
+    | None -> assert_failure "The normalization returned None."
     | Some reduced_matrix -> assert_equal reduced_matrix solution
 
 (**
