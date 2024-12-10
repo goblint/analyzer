@@ -1,4 +1,11 @@
-# Artifact for VMCAI'2025 Paper "Correctness Witnesses for Concurrent Programs: Bridging the Semantic Divide with Ghosts"
+# VMCAI '25 Artifact Description
+## Correctness Witnesses for Concurrent Programs: Bridging the Semantic Divide with Ghosts
+
+This is the artifact description for our [VMCAI '25 paper "Correctness Witnesses for Concurrent Programs: Bridging the Semantic Divide with Ghosts"](https://doi.org/10.48550/arXiv.2411.16612).
+The artifact is available on [Zenodo](https://doi.org/10.5281/zenodo.13863579).
+
+**The description here is provided for convenience and not maintained.**
+The artifact contains [Goblint at `vmcai25` git tag](https://github.com/goblint/analyzer/releases/tag/vmcai25).
 
 -------------------------------------------------------------------------------
 
