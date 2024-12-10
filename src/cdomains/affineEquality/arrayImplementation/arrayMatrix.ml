@@ -39,7 +39,7 @@ module ArrayMatrix: AbstractMatrix =
     let copy m = Timing.wrap "copy" (copy) m
 
     let add_empty_columns m cols =
-      let () = Printf.printf "Before add_empty_columns m:\n%s\n" (show m) in
+      let () = Printf.printf "Before add_empty_columns m:\n%sindices: %s\n" (show m) (Array.fold_right (fun x s -> s ^ (Int.to_string x) ^ ",") cols "") in
       let nnc = Array.length cols in
       if is_empty m || nnc = 0 then m else
         let nr, nc = num_rows m, num_cols m in
@@ -82,7 +82,7 @@ module ArrayMatrix: AbstractMatrix =
              Array.blit m (n + 1) new_matrix n (num_rows new_matrix - n)); new_matrix
 
     let get_col m n =
-      let () = Printf.printf "get_col %i of m:\n%s\n%s\n" n (show m) (V.show (V.of_array @@ Array.init (Array.length m) (fun i -> m.(i).(n)))) in
+      (*let () = Printf.printf "get_col %i of m:\n%s\n%s\n" n (show m) (V.show (V.of_array @@ Array.init (Array.length m) (fun i -> m.(i).(n)))) in*)
       V.of_array @@ Array.init (Array.length m) (fun i -> m.(i).(n))
 
     let get_col m n = Timing.wrap "get_col" (get_col m) n
@@ -286,7 +286,7 @@ module ArrayMatrix: AbstractMatrix =
       match rref_vec_with m' v' with
       | Some res -> let () = Printf.printf "After rref_vec we have m:\n%s\n" (show res) in 
         Some (remove_zero_rows res)
-      | None -> None
+      | None -> let () = Printf.printf "After rref_vec there is no normalization\n" in None
 
     let rref_matrix_with m1 m2 =
       (*Similar to rref_vec_with but takes two matrices instead.*)

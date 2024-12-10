@@ -12,7 +12,7 @@ sig
 
   val remove_at_indices: t -> int list -> t
 
-  val insert_zero_at_indices: t -> (int * int) list -> t
+  val insert_zero_at_indices: t -> (int * int) list -> int -> t
 
   val set_nth: t -> int -> num ->  t
 

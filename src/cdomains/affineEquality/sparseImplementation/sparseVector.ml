@@ -80,7 +80,7 @@ module SparseVector: AbstractVector =
       in
       {entries = remove_indices_helper v.entries idx 0; len = v.len - List.length idx}
 
-    let insert_zero_at_indices v idx = 
+    let insert_zero_at_indices v idx count = 
       let rec add_indices_helper vec idx added_count = 
         match vec, idx with 
         | [], [] -> []
@@ -90,7 +90,7 @@ module SparseVector: AbstractVector =
         | ((col_idx, value) :: xs), ((i, count) :: ys) when i < col_idx -> (col_idx + added_count + count, value) :: add_indices_helper xs ys (added_count + count)
         | ((col_idx, value) :: xs), ((i, count) :: ys) -> (col_idx + added_count, value) :: add_indices_helper xs idx added_count
       in
-      {entries = add_indices_helper v.entries idx 0; len = v.len + List.length idx}
+      {entries = add_indices_helper v.entries idx 0; len = v.len + count}
 
     let set_nth v n num = (* TODO: Optimize! *)
       if n >= v.len then failwith "Out of bounds" 
