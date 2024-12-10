@@ -243,6 +243,18 @@ let is_covered_big _ =
   let result = Matrix.is_covered_by m1 m2 in
   assert_bool "Matrix m1 is covered by m2, but was false" (result)
 
+let is_covered_big2 _ = 
+  let m1 = make_matrix_of_2d_list @@
+    [[int 1; int 0; int 0; int 0; int 0; int 1; int 0]
+     ] in
+
+  let m2 = make_matrix_of_2d_list @@
+    [[int 1; int 0; int 0; int 0; int 0; int 0; int 0];
+     [int 0; int 1; int 0; int 0; int 0; int 0; int 0];
+     [int 0; int 0; int 0; int 0; int 0; int 1; int 0]] in
+
+  let result = Matrix.is_covered_by m1 m2 in
+  assert_bool "Matrix m1 is covered by m2, but was false" (result)
 (**
    Normalization works on an empty matrix.
 *)
@@ -310,6 +322,8 @@ let tests =
     "does not change an empty matrix" >:: normalize_empty;
     "can correctly normalize a two column matrix" >:: normalize_two_columns;
     "can handle a rational solution" >:: int_domain_to_rational;
+    "m1 is covered by m2 with big matrix2" >:: is_covered_big2;
+
   ]
 
 let () = run_test_tt_main tests

@@ -257,28 +257,27 @@ module ListMatrix: AbstractMatrix =
       | Some m -> let () = Printf.printf "After rref_matrix m, before removing zero rows:\n %s\n" (show m) in Some (remove_zero_rows m)
       | None -> let () = Printf.printf "No normalization for rref_matrix found" in None
 
-
     let delete_row_with_pivots row pivots m2 = 
       failwith "TODO"
 
-    (* Assumes that the first row of the matrix is already the pivot row fitting to the vector. *)
-    let rec is_linearly_independent_rref v m = 
-      match m with
-      | [] -> not @@ V.is_zero_vec v
-      | x::xs ->
+    let is_covered_by m1 m2 =
+      let rec is_linearly_independent_rref v m = 
         let pivot_opt = V.findi_val_opt ((<>:) A.zero) v in
         match pivot_opt with
         | None -> false (* When we found no pivot, the vector is already A.zero. *)
         | Some (pivot_id, pivot) ->
-          let new_v = V.map2_f_preserves_zero (fun v1 v2 -> v1 -: (pivot *: v2)) v x in
-          is_linearly_independent_rref new_v xs
-
-    let is_covered_by m1 m2 =
-      Printf.printf "Is m1 covered by m2?\n m1:\n%sm2:\n%s" (show m1) (show m2);
-      match normalize @@ append_matrices m2 m1 with
-      | None -> false
-      | Some m -> let m2' = remove_zero_rows m in List.for_all2 (fun x y -> V.equal x y) m2 m2'
-    (*let () = Printf.printf "Is m1 covered by m2?\n m1:\n%sm2:\n%s" (show m1) (show m2) in
+          let m' = List.drop_while (fun v2 -> 
+              match V.findi_val_opt ((<>:) A.zero) v2 with
+              | None -> true  (* In this case, m2 only has zero rows after that *)
+              | Some (idx', _) -> idx' < pivot_id
+            ) m in 
+          match m' with
+          | [] -> not @@ V.is_zero_vec v
+          | x::xs ->
+            let new_v = V.map2_f_preserves_zero (fun v1 v2 -> v1 -: (pivot *: v2)) v x in
+            is_linearly_independent_rref new_v m'
+      in
+      let () = Printf.printf "Is m1 covered by m2?\n m1:\n%sm2:\n%s" (show m1) (show m2) in
       if num_rows m1 > num_rows m2 then false else
       let rec is_covered_by_helper m1 m2 = 
         match m1 with 
@@ -288,15 +287,10 @@ module ListMatrix: AbstractMatrix =
           match first_non_zero with
           | None -> true  (* vs1 must also be zero-vectors because of rref *)
           | Some (idx, _) -> 
-            let m' = List.drop_while (fun v2 -> 
-                match V.findi_val_opt ((<>:) A.zero) v2 with
-                | None -> true  (* In this case, m2 only has zero rows after that *)
-                | Some (idx', _) -> idx' < idx
-              ) m2 in (* Only consider the part of m2 where the pivot is at a position useful for deleting first_non_zero of v1*)
-            let linearly_indep = is_linearly_independent_rref v1 m' in 
-            if linearly_indep then false else is_covered_by_helper vs1 m'
-      in is_covered_by_helper m1 m2*)
-
+            let linearly_indep = is_linearly_independent_rref v1 m2 in
+            if linearly_indep then false else is_covered_by_helper vs1 m2
+      in is_covered_by_helper m1 m2
+  
     let is_covered_by m1 m2 = Timing.wrap "is_covered_by" (is_covered_by m1) m2
 
     let find_opt f m =
