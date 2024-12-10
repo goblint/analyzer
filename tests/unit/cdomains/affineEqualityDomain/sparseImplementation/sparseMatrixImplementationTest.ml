@@ -39,8 +39,7 @@ let normalize_and_assert (matrix : Matrix.t) (solution : Matrix.t) =
       "The matrix to normalize and the solution have different dimensions!"
   else
     match Matrix.normalize matrix with
-    | None ->
-      assert_failure "The matrix is normalizable but was not normalized!"
+    | None -> assert_failure "The normalization returned None."
     | Some reduced_matrix -> assert_equal reduced_matrix solution
 
 (**
@@ -244,6 +243,54 @@ let is_covered_big _ =
   let result = Matrix.is_covered_by m1 m2 in
   assert_bool "Matrix m1 is covered by m2, but was false" (result)
 
+(**
+   Normalization works on an empty matrix.
+*)
+let normalize_empty _ =
+  let width = 3 in
+  let empty_matrix =
+    Matrix.append_row
+      (Matrix.append_row
+         (Matrix.append_row (Matrix.empty ()) (Vector.zero_vec width))
+         (Vector.zero_vec width))
+      (Vector.zero_vec width)
+  in
+  normalize_and_assert empty_matrix empty_matrix
+
+let normalize_two_columns _ =
+  let width = 2 in
+  let two_col_matrix =
+    Matrix.append_row
+      (Matrix.append_row (Matrix.empty ())
+         (Vector.of_sparse_list width [ (0, int 3); (1, int 2) ]))
+      (Vector.of_sparse_list width [ (0, int 9); (1, int 6) ])
+  in
+  let normalized_matrix =
+    Matrix.append_row
+      (Matrix.append_row (Matrix.empty ())
+         (Vector.of_sparse_list width
+            [ (0, int 1); (1, D.div (int 2) (int 3)) ]))
+      (Vector.of_sparse_list width [])
+  in
+  normalize_and_assert two_col_matrix normalized_matrix
+
+let int_domain_to_rational _ =
+  let width = 3 in
+  let int_matrix =
+    Matrix.append_row
+      (Matrix.append_row (Matrix.empty ())
+         (Vector.of_sparse_list width [ (0, int 3); (2, int 1) ]))
+      (Vector.of_sparse_list width [ (0, int 2); (1, int 1); (2, int 1) ])
+  in
+  let normalized_matrix =
+    Matrix.append_row
+      (Matrix.append_row (Matrix.empty ())
+         (Vector.of_sparse_list width
+            [ (0, int 1); (2, D.div (int 1) (int 3)) ]))
+      (Vector.of_sparse_list width [ (1, int 1); (2, D.div (int 1) (int 3)) ])
+  in
+  normalize_and_assert int_matrix normalized_matrix
+
 let tests =
   "SparseMatrixImplementationTest"
   >::: [
@@ -260,6 +307,9 @@ let tests =
     "zero vector is covered by m2" >:: is_zero_vec_covered;
     "m1 is not covered by m2" >:: is_not_covered;
     "m1 is covered by m2 with big matrix" >:: is_covered_big;
+    "does not change an empty matrix" >:: normalize_empty;
+    "can correctly normalize a two column matrix" >:: normalize_two_columns;
+    "can handle a rational solution" >:: int_domain_to_rational;
   ]
 
 let () = run_test_tt_main tests
