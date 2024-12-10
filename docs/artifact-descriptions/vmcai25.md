@@ -7,7 +7,6 @@ The artifact is available on [Zenodo](https://doi.org/10.5281/zenodo.13863579).
 **The description here is provided for convenience and not maintained.**
 The artifact contains [Goblint at `vmcai25` git tag](https://github.com/goblint/analyzer/releases/tag/vmcai25).
 
--------------------------------------------------------------------------------
 
 ## Overview
 
@@ -29,7 +28,6 @@ The next section gives instructions on how to setup and quickly get an overview 
 The subsequent sections then describe each of these components in detail.
 The final section gives information on how to reuse this artifact.
 
--------------------------------------------------------------------------------
 
 ## Getting Started
 
@@ -190,7 +188,6 @@ Note however:
 
 Naturally, changes to the timeout or memory are expected to affect the evaluation numbers.
 
-----------------------------------------------------------------------------------
 
 ## Evaluation Results
 
@@ -226,8 +223,6 @@ Clicking on a status shows the complete GemCutter log for the benchmark run.
 As described above (in section _2. Inspect the evaluation results_), the artifact provides python scripts to directly extract the data shown in the paper from the benchmark results.
 
 
-----------------------------------------------------------------------------------
-
 ## Source Code
 
 ### GemCutter
@@ -255,7 +250,6 @@ The code for this paper is the following:
 
 More recent versions of Goblint can be found at <https://github.com/goblint>.
 
-----------------------------------------------------------------------------------
 
 ## Verifier Binaries
 
@@ -270,7 +264,6 @@ To build Goblint from scratch, run `make setup && make release`.
 Both GemCutter and Goblint can be invoked via the BenchExec benchmarking tool (<https://github.com/sosy-lab/benchexec>) which is installed in the VM.
 For examples, see the benchmark definition files `~/witness-generation/goblint.xml` resp. `~/witness-validation/gemcutter.xml` and the scripts `~/scripts/generate-witnesses.sh` resp. `~/scripts/validate-witnesses.sh`.
 
-----------------------------------------------------------------------------------
 
 ## Benchmark Programs
 
@@ -279,7 +272,6 @@ These benchmarks are taken from the publicly available sv-benchmarks set (<https
 and correspond to the _ConcurrencySafety-Main_ category of SV-COMP'24 (<https://sv-comp.sosy-lab.org/2024/>).
 The benchmarks are written in C and use POSIX threads (`pthreads`) to model concurrency.
 
-----------------------------------------------------------------------------------
 
 ## Extending & Reusing This Artifact
 
