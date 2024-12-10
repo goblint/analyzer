@@ -4,6 +4,9 @@
     dead: 0
     total lines: 6
   [Info][Witness] witness generation summary:
+    location invariants: 13
+    loop invariants: 0
+    flow-insensitive invariants: 0
     total generation entries: 13
 
   $ yamlWitnessStrip < witness.yml
@@ -157,6 +160,9 @@
     dead: 0
     total lines: 6
   [Info][Witness] witness generation summary:
+    location invariants: 14
+    loop invariants: 0
+    flow-insensitive invariants: 0
     total generation entries: 14
 
   $ yamlWitnessStrip < witness.yml

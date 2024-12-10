@@ -1,9 +1,9 @@
 open GoblintCil
 
-let create_var name = Cilfacade.create_var @@ makeGlobalVar name voidType
+let create_var name typ = Cilfacade.create_var @@ makeGlobalVar name typ
 
-let single ~name =
-  let vi = lazy (create_var name) in
+let single ~name ~typ =
+  let vi = lazy (create_var name typ) in
   fun () ->
     Lazy.force vi
 
@@ -21,6 +21,7 @@ module type G =
 sig
   include Hashtbl.HashedType
   val name_varinfo: t -> string
+  val typ: t -> typ
 end
 
 module type H =
@@ -47,7 +48,7 @@ struct
     try
       XH.find !xh x
     with Not_found ->
-      let vi = create_var (X.name_varinfo x) in
+      let vi = create_var (X.name_varinfo x) (X.typ x) in
       store_f x vi;
       vi
 

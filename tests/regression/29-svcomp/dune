@@ -17,4 +17,4 @@
 
 (cram
  (applies_to 36-svcomp-arch)
- (enabled_if (<> %{system} macosx))) ; https://dune.readthedocs.io/en/stable/reference/boolean-language.html
+ (enabled_if %{read:../../util/multilibAvailable})) ; https://dune.readthedocs.io/en/stable/reference/boolean-language.html
