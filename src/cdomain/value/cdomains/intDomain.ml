@@ -194,6 +194,7 @@ sig
   val of_bool: bool -> t
   val of_interval: ?suppress_ovwarn:bool -> Cil.ikind -> int_t * int_t -> t
   val of_congruence: Cil.ikind -> int_t * int_t -> t
+  val of_bitfield: Cil.ikind -> int_t * int_t -> t
   val arbitrary: unit -> t QCheck.arbitrary
   val invariant: Cil.exp -> t -> Invariant.t
 end
@@ -221,11 +222,14 @@ sig
   val of_bool: Cil.ikind -> bool -> t
   val of_interval: ?suppress_ovwarn:bool -> Cil.ikind -> int_t * int_t -> t
   val of_congruence: Cil.ikind -> int_t * int_t -> t
+  val of_bitfield: Cil.ikind -> int_t * int_t -> t
+  val to_bitfield: Cil.ikind -> t -> int_t * int_t
   val is_top_of: Cil.ikind -> t -> bool
   val invariant_ikind : Cil.exp -> Cil.ikind -> t -> Invariant.t
 
   val refine_with_congruence: Cil.ikind -> t -> (int_t * int_t) option -> t
   val refine_with_interval: Cil.ikind -> t -> (int_t * int_t) option -> t
+  val refine_with_bitfield: Cil.ikind -> t -> (int_t * int_t) -> t
   val refine_with_excl_list: Cil.ikind -> t -> (int_t list * (int64 * int64)) option -> t
   val refine_with_incl_list: Cil.ikind -> t -> int_t list option -> t
 
@@ -271,6 +275,8 @@ sig
   val of_bool: Cil.ikind -> bool -> t
   val of_interval: ?suppress_ovwarn:bool -> Cil.ikind -> int_t * int_t -> t
   val of_congruence: Cil.ikind -> int_t * int_t -> t
+  val of_bitfield: Cil.ikind -> int_t * int_t -> t
+  val to_bitfield: Cil.ikind -> t -> int_t * int_t
 
   val starting   : ?suppress_ovwarn:bool -> Cil.ikind -> int_t -> t
   val ending     : ?suppress_ovwarn:bool -> Cil.ikind -> int_t -> t
@@ -349,6 +355,9 @@ struct
   let to_incl_list x = I.to_incl_list x.v
   let of_interval ?(suppress_ovwarn=false) ikind (lb,ub) = {v = I.of_interval ~suppress_ovwarn ikind (lb,ub); ikind}
   let of_congruence ikind (c,m) = {v = I.of_congruence ikind (c,m); ikind}
+  let of_bitfield ikind (z,o) = {v = I.of_bitfield ikind (z,o); ikind}
+  let to_bitfield ikind x = I.to_bitfield ikind x.v
+  
   let starting ?(suppress_ovwarn=false) ikind i = {v = I.starting ~suppress_ovwarn  ikind i; ikind}
   let ending ?(suppress_ovwarn=false) ikind i = {v = I.ending ~suppress_ovwarn ikind i; ikind}
   let maximal x = I.maximal x.v
@@ -483,6 +492,7 @@ module StdTop (B: sig type t val top_of: Cil.ikind -> t end) = struct
   let to_incl_list    x = None
   let of_interval ?(suppress_ovwarn=false) ik x = top_of ik
   let of_congruence ik x = top_of ik
+  let of_bitfield ik x = top_of ik
   let starting ?(suppress_ovwarn=false) ik x = top_of ik
   let ending ?(suppress_ovwarn=false)   ik x = top_of ik
   let maximal         x = None
@@ -709,11 +719,68 @@ struct
 
   (* TODO: change to_int signature so it returns a big_int *)
   let to_int x = Option.bind x (IArith.to_int)
+  let to_excl_list x = None
+  let of_excl_list ik x = top_of ik
+  let is_excl_list x = false
+  let to_incl_list x = None
   let of_interval ?(suppress_ovwarn=false) ik (x,y) = norm ~suppress_ovwarn ik @@ Some (x,y)
+  let of_bitfield ik x = 
+    let min ik (z,o) = 
+      let signBit = Ints_t.shift_left Ints_t.one ((Size.bit ik) - 1) in 
+      let signMask = Ints_t.lognot (Ints_t.of_bigint (snd (Size.range ik))) in
+      let isNegative = Ints_t.logand signBit o <> Ints_t.zero in
+      if isSigned ik && isNegative then Ints_t.logor signMask (Ints_t.lognot z)
+      else Ints_t.lognot z
+    in let max ik (z,o) =
+      let signBit = Ints_t.shift_left Ints_t.one ((Size.bit ik) - 1) in 
+      let signMask = Ints_t.of_bigint (snd (Size.range ik)) in
+      let isPositive = Ints_t.logand signBit z <> Ints_t.zero in
+      if isSigned ik && isPositive then Ints_t.logand signMask o
+      else o 
+    in fst (norm ik (Some (min ik x, max ik x)))
   let of_int ik (x: int_t) = of_interval ik (x,x)
   let zero = Some IArith.zero
   let one  = Some IArith.one
   let top_bool = Some IArith.top_bool
+
+  let to_bitfield ik z = 
+    match z with None -> (Ints_t.lognot Ints_t.zero, Ints_t.lognot Ints_t.zero) | Some (x,y) ->
+    let (min_ik, max_ik) = Size.range ik in
+    let startv = Ints_t.max x (Ints_t.of_bigint min_ik) in
+    let endv= Ints_t.min y (Ints_t.of_bigint max_ik) in
+    
+    let rec analyze_bits pos (acc_z, acc_o) =
+      if pos < 0 then (acc_z, acc_o)
+      else
+        let position = Ints_t.shift_left Ints_t.one pos in
+        let mask = Ints_t.sub position Ints_t.one in
+        let remainder = Ints_t.logand startv mask in
+
+        let without_remainder = Ints_t.sub startv remainder in
+        let bigger_number = Ints_t.add without_remainder position in
+        
+        let bit_status =
+          if Ints_t.compare bigger_number endv <= 0 then
+            `top
+          else 
+            if Ints_t.equal (Ints_t.logand (Ints_t.shift_right startv pos) Ints_t.one) Ints_t.one then
+              `one
+            else
+              `zero
+        in
+
+        let new_acc = 
+          match bit_status with
+          | `top -> (Ints_t.logor position acc_z, Ints_t.logor position acc_o)
+          | `one -> (Ints_t.logand (Ints_t.lognot position) acc_z, Ints_t.logor position acc_o)
+          | `zero -> (Ints_t.logor position acc_z, Ints_t.logand (Ints_t.lognot position) acc_o)
+
+        in 
+        analyze_bits (pos - 1) new_acc
+    in      
+    let result = analyze_bits (Size.bit ik - 1) (Ints_t.zero, Ints_t.zero) in
+    let casted = (Ints_t.of_bigint (Size.cast ik ((Ints_t.to_bigint (fst result)))), Ints_t.of_bigint (Size.cast ik ((Ints_t.to_bigint (snd result))))) 
+    in casted
 
   let of_bool _ik = function true -> one | false -> zero
   let to_bool (a: t) = match a with
@@ -1014,6 +1081,10 @@ struct
 
   let refine_with_interval ik a b = meet ik a b
 
+  let refine_with_bitfield ik a b = 
+    let interv = of_bitfield ik b in 
+    meet ik a interv
+
   let refine_with_excl_list ik (intv : t) (excl : (int_t list * (int64 * int64)) option) : t =
     match intv, excl with
     | None, _ | _, None -> intv
@@ -1087,7 +1158,9 @@ module BitfieldArith (Ints_t : IntOps.IntOps) = struct
   let bits_invalid (z,o) = !:(z |: o)
 
   let is_const (z,o) = (z ^: o) =: one_mask
-  let is_invalid (z,o) = not ((!:(z |: o)) =: Ints_t.zero)
+  let is_invalid ik (z,o) = 
+    let mask = !:(Ints_t.of_bigint (snd (Size.range ik))) in
+    not ((!:(z |: o |: mask)) = Ints_t.zero)
 
   let nabla x y= if x =: (x |: y) then x else one_mask
 
@@ -1248,9 +1321,9 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): SOverflow with type int_t = Int
     else Some (!:z)
 
   let norm ?(suppress_ovwarn=false) ik (z,o) = 
-    if BArith.is_invalid (z,o) then 
+    if BArith.is_invalid ik (z,o) then 
       (bot (), {underflow=false; overflow=false})
-    else
+    else      
       let (min_ik, max_ik) = Size.range ik in
       let wrap ik (z,o) = 
         if isSigned ik then
@@ -1270,6 +1343,7 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): SOverflow with type int_t = Int
       if suppress_ovwarn then (new_bitfield, {underflow=false; overflow=false})
       else (new_bitfield, {underflow=underflow; overflow=overflow})
 
+  let cast_to ?(suppress_ovwarn=false) ?torg ?no_ov t = norm ~suppress_ovwarn t
 
   let join ik b1 b2 = (norm ik @@ (BArith.join b1 b2) ) |> fst
 
@@ -1291,6 +1365,8 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): SOverflow with type int_t = Int
     if BArith.of_int i = bf then `Eq
     else if leq (BArith.of_int i) bf then `Top
     else `Neq
+
+  (* Conversions *)
 
   let of_interval ?(suppress_ovwarn=false) ik (x,y) =
     let (min_ik, max_ik) = Size.range ik in
@@ -1325,12 +1401,11 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): SOverflow with type int_t = Int
 
         in 
         analyze_bits (pos - 1) new_acc
-    in
-    
+    in      
     let result = analyze_bits (Size.bit ik - 1) (bot()) in
     let casted = (Ints_t.of_bigint (Size.cast ik ((Ints_t.to_bigint (fst result)))), Ints_t.of_bigint (Size.cast ik ((Ints_t.to_bigint (snd result))))) in
     norm ~suppress_ovwarn ik casted
- 
+
 
   let of_bool _ik = function true -> BArith.one | false -> BArith.zero
 
@@ -1339,8 +1414,20 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): SOverflow with type int_t = Int
     else if d = BArith.zero then Some false
     else None
 
-  let cast_to ?(suppress_ovwarn=false) ?torg ?no_ov t = norm ~suppress_ovwarn t
+  let of_bitfield ik x = norm ik x |> fst
 
+  let to_bitfield ik x = norm ik x |> fst
+
+  let is_power_of_two x = (x &: (x -: Ints_t.one) = Ints_t.zero) 
+
+  let of_congruence ik (c,m) = 
+    if m = Ints_t.zero then of_int ik c |> fst
+    else if is_power_of_two m then 
+      let mod_mask = m -: Ints_t.one in 
+      let z = !: c in 
+      let o = !:mod_mask |: c in 
+      norm ik (z,o) |> fst
+    else top_of ik
 
   (* Logic *)
 
@@ -1373,12 +1460,12 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): SOverflow with type int_t = Int
 
   let shift_right ik a b = 
     M.trace "bitfield" "shift_right";
-    if BArith.is_invalid b || BArith.is_invalid a || (isSigned ik && BArith.min ik b < Z.zero) then (bot (), {underflow=false; overflow=false})
+    if BArith.is_invalid ik b || BArith.is_invalid ik a || (isSigned ik && BArith.min ik b < Z.zero) then (bot (), {underflow=false; overflow=false})
     else norm ik (BArith.shift_right ik a b)
 
   let shift_left ik a b =
     M.trace "bitfield" "shift_left";
-    if BArith.is_invalid b || BArith.is_invalid a || (isSigned ik && BArith.min ik b < Z.zero) then (bot (), {underflow=false; overflow=false})
+    if BArith.is_invalid ik b || BArith.is_invalid ik a || (isSigned ik && BArith.min ik b < Z.zero) then (bot (), {underflow=false; overflow=false})
     else norm ik (BArith.shift_left ik a b)
 
   (* Arith *)
@@ -1408,7 +1495,11 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): SOverflow with type int_t = Int
     let (rv, rm) = add_paper pv pm qv qm in 
     let o3 = rv |: rm in 
     let z3 = !:rv |: rm in
-    norm ik (z3, o3)
+    (* let _ = print_endline (show (z3, o3)) in 
+    let _ = (match maximal (z3,o3) with Some k -> print_endline (Ints_t.to_string k) | None -> print_endline "None") in
+    let _ = (match minimal (z3,o3) with Some k -> print_endline (Ints_t.to_string k) | None -> print_endline "None") in
+    let _ = (match Size.range ik with (a,b) -> print_endline ("(" ^ Z.to_string a ^ "; " ^ Z.to_string b ^ ")")) in  *)
+    norm ik (z3,o3)
 
   let sub ?no_ov ik (z1, o1) (z2, o2) =
     let pv = o1 &: !:z1 in
@@ -1467,8 +1558,6 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): SOverflow with type int_t = Int
     let res = if BArith.is_const (z1, o1) && BArith.is_const (z2, o2) then (let tmp = z1 /: z2 in (!:tmp, tmp)) else top_of ik in
     norm ik res
 
-  let is_power_of_two x = (x &: (x -: Ints_t.one) = Ints_t.zero) 
-
   let rem ik x y = 
     if BArith.is_const x && BArith.is_const y then (
       let def_x = Option.get (to_int x) in
@@ -1506,6 +1595,8 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): SOverflow with type int_t = Int
 
   let gt ik x y = lt ik y x
 
+  (* Invariant *)
+
   let invariant_ikind e ik (z,o) = 
     let range = range ik (z,o) in
     IntInvariant.of_interval e ik range
@@ -1518,8 +1609,11 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): SOverflow with type int_t = Int
     let (min_ik, max_ik) = Size.range ik in
     of_interval ~suppress_ovwarn ik (Ints_t.of_bigint min_ik, n)
 
+  (* Refinements *)
+
   let refine_with_congruence ik bf ((cong) : (int_t * int_t ) option) : t =
     match bf, cong with
+    | (z,o), Some (c, m) when m = Ints_t.zero -> norm ik (!: c, c) |> fst
     | (z,o), Some (c, m) when is_power_of_two m && m <> Ints_t.one ->
       let congruenceMask = !:m in
       let newz = (!:congruenceMask &: z) |: (congruenceMask &: !:c) in
@@ -1530,7 +1624,9 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): SOverflow with type int_t = Int
   let refine_with_interval ik t itv = 
     match itv with
     | None -> norm ik t |> fst
-    | Some (l, u) -> meet ik t (of_interval ik (l, u) |> fst)
+    | Some (l, u) -> meet ik t (of_interval ik (l, u) |> fst)  
+
+  let refine_with_bitfield ik x y = meet ik x y
 
   let refine_with_excl_list ik t (excl : (int_t list * (int64 * int64)) option) : t = norm ik t |> fst
 
@@ -1541,6 +1637,9 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): SOverflow with type int_t = Int
         List.fold_left (fun acc i -> BArith.join acc (BArith.of_int i)) (bot_of ik) ls
     in
     meet ik t joined
+
+
+  (* Unit Tests *)
 
   let arbitrary ik = 
     let open QCheck.Iter in
@@ -1561,6 +1660,7 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): SOverflow with type int_t = Int
     QCheck.(set_shrink shrink @@ set_print show @@ map (fun (i1,i2) -> norm ik (i1,i2) |> fst ) pair_arb)
 
   let project ik p t = t
+  
 end
 
 
@@ -1796,6 +1896,28 @@ struct
   let of_bool _ = function true -> one | false -> zero
 
   let of_interval ?(suppress_ovwarn=false) ik (x,y) =  norm_interval  ~suppress_ovwarn ~cast:false ik (x,y)
+
+  let of_bitfield ik x = 
+    let min ik (z,o) = 
+      let signBit = Ints_t.shift_left Ints_t.one ((Size.bit ik) - 1) in 
+      let signMask = Ints_t.lognot (Ints_t.of_bigint (snd (Size.range ik))) in
+      let isNegative = Ints_t.logand signBit o <> Ints_t.zero in
+      if isSigned ik && isNegative then Ints_t.logor signMask (Ints_t.lognot z)
+      else Ints_t.lognot z
+    in let max ik (z,o) =
+      let signBit = Ints_t.shift_left Ints_t.one ((Size.bit ik) - 1) in 
+      let signMask = Ints_t.of_bigint (snd (Size.range ik)) in
+      let isPositive = Ints_t.logand signBit z <> Ints_t.zero in
+      if isSigned ik && isPositive then Ints_t.logand signMask o
+      else o 
+    in fst (norm_interval ik (min ik x, max ik x))
+
+  let to_bitfield ik x = 
+    let joinbf (z1,o1) (z2,o2) = (Ints_t.logor z1 z2, Ints_t.logor o1 o2) in 
+    let rec from_list is acc = match is with
+      [] -> acc |
+      j::js -> from_list js (joinbf acc (Interval.to_bitfield ik (Some j)))
+    in from_list x (Ints_t.zero, Ints_t.zero)
 
   let of_int ik (x: int_t) = of_interval ik (x, x)
 
@@ -2062,6 +2184,10 @@ struct
 
   let refine_with_interval ik xs = function None -> [] | Some (a,b) -> meet ik xs [(a,b)]
 
+  let refine_with_bitfield ik x y = 
+    let interv = of_bitfield ik y in 
+    meet ik x interv
+
   let refine_with_incl_list ik intvs  = function
     | None -> intvs
     | Some xs -> meet ik intvs (List.map (fun x -> (x,x)) xs)
@@ -2238,6 +2364,7 @@ struct
   let to_incl_list x = None
   let of_interval ?(suppress_ovwarn=false) ik x = top_of ik
   let of_congruence ik x = top_of ik
+  let of_bitfield ik x = top_of ik
   let starting ?(suppress_ovwarn=false) ikind x = top_of ikind
   let ending ?(suppress_ovwarn=false)   ikind x = top_of ikind
   let maximal      x = None
@@ -2652,6 +2779,10 @@ struct
       let ex = if Z.gt x Z.zero || Z.lt y Z.zero then S.singleton Z.zero else  S.empty () in
       norm ik @@ (`Excluded (ex, r))
 
+  let to_bitfield ik x = 
+    let one_mask = Z.lognot Z.zero 
+    in (one_mask, one_mask)
+
   let starting ?(suppress_ovwarn=false) ikind x =
     let _,u_ik = Size.range ikind in
     of_interval ~suppress_ovwarn ikind (x, u_ik)
@@ -2886,6 +3017,7 @@ struct
   let refine_with_interval ik a b = match a, b with
     | x, Some(i) -> meet ik x (of_interval ik i)
     | _ -> a
+  let refine_with_bitfield ik x y = x
   let refine_with_excl_list ik a b = match a, b with
     | `Excluded (s, r), Some(ls, _) -> meet ik (`Excluded (s, r)) (of_excl_list ik ls) (* TODO: refine with excl range? *)
     | _ -> a
@@ -3140,6 +3272,10 @@ module Enums : S with type int_t = Z.t = struct
   let is_excl_list = BatOption.is_some % to_excl_list
   let to_incl_list = function Inc s when not (BISet.is_empty s) -> Some (BISet.elements s) | _ -> None
 
+  let to_bitfield ik x = 
+    let one_mask = Z.lognot Z.zero 
+    in (one_mask, one_mask)
+
   let starting ?(suppress_ovwarn=false) ikind x =
     let _,u_ik = Size.range ikind in
     of_interval ~suppress_ovwarn ikind (x, u_ik)
@@ -3247,6 +3383,8 @@ module Enums : S with type int_t = Z.t = struct
     | _ -> a
 
   let refine_with_interval ik a b = a (* TODO: refine inclusion (exclusion?) set *)
+
+  let refine_with_bitfield ik x y = x
 
   let refine_with_excl_list ik a b =
     match b with
@@ -3397,6 +3535,17 @@ struct
   let ending = starting
 
   let of_congruence ik (c,m) = normalize ik @@ Some(c,m)
+
+  let to_bitfield ik x = 
+    let is_power_of_two x = (Z.logand x (x -: Z.one) = Z.zero) in
+    match x with None -> (Z.zero, Z.zero) | Some (c,m) ->
+    if m = Z.zero then (Z.lognot c, c)
+    else if is_power_of_two m then 
+      let mod_mask = m -: Z.one in 
+      let z = Z.lognot c in 
+      let o = Z.logor (Z.lognot mod_mask) c in 
+      (z,o)
+    else (Z.lognot Z.zero, Z.lognot Z.zero)
 
   let maximal t = match t with
     | Some (x, y) when y =: Z.zero -> Some x
@@ -3747,6 +3896,8 @@ struct
     if M.tracing then M.trace "refine" "cong_refine_with_interval %a %a -> %a" pretty cong pretty_intv intv pretty refn;
     refn
 
+  let refine_with_bitfield ik a b = a
+
   let refine_with_congruence ik a b = meet ik a b
   let refine_with_excl_list ik a b = a
   let refine_with_incl_list ik a b = a
@@ -3909,6 +4060,7 @@ module IntDomTupleImpl = struct
   let ending ?(suppress_ovwarn=false) ik = create2_ovc ik { fi2_ovc = fun (type a) (module I:SOverflow with type t = a and type int_t = int_t) -> I.ending ~suppress_ovwarn ik }
   let of_interval ?(suppress_ovwarn=false) ik = create2_ovc ik { fi2_ovc = fun (type a) (module I:SOverflow with type t = a and type int_t = int_t) -> I.of_interval ~suppress_ovwarn ik }
   let of_congruence ik = create2 { fi2 = fun (type a) (module I:SOverflow with type t = a and type int_t = int_t) -> I.of_congruence ik }
+  let of_bitfield ik = create2 { fi2 = fun (type a) (module I:SOverflow with type t = a and type int_t = int_t) -> I.of_bitfield ik }
 
   let refine_with_congruence ik ((a, b, c, d, e, f) : t) (cong : (int_t * int_t) option) : t=
     let opt f a =
@@ -3932,6 +4084,17 @@ module IntDomTupleImpl = struct
     , opt I4.refine_with_interval ik d intv
     , opt I5.refine_with_interval ik e intv 
     , opt I6.refine_with_interval ik f intv )
+
+  let refine_with_bitfield ik (a, b, c, d, e,f) bf =
+    let opt f a =
+      curry @@ function Some x, y -> Some (f a x y) | _ -> None
+    in
+    ( opt I1.refine_with_bitfield ik a bf
+    , opt I2.refine_with_bitfield ik b bf
+    , opt I3.refine_with_bitfield ik c bf
+    , opt I4.refine_with_bitfield ik d bf
+    , opt I5.refine_with_bitfield ik e bf 
+    , opt I6.refine_with_bitfield ik f bf )
 
   let refine_with_excl_list ik (a, b, c, d, e,f) excl =
     let opt f a =
@@ -4016,6 +4179,12 @@ module IntDomTupleImpl = struct
     in
     mapp2 { fp2 = fun (type a) (module I:SOverflow with type t = a and type int_t = int_t) -> I.to_incl_list } x |> flat merge
 
+  let to_bitfield ik x = 
+    let bf_meet (z1,o1) (z2,o2) = (Z.logand z1 z2, Z.logand o1 o2) in 
+    let bf_top = (Z.lognot Z.zero, Z.lognot Z.zero) in 
+    let res_tup = mapp2 { fp2 = fun (type a) (module I:SOverflow with type t = a and type int_t = int_t) -> I.to_bitfield ik } x
+    in List.fold bf_meet bf_top (to_list res_tup)
+
   let same show x = let xs = to_list_some x in let us = List.unique xs in let n = List.length us in
     if n = 1 then Some (List.hd xs)
     else (
@@ -4044,8 +4213,9 @@ module IntDomTupleImpl = struct
     in
     [(fun (a, b, c, d, e, f) -> refine_with_excl_list ik (a, b, c, d, e,f) (to_excl_list (a, b, c, d, e,f)));
      (fun (a, b, c, d, e, f) -> refine_with_incl_list ik (a, b, c, d, e,f) (to_incl_list (a, b, c, d, e,f)));
-     (fun (a, b, c, d, e, f) -> maybe refine_with_interval ik (a, b, c, d, e,f) b); (* TODO: get interval across all domains with minimal and maximal *)
-     (fun (a, b, c, d, e, f) -> maybe refine_with_congruence ik (a, b, c, d, e,f) d)]
+     (fun (a, b, c, d, e, f) -> maybe refine_with_interval ik (a, b, c, d, e, f) b); (* TODO: get interval across all domains with minimal and maximal *)
+     (fun (a, b, c, d, e, f) -> maybe refine_with_congruence ik (a, b, c, d, e, f) d);
+     (fun (a, b, c, d, e, f) -> maybe refine_with_bitfield ik (a, b, c, d, e, f) f)]
 
   let refine ik ((a, b, c, d, e,f) : t ) : t =
     let dt = ref (a, b, c, d, e,f) in
