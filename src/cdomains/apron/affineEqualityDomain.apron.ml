@@ -26,8 +26,7 @@ module AffineEqualityMatrix (Vec: AbstractVector) (Mx: AbstractMatrix) =
 struct
   include Mx(Mpqf) (Vec)
   let dim_add (ch: Apron.Dim.change) m =
-    Array.modifyi (+) ch.dim;
-    add_empty_columns m ch.dim
+    add_empty_columns m ch.dim 
 
   let dim_add ch m = Timing.wrap "dim add" (dim_add ch) m
 

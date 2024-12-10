@@ -87,7 +87,7 @@ module SparseVector: AbstractVector =
         | [], (y :: ys) -> [] (* inserting at the end only means changing the dimension *)
         | ((col_idx, value) :: xs), [] -> (col_idx + added_count, value) :: add_indices_helper xs [] added_count
         | ((col_idx, value) :: xs), ((i, count) :: ys) when i = col_idx -> add_indices_helper vec ys (added_count + count)
-        | ((col_idx, value) :: xs), ((i, count) :: ys) when i < col_idx -> (col_idx + added_count + count, value) :: add_indices_helper xs ys (added_count + count)
+        | ((col_idx, value) :: xs), ((i, count) :: ys) when i < col_idx -> add_indices_helper vec ys (added_count + count)
         | ((col_idx, value) :: xs), ((i, count) :: ys) -> (col_idx + added_count, value) :: add_indices_helper xs idx added_count
       in
       {entries = add_indices_helper v.entries idx 0; len = v.len + count}

@@ -40,6 +40,7 @@ module ArrayMatrix: AbstractMatrix =
 
     let add_empty_columns m cols =
       let () = Printf.printf "Before add_empty_columns m:\n%sindices: %s\n" (show m) (Array.fold_right (fun x s -> (Int.to_string x) ^ "," ^ s) cols "") in
+      Array.modifyi (+) cols;
       let nnc = Array.length cols in
       if is_empty m || nnc = 0 then m else
         let nr, nc = num_rows m, num_cols m in

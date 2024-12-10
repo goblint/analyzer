@@ -38,36 +38,9 @@ module ListMatrix: AbstractMatrix =
     let copy m =
       Timing.wrap "copy" (copy) m
 
-    (* This uses the logic from ArrayMatrix to add empty_columns*)
-    let add_empty_columns (m : t) (cols : int array) : t =
-      let nr = num_rows m in
-      let nc = if nr = 0 then 0 else num_cols m in
-      let nnc = Array.length cols in
-
-      (* If no rows or no new columns, just return m as is *)
-      if nr = 0 || nnc = 0 then m
-      else
-        (* Create a new list of rows with additional columns. *)
-        let new_rows =
-          List.map (fun row ->
-              let old_row_arr = V.to_array row in
-              let new_row_arr = Array.make (nc + nnc) A.zero in
-
-              let offset = ref 0 in
-              for j = 0 to nc - 1 do
-                (* Check if we need to insert zero columns before placing old_row_arr.(j) *)
-                while !offset < nnc && !offset + j = cols.(!offset) do
-                  incr offset
-                done;
-                new_row_arr.(j + !offset) <- old_row_arr.(j);
-              done;
-
-              V.of_array new_row_arr
-            ) m
-        in
-
-        new_rows      
-    (*let () = Printf.printf "Before add_empty_columns m:\n%sindices: %s\n" (show m) (Array.fold_right (fun x s -> (Int.to_string x) ^ "," ^ s) cols "") in
+    (* This only works if Array.modifyi has been removed from dim_add *)
+    let add_empty_columns (m : t) (cols : int array) : t =    
+      let () = Printf.printf "Before add_empty_columns m:\n%sindices: %s\n" (show m) (Array.fold_right (fun x s -> (Int.to_string x) ^ "," ^ s) cols "") in
       let cols = Array.to_list cols in 
       let sorted_cols = List.sort Stdlib.compare cols in
       let rec count_sorted_occ acc cols last count =
@@ -78,10 +51,8 @@ module ListMatrix: AbstractMatrix =
         count_sorted_occ acc xs x 1      
       in
       let occ_cols = List.rev @@ count_sorted_occ [] sorted_cols 0 0 in
-      (*let () = Printf.printf "sorted cols is: %s\n" (List.fold_right (fun x s -> (Int.to_string x) ^ s) sorted_cols "") in 
-      let () = Printf.printf "sorted_occ is: %s\n" (List.fold_right (fun (i, count) s -> "(" ^ (Int.to_string i) ^ "," ^ (Int.to_string count) ^ ")" ^ s) occ_cols "") in*)
       let () = Printf.printf "After add_empty_columns m:\n%s\n" (show (List.map (fun row -> V.insert_zero_at_indices row occ_cols (List.length cols)) m)) in
-      List.map (fun row -> V.insert_zero_at_indices row occ_cols (List.length cols)) m*)
+      List.map (fun row -> V.insert_zero_at_indices row occ_cols (List.length cols)) m
 
     let add_empty_columns m cols =
       Timing.wrap "add_empty_cols" (add_empty_columns m) cols
