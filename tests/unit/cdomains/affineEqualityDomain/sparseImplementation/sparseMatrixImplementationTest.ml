@@ -241,8 +241,7 @@ let tests =
     (*"can handle float domain" >:: does_handle_floats;*)
     (*"can handle fraction domain" >:: does_handle_fractions;*)
     "does negate negative matrix" >:: does_negate_negative;
-    "does not change already normalized matrix"
-    >:: does_not_change_normalized_matrix;
+    "does not change already normalized matrix" >:: does_not_change_normalized_matrix;
     "does not change an empty matrix" >:: normalize_empty;
     "can correctly normalize a two column matrix" >:: normalize_two_columns;
     "can handle a rational solution" >:: int_domain_to_rational;
