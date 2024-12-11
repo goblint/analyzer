@@ -395,16 +395,33 @@ struct
             | Le, Some false -> meet_bin (ID.starting ikind (Z.succ l2)) (ID.ending ikind (Z.pred u1))
             | _, _ -> a, b)
          | _ -> a, b)
-      | BOr | BXor as op->
-        if M.tracing then M.tracel "inv" "Unhandled operator %a" d_binop op;
+      | BOr ->      
         (* Be careful: inv_exp performs a meet on both arguments of the BOr / BXor. *)
-        a, b
+        if PrecisionUtil.get_bitfield () then
+          let a', b' = ID.meet a (ID.logand a c), ID.meet b (ID.logand b c) in 
+          let (cz, co) = ID.to_bitfield ikind c in 
+          let (az, ao) = ID.to_bitfield ikind a' in 
+          let (bz, bo) = ID.to_bitfield ikind b' in 
+          let cDef1 = Z.logand co (Z.lognot cz) in 
+          let aDef0 = Z.logand az (Z.lognot ao) in
+          let bDef0 = Z.logand bz (Z.lognot bo) in
+          let az = Z.logand az (Z.lognot (Z.logand bDef0 cDef1)) in 
+          let bz = Z.logand bz (Z.lognot (Z.logand aDef0 cDef1)) in
+          ID.meet a' (ID.of_bitfield ikind (az, ao)), ID.meet b' (ID.of_bitfield ikind (bz, bo))
+        else a, b
+      | BXor ->
+        (* Be careful: inv_exp performs a meet on both arguments of the BOr / BXor. *)
+        if PrecisionUtil.get_bitfield () then
+          let a' = ID.meet a (ID.logxor c b)
+          in let b' = ID.meet b (ID.logxor a c)          
+          in a', b'
+        else a,b
       | LAnd ->
         if ID.to_bool c = Some true then
           meet_bin c c
         else
           a, b
-      | BAnd as op ->
+      | BAnd ->
         (* we only attempt to refine a here *)
         let a =
           match ID.to_int b with
@@ -412,10 +429,21 @@ struct
             (match ID.to_bool c with
              | Some true -> ID.meet a (ID.of_congruence ikind (Z.one, Z.of_int 2))
              | Some false -> ID.meet a (ID.of_congruence ikind (Z.zero, Z.of_int 2))
-             | None -> if M.tracing then M.tracel "inv" "Unhandled case for operator x %a 1 = %a" d_binop op ID.pretty c; a)
-          | _ -> if M.tracing then M.tracel "inv" "Unhandled case for operator x %a %a = %a" d_binop op ID.pretty b ID.pretty c; a
+             | None -> a)
+          | _ -> a
         in
-        a, b
+        if PrecisionUtil.get_bitfield () then          
+          let a', b' = ID.meet a (ID.logor a c), ID.meet b (ID.logor b c) in 
+          let (cz, co) = ID.to_bitfield ikind c in 
+          let (az, ao) = ID.to_bitfield ikind a' in 
+          let (bz, bo) = ID.to_bitfield ikind b' in 
+          let cDef0 = Z.logand cz (Z.lognot co) in 
+          let aDef1 = Z.logand ao (Z.lognot az) in
+          let bDef1 = Z.logand bo (Z.lognot bz) in
+          let ao = Z.logand ao (Z.lognot (Z.logand bDef1 cDef0)) in 
+          let bo = Z.logand bo (Z.lognot (Z.logand aDef1 cDef0)) in
+          ID.meet a' (ID.of_bitfield ikind (az, ao)), ID.meet b' (ID.of_bitfield ikind (bz, bo))
+        else a, b
       | op ->
         if M.tracing then M.tracel "inv" "Unhandled operator %a" d_binop op;
         a, b
