@@ -470,6 +470,17 @@ struct
 
   let of_list ik is = List.fold_left (fun acc x -> I.join ik acc (I.of_int ik x)) (I.bot ()) is
   let cart_op op a b = List.map (BatTuple.Tuple2.uncurry op) (BatList.cartesian_product a b)
+  let string_of_ik ik = match ik with
+    | Cil.IInt -> "int"
+    | Cil.IUInt -> "unsigned int"
+    | Cil.IChar -> "char"
+    | Cil.IUChar -> "unsigned char"
+    | Cil.IBool -> "bool"
+    | Cil.ILong -> "long"
+    | Cil.IULong -> "unsigned long"
+    | Cil.ILongLong -> "long long"
+    | Cil.IULongLong -> "unsigned long long"
+    | _ -> "undefined C primitive type"
 
   let assert_shift shift ik a b expected = 
     let symb, shift_op_bf, shift_op_int = match shift with
@@ -484,60 +495,93 @@ struct
       | `I is -> of_list ik (List.map of_int is)
     in
     let output_string = "was: " ^ I.show result ^ " but should be: " ^  I.show expected in
-    let output_string  = "Test shift ("^ I.show bf_a ^ symb ^ I.show bf_b  ^ ") failed: " ^ output_string in
+    let output_string  = "Test " ^ string_of_ik ik ^ " shift ("^ I.show bf_a ^ symb ^ I.show bf_b  ^ ") failed: " ^ output_string in
     assert_bool output_string (I.equal result expected)
 
   let assert_shift_left ik a b expected = assert_shift `L ik a b expected
   let assert_shift_right ik a b expected = assert_shift `R ik a b expected
 
-  let list_from_set_gen gen =
+  let gen_sized_set size_gen gen = (* TODO might reduce the size of the generated list *)
     let open QCheck2.Gen in
-    let module S = Set.Make(Int) in
-    list gen >>= fun lst ->
-      let set = List.fold_left (fun acc x -> S.add x acc) S.empty lst in
-      return (S.elements set) 
+    map (List.sort_uniq Int.compare) (list_size size_gen gen)
 
+  (*
+    Checks the property: (U_{a in gamma a_bf, b in gamma b_bf} a shift b) leq (a_bf shift b_bf)
+  *)
   let test_shift ik name c_op a_op =
-    let shift_test_printer (a,b) = Printf.sprintf "a: [%s], b: [%s]"
+    let shift_test_printer (ik,a,b) = Printf.sprintf "(ik: %s) a: [%s] b: [%s]"
+      (
+        string_of_ik ik
+      )
       (String.concat ", " (List.map string_of_int a))
       (String.concat ", " (List.map string_of_int b))
     in
     let of_list ik is = of_list ik (List.map of_int is) in
-    let open QCheck2 in
-    let a_gen =
-      list_from_set_gen Gen.small_signed_int
+    let precision = snd @@ IntDomain.Size.bits ik in
+    let open QCheck2 in let open Gen in
+    let a_gen ik =
+      let min_ik, max_ik = Batteries.Tuple2.mapn Z.to_int (IntDomain.Size.range ik) in
+      gen_sized_set (1 -- precision) (min_ik -- max_ik)
     in
-    let b_gen =
-      let precision = snd @@ IntDomain.Size.bits ik in
-      list_from_set_gen (Gen.int_range 0 precision)
+    let b_gen ik =
+      gen_sized_set (1 -- (Z.log2up (Z.of_int precision))) (0 -- precision)
     in
-    Test.make ~name:name ~print:shift_test_printer (Gen.pair a_gen b_gen)
-    (fun (a,b) ->
-      let expected = cart_op c_op a b |> of_list ik in
+    let test_case_gen = Gen.(
+        oneofl [Cil.IInt; Cil.IUInt; Cil.IChar; Cil.IUChar; Cil.IBool]
+        >>= fun ik -> triple (return ik) (a_gen ik) (b_gen ik)
+      )
+    in
+    Test.make ~name:name ~print:shift_test_printer ~count:1000 (*~collect:shift_test_printer*)
+    test_case_gen
+    (fun (ik,a,b) ->
+      let expected_subset = cart_op c_op a b |> of_list ik in
       let result = a_op ik (of_list ik a) (of_list ik b) in
-      let test_result = I.equal result expected in
-      test_result
+      I.leq expected_subset result
     )
 
   let test_shift_left = QCheck_ounit.to_ounit2_test (test_shift ik "test shift left" Int.shift_left I.shift_left)
   let test_shift_right = QCheck_ounit.to_ounit2_test (test_shift ik "test shift right" Int.shift_right I.shift_right)
 
-  let test_shift_left = [
+  let test_shift_left =
+    let bot = `B (I.bot ()) in
+  [
     test_shift_left;
     "shift left edge cases" >:: fun _ ->
-    assert_shift_left ik_char [85] [4; 6] (`B (I.bot ()));
+    assert_shift_left ik [1] [1; 2] (`I [1; 2; 4; 8]);
 
-    assert_shift_left ik [1073741824] [1; 128; 384] (`B (I.bot ()));
-    assert_shift_left ik [1073741824] [0; 128; 384] (`I [1073741824])
+    assert_shift_left ik [1] [-1] bot;
+
+    assert_shift_left ik_char [85] [8] bot;
+    assert_shift_left ik_uchar [85] [9] bot;
+    assert_shift_left ik [Int.max_int] [Sys.int_size] bot;
+    assert_shift_left Cil.IUInt [Int.add Int.max_int Int.max_int] [Int.add Sys.int_size 1] bot;
+
+    assert_shift_left ik_char [42] [8; 1] (`I [84]);
+    assert_shift_left ik_uchar [42] [9; 1] (`I [84]);
+
+    assert_shift_left ik [42] [Sys.int_size; 1] (`I [84]);
+    assert_shift_left Cil.IUInt [42] [Int.add Sys.int_size 1; 1] (`I [84]);
   ]
 
-  let test_shift_right = [
+  let test_shift_right =
+    let bot = `B (I.bot ()) in
+  [
     test_shift_right;
     "shift right edge cases" >:: fun _ ->
-    assert_shift_right ik_char [85] [8] (`B (I.bot ()));
-    assert_shift_right ik_uchar [85] [9] (`B (I.bot ()));
+    assert_shift_right ik [10] [1; 2] (`I [10; 7; 5; 1]);
 
-    assert_shift_right ik [32] [128; 384] (`B (I.bot ()))
+    assert_shift_right ik [2] [-1] bot;
+
+    assert_shift_right ik_char [85] [8] bot;
+    assert_shift_right ik_uchar [85] [9] bot;
+    assert_shift_right ik [Int.max_int] [Sys.int_size] bot;
+    assert_shift_right Cil.IUInt [Int.add Int.max_int Int.max_int] [Int.add Sys.int_size 1] bot;
+
+    assert_shift_right ik_char [42] [8; 1] (`I [21]);
+    assert_shift_right ik_uchar [42] [9; 1] (`I [21]);
+
+    assert_shift_right ik [42] [Sys.int_size; 1] (`I [21]);
+    assert_shift_right Cil.IUInt [42] [Int.add Sys.int_size 1; 1] (`I [21]);
   ]
 
 
