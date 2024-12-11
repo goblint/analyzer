@@ -510,7 +510,7 @@ struct
       (String.concat ", " (List.map string_of_int b))
     in
     let of_list ik is = of_list ik (List.map of_int is) in
-    let precision = snd @@ IntDomain.Size.bits ik in
+    let precision = Int.pred @@ snd @@ IntDomain.Size.bits ik in
     let open QCheck2 in let open Gen in
     let a_gen ik =
       let min_ik, max_ik = Batteries.Tuple2.mapn Z.to_int (IntDomain.Size.range ik) in
