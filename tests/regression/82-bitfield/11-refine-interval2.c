@@ -1,4 +1,4 @@
-// PARAM: --enable ana.int.interval --enable ana.int.bitfield --set ana.int.refinement fixpoint --trace inv --trace branch --trace invariant
+// PARAM: --enable ana.int.interval --enable ana.int.bitfield --set ana.int.refinement fixpoint
 #include <goblint.h>
 
 int main() {
