@@ -255,6 +255,7 @@ struct
   module I = IntDomain.SOverflowUnlifter (I)
 
   let ik = Cil.IInt
+  let ik_uint = Cil.IUInt
   let ik_char = Cil.IChar
   let ik_uchar = Cil.IUChar
 
@@ -476,23 +477,20 @@ struct
     | Cil.IChar -> "char"
     | Cil.IUChar -> "unsigned_char"
     | _ -> "undefined C primitive type"
-  let precision ik =
-    let prec = snd @@ IntDomain.Size.bits ik in
-    if isSigned ik
-      then prec else Int.pred prec
+  let precision ik = snd @@ IntDomain.Size.bits ik
 
   let assert_shift shift ik a b expected = 
     let symb, shift_op_bf, shift_op_int = match shift with
       | `L -> "<<", I.shift_left ik, Int.shift_left
       | `R -> ">>", I.shift_right ik, Int.shift_right
     in
-    let bf_a = of_list ik (List.map of_int a) in
-    let bf_b = of_list ik (List.map of_int b) in
-    let result = (shift_op_bf bf_a bf_b) in
-    let expected = match expected with
+    let of_list (is: int list) : I.t = of_list ik (List.map of_int is) in
+    let get_param x : I.t = match x with
       | `B bf -> bf
-      | `I is -> of_list ik (List.map of_int is)
+      | `I is -> of_list is
     in
+    let bf_a, bf_b, expected = get_param a, get_param b, get_param expected in
+    let result = (shift_op_bf bf_a bf_b) in
     let output_string = Printf.sprintf "test (%s) shift [%s] %s [%s] failed: was: [%s] but should be: [%s]"
       (string_of_ik ik)
       (I.show bf_a) symb (I.show bf_b)
@@ -521,7 +519,7 @@ struct
       gen_sized_set (1 -- precision) (min_ik -- max_ik)
     in
     let b_gen ik =
-      gen_sized_set (1 -- (Z.log2up @@ Z.of_int precision)) (0 -- precision)
+      gen_sized_set (1 -- (Z.log2up @@ Z.of_int precision)) (0 -- Int.pred precision) (* only shifts that are smaller than precision *)
     in
     let test_case_gen = Gen.pair (a_gen ik) (b_gen ik)
     in
@@ -541,59 +539,50 @@ struct
       (Printf.sprintf "test_shift_right_ik_%s" (string_of_ik ik)) Int.shift_right I.shift_right :: acc
     ) [] [Cil.IChar; Cil.IUChar; Cil.IInt; Cil.IUInt] |> QCheck_ounit.to_ounit2_test_list
 
-  let over_precision_ik_char = Int.succ @@ precision ik_char
-  let over_precision_ik_uchar = Int.succ @@ precision ik_uchar
-  let over_precision_ik_int = Int.succ @@ precision ik
-  let over_precision_ik_uint = Int.succ @@ precision Cil.IUInt
+  let over_precision ik = Int.succ @@ precision ik
 
+  let bot = `B (I.bot ())
   let test_shift_left =
-    let bot = `B (I.bot ()) in
   [
     "property_test_shift_left" >::: test_shift_left;
     "shift_left_edge_cases" >:: fun _ ->
-    assert_shift_left ik [1] [1; 2] (`I [1; 2; 4; 8]);
+    assert_shift_left ik (`I [1]) (`I [1; 2]) (`I [1; 2; 4; 8]);
+    assert_shift_left ik (`I [1]) (`I [-1]) bot;
+    assert_shift_left ik bot (`I [1]) bot;
+    assert_shift_left ik (`I [1]) bot bot;
+    assert_shift_left ik bot bot bot;
 
-    assert_shift_left ik [1] [-1] bot;
+    assert_shift_left ik (`I [1]) (`I [over_precision ik]) bot;
+    assert_shift_left ik_uint (`I [1]) (`I [over_precision ik_uint]) bot;
 
-    assert_shift_left ik_char [85] [over_precision_ik_char] bot;
-    assert_shift_left ik_uchar [85] [over_precision_ik_uchar] bot;
-
-    assert_shift_left ik [Int.max_int] [over_precision_ik_int] bot;
-    assert_shift_left Cil.IUInt [Int.add Int.max_int Int.max_int] [over_precision_ik_uint] bot;
-
-    assert_shift_left ik_uchar [42] [over_precision_ik_uchar] bot;
-    assert_shift_left ik_uchar [42] [over_precision_ik_uchar; 0] (`I [42]);
-    (*assert_shift_left ik_char [42] [over_precision_ik_char; 0] (`I [42]);*) (* TODO intended behavior? Join with zero alters the z mask! *)
-
-    (*assert_shift_left ik [42] [over_precision_ik_int; 0] (`I [42]);*) (* TODO intended behavior? Join with zero alters the z mask! *)
-    assert_shift_left Cil.IUInt [42] [over_precision_ik_uint; 0] (`I [42]);
+    assert_shift_left ik (`I [1]) (`I [over_precision ik; 0]) (`I [1]);
+    assert_shift_left ik_uint (`I [4]) (`I [precision ik_uint; 0]) (`I [4]);
 
     (* TODO unit tests for overflow wrapping? *)
+    (* TODO bitfields that contains shifts whose value are bigger than the precision of the ik *)
   ]
 
   let test_shift_right =
-    let bot = `B (I.bot ()) in
   [
     "property_test_shift_right" >::: test_shift_right;
     "shift_right_edge_cases" >:: fun _ ->
-    assert_shift_right ik [10] [1; 2] (`I [10; 7; 5; 1]);
+    assert_shift_right ik (`I [10]) (`I [1; 2]) (`I [10; 7; 5; 1]);
+    assert_shift_right ik (`I [2]) (`I [-1]) bot;
+    assert_shift_right ik (`I [1]) (`I [-1]) bot;
+    assert_shift_right ik bot (`I [1]) bot;
+    assert_shift_right ik (`I [1]) bot bot;
+    assert_shift_right ik bot bot bot;
 
-    assert_shift_right ik [2] [-1] bot;
+    let double_max_int = Int.add Int.max_int Int.max_int in
 
-    assert_shift_right ik_char [85] [over_precision_ik_char] bot;
-    assert_shift_right ik_uchar [85] [over_precision_ik_uchar] bot;
+    assert_shift_right ik (`I [Int.min_int]) (`I [over_precision ik]) bot;
+    assert_shift_right ik_uint (`I [Int.add Int.max_int Int.max_int]) (`I [over_precision ik_uint]) bot;
 
-    assert_shift_right ik [Int.max_int] [over_precision_ik_int] bot;
-    assert_shift_right Cil.IUInt [Int.succ @@ Int.add Int.max_int Int.max_int] [over_precision_ik_uint] bot;
-
-    assert_shift_right ik_uchar [42] [over_precision_ik_uchar] bot;
-    assert_shift_right ik_uchar [42] [over_precision_ik_uchar; 0] (`I [42]);
-    (*assert_shift_right ik_char [42] [over_precision_ik_char; 0] (`I [42]);*) (* TODO intended behavior? Join with zero alters the z mask! *)
-
-    (* assert_shift_right ik [42] [over_precision_ik_int; 0] (`I [42]); *) (* TODO intended behavior? Join with zero alters the z mask! *)
-    assert_shift_right Cil.IUInt [42] [over_precision_ik_uint; 0] (`I [42]);
+    assert_shift_right ik (`I [Int.min_int]) (`I [over_precision ik; 0]) (`I [Int.min_int]);
+    assert_shift_right ik_uint (`I [double_max_int]) (`I [precision ik_uint]) (`I [double_max_int]);
 
     (* TODO unit tests for overflow wrapping? *)
+    (* TODO bitfields that contains shifts whose value are bigger than the precision of the ik *)
   ]
 
 
