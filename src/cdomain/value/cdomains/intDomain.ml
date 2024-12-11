@@ -1247,35 +1247,39 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): SOverflow with type int_t = Int
   let bot_of ik = bot ()
 
   let to_pretty_bits (z,o) = 
-    let known_bits = BArith.bits_known (z,o) in
-    let invalid_bits = BArith.bits_invalid (z,o) in
-    let num_bits_to_print = Sys.word_size in
-    let rec to_pretty_bits' known_mask impossible_mask o_mask max_bits acc =
-      if max_bits < 0 then
-        if o_mask = Ints_t.zero && String.empty = acc
-          then "0" else acc
-      else if o_mask = Ints_t.zero then acc
-      else
-        let current_bit_known = known_mask &: Ints_t.one in
-        let current_bit_impossible = impossible_mask &: Ints_t.one in
-        let bit_value = o_mask &: Ints_t.one in
-        let next_bit_string =
-          if current_bit_impossible = Ints_t.one
-            then "⊥"
-            else if current_bit_known = Ints_t.one || current_bit_known = Ints_t.zero
-              then string_of_int (Ints_t.to_int bit_value) else "⊤" in
-        to_pretty_bits' (known_mask >>: 1) (impossible_mask >>: 1) (o_mask >>: 1) (max_bits - 1) (next_bit_string ^ acc)
+    let known_bitmask = ref (BArith.bits_known (z,o)) in
+    let invalid_bitmask = ref (BArith.bits_invalid (z,o)) in
+    let o_mask = ref o in
+    let z_mask = ref z in
+
+    let rec to_pretty_bits' acc =
+        let current_bit_known = (!known_bitmask &: Ints_t.one) = Ints_t.one in
+        let current_bit_impossible = (!invalid_bitmask &: Ints_t.one) = Ints_t.one in
+
+        let bit_value = !o_mask &: Ints_t.one in
+        let bit =
+          if current_bit_impossible then "⊥"
+          else if not current_bit_known then "⊤"
+          else Ints_t.to_string bit_value 
+        in
+
+        if (!o_mask = Ints_t.of_int (-1) || !o_mask = Ints_t.zero ) && (!z_mask = Ints_t.of_int (-1) || !z_mask = Ints_t.zero) then
+          let prefix = bit ^ "..." ^ bit in
+          prefix ^ acc
+        else
+          (known_bitmask := !known_bitmask >>: 1;
+          invalid_bitmask := !invalid_bitmask >>: 1;
+          o_mask := !o_mask >>: 1;
+          z_mask := !z_mask >>: 1;
+          to_pretty_bits' (bit ^ acc))
     in
-    to_pretty_bits' known_bits invalid_bits o num_bits_to_print ""
+    "0b" ^ to_pretty_bits' ""
 
   let show t = 
     if t = bot () then "bot" else
     if t = top () then "top" else
       let (z,o) = t in
-      if BArith.is_const t then 
-        Format.sprintf "{%08X, %08X} (unique: %d)" (Ints_t.to_int z) (Ints_t.to_int o) (Ints_t.to_int o)
-      else 
-        Format.sprintf "{%08X, %08X}" (Ints_t.to_int z) (Ints_t.to_int o)
+        Format.sprintf "{%s, (zs:%s, os:%s)}" (to_pretty_bits t) (Ints_t.to_string z) (Ints_t.to_string o) 
 
   include Std (struct type nonrec t = t let name = name let top_of = top_of let bot_of = bot_of let show = show let equal = equal end)
 
