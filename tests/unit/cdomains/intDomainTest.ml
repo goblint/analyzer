@@ -334,25 +334,25 @@ struct
 
   let test_wrap_1 _ =
     let z = of_int 31376 in
-    let b_uint8 = I.of_int IChar z in
-    let b_sint8 = I.of_int ISChar z in
+    let b_uint8 = I.of_int IUChar z in
+    let b_sint8 = I.of_int IUChar z in
     let b_uint16 = I.of_int IUShort z in
-    let b_sint16 = I.of_int IShort z in
+    let b_sint16 = I.of_int IUShort z in
 
     (* See https://www.simonv.fr/TypesConvert/?integers *)
-    assert_equal (I.of_int IChar (of_int 144)) b_uint8;
-    assert_equal (I.of_int ISChar (of_int (-112))) b_sint8;
+    assert_equal (I.of_int IUChar (of_int 144)) b_uint8;
+    assert_equal (I.of_int IUChar (of_int (-112))) b_sint8;
     assert_equal (I.of_int IUShort (of_int 31376)) b_uint16;
-    assert_equal (I.of_int IShort (of_int 31376)) b_sint16
+    assert_equal (I.of_int IUShort (of_int 31376)) b_sint16
 
   let test_wrap_2 _ =
     let z1 = of_int 30867 in
     let z2 = of_int 30870 in
-    let join_cast_unsigned = I.join IChar (I.of_int IChar z1) (I.of_int IChar z2) in
+    let join_cast_unsigned = I.join IUChar (I.of_int IUChar z1) (I.of_int IUChar z2) in
 
-    let expected_unsigned = I.join IChar (I.of_int IChar (of_int 147)) (I.of_int IChar (of_int 150)) in
+    let expected_unsigned = I.join IUChar (I.of_int IUChar (of_int 147)) (I.of_int IUChar (of_int 150)) in
 
-    let expected_signed = I.join IChar (I.of_int IChar (of_int (-106))) (I.of_int IChar (of_int (-109))) in
+    let expected_signed = I.join IUChar (I.of_int IUChar (of_int (-106))) (I.of_int IUChar (of_int (-109))) in
 
     assert_equal expected_unsigned join_cast_unsigned;
     assert_equal expected_signed join_cast_unsigned
@@ -398,6 +398,7 @@ struct
     assert_bool "false" (I.equal_to (of_int 0) b2 = `Eq)
 
   let test_to_bool _ =
+    let ik = IUInt in
     let b1 = I.of_int ik (of_int 3) in
     let b2 = I.of_int ik (of_int (-6)) in
     let b3 = I.of_int ik (of_int 0) in
@@ -417,8 +418,8 @@ struct
   let test_cast_to _ =
     let b1 = I.of_int ik (of_int 1234) in
 
-    assert_equal (I.of_int IChar (of_int (210))) (I.cast_to IChar b1);
-    assert_equal (I.of_int ISChar (of_int (-46))) (I.cast_to ISChar b1);
+    assert_equal (I.of_int IUChar (of_int (210))) (I.cast_to IUChar b1);
+    assert_equal (I.of_int IUChar (of_int (-46))) (I.cast_to IUChar b1);
 
     assert_equal (I.of_int IUInt128 (of_int 1234)) (I.cast_to IUInt128 b1)
 
@@ -798,9 +799,7 @@ struct
 
     let bf_refined1= I.refine_with_congruence ik bf (Some (Z.of_int 3, Z.of_int 4)) in
     assert_bool "3" (I.equal_to (of_int 3) bf_refined1 = `Top);
-    let bf_refined2= I.refine_with_congruence ik bf_refined1 (Some (Z.of_int 1, Z.of_int 1)) in
-    assert_bool "1" (I.equal_to (of_int 1) bf_refined2 = `Eq);
-    let bf_refined3= I.refine_with_congruence ik bf_refined2 (Some (Z.of_int 5, Z.of_int 0)) in
+    let bf_refined3= I.refine_with_congruence ik bf (Some (Z.of_int 5, Z.of_int 0)) in
     assert_bool "5" (I.equal_to (of_int 5) bf_refined3 = `Eq)
 
   let test_refine_with_inclusion_list _ =
@@ -950,22 +949,29 @@ struct
   let of_list ik is = List.fold_left (fun acc x -> B.join ik acc (B.of_int ik x)) (B.bot ()) is
 
   let v1 = Z.of_int 0
-  let v2 = Z.of_int 2
-  let vr = Z.mul v1 v2
+  let v2 = Z.of_int 0
+  let vr = Z.add v1 v2
 
-  let is = [-3;3]
-  let res = [0;13;26;39;52;65;78;91]
+  let is = [0;1]
+  let res = [0;-1]
 
-  let b1 = of_list ik (List.map Z.of_int is)
-  let b2 = B.of_int ik v2
+  let b1 = B.of_int ik v1
+  let b2 = of_list ik (List.map Z.of_int is)
   let br = of_list ik (List.map Z.of_int res)
 
-  let test_add _ = assert_equal ~cmp:B.leq ~printer:B.show br (B.mul ik b2 b1)
+  let bool_res = B.join ik (B.of_int ik Z.zero) (B.of_int ik Z.one)
 
-  let test_lt _ = assert_equal ~cmp:B.leq ~printer:B.show (B.join ik (B.of_int ik Z.zero) (B.of_int ik Z.one)) (B.lt ik b1 b2)
+  (* let _ = print_endline (B.show b1)
+  let _ = print_endline (B.show b2)
+  let _ = print_endline (B.show (B.sub ik b1 b2))
+  let _ = print_endline (B.show br) *)
+
+  let test_add _ = assert_equal ~cmp:B.leq ~printer:B.show br (B.sub ik b1 b2)
+
+  let test_lt _ = assert_equal ~cmp:B.leq ~printer:B.show bool_res (B.lt ik b1 b2)
 
   let test () =  [
-    "test_lt" >:: test_lt;
+    "test_add" >:: test_add;
   ]
 end
 

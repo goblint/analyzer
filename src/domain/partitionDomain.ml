@@ -106,6 +106,9 @@ struct
 
   let show _ = "Partitions"
 
+  (* Top and bottom are reversed:
+     Bottom will be All (equations), i.e. contradiction,
+     Top will be empty set, i.e. no equations. *)
   let top = E.bot
   let bot = E.top
   let is_top = E.is_bot

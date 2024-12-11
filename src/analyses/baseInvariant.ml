@@ -395,16 +395,33 @@ struct
             | Le, Some false -> meet_bin (ID.starting ikind (Z.succ l2)) (ID.ending ikind (Z.pred u1))
             | _, _ -> a, b)
          | _ -> a, b)
-      | BOr | BXor as op->
-        if M.tracing then M.tracel "inv" "Unhandled operator %a" d_binop op;
+      | BOr ->      
         (* Be careful: inv_exp performs a meet on both arguments of the BOr / BXor. *)
-        a, b
+        if PrecisionUtil.get_bitfield () then
+          let a', b' = ID.meet a (ID.logand a c), ID.meet b (ID.logand b c) in 
+          let (cz, co) = ID.to_bitfield ikind c in 
+          let (az, ao) = ID.to_bitfield ikind a' in 
+          let (bz, bo) = ID.to_bitfield ikind b' in 
+          let cDef1 = Z.logand co (Z.lognot cz) in 
+          let aDef0 = Z.logand az (Z.lognot ao) in
+          let bDef0 = Z.logand bz (Z.lognot bo) in
+          let az = Z.logand az (Z.lognot (Z.logand bDef0 cDef1)) in 
+          let bz = Z.logand bz (Z.lognot (Z.logand aDef0 cDef1)) in
+          ID.meet a' (ID.of_bitfield ikind (az, ao)), ID.meet b' (ID.of_bitfield ikind (bz, bo))
+        else a, b
+      | BXor ->
+        (* Be careful: inv_exp performs a meet on both arguments of the BOr / BXor. *)
+        if PrecisionUtil.get_bitfield () then
+          let a' = ID.meet a (ID.logxor c b)
+          in let b' = ID.meet b (ID.logxor a c)          
+          in a', b'
+        else a,b
       | LAnd ->
         if ID.to_bool c = Some true then
           meet_bin c c
         else
           a, b
-      | BAnd as op ->
+      | BAnd ->
         (* we only attempt to refine a here *)
         let a =
           match ID.to_int b with
@@ -412,10 +429,21 @@ struct
             (match ID.to_bool c with
              | Some true -> ID.meet a (ID.of_congruence ikind (Z.one, Z.of_int 2))
              | Some false -> ID.meet a (ID.of_congruence ikind (Z.zero, Z.of_int 2))
-             | None -> if M.tracing then M.tracel "inv" "Unhandled case for operator x %a 1 = %a" d_binop op ID.pretty c; a)
-          | _ -> if M.tracing then M.tracel "inv" "Unhandled case for operator x %a %a = %a" d_binop op ID.pretty b ID.pretty c; a
+             | None -> a)
+          | _ -> a
         in
-        a, b
+        if PrecisionUtil.get_bitfield () then          
+          let a', b' = ID.meet a (ID.logor a c), ID.meet b (ID.logor b c) in 
+          let (cz, co) = ID.to_bitfield ikind c in 
+          let (az, ao) = ID.to_bitfield ikind a' in 
+          let (bz, bo) = ID.to_bitfield ikind b' in 
+          let cDef0 = Z.logand cz (Z.lognot co) in 
+          let aDef1 = Z.logand ao (Z.lognot az) in
+          let bDef1 = Z.logand bo (Z.lognot bz) in
+          let ao = Z.logand ao (Z.lognot (Z.logand bDef1 cDef0)) in 
+          let bo = Z.logand bo (Z.lognot (Z.logand aDef1 cDef0)) in
+          ID.meet a' (ID.of_bitfield ikind (az, ao)), ID.meet b' (ID.of_bitfield ikind (bz, bo))
+        else a, b
       | op ->
         if M.tracing then M.tracel "inv" "Unhandled operator %a" d_binop op;
         a, b
@@ -777,33 +805,37 @@ struct
             | _ -> assert false
           end
         | Const _ , _ -> st (* nothing to do *)
-        | CastE ((TFloat (_, _)), e), Float c ->
-          (match unrollType (Cilfacade.typeOf e), FD.get_fkind c with
-           | TFloat (FLongDouble as fk, _), FFloat
-           | TFloat (FDouble as fk, _), FFloat
-           | TFloat (FLongDouble as fk, _), FDouble
-           | TFloat (fk, _), FLongDouble
-           | TFloat (FDouble as fk, _), FDouble
-           | TFloat (FFloat as fk, _), FFloat -> inv_exp (Float (FD.cast_to fk c)) e st
-           | _ -> fallback (fun () -> Pretty.text "CastE: incompatible types") st)
-        | CastE ((TInt (ik, _)) as t, e), Int c
-        | CastE ((TEnum ({ekind = ik; _ }, _)) as t, e), Int c -> (* Can only meet the t part of an Lval in e with c (unless we meet with all overflow possibilities)! Since there is no good way to do this, we only continue if e has no values outside of t. *)
-          (match eval e st with
-           | Int i ->
-             (match unrollType (Cilfacade.typeOf e) with
-              | (TInt(ik_e, _) as t')
-              | (TEnum ({ekind = ik_e; _ }, _) as t') ->
-                if VD.is_dynamically_safe_cast t t' (Int i) then
-                  (* let c' = ID.cast_to ik_e c in *)
-                  (* Suppressing overflow warnings as this is not a computation that comes from the program *)
-                  let res_range = (ID.cast_to ~suppress_ovwarn:true ik (ID.top_of ik_e)) in
-                  let c' = ID.cast_to ik_e (ID.meet c res_range) in (* TODO: cast without overflow, is this right for normal invariant? *)
-                  if M.tracing then M.tracel "inv" "cast: %a from %a to %a: i = %a; cast c = %a to %a = %a" d_exp e d_ikind ik_e d_ikind ik ID.pretty i ID.pretty c d_ikind ik_e ID.pretty c';
-                  inv_exp (Int c') e st
-                else
-                  fallback (fun () -> Pretty.dprintf "CastE: %a evaluates to %a which is bigger than the type it is cast to which is %a" d_plainexp e ID.pretty i CilType.Typ.pretty t) st
-              | x -> fallback (fun () -> Pretty.dprintf "CastE: e did evaluate to Int, but the type did not match %a" CilType.Typ.pretty t) st)
-           | v -> fallback (fun () -> Pretty.dprintf "CastE: e did not evaluate to Int, but %a" VD.pretty v) st)
+        | CastE (t, e), c_typed ->
+          begin match Cil.unrollType t, c_typed with
+            | TFloat (_, _), Float c ->
+              (match unrollType (Cilfacade.typeOf e), FD.get_fkind c with
+               | TFloat (FLongDouble as fk, _), FFloat
+               | TFloat (FDouble as fk, _), FFloat
+               | TFloat (FLongDouble as fk, _), FDouble
+               | TFloat (fk, _), FLongDouble
+               | TFloat (FDouble as fk, _), FDouble
+               | TFloat (FFloat as fk, _), FFloat -> inv_exp (Float (FD.cast_to fk c)) e st
+               | _ -> fallback (fun () -> Pretty.text "CastE: incompatible types") st)
+            | (TInt (ik, _) as t), Int c
+            | (TEnum ({ekind = ik; _ }, _) as t), Int c -> (* Can only meet the t part of an Lval in e with c (unless we meet with all overflow possibilities)! Since there is no good way to do this, we only continue if e has no values outside of t. *)
+              (match eval e st with
+               | Int i ->
+                 (match unrollType (Cilfacade.typeOf e) with
+                  | (TInt(ik_e, _) as t')
+                  | (TEnum ({ekind = ik_e; _ }, _) as t') ->
+                    if VD.is_dynamically_safe_cast t t' (Int i) then
+                      (* let c' = ID.cast_to ik_e c in *)
+                      (* Suppressing overflow warnings as this is not a computation that comes from the program *)
+                      let res_range = (ID.cast_to ~suppress_ovwarn:true ik (ID.top_of ik_e)) in
+                      let c' = ID.cast_to ik_e (ID.meet c res_range) in (* TODO: cast without overflow, is this right for normal invariant? *)
+                      if M.tracing then M.tracel "inv" "cast: %a from %a to %a: i = %a; cast c = %a to %a = %a" d_exp e d_ikind ik_e d_ikind ik ID.pretty i ID.pretty c d_ikind ik_e ID.pretty c';
+                      inv_exp (Int c') e st
+                    else
+                      fallback (fun () -> Pretty.dprintf "CastE: %a evaluates to %a which is bigger than the type it is cast to which is %a" d_plainexp e ID.pretty i CilType.Typ.pretty t) st
+                  | x -> fallback (fun () -> Pretty.dprintf "CastE: e did evaluate to Int, but the type did not match %a" CilType.Typ.pretty t) st)
+               | v -> fallback (fun () -> Pretty.dprintf "CastE: e did not evaluate to Int, but %a" VD.pretty v) st)
+            | _, _ -> fallback (fun () -> Pretty.dprintf "CastE: %a not implemented" d_plainexp (CastE (t, e))) st
+          end
         | e, _ -> fallback (fun () -> Pretty.dprintf "%a not implemented" d_plainexp e) st
     in
     if eval_bool exp st = Some (not tv) then contra st (* we already know that the branch is dead *)

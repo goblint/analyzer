@@ -156,20 +156,20 @@ struct
     else
       iter (uncurry spawn_one) @@ group_assoc_eq Basetype.Variables.equal xs
 
-  let do_sideg ctx (xs:(V.t * (WideningTokens.TS.t * G.t)) list) =
+  let do_sideg ctx (xs:(V.t * (WideningTokenLifter.TS.t * G.t)) list) =
     let side_one v dts =
       let side_one_ts ts d =
         (* Do side effects with the tokens that were active at the time.
            Transfer functions have exited the with_side_token wrappers by now. *)
-        let old_side_tokens = !WideningTokens.side_tokens in
-        WideningTokens.side_tokens := ts;
+        let old_side_tokens = !WideningTokenLifter.side_tokens in
+        WideningTokenLifter.side_tokens := ts;
         Fun.protect (fun () ->
             ctx.sideg v @@ fold_left G.join (G.bot ()) d
           ) ~finally:(fun () ->
-            WideningTokens.side_tokens := old_side_tokens
+            WideningTokenLifter.side_tokens := old_side_tokens
           )
       in
-      iter (uncurry side_one_ts) @@ group_assoc_eq WideningTokens.TS.equal dts
+      iter (uncurry side_one_ts) @@ group_assoc_eq WideningTokenLifter.TS.equal dts
     in
     iter (uncurry side_one) @@ group_assoc_eq V.equal xs
 
@@ -303,6 +303,10 @@ struct
             (* InvariantGlobal is special: it only goes to corresponding analysis and the argument variant is unlifted for it *)
             let (n, g): V.t = Obj.obj g in
             f ~q:(InvariantGlobal (Obj.repr g)) (Result.top ()) (n, spec n, assoc n ctx.local)
+          | Queries.YamlEntryGlobal (g, task) ->
+            (* YamlEntryGlobal is special: it only goes to corresponding analysis and the argument variant is unlifted for it *)
+            let (n, g): V.t = Obj.obj g in
+            f ~q:(YamlEntryGlobal (Obj.repr g, task)) (Result.top ()) (n, spec n, assoc n ctx.local)
           | Queries.PartAccess a ->
             Obj.repr (access ctx a)
           | Queries.IterSysVars (vq, fi) ->
@@ -355,7 +359,7 @@ struct
       | None -> (fun ?(multiple=false) v d    -> failwith ("Cannot \"spawn\" in " ^ tfname ^ " context."))
     in
     let sideg = match sides with
-      | Some sides -> (fun v g    -> sides  := (v, (!WideningTokens.side_tokens, g)) :: !sides)
+      | Some sides -> (fun v g    -> sides  := (v, (!WideningTokenLifter.side_tokens, g)) :: !sides)
       | None -> (fun v g       -> failwith ("Cannot \"sideg\" in " ^ tfname ^ " context."))
     in
     let emit = match emits with

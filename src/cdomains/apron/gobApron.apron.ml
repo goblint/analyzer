@@ -12,6 +12,8 @@ struct
       let pp = pp
     end
     )
+
+  let of_z z = of_mpqf (Mpqf.of_mpz (Z_mlgmpidl.mpz_of_z z))
 end
 
 module Coeff =
