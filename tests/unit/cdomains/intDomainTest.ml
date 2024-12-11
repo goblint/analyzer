@@ -472,15 +472,15 @@ struct
   let cart_op op a b = List.map (BatTuple.Tuple2.uncurry op) (BatList.cartesian_product a b)
   let string_of_ik ik = match ik with
     | Cil.IInt -> "int"
-    | Cil.IUInt -> "unsigned int"
+    | Cil.IUInt -> "unsigned_int"
     | Cil.IChar -> "char"
-    | Cil.IUChar -> "unsigned char"
+    | Cil.IUChar -> "unsigned_char"
     | _ -> "undefined C primitive type"
 
   let assert_shift shift ik a b expected = 
     let symb, shift_op_bf, shift_op_int = match shift with
-      | `L -> " << ", I.shift_left ik, Int.shift_left
-      | `R -> " >> ", I.shift_right ik, Int.shift_right
+      | `L -> "<<", I.shift_left ik, Int.shift_left
+      | `R -> ">>", I.shift_right ik, Int.shift_right
     in
     let bf_a = of_list ik (List.map of_int a) in
     let bf_b = of_list ik (List.map of_int b) in
@@ -489,8 +489,11 @@ struct
       | `B bf -> bf
       | `I is -> of_list ik (List.map of_int is)
     in
-    let output_string = "was: " ^ I.show result ^ " but should be: " ^  I.show expected in
-    let output_string  = "Test " ^ string_of_ik ik ^ " shift ("^ I.show bf_a ^ symb ^ I.show bf_b  ^ ") failed: " ^ output_string in
+    let output_string = Printf.sprintf "test (%s) shift [%s] %s [%s] failed: was: [%s] but should be: [%s]"
+      (string_of_ik ik)
+      (I.show bf_a) symb (I.show bf_b)
+      (I.show result) (I.show expected)
+    in
     assert_bool output_string (I.equal result expected)
 
   let assert_shift_left = assert_shift `L
@@ -527,18 +530,18 @@ struct
     )
 
   let test_shift_left = List.fold_left (fun acc ik -> test_shift ik
-      (Printf.sprintf "test shift left (ik: %s)" (string_of_ik ik)) Int.shift_left I.shift_left :: acc
+      (Printf.sprintf "test_shift_left_ik_%s" (string_of_ik ik)) Int.shift_left I.shift_left :: acc
     ) [] [Cil.IChar; Cil.IUChar; Cil.IInt; Cil.IUInt] |> QCheck_ounit.to_ounit2_test_list
 
   let test_shift_right = List.fold_left (fun acc ik -> test_shift ik
-      (Printf.sprintf "test shift right (ik: %s)" (string_of_ik ik)) Int.shift_right I.shift_right :: acc
+      (Printf.sprintf "test_shift_right_ik_%s" (string_of_ik ik)) Int.shift_right I.shift_right :: acc
     ) [] [Cil.IChar; Cil.IUChar; Cil.IInt; Cil.IUInt] |> QCheck_ounit.to_ounit2_test_list
 
   let test_shift_left =
     let bot = `B (I.bot ()) in
   [
-    "property test: shift left" >::: test_shift_left;
-    "shift left edge cases" >:: fun _ ->
+    "property_test_shift_left" >::: test_shift_left;
+    "shift_left_edge_cases" >:: fun _ ->
     assert_shift_left ik [1] [1; 2] (`I [1; 2; 4; 8]);
 
     assert_shift_left ik [1] [-1] bot;
@@ -558,8 +561,8 @@ struct
   let test_shift_right =
     let bot = `B (I.bot ()) in
   [
-    "property test: shift right" >::: test_shift_right;
-    "shift right edge cases" >:: fun _ ->
+    "property_test_shift_right" >::: test_shift_right;
+    "shift_right_edge_cases" >:: fun _ ->
     assert_shift_right ik [10] [1; 2] (`I [10; 7; 5; 1]);
 
     assert_shift_right ik [2] [-1] bot;
