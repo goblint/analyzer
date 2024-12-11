@@ -1341,7 +1341,7 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): SOverflow with type int_t = Int
       (newz,newo)
 
   let norm ?(suppress_ovwarn=false) ik (z,o) = 
-    if BArith.is_invalid ik (z,o) then 
+    if BArith.is_invalid (z,o) then 
       (bot (), {underflow=false; overflow=false})
     else      
       let (min_ik, max_ik) = Size.range ik in
