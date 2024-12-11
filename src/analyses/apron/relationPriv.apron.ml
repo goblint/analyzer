@@ -46,6 +46,9 @@ module type S =
     val thread_return: Q.ask -> (V.t -> G.t) -> (V.t -> G.t -> unit) -> ThreadIdDomain.Thread.t -> relation_components_t -> relation_components_t
     val iter_sys_vars: (V.t -> G.t) -> VarQuery.t -> V.t VarQuery.f -> unit (** [Queries.IterSysVars] for apron. *)
 
+    val invariant_global: Q.ask -> (V.t -> G.t) -> V.t -> Invariant.t
+    (** Returns flow-insensitive invariant for global unknown. *)
+
     val invariant_vars: Q.ask -> (V.t -> G.t) -> relation_components_t -> varinfo list
     (** Returns global variables which are privatized. *)
 
@@ -137,6 +140,7 @@ struct
     {rel = RD.top (); priv = startstate ()}
 
   let iter_sys_vars getg vq vf = ()
+  let invariant_global ask getg g = Invariant.none
   let invariant_vars ask getg st = []
 
   let init () = ()
@@ -424,6 +428,7 @@ struct
     {rel = getg (); priv = startstate ()}
 
   let iter_sys_vars getg vq vf = () (* TODO: or report singleton global for any Global query? *)
+  let invariant_global ask getg g = Invariant.none
   let invariant_vars ask getg st = protected_vars ask (* TODO: is this right? *)
 
   let finalize () = ()
@@ -708,6 +713,41 @@ struct
 
   let init () = ()
   let finalize () = ()
+
+  let invariant_global (ask: Q.ask) (getg: V.t -> G.t): V.t -> Invariant.t = function
+    | `Left m' -> (* mutex *)
+      let atomic = LockDomain.MustLock.equal m' (LockDomain.MustLock.of_var LibraryFunctions.verifier_atomic_var) in
+      if atomic || ask.f (GhostVarAvailable (Locked m')) then (
+        (* filters like query_invariant *)
+        let one_var = GobConfig.get_bool "ana.relation.invariant.one-var" in
+        let exact = GobConfig.get_bool "witness.invariant.exact" in
+
+        let rel = keep_only_protected_globals ask m' (get_m_with_mutex_inits ask getg m') in (* Could be more precise if mutex_inits invariant is added by disjunction instead of joining abstract values. *)
+        let inv =
+          RD.invariant rel
+          |> List.enum
+          |> Enum.filter_map (fun (lincons1: Apron.Lincons1.t) ->
+              (* filter one-vars and exact *)
+              (* TODO: exact filtering doesn't really work with octagon because it returns two SUPEQ constraints instead *)
+              if (one_var || GobApron.Lincons1.num_vars lincons1 >= 2) && (exact || Apron.Lincons1.get_typ lincons1 <> EQ) then
+                RD.cil_exp_of_lincons1 lincons1
+                |> Option.filter (fun exp -> not (InvariantCil.exp_contains_tmp exp))
+              else
+                None
+            )
+          |> Enum.fold (fun acc x -> Invariant.(acc && of_exp x)) Invariant.none
+        in
+        if atomic then
+          inv
+        else (
+          let var = WitnessGhost.to_varinfo (Locked m') in
+          Invariant.(of_exp (Lval (GoblintCil.var var)) || inv) [@coverage off] (* bisect_ppx cannot handle redefined (||) *)
+        )
+      )
+      else
+        Invariant.none
+    | g -> (* global *)
+      Invariant.none (* Could output unprotected one-variable (so non-relational) invariants, but probably not very useful. [BasePriv] does those anyway. *)
 end
 
 (** May written variables. *)
@@ -1275,6 +1315,8 @@ struct
     | _ -> ()
 
   let finalize () = ()
+
+  let invariant_global ask getg g = Invariant.none
 end
 
 module TracingPriv = functor (Priv: S) -> functor (RD: RelationDomain.RD) ->

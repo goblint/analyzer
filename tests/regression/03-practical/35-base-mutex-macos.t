@@ -4,6 +4,9 @@
     dead: 0
     total lines: 2
   [Info][Witness] witness generation summary:
+    location invariants: 0
+    loop invariants: 0
+    flow-insensitive invariants: 0
     total generation entries: 1
 
 There should be no invariants about __sig.

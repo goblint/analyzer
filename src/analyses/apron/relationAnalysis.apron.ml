@@ -634,6 +634,15 @@ struct
       )
     |> Enum.fold (fun acc x -> Invariant.(acc && of_exp x)) Invariant.none
 
+  let query_invariant_global ctx g =
+    if GobConfig.get_bool "ana.relation.invariant.global" && ctx.ask (GhostVarAvailable Multithreaded) then (
+      let var = WitnessGhost.to_varinfo Multithreaded in
+      let inv = Priv.invariant_global (Analyses.ask_of_ctx ctx) ctx.global g in
+      Invariant.(of_exp (UnOp (LNot, Lval (GoblintCil.var var), GoblintCil.intType)) || inv) [@coverage off] (* bisect_ppx cannot handle redefined (||) *)
+    )
+    else
+      Invariant.none
+
   let query ctx (type a) (q: a Queries.t): a Queries.result =
     let open Queries in
     let st = ctx.local in
@@ -655,6 +664,9 @@ struct
       let vf' x = vf (Obj.repr x) in
       Priv.iter_sys_vars ctx.global vq vf'
     | Queries.Invariant context -> query_invariant ctx context
+    | Queries.InvariantGlobal g ->
+      let g: V.t = Obj.obj g in
+      query_invariant_global ctx g
     | _ -> Result.top q
 
 
@@ -690,7 +702,7 @@ struct
           Priv.lock ask ctx.global st m
         ) st addr
     | Events.Unlock addr when ThreadFlag.has_ever_been_multi ask -> (* TODO: is this condition sound? *)
-      WideningTokens.with_local_side_tokens (fun () ->
+      WideningTokenLifter.with_local_side_tokens (fun () ->
           CommonPriv.lift_unlock ask (fun st m ->
               Priv.unlock ask ctx.global ctx.sideg st m
             ) st addr
@@ -701,7 +713,7 @@ struct
       Priv.escape ctx.node (Analyses.ask_of_ctx ctx) ctx.global ctx.sideg st escaped
     | Assert exp ->
       assert_fn ctx exp true
-    | Events.Unassume {exp = e; uuids} ->
+    | Events.Unassume {exp = e; tokens} ->
       let e_orig = e in
       let ask = Analyses.ask_of_ctx ctx in
       let e = replace_deref_exps ctx.ask e in
@@ -737,7 +749,7 @@ struct
 
       (* TODO: parallel write_global? *)
       let st =
-        WideningTokens.with_side_tokens (WideningTokens.TS.of_list uuids) (fun () ->
+        WideningTokenLifter.with_side_tokens (WideningTokenLifter.TS.of_list tokens) (fun () ->
             VH.fold (fun v v_in st ->
                 (* TODO: is this sideg fine? *)
                 write_global ask ctx.global ctx.sideg st v v_in
@@ -771,7 +783,7 @@ struct
       let new_value = RD.join old_value st in
       PCU.RH.replace results ctx.node new_value;
     end;
-    WideningTokens.with_local_side_tokens (fun () ->
+    WideningTokenLifter.with_local_side_tokens (fun () ->
         Priv.sync (Analyses.ask_of_ctx ctx) ctx.global ctx.sideg ctx.local (reason :> [`Normal | `Join | `JoinCall of CilType.Fundec.t | `Return | `Init | `Thread])
       )
 

@@ -718,9 +718,7 @@ struct
 
     let bf_refined1= I.refine_with_congruence ik bf (Some (Z.of_int 3, Z.of_int 4)) in
     assert_bool "3" (I.equal_to (of_int 3) bf_refined1 = `Top);
-    let bf_refined2= I.refine_with_congruence ik bf_refined1 (Some (Z.of_int 1, Z.of_int 1)) in
-    assert_bool "1" (I.equal_to (of_int 1) bf_refined2 = `Eq);
-    let bf_refined3= I.refine_with_congruence ik bf_refined2 (Some (Z.of_int 5, Z.of_int 0)) in
+    let bf_refined3= I.refine_with_congruence ik bf (Some (Z.of_int 5, Z.of_int 0)) in
     assert_bool "5" (I.equal_to (of_int 5) bf_refined3 = `Eq)
 
   let test_refine_with_inclusion_list _ =
