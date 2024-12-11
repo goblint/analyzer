@@ -475,11 +475,6 @@ struct
     | Cil.IUInt -> "unsigned int"
     | Cil.IChar -> "char"
     | Cil.IUChar -> "unsigned char"
-    | Cil.IBool -> "bool"
-    | Cil.ILong -> "long"
-    | Cil.IULong -> "unsigned long"
-    | Cil.ILongLong -> "long long"
-    | Cil.IULongLong -> "unsigned long long"
     | _ -> "undefined C primitive type"
 
   let assert_shift shift ik a b expected = 
@@ -498,21 +493,16 @@ struct
     let output_string  = "Test " ^ string_of_ik ik ^ " shift ("^ I.show bf_a ^ symb ^ I.show bf_b  ^ ") failed: " ^ output_string in
     assert_bool output_string (I.equal result expected)
 
-  let assert_shift_left ik a b expected = assert_shift `L ik a b expected
-  let assert_shift_right ik a b expected = assert_shift `R ik a b expected
+  let assert_shift_left = assert_shift `L
+  let assert_shift_right = assert_shift `R
 
   let gen_sized_set size_gen gen = (* TODO might reduce the size of the generated list *)
     let open QCheck2.Gen in
     map (List.sort_uniq Int.compare) (list_size size_gen gen)
 
-  (*
-    Checks the property: (U_{a in gamma a_bf, b in gamma b_bf} a shift b) leq (a_bf shift b_bf)
-  *)
+  (* Checks the property: (U_{a in gamma a_bf, b in gamma b_bf} a shift b) leq (a_bf shift b_bf) *)
   let test_shift ik name c_op a_op =
-    let shift_test_printer (ik,a,b) = Printf.sprintf "(ik: %s) a: [%s] b: [%s]"
-      (
-        string_of_ik ik
-      )
+    let shift_test_printer (a,b) = Printf.sprintf "a: [%s] b: [%s]"
       (String.concat ", " (List.map string_of_int a))
       (String.concat ", " (List.map string_of_int b))
     in
@@ -524,28 +514,30 @@ struct
       gen_sized_set (1 -- precision) (min_ik -- max_ik)
     in
     let b_gen ik =
-      gen_sized_set (1 -- (Z.log2up (Z.of_int precision))) (0 -- precision)
+      gen_sized_set (1 -- (Z.log2up @@ Z.of_int precision)) (0 -- precision)
     in
-    let test_case_gen = Gen.(
-        oneofl [Cil.IInt; Cil.IUInt; Cil.IChar; Cil.IUChar; Cil.IBool]
-        >>= fun ik -> triple (return ik) (a_gen ik) (b_gen ik)
-      )
+    let test_case_gen = Gen.pair (a_gen ik) (b_gen ik)
     in
     Test.make ~name:name ~print:shift_test_printer ~count:1000 (*~collect:shift_test_printer*)
     test_case_gen
-    (fun (ik,a,b) ->
+    (fun (a,b) ->
       let expected_subset = cart_op c_op a b |> of_list ik in
       let result = a_op ik (of_list ik a) (of_list ik b) in
       I.leq expected_subset result
     )
 
-  let test_shift_left = QCheck_ounit.to_ounit2_test (test_shift ik "test shift left" Int.shift_left I.shift_left)
-  let test_shift_right = QCheck_ounit.to_ounit2_test (test_shift ik "test shift right" Int.shift_right I.shift_right)
+  let test_shift_left = List.fold_left (fun acc ik -> test_shift ik
+      (Printf.sprintf "test shift left (ik: %s)" (string_of_ik ik)) Int.shift_left I.shift_left :: acc
+    ) [] [Cil.IChar; Cil.IUChar; Cil.IInt; Cil.IUInt] |> QCheck_ounit.to_ounit2_test_list
+
+  let test_shift_right = List.fold_left (fun acc ik -> test_shift ik
+      (Printf.sprintf "test shift right (ik: %s)" (string_of_ik ik)) Int.shift_right I.shift_right :: acc
+    ) [] [Cil.IChar; Cil.IUChar; Cil.IInt; Cil.IUInt] |> QCheck_ounit.to_ounit2_test_list
 
   let test_shift_left =
     let bot = `B (I.bot ()) in
   [
-    test_shift_left;
+    "property test: shift left" >::: test_shift_left;
     "shift left edge cases" >:: fun _ ->
     assert_shift_left ik [1] [1; 2] (`I [1; 2; 4; 8]);
 
@@ -566,7 +558,7 @@ struct
   let test_shift_right =
     let bot = `B (I.bot ()) in
   [
-    test_shift_right;
+    "property test: shift right" >::: test_shift_right;
     "shift right edge cases" >:: fun _ ->
     assert_shift_right ik [10] [1; 2] (`I [10; 7; 5; 1]);
 
