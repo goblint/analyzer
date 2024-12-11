@@ -1,4 +1,5 @@
 // PARAM: --enable ana.int.interval --enable ana.int.bitfield --set ana.int.refinement fixpoint
+#include <goblint.h>
 
 int main() {
   unsigned char r; // non-neg rand

@@ -66,6 +66,14 @@ struct
         | _ ->
           Queries.Result.top q
       end
+    | YamlEntryGlobal (g, task) ->
+      let g: V.t = Obj.obj g in
+      begin match g with
+        | `Left g ->
+          S.query (conv ctx) (YamlEntryGlobal (Obj.repr g, task))
+        | _ ->
+          Queries.Result.top q
+      end
     | IterSysVars (vq, vf) ->
       (* vars for S *)
       let vf' x = vf (Obj.repr (V.s (Obj.obj x))) in

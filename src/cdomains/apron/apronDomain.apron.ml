@@ -19,7 +19,7 @@ module M = Messages
 
 let widening_thresholds_apron = ResettableLazy.from_fun (fun () ->
     let t = if GobConfig.get_string "ana.apron.threshold_widening_constants" = "comparisons" then WideningThresholds.octagon_thresholds () else WideningThresholds.thresholds_incl_mul2 () in
-    let r = List.map (fun x -> Apron.Scalar.of_mpqf @@ Mpqf.of_mpz @@ Z_mlgmpidl.mpz_of_z x) t in
+    let r = List.map Scalar.of_z t in
     Array.of_list r
   )
 
