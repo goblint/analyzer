@@ -1463,14 +1463,18 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): SOverflow with type int_t = Int
 
   let is_invalid_shift_operation ik a b = BArith.is_invalid b
     || BArith.is_invalid a
-    || (isSigned ik && BArith.min ik b < Z.zero)
-    || (Z.to_int @@ BArith.min ik b > precision ik) (* TODO >= *)
+
+  let is_undefined_shift_operation ik a b = (isSigned ik && BArith.min ik b < Z.zero)
+    || (Z.to_int @@ BArith.min ik b >= precision ik)
 
   let shift_right ik a b = 
     if M.tracing then M.trace "bitfield" "%a >> %a" pretty a pretty b; 
     if is_invalid_shift_operation ik a b
       then
         (bot (), {underflow=false; overflow=false})
+    else if is_undefined_shift_operation ik a b
+      then
+        (top (), {underflow=false; overflow=false})
     else
       norm ik @@ BArith.shift_right ik a (exclude_undefined_bitshifts ik b)
 
@@ -1479,6 +1483,9 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): SOverflow with type int_t = Int
     if is_invalid_shift_operation ik a b
       then
         (bot (), {underflow=false; overflow=false})
+    else if is_undefined_shift_operation ik a b
+      then
+        (top (), {underflow=false; overflow=false})
     else
       norm ik @@ BArith.shift_left ik a (exclude_undefined_bitshifts ik b)
 
