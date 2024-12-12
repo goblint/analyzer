@@ -478,7 +478,10 @@ struct
     | Cil.IChar -> "char"
     | Cil.IUChar -> "unsigned_char"
     | _ -> "undefined C primitive type"
+
   let precision ik = snd @@ IntDomain.Size.bits ik
+  let over_precision ik = Int.succ @@ precision ik
+  let under_precision ik = Int.pred @@ precision ik
 
   let assert_shift shift ik a b expected = 
     let symb, shift_op_bf, shift_op_int = match shift with
@@ -492,7 +495,7 @@ struct
     in
     let bf_a, bf_b, expected = get_param a, get_param b, get_param expected in
     let result = (shift_op_bf bf_a bf_b) in
-    let output_string = Printf.sprintf "test (%s) shift [%s] %s [%s] failed: was: [%s] but should be: [%s]"
+    let output_string = Printf.sprintf "test (%s) shift %s %s %s failed: was: %s but should be: %s"
       (string_of_ik ik)
       (I.show bf_a) symb (I.show bf_b)
       (I.show result) (I.show expected)
@@ -513,14 +516,13 @@ struct
       (String.concat ", " (List.map string_of_int b))
     in
     let of_list ik is = of_list ik (List.map of_int is) in
-    let precision = precision ik in
     let open QCheck2 in let open Gen in
     let a_gen ik =
       let min_ik, max_ik = Batteries.Tuple2.mapn Z.to_int (IntDomain.Size.range ik) in
-      gen_sized_set (1 -- precision) (min_ik -- max_ik)
+      gen_sized_set (1 -- precision ik) (min_ik -- max_ik)
     in
     let b_gen ik =
-      gen_sized_set (1 -- (Z.log2up @@ Z.of_int precision)) (0 -- Int.pred precision) (* only shifts that are smaller than precision *)
+      gen_sized_set (1 -- (Z.log2up @@ Z.of_int @@ precision ik)) (0 -- under_precision ik) (* only shifts that are smaller than precision *)
     in
     let test_case_gen = Gen.pair (a_gen ik) (b_gen ik)
     in
@@ -540,50 +542,43 @@ struct
       (Printf.sprintf "test_shift_right_ik_%s" (string_of_ik ik)) Int.shift_right I.shift_right :: acc
     ) [] [Cil.IChar; Cil.IUChar; Cil.IInt; Cil.IUInt] |> QCheck_ounit.to_ounit2_test_list
 
-  let over_precision ik = Int.succ @@ precision ik
-
   let bot = `B (I.bot ())
+
   let test_shift_left =
   [
     "property_test_shift_left" >::: test_shift_left;
     "shift_left_edge_cases" >:: fun _ ->
     assert_shift_left ik (`I [1]) (`I [1; 2]) (`I [1; 2; 4; 8]);
+
     assert_shift_left ik (`I [1]) (`I [-1]) bot;
     assert_shift_left ik bot (`I [1]) bot;
     assert_shift_left ik (`I [1]) bot bot;
     assert_shift_left ik bot bot bot;
 
     assert_shift_left ik (`I [1]) (`I [over_precision ik]) bot;
-    assert_shift_left ik_uint (`I [1]) (`I [over_precision ik_uint]) bot;
-
     assert_shift_left ik (`I [1]) (`I [over_precision ik; 0]) (`I [1]);
-    assert_shift_left ik_uint (`I [4]) (`I [precision ik_uint; 0]) (`I [4]);
 
-    (* TODO unit tests for overflow wrapping? *)
-    (* TODO bitfields that contains shifts whose value are bigger than the precision of the ik *)
+    assert_shift_left ik_uint (`I [1]) (`I [over_precision ik_uint]) bot;
+    assert_shift_left ik_uint (`I [4]) (`I [over_precision ik_uint; 0]) (`I [4]);
   ]
 
   let test_shift_right =
+  let double_max_int = Int.add Int.max_int Int.max_int in
   [
     "property_test_shift_right" >::: test_shift_right;
     "shift_right_edge_cases" >:: fun _ ->
     assert_shift_right ik (`I [10]) (`I [1; 2]) (`I [10; 7; 5; 1]);
+
     assert_shift_right ik (`I [2]) (`I [-1]) bot;
-    assert_shift_right ik (`I [1]) (`I [-1]) bot;
     assert_shift_right ik bot (`I [1]) bot;
     assert_shift_right ik (`I [1]) bot bot;
     assert_shift_right ik bot bot bot;
 
-    let double_max_int = Int.add Int.max_int Int.max_int in
-
     assert_shift_right ik (`I [Int.min_int]) (`I [over_precision ik]) bot;
-    assert_shift_right ik_uint (`I [Int.add Int.max_int Int.max_int]) (`I [over_precision ik_uint]) bot;
-
     assert_shift_right ik (`I [Int.min_int]) (`I [over_precision ik; 0]) (`I [Int.min_int]);
-    assert_shift_right ik_uint (`I [double_max_int]) (`I [precision ik_uint]) (`I [double_max_int]);
 
-    (* TODO unit tests for overflow wrapping? *)
-    (* TODO bitfields that contains shifts whose value are bigger than the precision of the ik *)
+    assert_shift_right ik_uint (`I [double_max_int]) (`I [over_precision ik_uint]) bot;
+    assert_shift_right ik_uint (`I [double_max_int]) (`I [over_precision ik_uint; 0]) (`I [double_max_int]);
   ]
 
 

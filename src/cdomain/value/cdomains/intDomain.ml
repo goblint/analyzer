@@ -1458,13 +1458,13 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): SOverflow with type int_t = Int
 
   let precision ik = snd @@ Size.bits ik
   let exclude_undefined_bitshifts ik (z,o) =
-    let mask = BArith.bitmask_up_to (Z.log2up (Z.of_int @@ precision ik)) in
-    (z |: !:mask, o &: mask)
+    let mask = BArith.bitmask_up_to (Z.log2up @@ Z.of_int @@ precision ik) in
+    (z |: !:mask, o &: mask) (* TODO bug here! *)
 
   let is_invalid_shift_operation ik a b = BArith.is_invalid b
     || BArith.is_invalid a
     || (isSigned ik && BArith.min ik b < Z.zero)
-    || (Z.to_int @@ BArith.min ik b > precision ik)
+    || (Z.to_int @@ BArith.min ik b > precision ik) (* TODO >= *)
 
   let shift_right ik a b = 
     if M.tracing then M.trace "bitfield" "%a >> %a" pretty a pretty b; 
