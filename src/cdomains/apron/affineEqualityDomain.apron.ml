@@ -36,7 +36,7 @@ struct
       m
     else (
       Array.modifyi (+) ch.dim;
-      let m' = if not del then let m = copy m in Array.fold_left (fun y x -> reduce_col y x) m ch.dim else m in
+      let m' = if not del then Array.fold_left (fun y x -> reduce_col y x) m ch.dim else m in
       remove_zero_rows @@ del_cols m' ch.dim)
 
   let dim_remove ch m ~del = Timing.wrap "dim remove" (fun del -> dim_remove ch m ~del:del) del
@@ -81,17 +81,16 @@ struct
         in
         Vector.set_nth zero_vec ((Vector.length zero_vec) - 1) (of_union x)
       | Var x ->
-        let zero_vec_cp = Vector.copy zero_vec in
         let entry_only v = Vector.set_nth v (Environment.dim_of_var t.env x) Mpqf.one in
         begin match t.d with
           | Some m ->
             let row = Matrix.find_opt (fun r -> Vector.nth r (Environment.dim_of_var t.env x) =: Mpqf.one) m in
             begin match row with
               | Some v when is_const_vec v ->
-                Vector.set_nth zero_vec_cp ((Vector.length zero_vec) - 1) (Vector.nth v (Vector.length v - 1))
-              | _ -> entry_only zero_vec_cp
+                Vector.set_nth zero_vec ((Vector.length zero_vec) - 1) (Vector.nth v (Vector.length v - 1))
+              | _ -> entry_only zero_vec
             end
-          | None -> entry_only zero_vec_cp end
+          | None -> entry_only zero_vec end
       | Unop (Neg, e, _, _) -> neg @@ convert_texpr e
       | Unop (Cast, e, _, _) -> convert_texpr e (*Ignore since casts in apron are used for floating point nums and rounding in contrast to CIL casts*)
       | Unop (Sqrt, e, _, _) -> raise NotLinear
@@ -292,7 +291,6 @@ struct
           Matrix.remove_row a r
         in
         let case_three a b col_a col_b max =
-          let col_a, col_b = Vector.copy col_a, Vector.copy col_b in
           let col_a, col_b = Vector.keep_vals col_a max, Vector.keep_vals col_b max in
           if Vector.equal col_a col_b then
             (a, b, max)
@@ -339,9 +337,9 @@ struct
         let sup_env = Environment.lce a.env b.env in
         let mod_x = dim_add (Environment.dimchange a.env sup_env) x in
         let mod_y = dim_add (Environment.dimchange b.env sup_env) y in
-        {d = Some (lin_disjunc 0 0 (Matrix.copy mod_x) (Matrix.copy mod_y)); env = sup_env}
+        {d = Some (lin_disjunc 0 0 mod_x mod_y); env = sup_env}
       | x, y when Matrix.equal x y -> {d = Some x; env = a.env}
-      | x, y  -> {d = Some(lin_disjunc 0 0 (Matrix.copy x) (Matrix.copy y)); env = a.env}
+      | x, y  -> {d = Some(lin_disjunc 0 0 x y); env = a.env}
 
   let join a b = Timing.wrap "join" (join a) b
 
@@ -372,7 +370,7 @@ struct
     else
       let m = Option.get t.d in
       let rem_from m = List.fold_left (fun m' x -> remove_rels_with_var m' x t.env) m vars in
-      {d = Some (Matrix.remove_zero_rows @@ rem_from (Matrix.copy m)); env = t.env}
+      {d = Some (Matrix.remove_zero_rows @@ rem_from  m); env = t.env}
 
   let forget_vars t vars =
     let res = forget_vars t vars in
@@ -414,7 +412,7 @@ struct
       | Some v when is_top_env t -> 
         if is_invertible v then t else assign_uninvertible_rel m var v t.env
       | Some v -> 
-        if is_invertible v then let t' = assign_invertible_rels (Matrix.copy m) var v t.env in {d = t'.d; env = t'.env}
+        if is_invertible v then let t' = assign_invertible_rels m var v t.env in {d = t'.d; env = t'.env}
         else let new_m = Matrix.remove_zero_rows @@ remove_rels_with_var m var t.env 
           in assign_uninvertible_rel new_m var v t.env
       | None -> {d = Some (Matrix.remove_zero_rows @@ remove_rels_with_var m var t.env); env = t.env}
@@ -458,8 +456,7 @@ struct
         let col_x = Matrix.get_col m dim_x in
         Matrix.set_col m col_x dim_y
       in
-      let m_cp = Matrix.copy m in
-      let switched_m = List.fold_left2 replace_col m_cp primed_vars assigned_vars in
+      let switched_m = List.fold_left2 replace_col m primed_vars assigned_vars in
       let res = drop_vars {d = Some switched_m; env = multi_t.env} primed_vars ~del:true in
       let x = Option.get res.d in
       (match Matrix.normalize x with 
