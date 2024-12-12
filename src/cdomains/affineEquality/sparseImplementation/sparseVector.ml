@@ -36,9 +36,10 @@ module SparseVector: AbstractVector =
 
     let keep_vals v n = 
       if n >= v.len then v else
-        {entries = take_while (fun (idx, _) -> idx < n) v.entries; len=n}
+        {entries = List.take_while (fun (idx, _) -> idx < n) v.entries; len=n}
 
 
+    (* Maybe use the function below instead of this one ?*)
     let remove_nth v n = 
       let dec_idx v = 
         List.map (fun (a,b) -> (a-1, b)) v
@@ -68,39 +69,37 @@ module SparseVector: AbstractVector =
 
     (* Note: It is assumed and necessary here that idx is sorted!!! *)
     let remove_at_indices v idx = 
-      let rec remove_indices_helper vec idx deleted_count = 
+      let rec remove_indices_helper vec idx deleted_count acc = 
         match vec, idx with 
-        | [], [] -> []
+        | [], [] -> List.rev acc
         | [], (y :: ys) when deleted_count >= v.len || y >= v.len -> failwith "remove at indices: no more columns to delete"
-        | [], (y :: ys) -> remove_indices_helper [] ys (deleted_count + 1) (* Removing zero (also in next iteration, else failwith ) *)
-        | ((col_idx, value) :: xs), [] -> (col_idx - deleted_count, value) :: remove_indices_helper xs [] deleted_count
-        | ((col_idx, value) :: xs), (y :: ys) when y = col_idx -> remove_indices_helper xs ys (deleted_count + 1)
-        | ((col_idx, value) :: xs), (y :: ys) when y < col_idx -> remove_indices_helper vec ys (deleted_count + 1) 
-        | ((col_idx, value) :: xs), (y :: ys) -> (col_idx - deleted_count, value) :: remove_indices_helper xs idx deleted_count
+        | [], (y :: ys) -> remove_indices_helper [] ys (deleted_count + 1) acc (* Removing zero (also in next iteration, else failwith ) *)
+        | ((col_idx, value) :: xs), [] -> remove_indices_helper xs [] deleted_count ((col_idx - deleted_count, value) :: acc)
+        | ((col_idx, value) :: xs), (y :: ys) when y = col_idx -> remove_indices_helper xs ys (deleted_count + 1) acc
+        | ((col_idx, value) :: xs), (y :: ys) when y < col_idx -> remove_indices_helper vec ys (deleted_count + 1) acc
+        | ((col_idx, value) :: xs), (y :: ys) -> remove_indices_helper xs idx deleted_count ((col_idx - deleted_count, value) :: acc)
       in
-      {entries = remove_indices_helper v.entries idx 0; len = v.len - List.length idx}
+      {entries = remove_indices_helper v.entries idx 0 []; len = v.len - List.length idx}
 
     let insert_zero_at_indices v idx count = 
-      let rec add_indices_helper vec idx added_count = 
+      let rec add_indices_helper vec idx added_count acc = 
         match vec, idx with 
-        | [], [] -> []
-        | [], (y :: ys) -> [] (* inserting at the end only means changing the dimension *)
-        | ((col_idx, value) :: xs), [] -> (col_idx + added_count, value) :: add_indices_helper xs [] added_count
-        | ((col_idx, value) :: xs), ((i, count) :: ys) when i = col_idx -> add_indices_helper vec ys (added_count + count)
-        | ((col_idx, value) :: xs), ((i, count) :: ys) when i < col_idx -> add_indices_helper vec ys (added_count + count)
-        | ((col_idx, value) :: xs), ((i, count) :: ys) -> (col_idx + added_count, value) :: add_indices_helper xs idx added_count
+        | [], _ -> List.rev acc (* inserting at the end only means changing the dimension *)
+        | ((col_idx, value) :: xs), [] -> add_indices_helper xs [] added_count ((col_idx + added_count, value) :: acc)
+        | ((col_idx, value) :: xs), ((i, count) :: ys) when i = col_idx -> add_indices_helper vec ys (added_count + count) acc
+        | ((col_idx, value) :: xs), ((i, count) :: ys) when i < col_idx -> add_indices_helper vec ys (added_count + count) acc
+        | ((col_idx, value) :: xs), ((i, count) :: ys) -> add_indices_helper xs idx added_count ((col_idx + added_count, value) :: acc)
       in
-      {entries = add_indices_helper v.entries idx 0; len = v.len + count}
+      {entries = add_indices_helper v.entries idx 0 []; len = v.len + count}
 
     let set_nth v n num = (* TODO: Optimize! *)
       if n >= v.len then failwith "Out of bounds" 
       else
-        (* of_list @@ List.mapi (fun i x -> if i = n then num else x) (to_list v) *)
         let rec set_nth_helper vec acc =
           match vec with
           | [] -> if num <>: A.zero then List.rev ((n, num) :: acc) else List.rev acc
           | (idx, value) :: xs when n = idx -> if num <>: A.zero then List.rev_append ((idx, num) :: acc) xs else List.rev_append acc xs
-          | (idx, value) :: xs when n < idx -> if num <>: A.zero then List.rev_append ((n, num) :: acc) vec else List.rev_append acc ((idx, value) :: xs)
+          | (idx, value) :: xs when n < idx -> if num <>: A.zero then List.rev_append ((n, num) :: acc) vec else List.rev_append acc vec
           | x :: xs -> set_nth_helper xs (x :: acc)
         in
         {entries = set_nth_helper v.entries []; len = v.len}
