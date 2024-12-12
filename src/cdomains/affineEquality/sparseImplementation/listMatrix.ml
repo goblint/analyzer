@@ -142,6 +142,7 @@ module ListMatrix: AbstractMatrix =
                 V.map2_f_preserves_zero (fun x y -> x -: s *: y) row v)            
         ) m
 
+        
     let del_col m j =
       if num_cols m = 1 then empty () 
       else 
