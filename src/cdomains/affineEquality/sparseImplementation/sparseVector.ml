@@ -194,10 +194,11 @@ module SparseVector: AbstractVector =
     (*Can be optimized, dont check every zero cell*)
     let findi_val_opt f v =
       let rec find_zero_or_val vec last_col_idx =
-        match vec, last_col_idx with
-        | [], _ -> if f A.zero && v.len <> last_col_idx + 1 then Some (last_col_idx + 1, A.zero) else None
-        | (idx, value) :: xs, i -> 
-          if f A.zero  && idx <> last_col_idx + 1 then Some (last_col_idx + 1, A.zero) 
+        let f0 = f A.zero in
+        match vec with
+        | [] -> if f0 && v.len <> last_col_idx + 1 then Some (last_col_idx + 1, A.zero) else None
+        | (idx, value) :: xs -> 
+          if f0  && idx <> last_col_idx + 1 then Some (last_col_idx + 1, A.zero) 
           else if f value then Some (idx, value) 
           else find_zero_or_val xs idx
       in find_zero_or_val v.entries (-1)
