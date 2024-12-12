@@ -40,18 +40,16 @@ module ListMatrix: AbstractMatrix =
 
     (* This only works if Array.modifyi has been removed from dim_add *)
     let add_empty_columns (m : t) (cols : int array) : t =    
-      let () = Printf.printf "Before add_empty_columns m:\n%sindices: %s\n" (show m) (Array.fold_right (fun x s -> (Int.to_string x) ^ "," ^ s) cols "") in
       let cols = Array.to_list cols in 
       let sorted_cols = List.sort Stdlib.compare cols in
       let rec count_sorted_occ acc cols last count =
-      match cols with
-      | [] -> if count > 0 then (last, count) :: acc else acc
-      | x :: xs when x = last -> count_sorted_occ acc xs x (count + 1)
-      | x :: xs -> let acc = if count > 0 then (last, count) :: acc else acc in
-        count_sorted_occ acc xs x 1      
+        match cols with
+        | [] -> if count > 0 then (last, count) :: acc else acc
+        | x :: xs when x = last -> count_sorted_occ acc xs x (count + 1)
+        | x :: xs -> let acc = if count > 0 then (last, count) :: acc else acc in
+          count_sorted_occ acc xs x 1      
       in
       let occ_cols = List.rev @@ count_sorted_occ [] sorted_cols 0 0 in
-      let () = Printf.printf "After add_empty_columns m:\n%s\n" (show (List.map (fun row -> V.insert_zero_at_indices row occ_cols (List.length cols)) m)) in
       List.map (fun row -> V.insert_zero_at_indices row occ_cols (List.length cols)) m
 
     let add_empty_columns m cols =
@@ -64,7 +62,6 @@ module ListMatrix: AbstractMatrix =
       List.nth m n
 
     let remove_row m n =
-      let () = Printf.printf "Before remove_row %i of m:\n%s\n" n (show m) in
       List.remove_at n m
 
     let get_col m n =
@@ -75,9 +72,7 @@ module ListMatrix: AbstractMatrix =
       Timing.wrap "get_col" (get_col m) n
 
     let set_col m new_col n = 
-      let () = Printf.printf "Before set_col m:\n%s\n" (show m) in
       (* List.mapi (fun row_idx row -> V.set_nth row n (V.nth new_col row_idx)) m *)
-      let () = Printf.printf "After set_col m:\n%s\n" (show (List.map2 (fun row value -> V.set_nth row n value) m (V.to_list new_col))) in
       List.map2 (fun row value -> V.set_nth row n value) m (V.to_list new_col)
 
     let append_matrices m1 m2  = (* keeps dimensions of first matrix, what if dimensions differ?*)
@@ -98,7 +93,6 @@ module ListMatrix: AbstractMatrix =
       V.map2_f_preserves_zero (fun x y -> x -: s *: y) row1 row2
 
     let reduce_col m j = 
-      let () = Printf.printf "Before reduce_col %i of m:\n%s\n" j (show m) in
       if is_empty m then m 
       else
         let rec find_pivot idx entries = (* Finds non-zero element in column j and returns pair of row idx and the pivot value *)
@@ -108,18 +102,8 @@ module ListMatrix: AbstractMatrix =
             if value =: A.zero then find_pivot (idx - 1) rest else Some (idx, value)
         in
         match (find_pivot (num_rows m - 1) (List.rev m)) with
-        | None -> let () = Printf.printf "After reduce_col %i of m:\n%s\n" j (show m) in m (* column is already filled with zeroes *)
+        | None -> m (* column is already filled with zeroes *)
         | Some (row_idx, pivot) -> 
-          let () = Printf.printf "After reduce_col %i of m:\n%s\n" j (show (let pivot_row = List.nth m row_idx in
-                                                                            List.mapi (fun idx row ->
-                                                                                if idx = row_idx then 
-                                                                                  V.zero_vec (num_cols m)
-                                                                                else
-                                                                                  let row_value = V.nth row j in 
-                                                                                  if row_value = A.zero then row
-                                                                                  else (let s = row_value /: pivot in
-                                                                                        sub_scaled_row row pivot_row s)            
-                                                                              ) m)) in
           let pivot_row = List.nth m row_idx in
           List.mapi (fun idx row ->
               if idx = row_idx then 
@@ -132,7 +116,6 @@ module ListMatrix: AbstractMatrix =
             ) m
 
     let reduce_col_with_vec m j v = 
-      let () = Printf.printf "Before reduce_col_with_vec %i with vec %s of m:\n%s\n" j (V.show v) (show m) in
       let pivot_element = V.nth v j in
       if pivot_element = A.zero then m
       else List.mapi (fun idx row ->
@@ -150,7 +133,6 @@ module ListMatrix: AbstractMatrix =
     let del_cols m cols =
       let cols = Array.to_list cols in (* TODO: Is it possible to use list for Apron dimchange? *)
       let sorted_cols = List.sort_uniq Stdlib.compare cols in (* Apron Docs:  Repetitions are meaningless (and are not correct specification) *)
-      let () = Printf.printf "Before del_cols cols_length=%i \nm:\n%s\n" (List.length cols) (show m) in
       if (List.length sorted_cols) = num_cols m then empty() 
       else
         List.map (fun row -> V.remove_at_indices row sorted_cols) m
@@ -158,14 +140,12 @@ module ListMatrix: AbstractMatrix =
     let del_cols m cols = Timing.wrap "del_cols" (del_cols m) cols
 
     let map2i f m v =
-      let () = Printf.printf "Before map2i m:\n%sv:%s\n" (show m) (V.show v) in
       let rec map2i_min i acc m v =
         match m, v with
         | [], _  -> List.rev acc
         | row :: rs, [] -> List.rev_append (row :: acc) rs
         | row :: rs, value :: vs -> map2i_min (i + 1) (f i row value :: acc) rs vs
       in  
-      let () = Printf.printf "After map2i m:\n%s\n" (show (map2i_min 0 [] m (V.to_list v))) in
       map2i_min 0 [] m (V.to_list v)
 
     let remove_zero_rows m =
@@ -187,7 +167,6 @@ module ListMatrix: AbstractMatrix =
       List.mapi (fun i row -> if i = j then List.nth m k else if i = k then List.nth m j else row) m
 
     let normalize m =
-      let () = Printf.printf "Before normalizing we have m:\n%s" (show m) in
       let col_count = num_cols m in
       let dec_mat_2D (m : t) (row_idx : int) (col_idx : int) : t = 
         List.filteri_map (fun i row -> if i < row_idx then None else Some (V.starting_from_nth col_idx row)) m
@@ -233,7 +212,6 @@ module ListMatrix: AbstractMatrix =
               main_loop subtracted_m m' (row_idx + 1) (piv_col_idx + 1)) (* We start at piv_col_idx + 1 because every other col before that is zero at the bottom*)
       in 
       let m' = main_loop m m 0 0 in
-      let () = Printf.printf "After normalizing we have m:\n%s" (show m') in
       if affeq_rows_are_valid m' then Some m' else None (* TODO: We can check this for each row, using the helper function row_is_invalid *)
 
 
@@ -242,20 +220,17 @@ module ListMatrix: AbstractMatrix =
     (*If m is empty then v is simply normalized and returned*)
     (* TODO: OPTIMIZE! *)
     let rref_vec m v =
-      let () = Printf.printf "Before rref_vec we have m:\n%sv: %s\n" (show m) (V.show v) in
       match normalize @@ append_matrices m (init_with_vec v) with
-      | Some res -> let () = Printf.printf "After rref_vec, before removing zero rows, we have m:\n%s\n" (show res) in 
-        Some (remove_zero_rows res) 
-      | None -> let () = Printf.printf "After rref_vec there is no normalization\n " in None
+      | Some res -> Some (remove_zero_rows res) 
+      | None ->  None
 
     (*Similar to rref_vec_with but takes two matrices instead.*)
     (*ToDo Could become inefficient for large matrices since pivot_elements are always recalculated + many row additions*)
     (*TODO: OPTIMIZE!*)
     let rref_matrix m1 m2 =
-      let () = Printf.printf "Before rref_matrix m1 m2\nm1: %s\nm2: %s\n" (show m1) (show m2) in
       match normalize @@ append_matrices m1 m2 with
-      | Some m -> let () = Printf.printf "After rref_matrix m, before removing zero rows:\n %s\n" (show m) in Some (remove_zero_rows m)
-      | None -> let () = Printf.printf "No normalization for rref_matrix found" in None
+      | Some m -> Some (remove_zero_rows m)
+      | None -> None
 
     let delete_row_with_pivots row pivots m2 = 
       failwith "TODO"
@@ -277,7 +252,6 @@ module ListMatrix: AbstractMatrix =
             let new_v = V.map2_f_preserves_zero (fun v1 v2 -> v1 -: (pivot *: v2)) v x in
             is_linearly_independent_rref new_v m'
       in
-      let () = Printf.printf "Is m1 covered by m2?\n m1:\n%sm2:\n%s" (show m1) (show m2) in
       if num_rows m1 > num_rows m2 then false else
       let rec is_covered_by_helper m1 m2 = 
         match m1 with 
@@ -297,9 +271,7 @@ module ListMatrix: AbstractMatrix =
       List.find_opt f m
 
     let map2 f m v =
-      let () = Printf.printf "Before map2 we have m:\n%s\n" (show m) in
       let vector_length = V.length v in
-      let () = Printf.printf "After map2 we have m:\n%s\n" (show (List.mapi (fun index row -> if index < vector_length then f row (V.nth v index) else row ) m)) in
       List.mapi (fun index row -> if index < vector_length then f row (V.nth v index) else row ) m
 
 

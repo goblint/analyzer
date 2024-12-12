@@ -32,13 +32,11 @@ struct
 
 
   let dim_remove (ch: Apron.Dim.change) m ~del =
-    let () = Printf.printf "Before dim_remove m:\n%s" (show m) in
     if Array.length ch.dim = 0 || is_empty m then
       m
     else (
       Array.modifyi (+) ch.dim;
       let m' = if not del then let m = copy m in Array.fold_left (fun y x -> reduce_col y x) m ch.dim else m in
-      let () = Printf.printf "After dim_remove m':\n%s" (show (remove_zero_rows @@ del_cols m' ch.dim)) in
       remove_zero_rows @@ del_cols m' ch.dim)
 
   let dim_remove ch m ~del = Timing.wrap "dim remove" (fun del -> dim_remove ch m ~del:del) del
@@ -256,7 +254,6 @@ struct
 
   let meet t1 t2 =
     let res = meet t1 t2 in
-    let () = Printf.printf "meet a: %s b: %s -> %s \n" (show t1) (show t2) (show res) in
     if M.tracing then M.tracel "meet" "meet a: %s b: %s -> %s " (show t1) (show t2) (show res) ;
     res
 
@@ -283,7 +280,6 @@ struct
 
   let leq t1 t2 =
     let res = leq t1 t2 in
-    let () = Printf.printf "leq a: %s b: %s -> %b \n" (show t1) (show t2) res in
     if M.tracing then M.tracel "leq" "leq a: %s b: %s -> %b " (show t1) (show t2) res ;
     res
 
@@ -297,17 +293,13 @@ struct
         in
         let case_three a b col_a col_b max =
           let col_a, col_b = Vector.copy col_a, Vector.copy col_b in
-          let () = Printf.printf "Before keep_vals: \ncol_a: %s col_b: %s\n" (Vector.show col_a) (Vector.show col_b) in
           let col_a, col_b = Vector.keep_vals col_a max, Vector.keep_vals col_b max in
-          let () = Printf.printf "After keep_vals: \ncol_a: %s col_b: %s\n" (Vector.show col_a) (Vector.show col_b) in
           if Vector.equal col_a col_b then
             (a, b, max)
           else
             (
-              let () = Printf.printf "Before rev col_a: %s col_b: %s\n" (Vector.show col_a) (Vector.show col_b) in
               let col_a = Vector.rev col_a in
               let col_b = Vector.rev col_b in
-              let () = Printf.printf "After rev col_a: %s col_b: %s\n" (Vector.show col_a) (Vector.show col_b) in
               let i = Vector.find2i (<>:) col_a col_b in
               let (x, y) = Vector.nth col_a i, Vector.nth col_b i in
               let r, diff = Vector.length col_a - (i + 1), x -: y  in
@@ -315,7 +307,6 @@ struct
               let col_a = Vector.map2 (-:) col_a col_b in
               let col_a = Vector.rev col_a in
               let multiply_by_t m t =
-                let () = Printf.printf "Before multiply_by_t col_a: %s" (Vector.show col_a) in
                 Matrix.map2i (fun i' x c -> if i' <= max then (let beta = c /: diff in Vector.map2 (fun u j -> u -: (beta *: j)) x t) else x) m col_a;
 
               in
@@ -356,12 +347,10 @@ struct
 
   let join a b =
     let res = join a b in
-    let () = Printf.printf "join a: %s b: %s -> %s \n" (show a) (show b) (show res) in
     if M.tracing then M.tracel "join" "join a: %s b: %s -> %s " (show a) (show b) (show res) ;
     res
 
   let widen a b =
-    let () = Printf.printf "Widen a: %s b: %s\n" (show a) (show b) in
     if Environment.equal a.env b.env then
       join a b
     else
@@ -378,7 +367,6 @@ struct
   let remove_rels_with_var x var env = Timing.wrap "remove_rels_with_var" remove_rels_with_var x var env 
 
   let forget_vars t vars =
-    let () = Printf.printf "forget_vars m:\n%s" (show t) in
     if is_bot t || is_top_env t || vars = [] then
       t
     else
@@ -414,7 +402,6 @@ struct
       let b_length = Vector.length b in
       let b = Vector.mapi (fun i z -> if i < b_length - 1 then Mpqf.neg z else z) b in
       let b = Vector.set_nth b (Environment.dim_of_var env var) Mpqf.one in
-      let () = Printf.printf "Before Matrix.rref_vec x:\n%s b:\n%s\n" (Matrix.show x) (Vector.show b) in
       match Matrix.rref_vec x b with
       | None -> bot ()
       | some_matrix -> {d = some_matrix; env = env}
@@ -424,9 +411,9 @@ struct
     in let affineEq_vec = get_coeff_vec t texp in
     if is_bot t then t else let m = Option.get t.d in
       match affineEq_vec with
-      | Some v when is_top_env t -> let () = Printf.printf "After affineEq_vec m:\n%s\n" (Vector.show v) in
+      | Some v when is_top_env t -> 
         if is_invertible v then t else assign_uninvertible_rel m var v t.env
-      | Some v -> let () = Printf.printf "After affineEq_vec m:\n%s\n" (Vector.show v) in
+      | Some v -> 
         if is_invertible v then let t' = assign_invertible_rels (Matrix.copy m) var v t.env in {d = t'.d; env = t'.env}
         else let new_m = Matrix.remove_zero_rows @@ remove_rels_with_var m var t.env 
           in assign_uninvertible_rel new_m var v t.env
@@ -459,15 +446,13 @@ struct
     res
 
   let assign_var_parallel t vv's =
-    let () = Printf.printf "Before assign_var_parallel m:\n%s\n" (show t) in
     let assigned_vars = List.map fst vv's in
     let t = add_vars t assigned_vars in
     let primed_vars = List.init (List.length assigned_vars) (fun i -> Var.of_string (Int.to_string i  ^"'")) in (* TODO: we use primed vars in analysis, conflict? *)
     let t_primed = add_vars t primed_vars in
     let multi_t = List.fold_left2 (fun t' v_prime (_,v') -> assign_var t' v_prime v') t_primed primed_vars vv's in
-    let () = Printf.printf "After assign_var_parallel multi_t:\n%s\n" (show multi_t) in
     match multi_t.d with
-    | Some m when not @@ is_top_env multi_t -> let () = Printf.printf "Matrix in Domain m:\n%s\n" (Matrix.show m) in
+    | Some m when not @@ is_top_env multi_t -> 
       let replace_col m x y =
         let dim_x, dim_y = Environment.dim_of_var multi_t.env x, Environment.dim_of_var multi_t.env y in
         let col_x = Matrix.get_col m dim_x in
@@ -475,7 +460,6 @@ struct
       in
       let m_cp = Matrix.copy m in
       let switched_m = List.fold_left2 replace_col m_cp primed_vars assigned_vars in
-      let () = Printf.printf "Switched Matrix in Domain switched_m:\n%s\n" (Matrix.show switched_m) in
       let res = drop_vars {d = Some switched_m; env = multi_t.env} primed_vars ~del:true in
       let x = Option.get res.d in
       (match Matrix.normalize x with 
