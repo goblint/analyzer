@@ -1135,6 +1135,20 @@ module InfixIntOps (Ints_t : IntOps.IntOps) = struct
   let (>>.) = fun a b -> a >>: b |: !:((Ints_t.one <<: b) -: Ints_t.one)
 end
 
+(*
+  Operations in the abstract domain mostly based on 
+
+  "Abstract Domains for Bit-Level Machine Integer and Floating-point Operations"
+  of Antoine Miné
+  https://doi.org/10.29007/b63g
+
+  and
+
+  the bachelor thesis "Integer Abstract Domains"
+  of Tomáš Brukner
+  https://is.muni.cz/th/kasap/thesis.pdf
+*)
+
 (* Bitfield arithmetic, without any overflow handling etc. *)
 module BitfieldArith (Ints_t : IntOps.IntOps) = struct
 
@@ -1572,7 +1586,9 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): SOverflow with type int_t = Int
     norm ik (!z3, !o3)
 
   let div ?no_ov ik (z1, o1) (z2, o2) =
-    let res = if BArith.is_const (z1, o1) && BArith.is_const (z2, o2) then (let tmp = z1 /: z2 in (!:tmp, tmp)) else top_of ik in
+    let res = if BArith.is_const (z1, o1) && BArith.is_const (z2, o2) then (let tmp = o1 /: o2 in (!:tmp, tmp)) 
+      else if BArith.is_const (z2, o2) && is_power_of_two o2 then (z1 >>: (Ints_t.to_int o2), o1 >>: (Ints_t.to_int o2))
+      else top_of ik in
     norm ik res
 
   let rem ik x y = 
