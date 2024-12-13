@@ -44,11 +44,11 @@ module ListMatrix: AbstractMatrix =
       let cols = Array.to_list cols in 
       let sorted_cols = List.sort Stdlib.compare cols in
       let rec count_sorted_occ acc cols last count =
-      match cols with
-      | [] -> if count > 0 then (last, count) :: acc else acc
-      | x :: xs when x = last -> count_sorted_occ acc xs x (count + 1)
-      | x :: xs -> let acc = if count > 0 then (last, count) :: acc else acc in
-        count_sorted_occ acc xs x 1      
+        match cols with
+        | [] -> if count > 0 then (last, count) :: acc else acc
+        | x :: xs when x = last -> count_sorted_occ acc xs x (count + 1)
+        | x :: xs -> let acc = if count > 0 then (last, count) :: acc else acc in
+          count_sorted_occ acc xs x 1      
       in
       let occ_cols = List.rev @@ count_sorted_occ [] sorted_cols 0 0 in
       let () = Printf.printf "After add_empty_columns m:\n%s\n" (show (List.map (fun row -> V.insert_zero_at_indices row occ_cols (List.length cols)) m)) in
@@ -116,7 +116,7 @@ module ListMatrix: AbstractMatrix =
                                                                                   V.zero_vec (num_cols m)
                                                                                 else
                                                                                   let row_value = V.nth row j in 
-                                                                                  if row_value = A.zero then row
+                                                                                  if row_value =: A.zero then row
                                                                                   else (let s = row_value /: pivot in
                                                                                         sub_scaled_row row pivot_row s)            
                                                                               ) m)) in
@@ -137,12 +137,11 @@ module ListMatrix: AbstractMatrix =
       if pivot_element = A.zero then m
       else List.mapi (fun idx row ->
           let row_value = V.nth row j in 
-          if row_value = A.zero then row
+          if row_value =: A.zero then row
           else (let s = row_value /: pivot_element in
                 V.map2_f_preserves_zero (fun x y -> x -: s *: y) row v)            
         ) m
 
-        
     let del_col m j =
       if num_cols m = 1 then empty () 
       else 
@@ -237,17 +236,68 @@ module ListMatrix: AbstractMatrix =
       let () = Printf.printf "After normalizing we have m:\n%s" (show m') in
       if affeq_rows_are_valid m' then Some m' else None (* TODO: We can check this for each row, using the helper function row_is_invalid *)
 
+    (* This function return a tuple of row index and pivot position (column) in m *)
+    (* TODO: maybe we could use a Hashmap instead of a list? *)
+    let get_pivot_positions (m : t) : (int * int) list =
+      List.rev @@ List.fold_lefti (
+        fun acc i row -> match V.find_first_non_zero row with
+          | None -> acc
+          | Some (pivot_col, _) -> (i, pivot_col) :: acc
+      ) [] m
+
+    (* Inserts the vector v with pivot at piv_idx at the correct position in m. m has to be in rref form. *)
+    let insert_v_according_to_piv m v piv_idx pivot_positions = 
+      match List.find_opt (fun (row_idx, piv_col) -> piv_col > piv_idx) pivot_positions with
+      | None -> append_row m v
+      | Some (row_idx, _) -> let (before, after) = List.split_at row_idx m in 
+        before @ (v :: after)
+
+    let rref_vec (m : t) (v : V.t) : t option =
+      let () = Printf.printf "Before rref_vec we have m:\n%sv: %s\n" (show m) (V.show v) in
+      if is_empty m then (* In this case, v is normalized and returned *)
+        match V.find_first_non_zero v with 
+        | None -> let () = Printf.printf "After rref_vec there is no normalization\n " in None
+        | Some (_, value) -> 
+          let normalized_v = V.map_f_preserves_zero (fun x -> x /: value) v in
+          let res = init_with_vec normalized_v in
+          let () = Printf.printf "After rref_vec we have m:\n%s\n" (show res) in
+          Some res
+      else (* We try to normalize v and check if a contradiction arises. If not, we insert v at the appropriate place in m (depending on the pivot) *)
+        let pivot_positions = get_pivot_positions m in
+        let () = Printf.printf "pivot positions are: %s\n\n" (List.fold_right (fun (row, piv) s -> "(" ^ (Int.to_string row) ^ "," ^ (Int.to_string piv) ^ ")" ^ s) pivot_positions "") in
+        let v_after_elim = List.fold_left (
+            fun acc (row_idx, pivot_position) ->
+              let v_at_piv = V.nth acc pivot_position in 
+              if v_at_piv =: A.zero then 
+                acc
+              else
+                let piv_row = List.nth m row_idx in
+                sub_scaled_row acc piv_row v_at_piv
+          ) v pivot_positions
+        in 
+        match V.find_first_non_zero v_after_elim with (* now we check for contradictions and finally insert v *)
+        | None -> let () = Printf.printf "After rref_vec we have m:\n%s\n" (show m) in
+          Some m (* v is zero vector and was therefore already covered by zero *)
+        | Some (idx, value) -> 
+          if idx = (num_cols m - 1) then 
+            let () = Printf.printf "After rref_vec there is no normalization\n " in None
+          else
+            let normalized_v = V.map_f_preserves_zero (fun x -> x /: value) v_after_elim in
+            let res = insert_v_according_to_piv m normalized_v idx pivot_positions in
+            let () = Printf.printf "After rref_vec we have m:\n%s\n" (show res) in
+            Some res
+
 
     (*This function yields the same result as appending vector v to m and normalizing it afterwards would. However, it is usually faster than performing those ops manually.*)
     (*m must be in rref form and contain the same num of cols as v*)
     (*If m is empty then v is simply normalized and returned*)
     (* TODO: OPTIMIZE! *)
-    let rref_vec m v =
+    (*let rref_vec m v =
       let () = Printf.printf "Before rref_vec we have m:\n%sv: %s\n" (show m) (V.show v) in
       match normalize @@ append_matrices m (init_with_vec v) with
       | Some res -> let () = Printf.printf "After rref_vec, before removing zero rows, we have m:\n%s\n" (show res) in 
         Some (remove_zero_rows res) 
-      | None -> let () = Printf.printf "After rref_vec there is no normalization\n " in None
+      | None -> let () = Printf.printf "After rref_vec there is no normalization\n " in None*)
 
     (*Similar to rref_vec_with but takes two matrices instead.*)
     (*ToDo Could become inefficient for large matrices since pivot_elements are always recalculated + many row additions*)
@@ -280,18 +330,18 @@ module ListMatrix: AbstractMatrix =
       in
       let () = Printf.printf "Is m1 covered by m2?\n m1:\n%sm2:\n%s" (show m1) (show m2) in
       if num_rows m1 > num_rows m2 then false else
-      let rec is_covered_by_helper m1 m2 = 
-        match m1 with 
-        | [] -> true
-        | v1::vs1 -> 
-          let first_non_zero = V.findi_val_opt ((<>:) A.zero) v1 in
-          match first_non_zero with
-          | None -> true  (* vs1 must also be zero-vectors because of rref *)
-          | Some (idx, _) -> 
-            let linearly_indep = is_linearly_independent_rref v1 m2 in
-            if linearly_indep then false else is_covered_by_helper vs1 m2
-      in is_covered_by_helper m1 m2
-  
+        let rec is_covered_by_helper m1 m2 = 
+          match m1 with 
+          | [] -> true
+          | v1::vs1 -> 
+            let first_non_zero = V.findi_val_opt ((<>:) A.zero) v1 in
+            match first_non_zero with
+            | None -> true  (* vs1 must also be zero-vectors because of rref *)
+            | Some (idx, _) -> 
+              let linearly_indep = is_linearly_independent_rref v1 m2 in
+              if linearly_indep then false else is_covered_by_helper vs1 m2
+        in is_covered_by_helper m1 m2
+
     let is_covered_by m1 m2 = Timing.wrap "is_covered_by" (is_covered_by m1) m2
 
     let find_opt f m =

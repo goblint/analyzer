@@ -49,6 +49,8 @@ sig
   (* Returns optional tuple of position and value which was found*)
   val findi_val_opt: (num -> bool) ->  t -> (int * num) Option.t
 
+  val find_first_non_zero : t -> (int * num) option
+
   val find_opt: (num -> bool) -> t -> num Option.t
 
   val map: (num -> num) -> t -> t

@@ -203,6 +203,12 @@ module SparseVector: AbstractVector =
           else find_zero_or_val xs idx
       in find_zero_or_val v.entries (-1)
 
+    let find_first_non_zero v =
+      if v.entries = [] then None
+      else Some (List.hd v.entries)
+
+    let find_first_non_zero v = Timing.wrap "find_first_non_zero" (find_first_non_zero) v
+
     let map f v = 
       of_list (List.map f (to_list v))
 
