@@ -30,6 +30,8 @@ sig
 
   val apply_with_c: (num -> num -> num) -> num ->  t ->  t
 
+  val apply_with_c_f_preserves_zero: (num -> num -> num) -> num ->  t ->  t
+
   val apply_with_c_with: (num -> num -> num) -> num -> t -> unit
 
   val zero_vec: int -> t

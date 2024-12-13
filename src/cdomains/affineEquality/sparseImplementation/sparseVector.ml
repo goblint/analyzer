@@ -183,6 +183,10 @@ module SparseVector: AbstractVector =
       if v.len <> v'.len then failwith "Unequal vector length" else 
         of_list (List.map2 f (to_list v) (to_list v'))
 
+    let apply_with_c_f_preserves_zero f c v =
+      let entries' = List.filter_map (fun (idx, value) -> let new_val = f value c in if new_val =: A.zero then None else Some (idx, new_val)) v.entries in
+      {entries = entries'; len = v.len}
+
     let apply_with_c f c v  = (* TODO: optimize! *)
       of_list @@ List.map (fun value -> f value c) (to_list v)
 
