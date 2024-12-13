@@ -118,6 +118,8 @@ module SparseVector: AbstractVector =
             if new_val = A.zero then None else Some (idx, new_val)) v.entries in 
       {entries = entries'; len = v.len}
 
+    let map_f_preserves_zero f v = Timing.wrap "map_f_preserves_zero" (map_f_preserves_zero f) v
+
     (* map for functions f such that f 0 0 = 0 since f won't be applied to if both values are zero. See also map *)
     let map2_f_preserves_zero f v1 v2 =
       let f_rem_zero acc idx e1 e2 =
@@ -138,6 +140,7 @@ module SparseVector: AbstractVector =
       if v1.len <> v2.len then raise (Invalid_argument "Unequal lengths") else 
         to_vector (List.rev (aux [] v1.entries v2.entries)) v1.len
 
+    let map2_f_preserves_zero f v1 v2 = Timing.wrap "map2_f_preserves_zero" (map2_f_preserves_zero f v1) v2
 
     let fold_left_f_preserves_zero f acc v =
       List.fold_left (fun acc (_, value) -> f acc value) acc v.entries
@@ -200,6 +203,14 @@ module SparseVector: AbstractVector =
           else if f value then Some (idx, value) 
           else find_zero_or_val xs idx
       in find_zero_or_val v.entries (-1)
+
+    let findi_val_opt f v = Timing.wrap "findi_val_opt" (findi_val_opt f) v
+
+    let find_first_non_zero v =
+      if v.entries = [] then None
+      else Some (List.hd v.entries)
+
+    let find_first_non_zero v = Timing.wrap "find_first_non_zero" (find_first_non_zero) v
 
     let map f v = 
       of_list (List.map f (to_list v))

@@ -166,11 +166,14 @@ module ListMatrix: AbstractMatrix =
     let swap_rows m j k =
       List.mapi (fun i row -> if i = j then List.nth m k else if i = k then List.nth m j else row) m
 
+    let swap_rows m j k = Timing.wrap "swap rows" (swap_rows m j) k
+
     let normalize m =
       let col_count = num_cols m in
       let dec_mat_2D (m : t) (row_idx : int) (col_idx : int) : t = 
         List.filteri_map (fun i row -> if i < row_idx then None else Some (V.starting_from_nth col_idx row)) m
       in
+      let dec_mat_2D m row_idx col_idx = Timing.wrap "dec_mat_2D" (dec_mat_2D m row_idx) col_idx in
       (* Function for finding first pivot in an extracted part of the matrix (row_idx and col_idx indicate which part of the original matrix) *)
       (* The last column represents the constant in the affeq *)
       let find_first_pivot m' row_idx col_idx =
@@ -178,7 +181,7 @@ module ListMatrix: AbstractMatrix =
           let max_piv_col_idx = num_cols m' - 2 in (* col at num_cols - 1 is the constant of the affeq *)
           (* Finding pivot by extracting the minimum column index of the first non zero value of each row*)
           let (piv_row, piv_col, piv_val) = List.fold_lefti (fun (cur_row, cur_col, cur_val) i row  -> 
-              let row_first_non_zero = V.findi_val_opt ((<>:) A.zero) row in
+              let row_first_non_zero = V.find_first_non_zero row in
               match row_first_non_zero with
               | None -> (cur_row, cur_col, cur_val)
               | Some (idx, value) -> (* let () = Printf.printf "We found first non-zero at index %i in row %i\n" idx i in *)
@@ -187,10 +190,11 @@ module ListMatrix: AbstractMatrix =
           in
           if piv_col = (max_piv_col_idx + 1) then None else Some (row_idx + piv_row, col_idx + piv_col, piv_val)
       in
+      let find_first_pivot m' row_idx col_idx = Timing.wrap "find_first_pivot" (find_first_pivot m' row_idx) col_idx in
       let affeq_rows_are_valid m = (* Check if the semantics of an rref-affeq matrix are correct *)
         let col_count = num_cols m in
         let row_is_valid row = (* TODO: Vector findi_opt *)
-          match V.findi_val_opt ((<>:) A.zero) row with
+          match V.find_first_non_zero row with
           | Some (idx, _) -> if idx < col_count - 1 then true else false (* If all cofactors of the affeq are zero, but the constant is non-zero, the row is invalid *)
           | None -> true (* Full zero row is valid *)
         in
@@ -214,15 +218,12 @@ module ListMatrix: AbstractMatrix =
       let m' = main_loop m m 0 0 in
       if affeq_rows_are_valid m' then Some m' else None (* TODO: We can check this for each row, using the helper function row_is_invalid *)
 
-
-    (*This function yields the same result as appending vector v to m and normalizing it afterwards would. However, it is usually faster than performing those ops manually.*)
-    (*m must be in rref form and contain the same num of cols as v*)
-    (*If m is empty then v is simply normalized and returned*)
-    (* TODO: OPTIMIZE! *)
-    let rref_vec m v =
+    let rref_vec m v = 
       match normalize @@ append_matrices m (init_with_vec v) with
-      | Some res -> Some (remove_zero_rows res) 
-      | None ->  None
+      | Some m -> Some (remove_zero_rows m)
+      | None -> None
+
+    let rref_vec m v = Timing.wrap "rref_vec" (rref_vec m) v
 
     (*Similar to rref_vec_with but takes two matrices instead.*)
     (*ToDo Could become inefficient for large matrices since pivot_elements are always recalculated + many row additions*)
