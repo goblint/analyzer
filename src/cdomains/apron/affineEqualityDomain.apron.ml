@@ -97,17 +97,17 @@ struct
       | Binop (Add, e1, e2, _, _) ->
         let v1 = convert_texpr e1 in
         let v2 = convert_texpr e2 in
-        Vector.map2 (+:) v1 v2
+        Vector.map2_f_preserves_zero (+:) v1 v2
       | Binop (Sub, e1, e2, _, _) ->
         let v1 = convert_texpr e1 in
         let v2 = convert_texpr e2 in
-        Vector.map2 (+:) v1 (neg @@ v2)
+        Vector.map2_f_preserves_zero (+:) v1 (neg @@ v2)
       | Binop (Mul, e1, e2, _, _) ->
         let v1 = convert_texpr e1 in
         let v2 = convert_texpr e2 in
         begin match to_constant_opt v1, to_constant_opt v2 with
-          | _, Some c -> Vector.apply_with_c ( *:) c v1
-          | Some c, _ -> Vector.apply_with_c ( *:) c v2
+          | _, Some c -> Vector.apply_with_c_f_preserves_zero ( *:) c v1
+          | Some c, _ -> Vector.apply_with_c_f_preserves_zero ( *:) c v2
           | _, _ -> raise NotLinear
         end
       | Binop _ -> raise NotLinear
@@ -302,10 +302,10 @@ struct
               let (x, y) = Vector.nth col_a i, Vector.nth col_b i in
               let r, diff = Vector.length col_a - (i + 1), x -: y  in
               let a_r, b_r = Matrix.get_row a r, Matrix.get_row b r in
-              let col_a = Vector.map2 (-:) col_a col_b in
+              let col_a = Vector.map2_f_preserves_zero (-:) col_a col_b in
               let col_a = Vector.rev col_a in
               let multiply_by_t m t =
-                Matrix.map2i (fun i' x c -> if i' <= max then (let beta = c /: diff in Vector.map2 (fun u j -> u -: (beta *: j)) x t) else x) m col_a;
+                Matrix.map2i (fun i' x c -> if i' <= max then (let beta = c /: diff in Vector.map2_f_preserves_zero (fun u j -> u -: (beta *: j)) x t) else x) m col_a;
 
               in
               Matrix.remove_row (multiply_by_t a a_r) r, Matrix.remove_row (multiply_by_t b b_r) r, (max - 1)
@@ -384,7 +384,7 @@ struct
       let j0 = Environment.dim_of_var env var in
       let a_j0 = Matrix.get_col x j0  in (*Corresponds to Axj0*)
       let b0 = Vector.nth b j0 in
-      let a_j0 = Vector.apply_with_c (/:) b0 a_j0 in (*Corresponds to Axj0/Bj0*)
+      let a_j0 = Vector.apply_with_c_f_preserves_zero (/:) b0 a_j0 in (*Corresponds to Axj0/Bj0*)
       let recalc_entries m rd_a = Matrix.map2 (fun x y -> Vector.map2i (fun j z d ->
           if j = j0 then y
           else if Vector.compare_length_with b (j + 1) > 0 then z -: y *: d
