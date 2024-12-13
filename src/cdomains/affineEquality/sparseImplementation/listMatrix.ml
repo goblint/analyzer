@@ -218,10 +218,52 @@ module ListMatrix: AbstractMatrix =
       let m' = main_loop m m 0 0 in
       if affeq_rows_are_valid m' then Some m' else None (* TODO: We can check this for each row, using the helper function row_is_invalid *)
 
-    let rref_vec m v = 
+    let get_pivot_positions (m : t) : (int * int) list =
+      List.rev @@ List.fold_lefti (
+        fun acc i row -> match V.find_first_non_zero row with
+          | None -> acc
+          | Some (pivot_col, _) -> (i, pivot_col) :: acc
+      ) [] m
+
+    (* Inserts the vector v with pivot at piv_idx at the correct position in m. m has to be in rref form. *)
+    let insert_v_according_to_piv m v piv_idx pivot_positions = 
+      match List.find_opt (fun (row_idx, piv_col) -> piv_col > piv_idx) pivot_positions with
+      | None -> append_row m v
+      | Some (row_idx, _) -> let (before, after) = List.split_at row_idx m in 
+        before @ (v :: after)
+
+    let rref_vec (m : t) (v : V.t) : t option =
+      if is_empty m then (* In this case, v is normalized and returned *)
+        match V.find_first_non_zero v with 
+        | None -> None
+        | Some (_, value) -> 
+          let normalized_v = V.map_f_preserves_zero (fun x -> x /: value) v in
+          Some (init_with_vec normalized_v)
+      else (* We try to normalize v and check if a contradiction arises. If not, we insert v at the appropriate place in m (depending on the pivot) *)
+        let pivot_positions = get_pivot_positions m in
+        let v_after_elim = List.fold_left (
+            fun acc (row_idx, pivot_position) ->
+              let v_at_piv = V.nth acc pivot_position in 
+              if v_at_piv =: A.zero then 
+                acc
+              else
+                let piv_row = List.nth m row_idx in
+                sub_scaled_row acc piv_row v_at_piv
+          ) v pivot_positions
+        in 
+        match V.find_first_non_zero v_after_elim with (* now we check for contradictions and finally insert v *)
+        | None -> Some m (* v is zero vector and was therefore already covered by zero *)
+        | Some (idx, value) -> 
+          if idx = (num_cols m - 1) then 
+            None
+          else
+            let normalized_v = V.map_f_preserves_zero (fun x -> x /: value) v_after_elim in
+            Some (insert_v_according_to_piv m normalized_v idx pivot_positions)
+
+    (*let rref_vec m v =  
       match normalize @@ append_matrices m (init_with_vec v) with
-      | Some m -> Some (remove_zero_rows m)
       | None -> None
+      | Some m -> Some (remove_zero_rows m) *)
 
     let rref_vec m v = Timing.wrap "rref_vec" (rref_vec m) v
 
@@ -254,18 +296,18 @@ module ListMatrix: AbstractMatrix =
             is_linearly_independent_rref new_v m'
       in
       if num_rows m1 > num_rows m2 then false else
-      let rec is_covered_by_helper m1 m2 = 
-        match m1 with 
-        | [] -> true
-        | v1::vs1 -> 
-          let first_non_zero = V.findi_val_opt ((<>:) A.zero) v1 in
-          match first_non_zero with
-          | None -> true  (* vs1 must also be zero-vectors because of rref *)
-          | Some (idx, _) -> 
-            let linearly_indep = is_linearly_independent_rref v1 m2 in
-            if linearly_indep then false else is_covered_by_helper vs1 m2
-      in is_covered_by_helper m1 m2
-  
+        let rec is_covered_by_helper m1 m2 = 
+          match m1 with 
+          | [] -> true
+          | v1::vs1 -> 
+            let first_non_zero = V.findi_val_opt ((<>:) A.zero) v1 in
+            match first_non_zero with
+            | None -> true  (* vs1 must also be zero-vectors because of rref *)
+            | Some (idx, _) -> 
+              let linearly_indep = is_linearly_independent_rref v1 m2 in
+              if linearly_indep then false else is_covered_by_helper vs1 m2
+        in is_covered_by_helper m1 m2
+
     let is_covered_by m1 m2 = Timing.wrap "is_covered_by" (is_covered_by m1) m2
 
     let find_opt f m =
