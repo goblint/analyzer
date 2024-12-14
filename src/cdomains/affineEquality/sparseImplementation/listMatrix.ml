@@ -302,11 +302,18 @@ module ListMatrix: AbstractMatrix =
     (*Similar to rref_vec_with but takes two matrices instead.*)
     (*ToDo Could become inefficient for large matrices since pivot_elements are always recalculated + many row additions*)
     (*TODO: OPTIMIZE!*)
+    (*
     let rref_matrix m1 m2 =
       let () = Printf.printf "Before rref_matrix m1 m2\nm1: %s\nm2: %s\n" (show m1) (show m2) in
       match normalize @@ append_matrices m1 m2 with
       | Some m -> let () = Printf.printf "After rref_matrix m, before removing zero rows:\n %s\n" (show m) in Some (remove_zero_rows m)
       | None -> let () = Printf.printf "No normalization for rref_matrix found" in None
+    *)
+    
+    let rref_matrix (m1 : t) (m2 : t) =
+      let big_m, small_m = if num_rows m1 > num_rows m2 then m1, m2 else m2, m1 in
+      fst @@ List.fold_while (fun acc _ -> Option.is_some acc) 
+        (fun acc_big_m small -> rref_vec (Option.get acc_big_m) small ) (Some big_m) small_m
 
     let delete_row_with_pivots row pivots m2 = 
       failwith "TODO"
