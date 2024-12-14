@@ -134,5 +134,4 @@ module ArrayVector: AbstractVector =
 
     let find_first_non_zero v =
       failwith "TODO"
-
   end
