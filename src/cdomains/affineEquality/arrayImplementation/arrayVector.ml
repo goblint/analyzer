@@ -132,7 +132,9 @@ module ArrayVector: AbstractVector =
     let starting_from_nth n v =
       failwith "TODO / deprecated"
 
-    let find_first_non_zero v = failwith "TODO"
+    let find_first_non_zero v =
+      failwith "TODO"
 
-    let apply_with_c_f_preserves_zero f c v = failwith "TODO"
+    let apply_with_c_f_preserves_zero f c v =
+      failwith "TODO"
   end

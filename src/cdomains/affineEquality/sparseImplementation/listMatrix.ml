@@ -80,9 +80,6 @@ module ListMatrix: AbstractMatrix =
 
     let equal m1 m2 = Timing.wrap "equal" (equal m1) m2
 
-    let sub_rows (minu : V.t) (subt : V.t) : V.t =
-      V.map2_f_preserves_zero (-:) minu subt
-
     let div_row (row : V.t) (pivot : A.t) : V.t =
       V.map_f_preserves_zero (fun a -> a /: pivot) row
 
@@ -120,7 +117,7 @@ module ListMatrix: AbstractMatrix =
       if pivot_element = A.zero then m
       else List.mapi (fun idx row ->
           let row_value = V.nth row j in 
-          if row_value = A.zero then row
+          if row_value =: A.zero then row
           else (let s = row_value /: pivot_element in
                 V.map2_f_preserves_zero (fun x y -> x -: s *: y) row v)            
         ) m
@@ -153,20 +150,6 @@ module ListMatrix: AbstractMatrix =
 
     let init_with_vec v =
       [v]
-
-    let get_pivot_positions m = 
-      List.mapi (fun i row -> V.findi (fun z -> z =: A.one) row) m
-
-    let sub_rows (minu : V.t) (subt : V.t) : V.t =
-      V.map2_f_preserves_zero (-:) minu subt
-
-    let div_row (row : V.t) (pivot : A.t) : V.t =
-      V.map_f_preserves_zero (fun a -> a /: pivot) row
-
-    let swap_rows m j k =
-      List.mapi (fun i row -> if i = j then List.nth m k else if i = k then List.nth m j else row) m
-
-    let swap_rows m j k = Timing.wrap "swap rows" (swap_rows m j) k
 
     let normalize m =
       let col_count = num_cols m in
@@ -218,6 +201,8 @@ module ListMatrix: AbstractMatrix =
       let m' = main_loop m m 0 0 in
       if affeq_rows_are_valid m' then Some m' else None (* TODO: We can check this for each row, using the helper function row_is_invalid *)
 
+    (* This function return a tuple of row index and pivot position (column) in m *)
+    (* TODO: maybe we could use a Hashmap instead of a list? *)
     let get_pivot_positions (m : t) : (int * int) list =
       List.rev @@ List.fold_lefti (
         fun acc i row -> match V.find_first_non_zero row with
@@ -270,13 +255,19 @@ module ListMatrix: AbstractMatrix =
     (*Similar to rref_vec_with but takes two matrices instead.*)
     (*ToDo Could become inefficient for large matrices since pivot_elements are always recalculated + many row additions*)
     (*TODO: OPTIMIZE!*)
+    (*
     let rref_matrix m1 m2 =
       match normalize @@ append_matrices m1 m2 with
       | Some m -> Some (remove_zero_rows m)
       | None -> None
 
-    let delete_row_with_pivots row pivots m2 = 
-      failwith "TODO"
+    *)
+    let rref_matrix (m1 : t) (m2 : t) =
+      let big_m, small_m = if num_rows m1 > num_rows m2 then m1, m2 else m2, m1 in
+      fst @@ List.fold_while (fun acc _ -> Option.is_some acc) 
+        (fun acc_big_m small -> rref_vec (Option.get acc_big_m) small ) (Some big_m) small_m
+
+    let rref_matrix m1 m2 = Timing.wrap "rref_matrix" (rref_matrix m1) m2
 
     let is_covered_by m1 m2 =
       let rec is_linearly_independent_rref v m = 
@@ -326,44 +317,26 @@ module ListMatrix: AbstractMatrix =
       (*If m is empty then v is simply normalized and returned*)
       failwith "deprecated"
 
-    let rref_vec_with m v = Timing.wrap "rref_vec_with" (rref_vec_with m) v
     let rref_with m =
       failwith "deprecated"
 
     let reduce_col_with m j =
       failwith "deprecated"
 
-    let reduce_col_with m j  = Timing.wrap "reduce_col_with" (reduce_col_with m) j
-
-
-    let rref_with m = Timing.wrap "rref_with" rref_with m
-
     let normalize_with m = 
       failwith "deprecated"
-
-    let normalize_with m = Timing.wrap "normalize_with" normalize_with m
-
 
     let set_col_with m new_col n =
       failwith "deprecated"
 
-    let set_col_with m new_col n = Timing.wrap "set_col" (set_col_with m new_col) n
-
     let map2_with f m v =
       failwith "deprecated"
 
-    let map2_with f m v = Timing.wrap "map2_with" (map2_with f m) v
-
     let map2i_with f m v =
       failwith "deprecated"
-
-    let map2i_with f m v = Timing.wrap "map2i_with" (map2i_with f m) v
 
     let rref_matrix_with m1 m2 =
       (*Similar to rref_vec_with but takes two matrices instead.*)
       (*ToDo Could become inefficient for large matrices since pivot_elements are always recalculated + many row additions*)
       failwith "deprecated"
-
-    let rref_matrix_with m1 m2 = Timing.wrap "rref_matrix_with" (rref_matrix_with m1) m2
-
   end

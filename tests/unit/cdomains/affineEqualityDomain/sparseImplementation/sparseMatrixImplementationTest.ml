@@ -127,14 +127,14 @@ let does_handle_floats _ =
       (Matrix.append_row (Matrix.empty ())
          (Vector.of_sparse_list width [ (0, float 5.); (2, float (1. /. 2.)) ]))
       (Vector.of_sparse_list width
-         [ (0, float (1. /. 4.)); (2, float 23.); (2, float 2.) ])
+         [ (0, float (1. /. 4.)); (1, float 23.); (2, float 2.) ])
   in
 
   let normalized_matrix =
     Matrix.append_row
       (Matrix.append_row (Matrix.empty ())
-         (Vector.of_sparse_list width [ (0, float 1.); (2, float (1. /. 10.)) ]))
-      (Vector.of_sparse_list width [ (2, float 1.); (2, float (79. /. 920.)) ])
+         (Vector.of_sparse_list width [ (0, float 1.); (2, frac 1 10) ]))
+      (Vector.of_sparse_list width [ (1, float 1.); (2, frac 79 920) ])
   in
   normalize_and_assert any_matrix normalized_matrix
 
@@ -145,14 +145,14 @@ let does_handle_fractions _ =
       (Matrix.append_row (Matrix.empty ())
          (Vector.of_sparse_list width [ (0, frac 5 1); (2, frac 1 2) ]))
       (Vector.of_sparse_list width
-         [ (0, frac 1 4); (2, frac 23 1); (2, frac 2 1) ])
+         [ (0, frac 1 4); (1, frac 23 1); (2, frac 2 1) ])
   in
 
   let normalized_matrix =
     Matrix.append_row
       (Matrix.append_row (Matrix.empty ())
          (Vector.of_sparse_list width [ (0, frac 1 1); (2, frac 1 10) ]))
-      (Vector.of_sparse_list width [ (2, frac 1 1); (2, frac 79 920) ])
+      (Vector.of_sparse_list width [ (1, frac 1 1); (2, frac 79 920) ])
   in
   normalize_and_assert any_matrix normalized_matrix
 
@@ -246,7 +246,7 @@ let is_covered_big _ =
 let is_covered_big2 _ = 
   let m1 = make_matrix_of_2d_list @@
     [[int 1; int 0; int 0; int 0; int 0; int 1; int 0]
-     ] in
+    ] in
 
   let m2 = make_matrix_of_2d_list @@
     [[int 1; int 0; int 0; int 0; int 0; int 0; int 0];
@@ -309,9 +309,8 @@ let tests =
     "can solve a standard normalization" >:: standard_normalize;
     "does sort already reduzed" >:: does_just_sort;
     "does eliminate dependent rows" >:: does_eliminate_dependent_rows;
-    (* Looks like the tests are deadlock or inifinite execution when those are activated. *)
-    (*"can handle float domain" >:: does_handle_floats;*)
-    (*"can handle fraction domain" >:: does_handle_fractions;*)
+    "can handle float domain" >:: does_handle_floats;
+    "can handle fraction domain" >:: does_handle_fractions;
     "does negate negative matrix" >:: does_negate_negative;
     "does not change already normalized matrix" >:: does_not_change_normalized_matrix;
     "m1 is covered by m2" >:: is_covered_by_simple;
@@ -323,7 +322,6 @@ let tests =
     "can correctly normalize a two column matrix" >:: normalize_two_columns;
     "can handle a rational solution" >:: int_domain_to_rational;
     "m1 is covered by m2 with big matrix2" >:: is_covered_big2;
-
   ]
 
 let () = run_test_tt_main tests
