@@ -558,6 +558,11 @@ struct
     "property_test_shift_left" >::: test_shift_left;
     "shift_left_edge_cases" >:: fun _ ->
     assert_shift_left ik (`I [1]) (`I [1; 2]) (`I [1; 2; 4; 8]);
+    assert_shift_left ik_uint (`I [1]) (`I [32]) (top);
+    assert_shift_left ik_uint (`I [1]) (`I [31]) (`I [2147483648]);
+    assert_shift_left ik (`I [1]) (`I [31]) (`I [2147483648]);
+    assert_shift_left ik (`I [1]) (`I [31; 0]) (`I [2147483648]);
+
 
     assert_shift_left ik (`I [1]) (`I [-1]) top;
     assert_shift_left ik bot (`I [1]) bot;
