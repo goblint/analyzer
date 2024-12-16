@@ -110,11 +110,6 @@ struct
     | StrPtr _, UnknownPtr -> None
     | _, _ -> Some false
 
-  let amenable_to_meet x y = match x,y with
-    | StrPtr _, StrPtr _ -> true
-    | Addr x, Addr y when Mval.equal (Mval.top_indices x) (Mval.top_indices y) -> true
-    | _ -> false
-
   let leq x y = match x, y with
     | StrPtr s1, StrPtr s2   -> SD.leq s1 s2
     | Addr x, Addr y -> Mval.leq x y
@@ -183,7 +178,6 @@ struct
   struct
     include SetDomain.Joined (Addr)
     let may_be_equal a b = Option.value (Addr.semantic_equal a b) ~default:true
-    let amenable_to_meet = Addr.amenable_to_meet
   end
   module OffsetSplit = DisjointDomain.ProjectiveSetPairwiseMeet (Addr) (J) (Addr.UnitOffsetRepr)
 
