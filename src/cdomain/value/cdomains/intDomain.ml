@@ -1481,8 +1481,8 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): SOverflow with type int_t = Int
 
   let is_undefined_shift_operation ik a b =
     let some_negatives = BArith.min ik b < Z.zero in
-    let geq_precision = Z.to_int @@ BArith.min ik b >= precision ik in
-    (isSigned ik) && (some_negatives || geq_precision)
+    let b_is_geq_precision = Z.to_int @@ BArith.min ik b >= precision ik in
+    (isSigned ik) && (some_negatives || b_is_geq_precision) && not (a = BArith.zero)
 
   let shift_right ik a b = 
     if M.tracing then M.trace "bitfield" "%a >> %a" pretty a pretty b; 
