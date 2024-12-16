@@ -11,7 +11,7 @@ void *t_fun(void *arg) {
 
 void *t_fun2(void *arg) {
   pthread_mutex_lock(&A);
-  pthread_mutex_unlock(&A); // spuriously publishes g = 8
+  pthread_mutex_unlock(&A); // used to spuriously publish g = 8
   return NULL;
 }
 
@@ -21,12 +21,12 @@ int main() {
 
   pthread_mutex_lock(&A);
   g = 8;
-  pthread_create(&id2, NULL, t_fun2, NULL); // passes g = 8 and W: A -> {g} to t_fun2
+  pthread_create(&id2, NULL, t_fun2, NULL); // used to pass g = 8 and W: A -> {g} to t_fun2
   g = 0;
   pthread_mutex_unlock(&A);
 
   pthread_mutex_lock(&A);
-  __goblint_check(g == 0); // TODO
+  __goblint_check(g == 0);
   pthread_mutex_unlock(&A);
   return 0;
 }
