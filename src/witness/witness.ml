@@ -342,14 +342,14 @@ struct
     | UnreachCall _ ->
       (* error function name is globally known through Svcomp.task *)
       let is_unreach_call =
-        LHT.fold (fun (n, c) v acc ->
+        LHT.for_all (fun (n, c) v ->
             match n with
             (* FunctionEntry isn't used for extern __VERIFIER_error... *)
             | FunctionEntry f when Svcomp.is_error_function f.svar ->
               let is_dead = Spec.D.is_bot v in
-              acc && is_dead
-            | _ -> acc
-          ) lh true
+              is_dead
+            | _ -> true
+          ) lh
       in
 
       if is_unreach_call then (

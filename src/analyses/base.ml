@@ -445,7 +445,7 @@ struct
     in
     if M.tracing then M.tracel "sync" "sync multi=%B earlyglobs=%B" multi !earlyglobs;
     if !earlyglobs || multi then
-      WideningTokens.with_local_side_tokens (fun () ->
+      WideningTokenLifter.with_local_side_tokens (fun () ->
           Priv.sync (Analyses.ask_of_ctx ctx) (priv_getg ctx.global) (priv_sideg ctx.sideg) ctx.local reason
         )
     else
@@ -1181,6 +1181,9 @@ struct
     not is_alloc || (is_alloc && not (ctx.ask (Queries.IsHeapVar v)))
 
   let query_invariant ctx context =
+    let keep_local = GobConfig.get_bool "ana.base.invariant.local" in
+    let keep_global = GobConfig.get_bool "ana.base.invariant.global" in
+
     let cpa = ctx.local.BaseDomain.cpa in
     let ask = Analyses.ask_of_ctx ctx in
 
@@ -1193,6 +1196,13 @@ struct
     in
     let module I = ValueDomain.ValueInvariant (Arg) in
 
+    let var_filter v =
+      if is_global ask v then
+        keep_global
+      else
+        keep_local
+    in
+
     let var_invariant ?offset v =
       if not (InvariantCil.var_is_heap v) then
         I.key_invariant v ?offset (Arg.find v)
@@ -1203,14 +1213,23 @@ struct
     if Lval.Set.is_top context.Invariant.lvals then (
       if !earlyglobs || ThreadFlag.has_ever_been_multi ask then (
         let cpa_invariant =
-          CPA.fold (fun k v a ->
-              if not (is_global ask k) then
-                Invariant.(a && var_invariant k)
-              else
-                a
-            ) cpa Invariant.none
+          if keep_local then (
+            CPA.fold (fun k v a ->
+                if not (is_global ask k) then
+                  Invariant.(a && var_invariant k)
+                else
+                  a
+              ) cpa Invariant.none
+          )
+          else
+            Invariant.none
         in
-        let priv_vars = Priv.invariant_vars ask (priv_getg ctx.global) ctx.local in
+        let priv_vars =
+          if keep_global then
+            Priv.invariant_vars ask (priv_getg ctx.global) ctx.local
+          else
+            []
+        in
         let priv_invariant =
           List.fold_left (fun acc v ->
               Invariant.(var_invariant v && acc)
@@ -1220,7 +1239,10 @@ struct
       )
       else (
         CPA.fold (fun k v a ->
-            Invariant.(a && var_invariant k)
+            if var_filter k then
+              Invariant.(a && var_invariant k)
+            else
+              a
           ) cpa Invariant.none
       )
     )
@@ -1228,7 +1250,7 @@ struct
       Lval.Set.fold (fun k a ->
           let i =
             match k with
-            | (Var v, offset) when not (InvariantCil.var_is_heap v) ->
+            | (Var v, offset) when var_filter v && not (InvariantCil.var_is_heap v) ->
               (try I.key_invariant_lval v ~offset ~lval:k (Arg.find v) with Not_found -> Invariant.none)
             | _ -> Invariant.none
           in
@@ -1243,13 +1265,23 @@ struct
       Invariant.none
 
   let query_invariant_global ctx g =
-    if GobConfig.get_bool "ana.base.invariant.enabled" && get_bool "exp.earlyglobs" then (
+    if GobConfig.get_bool "ana.base.invariant.enabled" && GobConfig.get_bool "ana.base.invariant.global" then (
       (* Currently these global invariants are only sound with earlyglobs enabled for both single- and multi-threaded programs.
-         Otherwise, the values of globals in single-threaded mode are not accounted for. *)
-      (* TODO: account for single-threaded values without earlyglobs. *)
+         Otherwise, the values of globals in single-threaded mode are not accounted for.
+         They are also made sound without earlyglobs using the multithreaded mode ghost variable. *)
       match g with
       | `Left g' -> (* priv *)
-        Priv.invariant_global (Analyses.ask_of_ctx ctx) (priv_getg ctx.global) g'
+        let inv = Priv.invariant_global (Analyses.ask_of_ctx ctx) (priv_getg ctx.global) g' in
+        if get_bool "exp.earlyglobs" then
+          inv
+        else (
+          if ctx.ask (GhostVarAvailable Multithreaded) then (
+            let var = WitnessGhost.to_varinfo Multithreaded in
+            Invariant.(of_exp (UnOp (LNot, Lval (GoblintCil.var var), GoblintCil.intType)) || inv) [@coverage off] (* bisect_ppx cannot handle redefined (||) *)
+          )
+          else
+            Invariant.none
+        )
       | `Right _ -> (* thread return *)
         Invariant.none
     )
@@ -2651,6 +2683,15 @@ struct
     | Unknown, "__goblint_assume_join" ->
       let id = List.hd args in
       Priv.thread_join ~force:true (Analyses.ask_of_ctx ctx) (priv_getg ctx.global) id st
+    | ThreadSelf, _ ->
+      begin match lv, ThreadId.get_current (Analyses.ask_of_ctx ctx) with
+        | Some lv, `Lifted tid ->
+          set ~ctx st (eval_lv ~ctx st lv) (Cilfacade.typeOfLval lv) (Thread (ValueDomain.Threads.singleton tid))
+        | Some lv, _ ->
+          invalidate_ret_lv st
+        | None, _ ->
+          st
+      end
     | Alloca size, _ -> begin
         match lv with
         | Some lv ->
@@ -3051,7 +3092,7 @@ struct
     (* Perform actual [set]-s with final unassumed values.
        This invokes [Priv.write_global], which was suppressed above. *)
     let e_d' =
-      WideningTokens.with_side_tokens (WideningTokens.TS.of_list uuids) (fun () ->
+      WideningTokenLifter.with_side_tokens (WideningTokenLifter.TS.of_list uuids) (fun () ->
           CPA.fold (fun x v acc ->
               let addr: AD.t = AD.of_mval (x, `NoOffset) in
               set ~ctx ~invariant:false acc addr x.vtype v
@@ -3070,7 +3111,7 @@ struct
           Priv.lock ask (priv_getg ctx.global) st m
         ) st addr
     | Events.Unlock addr when ThreadFlag.has_ever_been_multi ask -> (* TODO: is this condition sound? *)
-      WideningTokens.with_local_side_tokens (fun () ->
+      WideningTokenLifter.with_local_side_tokens (fun () ->
           CommonPriv.lift_unlock ask (fun st m ->
               Priv.unlock ask (priv_getg ctx.global) (priv_sideg ctx.sideg) st m
             ) st addr
@@ -3084,8 +3125,8 @@ struct
       set ~ctx ctx.local (eval_lv ~ctx ctx.local lval) (Cilfacade.typeOfLval lval) (Thread (ValueDomain.Threads.singleton tid))
     | Events.Assert exp ->
       assert_fn ctx exp true
-    | Events.Unassume {exp; uuids} ->
-      Timing.wrap "base unassume" (unassume ctx exp) uuids
+    | Events.Unassume {exp; tokens} ->
+      Timing.wrap "base unassume" (unassume ctx exp) tokens
     | Events.Longjmped {lval} ->
       begin match lval with
         | Some lval ->

@@ -203,7 +203,7 @@ let handle_options () =
   Sys.set_signal (GobSys.signal_of_string (get_string "dbg.solver-signal")) Signal_ignore; (* Ignore solver-signal before solving (e.g. MyCFG), otherwise exceptions self-signal the default, which crashes instead of printing backtrace. *)
   if get_string "ana.specification" <> "" then
     AutoSoundConfig.enableAnalysesForMemSafetySpecification ();
-  if AutoTune.specificationMemSafetyIsActivated () then
+  if AutoTune.isActivated "memsafetySpecification" then
     AutoTune.focusOnMemSafetySpecification ();
   AfterConfig.run ();
   Cilfacade.init_options ();

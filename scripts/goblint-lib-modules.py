@@ -54,6 +54,7 @@ exclude_module_names = set([
     "EnumsDomain", # included in IntDomain
     "CongruenceDomain", # included in IntDomain
     "IntDomTuple", # included in IntDomain
+    "WitnessGhostVar", # included in WitnessGhost
 
     "ConfigVersion",
     "ConfigProfile",
