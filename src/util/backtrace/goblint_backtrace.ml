@@ -76,12 +76,19 @@ let print_marktrace oc e =
       Printf.fprintf oc "Marked with %s\n" (mark_to_string m)
     ) ms
 
+let print_innermost_mark oc e =
+  match find_marks e with
+  | m :: _ -> Printf.fprintf oc "Marked with %s\n" (mark_to_string m)
+  | [] -> ()
+
 let () =
   Printexc.set_uncaught_exception_handler (fun e bt ->
       (* Copied & modified from Printexc.default_uncaught_exception_handler. *)
       Printf.eprintf "Fatal error: exception %s\n" (Printexc.to_string e); (* nosemgrep: print-not-logging *)
       if Printexc.backtrace_status () then
-        print_marktrace stderr e;
+        print_marktrace stderr e
+      else
+        print_innermost_mark stderr e;
       Printexc.print_raw_backtrace stderr bt;
       flush stderr
     )
