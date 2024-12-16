@@ -1217,10 +1217,11 @@ module BitfieldArith (Ints_t : IntOps.IntOps) = struct
     else
       let is_bit_unknown = not ((bits_unknown (z,o) &: Ints_t.one) =: Ints_t.zero) in
       let bit = o &: Ints_t.one in
-      let shifted_z, shifted_o = (z >>. 1, o >>: 1) in
-      if is_bit_unknown
-        then concretize (shifted_z, shifted_o) |> List.concat_map (fun c -> [c <<: 1; (c <<: 1) |: Ints_t.one])
-        else concretize (shifted_z, shifted_o) |> List.map (fun c -> c <<: 1 |: bit)
+      concretize (z >>. 1, o >>: 1) |>
+      if is_bit_unknown then
+        List.concat_map (fun c -> [c <<: 1; (c <<: 1) |: Ints_t.one])
+      else
+        List.map (fun c -> c <<: 1 |: bit)
 
   let concretize bf = List.map Ints_t.to_int (concretize bf)
 
@@ -1473,13 +1474,15 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): SOverflow with type int_t = Int
   let precision ik = snd @@ Size.bits ik
   let exclude_undefined_bitshifts ik (z,o) =
     let mask = BArith.bitmask_up_to (Z.log2up @@ Z.of_int @@ precision ik) in
-    (z |: !:mask, o &: mask) (* TODO bug here! *)
+    (z |: !:mask, o &: mask)
 
   let is_invalid_shift_operation ik a b = BArith.is_invalid b
     || BArith.is_invalid a
 
-  let is_undefined_shift_operation ik a b = (isSigned ik && BArith.min ik b < Z.zero)
-    || (Z.to_int @@ BArith.min ik b >= precision ik)
+  let is_undefined_shift_operation ik a b =
+    let some_negatives = BArith.min ik b < Z.zero in
+    let geq_precision = Z.to_int @@ BArith.min ik b >= precision ik in
+    (isSigned ik) && (some_negatives || geq_precision)
 
   let shift_right ik a b = 
     if M.tracing then M.trace "bitfield" "%a >> %a" pretty a pretty b; 

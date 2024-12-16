@@ -259,6 +259,8 @@ struct
   let ik_char = Cil.IChar
   let ik_uchar = Cil.IUChar
 
+  let ik_lst = [ik; ik_uint; ik_char; ik_uchar]
+
   let assert_equal x y =
     OUnit.assert_equal ~printer:I.show x y
 
@@ -483,7 +485,7 @@ struct
   let over_precision ik = Int.succ @@ precision ik
   let under_precision ik = Int.pred @@ precision ik
 
-  let assert_shift shift ik a b expected = 
+  let assert_shift ?(rev_cond=false) shift ik a b expected = 
     let symb, shift_op_bf, shift_op_int = match shift with
       | `L -> "<<", I.shift_left ik, Int.shift_left
       | `R -> ">>", I.shift_right ik, Int.shift_right
@@ -499,21 +501,22 @@ struct
     in
     let bf_a, bf_b, expected = get_param a, get_param b, get_param expected in
     let result = (shift_op_bf bf_a bf_b) in
-    let output_string = Printf.sprintf "test (%s) shift %s %s %s failed: was: %s but should be: %s"
+    let output_string = Printf.sprintf "test (%s) shift %s %s %s failed: was: %s but should%s be: %s"
       (string_of_ik ik)
       (string_of_param a) symb (string_of_param b)
-      (I.show result) (I.show expected)
+      (I.show result) (if rev_cond then " not" else "") (I.show expected)
     in
-    assert_bool output_string (I.equal result expected)
+    let assertion = I.equal result expected in
+    let assertion = if rev_cond then not assertion else assertion in
+    assert_bool output_string assertion
 
-  let assert_shift_left = assert_shift `L
-  let assert_shift_right = assert_shift `R
+  let assert_shift_left ?(rev_cond=false) = assert_shift ~rev_cond:rev_cond `L
+  let assert_shift_right ?(rev_cond=false) = assert_shift ~rev_cond:rev_cond `R
 
-  let gen_sized_set size_gen gen = (* TODO might reduce the size of the generated list *)
+  let gen_sized_set size_gen gen = 
     let open QCheck2.Gen in
     map (List.sort_uniq Int.compare) (list_size size_gen gen)
 
-  (* Checks the property: (U_{a in gamma a_bf, b in gamma b_bf} a shift b) leq (a_bf shift b_bf) *)
   let test_shift ik name c_op a_op =
     let shift_test_printer (a,b) = Printf.sprintf "a: [%s] b: [%s]"
       (String.concat ", " (List.map string_of_int a))
@@ -540,50 +543,67 @@ struct
 
   let test_shift_left = List.fold_left (fun acc ik -> test_shift ik
       (Printf.sprintf "test_shift_left_ik_%s" (string_of_ik ik)) Int.shift_left I.shift_left :: acc
-    ) [] [Cil.IChar; Cil.IUChar; Cil.IInt; Cil.IUInt] |> QCheck_ounit.to_ounit2_test_list
+    ) [] ik_lst |> QCheck_ounit.to_ounit2_test_list
 
   let test_shift_right = List.fold_left (fun acc ik -> test_shift ik
       (Printf.sprintf "test_shift_right_ik_%s" (string_of_ik ik)) Int.shift_right I.shift_right :: acc
-    ) [] [Cil.IChar; Cil.IUChar; Cil.IInt; Cil.IUInt] |> QCheck_ounit.to_ounit2_test_list
+    ) [] ik_lst |> QCheck_ounit.to_ounit2_test_list
 
   let bot = `B (I.bot ())
   let top = `B (I.top ())
-  let double_max_int32 = Int.add (Int32.to_int @@ Int32.max_int) (Int32.to_int @@ Int32.max_int)
-  let max_int32 = Int32.to_int @@ Int32.max_int
-  let min_int32 = Int32.to_int @@ Int32.min_int
-  let minus_one32 = Int32.minus_one
+
+  let isSigned = GoblintCil.Cil.isSigned
+  let cast ik = IntDomain.Size.cast ik
+  let range = IntDomain.Size.range
+  let bits = IntDomain.Size.bits
+
+  let max_of ik = Z.to_int @@ snd @@ range ik
+  let min_of ik = Z.to_int @@ fst @@ range ik
+  let highest_bit_set ?(is_neg=false) ik =
+    let pos = Int.pred @@ snd @@ bits ik in
+    (if isSigned ik then if is_neg
+      then cast ik @@ Z.of_int @@ Int.neg @@ Int.shift_left 1 pos
+      else cast ik @@ Z.of_int @@ Int.pred @@ Int.shift_left 1 pos
+    else
+      cast ik @@ Z.of_int @@ Int.shift_left 1 pos) |> Z.to_int
 
   let test_shift_left =
   [
     "property_test_shift_left" >::: test_shift_left;
     "shift_left_edge_cases" >:: fun _ ->
     assert_shift_left ik (`I [1]) (`I [1; 2]) (`I [1; 2; 4; 8]);
-    assert_shift_left ik_uint (`I [1]) (`I [32]) (top);
-    assert_shift_left ik_uint (`I [1]) (`I [31]) (`I [2147483648]);
-    assert_shift_left ik (`I [1]) (`I [31]) (`I [2147483648]);
-    assert_shift_left ik (`I [1]) (`I [31; 0]) (`I [2147483648]);
 
+    List.iter (fun ik ->
+      assert_shift_left ik bot (`I [1]) bot;
+      assert_shift_left ik (`I [1]) bot bot;
+      assert_shift_left ik bot bot bot;
 
-    assert_shift_left ik (`I [1]) (`I [-1]) top;
-    assert_shift_left ik bot (`I [1]) bot;
-    assert_shift_left ik (`I [1]) bot bot;
-    assert_shift_left ik bot bot bot;
+      if isSigned ik
+      then (
+        assert_shift_left ik (`I [0]) top top;
 
-    assert_shift_left ik (`I [1]) (`I [under_precision ik]) (`I [1073741824]);
-    (*assert_shift_left ik (`I [1]) (`I [precision ik; 0]) (`I [1]);*) (* TODO fails, intended? *)
-    assert_shift_left ik (`I [1]) (`I [precision ik]) top;
-    assert_shift_left ik (`I [1]) (`I [over_precision ik]) top;
+        assert_shift_left ik (`I [1]) (`I [-1]) top; (* Negative shifts are undefined behavior *)
+        assert_shift_left ik (`I [-1]) top top;
+        assert_shift_left ~rev_cond:true ik (`I [1]) top top; (* TODO fails *)
 
-    assert_shift_left ik (`I [-1]) (`I [under_precision ik]) (`I [-1073741824]);
-    (*assert_shift_left ik (`I [-1]) (`I [precision ik; 0]) (`I [-1]); *) (* TODO fails, intended? *)
-    assert_shift_left ik (`I [-1]) (`I [precision ik]) top; 
-    assert_shift_left ik (`I [-1]) (`I [over_precision ik]) top; 
+        assert_shift_left ~rev_cond:true ik (`I [1]) (`I [under_precision ik]) top;
+        assert_shift_left ik (`I [1]) (`I [precision ik]) top;
+        assert_shift_left ik (`I [1]) (`I [over_precision ik]) top;
 
-    assert_shift_left ik_uint (`I [1]) (`I [under_precision ik_uint]) (`I [min_int32]); (* dirty written *)
-    assert_shift_left ik_uint (`I [1]) (`I [precision ik_uint; 0]) (`I [1]);
-    (* assert_shift_left ik_uint (`I [1]) (`I [precision ik_uint; 1]) (`I [2]);*) (* TODO fails, intended? *)
-    assert_shift_left ik_uint (`I [1]) (`I [precision ik_uint]) top;
-    assert_shift_left ik_uint (`I [1]) (`I [over_precision ik_uint]) top;
+        assert_shift_left ik (`I [-1]) (`I [under_precision ik]) (`I [highest_bit_set ~is_neg:true ik]);
+        assert_shift_left ik (`I [-1]) (`I [precision ik]) top; 
+        assert_shift_left ik (`I [-1]) (`I [over_precision ik]) top; 
+      ) else (
+        (* See C11 N2310 at 6.5.7 *)
+        assert_shift_left ik (`I [0]) top (`I [0]);
+
+        assert_shift_left ik_uint (`I [1]) (`I [under_precision ik]) (`I [highest_bit_set ik]);
+        assert_shift_left ik_uint (`I [1]) (`I [precision ik]) (`I [1]); (* TODO fails due to wrong overflow handling? *)
+        assert_shift_left ik_uint (`I [1]) (`I [over_precision ik]) (`I [2]); (* TODO fails due to wrong overflow handling? *)
+      )
+
+    ) ik_lst
+
   ]
 
   let test_shift_right =
@@ -591,26 +611,38 @@ struct
     "property_test_shift_right" >::: test_shift_right;
     "shift_right_edge_cases" >:: fun _ ->
     assert_shift_right ik (`I [10]) (`I [1; 2]) (`I [10; 7; 5; 1]);
+
+    List.iter (fun ik ->
+      assert_shift_right ik bot (`I [1]) bot;
+      assert_shift_right ik (`I [1]) bot bot;
+      assert_shift_right ik bot bot bot;
+
+      if isSigned ik
+      then (
+        assert_shift_right ik (`I [0]) top top;
+
+        assert_shift_right ik (`I [2]) (`I [-1]) top; (* Negative shifts are undefined behavior *)
+        assert_shift_right ik (`I [min_of ik]) top top;
+        assert_shift_right ~rev_cond:true ik (`I [max_of ik]) top top; (* TODO fails *)
+
+        assert_shift_right ik (`I [max_of ik]) (`I [under_precision ik]) (`I [1]);
+        assert_shift_right ik (`I [max_of ik]) (`I [precision ik]) top;
+        assert_shift_right ik (`I [max_of ik]) (`I [over_precision ik]) top;
+
+        assert_shift_right ik (`I [min_of ik]) (`I [under_precision ik]) (`I [-2]);
+        assert_shift_right ik (`I [min_of ik]) (`I [precision ik]) top;
+        assert_shift_right ik (`I [min_of ik]) (`I [over_precision ik]) top;
+      ) else (
+        (* See C11 N2310 at 6.5.7 *)
+        assert_shift_right ik (`I [0]) top (`I [0]);
+
+        assert_shift_right ik (`I [max_of ik]) (`I [under_precision ik]) (`I [1]);
+        assert_shift_right ik (`I [max_of ik]) (`I [precision ik]) (`I [0]); (* TODO fails due to wrong overflow handling? *)
+        assert_shift_right ik (`I [max_of ik]) (`I [over_precision ik]) (`I [0]); (* TODO fails due to wrong overflow handling? *)
+      )
+
+    ) ik_lst
     
-    assert_shift_right ik (`I [2]) (`I [-1]) top;
-    assert_shift_right ik bot (`I [1]) bot;
-    assert_shift_right ik (`I [1]) bot bot;
-    assert_shift_right ik bot bot bot;
-
-    assert_shift_right ik (`I [max_int32]) (`I [under_precision ik]) (`I [1]);
-    (*assert_shift_right ik (`I [4]) (`I [precision ik; 0]) (`I [4]);*) (* TODO fails, intended? *)
-    assert_shift_right ik (`I [max_int32]) (`I [precision ik]) top;
-    assert_shift_right ik (`I [max_int32]) (`I [over_precision ik]) top;
-
-    assert_shift_right ik (`I [min_int32]) (`I [under_precision ik]) (`I [-2]);
-    (*assert_shift_right ik (`I [4]) (`I [precision ik; 0]) (`I [4]);*) (* TODO fails, intended? *)
-    assert_shift_right ik (`I [min_int32]) (`I [precision ik]) top;
-    assert_shift_right ik (`I [min_int32]) (`I [over_precision ik]) top;
-
-    assert_shift_right ik_uint (`I [double_max_int32]) (`I [under_precision ik_uint]) (`I [1]);
-    assert_shift_right ik_uint (`I [4]) (`I [precision ik_uint; 0]) (`I [4]);
-    assert_shift_right ik_uint (`I [double_max_int32]) (`I [precision ik_uint]) top;
-    assert_shift_right ik_uint (`I [double_max_int32]) (`I [over_precision ik_uint]) top;
   ]
 
 
