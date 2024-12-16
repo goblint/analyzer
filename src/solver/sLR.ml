@@ -527,7 +527,7 @@ let _ =
   Selector.add_solver ("widen2",  (module PostSolver.EqIncrSolverFromEqSolver (W2)));
   Selector.add_solver ("widen3",  (module PostSolver.EqIncrSolverFromEqSolver (W3)));
   let module S2 = TwoPhased (struct let ver = 1 end) in
-  Selector.add_solver ("two",  (module PostSolver.EqIncrSolverFromEqSolver (S2))); (* TODO: broken even on 00-sanity/01-assert *)
+  (* Selector.add_solver ("two",  (module PostSolver.EqIncrSolverFromEqSolver (S2))); (* TODO: broken even on 00-sanity/01-assert *) *)
   let module S1 = Make (struct let ver = 1 end) in
   Selector.add_solver ("new",  (module PostSolver.EqIncrSolverFromEqSolver (S1)));
   Selector.add_solver ("slr+", (module PostSolver.EqIncrSolverFromEqSolver (S1)))
