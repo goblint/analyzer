@@ -219,6 +219,9 @@
     dead: 0
     total lines: 20
   [Info][Witness] witness generation summary:
+    location invariants: 32
+    loop invariants: 21
+    flow-insensitive invariants: 0
     total generation entries: 53
 
   $ yamlWitnessStrip < witness.yml

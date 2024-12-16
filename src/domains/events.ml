@@ -4,7 +4,7 @@ open GoblintCil
 open Pretty
 
 type t =
-  | Lock of LockDomain.Lockset.Lock.t
+  | Lock of LockDomain.AddrRW.t
   | Unlock of LockDomain.Addr.t
   | Escape of EscapeDomain.EscapedVars.t
   | EnterMultiThreaded
@@ -14,7 +14,7 @@ type t =
   | Assign of {lval: CilType.Lval.t; exp: CilType.Exp.t} (** Used to simulate old [ctx.assign]. *) (* TODO: unused *)
   | UpdateExpSplit of exp (** Used by expsplit analysis to evaluate [exp] on post-state. *)
   | Assert of exp
-  | Unassume of {exp: CilType.Exp.t; uuids: string list}
+  | Unassume of {exp: CilType.Exp.t; tokens: WideningToken.t list}
   | Longjmped of {lval: CilType.Lval.t option}
 
 (** Should event be emitted after transfer function raises [Deadcode]? *)
@@ -35,7 +35,7 @@ let emit_on_deadcode = function
     false
 
 let pretty () = function
-  | Lock m -> dprintf "Lock %a" LockDomain.Lockset.Lock.pretty m
+  | Lock m -> dprintf "Lock %a" LockDomain.AddrRW.pretty m
   | Unlock m -> dprintf "Unlock %a" LockDomain.Addr.pretty m
   | Escape escaped -> dprintf "Escape %a" EscapeDomain.EscapedVars.pretty escaped
   | EnterMultiThreaded -> text "EnterMultiThreaded"
@@ -45,5 +45,5 @@ let pretty () = function
   | Assign {lval; exp} -> dprintf "Assign {lval=%a, exp=%a}" CilType.Lval.pretty lval CilType.Exp.pretty exp
   | UpdateExpSplit exp -> dprintf "UpdateExpSplit %a" d_exp exp
   | Assert exp -> dprintf "Assert %a" d_exp exp
-  | Unassume {exp; uuids} -> dprintf "Unassume {exp=%a; uuids=%a}" d_exp exp (docList Pretty.text) uuids
+  | Unassume {exp; tokens} -> dprintf "Unassume {exp=%a; tokens=%a}" d_exp exp (d_list ", " WideningToken.pretty) tokens
   | Longjmped {lval} -> dprintf "Longjmped {lval=%a}" (docOpt (CilType.Lval.pretty ())) lval

@@ -12,7 +12,7 @@ struct
 
   let name () = "thread"
   module D = ConcDomain.CreatedThreadSet
-  module C = D
+  include Analyses.ValueContexts(D)
   module G = ConcDomain.ThreadCreation
   module V =
   struct
@@ -95,9 +95,7 @@ struct
   let startstate v = D.bot ()
 
   let threadenter ctx ~multiple lval f args =
-    if multiple then
-      (let tid = ThreadId.get_current_unlift (Analyses.ask_of_ctx ctx) in
-       ctx.sideg tid (true, TS.bot (), false));
+    (* ctx is of creator, side-effects to denote non-uniqueness are performed in threadspawn *)
     [D.bot ()]
 
   let threadspawn ctx ~multiple lval f args fctx =
@@ -106,9 +104,9 @@ struct
     let repeated = D.mem tid ctx.local in
     let eff =
       match creator with
-      | `Lifted ctid -> (repeated, TS.singleton ctid, false)
-      | `Top         -> (true,     TS.bot (),         false)
-      | `Bot         -> (false,    TS.bot (),         false)
+      | `Lifted ctid -> (repeated || multiple, TS.singleton ctid, false)
+      | `Top         -> (true, TS.bot (), false)
+      | `Bot         -> (multiple, TS.bot (), false)
     in
     ctx.sideg tid eff;
     D.join ctx.local (D.singleton tid)

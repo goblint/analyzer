@@ -15,14 +15,11 @@ struct
     let show = show
   end
   include Printable.SimpleShow (P)
+
+  let elems = ['a'; 'b'; 'c'; 'd']
 end
 
-module ArbitraryLattice = SetDomain.FiniteSet (PrintableChar) (
-  struct
-    type t = char
-    let elems = ['a'; 'b'; 'c'; 'd']
-  end
-  )
+module ArbitraryLattice = SetDomain.FiniteSet (PrintableChar)
 
 module HoareArbitrary = HoareDomain.Set_LiftTop (ArbitraryLattice) (struct let topname = "Top" end)
 module HoareArbitrary_NoTop = HoareDomain.Set (ArbitraryLattice)
@@ -30,9 +27,6 @@ module HoareArbitrary_NoTop = HoareDomain.Set (ArbitraryLattice)
 let domains: (module Lattice.S) list = [
   (* (module IntDomainProperties.IntegerSet); (* TODO: top properties error *) *)
   (module IntDomain.Lifted); (* not abstraction of IntegerSet *)
-
-  (* TODO: move to intDomains if passing *)
-  (module IntDomain.Booleans);
 
   (* TODO: fix *)
   (* (module IntDomain.Enums); *)

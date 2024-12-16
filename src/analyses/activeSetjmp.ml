@@ -10,7 +10,7 @@ struct
   let name () = "activeSetjmp"
 
   module D = JmpBufDomain.JmpBufSet
-  module C = JmpBufDomain.JmpBufSet
+  include Analyses.ValueContexts(D)
   module P = IdentityP (D)
 
   let combine_env ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) (f_ask:Queries.ask): D.t =

@@ -20,12 +20,12 @@ let reset_lazy () =
 
 
 type t = string option [@@deriving eq, ord, hash]
+(** [None] means top. *)
 
 let hash x =
-  if get_string_domain () = Disjoint then
-    hash x
-  else
-    13859
+  match get_string_domain () with
+  | Disjoint | Flat -> hash x
+  | Unit -> 13859
 
 let show = function
   | Some x -> "\"" ^ x ^ "\""
@@ -39,10 +39,9 @@ include Printable.SimpleShow (
   )
 
 let of_string x =
-  if get_string_domain () = Unit then
-    None
-  else
-    Some x
+  match get_string_domain () with
+  | Unit -> None
+  | Disjoint | Flat -> Some x
 let to_string x = x
 
 (* only keep part before first null byte *)
@@ -91,10 +90,10 @@ let join x y =
   | _, None -> None
   | Some a, Some b when a = b -> Some a
   | Some a, Some b (* when a <> b *) ->
-    if get_string_domain () = Disjoint then
-      raise Lattice.Uncomparable
-    else
-      None
+    match get_string_domain () with
+    | Disjoint -> raise Lattice.Uncomparable
+    | Flat -> None
+    | Unit -> assert false
 
 let meet x y =
   match x, y with
@@ -102,13 +101,14 @@ let meet x y =
   | a, None -> a
   | Some a, Some b when a = b -> Some a
   | Some a, Some b (* when a <> b *) ->
-    if get_string_domain () = Disjoint then
-      raise Lattice.Uncomparable
-    else
-      raise Lattice.BotValue
+    match get_string_domain () with
+    | Disjoint -> raise Lattice.Uncomparable
+    | Flat -> raise Lattice.BotValue
+    | Unit -> assert false
 
 let repr x =
-  if get_string_domain () = Disjoint then
+  match get_string_domain () with
+  | Disjoint ->
     x (* everything else is kept separate, including strings if not limited *)
-  else
+  | Flat | Unit ->
     None (* all strings together if limited *)

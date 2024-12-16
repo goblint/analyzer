@@ -153,11 +153,11 @@ struct
   include Printable.HConsed (Base)
 
   let lift_f2 f x y = f (unlift x) (unlift y)
-  let narrow x y = if Arg.assume_idempotent && x.BatHashcons.tag == y.BatHashcons.tag then x else lift (lift_f2 Base.narrow x y)
-  let widen x y = if x.BatHashcons.tag == y.BatHashcons.tag then x else lift (lift_f2 Base.widen x y)
-  let meet x y = if Arg.assume_idempotent && x.BatHashcons.tag == y.BatHashcons.tag then x else lift (lift_f2 Base.meet x y)
-  let join x y = if x.BatHashcons.tag == y.BatHashcons.tag then x else lift (lift_f2 Base.join x y)
-  let leq x y = (x.BatHashcons.tag == y.BatHashcons.tag) || lift_f2 Base.leq x y
+  let narrow x y = if Arg.assume_idempotent && x.BatHashcons.tag = y.BatHashcons.tag then x else lift (lift_f2 Base.narrow x y)
+  let widen x y = if x.BatHashcons.tag = y.BatHashcons.tag then x else lift (lift_f2 Base.widen x y)
+  let meet x y = if Arg.assume_idempotent && x.BatHashcons.tag = y.BatHashcons.tag then x else lift (lift_f2 Base.meet x y)
+  let join x y = if x.BatHashcons.tag = y.BatHashcons.tag then x else lift (lift_f2 Base.join x y)
+  let leq x y = (x.BatHashcons.tag = y.BatHashcons.tag) || lift_f2 Base.leq x y
   let is_top = lift_f Base.is_top
   let is_bot = lift_f Base.is_bot
   let top () = lift (Base.top ())
@@ -277,6 +277,8 @@ struct
   let narrow x y =
     match (x,y) with
     | (`Lifted x, `Lifted y) -> `Lifted (Base.narrow x y)
+    | (_, `Bot) -> `Bot
+    | (`Top, y) -> y
     | _ -> x
 end
 
@@ -337,6 +339,8 @@ struct
     | (`Lifted x, `Lifted y) ->
       (try `Lifted (Base.narrow x y)
        with Uncomparable -> `Bot)
+    | (_, `Bot) -> `Bot
+    | (`Top, y) -> y
     | _ -> x
 end
 
@@ -408,6 +412,8 @@ struct
     match (x,y) with
     | (`Lifted1 x, `Lifted1 y) -> `Lifted1 (Base1.narrow x y)
     | (`Lifted2 x, `Lifted2 y) -> `Lifted2 (Base2.narrow x y)
+    | (_, `Bot) -> `Bot
+    | (`Top, y) -> y
     | _ -> x
 
 end
@@ -416,27 +422,17 @@ module Lift2 = Lift2Conf (Printable.DefaultConf)
 
 module ProdConf (C: Printable.ProdConfiguration) (Base1: S) (Base2: S) =
 struct
-  include Printable.ProdConf (C) (Base1) (Base2)
-
-  let bot () = (Base1.bot (), Base2.bot ())
-  let is_bot (x1,x2) = Base1.is_bot x1 && Base2.is_bot x2
-  let top () = (Base1.top (), Base2.top ())
-  let is_top (x1,x2) = Base1.is_top x1 && Base2.is_top x2
-
-  let leq (x1,x2) (y1,y2) = Base1.leq x1 y1 && Base2.leq x2 y2
+  open struct (* open to avoid leaking P and causing conflicts *)
+    module P = Printable.ProdConf (C) (Base1) (Base2)
+  end
+  type t = Base1.t * Base2.t [@@deriving lattice]
+  include (P: module type of P with type t := t)
 
   let pretty_diff () ((x1,x2:t),(y1,y2:t)): Pretty.doc =
     if Base1.leq x1 y1 then
       Base2.pretty_diff () (x2,y2)
     else
       Base1.pretty_diff () (x1,y1)
-
-  let op_scheme op1 op2 (x1,x2) (y1,y2): t = (op1 x1 y1, op2 x2 y2)
-  let join = op_scheme Base1.join Base2.join
-  let meet = op_scheme Base1.meet Base2.meet
-  let narrow = op_scheme Base1.narrow Base2.narrow
-  let widen = op_scheme Base1.widen Base2.widen
-
 end
 
 
@@ -445,14 +441,11 @@ module ProdSimple = ProdConf (struct let expand_fst = false let expand_snd = fal
 
 module Prod3 (Base1: S) (Base2: S) (Base3: S) =
 struct
-  include Printable.Prod3 (Base1) (Base2) (Base3)
-
-  let bot () = (Base1.bot (), Base2.bot (), Base3.bot ())
-  let is_bot (x1,x2,x3) = Base1.is_bot x1 && Base2.is_bot x2 && Base3.is_bot x3
-  let top () = (Base1.top (), Base2.top (), Base3.top ())
-  let is_top (x1,x2,x3) = Base1.is_top x1 && Base2.is_top x2 && Base3.is_top x3
-
-  let leq (x1,x2,x3) (y1,y2,y3) = Base1.leq x1 y1 && Base2.leq x2 y2 && Base3.leq x3 y3
+  open struct (* open to avoid leaking P and causing conflicts *)
+    module P = Printable.Prod3 (Base1) (Base2) (Base3)
+  end
+  type t = Base1.t * Base2.t * Base3.t [@@deriving lattice]
+  include (P: module type of P with type t := t)
 
   let pretty_diff () ((x1,x2,x3:t),(y1,y2,y3:t)): Pretty.doc =
     if not (Base1.leq x1 y1) then
@@ -461,39 +454,6 @@ struct
       Base2.pretty_diff () (x2,y2)
     else
       Base3.pretty_diff () (x3,y3)
-
-  let op_scheme op1 op2 op3 (x1,x2,x3) (y1,y2,y3): t = (op1 x1 y1, op2 x2 y2, op3 x3 y3)
-  let join = op_scheme Base1.join Base2.join Base3.join
-  let meet = op_scheme Base1.meet Base2.meet Base3.meet
-  let widen = op_scheme Base1.widen Base2.widen Base3.widen
-  let narrow = op_scheme Base1.narrow Base2.narrow Base3.narrow
-end
-
-module Prod4 (Base1: S) (Base2: S) (Base3: S) (Base4: S) =
-struct
-  include Printable.Prod4 (Base1) (Base2) (Base3) (Base4)
-
-  let bot () = (Base1.bot (), Base2.bot (), Base3.bot (), Base4.bot ())
-  let is_bot (x1,x2,x3,x4) = Base1.is_bot x1 && Base2.is_bot x2 && Base3.is_bot x3 && Base4.is_bot x4
-  let top () = (Base1.top (), Base2.top (), Base3.top (), Base4.top ())
-  let is_top (x1,x2,x3,x4) = Base1.is_top x1 && Base2.is_top x2 && Base3.is_top x3 && Base4.is_top x4
-  let leq (x1,x2,x3,x4) (y1,y2,y3,y4) = Base1.leq x1 y1 && Base2.leq x2 y2 && Base3.leq x3 y3 && Base4.leq x4 y4
-
-  let pretty_diff () ((x1,x2,x3,x4:t),(y1,y2,y3,y4:t)): Pretty.doc =
-    if not (Base1.leq x1 y1) then
-      Base1.pretty_diff () (x1,y1)
-    else if not (Base2.leq x2 y2) then
-      Base2.pretty_diff () (x2,y2)
-    else if not (Base3.leq x3 y3) then
-      Base3.pretty_diff () (x3,y3)
-    else
-      Base4.pretty_diff () (x4,y4)
-
-  let op_scheme op1 op2 op3 op4 (x1,x2,x3,x4) (y1,y2,y3,y4): t = (op1 x1 y1, op2 x2 y2, op3 x3 y3, op4 x4 y4)
-  let join = op_scheme Base1.join Base2.join Base3.join Base4.join
-  let meet = op_scheme Base1.meet Base2.meet Base3.meet Base4.meet
-  let widen = op_scheme Base1.widen Base2.widen Base3.widen Base4.widen
-  let narrow = op_scheme Base1.narrow Base2.narrow Base3.narrow Base4.narrow
 end
 
 module LiftBot (Base : S) =
@@ -539,6 +499,7 @@ struct
   let narrow x y =
     match (x,y) with
     | (`Lifted x, `Lifted y) -> `Lifted (Base.narrow x y)
+    | (_, `Bot) -> `Bot
     | _ -> x
 end
 
@@ -580,6 +541,7 @@ struct
   let narrow x y =
     match (x,y) with
     | (`Lifted x, `Lifted y) -> `Lifted (Base.narrow x y)
+    | (`Top, y) -> y
     | _ -> x
 
   let pretty_diff () (x,y) =

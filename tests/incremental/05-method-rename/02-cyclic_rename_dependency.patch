@@ -1,7 +1,7 @@
 --- tests/incremental/05-method-rename/02-cyclic_rename_dependency.c
 +++ tests/incremental/05-method-rename/02-cyclic_rename_dependency.c
 @@ -2,14 +2,14 @@
-
+ // CRAM
 -void foo1(int c) {
 -    if (c < 10) foo2(c + 1);
 +void bar1(int c) {

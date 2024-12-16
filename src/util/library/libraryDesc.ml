@@ -56,6 +56,7 @@ type special =
   | ThreadCreate of { thread: Cil.exp; start_routine: Cil.exp; arg: Cil.exp; multiple: bool }
   | ThreadJoin of { thread: Cil.exp; ret_var: Cil.exp; }
   | ThreadExit of { ret_val: Cil.exp; }
+  | ThreadSelf
   | Globalize of Cil.exp
   | Signal of Cil.exp
   | Broadcast of Cil.exp
@@ -91,16 +92,6 @@ module Accesses =
 struct
   type t = Cil.exp list -> (Access.t * Cil.exp list) list
 
-  (* TODO: remove after migration *)
-  type old = AccessKind.t -> Cil.exp list -> Cil.exp list
-  let of_old (f: old): t = fun args ->
-    [
-      ({ kind = Read; deep = true; }, f Read args);
-      ({ kind = Write; deep = true; }, f Write args);
-      ({ kind = Free; deep = true; }, f Free args);
-      ({ kind = Spawn; deep = true; }, f Spawn args);
-    ]
-
   (* TODO: remove/rename after migration? *)
   let find (accs: t): Access.t -> Cil.exp list -> Cil.exp list = fun acc args ->
     BatOption.(List.assoc_opt acc (accs args) |? [])
@@ -134,12 +125,6 @@ type t = {
   special: Cil.exp list -> special; (** Conversion to {!type-special} using arguments. *)
   accs: Accesses.t; (** Pointer arguments access specification. *)
   attrs: attr list; (** Attributes of function. *)
-}
-
-let of_old ?(attrs: attr list=[]) (old_accesses: Accesses.old): t = {
-  attrs;
-  accs = Accesses.of_old old_accesses;
-  special = fun _ -> Unknown;
 }
 
 module MathPrintable = struct

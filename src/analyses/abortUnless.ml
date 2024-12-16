@@ -13,7 +13,8 @@ struct
   module D = BoolDomain.MustBool
   module C = Printable.Unit
 
-  let context _ _ = ()
+  let context ctx _ _ = ()
+  let startcontext () = ()
 
   (* transfer functions *)
   let assign ctx (lval:lval) (rval:exp) : D.t =

@@ -71,7 +71,7 @@
   (flags :standard -open Goblint_std -open Goblint_logs)
   (ocamlopt_flags :standard -no-float-const-prop)
   (preprocess
-    (pps ppx_deriving.std ppx_deriving_hash ppx_deriving_yojson ppx_blob))
+    (pps ppx_deriving.std ppx_deriving_hash ppx_deriving_yojson ppx_blob ppx_deriving_printable ppx_deriving_lattice))
   (instrumentation (backend bisect_ppx))
 )
 
@@ -88,7 +88,7 @@
   (public_names goblint)
   (modes byte native) ; https://dune.readthedocs.io/en/stable/dune-files.html#linking-modes
   (modules goblint)
-  (libraries goblint.lib goblint.sites.dune goblint.build-info.dune goblint_std)
+  (libraries goblint.lib goblint_std)
   (preprocess (pps ppx_deriving.std ppx_deriving_hash ppx_deriving_yojson))
   (flags :standard -linkall -open Goblint_std)
 )
@@ -96,7 +96,7 @@
 (executable
   (name privPrecCompare)
   (modules privPrecCompare)
-  (libraries goblint.lib goblint.sites.dune goblint.build-info.dune goblint_std)
+  (libraries goblint.lib goblint_std)
   (preprocess (pps ppx_deriving.std ppx_deriving_hash ppx_deriving_yojson))
   (flags :standard -linkall -open Goblint_std)
 )
@@ -104,7 +104,7 @@
 (executable
   (name apronPrecCompare)
   (modules apronPrecCompare)
-  (libraries goblint.lib goblint.sites.dune goblint.build-info.dune goblint_std)
+  (libraries goblint.lib goblint_std)
   (preprocess (pps ppx_deriving.std ppx_deriving_hash ppx_deriving_yojson))
   (flags :standard -linkall -open Goblint_std)
 )
@@ -112,7 +112,7 @@
 (executable
   (name messagesCompare)
   (modules messagesCompare)
-  (libraries goblint.lib goblint.sites.dune goblint.build-info.dune goblint_std)
+  (libraries goblint.lib goblint_std)
   (preprocess (pps ppx_deriving.std ppx_deriving_hash ppx_deriving_yojson))
   (flags :standard -linkall -open Goblint_std)
 )

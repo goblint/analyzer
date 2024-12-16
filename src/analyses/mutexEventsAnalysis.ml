@@ -4,10 +4,7 @@
 
 module M = Messages
 module Addr = ValueDomain.Addr
-module Lockset = LockDomain.Lockset
-module Mutexes = LockDomain.Mutexes
 module LF = LibraryFunctions
-open Batteries
 open GoblintCil
 open Analyses
 open GobConfig
@@ -21,7 +18,7 @@ struct
   let eval_exp_addr (a: Queries.ask) exp = a.f (Queries.MayPointTo exp)
 
   let lock ctx rw may_fail nonzero_return_when_aquired a lv_opt arg =
-    let compute_refine_split (e:Mutexes.elt) = match e with
+    let compute_refine_split (e: Addr.t) = match e with
       | Addr a ->
         let arg_e = AddrOf (PreValueDomain.Mval.to_cil a) in
         if not (CilType.Exp.equal arg arg_e) then
@@ -54,12 +51,12 @@ struct
 
   let return ctx exp fundec : D.t =
     (* deprecated but still valid SV-COMP convention for atomic block *)
-    if get_bool "ana.sv-comp.functions" && String.starts_with fundec.svar.vname "__VERIFIER_atomic_" then
+    if get_bool "ana.sv-comp.functions" && String.starts_with fundec.svar.vname ~prefix:"__VERIFIER_atomic_" then
       ctx.emit (Events.Unlock (LockDomain.Addr.of_var LF.verifier_atomic_var))
 
   let body ctx f : D.t =
     (* deprecated but still valid SV-COMP convention for atomic block *)
-    if get_bool "ana.sv-comp.functions" && String.starts_with f.svar.vname "__VERIFIER_atomic_" then
+    if get_bool "ana.sv-comp.functions" && String.starts_with f.svar.vname ~prefix:"__VERIFIER_atomic_" then
       ctx.emit (Events.Lock (LockDomain.Addr.of_var LF.verifier_atomic_var, true))
 
   let special (ctx: (unit, _, _, _) ctx) lv f arglist : D.t =

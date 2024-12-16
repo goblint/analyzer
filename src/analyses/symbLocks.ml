@@ -21,10 +21,8 @@ module Spec =
 struct
   include Analyses.DefaultSpec
 
-  exception Top
-
-  module D = LockDomain.Symbolic
-  module C = LockDomain.Symbolic
+  module D = SymbLocksDomain.Symbolic
+  include Analyses.ValueContexts(D)
 
   let name () = "symb_locks"
 

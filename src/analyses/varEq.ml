@@ -11,8 +11,6 @@ open Analyses
 
 module Spec =
 struct
-  exception Top
-
   include Analyses.DefaultSpec
 
   module D =
@@ -38,7 +36,7 @@ struct
         ) ss (Invariant.top ())
   end
 
-  module C = D
+  include Analyses.ValueContexts(D)
 
   let name () = "var_eq"
 
@@ -564,7 +562,7 @@ struct
       let r = eq_set_clos e ctx.local in
       if M.tracing then M.tracel "var_eq" "equalset %a = %a" d_plainexp e Queries.ES.pretty r;
       r
-    | Queries.Invariant context when GobConfig.get_bool "witness.invariant.exact" -> (* only exact equalities here *)
+    | Queries.Invariant context when GobConfig.get_bool "ana.var_eq.invariant.enabled" && GobConfig.get_bool "witness.invariant.exact" -> (* only exact equalities here *)
       let scope = Node.find_fundec ctx.node in
       D.invariant ~scope ctx.local
     | _ -> Queries.Result.top x

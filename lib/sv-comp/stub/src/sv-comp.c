@@ -35,10 +35,10 @@ __VERIFIER_nondet2(unsigned int, u32)
 __VERIFIER_nondet2(unsigned short int, u16) // not in rules
 __VERIFIER_nondet2(unsigned char, u8) // not in rules
 __VERIFIER_nondet2(unsigned char, unsigned_char) // not in rules
-__VERIFIER_nondet2(long long, longlong) // not in rules yet (https://gitlab.com/sosy-lab/benchmarking/sv-benchmarks/-/issues/1341)
-__VERIFIER_nondet2(unsigned long long, ulonglong) // not in rules yet (https://gitlab.com/sosy-lab/benchmarking/sv-benchmarks/-/issues/1341)
-__VERIFIER_nondet2(__uint128_t, uint128) // not in rules yet (https://gitlab.com/sosy-lab/benchmarking/sv-benchmarks/-/issues/1341)
-__VERIFIER_nondet2(__int128_t, int128) // not in rules yet (https://gitlab.com/sosy-lab/benchmarking/sv-benchmarks/-/issues/1341)
+__VERIFIER_nondet2(long long, longlong)
+__VERIFIER_nondet2(unsigned long long, ulonglong)
+__VERIFIER_nondet2(__uint128_t, uint128)
+__VERIFIER_nondet2(__int128_t, int128)
 __VERIFIER_nondet2(unsigned char, uchar)
 __VERIFIER_nondet2(unsigned int, uint)
 __VERIFIER_nondet2(unsigned long, ulong)

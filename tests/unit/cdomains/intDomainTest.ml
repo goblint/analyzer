@@ -198,21 +198,60 @@ let test_ex_set _ =
   assert_equal (Some true) (T.to_bool tex10);
   assert_equal None (T.to_bool tex1)
 
-module Interval =
+module IntervalTest (I : IntDomain.SOverflow with type int_t = Z.t) =
 struct
-  module I = IntDomain.SOverflowUnlifter(IntDomain.Interval)
+  module I = IntDomain.SOverflowUnlifter (I)
+  let ik      = Cil.IInt
+  let i65536  = I.of_interval ik (Z.zero, of_int 65536)
+  let i65537  = I.of_interval ik (Z.zero, of_int 65537)
+  let imax    = I.of_interval ik (Z.zero, of_int 2147483647)
+  let imin    = I.of_interval ik (of_int (-2147483648), Z.zero)
 
   let assert_equal x y =
     assert_equal ~cmp:I.equal ~printer:I.show x y
 
   let test_interval_rem _ =
-    let ik = Cil.IInt in
     assert_equal (I.of_int ik Z.zero) (I.rem ik (I.of_int ik Z.minus_one) (I.of_int ik Z.one))
+
+  let test_interval_widen _ =
+    GobConfig.set_bool "ana.int.interval_threshold_widening" true;
+    GobConfig.set_string "ana.int.interval_threshold_widening_constants" "comparisons";
+    assert_equal imax (I.widen ik i65536 i65537);
+    assert_equal imax (I.widen ik i65536 imax)
+
+  let test_interval_narrow _ =
+    GobConfig.set_bool "ana.int.interval_threshold_widening" true;
+    GobConfig.set_string "ana.int.interval_threshold_widening_constants" "comparisons";
+    let i_zero_one = I.of_interval ik (Z.zero, Z.one) in
+    let i_zero_five = I.of_interval ik (Z.zero, of_int 5) in
+    let to_widen = I.of_interval ik (Z.zero, Z.zero) in
+    (* this should widen to [0, x], where x is the next largest threshold above 5 or the maximal int*)
+    let widened = I.widen ik to_widen i_zero_five in
+    (* either way, narrowing from [0, x] to [0, 1] should be possible *)
+    let narrowed = I.narrow ik widened i_zero_one in
+    (* however, narrowing should not allow [0, x] to grow *)
+    let narrowed2 = I.narrow ik widened imax in
+    assert_equal i_zero_one narrowed;
+    assert_equal widened narrowed2;
+
+    (* the same tests, but for lower bounds *)
+    let i_minus_one_zero = I.of_interval ik (Z.minus_one, Z.zero) in
+    let i_minus_five_zero = I.of_interval ik (of_int (-5), Z.zero) in
+    let widened = I.widen ik to_widen i_minus_five_zero in
+    let narrowed = I.narrow ik widened i_minus_one_zero in
+    let narrowed2 = I.narrow ik widened imin in
+    assert_equal i_minus_one_zero narrowed;
+    assert_equal widened narrowed2
 
   let test () = [
     "test_interval_rem" >:: test_interval_rem;
+    "test_interval_widen" >:: test_interval_widen;
+    "test_interval_narrow" >:: test_interval_narrow;
   ]
 end
+
+module Interval    = IntervalTest (IntDomain.Interval)
+module IntervalSet = IntervalTest (IntDomain.IntervalSet)
 
 module Congruence =
 struct
@@ -291,6 +330,7 @@ let test () =
     "test_meet"     >::  test_meet;
     "test_excl_list">::  test_ex_set;
     "interval" >::: Interval.test ();
+    "intervalSet" >::: IntervalSet.test ();
     "congruence" >::: Congruence.test ();
     "intDomTuple" >::: IntDomTuple.test ();
   ]

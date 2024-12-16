@@ -36,12 +36,13 @@ struct
   let to_cil_exp lv = Lval (to_cil lv)
 
   let is_definite (_, o) = Offs.is_definite o
-  let top_indices (x, o) = (x, Offs.top_indices o)
 end
 
 module MakeLattice (Offs: Offset.Lattice): Lattice with type idx = Offs.idx =
 struct
   include MakePrintable (Offs)
+
+  let top_indices (x, o) = (x, Offs.top_indices o)
 
   let semantic_equal (x, xoffs) (y, yoffs) =
     if CilType.Varinfo.equal x y then
@@ -72,3 +73,4 @@ end
 
 module Unit = MakePrintable (Offset.Unit)
 module Exp = MakePrintable (Offset.Exp)
+module Z = MakePrintable (Offset.Z)

@@ -20,7 +20,7 @@ struct
   module Priv = Priv (RD)
   module D = RelationDomain.RelComponents (RD) (Priv.D)
   module G = Priv.G
-  module C = D
+  include Analyses.ValueContexts(D)
   module V =
   struct
     include Priv.V
@@ -40,7 +40,7 @@ struct
   (* Result map used for comparison of results for relational traces paper. *)
   let results = PCU.RH.create 103
 
-  let context fd x =
+  let context ctx fd x =
     if ContextUtil.should_keep ~isAttr:GobContext ~keepOption:"ana.relation.context" ~removeAttr:"relation.no-context" ~keepAttr:"relation.context" fd then
       x
     else
@@ -295,7 +295,7 @@ struct
     (* there should be smarter ways to do this, e.g. by keeping track of which values are written etc. ... *)
     (* See, e.g, Beckschulze E, Kowalewski S, Brauer J (2012) Access-based localization for octagons. Electron Notes Theor Comput Sci 287:29–40 *)
     (* Also, a local *)
-    let vname = Apron.Var.to_string var in
+    let vname = GobApron.Var.show var in
     let locals = fundec.sformals @ fundec.slocals in
     match List.find_opt (fun v -> VM.var_name (Local v) = vname) locals with (* TODO: optimize *)
     | None -> true
@@ -388,11 +388,11 @@ struct
     let st = ctx.local in
     let reachable_from_args = reachable_from_args ctx args in
     let fundec = Node.find_fundec ctx.node in
-    if M.tracing then M.tracel "combine" "relation f: %a" CilType.Varinfo.pretty f.svar;
-    if M.tracing then M.tracel "combine" "relation formals: %a" (d_list "," CilType.Varinfo.pretty) f.sformals;
-    if M.tracing then M.tracel "combine" "relation args: %a" (d_list "," d_exp) args;
-    if M.tracing then M.tracel "combine" "relation st: %a" D.pretty st;
-    if M.tracing then M.tracel "combine" "relation fun_st: %a" D.pretty fun_st;
+    if M.tracing then M.tracel "combine-rel" "relation f: %a" CilType.Varinfo.pretty f.svar;
+    if M.tracing then M.tracel "combine-rel" "relation formals: %a" (d_list "," CilType.Varinfo.pretty) f.sformals;
+    if M.tracing then M.tracel "combine-rel" "relation args: %a" (d_list "," d_exp) args;
+    if M.tracing then M.tracel "combine-rel" "relation st: %a" D.pretty st;
+    if M.tracing then M.tracel "combine-rel" "relation fun_st: %a" D.pretty fun_st;
     let new_fun_rel = RD.add_vars fun_st.rel (RD.vars st.rel) in
     let arg_substitutes =
       let filter_actuals (x,e) =
@@ -418,7 +418,7 @@ struct
     in
     let any_local_reachable = any_local_reachable fundec reachable_from_args in
     let arg_vars = f.sformals |> List.filter (RD.Tracked.varinfo_tracked) |> List.map RV.arg in
-    if M.tracing then M.tracel "combine" "relation remove vars: %a" (docList (fun v -> Pretty.text (Apron.Var.to_string v))) arg_vars;
+    if M.tracing then M.tracel "combine-rel" "relation remove vars: %a" (docList (GobApron.Var.pretty ())) arg_vars;
     RD.remove_vars_with new_fun_rel arg_vars; (* fine to remove arg vars that also exist in caller because unify from new_rel adds them back with proper constraints *)
     let tainted = f_ask.f Queries.MayBeTainted in
     let tainted_vars = TaintPartialContexts.conv_varset tainted in
@@ -432,7 +432,7 @@ struct
       )
     in
     let unify_rel = RD.unify new_rel new_fun_rel in (* TODO: unify_with *)
-    if M.tracing then M.tracel "combine" "relation unifying %a %a = %a" RD.pretty new_rel RD.pretty new_fun_rel RD.pretty unify_rel;
+    if M.tracing then M.tracel "combine-rel" "relation unifying %a %a = %a" RD.pretty new_rel RD.pretty new_fun_rel RD.pretty unify_rel;
     {fun_st with rel = unify_rel}
 
   let combine_assign ctx r fe f args fc fun_st (f_ask : Queries.ask) =
@@ -440,8 +440,10 @@ struct
     if RD.Tracked.type_tracked (Cilfacade.fundec_return_type f) then (
       let unify_st' = match r with
         | Some lv ->
-          assign_to_global_wrapper (Analyses.ask_of_ctx ctx) ctx.global ctx.sideg unify_st lv (fun st v ->
-              RD.assign_var st.rel (RV.local v) RV.return
+          let ask = Analyses.ask_of_ctx ctx in
+          assign_to_global_wrapper ask ctx.global ctx.sideg unify_st lv (fun st v ->
+              let rel = RD.assign_var st.rel (RV.local v) RV.return in
+              assert_type_bounds ask rel v (* TODO: should be done in return instead *)
             )
         | None ->
           unify_st
@@ -632,6 +634,15 @@ struct
       )
     |> Enum.fold (fun acc x -> Invariant.(acc && of_exp x)) Invariant.none
 
+  let query_invariant_global ctx g =
+    if GobConfig.get_bool "ana.relation.invariant.global" && ctx.ask (GhostVarAvailable Multithreaded) then (
+      let var = WitnessGhost.to_varinfo Multithreaded in
+      let inv = Priv.invariant_global (Analyses.ask_of_ctx ctx) ctx.global g in
+      Invariant.(of_exp (UnOp (LNot, Lval (GoblintCil.var var), GoblintCil.intType)) || inv) [@coverage off] (* bisect_ppx cannot handle redefined (||) *)
+    )
+    else
+      Invariant.none
+
   let query ctx (type a) (q: a Queries.t): a Queries.result =
     let open Queries in
     let st = ctx.local in
@@ -653,6 +664,9 @@ struct
       let vf' x = vf (Obj.repr x) in
       Priv.iter_sys_vars ctx.global vq vf'
     | Queries.Invariant context -> query_invariant ctx context
+    | Queries.InvariantGlobal g ->
+      let g: V.t = Obj.obj g in
+      query_invariant_global ctx g
     | _ -> Result.top q
 
 
@@ -680,15 +694,18 @@ struct
     ctx.local
 
   let event ctx e octx =
+    let ask = Analyses.ask_of_ctx ctx in
     let st = ctx.local in
     match e with
-    | Events.Lock (addr, _) when ThreadFlag.has_ever_been_multi (Analyses.ask_of_ctx ctx) -> (* TODO: is this condition sound? *)
-      Priv.lock (Analyses.ask_of_ctx ctx) ctx.global st addr
-    | Events.Unlock addr when ThreadFlag.has_ever_been_multi (Analyses.ask_of_ctx ctx) -> (* TODO: is this condition sound? *)
-      if addr = UnknownPtr then
-        M.info ~category:Unsound "Unknown mutex unlocked, relation privatization unsound"; (* TODO: something more sound *)
-      WideningTokens.with_local_side_tokens (fun () ->
-          Priv.unlock (Analyses.ask_of_ctx ctx) ctx.global ctx.sideg st addr
+    | Events.Lock (addr, _) when ThreadFlag.has_ever_been_multi ask -> (* TODO: is this condition sound? *)
+      CommonPriv.lift_lock ask (fun st m ->
+          Priv.lock ask ctx.global st m
+        ) st addr
+    | Events.Unlock addr when ThreadFlag.has_ever_been_multi ask -> (* TODO: is this condition sound? *)
+      WideningTokenLifter.with_local_side_tokens (fun () ->
+          CommonPriv.lift_unlock ask (fun st m ->
+              Priv.unlock ask ctx.global ctx.sideg st m
+            ) st addr
         )
     | Events.EnterMultiThreaded ->
       Priv.enter_multithreaded (Analyses.ask_of_ctx ctx) ctx.global ctx.sideg st
@@ -696,7 +713,7 @@ struct
       Priv.escape ctx.node (Analyses.ask_of_ctx ctx) ctx.global ctx.sideg st escaped
     | Assert exp ->
       assert_fn ctx exp true
-    | Events.Unassume {exp = e; uuids} ->
+    | Events.Unassume {exp = e; tokens} ->
       let e_orig = e in
       let ask = Analyses.ask_of_ctx ctx in
       let e = replace_deref_exps ctx.ask e in
@@ -732,7 +749,7 @@ struct
 
       (* TODO: parallel write_global? *)
       let st =
-        WideningTokens.with_side_tokens (WideningTokens.TS.of_list uuids) (fun () ->
+        WideningTokenLifter.with_side_tokens (WideningTokenLifter.TS.of_list tokens) (fun () ->
             VH.fold (fun v v_in st ->
                 (* TODO: is this sideg fine? *)
                 write_global ask ctx.global ctx.sideg st v v_in
@@ -751,7 +768,7 @@ struct
 
   let sync ctx reason =
     (* After the solver is finished, store the results (for later comparison) *)
-    if !AnalysisState.postsolving then begin
+    if !AnalysisState.postsolving && GobConfig.get_string "exp.relation.prec-dump" <> "" then begin
       let keep_local = GobConfig.get_bool "ana.relation.invariant.local" in
       let keep_global = GobConfig.get_bool "ana.relation.invariant.global" in
 
@@ -766,8 +783,8 @@ struct
       let new_value = RD.join old_value st in
       PCU.RH.replace results ctx.node new_value;
     end;
-    WideningTokens.with_local_side_tokens (fun () ->
-        Priv.sync (Analyses.ask_of_ctx ctx) ctx.global ctx.sideg ctx.local (reason :> [`Normal | `Join | `Return | `Init | `Thread])
+    WideningTokenLifter.with_local_side_tokens (fun () ->
+        Priv.sync (Analyses.ask_of_ctx ctx) ctx.global ctx.sideg ctx.local (reason :> [`Normal | `Join | `JoinCall of CilType.Fundec.t | `Return | `Init | `Thread])
       )
 
   let init marshal =

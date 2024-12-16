@@ -17,6 +17,7 @@ module IdxDom = ValueDomain.IndexDomain
 module AD = ValueDomain.AD
 module Addr = ValueDomain.Addr
 module Offs = ValueDomain.Offs
+module ZeroInit = ValueDomain.ZeroInit
 module LF = LibraryFunctions
 module CArrays = ValueDomain.CArrays
 module PU = PrecisionUtil
@@ -33,12 +34,10 @@ module MainFunctor (Priv:BasePriv.S) (RVEval:BaseDomain.ExpEvaluator with type t
 struct
   include Analyses.DefaultSpec
 
-  exception Top
-
   module Dom    = BaseDomain.DomFunctor (Priv.D) (RVEval)
   type t = Dom.t
   module D      = Dom
-  module C      = Dom
+  include Analyses.ValueContexts(D)
 
   (* Two global invariants:
      1. Priv.V -> Priv.G  --  used for Priv
@@ -79,6 +78,7 @@ struct
   type glob_diff = (V.t * G.t) list
 
   let name () = "base"
+
   let startstate v: store = { cpa = CPA.bot (); deps = Dep.bot (); weak = WeakUpdates.bot (); priv = Priv.startstate ()}
   let exitstate  v: store = { cpa = CPA.bot (); deps = Dep.bot (); weak = WeakUpdates.bot (); priv = Priv.startstate ()}
 
@@ -169,7 +169,7 @@ struct
    * Abstract evaluation functions
    **************************************************************************)
 
-  let iDtoIdx = ID.cast_to (Cilfacade.ptrdiff_ikind ())
+  let iDtoIdx x = ID.cast_to (Cilfacade.ptrdiff_ikind ()) x
 
   let unop_ID = function
     | Neg  -> ID.neg
@@ -259,6 +259,8 @@ struct
       (* adds n to the last offset *)
       let rec addToOffset n (t:typ option) = function
         | `Index (i, `NoOffset) ->
+          (* Binary operations on pointer types should not generate warnings in SV-COMP *)
+          GobRef.wrap AnalysisState.executing_speculative_computations true @@ fun () ->
           (* If we have arrived at the last Offset and it is an Index, we add our integer to it *)
           `Index(IdxDom.add i (iDtoIdx n), `NoOffset)
         | `Field (f, `NoOffset) ->
@@ -443,13 +445,13 @@ struct
     in
     if M.tracing then M.tracel "sync" "sync multi=%B earlyglobs=%B" multi !earlyglobs;
     if !earlyglobs || multi then
-      WideningTokens.with_local_side_tokens (fun () ->
+      WideningTokenLifter.with_local_side_tokens (fun () ->
           Priv.sync (Analyses.ask_of_ctx ctx) (priv_getg ctx.global) (priv_sideg ctx.sideg) ctx.local reason
         )
     else
       ctx.local
 
-  let sync ctx reason = sync' (reason :> [`Normal | `Join | `Return | `Init | `Thread]) ctx
+  let sync ctx reason = sync' (reason :> [`Normal | `Join | `JoinCall of CilType.Fundec.t | `Return | `Init | `Thread]) ctx
 
   let publish_all ctx reason =
     ignore (sync' reason ctx)
@@ -622,7 +624,7 @@ struct
 
   let drop_intervalSet = CPA.map (function Int x -> Int (ID.no_intervalSet x) | x -> x )
 
-  let context (fd: fundec) (st: store): store =
+  let context ctx (fd: fundec) (st: store): store =
     let f keep drop_fn (st: store) = if keep then st else { st with cpa = drop_fn st.cpa} in
     st |>
     (* Here earlyglobs only drops syntactic globals from the context and does not consider e.g. escaped globals. *)
@@ -1179,6 +1181,9 @@ struct
     not is_alloc || (is_alloc && not (ctx.ask (Queries.IsHeapVar v)))
 
   let query_invariant ctx context =
+    let keep_local = GobConfig.get_bool "ana.base.invariant.local" in
+    let keep_global = GobConfig.get_bool "ana.base.invariant.global" in
+
     let cpa = ctx.local.BaseDomain.cpa in
     let ask = Analyses.ask_of_ctx ctx in
 
@@ -1191,6 +1196,13 @@ struct
     in
     let module I = ValueDomain.ValueInvariant (Arg) in
 
+    let var_filter v =
+      if is_global ask v then
+        keep_global
+      else
+        keep_local
+    in
+
     let var_invariant ?offset v =
       if not (InvariantCil.var_is_heap v) then
         I.key_invariant v ?offset (Arg.find v)
@@ -1201,14 +1213,23 @@ struct
     if Lval.Set.is_top context.Invariant.lvals then (
       if !earlyglobs || ThreadFlag.has_ever_been_multi ask then (
         let cpa_invariant =
-          CPA.fold (fun k v a ->
-              if not (is_global ask k) then
-                Invariant.(a && var_invariant k)
-              else
-                a
-            ) cpa Invariant.none
+          if keep_local then (
+            CPA.fold (fun k v a ->
+                if not (is_global ask k) then
+                  Invariant.(a && var_invariant k)
+                else
+                  a
+              ) cpa Invariant.none
+          )
+          else
+            Invariant.none
         in
-        let priv_vars = Priv.invariant_vars ask (priv_getg ctx.global) ctx.local in
+        let priv_vars =
+          if keep_global then
+            Priv.invariant_vars ask (priv_getg ctx.global) ctx.local
+          else
+            []
+        in
         let priv_invariant =
           List.fold_left (fun acc v ->
               Invariant.(var_invariant v && acc)
@@ -1218,7 +1239,10 @@ struct
       )
       else (
         CPA.fold (fun k v a ->
-            Invariant.(a && var_invariant k)
+            if var_filter k then
+              Invariant.(a && var_invariant k)
+            else
+              a
           ) cpa Invariant.none
       )
     )
@@ -1226,7 +1250,7 @@ struct
       Lval.Set.fold (fun k a ->
           let i =
             match k with
-            | (Var v, offset) when not (InvariantCil.var_is_heap v) ->
+            | (Var v, offset) when var_filter v && not (InvariantCil.var_is_heap v) ->
               (try I.key_invariant_lval v ~offset ~lval:k (Arg.find v) with Not_found -> Invariant.none)
             | _ -> Invariant.none
           in
@@ -1241,13 +1265,23 @@ struct
       Invariant.none
 
   let query_invariant_global ctx g =
-    if GobConfig.get_bool "ana.base.invariant.enabled" && get_bool "exp.earlyglobs" then (
+    if GobConfig.get_bool "ana.base.invariant.enabled" && GobConfig.get_bool "ana.base.invariant.global" then (
       (* Currently these global invariants are only sound with earlyglobs enabled for both single- and multi-threaded programs.
-         Otherwise, the values of globals in single-threaded mode are not accounted for. *)
-      (* TODO: account for single-threaded values without earlyglobs. *)
+         Otherwise, the values of globals in single-threaded mode are not accounted for.
+         They are also made sound without earlyglobs using the multithreaded mode ghost variable. *)
       match g with
       | `Left g' -> (* priv *)
-        Priv.invariant_global (Analyses.ask_of_ctx ctx) (priv_getg ctx.global) g'
+        let inv = Priv.invariant_global (Analyses.ask_of_ctx ctx) (priv_getg ctx.global) g' in
+        if get_bool "exp.earlyglobs" then
+          inv
+        else (
+          if ctx.ask (GhostVarAvailable Multithreaded) then (
+            let var = WitnessGhost.to_varinfo Multithreaded in
+            Invariant.(of_exp (UnOp (LNot, Lval (GoblintCil.var var), GoblintCil.intType)) || inv) [@coverage off] (* bisect_ppx cannot handle redefined (||) *)
+          )
+          else
+            Invariant.none
+        )
       | `Right _ -> (* thread return *)
         Invariant.none
     )
@@ -1905,14 +1939,14 @@ struct
       in
       begin match current_val with
         | Bot -> (* current value is VD Bot *)
-          begin match Addr.to_mval (AD.choose lval_val) with
-            | Some (x,offs) ->
+          begin match AD.to_mval lval_val with
+            | [(x,offs)] ->
               let t = v.vtype in
               let iv = VD.bot_value ~varAttr:v.vattr t in (* correct bottom value for top level variable *)
-              if M.tracing then M.tracel "set" "init bot value: %a" VD.pretty iv;
+              if M.tracing then M.tracel "set" "init bot value (%a): %a" d_plaintype t VD.pretty iv;
               let nv = VD.update_offset (Queries.to_value_domain_ask (Analyses.ask_of_ctx ctx)) iv offs rval_val (Some  (Lval lval)) lval t in (* do desired update to value *)
               set_savetop ~ctx  ctx.local (AD.of_var v) lval_t nv ~lval_raw:lval ~rval_raw:rval (* set top-level variable to updated value *)
-            | None ->
+            | _ ->
               set_savetop ~ctx ctx.local lval_val lval_t rval_val ~lval_raw:lval ~rval_raw:rval
           end
         | _ ->
@@ -2041,7 +2075,7 @@ struct
       List.map mpt exps
     )
 
-  let invalidate ?(deep=true) ~ctx (st:store) (exps: exp list): store =
+  let invalidate ~(must: bool) ?(deep=true) ~ctx (st:store) (exps: exp list): store =
     if M.tracing && exps <> [] then M.tracel "invalidate" "Will invalidate expressions [%a]" (d_list ", " d_plainexp) exps;
     if exps <> [] then M.info ~category:Imprecise "Invalidating expressions: %a" (d_list ", " d_exp) exps;
     (* To invalidate a single address, we create a pair with its corresponding
@@ -2068,7 +2102,15 @@ struct
       let vs = List.map (Tuple3.third) invalids' in
       M.tracel "invalidate" "Setting addresses [%a] to values [%a]" (d_list ", " AD.pretty) addrs (d_list ", " VD.pretty) vs
     );
-    set_many ~ctx st invalids'
+    (* copied from set_many *)
+    let f (acc: store) ((lval:AD.t),(typ:Cil.typ),(value:value)): store =
+      let acc' = set ~ctx acc lval typ value in
+      if must then
+        acc'
+      else
+        D.join acc acc'
+    in
+    List.fold_left f st invalids'
 
 
   let make_entry ?(thread=false) (ctx:(D.t, G.t, C.t, V.t) Analyses.ctx) fundec args: D.t =
@@ -2162,11 +2204,7 @@ struct
         in
         List.filter_map (create_thread ~multiple (Some (Mem id, NoOffset)) (Some ptc_arg)) start_funvars_with_unknown
       end
-    | _, _ when get_bool "sem.unknown_function.spawn" ->
-      (* TODO: Remove sem.unknown_function.spawn check because it is (and should be) really done in LibraryFunctions.
-         But here we consider all non-ThreadCrate functions also unknown, so old-style LibraryFunctions access
-         definitions using `Write would still spawn because they are not truly unknown functions (missing from LibraryFunctions).
-         Need this to not have memmove spawn in SV-COMP. *)
+    | _, _ ->
       let shallow_args = LibraryDesc.Accesses.find desc.accs { kind = Spawn; deep = false } args in
       let deep_args = LibraryDesc.Accesses.find desc.accs { kind = Spawn; deep = true } args in
       let shallow_flist = collect_invalidate ~deep:false ~ctx ctx.local shallow_args in
@@ -2175,7 +2213,6 @@ struct
       let addrs = List.concat_map AD.to_var_may flist in
       if addrs <> [] then M.debug ~category:Analyzer "Spawning non-unique functions from unknown function: %a" (d_list ", " CilType.Varinfo.pretty) addrs;
       List.filter_map (create_thread ~multiple:true None None) addrs
-    | _, _ -> []
 
   let assert_fn ctx e refine =
     (* make the state meet the assertion in the rest of the code *)
@@ -2207,8 +2244,8 @@ struct
     in
     (* TODO: what about escaped local variables? *)
     (* invalidate arguments and non-static globals for unknown functions *)
-    let st' = invalidate ~deep:false ~ctx ctx.local shallow_addrs in
-    invalidate ~deep:true ~ctx st' deep_addrs
+    let st' = invalidate ~must:false ~deep:false ~ctx ctx.local shallow_addrs in
+    invalidate ~must:false ~deep:true ~ctx st' deep_addrs
 
   let check_invalid_mem_dealloc ctx special_fn ptr =
     let has_non_heap_var = AD.exists (function
@@ -2298,7 +2335,7 @@ struct
     let invalidate_ret_lv st = match lv with
       | Some lv ->
         if M.tracing then M.tracel "invalidate" "Invalidating lhs %a for function call %s" d_plainlval lv f.vname;
-        invalidate ~deep:false ~ctx st [Cil.mkAddrOrStartOf lv]
+        invalidate ~must:true ~deep:false ~ctx st [Cil.mkAddrOrStartOf lv]
       | None -> st
     in
     let addr_type_of_exp exp =
@@ -2632,26 +2669,35 @@ struct
         | Int n when GobOption.exists (Z.equal Z.zero) (ID.to_int n) -> st
         | Address ret_a ->
           begin match eval_rv ~ctx st id with
-            | Thread a when ValueDomain.Threads.is_top a -> invalidate ~ctx st [ret_var]
+            | Thread a when ValueDomain.Threads.is_top a -> invalidate ~must:true ~ctx st [ret_var]
             | Thread a ->
               let v = List.fold VD.join (VD.bot ()) (List.map (fun x -> G.thread (ctx.global (V.thread x))) (ValueDomain.Threads.elements a)) in
               (* TODO: is this type right? *)
               set ~ctx st ret_a (Cilfacade.typeOf ret_var) v
-            | _      -> invalidate ~ctx st [ret_var]
+            | _      -> invalidate ~must:true ~ctx st [ret_var]
           end
-        | _      -> invalidate ~ctx st [ret_var]
+        | _      -> invalidate ~must:true ~ctx st [ret_var]
       in
       let st' = invalidate_ret_lv st' in
       Priv.thread_join (Analyses.ask_of_ctx ctx) (priv_getg ctx.global) id st'
     | Unknown, "__goblint_assume_join" ->
       let id = List.hd args in
       Priv.thread_join ~force:true (Analyses.ask_of_ctx ctx) (priv_getg ctx.global) id st
+    | ThreadSelf, _ ->
+      begin match lv, ThreadId.get_current (Analyses.ask_of_ctx ctx) with
+        | Some lv, `Lifted tid ->
+          set ~ctx st (eval_lv ~ctx st lv) (Cilfacade.typeOfLval lv) (Thread (ValueDomain.Threads.singleton tid))
+        | Some lv, _ ->
+          invalidate_ret_lv st
+        | None, _ ->
+          st
+      end
     | Alloca size, _ -> begin
         match lv with
         | Some lv ->
           let heap_var = AD.of_var (heap_var true ctx) in
           (* ignore @@ printf "alloca will allocate %a bytes\n" ID.pretty (eval_int ~ctx size); *)
-          set_many ~ctx st [(heap_var, TVoid [], Blob (VD.bot (), eval_int ~ctx st size, true));
+          set_many ~ctx st [(heap_var, TVoid [], Blob (VD.bot (), eval_int ~ctx st size, ZeroInit.malloc));
                             (eval_lv ~ctx st lv, (Cilfacade.typeOfLval lv), Address heap_var)]
         | _ -> st
       end
@@ -2664,7 +2710,7 @@ struct
             else AD.of_var (heap_var false ctx)
           in
           (* ignore @@ printf "malloc will allocate %a bytes\n" ID.pretty (eval_int ~ctx size); *)
-          set_many ~ctx st [(heap_var, TVoid [], Blob (VD.bot (), eval_int ~ctx st size, true));
+          set_many ~ctx st [(heap_var, TVoid [], Blob (VD.bot (), eval_int ~ctx st size, ZeroInit.malloc));
                             (eval_lv ~ctx st lv, (Cilfacade.typeOfLval lv), Address heap_var)]
         | _ -> st
       end
@@ -2681,7 +2727,7 @@ struct
           let countval = eval_int ~ctx st n in
           if ID.to_int countval = Some Z.one then (
             set_many ~ctx st [
-              (add_null (AD.of_var heap_var), TVoid [], Blob (VD.bot (), sizeval, false));
+              (add_null (AD.of_var heap_var), TVoid [], Blob (VD.bot (), sizeval, ZeroInit.calloc));
               (eval_lv ~ctx st lv, (Cilfacade.typeOfLval lv), Address (add_null (AD.of_var heap_var)))
             ]
           )
@@ -2689,7 +2735,7 @@ struct
             let blobsize = ID.mul (ID.cast_to ik @@ sizeval) (ID.cast_to ik @@ countval) in
             (* the memory that was allocated by calloc is set to bottom, but we keep track that it originated from calloc, so when bottom is read from memory allocated by calloc it is turned to zero *)
             set_many ~ctx st [
-              (add_null (AD.of_var heap_var), TVoid [], Array (CArrays.make (IdxDom.of_int (Cilfacade.ptrdiff_ikind ()) Z.one) (Blob (VD.bot (), blobsize, false))));
+              (add_null (AD.of_var heap_var), TVoid [], Array (CArrays.make (IdxDom.of_int (Cilfacade.ptrdiff_ikind ()) Z.one) (Blob (VD.bot (), blobsize, ZeroInit.calloc))));
               (eval_lv ~ctx st lv, (Cilfacade.typeOfLval lv), Address (add_null (AD.of_mval (heap_var, `Index (IdxDom.of_int (Cilfacade.ptrdiff_ikind ()) Z.zero, `NoOffset)))))
             ]
           )
@@ -2712,7 +2758,7 @@ struct
           let p_addr' = AD.remove NullPtr p_addr in (* realloc with NULL is same as malloc, remove to avoid unknown value from NullPtr access *)
           let p_addr_get = get ~ctx st p_addr' None in (* implicitly includes join of malloc value (VD.bot) *)
           let size_int = eval_int ~ctx st size in
-          let heap_val:value = Blob (p_addr_get, size_int, true) in (* copy old contents with new size *)
+          let heap_val:value = Blob (p_addr_get, size_int, ZeroInit.malloc) in (* copy old contents with new size *)
           let heap_addr = AD.of_var (heap_var false ctx) in
           let heap_addr' =
             if get_bool "sem.malloc.fail" then
@@ -3046,7 +3092,7 @@ struct
     (* Perform actual [set]-s with final unassumed values.
        This invokes [Priv.write_global], which was suppressed above. *)
     let e_d' =
-      WideningTokens.with_side_tokens (WideningTokens.TS.of_list uuids) (fun () ->
+      WideningTokenLifter.with_side_tokens (WideningTokenLifter.TS.of_list uuids) (fun () ->
           CPA.fold (fun x v acc ->
               let addr: AD.t = AD.of_mval (x, `NoOffset) in
               set ~ctx ~invariant:false acc addr x.vtype v
@@ -3061,12 +3107,14 @@ struct
     match e with
     | Events.Lock (addr, _) when ThreadFlag.has_ever_been_multi ask -> (* TODO: is this condition sound? *)
       if M.tracing then M.tracel "priv" "LOCK EVENT %a" LockDomain.Addr.pretty addr;
-      Priv.lock ask (priv_getg ctx.global) st addr
+      CommonPriv.lift_lock ask (fun st m ->
+          Priv.lock ask (priv_getg ctx.global) st m
+        ) st addr
     | Events.Unlock addr when ThreadFlag.has_ever_been_multi ask -> (* TODO: is this condition sound? *)
-      if addr = UnknownPtr then
-        M.info ~category:Unsound "Unknown mutex unlocked, base privatization unsound"; (* TODO: something more sound *)
-      WideningTokens.with_local_side_tokens (fun () ->
-          Priv.unlock ask (priv_getg ctx.global) (priv_sideg ctx.sideg) st addr
+      WideningTokenLifter.with_local_side_tokens (fun () ->
+          CommonPriv.lift_unlock ask (fun st m ->
+              Priv.unlock ask (priv_getg ctx.global) (priv_sideg ctx.sideg) st m
+            ) st addr
         )
     | Events.Escape escaped ->
       Priv.escape ask (priv_getg ctx.global) (priv_sideg ctx.sideg) st escaped
@@ -3077,8 +3125,8 @@ struct
       set ~ctx ctx.local (eval_lv ~ctx ctx.local lval) (Cilfacade.typeOfLval lval) (Thread (ValueDomain.Threads.singleton tid))
     | Events.Assert exp ->
       assert_fn ctx exp true
-    | Events.Unassume {exp; uuids} ->
-      Timing.wrap "base unassume" (unassume ctx exp) uuids
+    | Events.Unassume {exp; tokens} ->
+      Timing.wrap "base unassume" (unassume ctx exp) tokens
     | Events.Longjmped {lval} ->
       begin match lval with
         | Some lval ->

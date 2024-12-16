@@ -15,7 +15,7 @@ struct
   module Addr = ValueDomain.Addr
 
   module D = ValueDomain.AddrSetDomain
-  module C = ValueDomain.AddrSetDomain
+  include Analyses.ValueContexts(D)
   module P = IdentityP (D)
 
   type trans_in  = D.t
@@ -135,7 +135,7 @@ struct
     in
     let utar, uoth = unrollType target, unrollType other in
     match ofs, utar, uoth with
-    |     `NoOffset,              _ ,               _ when utar == uoth  -> [v, rev cx]
+    |     `NoOffset,              _ ,               _ when CilType.Typ.equal utar uoth  -> [v, rev cx]
     |     `NoOffset,              _ ,    TComp (c2,_) when not c2.cstruct ->
       (* unroll other (union) *)
       List.concat (List.rev_map (fun oth_f -> get_pfx v (`Field (oth_f, cx)) ofs utar oth_f.ftype) c2.cfields)

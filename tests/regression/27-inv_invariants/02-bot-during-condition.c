@@ -1,3 +1,4 @@
+// NOCHECK
 int main ()
 {
   int tmp;
