@@ -12,7 +12,7 @@ Should have (safe) write accesses to id1 and id2:
     dead: 0
     total lines: 13
   [Success][Race] Memory location id1 (safe): (63-access-threadspawn-lval.c:4:11-4:14)
-    write with [multi:false, thread:[main]] (conf. 110)  (exp: & *((pthread_t * __restrict  )(& id1))) (63-access-threadspawn-lval.c:27:3-27:37)
+    write with [flag:Singlethreaded, thread:[main]] (conf. 110)  (exp: & *((pthread_t * __restrict  )(& id1))) (63-access-threadspawn-lval.c:27:3-27:37)
   [Success][Race] Memory location id2 (safe): (63-access-threadspawn-lval.c:5:11-5:14)
     write with [mhp:{created={[main, f@63-access-threadspawn-lval.c:27:3-27:37]}}, thread:[main]] (conf. 110)  (exp: (pthread_t * __restrict  )(& id2)) (63-access-threadspawn-lval.c:28:3-28:37)
     write with [mhp:{created={[main, f@63-access-threadspawn-lval.c:27:3-27:37]}}, thread:[main]] (conf. 110)  (exp: & *((pthread_t * __restrict  )(& id2))) (63-access-threadspawn-lval.c:28:3-28:37)
