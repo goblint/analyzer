@@ -111,6 +111,9 @@ module ArrayVector: AbstractVector =
     let map_f_preserves_zero f v = failwith "Never implemented!"
     let map2_f_preserves_zero f v1 v2 = failwith "Never implemented!"
 
+    let mapi_f_preserves_zero f v = failwith "Never implemented!"
+    let map2i_f_preserves_zero f v v' = failwith "Never implemented!"
+
     let fold_left_f_preserves_zero f acc v =
       failwith "Never implemented!"
 

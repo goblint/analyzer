@@ -95,6 +95,9 @@ module SparseVector: AbstractVector =
           ) [] v.entries in
         {entries = entries'; len = v.len + 1}
 
+    let map f v = 
+      of_list (List.map f (to_list v))
+
     let map_f_preserves_zero f v = (* map for functions f such that f 0 = 0 since f won't be applied to zero values. See also map *)
       let entries' = List.filter_map (
           fun (idx, value) -> let new_val = f value in 
@@ -102,6 +105,10 @@ module SparseVector: AbstractVector =
       {entries = entries'; len = v.len}
 
     let map_f_preserves_zero f v = Timing.wrap "map_f_preserves_zero" (map_f_preserves_zero f) v
+
+    let map2 f v v' = (* TODO: Optimize! *)
+      if v.len <> v'.len then failwith "Unequal vector length" else 
+        of_list (List.map2 f (to_list v) (to_list v'))
 
     (* map for functions f such that f 0 0 = 0 since f won't be applied to if both values are zero. See also map *)
     let map2_f_preserves_zero f v1 v2 =
@@ -124,6 +131,20 @@ module SparseVector: AbstractVector =
         to_vector (List.rev (aux [] v1.entries v2.entries)) v1.len
 
     let map2_f_preserves_zero f v1 v2 = Timing.wrap "map2_f_preserves_zero" (map2_f_preserves_zero f v1) v2
+
+    let map2i f v v' = (* TODO: optimize! *)
+      of_list (List.map2i f (to_list v) (to_list v'))
+
+    let map2i_f_preserves_zero f v v' = failwith "TODO"
+
+    let mapi f v  = (* TODO: optimize! *)
+      of_list (List.mapi f (to_list v))
+
+    let mapi_f_preserves_zero f v =
+      let entries' = List.filter_map (
+          fun (idx, value) -> let new_val = f idx value in 
+            if new_val = A.zero then None else Some (idx, new_val)) v.entries in 
+      {entries = entries'; len = v.len}
 
     let fold_left_f_preserves_zero f acc v =
       List.fold_left (fun acc (_, value) -> f acc value) acc v.entries
@@ -168,10 +189,6 @@ module SparseVector: AbstractVector =
     let length v =
       v.len
 
-    let map2 f v v' = (* TODO: Optimize! *)
-      if v.len <> v'.len then failwith "Unequal vector length" else 
-        of_list (List.map2 f (to_list v) (to_list v'))
-
     let apply_with_c_f_preserves_zero f c v =
       let entries' = List.filter_map (fun (idx, value) -> let new_val = f value c in if new_val =: A.zero then None else Some (idx, new_val)) v.entries in
       {entries = entries'; len = v.len}
@@ -206,9 +223,6 @@ module SparseVector: AbstractVector =
 
     let find_first_non_zero v = Timing.wrap "find_first_non_zero" (find_first_non_zero) v
 
-    let map f v = 
-      of_list (List.map f (to_list v))
-
     let compare_length_with v n = 
       Int.compare v.len n
 
@@ -233,12 +247,6 @@ module SparseVector: AbstractVector =
     let rev v = 
       let entries' = List.rev @@ List.map (fun (idx, value) -> (v.len - 1 - idx, value)) v.entries in 
       {entries = entries'; len = v.len}
-
-    let map2i f v v' = (* TODO: optimize! *)
-      of_list (List.map2i f (to_list v) (to_list v'))
-
-    let mapi f v  = (* TODO: optimize! *)
-      of_list (List.mapi f (to_list v))
 
     let find2i f v v' = (* TODO: optimize! *)
       fst @@ List.findi (fun _ (val1, val2) -> (uncurry f) (val1, val2)) (List.combine (to_list v) (to_list v'))

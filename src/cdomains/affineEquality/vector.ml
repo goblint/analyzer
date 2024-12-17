@@ -72,7 +72,11 @@ sig
 
   val map2i: (int -> num -> num -> num) -> t -> t -> t
 
+  val map2i_f_preserves_zero: (int -> num -> num -> num) -> t -> t -> t
+
   val mapi: (int -> num -> num) -> t -> t
+
+  val mapi_f_preserves_zero: (int -> num -> num) -> t -> t
 
   val mapi: (int -> num -> num) -> t -> t
 

@@ -286,7 +286,7 @@ struct
       if s >= Matrix.num_cols a then a else
         let case_two a r col_b =
           let a_r = Matrix.get_row a r in
-          let a = Matrix.map2i (fun i x y -> if i < r then Vector.map2 (fun u j -> u +: y *: j) x a_r else x) a col_b; in
+          let a = Matrix.map2i (fun i x y -> if i < r then Vector.map2_f_preserves_zero (fun u j -> u +: y *: j) x a_r else x) a col_b; in
           Matrix.remove_row a r
         in
         let case_three a b col_a col_b max =
@@ -397,7 +397,7 @@ struct
     let assign_invertible_rels x var b env = Timing.wrap "assign_invertible" (assign_invertible_rels x var b) env in
     let assign_uninvertible_rel x var b env =
       let b_length = Vector.length b in
-      let b = Vector.mapi (fun i z -> if i < b_length - 1 then Mpqf.neg z else z) b in
+      let b = Vector.mapi_f_preserves_zero (fun i z -> if i < b_length - 1 then Mpqf.neg z else z) b in
       let b = Vector.set_nth b (Environment.dim_of_var env var) Mpqf.one in
       match Matrix.rref_vec x b with
       | None -> bot ()
