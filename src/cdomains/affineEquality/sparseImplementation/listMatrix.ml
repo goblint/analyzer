@@ -87,7 +87,7 @@ module ListMatrix: AbstractMatrix =
       List.mapi (fun i row -> if i = j then List.nth m k else if i = k then List.nth m j else row) m
 
     let sub_scaled_row row1 row2 s =
-      V.map2_f_preserves_zero (fun x y -> x -: s *: y) row1 row2
+      V.map2_f_preserves_zero (fun x y -> x -: (s *: y)) row1 row2
 
     let reduce_col m j = 
       if is_empty m then m 
