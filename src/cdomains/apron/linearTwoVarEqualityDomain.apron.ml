@@ -715,13 +715,19 @@ struct
     | None -> []
     | Some d -> 
       let constyp = Tcons1.get_typ tcons in
-      let match_compa = if constyp = SUP then Gt else Ge in
+      (* coff*var_index + cst match_compa 0   -> cil-exp*)
       let mkconstraint coff index cst =
+        let match_compa = match constyp with 
+          | SUPEQ when coff=Z.minus_one -> Le 
+          | SUP   when coff=Z.minus_one -> Lt 
+          | SUPEQ when coff=Z.one -> Ge 
+          | SUP   when coff=Z.one -> Gt 
+          | _ ->  raise (Invalid_argument "refine_value_domains: not implemented") in
         let varifo = Option.get @@ V.to_cil_varinfo (Environment.var_of_dim t.env index) in
         let ik = Cilfacade.get_ikind (varifo.vtype) in
         let lval = Lval (Var varifo, NoOffset) in
-        let monom = BinOp (Mult,Cil.kintegerCilint ik coff,lval,TInt (ik,[])) in
-        BinOp (match_compa, monom ,Cil.kintegerCilint ik cst,Cil.intType)
+        let monom = lval in
+        BinOp (match_compa, monom ,Cil.kintegerCilint ik Z.(coff*cst),Cil.intType)
       in
       match simplified_monomials_from_texp t (Texpr1.to_expr @@ Tcons1.get_texpr1 tcons) with
       | None -> []
