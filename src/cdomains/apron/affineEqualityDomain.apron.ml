@@ -66,9 +66,8 @@ struct
     let open Apron.Texpr1 in
     let exception NotLinear in
     let zero_vec = Vector.zero_vec @@ Environment.size t.env + 1 in
-    let neg v = Vector.map Mpqf.neg v in
-    let is_const_vec v = Vector.compare_length_with (Vector.filteri (fun i x -> (*Inefficient*)
-        Vector.compare_length_with v (i + 1) > 0 && x <>: Mpqf.zero) v) 1 = 0
+    let neg v = Vector.map_f_preserves_zero Mpqf.neg v in
+    let is_const_vec = Vector.is_const_vec 
     in
     let rec convert_texpr = function
       (*If x is a constant, replace it with its const. val. immediately*)

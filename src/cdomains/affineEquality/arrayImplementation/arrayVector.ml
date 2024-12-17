@@ -57,6 +57,8 @@ module ArrayVector: AbstractVector =
 
     let is_zero_vec v = not (Array.exists (fun x -> x <>: A.zero) v)
 
+    let is_const_vec v = failwith "Never implemented!"
+
     let nth = Array.get
 
     let map2i f v1 v2 =
@@ -104,29 +106,29 @@ module ArrayVector: AbstractVector =
 
 
     let find_opt f v =
-      failwith "TODO"
+      failwith "Never implemented!"
 
-    let map_f_preserves_zero f v = failwith "TODO"
-    let map2_f_preserves_zero f v1 v2 = failwith "TODO"
+    let map_f_preserves_zero f v = failwith "Never implemented!"
+    let map2_f_preserves_zero f v1 v2 = failwith "Never implemented!"
 
     let fold_left_f_preserves_zero f acc v =
-      failwith "TODO"
+      failwith "Never implemented!"
 
     let fold_left2_f_preserves_zero f acc v v' =
-      failwith "TODO"
+      failwith "Never implemented!"
 
     let findi_val_opt f v =
-      failwith "TODO"
+      failwith "Never implemented!"
 
     let exists2 f v1 v1 =
-      failwith "TODO / deprecated"
+      failwith "Never implemented!"
 
     let starting_from_nth n v =
-      failwith "TODO / deprecated"
+      failwith "Never implemented!"
 
     let find_first_non_zero v =
-      failwith "TODO"
+      failwith "Never implemented!"
 
     let apply_with_c_f_preserves_zero f c v =
-      failwith "TODO"
+      failwith "Never implemented!"
   end

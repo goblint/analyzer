@@ -34,6 +34,8 @@ sig
 
   val is_zero_vec: t -> bool
 
+  val is_const_vec: t -> bool
+
   val nth: t -> int -> num
 
   val length: t -> int

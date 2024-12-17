@@ -149,6 +149,12 @@ module SparseVector: AbstractVector =
 
     let is_zero_vec v = (v.entries = [])
 
+    let is_const_vec v = 
+      match v.entries with 
+      | [] -> false
+      | (xi,xv)::[] -> if xi = v.len - 1 then false else true 
+      | _ -> false 
+
     let nth v n = (* Note: This exception HAS TO BE THROWN! It is expected by the domain *)
       if n >= v.len then raise (Invalid_argument "Cannot access vector element (out of bounds)")
       else
