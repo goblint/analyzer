@@ -144,6 +144,8 @@ module MallocWrapper : MCPSpec = struct
           Format.dprintf "@tid:%s" (ThreadLifted.show t)
       in
       Format.asprintf "(alloc@sid:%s%t%t)" (Node.show_id node) tid uniq_count
+
+    let typ _ = GoblintCil.voidType
   end
 
   module NodeVarinfoMap = RichVarinfo.BiVarinfoMap.Make(ThreadNode)

@@ -106,6 +106,14 @@ struct
         | `Right v ->
           Queries.Result.top q
       end
+    | YamlEntryGlobal (v, task) ->
+      let v: V.t = Obj.obj v in
+      begin match v with
+        | `Left v ->
+          S.query (conv ctx) (YamlEntryGlobal (Obj.repr v, task))
+        | `Right v ->
+          Queries.Result.top q
+      end
     | _ -> S.query (conv ctx) q
 
   let branch ctx = S.branch (conv ctx)
