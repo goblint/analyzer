@@ -63,8 +63,6 @@ module ArrayVector: AbstractVector =
       let f' i = uncurry (f i) in
       Array.mapi f' (Array.combine v1 v2) (* TODO: iter2i? *)
 
-    let map2i_with f v1 v2 = Array.iter2i (fun i x y -> v1.(i) <- f i x y) v1 v2
-
     let find2i f v1 v2 =
       Array.findi (uncurry f) (Array.combine v1 v2) (* TODO: iter2i? *)
 
@@ -72,13 +70,7 @@ module ArrayVector: AbstractVector =
 
     let of_array v = v
 
-    let apply_with_c_with f c v = Array.modify (fun x -> f x c) v
-
-    let rev_with v = Array.rev_in_place v
-
     let rev v = Array.rev v
-
-    let map_with f v = Array.modify f v
 
     let map f v = Array.map f v
 

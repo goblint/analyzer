@@ -270,29 +270,4 @@ module SparseVector: AbstractVector =
         | x :: xs -> (A.to_string x) ^ " " ^ (list_str xs)
       in
       "["^list_str t^"\n"
-
-    (* ------------------- Deprecated ------------------- *)
-    let mapi_with f v = 
-      failwith "mapi_with deprecated"
-
-    let map2i_with f v v' = 
-      failwith "map2i_with deprecated"
-
-
-    let rev_with v = 
-      failwith "rev_with deprecated"
-
-    let map_with f v  = 
-      failwith "map_with deprecated"
-
-
-    let map2_with f v v' = 
-      failwith "map2_with deprecated"
-
-    let apply_with_c_with f m v = 
-      failwith "apply_with_c_with deprecated"
-
-    let set_nth_with f n num = (
-      failwith "set_nth_with deprecated")
-
   end 

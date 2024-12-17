@@ -299,36 +299,4 @@ module ListMatrix: AbstractMatrix =
     let map2 f m v =
       let vector_length = V.length v in
       List.mapi (fun index row -> if index < vector_length then f row (V.nth v index) else row ) m
-
-
-    (* ------------------------- Deprecated ------------------------*)
-
-    let rref_vec_with m v =
-      (*This function yields the same result as appending vector v to m and normalizing it afterwards would. However, it is usually faster than performing those ops manually.*)
-      (*m must be in rref form and contain the same num of cols as v*)
-      (*If m is empty then v is simply normalized and returned*)
-      failwith "deprecated"
-
-    let rref_with m =
-      failwith "deprecated"
-
-    let reduce_col_with m j =
-      failwith "deprecated"
-
-    let normalize_with m = 
-      failwith "deprecated"
-
-    let set_col_with m new_col n =
-      failwith "deprecated"
-
-    let map2_with f m v =
-      failwith "deprecated"
-
-    let map2i_with f m v =
-      failwith "deprecated"
-
-    let rref_matrix_with m1 m2 =
-      (*Similar to rref_vec_with but takes two matrices instead.*)
-      (*ToDo Could become inefficient for large matrices since pivot_elements are always recalculated + many row additions*)
-      failwith "deprecated"
   end

@@ -265,13 +265,13 @@ module ArrayMatrix: AbstractMatrix =
       (*m must be in rref form and contain the same num of cols as v*)
       (*If m is empty then v is simply normalized and returned*)
       (*let v = V.to_array v in
-      if is_empty m then
+        if is_empty m then
         match Array.findi (fun x -> x <>: A.zero) v with
         | exception Not_found -> None
         | i -> if i = Array.length v - 1 then None else
             let v_i = v.(i) in
             Array.iteri (fun j x -> v.(j) <- x /: v_i) v; Some (init_with_vec @@ V.of_array v)
-      else
+        else
         let pivot_elements = get_pivot_positions m in
         rref_vec_helper m pivot_elements v*)
       normalize @@ append_row m v
@@ -355,10 +355,7 @@ module ArrayMatrix: AbstractMatrix =
           m.(i) <- V.to_array @@ f (V.of_array m.(i)) (V.nth v i)
         done
 
-    (* Deprecated
-       let map2 f m v =
-       let f' x y = V.to_array @@ f (V.of_array x) y in Array.map2 f' m (V.to_array v)
-    *)
+    let map2_with f m v = Timing.wrap "map2_with" (map2_with f m) v
 
     let map2 f m v =
       let () = Printf.printf "Before map2 we have m:\n%s\n" (show m) in
@@ -366,8 +363,6 @@ module ArrayMatrix: AbstractMatrix =
       map2_with f m' v;
       let () = Printf.printf "After map2 we have m:\n%s\n" (show m') in
       m'
-
-    let map2_with f m v = Timing.wrap "map2_with" (map2_with f m) v
 
     let map2i_with f m v =
       if num_rows m = V.length v then
@@ -379,12 +374,6 @@ module ArrayMatrix: AbstractMatrix =
 
     let map2i_with f m v = Timing.wrap "map2i_with" (map2i_with f m) v    
 
-    (* Deprecated
-       let map2i f m v =
-       let f' x (i,y) = V.to_array @@ f i (V.of_array x) y in
-       let range_array = Array.init (V.length v) Fun.id in
-       Array.map2 f' m (Array.combine range_array (V.to_array v))
-    *)
     let map2i f m v =
       let () = Printf.printf "Before map2i m:\n%sv:%s\n" (show m) (V.show v) in
       let m' = copy m in

@@ -33,35 +33,21 @@ sig
 
   val reduce_col: t -> int -> t
 
-  val reduce_col_with: t -> int -> unit
-
   val normalize: t -> t Option.t (*Gauss-Jordan Elimination to get matrix in reduced row echelon form (rref) + deletion of zero rows. None matrix has no solution*)
-
-  val normalize_with: t -> bool
 
   val rref_vec: t -> vec -> t Option.t (* added to remove side effects in affineEqualityDomain*)
 
-  val rref_vec_with: t -> vec -> t Option.t
-
   val rref_matrix: t -> t -> t Option.t (* this as well *)
-
-  val rref_matrix_with: t -> t -> t Option.t
 
   val find_opt: (vec -> bool) -> t -> vec option
 
   val map2: (vec -> num -> vec) -> t -> vec -> t
 
-  val map2_with: (vec -> num -> vec) -> t -> vec -> unit
-
   val map2: (vec -> num -> vec) -> t -> vec -> t (* why is this here twice??*)
 
   val map2i: (int -> vec-> num -> vec) -> t -> vec -> t
 
-  val map2i_with: (int -> vec -> num -> vec) -> t -> vec -> unit
-
   val set_col: t -> vec -> int -> t
-
-  val set_col_with: t -> vec -> int -> t
 
   val init_with_vec: vec -> t
 
