@@ -12,10 +12,10 @@ sig
   val is_main: t -> bool
   val is_unique: t -> bool
 
-  (** Overapproximates whether the first TID can be involved in the creation fo the second TID*)
+  (** Overapproximates whether the first TID can be involved in the creation of the second TID*)
   val may_be_ancestor: t -> t -> bool
 
-  (** Is the first TID a must parent of the second thread. Always false if the first TID is not unique *)
+  (** Is the first TID a must ancestor of the second thread. Always false if the first TID is not unique *)
   val must_be_ancestor: t -> t -> bool
 end
 
