@@ -38,23 +38,6 @@ module SparseVector: AbstractVector =
       if n >= v.len then v else
         {entries = List.take_while (fun (idx, _) -> idx < n) v.entries; len=n}
 
-
-    (* Maybe use the function below instead of this one ?*)
-    let remove_nth v n = 
-      let dec_idx v = 
-        List.map (fun (a,b) -> (a-1, b)) v
-      in
-      let rec remove_nth_vec v n =
-        match v with 
-        | x::xs -> 
-          if fst x = n then dec_idx xs else 
-          if fst x > n then dec_idx (x::xs) else
-            x::(remove_nth_vec xs n)  
-        | [] -> []
-      in
-      if n >= v.len then v else (*could be left out but maybe performance??*)
-        {entries = remove_nth_vec v.entries n; len = v.len - 1}
-
     (* TODO: Which of both remmove_nth should we use *)
     let remove_nth v n =
       if n >= v.len then failwith "Out of bounds"
