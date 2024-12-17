@@ -226,8 +226,7 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): SOverflow with type int_t = Int
       let (min_ik, max_ik) = Size.range ik in
       let isPos = z < Ints_t.zero in 
       let isNeg = o < Ints_t.zero in
-      let underflow = if isSigned ik then (((Ints_t.of_bigint min_ik) &: z) <> Ints_t.zero) && isNeg else isNeg in
-      
+      let underflow = if isSigned ik then (((Ints_t.of_bigint min_ik) &: z) <> Ints_t.zero) && isNeg else isNeg in     
       let overflow = (((!: (Ints_t.of_bigint max_ik)) &: o) <> Ints_t.zero) && isPos in      
       let new_bitfield = wrap ik (z,o)
       in
@@ -241,7 +240,7 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): SOverflow with type int_t = Int
         (* (bot (), overflow_info)) *)
         (top_of ik, overflow_info))
       else 
-        (top (), overflow_info)
+        (top_of ik, overflow_info)
 
   let cast_to ?(suppress_ovwarn=false) ?torg ?no_ov t = norm ~suppress_ovwarn t
 
@@ -375,7 +374,7 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): SOverflow with type int_t = Int
         (bot (), {underflow=false; overflow=false})
     else if is_undefined_shift_operation ik a b
       then
-        (top (), {underflow=false; overflow=false})
+        (top_of ik, {underflow=false; overflow=false})
     else
       norm ik @@ BArith.shift_right ik a (exclude_undefined_bitshifts ik b)
 
@@ -386,7 +385,7 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): SOverflow with type int_t = Int
         (bot (), {underflow=false; overflow=false})
     else if is_undefined_shift_operation ik a b
       then
-        (top (), {underflow=false; overflow=false})
+        (top_of ik, {underflow=false; overflow=false})
     else
       norm ik @@ BArith.shift_left ik a (exclude_undefined_bitshifts ik b)
 
@@ -436,7 +435,7 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): SOverflow with type int_t = Int
     norm ik (z3, o3)
 
   let neg ?no_ov ik x =
-    M.trace "bitfield" "neg";
+    if M.tracing then M.trace "bitfield" "neg";
     sub ?no_ov ik BArith.zero x
 
   let mul ?no_ov ik (z1, o1) (z2, o2) =
