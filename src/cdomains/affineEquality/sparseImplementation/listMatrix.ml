@@ -89,6 +89,7 @@ module ListMatrix: AbstractMatrix =
     let sub_scaled_row row1 row2 s =
       V.map2_f_preserves_zero (fun x y -> x -: (s *: y)) row1 row2
 
+    (* Reduces the jth column with the last row that has a non-zero element in this column. *)
     let reduce_col m j = 
       if is_empty m then m 
       else
@@ -101,7 +102,7 @@ module ListMatrix: AbstractMatrix =
         match (find_pivot (num_rows m - 1) (List.rev m)) with
         | None -> m (* column is already filled with zeroes *)
         | Some (row_idx, pivot) -> 
-          let pivot_row = List.nth m row_idx in
+          let pivot_row = List.nth m row_idx in (* use the pivot row to reduce all entries in column j to zero, then "delete" the pivot row *)
           List.mapi (fun idx row ->
               if idx = row_idx then 
                 V.zero_vec (num_cols m)
@@ -214,10 +215,12 @@ module ListMatrix: AbstractMatrix =
     let insert_v_according_to_piv m v piv_idx pivot_positions = 
       match List.find_opt (fun (row_idx, piv_col) -> piv_col > piv_idx) pivot_positions with
       | None -> append_row m v
-      | Some (row_idx, _) -> let (before, after) = List.split_at row_idx m in 
+      | Some (row_idx, _) -> let (before, after) = List.split_at row_idx m in (* TODO: Optimize *)
         before @ (v :: after)
 
-    let rref_vec (m : t) (v : V.t) : t option =
+    (* This function yields the same result as appending v to m, normalizing and removing zero rows would. *)
+    (* m must be in rref form and must contain the same number of columns as v *)
+    let rref_vec m v =
       if is_empty m then (* In this case, v is normalized and returned *)
         match V.find_first_non_zero v with 
         | None -> None
@@ -237,7 +240,7 @@ module ListMatrix: AbstractMatrix =
           ) v pivot_positions
         in 
         match V.find_first_non_zero v_after_elim with (* now we check for contradictions and finally insert v *)
-        | None -> Some m (* v is zero vector and was therefore already covered by zero *)
+        | None -> Some m (* v is zero vector and was therefore already covered by m *)
         | Some (idx, value) -> 
           if idx = (num_cols m - 1) then 
             None
@@ -245,30 +248,19 @@ module ListMatrix: AbstractMatrix =
             let normalized_v = V.map_f_preserves_zero (fun x -> x /: value) v_after_elim in
             Some (insert_v_according_to_piv m normalized_v idx pivot_positions)
 
-    (*let rref_vec m v =  
-      match normalize @@ append_matrices m (init_with_vec v) with
-      | None -> None
-      | Some m -> Some (remove_zero_rows m) *)
-
     let rref_vec m v = Timing.wrap "rref_vec" (rref_vec m) v
-
-    (*Similar to rref_vec_with but takes two matrices instead.*)
-    (*ToDo Could become inefficient for large matrices since pivot_elements are always recalculated + many row additions*)
-    (*TODO: OPTIMIZE!*)
-    (*
-    let rref_matrix m1 m2 =
-      match normalize @@ append_matrices m1 m2 with
-      | Some m -> Some (remove_zero_rows m)
-      | None -> None
-
-    *)
+    
+    (* This should yield the same result as appending m2 to m1, normalizing and removing zero rows. However, it is usually faster. *)
+    (* Both input matrices are assumed to be in rref form *)
     let rref_matrix (m1 : t) (m2 : t) =
       let big_m, small_m = if num_rows m1 > num_rows m2 then m1, m2 else m2, m1 in
       fst @@ List.fold_while (fun acc _ -> Option.is_some acc) 
-        (fun acc_big_m small -> rref_vec (Option.get acc_big_m) small ) (Some big_m) small_m
+        (fun acc_big_m small -> rref_vec (Option.get acc_big_m) small ) (Some big_m) small_m (* TODO: pivot_positions are recalculated at each step, but since they need to be adjusted after each step it might not make sense to keep track of them here.*)
 
     let rref_matrix m1 m2 = Timing.wrap "rref_matrix" (rref_matrix m1) m2
 
+    (* Performs a partial rref reduction to check if concatenating both matrices and afterwards normalizing them would yield a matrix <> m2 *)
+    (* Both input matrices must be in rref form! *)
     let is_covered_by m1 m2 =
       let rec is_linearly_independent_rref v m = 
         let pivot_opt = V.findi_val_opt ((<>:) A.zero) v in
