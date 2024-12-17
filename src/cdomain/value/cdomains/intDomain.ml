@@ -1226,7 +1226,9 @@ module BitfieldArith (Ints_t : IntOps.IntOps) = struct
   let concretize bf = List.map Ints_t.to_int (concretize bf)
 
   let shift_right ik (z,o) c =
-    let sign_mask = !:(bitmask_up_to (Size.bit ik - c)) in
+    let msb_pos = (Size.bit ik - c) in
+    let msb_pos = if msb_pos < 0 then 0 else msb_pos in
+    let sign_mask = !:(bitmask_up_to msb_pos) in
     if isSigned ik && o <: Ints_t.zero then
       (z >>: c, (o >>: c) |: sign_mask)
     else
@@ -1472,8 +1474,8 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): SOverflow with type int_t = Int
   let lognot ik i1 = BArith.lognot i1 |> norm ik |> fst
 
   let precision ik = snd @@ Size.bits ik
-  let exclude_undefined_bitshifts ik (z,o) =
-    let mask = BArith.bitmask_up_to (Z.log2up @@ Z.of_int @@ precision ik) in
+  let cap_bitshifts_to_precision ik (z,o) =
+    let mask = BArith.bitmask_up_to (Int.succ @@ Z.log2up @@ Z.of_int @@ precision ik) in
     (z |: !:mask, o &: mask)
 
   let is_invalid_shift_operation ik a b = BArith.is_invalid b
@@ -1493,7 +1495,8 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): SOverflow with type int_t = Int
       then
         (top (), {underflow=false; overflow=false})
     else
-      norm ik @@ BArith.shift_right ik a (exclude_undefined_bitshifts ik b)
+      let defined_shifts = cap_bitshifts_to_precision ik b in
+      norm ik @@ BArith.shift_right ik a defined_shifts
 
   let shift_left ik a b =
     if M.tracing then M.trace "bitfield" "%a << %a" pretty a pretty b;
@@ -1504,7 +1507,8 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): SOverflow with type int_t = Int
       then
         (top (), {underflow=false; overflow=false})
     else
-      norm ik @@ BArith.shift_left ik a (exclude_undefined_bitshifts ik b)
+      let defined_shifts = cap_bitshifts_to_precision ik b in
+      norm ik @@ (BArith.shift_left ik a defined_shifts)
 
   (* Arith *)
 

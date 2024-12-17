@@ -599,8 +599,8 @@ struct
       ) else (
         (* See C11 N2310 at 6.5.7 *)
         assert_shift_left ik (`I [1]) (`I [under_precision ik]) (`I [highest_bit_set ik]);
-        assert_shift_left ik (`I [1]) (`I [precision ik]) (`I [1]);
-        assert_shift_left ik (`I [1]) (`I [over_precision ik]) (`I [2]);
+        assert_shift_left ik (`I [1]) (`I [precision ik]) (`I [0]);
+        assert_shift_left ik (`I [1]) (`I [over_precision ik]) (`I [0]);
       )
 
     ) ik_lst
@@ -637,8 +637,8 @@ struct
       ) else (
         (* See C11 N2310 at 6.5.7 *)
         assert_shift_right ik (`I [max_of ik]) (`I [under_precision ik]) (`I [1]);
-        assert_shift_right ik (`I [max_of ik]) (`I [precision ik]) (`I [0]); (* TODO fails due to wrong overflow handling? *)
-        assert_shift_right ik (`I [max_of ik]) (`I [over_precision ik]) (`I [0]); (* TODO fails due to wrong overflow handling? *)
+        assert_shift_right ik (`I [max_of ik]) (`I [precision ik]) (`I [0]);
+        assert_shift_right ik (`I [max_of ik]) (`I [over_precision ik]) (`I [0]);
       )
 
     ) ik_lst
