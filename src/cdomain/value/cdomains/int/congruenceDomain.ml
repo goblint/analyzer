@@ -500,7 +500,9 @@ struct
     refn
 
   let refine_with_congruence ik a b = meet ik a b
-  let refine_with_bitfield ik a b = a
+  let refine_with_bitfield ik a (z,o) = 
+    if Z.lognot z = o then meet ik a (Some (o, Z.zero))
+    else a
   let refine_with_excl_list ik a b = a
   let refine_with_incl_list ik a b = a
 

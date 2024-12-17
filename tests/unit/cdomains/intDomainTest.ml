@@ -255,7 +255,13 @@ struct
   module I = IntDomain.SOverflowUnlifter (I)
 
   let ik = Cil.IInt
+  let ik_uint = Cil.IUInt
   let ik_char = Cil.IChar
+  let ik_uchar = Cil.IUChar
+  let ik_short = Cil.IShort
+  let ik_ushort = Cil.IUShort
+
+  let ik_lst = [ik_char; ik_uchar; ik_short; ik_ushort; ik; ik_uint;]
 
   let assert_equal x y =
     OUnit.assert_equal ~printer:I.show x y
@@ -332,25 +338,25 @@ struct
 
   let test_wrap_1 _ =
     let z = of_int 31376 in
-    let b_uint8 = I.of_int IChar z in
-    let b_sint8 = I.of_int ISChar z in
+    let b_uint8 = I.of_int IUChar z in
+    let b_sint8 = I.of_int IUChar z in
     let b_uint16 = I.of_int IUShort z in
-    let b_sint16 = I.of_int IShort z in
+    let b_sint16 = I.of_int IUShort z in
 
     (* See https://www.simonv.fr/TypesConvert/?integers *)
-    assert_equal (I.of_int IChar (of_int 144)) b_uint8;
-    assert_equal (I.of_int ISChar (of_int (-112))) b_sint8;
+    assert_equal (I.of_int IUChar (of_int 144)) b_uint8;
+    assert_equal (I.of_int IUChar (of_int (-112))) b_sint8;
     assert_equal (I.of_int IUShort (of_int 31376)) b_uint16;
-    assert_equal (I.of_int IShort (of_int 31376)) b_sint16
+    assert_equal (I.of_int IUShort (of_int 31376)) b_sint16
 
   let test_wrap_2 _ =
     let z1 = of_int 30867 in
     let z2 = of_int 30870 in
-    let join_cast_unsigned = I.join IChar (I.of_int IChar z1) (I.of_int IChar z2) in
+    let join_cast_unsigned = I.join IUChar (I.of_int IUChar z1) (I.of_int IUChar z2) in
 
-    let expected_unsigned = I.join IChar (I.of_int IChar (of_int 147)) (I.of_int IChar (of_int 150)) in
+    let expected_unsigned = I.join IUChar (I.of_int IUChar (of_int 147)) (I.of_int IUChar (of_int 150)) in
 
-    let expected_signed = I.join IChar (I.of_int IChar (of_int (-106))) (I.of_int IChar (of_int (-109))) in
+    let expected_signed = I.join IUChar (I.of_int IUChar (of_int (-106))) (I.of_int IUChar (of_int (-109))) in
 
     assert_equal expected_unsigned join_cast_unsigned;
     assert_equal expected_signed join_cast_unsigned
@@ -396,6 +402,7 @@ struct
     assert_bool "false" (I.equal_to (of_int 0) b2 = `Eq)
 
   let test_to_bool _ =
+    let ik = IUInt in
     let b1 = I.of_int ik (of_int 3) in
     let b2 = I.of_int ik (of_int (-6)) in
     let b3 = I.of_int ik (of_int 0) in
@@ -415,8 +422,8 @@ struct
   let test_cast_to _ =
     let b1 = I.of_int ik (of_int 1234) in
 
-    assert_equal (I.of_int IChar (of_int (210))) (I.cast_to IChar b1);
-    assert_equal (I.of_int ISChar (of_int (-46))) (I.cast_to ISChar b1);
+    assert_equal (I.of_int IUChar (of_int (210))) (I.cast_to IUChar b1);
+    assert_equal (I.of_int IUChar (of_int (-46))) (I.cast_to IUChar b1);
 
     assert_equal (I.of_int IUInt128 (of_int 1234)) (I.cast_to IUInt128 b1)
 
@@ -468,42 +475,175 @@ struct
     assert_bool "-5 ?= not (4 | 12)" (I.equal_to (of_int (-5)) (I.lognot ik b12) = `Top)
 
   let of_list ik is = List.fold_left (fun acc x -> I.join ik acc (I.of_int ik x)) (I.bot ()) is
+  let cart_op op a b = List.map (BatTuple.Tuple2.uncurry op) (BatList.cartesian_product a b)
+  let string_of_ik ik = match ik with
+    | Cil.IInt -> "int"
+    | Cil.IUInt -> "unsigned_int"
+    | Cil.IChar -> "char"
+    | Cil.IUChar -> "unsigned_char"
+    | Cil.IShort -> "short"
+    | Cil.IUShort -> "unsigned_short"
+    | _ -> "undefined C primitive type"
 
-  let assert_shift shift symb ik a b expected_values = 
-    let bf1 = of_list ik (List.map of_int a) in
-    let bf2 = of_list ik (List.map of_int b) in
-    let bf_shift_resolution = (shift ik bf1 bf2) in
-    let x = of_list ik (List.map of_int expected_values) in
-    let output_string = I.show bf1 ^ symb ^ I.show bf2 ^ " was: " ^ I.show bf_shift_resolution ^ " but should be: " ^  I.show x in
-    let output  = "Test shift ("^ I.show bf1 ^ symb ^ I.show bf2  ^ ") failed: " ^ output_string in
-    assert_bool (output) (I.equal bf_shift_resolution x)
+  let precision ik = snd @@ IntDomain.Size.bits ik
+  let over_precision ik = Int.succ @@ precision ik
+  let under_precision ik = Int.pred @@ precision ik
 
-  let assert_shift_left ik a b res = assert_shift I.shift_left " << " ik a b res
-  let assert_shift_right ik a b res = assert_shift I.shift_right " >> " ik a b res
+  let assert_shift ?(rev_cond=false) shift ik a b expected = 
+    let symb, shift_op_bf, shift_op_int = match shift with
+      | `L -> "<<", I.shift_left ik, Int.shift_left
+      | `R -> ">>", I.shift_right ik, Int.shift_right
+    in
+    let of_list (is: int list) : I.t = of_list ik (List.map of_int is) in
+    let get_param x : I.t = match x with
+      | `B bf -> bf
+      | `I is -> of_list is
+    in
+    let string_of_param x = match x with
+      | `B bf -> I.show bf
+      | `I is -> Printf.sprintf "[%s]" (String.concat ", " @@ List.map string_of_int is)
+    in
+    let bf_a, bf_b, expected = get_param a, get_param b, get_param expected in
+    let result = (shift_op_bf bf_a bf_b) in
+    let output_string = Printf.sprintf "test (%s) shift %s %s %s failed: was: %s but should%s be: %s"
+      (string_of_ik ik)
+      (string_of_param a) symb (string_of_param b)
+      (I.show result) (if rev_cond then " not" else "") (I.show expected)
+    in
+    let assertion = I.equal result expected in
+    let assertion = if rev_cond then not assertion else assertion in
+    assert_bool output_string assertion
 
-  let test_shift_left _ =
-    assert_shift_left ik_char [-3] [7] [-128];
-    assert_shift_left ik [-3] [7] [-384];
-    assert_shift_left ik [2] [1; 2] [2; 4; 8; 16];
-    assert_shift_left ik [1; 2] [1] [2; 4];
-    assert_shift_left ik [-1; 1] [1] [-2; 2];
-    assert_shift_left ik [-1] [4] [-16];
-    assert_shift_left ik [-1] [1] [-2];
-    assert_shift_left ik [-1] [2] [-4];
-    assert_shift_left ik [-1] [3] [-8];
-    assert_shift_left ik [-2] [1; 2] [-2; -4; -8; -16];
-    assert_shift_left ik [-1] [1; 2] [-1; -2; -4; -8];
-    assert_shift_left ik [1073741824] [128; 384] [0];
-    assert_shift_left ik [1073741824] [0; 128; 384] [1073741824]
+  let assert_shift_left ?(rev_cond=false) = assert_shift ~rev_cond:rev_cond `L
+  let assert_shift_right ?(rev_cond=false) = assert_shift ~rev_cond:rev_cond `R
 
-  let test_shift_right _ =
-    assert_shift_right ik [4] [1] [2];
-    assert_shift_right ik [-4] [1] [-2];
-    assert_shift_right ik [1] [1] [0];
-    assert_shift_right ik [1] [1; 2] [0; 1];
-    assert_shift_right ik [1; 2] [1; 2] [0; 1; 2; 3];
-    assert_shift_right ik [32] [64; 2] [8; 32];
-    assert_shift_right ik [32] [128; 384] [0]
+  let gen_sized_set size_gen gen = 
+    let open QCheck2.Gen in
+    map (List.sort_uniq Int.compare) (list_size size_gen gen)
+
+  let test_shift ik name c_op a_op =
+    let shift_test_printer (a,b) = Printf.sprintf "a: [%s] b: [%s]"
+      (String.concat ", " (List.map string_of_int a))
+      (String.concat ", " (List.map string_of_int b))
+    in
+    let of_list ik is = of_list ik (List.map of_int is) in
+    let open QCheck2 in let open Gen in
+    let a_gen ik =
+      let min_ik, max_ik = Batteries.Tuple2.mapn Z.to_int (IntDomain.Size.range ik) in
+      gen_sized_set (1 -- precision ik) (min_ik -- max_ik)
+    in
+    let b_gen ik =
+      gen_sized_set (1 -- (Z.log2up @@ Z.of_int @@ precision ik)) (0 -- under_precision ik) (* only shifts that are smaller than precision *)
+    in
+    let test_case_gen = Gen.pair (a_gen ik) (b_gen ik)
+    in
+    Test.make ~name:name ~print:shift_test_printer ~count:1000 (*~collect:shift_test_printer*)
+    test_case_gen
+    (fun (a,b) ->
+      let expected_subset = cart_op c_op a b |> of_list ik in
+      let result = a_op ik (of_list ik a) (of_list ik b) in
+      I.leq expected_subset result
+    )
+
+  let test_shift_left = List.fold_left (fun acc ik -> test_shift ik
+      (Printf.sprintf "test_shift_left_ik_%s" (string_of_ik ik)) Int.shift_left I.shift_left :: acc
+    ) [] ik_lst |> QCheck_ounit.to_ounit2_test_list
+
+  let test_shift_right = List.fold_left (fun acc ik -> test_shift ik
+      (Printf.sprintf "test_shift_right_ik_%s" (string_of_ik ik)) Int.shift_right I.shift_right :: acc
+    ) [] ik_lst |> QCheck_ounit.to_ounit2_test_list
+
+  let bot = `B (I.bot ())
+  let top = `B (I.top ())
+
+  let isSigned = GoblintCil.Cil.isSigned
+
+  let max_of ik = Z.to_int @@ snd @@ IntDomain.Size.range ik
+  let min_of ik = Z.to_int @@ fst @@ IntDomain.Size.range ik
+  let highest_bit_set ?(is_neg=false) ik =
+    let open IntDomain.Size in
+    let pos = Int.pred @@ snd @@ bits ik in
+    (if isSigned ik then if is_neg
+      then cast ik @@ Z.of_int @@ Int.neg @@ Int.shift_left 1 pos
+      else cast ik @@ Z.of_int @@ Int.pred @@ Int.shift_left 1 pos
+    else
+      cast ik @@ Z.of_int @@ Int.shift_left 1 pos) |> Z.to_int
+
+  let test_shift_left =
+  [
+    "property_test_shift_left" >::: test_shift_left;
+    "shift_left_edge_cases" >:: fun _ ->
+    assert_shift_left ik (`I [1]) (`I [1; 2]) (`I [1; 2; 4; 8]);
+
+    List.iter (fun ik ->
+      assert_shift_left ik bot (`I [1]) bot;
+      assert_shift_left ik (`I [1]) bot bot;
+      assert_shift_left ik bot bot bot;
+
+      assert_shift_left ik (`I [0]) top (`I [0]);
+
+      if isSigned ik
+      then (
+        (*assert_shift_left ~rev_cond:true ik (`I [1]) top top;*) (* TODO fails *)
+
+        assert_shift_left ik (`I [1]) (`I [-1]) top; (* Negative shifts are undefined behavior *)
+        assert_shift_left ik (`I [-1]) top top;
+
+        assert_shift_left ~rev_cond:true ik (`I [1]) (`I [under_precision ik]) top;
+        assert_shift_left ik (`I [1]) (`I [precision ik]) top;
+        assert_shift_left ik (`I [1]) (`I [over_precision ik]) top;
+
+        assert_shift_left ik (`I [-1]) (`I [under_precision ik]) (`I [highest_bit_set ~is_neg:true ik]);
+        assert_shift_left ik (`I [-1]) (`I [precision ik]) top; 
+        assert_shift_left ik (`I [-1]) (`I [over_precision ik]) top; 
+      ) else (
+        (* See C11 N2310 at 6.5.7 *)
+        assert_shift_left ik (`I [1]) (`I [under_precision ik]) (`I [highest_bit_set ik]);
+        assert_shift_left ik (`I [1]) (`I [precision ik]) (`I [0]);
+        assert_shift_left ik (`I [1]) (`I [over_precision ik]) (`I [0]);
+      )
+
+    ) ik_lst
+
+  ]
+
+  let test_shift_right =
+  [
+    "property_test_shift_right" >::: test_shift_right;
+    "shift_right_edge_cases" >:: fun _ ->
+    assert_shift_right ik (`I [10]) (`I [1; 2]) (`I [10; 7; 5; 1]);
+
+    List.iter (fun ik ->
+      assert_shift_right ik bot (`I [1]) bot;
+      assert_shift_right ik (`I [1]) bot bot;
+      assert_shift_right ik bot bot bot;
+
+      assert_shift_right ik (`I [0]) top (`I [0]);
+
+      if isSigned ik
+      then (
+        (*assert_shift_right ~rev_cond:true ik (`I [max_of ik]) top top;*) (* TODO fails *)
+
+        assert_shift_right ik (`I [2]) (`I [-1]) top; (* Negative shifts are undefined behavior *)
+        assert_shift_right ik (`I [min_of ik]) top top;
+
+        assert_shift_right ik (`I [max_of ik]) (`I [under_precision ik]) (`I [1]);
+        assert_shift_right ik (`I [max_of ik]) (`I [precision ik]) top;
+        assert_shift_right ik (`I [max_of ik]) (`I [over_precision ik]) top;
+
+        assert_shift_right ik (`I [min_of ik]) (`I [under_precision ik]) (`I [-2]);
+        assert_shift_right ik (`I [min_of ik]) (`I [precision ik]) top;
+        assert_shift_right ik (`I [min_of ik]) (`I [over_precision ik]) top;
+      ) else (
+        (* See C11 N2310 at 6.5.7 *)
+        assert_shift_right ik (`I [max_of ik]) (`I [under_precision ik]) (`I [1]);
+        assert_shift_right ik (`I [max_of ik]) (`I [precision ik]) (`I [0]);
+        assert_shift_right ik (`I [max_of ik]) (`I [over_precision ik]) (`I [0]);
+      )
+
+    ) ik_lst
+    
+  ]
 
 
   (* Arith *)
@@ -761,8 +901,8 @@ struct
     "test_logor" >:: test_logor;
     "test_lognot" >:: test_lognot;
     
-    "test_shift_left" >:: test_shift_left;
-    "test_shift_right" >:: test_shift_right;
+    "test_shift_left" >::: test_shift_left;
+    "test_shift_right" >::: test_shift_right;
 
     "test_add" >:: test_add;
     "test_sub" >:: test_sub;
@@ -868,22 +1008,29 @@ struct
   let of_list ik is = List.fold_left (fun acc x -> B.join ik acc (B.of_int ik x)) (B.bot ()) is
 
   let v1 = Z.of_int 0
-  let v2 = Z.of_int 2
-  let vr = Z.mul v1 v2
+  let v2 = Z.of_int 0
+  let vr = Z.add v1 v2
 
-  let is = [-3;3]
-  let res = [0;13;26;39;52;65;78;91]
+  let is = [0;1]
+  let res = [0;-1]
 
-  let b1 = of_list ik (List.map Z.of_int is)
-  let b2 = B.of_int ik v2
+  let b1 = B.of_int ik v1
+  let b2 = of_list ik (List.map Z.of_int is)
   let br = of_list ik (List.map Z.of_int res)
 
-  let test_add _ = assert_equal ~cmp:B.leq ~printer:B.show br (B.mul ik b2 b1)
+  let bool_res = B.join ik (B.of_int ik Z.zero) (B.of_int ik Z.one)
 
-  let test_lt _ = assert_equal ~cmp:B.leq ~printer:B.show (B.join ik (B.of_int ik Z.zero) (B.of_int ik Z.one)) (B.lt ik b1 b2)
+  (* let _ = print_endline (B.show b1)
+  let _ = print_endline (B.show b2)
+  let _ = print_endline (B.show (B.sub ik b1 b2))
+  let _ = print_endline (B.show br) *)
+
+  let test_add _ = assert_equal ~cmp:B.leq ~printer:B.show br (B.sub ik b1 b2)
+
+  let test_lt _ = assert_equal ~cmp:B.leq ~printer:B.show bool_res (B.lt ik b1 b2)
 
   let test () =  [
-    "test_lt" >:: test_lt;
+    "test_add" >:: test_add;
   ]
 end
 

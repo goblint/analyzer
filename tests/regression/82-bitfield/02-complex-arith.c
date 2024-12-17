@@ -1,5 +1,6 @@
 // PARAM: --disable ana.int.interval --disable ana.int.def_exc --enable ana.int.bitfield
 #include <stdlib.h>
+#include <goblint.h>
 
 int main() {
   int a;
@@ -22,10 +23,10 @@ int main() {
   int c_add = a + b;
 
   if (c_add == 40) {
-    goblint_check(1);  // reachable
+    __goblint_check(1);  // reachable
   }
   if (c_add == 42) {
-    goblint_check(1);  // reachable
+    __goblint_check(1);  // reachable
   }
   if (c_add > 42 || c_add < 40) {
     __goblint_check(0);  // NOWARN (unreachable)
@@ -36,10 +37,10 @@ int main() {
   int c_minus = b - a;
 
   if (c_minus == 6) {
-    goblint_check(1);  // reachable
+    __goblint_check(1);  // reachable
   }
   if (c_minus == 4) {
-    goblint_check(1);  // reachable
+    __goblint_check(1);  // reachable
   }
   if (c_minus > 6 || c_minus < 4) {
     __goblint_check(0);  // NOWARN (unreachable)
@@ -50,10 +51,10 @@ int main() {
   int c_mult = a * b;
 
   if (c_mult == 391) {
-    goblint_check(1);  // reachable
+    __goblint_check(1);  // reachable
   }
   if (c_mult == 437) {
-    goblint_check(1);  // reachable
+    __goblint_check(1);  // reachable
   }
 
   // DIV
