@@ -263,12 +263,12 @@ module ListMatrix: AbstractMatrix =
     (* Both input matrices must be in rref form! *)
     let is_covered_by m1 m2 =
       let rec is_linearly_independent_rref v m = 
-        let pivot_opt = V.findi_val_opt ((<>:) A.zero) v in
+        let pivot_opt = V.find_first_non_zero v in
         match pivot_opt with
         | None -> false (* When we found no pivot, the vector is already A.zero. *)
         | Some (pivot_id, pivot) ->
           let m' = List.drop_while (fun v2 -> 
-              match V.findi_val_opt ((<>:) A.zero) v2 with
+              match V.find_first_non_zero v2 with
               | None -> true  (* In this case, m2 only has zero rows after that *)
               | Some (idx', _) -> idx' < pivot_id
             ) m in 
@@ -283,7 +283,7 @@ module ListMatrix: AbstractMatrix =
           match m1 with 
           | [] -> true
           | v1::vs1 -> 
-            let first_non_zero = V.findi_val_opt ((<>:) A.zero) v1 in
+            let first_non_zero = V.find_first_non_zero v1 in
             match first_non_zero with
             | None -> true  (* vs1 must also be zero-vectors because of rref *)
             | Some (idx, _) -> 
