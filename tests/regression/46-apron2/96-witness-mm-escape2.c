@@ -1,4 +1,4 @@
-// CRAM PARAM: --set ana.activated[+] apron --set ana.path_sens[+] threadflag --set ana.relation.privatization mutex-meet-tid-cluster12 --set witness.yaml.validate 95-witness-mm-escape.yml
+// CRAM PARAM: --set ana.activated[+] apron --set ana.path_sens[+] threadflag --enable warn.deterministic --set ana.relation.privatization mutex-meet-tid-cluster12 --set witness.yaml.validate 95-witness-mm-escape.yml
 #include<pthread.h>
 int *b;
 pthread_mutex_t e;
