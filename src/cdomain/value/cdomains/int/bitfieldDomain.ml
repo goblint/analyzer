@@ -140,7 +140,6 @@ module BitfieldArith (Ints_t : IntOps.IntOps) = struct
       List.fold_left (fun acc c ->
         let next = shift_left ik (z1, o1) c in join acc next
       ) (zero_mask, zero_mask) shift_counts
-
 end
 
 module BitfieldFunctor (Ints_t : IntOps.IntOps): SOverflow with type int_t = Ints_t.t and type t = (Ints_t.t * Ints_t.t) = struct
@@ -155,9 +154,11 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): SOverflow with type int_t = Int
 
   let top () = (BArith.one_mask, BArith.one_mask)
   let bot () = (BArith.zero_mask, BArith.zero_mask)
+
   let top_of ik = 
     if isSigned ik then top () 
     else (BArith.one_mask, Ints_t.of_bigint (snd (Size.range ik)))
+    
   let bot_of ik = bot ()
 
   let to_pretty_bits (z,o) = 
