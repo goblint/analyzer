@@ -67,7 +67,7 @@ sig
 
   val exists2: (num -> num -> bool) -> t -> t -> bool
   val rev: t -> t
-  
+
   val map2i: (int -> num -> num -> num) -> t -> t -> t
 
   val mapi: (int -> num -> num) -> t -> t
@@ -88,5 +88,4 @@ sig
 
   (* Returns the part of the vector starting from index n*)
   val starting_from_nth : int -> t -> t
-
 end
