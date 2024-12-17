@@ -16,8 +16,6 @@ sig
 
   val set_nth: t -> int -> num ->  t
 
-  val set_nth_with: t -> int -> num -> unit
-
   val insert_val_at: int -> num ->  t ->  t
 
   val map_f_preserves_zero: (num -> num) -> t -> t
@@ -32,8 +30,6 @@ sig
 
   val apply_with_c_f_preserves_zero: (num -> num -> num) -> num ->  t ->  t
 
-  val apply_with_c_with: (num -> num -> num) -> num -> t -> unit
-
   val zero_vec: int -> t
 
   val is_zero_vec: t -> bool
@@ -43,8 +39,6 @@ sig
   val length: t -> int
 
   val map2: (num -> num -> num) -> t -> t -> t
-
-  val map2_with: (num -> num -> num) -> t -> t -> unit
 
   val findi: (num -> bool) ->  t -> int
 
@@ -56,8 +50,6 @@ sig
   val find_opt: (num -> bool) -> t -> num Option.t
 
   val map: (num -> num) -> t -> t
-
-  val map_with: (num -> num) -> t -> unit
 
   val map: (num -> num) -> t -> t
 
@@ -74,20 +66,11 @@ sig
   val exists: (num -> bool) -> t -> bool
 
   val exists2: (num -> num -> bool) -> t -> t -> bool
-
   val rev: t -> t
-
-  val rev_with: t -> unit
-
-  val rev: t -> t
-
+  
   val map2i: (int -> num -> num -> num) -> t -> t -> t
 
-  val map2i_with: (int -> num -> num -> num) -> t -> t -> unit
-
   val mapi: (int -> num -> num) -> t -> t
-
-  val mapi_with: (int -> num -> num) -> t -> unit
 
   val mapi: (int -> num -> num) -> t -> t
 
