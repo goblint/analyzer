@@ -9,10 +9,10 @@ int main()
   int x;
   if(x<100) 
   {
+    __goblint_check(x<100); //SUCCESS
     x=x;
   }                           
-  __goblint_check(x<100); //UNKNOWN
-  __goblint_check(x>=-2147483647); //FAIL
+  __goblint_check(x>=-2147483647); //UNKNOWN
   return 0;
 }
 
