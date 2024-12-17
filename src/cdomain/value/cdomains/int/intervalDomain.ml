@@ -106,7 +106,18 @@ struct
     let (min_ik, max_ik) = Size.range ik in
     let startv = Ints_t.max x (Ints_t.of_bigint min_ik) in
     let endv= Ints_t.min y (Ints_t.of_bigint max_ik) in
-    
+
+    let wrap ik (z,o) = 
+      let (min_ik, max_ik) = Size.range ik in
+      if isSigned ik then
+        let newz = Ints_t.logor (Ints_t.logand z (Ints_t.of_bigint max_ik)) (Ints_t.mul (Ints_t.of_bigint min_ik) (Ints_t.logand Ints_t.one (Ints_t.shift_right z (Size.bit ik - 1)))) in
+        let newo = Ints_t.logor (Ints_t.logand o (Ints_t.of_bigint max_ik)) (Ints_t.mul (Ints_t.of_bigint min_ik) (Ints_t.logand Ints_t.one (Ints_t.shift_right o (Size.bit ik - 1)))) in
+        (newz,newo)
+      else
+        let newz = Ints_t.logor z (Ints_t.lognot (Ints_t.of_bigint max_ik)) in
+        let newo = Ints_t.logand o (Ints_t.of_bigint max_ik) in
+        (newz,newo)
+      in    
     let rec analyze_bits pos (acc_z, acc_o) =
       if pos < 0 then (acc_z, acc_o)
       else
@@ -138,7 +149,7 @@ struct
     in      
     let result = analyze_bits (Size.bit ik - 1) (Ints_t.zero, Ints_t.zero) in
     let casted = (Ints_t.of_bigint (Size.cast ik ((Ints_t.to_bigint (fst result)))), Ints_t.of_bigint (Size.cast ik ((Ints_t.to_bigint (snd result))))) 
-    in casted
+    in wrap ik casted
 
   let of_bool _ik = function true -> one | false -> zero
   let to_bool (a: t) = match a with

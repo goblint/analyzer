@@ -227,7 +227,7 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): SOverflow with type int_t = Int
       let isPos = z < Ints_t.zero in 
       let isNeg = o < Ints_t.zero in
       let underflow = if isSigned ik then (((Ints_t.of_bigint min_ik) &: z) <> Ints_t.zero) && isNeg else isNeg in     
-      let overflow = (((!: (Ints_t.of_bigint max_ik)) &: o) <> Ints_t.zero) && isPos in      
+      let overflow = (((!:(Ints_t.of_bigint max_ik)) &: o) <> Ints_t.zero) && isPos in      
       let new_bitfield = wrap ik (z,o)
       in
       let overflow_info = if suppress_ovwarn then {underflow=false; overflow=false} else  {underflow=underflow; overflow=overflow} in      
