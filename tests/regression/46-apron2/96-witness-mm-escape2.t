@@ -1,11 +1,11 @@
-  $ goblint --disable ana.dead-code.lines --disable warn.race --disable warn.behavior --set ana.activated[+] apron --set ana.path_sens[+] threadflag --set ana.relation.privatization mutex-meet-tid-cluster12 --enable witness.yaml.enabled --disable witness.invariant.other --disable witness.invariant.loop-head 96-witness-mm-escape2.c --set witness.yaml.path 96-witness-mm-escape2.yml
+  $ goblint --disable ana.dead-code.lines --disable warn.race --enable warn.deterministic --disable warn.behavior --set ana.activated[+] apron --set ana.path_sens[+] threadflag --set ana.relation.privatization mutex-meet-tid-cluster12 --enable witness.yaml.enabled --disable witness.invariant.other --disable witness.invariant.loop-head 96-witness-mm-escape2.c --set witness.yaml.path 96-witness-mm-escape2.yml
   [Info][Witness] witness generation summary:
     location invariants: 8
     loop invariants: 0
     flow-insensitive invariants: 1
     total generation entries: 6
 
-  $ goblint --disable ana.dead-code.lines --disable warn.race --disable warn.behavior --set ana.activated[+] apron --set ana.path_sens[+] threadflag --set ana.relation.privatization mutex-meet-tid-cluster12 --set witness.yaml.validate 96-witness-mm-escape2.yml 96-witness-mm-escape2.c
+  $ goblint --disable ana.dead-code.lines --disable warn.race --enable warn.deterministic --disable warn.behavior --set ana.activated[+] apron --set ana.path_sens[+] threadflag --set ana.relation.privatization mutex-meet-tid-cluster12 --set witness.yaml.validate 96-witness-mm-escape2.yml 96-witness-mm-escape2.c
   [Success][Witness] invariant confirmed: (unsigned long )arg == 0UL (96-witness-mm-escape2.c:8:5)
   [Success][Witness] invariant confirmed: -128 <= g (96-witness-mm-escape2.c:22:1)
   [Success][Witness] invariant confirmed: g <= 127 (96-witness-mm-escape2.c:22:1)
