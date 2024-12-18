@@ -217,24 +217,24 @@ struct
     vulnerable := 0;
     unsafe := 0
 
-  let side_vars ctx memo =
+  let side_vars man memo =
     match memo with
     | (`Var v, _) ->
       if !AnalysisState.should_warn then
-        ctx.sideg (V.vars v) (G.create_vars (MemoSet.singleton memo))
+        man.sideg (V.vars v) (G.create_vars (MemoSet.singleton memo))
     | _ ->
       ()
 
-  let side_access ctx acc ((memoroot, offset) as memo) =
+  let side_access man acc ((memoroot, offset) as memo) =
     if !AnalysisState.should_warn then
-      ctx.sideg (V.access memoroot) (G.create_access (OffsetTrie.singleton offset (`Lifted (Access.AS.singleton acc))));
-    side_vars ctx memo
+      man.sideg (V.access memoroot) (G.create_access (OffsetTrie.singleton offset (`Lifted (Access.AS.singleton acc))));
+    side_vars man memo
 
   (** Side-effect empty access set for prefix-type_suffix race checking. *)
-  let side_access_empty ctx ((memoroot, offset) as memo) =
+  let side_access_empty man ((memoroot, offset) as memo) =
     if !AnalysisState.should_warn then
-      ctx.sideg (V.access memoroot) (G.create_access (OffsetTrie.singleton offset (`Lifted (Access.AS.empty ()))));
-    side_vars ctx memo
+      man.sideg (V.access memoroot) (G.create_access (OffsetTrie.singleton offset (`Lifted (Access.AS.empty ()))));
+    side_vars man memo
 
   (** Get immediate type_suffix memo. *)
   let type_suffix_memo ((root, offset) : Access.Memo.t) : Access.Memo.t option =
@@ -247,30 +247,30 @@ struct
     | `Type (TSArray (ts, _, _)), `Index ((), offset') -> Some (`Type ts, offset') (* (int[])[*] -> int *)
     | _, `Index ((), offset') -> None (* TODO: why indexing on non-array? *)
 
-  let rec find_type_suffix' ctx ((root, offset) as memo : Access.Memo.t) : Access.AS.t =
-    let trie = G.access (ctx.global (V.access root)) in
+  let rec find_type_suffix' man ((root, offset) as memo : Access.Memo.t) : Access.AS.t =
+    let trie = G.access (man.global (V.access root)) in
     let accs =
       match OffsetTrie.find offset trie with
       | `Lifted accs -> accs
       | `Bot -> Access.AS.empty ()
     in
-    let type_suffix = find_type_suffix ctx memo in
+    let type_suffix = find_type_suffix man memo in
     Access.AS.union accs type_suffix
 
   (** Find accesses from all type_suffixes transitively. *)
-  and find_type_suffix ctx (memo : Access.Memo.t) : Access.AS.t =
+  and find_type_suffix man (memo : Access.Memo.t) : Access.AS.t =
     match type_suffix_memo memo with
-    | Some type_suffix_memo -> find_type_suffix' ctx type_suffix_memo
+    | Some type_suffix_memo -> find_type_suffix' man type_suffix_memo
     | None -> Access.AS.empty ()
 
-  let query ctx (type a) (q: a Queries.t): a Queries.result =
+  let query man (type a) (q: a Queries.t): a Queries.result =
     match q with
     | WarnGlobal g ->
       let g: V.t = Obj.obj g in
       begin match g with
         | `Left g' -> (* accesses *)
           (* Logs.debug "WarnGlobal %a" Access.MemoRoot.pretty g'; *)
-          let trie = G.access (ctx.global g) in
+          let trie = G.access (man.global g) in
           (** Distribute access to contained fields. *)
           let rec distribute_inner offset (accs, children) ~prefix ~type_suffix_prefix =
             let accs =
@@ -278,7 +278,7 @@ struct
               | `Lifted accs -> accs
               | `Bot -> Access.AS.empty ()
             in
-            let type_suffix = find_type_suffix ctx (g', offset) in
+            let type_suffix = find_type_suffix man (g', offset) in
             if not (Access.AS.is_empty accs) || (not (Access.AS.is_empty prefix) && not (Access.AS.is_empty type_suffix)) then (
               let memo = (g', offset) in
               let mem_loc_str = GobPretty.sprint Access.Memo.pretty memo in
@@ -299,29 +299,29 @@ struct
     | IterSysVars (Global g, vf) ->
       MemoSet.iter (fun v ->
           vf (Obj.repr (V.access v))
-        ) (G.vars (ctx.global (V.vars g)))
+        ) (G.vars (man.global (V.vars g)))
     | _ -> Queries.Result.top q
 
-  let event ctx e octx =
+  let event man e oman =
     match e with
-    | Events.Access {exp; ad; kind; reach} when ThreadFlag.is_currently_multi (Analyses.ask_of_ctx ctx) -> (* threadflag query in post-threadspawn ctx *)
-      (* must use original (pre-assign, etc) ctx queries *)
+    | Events.Access {exp; ad; kind; reach} when ThreadFlag.is_currently_multi (Analyses.ask_of_man man) -> (* threadflag query in post-threadspawn man *)
+      (* must use original (pre-assign, etc) man queries *)
       let conf = 110 in
       let module AD = Queries.AD in
       let part_access (vo:varinfo option): MCPAccess.A.t =
         (*partitions & locks*)
-        Obj.obj (octx.ask (PartAccess (Memory {exp; var_opt=vo; kind})))
+        Obj.obj (oman.ask (PartAccess (Memory {exp; var_opt=vo; kind})))
       in
       let node = Option.get !Node.current_node in
       let add_access conf voffs =
         let acc = part_access (Option.map fst voffs) in
-        Access.add ~side:(side_access octx {conf; kind; node; exp; acc}) ~side_empty:(side_access_empty octx) exp voffs;
+        Access.add ~side:(side_access oman {conf; kind; node; exp; acc}) ~side_empty:(side_access_empty oman) exp voffs;
       in
       let add_access_struct conf ci =
         let acc = part_access None in
-        Access.add_one ~side:(side_access octx {conf; kind; node; exp; acc}) (`Type (TSComp (ci.cstruct, ci.cname, [])), `NoOffset)
+        Access.add_one ~side:(side_access oman {conf; kind; node; exp; acc}) (`Type (TSComp (ci.cstruct, ci.cname, [])), `NoOffset)
       in
-      let has_escaped g = octx.ask (Queries.MayEscape g) in
+      let has_escaped g = oman.ask (Queries.MayEscape g) in
       (* The following function adds accesses to the lval-set ls
          -- this is the common case if we have a sound points-to set. *)
       let on_ad ad includes_uk =
@@ -345,7 +345,7 @@ struct
           (* the case where the points-to set is non top and contains unknown values *)
           let includes_uk = ref false in
           (* now we need to access all fields that might be pointed to: is this correct? *)
-          begin match octx.ask (ReachableUkTypes exp) with
+          begin match oman.ask (ReachableUkTypes exp) with
             | ts when Queries.TS.is_top ts ->
               includes_uk := true
             | ts ->
@@ -362,23 +362,23 @@ struct
           (* | _ ->
              add_access (conf - 60) None *) (* TODO: what about this case? *)
       end;
-      ctx.local
+      man.local
     | _ ->
-      ctx.local
+      man.local
 
-  let special ctx (lvalOpt: lval option) (f:varinfo) (arglist:exp list) : D.t =
+  let special man (lvalOpt: lval option) (f:varinfo) (arglist:exp list) : D.t =
     (* perform shallow and deep invalidate according to Library descriptors *)
     let desc = LibraryFunctions.find f in
-    if List.mem LibraryDesc.ThreadUnsafe desc.attrs && ThreadFlag.is_currently_multi (Analyses.ask_of_ctx ctx) then (
+    if List.mem LibraryDesc.ThreadUnsafe desc.attrs && ThreadFlag.is_currently_multi (Analyses.ask_of_man man) then (
       let exp = Lval (Var f, NoOffset) in
       let conf = 110 in
       let kind = AccessKind.Call in
       let node = Option.get !Node.current_node in
       let vo = Some f in
-      let acc = Obj.obj (ctx.ask (PartAccess (Memory {exp; var_opt=vo; kind}))) in
-      side_access ctx {conf; kind; node; exp; acc} ((`Var f), `NoOffset) ;
+      let acc = Obj.obj (man.ask (PartAccess (Memory {exp; var_opt=vo; kind}))) in
+      side_access man {conf; kind; node; exp; acc} ((`Var f), `NoOffset) ;
     );
-    ctx.local
+    man.local
 
   let finalize () =
     let total = !safe + !unsafe + !vulnerable in

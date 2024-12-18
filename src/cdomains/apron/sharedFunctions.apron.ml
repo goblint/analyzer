@@ -143,7 +143,7 @@ struct
                   might be able to be represented by means of 2 var equalities
 
                   This simplification happens during a time, when there are temporary variables a#in and a#out part of the expression,
-                  but are not represented in the ctx, thus queries may result in top for these variables. Wrapping this in speculative
+                  but are not represented in the man, thus queries may result in top for these variables. Wrapping this in speculative
                   mode is a stop-gap measure to avoid flagging overflows. We however should address simplification in a more generally useful way.
                   outside of the apron-related expression conversion.
               *)

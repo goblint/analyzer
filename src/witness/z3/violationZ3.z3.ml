@@ -16,7 +16,7 @@ struct
     (* ("smt.core.minimize", "true"); *)
     (* ("sat.core.minimize", "true"); *)
   ]
-  let ctx = mk_context cfg
+  let man = mk_context cfg
 
   type var = varinfo
 
@@ -40,43 +40,43 @@ struct
     let get_const m x =
       match VarMap.find_opt x m with
       | Some x -> x
-      | None -> Arithmetic.Integer.mk_const_s ctx (get_name x)
-    let sort = Arithmetic.Integer.mk_sort ctx
+      | None -> Arithmetic.Integer.mk_const_s man (get_name x)
+    let sort = Arithmetic.Integer.mk_sort man
     let freshen env x =
-      VarMap.add x (Expr.mk_fresh_const ctx (get_name x) sort) env
+      VarMap.add x (Expr.mk_fresh_const man (get_name x) sort) env
   end
 
   let bool_to_int expr =
-    Boolean.mk_ite ctx expr (Arithmetic.Integer.mk_numeral_i ctx 1) (Arithmetic.Integer.mk_numeral_i ctx 0)
+    Boolean.mk_ite man expr (Arithmetic.Integer.mk_numeral_i man 1) (Arithmetic.Integer.mk_numeral_i man 0)
 
   let int_to_bool expr =
-    Boolean.mk_distinct ctx [expr; Arithmetic.Integer.mk_numeral_i ctx 0]
+    Boolean.mk_distinct man [expr; Arithmetic.Integer.mk_numeral_i man 0]
 
   let rec exp_to_expr env = function
     | Const (CInt (i, _, _)) ->
-      Arithmetic.Integer.mk_numeral_s ctx (Z.to_string i)
+      Arithmetic.Integer.mk_numeral_s man (Z.to_string i)
     | Lval (Var v, NoOffset) ->
       Env.get_const env v
     | BinOp (PlusA, e1, e2, TInt _) ->
-      Arithmetic.mk_add ctx [exp_to_expr env e1; exp_to_expr env e2]
+      Arithmetic.mk_add man [exp_to_expr env e1; exp_to_expr env e2]
     | BinOp (MinusA, e1, e2, TInt _) ->
-      Arithmetic.mk_sub ctx [exp_to_expr env e1; exp_to_expr env e2]
+      Arithmetic.mk_sub man [exp_to_expr env e1; exp_to_expr env e2]
     | BinOp (Mult, e1, e2, TInt _) ->
-      Arithmetic.mk_mul ctx [exp_to_expr env e1; exp_to_expr env e2]
+      Arithmetic.mk_mul man [exp_to_expr env e1; exp_to_expr env e2]
     | BinOp (Eq, e1, e2, TInt _) ->
-      bool_to_int (Boolean.mk_eq ctx (exp_to_expr env e1) (exp_to_expr env e2))
+      bool_to_int (Boolean.mk_eq man (exp_to_expr env e1) (exp_to_expr env e2))
     | BinOp (Ne, e1, e2, TInt _) ->
-      bool_to_int (Boolean.mk_distinct ctx [exp_to_expr env e1; exp_to_expr env e2])
+      bool_to_int (Boolean.mk_distinct man [exp_to_expr env e1; exp_to_expr env e2])
     | BinOp (Gt, e1, e2, TInt _) ->
-      bool_to_int (Arithmetic.mk_gt ctx (exp_to_expr env e1) (exp_to_expr env e2))
+      bool_to_int (Arithmetic.mk_gt man (exp_to_expr env e1) (exp_to_expr env e2))
     | BinOp (Lt, e1, e2, TInt _) ->
-      bool_to_int (Arithmetic.mk_lt ctx (exp_to_expr env e1) (exp_to_expr env e2))
+      bool_to_int (Arithmetic.mk_lt man (exp_to_expr env e1) (exp_to_expr env e2))
     | BinOp (Ge, e1, e2, TInt _) ->
-      bool_to_int (Arithmetic.mk_ge ctx (exp_to_expr env e1) (exp_to_expr env e2))
+      bool_to_int (Arithmetic.mk_ge man (exp_to_expr env e1) (exp_to_expr env e2))
     | BinOp (Le, e1, e2, TInt _) ->
-      bool_to_int (Arithmetic.mk_le ctx (exp_to_expr env e1) (exp_to_expr env e2))
+      bool_to_int (Arithmetic.mk_le man (exp_to_expr env e1) (exp_to_expr env e2))
     | UnOp (LNot, e, TInt _) ->
-      bool_to_int (Boolean.mk_not ctx (int_to_bool (exp_to_expr env e)))
+      bool_to_int (Boolean.mk_not man (int_to_bool (exp_to_expr env e)))
     | e ->
       failwith @@ GobPretty.sprintf "exp_to_expr: %a" Cil.d_exp e
 
@@ -86,11 +86,11 @@ struct
   let wp_assert env (from_node, (edge: MyARG.inline_edge), _) = match edge with
     | MyARG.CFGEdge (MyCFG.Assign ((Var v, NoOffset), e)) ->
       let env' = Env.freshen env v in
-      (env', [Boolean.mk_eq ctx (Env.get_const env v) (exp_to_expr env' e)])
+      (env', [Boolean.mk_eq man (Env.get_const env v) (exp_to_expr env' e)])
     | MyARG.CFGEdge (MyCFG.Test (e, true)) ->
-      (env, [Boolean.mk_distinct ctx [exp_to_expr env e; Arithmetic.Integer.mk_numeral_i ctx 0]])
+      (env, [Boolean.mk_distinct man [exp_to_expr env e; Arithmetic.Integer.mk_numeral_i man 0]])
     | MyARG.CFGEdge (MyCFG.Test (e, false)) ->
-      (env, [Boolean.mk_eq ctx (exp_to_expr env e) (Arithmetic.Integer.mk_numeral_i ctx 0)])
+      (env, [Boolean.mk_eq man (exp_to_expr env e) (Arithmetic.Integer.mk_numeral_i man 0)])
     | MyARG.CFGEdge (MyCFG.Entry fd) ->
       let env' = List.fold_left (fun acc formal ->
           Env.freshen acc formal
@@ -98,7 +98,7 @@ struct
       in
       let eqs = List.mapi (fun i formal ->
           let arg_vname = get_arg_vname i in
-          Boolean.mk_eq ctx (Env.get_const env formal) (Env.get_const env' arg_vname)
+          Boolean.mk_eq man (Env.get_const env formal) (Env.get_const env' arg_vname)
         ) fd.sformals
       in
       (env', eqs)
@@ -110,7 +110,7 @@ struct
       in
       let eqs = List.mapi (fun i arg ->
           let arg_vname = get_arg_vname i in
-          Boolean.mk_eq ctx (Env.get_const env arg_vname) (exp_to_expr env' arg)
+          Boolean.mk_eq man (Env.get_const env arg_vname) (exp_to_expr env' arg)
         ) args
       in
       (env', eqs)
@@ -118,14 +118,14 @@ struct
       (env, [])
     | MyARG.CFGEdge (MyCFG.Ret (Some e, fd)) ->
       let env' = Env.freshen env return_vname in
-      (env', [Boolean.mk_eq ctx (Env.get_const env return_vname) (exp_to_expr env' e)])
+      (env', [Boolean.mk_eq man (Env.get_const env return_vname) (exp_to_expr env' e)])
     | MyARG.InlineReturn (None, _, _) ->
       (env, [])
     | MyARG.InlineReturn (Some (Var v, NoOffset), _, _) ->
       let env' = Env.freshen env v in
-      (env', [Boolean.mk_eq ctx (Env.get_const env v) (Env.get_const env' return_vname)])
+      (env', [Boolean.mk_eq man (Env.get_const env v) (Env.get_const env' return_vname)])
     | _ ->
-      (* (env, Boolean.mk_true ctx) *)
+      (* (env, Boolean.mk_true man) *)
       failwith @@ GobPretty.sprintf "wp_assert: %a" MyARG.pretty_inline_edge edge
 
   let const_get_symbol (expr: Expr.expr): Symbol.symbol =
@@ -140,7 +140,7 @@ struct
     | Unknown
 
   let wp_path path =
-    let solver = Solver.mk_simple_solver ctx in
+    let solver = Solver.mk_simple_solver man in
     let rec iter_wp revpath i env = match revpath with
       | [] -> Feasible
       | step :: revpath' ->
@@ -149,14 +149,14 @@ struct
           | [] -> iter_wp revpath' (i - 1) env'
           | [expr] -> do_assert revpath' i env' expr
           | exprs ->
-            let expr = Boolean.mk_and ctx exprs in
+            let expr = Boolean.mk_and man exprs in
             do_assert revpath' i env' expr
         end
 
     and do_assert revpath' i env' expr =
       Logs.debug "%d: %s" i (Expr.to_string expr);
 
-      let track_const = Boolean.mk_const ctx (Symbol.mk_int ctx i) in
+      let track_const = Boolean.mk_const man (Symbol.mk_int man i) in
       Solver.assert_and_track solver expr track_const;
 
       let status = Solver.check solver [] in

@@ -248,39 +248,39 @@ struct
         | Error (`Msg e) -> M.error_noloc ~category:Witness "couldn't parse entry: %s" e
       ) yaml_entries
 
-  let emit_unassume ctx =
-    let es = NH.find_all invs ctx.node in
+  let emit_unassume man =
+    let es = NH.find_all invs man.node in
     let es = D.fold (fun pre acc ->
-        match NH.find_option pre_invs ctx.node with
+        match NH.find_option pre_invs man.node with
         | Some eh -> EH.find_all eh pre @ acc
         | None -> acc
-      ) ctx.local es
+      ) man.local es
     in
     match es with
     | x :: xs ->
       let e = List.fold_left (fun a {exp = b; _} -> Cil.(BinOp (LAnd, a, b, intType))) x.exp xs in
       M.info ~category:Witness "unassume invariant: %a" CilType.Exp.pretty e;
       if not !AnalysisState.postsolving then (
-        if not (GobConfig.get_bool "ana.unassume.precheck" && Queries.ID.to_bool (ctx.ask (EvalInt e)) = Some false) then (
+        if not (GobConfig.get_bool "ana.unassume.precheck" && Queries.ID.to_bool (man.ask (EvalInt e)) = Some false) then (
           let tokens = x.token :: List.map (fun {token; _} -> token) xs in
-          ctx.emit (Unassume {exp = e; tokens});
+          man.emit (Unassume {exp = e; tokens});
           List.iter WideningTokenLifter.add tokens
         )
       );
-      ctx.local
+      man.local
     | [] ->
-      ctx.local
+      man.local
 
-  let assign ctx lv e =
-    emit_unassume ctx
+  let assign man lv e =
+    emit_unassume man
 
-  let branch ctx e tv =
-    emit_unassume ctx
+  let branch man e tv =
+    emit_unassume man
 
-  let body ctx fd =
+  let body man fd =
     let pres = FH.find_all fun_pres fd in
     let st = List.fold_left (fun acc pre ->
-        let v = ctx.ask (EvalInt pre) in
+        let v = man.ask (EvalInt pre) in
         (* M.debug ~category:Witness "%a precondition %a evaluated to %a" CilType.Fundec.pretty fd CilType.Exp.pretty pre Queries.ID.pretty v; *)
         if Queries.ID.to_bool v = Some true then
           D.add pre acc
@@ -289,25 +289,25 @@ struct
       ) (D.empty ()) pres
     in
 
-    emit_unassume {ctx with local = st} (* doesn't query, so no need to redefine ask *)
+    emit_unassume {man with local = st} (* doesn't query, so no need to redefine ask *)
 
-  let asm ctx =
-    emit_unassume ctx
+  let asm man =
+    emit_unassume man
 
-  let skip ctx =
-    emit_unassume ctx
+  let skip man =
+    emit_unassume man
 
-  let special ctx lv f args =
-    emit_unassume ctx
+  let special man lv f args =
+    emit_unassume man
 
-  let enter ctx lv f args =
-    [(ctx.local, D.empty ())]
+  let enter man lv f args =
+    [(man.local, D.empty ())]
 
-  let combine_env ctx lval fexp f args fc au f_ask =
-    ctx.local (* not here because isn't final transfer function on edge *)
+  let combine_env man lval fexp f args fc au f_ask =
+    man.local (* not here because isn't final transfer function on edge *)
 
-  let combine_assign ctx lv fe f args fc fd f_ask =
-    emit_unassume ctx
+  let combine_assign man lv fe f args fc fd f_ask =
+    emit_unassume man
 
   (* not in sync, query, entry, threadenter because they aren't final transfer function on edge *)
   (* not in vdecl, return, threadspawn because unnecessary targets for invariants? *)
