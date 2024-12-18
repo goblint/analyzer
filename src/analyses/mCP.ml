@@ -83,11 +83,11 @@ struct
     check_deps !activated;
     activated := topo_sort_an !activated;
     begin
-      match get_string_list "ana.man_sens" with
-      | [] -> (* use values of "ana.man_insens" (blacklist) *)
-        let cont_inse = map' find_id @@ get_string_list "ana.man_insens" in
+      match get_string_list "ana.ctx_sens" with
+      | [] -> (* use values of "ana.ctx_insens" (blacklist) *)
+        let cont_inse = map' find_id @@ get_string_list "ana.ctx_insens" in
         activated_context_sens := List.filter (fun (n, _) -> not (List.mem n cont_inse)) !activated;
-      | sens -> (* use values of "ana.man_sens" (whitelist) *)
+      | sens -> (* use values of "ana.ctx_sens" (whitelist) *)
         let cont_sens = map' find_id @@ sens in
         activated_context_sens := List.filter (fun (n, _) -> List.mem n cont_sens) !activated;
     end;
