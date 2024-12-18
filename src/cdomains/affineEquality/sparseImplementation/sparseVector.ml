@@ -96,7 +96,19 @@ module SparseVector: AbstractVector =
         {entries = entries'; len = v.len + 1}
 
     let map f v = 
+      (*
       of_list (List.map f (to_list v))
+      *)
+      let f_zero = f A.zero in
+      let rec map2_helper acc vec i =
+        match vec with
+        | [] when i >= v.len || f_zero =: A.zero -> List.rev acc
+        | []  -> map2_helper ((i, f_zero) :: acc) [] (i  + 1)
+        | (idx, value) :: xs when idx = i -> let new_val = f value in if new_val <>: A.zero then map2_helper ((idx, new_val) :: acc) xs (i + 1) else map2_helper acc xs (i + 1)
+        | (idx, _) :: xs when idx > i -> if f_zero <>: A.zero then map2_helper ((i, f_zero) :: acc) vec (i + 1) else map2_helper acc vec (i + 1)
+        | (_, _) :: _ -> failwith "This should not happen"
+      in
+      {entries = map2_helper [] v.entries 0; len = v.len}
 
     let map_f_preserves_zero f v = (* map for functions f such that f 0 = 0 since f won't be applied to zero values. See also map *)
       let entries' = List.filter_map (
@@ -132,8 +144,29 @@ module SparseVector: AbstractVector =
 
     let map2_f_preserves_zero f v1 v2 = Timing.wrap "map2_f_preserves_zero" (map2_f_preserves_zero f v1) v2
 
-    let map2i f v v' = (* TODO: optimize! *)
-      of_list (List.map2i f (to_list v) (to_list v'))
+    let map2i f v1 v2 = (* TODO: optimize! *)
+      if v1.len <> v2.len then raise (Invalid_argument "Unequal lengths") else
+        (*of_list (List.map2i f (to_list v) (to_list v'))*)
+        let f_rem_zero idx acc e1 e2 =
+          let r = f idx e1 e2 in 
+          if r =: A.zero then acc else (idx, r)::acc
+        in  
+        let rec aux acc vec1 vec2 i =
+          match vec1, vec2 with 
+          | [], [] when i = v1.len -> acc 
+          | [], [] -> aux (f_rem_zero i acc A.zero A.zero) [] [] (i + 1)
+          | [], (yidx, yval)::ys when i = yidx -> aux (f_rem_zero i acc A.zero yval) [] ys (i + 1)
+          | (xidx, xval)::xs, [] when i = xidx -> aux (f_rem_zero i acc xval A.zero) xs [] (i + 1)
+          | [], (_, _)::_ | (_, _)::_, [] -> aux (f_rem_zero i acc A.zero A.zero) vec1 vec2 (i + 1) (* When one vec is not zero_vec, but has implicit zeroes at front *)
+          | (xidx, xval)::xs, (yidx, yval)::ys -> 
+            if xidx <> i && yidx <> i then aux (f_rem_zero i acc A.zero A.zero) vec1 vec2 (i+1) (* When both vectors have implicit zeroes at front *)
+            else
+            match xidx - yidx with (* Here at least one of the idx is i, which is the smaller one *)
+            | d when d < 0 -> aux (f_rem_zero i acc xval A.zero) xs vec2 (i + 1)
+            | d when d > 0 -> aux (f_rem_zero i acc A.zero yval) vec1 ys (i + 1)
+            | _            -> aux (f_rem_zero i acc xval yval) xs ys (i + 1)
+        in
+        {entries = List.rev (aux [] v1.entries v2.entries 0); len = v1.len}
 
     let map2i_f_preserves_zero f v v' = failwith "TODO"
 

@@ -8,9 +8,12 @@ open SparseVector
 open ListMatrix
 open ArrayVector
 open ArrayMatrix
+open ConvenienceOps
+
 module D = SharedFunctions.Mpqf
 module Vector = SparseVector (D)
 module Matrix = ListMatrix (D) (SparseVector)
+include ConvenienceOps(D)
 
 (** Shorthands for common functions. *)
 let int x = D.of_int x
@@ -303,25 +306,65 @@ let int_domain_to_rational _ =
   in
   normalize_and_assert int_matrix normalized_matrix
 
-let tests =
-  "SparseMatrixImplementationTest"
-  >::: [
-    "can solve a standard normalization" >:: standard_normalize;
-    "does sort already reduzed" >:: does_just_sort;
-    "does eliminate dependent rows" >:: does_eliminate_dependent_rows;
-    "can handle float domain" >:: does_handle_floats;
-    "can handle fraction domain" >:: does_handle_fractions;
-    "does negate negative matrix" >:: does_negate_negative;
-    "does not change already normalized matrix" >:: does_not_change_normalized_matrix;
-    "m1 is covered by m2" >:: is_covered_by_simple;
-    "m1 is covered by m2 with vector in first row" >:: is_covered_by_vector_first_row;
-    "zero vector is covered by m2" >:: is_zero_vec_covered;
-    "m1 is not covered by m2" >:: is_not_covered;
-    "m1 is covered by m2 with big matrix" >:: is_covered_big;
-    "does not change an empty matrix" >:: normalize_empty;
-    "can correctly normalize a two column matrix" >:: normalize_two_columns;
-    "can handle a rational solution" >:: int_domain_to_rational;
-    "m1 is covered by m2 with big matrix2" >:: is_covered_big2;
-  ]
+
+let vectorMap2i _ =
+  let v1 = Vector.of_list [int 0; int 1; int 0; int 2; int 3; int 0; int 4; int 0; int 1] in
+  let v2 = Vector.of_list [int 4; int 0; int 0; int 0; int 5; int 6; int 0; int 0; int 2] in
+  let result = Vector.map2i (fun i x y -> (int i) *: (x +: y)) v1 v2 in
+  let expected = Vector.of_list [int 0; int 1; int 0; int 6; int 32; int 30; int 24; int 0; int 24] in
+  assert_equal expected result
+
+
+let vectorMap2i_empty _ = 
+  let v1 = Vector.of_list [] in
+  let v2 = Vector.of_list [] in
+  let result = Vector.map2i (fun i x y -> (int i) *: (x +: y)) v1 v2 in
+  let expected = Vector.of_list [] in
+  assert_equal expected result
+
+let vectorMap2i_one_zero _ = 
+    let v1 = Vector.of_list [int 0; int 0; int 0; int 0] in
+    let v2 = Vector.of_list [int 1; int 2; int 3; int 4] in
+    let result = Vector.map2i (fun i x y -> (int i) *: (x +: y)) v1 v2 in
+    let expected = Vector.of_list [int 0; int 2; int 6; int 12] in
+    assert_equal expected result
+
+let vectorMap _ =
+  let v1 = Vector.of_list [int 0; int 1; int 2; int 0; int 0; int 3; int 4; int 0; int 0; int 5] in
+  let result = Vector.map (fun x -> x +: int 1) v1 in
+  let expected = Vector.of_list [int 1; int 2; int 3; int 1; int 1; int 4; int 5; int 1; int 1; int 6] in
+  assert_equal expected result
+
+let vectorMap_zero_preserving_normal _ =
+  let v1 = Vector.of_list [int 0; int 1; int 2; int 0; int 0; int 4; int 5; int 0; int 0;] in
+  let result = Vector.map (fun x -> x *: x) v1 in
+  let expected = Vector.of_list [int 0; int 1; int 4; int 0; int 0; int 16; int 25; int 0; int 0;] in
+  assert_equal expected result
+
+  let tests =
+    "SparseMatrixImplementationTest"
+    >::: [
+      "can solve a standard normalization" >:: standard_normalize;
+      "does sort already reduzed" >:: does_just_sort;
+      "does eliminate dependent rows" >:: does_eliminate_dependent_rows;
+      "can handle float domain" >:: does_handle_floats;
+      "can handle fraction domain" >:: does_handle_fractions;
+      "does negate negative matrix" >:: does_negate_negative;
+      "does not change already normalized matrix" >:: does_not_change_normalized_matrix;
+      "m1 is covered by m2" >:: is_covered_by_simple;
+      "m1 is covered by m2 with vector in first row" >:: is_covered_by_vector_first_row;
+      "zero vector is covered by m2" >:: is_zero_vec_covered;
+      "m1 is not covered by m2" >:: is_not_covered;
+      "m1 is covered by m2 with big matrix" >:: is_covered_big;
+      "does not change an empty matrix" >:: normalize_empty;
+      "can correctly normalize a two column matrix" >:: normalize_two_columns;
+      "can handle a rational solution" >:: int_domain_to_rational;
+      "m1 is covered by m2 with big matrix2" >:: is_covered_big2;
+      "map2i two vectors" >:: vectorMap2i;
+      "map2i two empty vectors" >:: vectorMap2i_empty;
+      "map2i one zero vector" >:: vectorMap2i_one_zero;
+      "map one vector" >:: vectorMap;
+      "map zero preserving normal" >:: vectorMap_zero_preserving_normal;
+    ]
 
 let () = run_test_tt_main tests
