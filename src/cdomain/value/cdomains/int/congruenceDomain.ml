@@ -142,13 +142,13 @@ struct
   let to_bitfield ik x = 
     let is_power_of_two x = (Z.logand x (x -: Z.one) = Z.zero) in
     match x with None -> (Z.zero, Z.zero) | Some (c,m) ->
-    if m = Z.zero then (Z.lognot c, c)
-    else if is_power_of_two m then 
-      let mod_mask = m -: Z.one in 
-      let z = Z.lognot c in 
-      let o = Z.logor (Z.lognot mod_mask) c in 
-      (z,o)
-    else (Z.lognot Z.zero, Z.lognot Z.zero)
+      if m = Z.zero then (Z.lognot c, c)
+      else if is_power_of_two m then 
+        let mod_mask = m -: Z.one in 
+        let z = Z.lognot c in 
+        let o = Z.logor (Z.lognot mod_mask) c in 
+        (z,o)
+      else (Z.lognot Z.zero, Z.lognot Z.zero)
 
   let maximal t = match t with
     | Some (x, y) when y =: Z.zero -> Some x

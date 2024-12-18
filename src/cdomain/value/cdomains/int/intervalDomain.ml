@@ -89,11 +89,11 @@ struct
       if isSigned ik && isNegative then Ints_t.logor signMask (Ints_t.lognot z)
       else Ints_t.lognot z
     in let max ik (z,o) =
-      let signBit = Ints_t.shift_left Ints_t.one ((Size.bit ik) - 1) in 
-      let signMask = Ints_t.of_bigint (snd (Size.range ik)) in
-      let isPositive = Ints_t.logand signBit z <> Ints_t.zero in
-      if isSigned ik && isPositive then Ints_t.logand signMask o
-      else o 
+         let signBit = Ints_t.shift_left Ints_t.one ((Size.bit ik) - 1) in 
+         let signMask = Ints_t.of_bigint (snd (Size.range ik)) in
+         let isPositive = Ints_t.logand signBit z <> Ints_t.zero in
+         if isSigned ik && isPositive then Ints_t.logand signMask o
+         else o 
     in fst (norm ik (Some (min ik x, max ik x)))
 
   let of_int ik (x: int_t) = of_interval ik (x,x)
@@ -103,53 +103,53 @@ struct
 
   let to_bitfield ik z = 
     match z with None -> (Ints_t.lognot Ints_t.zero, Ints_t.lognot Ints_t.zero) | Some (x,y) ->
-    let (min_ik, max_ik) = Size.range ik in
-    let startv = Ints_t.max x (Ints_t.of_bigint min_ik) in
-    let endv= Ints_t.min y (Ints_t.of_bigint max_ik) in
-
-    let wrap ik (z,o) = 
       let (min_ik, max_ik) = Size.range ik in
-      if isSigned ik then
-        let newz = Ints_t.logor (Ints_t.logand z (Ints_t.of_bigint max_ik)) (Ints_t.mul (Ints_t.of_bigint min_ik) (Ints_t.logand Ints_t.one (Ints_t.shift_right z (Size.bit ik - 1)))) in
-        let newo = Ints_t.logor (Ints_t.logand o (Ints_t.of_bigint max_ik)) (Ints_t.mul (Ints_t.of_bigint min_ik) (Ints_t.logand Ints_t.one (Ints_t.shift_right o (Size.bit ik - 1)))) in
-        (newz,newo)
-      else
-        let newz = Ints_t.logor z (Ints_t.lognot (Ints_t.of_bigint max_ik)) in
-        let newo = Ints_t.logand o (Ints_t.of_bigint max_ik) in
-        (newz,newo)
-      in    
-    let rec analyze_bits pos (acc_z, acc_o) =
-      if pos < 0 then (acc_z, acc_o)
-      else
-        let position = Ints_t.shift_left Ints_t.one pos in
-        let mask = Ints_t.sub position Ints_t.one in
-        let remainder = Ints_t.logand startv mask in
+      let startv = Ints_t.max x (Ints_t.of_bigint min_ik) in
+      let endv= Ints_t.min y (Ints_t.of_bigint max_ik) in
 
-        let without_remainder = Ints_t.sub startv remainder in
-        let bigger_number = Ints_t.add without_remainder position in
-        
-        let bit_status =
-          if Ints_t.compare bigger_number endv <= 0 then
-            `top
-          else 
+      let wrap ik (z,o) = 
+        let (min_ik, max_ik) = Size.range ik in
+        if isSigned ik then
+          let newz = Ints_t.logor (Ints_t.logand z (Ints_t.of_bigint max_ik)) (Ints_t.mul (Ints_t.of_bigint min_ik) (Ints_t.logand Ints_t.one (Ints_t.shift_right z (Size.bit ik - 1)))) in
+          let newo = Ints_t.logor (Ints_t.logand o (Ints_t.of_bigint max_ik)) (Ints_t.mul (Ints_t.of_bigint min_ik) (Ints_t.logand Ints_t.one (Ints_t.shift_right o (Size.bit ik - 1)))) in
+          (newz,newo)
+        else
+          let newz = Ints_t.logor z (Ints_t.lognot (Ints_t.of_bigint max_ik)) in
+          let newo = Ints_t.logand o (Ints_t.of_bigint max_ik) in
+          (newz,newo)
+      in    
+      let rec analyze_bits pos (acc_z, acc_o) =
+        if pos < 0 then (acc_z, acc_o)
+        else
+          let position = Ints_t.shift_left Ints_t.one pos in
+          let mask = Ints_t.sub position Ints_t.one in
+          let remainder = Ints_t.logand startv mask in
+
+          let without_remainder = Ints_t.sub startv remainder in
+          let bigger_number = Ints_t.add without_remainder position in
+
+          let bit_status =
+            if Ints_t.compare bigger_number endv <= 0 then
+              `top
+            else 
             if Ints_t.equal (Ints_t.logand (Ints_t.shift_right startv pos) Ints_t.one) Ints_t.one then
               `one
             else
               `zero
-        in
+          in
 
-        let new_acc = 
-          match bit_status with
-          | `top -> (Ints_t.logor position acc_z, Ints_t.logor position acc_o)
-          | `one -> (Ints_t.logand (Ints_t.lognot position) acc_z, Ints_t.logor position acc_o)
-          | `zero -> (Ints_t.logor position acc_z, Ints_t.logand (Ints_t.lognot position) acc_o)
+          let new_acc = 
+            match bit_status with
+            | `top -> (Ints_t.logor position acc_z, Ints_t.logor position acc_o)
+            | `one -> (Ints_t.logand (Ints_t.lognot position) acc_z, Ints_t.logor position acc_o)
+            | `zero -> (Ints_t.logor position acc_z, Ints_t.logand (Ints_t.lognot position) acc_o)
 
-        in 
-        analyze_bits (pos - 1) new_acc
-    in      
-    let result = analyze_bits (Size.bit ik - 1) (Ints_t.zero, Ints_t.zero) in
-    let casted = (Ints_t.of_bigint (Size.cast ik ((Ints_t.to_bigint (fst result)))), Ints_t.of_bigint (Size.cast ik ((Ints_t.to_bigint (snd result))))) 
-    in wrap ik casted
+          in 
+          analyze_bits (pos - 1) new_acc
+      in      
+      let result = analyze_bits (Size.bit ik - 1) (Ints_t.zero, Ints_t.zero) in
+      let casted = (Ints_t.of_bigint (Size.cast ik ((Ints_t.to_bigint (fst result)))), Ints_t.of_bigint (Size.cast ik ((Ints_t.to_bigint (snd result))))) 
+      in wrap ik casted
 
   let of_bool _ik = function true -> one | false -> zero
   let to_bool (a: t) = match a with
@@ -447,7 +447,7 @@ struct
     let refn = refine_with_congruence ik x y in
     if M.tracing then M.trace "refine" "int_refine_with_congruence %a %a -> %a" pretty x pretty y pretty refn;
     refn
-    
+
   let refine_with_bitfield ik a b = 
     let interv = of_bitfield ik b in 
     meet ik a interv

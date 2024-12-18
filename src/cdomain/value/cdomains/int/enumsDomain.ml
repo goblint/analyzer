@@ -252,13 +252,13 @@ module Enums : S with type int_t = Z.t = struct
 
   let to_bitfield ik x = 
     match x with 
-    Inc i when BISet.is_empty i -> (Z.zero, Z.zero) |
-    Inc i when BISet.is_singleton i -> 
+      Inc i when BISet.is_empty i -> (Z.zero, Z.zero) |
+      Inc i when BISet.is_singleton i -> 
       let o = BISet.choose i 
       in (Z.lognot o, o) |
-    Inc i -> BISet.fold (fun o (az, ao) -> (Z.logor (Z.lognot o) az, Z.logor o ao)) i (Z.zero, Z.zero) |
-    _ -> let one_mask = Z.lognot Z.zero     
-    in (one_mask, one_mask)
+      Inc i -> BISet.fold (fun o (az, ao) -> (Z.logor (Z.lognot o) az, Z.logor o ao)) i (Z.zero, Z.zero) |
+      _ -> let one_mask = Z.lognot Z.zero     
+      in (one_mask, one_mask)
 
   let starting ?(suppress_ovwarn=false) ikind x =
     let _,u_ik = Size.range ikind in
