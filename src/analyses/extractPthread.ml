@@ -233,15 +233,15 @@ let promela_main : fun_name = "mainfun"
 (* assign tid: promela_main -> 0 *)
 let _ = Tbls.ThreadTidTbl.get promela_main
 
-let fun_ctx man f =
-  let man_hash =
-    match PthreadDomain.Ctx.to_int man with
+let fun_ctx ctx f =
+  let ctx_hash =
+    match PthreadDomain.Ctx.to_int ctx with
     | Some i ->
       i |> i64_to_int |> Tbls.CtxTbl.get |> string_of_int
     | None ->
       "TOP"
   in
-  f.vname ^ "_" ^ man_hash
+  f.vname ^ "_" ^ ctx_hash
 
 
 module Tasks = SetDomain.Make (Lattice.Prod (Queries.AD) (PthreadDomain.D))
