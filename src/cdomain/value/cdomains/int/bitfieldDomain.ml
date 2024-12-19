@@ -245,7 +245,7 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): SOverflow with type int_t = Int
       else 
         (top_of ik, overflow_info)
 
-  let cast_to ?(suppress_ovwarn=false) ?torg ?no_ov t = norm ~suppress_ovwarn t
+  let cast_to ?(suppress_ovwarn=false) ?torg ?no_ov ik x = norm ~suppress_ovwarn:(suppress_ovwarn || x = top ()) ik x
 
   let join ik b1 b2 = (norm ik @@ (BArith.join b1 b2) ) |> fst
 
