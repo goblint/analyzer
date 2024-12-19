@@ -13,61 +13,61 @@ struct
   module D = BoolDomain.MustBool
   module C = Printable.Unit
 
-  let context ctx _ _ = ()
+  let context man _ _ = ()
   let startcontext () = ()
 
   (* transfer functions *)
-  let assign ctx (lval:lval) (rval:exp) : D.t =
+  let assign man (lval:lval) (rval:exp) : D.t =
     false
 
-  let branch ctx (exp:exp) (tv:bool) : D.t =
-    ctx.local
+  let branch man (exp:exp) (tv:bool) : D.t =
+    man.local
 
-  let body ctx (f:fundec) : D.t =
-    ctx.local
+  let body man (f:fundec) : D.t =
+    man.local
 
-  let return ctx (exp:exp option) (f:fundec) : D.t =
-    if ctx.local then
+  let return man (exp:exp option) (f:fundec) : D.t =
+    if man.local then
       match f.sformals with
       | [arg] when isIntegralType arg.vtype ->
-        (match ctx.ask (EvalInt (Lval (Var arg, NoOffset))) with
+        (match man.ask (EvalInt (Lval (Var arg, NoOffset))) with
          | v when Queries.ID.is_bot v -> false
          | v ->
            match Queries.ID.to_bool v with
            | Some b -> b
            | None -> false)
       | _ ->
-        (* should not happen, ctx.local should always be false in this case *)
+        (* should not happen, man.local should always be false in this case *)
         false
     else
       false
 
-  let enter ctx (lval: lval option) (f:fundec) (args:exp list) : (D.t * D.t) list =
+  let enter man (lval: lval option) (f:fundec) (args:exp list) : (D.t * D.t) list =
     let candidate = match f.sformals with
       | [arg] when isIntegralType arg.vtype -> true
       | _ -> false
     in
     [false, candidate]
 
-  let combine_env ctx lval fexp f args fc au f_ask =
+  let combine_env man lval fexp f args fc au f_ask =
     if au then (
       (* Assert before combine_assign, so if variables in `arg` are assigned to, asserting doesn't unsoundly yield bot *)
       (* See test 62/03 *)
       match args with
-      | [arg] -> ctx.emit (Events.Assert arg)
+      | [arg] -> man.emit (Events.Assert arg)
       | _ -> ()
     );
     false
 
-  let combine_assign ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) (f_ask: Queries.ask) : D.t =
+  let combine_assign man (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) (f_ask: Queries.ask) : D.t =
     false
 
-  let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
+  let special man (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
     false
 
   let startstate v = false
-  let threadenter ctx ~multiple lval f args = [false]
-  let threadspawn ctx ~multiple lval f args fctx = false
+  let threadenter man ~multiple lval f args = [false]
+  let threadspawn man ~multiple lval f args fman = false
   let exitstate v = false
 end
 

@@ -13,7 +13,7 @@ struct
 
   let name () = "ptranal"
 
-  let query ctx (type a) (q: a Queries.t): a Queries.result =
+  let query man (type a) (q: a Queries.t): a Queries.result =
     match q with
     | Queries.EvalFunvar (Lval (Mem e, _)) ->
       let funs = Ptranal.resolve_exp e in

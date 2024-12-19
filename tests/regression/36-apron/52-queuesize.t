@@ -37,6 +37,9 @@ Without diff-box:
   [Warning][Deadcode][CWE-571] condition '1' (possibly inserted by CIL) is always true (52-queuesize.c:56:10-56:11)
   [Warning][Deadcode][CWE-571] condition '1' (possibly inserted by CIL) is always true (52-queuesize.c:78:12-78:13)
   [Info][Witness] witness generation summary:
+    location invariants: 8
+    loop invariants: 0
+    flow-insensitive invariants: 0
     total generation entries: 8
   [Info][Race] Memory locations race summary:
     safe: 3
@@ -173,6 +176,9 @@ With diff-box:
   [Warning][Deadcode][CWE-571] condition '1' (possibly inserted by CIL) is always true (52-queuesize.c:56:10-56:11)
   [Warning][Deadcode][CWE-571] condition '1' (possibly inserted by CIL) is always true (52-queuesize.c:78:12-78:13)
   [Info][Witness] witness generation summary:
+    location invariants: 6
+    loop invariants: 0
+    flow-insensitive invariants: 0
     total generation entries: 6
   [Info][Race] Memory locations race summary:
     safe: 3

@@ -25,8 +25,8 @@ struct
   let name () = "uninit"
 
   let startstate v : D.t = D.empty ()
-  let threadenter ctx ~multiple lval f args = [D.empty ()]
-  let threadspawn ctx ~multiple lval f args fctx = ctx.local
+  let threadenter man ~multiple lval f args = [D.empty ()]
+  let threadspawn man ~multiple lval f args fman = man.local
   let exitstate  v : D.t = D.empty ()
 
   let access_address (ask: Queries.ask) write lv =
@@ -135,7 +135,7 @@ struct
     in
     let utar, uoth = unrollType target, unrollType other in
     match ofs, utar, uoth with
-    |     `NoOffset,              _ ,               _ when utar == uoth  -> [v, rev cx]
+    |     `NoOffset,              _ ,               _ when CilType.Typ.equal utar uoth  -> [v, rev cx]
     |     `NoOffset,              _ ,    TComp (c2,_) when not c2.cstruct ->
       (* unroll other (union) *)
       List.concat (List.rev_map (fun oth_f -> get_pfx v (`Field (oth_f, cx)) ofs utar oth_f.ftype) c2.cfields)
@@ -219,48 +219,48 @@ struct
   (*
     Transfer functions
   *)
-  let assign ctx (lval:lval) (rval:exp) : trans_out =
-    ignore (is_expr_initd (Analyses.ask_of_ctx ctx) rval ctx.local);
-    init_lval (Analyses.ask_of_ctx ctx) lval ctx.local
+  let assign man (lval:lval) (rval:exp) : trans_out =
+    ignore (is_expr_initd (Analyses.ask_of_man man) rval man.local);
+    init_lval (Analyses.ask_of_man man) lval man.local
 
-  let branch ctx (exp:exp) (tv:bool) : trans_out =
-    ignore (is_expr_initd (Analyses.ask_of_ctx ctx) exp ctx.local);
-    ctx.local
+  let branch man (exp:exp) (tv:bool) : trans_out =
+    ignore (is_expr_initd (Analyses.ask_of_man man) exp man.local);
+    man.local
 
-  let body ctx (f:fundec) : trans_out =
+  let body man (f:fundec) : trans_out =
     let add_var st v = List.fold_right D.add (to_addrs v) st in
-    List.fold_left add_var ctx.local f.slocals
+    List.fold_left add_var man.local f.slocals
 
-  let return ctx (exp:exp option) (f:fundec) : trans_out =
+  let return man (exp:exp option) (f:fundec) : trans_out =
     let remove_var x v =
       List.fold_right D.remove (to_addrs v) x in
-    let nst = List.fold_left remove_var ctx.local (f.slocals @ f.sformals) in
+    let nst = List.fold_left remove_var man.local (f.slocals @ f.sformals) in
     match exp with
-    | Some exp -> ignore (is_expr_initd (Analyses.ask_of_ctx ctx) exp ctx.local); nst
+    | Some exp -> ignore (is_expr_initd (Analyses.ask_of_man man) exp man.local); nst
     | _ -> nst
 
 
-  let enter ctx (lval: lval option) (f:fundec) (args:exp list) : (D.t * D.t) list =
-    let nst = remove_unreachable (Analyses.ask_of_ctx ctx) args ctx.local in
-    [ctx.local, nst]
+  let enter man (lval: lval option) (f:fundec) (args:exp list) : (D.t * D.t) list =
+    let nst = remove_unreachable (Analyses.ask_of_man man) args man.local in
+    [man.local, nst]
 
-  let combine_env ctx lval fexp f args fc au f_ask =
-    ignore (List.map (fun x -> is_expr_initd (Analyses.ask_of_ctx ctx) x ctx.local) args);
-    let cal_st = remove_unreachable (Analyses.ask_of_ctx ctx) args ctx.local in
-    D.union au (D.diff ctx.local cal_st)
+  let combine_env man lval fexp f args fc au f_ask =
+    ignore (List.map (fun x -> is_expr_initd (Analyses.ask_of_man man) x man.local) args);
+    let cal_st = remove_unreachable (Analyses.ask_of_man man) args man.local in
+    D.union au (D.diff man.local cal_st)
 
-  let combine_assign ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) (f_ask: Queries.ask) : trans_out =
+  let combine_assign man (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) (f_ask: Queries.ask) : trans_out =
     match lval with
-    | None -> ctx.local
-    | Some lv -> init_lval (Analyses.ask_of_ctx ctx) lv ctx.local
+    | None -> man.local
+    | Some lv -> init_lval (Analyses.ask_of_man man) lv man.local
 
 
-  let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
+  let special man (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
     match lval with
-    | Some lv -> init_lval (Analyses.ask_of_ctx ctx) lv ctx.local
-    | _ -> ctx.local
+    | Some lv -> init_lval (Analyses.ask_of_man man) lv man.local
+    | _ -> man.local
 
-  (*  let fork ctx (lval: lval option) (f : varinfo) (args : exp list) : (varinfo * D.t) list =
+  (*  let fork man (lval: lval option) (f : varinfo) (args : exp list) : (varinfo * D.t) list =
       [] (* thats wrong: should be [None, top ()] *)*)
 
 end

@@ -8,10 +8,10 @@ open TerminationPreprocessing
 let loop_counters : stmt VarToStmt.t ref = ref VarToStmt.empty
 
 (** Checks whether a variable can be bounded. *)
-let ask_bound ctx varinfo =
+let ask_bound man varinfo =
   let open IntDomain.IntDomTuple in
   let exp = Lval (Var varinfo, NoOffset) in
-  match ctx.ask (EvalInt exp) with
+  match man.ask (EvalInt exp) with
   | `Top -> `Top
   | `Lifted v when is_top_of (ikind v) v -> `Top
   | `Lifted v -> `Lifted v
@@ -44,15 +44,15 @@ struct
 
   (** Recognizes a call of [__goblint_bounded] to check the EvalInt of the
    * respective loop counter variable at that position. *)
-  let special ctx (lval : lval option) (f : varinfo) (arglist : exp list) =
+  let special man (lval : lval option) (f : varinfo) (arglist : exp list) =
     if !AnalysisState.postsolving then (
       match f.vname, arglist with
       | "__goblint_bounded", [Lval (Var loop_counter, NoOffset)] ->
         begin match VarToStmt.find_opt loop_counter !loop_counters with
           | Some loop_statement ->
-            let bound = ask_bound ctx loop_counter in
+            let bound = ask_bound man loop_counter in
             let is_bounded = bound <> `Top in
-            ctx.sideg () (G.add (`Lifted loop_statement) is_bounded (ctx.global ()));
+            man.sideg () (G.add (`Lifted loop_statement) is_bounded (man.global ()));
             let loc = M.Location.CilLocation (Cilfacade.get_stmtLoc loop_statement) in
             begin match bound with
               | `Top ->
@@ -70,21 +70,21 @@ struct
       | _ -> ()
     )
 
-  let query ctx (type a) (q: a Queries.t): a Queries.result =
+  let query man (type a) (q: a Queries.t): a Queries.result =
     match q with
     | Queries.MustTermLoop loop_statement ->
-      let multithreaded = ctx.ask Queries.IsEverMultiThreaded in
+      let multithreaded = man.ask Queries.IsEverMultiThreaded in
       (not multithreaded)
-      && (match G.find_opt (`Lifted loop_statement) (ctx.global ()) with
+      && (match G.find_opt (`Lifted loop_statement) (man.global ()) with
             Some b -> b
           | None -> false)
     | Queries.MustTermAllLoops ->
-      let multithreaded = ctx.ask Queries.IsEverMultiThreaded in
+      let multithreaded = man.ask Queries.IsEverMultiThreaded in
       if multithreaded then (
         M.warn ~category:Termination "The program might not terminate! (Multithreaded)";
         false)
       else
-        G.for_all (fun _ term_info -> term_info) (ctx.global ())
+        G.for_all (fun _ term_info -> term_info) (man.global ())
     | _ -> Queries.Result.top q
 
 end

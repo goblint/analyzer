@@ -170,7 +170,7 @@ module WP =
         )
       in
       (* restore values for non-widening-points *)
-      if GobConfig.get_bool "solvers.wp.restore" then (
+      if GobConfig.get_bool "solvers.td3.space_restore" then (
         Logs.debug "Restoring missing values.";
         let restore () =
           let get x =
