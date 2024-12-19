@@ -710,7 +710,7 @@ struct
 
   let substitute_exp ask t var exp no_ov = timing_wrap "substitution" (substitute_exp ask t var exp) no_ov
 
-  let refine_value_domains (ctx:('a,'b,'c,'d) Analyses.ctx) t tcons =
+  let refine_value_domains (man:('a,'b,'c,'d) Analyses.man) t tcons =
     match t.d with
     | None -> []
     | Some d -> 
