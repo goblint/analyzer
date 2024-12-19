@@ -13,7 +13,7 @@ module type CallstringType =
 sig
   include CilType.S
   val ana_name: string
-  val new_ele: fundec -> ('d,'g,'c,'v) ctx -> t option (* returns an element that should be pushed to the call string *)
+  val new_ele: fundec -> ('d,'g,'c,'v) man -> t option (* returns an element that should be pushed to the call string *)
 end
 
 (** Analysis with infinite call string or with limited call string (k-CFA, tracks the last k call stack elements).
@@ -49,17 +49,17 @@ struct
 
   let startcontext () = CallString.empty
 
-  let context ctx fd _ =
-    let elem = CT.new_ele fd ctx in (* receive element that should be added to call string *)
-    CallString.push (ctx.context ()) elem
+  let context man fd _ =
+    let elem = CT.new_ele fd man in (* receive element that should be added to call string *)
+    CallString.push (man.context ()) elem
 end
 
 (* implementations of CallstringTypes*)
 module Callstring: CallstringType = struct
   include CilType.Fundec
   let ana_name = "string"
-  let new_ele f ctx =
-    let f' = Node.find_fundec ctx.node in
+  let new_ele f man =
+    let f' = Node.find_fundec man.node in
     if CilType.Fundec.equal f' dummyFunDec
     then None
     else Some f'
@@ -68,8 +68,8 @@ end
 module Callsite: CallstringType = struct
   include CilType.Stmt
   let ana_name = "site"
-  let new_ele f ctx =
-    match ctx.prev_node with
+  let new_ele f man =
+    match man.prev_node with
     | Statement stmt -> Some stmt
     | _ -> None (* first statement is filtered *)
 end

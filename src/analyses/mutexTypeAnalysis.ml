@@ -24,7 +24,7 @@ struct
   module O = Offset.Unit
 
   (* transfer functions *)
-  let assign ctx (lval:lval) (rval:exp) : D.t =
+  let assign man (lval:lval) (rval:exp) : D.t =
     match lval with
     | (Var v, o) ->
       (* There's no way to use the PTHREAD_RECURSIVE_MUTEX_INITIALIZER_NP etc for accesses via pointers *)
@@ -35,8 +35,8 @@ struct
              | Const (CInt (c, _, _)) -> MAttr.of_int c
              | _ -> `Top)
           in
-          ctx.sideg (v,o) kind;
-          ctx.local
+          man.sideg (v,o) kind;
+          man.local
         | Field ({fname = "__sig"; _}, NoOffset) when ValueDomain.Compound.is_mutex_type t -> (* OSX *)
           let kind: MAttr.t = match Cil.constFold true rval with
             | Const (CInt (c, _, _)) ->
@@ -48,42 +48,42 @@ struct
               end
             | _ -> `Top
           in
-          ctx.sideg (v,o) kind;
-          ctx.local
+          man.sideg (v,o) kind;
+          man.local
         | Index (i,o') ->
           let o'' = O.of_offs (`Index (i, `NoOffset)) in
           helper (O.add_offset o o'') (Cilfacade.typeOffset t (Index (i,NoOffset))) o'
         | Field (f,o') ->
           let o'' = O.of_offs (`Field (f, `NoOffset)) in
           helper (O.add_offset o o'')  (Cilfacade.typeOffset t (Field (f,NoOffset))) o'
-        | NoOffset -> ctx.local
+        | NoOffset -> man.local
       in
       helper `NoOffset v.vtype o
-    | _ -> ctx.local
+    | _ -> man.local
 
-  let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
+  let special man (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
     let desc = LF.find f in
     match desc.special arglist with
     | MutexInit {mutex = mutex; attr = attr} ->
-      let attr = ctx.ask (Queries.EvalMutexAttr attr) in
-      let mutexes = ctx.ask (Queries.MayPointTo mutex) in
+      let attr = man.ask (Queries.EvalMutexAttr attr) in
+      let mutexes = man.ask (Queries.MayPointTo mutex) in
       (* It is correct to iter over these sets here, as mutexes need to be intialized before being used, and an analysis that detects usage before initialization is a different analysis. *)
       Queries.AD.iter (function addr ->
         match addr with
-        | Queries.AD.Addr.Addr (v,o) -> ctx.sideg (v,O.of_offs o) attr
+        | Queries.AD.Addr.Addr (v,o) -> man.sideg (v,O.of_offs o) attr
         | _ -> ()
         ) mutexes;
-      ctx.local
-    | _ -> ctx.local
+      man.local
+    | _ -> man.local
 
-  let query ctx (type a) (q: a Queries.t): a Queries.result =
+  let query man (type a) (q: a Queries.t): a Queries.result =
     match q with
-    | Queries.MutexType (v,o) -> (ctx.global (v,o):MutexAttrDomain.t)
+    | Queries.MutexType (v,o) -> (man.global (v,o):MutexAttrDomain.t)
     | _ -> Queries.Result.top q
 end
 
-let must_be_recursive ctx (v,o) =
-  ctx.ask (Queries.MutexType (v, Offset.Unit.of_offs o)) = `Lifted MutexAttrDomain.MutexKind.Recursive
+let must_be_recursive man (v,o) =
+  man.ask (Queries.MutexType (v, Offset.Unit.of_offs o)) = `Lifted MutexAttrDomain.MutexKind.Recursive
 
 let _ =
   MCP.register_analysis (module Spec : MCPSpec)
