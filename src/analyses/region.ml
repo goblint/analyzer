@@ -143,14 +143,14 @@ struct
     match au with
     | `Lifted reg -> begin
         let old_regpart = man.global () in
-      let regpart, reg = match lval with
-        | None -> (old_regpart, reg)
-        | Some lval -> Reg.assign lval (AddrOf (ReturnUtil.return_lval ())) (old_regpart, reg)
-      in
-      let regpart, reg = Reg.remove_vars [ReturnUtil.return_varinfo ()] (regpart, reg) in
-      if not (RegPart.leq regpart old_regpart) then
-        man.sideg () regpart;
-      `Lifted reg
+        let regpart, reg = match lval with
+          | None -> (old_regpart, reg)
+          | Some lval -> Reg.assign lval (AddrOf (ReturnUtil.return_lval ())) (old_regpart, reg)
+        in
+        let regpart, reg = Reg.remove_vars [ReturnUtil.return_varinfo ()] (regpart, reg) in
+        if not (RegPart.leq regpart old_regpart) then
+          man.sideg () regpart;
+        `Lifted reg
       end
     | _ -> au
 
