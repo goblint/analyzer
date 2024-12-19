@@ -2197,6 +2197,12 @@
           "description": "Output abstract values, etc. with full internal details, without readability-oriented simplifications.",
           "type": "boolean",
           "default": false
+        },
+        "termination-bounds": {
+          "title": "dbg.termination-bounds",
+          "description": "Output loop iteration bounds for terminating loops when termination analysis is activated.",
+          "type": "boolean",
+          "default": false
         }
       },
       "additionalProperties": false
