@@ -318,7 +318,8 @@ module ArrayMatrix: AbstractMatrix =
     let is_covered_by m1 m2 =
       (*Performs a partial rref reduction to check if concatenating both matrices and afterwards normalizing them would yield a matrix <> m2 *)
       (*Both input matrices must be in rref form!*)
-      let () = Printf.printf "Is m1 covered by m2?\n m1:\n%sm2:\n%s" (show m1) (show m2) in
+      let () = Printf.printf "is_covered_by m1: \n%s " (show m1) in
+      let () = Printf.printf "is_covered_by m2 \n%s " (show m2) in
       if num_rows m1 > num_rows m2 then false else
         let p2 = lazy (get_pivot_positions m2) in
         try (

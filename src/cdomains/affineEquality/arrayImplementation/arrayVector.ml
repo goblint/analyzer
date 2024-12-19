@@ -57,7 +57,9 @@ module ArrayVector: AbstractVector =
 
     let is_zero_vec v = not (Array.exists (fun x -> x <>: A.zero) v)
 
-    let is_const_vec v = failwith "Never implemented!"
+    let is_const_vec v =
+      compare_length_with (filteri (fun i x -> (*Inefficient*)
+        compare_length_with v (i + 1) > 0 && x <>: A.zero) v) 1 = 0
 
     let nth = Array.get
 
@@ -108,11 +110,17 @@ module ArrayVector: AbstractVector =
     let find_opt f v =
       failwith "Never implemented!"
 
-    let map_f_preserves_zero f v = failwith "Never implemented!"
-    let map2_f_preserves_zero f v1 v2 = failwith "Never implemented!"
+    let map_f_preserves_zero f v =
+      map f v
 
-    let mapi_f_preserves_zero f v = failwith "Never implemented!"
-    let map2i_f_preserves_zero f v v' = failwith "Never implemented!"
+    let map2_f_preserves_zero f v1 v2 =
+      map2 f v1 v2
+
+    let mapi_f_preserves_zero f v =
+      mapi f v
+
+    let map2i_f_preserves_zero f v v' =
+      map2i f v v'
 
     let fold_left_f_preserves_zero f acc v =
       failwith "Never implemented!"
@@ -133,5 +141,5 @@ module ArrayVector: AbstractVector =
       failwith "Never implemented!"
 
     let apply_with_c_f_preserves_zero f c v =
-      failwith "Never implemented!"
+      apply_with_c f c v
   end
