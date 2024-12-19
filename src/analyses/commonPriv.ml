@@ -237,7 +237,7 @@ struct
     | _ -> false
 end
 
-module PerMutexTidCommon (Digest: Digest) (LD:Lattice.S) =
+module PerMutexTidCommon (Digest: Digest) (LD:Lattice.S) (Cluster:Printable.S) =
 struct
   include ConfCheck.RequireThreadFlagPathSensInit
 
@@ -268,7 +268,7 @@ struct
 
   (** Mutexes / globals to which values have been published, i.e. for which the initializers need not be read **)
   module LMust = struct
-    include SetDomain.Reverse (SetDomain.ToppedSet (LLock) (struct let topname = "All locks" end))
+    include SetDomain.Reverse (SetDomain.ToppedSet (Printable.Prod(LLock)(Cluster)) (struct let topname = "All locks" end))
     let name () = "LMust"
   end
 
@@ -315,6 +315,14 @@ struct
   let startstate () = W.bot (), LMust.top (), L.bot ()
 end
 
+module PerMutexTidCommonNC (Digest: Digest) (LD:Lattice.S) = struct
+  include PerMutexTidCommon (Digest) (LD) (Printable.Unit)
+  module LMust = struct
+    include LMust
+    let mem lm lmust = mem (lm, ()) lmust
+    let add lm lmust = add (lm, ()) lmust
+  end
+end
 
 let lift_lock (ask: Q.ask) f st (addr: LockDomain.Addr.t) =
   (* Should be in sync with:
