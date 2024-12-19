@@ -1255,11 +1255,11 @@ struct
     else
       st
 
-  let threadenter =
+  let threadenter ask st =
     if Param.side_effect_global_init then
-      startstate_threadenter startstate
+      startstate_threadenter startstate ask st
     else
-      old_threadenter
+      {(old_threadenter ask st) with priv = W.empty ()}
 end
 
 module LockCenteredD =
