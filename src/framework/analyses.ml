@@ -142,7 +142,8 @@ struct
     | `Lifted x -> LD.printXml f x
 end
 
-
+(** Man(ager) is passed to transfer functions and offers access to various facilities, e.g., to access the local state, the context,
+    read values from globals, side-effect values to globals and trigger events. *)
 type ('d,'g,'c,'v) man =
   { ask      : 'a. 'a Queries.t -> 'a Queries.result (* Inlined Queries.ask *)
   ; emit     : Events.t -> unit
