@@ -469,10 +469,9 @@ struct
       | None -> None
       | Some st ->
         let ad = ask.f (Queries.ReachableFrom e) in
-        if Queries.AD.is_top ad then
-          None
-        else
-          Some (Queries.AD.join ad st)
+        (* See https://github.com/goblint/analyzer/issues/1535 *)
+        let ad = Queries.AD.remove UnknownPtr ad in
+        Some (Queries.AD.join ad st)
     in
     List.fold_right reachable es (Some (Queries.AD.empty ()))
 
@@ -513,6 +512,36 @@ struct
       if RD.is_bot_env res then raise Deadcode;
       {st with rel = res}
 
+  let special_unknown_invalidate man f args =
+    (* No warning here, base already prodcues the appropriate warnings *)
+    let desc = LibraryFunctions.find f in
+    let shallow_addrs = LibraryDesc.Accesses.find desc.accs { kind = Write; deep = false } args in
+    let deep_addrs = LibraryDesc.Accesses.find desc.accs { kind = Write; deep = true } args in
+    let deep_addrs =
+      if List.mem LibraryDesc.InvalidateGlobals desc.attrs then (
+        foldGlobals !Cilfacade.current_file (fun acc global ->
+            match global with
+            | GVar (vi, _, _) when not (BaseUtil.is_static vi) ->
+              mkAddrOf (Var vi, NoOffset) :: acc
+            (* TODO: what about GVarDecl? *)
+            | _ -> acc
+          ) deep_addrs
+      )
+      else
+        deep_addrs
+    in
+    let lvallist e =
+      match man.ask (Queries.MayPointTo e) with
+      | ad when Queries.AD.is_top ad -> []
+      | ad ->
+        Queries.AD.to_mval ad
+        |> List.map ValueDomain.Addr.Mval.to_cil
+    in
+    let st' = forget_reachable man man.local deep_addrs in
+    let shallow_lvals = List.concat_map lvallist shallow_addrs in
+    List.fold_left (invalidate_one (Analyses.ask_of_man man) man) st' shallow_lvals
+
+
   let special man r f args =
     let ask = Analyses.ask_of_man man in
     let st = man.local in
@@ -548,31 +577,7 @@ struct
          assert_fn {man with local = st} (BinOp (Ge, Lval lv, zero, intType)) true
        | None -> st)
     | _, _ ->
-      let lvallist e =
-        match ask.f (Queries.MayPointTo e) with
-        | ad when Queries.AD.is_top ad -> []
-        | ad ->
-          Queries.AD.to_mval ad
-          |> List.map ValueDomain.Addr.Mval.to_cil
-      in
-      let shallow_addrs = LibraryDesc.Accesses.find desc.accs { kind = Write; deep = false } args in
-      let deep_addrs = LibraryDesc.Accesses.find desc.accs { kind = Write; deep = true } args in
-      let deep_addrs =
-        if List.mem LibraryDesc.InvalidateGlobals desc.attrs then (
-          foldGlobals !Cilfacade.current_file (fun acc global ->
-              match global with
-              | GVar (vi, _, _) when not (BaseUtil.is_static vi) ->
-                mkAddrOf (Var vi, NoOffset) :: acc
-              (* TODO: what about GVarDecl? *)
-              | _ -> acc
-            ) deep_addrs
-        )
-        else
-          deep_addrs
-      in
-      let st' = forget_reachable man st deep_addrs in
-      let shallow_lvals = List.concat_map lvallist shallow_addrs in
-      let st' = List.fold_left (invalidate_one ask man) st' shallow_lvals in
+      let st' = special_unknown_invalidate man f args in
       (* invalidate lval if present *)
       match r with
       | Some lv -> invalidate_one ask man st' lv
@@ -674,21 +679,19 @@ struct
 
   let threadenter man ~multiple lval f args =
     let st = man.local in
+    (* TODO: HACK: Simulate enter_multithreaded for first entering thread to publish global inits before analyzing thread.
+       Otherwise thread is analyzed with no global inits, reading globals gives bot, which turns into top, which might get published...
+       sync `Thread doesn't help us here, it's not specific to entering multithreaded mode.
+       EnterMultithreaded events only execute after threadenter and threadspawn. *)
+    if not (ThreadFlag.has_ever_been_multi (Analyses.ask_of_man man)) then
+      ignore (Priv.enter_multithreaded (Analyses.ask_of_man man) man.global man.sideg st);
     match Cilfacade.find_varinfo_fundec f with
     | fd ->
-      (* TODO: HACK: Simulate enter_multithreaded for first entering thread to publish global inits before analyzing thread.
-         Otherwise thread is analyzed with no global inits, reading globals gives bot, which turns into top, which might get published...
-         sync `Thread doesn't help us here, it's not specific to entering multithreaded mode.
-         EnterMultithreaded events only execute after threadenter and threadspawn. *)
-      if not (ThreadFlag.has_ever_been_multi (Analyses.ask_of_man man)) then
-        ignore (Priv.enter_multithreaded (Analyses.ask_of_man man) man.global man.sideg st);
       let st' = Priv.threadenter (Analyses.ask_of_man man) man.global st in
       let new_rel = make_callee_rel ~thread:true man fd args in
       [{st' with rel = new_rel}]
     | exception Not_found ->
-      (* Unknown functions *)
-      (* TODO: do something like base? *)
-      failwith "relation.threadenter: unknown function"
+      [special_unknown_invalidate man f args]
 
   let threadspawn man ~multiple lval f args fman =
     man.local
