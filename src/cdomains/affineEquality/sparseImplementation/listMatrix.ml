@@ -113,16 +113,6 @@ module ListMatrix: AbstractMatrix =
                       sub_scaled_row row pivot_row s)            
             ) m
 
-    let reduce_col_with_vec m j v = 
-      let pivot_element = V.nth v j in
-      if pivot_element = A.zero then m
-      else List.mapi (fun idx row ->
-          let row_value = V.nth row j in 
-          if row_value =: A.zero then row
-          else (let s = row_value /: pivot_element in
-                V.map2_f_preserves_zero (fun x y -> x -: s *: y) row v)            
-        ) m
-
     let del_col m j =
       if num_cols m = 1 then empty () 
       else 
@@ -202,14 +192,6 @@ module ListMatrix: AbstractMatrix =
       let m' = main_loop m m 0 0 in
       if affeq_rows_are_valid m' then Some m' else None (* TODO: We can check this for each row, using the helper function row_is_invalid *)
 
-    (* This function return a tuple of row index and pivot position (column) in m *)
-    (* TODO: maybe we could use a Hashmap instead of a list? *)
-    let get_pivot_positions (m : t) : (int * int) list =
-      List.rev @@ List.fold_lefti (
-        fun acc i row -> match V.find_first_non_zero row with
-          | None -> acc
-          | Some (pivot_col, _) -> (i, pivot_col) :: acc
-      ) [] m
 
     let assert_rref m = 
       let pivot_l = get_pivot_positions m in
@@ -230,11 +212,33 @@ module ListMatrix: AbstractMatrix =
           in if validate_vec pivot_l then validate vs (i+1) else raise (Invalid_argument "Matrix not in rref: pivot column not empty!")
       in validate m 0
 
-    (* Inserts the vector v with pivot at piv_idx at the correct position in m. m has to be in rref form. *)
+    (* This function return a tuple of row index and pivot position (column) in m *)
+    (* TODO: maybe we could use a Hashmap instead of a list? *)
+    let get_pivot_positions (m : t) : (int * int) list =
+      List.rev @@ List.fold_lefti (
+        fun acc i row -> match V.find_first_non_zero row with
+          | None -> acc
+          | Some (pivot_col, _) -> (i, pivot_col) :: acc
+      ) [] m
+
+    (* Sets the jth column to zero by subtracting multiples of v *)
+    let reduce_col_with_vec m j v = 
+      let pivot_element = V.nth v j in
+      if pivot_element = A.zero then m
+      else List.mapi (fun idx row ->
+          let row_value = V.nth row j in 
+          if row_value =: A.zero then row
+          else (let s = row_value /: pivot_element in
+                V.map2_f_preserves_zero (fun x y -> x -: (s *: y)) row v)
+        ) m
+
+    (* Inserts the vector v with pivot at piv_idx at the correct position in m. m has to be in rref form and v is only <>: A.zero on piv_idx or idx not included in piv_positions *)
     let insert_v_according_to_piv m v piv_idx pivot_positions = 
+      let reduced_m = reduce_col_with_vec m piv_idx v in
       match List.find_opt (fun (row_idx, piv_col) -> piv_col > piv_idx) pivot_positions with
-      | None -> append_row m v
-      | Some (row_idx, _) -> let (before, after) = List.split_at row_idx m in (* TODO: Optimize *)
+      | None -> append_row reduced_m v
+      | Some (row_idx, _) ->
+        let (before, after) = List.split_at row_idx reduced_m in (* TODO: Optimize *)
         before @ (v :: after)
 
     (* This function yields the same result as appending v to m, normalizing and removing zero rows would. *)
