@@ -226,7 +226,7 @@ module ListMatrix: AbstractMatrix =
             | [] -> true
             | (pr, pc)::ps -> 
               let target = if pr <> i then A.zero else A.one in 
-              if V.nth v pc <> target then false else validate_vec ps 
+              if V.nth v pc <>: target then false else validate_vec ps 
           in if validate_vec pivot_l then validate vs (i+1) else raise (Invalid_argument "Matrix not in rref: pivot column not empty!")
       in validate m 0
 
