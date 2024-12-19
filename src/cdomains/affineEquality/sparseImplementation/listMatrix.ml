@@ -151,7 +151,7 @@ module ListMatrix: AbstractMatrix =
 
     let init_with_vec v =
       [v]
-    
+
     let normalize m =
       let col_count = num_cols m in
       let dec_mat_2D (m : t) (row_idx : int) (col_idx : int) : t = 
@@ -268,7 +268,7 @@ module ListMatrix: AbstractMatrix =
             Some (insert_v_according_to_piv m normalized_v idx pivot_positions)
 
     let rref_vec m v = Timing.wrap "rref_vec" (rref_vec m) v
-    
+
     (* This should yield the same result as appending m2 to m1, normalizing and removing zero rows. However, it is usually faster. *)
     (* Both input matrices are assumed to be in rref form *)
     let rref_matrix (m1 : t) (m2 : t) =
