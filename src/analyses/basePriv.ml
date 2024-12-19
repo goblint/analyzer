@@ -1802,7 +1802,7 @@ struct
   let write_global ?invariant ask getg sideg st x v = time "write_global" (Priv.write_global ?invariant ask getg sideg st x) v
   let lock ask getg cpa m = time "lock" (Priv.lock ask getg cpa) m
   let unlock ask getg sideg st m = time "unlock" (Priv.unlock ask getg sideg st) m
-  let sync reason man = time "sync" (Priv.sync reason) man
+  let sync ask getg sideg st reason = time "sync" (Priv.sync ask getg sideg st) reason
   let escape ask getg sideg st escaped = time "escape" (Priv.escape ask getg sideg st) escaped
   let enter_multithreaded ask getg sideg st = time "enter_multithreaded" (Priv.enter_multithreaded ask getg sideg) st
   let threadenter ask st = time "threadenter" (Priv.threadenter ask) st
