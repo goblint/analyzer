@@ -151,7 +151,7 @@ module ListMatrix: AbstractMatrix =
 
     let init_with_vec v =
       [v]
-
+    
     let normalize m =
       let col_count = num_cols m in
       let dec_mat_2D (m : t) (row_idx : int) (col_idx : int) : t = 
@@ -210,6 +210,25 @@ module ListMatrix: AbstractMatrix =
           | None -> acc
           | Some (pivot_col, _) -> (i, pivot_col) :: acc
       ) [] m
+
+    let assert_rref m = 
+      let pivot_l = get_pivot_positions m in
+      let rec validate m i =
+        match m with 
+        | [] -> ()
+        | v::vs when (V.is_zero_vec v) -> 
+          if List.exists (fun v -> not @@ V.is_zero_vec v) vs 
+          then raise (Invalid_argument "Matrix not in rref: zero row!")
+          else ()
+        | v::vs -> 
+          let rec validate_vec pl =  
+            match pivot_l with
+            | [] -> true
+            | (pr, pc)::ps -> 
+              let target = if pr <> i then A.zero else A.one in 
+              if V.nth v pc <> target then false else validate_vec ps 
+          in if validate_vec pivot_l then validate vs (i+1) else raise (Invalid_argument "Matrix not in rref: pivot column not empty!")
+      in validate m 0
 
     (* Inserts the vector v with pivot at piv_idx at the correct position in m. m has to be in rref form. *)
     let insert_v_according_to_piv m v piv_idx pivot_positions = 
