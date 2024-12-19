@@ -53,6 +53,7 @@ exclude_module_names = set([
     "DefExcDomain", # included in IntDomain
     "EnumsDomain", # included in IntDomain
     "CongruenceDomain", # included in IntDomain
+    "BitfieldDomain", #included in IntDomain
     "IntDomTuple", # included in IntDomain
     "WitnessGhostVar", # included in WitnessGhost
 
