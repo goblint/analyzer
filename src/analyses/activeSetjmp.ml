@@ -13,24 +13,24 @@ struct
   include Analyses.ValueContexts(D)
   module P = IdentityP (D)
 
-  let combine_env ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) (f_ask:Queries.ask): D.t =
-    ctx.local (* keep local as opposed to IdentitySpec *)
+  let combine_env man (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) (f_ask:Queries.ask): D.t =
+    man.local (* keep local as opposed to IdentitySpec *)
 
-  let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
+  let special man (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
     let desc = LibraryFunctions.find f in
     match desc.special arglist with
     | Setjmp _ ->
-      let entry = (ctx.prev_node, ctx.control_context ()) in
-      D.add (Target entry) ctx.local
-    | _ -> ctx.local
+      let entry = (man.prev_node, man.control_context ()) in
+      D.add (Target entry) man.local
+    | _ -> man.local
 
   let startstate v = D.bot ()
-  let threadenter ctx ~multiple lval f args = [D.bot ()]
+  let threadenter man ~multiple lval f args = [D.bot ()]
   let exitstate v = D.top ()
 
-  let query ctx (type a) (q: a Queries.t): a Queries.result =
+  let query man (type a) (q: a Queries.t): a Queries.result =
     match q with
-    | ValidLongJmp -> (ctx.local: D.t)
+    | ValidLongJmp -> (man.local: D.t)
     | _ -> Queries.Result.top q
 end
 
