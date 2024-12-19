@@ -137,9 +137,9 @@ type _ t =
 
 type 'a result = 'a
 
-(** Container for explicitly polymorphic [ctx.ask] function out of [ctx].
-    To be used when passing entire [ctx] around seems inappropriate.
-    Use [Analyses.ask_of_ctx] to convert [ctx] to [ask]. *)
+(** Container for explicitly polymorphic [man.ask] function out of [man].
+    To be used when passing entire [man] around seems inappropriate.
+    Use [Analyses.ask_of_man] to convert [man] to [ask]. *)
 (* Must be in a singleton record due to second-order polymorphism.
    See https://ocaml.org/manual/polymorphism.html#s%3Ahigher-rank-poly. *)
 type ask = { f: 'a. 'a t -> 'a result } [@@unboxed]

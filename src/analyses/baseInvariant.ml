@@ -17,18 +17,18 @@ sig
   val unop_ID: Cil.unop -> ID.t -> ID.t
   val unop_FD: Cil.unop -> FD.t -> VD.t
 
-  val eval_rv: ctx:(D.t, G.t, _, V.t) Analyses.ctx -> D.t -> exp -> VD.t
-  val eval_rv_address: ctx:(D.t, G.t, _, V.t) Analyses.ctx -> D.t -> exp -> VD.t
-  val eval_lv: ctx:(D.t, G.t, _, V.t) Analyses.ctx -> D.t -> lval -> AD.t
-  val convert_offset: ctx:(D.t, G.t, _, V.t) Analyses.ctx -> D.t -> offset -> ID.t Offset.t
+  val eval_rv: man:(D.t, G.t, _, V.t) Analyses.man -> D.t -> exp -> VD.t
+  val eval_rv_address: man:(D.t, G.t, _, V.t) Analyses.man -> D.t -> exp -> VD.t
+  val eval_lv: man:(D.t, G.t, _, V.t) Analyses.man -> D.t -> lval -> AD.t
+  val convert_offset: man:(D.t, G.t, _, V.t) Analyses.man -> D.t -> offset -> ID.t Offset.t
 
-  val get_var: ctx:(D.t, G.t, _, V.t) Analyses.ctx -> D.t -> varinfo -> VD.t
-  val get: ctx:(D.t, G.t, _, V.t) Analyses.ctx -> D.t -> AD.t -> exp option -> VD.t
-  val set: ctx:(D.t, G.t, _, V.t) Analyses.ctx -> D.t -> AD.t -> typ -> ?lval_raw:lval -> VD.t -> D.t
+  val get_var: man:(D.t, G.t, _, V.t) Analyses.man -> D.t -> varinfo -> VD.t
+  val get: man:(D.t, G.t, _, V.t) Analyses.man -> D.t -> AD.t -> exp option -> VD.t
+  val set: man:(D.t, G.t, _, V.t) Analyses.man -> D.t -> AD.t -> typ -> ?lval_raw:lval -> VD.t -> D.t
 
   val refine_entire_var: bool
   val map_oldval: VD.t -> typ -> VD.t
-  val eval_rv_lval_refine: ctx:(D.t, G.t, _, V.t) Analyses.ctx -> D.t -> exp -> lval -> VD.t
+  val eval_rv_lval_refine: man:(D.t, G.t, _, V.t) Analyses.man -> D.t -> exp -> lval -> VD.t
 
   val id_meet_down: old:ID.t -> c:ID.t -> ID.t
   val fd_meet_down: old:FD.t -> c:FD.t -> FD.t
@@ -54,12 +54,12 @@ struct
       VD.meet old_val new_val
     with Lattice.Uncomparable -> old_val
 
-  let refine_lv_fallback ctx st lval value tv =
+  let refine_lv_fallback man st lval value tv =
     if M.tracing then M.tracec "invariant" "Restricting %a with %a" d_lval lval VD.pretty value;
-    let addr = eval_lv ~ctx st lval in
+    let addr = eval_lv ~man st lval in
     if (AD.is_top addr) then st
     else
-      let old_val = get ~ctx st addr None in (* None is ok here, we could try to get more precise, but this is ok (reading at unknown position in array) *)
+      let old_val = get ~man st addr None in (* None is ok here, we could try to get more precise, but this is ok (reading at unknown position in array) *)
       let t_lval = Cilfacade.typeOfLval lval in
       let old_val = map_oldval old_val t_lval in
       let old_val =
@@ -70,8 +70,8 @@ struct
         else
           old_val
       in
-      let state_with_excluded = set st addr t_lval value ~ctx in
-      let value =  get ~ctx state_with_excluded addr None in
+      let state_with_excluded = set st addr t_lval value ~man in
+      let value =  get ~man state_with_excluded addr None in
       let new_val = apply_invariant ~old_val ~new_val:value in
       if M.tracing then M.traceu "invariant" "New value is %a" VD.pretty new_val;
       (* make that address meet the invariant, i.e exclusion sets will be joined *)
@@ -80,18 +80,18 @@ struct
         contra st
       )
       else if VD.is_bot new_val
-      then set st addr t_lval value ~ctx (* no *_raw because this is not a real assignment *)
-      else set st addr t_lval new_val ~ctx (* no *_raw because this is not a real assignment *)
+      then set st addr t_lval value ~man (* no *_raw because this is not a real assignment *)
+      else set st addr t_lval new_val ~man (* no *_raw because this is not a real assignment *)
 
-  let refine_lv ctx st c x c' pretty exp =
-    let set' lval v st = set st (eval_lv ~ctx st lval) (Cilfacade.typeOfLval lval) ~lval_raw:lval v ~ctx in
+  let refine_lv man st c x c' pretty exp =
+    let set' lval v st = set st (eval_lv ~man st lval) (Cilfacade.typeOfLval lval) ~lval_raw:lval v ~man in
     match x with
     | Var var, o when refine_entire_var ->
       (* For variables, this is done at to the level of entire variables to benefit e.g. from disjunctive struct domains *)
-      let old_val = get_var ~ctx st var in
+      let old_val = get_var ~man st var in
       let old_val = map_oldval old_val var.vtype in
-      let offs = convert_offset ~ctx st o in
-      let new_val = VD.update_offset (Queries.to_value_domain_ask (Analyses.ask_of_ctx ctx)) old_val offs c' (Some exp) x (var.vtype) in
+      let offs = convert_offset ~man st o in
+      let new_val = VD.update_offset (Queries.to_value_domain_ask (Analyses.ask_of_man man)) old_val offs c' (Some exp) x (var.vtype) in
       let v = apply_invariant ~old_val ~new_val in
       if is_some_bot v then contra st
       else (
@@ -103,7 +103,7 @@ struct
     | Var _, _
     | Mem _, _ ->
       (* For accesses via pointers, not yet *)
-      let old_val = eval_rv_lval_refine ~ctx st exp x in
+      let old_val = eval_rv_lval_refine ~man st exp x in
       let old_val = map_oldval old_val (Cilfacade.typeOfLval x) in
       let v = apply_invariant ~old_val ~new_val:c' in
       if is_some_bot v then contra st
@@ -112,7 +112,7 @@ struct
         set' x v st
       )
 
-  let invariant_fallback ctx st exp tv =
+  let invariant_fallback man st exp tv =
     (* We use a recursive helper function so that x != 0 is false can be handled
      * as x == 0 is true etc *)
     let rec helper (op: binop) (lval: lval) (value: VD.t) (tv: bool): [> `Refine of lval * VD.t | `NotUnderstood] =
@@ -139,7 +139,7 @@ struct
             end
           | Address n -> begin
               if M.tracing then M.tracec "invariant" "Yes, %a is not %a" d_lval x AD.pretty n;
-              match eval_rv_address ~ctx st (Lval x) with
+              match eval_rv_address ~man st (Lval x) with
               | Address a when AD.is_definite n ->
                 `Refine (x, Address (AD.diff a n))
               | Top when AD.is_null n ->
@@ -203,12 +203,12 @@ struct
       let switchedOp = function Lt -> Gt | Gt -> Lt | Le -> Ge | Ge -> Le | x -> x in (* a op b <=> b (switchedOp op) b *)
       match exp with
       (* Since we handle not only equalities, the order is important *)
-      | BinOp(op, Lval x, rval, typ) -> helper op x (VD.cast (Cilfacade.typeOfLval x) (eval_rv ~ctx st rval)) tv
+      | BinOp(op, Lval x, rval, typ) -> helper op x (VD.cast (Cilfacade.typeOfLval x) (eval_rv ~man st rval)) tv
       | BinOp(op, rval, Lval x, typ) -> derived_invariant (BinOp(switchedOp op, Lval x, rval, typ)) tv
       | BinOp(op, CastE (t1, c1), CastE (t2, c2), t) when (op = Eq || op = Ne) && typeSig t1 = typeSig t2 && VD.is_statically_safe_cast t1 (Cilfacade.typeOf c1) && VD.is_statically_safe_cast t2 (Cilfacade.typeOf c2)
         -> derived_invariant (BinOp (op, c1, c2, t)) tv
       | BinOp(op, CastE (TInt (ik, _) as t1, Lval x), rval, typ) ->
-        begin match eval_rv ~ctx st (Lval x) with
+        begin match eval_rv ~man st (Lval x) with
           | Int v ->
             if VD.is_dynamically_safe_cast t1 (Cilfacade.typeOfLval x) (Int v) then
               derived_invariant (BinOp (op, Lval x, rval, typ)) tv
@@ -233,7 +233,7 @@ struct
     in
     match derived_invariant exp tv with
     | `Refine (lval, value) ->
-      refine_lv_fallback ctx st lval value tv
+      refine_lv_fallback man st lval value tv
     | `NothingToRefine ->
       if M.tracing then M.traceu "invariant" "Nothing to refine.";
       st
@@ -242,10 +242,10 @@ struct
       M.debug ~category:Analyzer "Invariant failed: expression \"%a\" not understood." d_exp exp;
       st
 
-  let invariant ctx st exp tv: D.t =
+  let invariant man st exp tv: D.t =
     let fallback reason st =
       if M.tracing then M.tracel "inv" "Can't handle %a.\n%t" d_plainexp exp reason;
-      invariant_fallback ctx st exp tv
+      invariant_fallback man st exp tv
     in
     (* inverse values for binary operation a `op` b == c *)
     (* ikind is the type of a for limiting ranges of the operands a, b. The only binops which can have different types for a, b are Shiftlt, Shiftrt (not handled below; don't use ikind to limit b there). *)
@@ -549,7 +549,7 @@ struct
           a, b
       with FloatDomain.ArithmeticOnFloatBot _ -> raise Analyses.Deadcode
     in
-    let eval e st = eval_rv ~ctx st e in
+    let eval e st = eval_rv ~man st e in
     let eval_bool e st = match eval e st with Int i -> ID.to_bool i | _ -> None in
     let unroll_fk_of_exp e =
       match unrollType (Cilfacade.typeOf e) with
@@ -703,7 +703,7 @@ struct
               | Float c -> invert_binary_op c FD.pretty (fun ik -> FD.to_int ik c) (fun fk -> FD.cast_to fk c)
               | _ -> failwith "unreachable")
         | Lval x, (Int _ | Float _ | Address _) -> (* meet x with c *)
-          let update_lval c x c' pretty = refine_lv ctx st c x c' pretty exp in
+          let update_lval c x c' pretty = refine_lv man st c x c' pretty exp in
           let t = Cil.unrollType (Cilfacade.typeOfLval x) in  (* unroll type to deal with TNamed *)
           if M.tracing then M.trace "invSpecial" "invariant with Lval %a, c_typed %a, type %a" d_lval x VD.pretty c_typed d_type t;
           begin match c_typed with
@@ -718,7 +718,7 @@ struct
               (* handle special calls *)
               begin match x, t with
                 | (Var v, offs), TInt (ik, _) ->
-                  let tmpSpecial = ctx.ask (Queries.TmpSpecial (v, Offset.Exp.of_cil offs)) in
+                  let tmpSpecial = man.ask (Queries.TmpSpecial (v, Offset.Exp.of_cil offs)) in
                   if M.tracing then M.trace "invSpecial" "qry Result: %a" Queries.ML.pretty tmpSpecial;
                   begin match tmpSpecial with
                     | `Lifted (Abs (ik, xInt)) ->
@@ -756,7 +756,7 @@ struct
               (* handle special calls *)
               begin match x, t with
                 | (Var v, offs), TFloat (fk, _) ->
-                  let tmpSpecial = ctx.ask (Queries.TmpSpecial (v, Offset.Exp.of_cil offs)) in
+                  let tmpSpecial = man.ask (Queries.TmpSpecial (v, Offset.Exp.of_cil offs)) in
                   if M.tracing then M.trace "invSpecial" "qry Result: %a" Queries.ML.pretty tmpSpecial;
                   begin match tmpSpecial with
                     | `Lifted (Ceil (ret_fk, xFloat)) -> inv_exp (Float (FD.inv_ceil (FD.cast_to ret_fk c))) xFloat st
@@ -835,9 +835,9 @@ struct
         in
         inv_exp (Float ftv) exp st
 
-  let invariant ctx st exp tv =
+  let invariant man st exp tv =
     (* The computations that happen here are not computations that happen in the programs *)
     (* Any overflow during the forward evaluation will already have been flagged here *)
     GobRef.wrap AnalysisState.executing_speculative_computations true
-    @@ fun () -> invariant ctx st exp tv
+    @@ fun () -> invariant man st exp tv
 end
