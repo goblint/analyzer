@@ -193,6 +193,15 @@ module ListMatrix: AbstractMatrix =
       if affeq_rows_are_valid m' then Some m' else None (* TODO: We can check this for each row, using the helper function row_is_invalid *)
 
 
+    (* This function return a tuple of row index and pivot position (column) in m *)
+    (* TODO: maybe we could use a Hashmap instead of a list? *)
+    let get_pivot_positions (m : t) : (int * int) list =
+      List.rev @@ List.fold_lefti (
+        fun acc i row -> match V.find_first_non_zero row with
+          | None -> acc
+          | Some (pivot_col, _) -> (i, pivot_col) :: acc
+      ) [] m
+
     let assert_rref m = 
       let pivot_l = get_pivot_positions m in
       let rec validate m i =
@@ -211,15 +220,6 @@ module ListMatrix: AbstractMatrix =
               if V.nth v pc <>: target then false else validate_vec ps 
           in if validate_vec pivot_l then validate vs (i+1) else raise (Invalid_argument "Matrix not in rref: pivot column not empty!")
       in validate m 0
-
-    (* This function return a tuple of row index and pivot position (column) in m *)
-    (* TODO: maybe we could use a Hashmap instead of a list? *)
-    let get_pivot_positions (m : t) : (int * int) list =
-      List.rev @@ List.fold_lefti (
-        fun acc i row -> match V.find_first_non_zero row with
-          | None -> acc
-          | Some (pivot_col, _) -> (i, pivot_col) :: acc
-      ) [] m
 
     (* Sets the jth column to zero by subtracting multiples of v *)
     let reduce_col_with_vec m j v = 
