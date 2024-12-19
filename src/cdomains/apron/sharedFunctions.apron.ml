@@ -170,6 +170,7 @@ struct
                   | exception Invalid_argument _ -> raise (Unsupported_CilExp Exp_not_supported)
                   | true -> texpr1 e
                   | false -> (* Cast is not injective - we now try to establish suitable ranges manually  *)
+                    GobRef.wrap AnalysisState.executing_speculative_computations true @@ fun () ->
                     (* try to evaluate e by EvalInt Query *)
                     let res = try (query e @@ Cilfacade.get_ikind_exp e) with Invalid_argument _ -> raise (Unsupported_CilExp Exp_not_supported)  in
                     (* convert response to a constant *)
