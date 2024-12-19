@@ -56,7 +56,8 @@ struct
       Priv.read_global ask getg st g x
     else (
       let rel = st.rel in
-      let g_var = RV.global g in
+      (* If it has escaped and we have never been multi-threaded, we can still refer to the local *)
+      let g_var = if g.vglob then RV.global g else RV.local g in
       let x_var = RV.local x in
       let rel' = RD.add_vars rel [g_var] in
       let rel' = RD.assign_var rel' x_var g_var in
@@ -602,6 +603,10 @@ struct
           | Some (Local v) ->
             if VH.mem v_ins_inv v then
               keep_global
+            else if ThreadEscape.has_escaped ask v then
+              (* Escaped local variables should be read in via their v#in# variables, this apron var may refer to stale values only *)
+              (* and is not a sound description of the C variable. *)
+              false
             else
               keep_local
           | _ -> false
