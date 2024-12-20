@@ -1,7 +1,7 @@
 (** Integer and floating-point option and attribute handling. *)
 
 (* We define precision by the number of IntDomains activated.
- * We currently have 5 types: DefExc, Interval, Enums, Congruence, IntervalSet, Bitfield*)
+ * We currently have 6 types: DefExc, Interval, Enums, Congruence, IntervalSet, Bitfield*)
 type int_precision = (bool * bool * bool * bool * bool * bool)
 (* Same applies for FloatDomain
  * We currently have only an interval type analysis *)
@@ -57,7 +57,8 @@ let reset_lazy () =
   enums := None;
   congruence := None;
   interval_set := None;
-  annotation_int_enabled := None
+  annotation_int_enabled := None;
+  bitfield := None
 
 (* Thus for maximum precision we activate all Domains *)
 let max_int_precision : int_precision = (true, true, true, true, true, true)
