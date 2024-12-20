@@ -244,18 +244,18 @@ struct
       if isSigned ik && isNegative then Ints_t.logor signMask (Ints_t.lognot z)
       else Ints_t.lognot z
     in let max ik (z,o) =
-      let signBit = Ints_t.shift_left Ints_t.one ((Size.bit ik) - 1) in 
-      let signMask = Ints_t.of_bigint (snd (Size.range ik)) in
-      let isPositive = Ints_t.logand signBit z <> Ints_t.zero in
-      if isSigned ik && isPositive then Ints_t.logand signMask o
-      else o 
+         let signBit = Ints_t.shift_left Ints_t.one ((Size.bit ik) - 1) in 
+         let signMask = Ints_t.of_bigint (snd (Size.range ik)) in
+         let isPositive = Ints_t.logand signBit z <> Ints_t.zero in
+         if isSigned ik && isPositive then Ints_t.logand signMask o
+         else o 
     in fst (norm_interval ik (min ik x, max ik x))
 
   let to_bitfield ik x = 
     let joinbf (z1,o1) (z2,o2) = (Ints_t.logor z1 z2, Ints_t.logor o1 o2) in 
     let rec from_list is acc = match is with
-      [] -> acc |
-      j::js -> from_list js (joinbf acc (Interval.to_bitfield ik (Some j)))
+        [] -> acc |
+        j::js -> from_list js (joinbf acc (Interval.to_bitfield ik (Some j)))
     in from_list x (Ints_t.zero, Ints_t.zero)
 
   let of_int ik (x: int_t) = of_interval ik (x, x)
