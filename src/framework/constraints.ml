@@ -539,4 +539,9 @@ struct
     in
 
     {obsolete; delete; reluctant; restart}
+
+  let postmortem leaf =
+    match leaf with
+    | FunctionEntry fd, c -> [(Function fd, c)]
+    | _ -> []
 end
