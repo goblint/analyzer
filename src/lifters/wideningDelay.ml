@@ -78,45 +78,45 @@ struct
   let exitstate  v = (S.exitstate  v, 0)
   let morphstate v (d, l) = (S.morphstate v d, l)
 
-  let conv (ctx: (D.t, G.t, C.t, V.t) ctx): (S.D.t, S.G.t, S.C.t, S.V.t) ctx =
-    { ctx with local = fst ctx.local
-             ; split = (fun d es -> ctx.split (d, 0) es)
+  let conv (man: (D.t, G.t, C.t, V.t) man): (S.D.t, S.G.t, S.C.t, S.V.t) man =
+    { man with local = fst man.local
+             ; split = (fun d es -> man.split (d, 0) es)
     }
 
-  let context ctx fd (d, _) = S.context (conv ctx) fd d
+  let context man fd (d, _) = S.context (conv man) fd d
   let startcontext () = S.startcontext ()
 
-  let lift_fun ctx f g h =
-    f @@ h (g (conv ctx))
+  let lift_fun man f g h =
+    f @@ h (g (conv man))
 
   let lift d = (d, 0)
 
-  let sync ctx reason = lift_fun ctx lift S.sync   ((|>) reason)
-  let query ctx (type a) (q: a Queries.t): a Queries.result = S.query (conv ctx) q
-  let assign ctx lv e = lift_fun ctx lift S.assign ((|>) e % (|>) lv)
-  let vdecl ctx v     = lift_fun ctx lift S.vdecl  ((|>) v)
-  let branch ctx e tv = lift_fun ctx lift S.branch ((|>) tv % (|>) e)
-  let body ctx f      = lift_fun ctx lift S.body   ((|>) f)
-  let return ctx r f  = lift_fun ctx lift S.return ((|>) f % (|>) r)
-  let asm ctx         = lift_fun ctx lift S.asm    identity
-  let skip ctx        = lift_fun ctx lift S.skip identity
-  let special ctx r f args = lift_fun ctx lift S.special ((|>) args % (|>) f % (|>) r)
+  let sync man reason = lift_fun man lift S.sync   ((|>) reason)
+  let query man (type a) (q: a Queries.t): a Queries.result = S.query (conv man) q
+  let assign man lv e = lift_fun man lift S.assign ((|>) e % (|>) lv)
+  let vdecl man v     = lift_fun man lift S.vdecl  ((|>) v)
+  let branch man e tv = lift_fun man lift S.branch ((|>) tv % (|>) e)
+  let body man f      = lift_fun man lift S.body   ((|>) f)
+  let return man r f  = lift_fun man lift S.return ((|>) f % (|>) r)
+  let asm man         = lift_fun man lift S.asm    identity
+  let skip man        = lift_fun man lift S.skip identity
+  let special man r f args = lift_fun man lift S.special ((|>) args % (|>) f % (|>) r)
 
-  let enter ctx r f args =
+  let enter man r f args =
     let liftmap = List.map (Tuple2.mapn lift) in
-    lift_fun ctx liftmap S.enter ((|>) args % (|>) f % (|>) r)
-  let combine_env ctx r fe f args fc es f_ask = lift_fun ctx lift S.combine_env (fun p -> p r fe f args fc (fst es) f_ask)
-  let combine_assign ctx r fe f args fc es f_ask = lift_fun ctx lift S.combine_assign (fun p -> p r fe f args fc (fst es) f_ask)
+    lift_fun man liftmap S.enter ((|>) args % (|>) f % (|>) r)
+  let combine_env man r fe f args fc es f_ask = lift_fun man lift S.combine_env (fun p -> p r fe f args fc (fst es) f_ask)
+  let combine_assign man r fe f args fc es f_ask = lift_fun man lift S.combine_assign (fun p -> p r fe f args fc (fst es) f_ask)
 
-  let threadenter ctx ~multiple lval f args = lift_fun ctx (List.map lift) (S.threadenter ~multiple) ((|>) args % (|>) f % (|>) lval)
-  let threadspawn ctx ~multiple lval f args fctx = lift_fun ctx lift (S.threadspawn ~multiple) ((|>) (conv fctx) % (|>) args % (|>) f % (|>) lval)
+  let threadenter man ~multiple lval f args = lift_fun man (List.map lift) (S.threadenter ~multiple) ((|>) args % (|>) f % (|>) lval)
+  let threadspawn man ~multiple lval f args fman = lift_fun man lift (S.threadspawn ~multiple) ((|>) (conv fman) % (|>) args % (|>) f % (|>) lval)
 
-  let paths_as_set ctx =
-    let liftmap = List.map (fun x -> (x, snd ctx.local)) in
-    lift_fun ctx liftmap S.paths_as_set Fun.id
+  let paths_as_set man =
+    let liftmap = List.map (fun x -> (x, snd man.local)) in
+    lift_fun man liftmap S.paths_as_set Fun.id
 
-  let event ctx e octx =
-    lift_fun ctx lift S.event ((|>) (conv octx) % (|>) e)
+  let event man e oman =
+    lift_fun man lift S.event ((|>) (conv oman) % (|>) e)
 end
 
 (** Lift {!S} to use widening delay for global unknowns. *)
@@ -144,42 +144,42 @@ struct
   let exitstate  v = S.exitstate  v
   let morphstate v d = S.morphstate v d
 
-  let conv (ctx: (D.t, G.t, C.t, V.t) ctx): (S.D.t, S.G.t, S.C.t, S.V.t) ctx =
-    { ctx with global = (fun v -> fst (ctx.global v))
-             ; sideg = (fun v g -> ctx.sideg v (g, 0))
+  let conv (man: (D.t, G.t, C.t, V.t) man): (S.D.t, S.G.t, S.C.t, S.V.t) man =
+    { man with global = (fun v -> fst (man.global v))
+             ; sideg = (fun v g -> man.sideg v (g, 0))
     }
 
-  let context ctx fd d = S.context (conv ctx) fd d
+  let context man fd d = S.context (conv man) fd d
   let startcontext () = S.startcontext ()
 
-  let lift_fun ctx f g h =
-    f @@ h (g (conv ctx))
+  let lift_fun man f g h =
+    f @@ h (g (conv man))
 
   let lift d = d
 
-  let sync ctx reason = lift_fun ctx lift S.sync   ((|>) reason)
-  let query ctx (type a) (q: a Queries.t): a Queries.result = S.query (conv ctx) q
-  let assign ctx lv e = lift_fun ctx lift S.assign ((|>) e % (|>) lv)
-  let vdecl ctx v     = lift_fun ctx lift S.vdecl  ((|>) v)
-  let branch ctx e tv = lift_fun ctx lift S.branch ((|>) tv % (|>) e)
-  let body ctx f      = lift_fun ctx lift S.body   ((|>) f)
-  let return ctx r f  = lift_fun ctx lift S.return ((|>) f % (|>) r)
-  let asm ctx         = lift_fun ctx lift S.asm    identity
-  let skip ctx        = lift_fun ctx lift S.skip identity
-  let special ctx r f args = lift_fun ctx lift S.special ((|>) args % (|>) f % (|>) r)
+  let sync man reason = lift_fun man lift S.sync   ((|>) reason)
+  let query man (type a) (q: a Queries.t): a Queries.result = S.query (conv man) q
+  let assign man lv e = lift_fun man lift S.assign ((|>) e % (|>) lv)
+  let vdecl man v     = lift_fun man lift S.vdecl  ((|>) v)
+  let branch man e tv = lift_fun man lift S.branch ((|>) tv % (|>) e)
+  let body man f      = lift_fun man lift S.body   ((|>) f)
+  let return man r f  = lift_fun man lift S.return ((|>) f % (|>) r)
+  let asm man         = lift_fun man lift S.asm    identity
+  let skip man        = lift_fun man lift S.skip identity
+  let special man r f args = lift_fun man lift S.special ((|>) args % (|>) f % (|>) r)
 
-  let enter ctx r f args =
+  let enter man r f args =
     let liftmap = List.map (Tuple2.mapn lift) in
-    lift_fun ctx liftmap S.enter ((|>) args % (|>) f % (|>) r)
-  let combine_env ctx r fe f args fc es f_ask = lift_fun ctx lift S.combine_env (fun p -> p r fe f args fc es f_ask)
-  let combine_assign ctx r fe f args fc es f_ask = lift_fun ctx lift S.combine_assign (fun p -> p r fe f args fc es f_ask)
+    lift_fun man liftmap S.enter ((|>) args % (|>) f % (|>) r)
+  let combine_env man r fe f args fc es f_ask = lift_fun man lift S.combine_env (fun p -> p r fe f args fc es f_ask)
+  let combine_assign man r fe f args fc es f_ask = lift_fun man lift S.combine_assign (fun p -> p r fe f args fc es f_ask)
 
-  let threadenter ctx ~multiple lval f args = lift_fun ctx (List.map lift) (S.threadenter ~multiple) ((|>) args % (|>) f % (|>) lval)
-  let threadspawn ctx ~multiple lval f args fctx = lift_fun ctx lift (S.threadspawn ~multiple) ((|>) (conv fctx) % (|>) args % (|>) f % (|>) lval)
+  let threadenter man ~multiple lval f args = lift_fun man (List.map lift) (S.threadenter ~multiple) ((|>) args % (|>) f % (|>) lval)
+  let threadspawn man ~multiple lval f args fman = lift_fun man lift (S.threadspawn ~multiple) ((|>) (conv fman) % (|>) args % (|>) f % (|>) lval)
 
-  let paths_as_set ctx =
-    lift_fun ctx Fun.id S.paths_as_set Fun.id
+  let paths_as_set man =
+    lift_fun man Fun.id S.paths_as_set Fun.id
 
-  let event ctx e octx =
-    lift_fun ctx lift S.event ((|>) (conv octx) % (|>) e)
+  let event man e oman =
+    lift_fun man lift S.event ((|>) (conv oman) % (|>) e)
 end

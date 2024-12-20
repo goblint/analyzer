@@ -342,14 +342,14 @@ struct
     | UnreachCall _ ->
       (* error function name is globally known through Svcomp.task *)
       let is_unreach_call =
-        LHT.fold (fun (n, c) v acc ->
+        LHT.for_all (fun (n, c) v ->
             match n with
             (* FunctionEntry isn't used for extern __VERIFIER_error... *)
             | FunctionEntry f when Svcomp.is_error_function f.svar ->
               let is_dead = Spec.D.is_bot v in
-              acc && is_dead
-            | _ -> acc
-          ) lh true
+              is_dead
+            | _ -> true
+          ) lh
       in
 
       if is_unreach_call then (
@@ -690,25 +690,17 @@ struct
       Timing.wrap "graphml witness" (write_file witness_path (module Task)) (module TaskResult)
     )
 
-  let write entrystates =
-    match !AnalysisState.verified with
-    | Some false -> print_svcomp_result "ERROR (verify)"
-    | _ ->
-      if get_string "witness.yaml.validate" <> "" then (
-        match get_bool "witness.yaml.strict" with
-        | true when !YamlWitness.cnt_error > 0 ->
-          print_svcomp_result "ERROR (witness error)"
-        | true when !YamlWitness.cnt_unsupported > 0 ->
-          print_svcomp_result "ERROR (witness unsupported)"
-        | true when !YamlWitness.cnt_disabled > 0 ->
-          print_svcomp_result "ERROR (witness disabled)"
-        | _ when !YamlWitness.cnt_refuted > 0 ->
-          print_svcomp_result (Result.to_string (False None))
-        | _ when !YamlWitness.cnt_unconfirmed > 0 ->
-          print_svcomp_result (Result.to_string Unknown)
-        | _ ->
-          write entrystates
-      )
-      else
+  let write yaml_validate_result entrystates =
+    match !AnalysisState.verified, !AnalysisState.unsound_both_branches_dead with
+    | _, Some true -> print_svcomp_result "ERROR (both branches dead)"
+    | Some false, _ -> print_svcomp_result "ERROR (verify)"
+    | _, _ ->
+      match yaml_validate_result with
+      | Some (Stdlib.Error msg) ->
+        print_svcomp_result ("ERROR (" ^ msg ^ ")")
+      | Some (Ok (Svcomp.Result.False _ | Unknown as result)) ->
+        print_svcomp_result (Result.to_string result)
+      | Some (Ok True)
+      | None ->
         write entrystates
 end
