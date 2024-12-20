@@ -133,7 +133,7 @@ struct
           else
             failwith "texpr1_expr_of_cil_exp: globals must be replaced with temporary locals"
         | Const (CInt (i, _, _)) ->
-          Cst (Coeff.s_of_mpqf (Mpqf.of_mpz (Z_mlgmpidl.mpz_of_z i)))
+          Cst (Coeff.s_of_z i)
         | exp ->
           match Cilfacade.get_ikind_exp exp with
           | ik ->
@@ -143,7 +143,7 @@ struct
                   might be able to be represented by means of 2 var equalities
 
                   This simplification happens during a time, when there are temporary variables a#in and a#out part of the expression,
-                  but are not represented in the ctx, thus queries may result in top for these variables. Wrapping this in speculative
+                  but are not represented in the man, thus queries may result in top for these variables. Wrapping this in speculative
                   mode is a stop-gap measure to avoid flagging overflows. We however should address simplification in a more generally useful way.
                   outside of the apron-related expression conversion.
               *)
@@ -175,7 +175,7 @@ struct
                     (* convert response to a constant *)
                     let const = IntDomain.IntDomTuple.to_int @@ IntDomain.IntDomTuple.cast_to t_ik res in
                     match const with
-                    | Some c -> Cst (Coeff.s_of_mpqf (Mpqf.of_mpz (Z_mlgmpidl.mpz_of_z c))) (* Got a constant value -> use it straight away *)
+                    | Some c -> Cst (Coeff.s_of_z c) (* Got a constant value -> use it straight away *)
                     (* I gotten top, we can not guarantee injectivity *)
                     | None -> if IntDomain.IntDomTuple.is_top_of t_ik res then raise (Unsupported_CilExp (Cast_not_injective t))
                       else ( (* Got a ranged value different from top, so let's check bounds manually *)

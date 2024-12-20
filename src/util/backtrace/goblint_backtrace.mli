@@ -32,5 +32,10 @@ val print_marktrace: out_channel -> exn -> unit
 
     Used by default for uncaught exceptions. *)
 
+val print_innermost_mark: out_channel -> exn -> unit
+(** Print innermost mark of an exception.
+
+    Used by default for uncaught exceptions. *)
+
 val find_marks: exn -> mark list
 (** Find all marks of an exception. *)

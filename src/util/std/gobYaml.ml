@@ -44,3 +44,5 @@ let list = function
 let entries = function
   | `O assoc -> Ok assoc
   | _ -> Error (`Msg "Failed to get entries from non-object value")
+
+let int i = float (float_of_int i)

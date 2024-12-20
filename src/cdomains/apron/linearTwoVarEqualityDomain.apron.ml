@@ -790,7 +790,7 @@ struct
     let of_coeff xi coeffs o =
       let typ = (Option.get @@ V.to_cil_varinfo xi).vtype in
       let ikind = Cilfacade.get_ikind typ in
-      let cst = Coeff.s_of_mpqf @@ Mpqf.of_mpz (Z_mlgmpidl.mpz_of_z @@ IntDomain.Size.cast ikind o) in
+      let cst = Coeff.s_of_z (IntDomain.Size.cast ikind o) in
       let lincons = Lincons1.make (Linexpr1.make t.env) Lincons1.EQ in
       Lincons1.set_list lincons coeffs (Some cst);
       lincons
