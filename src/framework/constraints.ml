@@ -81,8 +81,18 @@ struct
             ignore (getl (Function fd, c))
           | exception Not_found ->
             (* unknown function *)
-            M.error ~category:Imprecise ~tags:[Category Unsound] "Created a thread from unknown function %s" f.vname
+            M.error ~category:Imprecise ~tags:[Category Unsound] "Created a thread from unknown function %s" f.vname;
             (* actual implementation (e.g. invalidation) is done by threadenter *)
+            (* must still sync for side effects, e.g., old sync-based none privatization soundness in 02-base/51-spawn-special *)
+            let rec sync_man =
+              { man with
+                ask = (fun (type a) (q: a Queries.t) -> S.query sync_man q);
+                local = d;
+                prev_node = Function dummyFunDec;
+              }
+            in
+            (* TODO: more accurate man? *)
+            ignore (sync sync_man)
         ) ds
     in
     (* ... nice, right! *)
