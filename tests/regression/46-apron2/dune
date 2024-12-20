@@ -12,4 +12,4 @@
 (cram
  (alias runaprontest)
  (enabled_if %{lib-available:apron})
- (deps (glob_files *.c)))
+ (deps (glob_files *.c) (glob_files *.yml)))
