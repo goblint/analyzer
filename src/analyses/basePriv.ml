@@ -121,6 +121,12 @@ struct
     getg x
 
   let write_global ?(invariant=false) (ask: Queries.ask) getg sideg (st: BaseComponents (D).t) x v =
+    let v = (* Copied from MainFunctor.update_variable *)
+      if get_bool "exp.volatiles_are_top" && is_always_unknown x then (* TODO: why don't other privatizations do this? why in write_global, not read_global? why not in base directly? why not in other value analyses? *)
+        VD.top ()
+      else
+        v
+    in
     if not invariant then
       sideg x v;
     st
