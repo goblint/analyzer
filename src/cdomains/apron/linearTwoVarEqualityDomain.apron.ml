@@ -12,7 +12,8 @@ open GoblintCil
 open Pretty
 module M = Messages
 open GobApron
-open VectorMatrix
+
+open ConvenienceOps
 
 module Mpqf = SharedFunctions.Mpqf
 
@@ -173,7 +174,7 @@ module EqualitiesConjunction = struct
   let dim_add (ch: Apron.Dim.change) m =
     modify_variables_in_domain m ch.dim (+)
 
-  let dim_add ch m = timing_wrap "dim add" (dim_add ch) m
+  let dim_add ch m = Timing.wrap "dim add" (dim_add ch) m
 
   let dim_remove (ch: Apron.Dim.change) m =
     if Array.length ch.dim = 0 || is_empty m then
@@ -184,7 +185,7 @@ module EqualitiesConjunction = struct
       let m' = Array.fold_lefti (fun y i x -> forget_variable y (x)) m cpy in  (* clear m' from relations concerning ch.dim *)
       modify_variables_in_domain m' cpy (-))
 
-  let dim_remove ch m = VectorMatrix.timing_wrap "dim remove" (fun m -> dim_remove ch m) m
+  let dim_remove ch m = Timing.wrap "dim remove" (fun m -> dim_remove ch m) m
 
   let dim_remove ch m ~del = let res = dim_remove ch m in if M.tracing then
       M.tracel "dim_remove" "dim remove at positions [%s] in { %s } -> { %s }"
@@ -343,7 +344,7 @@ struct
           | [(coeff,var,divi)] -> Some (Rhs.canonicalize (Some (Z.mul divisor coeff,var), Z.mul constant divi,Z.mul divisor divi))
           |_ -> None))
 
-  let simplify_to_ref_and_offset t texp = timing_wrap "coeff_vec" (simplify_to_ref_and_offset t) texp
+  let simplify_to_ref_and_offset t texp = Timing.wrap "coeff_vec" (simplify_to_ref_and_offset t) texp
 
   let assign_const t var const divi = match t.d with
     | None -> t
@@ -365,7 +366,7 @@ struct
          Some res, Some res)
       | _ -> None, None
 
-  let bound_texpr d texpr1 = timing_wrap "bounds calculation" (bound_texpr d) texpr1
+  let bound_texpr d texpr1 = Timing.wrap "bounds calculation" (bound_texpr d) texpr1
 end
 
 module D =
@@ -456,7 +457,7 @@ struct
     if M.tracing then M.tracel "meet" "meet a: %s\n U  \n b: %s \n -> %s" (show t1) (show t2) (show res) ;
     res
 
-  let meet t1 t2 = timing_wrap "meet" (meet t1) t2
+  let meet t1 t2 = Timing.wrap "meet" (meet t1) t2
 
   let leq t1 t2 =
     let env_comp = Environment.cmp t1.env t2.env in (* Apron's Environment.cmp has defined return values. *)
@@ -475,7 +476,7 @@ struct
       let m1' = if env_comp = 0 then m1 else VarManagement.dim_add (Environment.dimchange t1.env t2.env) m1 in
       EConj.IntMap.for_all (implies m1') (snd m2) (* even on sparse m2, it suffices to check the non-trivial equalities, still present in sparse m2 *)
 
-  let leq a b = timing_wrap "leq" (leq a) b
+  let leq a b = Timing.wrap "leq" (leq a) b
 
   let leq t1 t2 =
     let res = leq t1 t2 in
@@ -551,7 +552,7 @@ struct
     | Some x, Some y when EConj.equal x y -> {d = Some x; env = a.env}
     | Some x, Some y  -> {d = join_d x y; env = a.env}
 
-  let join a b = timing_wrap "join" (join a) b
+  let join a b = Timing.wrap "join" (join a) b
 
   let join a b =
     let res = join a b in
@@ -593,7 +594,7 @@ struct
     if M.tracing then M.tracel "ops" "forget_vars %s -> %s" (show t) (show res);
     res
 
-  let forget_vars t vars = timing_wrap "forget_vars" (forget_vars t) vars
+  let forget_vars t vars = Timing.wrap "forget_vars" (forget_vars t) vars
 
   (** implemented as described on page 10 in the paper about Fast Interprocedural Linear Two-Variable Equalities in the Section "Abstract Effect of Statements"
       This makes a copy of the data structure, it doesn't change it in-place. *)
@@ -617,7 +618,7 @@ struct
       end
     | None -> bot_env
 
-  let assign_texpr t var texp = timing_wrap "assign_texpr" (assign_texpr t var) texp
+  let assign_texpr t var texp = Timing.wrap "assign_texpr" (assign_texpr t var) texp
 
   (* no_ov -> no overflow
      if it's true then there is no overflow
@@ -664,7 +665,7 @@ struct
     if M.tracing then M.tracel "ops" "assign_var parallel: %s -> %s" (show t) (show res);
     res
 
-  let assign_var_parallel t vv's = timing_wrap "var_parallel" (assign_var_parallel t) vv's
+  let assign_var_parallel t vv's = Timing.wrap "var_parallel" (assign_var_parallel t) vv's
 
   let assign_var_parallel_with t vv's =
     (* TODO: If we are angling for more performance, this might be a good place ot try. `assign_var_parallel_with` is used whenever a function is entered (body),
@@ -696,7 +697,7 @@ struct
     if M.tracing then M.tracel "ops" "Substitute_expr t: \n %s \n var: %a \n exp: %a \n -> \n %s" (show t) Var.pretty var d_exp exp (show res);
     res
 
-  let substitute_exp ask t var exp no_ov = timing_wrap "substitution" (substitute_exp ask t var exp) no_ov
+  let substitute_exp ask t var exp no_ov = Timing.wrap "substitution" (substitute_exp ask t var exp) no_ov
 
 
   (** Assert a constraint expression.
@@ -751,7 +752,7 @@ struct
     if M.tracing then M.tracel "meet_tcons" "meet_tcons with expr: %a no_ov:%b" d_exp original_expr (Lazy.force no_ov);
     meet_tcons ask t tcons original_expr no_ov
 
-  let meet_tcons t tcons expr = timing_wrap "meet_tcons" (meet_tcons t tcons) expr
+  let meet_tcons t tcons expr = Timing.wrap "meet_tcons" (meet_tcons t tcons) expr
 
   let unify a b =
     meet a b
@@ -777,7 +778,7 @@ struct
     | tcons1 -> meet_tcons ask d tcons1 e no_ov
     | exception Convert.Unsupported_CilExp _ -> d
 
-  let assert_constraint ask d e negate no_ov = timing_wrap "assert_constraint" (assert_constraint ask d e negate) no_ov
+  let assert_constraint ask d e negate no_ov = Timing.wrap "assert_constraint" (assert_constraint ask d e negate) no_ov
 
   let relift t = t
 
