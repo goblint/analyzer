@@ -19,7 +19,7 @@ let spec_module: (module MCPSpec) Lazy.t =
     let module Priv = (val RelationPriv.get_priv ()) in
     let module Spec =
     struct
-      include SpecFunctor (Priv) (AD) (RelationPrecCompareUtil.DummyUtil)
+      include SpecFunctor (Priv) (AD_A) (RelationPrecCompareUtil.DummyUtil)
       let name () = "affeq"
     end
     in
