@@ -221,6 +221,9 @@ module ListMatrix: AbstractMatrix =
           in if validate_vec pivot_l then validate vs (i+1) else raise (Invalid_argument "Matrix not in rref: pivot column not empty!")
       in validate m 0
 
+    (* TODO: Remove this! Just to suppress warning *)
+    let () = assert_rref (empty ())
+
     (* Sets the jth column to zero by subtracting multiples of v *)
     let reduce_col_with_vec m j v = 
       let pivot_element = V.nth v j in

@@ -3,7 +3,6 @@ open RatOps
 open ConvenienceOps
 
 open BatList
-open BatArray
 open Batteries
 
 module List = BatList
