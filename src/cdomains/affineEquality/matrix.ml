@@ -29,6 +29,10 @@ sig
 
   val swap_rows: t -> int -> int -> t
 
+  val map2: (vec -> num -> vec) -> t -> vec -> t
+
+  val map2i: (int -> vec-> num -> vec) -> t -> vec -> t
+
   val add_empty_columns: t -> int array -> t
 
   val get_col: t -> int -> vec
@@ -38,10 +42,6 @@ sig
   val del_col: t -> int -> t
 
   val del_cols: t -> int array -> t
-
-  val map2: (vec -> num -> vec) -> t -> vec -> t
-
-  val map2i: (int -> vec-> num -> vec) -> t -> vec -> t
 
   val find_opt: (vec -> bool) -> t -> vec option
 
