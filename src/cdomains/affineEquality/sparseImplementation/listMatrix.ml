@@ -72,9 +72,10 @@ module ListMatrix: AbstractMatrix =
     let add_empty_columns m cols =
       Timing.wrap "add_empty_cols" (add_empty_columns m) cols
 
-    let get_col m n =
-      (*let () = Printf.printf "get_col %i of m:\n%s\n%s\n" n (show m) (V.show (V.of_list @@ List.map (fun row -> V.nth row n) m)) in*)
-      V.of_list @@ List.map (fun row -> V.nth row n) m (* builds full col including zeros, maybe use sparselist instead? *)
+    let get_col m n = (* TODO: is this optimal? *)
+      (* V.of_list @@ List.map (fun row -> V.nth row n) m (* builds full col including zeros, maybe use sparselist instead? *) *)
+      V.of_sparse_list (num_rows m) @@ List.filteri_map (fun i row -> let value = V.nth row n in if value <>: A.zero then Some (i, value) else None) m
+
 
     let get_col m n =
       Timing.wrap "get_col" (get_col m) n
@@ -82,6 +83,8 @@ module ListMatrix: AbstractMatrix =
     let set_col m new_col n = (* TODO: Optimize! AND CURRENTLY WRONG SEMANTICS IF VECTOR LENGTH <> NUM_ROWS! *)
       (* List.mapi (fun row_idx row -> V.set_nth row n (V.nth new_col row_idx)) m *)
       List.map2 (fun row value -> V.set_nth row n value) m (V.to_list new_col)
+
+    let set_col m new_col n = Timing.wrap "set_col" (set_col m) new_col n
 
     let del_col m j =
       if num_cols m = 1 then empty () 
@@ -101,6 +104,8 @@ module ListMatrix: AbstractMatrix =
       let vector_length = V.length v in
       List.mapi (fun index row -> if index < vector_length then f row (V.nth v index) else row ) m
 
+    let map2 f m v = Timing.wrap "Matrix.map2" (map2 f m) v
+
     let map2i f m v = (* TODO: Optimize! We should probably do it like in map2 *)
       let rec map2i_min i acc m v =
         match m, v with
@@ -109,6 +114,8 @@ module ListMatrix: AbstractMatrix =
         | row :: rs, value :: vs -> map2i_min (i + 1) (f i row value :: acc) rs vs
       in  
       map2i_min 0 [] m (V.to_list v)
+
+    let map2i f m v = Timing.wrap "Matrix.map2i" (map2i f m) v
 
     let find_opt = List.find_opt
 
