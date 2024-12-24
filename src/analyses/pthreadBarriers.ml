@@ -16,11 +16,14 @@ struct
     let name () = "mustBarriers" 
   end
 
+  module Capacity = Queries.ID
+
   include Analyses.IdentitySpec
   module V = VarinfoV
 
-  module Waiters = SetDomain.ToppedSet (MHP) (struct let topname = "All MHP" end)
-  module G = Lattice.Prod (Queries.ID) (Waiters)
+  module TID = ThreadIdDomain.Thread
+  module Waiters = SetDomain.ToppedSet (TID) (struct let topname = "All MHP" end)
+  module G = Lattice.Prod (Capacity) (Waiters)
 
   let name () = "pthreadBarriers"
   module D = Lattice.Prod (Barriers) (MustBarriers)
@@ -34,13 +37,35 @@ struct
     let desc = LF.find f in
     match desc.special arglist with
     | BarrierWait barrier ->
+      let ask = Analyses.ask_of_man man in
       let may, must = man.local in
-      let barriers = possible_vinfos (Analyses.ask_of_man man) barrier in
-      let may = List.fold_left (fun may a -> Barriers.add (ValueDomain.Addr.of_var a) may) may barriers in
-      let must = match barriers with
-      | [a] -> Barriers.add (ValueDomain.Addr.of_var a) must
-      | _ -> must
+      let barriers = possible_vinfos ask barrier in
+      let tid = match ThreadId.get_current ask with
+        | `Lifted tid -> Waiters.singleton tid
+        | _ -> Waiters.top ()
       in
+      let handle_one b =
+        man.sideg b (Capacity.bot (), tid);
+        let addr = ValueDomain.Addr.of_var b in
+        let (capacity, waiters) = man.global b in
+        let relevant_waiters = Waiters.filter (fun tid -> true) waiters in
+        let may_run =
+          if Waiters.exists (fun tid -> not @@ TID.is_unique tid) relevant_waiters then
+            true
+          else
+            let count = Waiters.cardinal relevant_waiters in
+            match capacity with
+            | `Lifted c -> 
+              Z.geq (Z.of_int count) (BatOption.default Z.zero (Capacity.I.minimal c)) 
+            | _ -> true
+        in
+        if may_run then
+          (Barriers.add addr may, Barriers.add addr must)
+        else
+          D.bot ()
+      in
+      let (may, must) = List.fold_left (fun acc b-> D.join acc (handle_one b)) (D.bot ()) barriers in
+      if Barriers.is_empty may then raise Analyses.Deadcode;
       (may, must)
     | BarrierInit { barrier; count } ->
       let count = man.ask (Queries.EvalInt count) in
