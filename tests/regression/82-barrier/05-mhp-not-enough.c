@@ -20,7 +20,6 @@ void* f1(void* ptr) {
 int main(int argc, char const *argv[])
 {
     int top;
-    int top2;
     int i = 0;
     
     pthread_barrier_init(&barrier, NULL, 3);
