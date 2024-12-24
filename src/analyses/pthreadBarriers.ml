@@ -22,7 +22,7 @@ struct
   module V = VarinfoV
 
   module TID = ThreadIdDomain.Thread
-  module Waiters = SetDomain.ToppedSet (TID) (struct let topname = "All MHP" end)
+  module Waiters = SetDomain.ToppedSet (MHP) (struct let topname = "All MHP" end)
   module G = Lattice.Prod (Capacity) (Waiters)
 
   let name () = "pthreadBarriers"
@@ -40,17 +40,14 @@ struct
       let ask = Analyses.ask_of_man man in
       let may, must = man.local in
       let barriers = possible_vinfos ask barrier in
-      let tid = match ThreadId.get_current ask with
-        | `Lifted tid -> Waiters.singleton tid
-        | _ -> Waiters.top ()
-      in
+      let mhp = MHP.current ask in
       let handle_one b =
-        man.sideg b (Capacity.bot (), tid);
+        man.sideg b (Capacity.bot (), Waiters.singleton mhp);
         let addr = ValueDomain.Addr.of_var b in
         let (capacity, waiters) = man.global b in
-        let relevant_waiters = Waiters.filter (fun tid -> true) waiters in
+        let relevant_waiters = Waiters.filter (fun other -> MHP.may_happen_in_parallel mhp other) waiters in
         let may_run =
-          if Waiters.exists (fun tid -> not @@ TID.is_unique tid) relevant_waiters then
+          if Waiters.exists MHP.may_be_non_unique_thread relevant_waiters then
             true
           else
             let count = Waiters.cardinal relevant_waiters in
