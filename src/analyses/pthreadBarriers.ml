@@ -53,7 +53,26 @@ struct
             let count = Waiters.cardinal relevant_waiters in
             match capacity with
             | `Lifted c -> 
-              Z.geq (Z.of_int count) (BatOption.default Z.zero (Capacity.I.minimal c)) 
+              (* Add 1 as the thread calling wait at the moment will not be MHP with itself *)
+              let min_cap = (BatOption.default Z.zero (Capacity.I.minimal c)) in
+              if Z.leq min_cap Z.one then
+                true
+              else if min_cap = Z.of_int 2 && count = 1 then
+                true
+              else if Z.geq (Z.of_int (count + 1)) min_cap then
+                (* This is quite a cute problem: Do (min_cap-1) elements exist in the set such that 
+                  MHP is pairwise true? This solution is a sledgehammer, there should be something much
+                  better algorithmically (beyond just laziness) *)
+                let waiters = Waiters.elements relevant_waiters in
+                let min_cap = Z.to_int min_cap in
+                let lists = List.init (min_cap - 1) (fun _ -> waiters) in
+                let candidates = BatList.n_cartesian_product lists in
+                List.exists (fun candidate ->
+                  let pairwise = BatList.cartesian_product candidate candidate in
+                  List.for_all (fun (a,b) -> MHP.may_happen_in_parallel a b) pairwise
+                ) candidates
+              else
+                false
             | _ -> true
         in
         if may_run then

@@ -38,6 +38,10 @@ int main(int argc, char const *argv[])
         i = 1;
     }
 
+    // Created too late to have any effect
+    pthread_t t2;
+    pthread_create(&t2,NULL,f1,NULL);
+
     __goblint_check(i == 0);
 
 
