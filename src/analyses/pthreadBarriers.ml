@@ -6,11 +6,21 @@ module LF = LibraryFunctions
 
 module Spec =
 struct
-  module Barriers = SetDomain.ToppedSet (ValueDomain.Addr) (struct let topname = "All barriers" end)
-  module MustBarriers = Lattice.Reverse (Barriers)
+  module Barriers = struct
+    include SetDomain.ToppedSet (ValueDomain.Addr) (struct let topname = "All barriers" end)
+    let name () = "mayBarriers"
+  end
+
+  module MustBarriers = struct
+    include Lattice.Reverse (Barriers)
+    let name () = "mustBarriers" 
+  end
 
   include Analyses.IdentitySpec
   module V = VarinfoV
+
+  module Waiters = SetDomain.ToppedSet (MHP) (struct let topname = "All MHP" end)
+  module G = Lattice.Prod (Queries.ID) (Waiters)
 
   let name () = "pthreadBarriers"
   module D = Lattice.Prod (Barriers) (MustBarriers)
@@ -32,6 +42,12 @@ struct
       | _ -> must
       in
       (may, must)
+    | BarrierInit { barrier; count } ->
+      let count = man.ask (Queries.EvalInt count) in
+      let publish_one b = man.sideg b (count, Waiters.bot ()) in 
+      let barriers = possible_vinfos (Analyses.ask_of_man man) barrier in
+      List.iter publish_one barriers;
+      man.local
     | _ -> man.local
 
   let startstate v = (Barriers.empty (), Barriers.empty ())
