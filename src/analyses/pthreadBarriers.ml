@@ -22,7 +22,20 @@ struct
   module V = VarinfoV
 
   module TID = ThreadIdDomain.Thread
-  module Waiters = SetDomain.ToppedSet (MHP) (struct let topname = "All MHP" end)
+
+  module MHPplusLock = struct
+    module Locks = LockDomain.MustLockset
+
+    include Printable.Prod (MHP) (Locks)
+    let name () = "MHPplusLock"
+
+    let mhp (mhp1, l1) (mhp2, l2) = 
+      MHP.may_happen_in_parallel mhp1 mhp2 && Locks.is_empty (Locks.inter l1 l2)
+
+    let may_be_non_unique_thread (mhp, _) = MHP.may_be_non_unique_thread mhp
+  end
+
+  module Waiters = SetDomain.ToppedSet (MHPplusLock) (struct let topname = "All MHP" end)
   module Multiprocess = BoolDomain.MayBool
   module G = Lattice.Prod3 (Multiprocess) (Capacity) (Waiters)
 
@@ -43,15 +56,16 @@ struct
       let barriers = possible_vinfos ask barrier in
       let mhp = MHP.current ask in
       let handle_one b =
-        man.sideg b (Multiprocess.bot (), Capacity.bot (), Waiters.singleton mhp);
+        let locks = man.ask (Queries.MustLockset) in
+        man.sideg b (Multiprocess.bot (), Capacity.bot (), Waiters.singleton (mhp, locks));
         let addr = ValueDomain.Addr.of_var b in
         let (multiprocess,capacity, waiters) = man.global b in
         let may_run =
           if multiprocess then
             true
           else
-            let relevant_waiters = Waiters.filter (fun other -> MHP.may_happen_in_parallel mhp other) waiters in    
-            if Waiters.exists MHP.may_be_non_unique_thread relevant_waiters then
+            let relevant_waiters = Waiters.filter (fun other -> MHPplusLock.mhp (mhp, locks) other) waiters in    
+            if Waiters.exists MHPplusLock.may_be_non_unique_thread relevant_waiters then
               true
             else
               let count = Waiters.cardinal relevant_waiters in
@@ -61,7 +75,7 @@ struct
                 let min_cap = (BatOption.default Z.zero (Capacity.I.minimal c)) in
                 if Z.leq min_cap Z.one then
                   true
-                else if min_cap = Z.of_int 2 && count = 1 then
+                else if min_cap = Z.of_int 2 && count >= 1 then
                   true
                 else if Z.geq (Z.of_int (count + 1)) min_cap then
                   (* This is quite a cute problem: Do (min_cap-1) elements exist in the set such that 
@@ -73,7 +87,7 @@ struct
                   let candidates = BatList.n_cartesian_product lists in
                   List.exists (fun candidate ->
                       let pairwise = BatList.cartesian_product candidate candidate in
-                      List.for_all (fun (a,b) -> MHP.may_happen_in_parallel a b) pairwise
+                      List.for_all (fun (a,b) -> MHPplusLock.mhp a b) pairwise
                     ) candidates
                 else
                   false
