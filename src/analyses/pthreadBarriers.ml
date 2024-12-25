@@ -23,7 +23,8 @@ struct
 
   module TID = ThreadIdDomain.Thread
   module Waiters = SetDomain.ToppedSet (MHP) (struct let topname = "All MHP" end)
-  module G = Lattice.Prod (Capacity) (Waiters)
+  module Multiprocess = BoolDomain.MayBool
+  module G = Lattice.Prod3 (Multiprocess) (Capacity) (Waiters)
 
   let name () = "pthreadBarriers"
   module D = Lattice.Prod (Barriers) (MustBarriers)
@@ -42,37 +43,40 @@ struct
       let barriers = possible_vinfos ask barrier in
       let mhp = MHP.current ask in
       let handle_one b =
-        man.sideg b (Capacity.bot (), Waiters.singleton mhp);
+        man.sideg b (Multiprocess.bot (), Capacity.bot (), Waiters.singleton mhp);
         let addr = ValueDomain.Addr.of_var b in
-        let (capacity, waiters) = man.global b in
-        let relevant_waiters = Waiters.filter (fun other -> MHP.may_happen_in_parallel mhp other) waiters in
+        let (multiprocess,capacity, waiters) = man.global b in
         let may_run =
-          if Waiters.exists MHP.may_be_non_unique_thread relevant_waiters then
+          if multiprocess then
             true
           else
-            let count = Waiters.cardinal relevant_waiters in
-            match capacity with
-            | `Lifted c -> 
-              (* Add 1 as the thread calling wait at the moment will not be MHP with itself *)
-              let min_cap = (BatOption.default Z.zero (Capacity.I.minimal c)) in
-              if Z.leq min_cap Z.one then
-                true
-              else if min_cap = Z.of_int 2 && count = 1 then
-                true
-              else if Z.geq (Z.of_int (count + 1)) min_cap then
-                (* This is quite a cute problem: Do (min_cap-1) elements exist in the set such that 
-                  MHP is pairwise true? This solution is a sledgehammer, there should be something much
-                  better algorithmically (beyond just laziness) *)
-                let waiters = Waiters.elements relevant_waiters in
-                let min_cap = Z.to_int min_cap in
-                let lists = List.init (min_cap - 1) (fun _ -> waiters) in
-                let candidates = BatList.n_cartesian_product lists in
-                List.exists (fun candidate ->
-                  let pairwise = BatList.cartesian_product candidate candidate in
-                  List.for_all (fun (a,b) -> MHP.may_happen_in_parallel a b) pairwise
-                ) candidates
-              else
-                false
+            let relevant_waiters = Waiters.filter (fun other -> MHP.may_happen_in_parallel mhp other) waiters in    
+            if Waiters.exists MHP.may_be_non_unique_thread relevant_waiters then
+              true
+            else
+              let count = Waiters.cardinal relevant_waiters in
+              match capacity with
+              | `Lifted c -> 
+                (* Add 1 as the thread calling wait at the moment will not be MHP with itself *)
+                let min_cap = (BatOption.default Z.zero (Capacity.I.minimal c)) in
+                if Z.leq min_cap Z.one then
+                  true
+                else if min_cap = Z.of_int 2 && count = 1 then
+                  true
+                else if Z.geq (Z.of_int (count + 1)) min_cap then
+                  (* This is quite a cute problem: Do (min_cap-1) elements exist in the set such that 
+                    MHP is pairwise true? This solution is a sledgehammer, there should be something much
+                    better algorithmically (beyond just laziness) *)
+                  let waiters = Waiters.elements relevant_waiters in
+                  let min_cap = Z.to_int min_cap in
+                  let lists = List.init (min_cap - 1) (fun _ -> waiters) in
+                  let candidates = BatList.n_cartesian_product lists in
+                  List.exists (fun candidate ->
+                    let pairwise = BatList.cartesian_product candidate candidate in
+                    List.for_all (fun (a,b) -> MHP.may_happen_in_parallel a b) pairwise
+                  ) candidates
+                else
+                  false
             | _ -> true
         in
         if may_run then
@@ -83,9 +87,11 @@ struct
       let (may, must) = List.fold_left (fun acc b-> D.join acc (handle_one b)) (D.bot ()) barriers in
       if Barriers.is_empty may then raise Analyses.Deadcode;
       (may, must)
-    | BarrierInit { barrier; count } ->
+    | BarrierInit { barrier; attr; count } ->
+      let multitprocess = not @@ Queries.AD.is_null @@ man.ask (Queries.MayPointTo attr) in
+      if multitprocess then M.warn "Barrier initialized with a non-NULL attr argument. Handled as if PTHREAD_PROCESS_SHARED potentially set.";
       let count = man.ask (Queries.EvalInt count) in
-      let publish_one b = man.sideg b (count, Waiters.bot ()) in 
+      let publish_one b = man.sideg b (multitprocess, count, Waiters.bot ()) in 
       let barriers = possible_vinfos (Analyses.ask_of_man man) barrier in
       List.iter publish_one barriers;
       man.local
