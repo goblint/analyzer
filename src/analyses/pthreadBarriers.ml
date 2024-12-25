@@ -79,13 +79,6 @@ struct
                 let min_cap = (BatOption.default Z.zero (Capacity.I.minimal c)) in
                 if Z.leq min_cap Z.one then
                   true, must
-                else if min_cap = Z.of_int 2 && count = 1 then
-                  let elem = Waiters.choose relevant_waiters in
-                  let curr = MustObserved.find (MHPplusLock.tid elem) must in
-                  let must' = MustObserved.add (MHPplusLock.tid elem) (Barriers.add addr curr) must in
-                  true, must'
-                else if min_cap = Z.of_int 2 && count >= 1 then
-                  true, must
                 else if Z.geq (Z.of_int (count + 1)) min_cap then
                   (* This is quite a cute problem: Do (min_cap-1) elements exist in the set such that 
                      MHP is pairwise true? This solution is a sledgehammer, there should be something much
