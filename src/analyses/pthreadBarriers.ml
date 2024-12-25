@@ -65,19 +65,19 @@ struct
                   true
                 else if Z.geq (Z.of_int (count + 1)) min_cap then
                   (* This is quite a cute problem: Do (min_cap-1) elements exist in the set such that 
-                    MHP is pairwise true? This solution is a sledgehammer, there should be something much
-                    better algorithmically (beyond just laziness) *)
+                     MHP is pairwise true? This solution is a sledgehammer, there should be something much
+                     better algorithmically (beyond just laziness) *)
                   let waiters = Waiters.elements relevant_waiters in
                   let min_cap = Z.to_int min_cap in
                   let lists = List.init (min_cap - 1) (fun _ -> waiters) in
                   let candidates = BatList.n_cartesian_product lists in
                   List.exists (fun candidate ->
-                    let pairwise = BatList.cartesian_product candidate candidate in
-                    List.for_all (fun (a,b) -> MHP.may_happen_in_parallel a b) pairwise
-                  ) candidates
+                      let pairwise = BatList.cartesian_product candidate candidate in
+                      List.for_all (fun (a,b) -> MHP.may_happen_in_parallel a b) pairwise
+                    ) candidates
                 else
                   false
-            | _ -> true
+              | _ -> true
         in
         if may_run then
           (Barriers.add addr may, Barriers.add addr must)
