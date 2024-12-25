@@ -90,14 +90,20 @@ struct
                   (* This is quite a cute problem: Do (min_cap-1) elements exist in the set such that 
                      MHP is pairwise true? This solution is a sledgehammer, there should be something much
                      better algorithmically (beyond just laziness) *)
+                  (
                   let waiters = Waiters.elements relevant_waiters in
                   let min_cap = Z.to_int min_cap in
+                  M.warn "entered case min_cap is %i, waiters is %i" min_cap (List.length waiters);
                   let lists = List.init (min_cap - 1) (fun _ -> waiters) in
                   let candidates = BatList.n_cartesian_product lists in
-                  List.exists (fun candidate ->
-                      let pairwise = BatList.cartesian_product candidate candidate in
-                      List.for_all (fun (a,b) -> MHPplusLock.mhp a b) pairwise
-                    ) candidates, must
+                  let pred = List.exists (fun candidate ->
+                      let rec do_it = function
+                        | [] -> true
+                        | x::xs -> List.for_all (fun y -> MHPplusLock.mhp x y) xs  && do_it xs
+                      in
+                      do_it candidate
+                    ) candidates in
+                  pred, must)
                 else
                   false, must
               | _ -> true, must
