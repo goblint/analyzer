@@ -1,4 +1,4 @@
-// PARAM: --set ana.activated[+] 'pthreadBarriers'
+// NOMAC PARAM: --set ana.activated[+] 'pthreadBarriers'
 #include<pthread.h>
 #include<stdio.h>
 #include<unistd.h>

@@ -90,6 +90,7 @@ rule() {
       # Use `git commit -n` to temporarily bypass the hook if necessary.
       echo "Installing gem parallel (not needed for ./scripts/update_suite.rb -s)"
       sudo gem install parallel
+      sudo gem install os
     ;; headers)
       curl -L -O https://github.com/goblint/linux-headers/archive/master.tar.gz
       tar xf master.tar.gz && rm master.tar.gz
