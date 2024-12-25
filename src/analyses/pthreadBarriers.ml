@@ -21,7 +21,7 @@ struct
   include Analyses.IdentitySpec
   module V = VarinfoV
 
-  module TID = ThreadIdDomain.Thread
+  module TID = ThreadIdDomain.ThreadLifted
 
   module MHPplusLock = struct
     module Locks = LockDomain.MustLockset
@@ -32,6 +32,8 @@ struct
     let mhp (mhp1, l1) (mhp2, l2) = 
       MHP.may_happen_in_parallel mhp1 mhp2 && Locks.is_empty (Locks.inter l1 l2)
 
+    let tid ((mhp:MHP.t), _) = mhp.tid
+
     let may_be_non_unique_thread (mhp, _) = MHP.may_be_non_unique_thread mhp
   end
 
@@ -40,7 +42,9 @@ struct
   module G = Lattice.Prod3 (Multiprocess) (Capacity) (Waiters)
 
   let name () = "pthreadBarriers"
-  module D = Lattice.Prod (Barriers) (MustBarriers)
+
+  module MustObserved = MapDomain.MapTop_LiftBot (TID) (MustBarriers)
+  module D = Lattice.Prod (Barriers) (MustObserved)
 
   include Analyses.ValueContexts(D)
 
@@ -60,13 +64,13 @@ struct
         man.sideg b (Multiprocess.bot (), Capacity.bot (), Waiters.singleton (mhp, locks));
         let addr = ValueDomain.Addr.of_var b in
         let (multiprocess,capacity, waiters) = man.global b in
-        let may_run =
+        let may_run, must =
           if multiprocess then
-            true
+            true, must
           else
             let relevant_waiters = Waiters.filter (fun other -> MHPplusLock.mhp (mhp, locks) other) waiters in    
             if Waiters.exists MHPplusLock.may_be_non_unique_thread relevant_waiters then
-              true
+              true, must
             else
               let count = Waiters.cardinal relevant_waiters in
               match capacity with
@@ -74,9 +78,14 @@ struct
                 (* Add 1 as the thread calling wait at the moment will not be MHP with itself *)
                 let min_cap = (BatOption.default Z.zero (Capacity.I.minimal c)) in
                 if Z.leq min_cap Z.one then
-                  true
+                  true, must
+                else if min_cap = Z.of_int 2 && count = 1 then
+                  let elem = Waiters.choose relevant_waiters in
+                  let curr = MustObserved.find (MHPplusLock.tid elem) must in
+                  let must' = MustObserved.add (MHPplusLock.tid elem) (Barriers.add addr curr) must in
+                  true, must'
                 else if min_cap = Z.of_int 2 && count >= 1 then
-                  true
+                  true, must
                 else if Z.geq (Z.of_int (count + 1)) min_cap then
                   (* This is quite a cute problem: Do (min_cap-1) elements exist in the set such that 
                      MHP is pairwise true? This solution is a sledgehammer, there should be something much
@@ -88,13 +97,13 @@ struct
                   List.exists (fun candidate ->
                       let pairwise = BatList.cartesian_product candidate candidate in
                       List.for_all (fun (a,b) -> MHPplusLock.mhp a b) pairwise
-                    ) candidates
+                    ) candidates, must
                 else
-                  false
-              | _ -> true
+                  false, must
+              | _ -> true, must
         in
         if may_run then
-          (Barriers.add addr may, Barriers.add addr must)
+          (Barriers.add addr may, must)
         else
           D.bot ()
       in
@@ -111,9 +120,28 @@ struct
       man.local
     | _ -> man.local
 
-  let startstate v = (Barriers.empty (), Barriers.empty ())
+  let startstate v = (Barriers.empty (), MustObserved.empty ())
   let threadenter man ~multiple lval f args = [man.local]
-  let exitstate  v = (Barriers.empty (), Barriers.empty ())
+  let exitstate  v = (Barriers.empty (), MustObserved.empty ())
+
+  module A =
+  struct
+    include Lattice.Prod3 (Barriers) (MustObserved) (TID)
+    let name () = "barriers"
+    let may_race (may_await_t1, must_observed_by_t1, t1) (may_await_t2, must_observed_by_t2, t2) =
+      let observed_from_t2 = MustObserved.find t2 must_observed_by_t1 in
+      if not (Barriers.subset observed_from_t2 may_await_t2) then
+        false
+      else
+        let observed_from_t1 = MustObserved.find t1 must_observed_by_t2 in
+        Barriers.subset observed_from_t1 may_await_t1
+    let should_print f = true
+  end
+
+  let access man (a: Queries.access) = 
+    let (may,must) = man.local in
+    let mhp = MHP.current (Analyses.ask_of_man man) in
+    (may, must, mhp.tid)
 end
 
 let _ =
