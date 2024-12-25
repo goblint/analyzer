@@ -91,19 +91,34 @@ struct
                      MHP is pairwise true? This solution is a sledgehammer, there should be something much
                      better algorithmically (beyond just laziness) *)
                   (
-                  let waiters = Waiters.elements relevant_waiters in
-                  let min_cap = Z.to_int min_cap in
-                  M.warn "entered case min_cap is %i, waiters is %i" min_cap (List.length waiters);
-                  let lists = List.init (min_cap - 1) (fun _ -> waiters) in
-                  let candidates = BatList.n_cartesian_product lists in
-                  let pred = List.exists (fun candidate ->
-                      let rec do_it = function
-                        | [] -> true
-                        | x::xs -> List.for_all (fun y -> MHPplusLock.mhp x y) xs  && do_it xs
+                    let waiters = Waiters.elements relevant_waiters in
+                    let min_cap = Z.to_int min_cap in
+                    let lists = List.init (min_cap - 1) (fun _ -> waiters) in
+                    let candidates = BatList.n_cartesian_product lists in
+                    let pred = List.exists (fun candidate ->
+                        let rec do_it = function
+                          | [] -> true
+                          | x::xs -> List.for_all (fun y -> MHPplusLock.mhp x y) xs  && do_it xs
+                        in
+                        do_it candidate
+                      ) candidates
+                    in
+                    if pred then
+                      (* limit to this case to avoid having to construct all permutations above *)
+                      let must = if (List.length waiters) = min_cap-1 then
+                          List.fold_left (fun acc elem -> 
+                              let tid = MHPplusLock.tid elem in
+                              let curr = MustObserved.find tid acc in
+                              let must' = MustObserved.add tid (Barriers.add addr curr) acc in
+                              must'
+                            ) must waiters
+                        else 
+                          must
                       in
-                      do_it candidate
-                    ) candidates in
-                  pred, must)
+                      true, must
+                    else
+                      false, must
+                  )
                 else
                   false, must
               | _ -> true, must
