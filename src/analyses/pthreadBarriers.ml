@@ -60,35 +60,37 @@ struct
       let barriers = possible_vinfos ask barrier in
       let mhp = MHP.current ask in
       let handle_one b =
-        let locks = man.ask (Queries.MustLockset) in
-        man.sideg b (Multiprocess.bot (), Capacity.bot (), Waiters.singleton (mhp, locks));
-        let addr = ValueDomain.Addr.of_var b in
-        let (multiprocess,capacity, waiters) = man.global b in
-        let may_run, must =
+        try 
+          let locks = man.ask (Queries.MustLockset) in
+          man.sideg b (Multiprocess.bot (), Capacity.bot (), Waiters.singleton (mhp, locks));
+          let addr = ValueDomain.Addr.of_var b in
+          let (multiprocess, capacity, waiters) = man.global b in
+          let may = Barriers.add addr may in
           if multiprocess then
-            true, must
+            (may, must)
           else
-            let relevant_waiters = Waiters.filter (fun other -> MHPplusLock.mhp (mhp, locks) other) waiters in    
+            let relevant_waiters = Waiters.filter (fun other -> MHPplusLock.mhp (mhp, locks) other) waiters in 
             if Waiters.exists MHPplusLock.may_be_non_unique_thread relevant_waiters then
-              true, must
+              (may, must) 
             else
-              let count = Waiters.cardinal relevant_waiters in
               match capacity with
+              | `Top | `Bot -> (may, must)
               | `Lifted c -> 
+                let count = Waiters.cardinal relevant_waiters in
                 (* Add 1 as the thread calling wait at the moment will not be MHP with itself *)
                 let min_cap = (BatOption.default Z.zero (Capacity.I.minimal c)) in
                 if Z.leq min_cap Z.one then
-                  true, must
+                  (may, must)
                 else if Z.geq (Z.of_int (count + 1)) min_cap then
                   (* This is quite a cute problem: Do (min_cap-1) elements exist in the set such that 
-                     MHP is pairwise true? This solution is a sledgehammer, there should be something much
-                     better algorithmically (beyond just laziness) *)
-                  (
+                      MHP is pairwise true? This solution is a sledgehammer, there should be something much
+                      better algorithmically (beyond just laziness) *)
+                  let must = 
                     let waiters = Waiters.elements relevant_waiters in
                     let min_cap = Z.to_int min_cap in
                     let lists = List.init (min_cap - 1) (fun _ -> waiters) in
                     let candidates = BatList.n_cartesian_product lists in
-                    let pred = List.exists (fun candidate ->
+                    let can_proceed = List.exists (fun candidate ->
                         let rec do_it = function
                           | [] -> true
                           | x::xs -> List.for_all (fun y -> MHPplusLock.mhp x y) xs  && do_it xs
@@ -96,30 +98,22 @@ struct
                         do_it candidate
                       ) candidates
                     in
-                    if pred then
-                      (* limit to this case to avoid having to construct all permutations above *)
-                      let must = if (List.length waiters) = min_cap-1 then
-                          List.fold_left (fun acc elem -> 
-                              let tid = MHPplusLock.tid elem in
-                              let curr = MustObserved.find tid acc in
-                              let must' = MustObserved.add tid (Barriers.add addr curr) acc in
-                              must'
-                            ) must waiters
-                        else 
-                          must
-                      in
-                      true, must
-                    else
-                      false, must
-                  )
+                    if not can_proceed then raise Analyses.Deadcode;
+                    (* limit to this case to avoid having to construct all permutations above *)
+                    if List.length waiters = min_cap - 1 then
+                      List.fold_left (fun acc elem -> 
+                          let tid = MHPplusLock.tid elem in
+                          let curr = MustObserved.find tid acc in
+                          let must' = MustObserved.add tid (Barriers.add addr curr) acc in
+                          must'
+                        ) must waiters
+                    else 
+                      must
+                  in
+                  (may, must)
                 else
-                  false, must
-              | _ -> true, must
-        in
-        if may_run then
-          (Barriers.add addr may, must)
-        else
-          D.bot ()
+                  raise Analyses.Deadcode;
+        with Analyses.Deadcode -> D.bot ()
       in
       let (may, must) = List.fold_left (fun acc b-> D.join acc (handle_one b)) (D.bot ()) barriers in
       if Barriers.is_empty may then raise Analyses.Deadcode;
