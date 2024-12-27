@@ -53,6 +53,8 @@ sig
 
   val find2i: (num -> num -> bool) -> t -> t -> int
 
+  val find2i_f_false_at_zero: (num -> num -> bool) -> t -> t -> int
+
   (* Returns optional tuple of position and value which was found*)
   val findi_val_opt: (num -> bool) ->  t -> (int * num) Option.t
 

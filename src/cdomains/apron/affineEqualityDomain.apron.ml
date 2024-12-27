@@ -297,7 +297,7 @@ struct
             (
               let col_a = Vector.rev col_a in
               let col_b = Vector.rev col_b in
-              let i = Vector.find2i (<>:) col_a col_b in
+              let i = Vector.find2i_f_false_at_zero (<>:) col_a col_b in
               let (x, y) = Vector.nth col_a i, Vector.nth col_b i in
               let r, diff = Vector.length col_a - (i + 1), x -: y  in
               let a_r, b_r = Matrix.get_row a r, Matrix.get_row b r in

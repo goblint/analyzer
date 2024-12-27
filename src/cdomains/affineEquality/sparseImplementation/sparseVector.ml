@@ -252,7 +252,7 @@ module SparseVector: AbstractVector =
 
     let map2_f_preserves_zero f v1 v2 = Timing.wrap "map2_f_preserves_zero" (map2_f_preserves_zero f v1) v2
 
-    let map2i f v1 v2 = (* TODO: optimize! *)
+    let map2i f v1 v2 = (*might more memory efficient, but definitly not faster (asymptotically)*)
       if v1.len <> v2.len then raise (Invalid_argument "Unequal lengths") else
         (*of_list (List.map2i f (to_list v) (to_list v'))*)
         let f_rem_zero idx acc e1 e2 =
@@ -326,8 +326,23 @@ module SparseVector: AbstractVector =
       let entries' = List.rev @@ List.map (fun (idx, value) -> (v.len - 1 - idx, value)) v.entries in 
       {entries = entries'; len = v.len}
 
-    let find2i f v v' = (* TODO: optimize! *) (*"Franzisco should do this!":~Franzisco*)
+    let find2i f v v' =
       fst @@ List.findi (fun _ (val1, val2) -> (uncurry f) (val1, val2)) (List.combine (to_list v) (to_list v'))
+
+    let find2i_f_false_at_zero f v v' = (*Very welcome to change the name*)
+      let rec aux v1 v2 =
+        match v1, v2 with 
+        | [], [] -> raise Not_found
+        | [], (yidx, yval)::ys -> if f A.zero yval then yidx else aux [] ys
+        | (xidx, xval)::xs, [] -> if f xval A.zero then xidx else aux xs []
+        | (xidx, xval)::xs, (yidx, yval)::ys -> 
+          match xidx - yidx with
+          | d when d < 0 -> if f xval A.zero then xidx else aux xs v2
+          | d when d > 0 -> if f A.zero yval then yidx else aux v1 ys
+          | _            -> if f xval yval then xidx else aux xs ys
+      in
+      if v.len <> v'.len then raise (Invalid_argument "Unequal lengths") else 
+        aux v.entries v'.entries
 
     let to_array v = 
       let vec = Array.make v.len A.zero in 
