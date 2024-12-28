@@ -163,6 +163,21 @@ module SparseVector: AbstractVector =
     let find2i f v v' = (* TODO: optimize! *)
       fst @@ List.findi (fun _ (val1, val2) -> (uncurry f) (val1, val2)) (List.combine (to_list v) (to_list v'))
 
+    let find2i_f_false_at_zero f v v' = (*Very welcome to change the name*)
+      let rec aux v1 v2 =
+        match v1, v2 with
+        | [], [] -> raise Not_found
+        | [], (yidx, yval)::ys -> if f A.zero yval then yidx else aux [] ys
+        | (xidx, xval)::xs, [] -> if f xval A.zero then xidx else aux xs []
+        | (xidx, xval)::xs, (yidx, yval)::ys ->
+          match xidx - yidx with
+          | d when d < 0 -> if f xval A.zero then xidx else aux xs v2
+          | d when d > 0 -> if f A.zero yval then yidx else aux v1 ys
+          | _            -> if f xval yval then xidx else aux xs ys
+      in
+      if v.len <> v'.len then raise (Invalid_argument "Unequal lengths") else
+        aux v.entries v'.entries
+
     (* Returns optional of (index * value) where f value evaluated to true *)
     let findi_val_opt f v =
       let rec find_zero_or_val vec last_col_idx =
@@ -310,71 +325,4 @@ module SparseVector: AbstractVector =
     let append v v' = 
       let entries' = v.entries @ List.map (fun (idx, value) -> (idx + v.len), value) v'.entries in
       {entries = entries'; len = v.len + v'.len}
-
-    let exists f v  = (*TODO: optimize!; maybe we shouldn't if exists is never called with a =: A.zero*)
-      let c = v.len in
-      let rec exists_aux at f v =
-        match v with
-        | [] -> if at = 0 then false else f A.zero
-        | (xi, xv)::xs -> if f xv then true else exists_aux (at - 1) f xs
-      in (exists_aux c f v.entries)
-
-    let exists2 f v1 v2 = (* TODO: optimize! *)
-      List.exists2 f (to_list v1) (to_list v2)
-
-    let rev v = 
-      let entries' = List.rev @@ List.map (fun (idx, value) -> (v.len - 1 - idx, value)) v.entries in 
-      {entries = entries'; len = v.len}
-
-    let find2i f v v' =
-      fst @@ List.findi (fun _ (val1, val2) -> (uncurry f) (val1, val2)) (List.combine (to_list v) (to_list v'))
-
-    let find2i_f_false_at_zero f v v' = (*Very welcome to change the name*)
-      let rec aux v1 v2 =
-        match v1, v2 with 
-        | [], [] -> raise Not_found
-        | [], (yidx, yval)::ys -> if f A.zero yval then yidx else aux [] ys
-        | (xidx, xval)::xs, [] -> if f xval A.zero then xidx else aux xs []
-        | (xidx, xval)::xs, (yidx, yval)::ys -> 
-          match xidx - yidx with
-          | d when d < 0 -> if f xval A.zero then xidx else aux xs v2
-          | d when d > 0 -> if f A.zero yval then yidx else aux v1 ys
-          | _            -> if f xval yval then xidx else aux xs ys
-      in
-      if v.len <> v'.len then raise (Invalid_argument "Unequal lengths") else 
-        aux v.entries v'.entries
-
-    let to_array v = 
-      let vec = Array.make v.len A.zero in 
-      List.iter (fun (idx, value) -> vec.(idx) <- value) v.entries;
-      vec
-
-    let of_array a =
-      let len' = Array.length a in
-      let entries' = List.rev @@ Array.fold_lefti (fun acc i x -> if x <> A.zero then (i, x) :: acc else acc ) [] a in
-      {entries = entries'; len = len'}
-
-    let copy v = v 
-
-    let of_sparse_list col_count ls =
-      {entries = ls; len = col_count}
-
-    let to_sparse_list v = 
-      v.entries
-
-    let find_opt f v = (* TODO: Do we need this? And optimize!!!*)
-      List.find_opt f (to_list v)
-
-    let starting_from_nth n v =
-      let entries' = List.filter_map (fun (idx, value) -> if idx < n then None else Some (idx - n, value)) v.entries in
-      {entries = entries'; len = v.len - n}
-
-    let show v = 
-      let t = to_list v in 
-      let rec list_str l =
-        match l with
-        | [] -> "]"
-        | x :: xs -> (A.to_string x) ^ " " ^ (list_str xs)
-      in
-      "["^list_str t^"\n"
   end 

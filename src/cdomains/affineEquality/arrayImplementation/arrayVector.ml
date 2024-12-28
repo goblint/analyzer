@@ -59,7 +59,7 @@ module ArrayVector: AbstractVector =
 
     let is_const_vec v =
       compare_length_with (filteri (fun i x -> (*Inefficient*)
-        compare_length_with v (i + 1) > 0 && x <>: A.zero) v) 1 = 0
+          compare_length_with v (i + 1) > 0 && x <>: A.zero) v) 1 = 0
 
     let nth = Array.get
 
@@ -69,6 +69,9 @@ module ArrayVector: AbstractVector =
 
     let find2i f v1 v2 =
       Array.findi (uncurry f) (Array.combine v1 v2) (* TODO: iter2i? *)
+
+    let find2i_f_false_at_zero f v v' =
+      find2i f v v'
 
     let to_array v = v
 
