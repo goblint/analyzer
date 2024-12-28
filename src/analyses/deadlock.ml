@@ -23,23 +23,23 @@ struct
 
     module G = MapDomain.MapBot (Lock) (MayLockEventPairs)
 
-    let side_lock_event_pair ctx ((before_node, _, _) as before) ((after_node, _, _) as after) =
+    let side_lock_event_pair man ((before_node, _, _) as before) ((after_node, _, _) as after) =
       if !AnalysisState.should_warn then
-        ctx.sideg before_node (G.singleton after_node (MayLockEventPairs.singleton (before, after)))
+        man.sideg before_node (G.singleton after_node (MayLockEventPairs.singleton (before, after)))
 
-    let part_access ctx: MCPAccess.A.t =
-      Obj.obj (ctx.ask (PartAccess Point))
+    let part_access man: MCPAccess.A.t =
+      Obj.obj (man.ask (PartAccess Point))
 
-    let add ctx ((l, _): LockDomain.AddrRW.t) =
-      let after: LockEvent.t = (l, ctx.prev_node, part_access ctx) in (* use octx for access to use locksets before event *)
+    let add man ((l, _): LockDomain.AddrRW.t) =
+      let after: LockEvent.t = (l, man.prev_node, part_access man) in (* use oman for access to use locksets before event *)
       D.iter (fun before ->
-          side_lock_event_pair ctx before after
-        ) ctx.local;
-      D.add after ctx.local
+          side_lock_event_pair man before after
+        ) man.local;
+      D.add after man.local
 
-    let remove ctx l =
+    let remove man l =
       let inLockAddrs (e, _, _) = Lock.equal l e in
-      D.filter (neg inLockAddrs) ctx.local
+      D.filter (neg inLockAddrs) man.local
   end
 
   include LocksetAnalysis.MakeMay (Arg)
@@ -47,7 +47,7 @@ struct
 
   module G = Arg.G (* help type checker using explicit constraint *)
 
-  let query ctx (type a) (q: a Queries.t): a Queries.result =
+  let query man (type a) (q: a Queries.t): a Queries.result =
     match q with
     | WarnGlobal g ->
       let g: V.t = Obj.obj g in
@@ -105,7 +105,7 @@ struct
                   let new_path_visited_lock_event_pairs' = lock_event_pair :: path_visited_lock_event_pairs in
                   iter_lock new_path_visited_locks new_path_visited_lock_event_pairs' to_lock
                 ) lock_event_pairs
-            ) (ctx.global lock)
+            ) (man.global lock)
         end
       in
 

@@ -42,8 +42,8 @@ struct
     let of_elt (x, _) = of_elt x
   end
 
-  (* returns context gas value of the given ctx *)
-  let cg_val ctx = snd ctx.local
+  (* returns context gas value of the given man *)
+  let cg_val man = snd man.local
 
   type marshal = S.marshal
   let init = S.init
@@ -56,47 +56,47 @@ struct
   let exitstate v = S.exitstate v, Gas.startgas ()
   let morphstate v (d,i) = S.morphstate v d, i
 
-  let conv (ctx:(D.t,G.t,C.t,V.t) ctx): (S.D.t,G.t,S.C.t,V.t)ctx =
-    {ctx with local = fst ctx.local
-            ; split = (fun d es -> ctx.split (d, cg_val ctx) es)
-            ; context = (fun () -> match ctx.context () with Some c -> c | None -> ctx_failwith "no context (contextGas = 0)")}
+  let conv (man:(D.t,G.t,C.t,V.t) man): (S.D.t,G.t,S.C.t,V.t) man =
+    {man with local = fst man.local
+            ; split = (fun d es -> man.split (d, cg_val man) es)
+            ; context = (fun () -> match man.context () with Some c -> c | None -> man_failwith "no context (contextGas = 0)")}
 
-  let context ctx fd (d,i) =
+  let context man fd (d,i) =
     (* only keep context if the context gas is greater zero *)
     if Gas.is_exhausted fd i then
       None
     else
-      Some (S.context (conv ctx) fd d)
+      Some (S.context (conv man) fd d)
 
-  let enter ctx r f args =
-    let liftmap_tup = List.map (fun (x,y) -> (x, cg_val ctx), (y, Gas.callee_gas f (cg_val ctx))) in
-    liftmap_tup (S.enter (conv ctx) r f args)
+  let enter man r f args =
+    let liftmap_tup = List.map (fun (x,y) -> (x, cg_val man), (y, Gas.callee_gas f (cg_val man))) in
+    liftmap_tup (S.enter (conv man) r f args)
 
-  let threadenter ctx ~multiple lval f args =
-    let liftmap d = List.map (fun (x) -> (x, Gas.thread_gas f (cg_val ctx))) d in
-    liftmap (S.threadenter (conv ctx) ~multiple lval f args)
+  let threadenter man ~multiple lval f args =
+    let liftmap d = List.map (fun (x) -> (x, Gas.thread_gas f (cg_val man))) d in
+    liftmap (S.threadenter (conv man) ~multiple lval f args)
 
-  let query ctx (type a) (q: a Queries.t):a Queries.result =
+  let query man (type a) (q: a Queries.t):a Queries.result =
     match q with
     | Queries.GasExhausted f ->
-      let (d,i) = ctx.local in
+      let (d,i) = man.local in
       Gas.is_exhausted f i
-    | _ -> S.query (conv ctx) q
+    | _ -> S.query (conv man) q
 
-  let sync ctx reason                             = S.sync (conv ctx) reason, cg_val ctx
-  let assign ctx lval expr                        = S.assign (conv ctx) lval expr, cg_val ctx
-  let vdecl ctx v                                 = S.vdecl (conv ctx) v, cg_val ctx
-  let body ctx fundec                             = S.body (conv ctx) fundec, cg_val ctx
-  let branch ctx e tv                             = S.branch (conv ctx) e tv, cg_val ctx
-  let return ctx r f                              = S.return (conv ctx) r f, cg_val ctx
-  let asm ctx                                     = S.asm (conv ctx), cg_val ctx
-  let skip ctx                                    = S.skip (conv ctx), cg_val ctx
-  let special ctx r f args                        = S.special (conv ctx) r f args, cg_val ctx
-  let combine_env ctx r fe f args fc es f_ask     = S.combine_env (conv ctx) r fe f args (Option.bind fc Fun.id) (fst es) f_ask, cg_val ctx
-  let combine_assign ctx r fe f args fc es f_ask  = S.combine_assign (conv ctx) r fe f args (Option.bind fc Fun.id) (fst es) f_ask, cg_val ctx
-  let paths_as_set ctx                            = List.map (fun (x) -> (x, cg_val ctx)) @@ S.paths_as_set (conv ctx)
-  let threadspawn ctx ~multiple lval f args fctx  = S.threadspawn (conv ctx) ~multiple lval f args (conv fctx), cg_val ctx
-  let event ctx e octx                            = S.event (conv ctx) e (conv octx), cg_val ctx
+  let sync man reason                             = S.sync (conv man) reason, cg_val man
+  let assign man lval expr                        = S.assign (conv man) lval expr, cg_val man
+  let vdecl man v                                 = S.vdecl (conv man) v, cg_val man
+  let body man fundec                             = S.body (conv man) fundec, cg_val man
+  let branch man e tv                             = S.branch (conv man) e tv, cg_val man
+  let return man r f                              = S.return (conv man) r f, cg_val man
+  let asm man                                     = S.asm (conv man), cg_val man
+  let skip man                                    = S.skip (conv man), cg_val man
+  let special man r f args                        = S.special (conv man) r f args, cg_val man
+  let combine_env man r fe f args fc es f_ask     = S.combine_env (conv man) r fe f args (Option.bind fc Fun.id) (fst es) f_ask, cg_val man
+  let combine_assign man r fe f args fc es f_ask  = S.combine_assign (conv man) r fe f args (Option.bind fc Fun.id) (fst es) f_ask, cg_val man
+  let paths_as_set man                            = List.map (fun (x) -> (x, cg_val man)) @@ S.paths_as_set (conv man)
+  let threadspawn man ~multiple lval f args fman  = S.threadspawn (conv man) ~multiple lval f args (conv fman), cg_val man
+  let event man e oman                            = S.event (conv man) e (conv oman), cg_val man
 end
 
 let get_gas_lifter () =

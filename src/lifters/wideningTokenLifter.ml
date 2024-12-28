@@ -6,8 +6,7 @@
 
     @see <http://www2.in.tum.de/bib/files/mihaila13widening.pdf> Mihaila, B., Sepp, A. & Simon, A. Widening as Abstract Domain. *)
 
-(** Widening token. *)
-module Token = Basetype.RawStrings (* Change to variant type if need other tokens than witness UUIDs. *)
+module Token = WideningToken
 
 (** Widening token set. *)
 module TS = SetDomain.ToppedSet (Token) (struct let topname = "Top" end)
@@ -126,25 +125,25 @@ struct
   let exitstate  v = (S.exitstate  v, TS.bot ())
   let morphstate v (d, t) = (S.morphstate v d, t)
 
-  let conv (ctx: (D.t, G.t, C.t, V.t) ctx): (S.D.t, S.G.t, S.C.t, S.V.t) ctx =
-    { ctx with local = D.unlift ctx.local
-             ; split = (fun d es -> ctx.split (d, snd ctx.local) es) (* Split keeps local widening tokens. *)
-             ; global = (fun g -> G.unlift (ctx.global g))
-             ; sideg = (fun v g -> ctx.sideg v (g, !side_tokens)) (* Using side_tokens for side effect. *)
+  let conv (man: (D.t, G.t, C.t, V.t) man): (S.D.t, S.G.t, S.C.t, S.V.t) man =
+    { man with local = D.unlift man.local
+             ; split = (fun d es -> man.split (d, snd man.local) es) (* Split keeps local widening tokens. *)
+             ; global = (fun g -> G.unlift (man.global g))
+             ; sideg = (fun v g -> man.sideg v (g, !side_tokens)) (* Using side_tokens for side effect. *)
     }
 
-  let context ctx fd = S.context (conv ctx) fd % D.unlift
+  let context man fd = S.context (conv man) fd % D.unlift
   let startcontext () = S.startcontext ()
 
-  let lift_fun ctx f g h =
-    let new_tokens = ref (snd ctx.local) in (* New tokens not yet used during this transfer function, such that it is deterministic. *)
+  let lift_fun man f g h =
+    let new_tokens = ref (snd man.local) in (* New tokens not yet used during this transfer function, such that it is deterministic. *)
     let old_add = !add_ref in
     let old_local_tokens = !local_tokens in
     add_ref := (fun t -> new_tokens := TS.add t !new_tokens);
-    local_tokens := snd ctx.local;
+    local_tokens := snd man.local;
     let d =
       Fun.protect (fun () ->
-          h (g (conv ctx))
+          h (g (conv man))
         ) ~finally:(fun () ->
           local_tokens := old_local_tokens;
           add_ref := old_add
@@ -157,30 +156,30 @@ struct
 
   let lift' d ts = (d, ts)
 
-  let paths_as_set ctx =
+  let paths_as_set man =
     let liftmap l ts = List.map (fun x -> (x, ts)) l in
-    lift_fun ctx liftmap S.paths_as_set (Fun.id)
+    lift_fun man liftmap S.paths_as_set (Fun.id)
 
-  let sync ctx reason = lift_fun ctx lift'   S.sync   ((|>) reason)
+  let sync man reason = lift_fun man lift'   S.sync   ((|>) reason)
 
-  let enter ctx r f args =
+  let enter man r f args =
     let liftmap l ts = List.map (fun (x,y) -> (x, ts), (y, ts)) l in
-    lift_fun ctx liftmap S.enter ((|>) args % (|>) f % (|>) r)
+    lift_fun man liftmap S.enter ((|>) args % (|>) f % (|>) r)
 
-  let query ctx (type a) (q: a Queries.t): a Queries.result =
-    lift_fun ctx Fun.const S.query (fun (x) -> x q)
-  let assign ctx lv e = lift_fun ctx lift'   S.assign ((|>) e % (|>) lv)
-  let vdecl ctx v     = lift_fun ctx lift'   S.vdecl  ((|>) v)
-  let branch ctx e tv = lift_fun ctx lift'   S.branch ((|>) tv % (|>) e)
-  let body ctx f      = lift_fun ctx lift'   S.body   ((|>) f)
-  let return ctx r f  = lift_fun ctx lift'   S.return ((|>) f % (|>) r)
-  let asm ctx         = lift_fun ctx lift'   S.asm    identity
-  let skip ctx        = lift_fun ctx lift'   S.skip   identity
-  let special ctx r f args       = lift_fun ctx lift' S.special ((|>) args % (|>) f % (|>) r)
-  let combine_env ctx r fe f args fc es f_ask = lift_fun ctx lift' S.combine_env (fun p -> p r fe f args fc (D.unlift es) f_ask) (* TODO: use tokens from es *)
-  let combine_assign ctx r fe f args fc es f_ask = lift_fun ctx lift' S.combine_assign (fun p -> p r fe f args fc (D.unlift es) f_ask) (* TODO: use tokens from es *)
+  let query man (type a) (q: a Queries.t): a Queries.result =
+    lift_fun man Fun.const S.query (fun (x) -> x q)
+  let assign man lv e = lift_fun man lift'   S.assign ((|>) e % (|>) lv)
+  let vdecl man v     = lift_fun man lift'   S.vdecl  ((|>) v)
+  let branch man e tv = lift_fun man lift'   S.branch ((|>) tv % (|>) e)
+  let body man f      = lift_fun man lift'   S.body   ((|>) f)
+  let return man r f  = lift_fun man lift'   S.return ((|>) f % (|>) r)
+  let asm man         = lift_fun man lift'   S.asm    identity
+  let skip man        = lift_fun man lift'   S.skip   identity
+  let special man r f args       = lift_fun man lift' S.special ((|>) args % (|>) f % (|>) r)
+  let combine_env man r fe f args fc es f_ask = lift_fun man lift' S.combine_env (fun p -> p r fe f args fc (D.unlift es) f_ask) (* TODO: use tokens from es *)
+  let combine_assign man r fe f args fc es f_ask = lift_fun man lift' S.combine_assign (fun p -> p r fe f args fc (D.unlift es) f_ask) (* TODO: use tokens from es *)
 
-  let threadenter ctx  ~multiple lval f args = lift_fun ctx (fun l ts -> List.map (Fun.flip lift' ts) l) (S.threadenter ~multiple) ((|>) args % (|>) f % (|>) lval )
-  let threadspawn ctx ~multiple lval f args fctx = lift_fun ctx lift' (S.threadspawn ~multiple) ((|>) (conv fctx) % (|>) args % (|>) f % (|>) lval)
-  let event ctx e octx = lift_fun ctx lift' S.event ((|>) (conv octx) % (|>) e)
+  let threadenter man  ~multiple lval f args = lift_fun man (fun l ts -> List.map (Fun.flip lift' ts) l) (S.threadenter ~multiple) ((|>) args % (|>) f % (|>) lval )
+  let threadspawn man ~multiple lval f args fman = lift_fun man lift' (S.threadspawn ~multiple) ((|>) (conv fman) % (|>) args % (|>) f % (|>) lval)
+  let event man e oman = lift_fun man lift' S.event ((|>) (conv oman) % (|>) e)
 end

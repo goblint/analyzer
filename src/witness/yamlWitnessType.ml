@@ -9,6 +9,7 @@ struct
     command_line: string option;
     (* TODO: description *)
   }
+  [@@deriving eq, ord, hash]
 
   let to_yaml {name; version; command_line} =
     `O ([
@@ -39,6 +40,7 @@ struct
     language: string;
     specification: string option;
   }
+  [@@deriving eq, ord, hash]
 
   let to_yaml {input_files; input_file_hashes; data_model; language; specification} =
     `O ([
@@ -78,6 +80,7 @@ struct
     producer: Producer.t;
     task: Task.t option;
   }
+  [@@deriving eq, ord, hash]
 
   let to_yaml {format_version; uuid; creation_time; producer; task} =
     `O ([
@@ -111,7 +114,7 @@ struct
     column: int option;
     function_: string option;
   }
-  [@@deriving ord]
+  [@@deriving eq, ord, hash]
 
   let to_yaml {file_name; file_hash; line; column; function_} =
     `O ([
@@ -155,7 +158,7 @@ struct
     type_: string;
     format: string;
   }
-  [@@deriving ord]
+  [@@deriving eq, ord, hash]
 
   let to_yaml {string; type_; format} =
     `O [
@@ -178,7 +181,7 @@ struct
     location: Location.t;
     loop_invariant: Invariant.t;
   }
-  [@@deriving ord]
+  [@@deriving eq, ord, hash]
 
   let entry_type = "loop_invariant"
 
@@ -201,7 +204,7 @@ struct
     location: Location.t;
     location_invariant: Invariant.t;
   }
-  [@@deriving ord]
+  [@@deriving eq, ord, hash]
 
   let entry_type = "location_invariant"
 
@@ -223,7 +226,7 @@ struct
   type t = {
     flow_insensitive_invariant: Invariant.t;
   }
-  [@@deriving ord]
+  [@@deriving eq, ord, hash]
 
   let entry_type = "flow_insensitive_invariant"
 
@@ -245,7 +248,7 @@ struct
     loop_invariant: Invariant.t;
     precondition: Invariant.t;
   }
-  [@@deriving ord]
+  [@@deriving eq, ord, hash]
 
   let entry_type = "precondition_loop_invariant"
 
@@ -273,7 +276,7 @@ struct
       value: string;
       format: string;
     }
-    [@@deriving ord]
+    [@@deriving eq, ord, hash]
 
     let invariant_type = "loop_invariant"
 
@@ -305,7 +308,7 @@ struct
     type t =
       | LocationInvariant of LocationInvariant.t
       | LoopInvariant of LoopInvariant.t
-    [@@deriving ord]
+    [@@deriving eq, ord, hash]
 
     let invariant_type = function
       | LocationInvariant _ -> LocationInvariant.invariant_type
@@ -333,7 +336,7 @@ struct
     type t = {
       invariant_type: InvariantType.t;
     }
-    [@@deriving ord]
+    [@@deriving eq, ord, hash]
 
     let to_yaml {invariant_type} =
       `O [
@@ -352,7 +355,7 @@ struct
   type t = {
     content: Invariant.t list;
   }
-  [@@deriving ord]
+  [@@deriving eq, ord, hash]
 
   let entry_type = "invariant_set"
 
@@ -372,7 +375,7 @@ struct
     type_: string;
     file_hash: string;
   }
-  [@@deriving ord]
+  [@@deriving eq, ord, hash]
 
   let to_yaml {uuid; type_; file_hash} =
     `O [
@@ -396,7 +399,7 @@ struct
     type_: string;
     format: string;
   }
-  [@@deriving ord]
+  [@@deriving eq, ord, hash]
 
   let to_yaml {string; type_; format} =
     `O [
@@ -419,7 +422,7 @@ struct
     target: Target.t;
     certification: Certification.t;
   }
-  [@@deriving ord]
+  [@@deriving eq, ord, hash]
 
   let entry_type = "loop_invariant_certificate"
 
@@ -447,15 +450,35 @@ struct
 
   module Constraint =
   struct
+
+    module Value =
+    struct
+      type t =
+        | String of string
+        | Int of int (* Why doesn't format consider ints (for switch branches) as strings here, like everywhere else? *)
+      [@@deriving eq, ord, hash]
+
+      let to_yaml = function
+        | String s -> GobYaml.string s
+        | Int i -> GobYaml.int i
+
+      let of_yaml y =
+        let open GobYaml in
+        match y with
+        | `String s -> Ok (String s)
+        | `Float f -> Ok (Int (int_of_float f))
+        | _ -> Error (`Msg "Expected a string or integer value")
+    end
+
     type t = {
-      value: string;
+      value: Value.t;
       format: string option;
     }
-    [@@deriving ord]
+    [@@deriving eq, ord, hash]
 
     let to_yaml {value; format} =
       `O ([
-          ("value", `String value);
+          ("value", Value.to_yaml value);
         ] @ (match format with
           | Some format -> [
               ("format", `String format);
@@ -466,7 +489,7 @@ struct
 
     let of_yaml y =
       let open GobYaml in
-      let+ value = y |> find "value" >>= to_string
+      let+ value = y |> find "value" >>= Value.of_yaml
       and+ format = y |> Yaml.Util.find "format" >>= option_map to_string in
       {value; format}
   end
@@ -478,7 +501,7 @@ struct
       action: string;
       constraint_: Constraint.t;
     }
-    [@@deriving ord]
+    [@@deriving eq, ord, hash]
 
     let waypoint_type = "assumption"
 
@@ -503,7 +526,7 @@ struct
       location: Location.t;
       action: string;
     }
-    [@@deriving ord]
+    [@@deriving eq, ord, hash]
 
     let waypoint_type = "target"
 
@@ -550,7 +573,7 @@ struct
       | FunctionEnter of FunctionEnter.t
       | FunctionReturn of FunctionReturn.t
       | Branching of Branching.t
-    [@@deriving ord]
+    [@@deriving eq, ord, hash]
 
     let waypoint_type = function
       | Assumption _ -> Assumption.waypoint_type
@@ -593,7 +616,7 @@ struct
     type t = {
       waypoint_type: WaypointType.t;
     }
-    [@@deriving ord]
+    [@@deriving eq, ord, hash]
 
     let to_yaml {waypoint_type} =
       `O [
@@ -614,7 +637,7 @@ struct
     type t = {
       segment: Waypoint.t list;
     }
-    [@@deriving ord]
+    [@@deriving eq, ord, hash]
 
     let to_yaml {segment} =
       `O [("segment", `A (List.map Waypoint.to_yaml segment))]
@@ -628,7 +651,7 @@ struct
   type t = {
     content: Segment.t list;
   }
-  [@@deriving ord]
+  [@@deriving eq, ord, hash]
 
   let entry_type = "violation_sequence"
 
@@ -639,6 +662,126 @@ struct
     let open GobYaml in
     let+ content = y |> find "content" >>= list >>= list_map Segment.of_yaml in
     {content}
+end
+
+module GhostInstrumentation =
+struct
+
+  module Initial =
+  struct
+    type t = {
+      value: string;
+      format: string;
+    }
+    [@@deriving eq, ord, hash]
+
+    let to_yaml {value; format} =
+      `O [
+        ("value", `String value);
+        ("format", `String format);
+      ]
+
+    let of_yaml y =
+      let open GobYaml in
+      let+ value = y |> find "value" >>= to_string
+      and+ format = y |> find "format" >>= to_string in
+      {value; format}
+  end
+
+  module Variable =
+  struct
+    type t = {
+      name: string;
+      scope: string;
+      type_: string;
+      initial: Initial.t;
+    }
+    [@@deriving eq, ord, hash]
+
+    let to_yaml {name; scope; type_; initial} =
+      `O [
+        ("name", `String name);
+        ("scope", `String scope);
+        ("type", `String type_);
+        ("initial", Initial.to_yaml initial);
+      ]
+
+    let of_yaml y =
+      let open GobYaml in
+      let+ name = y |> find "name" >>= to_string
+      and+ scope = y |> find "scope" >>= to_string
+      and+ type_ = y |> find "type" >>= to_string
+      and+ initial = y |> find "initial" >>= Initial.of_yaml in
+      {name; scope; type_; initial}
+  end
+
+  module Update =
+  struct
+    type t = {
+      variable: string;
+      value: string;
+      format: string;
+    }
+    [@@deriving eq, ord, hash]
+
+    let to_yaml {variable; value; format} =
+      `O [
+        ("variable", `String variable);
+        ("value", `String value);
+        ("format", `String format);
+      ]
+
+    let of_yaml y =
+      let open GobYaml in
+      let+ variable = y |> find "variable" >>= to_string
+      and+ value = y |> find "value" >>= to_string
+      and+ format = y |> find "format" >>= to_string in
+      {variable; value; format}
+  end
+
+  module LocationUpdate =
+  struct
+    type t = {
+      location: Location.t;
+      updates: Update.t list;
+    }
+    [@@deriving eq, ord, hash]
+
+    let to_yaml {location; updates} =
+      `O [
+        ("location", Location.to_yaml location);
+        ("updates", `A (List.map Update.to_yaml updates));
+      ]
+
+    let of_yaml y =
+      let open GobYaml in
+      let+ location = y |> find "location" >>= Location.of_yaml
+      and+ updates = y |> find "updates" >>= list >>= list_map Update.of_yaml in
+      {location; updates}
+  end
+
+  type t = {
+    ghost_variables: Variable.t list;
+    ghost_updates: LocationUpdate.t list;
+  }
+  [@@deriving eq, ord, hash]
+
+  let entry_type = "ghost_instrumentation"
+
+  let to_yaml' {ghost_variables; ghost_updates} =
+    [("content",
+      `O [
+        ("ghost_variables", `A (List.map Variable.to_yaml ghost_variables));
+        ("ghost_updates", `A (List.map LocationUpdate.to_yaml ghost_updates));
+      ])
+    ]
+
+  let of_yaml y =
+    let open GobYaml in
+    let* content = y |> find "content" in
+    let+ ghost_variables = content |> find "ghost_variables" >>= list >>= list_map Variable.of_yaml
+    and+ ghost_updates = content |> find "ghost_updates" >>= list >>= list_map LocationUpdate.of_yaml in
+    {ghost_variables; ghost_updates}
 end
 
 (* TODO: could maybe use GADT, but adds ugly existential layer to entry type pattern matching *)
@@ -653,7 +796,8 @@ struct
     | PreconditionLoopInvariantCertificate of PreconditionLoopInvariantCertificate.t
     | InvariantSet of InvariantSet.t
     | ViolationSequence of ViolationSequence.t
-  [@@deriving ord]
+    | GhostInstrumentation of GhostInstrumentation.t
+  [@@deriving eq, ord, hash]
 
   let entry_type = function
     | LocationInvariant _ -> LocationInvariant.entry_type
@@ -664,6 +808,7 @@ struct
     | PreconditionLoopInvariantCertificate _ -> PreconditionLoopInvariantCertificate.entry_type
     | InvariantSet _ -> InvariantSet.entry_type
     | ViolationSequence _ -> ViolationSequence.entry_type
+    | GhostInstrumentation _ -> GhostInstrumentation.entry_type
 
   let to_yaml' = function
     | LocationInvariant x -> LocationInvariant.to_yaml' x
@@ -674,6 +819,7 @@ struct
     | PreconditionLoopInvariantCertificate x -> PreconditionLoopInvariantCertificate.to_yaml' x
     | InvariantSet x -> InvariantSet.to_yaml' x
     | ViolationSequence x -> ViolationSequence.to_yaml' x
+    | GhostInstrumentation x -> GhostInstrumentation.to_yaml' x
 
   let of_yaml y =
     let open GobYaml in
@@ -702,16 +848,24 @@ struct
     else if entry_type = ViolationSequence.entry_type then
       let+ x = y |> ViolationSequence.of_yaml in
       ViolationSequence x
+    else if entry_type = GhostInstrumentation.entry_type then
+      let+ x = y |> GhostInstrumentation.of_yaml in
+      GhostInstrumentation x
     else
-      Error (`Msg "entry_type")
+      Error (`Msg ("entry_type " ^ entry_type))
 end
 
 module Entry =
 struct
+  include Printable.StdLeaf
+
   type t = {
     entry_type: EntryType.t;
-    metadata: Metadata.t;
+    metadata: Metadata.t [@equal fun _ _ -> true] [@compare fun _ _ -> 0] [@hash fun _ -> 1];
   }
+  [@@deriving eq, ord, hash]
+
+  let name () = "YAML entry"
 
   let to_yaml {entry_type; metadata} =
     `O ([
@@ -724,4 +878,10 @@ struct
     let+ metadata = y |> find "metadata" >>= Metadata.of_yaml
     and+ entry_type = y |> EntryType.of_yaml in
     {entry_type; metadata}
+
+  let pp ppf x = Yaml.pp ppf (to_yaml x)
+  include Printable.SimpleFormat (struct
+      type nonrec t = t
+      let pp = pp
+    end)
 end
