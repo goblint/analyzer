@@ -465,33 +465,22 @@ struct
   (* Give the set of reachables from argument. *)
   let reachables (ask: Queries.ask) es =
     let reachable e st =
-      match st with
-      | None -> None
-      | Some st ->
-        let ad = ask.f (Queries.ReachableFrom e) in
-        (* See https://github.com/goblint/analyzer/issues/1535 *)
-        let ad = Queries.AD.remove UnknownPtr ad in
-        Some (Queries.AD.join ad st)
+      let ad = ask.f (Queries.ReachableFrom e) in
+      Queries.AD.join ad st
     in
-    List.fold_right reachable es (Some (Queries.AD.empty ()))
+    List.fold_right reachable es (Queries.AD.empty ())
 
 
   let forget_reachable man st es =
     let ask = Analyses.ask_of_man man in
     let rs =
-      match reachables ask es with
-      | None ->
-        (* top reachable, so try to invalidate everything *)
-        RD.vars st.rel
-        |> List.filter_map RV.to_cil_varinfo
-        |> List.map Cil.var
-      | Some ad ->
-        let to_cil addr rs =
-          match addr with
-          | Queries.AD.Addr.Addr mval -> (ValueDomain.Addr.Mval.to_cil mval) :: rs
-          | _ -> rs
-        in
-        Queries.AD.fold to_cil ad []
+      let ad = reachables ask es in
+      let to_cil addr rs =
+        match addr with
+        | Queries.AD.Addr.Addr mval -> (ValueDomain.Addr.Mval.to_cil mval) :: rs
+        | _ -> rs
+      in
+      Queries.AD.fold to_cil ad []
     in
     List.fold_left (fun st lval ->
         invalidate_one ask man st lval
