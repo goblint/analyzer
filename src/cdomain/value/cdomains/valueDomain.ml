@@ -1001,10 +1001,10 @@ struct
             else
               mu (Blob (join x (do_update_offset ask x offs value exp l' o' v t), s, zeroinit))
           end
-        | Blob (x,s,zeroinit), _ ->
+        | Blob (x,s,zeroinit), `NoOffset -> (* `NoOffset is only remaining possibility for Blob here *)
           begin
-            match offs, value with
-            | `NoOffset, Blob (x2, s2, zeroinit2) -> mu (Blob (join x x2, ID.join s s2, zeroinit))
+            match value with
+            | Blob (x2, s2, zeroinit2) -> mu (Blob (join x x2, ID.join s s2, zeroinit))
             | _ ->
               let l', o' = shift_one_over l o in
               let x = zero_init_calloced_memory zeroinit x t in
