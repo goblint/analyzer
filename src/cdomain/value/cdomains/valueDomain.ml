@@ -1004,7 +1004,7 @@ struct
         | Blob (x,s,zeroinit), _ ->
           begin
             match offs, value with
-            | `NoOffset, Blob (x2, s2, zeroinit2) -> mu (Blob (join x x2, ID.join s s2,ZeroInit.join zeroinit zeroinit2))
+            | `NoOffset, Blob (x2, s2, zeroinit2) -> mu (Blob (join x x2, ID.join s s2, zeroinit))
             | _ ->
               let l', o' = shift_one_over l o in
               let x = zero_init_calloced_memory zeroinit x t in
