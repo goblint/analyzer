@@ -16,7 +16,7 @@ int main() {
 
   fscanf(stdin, "%d", &other);
 
-   // Fails as debug is invalidated
+   // Use to fail as debug was invalidated
   __goblint_check(debug <= 3);
   return 0;
 }
