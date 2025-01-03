@@ -19,11 +19,11 @@
   [Success][Witness] invariant confirmed: g != 0 (95-witness-mm-escape.c:19:1)
   [Success][Witness] invariant confirmed: *b != 0 (95-witness-mm-escape.c:19:1)
   [Info][Witness] witness validation summary:
-    confirmed: 30
+    confirmed: 15
     unconfirmed: 0
     refuted: 0
     error: 0
     unchecked: 0
     unsupported: 0
     disabled: 0
-    total validation entries: 30
+    total validation entries: 15
