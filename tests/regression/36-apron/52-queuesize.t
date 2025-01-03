@@ -56,7 +56,18 @@ Without diff-box:
       column: 3
       function: push
     location_invariant:
-      string: 2147483647LL - (long long )capacity >= 0LL
+      string: 2147483647LL >= (long long )capacity
+      type: assertion
+      format: C
+  - entry_type: location_invariant
+    location:
+      file_name: 52-queuesize.c
+      file_hash: $FILE_HASH
+      line: 36
+      column: 3
+      function: push
+    location_invariant:
+      string: (long long )used + (long long )free == (long long )capacity
       type: assertion
       format: C
   - entry_type: location_invariant
@@ -78,19 +89,7 @@ Without diff-box:
       column: 3
       function: push
     location_invariant:
-      string: (long long )capacity - (long long )free >= 0LL
-      type: assertion
-      format: C
-  - entry_type: location_invariant
-    location:
-      file_name: 52-queuesize.c
-      file_hash: $FILE_HASH
-      line: 36
-      column: 3
-      function: push
-    location_invariant:
-      string: ((0LL - (long long )capacity) + (long long )free) + (long long )used ==
-        0LL
+      string: (long long )capacity >= (long long )free
       type: assertion
       format: C
   - entry_type: location_invariant
@@ -101,7 +100,18 @@ Without diff-box:
       column: 3
       function: pop
     location_invariant:
-      string: 2147483647LL - (long long )capacity >= 0LL
+      string: 2147483647LL >= (long long )capacity
+      type: assertion
+      format: C
+  - entry_type: location_invariant
+    location:
+      file_name: 52-queuesize.c
+      file_hash: $FILE_HASH
+      line: 15
+      column: 3
+      function: pop
+    location_invariant:
+      string: (long long )used + (long long )free == (long long )capacity
       type: assertion
       format: C
   - entry_type: location_invariant
@@ -123,19 +133,7 @@ Without diff-box:
       column: 3
       function: pop
     location_invariant:
-      string: (long long )capacity - (long long )free >= 0LL
-      type: assertion
-      format: C
-  - entry_type: location_invariant
-    location:
-      file_name: 52-queuesize.c
-      file_hash: $FILE_HASH
-      line: 15
-      column: 3
-      function: pop
-    location_invariant:
-      string: ((0LL - (long long )capacity) + (long long )free) + (long long )used ==
-        0LL
+      string: (long long )capacity >= (long long )free
       type: assertion
       format: C
 
@@ -195,6 +193,17 @@ With diff-box:
       column: 3
       function: push
     location_invariant:
+      string: (long long )used + (long long )free == (long long )capacity
+      type: assertion
+      format: C
+  - entry_type: location_invariant
+    location:
+      file_name: 52-queuesize.c
+      file_hash: $FILE_HASH
+      line: 36
+      column: 3
+      function: push
+    location_invariant:
       string: (long long )free >= 0LL
       type: assertion
       format: C
@@ -206,19 +215,18 @@ With diff-box:
       column: 3
       function: push
     location_invariant:
-      string: (long long )capacity - (long long )free >= 0LL
+      string: (long long )capacity >= (long long )free
       type: assertion
       format: C
   - entry_type: location_invariant
     location:
       file_name: 52-queuesize.c
       file_hash: $FILE_HASH
-      line: 36
+      line: 15
       column: 3
-      function: push
+      function: pop
     location_invariant:
-      string: ((0LL - (long long )capacity) + (long long )free) + (long long )used ==
-        0LL
+      string: (long long )used + (long long )free == (long long )capacity
       type: assertion
       format: C
   - entry_type: location_invariant
@@ -240,19 +248,7 @@ With diff-box:
       column: 3
       function: pop
     location_invariant:
-      string: (long long )capacity - (long long )free >= 0LL
-      type: assertion
-      format: C
-  - entry_type: location_invariant
-    location:
-      file_name: 52-queuesize.c
-      file_hash: $FILE_HASH
-      line: 15
-      column: 3
-      function: pop
-    location_invariant:
-      string: ((0LL - (long long )capacity) + (long long )free) + (long long )used ==
-        0LL
+      string: (long long )capacity >= (long long )free
       type: assertion
       format: C
 
@@ -268,7 +264,7 @@ Compare witnesses:
       column: 3
       function: push
     location_invariant:
-      string: 2147483647LL - (long long )capacity >= 0LL
+      string: 2147483647LL >= (long long )capacity
       type: assertion
       format: C
   - entry_type: location_invariant
@@ -279,7 +275,7 @@ Compare witnesses:
       column: 3
       function: pop
     location_invariant:
-      string: 2147483647LL - (long long )capacity >= 0LL
+      string: 2147483647LL >= (long long )capacity
       type: assertion
       format: C
   ---
