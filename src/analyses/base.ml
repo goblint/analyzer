@@ -624,6 +624,8 @@ struct
 
   let drop_intervalSet = CPA.map (function Int x -> Int (ID.no_intervalSet x) | x -> x )
 
+  let drop_bitfield = CPA.map (function Int x -> Int (ID.no_bitfield x) | x -> x )
+
   let context ctx (fd: fundec) (st: store): store =
     let f keep drop_fn (st: store) = if keep then st else { st with cpa = drop_fn st.cpa} in
     st |>
@@ -634,6 +636,7 @@ struct
     %> f (ContextUtil.should_keep ~isAttr:GobContext ~keepOption:"ana.base.context.int" ~removeAttr:"base.no-int" ~keepAttr:"base.int" fd) drop_ints
     %> f (ContextUtil.should_keep ~isAttr:GobContext ~keepOption:"ana.base.context.interval" ~removeAttr:"base.no-interval" ~keepAttr:"base.interval" fd) drop_interval
     %> f (ContextUtil.should_keep ~isAttr:GobContext ~keepOption:"ana.base.context.interval_set" ~removeAttr:"base.no-interval_set" ~keepAttr:"base.interval_set" fd) drop_intervalSet
+    %> f (ContextUtil.should_keep ~isAttr:GobContext ~keepOption:"ana.base.context.bitfield" ~removeAttr:"base.no-bitfield" ~keepAttr:"base.bitfield" fd) drop_bitfield
 
 
   let reachable_top_pointers_types ctx (ps: AD.t) : Queries.TS.t =

@@ -361,6 +361,7 @@ module IntDomTuple : sig
   include Z
   val no_interval: t -> t
   val no_intervalSet: t -> t
+  val no_bitfield: t -> t
   val ikind: t -> ikind
 end
 
