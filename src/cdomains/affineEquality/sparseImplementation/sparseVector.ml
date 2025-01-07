@@ -86,8 +86,6 @@ module SparseVector: AbstractVector =
           | (idx, value) :: xs -> nth xs
         in nth v.entries
 
-    let nth v n = Timing.wrap "V.nth" (nth v) n
-
     let set_nth v n num = (* TODO: Optimize! *)
       if n >= v.len then failwith "Out of bounds" 
       else

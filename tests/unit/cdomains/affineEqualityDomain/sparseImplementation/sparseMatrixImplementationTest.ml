@@ -341,6 +341,19 @@ let vectorMap_zero_preserving_normal _ =
   let expected = Vector.of_list [int 0; int 1; int 4; int 0; int 0; int 16; int 25; int 0; int 0;] in
   assert_equal expected result
 
+
+let get_col_rref _ =
+  let m = make_matrix_of_2d_list @@
+    [[int 1; int 0; int 0; int 0; int 0; int 0; int 0];
+     [int 0; int 1; int 0; int 0; int 0; int 0; int 0];
+     [int 0; int 0; int 1; frac (-1) 3; int 0; frac 1 3; int 1]] in
+
+  let result = Matrix.get_col_rref m 5 in
+
+  let expected = Vector.of_list [int 0; int 0; frac 1 3] in
+
+  assert_equal expected result
+
   let tests =
     "SparseMatrixImplementationTest"
     >::: [
@@ -365,6 +378,7 @@ let vectorMap_zero_preserving_normal _ =
       "map2i one zero vector" >:: vectorMap2i_one_zero;
       "map one vector" >:: vectorMap;
       "map zero preserving normal" >:: vectorMap_zero_preserving_normal;
+      "get column in rref" >:: get_col_rref;
     ]
 
 let () = run_test_tt_main tests

@@ -381,7 +381,7 @@ struct
   let assign_texpr (t: VarManagement(Vc)(Mx).t) var texp =
     let assign_invertible_rels x var b env =
       let j0 = Environment.dim_of_var env var in
-      let a_j0 = Matrix.get_col x j0  in (*Corresponds to Axj0*)
+      let a_j0 = Matrix.get_col_rref x j0  in (*Corresponds to Axj0*)
       let b0 = Vector.nth b j0 in
       let a_j0 = Vector.apply_with_c_f_preserves_zero (/:) b0 a_j0 in (*Corresponds to Axj0/Bj0*)
       let recalc_entries m rd_a = Matrix.map2 (fun x y -> Vector.map2i (fun j z d ->
@@ -452,7 +452,7 @@ struct
     | Some m when not @@ is_top_env multi_t -> 
       let replace_col m x y =
         let dim_x, dim_y = Environment.dim_of_var multi_t.env x, Environment.dim_of_var multi_t.env y in
-        let col_x = Matrix.get_col m dim_x in
+        let col_x = Matrix.get_col_rref m dim_x in
         Matrix.set_col m col_x dim_y
       in
       let switched_m = List.fold_left2 replace_col m primed_vars assigned_vars in

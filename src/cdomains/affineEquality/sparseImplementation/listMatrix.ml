@@ -92,13 +92,16 @@ module ListMatrix: AbstractMatrix =
 
     let get_col_rref m n =
       let rec helper acc m i = 
-        if i > n then 
-          acc
-        else
-          match m with
-          | [] ->  acc 
-          | row :: xs -> let value = V.nth row n in if value <>: A.zero then helper ((i, value) :: acc) xs (i + 1) else helper acc xs (i + 1)
+        match m with
+        | [] ->  acc 
+        | row :: xs ->
+          if i > n then 
+            acc
+          else
+            let value = V.nth row n in if value <>: A.zero then helper ((i, value) :: acc) xs (i + 1) else helper acc xs (i + 1)
       in V.of_sparse_list (num_rows m) (List.rev @@ helper [] m 0)
+
+    let get_col_rref m n = Timing.wrap "get_col" (get_col_rref m) n
 
     let set_col m new_col n = 
       map2 (fun row value -> V.set_nth row n value) m new_col
