@@ -66,7 +66,6 @@ module IntDomTupleImpl = struct
 
   let check_ov ?(suppress_ovwarn = false) ~cast ik intv intv_set bf = 
     let no_ov = (no_overflow ik intv) || (no_overflow ik intv_set) || (no_overflow ik bf) in
-    (* let _ = print_endline ("(" ^ Bool.to_string (no_overflow ik intv) ^ "; " ^ Bool.to_string (no_overflow ik intv_set) ^ "; " ^ Bool.to_string (no_overflow ik bf) ^ ")") in  *)
     if not no_ov && not suppress_ovwarn && ( BatOption.is_some intv || BatOption.is_some intv_set || BatOption.is_some bf) then (
       let (_,{underflow=underflow_intv; overflow=overflow_intv}) = match intv with None -> (I2.bot (), {underflow= true; overflow = true}) | Some x -> x in
       let (_,{underflow=underflow_intv_set; overflow=overflow_intv_set}) = match intv_set with None -> (I5.bot (), {underflow= true; overflow = true}) | Some x -> x in
