@@ -368,8 +368,9 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): SOverflow with type int_t = Int
                                           || BArith.is_invalid a
 
   let is_undefined_shift_operation ik a b =
-    let some_negatives = BArith.min ik b < Z.zero in
-    let b_is_geq_precision = Z.to_int @@ BArith.min ik b >= precision ik in
+    let minVal = BArith.min ik b in 
+    let some_negatives = minVal < Z.zero in
+    let b_is_geq_precision = (if Z.fits_int minVal then Z.to_int @@ minVal >= precision ik else true) in
     (isSigned ik) && (some_negatives || b_is_geq_precision) && not (a = BArith.zero)
 
   let shift_right ik a b = 
