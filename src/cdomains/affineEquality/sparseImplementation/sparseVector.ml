@@ -29,8 +29,8 @@ module SparseVector: AbstractVector =
       let entries' = List.rev @@ Array.fold_lefti (fun acc i x -> if x <> A.zero then (i, x) :: acc else acc ) [] a in
       {entries = entries'; len = len'}
 
-    let of_sparse_list col_count ls =
-      {entries = ls; len = col_count}
+    let of_sparse_list count ls =
+      {entries = ls; len = count}
 
     let to_list v = 
       let[@tail_mod_cons] rec extend_zero_aux i v' =
@@ -81,9 +81,9 @@ module SparseVector: AbstractVector =
       else
         let rec nth v = match v with
           | [] -> A.zero
-          | (col_idx, value) :: xs when col_idx > n -> A.zero
-          | (col_idx, value) :: xs when col_idx = n -> value
-          | (col_idx, value) :: xs -> nth xs 
+          | (idx, value) :: xs when idx > n -> A.zero
+          | (idx, value) :: xs when idx = n -> value
+          | (idx, value) :: xs -> nth xs
         in nth v.entries
 
     let nth v n = Timing.wrap "V.nth" (nth v) n
@@ -109,41 +109,41 @@ module SparseVector: AbstractVector =
         {entries = entries'; len = v.len + 1}
 
     (* Note that idx is assumed to be sorted. *)
-    let insert_zero_at_indices v idx count = 
-      let rec add_indices_helper vec idx added_count acc = 
-        match vec, idx with 
+    let insert_zero_at_indices v indices count =
+      let rec add_indices_helper vec cur_idx added_count acc =
+        match vec, cur_idx with
         | [], _ -> List.rev acc (* inserting at the end only means changing the dimension *)
-        | ((col_idx, value) :: xs), [] -> add_indices_helper xs [] added_count ((col_idx + added_count, value) :: acc)
-        | ((col_idx, value) :: xs), ((i, count) :: ys) when i = col_idx -> add_indices_helper vec ys (added_count + count) acc
-        | ((col_idx, value) :: xs), ((i, count) :: ys) when i < col_idx -> add_indices_helper vec ys (added_count + count) acc
-        | ((col_idx, value) :: xs), ((i, count) :: ys) -> add_indices_helper xs idx added_count ((col_idx + added_count, value) :: acc)
+        | (idx, value) :: xs, [] -> add_indices_helper xs [] added_count ((idx + added_count, value) :: acc)
+        | (idx, value) :: xs, ((i, count) :: ys) when i = idx -> add_indices_helper vec ys (added_count + count) acc
+        | (idx, value) :: xs, ((i, count) :: ys) when i < idx -> add_indices_helper vec ys (added_count + count) acc
+        | (idx, value) :: xs, ((i, count) :: ys) -> add_indices_helper xs cur_idx added_count ((idx + added_count, value) :: acc)
       in
-      {entries = add_indices_helper v.entries idx 0 []; len = v.len + count}
+      {entries = add_indices_helper v.entries indices 0 []; len = v.len + count}
 
     let remove_nth v n =
       if n >= v.len then failwith "Out of bounds"
       else
-        let new_entries = List.filter_map (fun (col_idx, value) ->
-            if col_idx = n then None
-            else if col_idx > n 
-            then Some (col_idx - 1, value)
-            else Some (col_idx, value)
+        let new_entries = List.filter_map (fun (idx, value) ->
+            if idx = n then None
+            else if idx > n
+            then Some (idx - 1, value)
+            else Some (idx, value)
           ) v.entries in
         {entries = new_entries; len = v.len - 1}
 
     (* Note: It is assumed and necessary here that idx is sorted!!! *)
-    let remove_at_indices v idx = 
-      let rec remove_indices_helper vec idx deleted_count acc = 
-        match vec, idx with 
+    let remove_at_indices v indices =
+      let rec remove_indices_helper vec cur_idx deleted_count acc =
+        match vec, cur_idx with
         | [], [] -> List.rev acc
-        | [], (y :: ys) when deleted_count >= v.len || y >= v.len -> failwith "remove at indices: no more columns to delete"
+        | [], (y :: ys) when deleted_count >= v.len || y >= v.len -> failwith "remove at indices: no more indices to delete"
         | [], (y :: ys) -> remove_indices_helper [] ys (deleted_count + 1) acc (* Removing zero (also in next iteration, else failwith ) *)
-        | ((col_idx, value) :: xs), [] -> remove_indices_helper xs [] deleted_count ((col_idx - deleted_count, value) :: acc)
-        | ((col_idx, value) :: xs), (y :: ys) when y = col_idx -> remove_indices_helper xs ys (deleted_count + 1) acc
-        | ((col_idx, value) :: xs), (y :: ys) when y < col_idx -> remove_indices_helper vec ys (deleted_count + 1) acc
-        | ((col_idx, value) :: xs), (y :: ys) -> remove_indices_helper xs idx deleted_count ((col_idx - deleted_count, value) :: acc)
+        | (idx, value) :: xs, [] -> remove_indices_helper xs [] deleted_count ((idx - deleted_count, value) :: acc)
+        | (idx, value) :: xs, (y :: ys) when y = idx -> remove_indices_helper xs ys (deleted_count + 1) acc
+        | (idx, value) :: xs, (y :: ys) when y < idx -> remove_indices_helper vec ys (deleted_count + 1) acc
+        | (idx, value) :: xs, (y :: ys) -> remove_indices_helper xs cur_idx deleted_count ((idx - deleted_count, value) :: acc)
       in
-      {entries = remove_indices_helper v.entries idx 0 []; len = v.len - List.length idx}
+      {entries = remove_indices_helper v.entries indices 0 []; len = v.len - List.length indices}
 
     let keep_vals v n = 
       if n >= v.len then v else
@@ -182,12 +182,12 @@ module SparseVector: AbstractVector =
 
     (* Returns optional of (index * value) where f value evaluated to true *)
     let findi_val_opt f v =
-      let rec find_zero_or_val vec last_col_idx =
+      let rec find_zero_or_val vec last_idx =
         let f0 = f A.zero in
         match vec with
-        | [] -> if f0 && v.len <> last_col_idx + 1 then Some (last_col_idx + 1, A.zero) else None
+        | [] -> if f0 && v.len <> last_idx + 1 then Some (last_idx + 1, A.zero) else None
         | (idx, value) :: xs -> 
-          if f0  && idx <> last_col_idx + 1 then Some (last_col_idx + 1, A.zero) 
+          if f0  && idx <> last_idx + 1 then Some (last_idx + 1, A.zero) 
           else if f value then Some (idx, value) 
           else find_zero_or_val xs idx
       in find_zero_or_val v.entries (-1)
@@ -216,15 +216,15 @@ module SparseVector: AbstractVector =
 
     let map f v = 
       let f_zero = f A.zero in
-      let rec map2_helper acc vec i =
+      let rec map_helper acc vec i =
         match vec with
         | [] when i >= v.len || f_zero =: A.zero -> List.rev acc
-        | []  -> map2_helper ((i, f_zero) :: acc) [] (i  + 1)
-        | (idx, value) :: xs when idx = i -> let new_val = f value in if new_val <>: A.zero then map2_helper ((idx, new_val) :: acc) xs (i + 1) else map2_helper acc xs (i + 1)
-        | (idx, _) :: xs when idx > i -> if f_zero <>: A.zero then map2_helper ((i, f_zero) :: acc) vec (i + 1) else map2_helper acc vec (i + 1)
+        | []  -> map_helper ((i, f_zero) :: acc) [] (i  + 1)
+        | (idx, value) :: xs when idx = i -> let new_val = f value in if new_val <>: A.zero then map_helper ((idx, new_val) :: acc) xs (i + 1) else map_helper acc xs (i + 1)
+        | (idx, _) :: xs when idx > i -> if f_zero <>: A.zero then map_helper ((i, f_zero) :: acc) vec (i + 1) else map_helper acc vec (i + 1)
         | (_, _) :: _ -> failwith "This should not happen"
       in
-      {entries = map2_helper [] v.entries 0; len = v.len}
+      {entries = map_helper [] v.entries 0; len = v.len}
 
     let map_f_preserves_zero f v = (* map for functions f such that f 0 = 0 since f won't be applied to zero values. See also map *)
       let entries' = List.filter_map (
@@ -271,7 +271,6 @@ module SparseVector: AbstractVector =
 
     let map2i f v1 v2 = (*might more memory efficient, but definitly not faster (asymptotically)*)
       if v1.len <> v2.len then raise (Invalid_argument "Unequal lengths") else
-        (*of_list (List.map2i f (to_list v) (to_list v'))*)
         let f_rem_zero idx acc e1 e2 =
           let r = f idx e1 e2 in 
           if r =: A.zero then acc else (idx, r)::acc
