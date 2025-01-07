@@ -26,12 +26,12 @@ module SpecBase (UniqueCount : Lattice.S with type t = int) (WrapperArgs : Wrapp
 struct
   include IdentitySpec
 
-  (* Use the previous CFG node (ctx.prev_node) for identifying calls to (wrapper) functions.
+  (* Use the previous CFG node (man.prev_node) for identifying calls to (wrapper) functions.
      For one, this is the node that typically contains the call as its statement.
-     Additionally, it distinguishes two calls that share the next CFG node (ctx.node), e.g.:
+     Additionally, it distinguishes two calls that share the next CFG node (man.node), e.g.:
      if (cond) { x = malloc(1); } else { x = malloc(2); }
      Introduce a function for this to keep things consistent. *)
-  let node_for_ctx ctx = ctx.prev_node
+  let node_for_man man = man.prev_node
 
   module NodeFlatLattice =
   struct
@@ -63,40 +63,40 @@ struct
 
   (* transfer functions *)
 
-  let enter ctx (lval: lval option) (f:fundec) (args:exp list) : (D.t * D.t) list =
-    let wrapper_node, counter = ctx.local in
+  let enter man (lval: lval option) (f:fundec) (args:exp list) : (D.t * D.t) list =
+    let wrapper_node, counter = man.local in
     let new_wrapper_node =
       if Hashtbl.mem wrappers f.svar.vname then
         match wrapper_node with
         (* if an interesting callee is called by an interesting caller, then we remember the caller context *)
         | `Lifted _ -> wrapper_node
         (* if an interesting callee is called by an uninteresting caller, then we remember the callee context *)
-        | _         -> `Lifted (node_for_ctx ctx)
+        | _         -> `Lifted (node_for_man man)
       else
         NodeFlatLattice.top () (* if an uninteresting callee is called, then we forget what was called before *)
     in
     let callee = (new_wrapper_node, counter) in
-    [(ctx.local, callee)]
+    [(man.local, callee)]
 
-  let combine_env ctx lval fexp f args fc (_, counter) f_ask =
+  let combine_env man lval fexp f args fc (_, counter) f_ask =
     (* Keep (potentially higher) counter from callee and keep wrapper node from caller *)
-    let lnode, _ = ctx.local in
+    let lnode, _ = man.local in
     (lnode, counter)
 
-  let add_unique_call_ctx ctx =
-    let wrapper_node, counter = ctx.local in
+  let add_unique_call_man man =
+    let wrapper_node, counter = man.local in
     wrapper_node,
     (* track the unique ID per call to the wrapper function, not to the wrapped function *)
     add_unique_call counter
-      (match wrapper_node with `Lifted node -> node | _ -> node_for_ctx ctx)
+      (match wrapper_node with `Lifted node -> node | _ -> node_for_man man)
 
-  let special (ctx: (D.t, G.t, C.t, V.t) ctx) (lval: lval option) (f: varinfo) (arglist:exp list) : D.t =
+  let special (man: (D.t, G.t, C.t, V.t) man) (lval: lval option) (f: varinfo) (arglist:exp list) : D.t =
     let desc = LibraryFunctions.find f in
-    if WrapperArgs.is_wrapped @@ desc.special arglist then add_unique_call_ctx ctx else ctx.local
+    if WrapperArgs.is_wrapped @@ desc.special arglist then add_unique_call_man man else man.local
 
   let startstate v = D.bot ()
 
-  let threadenter ctx ~multiple lval f args =
+  let threadenter man ~multiple lval f args =
     (* The new thread receives a fresh counter *)
     [D.bot ()]
 
@@ -152,16 +152,16 @@ module MallocWrapper : MCPSpec = struct
 
   let name () = "mallocWrapper"
 
-  let query (ctx: (D.t, G.t, C.t, V.t) ctx) (type a) (q: a Q.t): a Q.result =
-    let wrapper_node, counter = ctx.local in
+  let query (man: (D.t, G.t, C.t, V.t) man) (type a) (q: a Q.t): a Q.result =
+    let wrapper_node, counter = man.local in
     match q with
     | Q.AllocVar {on_stack = on_stack} ->
       let node = match wrapper_node with
         | `Lifted wrapper_node -> wrapper_node
-        | _ -> node_for_ctx ctx
+        | _ -> node_for_man man
       in
       let count = UniqueCallCounter.find (`Lifted node) counter in
-      let var = NodeVarinfoMap.to_varinfo (ctx.ask Q.CurrentThreadId, node, count) in
+      let var = NodeVarinfoMap.to_varinfo (man.ask Q.CurrentThreadId, node, count) in
       var.vdecl <- UpdateCil.getLoc node; (* TODO: does this do anything bad for incremental? *)
       if on_stack then var.vattr <- addAttribute (Attr ("stack_alloca", [])) var.vattr; (* If the call was for stack allocation, add an attr to mark the heap var *)
       `Lifted var
@@ -171,7 +171,7 @@ module MallocWrapper : MCPSpec = struct
       NodeVarinfoMap.mem_varinfo v
     | Q.IsMultiple v ->
       begin match NodeVarinfoMap.from_varinfo v with
-        | Some (_, _, c) -> UniqueCount.is_top c || not (ctx.ask Q.MustBeUniqueThread)
+        | Some (_, _, c) -> UniqueCount.is_top c || not (man.ask Q.MustBeUniqueThread)
         | None -> false
       end
     | _ -> Queries.Result.top q
@@ -203,13 +203,13 @@ module ThreadCreateWrapper : MCPSpec = struct
 
   let name () = "threadCreateWrapper"
 
-  let query (ctx: (D.t, G.t, C.t, V.t) ctx) (type a) (q: a Q.t): a Q.result =
+  let query (man: (D.t, G.t, C.t, V.t) man) (type a) (q: a Q.t): a Q.result =
     match q with
     | Q.ThreadCreateIndexedNode ->
-      let wrapper_node, counter = ctx.local in
+      let wrapper_node, counter = man.local in
       let node = match wrapper_node with
         | `Lifted wrapper_node -> wrapper_node
-        | _ -> node_for_ctx ctx
+        | _ -> node_for_man man
       in
       let count = UniqueCallCounter.find (`Lifted node) counter in
       `Lifted node, count

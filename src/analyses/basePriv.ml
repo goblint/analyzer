@@ -57,7 +57,7 @@ end
 let old_threadenter (type d) ask (st: d BaseDomain.basecomponents_t) =
   (* Copy-paste from Base make_entry *)
   let globals = CPA.filter (fun k v -> is_global ask k) st.cpa in
-  (* let new_cpa = if !earlyglobs || ThreadFlag.is_multi ctx.ask then CPA.filter (fun k v -> is_private ctx.ask ctx.local k) globals else globals in *)
+  (* let new_cpa = if !earlyglobs || ThreadFlag.is_multi man.ask then CPA.filter (fun k v -> is_private man.ask man.local k) globals else globals in *)
   let new_cpa = globals in
   {st with cpa = new_cpa}
 
@@ -101,12 +101,12 @@ module DigestWrapper(Digest: Digest):PrivatizationWrapper =  functor (GBase:Latt
   end)
 
 
-(* No Privatization *)
+(** No Privatization. *)
 module NonePriv: S =
 struct
   include NoFinalize
 
-  module G = BaseDomain.VD
+  module G = VD
   module V = VarinfoV
   module D = Lattice.Unit
 
@@ -117,62 +117,85 @@ struct
   let lock ask getg st m = st
   let unlock ask getg sideg st m = st
 
-  let escape ask getg sideg st escaped = st
-  let enter_multithreaded ask getg sideg st = st
-  let threadenter = old_threadenter
-  let threadspawn ask getg sideg st = st
-
-  let iter_sys_vars getg vq vf =
-    match vq with
-    | VarQuery.Global g -> vf g
-    | _ -> ()
-
-
-  let read_global ask getg (st: BaseComponents (D).t) x =
+  let read_global (ask: Queries.ask) getg (st: BaseComponents (D).t) x =
     getg x
 
-  let write_global ?(invariant=false) ask getg sideg (st: BaseComponents (D).t) x v =
-    if invariant then (
-      (* Do not impose invariant, will not hold without privatization *)
-      if M.tracing then M.tracel "set" ~var:x.vname "update_one_addr: BAD! effect = '%B', or else is private! " (not invariant);
-      st
-    )
-    else (
-      (* Here, an effect should be generated, but we add it to the local
-      * state, waiting for the sync function to publish it. *)
-      (* Copied from MainFunctor.update_variable *)
-      if ((get_bool "exp.volatiles_are_top") && (is_always_unknown x)) then
-        {st with cpa = CPA.add x (VD.top ()) st.cpa}
+  let write_global ?(invariant=false) (ask: Queries.ask) getg sideg (st: BaseComponents (D).t) x v =
+    let v = (* Copied from MainFunctor.update_variable *)
+      if get_bool "exp.volatiles_are_top" && is_always_unknown x then (* TODO: why don't other privatizations do this? why in write_global, not read_global? why not in base directly? why not in other value analyses? *)
+        VD.top ()
       else
-        {st with cpa = CPA.add x v st.cpa}
-    )
+        v
+    in
+    if not invariant then
+      sideg x v;
+    st
 
   let sync ask getg sideg (st: BaseComponents (D).t) reason =
-    (* For each global variable, we create the side effect *)
-    let side_var (v: varinfo) (value) (st: BaseComponents (D).t) =
-      if M.tracing then M.traceli "globalize" ~var:v.vname "Tracing for %s" v.vname;
-      let res =
-        if is_global ask v then begin
-          if M.tracing then M.tracec "globalize" "Publishing its value: %a" VD.pretty value;
-          sideg v value;
-          {st with cpa = CPA.remove v st.cpa}
-        end else
-          st
-      in
-      if M.tracing then M.traceu "globalize" "Done!";
-      res
+    let branched_sync () =
+      (* required for branched thread creation *)
+      CPA.fold (fun x v (st: BaseComponents (D).t) ->
+          if is_global ask x then (
+            sideg x v;
+            {st with cpa = CPA.remove x st.cpa}
+          )
+          else
+            st
+        ) st.cpa st
     in
-    (* We fold over the local state, and side effect the globals *)
-    CPA.fold side_var st.cpa st
+    match reason with
+    | `Join when ConfCheck.branched_thread_creation () ->
+      branched_sync ()
+    | `JoinCall f when ConfCheck.branched_thread_creation_at_call ask f ->
+      branched_sync ()
+    | `Join
+    | `JoinCall _
+    | `Return
+    | `Normal
+    | `Init
+    | `Thread ->
+      st
+
+  let escape ask getg sideg (st: BaseComponents (D).t) escaped =
+    let cpa' = CPA.fold (fun x v acc ->
+        if EscapeDomain.EscapedVars.mem x escaped then (
+          sideg x v;
+          CPA.remove x acc
+        )
+        else
+          acc
+      ) st.cpa st.cpa
+    in
+    {st with cpa = cpa'}
+
+  let enter_multithreaded ask getg sideg (st: BaseComponents (D).t) =
+    CPA.fold (fun x v (st: BaseComponents (D).t) ->
+        if is_global ask x then (
+          sideg x v;
+          {st with cpa = CPA.remove x st.cpa}
+        )
+        else
+          st
+      ) st.cpa st
+
+  let threadenter ask st = st
+  let threadspawn ask get set st = st
 
   let thread_join ?(force=false) ask get e st = st
   let thread_return ask get set tid st = st
+
+  let iter_sys_vars getg vq vf =
+    match vq with
+    | VarQuery.Global g ->
+      vf g;
+    | _ -> ()
 
   let invariant_global ask getg g =
     ValueDomain.invariant_global getg g
 
   let invariant_vars ask getg st = []
 end
+
 
 module PerMutexPrivBase =
 struct
@@ -708,6 +731,108 @@ struct
     | `Left _
     | `Right _ -> (* mutex or thread *)
       Invariant.none
+end
+
+
+(** Vojdani privatization with eager reading. *)
+module VojdaniPriv: S =
+struct
+  include NoFinalize
+  include ConfCheck.RequireMutexActivatedInit
+  open Protection
+
+  module D = Lattice.Unit
+  module G = VD
+  module V = VarinfoV
+
+  let startstate () = ()
+
+  let read_global (ask: Queries.ask) getg (st: BaseComponents (D).t) x =
+    if is_unprotected ask ~write:false x then
+      VD.join (CPA.find x st.cpa) (getg x)
+    else
+      CPA.find x st.cpa
+
+  let write_global ?(invariant=false) (ask: Queries.ask) getg sideg (st: BaseComponents (D).t) x v =
+    if not invariant then (
+      if is_unprotected ask ~write:false x then
+        sideg x v;
+      if !earlyglobs then (* earlyglobs workaround for 13/60 *)
+        sideg x v (* TODO: is this needed for anything? 13/60 doesn't work for other reasons *)
+    );
+    {st with cpa = CPA.add x v st.cpa}
+
+  let lock ask getg (st: BaseComponents (D).t) m =
+    let cpa' = CPA.mapi (fun x v ->
+        if is_protected_by ask ~write:false m x && is_unprotected ask ~write:false x then (* is_in_Gm *)
+          VD.join (CPA.find x st.cpa) (getg x)
+        else
+          v
+      ) st.cpa
+    in
+    {st with cpa = cpa'}
+
+  let unlock ask getg sideg (st: BaseComponents (D).t) m =
+    CPA.iter (fun x v  ->
+        if is_protected_by ask ~write:false m x then ( (* is_in_Gm *)
+          if is_unprotected_without ask ~write:false x m then (* is_in_V' *)
+            sideg x v
+        )
+      ) st.cpa;
+    st
+
+  let sync ask getg sideg (st: BaseComponents (D).t) reason =
+    let branched_sync () =
+      (* required for branched thread creation *)
+      CPA.iter (fun x v ->
+          if is_global ask x && is_unprotected ask ~write:false x then
+            sideg x v
+        ) st.cpa;
+      st
+    in
+    match reason with
+    | `Join when ConfCheck.branched_thread_creation () ->
+      branched_sync ()
+    | `JoinCall f when ConfCheck.branched_thread_creation_at_call ask f ->
+      branched_sync ()
+    | `Join
+    | `JoinCall _
+    | `Return
+    | `Normal
+    | `Init
+    | `Thread ->
+      st
+
+  let escape ask getg sideg (st: BaseComponents (D).t) escaped =
+    CPA.iter (fun x v ->
+        if EscapeDomain.EscapedVars.mem x escaped then
+          sideg x v
+      ) st.cpa;
+    st
+
+  let enter_multithreaded ask getg sideg (st: BaseComponents (D).t) =
+    CPA.iter (fun x v ->
+        if is_global ask x then
+          sideg x v
+      ) st.cpa;
+    st
+
+  let threadenter ask st = st
+  let threadspawn ask get set st = st
+
+  let thread_join ?(force=false) ask get e st = st
+  let thread_return ask get set tid st = st
+
+  let iter_sys_vars getg vq vf =
+    match vq with
+    | VarQuery.Global g ->
+      vf g;
+    | _ -> ()
+
+  let invariant_global ask getg g =
+    ValueDomain.invariant_global getg g
+
+  let invariant_vars ask getg st = protected_vars ask
 end
 
 
@@ -1255,11 +1380,11 @@ struct
     else
       st
 
-  let threadenter =
+  let threadenter ask st =
     if Param.side_effect_global_init then
-      startstate_threadenter startstate
+      startstate_threadenter startstate ask st
     else
-      old_threadenter
+      {(old_threadenter ask st) with priv = W.empty ()}
 end
 
 module LockCenteredD =
@@ -1802,7 +1927,7 @@ struct
   let write_global ?invariant ask getg sideg st x v = time "write_global" (Priv.write_global ?invariant ask getg sideg st x) v
   let lock ask getg cpa m = time "lock" (Priv.lock ask getg cpa) m
   let unlock ask getg sideg st m = time "unlock" (Priv.unlock ask getg sideg st) m
-  let sync reason ctx = time "sync" (Priv.sync reason) ctx
+  let sync ask getg sideg st reason = time "sync" (Priv.sync ask getg sideg st) reason
   let escape ask getg sideg st escaped = time "escape" (Priv.escape ask getg sideg st) escaped
   let enter_multithreaded ask getg sideg st = time "enter_multithreaded" (Priv.enter_multithreaded ask getg sideg) st
   let threadenter ask st = time "threadenter" (Priv.threadenter ask) st
@@ -1972,6 +2097,7 @@ let priv_module: (module S) Lazy.t =
     let module Priv: S =
       (val match get_string "ana.base.privatization" with
         | "none" -> (module NonePriv: S)
+        | "vojdani" -> (module VojdaniPriv: S)
         | "mutex-oplus" -> (module PerMutexOplusPriv)
         | "mutex-meet" -> (module PerMutexMeetPriv)
         | "mutex-meet-tid" -> (module PerMutexMeetTIDPriv (ThreadDigest))

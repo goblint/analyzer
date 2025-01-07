@@ -66,8 +66,8 @@ struct
 
   (* Transfer functions: we only implement assignments here.
    * You can leave this code alone... *)
-  let assign ctx (lval:lval) (rval:exp) : D.t =
-    let d = ctx.local in
+  let assign man (lval:lval) (rval:exp) : D.t =
+    let d = man.local in
     match lval with
     | (Var x, NoOffset) when not x.vaddrof -> D.add x (eval d rval) d
     | _ -> D.top ()
@@ -81,10 +81,10 @@ struct
   (* We should now provide this information to Goblint. Assertions are integer expressions,
    * so we implement here a response to EvalInt queries.
    * You should definitely leave this alone... *)
-  let query ctx (type a) (q: a Queries.t): a Queries.result =
+  let query man (type a) (q: a Queries.t): a Queries.result =
     let open Queries in
     match q with
-    | EvalInt e when assert_holds ctx.local e ->
+    | EvalInt e when assert_holds man.local e ->
       let ik = Cilfacade.get_ikind_exp e in
       ID.of_bool ik true
     | _ -> Result.top q
