@@ -22,7 +22,6 @@ module ListMatrix: AbstractMatrix =
       List.fold_left (^) "" (List.map (fun x -> (V.show x)) x)
 
     let copy m = m
-    (* Lists are immutable, so this should suffice? A.t is mutuable currently, but is treated like its not in ArrayMatrix*)
 
     let equal m1 m2 = Timing.wrap "equal" (equal m1) m2
 
@@ -115,8 +114,8 @@ module ListMatrix: AbstractMatrix =
         List.map (fun row -> V.remove_nth row j) m
 
     let del_cols m cols =
-      let cols = Array.to_list cols in (* TODO: Is it possible to use list for Apron dimchange? *)
-      let sorted_cols = List.sort_uniq Stdlib.compare cols in (* Apron Docs:  Repetitions are meaningless (and are not correct specification) *)
+      let cols = Array.to_list cols in
+      let sorted_cols = List.sort_uniq Stdlib.compare cols in (* Apron Docs: Repetitions are meaningless (and are not correct specification) *)
       if (List.length sorted_cols) = num_cols m then empty() 
       else
         List.map (fun row -> V.remove_at_indices row sorted_cols) m
@@ -125,11 +124,11 @@ module ListMatrix: AbstractMatrix =
 
     let find_opt = List.find_opt
 
-    let append_matrices m1 m2  = (* keeps dimensions of first matrix, what if dimensions differ?*)
+    let append_matrices m1 m2  = 
       m1 @ m2
 
     let div_row (row : V.t) (pivot : A.t) : V.t =
-      V.map_f_preserves_zero (fun a -> a /: pivot) row (* TODO: This is a case for apply_with_c *)
+      V.map_f_preserves_zero (fun a -> a /: pivot) row 
 
     let sub_scaled_row row1 row2 s =
       V.map2_f_preserves_zero (fun x y -> x -: (s *: y)) row1 row2
