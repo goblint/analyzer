@@ -310,7 +310,7 @@ struct
               Matrix.remove_row (multiply_by_t a a_r) r, Matrix.remove_row (multiply_by_t b b_r) r, (max - 1)
             )
         in
-        let col_a, col_b = Matrix.get_col a s, Matrix.get_col b s in
+        let col_a, col_b = Matrix.get_col_rref a s, Matrix.get_col_rref b s in
         let nth_zero v i =  match Vector.nth v i with
           | exception Invalid_argument _ -> Mpqf.zero
           | x -> x

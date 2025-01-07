@@ -101,9 +101,17 @@ module ListMatrix: AbstractMatrix =
     let get_col m n =
       Timing.wrap "get_col" (get_col m) n
 
-    let set_col m new_col n = (* TODO: Optimize! The two commented methods have wrong semantics for wrong vector length *)
-      (* List.mapi (fun row_idx row -> V.set_nth row n (V.nth new_col row_idx)) m *)
-      (* List.map2 (fun row value -> V.set_nth row n value) m (V.to_list new_col) *)
+    let get_col_rref m n =
+      let rec helper acc m i = 
+        if i > n then 
+          acc
+        else
+          match m with
+          | [] ->  acc 
+          | row :: xs -> let value = V.nth row n in if value <>: A.zero then helper ((i, value) :: acc) xs (i + 1) else helper acc xs (i + 1)
+      in V.of_sparse_list (num_rows m) (List.rev @@ helper [] m 0)
+
+    let set_col m new_col n = 
       map2 (fun row value -> V.set_nth row n value) m new_col
 
     let set_col m new_col n = Timing.wrap "set_col" (set_col m) new_col n
@@ -236,7 +244,7 @@ module ListMatrix: AbstractMatrix =
       in 
       let m' = find_piv_and_reduce m m 0 0 in
       if affeq_rows_are_valid m' then Some m' else None (* TODO: We can check this for each row, using the helper function row_is_invalid *)
-    
+
     let normalize m = Timing.wrap "normalize" normalize m
 
     (* Sets the jth column to zero by subtracting multiples of v *)

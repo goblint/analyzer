@@ -37,6 +37,8 @@ sig
 
   val get_col: t -> int -> vec
 
+  val get_col_rref: t -> int -> vec
+
   val set_col: t -> vec -> int -> t
 
   val del_col: t -> int -> t
