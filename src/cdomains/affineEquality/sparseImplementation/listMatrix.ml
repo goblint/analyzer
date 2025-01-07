@@ -236,7 +236,8 @@ module ListMatrix: AbstractMatrix =
       in 
       let m' = find_piv_and_reduce m m 0 0 in
       if affeq_rows_are_valid m' then Some m' else None (* TODO: We can check this for each row, using the helper function row_is_invalid *)
-
+    
+    let normalize m = Timing.wrap "normalize" normalize m
 
     (* Sets the jth column to zero by subtracting multiples of v *)
     let reduce_col_with_vec m j v = 
@@ -265,7 +266,7 @@ module ListMatrix: AbstractMatrix =
         match V.find_first_non_zero v with 
         | None -> None
         | Some (_, value) -> 
-          let normalized_v = V.map_f_preserves_zero (fun x -> x /: value) v in
+          let normalized_v = div_row v value in
           Some (init_with_vec normalized_v)
       else (* We try to normalize v and check if a contradiction arises. If not, we insert v at the appropriate place in m (depending on the pivot) *)
         let pivot_positions = get_pivot_positions m in
