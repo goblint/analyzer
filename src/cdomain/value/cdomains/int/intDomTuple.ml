@@ -31,6 +31,7 @@ module IntDomTupleImpl = struct
   (* The Interval domain can lead to too many contexts for recursive functions (top is [min,max]), but we don't want to drop all ints as with `ana.base.context.int`. TODO better solution? *)
   let no_interval = GobTuple.Tuple6.map2 (const None)
   let no_intervalSet = GobTuple.Tuple6.map5 (const None)
+  let no_bitfield = GobTuple.Tuple6.map6 (const None)
 
   type 'a m = (module SOverflow with type t = 'a)
   type 'a m2 = (module SOverflow with type t = 'a and type int_t = int_t )
@@ -63,7 +64,7 @@ module IntDomTupleImpl = struct
     | Some(_, {underflow; overflow}) -> not (underflow || overflow)
     | _ -> false
 
-  let check_ov ?(suppress_ovwarn = false) ~cast ik intv intv_set bf =
+  let check_ov ?(suppress_ovwarn = false) ~cast ik intv intv_set bf = 
     let no_ov = (no_overflow ik intv) || (no_overflow ik intv_set) || (no_overflow ik bf) in
     if not no_ov && not suppress_ovwarn && ( BatOption.is_some intv || BatOption.is_some intv_set || BatOption.is_some bf) then (
       let (_,{underflow=underflow_intv; overflow=overflow_intv}) = match intv with None -> (I2.bot (), {underflow= true; overflow = true}) | Some x -> x in
@@ -75,7 +76,7 @@ module IntDomTupleImpl = struct
     );
     no_ov
 
-  let create2_ovc ik r x ((p1, p2, p3, p4, p5,p6): int_precision) =
+  let create2_ovc ik r x ((p1, p2, p3, p4, p5, p6): int_precision) =
     let f b g = if b then Some (g x) else None in
     let map x = Option.map fst x in
     let intv =  f p2 @@ r.fi2_ovc (module I2) in
@@ -286,8 +287,8 @@ module IntDomTupleImpl = struct
      (fun (a, b, c, d, e, f) -> maybe refine_with_congruence ik (a, b, c, d, e, f) d);
      (fun (a, b, c, d, e, f) -> maybe refine_with_bitfield ik (a, b, c, d, e, f) f)]
 
-  let refine ik ((a, b, c, d, e,f) : t ) : t =
-    let dt = ref (a, b, c, d, e,f) in
+  let refine ik ((a, b, c, d, e, f) : t ) : t =
+    let dt = ref (a, b, c, d, e, f) in
     (match get_refinement () with
      | "never" -> ()
      | "once" ->
@@ -559,6 +560,8 @@ struct
   let no_interval (x: I.t) = {x with v = IntDomTupleImpl.no_interval x.v}
 
   let no_intervalSet (x: I.t) = {x with v = IntDomTupleImpl.no_intervalSet x.v}
+
+  let no_bitfield (x: I.t) = {x with v = IntDomTupleImpl.no_bitfield x.v}
 end
 
 let of_const (i, ik, str) = IntDomTuple.of_int ik i

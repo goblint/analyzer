@@ -239,9 +239,9 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): SOverflow with type int_t = Int
       else if should_wrap ik then
         (new_bitfield, overflow_info)
       else if should_ignore_overflow ik then 
-        (M.warn ~category:M.Category.Integer.overflow "Bitfield: Value was outside of range, indicating overflow, but 'sem.int.signed_overflow' is 'assume_none' -> Returned Top";
+        (* (M.warn ~category:M.Category.Integer.overflow "Bitfield: Value was outside of range, indicating overflow, but 'sem.int.signed_overflow' is 'assume_none' -> Returned Top"; *)
          (* (bot (), overflow_info)) *)
-         (top_of ik, overflow_info))
+         (top_of ik, overflow_info)
       else 
         (top_of ik, overflow_info)
 
@@ -368,8 +368,9 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): SOverflow with type int_t = Int
                                           || BArith.is_invalid a
 
   let is_undefined_shift_operation ik a b =
-    let some_negatives = BArith.min ik b < Z.zero in
-    let b_is_geq_precision = Z.to_int @@ BArith.min ik b >= precision ik in
+    let minVal = BArith.min ik b in 
+    let some_negatives = minVal < Z.zero in
+    let b_is_geq_precision = (if Z.fits_int minVal then Z.to_int @@ minVal >= precision ik else true) in
     (isSigned ik) && (some_negatives || b_is_geq_precision) && not (a = BArith.zero)
 
   let shift_right ik a b = 
@@ -479,7 +480,9 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): SOverflow with type int_t = Int
     norm ik (!z3, !o3)
 
   let div ?no_ov ik (z1, o1) (z2, o2) =
-    let res = if BArith.is_const (z1, o1) && BArith.is_const (z2, o2) then (let tmp = o1 /: o2 in (!:tmp, tmp)) 
+    if o2 = Ints_t.zero then (top_of ik, {underflow=false; overflow=false}) else
+    let res = 
+      if BArith.is_const (z1, o1) && BArith.is_const (z2, o2) then (let tmp = o1 /: o2 in (!:tmp, tmp)) 
       else if BArith.is_const (z2, o2) && is_power_of_two o2 then (z1 >>: (Ints_t.to_int o2), o1 >>: (Ints_t.to_int o2))
       else top_of ik in
     norm ik res
@@ -541,10 +544,10 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): SOverflow with type int_t = Int
     match bf, cong with
     | (z,o), Some (c, m) when m = Ints_t.zero -> norm ik (!: c, c) |> fst
     | (z,o), Some (c, m) when is_power_of_two m && m <> Ints_t.one ->
-      let congruenceMask = !:m in
-      let newz = (!:congruenceMask &: z) |: (congruenceMask &: !:c) in
-      let newo = (!:congruenceMask &: o) |: (congruenceMask &: c) in
-      norm ik (newz, newo) |> fst
+      let congruenceMask = !: (m -: Ints_t.one) in
+      let congZ = congruenceMask |: !:c in 
+      let congO = congruenceMask |: c in 
+      meet ik (congZ, congO) bf
     | _ -> norm ik bf |> fst
 
   let refine_with_interval ik t itv = 
