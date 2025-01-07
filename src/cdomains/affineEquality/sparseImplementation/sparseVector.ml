@@ -86,6 +86,20 @@ module SparseVector: AbstractVector =
           | (col_idx, value) :: xs -> nth xs 
         in nth v.entries
 
+    let nth' v n = 
+      if n >= v.len then raise (Invalid_argument "Cannot access vector element (out of bounds)")
+      else
+        let rec nth' v = match v with (* List.assoc would also work, but we use the fact that v is sorted *)
+          | [] -> A.zero
+          | (col_idx, value) :: xs -> 
+            if col_idx < n then nth' xs else
+            if col_idx = n then value else 
+            A.zero
+        in nth' v.entries
+    
+    let p = true
+    let nth = if p then nth else nth'
+
     let set_nth v n num = (* TODO: Optimize! *)
       if n >= v.len then failwith "Out of bounds" 
       else
