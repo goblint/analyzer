@@ -194,8 +194,8 @@ module SparseVector: AbstractVector =
         match v1, v2 with 
         | [], [] -> raise Not_found
         | [], (yidx, yval)::ys -> if f A.zero yval then yidx else aux [] ys
-        | (xidx, xval)::xs, [] -> if f xval A.zero then xidx else aux xs []
-        | (xidx, xval)::xs, (yidx, yval)::ys ->
+        | (xidx, xval) :: xs, [] -> if f xval A.zero then xidx else aux xs []
+        | (xidx, xval) :: xs, (yidx, yval) :: ys ->
           match xidx - yidx with
           | d when d < 0 -> if f xval A.zero then xidx else aux xs v2
           | d when d > 0 -> if f A.zero yval then yidx else aux v1 ys
@@ -236,7 +236,7 @@ module SparseVector: AbstractVector =
       let rec exists_aux at f v =
         match v with
         | [] -> if at = 0 then false else f A.zero
-        | (xi, xv)::xs -> if f xv then true else exists_aux (at - 1) f xs
+        | (xi, xv) :: xs -> if f xv then true else exists_aux (at - 1) f xs
       in (exists_aux c f v.entries)
 
     (**
@@ -279,14 +279,14 @@ module SparseVector: AbstractVector =
     let map2_f_preserves_zero f v v' =
       let f_rem_zero acc idx e1 e2 =
         let r = f e1 e2 in 
-        if r =: A.zero then acc else (idx, r)::acc
+        if r =: A.zero then acc else (idx, r) :: acc
       in  
       let rec aux acc v1 v2 =
         match v1, v2 with 
         | [], [] -> acc 
-        | [], (yidx, yval)::ys -> aux (f_rem_zero acc yidx A.zero yval) [] ys
-        | (xidx, xval)::xs, [] -> aux (f_rem_zero acc xidx xval A.zero) xs []
-        | (xidx, xval)::xs, (yidx, yval)::ys -> 
+        | [], (yidx, yval) :: ys -> aux (f_rem_zero acc yidx A.zero yval) [] ys
+        | (xidx, xval) :: xs, [] -> aux (f_rem_zero acc xidx xval A.zero) xs []
+        | (xidx, xval) :: xs, (yidx, yval) :: ys -> 
           match xidx - yidx with
           | d when d < 0 -> aux (f_rem_zero acc xidx xval A.zero) xs v2
           | d when d > 0 -> aux (f_rem_zero acc yidx A.zero yval) v1 ys
@@ -304,15 +304,15 @@ module SparseVector: AbstractVector =
       if v.len <> v'.len then raise (Invalid_argument "Unequal lengths") else
         let f_rem_zero idx acc e1 e2 =
           let r = f idx e1 e2 in 
-          if r =: A.zero then acc else (idx, r)::acc
+          if r =: A.zero then acc else (idx, r) :: acc
         in  
         let rec aux acc vec1 vec2 i =
           match vec1, vec2 with 
           | [], [] when i = v.len -> acc 
           | [], [] -> aux (f_rem_zero i acc A.zero A.zero) [] [] (i + 1)
-          | [], (yidx, yval)::ys when i = yidx -> aux (f_rem_zero i acc A.zero yval) [] ys (i + 1)
-          | (xidx, xval)::xs, [] when i = xidx -> aux (f_rem_zero i acc xval A.zero) xs [] (i + 1)
-          | [], (_, _)::_ | (_, _)::_, [] -> aux (f_rem_zero i acc A.zero A.zero) vec1 vec2 (i + 1) (* When one vec is not zero_vec, but has implicit zeroes at front *)
+          | [], (yidx, yval) :: ys when i = yidx -> aux (f_rem_zero i acc A.zero yval) [] ys (i + 1)
+          | (xidx, xval) :: xs, [] when i = xidx -> aux (f_rem_zero i acc xval A.zero) xs [] (i + 1)
+          | [], (_, _) :: _ | (_, _) :: _, [] -> aux (f_rem_zero i acc A.zero A.zero) vec1 vec2 (i + 1) (* When one vec is not zero_vec, but has implicit zeroes at front *)
           | (xidx, xval)::xs, (yidx, yval)::ys -> 
             if xidx <> i && yidx <> i then aux (f_rem_zero i acc A.zero A.zero) vec1 vec2 (i+1) (* When both vectors have implicit zeroes at front *)
             else
@@ -346,9 +346,9 @@ module SparseVector: AbstractVector =
       let rec aux acc v1 v2 =
         match v1, v2 with 
         | [], [] -> acc 
-        | [], (yidx, yval)::ys -> aux (f acc A.zero yval) [] ys
-        | (xidx, xval)::xs, [] -> aux (f acc xval A.zero) xs []
-        | (xidx, xval)::xs, (yidx, yval)::ys -> 
+        | [], (yidx, yval) :: ys -> aux (f acc A.zero yval) [] ys
+        | (xidx, xval) :: xs, [] -> aux (f acc xval A.zero) xs []
+        | (xidx, xval) :: xs, (yidx, yval) :: ys -> 
           match xidx - yidx with
           | d when d < 0 -> aux (f acc xval A.zero) xs v2
           | d when d > 0 -> aux (f acc A.zero yval) v1 ys
