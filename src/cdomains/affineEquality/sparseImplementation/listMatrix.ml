@@ -196,20 +196,20 @@ module ListMatrix: AbstractMatrix =
       let cut_front_matrix m row_idx col_idx = Timing.wrap "cut_front_matrix" (cut_front_matrix m row_idx) col_idx in
       (* Function for finding first pivot in an extracted part of the matrix (row_idx and col_idx indicate which part of the original matrix) *)
       (* The last column represents the constant in the affeq *)
-      let find_first_pivot m' row_idx col_idx =
+      let find_first_pivot m row_idx col_idx =
         if col_idx >= col_count then None else 
-          let max_piv_col_idx = num_cols m' - 2 in (* col at num_cols - 1 is the constant of the affeq *)
-          (* Finding pivot by extracting the minimum column index of the first non zero value of each row*)
+          let max_piv_col_idx = num_cols m - 2 in (* col at num_cols - 1 is the constant of the affeq *)
+          (* Finding pivot by extracting the minimum column index of the first non zero value of each row *)
           let (piv_row, piv_col, piv_val) = List.fold_lefti (fun (cur_row, cur_col, cur_val) i row  -> 
               let row_first_non_zero = V.find_first_non_zero row in
               match row_first_non_zero with
               | None -> (cur_row, cur_col, cur_val)
               | Some (idx, value) -> if idx < cur_col then (i, idx, value) else (cur_row, cur_col, cur_val)
-            ) (num_rows m', max_piv_col_idx + 1, A.zero) m' 
+            ) (num_rows m, max_piv_col_idx + 1, A.zero) m 
           in
           if piv_col = (max_piv_col_idx + 1) then None else Some (row_idx + piv_row, col_idx + piv_col, piv_val)
       in
-      let find_first_pivot m' row_idx col_idx = Timing.wrap "find_first_pivot" (find_first_pivot m' row_idx) col_idx in
+      let find_first_pivot m row_idx col_idx = Timing.wrap "find_first_pivot" (find_first_pivot m row_idx) col_idx in
       let affeq_rows_are_valid m = (* Check if the semantics of an rref-affeq matrix are correct *)
         let col_count = num_cols m in
         let row_is_valid row =
@@ -218,8 +218,9 @@ module ListMatrix: AbstractMatrix =
           | None -> true 
         in
         List.for_all row_is_valid m in
+      (* Finds the best fitting pivot, moves the respective row at the correct position, and reduces the pivot column afterwards. Continues with next row after that until fully normalized *)
       let rec find_piv_and_reduce m m' row_idx col_idx = 
-        if col_idx >= (col_count - 1) then m  (* In this case the whole bottom of the matrix starting from row_index is Zero, so it is normalized *)
+        if col_idx >= (col_count - 1) then m  (* In this case the whole bottom of the matrix starting from row_index has been reduced to Zero, so it is normalized *)
         else
           match find_first_pivot m' row_idx col_idx with
           | None -> m (* No pivot found means already normalized *)
@@ -265,8 +266,7 @@ module ListMatrix: AbstractMatrix =
 
     (** This function yields the same result as appending [v] to [m], normalizing and removing zero rows.
         However, it is usually faster than performing those ops manually.
-        [m] must be in rref form and must contain the same number of columns as [v].
-    *)
+        [m] must be in rref form and must contain the same number of columns as [v]. *)
     let rref_vec m v =
       if is_empty m then (* In this case, v is normalized and returned *)
         match V.find_first_non_zero v with 
@@ -298,18 +298,17 @@ module ListMatrix: AbstractMatrix =
     let rref_vec m v = Timing.wrap "rref_vec" (rref_vec m) v
 
     (** This should yield the same result as appending [m2] to [m1], normalizing and removing zero rows. However, it is usually faster.
-        [m1] and [m2] must be in rref 
-    *)
-    let rref_matrix (m1 : t) (m2 : t) =
+        [m1] and [m2] must be in rref *)
+    let rref_matrix m1 m2 =
       let big_m, small_m = if num_rows m1 > num_rows m2 then m1, m2 else m2, m1 in
       fst @@ List.fold_while (fun acc _ -> Option.is_some acc) 
-        (fun acc_big_m small -> rref_vec (Option.get acc_big_m) small ) (Some big_m) small_m (* TODO: pivot_positions are recalculated at each step, but since they need to be adjusted after each step it might not make sense to keep track of them here.*)
+        (fun acc_big_m small -> rref_vec (Option.get acc_big_m) small ) (Some big_m) small_m
 
     let rref_matrix m1 m2 = Timing.wrap "rref_matrix" (rref_matrix m1) m2
 
 
     (* Performs a partial rref reduction to check if concatenating both matrices and afterwards normalizing them would yield a matrix <> m2 *)
-    (* Both input matrices must be in rref form! *)
+    (** Both input matrices must be in rref form! *)
     let is_covered_by m1 m2 =
       let rec is_linearly_independent_rref v m = 
         let pivot_opt = V.find_first_non_zero v in
