@@ -140,7 +140,7 @@ module SparseVector: AbstractVector =
        @raise Invalid_argument if [n] is out of bounds
     *)
     let remove_nth v n =
-      if n >= v.len then failwith "Out of bounds"
+      if n >= v.len then raise (Invalid_argument "Index out of bounds")
       else
         let new_entries = List.filter_map (fun (idx, value) ->
             if idx = n then None
@@ -159,8 +159,8 @@ module SparseVector: AbstractVector =
       let rec remove_indices_helper vec cur_idx deleted_count acc =
         match vec, cur_idx with
         | [], [] -> List.rev acc
-        | [], (y :: ys) when deleted_count >= v.len || y >= v.len -> failwith "remove at indices: no more indices to delete"
-        | [], (y :: ys) -> remove_indices_helper [] ys (deleted_count + 1) acc (* Removing zero (also in next iteration, else failwith ) *)
+        | [], (y :: ys) when deleted_count >= v.len || y >= v.len -> raise (Invalid_argument "Indices out of bounds")
+        | [], (y :: ys) -> remove_indices_helper [] ys (deleted_count + 1) acc
         | (idx, value) :: xs, [] -> remove_indices_helper xs [] deleted_count ((idx - deleted_count, value) :: acc)
         | (idx, value) :: xs, (y :: ys) when y = idx -> remove_indices_helper xs ys (deleted_count + 1) acc
         | (idx, value) :: xs, (y :: ys) when y < idx -> remove_indices_helper vec ys (deleted_count + 1) acc
