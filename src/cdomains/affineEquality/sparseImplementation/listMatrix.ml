@@ -67,8 +67,9 @@ module ListMatrix: AbstractMatrix =
     let map2i f m v = Timing.wrap "Matrix.map2i" (map2i f m) v
 
     let add_empty_columns m cols  =    
-      let cols = Array.to_list cols in 
+      let cols = Array.to_list cols in (* cols should adhere to apron specification as described here: https://antoinemine.github.io/Apron/doc/api/ocaml/Dim.html*)
       let sorted_cols = List.sort Stdlib.compare cols in
+      (* This function creates a list of tuples, each specifying an index and how many zeros are to be inserted at that index *)
       let rec count_sorted_occ acc cols last count =
         match cols with
         | [] -> if count > 0 then (last, count) :: acc else acc
@@ -251,7 +252,6 @@ module ListMatrix: AbstractMatrix =
                 V.map2_f_preserves_zero (fun x y -> x -: (s *: y)) row v)
         ) m
 
-
     (** Inserts vector [v] with pivot at [piv_idx] at an rref-preserving position in [m].
         [m] has to be in rref form and [v] is valid to be inserted as an rref-row into [m]
         ([v] is only <>: A.zero on [piv_idx] or idx not included in [piv_positions] of [m]). *)
@@ -259,10 +259,9 @@ module ListMatrix: AbstractMatrix =
       let reduced_m = reduce_col_with_vec m piv_idx v in
       match List.find_opt (fun (row_idx, piv_col) -> piv_col > piv_idx) pivot_positions with
       | None -> append_row reduced_m v
-      | Some (row_idx, _) ->
-        let (before, after) = List.split_at row_idx reduced_m in (* TODO: Optimize *)
+      | Some (row_idx, _) -> 
+        let (before, after) = List.split_at row_idx reduced_m in 
         before @ (v :: after)
-
 
     (** This function yields the same result as appending [v] to [m], normalizing and removing zero rows.
         However, it is usually faster than performing those ops manually.
