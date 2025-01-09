@@ -585,8 +585,14 @@ struct
       else
         l'
     in
-    sideg (V.global x) (G.create_global sidev);
-    {st with cpa = cpa'; priv = (W.add x w,LMust.add lm lmust,l')}
+    let w' = if not invariant then
+        W.add x w
+      else
+        w (* No need to add invariant to W because it doesn't matter for reads after invariant, only unlocks. *)
+    in
+    if not invariant then
+      sideg (V.global x) (G.create_global sidev);
+    {st with cpa = cpa'; priv = (w',LMust.add lm lmust,l')}
 
   let lock (ask: Queries.ask) getg (st: BaseComponents (D).t) m =
     if Locksets.(not (MustLockset.mem m (current_lockset ask))) then (
