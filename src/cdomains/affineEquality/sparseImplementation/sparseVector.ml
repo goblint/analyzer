@@ -68,7 +68,10 @@ module SparseVector: AbstractVector =
 
     let is_zero_vec v = (v.entries = [])
 
-    (* Checks if exactly one variable is part of the affine equality, i.e. whether there is exactly one non-zero entry, excluding the constant at the end *)
+    (**
+       [is_const_vec v] returns true if the v represents an affine equality over only one variable, i.e. a constant.
+       Constant vectors are of the form [0*x0*x] for some value [x] and are represented by a two element list
+       ,however this is not an iff relationship.*)
     let is_const_vec v = 
       match v.entries with 
       | [] -> false
@@ -76,8 +79,12 @@ module SparseVector: AbstractVector =
       | (idx, _)::[] when idx <> v.len -1 -> true 
       | _ -> false
 
+    (**
+       [nth v n] returns the [n]-th entry of [v].
+       @raise Invalid_argument if [n] is out of bounds.
+    *)
     let nth v n = (* Note: This exception HAS TO BE THROWN! It is expected by the domain *)
-      if n >= v.len then raise (Invalid_argument "Cannot access vector element (out of bounds)")
+      if n >= v.len then raise (Invalid_argument "Index out of bounds")
       else
         let rec nth v = match v with
           | [] -> A.zero
@@ -86,8 +93,12 @@ module SparseVector: AbstractVector =
           | (idx, value) :: xs -> nth xs
         in nth v.entries
 
-    let set_nth v n num = (* TODO: Optimize! *)
-      if n >= v.len then failwith "Out of bounds" 
+    (**
+       [set_nth v n num] returns [v] where the [n]-th entry has been set to [num].
+       @raise Invalid_argument if [n] is out of bounds.
+    *)
+    let set_nth v n num = 
+      if n >= v.len then raise (Invalid_argument "Index out of bounds")
       else
         let rec set_nth_helper vec acc =
           match vec with
@@ -98,16 +109,24 @@ module SparseVector: AbstractVector =
         in
         {entries = set_nth_helper v.entries []; len = v.len}
 
-    let insert_val_at n new_val v = 
-      if n > v.len then failwith "n too large" else (* Does this happen? Otherwise we can omit this comparison, here right now to be semantically equivalent *)
+    (**
+       [insert_val_at v n num] returns [v] where the [num] is inserted into the [n]-th position, i.e. [v] at [n] = [num].
+       @raise Invalid_argument if [n] is out of bounds.
+    *)
+    let insert_val_at v n num = 
+      if n > v.len then raise (Invalid_argument "Index out of bounds") 
+      else
         let entries' = List.rev @@ List.fold_left (fun acc (idx, value) -> 
             if idx < n then (idx, value) :: acc 
-            else (if new_val <>: A.zero then (idx + 1, value) :: (n, new_val) :: acc else (idx + 1, value) :: acc)
+            else (if num <>: A.zero then (idx + 1, value) :: (n, num) :: acc else (idx + 1, value) :: acc)
           ) [] v.entries in
         {entries = entries'; len = v.len + 1}
 
-    (* Note that idx is assumed to be sorted. *)
-    let insert_zero_at_indices v indices count =
+    (**
+       [insert_zero_at_indices v indices num_zeros] inserts [num_zeros] into [v].
+       @param indices A {b sorted} list of tuples where [fst] gives the index of the insert and [snd] the number of zeros that will be inserted.
+    *)
+    let insert_zero_at_indices v indices num_zeros =
       let rec add_indices_helper vec cur_idx added_count acc =
         match vec, cur_idx with
         | [], _ -> List.rev acc (* inserting at the end only means changing the dimension *)
@@ -116,8 +135,12 @@ module SparseVector: AbstractVector =
         | (idx, value) :: xs, ((i, count) :: ys) when i < idx -> add_indices_helper vec ys (added_count + count) acc
         | (idx, value) :: xs, ((i, count) :: ys) -> add_indices_helper xs cur_idx added_count ((idx + added_count, value) :: acc)
       in
-      {entries = add_indices_helper v.entries indices 0 []; len = v.len + count}
+      {entries = add_indices_helper v.entries indices 0 []; len = v.len + num_zeros}
 
+    (**
+       [remove_nth v n] returns [v] where the [n]-th entry is removed, decreasing the length of the vector by one.
+       @raise Invalid_argument if [n] is out of bounds
+    *)
     let remove_nth v n =
       if n >= v.len then failwith "Out of bounds"
       else
@@ -129,7 +152,11 @@ module SparseVector: AbstractVector =
           ) v.entries in
         {entries = new_entries; len = v.len - 1}
 
-    (* Note: It is assumed and necessary here that idx is sorted!!! *)
+    (**
+       [remove_at_indices v indices] returns [v] where all entries at the positions specified by [indices] are removed, decreasing its length by the length of [indices].
+       @param indices A {b sorted} list of indices
+       @raise Invalid_argument if [indices] would reach out of bounds for some index.
+    *)
     let remove_at_indices v indices =
       let rec remove_indices_helper vec cur_idx deleted_count acc =
         match vec, cur_idx with
@@ -157,9 +184,16 @@ module SparseVector: AbstractVector =
       else
         fst @@ List.find (fun (idx, value) -> f value) v.entries (* Here fst is the idx contained in the found tuple *)
 
+    (**
+       [find2i_f_false_at_zero f v v'] returns the {b index} of the first pair of entries [e, e'] from [v, v'] where [f e e' = true ].
+
+       Note that [f] {b must} be such that [f 0 0 = false]!
+
+       {i One should use this function over its general counterpart whenever possible, as it is considerably faster!}
+    *)
     let find2i_f_false_at_zero f v v' = (*Very welcome to change the name*)
       let rec aux v1 v2 =
-        match v1, v2 with
+        match v1, v2 with 
         | [], [] -> raise Not_found
         | [], (yidx, yval)::ys -> if f A.zero yval then yidx else aux [] ys
         | (xidx, xval)::xs, [] -> if f xval A.zero then xidx else aux xs []
@@ -172,7 +206,10 @@ module SparseVector: AbstractVector =
       if v.len <> v'.len then raise (Invalid_argument "Unequal lengths") else
         aux v.entries v'.entries
 
-    (* Returns optional of (index * value) where f value evaluated to true *)
+    (**
+       [findi_val_opt f v] returns the first entry [e] and its index where [f e = true], if such an entry exists.
+       @return [(idx, e) option]
+    *)
     let findi_val_opt f v =
       let rec find_zero_or_val vec last_idx =
         let f0 = f A.zero in
@@ -186,6 +223,10 @@ module SparseVector: AbstractVector =
 
     let findi_val_opt f v = Timing.wrap "findi_val_opt" (findi_val_opt f) v
 
+    (**
+       [find_first_non_zero v] returns the first entry [e] and its index where [e <>: 0], if such an entry exists.
+       @return [(idx, e) option]
+    *)
     let find_first_non_zero v =
       if v.entries = [] then None
       else Some (List.hd v.entries)
@@ -200,6 +241,13 @@ module SparseVector: AbstractVector =
         | (xi, xv)::xs -> if f xv then true else exists_aux (at - 1) f xs
       in (exists_aux c f v.entries)
 
+    (**
+       [map_f_preserves_zero f v] returns the mapping of [v] specified by [f].
+
+       Note that [f] {b must} be such that [f 0 = 0]!
+
+       {i One should use this function over its general counterpart whenever possible, as it is considerably faster!}
+    *)
     let map_f_preserves_zero f v = (* map for functions f such that f 0 = 0 since f won't be applied to zero values. See also map *)
       let entries' = List.filter_map (
           fun (idx, value) -> let new_val = f value in 
@@ -208,14 +256,29 @@ module SparseVector: AbstractVector =
 
     let map_f_preserves_zero f v = Timing.wrap "map_f_preserves_zero" (map_f_preserves_zero f) v
 
+    (**
+       [mapi_f_preserves_zero f v] returns the mapping of [v] specified by [f].
+
+       Note that [f] {b must} be such that [f i 0 = 0] for any index [i]!
+
+       {i One should use this function over its general counterpart whenever possible, as it is considerably faster!}
+    *)
     let mapi_f_preserves_zero f v =
       let entries' = List.filter_map (
           fun (idx, value) -> let new_val = f idx value in 
             if new_val = A.zero then None else Some (idx, new_val)) v.entries in 
       {entries = entries'; len = v.len}
 
-    (* map for functions f such that f 0 0 = 0 since f won't be applied to if both values are zero. See also map *)
-    let map2_f_preserves_zero f v1 v2 =
+    (**
+       [map2_f_preserves_zero f v v'] returns the mapping of [v] and [v'] specified by [f].
+
+       Note that [f] {b must} be such that [f 0 0 = 0]!
+
+       {i One should use this function over its general counterpart whenever possible, as it is considerably faster!}
+
+       @raise Invalid_argument if [v] and [v'] have unequal lengths
+    *)
+    let map2_f_preserves_zero f v v' =
       let f_rem_zero acc idx e1 e2 =
         let r = f e1 e2 in 
         if r =: A.zero then acc else (idx, r)::acc
@@ -231,20 +294,23 @@ module SparseVector: AbstractVector =
           | d when d > 0 -> aux (f_rem_zero acc yidx A.zero yval) v1 ys
           | _            -> aux (f_rem_zero acc xidx xval yval) xs ys
       in
-      if v1.len <> v2.len then raise (Invalid_argument "Unequal lengths") else 
-        {entries = List.rev (aux [] v1.entries v2.entries); len = v1.len}
+      if v.len <> v'.len then raise (Invalid_argument "Unequal lengths") else 
+        {entries = List.rev (aux [] v.entries v'.entries); len = v.len}
 
     let map2_f_preserves_zero f v1 v2 = Timing.wrap "map2_f_preserves_zero" (map2_f_preserves_zero f v1) v2
 
-    let map2i f v1 v2 = (*might more memory efficient, but definitly not faster (asymptotically)*)
-      if v1.len <> v2.len then raise (Invalid_argument "Unequal lengths") else
+    (**
+       @raise Invalid_argument if [v] and [v'] have unequal lengths
+    *)
+    let map2i f v v' = (*might more memory efficient, but definitly not faster (asymptotically)*)
+      if v.len <> v'.len then raise (Invalid_argument "Unequal lengths") else
         let f_rem_zero idx acc e1 e2 =
           let r = f idx e1 e2 in 
           if r =: A.zero then acc else (idx, r)::acc
         in  
         let rec aux acc vec1 vec2 i =
           match vec1, vec2 with 
-          | [], [] when i = v1.len -> acc 
+          | [], [] when i = v.len -> acc 
           | [], [] -> aux (f_rem_zero i acc A.zero A.zero) [] [] (i + 1)
           | [], (yidx, yval)::ys when i = yidx -> aux (f_rem_zero i acc A.zero yval) [] ys (i + 1)
           | (xidx, xval)::xs, [] when i = xidx -> aux (f_rem_zero i acc xval A.zero) xs [] (i + 1)
@@ -257,11 +323,27 @@ module SparseVector: AbstractVector =
               | d when d > 0 -> aux (f_rem_zero i acc A.zero yval) vec1 ys (i + 1)
               | _            -> aux (f_rem_zero i acc xval yval) xs ys (i + 1)
         in
-        {entries = List.rev (aux [] v1.entries v2.entries 0); len = v1.len}
+        {entries = List.rev (aux [] v.entries v'.entries 0); len = v.len}
 
+    (**
+       [fold_left_f_preserves_zero f acc v] returns the fold of [v] on [acc] specified by [f].
+
+       Note that [f] {b must} be such that [f acc 0 = acc]!
+
+       {i One should use this function over its general counterpart whenever possible, as it is considerably faster!}
+    *)
     let fold_left_f_preserves_zero f acc v =
       List.fold_left (fun acc (_, value) -> f acc value) acc v.entries
 
+    (**
+       [fold_left2_f_preserves_zero f acc v v'] returns the fold of [v] and [v'] specified by [f].
+
+       Note that [f] {b must} be such that [f acc 0 0 = acc]!
+
+       {i One should use this function over its general counterpart whenever possible, as it is considerably faster!}
+
+       @raise Invalid_argument if [v] and [v'] have unequal lengths
+    *)
     let fold_left2_f_preserves_zero f acc v v' =  
       let rec aux acc v1 v2 =
         match v1, v2 with 
@@ -277,6 +359,13 @@ module SparseVector: AbstractVector =
       if v.len <> v'.len then raise (Invalid_argument "Unequal lengths") else 
         (aux acc v.entries v'.entries)
 
+    (**
+       [apply_with_c_f_preserves_zero f c v] returns the mapping of [v] and [c] specified by [f].
+
+       Note that [f] {b must} be such that [f 0 c = 0]!
+
+       {i One should use this function over its general counterpart whenever possible, as it is considerably faster!}
+    *)
     let apply_with_c_f_preserves_zero f c v =
       let entries' = List.filter_map (fun (idx, value) -> let new_val = f value c in if new_val =: A.zero then None else Some (idx, new_val)) v.entries in
       {entries = entries'; len = v.len}

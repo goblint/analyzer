@@ -34,7 +34,7 @@ sig
 
   val set_nth: t -> int -> num ->  t
 
-  val insert_val_at: int -> num ->  t ->  t
+  val insert_val_at: t -> int -> num ->  t
 
   val insert_zero_at_indices: t -> (int * int) list -> int -> t
 

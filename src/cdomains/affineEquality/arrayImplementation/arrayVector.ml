@@ -46,9 +46,9 @@ module ArrayVector: AbstractVector =
       let copy = copy v in
       set_nth_with copy n new_val; copy
 
-    let insert_val_at n new_val v =
+    let insert_val_at v n num =
       if n > Array.length v then failwith "n too large" else
-        Array.init (Array.length v + 1) (fun i -> if i < n then Array.get v i else if i = n then new_val else Array.get v (i -1)) (* insert? *)
+        Array.init (Array.length v + 1) (fun i -> if i < n then Array.get v i else if i = n then num else Array.get v (i -1)) (* insert? *)
 
     let apply_with_c f c v =
       Array.map (fun x -> f x c) v
