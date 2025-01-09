@@ -36,8 +36,7 @@ module SparseVector: AbstractVector =
       let rec extend_zero_aux i v' acc =
         match v' with
         | (index, value) :: xs -> if index = i then extend_zero_aux (i + 1) xs (value :: acc) else extend_zero_aux (i + 1) v' (A.zero :: acc)
-        | [] when i < v.len -> extend_zero_aux (i + 1) v' (A.zero :: acc)
-        | [] -> List.rev acc
+        | [] -> if i < v.len then extend_zero_aux (i + 1) v' (A.zero :: acc) else List.rev acc
       in
       extend_zero_aux 0 v.entries []
 
@@ -70,8 +69,7 @@ module SparseVector: AbstractVector =
 
     (**
        [is_const_vec v] returns true if the v represents an affine equality over only one variable, i.e. a constant.
-       Constant vectors are of the form [0*x0*x] for some value [x] and are represented by a two element list
-       ,however this is not an iff relationship.*)
+       Constant vectors are represented by a two element list, however this is not an iff relationship.*)
     let is_const_vec v = 
       match v.entries with 
       | [] -> false
