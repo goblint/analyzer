@@ -47,11 +47,7 @@ sig
   (* Returns the part of the vector starting from index n*)
   val starting_from_nth : int -> t -> t
 
-  val find_opt: (num -> bool) -> t -> num Option.t
-
   val findi: (num -> bool) ->  t -> int
-
-  val find2i: (num -> num -> bool) -> t -> t -> int
 
   val find2i_f_false_at_zero: (num -> num -> bool) -> t -> t -> int
 
@@ -62,31 +58,17 @@ sig
 
   val exists: (num -> bool) -> t -> bool
 
-  val exists2: (num -> num -> bool) -> t -> t -> bool
-
-  val filteri: (int -> num -> bool) -> t -> t
-
-  val map: (num -> num) -> t -> t
-
   val map_f_preserves_zero: (num -> num) -> t -> t
 
-  val mapi: (int -> num -> num) -> t -> t
-
   val mapi_f_preserves_zero: (int -> num -> num) -> t -> t
-
-  val map2: (num -> num -> num) -> t -> t -> t
 
   val map2_f_preserves_zero: (num -> num -> num) -> t ->  t -> t
 
   val map2i: (int -> num -> num -> num) -> t -> t -> t
 
-  val map2i_f_preserves_zero: (int -> num -> num -> num) -> t -> t -> t
-
   val fold_left_f_preserves_zero: ('acc -> num -> 'acc) -> 'acc -> t -> 'acc
 
   val fold_left2_f_preserves_zero: ('acc -> num -> num -> 'acc) -> 'acc -> t -> t -> 'acc
-
-  val apply_with_c: (num -> num -> num) -> num ->  t ->  t
 
   val apply_with_c_f_preserves_zero: (num -> num -> num) -> num ->  t ->  t
 
