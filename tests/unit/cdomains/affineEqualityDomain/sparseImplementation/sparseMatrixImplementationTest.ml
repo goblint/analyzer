@@ -6,8 +6,6 @@ open Goblint_lib
 open OUnit2
 open SparseVector
 open ListMatrix
-open ArrayVector
-open ArrayMatrix
 open ConvenienceOps
 
 module D = SharedFunctions.Mpqf
@@ -329,15 +327,10 @@ let vectorMap2i_one_zero _ =
   let expected = Vector.of_list [int 0; int 2; int 6; int 12] in
   assert_equal expected result
 
-let vectorMap _ =
-  let v1 = Vector.of_list [int 0; int 1; int 2; int 0; int 0; int 3; int 4; int 0; int 0; int 5] in
-  let result = Vector.map (fun x -> x +: int 1) v1 in
-  let expected = Vector.of_list [int 1; int 2; int 3; int 1; int 1; int 4; int 5; int 1; int 1; int 6] in
-  assert_equal expected result
 
 let vectorMap_zero_preserving_normal _ =
   let v1 = Vector.of_list [int 0; int 1; int 2; int 0; int 0; int 4; int 5; int 0; int 0;] in
-  let result = Vector.map (fun x -> x *: x) v1 in
+  let result = Vector.map_f_preserves_zero (fun x -> x *: x) v1 in
   let expected = Vector.of_list [int 0; int 1; int 4; int 0; int 0; int 16; int 25; int 0; int 0;] in
   assert_equal expected result
 
@@ -376,9 +369,8 @@ let tests =
     "map2i two vectors" >:: vectorMap2i;
     "map2i two empty vectors" >:: vectorMap2i_empty;
     "map2i one zero vector" >:: vectorMap2i_one_zero;
-    "map one vector" >:: vectorMap;
     "map zero preserving normal" >:: vectorMap_zero_preserving_normal;
-    "get column in rref" >:: get_col_rref;
+    "get column when matrix in rref" >:: get_col_rref;
   ]
 
 let () = run_test_tt_main tests
