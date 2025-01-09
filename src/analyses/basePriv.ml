@@ -565,6 +565,7 @@ struct
     v
 
   let write_global ?(invariant=false) ask getg sideg (st: BaseComponents (D).t) x v =
+    (* TODO: use invariant? *)
     let w,lmust,l = st.priv in
     let lm = LLock.global x in
     let cpa' =

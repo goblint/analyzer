@@ -552,6 +552,7 @@ struct
 
   (** Like write global but has option to skip meet with current value, as the value will not have been side-effected to a useful location thus far *)
   let write_global_internal ?(skip_meet=false)  ?(invariant=false) (ask: Q.ask) getg sideg (st: relation_components_t) g x: relation_components_t =
+    (* TODO: use invariant? *)
     let atomic = Param.handle_atomic && ask.f MustBeAtomic in
     let rel = st.rel in
     (* lock *)
@@ -1102,6 +1103,7 @@ struct
       rel_local (* Keep write local as if it were protected by the atomic section. *)
 
   let write_global ?(invariant=false) (ask:Q.ask) getg sideg (st: relation_components_t) g x: relation_components_t =
+    (* TODO: use invariant? *)
     let atomic = Param.handle_atomic && ask.f MustBeAtomic in
     let w,lmust,l = st.priv in
     let lm = LLock.global g in
