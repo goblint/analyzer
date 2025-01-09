@@ -32,14 +32,14 @@ module SparseVector: AbstractVector =
     let of_sparse_list count ls =
       {entries = ls; len = count}
 
-    let to_list v = 
-      let[@tail_mod_cons] rec extend_zero_aux i v' =
-        match v', i with
-        | (xi,xv)::xs, _ -> if xi = i then xv::(extend_zero_aux (i+1) xs) else A.zero ::(extend_zero_aux (i+1) v')
-        | [], j when i < v.len -> A.zero :: (extend_zero_aux (i+1) v')
-        | [], _ -> []
-      in 
-      (extend_zero_aux 0 v.entries)
+    let to_list v =
+      let rec extend_zero_aux i v' acc =
+        match v' with
+        | (index, value) :: xs -> if index = i then extend_zero_aux (i + 1) xs (value :: acc) else extend_zero_aux (i + 1) v' (A.zero :: acc)
+        | [] when i < v.len -> extend_zero_aux (i + 1) v' (A.zero :: acc)
+        | [] -> List.rev acc
+      in
+      extend_zero_aux 0 v.entries []
 
     let to_array v = 
       let vec = Array.make v.len A.zero in 
