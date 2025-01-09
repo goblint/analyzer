@@ -151,7 +151,7 @@ module SparseVector: AbstractVector =
       let entries' = List.filter_map (fun (idx, value) -> if idx < n then None else Some (idx - n, value)) v.entries in
       {entries = entries'; len = v.len - n}
 
-      let findi f v = 
+    let findi f v = 
       if f A.zero then  
         fst @@ List.findi (fun i (idx, value) -> if idx > i then true else f value) v.entries (* Here fst is the iteration variable i, not the tuple idx *)
       else
