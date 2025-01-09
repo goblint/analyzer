@@ -109,10 +109,6 @@ module ArrayVector: AbstractVector =
           aux (idx - 1) acc
       in aux (length v - 1) []
 
-
-    let find_opt f v =
-      failwith "Never implemented!"
-
     let map_f_preserves_zero f v =
       map f v
 
@@ -122,9 +118,6 @@ module ArrayVector: AbstractVector =
     let mapi_f_preserves_zero f v =
       mapi f v
 
-    let map2i_f_preserves_zero f v v' =
-      map2i f v v'
-
     let fold_left_f_preserves_zero f acc v =
       failwith "Never implemented!"
 
@@ -132,9 +125,6 @@ module ArrayVector: AbstractVector =
       failwith "Never implemented!"
 
     let findi_val_opt f v =
-      failwith "Never implemented!"
-
-    let exists2 f v1 v1 =
       failwith "Never implemented!"
 
     let starting_from_nth n v =
