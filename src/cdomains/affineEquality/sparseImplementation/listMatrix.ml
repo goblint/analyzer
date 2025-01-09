@@ -66,7 +66,6 @@ module ListMatrix: AbstractMatrix =
 
     let map2i f m v = Timing.wrap "Matrix.map2i" (map2i f m) v
 
-    (* This only works if Array.modifyi has been removed from dim_add *)
     let add_empty_columns m cols  =    
       let cols = Array.to_list cols in 
       let sorted_cols = List.sort Stdlib.compare cols in
@@ -83,13 +82,13 @@ module ListMatrix: AbstractMatrix =
     let add_empty_columns m cols =
       Timing.wrap "add_empty_cols" (add_empty_columns m) cols
 
-    let get_col m n = (* TODO: is this optimal? *)
-      (* V.of_list @@ List.map (fun row -> V.nth row n) m (* builds full col including zeros, maybe use sparselist instead? *) *)
+    let get_col m n =
       V.of_sparse_list (num_rows m) @@ List.filteri_map (fun i row -> let value = V.nth row n in if value <>: A.zero then Some (i, value) else None) m
 
     let get_col m n =
       Timing.wrap "get_col" (get_col m) n
 
+    (** Same as [get_col], but [m] must be in rref *)
     let get_col_rref m n =
       let rec helper acc m i = 
         match m with
@@ -127,15 +126,15 @@ module ListMatrix: AbstractMatrix =
     let append_matrices m1 m2  = 
       m1 @ m2
 
-    let div_row (row : V.t) (pivot : A.t) : V.t =
-      V.map_f_preserves_zero (fun a -> a /: pivot) row 
+    let div_row row value =
+      V.map_f_preserves_zero (fun a -> a /: value) row 
 
-    let sub_scaled_row row1 row2 s =
-      V.map2_f_preserves_zero (fun x y -> x -: (s *: y)) row1 row2
+    let sub_scaled_row row1 row2 factor =
+      V.map2_f_preserves_zero (fun x y -> x -: (factor *: y)) row1 row2
 
-    (* This function return a tuple of row index and pivot position (column) in m *)
-    (* TODO: maybe we could use a Hashmap instead of a list? *)
-    let get_pivot_positions m : (int * int) list =
+    (** Returns a list of tuples of row index and pivot position (column index) of all rref-pivots of m.
+        m must be in [rref] *)
+    let get_pivot_positions m =
       List.rev @@ List.fold_lefti (
         fun acc i row -> match V.find_first_non_zero row with
           | None -> acc
@@ -164,7 +163,7 @@ module ListMatrix: AbstractMatrix =
     (* TODO: Remove this! Just to suppress warning *)
     let () = assert_rref (empty ())
 
-    (* Reduces the jth column with the last row that has a non-zero element in this column. *)
+    (** Reduces the [j]th column with the last row that has a non-zero element in this column. *)
     let reduce_col m j = 
       if is_empty m then m 
       else
@@ -188,6 +187,7 @@ module ListMatrix: AbstractMatrix =
                       sub_scaled_row row pivot_row s)            
             ) m
 
+    (** Transforms matrix [m] into reduced row echolon form (rref) *)
     let normalize m =
       let col_count = num_cols m in
       let cut_front_matrix m  row_idx col_idx = 
@@ -224,7 +224,6 @@ module ListMatrix: AbstractMatrix =
           match find_first_pivot m' row_idx col_idx with
           | None -> m (* No pivot found means already normalized *)
           | Some (piv_row_idx, piv_col_idx, piv_val) -> (
-              (* let () = Printf.printf "The current matrix is: \n%s and the pivot is (%i, %i, %s)\n" (show m) piv_row_idx piv_col_idx (A.to_string piv_val) in *)
               let m = if piv_row_idx <> row_idx then swap_rows m row_idx piv_row_idx else m in
               let normalized_m = List.mapi (fun idx row -> if idx = row_idx then div_row row piv_val else row) m in
               let piv_row = (List.nth normalized_m row_idx) in
@@ -235,12 +234,12 @@ module ListMatrix: AbstractMatrix =
               find_piv_and_reduce subtracted_m m' (row_idx + 1) (piv_col_idx + 1)) (* We start at piv_col_idx + 1 because every other col before that is zero at the bottom*)
       in 
       let m' = find_piv_and_reduce m m 0 0 in
-      if affeq_rows_are_valid m' then Some m' else None (* TODO: We can check this for each row, using the helper function row_is_invalid *)
+      if affeq_rows_are_valid m' then Some m' else None
 
 
     let normalize m = Timing.wrap "normalize" normalize m
 
-    (* Sets the jth column to zero by subtracting multiples of v *)
+    (** Sets the [j]th column of [m] to zero by subtracting multiples of [v] from each row *)
     let reduce_col_with_vec m j v = 
       let pivot_element = V.nth v j in
       if pivot_element = A.zero then m
@@ -251,7 +250,10 @@ module ListMatrix: AbstractMatrix =
                 V.map2_f_preserves_zero (fun x y -> x -: (s *: y)) row v)
         ) m
 
-    (* Inserts the vector v with pivot at piv_idx at the correct position in m. m has to be in rref form and v is only <>: A.zero on piv_idx or idx not included in piv_positions *)
+
+    (** Inserts vector [v] with pivot at [piv_idx] at an rref-preserving position in [m].
+        [m] has to be in rref form and [v] is valid to be inserted as an rref-row into [m]
+        ([v] is only <>: A.zero on [piv_idx] or idx not included in [piv_positions] of [m]). *)
     let insert_v_according_to_piv m v piv_idx pivot_positions = 
       let reduced_m = reduce_col_with_vec m piv_idx v in
       match List.find_opt (fun (row_idx, piv_col) -> piv_col > piv_idx) pivot_positions with
@@ -260,8 +262,11 @@ module ListMatrix: AbstractMatrix =
         let (before, after) = List.split_at row_idx reduced_m in (* TODO: Optimize *)
         before @ (v :: after)
 
-    (* This function yields the same result as appending v to m, normalizing and removing zero rows would. *)
-    (* m must be in rref form and must contain the same number of columns as v *)
+
+    (** This function yields the same result as appending [v] to [m], normalizing and removing zero rows.
+        However, it is usually faster than performing those ops manually.
+        [m] must be in rref form and must contain the same number of columns as [v].
+    *)
     let rref_vec m v =
       if is_empty m then (* In this case, v is normalized and returned *)
         match V.find_first_non_zero v with 
@@ -292,14 +297,16 @@ module ListMatrix: AbstractMatrix =
 
     let rref_vec m v = Timing.wrap "rref_vec" (rref_vec m) v
 
-    (* This should yield the same result as appending m2 to m1, normalizing and removing zero rows. However, it is usually faster. *)
-    (* Both input matrices are assumed to be in rref form *)
+    (** This should yield the same result as appending [m2] to [m1], normalizing and removing zero rows. However, it is usually faster.
+        [m1] and [m2] must be in rref 
+    *)
     let rref_matrix (m1 : t) (m2 : t) =
       let big_m, small_m = if num_rows m1 > num_rows m2 then m1, m2 else m2, m1 in
       fst @@ List.fold_while (fun acc _ -> Option.is_some acc) 
         (fun acc_big_m small -> rref_vec (Option.get acc_big_m) small ) (Some big_m) small_m (* TODO: pivot_positions are recalculated at each step, but since they need to be adjusted after each step it might not make sense to keep track of them here.*)
 
     let rref_matrix m1 m2 = Timing.wrap "rref_matrix" (rref_matrix m1) m2
+
 
     (* Performs a partial rref reduction to check if concatenating both matrices and afterwards normalizing them would yield a matrix <> m2 *)
     (* Both input matrices must be in rref form! *)
