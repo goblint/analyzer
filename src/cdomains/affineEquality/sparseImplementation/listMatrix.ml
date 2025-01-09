@@ -143,7 +143,13 @@ module ListMatrix: AbstractMatrix =
       ) [] m
 
     let assert_rref m = 
-      let pivot_l = get_pivot_positions m in
+      let pivot_positions = get_pivot_positions m in
+      let rec validate_pivot_positions cur_pivs last_col = 
+        match cur_pivs with
+        | [] -> ()
+        | (row, col) :: ps -> if col > last_col then validate_pivot_positions ps col else raise (Invalid_argument "Matrix not in rref: pivots not correctly aligned") 
+
+      in
       let rec validate m i =
         match m with 
         | [] -> ()
@@ -152,14 +158,16 @@ module ListMatrix: AbstractMatrix =
           then raise (Invalid_argument "Matrix not in rref: zero row!")
           else ()
         | v::vs -> 
-          let rec validate_vec pl =  
-            match pivot_l with
+          let rec validate_vec remaining_pivs =  
+            match remaining_pivs with
             | [] -> true
-            | (pr, pc)::ps -> 
-              let target = if pr <> i then A.zero else A.one in 
-              if V.nth v pc <>: target then false else validate_vec ps 
-          in if validate_vec pivot_l then validate vs (i+1) else raise (Invalid_argument "Matrix not in rref: pivot column not empty!")
-      in validate m 0
+            | (row_idx, col_idx) :: ps -> 
+              let target = if row_idx <> i then A.zero else A.one in 
+              if V.nth v col_idx <>: target then false else validate_vec ps 
+          in if validate_vec pivot_positions then validate vs (i+1) else raise (Invalid_argument "Matrix not in rref: pivot column not empty!")
+      in
+      let _ = validate_pivot_positions pivot_positions (-1) in
+      validate m 0
 
     (* TODO: Remove this! Just to suppress warning *)
     let () = assert_rref (empty ())
