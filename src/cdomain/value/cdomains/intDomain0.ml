@@ -575,7 +575,7 @@ module IntervalArith (Ints_t : IntOps.IntOps) = struct
   let is_threshold t ts =
     let ts = find_thresholds ts in
     let t = Ints_t.to_bigint t in
-    WideningThresholds.Thresholds.exists (Z.equal t) ts
+    WideningThresholds.Thresholds.mem t ts
 
   let is_upper_threshold u = is_threshold u WideningThresholds.upper_thresholds
   let is_lower_threshold l = is_threshold l WideningThresholds.lower_thresholds
