@@ -72,7 +72,7 @@ let conditional_widening_thresholds = ResettableLazy.from_fun (fun () ->
     let octagon = ref default_thresholds in
     let thisVisitor = new extractThresholdsFromConditionsVisitor(upper,lower,octagon) in
     visitCilFileSameGlobals thisVisitor (!Cilfacade.current_file);
-    Thresholds.elements !upper, List.rev (Thresholds.elements !lower), Thresholds.elements !octagon )
+    !upper, !lower, !octagon)
 
 let upper_thresholds () =
   let (u,_,_) = ResettableLazy.force conditional_widening_thresholds in u
@@ -105,7 +105,7 @@ let widening_thresholds = ResettableLazy.from_fun (fun () ->
     let set_incl_mul2 = ref Thresholds.empty in
     let thisVisitor = new extractConstantsVisitor(set,set_incl_mul2) in
     visitCilFileSameGlobals thisVisitor (!Cilfacade.current_file);
-    Thresholds.elements !set, Thresholds.elements !set_incl_mul2)
+    !set, !set_incl_mul2)
 
 let thresholds () =
   fst @@ ResettableLazy.force widening_thresholds
