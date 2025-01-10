@@ -472,7 +472,7 @@ let apronOctagonOption factors file =
 
 
 let wideningOption factors file =
-  let amountConsts = WideningThresholds.Thresholds.cardinal @@ WideningThresholds.upper_thresholds () in
+  let amountConsts = WideningThresholds.Thresholds.cardinal @@ ResettableLazy.force WideningThresholds.upper_thresholds in
   let cost = amountConsts * (factors.loops * 5 + factors.controlFlowStatements) in
   {
     value = amountConsts * (factors.loops * 5 + factors.controlFlowStatements);

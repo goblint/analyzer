@@ -74,14 +74,11 @@ let conditional_widening_thresholds = ResettableLazy.from_fun (fun () ->
     visitCilFileSameGlobals thisVisitor (!Cilfacade.current_file);
     !upper, !lower, !octagon)
 
-let upper_thresholds () =
-  let (u,_,_) = ResettableLazy.force conditional_widening_thresholds in u
+let upper_thresholds = ResettableLazy.map Tuple3.first conditional_widening_thresholds
 
-let lower_thresholds () =
-  let (_,l,_) = ResettableLazy.force conditional_widening_thresholds in l
+let lower_thresholds = ResettableLazy.map Tuple3.second conditional_widening_thresholds
 
-let octagon_thresholds () =
-  let (_,_,o) = ResettableLazy.force conditional_widening_thresholds in o
+let octagon_thresholds = ResettableLazy.map Tuple3.third conditional_widening_thresholds
 
 
 class extractConstantsVisitor(widening_thresholds,widening_thresholds_incl_mul2) = object
@@ -107,11 +104,9 @@ let widening_thresholds = ResettableLazy.from_fun (fun () ->
     visitCilFileSameGlobals thisVisitor (!Cilfacade.current_file);
     !set, !set_incl_mul2)
 
-let thresholds () =
-  fst @@ ResettableLazy.force widening_thresholds
+let thresholds = ResettableLazy.map fst widening_thresholds
 
-let thresholds_incl_mul2 () =
-  snd @@ ResettableLazy.force widening_thresholds
+let thresholds_incl_mul2 = ResettableLazy.map snd widening_thresholds
 
 module EH = BatHashtbl.Make (CilType.Exp)
 
@@ -153,4 +148,9 @@ let exps = ResettableLazy.from_fun (fun () ->
 let reset_lazy () =
   ResettableLazy.reset widening_thresholds;
   ResettableLazy.reset conditional_widening_thresholds;
-  ResettableLazy.reset exps
+  ResettableLazy.reset exps;
+  ResettableLazy.reset thresholds;
+  ResettableLazy.reset thresholds_incl_mul2;
+  ResettableLazy.reset upper_thresholds;
+  ResettableLazy.reset lower_thresholds;
+  ResettableLazy.reset octagon_thresholds;
