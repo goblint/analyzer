@@ -483,7 +483,9 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): SOverflow with type int_t = Int
     if o2 = Ints_t.zero then (top_of ik, {underflow=false; overflow=false}) else
     let res = 
       if BArith.is_const (z1, o1) && BArith.is_const (z2, o2) then (let tmp = o1 /: o2 in (!:tmp, tmp)) 
-      else if BArith.is_const (z2, o2) && is_power_of_two o2 then (z1 >>: (Ints_t.to_int o2), o1 >>: (Ints_t.to_int o2))
+      else if BArith.is_const (z2, o2) && is_power_of_two o2 then 
+        let exp = Z.trailing_zeros (Ints_t.to_bigint o2) in 
+        (z1 >>: exp, o1 >>: exp)
       else top_of ik in
     norm ik res
 
