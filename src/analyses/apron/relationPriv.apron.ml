@@ -769,7 +769,7 @@ sig
   val lock: RD.t -> LRD.t -> LRD.t -> RD.t
   val unlock: W.t -> RD.t -> LRD.t * (Cluster.t list)
 
-  val filter_clusters: LRD.t -> (Cluster.t -> bool) -> LRD.t
+  val filter_clusters: (Cluster.t -> bool) -> LRD.t -> LRD.t
 
   val name: unit -> string
 end
@@ -793,7 +793,7 @@ struct
   let unlock w oct_side =
     oct_side, [()]
 
-  let filter_clusters oct f =
+  let filter_clusters f oct =
     if f () then
       oct
     else
@@ -924,7 +924,7 @@ struct
     in
     (LRD.add_list_fun clusters oct_side_cluster (LRD.empty ()), clusters)
 
-  let filter_clusters oct f =
+  let filter_clusters f oct =
     LRD.filter (fun gs _ -> f gs) oct
 
   let name = ClusteringArg.name
@@ -1007,7 +1007,7 @@ struct
     let lad, clusters = DCCluster.unlock w oct_side in
     ((lad, LRD1.bot ()), clusters)
 
-  let filter_clusters (lad,lad') f =
+  let filter_clusters f (lad,lad') =
     (LRD1.filter (fun gs _ -> f gs) lad, LRD1.filter (fun gs _ -> f gs) lad')
 end
 
@@ -1046,7 +1046,7 @@ struct
     let r =
       let get_mutex_inits = merge_all @@ G.mutex @@ getg V.mutex_inits in
       let get_mutex_inits' = Cluster.keep_only_protected_globals ask m get_mutex_inits in
-      let get_mutex_inits' = Cluster.filter_clusters get_mutex_inits' inits in
+      let get_mutex_inits' = Cluster.filter_clusters inits get_mutex_inits' in
       if M.tracing then M.trace "relationpriv" "inits=%a\n  inits'=%a" LRD.pretty get_mutex_inits LRD.pretty get_mutex_inits';
       LRD.join get_m get_mutex_inits'
     in
@@ -1069,7 +1069,7 @@ struct
     let r =
       let get_mutex_inits = merge_all @@ G.mutex @@ getg V.mutex_inits in
       let get_mutex_inits' = Cluster.keep_global g get_mutex_inits in
-      let get_mutex_inits' = Cluster.filter_clusters get_mutex_inits' inits in
+      let get_mutex_inits' = Cluster.filter_clusters inits get_mutex_inits' in
       if M.tracing then M.trace "relationpriv" "inits=%a\n  inits'=%a" LRD.pretty get_mutex_inits LRD.pretty get_mutex_inits';
       LRD.join get_mutex_global_g get_mutex_inits'
     in
@@ -1080,7 +1080,7 @@ struct
     (* Unprotected invariant is one big relation. *)
     let get_mutex_global_g = get_relevant_writes_nofilter ask @@ G.mutex @@ getg (V.mutex atomic_mutex) in
     let get_mutex_inits = merge_all @@ G.mutex @@ getg V.mutex_inits in
-    let get_mutex_inits' = Cluster.filter_clusters get_mutex_inits inits in
+    let get_mutex_inits' = Cluster.filter_clusters inits get_mutex_inits in
     LRD.join get_mutex_global_g get_mutex_inits'
 
   let read_global (ask: Q.ask) getg (st: relation_components_t) g x: RD.t =
