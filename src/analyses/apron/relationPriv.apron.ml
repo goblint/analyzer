@@ -761,9 +761,7 @@ module type ClusterArg = functor (RD: RelationDomain.RD) ->
 sig
   module LRD: Lattice.S
 
-  module Cluster: sig
-    include Printable.S
-  end
+  module Cluster: Printable.S
 
   val keep_only_protected_globals: Q.ask -> LockDomain.MustLock.t -> LRD.t -> LRD.t
   val keep_global: varinfo -> LRD.t -> LRD.t
