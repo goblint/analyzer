@@ -266,7 +266,7 @@ struct
     let global x = `Right x
   end
 
-  (** Mutexes / globals to which values have been published, i.e. for which the initializers need not be read **)
+  (** Mutexes / clusters of globals to which values have been published, i.e., for which the initializers need not be read **)
   module LMust = struct
     include SetDomain.Reverse (SetDomain.ToppedSet (Printable.Prod(LLock)(Cluster)) (struct let topname = "All locks" end))
     let name () = "LMust"
