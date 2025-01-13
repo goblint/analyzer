@@ -830,7 +830,7 @@ struct
     | _ -> ()
 
   let invariant_global (ask: Q.ask) getg g =
-    let locks = ask.f (Q.MustProtectingLocks g) in (* TODO: read-write locks *)
+    let locks = ask.f (Q.MustProtectingLocks {global = g; write = false}) in
     if LockDomain.MustLockset.is_all locks || LockDomain.MustLockset.is_empty locks then (* TODO: output unprotected invariant with empty lockset? *)
       Invariant.none
     else (
@@ -1030,7 +1030,7 @@ struct
     | `Left g' -> (* unprotected *)
       ValueDomain.invariant_global (fun g -> getg (V.unprotected g)) g'
     | `Right g' -> (* protected *)
-      let locks = ask.f (Q.MustProtectingLocks g') in
+      let locks = ask.f (Q.MustProtectingLocks {global = g'; write = true}) in
       if LockDomain.MustLockset.is_all locks || LockDomain.MustLockset.is_empty locks then
         Invariant.none
       else if VD.equal (getg (V.protected g')) (getg (V.unprotected g')) then
