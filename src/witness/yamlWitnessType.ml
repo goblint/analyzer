@@ -463,7 +463,6 @@ struct
         | Int i -> GobYaml.int i
 
       let of_yaml y =
-        let open GobYaml in
         match y with
         | `String s -> Ok (String s)
         | `Float f -> Ok (Int (int_of_float f))
