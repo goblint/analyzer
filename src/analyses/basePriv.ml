@@ -831,7 +831,7 @@ struct
 
   let invariant_global (ask: Q.ask) getg g =
     let locks = ask.f (Q.MustProtectingLocks {global = g; write = false}) in
-    if LockDomain.MustLockset.is_all locks || LockDomain.MustLockset.is_empty locks then (* TODO: output unprotected invariant with empty lockset? *)
+    if LockDomain.MustLockset.is_all locks then
       Invariant.none
     else (
       let read_global g = getg g in (* TODO: read top for others? or at least those which might not have all same protecting locks? *)
