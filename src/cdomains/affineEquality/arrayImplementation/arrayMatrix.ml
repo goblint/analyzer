@@ -82,7 +82,7 @@ module ArrayMatrix: AbstractMatrix =
 
     let get_col m n = Timing.wrap "get_col" (get_col m) n
 
-    let get_col_upper_triangular m n = failwith "Never implemented"
+    let get_col_upper_triangular m n = get_col m n (* Never implemented optimized version *)
 
     let set_col_with m new_col n =
       for i = 0 to num_rows m - 1 do
@@ -253,7 +253,7 @@ module ArrayMatrix: AbstractMatrix =
       (*This function yields the same result as appending vector v to m and normalizing it afterwards would. However, it is usually faster than performing those ops manually.*)
       (*m must be in rref form and contain the same num of cols as v*)
       (*If m is empty then v is simply normalized and returned*)
-      (*let v = V.to_array v in
+      let v = V.to_array v in
         if is_empty m then
         match Array.findi (fun x -> x <>: A.zero) v with
         | exception Not_found -> None
@@ -262,8 +262,7 @@ module ArrayMatrix: AbstractMatrix =
             Array.iteri (fun j x -> v.(j) <- x /: v_i) v; Some (init_with_vec @@ V.of_array v)
         else
         let pivot_elements = get_pivot_positions m in
-        rref_vec_helper m pivot_elements v*)
-      normalize @@ append_row m v
+        rref_vec_helper m pivot_elements v
 
     let rref_vec_with m v = Timing.wrap "rref_vec_with" (rref_vec_with m) v
 
