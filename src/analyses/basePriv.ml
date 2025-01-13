@@ -834,12 +834,14 @@ struct
     if LockDomain.MustLockset.is_all locks then
       Invariant.none
     else (
-      let read_global g = getg g in (* TODO: read top for others? or at least those which might not have all same protecting locks? *)
+      (* Only read g as protected, everything else (e.g. pointed to variables) may be unprotected.
+         See 56-witness/69-ghost-ptr-protection and https://github.com/goblint/analyzer/pull/1394#discussion_r1698136411. *)
+      let read_global g' = if CilType.Varinfo.equal g' g then getg g' else VD.top () in (* TODO: Could be more precise for at least those which might not have all same protecting locks? *)
       let inv = ValueDomain.invariant_global read_global g in
       (* Very conservative about multiple protecting mutexes: invariant is not claimed when any of them is held.
-          It should be possible to be more precise because writes only happen with all of them held,
-          but conjunction is unsound when one of the mutexes is temporarily unlocked.
-          Hypothetical read-protection is also somehow relevant. *)
+         It should be possible to be more precise because writes only happen with all of them held,
+         but conjunction is unsound when one of the mutexes is temporarily unlocked.
+         Hypothetical read-protection is also somehow relevant. *)
       LockDomain.MustLockset.fold (fun m acc ->
           if LockDomain.MustLock.equal m (LockDomain.MustLock.of_var LibraryFunctions.verifier_atomic_var) then
             acc
