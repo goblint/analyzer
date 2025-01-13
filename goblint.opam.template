@@ -3,7 +3,7 @@
 available: os-family != "bsd" & os-distribution != "alpine" & (arch != "arm64" | os = "macos")
 pin-depends: [
   # published goblint-cil 2.0.5 is currently up-to-date, but pinned for reproducibility
-  [ "goblint-cil.2.0.5" "git+https://github.com/goblint/cil.git#c79208b21ea61d7b72eae29a18c1ddeda4795dfd" ]
+  [ "goblint-cil.2.0.5" "git+https://github.com/goblint/cil.git#f5ee39bd344dc74e2a10e407d877e0ddf73c9c6f" ]
   # pinned for stability (https://github.com/goblint/analyzer/issues/1520), remove after new camlidl release
   [ "camlidl.1.12" "git+https://github.com/xavierleroy/camlidl.git#1c1e87e3f56c2c6b3226dd0af3510ef414b462d0" ]
   # pinned for stability (https://github.com/goblint/analyzer/issues/1520), remove after new apron release
