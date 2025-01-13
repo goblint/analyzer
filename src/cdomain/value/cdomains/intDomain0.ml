@@ -560,17 +560,19 @@ module IntervalArith (Ints_t : IntOps.IntOps) = struct
     ResettableLazy.force ts
 
   let upper_threshold u max_ik =
-    let ts = find_thresholds WideningThresholds.upper_thresholds in
     let u = Ints_t.to_bigint u in
     let max_ik' = Ints_t.to_bigint max_ik in
-    let t = WideningThresholds.Thresholds.find_first_opt (fun x -> Z.compare u x <= 0 && Z.compare x max_ik' <= 0) ts in
-    BatOption.map_default Ints_t.of_bigint max_ik t
+    find_thresholds WideningThresholds.upper_thresholds
+    |> WideningThresholds.Thresholds.find_first_opt (fun x -> Z.compare u x <= 0)
+    |> BatOption.filter (fun x -> Z.compare x max_ik' <= 0)
+    |> BatOption.map_default Ints_t.of_bigint max_ik
   let lower_threshold l min_ik =
-    let ts = find_thresholds WideningThresholds.lower_thresholds in
     let l = Ints_t.to_bigint l in
     let min_ik' = Ints_t.to_bigint min_ik in
-    let t = WideningThresholds.Thresholds.find_last_opt (fun x -> Z.compare l x >= 0 && Z.compare x min_ik' >= 0) ts in
-    BatOption.map_default Ints_t.of_bigint min_ik t
+    find_thresholds WideningThresholds.lower_thresholds
+    |> WideningThresholds.Thresholds.find_last_opt (fun x -> Z.compare l x >= 0)
+    |> BatOption.filter (fun x -> Z.compare x min_ik' >= 0)
+    |> BatOption.map_default Ints_t.of_bigint min_ik
 
   let is_threshold t ts =
     let ts = find_thresholds ts in
