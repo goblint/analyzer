@@ -156,8 +156,7 @@ module ListMatrix: AbstractMatrix =
       ) [] m
 
     (** 
-       [reduce_col m j] reduces the [j]-th column in [m] with the last row that has a non-zero element in this column. 
-       TODO do we need m to be rref here?
+       [reduce_col m j] reduces the [j]-th column in [m] with the last row that has a non-zero element in this column.
     *)
     let reduce_col m j = 
       if is_empty m then m 
@@ -252,12 +251,8 @@ module ListMatrix: AbstractMatrix =
     (** 
        [insert_v_according_to_piv m v piv_idx pivot_position] inserts vector [v] into [m] such that rref is preserved.
         @param m A matrix in rref such that [(r, piv_idx)] is not in [pivot_positions] for all [r]. 
-        @param v A vector such that [v(piv_idx) =: A.one] and [v(c) <>: A.zero] iff [(r,c)] is not in [pivot_position] for all [r]. 
-
-        TODO is the above the right description of the below
-
-        [m] has to be in rref and [v] is valid to be inserted as an rref-row into [m]
-        ([v] is only <>: A.zero on [piv_idx] or idx not included in [piv_positions] of [m]). *)
+        @param v A vector such that [v(piv_idx) =: A.one] and [v(c) <>: A.zero] if [(r,c)] is not in [pivot_position] for all [r]. 
+    *)
     let insert_v_according_to_piv m v piv_idx pivot_positions = 
       let reduced_m = reduce_col_with_vec m piv_idx v in
       match List.find_opt (fun (row_idx, piv_col) -> piv_col > piv_idx) pivot_positions with
@@ -267,16 +262,12 @@ module ListMatrix: AbstractMatrix =
         before @ (v :: after)
 
     (** 
-       [rref_vec m v] yields the same result as appending [v] to [m], then bringing [m] into rref.
+       [rref_vec m v] yields the same result as appending [v] to [m], then bringing [m] into rref and removing all zero rows.
 
        {i Faster than appending [v] to [m] and normalizing!}
        @param m A matrix in rref.
        @param v A vector with number of entries equal to the number of columns of [v].
-
-       TODO is the above valid description of below?
-
-       However, it is usually faster than performing those ops manually.
-       [m] must be in rref form and must contain the same number of columns as [v]. *)
+    *)
     let rref_vec m v =
       if is_empty m then (* In this case, v is normalized and returned *)
         match V.find_first_non_zero v with 
@@ -307,17 +298,12 @@ module ListMatrix: AbstractMatrix =
 
     let rref_vec m v = Timing.wrap "rref_vec" (rref_vec m) v
 
-    (** [rref_matrix m m'] yields the same result as appending [m'] to [m], then bringing the resulting matrix into rref.
+    (** [rref_matrix m m'] yields the same result as appending [m'] to [m], then bringing the resulting matrix into rref and removing all zero rows.
 
         {i Faster than appending [m'] to [m] then normalizing!}
         @param m A matrix in rref.
         @param m' A matrix in rref.
-
-        TODO above correct description for below?
-
-
-        This should yield the same result as appending [m2] to [m1], normalizing and removing zero rows. However, it is usually faster.
-        [m1] and [m2] must be in rref *)
+    *)
     let rref_matrix m1 m2 =
       let big_m, small_m = if num_rows m1 > num_rows m2 then m1, m2 else m2, m1 in
       fst @@ List.fold_while (fun acc _ -> Option.is_some acc) 
