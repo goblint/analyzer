@@ -94,7 +94,8 @@ module ListMatrix: AbstractMatrix =
       Timing.wrap "get_col" (get_col m) n
 
     (** 
-       Same as [get_col], but [m] must be in upper triangular form.
+       [get_col_upper_triangular m n] yields the same result as [get_col m n], but [m] must be in upper triangular form.
+       @param m A matrix in upper triangular form.
     *)
     let get_col_upper_triangular m n =
       let rec helper acc m i = 
