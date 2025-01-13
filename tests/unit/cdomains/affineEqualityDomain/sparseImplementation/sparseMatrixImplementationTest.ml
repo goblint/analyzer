@@ -335,13 +335,13 @@ let vectorMap_zero_preserving_normal _ =
   assert_equal expected result
 
 
-let get_col_rref _ =
+let get_col_upper_triangular _ =
   let m = make_matrix_of_2d_list @@
     [[int 1; int 0; int 0; int 0; int 0; int 0; int 0];
      [int 0; int 1; int 0; int 0; int 0; int 0; int 0];
      [int 0; int 0; int 1; frac (-1) 3; int 0; frac 1 3; int 1]] in
 
-  let result = Matrix.get_col_rref m 5 in
+  let result = Matrix.get_col_upper_triangular m 5 in
 
   let expected = Vector.of_list [int 0; int 0; frac 1 3] in
 
@@ -370,7 +370,7 @@ let tests =
     "map2i two empty vectors" >:: vectorMap2i_empty;
     "map2i one zero vector" >:: vectorMap2i_one_zero;
     "map zero preserving normal" >:: vectorMap_zero_preserving_normal;
-    "get column when matrix in rref" >:: get_col_rref;
+    "get column when matrix in rref" >:: get_col_upper_triangular;
   ]
 
 let () = run_test_tt_main tests

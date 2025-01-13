@@ -82,7 +82,7 @@ module ArrayMatrix: AbstractMatrix =
 
     let get_col m n = Timing.wrap "get_col" (get_col m) n
 
-    let get_col_rref m n = failwith "Never implemented"
+    let get_col_upper_triangular m n = failwith "Never implemented"
 
     let set_col_with m new_col n =
       for i = 0 to num_rows m - 1 do
