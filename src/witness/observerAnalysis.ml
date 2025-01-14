@@ -44,40 +44,40 @@ struct
       end
     | _ -> d
 
-  let step_ctx ctx = step ctx.local ctx.prev_node ctx.node
+  let step_man man = step man.local man.prev_node man.node
 
   (* transfer functions *)
-  let assign ctx (lval:lval) (rval:exp) : D.t =
-    step_ctx ctx
+  let assign man (lval:lval) (rval:exp) : D.t =
+    step_man man
 
-  let vdecl ctx (_:varinfo) : D.t =
-    step_ctx ctx
+  let vdecl man (_:varinfo) : D.t =
+    step_man man
 
-  let branch ctx (exp:exp) (tv:bool) : D.t =
-    step_ctx ctx
+  let branch man (exp:exp) (tv:bool) : D.t =
+    step_man man
 
-  let body ctx (f:fundec) : D.t =
-    step_ctx ctx
+  let body man (f:fundec) : D.t =
+    step_man man
 
-  let return ctx (exp:exp option) (f:fundec) : D.t =
-    step_ctx ctx
+  let return man (exp:exp option) (f:fundec) : D.t =
+    step_man man
 
-  let enter ctx (lval: lval option) (f:fundec) (args:exp list) : (D.t * D.t) list =
-    (* ctx.local doesn't matter here? *)
-    [ctx.local, step ctx.local ctx.prev_node (FunctionEntry f)]
+  let enter man (lval: lval option) (f:fundec) (args:exp list) : (D.t * D.t) list =
+    (* man.local doesn't matter here? *)
+    [man.local, step man.local man.prev_node (FunctionEntry f)]
 
-  let combine_env ctx lval fexp f args fc au f_ask =
-    ctx.local (* Don't yet consider call edge done before assign. *)
+  let combine_env man lval fexp f args fc au f_ask =
+    man.local (* Don't yet consider call edge done before assign. *)
 
-  let combine_assign ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) (f_ask: Queries.ask) : D.t =
-    step au (Function f) ctx.node (* Consider call edge done after entire call-assign. *)
+  let combine_assign man (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) (f_ask: Queries.ask) : D.t =
+    step au (Function f) man.node (* Consider call edge done after entire call-assign. *)
 
-  let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
-    step_ctx ctx
+  let special man (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
+    step_man man
 
   let startstate v = `Lifted Automaton.initial
-  let threadenter ctx ~multiple lval f args = [D.top ()]
-  let threadspawn ctx ~multiple lval f args fctx = ctx.local
+  let threadenter man ~multiple lval f args = [D.top ()]
+  let threadspawn man ~multiple lval f args fman = man.local
   let exitstate  v = D.top ()
 end
 
