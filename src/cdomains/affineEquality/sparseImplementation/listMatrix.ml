@@ -6,7 +6,7 @@ open ConvenienceOps
 open BatList
 module List = BatList
 
-(** Sparse matrix implementation.
+(** Matrix implementation that uses a list of (ideally sparse) vectors representing its rows.
     It provides a normalization function to reduce a matrix into reduced row echelon form.
     Operations exploit that the input matrix/matrices are in reduced row echelon form already. *)
 module ListMatrix: AbstractMatrix =
@@ -15,7 +15,7 @@ module ListMatrix: AbstractMatrix =
     include ConvenienceOps(A)
     module V = V(A)
 
-    type t = V.t list (*List of rows*)
+    type t = V.t list (* List of rows *)
     [@@deriving eq, ord, hash]
 
     let show x =
@@ -300,7 +300,7 @@ module ListMatrix: AbstractMatrix =
 
     (** [rref_matrix m m'] yields the same result as appending [m'] to [m], then bringing the resulting matrix into rref and removing all zero rows.
 
-        {i Faster than appending [m'] to [m] then normalizing!}
+        {i Faster than appending [m'] to [m] and then normalizing!}
         @param m A matrix in rref.
         @param m' A matrix in rref.
     *)
