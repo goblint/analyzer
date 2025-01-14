@@ -42,6 +42,7 @@ module Linexpr0 =
 struct
   include Linexpr0
 
+  (** Negate linear expression. *)
   let neg (linexpr0: t): t =
     let r = copy linexpr0 in
     let n = Linexpr0.get_size r in
@@ -56,6 +57,7 @@ module Linexpr1 =
 struct
   include Linexpr1
 
+  (** Negate linear expression. *)
   let neg (linexpr1: t): t =
     {linexpr0 = Linexpr0.neg linexpr1.linexpr0; env = linexpr1.env}
 end
@@ -85,7 +87,10 @@ struct
       ) x;
     !size
 
+  (** Flip comparison operator in linear constraint, i.e., swap sides. *)
   let flip (lincons1: t): t =
+    (* Apron constraints have rhs 0 and inequality only in one direction, so do the following: *)
+    (* e >= 0  ->  e <= 0  ->  -e >= 0 *)
     make (Linexpr1.neg (get_linexpr1 lincons1)) (get_typ lincons1)
 end
 
@@ -100,6 +105,7 @@ struct
       )
     |> of_enum
 
+  (** Simplify (octagon) constraint set to replace two {!SUPEQ}-s with single {!EQ}. *)
   let simplify (lincons1s: t): t =
     fold (fun lincons1 acc ->
         match Lincons1.get_typ lincons1 with
