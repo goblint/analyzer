@@ -489,16 +489,15 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): SOverflow with type int_t = Int
       else top_of ik in
     norm ik res
 
-  let rem ik x y = 
-    if BArith.is_const x && BArith.is_const y then (
-      let def_x = Option.get (to_int x) in
-      let def_y = Option.get (to_int y) in
-      fst (of_int ik (Ints_t.rem def_x def_y))
+  let rem ik (z1, o1) (z2, o2) = 
+    if o2 = Ints_t.zero then top_of ik else
+    if BArith.is_const (z1, o1) && BArith.is_const (z2, o2) then (
+      let tmp = o1 %: o2 in (!:tmp, tmp)      
     )
-    else if BArith.is_const y && is_power_of_two (snd y) then (
-      let mask = Ints_t.sub (snd y) Ints_t.one in
-      let newz = Ints_t.logor (fst x) (Ints_t.lognot mask) in
-      let newo = Ints_t.logand (snd x) mask in
+    else if BArith.is_const (z2, o2) && is_power_of_two o2 then (
+      let mask = Ints_t.sub o2 Ints_t.one in
+      let newz = Ints_t.logor z1 (Ints_t.lognot mask) in
+      let newo = Ints_t.logand o1 mask in
       norm ik (newz, newo) |> fst
     )
     else top_of ik
@@ -534,7 +533,7 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): SOverflow with type int_t = Int
 
   let starting ?(suppress_ovwarn=false) ik n = 
     let (min_ik, max_ik) = Size.range ik in
-    of_interval ~suppress_ovwarn ik (n, Ints_t.of_bigint max_ik)
+    of_interval ~suppress_ovwarn ik (n, Ints_t.of_bigint max_ik) 
 
   let ending ?(suppress_ovwarn=false) ik n =
     let (min_ik, max_ik) = Size.range ik in

@@ -922,8 +922,7 @@ struct
     "test_ending" >:: test_ending;
 
     "test_refine_with_congruence" >:: test_refine_with_congruence;
-    "test_refine_with_inclusion_list" >:: test_refine_with_inclusion_list;
-    (*"test_refine_with_exclusion_list" >:: test_refine_with_exclusion_list;*)
+    "test_refine_with_inclusion_list" >:: test_refine_with_inclusion_list;    
   ]
 
 end
@@ -1000,42 +999,6 @@ struct
 end
 
 
-module TEMPDEBUG_TODO_REMOVE_TEST (B : IntDomain.SOverflow with type int_t = Z.t) = 
-struct 
-  module B = IntDomain.SOverflowUnlifter (B)
-  let ik      = Cil.IUChar
-
-  let of_list ik is = List.fold_left (fun acc x -> B.join ik acc (B.of_int ik x)) (B.bot ()) is
-
-  let v1 = Z.of_int 0
-  let v2 = Z.of_int 0
-  let vr = Z.add v1 v2
-
-  let is = [0;1]
-  let res = [0;-1]
-
-  let b1 = B.of_int ik v1
-  let b2 = of_list ik (List.map Z.of_int is)
-  let br = of_list ik (List.map Z.of_int res)
-
-  let bool_res = B.join ik (B.of_int ik Z.zero) (B.of_int ik Z.one)
-
-  (* let _ = print_endline (B.show b1)
-  let _ = print_endline (B.show b2)
-  let _ = print_endline (B.show (B.sub ik b1 b2))
-  let _ = print_endline (B.show br) *)
-
-  let test_add _ = assert_equal ~cmp:B.leq ~printer:B.show br (B.sub ik b1 b2)
-
-  let test_lt _ = assert_equal ~cmp:B.leq ~printer:B.show bool_res (B.lt ik b1 b2)
-
-  let test () =  [
-    "test_add" >:: test_add;
-  ]
-end
-
-module TEMPDEBUG_TODO_REMOVE = TEMPDEBUG_TODO_REMOVE_TEST(IntDomain.Bitfield)
-
 let test () =
   "intDomainTest" >::: [
     "int_Integers"  >::: A.test ();
@@ -1050,5 +1013,4 @@ let test () =
     "intervalSet" >::: IntervalSet.test ();
     "congruence" >::: Congruence.test ();
     "intDomTuple" >::: IntDomTuple.test ();
-    "TEMPDEBUG_TODO_REMOVE" >::: TEMPDEBUG_TODO_REMOVE.test ();
   ]
