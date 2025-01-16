@@ -367,22 +367,6 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): SOverflow with type int_t = Int
   let is_invalid_shift_operation ik a b = BArith.is_invalid b
                                           || BArith.is_invalid a
 
-  let tmp_out ik = match ik with
-      IChar -> "char"
-    | ISChar ->  "signed char"
-    | IUChar ->  "unsigned char"
-    | IBool ->  "_Bool"
-    | IInt ->  "int"
-    | IUInt ->  "unsigned int"
-    | IShort ->  "short"
-    | IUShort ->  "unsigned short"
-    | ILong ->  "long"
-    | IULong ->  "unsigned long"
-    | ILongLong ->  "long long"
-    | IULongLong ->  "unsigned long long"
-    | IInt128 ->  "__int128"
-    | IUInt128 ->  "unsigned __int128"
-
   let is_undefined_shift_operation ik a b =
     let minVal = BArith.min ik b in 
     let some_negatives = minVal < Z.zero in
