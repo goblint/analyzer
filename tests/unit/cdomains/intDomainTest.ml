@@ -255,13 +255,16 @@ struct
   module I = IntDomain.SOverflowUnlifter (I)
 
   let ik = Cil.IInt
-  let ik_uint = Cil.IUInt
-  let ik_char = Cil.IChar
-  let ik_uchar = Cil.IUChar
-  let ik_short = Cil.IShort
-  let ik_ushort = Cil.IUShort
+  let ik_lst = [Cil.IChar; Cil.IUChar; Cil.IShort; Cil.IUShort; ik; Cil.IUInt;]
 
-  let ik_lst = [ik_char; ik_uchar; ik_short; ik_ushort; ik; ik_uint;]
+  let string_of_ik ik = match ik with
+    | Cil.IInt -> "int"
+    | Cil.IUInt -> "unsigned_int"
+    | Cil.IChar -> "char"
+    | Cil.IUChar -> "unsigned_char"
+    | Cil.IShort -> "short"
+    | Cil.IUShort -> "unsigned_short"
+    | _ -> "undefined C primitive type"
 
   let assert_equal x y =
     OUnit.assert_equal ~printer:I.show x y
@@ -476,14 +479,6 @@ struct
 
   let of_list ik is = List.fold_left (fun acc x -> I.join ik acc (I.of_int ik x)) (I.bot ()) is
   let cart_op op a b = List.map (BatTuple.Tuple2.uncurry op) (BatList.cartesian_product a b)
-  let string_of_ik ik = match ik with
-    | Cil.IInt -> "int"
-    | Cil.IUInt -> "unsigned_int"
-    | Cil.IChar -> "char"
-    | Cil.IUChar -> "unsigned_char"
-    | Cil.IShort -> "short"
-    | Cil.IUShort -> "unsigned_short"
-    | _ -> "undefined C primitive type"
 
   let precision ik = snd @@ IntDomain.Size.bits ik
   let over_precision ik = Int.succ @@ precision ik
@@ -584,8 +579,6 @@ struct
 
       if isSigned ik
       then (
-        (*assert_shift_left ~rev_cond:true ik (`I [1]) top top;*) (* TODO fails *)
-
         assert_shift_left ik (`I [1]) (`I [-1]) top; (* Negative shifts are undefined behavior *)
         assert_shift_left ik (`I [-1]) top top;
 
@@ -622,7 +615,7 @@ struct
 
       if isSigned ik
       then (
-        (*assert_shift_right ~rev_cond:true ik (`I [max_of ik]) top top;*) (* TODO fails *)
+        assert_shift_right ~rev_cond:true ik (`I [max_of ik]) top top; (* the sign bit shouldn't be set with right shifts if its unset *)
 
         assert_shift_right ik (`I [2]) (`I [-1]) top; (* Negative shifts are undefined behavior *)
         assert_shift_right ik (`I [min_of ik]) top top;
