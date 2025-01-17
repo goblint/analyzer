@@ -9,9 +9,10 @@ struct a h = {""};
 struct a i = {"string"};
 
 void* d(void* args) {
-  struct a r;
   if (c->b) {
-    __goblint_check(strlen(h.b) == 0); // Should also work for write!
+    // Handled by privatization as a write
+    // Without fix (#1468) causes both h.b and i.b to become unknown string
+    __goblint_check(strlen(h.b) == 0); // Check h.b is still known
   }
 }
 
