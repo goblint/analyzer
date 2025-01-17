@@ -190,9 +190,10 @@ module ProjectiveSetPairwiseMeet (E: Lattice.S) (B: MayEqualSetDomain with type 
   let meet m1 m2 =
     let meet_buckets b1 b2 acc =
       B.fold (fun e1 acc ->
+          let r1 = R.of_elt e1 in
           B.fold (fun e2 acc ->
               (* If they have the same representative, we use the normal meet within this bucket *)
-              if R.equal (R.of_elt e1) (R.of_elt e2) then
+              if R.equal r1 (R.of_elt e2) then
                 try
                   let m = E.meet e1 e2 in
                   if not (E.is_bot m) then
