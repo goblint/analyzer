@@ -79,6 +79,7 @@ module RelationAnalysis = RelationAnalysis
 module ApronAnalysis = ApronAnalysis
 module AffineEqualityAnalysis = AffineEqualityAnalysis
 module LinearTwoVarEqualityAnalysis = LinearTwoVarEqualityAnalysis
+module LinearTwoVarEqualityAnalysisPentagon = LinearTwoVarEqualityAnalysisPentagon
 module VarEq = VarEq
 module CondVars = CondVars
 module TmpSpecial = TmpSpecial
@@ -261,6 +262,8 @@ module RelationDomain = RelationDomain
 module ApronDomain = ApronDomain
 module AffineEqualityDomain = AffineEqualityDomain
 module LinearTwoVarEqualityDomain = LinearTwoVarEqualityDomain
+module LinearTwoVarEqualityDomainPentagon = LinearTwoVarEqualityDomainPentagon
+
 
 (** {3 Concurrency} *)
 
