@@ -45,9 +45,6 @@ exception BotValue
 (** Exception raised by a bottomless lattice in place of a bottom value.
     Surrounding lattice functors may handle this on their own. *)
 
-exception Unsupported of string
-let unsupported x = raise (Unsupported x)
-
 exception Invalid_widen of Pretty.doc
 
 let () = Printexc.register_printer (function
@@ -93,10 +90,10 @@ struct
   include Base
   let leq = equal
   let join x y =
-    if equal x y then x else raise (Unsupported "fake join")
+    if equal x y then x else raise TopValue
   let widen = join
   let meet x y =
-    if equal x y then x else raise (Unsupported "fake meet")
+    if equal x y then x else raise BotValue
   let narrow = meet
   include NoBotTop
 
@@ -153,11 +150,11 @@ struct
   include Printable.HConsed (Base)
 
   let lift_f2 f x y = f (unlift x) (unlift y)
-  let narrow x y = if Arg.assume_idempotent && x.BatHashcons.tag == y.BatHashcons.tag then x else lift (lift_f2 Base.narrow x y)
-  let widen x y = if x.BatHashcons.tag == y.BatHashcons.tag then x else lift (lift_f2 Base.widen x y)
-  let meet x y = if Arg.assume_idempotent && x.BatHashcons.tag == y.BatHashcons.tag then x else lift (lift_f2 Base.meet x y)
-  let join x y = if x.BatHashcons.tag == y.BatHashcons.tag then x else lift (lift_f2 Base.join x y)
-  let leq x y = (x.BatHashcons.tag == y.BatHashcons.tag) || lift_f2 Base.leq x y
+  let narrow x y = if Arg.assume_idempotent && x.BatHashcons.tag = y.BatHashcons.tag then x else lift (lift_f2 Base.narrow x y)
+  let widen x y = if x.BatHashcons.tag = y.BatHashcons.tag then x else lift (lift_f2 Base.widen x y)
+  let meet x y = if Arg.assume_idempotent && x.BatHashcons.tag = y.BatHashcons.tag then x else lift (lift_f2 Base.meet x y)
+  let join x y = if x.BatHashcons.tag = y.BatHashcons.tag then x else lift (lift_f2 Base.join x y)
+  let leq x y = (x.BatHashcons.tag = y.BatHashcons.tag) || lift_f2 Base.leq x y
   let is_top = lift_f Base.is_top
   let is_bot = lift_f Base.is_bot
   let top () = lift (Base.top ())
@@ -259,7 +256,9 @@ struct
     | (_, `Top) -> `Top
     | (`Bot, x) -> x
     | (x, `Bot) -> x
-    | (`Lifted x, `Lifted y) -> `Lifted (Base.join x y)
+    | (`Lifted x, `Lifted y) ->
+      try `Lifted (Base.join x y)
+      with TopValue -> `Top
 
   let meet x y =
     match (x,y) with
@@ -267,16 +266,26 @@ struct
     | (_, `Bot) -> `Bot
     | (`Top, x) -> x
     | (x, `Top) -> x
-    | (`Lifted x, `Lifted y) -> `Lifted (Base.meet x y)
+    | (`Lifted x, `Lifted y) ->
+      try `Lifted (Base.meet x y)
+      with BotValue -> `Bot
 
   let widen x y =
     match (x,y) with
-    | (`Lifted x, `Lifted y) -> `Lifted (Base.widen x y)
+    | (`Lifted x, `Lifted y) ->
+      begin
+        try `Lifted (Base.widen x y)
+        with TopValue -> `Top
+      end
     | _ -> y
 
   let narrow x y =
     match (x,y) with
-    | (`Lifted x, `Lifted y) -> `Lifted (Base.narrow x y)
+    | (`Lifted x, `Lifted y) ->
+      begin
+        try `Lifted (Base.narrow x y)
+        with BotValue -> `Bot
+      end
     | (_, `Bot) -> `Bot
     | (`Top, y) -> y
     | _ -> x
@@ -315,7 +324,7 @@ struct
     | (x, `Bot) -> x
     | (`Lifted x, `Lifted y) ->
       try `Lifted (Base.join x y)
-      with Uncomparable -> `Top
+      with Uncomparable | TopValue -> `Top
 
   let meet x y =
     match (x,y) with
@@ -325,20 +334,24 @@ struct
     | (x, `Top) -> x
     | (`Lifted x, `Lifted y) ->
       try `Lifted (Base.meet x y)
-      with Uncomparable -> `Bot
+      with Uncomparable | BotValue -> `Bot
 
   let widen x y =
     match (x,y) with
     | (`Lifted x, `Lifted y) ->
-      (try `Lifted (Base.widen x y)
-       with Uncomparable -> `Top)
+      begin
+        try `Lifted (Base.widen x y)
+        with Uncomparable | TopValue -> `Top
+      end
     | _ -> y
 
   let narrow x y =
     match (x,y) with
     | (`Lifted x, `Lifted y) ->
-      (try `Lifted (Base.narrow x y)
-       with Uncomparable -> `Bot)
+      begin
+        try `Lifted (Base.narrow x y)
+        with Uncomparable | BotValue -> `Bot
+      end
     | (_, `Bot) -> `Bot
     | (`Top, y) -> y
     | _ -> x
@@ -378,11 +391,11 @@ struct
     | (x, `Bot) -> x
     | (`Lifted1 x, `Lifted1 y) -> begin
         try `Lifted1 (Base1.join x y)
-        with Unsupported _ -> `Top
+        with TopValue -> `Top
       end
     | (`Lifted2 x, `Lifted2 y) -> begin
         try `Lifted2 (Base2.join x y)
-        with Unsupported _ -> `Top
+        with TopValue -> `Top
       end
     | _ -> `Top
 
@@ -394,11 +407,11 @@ struct
     | (x, `Top) -> x
     | (`Lifted1 x, `Lifted1 y) -> begin
         try `Lifted1 (Base1.meet x y)
-        with Unsupported _ -> `Bot
+        with BotValue -> `Bot
       end
     | (`Lifted2 x, `Lifted2 y) -> begin
         try `Lifted2 (Base2.meet x y)
-        with Unsupported _ -> `Bot
+        with BotValue -> `Bot
       end
     | _ -> `Bot
 
@@ -489,7 +502,9 @@ struct
     match (x,y) with
     | (`Bot, _) -> `Bot
     | (_, `Bot) -> `Bot
-    | (`Lifted x, `Lifted y) -> `Lifted (Base.meet x y)
+    | (`Lifted x, `Lifted y) ->
+      try `Lifted (Base.meet x y)
+      with BotValue -> `Bot
 
   let widen x y =
     match (x,y) with
@@ -498,7 +513,11 @@ struct
 
   let narrow x y =
     match (x,y) with
-    | (`Lifted x, `Lifted y) -> `Lifted (Base.narrow x y)
+    | (`Lifted x, `Lifted y) ->
+      begin
+        try `Lifted (Base.narrow x y)
+        with BotValue -> `Bot
+      end
     | (_, `Bot) -> `Bot
     | _ -> x
 end
@@ -525,7 +544,9 @@ struct
     match (x,y) with
     | (`Top, x) -> `Top
     | (x, `Top) -> `Top
-    | (`Lifted x, `Lifted y) -> `Lifted (Base.join x y)
+    | (`Lifted x, `Lifted y) ->
+      try `Lifted (Base.join x y)
+      with TopValue -> `Top
 
   let meet x y =
     match (x,y) with
@@ -535,7 +556,11 @@ struct
 
   let widen x y =
     match (x,y) with
-    | (`Lifted x, `Lifted y) -> `Lifted (Base.widen x y)
+    | (`Lifted x, `Lifted y) ->
+      begin
+        try `Lifted (Base.widen x y)
+        with TopValue -> `Top
+      end
     | _ -> y
 
   let narrow x y =
@@ -553,10 +578,7 @@ end
 module Liszt (Base: S) =
 struct
   include Printable.Liszt (Base)
-  let bot () = raise (Unsupported "bot?")
-  let is_top _ = false
-  let top () = raise (Unsupported "top?")
-  let is_bot _ = false
+  include NoBotTop
 
   let leq =
     let f acc x y = Base.leq x y && acc in

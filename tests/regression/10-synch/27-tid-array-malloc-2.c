@@ -1,4 +1,5 @@
-// PARAM: --set ana.activated[+] thread 
+// PARAM: --set ana.activated[+] thread
+// NOCRASH
 #include <stdlib.h>
 #include <pthread.h>
 
@@ -19,7 +20,7 @@ int main()
 	pthread_create(&t[tid], 0, thread, 0);
 	tid++;
 	pthread_create(&t[tid], 0, thread, 0);
-	
+
 	tid=0;
 	pthread_join(t[tid], 0);
 	tid++;

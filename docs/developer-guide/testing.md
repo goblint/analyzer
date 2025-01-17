@@ -69,6 +69,19 @@ Other useful constructs are the following:
 | `__goblint_check(1); // reachable` | Checks that the line is reachable according <br> to Goblint results (soundness). |
 | `__goblint_check(0); // NOWARN (unreachable)` | Checks that the line is unreachable (precision). |
 
+#### Meta
+Comments at the end of lines can also indicate metaproperties:
+
+| Annotation | Expected result/comment |
+| ---------- | ----- |
+| `NOCRASH` | No analyzer crash |
+| `FIXPOINT` | No fixpoint error |
+| `NOTIMEOUT` | Analyer terminates |
+| `CRAM` | Automatic checks are only in corresponding Cram test |
+
+These comments only document the intention of the test (if there are no other checks in the test).
+Analyzer crash, fixpoint error and non-termination are checked even when there are other checks.
+
 ## Cram Tests
 [Cram-style tests](https://dune.readthedocs.io/en/stable/tests.html#cram-tests) are also used to verify that existing functionality hasn't been broken.
 They check the complete standard output of running the Goblint binary with specified command-line arguments.

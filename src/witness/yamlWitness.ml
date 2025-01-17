@@ -43,13 +43,20 @@ struct
       specification
     }
 
-  let location ~location:(loc: Cil.location) ~(location_function): Location.t = {
-    file_name = loc.file;
-    file_hash = sha256_file loc.file;
-    line = loc.line;
-    column = loc.column;
-    function_ = location_function;
-  }
+  let location ~location:(loc: Cil.location) ~(location_function): Location.t =
+    let file_hash =
+      match GobConfig.get_string "witness.yaml.format-version" with
+      | "0.1" -> Some (sha256_file loc.file)
+      | "2.0" -> None
+      | _ -> assert false
+    in
+    {
+      file_name = loc.file;
+      file_hash;
+      line = loc.line;
+      column = Some loc.column;
+      function_ = Some location_function;
+    }
 
   let invariant invariant: Invariant.t = {
     string = invariant;
@@ -140,6 +147,35 @@ struct
         certification;
       };
     metadata = metadata ();
+  }
+
+  let ghost_variable' ~variable ~type_ ~(initial): GhostInstrumentation.Variable.t = {
+    name = variable;
+    scope = "global";
+    type_;
+    initial = {
+      value = initial;
+      format = "c_expression";
+    };
+  }
+
+  let ghost_update' ~variable ~(expression): GhostInstrumentation.Update.t = {
+    variable;
+    value = expression;
+    format = "c_expression";
+  }
+
+  let ghost_location_update' ~location ~(updates): GhostInstrumentation.LocationUpdate.t = {
+    location;
+    updates;
+  }
+
+  let ghost_instrumentation ~task ~variables ~(location_updates): Entry.t = {
+    entry_type = GhostInstrumentation {
+        ghost_variables = variables;
+        ghost_updates = location_updates;
+      };
+    metadata = metadata ~task ();
   }
 end
 
@@ -242,6 +278,11 @@ struct
 
     let entries = [] in
 
+    let cnt_loop_invariant = ref 0 in
+    let cnt_location_invariant = ref 0 in
+    let cnt_flow_insensitive_invariant = ref 0 in
+    (* TODO: precondition invariants? *)
+
     (* Generate location invariants (without precondition) *)
     let entries =
       if entry_type_enabled YamlWitnessType.LocationInvariant.entry_type then (
@@ -261,6 +302,7 @@ struct
               List.fold_left (fun acc inv ->
                   let invariant = Entry.invariant (CilType.Exp.show inv) in
                   let entry = Entry.location_invariant ~task ~location ~invariant in
+                  incr cnt_location_invariant;
                   entry :: acc
                 ) acc invs
             | `Bot | `Top -> (* TODO: 0 for bot (dead code)? *)
@@ -290,6 +332,7 @@ struct
                 List.fold_left (fun acc inv ->
                     let invariant = Entry.invariant (CilType.Exp.show inv) in
                     let entry = Entry.loop_invariant ~task ~location ~invariant in
+                    incr cnt_loop_invariant;
                     entry :: acc
                   ) acc invs
               | `Bot | `Top -> (* TODO: 0 for bot (dead code)? *)
@@ -303,26 +346,82 @@ struct
         entries
     in
 
+    let invariant_global_nodes = lazy (R.ask_global InvariantGlobalNodes) in
+
+    let fold_flow_insensitive_as_location ~inv f acc =
+      (* Currently same invariants (from InvariantGlobal query) for all nodes (from InvariantGlobalNodes query).
+         The alternative would be querying InvariantGlobal per local unknown when looping over them to generate location invariants.
+         See: https://github.com/goblint/analyzer/pull/1394#discussion_r1698149514. *)
+      let invs = WitnessUtil.InvariantExp.process_exp inv in
+      Queries.NS.fold (fun n acc ->
+          let fundec = Node.find_fundec n in
+          match WitnessInvariant.location_location n with (* Not just using Node.location because it returns expression location which may be invalid for location invariant (e.g. inside conditional). *)
+          | Some loc ->
+            let location_function = fundec.svar.vname in
+            let location = Entry.location ~location:loc ~location_function in
+            List.fold_left (fun acc inv ->
+                f ~location ~inv acc
+              ) acc invs
+          | None -> acc
+        ) (Lazy.force invariant_global_nodes) acc
+    in
+
     (* Generate flow-insensitive invariants *)
     let entries =
       if entry_type_enabled YamlWitnessType.FlowInsensitiveInvariant.entry_type then (
         GHT.fold (fun g v acc ->
             match g with
-            | `Left g -> (* Spec global *)
-              begin match R.ask_global (InvariantGlobal (Obj.repr g)) with
-                | `Lifted inv ->
+            | `Left g -> (* global unknown from analysis Spec *)
+              begin match R.ask_global (InvariantGlobal (Obj.repr g)), GobConfig.get_string "witness.invariant.flow_insensitive-as" with
+                | `Lifted inv, "flow_insensitive_invariant" ->
                   let invs = WitnessUtil.InvariantExp.process_exp inv in
                   List.fold_left (fun acc inv ->
                       let invariant = Entry.invariant (CilType.Exp.show inv) in
                       let entry = Entry.flow_insensitive_invariant ~task ~invariant in
+                      incr cnt_flow_insensitive_invariant;
                       entry :: acc
                     ) acc invs
-                | `Bot | `Top -> (* global bot might only be possible for alloc variables, if at all, so emit nothing *)
+                | `Lifted inv, "location_invariant" ->
+                  fold_flow_insensitive_as_location ~inv (fun ~location ~inv acc ->
+                      let invariant = Entry.invariant (CilType.Exp.show inv) in
+                      let entry = Entry.location_invariant ~task ~location ~invariant in
+                      incr cnt_location_invariant;
+                      entry :: acc
+                    ) acc
+                | `Lifted _, _
+                | `Bot, _ | `Top, _ -> (* global bot might only be possible for alloc variables, if at all, so emit nothing *)
                   acc
               end
-            | `Right _ -> (* contexts global *)
+            | `Right _ -> (* global unknown for FromSpec contexts *)
               acc
           ) gh entries
+      )
+      else
+        entries
+    in
+
+    (* Generate flow-insensitive entries (ghost instrumentation) *)
+    let entries =
+      if entry_type_enabled YamlWitnessType.GhostInstrumentation.entry_type then (
+        (* TODO: only at most one ghost_instrumentation entry can ever be produced, so this fold and deduplication is overkill *)
+        let module EntrySet = Queries.YS in
+        fst @@ GHT.fold (fun g v accs ->
+            match g with
+            | `Left g -> (* global unknown from analysis Spec *)
+              begin match R.ask_global (YamlEntryGlobal (Obj.repr g, task)) with
+                | `Lifted _ as inv ->
+                  Queries.YS.fold (fun entry (acc, acc') ->
+                      if EntrySet.mem entry acc' then (* deduplicate only with other global entries because local ones have different locations anyway *)
+                        accs
+                      else
+                        (entry :: acc, EntrySet.add entry acc')
+                    ) inv accs
+                | `Top ->
+                  accs
+              end
+            | `Right _ -> (* global unknown for FromSpec contexts *)
+              accs
+          ) gh (entries, EntrySet.empty ())
       )
       else
         entries
@@ -430,12 +529,12 @@ struct
 
     (* Generate invariant set *)
     let entries =
-      if entry_type_enabled YamlWitnessType.InvariantSet.entry_type then (
+      if entry_type_enabled YamlWitnessType.InvariantSet.entry_type || entry_type_enabled YamlWitnessType.FlowInsensitiveInvariant.entry_type && GobConfig.get_string "witness.invariant.flow_insensitive-as" = "invariant_set-location_invariant" then (
         let invariants = [] in
 
         (* Generate location invariants *)
         let invariants =
-          if invariant_type_enabled YamlWitnessType.InvariantSet.LocationInvariant.invariant_type then (
+          if entry_type_enabled YamlWitnessType.InvariantSet.entry_type && invariant_type_enabled YamlWitnessType.InvariantSet.LocationInvariant.invariant_type then (
             LH.fold (fun loc ns acc ->
                 let inv = List.fold_left (fun acc n ->
                     let local = try NH.find (Lazy.force nh) n with Not_found -> Spec.D.bot () in
@@ -452,6 +551,7 @@ struct
                   List.fold_left (fun acc inv ->
                       let invariant = CilType.Exp.show inv in
                       let invariant = Entry.location_invariant' ~location ~invariant in
+                      incr cnt_location_invariant;
                       invariant :: acc
                     ) acc invs
                 | `Bot | `Top -> (* TODO: 0 for bot (dead code)? *)
@@ -464,7 +564,7 @@ struct
 
         (* Generate loop invariants *)
         let invariants =
-          if invariant_type_enabled YamlWitnessType.InvariantSet.LoopInvariant.invariant_type then (
+          if entry_type_enabled YamlWitnessType.InvariantSet.entry_type && invariant_type_enabled YamlWitnessType.InvariantSet.LoopInvariant.invariant_type then (
             LH.fold (fun loc ns acc ->
                 if WitnessInvariant.emit_loop_head then ( (* TODO: remove double condition? *)
                   let inv = List.fold_left (fun acc n ->
@@ -481,6 +581,7 @@ struct
                     List.fold_left (fun acc inv ->
                         let invariant = CilType.Exp.show inv in
                         let invariant = Entry.loop_invariant' ~location ~invariant in
+                        incr cnt_loop_invariant;
                         invariant :: acc
                       ) acc invs
                   | `Bot | `Top -> (* TODO: 0 for bot (dead code)? *)
@@ -489,6 +590,31 @@ struct
                 else
                   acc
               ) (Lazy.force loop_nodes) invariants
+          )
+          else
+            invariants
+        in
+
+        (* Generate flow-insensitive invariants as location invariants *)
+        let invariants =
+          if entry_type_enabled YamlWitnessType.FlowInsensitiveInvariant.entry_type && GobConfig.get_string "witness.invariant.flow_insensitive-as" = "invariant_set-location_invariant" then (
+            GHT.fold (fun g v acc ->
+                match g with
+                | `Left g -> (* global unknown from analysis Spec *)
+                  begin match R.ask_global (InvariantGlobal (Obj.repr g)) with
+                    | `Lifted inv ->
+                      fold_flow_insensitive_as_location ~inv (fun ~location ~inv acc ->
+                          let invariant = CilType.Exp.show inv in
+                          let invariant = Entry.location_invariant' ~location ~invariant in
+                          incr cnt_location_invariant;
+                          invariant :: acc
+                        ) acc
+                    | `Bot | `Top -> (* global bot might only be possible for alloc variables, if at all, so emit nothing *)
+                      acc
+                  end
+                | `Right _ -> (* global unknown for FromSpec contexts *)
+                  acc
+              ) gh invariants
           )
           else
             invariants
@@ -505,6 +631,9 @@ struct
     let yaml_entries = List.rev_map YamlWitnessType.Entry.to_yaml entries in (* reverse to make entries in file in the same order as generation messages *)
 
     M.msg_group Info ~category:Witness "witness generation summary" [
+      (Pretty.dprintf "location invariants: %d" !cnt_location_invariant, None);
+      (Pretty.dprintf "loop invariants: %d" !cnt_loop_invariant, None);
+      (Pretty.dprintf "flow-insensitive invariants: %d" !cnt_flow_insensitive_invariant, None);
       (Pretty.dprintf "total generation entries: %d" (List.length yaml_entries), None);
     ];
 
@@ -523,6 +652,17 @@ let init () =
       Logs.error "witness.yaml.validate: %s not found" path;
       Svcomp.errorwith "witness missing"
     )
+
+let loc_of_location (location: YamlWitnessType.Location.t): Cil.location = {
+  file = location.file_name;
+  line = location.line;
+  column = Option.value location.column ~default:1;
+  byte = -1;
+  endLine = -1;
+  endColumn = -1;
+  endByte = -1;
+  synthetic = false;
+}
 
 module ValidationResult =
 struct
@@ -562,17 +702,6 @@ struct
   module InvariantParser = WitnessUtil.InvariantParser
   module VR = ValidationResult
 
-  let loc_of_location (location: YamlWitnessType.Location.t): Cil.location = {
-    file = location.file_name;
-    line = location.line;
-    column = location.column;
-    byte = -1;
-    endLine = -1;
-    endColumn = -1;
-    endByte = -1;
-    synthetic = false;
-  }
-
   let validate () =
     let location_locator = Locator.create () in
     let loop_locator = Locator.create () in
@@ -588,7 +717,7 @@ struct
 
     let inv_parser = InvariantParser.create FileCfg.file in
 
-    let yaml = match Yaml_unix.of_file (Fpath.v (GobConfig.get_string "witness.yaml.validate")) with
+    let yaml = match GobResult.Syntax.(Fpath.of_string (GobConfig.get_string "witness.yaml.validate") >>= Yaml_unix.of_file) with
       | Ok yaml -> yaml
       | Error (`Msg m) ->
         Logs.error "Yaml_unix.of_file: %s" m;
@@ -806,6 +935,15 @@ struct
         None
       in
 
+      let validate_violation_sequence (violation_sequence: YamlWitnessType.ViolationSequence.t) =
+        (* TODO: update cnt-s appropriately (needs access to SV-COMP result pre-witness validation) *)
+        (* Nothing needs to be checked here!
+           If program is correct and we can prove it, we output true, which counts as refutation of violation witness.
+           If program is correct and we cannot prove it, we output unknown.
+           If program is incorrect, we output unknown. *)
+        None
+      in
+
       match entry_type_enabled target_type, entry.entry_type with
       | true, LocationInvariant x ->
         validate_location_invariant x
@@ -815,13 +953,15 @@ struct
         validate_precondition_loop_invariant x
       | true, InvariantSet x ->
         validate_invariant_set x
-      | false, (LocationInvariant _ | LoopInvariant _ | PreconditionLoopInvariant _ | InvariantSet _) ->
+      | true, ViolationSequence x ->
+        validate_violation_sequence x
+      | false, (LocationInvariant _ | LoopInvariant _ | PreconditionLoopInvariant _ | InvariantSet _ | ViolationSequence _) ->
         incr cnt_disabled;
         M.info_noloc ~category:Witness "disabled entry of type %s" target_type;
         None
       | _ ->
         incr cnt_unsupported;
-        M.info_noloc ~category:Witness "cannot validate entry of type %s" target_type;
+        M.warn_noloc ~category:Witness "cannot validate entry of type %s" target_type;
         None
     in
 
@@ -833,7 +973,7 @@ struct
           Option.to_list yaml_certificate_entry @ yaml_entry :: yaml_entries'
         | Error (`Msg e) ->
           incr cnt_error;
-          M.info_noloc ~category:Witness "couldn't parse entry: %s" e;
+          M.error_noloc ~category:Witness "couldn't parse entry: %s" e;
           yaml_entry :: yaml_entries'
       ) [] yaml_entries
     in
@@ -861,7 +1001,9 @@ struct
     | true when !cnt_disabled > 0 ->
       Error "witness disabled"
     | _ when !cnt_refuted > 0 ->
-      Ok (Svcomp.Result.False None)
+      (* Refuted only when assuming the invariant is reachable. *)
+      (* Ok (Svcomp.Result.False None) *) (* Wasn't a problem because valid*->correctness->false gave 0 points under old validator track scoring schema: https://doi.org/10.1007/978-3-031-22308-2_8. *)
+      Ok Svcomp.Result.Unknown (* Now valid*->correctness->false gives 1p (negative) points under new validator track scoring schema: https://doi.org/10.1007/978-3-031-57256-2_15. *)
     | _ when !cnt_unconfirmed > 0 ->
       Ok Unknown
     | _ ->

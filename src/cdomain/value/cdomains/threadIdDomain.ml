@@ -83,10 +83,10 @@ struct
       (v, None)
 
   let is_main = function
-    | ({vname; _}, None) -> List.mem vname @@ GobConfig.get_string_list "mainfun"
+    | ({vname; _}, None) -> GobConfig.get_bool "ana.thread.include-node" && List.mem vname @@ GobConfig.get_string_list "mainfun"
     | _ -> false
 
-  let is_unique _ = false (* TODO: should this consider main unique? *)
+  let is_unique = is_main
   let may_be_ancestor _ _ = true
   let must_be_ancestor _ _ = false
 end

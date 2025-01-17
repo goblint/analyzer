@@ -44,6 +44,34 @@ class functionVisitor(calling, calledBy, argLists, dynamicallyCalled) = object
     DoChildren
 end
 
+exception Found
+class findAllocsInLoops = object
+  inherit nopCilVisitor
+
+  val mutable inloop = false
+
+  method! vstmt stmt =
+    let outOfLoop stmt =
+      match stmt.skind with
+      | Loop _ -> inloop <- false; stmt
+      | _ -> stmt
+    in
+    match stmt.skind with
+    | Loop _ -> inloop <- true; ChangeDoChildrenPost(stmt, outOfLoop)
+    | _ -> DoChildren
+
+  method! vinst = function
+    | Call (_, Lval (Var f, NoOffset), args,_,_) when LibraryFunctions.is_special f ->
+      Goblint_backtrace.protect ~mark:(fun () -> Cilfacade.FunVarinfo f) ~finally:Fun.id @@ fun () ->
+      let desc = LibraryFunctions.find f in
+      begin match desc.special args with
+        | Malloc _
+        | Alloca _ when inloop -> raise Found
+        | _ -> DoChildren
+      end
+    | _ -> DoChildren
+end
+
 type functionCallMaps = {
   calling: FunctionSet.t FunctionCallMap.t;
   calledBy: (FunctionSet.t * int) FunctionCallMap.t;
@@ -68,6 +96,7 @@ let functionArgs fd = (ResettableLazy.force functionCallMaps).argLists |> Functi
 
 let findMallocWrappers () =
   let isMalloc f =
+    Goblint_backtrace.wrap_val ~mark:(Cilfacade.FunVarinfo f) @@ fun () ->
     if LibraryFunctions.is_special f then (
       let desc = LibraryFunctions.find f in
       match functionArgs f with
@@ -104,7 +133,7 @@ let rec setCongruenceRecursive fd depth neigbourFunction =
          | exception Not_found -> () (* Happens for __goblint_bounded *)
       )
       (FunctionSet.filter (*for extern and builtin functions there is no function definition in CIL*)
-         (fun x -> not (isExtern x.vstorage || BatString.starts_with x.vname "__builtin"))
+         (fun x -> not (isExtern x.vstorage || String.starts_with x.vname ~prefix:"__builtin"))
          (neigbourFunction fd.svar)
       )
     ;
@@ -153,20 +182,22 @@ let disableIntervalContextsInRecursiveFunctions () =
 
 let hasFunction pred =
   let relevant_static var =
+    Goblint_backtrace.wrap_val ~mark:(Cilfacade.FunVarinfo var) @@ fun () ->
     if LibraryFunctions.is_special var then
       let desc = LibraryFunctions.find var in
-      GobOption.exists (fun args -> pred (desc.special args)) (functionArgs var)
+      GobOption.exists (fun args -> pred desc args) (functionArgs var)
     else
       false
   in
   let relevant_dynamic var =
+    Goblint_backtrace.wrap_val ~mark:(Cilfacade.FunVarinfo var) @@ fun () ->
     if LibraryFunctions.is_special var then
       let desc = LibraryFunctions.find var in
       (* We don't really have arguments at hand, so we cheat and just feed it a list of MyCFG.unknown_exp of appropriate length *)
       match unrollType var.vtype with
       | TFun (_, args, _, _) ->
         let args = BatOption.map_default (List.map (fun (x,_,_) -> MyCFG.unknown_exp)) [] args in
-        pred (desc.special args)
+        pred desc args
       | _ -> false
     else
       false
@@ -188,9 +219,10 @@ let enableAnalyses anas =
 
 let notNeccessaryThreadAnalyses = ["race"; "deadlock"; "maylocks"; "symb_locks"; "thread"; "threadid"; "threadJoins"; "threadreturn"; "mhp"; "region"; "pthreadMutexType"]
 let reduceThreadAnalyses () =
-  let isThreadCreate = function
+  let isThreadCreate (desc: LibraryDesc.t) args =
+    match desc.special args with
     | LibraryDesc.ThreadCreate _ -> true
-    | _ -> false
+    | _ -> LibraryDesc.Accesses.find_kind desc.accs Spawn args <> []
   in
   let hasThreadCreate = hasFunction isThreadCreate in
   if not @@ hasThreadCreate then (
@@ -226,18 +258,28 @@ let focusOnTermination (spec: Svcomp.Specification.t) =
 let focusOnTermination () =
   List.iter focusOnTermination (Svcomp.Specification.of_option ())
 
-let focusOnSpecification (spec: Svcomp.Specification.t) =
+let concurrencySafety (spec: Svcomp.Specification.t) =
   match spec with
-  | UnreachCall s -> ()
   | NoDataRace -> (*enable all thread analyses*)
     Logs.info "Specification: NoDataRace -> enabling thread analyses \"%s\"" (String.concat ", " notNeccessaryThreadAnalyses);
     enableAnalyses notNeccessaryThreadAnalyses;
-  | NoOverflow -> (*We focus on integer analysis*)
-    set_bool "ana.int.def_exc" true
   | _ -> ()
 
-let focusOnSpecification () =
-  List.iter focusOnSpecification (Svcomp.Specification.of_option ())
+let noOverflows (spec: Svcomp.Specification.t) =
+  match spec with
+  | NoOverflow ->
+    (*We focus on integer analysis*)
+    set_bool "ana.int.def_exc" true;
+    begin
+      try
+        ignore @@ visitCilFileSameGlobals (new findAllocsInLoops) (!Cilfacade.current_file);
+        set_int "ana.malloc.unique_address_count" 1
+      with Found -> set_int "ana.malloc.unique_address_count" 0;
+    end
+  | _ -> ()
+
+let focusOn (f : SvcompSpec.t -> unit) =
+  List.iter f (Svcomp.Specification.of_option ())
 
 (*Detect enumerations and enable the "ana.int.enums" option*)
 exception EnumFound
@@ -430,7 +472,7 @@ let apronOctagonOption factors file =
 
 
 let wideningOption factors file =
-  let amountConsts = List.length @@ WideningThresholds.upper_thresholds () in
+  let amountConsts = WideningThresholds.Thresholds.cardinal @@ ResettableLazy.force WideningThresholds.upper_thresholds in
   let cost = amountConsts * (factors.loops * 5 + factors.controlFlowStatements) in
   {
     value = amountConsts * (factors.loops * 5 + factors.controlFlowStatements);
@@ -443,7 +485,8 @@ let wideningOption factors file =
   }
 
 let activateTmpSpecialAnalysis () =
-  let isMathFun = function
+  let isMathFun (desc: LibraryDesc.t) args =
+    match desc.special args with
     | LibraryDesc.Math _ -> true
     | _ -> false
   in
@@ -484,15 +527,6 @@ let isActivated a = get_bool "ana.autotune.enabled" && List.mem a @@ get_string_
 
 let isTerminationTask () = List.mem Svcomp.Specification.Termination (Svcomp.Specification.of_option ())
 
-let specificationIsActivated () =
-  isActivated "specification" && get_string "ana.specification" <> ""
-
-let specificationTerminationIsActivated () =
-  isActivated "termination"
-
-let specificationMemSafetyIsActivated () =
-  isActivated "memsafetySpecification"
-
 let chooseConfig file =
   let factors = collectFactors visitCilFileSameGlobals file in
   let fileCompplexity = estimateComplexity factors file in
@@ -512,8 +546,9 @@ let chooseConfig file =
   if isActivated "mallocWrappers" then
     findMallocWrappers ();
 
-  if specificationIsActivated () then
-    focusOnSpecification ();
+  if isActivated "concurrencySafetySpecification" then focusOn concurrencySafety;
+
+  if isActivated "noOverflows" then focusOn noOverflows;
 
   if isActivated "enums" && hasEnums file then
     set_bool "ana.int.enums" true;

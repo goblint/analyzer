@@ -15,10 +15,11 @@ module Trivial: S =
 struct
   module TrivialNames =
   struct
-    let truename = "Multithreaded"
-    let falsename = "Singlethreaded"
+    let name = "MT mode"
+    let true_name = "Multithreaded"
+    let false_name = "Singlethreaded"
   end
-  include IntDomain.MakeBooleans (TrivialNames)
+  include BoolDomain.MakeMayBool (TrivialNames)
 
   let is_multi x = x
   let is_not_main x = x

@@ -246,6 +246,8 @@ class Tests
         check.call warnings[idx] != "race"
       when "nodeadlock"
         check.call warnings[idx] != "deadlock"
+      when "nocrash", "fixpoint", "notimeout", "cram", "nocheck"
+        check.call true
       end
     end
   end
@@ -324,6 +326,18 @@ class Project
       if obj =~ /#line ([0-9]+).*$/ then
         i = $1.to_i - 1
       end
+      # test annotations are stored by line, use impossible line -42 for these metaproperties
+      if obj =~ /NOCRASH/ then
+        tests[-42] = "nocrash"
+      elsif obj =~ /FIXPOINT/ then
+        tests[-42] = "fixpoint"
+      elsif obj =~ /NOTIMEOUT/ then
+        tests[-42] = "notimeout"
+      elsif obj =~ /CRAM/ then
+        tests[-42] = "cram"
+      elsif obj =~ /NOCHECK/ then
+        tests[-42] = "nocheck"
+      end
       next if obj =~ /^\s*\/\// || obj =~ /^\s*\/\*([^*]|\*+[^*\/])*\*\/$/
       todo << i if obj =~ /TODO|SKIP/
       tests_line[i] = obj
@@ -356,6 +370,7 @@ class Project
       end
     end
     case lines[0]
+    # test annotations are stored by line, use impossible line -1 for these whole-program properties
     when /NONTERM/
       tests[-1] = "nonterm"
     when /TERM/
@@ -363,6 +378,10 @@ class Project
     end
     if lines[0] =~ /TODO/ then
       todo << -1
+    end
+    if tests.empty? then
+      puts "No automatic checks in #{@id} (maybe NOCRASH/FIXPOINT/NOTIMEOUT/CRAM?)"
+      exit 1
     end
     Tests.new(self, tests, tests_line, todo)
   end

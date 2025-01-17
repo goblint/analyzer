@@ -283,6 +283,7 @@ let partition_if_next if_next_n =
 module UnCilLogicIntra (Arg: SIntraOpt): SIntraOpt =
 struct
   open Cil
+  (* TODO: questionable (=) and (==) use here *)
 
   let is_equiv_stmtkind sk1 sk2 = match sk1, sk2 with
     | Instr is1, Instr is2 -> GobList.equal (=) is1 is2

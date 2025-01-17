@@ -69,7 +69,7 @@ end
 (* ZeroInit is false if malloc was used to allocate memory and true if calloc was used *)
 module ZeroInit : ZeroInit =
 struct
-  include Lattice.Fake(Basetype.RawBools)
+  include Lattice.Fake (BoolDomain.Bool)
   let name () = "zeroinit"
 
   let is_malloc x = not x
@@ -133,7 +133,7 @@ struct
     | _ -> false
 
   let is_mutex_type (t: typ): bool = match t with
-    | TNamed (info, attr) -> info.tname = "pthread_mutex_t" || info.tname = "spinlock_t" || info.tname = "pthread_spinlock_t" || info.tname = "pthread_cond_t"
+    | TNamed (info, attr) -> info.tname = "pthread_mutex_t" || info.tname = "spinlock_t" || info.tname = "pthread_spinlock_t" || info.tname = "pthread_cond_t" || info.tname = "pthread_rwlock_t"
     | TInt (IInt, attr) -> hasAttribute "mutex" attr
     | _ -> false
 
@@ -1001,28 +1001,31 @@ struct
             else
               mu (Blob (join x (do_update_offset ask x offs value exp l' o' v t), s, zeroinit))
           end
-        | Blob (x,s,zeroinit), _ ->
+        | Blob (x,s,zeroinit), `NoOffset -> (* `NoOffset is only remaining possibility for Blob here *)
           begin
-            let l', o' = shift_one_over l o in
-            let x = zero_init_calloced_memory zeroinit x t in
-            (* Strong update of scalar variable is possible if the variable is unique and size of written value matches size of blob being written to. *)
-            let do_strong_update =
-              begin match v with
-                | (Var var, _) ->
-                  let blob_size_opt = ID.to_int s in
-                  not @@ ask.is_multiple var
-                  && GobOption.exists (fun blob_size -> (* Size of blob is known *)
-                      (not @@ Cil.isVoidType t     (* Size of value is known *)
-                       && Z.equal blob_size (Z.of_int @@ Cil.alignOf_int t))
-                      || blob_destructive
-                    ) blob_size_opt
-                | _ -> false
-              end
-            in
-            if do_strong_update then
-              Blob ((do_update_offset ask x offs value exp l' o' v t), s, zeroinit)
-            else
-              mu (Blob (join x (do_update_offset ask x offs value exp l' o' v t), s, zeroinit))
+            match value with
+            | Blob (x2, s2, zeroinit2) -> mu (Blob (join x x2, ID.join s s2, zeroinit))
+            | _ ->
+              let l', o' = shift_one_over l o in
+              let x = zero_init_calloced_memory zeroinit x t in
+              (* Strong update of scalar variable is possible if the variable is unique and size of written value matches size of blob being written to. *)
+              let do_strong_update =
+                begin match v with
+                  | (Var var, _) ->
+                    let blob_size_opt = ID.to_int s in
+                    not @@ ask.is_multiple var
+                    && GobOption.exists (fun blob_size -> (* Size of blob is known *)
+                        (not @@ Cil.isVoidType t     (* Size of value is known *)
+                         && Z.equal blob_size (Z.of_int @@ Cil.alignOf_int t))
+                        || blob_destructive
+                      ) blob_size_opt
+                  | _ -> false
+                end
+              in
+              if do_strong_update then
+                Blob ((do_update_offset ask x offs value exp l' o' v t), s, zeroinit)
+              else
+                mu (Blob (join x (do_update_offset ask x offs value exp l' o' v t), s, zeroinit))
           end
         | Thread _, _ ->
           (* hack for pthread_t variables *)
