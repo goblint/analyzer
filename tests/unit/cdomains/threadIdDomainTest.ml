@@ -58,7 +58,7 @@ let test_history_may_be_ancestor _ =
   assert_equal true (may_be_ancestor main (main >> a >> a));
   assert_equal true (may_be_ancestor main (main >> a >> b >> b));
   assert_equal true (may_be_ancestor (main >> a) (main >> a >> b >> b));
-  (* TODO: added elements condition always true by construction in tests? *)
+  (* No false tests because added elements condition is always true by construction in unit test harness. *)
 
   (* non-unique created by unique and is prefix: removed elements must be in set *)
   assert_equal true (may_be_ancestor (main >> a) (main >> a >> a));
@@ -81,8 +81,8 @@ let test_history_may_be_ancestor _ =
   assert_equal false (may_be_ancestor (main >> a >> b >> b) (main >> a >> c >> c)); (* from set *) (* 53-races-mhp/08-not-created6, also passes with simple may_be_ancestor *)
   assert_equal false (may_be_ancestor (main >> a >> b >> b) (main >> b >> b)); (* from prefix *) (* infeasible for race: definitely_not_started requires (main >> a or main >> a >> b), where this must happen, to be must parent for (main >> b >> b), which it is not *)
   (* non-unique creates non-unique: removed elements and set must be in new set *)
-  (* assert_equal false (may_be_ancestor (main >> a >> b >> c >> c) (main >> a >> c >> c)); *)
-  (* TODO: cannot test due because by construction after prefix check? *)
+  assert_equal false (may_be_ancestor (main >> a >> b >> c >> c) (main >> a >> c >> c)); (* already fails previous condition *)
+  (* No false tests because already fails previous by construction in unit test harness. *)
   (* non-unique creates non-unique *)
   assert_equal true (may_be_ancestor (main >> a >> a) (main >> a >> a));
   assert_equal true (may_be_ancestor (main >> a >> a) (main >> a >> a >> b));
@@ -94,7 +94,8 @@ let test_history_may_be_ancestor _ =
   assert_equal true (may_be_ancestor (main >> a >> b >> b) (main >> b >> b >> a));
   assert_equal true (may_be_ancestor (main >> a >> b >> b) (main >> b >> a >> b));
 
-  (* 4f6a7637b8d0dc723fe382f94bed6c822cd4a2ce passes all... *)
+  (* Some tests may still be missing because commit 4f6a7637b8d0dc723fe382f94bed6c822cd4a2ce passed all before two additional improvements.
+     Might be related to untestability with this unit test harness: https://github.com/goblint/analyzer/pull/1561#discussion_r1888149978. *)
   ()
 
 let tests =
