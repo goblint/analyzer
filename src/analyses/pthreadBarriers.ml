@@ -13,7 +13,7 @@ struct
 
   module MustBarriers = struct
     include Lattice.Reverse (Barriers)
-    let name () = "mustBarriers" 
+    let name () = "mustBarriers"
   end
 
   module Capacity = Queries.ID
@@ -29,7 +29,7 @@ struct
     include Printable.Prod (MHP) (Locks)
     let name () = "MHPplusLock"
 
-    let mhp (mhp1, l1) (mhp2, l2) = 
+    let mhp (mhp1, l1) (mhp2, l2) =
       MHP.may_happen_in_parallel mhp1 mhp2 && Locks.is_empty (Locks.inter l1 l2)
 
     let tid ((mhp:MHP.t), _) = mhp.tid
@@ -60,7 +60,7 @@ struct
       let barriers = possible_vinfos ask barrier in
       let mhp = MHP.current ask in
       let handle_one b =
-        try 
+        try
           let locks = man.ask (Queries.MustLockset) in
           man.sideg b (Multiprocess.bot (), Capacity.bot (), Waiters.singleton (mhp, locks));
           let addr = ValueDomain.Addr.of_var b in
@@ -69,23 +69,23 @@ struct
           if multiprocess then
             (may, must)
           else
-            let relevant_waiters = Waiters.filter (fun other -> MHPplusLock.mhp (mhp, locks) other) waiters in 
+            let relevant_waiters = Waiters.filter (fun other -> MHPplusLock.mhp (mhp, locks) other) waiters in
             if Waiters.exists MHPplusLock.may_be_non_unique_thread relevant_waiters then
-              (may, must) 
+              (may, must)
             else
               match capacity with
               | `Top | `Bot -> (may, must)
-              | `Lifted c -> 
+              | `Lifted c ->
                 let count = Waiters.cardinal relevant_waiters in
                 (* Add 1 as the thread calling wait at the moment will not be MHP with itself *)
                 let min_cap = (BatOption.default Z.zero (Capacity.I.minimal c)) in
                 if Z.leq min_cap Z.one then
                   (may, must)
                 else if Z.geq (Z.of_int (count + 1)) min_cap then
-                  (* This is quite a cute problem: Do (min_cap-1) elements exist in the set such that 
+                  (* This is quite a cute problem: Do (min_cap-1) elements exist in the set such that
                       MHP is pairwise true? This solution is a sledgehammer, there should be something much
                       better algorithmically (beyond just laziness) *)
-                  let must = 
+                  let must =
                     let waiters = Waiters.elements relevant_waiters in
                     let min_cap = Z.to_int min_cap in
                     let lists = List.init (min_cap - 1) (fun _ -> waiters) in
@@ -100,14 +100,14 @@ struct
                     in
                     if not can_proceed then raise Analyses.Deadcode;
                     (* limit to this case to avoid having to construct all permutations above *)
-                    if List.length waiters = min_cap - 1 then
-                      List.fold_left (fun acc elem -> 
+                    if BatList.compare_length_with waiters (min_cap - 1) = 0 then
+                      List.fold_left (fun acc elem ->
                           let tid = MHPplusLock.tid elem in
                           let curr = MustObserved.find tid acc in
                           let must' = MustObserved.add tid (Barriers.add addr curr) acc in
                           must'
                         ) must waiters
-                    else 
+                    else
                       must
                   in
                   (may, must)
@@ -122,7 +122,7 @@ struct
       let multitprocess = not @@ Queries.AD.is_null @@ man.ask (Queries.MayPointTo attr) in
       if multitprocess then M.warn "Barrier initialized with a non-NULL attr argument. Handled as if PTHREAD_PROCESS_SHARED potentially set.";
       let count = man.ask (Queries.EvalInt count) in
-      let publish_one b = man.sideg b (multitprocess, count, Waiters.bot ()) in 
+      let publish_one b = man.sideg b (multitprocess, count, Waiters.bot ()) in
       let barriers = possible_vinfos (Analyses.ask_of_man man) barrier in
       List.iter publish_one barriers;
       man.local
@@ -146,7 +146,7 @@ struct
     let should_print f = true
   end
 
-  let access man (a: Queries.access) = 
+  let access man (a: Queries.access) =
     let (may,must) = man.local in
     let mhp = MHP.current (Analyses.ask_of_man man) in
     (may, must, mhp.tid)
