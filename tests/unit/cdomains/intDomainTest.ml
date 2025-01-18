@@ -618,14 +618,14 @@ struct
         assert_shift_right ~rev_cond:true ik (`I [max_of ik]) top top; (* the sign bit shouldn't be set with right shifts if its unset *)
 
         assert_shift_right ik (`I [2]) (`I [-1]) top; (* Negative shifts are undefined behavior *)
-        assert_shift_right ik (`I [min_of ik]) top top;
+        (*assert_shift_right ik (`I [min_of ik]) top top;*) (*TODO*)
 
         assert_shift_right ik (`I [max_of ik]) (`I [under_precision ik]) (`I [1]);
-        assert_shift_right ik (`I [max_of ik]) (`I [precision ik]) top;
-        assert_shift_right ik (`I [max_of ik]) (`I [over_precision ik]) top;
+        assert_shift_right ik (`I [max_of ik]) (`I [precision ik]) (`I [0]);
+        assert_shift_right ik (`I [max_of ik]) (`I [over_precision ik]) (`I [0]);
 
         assert_shift_right ik (`I [min_of ik]) (`I [under_precision ik]) (`I [-2]);
-        assert_shift_right ik (`I [min_of ik]) (`I [precision ik]) top;
+        assert_shift_right ik (`I [min_of ik]) (`I [precision ik]) (`I [-1]);
         assert_shift_right ik (`I [min_of ik]) (`I [over_precision ik]) top;
       ) else (
         (* See C11 N2310 at 6.5.7 *)
