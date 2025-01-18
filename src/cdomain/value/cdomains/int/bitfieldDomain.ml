@@ -103,13 +103,16 @@ module BitfieldArith (Ints_t : IntOps.IntOps) = struct
     if isSigned ik && isPositive then Ints_t.to_bigint(signMask &: o)
     else Ints_t.to_bigint o 
 
-  let rec concretize (z,o) =
+  let rec concretize (z,o) = (* O(2^n) *)
     if is_const (z,o) then [o]
     else
       let bit = o &: Ints_t.one in
+      let bf_bit = nth_bf_bit (z,o) 0 in
       concretize (z >>. 1, o >>: 1) |>
-      if nth_bf_bit (z,o) 0 = `Undetermined then
+      if bf_bit = `Undetermined then
         List.concat_map (fun c -> [c <<: 1; (c <<: 1) |: Ints_t.one])
+      else if bf_bit = `Invalid then
+        failwith "Should not have happened: Invalid bit during concretization of a bitfield."
       else
         List.map (fun c -> c <<: 1 |: bit)
 
@@ -374,16 +377,12 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): SOverflow with type int_t = Int
 
   let is_invalid_shift_operation ik a b = BArith.is_invalid b || BArith.is_invalid a
 
+  let has_neg_values ik b = if (BArith.min ik b) < Z.zero then true else false
+
   let is_undefined_shift_operation ik a b =
     let minVal = BArith.min ik b in 
-    let some_negatives = minVal < Z.zero in
     let b_is_geq_precision = (if Z.fits_int minVal then Z.to_int @@ minVal >= precision ik else true) in
-    (isSigned ik) && (some_negatives || b_is_geq_precision) && not (a = BArith.zero)
-
-  let has_no_neg_values ik b = 
-    if (BArith.min ik b) < Z.zero 
-    then false 
-    else true
+    (isSigned ik) && ((has_neg_values ik b) || b_is_geq_precision) && not (a = BArith.zero)
 
   let shift_right ik a b = 
     if M.tracing then M.trace "bitfield" "%a >> %a" pretty a pretty b; 
@@ -392,9 +391,9 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): SOverflow with type int_t = Int
       (bot (), {underflow=false; overflow=false})
     else if is_undefined_shift_operation ik a b
     then
-      (top_of ik, {underflow=(has_no_neg_values ik b); overflow=(has_no_neg_values ik b)})
+      (top_of ik, {underflow=(not @@ has_neg_values ik b); overflow=(not @@ has_neg_values ik b)})
     else
-      let defined_shifts = cap_bitshifts_to_precision ik b in
+      let defined_shifts = cap_bitshifts_to_precision ik b in (* O(2^(log n)) *)
       norm ik @@ BArith.shift_right ik a defined_shifts
 
   let shift_left ik a b =
@@ -404,9 +403,9 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): SOverflow with type int_t = Int
       (bot (), {underflow=false; overflow=false})
     else if is_undefined_shift_operation ik a b
     then
-      (top_of ik, {underflow= (has_no_neg_values ik b); overflow=(has_no_neg_values ik b)})
+      (top_of ik, {underflow= (not @@ has_neg_values ik b); overflow=(not @@ has_neg_values ik b)})
     else
-      let defined_shifts = cap_bitshifts_to_precision ik b in
+      let defined_shifts = cap_bitshifts_to_precision ik b in (* O(2^(log n)) *)
       norm ik @@ BArith.shift_left ik a defined_shifts
 
   (* Arith *)
