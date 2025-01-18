@@ -1,7 +1,7 @@
 open IntDomain0
 open GoblintCil
 
-module BitfieldInfixOps (Ints_t : IntOps.IntOps) = struct
+module InfixIntOps (Ints_t : IntOps.IntOps) = struct
   let (&:) = Ints_t.logand
   let (|:) = Ints_t.logor
   let (^:) = Ints_t.logxor
@@ -38,7 +38,7 @@ end
 (* Bitfield arithmetic, without any overflow handling etc. *)
 module BitfieldArith (Ints_t : IntOps.IntOps) = struct
 
-  include BitfieldInfixOps (Ints_t)
+  include InfixIntOps (Ints_t)
 
   let zero_mask = Ints_t.zero
   let one_mask = !:zero_mask
@@ -53,8 +53,6 @@ module BitfieldArith (Ints_t : IntOps.IntOps) = struct
   let top_bool = join one zero
 
   let bits_known (z,o) = z ^: o
-  let bits_unknown (z,o) = z &: o
-  let bits_set bf = (snd bf) &: (bits_known bf)
   let bits_invalid (z,o) = !:(z |: o)
 
   let is_const (z,o) = (z ^: o) =: one_mask
@@ -75,14 +73,21 @@ module BitfieldArith (Ints_t : IntOps.IntOps) = struct
 
   let logor (z1,o1)  (z2,o2) = (z1 &: z2, o1 |: o2)
 
-  let bitmask_up_to pos =
-    let top_bit = Ints_t.one <<: pos in
-    if top_bit =: Ints_t.zero
+  let bitmask_up_to n =
+    let top_bit = Ints_t.one <<: n in
+    if top_bit = Ints_t.zero
     then Ints_t.zero
     else
       Ints_t.sub top_bit Ints_t.one
 
-  let get_bit bf pos = Ints_t.one &: (bf >>: pos)
+  let nth_bit p n = Ints_t.one &: (p >>: n) =: Ints_t.one
+
+  let nth_bf_bit (z,o) n =
+    match nth_bit z n, nth_bit o n with
+    | true, true -> `Undetermined
+    | false, false -> `Invalid
+    | true, false -> `Zero
+    | false, true -> `One
 
   let min ik (z,o) = 
     let signBit = Ints_t.one <<: ((Size.bit ik) - 1) in 
@@ -98,14 +103,16 @@ module BitfieldArith (Ints_t : IntOps.IntOps) = struct
     if isSigned ik && isPositive then Ints_t.to_bigint(signMask &: o)
     else Ints_t.to_bigint o 
 
-  let rec concretize (z,o) =
+  let rec concretize (z,o) = (* O(2^n) *)
     if is_const (z,o) then [o]
     else
-      let is_bit_unknown = not ((bits_unknown (z,o) &: Ints_t.one) =: Ints_t.zero) in
       let bit = o &: Ints_t.one in
+      let bf_bit = nth_bf_bit (z,o) 0 in
       concretize (z >>. 1, o >>: 1) |>
-      if is_bit_unknown then
+      if bf_bit = `Undetermined then
         List.concat_map (fun c -> [c <<: 1; (c <<: 1) |: Ints_t.one])
+      else if bf_bit = `Invalid then
+        failwith "Should not have happened: Invalid bit during concretization of a bitfield."
       else
         List.map (fun c -> c <<: 1 |: bit)
 
@@ -120,34 +127,38 @@ module BitfieldArith (Ints_t : IntOps.IntOps) = struct
     else
       ((z >>: c) |: sign_mask, o >>: c)
 
-  let shift_right ik (z1, o1) (z2, o2) = 
+  let shift_right ik bf (z2, o2) = 
     if is_const (z2, o2) 
     then 
-      shift_right ik (z1, o1) (Ints_t.to_int o2)
+      shift_right ik bf (Ints_t.to_int o2)
     else
       let shift_counts = concretize (z2, o2) in
       List.fold_left (fun acc c ->
-          let next = shift_right ik (z1, o1) c in join acc next
+          let next = shift_right ik bf c in
+          join acc next
         ) (zero_mask, zero_mask) shift_counts
 
   let shift_left _ (z,o) c =
     let zero_mask = bitmask_up_to c in
     ((z <<: c) |: zero_mask, o <<: c)
 
-  let shift_left ik (z1, o1) (z2, o2) = 
+  let shift_left ik bf (z2, o2) = 
     if is_const (z2, o2) 
     then 
-      shift_left ik (z1, o1) (Ints_t.to_int o2)
+      shift_left ik bf (Ints_t.to_int o2)
     else
       let shift_counts = concretize (z2, o2) in
       List.fold_left (fun acc c ->
-          let next = shift_left ik (z1, o1) c in join acc next
+          let next = shift_left ik bf c in
+          join acc next
         ) (zero_mask, zero_mask) shift_counts
+
+  let nth_bit p n = if nth_bit p n then Ints_t.one else Ints_t.zero
 end
 
 module BitfieldFunctor (Ints_t : IntOps.IntOps): SOverflow with type int_t = Ints_t.t and type t = (Ints_t.t * Ints_t.t) = struct
 
-  include BitfieldInfixOps (Ints_t)
+  include InfixIntOps (Ints_t)
 
   let name () = "bitfield"
   type int_t = Ints_t.t
@@ -214,8 +225,8 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): SOverflow with type int_t = Int
   let wrap ik (z,o) = 
     let (min_ik, max_ik) = Size.range ik in
     if isSigned ik then
-      let newz = (z &: (Ints_t.of_bigint max_ik)) |: ((Ints_t.of_bigint min_ik) *: (BArith.get_bit z (Size.bit ik - 1))) in
-      let newo = (o &: (Ints_t.of_bigint max_ik)) |: ((Ints_t.of_bigint min_ik) *: (BArith.get_bit o (Size.bit ik - 1))) in
+      let newz = (z &: (Ints_t.of_bigint max_ik)) |: ((Ints_t.of_bigint min_ik) *: (BArith.nth_bit z (Size.bit ik - 1))) in
+      let newo = (o &: (Ints_t.of_bigint max_ik)) |: ((Ints_t.of_bigint min_ik) *: (BArith.nth_bit o (Size.bit ik - 1))) in
       (newz,newo)
     else
       let newz = z |: !:(Ints_t.of_bigint max_ik) in
@@ -240,8 +251,8 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): SOverflow with type int_t = Int
         (new_bitfield, overflow_info)
       else if should_ignore_overflow ik then 
         (* (M.warn ~category:M.Category.Integer.overflow "Bitfield: Value was outside of range, indicating overflow, but 'sem.int.signed_overflow' is 'assume_none' -> Returned Top"; *)
-         (* (bot (), overflow_info)) *)
-         (top_of ik, overflow_info)
+        (* (bot (), overflow_info)) *)
+        (top_of ik, overflow_info)
       else 
         (top_of ik, overflow_info)
 
@@ -364,38 +375,54 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): SOverflow with type int_t = Int
     let mask = BArith.bitmask_up_to (Int.succ @@ Z.log2up @@ Z.of_int @@ precision ik) in
     (z |: !:mask, o &: mask)
 
-  let is_invalid_shift_operation ik a b = BArith.is_invalid b
-                                          || BArith.is_invalid a
+  let is_invalid_shift_operation ik a b = BArith.is_invalid b || BArith.is_invalid a
 
-  let is_undefined_shift_operation ik a b =
-    let minVal = BArith.min ik b in 
-    let some_negatives = minVal < Z.zero in
-    let b_is_geq_precision = (if Z.fits_int minVal then Z.to_int @@ minVal >= precision ik else true) in
-    (isSigned ik) && (some_negatives || b_is_geq_precision) && not (a = BArith.zero)
+  let has_neg_values ik b = (BArith.min ik b) < Z.zero
+  let has_only_neg_values ik b = (BArith.max ik b) < Z.zero
+
+  let check_if_undefined_shift_operation ?(is_shift_left=false) ik a b =
+    let ov_info = if is_shift_left
+      then {underflow=false; overflow=true}
+      else {underflow=true; overflow=false}
+    in
+    let no_ov = {underflow=false; overflow=false} in
+    let min_val = BArith.min ik b in
+    if isSigned ik && has_only_neg_values ik b then true, no_ov else
+      let exceeds_bit_width =
+        if Z.fits_int min_val then Z.to_int min_val >= Sys.word_size else true
+      in
+      if exceeds_bit_width
+      then true, ov_info else
+        let causes_signed_overflow = isSigned ik && ((is_shift_left && Z.to_int min_val >= precision ik) || (not is_shift_left && has_neg_values ik a && Z.to_int min_val > precision ik))
+        in
+        if causes_signed_overflow
+        then true, ov_info else false, no_ov
 
   let shift_right ik a b = 
     if M.tracing then M.trace "bitfield" "%a >> %a" pretty a pretty b; 
     if is_invalid_shift_operation ik a b
     then
       (bot (), {underflow=false; overflow=false})
-    else if is_undefined_shift_operation ik a b
-    then
-      (top_of ik, {underflow=false; overflow=false})
     else
-      let defined_shifts = cap_bitshifts_to_precision ik b in
-      norm ik @@ BArith.shift_right ik a defined_shifts
+      let is_undefined_shift_operation, ov_info = check_if_undefined_shift_operation ik a b
+      in
+      if is_undefined_shift_operation then (top_of ik, ov_info)
+      else
+        let defined_shifts = cap_bitshifts_to_precision ik b in (* O(2^(log n)) *)
+        norm ik @@ BArith.shift_right ik a defined_shifts
 
   let shift_left ik a b =
     if M.tracing then M.trace "bitfield" "%a << %a" pretty a pretty b;
     if is_invalid_shift_operation ik a b
     then
       (bot (), {underflow=false; overflow=false})
-    else if is_undefined_shift_operation ik a b
-    then
-      (top_of ik, {underflow=false; overflow=false})
     else
-      let defined_shifts = cap_bitshifts_to_precision ik b in
-      norm ik @@ BArith.shift_left ik a defined_shifts
+      let is_undefined_shift_operation, ov_info = check_if_undefined_shift_operation ~is_shift_left:true ik a b
+      in
+      if is_undefined_shift_operation then (top_of ik, ov_info)
+      else
+        let defined_shifts = cap_bitshifts_to_precision ik b in (* O(2^(log n)) *)
+        norm ik @@ BArith.shift_left ik a defined_shifts
 
   (* Arith *)
 
@@ -481,22 +508,23 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): SOverflow with type int_t = Int
 
   let div ?no_ov ik (z1, o1) (z2, o2) =
     if o2 = Ints_t.zero then (top_of ik, {underflow=false; overflow=false}) else
-    let res = 
-      if BArith.is_const (z1, o1) && BArith.is_const (z2, o2) then (let tmp = o1 /: o2 in (!:tmp, tmp)) 
-      else if BArith.is_const (z2, o2) && is_power_of_two o2 then (z1 >>: (Ints_t.to_int o2), o1 >>: (Ints_t.to_int o2))
-      else top_of ik in
-    norm ik res
+      let res = 
+        if BArith.is_const (z1, o1) && BArith.is_const (z2, o2) then (let tmp = o1 /: o2 in (!:tmp, tmp)) 
+        else if BArith.is_const (z2, o2) && is_power_of_two o2 then 
+          let exp = Z.trailing_zeros (Ints_t.to_bigint o2) in 
+          (z1 >>: exp, o1 >>: exp)
+        else top_of ik in
+      norm ik res
 
-  let rem ik x y = 
-    if BArith.is_const x && BArith.is_const y then (
-      let def_x = Option.get (to_int x) in
-      let def_y = Option.get (to_int y) in
-      fst (of_int ik (Ints_t.rem def_x def_y))
+  let rem ik (z1, o1) (z2, o2) = 
+    if o2 = Ints_t.zero then top_of ik else
+    if BArith.is_const (z1, o1) && BArith.is_const (z2, o2) then (
+      let tmp = o1 %: o2 in (!:tmp, tmp)      
     )
-    else if BArith.is_const y && is_power_of_two (snd y) then (
-      let mask = Ints_t.sub (snd y) Ints_t.one in
-      let newz = Ints_t.logor (fst x) (Ints_t.lognot mask) in
-      let newo = Ints_t.logand (snd x) mask in
+    else if BArith.is_const (z2, o2) && is_power_of_two o2 then (
+      let mask = Ints_t.sub o2 Ints_t.one in
+      let newz = Ints_t.logor z1 (Ints_t.lognot mask) in
+      let newo = Ints_t.logand o1 mask in
       norm ik (newz, newo) |> fst
     )
     else top_of ik
@@ -532,7 +560,7 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): SOverflow with type int_t = Int
 
   let starting ?(suppress_ovwarn=false) ik n = 
     let (min_ik, max_ik) = Size.range ik in
-    of_interval ~suppress_ovwarn ik (n, Ints_t.of_bigint max_ik)
+    of_interval ~suppress_ovwarn ik (n, Ints_t.of_bigint max_ik) 
 
   let ending ?(suppress_ovwarn=false) ik n =
     let (min_ik, max_ik) = Size.range ik in

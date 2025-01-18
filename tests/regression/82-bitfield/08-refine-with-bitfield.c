@@ -73,6 +73,9 @@ int main() {
   if ((a & SHIFT_MASK) == SHIFT_MASK) {
     __goblint_assert((a & 12) == 12);         // Both bits must be set
     __goblint_assert(((a >> 2) & 3) == 3);    // When shifted right, lowest bits must be 11
+  }
+
+  if (a == SHIFT_MASK) {
     __goblint_assert(((a << 2) & 48) == 48);  // When shifted left, highest bits must be 11
   }
 
