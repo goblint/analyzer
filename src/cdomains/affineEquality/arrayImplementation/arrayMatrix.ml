@@ -9,6 +9,8 @@ module Array = Batteries.Array
 (** Array-based matrix implementation.
     It provides a normalization function to reduce a matrix into reduced row echelon form.
     Operations exploit that the input matrix/matrices are in reduced row echelon form already. *)
+(* The functions that have the suffix _with have side effects and were used in a previous version of the affineEqualityDomain.
+    These calls were removed to transition to list-based matrices.*)
 module ArrayMatrix: AbstractMatrix =
   functor (A: RatOps) (V: AbstractVector) ->
   struct
