@@ -45,7 +45,7 @@ sig
   val keep_vals: t -> int ->  t
 
   (* Returns the part of the vector starting from index n*)
-  val starting_from_nth : int -> t -> t
+  val starting_from_nth : t -> int -> t
 
   val findi: (num -> bool) ->  t -> int
 

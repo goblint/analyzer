@@ -187,7 +187,7 @@ module ListMatrix: AbstractMatrix =
     let normalize m =
       let col_count = num_cols m in
       let cut_front_matrix m  row_idx col_idx = 
-        List.filteri_map (fun i row -> if i < row_idx then None else Some (V.starting_from_nth col_idx row)) m
+        List.filteri_map (fun i row -> if i < row_idx then None else Some (V.starting_from_nth row col_idx)) m
       in
       let cut_front_matrix m row_idx col_idx = Timing.wrap "cut_front_matrix" (cut_front_matrix m row_idx) col_idx in
       (* Function for finding first pivot in an extracted part of the matrix (row_idx and col_idx indicate which part of the original matrix) *)
