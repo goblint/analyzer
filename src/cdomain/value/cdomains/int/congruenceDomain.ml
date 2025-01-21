@@ -24,7 +24,7 @@ struct
   let ( |: ) a b =
     if a =: Z.zero then false else (b %: a) =: Z.zero
 
-  let normalize ik x =
+  let normalize ?(debug="") ik x =
     match x with
     | None -> None
     | Some (c, m) ->
@@ -49,11 +49,11 @@ struct
   let bot_of ik = bot ()
 
   let show = function ik -> match ik with
-    | None -> "⟂"
+    | None -> "bot"
     | Some (c, m) when (c, m) = (Z.zero, Z.zero) -> Z.to_string c
     | Some (c, m) ->
       let a = if c =: Z.zero then "" else Z.to_string c in
-      let b = if m =: Z.zero then "" else if m = Z.one then "ℤ" else Z.to_string m^"ℤ" in
+      let b = if m =: Z.zero then "" else if m = Z.one then "Z" else Z.to_string m^"Z" in
       let c = if a = "" || b = "" then "" else "+" in
       a^c^b
 
@@ -86,7 +86,7 @@ struct
     | None, z | z, None -> z
     | Some (c1,m1), Some (c2,m2) ->
       let m3 = Z.gcd m1 (Z.gcd m2 (c1 -: c2)) in
-      normalize ik (Some (c1, m3))
+      normalize ~debug:"join" ik (Some (c1, m3))
 
   let join ik (x:t) y =
     let res = join ik x y in
@@ -112,7 +112,7 @@ struct
     | Some (c1, m1), Some (c2, m2) when m2 =: Z.zero -> simple_case c2 c1 m1
     | Some (c1, m1), Some (c2, m2) when (Z.gcd m1 m2) |: (c1 -: c2) ->
       let (c, m) = congruence_series m1 (c2 -: c1 ) m2 in
-      normalize ik (Some(c1 +: (m1 *: (m /: c)), m1 *: (m2 /: c)))
+      normalize ~debug:"meet" ik (Some(c1 +: (m1 *: (m /: c)), m1 *: (m2 /: c)))
     | _  -> None
 
   let meet ik x y =
@@ -121,7 +121,7 @@ struct
     res
 
   let to_int = function Some (c, m) when m =: Z.zero -> Some c | _ -> None
-  let of_int ik (x: int_t) = normalize ik @@ Some (x, Z.zero)
+  let of_int ik (x: int_t) = normalize ~debug:"of_int" ik @@ Some (x, Z.zero)
   let zero = Some (Z.zero, Z.zero)
   let one  = Some (Z.one, Z.zero)
   let top_bool = top()
@@ -137,10 +137,11 @@ struct
 
   let ending = starting
 
-  let of_congruence ik (c,m) = normalize ik @@ Some(c,m)
+  let of_congruence ik (c,m) = normalize ~debug:"of congruence" ik @@ Some(c,m)
 
   let to_bitfield ik x = 
     let is_power_of_two x = (Z.logand x (x -: Z.one) = Z.zero) in
+    let x = normalize ik x in 
     match x with None -> (Z.zero, Z.zero) | Some (c,m) ->
       if m = Z.zero then (Z.lognot c, c)
       else if is_power_of_two m then 
@@ -245,14 +246,14 @@ struct
     | Some (c, m), Some (c', m') ->
       let (_, max_ik) = range ik in
       if m =: Z.zero && m' =: Z.zero then
-        normalize ik @@ Some (Z.logand max_ik (Z.shift_left c (Z.to_int c')), Z.zero)
+        normalize ~debug:"shift left" ik @@ Some (Z.logand max_ik (Z.shift_left c (Z.to_int c')), Z.zero)
       else
         let x = Z.logand max_ik (Z.shift_left Z.one (Z.to_int c')) in (* 2^c' *)
         (* TODO: commented out because fails test with _Bool *)
         (* if is_prime (m' +: Z.one) then
              normalize ik @@ Some (x *: c, Z.gcd (x *: m) ((c *: x) *: (m' +: Z.one)))
            else *)
-        normalize ik @@ Some (x *: c, Z.gcd (x *: m) (c *: x))
+        normalize ~debug:"shift left" ik @@ Some (x *: c, Z.gcd (x *: m) (c *: x))
 
   let shift_left ik x y =
     let res = shift_left ik x y in
@@ -264,7 +265,7 @@ struct
      The congruence modulo b may not persist on an overflow. *)
   let handle_overflow ik (c, m) =
     if m =: Z.zero then
-      normalize ik (Some (c, m))
+      normalize ~debug:"handle overflow" ik (Some (c, m))
     else
       (* Find largest m'=2^k (for some k) such that m is divisible by m' *)
       let tz = Z.trailing_zeros m in
@@ -276,7 +277,7 @@ struct
         let c' = c %: max in
         Some (c', Z.zero)
       else
-        normalize ik (Some (c, m'))
+        normalize ~debug:"handle overflow" ik (Some (c, m'))
 
   let mul ?(no_ov=false) ik x y =
     let no_ov_case (c1, m1) (c2, m2) =
@@ -314,7 +315,7 @@ struct
     | None, _ | _, None ->
       raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y)))
     | Some a, Some b when no_ov ->
-      normalize ik (Some (no_ov_case a b))
+      normalize ~debug:"add" ik (Some (no_ov_case a b))
     | Some (c1, m1), Some (c2, m2) when m1 =: Z.zero && m2 =: Z.zero && not (Cil.isSigned ik) ->
       let (_, max_ik) = range ik in
       Some((c1 +: c2) %: (max_ik +: Z.one), Z.zero)
@@ -354,7 +355,7 @@ struct
       see: http://www.es.mdh.se/pdf_publications/948.pdf *)
   let bit2 f ik x y = match x, y with
     | None, None -> None
-    | None, _ | _, None -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y)))
+    | None, _ | _, None -> raise (ArithmeticOnIntegerBot ((show x) ^ " op " ^ (show y)))
     | Some (c, m), Some (c', m') ->
       if m =: Z.zero && m' =: Z.zero then Some (f c c', Z.zero)
       else top ()
@@ -386,9 +387,9 @@ struct
         if (c2 |: m1) && (c1 %: c2 =: Z.zero || m1 =: Z.zero || not (Cil.isSigned ik)) then
           Some (c1 %: c2, Z.zero)
         else
-          normalize ik (Some (c1, (Z.gcd m1 c2)))
+          normalize ~debug:"rem" ik (Some (c1, (Z.gcd m1 c2)))
       else
-        normalize ik (Some (c1, Z.gcd m1 (Z.gcd c2 m2)))
+        normalize ~debug:"rem" ik (Some (c1, Z.gcd m1 (Z.gcd c2 m2)))
 
   let rem ik x y = let res = rem ik x y in
     if M.tracing then  M.trace "congruence" "rem : %a %a -> %a " pretty x pretty y pretty res;
@@ -473,7 +474,7 @@ struct
     let open QCheck in
     let int_arb = map ~rev:Z.to_int64 Z.of_int64 GobQCheck.Arbitrary.int64 in
     let cong_arb = pair int_arb int_arb in
-    let of_pair ik p = normalize ik (Some p) in
+    let of_pair ik p = normalize ~debug:"arbitrary" ik (Some p) in
     let to_pair = Option.get in
     set_print show (map ~rev:to_pair (of_pair ik) cong_arb)
 
@@ -501,6 +502,7 @@ struct
 
   let refine_with_congruence ik a b = meet ik a b
   let refine_with_bitfield ik a (z,o) = 
+    let a = normalize ik a in 
     if Z.lognot z = o then meet ik a (Some (o, Z.zero))
     else a
   let refine_with_excl_list ik a b = a
