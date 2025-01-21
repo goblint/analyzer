@@ -170,12 +170,12 @@ module SparseVector: AbstractVector =
         | (idx, value) :: xs, (y :: ys) -> remove_indices_helper xs cur_idx deleted_count ((idx - deleted_count, value) :: acc)
       in
       {entries = remove_indices_helper v.entries indices 0 []; len = v.len - List.length indices}
-    
+
     (** [keep_vals v n] returns returns a vector only containing the first [n] elements of [v] *)
     let keep_vals v n = 
       if n >= v.len then v else
         {entries = List.take_while (fun (idx, _) -> idx < n) v.entries; len=n}
-      
+
     (** [starting_from_nth v n] returns a vector only containing the elements after the [n]th *)
     let starting_from_nth v n =
       let entries' = List.filter_map (fun (idx, value) -> if idx < n then None else Some (idx - n, value)) v.entries in
@@ -183,13 +183,13 @@ module SparseVector: AbstractVector =
 
     let findi f v = 
       (* How this works:
-        Case 1:
-        A.zero is also to be found. The List.findi is used to have an iteration index i.
-        If at one point i < idx, it means that a Zero element was skipped because of the sparse vector representation. In that case i is the index of the first Zero, so returning true indicates that it is found. 
-        f value still has to be checked in case other elements than Zero are to be found.
-        List.findi returns the index at which is was found in the tuple's first element. 
-        Case 2:
-        A.zero is not to be found. We just iterate over the sparse list then and the index is returned if an element is found.
+         Case 1:
+         A.zero is also to be found. The List.findi is used to have an iteration index i.
+         If at one point i < idx, it means that a Zero element was skipped because of the sparse vector representation. In that case i is the index of the first Zero, so returning true indicates that it is found. 
+         f value still has to be checked in case other elements than Zero are to be found.
+         List.findi returns the index at which is was found in the tuple's first element. 
+         Case 2:
+         A.zero is not to be found. We just iterate over the sparse list then and the index is returned if an element is found.
       *)
       if f A.zero then  
         fst @@ List.findi (fun i (idx, value) -> if i < idx then true else f value) v.entries (* Here fst is the iteration variable i, not the tuple idx *)
