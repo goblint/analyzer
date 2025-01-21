@@ -127,7 +127,7 @@ module ArrayVector: AbstractVector =
     let findi_val_opt f v =
       failwith "Never implemented!"
 
-    let starting_from_nth n v =
+    let starting_from_nth v n =
       failwith "Never implemented!"
 
     let find_first_non_zero v =
