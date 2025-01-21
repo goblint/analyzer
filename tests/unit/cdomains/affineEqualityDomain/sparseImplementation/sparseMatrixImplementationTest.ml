@@ -30,9 +30,7 @@ let make_matrix_of_2d_list l =
 (** This function runs the equality assertion with the solution after normalizing the matrix. *)
 let normalize_and_assert (matrix : Matrix.t) (solution : Matrix.t) =
   let get_dimensions m = (Matrix.num_rows m, Matrix.num_cols m) in
-  let do_dimensions_match dim1 dim2 =
-    match (dim1, dim2) with (r1, c1), (r2, c2) -> r1 == r2 && c1 == c2
-  in
+  let do_dimensions_match (r1, c1), (r2, c2) = r1 = r2 && c1 = c2 in
   let matrix_dim = get_dimensions matrix in
   let solution_dim = get_dimensions solution in
   if not (do_dimensions_match solution_dim matrix_dim) then
