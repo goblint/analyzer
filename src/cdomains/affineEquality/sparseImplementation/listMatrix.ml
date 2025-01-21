@@ -67,8 +67,8 @@ module ListMatrix: AbstractMatrix =
     let map2i f m v = Timing.wrap "Matrix.map2i" (map2i f m) v
 
     (**
-       [add_empty_columns m cols] extends the matrix [m] as specified in [c].
-       @param c An apron dimchange array as defined here: https://antoinemine.github.io/Apron/doc/api/ocaml/Dim.html .
+       [add_empty_columns m cols] extends the matrix [m] as specified in [cols].
+       @param cols An apron dimchange array as defined here: https://antoinemine.github.io/Apron/doc/api/ocaml/Dim.html .
     *)
     let add_empty_columns m cols  =    
       let cols = Array.to_list cols in (* cols should adhere to apron specification as described here: https://antoinemine.github.io/Apron/doc/api/ocaml/Dim.html*)
