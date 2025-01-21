@@ -55,10 +55,13 @@ struct
   include ConvenienceOps(Mpqf)
 
   (** Get the constant from the vector if it is a constant *)
-  let to_constant_opt v = match Vector.findi ((<>:) Mpqf.zero) v with
-    | exception Not_found -> Some Mpqf.zero
-    | i when Vector.compare_length_with v (i + 1) = 0 -> Some (Vector.nth v i)
+
+  let to_constant_opt v = match Vector.find_first_non_zero v with
+    | None -> Some Mpqf.zero
+    | Some (i, value) when i = (Vector.length v) - 1 -> Some value
     | _ -> None
+
+  let to_constant_opt v = Timing.wrap "to_constant_opt" (to_constant_opt) v
 
   let get_coeff_vec (t: t) texp =
     (*Parses a Texpr to obtain a coefficient + const (last entry) vector to repr. an affine relation.
