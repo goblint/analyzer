@@ -50,13 +50,15 @@ module SparseVector: AbstractVector =
       v.entries
 
     let show v = 
-      let t = to_list v in 
-      let rec list_str l =
-        match l with
-        | [] -> "]"
-        | x :: xs -> (A.to_string x) ^ " " ^ (list_str xs)
+      let rec sparse_list_str i l =
+        if i >= v.len then "]"
+        else match l with
+          | [] -> (A.to_string A.zero) ^" "^ (sparse_list_str (i + 1) l)
+          | (idx, value) :: xs -> 
+            if i = idx then (A.to_string value) ^" "^ sparse_list_str (i + 1) xs
+            else (A.to_string A.zero) ^" "^ sparse_list_str (i + 1) l
       in
-      "["^list_str t^"\n"
+      "["^(sparse_list_str 0 v.entries)^"\n"
 
     let show v = Timing.wrap "V.show" (show) v
 
