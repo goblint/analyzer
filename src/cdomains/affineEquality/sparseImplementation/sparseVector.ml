@@ -73,8 +73,8 @@ module SparseVector: AbstractVector =
     let is_zero_vec v = (v.entries = [])
 
     (**
-       [is_const_vec v] returns true if the v represents an affine equality over only one variable, i.e. a constant.
-       Constant vectors are represented by a two element list, however this is not an iff relationship.*)
+       [is_const_vec v] returns true if the v can be interpreted as an expression with one variable and possibly a constant, i.e. x_i  + c
+       *)
     let is_const_vec v = 
       match v.entries with 
       | [] -> false
@@ -134,8 +134,7 @@ module SparseVector: AbstractVector =
         match vec, cur_idx with
         | [], _ -> List.rev acc (* inserting at the end only means changing the dimension *)
         | (idx, value) :: xs, [] -> add_indices_helper xs [] added_count ((idx + added_count, value) :: acc)
-        | (idx, value) :: xs, ((i, count) :: ys) when i = idx -> add_indices_helper vec ys (added_count + count) acc
-        | (idx, value) :: xs, ((i, count) :: ys) when i < idx -> add_indices_helper vec ys (added_count + count) acc
+        | (idx, _) :: _, ((i, count) :: ys) when i <= idx -> add_indices_helper vec ys (added_count + count) acc
         | (idx, value) :: xs, ((i, count) :: ys) -> add_indices_helper xs cur_idx added_count ((idx + added_count, value) :: acc)
       in
       {entries = add_indices_helper v.entries indices 0 []; len = v.len + num_zeros}
@@ -167,8 +166,8 @@ module SparseVector: AbstractVector =
         | [], (y :: ys) when deleted_count >= v.len || y >= v.len -> raise (Invalid_argument "Indices out of bounds")
         | [], (y :: ys) -> remove_indices_helper [] ys (deleted_count + 1) acc
         | (idx, value) :: xs, [] -> remove_indices_helper xs [] deleted_count ((idx - deleted_count, value) :: acc)
-        | (idx, value) :: xs, (y :: ys) when y = idx -> remove_indices_helper xs ys (deleted_count + 1) acc
-        | (idx, value) :: xs, (y :: ys) when y < idx -> remove_indices_helper vec ys (deleted_count + 1) acc
+        | (idx, _) :: xs, (y :: ys) when y = idx -> remove_indices_helper xs ys (deleted_count + 1) acc
+        | (idx, _) :: xs, (y :: ys) when y < idx -> remove_indices_helper vec ys (deleted_count + 1) acc
         | (idx, value) :: xs, (y :: ys) -> remove_indices_helper xs cur_idx deleted_count ((idx - deleted_count, value) :: acc)
       in
       {entries = remove_indices_helper v.entries indices 0 []; len = v.len - List.length indices}
