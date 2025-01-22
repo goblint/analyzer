@@ -253,10 +253,7 @@ struct
 
   let to_bitfield ik x = 
     let joinbf (z1,o1) (z2,o2) = (Ints_t.logor z1 z2, Ints_t.logor o1 o2) in 
-    let rec from_list is acc = match is with
-        [] -> acc |
-        j::js -> from_list js (joinbf acc (Interval.to_bitfield ik (Some j)))
-    in from_list x (Ints_t.zero, Ints_t.zero)
+    List.fold_left (fun acc i -> joinbf acc (Interval.to_bitfield ik (Some i))) (Ints_t.zero, Ints_t.zero) x
 
   let of_int ik (x: int_t) = of_interval ik (x, x)
 

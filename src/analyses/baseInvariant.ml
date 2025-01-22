@@ -408,14 +408,20 @@ struct
           let az = Z.logand az (Z.lognot (Z.logand bDef0 cDef1)) in 
           let bz = Z.logand bz (Z.lognot (Z.logand aDef0 cDef1)) in
           ID.meet a' (ID.of_bitfield ikind (az, ao)), ID.meet b' (ID.of_bitfield ikind (bz, bo))
-        else a, b
+        else 
+          (if M.tracing then M.tracel "inv" "Unhandled operator %a" d_binop op;
+          (* Be careful: inv_exp performs a meet on both arguments of the BOr / BXor. *)
+          a, b)
       | BXor ->
         (* Be careful: inv_exp performs a meet on both arguments of the BOr / BXor. *)
         if PrecisionUtil.get_bitfield () then
           let a' = ID.meet a (ID.logxor c b) in 
           let b' = ID.meet b (ID.logxor a c) in
           a', b'
-        else a,b
+        else 
+          (if M.tracing then M.tracel "inv" "Unhandled operator %a" d_binop op;
+          (* Be careful: inv_exp performs a meet on both arguments of the BOr / BXor. *)
+          a, b)
       | LAnd ->
         if ID.to_bool c = Some true then
           meet_bin c c
