@@ -21,7 +21,7 @@ module SparseVector: AbstractVector =
     let copy v = v 
 
     let of_list l = 
-      let entries' = List.rev @@ List.fold_lefti (fun acc i x -> if x <> A.zero then (i, x) :: acc else acc) [] l
+      let entries' = List.filteri_map (fun i x -> if x <> A.zero then Some (i, x) else None) l
       in {entries = entries'; len = List.length l}
 
     let of_array a =

@@ -4,6 +4,8 @@ open RatOps
 open ConvenienceOps
 
 open BatList
+open BatOption
+
 module List = BatList
 
 (** Matrix implementation that uses a list of (ideally sparse) vectors representing its rows.
@@ -302,11 +304,7 @@ module ListMatrix: AbstractMatrix =
     *)
     let rref_vec m v =
       if is_empty m then (* In this case, v is normalized and returned *)
-        match V.find_first_non_zero v with 
-        | None -> None
-        | Some (_, value) -> 
-          let normalized_v = div_row v value in
-          Some (init_with_vec normalized_v)
+        BatOption.map (fun (_, value) -> init_with_vec @@ div_row v value) (V.find_first_non_zero v)
       else (* We try to normalize v and check if a contradiction arises. If not, we insert v at the appropriate place in m (depending on the pivot) *)
         let pivot_positions = get_pivot_positions m in
         let v_after_elim = List.fold_left (
