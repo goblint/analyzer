@@ -412,9 +412,9 @@ struct
       | BXor ->
         (* Be careful: inv_exp performs a meet on both arguments of the BOr / BXor. *)
         if PrecisionUtil.get_bitfield () then
-          let a' = ID.meet a (ID.logxor c b)
-          in let b' = ID.meet b (ID.logxor a c)          
-          in a', b'
+          let a' = ID.meet a (ID.logxor c b) in 
+          let b' = ID.meet b (ID.logxor a c) in
+          a', b'
         else a,b
       | LAnd ->
         if ID.to_bool c = Some true then

@@ -142,7 +142,9 @@ struct
   let to_bitfield ik x = 
     let is_power_of_two x = (Z.logand x (x -: Z.one) = Z.zero) in
     let x = normalize ik x in 
-    match x with None -> (Z.zero, Z.zero) | Some (c,m) ->
+    match x with 
+    | None -> (Z.zero, Z.zero) 
+    | Some (c,m) ->
       if m = Z.zero then (Z.lognot c, c)
       else if is_power_of_two m then 
         let mod_mask = m -: Z.one in 

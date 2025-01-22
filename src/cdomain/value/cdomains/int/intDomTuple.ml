@@ -101,10 +101,8 @@ module IntDomTupleImpl = struct
     | (_, _, Some true, _, _,_)
     | (_, _, _, Some true, _,_)
     | (_, _, _, _, Some true,_) 
-    | (_, _, _, _, _, Some true) 
-      -> true 
-    | _ ->
-      false
+    | (_, _, _, _, _, Some true) -> true 
+    | _ -> false
 
   let for_all = function
     | (Some false, _, _, _, _,_)
@@ -112,11 +110,8 @@ module IntDomTupleImpl = struct
     | (_, _, Some false, _, _,_)
     | (_, _, _, Some false, _,_)
     | (_, _, _, _, Some false,_) 
-    | (_, _, _, _, _, Some false)
-      ->
-      false
-    | _ ->
-      true
+    | (_, _, _, _, _, Some false) -> false
+    | _ -> true
 
   (* f0: constructors *)
   let top () = create { fi = fun (type a) (module I:SOverflow with type t = a) -> I.top } ()

@@ -301,9 +301,9 @@ struct
 
   let to_bitfield ik x = 
     match x with 
-      `Definite c -> (Z.lognot c, c) |
-      _ -> let one_mask = Z.lognot Z.zero 
-      in (one_mask, one_mask)
+    | `Definite c -> (Z.lognot c, c) 
+    | _ -> let one_mask = Z.lognot Z.zero in 
+      (one_mask, one_mask)
 
   let starting ?(suppress_ovwarn=false) ikind x =
     let _,u_ik = Size.range ikind in
