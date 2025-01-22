@@ -134,8 +134,7 @@ module SparseVector: AbstractVector =
         match vec, cur_idx with
         | [], _ -> List.rev acc (* inserting at the end only means changing the dimension *)
         | (idx, value) :: xs, [] -> add_indices_helper xs [] added_count ((idx + added_count, value) :: acc)
-        | (idx, value) :: xs, ((i, count) :: ys) when i = idx -> add_indices_helper vec ys (added_count + count) acc
-        | (idx, value) :: xs, ((i, count) :: ys) when i < idx -> add_indices_helper vec ys (added_count + count) acc
+        | (idx, _) :: _, ((i, count) :: ys) when i <= idx -> add_indices_helper vec ys (added_count + count) acc
         | (idx, value) :: xs, ((i, count) :: ys) -> add_indices_helper xs cur_idx added_count ((idx + added_count, value) :: acc)
       in
       {entries = add_indices_helper v.entries indices 0 []; len = v.len + num_zeros}
