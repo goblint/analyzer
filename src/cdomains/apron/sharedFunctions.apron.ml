@@ -42,6 +42,20 @@ let int_of_scalar ?(scalewith=Z.one) ?round (scalar: Scalar.t) =
     | _ ->
       failwith ("int_of_scalar: unsupported: " ^ Scalar.show scalar)
 
+(** An extended overflow handling inside relationAnalysis for expression assignments when overflows are assumed to occur.
+    Since affine equalities can only keep track of integer bounds of expressions evaluating to definite constants, we now query the integer bounds information for expressions from other analysis.
+    If an analysis returns bounds that are unequal to min and max of ikind , we can exclude the possibility that an overflow occurs and the abstract effect of the expression assignment can be used, i.e. we do not have to set the variable's value to top. *)
+let no_overflow (ask: Queries.ask) exp =
+  match Cilfacade.get_ikind_exp exp with
+  | exception Invalid_argument _ -> false (* is thrown by get_ikind_exp when the type of the expression is not an integer type *)
+  | exception Cilfacade.TypeOfError _ -> false
+  | ik ->
+    if IntDomain.should_wrap ik then
+      false
+    else if IntDomain.should_ignore_overflow ik then
+      true
+    else
+      not (ask.f (MaySignedOverflow exp))
 
 module type ConvertArg =
 sig
@@ -325,7 +339,7 @@ struct
       Linexpr1.iter lcm_coeff linexpr1; !lcm_denom
     with UnsupportedScalar -> Z.one
 
-  let cil_exp_of_lincons1 (lincons1:Lincons1.t) =
+  let cil_exp_of_lincons1 (ask: Queries.ask) (lincons1:Lincons1.t) =
     let zero = Cil.kinteger ILongLong 0 in
     try
       let linexpr1 = Lincons1.get_linexpr1 lincons1 in
