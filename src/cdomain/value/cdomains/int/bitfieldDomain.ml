@@ -240,11 +240,11 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): SOverflow with type int_t = Int
       let (min_ik, max_ik) = Size.range ik in
       let isPos = z < Ints_t.zero in 
       let isNeg = o < Ints_t.zero in
-      let underflow = if isSigned ik then (((Ints_t.of_bigint min_ik) &: z) <> Ints_t.zero) && isNeg else isNeg in     
-      let overflow = (((!:(Ints_t.of_bigint max_ik)) &: o) <> Ints_t.zero) && isPos in      
+      let underflow = if isSigned ik then (((Ints_t.of_bigint min_ik) &: z) <> Ints_t.zero) && isNeg else isNeg in
+      let overflow = (((!:(Ints_t.of_bigint max_ik)) &: o) <> Ints_t.zero) && isPos in
       let new_bitfield = wrap ik (z,o)
       in
-      let overflow_info = if suppress_ovwarn then {underflow=false; overflow=false} else  {underflow=underflow; overflow=overflow} in      
+      let overflow_info = if suppress_ovwarn then {underflow=false; overflow=false} else {underflow=underflow; overflow=overflow} in      
       if not (underflow || overflow) then
         ((z,o), overflow_info)
       else if should_wrap ik then
@@ -370,58 +370,58 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): SOverflow with type int_t = Int
 
   let lognot ik i1 = BArith.lognot i1 |> norm ik |> fst
 
-  let precision ik = snd @@ Size.bits ik
+  let precision ik = Z.of_int @@ snd @@ Size.bits ik
   let cap_bitshifts_to_precision ik (z,o) =
-    let mask = BArith.bitmask_up_to (Int.succ @@ Z.log2up @@ Z.of_int @@ precision ik) in
+    let mask = BArith.bitmask_up_to (Int.succ @@ Z.log2up @@ precision ik) in
     (z |: !:mask, o &: mask)
-
-  let is_invalid_shift_operation ik a b = BArith.is_invalid b || BArith.is_invalid a
 
   let has_neg_values ik b = (BArith.min ik b) < Z.zero
   let has_only_neg_values ik b = (BArith.max ik b) < Z.zero
 
-  let check_if_undefined_shift_operation ?(is_shift_left=false) ik a b =
-    let ov_info = if is_shift_left
-      then {underflow=false; overflow=true}
-      else {underflow=true; overflow=false}
-    in
+  let is_undefined_shift_with_ov ?(is_shift_left=false) ik a b =
     let no_ov = {underflow=false; overflow=false} in
-    let min_val = BArith.min ik b in
-    if isSigned ik && has_only_neg_values ik b then true, no_ov else
-      let exceeds_bit_width =
-        if Z.fits_int min_val then Z.to_int min_val >= Sys.word_size else true
-      in
-      if exceeds_bit_width
-      then true, ov_info else
-        let causes_signed_overflow = isSigned ik && ((is_shift_left && Z.to_int min_val >= precision ik) || (not is_shift_left && has_neg_values ik a && Z.to_int min_val > precision ik))
-        in
-        if causes_signed_overflow
-        then true, ov_info else false, no_ov
-
-  let shift_right ik a b = 
-    if M.tracing then M.trace "bitfield" "%a >> %a" pretty a pretty b; 
-    if is_invalid_shift_operation ik a b
-    then
-      (bot (), {underflow=false; overflow=false})
+    if a = BArith.zero then false, no_ov
+    else if has_only_neg_values ik b then (true, no_ov)
     else
-      let is_undefined_shift_operation, ov_info = check_if_undefined_shift_operation ik a b
+      let exceeds_precision_of ik b =
+        let min_b = BArith.min ik b in
+        if Z.fits_int min_b then min_b > precision ik else true
       in
-      if is_undefined_shift_operation then (top_of ik, ov_info)
+      let equals_precision_of ik b =
+        let min_b = BArith.min ik b in
+        if Z.fits_int min_b then min_b = precision ik else false
+      in
+      if isSigned ik && exceeds_precision_of ik b then
+        match is_shift_left, has_neg_values ik a, equals_precision_of ik b with
+        | true, false, _ -> true, {underflow=false; overflow=true}
+        | false, true, _ | true, true, _ when (has_only_neg_values ik a) -> true, {underflow=true; overflow=false}
+        | true, true, _ -> true, {underflow=true; overflow=true}
+        | _ -> false, no_ov
+      else false, no_ov
+
+
+  let shift_right ik a b = match is_bot a, is_bot b with
+    | true, true -> bot_of ik, {underflow=false; overflow=false}
+    | true,_ | _,true -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s >> %s" (show a) (show b)))
+    | _ ->
+      let is_shift_undefined, ov_info = is_undefined_shift_with_ov ik a b in
+      if is_shift_undefined
+      then
+        top_of ik, ov_info
       else
-        let defined_shifts = cap_bitshifts_to_precision ik b in (* O(2^(log n)) *)
+        let defined_shifts = cap_bitshifts_to_precision ik b in
         norm ik @@ BArith.shift_right ik a defined_shifts
 
-  let shift_left ik a b =
-    if M.tracing then M.trace "bitfield" "%a << %a" pretty a pretty b;
-    if is_invalid_shift_operation ik a b
-    then
-      (bot (), {underflow=false; overflow=false})
-    else
-      let is_undefined_shift_operation, ov_info = check_if_undefined_shift_operation ~is_shift_left:true ik a b
-      in
-      if is_undefined_shift_operation then (top_of ik, ov_info)
+  let shift_left ik a b = match is_bot a, is_bot b with
+    | true, true -> bot_of ik, {underflow=false; overflow=false}
+    | true,_| _,true -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s << %s" (show a) (show b)))
+    | _ ->
+      let is_shift_undefined, ov_info = is_undefined_shift_with_ov ~is_shift_left:true ik a b in
+      if is_shift_undefined
+      then
+        top_of ik, ov_info
       else
-        let defined_shifts = cap_bitshifts_to_precision ik b in (* O(2^(log n)) *)
+        let defined_shifts = cap_bitshifts_to_precision ik b in
         norm ik @@ BArith.shift_left ik a defined_shifts
 
   (* Arith *)
