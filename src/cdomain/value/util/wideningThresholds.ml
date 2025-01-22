@@ -73,11 +73,11 @@ let conditional_widening_thresholds = ResettableLazy.from_fun (fun () ->
     visitCilFileSameGlobals thisVisitor (!Cilfacade.current_file);
     !upper, !lower, !octagon)
 
-let upper_thresholds = ResettableLazy.map Tuple3.first conditional_widening_thresholds
+let upper_thresholds = ResettableLazy.map Batteries.Tuple3.first conditional_widening_thresholds
 
-let lower_thresholds = ResettableLazy.map Tuple3.second conditional_widening_thresholds
+let lower_thresholds = ResettableLazy.map Batteries.Tuple3.second conditional_widening_thresholds
 
-let octagon_thresholds = ResettableLazy.map Tuple3.third conditional_widening_thresholds
+let octagon_thresholds = ResettableLazy.map Batteries.Tuple3.third conditional_widening_thresholds
 
 
 class extractConstantsVisitor(widening_thresholds,widening_thresholds_incl_mul2) = object
