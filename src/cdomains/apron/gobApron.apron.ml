@@ -1,4 +1,3 @@
-open Batteries
 include Apron
 
 module Scalar =

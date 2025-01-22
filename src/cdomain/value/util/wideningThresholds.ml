@@ -1,5 +1,4 @@
 open GoblintCil
-open Batteries
 module Thresholds = Set.Make(Z)
 
 (* Collect only constants that are used in comparisons *)
@@ -61,7 +60,7 @@ class extractThresholdsFromConditionsVisitor(upper_thresholds,lower_thresholds, 
 end
 
 let default_thresholds = Thresholds.of_list (
-    let thresh_pos = List.map (Int.pow 2) [0;2;4;8;16;32;48] in
+    let thresh_pos = List.map (BatInt.pow 2) [0;2;4;8;16;32;48] in
     let thresh_neg = List.map (fun x -> -x) thresh_pos in
     List.map Z.of_int (thresh_neg @ thresh_pos @ [0])
   )
@@ -108,7 +107,7 @@ let thresholds = ResettableLazy.map fst widening_thresholds
 
 let thresholds_incl_mul2 = ResettableLazy.map snd widening_thresholds
 
-module EH = BatHashtbl.Make (CilType.Exp)
+module EH = Hashtbl.Make (CilType.Exp)
 
 class extractInvariantsVisitor (exps) = object
   inherit nopCilVisitor
