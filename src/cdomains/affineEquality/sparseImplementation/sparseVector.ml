@@ -20,19 +20,26 @@ module SparseVector: AbstractVector =
 
     let copy v = v 
 
+    (** [of_list l] returns a vector constructed from the non-sparse list [l] *)
     let of_list l = 
-      let entries' = List.filteri_map (fun i x -> if x <> A.zero then Some (i, x) else None) l
-      in {entries = entries'; len = List.length l}
+      let entries = List.filteri_map (fun i x -> if x <> A.zero then Some (i, x) else None) l in
+      let len = List.length l in
+      {entries; len}
 
+    (** [of_array a] returns a vector constructed from the non-sparse array [a] *)
     let of_array a =
-      let len' = Array.length a in
-      let entries' = List.rev @@ Array.fold_lefti (fun acc i x -> if x <> A.zero then (i, x) :: acc else acc ) [] a in
-      {entries = entries'; len = len'}
+      let entries = List.rev @@ Array.fold_lefti (fun acc i x -> if x <> A.zero then (i, x) :: acc else acc ) [] a in
+      let len = Array.length a in 
+      {entries; len}
 
-    let of_sparse_list count ls =
-      {entries = ls; len = count}
+    (** [of_sparse_list len entries] returns a vector of length [len] constructed from the sorted sparse list [entries].
+        A sparse list is a list of tuples of the form [(i, value)] which represent that the vector has an entry [value] at index [i].
+        All non-specified entries are assumed to be [Zero]. The sparse list has to be sorted by the index [i]. 
+    *)
+    let of_sparse_list len entries =
+      {entries; len}
 
-    (** [to_list v] Returns a non-sparse list representing the vector v *)
+    (** [to_list v] returns a non-sparse list representing the vector v *)
     let to_list v =
       let rec extend_zero_aux i v' acc =
         match v' with
@@ -64,11 +71,12 @@ module SparseVector: AbstractVector =
 
     let length v =
       v.len
+
     let compare_length_with v n = 
       Int.compare v.len n
 
-    let zero_vec n = 
-      {entries = []; len = n}
+    let zero_vec len = 
+      {entries = []; len}
 
     let is_zero_vec v = (v.entries = [])
 
@@ -110,7 +118,7 @@ module SparseVector: AbstractVector =
           | (idx, value) :: xs when n < idx -> if num <>: A.zero then List.rev_append ((n, num) :: acc) vec else List.rev_append acc vec
           | x :: xs -> set_nth_helper xs (x :: acc)
         in
-        {entries = set_nth_helper v.entries []; len = v.len}
+        {v with entries = set_nth_helper v.entries []}
 
     (**
        [insert_val_at v n num] returns [v] where the [num] is inserted into the [n]-th position, i.e. [v] at [n] = [num].
@@ -119,11 +127,11 @@ module SparseVector: AbstractVector =
     let insert_val_at v n num = 
       if n > v.len then raise (Invalid_argument "Index out of bounds") 
       else
-        let entries' = List.rev @@ List.fold_left (fun acc (idx, value) -> 
+        let entries = List.rev @@ List.fold_left (fun acc (idx, value) -> 
             if idx < n then (idx, value) :: acc 
             else (if num <>: A.zero then (idx + 1, value) :: (n, num) :: acc else (idx + 1, value) :: acc)
           ) [] v.entries in
-        {entries = entries'; len = v.len + 1}
+        {entries; len = v.len + 1}
 
     (**
        [insert_zero_at_indices v indices num_zeros] inserts [num_zeros] into [v].
@@ -146,13 +154,13 @@ module SparseVector: AbstractVector =
     let remove_nth v n =
       if n >= v.len then raise (Invalid_argument "Index out of bounds")
       else
-        let new_entries = List.filter_map (fun (idx, value) ->
+        let entries = List.filter_map (fun (idx, value) ->
             if idx = n then None
             else if idx > n
             then Some (idx - 1, value)
             else Some (idx, value)
           ) v.entries in
-        {entries = new_entries; len = v.len - 1}
+        {entries; len = v.len - 1}
 
     (**
        [remove_at_indices v indices] returns [v] where all entries at the positions specified by [indices] are removed, decreasing its length by the length of [indices].
@@ -179,8 +187,8 @@ module SparseVector: AbstractVector =
 
     (** [starting_from_nth v n] returns a vector only containing the elements after the [n]th *)
     let starting_from_nth v n =
-      let entries' = List.filter_map (fun (idx, value) -> if idx < n then None else Some (idx - n, value)) v.entries in
-      {entries = entries'; len = v.len - n}
+      let entries = List.filter_map (fun (idx, value) -> if idx < n then None else Some (idx - n, value)) v.entries in
+      {entries; len = v.len - n}
 
     let findi f v = 
       (* How this works:
@@ -259,10 +267,10 @@ module SparseVector: AbstractVector =
 
     *)
     let map_f_preserves_zero f v = (* map for functions f such that f 0 = 0 since f won't be applied to zero values. See also map *)
-      let entries' = List.filter_map (
+      let entries = List.filter_map (
           fun (idx, value) -> let new_val = f value in 
             if new_val = A.zero then None else Some (idx, new_val)) v.entries in 
-      {entries = entries'; len = v.len}
+      {entries; len = v.len}
 
     let map_f_preserves_zero f v = Timing.wrap "map_f_preserves_zero" (map_f_preserves_zero f) v
 
@@ -273,10 +281,10 @@ module SparseVector: AbstractVector =
 
     *)
     let mapi_f_preserves_zero f v =
-      let entries' = List.filter_map (
+      let entries = List.filter_map (
           fun (idx, value) -> let new_val = f idx value in 
             if new_val = A.zero then None else Some (idx, new_val)) v.entries in 
-      {entries = entries'; len = v.len}
+      {entries; len = v.len}
 
     (**
        [map2_f_preserves_zero f v v'] returns the mapping of [v] and [v'] specified by [f].
@@ -302,7 +310,7 @@ module SparseVector: AbstractVector =
           | _            -> aux (f_rem_zero acc xidx xval yval) xs ys
       in
       if v.len <> v'.len then raise (Invalid_argument "Unequal lengths") else 
-        {entries = List.rev (aux [] v.entries v'.entries); len = v.len}
+        {v with entries = List.rev (aux [] v.entries v'.entries)}
 
     let map2_f_preserves_zero f v1 v2 = Timing.wrap "map2_f_preserves_zero" (map2_f_preserves_zero f v1) v2
 
@@ -330,7 +338,7 @@ module SparseVector: AbstractVector =
               | d when d > 0 -> aux (f_rem_zero i acc A.zero yval) vec1 ys (i + 1)
               | _            -> aux (f_rem_zero i acc xval yval) xs ys (i + 1)
         in
-        {entries = List.rev (aux [] v.entries v'.entries 0); len = v.len}
+        {v with entries = List.rev (aux [] v.entries v'.entries 0)}
 
     (**
        [fold_left_f_preserves_zero f acc v] returns the fold of [v] on [acc] specified by [f].
@@ -368,14 +376,14 @@ module SparseVector: AbstractVector =
        Note that [f] {b must} be such that [f 0 c = 0]!
     *)
     let apply_with_c_f_preserves_zero f c v =
-      let entries' = List.filter_map (fun (idx, value) -> let new_val = f value c in if new_val =: A.zero then None else Some (idx, new_val)) v.entries in
-      {entries = entries'; len = v.len}
+      let entries = List.filter_map (fun (idx, value) -> let new_val = f value c in if new_val =: A.zero then None else Some (idx, new_val)) v.entries in
+      {entries; len = v.len}
 
     let rev v = 
-      let entries' = List.rev @@ List.map (fun (idx, value) -> (v.len - 1 - idx, value)) v.entries in 
-      {entries = entries'; len = v.len}
+      let entries = List.rev @@ List.map (fun (idx, value) -> (v.len - 1 - idx, value)) v.entries in 
+      {entries; len = v.len}
 
     let append v v' = 
-      let entries' = v.entries @ List.map (fun (idx, value) -> (idx + v.len), value) v'.entries in
-      {entries = entries'; len = v.len + v'.len}
+      let entries = v.entries @ List.map (fun (idx, value) -> (idx + v.len), value) v'.entries in
+      {entries; len = v.len + v'.len}
   end 
