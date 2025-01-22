@@ -250,7 +250,7 @@ module Make0 =
       end
 
       include Heap.Make (HeapCompare)
-      let from_list xs = List.enum xs |> of_enum
+      let from_list = of_list
       let is_empty x = size x = 0
       let get_root_key x = find_min x |> X.get_key
       let extract_min h = (find_min h, del_min h)

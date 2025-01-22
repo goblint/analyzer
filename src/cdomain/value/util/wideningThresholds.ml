@@ -142,7 +142,7 @@ let exps = ResettableLazy.from_fun (fun () ->
     let exps = EH.create 100 in
     let visitor = new extractInvariantsVisitor exps in
     visitCilFileSameGlobals visitor !Cilfacade.current_file;
-    EH.keys exps |> BatList.of_enum
+    EH.to_seq_keys exps |> List.of_seq
   )
 
 let reset_lazy () =

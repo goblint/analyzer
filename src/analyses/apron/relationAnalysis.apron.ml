@@ -87,7 +87,7 @@ struct
     end
     in
     let e' = visitCilExpr visitor e in
-    let rel = RD.add_vars st.rel (List.map RV.local (VH.values v_ins |> List.of_enum)) in (* add temporary g#in-s *)
+    let rel = RD.add_vars st.rel (List.map RV.local (VH.to_seq_values v_ins |> List.of_seq)) in (* add temporary g#in-s *)
     let rel' = VH.fold (fun v v_in rel ->
         if M.tracing then M.trace "relation" "read_global %a %a" CilType.Varinfo.pretty v CilType.Varinfo.pretty v_in;
         read_global ask getg {st with rel} v v_in (* g#in = g; *)
@@ -102,7 +102,7 @@ struct
         v_in.vattr <- v.vattr; (* preserve goblint_relation_track attribute *)
         VH.replace v_ins_inv v_in v;
       ) vs;
-    let rel = RD.add_vars st.rel (List.map RV.local (VH.keys v_ins_inv |> List.of_enum)) in (* add temporary g#in-s *)
+    let rel = RD.add_vars st.rel (List.map RV.local (VH.to_seq_keys v_ins_inv |> List.of_seq)) in (* add temporary g#in-s *)
     let rel' = VH.fold (fun v_in v rel ->
         read_global ask getg {st with rel} v v_in (* g#in = g; *)
       ) v_ins_inv rel
@@ -126,7 +126,7 @@ struct
     let (rel', e', v_ins) = read_globals_to_locals ask getg st e in
     if M.tracing then M.trace "relation" "assign_from_globals_wrapper %a" d_exp e';
     let rel' = f rel' e' in (* x = e; *)
-    let rel'' = RD.remove_vars rel' (List.map RV.local (VH.values v_ins |> List.of_enum)) in (* remove temporary g#in-s *)
+    let rel'' = RD.remove_vars rel' (List.map RV.local (VH.to_seq_values v_ins |> List.of_seq)) in (* remove temporary g#in-s *)
     rel''
 
   let write_global ask getg sideg st g x =
@@ -761,7 +761,7 @@ struct
               ) v_ins {man.local with rel}
           )
       in
-      let rel = RD.remove_vars st.rel (List.map RV.local (VH.values v_ins |> List.of_enum)) in (* remove temporary g#in-s *)
+      let rel = RD.remove_vars st.rel (List.map RV.local (VH.to_seq_values v_ins |> List.of_seq)) in (* remove temporary g#in-s *)
 
       if M.tracing then M.traceli "apron" "unassume join";
       let st = D.join man.local {st with rel} in (* (strengthening) join *)

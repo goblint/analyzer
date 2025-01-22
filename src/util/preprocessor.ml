@@ -42,8 +42,7 @@ let dependencies: bool Fpath.Map.t FpathH.t = FpathH.create 3 (* bool is system_
 
 let dependencies_to_yojson () =
   dependencies
-  |> FpathH.to_list (* TODO: No to_seq in BatHashtbl *)
-  |> List.to_seq
+  |> FpathH.to_seq
   |> Seq.map (fun (p, deps) ->
       let deps' =
         deps

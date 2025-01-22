@@ -132,9 +132,7 @@ module Tbls = struct
       Hashtbl.find table k |> Option.default_delayed new_value_thunk
 
 
-    let get_key v =
-      table |> Hashtbl.filter (( = ) v) |> Hashtbl.keys |> Enum.get
-
+    let get_key v = table |> Hashtbl.to_seq |> Seq.find_map (fun (k,v') -> if v' = v then Some k else None)
 
     let to_list () = table |> Hashtbl.bindings
   end
@@ -149,9 +147,7 @@ module Tbls = struct
     let get_key v = table |> Hashtbl.bindings |> List.assoc_inv v
   end
 
-  let all_keys_count table =
-    table |> Hashtbl.keys |> List.of_enum |> List.length
-
+  let all_keys_count table = table |> Hashtbl.to_seq_keys |> Seq.length
 
   module ThreadTidTbl = SymTbl (struct
       type k = thread_name
@@ -171,9 +167,8 @@ module Tbls = struct
     let extend k v = Hashtbl.modify_def Set.empty k (Set.add v) table
 
     let get_fun_for_tid v =
-      Hashtbl.keys table
-      |> List.of_enum
-      |> List.find (fun k ->
+      Hashtbl.to_seq_keys table
+      |> Seq.find (fun k ->
           Option.get @@ Hashtbl.find table k |> Set.exists (( = ) v))
   end
 
@@ -334,14 +329,12 @@ end = struct
 
   let filter_map_actions f =
     let action_of_edge (_, action, _) = action in
-    let all_edges =
-      table
-      |> Hashtbl.values
-      |> List.of_enum
-      |> List.map Set.elements
-      |> List.concat
-    in
-    List.filter_map (f % action_of_edge) all_edges
+    table
+    |> Hashtbl.to_seq_values
+    |> Seq.map Set.to_seq
+    |> Seq.concat
+    |> Seq.filter_map (f % action_of_edge)
+    |> List.of_seq
 
 
   let fun_for_thread thread_name =
@@ -387,16 +380,12 @@ module Variables = struct
   let table = ref (Hashtbl.create 123 : (thread_id, var_state Set.t) Hashtbl.t)
 
   let get_globals () =
-    Hashtbl.values !table
-    |> List.of_enum
-    |> List.concat_map Set.elements
-    |> List.filter_map (function
-        | Var v when Variable.is_global v ->
-          Some v
-        | Top v when Variable.is_global v ->
-          Some v
-        | _ ->
-          None)
+    Hashtbl.to_seq_values !table
+    |> Seq.concat_map Set.to_seq
+    |> Seq.filter_map (function
+        | Var v | Top v when Variable.is_global v -> Some v
+        | _ -> None)
+    |> List.of_seq
     |> List.unique
 
 
@@ -419,9 +408,8 @@ module Variables = struct
     if Variable.is_global var
     then
       !table
-      |> Hashtbl.values
-      |> List.of_enum
-      |> List.exists contains_top_of
+      |> Hashtbl.to_seq_values
+      |> Seq.exists contains_top_of
     else
       contains_top_of @@ Hashtbl.find_default !table tid Set.empty
 
@@ -443,9 +431,8 @@ module Variables = struct
     if Variable.is_global var
     then
       !table
-      |> Hashtbl.values
-      |> List.of_enum
-      |> List.exists contains_var_of
+      |> Hashtbl.to_seq_values
+      |> Seq.exists contains_var_of
     else
       contains_var_of @@ Hashtbl.find_default !table tid Set.empty
 
@@ -513,20 +500,18 @@ module Codegen = struct
       a2bs
 
 
-    let nodes a2bs = HashtblN.keys a2bs |> List.of_enum
+    let nodes a2bs = HashtblN.to_seq_keys a2bs
 
-    let items a2bs = HashtblN.enum a2bs |> List.of_enum
+    let items a2bs = HashtblN.to_list a2bs
 
     let in_edges a2bs node =
       let get_b (_, _, b) = b in
       HashtblN.filter (Set.mem node % Set.map get_b) a2bs
-      |> HashtblN.values
-      |> List.of_enum
-      |> List.concat_map Set.elements
+      |> HashtblN.to_seq_values
+      |> Seq.concat_map Set.to_seq
 
 
-    let out_edges a2bs node =
-      try HashtblN.find a2bs node |> Set.elements with Not_found -> []
+    let out_edges a2bs node = try HashtblN.find a2bs node |> Set.to_seq with Not_found -> Seq.empty
   end
 
   module Action = struct
@@ -636,13 +621,13 @@ module Codegen = struct
         let out_edges = AdjacencyMatrix.out_edges a2bs in
         let in_edges = AdjacencyMatrix.in_edges a2bs in
 
-        let is_end_node = List.is_empty % out_edges in
-        let is_start_node = List.is_empty % in_edges in
+        let is_end_node = Seq.is_empty % out_edges in
+        let is_start_node = Seq.is_empty % in_edges in
         let label n = res_id ^ "_" ^ string_of_node n in
         let end_label = res_id ^ "_end" in
         let goto = goto_str % label in
         let goto_start_node =
-          match List.find is_start_node nodes with
+          match Seq.find is_start_node nodes with
           | Some node ->
             goto node
           | None ->
@@ -744,9 +729,9 @@ module Codegen = struct
     (* sort definitions so that inline functions come before the threads *)
     let process_defs =
       Edges.table
-      |> Hashtbl.keys
-      |> List.of_enum
-      |> List.filter (fun res -> Resource.res_type res = Resource.Thread)
+      |> Hashtbl.to_seq_keys
+      |> Seq.filter (fun res -> Resource.res_type res = Resource.Thread)
+      |> List.of_seq
       |> List.unique
       |> List.sort (BatOrd.map_comp PmlResTbl.get compare)
       |> List.concat_map process_def
@@ -839,8 +824,8 @@ module Codegen = struct
         (subgraph_head :: edges_decls) @ [ subgraph_tail ]
       in
       let lines =
-        Hashtbl.keys Edges.table
-        |> List.of_enum
+        Hashtbl.to_seq_keys Edges.table
+        |> List.of_seq
         |> List.unique
         |> List.concat_map dot_thread
       in
