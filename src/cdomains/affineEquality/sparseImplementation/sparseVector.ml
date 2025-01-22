@@ -74,7 +74,7 @@ module SparseVector: AbstractVector =
 
     (**
        [is_const_vec v] returns true if the v can be interpreted as an expression with one variable and possibly a constant, i.e. x_i  + c
-       *)
+    *)
     let is_const_vec v = 
       match v.entries with 
       | [] -> false
@@ -201,8 +201,6 @@ module SparseVector: AbstractVector =
        [find2i_f_false_at_zero f v v'] returns the {b index} of the first pair of entries [e, e'] from [v, v'] where [f e e' = true ].
 
        Note that [f] {b must} be such that [f 0 0 = false]!
-
-       {i One should use this function over its general counterpart whenever possible, as it is considerably faster!}
     *)
     let find2i_f_false_at_zero f v v' = (*Very welcome to change the name*)
       let rec aux v1 v2 =
@@ -259,7 +257,6 @@ module SparseVector: AbstractVector =
 
        Note that [f] {b must} be such that [f 0 = 0]!
 
-       {i One should use this function over its general counterpart whenever possible, as it is considerably faster!}
     *)
     let map_f_preserves_zero f v = (* map for functions f such that f 0 = 0 since f won't be applied to zero values. See also map *)
       let entries' = List.filter_map (
@@ -274,7 +271,6 @@ module SparseVector: AbstractVector =
 
        Note that [f] {b must} be such that [f i 0 = 0] for any index [i]!
 
-       {i One should use this function over its general counterpart whenever possible, as it is considerably faster!}
     *)
     let mapi_f_preserves_zero f v =
       let entries' = List.filter_map (
@@ -286,8 +282,6 @@ module SparseVector: AbstractVector =
        [map2_f_preserves_zero f v v'] returns the mapping of [v] and [v'] specified by [f].
 
        Note that [f] {b must} be such that [f 0 0 = 0]!
-
-       {i One should use this function over its general counterpart whenever possible, as it is considerably faster!}
 
        @raise Invalid_argument if [v] and [v'] have unequal lengths
     *)
@@ -342,8 +336,6 @@ module SparseVector: AbstractVector =
        [fold_left_f_preserves_zero f acc v] returns the fold of [v] on [acc] specified by [f].
 
        Note that [f] {b must} be such that [f acc 0 = acc]!
-
-       {i One should use this function over its general counterpart whenever possible, as it is considerably faster!}
     *)
     let fold_left_f_preserves_zero f acc v =
       List.fold_left (fun acc (_, value) -> f acc value) acc v.entries
@@ -352,8 +344,6 @@ module SparseVector: AbstractVector =
        [fold_left2_f_preserves_zero f acc v v'] returns the fold of [v] and [v'] specified by [f].
 
        Note that [f] {b must} be such that [f acc 0 0 = acc]!
-
-       {i One should use this function over its general counterpart whenever possible, as it is considerably faster!}
 
        @raise Invalid_argument if [v] and [v'] have unequal lengths
     *)
@@ -376,8 +366,6 @@ module SparseVector: AbstractVector =
        [apply_with_c_f_preserves_zero f c v] returns the mapping of [v] and [c] specified by [f].
 
        Note that [f] {b must} be such that [f 0 c = 0]!
-
-       {i One should use this function over its general counterpart whenever possible, as it is considerably faster!}
     *)
     let apply_with_c_f_preserves_zero f c v =
       let entries' = List.filter_map (fun (idx, value) -> let new_val = f value c in if new_val =: A.zero then None else Some (idx, new_val)) v.entries in
