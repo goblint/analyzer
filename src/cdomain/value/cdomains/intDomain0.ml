@@ -69,9 +69,6 @@ let should_wrap ik = not (Cil.isSigned ik) || get_string "sem.int.signed_overflo
   * Always false for unsigned types, true for signed types if 'sem.int.signed_overflow' is 'assume_none'  *)
 let should_ignore_overflow ik = Cil.isSigned ik && get_string "sem.int.signed_overflow" = "assume_none"
 
-let widening_thresholds = ResettableLazy.from_fun WideningThresholds.thresholds
-let widening_thresholds_desc = ResettableLazy.from_fun (List.rev % WideningThresholds.thresholds)
-
 type overflow_info = { overflow: bool; underflow: bool;}
 
 let set_overflow_flag ~cast ~underflow ~overflow ik =
@@ -93,8 +90,6 @@ let set_overflow_flag ~cast ~underflow ~overflow ik =
     | false, false -> assert false
 
 let reset_lazy () =
-  ResettableLazy.reset widening_thresholds;
-  ResettableLazy.reset widening_thresholds_desc;
   ana_int_config.interval_threshold_widening <- None;
   ana_int_config.interval_narrow_by_meet <- None;
   ana_int_config.def_exc_widen_by_join <- None;
@@ -570,26 +565,32 @@ module IntervalArith (Ints_t : IntOps.IntOps) = struct
   let to_int (x1, x2) =
     if Ints_t.equal x1 x2 then Some x1 else None
 
+  let find_thresholds lower_or_upper =
+    let ts = if get_interval_threshold_widening_constants () = "comparisons" then lower_or_upper else WideningThresholds.thresholds in
+    ResettableLazy.force ts
+
   let upper_threshold u max_ik =
-    let ts = if get_interval_threshold_widening_constants () = "comparisons" then WideningThresholds.upper_thresholds () else ResettableLazy.force widening_thresholds in
     let u = Ints_t.to_bigint u in
     let max_ik' = Ints_t.to_bigint max_ik in
-    let t = List.find_opt (fun x -> Z.compare u x <= 0 && Z.compare x max_ik' <= 0) ts in
-    BatOption.map_default Ints_t.of_bigint max_ik t
+    find_thresholds WideningThresholds.upper_thresholds
+    |> WideningThresholds.Thresholds.find_first_opt (fun x -> Z.compare u x <= 0)
+    |> BatOption.filter (fun x -> Z.compare x max_ik' <= 0)
+    |> BatOption.map_default Ints_t.of_bigint max_ik
   let lower_threshold l min_ik =
-    let ts = if get_interval_threshold_widening_constants () = "comparisons" then WideningThresholds.lower_thresholds () else ResettableLazy.force widening_thresholds_desc in
     let l = Ints_t.to_bigint l in
     let min_ik' = Ints_t.to_bigint min_ik in
-    let t = List.find_opt (fun x -> Z.compare l x >= 0 && Z.compare x min_ik' >= 0) ts in
-    BatOption.map_default Ints_t.of_bigint min_ik t
-  let is_upper_threshold u =
-    let ts = if get_interval_threshold_widening_constants () = "comparisons" then WideningThresholds.upper_thresholds () else ResettableLazy.force widening_thresholds in
-    let u = Ints_t.to_bigint u in
-    List.exists (Z.equal u) ts
-  let is_lower_threshold l =
-    let ts = if get_interval_threshold_widening_constants () = "comparisons" then WideningThresholds.lower_thresholds () else ResettableLazy.force widening_thresholds_desc in
-    let l = Ints_t.to_bigint l in
-    List.exists (Z.equal l) ts
+    find_thresholds WideningThresholds.lower_thresholds
+    |> WideningThresholds.Thresholds.find_last_opt (fun x -> Z.compare l x >= 0)
+    |> BatOption.filter (fun x -> Z.compare x min_ik' >= 0)
+    |> BatOption.map_default Ints_t.of_bigint min_ik
+
+  let is_threshold t ts =
+    let ts = find_thresholds ts in
+    let t = Ints_t.to_bigint t in
+    WideningThresholds.Thresholds.mem t ts
+
+  let is_upper_threshold u = is_threshold u WideningThresholds.upper_thresholds
+  let is_lower_threshold l = is_threshold l WideningThresholds.lower_thresholds
 end
 
 module IntInvariant =

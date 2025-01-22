@@ -499,7 +499,7 @@ module PerMutexMeetTIDPriv (Digest: Digest): S =
 struct
   open Queries.Protection
   include PerMutexMeetPrivBase
-  include PerMutexTidCommon (Digest) (CPA)
+  include PerMutexTidCommonNC (Digest) (CPA)
 
   let iter_sys_vars getg vq vf =
     match vq with
@@ -829,8 +829,30 @@ struct
       vf g;
     | _ -> ()
 
-  let invariant_global ask getg g =
-    ValueDomain.invariant_global getg g
+  let invariant_global (ask: Q.ask) getg g =
+    let locks = ask.f (Q.MustProtectingLocks {global = g; write = false}) in
+    if LockDomain.MustLockset.is_all locks then
+      Invariant.none
+    else (
+      (* Only read g as protected, everything else (e.g. pointed to variables) may be unprotected.
+         See 56-witness/69-ghost-ptr-protection and https://github.com/goblint/analyzer/pull/1394#discussion_r1698136411. *)
+      let read_global g' = if CilType.Varinfo.equal g' g then getg g' else VD.top () in (* TODO: Could be more precise for at least those which might not have all same protecting locks? *)
+      let inv = ValueDomain.invariant_global read_global g in
+      (* Very conservative about multiple protecting mutexes: invariant is not claimed when any of them is held.
+         It should be possible to be more precise because writes only happen with all of them held,
+         but conjunction is unsound when one of the mutexes is temporarily unlocked.
+         Hypothetical read-protection is also somehow relevant. *)
+      LockDomain.MustLockset.fold (fun m acc ->
+          if LockDomain.MustLock.equal m (LockDomain.MustLock.of_var LibraryFunctions.verifier_atomic_var) then
+            acc
+          else if ask.f (GhostVarAvailable (Locked m)) then (
+            let var = WitnessGhost.to_varinfo (Locked m) in
+            Invariant.(of_exp (Lval (GoblintCil.var var)) || acc) [@coverage off] (* bisect_ppx cannot handle redefined (||) *)
+          )
+          else
+            Invariant.none
+        ) locks inv
+    )
 
   let invariant_vars ask getg st = protected_vars ask
 end
@@ -1010,7 +1032,7 @@ struct
     | `Left g' -> (* unprotected *)
       ValueDomain.invariant_global (fun g -> getg (V.unprotected g)) g'
     | `Right g' -> (* protected *)
-      let locks = ask.f (Q.MustProtectingLocks g') in
+      let locks = ask.f (Q.MustProtectingLocks {global = g'; write = true}) in
       if LockDomain.MustLockset.is_all locks || LockDomain.MustLockset.is_empty locks then
         Invariant.none
       else if VD.equal (getg (V.protected g')) (getg (V.unprotected g')) then
