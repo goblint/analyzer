@@ -176,33 +176,27 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): SOverflow with type int_t = Int
   let bot_of ik = bot ()
 
   let to_pretty_bits (z,o) = 
-    let known_bitmask = ref (BArith.bits_known (z,o)) in
-    let invalid_bitmask = ref (BArith.bits_invalid (z,o)) in
-    let o_mask = ref o in
-    let z_mask = ref z in
+    let known_bitmask = (BArith.bits_known (z,o)) in
+    let invalid_bitmask = (BArith.bits_invalid (z,o)) in
+    let o_mask = o in
+    let z_mask = z in
 
-    let rec to_pretty_bits' acc =
-      let current_bit_known = (!known_bitmask &: Ints_t.one) = Ints_t.one in
-      let current_bit_impossible = (!invalid_bitmask &: Ints_t.one) = Ints_t.one in
-
-      let bit_value = !o_mask &: Ints_t.one in
+    let rec to_pretty_bits' o_mask z_mask known_bitmask invalid_bitmask acc =
+      let current_bit_known = (known_bitmask &: Ints_t.one) = Ints_t.one in
+      let current_bit_impossible = (invalid_bitmask &: Ints_t.one) = Ints_t.one in
+      let bit_value = o_mask &: Ints_t.one in
       let bit =
         if current_bit_impossible then "⊥"
         else if not current_bit_known then "⊤"
         else Ints_t.to_string bit_value 
       in
-
-      if (!o_mask = Ints_t.of_int (-1) || !o_mask = Ints_t.zero ) && (!z_mask = Ints_t.of_int (-1) || !z_mask = Ints_t.zero) then
+      if (o_mask = Ints_t.of_int (-1) || o_mask = Ints_t.zero ) && (z_mask = Ints_t.of_int (-1) || z_mask = Ints_t.zero) then
         let prefix = bit ^ "..." ^ bit in
         prefix ^ acc
       else
-        (known_bitmask := !known_bitmask >>: 1;
-         invalid_bitmask := !invalid_bitmask >>: 1;
-         o_mask := !o_mask >>: 1;
-         z_mask := !z_mask >>: 1;
-         to_pretty_bits' (bit ^ acc))
+        to_pretty_bits' (o_mask >>: 1) (z_mask >>: 1) (known_bitmask >>: 1) (invalid_bitmask >>: 1) (bit ^ acc)
     in
-    "0b" ^ to_pretty_bits' ""
+    "0b" ^ to_pretty_bits' o_mask z_mask known_bitmask invalid_bitmask ""
 
   let show t = 
     if t = bot () then "bot" else
