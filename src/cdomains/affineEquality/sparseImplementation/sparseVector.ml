@@ -73,8 +73,8 @@ module SparseVector: AbstractVector =
     let is_zero_vec v = (v.entries = [])
 
     (**
-       [is_const_vec v] returns true if the v represents an affine equality over only one variable, i.e. a constant.
-       Constant vectors are represented by a two element list, however this is not an iff relationship.*)
+       [is_const_vec v] returns true if the v can be interpreted as an expression with one variable and possibly a constant, i.e. x_i  + c
+       *)
     let is_const_vec v = 
       match v.entries with 
       | [] -> false
