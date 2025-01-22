@@ -166,8 +166,8 @@ module SparseVector: AbstractVector =
         | [], (y :: ys) when deleted_count >= v.len || y >= v.len -> raise (Invalid_argument "Indices out of bounds")
         | [], (y :: ys) -> remove_indices_helper [] ys (deleted_count + 1) acc
         | (idx, value) :: xs, [] -> remove_indices_helper xs [] deleted_count ((idx - deleted_count, value) :: acc)
-        | (idx, value) :: xs, (y :: ys) when y = idx -> remove_indices_helper xs ys (deleted_count + 1) acc
-        | (idx, value) :: xs, (y :: ys) when y < idx -> remove_indices_helper vec ys (deleted_count + 1) acc
+        | (idx, _) :: xs, (y :: ys) when y = idx -> remove_indices_helper xs ys (deleted_count + 1) acc
+        | (idx, _) :: xs, (y :: ys) when y < idx -> remove_indices_helper vec ys (deleted_count + 1) acc
         | (idx, value) :: xs, (y :: ys) -> remove_indices_helper xs cur_idx deleted_count ((idx - deleted_count, value) :: acc)
       in
       {entries = remove_indices_helper v.entries indices 0 []; len = v.len - List.length indices}
