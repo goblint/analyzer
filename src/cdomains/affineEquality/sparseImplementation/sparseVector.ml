@@ -201,7 +201,7 @@ module SparseVector: AbstractVector =
          A.zero is not to be found. We just iterate over the sparse list then and the index is returned if an element is found.
       *)
       if f A.zero then  
-        fst @@ List.findi (fun i (idx, value) -> if i < idx then true else f value) v.entries (* Here fst is the iteration variable i, not the tuple idx *)
+        fst @@ List.findi (fun i (idx, value) ->  i < idx || f value) v.entries (* Here fst is the iteration variable i, not the tuple idx *)
       else
         fst @@ List.find (fun (idx, value) -> f value) v.entries (* Here fst is the idx contained in the found tuple *)
 
