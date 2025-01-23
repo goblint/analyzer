@@ -1,6 +1,4 @@
 open IntDomain0
-open GoblintCil
-
 
 module IntervalFunctor (Ints_t : IntOps.IntOps): SOverflow with type int_t = Ints_t.t and type t = (Ints_t.t * Ints_t.t) option =
 struct
@@ -86,13 +84,13 @@ struct
       let signBit = Ints_t.shift_left Ints_t.one ((Size.bit ik) - 1) in 
       let signMask = Ints_t.lognot (Ints_t.of_bigint (snd (Size.range ik))) in
       let isNegative = Ints_t.logand signBit o <> Ints_t.zero in
-      if isSigned ik && isNegative then Ints_t.logor signMask (Ints_t.lognot z)
+      if GoblintCil.isSigned ik && isNegative then Ints_t.logor signMask (Ints_t.lognot z)
       else Ints_t.lognot z
     in let max ik (z,o) =
          let signBit = Ints_t.shift_left Ints_t.one ((Size.bit ik) - 1) in 
          let signMask = Ints_t.of_bigint (snd (Size.range ik)) in
          let isPositive = Ints_t.logand signBit z <> Ints_t.zero in
-         if isSigned ik && isPositive then Ints_t.logand signMask o
+         if GoblintCil.isSigned ik && isPositive then Ints_t.logand signMask o
          else o 
     in fst (norm ik (Some (min ik x, max ik x)))
 
@@ -109,7 +107,7 @@ struct
 
       let wrap ik (z,o) = 
         let (min_ik, max_ik) = Size.range ik in
-        if isSigned ik then
+        if GoblintCil.isSigned ik then
           let newz = Ints_t.logor (Ints_t.logand z (Ints_t.of_bigint max_ik)) (Ints_t.mul (Ints_t.of_bigint min_ik) (Ints_t.logand Ints_t.one (Ints_t.shift_right z (Size.bit ik - 1)))) in
           let newo = Ints_t.logor (Ints_t.logand o (Ints_t.of_bigint max_ik)) (Ints_t.mul (Ints_t.of_bigint min_ik) (Ints_t.logand Ints_t.one (Ints_t.shift_right o (Size.bit ik - 1)))) in
           (newz,newo)
