@@ -1,5 +1,4 @@
 open IntDomain0
-open GoblintCil
 
 module InfixIntOps (Ints_t : IntOps.IntOps) = struct
   let (&:) = Ints_t.logand
@@ -93,14 +92,14 @@ module BitfieldArith (Ints_t : IntOps.IntOps) = struct
     let signBit = Ints_t.one <<: ((Size.bit ik) - 1) in 
     let signMask = !: (Ints_t.of_bigint (snd (Size.range ik))) in
     let isNegative = signBit &: o <> Ints_t.zero in
-    if isSigned ik && isNegative then Ints_t.to_bigint(signMask |: (!: z))
+    if GoblintCil.isSigned ik && isNegative then Ints_t.to_bigint(signMask |: (!: z))
     else Ints_t.to_bigint(!: z)
 
   let max ik (z,o) =
     let signBit = Ints_t.one <<: ((Size.bit ik) - 1) in 
     let signMask = Ints_t.of_bigint (snd (Size.range ik)) in
     let isPositive = signBit &: z <> Ints_t.zero in
-    if isSigned ik && isPositive then Ints_t.to_bigint(signMask &: o)
+    if GoblintCil.isSigned ik && isPositive then Ints_t.to_bigint(signMask &: o)
     else Ints_t.to_bigint o 
 
   let rec concretize (z,o) = (* O(2^n) *)
@@ -122,7 +121,7 @@ module BitfieldArith (Ints_t : IntOps.IntOps) = struct
     let msb_pos = (Size.bit ik - c) in
     let msb_pos = if msb_pos < 0 then 0 else msb_pos in
     let sign_mask = !:(bitmask_up_to msb_pos) in
-    if isSigned ik && o <: Ints_t.zero then
+    if GoblintCil.isSigned ik && o <: Ints_t.zero then
       (z >>: c, (o >>: c) |: sign_mask)
     else
       ((z >>: c) |: sign_mask, o >>: c)
@@ -156,7 +155,7 @@ module BitfieldArith (Ints_t : IntOps.IntOps) = struct
   let nth_bit p n = if nth_bit p n then Ints_t.one else Ints_t.zero
 end
 
-module BitfieldFunctor (Ints_t : IntOps.IntOps): SOverflow with type int_t = Ints_t.t and type t = (Ints_t.t * Ints_t.t) = struct
+module BitfieldFunctor (Ints_t : IntOps.IntOps): Bitfield_SOverflow with type int_t = Ints_t.t and type t = (Ints_t.t * Ints_t.t) = struct
 
   include InfixIntOps (Ints_t)
 
@@ -170,7 +169,7 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): SOverflow with type int_t = Int
   let bot () = (BArith.zero_mask, BArith.zero_mask)
 
   let top_of ik = 
-    if isSigned ik then top () 
+    if GoblintCil.isSigned ik then top () 
     else (BArith.one_mask, Ints_t.of_bigint (snd (Size.range ik)))
 
   let bot_of ik = bot ()
@@ -218,7 +217,7 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): SOverflow with type int_t = Int
 
   let wrap ik (z,o) = 
     let (min_ik, max_ik) = Size.range ik in
-    if isSigned ik then
+    if GoblintCil.isSigned ik then
       let newz = (z &: (Ints_t.of_bigint max_ik)) |: ((Ints_t.of_bigint min_ik) *: (BArith.nth_bit z (Size.bit ik - 1))) in
       let newo = (o &: (Ints_t.of_bigint max_ik)) |: ((Ints_t.of_bigint min_ik) *: (BArith.nth_bit o (Size.bit ik - 1))) in
       (newz,newo)
@@ -234,7 +233,7 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): SOverflow with type int_t = Int
       let (min_ik, max_ik) = Size.range ik in
       let isPos = z < Ints_t.zero in 
       let isNeg = o < Ints_t.zero in
-      let underflow = if isSigned ik then (((Ints_t.of_bigint min_ik) &: z) <> Ints_t.zero) && isNeg else isNeg in     
+      let underflow = if GoblintCil.isSigned ik then (((Ints_t.of_bigint min_ik) &: z) <> Ints_t.zero) && isNeg else isNeg in     
       let overflow = (((!:(Ints_t.of_bigint max_ik)) &: o) <> Ints_t.zero) && isPos in      
       let new_bitfield = wrap ik (z,o)
       in
@@ -381,13 +380,13 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): SOverflow with type int_t = Int
     in
     let no_ov = {underflow=false; overflow=false} in
     let min_val = BArith.min ik b in
-    if isSigned ik && has_only_neg_values ik b then true, no_ov else
+    if GoblintCil.isSigned ik && has_only_neg_values ik b then true, no_ov else
       let exceeds_bit_width =
         if Z.fits_int min_val then Z.to_int min_val >= Sys.word_size else true
       in
       if exceeds_bit_width
       then true, ov_info else
-        let causes_signed_overflow = isSigned ik && ((is_shift_left && Z.to_int min_val >= precision ik) || (not is_shift_left && has_neg_values ik a && Z.to_int min_val > precision ik))
+        let causes_signed_overflow = GoblintCil.isSigned ik && ((is_shift_left && Z.to_int min_val >= precision ik) || (not is_shift_left && has_neg_values ik a && Z.to_int min_val > precision ik))
         in
         if causes_signed_overflow
         then true, ov_info else false, no_ov
@@ -474,7 +473,7 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): SOverflow with type int_t = Int
     let qv = ref (o2 &: !:z2) in 
     let accv = ref BArith.zero_mask in 
     let accm = ref BArith.zero_mask in 
-    let size = if isSigned ik then Size.bit ik - 1 else Size.bit ik in
+    let size = if GoblintCil.isSigned ik then Size.bit ik - 1 else Size.bit ik in
     let bitmask = Ints_t.of_bigint (fst (Size.range ik)) in
     let signBitUndef1 = z1 &: o1 &: bitmask in
     let signBitUndef2 = z2 &: o2 &: bitmask in
@@ -496,8 +495,8 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): SOverflow with type int_t = Int
     let (rv, rm) = add_paper !accv Ints_t.zero Ints_t.zero !accm in 
     let o3 = ref(rv |: rm) in 
     let z3 = ref(!:rv |: rm) in
-    if isSigned ik then z3 := signBitUndef |: signBitDefZ |: !z3;
-    if isSigned ik then o3 := signBitUndef |: signBitDefO |: !o3;
+    if GoblintCil.isSigned ik then z3 := signBitUndef |: signBitDefZ |: !z3;
+    if GoblintCil.isSigned ik then o3 := signBitUndef |: signBitDefO |: !o3;
     norm ik (!z3, !o3)
 
   let div ?no_ov ik (z1, o1) (z2, o2) =
@@ -589,6 +588,32 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): SOverflow with type int_t = Int
     in
     meet ik t joined
 
+
+  let refine_bor (az, ao) (bz, bo) (cz, co) = 
+    (* bits that are definitely 1 in c*)
+    let cDef1 = co &: (!: cz) in 
+    (* bits that are definitely 0 in a*)
+    let aDef0 = az &: (!: ao) in
+    (* bits that are definitely 0 in b*)
+    let bDef0 = bz &: (!: bo) in
+    (* bits that are definitely 0 in b and 1 in c must be definitely 1 in a, i.e. the zero bit cannot be set *)
+    let az = az &: (!: (bDef0 &: cDef1)) in 
+    (* bits that are definitely 0 in a and 1 in c must be definitely 1 in b, i.e. the zero bit cannot be set *)
+    let bz = bz &: (!: (aDef0 &: cDef1)) in
+    ((az, ao), (bz, bo))
+
+  let refine_band (az, ao) (bz, bo) (cz, co) = 
+    (* bits that are definitely 0 in c*)
+    let cDef0 = cz &: (!: co) in 
+    (* bits that are definitely 1 in a*)
+    let aDef1 = ao &: (!: az) in
+    (* bits that are definitely 1 in b*)
+    let bDef1 = bo &: (!: bz) in
+    (* bits that are definitely 1 in b and 0 in c must be definitely 0 in a, i.e. the one bit cannot be set *)
+    let ao = ao &: (!: (bDef1 &: cDef0)) in 
+    (* bits that are definitely 1 in a and 0 in c must be definitely 0 in a, i.e. the one bit cannot be set *)
+    let bo = bo &: (!: (aDef1 &: cDef0)) in
+    ((az, ao), (bz, bo))
 
   (* Unit Tests *)
 
