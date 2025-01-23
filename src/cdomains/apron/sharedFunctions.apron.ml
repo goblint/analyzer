@@ -267,6 +267,12 @@ struct
 
   let longlong = TInt(ILongLong,[])
 
+  let check_for_overflows (ask: Queries.ask) exp =
+    if no_overflow ask exp then
+      exp
+    else
+      (M.warn ~category:Analyzer "Invariant Apron: cannot convert to cil var in overflow preserving manner: %a" CilType.Exp.pretty exp; raise Unsupported_Linexpr1)
+
   (* Determines the integer kind (ikind) for a given constant.
      - Defaults to IInt for values that fit int range to minimize the number of LL suffixes in invariants.
      - Uses ILongLong to handle larger constants and prevent integer overflows.
@@ -301,12 +307,12 @@ struct
       | None -> raise Unsupported_Linexpr1)
     | _ -> raise Unsupported_Linexpr1
 
-  let cil_exp_of_linexpr1_term ~scalewith (c: Coeff.t) v =
+  let cil_exp_of_linexpr1_term ~scalewith (ask: Queries.ask) (c: Coeff.t) v =
     match V.to_cil_varinfo v with
     | Some vinfo when IntDomain.Size.is_cast_injective ~from_type:vinfo.vtype ~to_type:(TInt(ILongLong,[]))   ->
       let var = Cilfacade.mkCast ~e:(Lval(Var vinfo,NoOffset)) ~newt:longlong in
       let flip, coeff = coeff_to_const ~scalewith c in
-      let prod = BinOp(Mult, coeff, var, longlong) in
+      let prod = check_for_overflows ask (Cilfacade.makeBinOp Mult coeff var) in
       flip, prod
     | None ->
       M.warn ~category:Analyzer "Invariant Apron: cannot convert to cil var: %a" Var.pretty v;
@@ -315,11 +321,11 @@ struct
       M.warn ~category:Analyzer "Invariant Apron: cannot convert to cil var in overflow preserving manner: %a" Var.pretty v;
       raise Unsupported_Linexpr1
 
-  let cil_exp_of_linexpr1 ?scalewith (linexpr1:Linexpr1.t) =
+  let cil_exp_of_linexpr1 ?scalewith (ask: Queries.ask) (linexpr1:Linexpr1.t) =
     let terms = ref [coeff_to_const ~scalewith (Linexpr1.get_cst linexpr1)] in
     let append_summand (c:Coeff.union_5) v =
       if not (Coeff.is_zero c) then
-        terms := cil_exp_of_linexpr1_term ~scalewith c v :: !terms
+        terms := cil_exp_of_linexpr1_term ~scalewith (ask: Queries.ask) c v :: !terms
     in
     Linexpr1.iter append_summand linexpr1;
     !terms
@@ -356,13 +362,13 @@ struct
     try
       let linexpr1 = Lincons1.get_linexpr1 lincons1 in
       let common_denominator = lcm_den linexpr1 in
-      let terms = cil_exp_of_linexpr1 ~scalewith:common_denominator linexpr1 in
+      let terms = cil_exp_of_linexpr1 ~scalewith:common_denominator (ask: Queries.ask) linexpr1 in
       let (nterms, pterms) = Tuple2.mapn (List.map snd) (List.partition fst terms) in
       let fold_terms terms =
         List.fold_left (fun acc term ->
             match acc with
-            | None -> Some term
-            | Some exp -> Some (BinOp (PlusA, exp, term, longlong))
+            | None -> Some (check_for_overflows ask term)
+            | Some exp -> Some (check_for_overflows ask (Cilfacade.makeBinOp PlusA exp term))
           ) None terms
         |> Option.default zero
       in
