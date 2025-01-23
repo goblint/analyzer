@@ -267,23 +267,35 @@ struct
 
   let longlong = TInt(ILongLong,[])
 
+  (* Determines the integer kind (ikind) for a given constant.
+     - Defaults to IInt for values that fit int range to minimize the number of LL suffixes in invariants.
+     - Uses ILongLong to handle larger constants and prevent integer overflows.
+     - If the constant cannot fit into ILongLong, it is discarded with a warning. *)
+  let const_ikind i =
+    match () with
+    | _ when Cil.fitsInInt IInt i -> IInt
+    | _ when Cil.fitsInInt ILongLong i -> ILongLong
+    | _ ->
+      M.warn ~category:Analyzer "Invariant Apron: coefficient does not fit long type: %s" (Z.to_string i);
+      raise Unsupported_Linexpr1
 
   let coeff_to_const ~scalewith (c:Coeff.union_5) =
     match c with
     | Scalar c ->
       (match int_of_scalar ?scalewith c with
       | Some i ->
-        let ci,truncation = truncateCilint ILongLong i in
+        let ikind = const_ikind i in
+        let ci,truncation = truncateCilint ikind i in
         if truncation = NoTruncation then
           if Z.compare i Z.zero >= 0 then
-            false, Const (CInt(i,ILongLong,None))
+            false, Const (CInt(i,ikind,None))
           else
             (* attempt to negate if that does not cause an overflow *)
-            let cneg, truncation = truncateCilint ILongLong (Z.neg i) in
+            let cneg, truncation = truncateCilint ikind (Z.neg i) in
             if truncation = NoTruncation then
-              true, Const (CInt((Z.neg i),ILongLong,None))
+              true, Const (CInt((Z.neg i),ikind,None))
             else
-              false, Const (CInt(i,ILongLong,None))
+              false, Const (CInt(i,ikind,None))
         else
           (M.warn ~category:Analyzer "Invariant Apron: coefficient is not int: %a" Scalar.pretty c; raise Unsupported_Linexpr1)
       | None -> raise Unsupported_Linexpr1)
@@ -340,7 +352,7 @@ struct
     with UnsupportedScalar -> Z.one
 
   let cil_exp_of_lincons1 (ask: Queries.ask) (lincons1:Lincons1.t) =
-    let zero = Cil.kinteger ILongLong 0 in
+    let zero = Cil.kinteger IInt 0 in
     try
       let linexpr1 = Lincons1.get_linexpr1 lincons1 in
       let common_denominator = lcm_den linexpr1 in
