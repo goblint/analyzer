@@ -262,15 +262,19 @@ struct
       let enter =
         let d' = S.event man (Events.EnterOnce { once_control;  tf = true }) man in
         let proc = tf_proc var edge prev_node None init_routine [] getl sidel getg sideg d' in
-        let rec proc_man =
-          { man with
-            ask = (fun (type a) (q: a Queries.t) -> S.query proc_man q);
-            local = proc;
-          }
-        in
-        S.event proc_man (Events.LeaveOnce { once_control }) proc_man
+        if not (S.D.is_bot proc) then
+          let rec proc_man =
+            { man with
+              ask = (fun (type a) (q: a Queries.t) -> S.query proc_man q);
+              local = proc;
+            }
+          in
+          S.event proc_man (Events.LeaveOnce { once_control }) proc_man
+        else
+          S.D.bot ()
       in
       let not_enter =
+        (* Always possible, will never yield `Bot *)
         let d' = S.event man (Events.EnterOnce { once_control;  tf = false }) man in
         let rec d'_man =
           { man with
