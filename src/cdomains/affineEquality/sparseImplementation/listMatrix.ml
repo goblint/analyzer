@@ -186,7 +186,7 @@ module ListMatrix: AbstractMatrix =
       List.rev @@ List.fold_lefti (
         fun acc i row -> match V.find_first_non_zero row with
           | None -> acc
-          | Some (pivot_col, _) -> (i, pivot_col) :: acc
+          | Some (pivot_col, _) -> (i, pivot_col, row) :: acc
       ) [] m
 
     (** 
@@ -289,9 +289,9 @@ module ListMatrix: AbstractMatrix =
     *)
     let insert_v_according_to_piv m v piv_idx pivot_positions = 
       let reduced_m = reduce_col_with_vec m piv_idx v in
-      match List.find_opt (fun (row_idx, piv_col) -> piv_col > piv_idx) pivot_positions with
+      match List.find_opt (fun (row_idx, piv_col, _) -> piv_col > piv_idx) pivot_positions with
       | None -> append_row reduced_m v
-      | Some (row_idx, _) -> 
+      | Some (row_idx, _, _) -> 
         let (before, after) = List.split_at row_idx reduced_m in 
         before @ (v :: after)
 
@@ -308,12 +308,11 @@ module ListMatrix: AbstractMatrix =
       else (* We try to normalize v and check if a contradiction arises. If not, we insert v at the appropriate place in m (depending on the pivot) *)
         let pivot_positions = get_pivot_positions m in
         let v_after_elim = List.fold_left (
-            fun acc (row_idx, pivot_position) ->
+            fun acc (row_idx, pivot_position, piv_row) ->
               let v_at_piv = V.nth acc pivot_position in 
               if v_at_piv =: A.zero then 
                 acc
               else
-                let piv_row = List.nth m row_idx in
                 sub_scaled_row acc piv_row v_at_piv
           ) v pivot_positions
         in 
