@@ -267,10 +267,10 @@ module SparseVector: AbstractVector =
 
     *)
     let map_f_preserves_zero f v = (* map for functions f such that f 0 = 0 since f won't be applied to zero values. See also map *)
-      let entries = List.filter_map (
+      let entries' = List.filter_map (
           fun (idx, value) -> let new_val = f value in 
             if new_val = A.zero then None else Some (idx, new_val)) v.entries in 
-      {entries; len = v.len}
+      {v with entries = entries'}
 
     let map_f_preserves_zero f v = Timing.wrap "map_f_preserves_zero" (map_f_preserves_zero f) v
 
@@ -281,10 +281,10 @@ module SparseVector: AbstractVector =
 
     *)
     let mapi_f_preserves_zero f v =
-      let entries = List.filter_map (
+      let entries' = List.filter_map (
           fun (idx, value) -> let new_val = f idx value in 
             if new_val = A.zero then None else Some (idx, new_val)) v.entries in 
-      {entries; len = v.len}
+      {v with entries = entries'}
 
     (**
        [map2_f_preserves_zero f v v'] returns the mapping of [v] and [v'] specified by [f].
@@ -380,7 +380,7 @@ module SparseVector: AbstractVector =
       {entries; len = v.len}
 
     let rev v = 
-      let entries = List.rev @@ List.map (fun (idx, value) -> (v.len - 1 - idx, value)) v.entries in 
+      let entries = List.rev_map (fun (idx, value) -> (v.len - 1 - idx, value)) v.entries in 
       {entries; len = v.len}
 
     let append v v' = 
