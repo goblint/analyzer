@@ -1,4 +1,4 @@
-  $ goblint --set ana.activated[+] apron --enable witness.yaml.enabled --set witness.yaml.entry-types '["invariant_set"]' --set witness.yaml.invariant-types '["loop_invariant"]' --enable ana.sv-comp.functions 71-safe-program-example-loop-invariants.c
+  $ goblint --set ana.activated[+] apron --enable witness.yaml.enabled --set witness.yaml.entry-types '["invariant_set"]' --set witness.yaml.invariant-types '["loop_invariant"]' --enable ana.sv-comp.functions 72-safe-program-example-loop-invariants-2.c
   [Info][Deadcode] Logical lines of code (LLoC) summary:
     live: 21
     dead: 0
@@ -15,7 +15,7 @@
     - invariant:
         type: loop_invariant
         location:
-          file_name: 71-safe-program-example-loop-invariants.c
+          file_name: 72-safe-program-example-loop-invariants-2.c
           file_hash: $FILE_HASH
           line: 13
           column: 3
@@ -25,7 +25,7 @@
     - invariant:
         type: loop_invariant
         location:
-          file_name: 71-safe-program-example-loop-invariants.c
+          file_name: 72-safe-program-example-loop-invariants-2.c
           file_hash: $FILE_HASH
           line: 13
           column: 3
@@ -35,7 +35,7 @@
     - invariant:
         type: loop_invariant
         location:
-          file_name: 71-safe-program-example-loop-invariants.c
+          file_name: 72-safe-program-example-loop-invariants-2.c
           file_hash: $FILE_HASH
           line: 13
           column: 3
@@ -45,7 +45,7 @@
     - invariant:
         type: loop_invariant
         location:
-          file_name: 71-safe-program-example-loop-invariants.c
+          file_name: 72-safe-program-example-loop-invariants-2.c
           file_hash: $FILE_HASH
           line: 13
           column: 3
@@ -55,7 +55,7 @@
     - invariant:
         type: loop_invariant
         location:
-          file_name: 71-safe-program-example-loop-invariants.c
+          file_name: 72-safe-program-example-loop-invariants-2.c
           file_hash: $FILE_HASH
           line: 13
           column: 3
@@ -65,7 +65,7 @@
     - invariant:
         type: loop_invariant
         location:
-          file_name: 71-safe-program-example-loop-invariants.c
+          file_name: 72-safe-program-example-loop-invariants-2.c
           file_hash: $FILE_HASH
           line: 13
           column: 3
@@ -75,7 +75,7 @@
     - invariant:
         type: loop_invariant
         location:
-          file_name: 71-safe-program-example-loop-invariants.c
+          file_name: 72-safe-program-example-loop-invariants-2.c
           file_hash: $FILE_HASH
           line: 13
           column: 3
@@ -85,7 +85,7 @@
     - invariant:
         type: loop_invariant
         location:
-          file_name: 71-safe-program-example-loop-invariants.c
+          file_name: 72-safe-program-example-loop-invariants-2.c
           file_hash: $FILE_HASH
           line: 13
           column: 3
@@ -95,7 +95,7 @@
     - invariant:
         type: loop_invariant
         location:
-          file_name: 71-safe-program-example-loop-invariants.c
+          file_name: 72-safe-program-example-loop-invariants-2.c
           file_hash: $FILE_HASH
           line: 13
           column: 3
@@ -105,7 +105,7 @@
     - invariant:
         type: loop_invariant
         location:
-          file_name: 71-safe-program-example-loop-invariants.c
+          file_name: 72-safe-program-example-loop-invariants-2.c
           file_hash: $FILE_HASH
           line: 13
           column: 3
@@ -115,7 +115,7 @@
     - invariant:
         type: loop_invariant
         location:
-          file_name: 71-safe-program-example-loop-invariants.c
+          file_name: 72-safe-program-example-loop-invariants-2.c
           file_hash: $FILE_HASH
           line: 13
           column: 3
@@ -125,7 +125,7 @@
     - invariant:
         type: loop_invariant
         location:
-          file_name: 71-safe-program-example-loop-invariants.c
+          file_name: 72-safe-program-example-loop-invariants-2.c
           file_hash: $FILE_HASH
           line: 13
           column: 3
@@ -135,7 +135,7 @@
     - invariant:
         type: loop_invariant
         location:
-          file_name: 71-safe-program-example-loop-invariants.c
+          file_name: 72-safe-program-example-loop-invariants-2.c
           file_hash: $FILE_HASH
           line: 13
           column: 3
@@ -145,7 +145,7 @@
     - invariant:
         type: loop_invariant
         location:
-          file_name: 71-safe-program-example-loop-invariants.c
+          file_name: 72-safe-program-example-loop-invariants-2.c
           file_hash: $FILE_HASH
           line: 13
           column: 3
