@@ -259,7 +259,21 @@ struct
         Queries.AD.to_var_may ad (* TODO: don't convert, handle UnknownPtr below *)
     in
     let once once_control init_routine =
-      D.join d (tf_proc var edge prev_node None init_routine [] getl sidel getg sideg d)
+      let enter =
+        let d' = S.event man (Events.EnterOnce { once_control;  tf = true }) man in
+        let proc = tf_proc var edge prev_node None init_routine [] getl sidel getg sideg d' in
+        let rec proc_man =
+          { man with
+            ask = (fun (type a) (q: a Queries.t) -> S.query proc_man q);
+            local = proc;
+          }
+        in
+        S.event proc_man (Events.LeaveOnce { once_control }) proc_man
+      in
+      let not_enter =
+        S.event man (Events.EnterOnce { once_control;  tf = false }) man
+      in
+      D.join enter not_enter
     in
     let one_function f =
       match f.vtype with
