@@ -59,14 +59,21 @@ struct
 
   let event man (e: Events.t) oman : D.t =
     match e with
+    | Events.EnterOnce { once_control; tf } when tf ->
+      (let (active, seen) = man.local in
+       let ask = Analyses.ask_of_man man in
+       let possible_vinfos = possible_vinfos ask once_control in
+       let unseen = List.filter (fun v -> not (Onces.mem v seen) && not (Onces.mem v active)) possible_vinfos in
+       match unseen with
+       | [] -> raise Deadcode
+       | [v] -> (Onces.add v active, seen)
+       | _ :: _ -> man.local)
     | Events.EnterOnce { once_control; tf } ->
       (let (active, seen) = man.local in
        let ask = Analyses.ask_of_man man in
        match possible_vinfos ask once_control with
-       | [v] ->
-         (Onces.add v active, seen)
-       | _ ->
-         man.local)
+       | [v] -> (Onces.add v active, seen)
+       | _ -> man.local)
     | Events.LeaveOnce { once_control } ->
       (let (active, seen) = man.local in
        let ask = Analyses.ask_of_man man in

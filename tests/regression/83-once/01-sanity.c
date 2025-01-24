@@ -17,8 +17,11 @@ int main(void) {
   pthread_once(&once, fun);
   pthread_once(&once, fun);
 
-  // This fails if the (actual) case that it is not executed twice is ignored.
-  __goblint_check(g == 1); //TODO
+  __goblint_check(g < 2);
+
+  if(g = 1) {
+    __goblint_check(1); //Reachable
+  }
 
   return 0;
 }
