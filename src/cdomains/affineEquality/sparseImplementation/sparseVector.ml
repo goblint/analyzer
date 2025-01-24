@@ -8,7 +8,7 @@ open Batteries
 module List = BatList
 module Array = BatArray
 
-module SparseVector: AbstractVector =
+module SparseVector: SparseVectorFunctor =
   functor (A: RatOps) ->
   struct
     include ConvenienceOps (A)

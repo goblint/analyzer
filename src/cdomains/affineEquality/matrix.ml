@@ -27,8 +27,6 @@ sig
 
   val remove_zero_rows: t -> t
 
-  val swap_rows: t -> int -> int -> t
-
   val map2: (vec -> num -> vec) -> t -> vec -> t
 
   val map2i: (int -> vec-> num -> vec) -> t -> vec -> t
@@ -36,8 +34,6 @@ sig
   val add_empty_columns: t -> int array -> t
 
   val get_col: t -> int -> vec
-
-  val get_col_upper_triangular: t -> int -> vec
 
   val set_col: t -> vec -> int -> t
 
@@ -51,12 +47,31 @@ sig
 
   val reduce_col: t -> int -> t
 
-  val normalize: t -> t Option.t (*Gauss-Jordan Elimination to get matrix in reduced row echelon form (rref) + deletion of zero rows. None matrix has no solution*)
-
-  val rref_vec: t -> vec -> t Option.t
-
-  val rref_matrix: t -> t -> t Option.t
+  val normalize: t -> t Option.t (* Gauss-Jordan Elimination to get matrix in reduced row echelon form (rref) + deletion of zero rows. None matrix has no solution *)
 
   val is_covered_by: t -> t -> bool
 
+end
+
+module type ArrayMatrix = 
+sig
+  include Matrix
+  val set_col_with: t -> vec -> int -> t
+  val reduce_col_with: t -> int -> unit
+  val normalize_with: t -> bool
+
+  val rref_vec_with: t -> vec -> t Option.t
+
+  val rref_matrix_with: t -> t -> t Option.t
+  val map2_with: (vec -> num -> vec) -> t -> vec -> unit
+  val map2i_with: (int -> vec -> num -> vec) -> t -> vec -> unit
+end
+
+module type SparseMatrix = 
+sig
+  include Matrix
+  val get_col_upper_triangular: t -> int -> vec
+  val swap_rows: t -> int -> int -> t
+  val rref_vec: t -> vec -> t Option.t
+  val rref_matrix: t -> t -> t Option.t
 end
