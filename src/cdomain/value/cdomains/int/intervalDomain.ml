@@ -79,7 +79,7 @@ struct
   let to_int x = Option.bind x (IArith.to_int)
   let of_interval ?(suppress_ovwarn=false) ik (x,y) = norm ~suppress_ovwarn ik @@ Some (x,y)
 
-  let of_bitfield ik x = 
+  let of_bitfield ik x =     
     let min ik (z,o) = 
       let signBit = Ints_t.shift_left Ints_t.one ((Size.bit ik) - 1) in 
       let signMask = Ints_t.lognot (Ints_t.of_bigint (snd (Size.range ik))) in
@@ -100,54 +100,11 @@ struct
   let top_bool = Some IArith.top_bool
 
   let to_bitfield ik z = 
-    match z with None -> (Ints_t.lognot Ints_t.zero, Ints_t.lognot Ints_t.zero) | Some (x,y) ->
-      let (min_ik, max_ik) = Size.range ik in
-      let startv = Ints_t.max x (Ints_t.of_bigint min_ik) in
-      let endv= Ints_t.min y (Ints_t.of_bigint max_ik) in
-
-      let wrap ik (z,o) = 
-        let (min_ik, max_ik) = Size.range ik in
-        if GoblintCil.isSigned ik then
-          let newz = Ints_t.logor (Ints_t.logand z (Ints_t.of_bigint max_ik)) (Ints_t.mul (Ints_t.of_bigint min_ik) (Ints_t.logand Ints_t.one (Ints_t.shift_right z (Size.bit ik - 1)))) in
-          let newo = Ints_t.logor (Ints_t.logand o (Ints_t.of_bigint max_ik)) (Ints_t.mul (Ints_t.of_bigint min_ik) (Ints_t.logand Ints_t.one (Ints_t.shift_right o (Size.bit ik - 1)))) in
-          (newz,newo)
-        else
-          let newz = Ints_t.logor z (Ints_t.lognot (Ints_t.of_bigint max_ik)) in
-          let newo = Ints_t.logand o (Ints_t.of_bigint max_ik) in
-          (newz,newo)
-      in    
-      let rec analyze_bits pos (acc_z, acc_o) =
-        if pos < 0 then (acc_z, acc_o)
-        else
-          let position = Ints_t.shift_left Ints_t.one pos in
-          let mask = Ints_t.sub position Ints_t.one in
-          let remainder = Ints_t.logand startv mask in
-
-          let without_remainder = Ints_t.sub startv remainder in
-          let bigger_number = Ints_t.add without_remainder position in
-
-          let bit_status =
-            if Ints_t.compare bigger_number endv <= 0 then
-              `top
-            else 
-            if Ints_t.equal (Ints_t.logand (Ints_t.shift_right startv pos) Ints_t.one) Ints_t.one then
-              `one
-            else
-              `zero
-          in
-
-          let new_acc = 
-            match bit_status with
-            | `top -> (Ints_t.logor position acc_z, Ints_t.logor position acc_o)
-            | `one -> (Ints_t.logand (Ints_t.lognot position) acc_z, Ints_t.logor position acc_o)
-            | `zero -> (Ints_t.logor position acc_z, Ints_t.logand (Ints_t.lognot position) acc_o)
-
-          in 
-          analyze_bits (pos - 1) new_acc
-      in      
-      let result = analyze_bits (Size.bit ik - 1) (Ints_t.zero, Ints_t.zero) in
-      let casted = (Ints_t.of_bigint (Size.cast ik ((Ints_t.to_bigint (fst result)))), Ints_t.of_bigint (Size.cast ik ((Ints_t.to_bigint (snd result))))) 
-      in wrap ik casted
+    match z with 
+    | None -> (Ints_t.lognot Ints_t.zero, Ints_t.lognot Ints_t.zero) 
+    | Some (x,y) ->
+      let (z,o) = fst(BitfieldDomain.Bitfield.of_interval ik (Ints_t.to_bigint x, Ints_t.to_bigint y)) in 
+      (Ints_t.of_bigint z, Ints_t.of_bigint o)
 
   let of_bool _ik = function true -> one | false -> zero
   let to_bool (a: t) = match a with

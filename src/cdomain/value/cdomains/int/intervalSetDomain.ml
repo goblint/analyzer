@@ -237,19 +237,9 @@ struct
   let of_interval ?(suppress_ovwarn=false) ik (x,y) =  norm_interval  ~suppress_ovwarn ~cast:false ik (x,y)
 
   let of_bitfield ik x = 
-    let min ik (z,o) = 
-      let signBit = Ints_t.shift_left Ints_t.one ((Size.bit ik) - 1) in 
-      let signMask = Ints_t.lognot (Ints_t.of_bigint (snd (Size.range ik))) in
-      let isNegative = Ints_t.logand signBit o <> Ints_t.zero in
-      if isSigned ik && isNegative then Ints_t.logor signMask (Ints_t.lognot z)
-      else Ints_t.lognot z
-    in let max ik (z,o) =
-         let signBit = Ints_t.shift_left Ints_t.one ((Size.bit ik) - 1) in 
-         let signMask = Ints_t.of_bigint (snd (Size.range ik)) in
-         let isPositive = Ints_t.logand signBit z <> Ints_t.zero in
-         if isSigned ik && isPositive then Ints_t.logand signMask o
-         else o 
-    in fst (norm_interval ik (min ik x, max ik x))
+    match Interval.of_bitfield ik x with 
+    | None -> []
+    | Some (a,b) -> norm_interval ik (a,b) |> fst
 
   let to_bitfield ik x = 
     let joinbf (z1,o1) (z2,o2) = (Ints_t.logor z1 z2, Ints_t.logor o1 o2) in 

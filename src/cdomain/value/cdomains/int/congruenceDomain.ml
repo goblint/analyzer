@@ -139,19 +139,18 @@ struct
 
   let of_congruence ik (c,m) = normalize ~debug:"of congruence" ik @@ Some(c,m)
 
+  let of_bitfield ik (z,o) = 
+    if Z.lognot z = o then 
+      normalize ik (Some (o, Z.zero))
+    else 
+      let tl_zeros = Z.trailing_zeros o in 
+      normalize ik (Some (Z.zero, Z.pow Z.one tl_zeros))
+
   let to_bitfield ik x = 
-    let is_power_of_two x = (Z.logand x (x -: Z.one) = Z.zero) in
     let x = normalize ik x in 
     match x with 
     | None -> (Z.zero, Z.zero) 
-    | Some (c,m) ->
-      if m = Z.zero then (Z.lognot c, c)
-      else if is_power_of_two m then 
-        let mod_mask = m -: Z.one in 
-        let z = Z.lognot c in 
-        let o = Z.logor (Z.lognot mod_mask) c in 
-        (z,o)
-      else (Z.lognot Z.zero, Z.lognot Z.zero)
+    | Some (c,m) -> BitfieldDomain.Bitfield.of_congruence ik (c,m)
 
   let maximal t = match t with
     | Some (x, y) when y =: Z.zero -> Some x
@@ -503,11 +502,13 @@ struct
     refn
 
   let refine_with_congruence ik a b = meet ik a b
+
   let refine_with_bitfield ik a (z,o) = 
     let a = normalize ik a in 
-    if Z.lognot z = o then meet ik a (Some (o, Z.zero))
-    else a
+    meet ik a (of_bitfield ik (z,o))
+
   let refine_with_excl_list ik a b = a
+  
   let refine_with_incl_list ik a b = a
 
   let project ik p t = t
