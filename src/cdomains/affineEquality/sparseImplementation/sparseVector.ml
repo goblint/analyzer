@@ -28,7 +28,7 @@ module SparseVector: AbstractVector =
 
     (** [of_array a] returns a vector constructed from the non-sparse array [a] *)
     let of_array a =
-      let entries = List.rev @@ Array.fold_lefti (fun acc i x -> if x <> A.zero then (i, x) :: acc else acc ) [] a in
+      let entries = Array.fold_righti (fun i x acc -> if x <> A.zero then (i, x) :: acc else acc ) a [] in
       let len = Array.length a in 
       {entries; len}
 
