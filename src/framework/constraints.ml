@@ -258,6 +258,9 @@ struct
         let ad = man.ask (Queries.EvalFunvar e) in
         Queries.AD.to_var_may ad (* TODO: don't convert, handle UnknownPtr below *)
     in
+    let once once_control init_routine =
+      D.join d (tf_proc var edge prev_node None init_routine [] getl sidel getg sideg d)
+    in
     let one_function f =
       match f.vtype with
       | TFun (_, params, var_arg, _)  ->
@@ -270,8 +273,9 @@ struct
             let is_once = LibraryFunctions.find ~nowarn:true f in
             match is_once.special args with
             | Once { once_control; init_routine } ->
-              Some (D.join d (tf_proc var edge prev_node None init_routine [] getl sidel getg sideg d))
-            | _ ->
+              Some (once once_control init_routine)
+            | _
+            | exception LibraryDsl.Expected _-> (* propagate weirdness inside *)
               Some (match Cilfacade.find_varinfo_fundec f with
                   | fd when LibraryFunctions.use_special f.vname ->
                     M.info ~category:Analyzer "Using special for defined function %s" f.vname;
