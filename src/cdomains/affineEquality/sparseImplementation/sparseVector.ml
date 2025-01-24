@@ -122,6 +122,7 @@ module SparseVector: AbstractVector =
 
     (**
        [insert_val_at v n num] returns [v] where the [num] is inserted into the [n]-th position, i.e. [v] at [n] = [num].
+       All entries in [v] at position [n] and higher are shifted to the right, so the length of the vector is increased by one.
        @raise Invalid_argument if [n] is out of bounds.
     *)
     let insert_val_at v n num = 

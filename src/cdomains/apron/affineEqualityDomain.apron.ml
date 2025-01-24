@@ -307,8 +307,7 @@ struct
               let col_a = Vector.map2_f_preserves_zero (-:) col_a col_b in
               let col_a = Vector.rev col_a in
               let multiply_by_t m t =
-                Matrix.map2i (fun i' x c -> if i' <= max then (let beta = c /: diff in Vector.map2_f_preserves_zero (fun u j -> u -: (beta *: j)) x t) else x) m col_a;
-
+                Matrix.map2i (fun i' x c -> if i' <= max then (let beta = c /: diff in Vector.map2_f_preserves_zero (fun u j -> u -: (beta *: j)) x t) else x) m col_a
               in
               Matrix.remove_row (multiply_by_t a a_r) r, Matrix.remove_row (multiply_by_t b b_r) r, (max - 1)
             )
@@ -320,7 +319,7 @@ struct
         in
         let a_rs, b_rs = nth_zero col_a r, nth_zero col_b r in
         if not (Z.equal (Mpqf.get_den a_rs) Z.one) || not (Z.equal (Mpqf.get_den b_rs) Z.one) then failwith "Matrix not in rref form" else
-          begin match Int.of_float @@ Mpqf.to_float @@ a_rs, Int.of_float @@ Mpqf.to_float @@ b_rs with (* TODO: is it safe to go through floats? *)
+          begin match Z.to_int @@ Mpqf.get_num a_rs, Z.to_int @@ Mpqf.get_num b_rs with
             | 1, 1 -> lin_disjunc (r + 1) (s + 1) a b
             | 1, 0 -> lin_disjunc r (s + 1) (case_two a r col_b) b
             | 0, 1 -> lin_disjunc r (s + 1) a (case_two b r col_a)
