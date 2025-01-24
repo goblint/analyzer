@@ -271,7 +271,14 @@ struct
         S.event proc_man (Events.LeaveOnce { once_control }) proc_man
       in
       let not_enter =
-        S.event man (Events.EnterOnce { once_control;  tf = false }) man
+        let d' = S.event man (Events.EnterOnce { once_control;  tf = false }) man in
+        let rec d'_man =
+          { man with
+            ask = (fun (type a) (q: a Queries.t) -> S.query d'_man q);
+            local = d';
+          }
+        in
+        S.event d'_man (Events.LeaveOnce { once_control }) d'_man
       in
       D.join enter not_enter
     in
