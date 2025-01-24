@@ -244,8 +244,6 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): Bitfield_SOverflow with type in
       else if should_wrap ik then
         (new_bitfield, overflow_info)
       else if should_ignore_overflow ik then 
-        (* (M.warn ~category:M.Category.Integer.overflow "Bitfield: Value was outside of range, indicating overflow, but 'sem.int.signed_overflow' is 'assume_none' -> Returned Top"; *)
-        (* (bot (), overflow_info)) *)
         (top_of ik, overflow_info)
       else 
         (top_of ik, overflow_info)
