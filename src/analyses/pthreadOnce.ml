@@ -85,6 +85,18 @@ struct
        (active', seen'))
     | _ -> man.local
 
+  let access man _ = man.local
+
+  module A =
+  struct
+    include D
+    let name () = "onces"
+    let may_race (a1, s1) (a2, s2) =
+      (Onces.is_empty (Onces.inter a1 (Onces.union a2 s2))) && (Onces.is_empty (Onces.inter a2 (Onces.union a1 s1)))
+    let should_print f = true
+  end
+
+
   let threadenter man ~multiple lval f args =
     let (_, seen) = man.local in
     [Onces.empty (), seen]
