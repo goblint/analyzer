@@ -254,11 +254,11 @@ module SparseVector: AbstractVector =
 
     let exists f v  = 
       let c = v.len in
-      let rec exists_aux at f v =
-        match v with
-        | [] -> if at = 0 then false else f A.zero
-        | (xi, xv) :: xs -> if f xv then true else exists_aux (at - 1) f xs
-      in (exists_aux c f v.entries)
+      let rec exists_aux at = function
+        | [] -> if at = 0 then false (* vector is dense *) else f A.zero
+        | (_, xv) :: xs -> f xv || exists_aux (at - 1) xs
+      in
+      exists_aux c v.entries
 
     (**
        [map_f_preserves_zero f v] returns the mapping of [v] specified by [f].
