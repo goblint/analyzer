@@ -243,13 +243,13 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): Bitfield_SOverflow with type in
 
   let cast_to ?(suppress_ovwarn=false) ?torg ?no_ov ik x = norm ~suppress_ovwarn:(suppress_ovwarn || x = top ()) ik x
 
-  let join ik b1 b2 = wrap ik @@ (BArith.join b1 b2)
+  let join ik b1 b2 = fst @@ norm ik @@ (BArith.join b1 b2)
 
-  let meet ik x y = wrap ik @@ (BArith.meet x y)
+  let meet ik x y = fst @@ norm ik @@ (BArith.meet x y)
 
   let leq (x:t) (y:t) = (BArith.join x y) = y
 
-  let widen ik x y = wrap ik @@ BArith.widen x y
+  let widen ik x y = fst @@ norm ik @@ BArith.widen x y
 
   let narrow ik x y = meet ik x y
 
@@ -311,9 +311,9 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): Bitfield_SOverflow with type in
     else if d = BArith.zero then Some false
     else None
 
-  let of_bitfield ik x = wrap ik x
+  let of_bitfield ik x = norm ik x |> fst
 
-  let to_bitfield ik x = wrap ik x
+  let to_bitfield ik x = norm ik x |> fst
 
   let is_power_of_two x = (x &: (x -: Ints_t.one) = Ints_t.zero) 
 
