@@ -34,6 +34,8 @@ sig
 
   val insert_val_at: t -> int -> num ->  t
 
+  val remove_nth: t -> int ->  t
+
   val keep_vals: t -> int ->  t
 
   val findi: (num -> bool) ->  t -> int
@@ -53,8 +55,6 @@ sig
   val is_zero_vec: t -> bool
 
   val insert_zero_at_indices: t -> (int * int) list -> int -> t
-
-  val remove_nth: t -> int ->  t
 
   val remove_at_indices: t -> int list -> t
   (* Returns the part of the vector starting from index n*)

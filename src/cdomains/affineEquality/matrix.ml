@@ -33,17 +33,11 @@ sig
 
   val add_empty_columns: t -> int array -> t
 
-  val get_col: t -> int -> vec
-
   val set_col: t -> vec -> int -> t
-
-  val del_col: t -> int -> t
 
   val del_cols: t -> int array -> t
 
   val find_opt: (vec -> bool) -> t -> vec option
-
-  val append_matrices: t -> t -> t
 
   val reduce_col: t -> int -> t
 
@@ -56,7 +50,9 @@ end
 module type ArrayMatrix = 
 sig
   include Matrix
+  val get_col: t -> int -> vec
   val set_col_with: t -> vec -> int -> t
+  val del_col: t -> int -> t
   val reduce_col_with: t -> int -> unit
   val normalize_with: t -> bool
 
@@ -65,6 +61,8 @@ sig
   val rref_matrix_with: t -> t -> t Option.t
   val map2_with: (vec -> num -> vec) -> t -> vec -> unit
   val map2i_with: (int -> vec -> num -> vec) -> t -> vec -> unit
+
+  val append_matrices: t -> t -> t
 end
 
 module type SparseMatrix = 

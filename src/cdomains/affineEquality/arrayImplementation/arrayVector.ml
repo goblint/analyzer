@@ -1,4 +1,4 @@
-open AbstractVector
+open VectorFunctor
 open RatOps
 open ConvenienceOps
 
@@ -30,7 +30,7 @@ module ArrayVector: ArrayVectorFunctor =
     let compare_length_with v len =
       Int.compare (Array.length v) len
 
-    let remove_val v n =
+    let remove_nth v n =
       if n >= Array.length v then failwith "n outside of Array range" else
         Array.init (Array.length v - 1) (fun i -> if i < n then Array.get v i else Array.get v (i + 1)) (* TODO: remove_at? *)
 

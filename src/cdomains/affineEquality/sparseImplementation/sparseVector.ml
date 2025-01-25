@@ -1,4 +1,4 @@
-open AbstractVector
+open VectorFunctor
 open RatOps
 open ConvenienceOps
 
@@ -224,23 +224,6 @@ module SparseVector: SparseVectorFunctor =
       in
       if v.len <> v'.len then raise (Invalid_argument "Unequal lengths") else
         aux v.entries v'.entries
-
-    (**
-       [findi_val_opt f v] returns the first entry [e] and its index where [f e = true], if such an entry exists.
-       @return [(idx, e) option]
-    *)
-    let findi_val_opt f v =
-      let rec find_zero_or_val vec last_idx =
-        let f0 = f A.zero in
-        match vec with
-        | [] -> if f0 && v.len <> last_idx + 1 then Some (last_idx + 1, A.zero) else None
-        | (idx, value) :: xs -> 
-          if f0  && idx <> last_idx + 1 then Some (last_idx + 1, A.zero) 
-          else if f value then Some (idx, value) 
-          else find_zero_or_val xs idx
-      in find_zero_or_val v.entries (-1)
-
-    let findi_val_opt f v = Timing.wrap "findi_val_opt" (findi_val_opt f) v
 
     (**
        [find_first_non_zero v] returns the first entry [e] and its index where [e <>: 0], if such an entry exists.

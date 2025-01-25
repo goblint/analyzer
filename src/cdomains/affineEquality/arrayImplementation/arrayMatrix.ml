@@ -1,7 +1,8 @@
-open AbstractVector
+open VectorFunctor
+open MatrixFunctor
+
 open RatOps
 open ConvenienceOps
-open AbstractMatrix
 
 open Batteries
 module Array = Batteries.Array

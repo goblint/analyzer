@@ -13,8 +13,8 @@ module M = Messages
 open GobApron
 
 open ConvenienceOps
-open AbstractVector
-open AbstractMatrix
+open VectorFunctor
+open MatrixFunctor
 
 open Batteries
 module Array = Batteries.Array

@@ -1,5 +1,5 @@
 open RatOps
-open AbstractVector
+open VectorFunctor
 open Matrix
 
 (** Some functions inside have the suffix _with, which means that the function has side effects. *)
