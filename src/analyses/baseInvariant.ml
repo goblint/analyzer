@@ -398,11 +398,9 @@ struct
       | BOr ->      
         (* Be careful: inv_exp performs a meet on both arguments of the BOr / BXor. *)
         if PrecisionUtil.get_bitfield () then
-          (* all zero bits of (a | b) must be definitely zero in a and b too *)
-          let a', b' = ID.meet a (ID.logand a c), ID.meet b (ID.logand b c) in
           (* refinement based on the following idea: bit set to one in c and set to zero in b must be one in a *)
-          let ((az, ao), (bz, bo)) = BitfieldDomain.Bitfield.refine_bor (ID.to_bitfield ikind a') (ID.to_bitfield ikind b') (ID.to_bitfield ikind c) in 
-          ID.meet a' (ID.of_bitfield ikind (az, ao)), ID.meet b' (ID.of_bitfield ikind (bz, bo))
+          let ((az, ao), (bz, bo)) = BitfieldDomain.Bitfield.refine_bor (ID.to_bitfield ikind a) (ID.to_bitfield ikind b) (ID.to_bitfield ikind c) in 
+          ID.meet a (ID.of_bitfield ikind (az, ao)), ID.meet b (ID.of_bitfield ikind (bz, bo))
         else 
           (if M.tracing then M.tracel "inv" "Unhandled operator %a" d_binop op;
           (* Be careful: inv_exp performs a meet on both arguments of the BOr / BXor. *)
@@ -435,11 +433,9 @@ struct
           | _ -> a
         in
         if PrecisionUtil.get_bitfield () then 
-          (* all one bits of (a & b) must be definitely one in a and b too *)
-          let a', b' = ID.meet a (ID.logor a c), ID.meet b (ID.logor b c) in 
           (* refinement based on the following idea: bit set to zero in c and set to one in b must be zero in a *)
-          let ((az, ao), (bz, bo)) = BitfieldDomain.Bitfield.refine_bor (ID.to_bitfield ikind a') (ID.to_bitfield ikind b') (ID.to_bitfield ikind c) in 
-          ID.meet a' (ID.of_bitfield ikind (az, ao)), ID.meet b' (ID.of_bitfield ikind (bz, bo))
+          let ((az, ao), (bz, bo)) = BitfieldDomain.Bitfield.refine_band (ID.to_bitfield ikind a) (ID.to_bitfield ikind b) (ID.to_bitfield ikind c) in 
+          ID.meet a (ID.of_bitfield ikind (az, ao)), ID.meet b (ID.of_bitfield ikind (bz, bo))
         else a, b
       | op ->
         if M.tracing then M.tracel "inv" "Unhandled operator %a" d_binop op;

@@ -243,13 +243,13 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): Bitfield_SOverflow with type in
 
   let cast_to ?(suppress_ovwarn=false) ?torg ?no_ov ik x = norm ~suppress_ovwarn:(suppress_ovwarn || x = top ()) ik x
 
-  let join ik b1 b2 = (norm ik @@ (BArith.join b1 b2) ) |> fst
+  let join ik b1 b2 = wrap ik @@ (BArith.join b1 b2)
 
-  let meet ik x y = (norm ik @@ (BArith.meet x y)) |> fst
+  let meet ik x y = wrap ik @@ (BArith.meet x y)
 
   let leq (x:t) (y:t) = (BArith.join x y) = y
 
-  let widen ik x y = (norm ik @@ BArith.widen x y) |> fst
+  let widen ik x y = wrap ik @@ BArith.widen x y
 
   let narrow ik x y = meet ik x y
 
@@ -311,9 +311,9 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): Bitfield_SOverflow with type in
     else if d = BArith.zero then Some false
     else None
 
-  let of_bitfield ik x = norm ik x |> fst
+  let of_bitfield ik x = wrap ik x
 
-  let to_bitfield ik x = norm ik x |> fst
+  let to_bitfield ik x = wrap ik x
 
   let is_power_of_two x = (x &: (x -: Ints_t.one) = Ints_t.zero) 
 
@@ -587,26 +587,32 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): Bitfield_SOverflow with type in
 
   let refine_bor (az, ao) (bz, bo) (cz, co) = 
     (* bits that are definitely 1 in c*)
-    let cDef1 = co &: (!: cz) in 
+    let cDef0 = cz &: (!: cz) in 
+    let cDef1 = co &: (!: cz) in     
     (* bits that are definitely 0 in a*)
     let aDef0 = az &: (!: ao) in
     (* bits that are definitely 0 in b*)
     let bDef0 = bz &: (!: bo) in
     (* bits that are definitely 0 in b and 1 in c must be definitely 1 in a, i.e. the zero bit cannot be set *)
     let az = az &: (!: (bDef0 &: cDef1)) in 
+    let ao = ao &: (!: cDef0) in 
     (* bits that are definitely 0 in a and 1 in c must be definitely 1 in b, i.e. the zero bit cannot be set *)
     let bz = bz &: (!: (aDef0 &: cDef1)) in
+    let bo = bo &: (!: cDef0) in 
     ((az, ao), (bz, bo))
 
   let refine_band (az, ao) (bz, bo) (cz, co) = 
     (* bits that are definitely 0 in c*)
     let cDef0 = cz &: (!: co) in 
+    let cDef1 = co &: (!: cz) in 
     (* bits that are definitely 1 in a*)
     let aDef1 = ao &: (!: az) in
     (* bits that are definitely 1 in b*)
     let bDef1 = bo &: (!: bz) in
+    let az = az &: (!: cDef1) in 
     (* bits that are definitely 1 in b and 0 in c must be definitely 0 in a, i.e. the one bit cannot be set *)
     let ao = ao &: (!: (bDef1 &: cDef0)) in 
+    let bz = bz &: (!: cDef1) in 
     (* bits that are definitely 1 in a and 0 in c must be definitely 0 in a, i.e. the one bit cannot be set *)
     let bo = bo &: (!: (aDef1 &: cDef0)) in
     ((az, ao), (bz, bo))
