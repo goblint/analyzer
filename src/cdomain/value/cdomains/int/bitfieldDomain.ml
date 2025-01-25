@@ -82,13 +82,6 @@ module BitfieldArith (Ints_t : IntOps.IntOps) = struct
 
   let nth_bit p n = Ints_t.one &: (p >>: n) =: Ints_t.one
 
-  let nth_bf_bit (z,o) n =
-    match nth_bit z n, nth_bit o n with
-    | true, true -> `Undetermined
-    | false, false -> `Invalid
-    | true, false -> `Zero
-    | false, true -> `One
-
   let min ik (z,o) = 
     let signBit = Ints_t.one <<: ((Size.bit ik) - 1) in 
     let signMask = !: (Ints_t.of_bigint (snd (Size.range ik))) in
@@ -103,18 +96,20 @@ module BitfieldArith (Ints_t : IntOps.IntOps) = struct
     if GoblintCil.isSigned ik && isPositive then Ints_t.to_bigint(signMask &: o)
     else Ints_t.to_bigint o 
 
+  (*
+    This function is exclusively used inside the shift functions. The invariant for the second
+    parameter is that it's size is bounded by O(log2 n) ensuring that no exponential blowup happens.
+   *)
   let rec concretize (z,o) = (* O(2^n) *)
     if is_const (z,o) then [o]
     else
       let bit = o &: Ints_t.one in
-      let bf_bit = nth_bf_bit (z,o) 0 in
-      concretize (z >>. 1, o >>: 1) |>
-      if bf_bit = `Undetermined then
-        List.concat_map (fun c -> [c <<: 1; (c <<: 1) |: Ints_t.one])
-      else if bf_bit = `Invalid then
-        failwith "Should not have happened: Invalid bit during concretization of a bitfield."
-      else
-        List.map (fun c -> c <<: 1 |: bit)
+      concretize (z >>. 1, o >>: 1)
+      |>
+      match nth_bit z 0, nth_bit o 0 with
+      | true, true -> List.concat_map (fun c -> [c <<: 1; (c <<: 1) |: Ints_t.one])
+      | false, false -> failwith "Should not have happened: Invalid bit during concretization of a bitfield."
+      | _ -> List.map (fun c -> c <<: 1 |: bit)
 
   let concretize bf = List.map Ints_t.to_int (concretize bf)
 
