@@ -206,8 +206,6 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): Bitfield_SOverflow with type in
 
   include Std (struct type nonrec t = t let name = name let top_of = top_of let bot_of = bot_of let show = show let equal = equal end)
 
-  let range ik bf = (BArith.min ik bf, BArith.max ik bf)
-
   let maximal (z,o) =     
     if (z <: Ints_t.zero) <> (o <: Ints_t.zero) then Some o
     else None
@@ -548,8 +546,16 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): Bitfield_SOverflow with type in
   (* Invariant *)
 
   let invariant_ikind e ik (z,o) = 
-    let range = range ik (z,o) in
-    IntInvariant.of_interval e ik range
+    if z =: BArith.one_mask && o =: BArith.one_mask then 
+      Invariant.top ()
+    else if  BArith.is_invalid (z,o) then 
+      Invariant.none
+    else      
+      let open GoblintCil.Cil in
+      let def0 = z &: (!: o) in 
+      let def1 = o &: (!: z) in 
+      let (def0, def1) = BatTuple.Tuple2.mapn (kintegerCilint ik) (Ints_t.to_bigint !:def0, Ints_t.to_bigint def1) in
+      Invariant.of_exp (BinOp (Eq, (BinOp (BOr, (BinOp (BAnd, e, def0, TInt(ik,[]))), def1, TInt(ik,[]))), e, intType))
 
   let starting ?(suppress_ovwarn=false) ik n = 
     let (min_ik, max_ik) = Size.range ik in
