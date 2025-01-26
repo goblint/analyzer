@@ -613,39 +613,37 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): Bitfield_SOverflow with type in
     meet ik t joined
 
 
-  let refine_bor (az, ao) (bz, bo) (cz, co) = 
-    (* bits that are definitely 0 and 1 respectively in c*)
+  let refine_bor (az, ao) (bz, bo) (cz, co) =     
     let cDef0 = cz &: (!: cz) in 
-    let cDef1 = co &: (!: cz) in     
-    (* bits that are definitely 0 in a*)
-    let aDef0 = az &: (!: ao) in
-    (* bits that are definitely 0 in b*)
+    let cDef1 = co &: (!: cz) in         
+    let aDef0 = az &: (!: ao) in   
     let bDef0 = bz &: (!: bo) in
-    (* bits that are definitely 0 in b and 1 in c must be definitely 1 in a, i.e. the zero bit cannot be set *)
+    (* if a bit is definitely 0 in b and definitely 1 in c, the same bit must be definitely 1 in a *)
+    (* example (with t for top): (tttt) | (t010) = (1011) *)
+    (* we can refine (tttt) to (ttt1) because the lowest 1 of c must come from a *)
     let az = az &: (!: (bDef0 &: cDef1)) in 
-    (* bits that are definitely 0 in c must be definitely 0 in a too *)
-    let ao = ao &: (!: cDef0) in 
-    (* bits that are definitely 0 in a and 1 in c must be definitely 1 in b, i.e. the zero bit cannot be set *)
     let bz = bz &: (!: (aDef0 &: cDef1)) in
-    (* bits that are definitely 0 in c must be definitely 0 in b too *)
+    (* if a bit is definitely 0 in c, the same bit must be definitely 0 in a too *)
+    (* example (with t for top): (ttt1) | (t010) = (1011) *)
+    (* we can refine (ttt1) to (t0t1) because the second bit of a cannot be a 1 *)
+    let ao = ao &: (!: cDef0) in     
     let bo = bo &: (!: cDef0) in 
     ((az, ao), (bz, bo))
 
   let refine_band (az, ao) (bz, bo) (cz, co) = 
-    (* bits that are definitely 0 and 1 respectively in c*)
     let cDef0 = cz &: (!: co) in 
     let cDef1 = co &: (!: cz) in 
-    (* bits that are definitely 1 in a*)
     let aDef1 = ao &: (!: az) in
-    (* bits that are definitely 1 in b*)
     let bDef1 = bo &: (!: bz) in
-    (* bits that are definitely 1 in c must be definitely 1 in a too *)
+    (* if a bit is definitely 1 in c, the same bit must be definitely 1 in a too *)
+    (* example (with t for top): (tttt) & (t010) = (1011) *)
+    (* we can refine (tttt) to (1t11) *)
     let az = az &: (!: cDef1) in 
-    (* bits that are definitely 1 in b and 0 in c must be definitely 0 in a, i.e. the one bit cannot be set *)
-    let ao = ao &: (!: (bDef1 &: cDef0)) in 
-    (* bits that are definitely 1 in c must be definitely 1 in b too *)
     let bz = bz &: (!: cDef1) in 
-    (* bits that are definitely 1 in a and 0 in c must be definitely 0 in a, i.e. the one bit cannot be set *)
+    (* if a bit is definitely 1 in b and definitely 0 in c, the same bit must be definitely 0 in a *)
+    (* example (with t for top): (tttt) & (t110) = (1011) *)
+    (* we can refine (tttt) to (t0tt) *)
+    let ao = ao &: (!: (bDef1 &: cDef0)) in     
     let bo = bo &: (!: (aDef1 &: cDef0)) in
     ((az, ao), (bz, bo))
 

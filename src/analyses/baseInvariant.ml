@@ -398,7 +398,7 @@ struct
       | BOr ->      
         (* Be careful: inv_exp performs a meet on both arguments of the BOr / BXor. *)
         if PrecisionUtil.get_bitfield () then
-          (* refinement based on the following idea: bit set to one in c and set to zero in b must be one in a *)
+          (* refinement based on the following idea: bit set to one in c and set to zero in b must be one in a and bit set to zero in c must be zero in a too (analogously for b) *)
           let ((az, ao), (bz, bo)) = BitfieldDomain.Bitfield.refine_bor (ID.to_bitfield ikind a) (ID.to_bitfield ikind b) (ID.to_bitfield ikind c) in 
           ID.meet a (ID.of_bitfield ikind (az, ao)), ID.meet b (ID.of_bitfield ikind (bz, bo))
         else 
@@ -433,7 +433,7 @@ struct
           | _ -> a
         in
         if PrecisionUtil.get_bitfield () then 
-          (* refinement based on the following idea: bit set to zero in c and set to one in b must be zero in a *)
+          (* refinement based on the following idea: bit set to zero in c and set to one in b must be zero in a and bit set to one in c must be one in a too (analogously for b) *)
           let ((az, ao), (bz, bo)) = BitfieldDomain.Bitfield.refine_band (ID.to_bitfield ikind a) (ID.to_bitfield ikind b) (ID.to_bitfield ikind c) in 
           ID.meet a (ID.of_bitfield ikind (az, ao)), ID.meet b (ID.of_bitfield ikind (bz, bo))
         else a, b
