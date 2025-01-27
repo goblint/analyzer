@@ -267,11 +267,42 @@ struct
 
   let longlong = TInt(ILongLong,[])
 
-  let check_for_overflows (ask: Queries.ask) exp =
-    if no_overflow ask exp then
-      exp
+  let check_for_overflows_no_further_cast (ask: Queries.ask) (e_inv: exp -> exp) cast_exp exp_plain =
+    if no_overflow ask (e_inv cast_exp) then
+      cast_exp, exp_plain
+    else (
+      M.warn ~category:Analyzer "Invariant Apron: cannot convert to cil var in overflow preserving manner: %a" CilType.Exp.pretty cast_exp;
+      raise Unsupported_Linexpr1
+    )
+
+  let is_cast_injective_vtype vinfo = IntDomain.Size.is_cast_injective ~from_type:vinfo.vtype ~to_type:longlong
+
+  let rec check_for_overflows (ask: Queries.ask) (e_inv: exp -> exp) exp exp_plain =
+    if no_overflow ask (e_inv exp) then
+      exp, exp_plain
     else
-      (M.warn ~category:Analyzer "Invariant Apron: cannot convert to cil var in overflow preserving manner: %a" CilType.Exp.pretty exp; raise Unsupported_Linexpr1)
+      match exp with
+      | Lval (Var vinfo, NoOffset) as var when is_cast_injective_vtype vinfo ->
+        let cast_var = Cilfacade.mkCast ~e:var ~newt:longlong in
+        check_for_overflows_no_further_cast ask e_inv cast_var cast_var
+      | BinOp (op, (Const i as c), ((Lval (Var vinfo, NoOffset)) as var), _) when is_cast_injective_vtype vinfo ->
+        let cast_var = Cilfacade.mkCast ~e:var ~newt:longlong in
+        let cast_exp_plain = BinOp (op, c, cast_var, longlong) in
+        let cast_exp = Cilfacade.makeBinOp op c cast_var in
+        check_for_overflows_no_further_cast ask e_inv cast_exp cast_exp_plain
+      | BinOp (op, ((Lval (Var vinfo1, NoOffset)) as var1), ((Lval (Var vinfo2, NoOffset)) as var2), _) when is_cast_injective_vtype vinfo1 && is_cast_injective_vtype vinfo2 ->
+        let cast_var = Cilfacade.mkCast ~e:var1 ~newt:longlong in
+        let cast_exp_plain = BinOp (op, cast_var, var2, longlong) in
+        let cast_exp = Cilfacade.makeBinOp op cast_var var2 in
+        check_for_overflows_no_further_cast ask e_inv cast_exp cast_exp_plain
+      | BinOp (op, exp1, exp2, _) ->
+        let cast_exp1 = Cilfacade.mkCast ~e:exp1 ~newt:longlong in
+        let cast_exp_plain = BinOp (op, cast_exp1, exp2, longlong) in
+        let cast_exp = Cilfacade.makeBinOp op cast_exp1 exp2 in
+        check_for_overflows_no_further_cast ask e_inv cast_exp cast_exp_plain
+      | _ ->
+        M.warn ~category:Analyzer "Invariant Apron: cannot convert to cil expression in overflow preserving manner: %a" CilType.Exp.pretty exp;
+        raise Unsupported_Linexpr1
 
   (* Determines the integer kind (ikind) for a given constant.
      - Defaults to IInt for values that fit int range to minimize the number of LL suffixes in invariants.
@@ -282,7 +313,7 @@ struct
     | _ when Cil.fitsInInt IInt i -> IInt
     | _ when Cil.fitsInInt ILongLong i -> ILongLong
     | _ ->
-      M.warn ~category:Analyzer "Invariant Apron: coefficient does not fit long type: %s" (Z.to_string i);
+      M.warn ~category:Analyzer "Invariant Apron: coefficient does not fit long long type: %s" (Z.to_string i);
       raise Unsupported_Linexpr1
 
   let coeff_to_const ~scalewith (c:Coeff.union_5) =
@@ -307,25 +338,25 @@ struct
       | None -> raise Unsupported_Linexpr1)
     | _ -> raise Unsupported_Linexpr1
 
-  let cil_exp_of_linexpr1_term ~scalewith (ask: Queries.ask) (c: Coeff.t) v =
+  let cil_exp_of_linexpr1_term ~scalewith (ask: Queries.ask) (e_inv: exp -> exp) (c: Coeff.t) v =
     match V.to_cil_varinfo v with
-    | Some vinfo when IntDomain.Size.is_cast_injective ~from_type:vinfo.vtype ~to_type:(TInt(ILongLong,[]))   ->
-      let var = Cilfacade.mkCast ~e:(Lval(Var vinfo,NoOffset)) ~newt:longlong in
+    | Some vinfo ->
+      let var = Lval (Var vinfo, NoOffset) in
       let flip, coeff = coeff_to_const ~scalewith c in
-      let prod = check_for_overflows ask (Cilfacade.makeBinOp Mult coeff var) in
-      flip, prod
+      let exp = Cilfacade.makeBinOp Mult coeff var in
+      let exp_plain = BinOp (Mult, coeff, var, Cilfacade.typeOf exp) in
+      let prod, prod_plain = check_for_overflows ask e_inv exp exp_plain in
+      flip, (prod, prod_plain)
     | None ->
       M.warn ~category:Analyzer "Invariant Apron: cannot convert to cil var: %a" Var.pretty v;
       raise Unsupported_Linexpr1
-    | _ ->
-      M.warn ~category:Analyzer "Invariant Apron: cannot convert to cil var in overflow preserving manner: %a" Var.pretty v;
-      raise Unsupported_Linexpr1
 
-  let cil_exp_of_linexpr1 ?scalewith (ask: Queries.ask) (linexpr1:Linexpr1.t) =
-    let terms = ref [coeff_to_const ~scalewith (Linexpr1.get_cst linexpr1)] in
+  let cil_exp_of_linexpr1 ?scalewith (ask: Queries.ask) (e_inv: exp -> exp) (linexpr1:Linexpr1.t) =
+    let flip, coeff = coeff_to_const ~scalewith (Linexpr1.get_cst linexpr1) in
+    let terms = ref [flip, (coeff, coeff)] in
     let append_summand (c:Coeff.union_5) v =
       if not (Coeff.is_zero c) then
-        terms := cil_exp_of_linexpr1_term ~scalewith (ask: Queries.ask) c v :: !terms
+        terms := cil_exp_of_linexpr1_term ~scalewith (ask: Queries.ask) e_inv c v :: !terms
     in
     Linexpr1.iter append_summand linexpr1;
     !terms
@@ -357,19 +388,23 @@ struct
       Linexpr1.iter lcm_coeff linexpr1; !lcm_denom
     with UnsupportedScalar -> Z.one
 
-  let cil_exp_of_lincons1 (ask: Queries.ask) (lincons1:Lincons1.t) =
+  let cil_exp_of_lincons1 (ask: Queries.ask) (e_inv: exp -> exp) (lincons1:Lincons1.t)  =
     let zero = Cil.kinteger IInt 0 in
     try
       let linexpr1 = Lincons1.get_linexpr1 lincons1 in
       let common_denominator = lcm_den linexpr1 in
-      let terms = cil_exp_of_linexpr1 ~scalewith:common_denominator (ask: Queries.ask) linexpr1 in
+      let terms = cil_exp_of_linexpr1 ~scalewith:common_denominator (ask: Queries.ask) e_inv linexpr1 in
       let (nterms, pterms) = Tuple2.mapn (List.map snd) (List.partition fst terms) in
       let fold_terms terms =
-        List.fold_left (fun acc term ->
+        List.fold_left (fun acc (term, term_plain) ->
             match acc with
-            | None -> Some (check_for_overflows ask term)
-            | Some exp -> Some (check_for_overflows ask (Cilfacade.makeBinOp PlusA exp term))
+            | None -> Some (check_for_overflows ask e_inv term term_plain)
+            | Some (exp, exp_plain) ->
+              let exp' = Cilfacade.makeBinOp PlusA exp term in
+              let exp_plain' = BinOp (PlusA, exp_plain, term_plain, Cilfacade.typeOf exp') in
+              Some (check_for_overflows ask e_inv exp' exp_plain')
           ) None terms
+        |> Option.map Tuple2.second
         |> Option.default zero
       in
       let lhs = fold_terms pterms in

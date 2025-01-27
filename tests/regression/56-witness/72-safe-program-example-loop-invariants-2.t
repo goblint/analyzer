@@ -20,7 +20,7 @@
           line: 13
           column: 3
           function: main
-        value: (long long )i + 255LL >= (long long )v
+        value: (long long )i + 255 >= (long long )v
         format: c_expression
     - invariant:
         type: loop_invariant
@@ -50,7 +50,7 @@
           line: 13
           column: 3
           function: main
-        value: (long long )n + 254LL >= (long long )v
+        value: (long long )n + 254 >= (long long )v
         format: c_expression
     - invariant:
         type: loop_invariant

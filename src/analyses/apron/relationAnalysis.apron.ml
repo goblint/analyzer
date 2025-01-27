@@ -614,7 +614,7 @@ struct
         (* filter one-vars and exact *)
         (* RD.invariant simplifies two octagon SUPEQ constraints to one EQ, so exact works *)
         if (one_var || GobApron.Lincons1.num_vars lincons1 >= 2) && (exact || Apron.Lincons1.get_typ lincons1 <> EQ) then
-          RD.cil_exp_of_lincons1 ask lincons1
+          RD.cil_exp_of_lincons1 ask e_inv lincons1
           |> Option.map e_inv
           |> Option.filter (fun exp -> not (InvariantCil.exp_contains_tmp exp) && InvariantCil.exp_is_in_scope scope exp)
         else
