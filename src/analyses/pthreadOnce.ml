@@ -93,7 +93,7 @@ struct
     let name () = "onces"
     let may_race (a1, s1) (a2, s2) =
       (Onces.is_empty (Onces.inter a1 (Onces.union a2 s2))) && (Onces.is_empty (Onces.inter a2 (Onces.union a1 s1)))
-    let should_print f = true
+    let should_print (a1, s1) = not (Onces.is_empty a1) || not (Onces.is_empty s1)
   end
 
 
