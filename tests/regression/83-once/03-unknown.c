@@ -1,4 +1,4 @@
-// PARAM: --set pre.cppflags[+] "-DGOBLINT_NO_PTHREAD_ONCE" --set ana.activated[+] pthreadOnce
+// PARAM: --set ana.activated[+] pthreadOnce
 #include <pthread.h>
 #include <stdio.h>
 
