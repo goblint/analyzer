@@ -1,4 +1,4 @@
-open AbstractVector
+open VectorFunctor
 open RatOps
 open ConvenienceOps
 
@@ -8,7 +8,7 @@ open Batteries
 module List = BatList
 module Array = BatArray
 
-module SparseVector: AbstractVector =
+module SparseVector: SparseVectorFunctor =
   functor (A: RatOps) ->
   struct
     include ConvenienceOps (A)
@@ -87,7 +87,7 @@ module SparseVector: AbstractVector =
       match v.entries with 
       | [] -> false
       | (idx, _) :: (const_idx , _) :: [] when const_idx = (v.len - 1) -> true
-      | (idx, _)::[] when idx <> v.len -1 -> true 
+      | (idx, _)::[] when idx <> v.len -1 -> true
       | _ -> false
 
     (**
@@ -116,20 +116,6 @@ module SparseVector: AbstractVector =
           | x :: xs -> set_nth_helper xs (x :: acc)
         in
         {v with entries = set_nth_helper v.entries []}
-
-    (**
-       [insert_val_at v n num] returns [v] where the [num] is inserted into the [n]-th position, i.e. [v] at [n] = [num].
-       All entries in [v] at position [n] and higher are shifted to the right, so the length of the vector is increased by one.
-       @raise Invalid_argument if [n] is out of bounds.
-    *)
-    let insert_val_at v n num = 
-      if n > v.len then raise (Invalid_argument "Index out of bounds") 
-      else
-        let entries = List.rev @@ List.fold_left (fun acc (idx, value) -> 
-            if idx < n then (idx, value) :: acc 
-            else (if num <>: A.zero then (idx + 1, value) :: (n, num) :: acc else (idx + 1, value) :: acc)
-          ) [] v.entries in
-        {entries; len = v.len + 1}
 
     (**
        [insert_zero_at_indices v indices num_zeros] inserts [num_zeros] into [v].
@@ -188,21 +174,6 @@ module SparseVector: AbstractVector =
       let entries = List.filter_map (fun (idx, value) -> if idx < n then None else Some (idx - n, value)) v.entries in
       {entries; len = v.len - n}
 
-    let findi f v = 
-      (* How this works:
-         Case 1:
-         A.zero is also to be found. The List.findi is used to have an iteration index i.
-         If at one point i < idx, it means that a Zero element was skipped because of the sparse vector representation. In that case i is the index of the first Zero, so returning true indicates that it is found. 
-         f value still has to be checked in case other elements than Zero are to be found.
-         List.findi returns the index at which is was found in the tuple's first element. 
-         Case 2:
-         A.zero is not to be found. We just iterate over the sparse list then and the index is returned if an element is found.
-      *)
-      if f A.zero then  
-        fst @@ List.findi (fun i (idx, value) ->  i < idx || f value) v.entries (* Here fst is the iteration variable i, not the tuple idx *)
-      else
-        fst @@ List.find (fun (idx, value) -> f value) v.entries (* Here fst is the idx contained in the found tuple *)
-
     (**
        [find2i_f_false_at_zero f v v'] returns the {b index} of the first pair of entries [e, e'] from [v, v'] where [f e e' = true ].
 
@@ -224,23 +195,6 @@ module SparseVector: AbstractVector =
         aux v.entries v'.entries
 
     (**
-       [findi_val_opt f v] returns the first entry [e] and its index where [f e = true], if such an entry exists.
-       @return [(idx, e) option]
-    *)
-    let findi_val_opt f v =
-      let rec find_zero_or_val vec last_idx =
-        let f0 = f A.zero in
-        match vec with
-        | [] -> if f0 && v.len <> last_idx + 1 then Some (last_idx + 1, A.zero) else None
-        | (idx, value) :: xs -> 
-          if f0  && idx <> last_idx + 1 then Some (last_idx + 1, A.zero) 
-          else if f value then Some (idx, value) 
-          else find_zero_or_val xs idx
-      in find_zero_or_val v.entries (-1)
-
-    let findi_val_opt f v = Timing.wrap "findi_val_opt" (findi_val_opt f) v
-
-    (**
        [find_first_non_zero v] returns the first entry [e] and its index where [e <>: 0], if such an entry exists.
        @return [(idx, e) option]
     *)
@@ -249,14 +203,6 @@ module SparseVector: AbstractVector =
       else Some (List.hd v.entries)
 
     let find_first_non_zero v = Timing.wrap "find_first_non_zero" (find_first_non_zero) v
-
-    let exists f v  = 
-      let c = v.len in
-      let rec exists_aux at = function
-        | [] -> if at = 0 then false (* vector is dense *) else f A.zero
-        | (_, xv) :: xs -> f xv || exists_aux (at - 1) xs
-      in
-      exists_aux c v.entries
 
     (**
        [map_f_preserves_zero f v] returns the mapping of [v] specified by [f].
@@ -339,36 +285,6 @@ module SparseVector: AbstractVector =
         {v with entries = List.rev (aux [] v.entries v'.entries 0)}
 
     (**
-       [fold_left_f_preserves_zero f acc v] returns the fold of [v] on [acc] specified by [f].
-
-       Note that [f] {b must} be such that [f acc 0 = acc]!
-    *)
-    let fold_left_f_preserves_zero f acc v =
-      List.fold_left (fun acc (_, value) -> f acc value) acc v.entries
-
-    (**
-       [fold_left2_f_preserves_zero f acc v v'] returns the fold of [v] and [v'] specified by [f].
-
-       Note that [f] {b must} be such that [f acc 0 0 = acc]!
-
-       @raise Invalid_argument if [v] and [v'] have unequal lengths
-    *)
-    let fold_left2_f_preserves_zero f acc v v' =  
-      let rec aux acc v1 v2 =
-        match v1, v2 with 
-        | [], [] -> acc 
-        | [], (yidx, yval) :: ys -> aux (f acc A.zero yval) [] ys
-        | (xidx, xval) :: xs, [] -> aux (f acc xval A.zero) xs []
-        | (xidx, xval) :: xs, (yidx, yval) :: ys -> 
-          match xidx - yidx with
-          | d when d < 0 -> aux (f acc xval A.zero) xs v2
-          | d when d > 0 -> aux (f acc A.zero yval) v1 ys
-          | _            -> aux (f acc xval yval) xs ys
-      in
-      if v.len <> v'.len then raise (Invalid_argument "Unequal lengths") else 
-        (aux acc v.entries v'.entries)
-
-    (**
        [apply_with_c_f_preserves_zero f c v] returns the mapping of [v] and [c] specified by [f].
 
        Note that [f] {b must} be such that [f 0 c = 0]!
@@ -381,7 +297,4 @@ module SparseVector: AbstractVector =
       let entries = List.rev_map (fun (idx, value) -> (v.len - 1 - idx, value)) v.entries in 
       {entries; len = v.len}
 
-    let append v v' = 
-      let entries = v.entries @ List.map (fun (idx, value) -> (idx + v.len), value) v'.entries in
-      {entries; len = v.len + v'.len}
   end 

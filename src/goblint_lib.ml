@@ -260,6 +260,7 @@ module ValueDomainQueries = ValueDomainQueries
 module RelationDomain = RelationDomain
 module ApronDomain = ApronDomain
 module AffineEqualityDomain = AffineEqualityDomain
+module AffineEqualityDomainSideEffects = AffineEqualityDomainSideEffects
 module LinearTwoVarEqualityDomain = LinearTwoVarEqualityDomain
 
 (** {3 Concurrency} *)
@@ -436,8 +437,8 @@ module WideningThresholds = WideningThresholds
 (* There might be a more elegant solution. *)
 module Vector = Vector
 module Matrix = Matrix
-module AbstractVector = AbstractVector 
-module AbstractMatrix = AbstractMatrix
+module VectorFunctor = VectorFunctor 
+module MatrixFunctor = MatrixFunctor
 module ArrayVector = ArrayVector
 module ArrayMatrix = ArrayMatrix
 module SparseVector = SparseVector

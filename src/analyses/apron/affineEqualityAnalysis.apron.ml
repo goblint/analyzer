@@ -7,11 +7,17 @@ open Analyses
 open SparseVector
 open ListMatrix
 
+(* To use the original affineEqualityDomain implementation uncomment this and the AD_Array.
+   Then replace AD with AD_Array in the functor application.
+   open ArrayVector
+   open ArrayMatrix *)
+
 include RelationAnalysis
 
 let spec_module: (module MCPSpec) Lazy.t =
   lazy (
     let module AD = AffineEqualityDomain.D2 (SparseVector) (ListMatrix) in
+    (* let module AD_Array = AffineEqualityDomainSideEffects.D2 (ArrayVector) (ArrayMatrix) in *)
     let module Priv = (val RelationPriv.get_priv ()) in
     let module Spec =
     struct

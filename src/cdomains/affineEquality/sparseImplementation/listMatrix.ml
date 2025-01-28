@@ -1,18 +1,16 @@
-open AbstractMatrix
-open AbstractVector
+open MatrixFunctor
+open VectorFunctor
 open RatOps
 open ConvenienceOps
 
 open BatList
-open BatOption
-
 module List = BatList
 
 (** Matrix implementation that uses a list of (ideally sparse) vectors representing its rows.
     It provides a normalization function to reduce a matrix into reduced row echelon form.
     Operations exploit that the input matrix/matrices are in reduced row echelon form already. *)
-module ListMatrix: AbstractMatrix =
-  functor (A: RatOps) (V: AbstractVector) ->
+module ListMatrix: SparseMatrixFunctor =
+  functor (A: RatOps) (V: SparseVectorFunctor) ->
   struct
     include ConvenienceOps(A)
     module V = V(A)
@@ -25,10 +23,10 @@ module ListMatrix: AbstractMatrix =
 
     let copy m = m
 
-    let equal m1 m2 = Timing.wrap "equal" (equal m1) m2
+    let equal m1 m2 = timing_wrap "equal" (equal m1) m2
 
     let copy m =
-      Timing.wrap "copy" (copy) m
+      timing_wrap "copy" (copy) m
 
     let empty () = []
 
@@ -60,45 +58,13 @@ module ListMatrix: AbstractMatrix =
       let vector_length = V.length v in
       List.mapi (fun index row -> if index < vector_length then f row (V.nth v index) else row ) m
 
-    let map2 f m v =
-      let vector_length = V.length v in
-      let vector_entries = V.to_sparse_list v in
-      let rec map2_helper acc index m v = 
-        match m, v with 
-        | [], _ -> List.rev acc
-        | row :: rs, [] when index >= vector_length -> map2_helper (row :: acc) (index + 1) rs []
-        | row :: rs, [] ->  map2_helper ((f row A.zero):: acc) (index + 1) rs []
-        | row :: rs, (i, value) :: vs -> 
-          if i = index then 
-            map2_helper ((f row value):: acc) (index + 1) rs vs 
-          else
-            map2_helper ((f row A.zero) :: acc) (index + 1) rs v 
-      in
-      map2_helper [] 0 m vector_entries
-
-    let map2 f m v = Timing.wrap "Matrix.map2" (map2 f m) v
+    let map2 f m v = timing_wrap "Matrix.map2" (map2 f m) v
 
     let map2i f m v =
       let vector_length = V.length v in
       List.mapi (fun index row -> if index < vector_length then f index row (V.nth v index) else row ) m
 
-    let map2i f m v =
-      let vector_length = V.length v in
-      let vector_entries = V.to_sparse_list v in
-      let rec map2_helper acc index m v = 
-        match m, v with 
-        | [], _ -> List.rev acc
-        | row :: rs, [] when index >= vector_length -> map2_helper (row :: acc) (index + 1) rs []
-        | row :: rs, [] ->  map2_helper ((f index row A.zero):: acc) (index + 1) rs []
-        | row :: rs, (i, value) :: vs -> 
-          if i = index then 
-            map2_helper ((f index row value):: acc) (index + 1) rs vs 
-          else
-            map2_helper ((f index row A.zero) :: acc) (index + 1) rs v 
-      in
-      map2_helper [] 0 m vector_entries
-
-    let map2i f m v = Timing.wrap "Matrix.map2i" (map2i f m) v
+    let map2i f m v = timing_wrap "Matrix.map2i" (map2i f m) v
 
     (**
        [add_empty_columns m cols] extends the matrix [m] as specified in [cols].
@@ -112,19 +78,10 @@ module ListMatrix: AbstractMatrix =
       List.map (fun row -> V.insert_zero_at_indices row occ_cols (Array.length cols)) m
 
     let add_empty_columns m cols =
-      Timing.wrap "add_empty_cols" (add_empty_columns m) cols
-
-    (**
-       [get_col m n] returns a vector representing the [n]-th column of [m].
-    *)
-    let get_col m n =
-      V.of_sparse_list (num_rows m) @@ List.filteri_map (fun i row -> let value = V.nth row n in if value <>: A.zero then Some (i, value) else None) m
-
-    let get_col m n =
-      Timing.wrap "get_col" (get_col m) n
+      timing_wrap "add_empty_cols" (add_empty_columns m) cols
 
     (** 
-       [get_col_upper_triangular m n] yields the same result as [get_col m n], but [m] must be in upper triangular form.
+       [get_col_upper_triangular m n] returns the [n]th column of [m]. [m] must be in upper triangular form.
        @param m A matrix in upper triangular form.
     *)
     let get_col_upper_triangular m n =
@@ -138,17 +95,12 @@ module ListMatrix: AbstractMatrix =
             let value = V.nth row n in if value <>: A.zero then helper ((i, value) :: acc) xs (i + 1) else helper acc xs (i + 1)
       in V.of_sparse_list (num_rows m) (List.rev @@ helper [] m 0)
 
-    let get_col_upper_triangular m n = Timing.wrap "get_col" (get_col_upper_triangular m) n
+    let get_col_upper_triangular m n = timing_wrap "get_col" (get_col_upper_triangular m) n
 
     let set_col m new_col n = 
       map2 (fun row value -> V.set_nth row n value) m new_col
 
-    let set_col m new_col n = Timing.wrap "set_col" (set_col m) new_col n
-
-    let del_col m j =
-      if num_cols m = 1 then empty () 
-      else 
-        List.map (fun row -> V.remove_nth row j) m
+    let set_col m new_col n = timing_wrap "set_col" (set_col m) new_col n
 
     (**
        [del_cols m cols] removes columns from [m] as specified by [c].
@@ -160,12 +112,9 @@ module ListMatrix: AbstractMatrix =
         let cols_list = Array.to_list cols in
         List.map (fun row -> V.remove_at_indices row cols_list) m
 
-    let del_cols m cols = Timing.wrap "del_cols" (del_cols m) cols
+    let del_cols m cols = timing_wrap "del_cols" (del_cols m) cols
 
     let find_opt = List.find_opt
-
-    let append_matrices m1 m2  = 
-      m1 @ m2
 
     let div_row row value =
       V.map_f_preserves_zero (fun a -> a /: value) row 
@@ -221,7 +170,7 @@ module ListMatrix: AbstractMatrix =
       let cut_front_matrix m  row_idx col_idx = 
         List.filteri_map (fun i row -> if i < row_idx then None else Some (V.starting_from_nth row col_idx)) m
       in
-      let cut_front_matrix m row_idx col_idx = Timing.wrap "cut_front_matrix" (cut_front_matrix m row_idx) col_idx in
+      let cut_front_matrix m row_idx col_idx = timing_wrap "cut_front_matrix" (cut_front_matrix m row_idx) col_idx in
       (* Function for finding first pivot in an extracted part of the matrix (row_idx and col_idx indicate which part of the original matrix) *)
       (* The last column represents the constant in the affeq *)
       let find_first_pivot m row_idx col_idx =
@@ -237,7 +186,7 @@ module ListMatrix: AbstractMatrix =
           in
           if piv_col = (max_piv_col_idx + 1) then None else Some (row_idx + piv_row, col_idx + piv_col, piv_val)
       in
-      let find_first_pivot m row_idx col_idx = Timing.wrap "find_first_pivot" (find_first_pivot m row_idx) col_idx in
+      let find_first_pivot m row_idx col_idx = timing_wrap "find_first_pivot" (find_first_pivot m row_idx) col_idx in
       let affeq_rows_are_valid m = (* Check if the semantics of an rref-affeq matrix are correct *)
         let col_count = num_cols m in
         let row_is_valid row =
@@ -266,7 +215,7 @@ module ListMatrix: AbstractMatrix =
       if affeq_rows_are_valid m' then Some m' else None
 
 
-    let normalize m = Timing.wrap "normalize" normalize m
+    let normalize m = timing_wrap "normalize" normalize m
 
     (** 
        [reduce_col_with_vec m j v] sets the [j]-th column of [m] to zero by subtracting multiples of [v] from each row. *)
@@ -326,7 +275,7 @@ module ListMatrix: AbstractMatrix =
             let normalized_v = V.map_f_preserves_zero (fun x -> x /: value) v_after_elim in
             Some (insert_v_according_to_piv m normalized_v idx pivot_positions)
 
-    let rref_vec m v = Timing.wrap "rref_vec" (rref_vec m) v
+    let rref_vec m v = timing_wrap "rref_vec" (rref_vec m) v
 
     (** [rref_matrix m m'] yields the same result as appending [m'] to [m], then bringing the resulting matrix into rref and removing all zero rows.
 
@@ -339,7 +288,7 @@ module ListMatrix: AbstractMatrix =
       fst @@ List.fold_while (fun acc _ -> Option.is_some acc) 
         (fun acc_big_m small -> rref_vec (Option.get acc_big_m) small ) (Some big_m) small_m
 
-    let rref_matrix m1 m2 = Timing.wrap "rref_matrix" (rref_matrix m1) m2
+    let rref_matrix m1 m2 = timing_wrap "rref_matrix" (rref_matrix m1) m2
 
     (**
        [is_coverd_by m m'] returns [true] iff every vector in [m] is a linear combination of vectors in [m'].
@@ -376,6 +325,6 @@ module ListMatrix: AbstractMatrix =
               if linearly_indep then false else is_covered_by_helper vs1 m2
         in is_covered_by_helper m1 m2
 
-    let is_covered_by m1 m2 = Timing.wrap "is_covered_by" (is_covered_by m1) m2
+    let is_covered_by m1 m2 = timing_wrap "is_covered_by" (is_covered_by m1) m2
 
   end
