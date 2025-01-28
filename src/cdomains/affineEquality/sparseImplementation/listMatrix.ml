@@ -8,7 +8,7 @@ module List = BatList
 
 (** Matrix implementation that uses a list of (ideally sparse) vectors representing its rows.
     It provides a normalization function to reduce a matrix into reduced row echelon form.
-    Operations exploit that the input matrix/matrices are in reduced row echelon form already. *)
+    Operations exploit that the input matrix/mtimatrices are in reduced row echelon form already. *)
 module ListMatrix: SparseMatrixFunctor =
   functor (A: RatOps) (V: SparseVectorFunctor) ->
   struct
@@ -257,19 +257,21 @@ module ListMatrix: SparseMatrixFunctor =
         BatOption.map (fun (_, value) -> init_with_vec @@ div_row v value) (V.find_first_non_zero v)
       else (* We try to normalize v and check if a contradiction arises. If not, we insert v at the appropriate place in m (depending on the pivot) *)
         let pivot_positions = get_pivot_positions m in
-        let v_after_elim = List.fold_left (
-            fun acc (row_idx, pivot_position, piv_row) ->
-              let v_at_piv = V.nth acc pivot_position in 
-              if v_at_piv =: A.zero then 
-                acc
-              else
-                sub_scaled_row acc piv_row v_at_piv
-          ) v pivot_positions
-        in 
+        (* filtered_pivots are only the pivots which have a non-zero entry in the corresponding column of v. Only those are relevant to subtract from v *)
+        let filtered_pivots = List.rev @@ fst @@ List.fold_left (fun (res, pivs_tail) (col_idx, value) ->
+            let pivs_tail = List.drop_while (fun (_, piv_col, _) -> piv_col < col_idx) pivs_tail in (* Skipping until possible match of both cols  *)
+            match pivs_tail with
+            | [] -> (res, [])
+            | (row_idx, piv_col, row) :: ps when piv_col = col_idx -> ((row_idx, piv_col, row, value) :: res, ps)
+            | _ -> (res, pivs_tail)
+          ) ([], pivot_positions) (V.to_sparse_list v) in
+        let v_after_elim = List.fold_left (fun acc (row_idx, pivot_position, piv_row, v_at_piv) ->
+            sub_scaled_row acc piv_row v_at_piv
+          ) v filtered_pivots in
         match V.find_first_non_zero v_after_elim with (* now we check for contradictions and finally insert v *)
         | None -> Some m (* v is zero vector and was therefore already covered by m *)
-        | Some (idx, value) -> 
-          if idx = (num_cols m - 1) then 
+        | Some (idx, value) ->
+          if idx = (num_cols m - 1) then
             None
           else
             let normalized_v = V.map_f_preserves_zero (fun x -> x /: value) v_after_elim in
