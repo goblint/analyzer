@@ -41,10 +41,10 @@ module SparseVector: AbstractVector =
 
     (** [to_list v] returns a non-sparse list representing the vector v *)
     let to_list v =
-      let rec extend_zero_aux i v' acc =
-        match v' with
-        | (index, value) :: xs -> if index = i then extend_zero_aux (i + 1) xs (value :: acc) else extend_zero_aux (i + 1) v' (A.zero :: acc)
-        | [] -> if i < v.len then extend_zero_aux (i + 1) v' (A.zero :: acc) else List.rev acc
+      let rec extend_zero_aux i acc = function
+          | (index, value) :: xs when index = i -> extend_zero_aux (i + 1) (value :: acc) xs
+          | ((_:: _) as v) -> extend_zero_aux (i + 1) (A.zero :: acc) v
+          | [] -> if i < v.len then extend_zero_aux (i + 1) (A.zero :: acc) [] else List.rev acc
       in
       extend_zero_aux 0 v.entries []
 
