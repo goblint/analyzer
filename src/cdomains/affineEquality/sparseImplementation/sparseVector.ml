@@ -87,7 +87,7 @@ module SparseVector: SparseVectorFunctor =
       match v.entries with 
       | [] -> false
       | (idx, _) :: (const_idx , _) :: [] when const_idx = (v.len - 1) -> true
-      | (idx, _)::[] when idx <> v.len -1 -> true 
+      | (idx, _)::[] when idx <> v.len -1 -> true
       | _ -> false
 
     (**
@@ -190,21 +190,6 @@ module SparseVector: SparseVectorFunctor =
       let entries = List.filter_map (fun (idx, value) -> if idx < n then None else Some (idx - n, value)) v.entries in
       {entries; len = v.len - n}
 
-    let findi f v = 
-      (* How this works:
-         Case 1:
-         A.zero is also to be found. The List.findi is used to have an iteration index i.
-         If at one point i < idx, it means that a Zero element was skipped because of the sparse vector representation. In that case i is the index of the first Zero, so returning true indicates that it is found. 
-         f value still has to be checked in case other elements than Zero are to be found.
-         List.findi returns the index at which is was found in the tuple's first element. 
-         Case 2:
-         A.zero is not to be found. We just iterate over the sparse list then and the index is returned if an element is found.
-      *)
-      if f A.zero then  
-        fst @@ List.findi (fun i (idx, value) ->  i < idx || f value) v.entries (* Here fst is the iteration variable i, not the tuple idx *)
-      else
-        fst @@ List.find (fun (idx, value) -> f value) v.entries (* Here fst is the idx contained in the found tuple *)
-
     (**
        [find2i_f_false_at_zero f v v'] returns the {b index} of the first pair of entries [e, e'] from [v, v'] where [f e e' = true ].
 
@@ -234,14 +219,6 @@ module SparseVector: SparseVectorFunctor =
       else Some (List.hd v.entries)
 
     let find_first_non_zero v = Timing.wrap "find_first_non_zero" (find_first_non_zero) v
-
-    let exists f v  = 
-      let c = v.len in
-      let rec exists_aux at f v =
-        match v with
-        | [] -> if at = 0 then false else f A.zero
-        | (xi, xv) :: xs -> if f xv then true else exists_aux (at - 1) f xs
-      in (exists_aux c f v.entries)
 
     (**
        [map_f_preserves_zero f v] returns the mapping of [v] specified by [f].
@@ -324,36 +301,6 @@ module SparseVector: SparseVectorFunctor =
         {v with entries = List.rev (aux [] v.entries v'.entries 0)}
 
     (**
-       [fold_left_f_preserves_zero f acc v] returns the fold of [v] on [acc] specified by [f].
-
-       Note that [f] {b must} be such that [f acc 0 = acc]!
-    *)
-    let fold_left_f_preserves_zero f acc v =
-      List.fold_left (fun acc (_, value) -> f acc value) acc v.entries
-
-    (**
-       [fold_left2_f_preserves_zero f acc v v'] returns the fold of [v] and [v'] specified by [f].
-
-       Note that [f] {b must} be such that [f acc 0 0 = acc]!
-
-       @raise Invalid_argument if [v] and [v'] have unequal lengths
-    *)
-    let fold_left2_f_preserves_zero f acc v v' =  
-      let rec aux acc v1 v2 =
-        match v1, v2 with 
-        | [], [] -> acc 
-        | [], (yidx, yval) :: ys -> aux (f acc A.zero yval) [] ys
-        | (xidx, xval) :: xs, [] -> aux (f acc xval A.zero) xs []
-        | (xidx, xval) :: xs, (yidx, yval) :: ys -> 
-          match xidx - yidx with
-          | d when d < 0 -> aux (f acc xval A.zero) xs v2
-          | d when d > 0 -> aux (f acc A.zero yval) v1 ys
-          | _            -> aux (f acc xval yval) xs ys
-      in
-      if v.len <> v'.len then raise (Invalid_argument "Unequal lengths") else 
-        (aux acc v.entries v'.entries)
-
-    (**
        [apply_with_c_f_preserves_zero f c v] returns the mapping of [v] and [c] specified by [f].
 
        Note that [f] {b must} be such that [f 0 c = 0]!
@@ -366,7 +313,4 @@ module SparseVector: SparseVectorFunctor =
       let entries = List.rev_map (fun (idx, value) -> (v.len - 1 - idx, value)) v.entries in 
       {entries; len = v.len}
 
-    let append v v' = 
-      let entries = v.entries @ List.map (fun (idx, value) -> (idx + v.len), value) v'.entries in
-      {entries; len = v.len + v'.len}
   end 
