@@ -147,6 +147,7 @@ module ArrayMatrix: ArrayMatrixFunctor =
 
     let del_cols m cols = timing_wrap "del_cols" (del_cols m) cols
 
+    (* This does NOT have the same semantics (minus side effects) as map2i_with. While map2i_with can deal with m and v having different lenghts, map2i will raise Invalid_argument in that case*)
     let map2i f m v =
       let f' x (i,y) = V.to_array @@ f i (V.of_array x) y in
       let range_array = Array.init (V.length v) Fun.id in
@@ -243,7 +244,7 @@ module ArrayMatrix: ArrayMatrixFunctor =
 
 
     let rref_vec_with m v =
-      (*This function yields the same result as appending vector v to m and normalizing it afterwards would. However, it is usually faster than performing those ops manually.*)
+      (*This function yields the same result as appending vector v to m, normalizing it and removing zero rows would. However, it is usually faster than performing those ops manually.*)
       (*m must be in rref form and contain the same num of cols as v*)
       (*If m is empty then v is simply normalized and returned*)
       let v = V.to_array v in
