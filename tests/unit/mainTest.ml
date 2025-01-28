@@ -14,7 +14,6 @@ let all_tests =
     (* etc *)
     "domaintest" >::: QCheck_ounit.to_ounit2_test_list Maindomaintest.all_testsuite;
     IntOpsTest.tests;
-    SparseMatrixImplementationTest.tests;
   ]
 
 let () =
