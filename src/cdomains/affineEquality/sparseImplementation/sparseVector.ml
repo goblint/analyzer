@@ -42,11 +42,11 @@ module SparseVector: AbstractVector =
     (** [to_list v] returns a non-sparse list representing the vector v *)
     let to_list v =
       let rec extend_zero_aux i acc = function
-          | (index, value) :: xs when index = i -> extend_zero_aux (i + 1) (value :: acc) xs
-          | ((_:: _) as v) -> extend_zero_aux (i + 1) (A.zero :: acc) v
-          | [] -> if i < v.len then extend_zero_aux (i + 1) (A.zero :: acc) [] else List.rev acc
+        | (index, value) :: xs when index = i -> extend_zero_aux (i + 1) (value :: acc) xs
+        | ((_:: _) as v) -> extend_zero_aux (i + 1) (A.zero :: acc) v
+        | [] -> if i < v.len then extend_zero_aux (i + 1) (A.zero :: acc) [] else List.rev acc
       in
-      extend_zero_aux 0 v.entries []
+      extend_zero_aux 0 [] v.entries
 
     let to_array v = 
       let vec = Array.make v.len A.zero in 
@@ -97,12 +97,9 @@ module SparseVector: AbstractVector =
     let nth v n = (* Note: This exception HAS TO BE THROWN! It is expected by the domain *)
       if n >= v.len then raise (Invalid_argument "Index out of bounds")
       else
-        let rec nth v = match v with
-          | [] -> A.zero
-          | (idx, value) :: xs when idx > n -> A.zero
-          | (idx, value) :: xs when idx = n -> value
-          | (idx, value) :: xs -> nth xs
-        in nth v.entries
+        match List.find_opt (fun (idx, _) -> idx >= n) v.entries with
+        | Some (idx, value) when idx = n -> value
+        | _ -> A.zero
 
     (**
        [set_nth v n num] returns [v] where the [n]-th entry has been set to [num].
