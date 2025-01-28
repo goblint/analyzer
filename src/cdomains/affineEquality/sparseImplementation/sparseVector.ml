@@ -67,8 +67,6 @@ module SparseVector: SparseVectorFunctor =
       in
       "["^(sparse_list_str 0 v.entries)^"\n"
 
-    let show v = Timing.wrap "V.show" (show) v
-
     let length v =
       v.len
 
@@ -202,7 +200,7 @@ module SparseVector: SparseVectorFunctor =
       if v.entries = [] then None
       else Some (List.hd v.entries)
 
-    let find_first_non_zero v = Timing.wrap "find_first_non_zero" (find_first_non_zero) v
+    let find_first_non_zero v = timing_wrap "find_first_non_zero" (find_first_non_zero) v
 
     (**
        [map_f_preserves_zero f v] returns the mapping of [v] specified by [f].
@@ -216,7 +214,7 @@ module SparseVector: SparseVectorFunctor =
             if new_val = A.zero then None else Some (idx, new_val)) v.entries in 
       {v with entries = entries'}
 
-    let map_f_preserves_zero f v = Timing.wrap "map_f_preserves_zero" (map_f_preserves_zero f) v
+    let map_f_preserves_zero f v = timing_wrap "map_f_preserves_zero" (map_f_preserves_zero f) v
 
     (**
        [mapi_f_preserves_zero f v] returns the mapping of [v] specified by [f].
@@ -256,7 +254,7 @@ module SparseVector: SparseVectorFunctor =
       if v.len <> v'.len then raise (Invalid_argument "Unequal lengths") else 
         {v with entries = List.rev (aux [] v.entries v'.entries)}
 
-    let map2_f_preserves_zero f v1 v2 = Timing.wrap "map2_f_preserves_zero" (map2_f_preserves_zero f v1) v2
+    let map2_f_preserves_zero f v1 v2 = timing_wrap "map2_f_preserves_zero" (map2_f_preserves_zero f v1) v2
 
     (**
        @raise Invalid_argument if [v] and [v'] have unequal lengths

@@ -134,7 +134,7 @@ module ListMatrix: SparseMatrixFunctor =
       ) [] m
 
     let get_pivot_positions m =
-      Timing.wrap "get_pivot_positions" get_pivot_positions m
+      timing_wrap "get_pivot_positions" get_pivot_positions m
 
     (** 
        [reduce_col m j] reduces the [j]-th column in [m] with the last row that has a non-zero element in this column.
@@ -243,7 +243,7 @@ module ListMatrix: SparseMatrixFunctor =
         before @ (v :: after)
 
     let insert_v_according_to_piv m v piv_idx pivot_positions =
-      Timing.wrap "insert_v_according_to_piv" (insert_v_according_to_piv m v piv_idx) pivot_positions
+      timing_wrap "insert_v_according_to_piv" (insert_v_according_to_piv m v piv_idx) pivot_positions
 
     (** 
        [rref_vec m v] yields the same result as appending [v] to [m], then bringing [m] into rref and removing all zero rows.
