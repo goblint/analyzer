@@ -84,14 +84,18 @@ struct
       let signBit = Ints_t.shift_left Ints_t.one ((Size.bit ik) - 1) in 
       let signMask = Ints_t.lognot (Ints_t.of_bigint (snd (Size.range ik))) in
       let isNegative = Ints_t.logand signBit o <> Ints_t.zero in
-      if GoblintCil.isSigned ik && isNegative then Ints_t.logor signMask (Ints_t.lognot z)
-      else Ints_t.lognot z
+      if GoblintCil.isSigned ik && isNegative then 
+        Ints_t.logor signMask (Ints_t.lognot z)
+      else 
+        Ints_t.lognot z
     in let max ik (z,o) =
          let signBit = Ints_t.shift_left Ints_t.one ((Size.bit ik) - 1) in 
          let signMask = Ints_t.of_bigint (snd (Size.range ik)) in
          let isPositive = Ints_t.logand signBit z <> Ints_t.zero in
-         if GoblintCil.isSigned ik && isPositive then Ints_t.logand signMask o
-         else o 
+         if GoblintCil.isSigned ik && isPositive 
+          then Ints_t.logand signMask o
+         else 
+          o 
     in fst (norm ik (Some (min ik x, max ik x)))
 
   let of_int ik (x: int_t) = of_interval ik (x,x)

@@ -108,10 +108,11 @@ module BitfieldArith (Ints_t : IntOps.IntOps) = struct
       (* maximal number of 1 *)
       Ints_t.to_bigint o 
 
-  (*
-    This function is exclusively used inside the shift functions. The invariant for the second
-    parameter is that it's size is bounded by O(log2 n) ensuring that no exponential blowup happens.
-   *)
+  (** [concretize bf] returns a list of all possible values the bitfield can produce to shift.
+      @bf the bitfield which the list is needed for.
+      @info  This function is exclusively used inside the shift functions. The invariant for the second
+      parameter is that it's size is bounded by O(log2 n) ensuring that no exponential blowup happens.
+  *)
   let rec concretize (z,o) = (* O(2^n) *)
     if is_const (z,o) then [o]
     else
