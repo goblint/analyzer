@@ -121,19 +121,6 @@ module SparseVector: SparseVectorFunctor =
         {v with entries = set_nth_helper v.entries []}
 
     (**
-       [insert_val_at v n num] returns [v] where the [num] is inserted into the [n]-th position, i.e. [v] at [n] = [num].
-       @raise Invalid_argument if [n] is out of bounds.
-    *)
-    let insert_val_at v n num = 
-      if n > v.len then raise (Invalid_argument "Index out of bounds") 
-      else
-        let entries = List.rev @@ List.fold_left (fun acc (idx, value) -> 
-            if idx < n then (idx, value) :: acc 
-            else (if num <>: A.zero then (idx + 1, value) :: (n, num) :: acc else (idx + 1, value) :: acc)
-          ) [] v.entries in
-        {entries; len = v.len + 1}
-
-    (**
        [insert_zero_at_indices v indices num_zeros] inserts [num_zeros] into [v].
        @param indices A {b sorted} list of tuples where [fst] gives the index of the insert and [snd] the number of zeros that will be inserted.
     *)

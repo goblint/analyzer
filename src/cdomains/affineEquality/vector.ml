@@ -32,8 +32,6 @@ sig
 
   val set_nth: t -> int -> num ->  t
 
-  val insert_val_at: t -> int -> num ->  t
-
   val remove_nth: t -> int ->  t
 
   val keep_vals: t -> int ->  t
@@ -41,6 +39,36 @@ sig
   val map2i: (int -> num -> num -> num) -> t -> t -> t
 
   val rev: t -> t
+end
+
+module type ArrayVector = 
+sig 
+  include Vector
+  val mapi_with: (int -> num -> num) -> t -> unit
+
+  val map_with: (num -> num) -> t -> unit
+
+  val map2_with: (num -> num -> num) -> t -> t -> unit
+
+  val map2i_with: (int -> num -> num -> num) -> t -> t -> unit
+
+  val filteri: (int -> num -> bool) -> t -> t
+
+  val findi: (num -> bool) ->  t -> int
+
+  val find2i: (num -> num -> bool) -> t -> t -> int
+
+  val exists: (num -> bool) -> t -> bool
+
+  val set_nth_with: t -> int -> num -> unit
+
+  val insert_val_at: t -> int -> num ->  t
+
+  val apply_with_c_with: (num -> num -> num) -> num -> t -> unit
+
+  val rev_with: t -> unit
+
+  val append: t -> t -> t
 end
 
 module type SparseVector = 
@@ -66,32 +94,4 @@ sig
   val find2i_f_false_at_zero: (num -> num -> bool) -> t -> t -> int
 
   val apply_with_c_f_preserves_zero: (num -> num -> num) -> num ->  t ->  t
-end
-
-module type ArrayVector = 
-sig 
-  include Vector
-  val mapi_with: (int -> num -> num) -> t -> unit
-
-  val map_with: (num -> num) -> t -> unit
-
-  val map2_with: (num -> num -> num) -> t -> t -> unit
-
-  val map2i_with: (int -> num -> num -> num) -> t -> t -> unit
-
-  val filteri: (int -> num -> bool) -> t -> t
-
-  val findi: (num -> bool) ->  t -> int
-
-  val find2i: (num -> num -> bool) -> t -> t -> int
-
-  val exists: (num -> bool) -> t -> bool
-
-  val set_nth_with: t -> int -> num -> unit
-
-  val apply_with_c_with: (num -> num -> num) -> num -> t -> unit
-
-  val rev_with: t -> unit
-
-  val append: t -> t -> t
 end
