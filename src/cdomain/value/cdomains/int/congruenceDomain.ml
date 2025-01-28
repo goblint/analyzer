@@ -143,8 +143,11 @@ struct
     if Z.lognot z = o then 
       normalize ik (Some (o, Z.zero))
     else 
-      let tl_zeros = Z.trailing_zeros o in 
-      normalize ik (Some (Z.zero, Z.pow Z.one tl_zeros))
+      (* get posiiton of first top bit *)
+      let tl_zeros = Z.trailing_zeros (Z.logand z o) in 
+      let m = Z.pow Z.one tl_zeros in 
+      let c = Z.logand o (m -: Z.one) in 
+      normalize ik (Some (c, m))
 
   let to_bitfield ik x = 
     let x = normalize ik x in 
