@@ -106,22 +106,16 @@ module ListMatrix: AbstractMatrix =
     *)
     let add_empty_columns m cols  =    
       let cols_list = Array.to_list cols in (* cols should adhere to apron specification as described here: https://antoinemine.github.io/Apron/doc/api/ocaml/Dim.html*)
-      (* This function creates a list of tuples, each specifying an index and how many zeros are to be inserted at that index *)
-      let rec count_sorted_occ acc cols last count =
-        match cols with
-        | [] -> if count > 0 then (last, count) :: acc else acc
-        | x :: xs when x = last -> count_sorted_occ acc xs x (count + 1)
-        | x :: xs -> let acc = if count > 0 then (last, count) :: acc else acc in
-          count_sorted_occ acc xs x 1      
-      in
-      let occ_cols = List.rev @@ count_sorted_occ [] cols_list 0 0 in
+      (* This creates a list of tuples, each specifying an index and how many zeros are to be inserted at that index. This is then used for each row *)
+      let grouped_indices = List.group Int.compare cols_list in
+      let occ_cols = List.map (fun group -> ((List.hd group, List.length group))) grouped_indices in
       List.map (fun row -> V.insert_zero_at_indices row occ_cols (Array.length cols)) m
 
     let add_empty_columns m cols =
       Timing.wrap "add_empty_cols" (add_empty_columns m) cols
 
     (**
-      [get_col m n] returns a vector representing the [n]-th column of [m].
+       [get_col m n] returns a vector representing the [n]-th column of [m].
     *)
     let get_col m n =
       V.of_sparse_list (num_rows m) @@ List.filteri_map (fun i row -> let value = V.nth row n in if value <>: A.zero then Some (i, value) else None) m
