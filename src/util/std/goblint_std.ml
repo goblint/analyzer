@@ -13,6 +13,7 @@ module GobResult = GobResult
 module GobOption = GobOption
 module GobSys = GobSys
 module GobUnix = GobUnix
+module GobTuple = GobTuple
 
 (** {1 Other libraries}
 

@@ -49,11 +49,11 @@ struct
   let bot_of ik = bot ()
 
   let show = function ik -> match ik with
-    | None -> "⟂"
+    | None -> "bot"
     | Some (c, m) when (c, m) = (Z.zero, Z.zero) -> Z.to_string c
     | Some (c, m) ->
       let a = if c =: Z.zero then "" else Z.to_string c in
-      let b = if m =: Z.zero then "" else if m = Z.one then "ℤ" else Z.to_string m^"ℤ" in
+      let b = if m =: Z.zero then "" else if m = Z.one then "Z" else Z.to_string m^"Z" in
       let c = if a = "" || b = "" then "" else "+" in
       a^c^b
 
@@ -138,6 +138,22 @@ struct
   let ending = starting
 
   let of_congruence ik (c,m) = normalize ik @@ Some(c,m)
+
+  let of_bitfield ik (z,o) = 
+    if Z.lognot z = o then 
+      normalize ik (Some (o, Z.zero))
+    else 
+      (* get posiiton of first top bit *)
+      let tl_zeros = Z.trailing_zeros (Z.logand z o) in 
+      let m = Z.pow Z.one tl_zeros in 
+      let c = Z.logand o (m -: Z.one) in 
+      normalize ik (Some (c, m))
+
+  let to_bitfield ik x = 
+    let x = normalize ik x in 
+    match x with 
+    | None -> (Z.zero, Z.zero) 
+    | Some (c,m) -> BitfieldDomain.Bitfield.of_congruence ik (c,m)
 
   let maximal t = match t with
     | Some (x, y) when y =: Z.zero -> Some x
@@ -343,7 +359,7 @@ struct
       see: http://www.es.mdh.se/pdf_publications/948.pdf *)
   let bit2 f ik x y = match x, y with
     | None, None -> None
-    | None, _ | _, None -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y)))
+    | None, _ | _, None -> raise (ArithmeticOnIntegerBot ((show x) ^ " op " ^ (show y)))
     | Some (c, m), Some (c', m') ->
       if m =: Z.zero && m' =: Z.zero then Some (f c c', Z.zero)
       else top ()
@@ -434,7 +450,6 @@ struct
 
   let gt ik x y = comparison ik (>:) x y
 
-
   let gt ik x y =
     let res = gt ik x y in
     if M.tracing then  M.trace "congruence" "greater than : %a %a -> %a " pretty x pretty y pretty res;
@@ -489,7 +504,13 @@ struct
     refn
 
   let refine_with_congruence ik a b = meet ik a b
+
+  let refine_with_bitfield ik a (z,o) = 
+    let a = normalize ik a in 
+    meet ik a (of_bitfield ik (z,o))
+
   let refine_with_excl_list ik a b = a
+  
   let refine_with_incl_list ik a b = a
 
   let project ik p t = t
