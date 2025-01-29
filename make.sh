@@ -75,7 +75,7 @@ rule() {
     ;; setup)
       echo "Make sure you have the following installed: opam >= 2.0.0, git, patch, m4, autoconf, libgmp-dev, libmpfr-dev, pkg-config"
       echo "For the --html output you also need: javac, ant, dot (graphviz)"
-      echo "For running the regression tests you also need: ruby, gem, curl"
+      echo "For running the regression tests you also need: ruby, gem, curl, and the `os` gem"
       echo "For reference see ./Dockerfile or ./scripts/travis-ci.sh"
       opam_setup
     ;; dev)
@@ -90,6 +90,7 @@ rule() {
       # Use `git commit -n` to temporarily bypass the hook if necessary.
       echo "Installing gem parallel (not needed for ./scripts/update_suite.rb -s)"
       sudo gem install parallel
+      sudo gem install os
     ;; headers)
       curl -L -O https://github.com/goblint/linux-headers/archive/master.tar.gz
       tar xf master.tar.gz && rm master.tar.gz
