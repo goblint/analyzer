@@ -381,9 +381,9 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): Bitfield_SOverflow with type in
 
   let lognot ik i1 = BArith.lognot i1 |> norm ik
 
-  let precision ik = snd @@ Size.bits ik
+  let precision ik = Z.of_int @@ snd @@ Size.bits ik
   let cap_bitshifts_to_precision ik (z,o) =
-    let mask = BArith.bitmask_up_to (Int.succ @@ Z.log2up @@ Z.of_int @@ precision ik) in
+    let mask = BArith.bitmask_up_to (Int.succ @@ Z.log2up @@ precision ik) in
     (z |: !:mask, o &: mask)
 
   let is_invalid_shift_operation ik a b = BArith.is_invalid b || BArith.is_invalid a

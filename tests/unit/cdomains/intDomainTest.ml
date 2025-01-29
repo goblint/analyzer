@@ -252,6 +252,7 @@ end
 
 module BitfieldTest (I : IntDomain.SOverflow with type int_t = Z.t) =
 struct
+  module I_ = I
   module I = IntDomain.SOverflowUnlifter (I)
 
   let ik = Cil.IInt
@@ -484,7 +485,8 @@ struct
   let over_precision ik = Int.succ @@ precision ik
   let under_precision ik = Int.pred @@ precision ik
 
-  let assert_shift ?(rev_cond=false) shift ik a b expected = 
+  let assert_shift ?(rev_cond=false) ?(expected_ov_info=None) shift ik a b expected = 
+    let module I = I_ in
     let symb, shift_op_bf, shift_op_int = match shift with
       | `L -> "<<", I.shift_left ik, Int.shift_left
       | `R -> ">>", I.shift_right ik, Int.shift_right
@@ -499,7 +501,7 @@ struct
       | `I is -> Printf.sprintf "[%s]" (String.concat ", " @@ List.map string_of_int is)
     in
     let bf_a, bf_b, expected = get_param a, get_param b, get_param expected in
-    let result = (shift_op_bf bf_a bf_b) in
+    let result, ov_info = (shift_op_bf bf_a bf_b) in
     let output_string = Printf.sprintf "test (%s) shift %s %s %s failed: was: %s but should%s be: %s"
         (string_of_ik ik)
         (string_of_param a) symb (string_of_param b)
@@ -507,10 +509,15 @@ struct
     in
     let assertion = I.equal result expected in
     let assertion = if rev_cond then not assertion else assertion in
-    assert_bool output_string assertion
+    assert_bool output_string assertion;
+    if Option.is_some expected_ov_info then
+      let ov_printer (ov_info : IntDomain.overflow_info) = Printf.sprintf "{underflow=%b; overflow=%b}" ov_info.underflow ov_info.overflow in
+      let err_msg = Printf.sprintf "In (%s) shift %s %s %s" (string_of_ik ik) (string_of_param a) symb (string_of_param b) in
+      OUnit.assert_equal ~msg:err_msg ~printer:ov_printer (Option.get expected_ov_info) ov_info
 
-  let assert_shift_left ?(rev_cond=false) = assert_shift ~rev_cond:rev_cond `L
-  let assert_shift_right ?(rev_cond=false) = assert_shift ~rev_cond:rev_cond `R
+
+  let assert_shift_left ?(rev_cond=false) ?(ov_info=None) = assert_shift ~rev_cond:rev_cond ~expected_ov_info:ov_info `L
+  let assert_shift_right ?(rev_cond=false) ?(ov_info=None) = assert_shift ~rev_cond:rev_cond ~expected_ov_info:ov_info `R
 
   let gen_sized_set size_gen gen = 
     let open QCheck2.Gen in
@@ -597,7 +604,6 @@ struct
             )
 
           ) ik_lst
-
     ]
 
   let test_shift_right =
