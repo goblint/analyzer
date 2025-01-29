@@ -20,7 +20,7 @@
           line: 17
           column: 3
           function: main
-        value: (long long )i + 254 >= v
+        value: 510 >= n + i
         format: c_expression
     - invariant:
         type: loop_invariant
@@ -30,27 +30,7 @@
           line: 17
           column: 3
           function: main
-        value: (long long )i + 255 >= n
-        format: c_expression
-    - invariant:
-        type: loop_invariant
-        location:
-          file_name: 71-safe-program-example-loop-invariants-1.c
-          file_hash: $FILE_HASH
-          line: 17
-          column: 3
-          function: main
-        value: 510 >= n + (long long )i
-        format: c_expression
-    - invariant:
-        type: loop_invariant
-        location:
-          file_name: 71-safe-program-example-loop-invariants-1.c
-          file_hash: $FILE_HASH
-          line: 17
-          column: 3
-          function: main
-        value: 510 >= v + (long long )i
+        value: 510 >= v + i
         format: c_expression
     - invariant:
         type: loop_invariant
@@ -70,7 +50,7 @@
           line: 17
           column: 3
           function: main
-        value: n != (unsigned char)0
+        value: i + 254 >= v
         format: c_expression
     - invariant:
         type: loop_invariant
@@ -80,7 +60,17 @@
           line: 17
           column: 3
           function: main
-        value: n + (long long )i >= 1
+        value: i + 255 >= n
+        format: c_expression
+    - invariant:
+        type: loop_invariant
+        location:
+          file_name: 71-safe-program-example-loop-invariants-1.c
+          file_hash: $FILE_HASH
+          line: 17
+          column: 3
+          function: main
+        value: n != (unsigned char)0
         format: c_expression
     - invariant:
         type: loop_invariant
@@ -100,7 +90,7 @@
           line: 17
           column: 3
           function: main
-        value: n >= (long long )i
+        value: n + i >= 1
         format: c_expression
     - invariant:
         type: loop_invariant
@@ -110,7 +100,7 @@
           line: 17
           column: 3
           function: main
-        value: v + (long long )i >= 0
+        value: n >= i
         format: c_expression
     - invariant:
         type: loop_invariant
@@ -120,7 +110,7 @@
           line: 17
           column: 3
           function: main
-        value: v + 255 >= (long long )i
+        value: v + 255 >= i
         format: c_expression
     - invariant:
         type: loop_invariant
@@ -131,6 +121,16 @@
           column: 3
           function: main
         value: v + 255 >= n
+        format: c_expression
+    - invariant:
+        type: loop_invariant
+        location:
+          file_name: 71-safe-program-example-loop-invariants-1.c
+          file_hash: $FILE_HASH
+          line: 17
+          column: 3
+          function: main
+        value: v + i >= 0
         format: c_expression
     - invariant:
         type: loop_invariant

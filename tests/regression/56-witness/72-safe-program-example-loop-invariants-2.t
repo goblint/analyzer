@@ -20,7 +20,7 @@
           line: 13
           column: 3
           function: main
-        value: (long long )i + 255 >= (long long )v
+        value: (long long )i + 255 >= v
         format: c_expression
     - invariant:
         type: loop_invariant
@@ -30,7 +30,7 @@
           line: 13
           column: 3
           function: main
-        value: (long long )i + 4294967295LL >= (long long )n
+        value: (long long )n + 254 >= v
         format: c_expression
     - invariant:
         type: loop_invariant
@@ -40,7 +40,7 @@
           line: 13
           column: 3
           function: main
-        value: (long long )n + (long long )i >= 1
+        value: (long long )n + i >= 1
         format: c_expression
     - invariant:
         type: loop_invariant
@@ -50,7 +50,7 @@
           line: 13
           column: 3
           function: main
-        value: (long long )n + 254 >= (long long )v
+        value: (long long )v + i >= 0
         format: c_expression
     - invariant:
         type: loop_invariant
@@ -60,7 +60,7 @@
           line: 13
           column: 3
           function: main
-        value: (long long )n >= (long long )i
+        value: (long long )v + n >= 1
         format: c_expression
     - invariant:
         type: loop_invariant
@@ -70,7 +70,7 @@
           line: 13
           column: 3
           function: main
-        value: (long long )v + (long long )i >= 0
+        value: 4294967550LL >= (long long )v + i
         format: c_expression
     - invariant:
         type: loop_invariant
@@ -80,7 +80,7 @@
           line: 13
           column: 3
           function: main
-        value: (long long )v + (long long )n >= 1
+        value: 4294967550LL >= (long long )v + n
         format: c_expression
     - invariant:
         type: loop_invariant
@@ -90,7 +90,7 @@
           line: 13
           column: 3
           function: main
-        value: (long long )v + 4294967295LL >= (long long )i
+        value: 8589934590LL >= (long long )n + i
         format: c_expression
     - invariant:
         type: loop_invariant
@@ -100,37 +100,7 @@
           line: 13
           column: 3
           function: main
-        value: (long long )v + 4294967295LL >= (long long )n
-        format: c_expression
-    - invariant:
-        type: loop_invariant
-        location:
-          file_name: 72-safe-program-example-loop-invariants-2.c
-          file_hash: $FILE_HASH
-          line: 13
-          column: 3
-          function: main
-        value: 4294967550LL >= (long long )v + (long long )i
-        format: c_expression
-    - invariant:
-        type: loop_invariant
-        location:
-          file_name: 72-safe-program-example-loop-invariants-2.c
-          file_hash: $FILE_HASH
-          line: 13
-          column: 3
-          function: main
-        value: 4294967550LL >= (long long )v + (long long )n
-        format: c_expression
-    - invariant:
-        type: loop_invariant
-        location:
-          file_name: 72-safe-program-example-loop-invariants-2.c
-          file_hash: $FILE_HASH
-          line: 13
-          column: 3
-          function: main
-        value: 8589934590LL >= (long long )n + (long long )i
+        value: i + 4294967295LL >= n
         format: c_expression
     - invariant:
         type: loop_invariant
@@ -141,6 +111,36 @@
           column: 3
           function: main
         value: n != 0U
+        format: c_expression
+    - invariant:
+        type: loop_invariant
+        location:
+          file_name: 72-safe-program-example-loop-invariants-2.c
+          file_hash: $FILE_HASH
+          line: 13
+          column: 3
+          function: main
+        value: n >= i
+        format: c_expression
+    - invariant:
+        type: loop_invariant
+        location:
+          file_name: 72-safe-program-example-loop-invariants-2.c
+          file_hash: $FILE_HASH
+          line: 13
+          column: 3
+          function: main
+        value: v + 4294967295LL >= i
+        format: c_expression
+    - invariant:
+        type: loop_invariant
+        location:
+          file_name: 72-safe-program-example-loop-invariants-2.c
+          file_hash: $FILE_HASH
+          line: 13
+          column: 3
+          function: main
+        value: v + 4294967295LL >= n
         format: c_expression
     - invariant:
         type: loop_invariant
