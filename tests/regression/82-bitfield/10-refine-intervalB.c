@@ -11,7 +11,7 @@ int main() {
   }
 
   if ((r & x) == 63) {
-    __goblint_check(r & 63 == 63); // SUCCESS
+    __goblint_check((r & 63) == 63); // SUCCESS
     __goblint_check(x == 63); // SUCCESS
   }
 
