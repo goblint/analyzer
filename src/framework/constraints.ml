@@ -245,7 +245,7 @@ struct
 
   let tf_special_call man lv f args = S.special man lv f args
 
-  let tf_proc var edge prev_node lv e args getl sidel getg sideg d =
+  let rec tf_proc var edge prev_node lv e args getl sidel getg sideg d =
     let man, r, spawns = common_man var edge prev_node d getl sidel getg sideg in
     let functions =
       match e with
@@ -258,6 +258,34 @@ struct
         let ad = man.ask (Queries.EvalFunvar e) in
         Queries.AD.to_var_may ad (* TODO: don't convert, handle UnknownPtr below *)
     in
+    let once once_control init_routine =
+      let enter =
+        let d' = S.event man (Events.EnterOnce { once_control;  tf = true }) man in
+        let proc = tf_proc var edge prev_node None init_routine [] getl sidel getg sideg d' in
+        if not (S.D.is_bot proc) then
+          let rec proc_man =
+            { man with
+              ask = (fun (type a) (q: a Queries.t) -> S.query proc_man q);
+              local = proc;
+            }
+          in
+          S.event proc_man (Events.LeaveOnce { once_control }) proc_man
+        else
+          S.D.bot ()
+      in
+      let not_enter =
+        (* Always possible, will never yield `Bot *)
+        let d' = S.event man (Events.EnterOnce { once_control;  tf = false }) man in
+        let rec d'_man =
+          { man with
+            ask = (fun (type a) (q: a Queries.t) -> S.query d'_man q);
+            local = d';
+          }
+        in
+        S.event d'_man (Events.LeaveOnce { once_control }) d'_man
+      in
+      D.join enter not_enter
+    in
     let one_function f =
       match f.vtype with
       | TFun (_, params, var_arg, _)  ->
@@ -266,14 +294,21 @@ struct
         (* Check whether number of arguments fits. *)
         (* If params is None, the function or its parameters are not declared, so we still analyze the unknown function call. *)
         if Option.is_none params || p_length = arg_length || (var_arg && arg_length >= p_length) then
-          begin Some (match Cilfacade.find_varinfo_fundec f with
-              | fd when LibraryFunctions.use_special f.vname ->
-                M.info ~category:Analyzer "Using special for defined function %s" f.vname;
-                tf_special_call man lv f args
-              | fd ->
-                tf_normal_call man lv e fd args getl sidel getg sideg
-              | exception Not_found ->
-                tf_special_call man lv f args)
+          begin
+            let is_once = LibraryFunctions.find ~nowarn:true f in
+            match is_once.special args with
+            | Once { once_control; init_routine } ->
+              Some (once once_control init_routine)
+            | _
+            | exception LibraryDsl.Expected _-> (* propagate weirdness inside *)
+              Some (match Cilfacade.find_varinfo_fundec f with
+                  | fd when LibraryFunctions.use_special f.vname ->
+                    M.info ~category:Analyzer "Using special for defined function %s" f.vname;
+                    tf_special_call man lv f args
+                  | fd ->
+                    tf_normal_call man lv e fd args getl sidel getg sideg
+                  | exception Not_found ->
+                    tf_special_call man lv f args)
           end
         else begin
           let geq = if var_arg then ">=" else "" in

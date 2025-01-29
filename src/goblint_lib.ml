@@ -131,6 +131,7 @@ module ThreadEscape = ThreadEscape
 module PthreadSignals = PthreadSignals
 module PthreadBarriers = PthreadBarriers
 module ExtractPthread = ExtractPthread
+module PthreadOnce = PthreadOnce
 
 (** {2 Longjmp}
 
