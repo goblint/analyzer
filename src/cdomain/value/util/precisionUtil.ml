@@ -57,8 +57,8 @@ let reset_lazy () =
   enums := None;
   congruence := None;
   interval_set := None;
-  annotation_int_enabled := None;
-  bitfield := None
+  bitfield := None;
+  annotation_int_enabled := None
 
 (* Thus for maximum precision we activate all Domains *)
 let max_int_precision : int_precision = (true, true, true, true, true, true)

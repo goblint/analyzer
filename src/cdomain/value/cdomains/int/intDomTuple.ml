@@ -101,10 +101,8 @@ module IntDomTupleImpl = struct
     | (_, _, Some true, _, _,_)
     | (_, _, _, Some true, _,_)
     | (_, _, _, _, Some true,_) 
-    | (_, _, _, _, _, Some true) 
-      -> true 
-    | _ ->
-      false
+    | (_, _, _, _, _, Some true) -> true 
+    | _ -> false
 
   let for_all = function
     | (Some false, _, _, _, _,_)
@@ -112,11 +110,8 @@ module IntDomTupleImpl = struct
     | (_, _, Some false, _, _,_)
     | (_, _, _, Some false, _,_)
     | (_, _, _, _, Some false,_) 
-    | (_, _, _, _, _, Some false)
-      ->
-      false
-    | _ ->
-      true
+    | (_, _, _, _, _, Some false) -> false
+    | _ -> true
 
   (* f0: constructors *)
   let top () = create { fi = fun (type a) (module I:SOverflow with type t = a) -> I.top } ()
@@ -503,7 +498,7 @@ module IntDomTupleImpl = struct
     | Some v when not (GobConfig.get_bool "dbg.full-output") -> BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (Z.to_string v)
     | _ -> BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (show x)
 
-  let invariant_ikind e ik ((_, _, _, x_cong, x_intset, _) as x) =
+  let invariant_ikind e ik ((_, _, _, x_cong, x_intset, x_bf) as x) =
     (* TODO: do refinement before to ensure incl_list being more precise than intervals, etc (https://github.com/goblint/analyzer/pull/1517#discussion_r1693998515), requires refine functions to actually refine that *)
     let simplify_int fallback =
       match to_int x with
@@ -530,7 +525,8 @@ module IntDomTupleImpl = struct
           IntInvariant.of_interval_opt e ik (min, max) && (* Output best interval bounds once instead of multiple subdomains repeating them (or less precise ones). *)
           IntInvariant.of_excl_list e ik ns &&
           Option.map_default (I4.invariant_ikind e ik) Invariant.none x_cong && (* Output congruence as is. *)
-          Option.map_default (I5.invariant_ikind e ik) Invariant.none x_intset (* Output interval sets as is. *)
+          Option.map_default (I5.invariant_ikind e ik) Invariant.none x_intset && (* Output interval sets as is. *)
+          Option.map_default (I6.invariant_ikind e ik) Invariant.none x_bf (* Output bitmask as is. *)
         )
     in
     let simplify_none () =
