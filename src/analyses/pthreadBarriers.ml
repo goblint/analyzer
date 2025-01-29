@@ -52,6 +52,19 @@ struct
     Queries.AD.to_var_may (a.f (Queries.MayPointTo barrier))
 
   let special man (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
+    let exists_k pred k waiters =
+      let k_product elems =
+        let rec doit k =
+          if k = 1 then
+            Seq.map (Seq.return) elems
+          else
+            let arg = doit (k-1) in
+            Seq.map_product (Seq.cons) elems arg
+        in
+        doit k
+      in
+      Seq.exists pred (k_product (Waiters.to_seq waiters))
+    in
     let desc = LF.find f in
     match desc.special arglist with
     | BarrierWait barrier ->
@@ -88,16 +101,14 @@ struct
                   let must =
                     let waiters = Waiters.elements relevant_waiters in
                     let min_cap = Z.to_int min_cap in
-                    let lists = List.init (min_cap - 1) (fun _ -> waiters) in
-                    let candidates = BatList.n_cartesian_product lists in
-                    let can_proceed = List.exists (fun candidate ->
-                        let rec do_it = function
-                          | [] -> true
-                          | x::xs -> List.for_all (fun y -> MHPplusLock.mhp x y) xs  && do_it xs
-                        in
-                        do_it candidate
-                      ) candidates
+                    let can_proceed_pred seq =
+                      let rec doit seq = match Seq.uncons seq with
+                        | None -> true
+                        | Some (h, t) -> Seq.for_all (MHPplusLock.mhp h) t && doit t
+                      in
+                      doit seq
                     in
+                    let can_proceed = exists_k can_proceed_pred (min_cap - 1) relevant_waiters in
                     if not can_proceed then raise Analyses.Deadcode;
                     (* limit to this case to avoid having to construct all permutations above *)
                     if BatList.compare_length_with waiters (min_cap - 1) = 0 then
