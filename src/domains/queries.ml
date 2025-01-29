@@ -130,6 +130,7 @@ type _ t =
   | IsEverMultiThreaded: MayBool.t t
   | TmpSpecial: Mval.Exp.t -> ML.t t
   | MaySignedOverflow: exp -> MayBool.t t
+  | MayOverflow: exp -> MayBool.t t
   | GasExhausted: CilType.Fundec.t ->  MustBool.t t
   | YamlEntryGlobal: Obj.t * YamlWitnessType.Task.t -> YS.t t (** YAML witness entries for a global unknown ([Obj.t] represents [Spec.V.t]) and YAML witness task. *)
   | GhostVarAvailable: WitnessGhostVar.t -> MayBool.t t
@@ -205,6 +206,7 @@ struct
     | IsEverMultiThreaded -> (module MayBool)
     | TmpSpecial _ -> (module ML)
     | MaySignedOverflow  _ -> (module MayBool)
+    | MayOverflow  _ -> (module MayBool)
     | GasExhausted _ -> (module MustBool)
     | YamlEntryGlobal _ -> (module YS)
     | GhostVarAvailable _ -> (module MayBool)
@@ -279,6 +281,7 @@ struct
     | IsEverMultiThreaded -> MayBool.top ()
     | TmpSpecial _ -> ML.top ()
     | MaySignedOverflow _ -> MayBool.top ()
+    | MayOverflow _ -> MayBool.top ()
     | GasExhausted _ -> MustBool.top ()
     | YamlEntryGlobal _ -> YS.top ()
     | GhostVarAvailable _ -> MayBool.top ()
@@ -349,11 +352,12 @@ struct
     | Any (TmpSpecial _) -> 56
     | Any (IsAllocVar _) -> 57
     | Any (MaySignedOverflow _) -> 58
-    | Any (GasExhausted _) -> 59
-    | Any (YamlEntryGlobal _) -> 60
-    | Any (MustProtectingLocks _) -> 61
-    | Any (GhostVarAvailable _) -> 62
-    | Any InvariantGlobalNodes -> 63
+    | Any (MayOverflow _) -> 59
+    | Any (GasExhausted _) -> 60
+    | Any (YamlEntryGlobal _) -> 61
+    | Any (MustProtectingLocks _) -> 62
+    | Any (GhostVarAvailable _) -> 63
+    | Any InvariantGlobalNodes -> 64
 
   let rec compare a b =
     let r = Stdlib.compare (order a) (order b) in
@@ -410,6 +414,7 @@ struct
       | Any (MustBeSingleThreaded {since_start=s1;}),  Any (MustBeSingleThreaded {since_start=s2;}) -> Stdlib.compare s1 s2
       | Any (TmpSpecial lv1), Any (TmpSpecial lv2) -> Mval.Exp.compare lv1 lv2
       | Any (MaySignedOverflow e1), Any (MaySignedOverflow e2) -> CilType.Exp.compare e1 e2
+      | Any (MayOverflow e1), Any (MayOverflow e2) -> CilType.Exp.compare e1 e2
       | Any (GasExhausted f1), Any (GasExhausted f2) -> CilType.Fundec.compare f1 f2
       | Any (GhostVarAvailable v1), Any (GhostVarAvailable v2) -> WitnessGhostVar.compare v1 v2
       (* only argumentless queries should remain *)
@@ -456,6 +461,7 @@ struct
     | Any (MustBeSingleThreaded {since_start}) -> Hashtbl.hash since_start
     | Any (TmpSpecial lv) -> Mval.Exp.hash lv
     | Any (MaySignedOverflow e) -> CilType.Exp.hash e
+    | Any (MayOverflow e) -> CilType.Exp.hash e
     | Any (GasExhausted f) -> CilType.Fundec.hash f
     | Any (GhostVarAvailable v) -> WitnessGhostVar.hash v
     (* IterSysVars:                                                                    *)
@@ -523,6 +529,7 @@ struct
     | Any IsEverMultiThreaded -> Pretty.dprintf "IsEverMultiThreaded"
     | Any (TmpSpecial lv) -> Pretty.dprintf "TmpSpecial %a" Mval.Exp.pretty lv
     | Any (MaySignedOverflow e) -> Pretty.dprintf "MaySignedOverflow %a" CilType.Exp.pretty e
+    | Any (MayOverflow e) -> Pretty.dprintf "MayOverflow %a" CilType.Exp.pretty e
     | Any (GasExhausted f) -> Pretty.dprintf "GasExhausted %a" CilType.Fundec.pretty f
     | Any (GhostVarAvailable v) -> Pretty.dprintf "GhostVarAvailable %a" WitnessGhostVar.pretty v
     | Any InvariantGlobalNodes -> Pretty.dprintf "InvariantGlobalNodes"
