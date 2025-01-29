@@ -117,6 +117,7 @@ struct
       add e acc
     ) (empty ()) es
   let elements m = fold List.cons m [] (* no intermediate per-bucket lists *)
+  let to_seq m = fold Seq.cons m Seq.empty
   let map f m = fold (fun e acc ->
       add (f e) acc
     ) m (empty ()) (* no intermediate lists *)
@@ -323,6 +324,7 @@ struct
       add e acc
     ) (empty ()) es
   let elements m = fold List.cons m [] (* no intermediate per-bucket lists *)
+  let to_seq m = fold Seq.cons m Seq.empty
   let map f s = fold (fun e acc ->
       add (f e) acc
     ) s (empty ()) (* no intermediate lists *)
