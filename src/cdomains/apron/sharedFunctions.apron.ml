@@ -268,7 +268,7 @@ struct
   let longlong = TInt(ILongLong,[])
 
   let check_for_overflows_no_further_cast (ask: Queries.ask) (e_inv: exp -> exp) cast_exp exp_plain =
-    if no_overflow ask (e_inv cast_exp) then
+    if not (ask.f (MayOverflow (e_inv cast_exp))) then
       cast_exp, exp_plain
     else (
       M.warn ~category:Analyzer "Invariant Apron: cannot convert to cil var in overflow preserving manner: %a" CilType.Exp.pretty cast_exp;
@@ -278,10 +278,10 @@ struct
   let is_cast_injective_vtype vinfo = IntDomain.Size.is_cast_injective ~from_type:vinfo.vtype ~to_type:longlong
 
   let rec check_for_overflows (ask: Queries.ask) (e_inv: exp -> exp) exp exp_plain =
-    if no_overflow ask (e_inv exp) then
+    if not (ask.f (MayOverflow (e_inv exp))) then
       exp, exp_plain
     else
-      match exp with
+      match exp_plain with
       | Lval (Var vinfo, NoOffset) as var when is_cast_injective_vtype vinfo ->
         let cast_var = Cilfacade.mkCast ~e:var ~newt:longlong in
         check_for_overflows_no_further_cast ask e_inv cast_var cast_var
