@@ -371,9 +371,10 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): Bitfield_SOverflow with type in
 
   let lognot ik i1 = BArith.lognot i1 |> norm ik |> fst
 
-  let precision ik = snd @@ Size.bits ik
+  let precision ik = Z.of_int @@ snd @@ Size.bits ik
+  
   let cap_bitshifts_to_precision ik (z,o) =
-    let mask = BArith.bitmask_up_to (Int.succ @@ Z.log2up @@ Z.of_int @@ precision ik) in
+    let mask = BArith.bitmask_up_to (Int.succ @@ Z.log2up @@ precision ik) in
     (z |: !:mask, o &: mask)
 
   let is_invalid_shift_operation ik a b = BArith.is_invalid b || BArith.is_invalid a
@@ -401,29 +402,33 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): Bitfield_SOverflow with type in
 
   let shift_right ik a b = 
     if M.tracing then M.trace "bitfield" "%a >> %a" pretty a pretty b; 
-    if is_invalid_shift_operation ik a b
-    then
+    if is_invalid_shift_operation ik a b then    
       (bot (), {underflow=false; overflow=false})
     else
-      let is_undefined_shift_operation, ov_info = check_if_undefined_shift_operation ik a b
-      in
-      if is_undefined_shift_operation then (top_of ik, ov_info)
+      let is_undefined_shift_operation, ov_info = check_if_undefined_shift_operation ik a b in       
+      if is_undefined_shift_operation then 
+        (top_of ik, ov_info)
       else
         let defined_shifts = cap_bitshifts_to_precision ik b in (* O(2^(log n)) *)
-        norm ik @@ BArith.shift_right ik a defined_shifts
+        (norm ik (BArith.shift_right ik a defined_shifts), {underflow=false; overflow=false})
 
   let shift_left ik a b =
     if M.tracing then M.trace "bitfield" "%a << %a" pretty a pretty b;
-    if is_invalid_shift_operation ik a b
-    then
+    if is_invalid_shift_operation ik a b then    
       (bot (), {underflow=false; overflow=false})
     else
-      let is_undefined_shift_operation, ov_info = check_if_undefined_shift_operation ~is_shift_left:true ik a b
-      in
-      if is_undefined_shift_operation then (top_of ik, ov_info)
+      let is_undefined_shift_operation, ov_info = check_if_undefined_shift_operation ~is_shift_left:true ik a b in       
+      if is_undefined_shift_operation then 
+        (top_of ik, ov_info)
       else
         let defined_shifts = cap_bitshifts_to_precision ik b in (* O(2^(log n)) *)
-        norm ik @@ BArith.shift_left ik a defined_shifts
+        let max_shift = if Z.fits_int (BArith.max ik b) then Z.to_int (BArith.max ik b) else Int.max_int in 
+        let (min_ik, max_ik) = Size.range ik in 
+        let min_res = if max_shift < 0 then Z.sub min_ik Z.one else Z.shift_left (BArith.min ik a) max_shift in 
+        let max_res = if max_shift < 0 then Z.add max_ik Z.one else Z.shift_left (BArith.max ik a) max_shift in 
+        let underflow = Z.compare min_res min_ik < 0 in 
+        let overflow = Z.compare max_ik max_res < 0 in 
+        (norm ~ov:(underflow || overflow) ik (BArith.shift_left ik a defined_shifts), {underflow=underflow; overflow=overflow})
 
   (* Arith *)
 
