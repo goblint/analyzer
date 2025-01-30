@@ -56,13 +56,37 @@ module ListMatrix: SparseMatrixFunctor =
 
     let map2 f m v =
       let vector_length = V.length v in
-      List.mapi (fun index row -> if index < vector_length then f row (V.nth v index) else row ) m
+      let vector_entries = V.to_sparse_list v in
+      let rec map2_helper acc index m v = 
+        match m, v with 
+        | [], _ -> List.rev acc
+        | row :: rs, [] when index >= vector_length -> List.rev_append acc m
+        | row :: rs, [] ->  map2_helper ((f row A.zero):: acc) (index + 1) rs []
+        | row :: rs, (i, value) :: vs -> 
+          if i = index then 
+            map2_helper ((f row value):: acc) (index + 1) rs vs 
+          else
+            map2_helper ((f row A.zero) :: acc) (index + 1) rs v 
+      in
+      map2_helper [] 0 m vector_entries
 
     let map2 f m v = timing_wrap "Matrix.map2" (map2 f m) v
 
     let map2i f m v =
       let vector_length = V.length v in
-      List.mapi (fun index row -> if index < vector_length then f index row (V.nth v index) else row ) m
+      let vector_entries = V.to_sparse_list v in
+      let rec map2i_helper acc index m v = 
+        match m, v with 
+        | [], _ -> List.rev acc
+        | row :: rs, [] when index >= vector_length -> List.rev_append acc m 
+        | row :: rs, [] ->  map2i_helper ((f index row A.zero):: acc) (index + 1) rs []
+        | row :: rs, (i, value) :: vs -> 
+          if i = index then 
+            map2i_helper ((f index row value):: acc) (index + 1) rs vs 
+          else
+            map2i_helper ((f index row A.zero) :: acc) (index + 1) rs v 
+      in
+      map2i_helper [] 0 m vector_entries
 
     let map2i f m v = timing_wrap "Matrix.map2i" (map2i f m) v
 
