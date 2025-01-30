@@ -294,7 +294,8 @@ struct
         in
         let case_three a b col_a col_b max =
           let col_a, col_b = Vector.keep_vals col_a max, Vector.keep_vals col_b max in
-          if Vector.equal col_a col_b then
+          let col_diff = Vector.map2_f_preserves_zero (-:) col_a col_b in
+          if Vector.is_zero_vec col_diff then
             (a, b, max)
           else
             (
@@ -304,10 +305,8 @@ struct
               let (x, y) = Vector.nth col_a i, Vector.nth col_b i in
               let r, diff = Vector.length col_a - (i + 1), x -: y  in
               let a_r, b_r = Matrix.get_row a r, Matrix.get_row b r in
-              let col_a = Vector.map2_f_preserves_zero (-:) col_a col_b in
-              let col_a = Vector.rev col_a in
               let multiply_by_t m t =
-                Matrix.map2i (fun i' x c -> if i' <= max then (let beta = c /: diff in Vector.map2_f_preserves_zero (fun u j -> u -: (beta *: j)) x t) else x) m col_a
+                Matrix.map2i (fun i' x c -> if i' <= max then (let beta = c /: diff in Vector.map2_f_preserves_zero (fun u j -> u -: (beta *: j)) x t) else x) m col_diff
               in
               Matrix.remove_row (multiply_by_t a a_r) r, Matrix.remove_row (multiply_by_t b b_r) r, (max - 1)
             )
