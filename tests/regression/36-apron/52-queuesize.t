@@ -56,7 +56,7 @@ Without diff-box:
       column: 3
       function: push
     location_invariant:
-      string: 2147483647LL >= (long long )capacity
+      string: free >= 0
       type: assertion
       format: C
   - entry_type: location_invariant
@@ -67,7 +67,7 @@ Without diff-box:
       column: 3
       function: push
     location_invariant:
-      string: (long long )used + (long long )free == (long long )capacity
+      string: capacity >= free
       type: assertion
       format: C
   - entry_type: location_invariant
@@ -78,7 +78,7 @@ Without diff-box:
       column: 3
       function: push
     location_invariant:
-      string: (long long )free >= 0LL
+      string: 2147483647 >= capacity
       type: assertion
       format: C
   - entry_type: location_invariant
@@ -89,7 +89,7 @@ Without diff-box:
       column: 3
       function: push
     location_invariant:
-      string: (long long )capacity >= (long long )free
+      string: (long long )used + free == capacity
       type: assertion
       format: C
   - entry_type: location_invariant
@@ -100,7 +100,7 @@ Without diff-box:
       column: 3
       function: pop
     location_invariant:
-      string: 2147483647LL >= (long long )capacity
+      string: free >= 0
       type: assertion
       format: C
   - entry_type: location_invariant
@@ -111,7 +111,7 @@ Without diff-box:
       column: 3
       function: pop
     location_invariant:
-      string: (long long )used + (long long )free == (long long )capacity
+      string: capacity >= free
       type: assertion
       format: C
   - entry_type: location_invariant
@@ -122,7 +122,7 @@ Without diff-box:
       column: 3
       function: pop
     location_invariant:
-      string: (long long )free >= 0LL
+      string: 2147483647 >= capacity
       type: assertion
       format: C
   - entry_type: location_invariant
@@ -133,7 +133,7 @@ Without diff-box:
       column: 3
       function: pop
     location_invariant:
-      string: (long long )capacity >= (long long )free
+      string: (long long )used + free == capacity
       type: assertion
       format: C
 
@@ -193,7 +193,7 @@ With diff-box:
       column: 3
       function: push
     location_invariant:
-      string: (long long )used + (long long )free == (long long )capacity
+      string: free >= 0
       type: assertion
       format: C
   - entry_type: location_invariant
@@ -204,7 +204,7 @@ With diff-box:
       column: 3
       function: push
     location_invariant:
-      string: (long long )free >= 0LL
+      string: capacity >= free
       type: assertion
       format: C
   - entry_type: location_invariant
@@ -215,7 +215,7 @@ With diff-box:
       column: 3
       function: push
     location_invariant:
-      string: (long long )capacity >= (long long )free
+      string: (long long )used + free == capacity
       type: assertion
       format: C
   - entry_type: location_invariant
@@ -226,7 +226,7 @@ With diff-box:
       column: 3
       function: pop
     location_invariant:
-      string: (long long )used + (long long )free == (long long )capacity
+      string: free >= 0
       type: assertion
       format: C
   - entry_type: location_invariant
@@ -237,7 +237,7 @@ With diff-box:
       column: 3
       function: pop
     location_invariant:
-      string: (long long )free >= 0LL
+      string: capacity >= free
       type: assertion
       format: C
   - entry_type: location_invariant
@@ -248,7 +248,7 @@ With diff-box:
       column: 3
       function: pop
     location_invariant:
-      string: (long long )capacity >= (long long )free
+      string: (long long )used + free == capacity
       type: assertion
       format: C
 
@@ -264,7 +264,7 @@ Compare witnesses:
       column: 3
       function: push
     location_invariant:
-      string: 2147483647LL >= (long long )capacity
+      string: 2147483647 >= capacity
       type: assertion
       format: C
   - entry_type: location_invariant
@@ -275,7 +275,7 @@ Compare witnesses:
       column: 3
       function: pop
     location_invariant:
-      string: 2147483647LL >= (long long )capacity
+      string: 2147483647 >= capacity
       type: assertion
       format: C
   ---
