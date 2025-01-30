@@ -13,6 +13,7 @@ module SparseVector: SparseVectorFunctor =
   struct
     include ConvenienceOps (A)
 
+    (** Only non-zero [entries] are stored in a list of tuples of (index, value). All values not contained in [entries] are implicitly [A.Zero]. *)
     type t = {
       entries: (int * A.t) list ;
       len: int

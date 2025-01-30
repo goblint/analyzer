@@ -8,7 +8,7 @@ module List = BatList
 
 (** Matrix implementation that uses a list of (ideally sparse) vectors representing its rows.
     It provides a normalization function to reduce a matrix into reduced row echelon form.
-    Operations exploit that the input matrix/mtimatrices are in reduced row echelon form already. *)
+    Operations exploit that the input matrix/matrices are in reduced row echelon form already. *)
 module ListMatrix: SparseMatrixFunctor =
   functor (A: RatOps) (V: SparseVectorFunctor) ->
   struct
