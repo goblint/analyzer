@@ -281,23 +281,23 @@ struct
     if not (ask.f (MayOverflow (e_inv exp))) then
       exp, exp_plain
     else
-      match exp_plain with
-      | Lval (Var vinfo, NoOffset) as var when is_cast_injective_vtype vinfo ->
+      match exp, exp_plain with
+      | Lval (Var vinfo, NoOffset) as var, _ when is_cast_injective_vtype vinfo ->
         let cast_var = Cilfacade.mkCast ~e:var ~newt:longlong in
         check_for_overflows_no_further_cast ask e_inv cast_var cast_var
-      | BinOp (op, (Const i as c), ((Lval (Var vinfo, NoOffset)) as var), _) when is_cast_injective_vtype vinfo ->
+      | BinOp (op, (Const i as c), ((Lval (Var vinfo, NoOffset)) as var), _), _ when is_cast_injective_vtype vinfo ->
         let cast_var = Cilfacade.mkCast ~e:var ~newt:longlong in
         let cast_exp_plain = BinOp (op, c, cast_var, longlong) in
         let cast_exp = Cilfacade.makeBinOp op c cast_var in
         check_for_overflows_no_further_cast ask e_inv cast_exp cast_exp_plain
-      | BinOp (op, ((Lval (Var vinfo1, NoOffset)) as var1), ((Lval (Var vinfo2, NoOffset)) as var2), _) when is_cast_injective_vtype vinfo1 && is_cast_injective_vtype vinfo2 ->
+      | BinOp (op, ((Lval (Var vinfo1, NoOffset)) as var1), ((Lval (Var vinfo2, NoOffset)) as var2), _), BinOp (_, _, var2_plain, _) when is_cast_injective_vtype vinfo1 && is_cast_injective_vtype vinfo2 ->
         let cast_var = Cilfacade.mkCast ~e:var1 ~newt:longlong in
-        let cast_exp_plain = BinOp (op, cast_var, var2, longlong) in
+        let cast_exp_plain = BinOp (op, cast_var, var2_plain, longlong) in
         let cast_exp = Cilfacade.makeBinOp op cast_var var2 in
         check_for_overflows_no_further_cast ask e_inv cast_exp cast_exp_plain
-      | BinOp (op, exp1, exp2, _) ->
+      | BinOp (op, exp1, exp2, _), BinOp (_, _, exp2_plain, _) ->
         let cast_exp1 = Cilfacade.mkCast ~e:exp1 ~newt:longlong in
-        let cast_exp_plain = BinOp (op, cast_exp1, exp2, longlong) in
+        let cast_exp_plain = BinOp (op, cast_exp1, exp2_plain, longlong) in
         let cast_exp = Cilfacade.makeBinOp op cast_exp1 exp2 in
         check_for_overflows_no_further_cast ask e_inv cast_exp cast_exp_plain
       | _ ->
