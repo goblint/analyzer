@@ -268,7 +268,7 @@ struct
           begin match IdxDom.(to_bool (eq f_offset (neg (iDtoIdx n)))) with
             | Some true -> `NoOffset
             | _ when isArrayType f.ftype -> `Field (f, `Index (n, `NoOffset))
-            | _ when GobOption.exists (Z.equal Z.zero) (ID.to_int n) -> `NoOffset (* adding (or subtracting) 0 to any type of pointer is ok *)
+            | _ when GobOption.exists (Z.equal Z.zero) (ID.to_int n) -> `Field (f, `NoOffset) (* adding (or subtracting) 0 to any type of pointer is ok *)
             | _ -> raise UnknownPtr (* adding (or subtracting) anything else than 0 to a pointer that is non-indexable will yield an unknown pointer *)
           end
         | `Index (i, o) ->
