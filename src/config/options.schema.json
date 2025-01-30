@@ -1121,6 +1121,12 @@
                   "description": "TODO! How does relate to the MHP one? Seems to hit only in one case",
                   "type" : "boolean",
                   "default" : true
+                },
+                "fresh" : {
+                  "title": "ana.race.digests.fresh",
+                  "description": "Use freshness analysis for excluding data races.",
+                  "type" : "boolean",
+                  "default" : true
                 }
               },
               "additionalProperties": false

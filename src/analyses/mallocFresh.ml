@@ -64,7 +64,9 @@ struct
   struct
     include BoolDomain.Bool
     let name () = "fresh"
-    let may_race f1 f2 = not (f1 || f2)
+    let may_race f1 f2 =
+      let use_fresh = GobConfig.get_bool "ana.race.digests.fresh" in
+      (not use_fresh) || not (f1 || f2)
     let should_print f = f
   end
   let access man (a: Queries.access) =
