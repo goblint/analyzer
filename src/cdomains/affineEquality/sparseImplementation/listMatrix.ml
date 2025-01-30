@@ -34,6 +34,8 @@ module ListMatrix: SparseMatrixFunctor =
 
     let num_rows = List.length
 
+    let compare_num_rows = List.compare_lengths
+
     let num_cols m =
       if m = [] then 0 else V.length (hd m)
 
@@ -310,7 +312,7 @@ module ListMatrix: SparseMatrixFunctor =
         @param m' A matrix in rref.
     *)
     let rref_matrix m1 m2 =
-      let big_m, small_m = if num_rows m1 > num_rows m2 then m1, m2 else m2, m1 in
+      let big_m, small_m = if compare_num_rows m1 m2 > 0 then m1, m2 else m2, m1 in
       fst @@ List.fold_while (fun acc _ -> Option.is_some acc) 
         (fun acc_big_m small -> rref_vec (Option.get acc_big_m) small ) (Some big_m) small_m
 
@@ -338,7 +340,7 @@ module ListMatrix: SparseMatrixFunctor =
             let new_v = V.map2_f_preserves_zero (fun v1 v2 -> v1 -: (pivot *: v2)) v x in
             is_linearly_independent_rref new_v m'
       in
-      if num_rows m1 > num_rows m2 then false else
+      if compare_num_rows m1 m2 > 0 then false else
         let rec is_covered_by_helper m1 m2 = 
           match m1 with 
           | [] -> true

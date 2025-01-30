@@ -29,6 +29,9 @@ module ArrayMatrix: ArrayMatrixFunctor =
     let num_rows m =
       Array.length m
 
+    let compare_num_rows m1 m2 =
+      Int.compare (Array.length m1) (Array.length m2) 
+
     let is_empty m =
       (num_rows m = 0)
 

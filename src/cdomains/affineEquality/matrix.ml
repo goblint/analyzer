@@ -15,6 +15,8 @@ sig
 
   val num_rows: t -> int
 
+  val compare_num_rows: t -> t -> int
+
   val num_cols: t -> int
 
   val init_with_vec: vec -> t
