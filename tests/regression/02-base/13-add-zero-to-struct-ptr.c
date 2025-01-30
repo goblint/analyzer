@@ -1,5 +1,5 @@
 #include <pthread.h>
-
+//NOCRASH
 struct a {
   pthread_mutex_t b;
 };
