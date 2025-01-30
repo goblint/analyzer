@@ -1115,6 +1115,12 @@
                   "description": "Use lockset digest for excluding data races.",
                   "type" : "boolean",
                   "default" : true
+                },
+                "thread" : {
+                  "title": "ana.race.digests.thread",
+                  "description": "TODO! How does relate to the MHP one? Seems to hit only in one case",
+                  "type" : "boolean",
+                  "default" : true
                 }
               },
               "additionalProperties": false
