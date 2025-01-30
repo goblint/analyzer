@@ -30,7 +30,7 @@ depends: [
   "base-bytes" {= "base"}
   "base-threads" {= "base"}
   "base-unix" {= "base"}
-  "batteries" {= "3.8.0"}
+  "batteries" {= "3.9.0"}
   "benchmark" {= "1.6" & with-test}
   "bigarray-compat" {= "1.1.0"}
   "bigstringaf" {= "0.9.1"}
