@@ -231,8 +231,8 @@ let reduceAnalyses () =
     Logs.info "%s -> disabling analyses \"%s\"" reason (String.concat ", " analyses);
     disableAnalyses analyses
   in
-  if not hasThreadCreate then disable "no thread creation" notNeccessaryThreadAnalyses;
-  if not hasDataRaceSpec then disable "no data race property in spec" notNeccessaryRaceAnalyses
+  if not hasThreadCreate then disable "no thread creation" notNeccessaryThreadAnalyses
+  else if not hasDataRaceSpec then disable "no data race property in spec" notNeccessaryRaceAnalyses
 
 let focusOnMemSafetySpecification (spec: Svcomp.Specification.t) =
   match spec with
