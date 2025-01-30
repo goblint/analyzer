@@ -1105,6 +1105,19 @@
               "description": "Report races for volatile variables.",
               "type": "boolean",
               "default": true
+            },
+            "digests": {
+              "title": "ana.race.digests",
+              "type" : "object",
+              "properties" : {
+                "lockset" : {
+                  "title": "ana.race.digests.lockset",
+                  "description": "Use lockset digest for excluding data races.",
+                  "type" : "boolean",
+                  "default" : true
+                }
+              },
+              "additionalProperties": false
             }
           },
           "additionalProperties": false

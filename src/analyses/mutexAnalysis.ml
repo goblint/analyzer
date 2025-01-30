@@ -267,6 +267,8 @@ struct
     include MustLocksetRW
     let name () = "lock"
     let may_race ls1 ls2 =
+      let use_lockset = GobConfig.get_bool "ana.race.digests.lockset" in
+      (not use_lockset) ||
       (* not mutually exclusive *)
       not @@ exists (fun ((m1, w1) as l1) ->
           if w1 then
