@@ -10,6 +10,7 @@ module LS = VDQ.LS
 module TS = SetDomain.ToppedSet (CilType.Typ) (struct let topname = "All" end)
 module ES = SetDomain.Reverse (SetDomain.ToppedSet (CilType.Exp) (struct let topname = "All" end))
 module VS = SetDomain.ToppedSet (CilType.Varinfo) (struct let topname = "All" end)
+module NS = SetDomain.ToppedSet (Node) (struct let topname = "All" end)
 
 module NFL = WrapperFunctionAnalysis0.NodeFlatLattice
 module TC = WrapperFunctionAnalysis0.ThreadCreateUniqueCount
@@ -49,9 +50,10 @@ end
 
 (* Helper definitions for deriving complex parts of Any.compare below. *)
 type maybepublic = {global: CilType.Varinfo.t; write: bool; protection: Protection.t} [@@deriving ord, hash]
-type maybepublicwithout = {global: CilType.Varinfo.t; write: bool; without_mutex: PreValueDomain.Addr.t; protection: Protection.t} [@@deriving ord, hash]
-type mustbeprotectedby = {mutex: PreValueDomain.Addr.t; global: CilType.Varinfo.t; write: bool; protection: Protection.t} [@@deriving ord, hash]
-type mustprotectedvars = {mutex: PreValueDomain.Addr.t; write: bool} [@@deriving ord, hash]
+type maybepublicwithout = {global: CilType.Varinfo.t; write: bool; without_mutex: LockDomain.MustLock.t; protection: Protection.t} [@@deriving ord, hash]
+type mustbeprotectedby = {mutex: LockDomain.MustLock.t; global: CilType.Varinfo.t; write: bool; protection: Protection.t} [@@deriving ord, hash]
+type mustprotectedvars = {mutex: LockDomain.MustLock.t; write: bool} [@@deriving ord, hash]
+type mustprotectinglocks = {global: CilType.Varinfo.t; write: bool} [@@deriving ord, hash]
 type access =
   | Memory of {exp: CilType.Exp.t; var_opt: CilType.Varinfo.t option; kind: AccessKind.t} (** Memory location access (race). *)
   | Point (** Program point and state access (MHP), independent of memory location. *)
@@ -61,6 +63,8 @@ type invariant_context = Invariant.context = {
   lvals: Lval.Set.t;
 }
 [@@deriving ord, hash]
+
+module YS = SetDomain.ToppedSet (YamlWitnessType.Entry) (struct let topname = "Top" end)
 
 
 (** GADT for queries with specific result type. *)
@@ -74,7 +78,7 @@ type _ t =
   | MayBePublic: maybepublic -> MayBool.t t (* old behavior with write=false *)
   | MayBePublicWithout: maybepublicwithout -> MayBool.t t
   | MustBeProtectedBy: mustbeprotectedby -> MustBool.t t
-  | MustLockset: AD.t t
+  | MustLockset: LockDomain.MustLockset.t t
   | MustBeAtomic: MustBool.t t
   | MustBeSingleThreaded: {since_start: bool} -> MustBool.t t
   | MustBeUniqueThread: MustBool.t t
@@ -114,6 +118,7 @@ type _ t =
   | MustJoinedThreads: ConcDomain.MustThreadSet.t t
   | ThreadsJoinedCleanly: MustBool.t t
   | MustProtectedVars: mustprotectedvars -> VS.t t
+  | MustProtectingLocks: mustprotectinglocks -> LockDomain.MustLockset.t t
   | Invariant: invariant_context -> Invariant.t t
   | InvariantGlobal: Obj.t -> Invariant.t t (** Argument must be of corresponding [Spec.V.t]. *)
   | WarnGlobal: Obj.t -> Unit.t t (** Argument must be of corresponding [Spec.V.t]. *)
@@ -124,14 +129,18 @@ type _ t =
   | MustTermLoop: stmt -> MustBool.t t
   | MustTermAllLoops: MustBool.t t
   | IsEverMultiThreaded: MayBool.t t
-  | TmpSpecial:  Mval.Exp.t -> ML.t t
+  | TmpSpecial: Mval.Exp.t -> ML.t t
   | MaySignedOverflow: exp -> MayBool.t t
+  | GasExhausted: CilType.Fundec.t ->  MustBool.t t
+  | YamlEntryGlobal: Obj.t * YamlWitnessType.Task.t -> YS.t t (** YAML witness entries for a global unknown ([Obj.t] represents [Spec.V.t]) and YAML witness task. *)
+  | GhostVarAvailable: WitnessGhostVar.t -> MayBool.t t
+  | InvariantGlobalNodes: NS.t t (** Nodes where YAML witness flow-insensitive invariants should be emitted as location invariants (if [witness.invariant.flow_insensitive-as] is configured to do so). *) (* [Spec.V.t] argument (as [Obj.t]) could be added, if this should be different for different flow-insensitive invariants. *)
 
 type 'a result = 'a
 
-(** Container for explicitly polymorphic [ctx.ask] function out of [ctx].
-    To be used when passing entire [ctx] around seems inappropriate.
-    Use [Analyses.ask_of_ctx] to convert [ctx] to [ask]. *)
+(** Container for explicitly polymorphic [man.ask] function out of [man].
+    To be used when passing entire [man] around seems inappropriate.
+    Use [Analyses.ask_of_man] to convert [man] to [ask]. *)
 (* Must be in a singleton record due to second-order polymorphism.
    See https://ocaml.org/manual/polymorphism.html#s%3Ahigher-rank-poly. *)
 type ask = { f: 'a. 'a t -> 'a result } [@@unboxed]
@@ -147,7 +156,7 @@ struct
     | MayPointTo _ -> (module AD)
     | ReachableFrom _ -> (module AD)
     | Regions _ -> (module LS)
-    | MustLockset -> (module AD)
+    | MustLockset -> (module LockDomain.MustLockset)
     | EvalFunvar _ -> (module AD)
     | ReachableUkTypes _ -> (module TS)
     | MayEscape _ -> (module MayBool)
@@ -184,6 +193,7 @@ struct
     | MustJoinedThreads -> (module ConcDomain.MustThreadSet)
     | ThreadsJoinedCleanly -> (module MustBool)
     | MustProtectedVars _ -> (module VS)
+    | MustProtectingLocks _ -> (module LockDomain.MustLockset)
     | Invariant _ -> (module Invariant)
     | InvariantGlobal _ -> (module Invariant)
     | WarnGlobal _ -> (module Unit)
@@ -196,6 +206,10 @@ struct
     | IsEverMultiThreaded -> (module MayBool)
     | TmpSpecial _ -> (module ML)
     | MaySignedOverflow  _ -> (module MayBool)
+    | GasExhausted _ -> (module MustBool)
+    | YamlEntryGlobal _ -> (module YS)
+    | GhostVarAvailable _ -> (module MayBool)
+    | InvariantGlobalNodes -> (module NS)
 
   (** Get bottom result for query. *)
   let bot (type a) (q: a t): a result =
@@ -216,7 +230,7 @@ struct
     | MayPointTo _ -> AD.top ()
     | ReachableFrom _ -> AD.top ()
     | Regions _ -> LS.top ()
-    | MustLockset -> AD.top ()
+    | MustLockset -> LockDomain.MustLockset.top ()
     | EvalFunvar _ -> AD.top ()
     | ReachableUkTypes _ -> TS.top ()
     | MayEscape _ -> MayBool.top ()
@@ -253,6 +267,7 @@ struct
     | MustJoinedThreads -> ConcDomain.MustThreadSet.top ()
     | ThreadsJoinedCleanly -> MustBool.top ()
     | MustProtectedVars _ -> VS.top ()
+    | MustProtectingLocks _ -> LockDomain.MustLockset.top ()
     | Invariant _ -> Invariant.top ()
     | InvariantGlobal _ -> Invariant.top ()
     | WarnGlobal _ -> Unit.top ()
@@ -265,6 +280,10 @@ struct
     | IsEverMultiThreaded -> MayBool.top ()
     | TmpSpecial _ -> ML.top ()
     | MaySignedOverflow _ -> MayBool.top ()
+    | GasExhausted _ -> MustBool.top ()
+    | YamlEntryGlobal _ -> YS.top ()
+    | GhostVarAvailable _ -> MayBool.top ()
+    | InvariantGlobalNodes -> NS.top ()
 end
 
 (* The type any_query can't be directly defined in Any as t,
@@ -331,6 +350,11 @@ struct
     | Any (TmpSpecial _) -> 56
     | Any (IsAllocVar _) -> 57
     | Any (MaySignedOverflow _) -> 58
+    | Any (GasExhausted _) -> 59
+    | Any (YamlEntryGlobal _) -> 60
+    | Any (MustProtectingLocks _) -> 61
+    | Any (GhostVarAvailable _) -> 62
+    | Any InvariantGlobalNodes -> 63
 
   let rec compare a b =
     let r = Stdlib.compare (order a) (order b) in
@@ -378,13 +402,17 @@ struct
       | Any (WarnGlobal vi1), Any (WarnGlobal vi2) -> Stdlib.compare (Hashtbl.hash vi1) (Hashtbl.hash vi2)
       | Any (Invariant i1), Any (Invariant i2) -> compare_invariant_context i1 i2
       | Any (InvariantGlobal vi1), Any (InvariantGlobal vi2) -> Stdlib.compare (Hashtbl.hash vi1) (Hashtbl.hash vi2)
+      | Any (YamlEntryGlobal (vi1, task1)), Any (YamlEntryGlobal (vi2, task2)) -> Stdlib.compare (Hashtbl.hash vi1) (Hashtbl.hash vi2) (* TODO: compare task *)
       | Any (IterSysVars (vq1, vf1)), Any (IterSysVars (vq2, vf2)) -> VarQuery.compare vq1 vq2 (* not comparing fs *)
       | Any (MutexType m1), Any (MutexType m2) -> Mval.Unit.compare m1 m2
       | Any (MustProtectedVars m1), Any (MustProtectedVars m2) -> compare_mustprotectedvars m1 m2
+      | Any (MustProtectingLocks g1), Any (MustProtectingLocks g2) -> compare_mustprotectinglocks g1 g2
       | Any (MayBeModifiedSinceSetjmp e1), Any (MayBeModifiedSinceSetjmp e2) -> JmpBufDomain.BufferEntry.compare e1 e2
       | Any (MustBeSingleThreaded {since_start=s1;}),  Any (MustBeSingleThreaded {since_start=s2;}) -> Stdlib.compare s1 s2
       | Any (TmpSpecial lv1), Any (TmpSpecial lv2) -> Mval.Exp.compare lv1 lv2
       | Any (MaySignedOverflow e1), Any (MaySignedOverflow e2) -> CilType.Exp.compare e1 e2
+      | Any (GasExhausted f1), Any (GasExhausted f2) -> CilType.Fundec.compare f1 f2
+      | Any (GhostVarAvailable v1), Any (GhostVarAvailable v2) -> WitnessGhostVar.compare v1 v2
       (* only argumentless queries should remain *)
       | _, _ -> Stdlib.compare (order a) (order b)
 
@@ -422,11 +450,15 @@ struct
     | Any (Invariant i) -> hash_invariant_context i
     | Any (MutexType m) -> Mval.Unit.hash m
     | Any (InvariantGlobal vi) -> Hashtbl.hash vi
+    | Any (YamlEntryGlobal (vi, task)) -> Hashtbl.hash vi (* TODO: hash task *)
     | Any (MustProtectedVars m) -> hash_mustprotectedvars m
+    | Any (MustProtectingLocks g) -> hash_mustprotectinglocks g
     | Any (MayBeModifiedSinceSetjmp e) -> JmpBufDomain.BufferEntry.hash e
     | Any (MustBeSingleThreaded {since_start}) -> Hashtbl.hash since_start
     | Any (TmpSpecial lv) -> Mval.Exp.hash lv
     | Any (MaySignedOverflow e) -> CilType.Exp.hash e
+    | Any (GasExhausted f) -> CilType.Fundec.hash f
+    | Any (GhostVarAvailable v) -> WitnessGhostVar.hash v
     (* IterSysVars:                                                                    *)
     (*   - argument is a function and functions cannot be compared in any meaningful way. *)
     (*   - doesn't matter because IterSysVars is always queried from outside of the analysis, so MCP's query caching is not done for it. *)
@@ -475,10 +507,12 @@ struct
     | Any MustJoinedThreads -> Pretty.dprintf "MustJoinedThreads"
     | Any ThreadsJoinedCleanly -> Pretty.dprintf "ThreadsJoinedCleanly"
     | Any (MustProtectedVars m) -> Pretty.dprintf "MustProtectedVars _"
+    | Any (MustProtectingLocks g) -> Pretty.dprintf "MustProtectingLocks _"
     | Any (Invariant i) -> Pretty.dprintf "Invariant _"
     | Any (WarnGlobal vi) -> Pretty.dprintf "WarnGlobal _"
     | Any (IterSysVars _) -> Pretty.dprintf "IterSysVars _"
     | Any (InvariantGlobal i) -> Pretty.dprintf "InvariantGlobal _"
+    | Any (YamlEntryGlobal (i, task)) -> Pretty.dprintf "YamlEntryGlobal _"
     | Any (MutexType (v,o)) ->  Pretty.dprintf "MutexType _"
     | Any (EvalMutexAttr a) ->  Pretty.dprintf "EvalMutexAttr _"
     | Any MayAccessed -> Pretty.dprintf "MayAccessed"
@@ -490,6 +524,9 @@ struct
     | Any IsEverMultiThreaded -> Pretty.dprintf "IsEverMultiThreaded"
     | Any (TmpSpecial lv) -> Pretty.dprintf "TmpSpecial %a" Mval.Exp.pretty lv
     | Any (MaySignedOverflow e) -> Pretty.dprintf "MaySignedOverflow %a" CilType.Exp.pretty e
+    | Any (GasExhausted f) -> Pretty.dprintf "GasExhausted %a" CilType.Fundec.pretty f
+    | Any (GhostVarAvailable v) -> Pretty.dprintf "GhostVarAvailable %a" WitnessGhostVar.pretty v
+    | Any InvariantGlobalNodes -> Pretty.dprintf "InvariantGlobalNodes"
 end
 
 let to_value_domain_ask (ask: ask) =

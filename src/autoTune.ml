@@ -44,6 +44,34 @@ class functionVisitor(calling, calledBy, argLists, dynamicallyCalled) = object
     DoChildren
 end
 
+exception Found
+class findAllocsInLoops = object
+  inherit nopCilVisitor
+
+  val mutable inloop = false
+
+  method! vstmt stmt =
+    let outOfLoop stmt =
+      match stmt.skind with
+      | Loop _ -> inloop <- false; stmt
+      | _ -> stmt
+    in
+    match stmt.skind with
+    | Loop _ -> inloop <- true; ChangeDoChildrenPost(stmt, outOfLoop)
+    | _ -> DoChildren
+
+  method! vinst = function
+    | Call (_, Lval (Var f, NoOffset), args,_,_) when LibraryFunctions.is_special f ->
+      Goblint_backtrace.protect ~mark:(fun () -> Cilfacade.FunVarinfo f) ~finally:Fun.id @@ fun () ->
+      let desc = LibraryFunctions.find f in
+      begin match desc.special args with
+        | Malloc _
+        | Alloca _ when inloop -> raise Found
+        | _ -> DoChildren
+      end
+    | _ -> DoChildren
+end
+
 type functionCallMaps = {
   calling: FunctionSet.t FunctionCallMap.t;
   calledBy: (FunctionSet.t * int) FunctionCallMap.t;
@@ -68,6 +96,7 @@ let functionArgs fd = (ResettableLazy.force functionCallMaps).argLists |> Functi
 
 let findMallocWrappers () =
   let isMalloc f =
+    Goblint_backtrace.wrap_val ~mark:(Cilfacade.FunVarinfo f) @@ fun () ->
     if LibraryFunctions.is_special f then (
       let desc = LibraryFunctions.find f in
       match functionArgs f with
@@ -104,7 +133,7 @@ let rec setCongruenceRecursive fd depth neigbourFunction =
          | exception Not_found -> () (* Happens for __goblint_bounded *)
       )
       (FunctionSet.filter (*for extern and builtin functions there is no function definition in CIL*)
-         (fun x -> not (isExtern x.vstorage || BatString.starts_with x.vname "__builtin"))
+         (fun x -> not (isExtern x.vstorage || String.starts_with x.vname ~prefix:"__builtin"))
          (neigbourFunction fd.svar)
       )
     ;
@@ -153,20 +182,22 @@ let disableIntervalContextsInRecursiveFunctions () =
 
 let hasFunction pred =
   let relevant_static var =
+    Goblint_backtrace.wrap_val ~mark:(Cilfacade.FunVarinfo var) @@ fun () ->
     if LibraryFunctions.is_special var then
       let desc = LibraryFunctions.find var in
-      GobOption.exists (fun args -> pred (desc.special args)) (functionArgs var)
+      GobOption.exists (fun args -> pred desc args) (functionArgs var)
     else
       false
   in
   let relevant_dynamic var =
+    Goblint_backtrace.wrap_val ~mark:(Cilfacade.FunVarinfo var) @@ fun () ->
     if LibraryFunctions.is_special var then
       let desc = LibraryFunctions.find var in
       (* We don't really have arguments at hand, so we cheat and just feed it a list of MyCFG.unknown_exp of appropriate length *)
       match unrollType var.vtype with
       | TFun (_, args, _, _) ->
         let args = BatOption.map_default (List.map (fun (x,_,_) -> MyCFG.unknown_exp)) [] args in
-        pred (desc.special args)
+        pred desc args
       | _ -> false
     else
       false
@@ -186,11 +217,12 @@ let enableAnalyses anas =
 (*escape is also still enabled, because otherwise we get a warning*)
 (*does not consider dynamic calls!*)
 
-let notNeccessaryThreadAnalyses = ["race"; "deadlock"; "maylocks"; "symb_locks"; "thread"; "threadid"; "threadJoins"; "threadreturn"; "mhp"; "region"]
+let notNeccessaryThreadAnalyses = ["race"; "deadlock"; "maylocks"; "symb_locks"; "thread"; "threadid"; "threadJoins"; "threadreturn"; "mhp"; "region"; "pthreadMutexType"]
 let reduceThreadAnalyses () =
-  let isThreadCreate = function
+  let isThreadCreate (desc: LibraryDesc.t) args =
+    match desc.special args with
     | LibraryDesc.ThreadCreate _ -> true
-    | _ -> false
+    | _ -> LibraryDesc.Accesses.find_kind desc.accs Spawn args <> []
   in
   let hasThreadCreate = hasFunction isThreadCreate in
   if not @@ hasThreadCreate then (
@@ -198,42 +230,14 @@ let reduceThreadAnalyses () =
     disableAnalyses notNeccessaryThreadAnalyses;
   )
 
-(* This is run independent of the autotuner being enabled or not to be sound in the presence of setjmp/longjmp  *)
-(* It is done this way around to allow enabling some of these analyses also for programs without longjmp *)
-let longjmpAnalyses = ["activeLongjmp"; "activeSetjmp"; "taintPartialContexts"; "modifiedSinceSetjmp"; "poisonVariables"; "expsplit"; "vla"]
-
-let activateLongjmpAnalysesWhenRequired () =
-  let isLongjmp = function
-    | LibraryDesc.Longjmp _ -> true
-    | _ -> false
-  in
-  if hasFunction isLongjmp  then (
-    Logs.info "longjmp -> enabling longjmp analyses \"%s\"" (String.concat ", " longjmpAnalyses);
-    enableAnalyses longjmpAnalyses;
-  )
-
 let focusOnMemSafetySpecification (spec: Svcomp.Specification.t) =
   match spec with
-  | ValidFree -> (* Enable the useAfterFree analysis *)
-    let uafAna = ["useAfterFree"] in
-    Logs.info "Specification: ValidFree -> enabling useAfterFree analysis \"%s\"" (String.concat ", " uafAna);
-    enableAnalyses uafAna
-  | ValidDeref -> (* Enable the memOutOfBounds analysis *)
-    let memOobAna = ["memOutOfBounds"] in
-    set_bool "ana.arrayoob" true;
-    Logs.info "Setting \"cil.addNestedScopeAttr\" to true";
-    set_bool "cil.addNestedScopeAttr" true;
-    Logs.info "Specification: ValidDeref -> enabling memOutOfBounds analysis \"%s\"" (String.concat ", " memOobAna);
-    enableAnalyses memOobAna;
   | ValidMemtrack
-  | ValidMemcleanup -> (* Enable the memLeak analysis *)
-    let memLeakAna = ["memLeak"] in
+  | ValidMemcleanup ->
     if (get_int "ana.malloc.unique_address_count") < 1 then (
       Logs.info "Setting \"ana.malloc.unique_address_count\" to 5";
       set_int "ana.malloc.unique_address_count" 5;
     );
-    Logs.info "Specification: ValidMemtrack and ValidMemcleanup -> enabling memLeak analysis \"%s\"" (String.concat ", " memLeakAna);
-    enableAnalyses memLeakAna
   | _ -> ()
 
 let focusOnMemSafetySpecification () =
@@ -242,7 +246,7 @@ let focusOnMemSafetySpecification () =
 let focusOnTermination (spec: Svcomp.Specification.t) =
   match spec with
   | Termination ->
-    let terminationAnas = ["termination"; "threadflag"; "apron"] in
+    let terminationAnas = ["threadflag"; "apron"] in
     Logs.info "Specification: Termination -> enabling termination analyses \"%s\"" (String.concat ", " terminationAnas);
     enableAnalyses terminationAnas;
     set_string "sem.int.signed_overflow" "assume_none";
@@ -254,19 +258,28 @@ let focusOnTermination (spec: Svcomp.Specification.t) =
 let focusOnTermination () =
   List.iter focusOnTermination (Svcomp.Specification.of_option ())
 
-let focusOnSpecification (spec: Svcomp.Specification.t) =
+let concurrencySafety (spec: Svcomp.Specification.t) =
   match spec with
-  | UnreachCall s -> ()
   | NoDataRace -> (*enable all thread analyses*)
     Logs.info "Specification: NoDataRace -> enabling thread analyses \"%s\"" (String.concat ", " notNeccessaryThreadAnalyses);
     enableAnalyses notNeccessaryThreadAnalyses;
-  | NoOverflow -> (*We focus on integer analysis*)
-    set_bool "ana.int.def_exc" true;
-    set_bool "ana.int.interval" true
   | _ -> ()
 
-let focusOnSpecification () =
-  List.iter focusOnSpecification (Svcomp.Specification.of_option ())
+let noOverflows (spec: Svcomp.Specification.t) =
+  match spec with
+  | NoOverflow ->
+    (*We focus on integer analysis*)
+    set_bool "ana.int.def_exc" true;
+    begin
+      try
+        ignore @@ visitCilFileSameGlobals (new findAllocsInLoops) (!Cilfacade.current_file);
+        set_int "ana.malloc.unique_address_count" 1
+      with Found -> set_int "ana.malloc.unique_address_count" 0;
+    end
+  | _ -> ()
+
+let focusOn (f : SvcompSpec.t -> unit) =
+  List.iter f (Svcomp.Specification.of_option ())
 
 (*Detect enumerations and enable the "ana.int.enums" option*)
 exception EnumFound
@@ -335,20 +348,22 @@ let isComparison = function
 let isGoblintStub v = List.exists (fun (Attr(s,_)) -> s = "goblint_stub") v.vattr
 
 let rec extractVar = function
-  | UnOp (Neg, e, _) -> extractVar e
-  | Lval ((Var info),_) when not (isGoblintStub info) ->  Some info
+  | UnOp (Neg, e, _)
+  | CastE (_, e) -> extractVar e
+  | Lval ((Var info),_) when not (isGoblintStub info) -> Some info
   | _ -> None
+
+let extractBinOpVars e1 e2 =
+  match extractVar e1, extractVar e2 with
+  | Some a, Some b -> [a; b]
+  | Some a, None when isConstant e2 -> [a]
+  | None, Some b when isConstant e1 -> [b]
+  | _, _ -> []
 
 let extractOctagonVars = function
   | BinOp (PlusA, e1,e2, (TInt _))
-  | BinOp (MinusA, e1,e2, (TInt _)) -> (
-      match extractVar e1, extractVar e2 with
-      | Some a, Some b -> Some (`Left (a,b))
-      | Some a, None
-      | None, Some a -> if isConstant e1 then Some (`Right a) else None
-      | _,_ -> None
-    )
-  | _ -> None
+  | BinOp (MinusA, e1,e2, (TInt _)) -> extractBinOpVars e1 e2
+  | e -> Option.to_list (extractVar e)
 
 let addOrCreateVarMapping varMap key v globals = if key.vglob = globals then varMap :=
       if VariableMap.mem key !varMap then
@@ -357,25 +372,19 @@ let addOrCreateVarMapping varMap key v globals = if key.vglob = globals then var
       else
         VariableMap.add key v !varMap
 
-let handle varMap v globals = function
-  | Some (`Left (a,b)) ->
-    addOrCreateVarMapping varMap a v globals;
-    addOrCreateVarMapping varMap b v globals;
-  | Some (`Right a) ->  addOrCreateVarMapping varMap a v globals;
-  | None -> ()
-
 class octagonVariableVisitor(varMap, globals) = object
   inherit nopCilVisitor
 
   method! vexpr = function
     (*an expression of type +/- a +/- b where a,b are either variables or constants*)
     | BinOp (op, e1,e2, (TInt _)) when isComparison op -> (
-        handle varMap 5 globals (extractOctagonVars e1) ;
-        handle varMap 5 globals (extractOctagonVars e2) ;
+        List.iter (fun var -> addOrCreateVarMapping varMap var 5 globals) (extractOctagonVars e1);
+        List.iter (fun var -> addOrCreateVarMapping varMap var 5 globals) (extractOctagonVars e2);
         DoChildren
       )
-    | Lval ((Var info),_) when not (isGoblintStub info) ->  handle varMap 1 globals (Some (`Right info)) ; SkipChildren
+    | Lval ((Var info),_) when not (isGoblintStub info) -> addOrCreateVarMapping varMap info 1 globals; SkipChildren
     (*Traverse down only operations fitting for linear equations*)
+    | UnOp (LNot, _,_)
     | UnOp (Neg, _,_)
     | BinOp (PlusA,_,_,_)
     | BinOp (MinusA,_,_,_)
@@ -463,7 +472,7 @@ let apronOctagonOption factors file =
 
 
 let wideningOption factors file =
-  let amountConsts = List.length @@ WideningThresholds.upper_thresholds () in
+  let amountConsts = WideningThresholds.Thresholds.cardinal @@ ResettableLazy.force WideningThresholds.upper_thresholds in
   let cost = amountConsts * (factors.loops * 5 + factors.controlFlowStatements) in
   {
     value = amountConsts * (factors.loops * 5 + factors.controlFlowStatements);
@@ -476,7 +485,8 @@ let wideningOption factors file =
   }
 
 let activateTmpSpecialAnalysis () =
-  let isMathFun = function
+  let isMathFun (desc: LibraryDesc.t) args =
+    match desc.special args with
     | LibraryDesc.Math _ -> true
     | _ -> false
   in
@@ -517,12 +527,6 @@ let isActivated a = get_bool "ana.autotune.enabled" && List.mem a @@ get_string_
 
 let isTerminationTask () = List.mem Svcomp.Specification.Termination (Svcomp.Specification.of_option ())
 
-let specificationIsActivated () =
-  isActivated "specification" && get_string "ana.specification" <> ""
-
-let specificationTerminationIsActivated () =
-  isActivated "termination"
-
 let chooseConfig file =
   let factors = collectFactors visitCilFileSameGlobals file in
   let fileCompplexity = estimateComplexity factors file in
@@ -542,8 +546,9 @@ let chooseConfig file =
   if isActivated "mallocWrappers" then
     findMallocWrappers ();
 
-  if specificationIsActivated () then
-    focusOnSpecification ();
+  if isActivated "concurrencySafetySpecification" then focusOn concurrencySafety;
+
+  if isActivated "noOverflows" then focusOn noOverflows;
 
   if isActivated "enums" && hasEnums file then
     set_bool "ana.int.enums" true;

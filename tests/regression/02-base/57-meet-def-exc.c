@@ -1,3 +1,4 @@
+// NOCHECK
 void main(void) {
     int x;
     int i = 41;

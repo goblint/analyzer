@@ -63,8 +63,8 @@ struct
   (* >? is >>=, |? is >> *)
   let (>?) = Option.bind
 
-  let mayPointTo ctx exp =
-    let ad = ctx.ask (Queries.MayPointTo exp) in
+  let mayPointTo man exp =
+    let ad = man.ask (Queries.MayPointTo exp) in
     let a' = if Queries.AD.mem UnknownPtr ad then (
         M.info ~category:Unsound "mayPointTo: query result for %a contains TOP!" d_exp exp; (* UNSOUND *)
         Queries.AD.remove UnknownPtr ad
@@ -75,16 +75,16 @@ struct
         | _ -> None
       ) (Queries.AD.elements a')
 
-  let mustPointTo ctx exp = (* this is just to get Mval.Exp *)
-    match mayPointTo ctx exp with
+  let mustPointTo man exp = (* this is just to get Mval.Exp *)
+    match mayPointTo man exp with
     | [clval] -> Some clval
     | _ -> None
 
   (* queries *)
-  let query ctx (type a) (q: a Queries.t): a Queries.result =
+  let query man (type a) (q: a Queries.t): a Queries.result =
     match q with
     | Queries.CondVars e ->
-      let d = ctx.local in
+      let d = man.local in
       let rec of_expr tv = function
         | UnOp (LNot, e, t) when isIntegralType t -> of_expr (not tv) e
         | BinOp (Ne, e1, e2, t) when isIntegralType t -> of_expr (not tv) (BinOp (Eq, e1, e2, t))
@@ -93,7 +93,7 @@ struct
         | Lval lval -> Some (tv, lval)
         | _ -> None
       in
-      let of_lval (tv,lval) = Option.map (fun k -> tv, k) @@ mustPointTo ctx (AddrOf lval) in
+      let of_lval (tv,lval) = Option.map (fun k -> tv, k) @@ mustPointTo man (AddrOf lval) in
       let t tv e = if tv then e else UnOp (LNot, e, intType) in
       (* TODO: remove option? *)
       let f tv v = D.V.map (t tv) v |> fun v -> Some v in
@@ -102,11 +102,11 @@ struct
     | _ -> Queries.Result.top q
 
   (* transfer functions *)
-  let assign ctx (lval:lval) (rval:exp) : D.t =
+  let assign man (lval:lval) (rval:exp) : D.t =
     (* remove all keys lval may point to, and all exprs that contain the variables (TODO precision) *)
-    let d = List.fold_left (fun d (v,o as k) -> D.remove k d |> D.remove_var v) ctx.local (mayPointTo ctx (AddrOf lval)) in
+    let d = List.fold_left (fun d (v,o as k) -> D.remove k d |> D.remove_var v) man.local (mayPointTo man (AddrOf lval)) in
     let save_expr lval expr =
-      match mustPointTo ctx (AddrOf lval) with
+      match mustPointTo man (AddrOf lval) with
       | Some clval ->
         if M.tracing then M.tracel "condvars" "CondVars: saving %a = %a" Mval.Exp.pretty clval d_exp expr;
         D.add clval (D.V.singleton expr) d (* if lval must point to clval, add expr *)
@@ -116,12 +116,12 @@ struct
     match rval with
     | BinOp (op, _, _, _) when is_cmp op -> (* logical expression *)
       save_expr lval rval
-    | Lval k when Option.is_some (mustPointTo ctx (AddrOf k) >? flip D.get d) -> (* var-eq for transitive closure *)
-      mustPointTo ctx (AddrOf k) >? flip D.get_elt d |> Option.map (save_expr lval) |? d
+    | Lval k -> (* var-eq for transitive closure *)
+      mustPointTo man (AddrOf k) >? flip D.get_elt d |> Option.map (save_expr lval) |? d
     | _ -> d
 
-  let branch ctx (exp:exp) (tv:bool) : D.t =
-    ctx.local
+  let branch man (exp:exp) (tv:bool) : D.t =
+    man.local
 
   (* possible solutions for functions:
     * 1. only intra-procedural <- we do this
@@ -130,33 +130,33 @@ struct
     * 4. same, but also consider escaped vars
   *)
 
-  let body ctx (f:fundec) : D.t =
-    ctx.local
+  let body man (f:fundec) : D.t =
+    man.local
 
-  let return ctx (exp:exp option) (f:fundec) : D.t =
-    (* D.only_globals ctx.local *)
-    ctx.local
+  let return man (exp:exp option) (f:fundec) : D.t =
+    (* D.only_globals man.local *)
+    man.local
 
-  let enter ctx (lval: lval option) (f:fundec) (args:exp list) : (D.t * D.t) list =
-    [ctx.local, D.bot ()]
+  let enter man (lval: lval option) (f:fundec) (args:exp list) : (D.t * D.t) list =
+    [man.local, D.bot ()]
 
-  let combine_env ctx lval fexp f args fc au (f_ask: Queries.ask) =
+  let combine_env man lval fexp f args fc au (f_ask: Queries.ask) =
     (* combine caller's state with globals from callee *)
     (* TODO (precision): globals with only global vars are kept, the rest is lost -> collect which globals are assigned to *)
-    (* D.merge (fun k s1 s2 -> match s2 with Some ss2 when (fst k).vglob && D.only_global_exprs ss2 -> s2 | _ when (fst k).vglob -> None | _ -> s1) ctx.local au *)
+    (* D.merge (fun k s1 s2 -> match s2 with Some ss2 when (fst k).vglob && D.only_global_exprs ss2 -> s2 | _ when (fst k).vglob -> None | _ -> s1) man.local au *)
     let tainted = TaintPartialContexts.conv_varset (f_ask.f Queries.MayBeTainted) in
-    D.only_untainted ctx.local tainted (* tainted globals might have changed... *)
+    D.only_untainted man.local tainted (* tainted globals might have changed... *)
 
-  let combine_assign ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) (f_ask: Queries.ask) : D.t =
-    ctx.local
+  let combine_assign man (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) (f_ask: Queries.ask) : D.t =
+    man.local
 
-  let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
+  let special man (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
     (* TODO: shouldn't there be some kind of invalidadte, depending on the effect of the special function? *)
-    ctx.local
+    man.local
 
   let startstate v = D.bot ()
-  let threadenter ctx ~multiple lval f args = [D.bot ()]
-  let threadspawn ctx ~multiple lval f args fctx = ctx.local
+  let threadenter man ~multiple lval f args = [D.bot ()]
+  let threadspawn man ~multiple lval f args fman = man.local
   let exitstate  v = D.bot ()
 end
 

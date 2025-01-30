@@ -88,6 +88,20 @@ struct
   let to_yojson x = `String (show x)
 end
 
+module type Formatable =
+sig
+  type t
+  val pp: Format.formatter -> t -> unit
+end
+
+module SimpleFormat (P: Formatable) =
+struct
+  let show x = GobFormat.asprint P.pp x
+  let pretty () x = text (show x)
+  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape (show x))
+  let to_yojson x = `String (show x)
+end
+
 
 module type Name = sig val name: string end
 module UnitConf (N: Name) =
@@ -465,7 +479,7 @@ module ProdConf (C: ProdConfiguration) (Base1: S) (Base2: S)=
 struct
   include C
 
-  type t = Base1.t * Base2.t [@@deriving eq, ord, hash]
+  type t = Base1.t * Base2.t [@@deriving eq, ord, hash, relift]
 
   include Std
 
@@ -504,8 +518,6 @@ struct
     `Assoc [ (Base1.name (), Base1.to_yojson x); (Base2.name (), Base2.to_yojson y) ]
 
   let arbitrary () = QCheck.pair (Base1.arbitrary ()) (Base2.arbitrary ())
-
-  let relift (x,y) = (Base1.relift x, Base2.relift y)
 end
 
 module Prod = ProdConf (struct let expand_fst = true let expand_snd = true end)
@@ -513,7 +525,7 @@ module ProdSimple = ProdConf (struct let expand_fst = false let expand_snd = fal
 
 module Prod3 (Base1: S) (Base2: S) (Base3: S) =
 struct
-  type t = Base1.t * Base2.t * Base3.t [@@deriving eq, ord, hash]
+  type t = Base1.t * Base2.t * Base3.t [@@deriving eq, ord, hash, relift]
   include Std
 
   let show (x,y,z) =
@@ -555,40 +567,10 @@ struct
 
   let name () = Base1.name () ^ " * " ^ Base2.name () ^ " * " ^ Base3.name ()
 
-  let relift (x,y,z) = (Base1.relift x, Base2.relift y, Base3.relift z)
   let arbitrary () = QCheck.triple (Base1.arbitrary ()) (Base2.arbitrary ()) (Base3.arbitrary ())
 end
 
-module Prod4 (Base1: S) (Base2: S) (Base3: S) (Base4: S) = struct
-  type t = Base1.t * Base2.t * Base3.t * Base4.t [@@deriving eq, ord, hash]
-  include Std
-
-  let show (x,y,z,w) = "(" ^ Base1.show x ^ ", " ^ Base2.show y ^ ", " ^ Base3.show z ^ ", " ^ Base4.show w ^ ")"
-
-  let pretty () (x,y,z,w) =
-    text "(" ++
-    Base1.pretty () x
-    ++ text ", " ++
-    Base2.pretty () y
-    ++ text ", " ++
-    Base3.pretty () z
-    ++ text ", " ++
-    Base4.pretty () w
-    ++ text ")"
-
-  let printXml f (x,y,z,w) =
-    BatPrintf.fprintf f "<value>\n<map>\n<key>\n%s\n</key>\n%a<key>\n%s\n</key>\n%a<key>\n%s\n</key>\n%a<key>\n%s\n</key>\n%a</map>\n</value>\n" (XmlUtil.escape (Base1.name ())) Base1.printXml x (XmlUtil.escape (Base2.name ())) Base2.printXml y (XmlUtil.escape (Base3.name ())) Base3.printXml z (XmlUtil.escape (Base4.name ())) Base4.printXml w
-
-  let to_yojson (x, y, z, w) =
-    `Assoc [ (Base1.name (), Base1.to_yojson x); (Base2.name (), Base2.to_yojson y); (Base3.name (), Base3.to_yojson z); (Base4.name (), Base4.to_yojson w) ]
-
-  let name () = Base1.name () ^ " * " ^ Base2.name () ^ " * " ^ Base3.name () ^ " * " ^ Base4.name ()
-
-  let relift (x,y,z,w) = (Base1.relift x, Base2.relift y, Base3.relift z, Base4.relift w)
-  let arbitrary () = QCheck.quad (Base1.arbitrary ()) (Base2.arbitrary ()) (Base3.arbitrary ()) (Base4.arbitrary ())
-end
-
-module PQueue (Base: S) = 
+module PQueue (Base: S) =
 struct
   type t = Base.t BatDeque.dq
   include Std
@@ -604,22 +586,22 @@ struct
     let rec loop n q =
       match BatDeque.front q with
       | None -> ()
-      | Some (x, xs) -> (BatPrintf.fprintf f "<key>%d</key>\n%a\n" n Base.printXml x; 
+      | Some (x, xs) -> (BatPrintf.fprintf f "<key>%d</key>\n%a\n" n Base.printXml x;
                          loop (n+1) (xs))
     in
     BatPrintf.fprintf f "<value>\n<map>\n";
-    loop 0 xs; 
+    loop 0 xs;
     BatPrintf.fprintf f "</map>\n</value>\n"
 
   let to_yojson q = `List (BatDeque.to_list @@ BatDeque.map (Base.to_yojson) q)
   let hash q = BatDeque.fold_left (fun acc x -> (acc + 71) * (Base.hash x)) 11 q
   let equal q1 q2 = BatDeque.eq ~eq:Base.equal q1 q2
-  let compare q1 q2 = 
+  let compare q1 q2 =
     match BatDeque.front q1, BatDeque.front q2 with
     | None, None -> 0
     | None, Some(_, _) -> -1
     | Some(_, _), None -> 1
-    | Some(a1, q1'), Some(a2, q2') -> 
+    | Some(a1, q1'), Some(a2, q2') ->
       let c = Base.compare a1 a2 in
       if c <> 0 then c
       else compare q1' q2'
@@ -839,4 +821,18 @@ struct
     )
 
   let to_yojson x = x (* override SimplePretty *)
+end
+
+module Z: S with type t = Z.t =
+struct
+  include StdLeaf
+  include GobZ
+  let name () = "Z"
+
+  include SimplePretty (
+    struct
+      type nonrec t = t
+      let pretty = pretty
+    end
+    )
 end

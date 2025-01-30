@@ -42,8 +42,19 @@ exclude_module_names = set([
     "Goblint_build_info",
     "Dune_build_info",
 
+    # ppx-s
+    "Ppx_deriving_printable",
+    "Ppx_deriving_lattice",
+
     "MessageCategory", # included in Messages
     "PreValueDomain", # included in ValueDomain
+    "IntervalDomain", # included in IntDomain
+    "IntervalSetDomain", # included in IntDomain
+    "DefExcDomain", # included in IntDomain
+    "EnumsDomain", # included in IntDomain
+    "CongruenceDomain", # included in IntDomain
+    "IntDomTuple", # included in IntDomain
+    "WitnessGhostVar", # included in WitnessGhost
 
     "ConfigVersion",
     "ConfigProfile",

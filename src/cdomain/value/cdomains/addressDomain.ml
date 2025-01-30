@@ -320,7 +320,7 @@ struct
 
   let string_writing_defined dest =
     (* if the destination address set contains a StrPtr, writing to such a string literal is undefined behavior *)
-    if List.exists Option.is_some (List.map Addr.to_c_string (elements dest)) then
+    if exists (fun a -> Option.is_some (Addr.to_c_string a)) dest then
       (M.warn ~category:M.Category.Behavior.Undefined.other "May write to a string literal, which leads to a segmentation fault in most cases";
        false)
     else

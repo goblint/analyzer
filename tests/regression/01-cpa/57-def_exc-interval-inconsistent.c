@@ -1,5 +1,5 @@
 // PARAM: --enable ana.int.def_exc --enable ana.int.interval --enable ana.sv-comp.functions --set sem.int.signed_overflow assume_none --set ana.int.refinement never
-// used to crash in branch when is_bool returned true, but to_bool returned None on (0,[1,1])
+// NOCRASH: used to crash in branch when is_bool returned true, but to_bool returned None on (0,[1,1])
 // manually minimized from sv-benchmarks/c/recursive/MultCommutative-2.c
 extern int __VERIFIER_nondet_int(void);
 

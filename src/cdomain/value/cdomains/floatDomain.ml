@@ -241,12 +241,12 @@ module FloatIntervalImpl(Float_t : CFloatType) = struct
 
   let minimal = function
     | Bot -> raise (ArithmeticOnFloatBot (Printf.sprintf "minimal %s" (show Bot)))
-    | Interval (l, _) -> Float_t.to_float l
+    | Interval (l, _) -> Some (Float_t.to_float l)
     | _ -> None
 
   let maximal = function
     | Bot -> raise (ArithmeticOnFloatBot (Printf.sprintf "maximal %s" (show Bot)))
-    | Interval (_, h) -> Float_t.to_float h
+    | Interval (_, h) -> Some (Float_t.to_float h)
     | _ -> None
 
   let is_exact = function
@@ -1134,7 +1134,7 @@ module FloatDomTupleImpl = struct
   module F1 = FloatIntervalImplLifted
   open Batteries
 
-  type t = F1.t option [@@deriving to_yojson, eq, ord]
+  type t = F1.t option [@@deriving eq, ord, hash]
 
   let name () = "floatdomtuple"
 
@@ -1180,10 +1180,6 @@ module FloatDomTupleImpl = struct
   let show x =
     Option.map_default identity ""
       (mapp { fp= (fun (type a) (module F : FloatDomain with type t = a) x -> F.name () ^ ":" ^ F.show x); } x)
-
-  let hash x =
-    Option.map_default identity 0
-      (mapp { fp= (fun (type a) (module F : FloatDomain with type t = a) -> F.hash); } x)
 
   let of_const fkind =
     create { fi= (fun (type a) (module F : FloatDomain with type t = a) -> F.of_const fkind); }
