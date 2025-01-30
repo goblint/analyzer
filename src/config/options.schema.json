@@ -1127,6 +1127,18 @@
                   "description": "Use freshness analysis for excluding data races.",
                   "type" : "boolean",
                   "default" : true
+                },
+                "region" : {
+                  "title": "ana.race.digests.region",
+                  "description": "Use region analysis for excluding data races.",
+                  "type" : "boolean",
+                  "default" : true
+                },
+                "symb_locks" : {
+                  "title": "ana.race.digests.symb_locks",
+                  "description": "Use symb_locks analysis for excluding data races.",
+                  "type" : "boolean",
+                  "default" : true
                 }
               },
               "additionalProperties": false
