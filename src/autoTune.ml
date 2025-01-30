@@ -557,7 +557,7 @@ let chooseConfig file =
   if isActivated "enums" && hasEnums file then
     set_bool "ana.int.enums" true;
 
-  if isActivated "singleThreaded" then
+  if isActivated "reduceAnalyses" then
     reduceAnalyses ();
 
   if isActivated "arrayDomain" then
