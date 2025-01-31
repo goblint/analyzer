@@ -132,7 +132,10 @@ struct
   struct
     include Printable.Option (ThreadLifted) (struct let name = "nonunique" end)
     let name () = "thread"
-    let may_race (t1: t) (t2: t) = match t1, t2 with
+    let may_race (t1: t) (t2: t) =
+      let use_tid = GobConfig.get_bool "ana.race.digests.thread" in
+      (not use_tid) ||
+      match t1, t2 with
       | Some t1, Some t2 when ThreadLifted.equal t1 t2 -> false (* only unique threads *)
       | _, _ -> true
     let should_print = Option.is_some

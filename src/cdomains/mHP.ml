@@ -77,17 +77,19 @@ let must_be_joined other joined =
 
 (** May two program points with respective MHP information happen in parallel *)
 let may_happen_in_parallel one two =
-  let {tid=tid; created=created; must_joined=must_joined} = one in
+  let use_tid = GobConfig.get_bool "ana.race.digests.tid" in
+  let use_join = GobConfig.get_bool "ana.race.digests.join" in
+  let {tid; created; must_joined} = one in
   let {tid=tid2; created=created2; must_joined=must_joined2} = two in
   match tid,tid2 with
   | `Lifted tid, `Lifted tid2 ->
-    if (TID.is_unique tid) && (TID.equal tid tid2) then
+    if use_tid && (TID.is_unique tid) && (TID.equal tid tid2) then
       false
-    else if definitely_not_started (tid,created) tid2 || definitely_not_started (tid2,created2) tid then
+    else if use_tid && (definitely_not_started (tid,created) tid2 || definitely_not_started (tid2,created2) tid) then
       false
-    else if must_be_joined tid2 must_joined || must_be_joined tid must_joined2 then
+    else if use_tid && use_join && (must_be_joined tid2 must_joined || must_be_joined tid must_joined2) then
       false
-    else if exists_definitely_not_started_in_joined (tid,created) must_joined2 || exists_definitely_not_started_in_joined (tid2,created2) must_joined then
+    else if use_tid && use_join && (exists_definitely_not_started_in_joined (tid,created) must_joined2 || exists_definitely_not_started_in_joined (tid2,created2) must_joined) then
       false
     else
       true
