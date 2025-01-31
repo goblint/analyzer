@@ -145,7 +145,8 @@ struct
     else 
       (* get posiiton of first top bit *)
       let tl_zeros = Z.trailing_zeros (Z.logand z o) in 
-      let m = Z.pow Z.one tl_zeros in 
+      let ik_bits = Size.bit ik in 
+      let m = if tl_zeros > ik_bits then Z.one else Z.pow Z.one tl_zeros in 
       let c = Z.logand o (m -: Z.one) in 
       normalize ik (Some (c, m))
 
