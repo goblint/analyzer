@@ -41,6 +41,8 @@ module BitfieldArith (Ints_t : IntOps.IntOps) = struct
   include InfixIntOps (Ints_t)
 
   let zero_mask = Ints_t.zero
+
+  (* one_mask corresponds to (-1). It has an infinite amount of 1 bits *)
   let one_mask = !:zero_mask
 
   let of_int x = (!:x, x) 
@@ -174,7 +176,10 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): Bitfield_SOverflow with type in
 
   module BArith = BitfieldArith (Ints_t)
 
+  (* top = all bis are unknown*)
   let top () = (BArith.one_mask, BArith.one_mask)
+
+  (* bot = all bits are invalid *)
   let bot () = (BArith.zero_mask, BArith.zero_mask)
 
   let top_of ik = 
@@ -188,13 +193,15 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): Bitfield_SOverflow with type in
     let invalid_bitmask = (BArith.bits_invalid (z,o)) in
     let o_mask = o in
     let z_mask = z in
-
-    let rec to_pretty_bits' o_mask z_mask known_bitmask invalid_bitmask acc =
+    
+    (* converts the (zs,os) mask representation to a human readable string of the form 0b(0|1)...(0|1|⊤|⊥)+. *)
+    (* Example: 0b0...01⊤ should mean that the last bit is unknown, while all other bits are exactly known *)
+    let rec create_pretty_bf_string o_mask z_mask known_bitmask invalid_bitmask acc =
       let current_bit_known = (known_bitmask &: Ints_t.one) = Ints_t.one in
-      let current_bit_impossible = (invalid_bitmask &: Ints_t.one) = Ints_t.one in
+      let current_bit_invalid = (invalid_bitmask &: Ints_t.one) = Ints_t.one in
       let bit_value = o_mask &: Ints_t.one in
       let bit =
-        if current_bit_impossible then "⊥"
+        if current_bit_invalid then "⊥"
         else if not current_bit_known then "⊤"
         else Ints_t.to_string bit_value 
       in
@@ -202,9 +209,9 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): Bitfield_SOverflow with type in
         let prefix = bit ^ "..." ^ bit in
         prefix ^ acc
       else
-        to_pretty_bits' (o_mask >>: 1) (z_mask >>: 1) (known_bitmask >>: 1) (invalid_bitmask >>: 1) (bit ^ acc)
+        create_pretty_bf_string (o_mask >>: 1) (z_mask >>: 1) (known_bitmask >>: 1) (invalid_bitmask >>: 1) (bit ^ acc)
     in
-    "0b" ^ to_pretty_bits' o_mask z_mask known_bitmask invalid_bitmask ""
+    "0b" ^ create_pretty_bf_string o_mask z_mask known_bitmask invalid_bitmask ""
 
   let show t = 
     if t = bot () then "bot" else
@@ -291,41 +298,46 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): Bitfield_SOverflow with type in
 
   (* Conversions *)
 
+  type bit_status = Zero | One | Top
+
   let of_interval ?(suppress_ovwarn=false) ik (x,y) =
     let (min_ik, max_ik) = Size.range ik in
     let startv = Ints_t.max x (Ints_t.of_bigint min_ik) in
     let endv= Ints_t.min y (Ints_t.of_bigint max_ik) in
 
-    let rec analyze_bits pos (acc_z, acc_o) =
+    (* constructs a bitfield of the interval: for each bit check if the smallest number that is greater than startv and has the bit flipped is still in the interval *)
+    (* If the flipped value is still in the interval, the bit can be 0 or 1 which means it must be described as top, otherwise the bit cant change and is the same as in startv *)
+    (* Runtime: O(bits) *)
+    let rec construct_bitfield pos (acc_z, acc_o) =
       if pos < 0 then (acc_z, acc_o)
       else
-        let position = Ints_t.shift_left Ints_t.one pos in
-        let mask = Ints_t.sub position Ints_t.one in
+        let position_mask = Ints_t.shift_left Ints_t.one pos in
+        let mask = Ints_t.sub position_mask Ints_t.one in
         let remainder = Ints_t.logand startv mask in
 
-        let without_remainder = Ints_t.sub startv remainder in
-        let bigger_number = Ints_t.add without_remainder position in
+        let smallest_number_with_flipped_bit = Ints_t.add (Ints_t.sub startv remainder) position_mask in
 
         let bit_status =
-          if Ints_t.compare bigger_number endv <= 0 then
-            `top
+          if Ints_t.compare smallest_number_with_flipped_bit endv <= 0 then
+            Top
           else 
-          if Ints_t.equal (Ints_t.logand (Ints_t.shift_right startv pos) Ints_t.one) Ints_t.one then
-            `one
-          else
-            `zero
+            (* bit can't change inside the interval -> it's the same as in startv *)
+            if Ints_t.equal (Ints_t.logand (Ints_t.shift_right startv pos) Ints_t.one) Ints_t.one then
+              One
+            else
+              Zero
         in
 
+        (* set bit in masks depending on bit_status *)
         let new_acc = 
           match bit_status with
-          | `top -> (Ints_t.logor position acc_z, Ints_t.logor position acc_o)
-          | `one -> (Ints_t.logand (Ints_t.lognot position) acc_z, Ints_t.logor position acc_o)
-          | `zero -> (Ints_t.logor position acc_z, Ints_t.logand (Ints_t.lognot position) acc_o)
-
+          | Top-> (Ints_t.logor position_mask acc_z, Ints_t.logor position_mask acc_o)
+          | One-> (Ints_t.logand (Ints_t.lognot position_mask) acc_z, Ints_t.logor position_mask acc_o)
+          | Zero-> (Ints_t.logor position_mask acc_z, Ints_t.logand (Ints_t.lognot position_mask) acc_o)
         in 
-        analyze_bits (pos - 1) new_acc
+        construct_bitfield (pos - 1) new_acc
     in      
-    let result = analyze_bits (Size.bit ik - 1) (bot()) in
+    let result = construct_bitfield (Size.bit ik - 1) (bot()) in
     let casted = (Ints_t.of_bigint (Size.cast ik ((Ints_t.to_bigint (fst result)))), Ints_t.of_bigint (Size.cast ik ((Ints_t.to_bigint (snd result))))) 
     in (wrap ik casted, {underflow=false; overflow=false})
 
@@ -681,8 +693,6 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): Bitfield_SOverflow with type in
     let ao = ao &: (!: (bDef1 &: cDef0)) in     
     let bo = bo &: (!: (aDef1 &: cDef0)) in
     ((az, ao), (bz, bo))
-
-  (* Unit Tests *)
 
   let arbitrary ik = 
     let open QCheck.Iter in
