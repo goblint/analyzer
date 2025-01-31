@@ -1105,6 +1105,61 @@
               "description": "Report races for volatile variables.",
               "type": "boolean",
               "default": true
+            },
+            "digests": {
+              "title": "ana.race.digests",
+              "type" : "object",
+              "properties" : {
+                "lockset" : {
+                  "title": "ana.race.digests.lockset",
+                  "description": "Use lockset digest for excluding data races.",
+                  "type" : "boolean",
+                  "default" : true
+                },
+                "thread" : {
+                  "title": "ana.race.digests.thread",
+                  "description": "TODO! How does relate to the MHP one? Seems to hit only in one case",
+                  "type" : "boolean",
+                  "default" : true
+                },
+                "fresh" : {
+                  "title": "ana.race.digests.fresh",
+                  "description": "Use freshness analysis for excluding data races.",
+                  "type" : "boolean",
+                  "default" : true
+                },
+                "region" : {
+                  "title": "ana.race.digests.region",
+                  "description": "Use region analysis for excluding data races.",
+                  "type" : "boolean",
+                  "default" : true
+                },
+                "symb_locks" : {
+                  "title": "ana.race.digests.symb_locks",
+                  "description": "Use symb_locks analysis for excluding data races.",
+                  "type" : "boolean",
+                  "default" : true
+                },
+                "threadflag" : {
+                  "title": "ana.race.digests.threadflag",
+                  "description": "Use threadflag analysis for excluding data races.",
+                  "type" : "boolean",
+                  "default" : true
+                },
+                "tid" : {
+                  "title": "ana.race.digests.tid",
+                  "description": "Use tid analysis for excluding data races.",
+                  "type" : "boolean",
+                  "default" : true
+                },
+                "join" : {
+                  "title": "ana.race.digests.join",
+                  "description": "Use join analysis for excluding data races.",
+                  "type" : "boolean",
+                  "default" : true
+                }
+              },
+              "additionalProperties": false
             }
           },
           "additionalProperties": false
