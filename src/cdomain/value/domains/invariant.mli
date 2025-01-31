@@ -1,9 +1,11 @@
 (** Invariants for witnesses. *)
 
-include Lattice.S with type t = [ `Bot | `Lifted of GoblintCil.exp | `Top ]
+include Lattice.S
 
 val none: t
 val of_exp: GoblintCil.exp -> t
+
+val to_exp: t -> GoblintCil.exp option
 
 val (&&): t -> t -> t
 val (||): t -> t -> t

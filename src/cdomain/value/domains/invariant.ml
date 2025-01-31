@@ -37,6 +37,9 @@ include Lattice.LiftConf (N) (ExpLat)
 
 let none = top ()
 let of_exp = lift
+let to_exp = function
+  | `Lifted x -> Some x
+  | `Top | `Bot -> None
 
 let ( && ) = meet
 let ( || ) = join
