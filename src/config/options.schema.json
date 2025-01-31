@@ -1145,6 +1145,18 @@
                   "description": "Use threadflag analysis for excluding data races.",
                   "type" : "boolean",
                   "default" : true
+                },
+                "tid" : {
+                  "title": "ana.race.digests.tid",
+                  "description": "Use tid analysis for excluding data races.",
+                  "type" : "boolean",
+                  "default" : true
+                },
+                "join" : {
+                  "title": "ana.race.digests.join",
+                  "description": "Use join analysis for excluding data races.",
+                  "type" : "boolean",
+                  "default" : true
                 }
               },
               "additionalProperties": false
