@@ -622,10 +622,12 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): Bitfield_SOverflow with type in
       Invariant.none
     else      
       let open GoblintCil.Cil in
-      let def0 = z &: (!: o) in 
+      let def0 = z &: (!: o) in       
       let def1 = o &: (!: z) in 
-      let (def0, def1) = BatTuple.Tuple2.mapn (kintegerCilint ik) (Ints_t.to_bigint !:def0, Ints_t.to_bigint def1) in
-      Invariant.of_exp (BinOp (Eq, (BinOp (BOr, (BinOp (BAnd, e, def0, TInt(ik,[]))), def1, TInt(ik,[]))), e, intType))
+      let (def0, def1) = BatTuple.Tuple2.mapn (kintegerCilint ik) (Ints_t.to_bigint def0, Ints_t.to_bigint def1) in
+      let exp0 = Invariant.of_exp (BinOp (Eq, (BinOp (BAnd, (UnOp (BNot, e, TInt(ik,[]))), def0, TInt(ik,[]))), def0, intType)) in 
+      let exp1 = Invariant.of_exp (BinOp (Eq, (BinOp (BAnd, e, def1, TInt(ik,[]))), def1, intType)) in 
+      Invariant.meet exp0 exp1
 
   let starting ?(suppress_ovwarn=false) ik n = 
     let (min_ik, max_ik) = Size.range ik in
