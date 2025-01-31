@@ -1,4 +1,4 @@
-(** Invariants for witnesses. *)
+
 
 open GoblintCil
 
