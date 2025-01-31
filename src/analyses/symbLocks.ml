@@ -121,7 +121,9 @@ struct
     include SetDomain.Make (E)
 
     let name () = "symblock"
-    let may_race lp lp2 = disjoint lp lp2
+    let may_race lp lp2 =
+      let use_symblocks = GobConfig.get_bool "ana.race.digests.symb_locks" in
+      (not use_symblocks) || disjoint lp lp2
     let should_print lp = not (is_empty lp)
   end
 
