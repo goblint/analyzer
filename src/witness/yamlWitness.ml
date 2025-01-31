@@ -293,8 +293,8 @@ struct
                 Invariant.(acc || R.ask_local_node n ~local (Invariant {Invariant.default_context with lvals})) [@coverage off] (* bisect_ppx cannot handle redefined (||) *)
               ) (Invariant.bot ()) ns
             in
-            match inv with
-            | `Lifted inv ->
+            match Invariant.to_exp inv with
+            | Some inv ->
               let fundec = Node.find_fundec (List.hd ns) in (* TODO: fix location hack *)
               let location_function = fundec.svar.vname in
               let location = Entry.location ~location:loc ~location_function in
@@ -305,7 +305,7 @@ struct
                   incr cnt_location_invariant;
                   entry :: acc
                 ) acc invs
-            | `Bot | `Top -> (* TODO: 0 for bot (dead code)? *)
+            | None -> (* TODO: 0 for bot (dead code)? *)
               acc
           ) (Lazy.force location_nodes) entries
       )
@@ -323,8 +323,8 @@ struct
                   Invariant.(acc || R.ask_local_node n ~local (Invariant Invariant.default_context)) [@coverage off] (* bisect_ppx cannot handle redefined (||) *)
                 ) (Invariant.bot ()) ns
               in
-              match inv with
-              | `Lifted inv ->
+              match Invariant.to_exp inv with
+              | Some inv ->
                 let fundec = Node.find_fundec (List.hd ns) in (* TODO: fix location hack *)
                 let location_function = fundec.svar.vname in
                 let location = Entry.location ~location:loc ~location_function in
@@ -335,7 +335,7 @@ struct
                     incr cnt_loop_invariant;
                     entry :: acc
                   ) acc invs
-              | `Bot | `Top -> (* TODO: 0 for bot (dead code)? *)
+              | None -> (* TODO: 0 for bot (dead code)? *)
                 acc
             )
             else
@@ -372,8 +372,8 @@ struct
         GHT.fold (fun g v acc ->
             match g with
             | `Left g -> (* global unknown from analysis Spec *)
-              begin match R.ask_global (InvariantGlobal (Obj.repr g)), GobConfig.get_string "witness.invariant.flow_insensitive-as" with
-                | `Lifted inv, "flow_insensitive_invariant" ->
+              begin match Invariant.to_exp (R.ask_global (InvariantGlobal (Obj.repr g))), GobConfig.get_string "witness.invariant.flow_insensitive-as" with
+                | Some inv, "flow_insensitive_invariant" ->
                   let invs = WitnessUtil.InvariantExp.process_exp inv in
                   List.fold_left (fun acc inv ->
                       let invariant = Entry.invariant (CilType.Exp.show inv) in
@@ -381,15 +381,15 @@ struct
                       incr cnt_flow_insensitive_invariant;
                       entry :: acc
                     ) acc invs
-                | `Lifted inv, "location_invariant" ->
+                | Some inv, "location_invariant" ->
                   fold_flow_insensitive_as_location ~inv (fun ~location ~inv acc ->
                       let invariant = Entry.invariant (CilType.Exp.show inv) in
                       let entry = Entry.location_invariant ~task ~location ~invariant in
                       incr cnt_location_invariant;
                       entry :: acc
                     ) acc
-                | `Lifted _, _
-                | `Bot, _ | `Top, _ -> (* global bot might only be possible for alloc variables, if at all, so emit nothing *)
+                | Some _, _
+                | None, _ -> (* global bot might only be possible for alloc variables, if at all, so emit nothing *)
                   acc
               end
             | `Right _ -> (* global unknown for FromSpec contexts *)
@@ -450,11 +450,11 @@ struct
         let fc_map : con_inv list FCMap.t = FCMap.create 103 in
         FMap.iter (fun f con_invs ->
             List.iter (fun current_c ->
-                begin match current_c.invariant with
-                  | `Lifted c_inv ->
+                begin match Invariant.to_exp current_c.invariant with
+                  | Some c_inv ->
                     (* Collect all start states that may satisfy the invariant of current_c *)
                     List.iter (fun c ->
-                        let x = R.ask_local (c.node, c.context) ~local:c.state (Queries.EvalInt c_inv) in
+                        let x = R.ask_local (c.node, c.context) ~local:c.state (Queries.EvalInt c_inv) in (* TODO: illegal query *)
                         if Queries.ID.is_bot x || Queries.ID.is_bot_ikind x then (* dead code *)
                           failwith "Bottom not expected when querying context state" (* Maybe this is reachable, failwith for now so we see when this happens *)
                         else if Queries.ID.to_bool x = Some false then () (* Nothing to do, the c does definitely not satisfy the predicate of current_c *)
@@ -463,7 +463,7 @@ struct
                           FCMap.modify_def [] (f, current_c.context) (fun cs -> c::cs) fc_map;
                         end
                       ) con_invs;
-                  | `Bot | `Top ->
+                  | None ->
                     (* If the context invariant is None, we will not generate a precondition invariant. Nothing to do here. *)
                     ()
                 end
@@ -484,25 +484,25 @@ struct
               let fundec = Node.find_fundec n in
               let pre_lvar = (Node.FunctionEntry fundec, c) in
               let query = Queries.Invariant Invariant.default_context in
-              begin match R.ask_local pre_lvar query with
-                | `Lifted c_inv ->
+              begin match Invariant.to_exp (R.ask_local pre_lvar query) with
+                | Some c_inv ->
                   (* Find unknowns for which the preceding start state satisfies the precondtion *)
                   let xs = find_matching_states lvar in
 
                   (* Generate invariants. Give up in case one invariant could not be generated. *)
                   let invs = GobList.fold_while_some (fun acc local ->
                       let lvals = local_lvals n local in
-                      match R.ask_local_node n ~local (Invariant {Invariant.default_context with lvals}) with
-                      | `Lifted c -> Some ((`Lifted c)::acc)
-                      | `Bot | `Top -> None
+                      match Invariant.to_exp (R.ask_local_node n ~local (Invariant {Invariant.default_context with lvals})) with
+                      | Some c -> Some ((Invariant.of_exp c)::acc)
+                      | None -> None
                     ) [] xs
                   in
                   begin match invs with
                     | None
                     | Some [] -> acc
                     | Some (x::xs) ->
-                      begin match List.fold_left (fun acc inv -> Invariant.(acc || inv) [@coverage off]) x xs with (* bisect_ppx cannot handle redefined (||) *)
-                        | `Lifted inv ->
+                      begin match Invariant.to_exp (List.fold_left (fun acc inv -> Invariant.(acc || inv) [@coverage off]) x xs) with (* bisect_ppx cannot handle redefined (||) *)
+                        | Some inv ->
                           let invs = WitnessUtil.InvariantExp.process_exp inv in
                           let c_inv = InvariantCil.exp_replace_original_name c_inv in (* cannot be split *)
                           List.fold_left (fun acc inv ->
@@ -513,7 +513,7 @@ struct
                               let entry = Entry.precondition_loop_invariant ~task ~location ~precondition ~invariant in
                               entry :: acc
                             ) acc invs
-                        | `Bot | `Top -> acc
+                        | None -> acc
                       end
                   end
                 | _ -> (* Do not construct precondition invariants if we cannot express precondition *)
@@ -542,8 +542,8 @@ struct
                     Invariant.(acc || R.ask_local_node n ~local (Invariant {Invariant.default_context with lvals})) [@coverage off] (* bisect_ppx cannot handle redefined (||) *)
                   ) (Invariant.bot ()) ns
                 in
-                match inv with
-                | `Lifted inv ->
+                match Invariant.to_exp inv with
+                | Some inv ->
                   let fundec = Node.find_fundec (List.hd ns) in (* TODO: fix location hack *)
                   let location_function = fundec.svar.vname in
                   let location = Entry.location ~location:loc ~location_function in
@@ -554,7 +554,7 @@ struct
                       incr cnt_location_invariant;
                       invariant :: acc
                     ) acc invs
-                | `Bot | `Top -> (* TODO: 0 for bot (dead code)? *)
+                | None -> (* TODO: 0 for bot (dead code)? *)
                   acc
               ) (Lazy.force location_nodes) invariants
           )
@@ -572,8 +572,8 @@ struct
                       Invariant.(acc || R.ask_local_node n ~local (Invariant Invariant.default_context)) [@coverage off] (* bisect_ppx cannot handle redefined (||) *)
                     ) (Invariant.bot ()) ns
                   in
-                  match inv with
-                  | `Lifted inv ->
+                  match Invariant.to_exp inv with
+                  | Some inv ->
                     let fundec = Node.find_fundec (List.hd ns) in (* TODO: fix location hack *)
                     let location_function = fundec.svar.vname in
                     let location = Entry.location ~location:loc ~location_function in
@@ -584,7 +584,7 @@ struct
                         incr cnt_loop_invariant;
                         invariant :: acc
                       ) acc invs
-                  | `Bot | `Top -> (* TODO: 0 for bot (dead code)? *)
+                  | None -> (* TODO: 0 for bot (dead code)? *)
                     acc
                 )
                 else
@@ -601,15 +601,15 @@ struct
             GHT.fold (fun g v acc ->
                 match g with
                 | `Left g -> (* global unknown from analysis Spec *)
-                  begin match R.ask_global (InvariantGlobal (Obj.repr g)) with
-                    | `Lifted inv ->
+                  begin match Invariant.to_exp (R.ask_global (InvariantGlobal (Obj.repr g))) with
+                    | Some inv ->
                       fold_flow_insensitive_as_location ~inv (fun ~location ~inv acc ->
                           let invariant = CilType.Exp.show inv in
                           let invariant = Entry.location_invariant' ~location ~invariant in
                           incr cnt_location_invariant;
                           invariant :: acc
                         ) acc
-                    | `Bot | `Top -> (* global bot might only be possible for alloc variables, if at all, so emit nothing *)
+                    | None -> (* global bot might only be possible for alloc variables, if at all, so emit nothing *)
                       acc
                   end
                 | `Right _ -> (* global unknown for FromSpec contexts *)
