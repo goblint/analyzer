@@ -226,7 +226,7 @@ let reduceAnalyses () =
     | _ -> LibraryDesc.Accesses.find_kind desc.accs Spawn args <> []
   in
   let hasThreadCreate = hasFunction isThreadCreate in
-  let hasDataRaceSpec = List.exists (SvcompSpec.equals SvcompSpec.NoDataRace) (Svcomp.Specification.of_option ()) in
+  let hasDataRaceSpec = List.mem SvcompSpec.NoDataRace (Svcomp.Specification.of_option ()) in
   let disable reason analyses =
     Logs.info "%s -> disabling analyses \"%s\"" reason (String.concat ", " analyses);
     disableAnalyses analyses

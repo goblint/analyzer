@@ -97,15 +97,3 @@ let to_string spec =
 
 let to_string spec =
   String.concat "\n" (List.map to_string spec)
-
-let equals spec1 spec2 = 
-  match spec1, spec2 with
-  | UnreachCall f1, UnreachCall f2 -> String.equal f1 f2
-  | NoDataRace, NoDataRace
-  | NoOverflow, NoOverflow
-  | Termination, Termination
-  | ValidFree, ValidFree
-  | ValidDeref, ValidDeref
-  | ValidMemtrack, ValidMemtrack
-  | ValidMemcleanup, ValidMemcleanup -> true
-  | _, _ -> false
