@@ -218,17 +218,21 @@ let enableAnalyses anas =
 (*does not consider dynamic calls!*)
 
 let notNeccessaryThreadAnalyses = ["race"; "deadlock"; "maylocks"; "symb_locks"; "thread"; "threadid"; "threadJoins"; "threadreturn"; "mhp"; "region"; "pthreadMutexType"]
-let reduceThreadAnalyses () =
+let notNeccessaryRaceAnalyses = ["race"; "symb_locks"; "region"]
+let reduceAnalyses () =
   let isThreadCreate (desc: LibraryDesc.t) args =
     match desc.special args with
     | LibraryDesc.ThreadCreate _ -> true
     | _ -> LibraryDesc.Accesses.find_kind desc.accs Spawn args <> []
   in
   let hasThreadCreate = hasFunction isThreadCreate in
-  if not @@ hasThreadCreate then (
-    Logs.info "no thread creation -> disabling thread analyses \"%s\"" (String.concat ", " notNeccessaryThreadAnalyses);
-    disableAnalyses notNeccessaryThreadAnalyses;
-  )
+  let hasDataRaceSpec = List.mem SvcompSpec.NoDataRace (Svcomp.Specification.of_option ()) in
+  let disable reason analyses =
+    Logs.info "%s -> disabling analyses \"%s\"" reason (String.concat ", " analyses);
+    disableAnalyses analyses
+  in
+  if not hasThreadCreate then disable "no thread creation" notNeccessaryThreadAnalyses
+  else if not hasDataRaceSpec then disable "no data race property in spec" notNeccessaryRaceAnalyses
 
 let focusOnMemSafetySpecification (spec: Svcomp.Specification.t) =
   match spec with
@@ -553,8 +557,8 @@ let chooseConfig file =
   if isActivated "enums" && hasEnums file then
     set_bool "ana.int.enums" true;
 
-  if isActivated "singleThreaded" then
-    reduceThreadAnalyses ();
+  if isActivated "reduceAnalyses" then
+    reduceAnalyses ();
 
   if isActivated "arrayDomain" then
     selectArrayDomains file;
