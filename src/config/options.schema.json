@@ -1139,6 +1139,12 @@
                   "description": "Use symb_locks analysis for excluding data races.",
                   "type" : "boolean",
                   "default" : true
+                },
+                "threadflag" : {
+                  "title": "ana.race.digests.threadflag",
+                  "description": "Use threadflag analysis for excluding data races.",
+                  "type" : "boolean",
+                  "default" : true
                 }
               },
               "additionalProperties": false

@@ -56,7 +56,9 @@ struct
   struct
     include BoolDomain.Bool
     let name () = "multi"
-    let may_race m1 m2 = m1 && m2 (* kill access when single threaded *)
+    let may_race m1 m2 =
+      let use_threadflag = GobConfig.get_bool "ana.race.digests.threadflag" in
+      (not use_threadflag) || (m1 && m2) (* kill access when single threaded *)
     let should_print m = not m
   end
   let access man _ =
