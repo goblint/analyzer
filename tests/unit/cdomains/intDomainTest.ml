@@ -643,7 +643,7 @@ struct
 
               assert_shift_right ~ov_info:no_ov ik (`I [min_of ik]) (`I [under_precision ik]) (`I [-2]);
               assert_shift_right ~ov_info:no_ov ik (`I [min_of ik]) (`I [precision ik]) (`I [-1]);
-              assert_shift_right ~ov_info:ov_underflow ik (`I [min_of ik]) (`I [over_precision ik]) top;
+              assert_shift_right ~ov_info:no_ov ik (`I [min_of ik]) (`I [over_precision ik]) top;
             ) else (
               (* See C11 N2310 at 6.5.7 *)
               assert_shift_right ~ov_info:no_ov ik (`I [max_of ik]) (`I [under_precision ik]) (`I [1]);

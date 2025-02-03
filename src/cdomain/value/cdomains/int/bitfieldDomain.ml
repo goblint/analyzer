@@ -420,7 +420,6 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): Bitfield_SOverflow with type in
       (true,
        match is_shift_left, GoblintCil.isSigned ik && BArith.has_neg_values ik a with
        | true, false -> {underflow=false; overflow=true}
-       | false, true
        | true, true when BArith.has_only_neg_values ik a -> {underflow=true; overflow=false}
        | true, true -> {underflow=true; overflow=true}
        | _ -> no_ov
@@ -429,7 +428,7 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): Bitfield_SOverflow with type in
       if BArith.has_only_neg_values ik b then
         (true, no_ov)
       else if not is_shift_left && BArith.has_neg_values ik a && BArith.exceeds_bit_width_of ik b then
-        (true, {underflow=true; overflow=false})
+        (true, no_ov)
       else
         (false, no_ov)
     else
