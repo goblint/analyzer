@@ -202,9 +202,11 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): Bitfield_SOverflow with type in
 
   let bot_of ik = bot ()
 
+  let is_const x = BArith.is_const x
+
   let to_pretty_bits (z,o) = 
-    let known_bitmask = (BArith.bits_known (z,o)) in
-    let invalid_bitmask = (BArith.bits_invalid (z,o)) in
+    let known_bitmask = BArith.bits_known (z,o) in
+    let invalid_bitmask = BArith.bits_invalid (z,o) in
     let o_mask = o in
     let z_mask = z in
     
@@ -531,8 +533,8 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): Bitfield_SOverflow with type in
       qm := !qm <<: 1;
     done; 
     let (rv, rm) = add_paper !accv Ints_t.zero Ints_t.zero !accm in 
-    let o3 = ref(rv |: rm) in 
-    let z3 = ref(!:rv |: rm) in
+    let o3 = rv |: rm in 
+    let z3 = !:rv |: rm in
     let (max1, max2) = (BArith.max ik (z1, o1), BArith.max ik (z2, o2)) in 
     let (min1, min2) = (BArith.min ik (z1, o1), BArith.min ik (z2, o2)) in 
     let (min_ik, max_ik) = Size.range ik in 
@@ -540,9 +542,9 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): Bitfield_SOverflow with type in
     let max_res = Z.max (Z.mul min1 min2) (Z.mul max1 max2) in 
     let underflow = Z.compare min_res min_ik < 0 in 
     let overflow = Z.compare max_ik max_res < 0 in  
-    if GoblintCil.isSigned ik then z3 := signBitUndef |: signBitDefZ |: !z3;
-    if GoblintCil.isSigned ik then o3 := signBitUndef |: signBitDefO |: !o3;
-    (norm ~ov:(overflow || underflow) ik (!z3, !o3), {underflow=underflow; overflow=overflow})
+    let z3 = if GoblintCil.isSigned ik then signBitUndef |: signBitDefZ |: z3 else z3 in 
+    let o3 = if GoblintCil.isSigned ik then signBitUndef |: signBitDefO |: o3 else o3 in 
+    (norm ~ov:(overflow || underflow) ik (z3, o3), {underflow=underflow; overflow=overflow})
 
   let div ?no_ov ik (z1, o1) (z2, o2) =
     if o2 = Ints_t.zero then 

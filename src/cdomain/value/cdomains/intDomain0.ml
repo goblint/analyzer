@@ -269,6 +269,9 @@ sig
 
   include SOverflow 
 
+  (* used for refinements in other domains *)
+  val is_const : t -> bool
+
   (* necessary for baseInvariant *)
   val refine_bor : t -> t -> t -> t * t
   val refine_band : t -> t -> t -> t * t

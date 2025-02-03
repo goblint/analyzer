@@ -49,11 +49,11 @@ struct
   let bot_of ik = bot ()
 
   let show = function ik -> match ik with
-    | None -> "bot"
+    | None -> "⟂"
     | Some (c, m) when (c, m) = (Z.zero, Z.zero) -> Z.to_string c
     | Some (c, m) ->
       let a = if c =: Z.zero then "" else Z.to_string c in
-      let b = if m =: Z.zero then "" else if m = Z.one then "Z" else Z.to_string m^"Z" in
+      let b = if m =: Z.zero then "" else if m = Z.one then "ℤ" else Z.to_string m^"ℤ" in
       let c = if a = "" || b = "" then "" else "+" in
       a^c^b
 
@@ -140,7 +140,7 @@ struct
   let of_congruence ik (c,m) = normalize ik @@ Some(c,m)
 
   let of_bitfield ik (z,o) = 
-    if Z.lognot z = o then 
+    if BitfieldDomain.Bitfield.is_const (z,o) then 
       normalize ik (Some (o, Z.zero))
     else 
       (* get posiiton of first top bit *)
