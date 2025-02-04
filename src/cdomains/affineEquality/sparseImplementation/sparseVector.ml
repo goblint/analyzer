@@ -198,8 +198,9 @@ module SparseVector: SparseVectorFunctor =
        @return [(idx, e) option]
     *)
     let find_first_non_zero v =
-      if v.entries = [] then None
-      else Some (List.hd v.entries)
+      match v.entries with
+      | [] -> None
+      | x :: _ -> Some x
 
     let find_first_non_zero v = timing_wrap "find_first_non_zero" (find_first_non_zero) v
 
