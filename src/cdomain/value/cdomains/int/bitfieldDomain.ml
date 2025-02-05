@@ -566,6 +566,7 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): Bitfield_SOverflow with type in
     let o3 = if GoblintCil.isSigned ik then signBitUndef |: signBitDefO |: o3 else o3 in 
     (norm ~ov:(overflow || underflow) ik (z3, o3), {underflow=underflow; overflow=overflow})
 
+
   let div ?no_ov ik (z1, o1) (z2, o2) =
     if o2 = Ints_t.zero then 
       (top_of ik, {underflow=false; overflow=false}) 
