@@ -188,6 +188,11 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): Bitfield_SOverflow with type in
 
   let name () = "bitfield"
   type int_t = Ints_t.t
+
+  (* the bitfield is represented as a tuple of two bitmasks zs and os. *)
+  (* zs is the mask of all bits that may be zero, os is the mask of all bits that may be one *)
+  (* Example: (zs, os) = (−1, 7) = (...1111,...0111) =...0⊤⊤⊤ represents the bitmask, *)
+  (* where the last three bits are unknown, and all other bits are known to be 0 *)
   type t = (Ints_t.t * Ints_t.t) [@@deriving eq, ord, hash]
 
   module BArith = BitfieldArith (Ints_t)
