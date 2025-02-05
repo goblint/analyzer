@@ -539,7 +539,7 @@ struct
     in
     let test_case_gen = Gen.pair (a_gen ik) (b_gen ik)
     in
-    Test.make ~name:name ~print:shift_test_printer ~count:1000 (*~collect:shift_test_printer*)
+    Test.make ~name:name ~print:shift_test_printer
       test_case_gen
       (fun (a,b) ->
          let expected_subset = cart_op c_op a b |> of_list ik in
@@ -562,24 +562,32 @@ struct
 
   let max_of ik = Z.to_int @@ snd @@ IntDomain.Size.range ik
   let min_of ik = Z.to_int @@ fst @@ IntDomain.Size.range ik
-  let highest_bit_set ?(is_neg=false) ik =
-    let open IntDomain.Size in
-    let pos = Int.pred @@ snd @@ bits ik in
-    (if isSigned ik then if is_neg
-       then cast ik @@ Z.of_int @@ Int.neg @@ Int.shift_left 1 pos
-       else cast ik @@ Z.of_int @@ Int.pred @@ Int.shift_left 1 pos
-     else
-       cast ik @@ Z.of_int @@ Int.shift_left 1 pos) |> Z.to_int
+
+  let ov_overflow : IntDomain.overflow_info option = Some ({underflow=false; overflow=true})
+  let ov_underflow : IntDomain.overflow_info option = Some ({underflow=true; overflow=false})
+  let no_ov : IntDomain.overflow_info option = Some ({underflow=false; overflow=false})
+
+  let one ik = I.of_int ik @@ Z.of_int 1
 
   let test_shift_left =
+    let highest_bit_set ?(is_neg=false) ik =
+      let pos = Int.pred @@ snd @@ IntDomain.Size.bits ik in
+      (if isSigned ik && is_neg
+       then Z.neg @@ Z.shift_left Z.one pos
+       else Z.shift_left Z.one pos
+      ) |> Z.to_int
+    in
     [
       "property_test_shift_left" >::: test_shift_left;
       "shift_left_edge_cases" >:: fun _ ->
         assert_shift_left ik (`I [1]) (`I [1; 2]) (`I [1; 2; 4; 8]);
+        assert_shift_left ~ov_info:ov_underflow ik (`I [-1000]) (`I [64]) top;
 
         List.iter (fun ik ->
-            assert_shift_left ik bot (`I [1]) bot;
-            assert_shift_left ik (`I [1]) bot bot;
+            assert_raises (IntDomain.ArithmeticOnIntegerBot "{0b0...01, (zs:-2, os:1)} << bot") (fun _ ->
+                I.shift_left ik (one ik) (I.bot_of ik));
+            assert_raises (IntDomain.ArithmeticOnIntegerBot "bot << {0b0...01, (zs:-2, os:1)}") (fun _ ->
+                I.shift_left ik (I.bot_of ik) (one ik));
             assert_shift_left ik bot bot bot;
 
             assert_shift_left ik (`I [0]) top (`I [0]);
@@ -588,19 +596,20 @@ struct
             then (
               assert_shift_left ik (`I [1]) (`I [-1]) top; (* Negative shifts are undefined behavior *)
               assert_shift_left ik (`I [-1]) top top;
+              assert_shift_left ik top (`I [-1]) top;
 
-              assert_shift_left ~rev_cond:true ik (`I [1]) (`I [under_precision ik]) top;
-              assert_shift_left ik (`I [1]) (`I [precision ik]) top;
-              assert_shift_left ik (`I [1]) (`I [over_precision ik]) top;
+              assert_shift_left ~ov_info:no_ov ik (`I [1]) (`I [under_precision ik]) (`I [highest_bit_set ik]);
+              assert_shift_left ~ov_info:ov_overflow ik (`I [1]) (`I [precision ik]) top;
+              assert_shift_left ~ov_info:ov_overflow ik (`I [1]) (`I [over_precision ik]) top;
 
-              assert_shift_left ik (`I [-1]) (`I [under_precision ik]) (`I [highest_bit_set ~is_neg:true ik]);
-              assert_shift_left ik (`I [-1]) (`I [precision ik]) top; 
-              assert_shift_left ik (`I [-1]) (`I [over_precision ik]) top; 
+              assert_shift_left ~ov_info:no_ov ik (`I [-1]) (`I [under_precision ik]) (`I [highest_bit_set ~is_neg:true ik]);
+              assert_shift_left ~ov_info:no_ov ik (`I [-1]) (`I [precision ik]) (`I [Z.to_int @@ IntDomain.Size.cast ik @@ Z.shift_left Z.one (precision ik)]);
+              assert_shift_left ~ov_info:ov_underflow ik (`I [-1]) (`I [over_precision ik]) top;
             ) else (
               (* See C11 N2310 at 6.5.7 *)
-              assert_shift_left ik (`I [1]) (`I [under_precision ik]) (`I [highest_bit_set ik]);
-              assert_shift_left ik (`I [1]) (`I [precision ik]) (`I [0]);
-              assert_shift_left ik (`I [1]) (`I [over_precision ik]) (`I [0]);
+              assert_shift_left ~ov_info:no_ov ik (`I [1]) (`I [under_precision ik]) (`I [highest_bit_set ik]);
+              assert_shift_left ~ov_info:ov_overflow ik (`I [1]) (`I [precision ik]) (`I [0]);
+              assert_shift_left ~ov_info:ov_overflow ik (`I [1]) (`I [over_precision ik]) (`I [0]);
             )
 
           ) ik_lst
@@ -613,8 +622,10 @@ struct
         assert_shift_right ik (`I [10]) (`I [1; 2]) (`I [10; 7; 5; 1]);
 
         List.iter (fun ik ->
-            assert_shift_right ik bot (`I [1]) bot;
-            assert_shift_right ik (`I [1]) bot bot;
+            assert_raises (IntDomain.ArithmeticOnIntegerBot "{0b0...01, (zs:-2, os:1)} >> bot") (fun _ ->
+                I.shift_right ik (one ik) (I.bot_of ik));
+            assert_raises (IntDomain.ArithmeticOnIntegerBot "bot >> {0b0...01, (zs:-2, os:1)}") (fun _ ->
+                I.shift_right ik (I.bot_of ik) (one ik));
             assert_shift_right ik bot bot bot;
 
             assert_shift_right ik (`I [0]) top (`I [0]);
@@ -624,20 +635,20 @@ struct
               assert_shift_right ~rev_cond:true ik (`I [max_of ik]) top top; (* the sign bit shouldn't be set with right shifts if its unset *)
 
               assert_shift_right ik (`I [2]) (`I [-1]) top; (* Negative shifts are undefined behavior *)
-              (*assert_shift_right ik (`I [min_of ik]) top top;*) (*TODO*)
+              (*assert_shift_right ik (`I [min_of ik]) top top;*) (*TODO implementation-defined sign-bit handling *)
 
-              assert_shift_right ik (`I [max_of ik]) (`I [under_precision ik]) (`I [1]);
-              assert_shift_right ik (`I [max_of ik]) (`I [precision ik]) (`I [0]);
-              assert_shift_right ik (`I [max_of ik]) (`I [over_precision ik]) (`I [0]);
+              assert_shift_right ~ov_info:no_ov ik (`I [max_of ik]) (`I [under_precision ik]) (`I [1]);
+              assert_shift_right ~ov_info:no_ov ik (`I [max_of ik]) (`I [precision ik]) (`I [0]);
+              assert_shift_right ~ov_info:no_ov ik (`I [max_of ik]) (`I [over_precision ik]) (`I [0]);
 
-              assert_shift_right ik (`I [min_of ik]) (`I [under_precision ik]) (`I [-2]);
-              assert_shift_right ik (`I [min_of ik]) (`I [precision ik]) (`I [-1]);
-              assert_shift_right ik (`I [min_of ik]) (`I [over_precision ik]) top;
+              assert_shift_right ~ov_info:no_ov ik (`I [min_of ik]) (`I [under_precision ik]) (`I [-2]);
+              assert_shift_right ~ov_info:no_ov ik (`I [min_of ik]) (`I [precision ik]) (`I [-1]);
+              assert_shift_right ~ov_info:no_ov ik (`I [min_of ik]) (`I [over_precision ik]) top;
             ) else (
               (* See C11 N2310 at 6.5.7 *)
-              assert_shift_right ik (`I [max_of ik]) (`I [under_precision ik]) (`I [1]);
-              assert_shift_right ik (`I [max_of ik]) (`I [precision ik]) (`I [0]);
-              assert_shift_right ik (`I [max_of ik]) (`I [over_precision ik]) (`I [0]);
+              assert_shift_right ~ov_info:no_ov ik (`I [max_of ik]) (`I [under_precision ik]) (`I [1]);
+              assert_shift_right ~ov_info:no_ov ik (`I [max_of ik]) (`I [precision ik]) (`I [0]);
+              assert_shift_right ~ov_info:no_ov ik (`I [max_of ik]) (`I [over_precision ik]) (`I [0]);
             )
 
           ) ik_lst

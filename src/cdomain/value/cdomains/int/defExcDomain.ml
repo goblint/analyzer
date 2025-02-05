@@ -541,8 +541,10 @@ struct
   let refine_with_congruence ik a b = a
   
   let refine_with_bitfield ik x (z,o) = 
-    if Z.lognot z = o then meet ik x (`Definite o)
-    else x
+    if BitfieldDomain.Bitfield.is_const (z,o) then 
+      meet ik x (`Definite o)
+    else 
+      x
   
   let refine_with_interval ik a b = match a, b with
     | x, Some(i) -> meet ik x (of_interval ik i)

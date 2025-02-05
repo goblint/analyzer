@@ -6,7 +6,6 @@
 int main() {
   int a = rand();
 
-  // 1110 in binary
   int inv_mask = ~0xe;  // 1111...10001 in binary
 
   if ((a & inv_mask) == 0) {
