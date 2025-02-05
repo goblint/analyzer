@@ -13,7 +13,7 @@ module type SparseVectorFunctor =
     include SparseVector with type num:= A.t
   end
 
-(* let timing_wrap = Timing.wrap *)
-(* Disable timing of VectorMatrix and AffineEqualityDomain.
+(*let timing_wrap = Timing.wrap*)
+(* Disable timing of the vector and matrix implementations and AffineEqualityDomain as well as SharedFunctions.
    This is cleaner than a timing functor because the timed functions also call each other. *)
 let timing_wrap _ f x = f x

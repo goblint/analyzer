@@ -21,7 +21,6 @@ module Array = Batteries.Array
 
 module Mpqf = SharedFunctions.Mpqf
 
-
 module AffineEqualityMatrix (Vec: SparseVectorFunctor) (Mx: SparseMatrixFunctor) =
 struct
   include Mx(Mpqf) (Vec)
