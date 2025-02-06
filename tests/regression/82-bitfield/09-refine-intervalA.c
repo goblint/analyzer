@@ -9,7 +9,7 @@ int main() {
   int inv_mask = ~0xe;  // inv_mask = 0b1111.1111.1111.1111.1111.1111.1111.0001 in binary
 
   if ((a & inv_mask) == 0) {
-    // a should get refined 0b0000.0000.0000.0000.0000.0000.0000.⊤⊤⊤0 in binary
+    // a should get refined 0b0000.0000.0000.0000.0000.0000.0000.???0 in binary
     __goblint_check(a <= 14);  // SUCCESS
     __goblint_check(a >= 0);   // SUCCESS
 
