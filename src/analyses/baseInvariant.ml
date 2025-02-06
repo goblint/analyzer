@@ -423,8 +423,9 @@ struct
           a, b
       | BAnd ->
         (* we only attempt to refine a here *)
+        let b_int = ID.to_int b in 
         let a =
-          match ID.to_int b with
+          match b_int with
           | Some x when Z.equal x Z.one ->
             (match ID.to_bool c with
              | Some true -> ID.meet a (ID.of_congruence ikind (Z.one, Z.of_int 2))
@@ -436,6 +437,9 @@ struct
           (* refinement based on the following idea: bit set to zero in c and set to one in b must be zero in a and bit set to one in c must be one in a too (analogously for b) *)
           let ((az, ao), (bz, bo)) = BitfieldDomain.Bitfield.refine_band (ID.to_bitfield ikind a) (ID.to_bitfield ikind b) (ID.to_bitfield ikind c) in 
           ID.meet a (ID.of_bitfield ikind (az, ao)), ID.meet b (ID.of_bitfield ikind (bz, bo))
+        else if b_int = None then 
+          (if M.tracing then M.tracel "inv" "Unhandled operator %a" d_binop op;
+          a, b)
         else a, b
       | op ->
         if M.tracing then M.tracel "inv" "Unhandled operator %a" d_binop op;
