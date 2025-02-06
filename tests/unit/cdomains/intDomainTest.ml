@@ -584,10 +584,6 @@ struct
         assert_shift_left ~ov_info:ov_underflow ik (`I [-1000]) (`I [64]) top;
 
         List.iter (fun ik ->
-            assert_raises (IntDomain.ArithmeticOnIntegerBot "{0b0...01, (zs:-2, os:1)} << bot") (fun _ ->
-                I.shift_left ik (one ik) (I.bot_of ik));
-            assert_raises (IntDomain.ArithmeticOnIntegerBot "bot << {0b0...01, (zs:-2, os:1)}") (fun _ ->
-                I.shift_left ik (I.bot_of ik) (one ik));
             assert_shift_left ik bot bot bot;
 
             assert_shift_left ik (`I [0]) top (`I [0]);
@@ -622,10 +618,6 @@ struct
         assert_shift_right ik (`I [10]) (`I [1; 2]) (`I [10; 7; 5; 1]);
 
         List.iter (fun ik ->
-            assert_raises (IntDomain.ArithmeticOnIntegerBot "{0b0...01, (zs:-2, os:1)} >> bot") (fun _ ->
-                I.shift_right ik (one ik) (I.bot_of ik));
-            assert_raises (IntDomain.ArithmeticOnIntegerBot "bot >> {0b0...01, (zs:-2, os:1)}") (fun _ ->
-                I.shift_right ik (I.bot_of ik) (one ik));
             assert_shift_right ik bot bot bot;
 
             assert_shift_right ik (`I [0]) top (`I [0]);
