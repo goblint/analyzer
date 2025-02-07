@@ -403,8 +403,9 @@ struct
           ID.meet a (ID.of_bitfield ikind (az, ao)), ID.meet b (ID.of_bitfield ikind (bz, bo))
         else 
           (if M.tracing then M.tracel "inv" "Unhandled operator %a" d_binop op;
-          (* Be careful: inv_exp performs a meet on both arguments of the BOr / BXor. *)
-          a, b)
+           (* Be careful: inv_exp performs a meet on both arguments of the BOr / BXor. *)
+           (a, b)
+          )
       | BXor ->
         (* Be careful: inv_exp performs a meet on both arguments of the BOr / BXor. *)
         if PrecisionUtil.get_bitfield () then
@@ -414,8 +415,9 @@ struct
           a', b'
         else 
           (if M.tracing then M.tracel "inv" "Unhandled operator %a" d_binop op;
-          (* Be careful: inv_exp performs a meet on both arguments of the BOr / BXor. *)
-          a, b)
+           (* Be careful: inv_exp performs a meet on both arguments of the BOr / BXor. *)
+           (a, b)
+          )
       | LAnd ->
         if ID.to_bool c = Some true then
           meet_bin c c
@@ -439,7 +441,8 @@ struct
           ID.meet a (ID.of_bitfield ikind (az, ao)), ID.meet b (ID.of_bitfield ikind (bz, bo))
         else if b_int = None then 
           (if M.tracing then M.tracel "inv" "Unhandled operator %a" d_binop op;
-          a, b)
+           (a, b)
+          )
         else a, b
       | op ->
         if M.tracing then M.tracel "inv" "Unhandled operator %a" d_binop op;
