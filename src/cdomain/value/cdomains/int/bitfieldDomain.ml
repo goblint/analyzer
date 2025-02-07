@@ -110,12 +110,16 @@ module BitfieldArith (Ints_t : IntOps.IntOps) = struct
       (* maximal number of 1 *)
       Ints_t.to_bigint o 
 
-  (** [concretize bf] returns a list of all possible values the bitfield can produce to shift.
-      @bf the bitfield which the list is needed for.
-      @info  This function is exclusively used inside the shift functions. The invariant for the second
-      parameter is that it's size is bounded by O(log2 n) ensuring that no exponential blowup happens.
+  (** [concretize bf] computes the set of all possible integer values represented by the bitfield [bf].
+
+      @param (z,o) The bitfield to concretize.
+
+      @info By default, the function generates all possible values that the bitfield can represent, 
+            which results in an exponential complexity of O(2^n) where [n] is the number of bits in [ik].
+            To mitigate this, it is recommended to constrain the number of top bits,
+            ensuring that concretization remains computationally feasible.
   *)
-  let rec concretize (z,o) = (* O(2^n) *)
+  let rec concretize (z,o) =
     if is_const (z,o) then [o]
     else
       let bit = o &: Ints_t.one in
@@ -135,39 +139,31 @@ module BitfieldArith (Ints_t : IntOps.IntOps) = struct
     (z |: !:mask, o &: mask)
 
   let shift_right ik (z,o) c =
-    let msb_pos = (Size.bit ik - c) in
-    let msb_pos = if msb_pos < 0 then 0 else msb_pos in
+    let msb_pos = Int.max 0 (Size.bit ik - c) in
     let sign_mask = !:(bitmask_up_to msb_pos) in
     if GoblintCil.isSigned ik && o <: Ints_t.zero then
       (z >>: c, (o >>: c) |: sign_mask)
     else
       ((z >>: c) |: sign_mask, o >>: c)
 
-  let shift_right ik bf (z2, o2) = 
-    if is_const (z2, o2) 
-    then 
-      shift_right ik bf (Ints_t.to_int o2)
-    else
-      let defined_shifts = constrain_to_bit_width_of ik (z2, o2) in
-      let shift_amounts = concretize defined_shifts in (* O(2^(log n)) *)
-      List.fold_left (fun acc c ->
-          join acc @@ shift_right ik bf c
-        ) (zero_mask, zero_mask) shift_amounts
-
   let shift_left _ (z,o) c =
     let zero_mask = bitmask_up_to c in
     ((z <<: c) |: zero_mask, o <<: c)
 
-  let shift_left ik bf (z2, o2) = 
-    if is_const (z2, o2) 
-    then 
-      shift_left ik bf (Ints_t.to_int o2)
-    else
+  let shift ~left ik bf (z2,o2) =
+    let shift = if left then shift_left else shift_right in
+    match is_const (z2,o2) with
+    | true -> shift ik bf (Ints_t.to_int o2)
+    | false ->
+      (* Only values leq then inf_c {c | bf >> c = 0} are relevant. *)
       let defined_shifts = constrain_to_bit_width_of ik (z2, o2) in
-      let shift_amounts = concretize defined_shifts in (* O(2^(log n)) *)
+      let shift_amounts = concretize defined_shifts in (* O(n) *)
       List.fold_left (fun acc c ->
-          join acc @@ shift_left ik bf c
+          join acc @@ shift ik bf c
         ) (zero_mask, zero_mask) shift_amounts
+
+  let shift_left = shift ~left:true
+  let shift_right = shift ~left:false
 
   let nth_bit p n = if nth_bit p n then Ints_t.one else Ints_t.zero
 
