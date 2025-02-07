@@ -257,7 +257,7 @@ module Enums : S with type int_t = Z.t = struct
     | Inc i when BISet.is_empty i -> (Z.zero, Z.zero) 
     | Inc i when BISet.is_singleton i ->       
       let o = BISet.choose i in 
-      let o = (if Cil.isSigned ik then o else Z.logand ik_mask o) in 
+      let o = if Cil.isSigned ik then o else Z.logand ik_mask o in 
       (Z.lognot o, o) 
     | Inc i -> BISet.fold (fun o (az, ao) -> (Z.logor (Z.lognot o) az, Z.logor (if Cil.isSigned ik then o else Z.logand ik_mask o) ao)) i (Z.zero, Z.zero) 
     | _ when Cil.isSigned ik -> (one_mask, one_mask)

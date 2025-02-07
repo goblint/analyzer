@@ -191,7 +191,7 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): Bitfield_SOverflow with type in
 
   (* the bitfield is represented as a tuple of two bitmasks zs and os. *)
   (* zs is the mask of all bits that may be zero, os is the mask of all bits that may be one *)
-  (* Example: (zs, os) = (−1, 7) = (...1111,...0111) =...0⊤⊤⊤ represents the bitmask, *)
+  (* Example: (zs, os) = (−1, 7) = (...1111,...0111) =...0??? represents the bitmask, *)
   (* where the last three bits are unknown, and all other bits are known to be 0 *)
   type t = (Ints_t.t * Ints_t.t) [@@deriving eq, ord, hash]
 
@@ -214,31 +214,29 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): Bitfield_SOverflow with type in
   let to_pretty_bits (z,o) = 
     let known_bitmask = BArith.bits_known (z,o) in
     let invalid_bitmask = BArith.bits_invalid (z,o) in
-    let o_mask = o in
-    let z_mask = z in
 
-    (* converts the (zs,os) mask representation to a human readable string of the form 0b(0|1)...(0|1|⊤|⊥)+. *)
-    (* Example: 0b0...01⊤ should mean that the last bit is unknown, while all other bits are exactly known *)
+    (* converts the (zs,os) mask representation to a human readable string of the form 0b(0|1|?|⊥)...(0|1|?|⊥)+. *)
+    (* Example: 0b0...01? should mean that the last bit is unknown, while all other bits are exactly known *)
+    (* The ... (dots) are used to indicate an infinte repetition of the last bit *)
     let rec create_pretty_bf_string o_mask z_mask known_bitmask invalid_bitmask acc =
       let current_bit_known = (known_bitmask &: Ints_t.one) = Ints_t.one in
       let current_bit_invalid = (invalid_bitmask &: Ints_t.one) = Ints_t.one in
       let bit_value = o_mask &: Ints_t.one in
       let bit =
         if current_bit_invalid then "⊥"
-        else if not current_bit_known then "⊤"
+        else if not current_bit_known then "?"
         else Ints_t.to_string bit_value 
       in
-      if (o_mask = Ints_t.of_int (-1) || o_mask = Ints_t.zero ) && (z_mask = Ints_t.of_int (-1) || z_mask = Ints_t.zero) then
+      if (o_mask = Ints_t.of_int (-1) || o_mask = Ints_t.zero) && (z_mask = Ints_t.of_int (-1) || z_mask = Ints_t.zero) then
         let prefix = bit ^ "..." ^ bit in
         prefix ^ acc
       else
         create_pretty_bf_string (o_mask >>: 1) (z_mask >>: 1) (known_bitmask >>: 1) (invalid_bitmask >>: 1) (bit ^ acc)
     in
-    "0b" ^ create_pretty_bf_string o_mask z_mask known_bitmask invalid_bitmask ""
+    "0b" ^ create_pretty_bf_string o z known_bitmask invalid_bitmask ""
 
   let show t = 
-    if t = bot () then "bot" else
-    if t = top () then "top" else
+    if t = bot () then "⊥" else
       let (z,o) = t in
       Format.sprintf "{%s, (zs:%s, os:%s)}" (to_pretty_bits t) (Ints_t.to_string z) (Ints_t.to_string o) 
 
