@@ -291,7 +291,9 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): Bitfield_SOverflow with type in
 
   let meet ik x y = norm ik @@ (BArith.meet x y)
 
-  let leq (x:t) (y:t) = (BArith.join x y) = y
+  let equal_bf (z1,o1) (z2,o2) = Ints_t.equal z1 z2 && Ints_t.equal o1 o2
+
+  let leq (x:t) (y:t) = equal_bf (BArith.join x y) y
 
   let widen ik x y = norm ik @@ BArith.widen x y
 
@@ -363,7 +365,7 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): Bitfield_SOverflow with type in
 
   let to_bool d =
     if not (leq BArith.zero d) then Some true
-    else if d = BArith.zero then Some false
+    else if equal_bf d BArith.zero then Some false
     else None
 
   let of_bitfield ik x = norm ik x
@@ -712,15 +714,16 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): Bitfield_SOverflow with type in
     let open QCheck.Iter in
     let int_arb = QCheck.map ~rev:Ints_t.to_int64 Ints_t.of_int64 GobQCheck.Arbitrary.int64 in
     let pair_arb = QCheck.pair int_arb int_arb in
-    let shrink (z, o) =
-      (GobQCheck.shrink pair_arb (z, o) 
-       >|= (fun (new_z, new_o) -> 
-           (* Randomly flip bits to be opposite *)
+    let shrink bf =
+      (GobQCheck.shrink pair_arb bf 
+       >|= (fun (zs, os) -> 
+           (* Shrinking works by setting some unsure bits to 0. This reduces the number of possible values, and makes the decimal representation of the masks smaller *)
            let random_mask = Ints_t.of_int64 (Random.int64 (Int64.of_int (Size.bits ik |> snd))) in
-           let unsure_bitmask= new_z &: new_o in
-           let canceled_bits= unsure_bitmask &: random_mask in
-           let flipped_z = new_z |: canceled_bits in
-           let flipped_o = new_o &: !:canceled_bits in
+           let unsure_bitmask= zs &: os in
+           let pruned_bits= unsure_bitmask &: random_mask in
+           (* set the pruned bits to 1 in the zs-mask and to 0 in the os-mask *)
+           let flipped_z = zs |: pruned_bits in
+           let flipped_o = os &: !:pruned_bits in
            norm ik (flipped_z, flipped_o)
          ))
     in
