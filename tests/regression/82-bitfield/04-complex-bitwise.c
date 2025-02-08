@@ -79,5 +79,9 @@ int main() {
     __goblint_check(0);  // NOWARN (unreachable)
   }
 
+  // Check power of two formula
+  int a = 16;
+  __goblint_assert((a & (a - 1)) == 0);  // SUCCESS
+
   return 0;
 }
