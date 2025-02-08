@@ -302,9 +302,11 @@ struct
   let to_bitfield ik x = 
     match x with 
     | `Definite c -> (Z.lognot c, c) 
-    | _ when Cil.isSigned ik -> let one_mask = Z.lognot Z.zero in 
+    | _ when Cil.isSigned ik -> 
+      let one_mask = Z.lognot Z.zero in 
       (one_mask, one_mask)
-    | _ -> let one_mask = Z.lognot Z.zero in 
+    | _ -> 
+      let one_mask = Z.lognot Z.zero in 
       let ik_mask = snd (Size.range ik) in 
       (one_mask, ik_mask)
 
@@ -541,9 +543,10 @@ struct
   let refine_with_congruence ik a b = a
   
   let refine_with_bitfield ik x (z,o) = 
-    if BitfieldDomain.Bitfield.is_const (z,o) then 
-      meet ik x (`Definite o)
-    else 
+    match BitfieldDomain.Bitfield.to_int (z,o) with 
+    | Some y ->
+      meet ik x (`Definite y)
+    | _ ->
       x
   
   let refine_with_interval ik a b = match a, b with

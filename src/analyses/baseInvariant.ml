@@ -407,15 +407,7 @@ struct
           a, b)
       | BXor ->
         (* Be careful: inv_exp performs a meet on both arguments of the BOr / BXor. *)
-        if PrecisionUtil.get_bitfield () then
-          (* from a ^ b = c follows a = b ^ c *)
-          let a' = ID.meet a (ID.logxor c b) in 
-          let b' = ID.meet b (ID.logxor a c) in
-          a', b'
-        else 
-          (if M.tracing then M.tracel "inv" "Unhandled operator %a" d_binop op;
-          (* Be careful: inv_exp performs a meet on both arguments of the BOr / BXor. *)
-          a, b)
+        meet_com ID.logxor
       | LAnd ->
         if ID.to_bool c = Some true then
           meet_bin c c

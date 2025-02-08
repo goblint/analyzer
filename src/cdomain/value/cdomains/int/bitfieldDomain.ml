@@ -205,8 +205,6 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): Bitfield_SOverflow with type in
 
   let bot_of ik = bot ()
 
-  let is_const x = BArith.is_const x
-
   let to_pretty_bits (z,o) = 
     let known_bitmask = BArith.bits_known (z,o) in
     let invalid_bitmask = BArith.bits_invalid (z,o) in
@@ -277,10 +275,10 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): Bitfield_SOverflow with type in
         let overflow = Z.compare max_ik (BArith.max old_ik (z,o)) < 0 in 
         (underflow, overflow)
       | _ -> 
-        let isPos = z < Ints_t.zero in 
-        let isNeg = o < Ints_t.zero in
-        let underflow = if GoblintCil.isSigned ik then (((Ints_t.of_bigint min_ik) &: z) <> Ints_t.zero) && isNeg else isNeg in
-        let overflow = (((!:(Ints_t.of_bigint max_ik)) &: o) <> Ints_t.zero) && isPos in
+        let isPos = z <: Ints_t.zero in 
+        let isNeg = o <: Ints_t.zero in
+        let underflow = if GoblintCil.isSigned ik then (((Ints_t.of_bigint min_ik) &: z) <>: Ints_t.zero) && isNeg else isNeg in
+        let overflow = (((!:(Ints_t.of_bigint max_ik)) &: o) <>: Ints_t.zero) && isPos in
         (underflow, overflow)
     in
     let overflow_info = if suppress_ovwarn then {underflow=false; overflow=false} else {underflow=underflow; overflow=overflow} in      
