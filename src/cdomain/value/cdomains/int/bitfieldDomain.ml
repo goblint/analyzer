@@ -150,8 +150,7 @@ module BitfieldArith (Ints_t : IntOps.IntOps) = struct
     let zero_mask = bitmask_up_to c in
     ((z <<: c) |: zero_mask, o <<: c)
 
-  let shift ~left ik bf (z2,o2) =
-    let shift = if left then shift_left else shift_right in
+  let join_shifts shift ik bf (z2,o2) =
     match is_const (z2,o2) with
     | true -> shift ik bf (Ints_t.to_int o2)
     | false ->
@@ -162,8 +161,9 @@ module BitfieldArith (Ints_t : IntOps.IntOps) = struct
           join acc @@ shift ik bf c
         ) (zero_mask, zero_mask) shift_amounts
 
-  let shift_left = shift ~left:true
-  let shift_right = shift ~left:false
+  let shift_left = join_shifts shift_left
+
+  let shift_right = join_shifts shift_right
 
   let nth_bit p n = if nth_bit p n then Ints_t.one else Ints_t.zero
 
