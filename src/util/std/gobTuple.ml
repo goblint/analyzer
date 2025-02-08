@@ -1,5 +1,3 @@
-open Batteries
-
 (* Custom Tuple6 as Batteries only provides up to Tuple5 *)
 module Tuple6 = struct
 
@@ -20,18 +18,3 @@ module Tuple6 = struct
   let enum (a,b,c,d,e,f) = BatList.enum [a;b;c;d;e;f] (* Make efficient? *)
 
 end
-
-(* Prevent compile warnings *)
-let _ = Tuple6.first
-let _ = Tuple6.second
-let _ = Tuple6.third
-let _ = Tuple6.fourth
-let _ = Tuple6.fifth
-let _ = Tuple6.sixth
-
-let _ = Tuple6.map1
-let _ = Tuple6.map2
-let _ = Tuple6.map3
-let _ = Tuple6.map4
-let _ = Tuple6.map5
-let _ = Tuple6.map6
