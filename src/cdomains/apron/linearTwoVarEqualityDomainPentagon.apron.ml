@@ -180,7 +180,7 @@ module Unbounded : IntervalDomainWithBounds.BoundedIntOps with type t = TopIntOp
 
   let range _ = (Top Neg, Top Pos)
   let top_of ik = Some (range ik)
-  let bot_of ik = None
+  let bot_of _ = None
 
   let norm ?(suppress_ovwarn=false) ?(cast=false) ik t = 
     let t = match t with 
@@ -228,7 +228,6 @@ struct
 
   let is_top_con (e, is) = EConj.is_top_con e && IntMap.is_empty is
 
-  (**TODO Test this code*)
   let modify_variables_in_domain_intervals map indexes op =
     if Array.length indexes = 0 then map else
       let rec bumpentry k v = function 
@@ -321,8 +320,6 @@ struct
     if M.tracing then M.tracel "modify_pentagon" "set_interval before: %s eq: var_%d=%s  ->  %s " (show t) lhs (Interval.show i) (show res);
     res
 
-
-  (**Assumes that values of variables and all other rhs stay the same. TODO can it happen that multiple rhs update at the same time? Problem if a variable is removed from the group in the same step?*)
   let set_rhs (econ, is) lhs rhs =
     let econ' = EConj.set_rhs econ lhs rhs in
     match rhs with 
@@ -923,20 +920,40 @@ struct
               end
             | _ -> t (* For equalities of more then 2 vars we just return t *))
       in if t'.d = None then t' else 
-        (*meet interval*) (*TODO this should be extended much further, should reuse some code from base -> meet with CIL expression instead?*)
-        (* currently only supports simple assertions x > c*)
+        (*meet interval*) (*TODO this could be extended much further, maybe reuse some code from base -> meet with CIL expression instead?*)
+        (* currently only supports simple assertions x > c (x - c > 0)*)
         match expr with
         | Binop (Sub,Var v,Cst (Scalar c),_,_) -> 
           begin match SharedFunctions.int_of_scalar ?round:None c with
             | None -> t'
             | Some c -> begin match Tcons1.get_typ tcons with
                 | SUP -> 
-                  if M.tracing then M.tracel "meet_tcons" "meet_tcons meet interval  %s - %s > 0 env: %s " (Var.to_string v) (Z.to_string c) (Environment.show t'.env);
                   meet_with_one_interval (Environment.dim_of_var t'.env v) (Some (Int (Z.add Z.one c), Top Pos)) t'
-                | _ -> t'
+                | SUPEQ -> meet_with_one_interval (Environment.dim_of_var t'.env v) (Some (Int c, Top Pos)) t'
+                | EQ -> meet_with_one_interval (Environment.dim_of_var t'.env v) (Some (Int c, Int c)) t' (*Should already be matched by the conjuction above?*)
+                | _ ->
+                  if M.tracing then M.tracel "meet_tcons" "meet_tcons interval not matching comparison op";
+                  t' (*NEQ and EQMOD do not have any usefull interval representations*)
+                  (*TODO If we have e.g.  y = 5x + 2 and condition y == 14 (or y != 14), we know this can't (must) be correct*)
               end
           end
-        | _ -> t'
+        | Binop (Sub,Cst (Scalar c), Var v,_,_) -> 
+          if M.tracing then M.tracel "meet_tcons" "meet_tcons interval matching structure 1";
+          begin match SharedFunctions.int_of_scalar ?round:None c with
+            | None -> t'
+            | Some c -> begin match Tcons1.get_typ tcons with
+                | SUP -> 
+                  meet_with_one_interval (Environment.dim_of_var t'.env v) (Some (Top Neg, Int (Z.sub c Z.one))) t'
+                | SUPEQ -> meet_with_one_interval (Environment.dim_of_var t'.env v) (Some (Top Neg, Int c)) t'
+                | EQ -> meet_with_one_interval (Environment.dim_of_var t'.env v) (Some (Int c, Int c)) t' (*Should already be matched by the conjuction above?*)
+                | _ ->
+                  if M.tracing then M.tracel "meet_tcons" "meet_tcons interval not matching comparison op";
+                  t' (*NEQ and EQMOD do not have any usefull interval representations*)
+              end
+          end
+        | _ ->
+          if M.tracing then M.tracel "meet_tcons" "meet_tcons interval not matching structure";
+          t'
 
 
   let meet_tcons ask t tcons original_expr no_ov  =
