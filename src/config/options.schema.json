@@ -1156,7 +1156,7 @@
             },
             "join_algorithm": {
               "title": "ana.c2po.join_algorithm",
-              "description": "Which join algorithm 'c2po' should use. Values: 'partition' (default): the more efficient version, it uses only the partition to compute the join. Circular equalities are lost during the join; 'partition': a more precise version, uses the automaton to compute the join.",
+              "description": "Which join algorithm 'c2po' should use. Values: 'partition' (default): the more efficient version, it uses only the partition to compute the join. Circular equalities are lost during the join; 'precise': a more precise version, uses the automaton to compute the join.",
               "type": "string",
               "enum": [
                 "precise",
