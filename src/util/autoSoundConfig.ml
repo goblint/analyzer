@@ -65,4 +65,4 @@ let activateLongjmpAnalysesWhenRequired () =
     | _ -> false
   in
   if hasFunction isLongjmp then
-    enableAnalyses "Longjmp" "longjmp" longjmpAnalyses;
+    enableAnalyses "Longjmp" "longjmp analyses" longjmpAnalyses;
