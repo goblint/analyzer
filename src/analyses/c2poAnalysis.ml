@@ -87,8 +87,7 @@ struct
          We have to forget all the information we had.
          This should almost never happen.
          Except if the left hand side is a complicated expression like myStruct.field1[i]->field2[z+k], and Goblint can't infer the offset.*)
-      if M.tracing then M.trace
-          "c2po-invalidate" "INVALIDATE lval: %a" d_lval lval;
+      if M.tracing then M.trace "c2po-invalidate" "INVALIDATE lval: %a" d_lval lval;
       C2PODomain.top ()
 
   let assign ctx lval expr =
