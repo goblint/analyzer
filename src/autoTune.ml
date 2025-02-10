@@ -216,9 +216,8 @@ let enableAnalyses anas =
 (*The exceptions are analyses that are depended on by others: base -> mutex -> mutexEvents, access; termination -> threadflag *)
 (*escape is also still enabled, because otherwise we get a warning*)
 (*does not consider dynamic calls!*)
-
-let notNeccessaryThreadAnalyses = ["race"; "deadlock"; "maylocks"; "symb_locks"; "thread"; "threadid"; "threadJoins"; "threadreturn"; "mhp"; "region"; "pthreadMutexType"]
 let notNeccessaryRaceAnalyses = ["race"; "symb_locks"; "region"]
+let notNeccessaryThreadAnalyses = notNeccessaryRaceAnalyses @ ["deadlock"; "maylocks"; "thread"; "threadid"; "threadJoins"; "threadreturn"; "mhp"; "pthreadMutexType"]
 let reduceAnalyses () =
   let isThreadCreate (desc: LibraryDesc.t) args =
     match desc.special args with
