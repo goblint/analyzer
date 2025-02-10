@@ -221,6 +221,8 @@ let enableAnalyses reason description analyses =
 let notNeccessaryRaceAnalyses = ["race"; "symb_locks"; "region"]
 let notNeccessaryThreadAnalyses = notNeccessaryRaceAnalyses @ ["deadlock"; "maylocks"; "thread"; "threadid"; "threadJoins"; "threadreturn"; "mhp"; "pthreadMutexType"]
 
+let hasSpec spec = List.mem spec (Svcomp.Specification.of_option ())
+
 let reduceAnalyses () =
   let isThreadCreate (desc: LibraryDesc.t) args =
     match desc.special args with
@@ -258,17 +260,15 @@ let focusOnTermination () =
   List.iter focusOnTermination (Svcomp.Specification.of_option ())
 
 let focusOnConcurrencySafety () =
-  let hasDataRaceSpec = List.mem SvcompSpec.NoDataRace (Svcomp.Specification.of_option ()) in
-  if hasDataRaceSpec then
+  if hasSpec SvcompSpec.NoDataRace then
     (*enable all thread analyses*)
     (* TODO: what's the exact relation between thread analyses enabled in conf, the ones we disable in reduceAnalyses and the ones we enable here? *)
     enableAnalyses "Specification: NoDataRace" "thread analyses" notNeccessaryThreadAnalyses
   else
     disableAnalyses "NoDataRace property is not in spec" notNeccessaryRaceAnalyses
 
-let noOverflows (spec: Svcomp.Specification.t) =
-  match spec with
-  | NoOverflow ->
+let focusOnNoOverflows () =
+  if hasSpec SvcompSpec.NoOverflow then (
     (*We focus on integer analysis*)
     set_bool "ana.int.def_exc" true;
     begin
@@ -277,10 +277,7 @@ let noOverflows (spec: Svcomp.Specification.t) =
         set_int "ana.malloc.unique_address_count" 1
       with Found -> set_int "ana.malloc.unique_address_count" 0;
     end
-  | _ -> ()
-
-let focusOn (f : SvcompSpec.t -> unit) =
-  List.iter f (Svcomp.Specification.of_option ())
+  )
 
 (*Detect enumerations and enable the "ana.int.enums" option*)
 exception EnumFound
@@ -549,7 +546,8 @@ let chooseConfig file =
   if isActivated "concurrencySafetySpecification" then
     focusOnConcurrencySafety ();
 
-  if isActivated "noOverflows" then focusOn noOverflows;
+  if isActivated "noOverflows" then
+    focusOnNoOverflows ();
 
   if isActivated "enums" && hasEnums file then
     set_bool "ana.int.enums" true;
