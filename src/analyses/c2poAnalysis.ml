@@ -107,7 +107,7 @@ struct
       | `Bot -> `Bot
       | `Lifted t ->
         if List.is_empty valid_props then `Lifted t else
-          match (reset_normal_form (meet_conjs_opt valid_props t)) with
+          match reset_normal_form (meet_conjs_opt valid_props t) with
           | exception Unsat -> `Bot
           | t -> `Lifted t
     in
