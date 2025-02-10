@@ -206,8 +206,9 @@ let hasFunction pred =
   calls.calledBy |> FunctionCallMap.exists (fun var _ -> relevant_static var) ||
   calls.dynamicallyCalled |> FunctionSet.exists relevant_dynamic
 
-let disableAnalyses anas =
-  List.iter (GobConfig.set_auto "ana.activated[-]") anas
+let disableAnalyses reason analyses =
+  Logs.info "%s -> disabling analyses \"%s\"" reason (String.concat ", " analyses);
+  List.iter (GobConfig.set_auto "ana.activated[-]") analyses
 
 let enableAnalyses anas =
   List.iter (GobConfig.set_auto "ana.activated[+]") anas
@@ -218,6 +219,7 @@ let enableAnalyses anas =
 (*does not consider dynamic calls!*)
 let notNeccessaryRaceAnalyses = ["race"; "symb_locks"; "region"]
 let notNeccessaryThreadAnalyses = notNeccessaryRaceAnalyses @ ["deadlock"; "maylocks"; "thread"; "threadid"; "threadJoins"; "threadreturn"; "mhp"; "pthreadMutexType"]
+
 let reduceAnalyses () =
   let isThreadCreate (desc: LibraryDesc.t) args =
     match desc.special args with
@@ -225,13 +227,7 @@ let reduceAnalyses () =
     | _ -> LibraryDesc.Accesses.find_kind desc.accs Spawn args <> []
   in
   let hasThreadCreate = hasFunction isThreadCreate in
-  let hasDataRaceSpec = List.mem SvcompSpec.NoDataRace (Svcomp.Specification.of_option ()) in
-  let disable reason analyses =
-    Logs.info "%s -> disabling analyses \"%s\"" reason (String.concat ", " analyses);
-    disableAnalyses analyses
-  in
-  if not hasThreadCreate then disable "no thread creation" notNeccessaryThreadAnalyses
-  else if not hasDataRaceSpec then disable "no data race property in spec" notNeccessaryRaceAnalyses
+  if not hasThreadCreate then disableAnalyses "no thread creation" notNeccessaryThreadAnalyses
 
 let focusOnMemSafetySpecification (spec: Svcomp.Specification.t) =
   match spec with
@@ -261,12 +257,16 @@ let focusOnTermination (spec: Svcomp.Specification.t) =
 let focusOnTermination () =
   List.iter focusOnTermination (Svcomp.Specification.of_option ())
 
-let concurrencySafety (spec: Svcomp.Specification.t) =
-  match spec with
-  | NoDataRace -> (*enable all thread analyses*)
+let focusOnConcurrencySafety () =
+  let hasDataRaceSpec = List.mem SvcompSpec.NoDataRace (Svcomp.Specification.of_option ()) in
+  if hasDataRaceSpec then (
+    (*enable all thread analyses*)
+    (* TODO: what's the exact relation between thread analyses enabled in conf, the ones we disable in reduceAnalyses and the ones we enable here? *)
     Logs.info "Specification: NoDataRace -> enabling thread analyses \"%s\"" (String.concat ", " notNeccessaryThreadAnalyses);
-    enableAnalyses notNeccessaryThreadAnalyses;
-  | _ -> ()
+    enableAnalyses notNeccessaryThreadAnalyses
+  )
+  else
+    disableAnalyses "NoDataRace property is not in spec" notNeccessaryRaceAnalyses
 
 let noOverflows (spec: Svcomp.Specification.t) =
   match spec with
@@ -549,7 +549,8 @@ let chooseConfig file =
   if isActivated "mallocWrappers" then
     findMallocWrappers ();
 
-  if isActivated "concurrencySafetySpecification" then focusOn concurrencySafety;
+  if isActivated "concurrencySafetySpecification" then
+    focusOnConcurrencySafety ();
 
   if isActivated "noOverflows" then focusOn noOverflows;
 
