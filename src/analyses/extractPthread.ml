@@ -131,8 +131,7 @@ module Tbls = struct
       in
       Hashtbl.find table k |> Option.default_delayed new_value_thunk
 
-
-    let get_key v = table |> Hashtbl.to_seq |> Seq.find_map (fun (k,v') -> if v' = v then Some k else None)
+    let get_key v = table |> Hashtbl.to_seq |> Seq.find_map (fun (k,v') -> if v' = v then Some k else None) (* TODO: inefficient look up by value from Hashtbl *)
 
     let to_list () = table |> Hashtbl.bindings
   end
@@ -144,7 +143,7 @@ module Tbls = struct
 
     let get k = Hashtbl.find table k
 
-    let get_key v = table |> Hashtbl.bindings |> List.assoc_inv v
+    let get_key v = table |> Hashtbl.to_seq |> Seq.find_map (fun (k,v') -> if v' = v then Some k else None) (* TODO: inefficient look up by value from Hashtbl *)
   end
 
   let all_keys_count table = table |> Hashtbl.to_seq_keys |> Seq.length
@@ -167,9 +166,9 @@ module Tbls = struct
     let extend k v = Hashtbl.modify_def Set.empty k (Set.add v) table
 
     let get_fun_for_tid v =
-      Hashtbl.to_seq_keys table
-      |> Seq.find (fun k ->
-          Option.get @@ Hashtbl.find table k |> Set.exists (( = ) v))
+      table
+      |> Hashtbl.to_seq
+      |> Seq.find_map (fun (k,v') -> if Set.exists (( = ) v) v' then Some k else None)
   end
 
   module MutexMidTbl = SymTbl (struct
@@ -331,8 +330,7 @@ end = struct
     let action_of_edge (_, action, _) = action in
     table
     |> Hashtbl.to_seq_values
-    |> Seq.map Set.to_seq
-    |> Seq.concat
+    |> Seq.concat_map Set.to_seq
     |> Seq.filter_map (f % action_of_edge)
     |> List.of_seq
 

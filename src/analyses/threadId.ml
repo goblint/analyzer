@@ -170,14 +170,14 @@ struct
 
 
   let print_tid_info () =
-    let tids = Hashtbl.to_seq !tids in
-    let uniques = Seq.filter_map (fun (a,b) -> if Thread.is_unique a then Some a else None) tids in
-    let non_uniques = Seq.filter_map (fun (a,b) -> if not (Thread.is_unique a) then Some a else None) tids in
-    let uc = Seq.length uniques in
-    let nc = Seq.length non_uniques in
+    let tids = Hashtbl.to_seq_keys !tids in
+    let uniques, non_uniques = Seq.partition Thread.is_unique tids in
+    let uniques, non_uniques = List.of_seq uniques, List.of_seq non_uniques in
+    let uc = List.length uniques in
+    let nc = List.length non_uniques in
     M.debug_noloc ~category:Analyzer "Encountered number of thread IDs (unique): %i (%i)" (uc+nc) uc;
-    M.msg_group Debug ~category:Analyzer "Unique TIDs" (List.map (fun tid -> (Thread.pretty () tid, None)) @@ List.of_seq uniques);
-    M.msg_group Debug ~category:Analyzer "Non-unique TIDs" (List.map (fun tid -> (Thread.pretty () tid, None)) @@ List.of_seq non_uniques)
+    M.msg_group Debug ~category:Analyzer "Unique TIDs" (List.map (fun tid -> (Thread.pretty () tid, None)) uniques);
+    M.msg_group Debug ~category:Analyzer "Non-unique TIDs" (List.map (fun tid -> (Thread.pretty () tid, None)) non_uniques)
 
   let finalize () =
     if GobConfig.get_bool "dbg.print_tids" then print_tid_info ();

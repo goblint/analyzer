@@ -301,6 +301,7 @@ struct
           | texpr1 -> Some texpr1
           | exception Convert.Unsupported_CilExp _ -> None
         ))
+      |> Seq.memoize
       |> Seq.partition (fun (_, e_opt) -> Option.is_some e_opt)
     in
     (* parallel assign supported *)
@@ -366,6 +367,7 @@ struct
           | texpr1 -> Some texpr1
           | exception Convert.Unsupported_CilExp _ -> None
         ))
+      |> Seq.memoize
       |> Seq.partition (fun (_, e_opt) -> Option.is_some e_opt)
     in
     (* parallel substitute supported *)

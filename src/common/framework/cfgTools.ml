@@ -422,7 +422,7 @@ let createCFG (file: file) =
                     | [] ->
                       let scc_node =
                         NH.to_seq_keys scc.nodes
-                        |> BatList.of_seq
+                        |> BatList.of_seq (* TODO: do not convert to list to find min *)
                         |> BatList.min ~cmp:Node.compare (* use min for consistency for incremental CFG comparison *)
                       in
                       (* default to pseudo return if no suitable candidates *)
