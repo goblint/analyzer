@@ -200,8 +200,7 @@ struct
       let state_with_assignments = List.fold_left (fun st (var, exp) -> assign_term st (ask_of_ctx ctx) (T.term_of_varinfo (DuplicVar var)) (T.of_cil ask exp) var.vtype) cc arg_assigns in
       if M.tracing then M.trace "c2po-function" "COMBINE_ASSIGN0: state_with_assignments: %s\n" (C2PODomain.show state_with_assignments);
       (*remove all variables that were tainted by the function*)
-      let tainted = ask.f (MayBeTainted)
-      in
+      let tainted = ask.f (MayBeTainted) in
       if M.tracing then M.trace "c2po-tainted" "combine_env: %a\n" MayBeEqual.AD.pretty tainted;
       let local = D.remove_tainted_terms (ask_of_ctx ctx) tainted state_with_assignments in
       match D.meet (`Lifted local) t with
