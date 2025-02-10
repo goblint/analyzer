@@ -147,13 +147,13 @@ struct
           (* forget information about var,
              but ignore assignments to values that are not 64 bits *)
           try
-            (let s, lterm = T.get_element_size_in_bits (typeOfLval varin), T.of_lval ask varin in
+             let s, lterm = T.get_element_size_in_bits (typeOfLval varin), T.of_lval ask varin in
              let t = D.remove_may_equal_terms ask s lterm cc in
              begin match desc.special exprs with
                | Malloc _ | Calloc _ | Alloca _ ->
                  add_block_diseqs t lterm
                | _ -> t
-             end)
+             end
           with (T.UnsupportedCilExpression _) -> C2PODomain.top ()
       end
       in
