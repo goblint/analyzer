@@ -207,11 +207,12 @@ let hasFunction pred =
   calls.dynamicallyCalled |> FunctionSet.exists relevant_dynamic
 
 let disableAnalyses reason analyses =
-  Logs.info "%s -> disabling analyses \"%s\"" reason (String.concat ", " analyses);
+  Logs.info "%s -> disabling analyses: \"%s\"" reason (String.concat ", " analyses);
   List.iter (GobConfig.set_auto "ana.activated[-]") analyses
 
-let enableAnalyses anas =
-  List.iter (GobConfig.set_auto "ana.activated[+]") anas
+let enableAnalyses reason description analyses =
+  Logs.info "%s -> enabling %s: \"%s\"" reason description (String.concat ", " analyses);
+  List.iter (GobConfig.set_auto "ana.activated[+]") analyses
 
 (*If only one thread is used in the program, we can disable most thread analyses*)
 (*The exceptions are analyses that are depended on by others: base -> mutex -> mutexEvents, access; termination -> threadflag *)
@@ -246,8 +247,7 @@ let focusOnTermination (spec: Svcomp.Specification.t) =
   match spec with
   | Termination ->
     let terminationAnas = ["threadflag"; "apron"] in
-    Logs.info "Specification: Termination -> enabling termination analyses \"%s\"" (String.concat ", " terminationAnas);
-    enableAnalyses terminationAnas;
+    enableAnalyses "Specification: Termination" "termination analyses" terminationAnas;
     set_string "sem.int.signed_overflow" "assume_none";
     set_bool "ana.int.interval" true;
     set_string "ana.apron.domain" "polyhedra"; (* TODO: Needed? *)
@@ -259,12 +259,10 @@ let focusOnTermination () =
 
 let focusOnConcurrencySafety () =
   let hasDataRaceSpec = List.mem SvcompSpec.NoDataRace (Svcomp.Specification.of_option ()) in
-  if hasDataRaceSpec then (
+  if hasDataRaceSpec then
     (*enable all thread analyses*)
     (* TODO: what's the exact relation between thread analyses enabled in conf, the ones we disable in reduceAnalyses and the ones we enable here? *)
-    Logs.info "Specification: NoDataRace -> enabling thread analyses \"%s\"" (String.concat ", " notNeccessaryThreadAnalyses);
-    enableAnalyses notNeccessaryThreadAnalyses
-  )
+    enableAnalyses "Specification: NoDataRace" "thread analyses" notNeccessaryThreadAnalyses
   else
     disableAnalyses "NoDataRace property is not in spec" notNeccessaryRaceAnalyses
 
@@ -495,8 +493,7 @@ let activateTmpSpecialAnalysis () =
   in
   let hasMathFunctions = hasFunction isMathFun in
   if hasMathFunctions then (
-    Logs.info "math function -> enabling tmpSpecial analysis and floating-point domain";
-    enableAnalyses ["tmpSpecial"];
+    enableAnalyses "Math function" "tmpSpecial analysis and floating-point domain" ["tmpSpecial"];
     set_bool "ana.float.interval" true;
   )
 
