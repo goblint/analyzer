@@ -33,8 +33,10 @@ module VarType = struct
     | DuplicVar v -> "c2po__" ^ v.vname ^ "'"
 
   let get_type v = match v with
-    | AssignAux t | ReturnAux t -> t
-    | NormalVar v | DuplicVar v -> v.vtype
+    | AssignAux t 
+    | ReturnAux t -> t
+    | NormalVar v 
+    | DuplicVar v -> v.vtype
 
   let is_assign_aux = function | AssignAux _ -> true | _ -> false
   let is_return_aux = function | ReturnAux _ -> true | _ -> false
