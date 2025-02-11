@@ -49,8 +49,10 @@ module BlDis = struct
      For each term t2 in tlist, it adds the disequality t1 != t2 to diseqs.
   *)
   let add_block_diseqs bldiseq uf t1 tlist =
-    List.fold (fun bldiseq t2 ->
-        add_block_diseq bldiseq (t1, t2)) bldiseq tlist
+    let add_block_diseq_t1 bldiseq t2 =
+      add_block_diseq bldiseq (t1, t2)
+    in
+    List.fold add_block_diseq_t1 bldiseq tlist
 
   (** For each block disequality bl(t1) != bl(t2) we add all disequalities
       that follow from equalities. I.e., if t1 = z1 + t1' and t2 = z2 + t2',
@@ -59,21 +61,27 @@ module BlDis = struct
   let element_closure bldis cmap =
     let comp_closure = function
       | BlNequal (r1,r2) ->
-        let eq_class1, eq_class2 = LMap.comp_t_cmap_repr cmap r1, LMap.comp_t_cmap_repr cmap r2 in
-        List.cartesian_product (List.map snd eq_class1) (List.map snd eq_class2)
+        let eq_class1 = LMap.comp_t_cmap_repr cmap r1 in
+        let eq_class2 = LMap.comp_t_cmap_repr cmap r2 in
+        let terms1 = List.map snd eq_class1 in
+        let terms2 = List.map snd eq_class2 in
+        List.cartesian_product terms1 terms2
       | _ -> []
     in
     List.concat_map comp_closure bldis
 
   (** Returns true if bl(v) != bl(v'). *)
-  let map_set_mem v v' (map:t) = match TMap.find_opt v map with
+  let map_set_mem v v' (map:t) =
+    match TMap.find_opt v map with
     | None -> false
     | Some set -> TSet.mem v' set
 
   let filter_map f (diseq:t) =
-    TMap.filter_map
-      (fun _ s -> let set = TSet.filter_map f s in
-        if TSet.is_empty set then None else Some set) diseq
+    let filter_map_set _ s =
+      let set = TSet.filter_map f s in
+      if TSet.is_empty set then None else Some set
+    in
+    TMap.filter_map filter_map_set diseq
 
   let term_set bldis =
     TSet.of_enum (TMap.keys bldis)
@@ -82,17 +90,21 @@ module BlDis = struct
     let add_change bldis (t1,t2) =
       match TMap.find_opt t1 bldis with
       | None -> bldis
-      | Some tset -> TMap.add t2 tset (TMap.remove t1 bldis) in
+      | Some tset -> TMap.add t2 tset (TMap.remove t1 bldis)
+    in
     List.fold add_change
 
   let filter_map_lhs f (diseq:t) =
-    Enum.fold
-      (fun diseq t -> match f t with
-         | None -> TMap.remove t diseq
-         | Some t2 ->
-           if not (T.equal t t2)
-           then TMap.add t2 (TMap.find t diseq) (TMap.remove t diseq) else
-             diseq) diseq (TMap.keys diseq)
+    let filter_map_lhs diseq t =
+      match f t with
+      | None -> TMap.remove t diseq
+      | Some t2 ->
+        if not (T.equal t t2) then
+          TMap.add t2 (TMap.find t diseq) (TMap.remove t diseq)
+        else
+          diseq
+    in
+    Enum.fold filter_map_lhs diseq (TMap.keys diseq)
 end
 
 module Disequalities = struct
