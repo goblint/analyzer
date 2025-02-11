@@ -238,44 +238,42 @@ module Disequalities = struct
     in
     Option.map_default concat [] (bindings)
 
+  (* Helper function for check_neq and check_neq_bl, to add a disequality, if it adds information and is not impossible *)
+  let add_diseq acc (v1, r1') (v2, r2') =
+    if T.equal v1 v2 then
+      if Z.equal r1' r2' then
+        raise Unsat
+      else
+        acc
+    else
+      (v1, v2, Z.(r2'-r1'))::acc
+
   (** Find all disequalities of the form t1 != z2-z1 + t2
       that can be inferred from equalities of the form *(z1 + t1) = *(z2 + t2).
   *)
-  let check_neq (_,arg) rest (v,zmap) =
-    let do_pair rest (v1, r1') (v2, r2') =
-      if T.equal v1 v2 then
-        if Z.equal r1' r2' then
-          raise Unsat
-        else
-          rest
-      else
-        (v1, v2, Z.(r2'-r1'))::rest
-    in
-    let f rest (r1,_) (r2,_) =
+  let check_neq (_,arg) acc (v,zmap) =
+    let f acc (r1,_) (r2,_) =
       if Z.equal r1 r2 then
-        rest
+        acc
       else (* r1 <> r2 *)
         let l1 = Option.default [] (map_find_opt (v,r1) arg) in
         let l2 = Option.default [] (map_find_opt (v,r2) arg) in
-        fold_left2 do_pair rest l1 l2
+        fold_left2 add_diseq acc l1 l2
     in
     let zlist = ZMap.bindings zmap in
-    fold_left2 f rest zlist zlist
+    fold_left2 f acc zlist zlist
 
   (** Find all disequalities of the form t1 != z2-z1 + t2
       that can be inferred from block equalities of the form bl( *(z1 + t1) ) = bl( *(z2 + t2) ).
   *)
-  let check_neq_bl (uf,arg) rest (t1, tset) =
-    List.fold (fun rest t2 ->
-        (* We know that r1 <> r2, otherwise it would be Unsat. *)
-        let l1 = map_find_all t1 arg in
-        let l2 = map_find_all t2 arg in
-        fold_left2 (fun rest (v1,r'1) (v2,r'2) ->
-            if T.equal v1 v2 then if Z.equal r'1 r'2
-              then raise Unsat
-              else rest
-            else (v1,v2,Z.(r'2-r'1))::rest) rest l1 l2
-      ) rest (TSet.to_list tset)
+  let check_neq_bl (uf,arg) acc (t1, tset) =
+    let l1 = map_find_all t1 arg in
+    let f acc t2 =
+      (* We know that r1 <> r2, otherwise it would be Unsat. *)
+      let l2 = map_find_all t2 arg in
+      fold_left2 add_diseq acc l1 l2
+    in
+    List.fold f acc (TSet.to_list tset)
 
   (** Initialize the list of disequalities taking only implicit dis-equalities into account.
 
@@ -598,7 +596,7 @@ let show_conj list =
   match list with
   | [] -> "top"
   | list ->  List.fold_left
-    (fun s d -> s ^ "\t" ^ T.show_prop d ^ ";\n") "" list
+               (fun s d -> s ^ "\t" ^ T.show_prop d ^ ";\n") "" list
 
 (** Returns a list of all the transition that are present in the automata. *)
 let get_transitions (uf, map) =
