@@ -194,64 +194,73 @@ module Disequalities = struct
 
       It basically maps each state in the automata to its predecessors. *)
   let get_args uf =
-    let cmap,uf = comp_map uf in
+    let do_term (uf,xs) el =
+      match el with
+      | Deref (v', r', _) ->
+        let v0, r0, uf = TUF.find uf v' in
+        let x = (v0, Z.(r0 + r')) in
+        uf, x::xs
+      | _ -> uf, xs
+    in
+    let do_set iarg (r,set) =
+      let uf,list = List.fold_left do_term (uf,[]) (TSet.elements set) in
+      ZMap.add r list iarg
+    in
+    let do_bindings arg (v, imap) =
+      let ilist = ZMap.bindings imap in
+      let iarg = List.fold_left do_set ZMap.empty ilist in
+      TMap.add v iarg arg
+    in
+    let cmap, uf = comp_map uf in
     let clist = TMap.bindings cmap in
-    let arg =  List.fold_left (fun arg (v, imap) ->
-        let ilist = ZMap.bindings imap in
-        let iarg = List.fold_left (fun iarg (r,set) ->
-            let uf,list = List.fold_left (fun (uf,list) el ->
-                match el with
-                | Deref (v', r', _) ->
-                  let v0,r0,uf = TUF.find uf v' in
-                  uf,(v0,Z.(r0+r'))::list
-                | _ -> uf,list) (uf,[]) (TSet.elements set) in
-            ZMap.add r list iarg) ZMap.empty ilist in
-        TMap.add v iarg arg) TMap.empty clist in
-    (uf,cmap,arg)
+    let arg = List.fold_left do_bindings TMap.empty clist in
+    (uf, cmap, arg)
 
   let fold_left2 f acc l1 l2 =
     List.fold_left (
       fun acc x -> List.fold_left (
           fun acc y -> f acc x y) acc l2) acc l1
 
-  let map2 f l1 l2 = List.concat_map (fun x ->
-      List.map (fun y -> f x y) l2) l1
+  let map2 f l1 l2 =
+    let map_f x = List.map (f x) l2 in
+    List.concat_map map_f l1
 
-  let map_find_opt (v,r) map = match TMap.find_opt v map with
-    | None -> None
-    | Some imap -> (match ZMap.find_opt r imap with
-        | None -> None
-        | Some v -> Some v
-      )
+  let map_find_opt (v,r) map =
+    let inner_map = TMap.find_opt v map in
+    Option.map_default (ZMap.find_opt r) None inner_map
 
   let map_find_all t map =
-    match TMap.find_opt t map with
-    | None -> []
-    | Some imap -> List.fold (fun list (z,list2) ->
-        list@list2
-      ) [] (ZMap.bindings imap)
+    let inner_map = TMap.find_opt t map in
+    let bindings = Option.map ZMap.bindings inner_map in
+    let concat =
+      (* TODO: Can one change returned order to xs@acc? *)
+      List.fold (fun acc (z, xs) -> acc@xs) []
+    in
+    Option.map_default concat [] (bindings)
 
   (** Find all disequalities of the form t1 != z2-z1 + t2
       that can be inferred from equalities of the form *(z1 + t1) = *(z2 + t2).
   *)
   let check_neq (_,arg) rest (v,zmap) =
+    let do_pair rest (v1, r1') (v2, r2') =
+      if T.equal v1 v2 then
+        if Z.equal r1' r2' then
+          raise Unsat
+        else
+          rest
+      else
+        (v1, v2, Z.(r2'-r1'))::rest
+    in
+    let f rest (r1,_) (r2,_) =
+      if Z.equal r1 r2 then
+        rest
+      else (* r1 <> r2 *)
+        let l1 = Option.default [] (map_find_opt (v,r1) arg) in
+        let l2 = Option.default [] (map_find_opt (v,r2) arg) in
+        fold_left2 do_pair rest l1 l2
+    in
     let zlist = ZMap.bindings zmap in
-    fold_left2 (fun rest (r1,_) (r2,_) ->
-        if Z.equal r1 r2 then rest
-        else (* r1 <> r2 *)
-          let l1 = match map_find_opt (v,r1) arg
-            with None -> []
-               | Some list -> list in
-          (* just take the elements of set1 ? *)
-          let l2 = match map_find_opt (v,r2) arg
-            with None -> []
-               | Some list -> list in
-          fold_left2 (fun rest (v1,r'1) (v2,r'2) ->
-              if T.equal v1 v2 then if Z.equal r'1 r'2
-                then raise Unsat
-                else rest
-              else (v1,v2,Z.(r'2-r'1))::rest) rest l1 l2
-      ) rest zlist zlist
+    fold_left2 f rest zlist zlist
 
   (** Find all disequalities of the form t1 != z2-z1 + t2
       that can be inferred from block equalities of the form bl( *(z1 + t1) ) = bl( *(z2 + t2) ).
@@ -585,7 +594,10 @@ type t = {uf: TUF.t;
           bldis: BlDis.t}
 [@@deriving eq, ord, hash]
 
-let show_conj list = List.fold_left
+let show_conj list =
+  match list with
+  | [] -> "top"
+  | list ->  List.fold_left
     (fun s d -> s ^ "\t" ^ T.show_prop d ^ ";\n") "" list
 
 (** Returns a list of all the transition that are present in the automata. *)
