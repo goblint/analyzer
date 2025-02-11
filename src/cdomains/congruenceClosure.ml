@@ -293,12 +293,18 @@ module Disequalities = struct
 
       Returns: list of normalized provided dis-equalities *)
   let init_list_neq uf neg =
-    List.fold_left (fun (uf, list) (v1,v2,r) ->
-        let v1,r1,uf = TUF.find uf v1 in
-        let v2,r2,uf = TUF.find uf v2 in
-        if T.equal v1 v2 then if Z.(equal r1 (r2+r)) then raise Unsat
-          else uf,list
-        else uf,(v1,v2,Z.(r2-r1+r))::list) (uf,[]) neg
+    let add_diseq (uf, list) (v1,v2,r) =
+      let v1, r1, uf = TUF.find uf v1 in
+      let v2, r2, uf = TUF.find uf v2 in
+      if T.equal v1 v2 then
+        if Z.(equal r1 (r2+r)) then
+          raise Unsat
+        else
+          uf, list
+      else
+        uf, (v1, v2, Z.(r2-r1+r))::list
+    in
+    List.fold_left add_diseq (uf,[]) neg
 
   (** Parameter: list of disequalities (t1, t2, z), where t1 and t2 are roots.
 
