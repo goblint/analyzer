@@ -197,11 +197,24 @@ struct
     | _ ->
       match to_int i1, to_int i2 with
       | Some x, Some y -> (try of_int ik (Ints_t.logand x y) |> fst with Division_by_zero -> top_of ik)
-      | _, Some y when Ints_t.equal y Ints_t.zero -> of_int ik Ints_t.zero |> fst
-      | _, Some y when Ints_t.equal y Ints_t.one -> of_interval ik (Ints_t.zero, Ints_t.one) |> fst
-      | _ -> top_of ik
+      | _ -> 
+        match i1, i2 with
+        | Some (x1, x2), Some (y1, y2) when ik = IUInt -> of_interval ik (Ints_t.zero, Ints_t.min x2 y2) |> fst
+        | Some (x1, x2), Some (y1, y2) when (Ints_t.compare x1 Ints_t.zero > 0 && Ints_t.compare y1 Ints_t.zero > 0 && Ints_t.compare x2 Ints_t.zero > 0 && Ints_t.compare y2 Ints_t.zero > 0) -> of_interval ik (Ints_t.zero, Ints_t.min x2 y2) |> fst
+        | _ -> top_of ik
 
-  let logor  = bit (fun _ik -> Ints_t.logor)
+  let logor ik i1 i2 = 
+    match is_bot i1, is_bot i2 with
+    | true, true -> bot_of ik
+    | true, _
+    | _   , true -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show i1) (show i2)))
+    | _ ->
+      match to_int i1, to_int i2 with
+      | Some x, Some y -> (try of_int ik (Ints_t.logor x y) |> fst with Division_by_zero -> top_of ik)
+      | _              -> 
+        (* match i1, i2 with
+        | Some (x1, x2), Some (y1, y2) when ik = IUInt -> of_interval ik (Ints_t.max x1 y1, ) |> fst
+        | _ ->*) top_of ik 
 
   let bit1 f ik i1 =
     if is_bot i1 then
