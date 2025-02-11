@@ -130,7 +130,7 @@ module Enums : S with type int_t = Z.t = struct
       in
       Exc (BISet.diff x y, r)
 
-  let meet _ x y =
+  let meet bound _ x y =
     match x, y with
     | Inc x, Inc y -> Inc (BISet.inter x y)
     | Exc (x,r1), Exc (y,r2) ->
@@ -138,13 +138,18 @@ module Enums : S with type int_t = Z.t = struct
       let r_min, r_max = Exclusion.min_of_range r, Exclusion.max_of_range r in
       let filter_by_range = BISet.filter (value_in_range (r_min, r_max)) in
       (* We remove those elements from the exclusion set that do not fit in the range anyway *)
-      let excl = BISet.union (filter_by_range x) (filter_by_range y) in
+      let xset = filter_by_range x in
+      let excl = match bound with
+        | Some b when BISet.cardinal xset >= b -> xset
+        | _ -> BISet.union xset (filter_by_range y)
+      in
       Exc (excl, r)
     | Inc x, Exc (y,r)
     | Exc (y,r), Inc x -> Inc (BISet.diff x y)
 
+  let narrow = meet (Some 10)
+  let meet = meet None
   let widen = join
-  let narrow = meet
   let leq a b =
     match a, b with
     | Inc xs, Exc (ys, r) ->
