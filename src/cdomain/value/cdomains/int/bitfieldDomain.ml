@@ -211,7 +211,7 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): Bitfield_SOverflow with type in
 
     (* converts the (zs,os) mask representation to a human readable string of the form 0b(0|1|?|⊥)...(0|1|?|⊥)+. *)
     (* Example: 0b0...01? should mean that the last bit is unknown, while all other bits are exactly known *)
-    (* The ... (dots) are used to indicate an infinte repetition of the last bit *)
+    (* The ... (dots) are used to indicate an infinte repetition of the previous bit *)
     let rec create_pretty_bf_string o_mask z_mask known_bitmask invalid_bitmask acc =
       let current_bit_known = (known_bitmask &: Ints_t.one) = Ints_t.one in
       let current_bit_invalid = (invalid_bitmask &: Ints_t.one) = Ints_t.one in
