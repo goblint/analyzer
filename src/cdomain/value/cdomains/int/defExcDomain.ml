@@ -541,14 +541,14 @@ struct
     ] (* S TODO: decide frequencies *)
 
   let refine_with_congruence ik a b = a
-  
+
   let refine_with_bitfield ik x (z,o) = 
     match BitfieldDomain.Bitfield.to_int (z,o) with 
     | Some y ->
       meet ik x (`Definite y)
     | _ ->
       x
-  
+
   let refine_with_interval ik a b = match a, b with
     | x, Some(i) -> meet ik x (of_interval ik i)
     | _ -> a

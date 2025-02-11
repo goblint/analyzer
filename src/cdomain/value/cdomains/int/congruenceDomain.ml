@@ -511,7 +511,7 @@ struct
     meet ik a (of_bitfield ik (z,o))
 
   let refine_with_excl_list ik a b = a
-  
+
   let refine_with_incl_list ik a b = a
 
   let project ik p t = t
