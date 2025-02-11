@@ -144,37 +144,47 @@ module Disequalities = struct
   (** adds a mapping v -> r -> size -> { v' } to the map,
       or if there are already elements
       in v -> r -> {..} then v' is added to the previous set *)
-  let map_set_add (v,r) v' (map:t) = match TMap.find_opt v map with
-    | None -> TMap.add v (ZMap.add r (TSet.singleton v') ZMap.empty) map
-    | Some imap -> TMap.add v (
-        match ZMap.find_opt r imap with
-        | None -> ZMap.add r (TSet.singleton v') imap
-        | Some set -> ZMap.add r (TSet.add v' set) imap) map
+  let map_set_add (v,r) v' (map:t) =
+    match TMap.find_opt v map with
+    | None ->
+      let inner_map = ZMap.add r (TSet.singleton v') ZMap.empty in
+      TMap.add v inner_map map
+    | Some imap ->
+      let set = match ZMap.find_opt r imap with
+        | None -> TSet.singleton v'
+        | Some set -> TSet.add v' set
+      in
+      let inner_map = ZMap.add r set imap in
+      TMap.add v inner_map map
 
-  let map_set_mem (v,r) v' (map:t) = match TMap.find_opt v map with
-    | None -> false
-    | Some imap -> (match ZMap.find_opt r imap with
-        | None -> false
-        | Some set -> TSet.mem v' set
-      )
+  let map_set_mem (v,r) v' (map:t) =
+    let mem_inner_map inner_map =
+      Option.map_default (TSet.mem v') false (ZMap.find_opt r inner_map)
+    in
+    Option.map_default mem_inner_map false (TMap.find_opt v map)
 
   (** Map of partition, transform union find to a map
       of type V -> Z -> V set
       with reference variable |-> offset |-> all terms that are in the union find with this ref var and offset. *)
   let comp_map uf =
-    List.fold_left (fun (comp,uf) (v,_) ->
-        let t,z,uf = TUF.find uf v in
-        map_set_add (t,z) v comp,uf)
-      (TMap.empty, uf) (TMap.bindings uf)
+    let f (comp,uf) (v,_) =
+      let t, z, uf = TUF.find uf v in
+      map_set_add (t,z) v comp,uf
+    in
+    List.fold_left f (TMap.empty, uf) (TMap.bindings uf)
 
   (** Find all elements that are in the same equivalence class as t. *)
   let comp_t uf t =
     let (t',z',uf) = TUF.find uf t in
-    fst(List.fold_left (fun (comp,uf) (v,((p,z),_)) ->
-        let v', z'',uf = TUF.find uf v in
-        if T.equal v' t' then (v, Z.(z'-z''))::comp,uf else comp,uf
-      )
-        ([],uf) (TMap.bindings uf))
+    let f (comp,uf) (v,((p,z),_)) =
+      let v', z'',uf = TUF.find uf v in
+      if T.equal v' t' then
+        (v, Z.(z'-z''))::comp,uf
+      else
+        comp, uf
+    in
+    let equivs, _  = List.fold_left f ([],uf) (TMap.bindings uf) in
+    equivs
 
   (** Returns: "arg" map:
 
