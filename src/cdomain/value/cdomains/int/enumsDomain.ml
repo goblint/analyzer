@@ -370,9 +370,10 @@ module Enums : S with type int_t = Z.t = struct
     | _ -> a
 
   let refine_with_bitfield ik x (z,o) =
-    if BitfieldDomain.Bitfield.is_const (z,o) then 
-      meet ik x (Inc (BISet.singleton o))
-    else 
+    match BitfieldDomain.Bitfield.to_int (z,o) with 
+    | Some y ->     
+      meet ik x (Inc (BISet.singleton y))
+    | _ ->
       x
 
   let refine_with_interval ik a b = a (* TODO: refine inclusion (exclusion?) set *)

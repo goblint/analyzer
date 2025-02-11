@@ -258,18 +258,8 @@ struct
   let ik = Cil.IInt
   let ik_lst = [Cil.IChar; Cil.IUChar; Cil.IShort; Cil.IUShort; ik; Cil.IUInt;]
 
-  let string_of_ik ik = match ik with
-    | Cil.IInt -> "int"
-    | Cil.IUInt -> "unsigned_int"
-    | Cil.IChar -> "char"
-    | Cil.IUChar -> "unsigned_char"
-    | Cil.IShort -> "short"
-    | Cil.IUShort -> "unsigned_short"
-    | _ -> "undefined C primitive type"
-
   let assert_equal x y =
     OUnit.assert_equal ~printer:I.show x y
-
 
   let test_of_int_to_int _ =
     let b1 = I.of_int ik (of_int 17) in
@@ -503,7 +493,7 @@ struct
     let bf_a, bf_b, expected = get_param a, get_param b, get_param expected in
     let result, ov_info = (shift_op_bf bf_a bf_b) in
     let output_string = Printf.sprintf "test (%s) shift %s %s %s failed: was: %s but should%s be: %s"
-        (string_of_ik ik)
+        (CilType.Ikind.show ik)
         (string_of_param a) symb (string_of_param b)
         (I.show result) (if rev_cond then " not" else "") (I.show expected)
     in
@@ -512,7 +502,7 @@ struct
     assert_bool output_string assertion;
     if Option.is_some expected_ov_info then
       let ov_printer (ov_info : IntDomain.overflow_info) = Printf.sprintf "{underflow=%b; overflow=%b}" ov_info.underflow ov_info.overflow in
-      let err_msg = Printf.sprintf "In (%s) shift %s %s %s" (string_of_ik ik) (string_of_param a) symb (string_of_param b) in
+      let err_msg = Printf.sprintf "In (%s) shift %s %s %s" (CilType.Ikind.show ik) (string_of_param a) symb (string_of_param b) in
       OUnit.assert_equal ~msg:err_msg ~printer:ov_printer (Option.get expected_ov_info) ov_info
 
 
@@ -548,11 +538,11 @@ struct
       )
 
   let test_shift_left = List.fold_left (fun acc ik -> test_shift ik
-                                           (Printf.sprintf "test_shift_left_ik_%s" (string_of_ik ik)) Int.shift_left I.shift_left :: acc
+                                           (Printf.sprintf "test_shift_left_ik_%s" (CilType.Ikind.show ik)) Int.shift_left I.shift_left :: acc
                                        ) [] ik_lst |> QCheck_ounit.to_ounit2_test_list
 
   let test_shift_right = List.fold_left (fun acc ik -> test_shift ik
-                                            (Printf.sprintf "test_shift_right_ik_%s" (string_of_ik ik)) Int.shift_right I.shift_right :: acc
+                                            (Printf.sprintf "test_shift_right_ik_%s" (CilType.Ikind.show ik)) Int.shift_right I.shift_right :: acc
                                         ) [] ik_lst |> QCheck_ounit.to_ounit2_test_list
 
   let bot = `B (I.bot ())

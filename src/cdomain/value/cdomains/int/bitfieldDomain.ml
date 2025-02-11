@@ -110,12 +110,16 @@ module BitfieldArith (Ints_t : IntOps.IntOps) = struct
       (* maximal number of 1 *)
       Ints_t.to_bigint o 
 
-  (** [concretize bf] returns a list of all possible values the bitfield can produce to shift.
-      @bf the bitfield which the list is needed for.
-      @info  This function is exclusively used inside the shift functions. The invariant for the second
-      parameter is that it's size is bounded by O(log2 n) ensuring that no exponential blowup happens.
+  (** [concretize bf] computes the set of all possible integer values represented by the bitfield [bf].
+
+      @param (z,o) The bitfield to concretize.
+
+      @info By default, the function generates all possible values that the bitfield can represent, 
+            which results in an exponential complexity of O(2^n) where [n] is the number of bits in [ik].
+            To mitigate this, it is recommended to constrain the number of top bits,
+            ensuring that concretization remains computationally feasible.
   *)
-  let rec concretize (z,o) = (* O(2^n) *)
+  let rec concretize (z,o) =
     if is_const (z,o) then [o]
     else
       let bit = o &: Ints_t.one in
@@ -135,39 +139,31 @@ module BitfieldArith (Ints_t : IntOps.IntOps) = struct
     (z |: !:mask, o &: mask)
 
   let shift_right ik (z,o) c =
-    let msb_pos = (Size.bit ik - c) in
-    let msb_pos = if msb_pos < 0 then 0 else msb_pos in
+    let msb_pos = Int.max 0 (Size.bit ik - c) in
     let sign_mask = !:(bitmask_up_to msb_pos) in
     if GoblintCil.isSigned ik && o <: Ints_t.zero then
       (z >>: c, (o >>: c) |: sign_mask)
     else
       ((z >>: c) |: sign_mask, o >>: c)
 
-  let shift_right ik bf (z2, o2) = 
-    if is_const (z2, o2) 
-    then 
-      shift_right ik bf (Ints_t.to_int o2)
-    else
-      let defined_shifts = constrain_to_bit_width_of ik (z2, o2) in
-      let shift_amounts = concretize defined_shifts in (* O(2^(log n)) *)
-      List.fold_left (fun acc c ->
-          join acc @@ shift_right ik bf c
-        ) (zero_mask, zero_mask) shift_amounts
-
   let shift_left _ (z,o) c =
     let zero_mask = bitmask_up_to c in
     ((z <<: c) |: zero_mask, o <<: c)
 
-  let shift_left ik bf (z2, o2) = 
-    if is_const (z2, o2) 
-    then 
-      shift_left ik bf (Ints_t.to_int o2)
-    else
+  let join_shifts shift ik bf (z2,o2) =
+    match is_const (z2,o2) with
+    | true -> shift ik bf (Ints_t.to_int o2)
+    | false ->
+      (* Only values leq then inf_c {c | bf >> c = 0} are relevant. *)
       let defined_shifts = constrain_to_bit_width_of ik (z2, o2) in
-      let shift_amounts = concretize defined_shifts in (* O(2^(log n)) *)
+      let shift_amounts = concretize defined_shifts in (* O(n) *)
       List.fold_left (fun acc c ->
-          join acc @@ shift_left ik bf c
+          join acc @@ shift ik bf c
         ) (zero_mask, zero_mask) shift_amounts
+
+  let shift_left = join_shifts shift_left
+
+  let shift_right = join_shifts shift_right
 
   let nth_bit p n = if nth_bit p n then Ints_t.one else Ints_t.zero
 
@@ -209,8 +205,6 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): Bitfield_SOverflow with type in
 
   let bot_of ik = bot ()
 
-  let is_const x = BArith.is_const x
-
   let to_pretty_bits (z,o) = 
     let known_bitmask = BArith.bits_known (z,o) in
     let invalid_bitmask = BArith.bits_invalid (z,o) in
@@ -238,7 +232,10 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): Bitfield_SOverflow with type in
   let show t = 
     if t = bot () then "⊥" else
       let (z,o) = t in
-      Format.sprintf "{%s, (zs:%s, os:%s)}" (to_pretty_bits t) (Ints_t.to_string z) (Ints_t.to_string o) 
+      if GobConfig.get_bool "dbg.full-output" then
+        Printf.sprintf "{%s, (zs:%s, os:%s)}" (to_pretty_bits t) (Ints_t.to_string z) (Ints_t.to_string o)
+      else
+        to_pretty_bits t
 
   include Std (struct type nonrec t = t let name = name let top_of = top_of let bot_of = bot_of let show = show let equal = equal end)
 
@@ -281,10 +278,10 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): Bitfield_SOverflow with type in
         let overflow = Z.compare max_ik (BArith.max old_ik (z,o)) < 0 in 
         (underflow, overflow)
       | _ -> 
-        let isPos = z < Ints_t.zero in 
-        let isNeg = o < Ints_t.zero in
-        let underflow = if GoblintCil.isSigned ik then (((Ints_t.of_bigint min_ik) &: z) <> Ints_t.zero) && isNeg else isNeg in
-        let overflow = (((!:(Ints_t.of_bigint max_ik)) &: o) <> Ints_t.zero) && isPos in
+        let isPos = z <: Ints_t.zero in 
+        let isNeg = o <: Ints_t.zero in
+        let underflow = if GoblintCil.isSigned ik then (((Ints_t.of_bigint min_ik) &: z) <>: Ints_t.zero) && isNeg else isNeg in
+        let overflow = (((!:(Ints_t.of_bigint max_ik)) &: o) <>: Ints_t.zero) && isPos in
         (underflow, overflow)
     in
     let overflow_info = if suppress_ovwarn then {underflow=false; overflow=false} else {underflow=underflow; overflow=overflow} in      
@@ -294,7 +291,9 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): Bitfield_SOverflow with type in
 
   let meet ik x y = norm ik @@ (BArith.meet x y)
 
-  let leq (x:t) (y:t) = (BArith.join x y) = y
+  let equal_bf (z1,o1) (z2,o2) = Ints_t.equal z1 z2 && Ints_t.equal o1 o2
+
+  let leq (x:t) (y:t) = equal_bf (BArith.join x y) y
 
   let widen ik x y = norm ik @@ BArith.widen x y
 
@@ -366,7 +365,7 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): Bitfield_SOverflow with type in
 
   let to_bool d =
     if not (leq BArith.zero d) then Some true
-    else if d = BArith.zero then Some false
+    else if equal_bf d BArith.zero then Some false
     else None
 
   let of_bitfield ik x = norm ik x
@@ -715,15 +714,16 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): Bitfield_SOverflow with type in
     let open QCheck.Iter in
     let int_arb = QCheck.map ~rev:Ints_t.to_int64 Ints_t.of_int64 GobQCheck.Arbitrary.int64 in
     let pair_arb = QCheck.pair int_arb int_arb in
-    let shrink (z, o) =
-      (GobQCheck.shrink pair_arb (z, o) 
-       >|= (fun (new_z, new_o) -> 
-           (* Randomly flip bits to be opposite *)
+    let shrink bf =
+      (GobQCheck.shrink pair_arb bf 
+       >|= (fun (zs, os) -> 
+           (* Shrinking works by setting some unsure bits to 0. This reduces the number of possible values, and makes the decimal representation of the masks smaller *)
            let random_mask = Ints_t.of_int64 (Random.int64 (Int64.of_int (Size.bits ik |> snd))) in
-           let unsure_bitmask= new_z &: new_o in
-           let canceled_bits= unsure_bitmask &: random_mask in
-           let flipped_z = new_z |: canceled_bits in
-           let flipped_o = new_o &: !:canceled_bits in
+           let unsure_bitmask= zs &: os in
+           let pruned_bits= unsure_bitmask &: random_mask in
+           (* set the pruned bits to 1 in the zs-mask and to 0 in the os-mask *)
+           let flipped_z = zs |: pruned_bits in
+           let flipped_o = os &: !:pruned_bits in
            norm ik (flipped_z, flipped_o)
          ))
     in

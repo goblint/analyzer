@@ -140,9 +140,9 @@ struct
   let of_congruence ik (c,m) = normalize ik @@ Some(c,m)
 
   let of_bitfield ik (z,o) = 
-    if BitfieldDomain.Bitfield.is_const (z,o) then 
-      normalize ik (Some (o, Z.zero))
-    else 
+    match BitfieldDomain.Bitfield.to_int (z,o) with
+    | Some x -> normalize ik (Some (x, Z.zero))
+    | _ ->
       (* get posiiton of first top bit *)
       let tl_zeros = Z.trailing_zeros (Z.logand z o) in 
       let ik_bits = Size.bit ik in 
@@ -360,7 +360,7 @@ struct
       see: http://www.es.mdh.se/pdf_publications/948.pdf *)
   let bit2 f ik x y = match x, y with
     | None, None -> None
-    | None, _ | _, None -> raise (ArithmeticOnIntegerBot ((show x) ^ " op " ^ (show y)))
+    | None, _ | _, None -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y)))
     | Some (c, m), Some (c', m') ->
       if m =: Z.zero && m' =: Z.zero then Some (f c c', Z.zero)
       else top ()
