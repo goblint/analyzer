@@ -12,10 +12,8 @@ open DuplicateVars.Var
 module Spec : Analyses.MCPSpec =
 struct
   let name () = "startState"
-  module VD = BaseDomain.VD
   module AD = ValueDomain.AD
-  module Value = AD
-  module D = MapDomain.MapBot (Basetype.Variables) (Value)
+  module D = MapDomain.MapBot (Basetype.Variables) (AD)
   module C = D
 
   include Analyses.IdentitySpec
@@ -29,12 +27,12 @@ struct
 
   (** If e is a known variable (=one of the duplicated variables), then it returns the value for this variable.
       If e is an unknown variable or an expression that is not simply a variable, then it returns top. *)
-  let eval (ask: Queries.ask) (d: D.t) (exp: exp): Value.t = match exp with
+  let eval (ask: Queries.ask) (d: D.t) (exp: exp): AD.t = match exp with
     | Lval (Var x, NoOffset) -> begin match D.find_opt x d with
         | Some v -> if M.tracing then M.trace "c2po-tainted" "QUERY %a : res = %a\n" d_exp exp AD.pretty v;v
-        | None -> Value.top()
+        | None -> AD.top()
       end
-    | _ -> Value.top ()
+    | _ -> AD.top ()
 
   let startcontext () = D.empty ()
   let startstate v = D.bot ()
@@ -50,7 +48,7 @@ struct
     (* assign function parameters *)
     List.fold_left (fun st var -> let value = get_value (ask_of_ctx ctx) (Lval (Var var, NoOffset)) in
                      let duplicated_var = to_varinfo (DuplicVar var) in
-                     if M.tracing then M.trace "startState" "added value: var: %a; value: %a" d_lval (Var duplicated_var, NoOffset) Value.pretty value;
+                     if M.tracing then M.trace "startState" "added value: var: %a; value: %a" d_lval (Var duplicated_var, NoOffset) AD.pretty value;
                      D.add duplicated_var value st) (D.empty()) f.sformals
 end
 
