@@ -350,18 +350,15 @@ module Base =
 
           let wpd = (* d after widen/narrow (if wp) *)
             if not wp then eqd
-            else (
-              if term then
-                match phase with
-                | Widen -> S.Dom.widen old (S.Dom.join old eqd)
-                | Narrow when GobConfig.get_bool "exp.no-narrow" -> old (* no narrow *)
-                | Narrow ->
-                  (* assert S.Dom.(leq eqd old || not (leq old eqd)); (* https://github.com/goblint/analyzer/pull/490#discussion_r875554284 *) *)
-                  S.Dom.narrow old eqd
-              else (
-                box old eqd
-              )
-            )
+            else if term then
+              match phase with
+              | Widen -> S.Dom.widen old (S.Dom.join old eqd)
+              | Narrow when GobConfig.get_bool "exp.no-narrow" -> old (* no narrow *)
+              | Narrow ->
+                (* assert S.Dom.(leq eqd old || not (leq old eqd)); (* https://github.com/goblint/analyzer/pull/490#discussion_r875554284 *) *)
+                S.Dom.narrow old eqd
+            else
+              box old eqd
           in
           if tracing then trace "sol" "Var: %a (wp: %b)\nOld value: %a\nEqd: %a\nNew value: %a" S.Var.pretty_trace x wp S.Dom.pretty old S.Dom.pretty eqd S.Dom.pretty wpd;
           if cache then (
@@ -370,7 +367,7 @@ module Base =
           );
           if not (Timing.wrap "S.Dom.equal" (fun () -> S.Dom.equal old wpd) ()) then ( (* value changed *)
             if tracing then trace "sol" "Changed";
-            (* if tracing && not (S.Dom.is_bot old) && wp then trace "solchange" "%a (wpx: %s): %a -> %a" S.Var.pretty_trace x (format_wpoint x) S.Dom.pretty old S.Dom.pretty wpd; *)
+            (* if tracing && not (S.Dom.is_bot old) && wp then trace "solchange" "%a (wpx: %a): %a -> %a" S.Var.pretty_trace x pretty_wpoint x S.Dom.pretty old S.Dom.pretty wpd; *)
             if tracing && not (S.Dom.is_bot old) && wp then trace "solchange" "%a (wpx: %a): %a" S.Var.pretty_trace x pretty_wpoint x S.Dom.pretty_diff (wpd, old);
             update_var_event x old wpd;
             HM.replace rho x wpd;
