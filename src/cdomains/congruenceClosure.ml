@@ -401,36 +401,55 @@ module SSet = struct
   let find_opt = TSet.find_opt
   let union = TSet.union
 
-  let show_set set = TSet.fold (fun v s ->
-      s ^ "\t" ^ T.show v ^ ";\n") set "" ^ "\n"
+  let show_set set =
+    let show_element v s =
+      s ^ "\t" ^ T.show v ^ ";\n"
+    in
+    TSet.fold show_element set "" ^ "\n"
 
   (** Adds all subterms of t to the SSet and the LookupMap*)
-  let rec subterms_of_term (set,map) t = match t with
-    | Addr _ | Aux _ -> (add t set, map)
+  let rec subterms_of_term (set,map) t =
+    match t with
+    | Addr _
+    | Aux _ -> (add t set, map)
     | Deref (t',z,_) ->
       let set = add t set in
       let map = LMap.map_add (t',z) t map in
       subterms_of_term (set, map) t'
 
-  (** Adds all subterms of the proposition to the SSet and the LookupMap*)
-  let subterms_of_prop (set,map) = function
-    |  (t1,t2,_) -> subterms_of_term (subterms_of_term (set,map) t1) t2
+  let subterms_of_conj list =
+    (** Adds all subterms of the proposition to the SSet and the LookupMap*)
+    let subterms_of_prop (set, map) (t1, t2, _) =
+      let subterms' = subterms_of_term (set, map) t1 in
+      subterms_of_term subterms' t2
+    in
+    List.fold_left subterms_of_prop (TSet.empty, LMap.empty) list
 
-  let subterms_of_conj list = List.fold_left subterms_of_prop (TSet.empty, LMap.empty) list
-
-  let fold_atoms f (acc:'a) set:'a =
+  let fold_atoms f (acc: 'a) set:'a =
     let exception AtomsDone in
     let res = ref acc in
+    let do_atom (v: T.t) acc =
+      match v with
+      | Addr _
+      | Aux _ ->
+        f acc v
+      | _ ->
+        res := acc;
+        raise AtomsDone
+    in
     try
-      TSet.fold (fun (v:T.t) acc -> match v with
-          | Addr _| Aux _ -> f acc v
-          | _ -> res := acc; raise AtomsDone) set acc
+      TSet.fold do_atom set acc
     with AtomsDone -> !res
 
   let get_atoms set =
     (* `elements set` returns a sorted list of the elements. The atoms are always smaller that other terms,
        according to our comparison function. Therefore take_while is enough. *)
-    BatList.take_while (function Addr _ | Aux _ -> true | _ -> false) (elements set)
+    let is_atom = function
+      | Addr _
+      | Aux _ -> true
+      | _ -> false
+    in
+    BatList.take_while is_atom (elements set)
 
   (** We try to find the dereferenced term between the already existing terms, in order to remember the information about the exp. *)
   let deref_term t z set =
@@ -445,14 +464,17 @@ module SSet = struct
       and the resulting expression will never be used, so it doesn't need to be a
       C expression that makes sense. *)
   let deref_term_even_if_its_not_possible min_term z set =
-    match deref_term min_term z set with
-    | result -> result
-    | exception (T.UnsupportedCilExpression _) ->
+    try
+      deref_term min_term z set
+    with (T.UnsupportedCilExpression _) ->
       let random_type = (TPtr (TPtr (TInt (ILong,[]),[]),[])) in (*the type is not so important for min_repr and get_normal_form*)
-      let cil_off = match T.to_cil_constant z (Some random_type) with
-        | exception (T.UnsupportedCilExpression _) -> Const (CInt (Z.zero, T.default_int_type, Some (Z.to_string z)))
-        | exp -> exp in
-      Deref (min_term, z, Lval (Mem (BinOp (PlusPI, T.to_cil(min_term), cil_off, random_type)), NoOffset))
+      let cil_offset =
+        (* TODO: Is there a "valid" reason for to throw an exception? If not, just propagate exception here. *)
+        try T.to_cil_constant z (Some random_type)
+        with (T.UnsupportedCilExpression _) ->
+          Const (CInt (Z.zero, T.default_int_type, Some (Z.to_string z)))
+      in
+      Deref (min_term, z, Lval (Mem (BinOp (PlusPI, T.to_cil(min_term), cil_offset, random_type)), NoOffset))
 
 end
 
