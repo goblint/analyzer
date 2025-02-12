@@ -56,7 +56,7 @@ module Base =
       infl: VS.t HM.t;
       sides: VS.t HM.t;
       rho: S.Dom.t HM.t;
-      wpoint: unit HM.t;
+      wpoint_gas: int HM.t; (** Tracks the widening gas of both side-effected and non-side-effected variables. Although they may have different gas budgets, they can be in the same map since no side-effected variable may ever have a rhs.*)
       stable: unit HM.t;
       side_dep: VS.t HM.t; (** Dependencies of side-effected variables. Knowing these allows restarting them and re-triggering all side effects. *)
       side_infl: VS.t HM.t; (** Influences to side-effected variables. Not normally in [infl], but used for restarting them. *)
@@ -72,7 +72,7 @@ module Base =
       infl = HM.create 10;
       sides = HM.create 10;
       rho = HM.create 10;
-      wpoint = HM.create 10;
+      wpoint_gas = HM.create 10;
       stable = HM.create 10;
       side_dep = HM.create 10;
       side_infl = HM.create 10;
@@ -85,7 +85,7 @@ module Base =
       Logs.debug "|rho|=%d" (HM.length data.rho);
       Logs.debug "|stable|=%d" (HM.length data.stable);
       Logs.debug "|infl|=%d" (HM.length data.infl);
-      Logs.debug "|wpoint|=%d" (HM.length data.wpoint);
+      Logs.debug "|wpoint_gas|=%d" (HM.length data.wpoint_gas);
       Logs.debug "|sides|=%d" (HM.length data.sides);
       Logs.debug "|side_dep|=%d" (HM.length data.side_dep);
       Logs.debug "|side_infl|=%d" (HM.length data.side_infl);
@@ -116,7 +116,7 @@ module Base =
       {
         rho = HM.copy data.rho;
         stable = HM.copy data.stable;
-        wpoint = HM.copy data.wpoint;
+        wpoint_gas = HM.copy data.wpoint_gas;
         infl = HM.copy data.infl;
         sides = HM.copy data.sides;
         side_infl = HM.copy data.side_infl;
@@ -152,10 +152,10 @@ module Base =
       HM.iter (fun k v ->
           HM.replace stable (S.Var.relift k) v
         ) data.stable;
-      let wpoint = HM.create (HM.length data.wpoint) in
+      let wpoint_gas = HM.create (HM.length data.wpoint_gas) in
       HM.iter (fun k v ->
-          HM.replace wpoint (S.Var.relift k) v
-        ) data.wpoint;
+          HM.replace wpoint_gas (S.Var.relift k) v
+        ) data.wpoint_gas;
       let infl = HM.create (HM.length data.infl) in
       HM.iter (fun k v ->
           HM.replace infl (S.Var.relift k) (VS.map S.Var.relift v)
@@ -189,7 +189,7 @@ module Base =
       HM.iter (fun k v ->
           HM.replace dep (S.Var.relift k) (VS.map S.Var.relift v)
         ) data.dep;
-      {st; infl; sides; rho; wpoint; stable; side_dep; side_infl; var_messages; rho_write; dep}
+      {st; infl; sides; rho; wpoint_gas; stable; side_dep; side_infl; var_messages; rho_write; dep}
 
     type phase = Widen | Narrow [@@deriving show] (* used in inner solve *)
 
@@ -208,7 +208,7 @@ module Base =
             HM.clear data.infl
           );
           if not reuse_wpoint then (
-            HM.clear data.wpoint;
+            HM.clear data.wpoint_gas;
             HM.clear data.sides
           );
           data
@@ -217,7 +217,8 @@ module Base =
       in
 
       let term  = GobConfig.get_bool "solvers.td3.term" in
-      let side_widen = GobConfig.get_string "solvers.td3.side_widen" in
+      let default_side_widen_gas = GobConfig.get_int "solvers.td3.side_widen_gas" in
+      let default_widen_gas = GobConfig.get_int "solvers.td3.widen_gas" in
       let space = GobConfig.get_bool "solvers.td3.space" in
       let cache = GobConfig.get_bool "solvers.td3.space_cache" in
       let called = HM.create 10 in
@@ -225,7 +226,7 @@ module Base =
       let infl = data.infl in
       let sides = data.sides in
       let rho = data.rho in
-      let wpoint = data.wpoint in
+      let wpoint_gas = data.wpoint_gas in
       let stable = data.stable in
 
       let narrow_reuse = GobConfig.get_bool "solvers.td3.narrow-reuse" in
@@ -252,6 +253,11 @@ module Base =
       let rho_write = data.rho_write in
       let dep = data.dep in
 
+      let (module WPS) = SideWPointSelect.choose_impl () in
+      let module WPS = struct
+        include WPS (S) (HM) (VS)
+      end in
+
       let () = print_solver_stats := fun () ->
           print_data data;
           Logs.info "|called|=%d" (HM.length called);
@@ -275,6 +281,25 @@ module Base =
       let destabilize_ref: (S.v -> unit) ref = ref (fun _ -> failwith "no destabilize yet") in
       let destabilize x = !destabilize_ref x in (* must be eta-expanded to use changed destabilize_ref *)
 
+      let pretty_wpoint () x =
+        match HM.find_option wpoint_gas x with
+        | None -> Pretty.text "false"
+        | Some x -> Pretty.dprintf "true (gas: %d)" x
+      in
+      let mark_wpoint x default_gas =
+        if not (HM.mem wpoint_gas x) then (HM.replace wpoint_gas x default_gas) in
+      let reduce_gas x =
+        match HM.find_option wpoint_gas x with
+        | Some old_gas ->
+          let decremented_gas = old_gas - 1 in
+          if decremented_gas >= 0 then (
+            if tracing then trace "widengas" "reducing gas of %a: %d -> %d" S.Var.pretty_trace x old_gas decremented_gas;
+            HM.replace wpoint_gas x decremented_gas
+          )
+        | None -> ((* Not a widening point *)) in
+      let should_widen x = HM.find_option wpoint_gas x = Some 0 in
+      let wps_data = WPS.create_data (fun x -> HM.mem stable x) add_infl in
+
       (* Same as destabilize, but returns true if it destabilized a called var, or a var in vs which was stable. *)
       let rec destabilize_vs x = (* TODO remove? Only used for side_widen cycle. *)
         if tracing then trace "sol2" "destabilize_vs %a" S.Var.pretty_trace x;
@@ -291,19 +316,19 @@ module Base =
               true
           ) w false (* nosemgrep: fold-exists *) (* does side effects *)
       and solve ?reuse_eq x phase =
-        if tracing then trace "sol2" "solve %a, phase: %s, called: %b, stable: %b, wpoint: %b" S.Var.pretty_trace x (show_phase phase) (HM.mem called x) (HM.mem stable x) (HM.mem wpoint x);
+        if tracing then trace "sol2" "solve %a, phase: %s, called: %b, stable: %b, wpoint: %a" S.Var.pretty_trace x (show_phase phase) (HM.mem called x) (HM.mem stable x) pretty_wpoint x;
         init x;
         assert (Hooks.system x <> None);
         if not (HM.mem called x || HM.mem stable x) then (
           if tracing then trace "sol2" "stable add %a" S.Var.pretty_trace x;
           HM.replace stable x ();
           HM.replace called x ();
-          (* Here we cache HM.mem wpoint x before eq. If during eq eval makes x wpoint, then be still don't apply widening the first time, but just overwrite.
+          (* Here we cache should_widen x before eq. If during eq eval makes x wpoint (with config widen_gas = 0), then be still don't apply widening the first time, but just overwrite.
              It means that the first iteration at wpoint is still precise.
              This doesn't matter during normal solving (?), because old would be bot.
              This matters during incremental loading, when wpoints have been removed (or not marshaled) and are redetected.
              Then the previous local wpoint value is discarded automagically and not joined/widened, providing limited restarting of local wpoints. (See eval for more complete restarting.) *)
-          let wp = HM.mem wpoint x in (* if x becomes a wpoint during eq, checking this will delay widening until next solve *)
+          let wp = should_widen x in (* if x becomes a wpoint (with gas = 0) during eq, checking this will delay widening until next solve *)
           let l = HM.create 10 in (* local cache *)
           let eqd = (* d from equation/rhs *)
             match reuse_eq with
@@ -319,6 +344,10 @@ module Base =
           in
           HM.remove called x;
           let old = HM.find rho x in (* d from older solve *) (* find old value after eq since wpoint restarting in eq/eval might have changed it meanwhile *)
+
+          (* if value has changed, reduce gas (only applies to marked widening points) *)
+          if not (term && phase = Narrow) && not (S.Dom.equal eqd old) then reduce_gas x;
+
           let wpd = (* d after widen/narrow (if wp) *)
             if not wp then eqd
             else if term then
@@ -338,8 +367,8 @@ module Base =
           );
           if not (Timing.wrap "S.Dom.equal" (fun () -> S.Dom.equal old wpd) ()) then ( (* value changed *)
             if tracing then trace "sol" "Changed";
-            (* if tracing && not (S.Dom.is_bot old) && HM.mem wpoint x then trace "solchange" "%a (wpx: %b): %a -> %a" S.Var.pretty_trace x (HM.mem wpoint x) S.Dom.pretty old S.Dom.pretty wpd; *)
-            if tracing && not (S.Dom.is_bot old) && HM.mem wpoint x then trace "solchange" "%a (wpx: %b): %a" S.Var.pretty_trace x (HM.mem wpoint x) S.Dom.pretty_diff (wpd, old);
+            (* if tracing && not (S.Dom.is_bot old) && wp then trace "solchange" "%a (wpx: %a): %a -> %a" S.Var.pretty_trace x pretty_wpoint x S.Dom.pretty old S.Dom.pretty wpd; *)
+            if tracing && not (S.Dom.is_bot old) && wp then trace "solchange" "%a (wpx: %a): %a" S.Var.pretty_trace x pretty_wpoint x S.Dom.pretty_diff (wpd, old);
             update_var_event x old wpd;
             HM.replace rho x wpd;
             destabilize x;
@@ -350,7 +379,7 @@ module Base =
               if tracing then trace "sol2" "solve still unstable %a" S.Var.pretty_trace x;
               (solve[@tailcall]) x Widen
             ) else (
-              if term && phase = Widen && HM.mem wpoint x then ( (* TODO: or use wp? *)
+              if term && phase = Widen && HM.mem wpoint_gas x then ( (* TODO: or use wp? *)
                 if tracing then trace "sol2" "solve switching to narrow %a" S.Var.pretty_trace x;
                 if tracing then trace "sol2" "stable remove %a" S.Var.pretty_trace x;
                 HM.remove stable x;
@@ -358,8 +387,8 @@ module Base =
                 Hooks.stable_remove x;
                 (solve[@tailcall]) ~reuse_eq:eqd x Narrow
               ) else if remove_wpoint && not space && (not term || phase = Narrow) then ( (* this makes e.g. nested loops precise, ex. tests/regression/34-localization/01-nested.c - if we do not remove wpoint, the inner loop head will stay a wpoint and widen the outer loop variable. *)
-                if tracing then trace "sol2" "solve removing wpoint %a (%b)" S.Var.pretty_trace x (HM.mem wpoint x);
-                HM.remove wpoint x
+                if tracing then trace "sol2" "solve removing wpoint %a (%a)" S.Var.pretty_trace x pretty_wpoint x;
+                HM.remove wpoint_gas x;
               )
             )
           )
@@ -372,22 +401,23 @@ module Base =
       and simple_solve l x y =
         if tracing then trace "sol2" "simple_solve %a (rhs: %b)" S.Var.pretty_trace y (Hooks.system y <> None);
         if Hooks.system y = None then (init y; HM.replace stable y (); HM.find rho y) else
-        if not space || HM.mem wpoint y then (solve y Widen; HM.find rho y) else
+          (* TODO: should td_space store information for widening points with remaining gas? *)
+        if not space || HM.mem wpoint_gas y then (solve y Widen; HM.find rho y) else
         if HM.mem called y then (init y; HM.remove l y; HM.find rho y) else (* TODO: [HM.mem called y] is not in the TD3 paper, what is it for? optimization? *)
-        (* if HM.mem called y then (init y; let y' = HM.find_default l y (S.Dom.bot ()) in HM.replace rho y y'; HM.remove l y; y') else *)
+          (* if HM.mem called y then (init y; let y' = HM.find_default l y (S.Dom.bot ()) in HM.replace rho y y'; HM.remove l y; y') else *)
         if cache && HM.mem l y then HM.find l y
         else (
           HM.replace called y ();
           let eqd = eq y (eval l x) (side ~x) in
           HM.remove called y;
-          if HM.mem wpoint y then (HM.remove l y; solve y Widen; HM.find rho y)
+          if HM.mem wpoint_gas y then (HM.remove l y; solve y Widen; HM.find rho y)
           else (if cache then HM.replace l y eqd; eqd)
         )
       and eval l x y =
         if tracing then trace "sol2" "eval %a ## %a" S.Var.pretty_trace x S.Var.pretty_trace y;
         get_var_event y;
         if HM.mem called y then (
-          if restart_wpoint && not (HM.mem wpoint y) then (
+          if restart_wpoint && not (HM.mem wpoint_gas y) then (
             (* Even though solve cleverly restarts redetected wpoints during incremental load, the loop body would be calculated based on the old wpoint value.
                The loop body might then side effect the old value, see tests/incremental/06-local-wpoint-read.
                Here we avoid this, by setting it to bottom for the loop body eval. *)
@@ -399,20 +429,22 @@ module Base =
             )
           );
           if tracing then trace "sol2" "eval adding wpoint %a from %a" S.Var.pretty_trace y S.Var.pretty_trace x;
-          HM.replace wpoint y ();
+          mark_wpoint y default_widen_gas;
         );
         let tmp = simple_solve l x y in
         if HM.mem rho y then add_infl y x;
         if tracing then trace "sol2" "eval %a ## %a -> %a" S.Var.pretty_trace x S.Var.pretty_trace y S.Dom.pretty tmp;
         tmp
       and side ?x y d = (* side from x to y; only to variables y w/o rhs; x only used for trace *)
-        if tracing then trace "sol2" "side to %a (wpx: %b) from %a ## value: %a" S.Var.pretty_trace y (HM.mem wpoint y) (Pretty.docOpt (S.Var.pretty_trace ())) x S.Dom.pretty d;
+        if tracing then trace "sol2" "side to %a (wpx: %a) from %a ## value: %a" S.Var.pretty_trace y pretty_wpoint y (Pretty.docOpt (S.Var.pretty_trace ())) x S.Dom.pretty d;
         if Hooks.system y <> None then (
           Logs.warn "side-effect to unknown w/ rhs: %a, contrib: %a" S.Var.pretty_trace y S.Dom.pretty d;
         );
         assert (Hooks.system y = None);
         init y;
-        (match x with None -> () | Some x -> if side_widen = "unstable_self" then add_infl x y);
+
+        WPS.notify_side wps_data x y;
+
         let widen a b =
           if M.tracing then M.traceli "sol2" "side widen %a %a" S.Dom.pretty a S.Dom.pretty b;
           let r = S.Dom.widen a (S.Dom.join a b) in
@@ -420,69 +452,39 @@ module Base =
           r
         in
         let old_sides = HM.find_default sides y VS.empty in
-        let op a b = match side_widen with
-          | "sides-local" when not (S.Dom.leq b a) -> (
-              match x with
-              | None -> widen a b
-              | Some x when VS.mem x old_sides -> widen a b
-              | _ -> S.Dom.join a b
-            )
-          | _ when HM.mem wpoint y  -> widen a b
-          | _ -> S.Dom.join a b
+        let vetoed_widen = WPS.veto_widen wps_data called old_sides x y in
+        let op a b = (* If y still has widening gas, widening will not be performed. *)
+          if vetoed_widen || not (should_widen y) then S.Dom.join a b else widen a b
         in
         let old = HM.find rho y in
         let tmp = op old d in
         if tracing then trace "sol2" "stable add %a" S.Var.pretty_trace y;
         HM.replace stable y ();
         if not (S.Dom.leq tmp old) then (
-          if tracing && not (S.Dom.is_bot old) then trace "solside" "side to %a (wpx: %b) from %a: %a -> %a" S.Var.pretty_trace y (HM.mem wpoint y) (Pretty.docOpt (S.Var.pretty_trace ())) x S.Dom.pretty old S.Dom.pretty tmp;
-          if tracing && not (S.Dom.is_bot old) then trace "solchange" "side to %a (wpx: %b) from %a: %a" S.Var.pretty_trace y (HM.mem wpoint y) (Pretty.docOpt (S.Var.pretty_trace ())) x S.Dom.pretty_diff (tmp, old);
-          let sided = match x with
-            | Some x ->
-              let sided = VS.mem x old_sides in
-              if not sided then add_sides y x;
-              sided
-            | None -> false
-          in
+          if tracing && not (S.Dom.is_bot old) then trace "solside" "side to %a (wpx: %a) from %a: %a -> %a" S.Var.pretty_trace y pretty_wpoint y (Pretty.docOpt (S.Var.pretty_trace ())) x S.Dom.pretty old S.Dom.pretty tmp;
+          if tracing && not (S.Dom.is_bot old) then trace "solchange" "side to %a (wpx: %a) from %a: %a" S.Var.pretty_trace y pretty_wpoint y (Pretty.docOpt (S.Var.pretty_trace ())) x S.Dom.pretty_diff (tmp, old);
+
+          (match x with
+           | Some x ->
+             if not (VS.mem x old_sides) then add_sides y x;
+           | None -> ());
+
           (* HM.replace rho y ((if HM.mem wpoint y then S.Dom.widen old else identity) (S.Dom.join old d)); *)
           HM.replace rho y tmp;
-          if side_widen <> "cycle" then destabilize y;
+          let destabilized_vs: bool option = if WPS.record_destabilized_vs then (
+              destabilize y;
+              None
+            ) else
+              Some (destabilize_vs y) in
+
           (* make y a widening point if ... This will only matter for the next side _ y.  *)
-          let wpoint_if e =
-            if e then (
-              if tracing then trace "sol2" "side adding wpoint %a from %a" S.Var.pretty_trace y (Pretty.docOpt (S.Var.pretty_trace ())) x;
-              HM.replace wpoint y ()
-            )
-          in
-          match side_widen with
-          | "always" -> (* Any side-effect after the first one will be widened which will unnecessarily lose precision. *)
-            wpoint_if true
-          | "never" -> (* On side-effect cycles, this should terminate via the outer `solver` loop. TODO check. *)
-            ()
-          | "sides-local" -> (* Never make globals widening points in this strategy, the widening check happens by checking sides *)
-            ()
-          | "sides" ->
-            (* if there already was a `side x y d` that changed rho[y] and now again, we make y a wpoint *)
-            (* x caused more than one update to y. >=3 partial context calls will be precise since sides come from different x. TODO this has 8 instead of 5 phases of `solver` for side_cycle.c *)
-            wpoint_if sided
-          | "sides-pp" ->
-            begin match x with
-              | Some x ->
-                let n = S.Var.node x in
-                let sided = VS.exists (fun v -> Node.equal (S.Var.node v) n) old_sides in
-                wpoint_if sided
-              | None -> ()
-            end
-          | "cycle" -> (* destabilized a called or start var. Problem: two partial context calls will be precise, but third call will widen the state. *)
-            (* if this side destabilized some of the initial unknowns vs, there may be a side-cycle between vs and we should make y a wpoint *)
-            let destabilized_vs = destabilize_vs y in
-            wpoint_if destabilized_vs
-          (* TODO: The following two don't check if a vs got destabilized which may be a problem. *)
-          | "unstable_self" -> (* TODO test/remove. Side to y destabilized itself via some infl-cycle. The above add_infl is only required for this option. Check for which examples this is problematic! *)
-            wpoint_if @@ not (HM.mem stable y)
-          | "unstable_called" -> (* TODO test/remove. Widen if any called var (not just y) is no longer stable. Expensive! *)
-            wpoint_if @@ exists_key (neg (HM.mem stable)) called (* this is very expensive since it folds over called! see https://github.com/goblint/analyzer/issues/265#issuecomment-880748636 *)
-          | x -> failwith ("Unknown value '" ^ x ^ "' for option solvers.td3.side_widen!")
+          if WPS.should_mark_wpoint wps_data called old_sides x y destabilized_vs then (
+            if tracing then trace "sol2" "side adding wpoint %a from %a" S.Var.pretty_trace y (Pretty.docOpt (S.Var.pretty_trace ())) x;
+            mark_wpoint y default_side_widen_gas
+          );
+
+          (* y has grown. Reduce widening gas! *)
+          if not vetoed_widen then reduce_gas y;
         )
       and init x =
         if tracing then trace "sol2" "init %a" S.Var.pretty_trace x;
@@ -527,7 +529,7 @@ module Base =
           Logs.debug "Restarting to bot %a" S.Var.pretty_trace x;
           HM.replace rho x (S.Dom.bot ());
           (* HM.remove rho x; *)
-          HM.remove wpoint x; (* otherwise gets immediately widened during resolve *)
+          HM.remove wpoint_gas x; (* otherwise gets immediately widened during resolve *)
           HM.remove sides x; (* just in case *)
 
           (* immediately redo "side effect" from st *)
@@ -648,7 +650,7 @@ module Base =
         let delete_marked s = List.iter (fun k -> HM.remove s k) sys_change.delete in
         delete_marked rho;
         delete_marked infl; (* TODO: delete from inner sets? *)
-        delete_marked wpoint;
+        delete_marked wpoint_gas;
         delete_marked dep;
         Hooks.delete_marked sys_change.delete;
 
@@ -860,7 +862,7 @@ module Base =
       if GobConfig.get_bool "dbg.print_wpoints" then (
         Logs.newline ();
         Logs.debug "Widening points:";
-        HM.iter (fun k () -> Logs.debug "%a" S.Var.pretty_trace k) wpoint;
+        HM.iter (fun k gas -> Logs.debug "%a (gas: %d)" S.Var.pretty_trace k gas) wpoint_gas;
         Logs.newline ();
       );
 
@@ -928,7 +930,7 @@ module Base =
           let reachable' = HM.create (HM.length rho) in
           let reachable_and_superstable = HM.create (HM.length rho) in
           let rec one_var' x =
-            if (not (HM.mem reachable' x)) then (
+            if not (HM.mem reachable' x) then (
               if HM.mem superstable x then HM.replace reachable_and_superstable x ();
               HM.replace reachable' x ();
               Option.may (VS.iter one_var') (HM.find_option dep x);
@@ -1047,7 +1049,7 @@ module Base =
       print_data_verbose data "Data after postsolve";
 
       verify_data data;
-      (rho, {st; infl; sides; rho; wpoint; stable; side_dep; side_infl; var_messages; rho_write; dep})
+      (rho, {st; infl; sides; rho; wpoint_gas; stable; side_dep; side_infl; var_messages; rho_write; dep})
   end
 
 (** TD3 with no hooks. *)
