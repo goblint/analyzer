@@ -131,16 +131,6 @@ module Disequalities = struct
            (ZMap.bindings smap)
       ) % TMap.bindings
 
-  let bindings_args =
-    List.flatten %
-    List.concat_map
-      (fun (t, smap) ->
-         List.map (fun (z, arglist) ->
-             List.map (fun (a,b) ->
-                 (t,z,a,b)) arglist)
-           (ZMap.bindings smap)
-      ) % TMap.bindings
-
   (** adds a mapping v -> r -> size -> { v' } to the map,
       or if there are already elements
       in v -> r -> {..} then v' is added to the previous set *)
@@ -374,14 +364,6 @@ module Disequalities = struct
          s ^ "\t" ^ T.show v ^ show_number r ^ " != " ^ T.show v' ^  "\n")
     in
     List.fold_left do_neq "" clist
-
-  (** *)
-  let show_arg arg =
-    let clist = bindings_args arg in
-    let do_elem s (v,z,v',r) =
-      s ^ "\t" ^ T.show v' ^ show_number r ^ " --> " ^ T.show v^ "+"^ Z.to_string z ^  "\n"
-    in
-    List.fold_left do_elem "" clist
 
   let get_disequalities = List.map
       (fun (t1, z, t2) ->
