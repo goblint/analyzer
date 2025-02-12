@@ -810,12 +810,7 @@ let congruence_neq cc neg' =
   let uf, neq_list = Disequalities.init_list_neq uf neg in
   let neq = Disequalities.propagate_neq (uf, cmap, arg, neq) cc.bldis neq_list in
   if M.tracing then M.trace "c2po-neq" "congruence_neq: %s\nUnion find: %s\n" (Disequalities.show_neq neq) (TUF.show_uf uf);
-  {uf;
-   set = cc.set;
-   map = cc.map;
-   normal_form = cc.normal_form;
-   diseq = neq;
-   bldis = cc.bldis}
+  {cc with uf; diseq = neq}
 
 (**
    parameters: (uf, map, new_repr) equalities.
@@ -834,66 +829,65 @@ let congruence_neq cc neg' =
 let rec closure (uf, map, new_repr) = function
   | [] -> (uf, map, new_repr)
   | (t1, t2, r)::rest ->
-    (let v1, r1, uf = TUF.find uf t1 in
-     let v2, r2, uf = TUF.find uf t2 in
-     let sizet1, sizet2 = T.get_size t1, T.get_size t2 in
-     if not (Z.equal sizet1 sizet2) then (
-       if M.tracing then M.trace "c2po" "ignoring equality because the sizes are not the same: %s = %s + %s" (T.show t1) (Z.to_string r) (T.show t2);
-       closure (uf, map, new_repr) rest
-     )
-     else if T.equal v1 v2 then
-       (* t1 and t2 are in the same equivalence class *)
-       if Z.equal r1 Z.(r2 + r) then
-         closure (uf, map, new_repr) rest
-       else
-         raise Unsat
-     else
-       let diff_r = Z.(r2 - r1 + r) in
-       let v, uf, b = TUF.union uf v1 v2 diff_r in (* union *)
-       (* update new_representative *)
-       let new_repr =
-         if T.equal v v1 then
-           TMap.add v2 v new_repr
-         else
-           TMap.add v1 v new_repr
-       in
-       let f (zmap, rest) (r', v') =
-         let rest = match LMap.zmap_find_opt r' zmap with
-           | None -> rest
-           | Some v'' -> (v', v'',Z.zero) ::rest
-         in
-         let zmap = LMap.zmap_add r' v' zmap in
-         zmap, rest
-       in
-       (* update map *)
-       let map, rest =
-         match LMap.find_opt v1 map, LMap.find_opt v2 map, b with
-         | None, _, false
-         | _, None, true -> (* either v1 or v2 does not occur inside Deref *)
-           map, rest
-         | None, Some _, true ->
-           LMap.shift v1 Z.(r1 - r2 - r) v2 map, rest
-         | Some _, None, false ->
-           LMap.shift v2 Z.(r2 - r1 + r) v1 map, rest
-         | Some imap1, Some imap2, true -> (* v1 is new root *)
-           (* zmap describes args of Deref *)
-           let r0 = Z.(r2 - r1 + r) in  (* difference between roots  *)
-           (* we move all entries of imap2 to imap1 *)
-           let infl2 = List.map (fun (r', v') -> Z.(-r0 + r'), v') (LMap.zmap_bindings imap2) in
-           let zmap, rest = List.fold_left f (imap1, rest) infl2 in
-           let map = LMap.add v zmap map in
-           let map = LMap.remove v2 map in
-           map, rest
-         | Some imap1, Some imap2, false -> (* v2 is new root *)
-           let r0 = Z.(r1 - r2 - r) in
-           let infl1 = List.map (fun (r', v') -> Z.(-r0 + r'),v') (LMap.zmap_bindings imap1) in
-           let zmap, rest = List.fold_left f (imap2, rest) infl1 in
-           let map = LMap.add v zmap map in
-           let map = LMap.remove v1 map in
-           map, rest
-       in
-       closure (uf, map, new_repr) rest
+    let v1, r1, uf = TUF.find uf t1 in
+    let v2, r2, uf = TUF.find uf t2 in
+    let sizet1, sizet2 = T.get_size t1, T.get_size t2 in
+    if not (Z.equal sizet1 sizet2) then (
+      if M.tracing then M.trace "c2po" "ignoring equality because the sizes are not the same: %s = %s + %s" (T.show t1) (Z.to_string r) (T.show t2);
+      closure (uf, map, new_repr) rest
     )
+    else if T.equal v1 v2 then
+      (* t1 and t2 are in the same equivalence class *)
+      if Z.equal r1 Z.(r2 + r) then
+        closure (uf, map, new_repr) rest
+      else
+        raise Unsat
+    else
+      let diff_r = Z.(r2 - r1 + r) in
+      let v, uf, b = TUF.union uf v1 v2 diff_r in (* union *)
+      (* update new_representative *)
+      let new_repr =
+        if T.equal v v1 then
+          TMap.add v2 v new_repr
+        else
+          TMap.add v1 v new_repr
+      in
+      let f (zmap, rest) (r', v') =
+        let rest = match LMap.zmap_find_opt r' zmap with
+          | None -> rest
+          | Some v'' -> (v', v'',Z.zero) ::rest
+        in
+        let zmap = LMap.zmap_add r' v' zmap in
+        zmap, rest
+      in
+      (* update map *)
+      let map, rest =
+        match LMap.find_opt v1 map, LMap.find_opt v2 map, b with
+        | None, _, false
+        | _, None, true -> (* either v1 or v2 does not occur inside Deref *)
+          map, rest
+        | None, Some _, true ->
+          LMap.shift v1 Z.(r1 - r2 - r) v2 map, rest
+        | Some _, None, false ->
+          LMap.shift v2 Z.(r2 - r1 + r) v1 map, rest
+        | Some imap1, Some imap2, true -> (* v1 is new root *)
+          (* zmap describes args of Deref *)
+          let r0 = Z.(r2 - r1 + r) in  (* difference between roots  *)
+          (* we move all entries of imap2 to imap1 *)
+          let infl2 = List.map (fun (r', v') -> Z.(-r0 + r'), v') (LMap.zmap_bindings imap2) in
+          let zmap, rest = List.fold_left f (imap1, rest) infl2 in
+          let map = LMap.add v zmap map in
+          let map = LMap.remove v2 map in
+          map, rest
+        | Some imap1, Some imap2, false -> (* v2 is new root *)
+          let r0 = Z.(r1 - r2 - r) in
+          let infl1 = List.map (fun (r', v') -> Z.(-r0 + r'),v') (LMap.zmap_bindings imap1) in
+          let zmap, rest = List.fold_left f (imap2, rest) infl1 in
+          let map = LMap.add v zmap map in
+          let map = LMap.remove v1 map in
+          map, rest
+      in
+      closure (uf, map, new_repr) rest
 
 (** Update block disequalities with the new representatives. *)
 let update_bldis new_repr bldis =
@@ -924,7 +918,7 @@ let update_bldis new_repr bldis =
 let closure cc conjs =
   let (uf, map, new_repr) = closure (cc.uf, cc.map, TMap.empty) conjs in
   let bldis = update_bldis new_repr cc.bldis in
-  {uf; set = cc.set; map; normal_form=cc.normal_form; diseq=cc.diseq; bldis=bldis}
+  {cc with uf; map; bldis}
 
 (** Adds the block disequalities to the cc, but first rewrites them such that
     they are disequalities between representatives. The cc should already contain
@@ -935,85 +929,102 @@ let rec add_normalized_bl_diseqs cc = function
   | (t1,t2)::bl_conjs ->
     let t1',_,uf = TUF.find cc.uf t1 in
     let t2',_,uf = TUF.find uf t2 in
-    if T.equal t1' t2' then raise Unsat (*unsatisfiable*)
-    else let bldis = BlDis.add_block_diseq cc.bldis (t1',t2') in
-      add_normalized_bl_diseqs {cc with bldis;uf} bl_conjs
+    if T.equal t1' t2' then
+      raise Unsat (*unsatisfiable*)
+    else
+      let bldis = BlDis.add_block_diseq cc.bldis (t1',t2') in
+      add_normalized_bl_diseqs {cc with bldis; uf} bl_conjs
 
 (** Add a term to the data structure.
 
     Returns (reference variable, offset), updated congruence closure *)
 let rec insert cc t =
   if SSet.mem t cc.set then
-    let v,z,uf = TUF.find cc.uf t in
+    let v, z, uf = TUF.find cc.uf t in
     (v,z), {cc with uf}
   else
     match t with
-    | Addr _ | Aux _ -> let uf = TUF.ValMap.add t ((t, Z.zero),1) cc.uf in
+    | Addr _
+    | Aux _ ->
+      let uf = TUF.ValMap.add t ((t, Z.zero), 1) cc.uf in
       let set = SSet.add t cc.set in
       (t, Z.zero), {cc with uf; set}
     | Deref (t', z, exp) ->
-      match insert cc t' with
-      | (v, r), cc ->
-        let set = SSet.add t cc.set in
-        match LMap.map_find_opt (v, Z.(r + z)) cc.map with
-        | Some v' -> let v2,z2,uf = TUF.find cc.uf v' in
-          let uf = LMap.add t ((t, Z.zero),1) uf in
-          (v2,z2), closure {cc with uf; set} [(t, v', Z.zero)]
-        | None -> let map = LMap.map_add (v, Z.(r + z)) t cc.map in
-          let uf = LMap.add t ((t, Z.zero),1) cc.uf in
-          (t, Z.zero), {cc with uf; set; map}
+      let (v, r), cc = insert cc t'  in
+      let set = SSet.add t cc.set in
+      match LMap.map_find_opt (v, Z.(r + z)) cc.map with
+      | Some v' ->
+        let v2, z2, uf = TUF.find cc.uf v' in
+        let uf = LMap.add t ((t, Z.zero),1) uf in
+        let cc = closure {cc with uf; set} [(t, v', Z.zero)] in
+        (v2, z2), cc
+      | None ->
+        let map = LMap.map_add (v, Z.(r + z)) t cc.map in
+        let uf = LMap.add t ((t, Z.zero),1) cc.uf in
+        (t, Z.zero), {cc with uf; set; map}
 
 (** Add all terms in a specific set to the data structure.
 
     Returns updated cc. *)
 let insert_set cc t_set =
-  SSet.fold (fun t cc -> snd (insert cc t)) t_set cc
+  let insert_term t cc =
+    let _, cc = insert cc t in
+    cc
+  in
+  SSet.fold insert_term t_set cc
 
 (**  Returns true if t1 and t2 are equivalent. *)
 let rec eq_query cc (t1,t2,r) =
-  let (v1,r1),cc = insert cc t1 in
-  let (v2,r2),cc = insert cc t2 in
-  if T.equal v1 v2 && Z.equal r1 Z.(r2 + r) then (true, cc)
-  else
+  let (v1, r1), cc = insert cc t1 in
+  let (v2, r2), cc = insert cc t2 in
+  if T.equal v1 v2 && Z.equal r1 Z.(r2 + r) then
+    (true, cc)
     (* If the equality is *(t1' + z1) = *(t2' + z2), then we check if the two pointers are equal,
        i.e. if t1' + z1 = t2' + z2.
        This is useful when the dereferenced elements are not pointers and therefore not stored in our data strutcure.
        But we still know that they are equal if the pointers are equal. *)
-  if Z.equal r Z.zero then
-    match t1,t2 with
+  else if Z.equal r Z.zero then
+    match t1, t2 with
     | Deref (t1', z1, _),  Deref (t2', z2, _) ->
       eq_query cc (t1', t2', Z.(z2 - z1))
-    | _ -> (false, cc)
-  else (false,cc)
+    | _ ->
+      (false, cc)
+  else
+    (false,cc)
 
 let block_neq_query cc (t1,t2) =
-  let (v1,r1),cc = insert cc t1 in
-  let (v2,r2),cc = insert cc t2 in
+  let (v1, r1), cc = insert cc t1 in
+  let (v2, r2), cc = insert cc t2 in
   BlDis.map_set_mem v1 v2 cc.bldis
 
 (** Returns true if t1 and t2 are not equivalent. *)
 let neq_query cc (t1,t2,r) =
   (* we implicitly assume that &x != &y + z *)
-  if T.is_addr t1 && T.is_addr t2 then true else
-    let (v1,r1),cc = insert cc t1 in
-    let (v2,r2),cc = insert cc t2 in
+  if T.is_addr t1 && T.is_addr t2 then
+    true
+  else
+    let (v1, r1), cc = insert cc t1 in
+    let (v2, r2), cc = insert cc t2 in
     (* implicit disequalities following from equalities *)
     if T.equal v1 v2 then
-      if Z.(equal r1 (r2 + r)) then false
-      else true
+      not Z.(equal r1 (r2 + r))
     else
       (* implicit disequalities following from block disequalities *)
       BlDis.map_set_mem v1 v2 cc.bldis ||
-      (*explicit dsequalities*)
-      Disequalities.map_set_mem (v2,Z.(r2-r1+r)) v1 cc.diseq
+      (* explicit dsequalities *)
+      Disequalities.map_set_mem (v2, Z.(r2 - r1 + r)) v1 cc.diseq
 
 (** Adds equalities to the data structure.
     Throws "Unsat" if a contradiction is found.
     Does not update disequalities. *)
 let meet_pos_conjs cc pos_conjs =
-  let res = let cc = insert_set cc (fst (SSet.subterms_of_conj pos_conjs)) in
+  let res =
+    let subterms, _ = SSet.subterms_of_conj pos_conjs in
+    let cc = insert_set cc subterms in
     closure cc pos_conjs
-  in if M.tracing then M.trace "c2po-meet" "MEET_CONJS RESULT: %s\n" (show_conj (get_conjunction res)); res
+  in
+  if M.tracing then M.trace "c2po-meet" "meet_pos_conjs result: %s\n" (show_conj (get_conjunction res));
+  res
 
 (** Adds propositions to the data structure.
     Returns None if a contradiction is found. *)
