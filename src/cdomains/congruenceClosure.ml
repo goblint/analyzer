@@ -365,10 +365,11 @@ module Disequalities = struct
     in
     List.fold_left do_neq "" clist
 
-  let get_disequalities = List.map
-      (fun (t1, z, t2) ->
-         Nequal (t1,t2,Z.(-z))
-      ) % bindings
+  let get_disequalities =
+    let to_disequality (t1, z, t2) =
+      Nequal (t1, t2, Z.(-z))
+    in
+    List.map to_disequality % bindings
 
   (** For each disequality t1 != z + t2 we add all disequalities
       that follow from equalities. I.e., if t1 = z1 + t1' and t2 = z2 + t2',
@@ -376,10 +377,12 @@ module Disequalities = struct
   *)
   let element_closure diseqs cmap uf =
     let comp_closure (r1,r2,z) =
-      let eq_class1, eq_class2 = LMap.comp_t_cmap_repr cmap r1, LMap.comp_t_cmap_repr cmap r2 in
-      List.map (fun ((z1, nt1),(z2, nt2)) ->
-          (nt1, nt2, Z.(-z2+z+z1)))
-        (List.cartesian_product eq_class1 eq_class2)
+      let eq_class1 = LMap.comp_t_cmap_repr cmap r1 in
+      let eq_class2 = LMap.comp_t_cmap_repr cmap r2 in
+      let to_diseq ((z1, nt1), (z2, nt2)) =
+        (nt1, nt2, Z.(-z2+z+z1))
+      in
+      List.map to_diseq (List.cartesian_product eq_class1 eq_class2)
     in
     List.concat_map comp_closure diseqs
 end
