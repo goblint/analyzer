@@ -789,18 +789,27 @@ let init_cc () =
    bldis = BlDis.empty}
 
 (** Computes the closure of disequalities. *)
-let congruence_neq cc neg =
-  let neg = Tuple3.second (split(Disequalities.get_disequalities cc.diseq)) @ neg in
-  (* getting args of dereferences *)
-  let uf,cmap,arg = Disequalities.get_args cc.uf in
-  (* taking implicit dis-equalities into account *)
-  let neq_list = Disequalities.init_neq (uf,cmap,arg) @ Disequalities.init_neg_block_diseq (uf, cc.bldis, cmap, arg) in
-  let neq = Disequalities.propagate_neq (uf,cmap,arg,Disequalities.empty) cc.bldis neq_list in
-  (* taking explicit dis-equalities into account *)
-  let uf,neq_list = Disequalities.init_list_neq uf neg in
-  let neq = Disequalities.propagate_neq (uf,cmap,arg,neq) cc.bldis neq_list in
+let congruence_neq cc neg' =
+  let _, neg, _ = split (Disequalities.get_disequalities cc.diseq) in
+  let neg = neg @ neg' in
+  (* get args of dereferences *)
+  let uf, cmap, arg = Disequalities.get_args cc.uf in
+  (* take implicit dis-equalities into account *)
+  let neq_list = Disequalities.init_neq (uf, cmap, arg) in
+  let neq_list_from_bldis = Disequalities.init_neg_block_diseq (uf, cc.bldis, cmap, arg) in
+  let neq_list = neq_list @ neq_list_from_bldis in
+  let neq = Disequalities.propagate_neq (uf, cmap, arg, Disequalities.empty) cc.bldis neq_list in
+
+  (* take explicit dis-equalities into account *)
+  let uf, neq_list = Disequalities.init_list_neq uf neg in
+  let neq = Disequalities.propagate_neq (uf, cmap, arg, neq) cc.bldis neq_list in
   if M.tracing then M.trace "c2po-neq" "congruence_neq: %s\nUnion find: %s\n" (Disequalities.show_neq neq) (TUF.show_uf uf);
-  {uf; set=cc.set; map=cc.map; normal_form=cc.normal_form;diseq=neq; bldis=cc.bldis}
+  {uf;
+   set = cc.set;
+   map = cc.map;
+   normal_form = cc.normal_form;
+   diseq = neq;
+   bldis = cc.bldis}
 
 (**
    parameters: (uf, map, new_repr) equalities.
@@ -822,45 +831,60 @@ let rec closure (uf, map, new_repr) = function
     (let v1, r1, uf = TUF.find uf t1 in
      let v2, r2, uf = TUF.find uf t2 in
      let sizet1, sizet2 = T.get_size t1, T.get_size t2 in
-     if not (Z.equal sizet1 sizet2) then
-       (if M.tracing then M.trace "c2po" "ignoring equality because the sizes are not the same: %s = %s + %s" (T.show t1) (Z.to_string r) (T.show t2);
-        closure (uf, map, new_repr) rest) else
-     if T.equal v1 v2 then
+     if not (Z.equal sizet1 sizet2) then (
+       if M.tracing then M.trace "c2po" "ignoring equality because the sizes are not the same: %s = %s + %s" (T.show t1) (Z.to_string r) (T.show t2);
+       closure (uf, map, new_repr) rest
+     )
+     else if T.equal v1 v2 then
        (* t1 and t2 are in the same equivalence class *)
-       if Z.equal r1 Z.(r2 + r) then closure (uf, map, new_repr) rest
-       else raise Unsat
-     else let diff_r = Z.(r2 - r1 + r) in
+       if Z.equal r1 Z.(r2 + r) then
+         closure (uf, map, new_repr) rest
+       else
+         raise Unsat
+     else
+       let diff_r = Z.(r2 - r1 + r) in
        let v, uf, b = TUF.union uf v1 v2 diff_r in (* union *)
        (* update new_representative *)
-       let new_repr = if T.equal v v1 then TMap.add v2 v new_repr else TMap.add v1 v new_repr in
+       let new_repr =
+         if T.equal v v1 then
+           TMap.add v2 v new_repr
+         else
+           TMap.add v1 v new_repr
+       in
+       let f (zmap, rest) (r', v') =
+         let rest = match LMap.zmap_find_opt r' zmap with
+           | None -> rest
+           | Some v'' -> (v', v'',Z.zero) ::rest
+         in
+         let zmap = LMap.zmap_add r' v' zmap in
+         zmap, rest
+       in
        (* update map *)
-       let map, rest = match LMap.find_opt v1 map, LMap.find_opt v2 map, b with
-         | None, _, false -> map, rest
-         | None, Some _, true -> LMap.shift v1 Z.(r1-r2-r) v2 map, rest
-         | Some _, None,false -> LMap.shift v2 Z.(r2-r1+r) v1 map, rest
-         | _,None,true -> map, rest (* either v1 or v2 does not occur inside Deref *)
+       let map, rest =
+         match LMap.find_opt v1 map, LMap.find_opt v2 map, b with
+         | None, _, false
+         | _, None, true -> (* either v1 or v2 does not occur inside Deref *)
+           map, rest
+         | None, Some _, true ->
+           LMap.shift v1 Z.(r1 - r2 - r) v2 map, rest
+         | Some _, None, false ->
+           LMap.shift v2 Z.(r2 - r1 + r) v1 map, rest
          | Some imap1, Some imap2, true -> (* v1 is new root *)
            (* zmap describes args of Deref *)
-           let r0 = Z.(r2-r1+r) in  (* difference between roots  *)
+           let r0 = Z.(r2 - r1 + r) in  (* difference between roots  *)
            (* we move all entries of imap2 to imap1 *)
-           let infl2 = List.map (fun (r',v') -> Z.(-r0+r'), v') (LMap.zmap_bindings imap2) in
-           let zmap,rest = List.fold_left (fun (zmap,rest) (r',v') ->
-               let rest = match LMap.zmap_find_opt r' zmap with
-                 | None -> rest
-                 | Some v'' -> (v', v'', Z.zero)::rest
-               in LMap.zmap_add r' v' zmap, rest)
-               (imap1,rest) infl2 in
-           LMap.remove v2 (LMap.add v zmap map), rest
+           let infl2 = List.map (fun (r', v') -> Z.(-r0 + r'), v') (LMap.zmap_bindings imap2) in
+           let zmap, rest = List.fold_left f (imap1, rest) infl2 in
+           let map = LMap.add v zmap map in
+           let map = LMap.remove v2 map in
+           map, rest
          | Some imap1, Some imap2, false -> (* v2 is new root *)
-           let r0 = Z.(r1-r2-r) in
-           let infl1 = List.map (fun (r',v') -> Z.(-r0+r'),v') (LMap.zmap_bindings imap1) in
-           let zmap,rest = List.fold_left (fun (zmap,rest) (r',v') ->
-               let rest =
-                 match LMap.zmap_find_opt r' zmap with
-                 | None -> rest
-                 | Some v'' -> (v', v'',Z.zero)::rest
-               in LMap.zmap_add r' v' zmap, rest) (imap2, rest) infl1 in
-           LMap.remove v1 (LMap.add v zmap map), rest
+           let r0 = Z.(r1 - r2 - r) in
+           let infl1 = List.map (fun (r', v') -> Z.(-r0 + r'),v') (LMap.zmap_bindings imap1) in
+           let zmap, rest = List.fold_left f (imap2, rest) infl1 in
+           let map = LMap.add v zmap map in
+           let map = LMap.remove v1 map in
+           map, rest
        in
        closure (uf, map, new_repr) rest
     )
