@@ -319,8 +319,13 @@ struct
         pretty res ;
     res
 
-  let sub ?(no_ov=false) ik x y = add ~no_ov ik x (neg ~no_ov ik y)
-
+  let sub ?(no_ov=false) ik x y =
+    match y with
+    | None -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y)))
+    | Some (c, m) ->
+      let m = m -: c in
+      let y = Some (c, m) in
+      add ~no_ov ik x y
 
   let sub ?no_ov ik x y =
     let res = sub ?no_ov ik x y in
