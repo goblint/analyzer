@@ -606,9 +606,9 @@ end
 
    - `normal_form` is the unique normal form of the domain element, it is a lazily computed when needed and stored such that it can be used again later.
 
-   - `diseq` represents the block disequalities. It is a map that maps each term to a set of terms that are definitely in a different block.
+   - `diseq` represents the disequalities. It is a map from a term t1 to a map from an integer z to a set of terms T, which represents the disequality t1 != z + t2 for each t2 in T.
 
-   - `bldis` represents the disequalities. It is a map from a term t1 to a map from an integer z to a set of terms T, which represents the disequality t1 != z + t2 for each t2 in T.
+   - `bldis` represents the block disequalities. It is a map that maps each term to a set of terms that are definitely in a different block.
 *)
 type t = {uf: TUF.t;
           set: SSet.t;
@@ -621,65 +621,97 @@ type t = {uf: TUF.t;
 let show_conj list =
   match list with
   | [] -> "top"
-  | list ->  List.fold_left
-               (fun s d -> s ^ "\t" ^ T.show_prop d ^ ";\n") "" list
+  | list ->
+    let show_prop s d =
+      s ^ "\t" ^ T.show_prop d ^ ";\n"
+    in
+    List.fold_left show_prop "" list
 
 (** Returns a list of all the transition that are present in the automata. *)
-let get_transitions (uf, map) =
-  List.concat_map (fun (t, zmap) ->
-      (List.map (fun (edge_z, res_t) ->
-           (edge_z, t, TUF.find_no_pc uf res_t)) @@
-       (LMap.zmap_bindings zmap)))
-    (LMap.bindings map)
+let get_transitions (uf , map) =
+  let do_binding t (edge_z, res_t) =
+    (edge_z, t, TUF.find_no_pc uf res_t)
+  in
+  let do_bindings ((t : term), zmap) =
+    let bindings = LMap.zmap_bindings zmap in
+    List.map (do_binding t) bindings
+  in
+  List.concat_map do_bindings (LMap.bindings map)
 
 let exactly_equal cc1 cc2 =
-  cc1.uf == cc2.uf && cc1.map == cc2.map && cc1.diseq == cc2.diseq && cc1.bldis == cc2.bldis
+  cc1.uf == cc2.uf &&
+  cc1.map == cc2.map &&
+  cc1.diseq == cc2.diseq &&
+  cc1.bldis == cc2.bldis
 
 (** Converts the domain representation to a conjunction, using
     the function `get_normal_repr` to compute the representatives that need to be used in the conjunction.*)
 let get_normal_conjunction cc get_normal_repr =
-  let normalize_equality (t1, t2, z) =
-    if T.equal t1 t2 && Z.(equal z zero) then None else
-      Some (Equal (t1, t2, z)) in
+  let is_non_trivial_equality (t1, t2, z) =
+    not (T.equal t1 t2 && Z.(equal z zero))
+  in
+  let to_equality (t1, t2, z) =
+    Equal (t1, t2, z)
+  in
+  let conjunctions_of prop_of xs =
+    Seq.of_list xs
+    |> Seq.map prop_of
+    |> Seq.filter is_non_trivial_equality
+    |> Seq.map to_equality
+    |> List.of_seq
+  in
   let conjunctions_of_atoms =
+    let eq_of_atom atom =
+      let rep_state, rep_z = TUF.find_no_pc cc.uf atom in
+      let min_state, min_z = get_normal_repr rep_state in
+      (atom, min_state, Z.(rep_z - min_z))
+    in
     let atoms = SSet.get_atoms cc.set in
-    List.filter_map (fun atom ->
-        let (rep_state, rep_z) = TUF.find_no_pc cc.uf atom in
-        let (min_state, min_z) = get_normal_repr rep_state in
-        normalize_equality (atom, min_state, Z.(rep_z - min_z))
-      ) atoms
+    conjunctions_of eq_of_atom atoms
   in
   let conjunctions_of_transitions =
     let transitions = get_transitions (cc.uf, cc.map) in
-    List.filter_map (fun (z,s,(s',z')) ->
-        let (min_state, min_z) = get_normal_repr s in
-        let (min_state', min_z') = get_normal_repr s' in
-        normalize_equality (SSet.deref_term_even_if_its_not_possible min_state Z.(z - min_z) cc.set, min_state', Z.(z' - min_z'))
-      ) transitions in
-  (*disequalities*)
+    let eq_of_transition (z, s, (s', z')) =
+      let min_state, min_z = get_normal_repr s in
+      let min_state', min_z' = get_normal_repr s' in
+      (SSet.deref_term_even_if_its_not_possible min_state Z.(z - min_z) cc.set, min_state', Z.(z' - min_z'))
+    in
+    conjunctions_of eq_of_transition transitions
+  in
+  (* disequalities *)
   let disequalities = Disequalities.get_disequalities cc.diseq in
   (* find disequalities between min_repr *)
   let normalize_disequality (t1, t2, z) =
-    let (min_state1, min_z1) = get_normal_repr t1 in
-    let (min_state2, min_z2) = get_normal_repr t2 in
+    let min_state1, min_z1 = get_normal_repr t1 in
+    let min_state2, min_z2 = get_normal_repr t2 in
     let new_offset = Z.(-min_z2 + min_z1 + z) in
-    if T.compare min_state1 min_state2 < 0 then Nequal (min_state1, min_state2, new_offset)
-    else Nequal (min_state2, min_state1, Z.(-new_offset))
+    if T.compare min_state1 min_state2 < 0 then
+      Nequal (min_state1, min_state2, new_offset)
+    else
+      Nequal (min_state2, min_state1, Z.(-new_offset))
+  in
+  let normalize_disequality = function
+    | Nequal (t1,t2,z) -> normalize_disequality (t1, t2, z)
+    | Equal (t1,t2,z) -> failwith "No equality expected."
+    | BlNequal (t1,t2) -> failwith "No block disequality expected."
   in
   if M.tracing then M.trace "c2po-diseq" "DISEQUALITIES: %s;\nUnion find: %s\nMap: %s\n" (show_conj disequalities) (TUF.show_uf cc.uf) (LMap.show_map cc.map);
-  let disequalities = List.map (function | Equal (t1,t2,z) | Nequal (t1,t2,z) -> normalize_disequality (t1, t2, z)|BlNequal (t1,t2) -> BlNequal (t1,t2)) disequalities in
+  let disequalities = List.map normalize_disequality disequalities in
   (* block disequalities *)
   let normalize_bldis t = match t with
     | BlNequal (t1,t2) ->
       let min_state1, _ = get_normal_repr t1 in
       let min_state2, _ = get_normal_repr t2 in
-      if T.compare min_state1 min_state2 < 0 then BlNequal (min_state1, min_state2)
-      else BlNequal (min_state2, min_state1)
-    | _ -> t
+      if T.compare min_state1 min_state2 < 0 then
+        BlNequal (min_state1, min_state2)
+      else
+        BlNequal (min_state2, min_state1)
+    | _ -> failwith "Expected a block disequality, but received something different."
   in
   let conjunctions_of_bl_diseqs = List.map normalize_bldis @@ BlDis.to_conj cc.bldis in
   (* all propositions *)
-  BatList.sort_unique (T.compare_v_prop) (conjunctions_of_atoms @ conjunctions_of_transitions @ disequalities @ conjunctions_of_bl_diseqs)
+  let all_props = conjunctions_of_atoms @ conjunctions_of_transitions @ disequalities @ conjunctions_of_bl_diseqs in
+  BatList.sort_unique T.compare_v_prop all_props
 
 (** Returns the canonical normal form of the data structure in form of a sorted list of conjunctions. *)
 let get_normal_form cc =
@@ -688,54 +720,73 @@ let get_normal_form cc =
 
 (** Converts the normal form to string, but only if it was already computed. *)
 let show_normal_form normal_form =
-  if Lazy.is_val normal_form then show_conj (Lazy.force normal_form)
-  else "not computed"
+  if Lazy.is_val normal_form then
+    show_conj (Lazy.force normal_form)
+  else
+    "not computed"
 
 (** Returns a list of conjunctions that follow from the data structure in form of a sorted list of conjunctions.
     This is not a normal form, but it is useful to print information
     about the current state of the analysis. *)
 let get_conjunction cc =
-  get_normal_conjunction cc (fun t -> t,Z.zero)
+  get_normal_conjunction cc (fun t -> t, Z.zero)
 
 (** Sets the normal_form to an uncomputed value,
     that will be lazily computed when it is needed. *)
 let reset_normal_form cc =
-  {cc with normal_form = lazy(
-       let min_repr = MRMap.compute_minimal_representatives (cc.uf, cc.set, cc.map) in
-       if M.tracing then M.trace "c2po-min-repr" "COMPUTE MIN REPR: %s" (MRMap.show_min_rep min_repr);
-       let conj = get_normal_conjunction cc (fun t -> match MRMap.find_opt t min_repr with | None -> t,Z.zero | Some minr -> minr)
-       in if M.tracing then M.trace "c2po-equal" "COMPUTE NORMAL FORM: %s" (show_conj conj); conj
-     )}
+  let f min_repr t =
+    match MRMap.find_opt t min_repr with
+    | None -> t, Z.zero
+    | Some minr -> minr
+  in
+  {cc with normal_form =
+             lazy(
+               let min_repr = MRMap.compute_minimal_representatives (cc.uf, cc.set, cc.map) in
+               let conj = get_normal_conjunction cc (f min_repr) in
+
+               if M.tracing then M.trace "c2po-min-repr" "Computed minimal represntative: %s" (MRMap.show_min_rep min_repr);
+               if M.tracing then M.trace "c2po-equal" "Computed normal form: %s" (show_conj conj);
+
+               conj
+             )}
 
 let show_all x = "Normal form:\n" ^
                  show_conj((get_conjunction x)) ^
                  "Union Find partition:\n" ^
-                 (TUF.show_uf x.uf)
+                 TUF.show_uf x.uf
                  ^ "\nSubterm set:\n"
-                 ^ (SSet.show_set x.set)
+                 ^ SSet.show_set x.set
                  ^ "\nLookup map/transitions:\n"
-                 ^ (LMap.show_map x.map)
+                 ^ LMap.show_map x.map
                  ^ "\nNeq:\n"
-                 ^ (Disequalities.show_neq x.diseq)
+                 ^ Disequalities.show_neq x.diseq
                  ^ "\nBlock diseqs:\n"
-                 ^ show_conj(BlDis.to_conj x.bldis)
+                 ^ show_conj (BlDis.to_conj x.bldis)
                  ^ "\nMin repr:\n"
                  ^ show_normal_form x.normal_form
 
 (** Splits the conjunction into three groups: the first one contains all equality propositions,
     the second one contains all inequality propositions
     and the third one contains all block disequality propositions.  *)
-let split conj = List.fold_left (fun (pos,neg,bld) -> function
-    | Equal (t1,t2,r) -> ((t1,t2,r)::pos,neg,bld)
-    | Nequal(t1,t2,r) -> (pos,(t1,t2,r)::neg,bld)
-    | BlNequal (t1,t2) -> (pos,neg,(t1,t2)::bld)) ([],[],[]) conj
+let split conj =
+  let group (eqs, neqs, blds) = function
+    | Equal eq -> (eq::eqs, neqs, blds)
+    | Nequal neq -> (eqs, neq::neqs, blds)
+    | BlNequal bld -> (eqs, neqs, bld::blds)
+  in
+  List.fold_left group ([],[],[]) conj
 
 (**
    Returns \{uf, set, map, normal_form, bldis, diseq\},
    where all data structures are initialized with an empty map/set.
 *)
 let init_cc () =
-  {uf = TUF.empty; set = SSet.empty; map = LMap.empty; normal_form = lazy([]); diseq = Disequalities.empty; bldis = BlDis.empty}
+  {uf = TUF.empty;
+   set = SSet.empty;
+   map = LMap.empty;
+   normal_form = lazy([]);
+   diseq = Disequalities.empty;
+   bldis = BlDis.empty}
 
 (** Computes the closure of disequalities. *)
 let congruence_neq cc neg =
