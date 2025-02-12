@@ -75,12 +75,7 @@ module BitfieldArith (Ints_t : IntOps.IntOps) = struct
 
   let logor (z1,o1)  (z2,o2) = (z1 &: z2, o1 |: o2)
 
-  let bitmask_up_to n =
-    let top_bit = Ints_t.one <<: n in
-    if top_bit = Ints_t.zero
-    then Ints_t.zero
-    else
-      Ints_t.sub top_bit Ints_t.one
+  let bitmask_up_to n = (Ints_t.one <<: n) -: Ints_t.one
 
   let nth_bit p n = Ints_t.one &: (p >>: n) =: Ints_t.one
 
@@ -115,9 +110,8 @@ module BitfieldArith (Ints_t : IntOps.IntOps) = struct
       @param (z,o) The bitfield to concretize.
 
       @info By default, the function generates all possible values that the bitfield can represent, 
-            which results in an exponential complexity of O(2^n) where [n] is the number of bits in [ik].
-            To mitigate this, it is recommended to constrain the number of top bits,
-            ensuring that concretization remains computationally feasible.
+            which results in an exponential complexity of O(2^n) where [n] is the width of [ik].
+            It is recommended to constrain the number of bits that are concretized to avoid non-termination.
   *)
   let rec concretize (z,o) =
     if is_const (z,o) then [o]
@@ -142,7 +136,7 @@ module BitfieldArith (Ints_t : IntOps.IntOps) = struct
     let msb_pos = Int.max 0 (Size.bit ik - c) in
     let sign_mask = !:(bitmask_up_to msb_pos) in
     if GoblintCil.isSigned ik && o <: Ints_t.zero then
-      (z >>: c, (o >>: c) |: sign_mask)
+      ((z >>: c) |: sign_mask, (o >>: c) |: sign_mask) (* sign extension in sar is impl. defined *)
     else
       ((z >>: c) |: sign_mask, o >>: c)
 
@@ -411,58 +405,38 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): Bitfield_SOverflow with type in
 
   let lognot ik i1 = BArith.lognot i1 |> norm ik
 
-  let get_arch_bitwidth () : int = if GobConfig.get_bool "ana.sv-comp.enabled" then (
-      match GobConfig.get_string "exp.architecture" with
-      | "32bit" -> 32
-      | "64bit" -> 64
-      | _ -> Sys.word_size
-    ) else Sys.word_size
-
-  let is_undefined_shift_with_ov ?(is_shift_left=false) ik a b =
+  let top_on_undefined_shift ?(is_shift_left=false) ik a b do_shift =
     let no_ov = {underflow=false; overflow=false} in
-    if (Z.to_int @@ BArith.min ik b) >= get_arch_bitwidth () then
-      (true,
+    if BArith.exceeds_bit_width_of GoblintCil.ILongLong b || BArith.equals_bit_width_of GoblintCil.ILongLong b then
+      (top_of ik,
        match is_shift_left, GoblintCil.isSigned ik && BArith.has_neg_values ik a with
        | true, false -> {underflow=false; overflow=true}
        | true, true when BArith.has_only_neg_values ik a -> {underflow=true; overflow=false}
        | true, true -> {underflow=true; overflow=true}
        | _ -> no_ov
       )
-    else if GoblintCil.isSigned ik then
-      if BArith.has_only_neg_values ik b then
-        (true, no_ov)
-      else if not is_shift_left && BArith.has_neg_values ik a && BArith.exceeds_bit_width_of ik b then
-        (true, no_ov)
-      else
-        (false, no_ov)
     else
-      (false, no_ov)
+    if GoblintCil.isSigned ik && BArith.has_only_neg_values ik b then (top_of ik, no_ov) else do_shift ()
 
   let shift_right ik a b = match is_bot a, is_bot b with
     | true, true -> bot_of ik, {underflow=false; overflow=false}
     | true,_ | _,true -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s >> %s" (show a) (show b)))
     | _ ->
-      let (is_shift_undefined, ov_info) = is_undefined_shift_with_ov ik a b in
-      if is_shift_undefined then
-        top_of ik, ov_info
-      else
-        (norm ik (BArith.shift_right ik a b), {underflow=false; overflow=false})
+      top_on_undefined_shift ik a b @@ fun () ->
+      (norm ik (BArith.shift_right ik a b), {underflow=false; overflow=false})
 
   let shift_left ik a b = match is_bot a, is_bot b with
     | true, true -> bot_of ik, {underflow=false; overflow=false}
     | true,_ | _,true -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s << %s" (show a) (show b)))
     | _ ->
-      let (is_shift_undefined, ov_info) = is_undefined_shift_with_ov ~is_shift_left:true ik a b in
-      if is_shift_undefined then
-        top_of ik, ov_info
-      else
-        let max_shift = if Z.fits_int (BArith.max ik b) then Z.to_int (BArith.max ik b) else Int.max_int in 
-        let (min_ik, max_ik) = Size.range ik in 
-        let min_res = if max_shift < 0 then Z.pred min_ik else Z.shift_left (BArith.min ik a) max_shift in 
-        let max_res = if max_shift < 0 then Z.succ max_ik else Z.shift_left (BArith.max ik a) max_shift in 
-        let underflow = Z.compare min_res min_ik < 0 in 
-        let overflow = Z.compare max_ik max_res < 0 in 
-        (norm ~ov:(underflow || overflow) ik (BArith.shift_left ik a b), {underflow=underflow; overflow=overflow})
+      top_on_undefined_shift ~is_shift_left:true ik a b @@ fun () ->
+      let max_shift = if Z.fits_int (BArith.max ik b) then Z.to_int (BArith.max ik b) else Int.max_int in 
+      let (min_ik, max_ik) = Size.range ik in 
+      let min_res = if max_shift < 0 then Z.pred min_ik else Z.shift_left (BArith.min ik a) max_shift in 
+      let max_res = if max_shift < 0 then Z.succ max_ik else Z.shift_left (BArith.max ik a) max_shift in 
+      let underflow = Z.compare min_res min_ik < 0 in 
+      let overflow = Z.compare max_ik max_res < 0 in 
+      (norm ~ov:(underflow || overflow) ik (BArith.shift_left ik a b), {underflow=underflow; overflow=overflow})
 
   (* Arith *)
 
