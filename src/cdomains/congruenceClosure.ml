@@ -593,12 +593,6 @@ module MRMap = struct
     List.fold_left add_element empty (SSet.elements set)
 end
 
-module Lazy =
-struct
-  include Lazy
-  let hash x y = 0
-end
-
 (**
    This is the type for the abstract domain.
 
@@ -619,7 +613,7 @@ end
 type t = {uf: TUF.t;
           set: SSet.t;
           map: LMap.t;
-          normal_form: T.v_prop list Lazy.t[@compare.ignore][@eq.ignore][@hash.ignore];
+          normal_form: (T.v_prop list Lazy.t[@compare fun _ _ -> 0][@eq fun _ _ -> true][@hash fun _ -> 0]);
           diseq: Disequalities.t;
           bldis: BlDis.t}
 [@@deriving eq, ord, hash]
