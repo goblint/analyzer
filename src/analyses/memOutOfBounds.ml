@@ -127,7 +127,7 @@ struct
          `Top)
 
   let get_ptr_deref_type ptr_typ =
-    match ptr_typ with
+    match Cil.unrollType ptr_typ with
     | TPtr (t, _) -> Some t
     | _ -> None
 
