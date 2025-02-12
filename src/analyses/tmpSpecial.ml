@@ -21,22 +21,22 @@ struct
     D.filter (fun _ (ml, deps) -> (Deps.for_all (fun arg -> not (VarEq.may_change ask exp_w arg)) deps)) st
 
   (* transfer functions *)
-  let assign ctx (lval:lval) (rval:exp) : D.t =
+  let assign man (lval:lval) (rval:exp) : D.t =
     if M.tracing then M.tracel "tmpSpecial" "assignment of %a" d_lval lval;
     (* Invalidate all entrys from the map that are possibly written by the assignment *)
-    invalidate (Analyses.ask_of_ctx ctx) (mkAddrOf lval) ctx.local
+    invalidate (Analyses.ask_of_man man) (mkAddrOf lval) man.local
 
-  let enter ctx (lval: lval option) (f:fundec) (args:exp list) : (D.t * D.t) list =
+  let enter man (lval: lval option) (f:fundec) (args:exp list) : (D.t * D.t) list =
     (* For now we only track relationships intraprocedurally. *)
-    [ctx.local, D.bot ()]
+    [man.local, D.bot ()]
 
-  let combine ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) f_ask : D.t =
+  let combine man (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) f_ask : D.t =
     (* For now we only track relationships intraprocedurally. *)
     D.bot ()
 
-  let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
-    let d = ctx.local in
-    let ask = Analyses.ask_of_ctx ctx in
+  let special man (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
+    let d = man.local in
+    let ask = Analyses.ask_of_man man in
 
     (* Just dbg prints *)
     (if M.tracing then
@@ -55,7 +55,7 @@ struct
     (* same for lval assignment of the call*)
     let d =
       match lval with
-      | Some lv -> invalidate ask (mkAddrOf lv) ctx.local
+      | Some lv -> invalidate ask (mkAddrOf lv) man.local
       | None -> d
     in
 
@@ -77,16 +77,16 @@ struct
     d
 
 
-  let query ctx (type a) (q: a Queries.t) : a Queries.result =
+  let query man (type a) (q: a Queries.t) : a Queries.result =
     match q with
-    | TmpSpecial lv -> let ml = fst (D.find lv ctx.local) in
+    | TmpSpecial lv -> let ml = fst (D.find lv man.local) in
       if ML.is_bot ml then Queries.Result.top q
       else ml
     | _ -> Queries.Result.top q
 
   let startstate v = D.bot ()
-  let threadenter ctx ~multiple lval f args = [D.bot ()]
-  let threadspawn ctx ~multiple lval f args fctx = ctx.local
+  let threadenter man ~multiple lval f args = [D.bot ()]
+  let threadspawn man ~multiple lval f args fman = man.local
   let exitstate  v = D.bot ()
 end
 

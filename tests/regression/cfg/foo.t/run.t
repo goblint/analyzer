@@ -67,6 +67,9 @@
     total lines: 6
   [Warning][Deadcode][CWE-571] condition 'a > 0' (possibly inserted by CIL) is always true (foo.c:3:10-3:20)
   [Info][Witness] witness generation summary:
+    location invariants: 8
+    loop invariants: 2
+    flow-insensitive invariants: 0
     total generation entries: 10
 
   $ yamlWitnessStrip < witness.yml

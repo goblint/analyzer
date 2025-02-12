@@ -42,7 +42,7 @@ struct
 end
 
 (* true means exclusive lock and false represents reader lock*)
-module RW   = IntDomain.Booleans
+module RW   = BoolDomain.MayBool (* TODO: name booleans? *)
 
 (* pair Addr and RW; also change pretty printing*)
 module MakeRW (P: Printable.S) =
