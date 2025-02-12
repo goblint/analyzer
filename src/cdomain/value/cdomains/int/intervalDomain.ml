@@ -1,4 +1,5 @@
 open IntDomain0
+open GoblintCil
 
 
 module IntervalFunctor (Ints_t : IntOps.IntOps): SOverflow with type int_t = Ints_t.t and type t = (Ints_t.t * Ints_t.t) option =
@@ -189,6 +190,13 @@ struct
 
   let logxor = bit (fun _ik -> Ints_t.logxor)
 
+  let logand_helper ik x1 x2 y1 y2 = 
+    match Ints_t.compare x1 Ints_t.zero >= 0, Ints_t.compare x2 Ints_t.zero >= 0, Ints_t.compare y1 Ints_t.zero >= 0, Ints_t.compare y2 Ints_t.zero >= 0 with
+    | true, _, true, _ -> of_interval ik (Ints_t.zero, Ints_t.min x2 y2) |> fst
+    | _, false, _, false -> of_interval ik (fst (range ik), Ints_t.zero) |> fst
+    | true, _, _, false | _, false, true, _ -> of_interval ik (Ints_t.zero, snd (range ik)) |> fst
+    |_ -> top_of ik
+
   let logand ik i1 i2 =
     match is_bot i1, is_bot i2 with
     | true, true -> bot_of ik
@@ -198,10 +206,21 @@ struct
       match to_int i1, to_int i2 with
       | Some x, Some y -> (try of_int ik (Ints_t.logand x y) |> fst with Division_by_zero -> top_of ik)
       | _ -> 
-        match i1, i2 with
-        | Some (x1, x2), Some (y1, y2) when ik = IUInt -> of_interval ik (Ints_t.zero, Ints_t.min x2 y2) |> fst
-        | Some (x1, x2), Some (y1, y2) when (Ints_t.compare x1 Ints_t.zero > 0 && Ints_t.compare y1 Ints_t.zero > 0 && Ints_t.compare x2 Ints_t.zero > 0 && Ints_t.compare y2 Ints_t.zero > 0) -> of_interval ik (Ints_t.zero, Ints_t.min x2 y2) |> fst
-        | _ -> top_of ik
+        if Cil.isSigned ik then
+          match i1, i2 with
+          | Some (x1, x2), Some (y1, y2) ->
+            logand_helper ik x1 x2 y1 y2
+          | _ -> top_of ik
+        else
+          match i1, i2 with
+          | Some (x1, x2), Some (y1, y2) -> of_interval ik (Ints_t.zero, Ints_t.min x2 y2) |> fst
+          | _ -> top_of ik
+
+  let logor_helper ik x1 x2 y1 y2 =
+    match Ints_t.compare x1 Ints_t.zero >= 0, Ints_t.compare x2 Ints_t.zero >= 0, Ints_t.compare y1 Ints_t.zero >= 0, Ints_t.compare y2 Ints_t.zero >= 0 with
+    | true, _, true, _ -> of_interval ik (Ints_t.max x1 y1, snd (range ik)) |> fst
+    | _, false, _, _ | _, _, _, false -> of_interval ik (fst (range ik), Ints_t.zero) |> fst
+    |_ -> top_of ik
 
   let logor ik i1 i2 = 
     match is_bot i1, is_bot i2 with
@@ -211,11 +230,17 @@ struct
     | _ ->
       match to_int i1, to_int i2 with
       | Some x, Some y -> (try of_int ik (Ints_t.logor x y) |> fst with Division_by_zero -> top_of ik)
-      | _              -> 
-        (* match i1, i2 with
-        | Some (x1, x2), Some (y1, y2) when ik = IUInt -> of_interval ik (Ints_t.max x1 y1, ) |> fst
-        | _ ->*) top_of ik 
-
+      | _              ->
+        if Cil.isSigned ik then
+          match i1, i2 with
+          | Some (x1, x2), Some (y1, y2) ->
+            logor_helper ik x1 x2 y1 y2
+          | _ -> top_of ik
+        else   
+          match i1, i2 with
+          | Some (x1, x2), Some (y1, y2) -> of_interval ik (Ints_t.max x1 y1, snd (range ik)) |> fst
+          | _ -> top_of ik 
+        
   let bit1 f ik i1 =
     if is_bot i1 then
       bot_of ik
@@ -225,7 +250,25 @@ struct
       | _      -> top_of ik
 
   let lognot = bit1 (fun _ik -> Ints_t.lognot)
-  let shift_right = bitcomp (fun _ik x y -> Ints_t.shift_right x (Ints_t.to_int y))
+
+  let rec power_of_two n = 
+    if n = 0 then 1 
+    else 2 * power_of_two (n - 1)
+
+  let shift_right_helper f ik i1 i2 =
+    match is_bot i1, is_bot i2 with
+    | true, true -> (bot_of ik,{underflow=false; overflow=false})
+    | true, _
+    | _   , true -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show i1) (show i2)))
+    | _ ->
+      match to_int i1, to_int i2 with
+      | Some x, Some y -> (try of_int ik (f ik x y) with Division_by_zero | Invalid_argument _ -> (top_of ik,{underflow=false; overflow=false}))
+      | _              -> 
+        match i1, i2 with 
+        | Some (x1, x2), Some (y1,y2) when not (Cil.isSigned ik) -> of_interval ik (Ints_t.zero, Ints_t.div x2 (Ints_t.of_int (power_of_two (Ints_t.to_int y1))))
+        | _ -> (top_of ik,{underflow=true; overflow=true})
+
+  let shift_right = shift_right_helper (fun _ik x y -> Ints_t.shift_right x (Ints_t.to_int y))
 
   let neg ?no_ov ik = function None -> (None,{underflow=false; overflow=false}) | Some x -> norm ik @@ Some (IArith.neg x)
 

@@ -6,11 +6,26 @@ int main() {
 
   unsigned int y = x | 2;
 
-  __goblint_check(y >= 2); // TODO 
+  __goblint_check(y >= 2);  
   
   unsigned int z = y | 3;
 
-  __goblint_check(z >= 3); // TODO 
+  __goblint_check(z >= 3);
 
+  int a;
+
+  int b = a | -2;
+
+  __goblint_check(b <= 0); // TODO
+
+  int c;
+
+  if (c >= 0) {
+    c = -1;
+  }
+
+  int d = c | 2;
+
+  __goblint_check(d <= 0); // TODO
   return 0;
 }

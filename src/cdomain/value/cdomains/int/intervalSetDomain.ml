@@ -300,12 +300,28 @@ struct
     | Some x, Some y -> (try of_int ik (f x y) with Division_by_zero | Invalid_argument _ -> (top_of ik,{overflow=false; underflow=false}))
     | _, _ -> (top_of ik,{overflow=false; underflow=false})
 
+  let logand_helper ik (i1, i2) = 
+    match bit Ints_t.logand ik (i1,i2) with
+    | result when result <> top_of ik -> result
+    | _ ->
+      match i1, i2 with
+      | (x1, x2), (y1, y2) when not (Cil.isSigned ik) -> of_interval ik (Ints_t.zero, Ints_t.min x2 y2) |> fst
+      | _ -> top_of ik
+
   let logand ik x y =
-    let interval_logand = bit Ints_t.logand ik in
+    let interval_logand = logand_helper ik in
     binop x y interval_logand
 
+  let logor_helper ik (i1, i2) = 
+    match bit Ints_t.logor ik (i1, i2) with
+    | result when result <> top_of ik -> result
+    | _ ->
+      match i1, i2 with
+      | (x1, x2), (y1, y2) when not (Cil.isSigned ik) -> of_interval ik (Ints_t.max x1 y1, snd (range ik)) |> fst 
+      | _ -> top_of ik
+
   let logor ik x y =
-    let interval_logor = bit Ints_t.logor ik in
+    let interval_logor = logor_helper ik in
     binop x y interval_logor
 
   let logxor ik x y =
@@ -324,8 +340,21 @@ struct
     let interval_shiftleft = bitcomp (fun x y -> Ints_t.shift_left x (Ints_t.to_int y)) ik in
     binary_op_with_ovc x y interval_shiftleft
 
+  let rec power_of_two n = 
+    if n = 0 then 1 
+    else 2 * power_of_two (n - 1)
+
+  let shift_right_helper f ik (i1, i2) =
+    match (interval_to_int i1, interval_to_int i2) with
+    | Some x, Some y -> (try of_int ik (f x y) with Division_by_zero | Invalid_argument _ -> (top_of ik,{overflow=false; underflow=false}))
+    | _, _ -> 
+      match i1, i2 with
+      | (x1, x2), (y1, y2) when not (Cil.isSigned ik) -> of_interval ik (Ints_t.zero, Ints_t.div x2 (Ints_t.of_int (power_of_two (Ints_t.to_int y1))))
+      | _ -> 
+        (top_of ik,{overflow=true; underflow=true})
+
   let shift_right ik x y =
-    let interval_shiftright = bitcomp (fun x y -> Ints_t.shift_right x (Ints_t.to_int y)) ik in
+    let interval_shiftright = shift_right_helper (fun x y -> Ints_t.shift_right x (Ints_t.to_int y)) ik in
     binary_op_with_ovc x y interval_shiftright
 
   let c_lognot ik x =

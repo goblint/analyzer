@@ -452,7 +452,13 @@ struct
           of_interval IBool (Z.zero, Z.one)
         else
           top ()
-      | `Definite _, `Excluded _
+      | `Definite i, `Excluded _ ->
+        if Z.equal i Z.zero then
+          `Definite Z.zero
+        else if Z.equal i Z.one then
+          of_interval IBool (Z.zero, Z.one)
+        else
+          top () 
       | `Excluded _, `Excluded _ -> top ()
       (* The good case: *)
       | `Definite x, `Definite y ->
@@ -463,7 +469,8 @@ struct
         raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y))))
 
 
-  let logor  = lift2 Z.logor
+  let logor = lift2 Z.logor
+  
   let logxor = lift2 Z.logxor
 
   let shift (shift_op: int_t -> int -> int_t) (ik: Cil.ikind) (x: t) (y: t) =
