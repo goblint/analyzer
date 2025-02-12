@@ -1,4 +1,4 @@
-// PARAM: --set ana.activated[+] memOutOfBounds --set exp.architecture 32bit --enable ana.sv-comp.enabled --set ana.specification "CHECK( init(main()), LTL(G valid-deref) )"
+// PARAM: --set ana.activated[+] memOutOfBounds
 // Minimized version of SV-COMP task list-simple/dll2c_append_equal.i
 #include <stdlib.h>
 
