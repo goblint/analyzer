@@ -279,10 +279,10 @@ struct
              M.warn "Size of lval dereference expression %a is bot. Out-of-bounds memory access may occur" d_exp e)
           | `Lifted es ->
             let casted_es = ID.cast_to (Cilfacade.ptrdiff_ikind ()) es in
-            let one = intdom_of_int 1 in
-            let casted_es = ID.sub casted_es one in
             let casted_offs = ID.cast_to (Cilfacade.ptrdiff_ikind ()) offs_intdom in
             let ptr_size_lt_offs =
+              let one = intdom_of_int 1 in
+              let casted_es = ID.sub casted_es one in
               begin try ID.lt casted_es casted_offs
                 with IntDomain.ArithmeticOnIntegerBot _ -> ID.bot_of @@ Cilfacade.ptrdiff_ikind ()
               end
