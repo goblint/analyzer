@@ -315,38 +315,37 @@ module Disequalities = struct
     | (v1,v2,r) :: rest ->
       (* we don't want to explicitly store disequalities of the kind &x != &y *)
       if T.is_addr v1 && T.is_addr v2 || BlDis.map_set_mem v1 v2 bldis then
-        propagate_neq (uf,cmap,arg,neq) bldis rest else
-        (* v1, v2 are roots; v2 -> r,v1 not yet contained in neq *)
+        propagate_neq (uf,cmap,arg,neq) bldis rest
+      else (* v1, v2 are roots; v2 -> r,v1 not yet contained in neq *)
       if T.equal v1 v2 then
-        if Z.equal r Z.zero then raise Unsat else propagate_neq (uf,cmap,arg,neq) bldis rest
+        if Z.equal r Z.zero then
+          raise Unsat
+        else
+          propagate_neq (uf,cmap,arg,neq) bldis rest
       else (* check whether it is already in neq *)
-      if map_set_mem (v1,Z.(-r)) v2 neq then propagate_neq (uf,cmap,arg,neq) bldis rest
-      else let neq = map_set_add (v1,Z.(-r)) v2 neq |>
-                     map_set_add (v2,r) v1 in
+      if map_set_mem (v1,Z.(-r)) v2 neq then
+        propagate_neq (uf,cmap,arg,neq) bldis rest
+      else
+        let neq = map_set_add (v1,Z.(-r)) v2 neq |> map_set_add (v2,r) v1 in
         (*
           search components of v1, v2 for elements at distance r to obtain inferred equalities
           at the same level (not recorded) and then compare their predecessors
         *)
         match TMap.find_opt v1 (cmap:t), TMap.find_opt v2 cmap with
-        | None,_ | _,None -> (*should not happen*) propagate_neq (uf,cmap,arg,neq) bldis rest
+        | None,_
+        | _,None -> (*should not happen*)
+          propagate_neq (uf,cmap,arg,neq) bldis rest
         | Some imap1, Some imap2 ->
+          let f rest (r1,_) =
+            match ZMap.find_opt Z.(r1+r) imap2 with
+            | None -> rest
+            | Some _ ->
+              let l1 = Option.default [] (map_find_opt (v1,r1) arg) in
+              let l2 = Option.default [] (map_find_opt (v2,Z.(r1+r)) arg) in
+              fold_left2 add_diseq rest l1 l2
+          in
           let ilist1 = ZMap.bindings imap1 in
-          let rest = List.fold_left (fun rest (r1,_) ->
-              match ZMap.find_opt Z.(r1+r) imap2 with
-              | None -> rest
-              | Some _ ->
-                let l1 = match map_find_opt (v1,r1) arg
-                  with None -> []
-                     | Some list -> list in
-                let l2 = match map_find_opt (v2,Z.(r1+r)) arg
-                  with None -> []
-                     | Some list -> list in
-                fold_left2 (fun rest (v1',r'1) (v2',r'2) ->
-                    if T.equal v1' v2' then if Z.equal r'1 r'2 then raise Unsat
-                      else rest
-                    else
-                      (v1',v2',Z.(r'2-r'1))::rest ) rest l1 l2)
-              rest ilist1 in
+          let rest = List.fold_left f rest ilist1 in
           propagate_neq (uf,cmap,arg,neq) bldis rest
         (*
           collection of disequalities:
@@ -359,24 +358,30 @@ module Disequalities = struct
                           then dis-equate the sets at v1,r1 with v2,r2.
         *)
 
+  (** Produces a string for the number used as offset; helper function for show* functions below.*)
+  let show_number r =
+    if Z.equal r Z.zero then
+      ""
+    else if Z.leq r Z.zero then
+      Z.to_string r
+    else
+      " + " ^ Z.to_string r
+
   let show_neq neq =
     let clist = bindings neq in
-    List.fold_left (fun s (v,r,v') ->
-        s ^ "\t" ^ T.show v ^ ( if Z.equal r Z.zero then "" else if Z.leq r Z.zero then (Z.to_string r) else (" + " ^ Z.to_string r) )^ " != "
-        ^ T.show v' ^  "\n") "" clist
+    let do_neq =
+      (fun s (v,r,v') ->
+         s ^ "\t" ^ T.show v ^ show_number r ^ " != " ^ T.show v' ^  "\n")
+    in
+    List.fold_left do_neq "" clist
 
-  let show_cmap neq =
-    let clist = bindings neq in
-    List.fold_left (fun s (v,r,v') ->
-        s ^ "\t" ^ T.show v ^ ( if Z.equal r Z.zero then "" else if Z.leq r Z.zero then (Z.to_string r) else (" + " ^ Z.to_string r) )^ " = "
-        ^ T.show v' ^  "\n") "" clist
-
+  (** *)
   let show_arg arg =
     let clist = bindings_args arg in
-    List.fold_left (fun s (v,z,v',r) ->
-        s ^ "\t" ^ T.show v' ^ ( if Z.equal r Z.zero then "" else if Z.leq r Z.zero then (Z.to_string r) else (" + " ^ Z.to_string r) )^ " --> "
-        ^ T.show v^ "+"^ Z.to_string z ^  "\n") "" clist
-
+    let do_elem s (v,z,v',r) =
+      s ^ "\t" ^ T.show v' ^ show_number r ^ " --> " ^ T.show v^ "+"^ Z.to_string z ^  "\n"
+    in
+    List.fold_left do_elem "" clist
 
   let get_disequalities = List.map
       (fun (t1, z, t2) ->
