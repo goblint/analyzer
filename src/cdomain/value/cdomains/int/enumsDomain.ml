@@ -362,6 +362,12 @@ module Enums : S with type int_t = Z.t = struct
       10, QCheck.map pos (BISet.arbitrary ());
     ] (* S TODO: decide frequencies *)
 
+
+  (* One needs to be exceedingly careful here to not cause new elements to appear that are not originally tracked by the domain *)
+  (* to avoid breaking the termination guarantee that only constants from the program can appear in exclusion or inclusion sets here *)
+  (* What is generally safe is shrinking an inclusion set as no new elements appear here. *)
+  (* What is not safe is growing an exclusion set or switching from an exclusion set to an inclusion set *)
+
   let refine_with_congruence ik a b =
     let contains c m x = if Z.equal m Z.zero then Z.equal c x else Z.equal (Z.rem (Z.sub x c) m) Z.zero in
     match a, b with
@@ -376,11 +382,15 @@ module Enums : S with type int_t = Z.t = struct
     | _ ->
       x
 
-  let refine_with_interval ik a b = a (* TODO: refine inclusion (exclusion?) set *)
+  let refine_with_interval ik a b =
+    match a, b with
+    | Inc _, None -> bot_of ik
+    | Inc e, Some (l, u) -> Inc (BISet.filter (value_in_range (l,u)) e)
+    | _ -> a
 
   let refine_with_excl_list ik a b =
-    match b with
-    | Some (ls, _) -> meet ik a (of_excl_list ik ls) (* TODO: refine with excl range? *)
+    match a, b with
+    | Inc _, Some (ls, _) -> meet ik a (of_excl_list ik ls) (* TODO: refine with excl range? *)
     | _ -> a
 
   let refine_with_incl_list ik a b =
