@@ -83,6 +83,12 @@ module BlDis = struct
     in
     TMap.filter_map filter_map_set diseq
 
+  let map f (diseq:t) =
+    let map_set s =
+      TSet.map f s
+    in
+    TMap.map map_set diseq
+
   let term_set bldis =
     TSet.of_enum (TMap.keys bldis)
 
@@ -894,7 +900,7 @@ let update_bldis new_repr bldis =
   let bldis = BlDis.map_lhs bldis (TMap.bindings new_repr) in
   (* update block disequalities with the new representatives *)
   let find_new_root t1 = Option.default t1 (TMap.find_opt t1 new_repr) in
-  BlDis.filter_map (fun t1 -> Some (find_new_root t1)) bldis
+  BlDis.map find_new_root bldis
 
 (**
    Parameters: cc conjunctions.
