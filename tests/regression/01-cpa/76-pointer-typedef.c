@@ -1,6 +1,7 @@
 // PARAM: --set ana.malloc.unique_address_count 2
 // Extracted (using creduce) from SV-COMP task list-simple/dll2c_remove_all.i
 #include <stdlib.h>
+#include <goblint.h>
 
 typedef struct node {
   struct node *next;
