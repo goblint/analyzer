@@ -209,8 +209,7 @@ struct
   let sys_change get =
     S.sys_change (getL % get % l) (getG % get % g)
 
-  let postmortem leaf =
-    match leaf with
+  let postmortem = function
     | `L g -> List.map (fun x -> `L x) @@ S.postmortem g
     | _ -> []
 end
