@@ -370,8 +370,8 @@ module Enums : S with type int_t = Z.t = struct
     | _ -> a
 
   let refine_with_bitfield ik x (z,o) =
-    match BitfieldDomain.Bitfield.to_int (z,o) with 
-    | Some y ->     
+    match x, BitfieldDomain.Bitfield.to_int (z,o) with 
+    | Inc _, Some y ->     
       meet ik x (Inc (BISet.singleton y))
     | _ ->
       x
