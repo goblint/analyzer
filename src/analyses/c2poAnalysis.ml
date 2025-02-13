@@ -36,19 +36,36 @@ struct
     let open Queries in
     let prop_list = T.prop_of_cil ask e true in
     match split prop_list with
-    | [], [], [] -> ID.top()
-    | x::xs, _, [] -> if fst (eq_query t x) then ID.of_bool ik true else if neq_query t x then ID.of_bool ik false else ID.top()
-    | _, y::ys, [] ->  if neq_query t y then ID.of_bool ik true else if fst (eq_query t y) then ID.of_bool ik false else ID.top()
-    | _ -> ID.top() (*there should never be block disequalities here...*)
+    | [], [], [] ->
+      ID.top()
+    | x::xs, _, [] ->
+      if fst (eq_query t x) then
+        ID.of_bool ik true
+      else if neq_query t x then
+        ID.of_bool ik false
+      else
+        ID.top()
+    | _, y::ys, [] ->
+      if neq_query t y then
+        ID.of_bool ik true
+      else if fst (eq_query t y) then
+        ID.of_bool ik false
+      else
+        ID.top()
+    | _ ->
+      ID.top() (*there should never be block disequalities here...*)
 
-  (**Convert a conjunction to an invariant.*)
-  let conj_to_invariant ask conjs t =
-    List.fold (fun a prop -> match T.prop_to_cil prop with
-        | exception (T.UnsupportedCilExpression _) -> a
-        | exp ->
-          if M.tracing then M.trace "c2po-invariant" "Adding invariant: %a" d_exp exp;
-          Invariant.(a && of_exp exp))
-      (Invariant.top()) conjs
+  (** Convert a conjunction to an invariant.*)
+  let conj_to_invariant ask conjs =
+    let f a prop =
+      try
+        let exp = T.prop_to_cil prop in (* May raise UnsupportedCilExpression *)
+        if M.tracing then M.trace "c2po-invariant" "Adding invariant: %a" d_exp exp;
+        Invariant.(a && of_exp exp)
+      with T.UnsupportedCilExpression _ ->
+        a
+    in
+    List.fold f (Invariant.top()) conjs
 
   let query ctx (type a) (q: a Queries.t): a Queries.result =
     let open Queries in
@@ -56,13 +73,17 @@ struct
     | `Bot -> Result.top q
     | `Lifted cc ->
       match q with
-      | EvalInt e -> let ik = Cilfacade.get_ikind_exp e in
+      | EvalInt e ->
+        let ik = Cilfacade.get_ikind_exp e in
         eval_guard (ask_of_ctx ctx) cc e ik
       | Queries.Invariant context ->
         let scope = Node.find_fundec ctx.node in
         let t = D.remove_vars_not_in_scope scope cc in
-        (conj_to_invariant (ask_of_ctx ctx) (get_conjunction t) t)
-      | _ -> Result.top q
+        let conj = get_conjunction t in
+        let ask = ask_of_ctx ctx in
+        conj_to_invariant ask conj
+      | _ ->
+        Result.top q
 
   (** Assign the term `lterm` to the right hand side rhs, that is already
       converted to a C-2PO term. *)
@@ -70,24 +91,30 @@ struct
     (* ignore assignments to values that are not 64 bits *)
     match T.get_element_size_in_bits lval_t, rhs with
     (* Indefinite assignment *)
-    | s, (None, _) -> (D.remove_may_equal_terms ask s lterm t)
+    | s, (None, _) ->
+      (D.remove_may_equal_terms ask s lterm t)
     (* Definite assignment *)
     | s, (Some term, Some offset) ->
+
       let dummy_var = MayBeEqual.dummy_var lval_t in
       if M.tracing then M.trace "c2po-assign" "assigning: var: %s; expr: %s + %s. \nTo_cil: lval: %a; expr: %a\n" (T.show lterm) (T.show term) (Z.to_string offset) d_exp (T.to_cil lterm) d_exp (T.to_cil term);
-      t |> meet_conjs_opt [Equal (dummy_var, term, offset)] |>
+
+      t |>
+      meet_conjs_opt [Equal (dummy_var, term, offset)] |>
       D.remove_may_equal_terms ask s lterm |>
       meet_conjs_opt [Equal (lterm, dummy_var, Z.zero)] |>
       D.remove_terms_containing_aux_variable
-    | _ -> (* this is impossible *) C2PODomain.top ()
+    | _ -> (* this is impossible *)
+      C2PODomain.top ()
 
   (** Assign Cil Lval to a right hand side that is already converted to
       C-2PO terms.*)
   let assign_lval t ask lval expr =
     let lval_t = typeOfLval lval in
-    match T.of_lval ask lval with
-    | lterm -> assign_term t ask lterm expr lval_t
-    | exception (T.UnsupportedCilExpression _) ->
+    try
+      let lterm = T.of_lval ask lval in
+      assign_term t ask lterm expr lval_t
+    with T.UnsupportedCilExpression _ ->
       (* the assigned variables couldn't be parsed, so we don't know which addresses were written to.
          We have to forget all the information we had.
          This should almost never happen.
@@ -98,10 +125,14 @@ struct
   let assign ctx lval expr =
     let ask = (ask_of_ctx ctx) in
     match ctx.local with
-    | `Bot -> `Bot
+    | `Bot ->
+      `Bot
     | `Lifted cc ->
-      let res = `Lifted (reset_normal_form @@ assign_lval cc ask lval (T.of_cil ask expr)) in
-      if M.tracing then M.trace "c2po-assign" "ASSIGN: var: %a; expr: %a; result: %s.\n" d_lval lval d_plainexp expr (D.show res); res
+      let cc = assign_lval cc ask lval (T.of_cil ask expr) in
+      let cc = reset_normal_form cc in
+      let res = `Lifted cc in
+      if M.tracing then M.trace "c2po-assign" "ASSIGN: var: %a; expr: %a; result: %s.\n" d_lval lval d_plainexp expr (D.show res);
+      res
 
   let branch ctx e pos =
     let props = T.prop_of_cil (ask_of_ctx ctx) e pos in
@@ -109,65 +140,88 @@ struct
     let res =
       match ctx.local with
       | `Bot -> `Bot
-      | `Lifted t ->
-        if List.is_empty valid_props then `Lifted t else
-          match reset_normal_form (meet_conjs_opt valid_props t) with
-          | exception Unsat -> `Bot
-          | t -> `Lifted t
+      | `Lifted cc ->
+        if List.is_empty valid_props then
+          `Lifted cc
+        else
+          try
+            let meet = meet_conjs_opt valid_props cc in
+            let t = reset_normal_form meet in
+            `Lifted t
+          with Unsat ->
+            `Bot
     in
     if M.tracing then M.trace "c2po" "BRANCH:\n Actual equality: %a; pos: %b; valid_prop_list: %s; is_bot: %b\n"
         d_exp e pos (show_conj valid_props) (D.is_bot res);
     if D.is_bot res then raise Deadcode;
     res
 
-  let body ctx f = ctx.local
+  let body ctx f =
+    ctx.local
 
-  let assign_return ask t return_var expr =
+  let assign_return ask d return_var expr =
     (* the return value is not stored on the heap, therefore we don't need to remove any terms *)
     match T.of_cil ask expr with
-    | (Some term, Some offset) -> reset_normal_form (meet_conjs_opt [Equal (return_var, term, offset)] t)
-    | _ -> t
+    | (Some term, Some offset) ->
+      let ret_var_eq_term = [Equal (return_var, term, offset)] in
+      let assign_by_meet = meet_conjs_opt ret_var_eq_term d in
+      reset_normal_form assign_by_meet
+    | _ -> d
 
   let return ctx exp_opt f =
-    let res = match exp_opt with
-      | Some e -> begin match ctx.local with
-          | `Bot -> `Bot
-          | `Lifted t ->
-            `Lifted (assign_return (ask_of_ctx ctx) t (MayBeEqual.return_var (typeOf e)) e)
+    let res =
+      match exp_opt with
+      | Some e ->
+        begin match ctx.local with
+          | `Bot ->
+            `Bot
+          | `Lifted d ->
+            let return_var = MayBeEqual.return_var (typeOf e) in
+            let d = assign_return (ask_of_ctx ctx) d return_var e in
+            `Lifted d
         end
       | None -> ctx.local
-    in if M.tracing then M.trace "c2po-function" "RETURN: exp_opt: %a; state: %s; result: %s\n" d_exp (BatOption.default (MayBeEqual.dummy_lval_print (TVoid [])) exp_opt) (D.show ctx.local) (D.show res);res
+    in
+    if M.tracing then M.trace "c2po-function" "Return: exp_opt: %a; state: %s; result: %s\n" d_exp (BatOption.default (MayBeEqual.dummy_lval_print (TVoid [])) exp_opt) (D.show ctx.local) (D.show res);
+    res
 
   (** var_opt is the variable we assign to. It has type lval. v=malloc.*)
-  let special ctx var_opt v exprs =
+  let special ctx lval_opt v exprs =
     let desc = LibraryFunctions.find v in
     let ask = ask_of_ctx ctx in
     match ctx.local with
     | `Bot -> `Bot
     | `Lifted cc ->
-      let t = begin match var_opt with
+      let t =
+        begin match lval_opt with
         | None ->
           cc
-        | Some varin ->
+        | Some lval ->
           (* forget information about var,
              but ignore assignments to values that are not 64 bits *)
           try
-             let s, lterm = T.get_element_size_in_bits (typeOfLval varin), T.of_lval ask varin in
-             let t = D.remove_may_equal_terms ask s lterm cc in
-             begin match desc.special exprs with
-               | Malloc _ | Calloc _ | Alloca _ ->
-                 add_block_diseqs t lterm
-               | _ -> t
-             end
-          with (T.UnsupportedCilExpression _) -> C2PODomain.top ()
+            let size = T.get_element_size_in_bits (typeOfLval lval) in
+            let lterm = T.of_lval ask lval in
+            let cc = D.remove_may_equal_terms ask size lterm cc in
+            begin match desc.special exprs with
+              | Malloc _
+              | Calloc _
+              | Alloca _ ->
+                add_block_diseqs cc lterm
+              | _ -> cc
+            end
+          with T.UnsupportedCilExpression _ ->
+            C2PODomain.top ()
       end
       in
       match desc.special exprs with
-      | Assert { exp; refine; _ } -> if not refine then
+      | Assert { exp; refine; _ } ->
+        if not refine then
           ctx.local
         else
           branch ctx exp true
-      | _ -> `Lifted (reset_normal_form t)
+      | _ ->
+        `Lifted (reset_normal_form t)
 
   (**First all local variables of the function are duplicated (by negating their ID),
      then we remember the value of each local variable at the beginning of the function
