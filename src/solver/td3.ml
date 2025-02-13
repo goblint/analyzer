@@ -383,22 +383,19 @@ module Base =
                 Fun.protect ~finally:(fun () -> (
                       if narrow_globs_eliminate_dead then begin
                         let prev_sides_x = HM.find_option prev_sides x in
-                        begin match prev_sides_x with
-                          | Some prev_sides_x -> VS.iter (fun y ->
-                              if Option.is_none @@ HM.find_option acc y then begin
-                                ignore @@ divided_side D_Narrow x y (S.Dom.bot ());
-                                if S.Dom.is_bot @@ HM.find rho y then
-                                  let casualties = S.postmortem y in
-                                  List.iter (fun x -> solve x Widen) casualties
-                              end;
-                            ) prev_sides_x
-                          | None -> () end;
-                        let new_sides = ref VS.empty in
-                        HM.iter (fun y _ -> new_sides := VS.add y !new_sides) acc;
-                        if VS.is_empty !new_sides then
+                        Option.may (VS.iter (fun y ->
+                            if not @@ HM.mem acc y then begin
+                              ignore @@ divided_side D_Narrow x y (S.Dom.bot ());
+                              if S.Dom.is_bot @@ HM.find rho y then
+                                let casualties = S.postmortem y in
+                                List.iter (fun x -> solve x Widen) casualties
+                            end;
+                          )) prev_sides_x;
+                        let new_sides = HM.fold (fun k _ acc -> VS.add k acc) acc VS.empty in
+                        if VS.is_empty new_sides then
                           HM.remove prev_sides x
                         else
-                          HM.replace prev_sides x !new_sides;
+                          HM.replace prev_sides x new_sides;
                       end;
                       if narrow_globs_immediate_growth then
                         HM.iter (fun y acc -> if not @@ HM.mem changed y then ignore @@ divided_side D_Narrow x y acc) acc
