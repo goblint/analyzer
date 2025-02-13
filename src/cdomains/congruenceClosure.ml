@@ -1454,8 +1454,6 @@ module MayBeEqual = struct
     T.aux_term_of_varinfo (ReturnAux typ)
 
   let ask_may_point_to (ask: Queries.ask) exp =
-    (* TODO: Change type of query here ---
-       this is only meant to ask the start state analysis, and avoid catching an exception here.  *)
     try
       ask.f (MayPointTo exp)
     with IntDomain.ArithmeticOnIntegerBot _ ->
