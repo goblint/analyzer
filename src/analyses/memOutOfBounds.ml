@@ -148,8 +148,8 @@ struct
     | `NoOffset -> intdom_of_int 0
     | `Field (field, o) ->
       let field_as_offset = Field (field, NoOffset) in
-      let bits_offset, _size = GoblintCil.bitsOffset (TComp (field.fcomp, [])) field_as_offset in
-      let bytes_offset = intdom_of_int (bits_offset / 8) in
+      let bytes_offset = Cilfacade.bytesOffsetOnly (TComp (field.fcomp, [])) field_as_offset in
+      let bytes_offset = intdom_of_int bytes_offset in
       let remaining_offset = offs_to_idx field.ftype o in
       begin
         try ID.add bytes_offset remaining_offset
