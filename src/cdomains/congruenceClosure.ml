@@ -998,7 +998,7 @@ let block_neq_query cc (t1,t2) =
   BlDis.map_set_mem v1 v2 cc.bldis
 
 (** Returns true if t1 and t2 are not equivalent. *)
-let neq_query cc (t1,t2,r) =
+let neq_query cc (t1, t2, r) =
   (* we implicitly assume that &x != &y + z *)
   if T.is_addr t1 && T.is_addr t2 then
     true
@@ -1030,8 +1030,14 @@ let meet_pos_conjs cc pos_conjs =
     Returns None if a contradiction is found. *)
 let meet_conjs_opt conjs cc =
   let pos_conjs, neg_conjs, bl_conjs = split conjs in
-  let terms_to_add = (fst (SSet.subterms_of_conj (neg_conjs @ List.map(fun (t1,t2)->(t1,t2,Z.zero)) bl_conjs))) in
-  let cc = add_normalized_bl_diseqs (insert_set (meet_pos_conjs cc pos_conjs) terms_to_add) bl_conjs in
+
+  (* Convert bl_conjs into format that can be given to SSet.subterms_of_conj *)
+  let bl_conjs_as_props = List.map (fun (t1, t2)->(t1, t2, Z.zero)) bl_conjs in
+  let terms_to_add, _ = SSet.subterms_of_conj (neg_conjs @ bl_conjs_as_props) in
+
+  let cc = meet_pos_conjs cc pos_conjs in
+  let cc = insert_set cc terms_to_add in
+  let cc = add_normalized_bl_diseqs cc bl_conjs in
   congruence_neq cc neg_conjs
 
 (** Add proposition t1 = t2 + r to the data structure.
@@ -1045,79 +1051,118 @@ let add_eq cc (t1, t2, r) =
 (** Adds block disequalities to cc:
     for each representative t in cc it adds the disequality bl(lterm) != bl(t)*)
 let add_block_diseqs cc lterm =
-  let bldis = BlDis.add_block_diseqs cc.bldis cc.uf lterm (TUF.get_representatives cc.uf) in
+  let representatives = TUF.get_representatives cc.uf in
+  let bldis = BlDis.add_block_diseqs cc.bldis cc.uf lterm representatives in
   {cc with bldis}
 
 (* Remove variables: *)
 
 (** Removes terms from the union find and the lookup map. *)
 let remove_terms_from_eq predicate cc =
-  let insert_terms cc = List.fold (fun cc t -> snd (insert cc t)) cc in
+  let insert_term cc t =
+    let _, cc = insert cc t in
+    cc
+  in
+  let insert_terms cc = List.fold insert_term cc in
   (* start from all initial states that are still valid and find new representatives if necessary *)
   (* new_reps maps each representative term to the new representative of the equivalence class *)
   (* but new_reps contains an element but not necessarily the representative *)
   let find_new_repr state old_rep old_z new_reps =
     match LMap.find_opt old_rep new_reps with
-    | Some (new_rep,z) -> new_rep, Z.(old_z - z), new_reps
-    | None -> if not @@ predicate old_rep then
-        old_rep, old_z, TMap.add old_rep (old_rep, Z.zero) new_reps else (* <- we keep the same representative as before *)
+    | Some (new_rep,z) ->
+      new_rep, Z.(old_z - z), new_reps
+    | None ->
+      if not @@ predicate old_rep then
+        let new_reps = TMap.add old_rep (old_rep, Z.zero) new_reps in
+        old_rep, old_z, new_reps
+      else (* <- we keep the same representative as before *)
         (* the representative need to be removed from the data structure: state is the new repr->*)
-        state, Z.zero, TMap.add old_rep (state, old_z) new_reps in
+        let new_reps = TMap.add old_rep (state, old_z) new_reps in
+        state, Z.zero, new_reps
+  in
   let add_atom (uf, new_reps, new_cc, reachable_old_reps) state =
     let old_rep, old_z, uf = TUF.find uf state in
     let new_rep, new_z, new_reps = find_new_repr state old_rep old_z new_reps in
     let new_cc = insert_terms new_cc [state; new_rep] in
     let new_cc = closure new_cc [(state, new_rep, new_z)] in
-    (uf, new_reps, new_cc, (old_rep, new_rep, Z.(old_z - new_z))::reachable_old_reps)
+    let reachable_old_reps = (old_rep, new_rep, Z.(old_z - new_z))::reachable_old_reps in
+    (uf, new_reps, new_cc, reachable_old_reps)
   in
   let uf, new_reps, new_cc, reachable_old_reps =
-    SSet.fold_atoms (fun acc x -> if (not (predicate x)) then add_atom acc x else acc) (cc.uf, TMap.empty, init_cc (),[]) cc.set in
-  let cmap,uf = Disequalities.comp_map uf in
+    (* Only perform add_atom on those that do not fullfill the predicate *)
+    let filter_out acc x =
+      if predicate x then
+        acc
+      else
+        add_atom acc x
+    in
+    SSet.fold_atoms filter_out  (cc.uf, TMap.empty, init_cc (),[]) cc.set in
+  let cmap, uf = Disequalities.comp_map uf in
   (* breadth-first search of reachable states *)
   let add_transition (old_rep, new_rep, z1) (uf, new_reps, new_cc, reachable_old_reps) (s_z,s_t) =
     let old_rep_s, old_z_s, uf = TUF.find uf s_t in
     let find_successor_in_set (z, term_set) =
       let exception Found in
       let res = ref None in
+      let do_term t =
+        try
+          let successor = SSet.deref_term t Z.(s_z - z) cc.set in
+          if predicate successor then
+            ()
+          else begin
+            res := Some successor;
+            raise Found
+          end
+        with T.UnsupportedCilExpression _ ->
+          ()
+      in
       try
-        TSet.iter (fun t ->
-            match SSet.deref_term t Z.(s_z-z) cc.set with
-            | exception (T.UnsupportedCilExpression _) -> ()
-            | successor -> if (not @@ predicate successor) then
-                (res := Some successor; raise Found)
-              else
-                ()
-          ) term_set; !res
+        TSet.iter do_term term_set;
+        !res
       with Found -> !res
     in
     (* find successor term -> find any element in equivalence class that can be dereferenced *)
-    match List.find_map_opt find_successor_in_set (ZMap.bindings @@ TMap.find old_rep cmap) with
-    | Some successor_term -> if (not @@ predicate successor_term && T.check_valid_pointer (T.to_cil successor_term)) then
+    let old_rep_zmap = TMap.find old_rep cmap in
+    let old_rep_bindings = ZMap.bindings @@ old_rep_zmap in
+
+    match List.find_map_opt find_successor_in_set old_rep_bindings with
+    | Some successor_term ->
+      if predicate successor_term && T.check_valid_pointer (T.to_cil successor_term) then
+        (uf, new_reps, new_cc, reachable_old_reps)
+      else begin
         let new_cc = insert_terms new_cc [successor_term] in
         match LMap.find_opt old_rep_s new_reps with
         | Some (new_rep_s,z2) -> (* the successor already has a new representative, therefore we can just add it to the lookup map*)
-          uf, new_reps, closure new_cc [(successor_term, new_rep_s, Z.(old_z_s-z2))], reachable_old_reps
+          let new_eq = [(successor_term, new_rep_s, Z.(old_z_s - z2))] in
+          let new_cc = closure new_cc new_eq in
+          uf, new_reps, new_cc, reachable_old_reps
         | None -> (* the successor state was not visited yet, therefore we need to find the new representative of the state.
                      -> we choose a successor term *(t+z) for any t
                      -> we need add the successor state to the list of states that still need to be visited
                   *)
-          uf, TMap.add old_rep_s (successor_term, old_z_s) new_reps, new_cc, (old_rep_s, successor_term, old_z_s)::reachable_old_reps
-      else
-        (uf, new_reps, new_cc, reachable_old_reps)
+          let new_reps = TMap.add old_rep_s (successor_term, old_z_s) new_reps in
+          let reachable_old_reps = (old_rep_s, successor_term, old_z_s)::reachable_old_reps in
+          uf, new_reps, new_cc, reachable_old_reps
+      end
     | None ->
       (* the term cannot be dereferenced, so we won't add this transition. *)
       (uf, new_reps, new_cc, reachable_old_reps)
   in
   (* find all successors that are still reachable *)
   let rec add_transitions uf new_reps new_cc = function
-    | [] -> new_reps, new_cc
+    | [] ->
+      new_reps, new_cc
     | (old_rep, new_rep, z)::rest ->
       let successors = LMap.successors old_rep cc.map in
       let uf, new_reps, new_cc, reachable_old_reps =
-        List.fold (add_transition (old_rep, new_rep,z)) (uf, new_reps, new_cc, []) successors in
-      add_transitions uf new_reps new_cc (rest@reachable_old_reps)
-  in add_transitions uf new_reps new_cc
-    (List.unique_cmp ~cmp:(Tuple3.compare ~cmp1:(T.compare) ~cmp2:(T.compare) ~cmp3:(Z.compare)) reachable_old_reps)
+        List.fold (add_transition (old_rep, new_rep,z)) (uf, new_reps, new_cc, []) successors
+      in
+      add_transitions uf new_reps new_cc (rest @ reachable_old_reps)
+  in
+  let cmp = Tuple3.compare ~cmp1:(T.compare) ~cmp2:(T.compare) ~cmp3:(Z.compare) in
+  let reachable_old_reps = List.unique_cmp ~cmp reachable_old_reps in
+  add_transitions uf new_reps new_cc reachable_old_reps
+
 
 (** Find the representative term of the equivalence classes of an element that has already been deleted from the data structure.
     Returns None if there are no elements in the same equivalence class as t before it was deleted.*)
@@ -1126,17 +1171,19 @@ let find_new_root new_reps uf v =
   | None -> uf, None
   | Some (new_t, z1) ->
     let t_rep, z2, uf = TUF.find uf new_t in
-    uf, Some (t_rep, Z.(z2-z1))
+    uf, Some (t_rep, Z.(z2 - z1))
 
 let remove_terms_from_diseq diseq new_reps cc =
-  let disequalities = Disequalities.get_disequalities diseq
-  in
-  let add_disequality (uf,new_diseq) = function
-    | Nequal(t1,t2,z) ->
-      begin match find_new_root new_reps uf t1 with
+  let disequalities = Disequalities.get_disequalities diseq in
+  let add_disequality (uf, new_diseq) = function
+    | Nequal (t1, t2 ,z) ->
+      begin
+        match find_new_root new_reps uf t1 with
         | uf, Some (t1',z1') ->
-          begin match find_new_root new_reps uf t2 with
-            | uf, Some (t2', z2') -> uf, (t1', t2', Z.(z2'+z-z1'))::new_diseq
+          begin
+            match find_new_root new_reps uf t2 with
+            | uf, Some (t2', z2') ->
+              uf, (t1', t2', Z.(z2'+z-z1'))::new_diseq
             | _ -> uf, new_diseq
           end
         | _ -> uf, new_diseq
@@ -1151,7 +1198,8 @@ let remove_terms_from_bldis bldis new_reps cc =
   let find_new_root_term t =
     let uf, new_root = find_new_root new_reps !uf_ref t in
     uf_ref := uf;
-    Option.map fst new_root in
+    Option.map fst new_root
+  in
   let bldis = BlDis.filter_map_lhs find_new_root_term bldis in
   !uf_ref, BlDis.filter_map find_new_root_term bldis
 
@@ -1161,8 +1209,9 @@ let remove_terms_from_bldis bldis new_reps cc =
 let remove_terms predicate cc =
   let old_cc = cc in
   let new_reps, cc = remove_terms_from_eq predicate cc in
-  let uf,bldis = remove_terms_from_bldis old_cc.bldis new_reps cc in
-  let cc = remove_terms_from_diseq old_cc.diseq new_reps {cc with uf;bldis} in
+  let uf, bldis = remove_terms_from_bldis old_cc.bldis new_reps cc in
+  let cc = {cc with uf; bldis} in
+  let cc = remove_terms_from_diseq old_cc.diseq new_reps cc in
   cc
 
 let remove_terms p cc = Timing.wrap "removing terms" (remove_terms p) cc
