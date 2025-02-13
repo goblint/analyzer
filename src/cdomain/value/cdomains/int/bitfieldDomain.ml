@@ -290,7 +290,7 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): Bitfield_SOverflow with type in
     (* This corresponds to bitwise implication. *)
     let implies a b = Ints_t.equal (!:a |: b) BArith.one_mask in
     implies z1 z2 && implies o1 o2
-    
+
   let widen ik x y = norm ik @@ BArith.widen x y
 
   let narrow ik x y = meet ik x y
