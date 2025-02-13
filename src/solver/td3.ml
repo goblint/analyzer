@@ -527,9 +527,9 @@ module Base =
               HM.replace y_sides x (new_side, narrow_gas);
 
             let combined_side y =
-              let combined = match HM.find_option divided_side_effects y with
-                | Some map -> HM.fold (fun _ (value, _) acc -> S.Dom.join acc value) map (S.Dom.bot ())
-                | None -> S.Dom.bot () in
+              let contribs = HM.find_option divided_side_effects y in
+              let join map = HM.fold (fun _ (value, _) acc -> S.Dom.join acc value) map (S.Dom.bot ()) in
+              let combined = Option.map_default join (S.Dom.bot ()) contribs in
               let start_value = HM.find_default narrow_globs_start_values y (S.Dom.bot()) in
               S.Dom.join combined start_value
             in
