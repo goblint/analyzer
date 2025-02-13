@@ -1444,67 +1444,107 @@ module MayBeEqual = struct
   module AD = Queries.AD
   open Var
 
-  let dummy_var typ = T.aux_term_of_varinfo (AssignAux typ)
-  let dummy_lval_print typ = Lval (Var (to_varinfo (AssignAux typ)), NoOffset)
+  let dummy_var typ =
+    T.aux_term_of_varinfo (AssignAux typ)
 
-  let return_var typ = T.aux_term_of_varinfo (ReturnAux typ)
+  let dummy_lval_print typ =
+    Lval (Var (to_varinfo (AssignAux typ)), NoOffset)
+
+  let return_var typ =
+    T.aux_term_of_varinfo (ReturnAux typ)
 
   let ask_may_point_to (ask: Queries.ask) exp =
-    match ask.f (MayPointTo exp) with
-    | exception (IntDomain.ArithmeticOnIntegerBot _) -> AD.top ()
-    | res -> res
+    (* TODO: Change type of query here ---
+       this is only meant to ask the start state analysis, and avoid catching an exception here.  *)
+    try
+      ask.f (MayPointTo exp)
+    with IntDomain.ArithmeticOnIntegerBot _ ->
+      AD.top ()
 
   (** Ask MayPointTo not only for the term `term`, but also
       for all terms that are in the same equivalence class as `term`. Then meet the result.
   *)
   let may_point_to_all_equal_terms ask exp cc term offset =
-    let equal_terms = if TMap.mem term cc.uf then
+    let equal_terms =
+      if TMap.mem term cc.uf then
         let comp = Disequalities.comp_t cc.uf term in
-        let valid_term (t,z) =
-          T.is_ptr_type (T.type_of_term t) in
+        let valid_term (t, z) =
+          let typ = T.type_of_term t in
+          T.is_ptr_type typ
+        in
         List.filter valid_term comp
-      else [(term,Z.zero)]
+      else
+        [(term, Z.zero)]
     in
+
+    let intersect_query_result res (term, z) =
+      let next_query =
+        try
+          let cil_exp = T.to_cil_sum Z.(z + offset) (T.to_cil term) in
+          let res = ask_may_point_to ask cil_exp in
+          if AD.is_bot res then
+            AD.top()
+          else
+            res
+        with T.UnsupportedCilExpression _ ->
+          AD.top()
+      in
+      try
+        AD.meet res next_query
+      with IntDomain.ArithmeticOnIntegerBot _ ->
+        res
+    in
+
     if M.tracing then M.trace "c2po-query" "may-point-to %a -> equal terms: %s"
         d_exp exp (List.fold (fun s (t,z) -> s ^ "(" ^ T.show t ^","^ Z.to_string Z.(z + offset) ^")") "" equal_terms);
-    let intersect_query_result res (term,z) =
-      let next_query =
-        match ask_may_point_to ask (T.to_cil_sum Z.(z + offset) (T.to_cil term)) with
-        | exception (T.UnsupportedCilExpression _) -> AD.top()
-        | res -> if AD.is_bot res then AD.top() else res
-      in
-      match AD.meet res next_query with
-      | exception (IntDomain.ArithmeticOnIntegerBot _) -> res
-      | result -> result
-    in
-    List.fold intersect_query_result (AD.top()) equal_terms
 
-  (**Find out if an addresse is possibly equal to one of the addresses in `addresses` by using the MayPointTo query. *)
+    List.fold intersect_query_result (AD.top ()) equal_terms
+
+  (** Find out if an addresse is possibly equal to one of the addresses in `addresses` by using the MayPointTo query. *)
   let may_point_to_address (ask:Queries.ask) addresses t2 off cc =
     match T.to_cil_sum off (T.to_cil t2) with
-    | exception (T.UnsupportedCilExpression _) -> true
+    | exception (T.UnsupportedCilExpression _) ->
+      true
     | exp2 ->
       let mpt1 = addresses in
       let mpt2 = may_point_to_all_equal_terms ask exp2 cc t2 off in
-      let res = try not (AD.is_bot (AD.meet mpt1 mpt2))
-        with IntDomain.ArithmeticOnIntegerBot _ -> true
+      let res =
+        try
+          not (AD.is_bot (AD.meet mpt1 mpt2))
+        with
+          IntDomain.ArithmeticOnIntegerBot _ -> true
       in
-      if M.tracing then M.tracel "c2po-maypointto2" "QUERY MayPointTo. \nres: %a;\nt2: %s; exp2: %a; res: %a; \nmeet: %a; result: %s\n"
-          AD.pretty mpt1 (T.show t2) d_plainexp exp2 AD.pretty mpt2 AD.pretty (try AD.meet mpt1 mpt2 with IntDomain.ArithmeticOnIntegerBot _ -> AD.bot ()) (string_of_bool res); res
+      if M.tracing then begin
+        let meet =
+          try
+            AD.meet mpt1 mpt2
+          with IntDomain.ArithmeticOnIntegerBot _ ->
+            AD.bot ()
+        in
+        M.tracel "c2po-maypointto2" "QUERY MayPointTo. \nres: %a;\nt2: %s; exp2: %a; res: %a; \nmeet: %a; result: %s\n"
+          AD.pretty mpt1 (T.show t2) d_plainexp exp2 AD.pretty mpt2 AD.pretty meet (string_of_bool res);
+      end;
+      res
 
   (** Find out if two addresses `t1` and `t2` are possibly equal by using the MayPointTo query. *)
-  let may_point_to_same_address (ask:Queries.ask) t1 t2 off cc =
-    if T.equal t1 t2 then true else
+  let may_point_to_same_address (ask: Queries.ask) t1 t2 off cc =
+    if T.equal t1 t2 then
+      true
+    else
       let exp1 = T.to_cil t1 in
       let mpt1 = may_point_to_all_equal_terms ask exp1 cc t1 Z.zero in
       let res = may_point_to_address ask mpt1 t2 off cc in
       if M.tracing && res then M.tracel "c2po-maypointto2" "QUERY MayPointTo. \nres: %a;\nt1: %s; exp1: %a;\n"
-          AD.pretty mpt1 (T.show t1) d_plainexp exp1; res
+          AD.pretty mpt1 (T.show t1) d_plainexp exp1;
+      res
 
   (** Returns true if `t1` and `t2` may possibly be equal or may possibly overlap. *)
   let rec may_be_equal ask cc s t1 t2 =
     let there_is_an_overlap s s' diff =
-      if Z.(gt diff zero) then Z.(lt diff s') else Z.(lt (-diff) s)
+      if Z.(gt diff zero) then
+        Z.(lt diff s')
+      else
+        Z.(lt (-diff) s)
     in
     match t1, t2 with
     | Deref (t, z,_), Deref (v, z',_) ->
@@ -1513,21 +1553,29 @@ module MayBeEqual = struct
       let s' = T.get_size t2 in
       let diff = Z.(-z' - z1 + z1' + z) in
       (* If they are in the same equivalence class and they overlap, then they are equal *)
-      (if T.equal q' q && there_is_an_overlap s s' diff then true
-       else
-         (* If we have a disequality, then they are not equal *)
-       if neq_query cc (t,v,Z.(z'-z)) then false else
-         (* or if we know that they are not equal according to the query MayPointTo*)
-       if GobConfig.get_bool "ana.c2po.askbase" then (may_point_to_same_address ask t v Z.(z' - z) cc)
-       else true)
-      || (may_be_equal ask cc s t1 v)
-    | Deref _, _ -> false (* The value of addresses or auxiliaries never change when we overwrite the memory*)
-    | Addr _ , _ | Aux _, _ -> T.is_subterm t1 t2
+      let cond1 =
+        if T.equal q' q && there_is_an_overlap s s' diff then
+          true
+          (* If we have a disequality, then they are not equal *)
+        else if neq_query cc (t,v,Z.(z'-z)) then
+          false
+          (* or if we know that they are not equal according to the query MayPointTo*)
+        else if GobConfig.get_bool "ana.c2po.askbase" then
+          may_point_to_same_address ask t v Z.(z' - z) cc
+        else
+          true
+      in
+      cond1 || (may_be_equal ask cc s t1 v)
+    | Deref _, _ ->
+      false (* The value of addresses or auxiliaries never change when we overwrite the memory*)
+    | Addr _ , _
+    | Aux _, _ ->
+      T.is_subterm t1 t2
 
   (**Returns true iff by assigning to t1, the value of t2 could change.
      The parameter s is the size in bits of the variable t1 we are assigning to. *)
   let may_be_equal ask cc s t1 t2 =
-    let res = (may_be_equal ask cc s t1 t2) in
+    let res = may_be_equal ask cc s t1 t2 in
     if M.tracing then M.tracel "c2po-maypointto" "MAY BE EQUAL: %s %s: %b\n" (T.show t1) (T.show t2) res;
     res
 
@@ -1537,6 +1585,8 @@ module MayBeEqual = struct
     |  Deref (v, z',_) ->
       (may_point_to_address ask addresses v z' cc)
       || (may_point_to_one_of_these_addresses ask addresses cc v)
-    | Addr _ -> false
-    | Aux (v,e) -> may_point_to_address ask addresses (Addr v) Z.zero cc
+    | Addr _ ->
+      false
+    | Aux (v,e) ->
+      may_point_to_address ask addresses (Addr v) Z.zero cc
 end
