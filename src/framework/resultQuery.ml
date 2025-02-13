@@ -66,7 +66,7 @@ struct
 end
 
 
-module NH = BatHashtbl.Make (Node)
+module NH = Hashtbl.Make (Node)
 
 module type SpecSysSol2 =
 sig

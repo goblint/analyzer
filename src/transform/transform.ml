@@ -27,7 +27,7 @@ let run_transformations ?(file_output = true) file names ask =
   let active_transformations =
     List.filter_map
       (fun name ->
-         match BatHashtbl.find_option h name with
+         match Hashtbl.find_opt h name with
          | Some t -> Some (name, t)
          | None -> failwith "Transformation %s does not exist!")
       names

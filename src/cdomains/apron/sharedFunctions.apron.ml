@@ -1,6 +1,5 @@
 (** Relational value domain utilities. *)
 open GoblintCil
-open Batteries
 
 open GobApron
 
