@@ -285,8 +285,12 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): Bitfield_SOverflow with type in
 
   let meet ik x y = norm ik @@ (BArith.meet x y)
 
-  let leq (x:t) (y:t) = equal (BArith.join x y) y
-
+  let leq (z1,o1) (z2,o2) =
+    (* If a bit can have a certain value in parameter 1, it must be able to have the same value in parameter 2. *)
+    (* This corresponds to bitwise implication. *)
+    let implies a b = Ints_t.equal (!:a |: b) BArith.one_mask in
+    implies z1 z2 && implies o1 o2
+    
   let widen ik x y = norm ik @@ BArith.widen x y
 
   let narrow ik x y = meet ik x y
