@@ -1539,7 +1539,7 @@ module MayBeEqual = struct
       res
 
   (** Returns true if `t1` and `t2` may possibly be equal or may possibly overlap. *)
-  let rec may_be_equal ask cc s t1 t2 =
+  let rec may_be_equal ask cc size t1 t2 =
     let there_is_an_overlap s s' diff =
       if Z.(gt diff zero) then
         Z.(lt diff s')
@@ -1554,7 +1554,7 @@ module MayBeEqual = struct
       let diff = Z.(-z' - z1 + z1' + z) in
       (* If they are in the same equivalence class and they overlap, then they are equal *)
       let cond1 =
-        if T.equal q' q && there_is_an_overlap s s' diff then
+        if T.equal q' q && there_is_an_overlap size s' diff then
           true
           (* If we have a disequality, then they are not equal *)
         else if neq_query cc (t,v,Z.(z'-z)) then
@@ -1565,7 +1565,7 @@ module MayBeEqual = struct
         else
           true
       in
-      cond1 || (may_be_equal ask cc s t1 v)
+      cond1 || (may_be_equal ask cc size t1 v)
     | Deref _, _ ->
       false (* The value of addresses or auxiliaries never change when we overwrite the memory*)
     | Addr _ , _
@@ -1574,8 +1574,8 @@ module MayBeEqual = struct
 
   (**Returns true iff by assigning to t1, the value of t2 could change.
      The parameter s is the size in bits of the variable t1 we are assigning to. *)
-  let may_be_equal ask cc s t1 t2 =
-    let res = may_be_equal ask cc s t1 t2 in
+  let may_be_equal ask cc size t1 t2 =
+    let res = may_be_equal ask cc size t1 t2 in
     if M.tracing then M.tracel "c2po-maypointto" "MAY BE EQUAL: %s %s: %b\n" (T.show t1) (T.show t2) res;
     res
 
