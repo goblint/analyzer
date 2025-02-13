@@ -117,7 +117,7 @@ struct
           match a with
           | Addr (base, _) as orig ->
             let (a:VD.t) = Address (AD.singleton (AD.Addr.of_var base)) in
-            if M.tracing then M.tracel "invo" "Consider case of lval %a = %a" d_lval lv VD.pretty a;
+            if M.tracing then M.tracel "inv" "Consider case of lval %a = %a" d_lval lv VD.pretty a;
             let st = set' lv a st in
             let old_val = get ~man st (AD.singleton orig) None in
             let old_val = VD.cast (Cilfacade.typeOfLval x) old_val in (* needed as the type of this pointer may be different *)
@@ -128,7 +128,7 @@ struct
             if is_some_bot v then
               D.join acc (try contra st with Analyses.Deadcode -> D.bot ())
             else (
-              if M.tracing then M.tracel "invo" "improve lval %a from %a to %a (c = %a, c' = %a)" d_lval x VD.pretty old_val VD.pretty v pretty c VD.pretty c';
+              if M.tracing then M.tracel "inv" "improve lval %a from %a to %a (c = %a, c' = %a)" d_lval x VD.pretty old_val VD.pretty v pretty c VD.pretty c';
               D.join acc (set' x v st)
             )
           | _ ->
