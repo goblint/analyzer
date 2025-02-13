@@ -761,9 +761,9 @@
             "privatization": {
               "title": "ana.base.privatization",
               "description":
-                "Which privatization to use? none/mutex-oplus/mutex-meet/mutex-meet-tid/protection/protection-read/mine/mine-nothread/mine-W/mine-W-noinit/lock/lock-tid/write/write-tid/write+lock/write+lock-tid",
+                "Which privatization to use? none/vojdani/mutex-oplus/mutex-meet/mutex-meet-tid/protection/protection-read/mine/mine-nothread/mine-W/mine-W-noinit/lock/lock-tid/write/write-tid/write+lock/write+lock-tid",
               "type": "string",
-              "enum": ["none", "mutex-oplus", "mutex-meet", "protection", "protection-tid", "protection-atomic", "protection-read", "protection-read-tid", "protection-read-atomic", "mine", "mine-nothread", "mine-W", "mine-W-noinit", "lock", "lock-tid", "write", "write-tid", "write+lock", "write+lock-tid", "mutex-meet-tid"],
+              "enum": ["none", "vojdani", "mutex-oplus", "mutex-meet", "protection", "protection-tid", "protection-atomic", "protection-read", "protection-read-tid", "protection-read-atomic", "mine", "mine-nothread", "mine-W", "mine-W-noinit", "lock", "lock-tid", "write", "write-tid", "write+lock", "write+lock-tid", "mutex-meet-tid"],
               "default": "protection-read"
             },
             "priv": {
@@ -2211,6 +2211,12 @@
           "description": "Output abstract values, etc. with full internal details, without readability-oriented simplifications.",
           "type": "boolean",
           "default": false
+        },
+        "termination-bounds": {
+          "title": "dbg.termination-bounds",
+          "description": "Output loop iteration bounds for terminating loops when termination analysis is activated.",
+          "type": "boolean",
+          "default": false
         }
       },
       "additionalProperties": false
@@ -2408,6 +2414,20 @@
               "type": "string",
               "enum": ["never", "always", "sides", "cycle", "unstable_called", "unstable_self", "sides-pp","sides-local"],
               "default": "sides"
+            },
+            "side_widen_gas": {
+              "title": "solvers.td3.side_widen_gas",
+              "description":
+                "Delay widening globals through side-effects. With a widening gas of N, the solver will perform widening only once unknown has grown through side-effects N times and the widening condition according to the side_widen policy has been met. A value of 0 behaves as before the feature was introduced.",
+              "type": "integer",
+              "default": 0
+            },
+            "widen_gas": {
+              "title": "solvers.td3.widen_gas",
+              "description":
+                "Delay widening non-globals, i.e. unknowns with right hand sides. With a widening gas of N, the solver will perform widening only once unknown has grown N times. A value of 0 behaves as before the feature was introduced.",
+              "type": "integer",
+              "default": 0
             },
             "space": {
               "title": "solvers.td3.space",

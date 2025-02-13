@@ -120,10 +120,9 @@ let rec option_spec_list: Arg_complete.speclist Lazy.t = lazy (
   ; "--html"               , Arg_complete.Unit (fun _ -> configure_html ()),""
   ; "--sarif"               , Arg_complete.Unit (fun _ -> configure_sarif ()),""
   ; "--compare_runs"       , Arg_complete.Tuple [Arg_complete.Set_string (tmp_arg, Arg_complete.empty); Arg_complete.String ((fun x -> set_auto "compare_runs" (sprintf "['%s','%s']" !tmp_arg x)), Arg_complete.empty)], ""
-  ; "--complete"           , Arg_complete.Rest_all_compat.spec (Lazy.force rest_all_complete), ""
+  ; "--complete"           , Arg_complete.Rest_all (complete, Arg_complete.empty_all), ""
   ] @ defaults_spec_list (* lowest priority *)
 )
-and rest_all_complete = lazy (Arg_complete.Rest_all_compat.create complete Arg_complete.empty_all)
 and complete args =
   Arg_complete.complete_argv args (Lazy.force option_spec_list) Arg_complete.empty
   |> List.iter print_endline; (* nosemgrep: print-not-logging *)
@@ -222,7 +221,6 @@ let parse_arguments () =
   let anon_arg = set_string "files[+]" in
   let arg_speclist = Arg_complete.arg_speclist (Lazy.force option_spec_list) in
   Arg.parse arg_speclist anon_arg "Look up options using 'goblint --help'.";
-  Arg_complete.Rest_all_compat.finish (Lazy.force rest_all_complete);
   begin match !writeconffile with
     | Some writeconffile ->
       GobConfig.write_file writeconffile;

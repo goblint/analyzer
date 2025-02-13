@@ -66,70 +66,70 @@ struct
     | Addr mv when LockDomain.Mval.is_definite mv -> Some (LockDomain.MustLock.of_mval mv)
     | _ -> None
 
-  let event ctx e octx =
+  let event man e oman =
     let verifier_atomic_addr = LockDomain.Addr.of_var LibraryFunctions.verifier_atomic_var in
     begin match e with
       | Events.Lock (l, _) when not (LockDomain.Addr.equal l verifier_atomic_addr) ->
-        ctx.sideg (V.node ctx.prev_node) (G.create_node (Locked.singleton l, Unlocked.bot (), MultiThread.bot ()));
+        man.sideg (V.node man.prev_node) (G.create_node (Locked.singleton l, Unlocked.bot (), MultiThread.bot ()));
         if !AnalysisState.postsolving then (
-          ctx.sideg V.update (G.create_update (NodeSet.singleton ctx.prev_node));
-          let (locked, _, _) = G.node (ctx.global (V.node ctx.prev_node)) in
+          man.sideg V.update (G.create_update (NodeSet.singleton man.prev_node));
+          let (locked, _, _) = G.node (man.global (V.node man.prev_node)) in
           if Locked.cardinal locked > 1 then (
             Locked.iter (fun lock ->
                 Option.iter (fun lock ->
-                    ctx.sideg (V.lock lock) (G.create_lock true)
+                    man.sideg (V.lock lock) (G.create_lock true)
                   ) (mustlock_of_addr lock)
               ) locked
           );
         )
       | Events.Unlock l when not (LockDomain.Addr.equal l verifier_atomic_addr) ->
-        ctx.sideg (V.node ctx.prev_node) (G.create_node (Locked.bot (), Unlocked.singleton l, MultiThread.bot ()));
+        man.sideg (V.node man.prev_node) (G.create_node (Locked.bot (), Unlocked.singleton l, MultiThread.bot ()));
         if !AnalysisState.postsolving then (
-          ctx.sideg V.update (G.create_update (NodeSet.singleton ctx.prev_node));
-          let (_, unlocked, _) = G.node (ctx.global (V.node ctx.prev_node)) in
+          man.sideg V.update (G.create_update (NodeSet.singleton man.prev_node));
+          let (_, unlocked, _) = G.node (man.global (V.node man.prev_node)) in
           if Locked.cardinal unlocked > 1 then (
             Locked.iter (fun lock ->
                 Option.iter (fun lock ->
-                    ctx.sideg (V.lock lock) (G.create_lock true)
+                    man.sideg (V.lock lock) (G.create_lock true)
                   ) (mustlock_of_addr lock)
               ) unlocked
           );
         )
       | Events.EnterMultiThreaded ->
-        ctx.sideg (V.node ctx.prev_node) (G.create_node (Locked.bot (), Unlocked.bot (), true));
+        man.sideg (V.node man.prev_node) (G.create_node (Locked.bot (), Unlocked.bot (), true));
         if !AnalysisState.postsolving then
-          ctx.sideg V.update (G.create_update (NodeSet.singleton ctx.prev_node));
+          man.sideg V.update (G.create_update (NodeSet.singleton man.prev_node));
       | _ -> ()
     end;
-    ctx.local
+    man.local
 
-  let threadspawn ctx ~multiple lval f args octx =
-    ctx.sideg V.threadcreate (G.create_threadcreate (NodeSet.singleton ctx.node));
-    ctx.local
+  let threadspawn man ~multiple lval f args oman =
+    man.sideg V.threadcreate (G.create_threadcreate (NodeSet.singleton man.node));
+    man.local
 
-  let ghost_var_available ctx = function
-    | WitnessGhost.Var.Locked ((v, o) as lock) -> not (Offset.Z.contains_index o) && not (G.lock (ctx.global (V.lock lock)))
+  let ghost_var_available man = function
+    | WitnessGhost.Var.Locked ((v, o) as lock) -> not (Offset.Z.contains_index o) && not (G.lock (man.global (V.lock lock)))
     | Multithreaded -> true
 
-  let ghost_var_available ctx v =
-    WitnessGhost.enabled () && ghost_var_available ctx v
+  let ghost_var_available man v =
+    WitnessGhost.enabled () && ghost_var_available man v
 
   module VariableSet = Set.Make (YamlWitnessType.GhostInstrumentation.Variable)
 
-  let query ctx (type a) (q: a Queries.t): a Queries.result =
+  let query man (type a) (q: a Queries.t): a Queries.result =
     match q with
-    | GhostVarAvailable v -> ghost_var_available ctx v
+    | GhostVarAvailable v -> ghost_var_available man v
     | YamlEntryGlobal (g, task) ->
       let g: V.t = Obj.obj g in
       begin match g with
         | `Right true when YamlWitness.entry_type_enabled YamlWitnessType.GhostInstrumentation.entry_type ->
-          let nodes = G.update (ctx.global g) in
+          let nodes = G.update (man.global g) in
           let (variables, location_updates) = NodeSet.fold (fun node (variables, location_updates) ->
-              let (locked, unlocked, multithread) = G.node (ctx.global (V.node node)) in
+              let (locked, unlocked, multithread) = G.node (man.global (V.node node)) in
               let variables' =
                 Locked.fold (fun l acc ->
                     match mustlock_of_addr l with
-                    | Some l when ghost_var_available ctx (Locked l) ->
+                    | Some l when ghost_var_available man (Locked l) ->
                       let variable = WitnessGhost.variable' (Locked l) in
                       VariableSet.add variable acc
                     | _ ->
@@ -139,7 +139,7 @@ struct
               let updates =
                 Locked.fold (fun l acc ->
                     match mustlock_of_addr l with
-                    | Some l when ghost_var_available ctx (Locked l) ->
+                    | Some l when ghost_var_available man (Locked l) ->
                       let update = WitnessGhost.update' (Locked l) GoblintCil.one in
                       update :: acc
                     | _ ->
@@ -149,7 +149,7 @@ struct
               let updates =
                 Unlocked.fold (fun l acc ->
                     match mustlock_of_addr l with
-                    | Some l when ghost_var_available ctx (Locked l) ->
+                    | Some l when ghost_var_available man (Locked l) ->
                       let update = WitnessGhost.update' (Locked l) GoblintCil.zero in
                       update :: acc
                     | _ ->
@@ -158,7 +158,7 @@ struct
               in
               let (variables', updates) =
                 if not (GobConfig.get_bool "exp.earlyglobs") && multithread then (
-                  if ghost_var_available ctx Multithreaded then (
+                  if ghost_var_available man Multithreaded then (
                     let variable = WitnessGhost.variable' Multithreaded in
                     let update = WitnessGhost.update' Multithreaded GoblintCil.one in
                     let variables' = VariableSet.add variable variables' in
@@ -183,7 +183,7 @@ struct
         | `Middle _ -> Queries.Result.top q
         | `Right _ -> Queries.Result.top q
       end
-    | InvariantGlobalNodes -> (G.threadcreate (ctx.global V.threadcreate): NodeSet.t)
+    | InvariantGlobalNodes -> (G.threadcreate (man.global V.threadcreate): NodeSet.t)
     | _ -> Queries.Result.top q
 end
 

@@ -30,6 +30,22 @@ let rec fold_while_some (f : 'a -> 'b -> 'a option) (acc: 'a) (xs: 'b list): 'a 
 
 let equal = List.eq
 
+(** [remove_common_prefix eq l1 l2] removes the common prefix ([p]) of [l1] and [l2] and
+    returns the rest of both lists a pair [(l1', l2')].
+    Formally, [p @ l1' = l1] and [p @ l2' = l2] such that [p] has maximal length.
+
+    This can be used to check being a prefix in both directions simultaneously:
+    - if [l1' = []], then [l1] is a prefix of [l2],
+    - if [l2' = []], then [l2] is a prefix of [l1].
+
+    In other cases, the common prefix is not returned (i.e. reconstructed) for efficiency reasons.
+
+    @param eq equality predicate for elements *)
+let rec remove_common_prefix eq l1 l2 =
+  match l1, l2 with
+  | x1 :: l1', x2 :: l2' when eq x1 x2 -> remove_common_prefix eq l1' l2'
+  | _, _ -> (l1, l2)
+
 (** Given a predicate and a list, returns two lists [(l1, l2)].
     [l1] contains the prefix of the list until the last element that satisfies the predicate, [l2] contains all subsequent elements. The order of elements is preserved. *)
 let until_last_with (pred: 'a -> bool) (xs: 'a list) =

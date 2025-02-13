@@ -53,6 +53,7 @@ type maybepublic = {global: CilType.Varinfo.t; write: bool; protection: Protecti
 type maybepublicwithout = {global: CilType.Varinfo.t; write: bool; without_mutex: LockDomain.MustLock.t; protection: Protection.t} [@@deriving ord, hash]
 type mustbeprotectedby = {mutex: LockDomain.MustLock.t; global: CilType.Varinfo.t; write: bool; protection: Protection.t} [@@deriving ord, hash]
 type mustprotectedvars = {mutex: LockDomain.MustLock.t; write: bool} [@@deriving ord, hash]
+type mustprotectinglocks = {global: CilType.Varinfo.t; write: bool} [@@deriving ord, hash]
 type access =
   | Memory of {exp: CilType.Exp.t; var_opt: CilType.Varinfo.t option; kind: AccessKind.t} (** Memory location access (race). *)
   | Point (** Program point and state access (MHP), independent of memory location. *)
@@ -117,7 +118,7 @@ type _ t =
   | MustJoinedThreads: ConcDomain.MustThreadSet.t t
   | ThreadsJoinedCleanly: MustBool.t t
   | MustProtectedVars: mustprotectedvars -> VS.t t
-  | MustProtectingLocks: CilType.Varinfo.t -> LockDomain.MustLockset.t t
+  | MustProtectingLocks: mustprotectinglocks -> LockDomain.MustLockset.t t
   | Invariant: invariant_context -> Invariant.t t
   | InvariantGlobal: Obj.t -> Invariant.t t (** Argument must be of corresponding [Spec.V.t]. *)
   | WarnGlobal: Obj.t -> Unit.t t (** Argument must be of corresponding [Spec.V.t]. *)
@@ -137,9 +138,9 @@ type _ t =
 
 type 'a result = 'a
 
-(** Container for explicitly polymorphic [ctx.ask] function out of [ctx].
-    To be used when passing entire [ctx] around seems inappropriate.
-    Use [Analyses.ask_of_ctx] to convert [ctx] to [ask]. *)
+(** Container for explicitly polymorphic [man.ask] function out of [man].
+    To be used when passing entire [man] around seems inappropriate.
+    Use [Analyses.ask_of_man] to convert [man] to [ask]. *)
 (* Must be in a singleton record due to second-order polymorphism.
    See https://ocaml.org/manual/polymorphism.html#s%3Ahigher-rank-poly. *)
 type ask = { f: 'a. 'a t -> 'a result } [@@unboxed]
@@ -405,7 +406,7 @@ struct
       | Any (IterSysVars (vq1, vf1)), Any (IterSysVars (vq2, vf2)) -> VarQuery.compare vq1 vq2 (* not comparing fs *)
       | Any (MutexType m1), Any (MutexType m2) -> Mval.Unit.compare m1 m2
       | Any (MustProtectedVars m1), Any (MustProtectedVars m2) -> compare_mustprotectedvars m1 m2
-      | Any (MustProtectingLocks g1), Any (MustProtectingLocks g2) -> CilType.Varinfo.compare g1 g2
+      | Any (MustProtectingLocks g1), Any (MustProtectingLocks g2) -> compare_mustprotectinglocks g1 g2
       | Any (MayBeModifiedSinceSetjmp e1), Any (MayBeModifiedSinceSetjmp e2) -> JmpBufDomain.BufferEntry.compare e1 e2
       | Any (MustBeSingleThreaded {since_start=s1;}),  Any (MustBeSingleThreaded {since_start=s2;}) -> Stdlib.compare s1 s2
       | Any (TmpSpecial lv1), Any (TmpSpecial lv2) -> Mval.Exp.compare lv1 lv2
@@ -451,7 +452,7 @@ struct
     | Any (InvariantGlobal vi) -> Hashtbl.hash vi
     | Any (YamlEntryGlobal (vi, task)) -> Hashtbl.hash vi (* TODO: hash task *)
     | Any (MustProtectedVars m) -> hash_mustprotectedvars m
-    | Any (MustProtectingLocks g) -> CilType.Varinfo.hash g
+    | Any (MustProtectingLocks g) -> hash_mustprotectinglocks g
     | Any (MayBeModifiedSinceSetjmp e) -> JmpBufDomain.BufferEntry.hash e
     | Any (MustBeSingleThreaded {since_start}) -> Hashtbl.hash since_start
     | Any (TmpSpecial lv) -> Mval.Exp.hash lv

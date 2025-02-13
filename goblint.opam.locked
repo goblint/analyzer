@@ -24,7 +24,7 @@ bug-reports: "https://github.com/goblint/analyzer/issues"
 depends: [
   "angstrom" {= "0.16.0"}
   "apron" {= "v0.9.15"}
-  "arg-complete" {= "0.1.0"}
+  "arg-complete" {= "0.2.1"}
   "astring" {= "0.8.5"}
   "base-bigarray" {= "base"}
   "base-bytes" {= "base"}
@@ -140,7 +140,7 @@ post-messages: [
 pin-depends: [
   [
     "goblint-cil.2.0.5"
-    "git+https://github.com/goblint/cil.git#c79208b21ea61d7b72eae29a18c1ddeda4795dfd"
+    "git+https://github.com/goblint/cil.git#f5ee39bd344dc74e2a10e407d877e0ddf73c9c6f"
   ]
   [
     "camlidl.1.12"

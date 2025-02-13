@@ -18,7 +18,7 @@ struct
        not (ConcDomain.ThreadSet.is_empty must_joined))
   end
 
-  let access ctx _: MHP.t = MHP.current (Analyses.ask_of_ctx ctx)
+  let access man _: MHP.t = MHP.current (Analyses.ask_of_man man)
 end
 
 let _ =
