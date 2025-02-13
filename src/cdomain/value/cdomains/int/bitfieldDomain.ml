@@ -285,9 +285,7 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): Bitfield_SOverflow with type in
 
   let meet ik x y = norm ik @@ (BArith.meet x y)
 
-  let equal_bf (z1,o1) (z2,o2) = Ints_t.equal z1 z2 && Ints_t.equal o1 o2
-
-  let leq (x:t) (y:t) = equal_bf (BArith.join x y) y
+  let leq (x:t) (y:t) = equal (BArith.join x y) y
 
   let widen ik x y = norm ik @@ BArith.widen x y
 
@@ -359,7 +357,7 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): Bitfield_SOverflow with type in
 
   let to_bool d =
     if not (leq BArith.zero d) then Some true
-    else if equal_bf d BArith.zero then Some false
+    else if equal d BArith.zero then Some false
     else None
 
   let of_bitfield ik x = norm ik x
