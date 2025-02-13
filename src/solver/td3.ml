@@ -460,17 +460,16 @@ module Base =
       and side_acc acc changed x y d =
         let new_acc = match HM.find_option acc y with
           | Some acc -> if not @@ S.Dom.leq d acc then Some (S.Dom.join acc d) else None
-          | None -> Some d in
-        match new_acc with
-        | Some new_acc -> (
+          | None -> Some d
+        in
+        Option.may (fun new_acc ->
             HM.replace acc y new_acc;
             if narrow_globs_immediate_growth then (
               let y_changed = divided_side D_Widen x y new_acc in
               if y_changed then
                 HM.replace changed y ();
-            )
           )
-        | _ -> ()
+          ) new_acc;
       and divided_side (phase:divided_side_mode) x y d : bool =
         if tracing then trace "side" "divided side to %a from %a ## value: %a" S.Var.pretty_trace y S.Var.pretty_trace x S.Dom.pretty d;
         if tracing then trace "sol2" "divided side to %a from %a ## value: %a" S.Var.pretty_trace y S.Var.pretty_trace x S.Dom.pretty d;
@@ -482,38 +481,40 @@ module Base =
         if tracing then trace "sol2" "stable add %a" S.Var.pretty_trace y;
         HM.replace stable y ();
 
-        let sided = match HM.find_option sides y with
-          | Some sides -> VS.mem x sides
-          | None -> false in
+        let sided = GobOption.exists (VS.mem x) (HM.find_option sides y) in
         if not sided then add_sides y x;
-        let init_divided_side_effects y = if not (HM.mem divided_side_effects y) then HM.replace divided_side_effects y (HM.create 10) in
-        init_divided_side_effects y;
+        if not (HM.mem divided_side_effects y) then HM.replace divided_side_effects y (HM.create 10);
 
         let y_sides = HM.find divided_side_effects y in
         let (old_side, narrow_gas) = HM.find_default y_sides x (S.Dom.bot (), narrow_globs_gas_default) in
-        let phase = if phase == D_Box then
+        let phase = if phase = D_Box then
             if S.Dom.leq d old_side then D_Narrow else D_Widen
           else
             phase
         in
         if not (phase = D_Narrow && narrow_gas = Some (0, D_Widen)) then (
           let (new_side, narrow_gas) = match phase with
-            | D_Widen -> (
-                let tmp = S.Dom.join old_side d in
-                if not @@ S.Dom.equal tmp old_side then
-                  (if narrow_globs_conservative_widen && (S.Dom.leq tmp (HM.find rho y)) then
-                     tmp
-                   else
-                     S.Dom.widen old_side tmp), Option.map (fun (x, _) -> (x, D_Widen)) narrow_gas
-                else old_side, narrow_gas)
+            | D_Widen ->
+              let tmp = S.Dom.join old_side d in
+              if not @@ S.Dom.equal tmp old_side then
+                let new_side =
+                  if narrow_globs_conservative_widen && S.Dom.leq tmp (HM.find rho y) then
+                    tmp
+                  else
+                    S.Dom.widen old_side tmp
+                in
+                let new_gas = Option.map (fun (x, _) -> (x, D_Widen)) narrow_gas in
+                (new_side, new_gas)
+              else
+                (old_side, narrow_gas)
             | D_Narrow ->
               let result = S.Dom.narrow old_side d in
               let narrow_gas = if not @@ S.Dom.equal result old_side then
-                  Option.map (fun (gas, phase) -> if phase = D_Widen then gas - 1, D_Narrow else (gas, phase)) narrow_gas
+                  Option.map (fun (gas, phase) -> if phase = D_Widen then (gas - 1, D_Narrow) else (gas, phase)) narrow_gas
                 else
                   narrow_gas
               in
-              result, narrow_gas
+              (result, narrow_gas)
             | _ -> failwith "unreachable"
           in
 
@@ -530,13 +531,15 @@ module Base =
                 | Some map -> HM.fold (fun _ (value, _) acc -> S.Dom.join acc value) map (S.Dom.bot ())
                 | None -> S.Dom.bot () in
               let start_value = HM.find_default narrow_globs_start_values y (S.Dom.bot()) in
-              S.Dom.join combined start_value in
+              S.Dom.join combined start_value
+            in
             let y_oldval = HM.find rho y in
             let y_newval = if S.Dom.leq old_side new_side then
                 (* If new side is strictly greater than the old one, the value of y can only increase. *)
                 S.Dom.join y_oldval new_side
               else
-                combined_side y in
+                combined_side y
+            in
             if not (S.Dom.equal y_newval y_oldval) then (
               if tracing then trace "side" "value of %a changed by side from %a (phase: %s) Old value: %a ## New value: %a"
                   S.Var.pretty_trace y S.Var.pretty_trace x (show_divided_side_mode phase) S.Dom.pretty y_oldval S.Dom.pretty y_newval;
