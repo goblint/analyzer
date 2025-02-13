@@ -102,7 +102,7 @@ struct
       )
     | Mem (Lval lv), NoOffset ->
       let lvals = eval_lv ~man st x in
-      let res = AD.fold (fun a acc -> 
+      let res = AD.fold (fun a acc ->
           if M.tracing then M.tracel "inv" "Consider case of lval %a = %a" d_lval lv VD.pretty (Address (AD.singleton a));
           let st = set' lv (Address (AD.singleton a)) st in
           let old_val = get ~man st (AD.singleton a) None in
@@ -111,14 +111,18 @@ struct
           (* let old_val = eval_rv_lval_refine ~man st exp x in *)
           let old_val = map_oldval old_val (Cilfacade.typeOfLval x) in
           let v = apply_invariant ~old_val ~new_val:c' in
-          if is_some_bot v then 
+          if is_some_bot v then
             D.join acc (try contra st with Analyses.Deadcode -> D.bot ())
           else (
             if M.tracing then M.tracel "inv" "improve lval %a from %a to %a (c = %a, c' = %a)" d_lval x VD.pretty old_val VD.pretty v pretty c VD.pretty c';
             D.join acc (set' x v st)
-          )   
-        ) lvals (D.bot ()) in
-      res
+          )
+        ) lvals (D.bot ())
+      in
+      if D.is_bot res then
+        raise Analyses.Deadcode
+      else
+        res
     | Var _, _
     | Mem _, _ ->
       (* For accesses via pointers, not yet *)
