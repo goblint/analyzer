@@ -1221,53 +1221,74 @@ let remove_terms p cc = Timing.wrap "removing terms" (remove_terms p) cc
     The product automaton of cc1 and cc2 is computed and then we add the terms to the right equivalence class.
     We also add new terms in order to have some terms for each state in the automaton. *)
 let join_eq cc1 cc2 =
-  let atoms = SSet.get_atoms (SSet.inter cc1.set cc2.set) in
-  let mappings = List.map
-      (fun a -> let r1, off1 = TUF.find_no_pc cc1.uf a in
-        let r2, off2 = TUF.find_no_pc cc2.uf a in
-        (r1,r2,Z.(off2 - off1)), (a,off1)) atoms in
+  let do_atom a =
+    let r1, off1 = TUF.find_no_pc cc1.uf a in
+    let r2, off2 = TUF.find_no_pc cc2.uf a in
+    (r1, r2, Z.(off2 - off1)), (a, off1)
+  in
   let add_term (pmap, cc, new_pairs) (new_element, (new_term, a_off)) =
     match Map.find_opt new_element pmap with
-    | None -> Map.add new_element (new_term, a_off) pmap, cc, new_element::new_pairs
+    | None ->
+      let pmap = Map.add new_element (new_term, a_off) pmap in
+      let new_pairs = new_element::new_pairs in
+      pmap, cc, new_pairs
     | Some (c, c1_off) ->
-      pmap, add_eq cc (new_term, c, Z.(-c1_off + a_off)),new_pairs in
-  let pmap,cc,working_set = List.fold_left add_term (Map.empty, init_cc (),[]) mappings in
+      let cc = add_eq cc (new_term, c, Z.(-c1_off + a_off)) in
+      pmap, cc, new_pairs
+  in
   (* add equalities that make sure that all atoms that have the same
      representative are equal. *)
   let add_one_edge y t t1_off diff (pmap, cc, new_pairs) (offset, a) =
     let a', a_off = TUF.find_no_pc cc1.uf a in
     match LMap.map_find_opt (y, Z.(diff + offset)) cc2.map with
-    | None -> pmap,cc,new_pairs
-    | Some b -> let b', b_off = TUF.find_no_pc cc2.uf b in
-      match SSet.deref_term t Z.(offset - t1_off) cc1.set with
-      | exception (T.UnsupportedCilExpression _) -> pmap,cc,new_pairs
-      | new_term ->
+    | None -> pmap, cc, new_pairs
+    | Some b ->
+      let b', b_off = TUF.find_no_pc cc2.uf b in
+      try
+        let new_term = SSet.deref_term t Z.(offset - t1_off) cc1.set (* may throw T.UnsupportedCilExpression *) in
         let _ , cc = insert cc new_term in
         let new_element = a',b',Z.(b_off - a_off) in
         add_term (pmap, cc, new_pairs) (new_element, (new_term, a_off))
+      with (T.UnsupportedCilExpression _) ->
+        pmap, cc, new_pairs
   in
   let rec add_edges_to_map pmap cc = function
     | [] -> cc, pmap
-    | (x,y,diff)::rest ->
-      let t,t1_off = Map.find (x,y,diff) pmap in
-      let pmap,cc,new_pairs = List.fold_left (add_one_edge y t t1_off diff) (pmap, cc, []) (LMap.successors x cc1.map) in
-      add_edges_to_map pmap cc (rest@new_pairs)
+    | (x, y, diff)::rest ->
+      let t, t1_off = Map.find (x, y, diff) pmap in
+      let add_edge = add_one_edge y t t1_off diff in
+      let x_succs = LMap.successors x cc1.map in
+      let pmap, cc, new_pairs = List.fold_left add_edge (pmap, cc, []) x_succs in
+      let rest = rest @ new_pairs in
+      add_edges_to_map pmap cc rest
   in
+  let atoms = SSet.get_atoms (SSet.inter cc1.set cc2.set) in
+  let mappings = List.map do_atom atoms in
+  let empty = (Map.empty, init_cc (), []) in
+  let pmap, cc, working_set = List.fold_left add_term empty mappings in
   add_edges_to_map pmap cc working_set
 
 (** Join version 2: just look at equivalence classes and not the automaton. *)
 let product_no_automata_over_terms cc1 cc2 terms =
-  let cc1, cc2 = insert_set cc1 terms, insert_set cc2 terms in
-  let mappings = List.map
-      (fun a -> let r1, off1 = TUF.find_no_pc cc1.uf a in
-        let r2, off2 = TUF.find_no_pc cc2.uf a in
-        (r1,r2,Z.(off2 - off1)), (a,off1)) (SSet.to_list terms) in
+  let cc1 = insert_set cc1 terms in
+  let cc2 = insert_set cc2 terms in
+  let f a =
+    let r1, off1 = TUF.find_no_pc cc1.uf a in
+    let r2, off2 = TUF.find_no_pc cc2.uf a in
+    (r1, r2, Z.(off2 - off1)), (a, off1)
+  in
+  let mappings = List.map f (SSet.to_list terms) in
   let add_term (cc, pmap) (new_element, (new_term, a_off)) =
     match Map.find_opt new_element pmap with
-    | None -> cc, Map.add new_element (new_term, a_off) pmap
+    | None ->
+      let pmap = Map.add new_element (new_term, a_off) pmap in
+      cc, pmap
     | Some (c, c1_off) ->
-      add_eq cc (new_term, c, Z.(-c1_off + a_off)), pmap in
-  List.fold_left add_term (init_cc(), Map.empty) mappings
+      let cc = add_eq cc (new_term, c, Z.(-c1_off + a_off)) in
+      cc, pmap
+  in
+  let initial = (init_cc (), Map.empty) in
+  List.fold_left add_term initial mappings
 
 (** Here we do the join without using the automata.
     We construct a new cc that contains the elements of cc1.set U cc2.set.
@@ -1285,87 +1306,137 @@ let widen_eq_no_automata cc1 cc2 =
 
     This is done by checking for each disequality if it is implied by both cc. *)
 let join_neq diseq1 diseq2 cc1 cc2 cc cmap1 cmap2 =
-  let _,diseq1,_ = split (Disequalities.get_disequalities diseq1) in
-  let _,diseq2,_ = split (Disequalities.get_disequalities diseq2) in
+  let _, diseq1, _ = split (Disequalities.get_disequalities diseq1) in
+  let _, diseq2, _ = split (Disequalities.get_disequalities diseq2) in
   (* keep all disequalities from diseq1 that are implied by cc2 and
      those from diseq2 that are implied by cc1 *)
-  let diseq1 = List.filter (neq_query cc2) (Disequalities.element_closure diseq1 cmap1 cc.uf) in
-  let diseq2 = List.filter (neq_query cc1) (Disequalities.element_closure diseq2 cmap2 cc.uf) in
-  let cc = insert_set cc (fst @@ SSet.subterms_of_conj (diseq1 @ diseq2)) in
-  let res = congruence_neq cc (diseq1 @ diseq2)
-  in (if M.tracing then M.trace "c2po-neq" "join_neq: %s\n\n" (Disequalities.show_neq res.diseq)); res
+  let diseq1 = Disequalities.element_closure diseq1 cmap1 cc.uf in
+  let diseq2 = Disequalities.element_closure diseq2 cmap2 cc.uf in
+  let diseq1 = List.filter (neq_query cc2) diseq1 in
+  let diseq2 = List.filter (neq_query cc1) diseq2 in
+  let diseq = diseq1 @ diseq2 in
+
+  let subterms, _ = SSet.subterms_of_conj diseq  in
+  let cc = insert_set cc subterms in
+  let res = congruence_neq cc diseq in
+  (if M.tracing then M.trace "c2po-neq" "join_neq: %s\n\n" (Disequalities.show_neq res.diseq));
+  res
 
 (** Joins the block disequalities bldiseq1 and bldiseq2, given a congruence closure data structure.
 
     This is done by checking for each block disequality if it is implied by both cc. *)
 let join_bldis bldiseq1 bldiseq2 cc1 cc2 cc cmap1 cmap2 =
+  let both_root (t1, t2) =
+    TUF.is_root cc.uf t1 && TUF.is_root cc.uf t2
+  in
   let bldiseq1 = BlDis.to_conj bldiseq1 in
   let bldiseq2 = BlDis.to_conj bldiseq2 in
   (* keep all disequalities from diseq1 that are implied by cc2 and
      those from diseq2 that are implied by cc1 *)
-  let diseq1 = List.filter (block_neq_query cc2) (BlDis.element_closure bldiseq1 cmap1) in
-  let diseq2 = List.filter (block_neq_query cc1) (BlDis.element_closure bldiseq2 cmap2) in
-  let cc = insert_set cc (fst @@ SSet.subterms_of_conj (List.map (fun (a,b) -> (a,b,Z.zero)) (diseq1 @ diseq2))) in
-  let diseqs_ref_terms = List.filter (fun (t1,t2) -> TUF.is_root cc.uf t1 && TUF.is_root cc.uf t2) (diseq1 @ diseq2) in
-  let bldis = List.fold BlDis.add_block_diseq BlDis.empty diseqs_ref_terms
-  in (if M.tracing then M.trace "c2po-neq" "join_bldis: %s\n\n" (show_conj (BlDis.to_conj bldis)));
+  let bldiseq1 = BlDis.element_closure bldiseq1 cmap1 in
+  let bldiseq2 = BlDis.element_closure bldiseq2 cmap2 in
+  let bldiseq1 = List.filter (block_neq_query cc2) bldiseq1 in
+  let bldiseq2 = List.filter (block_neq_query cc1) bldiseq2 in
+  let bldiseq = bldiseq1 @ bldiseq2 in
+
+  (* Bring block disequalities into format that can be passed to subterms_of_conj *)
+  let bldiseq_prop_format = List.map (fun (a, b) -> (a, b, Z.zero)) bldiseq in
+  let subterms, _ = SSet.subterms_of_conj bldiseq_prop_format in
+
+  let cc = insert_set cc subterms in
+  let diseqs_ref_terms = List.filter both_root bldiseq in
+  let bldis = List.fold BlDis.add_block_diseq BlDis.empty diseqs_ref_terms in
+  (if M.tracing then M.trace "c2po-neq" "join_bldis: %s\n\n" (show_conj (BlDis.to_conj bldis)));
   {cc with bldis}
 
 (** Check for equality of two congruence closures,
     by comparing the equivalence classes instead of computing the minimal_representative. *)
 let equal_eq_classes cc1 cc2 =
-  let comp1, comp2 = fst(Disequalities.comp_map cc1.uf), fst(Disequalities.comp_map cc2.uf) in
+  let comp1, _ = Disequalities.comp_map cc1.uf in
+  let comp2, _ = Disequalities.comp_map cc2.uf in
   (* they should have the same number of equivalence classes *)
-  if TMap.cardinal comp1 <> TMap.cardinal comp2 then false else
+  if TMap.cardinal comp1 = TMap.cardinal comp2 then
     (* compare each equivalence class of cc1 with the corresponding eq. class of cc2 *)
     let compare_zmap_entry offset zmap2 (z, tset1) =
-      match ZMap.find_opt Z.(z+offset) zmap2 with
-      | None -> false
-      | Some tset2 -> SSet.equal tset1 tset2
+      match ZMap.find_opt Z.(z + offset) zmap2 with
+      | None ->
+        false
+      | Some tset2 ->
+        SSet.equal tset1 tset2
     in
     let compare_with_cc2_eq_class (rep1, zmap1) =
       let rep2, offset = TUF.find_no_pc cc2.uf rep1 in
       let zmap2 = TMap.find rep2 comp2 in
-      if ZMap.cardinal zmap2 <> ZMap.cardinal zmap1 then false else
+      if ZMap.cardinal zmap2 = ZMap.cardinal zmap1 then
         List.for_all (compare_zmap_entry offset zmap2) (ZMap.bindings zmap1)
+      else
+        false
     in
     List.for_all compare_with_cc2_eq_class (TMap.bindings comp1)
+  else
+    false
 
 let equal_diseqs cc1 cc2 =
   let normalize_diseqs (min_state1, min_state2, new_offset) =
-    if T.compare min_state1 min_state2 < 0 then Nequal (min_state1, min_state2, new_offset)
-    else Nequal (min_state2, min_state1, Z.(-new_offset)) in
-  let rename_diseqs dis = match dis with
+    if T.compare min_state1 min_state2 < 0 then
+      Nequal (min_state1, min_state2, new_offset)
+    else
+      Nequal (min_state2, min_state1, Z.(-new_offset))
+  in
+
+  let rename_diseqs dis =
+    match dis with
     | Nequal (t1,t2,z) ->
       let (min_state1, min_z1) = TUF.find_no_pc cc2.uf t1 in
       let (min_state2, min_z2) = TUF.find_no_pc cc2.uf t2 in
       let new_offset = Z.(min_z2 - min_z1 + z) in
       normalize_diseqs (min_state1, min_state2, new_offset)
-    | _ -> dis in
-  let renamed_diseqs = BatList.sort_unique (T.compare_v_prop) @@
-    List.map rename_diseqs (Disequalities.get_disequalities cc1.diseq) in
-  let normalized_diseqs = BatList.sort_unique (T.compare_v_prop) @@
-    List.filter_map (function | Nequal (t1,t2,z) -> Some (normalize_diseqs(t1,t2,z))
-                              | _ -> None) (Disequalities.get_disequalities cc2.diseq) in
+    | _ -> dis
+  in
+  let diseq1 = Disequalities.get_disequalities cc1.diseq in
+  let renamed_diseqs = List.map rename_diseqs diseq1 in
+  let renamed_diseqs = BatList.sort_unique T.compare_v_prop renamed_diseqs in
+
+  let normalize_diseqs = function
+    | Nequal neq ->
+      normalize_diseqs neq
+    | _ ->
+      failwith "Unexpected equality or block disequality."
+  in
+  let diseqs2 = Disequalities.get_disequalities cc2.diseq in
+  let normalized_diseqs = List.map normalize_diseqs diseqs2 in
+  let normalized_diseqs = BatList.sort_unique T.compare_v_prop normalized_diseqs in
   List.equal T.equal_v_prop renamed_diseqs normalized_diseqs
 
 let equal_bldis cc1 cc2 =
   let normalize_bldis (min_state1, min_state2) =
-    if T.compare min_state1 min_state2 < 0 then BlNequal (min_state1, min_state2)
-    else BlNequal (min_state2, min_state1) in
-  let rename_bldis dis = match dis with
-    | BlNequal (t1,t2) ->
+    if T.compare min_state1 min_state2 < 0 then
+      BlNequal (min_state1, min_state2)
+    else
+      BlNequal (min_state2, min_state1)
+  in
+  let rename_bldis dis =
+    match dis with
+    | BlNequal (t1, t2) ->
       let min_state1, _ = TUF.find_no_pc cc2.uf t1 in
       let min_state2, _ = TUF.find_no_pc cc2.uf t2 in
       normalize_bldis (min_state1, min_state2)
-    | _ -> dis in
-  let renamed_diseqs = BatList.sort_unique (T.compare_v_prop) @@
-    List.map rename_bldis (BlDis.to_conj cc1.bldis) in
-  let normalized_diseqs = BatList.sort_unique (T.compare_v_prop) @@
-    List.map (function | Nequal (t1,t2,_) | Equal(t1,t2,_) | BlNequal (t1,t2)
-        -> (normalize_bldis(t1,t2))) (BlDis.to_conj cc2.bldis) in
-  List.equal T.equal_v_prop renamed_diseqs normalized_diseqs
+    | _ -> dis
+  in
+  let normalize_bldis = function
+    | BlNequal (t1, t2) ->
+      normalize_bldis(t1, t2)
+    | Nequal (t1, t2, _)
+    | Equal(t1, t2, _) ->
+      failwith "Unexpected disequality or equality."
+  in
+  let renamed_bldis = List.map rename_bldis (BlDis.to_conj cc1.bldis) in
+  let renamed_bldis = BatList.sort_unique T.compare_v_prop renamed_bldis in
 
+  let normalized_bldis = List.map normalize_bldis (BlDis.to_conj cc2.bldis) in
+  let normalized_bldis = BatList.sort_unique T.compare_v_prop normalized_bldis in
+
+  List.equal T.equal_v_prop renamed_bldis normalized_bldis
 
 (**Find out if two addresses are not equal by using the MayPointTo query*)
 module MayBeEqual = struct
