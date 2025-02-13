@@ -15,8 +15,8 @@ let next_tef_pid = ref 0
 
 module Make (Name: Name): S =
 struct
-  let enabled = ref false
-  let options = ref dummy_options
+  let enabled_dls = Domain.DLS.new_key (fun () -> false)
+  let options_dls = Domain.DLS.new_key (fun () -> dummy_options)
   let tef_pid =
     let tef_pid = !next_tef_pid in
     incr next_tef_pid;
@@ -55,15 +55,16 @@ struct
   let current_allocated = Gc.allocated_bytes
 
   let create_frame tree =
+    let options = Domain.DLS.get options_dls in
     {
       tree;
-      start_cputime = if !options.cputime then current_cputime () else 0.0;
-      start_walltime = if !options.walltime then current_walltime () else 0.0;
-      start_allocated = if !options.allocated then current_allocated () else 0.0;
+      start_cputime = if options.cputime then current_cputime () else 0.0;
+      start_walltime = if options.walltime then current_walltime () else 0.0;
+      start_allocated = if options.allocated then current_allocated () else 0.0;
     }
 
   (** Stack of currently active timing frames. *)
-  let current: frame Stack.t = Stack.create ()
+  let current: frame Stack.t Domain.DLS.key = Domain.DLS.new_key (fun () -> Stack.create ())
 
   let reset () =
     (* Reset tree. *)
@@ -73,30 +74,32 @@ struct
     root.count <- 0;
     root.children <- [];
     (* Reset frames. *)
-    if not (Stack.is_empty current) then ( (* If ever started. In case reset before first start. *)
-      Stack.clear current;
-      Stack.push (create_frame root) current
+    if not (Stack.is_empty (Domain.DLS.get current)) then ( (* If ever started. In case reset before first start. *)
+      Stack.clear (Domain.DLS.get current);
+      Stack.push (create_frame root) (Domain.DLS.get current)
     )
 
   let start options' =
-    options := options';
-    if !options.tef then (
+    Domain.DLS.set options_dls options';
+    let options = Domain.DLS.get options_dls in
+    if options.tef then (
       (* Override TEF process and thread name for track rendering. *)
       Catapult.Tracing.emit ~pid:tef_pid "thread_name" ~cat:["__firefox_profiler_hack__"] ~args:[("name", `String Name.name)] Catapult.Event_type.M;
       (* First event must have category, otherwise Firefox Profiler refuses to open. *)
       Catapult.Tracing.emit ~pid:tef_pid "process_name" ~args:[("name", `String Name.name)] Catapult.Event_type.M
     );
-    enabled := true;
-    if Stack.is_empty current then (* If never started. *)
-      Stack.push (create_frame root) current
+    Domain.DLS.set enabled_dls true;
+    if Stack.is_empty (Domain.DLS.get current) then (* If never started. *)
+      Stack.push (create_frame root) (Domain.DLS.get current)
 
   let stop () =
-    enabled := false
+    Domain.DLS.set enabled_dls false
 
   let enter ?args name =
+    let options = Domain.DLS.get options_dls in
     (* Find the right tree. *)
     let tree: tree =
-      let {tree; _} = Stack.top current in
+      let {tree; _} = Stack.top (Domain.DLS.get current) in
       let rec loop = function
         | child :: _ when child.name = name -> child
         | _ :: children' -> loop children'
@@ -108,32 +111,34 @@ struct
       in
       loop tree.children
     in
-    Stack.push (create_frame tree) current;
-    if !options.tef then
+    Stack.push (create_frame tree) (Domain.DLS.get current);
+    if options.tef then
       Catapult.Tracing.begin' ~pid:tef_pid ?args name
 
   (** Add current frame measurements to tree node accumulators. *)
   let add_frame_to_tree frame tree =
-    if !options.cputime then (
+    let options = Domain.DLS.get options_dls in
+    if options.cputime then (
       let diff = current_cputime () -. frame.start_cputime in
       tree.cputime <- tree.cputime +. diff
     );
-    if !options.walltime then (
+    if options.walltime then (
       let diff = current_walltime () -. frame.start_walltime in
       tree.walltime <- tree.walltime +. diff
     );
-    if !options.allocated then (
+    if options.allocated then (
       let diff = current_allocated () -. frame.start_allocated in
       tree.allocated <- tree.allocated +. diff
     );
-    if !options.count then
+    if options.count then
       tree.count <- tree.count + 1
 
   let exit name =
-    let {tree; _} as frame = Stack.pop current in
+    let options = Domain.DLS.get options_dls in
+    let {tree; _} as frame = Stack.pop (Domain.DLS.get current) in
     assert (tree.name = name);
     add_frame_to_tree frame tree;
-    if !options.tef then
+    if options.tef then
       Catapult.Tracing.exit' ~pid:tef_pid name
 
   let wrap ?args name f x =
@@ -149,15 +154,15 @@ struct
   (* Shortcutting measurement functions to avoid any work when disabled. *)
 
   let enter ?args name =
-    if !enabled then
+    if Domain.DLS.get enabled_dls then
       enter ?args name
 
   let exit name =
-    if !enabled then
+    if Domain.DLS.get enabled_dls then
       exit name
 
   let wrap ?args name f x =
-    if !enabled then
+    if Domain.DLS.get enabled_dls then
       wrap ?args name f x
     else
       f x
@@ -177,32 +182,34 @@ struct
         tree (* no need to recurse, current doesn't go into subtree *)
     in
     (* Folding the stack also reverses it such that the root frame is at the beginning. *)
-    let current_rev = Stack.fold (fun acc frame -> frame :: acc) [] current in
+    let current_rev = Stack.fold (fun acc frame -> frame :: acc) [] (Domain.DLS.get current) in
     tree_with_current current_rev root
 
   let rec pp_tree ppf node =
+    let options = Domain.DLS.get options_dls in
     Format.fprintf ppf "@[<v 2>%-25s      " node.name;
-    if !options.cputime then
+    if options.cputime then
       Format.fprintf ppf "%9.3fs" node.cputime;
-    if !options.walltime then
+    if options.walltime then
       Format.fprintf ppf "%10.3fs" node.walltime;
-    if !options.allocated then
+    if options.allocated then
       Format.fprintf ppf "%10.2fMB" (node.allocated /. 1_000_000.0); (* TODO: or should it be 1024-based (MiB)? *)
-    if !options.count then
+    if options.count then
       Format.fprintf ppf "%7d×" node.count;
     (* cut also before first child *)
     List.iter (Format.fprintf ppf "@,%a" pp_tree) (List.rev node.children);
     Format.fprintf ppf "@]"
 
   let pp_header ppf =
+    let options = Domain.DLS.get options_dls in
     Format.fprintf ppf "%-25s      " "";
-    if !options.cputime then
+    if options.cputime then
       Format.fprintf ppf "   cputime";
-    if !options.walltime then
+    if options.walltime then
       Format.fprintf ppf "   walltime";
-    if !options.allocated then
+    if options.allocated then
       Format.fprintf ppf "   allocated";
-    if !options.count then
+    if options.count then
       Format.fprintf ppf "   count";
     Format.fprintf ppf "@\n"
 
