@@ -992,7 +992,7 @@ struct
                 not @@ ask.is_multiple var
                 && not @@ Cil.isVoidType t      (* Size of value is known *)
                 && GobOption.exists (fun blob_size -> (* Size of blob is known *)
-                    Z.equal blob_size (Z.of_int @@ Cil.bitsSizeOf (TComp (toptype, []))/8)
+                    Z.equal blob_size (Z.of_int @@ Cilfacade.bytesSizeOf (TComp (toptype, [])))
                   ) blob_size_opt
               | _ -> false
             in

@@ -32,8 +32,7 @@ struct
     ID.of_int (Cilfacade.ptrdiff_ikind ()) (Z.of_int x)
 
   let size_of_type_in_bytes typ =
-    let typ_size_in_bytes = (bitsSizeOf typ) / 8 in
-    intdom_of_int typ_size_in_bytes
+    intdom_of_int (Cilfacade.bytesSizeOf typ)
 
   let rec exp_contains_a_ptr (exp:exp) =
     match exp with

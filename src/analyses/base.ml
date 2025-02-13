@@ -2286,8 +2286,7 @@ struct
       ID.of_int (Cilfacade.ptrdiff_ikind ()) (Z.of_int x)
     in
     let size_of_type_in_bytes typ =
-      let typ_size_in_bytes = (bitsSizeOf typ) / 8 in
-      intdom_of_int typ_size_in_bytes
+      intdom_of_int (Cilfacade.bytesSizeOf typ)
     in
     if points_to_heap_only man ptr then
       (* Ask for BlobSize from the base address (the second component being set to true) in order to avoid BlobSize giving us bot *)
