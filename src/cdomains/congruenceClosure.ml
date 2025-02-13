@@ -1216,10 +1216,6 @@ let remove_terms predicate cc =
 
 let remove_terms p cc = Timing.wrap "removing terms" (remove_terms p) cc
 
-let show_pmap pmap=
-  List.fold_left (fun s ((r1,r2,z1),(t,z2)) ->
-      s ^ ";; " ^ "("^T.show r1^","^T.show r2 ^ ","^Z.to_string z1^") --> ("^ T.show t ^ Z.to_string z2 ^ ")") ""(Map.bindings pmap)
-
 (** Join version 1: by using the automaton.
     The product automaton of cc1 and cc2 is computed and then we add the terms to the right equivalence class. We also add new terms in order to have some terms for each state in
     the automaton. *)
