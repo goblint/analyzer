@@ -1576,7 +1576,7 @@ module MayBeEqual = struct
      The parameter s is the size in bits of the variable t1 we are assigning to. *)
   let may_be_equal ask cc size t1 t2 =
     let res = may_be_equal ask cc size t1 t2 in
-    if M.tracing then M.tracel "c2po-maypointto" "MAY BE EQUAL: %s %s: %b\n" (T.show t1) (T.show t2) res;
+    if M.tracing then M.tracel "c2po-maypointto" "May be equal: %s %s: %b\n" (T.show t1) (T.show t2) res;
     res
 
   (**Returns true if `t2` or any subterm of `t2` may possibly point to one of the addresses in `addresses`.*)
