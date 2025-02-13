@@ -85,6 +85,17 @@ struct
 
   let refine_lv man st c x c' pretty exp =
     let set' lval v st = set st (eval_lv ~man st lval) (Cilfacade.typeOfLval lval) ~lval_raw:lval v ~man in
+    let default () =
+      (* For accesses via pointers in complicated case, no refinement yet *)
+      let old_val = eval_rv_lval_refine ~man st exp x in
+      let old_val = map_oldval old_val (Cilfacade.typeOfLval x) in
+      let v = apply_invariant ~old_val ~new_val:c' in
+      if is_some_bot v then contra st
+      else (
+        if M.tracing then M.tracel "inv" "improve lval %a from %a to %a (c = %a, c' = %a)" d_lval x VD.pretty old_val VD.pretty v pretty c VD.pretty c';
+        set' x v st
+      )
+    in
     match x with
     | Var var, o when refine_entire_var ->
       (* For variables, this is done at to the level of entire variables to benefit e.g. from disjunctive struct domains *)
@@ -100,23 +111,28 @@ struct
         if M.tracing then M.tracel "inv" "st from %a to %a" D.pretty st D.pretty r;
         r
       )
-    | Mem (Lval lv), NoOffset ->
-      let lvals = eval_lv ~man st x in
+    | Mem (Lval lv), off ->
+      let lvals = eval_lv ~man st (Mem (Lval lv), off) in
       let res = AD.fold (fun a acc ->
-          if M.tracing then M.tracel "inv" "Consider case of lval %a = %a" d_lval lv VD.pretty (Address (AD.singleton a));
-          let st = set' lv (Address (AD.singleton a)) st in
-          let old_val = get ~man st (AD.singleton a) None in
-          let old_val = VD.cast (Cilfacade.typeOfLval x) old_val in (* needed as the type of this pointer may be different *)
-          (* this what I would originally have liked to do, but eval_rv_lval_refine uses queries and thus stale values *)
-          (* let old_val = eval_rv_lval_refine ~man st exp x in *)
-          let old_val = map_oldval old_val (Cilfacade.typeOfLval x) in
-          let v = apply_invariant ~old_val ~new_val:c' in
-          if is_some_bot v then
-            D.join acc (try contra st with Analyses.Deadcode -> D.bot ())
-          else (
-            if M.tracing then M.tracel "inv" "improve lval %a from %a to %a (c = %a, c' = %a)" d_lval x VD.pretty old_val VD.pretty v pretty c VD.pretty c';
-            D.join acc (set' x v st)
-          )
+          match a with
+          | Addr (base, _) as orig ->
+            let (a:VD.t) = Address (AD.singleton (AD.Addr.of_var base)) in
+            if M.tracing then M.tracel "invo" "Consider case of lval %a = %a" d_lval lv VD.pretty a;
+            let st = set' lv a st in
+            let old_val = get ~man st (AD.singleton orig) None in
+            let old_val = VD.cast (Cilfacade.typeOfLval x) old_val in (* needed as the type of this pointer may be different *)
+            (* this what I would originally have liked to do, but eval_rv_lval_refine uses queries and thus stale values *)
+            (* let old_val = eval_rv_lval_refine ~man st exp x in *)
+            let old_val = map_oldval old_val (Cilfacade.typeOfLval x) in
+            let v = apply_invariant ~old_val ~new_val:c' in
+            if is_some_bot v then
+              D.join acc (try contra st with Analyses.Deadcode -> D.bot ())
+            else (
+              if M.tracing then M.tracel "invo" "improve lval %a from %a to %a (c = %a, c' = %a)" d_lval x VD.pretty old_val VD.pretty v pretty c VD.pretty c';
+              D.join acc (set' x v st)
+            )
+          | _ ->
+            default ()
         ) lvals (D.bot ())
       in
       if D.is_bot res then
@@ -125,15 +141,8 @@ struct
         res
     | Var _, _
     | Mem _, _ ->
-      (* For accesses via pointers, not yet *)
-      let old_val = eval_rv_lval_refine ~man st exp x in
-      let old_val = map_oldval old_val (Cilfacade.typeOfLval x) in
-      let v = apply_invariant ~old_val ~new_val:c' in
-      if is_some_bot v then contra st
-      else (
-        if M.tracing then M.tracel "inv" "improve lval %a from %a to %a (c = %a, c' = %a)" d_lval x VD.pretty old_val VD.pretty v pretty c VD.pretty c';
-        set' x v st
-      )
+      default ()
+
 
   let invariant_fallback man st exp tv =
     (* We use a recursive helper function so that x != 0 is false can be handled
