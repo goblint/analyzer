@@ -349,7 +349,7 @@ struct
    ************************************************************)
 
   (* is a cast t1 to t2 invertible, i.e., content-preserving in general? *)
-  let is_statically_safe_cast t2 t1 = match t2, t1 with
+  let is_statically_safe_cast t2 t1 = match unrollType t2, unrollType t1 with
     (*| TPtr _, t -> bitsSizeOf t <= bitsSizeOf !upointType
       | t, TPtr _ -> bitsSizeOf t >= bitsSizeOf !upointType*)
     | TFloat (fk1,_), TFloat (fk2,_) when fk1 = fk2 -> true
