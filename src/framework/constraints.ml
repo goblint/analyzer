@@ -550,8 +550,7 @@ struct
 
     {obsolete; delete; reluctant; restart}
 
-  let postmortem leaf =
-    match leaf with
+  let postmortem = function
     | FunctionEntry fd, c -> [(Function fd, c)]
     | _ -> []
 end
