@@ -20,9 +20,14 @@ struct
 
   (** Find reachable variables in a function *)
   let reachable_from_args ctx args =
-    let res =
-      List.fold (fun vs e -> vs @ (ctx.ask (ReachableFrom e) |> Queries.AD.to_var_may)) [] args in
-    if M.tracing then M.tracel "c2po-reachable" "reachable vars: %s\n" (List.fold_left (fun s v -> s ^v.vname ^"; ") "" res); res
+    let collect_reachable_from_exp acc e =
+      let reachable_from_exp = ctx.ask (ReachableFrom e) in
+      let reachable_from_exp = Queries.AD.to_var_may reachable_from_exp in
+      reachable_from_exp @ acc
+    in
+    let res = List.fold collect_reachable_from_exp [] args in
+    if M.tracing then M.tracel "c2po-reachable" "reachable vars: %s\n" (List.fold_left (fun s v -> s ^ v.vname ^"; ") "" res);
+    res
 
   (* Returns Some true if we know for sure that it is true,
      and Some false if we know for sure that it is false,
