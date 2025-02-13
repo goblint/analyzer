@@ -266,7 +266,7 @@ struct
       | _              -> 
         match i1, i2 with 
         | Some (x1, x2), Some (y1,y2) when not (Cil.isSigned ik) -> of_interval ik (Ints_t.zero, Ints_t.div x2 (Ints_t.of_int (power_of_two (Ints_t.to_int y1))))
-        | _ -> (top_of ik,{underflow=true; overflow=true})
+        | _ -> (top_of ik,{underflow=true; overflow=true}) (* TODO: kui signed ja mõlemad >0 *)
 
   let shift_right = shift_right_helper (fun _ik x y -> Ints_t.shift_right x (Ints_t.to_int y))
 

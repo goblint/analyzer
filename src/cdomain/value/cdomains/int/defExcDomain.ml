@@ -86,7 +86,6 @@ struct
   let bot () = `Bot
   let top_of ik = `Excluded (S.empty (), size ik)
   let bot_of ik = bot ()
-
   let show x =
     let short_size x = "("^R.show x^")" in
     match x with
@@ -451,7 +450,7 @@ struct
         else if Z.equal i Z.one then
           of_interval IBool (Z.zero, Z.one)
         else
-          top ()
+          top ()        (* TODO: kui i >= 0, siis saab kasutada Z.numbits, et muuta range'i *)
       | `Definite i, `Excluded _ ->
         if Z.equal i Z.zero then
           `Definite Z.zero
@@ -468,7 +467,7 @@ struct
         (* If only one of them is bottom, we raise an exception that eval_rv will catch *)
         raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y))))
 
-
+  (* TODO: saab teha täpsemaks *)
   let logor = lift2 Z.logor
   
   let logxor = lift2 Z.logxor
