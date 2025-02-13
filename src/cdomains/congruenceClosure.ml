@@ -756,20 +756,21 @@ let reset_normal_form cc =
                conj
              )}
 
-let show_all x = "Normal form:\n" ^
-                 show_conj((get_conjunction x)) ^
-                 "Union Find partition:\n" ^
-                 TUF.show_uf x.uf
-                 ^ "\nSubterm set:\n"
-                 ^ SSet.show_set x.set
-                 ^ "\nLookup map/transitions:\n"
-                 ^ LMap.show_map x.map
-                 ^ "\nNeq:\n"
-                 ^ Disequalities.show_neq x.diseq
-                 ^ "\nBlock diseqs:\n"
-                 ^ show_conj (BlDis.to_conj x.bldis)
-                 ^ "\nMin repr:\n"
-                 ^ show_normal_form x.normal_form
+let show_all x =
+  "Normal form:\n" ^
+  show_conj((get_conjunction x)) ^
+  "Union Find partition:\n" ^
+  TUF.show_uf x.uf
+  ^ "\nSubterm set:\n"
+  ^ SSet.show_set x.set
+  ^ "\nLookup map/transitions:\n"
+  ^ LMap.show_map x.map
+  ^ "\nNeq:\n"
+  ^ Disequalities.show_neq x.diseq
+  ^ "\nBlock diseqs:\n"
+  ^ show_conj (BlDis.to_conj x.bldis)
+  ^ "\nMin repr:\n"
+  ^ show_normal_form x.normal_form
 
 (** Splits the conjunction into three groups: the first one contains all equality propositions,
     the second one contains all inequality propositions
@@ -1217,8 +1218,8 @@ let remove_terms predicate cc =
 let remove_terms p cc = Timing.wrap "removing terms" (remove_terms p) cc
 
 (** Join version 1: by using the automaton.
-    The product automaton of cc1 and cc2 is computed and then we add the terms to the right equivalence class. We also add new terms in order to have some terms for each state in
-    the automaton. *)
+    The product automaton of cc1 and cc2 is computed and then we add the terms to the right equivalence class.
+    We also add new terms in order to have some terms for each state in the automaton. *)
 let join_eq cc1 cc2 =
   let atoms = SSet.get_atoms (SSet.inter cc1.set cc2.set) in
   let mappings = List.map
