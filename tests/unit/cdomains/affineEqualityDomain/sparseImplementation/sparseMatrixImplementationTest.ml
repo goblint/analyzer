@@ -370,5 +370,3 @@ let tests =
     "map zero preserving normal" >:: vectorMap_zero_preserving_normal;
     "get column when matrix in rref" >:: get_col_upper_triangular;
   ]
-
-let () = run_test_tt_main tests
