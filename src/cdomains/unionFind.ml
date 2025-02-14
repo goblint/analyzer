@@ -15,16 +15,23 @@ let compare_exp _ _ = 0
 let equal_exp _ _ = true
 let hash_exp _ = 1
 
-type term = Addr of Var.t | Aux of Var.t * exp | Deref of term * Z.t * exp [@@deriving eq, hash, ord]
+type term =
+  | Addr of Var.t
+  | Aux of Var.t * exp
+  | Deref of term * Z.t * exp [@@deriving eq, hash, ord]
 
-let normal_form_tuple_3 (t1,t2,z) =
+let normal_form_tuple_3 (t1, t2, z) =
   let cmp = compare_term t1 t2 in
-  if cmp < 0 || (cmp = 0 && Z.geq z Z.zero) then (t1,t2,z) else
-    (t2,t1,Z.(-z))
+  if cmp < 0 || (cmp = 0 && Z.geq z Z.zero) then
+    (t1, t2, z)
+  else
+    (t2, t1, Z.(-z))
 
-let normal_form_tuple_2 (t1,t2) =
-  if compare_term t1 t2 < 0 then (t1,t2) else
-    (t2,t1)
+let normal_form_tuple_2 (t1, t2) =
+  if compare_term t1 t2 < 0 then
+    (t1, t2)
+  else
+    (t2, t1)
 
 (** Two propositions are equal if they are syntactically equal
     or if one is t_1 = z + t_2 and the other t_2 = - z + t_1. *)
@@ -65,62 +72,91 @@ module T = struct
   let rec get_size_in_bits typ = match typ with
     | TArray (typ, _, _) -> (* we treat arrays like pointers *)
       get_size_in_bits (TPtr (typ,[]))
-    | _ -> match Z.of_int (bitsSizeOf typ) with
-      | exception GoblintCil__Cil.SizeOfError (msg,_) when msg ="abstract type"-> Z.one
-      | exception GoblintCil__Cil.SizeOfError (msg,_) ->
+    | _ ->
+      try Z.of_int (bitsSizeOf typ) with
+      | GoblintCil__Cil.SizeOfError (msg,_) when msg ="abstract type"->
+        Z.one
+      | GoblintCil__Cil.SizeOfError (msg,_) ->
         raise (UnsupportedCilExpression msg)
-      | s -> s
 
   let show_type exp =
     try
       let typ = typeOf exp in
-      "[" ^ (match typ with
-          | TPtr _ -> "Ptr"
-          | TInt _ -> "Int"
-          | TArray _ -> "Arr"
-          | TVoid _ -> "Voi"
-          | TFloat (_, _)-> "Flo"
-          | TComp (_, _) -> "TCo"
-          | TFun (_, _, _, _)|TNamed (_, _)|TEnum (_, _)|TBuiltin_va_list _ -> "?"
-        )^ Z.to_string (get_size_in_bits typ) ^ "]"
-    with
-    | UnsupportedCilExpression _ -> "[?]"
+      let typ_abbreviation = match typ with
+        | TPtr _ -> "Ptr"
+        | TInt _ -> "Int"
+        | TArray _ -> "Arr"
+        | TVoid _ -> "Voi"
+        | TFloat (_, _)-> "Flo"
+        | TComp (_, _) -> "TCo"
+        | TFun (_, _, _, _)
+        | TNamed (_, _)
+        | TEnum (_, _)
+        | TBuiltin_va_list _ -> "?"
+      in
+      let bit_size = get_size_in_bits typ in
+      let bit_size = Z.to_string bit_size in
+      "[" ^ typ_abbreviation ^ bit_size ^ "]"
+
+    with UnsupportedCilExpression _ ->
+      "[?]"
 
   let rec show : t -> string = function
-    | Addr v -> "&" ^ Var.show v
-    | Aux (v,exp) ->  "~" ^ Var.show v ^ show_type exp
-    | Deref (Addr v, z, exp) when Z.equal z Z.zero -> Var.show v ^ show_type exp
-    | Deref (t, z, exp) when Z.equal z Z.zero -> "*" ^ show t^ show_type exp
-    | Deref (t, z, exp) -> "*(" ^ Z.to_string z ^ "+" ^ show t ^ ")"^ show_type exp
+    | Addr v ->
+      "&" ^ Var.show v
+    | Aux (v,exp) ->
+      "~" ^ Var.show v ^ show_type exp
+    | Deref (Addr v, z, exp) when Z.equal z Z.zero ->
+      Var.show v ^ show_type exp
+    | Deref (t, z, exp) when Z.equal z Z.zero ->
+      "*" ^ show t^ show_type exp
+    | Deref (t, z, exp) ->
+      "*(" ^ Z.to_string z ^ "+" ^ show t ^ ")"^ show_type exp
 
   let show_prop = function
-    | Equal (t1,t2,r) when Z.equal r Z.zero -> show t1 ^ " = " ^ show t2
-    | Equal (t1,t2,r) -> show t1 ^ " = " ^ Z.to_string r ^ "+" ^ show t2
-    | Nequal (t1,t2,r) when Z.equal r Z.zero -> show t1 ^ " != " ^ show t2
-    | Nequal (t1,t2,r) -> show t1 ^ " != " ^ Z.to_string r ^ "+" ^ show t2
-    | BlNequal (t1,t2) -> "bl(" ^ show t1 ^ ") != bl(" ^ show t2 ^ ")"
+    | Equal (t1,t2,r) when Z.equal r Z.zero ->
+      show t1 ^ " = " ^ show t2
+    | Equal (t1,t2,r) ->
+      show t1 ^ " = " ^ Z.to_string r ^ "+" ^ show t2
+    | Nequal (t1,t2,r) when Z.equal r Z.zero ->
+      show t1 ^ " != " ^ show t2
+    | Nequal (t1,t2,r) ->
+      show t1 ^ " != " ^ Z.to_string r ^ "+" ^ show t2
+    | BlNequal (t1,t2) ->
+      "bl(" ^ show t1 ^ ") != bl(" ^ show t2 ^ ")"
 
   (** Returns true if the first parameter is a subterm of the second one. *)
-  let rec is_subterm st term = equal st term || match term with
-    | Deref (t, _, _) -> is_subterm st t
-    | _ -> false
+  let rec is_subterm needle haystack =
+    let is_subterm_of haystack =
+      match haystack with
+      | Deref (t, _, _) -> is_subterm needle t
+      | _ -> false
+    in
+    equal needle haystack || is_subterm_of haystack
 
   let rec get_var = function
-    | Addr v | Aux (v,_) -> v
-    | Deref (t, _, _) -> get_var t
+    | Addr v
+    | Aux (v,_) ->
+      v
+    | Deref (t, _, _) ->
+      get_var t
 
   (** Returns true if the second parameter contains one of the variables defined in the list "variables". *)
-  let contains_variable variables term = List.mem_cmp Var.compare (get_var term) variables
+  let contains_variable variables term =
+    let term_var = get_var term in
+    List.mem_cmp Var.compare term_var variables
 
   (** Use query EvalInt for an expression. *)
   let eval_int (ask:Queries.ask) exp =
     match Cilfacade.get_ikind_exp exp with
-    | exception Invalid_argument _ -> raise (UnsupportedCilExpression "non-constant value")
+    | exception Invalid_argument _ ->
+      raise (UnsupportedCilExpression "non-constant value")
     | ikind ->
       begin match ask.f (Queries.EvalInt exp) with
         | `Lifted i ->
-          begin match IntDomain.IntDomTuple.to_int @@ IntDomain.IntDomTuple.cast_to ikind i
-            with
+          let casted_i = IntDomain.IntDomTuple.cast_to ikind i in
+          let maybe_i = IntDomain.IntDomTuple.to_int casted_i in
+          begin match maybe_i with
             | Some i -> i
             | None -> raise (UnsupportedCilExpression "non-constant value")
           end
@@ -136,27 +172,36 @@ module T = struct
       and None if the result is not a pointer. *)
   let rec type_of_element typ =
     match Cil.unrollType typ with
-    | TArray (typ, _, _) -> type_of_element typ
-    | TPtr (typ, _) -> Some typ
-    | _ -> None
+    | TArray (typ, _, _) ->
+      type_of_element typ
+    | TPtr (typ, _) ->
+      Some typ
+    | _ ->
+      None
 
   (** Returns the size of the type. If typ is a pointer, it returns the
       size of the elements it points to. If typ is an array, it returns the size of the
       elements of the array (even if it is a multidimensional array. Therefore get_element_size_in_bits int\[]\[]\[] = sizeof(int)). *)
   let get_element_size_in_bits typ =
     match type_of_element typ with
-    | Some typ -> get_size_in_bits typ
-    | None -> Z.one
+    | Some typ ->
+      get_size_in_bits typ
+    | None ->
+      Z.one
 
   let is_struct_type t =
     match Cil.unrollType t with
-    | TComp _ -> true
-    | _ -> false
+    | TComp _ ->
+      true
+    | _ ->
+      false
 
   let is_struct_ptr_type t =
     match Cil.unrollType t with
-    | TPtr(typ,_) -> is_struct_type typ
-    | _ -> false
+    | TPtr(typ, _) ->
+      is_struct_type typ
+    | _ ->
+      false
 
   let is_ptr_type t =
     match Cil.unrollType t with
@@ -164,11 +209,16 @@ module T = struct
     | _ -> false
 
   let aux_term_of_varinfo vinfo =
-    Aux (vinfo, Lval (Var (Var.to_varinfo vinfo), NoOffset))
+    let var = Var (Var.to_varinfo vinfo) in
+    let lval = Lval (var, NoOffset) in
+    Aux (vinfo, lval)
 
   let term_of_varinfo vinfo =
-    if is_struct_type (Var.to_varinfo vinfo).vtype || (Var.to_varinfo vinfo).vaddrof then
-      Deref (Addr vinfo, Z.zero, Lval (Var (Var.to_varinfo vinfo), NoOffset))
+    let var = Var.to_varinfo vinfo in
+    let lval = Lval (Var var, NoOffset) in
+
+    if is_struct_type var.vtype || var.vaddrof then
+      Deref (Addr vinfo, Z.zero, lval)
     else
       aux_term_of_varinfo vinfo
 
@@ -179,111 +229,189 @@ module T = struct
        unclear how to immediately get more reuse *)
     let rec convert_offset (ofs: offset) =
       match ofs with
-      | NoOffset -> `NoOffset
-      | Field (fld, ofs) -> `Field (fld, convert_offset ofs)
+      | NoOffset ->
+        `NoOffset
+      | Field (fld, ofs) ->
+        `Field (fld, convert_offset ofs)
       | Index (exp, ofs) when CilType.Exp.equal exp (Lazy.force Offset.Index.Exp.any) -> (* special offset added by convertToQueryLval *)
-        `Index (ValueDomain.ID.top_of (Cilfacade.get_ikind_exp exp), convert_offset ofs)
+        let exp_ikind = Cilfacade.get_ikind_exp exp in
+        `Index (ValueDomain.ID.top_of exp_ikind, convert_offset ofs)
       | Index (exp, ofs) ->
+        let ptr_diff_ikind = Cilfacade.ptrdiff_ikind () in
         let i = match ask.f (Queries.EvalInt exp) with
-          | `Lifted x -> IntDomain.IntDomTuple.cast_to  (Cilfacade.ptrdiff_ikind ()) @@ x
-          | _ -> ValueDomain.ID.top_of @@ Cilfacade.ptrdiff_ikind ()
+          | `Lifted x ->
+            IntDomain.IntDomTuple.cast_to ptr_diff_ikind x
+          | _ ->
+            ValueDomain.ID.top_of ptr_diff_ikind
         in
-        `Index (i, convert_offset ofs)
+        let converted_ofs = convert_offset ofs in
+        `Index (i, converted_ofs)
     in
-    let to_constant exp = try let z = eval_int ask exp in
-        Const (CInt (z, Cilfacade.get_ikind_exp exp, Some (Z.to_string z)))
-      with Invalid_argument _ | UnsupportedCilExpression _ -> exp
+    let to_constant exp =
+      try
+        let z = eval_int ask exp in
+        let z_str  = Some (Z.to_string z)in
+        let exp_ikind = Cilfacade.get_ikind_exp exp in
+        Const (CInt (z, exp_ikind, z_str))
+      with
+      | Invalid_argument _
+      | UnsupportedCilExpression _ -> exp
     in
     let rec convert_type typ = (* compute length of arrays when it is known*)
       match typ with
-      | TArray (typ, exp, attr) -> TArray (convert_type typ, Option.map to_constant exp, attr)
-      | TPtr (typ, attr) -> TPtr (convert_type typ, attr)
-      | TFun (typ, form, var_arg, attr) -> TFun (convert_type typ, form, var_arg, attr)
-      | TNamed (typeinfo, attr) -> TNamed ({typeinfo with ttype=convert_type typeinfo.ttype}, attr)
-      | TVoid _| TInt (_, _)| TFloat (_, _)| TComp (_, _)| TEnum (_, _)| TBuiltin_va_list _ -> typ
+      | TArray (typ, exp, attr) ->
+        let const = Option.map to_constant exp in
+        let converted_type = convert_type typ in
+        TArray (converted_type, const, attr)
+      | TPtr (typ, attr) ->
+        let converted_type = convert_type typ in
+        TPtr (converted_type, attr)
+      | TFun (typ, form, var_arg, attr) ->
+        let converted_typ = convert_type typ in
+        TFun (converted_typ, form, var_arg, attr)
+      | TNamed (typeinfo, attr) ->
+        let converted_type = convert_type typeinfo.ttype in
+        TNamed ({typeinfo with ttype = converted_type}, attr)
+      | TVoid _
+      | TInt (_, _)
+      | TFloat (_, _)
+      | TComp (_, _)
+      | TEnum (_, _)
+      | TBuiltin_va_list _ -> typ
     in
-    PreValueDomain.Offs.to_index ?typ:(Some (convert_type typ)) (convert_offset offs)
+    let converted_type = Some (convert_type typ) in
+    let converted_offset = convert_offset offs in
+    PreValueDomain.Offs.to_index ?typ:converted_type converted_offset
 
   (** Convert an offset to an integer of Z, if posible.
       Otherwise, this throws UnsupportedCilExpression. *)
   let z_of_offset ask offs typ =
-    match IntDomain.IntDomTuple.to_int @@ cil_offs_to_idx ask offs typ with
+    match IntDomain.IntDomTuple.to_int (cil_offs_to_idx ask offs typ)  with
     | Some i -> i
     | None
-    | exception (SizeOfError _)| exception (Cilfacade.TypeOfError _) -> if M.tracing then M.trace "c2po-invalidate" "REASON: unknown offset";
+    | exception (SizeOfError _)
+    | exception (Cilfacade.TypeOfError _) ->
+      if M.tracing then M.trace "c2po-invalidate" "Reason: unknown offset";
       raise (UnsupportedCilExpression "unknown offset")
 
   let can_be_dereferenced t =
     match Cil.unrollType t with
-    | TPtr _| TArray _| TComp _ -> true
+    | TPtr _
+    | TArray _
+    | TComp _ -> true
     | _ -> false
 
   let type_of_term =
     function
-    | Addr v -> TPtr ((Var.to_varinfo v).vtype, [])
-    | Aux (_, exp) | Deref (_, _, exp) -> typeOf exp
+    | Addr v ->
+      let var_type = (Var.to_varinfo v).vtype in
+      TPtr (var_type, [])
+    | Aux (_, exp)
+    | Deref (_, _, exp) ->
+      typeOf exp
 
   let to_cil =
     function
-    | (Addr v) -> AddrOf (Var (Var.to_varinfo v), NoOffset)
-    | Aux (_, exp) | (Deref (_, _, exp)) -> exp
+    | Addr v ->
+      let varinfo = Var.to_varinfo v in
+      let lval = (Var varinfo, NoOffset) in
+      AddrOf lval
+    | Aux (_, exp)
+    | (Deref (_, _, exp)) -> exp
 
-  let default_int_type = ILong
+  let default_int_type =
+    ILong
+
   (** Returns a Cil expression which is the constant z divided by the size of the elements of t.*)
   let to_cil_constant z t =
-    let z = if Z.equal z Z.zero then Z.zero else
+    let z =
+      if Z.equal z Z.zero then
+        Z.zero
+      else
         let typ_size = match t with
           | Some t -> get_element_size_in_bits t
           | None -> Z.one
         in
-        if Z.lt (Z.abs z) typ_size && Z.gt (Z.abs z) Z.zero then raise (UnsupportedCilExpression "Cil can't represent something like &(c->d).") else
-        if Z.equal typ_size Z.zero then Z.zero else
-          Z.(z /typ_size) in
-    Const (CInt (z, default_int_type, Some (Z.to_string z)))
+        if Z.lt (Z.abs z) typ_size && Z.gt (Z.abs z) Z.zero then
+          raise (UnsupportedCilExpression "Cil can't represent something like &(c->d).")
+        else if Z.equal typ_size Z.zero then
+          Z.zero
+        else
+          Z.(z / typ_size)
+    in
+    let z_str = Some (Z.to_string z) in
+    Const (CInt (z, default_int_type, z_str))
 
   let to_cil_sum off cil_t =
     let res =
-      if Z.(equal zero off) then cil_t else
+      if Z.(equal zero off) then
+        cil_t
+      else
         let typ = typeOf cil_t in
-        BinOp (PlusPI, cil_t, to_cil_constant off (Some typ), typ)
-    in if M.tracing then M.trace "c2po-2cil" "exp: %a; offset: %s; res: %a" d_exp cil_t (Z.to_string off) d_exp res;res
+        let const = to_cil_constant off (Some typ) in
+        BinOp (PlusPI, cil_t, const, typ)
+    in
+    if M.tracing then M.trace "c2po-2cil" "exp: %a; offset: %s; res: %a" d_exp cil_t (Z.to_string off) d_exp res;
+    res
 
   (** Returns the integer offset of a field of a struct. *)
-  let get_field_offset finfo = match IntDomain.IntDomTuple.to_int (PreValueDomain.Offs.to_index (`Field (finfo, `NoOffset))) with
+  let get_field_offset finfo =
+    let field = `Field (finfo, `NoOffset) in
+    let field_to_index = PreValueDomain.Offs.to_index field in
+    match IntDomain.IntDomTuple.to_int field_to_index with
     | Some i -> i
-    | None -> raise (UnsupportedCilExpression "unknown offset")
+    | None ->
+      raise (UnsupportedCilExpression "unknown offset")
 
   let is_field = function
     | Field _ -> true
     | _ -> false
 
   let rec add_index_to_exp exp index =
-    try if is_struct_type (typeOf exp) = (is_field index) then
-        begin match exp with
-          | Lval (Var v, NoOffset) -> Lval (Var v, index)
-          | Lval (Mem v, NoOffset) -> Lval (Mem v, index)
-          | BinOp (PlusPI, exp1, Const (CInt (z, _ , _ )), _)when Z.equal z Z.zero ->
+    try
+      let exp_type = typeOf exp in
+      if is_struct_type exp_type = is_field index then
+        begin
+          match exp with
+          | Lval (Var v, NoOffset) ->
+            Lval (Var v, index)
+          | Lval (Mem v, NoOffset) ->
+            Lval (Mem v, index)
+          | BinOp (PlusPI, exp1, Const (CInt (z, _ , _ )), _) when Z.equal z Z.zero ->
             add_index_to_exp exp1 index
-          | _ -> raise (UnsupportedCilExpression "not supported yet")
+          | _ ->
+            raise (UnsupportedCilExpression "not supported yet")
         end
-      else if is_struct_ptr_type (typeOf exp) && (is_field index) then
-        Lval(Mem (exp), index)
-      else raise (UnsupportedCilExpression "Field on a non-compound")
-    with | Cilfacade.TypeOfError _ -> raise (UnsupportedCilExpression "typeOf error")
+      else
+      if is_struct_ptr_type exp_type && (is_field index) then
+        Lval (Mem (exp), index)
+      else
+        raise (UnsupportedCilExpression "Field on a non-compound")
+    with Cilfacade.TypeOfError _ ->
+      raise (UnsupportedCilExpression "typeOf error")
 
-  (** Returns true if the Cil expression represents a 64 bit data type,
+  (** Returns true if the Cil expression represents a 64 bit data type
       which is not a float. So it must be either a pointer or an integer
       that has the same size as a pointer.*)
   let check_valid_pointer term =
     match typeOf term with (* we want to make sure that the expression is valid *)
-    | exception Cilfacade.TypeOfError _ -> false
+    | exception Cilfacade.TypeOfError _ ->
+      false
     | typ -> (* we only track equalties between pointers (variable of size 64)*)
-      if get_size_in_bits typ <> bitsSizeOfPtr () || Cilfacade.isFloatType typ then false
-      else true
+      get_size_in_bits typ = bitsSizeOfPtr () &&
+      not (Cilfacade.isFloatType typ)
 
   (** Only keeps the variables that are actually pointers (or 64-bit integers). *)
   let filter_valid_pointers =
-    List.filter (function | Equal(t1,t2,_)| Nequal(t1,t2,_) |BlNequal(t1,t2)-> check_valid_pointer (to_cil t1) && check_valid_pointer (to_cil t2))
+    let check_both_terms_valid_pointers = function
+      | Equal(t1,t2,_)
+      | Nequal(t1,t2,_)
+      | BlNequal(t1,t2) ->
+        let t1 = to_cil t1 in
+        let t2 = to_cil t2 in
+        check_valid_pointer t1 && check_valid_pointer t2
+    in
+    List.filter check_both_terms_valid_pointers
 
   (** Get a Cil expression that is equivalent to *(exp + offset),
       by taking into account type correctness.*)
@@ -292,26 +420,51 @@ module T = struct
     let res =
       let find_field cinfo =
         try
-          Field (List.find (fun field -> Z.equal (get_field_offset field) offset) cinfo.cfields, NoOffset)
-        with | Not_found -> raise (UnsupportedCilExpression "invalid field offset")
+          let equal_to_offset field =
+            Z.equal (get_field_offset field) offset
+          in
+          let field_equal_to_offset = List.find equal_to_offset cinfo.cfields in
+          Field (field_equal_to_offset, NoOffset)
+        with Not_found ->
+          raise (UnsupportedCilExpression "invalid field offset")
       in
-      let res = match exp with
-        | AddrOf lval -> Lval lval
+      let res =
+        match exp with
+        | AddrOf lval ->
+          Lval lval
         | _ ->
           match typeOf exp with
-          | TPtr (TComp (cinfo, _), _) -> add_index_to_exp exp (find_field cinfo)
-          | TPtr (typ, _) -> Lval (Mem (to_cil_sum offset exp), NoOffset)
+          | TPtr (TComp (cinfo, _), _) ->
+            let field = find_field cinfo in
+            add_index_to_exp exp field
+          | TPtr (typ, _) ->
+            Lval (Mem (to_cil_sum offset exp), NoOffset)
           | TArray (typ, _, _) when not (can_be_dereferenced typ) ->
-            let index = Index (to_cil_constant offset (Some typ), NoOffset) in
+            let constant = to_cil_constant offset (Some typ) in
+            let index = Index (constant, NoOffset) in
             begin match exp with
-              | Lval (Var v, NoOffset) ->  Lval (Var v, index)
-              | Lval (Mem v, NoOffset) -> Lval (Mem v, index)
-              | _ -> raise (UnsupportedCilExpression "not supported yet")
+              | Lval (Var v, NoOffset) ->
+                Lval (Var v, index)
+              | Lval (Mem v, NoOffset) ->
+                Lval (Mem v, index)
+              | _ ->
+                raise (UnsupportedCilExpression "not supported yet")
             end
-          | TComp (cinfo, _) -> add_index_to_exp exp (find_field cinfo)
-          | _ ->  Lval (Mem (CastE (TPtr(TVoid[],[]), to_cil_sum offset exp)), NoOffset)
-      in if check_valid_pointer res then res else raise (UnsupportedCilExpression "not a pointer variable")
-    in if M.tracing then M.trace "c2po-deref" "deref result: %a" d_exp res;res
+          | TComp (cinfo, _) ->
+            let field = find_field cinfo in
+            add_index_to_exp exp field
+          | _ ->
+            let void_ptr_type = TPtr(TVoid [], []) in
+            let offset_plus_exp =  to_cil_sum offset exp in
+            Lval (Mem (CastE (void_ptr_type, offset_plus_exp)), NoOffset)
+      in
+      if check_valid_pointer res then
+        res
+      else
+        raise (UnsupportedCilExpression "not a pointer variable")
+    in
+    if M.tracing then M.trace "c2po-deref" "deref result: %a" d_exp res;
+    res
 
   let get_size = get_size_in_bits % type_of_term
 
