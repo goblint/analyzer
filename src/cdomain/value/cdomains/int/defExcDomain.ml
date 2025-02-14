@@ -299,6 +299,17 @@ struct
       let ex = if Z.gt x Z.zero || Z.lt y Z.zero then S.singleton Z.zero else  S.empty () in
       norm ik @@ (`Excluded (ex, r))
 
+  let to_bitfield ik x = 
+    match x with 
+    | `Definite c -> (Z.lognot c, c) 
+    | _ when Cil.isSigned ik -> 
+      let one_mask = Z.lognot Z.zero in 
+      (one_mask, one_mask)
+    | _ -> 
+      let one_mask = Z.lognot Z.zero in 
+      let ik_mask = snd (Size.range ik) in 
+      (one_mask, ik_mask)
+
   let starting ?(suppress_ovwarn=false) ikind x =
     let _,u_ik = Size.range ikind in
     of_interval ~suppress_ovwarn ikind (x, u_ik)
@@ -530,6 +541,14 @@ struct
     ] (* S TODO: decide frequencies *)
 
   let refine_with_congruence ik a b = a
+
+  let refine_with_bitfield ik x (z,o) = 
+    match BitfieldDomain.Bitfield.to_int (z,o) with 
+    | Some y ->
+      meet ik x (`Definite y)
+    | _ ->
+      x
+
   let refine_with_interval ik a b = match a, b with
     | x, Some(i) -> meet ik x (of_interval ik i)
     | _ -> a

@@ -414,6 +414,13 @@
               "type": "boolean",
               "default": false
             },
+            "bitfield": {
+              "title": "ana.int.bitfield",
+              "description":
+                "Use IntDomain.Bitfield: Bitfield domain for integers.",
+              "type": "boolean",
+              "default": false
+            },
             "congruence": {
               "title": "ana.int.congruence",
               "description":
@@ -639,6 +646,12 @@
                   "title": "ana.base.context.interval_set",
                   "description":
                     "Integer values of the IntervalSet domain in function contexts.",
+                  "type": "boolean",
+                  "default": true
+                },
+                "bitfield": {
+                  "title": "ana.base.context.bitfield",
+                  "description": "Bitfield values in function contexts.",
                   "type": "boolean",
                   "default": true
                 }
@@ -1701,7 +1714,7 @@
             "type": "array",
             "items": {
               "type": "string",
-              "enum": ["base.no-non-ptr", "base.non-ptr", "base.no-int", "base.int", "base.no-interval", "base.no-interval_set","base.interval", "base.interval_set","relation.no-context", "relation.context", "no-widen", "widen"]
+              "enum": ["base.no-non-ptr", "base.non-ptr", "base.no-int", "base.int", "base.no-interval", "base.no-interval_set", "base.no-bitfield", "base.interval", "base.interval_set", "base.bitfield", "relation.no-context", "relation.context", "no-widen", "widen"]
             },
             "default": []
           }
