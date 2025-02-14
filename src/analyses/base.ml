@@ -250,14 +250,9 @@ struct
     let bool_top ik = ID.(join (of_int ik Z.zero) (of_int ik Z.one)) in
     (* An auxiliary function for ptr arithmetic on array values. *)
     let addToAddr n (addr:Addr.t) =
-      let typeOffsetOpt o t =
-        try
-          Some (Cilfacade.typeOffset t o)
-        with Cilfacade.TypeOfError _ ->
-          None
-      in
+      let exception UnknownPtr in
       (* adds n to the last offset *)
-      let rec addToOffset n (t:typ option) = function
+      let rec addToOffset n (t : typ) ((v, off) : Addr.Mval.t) = function
         | `Index (i, `NoOffset) ->
           (* Binary operations on pointer types should not generate warnings in SV-COMP *)
           GobRef.wrap AnalysisState.executing_speculative_computations true @@ fun () ->
@@ -268,31 +263,32 @@ struct
            * then check if we're subtracting exactly its offsetof.
            * If so, n cancels out f exactly.
            * This is to better handle container_of hacks. *)
-          let n_offset = iDtoIdx n in
-          begin match t with
-            | Some t ->
-              let (f_offset_bits, _) = bitsOffset t (Field (f, NoOffset)) in
-              let f_offset = IdxDom.of_int (Cilfacade.ptrdiff_ikind ()) (Z.of_int (f_offset_bits / 8)) in
-              begin match IdxDom.(to_bool (eq f_offset (neg n_offset))) with
-                | Some true -> `NoOffset
-                | _ -> `Field (f, `Index (n_offset, `NoOffset))
-              end
-            | None -> `Field (f, `Index (n_offset, `NoOffset))
+          let (f_offset_bits, _) = bitsOffset t (Field (f, NoOffset)) in
+          let f_offset = IdxDom.of_int (Cilfacade.ptrdiff_ikind ()) (Z.of_int (f_offset_bits / 8)) in
+          begin match IdxDom.(to_bool (eq f_offset (neg (iDtoIdx n)))) with
+            | Some true -> `NoOffset
+            | _ when isArrayType f.ftype -> `Field (f, `Index (n, `NoOffset))
+            | _ when GobOption.exists (Z.equal Z.zero) (ID.to_int n) -> `Field (f, `NoOffset) (* adding (or subtracting) 0 to any type of pointer is ok *)
+            | _ -> raise UnknownPtr (* adding (or subtracting) anything else than 0 to a pointer that is non-indexable will yield an unknown pointer *)
           end
         | `Index (i, o) ->
-          let t' = BatOption.bind t (typeOffsetOpt (Index (integer 0, NoOffset))) in (* actual index value doesn't matter for typeOffset *)
-          `Index(i, addToOffset n t' o)
-        | `Field (f, o) ->
-          let t' = BatOption.bind t (typeOffsetOpt (Field (f, NoOffset))) in
-          `Field(f, addToOffset n t' o)
-        | `NoOffset -> `Index(iDtoIdx n, `NoOffset)
+          let t' = Cilfacade.typeOffset t NoOffset in (* actual index value doesn't matter for typeOffset *)
+          `Index(i, addToOffset n t' (Addr.Mval.add_offset (v, off) o) o)
+        | `Field (f, o) -> `Field(f, addToOffset n f.ftype (Addr.Mval.add_offset (v, off) o) o)
+        (* The following cases are only reached via the first call, but not recursively (as the previous cases catch those) *)
+        | `NoOffset when isArrayType (v.vtype) || is_alloc_var (Analyses.ask_of_man man) v -> `Index (iDtoIdx n, `NoOffset)
+        | `NoOffset when GobOption.exists (Z.equal Z.zero) (ID.to_int n) -> `NoOffset (* adding (or subtracting) 0 to any type of pointer is ok *)
+        | `NoOffset -> raise UnknownPtr (* adding (or subtracting) anything else than 0 to a pointer that is non-indexable will yield an unknown pointer *)
       in
       let default = function
         | Addr.NullPtr when GobOption.exists (Z.equal Z.zero) (ID.to_int n) -> Addr.NullPtr
         | _ -> Addr.UnknownPtr
       in
       match Addr.to_mval addr with
-      | Some (x, o) -> Addr.of_mval (x, addToOffset n (Some x.vtype) o)
+      | Some (x, o) -> (
+          try Addr.of_mval (x, addToOffset n x.vtype (x,o) o)
+          with UnknownPtr -> default addr
+        )
       | None -> default addr
     in
     let addToAddrOp p (n:ID.t):value =
@@ -1176,9 +1172,6 @@ struct
 
   (* interpreter end *)
 
-  let is_not_alloc_var man v =
-    not (man.ask (Queries.IsAllocVar v))
-
   let is_not_heap_alloc_var man v =
     let is_alloc = man.ask (Queries.IsAllocVar v) in
     not is_alloc || (is_alloc && not (man.ask (Queries.IsHeapVar v)))
@@ -1473,7 +1466,7 @@ struct
           (* If there's a non-heap var or an offset in the lval set, we answer with bottom *)
           (* If we're asking for the BlobSize from the base address, then don't check for offsets => we want to avoid getting bot *)
           if AD.exists (function
-              | Addr (v,o) -> is_not_alloc_var man v || (if not from_base_addr then o <> `NoOffset else false)
+              | Addr (v,o) -> is_not_alloc_var (Analyses.ask_of_man man) v || (if not from_base_addr then o <> `NoOffset else false)
               | _ -> false) a then
             Queries.Result.bot q
           else (
