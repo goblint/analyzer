@@ -32,23 +32,23 @@ struct
   (* Returns Some true if we know for sure that it is true,
      and Some false if we know for sure that it is false,
      and None if we don't know anyhing. *)
-  let eval_guard ask t e ik =
+  let eval_guard ask cc e ik =
     let open Queries in
     let prop_list = T.prop_of_cil ask e true in
     match split prop_list with
     | [], [], [] ->
       ID.top()
     | x::xs, _, [] ->
-      if fst (eq_query t x) then
+      if fst (eq_query cc x) then
         ID.of_bool ik true
-      else if neq_query t x then
+      else if neq_query cc x then
         ID.of_bool ik false
       else
         ID.top()
     | _, y::ys, [] ->
-      if neq_query t y then
+      if neq_query cc y then
         ID.of_bool ik true
-      else if fst (eq_query t y) then
+      else if fst (eq_query cc y) then
         ID.of_bool ik false
       else
         ID.top()
@@ -85,35 +85,39 @@ struct
       | _ ->
         Result.top q
 
-  (** Assign the term `lterm` to the right hand side rhs, that is already
-      converted to a C-2PO term. *)
-  let assign_term t ask lterm rhs lval_t =
+  (** Assign the right hand side rhs (that is already
+      converted to a C-2PO term) to the term `lterm`. *)
+  let assign_term cc ask lterm rhs lval_t =
     (* ignore assignments to values that are not 64 bits *)
     match T.get_element_size_in_bits lval_t, rhs with
     (* Indefinite assignment *)
-    | s, (None, _) ->
-      (D.remove_may_equal_terms ask s lterm t)
+    | lval_size, (None, _) ->
+      D.remove_may_equal_terms ask lval_size lterm cc
     (* Definite assignment *)
-    | s, (Some term, Some offset) ->
-
+    | lval_size, (Some rterm, Some roffset) ->
       let dummy_var = MayBeEqual.dummy_var lval_t in
-      if M.tracing then M.trace "c2po-assign" "assigning: var: %s; expr: %s + %s. \nTo_cil: lval: %a; expr: %a\n" (T.show lterm) (T.show term) (Z.to_string offset) d_exp (T.to_cil lterm) d_exp (T.to_cil term);
 
-      t |>
-      meet_conjs_opt [Equal (dummy_var, term, offset)] |>
-      D.remove_may_equal_terms ask s lterm |>
-      meet_conjs_opt [Equal (lterm, dummy_var, Z.zero)] |>
+      if M.tracing then M.trace "c2po-assign" "assigning: var: %s; expr: %s + %s. \nTo_cil: lval: %a; expr: %a\n" (T.show lterm) (T.show rterm) (Z.to_string roffset) d_exp (T.to_cil lterm) d_exp (T.to_cil rterm);
+
+      let equal_dummy_rterm = [Equal (dummy_var, rterm, roffset)] in
+      let equal_dummy_lterm = [Equal (lterm, dummy_var, Z.zero)] in
+
+      cc |>
+      meet_conjs_opt equal_dummy_rterm |>
+      D.remove_may_equal_terms ask lval_size lterm |>
+      meet_conjs_opt equal_dummy_lterm |>
       D.remove_terms_containing_aux_variable
+
     | _ -> (* this is impossible *)
       C2PODomain.top ()
 
   (** Assign Cil Lval to a right hand side that is already converted to
       C-2PO terms.*)
-  let assign_lval t ask lval expr =
+  let assign_lval cc ask lval expr =
     let lval_t = typeOfLval lval in
     try
       let lterm = T.of_lval ask lval in
-      assign_term t ask lterm expr lval_t
+      assign_term cc ask lterm expr lval_t
     with T.UnsupportedCilExpression _ ->
       (* the assigned variables couldn't be parsed, so we don't know which addresses were written to.
          We have to forget all the information we had.
@@ -252,11 +256,11 @@ struct
       let new_state = reset_normal_form new_state in
       [ctx.local, `Lifted new_state]
 
-  let remove_out_of_scope_vars t f =
+  let remove_out_of_scope_vars cc f =
     let local_vars = f.sformals @ f.slocals in
     let duplicated_vars = f.sformals in
-    let t = D.remove_terms_containing_return_variable t in
-    D.remove_terms_containing_variables (Var.from_varinfo local_vars duplicated_vars) t
+    let cc = D.remove_terms_containing_return_variable cc in
+    D.remove_terms_containing_variables (Var.from_varinfo local_vars duplicated_vars) cc
 
   let combine_env ctx lval_opt expr f args t_context_opt f_d (f_ask: Queries.ask) =
     match ctx.local with
