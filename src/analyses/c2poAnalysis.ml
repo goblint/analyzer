@@ -155,8 +155,7 @@ struct
           with Unsat ->
             `Bot
     in
-    if M.tracing then M.trace "c2po" "BRANCH:\n Actual equality: %a; pos: %b; valid_prop_list: %s; is_bot: %b\n"
-        d_exp e pos (show_conj valid_props) (D.is_bot res);
+    if M.tracing then M.trace "c2po" "BRANCH:\n Actual equality: %a; pos: %b; valid_prop_list: %s; is_bot: %b\n" d_exp e pos (show_conj valid_props) (D.is_bot res);
     if D.is_bot res then raise Deadcode;
     res
 
