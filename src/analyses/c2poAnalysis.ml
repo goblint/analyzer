@@ -194,25 +194,25 @@ struct
     | `Lifted cc ->
       let t =
         begin match lval_opt with
-        | None ->
-          cc
-        | Some lval ->
-          (* forget information about var,
-             but ignore assignments to values that are not 64 bits *)
-          try
-            let size = T.get_element_size_in_bits (typeOfLval lval) in
-            let lterm = T.of_lval ask lval in
-            let cc = D.remove_may_equal_terms ask size lterm cc in
-            begin match desc.special exprs with
-              | Malloc _
-              | Calloc _
-              | Alloca _ ->
-                add_block_diseqs cc lterm
-              | _ -> cc
-            end
-          with T.UnsupportedCilExpression _ ->
-            C2PODomain.top ()
-      end
+          | None ->
+            cc
+          | Some lval ->
+            (* forget information about var,
+               but ignore assignments to values that are not 64 bits *)
+            try
+              let size = T.get_element_size_in_bits (typeOfLval lval) in
+              let lterm = T.of_lval ask lval in
+              let cc = D.remove_may_equal_terms ask size lterm cc in
+              begin match desc.special exprs with
+                | Malloc _
+                | Calloc _
+                | Alloca _ ->
+                  add_block_diseqs cc lterm
+                | _ -> cc
+              end
+            with T.UnsupportedCilExpression _ ->
+              C2PODomain.top ()
+        end
       in
       match desc.special exprs with
       | Assert { exp; refine; _ } ->
@@ -223,25 +223,34 @@ struct
       | _ ->
         `Lifted (reset_normal_form t)
 
-  (**First all local variables of the function are duplicated (by negating their ID),
-     then we remember the value of each local variable at the beginning of the function
-     by using the analysis startState. This way we can infer the relations between the
-     local variables of the caller and the pointers that were modified by the function. *)
+  (** First all local variables of the function are duplicated,
+      then we remember the value of each local variable at the beginning of the function by using the analysis startState.
+      This way we can infer the relations between the local variables of the caller and the pointers that were modified by the function. *)
   let enter ctx var_opt f args =
     (* add duplicated variables, and set them equal to the original variables *)
     match ctx.local with
     | `Bot -> [`Bot, `Bot]
     | `Lifted cc ->
-      let added_equalities = T.filter_valid_pointers (List.map (fun v -> Equal (T.term_of_varinfo (DuplicVar v), T.term_of_varinfo (NormalVar v), Z.zero)) f.sformals) in
-      let state_with_duplicated_vars = meet_conjs_opt added_equalities cc in
-      if M.tracing then M.trace "c2po-function" "ENTER1: var_opt: %a; state: %s; state_with_duplicated_vars: %s\n" d_lval (BatOption.default (Var (Var.dummy_varinfo (TVoid [])), NoOffset) var_opt) (D.show ctx.local) (C2PODomain.show state_with_duplicated_vars);
+      let ghost_equality v =
+        Equal (T.term_of_varinfo (DuplicVar v), T.term_of_varinfo (NormalVar v), Z.zero)
+      in
+      let ghost_equalities_for_params = List.map ghost_equality f.sformals in
+      let equalities_to_add = T.filter_valid_pointers ghost_equalities_for_params in
+      let state_with_ghosts = meet_conjs_opt equalities_to_add cc in
+      if M.tracing then begin
+        let dummy_lval = Var (Var.dummy_varinfo (TVoid [])), NoOffset in
+        let lval = BatOption.default dummy_lval var_opt in
+        M.trace "c2po-function" "Enter1: var_opt: %a; state: %s; state_with_ghosts: %s\n" d_lval lval (D.show ctx.local) (C2PODomain.show state_with_ghosts);
+      end;
       (* remove callee vars that are not reachable and not global *)
       let reachable_variables =
-        Var.from_varinfo (f.sformals @ f.slocals @ reachable_from_args ctx args) f.sformals
+        let reachable = f.sformals @ f.slocals @ reachable_from_args ctx args in
+        Var.from_varinfo reachable f.sformals
       in
-      let new_state = D.remove_terms_not_containing_variables reachable_variables state_with_duplicated_vars in
-      if M.tracing then M.trace "c2po-function" "ENTER2: result: %s\n" (C2PODomain.show new_state);
-      [ctx.local, `Lifted (reset_normal_form new_state)]
+      let new_state = D.remove_terms_not_containing_variables reachable_variables state_with_ghosts in
+      if M.tracing then M.trace "c2po-function" "Enter2: result: %s\n" (C2PODomain.show new_state);
+      let new_state = reset_normal_form new_state in
+      [ctx.local, `Lifted new_state]
 
   let remove_out_of_scope_vars t f =
     let local_vars = f.sformals @ f.slocals in
@@ -249,48 +258,77 @@ struct
     let t = D.remove_terms_containing_return_variable t in
     D.remove_terms_containing_variables (Var.from_varinfo local_vars duplicated_vars) t
 
-  let combine_env ctx var_opt expr f args t_context_opt t (ask: Queries.ask) =
+  let combine_env ctx lval_opt expr f args t_context_opt f_d (f_ask: Queries.ask) =
     match ctx.local with
     | `Bot -> `Bot
     | `Lifted cc ->
-      let og_t = t in
+      let caller_ask = ask_of_ctx ctx in
       (* assign function parameters to duplicated values *)
       let arg_assigns = GobList.combine_short f.sformals args in
-      let state_with_assignments = List.fold_left (fun st (var, exp) -> assign_term st (ask_of_ctx ctx) (T.term_of_varinfo (DuplicVar var)) (T.of_cil ask exp) var.vtype) cc arg_assigns in
-      if M.tracing then M.trace "c2po-function" "COMBINE_ASSIGN0: state_with_assignments: %s\n" (C2PODomain.show state_with_assignments);
+      let assign_term st (var, arg) =
+        let ghost_var = T.term_of_varinfo (DuplicVar var) in
+        let arg = T.of_cil f_ask arg in
+        assign_term st caller_ask ghost_var arg var.vtype
+      in
+      let state_with_assignments = List.fold_left assign_term cc arg_assigns in
+
+      if M.tracing then M.trace "c2po-function" "combine_assign0: state_with_assignments: %s\n" (C2PODomain.show state_with_assignments);
+
       (*remove all variables that were tainted by the function*)
-      let tainted = ask.f (MayBeTainted) in
+      let tainted = f_ask.f (MayBeTainted) in
       if M.tracing then M.trace "c2po-tainted" "combine_env: %a\n" MayBeEqual.AD.pretty tainted;
-      let local = D.remove_tainted_terms (ask_of_ctx ctx) tainted state_with_assignments in
-      match D.meet (`Lifted local) t with
-      | `Bot -> `Bot
-      | `Lifted t ->
-        let t = reset_normal_form @@ remove_out_of_scope_vars t f in
-        if M.tracing then M.trace "c2po-function" "COMBINE_ASSIGN1: var_opt: %a; local_state: %s; t_state: %s; meeting everything: %s\n" d_lval (BatOption.default (Var (Var.dummy_varinfo (TVoid[])), NoOffset) var_opt) (D.show ctx.local) (D.show og_t) (C2PODomain.show t);
-        `Lifted t
 
-  let combine_assign ctx var_opt expr f args t_context_opt t (ask: Queries.ask) =
+      let local = D.remove_tainted_terms caller_ask tainted state_with_assignments in
+      match D.meet (`Lifted local) f_d with
+      | `Bot -> `Bot
+      | `Lifted cc ->
+        let cc = reset_normal_form @@ remove_out_of_scope_vars cc f in
+        if M.tracing then begin
+          let dummy_lval = Var (Var.dummy_varinfo (TVoid[])), NoOffset in
+          let lval = BatOption.default dummy_lval lval_opt in
+          M.trace "c2po-function" "COMBINE_ASSIGN1: var_opt: %a; local_state: %s; f_state: %s; meeting everything: %s\n" d_lval lval (D.show ctx.local) (D.show f_d) (C2PODomain.show cc)
+        end;
+        `Lifted cc
+
+  let combine_assign ctx var_opt expr f args t_context_opt f_d (f_ask: Queries.ask) =
     match ctx.local with
     | `Bot -> `Bot
     | `Lifted cc ->
+      let caller_ask = ask_of_ctx ctx in
       (* assign function parameters to duplicated values *)
       let arg_assigns = GobList.combine_short f.sformals args in
-      let state_with_assignments = List.fold_left (fun st (var, exp) -> assign_term st (ask_of_ctx ctx) (T.term_of_varinfo (DuplicVar var)) (T.of_cil ask exp) var.vtype) cc arg_assigns in
-      match D.meet (`Lifted state_with_assignments) t with
+      let assign_term st (var, arg) =
+        let ghost_var = T.term_of_varinfo (DuplicVar var) in
+        let arg = T.of_cil f_ask arg in
+        assign_term st caller_ask ghost_var arg var.vtype
+      in
+      let state_with_assignments = List.fold_left assign_term cc arg_assigns in
+      match D.meet (`Lifted state_with_assignments) f_d with
       | `Bot -> `Bot
-      | `Lifted t ->
-        let t = match var_opt with
-          | None -> t
-          | Some var -> assign_lval t ask var (Some (MayBeEqual.return_var (typeOfLval var)), Some Z.zero)
+      | `Lifted cc ->
+        let cc = match var_opt with
+          | None ->
+            cc
+          | Some lval ->
+            let return_type = typeOfLval lval in
+            let return_var = MayBeEqual.return_var return_type  in
+            let return_var = (Some return_var, Some Z.zero) in
+            assign_lval cc f_ask lval return_var
         in
-        if M.tracing then M.trace "c2po-function" "COMBINE_ASSIGN2: assigning return value: %s\n" (C2PODomain.show t);
-        let t = reset_normal_form @@ remove_out_of_scope_vars t f
-        in if M.tracing then M.trace "c2po-function" "COMBINE_ASSIGN3: result: %s\n" (C2PODomain.show t); `Lifted t
+        if M.tracing then M.trace "c2po-function" "combine_assign1: assigning return value: %s\n" (C2PODomain.show cc);
+        let cc = remove_out_of_scope_vars cc f in
+        let cc = reset_normal_form cc in
+        if M.tracing then M.trace "c2po-function" "combine_assign2: result: %s\n" (C2PODomain.show cc);
+        `Lifted cc
 
-  let startstate v = D.top ()
-  let threadenter ctx ~multiple lval f args = [D.top ()]
-  let threadspawn ctx ~multiple lval f args fctx = D.top()
-  let exitstate  v = D.top ()
+  let startstate v =
+    D.top ()
+  let threadenter ctx ~multiple lval f args =
+    [D.top ()]
+  let threadspawn ctx ~multiple lval f args fctx =
+    D.top()
+  let exitstate  v =
+    D.top ()
 
 end
 
