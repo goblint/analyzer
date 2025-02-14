@@ -513,7 +513,7 @@ struct
   let refine_with_bitfield ik x y = 
     let interv = of_bitfield ik y in 
     norm_intvs ik (meet ik x interv) |> fst
-    
+
   let refine_with_incl_list ik intvs  = function
     | None -> intvs
     | Some xs -> meet ik intvs (List.map (fun x -> (x,x)) xs)
