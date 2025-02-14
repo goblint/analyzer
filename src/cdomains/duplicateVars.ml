@@ -101,10 +101,13 @@ module VarVarinfoMap = RichVarinfo.BiVarinfoMap.Make(VarType)
 module Var =
 struct
   include VarType
+
   let dummy_varinfo typ: varinfo =
     VarVarinfoMap.to_varinfo (AssignAux typ)
+
   let return_varinfo typ =
     VarVarinfoMap.to_varinfo (ReturnAux typ)
+
   let to_varinfo v =
     let res = VarVarinfoMap.to_varinfo v in
     if M.tracing then M.trace "c2po-varinfo" "to_varinfo: %a -> %a" d_type (get_type v) d_type res.vtype;
