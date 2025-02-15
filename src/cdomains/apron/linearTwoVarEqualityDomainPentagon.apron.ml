@@ -193,28 +193,83 @@ module Unbounded : IntervalDomainWithBounds.BoundedIntOps with type t = TopIntOp
 end
 
 (*TODO add wrapper to remove ikind parameter or not? *)
-module Interval = struct
-  include IntDomain0.SOverflowUnlifter(IntervalDomainWithBounds.IntervalFunctor(Unbounded))
+module IntervalAndCongruence = struct
+  module I = IntDomain0.SOverflowUnlifter(IntervalDomainWithBounds.IntervalFunctor(Unbounded))
+  module C = CongruenceDomainNormFunctor.Congruence(CongruenceDomainNormFunctor.NoWrapping)
 
-  let ik = IChar (*Placeholder for all functions that need one*)
-  let of_bigint x = of_int ik (TopIntOps.of_bigint x)
+  type t = I.t * C.t [@@deriving eq, ord, hash]
 
-  let contains t i = leq (of_bigint i) t
+  let show (i,c) = I.show i ^ "," ^ C.show c 
+
+  let ik = IChar (*Placeholder for all functions that need one. Should not matter, but choosen small so that errors are detected with smaller numbers already*)
+
+  let top = I.top_of ik, C.top_of ik
+
+  let is_top = equal top
+
+  let is_bot = function
+    | None, None -> true
+    | _,_ -> false
+
+  let of_bigint x = (I.of_int ik (TopIntOps.of_bigint x), C.of_int ik x)
+
+  let leq (i1,c1) (i2,c2) = I.leq i1 i2 && C.leq c1 c2
+
+  let contains t v = leq (of_bigint v) t 
+
+  let contains t v = 
+    let res = contains t v in
+    if M.tracing then M.tracel "contains" "is %s conained in %s -> %b" (Z.to_string v) (show t) (res);
+    res
+
+  let refine t = 
+    let refine_step (i,c) = 
+      let c' = match i with 
+        | Some (TopIntOps.Int x, TopIntOps.Int y) -> C.refine_with_interval ik c (Some (x,y))
+        | Some _ -> c (*No refinement possible if one side is infinite*)
+        | _ -> None
+      in 
+      (I.refine_with_congruence ik i (BatOption.map (fun (x,y) -> (TopIntOps.Int x,TopIntOps.Int y)) c) ), c'
+    in
+    let t' = refine_step t in
+    if t' = t then t else refine_step t' (*The second refinement is necessary if the refinement leads to a constant, otherwise not*)
+
+  let add (i1,c1) (i2,c2) = refine (I.add ~no_ov:true ik i1 i2, C.add ~no_ov:true ik c1 c2)
+
+  let sub (i1,c1) (i2,c2) = refine (I.sub ~no_ov:true ik i1 i2, C.sub ~no_ov:true ik c1 c2)
+
+  let mul (i1,c1) (i2,c2) = refine (I.mul ~no_ov:true ik i1 i2, C.mul ~no_ov:true ik c1 c2)
+
+  let div (i1,c1) (i2,c2) = refine (I.div ~no_ov:true ik i1 i2, C.div ~no_ov:true ik c1 c2)
+
+  let rem (i1,c1) (i2,c2) = refine (I.rem ik i1 i2, C.rem ik c1 c2)
+
+  let neg (i,c) = refine (I.neg ~no_ov:true ik i, C.neg ~no_ov:true ik c)
+
+  let to_int (i,_) = I.to_int i 
+
+  let meet (i1,c1) (i2,c2) = refine (I.meet ik i1 i2, C.meet ik c1 c2)
+  let join (i1,c1) (i2,c2) = refine (I.join ik i1 i2, C.join ik c1 c2)
+  let widen (i1,c1) (i2,c2) = refine (I.widen ik i1 i2, C.widen ik c1 c2)
+
+  let of_congruence c = refine (I.top_of ik, C.of_congruence ik c)
+
 
 end 
+
+module Value = IntervalAndCongruence
 
 module EqualitiesConjunctionWithIntervals =
 struct
   module IntMap = EConj.IntMap
-  module I = Interval
-  type t = EConj.t *  (Interval.t IntMap.t) [@@deriving eq, ord]
+  type t = EConj.t *  (Value.t IntMap.t) [@@deriving eq, ord]
 
-  let hash (econj, x) = EConj.hash econj + 13* IntMap.fold (fun k value acc -> 13 * 13 * acc + 31 * k + I.hash value) x 0
+  let hash (econj, x) = EConj.hash econj + 13* IntMap.fold (fun k value acc -> 13 * 13 * acc + 31 * k + Value.hash value) x 0
 
   let show_intervals formatter is =     
     if IntMap.is_empty is then "{}"
     else
-      let str = IntMap.fold (fun k v acc -> Printf.sprintf "%s=%s , %s" (formatter k) (I.show v) acc) is "" in
+      let str = IntMap.fold (fun k v acc -> Printf.sprintf "%s=%s , %s" (formatter k) (Value.show v) acc) is "" in
       "{" ^ String.sub str 0 (String.length str - 3) ^ "}" 
 
   let show_formatted formatter ((dim, econj), is) = Printf.sprintf "(%s, %s)" (EConj.show_formatted formatter econj) (show_intervals formatter is)
@@ -274,26 +329,44 @@ struct
       Some i -> i
     | None -> (*If there is no interval saved, we have calculate it*)
       let (v,o,d) = get_rhs (econ, is) lhs in
-      if (v,o,d) = Rhs.var_zero lhs then I.top_of I.ik  (*uninitialised -> Tot*) 
+      if (v,o,d) = Rhs.var_zero lhs then Value.top  (*no relation -> Top*) 
       else match v with 
-          None -> I.div I.ik (I.of_bigint o) (I.of_bigint d)(*constant*) (*TODO is divisor always 1?*) 
+          None -> Value.div (Value.of_bigint o) (Value.of_bigint d)(*constant*) (*TODO is divisor always 1?*) 
         | Some (coeff,v) -> match IntMap.find_opt v is with
-            None -> I.top_of I.ik(*uninitialised*) 
-          | Some i -> I.div I.ik (I.add I.ik (I.of_bigint o) @@ I.mul I.ik (I.of_bigint coeff) i) (I.of_bigint d)
+            None -> Value.top (*uninitialised*) 
+          | Some i -> Value.div (Value.add (Value.of_bigint o) @@ Value.mul (Value.of_bigint coeff) i) (Value.of_bigint d)
 
   let get_interval t lhs = 
     let res = get_interval t lhs in
-    if M.tracing then M.tracel "get_interval" "reading var_%d from %s -> %s" lhs (show t) (Interval.show res);
+    if M.tracing then M.tracel "get_interval" "reading var_%d from %s -> %s" lhs (show t) (Value.show res);
     res
 
-
   let set_interval ((econ, is):t) lhs i =
-    let refine _ _ = identity in   (**TODO do some refinement based on the fact that all variables must be integers*)
+    let refine econ lhs i =(**TODO do not recalculate this every time?*)
+      (*calculate the congruence constraint for x from a single equation (cx + o) / d  *)
+      let congruence_of_rhs (c, o, d) =
+        (*adapted euclids extended algorithm for calculating the modular multiplicative inverse*)
+        let rec inverse t r t_old r_old = 
+          if Z.equal r Z.zero 
+          then t_old
+          else 
+            let q = Z.div r_old r in
+            inverse (Z.sub t_old (Z.mul q t)) (Z.sub r_old (Z.mul q r)) t r
+        in let inverse a n = inverse Z.one a Z.zero n
+        (*  x = -o c^-1 (mod d)   *)
+        in Value.of_congruence @@ (Z.mul (Z.neg o) (inverse c d), d)
+      in
+      let meet_with_rhs _ rhs i = match rhs with
+        | (Some (c, v), o, d) when v = lhs -> Value.meet i (congruence_of_rhs (c, o, d))
+        | _ -> i
+      in
+      IntMap.fold meet_with_rhs (snd econ) i 
+    in 
     let set_interval_for_root lhs i =
       let i = refine econ lhs i in
-      if M.tracing then M.tracel "modify_pentagon" "set_interval_for_root var_%d=%s" lhs (Interval.show i);
-      if i = Interval.top_of Interval.ik then (econ, IntMap.remove lhs is) (*stay sparse*)
-      else match I.to_int i with
+      if M.tracing then M.tracel "modify_pentagon" "set_interval_for_root var_%d=%s" lhs (Value.show i);
+      if i = Value.top then (econ, IntMap.remove lhs is) (*stay sparse*)
+      else match Value.to_int i with
         | Some (Int x) ->  (*If we have a constant, update all equations refering to this root*)
           let update_references = function
             | (Some (coeff, v), o, d) when v = lhs -> (None, Z.div (Z.add o @@ Z.mul x coeff) d, Z.one)
@@ -308,18 +381,19 @@ struct
       match v with
       | None -> (econ, is) (*For a constant, we do not need to save an interval*) (*TODO should we check for equality?*)
       | Some (coeff, v) ->
-        let i1 = I.mul I.ik (I.of_bigint d) i in
-        let i2 = I.sub I.ik i1 (I.of_bigint o) in
-        let i3 = I.div I.ik i2 (I.of_bigint coeff) in
+        let i1 = Value.mul (Value.of_bigint d) i in
+        let i2 = Value.sub i1 (Value.of_bigint o) in
+        let i3 = Value.div i2 (Value.of_bigint coeff) in
         let i_transformed = i3 in 
-        if M.tracing then M.tracel "modify_pentagon" "transforming with %s i: %s i1: %s i2: %s i3: %s" (Rhs.show ((Some (coeff, v)),o,d)) (Interval.show i) (Interval.show i1) (Interval.show i2) (Interval.show i3);
+        if M.tracing then M.tracel "modify_pentagon" "transforming with %s i: %s i1: %s i2: %s i3: %s" (Rhs.show ((Some (coeff, v)),o,d)) (Value.show i) (Value.show i1) (Value.show i2) (Value.show i3);
         set_interval_for_root v i_transformed
 
   let set_interval t lhs i =
     let res = set_interval t lhs i in
-    if M.tracing then M.tracel "modify_pentagon" "set_interval before: %s eq: var_%d=%s  ->  %s " (show t) lhs (Interval.show i) (show res);
+    if M.tracing then M.tracel "modify_pentagon" "set_interval before: %s eq: var_%d=%s  ->  %s " (show t) lhs (Value.show i) (show res);
     res
 
+  (*TODO: If we are uptdating a variable, we will overwrite the interval again -> maybe skip setting it here, because of performance?*)
   let set_rhs (econ, is) lhs rhs =
     let econ' = EConj.set_rhs econ lhs rhs in
     match rhs with 
@@ -327,7 +401,7 @@ struct
     | _ -> 
       let new_constraint = get_interval (econ', is) lhs in
       let old_constraint = get_interval (econ, is) lhs in
-      let new_interval = I.meet I.ik new_constraint old_constraint in
+      let new_interval = Value.meet new_constraint old_constraint in
       set_interval (econ', is) lhs new_interval
 
   let set_rhs t lhs rhs = 
@@ -339,6 +413,7 @@ struct
     let (var,offs,divi) = Rhs.canonicalize (var,offs,divi) in (* make sure that the one new conj is properly canonicalized *)
     let res : t =
       let subst_var ((dim,econj), is) x (vary, o, d) =
+        let (vary, o, d) = Rhs.canonicalize (vary, o, d) in
         (* [[x substby (cy+o)/d ]] ((c'x+o')/d')             *)
         (* =====>   (c'cy + c'o+o'd)/(dd')                   *)
         let adjust = function
@@ -346,10 +421,18 @@ struct
             let open Z in Rhs.canonicalize (BatOption.map (fun (c, y)-> (c * c', y)) vary, c'*o + o'*d, d'*d)
           | e -> e
         in
-        (*if x was the representative, it might not be anymore -> remove interval and add it back afterwards*) 
+        (match vary with 
+         | None when d <> Z.one -> (if M.tracing then M.tracel "meet_with_one_conj" "meet_with_one_conj substituting var_%d with constant %s, which is not an integer" i (Rhs.show (var,offs,divi));
+                                    raise EConj.Contradiction)
+         | _ -> ()
+        );
         let interval = get_interval (ts, is) x in
-        let is' = IntMap.remove x is in 
-        set_interval ( (dim, IntMap.add x (vary, o, d) @@ IntMap.map adjust econj), is' ) x interval (* in case of sparse representation, make sure that the equality is now included in the conjunction *)
+        if not @@ Value.contains interval (Z.div offs divi) then 
+          (if M.tracing then M.tracel "meet_with_one_conj" "meet_with_one_conj substituting var_%d with constant %s, Contradicts %s" (i) (Rhs.show (var,offs,divi)) (Value.show interval);
+           raise EConj.Contradiction)
+        else 
+          let is' = IntMap.remove x is in (*if x was the representative, it might not be anymore -> remove interval and add it back afterwards*) 
+          set_interval ( (dim, IntMap.add x (vary, o, d) @@ IntMap.map adjust econj), is' ) x interval (* in case of sparse representation, make sure that the equality is now included in the conjunction *)
       in
       (match var, (EConj.get_rhs ts i) with
        (*| new conj      , old conj          *)
@@ -357,10 +440,7 @@ struct
        (*  o/d         =  x_i  = (c1*x_h1+o1)/d1            *)
        (*  ======> x_h1 = (o*d1-o1*d)/(d*c1) /\  x_i = o/d  *)
        | None          , (Some (coeff1,h1), o1, divi1) -> 
-         if not @@ Interval.contains (get_interval (ts,is) i ) (Z.div offs divi) then 
-           (if M.tracing then M.tracel "meet_with_one_conj" "meet_with_one_conj var_%d: meeting Constant: %s, Contradicts %s" (i) (Rhs.show (var,offs,divi)) (Interval.show (get_interval (ts,is) i ));
-            raise EConj.Contradiction)
-         else subst_var (ts, is) h1 (None, Z.(offs*divi1 - o1*divi),Z.(divi*coeff1))
+         subst_var (ts, is) h1 (None, Z.(offs*divi1 - o1*divi),Z.(divi*coeff1))
        (* (c*x_j+o)/d  =  x_i  =  o1/d1                     *)
        (*  ======> x_j = (o1*d-o*d1)/(d1*c) /\  x_i = o1/d1 *)
        | Some (coeff,j), (None            , o1, divi1) -> subst_var (ts, is) j  (None, Z.(o1*divi - offs*divi1),Z.(divi1*coeff))
@@ -391,11 +471,12 @@ struct
     if M.tracing then M.tracel "meet_with_one_conj" "meet_with_one_conj conj: %s eq: var_%d=%s  ->  %s " (show (ts,is)) i (Rhs.show (var,offs,divi)) (show res)
   ; res
 
-  let meet_with_one_interval var interval t = 
-    let new_interval = I.meet I.ik interval (get_interval t var)
-    in if new_interval = None then raise EConj.Contradiction else 
+  let meet_with_one_interval var interval t =
+    let refined_interval = Value.refine interval in
+    let new_interval = Value.meet refined_interval (get_interval t var)
+    in if Value.is_bot new_interval then raise EConj.Contradiction else 
       let res =  set_interval t var new_interval
-      in if M.tracing then M.tracel "meet_interval" "meet var_%d: before: %s meeting: %s -> %s, total: %s-> %s" (var) (Interval.show @@ get_interval t var) (Interval.show interval) (Interval.show new_interval) (show t) (show res);
+      in if M.tracing then M.tracel "meet_interval" "meet var_%d: before: %s meeting: %s -> %s, total: %s-> %s" (var) (Value.show @@ get_interval t var) (Value.show interval) (Value.show new_interval) (show t) (show res);
       res
 end
 
@@ -489,35 +570,35 @@ struct
   let eval_texpr (t:t) texp = 
     let open Apron.Texpr1 in
     let binop_function = function
-      | Add -> Interval.add Interval.ik
-      | Sub -> Interval.sub Interval.ik
-      | Mul -> Interval.mul Interval.ik
-      | Div -> Interval.div Interval.ik
-      | Mod -> Interval.rem Interval.ik
+      | Add -> Value.add 
+      | Sub -> Value.sub
+      | Mul -> Value.mul
+      | Div -> Value.div
+      | Mod -> Value.rem
       | Pow -> failwith "power is not supported" (*TODO should this be supported*)
     in let unop_function = function
-        | Neg -> Interval.neg Interval.ik
+        | Neg -> Value.neg
         | Cast -> identity
         | Sqrt -> failwith "sqrt is not supported" (*TODO should this be supported*)
     in let rec eval = function
         | Cst (Scalar x) -> 
           begin match SharedFunctions.int_of_scalar ?round:None x with
-            | Some x -> Interval.of_bigint x
-            | None -> Interval.top_of Interval.ik
+            | Some x -> Value.of_bigint x
+            | None -> Value.top
           end
         | Cst (Interval _) -> failwith "constant was an interval; this is not supported" (*TODO monomials_from_texp does not support this as well, but maybe we should*)
         | Var x -> 
           let var_dim = Environment.dim_of_var t.env x in
           begin match t.d with
-            | None -> Interval.top_of Interval.ik
+            | None -> Value.top
             | Some d -> EConjI.get_interval d var_dim
           end
         | Binop (op, a, b, Int, _) -> (binop_function op) (eval a) (eval b)
         | Unop (op, a, Int, _) -> (unop_function op) (eval a)
-        | _ -> Interval.top_of Interval.ik (*not integers*)
+        | _ -> Value.top (*not integers*)
     in 
     let res = eval texp in
-    if M.tracing then M.tracel "eval_texp" "%s %a -> %s" (EConjI.show @@ BatOption.get t.d) Texpr1.Expr.pretty texp (Interval.show res);
+    if M.tracing then M.tracel "eval_texp" "%s %a -> %s" (EConjI.show @@ BatOption.get t.d) Texpr1.Expr.pretty texp (Value.show res);
     res
 
 
@@ -605,8 +686,8 @@ struct
       | TopIntOps.Int x -> Some x
       | _ -> None 
     in let i = eval_texpr t (Texpr1.to_expr texpr)
-    in if M.tracing then M.tracel "eval_interval" "evaluating %a in %s to %s" Texpr1.pretty texpr (show t) (Interval.show i);
-    match i with
+    in if M.tracing then M.tracel "eval_interval" "evaluating %a in %s to %s" Texpr1.pretty texpr (show t) (Value.show i);
+    match fst i with
     | None -> (None, None)
     | Some (l, u) -> (from_top l, from_top u)
 
@@ -635,7 +716,7 @@ struct
           if M.tracing then M.trace "meet" " -> Contradiction with interval\n";
           { d = None; env = t.env}
     in
-    if M.tracing then M.tracel "meet" "%s with single interval %s=%s -> %s" (show t) (show_var t.env i) (Interval.show interval) (show res);
+    if M.tracing then M.tracel "meet" "%s with single interval %s=%s -> %s" (show t) (show_var t.env i) (Value.show interval) (show res);
     res
 
   let meet t1 t2 =
@@ -665,7 +746,7 @@ struct
       (* normalize in case of a full blown equality *)
       | Some (coeffj,j) -> tuple_cmp (EConj.get_rhs ts i) @@ Rhs.subst (EConj.get_rhs ts j) j (var, offs, divi)
     in
-    let implies_interval v i interval = Interval.leq (EConjI.get_interval v i) interval
+    let implies_interval v i interval = Value.leq (EConjI.get_interval v i) interval
     in
     if env_comp = -2 || env_comp > 0 then false else
     if is_bot_env t1 || is_top t2 then true
@@ -691,7 +772,7 @@ struct
       if vars < 0 then is
       else if EConj.nontrivial econj_joined vars then collect_intervals x y econj_joined (vars-1) is (*we only need intervals for roots of the connected components*)
       else let joined_interval = join_function (EConjI.get_interval x vars) (EConjI.get_interval y vars) in (*TODO: if we tighten the interval in set_interval, we also should do that here.*)
-        if Interval.is_top_of Interval.ik joined_interval 
+        if Value.is_top joined_interval 
         then collect_intervals x y econj_joined (vars-1) is (*DO not add top intervals*)
         else collect_intervals x y econj_joined (vars-1) (EConjI.IntMap.add vars joined_interval is)
     in
@@ -719,7 +800,7 @@ struct
     | Some x, Some y  -> {d = join_d x y a.env; env = a.env} 
 
 
-  let join = join' (Interval.join Interval.ik) 
+  let join = join' (Value.join) 
   let join a b = timing_wrap "join" (join a) b
 
   let join a b =
@@ -729,7 +810,7 @@ struct
     assert(leq b res);
     res
 
-  let widen = join' (Interval.widen Interval.ik) 
+  let widen = join' (Value.widen) 
 
   let widen a b =
     let res = widen a b in
@@ -919,18 +1000,21 @@ struct
                 | _-> t (* Not supported in equality based 2vars without coeffiients *)
               end
             | _ -> t (* For equalities of more then 2 vars we just return t *))
-      in if t'.d = None then t' else 
+      in if t'.d = None then (if M.tracing then M.tracel "meet_tcons" "meet_conj resulted in None (expr: %s)" (Tcons1.show tcons); t') else begin
         (*meet interval*) (*TODO this could be extended much further, maybe reuse some code from base -> meet with CIL expression instead?*)
         (* currently only supports simple assertions x > c (x - c > 0)*)
+        if M.tracing then M.tracel "meet_tcons" "after conj: %s (expr: %s)" (show t') (Tcons1.show tcons);
         match expr with
         | Binop (Sub,Var v,Cst (Scalar c),_,_) -> 
           begin match SharedFunctions.int_of_scalar ?round:None c with
             | None -> t'
             | Some c -> begin match Tcons1.get_typ tcons with
                 | SUP -> 
-                  meet_with_one_interval (Environment.dim_of_var t'.env v) (Some (Int (Z.add Z.one c), Top Pos)) t'
-                | SUPEQ -> meet_with_one_interval (Environment.dim_of_var t'.env v) (Some (Int c, Top Pos)) t'
-                | EQ -> meet_with_one_interval (Environment.dim_of_var t'.env v) (Some (Int c, Int c)) t' (*Should already be matched by the conjuction above?*)
+                  meet_with_one_interval (Environment.dim_of_var t'.env v) (Some (Int (Z.add Z.one c), Top Pos), Value.C.top_of Value.ik) t'
+                | SUPEQ -> meet_with_one_interval (Environment.dim_of_var t'.env v) (Some (Int c, Top Pos), Value.C.top_of Value.ik) t'
+                | EQ -> 
+                  if M.tracing then M.tracel "meet_tcons" "meet_tcons interval matching eq" ;
+                  meet_with_one_interval (Environment.dim_of_var t'.env v) (Some (Int c, Int c), Value.C.top_of Value.ik) t' (*Should already be matched by the conjuction above?*)
                 | _ ->
                   if M.tracing then M.tracel "meet_tcons" "meet_tcons interval not matching comparison op";
                   t' (*NEQ and EQMOD do not have any usefull interval representations*)
@@ -943,17 +1027,20 @@ struct
             | None -> t'
             | Some c -> begin match Tcons1.get_typ tcons with
                 | SUP -> 
-                  meet_with_one_interval (Environment.dim_of_var t'.env v) (Some (Top Neg, Int (Z.sub c Z.one))) t'
-                | SUPEQ -> meet_with_one_interval (Environment.dim_of_var t'.env v) (Some (Top Neg, Int c)) t'
-                | EQ -> meet_with_one_interval (Environment.dim_of_var t'.env v) (Some (Int c, Int c)) t' (*Should already be matched by the conjuction above?*)
+                  meet_with_one_interval (Environment.dim_of_var t'.env v) (Some (Top Neg, Int (Z.sub c Z.one)), Value.C.top_of Value.ik) t'
+                | SUPEQ -> meet_with_one_interval (Environment.dim_of_var t'.env v) (Some (Top Neg, Int c), Value.C.top_of Value.ik) t'
+                | EQ -> 
+                  if M.tracing then M.tracel "meet_tcons" "meet_tcons interval matching eq (expr %s)" (Tcons1.show tcons);
+                  meet_with_one_interval (Environment.dim_of_var t'.env v) (Some (Int c, Int c), Value.C.top_of Value.ik) t' (*Should already be matched by the conjuction above?*)
                 | _ ->
-                  if M.tracing then M.tracel "meet_tcons" "meet_tcons interval not matching comparison op";
+                  if M.tracing then M.tracel "meet_tcons" "meet_tcons interval not matching comparison op (expr %s)" (Tcons1.show tcons);
                   t' (*NEQ and EQMOD do not have any usefull interval representations*)
               end
           end
         | _ ->
           if M.tracing then M.tracel "meet_tcons" "meet_tcons interval not matching structure";
           t'
+      end
 
 
   let meet_tcons ask t tcons original_expr no_ov  =
@@ -992,6 +1079,7 @@ struct
 
   let relift t = t
 
+  (*TODO add value information to invariants?*)
   (** representation as C expression
 
       This function returns all the equalities that are saved in our datastructure t.
