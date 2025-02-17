@@ -87,8 +87,7 @@ module VarType = struct
       from_varinfo v
     | DuplicVar v ->
       let vname_ = duplic_var_prefix ^ string_of_int v.vid ^ duplic_var_postfix in
-      let v' = from_varinfo v in
-      {v' with vname_ }
+      from_varinfo {v with vname = vname_}
 
   (* Description that gets appended to the varinfo-name in user output. *)
   let describe_varinfo (var: varinfo) v =
