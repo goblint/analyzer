@@ -23,7 +23,13 @@ struct
         | Some b -> `Lifted b
         | None -> `Top
     in
-    let expr = CilType.Exp.show e in
+    let expr =
+      match e with
+      | CastE (TInt (IBool, _), expr) -> expr
+      | Const (CInt (b, IBool, s)) -> Const (CInt (b, IInt, s))
+      | expr -> expr
+    in
+    let expr = CilType.Exp.show expr in
     let warn warn_fn ?annot msg = if check then
         if get_bool "dbg.regression" then ( (* This only prints unexpected results (with the difference) as indicated by the comment behind the assert (same as used by the regression test script). *)
           let loc = !M.current_loc in
