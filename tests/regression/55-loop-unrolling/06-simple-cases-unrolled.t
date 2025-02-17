@@ -15,8 +15,8 @@
   extern void __goblint_assert(_Bool exp ) ;
   extern void __goblint_assume_join() ;
   extern void __goblint_globalize(void *ptr ) ;
-  extern void __goblint_split_begin(_Bool exp ) ;
-  extern void __goblint_split_end(_Bool exp ) ;
+  extern void __goblint_split_begin(int exp ) ;
+  extern void __goblint_split_end(int exp ) ;
   extern void __goblint_bounded(unsigned long long exp ) ;
   int global  ;
   void example1(void) ;

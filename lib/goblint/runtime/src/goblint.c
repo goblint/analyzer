@@ -21,11 +21,11 @@ void __goblint_assume_join(pthread_t thread) {
 }
 
 
-void __goblint_split_begin(_Bool exp) {
+void __goblint_split_begin(int exp) {
 
 }
 
-void __goblint_split_end(_Bool exp) {
+void __goblint_split_end(int exp) {
 
 }
 
