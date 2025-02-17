@@ -47,6 +47,19 @@ module VarType = struct
 
     List.of_seq complete
 
+  (* Need to lookup attributes such as vaddrof in the original varinfo *)
+  let vaddrof : t -> bool = function
+    | AssignAux _
+    | ReturnAux _ -> false
+    | NormalVar v
+    | DuplicVar v -> v.vaddrof
+
+  let vglob : t -> bool = function
+    | AssignAux _
+    | ReturnAux _ -> false
+    | NormalVar v
+    | DuplicVar v -> v.vglob
+
   let duplic_var_prefix =
     "c2po__"
   let duplic_var_postfix =
@@ -76,18 +89,19 @@ module VarType = struct
     | ReturnAux _ -> true
     | _ -> false
 
-  let varinfo_attributes v =
-    let open RichVarinfo.VarinfoDescription in
+  let name_varinfo v =
     match v with
     | AssignAux t ->
-      ({(empty "AuxAssign") with vtype_=Some t})
+      "AuxAssign"
     | ReturnAux t ->
-      ({(empty "AuxReturn") with vtype_=Some t})
+      "AuxReturn"
     | NormalVar v ->
-      from_varinfo v
+      v.vname
     | DuplicVar v ->
-      let vname_ = duplic_var_prefix ^ string_of_int v.vid ^ duplic_var_postfix in
-      from_varinfo {v with vname = vname_}
+      duplic_var_prefix ^ string_of_int v.vid ^ duplic_var_postfix
+
+  let typ v =
+    get_type v
 
   (* Description that gets appended to the varinfo-name in user output. *)
   let describe_varinfo (var: varinfo) v =

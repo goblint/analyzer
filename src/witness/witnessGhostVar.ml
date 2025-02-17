@@ -5,7 +5,7 @@ type t =
   | Multithreaded
 [@@deriving eq, ord, hash]
 
-let show = function
+let name_varinfo = function
   | Locked (v, os) ->
     let name =
       if CilType.Varinfo.equal v LibraryFunctions.verifier_atomic_var then
@@ -25,9 +25,7 @@ let show = function
     name ^ offs os ^ "_locked"
   | Multithreaded -> "multithreaded"
 
-let varinfo_attributes l =
-  let name = show l in
-  RichVarinfo.VarinfoDescription.empty name
+let show = name_varinfo
 
 include Printable.SimpleShow (struct
     type nonrec t = t

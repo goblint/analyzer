@@ -245,8 +245,7 @@ module D = struct
     if M.tracing then M.trace "c2po" "remove_terms_not_containing_variables: %s\n" (List.fold_left (fun s v -> s ^"; " ^Var.show v) "" vars);
     let not_global_and_not_contains_variable t =
       let var = T.get_var t in
-      let var = Var.to_varinfo var in
-      (not var.vglob) && not (T.contains_variable vars t)
+      not (DuplicateVars.VarType.vglob var) && not (T.contains_variable vars t)
     in
     remove_terms not_global_and_not_contains_variable cc
 

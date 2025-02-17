@@ -1197,11 +1197,7 @@ struct
   (* sync: M -> (2^M -> (G -> D)) *)
   include AbstractLockCenteredBase (ThreadMap) (LockCenteredBase.CPA)
 
-  let global_init_thread () =
-    let v =  RichVarinfo.VarinfoDescription.empty "global_init"  in
-    let v = {v with vtype_=Some GoblintCil.voidType } in
-    RichVarinfo.create_var v
-
+  let global_init_thread = RichVarinfo.single ~name:"global_init" ~typ:GoblintCil.voidType
   let current_thread (ask: Q.ask): Thread.t =
     if !AnalysisState.global_initialization then
       ThreadIdDomain.Thread.threadinit (global_init_thread ()) ~multiple:false

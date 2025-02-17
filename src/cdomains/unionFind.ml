@@ -216,14 +216,15 @@ module T = struct
     let lval = Lval (var, NoOffset) in
     Aux (vinfo, lval)
 
-  let term_of_varinfo vinfo =
-    let var = Var.to_varinfo vinfo in
+  (*  *)
+  let term_of_varinfo var_type =
+    let var = Var.to_varinfo var_type in
     let lval = Lval (Var var, NoOffset) in
 
-    if is_struct_type var.vtype || var.vaddrof then
-      Deref (Addr vinfo, Z.zero, lval)
+    if is_struct_type var.vtype || DuplicateVars.VarType.vaddrof var_type then
+      Deref (Addr var_type, Z.zero, lval)
     else
-      aux_term_of_varinfo vinfo
+      aux_term_of_varinfo var_type
 
   (** From a offset, compute the index in bits *)
   let offset_to_index ?typ offset =
