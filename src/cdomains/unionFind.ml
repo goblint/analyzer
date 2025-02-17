@@ -469,7 +469,9 @@ module T = struct
   let get_size = get_size_in_bits % type_of_term
 
   let of_offset ask t off typ exp =
-    if off = NoOffset then t else
+    if off = NoOffset then
+      t
+    else
       let z = z_of_offset ask off typ in
       Deref (t, z, exp)
 
@@ -481,13 +483,20 @@ module T = struct
     | Const _ -> raise (UnsupportedCilExpression "non-integer constant")
     | AlignOf _
     | AlignOfE _ -> raise (UnsupportedCilExpression "unsupported AlignOf")
-    | Lval lval -> Some (of_lval ask lval), Z.zero
-    | StartOf lval  -> Some (of_lval ask lval), Z.zero
-    | AddrOf (Var var, NoOffset) -> Some (Addr (Var.NormalVar var)), Z.zero
-    | AddrOf (Mem exp, NoOffset) -> of_cil ask exp
-    | UnOp (op,exp,typ) -> begin match op with
-        | Neg -> let off = eval_int ask exp in None, Z.(-off)
-        | _ -> raise (UnsupportedCilExpression "unsupported UnOp")
+    | Lval lval
+    | StartOf lval  ->
+      Some (of_lval ask lval), Z.zero
+    | AddrOf (Var var, NoOffset) ->
+      Some (Addr (Var.NormalVar var)), Z.zero
+    | AddrOf (Mem exp, NoOffset) ->
+      of_cil ask exp
+    | UnOp (op,exp,typ) ->
+      begin match op with
+        | Neg ->
+          let off = eval_int ask exp in
+          None, Z.(-off)
+        | _ ->
+          raise (UnsupportedCilExpression "unsupported UnOp")
       end
     | BinOp (binop, exp1, exp2, typ)->
       let typ1_size = get_element_size_in_bits (Cilfacade.typeOf exp1) in
@@ -497,33 +506,51 @@ module T = struct
         | PlusPI
         | IndexPI ->
           begin match eval_int_opt ask exp1, eval_int_opt ask exp2 with
-            | None, None -> raise (UnsupportedCilExpression "unsupported BinOp +")
-            | None, Some off2 -> let term, off1 = of_cil ask exp1 in term, Z.(off1 + typ1_size * off2)
-            | Some off1, None -> let term, off2 = of_cil ask exp2 in term, Z.(typ2_size * off1 + off2)
-            | Some off1, Some off2 -> None, Z.(off1 + off2)
+            | None, None ->
+              raise (UnsupportedCilExpression "unsupported BinOp +")
+            | None, Some off2 ->
+              let term, off1 = of_cil ask exp1 in
+              term, Z.(off1 + typ1_size * off2)
+            | Some off1, None ->
+              let term, off2 = of_cil ask exp2 in
+              term, Z.(typ2_size * off1 + off2)
+            | Some off1, Some off2 ->
+              None, Z.(off1 + off2)
           end
         | MinusA
         | MinusPI
-        | MinusPP -> begin match of_cil ask exp1, eval_int_opt ask exp2 with
-            | (Some term, off1), Some off2 -> let typ1_size = get_element_size_in_bits (Cilfacade.typeOf exp1) in
+        | MinusPP ->
+          begin match of_cil ask exp1, eval_int_opt ask exp2 with
+            | (Some term, off1), Some off2 ->
+              let typ1_size = get_element_size_in_bits (Cilfacade.typeOf exp1) in
               Some term, Z.(off1 - typ1_size * off2)
-            | _ -> raise (UnsupportedCilExpression "unsupported BinOp -")
+            | _ ->
+              raise (UnsupportedCilExpression "unsupported BinOp -")
           end
-        | _ -> raise (UnsupportedCilExpression "unsupported BinOp")
+        | _ ->
+          raise (UnsupportedCilExpression "unsupported BinOp")
       end
-    | CastE (typ, exp)-> begin match of_cil ask exp with
-        | Some (Addr x), z -> Some (Addr x), z
-        | Some (Aux (x, _)), z -> Some (Aux (x, CastE (typ, exp))), z
-        | Some (Deref (x, z, _)), z' -> Some (Deref (x, z, CastE (typ, exp))), z'
+    | CastE (typ, exp)->
+      begin match of_cil ask exp with
+        | Some (Addr x), z ->
+          Some (Addr x), z
+        | Some (Aux (x, _)), z ->
+          Some (Aux (x, CastE (typ, exp))), z
+        | Some (Deref (x, z, _)), z' ->
+          Some (Deref (x, z, CastE (typ, exp))), z'
         | t, z -> t, z
       end
     | _ -> raise (UnsupportedCilExpression "unsupported Cil Expression")
   and of_lval ask lval =
     let res =
       match lval with
-      | (Var var, off) -> if is_struct_type var.vtype then of_offset ask (Addr (Var.NormalVar var)) off var.vtype (Lval lval)
+      | (Var var, off) ->
+        if is_struct_type var.vtype then
+          let var_addr = Addr (Var.NormalVar var) in
+          of_offset ask var_addr off var.vtype (Lval lval)
         else
-          of_offset ask (term_of_varinfo (Var.NormalVar var)) off var.vtype (Lval lval)
+          let var_term = term_of_varinfo (Var.NormalVar var) in
+          of_offset ask var_term off var.vtype (Lval lval)
       | (Mem exp, off) ->
         begin match of_cil ask exp with
           | (Some term, offset) ->
@@ -534,24 +561,41 @@ module T = struct
               | Aux (v,exp) -> Aux (v,exp)
               | Deref (x, z, exp) -> Deref (x, Z.(z+offset), exp)
             else
-              of_offset ask (Deref (term, offset, Lval(Mem exp, NoOffset))) off (typeOfLval (Mem exp, NoOffset)) (Lval lval)
+              let deref_exp = (Mem exp, NoOffset) in
+              let deref_lval = Lval deref_exp in
+              let deref_typ = typeOfLval deref_exp in
+              let deref = Deref (term, offset, deref_lval) in
+              of_offset ask deref off deref_typ (Lval lval)
           | _ -> raise (UnsupportedCilExpression "cannot dereference constant")
         end
     in
-    (if M.tracing then match res with
-        | exception (UnsupportedCilExpression s) -> M.trace "c2po-cil-conversion" "unsupported exp: %a\n%s\n" d_plainlval lval s
-        | t -> M.trace "c2po-cil-conversion" "lval: %a --> %s\n" d_plainlval lval (show t))
-  ;res
+    (if M.tracing then
+       match res with
+       | exception (UnsupportedCilExpression s) ->
+         M.trace "c2po-cil-conversion" "unsupported exp: %a\n%s\n" d_plainlval lval s
+       | t ->
+         M.trace "c2po-cil-conversion" "lval: %a --> %s\n" d_plainlval lval (show t));
+    res
 
   let rec of_cil_neg ask neg e = match e with
     | UnOp (op,exp,typ)->
-      begin match op with
-        | Neg -> of_cil_neg ask (not neg) exp
-        | _ -> if neg then raise (UnsupportedCilExpression "unsupported UnOp Neg") else of_cil ask e
+      begin
+        match op with
+        | Neg ->
+          of_cil_neg ask (not neg) exp
+        | _ ->
+          if neg then
+            raise (UnsupportedCilExpression "unsupported UnOp Neg")
+          else
+            of_cil ask e
       end
-    | _ -> if neg then raise (UnsupportedCilExpression "unsupported UnOp Neg") else of_cil ask e
+    | _ ->
+      if neg then
+        raise (UnsupportedCilExpression "unsupported Neg")
+      else
+        of_cil ask e
 
-  (** Converts the negated expression to a term if neg = true.
+  (** Converts the negation of the expression to a term if neg = true.
       If neg = false then it simply converts the expression to a term. *)
   let of_cil_neg ask neg e =
     match Cilfacade.isFloatType (typeOf e) with
@@ -559,13 +603,17 @@ module T = struct
     | true -> None, None
     | false ->
       let res = match of_cil_neg ask neg (Cil.constFold false e) with
-        | exception (UnsupportedCilExpression s) -> if M.tracing then M.trace "c2po-cil-conversion" "unsupported exp: %a\n%s\n" d_plainexp e s;
+        | exception (UnsupportedCilExpression s) ->
+          if M.tracing then M.trace "c2po-cil-conversion" "unsupported exp: %a\n%s\n" d_plainexp e s;
           None, None
         | t, z -> t, Some z
-      in (if M.tracing && not neg then match res with
-          | None, Some z ->  M.trace "c2po-cil-conversion" "constant exp: %a --> %s\n" d_plainexp e (Z.to_string z)
-          | Some t, Some z -> M.trace "c2po-cil-conversion" "exp: %a --> %s + %s\n" d_plainexp e (show t) (Z.to_string z);
-          | _ -> ()); res
+      in
+      (if M.tracing && not neg then
+         match res with
+         | None, Some z ->  M.trace "c2po-cil-conversion" "constant exp: %a --> %s\n" d_plainexp e (Z.to_string z)
+         | Some t, Some z -> M.trace "c2po-cil-conversion" "exp: %a --> %s + %s\n" d_plainexp e (show t) (Z.to_string z);
+         | _ -> ());
+      res
 
   (** Convert the expression to a term,
       and additionally check that the term is 64 bits.
@@ -577,37 +625,54 @@ module T = struct
       let exp = to_cil t in
       if check_valid_pointer exp then
         Some t, Some z
-      else (if M.tracing then M.trace "c2po-cil-conversion" "invalid exp: %a --> %s + %s\n" d_plainexp e (show t) (Z.to_string z);
-            None, None)
+      else begin
+        if M.tracing then M.trace "c2po-cil-conversion" "invalid exp: %a --> %s + %s\n" d_plainexp e (show t) (Z.to_string z);
+        None, None
+      end
     | t, z -> t, z
 
   let map_z_opt op z = Tuple2.map2 (Option.map (op z))
 
   (** Converts a cil expression e = "t1 + off1 - (t2 + off2)" to two terms (Some t1, Some off1), (Some t2, Some off2)*)
   let rec two_terms_of_cil ask neg e =
-    let pos_t, neg_t = match e with
-      | UnOp (Neg,exp,typ) -> two_terms_of_cil ask (not neg) exp
-      | BinOp (binop, exp1, exp2, typ)-> begin match binop with
+    let pos_t, neg_t =
+      match e with
+      | UnOp (Neg,exp,typ) ->
+        two_terms_of_cil ask (not neg) exp
+      | BinOp (binop, exp1, exp2, typ)->
+        begin match binop with
           | PlusA
           | PlusPI
-          | IndexPI -> begin match of_cil_neg ask false exp1 with
-              | (None, Some off1) -> let pos_t, neg_t = two_terms_of_cil ask true exp2 in
+          | IndexPI ->
+            begin match of_cil_neg ask false exp1 with
+              | (None, Some off1) ->
+                let pos_t, neg_t = two_terms_of_cil ask true exp2 in
                 map_z_opt Z.(+) off1 pos_t, neg_t
-              | (Some term, Some off1) -> (Some term, Some off1), of_cil_neg ask true exp2
-              | _ -> (None, None), (None, None)
+              | (Some term, Some off1) ->
+                (Some term, Some off1), of_cil_neg ask true exp2
+              | _ ->
+                (None, None), (None, None)
             end
           | MinusA
           | MinusPI
-          | MinusPP -> begin match of_cil_neg ask false exp1 with
-              | (None, Some off1) -> let pos_t, neg_t = two_terms_of_cil ask false exp2 in
+          | MinusPP ->
+            begin match of_cil_neg ask false exp1 with
+              | (None, Some off1) ->
+                let pos_t, neg_t = two_terms_of_cil ask false exp2 in
                 map_z_opt Z.(+) off1 pos_t, neg_t
-              | (Some term, Some off1) -> (Some term, Some off1), of_cil_neg ask false exp2
-              | _ -> of_cil_neg ask false e, (None, Some Z.zero)
+              | (Some term, Some off1) ->
+                (Some term, Some off1), of_cil_neg ask false exp2
+              | _ ->
+                of_cil_neg ask false e, (None, Some Z.zero)
             end
           | _ -> of_cil_neg ask false e, (None, Some Z.zero)
         end
       | _ -> of_cil_neg ask false e, (None, Some Z.zero)
-    in if neg then neg_t, pos_t else pos_t, neg_t
+    in
+    if neg then
+      neg_t, pos_t
+    else
+      pos_t, neg_t
 
   (** `prop_of_cil e pos` parses the expression `e` (or `not e` if `pos = false`) and
       returns a list of length 1 with the parsed expresion or an empty list if
@@ -616,7 +681,8 @@ module T = struct
     let e = Cil.constFold false e in
     match e with
     | BinOp (r, e1, e2, _) ->
-      begin  match two_terms_of_cil ask false (BinOp (MinusPI, e1, e2, TInt (Cilfacade.get_ikind_exp e,[]))) with
+      let e1_minus_e2 = (BinOp (MinusPI, e1, e2, TInt (Cilfacade.get_ikind_exp e,[]))) in
+      begin match two_terms_of_cil ask false e1_minus_e2  with
         | ((Some t1, Some z1), (Some t2, Some z2)) ->
           begin match r with
             | Eq -> if pos then [Equal (t1, t2, Z.(z2-z1))] else [Nequal (t1, t2, Z.(z2-z1))]
@@ -625,27 +691,43 @@ module T = struct
           end
         | _,_ -> []
       end
-    | UnOp (LNot, e1, _) -> prop_of_cil ask e1 (not pos)
+    | UnOp (LNot, e1, _) ->
+      prop_of_cil ask e1 (not pos)
     | _ -> []
 
   let prop_to_cil p =
-    let op,t1,t2,z = match p with
-      | Equal (t1,t2,z) -> Eq, t1, t2, z
-      | Nequal (t1,t2,z) -> Ne, t1, t2, z
-      | BlNequal (t1,t2) -> Ne, t1, t2, Z.zero
+    let op, t1, t2, z = match p with
+      | Equal (t1,t2,z) ->
+        Eq, t1, t2, z
+      | Nequal (t1,t2,z) ->
+        Ne, t1, t2, z
+      | BlNequal (t1,t2) ->
+        Ne, t1, t2, Z.zero
     in
-    BinOp (op, to_cil t1, to_cil_sum z (to_cil t2), TInt (IBool,[]))
+    let t1 = to_cil t1 in
+    let z_plus_t2 = to_cil_sum z (to_cil t2) in
+    let bool_typ = TInt (IBool, []) in
+
+    BinOp (op, t1, z_plus_t2, bool_typ)
 
 end
 
 module TMap = struct
   include Map.Make(T)
-  let hash node_hash y = fold (fun x node acc -> acc + T.hash x + node_hash node) y 0
+  let hash node_hash y =
+    let accumulate_key_value_has x node acc =
+      acc + T.hash x + node_hash node
+    in
+    fold accumulate_key_value_has y 0
 end
 
 module TSet = struct
   include Set.Make(T)
-  let hash x = fold (fun x y -> y + T.hash x) x 0
+  let hash x =
+    let accumulate_element_hash x acc =
+      acc + T.hash x
+    in
+    fold accumulate_element_hash x 0
 end
 
 (** Quantitative union find *)
@@ -666,18 +748,27 @@ module UnionFind = struct
       v in the union find tree and z is the offset.
 
         Throws "Unknown value" if v is not present in the data structure.*)
-  let parent uf v = match fst (ValMap.find v uf) with
-    | exception Not_found -> raise (UnknownValue v)
-    | x -> x
+  let parent uf v =
+    try
+      let parent, _ = ValMap.find v uf in
+      parent
+    with Not_found ->
+      raise (UnknownValue v)
 
   (** `parent_opt uf v` returns Some (p, z) where p is the parent element of
       v in the union find tree and z is the offset.
       It returns None if v is not present in the data structure. *)
-  let parent_opt uf v = Option.map (fun _ -> parent uf v) (ValMap.find_opt v uf)
+  let parent_opt uf v =
+    Option.map fst (ValMap.find_opt v uf)
 
-  let parent_term uf v = fst (parent uf v)
-  let parent_offset uf v = snd (parent uf v)
-  let subtree_size uf v = snd (ValMap.find v uf)
+  let parent_term uf v =
+    fst (parent uf v)
+
+  let parent_offset uf v =
+    snd (parent uf v)
+
+  let subtree_size uf v =
+    snd (ValMap.find v uf)
 
   (** Modifies the size of the equivalence class for the current element and
       for the whole path to the root of this element.
@@ -687,10 +778,13 @@ module UnionFind = struct
     let (p, old_size) = ValMap.find t uf in
     let uf = ValMap.add t (p, modification old_size) uf in
     let parent = fst p in
-    if T.equal parent t then uf else modify_size parent uf modification
+    if T.equal parent t then
+      uf
+    else
+      modify_size parent uf modification
 
   let modify_parent uf v (t, offset) =
-    let (_, size) = ValMap.find v uf in
+    let _, size = ValMap.find v uf in
     ValMap.add v ((t, offset), size) uf
 
   let modify_offset uf v modification =
@@ -699,15 +793,22 @@ module UnionFind = struct
 
   (** Returns true if each equivalence class in the data structure contains only one element,
       i.e. every node is a root. *)
-  let is_empty uf = List.for_all (fun (v, (t, _)) -> T.equal v (fst t)) (ValMap.bindings uf)
+  let is_empty uf =
+    let is_same_term (v, (t, _)) =
+      T.equal v (fst t)
+    in
+    let bindings = ValMap.bindings uf in
+    List.for_all is_same_term bindings
 
   (** Returns true if v is the representative value of its equivalence class.
 
       Throws "Unknown value" if v is not present in the data structure. *)
   let is_root uf v =
     match parent_opt uf v with
-    | None -> true
-    | Some (parent_t, _) -> T.equal v parent_t
+    | None ->
+      true
+    | Some (parent_t, _) ->
+      T.equal v parent_t
 
   (**
      For a variable t it returns the reference variable v and the offset r.
@@ -718,29 +819,37 @@ module UnionFind = struct
      Throws "Invalid Union Find" if it finds an element in the data structure that is a root but it has a non-zero distance to itself.
   *)
   let find uf v =
-    let (v',r') = parent uf v in
+    let (v', r') = parent uf v in
     if T.equal v' v then
       (* v is a root *)
-      if Z.equal r' Z.zero then v',r', uf
-      else raise (InvalidUnionFind "non-zero self-distance!")
+      if Z.equal r' Z.zero then
+        v', r', uf
+      else
+        raise (InvalidUnionFind "non-zero self-distance!")
     else if is_root uf v' then
       (* the parent of v is a root *)
-      v',r', uf
+      v', r', uf
     else
-      (if M.tracing then M.trace "c2po-find" "find DEEP TREE";
-       let rec search v list =
-         let (v',r') = parent uf v in
-         if is_root uf v' then
-           (* perform path compresion *)
-           let (r',uf) = List.fold_left (fun (r0, uf) v ->
-               let (parent_v, r''), size_v = ValMap.find v uf in
-               let uf = modify_parent uf v (v',Z.(r0+r'')) in
-               let uf = modify_size parent_v uf (fun s -> s - size_v) in
-               let uf = modify_size v' uf ((+) size_v)
-               in Z.(r0+r''),uf) (Z.zero, uf) (v::list)
-           in v',r',uf
-         else search v' (v :: list)
-       in search v' [v])
+      begin
+        if M.tracing then M.trace "c2po-find" "find DEEP TREE";
+        let rec search v list =
+          let (v', r') = parent uf v in
+          if is_root uf v' then
+            let f (r0, uf) v =
+              let (parent_v, r''), size_v = ValMap.find v uf in
+              let uf = modify_parent uf v (v', Z.(r0 + r'')) in
+              let uf = modify_size parent_v uf (fun s -> s - size_v) in
+              let uf = modify_size v' uf ((+) size_v) in
+              Z.(r0 + r''), uf
+            in
+            (* perform path compresion *)
+            let (r', uf) = List.fold_left f (Z.zero, uf) (v::list)
+            in v', r', uf
+          else
+            search v' (v :: list)
+        in
+        search v' [v]
+      end
 
   (**
      For a variable t it returns the reference variable v and the offset r.
@@ -750,11 +859,15 @@ module UnionFind = struct
      Throws "Invalid Union Find" if it finds an element in the data structure that is a root but it has a non-zero distance to itself.
   *)
   let rec find_no_pc uf v =
-    let (v',r') = parent uf v in
+    let (v', r') = parent uf v in
     if T.equal v' v then
-      if Z.equal r' Z.zero then (v',r')
-      else raise (InvalidUnionFind "non-zero self-distance!")
-    else let (v'', r'') = find_no_pc uf v' in (v'', Z.(r'+r''))
+      if Z.equal r' Z.zero then
+        (v', r')
+      else
+        raise (InvalidUnionFind "non-zero self-distance!")
+    else
+      let (v'', r'') = find_no_pc uf v' in
+      (v'', Z.(r' + r''))
 
   let compare_repr = Tuple2.compare ~cmp1:T.compare ~cmp2:Z.compare
 
@@ -780,33 +893,70 @@ module UnionFind = struct
     let v1,r1,uf = find uf v'1 in
     let v2,r2,uf = find uf v'2 in
     if T.equal v1 v2 then
-      if Z.(equal r1 (r2 + r)) then v1, uf, true
-      else raise (Failure "incomparable union")
-    else let (_,s1), (_,s2) = ValMap.find v1 uf, ValMap.find v2 uf in
-      if s1 <= s2 then (
-        v2, modify_size v2 (modify_parent uf v1 (v2, Z.(r2 - r1 + r))) ((+) s1), false
-      ) else (
-        v1, modify_size v1 (modify_parent uf v2 (v1, Z.(r1 - r2 - r))) ((+) s2), true
-      )
+      if Z.(equal r1 (r2 + r)) then
+        v1, uf, true
+      else
+        raise (Failure "incomparable union")
+    else
+      let (_,s1) = ValMap.find v1 uf in
+      let (_,s2) = ValMap.find v2 uf in
+      if s1 <= s2 then
+        let uf = modify_parent uf v1 (v2, Z.(r2 - r1 + r)) in
+        let uf = modify_size v2 uf  ((+) s1) in
+        v2, uf, false
+      else
+        let uf = modify_parent uf v2 (v1, Z.(r1 - r2 - r)) in
+        let uf = modify_size v1 uf ((+) s2) in
+        v1, uf, true
 
   (** Returns a list of equivalence classes. *)
-  let get_eq_classes uf = List.group (fun (el1,_) (el2,_) -> compare_repr_v (find_no_pc uf el1) (find_no_pc uf el2)) (ValMap.bindings uf)
+  let get_eq_classes uf =
+    let compare (el1,_) (el2,_) =
+      compare_repr_v (find_no_pc uf el1) (find_no_pc uf el2)
+    in
+    let bindings = ValMap.bindings uf in
+    List.group compare bindings
 
   (** Throws "Unknown value" if the data structure is invalid. *)
-  let show_uf uf = List.fold_left (fun s eq_class ->
-      s ^ List.fold_left (fun s (v, (t, size)) ->
-          s ^ "\t" ^ (if is_root uf v then "R: " else "") ^ "("^T.show v ^ "; P: " ^ T.show (fst t) ^
-          "; o: " ^ Z.to_string (snd t) ^ "; s: " ^ string_of_int size ^")\n") "" eq_class
-      ^ "----\n") "" (get_eq_classes uf) ^ "\n"
+  let show_uf uf =
+    let show_element acc (v, (t, size)) =
+      acc ^
+      "\t" ^
+      (if is_root uf v then "R: " else "") ^
+      "(" ^
+      T.show v ^
+      "; P: " ^
+      T.show (fst t) ^
+      "; o: " ^
+      Z.to_string (snd t) ^
+      "; s: " ^
+      string_of_int size ^
+      ")\n"
+    in
+    let show_eq_class acc eq_class =
+      acc ^
+      List.fold_left show_element "" eq_class ^
+      "----\n"
+    in
+    List.fold_left show_eq_class "" (get_eq_classes uf) ^ "\n"
 
   (** Returns a list of representative elements.*)
   let get_representatives uf =
-    List.filter_map (fun (el,_) -> if is_root uf el then Some el else None) (TMap.bindings uf)
+    let is_root (el,_) =
+      is_root uf el
+    in
+    let bindings = TMap.bindings uf in
+    List.filter is_root bindings
 end
 
 module ZMap = struct
   include Map.Make(Z)
-  let hash hash_f y = fold (fun x node acc -> acc + Z.hash x + hash_f node) y 0
+
+  let hash hash_f y =
+    let accumulate_key_value_hash x node acc =
+      acc + Z.hash x + hash_f node
+    in
+    fold accumulate_key_value_hash y 0
 end
 
 (** For each representative t' of an equivalence class, the LookupMap maps t' to a map that maps z to a term in the data structure that is equal to *(z + t').*)
@@ -826,50 +976,78 @@ module LookupMap = struct
   let zmap_add = ZMap.add
 
   (** Returns the element to which (v, r) is mapped, or None if (v, r) is mapped to nothing. *)
-  let map_find_opt (v,r) (map:t) = match find_opt v map with
-    | None -> None
-    | Some zmap -> (match zmap_find_opt r zmap with
-        | None -> None
-        | Some v -> Some v
-      )
+  let map_find_opt (v,r) (map:t) =
+    match find_opt v map with
+    | None ->
+      None
+    | Some zmap ->
+      zmap_find_opt r zmap
 
-  let map_add (v,r) v' (map:t) = match find_opt v map with
-    | None -> add v (zmap_add r v' ZMap.empty) map
-    | Some zmap -> add v (zmap_add r v' zmap) map
+  let map_add (v,r) v' (map:t) =
+    let zmap = match find_opt v map with
+      | None ->
+        zmap_add r v' ZMap.empty
+      | Some zmap ->
+        zmap_add r v' zmap
+    in
+    add v zmap map
 
   let show_map (map:t) =
-    List.fold_left
-      (fun s (v, zmap) ->
-         s ^ T.show v ^ "\t:\n" ^
-         List.fold_left
-           (fun s (r, v) ->
-              s ^ "\t" ^ Z.to_string r ^ ": " ^ T.show v ^ "; ")
-           "" (zmap_bindings zmap) ^ "\n")
-      "" (bindings map)
+    let show_inner_binding acc (r, v) =
+      acc ^
+      "\t" ^
+      Z.to_string r ^
+      ": " ^
+      T.show v ^
+      "; "
+    in
+    let show_inner_map zmap =
+      let inner_bindings = zmap_bindings zmap in
+      List.fold_left show_inner_binding "" inner_bindings
+    in
+    let show_binding s (v, zmap) =
+      s ^
+      T.show v ^
+      "\t:\n" ^
+      show_inner_map zmap ^ "\n"
+    in
+    let bindings = bindings map in
+    List.fold_left show_binding "" bindings
 
   (** The value at v' is shifted by r and then added for v.
       The old entry for v' is removed. *)
   let shift v r v' map =
     match find_opt v' map with
-    | None -> map
-    | Some zmap -> let infl = zmap_bindings zmap in
-      let zmap = List.fold_left (fun zmap (r', v') ->
-          zmap_add Z.(r' + r) v' zmap) ZMap.empty infl in
+    | None ->
+      map
+    | Some zmap ->
+      let infl = ZMap.bindings zmap in
+      let shift zmap (r', v') =
+        zmap_add Z.(r' + r) v' zmap
+      in
+      let zmap = List.fold_left shift ZMap.empty infl in
       remove v' (add v zmap map)
 
   (** Find all outgoing edges of v in the automata.*)
   let successors v (map:t) =
     match find_opt v map with
-    | None -> []
-    | Some zmap -> zmap_bindings zmap
+    | None ->
+      []
+    | Some zmap ->
+      ZMap.bindings zmap
 
   (** Find all elements that are in the same equivalence class as t,
       given the cmap. *)
   let comp_t_cmap_repr cmap t =
     match TMap.find_opt t cmap with
-    | None -> [Z.zero, t]
+    | None ->
+      [Z.zero, t]
     | Some zmap ->
-      List.concat_map
-        (fun (z, set) ->
-           List.cartesian_product [z] (TSet.to_list set)) (ZMap.bindings zmap)
+      let offset_term_product (z, term_set) =
+        let terms = TSet.to_list term_set in
+        List.cartesian_product [z] terms
+      in
+      let zmap_bindings = ZMap.bindings zmap in
+      List.concat_map offset_term_product zmap_bindings
+
 end
