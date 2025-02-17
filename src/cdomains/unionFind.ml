@@ -942,14 +942,14 @@ module UnionFind = struct
 
   (** Returns a list of representative elements.*)
   let get_representatives uf =
-    let root_term (el, _) =
+    let get_if_root (el, _) =
       if is_root uf el then
         Some el
       else
         None
     in
     let bindings = TMap.bindings uf in
-    List.filter_map root_term bindings
+    List.filter_map get_if_root bindings
 
 end
 
