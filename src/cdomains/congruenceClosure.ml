@@ -1202,7 +1202,8 @@ let remove_terms_from_bldis bldis new_reps cc =
     Option.map fst new_root
   in
   let bldis = BlDis.filter_map_lhs find_new_root_term bldis in
-  !uf_ref, BlDis.filter_map find_new_root_term bldis
+  let bldis = BlDis.filter_map find_new_root_term bldis in
+  !uf_ref, bldis
 
 (** Remove terms from the data structure.
     It removes all terms for which "predicate" is false,
