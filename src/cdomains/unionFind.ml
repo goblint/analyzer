@@ -42,10 +42,13 @@ let tuple2_equal p1 p2 = Tuple2.eq equal_term equal_term (normal_form_tuple_2 p1
 let tuple2_cmp p1 p2 = Tuple2.comp compare_term compare_term (normal_form_tuple_2 p1) (normal_form_tuple_2 p2)
 let tuple2_hash p1 = Hashtbl.hash (normal_form_tuple_2 p1)
 
-type prop = Equal of ((term * term * Z.t) [@equal tuple3_equal][@compare tuple3_cmp][@hash tuple3_hash])
-          | Nequal of ((term * term * Z.t) [@equal tuple3_equal][@compare tuple3_cmp][@hash tuple3_hash])
-          | BlNequal of ((term * term) [@equal tuple2_equal][@compare tuple2_cmp][@hash tuple2_hash])
-[@@deriving eq, hash, ord]
+type term_offset_relation = term * term * Z.t [@@deriving eq, hash, ord]
+
+type block_relation = term * term [@@deriving eq, hash, ord]
+
+type prop = Equal of term_offset_relation
+          | Nequal of term_offset_relation
+          | BlNequal of block_relation [@@deriving eq, hash, ord]
 
 (** The terms consist of address constants and dereferencing function with sum of an integer.
     The dereferencing function is parametrized by the size of the element in the memory.
