@@ -12,8 +12,6 @@ module M = Messages
     It contains normal variables with a varinfo as well as auxiliary variables for
     assignment and return and duplicated variables for remembering the value of variables at the beginning of a function. *)
 module VarType = struct
-  (* the hash/compare values should not depend on the type.
-     But they have to be defined even though they are not used, for some reason.*)
   let equal_typ a b =
     (* TODO: Structural equality on (possibly cyclic) data type typ may not terminate in incremental analysis. *)
     (* Using Stdlib.(=) instead of Stdlib.compare will not terminate even in the non-incremental case. *)
