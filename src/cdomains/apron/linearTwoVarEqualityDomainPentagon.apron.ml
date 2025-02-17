@@ -249,6 +249,9 @@ module IntervalAndCongruence = struct
   let to_int (i,_) = I.to_int i 
 
   let meet (i1,c1) (i2,c2) = refine (I.meet ik i1 i2, C.meet ik c1 c2)
+
+  let narrow (i1,c1) (i2,c2) = refine (I.narrow ik i1 i2, C.narrow ik c1 c2)
+
   let join (i1,c1) (i2,c2) = refine (I.join ik i1 i2, C.join ik c1 c2)
   let widen (i1,c1) (i2,c2) = refine (I.widen ik i1 i2, C.widen ik c1 c2)
 
@@ -367,7 +370,7 @@ struct
       IntMap.fold meet_with_rhs (snd econ) i 
     in 
     let set_interval_for_root lhs i =
-      if M.tracing then M.tracel "modify_pentagon" "set_interval_for_root var_%d=%s" lhs (Value.show i);
+      if M.tracing then M.tracel "modify_pentagon" "set_interval_for_root var_%d=%s, before: %s" lhs (Value.show i) (show (econ, is));
       let i = refine econ lhs i in
       if M.tracing then M.tracel "modify_pentagon" "set_interval_for_root refined to %s" (Value.show i);
       if i = Value.top then (econ, IntMap.remove lhs is) (*stay sparse*)
@@ -400,7 +403,7 @@ struct
     res
 
   (*TODO: If we are uptdating a variable, we will overwrite the interval again -> maybe skip setting it here, because of performance?*)
-  let set_rhs (econ, is) lhs rhs =
+  let set_rhs (econ, is) lhs rhs  =
     let econ' = EConj.set_rhs econ lhs rhs in
     match rhs with 
     | (None, _, _) -> econ', IntMap.remove lhs is (*when setting as a constant, we do not need a separate interval *)
@@ -476,9 +479,9 @@ struct
     if M.tracing then M.tracel "meet_with_one_conj" "meet_with_one_conj conj: %s eq: var_%d=%s  ->  %s " (show (ts,is)) i (Rhs.show (var,offs,divi)) (show res)
   ; res
 
-  let meet_with_one_interval var interval t =
+  let meet_with_one_interval var interval t meet_function =
     let refined_interval = Value.refine interval in
-    let new_interval = Value.meet refined_interval (get_interval t var)
+    let new_interval = meet_function refined_interval (get_interval t var)
     in if Value.is_bot new_interval then raise EConj.Contradiction else 
       let res =  set_interval t var new_interval
       in if M.tracing then M.tracel "meet_interval" "meet var_%d: before: %s meeting: %s -> %s, total: %s-> %s" (var) (Value.show @@ get_interval t var) (Value.show interval) (Value.show new_interval) (show t) (show res);
@@ -711,12 +714,12 @@ struct
     if M.tracing then M.tracel "meet" "%s with single eq %s=%s -> %s" (show t) (Z.(to_string @@ Tuple3.third e)^ show_var t.env i) (Rhs.show_rhs_formatted (show_var t.env) e) (show res);
     res
 
-  let meet_with_one_interval i interval t =
+  let meet_with_one_interval meet_function i interval t =
     let res = match t.d with
       | None -> t
       | Some d ->
         try
-          { d = Some (EConjI.meet_with_one_interval i interval d ); env = t.env}
+          { d = Some (EConjI.meet_with_one_interval i interval d meet_function); env = t.env}
         with EConj.Contradiction ->
           if M.tracing then M.trace "meet" " -> Contradiction with interval\n";
           { d = None; env = t.env}
@@ -724,15 +727,18 @@ struct
     if M.tracing then M.tracel "meet" "%s with single interval %s=%s -> %s" (show t) (show_var t.env i) (Value.show interval) (show res);
     res
 
-  let meet t1 t2 =
+  let meet' t1 t2 meet_function =     
     let sup_env = Environment.lce t1.env t2.env in
     let t1 = change_d t1 sup_env ~add:true ~del:false in
     let t2 = change_d t2 sup_env ~add:true ~del:false in
     match t1.d, t2.d with
     | Some d1', Some d2' ->
       let conj_met = EConjI.IntMap.fold (fun lhs rhs map -> meet_with_one_conj map lhs rhs) (snd @@ fst d2') t1 (* even on sparse d2, this will chose the relevant conjs to meet with*)
-      in EConjI.IntMap.fold meet_with_one_interval (snd d2') conj_met 
+      in EConjI.IntMap.fold (meet_with_one_interval meet_function) (snd d2') conj_met
     | _ -> {d = None; env = sup_env}
+
+  let meet t1 t2 =
+    meet' t1 t2 Value.meet
 
   let meet t1 t2 =
     let res = meet t1 t2 in
@@ -773,21 +779,18 @@ struct
     let join_econj ad bd env = (LinearTwoVarEqualityDomain.D.join {d = Some ad; env} {d = Some bd; env}).d
     in
     (*Check all variables (up to index vars) if we need to save an interval for them*)
-    let rec collect_intervals x y econj_joined vars is =
-      if vars < 0 then is
-      else if EConj.nontrivial econj_joined vars then collect_intervals x y econj_joined (vars-1) is (*we only need intervals for roots of the connected components*)
-      else let joined_interval = join_function (EConjI.get_interval x vars) (EConjI.get_interval y vars) in (*TODO: if we tighten the interval in set_interval, we also should do that here.*)
-        if Value.is_top joined_interval 
-        then collect_intervals x y econj_joined (vars-1) is (*DO not add top intervals*)
-        else collect_intervals x y econj_joined (vars-1) (EConjI.IntMap.add vars joined_interval is)
+    let rec collect_intervals x y econj_joined vars t =
+      if vars < 0 then t
+      else if EConj.nontrivial econj_joined vars then collect_intervals x y econj_joined (vars-1) t (*we only need intervals for roots of the connected components*)
+      else let joined_interval = join_function (EConjI.get_interval x vars) (EConjI.get_interval y vars) in
+        collect_intervals x y econj_joined (vars-1) (EConjI.set_interval t vars joined_interval )
     in
     let join_d x y env = 
       let econj' = join_econj (fst x) (fst y) env in
       match econj' with 
         None ->  None 
       | Some econj'' ->
-        let is' = collect_intervals x y econj'' ((Environment.size env)-1) (EConjI.IntMap.empty) in
-        Some (econj'', is')
+        Some (collect_intervals x y econj'' ((Environment.size env)-1) (econj'', EConjI.IntMap.empty))         
     in
     (*Normalize the two domains a and b such that both talk about the same variables*)
     match a.d, b.d with
@@ -822,7 +825,7 @@ struct
     if M.tracing then M.tracel "widen" "widen a: %s b: %s -> %s" (show a) (show b) (show res) ;
     res
 
-  let narrow a b = meet a b (*TODO use narrow for intervals!*)
+  let narrow a b = meet' a b Value.narrow
 
   let narrow a b =
     let res = narrow a b in
@@ -866,13 +869,14 @@ struct
           assign_const (forget_var t var) var_i off divi
         | Some (Some (coeff_var,exp_var), off, divi) when var_i = exp_var ->
           (* Statement "assigned_var = (coeff_var*assigned_var + off) / divi" *)
-          {d=Some (EConj.affine_transform (fst d) var_i (coeff_var, var_i, off, divi), snd d); env=t.env }
+          {d=Some (EConj.affine_transform (fst d) var_i (coeff_var, var_i, off, divi), snd d); env=t.env }          
         | Some (Some monomial, off, divi) ->
           (* Statement "assigned_var = (monomial) + off / divi" (assigned_var is not the same as exp_var) *)
           meet_with_one_conj (forget_var t var) var_i (Some (monomial), off, divi)
-      in begin match t'.d with None -> if M.tracing then M.tracel "ops" "assign_texpr resulted in bot (before: %s, expr: %s) " (show t) (Texpr1.show (Texpr1.of_expr t.env texp));
-        bot_env
-                             | Some d' -> {d = Some (EConjI.set_interval d' var_i (VarManagement.eval_texpr t' texp)); env = t'.env} 
+      in begin match t'.d with 
+          None -> if M.tracing then M.tracel "ops" "assign_texpr resulted in bot (before: %s, expr: %s) " (show t) (Texpr1.show (Texpr1.of_expr t.env texp));
+          bot_env
+        | Some d' -> {d = Some (EConjI.set_interval d' var_i (VarManagement.eval_texpr t texp)); env = t'.env} 
       end
     | None -> bot_env
 
@@ -1016,11 +1020,11 @@ struct
             | None -> t'
             | Some c -> begin match Tcons1.get_typ tcons with
                 | SUP -> 
-                  meet_with_one_interval (Environment.dim_of_var t'.env v) (Some (Int (Z.add Z.one c), Top Pos), Value.C.top ()) t'
-                | SUPEQ -> meet_with_one_interval (Environment.dim_of_var t'.env v) (Some (Int c, Top Pos), Value.C.top ()) t'
+                  meet_with_one_interval Value.meet (Environment.dim_of_var t'.env v) (Some (Int (Z.add Z.one c), Top Pos), Value.C.top ()) t'
+                | SUPEQ -> meet_with_one_interval Value.meet (Environment.dim_of_var t'.env v) (Some (Int c, Top Pos), Value.C.top ()) t'
                 | EQ -> 
                   if M.tracing then M.tracel "meet_tcons" "meet_tcons interval matching eq" ;
-                  meet_with_one_interval (Environment.dim_of_var t'.env v) (Some (Int c, Int c), Value.C.top ()) t' (*Should already be matched by the conjuction above?*)
+                  meet_with_one_interval Value.meet (Environment.dim_of_var t'.env v) (Some (Int c, Int c), Value.C.top ()) t' (*Should already be matched by the conjuction above?*)
                 | _ ->
                   if M.tracing then M.tracel "meet_tcons" "meet_tcons interval not matching comparison op";
                   t' (*NEQ and EQMOD do not have any usefull interval representations*)
@@ -1032,11 +1036,11 @@ struct
             | None -> t'
             | Some c -> begin match Tcons1.get_typ tcons with
                 | SUP -> 
-                  meet_with_one_interval (Environment.dim_of_var t'.env v) (Some (Top Neg, Int (Z.sub c Z.one)), Value.C.top ()) t'
-                | SUPEQ -> meet_with_one_interval (Environment.dim_of_var t'.env v) (Some (Top Neg, Int c), Value.C.top ()) t'
+                  meet_with_one_interval Value.meet (Environment.dim_of_var t'.env v) (Some (Top Neg, Int (Z.sub c Z.one)), Value.C.top ()) t'
+                | SUPEQ -> meet_with_one_interval Value.meet (Environment.dim_of_var t'.env v) (Some (Top Neg, Int c), Value.C.top ()) t'
                 | EQ -> 
                   if M.tracing then M.tracel "meet_tcons" "meet_tcons interval matching eq (expr %s)" (Tcons1.show tcons);
-                  meet_with_one_interval (Environment.dim_of_var t'.env v) (Some (Int c, Int c), Value.C.top ()) t' (*Should already be matched by the conjuction above?*)
+                  meet_with_one_interval Value.meet (Environment.dim_of_var t'.env v) (Some (Int c, Int c), Value.C.top ()) t' (*Should already be matched by the conjuction above?*)
                 | _ ->
                   if M.tracing then M.tracel "meet_tcons" "meet_tcons interval not matching comparison op (expr %s)" (Tcons1.show tcons);
                   t' (*NEQ and EQMOD do not have any usefull interval representations*)
