@@ -812,11 +812,11 @@ module UnionFind = struct
       T.equal v parent_t
 
   (**
-     For a variable t it returns the reference variable v and the offset r.
+     For a variable v it returns the reference variable v' and the offset r'.
      This find performs path compression.
      It returns als the updated union-find tree after the path compression.
 
-     Throws "Unknown value" if t is not present in the data structure.
+     Throws "Unknown value" if v is not present in the data structure.
      Throws "Invalid Union Find" if it finds an element in the data structure that is a root but it has a non-zero distance to itself.
   *)
   let find uf v =
