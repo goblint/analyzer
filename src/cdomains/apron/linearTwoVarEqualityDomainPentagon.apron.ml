@@ -192,7 +192,7 @@ module Unbounded : IntervalDomainWithBounds.BoundedIntOps with type t = TopIntOp
     in (t,IntDomain0.{underflow=false; overflow=false})
 end
 
-(*TODO add wrapper to remove ikind parameter or not? *)
+(*TODO can I use the domain tuple? seems rather complicated*)
 module IntervalAndCongruence = struct
   module I = IntDomain0.SOverflowUnlifter(IntervalDomainWithBounds.IntervalFunctor(Unbounded))
   module C = CongruenceDomainNormFunctor.Congruence(CongruenceDomainNormFunctor.NoWrapping)
@@ -253,7 +253,6 @@ module IntervalAndCongruence = struct
   let widen (i1,c1) (i2,c2) = refine (I.widen ik i1 i2, C.widen ik c1 c2)
 
   let of_congruence c = refine (I.top_of ik, C.of_congruence ik c)
-
 
 end 
 
@@ -421,18 +420,17 @@ struct
             let open Z in Rhs.canonicalize (BatOption.map (fun (c, y)-> (c * c', y)) vary, c'*o + o'*d, d'*d)
           | e -> e
         in
-        (match vary with 
-         | None when d <> Z.one -> (if M.tracing then M.tracel "meet_with_one_conj" "meet_with_one_conj substituting var_%d with constant %s, which is not an integer" i (Rhs.show (var,offs,divi));
-                                    raise EConj.Contradiction)
-         | _ -> ()
-        );
-        let interval = get_interval (ts, is) x in
-        if not @@ Value.contains interval (Z.div offs divi) then 
-          (if M.tracing then M.tracel "meet_with_one_conj" "meet_with_one_conj substituting var_%d with constant %s, Contradicts %s" (i) (Rhs.show (var,offs,divi)) (Value.show interval);
-           raise EConj.Contradiction)
-        else 
-          let is' = IntMap.remove x is in (*if x was the representative, it might not be anymore -> remove interval and add it back afterwards*) 
-          set_interval ( (dim, IntMap.add x (vary, o, d) @@ IntMap.map adjust econj), is' ) x interval (* in case of sparse representation, make sure that the equality is now included in the conjunction *)
+        let interval= get_interval (ts, is) x in
+        if vary = None then begin
+          if d <> Z.one then 
+            (if M.tracing then M.tracel "meet_with_one_conj" "meet_with_one_conj substituting var_%d with constant %s, which is not an integer" i (Rhs.show (var,offs,divi));
+             raise EConj.Contradiction);
+          if not @@ Value.contains interval (Z.div offs divi) then 
+            (if M.tracing then M.tracel "meet_with_one_conj" "meet_with_one_conj substituting var_%d with constant %s, Contradicts %s" (i) (Rhs.show (var,offs,divi)) (Value.show interval);
+             raise EConj.Contradiction)
+        end;        
+        let is' = IntMap.remove x is in (*if x was the representative, it might not be anymore -> remove interval and add it back afterwards*) 
+        set_interval ( (dim, IntMap.add x (vary, o, d) @@ IntMap.map adjust econj), is' ) x interval (* in case of sparse representation, make sure that the equality is now included in the conjunction *)
       in
       (match var, (EConj.get_rhs ts i) with
        (*| new conj      , old conj          *)
@@ -865,7 +863,8 @@ struct
         | Some (Some monomial, off, divi) ->
           (* Statement "assigned_var = (monomial) + off / divi" (assigned_var is not the same as exp_var) *)
           meet_with_one_conj (forget_var t var) var_i (Some (monomial), off, divi)
-      in begin match t'.d with None -> bot_env
+      in begin match t'.d with None -> if M.tracing then M.tracel "ops" "assign_texpr resulted in bot (before: %s, expr: %s) " (show t) (Texpr1.show (Texpr1.of_expr t.env texp));
+        bot_env
                              | Some d' -> {d = Some (EConjI.set_interval d' var_i (VarManagement.eval_texpr t' texp)); env = t'.env} 
       end
     | None -> bot_env
@@ -1010,15 +1009,14 @@ struct
             | None -> t'
             | Some c -> begin match Tcons1.get_typ tcons with
                 | SUP -> 
-                  meet_with_one_interval (Environment.dim_of_var t'.env v) (Some (Int (Z.add Z.one c), Top Pos), Value.C.top_of Value.ik) t'
-                | SUPEQ -> meet_with_one_interval (Environment.dim_of_var t'.env v) (Some (Int c, Top Pos), Value.C.top_of Value.ik) t'
+                  meet_with_one_interval (Environment.dim_of_var t'.env v) (Some (Int (Z.add Z.one c), Top Pos), Value.C.top ()) t'
+                | SUPEQ -> meet_with_one_interval (Environment.dim_of_var t'.env v) (Some (Int c, Top Pos), Value.C.top ()) t'
                 | EQ -> 
                   if M.tracing then M.tracel "meet_tcons" "meet_tcons interval matching eq" ;
-                  meet_with_one_interval (Environment.dim_of_var t'.env v) (Some (Int c, Int c), Value.C.top_of Value.ik) t' (*Should already be matched by the conjuction above?*)
+                  meet_with_one_interval (Environment.dim_of_var t'.env v) (Some (Int c, Int c), Value.C.top ()) t' (*Should already be matched by the conjuction above?*)
                 | _ ->
                   if M.tracing then M.tracel "meet_tcons" "meet_tcons interval not matching comparison op";
                   t' (*NEQ and EQMOD do not have any usefull interval representations*)
-                  (*TODO If we have e.g.  y = 5x + 2 and condition y == 14 (or y != 14), we know this can't (must) be correct*)
               end
           end
         | Binop (Sub,Cst (Scalar c), Var v,_,_) -> 
@@ -1027,18 +1025,18 @@ struct
             | None -> t'
             | Some c -> begin match Tcons1.get_typ tcons with
                 | SUP -> 
-                  meet_with_one_interval (Environment.dim_of_var t'.env v) (Some (Top Neg, Int (Z.sub c Z.one)), Value.C.top_of Value.ik) t'
-                | SUPEQ -> meet_with_one_interval (Environment.dim_of_var t'.env v) (Some (Top Neg, Int c), Value.C.top_of Value.ik) t'
+                  meet_with_one_interval (Environment.dim_of_var t'.env v) (Some (Top Neg, Int (Z.sub c Z.one)), Value.C.top ()) t'
+                | SUPEQ -> meet_with_one_interval (Environment.dim_of_var t'.env v) (Some (Top Neg, Int c), Value.C.top ()) t'
                 | EQ -> 
                   if M.tracing then M.tracel "meet_tcons" "meet_tcons interval matching eq (expr %s)" (Tcons1.show tcons);
-                  meet_with_one_interval (Environment.dim_of_var t'.env v) (Some (Int c, Int c), Value.C.top_of Value.ik) t' (*Should already be matched by the conjuction above?*)
+                  meet_with_one_interval (Environment.dim_of_var t'.env v) (Some (Int c, Int c), Value.C.top ()) t' (*Should already be matched by the conjuction above?*)
                 | _ ->
                   if M.tracing then M.tracel "meet_tcons" "meet_tcons interval not matching comparison op (expr %s)" (Tcons1.show tcons);
                   t' (*NEQ and EQMOD do not have any usefull interval representations*)
               end
           end
         | _ ->
-          if M.tracing then M.tracel "meet_tcons" "meet_tcons interval not matching structure";
+          if M.tracing then M.tracel "meet_tcons" "meet_tcons interval not matching structure (expr %s)" (Tcons1.show tcons);
           t'
       end
 
