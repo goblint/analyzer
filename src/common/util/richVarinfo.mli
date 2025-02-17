@@ -31,6 +31,7 @@ sig
   val update_varinfo: varinfo -> t -> varinfo
 end
 
+val create_var: VarinfoDescription.t -> varinfo
 val single: name:string -> (unit -> varinfo)
 
 module type G =

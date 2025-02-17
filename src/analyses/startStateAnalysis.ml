@@ -46,14 +46,14 @@ struct
     let open Queries in
     match q with
     | MayPointTo e ->
-      eval (ask_of_ctx ctx) ctx.local e
+      eval (ask_of_man ctx) ctx.local e
     | _ ->
       Result.top q
 
   let body ctx (f: fundec) =
     let add_var_value st var =
       let lval = Lval (Var var, NoOffset) in
-      let value = get_value (ask_of_ctx ctx) lval in
+      let value = get_value (ask_of_man ctx) lval in
       let duplicated_var = to_varinfo (DuplicVar var) in
       if M.tracing then M.trace "startState" "added value: var: %a; value: %a" d_lval (Var duplicated_var, NoOffset) AD.pretty value;
       D.add duplicated_var value st

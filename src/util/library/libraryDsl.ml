@@ -30,8 +30,20 @@ struct
     | [] -> fail "^::"
 end
 
+type access =
+  | Access of LibraryDesc.Access.t
+  | If of (unit -> bool) * access
+
+let rec eval_access = function
+  | Access acc -> Some acc
+  | If (p, access) ->
+    if p () then
+      eval_access access
+    else
+      None
+
 type ('k, 'l, 'r) arg_desc = {
-  accesses: Access.t list;
+  accesses: access list;
   match_arg: (Cil.exp, 'k, 'r) Pattern.t;
   match_var_args: (Cil.exp list, 'l, 'r) Pattern.t;
 }
@@ -51,15 +63,21 @@ let rec accs: type k r. (k, r) args_desc -> Accesses.t = fun args_desc args ->
   match args_desc, args with
   | [], [] -> []
   | VarArgs arg_desc, args ->
-    List.map (fun acc ->
-        (acc, args)
+    List.filter_map (fun access ->
+        match eval_access access with
+        | Some acc -> Some (acc, args)
+        | None -> None
       ) arg_desc.accesses
   | arg_desc :: args_desc, arg :: args ->
     let accs'' = accs args_desc args in
-    List.fold_left (fun (accs'': (Access.t * Cil.exp list) list) (acc: Access.t) ->
-        match List.assoc_opt acc accs'' with
-        | Some args -> (acc, arg :: args) :: List.remove_assoc acc accs''
-        | None -> (acc, [arg]) :: accs''
+    List.fold_left (fun (accs'': (Access.t * Cil.exp list) list) (access: access) ->
+        match eval_access access with
+        | Some acc ->
+          begin match List.assoc_opt acc accs'' with
+            | Some args -> (acc, arg :: args) :: List.remove_assoc acc accs''
+            | None -> (acc, [arg]) :: accs''
+          end
+        | None -> accs''
       ) accs'' arg_desc.accesses
   | _, _ -> invalid_arg "accs"
 
@@ -94,13 +112,15 @@ let drop (_name: string) accesses = { empty_drop_desc with accesses; }
 let drop' accesses = { empty_drop_desc with accesses; }
 
 
-let r = Access.{ kind = Read; deep = false; }
-let r_deep = Access.{ kind = Read; deep = true; }
-let w = Access.{ kind = Write; deep = false; }
-let w_deep = Access.{ kind = Write; deep = true; }
-let f = Access.{ kind = Free; deep = false; }
-let f_deep = Access.{ kind = Free; deep = true; }
-let s = Access.{ kind = Spawn; deep = false; }
-let s_deep = Access.{ kind = Spawn; deep = true; }
-let c = Access.{ kind = Spawn; deep = false; } (* TODO: Sound, but very imprecise hack for calls to function pointers given as arguments. *)
-let c_deep = Access.{ kind = Spawn; deep = true; }
+let r = Access { kind = Read; deep = false; }
+let r_deep = Access { kind = Read; deep = true; }
+let w = Access { kind = Write; deep = false; }
+let w_deep = Access { kind = Write; deep = true; }
+let f = Access { kind = Free; deep = false; }
+let f_deep = Access { kind = Free; deep = true; }
+let s = Access { kind = Spawn; deep = false; }
+let s_deep = Access { kind = Spawn; deep = true; }
+let c = Access { kind = Spawn; deep = false; } (* TODO: Sound, but very imprecise hack for calls to function pointers given as arguments. *)
+let c_deep = Access { kind = Spawn; deep = true; }
+
+let if_ p access = If (p, access)

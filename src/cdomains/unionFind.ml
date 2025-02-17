@@ -225,6 +225,13 @@ module T = struct
     else
       aux_term_of_varinfo vinfo
 
+  (** From a offset, compute the index in bits *)
+  let offset_to_index ?typ offset =
+    let ptr_diff_ikind = Cilfacade.ptrdiff_ikind () in
+    let offset_in_bytes = PreValueDomain.Offs.to_index ?typ offset in
+    let bytes_to_bits = IntDomain.of_const (Z.of_int 8, ptr_diff_ikind, None) in
+    IntDomain.IntDomTuple.mul bytes_to_bits offset_in_bytes
+
   (** Convert a Cil offset to an integer offset. *)
   let cil_offs_to_idx (ask: Queries.ask) offs typ =
     (* TODO: Some duplication with convert_offset in base.ml and cil_offs_to_idx in memOutOfBounds.ml, unclear how to immediately get more reuse. *)
@@ -282,7 +289,7 @@ module T = struct
     in
     let converted_type = Some (convert_type typ) in
     let converted_offset = convert_offset offs in
-    PreValueDomain.Offs.to_index ?typ:converted_type converted_offset
+    offset_to_index ?typ:converted_type converted_offset
 
   (** Convert an offset to an integer of Z, if posible.
       Otherwise, this throws UnsupportedCilExpression. *)
@@ -358,7 +365,7 @@ module T = struct
   (** Returns the integer offset of a field of a struct. *)
   let get_field_offset finfo =
     let field = `Field (finfo, `NoOffset) in
-    let field_to_index = PreValueDomain.Offs.to_index field in
+    let field_to_index = offset_to_index field in
     match IntDomain.IntDomTuple.to_int field_to_index with
     | Some i -> i
     | None ->

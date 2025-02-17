@@ -35,21 +35,21 @@ struct
   let create_tid v =
     Flag.get_multi ()
 
-  let return ctx exp fundec  =
+  let return man exp fundec  =
     match fundec.svar.vname with
     | "__goblint_dummy_init" ->
       (* TODO: is this necessary? *)
-      Flag.join ctx.local (Flag.get_main ())
+      Flag.join man.local (Flag.get_main ())
     | _ ->
-      ctx.local
+      man.local
 
-  let query ctx (type a) (x: a Queries.t): a Queries.result =
+  let query man (type a) (x: a Queries.t): a Queries.result =
     match x with
-    | Queries.MustBeSingleThreaded _ -> not (Flag.is_multi ctx.local) (* If this analysis can tell, it is the case since the start *)
-    | Queries.MustBeUniqueThread -> not (Flag.is_not_main ctx.local)
-    | Queries.IsEverMultiThreaded -> (ctx.global () : bool) (* requires annotation to compile *)
+    | Queries.MustBeSingleThreaded _ -> not (Flag.is_multi man.local) (* If this analysis can tell, it is the case since the start *)
+    | Queries.MustBeUniqueThread -> not (Flag.is_not_main man.local)
+    | Queries.IsEverMultiThreaded -> (man.global () : bool) (* requires annotation to compile *)
     (* This used to be in base but also commented out. *)
-    (* | Queries.MayBePublic _ -> Flag.is_multi ctx.local *)
+    (* | Queries.MayBePublic _ -> Flag.is_multi man.local *)
     | _ -> Queries.Result.top x
 
   module A =
@@ -59,19 +59,19 @@ struct
     let may_race m1 m2 = m1 && m2 (* kill access when single threaded *)
     let should_print m = not m
   end
-  let access ctx _ =
-    is_currently_multi (Analyses.ask_of_ctx ctx)
+  let access man _ =
+    is_currently_multi (Analyses.ask_of_man man)
 
-  let threadenter ctx ~multiple lval f args =
-    if not (has_ever_been_multi (Analyses.ask_of_ctx ctx)) then
-      ctx.emit Events.EnterMultiThreaded;
+  let threadenter man ~multiple lval f args =
+    if not (has_ever_been_multi (Analyses.ask_of_man man)) then
+      man.emit Events.EnterMultiThreaded;
     [create_tid f]
 
-  let threadspawn ctx ~multiple lval f args fctx =
-    ctx.sideg () true;
-    if not (has_ever_been_multi (Analyses.ask_of_ctx ctx)) then
-      ctx.emit Events.EnterMultiThreaded;
-    D.join ctx.local (Flag.get_main ())
+  let threadspawn man ~multiple lval f args fman =
+    man.sideg () true;
+    if not (has_ever_been_multi (Analyses.ask_of_man man)) then
+      man.emit Events.EnterMultiThreaded;
+    D.join man.local (Flag.get_main ())
 end
 
 let _ =

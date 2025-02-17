@@ -48,6 +48,14 @@ exclude_module_names = set([
 
     "MessageCategory", # included in Messages
     "PreValueDomain", # included in ValueDomain
+    "IntervalDomain", # included in IntDomain
+    "IntervalSetDomain", # included in IntDomain
+    "DefExcDomain", # included in IntDomain
+    "EnumsDomain", # included in IntDomain
+    "CongruenceDomain", # included in IntDomain
+    "BitfieldDomain", #included in IntDomain
+    "IntDomTuple", # included in IntDomain
+    "WitnessGhostVar", # included in WitnessGhost
 
     "ConfigVersion",
     "ConfigProfile",

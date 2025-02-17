@@ -75,12 +75,12 @@ struct
       match q with
       | EvalInt e ->
         let ik = Cilfacade.get_ikind_exp e in
-        eval_guard (ask_of_ctx ctx) cc e ik
+        eval_guard (ask_of_man ctx) cc e ik
       | Queries.Invariant context ->
         let scope = Node.find_fundec ctx.node in
         let t = D.remove_vars_not_in_scope scope cc in
         let conj = get_conjunction t in
-        let ask = ask_of_ctx ctx in
+        let ask = ask_of_man ctx in
         conj_to_invariant ask conj
       | _ ->
         Result.top q
@@ -127,7 +127,7 @@ struct
       C2PODomain.top ()
 
   let assign ctx lval expr =
-    let ask = (ask_of_ctx ctx) in
+    let ask = (ask_of_man ctx) in
     match ctx.local with
     | `Bot ->
       `Bot
@@ -139,7 +139,7 @@ struct
       res
 
   let branch ctx e pos =
-    let props = T.prop_of_cil (ask_of_ctx ctx) e pos in
+    let props = T.prop_of_cil (ask_of_man ctx) e pos in
     let valid_props = T.filter_valid_pointers props in
     let res =
       match ctx.local with
@@ -180,7 +180,7 @@ struct
             `Bot
           | `Lifted d ->
             let return_var = MayBeEqual.return_var (typeOf e) in
-            let d = assign_return (ask_of_ctx ctx) d return_var e in
+            let d = assign_return (ask_of_man ctx) d return_var e in
             `Lifted d
         end
       | None -> ctx.local
@@ -191,7 +191,7 @@ struct
   (** var_opt is the variable we assign to. It has type lval. v=malloc.*)
   let special ctx lval_opt v exprs =
     let desc = LibraryFunctions.find v in
-    let ask = ask_of_ctx ctx in
+    let ask = ask_of_man ctx in
     match ctx.local with
     | `Bot -> `Bot
     | `Lifted cc ->
@@ -265,7 +265,7 @@ struct
     match ctx.local with
     | `Bot -> `Bot
     | `Lifted cc ->
-      let caller_ask = ask_of_ctx ctx in
+      let caller_ask = ask_of_man ctx in
       (* assign function parameters to duplicated values *)
       let arg_assigns = GobList.combine_short f.sformals args in
       let assign_term st (var, arg) =
@@ -297,7 +297,7 @@ struct
     match ctx.local with
     | `Bot -> `Bot
     | `Lifted cc ->
-      let caller_ask = ask_of_ctx ctx in
+      let caller_ask = ask_of_man ctx in
       (* assign function parameters to duplicated values *)
       let arg_assigns = GobList.combine_short f.sformals args in
       let assign_term st (var, arg) =

@@ -47,7 +47,20 @@ let init_options () =
   Mergecil.merge_inlines := get_bool "cil.merge.inlines";
   Cil.cstd := Cil.cstd_of_string (get_string "cil.cstd");
   Cil.gnu89inline := get_bool "cil.gnu89inline";
-  Cabs2cil.addNestedScopeAttr := get_bool "cil.addNestedScopeAttr"
+  Cabs2cil.addNestedScopeAttr := get_bool "cil.addNestedScopeAttr";
+
+  if get_bool "ana.sv-comp.enabled" then (
+    let machine = match get_string "exp.architecture" with
+      | "32bit" -> Machdep.gcc32
+      | "64bit" -> Machdep.gcc64
+      | _ -> assert false
+    in
+    match machine with
+    | Some _ -> Cil.envMachine := machine
+    | None ->
+      GobRef.wrap AnalysisState.should_warn true (fun () -> Messages.msg_final Error ~category:Unsound "Machine definition not available for selected architecture");
+      Logs.error "Machine definition not available for selected architecture, defaulting to host"
+  )
 
 let init () =
   initCIL ();
@@ -368,6 +381,17 @@ let typeSigBlendAttributes baseAttrs =
   typeSigAddAttrs contageous
 
 
+let bytesSizeOf t =
+  let bits = bitsSizeOf t in
+  assert (bits mod 8 = 0);
+  bits / 8
+
+let bytesOffsetOnly t o =
+  let bits_offset, _ = bitsOffset t o in
+  assert (bits_offset mod 8 = 0);
+  bits_offset / 8
+
+
 (** {!Cil.mkCast} using our {!typeOf}. *)
 let mkCast ~(e: exp) ~(newt: typ) =
   let oldt =
@@ -461,8 +485,8 @@ let rec pretty_typsig_like_typ (nameOpt: Pretty.doc option) () ts =
     (* ignore the const attribute for arrays *)
     let a' = dropAttributes [ "pconst" ] a in
     let name' =
-      if a' == [] then name else
-      if nameOpt == None then printAttributes a' else
+      if a' = [] then name else
+      if nameOpt = None then printAttributes a' else
         text "(" ++ printAttributes a' ++ name ++ text ")"
     in
     pretty_typsig_like_typ
@@ -475,8 +499,8 @@ let rec pretty_typsig_like_typ (nameOpt: Pretty.doc option) () ts =
 
   | TSFun (restyp, args, isvararg, a) ->
     let name' =
-      if a == [] then name else
-      if nameOpt == None then printAttributes a else
+      if a = [] then name else
+      if nameOpt = None then printAttributes a else
         text "(" ++ printAttributes a ++ name ++ text ")"
     in
     pretty_typsig_like_typ

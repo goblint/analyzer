@@ -1,5 +1,5 @@
 #include<stdio.h>
-
+// CRAM
 //a is renamed to c, but its usages stay the same
 int main() {
     int a = 0;

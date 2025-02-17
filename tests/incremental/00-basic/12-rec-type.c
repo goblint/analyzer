@@ -4,7 +4,7 @@ typedef struct s_t s_t;
 
 union union_t {
     int i;
-    s_t *s[sizeof(s_t *)]; // This caused problems
+    s_t *s[sizeof(s_t *)]; // NOCRASH: This caused problems
 };
 
 struct s_t {

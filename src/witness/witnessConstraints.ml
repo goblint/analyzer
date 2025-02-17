@@ -117,111 +117,111 @@ struct
     | exception Not_found ->
       M.debug ~category:Witness ~tags:[Category Analyzer] "PathSensitive3 sync predecessor not found";
       R.bot ()
-  let step_ctx ctx x e =
+  let step_man man x e =
     try
-      step ctx.prev_node (ctx.context ()) x e (snd ctx.local)
-    with Ctx_failure _ ->
+      step man.prev_node (man.context ()) x e (snd man.local)
+    with Man_failure _ ->
       R.bot ()
-  let step_ctx_edge ctx x = step_ctx ctx x (CFGEdge ctx.edge)
-  let step_ctx_inlined_edge ctx x = step_ctx ctx x (InlinedEdge ctx.edge)
+  let step_man_edge man x = step_man man x (CFGEdge man.edge)
+  let step_man_inlined_edge man x = step_man man x (InlinedEdge man.edge)
 
   let nosync x = Sync.singleton x (SyncSet.singleton x)
 
-  let conv ctx x =
-    let rec ctx' =
-      { ctx with
+  let conv man x =
+    let rec man' =
+      { man with
         local = x;
-        ask = (fun (type a) (q: a Queries.t) -> Spec.query ctx' q);
+        ask = (fun (type a) (q: a Queries.t) -> Spec.query man' q);
         split;
       }
     and split y es =
-      let yr = step_ctx_edge ctx x in
-      ctx.split (Dom.singleton y yr, Sync.bot ()) es
+      let yr = step_man_edge man x in
+      man.split (Dom.singleton y yr, Sync.bot ()) es
     in
-    ctx'
+    man'
 
-  let context ctx fd (l, _) =
+  let context man fd (l, _) =
     if Dom.cardinal l <> 1 then
       failwith "PathSensitive3.context must be called with a singleton set."
     else
       let x = Dom.choose_key l in
-      Spec.context (conv ctx x) fd @@ x
+      Spec.context (conv man x) fd @@ x
 
   let startcontext = Spec.startcontext
 
-  let map ctx f g =
+  let map man f g =
     (* we now use Sync for every tf such that threadspawn after tf could look up state before tf *)
     let h x (xs, sync) =
       try
-        let x' = g (f (conv ctx x)) in
-        (Dom.add x' (step_ctx_edge ctx x) xs, Sync.add x' (SyncSet.singleton x) sync)
+        let x' = g (f (conv man x)) in
+        (Dom.add x' (step_man_edge man x) xs, Sync.add x' (SyncSet.singleton x) sync)
       with Deadcode -> (xs, sync)
     in
-    let d = Dom.fold_keys h (fst ctx.local) (Dom.empty (), Sync.bot ()) in
+    let d = Dom.fold_keys h (fst man.local) (Dom.empty (), Sync.bot ()) in
     if Dom.is_bot (fst d) then raise Deadcode else d
 
   (* TODO???? *)
-  let map_event ctx e =
+  let map_event man e =
     (* we now use Sync for every tf such that threadspawn after tf could look up state before tf *)
     let h x (xs, sync) =
       try
-        let x' = Spec.event (conv ctx x) e (conv ctx x) in
-        (Dom.add x' (step_ctx_edge ctx x) xs, Sync.add x' (SyncSet.singleton x) sync)
+        let x' = Spec.event (conv man x) e (conv man x) in
+        (Dom.add x' (step_man_edge man x) xs, Sync.add x' (SyncSet.singleton x) sync)
       with Deadcode -> (xs, sync)
     in
-    let d = Dom.fold_keys h (fst ctx.local) (Dom.empty (), Sync.bot ()) in
+    let d = Dom.fold_keys h (fst man.local) (Dom.empty (), Sync.bot ()) in
     if Dom.is_bot (fst d) then raise Deadcode else d
 
 
-  let fold' ctx f g h a =
+  let fold' man f g h a =
     let k x a =
-      try h a x @@ g @@ f @@ conv ctx x
+      try h a x @@ g @@ f @@ conv man x
       with Deadcode -> a
     in
-    Dom.fold_keys k (fst ctx.local) a
+    Dom.fold_keys k (fst man.local) a
 
-  let fold'' ctx f g h a =
+  let fold'' man f g h a =
     let k x r a =
-      try h a x r @@ g @@ f @@ conv ctx x
+      try h a x r @@ g @@ f @@ conv man x
       with Deadcode -> a
     in
-    Dom.fold k (fst ctx.local) a
+    Dom.fold k (fst man.local) a
 
-  let assign ctx l e    = map ctx Spec.assign  (fun h -> h l e )
-  let vdecl ctx v       = map ctx Spec.vdecl   (fun h -> h v)
-  let body   ctx f      = map ctx Spec.body    (fun h -> h f   )
-  let return ctx e f    = map ctx Spec.return  (fun h -> h e f )
-  let branch ctx e tv   = map ctx Spec.branch  (fun h -> h e tv)
-  let asm ctx           = map ctx Spec.asm     identity
-  let skip ctx          = map ctx Spec.skip    identity
-  let special ctx l f a = map ctx Spec.special (fun h -> h l f a)
-  let event ctx e octx = map_event ctx e (* TODO: ???? *)
+  let assign man l e    = map man Spec.assign  (fun h -> h l e )
+  let vdecl man v       = map man Spec.vdecl   (fun h -> h v)
+  let body   man f      = map man Spec.body    (fun h -> h f   )
+  let return man e f    = map man Spec.return  (fun h -> h e f )
+  let branch man e tv   = map man Spec.branch  (fun h -> h e tv)
+  let asm man           = map man Spec.asm     identity
+  let skip man          = map man Spec.skip    identity
+  let special man l f a = map man Spec.special (fun h -> h l f a)
+  let event man e oman = map_event man e (* TODO: ???? *)
 
-  let paths_as_set ctx =
-    let (a,b) = ctx.local in
+  let paths_as_set man =
+    let (a,b) = man.local in
     let r = Dom.bindings a in
     List.map (fun (x,v) -> (Dom.singleton x v, b)) r
 
-  let threadenter ctx ~multiple lval f args =
+  let threadenter man ~multiple lval f args =
     let g xs x' ys =
       let ys' = List.map (fun y ->
-          let yr = step ctx.prev_node (ctx.context ()) x' (ThreadEntry (lval, f, args)) (nosync x') in (* threadenter called on before-sync state *)
+          let yr = step man.prev_node (man.context ()) x' (ThreadEntry (lval, f, args)) (nosync x') in (* threadenter called on before-sync state *)
           (Dom.singleton y yr, Sync.bot ())
         ) ys
       in
       ys' @ xs
     in
-    fold' ctx (Spec.threadenter ~multiple) (fun h -> h lval f args) g []
-  let threadspawn ctx ~multiple lval f args fctx =
-    let fd1 = Dom.choose_key (fst fctx.local) in
-    map ctx (Spec.threadspawn ~multiple) (fun h -> h lval f args (conv fctx fd1))
+    fold' man (Spec.threadenter ~multiple) (fun h -> h lval f args) g []
+  let threadspawn man ~multiple lval f args fman =
+    let fd1 = Dom.choose_key (fst fman.local) in
+    map man (Spec.threadspawn ~multiple) (fun h -> h lval f args (conv fman fd1))
 
-  let sync ctx reason =
-    fold'' ctx Spec.sync (fun h -> h reason) (fun (a, async) x r a' ->
+  let sync man reason =
+    fold'' man Spec.sync (fun h -> h reason) (fun (a, async) x r a' ->
         (Dom.add a' r a, Sync.add a' (SyncSet.singleton x) async)
       ) (Dom.empty (), Sync.bot ())
 
-  let query ctx (type a) (q: a Queries.t): a Queries.result =
+  let query man (type a) (q: a Queries.t): a Queries.result =
     match q with
     | Queries.IterPrevVars f ->
       if M.tracing then M.tracei "witness" "IterPrevVars";
@@ -234,35 +234,35 @@ struct
               f (I.to_int x) (n, Obj.repr c, I.to_int j) e
             ) r;
           if M.tracing then M.traceu "witness" "" (* unindent! *)
-        ) (fst ctx.local);
+        ) (fst man.local);
       (* check that sync mappings don't leak into solution (except Function) *)
       (* TODO: disabled because we now use and leave Sync for every tf,
          such that threadspawn after tf could look up state before tf *)
-      (* begin match ctx.node with
+      (* begin match man.node with
            | Function _ -> () (* returns post-sync in FromSpec *)
-           | _ -> assert (Sync.is_bot (snd ctx.local));
+           | _ -> assert (Sync.is_bot (snd man.local));
          end; *)
       if M.tracing then M.traceu "witness" "";
       ()
     | Queries.IterVars f ->
       Dom.iter (fun x r ->
           f (I.to_int x)
-        ) (fst ctx.local);
+        ) (fst man.local);
       ()
     | Queries.PathQuery (i, q) ->
       (* TODO: optimize indexing, using inner hashcons somehow? *)
       (* let (d, _) = List.at (S.elements s) i in *)
-      let (d, _) = List.find (fun (x, _) -> I.to_int x = i) (Dom.bindings (fst ctx.local)) in
-      Spec.query (conv ctx d) q
+      let (d, _) = List.find (fun (x, _) -> I.to_int x = i) (Dom.bindings (fst man.local)) in
+      Spec.query (conv man d) q
     | Queries.Invariant ({path=Some i; _} as c) ->
       (* TODO: optimize indexing, using inner hashcons somehow? *)
       (* let (d, _) = List.at (S.elements s) i in *)
-      let (d, _) = List.find (fun (x, _) -> I.to_int x = i) (Dom.bindings (fst ctx.local)) in
-      Spec.query (conv ctx d) (Invariant c)
+      let (d, _) = List.find (fun (x, _) -> I.to_int x = i) (Dom.bindings (fst man.local)) in
+      Spec.query (conv man d) (Invariant c)
     | _ ->
       (* join results so that they are sound for all paths *)
       let module Result = (val Queries.Result.lattice q) in
-      fold' ctx Spec.query identity (fun x _ f -> Result.join x (f q)) (Result.bot ())
+      fold' man Spec.query identity (fun x _ f -> Result.join x (f q)) (Result.bot ())
 
   let should_inline f =
     (* (* inline __VERIFIER_error because Control requires the corresponding FunctionEntry node *)
@@ -270,20 +270,20 @@ struct
     (* TODO: don't inline __VERIFIER functions for CPAchecker, but inlining needed for WP *)
     true
 
-  let enter ctx l f a =
+  let enter man l f a =
     let g xs x' ys =
       let ys' = List.map (fun (x,y) ->
           (* R.bot () isn't right here? doesn't actually matter? *)
           let yr =
             if should_inline f then
-              step_ctx ctx x' (InlineEntry (l, f, a))
+              step_man man x' (InlineEntry (l, f, a))
             else
               R.bot ()
           in
           (* keep left syncs so combine gets them for no-inline case *)
           (* must lookup and short-circuit because enter may modify first in pair (e.g. abortUnless) *)
           let syncs =
-            match Sync.find x' (snd ctx.local) with
+            match Sync.find x' (snd man.local) with
             | syncs -> syncs
             | exception Not_found ->
               M.debug ~category:Witness ~tags:[Category Analyzer] "PathSensitive3 sync predecessor not found";
@@ -294,37 +294,37 @@ struct
       in
       ys' @ xs
     in
-    fold' ctx Spec.enter (fun h -> h l f a) g []
+    fold' man Spec.enter (fun h -> h l f a) g []
 
-  let combine_env ctx l fe f a fc d  f_ask =
+  let combine_env man l fe f a fc d  f_ask =
     (* Don't yet consider call edge done before assign. *)
-    assert (Dom.cardinal (fst ctx.local) = 1);
-    let (cd, cdr) = Dom.choose (fst ctx.local) in
+    assert (Dom.cardinal (fst man.local) = 1);
+    let (cd, cdr) = Dom.choose (fst man.local) in
     let k x (y, sync) =
       try
-        let x' = Spec.combine_env (conv ctx cd) l fe f a fc x f_ask in
-        (Dom.add x' cdr y, Sync.add x' (Sync.find cd (snd ctx.local)) sync) (* keep predecessors and sync from ctx, sync required for step_ctx_inlined_edge in combine_assign *)
+        let x' = Spec.combine_env (conv man cd) l fe f a fc x f_ask in
+        (Dom.add x' cdr y, Sync.add x' (Sync.find cd (snd man.local)) sync) (* keep predecessors and sync from man, sync required for step_man_inlined_edge in combine_assign *)
       with Deadcode -> (y, sync)
     in
     let d = Dom.fold_keys k (fst d) (Dom.bot (), Sync.bot ()) in
     if Dom.is_bot (fst d) then raise Deadcode else d
 
-  let combine_assign ctx l fe f a fc d  f_ask =
+  let combine_assign man l fe f a fc d  f_ask =
     (* Consider call edge done after entire call-assign. *)
-    assert (Dom.cardinal (fst ctx.local) = 1);
-    let cd = Dom.choose_key (fst ctx.local) in
+    assert (Dom.cardinal (fst man.local) = 1);
+    let cd = Dom.choose_key (fst man.local) in
     let k x (y, sync) =
       let r =
         if should_inline f then
           (* returns already post-sync in FromSpec *)
           let returnr = step (Function f) (Option.get fc) x (InlineReturn (l, f, a)) (nosync x) in (* fc should be Some outside of MCP *)
-          let procr = step_ctx_inlined_edge ctx cd in
+          let procr = step_man_inlined_edge man cd in
           R.join procr returnr
         else
-          step_ctx_edge ctx cd
+          step_man_edge man cd
       in
       try
-        let x' = Spec.combine_assign (conv ctx cd) l fe f a fc x f_ask in
+        let x' = Spec.combine_assign (conv man cd) l fe f a fc x f_ask in
         (Dom.add x' r y, Sync.add x' (SyncSet.singleton x) sync)
       with Deadcode -> (y, sync)
     in
