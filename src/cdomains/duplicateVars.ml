@@ -16,7 +16,8 @@ module VarType = struct
      But they have to be defined even though they are not used, for some reason.*)
   let equal_typ a b =
     (* TODO: Structural equality on (possibly cyclic) data type typ may not terminate in incremental analysis. *)
-    a = b
+    (* Using Stdlib.(=) instead of Stdlib.compare will not terminate even in the non-incremental case. *)
+    Stdlib.compare a b = 0
 
   let hash_typ x =
     Hashtbl.hash x
