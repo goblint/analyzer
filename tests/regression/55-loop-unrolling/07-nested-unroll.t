@@ -339,31 +339,31 @@
     if (! (j___0 < 5)) {
       goto loop_end___8;
     }
-    __goblint_check(arr[i___0][j___0] == i___0 + j___0);
+    __goblint_check((_Bool )(arr[i___0][j___0] == i___0 + j___0));
     j___0 ++;
     loop_continue_0___8: /* CIL Label */ ;
     if (! (j___0 < 5)) {
       goto loop_end___8;
     }
-    __goblint_check(arr[i___0][j___0] == i___0 + j___0);
+    __goblint_check((_Bool )(arr[i___0][j___0] == i___0 + j___0));
     j___0 ++;
     loop_continue_1___7: /* CIL Label */ ;
     if (! (j___0 < 5)) {
       goto loop_end___8;
     }
-    __goblint_check(arr[i___0][j___0] == i___0 + j___0);
+    __goblint_check((_Bool )(arr[i___0][j___0] == i___0 + j___0));
     j___0 ++;
     loop_continue_2___7: /* CIL Label */ ;
     if (! (j___0 < 5)) {
       goto loop_end___8;
     }
-    __goblint_check(arr[i___0][j___0] == i___0 + j___0);
+    __goblint_check((_Bool )(arr[i___0][j___0] == i___0 + j___0));
     j___0 ++;
     loop_continue_3___7: /* CIL Label */ ;
     if (! (j___0 < 5)) {
       goto loop_end___8;
     }
-    __goblint_check(arr[i___0][j___0] == i___0 + j___0);
+    __goblint_check((_Bool )(arr[i___0][j___0] == i___0 + j___0));
     j___0 ++;
     loop_continue_4___7: /* CIL Label */ ;
     {
@@ -372,7 +372,7 @@
       if (! (j___0 < 5)) {
         goto while_break___6;
       }
-      __goblint_check(arr[i___0][j___0] == i___0 + j___0);
+      __goblint_check((_Bool )(arr[i___0][j___0] == i___0 + j___0));
       j___0 ++;
     }
     while_break___6: /* CIL Label */ ;
@@ -389,31 +389,31 @@
     if (! (j___0 < 5)) {
       goto loop_end___9;
     }
-    __goblint_check(arr[i___0][j___0] == i___0 + j___0);
+    __goblint_check((_Bool )(arr[i___0][j___0] == i___0 + j___0));
     j___0 ++;
     loop_continue_0___9: /* CIL Label */ ;
     if (! (j___0 < 5)) {
       goto loop_end___9;
     }
-    __goblint_check(arr[i___0][j___0] == i___0 + j___0);
+    __goblint_check((_Bool )(arr[i___0][j___0] == i___0 + j___0));
     j___0 ++;
     loop_continue_1___9: /* CIL Label */ ;
     if (! (j___0 < 5)) {
       goto loop_end___9;
     }
-    __goblint_check(arr[i___0][j___0] == i___0 + j___0);
+    __goblint_check((_Bool )(arr[i___0][j___0] == i___0 + j___0));
     j___0 ++;
     loop_continue_2___8: /* CIL Label */ ;
     if (! (j___0 < 5)) {
       goto loop_end___9;
     }
-    __goblint_check(arr[i___0][j___0] == i___0 + j___0);
+    __goblint_check((_Bool )(arr[i___0][j___0] == i___0 + j___0));
     j___0 ++;
     loop_continue_3___8: /* CIL Label */ ;
     if (! (j___0 < 5)) {
       goto loop_end___9;
     }
-    __goblint_check(arr[i___0][j___0] == i___0 + j___0);
+    __goblint_check((_Bool )(arr[i___0][j___0] == i___0 + j___0));
     j___0 ++;
     loop_continue_4___8: /* CIL Label */ ;
     {
@@ -422,7 +422,7 @@
       if (! (j___0 < 5)) {
         goto while_break___7;
       }
-      __goblint_check(arr[i___0][j___0] == i___0 + j___0);
+      __goblint_check((_Bool )(arr[i___0][j___0] == i___0 + j___0));
       j___0 ++;
     }
     while_break___7: /* CIL Label */ ;
@@ -439,31 +439,31 @@
     if (! (j___0 < 5)) {
       goto loop_end___10;
     }
-    __goblint_check(arr[i___0][j___0] == i___0 + j___0);
+    __goblint_check((_Bool )(arr[i___0][j___0] == i___0 + j___0));
     j___0 ++;
     loop_continue_0___10: /* CIL Label */ ;
     if (! (j___0 < 5)) {
       goto loop_end___10;
     }
-    __goblint_check(arr[i___0][j___0] == i___0 + j___0);
+    __goblint_check((_Bool )(arr[i___0][j___0] == i___0 + j___0));
     j___0 ++;
     loop_continue_1___10: /* CIL Label */ ;
     if (! (j___0 < 5)) {
       goto loop_end___10;
     }
-    __goblint_check(arr[i___0][j___0] == i___0 + j___0);
+    __goblint_check((_Bool )(arr[i___0][j___0] == i___0 + j___0));
     j___0 ++;
     loop_continue_2___10: /* CIL Label */ ;
     if (! (j___0 < 5)) {
       goto loop_end___10;
     }
-    __goblint_check(arr[i___0][j___0] == i___0 + j___0);
+    __goblint_check((_Bool )(arr[i___0][j___0] == i___0 + j___0));
     j___0 ++;
     loop_continue_3___9: /* CIL Label */ ;
     if (! (j___0 < 5)) {
       goto loop_end___10;
     }
-    __goblint_check(arr[i___0][j___0] == i___0 + j___0);
+    __goblint_check((_Bool )(arr[i___0][j___0] == i___0 + j___0));
     j___0 ++;
     loop_continue_4___9: /* CIL Label */ ;
     {
@@ -472,7 +472,7 @@
       if (! (j___0 < 5)) {
         goto while_break___8;
       }
-      __goblint_check(arr[i___0][j___0] == i___0 + j___0);
+      __goblint_check((_Bool )(arr[i___0][j___0] == i___0 + j___0));
       j___0 ++;
     }
     while_break___8: /* CIL Label */ ;
@@ -489,31 +489,31 @@
     if (! (j___0 < 5)) {
       goto loop_end___11;
     }
-    __goblint_check(arr[i___0][j___0] == i___0 + j___0);
+    __goblint_check((_Bool )(arr[i___0][j___0] == i___0 + j___0));
     j___0 ++;
     loop_continue_0___11: /* CIL Label */ ;
     if (! (j___0 < 5)) {
       goto loop_end___11;
     }
-    __goblint_check(arr[i___0][j___0] == i___0 + j___0);
+    __goblint_check((_Bool )(arr[i___0][j___0] == i___0 + j___0));
     j___0 ++;
     loop_continue_1___11: /* CIL Label */ ;
     if (! (j___0 < 5)) {
       goto loop_end___11;
     }
-    __goblint_check(arr[i___0][j___0] == i___0 + j___0);
+    __goblint_check((_Bool )(arr[i___0][j___0] == i___0 + j___0));
     j___0 ++;
     loop_continue_2___11: /* CIL Label */ ;
     if (! (j___0 < 5)) {
       goto loop_end___11;
     }
-    __goblint_check(arr[i___0][j___0] == i___0 + j___0);
+    __goblint_check((_Bool )(arr[i___0][j___0] == i___0 + j___0));
     j___0 ++;
     loop_continue_3___11: /* CIL Label */ ;
     if (! (j___0 < 5)) {
       goto loop_end___11;
     }
-    __goblint_check(arr[i___0][j___0] == i___0 + j___0);
+    __goblint_check((_Bool )(arr[i___0][j___0] == i___0 + j___0));
     j___0 ++;
     loop_continue_4___10: /* CIL Label */ ;
     {
@@ -522,7 +522,7 @@
       if (! (j___0 < 5)) {
         goto while_break___9;
       }
-      __goblint_check(arr[i___0][j___0] == i___0 + j___0);
+      __goblint_check((_Bool )(arr[i___0][j___0] == i___0 + j___0));
       j___0 ++;
     }
     while_break___9: /* CIL Label */ ;
@@ -539,31 +539,31 @@
     if (! (j___0 < 5)) {
       goto loop_end___12;
     }
-    __goblint_check(arr[i___0][j___0] == i___0 + j___0);
+    __goblint_check((_Bool )(arr[i___0][j___0] == i___0 + j___0));
     j___0 ++;
     loop_continue_0___12: /* CIL Label */ ;
     if (! (j___0 < 5)) {
       goto loop_end___12;
     }
-    __goblint_check(arr[i___0][j___0] == i___0 + j___0);
+    __goblint_check((_Bool )(arr[i___0][j___0] == i___0 + j___0));
     j___0 ++;
     loop_continue_1___12: /* CIL Label */ ;
     if (! (j___0 < 5)) {
       goto loop_end___12;
     }
-    __goblint_check(arr[i___0][j___0] == i___0 + j___0);
+    __goblint_check((_Bool )(arr[i___0][j___0] == i___0 + j___0));
     j___0 ++;
     loop_continue_2___12: /* CIL Label */ ;
     if (! (j___0 < 5)) {
       goto loop_end___12;
     }
-    __goblint_check(arr[i___0][j___0] == i___0 + j___0);
+    __goblint_check((_Bool )(arr[i___0][j___0] == i___0 + j___0));
     j___0 ++;
     loop_continue_3___12: /* CIL Label */ ;
     if (! (j___0 < 5)) {
       goto loop_end___12;
     }
-    __goblint_check(arr[i___0][j___0] == i___0 + j___0);
+    __goblint_check((_Bool )(arr[i___0][j___0] == i___0 + j___0));
     j___0 ++;
     loop_continue_4___12: /* CIL Label */ ;
     {
@@ -572,7 +572,7 @@
       if (! (j___0 < 5)) {
         goto while_break___10;
       }
-      __goblint_check(arr[i___0][j___0] == i___0 + j___0);
+      __goblint_check((_Bool )(arr[i___0][j___0] == i___0 + j___0));
       j___0 ++;
     }
     while_break___10: /* CIL Label */ ;
@@ -592,31 +592,31 @@
       if (! (j___0 < 5)) {
         goto loop_end___6;
       }
-      __goblint_check(arr[i___0][j___0] == i___0 + j___0);
+      __goblint_check((_Bool )(arr[i___0][j___0] == i___0 + j___0));
       j___0 ++;
       loop_continue_0___6: /* CIL Label */ ;
       if (! (j___0 < 5)) {
         goto loop_end___6;
       }
-      __goblint_check(arr[i___0][j___0] == i___0 + j___0);
+      __goblint_check((_Bool )(arr[i___0][j___0] == i___0 + j___0));
       j___0 ++;
       loop_continue_1___6: /* CIL Label */ ;
       if (! (j___0 < 5)) {
         goto loop_end___6;
       }
-      __goblint_check(arr[i___0][j___0] == i___0 + j___0);
+      __goblint_check((_Bool )(arr[i___0][j___0] == i___0 + j___0));
       j___0 ++;
       loop_continue_2___6: /* CIL Label */ ;
       if (! (j___0 < 5)) {
         goto loop_end___6;
       }
-      __goblint_check(arr[i___0][j___0] == i___0 + j___0);
+      __goblint_check((_Bool )(arr[i___0][j___0] == i___0 + j___0));
       j___0 ++;
       loop_continue_3___6: /* CIL Label */ ;
       if (! (j___0 < 5)) {
         goto loop_end___6;
       }
-      __goblint_check(arr[i___0][j___0] == i___0 + j___0);
+      __goblint_check((_Bool )(arr[i___0][j___0] == i___0 + j___0));
       j___0 ++;
       loop_continue_4___6: /* CIL Label */ ;
       {
@@ -625,7 +625,7 @@
         if (! (j___0 < 5)) {
           goto while_break___12;
         }
-        __goblint_check(arr[i___0][j___0] == i___0 + j___0);
+        __goblint_check((_Bool )(arr[i___0][j___0] == i___0 + j___0));
         j___0 ++;
       }
       while_break___12: /* CIL Label */ ;

@@ -78,7 +78,7 @@
     }
     loop_end: /* CIL Label */ ;
     }
-    __goblint_check(i == 0);
+    __goblint_check((_Bool )(i == 0));
     return (0);
   }
   }

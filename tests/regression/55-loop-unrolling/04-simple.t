@@ -59,8 +59,8 @@
     }
     loop_end: /* CIL Label */ ;
     }
-    __goblint_check(a[0] == 0);
-    __goblint_check(a[3] == 3);
+    __goblint_check((_Bool )(a[0] == 0));
+    __goblint_check((_Bool )(a[3] == 3));
     return;
   }
   }

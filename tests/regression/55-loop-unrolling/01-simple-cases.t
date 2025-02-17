@@ -98,8 +98,8 @@
     }
     loop_end: /* CIL Label */ ;
     }
-    __goblint_check(a[0] == 0);
-    __goblint_check(a[3] == 3);
+    __goblint_check((_Bool )(a[0] == 0));
+    __goblint_check((_Bool )(a[3] == 3));
     return;
   }
   }
@@ -154,8 +154,8 @@
     }
     loop_end: /* CIL Label */ ;
     }
-    __goblint_check(a[0] == 0);
-    __goblint_check(a[3] == 3);
+    __goblint_check((_Bool )(a[0] == 0));
+    __goblint_check((_Bool )(a[3] == 3));
     return;
   }
   }
@@ -210,9 +210,9 @@
     }
     loop_end: /* CIL Label */ ;
     }
-    __goblint_check(a[0] == 0);
-    __goblint_check(a[3] == 0);
-    __goblint_check(a[7] == 0);
+    __goblint_check((_Bool )(a[0] == 0));
+    __goblint_check((_Bool )(a[3] == 0));
+    __goblint_check((_Bool )(a[7] == 0));
     return;
   }
   }
@@ -230,10 +230,10 @@
       goto loop_end;
     }
     if (first_iteration == 1) {
-      __goblint_check(i == 0);
+      __goblint_check((_Bool )(i == 0));
     } else
     if (i > 5) {
-      __goblint_check(i == 6);
+      __goblint_check((_Bool )(i == 6));
     }
     first_iteration = 0;
     a[i] = 0;
@@ -243,10 +243,10 @@
       goto loop_end;
     }
     if (first_iteration == 1) {
-      __goblint_check(i == 0);
+      __goblint_check((_Bool )(i == 0));
     } else
     if (i > 5) {
-      __goblint_check(i == 6);
+      __goblint_check((_Bool )(i == 6));
     }
     first_iteration = 0;
     a[i] = 0;
@@ -256,10 +256,10 @@
       goto loop_end;
     }
     if (first_iteration == 1) {
-      __goblint_check(i == 0);
+      __goblint_check((_Bool )(i == 0));
     } else
     if (i > 5) {
-      __goblint_check(i == 6);
+      __goblint_check((_Bool )(i == 6));
     }
     first_iteration = 0;
     a[i] = 0;
@@ -269,10 +269,10 @@
       goto loop_end;
     }
     if (first_iteration == 1) {
-      __goblint_check(i == 0);
+      __goblint_check((_Bool )(i == 0));
     } else
     if (i > 5) {
-      __goblint_check(i == 6);
+      __goblint_check((_Bool )(i == 6));
     }
     first_iteration = 0;
     a[i] = 0;
@@ -282,10 +282,10 @@
       goto loop_end;
     }
     if (first_iteration == 1) {
-      __goblint_check(i == 0);
+      __goblint_check((_Bool )(i == 0));
     } else
     if (i > 5) {
-      __goblint_check(i == 6);
+      __goblint_check((_Bool )(i == 6));
     }
     first_iteration = 0;
     a[i] = 0;
@@ -298,10 +298,10 @@
         goto while_break;
       }
       if (first_iteration == 1) {
-        __goblint_check(i == 0);
+        __goblint_check((_Bool )(i == 0));
       } else
       if (i > 5) {
-        __goblint_check(i == 6);
+        __goblint_check((_Bool )(i == 6));
       }
       first_iteration = 0;
       a[i] = 0;
@@ -311,8 +311,8 @@
     }
     loop_end: /* CIL Label */ ;
     }
-    __goblint_check(a[0] == 0);
-    __goblint_check(first_iteration == 0);
+    __goblint_check((_Bool )(a[0] == 0));
+    __goblint_check((_Bool )(first_iteration == 0));
     return;
   }
   }
@@ -332,9 +332,9 @@
     a[i] = 0;
     top += i;
     if (i == 2) {
-      __goblint_check(top == 3);
+      __goblint_check((_Bool )(top == 3));
     } else {
-      __goblint_check(top == 3);
+      __goblint_check((_Bool )(top == 3));
     }
     i ++;
     loop_continue_0: /* CIL Label */ ;
@@ -344,9 +344,9 @@
     a[i] = 0;
     top += i;
     if (i == 2) {
-      __goblint_check(top == 3);
+      __goblint_check((_Bool )(top == 3));
     } else {
-      __goblint_check(top == 3);
+      __goblint_check((_Bool )(top == 3));
     }
     i ++;
     loop_continue_1: /* CIL Label */ ;
@@ -356,9 +356,9 @@
     a[i] = 0;
     top += i;
     if (i == 2) {
-      __goblint_check(top == 3);
+      __goblint_check((_Bool )(top == 3));
     } else {
-      __goblint_check(top == 3);
+      __goblint_check((_Bool )(top == 3));
     }
     i ++;
     loop_continue_2: /* CIL Label */ ;
@@ -368,9 +368,9 @@
     a[i] = 0;
     top += i;
     if (i == 2) {
-      __goblint_check(top == 3);
+      __goblint_check((_Bool )(top == 3));
     } else {
-      __goblint_check(top == 3);
+      __goblint_check((_Bool )(top == 3));
     }
     i ++;
     loop_continue_3: /* CIL Label */ ;
@@ -380,9 +380,9 @@
     a[i] = 0;
     top += i;
     if (i == 2) {
-      __goblint_check(top == 3);
+      __goblint_check((_Bool )(top == 3));
     } else {
-      __goblint_check(top == 3);
+      __goblint_check((_Bool )(top == 3));
     }
     i ++;
     loop_continue_4: /* CIL Label */ ;
@@ -395,9 +395,9 @@
       a[i] = 0;
       top += i;
       if (i == 2) {
-        __goblint_check(top == 3);
+        __goblint_check((_Bool )(top == 3));
       } else {
-        __goblint_check(top == 3);
+        __goblint_check((_Bool )(top == 3));
       }
       i ++;
     }
@@ -405,9 +405,9 @@
     }
     loop_end: /* CIL Label */ ;
     }
-    __goblint_check(a[0] == 0);
-    __goblint_check(a[3] == 0);
-    __goblint_check(top == 6);
+    __goblint_check((_Bool )(a[0] == 0));
+    __goblint_check((_Bool )(a[3] == 0));
+    __goblint_check((_Bool )(top == 6));
     return;
   }
   }
@@ -425,35 +425,35 @@
       goto loop_end;
     }
     a[i] = 0;
-    __goblint_check(a[0] == 0);
+    __goblint_check((_Bool )(a[0] == 0));
     i ++;
     loop_continue_0: /* CIL Label */ ;
     if (! (i < 3)) {
       goto loop_end;
     }
     a[i] = 0;
-    __goblint_check(a[0] == 0);
+    __goblint_check((_Bool )(a[0] == 0));
     i ++;
     loop_continue_1: /* CIL Label */ ;
     if (! (i < 3)) {
       goto loop_end;
     }
     a[i] = 0;
-    __goblint_check(a[0] == 0);
+    __goblint_check((_Bool )(a[0] == 0));
     i ++;
     loop_continue_2: /* CIL Label */ ;
     if (! (i < 3)) {
       goto loop_end;
     }
     a[i] = 0;
-    __goblint_check(a[0] == 0);
+    __goblint_check((_Bool )(a[0] == 0));
     i ++;
     loop_continue_3: /* CIL Label */ ;
     if (! (i < 3)) {
       goto loop_end;
     }
     a[i] = 0;
-    __goblint_check(a[0] == 0);
+    __goblint_check((_Bool )(a[0] == 0));
     i ++;
     loop_continue_4: /* CIL Label */ ;
     {
@@ -463,16 +463,16 @@
         goto while_break;
       }
       a[i] = 0;
-      __goblint_check(a[0] == 0);
+      __goblint_check((_Bool )(a[0] == 0));
       i ++;
     }
     while_break: /* CIL Label */ ;
     }
     loop_end: /* CIL Label */ ;
     }
-    __goblint_check(a[0] == 0);
-    __goblint_check(a[3] == 0);
-    __goblint_check(top == 6);
+    __goblint_check((_Bool )(a[0] == 0));
+    __goblint_check((_Bool )(a[3] == 0));
+    __goblint_check((_Bool )(top == 6));
     return;
   }
   }
@@ -546,8 +546,8 @@
     }
     loop_end: /* CIL Label */ ;
     }
-    __goblint_check(a[0] == 0);
-    __goblint_check(a[6] == 0);
+    __goblint_check((_Bool )(a[0] == 0));
+    __goblint_check((_Bool )(a[6] == 0));
     return;
   }
   }

@@ -102,7 +102,7 @@
     }
     loop_end: /* CIL Label */ ;
     }
-    __goblint_check(j == 3);
+    __goblint_check((_Bool )(j == 3));
     return;
   }
   }

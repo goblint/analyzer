@@ -48,7 +48,7 @@
     }
     loop_end: /* CIL Label */ ;
     }
-    __goblint_check(j == 8);
+    __goblint_check((_Bool )(j == 8));
     return;
   }
   }

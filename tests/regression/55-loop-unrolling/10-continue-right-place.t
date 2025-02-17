@@ -25,7 +25,7 @@
       j = 3;
       goto loop_continue_0;
     }
-    __goblint_check(i + j == 10);
+    __goblint_check((_Bool )(i + j == 10));
     i ++;
     j --;
     loop_continue_0: /* CIL Label */ ;
@@ -37,7 +37,7 @@
       j = 3;
       goto loop_continue_1;
     }
-    __goblint_check(i + j == 10);
+    __goblint_check((_Bool )(i + j == 10));
     i ++;
     j --;
     loop_continue_1: /* CIL Label */ ;
@@ -49,7 +49,7 @@
       j = 3;
       goto loop_continue_2;
     }
-    __goblint_check(i + j == 10);
+    __goblint_check((_Bool )(i + j == 10));
     i ++;
     j --;
     loop_continue_2: /* CIL Label */ ;
@@ -61,7 +61,7 @@
       j = 3;
       goto loop_continue_3;
     }
-    __goblint_check(i + j == 10);
+    __goblint_check((_Bool )(i + j == 10));
     i ++;
     j --;
     loop_continue_3: /* CIL Label */ ;
@@ -73,7 +73,7 @@
       j = 3;
       goto loop_continue_4;
     }
-    __goblint_check(i + j == 10);
+    __goblint_check((_Bool )(i + j == 10));
     i ++;
     j --;
     loop_continue_4: /* CIL Label */ ;
@@ -85,7 +85,7 @@
       j = 3;
       goto loop_continue_5;
     }
-    __goblint_check(i + j == 10);
+    __goblint_check((_Bool )(i + j == 10));
     i ++;
     j --;
     loop_continue_5: /* CIL Label */ ;
@@ -97,7 +97,7 @@
       j = 3;
       goto loop_continue_6;
     }
-    __goblint_check(i + j == 10);
+    __goblint_check((_Bool )(i + j == 10));
     i ++;
     j --;
     loop_continue_6: /* CIL Label */ ;
@@ -109,7 +109,7 @@
       j = 3;
       goto loop_continue_7;
     }
-    __goblint_check(i + j == 10);
+    __goblint_check((_Bool )(i + j == 10));
     i ++;
     j --;
     loop_continue_7: /* CIL Label */ ;
@@ -121,7 +121,7 @@
       j = 3;
       goto loop_continue_8;
     }
-    __goblint_check(i + j == 10);
+    __goblint_check((_Bool )(i + j == 10));
     i ++;
     j --;
     loop_continue_8: /* CIL Label */ ;
@@ -133,7 +133,7 @@
       j = 3;
       goto loop_continue_9;
     }
-    __goblint_check(i + j == 10);
+    __goblint_check((_Bool )(i + j == 10));
     i ++;
     j --;
     loop_continue_9: /* CIL Label */ ;
@@ -145,7 +145,7 @@
       j = 3;
       goto loop_continue_10;
     }
-    __goblint_check(i + j == 10);
+    __goblint_check((_Bool )(i + j == 10));
     i ++;
     j --;
     loop_continue_10: /* CIL Label */ ;
@@ -160,7 +160,7 @@
         j = 3;
         goto while_continue;
       }
-      __goblint_check(i + j == 10);
+      __goblint_check((_Bool )(i + j == 10));
       i ++;
       j --;
     }
