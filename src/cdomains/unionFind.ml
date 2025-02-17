@@ -225,11 +225,9 @@ module T = struct
     else
       aux_term_of_varinfo vinfo
 
-  (** Convert a Cil offset to an integer offset.
-      Copied from memOutOfBounds.ml. *)
+  (** Convert a Cil offset to an integer offset. *)
   let cil_offs_to_idx (ask: Queries.ask) offs typ =
-    (* TODO: Some duplication with convert_offset in base.ml and cil_offs_to_idx in memOutOfBounds.ml,
-       unclear how to immediately get more reuse *)
+    (* TODO: Some duplication with convert_offset in base.ml and cil_offs_to_idx in memOutOfBounds.ml, unclear how to immediately get more reuse. *)
     let rec convert_offset (ofs: offset) =
       match ofs with
       | NoOffset ->
