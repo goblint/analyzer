@@ -853,7 +853,7 @@ module UnionFind = struct
       end
 
   (**
-     For a variable t it returns the reference variable v and the offset r.
+     For a variable v it returns the reference variable v' and the offset r'.
      This find DOES NOT perform path compression.
 
      Throws "Unknown value" if t is not present in the data structure.
