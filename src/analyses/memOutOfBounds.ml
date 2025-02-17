@@ -174,7 +174,7 @@ struct
         `Index (ID.top (), convert_offset ofs)
       | Index (exp, ofs) ->
         let i = match man.ask (Queries.EvalInt exp) with
-          | `Lifted x -> x
+          | `Lifted x -> ID.cast_to (Cilfacade.ptrdiff_ikind ()) x
           | _ -> ID.top_of @@ Cilfacade.ptrdiff_ikind ()
         in
         `Index (i, convert_offset ofs)
