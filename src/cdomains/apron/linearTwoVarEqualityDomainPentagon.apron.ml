@@ -356,15 +356,22 @@ struct
         in Value.of_congruence @@ (Z.mul (Z.neg o) (inverse c d), d)
       in
       let meet_with_rhs _ rhs i = match rhs with
-        | (Some (c, v), o, d) when v = lhs -> Value.meet i (congruence_of_rhs (c, o, d))
+        | (Some (c, v), o, d) when v = lhs ->  begin
+            let cong = (congruence_of_rhs (c, o, d)) in
+            let res = Value.meet i cong in
+            if M.tracing then M.tracel "refine_pentagon" "refining %s with rhs %s (constraint: %s) -> %s" (Value.show i) (Rhs.show rhs) (Value.show cong) (Value.show res);
+            res
+          end
         | _ -> i
       in
       IntMap.fold meet_with_rhs (snd econ) i 
     in 
     let set_interval_for_root lhs i =
-      let i = refine econ lhs i in
       if M.tracing then M.tracel "modify_pentagon" "set_interval_for_root var_%d=%s" lhs (Value.show i);
+      let i = refine econ lhs i in
+      if M.tracing then M.tracel "modify_pentagon" "set_interval_for_root refined to %s" (Value.show i);
       if i = Value.top then (econ, IntMap.remove lhs is) (*stay sparse*)
+      else if Value.is_bot i then raise EConj.Contradiction
       else match Value.to_int i with
         | Some (Int x) ->  (*If we have a constant, update all equations refering to this root*)
           let update_references = function
