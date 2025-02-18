@@ -541,7 +541,7 @@
                 "type": "string",
                 "enum": [
                   "congruence",
-                  "singleThreaded",
+                  "reduceAnalyses",
                   "mallocWrappers",
                   "noRecursiveIntervals",
                   "enums",
@@ -559,7 +559,7 @@
               },
               "default": [
                 "congruence",
-                "singleThreaded",
+                "reduceAnalyses",
                 "mallocWrappers",
                 "noRecursiveIntervals",
                 "enums",
