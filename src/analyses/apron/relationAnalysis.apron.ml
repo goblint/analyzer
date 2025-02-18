@@ -356,16 +356,14 @@ struct
     let st = man.local in
     let ask = Analyses.ask_of_man man in
     let new_rel =
-      if RD.Tracked.type_tracked (Cilfacade.fundec_return_type f) then (
+      if RD.Tracked.type_tracked (Cilfacade.fundec_return_type f) then
         let rel' = RD.add_vars st.rel [RV.return] in
-        match e with
-        | Some e ->
+        Option.map_default (fun e ->
           assign_from_globals_wrapper ask man.global {st with rel = rel'} e (fun rel' e' ->
               RD.assign_exp ask rel' RV.return e' (no_overflow ask e)
-            )
-        | None ->
-          rel' (* leaves V.return unconstrained *)
-      )
+              )
+          ) rel' e
+        (* default value rel' leaves V.return unconstrained *)
       else
         RD.copy st.rel
     in
@@ -436,20 +434,18 @@ struct
 
   let combine_assign man r fe f args fc fun_st (f_ask : Queries.ask) =
     let unify_st = man.local in
-    if RD.Tracked.type_tracked (Cilfacade.fundec_return_type f) then (
-      let unify_st' = match r with
-        | Some lv ->
+    if RD.Tracked.type_tracked (Cilfacade.fundec_return_type f) then
+      let unify_st' = Option.map_default (fun lv ->
           let ask = Analyses.ask_of_man man in
           assign_to_global_wrapper ask man.global man.sideg unify_st lv (fun st v ->
               let rel = RD.assign_var st.rel (RV.local v) RV.return in
               assert_type_bounds ask rel v (* TODO: should be done in return instead *)
             )
-        | None ->
-          unify_st
+        )
+          unify_st r
       in
       RD.remove_vars_with unify_st'.rel [RV.return]; (* mutates! *)
       unify_st'
-    )
     else
       unify_st
 
