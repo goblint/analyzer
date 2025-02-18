@@ -202,9 +202,6 @@ struct
     (show_list xl) ^ Val.show xr ^ ")"
   let pretty () x = text "Array: " ++ text (show x)
   let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
-  let extract x default = match x with
-    | Some c -> c
-    | None -> default
   let get ?(checkBounds=true)  (ask: VDQ.t) (xl, xr) (_,i) =
     let search_unrolled_values min_i max_i =
       let rec subjoin l i = match l with
@@ -218,8 +215,8 @@ struct
           end in
       subjoin xl Z.zero in
     let f = Z.of_int (factor ()) in
-    let min_i = extract (Idx.minimal i) Z.zero in
-    let max_i = extract (Idx.maximal i) f in
+    let min_i = BatOption.default Z.zero (Idx.minimal i) in
+    let max_i = BatOption.default f (Idx.maximal i) in
     if Z.geq min_i f then xr
     else if Z.lt max_i f then search_unrolled_values min_i max_i
     else Val.join xr (search_unrolled_values min_i (Z.of_int ((factor ())-1)))
@@ -239,8 +236,8 @@ struct
       if Z.equal min_i max_i then full_update xl Z.zero
       else weak_update xl Z.zero in
     let f = Z.of_int (factor ()) in
-    let min_i = extract(Idx.minimal i) Z.zero in
-    let max_i = extract(Idx.maximal i) f in
+    let min_i = BatOption.default Z.zero (Idx.minimal i) in
+    let max_i = BatOption.default f (Idx.maximal i) in
     if Z.geq min_i f then (xl, (Val.join xr v))
     else if Z.lt max_i f then ((update_unrolled_values min_i max_i), xr)
     else ((update_unrolled_values min_i (Z.of_int ((factor ())-1))), (Val.join xr v))
