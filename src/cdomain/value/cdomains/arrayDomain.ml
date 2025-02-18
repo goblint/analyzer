@@ -498,32 +498,26 @@ struct
         x
       else
         (* check if one part covers the entire array, so we can drop partitioning *)
-        begin
-          let e_must_bigger_max_index =
-            match length with
-            | Some l ->
-              begin
-                match Idx.to_int l with
-                | Some i ->
-                  let b = VDQ.may_be_less ask.eval_int e (Cil.kintegerCilint (Cilfacade.ptrdiff_ikind ()) i) in
-                  not b (* !(e <_{may} length) => e >=_{must} length *)
-                | None -> false
-              end
-            | _ -> false
-          in
-          let e_must_less_zero =
+        let e_must_bigger_max_index = GobOption.exists (fun i ->
+            let b = VDQ.may_be_less ask.eval_int e (Cil.kintegerCilint (Cilfacade.ptrdiff_ikind ()) i) in
+            not b (* !(e <_{may} length) => e >=_{must} length *)
+          ) (Option.bind length Idx.to_int)
+        in
+
+        if e_must_bigger_max_index then
+          (* Entire array is covered by left part, dropping partitioning. *)
+          Joint xl
+        else
+          let e_must_less_zero  =
             VDQ.eval_int_binop (module BoolDomain.MustBool) Lt ask.eval_int e Cil.zero (* TODO: untested *)
           in
-          if e_must_bigger_max_index then
-            (* Entire array is covered by left part, dropping partitioning. *)
-            Joint xl
-          else if e_must_less_zero then
+          if e_must_less_zero then
             (* Entire array is covered by right value, dropping partitioning. *)
             Joint xr
           else
             (* If we can not drop partitioning, move *)
             move (movement_for_exp e) (e, (xl,xm, xr))
-        end
+
     | _ -> x (* If the array is not partitioned, nothing to do *)
 
   let move_if_affected ?replace_with_const = move_if_affected_with_length ?replace_with_const None
@@ -531,7 +525,7 @@ struct
   let set_with_length length (ask:VDQ.t) x (i,_) a =
     if M.tracing then M.trace "update_offset" "part array set_with_length %a %s %a" pretty x (BatOption.map_default Basetype.CilExp.show "None" i) Val.pretty a;
     match i with
-    | Some ie when CilType.Exp.equal ie (Lazy.force Offset.Index.Exp.all) ->
+    | Some i when CilType.Exp.equal i (Lazy.force Offset.Index.Exp.all) ->
       (* TODO: Doesn't seem to work for unassume. *)
       Joint a
     | Some i when CilType.Exp.equal i (Lazy.force Offset.Index.Exp.any) ->
@@ -547,16 +541,9 @@ struct
         let n = ask.eval_int e in
         VDQ.ID.to_int n
       in
-      let equals_zero e = BatOption.map_default (Z.equal Z.zero) false (exp_value e) in
+      let equals_zero e = GobOption.exists (Z.equal Z.zero) (exp_value e) in
       let equals_maxIndex e =
-        match length with
-        | Some l ->
-          begin
-            match Idx.to_int l with
-            | Some i -> BatOption.map_default (Z.equal (Z.pred i)) false (exp_value e)
-            | None -> false
-          end
-        | _ -> false
+        GobOption.exists2 (fun l -> Z.equal (Z.pred l)) (Option.bind length Idx.to_int) (exp_value e)
       in
       let lubIfNotBot x = if Val.is_bot x then x else Val.join a x in
       match x with
@@ -663,19 +650,14 @@ struct
 
   let length _ = None
 
+  let must_i_one_smaller l i =
+    GobOption.exists2 (fun l i -> Z.equal i (Z.pred l)) (Option.bind l Idx.to_int) i
+
+  let must_be_zero = GobOption.exists (Z.equal Z.zero)
+
   let smart_op (op: Val.t -> Val.t -> Val.t) length x1 x2 x1_eval_int x2_eval_int =
     normalize @@
-    let must_be_length_minus_one v = match length with
-      | Some l ->
-        begin
-          match Idx.to_int l with
-          | Some i ->
-            v = Some (Z.pred i)
-          | None -> false
-        end
-      | None -> false
-    in
-    let must_be_zero v = v = Some Z.zero in
+    let must_be_length_minus_one = must_i_one_smaller length in
     let op_over_all = op (join_of_all_parts x1) (join_of_all_parts x2) in
     match x1, x2 with
     | Partitioned (e1, (xl1, xm1, xr1)), Partitioned (e2, (xl2, xm2, xr2)) when Basetype.CilExp.equal e1 e2 ->
@@ -739,17 +721,7 @@ struct
 
   let smart_leq_with_length length x1_eval_int x2_eval_int x1 x2 =
     let leq' = Val.smart_leq x1_eval_int x2_eval_int in
-    let must_be_zero v = (v = Some Z.zero) in
-    let must_be_length_minus_one v =  match length with
-      | Some l ->
-        begin
-          match Idx.to_int l with
-          | Some i ->
-            v = Some (Z.pred i)
-          | None -> false
-        end
-      | None -> false
-    in
+    let must_be_length_minus_one = must_i_one_smaller length in
     match x1, x2 with
     | Joint x1, Joint x2 ->
       leq' x1 x2
@@ -830,10 +802,10 @@ end
 (* This is the main array out of bounds check *)
 let array_oob_check ( type a ) (module Idx: IntDomain.Z with type t = a) (x, l) (e, v) =
   if GobConfig.get_bool "ana.arrayoob" then (* The purpose of the following 2 lines is to give the user extra info about the array oob *)
-    let idx_before_end = Idx.to_bool (Idx.lt v l) (* check whether index is before the end of the array *)
-    and idx_after_start = Idx.to_bool (Idx.ge v (Idx.of_int (Cilfacade.ptrdiff_ikind ()) Z.zero)) in (* check whether the index is non-negative *)
+    let idx_before_end = Idx.to_bool (Idx.lt v l) in (* check whether index is before the end of the array *)
+    let idx_after_start = Idx.to_bool (Idx.ge v (Idx.of_int (Cilfacade.ptrdiff_ikind ()) Z.zero)) in (* check whether the index is non-negative *)
     (* For an explanation of the warning types check the Pull Request #255 *)
-    match(idx_after_start, idx_before_end) with
+    match idx_after_start, idx_before_end with
     | Some true, Some true -> (* Certainly in bounds on both sides.*)
       ()
     | Some true, Some false -> (* The following matching differentiates the must and may cases*)
