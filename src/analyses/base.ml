@@ -518,7 +518,7 @@ struct
   (* From a list of values, presumably arguments to a function, simply extract
    * the pointer arguments. *)
   let get_ptrs (vals: value list): address list =
-    let f (x:value) acc = match x with
+    let f acc (x:value) = match x with
       | Address adrs when AD.is_top adrs ->
         M.info ~category:Unsound "Unknown address given as function argument"; acc
       | Address adrs when AD.to_var_may adrs = [] -> acc
@@ -528,7 +528,7 @@ struct
       | Top -> M.info ~category:Unsound "Unknown value type given as function argument"; acc
       | _ -> acc
     in
-    List.fold_right f vals []
+    List.fold_left f [] vals
 
   let rec reachable_from_value ask (value: value) (t: typ) (description: string)  =
     let empty = AD.empty () in
@@ -572,7 +572,7 @@ struct
     if M.tracing then M.traceli "reachability" "Checking reachable arguments from [%a]!" (d_list ", " AD.pretty) args;
     let empty = AD.empty () in
     (* We begin looking at the parameters: *)
-    let argset = List.fold_right (AD.join) args empty in
+    let argset = List.fold_left (AD.join) empty args in
     let workset = ref argset in
     (* And we keep a set of already visited variables *)
     let visited = ref empty in

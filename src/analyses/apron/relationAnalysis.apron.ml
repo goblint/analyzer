@@ -465,17 +465,15 @@ struct
 
   (* Give the set of reachables from argument. *)
   let reachables (ask: Queries.ask) es =
-    let reachable e st =
-      match st with
-      | None -> None
-      | Some st ->
+    let reachable acc e =
+      Option.bind acc (fun st ->
         let ad = ask.f (Queries.ReachableFrom e) in
         if Queries.AD.is_top ad then
           None
         else
-          Some (Queries.AD.join ad st)
+          Some (Queries.AD.join ad st))
     in
-    List.fold_right reachable es (Some (Queries.AD.empty ()))
+    List.fold_left reachable (Some (Queries.AD.empty ())) es
 
 
   let forget_reachable man st es =

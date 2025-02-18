@@ -299,15 +299,15 @@ struct
       let ex = if Z.gt x Z.zero || Z.lt y Z.zero then S.singleton Z.zero else  S.empty () in
       norm ik @@ (`Excluded (ex, r))
 
-  let to_bitfield ik x = 
-    match x with 
-    | `Definite c -> (Z.lognot c, c) 
-    | _ when Cil.isSigned ik -> 
-      let one_mask = Z.lognot Z.zero in 
+  let to_bitfield ik x =
+    match x with
+    | `Definite c -> (Z.lognot c, c)
+    | _ when Cil.isSigned ik ->
+      let one_mask = Z.lognot Z.zero in
       (one_mask, one_mask)
-    | _ -> 
-      let one_mask = Z.lognot Z.zero in 
-      let ik_mask = snd (Size.range ik) in 
+    | _ ->
+      let one_mask = Z.lognot Z.zero in
+      let ik_mask = snd (Size.range ik) in
       (one_mask, ik_mask)
 
   let starting ?(suppress_ovwarn=false) ikind x =
@@ -321,6 +321,9 @@ struct
   let of_excl_list t l =
     let r = size t in (* elements in l are excluded from the full range of t! *)
     `Excluded (List.fold_right S.add l (S.empty ()), r)
+  (* TODO: Change after #1686 has landed *)
+  (* `Excluded (S.of_list l, r) *)
+
   let is_excl_list l = match l with `Excluded _ -> true | _ -> false
   let to_excl_list (x:t) = match x with
     | `Definite _ -> None
@@ -542,8 +545,8 @@ struct
 
   let refine_with_congruence ik a b = a
 
-  let refine_with_bitfield ik x (z,o) = 
-    match BitfieldDomain.Bitfield.to_int (z,o) with 
+  let refine_with_bitfield ik x (z,o) =
+    match BitfieldDomain.Bitfield.to_int (z,o) with
     | Some y ->
       meet ik x (`Definite y)
     | _ ->
