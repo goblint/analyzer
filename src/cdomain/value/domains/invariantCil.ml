@@ -59,10 +59,8 @@ let exclude_vars_regexp = ResettableLazy.from_fun (fun () ->
 (* let var_is_tmp {vdescrpure} = not vdescrpure (* doesn't exclude tmp___0 *) *)
 (* TODO: instead check if vdescr is nonempty? (doesn't cover all cases, e.g. ternary temporary) *)
 let varname_is_tmp vname = Str.string_match (ResettableLazy.force exclude_vars_regexp) vname 0
-let var_is_tmp vi =
-  match Cilfacade.find_original_name vi with
-  | None -> true
-  | Some vname -> varname_is_tmp vname
+let var_is_tmp vi = BatOption.map_default varname_is_tmp true (Cilfacade.find_original_name vi)
+
 class exp_contains_tmp_visitor (acc: bool ref) = object
   inherit nopCilVisitor as super
   method! vvrbl (vi: varinfo) =

@@ -282,9 +282,7 @@ struct
     include S
 
     let system x =
-      match S.system x with
-      | None -> None
-      | Some f ->
+      Option.map (fun f ->
         let f' get set =
           let old_current_var = !current_var in
           current_var := Some x;
@@ -294,6 +292,7 @@ struct
               f get set
             )
         in
-        Some f'
+        f'
+        ) (S.system x)
   end
 end

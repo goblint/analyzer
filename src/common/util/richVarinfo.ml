@@ -57,11 +57,7 @@ struct
 
   let marshal () = !xh
 
-  let unmarshal = function
-    | Some xh_loaded ->
-      xh := xh_loaded
-    | None -> ()
-
+  let unmarshal = Option.iter ((:=) xh)
   let bindings () = List.of_seq (XH.to_seq !xh)
 end
 
