@@ -1,4 +1,4 @@
-open VectorFunctor
+open Vector
 open RatOps
 open ConvenienceOps
 
@@ -7,6 +7,37 @@ open Batteries
 
 module List = BatList
 module Array = BatArray
+
+module type SparseVector = 
+sig 
+  include Vector
+  val is_zero_vec: t -> bool
+
+  val insert_zero_at_indices: t -> (int * int) list -> int -> t
+
+  val remove_at_indices: t -> int list -> t
+
+  (* Returns the part of the vector starting from index n*)
+  val starting_from_nth : t -> int -> t
+
+  val find_first_non_zero : t -> (int * num) option
+
+  val map_f_preserves_zero: (num -> num) -> t -> t
+
+  val mapi_f_preserves_zero: (int -> num -> num) -> t -> t
+
+  val map2_f_preserves_zero: (num -> num -> num) -> t ->  t -> t
+
+  val find2i_f_false_at_zero: (num -> num -> bool) -> t -> t -> int
+
+  val apply_with_c_f_preserves_zero: (num -> num -> num) -> num ->  t ->  t
+end
+
+module type SparseVectorFunctor =
+  functor (A: RatOps) ->
+  sig 
+    include SparseVector with type num:= A.t
+  end
 
 module SparseVector: SparseVectorFunctor =
   functor (A: RatOps) ->

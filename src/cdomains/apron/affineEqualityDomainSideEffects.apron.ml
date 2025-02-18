@@ -14,8 +14,8 @@ module M = Messages
 open GobApron
 
 open ConvenienceOps
-open VectorFunctor
-open MatrixFunctor
+open ArrayVector
+open ArrayMatrix
 
 open Batteries
 module Array = BatArray

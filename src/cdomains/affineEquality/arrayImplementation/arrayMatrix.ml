@@ -1,11 +1,43 @@
-open VectorFunctor
-open MatrixFunctor
-
+open Matrix
+open ArrayVector
 open RatOps
 open ConvenienceOps
 
 open Batteries
 module Array = Batteries.Array
+
+let timing_wrap = Vector.timing_wrap
+
+module type ArrayMatrix = 
+sig
+  include Matrix
+  val get_col: t -> int -> vec
+
+  val set_col_with: t -> vec -> int -> t
+
+  val del_col: t -> int -> t
+
+  val reduce_col_with: t -> int -> unit
+
+  val normalize_with: t -> bool
+
+  val rref_vec_with: t -> vec -> t Option.t
+
+  val rref_matrix_with: t -> t -> t Option.t
+
+  val map2_with: (vec -> num -> vec) -> t -> vec -> unit
+
+  val map2i_with: (int -> vec -> num -> vec) -> t -> vec -> unit
+
+  val append_matrices: t -> t -> t
+end
+
+(** Some functions inside have the suffix _with, which means that the function has side effects. *)
+module type ArrayMatrixFunctor =
+  functor (A: RatOps) (V: ArrayVectorFunctor) ->
+  sig
+    include ArrayMatrix with type vec := V(A).t and type num := A.t
+  end
 
 (** Array-based matrix implementation.
     It provides a normalization function to reduce a matrix into reduced row echelon form.
