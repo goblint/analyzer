@@ -343,35 +343,35 @@ struct
     if M.tracing then M.tracel "get_interval" "reading var_%d from %s -> %s" lhs (show t) (Value.show res);
     res
 
+  let constrain_with_congruence_from_rhs econ lhs i =(**TODO do not recalculate this every time?*)
+    (*calculate the congruence constraint for x from a single equation (cx + o) / d  *)
+    let congruence_of_rhs (c, o, d) =
+      (*adapted euclids extended algorithm for calculating the modular multiplicative inverse*)
+      let rec inverse t r t_old r_old = 
+        if Z.equal r Z.zero 
+        then t_old
+        else 
+          let q = Z.div r_old r in
+          inverse (Z.sub t_old (Z.mul q t)) (Z.sub r_old (Z.mul q r)) t r
+      in let inverse a n = inverse Z.one a Z.zero n
+      (*  x = -o c^-1 (mod d)   *)
+      in Value.of_congruence @@ (Z.mul (Z.neg o) (inverse c d), d)
+    in
+    let meet_with_rhs _ rhs i = match rhs with
+      | (Some (c, v), o, d) when v = lhs ->  begin
+          let cong = (congruence_of_rhs (c, o, d)) in
+          let res = Value.meet i cong in
+          if M.tracing then M.tracel "refine_pentagon" "refining %s with rhs %s (constraint: %s) -> %s" (Value.show i) (Rhs.show rhs) (Value.show cong) (Value.show res);
+          res
+        end
+      | _ -> i
+    in
+    IntMap.fold meet_with_rhs (snd econ) i 
+
   let set_interval ((econ, is):t) lhs i =
-    let refine econ lhs i =(**TODO do not recalculate this every time?*)
-      (*calculate the congruence constraint for x from a single equation (cx + o) / d  *)
-      let congruence_of_rhs (c, o, d) =
-        (*adapted euclids extended algorithm for calculating the modular multiplicative inverse*)
-        let rec inverse t r t_old r_old = 
-          if Z.equal r Z.zero 
-          then t_old
-          else 
-            let q = Z.div r_old r in
-            inverse (Z.sub t_old (Z.mul q t)) (Z.sub r_old (Z.mul q r)) t r
-        in let inverse a n = inverse Z.one a Z.zero n
-        (*  x = -o c^-1 (mod d)   *)
-        in Value.of_congruence @@ (Z.mul (Z.neg o) (inverse c d), d)
-      in
-      let meet_with_rhs _ rhs i = match rhs with
-        | (Some (c, v), o, d) when v = lhs ->  begin
-            let cong = (congruence_of_rhs (c, o, d)) in
-            let res = Value.meet i cong in
-            if M.tracing then M.tracel "refine_pentagon" "refining %s with rhs %s (constraint: %s) -> %s" (Value.show i) (Rhs.show rhs) (Value.show cong) (Value.show res);
-            res
-          end
-        | _ -> i
-      in
-      IntMap.fold meet_with_rhs (snd econ) i 
-    in 
     let set_interval_for_root lhs i =
       if M.tracing then M.tracel "modify_pentagon" "set_interval_for_root var_%d=%s, before: %s" lhs (Value.show i) (show (econ, is));
-      let i = refine econ lhs i in
+      let i = constrain_with_congruence_from_rhs econ lhs i in
       if M.tracing then M.tracel "modify_pentagon" "set_interval_for_root refined to %s" (Value.show i);
       if i = Value.top then (econ, IntMap.remove lhs is) (*stay sparse*)
       else if Value.is_bot i then raise EConj.Contradiction
@@ -486,6 +486,11 @@ struct
       let res =  set_interval t var new_interval
       in if M.tracing then M.tracel "meet_interval" "meet var_%d: before: %s meeting: %s -> %s, total: %s-> %s" (var) (Value.show @@ get_interval t var) (Value.show interval) (Value.show new_interval) (show t) (show res);
       res
+
+  let join_with_one_value var value (t:t) = 
+    let (_,cong) = constrain_with_congruence_from_rhs (fst t) var (Value.top) in
+    let value' = Value.join value (Value.I.bot (), cong) in
+    set_interval t var value' 
 end
 
 (** [VarManagement] defines the type t of the affine equality domain (a record that contains an optional matrix and an apron environment) and provides the functions needed for handling variables (which are defined by [RelationDomain.D2]) such as [add_vars], [remove_vars].
@@ -783,7 +788,7 @@ struct
       if vars < 0 then t
       else if EConj.nontrivial econj_joined vars then collect_intervals x y econj_joined (vars-1) t (*we only need intervals for roots of the connected components*)
       else let joined_interval = join_function (EConjI.get_interval x vars) (EConjI.get_interval y vars) in
-        collect_intervals x y econj_joined (vars-1) (EConjI.set_interval t vars joined_interval )
+        collect_intervals x y econj_joined (vars-1) (EConjI.join_with_one_value vars joined_interval t)
     in
     let join_d x y env = 
       let econj' = join_econj (fst x) (fst y) env in
