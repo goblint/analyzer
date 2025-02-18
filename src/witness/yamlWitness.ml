@@ -454,7 +454,7 @@ struct
                   | `Lifted c_inv ->
                     (* Collect all start states that may satisfy the invariant of current_c *)
                     List.iter (fun c ->
-                        let x = R.ask_local (c.node, c.context) ~local:c.state (Queries.EvalInt c_inv) in
+                        let x = R.ask_local (c.node, c.context) ~local:c.state (Queries.EvalInt c_inv) in (* TODO: Queries.eval_bool? *)
                         if Queries.ID.is_bot x || Queries.ID.is_bot_ikind x then (* dead code *)
                           failwith "Bottom not expected when querying context state" (* Maybe this is reachable, failwith for now so we see when this happens *)
                         else if Queries.ID.to_bool x = Some false then () (* Nothing to do, the c does definitely not satisfy the predicate of current_c *)
@@ -747,7 +747,7 @@ struct
 
               let result: VR.result = match InvariantParser.parse_cil inv_parser ~fundec ~loc inv_cabs with
                 | Ok inv_exp ->
-                  let x = ask_local lvar (Queries.EvalInt inv_exp) in
+                  let x = ask_local lvar (Queries.EvalInt inv_exp) in (* TODO: Queries.eval_bool? *)
                   if Queries.ID.is_bot x || Queries.ID.is_bot_ikind x then (* dead code *)
                     Option.get (VR.result_of_enum (VR.bot ()))
                   else (
@@ -859,7 +859,7 @@ struct
 
                 match InvariantParser.parse_cil inv_parser ~fundec ~loc pre_cabs with
                 | Ok pre_exp ->
-                  let x = ask_local pre_lvar (Queries.EvalInt pre_exp) in
+                  let x = ask_local pre_lvar (Queries.EvalInt pre_exp) in (* TODO: Queries.eval_bool? *)
                   if Queries.ID.is_bot x || Queries.ID.is_bot_ikind x then (* dead code *)
                     true
                   else (

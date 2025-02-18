@@ -228,7 +228,7 @@ struct
       warn_for_multi_threaded_due_to_abort man;
       state
     | Assert { exp; _ } ->
-      begin match man.ask (Queries.EvalInt exp) with
+      begin match man.ask (Queries.EvalInt exp) with (* TODO: Queries.eval_bool? *)
         | a when Queries.ID.is_bot a -> M.warn ~category:Assert "assert expression %a is bottom" d_exp exp
         | a ->
           begin match Queries.ID.to_bool a with
