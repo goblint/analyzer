@@ -164,7 +164,7 @@ struct
   let return_addr () = !return_addr_
 
   let return man (exp:exp option) (f:fundec) : D.t =
-    let remove_var x v = List.fold_left (Fun.flip @@ D.remove) x (to_addrs v) in
+    let remove_var x v = List.fold_left (Fun.flip D.remove) x (to_addrs v) in
     let nst = List.fold_left remove_var man.local (f.slocals @ f.sformals) in
     match exp with
     | Some ret ->

@@ -43,7 +43,7 @@ struct
   let assign man lval rval = invalidate_lval (Analyses.ask_of_man man) lval man.local
 
   let return man exp fundec =
-    let rm list acc = List.fold_left (Fun.flip @@ D.remove_var) acc list in
+    let rm list acc = List.fold_left (Fun.flip D.remove_var) acc list in
     rm fundec.slocals (rm fundec.sformals man.local)
 
   let enter man lval f args = [(man.local,man.local)]
