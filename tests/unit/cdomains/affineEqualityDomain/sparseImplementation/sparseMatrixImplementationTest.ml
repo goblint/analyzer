@@ -1,5 +1,5 @@
 (*
-  To run this, type `dune runtest tests/unit/`. 
+  To run this (and all other unit tests), type `dune runtest tests/unit/`. 
 *)
 
 open Goblint_lib
@@ -345,7 +345,7 @@ let get_col_upper_triangular _ =
 
   assert_equal expected result
 
-let tests =
+let test () =
   "SparseMatrixImplementationTest"
   >::: [
     "can solve a standard normalization" >:: standard_normalize;
@@ -370,5 +370,3 @@ let tests =
     "map zero preserving normal" >:: vectorMap_zero_preserving_normal;
     "get column when matrix in rref" >:: get_col_upper_triangular;
   ]
-
-let () = run_test_tt_main tests
