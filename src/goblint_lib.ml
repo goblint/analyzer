@@ -444,7 +444,6 @@ module ArrayMatrix = ArrayMatrix
 module SparseVector = SparseVector
 module ListMatrix = ListMatrix
 module RatOps = RatOps
-module ConvenienceOps = ConvenienceOps
 
 module SharedFunctions = SharedFunctions
 module GobApron = GobApron

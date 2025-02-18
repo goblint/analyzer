@@ -14,7 +14,6 @@ open Pretty
 module M = Messages
 open GobApron
 
-open ConvenienceOps
 open VectorFunctor
 open MatrixFunctor
 
@@ -53,7 +52,7 @@ struct
   let dim_add = Matrix.dim_add
 
   include SharedFunctions.VarManagementOps(AffineEqualityMatrix (Vec) (Mx))
-  include ConvenienceOps(Mpqf)
+  include RatOps.ConvenienceOps(Mpqf)
 
   (** Get the constant from the vector if it is a constant *)
 
@@ -152,7 +151,7 @@ end
 module D(Vc: SparseVectorFunctor) (Mx: SparseMatrixFunctor) =
 struct
   include Printable.Std
-  include ConvenienceOps (Mpqf)
+  include RatOps.ConvenienceOps (Mpqf)
   include VarManagement (Vc) (Mx)
 
   module Bounds = ExpressionBounds (Vc) (Mx)

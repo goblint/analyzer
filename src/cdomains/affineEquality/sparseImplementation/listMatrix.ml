@@ -1,7 +1,6 @@
 open MatrixFunctor
 open VectorFunctor
 open RatOps
-open ConvenienceOps
 
 open BatList
 module List = BatList

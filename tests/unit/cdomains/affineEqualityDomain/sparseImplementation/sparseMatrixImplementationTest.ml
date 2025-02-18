@@ -6,12 +6,11 @@ open Goblint_lib
 open OUnit2
 open SparseVector
 open ListMatrix
-open ConvenienceOps
 
 module D = SharedFunctions.Mpqf
 module Vector = SparseVector (D)
 module Matrix = ListMatrix (D) (SparseVector)
-include ConvenienceOps(D)
+include RatOps.ConvenienceOps(D)
 
 (** Shorthands for common functions. *)
 let int x = D.of_int x

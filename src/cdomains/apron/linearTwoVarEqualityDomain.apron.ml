@@ -13,8 +13,6 @@ open Pretty
 module M = Messages
 open GobApron
 
-open ConvenienceOps
-
 module Mpqf = SharedFunctions.Mpqf
 
 module Rhs = struct
@@ -372,7 +370,7 @@ end
 module D =
 struct
   include Printable.Std
-  include ConvenienceOps (Mpqf)
+  include RatOps.ConvenienceOps (Mpqf)
   include VarManagement
 
   module Bounds = ExpressionBounds

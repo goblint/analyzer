@@ -2,7 +2,6 @@ open VectorFunctor
 open MatrixFunctor
 
 open RatOps
-open ConvenienceOps
 
 open Batteries
 module Array = Batteries.Array
