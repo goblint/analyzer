@@ -518,14 +518,10 @@ struct
     match desc.special args, f.vname with
     | Assert { exp; refine; _ }, _ -> assert_fn man exp refine
     | ThreadJoin { thread = id; ret_var = retvar }, _ ->
-      (
-        (* Forget value that thread return is assigned to *)
-        let st' = forget_reachable man st [retvar] in
-        let st' = Priv.thread_join ask man.global id st' in
-        match r with
-        | Some lv -> invalidate_one ask man st' lv
-        | None -> st'
-      )
+      (* Forget value that thread return is assigned to *)
+      let st' = forget_reachable man st [retvar] in
+      let st' = Priv.thread_join ask man.global id st' in
+      Option.map_default (invalidate_one ask man st') st' r
     | ThreadExit _, _ ->
       begin match ThreadId.get_current ask with
         | `Lifted tid ->
@@ -540,11 +536,10 @@ struct
       let id = List.hd args in
       Priv.thread_join ~force:true ask man.global id st
     | Rand, _ ->
-      (match r with
-       | Some lv ->
+      Option.map_default (fun lv ->
          let st = invalidate_one ask man st lv in
          assert_fn {man with local = st} (BinOp (Ge, Lval lv, zero, intType)) true
-       | None -> st)
+        ) st r
     | _, _ ->
       let lvallist e =
         match ask.f (Queries.MayPointTo e) with
@@ -572,10 +567,7 @@ struct
       let shallow_lvals = List.concat_map lvallist shallow_addrs in
       let st' = List.fold_left (invalidate_one ask man) st' shallow_lvals in
       (* invalidate lval if present *)
-      match r with
-      | Some lv -> invalidate_one ask man st' lv
-      | None -> st'
-
+      Option.map_default (invalidate_one ask man st') st' r
 
   let query_invariant man context =
     let keep_local = GobConfig.get_bool "ana.relation.invariant.local" in
