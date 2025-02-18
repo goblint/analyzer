@@ -16,6 +16,11 @@ let intmax_t = lazy (
   !res
 )
 
+let stripOuterBoolCast = function
+  | CastE (TInt (IBool, _), e) -> e
+  | Const (CInt (b, IBool, s)) -> Const (CInt (b, IInt, s))
+  | e -> e
+
 (** C standard library functions.
     These are specified by the C standard. *)
 let c_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
@@ -830,9 +835,9 @@ let linux_kernel_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
 (** Goblint functions. *)
 let goblint_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("__goblint_unknown", unknown [drop' [w]]);
-    ("__goblint_check", special [__ "exp" []] @@ fun exp -> Assert { exp; check = true; refine = false });
-    ("__goblint_assume", special [__ "exp" []] @@ fun exp -> Assert { exp; check = false; refine = true });
-    ("__goblint_assert", special [__ "exp" []] @@ fun exp -> Assert { exp; check = true; refine = get_bool "sem.assert.refine" });
+    ("__goblint_check", special [__ "exp" []] @@ fun exp -> Assert { exp = stripOuterBoolCast exp; check = true; refine = false });
+    ("__goblint_assume", special [__ "exp" []] @@ fun exp -> Assert { exp = stripOuterBoolCast exp; check = false; refine = true });
+    ("__goblint_assert", special [__ "exp" []] @@ fun exp -> Assert { exp = stripOuterBoolCast exp; check = true; refine = get_bool "sem.assert.refine" });
     ("__goblint_globalize", special [__ "ptr" []] @@ fun ptr -> Globalize ptr);
     ("__goblint_split_begin", unknown [drop "exp" []]);
     ("__goblint_split_end", unknown [drop "exp" []]);

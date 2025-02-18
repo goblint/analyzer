@@ -119,9 +119,6 @@ class extractInvariantsVisitor (exps) = object
       Goblint_backtrace.wrap_val ~mark:(Cilfacade.FunVarinfo f) @@ fun () ->
       let desc = LibraryFunctions.find f in
       begin match desc.special args with
-        | Assert { exp = CastE (TInt (IBool, _), exp); _ } -> (* TODO: this probably shouldn't be here *)
-          EH.replace exps exp ();
-          DoChildren
         | Assert { exp; _ } ->
           EH.replace exps exp ();
           DoChildren

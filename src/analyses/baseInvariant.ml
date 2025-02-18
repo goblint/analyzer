@@ -855,12 +855,6 @@ struct
         inv_exp (Float ftv) exp st
 
   let invariant man st exp tv =
-    (* TODO: this cast should be supported generally somewhere above *)
-    let exp =
-      match exp with
-      | CastE (TInt (IBool, _), exp) -> exp
-      | exp -> exp
-    in
     (* The computations that happen here are not computations that happen in the programs *)
     (* Any overflow during the forward evaluation will already have been flagged here *)
     GobRef.wrap AnalysisState.executing_speculative_computations true

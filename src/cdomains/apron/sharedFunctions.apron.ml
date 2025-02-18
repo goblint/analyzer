@@ -511,12 +511,6 @@ struct
 
   (** Assert any expression. *)
   let assert_inv ask d e negate no_ov =
-    (* TODO: this cast should be supported generally somewhere above? *)
-    let e =
-      match e with
-      | CastE (TInt (IBool, _), e) -> e
-      | e -> e
-    in
     let e' =
       if exp_is_constraint e then
         e
