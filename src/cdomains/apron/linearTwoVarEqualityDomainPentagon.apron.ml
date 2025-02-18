@@ -1022,29 +1022,57 @@ struct
                 | SUP -> 
                   meet_with_one_interval Value.meet (Environment.dim_of_var t'.env v) (Some (Int (Z.add Z.one c), Top Pos), Value.C.top ()) t'
                 | SUPEQ -> meet_with_one_interval Value.meet (Environment.dim_of_var t'.env v) (Some (Int c, Top Pos), Value.C.top ()) t'
-                | EQ -> 
-                  if M.tracing then M.tracel "meet_tcons" "meet_tcons interval matching eq" ;
-                  meet_with_one_interval Value.meet (Environment.dim_of_var t'.env v) (Some (Int c, Int c), Value.C.top ()) t' (*Should already be matched by the conjuction above?*)
+                | EQ -> meet_with_one_interval Value.meet (Environment.dim_of_var t'.env v) (Some (Int c, Int c), Value.C.top ()) t' (*Should already be matched by the conjuction above?*)
+                | DISEQ ->
+                  if Value.leq (EConjI.get_interval (Option.get t.d) (Environment.dim_of_var t'.env v)) (Value.of_bigint c) 
+                  then {d=None; env=t'.env} else t' (*TODO: if at interval bounds, we could refine the interval *)
                 | _ ->
                   if M.tracing then M.tracel "meet_tcons" "meet_tcons interval not matching comparison op";
-                  t' (*NEQ and EQMOD do not have any usefull interval representations*)
+                  t'
               end
           end
         | Binop (Sub,Cst (Scalar c), Var v,_,_) -> 
-          if M.tracing then M.tracel "meet_tcons" "meet_tcons interval matching structure 1";
           begin match SharedFunctions.int_of_scalar ?round:None c with
             | None -> t'
             | Some c -> begin match Tcons1.get_typ tcons with
                 | SUP -> 
                   meet_with_one_interval Value.meet (Environment.dim_of_var t'.env v) (Some (Top Neg, Int (Z.sub c Z.one)), Value.C.top ()) t'
                 | SUPEQ -> meet_with_one_interval Value.meet (Environment.dim_of_var t'.env v) (Some (Top Neg, Int c), Value.C.top ()) t'
-                | EQ -> 
-                  if M.tracing then M.tracel "meet_tcons" "meet_tcons interval matching eq (expr %s)" (Tcons1.show tcons);
-                  meet_with_one_interval Value.meet (Environment.dim_of_var t'.env v) (Some (Int c, Int c), Value.C.top ()) t' (*Should already be matched by the conjuction above?*)
+                | EQ -> meet_with_one_interval Value.meet (Environment.dim_of_var t'.env v) (Some (Int c, Int c), Value.C.top ()) t' (*Should already be matched by the conjuction above?*)
+                | DISEQ ->
+                  if Value.leq (EConjI.get_interval (Option.get t.d) (Environment.dim_of_var t'.env v)) (Value.of_bigint c) 
+                  then {d=None; env=t'.env} else t' (*TODO: if at interval bounds, we could refine the interval *)
                 | _ ->
                   if M.tracing then M.tracel "meet_tcons" "meet_tcons interval not matching comparison op (expr %s)" (Tcons1.show tcons);
-                  t' (*NEQ and EQMOD do not have any usefull interval representations*)
+                  t'
               end
+          end
+        (*x % m == o *)
+        | Binop (Sub, Binop (Mod, Var v, Cst (Scalar m), _, _) , Cst (Scalar o),_,_) -> 
+          begin match SharedFunctions.int_of_scalar ?round:None m, SharedFunctions.int_of_scalar ?round:None o with
+            | Some m, Some o -> begin match Tcons1.get_typ tcons with
+                | EQ -> 
+                  if M.tracing then M.tracel "meet_tcons" "meet_tcons matched x %% m == o (expr %s)" (Tcons1.show tcons);
+                  meet_with_one_interval Value.meet (Environment.dim_of_var t'.env v) (Value.of_congruence (o,m)) t'
+                | DISEQ ->
+                  (*If the saved congruence implies this one, we have a contradiction*)
+                  if Value.leq (EConjI.get_interval (Option.get t.d) (Environment.dim_of_var t'.env v)) (Value.of_congruence (o,m)) 
+                  then {d=None; env=t'.env} else t'
+                | _ -> t'
+              end
+            | _, _-> t'
+          end
+        | Binop (Sub, Cst (Scalar o), Binop (Mod, Var v, Cst (Scalar m), _, _) ,_,_) -> 
+          begin match SharedFunctions.int_of_scalar ?round:None m, SharedFunctions.int_of_scalar ?round:None o with
+            | Some m, Some o -> begin match Tcons1.get_typ tcons with
+                | EQ -> meet_with_one_interval Value.meet (Environment.dim_of_var t'.env v) (Value.of_congruence (o,m)) t'
+                | DISEQ ->
+                  (*If the saved congruence implies this one, we have a contradiction*)
+                  if Value.leq (EConjI.get_interval (Option.get t.d) (Environment.dim_of_var t'.env v)) (Value.of_congruence (o,m)) 
+                  then {d=None; env=t'.env} else t'
+                | _ -> t'
+              end
+            | _, _-> t'
           end
         | _ ->
           if M.tracing then M.tracel "meet_tcons" "meet_tcons interval not matching structure (expr %s)" (Tcons1.show tcons);
