@@ -2,8 +2,6 @@ open VectorFunctor
 open RatOps
 
 open Batteries
-module Array = Batteries.Array
-
 
 (** Array-based vector implementation. *)
 module ArrayVector: ArrayVectorFunctor =

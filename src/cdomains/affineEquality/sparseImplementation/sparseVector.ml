@@ -1,11 +1,7 @@
 open VectorFunctor
 open RatOps
 
-open BatList
 open Batteries
-
-module List = BatList
-module Array = BatArray
 
 module SparseVector: SparseVectorFunctor =
   functor (A: RatOps) ->

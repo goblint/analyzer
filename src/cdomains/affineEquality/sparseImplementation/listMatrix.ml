@@ -2,8 +2,7 @@ open MatrixFunctor
 open VectorFunctor
 open RatOps
 
-open BatList
-module List = BatList
+open Batteries
 
 (** Matrix implementation that uses a list of (ideally sparse) vectors representing its rows.
     It provides a normalization function to reduce a matrix into reduced row echelon form.
@@ -36,7 +35,7 @@ module ListMatrix: SparseMatrixFunctor =
     let compare_num_rows = List.compare_lengths
 
     let num_cols m =
-      if m = [] then 0 else V.length (hd m)
+      if m = [] then 0 else V.length (List.hd m)
 
     let init_with_vec v =
       [v]

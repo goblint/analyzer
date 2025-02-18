@@ -4,7 +4,6 @@ open MatrixFunctor
 open RatOps
 
 open Batteries
-module Array = Batteries.Array
 
 (** Array-based matrix implementation.
     It provides a normalization function to reduce a matrix into reduced row echelon form.

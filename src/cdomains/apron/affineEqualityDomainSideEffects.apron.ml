@@ -17,7 +17,6 @@ open VectorFunctor
 open MatrixFunctor
 
 open Batteries
-module Array = BatArray
 
 module Mpqf = SharedFunctions.Mpqf
 
