@@ -482,9 +482,8 @@ struct
       match reachables ask es with
       | None ->
         (* top reachable, so try to invalidate everything *)
-        RD.vars st.rel
-        |> List.filter_map RV.to_cil_varinfo
-        |> List.map Cil.var
+        let to_cil_lval x = Option.map Cil.var @@ RV.to_cil_varinfo x in
+        RD.vars st.rel |> List.filter_map to_cil_lval
       | Some ad ->
         let to_cil addr rs =
           match addr with
