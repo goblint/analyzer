@@ -79,10 +79,7 @@ struct
     man.local
 
   let return man exp fundec : D.t =
-    begin match exp with
-      | Some exp -> access_one_top man Read false exp
-      | None -> ()
-    end;
+    Option.iter (access_one_top man Read false) exp;
     man.local
 
   let body man f : D.t =
@@ -99,9 +96,7 @@ struct
       LibraryDesc.Accesses.iter desc.accs (fun {kind; deep = reach} exp ->
           access_one_top ~deref:true man kind reach exp (* access dereferenced using special accesses *)
         ) arglist;
-      (match lv with
-       | Some x -> access_one_top ~deref:true man Write false (AddrOf x)
-       | None -> ());
+      Option.iter (fun x -> access_one_top ~deref:true man Write false (AddrOf x)) lv;
       List.iter (access_one_top man Read false) arglist; (* always read all argument expressions without dereferencing *)
       man.local
 
@@ -115,19 +110,15 @@ struct
     au
 
   let combine_assign man lv fexp f args fc al f_ask =
-    begin match lv with
-      | None      -> ()
-      | Some lval -> access_one_top ~deref:true man Write false (AddrOf lval)
-    end;
+    Option.iter (fun lval -> access_one_top ~deref:true man Write false (AddrOf lval)) lv;
     man.local
 
 
   let threadspawn man  ~multiple lval f args fman =
     (* must explicitly access thread ID lval because special to pthread_create doesn't if singlethreaded before *)
-    begin match lval with
-      | None -> ()
-      | Some lval -> access_one_top ~force:true ~deref:true man Write false (AddrOf lval) (* must force because otherwise doesn't if singlethreaded before *)
-    end;
+    Option.iter (fun lval ->
+        access_one_top ~force:true ~deref:true man Write false (AddrOf lval) (* must force because otherwise doesn't if singlethreaded before *)
+      ) lval;
     man.local
 
   let query man (type a) (q: a Queries.t): a Queries.result =

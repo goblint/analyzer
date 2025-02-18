@@ -6,6 +6,8 @@ let for_all p = function
   | Some x -> p x
   | None -> true
 
+let iter = Stdlib.Option.iter
+
 let map2 binop opt1 opt2 =
   match opt1, opt2 with
   | Some x1, Some x2 -> Some (binop x1 x2)

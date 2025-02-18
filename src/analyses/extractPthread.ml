@@ -643,11 +643,7 @@ module Codegen = struct
         let end_label = res_id ^ "_end" in
         let goto = goto_str % label in
         let goto_start_node =
-          match List.find is_start_node nodes with
-          | Some node ->
-            goto node
-          | None ->
-            ""
+          Option.map_default goto "" (List.find is_start_node nodes)
         in
         let called_funs = ref [] in
         let str_edge (a, action, b) =
