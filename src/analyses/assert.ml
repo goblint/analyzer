@@ -16,7 +16,7 @@ struct
   let assert_fn man e check refine =
 
     let check_assert e st =
-      match man.ask (Queries.EvalInt e) with
+      match man.ask (Queries.EvalInt (CastE (TInt (IBool, []), e))) with
       | v when Queries.ID.is_bot v -> `Bot
       | v ->
         match Queries.ID.to_bool v with
