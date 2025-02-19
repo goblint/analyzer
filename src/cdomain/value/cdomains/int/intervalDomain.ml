@@ -12,7 +12,11 @@ struct
   let range ik = BatTuple.Tuple2.mapn Ints_t.of_bigint (Size.range ik)
 
   let top () = failwith @@ "top () not implemented for " ^ (name ())
-  let top_of ik = Some (range ik)
+  let top_of ?bitfield ik = match bitfield with 
+                            | None -> Some (range ik)
+                            | Some b -> match Cil.isSigned ik with
+                                        | true -> Some (range ik)
+                                        | false -> Some (fst @@ range ik, Ints_t.sub (Ints_t.shift_left Ints_t.one b) Ints_t.one) 
   let bot () = None
   let bot_of ik = bot () (* TODO: improve *)
 

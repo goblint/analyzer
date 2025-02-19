@@ -84,7 +84,7 @@ struct
   let top_range = R.of_interval range_ikind (-99L, 99L) (* Since there is no top ikind we use a range that includes both ILongLong [-63,63] and IULongLong [0,64]. Only needed for intermediate range computation on longs. Correct range is set by cast. *)
   let top () = `Excluded (S.empty (), top_range)
   let bot () = `Bot
-  let top_of ik = `Excluded (S.empty (), size ik)
+  let top_of ?bitfield ik = `Excluded (S.empty (), size ik)
   let bot_of ik = bot ()
   let show x =
     let short_size x = "("^R.show x^")" in

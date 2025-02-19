@@ -19,7 +19,7 @@ module Enums : S with type int_t = Z.t = struct
   let top () = failwith "top () not implemented for Enums"
   let bot_of ik = Inc (BISet.empty ())
   let top_bool = Inc (BISet.of_list [Z.zero; Z.one])
-  let top_of ik =
+  let top_of ?bitfield ik =
     match ik with
     | IBool -> top_bool
     | _ -> Exc (BISet.empty (), size ik)

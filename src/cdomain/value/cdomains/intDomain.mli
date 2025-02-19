@@ -175,7 +175,7 @@ sig
   (** {b Accessing values of the ADT} *)
 
   val bot_of: Cil.ikind -> t
-  val top_of: Cil.ikind -> t
+  val top_of: ?bitfield:int -> Cil.ikind -> t
 
   val to_int: t -> int_t option
   (** Return a single integer value if the value is a known constant, otherwise

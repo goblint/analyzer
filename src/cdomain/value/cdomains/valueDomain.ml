@@ -34,7 +34,7 @@ sig
   val is_mutex_type: typ -> bool
   val bot_value: ?varAttr:attributes -> typ -> t
   val is_bot_value: t -> bool
-  val init_value: ?varAttr:attributes -> typ -> t
+  val init_value: ?bitfield:(int option) -> ?varAttr:attributes -> typ -> t
   val top_value: ?varAttr:attributes -> typ -> t
   val is_top_value: t -> typ -> bool
   val zero_init_value: ?varAttr:attributes -> typ -> t
@@ -186,15 +186,15 @@ struct
     | Bot -> true
     | Top -> false
 
-  let rec init_value ?(varAttr=[]) (t: typ): t = (* top_value is not used here because structs, blob etc will not contain the right members *)
+  let rec init_value ?(bitfield:int option=None) ?(varAttr=[]) (t: typ): t = (* top_value is not used here because structs, blob etc will not contain the right members *)
     match t with
     | t when is_mutex_type t -> Mutex
     | t when is_jmp_buf_type t -> JmpBuf (JmpBufs.top ())
     | t when is_mutexattr_type t -> MutexAttr (MutexAttrDomain.top ())
-    | TInt (ik,_) -> Int (ID.top_of ik)
+    | TInt (ik,_) -> Int (ID.top_of ?bitfield ik)
     | TFloat (fkind, _) when not (Cilfacade.isComplexFKind fkind) -> Float (FD.top_of fkind)
     | TPtr _ -> Address AD.top_ptr
-    | TComp ({cstruct=true; _} as ci,_) -> Struct (Structs.create (fun fd -> init_value ~varAttr:fd.fattr fd.ftype) ci)
+    | TComp ({cstruct=true; _} as ci,_) -> Struct (Structs.create (fun fd -> init_value ~bitfield:fd.fbitfield ~varAttr:fd.fattr fd.ftype) ci)
     | TComp ({cstruct=false; _},_) -> Union (Unions.top ())
     | TArray (ai, length, _) ->
       let typAttr = typeAttrs ai in
@@ -1049,7 +1049,7 @@ struct
                 Top
           end
         | _ ->
-          let result =
+          let result =              (* TODO: siin toimub*)
             match offs with
             | `NoOffset -> begin
                 match value with

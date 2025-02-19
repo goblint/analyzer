@@ -33,7 +33,7 @@ struct
 
   let top () = failwith @@ "top () not implemented for " ^ (name ())
 
-  let top_of ik = [range ik]
+  let top_of ?bitfield ik = [range ik]
 
   let bot () = []
 
