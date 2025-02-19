@@ -441,8 +441,7 @@ struct
               let rel = RD.assign_var st.rel (RV.local v) RV.return in
               assert_type_bounds ask rel v (* TODO: should be done in return instead *)
             )
-        )
-          unify_st r
+        ) unify_st r
       in
       RD.remove_vars_with unify_st'.rel [RV.return]; (* mutates! *)
       unify_st'
