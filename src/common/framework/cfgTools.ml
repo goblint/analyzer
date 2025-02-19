@@ -432,9 +432,7 @@ let createCFG (file: file) =
                   List.iter (fun (fromNode, toNode) ->
                       addEdge_fromLoc fromNode (Test (one, false)) toNode;
                       added_connect := true;
-                      Option.iter (fun toNode_scc ->
-                          iter_scc toNode_scc (* continue to target scc as normally, to ensure they are also connected *)
-                        ) (NH.find_option node_scc toNode)
+                      Option.iter iter_scc (NH.find_option node_scc toNode) (* continue to target scc as normally, to ensure they are also connected *)
                       (* otherwise pseudo return, wasn't in scc, but is fine *)
                     ) targets
                 )
