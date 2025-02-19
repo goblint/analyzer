@@ -101,7 +101,7 @@ struct
 end
 
 (** Lifts a [Spec] so that the domain is [Hashcons]d *)
-module HashconsLifter (S: Spec) =
+module HashconsLifter (S: Spec) = (* keep functor eta-expanded to look up option when lifter is actually used *)
 struct
   module HConsedArg =
   struct
@@ -109,8 +109,8 @@ struct
     (* see https://github.com/goblint/analyzer/issues/1005 *)
     let assume_idempotent = GobConfig.get_string "ana.int.refinement" = "never"
   end
-  module F (L: Lattice.S) = Lattice.HConsed (L) (HConsedArg)
-  include DomainLifter (F) (S)
+
+  include DomainLifter (Lattice.HConsed (HConsedArg)) (S)
 end
 
 module type PrintableLifter =
