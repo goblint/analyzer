@@ -354,10 +354,10 @@ struct
           let q = Z.div r_old r in
           inverse (Z.sub t_old (Z.mul q t)) (Z.sub r_old (Z.mul q r)) t r
       in let inverse a n = 
-        let a = Z.rem a n in
-        let a = if Z.lt a Z.zero then Z.add a n else a
-        in inverse Z.one a Z.zero n
-      (*  x = -o c^-1 (mod d)   *)
+           let a = Z.rem a n in
+           let a = if Z.lt a Z.zero then Z.add a n else a
+           in inverse Z.one a Z.zero n
+           (*  x = -o c^-1 (mod d)   *)
       in Value.of_congruence @@ (Z.mul (Z.neg o) (inverse c d), d)
     in
     let meet_with_rhs _ rhs i = match rhs with
