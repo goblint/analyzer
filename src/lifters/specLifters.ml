@@ -98,20 +98,28 @@ struct
     D.lift @@ S.event (conv man) e (conv oman)
 end
 
-(** Lifts a [Spec] so that the context is [Hashcons]d. *)
-module HashconsContextLifter (S:Spec)
+module type PrintableLifter =
+  functor (P: Printable.S) ->
+    sig
+      include Printable.S
+
+      val lift: P.t -> t
+      val unlift: t -> P.t
+    end
+
+module ContextLifter (F: PrintableLifter) (S:Spec)
   : Spec with module D = S.D
           and module G = S.G
-          and module C = Printable.HConsed (S.C)
+          and module C = F (S.C)
 =
 struct
   module D = S.D
   module G = S.G
-  module C = Printable.HConsed (S.C)
+  module C = F (S.C)
   module V = S.V
   module P = S.P
 
-  let name () = S.name () ^" context hashconsed"
+  let name () = S.name () ^" context hashconsed" (* TODO: configurable name *)
 
   type marshal = S.marshal (* TODO: should hashcons table be in here to avoid relift altogether? *)
   let init = S.init
@@ -179,6 +187,9 @@ struct
   let paths_as_set man = S.paths_as_set (conv man)
   let event man e oman = S.event (conv man) e (conv oman)
 end
+
+(** Lifts a [Spec] so that the context is [Hashcons]d. *)
+module HashconsContextLifter = ContextLifter (Printable.HConsed)
 
 (* see option ana.opt.equal *)
 module OptEqual (S: Spec) = struct
