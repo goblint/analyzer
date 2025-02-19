@@ -372,6 +372,7 @@ struct
     IntMap.fold meet_with_rhs (snd econ) i 
 
   let set_interval ((econ, is):t) lhs i =
+    if M.tracing then M.tracel "modify_pentagon" "set_interval var_%d=%s, before: %s" lhs (Value.show i) (show (econ, is));
     let set_interval_for_root lhs i =
       if M.tracing then M.tracel "modify_pentagon" "set_interval_for_root var_%d=%s, before: %s" lhs (Value.show i) (show (econ, is));
       let i = constrain_with_congruence_from_rhs econ lhs i in
@@ -414,7 +415,8 @@ struct
       let new_constraint = get_interval (econ', is) lhs in
       let old_constraint = get_interval (econ, is) lhs in
       let new_interval = Value.meet new_constraint old_constraint in
-      set_interval (econ', is) lhs new_interval
+      if Value.is_bot new_interval then raise EConj.Contradiction
+      else set_interval (econ', is) lhs new_interval
 
   let set_rhs t lhs rhs = 
     let res = set_rhs t lhs rhs  in
@@ -482,24 +484,6 @@ struct
               subst_var (ts, is) h1 newh1)) in
     if M.tracing then M.tracel "meet_with_one_conj" "meet_with_one_conj conj: %s eq: var_%d=%s  ->  %s " (show (ts,is)) i (Rhs.show (var,offs,divi)) (show res)
   ; res
-
-  let affine_transform econ i (coeff, j, offs, divi) =
-    if EConj.nontrivial (fst econ) i then (* i cannot occur on any other rhs apart from itself *)
-      set_rhs econ i (Rhs.subst (get_rhs econ i) i (Some (coeff,j), offs, divi))
-    else (* var_i = var_i, i.e. it may occur on the rhs of other equalities *)
-      (* so now, we transform with the inverse of the transformer: *)
-      let inv = snd (EConj.inverse i (coeff,j,offs,divi)) in
-      IntMap.fold (fun k v acc ->
-          match v with
-          | (Some (c,x),o,d) when x=i-> set_rhs acc k (Rhs.subst inv i v)
-          | _ -> acc
-        ) (snd @@ fst econ) econ    
-
-  let affine_transform econ i rhs =
-    let res = affine_transform econ i rhs in
-    if M.tracing then M.tracel "modify_pentagon" "affine_transform %s ->  %s " (show econ) (show res); 
-    res
-
 
   let meet_with_one_interval var interval t meet_function =
     let refined_interval = Value.refine interval in
@@ -897,7 +881,7 @@ struct
           assign_const (forget_var t var) var_i off divi
         | Some (Some (coeff_var,exp_var), off, divi) when var_i = exp_var ->
           (* Statement "assigned_var = (coeff_var*assigned_var + off) / divi" *)
-          {d=Some (EConjI.affine_transform d var_i (coeff_var, var_i, off, divi)); env=t.env }          
+          {d=Some (EConj.affine_transform (fst d) var_i (coeff_var, var_i, off, divi), snd d); env=t.env }          
         | Some (Some monomial, off, divi) ->
           (* Statement "assigned_var = (monomial) + off / divi" (assigned_var is not the same as exp_var) *)
           meet_with_one_conj (forget_var t var) var_i (Some (monomial), off, divi)
