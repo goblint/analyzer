@@ -395,13 +395,13 @@ struct
             | Le, Some false -> meet_bin (ID.starting ikind (Z.succ l2)) (ID.ending ikind (Z.pred u1))
             | _, _ -> a, b)
          | _ -> a, b)
-      | BOr ->      
-        (* Be careful: inv_exp performs a meet on both arguments of the BOr / BXor. *)        
+      | BOr ->
+        (* Be careful: inv_exp performs a meet on both arguments of the BOr / BXor. *)
         if PrecisionUtil.get_bitfield () then
           (* refinement based on the following idea: bit set to one in c and set to zero in b must be one in a and bit set to zero in c must be zero in a too (analogously for b) *)
-          let ((az, ao), (bz, bo)) = BitfieldDomain.Bitfield.refine_bor (ID.to_bitfield ikind a) (ID.to_bitfield ikind b) (ID.to_bitfield ikind c) in 
+          let ((az, ao), (bz, bo)) = BitfieldDomain.Bitfield.refine_bor (ID.to_bitfield ikind a) (ID.to_bitfield ikind b) (ID.to_bitfield ikind c) in
           ID.meet a (ID.of_bitfield ikind (az, ao)), ID.meet b (ID.of_bitfield ikind (bz, bo))
-        else 
+        else
           (if M.tracing then M.tracel "inv" "Unhandled operator %a" d_binop op;
            (* Be careful: inv_exp performs a meet on both arguments of the BOr / BXor. *)
            (a, b)
@@ -416,7 +416,7 @@ struct
           a, b
       | BAnd ->
         (* we only attempt to refine a here *)
-        let b_int = ID.to_int b in 
+        let b_int = ID.to_int b in
         let a =
           match b_int with
           | Some x when Z.equal x Z.one ->
@@ -426,11 +426,11 @@ struct
              | None -> a)
           | _ -> a
         in
-        if PrecisionUtil.get_bitfield () then 
+        if PrecisionUtil.get_bitfield () then
           (* refinement based on the following idea: bit set to zero in c and set to one in b must be zero in a and bit set to one in c must be one in a too (analogously for b) *)
-          let ((az, ao), (bz, bo)) = BitfieldDomain.Bitfield.refine_band (ID.to_bitfield ikind a) (ID.to_bitfield ikind b) (ID.to_bitfield ikind c) in 
+          let ((az, ao), (bz, bo)) = BitfieldDomain.Bitfield.refine_band (ID.to_bitfield ikind a) (ID.to_bitfield ikind b) (ID.to_bitfield ikind c) in
           ID.meet a (ID.of_bitfield ikind (az, ao)), ID.meet b (ID.of_bitfield ikind (bz, bo))
-        else if b_int = None then 
+        else if b_int = None then
           (if M.tracing then M.tracel "inv" "Unhandled operator %a" d_binop op;
            (a, b)
           )
