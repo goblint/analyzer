@@ -130,11 +130,11 @@ struct
   let of_int64 i = Int (Int_t.of_int64 i)
   let to_int64 t = Int_t.to_int64 @@ get_int_t t
 
-  let of_string s = if s = "+⊤" then Top Pos else (if s = "-⊤" then Top Pos else Int (Int_t.of_string s))
+  let of_string s = if s = "+∞" then Top Pos else (if s = "-∞" then Top Pos else Int (Int_t.of_string s))
   let to_string = function
     | Int i ->  Int_t.to_string i
-    | Top Pos -> "+⊤"
-    | Top Neg -> "-⊤"
+    | Top Pos -> "+∞"
+    | Top Neg -> "-∞"
 
   let of_bigint i = Int (Int_t.of_bigint i)
   let to_bigint t = Int_t.to_bigint @@ get_int_t t
@@ -353,7 +353,10 @@ struct
         else 
           let q = Z.div r_old r in
           inverse (Z.sub t_old (Z.mul q t)) (Z.sub r_old (Z.mul q r)) t r
-      in let inverse a n = inverse Z.one a Z.zero n
+      in let inverse a n = 
+        let a = Z.rem a n in
+        let a = if Z.lt a Z.zero then Z.add a n else a
+        in inverse Z.one a Z.zero n
       (*  x = -o c^-1 (mod d)   *)
       in Value.of_congruence @@ (Z.mul (Z.neg o) (inverse c d), d)
     in
@@ -430,7 +433,7 @@ struct
             let open Z in Rhs.canonicalize (BatOption.map (fun (c, y)-> (c * c', y)) vary, c'*o + o'*d, d'*d)
           | e -> e
         in
-        let interval= get_interval (ts, is) x in
+        let interval = get_interval (ts, is) x in
         if vary = None then begin
           if d <> Z.one then 
             (if M.tracing then M.tracel "meet_with_one_conj" "meet_with_one_conj substituting var_%d with constant %s, which is not an integer" i (Rhs.show (var,offs,divi));
@@ -439,8 +442,9 @@ struct
             (if M.tracing then M.tracel "meet_with_one_conj" "meet_with_one_conj substituting var_%d with constant %s, Contradicts %s" (i) (Rhs.show (var,offs,divi)) (Value.show interval);
              raise EConj.Contradiction)
         end;        
-        let is' = IntMap.remove x is in (*if x was the representative, it might not be anymore -> remove interval and add it back afterwards*) 
-        set_interval ( (dim, IntMap.add x (vary, o, d) @@ IntMap.map adjust econj), is' ) x interval (* in case of sparse representation, make sure that the equality is now included in the conjunction *)
+        let is' = IntMap.remove x is in (*if x was the representative, it might not be anymore -> remove interval and add it back afterwards*)
+        let t' = (dim, IntMap.add x (vary, o, d) @@ IntMap.map adjust econj), is' in (* in case of sparse representation, make sure that the equality is now included in the conjunction *)
+        set_interval t' x interval 
       in
       (match var, (EConj.get_rhs ts i) with
        (*| new conj      , old conj          *)
@@ -479,6 +483,24 @@ struct
     if M.tracing then M.tracel "meet_with_one_conj" "meet_with_one_conj conj: %s eq: var_%d=%s  ->  %s " (show (ts,is)) i (Rhs.show (var,offs,divi)) (show res)
   ; res
 
+  let affine_transform econ i (coeff, j, offs, divi) =
+    if EConj.nontrivial (fst econ) i then (* i cannot occur on any other rhs apart from itself *)
+      set_rhs econ i (Rhs.subst (get_rhs econ i) i (Some (coeff,j), offs, divi))
+    else (* var_i = var_i, i.e. it may occur on the rhs of other equalities *)
+      (* so now, we transform with the inverse of the transformer: *)
+      let inv = snd (EConj.inverse i (coeff,j,offs,divi)) in
+      IntMap.fold (fun k v acc ->
+          match v with
+          | (Some (c,x),o,d) when x=i-> set_rhs acc k (Rhs.subst inv i v)
+          | _ -> acc
+        ) (snd @@ fst econ) econ    
+
+  let affine_transform econ i rhs =
+    let res = affine_transform econ i rhs in
+    if M.tracing then M.tracel "modify_pentagon" "affine_transform %s ->  %s " (show econ) (show res); 
+    res
+
+
   let meet_with_one_interval var interval t meet_function =
     let refined_interval = Value.refine interval in
     let new_interval = meet_function refined_interval (get_interval t var)
@@ -488,7 +510,7 @@ struct
       res
 
   let join_with_one_value var value (t:t) = 
-    let (_,cong) = constrain_with_congruence_from_rhs (fst t) var (Value.top) in
+    let (_,cong) = constrain_with_congruence_from_rhs (fst t) var (Value.top) in (*TODO probably should be a flag in set_interval to do a join instead of meet so we do not do this twice*)
     let value' = Value.join value (Value.I.bot (), cong) in
     set_interval t var value' 
 end
@@ -795,6 +817,7 @@ struct
       match econj' with 
         None ->  None 
       | Some econj'' ->
+        if M.tracing then M.tracel "join" "join_econj of %s, %s resulted in %s" (EConjI.show x) (EConjI.show y) (EConj.show @@ snd econj'') ;
         Some (collect_intervals x y econj'' ((Environment.size env)-1) (econj'', EConjI.IntMap.empty))         
     in
     (*Normalize the two domains a and b such that both talk about the same variables*)
@@ -874,7 +897,7 @@ struct
           assign_const (forget_var t var) var_i off divi
         | Some (Some (coeff_var,exp_var), off, divi) when var_i = exp_var ->
           (* Statement "assigned_var = (coeff_var*assigned_var + off) / divi" *)
-          {d=Some (EConj.affine_transform (fst d) var_i (coeff_var, var_i, off, divi), snd d); env=t.env }          
+          {d=Some (EConjI.affine_transform d var_i (coeff_var, var_i, off, divi)); env=t.env }          
         | Some (Some monomial, off, divi) ->
           (* Statement "assigned_var = (monomial) + off / divi" (assigned_var is not the same as exp_var) *)
           meet_with_one_conj (forget_var t var) var_i (Some (monomial), off, divi)
