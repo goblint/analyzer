@@ -103,7 +103,7 @@ struct
               | _ -> false)
           |> Queries.AD.join a
         (* Ignore soundness warnings, as invalidation proper will raise them. *)
-        | _ -> AD.empty () (* TODO: correct?! *)
+        | _ -> a
       in
       List.fold_left do_exp (AD.empty ()) args
     in
