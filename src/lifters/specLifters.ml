@@ -6,19 +6,21 @@ open Analyses
 open GobConfig
 
 
-(** Lifts a [Spec] so that the domain is [Hashcons]d *)
-module HashconsLifter (S:Spec)
+module type LatticeLifter =
+  functor (L: Lattice.S) ->
+    sig
+      include Lattice.S
+
+      val lift: L.t -> t
+      val unlift: t -> L.t
+    end
+
+module DomainLifter (F: LatticeLifter) (S:Spec)
   : Spec with module G = S.G
           and module C = S.C
 =
 struct
-  module HConsedArg =
-  struct
-    (* We do refine int values on narrow and meet {!IntDomain.IntDomTupleImpl}, which can lead to fixpoint issues if we assume x op x = x *)
-    (* see https://github.com/goblint/analyzer/issues/1005 *)
-    let assume_idempotent = GobConfig.get_string "ana.int.refinement" = "never"
-  end
-  module D = Lattice.HConsed (S.D) (HConsedArg)
+  module D = F (S.D)
   module G = S.G
   module C = S.C
   module V = S.V
@@ -28,7 +30,7 @@ struct
     let of_elt x = of_elt (D.unlift x)
   end
 
-  let name () = S.name () ^" hashconsed"
+  let name () = S.name () ^" hashconsed" (* TODO: configurable name *)
 
   type marshal = S.marshal (* TODO: should hashcons table be in here to avoid relift altogether? *)
   let init = S.init
@@ -96,6 +98,19 @@ struct
 
   let event man e oman =
     D.lift @@ S.event (conv man) e (conv oman)
+end
+
+(** Lifts a [Spec] so that the domain is [Hashcons]d *)
+module HashconsLifter (S: Spec) =
+struct
+  module HConsedArg =
+  struct
+    (* We do refine int values on narrow and meet {!IntDomain.IntDomTupleImpl}, which can lead to fixpoint issues if we assume x op x = x *)
+    (* see https://github.com/goblint/analyzer/issues/1005 *)
+    let assume_idempotent = GobConfig.get_string "ana.int.refinement" = "never"
+  end
+  module F (L: Lattice.S) = Lattice.HConsed (L) (HConsedArg)
+  include DomainLifter (F) (S)
 end
 
 module type PrintableLifter =
