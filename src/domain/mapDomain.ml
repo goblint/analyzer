@@ -263,7 +263,7 @@ module HConsed (M: S) : S with
   type key = M.key and
   type value = M.value =
 struct
-  include Lattice.HConsed (M) (struct let assume_idempotent = false end)
+  include Lattice.HConsed (struct let assume_idempotent = false end) (M)
 
   type key = M.key
   type value = M.value
