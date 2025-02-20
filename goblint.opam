@@ -68,6 +68,7 @@ depends: [
   "benchmark" {with-test}
   "conf-gcc"
   "domain-local-await"
+  "domain_shims"
 ]
 depopts: [
   "apron" {>= "v0.9.15"}
