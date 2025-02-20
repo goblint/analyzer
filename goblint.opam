@@ -42,6 +42,7 @@ depends: [
   "zarith" {>= "1.10"}
   "yojson" {>= "2.0.0"}
   "qcheck-core" {>= "0.19"}
+  "ppx_optcomp" 
   "ppx_deriving" {>= "6.0.2"}
   "ppx_deriving_hash" {>= "0.1.2"}
   "ppx_deriving_yojson" {>= "3.7.0"}
@@ -67,6 +68,7 @@ depends: [
   "conf-ruby" {with-test}
   "benchmark" {with-test}
   "conf-gcc"
+  "domain-local-await"
 ]
 depopts: [
   "apron" {>= "v0.9.15"}
