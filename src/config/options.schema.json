@@ -513,6 +513,13 @@
               "type": "boolean",
               "default": true
             },
+            "hashcached": {
+              "title": "ana.opt.hashcached",
+              "description":
+                "Should we try to save memory and speed up equality by caching hashes of contexts? This is useful when hashconsing is off",
+              "type": "boolean",
+              "default": false
+            },
             "equal": {
               "title": "ana.opt.equal",
               "description":
