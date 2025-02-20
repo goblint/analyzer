@@ -42,6 +42,7 @@ Goblint includes analyses for assertions, overflows, deadlocks, etc and can be e
     (zarith (>= 1.10))
     (yojson (>= 2.0.0))
     (qcheck-core (>= 0.19))
+    ppx_optcomp
     (ppx_deriving (>= 6.0.2))
     (ppx_deriving_hash (>= 0.1.2))
     (ppx_deriving_yojson (>= 3.7.0))
@@ -67,6 +68,7 @@ Goblint includes analyses for assertions, overflows, deadlocks, etc and can be e
     (conf-ruby :with-test)
     (benchmark :with-test) ; TODO: make this optional somehow, (optional) on bench executable doesn't work
     conf-gcc ; ensures opam-repository CI installs real gcc from homebrew on MacOS
+    domain-local-await
   )
   (depopts
     (apron (>= v0.9.15))
