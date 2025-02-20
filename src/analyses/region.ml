@@ -55,7 +55,7 @@ struct
     | Queries.Regions e ->
       let regpart = man.global () in
       if is_bullet e regpart man.local then Queries.Result.bot q (* TODO: remove bot *) else
-        let ls = List.fold_right Queries.LS.add (regions e regpart man.local) (Queries.LS.empty ()) in
+        let ls = List.fold_left (Fun.flip Queries.LS.add) (Queries.LS.empty ()) (regions e regpart man.local) in
         ls
     | _ -> Queries.Result.top q
 
