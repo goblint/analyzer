@@ -1,7 +1,44 @@
-open VectorFunctor
+open Vector
 open RatOps
 
 open Batteries
+module Array = Batteries.Array
+
+module type ArrayVector = 
+sig 
+  include Vector
+  val mapi_with: (int -> num -> num) -> t -> unit
+
+  val map_with: (num -> num) -> t -> unit
+
+  val map2_with: (num -> num -> num) -> t -> t -> unit
+
+  val map2i_with: (int -> num -> num -> num) -> t -> t -> unit
+
+  val filteri: (int -> num -> bool) -> t -> t
+
+  val findi: (num -> bool) ->  t -> int
+
+  val find2i: (num -> num -> bool) -> t -> t -> int
+
+  val exists: (num -> bool) -> t -> bool
+
+  val set_nth_with: t -> int -> num -> unit
+
+  val insert_val_at: t -> int -> num ->  t
+
+  val apply_with_c_with: (num -> num -> num) -> num -> t -> unit
+
+  val rev_with: t -> unit
+
+  val append: t -> t -> t
+end
+
+module type ArrayVectorFunctor =
+  functor (A: RatOps) ->
+  sig
+    include ArrayVector with type num:= A.t
+  end
 
 (** Array-based vector implementation. *)
 module ArrayVector: ArrayVectorFunctor =

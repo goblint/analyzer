@@ -437,8 +437,6 @@ module WideningThresholds = WideningThresholds
 (* There might be a more elegant solution. *)
 module Vector = Vector
 module Matrix = Matrix
-module VectorFunctor = VectorFunctor 
-module MatrixFunctor = MatrixFunctor
 module ArrayVector = ArrayVector
 module ArrayMatrix = ArrayMatrix
 module SparseVector = SparseVector

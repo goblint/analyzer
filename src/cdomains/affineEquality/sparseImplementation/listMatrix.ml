@@ -1,8 +1,28 @@
-open MatrixFunctor
-open VectorFunctor
+open Matrix
+open SparseVector
 open RatOps
 
 open Batteries
+
+let timing_wrap = Vector.timing_wrap
+
+module type SparseMatrix = 
+sig
+  include Matrix
+  val get_col_upper_triangular: t -> int -> vec
+
+  val swap_rows: t -> int -> int -> t
+
+  val rref_vec: t -> vec -> t Option.t
+
+  val rref_matrix: t -> t -> t Option.t
+end
+
+module type SparseMatrixFunctor = 
+  functor (A: RatOps) (V: SparseVectorFunctor) ->
+  sig
+    include SparseMatrix with type vec := V(A).t and type num := A.t
+  end
 
 (** Matrix implementation that uses a list of (ideally sparse) vectors representing its rows.
     It provides a normalization function to reduce a matrix into reduced row echelon form.

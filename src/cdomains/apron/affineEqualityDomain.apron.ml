@@ -14,8 +14,8 @@ open Pretty
 module M = Messages
 open GobApron
 
-open VectorFunctor
-open MatrixFunctor
+open SparseVector
+open ListMatrix
 
 open Batteries
 
