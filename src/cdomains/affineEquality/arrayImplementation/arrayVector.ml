@@ -2,7 +2,6 @@ open Vector
 open RatOps
 
 open Batteries
-module Array = Batteries.Array
 
 module type ArrayVector = 
 sig 
