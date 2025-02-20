@@ -67,6 +67,7 @@ depends: [
   "conf-ruby" {with-test}
   "benchmark" {with-test}
   "conf-gcc"
+  "domain-local-await"
 ]
 depopts: [
   "apron" {>= "v0.9.15"}
