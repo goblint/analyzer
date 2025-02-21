@@ -337,11 +337,7 @@ struct
             | ts when Queries.TS.is_top ts ->
               ()
             | ts ->
-              let f = function (* TODO: unrolltype? *)
-                | TComp (_, _) -> true
-                | _ -> false
-              in
-              if Queries.TS.exists f ts then
+              if Queries.TS.exists Cilfacade.isStructOrUnionType ts then
                 old_access None
           end;
           on_ad ad

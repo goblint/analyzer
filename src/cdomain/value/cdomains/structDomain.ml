@@ -503,8 +503,8 @@ struct
   let chosen_domain () = get_string "ana.base.structs.domain"
 
   let pick_combined setting (comp: compinfo) =
-    let all_bool () = List.for_all (fun f -> match f.ftype with TInt(IBool, _) -> true | _ -> false) comp.cfields in (* TODO: unrolltype? *)
-    let has_ptr () = List.exists (fun f -> match f.ftype with TPtr(_, _) -> true | _ -> false) comp.cfields in (* TODO: unrolltype? *)
+    let all_bool () = List.for_all (fun f -> Cilfacade.isBoolType f.ftype) comp.cfields in
+    let has_ptr () = List.exists (fun f -> Cil.isPointerType f.ftype) comp.cfields in
     match setting with
     | "combined-sk" -> if has_ptr () then "keyed" else "simple"
     | "combined-all" ->

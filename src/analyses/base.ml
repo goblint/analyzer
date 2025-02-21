@@ -2030,10 +2030,11 @@ struct
       match exp with
       | None -> nst
       | Some exp ->
-        let t_override = match Cilfacade.fundec_return_type fundec with (* TODO: unrolltype? *)
-          | TVoid _ -> M.warn ~category:M.Category.Program "Returning a value from a void function"; assert false
-          | ret -> ret
-        in
+        let t_override = Cilfacade.fundec_return_type fundec in
+        if Cil.isVoidType t_override then (
+          M.warn ~category:M.Category.Program "Returning a value from a void function";
+          assert false
+        );
         let rv = eval_rv ~man man.local exp in
         let st' = set ~man ~t_override nst (return_var ()) t_override rv in
         match ThreadId.get_current ask with

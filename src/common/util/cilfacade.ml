@@ -27,6 +27,11 @@ let isCharType t =
   | TInt ((IChar | ISChar | IUChar), _) -> true
   | _ -> false
 
+let isBoolType t =
+  match Cil.unrollType t with
+  | TInt (IBool, _) -> true
+  | _ -> false
+
 let isFloatType t =
   match Cil.unrollType t with
   | TFloat _ -> true
@@ -37,6 +42,11 @@ let rec isVLAType t = (* TODO: use in base? *)
   | TArray (et, len, _) ->
     let variable_len = GobOption.exists (Fun.negate Cil.isConstant) len in
     variable_len || isVLAType et
+  | _ -> false
+
+let isStructOrUnionType t =
+  match Cil.unrollType t with
+  | TComp _ -> true
   | _ -> false
 
 let is_first_field x = match x.fcomp.cfields with

@@ -508,7 +508,7 @@ struct
               | Int x when ID.to_int x = Some Z.zero -> AD.null_ptr
               | Int x -> AD.top_ptr
               (* we ignore casts to void*! TODO report UB! *)
-              | Address x -> (match t with TVoid _ -> x | _ -> cast_addr t x) (* TODO: unrolltype? *)
+              | Address x -> (match t with TVoid _ -> x | _ -> cast_addr t x) (* TODO: unrolltype? TVoid unreachable? always goes to previous case? *)
               (*| Address x -> x*)
               | _ -> log_top __POS__; AD.top_ptr
             )
