@@ -345,7 +345,7 @@ let get_col_upper_triangular _ =
   assert_equal expected result
 
 let test () =
-  "SparseMatrixImplementationTest"
+  "SparseMatrixImplementationTest-Apron"
   >::: [
     "can solve a standard normalization" >:: standard_normalize;
     "does sort already reduzed" >:: does_just_sort;

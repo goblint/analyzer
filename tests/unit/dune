@@ -2,7 +2,12 @@
 
 (test
   (name mainTest)
-  (libraries ounit2 qcheck-ounit goblint.std goblint.common goblint.lib goblint.constraint goblint.solver goblint.cdomain.value)
+  (libraries ounit2 qcheck-ounit goblint.std goblint.common goblint.lib goblint.constraint goblint.solver goblint.cdomain.value
+    (select sparseMatrixImplementationTest.ml from
+        (apron -> sparseMatrixImplementationTest.apron.ml)
+        (-> sparseMatrixImplementationTest.no-apron.ml)
+    )
+  )
   (preprocess (pps ppx_deriving.std ppx_deriving_hash ppx_deriving_yojson))
   (flags :standard -linkall))
 
