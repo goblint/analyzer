@@ -1102,8 +1102,7 @@ struct
                         begin
                           match fld.ftype with (* TODO: unrolltype? *)
                           | TArray(_, l, _) ->
-                            let len = try Cil.lenOfArray l
-                              with Cil.LenOfArray -> 42 (* will not happen, VLA not allowed in union and struct *) in
+                            let len = Cil.lenOfArray l in (* LenOfArray exception will not happen, VLA not allowed in union and struct *)
                             Array(CArrays.make (IndexDomain.of_int (Cilfacade.ptrdiff_ikind ()) (Z.of_int len)) Top), offs
                           | _ -> top (), offs (* will not happen*)
                         end
