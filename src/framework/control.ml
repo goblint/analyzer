@@ -28,6 +28,7 @@ let spec_module: (module Spec) Lazy.t = lazy (
       |> lift true (module WidenContextLifterSide) (* option checked in functor *)
       (* hashcons before witness to reduce duplicates, because witness re-uses contexts in domain and requires tag for PathSensitive3 *)
       |> lift (get_bool "ana.opt.hashcons" || arg_enabled) (module HashconsContextLifter)
+      |> lift (get_bool "ana.opt.hashcached") (module HashCachedContextLifter)
       |> lift arg_enabled (module HashconsLifter)
       |> lift arg_enabled (module WitnessConstraints.PathSensitive3)
       |> lift (not arg_enabled) (module PathSensitive2)
@@ -39,7 +40,7 @@ let spec_module: (module Spec) Lazy.t = lazy (
       |> lift (get_bool "ana.opt.hashcons") (module HashconsLifter)
       (* Widening tokens must be outside of hashcons, because widening token domain ignores token sets for identity, so hashcons doesn't allow adding tokens.
          Also must be outside of deadcode, because deadcode splits (like mutex lock event) don't pass on tokens. *)
-      |> lift (get_bool "ana.widen.tokens") (module WideningTokens.Lifter)
+      |> lift (get_bool "ana.widen.tokens") (module WideningTokenLifter.Lifter)
       |> lift true (module LongjmpLifter.Lifter)
       |> lift termination_enabled (module RecursionTermLifter.Lifter) (* Always activate the recursion termination analysis, when the loop termination analysis is activated*)
     )
@@ -254,7 +255,7 @@ struct
     in
 
     (* add extern variables to local state *)
-    let do_extern_inits ctx (file : file) : Spec.D.t =
+    let do_extern_inits man (file : file) : Spec.D.t =
       let module VS = Set.Make (Basetype.Variables) in
       let add_glob s = function
           GVar (v,_,_) -> VS.add v s
@@ -262,7 +263,7 @@ struct
       in
       let vars = foldGlobals file add_glob VS.empty in
       let set_bad v st =
-        Spec.assign {ctx with local = st} (var v) MyCFG.unknown_exp
+        Spec.assign {man with local = st} (var v) MyCFG.unknown_exp
       in
       let is_std = function
         | {vname = ("__tzname" | "__daylight" | "__timezone"); _} (* unix time.h *)
@@ -295,13 +296,13 @@ struct
 
     (* analyze cil's global-inits function to get a starting state *)
     let do_global_inits (file: file) : Spec.D.t * fundec list =
-      let ctx =
+      let man =
         { ask     = (fun (type a) (q: a Queries.t) -> Queries.Result.top q)
         ; emit   = (fun _ -> failwith "Cannot \"emit\" in global initializer context.")
         ; node    = MyCFG.dummy_node
         ; prev_node = MyCFG.dummy_node
-        ; control_context = (fun () -> ctx_failwith "Global initializers have no context.")
-        ; context = (fun () -> ctx_failwith "Global initializers have no context.")
+        ; control_context = (fun () -> man_failwith "Global initializers have no context.")
+        ; context = (fun () -> man_failwith "Global initializers have no context.")
         ; edge    = MyCFG.Skip
         ; local   = Spec.D.top ()
         ; global  = (fun g -> EQSys.G.spec (getg (EQSys.GVar.spec g)))
@@ -322,7 +323,7 @@ struct
         match edge with
         | MyCFG.Entry func        ->
           if M.tracing then M.trace "global_inits" "Entry %a" d_lval (var func.svar);
-          Spec.body {ctx with local = st} func
+          Spec.body {man with local = st} func
         | MyCFG.Assign (lval,exp) ->
           if M.tracing then M.trace "global_inits" "Assign %a = %a" d_lval lval d_exp exp;
           begin match lval, exp with
@@ -331,14 +332,14 @@ struct
               (try funs := Cilfacade.find_varinfo_fundec f :: !funs with Not_found -> ())
             | _ -> ()
           end;
-          let res = Spec.assign {ctx with local = st} lval exp in
+          let res = Spec.assign {man with local = st} lval exp in
           (* Needed for privatizations (e.g. None) that do not side immediately *)
-          let res' = Spec.sync {ctx with local = res} `Normal in
+          let res' = Spec.sync {man with local = res} `Normal in
           if M.tracing then M.trace "global_inits" "\t\t -> state:%a" Spec.D.pretty res;
           res'
         | _                       -> failwith "Unsupported global initializer edge"
       in
-      let with_externs = do_extern_inits ctx file in
+      let with_externs = do_extern_inits man file in
       (*if (get_bool "dbg.verbose") then Printf.printf "Number of init. edges : %d\nWorking:" (List.length edges);    *)
       let old_loc = !Goblint_tracing.current_loc in
       let result : Spec.D.t = List.fold_left transfer_func with_externs edges in
@@ -401,12 +402,12 @@ struct
 
     let enter_with st fd =
       let st = st fd.svar in
-      let ctx =
+      let man =
         { ask     = (fun (type a) (q: a Queries.t) -> Queries.Result.top q)
         ; emit   = (fun _ -> failwith "Cannot \"emit\" in enter_with context.")
         ; node    = MyCFG.dummy_node
         ; prev_node = MyCFG.dummy_node
-        ; control_context = (fun () -> ctx_failwith "enter_with has no control_context.")
+        ; control_context = (fun () -> man_failwith "enter_with has no control_context.")
         ; context = Spec.startcontext
         ; edge    = MyCFG.Skip
         ; local   = st
@@ -417,7 +418,7 @@ struct
         }
       in
       let args = List.map (fun x -> MyCFG.unknown_exp) fd.sformals in
-      let ents = Spec.enter ctx None fd args in
+      let ents = Spec.enter man None fd args in
       List.map (fun (_,s) -> fd, s) ents
     in
 
@@ -433,13 +434,13 @@ struct
 
     let exitvars = List.map (enter_with Spec.exitstate) exitfuns in
     let otherstate st v =
-      let ctx =
+      let man =
         { ask     = (fun (type a) (q: a Queries.t) -> Queries.Result.top q)
         ; emit   = (fun _ -> failwith "Cannot \"emit\" in otherstate context.")
         ; node    = MyCFG.dummy_node
         ; prev_node = MyCFG.dummy_node
-        ; control_context = (fun () -> ctx_failwith "enter_func has no context.")
-        ; context = (fun () -> ctx_failwith "enter_func has no context.")
+        ; control_context = (fun () -> man_failwith "enter_func has no context.")
+        ; context = (fun () -> man_failwith "enter_func has no context.")
         ; edge    = MyCFG.Skip
         ; local   = st
         ; global  = (fun g -> EQSys.G.spec (getg (EQSys.GVar.spec g)))
@@ -449,7 +450,7 @@ struct
         }
       in
       (* TODO: don't hd *)
-      List.hd (Spec.threadenter ctx ~multiple:false None v [])
+      List.hd (Spec.threadenter man ~multiple:false None v [])
       (* TODO: do threadspawn to mainfuns? *)
     in
     let prestartstate = Spec.startstate MyCFG.dummy_func.svar in (* like in do_extern_inits *)
@@ -460,12 +461,12 @@ struct
 
     AnalysisState.global_initialization := false;
 
-    let ctx e =
+    let man e =
       { ask     = (fun (type a) (q: a Queries.t) -> Queries.Result.top q)
       ; emit   = (fun _ -> failwith "Cannot \"emit\" in enter_with context.")
       ; node    = MyCFG.dummy_node
       ; prev_node = MyCFG.dummy_node
-      ; control_context = (fun () -> ctx_failwith "enter_with has no control_context.")
+      ; control_context = (fun () -> man_failwith "enter_with has no control_context.")
       ; context = Spec.startcontext
       ; edge    = MyCFG.Skip
       ; local   = e
@@ -477,12 +478,12 @@ struct
     in
     let startvars' =
       if get_bool "exp.forward" then
-        List.map (fun (n,e) -> (MyCFG.FunctionEntry n, Spec.context (ctx e) n e)) startvars
+        List.map (fun (n,e) -> (MyCFG.FunctionEntry n, Spec.context (man e) n e)) startvars
       else
-        List.map (fun (n,e) -> (MyCFG.Function n, Spec.context (ctx e) n e)) startvars
+        List.map (fun (n,e) -> (MyCFG.Function n, Spec.context (man e) n e)) startvars
     in
 
-    let entrystates = List.map (fun (n,e) -> (MyCFG.FunctionEntry n, Spec.context (ctx e) n e), e) startvars in
+    let entrystates = List.map (fun (n,e) -> (MyCFG.FunctionEntry n, Spec.context (man e) n e), e) startvars in
     let entrystates_global = GHT.to_list gh in
 
     let uncalled_dead = ref 0 in

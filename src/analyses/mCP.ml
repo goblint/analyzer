@@ -86,12 +86,12 @@ struct
       match get_string_list "ana.ctx_sens" with
       | [] -> (* use values of "ana.ctx_insens" (blacklist) *)
         let cont_inse = map' find_id @@ get_string_list "ana.ctx_insens" in
-        activated_ctx_sens := List.filter (fun (n, _) -> not (List.mem n cont_inse)) !activated;
+        activated_context_sens := List.filter (fun (n, _) -> not (List.mem n cont_inse)) !activated;
       | sens -> (* use values of "ana.ctx_sens" (whitelist) *)
         let cont_sens = map' find_id @@ sens in
-        activated_ctx_sens := List.filter (fun (n, _) -> List.mem n cont_sens) !activated;
+        activated_context_sens := List.filter (fun (n, _) -> List.mem n cont_sens) !activated;
     end;
-    act_cont_sens := Set.of_list (List.map (fun (n,p) -> n) !activated_ctx_sens);
+    act_cont_sens := Set.of_list (List.map (fun (n,p) -> n) !activated_context_sens);
     activated_path_sens := List.filter (fun (n, _) -> List.mem n !path_sens) !activated;
     match marshal with
     | Some marshal ->
@@ -147,80 +147,80 @@ struct
         f ((k,v::a')::a) b
     in f [] xs
 
-  let do_spawns ctx (xs:(varinfo * (lval option * exp list * bool)) list) =
+  let do_spawns man (xs:(varinfo * (lval option * exp list * bool)) list) =
     let spawn_one v d =
-      List.iter (fun (lval, args, multiple) -> ctx.spawn ~multiple lval v args) d
+      List.iter (fun (lval, args, multiple) -> man.spawn ~multiple lval v args) d
     in
     if get_bool "exp.single-threaded" then
       M.msg_final Error ~category:Unsound "Thread not spawned"
     else
       iter (uncurry spawn_one) @@ group_assoc_eq Basetype.Variables.equal xs
 
-  let do_sideg ctx (xs:(V.t * (WideningTokens.TS.t * G.t)) list) =
+  let do_sideg man (xs:(V.t * (WideningTokenLifter.TS.t * G.t)) list) =
     let side_one v dts =
       let side_one_ts ts d =
         (* Do side effects with the tokens that were active at the time.
            Transfer functions have exited the with_side_token wrappers by now. *)
-        let old_side_tokens = !WideningTokens.side_tokens in
-        WideningTokens.side_tokens := ts;
+        let old_side_tokens = !WideningTokenLifter.side_tokens in
+        WideningTokenLifter.side_tokens := ts;
         Fun.protect (fun () ->
-            ctx.sideg v @@ fold_left G.join (G.bot ()) d
+            man.sideg v @@ fold_left G.join (G.bot ()) d
           ) ~finally:(fun () ->
-            WideningTokens.side_tokens := old_side_tokens
+            WideningTokenLifter.side_tokens := old_side_tokens
           )
       in
-      iter (uncurry side_one_ts) @@ group_assoc_eq WideningTokens.TS.equal dts
+      iter (uncurry side_one_ts) @@ group_assoc_eq WideningTokenLifter.TS.equal dts
     in
     iter (uncurry side_one) @@ group_assoc_eq V.equal xs
 
-  let rec do_splits ctx pv (xs:(int * (Obj.t * Events.t list)) list) emits =
+  let rec do_splits man pv (xs:(int * (Obj.t * Events.t list)) list) emits =
     let split_one n (d,emits') =
       let nv = assoc_replace (n,d) pv in
       (* Do split-specific emits before general emits.
          [emits] and [do_emits] are in reverse order.
          [emits'] is in normal order. *)
-      ctx.split (do_emits ctx (emits @ List.rev emits') nv false) []
+      man.split (do_emits man (emits @ List.rev emits') nv false) []
     in
     iter (uncurry split_one) xs
 
-  and do_emits ctx emits xs dead =
-    let octx = ctx in
-    let ctx_with_local ctx local' =
-      (* let rec ctx' =
-        { ctx with
+  and do_emits man emits xs dead =
+    let oman = man in
+    let man_with_local man local' =
+      (* let rec man' =
+         { man with
           local = local';
           ask = ask
-        }
-      and ask q = query ctx' q
-      in
-      ctx' *)
-      {ctx with local = local'}
+         }
+         and ask q = query man' q
+         in
+         man' *)
+      {man with local = local'}
     in
-    let do_emit ctx = function
+    let do_emit man = function
       | Events.SplitBranch (exp, tv) ->
-        ctx_with_local ctx (branch ctx exp tv)
+        man_with_local man (branch man exp tv)
       | Events.Assign {lval; exp} ->
-        ctx_with_local ctx (assign ctx lval exp)
+        man_with_local man (assign man lval exp)
       | e ->
         let spawns = ref [] in
         let splits = ref [] in
-        let sides  = ref [] in (* why do we need to collect these instead of calling ctx.sideg directly? *)
+        let sides  = ref [] in (* why do we need to collect these instead of calling man.sideg directly? *)
         let emits = ref [] in
-        let ctx'' = outer_ctx "do_emits" ~spawns ~sides ~emits ctx in
-        let octx'' = outer_ctx "do_emits" ~spawns ~sides ~emits octx in
+        let man'' = outer_man "do_emits" ~spawns ~sides ~emits man in
+        let oman'' = outer_man "do_emits" ~spawns ~sides ~emits oman in
         let f post_all (n,(module S:MCPSpec),(d,od)) =
-          let ctx' : (S.D.t, S.G.t, S.C.t, S.V.t) ctx = inner_ctx "do_emits" ~splits ~post_all ctx'' n d in
-          let octx' : (S.D.t, S.G.t, S.C.t, S.V.t) ctx = inner_ctx "do_emits" ~splits ~post_all octx'' n od in
-          n, Obj.repr @@ S.event ctx' e octx'
+          let man' : (S.D.t, S.G.t, S.C.t, S.V.t) man = inner_man "do_emits" ~splits ~post_all man'' n d in
+          let oman' : (S.D.t, S.G.t, S.C.t, S.V.t) man = inner_man "do_emits" ~splits ~post_all oman'' n od in
+          n, Obj.repr @@ S.event man' e oman'
         in
-        if M.tracing then M.traceli "event" "%a\n  before: %a" Events.pretty e D.pretty ctx.local;
-        let d, q = map_deadcode f @@ spec_list2 ctx.local octx.local in
+        if M.tracing then M.traceli "event" "%a\n  before: %a" Events.pretty e D.pretty man.local;
+        let d, q = map_deadcode f @@ spec_list2 man.local oman.local in
         if M.tracing then M.traceu "event" "%a\n  after:%a" Events.pretty e D.pretty d;
-        do_sideg ctx !sides;
-        do_spawns ctx !spawns;
-        do_splits ctx d !splits !emits;
-        let d = do_emits ctx !emits d q in
-        if q then raise Deadcode else ctx_with_local ctx d
+        do_sideg man !sides;
+        do_spawns man !spawns;
+        do_splits man d !splits !emits;
+        let d = do_emits man !emits d q in
+        if q then raise Deadcode else man_with_local man d
     in
     if M.tracing then M.traceli "event" "do_emits:";
     let emits =
@@ -230,40 +230,40 @@ struct
         emits
     in
     (* [emits] is in reverse order. *)
-    let ctx' = List.fold_left do_emit (ctx_with_local ctx xs) (List.rev emits) in
+    let man' = List.fold_left do_emit (man_with_local man xs) (List.rev emits) in
     if M.tracing then M.traceu "event" "";
-    ctx'.local
+    man'.local
 
-  and context ctx fd x =
-    let ctx'' = outer_ctx "context_computation" ctx in
+  and context man fd x =
+    let man'' = outer_man "context_computation" man in
     let x = spec_list x in
     filter_map (fun (n,(module S:MCPSpec),d) ->
         if Set.is_empty !act_cont_sens || not (Set.mem n !act_cont_sens) then (*n is insensitive*)
           None
         else
-          let ctx' : (S.D.t, S.G.t, S.C.t, S.V.t) ctx = inner_ctx "context_computation" ctx'' n d in
-          Some (n, Obj.repr @@ S.context ctx' fd (Obj.obj d))
+          let man' : (S.D.t, S.G.t, S.C.t, S.V.t) man = inner_man "context_computation" man'' n d in
+          Some (n, Obj.repr @@ S.context man' fd (Obj.obj d))
       ) x
 
-  and branch (ctx:(D.t, G.t, C.t, V.t) ctx) (e:exp) (tv:bool) =
+  and branch (man:(D.t, G.t, C.t, V.t) man) (e:exp) (tv:bool) =
     let spawns = ref [] in
     let splits = ref [] in
-    let sides  = ref [] in (* why do we need to collect these instead of calling ctx.sideg directly? *)
+    let sides  = ref [] in (* why do we need to collect these instead of calling man.sideg directly? *)
     let emits = ref [] in
-    let ctx'' = outer_ctx "branch" ~spawns ~sides ~emits ctx in
+    let man'' = outer_man "branch" ~spawns ~sides ~emits man in
     let f post_all (n,(module S:MCPSpec),d) =
-      let ctx' : (S.D.t, S.G.t, S.C.t, S.V.t) ctx = inner_ctx "branch" ~splits ~post_all ctx'' n d in
-      n, Obj.repr @@ S.branch ctx' e tv
+      let man' : (S.D.t, S.G.t, S.C.t, S.V.t) man = inner_man "branch" ~splits ~post_all man'' n d in
+      n, Obj.repr @@ S.branch man' e tv
     in
-    let d, q = map_deadcode f @@ spec_list ctx.local in
-    do_sideg ctx !sides;
-    do_spawns ctx !spawns;
-    do_splits ctx d !splits !emits;
-    let d = do_emits ctx !emits d q in
+    let d, q = map_deadcode f @@ spec_list man.local in
+    do_sideg man !sides;
+    do_spawns man !spawns;
+    do_splits man d !splits !emits;
+    let d = do_emits man !emits d q in
     if q then raise Deadcode else d
 
   (* Explicitly polymorphic type required here for recursive GADT call in ask. *)
-  and query': type a. querycache:Obj.t Queries.Hashtbl.t -> Queries.Set.t -> (D.t, G.t, C.t, V.t) ctx -> a Queries.t -> a Queries.result = fun ~querycache asked ctx q ->
+  and query': type a. querycache:Obj.t Queries.Hashtbl.t -> Queries.Set.t -> (D.t, G.t, C.t, V.t) man -> a Queries.t -> a Queries.result = fun ~querycache asked man q ->
     let anyq = Queries.Any q in
     if M.tracing then M.traceli "query" "query %a" Queries.Any.pretty anyq;
     let r = match Queries.Hashtbl.find_option querycache anyq with
@@ -279,18 +279,18 @@ struct
         else
           let asked' = Queries.Set.add anyq asked in
           let sides = ref [] in
-          let ctx'' = outer_ctx "query" ~sides ctx in
+          let man'' = outer_man "query" ~sides man in
           let f ~q a (n,(module S:MCPSpec),d) =
-            let ctx' : (S.D.t, S.G.t, S.C.t, S.V.t) ctx = inner_ctx "query" ctx'' n d in
+            let man' : (S.D.t, S.G.t, S.C.t, S.V.t) man = inner_man "query" man'' n d in
             (* sideg is discouraged in query, because they would bypass sides grouping in other transfer functions.
                See https://github.com/goblint/analyzer/pull/214. *)
-            let ctx' : (S.D.t, S.G.t, S.C.t, S.V.t) ctx =
-              { ctx' with
-                ask    = (fun (type b) (q: b Queries.t) -> query' ~querycache asked' ctx q)
+            let man' : (S.D.t, S.G.t, S.C.t, S.V.t) man =
+              { man' with
+                ask    = (fun (type b) (q: b Queries.t) -> query' ~querycache asked' man q)
               }
             in
             (* meet results so that precision from all analyses is combined *)
-            let res = S.query ctx' q in
+            let res = S.query man' q in
             if M.tracing then M.trace "queryanswers" "analysis %s query %a -> answer %a" (S.name ()) Queries.Any.pretty anyq Result.pretty res;
             Result.meet a @@ res
           in
@@ -298,36 +298,40 @@ struct
           | Queries.WarnGlobal g ->
             (* WarnGlobal is special: it only goes to corresponding analysis and the argument variant is unlifted for it *)
             let (n, g): V.t = Obj.obj g in
-            f ~q:(WarnGlobal (Obj.repr g)) (Result.top ()) (n, spec n, assoc n ctx.local)
+            f ~q:(WarnGlobal (Obj.repr g)) (Result.top ()) (n, spec n, assoc n man.local)
           | Queries.InvariantGlobal g ->
             (* InvariantGlobal is special: it only goes to corresponding analysis and the argument variant is unlifted for it *)
             let (n, g): V.t = Obj.obj g in
-            f ~q:(InvariantGlobal (Obj.repr g)) (Result.top ()) (n, spec n, assoc n ctx.local)
+            f ~q:(InvariantGlobal (Obj.repr g)) (Result.top ()) (n, spec n, assoc n man.local)
+          | Queries.YamlEntryGlobal (g, task) ->
+            (* YamlEntryGlobal is special: it only goes to corresponding analysis and the argument variant is unlifted for it *)
+            let (n, g): V.t = Obj.obj g in
+            f ~q:(YamlEntryGlobal (Obj.repr g, task)) (Result.top ()) (n, spec n, assoc n man.local)
           | Queries.PartAccess a ->
-            Obj.repr (access ctx a)
+            Obj.repr (access man a)
           | Queries.IterSysVars (vq, fi) ->
             (* IterSysVars is special: argument function is lifted for each analysis *)
             iter (fun ((n,(module S:MCPSpec),d) as t) ->
                 let fi' x = fi (Obj.repr (v_of n x)) in
                 let q' = Queries.IterSysVars (vq, fi') in
                 f ~q:q' () t
-              ) @@ spec_list ctx.local
+              ) @@ spec_list man.local
           (* | EvalInt e ->
              (* TODO: only query others that actually respond to EvalInt *)
              (* 2x speed difference on SV-COMP nla-digbench-scaling/ps6-ll_valuebound5.c *)
-             f (Result.top ()) (!base_id, spec !base_id, assoc !base_id ctx.local) *)
+             f (Result.top ()) (!base_id, spec !base_id, assoc !base_id man.local) *)
           | Queries.DYojson ->
-            `Lifted (D.to_yojson ctx.local)
+            `Lifted (D.to_yojson man.local)
           | Queries.GasExhausted f ->
             if (get_int "ana.context.gas_value" >= 0) then
               (* There is a lifter above this that will answer it, save to ask *)
-              ctx.ask (Queries.GasExhausted f)
+              man.ask (Queries.GasExhausted f)
             else
               (* Abort to avoid infinite recursion *)
               false
           | _ ->
-            let r = fold_left (f ~q) (Result.top ()) @@ spec_list ctx.local in
-            do_sideg ctx !sides;
+            let r = fold_left (f ~q) (Result.top ()) @@ spec_list man.local in
+            do_sideg man !sides;
             Queries.Hashtbl.replace querycache anyq (Obj.repr r);
             r
     in
@@ -337,25 +341,25 @@ struct
     );
     r
 
-  and query: type a. (D.t, G.t, C.t, V.t) ctx -> a Queries.t -> a Queries.result = fun ctx q ->
+  and query: type a. (D.t, G.t, C.t, V.t) man -> a Queries.t -> a Queries.result = fun man q ->
     let querycache = Queries.Hashtbl.create 13 in
-    query' ~querycache Queries.Set.empty ctx q
+    query' ~querycache Queries.Set.empty man q
 
-  and access (ctx:(D.t, G.t, C.t, V.t) ctx) a: MCPAccess.A.t =
-    let ctx'' = outer_ctx "access" ctx in
+  and access (man:(D.t, G.t, C.t, V.t) man) a: MCPAccess.A.t =
+    let man'' = outer_man "access" man in
     let f (n, (module S: MCPSpec), d) =
-      let ctx' : (S.D.t, S.G.t, S.C.t, S.V.t) ctx = inner_ctx "access" ctx'' n d in
-      (n, Obj.repr (S.access ctx' a))
+      let man' : (S.D.t, S.G.t, S.C.t, S.V.t) man = inner_man "access" man'' n d in
+      (n, Obj.repr (S.access man' a))
     in
-    BatList.map f (spec_list ctx.local) (* map without deadcode *)
+    BatList.map f (spec_list man.local) (* map without deadcode *)
 
-  and outer_ctx tfname ?spawns ?sides ?emits ctx =
+  and outer_man tfname ?spawns ?sides ?emits man =
     let spawn = match spawns with
       | Some spawns -> (fun ?(multiple=false) l v a  -> spawns := (v,(l,a,multiple)) :: !spawns)
       | None -> (fun ?(multiple=false) v d    -> failwith ("Cannot \"spawn\" in " ^ tfname ^ " context."))
     in
     let sideg = match sides with
-      | Some sides -> (fun v g    -> sides  := (v, (!WideningTokens.side_tokens, g)) :: !sides)
+      | Some sides -> (fun v g    -> sides  := (v, (!WideningTokenLifter.side_tokens, g)) :: !sides)
       | None -> (fun v g       -> failwith ("Cannot \"sideg\" in " ^ tfname ^ " context."))
     in
     let emit = match emits with
@@ -364,183 +368,183 @@ struct
     in
     let querycache = Queries.Hashtbl.create 13 in
     (* TODO: make rec? *)
-    { ctx with
-      ask    = (fun (type a) (q: a Queries.t) -> query' ~querycache Queries.Set.empty ctx q)
+    { man with
+      ask    = (fun (type a) (q: a Queries.t) -> query' ~querycache Queries.Set.empty man q)
     ; emit
     ; spawn
     ; sideg
     }
 
   (* Explicitly polymorphic type required here for recursive call in branch. *)
-  and inner_ctx: type d g c v. string -> ?splits:(int * (Obj.t * Events.t list)) list ref -> ?post_all:(int * Obj.t) list -> (D.t, G.t, C.t, V.t) ctx -> int -> Obj.t -> (d, g, c, v) ctx = fun tfname ?splits ?(post_all=[]) ctx n d ->
+  and inner_man: type d g c v. string -> ?splits:(int * (Obj.t * Events.t list)) list ref -> ?post_all:(int * Obj.t) list -> (D.t, G.t, C.t, V.t) man -> int -> Obj.t -> (d, g, c, v) man = fun tfname ?splits ?(post_all=[]) man n d ->
     let split = match splits with
       | Some splits -> (fun d es   -> splits := (n,(Obj.repr d,es)) :: !splits)
       | None -> (fun _ _    -> failwith ("Cannot \"split\" in " ^ tfname ^ " context."))
     in
-    { ctx with
+    { man with
       local  = Obj.obj d
-    ; context = (fun () -> ctx.context () |> assoc n |> Obj.obj)
-    ; global = (fun v      -> ctx.global (v_of n v) |> g_to n |> Obj.obj)
+    ; context = (fun () -> man.context () |> assoc n |> Obj.obj)
+    ; global = (fun v      -> man.global (v_of n v) |> g_to n |> Obj.obj)
     ; split
-    ; sideg  = (fun v g    -> ctx.sideg (v_of n v) (g_of n g))
+    ; sideg  = (fun v g    -> man.sideg (v_of n v) (g_of n g))
     }
 
-  and assign (ctx:(D.t, G.t, C.t, V.t) ctx) l e =
+  and assign (man:(D.t, G.t, C.t, V.t) man) l e =
     let spawns = ref [] in
     let splits = ref [] in
     let sides  = ref [] in
     let emits = ref [] in
-    let ctx'' = outer_ctx "assign" ~spawns ~sides ~emits ctx in
+    let man'' = outer_man "assign" ~spawns ~sides ~emits man in
     let f post_all (n,(module S:MCPSpec),d) =
-      let ctx' : (S.D.t, S.G.t, S.C.t, S.V.t) ctx = inner_ctx "assign" ~splits ~post_all ctx'' n d in
-      n, Obj.repr @@ S.assign ctx' l e
+      let man' : (S.D.t, S.G.t, S.C.t, S.V.t) man = inner_man "assign" ~splits ~post_all man'' n d in
+      n, Obj.repr @@ S.assign man' l e
     in
-    let d, q = map_deadcode f @@ spec_list ctx.local in
-    do_sideg ctx !sides;
-    do_spawns ctx !spawns;
-    do_splits ctx d !splits !emits;
-    let d = do_emits ctx !emits d q in
+    let d, q = map_deadcode f @@ spec_list man.local in
+    do_sideg man !sides;
+    do_spawns man !spawns;
+    do_splits man d !splits !emits;
+    let d = do_emits man !emits d q in
     if q then raise Deadcode else d
 
 
-  let vdecl (ctx:(D.t, G.t, C.t, V.t) ctx) v =
+  let vdecl (man:(D.t, G.t, C.t, V.t) man) v =
     let spawns = ref [] in
     let splits = ref [] in
     let sides  = ref [] in
     let emits = ref [] in
-    let ctx'' = outer_ctx "vdecl" ~spawns ~sides ~emits ctx in
+    let man'' = outer_man "vdecl" ~spawns ~sides ~emits man in
     let f post_all (n,(module S:MCPSpec),d) =
-      let ctx' : (S.D.t, S.G.t, S.C.t, S.V.t) ctx = inner_ctx "vdecl" ~splits ~post_all ctx'' n d in
-      n, Obj.repr @@ S.vdecl ctx' v
+      let man' : (S.D.t, S.G.t, S.C.t, S.V.t) man = inner_man "vdecl" ~splits ~post_all man'' n d in
+      n, Obj.repr @@ S.vdecl man' v
     in
-    let d, q = map_deadcode f @@ spec_list ctx.local in
-    do_sideg ctx !sides;
-    do_spawns ctx !spawns;
-    do_splits ctx d !splits !emits;
-    let d = do_emits ctx !emits d q in
+    let d, q = map_deadcode f @@ spec_list man.local in
+    do_sideg man !sides;
+    do_spawns man !spawns;
+    do_splits man d !splits !emits;
+    let d = do_emits man !emits d q in
     if q then raise Deadcode else d
 
-  let body (ctx:(D.t, G.t, C.t, V.t) ctx) f =
+  let body (man:(D.t, G.t, C.t, V.t) man) f =
     let spawns = ref [] in
     let splits = ref [] in
     let sides  = ref [] in
     let emits = ref [] in
-    let ctx'' = outer_ctx "body" ~spawns ~sides ~emits ctx in
+    let man'' = outer_man "body" ~spawns ~sides ~emits man in
     let f post_all (n,(module S:MCPSpec),d) =
-      let ctx' : (S.D.t, S.G.t, S.C.t, S.V.t) ctx = inner_ctx "body" ~splits ~post_all ctx'' n d in
-      n, Obj.repr @@ S.body ctx' f
+      let man' : (S.D.t, S.G.t, S.C.t, S.V.t) man = inner_man "body" ~splits ~post_all man'' n d in
+      n, Obj.repr @@ S.body man' f
     in
-    let d, q = map_deadcode f @@ spec_list ctx.local in
-    do_sideg ctx !sides;
-    do_spawns ctx !spawns;
-    do_splits ctx d !splits !emits;
-    let d = do_emits ctx !emits d q in
+    let d, q = map_deadcode f @@ spec_list man.local in
+    do_sideg man !sides;
+    do_spawns man !spawns;
+    do_splits man d !splits !emits;
+    let d = do_emits man !emits d q in
     if q then raise Deadcode else d
 
-  let return (ctx:(D.t, G.t, C.t, V.t) ctx) e f =
+  let return (man:(D.t, G.t, C.t, V.t) man) e f =
     let spawns = ref [] in
     let splits = ref [] in
     let sides  = ref [] in
     let emits = ref [] in
-    let ctx'' = outer_ctx "return" ~spawns ~sides ~emits ctx in
+    let man'' = outer_man "return" ~spawns ~sides ~emits man in
     let f post_all (n,(module S:MCPSpec),d) =
-      let ctx' : (S.D.t, S.G.t, S.C.t, S.V.t) ctx = inner_ctx "return" ~splits ~post_all ctx'' n d in
-      n, Obj.repr @@ S.return ctx' e f
+      let man' : (S.D.t, S.G.t, S.C.t, S.V.t) man = inner_man "return" ~splits ~post_all man'' n d in
+      n, Obj.repr @@ S.return man' e f
     in
-    let d, q = map_deadcode f @@ spec_list ctx.local in
-    do_sideg ctx !sides;
-    do_spawns ctx !spawns;
-    do_splits ctx d !splits !emits;
-    let d = do_emits ctx !emits d q in
+    let d, q = map_deadcode f @@ spec_list man.local in
+    do_sideg man !sides;
+    do_spawns man !spawns;
+    do_splits man d !splits !emits;
+    let d = do_emits man !emits d q in
     if q then raise Deadcode else d
 
 
-  let asm (ctx:(D.t, G.t, C.t, V.t) ctx) =
+  let asm (man:(D.t, G.t, C.t, V.t) man) =
     let spawns = ref [] in
     let splits = ref [] in
     let sides  = ref [] in
     let emits = ref [] in
-    let ctx'' = outer_ctx "asm" ~spawns ~sides ~emits ctx in
+    let man'' = outer_man "asm" ~spawns ~sides ~emits man in
     let f post_all (n,(module S:MCPSpec),d) =
-      let ctx' : (S.D.t, S.G.t, S.C.t, S.V.t) ctx = inner_ctx "asm" ~splits ~post_all ctx'' n d in
-      n, Obj.repr @@ S.asm ctx'
+      let man' : (S.D.t, S.G.t, S.C.t, S.V.t) man = inner_man "asm" ~splits ~post_all man'' n d in
+      n, Obj.repr @@ S.asm man'
     in
-    let d, q = map_deadcode f @@ spec_list ctx.local in
-    do_sideg ctx !sides;
-    do_spawns ctx !spawns;
-    do_splits ctx d !splits !emits;
-    let d = do_emits ctx !emits d q in
+    let d, q = map_deadcode f @@ spec_list man.local in
+    do_sideg man !sides;
+    do_spawns man !spawns;
+    do_splits man d !splits !emits;
+    let d = do_emits man !emits d q in
     if q then raise Deadcode else d
 
-  let skip (ctx:(D.t, G.t, C.t, V.t) ctx) =
+  let skip (man:(D.t, G.t, C.t, V.t) man) =
     let spawns = ref [] in
     let splits = ref [] in
     let sides  = ref [] in
     let emits = ref [] in
-    let ctx'' = outer_ctx "skip" ~spawns ~sides ~emits ctx in
+    let man'' = outer_man "skip" ~spawns ~sides ~emits man in
     let f post_all (n,(module S:MCPSpec),d) =
-      let ctx' : (S.D.t, S.G.t, S.C.t, S.V.t) ctx = inner_ctx "skip" ~splits ~post_all ctx'' n d in
-      n, Obj.repr @@ S.skip ctx'
+      let man' : (S.D.t, S.G.t, S.C.t, S.V.t) man = inner_man "skip" ~splits ~post_all man'' n d in
+      n, Obj.repr @@ S.skip man'
     in
-    let d, q = map_deadcode f @@ spec_list ctx.local in
-    do_sideg ctx !sides;
-    do_spawns ctx !spawns;
-    do_splits ctx d !splits !emits;
-    let d = do_emits ctx !emits d q in
+    let d, q = map_deadcode f @@ spec_list man.local in
+    do_sideg man !sides;
+    do_spawns man !spawns;
+    do_splits man d !splits !emits;
+    let d = do_emits man !emits d q in
     if q then raise Deadcode else d
 
-  let special (ctx:(D.t, G.t, C.t, V.t) ctx) r f a =
+  let special (man:(D.t, G.t, C.t, V.t) man) r f a =
     let spawns = ref [] in
     let splits = ref [] in
     let sides  = ref [] in
     let emits = ref [] in
-    let ctx'' = outer_ctx "special" ~spawns ~sides ~emits ctx in
+    let man'' = outer_man "special" ~spawns ~sides ~emits man in
     let f post_all (n,(module S:MCPSpec),d) =
-      let ctx' : (S.D.t, S.G.t, S.C.t, S.V.t) ctx = inner_ctx "special" ~splits ~post_all ctx'' n d in
-      n, Obj.repr @@ S.special ctx' r f a
+      let man' : (S.D.t, S.G.t, S.C.t, S.V.t) man = inner_man "special" ~splits ~post_all man'' n d in
+      n, Obj.repr @@ S.special man' r f a
     in
-    let d, q = map_deadcode f @@ spec_list ctx.local in
-    do_sideg ctx !sides;
-    do_spawns ctx !spawns;
-    do_splits ctx d !splits !emits;
-    let d = do_emits ctx !emits d q in
+    let d, q = map_deadcode f @@ spec_list man.local in
+    do_sideg man !sides;
+    do_spawns man !spawns;
+    do_splits man d !splits !emits;
+    let d = do_emits man !emits d q in
     if q then raise Deadcode else d
 
-  let sync (ctx:(D.t, G.t, C.t, V.t) ctx) reason =
+  let sync (man:(D.t, G.t, C.t, V.t) man) reason =
     let spawns = ref [] in
     let splits = ref [] in
     let sides  = ref [] in
     let emits = ref [] in
-    let ctx'' = outer_ctx "sync" ~spawns ~sides ~emits ctx in
+    let man'' = outer_man "sync" ~spawns ~sides ~emits man in
     let f post_all (n,(module S:MCPSpec),d) =
-      let ctx' : (S.D.t, S.G.t, S.C.t, S.V.t) ctx = inner_ctx "sync" ~splits ~post_all ctx'' n d in
-      n, Obj.repr @@ S.sync ctx' reason
+      let man' : (S.D.t, S.G.t, S.C.t, S.V.t) man = inner_man "sync" ~splits ~post_all man'' n d in
+      n, Obj.repr @@ S.sync man' reason
     in
-    let d, q = map_deadcode f @@ spec_list ctx.local in
-    do_sideg ctx !sides;
-    do_spawns ctx !spawns;
-    do_splits ctx d !splits !emits;
-    let d = do_emits ctx !emits d q in
+    let d, q = map_deadcode f @@ spec_list man.local in
+    do_sideg man !sides;
+    do_spawns man !spawns;
+    do_splits man d !splits !emits;
+    let d = do_emits man !emits d q in
     if q then raise Deadcode else d
 
-  let enter (ctx:(D.t, G.t, C.t, V.t) ctx) r f a =
+  let enter (man:(D.t, G.t, C.t, V.t) man) r f a =
     let spawns = ref [] in
     let sides  = ref [] in
-    let ctx'' = outer_ctx "enter" ~spawns ~sides ctx in
+    let man'' = outer_man "enter" ~spawns ~sides man in
     let f (n,(module S:MCPSpec),d) =
-      let ctx' : (S.D.t, S.G.t, S.C.t, S.V.t) ctx = inner_ctx "enter" ctx'' n d in
-      map (fun (c,d) -> ((n, Obj.repr c), (n, Obj.repr d))) @@ S.enter ctx' r f a
+      let man' : (S.D.t, S.G.t, S.C.t, S.V.t) man = inner_man "enter" man'' n d in
+      map (fun (c,d) -> ((n, Obj.repr c), (n, Obj.repr d))) @@ S.enter man' r f a
     in
-    let css = map f @@ spec_list ctx.local in
-    do_sideg ctx !sides;
-    do_spawns ctx !spawns;
+    let css = map f @@ spec_list man.local in
+    do_sideg man !sides;
+    do_spawns man !spawns;
     map (fun xs -> (topo_sort_an @@ map fst xs, topo_sort_an @@ map snd xs)) @@ n_cartesian_product css
 
-  let combine_env (ctx:(D.t, G.t, C.t, V.t) ctx) r fe f a fc fd f_ask =
+  let combine_env (man:(D.t, G.t, C.t, V.t) man) r fe f a fc fd f_ask =
     let spawns = ref [] in
     let sides  = ref [] in
     let emits = ref [] in
-    let ctx'' = outer_ctx "combine_env" ~spawns ~sides ~emits ctx in
+    let man'' = outer_man "combine_env" ~spawns ~sides ~emits man in
     (* Like spec_list2 but for three lists. Tail recursion like map3_rev would have.
        Due to context-insensitivity, second list is optional and may only contain a subset of analyses
        in the same order, so some skipping needs to happen to align the three lists.
@@ -556,20 +560,20 @@ struct
       | _, _, _ -> invalid_arg "MCP.spec_list3_rev_acc"
     in
     let f post_all (n,(module S:MCPSpec),(d,fc,fd)) =
-      let ctx' : (S.D.t, S.G.t, S.C.t, S.V.t) ctx = inner_ctx "combine_env" ~post_all ctx'' n d in
-      n, Obj.repr @@ S.combine_env ctx' r fe f a (Option.map Obj.obj fc) (Obj.obj fd) f_ask
+      let man' : (S.D.t, S.G.t, S.C.t, S.V.t) man = inner_man "combine_env" ~post_all man'' n d in
+      n, Obj.repr @@ S.combine_env man' r fe f a (Option.map Obj.obj fc) (Obj.obj fd) f_ask
     in
-    let d, q = map_deadcode f @@ List.rev @@ spec_list3_rev_acc [] ctx.local fc fd in
-    do_sideg ctx !sides;
-    do_spawns ctx !spawns;
-    let d = do_emits ctx !emits d q in
+    let d, q = map_deadcode f @@ List.rev @@ spec_list3_rev_acc [] man.local fc fd in
+    do_sideg man !sides;
+    do_spawns man !spawns;
+    let d = do_emits man !emits d q in
     if q then raise Deadcode else d
 
-  let combine_assign (ctx:(D.t, G.t, C.t, V.t) ctx) r fe f a fc fd f_ask =
+  let combine_assign (man:(D.t, G.t, C.t, V.t) man) r fe f a fc fd f_ask =
     let spawns = ref [] in
     let sides  = ref [] in
     let emits = ref [] in
-    let ctx'' = outer_ctx "combine_assign" ~spawns ~sides ~emits ctx in
+    let man'' = outer_man "combine_assign" ~spawns ~sides ~emits man in
     (* Like spec_list2 but for three lists. Tail recursion like map3_rev would have.
        Due to context-insensitivity, second list is optional and may only contain a subset of analyses
        in the same order, so some skipping needs to happen to align the three lists.
@@ -585,45 +589,45 @@ struct
       | _, _, _ -> invalid_arg "MCP.spec_list3_rev_acc"
     in
     let f post_all (n,(module S:MCPSpec),(d,fc,fd)) =
-      let ctx' : (S.D.t, S.G.t, S.C.t, S.V.t) ctx = inner_ctx "combine_assign" ~post_all ctx'' n d in
-      n, Obj.repr @@ S.combine_assign ctx' r fe f a (Option.map Obj.obj fc) (Obj.obj fd) f_ask
+      let man' : (S.D.t, S.G.t, S.C.t, S.V.t) man = inner_man "combine_assign" ~post_all man'' n d in
+      n, Obj.repr @@ S.combine_assign man' r fe f a (Option.map Obj.obj fc) (Obj.obj fd) f_ask
     in
-    let d, q = map_deadcode f @@ List.rev @@ spec_list3_rev_acc [] ctx.local fc fd in
-    do_sideg ctx !sides;
-    do_spawns ctx !spawns;
-    let d = do_emits ctx !emits d q in
+    let d, q = map_deadcode f @@ List.rev @@ spec_list3_rev_acc [] man.local fc fd in
+    do_sideg man !sides;
+    do_spawns man !spawns;
+    let d = do_emits man !emits d q in
     if q then raise Deadcode else d
 
-  let threadenter (ctx:(D.t, G.t, C.t, V.t) ctx) ~multiple lval f a =
+  let threadenter (man:(D.t, G.t, C.t, V.t) man) ~multiple lval f a =
     let sides  = ref [] in
     let emits = ref [] in
-    let ctx'' = outer_ctx "threadenter" ~sides ~emits ctx in
+    let man'' = outer_man "threadenter" ~sides ~emits man in
     let f (n,(module S:MCPSpec),d) =
-      let ctx' : (S.D.t, S.G.t, S.C.t, S.V.t) ctx = inner_ctx "threadenter" ctx'' n d in
-      map (fun d -> (n, Obj.repr d)) @@ (S.threadenter ~multiple) ctx' lval f a
+      let man' : (S.D.t, S.G.t, S.C.t, S.V.t) man = inner_man "threadenter" man'' n d in
+      map (fun d -> (n, Obj.repr d)) @@ (S.threadenter ~multiple) man' lval f a
     in
-    let css = map f @@ spec_list ctx.local in
-    do_sideg ctx !sides;
+    let css = map f @@ spec_list man.local in
+    do_sideg man !sides;
     (* TODO: this do_emits is now different from everything else *)
-    map (fun d -> do_emits ctx !emits d false) @@ map topo_sort_an @@ n_cartesian_product css
+    map (fun d -> do_emits man !emits d false) @@ map topo_sort_an @@ n_cartesian_product css
 
-  let threadspawn (ctx:(D.t, G.t, C.t, V.t) ctx) ~multiple lval f a fctx =
+  let threadspawn (man:(D.t, G.t, C.t, V.t) man) ~multiple lval f a fman =
     let sides  = ref [] in
     let emits = ref [] in
-    let ctx'' = outer_ctx "threadspawn" ~sides ~emits ctx in
-    let fctx'' = outer_ctx "threadspawn" ~sides ~emits fctx in
+    let man'' = outer_man "threadspawn" ~sides ~emits man in
+    let fman'' = outer_man "threadspawn" ~sides ~emits fman in
     let f post_all (n,(module S:MCPSpec),(d,fd)) =
-      let ctx' : (S.D.t, S.G.t, S.C.t, S.V.t) ctx = inner_ctx "threadspawn" ~post_all ctx'' n d in
-      let fctx' : (S.D.t, S.G.t, S.C.t, S.V.t) ctx = inner_ctx "threadspawn" ~post_all fctx'' n fd in
-      n, Obj.repr @@ S.threadspawn ~multiple ctx' lval f a fctx'
+      let man' : (S.D.t, S.G.t, S.C.t, S.V.t) man = inner_man "threadspawn" ~post_all man'' n d in
+      let fman' : (S.D.t, S.G.t, S.C.t, S.V.t) man = inner_man "threadspawn" ~post_all fman'' n fd in
+      n, Obj.repr @@ S.threadspawn ~multiple man' lval f a fman'
     in
-    let d, q = map_deadcode f @@ spec_list2 ctx.local fctx.local in
-    do_sideg ctx !sides;
-    let d = do_emits ctx !emits d q in
+    let d, q = map_deadcode f @@ spec_list2 man.local fman.local in
+    do_sideg man !sides;
+    let d = do_emits man !emits d q in
     if q then raise Deadcode else d
 
-  let event (ctx:(D.t, G.t, C.t, V.t) ctx) e _ = do_emits ctx [e] ctx.local false
+  let event (man:(D.t, G.t, C.t, V.t) man) e _ = do_emits man [e] man.local false
 
   (* Just to satisfy signature *)
-  let paths_as_set ctx = [ctx.local]
+  let paths_as_set man = [man.local]
 end

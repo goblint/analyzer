@@ -9,7 +9,7 @@ Goblint includes analyses for assertions, overflows, deadlocks, etc and can be e
 maintainer: [
   "Simmo Saan <simmo.saan@gmail.com>"
   "Michael Schwarz <michael.schwarz93@gmail.com>"
-  "Karoliine Holter"
+  "Karoliine Holter <karoliine.holter@ut.ee>"
 ]
 authors: [
   "Simmo Saan"
@@ -37,7 +37,7 @@ bug-reports: "https://github.com/goblint/analyzer/issues"
 depends: [
   "dune" {>= "3.7"}
   "ocaml" {>= "4.14"}
-  "goblint-cil" {>= "2.0.4"}
+  "goblint-cil" {>= "2.0.5"}
   "batteries" {>= "3.5.1"}
   "zarith" {>= "1.10"}
   "yojson" {>= "2.0.0"}
@@ -58,7 +58,7 @@ depends: [
   "sha" {>= "1.12"}
   "fileutils" {>= "0.6.4"}
   "cpu"
-  "arg-complete"
+  "arg-complete" {>= "0.2.1"}
   "yaml" {>= "3.0.0"}
   "uuidm"
   "catapult"
@@ -97,7 +97,8 @@ dev-repo: "git+https://github.com/goblint/analyzer.git"
 # also remember to generate/adjust goblint.opam.locked!
 available: os-family != "bsd" & os-distribution != "alpine" & (arch != "arm64" | os = "macos")
 pin-depends: [
-  [ "goblint-cil.2.0.4" "git+https://github.com/goblint/cil.git#9f4fac450c02bc61a13717784515056b185794cd" ]
+  # published goblint-cil 2.0.5 is currently up-to-date, but pinned for reproducibility
+  [ "goblint-cil.2.0.5" "git+https://github.com/goblint/cil.git#f5ee39bd344dc74e2a10e407d877e0ddf73c9c6f" ]
   # pinned for stability (https://github.com/goblint/analyzer/issues/1520), remove after new camlidl release
   [ "camlidl.1.12" "git+https://github.com/xavierleroy/camlidl.git#1c1e87e3f56c2c6b3226dd0af3510ef414b462d0" ]
   # pinned for stability (https://github.com/goblint/analyzer/issues/1520), remove after new apron release

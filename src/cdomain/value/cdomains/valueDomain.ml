@@ -133,7 +133,7 @@ struct
     | _ -> false
 
   let is_mutex_type (t: typ): bool = match t with
-    | TNamed (info, attr) -> info.tname = "pthread_mutex_t" || info.tname = "spinlock_t" || info.tname = "pthread_spinlock_t" || info.tname = "pthread_cond_t"
+    | TNamed (info, attr) -> info.tname = "pthread_mutex_t" || info.tname = "spinlock_t" || info.tname = "pthread_spinlock_t" || info.tname = "pthread_cond_t" || info.tname = "pthread_rwlock_t"
     | TInt (IInt, attr) -> hasAttribute "mutex" attr
     | _ -> false
 
@@ -349,7 +349,7 @@ struct
    ************************************************************)
 
   (* is a cast t1 to t2 invertible, i.e., content-preserving in general? *)
-  let is_statically_safe_cast t2 t1 = match t2, t1 with (* TODO: unrolltype? *)
+  let is_statically_safe_cast t2 t1 = match unrollType t2, unrollType t1 with
     (*| TPtr _, t -> bitsSizeOf t <= bitsSizeOf !upointType
       | t, TPtr _ -> bitsSizeOf t >= bitsSizeOf !upointType*)
     | TFloat (fk1,_), TFloat (fk2,_) when fk1 = fk2 -> true
@@ -561,7 +561,13 @@ struct
     | (_, Top) -> true
     | (Top, _) -> false
     | (Bot, _) -> true
-    | (_, Bot) -> false
+    | (x, Bot) ->
+      if !AnalysisState.bot_in_blob_leq_bot then
+        match x with
+        | Blob (x,s,o) -> leq x Bot
+        | _ -> false
+      else
+        false
     | (Int x, Int y) -> ID.leq x y
     | (Float x, Float y) -> FD.leq x y
     | (Int x, Address y) when ID.to_int x = Some Z.zero && not (AD.is_not_null y) -> true
@@ -992,7 +998,7 @@ struct
                 not @@ ask.is_multiple var
                 && not @@ Cil.isVoidType t      (* Size of value is known *)
                 && GobOption.exists (fun blob_size -> (* Size of blob is known *)
-                    Z.equal blob_size (Z.of_int @@ Cil.bitsSizeOf (TComp (toptype, []))/8)
+                    Z.equal blob_size (Z.of_int @@ Cilfacade.bytesSizeOf (TComp (toptype, [])))
                   ) blob_size_opt
               | _ -> false
             in
@@ -1001,28 +1007,31 @@ struct
             else
               mu (Blob (join x (do_update_offset ask x offs value exp l' o' v t), s, zeroinit))
           end
-        | Blob (x,s,zeroinit), _ ->
+        | Blob (x,s,zeroinit), `NoOffset -> (* `NoOffset is only remaining possibility for Blob here *)
           begin
-            let l', o' = shift_one_over l o in
-            let x = zero_init_calloced_memory zeroinit x t in
-            (* Strong update of scalar variable is possible if the variable is unique and size of written value matches size of blob being written to. *)
-            let do_strong_update =
-              begin match v with
-                | (Var var, _) ->
-                  let blob_size_opt = ID.to_int s in
-                  not @@ ask.is_multiple var
-                  && GobOption.exists (fun blob_size -> (* Size of blob is known *)
-                      (not @@ Cil.isVoidType t     (* Size of value is known *)
-                       && Z.equal blob_size (Z.of_int @@ Cil.alignOf_int t))
-                      || blob_destructive
-                    ) blob_size_opt
-                | _ -> false
-              end
-            in
-            if do_strong_update then
-              Blob ((do_update_offset ask x offs value exp l' o' v t), s, zeroinit)
-            else
-              mu (Blob (join x (do_update_offset ask x offs value exp l' o' v t), s, zeroinit))
+            match value with
+            | Blob (x2, s2, zeroinit2) -> mu (Blob (join x x2, ID.join s s2, zeroinit))
+            | _ ->
+              let l', o' = shift_one_over l o in
+              let x = zero_init_calloced_memory zeroinit x t in
+              (* Strong update of scalar variable is possible if the variable is unique and size of written value matches size of blob being written to. *)
+              let do_strong_update =
+                begin match v with
+                  | (Var var, _) ->
+                    let blob_size_opt = ID.to_int s in
+                    not @@ ask.is_multiple var
+                    && GobOption.exists (fun blob_size -> (* Size of blob is known *)
+                        (not @@ Cil.isVoidType t     (* Size of value is known *)
+                         && Z.equal blob_size (Z.of_int @@ Cil.alignOf_int t))
+                        || blob_destructive
+                      ) blob_size_opt
+                  | _ -> false
+                end
+              in
+              if do_strong_update then
+                Blob ((do_update_offset ask x offs value exp l' o' v t), s, zeroinit)
+              else
+                mu (Blob (join x (do_update_offset ask x offs value exp l' o' v t), s, zeroinit))
           end
         | Thread _, _ ->
           (* hack for pthread_t variables *)

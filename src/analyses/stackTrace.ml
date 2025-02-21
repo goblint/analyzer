@@ -13,14 +13,14 @@ struct
 
   (* transfer functions *)
 
-  let body ctx (f:fundec) : D.t =
-    if f.svar.vname = "__goblint_dummy_init" then ctx.local else D.push f.svar ctx.local
+  let body man (f:fundec) : D.t =
+    if f.svar.vname = "__goblint_dummy_init" then man.local else D.push f.svar man.local
 
-  let combine_env ctx lval fexp f args fc au f_ask =
-    ctx.local (* keep local as opposed to IdentitySpec *)
+  let combine_env man lval fexp f args fc au f_ask =
+    man.local (* keep local as opposed to IdentitySpec *)
 
   let startstate v = D.bot ()
-  let threadenter ctx ~multiple lval f args = [D.bot ()]
+  let threadenter man ~multiple lval f args = [D.bot ()]
   let exitstate  v = D.top ()
 end
 
@@ -34,17 +34,17 @@ struct
 
   (* transfer functions *)
 
-  let enter ctx (lval: lval option) (f:fundec) (args:exp list) : (D.t * D.t) list =
-    [ctx.local, D.push !Goblint_tracing.current_loc ctx.local]
+  let enter man (lval: lval option) (f:fundec) (args:exp list) : (D.t * D.t) list =
+    [man.local, D.push !Goblint_tracing.current_loc man.local]
 
-  let combine_env ctx lval fexp f args fc au f_ask =
-    ctx.local (* keep local as opposed to IdentitySpec *)
+  let combine_env man lval fexp f args fc au f_ask =
+    man.local (* keep local as opposed to IdentitySpec *)
 
   let startstate v = D.bot ()
   let exitstate  v = D.top ()
 
-  let threadenter ctx ~multiple lval f args =
-    [D.push !Goblint_tracing.current_loc ctx.local]
+  let threadenter man ~multiple lval f args =
+    [D.push !Goblint_tracing.current_loc man.local]
 end
 
 

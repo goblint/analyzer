@@ -22,18 +22,18 @@ struct
 
   (* transfer functions *)
 
-  let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
+  let special man (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
     let desc = LF.find f in
     match desc.special arglist with
     | Signal cond
     | Broadcast cond ->
-      let mhp = G.singleton @@ MHP.current (Analyses.ask_of_ctx ctx) in
-      let publish_one a = ctx.sideg a mhp in
-      let possible_vars = possible_vinfos (Analyses.ask_of_ctx ctx) cond in
+      let mhp = G.singleton @@ MHP.current (Analyses.ask_of_man man) in
+      let publish_one a = man.sideg a mhp in
+      let possible_vars = possible_vinfos (Analyses.ask_of_man man) cond in
       List.iter publish_one possible_vars;
-      ctx.local
+      man.local
     | Wait {cond = cond; _} ->
-      let current_mhp = MHP.current (Analyses.ask_of_ctx ctx) in
+      let current_mhp = MHP.current (Analyses.ask_of_man man) in
       let module Signalled = struct
         type signalled = Never | NotConcurrently | PossiblySignalled
 
@@ -45,7 +45,7 @@ struct
           | Never, Never -> Never
 
         let can_be_signalled a =
-          let signalling_tids = ctx.global a in
+          let signalling_tids = man.global a in
           if G.is_top signalling_tids then
             PossiblySignalled
           else if G.is_empty signalling_tids then
@@ -57,23 +57,23 @@ struct
       end
       in
       let open Signalled in
-      let add_if_singleton conds = match conds with | [a] -> Signals.add (ValueDomain.Addr.of_var a) ctx.local | _ -> ctx.local in
-      let conds = possible_vinfos (Analyses.ask_of_ctx ctx) cond in
+      let add_if_singleton conds = match conds with | [a] -> Signals.add (ValueDomain.Addr.of_var a) man.local | _ -> man.local in
+      let conds = possible_vinfos (Analyses.ask_of_man man) cond in
       (match List.fold_left (fun acc cond -> can_be_signalled cond ||| acc) Never conds with
        | PossiblySignalled -> add_if_singleton conds
        | NotConcurrently ->
-         (M.warn ~category:Deadcode "The condition variable(s) pointed to by %a are never signalled concurrently, succeeding code is live due to spurious wakeups only!" Basetype.CilExp.pretty cond; ctx.local)
+         (M.warn ~category:Deadcode "The condition variable(s) pointed to by %a are never signalled concurrently, succeeding code is live due to spurious wakeups only!" Basetype.CilExp.pretty cond; man.local)
        | Never ->
-         (M.warn ~category:Deadcode "The condition variable(s) pointed to by %a are never signalled, succeeding code is live due to spurious wakeups only!" Basetype.CilExp.pretty cond; ctx.local)
+         (M.warn ~category:Deadcode "The condition variable(s) pointed to by %a are never signalled, succeeding code is live due to spurious wakeups only!" Basetype.CilExp.pretty cond; man.local)
       )
 
     | TimedWait _ ->
       (* Time could simply have elapsed *)
-      ctx.local
-    | _ -> ctx.local
+      man.local
+    | _ -> man.local
 
   let startstate v = Signals.empty ()
-  let threadenter ctx ~multiple lval f args = [ctx.local]
+  let threadenter man ~multiple lval f args = [man.local]
   let exitstate  v = Signals.empty ()
 end
 

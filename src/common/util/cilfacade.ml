@@ -381,6 +381,17 @@ let typeSigBlendAttributes baseAttrs =
   typeSigAddAttrs contageous
 
 
+let bytesSizeOf t =
+  let bits = bitsSizeOf t in
+  assert (bits mod 8 = 0);
+  bits / 8
+
+let bytesOffsetOnly t o =
+  let bits_offset, _ = bitsOffset t o in
+  assert (bits_offset mod 8 = 0);
+  bits_offset / 8
+
+
 (** {!Cil.mkCast} using our {!typeOf}. *)
 let mkCast ~(e: exp) ~(newt: typ) =
   let oldt =

@@ -37,3 +37,6 @@ c3e2cc848479ae86de5542b6ab0e75a74e9cf8c9
 
 # Fix LibraryFunctions.invalidate_actions indentation
 5662024232f32fe74dd25c9317dee4436ecb212d
+
+# Rename ctx -> man
+0c155e68607fede6fab17704a9a7aee38df5408e

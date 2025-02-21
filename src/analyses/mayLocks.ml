@@ -10,34 +10,34 @@ struct
   module G = DefaultSpec.G
   module V = DefaultSpec.V
 
-  let add ctx (l,r) =
-    if D.mem l ctx.local then
+  let add man (l,r) =
+    if D.mem l man.local then
       let default () =
         M.warn ~category:M.Category.Behavior.Undefined.double_locking "Acquiring a (possibly non-recursive) mutex that may be already held";
-        ctx.local
+        man.local
       in
       match D.Addr.to_mval l with
       | Some (v,o) ->
-        (let mtype = ctx.ask (Queries.MutexType (v, Offset.Unit.of_offs o)) in
+        (let mtype = man.ask (Queries.MutexType (v, Offset.Unit.of_offs o)) in
          match mtype with
-         | `Lifted MutexAttrDomain.MutexKind.Recursive -> ctx.local
+         | `Lifted MutexAttrDomain.MutexKind.Recursive -> man.local
          | `Lifted MutexAttrDomain.MutexKind.NonRec ->
            M.warn ~category:M.Category.Behavior.Undefined.double_locking "Acquiring a non-recursive mutex that may be already held";
-           ctx.local
+           man.local
          | _  -> default ())
       | _ -> default ()
     else
-      D.add l ctx.local
+      D.add l man.local
 
-  let remove ctx l =
-    if not (D.mem l ctx.local) then M.warn "Releasing a mutex that is definitely not held";
+  let remove man l =
+    if not (D.mem l man.local) then M.warn "Releasing a mutex that is definitely not held";
     match D.Addr.to_mval l with
     | Some (v,o) ->
-      (let mtype = ctx.ask (Queries.MutexType (v, Offset.Unit.of_offs o)) in
+      (let mtype = man.ask (Queries.MutexType (v, Offset.Unit.of_offs o)) in
        match mtype with
-       | `Lifted MutexAttrDomain.MutexKind.NonRec -> D.remove l ctx.local
-       | _ -> ctx.local (* we cannot remove them here *))
-    | None -> ctx.local (* we cannot remove them here *)
+       | `Lifted MutexAttrDomain.MutexKind.NonRec -> D.remove l man.local
+       | _ -> man.local (* we cannot remove them here *))
+    | None -> man.local (* we cannot remove them here *)
 end
 
 module Spec =
@@ -47,16 +47,16 @@ struct
 
   let exitstate  v = D.top () (* TODO: why? *)
 
-  let return ctx exp fundec =
-    if not (D.is_bot ctx.local) && ThreadReturn.is_current (Analyses.ask_of_ctx ctx) then M.warn "Exiting thread while still holding a mutex!";
-    ctx.local
+  let return man exp fundec =
+    if not (D.is_bot man.local) && ThreadReturn.is_current (Analyses.ask_of_man man) then M.warn "Exiting thread while still holding a mutex!";
+    man.local
 
-  let special ctx (lv:lval option) (f: varinfo) (args: exp list) =
+  let special man (lv:lval option) (f: varinfo) (args: exp list) =
     (match(LF.find f).special args with
-     | ThreadExit _ -> if not @@ D.is_bot ctx.local then M.warn "Exiting thread while still holding a mutex!"
+     | ThreadExit _ -> if not @@ D.is_bot man.local then M.warn "Exiting thread while still holding a mutex!"
      | _ -> ())
     ;
-    ctx.local
+    man.local
 end
 
 let _ =

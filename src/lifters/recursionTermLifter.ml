@@ -55,13 +55,13 @@ struct
 
   let name () = "RecursionTermLifter (" ^ S.name () ^ ")"
 
-  let conv (ctx: (_, G.t, _, V.t) ctx): (_, S.G.t, _, S.V.t) ctx =
-    { ctx with
-      global = (fun v -> G.spec (ctx.global (V.spec v)));
-      sideg = (fun v g -> ctx.sideg (V.spec v) (G.create_spec g));
+  let conv (man: (_, G.t, _, V.t) man): (_, S.G.t, _, S.V.t) man =
+    { man with
+      global = (fun v -> G.spec (man.global (V.spec v)));
+      sideg = (fun v g -> man.sideg (V.spec v) (G.create_spec g));
     }
 
-  let cycleDetection ctx call =
+  let cycleDetection man call =
     let module LH = Hashtbl.Make (Printable.Prod (CilType.Fundec) (S.C)) in
     let module LS = Set.Make (Printable.Prod (CilType.Fundec) (S.C)) in
     (* find all cycles/SCCs *)
@@ -78,7 +78,7 @@ struct
         LH.replace global_visited_calls call ();
         let new_path_visited_calls = LS.add call path_visited_calls in
         let gvar = V.call call in
-        let callers = G.callers (ctx.global gvar) in
+        let callers = G.callers (man.global gvar) in
         CallerSet.iter (fun to_call ->
             iter_call new_path_visited_calls to_call
           ) callers;
@@ -86,60 +86,68 @@ struct
     in
     iter_call LS.empty call
 
-  let query ctx (type a) (q: a Queries.t): a Queries.result =
+  let query man (type a) (q: a Queries.t): a Queries.result =
     match q with
     | WarnGlobal v ->
       (* check result of loop analysis *)
-      if not (ctx.ask Queries.MustTermAllLoops) then
+      if not (man.ask Queries.MustTermAllLoops) then
         AnalysisState.svcomp_may_not_terminate := true;
       let v: V.t = Obj.obj v in
       begin match v with
         | `Left v' ->
-          S.query (conv ctx) (WarnGlobal (Obj.repr v'))
-        | `Right call -> cycleDetection ctx call (* Note: to make it more efficient, one could only execute the cycle detection in case the loop analysis returns true, because otherwise the program will probably not terminate anyway*)
+          S.query (conv man) (WarnGlobal (Obj.repr v'))
+        | `Right call -> cycleDetection man call (* Note: to make it more efficient, one could only execute the cycle detection in case the loop analysis returns true, because otherwise the program will probably not terminate anyway*)
       end
     | InvariantGlobal v ->
       let v: V.t = Obj.obj v in
       begin match v with
         | `Left v ->
-          S.query (conv ctx) (InvariantGlobal (Obj.repr v))
+          S.query (conv man) (InvariantGlobal (Obj.repr v))
         | `Right v ->
           Queries.Result.top q
       end
-    | _ -> S.query (conv ctx) q
+    | YamlEntryGlobal (v, task) ->
+      let v: V.t = Obj.obj v in
+      begin match v with
+        | `Left v ->
+          S.query (conv man) (YamlEntryGlobal (Obj.repr v, task))
+        | `Right v ->
+          Queries.Result.top q
+      end
+    | _ -> S.query (conv man) q
 
-  let branch ctx = S.branch (conv ctx)
-  let assign ctx = S.assign (conv ctx)
-  let vdecl ctx = S.vdecl (conv ctx)
+  let branch man = S.branch (conv man)
+  let assign man = S.assign (conv man)
+  let vdecl man = S.vdecl (conv man)
 
 
   let record_call sideg callee caller =
     sideg (V.call callee) (G.create_singleton_caller caller)
 
-  let enter ctx  = S.enter (conv ctx)
-  let context ctx = S.context (conv ctx)
-  let paths_as_set ctx = S.paths_as_set (conv ctx)
-  let body ctx = S.body (conv ctx)
-  let return ctx = S.return (conv ctx)
-  let combine_env ctx r fe f args fc es f_ask =
+  let enter man  = S.enter (conv man)
+  let context man = S.context (conv man)
+  let paths_as_set man = S.paths_as_set (conv man)
+  let body man = S.body (conv man)
+  let return man = S.return (conv man)
+  let combine_env man r fe f args fc es f_ask =
     if !AnalysisState.postsolving then (
-      let c_r: S.C.t = ctx.context () in (* Caller context *)
-      let nodeF = ctx.node in
+      let c_r: S.C.t = man.context () in (* Caller context *)
+      let nodeF = man.node in
       let fd_r : fundec = Node.find_fundec nodeF in (* Caller fundec *)
       let caller: (fundec * S.C.t) = (fd_r, c_r) in
       let c_e: S.C.t = Option.get fc in (* Callee context *)
       let fd_e : fundec = f in (* Callee fundec *)
       let callee = (fd_e, c_e) in
-      record_call ctx.sideg callee caller
+      record_call man.sideg callee caller
     );
-    S.combine_env (conv ctx) r fe f args fc es f_ask
+    S.combine_env (conv man) r fe f args fc es f_ask
 
-  let combine_assign ctx = S.combine_assign (conv ctx)
-  let special ctx = S.special (conv ctx)
-  let threadenter ctx = S.threadenter (conv ctx)
-  let threadspawn ctx ~multiple lv f args fctx = S.threadspawn (conv ctx) ~multiple lv f args (conv fctx)
-  let sync ctx = S.sync (conv ctx)
-  let skip ctx = S.skip (conv ctx)
-  let asm ctx = S.asm (conv ctx)
-  let event ctx e octx = S.event (conv ctx) e (conv octx)
+  let combine_assign man = S.combine_assign (conv man)
+  let special man = S.special (conv man)
+  let threadenter man = S.threadenter (conv man)
+  let threadspawn man ~multiple lv f args fman = S.threadspawn (conv man) ~multiple lv f args (conv fman)
+  let sync man = S.sync (conv man)
+  let skip man = S.skip (conv man)
+  let asm man = S.asm (conv man)
+  let event man e oman = S.event (conv man) e (conv oman)
 end

@@ -9,8 +9,7 @@ open GobConfig
 open AutoTune
 
 let enableSpecAnalyses spec analyses =
-  Logs.info "Specification: %s -> enabling soundness analyses \"%s\"" (Svcomp.Specification.to_string [spec]) (String.concat ", " analyses);
-  enableAnalyses analyses
+  enableAnalyses ("Specification: " ^ (Svcomp.Specification.to_string [spec])) "soundness analyses" analyses
 
 let enableOptions options =
   let enableOpt option =
@@ -65,7 +64,5 @@ let activateLongjmpAnalysesWhenRequired () =
     | LibraryDesc.Longjmp _ -> true
     | _ -> false
   in
-  if hasFunction isLongjmp  then (
-    Logs.info "longjmp -> enabling longjmp analyses \"%s\"" (String.concat ", " longjmpAnalyses);
-    enableAnalyses longjmpAnalyses;
-  )
+  if hasFunction isLongjmp then
+    enableAnalyses "Longjmp" "longjmp analyses" longjmpAnalyses;
