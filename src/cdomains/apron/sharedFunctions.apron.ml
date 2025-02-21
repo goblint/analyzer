@@ -165,7 +165,7 @@ struct
               | BinOp (Mod, e1, e2, _) -> bop_near Mod e1 e2
               | BinOp (Div, e1, e2, _) ->
                 Binop (Div, texpr1 e1, texpr1 e2, Int, Zero)
-              | CastE (TInt (t_ik, _) as t, e) ->
+              | CastE (TInt (t_ik, _) as t, e) -> (* TODO: unrolltype? *)
                 begin match  IntDomain.Size.is_cast_injective ~from_type:(Cilfacade.typeOf e) ~to_type:t with (* TODO: unnecessary cast check due to overflow check below? or maybe useful in general to also assume type bounds based on argument types? *)
                   | exception Invalid_argument _ -> raise (Unsupported_CilExp Exp_not_supported)
                   | true -> texpr1 e

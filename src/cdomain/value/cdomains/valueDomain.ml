@@ -372,7 +372,7 @@ struct
     if is_statically_safe_cast t2 t1 then
       true
     else
-      match t2, t1, v with
+      match Cil.unrollType t2, Cil.unrollType t1, v with
       | (TInt (ik2,_) | TEnum ({ekind=ik2; _},_)) , (TInt (ik1,_) | TEnum ({ekind=ik1; _},_)), Int v ->
         let cl, cu = IntDomain.Size.range ik2 in
         let l, u = ID.minimal v, ID.maximal v in
@@ -392,7 +392,7 @@ struct
     | a, b -> a = b
 
   let cast_addr t a =
-    let rec stripVarLenArr = function
+    let rec stripVarLenArr = function (* TODO: unrolltype? *)
       | TPtr(t, args) -> TPtr(stripVarLenArr t, args)
       | TArray(t, None, args) -> TArray(stripVarLenArr t, None, args)
       | TArray(t, Some exp, args) when isConstant exp -> TArray(stripVarLenArr t, Some exp, args)
@@ -418,7 +418,7 @@ struct
       | _ -> (* cast to smaller/inner type *)
         if M.tracing then M.tracel "casta" "cast to smaller size";
         if d = Some true then err "Ptr-cast to type of incompatible size!" else
-          begin match ta, t with
+          begin match ta, t with (* TODO: unrolltype? *)
             (* struct to its first field *)
             | TComp ({cfields = fi::_; _}, _), _ ->
               if M.tracing then M.tracel "casta" "cast struct to its first field";
@@ -432,7 +432,7 @@ struct
             | _ -> err @@ Format.sprintf "Cast to neither array index nor struct field. is_zero_offset: %b" (Addr.Offs.cmp_zero_offset o = `MustZero)
           end
     in
-    let one_addr = let open Addr in function
+    let one_addr = let open Addr in function (* TODO: unrolltype? *)
         (* only allow conversion of float pointers if source and target type are the same *)
         | Addr ({ vtype = TFloat(fkind, _); _}, _) as x when (match t with TFloat (fkind', _) when fkind = fkind' -> true | _ -> false) -> x
         (* do not allow conversion from/to float pointers*)
@@ -508,7 +508,7 @@ struct
               | Int x when ID.to_int x = Some Z.zero -> AD.null_ptr
               | Int x -> AD.top_ptr
               (* we ignore casts to void*! TODO report UB! *)
-              | Address x -> (match t with TVoid _ -> x | _ -> cast_addr t x)
+              | Address x -> (match t with TVoid _ -> x | _ -> cast_addr t x) (* TODO: unrolltype? TVoid unreachable? always goes to previous case? *)
               (*| Address x -> x*)
               | _ -> log_top __POS__; AD.top_ptr
             )
@@ -931,7 +931,7 @@ struct
           | `Field (fld, offs) -> begin
               match x with
               | Union (`Lifted l_fld, value) ->
-                (match value, fld.ftype with
+                (match value, fld.ftype with (* TODO: unrolltype? *)
                  (* only return an actual value if we have a type and return actually the exact same type *)
                  | Float f_value, TFloat(fkind, _) when FD.get_fkind f_value = fkind -> Float f_value
                  | Float _, t -> top_value t
@@ -1100,10 +1100,9 @@ struct
                       | `NoOffset -> top (), offs
                       | `Index (idx, _) when Cil.isArrayType fld.ftype ->
                         begin
-                          match fld.ftype with
+                          match fld.ftype with (* TODO: unrolltype? *)
                           | TArray(_, l, _) ->
-                            let len = try Cil.lenOfArray l
-                              with Cil.LenOfArray -> 42 (* will not happen, VLA not allowed in union and struct *) in
+                            let len = Cil.lenOfArray l in (* LenOfArray exception will not happen, VLA not allowed in union and struct *)
                             Array(CArrays.make (IndexDomain.of_int (Cilfacade.ptrdiff_ikind ()) (Z.of_int len)) Top), offs
                           | _ -> top (), offs (* will not happen*)
                         end
@@ -1123,7 +1122,7 @@ struct
                 let l', o' = shift_one_over l o in
                 match x with
                 | Array x' ->
-                  let t = (match t with
+                  let t = (match t with (* TODO: unrolltype? *)
                       | TArray(t1 ,_,_) -> t1
                       | _ -> t) in (* This is necessary because t is not a TArray in case of calloc *)
                   let e = determine_offset ask l o exp (Some v) in
@@ -1131,7 +1130,7 @@ struct
                   let new_array_value = CArrays.set ask x' (e, idx) new_value_at_index in
                   Array new_array_value
                 | Bot ->
-                  let t,len = (match t with
+                  let t,len = (match t with (* TODO: unrolltype? *)
                       | TArray(t1 ,len,_) -> t1, len
                       | _ -> t, None) in (* This is necessary because t is not a TArray in case of calloc *)
                   let x' = CArrays.bot () in
@@ -1194,7 +1193,7 @@ struct
   (* Won't compile without the final :t annotation *)
   let rec update_array_lengths (eval_exp: exp -> t) (v:t) (typ:Cil.typ):t =
     match v, typ with
-    | Array(n), TArray(ti, e, _) ->
+    | Array(n), TArray(ti, e, _) -> (* TODO: unrolltype? *)
       begin
         let update_fun x = update_array_lengths eval_exp x ti in
         let n' = CArrays.map (update_fun) n in
