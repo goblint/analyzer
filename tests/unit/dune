@@ -3,6 +3,8 @@
 (test
   (name mainTest)
   (libraries ounit2 qcheck-ounit goblint.std goblint.common goblint.lib goblint.constraint goblint.solver goblint.cdomain.value
+    ; Conditionally compile based on whether apron optional dependency is installed or not.
+    ; See: https://dune.readthedocs.io/en/stable/reference/library-dependencies.html#alternative-dependencies
     (select sparseMatrixImplementationTest.ml from
         (apron -> sparseMatrixImplementationTest.apron.ml)
         (-> sparseMatrixImplementationTest.no-apron.ml)
