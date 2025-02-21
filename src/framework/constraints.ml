@@ -259,7 +259,7 @@ struct
         Queries.AD.to_var_may ad (* TODO: don't convert, handle UnknownPtr below *)
     in
     let one_function f =
-      match f.vtype with (* TODO: unrolltype? *)
+      match Cil.unrollType f.vtype with
       | TFun (_, params, var_arg, _)  ->
         let arg_length = List.length args in
         let p_length = Option.map_default List.length 0 params in

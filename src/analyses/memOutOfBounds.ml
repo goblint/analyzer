@@ -77,7 +77,7 @@ struct
         ) a
     | _ -> false
 
-  let get_size_of_ptr_target man ptr =
+  let get_size_of_ptr_target man ptr = (* TODO: deduplicate with base *)
     if points_to_alloc_only man ptr then
       (* Ask for BlobSize from the base address (the second component being set to true) in order to avoid BlobSize giving us bot *)
       man.ask (Queries.BlobSize {exp = ptr; base_address = true})
@@ -92,7 +92,7 @@ struct
                 set_mem_safety_flag InvalidDeref;
                 M.warn "Var %a is potentially accessed out-of-scope. Invalid memory access may occur" CilType.Varinfo.pretty v
               );
-              begin match v.vtype with (* TODO: unrolltype? *)
+              begin match Cil.unrollType v.vtype with
                 | TArray (item_typ, _, _) ->
                   let item_typ_size_in_bytes = size_of_type_in_bytes item_typ in
                   begin match man.ask (Queries.EvalLength ptr) with

@@ -372,7 +372,7 @@ struct
     if is_statically_safe_cast t2 t1 then
       true
     else
-      match t2, t1, v with (* TODO: unrolltype? *)
+      match Cil.unrollType t2, Cil.unrollType t1, v with
       | (TInt (ik2,_) | TEnum ({ekind=ik2; _},_)) , (TInt (ik1,_) | TEnum ({ekind=ik1; _},_)), Int v ->
         let cl, cu = IntDomain.Size.range ik2 in
         let l, u = ID.minimal v, ID.maximal v in
