@@ -7,17 +7,27 @@ open Analyses
 open SparseVector
 open ListMatrix
 
-(* To use the original affineEqualityDomain implementation uncomment this and the AD_Array.
-   Then replace AD with AD_Array in the functor application.
-   open ArrayVector
-   open ArrayMatrix *)
+open ArrayVector
+open ArrayMatrix
 
 include RelationAnalysis
 
+(* There are two versions of the affeq domain.
+   1. Sparse without side effects
+   2. Array with side effects
+   Default: sparse implementation
+   The array implementation with side effects of the affeq domain is used when the --enable ana.affeq.side_effects option is set *)
+let get_domain: (module RelationDomain.RD) Lazy.t =
+  lazy (
+    if GobConfig.get_bool "ana.affeq.side_effects" then
+      (module AffineEqualityDomainSideEffects.D2 (ArrayVector) (ArrayMatrix))
+    else
+      (module AffineEqualityDomain.D2 (SparseVector) (ListMatrix))
+  )
+
 let spec_module: (module MCPSpec) Lazy.t =
   lazy (
-    let module AD = AffineEqualityDomain.D2 (SparseVector) (ListMatrix) in
-    (* let module AD_Array = AffineEqualityDomainSideEffects.D2 (ArrayVector) (ArrayMatrix) in *)
+    let module AD = (val Lazy.force get_domain) in
     let module Priv = (val RelationPriv.get_priv ()) in
     let module Spec =
     struct

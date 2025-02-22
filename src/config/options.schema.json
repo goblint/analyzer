@@ -1198,6 +1198,19 @@
             }
           },
           "additionalProperties": false
+        },
+        "affeq": {
+          "title": "ana.affeq",
+          "type": "object",
+          "properties": {
+            "side_effects": {
+              "title": "ana.affeq.side_effects",
+              "description": "Use side effect Affine Equality analysis (array implementation). Default is false (sparse implementation)",
+              "type": "boolean",
+              "default": false
+            }
+          },
+          "additionalProperties": false
         }
       },
       "additionalProperties": false
