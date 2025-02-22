@@ -257,6 +257,17 @@ module IntervalAndCongruence = struct
 
   let of_congruence c = refine (I.top_of ik, C.of_congruence ik c)
 
+  let must_be_pos (i,_) = I.leq i (I.starting ik (Int Z.one))
+
+  let must_be_neg (i,_) = I.leq i (I.ending ik (Int (Z.neg Z.one)))
+
+  let starting x = refine (I.starting ik (Int x), C.top_of ik)
+
+  let ending x = refine (I.ending ik (Int x), C.top_of ik)
+
+  let maximal (i,_) = I.maximal i
+  let minimal (i,_) = I.minimal i
+
 end 
 
 module Value = IntervalAndCongruence
@@ -620,10 +631,10 @@ struct
     if M.tracing then M.tracel "eval_texp" "%s %a -> %s" (EConjI.show @@ BatOption.get t.d) Texpr1.Expr.pretty texp (Value.show res);
     res
 
-
   let assign_const t var const divi = match t.d with
     | None -> t
     | Some t_d -> {d = Some (EConjI.set_rhs t_d var (None, const, divi)); env = t.env}
+
 
 end
 
@@ -632,6 +643,7 @@ module ExpressionBounds: (SharedFunctions.ConvBounds with type t = VarManagement
 struct
   include VarManagement
 
+  (*TODO improve with eval_texpr!! used to exclude overflows*)
   let bound_texpr t texpr =
     if t.d = None then None, None
     else
@@ -709,6 +721,136 @@ struct
     match fst i with
     | None -> (None, None)
     | Some (l, u) -> (from_top l, from_top u)
+
+  let refine_with_tcons t tcons = 
+    match t.d with 
+    | None -> t
+    | Some d ->
+      let initial_value = match Tcons1.get_typ tcons with
+        | EQ | DISEQ -> Value.of_bigint Z.zero
+        | SUP -> Some (Int Z.one, Top Pos), Value.C.top ()
+        | SUPEQ -> Some (Int Z.zero, Top Pos), Value.C.top ()
+        | EQMOD (n) -> 
+          begin match SharedFunctions.int_of_scalar ?round:None n with
+              None -> Value.top 
+            | Some n -> Value.of_congruence (Z.zero, n)
+          end
+      in 
+      let is_inequality = Tcons1.get_typ tcons = DISEQ in
+      let refine_var d var value =
+        let dim = Environment.dim_of_var t.env var in
+        if is_inequality then begin
+          match Value.to_int value, Value.to_int (EConjI.get_interval d dim) with 
+          | Some v, Some i when TopIntOps.equal v i ->
+            if M.tracing then M.trace "refine_tcons" "inequality %s <> %s must be wrong" (Var.to_string var) (Value.show value);
+            raise EConj.Contradiction
+          | _ -> d (*TODO if value is a constant, we sometimes could do some refinement*)
+        end else (
+          if M.tracing then M.trace "refine_tcons" "refining var %s with %s" (Var.to_string var) (Value.show value) ;
+          EConjI.meet_with_one_interval dim value d Value.meet )
+      in
+      let eval d texpr = eval_texpr {d= Some d; env = t.env} texpr in
+      let open Texpr1 in
+      let rec refine_expr d value expr = 
+        if M.tracing then M.trace "refine_tcons" "refining expr %s with %s" (GobFormat.asprint print_expr expr) (Value.show value) ;
+        match expr with
+        | Binop (op,a,b,_,_) -> 
+          let refine_both op_a op_b = 
+            let b_val = eval d b in
+            let d' = refine_expr d (op_a value b_val) a in
+            let a_val = eval d' a in
+            refine_expr d' (op_b value a_val) b
+          in begin
+            match op with 
+            | Add -> refine_both (Value.sub) (Value.sub)
+            | Sub -> refine_both (Value.add) (Fun.flip Value.sub) 
+            (*Because the overflow handeling in SharedFunctions guarantees us no wrapping behaviour, this is always invertible *)
+            | Mul -> refine_both (Value.div) (Value.div)
+            (*DIV and MOD are largely inspired by BaseInvariant*)
+            | Div -> 
+              (* Integer division means we need to add the remainder, so instead of just `a = c*b` we have `a = c*b + a%b`.
+               * However, a%b will give [-b+1, b-1] for a=top, but we only want the positive/negative side depending on the sign of c*b.
+               * If c*b = 0 or it can be positive or negative, we need the full range for the remainder. *)
+              let b_val = eval d b in
+              if Value.to_int b_val = Some (Int Z.zero) then begin
+                M.error ~category:M.Category.Integer.div_by_zero ~tags:[CWE 369] "Must Undefined Behavior: Second argument of div or mod is 0, continuing with top";
+                d
+              end else 
+                let a_val = eval d a in
+                let b_c = Value.mul b_val value in
+                let rem =
+                  let is_pos = Value.must_be_pos b_c in
+                  let is_neg = Value.must_be_neg b_c in
+                  let full = Value.rem a_val b_val in
+                  if is_pos then Value.meet (Value.starting Z.zero) full
+                  else if is_neg then Value.meet (Value.ending Z.zero) full
+                  else full
+                in let d' = refine_expr d (Value.add b_c rem) a in
+                refine_expr d' (Value.div (Value.sub a_val rem) value) b
+            | Mod ->         
+              (* a' = a/b*b + c and derived from it b' = (a-c)/(a/b)
+                * The idea is to formulate a' as quotient * divisor + remainder. *)
+              let a_val = eval d a in
+              let b_val = eval d b in
+              if Value.to_int b_val = Some (Int Z.zero) then begin
+                M.error ~category:M.Category.Integer.div_by_zero ~tags:[CWE 369] "Must Undefined Behavior: Second argument of div or mod is 0, continuing with top";
+                d
+              end else 
+                let a' = Value.add (Value.mul (Value.div a_val b_val) b_val) value in
+                let b' = Value.div (Value.sub a_val value) (Value.div a_val value) in
+                (* However, for [2,4]%2 == 1 this only gives [3,4].
+                 * If the upper bound of a is divisible by b, we can also meet with the result of a/b*b - c to get the precise [3,3].
+                 * If b is negative we have to look at the lower bound. *)
+                let is_divisible bound =
+                  match bound a_val with
+                  | Some (TopIntOps.Int ba) -> Value.rem (Value.of_bigint ba) b_val |> Value.to_int = Some (Int Z.zero)
+                  | _ -> false
+                in
+                let max_pos = match Value.maximal b_val with None -> true | Some x -> TopIntOps.compare x TopIntOps.zero >= 0 in
+                let min_neg = match Value.minimal b_val with None -> true | Some x -> TopIntOps.compare x TopIntOps.zero < 0 in
+                let implies a b = not a || b in
+                let a'' =
+                  if implies max_pos (is_divisible Value.maximal) && implies min_neg (is_divisible Value.minimal) then
+                    Value.meet a' (Value.sub (Value.mul (Value.div a_val b_val) b_val) value)
+                  else a'
+                in
+                let a''' =
+                  (* if both b and c are definite, we can get a precise value in the congruence domain *)
+                  match Value.to_int b_val, Value.to_int value with
+                  | Some (TopIntOps.Int b), Some (TopIntOps.Int c) ->
+                    (* a%b == c  -> a: c+bℤ *)
+                    let t = Value.of_congruence (c, b) in
+                    (*If the calculated congruence implies this one, we have a contradiction*)
+                    (*TODO we could check for definite values and contradictions at every step, not just in MOD / Variable assignment*)
+                    if is_inequality && Value.leq a_val (Value.of_congruence (c,b)) then raise EConj.Contradiction;
+                    Value.meet a'' t
+                  | _, _ -> a''
+                in
+                let d' = refine_expr d (b') b in
+                refine_expr d' (a''') a
+            | Pow -> failwith "refine_with tcons: pow unsupported"
+          end
+        | Unop (op, e,_,_) -> begin match op with 
+            | Neg -> refine_expr d (Value.neg value) e
+            | Cast -> refine_expr d value e
+            | Sqrt -> failwith "sqrt is not supported" (*TODO should this be supported*)
+          end
+        | Cst (Scalar x) -> 
+          begin match SharedFunctions.int_of_scalar ?round:None x with
+            | Some x -> (if Value.contains value x || is_inequality then d else raise EConj.Contradiction) 
+            | None -> d
+          end
+        | Cst (Interval _) -> failwith "constant was an interval; this is not supported" 
+        | Var v -> refine_var d v value
+      in try 
+        let d' = refine_expr d initial_value (Texpr1.to_expr @@ Tcons1.get_texpr1 tcons) in
+        {d=Some d';env=t.env}
+      with EConj.Contradiction -> bot_env
+
+  let refine_with_tcons t tcons = 
+    let res = refine_with_tcons t tcons in
+    if M.tracing then M.tracel "refine_tcons" "before: %s \n refined with %s\n result: %s " (show t) (Tcons1.show tcons) (show res)  ;
+    res
 
   let meet_with_one_conj t i (var, o, divi) =
     match t.d with
@@ -888,7 +1030,7 @@ struct
       in begin match t'.d with 
           None -> if M.tracing then M.tracel "ops" "assign_texpr resulted in bot (before: %s, expr: %s) " (show t) (Texpr1.show (Texpr1.of_expr t.env texp));
           bot_env
-        | Some d' -> {d = Some (EConjI.set_interval d' var_i (VarManagement.eval_texpr t texp)); env = t'.env} 
+        | Some d' -> {d = Some (EConjI.set_interval d' var_i (VarManagement.eval_texpr t texp)); env = t'.env} (*TODO query instead?! *)
       end
     | None -> bot_env
 
@@ -1023,72 +1165,8 @@ struct
               end
             | _ -> t (* For equalities of more then 2 vars we just return t *))
       in if t'.d = None then (if M.tracing then M.tracel "meet_tcons" "meet_conj resulted in None (expr: %s)" (Tcons1.show tcons); t') else begin
-        (*meet interval*) (*TODO this could be extended much further, maybe reuse some code from base -> meet with CIL expression instead?*)
-        (* currently only supports simple assertions x > c (x - c > 0)*)
         if M.tracing then M.tracel "meet_tcons" "after conj: %s (expr: %s)" (show t') (Tcons1.show tcons);
-        match expr with
-        | Binop (Sub,Var v,Cst (Scalar c),_,_) -> 
-          begin match SharedFunctions.int_of_scalar ?round:None c with
-            | None -> t'
-            | Some c -> begin match Tcons1.get_typ tcons with
-                | SUP -> 
-                  meet_with_one_interval Value.meet (Environment.dim_of_var t'.env v) (Some (Int (Z.add Z.one c), Top Pos), Value.C.top ()) t'
-                | SUPEQ -> meet_with_one_interval Value.meet (Environment.dim_of_var t'.env v) (Some (Int c, Top Pos), Value.C.top ()) t'
-                | EQ -> meet_with_one_interval Value.meet (Environment.dim_of_var t'.env v) (Some (Int c, Int c), Value.C.top ()) t' (*Should already be matched by the conjuction above?*)
-                | DISEQ ->
-                  if Value.leq (EConjI.get_interval (Option.get t.d) (Environment.dim_of_var t'.env v)) (Value.of_bigint c) 
-                  then {d=None; env=t'.env} else t' (*TODO: if at interval bounds, we could refine the interval *)
-                | _ ->
-                  if M.tracing then M.tracel "meet_tcons" "meet_tcons interval not matching comparison op";
-                  t'
-              end
-          end
-        | Binop (Sub,Cst (Scalar c), Var v,_,_) -> 
-          begin match SharedFunctions.int_of_scalar ?round:None c with
-            | None -> t'
-            | Some c -> begin match Tcons1.get_typ tcons with
-                | SUP -> 
-                  meet_with_one_interval Value.meet (Environment.dim_of_var t'.env v) (Some (Top Neg, Int (Z.sub c Z.one)), Value.C.top ()) t'
-                | SUPEQ -> meet_with_one_interval Value.meet (Environment.dim_of_var t'.env v) (Some (Top Neg, Int c), Value.C.top ()) t'
-                | EQ -> meet_with_one_interval Value.meet (Environment.dim_of_var t'.env v) (Some (Int c, Int c), Value.C.top ()) t' (*Should already be matched by the conjuction above?*)
-                | DISEQ ->
-                  if Value.leq (EConjI.get_interval (Option.get t.d) (Environment.dim_of_var t'.env v)) (Value.of_bigint c) 
-                  then {d=None; env=t'.env} else t' (*TODO: if at interval bounds, we could refine the interval *)
-                | _ ->
-                  if M.tracing then M.tracel "meet_tcons" "meet_tcons interval not matching comparison op (expr %s)" (Tcons1.show tcons);
-                  t'
-              end
-          end
-        (*x % m == o *)
-        | Binop (Sub, Binop (Mod, Var v, Cst (Scalar m), _, _) , Cst (Scalar o),_,_) -> 
-          begin match SharedFunctions.int_of_scalar ?round:None m, SharedFunctions.int_of_scalar ?round:None o with
-            | Some m, Some o -> begin match Tcons1.get_typ tcons with
-                | EQ -> 
-                  if M.tracing then M.tracel "meet_tcons" "meet_tcons matched x %% m == o (expr %s)" (Tcons1.show tcons);
-                  meet_with_one_interval Value.meet (Environment.dim_of_var t'.env v) (Value.of_congruence (o,m)) t'
-                | DISEQ ->
-                  (*If the saved congruence implies this one, we have a contradiction*)
-                  if Value.leq (EConjI.get_interval (Option.get t.d) (Environment.dim_of_var t'.env v)) (Value.of_congruence (o,m)) 
-                  then {d=None; env=t'.env} else t'
-                | _ -> t'
-              end
-            | _, _-> t'
-          end
-        | Binop (Sub, Cst (Scalar o), Binop (Mod, Var v, Cst (Scalar m), _, _) ,_,_) -> 
-          begin match SharedFunctions.int_of_scalar ?round:None m, SharedFunctions.int_of_scalar ?round:None o with
-            | Some m, Some o -> begin match Tcons1.get_typ tcons with
-                | EQ -> meet_with_one_interval Value.meet (Environment.dim_of_var t'.env v) (Value.of_congruence (o,m)) t'
-                | DISEQ ->
-                  (*If the saved congruence implies this one, we have a contradiction*)
-                  if Value.leq (EConjI.get_interval (Option.get t.d) (Environment.dim_of_var t'.env v)) (Value.of_congruence (o,m)) 
-                  then {d=None; env=t'.env} else t'
-                | _ -> t'
-              end
-            | _, _-> t'
-          end
-        | _ ->
-          if M.tracing then M.tracel "meet_tcons" "meet_tcons interval not matching structure (expr %s)" (Tcons1.show tcons);
-          t'
+        refine_with_tcons t' tcons
       end
 
 
@@ -1175,4 +1253,36 @@ struct
   end
   include SharedFunctions.AssertionModule (D.V) (D) (ConvArg)
   include D
+
+  (*We can be more precise than the function from the AssertionModule by including congruence information*)
+  let eval_int ask d e no_ov =
+    let module ID = Queries.ID in
+    match Cilfacade.get_ikind_exp e with
+    | exception Cilfacade.TypeOfError _
+    | exception Invalid_argument _ ->
+      ID.top () (* real top, not a top of any ikind because we don't even know the ikind *)
+    | ik ->
+      if M.tracing then M.trace "relation" "eval_int: exp_is_constraint %a = %B" d_plainexp e (exp_is_constraint e);
+      if exp_is_constraint e then
+        match check_assert ask d e no_ov with
+        | `True -> ID.of_bool ik true
+        | `False -> ID.of_bool ik false
+        | `Top -> ID.top_of ik
+      else
+        (*TODO we could also provide information for non-linear expressions*)
+        match Convert.texpr1_of_cil_exp ask d (env d) e no_ov with
+        | texpr1 ->
+          let (i, c) = eval_texpr d (Texpr1.to_expr texpr1) in
+          let c =  match c with 
+            | None -> ID.bot_of ik
+            | Some c -> ID.of_congruence ik c
+          in let i = match i with
+              | None -> ID.bot_of ik
+              | Some (TopIntOps.Int l, TopIntOps.Int u) -> ID.of_interval ik (l,u)
+              | Some (TopIntOps.Int l, _) -> ID.starting ik l
+              | Some (_, TopIntOps.Int u) -> ID.ending ik u
+              | _ -> ID.top_of ik
+          in ID.meet c i
+        | exception Convert.Unsupported_CilExp _ -> ID.top_of ik
+
 end
