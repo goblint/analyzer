@@ -323,8 +323,17 @@ struct
     match y with
     | None -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y)))
     | Some (c, m) ->
-      let m = m -: c in
-      let y = Some (c, m) in
+      let y =
+        if m =: Z.zero then
+          if no_ov then
+            let c = Z.neg c in
+            Some (c, m)
+          else
+            top_of ik
+        else
+          let m = m -: c in
+          Some (c, m)
+      in
       add ~no_ov ik x y
 
   let sub ?no_ov ik x y =
