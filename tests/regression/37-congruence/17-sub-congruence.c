@@ -23,6 +23,9 @@ int main(void)
 
   __goblint_check(ov == INT_MAX); //UNKNOWN!
 
+  int ov2 = 0 - min;
+  __goblint_check(ov2 == INT_MAX); //UNKNOWN!
+
   return (0);
 
 }
