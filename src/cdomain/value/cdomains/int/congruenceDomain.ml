@@ -352,7 +352,7 @@ struct
       let m_ikind = max_ik +: Z.one in
       if Cil.isSigned ik then
         let c = c1 -: c2 in
-        if c >=: min_ik then
+        if c >=: min_ik && c <= max_ik then
           Some (c, Z.zero)
         else
           top_of ik
