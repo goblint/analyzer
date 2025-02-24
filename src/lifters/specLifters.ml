@@ -5,6 +5,10 @@ open GoblintCil
 open Analyses
 open GobConfig
 
+module type NameLifter =
+sig
+  val lift_name: string -> string
+end
 
 module type LatticeLifter =
   functor (L: Lattice.S) ->
@@ -15,7 +19,7 @@ module type LatticeLifter =
       val unlift: t -> L.t
     end
 
-module DomainLifter (F: LatticeLifter) (S:Spec)
+module DomainLifter (N: NameLifter) (F: LatticeLifter) (S:Spec)
   : Spec with module G = S.G
           and module C = S.C
 =
@@ -30,7 +34,7 @@ struct
     let of_elt x = of_elt (D.unlift x)
   end
 
-  let name () = S.name () ^" hashconsed" (* TODO: configurable name *)
+  let name () = N.lift_name (S.name ())
 
   type marshal = S.marshal (* TODO: should hashcons table be in here to avoid relift altogether? *)
   let init = S.init
@@ -103,6 +107,11 @@ end
 (** Lifts a [Spec] so that the domain is [Hashcons]d *)
 module HashconsLifter (S: Spec) = (* keep functor eta-expanded to look up option when lifter is actually used *)
 struct
+  module NameLifter =
+  struct
+    let lift_name x = x ^ " hashconsed"
+  end
+
   module HConsedArg =
   struct
     (* We do refine int values on narrow and meet {!IntDomain.IntDomTupleImpl}, which can lead to fixpoint issues if we assume x op x = x *)
@@ -110,7 +119,7 @@ struct
     let assume_idempotent = GobConfig.get_string "ana.int.refinement" = "never"
   end
 
-  include DomainLifter (Lattice.HConsed (HConsedArg)) (S)
+  include DomainLifter (NameLifter) (Lattice.HConsed (HConsedArg)) (S)
 end
 
 module type PrintableLifter =
@@ -122,7 +131,7 @@ module type PrintableLifter =
       val unlift: t -> P.t
     end
 
-module ContextLifter (F: PrintableLifter) (S:Spec)
+module ContextLifter (N: NameLifter) (F: PrintableLifter) (S:Spec)
   : Spec with module D = S.D
           and module G = S.G
           and module C = F (S.C)
@@ -134,7 +143,7 @@ struct
   module V = S.V
   module P = S.P
 
-  let name () = S.name () ^" context hashconsed" (* TODO: configurable name *)
+  let name () = N.lift_name (S.name ())
 
   type marshal = S.marshal (* TODO: should hashcons table be in here to avoid relift altogether? *)
   let init = S.init
@@ -204,10 +213,10 @@ struct
 end
 
 (** Lifts a [Spec] so that the context is [Hashcons]d. *)
-module HashconsContextLifter = ContextLifter (Printable.HConsed)
+module HashconsContextLifter = ContextLifter (struct let lift_name s = s ^ " context hashconsed" end) (Printable.HConsed)
 
 (** Lifts a [Spec] so that the context is [HashCached]. *)
-module HashCachedContextLifter = ContextLifter (Printable.HashCached)
+module HashCachedContextLifter = ContextLifter (struct let lift_name s = s ^ " context hashcached" end) (Printable.HashCached)
 
 (* see option ana.opt.equal *)
 module OptEqual (S: Spec) = struct
