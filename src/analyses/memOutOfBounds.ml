@@ -32,8 +32,7 @@ struct
     ID.of_int (Cilfacade.ptrdiff_ikind ()) (Z.of_int x)
 
   let size_of_type_in_bytes typ =
-    let typ_size_in_bytes = (bitsSizeOf typ) / 8 in
-    intdom_of_int typ_size_in_bytes
+    intdom_of_int (Cilfacade.bytesSizeOf typ)
 
   let rec exp_contains_a_ptr (exp:exp) =
     match exp with
@@ -127,7 +126,7 @@ struct
          `Top)
 
   let get_ptr_deref_type ptr_typ =
-    match ptr_typ with
+    match Cil.unrollType ptr_typ with
     | TPtr (t, _) -> Some t
     | _ -> None
 
@@ -149,8 +148,8 @@ struct
     | `NoOffset -> intdom_of_int 0
     | `Field (field, o) ->
       let field_as_offset = Field (field, NoOffset) in
-      let bits_offset, _size = GoblintCil.bitsOffset (TComp (field.fcomp, [])) field_as_offset in
-      let bytes_offset = intdom_of_int (bits_offset / 8) in
+      let bytes_offset = Cilfacade.bytesOffsetOnly (TComp (field.fcomp, [])) field_as_offset in
+      let bytes_offset = intdom_of_int bytes_offset in
       let remaining_offset = offs_to_idx field.ftype o in
       begin
         try ID.add bytes_offset remaining_offset
@@ -175,7 +174,7 @@ struct
         `Index (ID.top (), convert_offset ofs)
       | Index (exp, ofs) ->
         let i = match man.ask (Queries.EvalInt exp) with
-          | `Lifted x -> x
+          | `Lifted x -> ID.cast_to (Cilfacade.ptrdiff_ikind ()) x
           | _ -> ID.top_of @@ Cilfacade.ptrdiff_ikind ()
         in
         `Index (i, convert_offset ofs)
@@ -279,10 +278,10 @@ struct
              M.warn "Size of lval dereference expression %a is bot. Out-of-bounds memory access may occur" d_exp e)
           | `Lifted es ->
             let casted_es = ID.cast_to (Cilfacade.ptrdiff_ikind ()) es in
-            let one = intdom_of_int 1 in
-            let casted_es = ID.sub casted_es one in
             let casted_offs = ID.cast_to (Cilfacade.ptrdiff_ikind ()) offs_intdom in
             let ptr_size_lt_offs =
+              let one = intdom_of_int 1 in
+              let casted_es = ID.sub casted_es one in
               begin try ID.lt casted_es casted_offs
                 with IntDomain.ArithmeticOnIntegerBot _ -> ID.bot_of @@ Cilfacade.ptrdiff_ikind ()
               end

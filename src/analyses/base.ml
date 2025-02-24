@@ -271,8 +271,8 @@ struct
           let n_offset = iDtoIdx n in
           begin match t with
             | Some t ->
-              let (f_offset_bits, _) = bitsOffset t (Field (f, NoOffset)) in
-              let f_offset = IdxDom.of_int (Cilfacade.ptrdiff_ikind ()) (Z.of_int (f_offset_bits / 8)) in
+              let f_offset_bytes = Cilfacade.bytesOffsetOnly t (Field (f, NoOffset)) in
+              let f_offset = IdxDom.of_int (Cilfacade.ptrdiff_ikind ()) (Z.of_int f_offset_bytes) in
               begin match IdxDom.(to_bool (eq f_offset (neg n_offset))) with
                 | Some true -> `NoOffset
                 | _ -> `Field (f, `Index (n_offset, `NoOffset))
@@ -624,6 +624,8 @@ struct
 
   let drop_intervalSet = CPA.map (function Int x -> Int (ID.no_intervalSet x) | x -> x )
 
+  let drop_bitfield = CPA.map (function Int x -> Int (ID.no_bitfield x) | x -> x )
+
   let context man (fd: fundec) (st: store): store =
     let f keep drop_fn (st: store) = if keep then st else { st with cpa = drop_fn st.cpa} in
     st |>
@@ -634,6 +636,7 @@ struct
     %> f (ContextUtil.should_keep ~isAttr:GobContext ~keepOption:"ana.base.context.int" ~removeAttr:"base.no-int" ~keepAttr:"base.int" fd) drop_ints
     %> f (ContextUtil.should_keep ~isAttr:GobContext ~keepOption:"ana.base.context.interval" ~removeAttr:"base.no-interval" ~keepAttr:"base.interval" fd) drop_interval
     %> f (ContextUtil.should_keep ~isAttr:GobContext ~keepOption:"ana.base.context.interval_set" ~removeAttr:"base.no-interval_set" ~keepAttr:"base.interval_set" fd) drop_intervalSet
+    %> f (ContextUtil.should_keep ~isAttr:GobContext ~keepOption:"ana.base.context.bitfield" ~removeAttr:"base.no-bitfield" ~keepAttr:"base.bitfield" fd) drop_bitfield
 
 
   let reachable_top_pointers_types man (ps: AD.t) : Queries.TS.t =
@@ -2286,8 +2289,7 @@ struct
       ID.of_int (Cilfacade.ptrdiff_ikind ()) (Z.of_int x)
     in
     let size_of_type_in_bytes typ =
-      let typ_size_in_bytes = (bitsSizeOf typ) / 8 in
-      intdom_of_int typ_size_in_bytes
+      intdom_of_int (Cilfacade.bytesSizeOf typ)
     in
     if points_to_heap_only man ptr then
       (* Ask for BlobSize from the base address (the second component being set to true) in order to avoid BlobSize giving us bot *)
