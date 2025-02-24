@@ -438,24 +438,24 @@ struct
       function
       | Addr.Addr ({ vtype; _} as v, o) as a ->
         begin match Cil.unrollType vtype, Cil.unrollType t with
-        (* only allow conversion of float pointers if source and target type are the same *)
-        | TFloat (fkind, _), TFloat (fkind', _) when fkind = fkind' -> a
-        (* do not allow conversion from/to float pointers*)
-        | TFloat _, _
-        | _, TFloat _ -> UnknownPtr
-        | TVoid _, _ when not (Cilfacade.isCharType t) -> (* we had no information about the type (e.g. malloc), so we add it; ignore for casts to char* since they're special conversions (N1570 6.3.2.3.7) *)
-          Addr ({ v with vtype = t }, o) (* HACK: equal varinfo with different type, causes inconsistencies down the line, when we again assume vtype being "right", but joining etc gives no consideration to which type version to keep *)
-        | _, _ ->
-          begin try Addr (v, (adjust_offs v o None)) (* cast of one address by adjusting the abstract offset *)
-            with
-            | CastError s -> (* don't know how to handle this cast :( *)
-              if M.tracing then M.tracel "caste" "%s" s;
-              a (* probably garbage, but this is deref's problem *)
-            (*raise (CastError s)*)
-            | SizeOfError (s,t) ->
-              M.warn "size of error: %s" s;
-              a
-          end
+          (* only allow conversion of float pointers if source and target type are the same *)
+          | TFloat (fkind, _), TFloat (fkind', _) when fkind = fkind' -> a
+          (* do not allow conversion from/to float pointers*)
+          | TFloat _, _
+          | _, TFloat _ -> UnknownPtr
+          | TVoid _, _ when not (Cilfacade.isCharType t) -> (* we had no information about the type (e.g. malloc), so we add it; ignore for casts to char* since they're special conversions (N1570 6.3.2.3.7) *)
+            Addr ({ v with vtype = t }, o) (* HACK: equal varinfo with different type, causes inconsistencies down the line, when we again assume vtype being "right", but joining etc gives no consideration to which type version to keep *)
+          | _, _ ->
+            begin try Addr (v, (adjust_offs v o None)) (* cast of one address by adjusting the abstract offset *)
+              with
+              | CastError s -> (* don't know how to handle this cast :( *)
+                if M.tracing then M.tracel "caste" "%s" s;
+                a (* probably garbage, but this is deref's problem *)
+              (*raise (CastError s)*)
+              | SizeOfError (s,t) ->
+                M.warn "size of error: %s" s;
+                a
+            end
         end
       | x -> x (* TODO we should also keep track of the type here *)
     in
