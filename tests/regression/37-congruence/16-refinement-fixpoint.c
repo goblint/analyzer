@@ -14,7 +14,7 @@ int main(void)
 
     e += 3U;
 
-    assert(e == (unsigned int )c + d);
+    assert(e == (unsigned int )c + d); //UNKNOWN
 
     burgo = 23;
   }
