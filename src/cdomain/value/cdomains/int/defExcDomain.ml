@@ -321,6 +321,9 @@ struct
   let of_excl_list t l =
     let r = size t in (* elements in l are excluded from the full range of t! *)
     `Excluded (List.fold_right S.add l (S.empty ()), r)
+  (* TODO: Change after #1686 has landed *)
+  (* `Excluded (S.of_list l, r) *)
+
   let is_excl_list l = match l with `Excluded _ -> true | _ -> false
   let to_excl_list (x:t) = match x with
     | `Definite _ -> None
