@@ -256,8 +256,12 @@ let get_type fb e =
   (* printf "e = %a\n" d_plainexp e; *)
   let r = get_type fb e in
   (* printf "result = %a\n" d_acct r; *)
-  match r with (* TODO: unrolltype? *)
-  | `Type (TPtr (t,a)) -> `Type t (* Why this special case? Almost always taken if not `Struct. *)
+  match r with
+  | `Type t as x ->
+    begin match Cil.unrollType t with
+      | TPtr (t, a) ->  `Type t (* Why this special case? Almost always taken if not `Struct. *)
+      | _ -> x
+    end
   | x -> x (* Mostly for `Struct, but also rare cases with non-pointer `Type. Should they happen at all? *)
 
 let get_val_type e: acc_typ =
@@ -309,7 +313,7 @@ let add ~side ~side_empty e voffs =
     | None -> (* unknown variable *)
       if M.tracing then M.traceli "access" "add type %a" CilType.Exp.pretty e;
       let ty = get_val_type e in (* extract old acc_typ from expression *)
-      let (t, o) = match ty with (* convert acc_typ to type-based Memo (components) *) (* TODO: unrolltype? *)
+      let (t, o) = match ty with (* convert acc_typ to type-based Memo (components) *)
         | `Struct (c, o) -> (TComp (c, []), o)
         | `Type t -> (t, `NoOffset)
       in

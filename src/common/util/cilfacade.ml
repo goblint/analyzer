@@ -586,7 +586,7 @@ let countLoc fn =
 
 
 let fundec_return_type f =
-  match f.svar.vtype with (* TODO: unrolltype? *)
+  match Cil.unrollType f.svar.vtype with
   | TFun (return_type, _, _, _) -> return_type
   | _ -> failwith "fundec_return_type: not TFun"
 
