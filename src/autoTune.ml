@@ -311,10 +311,11 @@ class addTypeAttributeVisitor = object
 
   (*Set arrays with important types for thread analysis to unroll*)
   method! vtype typ =
+    (* TODO: reuse predicates in Access module (also handles TNamed correctly) *)
     let is_important_type (t: typ): bool = match t with
       | TNamed (info, attr) -> List.mem info.tname ["pthread_mutex_t"; "spinlock_t"; "pthread_t"]
       | TInt (IInt, attr) -> hasAttribute "mutex" attr
-      | _ -> false (* TODO: unrolltype? *)
+      | _ -> false
     in
     if is_important_type typ && not @@ hasAttribute "goblint_array_domain" (typeAttrs typ) then
       ChangeTo (typeAddAttributes [Attr ("goblint_array_domain", [AStr "unroll"])] typ)
