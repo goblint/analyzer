@@ -13,7 +13,7 @@ int main(void)
     d += 2U;
 
     e += 3U;
-
+    // To produce the fixpoint not reached error, the following needed to be an assert:
     assert(e == (unsigned int )c + d); //UNKNOWN
 
     burgo = 23;
