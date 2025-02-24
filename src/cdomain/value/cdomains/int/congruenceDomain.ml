@@ -139,21 +139,21 @@ struct
 
   let of_congruence ik (c,m) = normalize ik @@ Some(c,m)
 
-  let of_bitfield ik (z,o) = 
+  let of_bitfield ik (z,o) =
     match BitfieldDomain.Bitfield.to_int (z,o) with
     | Some x -> normalize ik (Some (x, Z.zero))
     | _ ->
       (* get posiiton of first top bit *)
-      let tl_zeros = Z.trailing_zeros (Z.logand z o) in 
-      let ik_bits = Size.bit ik in 
-      let m = if tl_zeros > ik_bits then Z.one else Z.pow Z.one tl_zeros in 
-      let c = Z.logand o (m -: Z.one) in 
+      let tl_zeros = Z.trailing_zeros (Z.logand z o) in
+      let ik_bits = Size.bit ik in
+      let m = if tl_zeros > ik_bits then Z.one else Z.pow Z.one tl_zeros in
+      let c = Z.logand o (m -: Z.one) in
       normalize ik (Some (c, m))
 
-  let to_bitfield ik x = 
-    let x = normalize ik x in 
-    match x with 
-    | None -> (Z.zero, Z.zero) 
+  let to_bitfield ik x =
+    let x = normalize ik x in
+    match x with
+    | None -> (Z.zero, Z.zero)
     | Some (c,m) -> BitfieldDomain.Bitfield.of_congruence ik (c,m)
 
   let maximal t = match t with
@@ -347,11 +347,18 @@ struct
       raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y)))
     | Some a, Some b when no_ov ->
       normalize ik (Some (no_ov_case a b))
-    | Some (c1, m1), Some (c2, m2) when m1 =: Z.zero && m2 =: Z.zero && not (Cil.isSigned ik) ->
-      let _, max_ik = range ik in
+    | Some (c1, m1), Some (c2, m2) when m1 =: Z.zero && m2 =: Z.zero ->
+      let min_ik, max_ik = range ik in
       let m_ikind = max_ik +: Z.one in
-      let c = (c1 -: c2 +: m_ikind) %: m_ikind  in
-      Some(c, Z.zero)
+      if Cil.isSigned ik then
+        let c = c1 -: c2 in
+        if c >=: min_ik then
+          Some (c, Z.zero)
+        else
+          top_of ik
+      else
+        let c = (c1 -: c2 +: m_ikind) %: m_ikind  in
+        Some (c, Z.zero)
     | Some a, Some b when not (Cil.isSigned ik) ->
       handle_overflow ik (no_ov_case a b)
     | _ -> top ()
@@ -523,8 +530,8 @@ struct
 
   let refine_with_congruence ik a b = meet ik a b
 
-  let refine_with_bitfield ik a (z,o) = 
-    let a = normalize ik a in 
+  let refine_with_bitfield ik a (z,o) =
+    let a = normalize ik a in
     meet ik a (of_bitfield ik (z,o))
 
   let refine_with_excl_list ik a b = a
