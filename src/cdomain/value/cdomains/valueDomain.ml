@@ -392,7 +392,8 @@ struct
     | a, b -> a = b
 
   let cast_addr t a =
-    let rec stripVarLenArr = function (* TODO: unrolltype? *)
+    let rec stripVarLenArr t =
+      match Cil.unrollType t with
       | TPtr(t, args) -> TPtr(stripVarLenArr t, args)
       | TArray(t, None, args) -> TArray(stripVarLenArr t, None, args)
       | TArray(t, Some exp, args) when isConstant exp -> TArray(stripVarLenArr t, Some exp, args)
@@ -418,7 +419,7 @@ struct
       | _ -> (* cast to smaller/inner type *)
         if M.tracing then M.tracel "casta" "cast to smaller size";
         if d = Some true then err "Ptr-cast to type of incompatible size!" else
-          begin match ta, t with (* TODO: unrolltype? *)
+          begin match Cil.unrollType ta, Cil.unrollType t with
             (* struct to its first field *)
             | TComp ({cfields = fi::_; _}, _), _ ->
               if M.tracing then M.tracel "casta" "cast struct to its first field";
@@ -432,15 +433,19 @@ struct
             | _ -> err @@ Format.sprintf "Cast to neither array index nor struct field. is_zero_offset: %b" (Addr.Offs.cmp_zero_offset o = `MustZero)
           end
     in
-    let one_addr = let open Addr in function (* TODO: unrolltype? *)
+    let one_addr =
+      let open Addr in
+      function
+      | Addr.Addr ({ vtype; _} as v, o) as a ->
+        begin match Cil.unrollType vtype, Cil.unrollType t with
         (* only allow conversion of float pointers if source and target type are the same *)
-        | Addr ({ vtype = TFloat(fkind, _); _}, _) as x when (match t with TFloat (fkind', _) when fkind = fkind' -> true | _ -> false) -> x
+        | TFloat (fkind, _), TFloat (fkind', _) when fkind = fkind' -> a
         (* do not allow conversion from/to float pointers*)
-        | Addr ({ vtype = TFloat(_); _}, _) -> UnknownPtr
-        | _ when (match t with TFloat _ -> true | _ -> false) -> UnknownPtr
-        | Addr ({ vtype = TVoid _; _} as v, offs) when not (Cilfacade.isCharType t) -> (* we had no information about the type (e.g. malloc), so we add it; ignore for casts to char* since they're special conversions (N1570 6.3.2.3.7) *)
-          Addr ({ v with vtype = t }, offs) (* HACK: equal varinfo with different type, causes inconsistencies down the line, when we again assume vtype being "right", but joining etc gives no consideration to which type version to keep *)
-        | Addr (v, o) as a ->
+        | TFloat _, _
+        | _, TFloat _ -> UnknownPtr
+        | TVoid _, _ when not (Cilfacade.isCharType t) -> (* we had no information about the type (e.g. malloc), so we add it; ignore for casts to char* since they're special conversions (N1570 6.3.2.3.7) *)
+          Addr ({ v with vtype = t }, o) (* HACK: equal varinfo with different type, causes inconsistencies down the line, when we again assume vtype being "right", but joining etc gives no consideration to which type version to keep *)
+        | _, _ ->
           begin try Addr (v, (adjust_offs v o None)) (* cast of one address by adjusting the abstract offset *)
             with
             | CastError s -> (* don't know how to handle this cast :( *)
@@ -451,7 +456,8 @@ struct
               M.warn "size of error: %s" s;
               a
           end
-        | x -> x (* TODO we should also keep track of the type here *)
+        end
+      | x -> x (* TODO we should also keep track of the type here *)
     in
     let a' = AD.map one_addr a in
     if M.tracing then M.tracel "cast" "cast_addr %a to %a is %a!" AD.pretty a d_type t AD.pretty a';
@@ -931,7 +937,7 @@ struct
           | `Field (fld, offs) -> begin
               match x with
               | Union (`Lifted l_fld, value) ->
-                (match value, fld.ftype with (* TODO: unrolltype? *)
+                (match value, Cil.unrollType fld.ftype with
                  (* only return an actual value if we have a type and return actually the exact same type *)
                  | Float f_value, TFloat(fkind, _) when FD.get_fkind f_value = fkind -> Float f_value
                  | Float _, t -> top_value t
@@ -1100,7 +1106,7 @@ struct
                       | `NoOffset -> top (), offs
                       | `Index (idx, _) when Cil.isArrayType fld.ftype ->
                         begin
-                          match fld.ftype with (* TODO: unrolltype? *)
+                          match Cil.unrollType fld.ftype with
                           | TArray(_, l, _) ->
                             let len = Cil.lenOfArray l in (* LenOfArray exception will not happen, VLA not allowed in union and struct *)
                             Array(CArrays.make (IndexDomain.of_int (Cilfacade.ptrdiff_ikind ()) (Z.of_int len)) Top), offs
@@ -1122,7 +1128,7 @@ struct
                 let l', o' = shift_one_over l o in
                 match x with
                 | Array x' ->
-                  let t = (match t with (* TODO: unrolltype? *)
+                  let t = (match Cil.unrollType t with
                       | TArray(t1 ,_,_) -> t1
                       | _ -> t) in (* This is necessary because t is not a TArray in case of calloc *)
                   let e = determine_offset ask l o exp (Some v) in
@@ -1130,7 +1136,7 @@ struct
                   let new_array_value = CArrays.set ask x' (e, idx) new_value_at_index in
                   Array new_array_value
                 | Bot ->
-                  let t,len = (match t with (* TODO: unrolltype? *)
+                  let t,len = (match Cil.unrollType t with
                       | TArray(t1 ,len,_) -> t1, len
                       | _ -> t, None) in (* This is necessary because t is not a TArray in case of calloc *)
                   let x' = CArrays.bot () in
@@ -1192,8 +1198,8 @@ struct
 
   (* Won't compile without the final :t annotation *)
   let rec update_array_lengths (eval_exp: exp -> t) (v:t) (typ:Cil.typ):t =
-    match v, typ with
-    | Array(n), TArray(ti, e, _) -> (* TODO: unrolltype? *)
+    match v, Cil.unrollType typ with
+    | Array(n), TArray(ti, e, _) ->
       begin
         let update_fun x = update_array_lengths eval_exp x ti in
         let n' = CArrays.map (update_fun) n in
