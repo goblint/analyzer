@@ -320,21 +320,24 @@ struct
     res
 
   let sub ?(no_ov=false) ik x y =
-    match y with
-    | None -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y)))
-    | Some (c, m) ->
-      let y =
-        if m =: Z.zero then
-          if no_ov then
-            let c = Z.neg c in
-            Some (c, m)
-          else
-            top_of ik
-        else
-          let m = m -: c in
-          Some (c, m)
-      in
-      add ~no_ov ik x y
+    let no_ov_case (c1, m1) (c2, m2) =
+      c1 -: c2, Z.gcd m1 m2
+    in
+    match (x, y) with
+    | None, None -> bot ()
+    | None, _
+    | _, None ->
+      raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y)))
+    | Some a, Some b when no_ov ->
+      normalize ik (Some (no_ov_case a b))
+    | Some (c1, m1), Some (c2, m2) when m1 =: Z.zero && m2 =: Z.zero && not (Cil.isSigned ik) ->
+      let _, max_ik = range ik in
+      let m_ikind = max_ik +: Z.one in
+      let c = (c1 -: c2 +: m_ikind) %: m_ikind  in
+      Some(c, Z.zero)
+    | Some a, Some b when not (Cil.isSigned ik) ->
+      handle_overflow ik (no_ov_case a b)
+    | _ -> top ()
 
   let sub ?no_ov ik x y =
     let res = sub ?no_ov ik x y in
