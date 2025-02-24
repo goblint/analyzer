@@ -26,7 +26,7 @@ sig
   (* For hashconsing together with incremental we need to re-hashcons old values.
    * For HashconsLifter.D this is done on any lattice operation, so we can replace x with `join bot x` to hashcons it again and get a new tag for it.
    * For HashconsLifter.C we call hashcons only in `context` which is in Analyses.Spec but not in Analyses.GlobConstrSys, i.e. not visible to the solver. *)
-  (* The default for this should be identity, except for HConsed below where we want to have the side-effect and return a value with the updated tag. *)
+  (* The default for functors should pass the call to their argument modules, except for HConsed below where we want to have the side-effect and return a value with the updated tag. *)
   val relift: t -> t
 end
 
@@ -162,39 +162,40 @@ struct
   let arbitrary () = QCheck.map ~rev:unlift lift (Base.arbitrary ())
 end
 
-module HashCached (M: S) =
+module HashCached (Base: S) =
 struct
-  module LazyHash = LazyEval.Make (struct type t = M.t type result = int let eval = M.hash end)
+  module LazyHash = LazyEval.Make (struct type t = Base.t type result = int let eval = Base.hash end)
 
-  let name () = "HashCached " ^ M.name ()
+  let name () = "HashCached " ^ Base.name ()
 
   type t =
     {
-      m: M.t;
+      m: Base.t;
       lazy_hash: LazyHash.t;
     }
 
   let lift m = {m; lazy_hash = LazyHash.make m}
   let unlift {m; _} = m
+  let relift x = lift @@ Base.relift x.m
 
   let lift_f f x = f (unlift x)
   let lift_f' f x = lift @@ lift_f f x
   let lift_f2 f x y = f (unlift x) (unlift y)
   let lift_f2' f x y = lift @@ lift_f2 f x y
 
-  let equal = lift_f2 M.equal
-  let compare = lift_f2 M.compare
+  let equal = lift_f2 Base.equal
+  let compare = lift_f2 Base.compare
   let hash x = LazyHash.force x.lazy_hash
-  let show = lift_f M.show
+  let show = lift_f Base.show
 
-  let pretty () = lift_f (M.pretty ())
+  let pretty () = lift_f (Base.pretty ())
 
-  let printXml f = lift_f (M.printXml f)
-  let to_yojson = lift_f (M.to_yojson)
+  let printXml f = lift_f (Base.printXml f)
+  let to_yojson = lift_f (Base.to_yojson)
 
-  let arbitrary () = QCheck.map ~rev:unlift lift (M.arbitrary ())
+  let arbitrary () = QCheck.map ~rev:unlift lift (Base.arbitrary ())
 
-  let tag = lift_f M.tag
+  let tag = lift_f Base.tag
 end
 
 

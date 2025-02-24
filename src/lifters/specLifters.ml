@@ -206,6 +206,9 @@ end
 (** Lifts a [Spec] so that the context is [Hashcons]d. *)
 module HashconsContextLifter = ContextLifter (Printable.HConsed)
 
+(** Lifts a [Spec] so that the context is [HashCached]. *)
+module HashCachedContextLifter = ContextLifter (Printable.HashCached)
+
 (* see option ana.opt.equal *)
 module OptEqual (S: Spec) = struct
   module D = struct include S.D let equal x y = x == y || equal x y end
