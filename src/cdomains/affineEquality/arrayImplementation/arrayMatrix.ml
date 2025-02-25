@@ -30,7 +30,7 @@ sig
   val append_matrices: t -> t -> t
 end
 
-(** Some functions inside have the suffix _with, which means that the function has side effects. *)
+(** Some functions inside have the suffix _with, which means that the function is not purely functional. *)
 module type ArrayMatrixFunctor =
   functor (A: RatOps) (V: ArrayVectorFunctor) ->
   sig
@@ -40,7 +40,8 @@ module type ArrayMatrixFunctor =
 (** Array-based matrix implementation.
     It provides a normalization function to reduce a matrix into reduced row echelon form.
     Operations exploit that the input matrix/matrices are in reduced row echelon form already. *)
-(* The functions that have the suffix _with have side effects and were used in a previous version of the affineEqualityDomain.
+(* The functions that have the suffix _with are not purely functional and affect the program state beyond their return value.
+    They were used in a previous version of the affineEqualityDomain.
     These calls were removed to transition to list-based matrices.*)
 module ArrayMatrix: ArrayMatrixFunctor =
   functor (A: RatOps) (V: ArrayVectorFunctor) ->
@@ -180,7 +181,7 @@ module ArrayMatrix: ArrayMatrixFunctor =
 
     let del_cols m cols = timing_wrap "del_cols" (del_cols m) cols
 
-    (* This does NOT have the same semantics (minus side effects) as map2i_with. While map2i_with can deal with m and v having different lenghts, map2i will raise Invalid_argument in that case*)
+    (* This does NOT have the same semantics as map2i_with. While map2i_with can deal with m and v having different lenghts, map2i will raise Invalid_argument in that case*)
     let map2i f m v =
       let f' x (i,y) = V.to_array @@ f i (V.of_array x) y in
       let range_array = Array.init (V.length v) Fun.id in

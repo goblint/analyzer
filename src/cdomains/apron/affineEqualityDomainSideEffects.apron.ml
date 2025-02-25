@@ -3,7 +3,7 @@
     @see <https://doi.org/10.1007/BF00268497> Karr, M. Affine relationships among variables of a program. *)
 
 (** There are two versions of the AffineEqualityDomain.
-    This version here is based on side effects, thus it uses Matrix and Vector functions marked with "_with" which use side effects.
+    This version here is based on a dense implementation that is not purely functional, thus it uses Matrix and Vector functions marked with "_with".
     Abstract states in the newly added domain are represented by structs containing a matrix and an apron environment.
     Matrices are modeled as proposed by Karr: Each variable is assigned to a column and each row represents a linear affine relationship that must hold at the corresponding program point.
     The apron environment is hereby used to organize the order of columns and variables. *)
