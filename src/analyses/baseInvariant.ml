@@ -114,31 +114,29 @@ struct
     | Mem (Lval lv), off ->
       let lvals = eval_lv ~man st (Mem (Lval lv), off) in
       let res = AD.fold (fun a acc ->
-          match a with
-          | Addr (base, _) as orig ->
-            let (a:VD.t) = Address (AD.singleton (AD.Addr.of_var base)) in
-            if M.tracing then M.tracel "inv" "Consider case of lval %a = %a" d_lval lv VD.pretty a;
-            let st = set' lv a st in
-            let old_val = get ~man st (AD.singleton orig) None in
-            let old_val = VD.cast (Cilfacade.typeOfLval x) old_val in (* needed as the type of this pointer may be different *)
-            (* this what I would originally have liked to do, but eval_rv_lval_refine uses queries and thus stale values *)
-            (* let old_val = eval_rv_lval_refine ~man st exp x in *)
-            let old_val = map_oldval old_val (Cilfacade.typeOfLval x) in
-            let v = apply_invariant ~old_val ~new_val:c' in
-            if is_some_bot v then
-              D.join acc (try contra st with Analyses.Deadcode -> D.bot ())
-            else (
-              if M.tracing then M.tracel "inv" "improve lval %a from %a to %a (c = %a, c' = %a)" d_lval x VD.pretty old_val VD.pretty v pretty c VD.pretty c';
-              D.join acc (set' x v st)
+          Option.bind acc (fun acc ->
+              match a with
+              | Addr (base, _) as orig ->
+                let (a:VD.t) = Address (AD.singleton (AD.Addr.of_var base)) in
+                if M.tracing then M.tracel "inv" "Consider case of lval %a = %a" d_lval lv VD.pretty a;
+                let st = set' lv a st in
+                let old_val = get ~man st (AD.singleton orig) None in
+                let old_val = VD.cast (Cilfacade.typeOfLval x) old_val in (* needed as the type of this pointer may be different *)
+                (* this what I would originally have liked to do, but eval_rv_lval_refine uses queries and thus stale values *)
+                (* let old_val = eval_rv_lval_refine ~man st exp x in *)
+                let old_val = map_oldval old_val (Cilfacade.typeOfLval x) in
+                let v = apply_invariant ~old_val ~new_val:c' in
+                if is_some_bot v then
+                  Some (D.join acc (try contra st with Analyses.Deadcode -> D.bot ()))
+                else (
+                  if M.tracing then M.tracel "inv" "improve lval %a from %a to %a (c = %a, c' = %a)" d_lval x VD.pretty old_val VD.pretty v pretty c VD.pretty c';
+                  Some (D.join acc (set' x v st))
+                )
+              | _ -> None
             )
-          | _ ->
-            default ()
-        ) lvals (D.bot ())
+        ) lvals (Some (D.bot ()))
       in
-      if D.is_bot res then
-        raise Analyses.Deadcode
-      else
-        res
+      BatOption.map_default_delayed (fun d -> if D.is_bot d then raise Analyses.Deadcode else d) default res
     | Var _, _
     | Mem _, _ ->
       default ()
