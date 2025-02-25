@@ -645,13 +645,14 @@ struct
 
   (*TODO improve with eval_texpr!! used to exclude overflows*)
   let bound_texpr t texpr =
-    if t.d = None then None, None
-    else
-      match simplify_to_ref_and_offset t (Texpr1.to_expr texpr) with
-      | Some (None, offset, divisor) when Z.equal (Z.rem offset divisor) Z.zero -> let res = Z.div offset divisor in
-        (if M.tracing then M.tracel "bounds" "min: %a max: %a" GobZ.pretty res GobZ.pretty res;
-         Some res, Some res)
-      | _ -> None, None
+    let v = eval_texpr t (Texpr1.to_expr texpr) in
+    let from_top = function
+      | TopIntOps.Int x -> Some x
+      | _ -> None 
+    in let min = BatOption.bind (Value.minimal v) (from_top)
+    in let max = BatOption.bind (Value.maximal v) (from_top) in
+    (if M.tracing then M.tracel "bounds" "min: %s max: %s" (BatOption.map_default Z.to_string "None" min) (BatOption.map_default Z.to_string "None" max);
+     min, max)
 
   let bound_texpr d texpr1 = timing_wrap "bounds calculation" (bound_texpr d) texpr1
 end
