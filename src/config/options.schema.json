@@ -1204,10 +1204,10 @@
           "type": "object",
           "properties": {
             "side_effects": {
-              "title": "ana.affeq.side_effects",
-              "description": "Use side effect Affine Equality analysis (array implementation). Default is false (sparse implementation)",
+              "title": "ana.affeq.sparse",
+              "description": "Use sparse implementation of Affine Equality analysis (using lists). If set to false, the dense version is used (using arrays). Default is true (sparse implementation)",
               "type": "boolean",
-              "default": false
+              "default": true
             }
           },
           "additionalProperties": false
