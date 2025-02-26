@@ -1218,6 +1218,19 @@
             }
           },
           "additionalProperties": false
+        },
+        "affeq": {
+          "title": "ana.affeq",
+          "type": "object",
+          "properties": {
+            "sparse": {
+              "title": "ana.affeq.sparse",
+              "description": "Use sparse implementation of Affine Equality analysis (using lists). If set to false, the dense version is used (using arrays). Default is true (sparse implementation)",
+              "type": "boolean",
+              "default": true
+            }
+          },
+          "additionalProperties": false
         }
       },
       "additionalProperties": false

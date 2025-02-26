@@ -4,8 +4,8 @@ open Batteries
 
 open GobApron
 
-module M = Messages
 
+module M = Messages
 
 let int_of_scalar ?(scalewith=Z.one) ?round (scalar: Scalar.t) =
   if Scalar.is_infty scalar <> 0 then (* infinity means unbounded *)
@@ -404,7 +404,7 @@ struct
         in
         {d = Some (if add then RelDomain.dim_add dim_change m else RelDomain.dim_remove dim_change m ~del:del); env = new_env}
 
-  let change_d t new_env ~add ~del = VectorMatrix.timing_wrap "dimension change" (fun del -> change_d t new_env ~add:add ~del:del) del
+  let change_d t new_env ~add ~del = Vector.timing_wrap "dimension change" (fun del -> change_d t new_env ~add:add ~del:del) del
 
   let vars x = Environment.ivars_only x.env
 
@@ -413,18 +413,18 @@ struct
     let env' = Environment.add_vars t.env vars in
     change_d t env' ~add:true ~del:false
 
-  let add_vars t vars = VectorMatrix.timing_wrap "add_vars" (add_vars t) vars
+  let add_vars t vars = Vector.timing_wrap "add_vars" (add_vars t) vars
 
   let drop_vars t vars ~del =
     let t = copy t in
     let env' = Environment.remove_vars t.env vars in
     change_d t env' ~add:false ~del:del
 
-  let drop_vars t vars = VectorMatrix.timing_wrap "drop_vars" (drop_vars t) vars
+  let drop_vars t vars = Vector.timing_wrap "drop_vars" (drop_vars t) vars
 
   let remove_vars t vars = drop_vars t vars ~del:false
 
-  let remove_vars t vars = VectorMatrix.timing_wrap "remove_vars" (remove_vars t) vars
+  let remove_vars t vars = Vector.timing_wrap "remove_vars" (remove_vars t) vars
 
   let remove_vars_with t vars =
     let t' = remove_vars t vars in
@@ -435,7 +435,7 @@ struct
     let env' = Environment.remove_filter t.env f in
     change_d t env' ~add:false ~del:false
 
-  let remove_filter t f = VectorMatrix.timing_wrap "remove_filter" (remove_filter t) f
+  let remove_filter t f = Vector.timing_wrap "remove_filter" (remove_filter t) f
 
   let remove_filter_with t f =
     let t' = remove_filter t f in
@@ -447,14 +447,14 @@ struct
     let env' = Environment.keep_filter t.env f in
     change_d t env' ~add:false ~del:false
 
-  let keep_filter t f = VectorMatrix.timing_wrap "keep_filter" (keep_filter t) f
+  let keep_filter t f = Vector.timing_wrap "keep_filter" (keep_filter t) f
 
   let keep_vars t vs =
     let t = copy t in
     let env' = Environment.keep_vars t.env vs in
     change_d t env' ~add:false ~del:false
 
-  let keep_vars t vs = VectorMatrix.timing_wrap "keep_vars" (keep_vars t) vs
+  let keep_vars t vs = Vector.timing_wrap "keep_vars" (keep_vars t) vs
 
   let mem_var t var = Environment.mem_var t.env var
 
