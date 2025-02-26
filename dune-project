@@ -58,7 +58,7 @@ Goblint includes analyses for assertions, overflows, deadlocks, etc and can be e
     (sha (>= 1.12))
     (fileutils (>= 0.6.4))
     cpu
-    arg-complete
+    (arg-complete (>= 0.2.1))
     (yaml (>= 3.0.0))
     uuidm
     catapult

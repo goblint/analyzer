@@ -1,6 +1,5 @@
 open IntDomain0
 
-
 module IntervalFunctor (Ints_t : IntOps.IntOps): SOverflow with type int_t = Ints_t.t and type t = (Ints_t.t * Ints_t.t) option =
 struct
   let name () = "intervals"
@@ -79,10 +78,39 @@ struct
   (* TODO: change to_int signature so it returns a big_int *)
   let to_int x = Option.bind x (IArith.to_int)
   let of_interval ?(suppress_ovwarn=false) ik (x,y) = norm ~suppress_ovwarn ik @@ Some (x,y)
+
+  let of_bitfield ik x =
+    let min ik (z,o) =
+      let signBit = Ints_t.shift_left Ints_t.one ((Size.bit ik) - 1) in
+      let signMask = Ints_t.lognot (Ints_t.of_bigint (snd (Size.range ik))) in
+      let isNegative = Ints_t.logand signBit o <> Ints_t.zero in
+      if GoblintCil.isSigned ik && isNegative then
+        Ints_t.logor signMask (Ints_t.lognot z)
+      else
+        Ints_t.lognot z
+    in
+    let max ik (z,o) =
+      let signBit = Ints_t.shift_left Ints_t.one ((Size.bit ik) - 1) in
+      let signMask = Ints_t.of_bigint (snd (Size.range ik)) in
+      let isPositive = Ints_t.logand signBit z <> Ints_t.zero in
+      if GoblintCil.isSigned ik && isPositive then
+        Ints_t.logand signMask o
+      else
+        o
+    in
+    fst (norm ik (Some (min ik x, max ik x)))
+
   let of_int ik (x: int_t) = of_interval ik (x,x)
   let zero = Some IArith.zero
   let one  = Some IArith.one
   let top_bool = Some IArith.top_bool
+
+  let to_bitfield ik z =
+    match z with
+    | None -> (Ints_t.lognot Ints_t.zero, Ints_t.lognot Ints_t.zero)
+    | Some (x,y) ->
+      let (z,o) = fst(BitfieldDomain.Bitfield.of_interval ik (Ints_t.to_bigint x, Ints_t.to_bigint y)) in
+      (Ints_t.of_bigint z, Ints_t.of_bigint o)
 
   let of_bool _ik = function true -> one | false -> zero
   let to_bool (a: t) = match a with
@@ -380,6 +408,10 @@ struct
     let refn = refine_with_congruence ik x y in
     if M.tracing then M.trace "refine" "int_refine_with_congruence %a %a -> %a" pretty x pretty y pretty refn;
     refn
+
+  let refine_with_bitfield ik a b =
+    let interv = of_bitfield ik b in
+    meet ik a interv
 
   let refine_with_interval ik a b = meet ik a b
 

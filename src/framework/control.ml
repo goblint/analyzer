@@ -28,6 +28,7 @@ let spec_module: (module Spec) Lazy.t = lazy (
       |> lift true (module WidenContextLifterSide) (* option checked in functor *)
       (* hashcons before witness to reduce duplicates, because witness re-uses contexts in domain and requires tag for PathSensitive3 *)
       |> lift (get_bool "ana.opt.hashcons" || arg_enabled) (module HashconsContextLifter)
+      |> lift (get_bool "ana.opt.hashcached") (module HashCachedContextLifter)
       |> lift arg_enabled (module HashconsLifter)
       |> lift arg_enabled (module WitnessConstraints.PathSensitive3)
       |> lift (not arg_enabled) (module PathSensitive2)

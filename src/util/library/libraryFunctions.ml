@@ -1288,7 +1288,7 @@ let reset_lazy () =
   ResettableLazy.reset activated_library_descs
 
 let lib_funs = ref (Set.String.of_list ["__raw_read_unlock"; "__raw_write_unlock"; "spin_trylock"])
-let add_lib_funs funs = lib_funs := List.fold_right Set.String.add funs !lib_funs
+let add_lib_funs funs = lib_funs := List.fold_left (Fun.flip Set.String.add) !lib_funs funs
 let use_special fn_name = Set.String.mem fn_name !lib_funs
 
 let kernel_safe_uncalled = Set.String.of_list ["__inittest"; "init_module"; "__exittest"; "cleanup_module"]
