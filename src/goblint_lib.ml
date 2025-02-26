@@ -260,7 +260,7 @@ module ValueDomainQueries = ValueDomainQueries
 module RelationDomain = RelationDomain
 module ApronDomain = ApronDomain
 module AffineEqualityDomain = AffineEqualityDomain
-module AffineEqualityDomainDense = AffineEqualityDenseDomain
+module AffineEqualityDenseDomain = AffineEqualityDenseDomain
 module LinearTwoVarEqualityDomain = LinearTwoVarEqualityDomain
 
 (** {3 Concurrency} *)
