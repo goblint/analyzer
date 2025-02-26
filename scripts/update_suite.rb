@@ -2,6 +2,7 @@
 
 # gobopt environment variable can be used to override goblint defaults and PARAMs
 
+require 'os'
 require 'find'
 require 'fileutils'
 require 'timeout'
@@ -575,6 +576,8 @@ class ProjectWitness < Project
     end
 end
 
+mac = OS.mac?
+
 #processing the file information
 projects = []
 project_ids = Set.new
@@ -603,6 +606,7 @@ regs.sort.each do |d|
     lines = IO.readlines(path, :encoding => "UTF-8")
 
     next if not future and only.nil? and lines[0] =~ /SKIP/
+    next if mac and lines[0] =~ /NOMAC/
     next if marshal and lines[0] =~ /NOMARSHAL/
     next if not has_linux_headers and lines[0] =~ /kernel/
     if incremental then
