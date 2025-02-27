@@ -145,7 +145,7 @@ struct
 end
 
 (* HAS SIDE-EFFECTS ---- PLEASE INSTANCIATE ONLY ONCE!!! *)
-module HConsed (Base:S) (Arg: sig val assume_idempotent: bool end) =
+module HConsed (Arg: sig val assume_idempotent: bool end) (Base:S) =
 struct
   include Printable.HConsed (Base)
 
