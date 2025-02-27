@@ -3,7 +3,7 @@
 
 int main()
 {
-  int i;
+  unsigned int i;
 
   // Loop with complex conditions
   for (i = 1; i <= 10; i++)
@@ -28,7 +28,7 @@ int main()
   printf("\n");
 
   // Loop with multiple conditions
-  int s = 1;
+  unsigned int s = 1;
   while (s <= 10 && s % 2 == 0) // CIL defines new jump labels to default location (-1)
   {
     printf("Loop with Multiple Conditions: %d\n", s);
@@ -36,7 +36,7 @@ int main()
   }
 
   // Loop with multiple variables
-  int t, u;
+  unsigned int t, u;
   for (t = 1, u = 10; t <= 5 && u >= 5; t++, u--) // CIL defines new jump labels to default location (-1)
   {
     printf("Loop with Multiple Variables: %d %d\n", t, u);

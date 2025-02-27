@@ -256,8 +256,9 @@ struct
             if M.tracing then M.traceli "relation" "assign inner %a = %a (%a)" CilType.Varinfo.pretty v d_exp e' d_plainexp e';
             if M.tracing then M.trace "relation" "st: %a" RD.pretty apr';
             let r = RD.assign_exp ask apr' (RV.local v) e' (no_overflow ask simplified_e) in
-            if M.tracing then M.traceu "relation" "-> %a" RD.pretty r;
-            r
+            let r' = assert_type_bounds ask r v in
+            if M.tracing then M.traceu "relation" "-> %a" RD.pretty r';
+            r'
           )
       )
     in
