@@ -17,81 +17,85 @@ struct
   let itrue      = I.of_bool true
   let ifalse     = I.of_bool false
 
+  let assert_poly_equal = assert_equal
+  let assert_equal x y =
+    assert_equal ~cmp:I.equal ~printer:I.show x y
+
 
   let test_int_comp _ =
-    assert_equal ~printer:I.show izero (I.of_int zero);
-    assert_equal ~printer:I.show ione  (I.of_int one);
-    assert_equal ~printer:I.show itrue (I.of_bool true);
-    assert_equal ~printer:I.show ifalse(I.of_bool false);
-    assert_equal (Some one ) (I.to_int ione);
-    assert_equal (Some zero) (I.to_int izero);
-    assert_equal (Some zero) (I.to_int ifalse)
+    assert_equal izero (I.of_int zero);
+    assert_equal ione  (I.of_int one);
+    assert_equal itrue (I.of_bool true);
+    assert_equal ifalse(I.of_bool false);
+    assert_poly_equal (Some one ) (I.to_int ione);
+    assert_poly_equal (Some zero) (I.to_int izero);
+    assert_poly_equal (Some zero) (I.to_int ifalse)
 
 
   let test_bool _ =
-    assert_equal (Some true ) (I.to_bool ione);
-    assert_equal (Some false) (I.to_bool izero);
-    assert_equal (Some true ) (I.to_bool itrue);
-    assert_equal (Some false) (I.to_bool ifalse);
-    assert_equal ~printer:I.show itrue  (I.lt ione  itwo);
-    assert_equal ~printer:I.show ifalse (I.gt ione  itwo);
-    assert_equal ~printer:I.show itrue  (I.le ione  ione);
-    assert_equal ~printer:I.show ifalse (I.ge izero itwo);
-    assert_equal ~printer:I.show itrue  (I.eq izero izero);
-    assert_equal ~printer:I.show ifalse (I.ne ione  ione)
+    assert_poly_equal (Some true ) (I.to_bool ione);
+    assert_poly_equal (Some false) (I.to_bool izero);
+    assert_poly_equal (Some true ) (I.to_bool itrue);
+    assert_poly_equal (Some false) (I.to_bool ifalse);
+    assert_equal itrue  (I.lt ione  itwo);
+    assert_equal ifalse (I.gt ione  itwo);
+    assert_equal itrue  (I.le ione  ione);
+    assert_equal ifalse (I.ge izero itwo);
+    assert_equal itrue  (I.eq izero izero);
+    assert_equal ifalse (I.ne ione  ione)
 
 
   let test_neg _ =
-    assert_equal ~printer:I.show in5 (I.neg i5);
-    assert_equal ~printer:I.show i5 (I.neg (I.neg i5));
-    assert_equal ~printer:I.show izero (I.neg izero)
+    assert_equal in5 (I.neg i5);
+    assert_equal i5 (I.neg (I.neg i5));
+    assert_equal izero (I.neg izero)
 
 
   let test_add _ =
-    assert_equal ~printer:I.show ione (I.add izero ione);
-    assert_equal ~printer:I.show ione (I.add ione  izero);
-    assert_equal ~printer:I.show izero(I.add izero izero)
+    assert_equal ione (I.add izero ione);
+    assert_equal ione (I.add ione  izero);
+    assert_equal izero(I.add izero izero)
 
 
   let test_sub _ =
-    assert_equal ~printer:I.show ione (I.sub izero iminus_one);
-    assert_equal ~printer:I.show ione (I.sub ione  izero);
-    assert_equal ~printer:I.show izero(I.sub izero izero)
+    assert_equal ione (I.sub izero iminus_one);
+    assert_equal ione (I.sub ione  izero);
+    assert_equal izero(I.sub izero izero)
 
 
   let test_mul _ =
-    assert_equal ~printer:I.show izero(I.mul izero iminus_one);
-    assert_equal ~printer:I.show izero(I.mul izero izero);
-    assert_equal ~printer:I.show ione (I.mul ione  ione);
-    assert_equal ~printer:I.show i42  (I.mul ione  i42)
+    assert_equal izero(I.mul izero iminus_one);
+    assert_equal izero(I.mul izero izero);
+    assert_equal ione (I.mul ione  ione);
+    assert_equal i42  (I.mul ione  i42)
 
 
   let test_div _ =
-    assert_equal ~printer:I.show ione (I.div ione ione);
-    assert_equal ~printer:I.show ione (I.div i5 i5);
-    assert_equal ~printer:I.show i5   (I.div i5 ione);
-    assert_equal ~printer:I.show in5  (I.div i5 iminus_one);
+    assert_equal ione (I.div ione ione);
+    assert_equal ione (I.div i5 i5);
+    assert_equal i5   (I.div i5 ione);
+    assert_equal in5  (I.div i5 iminus_one);
     assert_bool "div_by_0" (try I.is_top (I.div i5 izero) with Division_by_zero -> true)
 
 
   let test_rem _ =
-    assert_equal ~printer:I.show ione (I.rem ione  i5);
-    assert_equal ~printer:I.show izero(I.rem izero i5);
-    assert_equal ~printer:I.show itwo (I.rem i42   i5);
-    assert_equal ~printer:I.show itwo (I.rem i42   in5)
+    assert_equal ione (I.rem ione  i5);
+    assert_equal izero(I.rem izero i5);
+    assert_equal itwo (I.rem i42   i5);
+    assert_equal itwo (I.rem i42   in5)
 
 
   let test_bit _ =
-    assert_equal ~printer:I.show iminus_one (I.lognot izero);
-    assert_equal ~printer:I.show iminus_two (I.lognot ione);
-    assert_equal ~printer:I.show i5   (I.logand i5 i5);
-    assert_equal ~printer:I.show i4   (I.logand i5 i4);
-    assert_equal ~printer:I.show i5   (I.logor  i4 ione);
-    assert_equal ~printer:I.show ione (I.logxor i4 i5);
-    assert_equal ~printer:I.show itwo (I.shift_left  ione ione );
-    assert_equal ~printer:I.show ione (I.shift_left  ione izero);
-    assert_equal ~printer:I.show ione (I.shift_right itwo ione);
-    assert_equal ~printer:I.show izero(I.shift_right ione ione)
+    assert_equal iminus_one (I.lognot izero);
+    assert_equal iminus_two (I.lognot ione);
+    assert_equal i5   (I.logand i5 i5);
+    assert_equal i4   (I.logand i5 i4);
+    assert_equal i5   (I.logor  i4 ione);
+    assert_equal ione (I.logxor i4 i5);
+    assert_equal itwo (I.shift_left  ione ione );
+    assert_equal ione (I.shift_left  ione izero);
+    assert_equal ione (I.shift_right itwo ione);
+    assert_equal izero(I.shift_right ione ione)
 
 
   let test () =
@@ -112,91 +116,97 @@ module Ikind = struct let ikind () = Cil.ILong end
 module A = IntTest (IntDomain.Integers (IntOps.BigIntOps))
 module B = IntTest (IntDomain.Flat (IntDomain.Integers (IntOps.BigIntOps)))
 module C = IntTest (IntDomainProperties.WithIkind (IntDomain.DefExc) (Ikind))
-module T = struct
-  include IntDomainProperties.WithIkind (IntDomain.DefExc) (Ikind)
-  let of_excl_list xs = of_excl_list Cil.ILong xs
+
+module D = struct
+  module T = struct
+    include IntDomainProperties.WithIkind (IntDomain.DefExc) (Ikind)
+    let of_excl_list xs = of_excl_list Cil.ILong xs
+  end
+
+  let tzero      = T.of_int zero
+  let tone       = T.of_int one
+  let tminus_one = T.of_int minus_one
+  let ttwo       = T.of_int (of_int 2)
+  let tminus_two = T.of_int (of_int (-2))
+  let t4         = T.of_int (of_int 4)
+  let t5         = T.of_int (of_int 5)
+  let tn5        = T.of_int (of_int (-5))
+  let t42        = T.of_int (of_int 42)
+  let ttrue      = T.of_bool true
+  let tfalse     = T.of_bool false
+  let ttop       = T.top ()
+  let tbot       = T.bot ()
+  let tex0       = T.of_excl_list [zero]
+  let tex1       = T.of_excl_list [one ]
+  let tex10      = T.of_excl_list [zero; one]
+  let tex01      = T.of_excl_list [one; zero]
+
+  let test_bot _ =
+    assert_bool "bot != bot" (T.is_bot tbot);
+    assert_bool "top != top" (T.is_top ttop);
+    assert_bool "top == bot" (not (T.is_bot ttop));
+    assert_bool "bot == top" (not (T.is_top tbot));
+    assert_bool "0 == top" (not (T.is_top tzero));
+    assert_bool "1 == top" (not (T.is_top tone))
+
+  let assert_poly_equal = assert_equal
+  let assert_equal x y = assert_equal ~cmp: T.equal ~printer:T.show x y
+
+  let test_join _ =
+    assert_equal tone (T.join tbot  tone);
+    assert_equal tzero(T.join tbot  tzero);
+    assert_equal tone (T.join tone  tbot);
+    assert_equal tzero(T.join tzero tbot);
+    assert_equal ttop (T.join ttop  tone);
+    assert_equal ttop (T.join ttop  tzero);
+    assert_equal ttop (T.join tone  ttop);
+    assert_equal ttop (T.join tzero ttop);
+    assert_equal tbot (T.join tbot  tbot);
+    assert_equal tone (T.join tone  tone);
+    (* assert_equal tex0 (T.join tone  ttwo); *) (* TODO: now more precise range *)
+    (* assert_equal ttop (T.join tone  tzero); *) (* TODO: now more precise range *)
+    assert_equal tex0 (T.join tex0  tex0);
+    assert_equal tex1 (T.join tex1  tex1);
+    assert_equal ttop (T.join tex1  tex0);
+    assert_equal ttop (T.join tex0  tex1);
+    (* assert_equal ~printer:T.show tex0 (T.join tone  ttwo); *) (* TODO: now more precise range *)
+    assert_equal tex1 (T.join tex1  tzero);
+    assert_equal tex0 (T.join tex0  tone );
+    assert_equal tex1 (T.join tex1  tzero);
+    assert_equal tex0 (T.join tex0  tone )
+
+  let test_meet _ =
+    assert_equal tbot (T.meet tbot  tone);
+    assert_equal tbot (T.meet tbot  tzero);
+    assert_equal tbot (T.meet tone  tbot);
+    assert_equal tbot (T.meet tzero tbot);
+    assert_equal tone (T.meet ttop  tone);
+    assert_equal tzero(T.meet ttop  tzero);
+    assert_equal tone (T.meet tone  ttop);
+    assert_equal tzero(T.meet tzero ttop);
+    assert_equal tbot (T.meet tbot  tbot);
+    assert_equal tone (T.meet tone  tone);
+    assert_equal tbot (T.meet tone  ttwo);
+    assert_equal tbot (T.meet tone  tzero);
+    assert_equal tex0 (T.meet tex0  tex0);
+    assert_equal tex1 (T.meet tex1  tex1);
+    assert_equal tex10(T.meet tex1  tex0);
+    assert_equal tex01(T.meet tex0  tex1);
+    assert_equal tzero(T.meet tex1  tzero);
+    assert_equal tone (T.meet tex0  tone );
+    assert_equal tzero(T.meet tex1  tzero);
+    assert_equal tone (T.meet tex0  tone )
+
+  let test_ex_set _ =
+    assert_poly_equal (Some [zero; one]) (T.to_excl_list tex10 |> Option.map fst);
+    assert_poly_equal (Some [zero; one]) (T.to_excl_list tex01 |> Option.map fst);
+    assert_bool  "Not [1;0] is not excl set" (T.is_excl_list tex10);
+    assert_bool  "bot is excl set" (not (T.is_excl_list tbot));
+    assert_bool  "42  is excl set" (not (T.is_excl_list t42));
+    assert_poly_equal (Some true) (T.to_bool tex0);
+    assert_poly_equal (Some true) (T.to_bool tex10);
+    assert_poly_equal None (T.to_bool tex1)
 end
-
-let tzero      = T.of_int zero
-let tone       = T.of_int one
-let tminus_one = T.of_int minus_one
-let ttwo       = T.of_int (of_int 2)
-let tminus_two = T.of_int (of_int (-2))
-let t4         = T.of_int (of_int 4)
-let t5         = T.of_int (of_int 5)
-let tn5        = T.of_int (of_int (-5))
-let t42        = T.of_int (of_int 42)
-let ttrue      = T.of_bool true
-let tfalse     = T.of_bool false
-let ttop       = T.top ()
-let tbot       = T.bot ()
-let tex0       = T.of_excl_list [zero]
-let tex1       = T.of_excl_list [one ]
-let tex10      = T.of_excl_list [zero; one]
-let tex01      = T.of_excl_list [one; zero]
-
-let test_bot _ =
-  assert_bool "bot != bot" (T.is_bot tbot);
-  assert_bool "top != top" (T.is_top ttop);
-  assert_bool "top == bot" (not (T.is_bot ttop));
-  assert_bool "bot == top" (not (T.is_top tbot));
-  assert_bool "0 == top" (not (T.is_top tzero));
-  assert_bool "1 == top" (not (T.is_top tone))
-
-let test_join _ =
-  assert_equal ~printer:T.show tone (T.join tbot  tone);
-  assert_equal ~printer:T.show tzero(T.join tbot  tzero);
-  assert_equal ~printer:T.show tone (T.join tone  tbot);
-  assert_equal ~printer:T.show tzero(T.join tzero tbot);
-  assert_equal ~printer:T.show ttop (T.join ttop  tone);
-  assert_equal ~printer:T.show ttop (T.join ttop  tzero);
-  assert_equal ~printer:T.show ttop (T.join tone  ttop);
-  assert_equal ~printer:T.show ttop (T.join tzero ttop);
-  assert_equal ~printer:T.show tbot (T.join tbot  tbot);
-  assert_equal ~printer:T.show tone (T.join tone  tone);
-  (* assert_equal ~printer:T.show tex0 (T.join tone  ttwo); *) (* TODO: now more precise range *)
-  (* assert_equal ~printer:T.show ttop (T.join tone  tzero); *) (* TODO: now more precise range *)
-  assert_equal ~printer:T.show tex0 (T.join tex0  tex0);
-  assert_equal ~printer:T.show tex1 (T.join tex1  tex1);
-  assert_equal ~printer:T.show ttop (T.join tex1  tex0);
-  assert_equal ~printer:T.show ttop (T.join tex0  tex1);
-  (* assert_equal ~printer:T.show tex0 (T.join tone  ttwo); *) (* TODO: now more precise range *)
-  assert_equal ~printer:T.show tex1 (T.join tex1  tzero);
-  assert_equal ~printer:T.show tex0 (T.join tex0  tone );
-  assert_equal ~printer:T.show tex1 (T.join tex1  tzero);
-  assert_equal ~printer:T.show tex0 (T.join tex0  tone )
-
-let test_meet _ =
-  assert_equal ~printer:T.show tbot (T.meet tbot  tone);
-  assert_equal ~printer:T.show tbot (T.meet tbot  tzero);
-  assert_equal ~printer:T.show tbot (T.meet tone  tbot);
-  assert_equal ~printer:T.show tbot (T.meet tzero tbot);
-  assert_equal ~printer:T.show tone (T.meet ttop  tone);
-  assert_equal ~printer:T.show tzero(T.meet ttop  tzero);
-  assert_equal ~printer:T.show tone (T.meet tone  ttop);
-  assert_equal ~printer:T.show tzero(T.meet tzero ttop);
-  assert_equal ~printer:T.show tbot (T.meet tbot  tbot);
-  assert_equal ~printer:T.show tone (T.meet tone  tone);
-  assert_equal ~printer:T.show tbot (T.meet tone  ttwo);
-  assert_equal ~printer:T.show tbot (T.meet tone  tzero);
-  assert_equal ~printer:T.show tex0 (T.meet tex0  tex0);
-  assert_equal ~printer:T.show tex1 (T.meet tex1  tex1);
-  assert_equal ~printer:T.show tex10(T.meet tex1  tex0);
-  assert_equal ~printer:T.show tex01(T.meet tex0  tex1);
-  assert_equal ~printer:T.show tzero(T.meet tex1  tzero);
-  assert_equal ~printer:T.show tone (T.meet tex0  tone );
-  assert_equal ~printer:T.show tzero(T.meet tex1  tzero);
-  assert_equal ~printer:T.show tone (T.meet tex0  tone )
-
-let test_ex_set _ =
-  assert_equal (Some [zero; one]) (T.to_excl_list tex10 |> Option.map fst);
-  assert_equal (Some [zero; one]) (T.to_excl_list tex01 |> Option.map fst);
-  assert_bool  "Not [1;0] is not excl set" (T.is_excl_list tex10);
-  assert_bool  "bot is excl set" (not (T.is_excl_list tbot));
-  assert_bool  "42  is excl set" (not (T.is_excl_list t42));
-  assert_equal (Some true) (T.to_bool tex0);
-  assert_equal (Some true) (T.to_bool tex10);
-  assert_equal None (T.to_bool tex1)
 
 module IntervalTest (I : IntDomain.SOverflow with type int_t = Z.t) =
 struct
@@ -996,10 +1006,10 @@ let test () =
     "int_Integers"  >::: A.test ();
     "int_Flattened" >::: B.test ();
     "int_DefExc"     >::: C.test ();
-    "test_bot"      >::  test_bot;
-    "test_join"     >::  test_join;
-    "test_meet"     >::  test_meet;
-    "test_excl_list">::  test_ex_set;
+    "test_bot"      >::  D.test_bot;
+    "test_join"     >::  D.test_join;
+    "test_meet"     >::  D.test_meet;
+    "test_excl_list">::  D.test_ex_set;
     "interval" >::: Interval.test ();
     "bitfield" >::: Bitfield.test ();
     "intervalSet" >::: IntervalSet.test ();
