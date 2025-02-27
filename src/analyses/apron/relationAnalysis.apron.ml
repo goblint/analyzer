@@ -269,11 +269,11 @@ struct
     let ask = Analyses.ask_of_man man in
     let res = assign_from_globals_wrapper ask man.global st e (fun rel' e' ->
         (* not an assign, but must remove g#in-s still *)
-        RD.assert_inv ask rel' e' (not b) (no_overflow ask e)
+        let r = RD.assert_inv ask rel' e' (not b) (no_overflow ask e) in
+        let vars = Basetype.CilExp.get_vars e' |> List.unique ~eq:CilType.Varinfo.equal |> List.filter (fun v -> RD.Tracked.varinfo_tracked v)  in
+        List.fold_left (assert_type_bounds ask) r vars
       )
     in
-    let vars = Basetype.CilExp.get_vars e |> List.unique ~eq:CilType.Varinfo.equal |> List.filter RD.Tracked.varinfo_tracked in
-    let res = List.fold_left (assert_type_bounds ask) res vars in
     if RD.is_bot_env res then raise Deadcode;
     {st with rel = res}
 
