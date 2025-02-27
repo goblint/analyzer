@@ -3,14 +3,14 @@
 
 int main()
 {
-  int rows = 5;
-  int columns = 5;
+  unsigned int rows = 5;
+  unsigned int columns = 5;
 
   // Outer loop for rows
-  for (int i = 1; i <= rows; i++)
+  for (unsigned int i = 1; i <= rows; i++)
   {
     // Inner loop for columns
-    for (int j = 1; j <= columns; j++)
+    for (unsigned int j = 1; j <= columns; j++)
     {
       if (j == 3)
       {

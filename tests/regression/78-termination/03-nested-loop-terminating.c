@@ -3,9 +3,9 @@
 
 int main()
 {
-  int rows = 3;
-  int columns = 4;
-  int i = 1;
+  unsigned int rows = 3;
+  unsigned int columns = 4;
+  unsigned int i = 1;
 
   // Outer while loop for rows
   while (i <= rows)
