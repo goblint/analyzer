@@ -7,7 +7,7 @@ include RelationAnalysis
 
 let spec_module: (module MCPSpec) Lazy.t =
   lazy (
-    let module AD = LinearTwoVarEqualityDomainPentagon.D2
+    let module AD = LinearTwoVarEqualityDomainPentagon.D2(PentagonSubDomains.NoInequalties)
     in
     let module Priv = (val RelationPriv.get_priv ()) in
     let module Spec =

@@ -268,3 +268,60 @@ module IntervalAndCongruence = struct
 end 
 
 module Value = IntervalAndCongruence
+
+module type TwoVarInequalities = sig
+  type t
+  type cond = Lt | Le | Eq | Gt | Ge
+
+  (*We need to know which root a constant is referring to, so we use Either *)
+  val is_less_than :  ((Rhs.t, int) Either.t * Value.t) -> ((Rhs.t, int) Either.t * Value.t) -> t -> bool option
+
+  (*meet x' < y' (or with = / <= *)
+  val meet_condition : int -> int -> cond -> (int -> Rhs.t) -> (int -> Value.t) -> t -> t
+
+  val meet : (int -> Rhs.t) -> (int -> Value.t) -> t -> t -> t
+
+  val leq : t -> (int -> Value.t) -> t -> bool
+
+  val join : t -> (int -> Value.t) -> t -> (int -> Value.t) -> t
+
+  val show_formatted : (int -> string) -> t -> string
+  val hash : t -> int
+  val empty : t
+  val is_empty : t -> bool
+  val equal : t -> t -> bool
+  val compare : t -> t -> int
+  val modify_variables_in_domain : t -> int array -> (int -> int -> int) -> t
+  val forget_variable : t -> int -> t
+end
+
+module NoInequalties : TwoVarInequalities = struct
+  type t = unit
+  type cond = Lt | Le | Eq | Gt | Ge
+
+  let is_less_than _ _ _ = None
+  let meet_condition _ _ _ _ _ _ = ()
+
+  let meet _ _ _ _ = ()
+
+  let leq _ _ _ = true
+  let join _ _ _ _ = ()
+
+  let show_formatted _ _ = "{}"
+  let hash _ = 3
+  let empty = ()
+  let is_empty _ = true
+  let equal _ _ = true
+  let compare _ _ = 0
+  let modify_variables_in_domain _ _ _ = ()
+  let forget_variable _ _ = ()
+end
+
+module type Coeffs = sig
+  type t
+end
+
+module CommonActions (Coeffs : Coeffs) = struct
+  type t = Coeffs.t IntMap.t IntMap.t
+
+end

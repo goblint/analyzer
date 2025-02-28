@@ -7,11 +7,11 @@ open GobApron
 open VectorMatrix
 open PentagonSubDomains
 
-module EqualitiesConjunctionWithIntervals =
+module EqualitiesConjunctionWithIntervals (Ineq : TwoVarInequalities) =
 struct
-  type t = EConj.t *  (Value.t IntMap.t) [@@deriving eq, ord]
+  type t = EConj.t *  (Value.t IntMap.t ) * Ineq.t [@@deriving eq, ord]
 
-  let hash (econj, x) = EConj.hash econj + 13* IntMap.fold (fun k value acc -> 13 * 13 * acc + 31 * k + Value.hash value) x 0
+  let hash (econj, v, ineq) = 5 * EConj.hash econj + 13* IntMap.fold (fun k value acc -> 13 * 13 * acc + 31 * k + Value.hash value) v 0 + 7 * Ineq.hash ineq
 
   let show_values formatter is =     
     if IntMap.is_empty is then "{}"
@@ -19,16 +19,17 @@ struct
       let str = IntMap.fold (fun k v acc -> Printf.sprintf "%s=%s , %s" (formatter k) (Value.show v) acc) is "" in
       "{" ^ String.sub str 0 (String.length str - 3) ^ "}" 
 
-  let show_formatted formatter ((dim, econj), is) = Printf.sprintf "(%s, %s)" (EConj.show_formatted formatter econj) (show_values formatter is)
+  let show_formatted formatter ((dim, econj), is, ineq) = Printf.sprintf "(%s, %s, %s)" (EConj.show_formatted formatter econj) (show_values formatter is) (Ineq.show_formatted formatter ineq)
 
   let show = show_formatted (Printf.sprintf "var_%d") 
 
   let copy = identity
-  let empty () = (EConj.empty (), IntMap.empty)
 
-  let is_empty (e,is) = EConj.is_empty e && IntMap.is_empty is
+  let empty () = (EConj.empty (), IntMap.empty, Ineq.empty)
+  let is_empty (e,is, ineq) = EConj.is_empty e && IntMap.is_empty is && Ineq.is_empty ineq
+  let make_empty_with_size size = (EConj.make_empty_conj size, IntMap.empty, Ineq.empty)
 
-  let is_top_con (e, is) = EConj.is_top_con e && IntMap.is_empty is
+  let is_top_con (e, is, ineq) = EConj.is_top_con e && IntMap.is_empty is && Ineq.is_empty ineq
 
   let modify_variables_in_domain_values map indexes op =
     if Array.length indexes = 0 then map else
@@ -48,40 +49,50 @@ struct
         (show_values (Printf.sprintf "var_%d") res);
     res
 
-
-  let make_empty_with_size size = (EConj.make_empty_conj size, IntMap.empty)
-
-  let dim_add (ch: Apron.Dim.change) (econj, i) =
-    (EConj.dim_add ch econj, modify_variables_in_domain_values i ch.dim (+))
-
-  let forget_variable (econj, is) var = (EConj.forget_variable econj var, IntMap.remove var is)
+  let dim_add (ch: Apron.Dim.change) (econj, i, ineq) =
+    (EConj.dim_add ch econj, modify_variables_in_domain_values i ch.dim (+), Ineq.modify_variables_in_domain ineq ch.dim (+))
 
 
-  let dim_remove (ch: Apron.Dim.change) (econj, i) ~del =
-    if Array.length ch.dim = 0 || EConj.is_empty econj then
-      (econj, i)
+  let forget_variable (econj, is, ineq) var = (EConj.forget_variable econj var, IntMap.remove var is, Ineq.forget_variable ineq var)
+
+  let dim_remove (ch: Apron.Dim.change) (econj, v, ineq) ~del =
+    if Array.length ch.dim = 0 || is_empty (econj, v, ineq) then
+      (econj, v, ineq)
     else (
       let cpy = Array.copy ch.dim in
       Array.modifyi (+) cpy; (* this is a hack to restore the original https://antoinemine.github.io/Apron/doc/api/ocaml/Dim.html remove_dimensions semantics for dim_remove *)
-      let (econj', i') = Array.fold_lefti (fun y i x -> forget_variable y (x)) (econj, i) cpy in  (* clear m' from relations concerning ch.dim *)
+      let (econj', v', ineq') = Array.fold_lefti (fun y i x -> forget_variable y (x)) (econj, v, ineq) cpy in  (* clear m' from relations concerning ch.dim *)
       let econj'' = EConj.modify_variables_in_domain econj' cpy (-) in
-      let i'' = modify_variables_in_domain_values i' cpy (-) in
-      (econj'', i''))
+      let v'' = modify_variables_in_domain_values v' cpy (-) in
+      let ineq'' = Ineq.modify_variables_in_domain ineq' cpy (-) in
+      (econj'', v'', ineq''))
 
 
-  let get_rhs t = EConj.get_rhs (fst t)
+  let get_rhs (econ, _, _) = EConj.get_rhs econ
 
-  let get_value (econ, is) lhs = 
-    match IntMap.find_opt lhs is with
+  let get_value ((econ, vs, _) as t) lhs = 
+    match IntMap.find_opt lhs vs with
       Some i -> i
     | None -> (*If there is no value saved, we have calculate it*)
-      let (v,o,d) = get_rhs (econ, is) lhs in
+      let (v,o,d) = get_rhs t lhs in
       if (v,o,d) = Rhs.var_zero lhs then Value.top  (*no relation -> Top*) 
       else match v with 
           None -> Value.div (Value.of_bigint o) (Value.of_bigint d)(*constant*) (*TODO is divisor always 1?*) 
-        | Some (coeff,v) -> match IntMap.find_opt v is with
+        | Some (coeff,v) -> match IntMap.find_opt v vs with
             None -> Value.top (*uninitialised*) 
           | Some i -> Value.div (Value.add (Value.of_bigint o) @@ Value.mul (Value.of_bigint coeff) i) (Value.of_bigint d)
+
+
+  let is_less_than ((_,vs,ineq) as t) x y = 
+
+    let get_information lhs =
+      let rhs = get_rhs t lhs in
+      match rhs with 
+      | (Some (_,var), _ ,_) -> (Either.Left rhs, get_value t var)
+      | (_,o,_) -> (Either.Right lhs, Value.of_bigint o) 
+    in
+    Ineq.is_less_than (get_information x) (get_information y) ineq
+
 
   let get_value t lhs = 
     let res = get_value t lhs in
@@ -116,13 +127,13 @@ struct
     in
     IntMap.fold meet_with_rhs (snd econ) i 
 
-  let set_value ((econ, is):t) lhs i =
-    if M.tracing then M.tracel "modify_pentagon" "set_value var_%d=%s, before: %s" lhs (Value.show i) (show (econ, is));
+  let set_value ((econ, is, ineq) as t:t) lhs i =
+    if M.tracing then M.tracel "modify_pentagon" "set_value var_%d=%s, before: %s" lhs (Value.show i) (show t);
     let set_value_for_root lhs i =
-      if M.tracing then M.tracel "modify_pentagon" "set_value_for_root var_%d=%s, before: %s" lhs (Value.show i) (show (econ, is));
+      if M.tracing then M.tracel "modify_pentagon" "set_value_for_root var_%d=%s, before: %s" lhs (Value.show i) (show t);
       let i = constrain_with_congruence_from_rhs econ lhs i in
       if M.tracing then M.tracel "modify_pentagon" "set_value_for_root refined to %s" (Value.show i);
-      if i = Value.top then (econ, IntMap.remove lhs is) (*stay sparse*)
+      if i = Value.top then (econ, IntMap.remove lhs is, ineq) (*stay sparse*)
       else if Value.is_bot i then raise EConj.Contradiction
       else match Value.to_int i with
         | Some (Int x) ->  (*If we have a constant, update all equations refering to this root*)
@@ -130,14 +141,15 @@ struct
             | (Some (coeff, v), o, d) when v = lhs -> (None, Z.div (Z.add o @@ Z.mul x coeff) d, Z.one)
             | t -> t
           in
-          ((fst econ, IntMap.add lhs (None, x, Z.one) @@ IntMap.map update_references (snd econ)), IntMap.remove lhs is)
-        | _ -> (econ, IntMap.add lhs i is) (*Not a constant*)
-    in let (v,o,d) = get_rhs (econ, is) lhs in
+          ((fst econ, IntMap.add lhs (None, x, Z.one) @@ IntMap.map update_references (snd econ)), IntMap.remove lhs is, ineq)
+        | _ -> (econ, IntMap.add lhs i is, ineq) (*Not a constant*)
+    in 
+    let (v,o,d) = get_rhs t lhs in
     if (v,o,d) = Rhs.var_zero lhs then
       set_value_for_root lhs i
     else
       match v with
-      | None -> (econ, is) (*For a constant, we do not need to save an value*) (*TODO should we check for equality?*)
+      | None -> (econ, is, ineq) (*For a constant, we do not need to save an value*) (*TODO should we check for equality?*)
       | Some (coeff, v) ->
         let i1 = Value.mul (Value.of_bigint d) i in
         let i2 = Value.sub i1 (Value.of_bigint o) in
@@ -152,26 +164,26 @@ struct
     res
 
   (*TODO: If we are uptdating a variable, we will overwrite the value again -> maybe skip setting it here, because of performance?*)
-  let set_rhs (econ, is) lhs rhs  =
+  let set_rhs (econ, is, ineq) lhs rhs  =
     let econ' = EConj.set_rhs econ lhs rhs in
     match rhs with 
-    | (None, _, _) -> econ', IntMap.remove lhs is (*when setting as a constant, we do not need a separate value *)
+    | (None, _, _) -> econ', IntMap.remove lhs is, ineq (*when setting as a constant, we do not need a separate value *)
     | _ -> 
-      let new_constraint = get_value (econ', is) lhs in
-      let old_constraint = get_value (econ, is) lhs in
+      let new_constraint = get_value (econ', is, ineq) lhs in
+      let old_constraint = get_value (econ, is, ineq) lhs in
       let new_value = Value.meet new_constraint old_constraint in
       if Value.is_bot new_value then raise EConj.Contradiction
-      else set_value (econ', is) lhs new_value
+      else set_value (econ', is, ineq) lhs new_value
 
   let set_rhs t lhs rhs = 
     let res = set_rhs t lhs rhs  in
     if M.tracing then M.tracel "modify_pentagon" "set_rhs before: %s eq: var_%d=%s  ->  %s " (show t) lhs (Rhs.show rhs) (show res);
     res
 
-  let meet_with_one_conj ((ts, is):t) i (var, offs, divi) =
+  let meet_with_one_conj ((ts, is, ineq) as t:t) i (var, offs, divi) =
     let (var,offs,divi) = Rhs.canonicalize (var,offs,divi) in (* make sure that the one new conj is properly canonicalized *)
     let res : t =
-      let subst_var ((dim,econj), is) x (vary, o, d) =
+      let subst_var ((dim,econj), is, ineq) x (vary, o, d) =
         let (vary, o, d) = Rhs.canonicalize (vary, o, d) in
         (* [[x substby (cy+o)/d ]] ((c'x+o')/d')             *)
         (* =====>   (c'cy + c'o+o'd)/(dd')                   *)
@@ -180,7 +192,7 @@ struct
             let open Z in Rhs.canonicalize (BatOption.map (fun (c, y)-> (c * c', y)) vary, c'*o + o'*d, d'*d)
           | e -> e
         in
-        let value = get_value (ts, is) x in
+        let value = get_value (ts, is, ineq) x in
         if vary = None then begin
           if d <> Z.one then 
             (if M.tracing then M.tracel "meet_with_one_conj" "meet_with_one_conj substituting var_%d with constant %s, which is not an integer" i (Rhs.show (var,offs,divi));
@@ -190,19 +202,19 @@ struct
              raise EConj.Contradiction)
         end;        
         let is' = IntMap.remove x is in (*if x was the representative, it might not be anymore -> remove value and add it back afterwards*)
-        let t' = (dim, IntMap.add x (vary, o, d) @@ IntMap.map adjust econj), is' in (* in case of sparse representation, make sure that the equality is now included in the conjunction *)
+        let t' = (dim, IntMap.add x (vary, o, d) @@ IntMap.map adjust econj), is', ineq in (* in case of sparse representation, make sure that the equality is now included in the conjunction *)
         set_value t' x value 
       in
       (match var, (EConj.get_rhs ts i) with
        (*| new conj      , old conj          *)
-       | None          , (None            , o1, divi1) -> if not @@ (Z.equal offs o1 && Z.equal divi divi1) then raise EConj.Contradiction else ts, is
+       | None          , (None            , o1, divi1) -> if not @@ (Z.equal offs o1 && Z.equal divi divi1) then raise EConj.Contradiction else t
        (*  o/d         =  x_i  = (c1*x_h1+o1)/d1            *)
        (*  ======> x_h1 = (o*d1-o1*d)/(d*c1) /\  x_i = o/d  *)
        | None          , (Some (coeff1,h1), o1, divi1) -> 
-         subst_var (ts, is) h1 (None, Z.(offs*divi1 - o1*divi),Z.(divi*coeff1))
+         subst_var t h1 (None, Z.(offs*divi1 - o1*divi),Z.(divi*coeff1))
        (* (c*x_j+o)/d  =  x_i  =  o1/d1                     *)
        (*  ======> x_j = (o1*d-o*d1)/(d1*c) /\  x_i = o1/d1 *)
-       | Some (coeff,j), (None            , o1, divi1) -> subst_var (ts, is) j  (None, Z.(o1*divi - offs*divi1),Z.(divi1*coeff))
+       | Some (coeff,j), (None            , o1, divi1) -> subst_var t j  (None, Z.(o1*divi - offs*divi1),Z.(divi1*coeff))
        (* (c*x_j+o)/d  =  x_i  = (c1*x_h1+o1)/d1            *)
        (*  ======>   x_j needs normalization wrt. ts        *)
        | Some (coeff,j), ((Some (coeff1,h1), o1, divi1) as oldi)->
@@ -212,22 +224,22 @@ struct
             let newxi  = Rhs.subst (None,o2,divi2) j (Some (coeff,j),offs,divi) in
             let newxh1 = snd @@ EConj.inverse i (coeff1,h1,o1,divi1) in
             let newxh1 = Rhs.subst newxi i newxh1 in
-            subst_var (ts, is) h1 newxh1
+            subst_var t h1 newxh1
           (* ts[x_j]=(c2*x_h2+o2)/d2   ========>   ...  *)
           | (Some (coeff2,h2), o2, divi2) as normalizedj ->
             if h1 = h2 then (* this is the case where x_i and x_j already where in the same equivalence class; let's see whether the new equality contradicts the old one *)
               let normalizedi= Rhs.subst normalizedj j (Some(coeff,j),offs,divi) in
-              if not @@ Rhs.equal normalizedi oldi then raise EConj.Contradiction else (ts, is)
+              if not @@ Rhs.equal normalizedi oldi then raise EConj.Contradiction else t
             else if h1 < h2 (* good, we now unite the two equvalence classes; let's decide upon the representative *)
             then (* express h2 in terms of h1: *)
               let (_,newh2)= EConj.inverse j (coeff2,h2,o2,divi2) in
               let newh2 = Rhs.subst oldi i (Rhs.subst (snd @@ EConj.inverse i (coeff,j,offs,divi)) j newh2) in
-              subst_var (ts, is) h2 newh2
+              subst_var t h2 newh2
             else (* express h1 in terms of h2: *)
               let (_,newh1)= EConj.inverse i (coeff1,h1,o1,divi1) in
               let newh1 = Rhs.subst normalizedj j (Rhs.subst (Some(coeff,j),offs,divi) i newh1) in
-              subst_var (ts, is) h1 newh1)) in
-    if M.tracing then M.tracel "meet_with_one_conj" "meet_with_one_conj conj: %s eq: var_%d=%s  ->  %s " (show (ts,is)) i (Rhs.show (var,offs,divi)) (show res)
+              subst_var t h1 newh1)) in
+    if M.tracing then M.tracel "meet_with_one_conj" "meet_with_one_conj conj: %s eq: var_%d=%s  ->  %s " (show t) i (Rhs.show (var,offs,divi)) (show res)
   ; res
 
   let meet_with_one_value var value t meet_function =
@@ -238,21 +250,21 @@ struct
       in if M.tracing then M.tracel "meet_value" "meet var_%d: before: %s meeting: %s -> %s, total: %s-> %s" (var) (Value.show @@ get_value t var) (Value.show value) (Value.show new_value) (show t) (show res);
       res
 
-  let join_with_one_value var value (t:t) = 
-    let (_,cong) = constrain_with_congruence_from_rhs (fst t) var (Value.top) in (*TODO probably should be a flag in set_value to do a join instead of meet so we do not do this twice*)
+  let join_with_one_value var value ((ts, _, _) as t:t) = 
+    let (_,cong) = constrain_with_congruence_from_rhs ts var (Value.top) in (*TODO probably should be a flag in set_value to do a join instead of meet so we do not do this twice*)
     let value' = Value.join value (Value.I.bot (), cong) in
     set_value t var value' 
 end
 
 (** [VarManagement] defines the type t of the affine equality domain (a record that contains an optional matrix and an apron environment) and provides the functions needed for handling variables (which are defined by [RelationDomain.D2]) such as [add_vars], [remove_vars].
     Furthermore, it provides the function [simplified_monomials_from_texp] that converts an apron expression into a list of monomials of reference variables and a constant offset *)
-module VarManagement =
+module VarManagement (Ineq : TwoVarInequalities) =
 struct
-  module EConjI = EqualitiesConjunctionWithIntervals
-  include SharedFunctions.VarManagementOps (EConjI)
+  module EConjI = EqualitiesConjunctionWithIntervals(Ineq)
+  include SharedFunctions.VarManagementOps (EqualitiesConjunctionWithIntervals(Ineq))
 
   let dim_add = EConjI.dim_add
-  let size t = BatOption.map_default (fun ((d,_),_) -> d) 0 t.d
+  let size t = BatOption.map_default (fun ((d,_),_,_) -> d) 0 t.d
 
   (** Parses a Texpr to obtain a (coefficient, variable) pair list to repr. a sum of a variables that have a coefficient. If variable is None, the coefficient represents a constant offset. *)
   let monomials_from_texp (t: t) texp =
@@ -357,6 +369,19 @@ struct
             | None -> Value.top
             | Some d -> EConjI.get_value d var_dim
           end
+        | Binop (Sub, Var a , Var b, Int, _) ->
+          (*TODO are there more locations where we can use the inequality information? What if we allow Ineq to return more precise information? (e.g. 5a < 4b + 11)*)
+          let dim_a = Environment.dim_of_var t.env a in
+          let dim_b = Environment.dim_of_var t.env b in
+          begin match t.d with
+            | None -> Value.top
+            | Some d -> 
+              let v = Value.sub (EConjI.get_value d dim_a) (EConjI.get_value d dim_b) in
+              match EConjI.is_less_than d dim_a dim_b with
+              | None -> v
+              | Some true -> Value.meet v (Value.ending Z.minus_one)
+              | Some false -> Value.meet v (Value.starting Z.one)
+          end
         | Binop (op, a, b, Int, _) -> (binop_function op) (eval a) (eval b)
         | Unop (op, a, Int, _) -> (unop_function op) (eval a)
         | _ -> Value.top (*not integers*)
@@ -364,6 +389,109 @@ struct
     let res = eval texp in
     if M.tracing then M.tracel "eval_texp" "%s %a -> %s" (EConjI.show @@ BatOption.get t.d) Texpr1.Expr.pretty texp (Value.show res);
     res
+
+  (*TODO Could be more precise with query*)
+  let rec to_inequalities (t:t) texpr = 
+    let open Apron.Texpr1 in
+    let inequality_from_add var expr = 
+      let v = eval_texpr t expr in (*TODO we evaluate some subexpressions twice when calling this in assign_texpr -> bad for performance??*)
+      if Value.must_be_pos v then 
+        [(Ineq.Gt, var)]
+      else if Value.must_be_neg v then 
+        [(Ineq.Lt, var)]
+      else if Value.leq v (Value.of_bigint Z.zero) then 
+        [(Ineq.Eq, var)]
+      else if Value.leq v (Value.starting Z.zero) then 
+        [(Ineq.Ge, var)]
+      else if Value.leq v (Value.ending Z.zero) then
+        [(Ineq.Le, var)]
+      else
+        []
+    in let inequality_from_mul var expr = 
+         let v_expr = eval_texpr t expr in
+         let v_var = eval_texpr t (Var var) in
+         if   Value.leq v_expr (Value.of_bigint Z.one)
+           || Value.leq v_var (Value.of_bigint Z.zero) 
+         then [(Ineq.Eq, var)]
+         else
+           match Value.must_be_pos v_expr, Value.must_be_neg v_expr, Value.must_be_pos v_var, Value.must_be_neg v_var with
+           | true, _   , true, _    -> if Value.contains v_expr Z.one then [Ineq.Ge, var] else [Ineq.Gt, var]
+           | _,    true, _   , true -> [Ineq.Gt, var]
+           | true, _   , _   , true -> if Value.contains v_expr Z.one then [Ineq.Le, var] else [Ineq.Lt, var] 
+           | _   , true, true, _    -> [Ineq.Lt, var]
+           | _   , _   , _   , _    -> []
+    in match texpr with 
+    | Binop (Add, Var x, Var y, _, _) -> inequality_from_add x (Var y) @ inequality_from_add y (Var x)
+    | Binop (Add, e, Var y, _, _) 
+    | Binop (Add, Var y, e, _, _) -> inequality_from_add y e
+    | Binop (Mul, Var x, Var y, _, _) -> inequality_from_mul x (Var y) @ inequality_from_mul y (Var x)
+    | Binop (Mul, e, Var y, _, _)
+    | Binop (Mul, Var y, e, _, _) -> inequality_from_add y e
+    | Binop (Sub, Var y, e, _, _) ->       
+      let v = eval_texpr t e in 
+      if Value.must_be_pos v then 
+        [(Ineq.Lt, y)]
+      else if Value.must_be_neg v then 
+        [(Ineq.Gt, y)]
+      else if Value.leq v (Value.of_bigint Z.zero) then 
+        [(Ineq.Eq, y)]
+      else if Value.leq v (Value.starting Z.zero) then 
+        [(Ineq.Le, y)]
+      else if Value.leq v (Value.ending Z.zero) then
+        [(Ineq.Ge, y)]
+      else
+        []
+    | Binop (Div, Var y, e, _, _) -> begin
+        let v_expr = eval_texpr t e in
+        let v_var = eval_texpr t (Var y) in
+        if   Value.leq v_expr (Value.of_bigint Z.one)
+          || Value.leq v_var (Value.of_bigint Z.zero) 
+        then [(Ineq.Eq, y)]
+        else
+          match Value.must_be_pos v_expr, Value.must_be_neg v_expr, Value.must_be_pos v_var, Value.must_be_neg v_var with
+          | true, _   , true, _    -> if Value.contains v_expr Z.one then [Ineq.Le, y] else [Ineq.Lt, y]
+          | _,    true, _   , true -> [Ineq.Gt, y]
+          | true, _   , _   , true -> if Value.contains v_expr Z.one then [Ineq.Ge, y] else [Ineq.Gt, y] 
+          | _   , true, true, _    -> [Ineq.Lt, y]
+          | _   , _   , _   , _    -> []
+      end
+    | Binop (Mod, e, Var y, _, _) -> 
+      let v_var = eval_texpr t (Var y) in
+      if Value.must_be_pos v_var then
+        [Ineq.Lt, y]
+      else if Value.must_be_neg v_var then 
+        [Ineq.Gt, y]
+      else []
+    | Unop (Neg, e, _, _) ->
+      let v = eval_texpr t e in
+      let negate (cond, var) =
+        if Value.must_be_pos v then 
+          match cond with 
+          | Ineq.Lt | Ineq.Le | Ineq.Eq -> Some (Ineq.Lt, var)
+          | _ -> None
+        else if Value.must_be_neg v then 
+          match cond with 
+          | Ineq.Gt | Ineq.Ge | Ineq.Eq -> Some (Ineq.Gt, var)
+          | _ -> None
+        else if Value.leq v (Value.of_bigint Z.zero) then 
+          Some (cond, var)
+        else if Value.leq v (Value.starting Z.zero) then 
+          match cond with 
+          | Ineq.Lt -> Some (Ineq.Lt, var)
+          | Ineq.Le | Ineq.Eq -> Some (Ineq.Le, var)
+          | _ -> None
+        else if Value.leq v (Value.ending Z.zero) then
+          match cond with 
+          | Ineq.Gt -> Some (Ineq.Gt, var)
+          | Ineq.Ge | Ineq.Eq -> Some (Ineq.Ge, var)
+          | _ -> None
+        else
+          None
+      in List.filter_map negate (to_inequalities t e)
+    | Unop (Cast, e, _, _) -> to_inequalities t e
+    | Var x -> [(Ineq.Eq, x)]
+    | _ -> []
+
 
   let assign_const t var const divi = match t.d with
     | None -> t
@@ -373,9 +501,9 @@ struct
 end
 
 
-module ExpressionBounds: (SharedFunctions.ConvBounds with type t = VarManagement.t) =
+module ExpressionBounds (Ineq : TwoVarInequalities): (SharedFunctions.ConvBounds with type t = VarManagement(Ineq).t) =
 struct
-  include VarManagement
+  include VarManagement (Ineq)
 
   let bound_texpr t texpr =
     let v = eval_texpr t (Texpr1.to_expr texpr) in
@@ -390,13 +518,14 @@ struct
   let bound_texpr d texpr1 = timing_wrap "bounds calculation" (bound_texpr d) texpr1
 end
 
-module D =
+module D (Ineq : TwoVarInequalities) =
 struct
   include Printable.Std
   include ConvenienceOps (SharedFunctions.Mpqf)
+  module VarManagement = VarManagement(Ineq)
   include VarManagement
 
-  module Bounds = ExpressionBounds
+  module Bounds = ExpressionBounds(Ineq)
   module V = RelationDomain.V
   module Arg = struct
     let allow_global = true
@@ -438,11 +567,11 @@ struct
   let show varM =
     match varM.d with
     | None -> "⊥\n"
-    | Some arr ->
+    | Some (((dim,_), _, _) as arr) ->
       if is_bot varM then
         "Bot \n"
       else
-        EConjI.show_formatted (show_var varM.env) arr ^ (to_subscript @@ fst @@ fst arr)
+        EConjI.show_formatted (show_var varM.env) arr ^ (to_subscript dim)
 
   let pretty () (x:t) = text (show x)
   let printXml f x = BatPrintf.fprintf f "<value>\n<map>\n<key>\nequalities\n</key>\n<value>\n%s</value>\n<key>\nenv\n</key>\n<value>\n%a</value>\n</map>\n</value>\n" (XmlUtil.escape (show x)) Environment.printXml x.env
@@ -485,15 +614,15 @@ struct
       in
       let eval d texpr = eval_texpr {d= Some d; env = t.env} texpr in
       let open Texpr1 in
-      let rec refine_expr d value expr = 
+      let rec refine_values d value expr = 
         if M.tracing then M.trace "refine_tcons" "refining expr %s with %s" (GobFormat.asprint print_expr expr) (Value.show value) ;
         match expr with
         | Binop (op,a,b,_,_) -> 
           let refine_both op_a op_b = 
             let b_val = eval d b in
-            let d' = refine_expr d (op_a value b_val) a in
+            let d' = refine_values d (op_a value b_val) a in
             let a_val = eval d' a in
-            refine_expr d' (op_b value a_val) b
+            refine_values d' (op_b value a_val) b
           in begin
             match op with 
             | Add -> refine_both (Value.sub) (Value.sub)
@@ -519,8 +648,8 @@ struct
                   if is_pos then Value.meet (Value.starting Z.zero) full
                   else if is_neg then Value.meet (Value.ending Z.zero) full
                   else full
-                in let d' = refine_expr d (Value.add b_c rem) a in
-                refine_expr d' (Value.div (Value.sub a_val rem) value) b
+                in let d' = refine_values d (Value.add b_c rem) a in
+                refine_values d' (Value.div (Value.sub a_val rem) value) b
             | Mod ->         
               (* a' = a/b*b + c and derived from it b' = (a-c)/(a/b)
                 * The idea is to formulate a' as quotient * divisor + remainder. *)
@@ -560,13 +689,13 @@ struct
                     Value.meet a'' t
                   | _, _ -> a''
                 in
-                let d' = refine_expr d (b') b in
-                refine_expr d' (a''') a
+                let d' = refine_values d (b') b in
+                refine_values d' (a''') a
             | Pow -> failwith "refine_with tcons: pow unsupported"
           end
         | Unop (op, e,_,_) -> begin match op with 
-            | Neg -> refine_expr d (Value.neg value) e
-            | Cast -> refine_expr d value e
+            | Neg -> refine_values d (Value.neg value) e
+            | Cast -> refine_values d value e
             | Sqrt -> failwith "sqrt is not supported" (*TODO should this be supported*)
           end
         | Cst (Scalar x) -> 
@@ -576,9 +705,27 @@ struct
           end
         | Cst (Interval _) -> failwith "constant was an interval; this is not supported" 
         | Var v -> refine_var d v value
+      in let refine_inequalities ((econ, vs, ineq) as d) expr = 
+           let rhss = EConjI.get_rhs d in
+           let vss = EConjI.get_value d in
+           match expr with 
+           | Binop (Sub, Var a, Var b, Int, _) -> 
+             begin
+               let dim_a = Environment.dim_of_var t.env a in
+               let dim_b = Environment.dim_of_var t.env a in
+               let ineq' = match Tcons1.get_typ tcons with 
+                 | EQ -> Ineq.meet_condition dim_a dim_b Ineq.Eq rhss vss ineq
+                 | SUP -> Ineq.meet_condition dim_b dim_a Ineq.Lt rhss vss ineq
+                 | SUPEQ -> Ineq.meet_condition dim_b dim_a Ineq.Le rhss vss ineq
+                 | _ -> ineq
+               in (econ, vs, ineq')
+             end
+           | _ -> d
       in try 
-        let d' = refine_expr d initial_value (Texpr1.to_expr @@ Tcons1.get_texpr1 tcons) in
-        {d=Some d';env=t.env}
+        let expr = Texpr1.to_expr @@ Tcons1.get_texpr1 tcons in 
+        let d' = refine_values d initial_value expr in
+        let d'' = refine_inequalities d' expr in
+        {d=Some d'';env=t.env}
       with EConj.Contradiction -> bot_env
 
   let refine_with_tcons t tcons = 
@@ -614,14 +761,31 @@ struct
     if M.tracing then M.tracel "meet" "%s with single value %s=%s -> %s" (show t) (show_var t.env i) (Value.show value) (show res);
     res
 
+  (*TODO do I need a narrow function??*)
+  let meet_with_inequalities ineq t = 
+    match t.d with 
+    | None -> t
+    | Some ((econ, vs, ineq2) as d) ->
+      try
+        { d = Some (econ, vs, Ineq.meet (EConjI.get_rhs d) (EConjI.get_value d) ineq ineq2); env = t.env}
+      with EConj.Contradiction ->
+        if M.tracing then M.trace "meet" " -> Contradiction with inequalities\n";
+        { d = None; env = t.env}
+
+  let meet_with_inequalities ineq t = 
+    let res = meet_with_inequalities ineq t in
+    if M.tracing then M.tracel "meet" "%s with inequalities %s -> %s" (show t) (Ineq.show_formatted (show_var t.env) ineq) (show res);
+    res
+
   let meet' t1 t2 meet_function =     
     let sup_env = Environment.lce t1.env t2.env in
     let t1 = change_d t1 sup_env ~add:true ~del:false in
     let t2 = change_d t2 sup_env ~add:true ~del:false in
     match t1.d, t2.d with
-    | Some d1', Some d2' ->
-      let conj_met = IntMap.fold (fun lhs rhs map -> meet_with_one_conj map lhs rhs) (snd @@ fst d2') t1 (* even on sparse d2, this will chose the relevant conjs to meet with*)
-      in IntMap.fold (meet_with_one_value meet_function) (snd d2') conj_met
+    | Some d1', Some (econ, vs, ineq) ->
+      let conj_met = IntMap.fold (fun lhs rhs map -> meet_with_one_conj map lhs rhs) (snd econ) t1 (* even on sparse d2, this will chose the relevant conjs to meet with*)
+      in let vals_met = IntMap.fold (meet_with_one_value meet_function) vs conj_met
+      in meet_with_inequalities ineq vals_met 
     | _ -> {d = None; env = sup_env}
 
   let meet t1 t2 =
@@ -644,15 +808,17 @@ struct
       (* normalize in case of a full blown equality *)
       | Some (coeffj,j) -> tuple_cmp (EConj.get_rhs ts i) @@ Rhs.subst (EConj.get_rhs ts j) j (var, offs, divi)
     in
+    (*TODO allow congruence implied by Rhs? or fix bug that some aren't always set*)
     let implies_value v i value = Value.leq (EConjI.get_value v i) value
     in
     if env_comp = -2 || env_comp > 0 then false else
     if is_bot_env t1 || is_top t2 then true
     else if is_bot_env t2 || is_top t1 then false else
-      let m1, m2 = Option.get t1.d, Option.get t2.d in
-      let m1' = if env_comp = 0 then m1 else VarManagement.dim_add (Environment.dimchange t1.env t2.env) m1 in
-      IntMap.for_all (implies @@ fst m1') (snd @@ fst m2) (* even on sparse m2, it suffices to check the non-trivial equalities, still present in sparse m2 *)
-      && IntMap.for_all (implies_value m1') (snd m2)
+      let m1, (econ2, vs2, ineq2) = Option.get t1.d, Option.get t2.d in
+      let (econ1, _, ineq1) as m1' = if env_comp = 0 then m1 else VarManagement.dim_add (Environment.dimchange t1.env t2.env) m1 in
+      IntMap.for_all (implies econ1) (snd econ2) (* even on sparse m2, it suffices to check the non-trivial equalities, still present in sparse m2 *)
+      && IntMap.for_all (implies_value m1') (vs2)
+      && Ineq.leq ineq1 (EConjI.get_value m1') ineq2
 
   let leq a b = timing_wrap "leq" (leq a) b
 
@@ -662,6 +828,7 @@ struct
     res
 
   (*The first parameter is the function used to join two values. Different uses for join / widen*)
+  (*TODO do wee need the same for the inequalities?*)
   let join' join_function a b  = 
     let join_econj ad bd env = (LinearTwoVarEqualityDomain.D.join {d = Some ad; env} {d = Some bd; env}).d
     in
@@ -672,13 +839,14 @@ struct
       else let joined_value = join_function (EConjI.get_value x vars) (EConjI.get_value y vars) in
         collect_values x y econj_joined (vars-1) (EConjI.join_with_one_value vars joined_value t)
     in
-    let join_d x y env = 
-      let econj' = join_econj (fst x) (fst y) env in
+    let join_d ((econ_x, _, ineq_x) as x) ((econ_y, _, ineq_y) as y) env = 
+      let econj' = join_econj (econ_x) (econ_y) env in
       match econj' with 
         None ->  None 
       | Some econj'' ->
-        if M.tracing then M.tracel "join" "join_econj of %s, %s resulted in %s" (EConjI.show x) (EConjI.show y) (EConj.show @@ snd econj'') ;
-        Some (collect_values x y econj'' ((Environment.size env)-1) (econj'', IntMap.empty))         
+        if M.tracing then M.tracel "join" "join_econj of %s, %s resulted in %s" (EConjI.show x) (EConjI.show y) (EConj.show @@ snd econj'');
+        let ineq' = Ineq.join ineq_x (EConjI.get_value x) ineq_y (EConjI.get_value y) in
+        Some (collect_values x y econj'' ((Environment.size env)-1) (econj'', IntMap.empty, ineq'))         
     in
     (*Normalize the two domains a and b such that both talk about the same variables*)
     match a.d, b.d with
@@ -746,7 +914,7 @@ struct
       This makes a copy of the data structure, it doesn't change it in-place. *)
   let assign_texpr (t: VarManagement.t) var texp =
     match t.d with
-    | Some d ->
+    | Some ((econj, vs, ineq) as d) ->
       let var_i = Environment.dim_of_var t.env var (* this is the variable we are assigning to *) in
       let t' = match simplify_to_ref_and_offset t texp with
         | None ->
@@ -757,14 +925,22 @@ struct
           assign_const (forget_var t var) var_i off divi
         | Some (Some (coeff_var,exp_var), off, divi) when var_i = exp_var ->
           (* Statement "assigned_var = (coeff_var*assigned_var + off) / divi" *)
-          {d=Some (EConj.affine_transform (fst d) var_i (coeff_var, var_i, off, divi), snd d); env=t.env }          
+          {d=Some (EConj.affine_transform econj var_i (coeff_var, var_i, off, divi), vs, ineq); env=t.env }          
         | Some (Some monomial, off, divi) ->
           (* Statement "assigned_var = (monomial) + off / divi" (assigned_var is not the same as exp_var) *)
           meet_with_one_conj (forget_var t var) var_i (Some (monomial), off, divi)
       in begin match t'.d with 
           None -> if M.tracing then M.tracel "ops" "assign_texpr resulted in bot (before: %s, expr: %s) " (show t) (Texpr1.show (Texpr1.of_expr t.env texp));
           bot_env
-        | Some d' -> {d = Some (EConjI.set_value d' var_i (VarManagement.eval_texpr t texp)); env = t'.env} (*TODO query instead?! *)
+        | Some d' -> 
+          (*TODO use query for more precision instead?!*)
+          let (econ, vs, ineq) = EConjI.set_value d' var_i (VarManagement.eval_texpr t texp) in
+          let meet_cond ineq (cond, var) = 
+            let dim = Environment.dim_of_var t.env var in
+            Ineq.meet_condition var_i dim cond (EConjI.get_rhs d) (EConjI.get_value d) ineq
+          in
+          let ineq' = List.fold meet_cond ineq (VarManagement.to_inequalities t texp) in
+          {d = Some (econ, vs, ineq'); env = t'.env} 
       end
     | None -> bot_env
 
@@ -965,7 +1141,7 @@ struct
         let ri = Environment.var_of_dim t.env r in
         of_coeff xi [(GobApron.Coeff.s_of_z @@ Z.neg d, xi); (GobApron.Coeff.s_of_z c, ri)] o :: acc
     in
-    BatOption.get t.d |> fun ((_,map),_) -> IntMap.fold (fun lhs rhs list -> get_const list lhs rhs) map []
+    BatOption.get t.d |> fun ((_,map),_,_) -> IntMap.fold (fun lhs rhs list -> get_const list lhs rhs) map []
 
   let cil_exp_of_lincons1 = Convert.cil_exp_of_lincons1
 
@@ -979,9 +1155,9 @@ struct
 
 end
 
-module D2: RelationDomain.RD with type var = Var.t =
+module D2 (Ineq : TwoVarInequalities): RelationDomain.RD with type var = Var.t =
 struct
-  module D = D
+  module D = D(Ineq)
   module ConvArg = struct
     let allow_global = false
   end
