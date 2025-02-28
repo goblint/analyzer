@@ -91,6 +91,7 @@ class exp_contains_anon_type_visitor = object
     | TComp ({cname; _}, _) when String.starts_with ~prefix:"__anon" cname ->
       raise Stdlib.Exit
     | _ ->
+      (* CIL visitor does not go into TNamed, but we don't need to anyway: direct occurrences of __anon struct names in invariants are the problem. *)
       DoChildren
 end
 let exp_contains_anon_type =
