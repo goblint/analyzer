@@ -101,9 +101,7 @@ let addToFinalMatchesMapping oV nV final_matches =
 let empty_rename_assms m = VarinfoMap.for_all (fun vo vn -> vo.vname = vn.vname) m
 
 let already_matched oV nV final_matches =
-  match VarinfoMap.find_opt oV (fst final_matches) with
-  | None -> false
-  | Some v -> v.vid = oV.vid
+  GobOption.exists (fun v -> v.vid = nV.vid) (VarinfoMap.find_opt oV (fst final_matches))
 
 (* looks up the result of the already executed comparison and returns true if it is unchanged, false if it is changed.
    Throws an exception if not found. *)
