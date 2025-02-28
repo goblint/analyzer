@@ -53,12 +53,13 @@ module type SV =  RelationDomain.RV with type t = Var.t
 type unsupported_cilExp =
   | Var_not_found of CilType.Varinfo.t (** Variable not found in Apron environment. *)
   | Cast_not_injective of CilType.Typ.t (** Cast is not injective, i.e. may under-/overflow. *)
-  | Exp_not_supported (** Expression constructor not supported. *)
+  | Exp_not_supported of exp[@printer fun ppf e -> Format.pp_print_string ppf ("Exp_not_supported: "^(CilType.Exp.show e))]  (** Expression constructor not supported. *)
   | Overflow (** May overflow according to Apron bounds. *)
   | Exp_typeOf of exn [@printer fun ppf e -> Format.pp_print_string ppf (Printexc.to_string e)] (** Expression type could not be determined. *)
   | BinOp_not_supported (** BinOp constructor not supported. *)
+  | Invalid_argument of string (** Invalid argument. *)
+  | Ask_yields_bot of exp[@printer fun ppf e -> Format.pp_print_string ppf ("Ask_yields_bot on "^(CilType.Exp.show e))] (** Expression on bot context. *)
 [@@deriving show { with_path = false }]
-
 
 (** Interface for Bounds which calculates bounds for expressions and is used inside the - Convert module. *)
 module type ConvBounds =
@@ -92,7 +93,7 @@ struct
       established by other analyses.*)
   let overflow_handling no_ov ik env expr d exp =
     match Cilfacade.get_ikind_exp exp with
-    | exception Invalid_argument e ->  raise (Unsupported_CilExp Exp_not_supported)       (* expression is not an integer expression, i.e. float *)
+    | exception Invalid_argument a ->  raise (Unsupported_CilExp (Invalid_argument a))       (* expression is not an integer expression, i.e. float *)
     | ik ->
       if IntDomain.should_wrap ik || not (Lazy.force no_ov) then (
         let (type_min, type_max) = IntDomain.Size.range ik in
@@ -110,7 +111,7 @@ struct
       let query e ik =
         let res =
           match ask.f (EvalInt e) with
-          | `Bot -> raise (Unsupported_CilExp Exp_not_supported) (* This should never happen according to Michael Schwarz *)
+          | `Bot -> raise (Unsupported_CilExp (Ask_yields_bot  e))  (* TODO: This happens when called on a pointer type; we should establish the type bounds instead *)
           | `Top -> IntDomain.IntDomTuple.top_of ik
           | `Lifted x -> x (* Cast should be unnecessary because it should be taken care of by EvalInt. *) in
         if M.tracing then M.trace "relation-query" "texpr1_expr_of_cil_exp/query: %a -> %a" d_plainexp e IntDomain.IntDomTuple.pretty res;
@@ -149,7 +150,7 @@ struct
               *)
               let simplify e =
                 GobRef.wrap AnalysisState.executing_speculative_computations true @@ fun () ->
-                let ikind = try (Cilfacade.get_ikind_exp e) with Invalid_argument _ -> raise (Unsupported_CilExp Exp_not_supported)   in
+                let ikind = try (Cilfacade.get_ikind_exp e) with Invalid_argument a -> raise (Unsupported_CilExp (Invalid_argument a))   in
                 let simp = query e ikind in
                 let const = IntDomain.IntDomTuple.to_int @@ IntDomain.IntDomTuple.cast_to ikind simp in
                 if M.tracing then M.trace "relation" "texpr1_expr_of_cil_exp/simplify: %a -> %a" d_plainexp e IntDomain.IntDomTuple.pretty simp;
@@ -167,13 +168,13 @@ struct
                 Binop (Div, texpr1 e1, texpr1 e2, Int, Zero)
               | CastE (TInt (t_ik, _) as t, e) ->
                 begin match  IntDomain.Size.is_cast_injective ~from_type:(Cilfacade.typeOf e) ~to_type:t with (* TODO: unnecessary cast check due to overflow check below? or maybe useful in general to also assume type bounds based on argument types? *)
-                  | exception Invalid_argument _ -> raise (Unsupported_CilExp Exp_not_supported)
+                  | exception Invalid_argument a -> raise (Unsupported_CilExp (Invalid_argument a))
                   | true -> texpr1 e
                   | false -> (* Cast is not injective - we now try to establish suitable ranges manually  *)
                     (* retrieving a valuerange for a non-injective cast works by a query to the value-domain with subsequent value extraction from domtuple - which should be speculative, since it is not program code *)
                     let const,res = GobRef.wrap AnalysisState.executing_speculative_computations true @@ fun () ->
                       (* try to evaluate e by EvalInt Query *)
-                      let res = try (query e @@ Cilfacade.get_ikind_exp e) with Invalid_argument _ -> raise (Unsupported_CilExp Exp_not_supported)  in
+                      let res = try (query e @@ Cilfacade.get_ikind_exp e) with Invalid_argument a -> raise (Unsupported_CilExp (Invalid_argument a))  in
                       (* convert response to a constant *)
                       IntDomain.IntDomTuple.to_int @@ IntDomain.IntDomTuple.cast_to t_ik res, res in
                     match const with
@@ -189,21 +190,31 @@ struct
                     | exception Invalid_argument _ ->
                       raise (Unsupported_CilExp (Cast_not_injective t))
                 end
-              | _ ->
-                raise (Unsupported_CilExp Exp_not_supported)
+              | BinOp _ ->
+                raise (Unsupported_CilExp (BinOp_not_supported))
+              | e ->
+                raise (Unsupported_CilExp (Exp_not_supported e))
             in
             overflow_handling no_ov ik env expr d exp;
             expr
-          | exception (Cilfacade.TypeOfError _ as e)
-          | exception (Invalid_argument _ as e) ->
+          | exception (Cilfacade.TypeOfError _ as e) ->
             raise (Unsupported_CilExp (Exp_typeOf e))
+          | exception (Invalid_argument a) ->
+            raise (Unsupported_CilExp (Invalid_argument a))
       in
       texpr1_expr_of_cil_exp exp
     in
     let exp = Cil.constFold false exp in
-    let res = conv exp in
-    if M.tracing then M.trace "relation" "texpr1_expr_of_cil_exp: %a -> %a (%b)" d_plainexp exp Texpr1.Expr.pretty res (Lazy.force no_ov);
-    res
+    if M.tracing then 
+      match conv exp with
+      | exception Unsupported_CilExp ex -> 
+        M.tracel "rel-texpr-cil-conv" "unsuccessfull: %s" (show_unsupported_cilExp ex);
+        raise (Unsupported_CilExp ex)
+      | res -> 
+        M.trace "relation" "texpr1_expr_of_cil_exp: %a -> %a (%b)" d_plainexp exp Texpr1.Expr.pretty res (Lazy.force no_ov);
+        M.tracel "rel-texpr-cil-conv" "successfull: Good";
+        res
+    else conv exp
 
   let texpr1_of_cil_exp ask d env e no_ov =
     let res = texpr1_expr_of_cil_exp ask d env e no_ov in
@@ -226,7 +237,7 @@ struct
           | Ne -> (texpr1_1, texpr1_2, DISEQ) (* e1 != e2  ==>  e1 - e2 != 0 *)
           | _ -> raise (Unsupported_CilExp BinOp_not_supported)
         end
-      | _ -> raise (Unsupported_CilExp Exp_not_supported)
+      | _ -> raise (Unsupported_CilExp (Exp_not_supported e))
     in
     let inverse_typ = function
       | EQ -> DISEQ
