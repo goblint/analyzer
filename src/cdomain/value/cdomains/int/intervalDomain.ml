@@ -13,10 +13,15 @@ struct
 
   let top () = failwith @@ "top () not implemented for " ^ (name ())
   let top_of ?bitfield ik = match bitfield with 
-                            | None -> Some (range ik)
-                            | Some b -> match Cil.isSigned ik with
-                                        | true -> Some (range ik)
-                                        | false -> Some (fst @@ range ik, Ints_t.sub (Ints_t.shift_left Ints_t.one b) Ints_t.one) 
+                            | Some b when b <= Ints_t.to_int (range ik |> snd) -> begin 
+                              let signed_lower_bound = Ints_t.neg @@ Ints_t.shift_left Ints_t.one (b-1) in
+                              let unsigned_upper_bound = Ints_t.sub (Ints_t.shift_left Ints_t.one b) Ints_t.one in
+                              match Cil.isSigned ik with
+                                (* An implicit signed int can also store unsigned int values in memory. *) 
+                                | true -> Some (signed_lower_bound, unsigned_upper_bound)
+                                | false -> Some (range ik |> fst, unsigned_upper_bound)
+                            end
+                            | _ -> Some (range ik)
   let bot () = None
   let bot_of ik = bot () (* TODO: improve *)
 

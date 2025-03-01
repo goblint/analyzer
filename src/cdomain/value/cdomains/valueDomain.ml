@@ -963,7 +963,7 @@ struct
     do_eval_offset ask f x offs exp l o v t
 
   let update_offset ?(blob_destructive=false) (ask: VDQ.t) (x:t) (offs:offs) (value:t) (exp:exp option) (v:lval) (t:typ): t =
-    let rec do_update_offset (ask:VDQ.t) (x:t) (offs:offs) (value:t) (exp:exp option) (l:lval option) (o:offset option) (v:lval) (t:typ):t =
+    let rec do_update_offset ?(bitfield:int option=None) (ask:VDQ.t) (x:t) (offs:offs) (value:t) (exp:exp option) (l:lval option) (o:offset option) (v:lval) (t:typ):t = 
       if M.tracing then M.traceli "update_offset" "do_update_offset %a %a (%a) %a" pretty x Offs.pretty offs (Pretty.docOpt (CilType.Exp.pretty ())) exp pretty value;
       let mu = function Blob (Blob (y, s', zeroinit), s, _) -> Blob (y, ID.join s s', zeroinit) | x -> x in
       let r =
@@ -1054,7 +1054,16 @@ struct
             | `NoOffset -> begin
                 match value with
                 | Blob (y, s, zeroinit) -> mu (Blob (join x y, s, zeroinit))
-                | Int _ -> cast t value
+                | Int i -> begin 
+                  match bitfield with 
+                  | None -> cast t value
+                  | Some b -> let max_value = ID.of_int (ID.ikind i) (Z.sub (Z.shift_left Z.one b) Z.one) in 
+                    let min_value = ID.of_int (ID.ikind i) (Z.neg (Z.shift_left Z.one (b-1))) in
+                    match ID.to_bool (ID.le i max_value), ID.to_bool (ID.ge i min_value) with
+                    | None, _ | _, None -> cast t value (* IDK, error visata ? *)
+                    | Some false, _ | _, Some false -> Messages.warn ~category:Analyzer "Assigned value %a is too large for bit-field of size %d bits." pretty value b; Top
+                    | _ -> cast t value
+                end
                 | _ -> value
               end
             | `Field (fld, offs) when fld.fcomp.cstruct -> begin
@@ -1063,7 +1072,7 @@ struct
                 | Struct str ->
                   begin
                     let l', o' = shift_one_over l o in
-                    let value' = do_update_offset ask (Structs.get str fld) offs value exp l' o' v t in
+                    let value' = do_update_offset ~bitfield:fld.fbitfield ask (Structs.get str fld) offs value exp l' o' v t in
                     Struct (Structs.replace str fld value')
                   end
                 | Bot ->
