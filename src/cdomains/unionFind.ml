@@ -77,9 +77,9 @@ module T = struct
       get_size_in_bits (TPtr (typ,[]))
     | _ ->
       try Z.of_int (bitsSizeOf typ) with
-      | GoblintCil__Cil.SizeOfError (msg,_) when msg ="abstract type"->
+      | SizeOfError ("abstract type", _) ->
         Z.one
-      | GoblintCil__Cil.SizeOfError (msg,_) ->
+      | SizeOfError (msg, _) ->
         raise (UnsupportedCilExpression msg)
 
   let show_type exp =
