@@ -582,7 +582,7 @@ struct
         match exp, c_typed with
         | UnOp (LNot, e, _), Int c ->
           (match Cil.unrollType (Cilfacade.typeOf e) with
-           | TInt  _ | TPtr _ -> (* TODO: TEnum as well? *)
+           | TInt  _ | TEnum _ | TPtr _ ->
              let ikind = Cilfacade.get_ikind_exp e in
              let c' =
                match ID.to_bool (unop_ID LNot c) with

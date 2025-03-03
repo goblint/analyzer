@@ -269,18 +269,16 @@ struct
         match rem_fields with
         | [] -> second_choice
         | h::t -> begin
-            match Cil.unrollType h.ftype, get_bool "ana.base.structs.key.prefer-ptrs", get_bool "ana.base.structs.key.avoid-ints" with (* TODO: generalize to TEnum with Cil.isIntegralType? *)
+            match Cil.unrollType h.ftype, get_bool "ana.base.structs.key.prefer-ptrs", get_bool "ana.base.structs.key.avoid-ints" with
             | (TPtr (_, _), _, _) -> h
-            | (TInt (_, _), true, _)
-            | (TInt (_, _), _, true) -> first_appropriate_key t second_choice
-            | (TInt (_, _), _, _) -> h
+            | ((TInt _ | TEnum _), true, _)
+            | ((TInt _ | TEnum _), _, true) -> first_appropriate_key t second_choice
+            | ((TInt _ | TEnum _), _, _) -> h
             | (_, false, _) -> h
             | (_, _, false) -> first_appropriate_key t second_choice
             | (_, _, _) ->
-              let second = match Cil.unrollType second_choice.ftype with (* TODO: generalize to TEnum with Cil.isIntegralType? *)
-                | TInt (_,_) -> h
-                | _ -> second_choice
-              in first_appropriate_key t second
+              let second = if Cil.isIntegralType second_choice.ftype then h else second_choice in
+              first_appropriate_key t second
           end
       in Some (first_appropriate_key fields (List.hd fields))
 

@@ -183,7 +183,7 @@ struct
         ikorg = t || (max_t >=: max_ikorg && min_t <=: min_ikorg)
       in
       match Option.map Cil.unrollType torg with
-      | Some (Cil.TInt (ikorg, _)) when p ikorg ->
+      | Some (Cil.TInt (ikorg, _) | TEnum ({ekind = ikorg; _}, _)) when p ikorg ->
         if M.tracing then M.trace "cong-cast" "some case";
         x
       | _ -> top ()

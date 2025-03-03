@@ -156,6 +156,7 @@ struct
     | _ when is_mutex_type t -> Mutex
     | t when is_jmp_buf_type t -> JmpBuf (JmpBufs.bot ())
     | TInt _ -> Bot (*Int (ID.bot ()) -- should be lower than any int or address*)
+    (* TODO: TEnum? *)
     | TFloat _ -> Bot
     | TPtr _ -> Address (AD.bot ())
     | TComp ({cstruct=true; _} as ci,_) -> Struct (Structs.create (fun fd -> bot_value ~varAttr:fd.fattr fd.ftype) ci)
@@ -192,6 +193,7 @@ struct
     | t when is_jmp_buf_type t -> JmpBuf (JmpBufs.top ())
     | t when is_mutexattr_type t -> MutexAttr (MutexAttrDomain.top ())
     | TInt (ik,_) -> Int (ID.top_of ik)
+    (* TODO: TEnum? *)
     | TFloat (fkind, _) when not (Cilfacade.isComplexFKind fkind) -> Float (FD.top_of fkind)
     | TPtr _ -> Address AD.top_ptr
     | TComp ({cstruct=true; _} as ci,_) -> Struct (Structs.create (fun fd -> init_value ~varAttr:fd.fattr fd.ftype) ci)
@@ -211,6 +213,7 @@ struct
     | t when is_jmp_buf_type t -> JmpBuf (JmpBufs.top ())
     | t when is_mutexattr_type t -> MutexAttr (MutexAttrDomain.top ())
     | TInt (ik,_) -> Int (ID.(cast_to ik (top_of ik)))
+    (* TODO: TEnum? *)
     | TFloat (fkind, _) when not (Cilfacade.isComplexFKind fkind) -> Float (FD.top_of fkind)
     | TPtr _ -> Address AD.top_ptr
     | TComp ({cstruct=true; _} as ci,_) -> Struct (Structs.create (fun fd -> top_value ~varAttr:fd.fattr fd.ftype) ci)
@@ -244,6 +247,7 @@ struct
     | t when is_jmp_buf_type t -> JmpBuf (JmpBufs.top ())
     | t when is_mutexattr_type t -> MutexAttr (MutexAttrDomain.top ())
     | TInt (ikind, _) -> Int (ID.of_int ikind Z.zero)
+    (* TODO: TEnum? *)
     | TFloat (fkind, _) when not (Cilfacade.isComplexFKind fkind) -> Float (FD.of_const fkind 0.0)
     | TPtr _ -> Address AD.null_ptr
     | TComp ({cstruct=true; _} as ci,_) -> Struct (Structs.create (fun fd -> zero_init_value ~varAttr:fd.fattr fd.ftype) ci)
@@ -360,8 +364,8 @@ struct
     | TFloat (FFloat128, _), TFloat (FDouble,_) -> true
     | TFloat (FFloat128, _), TFloat (FLongDouble,_) -> true
     | _, TFloat _ -> false (* casting float to an integral type always looses the decimals *)
-    | TFloat (fk, _), TInt((IBool | IChar | IUChar | ISChar | IShort | IUShort), _) when not (Cilfacade.isComplexFKind fk)  -> true (* reasonably small integers can be stored in all fkinds *)
-    | TFloat ((FDouble | FLongDouble | FFloat128), _), TInt((IInt | IUInt | ILong | IULong), _) -> true (* values stored in between 16 and 32 bits can only be stored in at least doubles *)
+    | TFloat (fk, _), (TInt((IBool | IChar | IUChar | ISChar | IShort | IUShort), _) | TEnum ({ekind = IBool | IChar | IUChar | ISChar | IShort | IUShort; _}, _)) when not (Cilfacade.isComplexFKind fk)  -> true (* reasonably small integers can be stored in all fkinds *)
+    | TFloat ((FDouble | FLongDouble | FFloat128), _), (TInt((IInt | IUInt | ILong | IULong), _) | TEnum ({ekind = IInt | IUInt | ILong | IULong; _}, _)) -> true (* values stored in between 16 and 32 bits can only be stored in at least doubles *)
     | TFloat _, _ -> false (* all wider integers can not be completely put into a float, partially because our internal representation of long double is the same as for doubles *)
     | (TInt _ | TEnum _ | TPtr _) , (TInt _ | TEnum _ | TPtr _) ->
       IntDomain.Size.is_cast_injective ~from_type:t1 ~to_type:t2 && bitsSizeOf t2 >= bitsSizeOf t1
