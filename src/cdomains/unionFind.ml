@@ -72,7 +72,7 @@ module T = struct
 
   exception UnsupportedCilExpression of string
 
-  let rec get_size_in_bits typ = match typ with
+  let rec get_size_in_bits typ = match Cil.unrollType typ with
     | TArray (typ, _, _) -> (* we treat arrays like pointers *)
       get_size_in_bits (TPtr (typ,[]))
     | _ ->
@@ -85,7 +85,7 @@ module T = struct
   let show_type exp =
     try
       let typ = typeOf exp in
-      let typ_abbreviation = match typ with
+      let typ_abbreviation = match Cil.unrollType typ with
         | TPtr _ -> "Ptr"
         | TInt _ -> "Int"
         | TArray _ -> "Arr"
@@ -283,6 +283,7 @@ module T = struct
       | TEnum (_, _)
       | TBuiltin_va_list _ -> typ
     in
+    let typ = Cil.unrollType typ in
     let converted_type = Some (convert_type typ) in
     let converted_offset = convert_offset offs in
     offset_to_index ?typ:converted_type converted_offset
@@ -437,7 +438,8 @@ module T = struct
         | AddrOf lval ->
           Lval lval
         | _ ->
-          match typeOf exp with
+          let typ = typeOf exp in
+          match Cil.unrollType typ with
           | TPtr (TComp (cinfo, _), _) ->
             let field = find_field cinfo in
             add_index_to_exp exp field
@@ -559,6 +561,7 @@ module T = struct
         begin match of_cil ask exp with
           | (Some term, offset) ->
             let typ = typeOf exp in
+            let typ = unrollType typ in
             if is_struct_ptr_type typ then
               match of_offset ask term off typ (Lval lval) with
               | Addr x -> Addr x
