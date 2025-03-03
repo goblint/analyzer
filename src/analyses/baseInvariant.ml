@@ -112,14 +112,18 @@ struct
         r
       )
     | Mem (Lval lv), off ->
-      let lvals = eval_lv ~man st (Mem (Lval lv), off) in
-      let res = AD.fold (fun a acc ->
+      (* Underlying lvals (may have offsets themselves), e.g., for struct members NOT including any offset appended to outer Mem *)
+      let lvals = eval_lv ~man st (Mem (Lval lv), NoOffset) in
+      (* Additional offset of value being refined in Addr Offset type *)
+      let original_offset = convert_offset ~man st off in
+      let res = AD.fold (fun base_a acc ->
           Option.bind acc (fun acc ->
-              match a with
-              | Addr (base, _) as orig ->
-                let (a:VD.t) = Address (AD.singleton (AD.Addr.of_var base)) in
-                if M.tracing then M.tracel "inv" "Consider case of lval %a = %a" d_lval lv VD.pretty a;
-                let st = set' lv a st in
+              match base_a with
+              | Addr _ ->
+                let (lval_a:VD.t) = Address (AD.singleton base_a) in
+                if M.tracing then M.tracel "inv" "Consider case of lval %a = %a" d_lval lv VD.pretty lval_a;
+                let st = set' lv lval_a st in
+                let orig = AD.Addr.add_offset base_a original_offset in
                 let old_val = get ~man st (AD.singleton orig) None in
                 let old_val = VD.cast (Cilfacade.typeOfLval x) old_val in (* needed as the type of this pointer may be different *)
                 (* this what I would originally have liked to do, but eval_rv_lval_refine uses queries and thus stale values *)
