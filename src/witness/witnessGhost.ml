@@ -11,8 +11,6 @@ module Map = RichVarinfo.BiVarinfoMap.Make (Var)
 
 include Map
 
-let name_varinfo = show
-
 let variable' x =
   let variable = name_varinfo x in
   let type_ = String.trim (CilType.Typ.show (typ x)) in (* CIL printer puts space at the end of some types *)
