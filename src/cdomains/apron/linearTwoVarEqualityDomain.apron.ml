@@ -98,8 +98,9 @@ module EqualitiesConjunction = struct
   (** add/remove new variables to domain with particular indices; translates old indices to keep consistency
       add if op = (+), remove if op = (-)
       the semantics of indexes can be retrieved from apron: https://antoinemine.github.io/Apron/doc/api/ocaml/Dim.html *)
-  let modify_variables_in_domain (dim,map) indexes op =
-    if Array.length indexes = 0 then (dim,map) else
+
+  let modify_variables_in_domain_general map map_value indexes op =
+    if Array.length indexes = 0 then map else
       let offsetlist = Array.to_list indexes in
       let rec bumpvar delta i = function (* bump the variable i by delta; find delta by counting indices in offsetlist until we reach a larger index then our current parameter *)
         | head::rest when i>=head -> bumpvar (delta+1) i rest (* rec call even when =, in order to correctly interpret double bumps *)
@@ -116,13 +117,18 @@ module EqualitiesConjunction = struct
                IntHashtbl.add h x r;
                r)
       in
-      let rec bumpentry k (refvar,offset,divi) = function (* directly bumps lhs-variable during a run through indexes, bumping refvar explicitly with a new lookup in indexes *)
+      let rec bumpentry k value = function (* directly bumps lhs-variable during a run through indexes, bumping refvar explicitly with a new lookup in indexes *)
 
-        | (tbl,delta,head::rest) when k>=head            -> bumpentry k (refvar,offset,divi) (tbl,delta+1,rest) (* rec call even when =, in order to correctly interpret double bumps *)
-        | (tbl,delta,lyst) (* k<head or lyst=[] *) -> (IntMap.add (op k delta) (BatOption.map (fun (c,v) -> (c,memobumpvar v)) refvar,offset,divi) tbl, delta, lyst)
+        | (tbl,delta,head::rest) when k>=head            -> bumpentry k value (tbl,delta+1,rest) (* rec call even when =, in order to correctly interpret double bumps *)
+        | (tbl,delta,lyst) (* k<head or lyst=[] *) -> (IntMap.add (op k delta) (map_value memobumpvar value) tbl, delta, lyst)
       in
       let (a,_,_) = IntMap.fold bumpentry map (IntMap.empty,0,offsetlist) in (* Build new map during fold with bumped key/vals *)
-      (op dim (Array.length indexes), a)
+      a
+
+  let modify_variables_in_domain (dim,map) indexes op =
+    let map_value bumpvar (refvar,offset,divi) = (BatOption.map (fun (c,v) -> (c,bumpvar v)) refvar,offset,divi) in
+    (op dim (Array.length indexes), modify_variables_in_domain_general map map_value indexes op)
+
 
   let modify_variables_in_domain m cols op = let res = modify_variables_in_domain m cols op in if M.tracing then
       M.tracel "modify_dims" "dimarray bumping with (fun x -> x + %d) at positions [%s] in { %s } -> { %s }"

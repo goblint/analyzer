@@ -995,6 +995,13 @@
           },
           "additionalProperties": false
         },
+        "lin2vareq_p": {
+          "title": "ana.lin2vareq_p",
+          "description":
+            "Use inequalities",
+          "type": "boolean",
+          "default": true
+        },
         "context": {
           "title": "ana.context",
           "type": "object",

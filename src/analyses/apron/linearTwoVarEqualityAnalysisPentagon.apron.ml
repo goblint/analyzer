@@ -5,9 +5,12 @@
 open Analyses
 include RelationAnalysis
 
+module NoIneq = LinearTwoVarEqualityDomainPentagon.D2(PentagonSubDomains.NoInequalties)
+module WithIneq = LinearTwoVarEqualityDomainPentagon.D2(PentagonSubDomains.SimpleInequalities)
+
 let spec_module: (module MCPSpec) Lazy.t =
   lazy (
-    let module AD = LinearTwoVarEqualityDomainPentagon.D2(PentagonSubDomains.NoInequalties)
+    let (module AD) = if GobConfig.get_bool "ana.lin2vareq_p" then (module WithIneq : RelationDomain.RD) else (module NoIneq : RelationDomain.RD)
     in
     let module Priv = (val RelationPriv.get_priv ()) in
     let module Spec =

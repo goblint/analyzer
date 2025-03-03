@@ -9,7 +9,7 @@ module EConj = LinearTwoVarEqualityDomain.EqualitiesConjunction
 
 module IntMap = EConj.IntMap
 
-(*MOdules for creating an unbounded interval arithmethic with the existing interval domain*)
+(*Modules for creating an unbounded interval arithmethic with the existing interval domain*)
 module TopIntBase (Int_t : IntOps.IntOpsBase) =  
 struct
   type sign = Pos | Neg [@@deriving eq, hash]
@@ -273,8 +273,9 @@ module type TwoVarInequalities = sig
   type t
   type cond = Lt | Le | Eq | Gt | Ge
 
-  (*We need to know which root a constant is referring to, so we use Either *)
-  val is_less_than :  ((Rhs.t, int) Either.t * Value.t) -> ((Rhs.t, int) Either.t * Value.t) -> t -> bool option
+  val show_cond : cond -> string
+
+  val is_less_than :  (Rhs.t * Value.t) -> (Rhs.t * Value.t) -> t -> bool option
 
   (*meet x' < y' (or with = / <= *)
   val meet_condition : int -> int -> cond -> (int -> Rhs.t) -> (int -> Value.t) -> t -> t
@@ -299,6 +300,13 @@ module NoInequalties : TwoVarInequalities = struct
   type t = unit
   type cond = Lt | Le | Eq | Gt | Ge
 
+  let show_cond c = match c with 
+    | Le -> "<="
+    | Lt -> "<"
+    | Eq -> "="
+    | Gt -> ">"
+    | Ge -> ">="
+
   let is_less_than _ _ _ = None
   let meet_condition _ _ _ _ _ _ = ()
 
@@ -319,9 +327,219 @@ end
 
 module type Coeffs = sig
   type t
+  val implies : Value.t -> Value.t -> t option -> t -> bool
+  val meet : Value.t -> Value.t -> t -> t -> t
+  val hash : t -> int
+  val equal : t -> t -> bool
+  val compare : t -> t -> int
+  val show_formatted : string -> string -> t -> string
+
 end
 
 module CommonActions (Coeffs : Coeffs) = struct
-  type t = Coeffs.t IntMap.t IntMap.t
+  type cond = Lt | Le | Eq | Gt | Ge
+
+  type t = Coeffs.t IntMap.t IntMap.t  [@@deriving eq, ord ]
+
+  let show_cond c = match c with 
+    | Le -> "<="
+    | Lt -> "<"
+    | Eq -> "="
+    | Gt -> ">"
+    | Ge -> ">="
+
+  let empty = IntMap.empty
+  let is_empty = IntMap.is_empty
+  let hash t = IntMap.fold (fun _ ys acc -> IntMap.fold (fun _ coeff acc -> Coeffs.hash coeff + 3*acc) ys (5*acc)) t 0
+
+  let show_formatted formatter t = 
+    if IntMap.is_empty t then "{}" else
+      let str = IntMap.fold (fun x ys acc -> IntMap.fold (fun y coeff acc -> Printf.sprintf "%s , %s" (Coeffs.show_formatted (formatter x) (formatter y) coeff) acc) ys acc) t "" 
+      in "{" ^ (*String.sub str 0 (String.length str - 3) *) str ^ "}" (*TODO why does this not work when removing the things?*)
+
+  let show = show_formatted (Printf.sprintf "var_%d")
+
+  let forget_variable t v = 
+    IntMap.map (fun ys -> IntMap.remove v ys) (IntMap.remove v t)
+
+  let modify_variables_in_domain map indexes op =
+    let map_fun bump_var ys = IntMap.fold (fun y ->  IntMap.add (bump_var y) ) ys IntMap.empty in  
+    EConj.modify_variables_in_domain_general map map_fun indexes op 
+
+  let get_coeff x y t = BatOption.bind (IntMap.find_opt x t) (fun ys -> IntMap.find_opt y ys)
+
+  let set_coeff x y coeff t = 
+    IntMap.add x (IntMap.add y coeff @@ IntMap.find_default IntMap.empty x t ) t
+
+  let remove_coeff x y t = 
+    IntMap.add x (IntMap.remove y @@ IntMap.find_default IntMap.empty x t ) t
+
+  let leq t1 get_value_t1 t2 = 
+    let implies x y t2_coeff = 
+      let t1_coeff = get_coeff x y t1 in 
+      Coeffs.implies (get_value_t1 x) (get_value_t1 y) t1_coeff  t2_coeff
+    in
+    IntMap.for_all (fun x ys -> IntMap.for_all (implies x) ys) t2
+
+  let meet_one_coeff get_value x y coeff t =
+    let coeff_t = get_coeff x y t in
+    let coeff_met = match coeff_t with 
+      | None -> coeff
+      | Some coeff_t -> Coeffs.meet (get_value x) (get_value y) coeff coeff_t
+    in set_coeff x y coeff_met t
+
+  (*TODO I do not see an obvious way that an inequalitiy between roots could contradict a rhs. Is there one?*)
+  let meet get_rhs get_value t1 t2 = 
+    IntMap.fold (fun x ys t -> IntMap.fold (meet_one_coeff get_value x) ys t) t2 t1
 
 end
+
+(*Equations of the type x < y*)
+module NoCoeffs = struct
+  type t = unit [@@deriving eq, ord, hash ]
+
+  let implies x y t1_opt _ = match t1_opt with 
+    | Some _ -> true
+    | None -> match Value.maximal x, Value.minimal y with 
+      | Some x, Some y -> TopIntOps.compare x y < 0
+      | _, _ -> false
+
+  let meet x y _ _ = 
+    match Value.minimal x, Value.maximal y with 
+    | Some x, Some y when  TopIntOps.compare x y > 0 -> raise EConj.Contradiction
+    | _, _ -> ()
+
+  let show_formatted x y t = x ^ " < " ^ y
+
+end
+
+(*Semantics: x -> y -> () => x < y*)
+module SimpleInequalities : TwoVarInequalities = struct
+  module Coeffs = NoCoeffs
+  include CommonActions(Coeffs)
+
+  let join t1 get_val_t1 t2 get_val_t2 = 
+    let merge_y x y c1 c2 =
+      let of_bool b = if b then Some () else None in  
+      match c1 with 
+      | Some c1 -> of_bool (Coeffs.implies (get_val_t2 x) (get_val_t2 y) c2 c1)
+      | None -> match c2 with 
+        | Some c2 -> of_bool (Coeffs.implies (get_val_t1 x) (get_val_t1 y) c1 c2)
+        | None -> None
+    in let merge_x x ys1 ys2 = 
+         let ignore_empty ls = 
+           if IntMap.is_empty ls then None
+           else Some ls
+         in match ys1, ys2 with
+         | Some ys1, None -> ignore_empty (IntMap.filter (fun y coeff -> Coeffs.implies (get_val_t2 x) (get_val_t2 y) None coeff ) ys1)
+         | None, Some ys2 -> ignore_empty (IntMap.filter (fun y coeff -> Coeffs.implies (get_val_t1 x) (get_val_t1 y) None coeff ) ys2)
+         | Some ys1, Some ys2 -> ignore_empty (IntMap.merge (merge_y x) ys1 ys2)
+         | _, _ -> None in 
+    IntMap.merge (merge_x) t1 t2
+
+  let is_less_than x y t = 
+    let check_inequality ((var_x,o_x,d_x), val_x) ((var_y,o_y,d_y), val_y) =
+      if M.tracing then M.trace "is_less_than" "checking x: %s, y: %s" (Rhs.show (var_x,o_x,d_x)) (Rhs.show (var_y,o_y,d_y));
+      match var_x, var_y with
+      | Some (c_x, x), Some (c_y, y) -> begin
+          match get_coeff x y t with 
+          | None -> 
+            if M.tracing then M.trace "is_less_than" "no inequality for roots";
+            None (*No information*)
+          | Some _ -> (*we know x < y -> check if this translates to x' < y' or x' > y'*) 
+            let d_c = Z.sub (Z.mul d_x c_y) (Z.mul d_y c_x) in
+            let d_o = Z.sub (Z.mul o_x d_y) (Z.mul o_y d_x) in
+            let x_d_c = Value.mul val_x (Value.of_bigint d_c) in
+            if Z.lt c_y Z.zero && Value.leq x_d_c (Value.ending d_o) (* c_y < 0, x * d_c <= d_o*) 
+            then Some false (*x' > y '*)
+            else if Z.gt c_y Z.zero && Value.leq x_d_c (Value.starting d_o) (* c_y > 0, x * d_c >= d_o*) 
+            then Some true (*x' < y '*)
+            else  
+              let d_c' = Z.neg d_c in
+              let d_o' = Z.neg d_o in
+              let y_d_c = Value.mul val_y (Value.of_bigint d_c') in
+              if Z.lt c_x Z.zero && Value.leq y_d_c (Value.starting d_o') (* c_x < 0, y * d_c >= d_o*) 
+              then Some false (*x' > y '*)
+              else if  Z.gt c_x Z.zero && Value.leq y_d_c (Value.ending d_o') (* c_x > 0, y * d_c <= d_o*) 
+              then Some true (*x' < y '*)
+              else None
+        end
+      | _, _ -> failwith "Inequalities.is_less_than does not take constants directly" (*TODO should we take the coefficients directly to enforce this*)
+    in 
+    let res = check_inequality x y in
+    if res = None then BatOption.map not @@ check_inequality y x
+    else res
+
+  let is_less_than x y t = 
+    let res = is_less_than x y t in
+    if M.tracing then M.trace "is_less_than" "result: %s" (BatOption.map_default (Bool.to_string) "unknown" res);
+    res
+
+  (**)
+  let meet_condition x' y' cond get_rhs get_value t =
+    (*TODO should we check values for contradictions?*)
+    (*strict: if the inequality is strict *)
+    let meet_less_root x y strict t = 
+      if M.tracing then M.tracel "meet_condition" "meet_less_root x: %d y: %d strict: %b " x y strict;  
+      let union = IntMap.union (fun _ _ _ -> Some ()) (IntMap.find_default IntMap.empty x t) (IntMap.find_default IntMap.empty y t) 
+      in let union' = if strict then IntMap.add y () union else union 
+      in if IntMap.mem x union then raise EConj.Contradiction
+      else IntMap.add x union' t
+    in
+    let meet_less x' y' strict t = 
+      if M.tracing then M.tracel "meet_condition" "meet_less x': %d y': %d strict: %b" x' y' strict;  
+      let get_rhs' lhs = 
+        match get_rhs lhs with 
+        | (Some (c,v),o,d) -> c,v,o,d
+        | (None, o, d) -> Z.one, lhs, Z.zero, Z.one
+      in let (c_x, x, o_x, d_x) = get_rhs' x'
+      in let (c_y, y, o_y, d_y) = get_rhs' y'
+      in if M.tracing then M.tracel "meet_condition" "x' = %s, y' = %s " (Rhs.show (Some (c_x, x),o_x,d_x)) (Rhs.show (Some (c_y,y),o_y,d_y));  
+      let val_x = get_value x
+      in let val_y = get_value y in
+      let d_c = Z.sub (Z.mul d_x c_y) (Z.mul d_y c_x) in
+      let d_o = Z.sub (Z.mul o_x d_y) (Z.mul o_y d_x) in
+      let x_d_c = Value.mul val_x (Value.of_bigint d_c) in
+      if Value.leq x_d_c (Value.ending d_o) then (*x * d_c <= d_o*)
+        (*We are strict iff we have been strict before or this bound is strict*)
+        if Z.lt c_y Z.zero then meet_less_root y x (strict || Value.leq x_d_c (Value.ending (Z.sub d_o Z.one))) t
+        else meet_less_root x y (strict || Value.leq x_d_c (Value.ending (Z.sub d_o Z.one))) t
+      else
+        let d_c' = Z.neg d_c in
+        let d_o' = Z.neg d_o in
+        let y_d_c = Value.mul val_y (Value.of_bigint d_c') in
+        if Value.leq y_d_c (Value.starting d_o') then (*x * d_c >= d_o*)
+          (*We are strict iff we have been strict before or this bound is strict*)
+          if Z.gt c_y Z.zero then meet_less_root x y (strict || Value.leq y_d_c (Value.ending (Z.add d_o' Z.one))) t
+          else meet_less_root y x (strict || Value.leq y_d_c (Value.ending (Z.add d_o' Z.one))) t
+        else t
+    in
+    match cond with 
+    | Gt -> meet_less y' x' true t 
+    | Ge -> meet_less y' x' false t 
+    | Eq -> 
+      let rhs_x = get_rhs x' in
+      let rhs_y = get_rhs y' in
+      if M.tracing then M.tracel "meet_condition" "in equality: x' (var_%d) = %s, y' (var_%d)= %s " x' (Rhs.show rhs_x) y' (Rhs.show rhs_y);  
+      if Rhs.equal rhs_x rhs_y then begin
+        if M.tracing then M.tracel "meet_condition" "equality with same rhs";  
+        let x,y = match rhs_x, rhs_y with 
+          | (Some (_,x), _,_), (Some (_,y), _,_) -> (x,y)
+          | (None,_,_), (None, _,_) -> x',y'
+          | _,_ -> failwith "Should never happen"
+        in
+        let union = IntMap.union (fun _ _ _ -> Some ()) (IntMap.find_default IntMap.empty x t) (IntMap.find_default IntMap.empty y t) in
+        if IntMap.mem x union || IntMap.mem y union then raise EConj.Contradiction
+        else IntMap.add x union @@ IntMap.add y union t
+      end else
+        meet_less x' y' false @@ meet_less y' x' false t (*TODO skip repeat calculations?*)
+    | Le -> meet_less x' y' false t 
+    | Lt -> meet_less x' y' true t 
+
+  let meet_condition x y c r v t = 
+    if M.tracing then M.tracel "meet_condition" "meeting %s with x': %d y': %d cond %s" (show t) x y (show_cond c);  
+    let res = meet_condition x y c r v t in
+    if M.tracing then M.tracel "meet_condition" "result: %s " (show res);  
+    res
+
+end 

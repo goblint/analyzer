@@ -32,13 +32,7 @@ struct
   let is_top_con (e, is, ineq) = EConj.is_top_con e && IntMap.is_empty is && Ineq.is_empty ineq
 
   let modify_variables_in_domain_values map indexes op =
-    if Array.length indexes = 0 then map else
-      let rec bumpentry k v = function 
-        | (tbl,delta,head::rest) when k>=head -> bumpentry k v (tbl,delta+1,rest) (* rec call even when =, in order to correctly interpret double bumps *)
-        | (tbl,delta,lyst) (* k<head or lyst=[] *) -> (IntMap.add (op k delta) v tbl, delta, lyst)
-      in
-      let (a,_,_) = IntMap.fold bumpentry map (IntMap.empty,0,Array.to_list indexes) in (* Build new map during fold with bumped keys *)
-      a
+    let map_value _ = identity in EConj.modify_variables_in_domain_general map map_value indexes op
 
   let modify_variables_in_domain_values map indexes op =
     let res = modify_variables_in_domain_values map indexes op in if M.tracing then
@@ -49,6 +43,7 @@ struct
         (show_values (Printf.sprintf "var_%d") res);
     res
 
+  (*TODO we now potentially create the memo_bumpvar function three times (using it twice)-> inefficient?*)
   let dim_add (ch: Apron.Dim.change) (econj, i, ineq) =
     (EConj.dim_add ch econj, modify_variables_in_domain_values i ch.dim (+), Ineq.modify_variables_in_domain ineq ch.dim (+))
 
@@ -83,13 +78,14 @@ struct
           | Some i -> Value.div (Value.add (Value.of_bigint o) @@ Value.mul (Value.of_bigint coeff) i) (Value.of_bigint d)
 
 
+  (*Does not check the values directly, only the inequality domain, so we can use this to detect contradictions *)
   let is_less_than ((_,vs,ineq) as t) x y = 
-
     let get_information lhs =
       let rhs = get_rhs t lhs in
       match rhs with 
-      | (Some (_,var), _ ,_) -> (Either.Left rhs, get_value t var)
-      | (_,o,_) -> (Either.Right lhs, Value.of_bigint o) 
+      | (Some (_,var), _ ,_) -> (rhs, get_value t var)
+      (*We need to know which root a constant is referring to, so we use this the trivial equation to carry that information*)
+      | (_,o,_) -> (Rhs.var_zero lhs, Value.of_bigint o) 
     in
     Ineq.is_less_than (get_information x) (get_information y) ineq
 
@@ -391,6 +387,7 @@ struct
     res
 
   (*TODO Could be more precise with query*)
+  (*TODO We also only catch variables on the first level, but miss e.g. (x+7)+7 -> use more recursion similar to negate?*)
   let rec to_inequalities (t:t) texpr = 
     let open Apron.Texpr1 in
     let inequality_from_add var expr = 
@@ -491,6 +488,12 @@ struct
     | Unop (Cast, e, _, _) -> to_inequalities t e
     | Var x -> [(Ineq.Eq, x)]
     | _ -> []
+
+  let to_inequalities (t:t) texpr = 
+    let res = to_inequalities t texpr in
+    let show_ineq (cond, var) = Ineq.show_cond cond ^ " " ^ Var.show var ^ ", "
+    in if M.tracing then M.tracel "inequalities" "expr: %a ineq: %s" Texpr1.Expr.pretty texpr (List.fold (^) "" @@ List.map show_ineq res);
+    res 
 
 
   let assign_const t var const divi = match t.d with
@@ -709,10 +712,12 @@ struct
            let rhss = EConjI.get_rhs d in
            let vss = EConjI.get_value d in
            match expr with 
+           (*TODO we could use to_inequalities for more flexible handeling?*)
            | Binop (Sub, Var a, Var b, Int, _) -> 
              begin
                let dim_a = Environment.dim_of_var t.env a in
-               let dim_b = Environment.dim_of_var t.env a in
+               let dim_b = Environment.dim_of_var t.env b in
+               if M.tracing then M.tracel "meet_condition" "calling from refine inside %s" (EConjI.show d)   ;
                let ineq' = match Tcons1.get_typ tcons with 
                  | EQ -> Ineq.meet_condition dim_a dim_b Ineq.Eq rhss vss ineq
                  | SUP -> Ineq.meet_condition dim_b dim_a Ineq.Lt rhss vss ineq
@@ -722,7 +727,7 @@ struct
              end
            | _ -> d
       in try 
-        let expr = Texpr1.to_expr @@ Tcons1.get_texpr1 tcons in 
+        let expr = to_expr @@ Tcons1.get_texpr1 tcons in 
         let d' = refine_values d initial_value expr in
         let d'' = refine_inequalities d' expr in
         {d=Some d'';env=t.env}
@@ -808,7 +813,7 @@ struct
       (* normalize in case of a full blown equality *)
       | Some (coeffj,j) -> tuple_cmp (EConj.get_rhs ts i) @@ Rhs.subst (EConj.get_rhs ts j) j (var, offs, divi)
     in
-    (*TODO allow congruence implied by Rhs? or fix bug that some aren't always set*)
+    (*TODO allow congruence implied by Rhs? or fix bug that some aren't always set!!*)
     let implies_value v i value = Value.leq (EConjI.get_value v i) value
     in
     if env_comp = -2 || env_comp > 0 then false else
@@ -828,7 +833,7 @@ struct
     res
 
   (*The first parameter is the function used to join two values. Different uses for join / widen*)
-  (*TODO do wee need the same for the inequalities?*)
+  (*TODO do we need the same for the inequalities? not for simple inequalities, but for more complex ones*)
   let join' join_function a b  = 
     let join_econj ad bd env = (LinearTwoVarEqualityDomain.D.join {d = Some ad; env} {d = Some bd; env}).d
     in
@@ -914,7 +919,7 @@ struct
       This makes a copy of the data structure, it doesn't change it in-place. *)
   let assign_texpr (t: VarManagement.t) var texp =
     match t.d with
-    | Some ((econj, vs, ineq) as d) ->
+    | Some (econj, vs, ineq) ->
       let var_i = Environment.dim_of_var t.env var (* this is the variable we are assigning to *) in
       let t' = match simplify_to_ref_and_offset t texp with
         | None ->
@@ -934,12 +939,16 @@ struct
           bot_env
         | Some d' -> 
           (*TODO use query for more precision instead?!*)
-          let (econ, vs, ineq) = EConjI.set_value d' var_i (VarManagement.eval_texpr t texp) in
+          let (econ, vs, ineq) as d'' = EConjI.set_value d' var_i (VarManagement.eval_texpr t texp) in
+          if M.tracing then M.tracel "assign_texpr" "assigning %s = %s before inequality: %s" (Var.show var) (Texpr1.show (Texpr1.of_expr t.env texp)) (show {d = Some (econ, vs, ineq); env = t.env});
           let meet_cond ineq (cond, var) = 
             let dim = Environment.dim_of_var t.env var in
-            Ineq.meet_condition var_i dim cond (EConjI.get_rhs d) (EConjI.get_value d) ineq
+            if dim <> var_i then (*TODO If cond = Eq, we could restore the previous state before forgetting the variable*)
+              Ineq.meet_condition var_i dim cond (EConjI.get_rhs d'') (EConjI.get_value d'') ineq
+            else ineq
           in
           let ineq' = List.fold meet_cond ineq (VarManagement.to_inequalities t texp) in
+          if M.tracing then M.tracel "assign_texpr" "after inequality: %s" (show {d = Some (econ, vs, ineq'); env = t.env});
           {d = Some (econ, vs, ineq'); env = t'.env} 
       end
     | None -> bot_env
@@ -1116,7 +1125,7 @@ struct
 
   let relift t = t
 
-  (*TODO add value information to invariants?*)
+  (*TODO add inequalities (and value information?) to invariants*)
   (** representation as C expression
 
       This function returns all the equalities that are saved in our datastructure t.
