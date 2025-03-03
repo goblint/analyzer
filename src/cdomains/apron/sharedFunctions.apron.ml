@@ -111,7 +111,7 @@ struct
       let query e ik =
         let res =
           match ask.f (EvalInt e) with
-          | `Bot -> raise (Unsupported_CilExp (Ask_yields_bot  e))  (* TODO: This happens when called on a pointer type; we should establish the type bounds instead *)
+          | `Bot  (* This happens when called on a pointer type; -> we can safely return top based on the ikind *)    
           | `Top -> IntDomain.IntDomTuple.top_of ik
           | `Lifted x -> x (* Cast should be unnecessary because it should be taken care of by EvalInt. *) in
         if M.tracing then M.trace "relation-query" "texpr1_expr_of_cil_exp/query: %a -> %a" d_plainexp e IntDomain.IntDomTuple.pretty res;
