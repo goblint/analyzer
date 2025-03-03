@@ -13,16 +13,13 @@ module M = Messages
     assignment and return and duplicated variables for remembering the value of variables at the beginning of a function. *)
 module VarType = struct
   let equal_typ a b =
-    (* TODO: Structural equality on (possibly cyclic) data type typ may not terminate in incremental analysis. *)
-    (* Using Stdlib.(=) instead of Stdlib.compare will not terminate even in the non-incremental case. *)
-    Stdlib.compare a b = 0
+    CilType.Typ.equal a b
 
   let hash_typ x =
-    Hashtbl.hash x
+    CilType.Typ.hash x
 
   let compare_typ a b =
-    (* TODO: Structural compare on (possibly cyclic) data type typ may not terminate in incremental analysis. *)
-    Stdlib.compare a b
+    CilType.Typ.compare a b
 
   type t =
     | AssignAux of typ
