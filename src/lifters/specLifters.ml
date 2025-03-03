@@ -36,7 +36,7 @@ struct
 
   let name () = N.lift_name (S.name ())
 
-  type marshal = S.marshal (* TODO: should hashcons table be in here to avoid relift altogether? *)
+  type marshal = S.marshal
   let init = S.init
   let finalize = S.finalize
 
@@ -120,6 +120,8 @@ struct
   end
 
   include DomainLifter (NameLifter) (Lattice.HConsed (HConsedArg)) (S)
+
+  (* TODO: should marshal hashcons table to avoid relift altogether? *)
 end
 
 module type PrintableLifter =
@@ -145,7 +147,7 @@ struct
 
   let name () = N.lift_name (S.name ())
 
-  type marshal = S.marshal (* TODO: should hashcons table be in here to avoid relift altogether? *)
+  type marshal = S.marshal
   let init = S.init
   let finalize = S.finalize
 
@@ -214,6 +216,7 @@ end
 
 (** Lifts a [Spec] so that the context is [Hashcons]d. *)
 module HashconsContextLifter = ContextLifter (struct let lift_name s = s ^ " context hashconsed" end) (Printable.HConsed)
+(* TODO: should marshal hashcons table to avoid relift altogether? *)
 
 (** Lifts a [Spec] so that the context is [HashCached]. *)
 module HashCachedContextLifter = ContextLifter (struct let lift_name s = s ^ " context hashcached" end) (Printable.HashCached)
