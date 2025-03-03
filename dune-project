@@ -1,4 +1,4 @@
-(lang dune 3.7)
+(lang dune 3.13)
 (using dune_site 0.1)
 (cram enable)
 (name goblint)

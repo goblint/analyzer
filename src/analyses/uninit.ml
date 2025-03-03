@@ -202,7 +202,7 @@ struct
               | _ -> false)
           |> Queries.AD.join a
         (* Ignore soundness warnings, as invalidation proper will raise them. *)
-        | _ -> AD.empty ()
+        | _ -> a
       in
       List.fold_right do_exp args (AD.empty ())
     in

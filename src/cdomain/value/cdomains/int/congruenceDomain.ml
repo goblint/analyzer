@@ -336,8 +336,32 @@ struct
         pretty res ;
     res
 
-  let sub ?(no_ov=false) ik x y = add ~no_ov ik x (neg ~no_ov ik y)
-
+  let sub ?(no_ov=false) ik x y =
+    let no_ov_case (c1, m1) (c2, m2) =
+      c1 -: c2, Z.gcd m1 m2
+    in
+    match (x, y) with
+    | None, None -> bot ()
+    | None, _
+    | _, None ->
+      raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y)))
+    | Some a, Some b when no_ov ->
+      normalize ik (Some (no_ov_case a b))
+    | Some (c1, m1), Some (c2, m2) when m1 =: Z.zero && m2 =: Z.zero ->
+      let min_ik, max_ik = range ik in
+      let m_ikind = max_ik +: Z.one in
+      if Cil.isSigned ik then
+        let c = c1 -: c2 in
+        if c >=: min_ik && c <= max_ik then
+          Some (c, Z.zero)
+        else
+          top_of ik
+      else
+        let c = (c1 -: c2 +: m_ikind) %: m_ikind  in
+        Some (c, Z.zero)
+    | Some a, Some b when not (Cil.isSigned ik) ->
+      handle_overflow ik (no_ov_case a b)
+    | _ -> top ()
 
   let sub ?no_ov ik x y =
     let res = sub ?no_ov ik x y in

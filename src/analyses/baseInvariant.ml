@@ -85,6 +85,17 @@ struct
 
   let refine_lv man st c x c' pretty exp =
     let set' lval v st = set st (eval_lv ~man st lval) (Cilfacade.typeOfLval lval) ~lval_raw:lval v ~man in
+    let default () =
+      (* For accesses via pointers in complicated case, no refinement yet *)
+      let old_val = eval_rv_lval_refine ~man st exp x in
+      let old_val = map_oldval old_val (Cilfacade.typeOfLval x) in
+      let v = apply_invariant ~old_val ~new_val:c' in
+      if is_some_bot v then contra st
+      else (
+        if M.tracing then M.tracel "inv" "improve lval %a from %a to %a (c = %a, c' = %a)" d_lval x VD.pretty old_val VD.pretty v pretty c VD.pretty c';
+        set' x v st
+      )
+    in
     match x with
     | Var var, o when refine_entire_var ->
       (* For variables, this is done at to the level of entire variables to benefit e.g. from disjunctive struct domains *)
@@ -100,17 +111,40 @@ struct
         if M.tracing then M.tracel "inv" "st from %a to %a" D.pretty st D.pretty r;
         r
       )
+    | Mem (Lval lv), off ->
+      (* Underlying lvals (may have offsets themselves), e.g., for struct members NOT including any offset appended to outer Mem *)
+      let lvals = eval_lv ~man st (Mem (Lval lv), NoOffset) in
+      (* Additional offset of value being refined in Addr Offset type *)
+      let original_offset = convert_offset ~man st off in
+      let res = AD.fold (fun base_a acc ->
+          Option.bind acc (fun acc ->
+              match base_a with
+              | Addr _ ->
+                let (lval_a:VD.t) = Address (AD.singleton base_a) in
+                if M.tracing then M.tracel "inv" "Consider case of lval %a = %a" d_lval lv VD.pretty lval_a;
+                let st = set' lv lval_a st in
+                let orig = AD.Addr.add_offset base_a original_offset in
+                let old_val = get ~man st (AD.singleton orig) None in
+                let old_val = VD.cast (Cilfacade.typeOfLval x) old_val in (* needed as the type of this pointer may be different *)
+                (* this what I would originally have liked to do, but eval_rv_lval_refine uses queries and thus stale values *)
+                (* let old_val = eval_rv_lval_refine ~man st exp x in *)
+                let old_val = map_oldval old_val (Cilfacade.typeOfLval x) in
+                let v = apply_invariant ~old_val ~new_val:c' in
+                if is_some_bot v then
+                  Some (D.join acc (try contra st with Analyses.Deadcode -> D.bot ()))
+                else (
+                  if M.tracing then M.tracel "inv" "improve lval %a from %a to %a (c = %a, c' = %a)" d_lval x VD.pretty old_val VD.pretty v pretty c VD.pretty c';
+                  Some (D.join acc (set' x v st))
+                )
+              | _ -> None
+            )
+        ) lvals (Some (D.bot ()))
+      in
+      BatOption.map_default_delayed (fun d -> if D.is_bot d then raise Analyses.Deadcode else d) default res
     | Var _, _
     | Mem _, _ ->
-      (* For accesses via pointers, not yet *)
-      let old_val = eval_rv_lval_refine ~man st exp x in
-      let old_val = map_oldval old_val (Cilfacade.typeOfLval x) in
-      let v = apply_invariant ~old_val ~new_val:c' in
-      if is_some_bot v then contra st
-      else (
-        if M.tracing then M.tracel "inv" "improve lval %a from %a to %a (c = %a, c' = %a)" d_lval x VD.pretty old_val VD.pretty v pretty c VD.pretty c';
-        set' x v st
-      )
+      default ()
+
 
   let invariant_fallback man st exp tv =
     (* We use a recursive helper function so that x != 0 is false can be handled
