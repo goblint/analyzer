@@ -1469,7 +1469,7 @@ module MayBeEqual = struct
         let comp = Disequalities.comp_t cc.uf term in
         let valid_term (t, z) =
           let typ = T.type_of_term t in
-          T.is_ptr_type typ
+          GoblintCil.isPointerType typ
         in
         List.filter valid_term comp
       else

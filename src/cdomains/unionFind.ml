@@ -206,11 +206,6 @@ module T = struct
     | _ ->
       false
 
-  let is_ptr_type t =
-    match Cil.unrollType t with
-    | TPtr _ -> true
-    | _ -> false
-
   let aux_term_of_varinfo vinfo =
     let var = Var (Var.to_varinfo vinfo) in
     let lval = Lval (var, NoOffset) in
