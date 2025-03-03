@@ -93,5 +93,9 @@ let collectFactors visitAction visitedObject =
 
 let is_large_array t =
   match Cil.unrollType t with
-  | TArray (_,Some (Const (CInt (i,_,_))),_) -> i > Z.of_int @@ 10 * get_int "ana.base.arrays.unrolling-factor" (* TODO: Cil.lenOfArray but with Z.t? *)
+  | TArray (_, e, _) ->
+    begin match Cil.lenOfArray e with (* TODO: Cil.lenOfArray but with Z.t? *)
+      | i -> i > 10 * get_int "ana.base.arrays.unrolling-factor"
+      | exception Cil.LenOfArray -> false
+    end
   | _ -> false
