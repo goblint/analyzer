@@ -11,7 +11,7 @@ int main()
   if (rand())
   {
     // Loop inside the if part
-    for (int i = 1; i <= 5; i++)
+    for (unsigned int i = 1; i <= 5; i++)
     {
       printf("Loop inside if part: %d\n", i);
     }
@@ -19,7 +19,7 @@ int main()
   else
   {
     // Loop inside the else part
-    int j = 1;
+    unsigned int j = 1;
     while (j <= 5)
     {
       printf("Loop inside else part: %d\n", j);
