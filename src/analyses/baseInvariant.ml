@@ -241,7 +241,7 @@ struct
       | BinOp(op, rval, Lval x, typ) -> derived_invariant (BinOp(switchedOp op, Lval x, rval, typ)) tv
       | BinOp(op, CastE (t1, c1), CastE (t2, c2), t) when (op = Eq || op = Ne) && typeSig t1 = typeSig t2 && VD.is_statically_safe_cast t1 (Cilfacade.typeOf c1) && VD.is_statically_safe_cast t2 (Cilfacade.typeOf c2)
         -> derived_invariant (BinOp (op, c1, c2, t)) tv
-      | BinOp(op, CastE (TInt (ik, _) as t1, Lval x), rval, typ) ->
+      | BinOp(op, CastE (t1, Lval x), rval, typ) when Cil.isIntegralType t1 ->
         begin match eval_rv ~man st (Lval x) with
           | Int v ->
             if VD.is_dynamically_safe_cast t1 (Cilfacade.typeOfLval x) (Int v) then
@@ -250,7 +250,7 @@ struct
               `NotUnderstood
           | _ -> `NotUnderstood
         end
-      | BinOp(op, rval, CastE (TInt (_, _) as ti, Lval x), typ) ->
+      | BinOp(op, rval, CastE (ti, Lval x), typ) when Cil.isIntegralType ti ->
         derived_invariant (BinOp (switchedOp op, CastE(ti, Lval x), rval, typ)) tv
       | BinOp(op, (Const _ | AddrOf _), rval, typ) ->
         (* This is last such that we never reach here with rval being Lval (it is swapped around). *)
@@ -615,8 +615,8 @@ struct
       else
         match exp, c_typed with
         | UnOp (LNot, e, _), Int c ->
-          (match Cilfacade.typeOf e with
-           | TInt  _ | TPtr _ ->
+          (match Cil.unrollType (Cilfacade.typeOf e) with
+           | TInt  _ | TEnum _ | TPtr _ ->
              let ikind = Cilfacade.get_ikind_exp e in
              let c' =
                match ID.to_bool (unop_ID LNot c) with

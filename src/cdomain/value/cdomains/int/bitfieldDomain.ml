@@ -267,7 +267,7 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): Bitfield_SOverflow with type in
     let (min_ik, max_ik) = Size.range ik in
     let (underflow, overflow) = match torg with
       | None -> (false, false) (* ik does not change *)
-      | Some (GoblintCil.Cil.TInt (old_ik, _)) ->
+      | Some (GoblintCil.Cil.TInt (old_ik, _) | TEnum ({ekind = old_ik; _}, _)) ->
         let underflow = Z.compare (BArith.min old_ik (z,o)) min_ik < 0 in
         let overflow = Z.compare max_ik (BArith.max old_ik (z,o)) < 0 in
         (underflow, overflow)
