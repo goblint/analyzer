@@ -12,12 +12,12 @@ end
 
 module type LatticeLifter =
   functor (L: Lattice.S) ->
-    sig
-      include Lattice.S
+  sig
+    include Lattice.S
 
-      val lift: L.t -> t
-      val unlift: t -> L.t
-    end
+    val lift: L.t -> t
+    val unlift: t -> L.t
+  end
 
 module DomainLifter (N: NameLifter) (F: LatticeLifter) (S:Spec)
   : Spec with module G = S.G
@@ -126,12 +126,12 @@ end
 
 module type PrintableLifter =
   functor (P: Printable.S) ->
-    sig
-      include Printable.S
+  sig
+    include Printable.S
 
-      val lift: P.t -> t
-      val unlift: t -> P.t
-    end
+    val lift: P.t -> t
+    val unlift: t -> P.t
+  end
 
 module ContextLifter (N: NameLifter) (F: PrintableLifter) (S:Spec)
   : Spec with module D = S.D
