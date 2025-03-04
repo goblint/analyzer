@@ -25,7 +25,7 @@
      (run %{update_suite} apron-unassume-set-tokens -q)))))
 
 (cram
- (deps (glob_files *.c) (glob_files ??-*.yml)))
+ (deps (glob_files *.c) (glob_files ??-*.yml) (glob_files compare-ghost-alloc.sh)))
 
 (cram
  (applies_to 54-witness-lifter-abortUnless)
