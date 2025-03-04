@@ -53,10 +53,34 @@ module type SV =  RelationDomain.RV with type t = Var.t
 type unsupported_cilExp =
   | Var_not_found of CilType.Varinfo.t (** Variable not found in Apron environment. *)
   | Cast_not_injective of CilType.Typ.t (** Cast is not injective, i.e. may under-/overflow. *)
-  | Exp_not_supported of exp[@printer fun ppf e -> Format.pp_print_string ppf ("Exp_not_supported: "^(CilType.Exp.show e))]  (** Expression constructor not supported. *)
+  | Exp_not_supported of exp[@printer fun ppf e ->
+        let expvar = match e with
+          | Lval (Var _, Field _) -> "LVal Var.FieldAccessor"
+          | Lval (Var _, Index _) -> "LVal Var.Index"
+          | Lval (Mem _, Field _) -> "LVal Mem.FieldAccessor"
+          | Lval (Mem _, Index _) -> "LVal Mem.Index"
+          | Lval (Mem _, NoOffset) -> "LVal Mem"
+          | Lval (Var v, NoOffset) ->"LVal Var(untracked): "^(CilType.Varinfo.show v)
+          | Const _ -> "Const"
+          | SizeOf _ | SizeOfE _ | SizeOfStr _ -> "SizeOfXxx"
+          | AlignOf _ | AlignOfE _ -> "AlignOfXxx"
+          | UnOp (op,_,_) -> "UnOp"^(match op with | Neg -> "Neg" | BNot -> "BNot" | LNot -> "LNot")
+          | BinOp _ -> "BinOp"
+          | CastE _ -> "CastE"
+          | Question _ -> "Question"
+          | AddrOf _ | AddrOfLabel _ -> "AddrOfxxx"
+          | StartOf _ -> "StartOf"
+          | _ -> "Other" in
+        Format.pp_print_string ppf ("Exp_not_supported:"^expvar)]  (** Expression constructor not supported. *)
   | Overflow (** May overflow according to Apron bounds. *)
   | Exp_typeOf of exn [@printer fun ppf e -> Format.pp_print_string ppf (Printexc.to_string e)] (** Expression type could not be determined. *)
-  | BinOp_not_supported (** BinOp constructor not supported. *)
+  | BinOp_not_supported of binop [@printer fun ppf op -> Format.pp_print_string ppf (match op with
+        | BAnd | BOr | BXor -> "Bitwise binop"
+        | Shiftlt | Shiftrt -> "Shift binop"
+        | PlusPI | MinusPI | IndexPI | MinusPP -> "Pointer binop"
+        | LAnd | LOr -> "Logical binop"
+        | Lt | Gt | Le | Ge | Eq | Ne -> "Comparison binop"
+        | _ -> "other binop")](** BinOp constructor not supported. *)
   | Invalid_argument of string (** Invalid argument. *)
   | Ask_yields_bot of exp[@printer fun ppf e -> Format.pp_print_string ppf ("Ask_yields_bot on "^(CilType.Exp.show e))] (** Expression on bot context. *)
 [@@deriving show { with_path = false }]
@@ -111,7 +135,7 @@ struct
       let query e ik =
         let res =
           match ask.f (EvalInt e) with
-          | `Bot  (* This happens when called on a pointer type; -> we can safely return top based on the ikind *)    
+          | `Bot  (* This happens when called on a pointer type; -> we can safely return top *)
           | `Top -> IntDomain.IntDomTuple.top_of ik
           | `Lifted x -> x (* Cast should be unnecessary because it should be taken care of by EvalInt. *) in
         if M.tracing then M.trace "relation-query" "texpr1_expr_of_cil_exp/query: %a -> %a" d_plainexp e IntDomain.IntDomTuple.pretty res;
@@ -190,8 +214,8 @@ struct
                     | exception Invalid_argument _ ->
                       raise (Unsupported_CilExp (Cast_not_injective t))
                 end
-              | BinOp _ ->
-                raise (Unsupported_CilExp (BinOp_not_supported))
+              | BinOp (op, _,_,_) ->
+                raise (Unsupported_CilExp (BinOp_not_supported op))
               | e ->
                 raise (Unsupported_CilExp (Exp_not_supported e))
             in
@@ -235,7 +259,7 @@ struct
           | Ge -> (texpr1_1, texpr1_2, SUPEQ) (* e1 >= e2  ==>  e1 - e2 >= 0 *)
           | Eq -> (texpr1_1, texpr1_2, EQ)    (* e1 == e2  ==>  e1 - e2 == 0 *)
           | Ne -> (texpr1_1, texpr1_2, DISEQ) (* e1 != e2  ==>  e1 - e2 != 0 *)
-          | _ -> raise (Unsupported_CilExp BinOp_not_supported)
+          | _ -> raise (Unsupported_CilExp (BinOp_not_supported r))
         end
       | _ -> raise (Unsupported_CilExp (Exp_not_supported e))
     in
