@@ -2032,10 +2032,7 @@ struct
       | None -> nst
       | Some exp ->
         let t_override = Cilfacade.fundec_return_type fundec in
-        if Cil.isVoidType t_override then (
-          M.warn ~category:M.Category.Program "Returning a value from a void function";
-          assert false
-        );
+        assert (not (Cil.isVoidType t_override)); (* Returning a value from a void function, CIL removes the Return expression for us anyway. *)
         let rv = eval_rv ~man man.local exp in
         let st' = set ~man ~t_override nst (return_var ()) t_override rv in
         match ThreadId.get_current ask with
