@@ -18,7 +18,7 @@
                                                                    Local {
                                                                      r ->   ⊤
                                                                    }
-                                                                 }, {}, {}, {}),
+                                                                 }, {}, {}, (P:{}, W:{})),
                                                            threadid:(wrapper call:unknown node, Thread:[main], created:(current function:bot, callees:bot)),
                                                            threadflag:Singlethreaded,
                                                            threadreturn:true,
@@ -41,7 +41,7 @@
                                                                      r ->
                                                                        (Not {0}([-31,31]))
                                                                    }
-                                                                 }, {}, {}, {}),
+                                                                 }, {}, {}, (P:{}, W:{})),
                                                            threadid:(wrapper call:unknown node, Thread:[main], created:(current function:bot, callees:bot)),
                                                            threadflag:Singlethreaded,
                                                            threadreturn:true,
@@ -63,7 +63,7 @@
                                                                    Local {
                                                                      r ->   0
                                                                    }
-                                                                 }, {}, {}, {}),
+                                                                 }, {}, {}, (P:{}, W:{})),
                                                            threadid:(wrapper call:unknown node, Thread:[main], created:(current function:bot, callees:bot)),
                                                            threadflag:Singlethreaded,
                                                            threadreturn:true,
@@ -85,7 +85,7 @@
                                                                    Local {
                                                                      r ->   0
                                                                    }
-                                                                 }, {}, {}, {}),
+                                                                 }, {}, {}, (P:{}, W:{})),
                                                            threadid:(wrapper call:unknown node, Thread:[main], created:(current function:bot, callees:bot)),
                                                            threadflag:Singlethreaded,
                                                            threadreturn:true,
@@ -107,7 +107,7 @@
                                                                    Local {
                                                                      r ->   0
                                                                    }
-                                                                 }, {}, {}, {}),
+                                                                 }, {}, {}, (P:{}, W:{})),
                                                            threadid:(wrapper call:unknown node, Thread:[main], created:(current function:bot, callees:bot)),
                                                            threadflag:Singlethreaded,
                                                            threadreturn:true,
@@ -129,7 +129,7 @@
                                                                    Local {
                                                                      r ->   0
                                                                    }
-                                                                 }, {}, {}, {}),
+                                                                 }, {}, {}, (P:{}, W:{})),
                                                            threadid:(wrapper call:unknown node, Thread:[main], created:(current function:bot, callees:bot)),
                                                            threadflag:Singlethreaded,
                                                            threadreturn:true,
@@ -150,7 +150,7 @@
                                                                    Local {
                                                                      r ->   0
                                                                    }
-                                                                 }, {}, {}, {}),
+                                                                 }, {}, {}, (P:{}, W:{})),
                                                            threadid:(wrapper call:unknown node, Thread:[main], created:(current function:bot, callees:bot)),
                                                            threadflag:Singlethreaded,
                                                            threadreturn:true,
@@ -169,7 +169,7 @@
                                                                    Global {
                                                                      m ->   mutex
                                                                    }
-                                                                 }, {}, {}, {}),
+                                                                 }, {}, {}, (P:{}, W:{})),
                                                            threadid:(wrapper call:unknown node, Thread:[main], created:(current function:bot, callees:bot)),
                                                            threadflag:Singlethreaded,
                                                            threadreturn:true,
@@ -191,7 +191,7 @@
                                                                    Temp {
                                                                      RETURN ->   0
                                                                    }
-                                                                 }, {}, {}, {}),
+                                                                 }, {}, {}, (P:{}, W:{})),
                                                            threadid:(wrapper call:unknown node, Thread:[main], created:(current function:bot, callees:bot)),
                                                            threadflag:Singlethreaded,
                                                            threadreturn:true,
@@ -212,7 +212,7 @@
                                                                    Temp {
                                                                      RETURN ->   0
                                                                    }
-                                                                 }, {}, {}, {}),
+                                                                 }, {}, {}, (P:{}, W:{})),
                                                            threadid:(wrapper call:unknown node, Thread:[main], created:(current function:bot, callees:bot)),
                                                            threadflag:Singlethreaded,
                                                            threadreturn:true,
