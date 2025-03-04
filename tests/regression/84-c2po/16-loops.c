@@ -3,7 +3,7 @@
 #include <goblint.h>
 #include <stdlib.h>
 
-void main(void) {
+int main(void) {
   long y;
   long i;
   long *x = malloc(sizeof(long) * 300);
@@ -15,7 +15,7 @@ void main(void) {
   y = *x;
   z = -1 + x;
 
-  while (top) {
+  while (top > 0) {
     z = (long *)malloc(sizeof(long));
     x++;
     z = -1 + x;
@@ -25,4 +25,6 @@ void main(void) {
 
   __goblint_check(z == -1 + x);
   __goblint_check(y == *x2); // UNKNOWN!
+
+  return 0;
 }
