@@ -171,11 +171,12 @@ struct
               | BinOp (Mod, e1, e2, _) -> bop_near Mod e1 e2
               | BinOp (Div, e1, e2, _) ->
                 Binop (Div, texpr1 e1, texpr1 e2, Int, Zero)
-              | CastE (TInt (t_ik, _) as t, e) ->
+              | CastE (t, e) when Cil.isIntegralType t ->
                 begin match  IntDomain.Size.is_cast_injective ~from_type:(Cilfacade.typeOf e) ~to_type:t with (* TODO: unnecessary cast check due to overflow check below? or maybe useful in general to also assume type bounds based on argument types? *)
                   | exception Invalid_argument a -> raise (Unsupported_CilExp (Ikind_non_integer a))
                   | true -> texpr1 e
                   | false -> (* Cast is not injective - we now try to establish suitable ranges manually  *)
+                    let t_ik = Cilfacade.get_ikind t in
                     (* retrieving a valuerange for a non-injective cast works by a query to the value-domain with subsequent value extraction from domtuple - which should be speculative, since it is not program code *)
                     let const,res = GobRef.wrap AnalysisState.executing_speculative_computations true @@ fun () ->
                       (* try to evaluate e by EvalInt Query *)

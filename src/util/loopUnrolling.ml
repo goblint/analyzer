@@ -261,7 +261,7 @@ let findLoopVarAndGoal loopStatement func (op, exp1, exp2) =
   | _ -> None
 
 let getLoopVar loopStatement func = function
-  | BinOp (op, exp1, exp2, TInt _) when isCompare op -> findLoopVarAndGoal loopStatement func (op, exp1, exp2)
+  | BinOp (op, exp1, exp2, _) when isCompare op -> findLoopVarAndGoal loopStatement func (op, exp1, exp2)
   | _ -> None
 
 let getsPointedAt var func =

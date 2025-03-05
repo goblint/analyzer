@@ -143,7 +143,7 @@ struct
     match BitfieldDomain.Bitfield.to_int (z,o) with
     | Some x -> normalize ik (Some (x, Z.zero))
     | _ ->
-      (* get posiiton of first top bit *)
+      (* get position of first top bit *)
       let tl_zeros = Z.trailing_zeros (Z.logand z o) in
       let ik_bits = Size.bit ik in
       let m = if tl_zeros > ik_bits then Z.one else Z.pow Z.one tl_zeros in
@@ -182,8 +182,8 @@ struct
         let (min_ikorg, max_ikorg) = range ikorg in
         ikorg = t || (max_t >=: max_ikorg && min_t <=: min_ikorg)
       in
-      match torg with
-      | Some (Cil.TInt (ikorg, _)) when p ikorg ->
+      match Option.map Cil.unrollType torg with
+      | Some (Cil.TInt (ikorg, _) | TEnum ({ekind = ikorg; _}, _)) when p ikorg ->
         if M.tracing then M.trace "cong-cast" "some case";
         x
       | _ -> top ()

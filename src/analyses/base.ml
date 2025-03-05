@@ -928,7 +928,7 @@ struct
     (* | Lval (Mem e, ofs) -> get ~man st (eval_lv ~man (Mem e, ofs)) *)
     | (Mem e, ofs) ->
       (*if M.tracing then M.tracel "cast" "Deref: lval: %a" d_plainlval lv;*)
-      let rec contains_vla (t:typ) = match t with
+      let rec contains_vla (t:typ) = match Cil.unrollType t with
         | TPtr (t, _) -> contains_vla t
         | TArray(t, None, args) -> true
         | TArray(t, Some exp, args) when isConstant exp -> contains_vla t
@@ -1452,7 +1452,8 @@ struct
         match eval_rv_address ~man man.local e with
         | Address a ->
           let slen = Seq.map String.length (List.to_seq (AD.to_string a)) in
-          let lenOf = function
+          let lenOf t =
+            match Cil.unrollType t with
             | TArray (_, l, _) -> (try Some (lenOfArray l) with LenOfArray -> None)
             | _ -> None
           in
@@ -1563,7 +1564,7 @@ struct
               let lval = Addr.Mval.to_cil mval in
               (try `Lifted (Bytes.to_string (Hashtbl.find char_array lval))
                with Not_found -> Queries.Result.top q)
-            | _ -> (* what about ISChar and IUChar? *)
+            | _ -> (* TODO: what about ISChar and IUChar? what about TEnum? *)
               (* ignore @@ printf "Type %a\n" d_plaintype t; *)
               Queries.Result.top q
           end
@@ -2030,10 +2031,8 @@ struct
       match exp with
       | None -> nst
       | Some exp ->
-        let t_override = match Cilfacade.fundec_return_type fundec with
-          | TVoid _ -> M.warn ~category:M.Category.Program "Returning a value from a void function"; assert false
-          | ret -> ret
-        in
+        let t_override = Cilfacade.fundec_return_type fundec in
+        assert (not (Cil.isVoidType t_override)); (* Returning a value from a void function, CIL removes the Return expression for us anyway. *)
         let rv = eval_rv ~man man.local exp in
         let st' = set ~man ~t_override nst (return_var ()) t_override rv in
         match ThreadId.get_current ask with
@@ -2284,7 +2283,7 @@ struct
         ) a
     | _ -> false
 
-  let get_size_of_ptr_target man ptr =
+  let get_size_of_ptr_target man ptr = (* TODO: deduplicate with memOutOfBounds *)
     let intdom_of_int x =
       ID.of_int (Cilfacade.ptrdiff_ikind ()) (Z.of_int x)
     in
@@ -2301,7 +2300,7 @@ struct
         let pts_elems_to_sizes (addr: Queries.AD.elt) =
           begin match addr with
             | Addr (v, _) ->
-              begin match v.vtype with
+              begin match Cil.unrollType v.vtype with
                 | TArray (item_typ, _, _) ->
                   let item_typ_size_in_bytes = size_of_type_in_bytes item_typ in
                   begin match man.ask (Queries.EvalLength ptr) with
