@@ -63,7 +63,7 @@ type unsupported_cilExp =
         | LAnd | LOr -> "Logical binop"
         | Lt | Gt | Le | Ge | Eq | Ne -> "Comparison binop"
         | _ -> "other binop")](** BinOp constructor not supported. *)
-  | Invalid_argument of string (** Invalid argument. *)
+  | Ikind_non_integer of string (** Exception during trying to get ikind of a non-integer typed expression *)
 [@@deriving show { with_path = false }]
 
 (** Interface for Bounds which calculates bounds for expressions and is used inside the - Convert module. *)
@@ -98,7 +98,7 @@ struct
       established by other analyses.*)
   let overflow_handling no_ov ik env expr d exp =
     match Cilfacade.get_ikind_exp exp with
-    | exception Invalid_argument a ->  raise (Unsupported_CilExp (Invalid_argument a))       (* expression is not an integer expression, i.e. float *)
+    | exception Invalid_argument a ->  raise (Unsupported_CilExp (Ikind_non_integer a))       (* expression is not an integer expression, i.e. float *)
     | ik ->
       if IntDomain.should_wrap ik || not (Lazy.force no_ov) then (
         let (type_min, type_max) = IntDomain.Size.range ik in
@@ -155,7 +155,7 @@ struct
               *)
               let simplify e =
                 GobRef.wrap AnalysisState.executing_speculative_computations true @@ fun () ->
-                let ikind = try (Cilfacade.get_ikind_exp e) with Invalid_argument a -> raise (Unsupported_CilExp (Invalid_argument a))   in
+                let ikind = try (Cilfacade.get_ikind_exp e) with Invalid_argument a -> raise (Unsupported_CilExp (Ikind_non_integer a))   in
                 let simp = query e ikind in
                 let const = IntDomain.IntDomTuple.to_int @@ IntDomain.IntDomTuple.cast_to ikind simp in
                 if M.tracing then M.trace "relation" "texpr1_expr_of_cil_exp/simplify: %a -> %a" d_plainexp e IntDomain.IntDomTuple.pretty simp;
@@ -173,13 +173,13 @@ struct
                 Binop (Div, texpr1 e1, texpr1 e2, Int, Zero)
               | CastE (TInt (t_ik, _) as t, e) ->
                 begin match  IntDomain.Size.is_cast_injective ~from_type:(Cilfacade.typeOf e) ~to_type:t with (* TODO: unnecessary cast check due to overflow check below? or maybe useful in general to also assume type bounds based on argument types? *)
-                  | exception Invalid_argument a -> raise (Unsupported_CilExp (Invalid_argument a))
+                  | exception Invalid_argument a -> raise (Unsupported_CilExp (Ikind_non_integer a))
                   | true -> texpr1 e
                   | false -> (* Cast is not injective - we now try to establish suitable ranges manually  *)
                     (* retrieving a valuerange for a non-injective cast works by a query to the value-domain with subsequent value extraction from domtuple - which should be speculative, since it is not program code *)
                     let const,res = GobRef.wrap AnalysisState.executing_speculative_computations true @@ fun () ->
                       (* try to evaluate e by EvalInt Query *)
-                      let res = try (query e @@ Cilfacade.get_ikind_exp e) with Invalid_argument a -> raise (Unsupported_CilExp (Invalid_argument a))  in
+                      let res = try (query e @@ Cilfacade.get_ikind_exp e) with Invalid_argument a -> raise (Unsupported_CilExp (Ikind_non_integer a))  in
                       (* convert response to a constant *)
                       IntDomain.IntDomTuple.to_int @@ IntDomain.IntDomTuple.cast_to t_ik res, res in
                     match const with
@@ -205,7 +205,7 @@ struct
           | exception (Cilfacade.TypeOfError _ as e) ->
             raise (Unsupported_CilExp (Exp_typeOf e))
           | exception (Invalid_argument a) ->
-            raise (Unsupported_CilExp (Invalid_argument a))
+            raise (Unsupported_CilExp (Ikind_non_integer a))
       in
       texpr1_expr_of_cil_exp exp
     in
