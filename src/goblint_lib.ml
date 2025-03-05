@@ -82,6 +82,7 @@ module LinearTwoVarEqualityAnalysis = LinearTwoVarEqualityAnalysis
 module VarEq = VarEq
 module CondVars = CondVars
 module TmpSpecial = TmpSpecial
+module C2poAnalysis = C2poAnalysis
 
 (** {2 Heap}
 
@@ -171,6 +172,8 @@ module UnassumeAnalysis = UnassumeAnalysis
 module ExpRelation = ExpRelation
 module AbortUnless = AbortUnless
 module PtranalAnalysis = PtranalAnalysis
+module StartStateAnalysis = StartStateAnalysis
+module SingleThreadedLifter = SingleThreadedLifter
 
 
 (** {1 Analysis lifters}
@@ -262,6 +265,13 @@ module ApronDomain = ApronDomain
 module AffineEqualityDomain = AffineEqualityDomain
 module AffineEqualityDenseDomain = AffineEqualityDenseDomain
 module LinearTwoVarEqualityDomain = LinearTwoVarEqualityDomain
+
+(** {5 2-Pointer Logic}
+
+    Domains for {!C2poAnalysis}. *)
+module CongruenceClosure = CongruenceClosure
+module UnionFind = UnionFind
+module C2poDomain = C2poDomain
 
 (** {3 Concurrency} *)
 
@@ -411,6 +421,7 @@ module CilType = CilType
 module Cilfacade = Cilfacade
 module CilLocation = CilLocation
 module RichVarinfo = RichVarinfo
+module DuplicateVars = DuplicateVars
 
 module CilCfg = CilCfg
 module LoopUnrolling = LoopUnrolling
