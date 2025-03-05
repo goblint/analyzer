@@ -53,25 +53,7 @@ module type SV =  RelationDomain.RV with type t = Var.t
 type unsupported_cilExp =
   | Var_not_found of CilType.Varinfo.t (** Variable not found in Apron environment. *)
   | Cast_not_injective of CilType.Typ.t (** Cast is not injective, i.e. may under-/overflow. *)
-  | Exp_not_supported of exp[@printer fun ppf e ->
-        let expvar = match e with
-          | Lval (Var _, Field _) -> "LVal Var.FieldAccessor"
-          | Lval (Var _, Index _) -> "LVal Var.Index"
-          | Lval (Mem _, Field _) -> "LVal Mem.FieldAccessor"
-          | Lval (Mem _, Index _) -> "LVal Mem.Index"
-          | Lval (Mem _, NoOffset) -> "LVal Mem"
-          | Lval (Var v, NoOffset) ->"LVal Var(untracked): "^(CilType.Varinfo.show v)
-          | Const _ -> "Const"
-          | SizeOf _ | SizeOfE _ | SizeOfStr _ -> "SizeOfXxx"
-          | AlignOf _ | AlignOfE _ -> "AlignOfXxx"
-          | UnOp (op,_,_) -> "UnOp"^(match op with | Neg -> "Neg" | BNot -> "BNot" | LNot -> "LNot")
-          | BinOp _ -> "BinOp"
-          | CastE _ -> "CastE"
-          | Question _ -> "Question"
-          | AddrOf _ | AddrOfLabel _ -> "AddrOfxxx"
-          | StartOf _ -> "StartOf"
-          | _ -> "Other" in
-        Format.pp_print_string ppf ("Exp_not_supported:"^expvar)]  (** Expression constructor not supported. *)
+  | Exp_not_supported of exp[@printer fun ppf e -> Format.pp_print_string ppf (GobPretty.show (Cil.d_plainexp () e))]
   | Overflow (** May overflow according to Apron bounds. *)
   | Exp_typeOf of exn [@printer fun ppf e -> Format.pp_print_string ppf (Printexc.to_string e)] (** Expression type could not be determined. *)
   | BinOp_not_supported of binop [@printer fun ppf op -> Format.pp_print_string ppf (match op with
@@ -82,7 +64,6 @@ type unsupported_cilExp =
         | Lt | Gt | Le | Ge | Eq | Ne -> "Comparison binop"
         | _ -> "other binop")](** BinOp constructor not supported. *)
   | Invalid_argument of string (** Invalid argument. *)
-  | Ask_yields_bot of exp[@printer fun ppf e -> Format.pp_print_string ppf ("Ask_yields_bot on "^(CilType.Exp.show e))] (** Expression on bot context. *)
 [@@deriving show { with_path = false }]
 
 (** Interface for Bounds which calculates bounds for expressions and is used inside the - Convert module. *)
