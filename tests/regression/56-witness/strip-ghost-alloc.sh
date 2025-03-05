@@ -24,4 +24,4 @@ if [ -z "$var1" ] || [ -z "$var2" ]; then
 fi
 
 # Rename variables and print the modified file to stdout
-sed -e "s/\b$var1\b/ALLOC_VAR1_LOCKED/g" -e "s/\b$var2\b/ALLOC_VAR2_LOCKED/g" "$file"
+sed -e "s/$var1/ALLOC_VAR1_LOCKED/g" -e "s/$var2/ALLOC_VAR2_LOCKED/g" "$file"
