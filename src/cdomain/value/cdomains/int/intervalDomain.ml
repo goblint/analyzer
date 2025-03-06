@@ -1,30 +1,30 @@
 open IntDomain0
 
+(**TODO Better Naming!*)
+module type BoundedIntOps = sig
+  include IntOps.IntOps
 
-module IntervalFunctor (Ints_t : IntOps.IntOps): SOverflow with type int_t = Ints_t.t and type t = (Ints_t.t * Ints_t.t) option =
-struct
-  let name () = "intervals"
-  type int_t = Ints_t.t
-  type t = (Ints_t.t * Ints_t.t) option [@@deriving eq, ord, hash]
-  module IArith = IntervalArith (Ints_t)
+  type t_interval = (t * t) option
 
+  val range : GoblintCil.ikind -> t * t
+  val top_of : GoblintCil.ikind -> t_interval
+  val bot_of : GoblintCil.ikind -> t_interval
+
+
+  val norm : ?suppress_ovwarn:bool -> ?cast:bool -> GoblintCil.ikind -> t_interval -> t_interval * overflow_info
+end
+
+module Bounded (Ints_t : IntOps.IntOps): BoundedIntOps with type t = Ints_t.t and type t_interval = (Ints_t.t * Ints_t.t) option = struct
+  include Ints_t
+  type t_interval = (Ints_t.t * Ints_t.t) option
   let range ik = BatTuple.Tuple2.mapn Ints_t.of_bigint (Size.range ik)
 
-  let top () = failwith @@ "top () not implemented for " ^ (name ())
   let top_of ik = Some (range ik)
-  let bot () = None
-  let bot_of ik = bot () (* TODO: improve *)
+  let bot_of ik = None (* TODO: improve *)
 
-  let show = function None -> "bottom" | Some (x,y) -> "["^Ints_t.to_string x^","^Ints_t.to_string y^"]"
 
-  include Std (struct type nonrec t = t let name = name let top_of = top_of let bot_of = bot_of let show = show let equal = equal end)
 
-  let equal_to i = function
-    | None -> failwith "unsupported: equal_to with bottom"
-    | Some (a, b) ->
-      if a = b && b = i then `Eq else if Ints_t.compare a i <= 0 && Ints_t.compare i b <=0 then `Top else `Neq
-
-  let norm ?(suppress_ovwarn=false) ?(cast=false) ik : (t -> t * overflow_info) = function None -> (None, {underflow=false; overflow=false}) | Some (x,y) ->
+  let norm ?(suppress_ovwarn=false) ?(cast=false) ik : (t_interval -> t_interval * overflow_info) = function None -> (None, {underflow=false; overflow=false}) | Some (x,y) ->
     if Ints_t.compare x y > 0 then
       (None,{underflow=false; overflow=false})
     else (
@@ -59,6 +59,32 @@ struct
       in
       (v, ov_info)
     )
+
+end
+
+module BoundedIntervalFunctor (Ints_t : BoundedIntOps): SOverflow with type int_t = Ints_t.t and type t = Ints_t.t_interval =
+struct
+  let name () = "intervals bounds injected"
+  type int_t = Ints_t.t
+  type t = (Ints_t.t * Ints_t.t) option [@@deriving eq, ord, hash]
+  module IArith = IntervalArith (Ints_t)
+
+  let range = Ints_t.range
+  let top_of = Ints_t.top_of
+  let norm = Ints_t.norm
+  let bot_of = Ints_t.bot_of
+
+  let top () = failwith @@ "top () not implemented for " ^ (name ())
+  let bot () = None
+
+  let show = function None -> "bottom" | Some (x,y) -> "["^Ints_t.to_string x^","^Ints_t.to_string y^"]"
+
+  include Std (struct type nonrec t = t let name = name let top_of = top_of let bot_of = bot_of let show = show let equal = equal end)
+
+  let equal_to i = function
+    | None -> failwith "unsupported: equal_to with bottom"
+    | Some (a, b) ->
+      if a = b && b = i then `Eq else if Ints_t.compare a i <= 0 && Ints_t.compare i b <=0 then `Top else `Neq
 
   let leq (x:t) (y:t) =
     match x, y with
@@ -412,6 +438,8 @@ struct
 
   let project ik p t = t
 end
+
+module IntervalFunctor (Ints_t : IntOps.IntOps) = BoundedIntervalFunctor (Bounded(Ints_t))
 
 module Interval = IntervalFunctor (IntOps.BigIntOps)
 module Interval32 = IntDomWithDefaultIkind (IntDomLifter (SOverflowUnlifter (IntervalFunctor (IntOps.Int64Ops)))) (IntIkind)

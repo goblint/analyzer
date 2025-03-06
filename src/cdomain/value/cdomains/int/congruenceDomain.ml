@@ -1,8 +1,12 @@
 open IntDomain0
 open GoblintCil
 
+(*TODO Test and remove code duplication*)
+module type Norm = sig
+  val normalize : ikind -> (Z.t * Z.t) option -> (Z.t * Z.t) option
+end
 
-module Congruence : S with type int_t = Z.t and type t = (Z.t * Z.t) option =
+module CongruenceFunctor (Norm : Norm): S with type int_t = Z.t and type t = (Z.t * Z.t) option =
 struct
   let name () = "congruences"
   type int_t = Z.t
@@ -24,22 +28,7 @@ struct
   let ( |: ) a b =
     if a =: Z.zero then false else (b %: a) =: Z.zero
 
-  let normalize ik x =
-    match x with
-    | None -> None
-    | Some (c, m) ->
-      if m =: Z.zero then
-        if should_wrap ik then
-          Some (Size.cast ik c, m)
-        else
-          Some (c, m)
-      else
-        let m' = Z.abs m in
-        let c' = c %: m' in
-        if c' <: Z.zero then
-          Some (c' +: m', m')
-        else
-          Some (c' %: m', m')
+  let normalize = Norm.normalize
 
   let range ik = Size.range ik
 
@@ -494,3 +483,52 @@ struct
 
   let project ik p t = t
 end
+
+module Wrapping : Norm = struct
+
+  let (%:) = Z.rem
+  let (=:) = Z.equal
+  let (+:) = Z.add
+  let (<:) x y = Z.compare x y < 0
+
+  let normalize ik x =
+    match x with
+    | None -> None
+    | Some (c, m) ->
+      if m =: Z.zero then
+        if should_wrap ik then
+          Some (Size.cast ik c, m)
+        else
+          Some (c, m)
+      else
+        let m' = Z.abs m in
+        let c' = c %: m' in
+        if c' <: Z.zero then
+          Some (c' +: m', m')
+        else
+          Some (c' %: m', m')
+end
+
+module NoWrapping : Norm = struct
+
+  let (%:) = Z.rem
+  let (=:) = Z.equal
+  let (+:) = Z.add
+  let (<:) x y = Z.compare x y < 0
+
+  let normalize ik x =
+    match x with
+    | None -> None
+    | Some (c, m) ->
+      if m =: Z.zero then
+        Some (c, m)
+      else
+        let m' = Z.abs m in
+        let c' = c %: m' in
+        if c' <: Z.zero then
+          Some (c' +: m', m')
+        else
+          Some (c' %: m', m')
+end
+
+module Congruence = CongruenceFunctor(Wrapping)

@@ -170,7 +170,7 @@ module TopIntOps = struct
 
 end
 
-module Unbounded : IntervalDomainWithBounds.BoundedIntOps with type t = TopIntOps.t = struct
+module Unbounded : IntervalDomain.BoundedIntOps with type t = TopIntOps.t = struct
   include TopIntOps
 
   type t_interval = (t * t) option [@@deriving eq, ord, hash]
@@ -191,8 +191,8 @@ end
 
 (*Combining operations into one reduced product for values*)
 module IntervalAndCongruence = struct
-  module I = IntDomain0.SOverflowUnlifter(IntervalDomainWithBounds.IntervalFunctor(Unbounded))
-  module C = CongruenceDomainNormFunctor.Congruence(CongruenceDomainNormFunctor.NoWrapping)
+  module I = IntDomain0.SOverflowUnlifter(IntervalDomain.BoundedIntervalFunctor(Unbounded))
+  module C = CongruenceDomain.CongruenceFunctor(CongruenceDomain.NoWrapping)
 
   type t = I.t * C.t [@@deriving eq, ord, hash]
 
