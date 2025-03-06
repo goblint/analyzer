@@ -1,0 +1,12 @@
+(include_subdirs no)
+
+(library
+ (name goblint_parallel)
+ (public_name goblint.parallel)
+ (libraries
+   domain-local-await)
+ (preprocess
+  (pps
+   ppx_optcomp
+   ))
+ )
