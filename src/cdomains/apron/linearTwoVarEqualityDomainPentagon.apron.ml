@@ -125,6 +125,7 @@ struct
 
   let set_value ((econ, is, ineq) as t:t) lhs i =
     if M.tracing then M.tracel "modify_pentagon" "set_value var_%d=%s, before: %s" lhs (Value.show i) (show t);
+    if Value.is_bot i then raise EConj.Contradiction;
     let set_value_for_root lhs i =
       if M.tracing then M.tracel "modify_pentagon" "set_value_for_root var_%d=%s, before: %s" lhs (Value.show i) (show t);
       let i = constrain_with_congruence_from_rhs econ lhs i in
@@ -383,7 +384,7 @@ struct
         | _ -> Value.top (*not integers*)
     in 
     let res = eval texp in
-    if M.tracing then M.tracel "eval_texp" "%s %a -> %s" (EConjI.show @@ BatOption.get t.d) Texpr1.Expr.pretty texp (Value.show res);
+    if M.tracing then M.tracel "eval_texp" "%s %a -> %s" (match t.d with None -> "⊥" | Some d ->EConjI.show d) Texpr1.Expr.pretty texp (Value.show res);
     res
 
   (*TODO Could be more precise with query*)
@@ -973,14 +974,17 @@ struct
               (GobRef.wrap AnalysisState.executing_speculative_computations true ( fun () ->
                    let ikind = Cilfacade.get_ikind_exp exp in
                    match ask.f (EvalInt exp) with
-                   | `Bot -> failwith "EvalInt returned bot" (* This should never happen according to Michael Schwarz *)
+                   | `Bot -> IntDomain.IntDomTuple.bot_of ikind
                    | `Top -> IntDomain.IntDomTuple.top_of ikind
-                   | `Lifted x -> x (* Cast should be unnecessary because it should be taken care of by EvalInt. *) 
+                   | `Lifted x -> 
+                     if M.tracing then M.trace "assign_exp" "Query for %a returned %s" d_exp exp (IntDomain.IntDomTuple.show x);
+                     x (* Cast should be unnecessary because it should be taken care of by EvalInt. *) 
                  ))
         with Invalid_argument _ -> Value.top (*get_ikind_exp failed*)
       in 
-      let d' = EConjI.set_value d (Environment.dim_of_var t.env var) value in
-      {d=Some d'; env = t.env}
+      let d' = if Value.is_bot value then None
+        else Some (EConjI.set_value d (Environment.dim_of_var t.env var) value)
+      in {d= d'; env = t.env}
 
 
   let assign_exp ask t var exp no_ov =

@@ -269,7 +269,7 @@ module IntervalAndCongruence = struct
     let interval = match IntDomain.IntDomTuple.minimal tuple, IntDomain.IntDomTuple.maximal tuple with 
       | Some min, Some max -> Some ( TopIntOps.Int min, TopIntOps.Int max)
       | _ -> None
-    in (interval, IntDomain.IntDomTuple.to_congruence tuple) 
+    in refine (interval, IntDomain.IntDomTuple.to_congruence tuple) 
 
 end 
 
