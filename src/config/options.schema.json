@@ -1186,6 +1186,39 @@
           },
           "additionalProperties": false
         },
+        "c2po": {
+          "title": "ana.c2po",
+          "type": "object",
+          "properties": {
+            "askbase": {
+              "title": "ana.c2po.askbase",
+              "description": "If true, the C-2PO Analysis uses the MayPointTo query to infer additional disequalities.",
+              "type": "boolean",
+              "default": true
+            },
+            "join_algorithm": {
+              "title": "ana.c2po.join_algorithm",
+              "description": "Which join algorithm 'c2po' should use. Values: 'partition' (default): the more efficient version, it uses only the partition to compute the join. Circular equalities are lost during the join; 'precise': a more precise version, uses the automaton to compute the join.",
+              "type": "string",
+              "enum": [
+                "precise",
+                "partition"
+              ],
+              "default": "partition"
+            },
+            "equal": {
+              "title": "ana.c2po.equal",
+              "description": "Which equal algorithm 'c2po' should use. Values: 'partition' (default): it compares the partitions each time; 'normal_form': computes a normal form of the domain to compare them. It is lazily computed. The two possibilities are equivalent in precision, but in some cases computing the normal form is more efficient, as it is computed only once per distinct domain element.",
+              "type": "string",
+              "enum": [
+                "normal_form",
+                "partition"
+              ],
+              "default": "partition"
+            }
+          },
+          "additionalProperties": false
+        },
         "unassume": {
           "title": "ana.unassume",
           "type": "object",
