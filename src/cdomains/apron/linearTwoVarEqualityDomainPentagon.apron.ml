@@ -969,22 +969,25 @@ struct
     in match t.d with 
     | None -> t
     | Some d -> 
-      let value = 
-        try Value.of_IntDomTuple 
-              (GobRef.wrap AnalysisState.executing_speculative_computations true ( fun () ->
-                   let ikind = Cilfacade.get_ikind_exp exp in
-                   match ask.f (EvalInt exp) with
-                   | `Bot -> IntDomain.IntDomTuple.bot_of ikind
-                   | `Top -> IntDomain.IntDomTuple.top_of ikind
-                   | `Lifted x -> 
-                     if M.tracing then M.trace "assign_exp" "Query for %a returned %s" d_exp exp (IntDomain.IntDomTuple.show x);
-                     x (* Cast should be unnecessary because it should be taken care of by EvalInt. *) 
-                 ))
-        with Invalid_argument _ -> Value.top (*get_ikind_exp failed*)
-      in 
-      let d' = if Value.is_bot value then None
-        else Some (EConjI.set_value d (Environment.dim_of_var t.env var) value)
-      in {d= d'; env = t.env}
+      if exp = MyCFG.unknown_exp then
+        t  
+      else
+        let value = 
+          try Value.of_IntDomTuple 
+                (GobRef.wrap AnalysisState.executing_speculative_computations true ( fun () ->
+                     let ikind = Cilfacade.get_ikind_exp exp in
+                     match ask.f (EvalInt exp) with
+                     | `Bot -> IntDomain.IntDomTuple.bot_of ikind
+                     | `Top -> IntDomain.IntDomTuple.top_of ikind
+                     | `Lifted x -> 
+                       if M.tracing then M.trace "assign_exp" "Query for %a returned %s" d_exp exp (IntDomain.IntDomTuple.show x);
+                       x (* Cast should be unnecessary because it should be taken care of by EvalInt. *) 
+                   ))
+          with Invalid_argument _ -> Value.top (*get_ikind_exp failed*)
+        in 
+        let d' = if Value.is_bot value then None
+          else Some (EConjI.set_value d (Environment.dim_of_var t.env var) value)
+        in {d= d'; env = t.env}
 
 
   let assign_exp ask t var exp no_ov =
@@ -1173,7 +1176,9 @@ struct
         let ri = Environment.var_of_dim t.env r in
         of_coeff xi [(GobApron.Coeff.s_of_z @@ Z.neg d, xi); (GobApron.Coeff.s_of_z c, ri)] o :: acc
     in
-    BatOption.get t.d |> fun ((_,map),_,_) -> IntMap.fold (fun lhs rhs list -> get_const list lhs rhs) map []
+    match t.d with 
+    | None -> []
+    | Some d -> d |> fun ((_,map),_,_) -> IntMap.fold (fun lhs rhs list -> get_const list lhs rhs) map []
 
   let cil_exp_of_lincons1 = Convert.cil_exp_of_lincons1
 
