@@ -286,6 +286,9 @@ module type TwoVarInequalities = sig
 
   val join : t -> (int -> Value.t) -> t -> (int -> Value.t) -> t
 
+  (*copy all constraints for some variable to a different t if they still hold for a new x' with x' (cond) x *)
+  val transfer : int -> cond -> t -> (int -> Rhs.t) -> (int -> Value.t) -> t -> (int -> Rhs.t) -> (int -> Value.t) -> t
+
   val show_formatted : (int -> string) -> t -> string
   val hash : t -> int
   val empty : t
@@ -294,6 +297,7 @@ module type TwoVarInequalities = sig
   val compare : t -> t -> int
   val modify_variables_in_domain : t -> int array -> (int -> int -> int) -> t
   val forget_variable : t -> int -> t
+
 end
 
 module NoInequalties : TwoVarInequalities = struct
@@ -323,6 +327,8 @@ module NoInequalties : TwoVarInequalities = struct
   let compare _ _ = 0
   let modify_variables_in_domain _ _ _ = ()
   let forget_variable _ _ = ()
+
+  let transfer _ _ _ _ _ _ _ _ = ()
 end
 
 module type Coeffs = sig
@@ -483,7 +489,7 @@ module SimpleInequalities : TwoVarInequalities = struct
       if M.tracing then M.tracel "meet_condition" "meet_less_root x: %d y: %d strict: %b " x y strict;  
       let union = IntMap.union (fun _ _ _ -> Some ()) (IntMap.find_default IntMap.empty x t) (IntMap.find_default IntMap.empty y t) 
       in let union' = if strict then IntMap.add y () union else union 
-      in if IntMap.mem x union then raise EConj.Contradiction
+      in if IntMap.mem x union' then raise EConj.Contradiction
       else IntMap.add x union' t
     in
     let meet_less x' y' strict t = 
@@ -540,6 +546,43 @@ module SimpleInequalities : TwoVarInequalities = struct
     if M.tracing then M.tracel "meet_condition" "meeting %s with x': %d y': %d cond %s" (show t) x y (show_cond c);  
     let res = meet_condition x y c r v t in
     if M.tracing then M.tracel "meet_condition" "result: %s " (show res);  
+    res
+
+  (*TODO I think this will be the same (or at least almost) for all the domain, but depends on is_less_than / meet_condition -> make it general?*)
+  let transfer x cond t_old get_rhs_old get_value_old t get_rhs get_value = 
+    let was_less_than x y = 
+      let get_information lhs =
+        let rhs = get_rhs_old lhs in
+        match rhs with 
+        | (Some (_,var), _ ,_) -> (rhs, get_value_old var)
+        (*We need to know which root a constant is referring to, so we use this the trivial equation to carry that information*)
+        | (_,o,_) -> (Rhs.var_zero lhs, Value.of_bigint o) 
+      in
+      is_less_than (get_information x) (get_information y) t_old 
+    in let vars_to_check = 
+         let root = match get_rhs_old x with
+           | (Some (_,var), _ ,_) -> var
+           | (_,o,_) -> x
+           (*we need to check all y with root -> y -> coeff  or y -> root -> coeff*)
+         in BatEnum.append (IntMap.keys @@ IntMap.find_default IntMap.empty root t_old) (List.enum @@ IntMap.fold (fun k ys acc -> if IntMap.mem root ys then k :: acc else acc) t_old [])   
+    in let keep_less = match cond with 
+        | Eq | Lt | Le -> true 
+        | _ -> false
+    in let keep_greater = match cond with 
+        | Eq | Gt | Ge -> true 
+        | _ -> false
+    in let transfer_single_var t' y = 
+         match was_less_than x y with 
+         | Some true -> 
+           if keep_less then meet_condition x y Lt get_rhs get_value t' else t'
+         | Some false ->
+           if keep_greater then meet_condition x y Gt get_rhs get_value t' else t'
+         | _ -> t'
+    in BatEnum.fold (transfer_single_var) t vars_to_check
+
+  let transfer x cond t_old get_rhs_old get_value_old t get_rhs get_value = 
+    let res = transfer x cond t_old get_rhs_old get_value_old t get_rhs get_value in
+    if M.tracing then M.tracel "transfer" "transfering for var_%d with cond: %s from %s into %s -> %s" x (show_cond cond) (show t_old) (show t) (show res);  
     res
 
 end 

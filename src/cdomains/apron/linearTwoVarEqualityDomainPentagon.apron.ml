@@ -423,7 +423,7 @@ struct
     | Binop (Add, Var y, e, _, _) -> inequality_from_add y e
     | Binop (Mul, Var x, Var y, _, _) -> inequality_from_mul x (Var y) @ inequality_from_mul y (Var x)
     | Binop (Mul, e, Var y, _, _)
-    | Binop (Mul, Var y, e, _, _) -> inequality_from_add y e
+    | Binop (Mul, Var y, e, _, _) -> inequality_from_mul y e
     | Binop (Sub, Var y, e, _, _) ->       
       let v = eval_texpr t e in 
       if Value.must_be_pos v then 
@@ -919,7 +919,7 @@ struct
       This makes a copy of the data structure, it doesn't change it in-place. *)
   let assign_texpr (t: VarManagement.t) var texp =
     match t.d with
-    | Some (econj, vs, ineq) ->
+    | Some ((econj, vs, ineq_old) as d) ->
       let var_i = Environment.dim_of_var t.env var (* this is the variable we are assigning to *) in
       let t' = match simplify_to_ref_and_offset t texp with
         | None ->
@@ -930,7 +930,7 @@ struct
           assign_const (forget_var t var) var_i off divi
         | Some (Some (coeff_var,exp_var), off, divi) when var_i = exp_var ->
           (* Statement "assigned_var = (coeff_var*assigned_var + off) / divi" *)
-          {d=Some (EConj.affine_transform econj var_i (coeff_var, var_i, off, divi), vs, ineq); env=t.env }          
+          {d=Some (EConj.affine_transform econj var_i (coeff_var, var_i, off, divi), vs, Ineq.forget_variable ineq_old var_i); env=t.env }          
         | Some (Some monomial, off, divi) ->
           (* Statement "assigned_var = (monomial) + off / divi" (assigned_var is not the same as exp_var) *)
           meet_with_one_conj (forget_var t var) var_i (Some (monomial), off, divi)
@@ -943,9 +943,11 @@ struct
           if M.tracing then M.tracel "assign_texpr" "assigning %s = %s before inequality: %s" (Var.show var) (Texpr1.show (Texpr1.of_expr t.env texp)) (show {d = Some (econ, vs, ineq); env = t.env});
           let meet_cond ineq (cond, var) = 
             let dim = Environment.dim_of_var t.env var in
-            if dim <> var_i then (*TODO If cond = Eq, we could restore the previous state before forgetting the variable*)
+            if dim <> var_i then 
               Ineq.meet_condition var_i dim cond (EConjI.get_rhs d'') (EConjI.get_value d'') ineq
-            else ineq
+            else
+              (*TODO If cond = Eq, we could restore the previous rhs. Does this ever happen?*)
+              Ineq.transfer dim cond ineq_old (EConjI.get_rhs d) (EConjI.get_value d) ineq (EConjI.get_rhs d'') (EConjI.get_value d'')
           in
           let ineq' = List.fold meet_cond ineq (VarManagement.to_inequalities t texp) in
           if M.tracing then M.tracel "assign_texpr" "after inequality: %s" (show {d = Some (econ, vs, ineq'); env = t.env});
