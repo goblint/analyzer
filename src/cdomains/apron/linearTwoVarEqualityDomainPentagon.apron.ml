@@ -615,6 +615,7 @@ struct
           if M.tracing then M.trace "refine_tcons" "refining var %s with %s" (Var.to_string var) (Value.show value) ;
           EConjI.meet_with_one_value dim value d Value.meet )
       in
+      (*TODO Could be more precise with query ?? would need to convert back to Cil *)
       let eval d texpr = eval_texpr {d= Some d; env = t.env} texpr in
       let open Texpr1 in
       let rec refine_values d value expr = 
@@ -930,24 +931,22 @@ struct
           assign_const (forget_var t var) var_i off divi
         | Some (Some (coeff_var,exp_var), off, divi) when var_i = exp_var ->
           (* Statement "assigned_var = (coeff_var*assigned_var + off) / divi" *)
-          {d=Some (EConj.affine_transform econj var_i (coeff_var, var_i, off, divi), vs, Ineq.forget_variable ineq_old var_i); env=t.env }          
+          {d=Some (EConj.affine_transform econj var_i (coeff_var, var_i, off, divi), IntMap.remove var_i vs, Ineq.forget_variable ineq_old var_i); env=t.env }          
         | Some (Some monomial, off, divi) ->
           (* Statement "assigned_var = (monomial) + off / divi" (assigned_var is not the same as exp_var) *)
           meet_with_one_conj (forget_var t var) var_i (Some (monomial), off, divi)
       in begin match t'.d with 
           None -> if M.tracing then M.tracel "ops" "assign_texpr resulted in bot (before: %s, expr: %s) " (show t) (Texpr1.show (Texpr1.of_expr t.env texp));
           bot_env
-        | Some d' -> 
-          (*TODO use query for more precision instead?!*)
-          let (econ, vs, ineq) as d'' = EConjI.set_value d' var_i (VarManagement.eval_texpr t texp) in
+        | Some ((econ, vs, ineq) as d') -> 
           if M.tracing then M.tracel "assign_texpr" "assigning %s = %s before inequality: %s" (Var.show var) (Texpr1.show (Texpr1.of_expr t.env texp)) (show {d = Some (econ, vs, ineq); env = t.env});
           let meet_cond ineq (cond, var) = 
             let dim = Environment.dim_of_var t.env var in
             if dim <> var_i then 
-              Ineq.meet_condition var_i dim cond (EConjI.get_rhs d'') (EConjI.get_value d'') ineq
+              Ineq.meet_condition var_i dim cond (EConjI.get_rhs d') (EConjI.get_value d') ineq
             else
               (*TODO If cond = Eq, we could restore the previous rhs. Does this ever happen?*)
-              Ineq.transfer dim cond ineq_old (EConjI.get_rhs d) (EConjI.get_value d) ineq (EConjI.get_rhs d'') (EConjI.get_value d'')
+              Ineq.transfer dim cond ineq_old (EConjI.get_rhs d) (EConjI.get_value d) ineq (EConjI.get_rhs d') (EConjI.get_value d')
           in
           let ineq' = List.fold meet_cond ineq (VarManagement.to_inequalities t texp) in
           if M.tracing then M.tracel "assign_texpr" "after inequality: %s" (show {d = Some (econ, vs, ineq'); env = t.env});
@@ -962,9 +961,27 @@ struct
       -> Convert.texpr1_expr_of_cil_exp handles overflow *)
   let assign_exp ask (t: VarManagement.t) var exp (no_ov: bool Lazy.t) =
     let t = if not @@ Environment.mem_var t.env var then add_vars t [var] else t in
-    match Convert.texpr1_expr_of_cil_exp ask t t.env exp no_ov with
-    | texp -> assign_texpr t var texp
-    | exception Convert.Unsupported_CilExp _ -> forget_var t var
+    (*evaluate in the same way as is used for simplification*)
+    let t = match Convert.texpr1_expr_of_cil_exp ask t t.env exp no_ov with
+      | texp -> assign_texpr t var texp
+      | exception Convert.Unsupported_CilExp _ -> forget_var t var
+    in match t.d with 
+    | None -> t
+    | Some d -> 
+      let value = 
+        try Value.of_IntDomTuple 
+              (GobRef.wrap AnalysisState.executing_speculative_computations true ( fun () ->
+                   let ikind = Cilfacade.get_ikind_exp exp in
+                   match ask.f (EvalInt exp) with
+                   | `Bot -> failwith "EvalInt returned bot" (* This should never happen according to Michael Schwarz *)
+                   | `Top -> IntDomain.IntDomTuple.top_of ikind
+                   | `Lifted x -> x (* Cast should be unnecessary because it should be taken care of by EvalInt. *) 
+                 ))
+        with Invalid_argument _ -> Value.top (*get_ikind_exp failed*)
+      in 
+      let d' = EConjI.set_value d (Environment.dim_of_var t.env var) value in
+      {d=Some d'; env = t.env}
+
 
   let assign_exp ask t var exp no_ov =
     let res = assign_exp ask t var exp no_ov in

@@ -17,6 +17,7 @@ int main(void) {
 
 
   // Both hold in the concrete
-  __goblint_check(j == i-1); //UNKNOWN
+  // First is SUCCESS here and not for lin2vareq because the interval domain is queried when assigning (but not yet in the condition)
+  __goblint_check(j == i-1); //SUCCESS
   __goblint_check(j == i + UINT_MAX); //UNKNOWN
 }

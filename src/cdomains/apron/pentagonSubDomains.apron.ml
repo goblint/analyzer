@@ -265,6 +265,12 @@ module IntervalAndCongruence = struct
   let maximal (i,_) = I.maximal i
   let minimal (i,_) = I.minimal i
 
+  let of_IntDomTuple tuple = 
+    let interval = match IntDomain.IntDomTuple.minimal tuple, IntDomain.IntDomTuple.maximal tuple with 
+      | Some min, Some max -> Some ( TopIntOps.Int min, TopIntOps.Int max)
+      | _ -> None
+    in (interval, IntDomain.IntDomTuple.to_congruence tuple) 
+
 end 
 
 module Value = IntervalAndCongruence

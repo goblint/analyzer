@@ -355,6 +355,7 @@ module IntDomTuple : sig
   val no_interval: t -> t
   val no_intervalSet: t -> t
   val ikind: t -> ikind
+  val to_congruence : t -> CongruenceDomain.Congruence.t
 end
 
 val of_const: Z.t * Cil.ikind * string option -> IntDomTuple.t
