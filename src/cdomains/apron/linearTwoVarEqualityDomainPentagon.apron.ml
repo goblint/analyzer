@@ -57,9 +57,11 @@ struct
       if (v,o,d) = Rhs.var_zero lhs then Value.top  (*no relation -> Top*) 
       else match v with 
           None -> Value.div (Value.of_bigint o) (Value.of_bigint d)(*constant*) (*TODO is divisor always 1?*) 
-        | Some (coeff,v) -> match IntMap.find_opt v vs with
-            None -> Value.top (*uninitialised*) 
-          | Some i -> Value.div (Value.add (Value.of_bigint o) @@ Value.mul (Value.of_bigint coeff) i) (Value.of_bigint d)
+        | Some (coeff,v) -> 
+          let i = match IntMap.find_opt v vs with
+              None -> Value.top (*uninitialised. Still translate it with the Rhs for congruence information*) 
+            | Some i -> i
+          in Value.div (Value.add (Value.of_bigint o) @@ Value.mul (Value.of_bigint coeff) i) (Value.of_bigint d)
 
 
   (*Does not check the values directly, only the inequality domain, so we can use this to detect contradictions *)
@@ -206,9 +208,10 @@ struct
             | None -> None
             | Some true -> Some Lt
             | Some false -> Some Gt 
-        in match cond with 
-        | None -> d'
-        | Some cond -> econj'', vs'', Ineq.transfer var newRoot cond ineq' (get_rhs d) (get_value d) ineq'' (get_rhs d') (get_value d')  
+        in let after_ineq = match cond with 
+            | None -> d'  
+            | Some cond -> econj'', vs'', Ineq.transfer var newRoot cond ineq' (get_rhs d) (get_value d) ineq'' (get_rhs d') (get_value d')
+        in set_value after_ineq newRoot @@ get_value d newRoot
     in
     if M.tracing then M.tracel "forget" "forget var_%d in { %s } -> { %s }" var (show d) (show d'');
     d''
@@ -287,18 +290,31 @@ struct
     if M.tracing then M.tracel "meet_with_one_conj" "meet_with_one_conj conj: %s eq: var_%d=%s  ->  %s " (show t) i (Rhs.show (var,offs,divi)) (show res)
   ; res
 
+
+  let affine_transform ((econ, vs, ineq) as t) i (coeff, j, offs, divi) =
+    if EConj.nontrivial econ i then (* i cannot occur on any other rhs apart from itself *)
+      set_rhs t i (Rhs.subst (get_rhs t i) i (Some (coeff,j), offs, divi))
+    else (* var_i = var_i, i.e. it may occur on the rhs of other equalities *)
+      (* so now, we transform with the inverse of the transformer: *)
+      let inv = snd (EConj.inverse i (coeff,j,offs,divi)) in
+      IntMap.fold (fun k v acc ->
+          match v with
+          | (Some (c,x),o,d) when x=i-> set_rhs acc k (Rhs.subst inv i v)
+          | _ -> acc
+        ) (snd econ) t
+
+  let affine_transform econ i rhs =
+    let res = affine_transform econ i rhs in
+    if M.tracing then M.tracel "modify_pentagon" "affine_transform %s ->  %s " (show econ) (show res); 
+    res
+
   let meet_with_one_value var value t meet_function =
-    let refined_value = Value.refine value in
-    let new_value = meet_function refined_value (get_value t var)
+    let new_value = meet_function value (get_value t var)
     in if Value.is_bot new_value then raise EConj.Contradiction else 
-      let res =  set_value t var new_value
+      let res = set_value t var new_value
       in if M.tracing then M.tracel "meet_value" "meet var_%d: before: %s meeting: %s -> %s, total: %s-> %s" (var) (Value.show @@ get_value t var) (Value.show value) (Value.show new_value) (show t) (show res);
       res
 
-  let join_with_one_value var value ((ts, _, _) as t:t) = 
-    let (_,cong) = constrain_with_congruence_from_rhs ts var (Value.top) in (*TODO probably should be a flag in set_value to do a join instead of meet so we do not do this twice*)
-    let value' = Value.join value (Value.I.bot (), cong) in
-    set_value t var value' 
 end
 
 (** [VarManagement] defines the type t of the affine equality domain (a record that contains an optional matrix and an apron environment) and provides the functions needed for handling variables (which are defined by [RelationDomain.D2]) such as [add_vars], [remove_vars].
@@ -891,7 +907,7 @@ struct
       if vars < 0 then t
       else if EConj.nontrivial econj_joined vars then collect_values x y econj_joined (vars-1) t (*we only need values for roots of the connected components*)
       else let joined_value = join_function (EConjI.get_value x vars) (EConjI.get_value y vars) in
-        collect_values x y econj_joined (vars-1) (EConjI.join_with_one_value vars joined_value t)
+        collect_values x y econj_joined (vars-1) (EConjI.meet_with_one_value vars joined_value t Value.meet)
     in
     let join_d ((econ_x, _, ineq_x) as x) ((econ_y, _, ineq_y) as y) env = 
       let econj' = join_econj (econ_x) (econ_y) env in
@@ -979,7 +995,8 @@ struct
           assign_const (forget_var t var) var_i off divi
         | Some (Some (coeff_var,exp_var), off, divi) when var_i = exp_var ->
           (* Statement "assigned_var = (coeff_var*assigned_var + off) / divi" *)
-          {d=Some (EConj.affine_transform econj var_i (coeff_var, var_i, off, divi), IntMap.remove var_i vs, Ineq.forget_variable ineq_old var_i); env=t.env }          
+          let econji' = econj, IntMap.remove var_i vs, Ineq.forget_variable ineq_old var_i in
+          {d=Some (EConjI.affine_transform econji' var_i (coeff_var, var_i, off, divi)); env=t.env }          
         | Some (Some monomial, off, divi) ->
           (* Statement "assigned_var = (monomial) + off / divi" (assigned_var is not the same as exp_var) *)
           meet_with_one_conj (forget_var t var) var_i (Some (monomial), off, divi)
@@ -1032,6 +1049,7 @@ struct
                    ))
           with Invalid_argument _ -> Value.top (*get_ikind_exp failed*)
         in 
+        (*TODO If the newly assigned value must be greater / lower than the old, we can transfer conditions!*)
         let d' = if Value.is_bot value then None
           else Some (EConjI.set_value d (Environment.dim_of_var t.env var) value)
         in {d= d'; env = t.env}
