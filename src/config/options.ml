@@ -24,7 +24,7 @@ let rec element_paths (element: element): string list =
   | Number _ ->
     [""]
   | Monomorphic_array _ ->
-    [""; "[+]"; "[-]"]
+    [""; "[+]"; "[-]"; "[*]"]
   | Object object_specs ->
     List.concat_map (fun (name, field_element, _, _) ->
         List.map (fun path -> "." ^ name ^ path) (element_paths field_element)
@@ -56,7 +56,7 @@ let rec element_completions (element: element): (string * string list) list =
       element_completions array_element
       |> List.concat_map (fun (path, cs) ->
           assert (path = ""); (* Arrays of objects/arrays not supported. Currently we only have arrays of strings.*)
-          [("[+]", cs); ("[-]", cs)]
+          [("[+]", cs); ("[-]", cs); ("[*]", cs)]
         )
     in
     default_completion () @ array_element_completions
