@@ -366,13 +366,14 @@ module CommonActions (Coeffs : Coeffs) = struct
 
   let show_formatted formatter t = 
     if IntMap.is_empty t then "{}" else
+    if IntMap.exists (fun _ -> IntMap.is_empty) t then failwith "Map not sparse" else
       let str = IntMap.fold (fun x ys acc -> IntMap.fold (fun y coeff acc -> Printf.sprintf "%s , %s" (Coeffs.show_formatted (formatter x) (formatter y) coeff) acc) ys acc) t "" 
-      in "{" ^ (*String.sub str 0 (String.length str - 3) *) str ^ "}" (*TODO why does this not work when removing the things?*)
+      in "{" ^ String.sub str 0 (String.length str - 3) ^ "}"
 
   let show = show_formatted (Printf.sprintf "var_%d")
 
   let forget_variable t v = 
-    IntMap.map (fun ys -> IntMap.remove v ys) (IntMap.remove v t)
+    IntMap.filter_map (fun _ ys -> let ys' = IntMap.remove v ys in if IntMap.is_empty ys' then None else Some ys') (IntMap.remove v t)
 
   let modify_variables_in_domain map indexes op =
     let map_fun bump_var ys = IntMap.fold (fun y ->  IntMap.add (bump_var y) ) ys IntMap.empty in  
@@ -383,8 +384,10 @@ module CommonActions (Coeffs : Coeffs) = struct
   let set_coeff x y coeff t = 
     IntMap.add x (IntMap.add y coeff @@ IntMap.find_default IntMap.empty x t ) t
 
-  let remove_coeff x y t = 
-    IntMap.add x (IntMap.remove y @@ IntMap.find_default IntMap.empty x t ) t
+  let remove_coeff x y t =
+    let new_map = IntMap.remove y @@ IntMap.find_default IntMap.empty x t  in
+    if IntMap.is_empty new_map then t
+    else IntMap.add x new_map t
 
   let leq t1 get_value_t1 t2 = 
     let implies x y t2_coeff = 
@@ -496,6 +499,7 @@ module SimpleInequalities : TwoVarInequalities = struct
       let union = IntMap.union (fun _ _ _ -> Some ()) (IntMap.find_default IntMap.empty x t) (IntMap.find_default IntMap.empty y t) 
       in let union' = if strict then IntMap.add y () union else union 
       in if IntMap.mem x union' then raise EConj.Contradiction
+      else if IntMap.is_empty union' then t
       else IntMap.add x union' t
     in
     let meet_less x' y' strict t = 
@@ -542,6 +546,7 @@ module SimpleInequalities : TwoVarInequalities = struct
         in
         let union = IntMap.union (fun _ _ _ -> Some ()) (IntMap.find_default IntMap.empty x t) (IntMap.find_default IntMap.empty y t) in
         if IntMap.mem x union || IntMap.mem y union then raise EConj.Contradiction
+        else if IntMap.is_empty union then t 
         else IntMap.add x union @@ IntMap.add y union t
       end else
         meet_less x' y' false @@ meet_less y' x' false t (*TODO skip repeat calculations?*)
