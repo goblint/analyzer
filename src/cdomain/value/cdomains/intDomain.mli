@@ -228,6 +228,7 @@ sig
   val of_interval: ?suppress_ovwarn:bool -> Cil.ikind -> int_t * int_t -> t
 
   val of_congruence: Cil.ikind -> int_t * int_t -> t
+  val of_bitfield: Cil.ikind -> int_t * int_t -> t
   val arbitrary: unit -> t QCheck.arbitrary
   val invariant: Cil.exp -> t -> Invariant.t
 end
@@ -262,10 +263,13 @@ sig
 
   val of_interval: ?suppress_ovwarn:bool -> Cil.ikind -> int_t * int_t -> t
   val of_congruence: Cil.ikind -> int_t * int_t -> t
+  val of_bitfield: Cil.ikind -> int_t * int_t -> t
+  val to_bitfield: Cil.ikind -> t -> int_t * int_t
   val is_top_of: Cil.ikind -> t -> bool
   val invariant_ikind : Cil.exp -> Cil.ikind -> t -> Invariant.t
 
   val refine_with_congruence: Cil.ikind -> t -> (int_t * int_t) option -> t
+  val refine_with_bitfield: Cil.ikind -> t -> (int_t * int_t) -> t
   val refine_with_interval: Cil.ikind -> t -> (int_t * int_t) option -> t
   val refine_with_excl_list: Cil.ikind -> t -> (int_t list * (int64 * int64)) option -> t
   val refine_with_incl_list: Cil.ikind -> t -> int_t list option -> t
@@ -325,6 +329,9 @@ sig
 
   val of_congruence: Cil.ikind -> int_t * int_t -> t
 
+  val of_bitfield: Cil.ikind -> int_t * int_t -> t
+  val to_bitfield: Cil.ikind -> t -> int_t * int_t
+
   val starting   : ?suppress_ovwarn:bool -> Cil.ikind -> int_t -> t
   val ending     : ?suppress_ovwarn:bool -> Cil.ikind -> int_t -> t
 
@@ -354,6 +361,7 @@ module IntDomTuple : sig
   include Z
   val no_interval: t -> t
   val no_intervalSet: t -> t
+  val no_bitfield: t -> t
   val ikind: t -> ikind
 end
 
@@ -402,11 +410,15 @@ module Lifted : IkindUnawareS with type t = [`Top | `Lifted of int64 | `Bot] and
 
 module IntervalFunctor(Ints_t : IntOps.IntOps): SOverflow with type int_t = Ints_t.t and type t = (Ints_t.t * Ints_t.t) option
 
+module BitfieldFunctor(Ints_t : IntOps.IntOps): SOverflow with type int_t = Ints_t.t and type t = (Ints_t.t * Ints_t.t)
+
 module IntervalSetFunctor(Ints_t : IntOps.IntOps): SOverflow with type int_t = Ints_t.t and type t = (Ints_t.t * Ints_t.t) list
 
 module Interval32 :Y with (* type t = (IntOps.Int64Ops.t * IntOps.Int64Ops.t) option and *) type int_t = IntOps.Int64Ops.t
 
 module Interval : SOverflow with type int_t = Z.t
+
+module Bitfield : SOverflow with type int_t = Z.t
 
 module IntervalSet : SOverflow with type int_t = Z.t
 
@@ -436,27 +448,3 @@ module Reverse (Base: IkindUnawareS): IkindUnawareS with type t = Base.t and typ
 (* module IncExcInterval : S with type t = [ | `Excluded of Interval.t| `Included of Interval.t ] *)
 (** Inclusive and exclusive intervals. Warning: NOT A LATTICE *)
 module Enums : S with type int_t = Z.t
-
-(** {b Boolean domains} *)
-
-module type BooleansNames =
-sig
-  val truename: string
-  (** The name of the [true] abstract value *)
-
-  val falsename: string
-  (** The name of the [false] abstract value *)
-end
-(** Parameter signature for the [MakeBooleans] functor. *)
-
-module MakeBooleans (Names: BooleansNames): IkindUnawareS with type t = bool
-(** Creates an abstract domain for integers represented by boolean values. *)
-
-module Booleans: IkindUnawareS with type t = bool
-(** Boolean abstract domain, where true is output "True" and false is output
-  * "False" *)
-
-(*
-module None: S with type t = unit
-(** Domain with nothing in it. *)
-*)

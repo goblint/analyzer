@@ -126,7 +126,7 @@ struct
     with
       | Failure _ (* raised by IntDomain *)
       | SetDomain.Unsupported _ (* raised by SetDomain *)
-      | Lattice.Unsupported _ (* raised by MapDomain *) ->
+      | Lattice.TopValue (* raised by MapDomain *) ->
         false
 
   let top_leq = make ~name:"top leq" (arb) (fun a ->

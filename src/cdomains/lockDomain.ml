@@ -14,8 +14,8 @@ struct
 
   let semantic_equal_mval ((v, o): t) ((v', o'): Mval.t): bool option =
     if CilType.Varinfo.equal v v' then (
-      let (index1, _) = GoblintCil.bitsOffset v.vtype (Offset.Z.to_cil o) in (* TODO: better way to compute this? as Z.t not int *)
-      let index2: IndexDomain.t = ValueDomain.Offs.to_index ~typ:v.vtype o' in (* TODO: is this bits or bytes? *)
+      let index1 = Cilfacade.bytesOffsetOnly v.vtype (Offset.Z.to_cil o) in (* TODO: better way to compute this? as Z.t not int *)
+      let index2: IndexDomain.t = ValueDomain.Offs.to_index ~typ:v.vtype o' in
       match IndexDomain.equal_to (Z.of_int index1) index2 with
       | `Eq -> Some true
       | `Neq -> Some false
@@ -23,6 +23,8 @@ struct
     )
     else
       Some false
+
+  let of_var v: t = (v, `NoOffset)
 
   let of_mval ((v, o): Mval.t): t =
     (v, Offset.Poly.map_indices (fun i -> IndexDomain.to_int i |> Option.get) o)
@@ -40,7 +42,7 @@ struct
 end
 
 (* true means exclusive lock and false represents reader lock*)
-module RW   = IntDomain.Booleans
+module RW   = BoolDomain.MayBool (* TODO: name booleans? *)
 
 (* pair Addr and RW; also change pretty printing*)
 module MakeRW (P: Printable.S) =

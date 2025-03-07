@@ -5,6 +5,7 @@
     The top-down solver family. *)
 
 module Td3 = Td3
+module Td_simplified = Td_simplified
 module TopDown = TopDown
 module TopDown_term = TopDown_term
 module TopDown_space_cache_term = TopDown_space_cache_term

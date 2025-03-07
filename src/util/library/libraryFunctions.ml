@@ -6,6 +6,16 @@ open GobConfig
 
 module M = Messages
 
+let intmax_t = lazy (
+  let res = ref None in
+  GoblintCil.iterGlobals !Cilfacade.current_file (function
+      | GType ({tname = "intmax_t"; ttype; _}, _) ->
+        res := Some ttype;
+      | _ -> ()
+    );
+  !res
+)
+
 (** C standard library functions.
     These are specified by the C standard. *)
 let c_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
@@ -139,13 +149,13 @@ let c_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("abs", special [__ "j" []] @@ fun j -> Math { fun_args = (Abs (IInt, j)) });
     ("labs", special [__ "j" []] @@ fun j -> Math { fun_args = (Abs (ILong, j)) });
     ("llabs", special [__ "j" []] @@ fun j -> Math { fun_args = (Abs (ILongLong, j)) });
-    ("imaxabs", unknown [drop "j" []]);
+    ("imaxabs", special [__ "j" []] @@ fun j -> Math { fun_args = (Abs (Cilfacade.get_ikind (Option.get (Lazy.force intmax_t)), j)) });
     ("localtime_r", unknown [drop "timep" [r]; drop "result" [w]]);
     ("strpbrk", unknown [drop "s" [r]; drop "accept" [r]]);
     ("_setjmp", special [__ "env" [w]] @@ fun env -> Setjmp { env }); (* only has one underscore *)
     ("setjmp", special [__ "env" [w]] @@ fun env -> Setjmp { env });
     ("longjmp", special [__ "env" [r]; __ "value" []] @@ fun env value -> Longjmp { env; value });
-    ("atexit", unknown [drop "function" [s]]);
+    ("atexit", unknown [drop "function" [if_ (fun () -> not (get_bool "sem.atexit.ignore")) s]]);
     ("atoi", unknown [drop "nptr" [r]]);
     ("atol", unknown [drop "nptr" [r]]);
     ("atoll", unknown [drop "nptr" [r]]);
@@ -504,7 +514,7 @@ let pthread_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("pthread_attr_setstacksize", unknown [drop "attr" [w]; drop "stacksize" []]);
     ("pthread_attr_getscope", unknown [drop "attr" [r]; drop "scope" [w]]);
     ("pthread_attr_setscope", unknown [drop "attr" [w]; drop "scope" []]);
-    ("pthread_self", unknown []);
+    ("pthread_self", special [] ThreadSelf);
     ("pthread_sigmask", unknown [drop "how" []; drop "set" [r]; drop "oldset" [w]]);
     ("pthread_setspecific", unknown ~attrs:[InvalidateGlobals] [drop "key" []; drop "value" [w_deep]]);
     ("pthread_getspecific", unknown ~attrs:[InvalidateGlobals] [drop "key" []]);
@@ -712,7 +722,7 @@ let linux_userspace_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("__errno", unknown []);
     ("__errno_location", unknown []);
     ("__h_errno_location", unknown []);
-    ("__printf_chk", unknown [drop "flag" []; drop "format" [r]]);
+    ("__printf_chk", unknown (drop "flag" [] :: drop "format" [r] :: VarArgs (drop' [r])));
     ("__fprintf_chk", unknown (drop "stream" [r_deep; w_deep] :: drop "flag" [] :: drop "format" [r] :: VarArgs (drop' [r])));
     ("__vfprintf_chk", unknown [drop "stream" [r_deep; w_deep]; drop "flag" []; drop "format" [r]; drop "ap" [r_deep]]);
     ("sysinfo", unknown [drop "info" [w_deep]]);
@@ -1087,6 +1097,7 @@ let svcomp_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("__VERIFIER_nondet_int", unknown []);  (* declare invalidate actions to prevent invalidating globals when extern in regression tests *)
     ("__VERIFIER_nondet_size_t", unknown []); (* cannot give it in sv-comp.c without including stdlib or similar *)
     ("__VERIFIER_assert", special [__ "exp" []] @@ fun exp -> Assert { exp; check = true; refine = get_bool "sem.assert.refine" }); (* only used if definition missing (e.g. in evalAssert transformed output) or extraspecial *)
+    ("reach_error", special [] @@ Abort); (* only used if definition missing (e.g. in evalAssert transformed output) or extraspecial *)
   ]
 [@@coverage off]
 
@@ -1246,7 +1257,7 @@ let libraries =
       descs_tbl
     ) libraries
 
-let all_library_descs: (string, LibraryDesc.t) Hashtbl.t =
+let _all_library_descs: (string, LibraryDesc.t) Hashtbl.t =
   Hashtbl.fold (fun _ descs_tbl acc ->
       Hashtbl.merge (fun name desc1 desc2 ->
           match desc1, desc2 with
@@ -1277,7 +1288,7 @@ let reset_lazy () =
   ResettableLazy.reset activated_library_descs
 
 let lib_funs = ref (Set.String.of_list ["__raw_read_unlock"; "__raw_write_unlock"; "spin_trylock"])
-let add_lib_funs funs = lib_funs := List.fold_right Set.String.add funs !lib_funs
+let add_lib_funs funs = lib_funs := List.fold_left (Fun.flip Set.String.add) !lib_funs funs
 let use_special fn_name = Set.String.mem fn_name !lib_funs
 
 let kernel_safe_uncalled = Set.String.of_list ["__inittest"; "init_module"; "__exittest"; "cleanup_module"]

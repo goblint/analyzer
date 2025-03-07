@@ -12,7 +12,7 @@ module type S =
     type data
 
     (** Create data required by this widening point selection strategy.
-        The parameters are not necessarily used by all strategies. 
+        The parameters are not necessarily used by all strategies.
         @param is_stable This callback should return whether an unknown is stable.
         @param add_infl  Allows the strategy to record additional influences.
                           This is mainly intended for strategies like unstable-self,
@@ -187,7 +187,7 @@ module UnstableCalled : S =
   end
 
 (** Destabilized a called or start var. Problem: two partial context calls will be precise, but third call will widen the state.
-    If this side destabilized some of the initial unknowns vs, there may be a side-cycle between vs and we should make y a wpoint *)    
+    If this side destabilized some of the initial unknowns vs, there may be a side-cycle between vs and we should make y a wpoint *)
 module Cycle : S =
   functor (S:EqConstrSys) ->
   functor (HM:Hashtbl.S with type key = S.v) ->

@@ -59,27 +59,45 @@ struct
       not threadflag_path_sens
     else
       true
+
+  (** Whether branched thread creation at start nodes of procedures needs to be handled by [sync `JoinCall] of privatization. *)
+  let branched_thread_creation_at_call (ask:Queries.ask) f =
+    let threadflag_active = List.mem "threadflag" (GobConfig.get_string_list "ana.activated") in
+    if threadflag_active then
+      let sens = GobConfig.get_string_list "ana.ctx_sens" in
+      let threadflag_ctx_sens = match sens with
+        | [] -> (* use values of "ana.ctx_insens" (blacklist) *)
+          not (List.mem "threadflag" @@ GobConfig.get_string_list "ana.ctx_insens")
+        | sens -> (* use values of "ana.ctx_sens" (whitelist) *)
+          List.mem "threadflag" sens
+      in
+      if not threadflag_ctx_sens then
+        true
+      else
+        ask.f (Queries.GasExhausted f)
+    else
+      true
 end
 
 module Protection =
 struct
   open Q.Protection
-  let is_unprotected ask ?(protection=Strong) x: bool =
+  let is_unprotected ask ?(write=true) ?(protection=Strong) x: bool =
     let multi = if protection = Weak then ThreadFlag.is_currently_multi ask else ThreadFlag.has_ever_been_multi ask in
     (!GobConfig.earlyglobs && not multi && not (is_excluded_from_earlyglobs x)) ||
     (
       multi &&
-      ask.f (Q.MayBePublic {global=x; write=true; protection})
+      ask.f (Q.MayBePublic {global=x; write; protection})
     )
 
   let is_unprotected_without ask ?(write=true) ?(protection=Strong) x m: bool =
     (if protection = Weak then ThreadFlag.is_currently_multi ask else ThreadFlag.has_ever_been_multi ask) &&
     ask.f (Q.MayBePublicWithout {global=x; write; without_mutex=m; protection})
 
-  let is_protected_by ask ?(protection=Strong) m x: bool =
+  let is_protected_by ask ?(write=true) ?(protection=Strong) m x: bool =
     is_global ask x &&
     not (VD.is_immediate_type x.vtype) &&
-    ask.f (Q.MustBeProtectedBy {mutex=m; global=x; write=true; protection})
+    ask.f (Q.MustBeProtectedBy {mutex=m; global=x; write; protection})
 
   let protected_vars (ask: Q.ask): varinfo list =
     LockDomain.MustLockset.fold (fun ml acc ->
@@ -92,7 +110,7 @@ module MutexGlobals =
 struct
   module VMutex =
   struct
-    include LockDomain.Addr
+    include LockDomain.MustLock
     let name () = "mutex"
   end
   module VMutexInits = Printable.UnitConf (struct let name = "MUTEX_INITS" end)
@@ -130,23 +148,14 @@ end
 
 module Locksets =
 struct
-  module Lock =
-  struct
-    include LockDomain.Addr
-    let name () = "lock"
-  end
+  module MustLockset = LockDomain.MustLockset
 
-  module Lockset = SetDomain.ToppedSet (Lock) (struct let topname = "All locks" end)
-
-  module MustLockset = SetDomain.Reverse (Lockset)
-
-  let current_lockset (ask: Q.ask): Lockset.t =
+  let current_lockset (ask: Q.ask): MustLockset.t =
     (* TODO: remove this global_init workaround *)
     if !AnalysisState.global_initialization then
-      Lockset.empty ()
+      MustLockset.empty ()
     else
-      let mls = ask.f Queries.MustLockset in
-      LockDomain.MustLockset.fold (fun ml acc -> Lockset.add (Addr (LockDomain.MustLock.to_mval ml)) acc) mls (Lockset.empty ()) (* TODO: use MustLockset as Lockset *)
+      ask.f Queries.MustLockset
 
   (* TODO: reversed SetDomain.Hoare *)
   module MinLocksets = HoareDomain.Set_LiftTop (MustLockset) (struct let topname = "All locksets" end) (* reverse Lockset because Hoare keeps maximal, but we need minimal *)
@@ -171,7 +180,7 @@ struct
     let name () = "P"
 
     (* TODO: change MinLocksets.exists/top instead? *)
-    let find x p = find_opt x p |? MinLocksets.singleton (Lockset.empty ()) (* ensure exists has something to check for thread returns *)
+    let find x p = find_opt x p |? MinLocksets.singleton (MustLockset.empty ()) (* ensure exists has something to check for thread returns *)
   end
 end
 
@@ -228,7 +237,7 @@ struct
     | _ -> false
 end
 
-module PerMutexTidCommon (Digest: Digest) (LD:Lattice.S) =
+module PerMutexTidCommon (Digest: Digest) (LD:Lattice.S) (Cluster:Printable.S) =
 struct
   include ConfCheck.RequireThreadFlagPathSensInit
 
@@ -252,14 +261,14 @@ struct
 
   module LLock =
   struct
-    include Printable.Either (Locksets.Lock) (struct include CilType.Varinfo let name () = "global" end)
+    include Printable.Either (LockDomain.MustLock) (struct include CilType.Varinfo let name () = "global" end)
     let mutex m = `Left m
     let global x = `Right x
   end
 
-  (** Mutexes / globals to which values have been published, i.e. for which the initializers need not be read **)
+  (** Mutexes / clusters of globals to which values have been published, i.e., for which the initializers need not be read **)
   module LMust = struct
-    include SetDomain.Reverse (SetDomain.ToppedSet (LLock) (struct let topname = "All locks" end))
+    include SetDomain.Reverse (SetDomain.ToppedSet (Printable.Prod(LLock)(Cluster)) (struct let topname = "All locks" end))
     let name () = "LMust"
   end
 
@@ -306,6 +315,14 @@ struct
   let startstate () = W.bot (), LMust.top (), L.bot ()
 end
 
+module PerMutexTidCommonNC (Digest: Digest) (LD:Lattice.S) = struct
+  include PerMutexTidCommon (Digest) (LD) (Printable.Unit)
+  module LMust = struct
+    include LMust
+    let mem lm lmust = mem (lm, ()) lmust
+    let add lm lmust = add (lm, ()) lmust
+  end
+end
 
 let lift_lock (ask: Q.ask) f st (addr: LockDomain.Addr.t) =
   (* Should be in sync with:
@@ -315,7 +332,7 @@ let lift_lock (ask: Q.ask) f st (addr: LockDomain.Addr.t) =
   match addr with
   | UnknownPtr -> st
   | Addr (v, _) when ask.f (IsMultiple v) -> st
-  | Addr mv when LockDomain.Mval.is_definite mv -> f st addr
+  | Addr mv when LockDomain.Mval.is_definite mv -> f st (LockDomain.MustLock.of_mval mv)
   | Addr _
   | NullPtr
   | StrPtr _ -> st
@@ -330,16 +347,16 @@ let lift_unlock (ask: Q.ask) f st (addr: LockDomain.Addr.t) =
   | UnknownPtr ->
     LockDomain.MustLockset.fold (fun ml st ->
         (* call privatization's unlock only with definite lock *)
-        f st (LockDomain.Addr.Addr (LockDomain.MustLock.to_mval ml)) (* TODO: no conversion *)
+        f st ml
       ) (ask.f MustLockset) st
   | StrPtr _
   | NullPtr -> st
-  | Addr mv when LockDomain.Mval.is_definite mv -> f st addr
+  | Addr mv when LockDomain.Mval.is_definite mv -> f st (LockDomain.MustLock.of_mval mv)
   | Addr mv ->
     LockDomain.MustLockset.fold (fun ml st ->
         if LockDomain.MustLock.semantic_equal_mval ml mv = Some false then
           st
         else
           (* call privatization's unlock only with definite lock *)
-          f st (Addr (LockDomain.MustLock.to_mval ml)) (* TODO: no conversion *)
+          f st ml
       ) (ask.f MustLockset) st

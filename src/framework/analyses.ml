@@ -1,6 +1,5 @@
 (** {{!Spec} Analysis specification} and {{!MonSystem} constraint system} signatures. *)
 
-open Batteries
 open GoblintCil
 open Pretty
 open GobConfig
@@ -14,8 +13,7 @@ type fundecs = fundec list * fundec list * fundec list
 
 module Var =
 struct
-  type t = Node.t [@@deriving eq, ord, hash]
-  let relift = Node.relift
+  type t = Node.t [@@deriving eq, ord, hash, relift]
 
   let printXml f n =
     let l = Node.location n in
@@ -152,24 +150,15 @@ struct
     | `Lifted x -> LD.printXml f x
 end
 
-
-(* Experiment to reduce the number of arguments on transfer functions and allow
-   sub-analyses. The list sub contains the current local states of analyses in
-   the same order as written in the dependencies list (in MCP).
-
-   The foreign states when calling special_fn or enter are joined if the foreign
-   analysis tries to be path-sensitive in these functions. First try to only
-   depend on simple analyses.
-
-   It is not clear if we need pre-states, post-states or both on foreign analyses.
-*)
-type ('d,'g,'c,'v) ctx =
+(** Man(ager) is passed to transfer functions and offers access to various facilities, e.g., to access the local state, the context,
+    read values from globals, side-effect values to globals and trigger events. *)
+type ('d,'g,'c,'v) man =
   { ask      : 'a. 'a Queries.t -> 'a Queries.result (* Inlined Queries.ask *)
   ; emit     : Events.t -> unit
   ; node     : MyCFG.node
   ; prev_node: MyCFG.node
-  ; control_context : unit -> ControlSpecC.t (** top-level Control Spec context, raises [Ctx_failure] if missing *)
-  ; context  : unit -> 'c (** current Spec context, raises [Ctx_failure] if missing *)
+  ; control_context : unit -> ControlSpecC.t (** top-level Control Spec context, raises [Man_failure] if missing *)
+  ; context  : unit -> 'c (** current Spec context, raises [Man_failure] if missing *)
   ; edge     : MyCFG.edge
   ; local    : 'd
   ; global   : 'v -> 'g
@@ -178,13 +167,13 @@ type ('d,'g,'c,'v) ctx =
   ; sideg    : 'v -> 'g -> unit
   }
 
-exception Ctx_failure of string
-(** Failure from ctx, e.g. global initializer *)
+exception Man_failure of string
+(** Failure from man, e.g. global initializer *)
 
-let ctx_failwith s = raise (Ctx_failure s) (* TODO: use everywhere in ctx *)
+let man_failwith s = raise (Man_failure s) (* TODO: use everywhere in man *)
 
-(** Convert [ctx] to [Queries.ask]. *)
-let ask_of_ctx ctx: Queries.ask = { Queries.f = ctx.ask }
+(** Convert [man] to [Queries.ask]. *)
+let ask_of_man man: Queries.ask = { Queries.f = man.ask }
 
 
 module type Spec =
@@ -215,48 +204,48 @@ sig
   val morphstate : varinfo -> D.t -> D.t
   val exitstate  : varinfo -> D.t
 
-  val context: (D.t, G.t, C.t, V.t) ctx -> fundec -> D.t -> C.t
+  val context: (D.t, G.t, C.t, V.t) man -> fundec -> D.t -> C.t
   val startcontext: unit -> C.t
 
-  val sync  : (D.t, G.t, C.t, V.t) ctx -> [`Normal | `Join | `Return] -> D.t
-  val query : (D.t, G.t, C.t, V.t) ctx -> 'a Queries.t -> 'a Queries.result
+  val sync  : (D.t, G.t, C.t, V.t) man -> [`Normal | `Join | `JoinCall of CilType.Fundec.t | `Return] -> D.t
+  val query : (D.t, G.t, C.t, V.t) man -> 'a Queries.t -> 'a Queries.result
 
   (** A transfer function which handles the assignment of a rval to a lval, i.e.,
       it handles program points of the form "lval = rval;" *)
-  val assign: (D.t, G.t, C.t, V.t) ctx -> lval -> exp -> D.t
+  val assign: (D.t, G.t, C.t, V.t) man -> lval -> exp -> D.t
 
   (** A transfer function used for declaring local variables.
       By default only for variable-length arrays (VLAs). *)
-  val vdecl : (D.t, G.t, C.t, V.t) ctx -> varinfo -> D.t
+  val vdecl : (D.t, G.t, C.t, V.t) man -> varinfo -> D.t
 
   (** A transfer function which handles conditional branching yielding the
       truth value passed as a boolean argument *)
-  val branch: (D.t, G.t, C.t, V.t) ctx -> exp -> bool -> D.t
+  val branch: (D.t, G.t, C.t, V.t) man -> exp -> bool -> D.t
 
   (** A transfer function which handles going from the start node of a function (fundec) into
       its function body. Meant to handle, e.g., initialization of local variables *)
-  val body  : (D.t, G.t, C.t, V.t) ctx -> fundec -> D.t
+  val body  : (D.t, G.t, C.t, V.t) man -> fundec -> D.t
 
   (** A transfer function which handles the return statement, i.e.,
       "return exp" or "return" in the passed function (fundec) *)
-  val return: (D.t, G.t, C.t, V.t) ctx -> exp option  -> fundec -> D.t
+  val return: (D.t, G.t, C.t, V.t) man -> exp option  -> fundec -> D.t
 
   (** A transfer function meant to handle inline assembler program points *)
-  val asm   : (D.t, G.t, C.t, V.t) ctx -> D.t
+  val asm   : (D.t, G.t, C.t, V.t) man -> D.t
 
   (** A transfer function which works as the identity function, i.e., it skips and does nothing.
       Used for empty loops. *)
-  val skip  : (D.t, G.t, C.t, V.t) ctx -> D.t
+  val skip  : (D.t, G.t, C.t, V.t) man -> D.t
 
   (** A transfer function which, for a call to a {e special} function f "lval = f(args)" or "f(args)",
       computes the caller state after the function call *)
-  val special : (D.t, G.t, C.t, V.t) ctx -> lval option -> varinfo -> exp list -> D.t
+  val special : (D.t, G.t, C.t, V.t) man -> lval option -> varinfo -> exp list -> D.t
 
   (** For a function call "lval = f(args)" or "f(args)",
       [enter] returns a caller state, and the initial state of the callee.
       In [enter], the caller state can usually be returned unchanged, as [combine_env] and [combine_assign] (below)
       will compute the caller state after the function call, given the return state of the callee *)
-  val enter   : (D.t, G.t, C.t, V.t) ctx -> lval option -> fundec -> exp list -> (D.t * D.t) list
+  val enter   : (D.t, G.t, C.t, V.t) man -> lval option -> fundec -> exp list -> (D.t * D.t) list
 
   (* Combine is split into two steps: *)
 
@@ -264,25 +253,27 @@ sig
       between local state (first component from enter) and function return.
 
       This shouldn't yet assign to the lval. *)
-  val combine_env : (D.t, G.t, C.t, V.t) ctx -> lval option -> exp -> fundec -> exp list -> C.t option -> D.t -> Queries.ask -> D.t
+  val combine_env : (D.t, G.t, C.t, V.t) man -> lval option -> exp -> fundec -> exp list -> C.t option -> D.t -> Queries.ask -> D.t
 
   (** Combine return value assignment
       to local state (result from combine_env) and function return.
 
       This should only assign to the lval. *)
-  val combine_assign : (D.t, G.t, C.t, V.t) ctx -> lval option -> exp -> fundec -> exp list -> C.t option -> D.t -> Queries.ask -> D.t
+  val combine_assign : (D.t, G.t, C.t, V.t) man -> lval option -> exp -> fundec -> exp list -> C.t option -> D.t -> Queries.ask -> D.t
 
   (* Paths as sets: I know this is ugly! *)
-  val paths_as_set : (D.t, G.t, C.t, V.t) ctx -> D.t list
+  val paths_as_set : (D.t, G.t, C.t, V.t) man -> D.t list
 
   (** Returns initial state for created thread. *)
-  val threadenter : (D.t, G.t, C.t, V.t) ctx -> multiple:bool -> lval option -> varinfo -> exp list -> D.t list
+  val threadenter : (D.t, G.t, C.t, V.t) man -> multiple:bool -> lval option -> varinfo -> exp list -> D.t list
 
   (** Updates the local state of the creator thread using initial state of created thread. *)
-  val threadspawn : (D.t, G.t, C.t, V.t) ctx -> multiple:bool -> lval option -> varinfo -> exp list -> (D.t, G.t, C.t, V.t) ctx -> D.t
+  val threadspawn : (D.t, G.t, C.t, V.t) man -> multiple:bool -> lval option -> varinfo -> exp list -> (D.t, G.t, C.t, V.t) man -> D.t
 
-  val event : (D.t, G.t, C.t, V.t) ctx -> Events.t -> (D.t, G.t, C.t, V.t) ctx -> D.t
+  val event : (D.t, G.t, C.t, V.t) man -> Events.t -> (D.t, G.t, C.t, V.t) man -> D.t
 end
+
+module type Spec2Spec = functor (S: Spec) -> Spec
 
 module type MCPA =
 sig
@@ -296,7 +287,7 @@ sig
   include Spec
 
   module A: MCPA
-  val access: (D.t, G.t, C.t, V.t) ctx -> Queries.access -> A.t
+  val access: (D.t, G.t, C.t, V.t) man -> Queries.access -> A.t
 end
 
 type increment_data = {
@@ -366,7 +357,7 @@ struct
   (* no inits nor finalize -- only analyses like Mutex, Base, ... need
      these to do postprocessing or other imperative hacks. *)
 
-  let vdecl ctx _ = ctx.local
+  let vdecl man _ = man.local
 
   let asm x =
     M.msg_final Info ~category:Unsound "ASM ignored";
@@ -378,18 +369,18 @@ struct
   let query _ (type a) (q: a Queries.t) = Queries.Result.top q
   (* Don't know anything --- most will want to redefine this. *)
 
-  let event ctx _ _ = ctx.local
+  let event man _ _ = man.local
 
   let morphstate v d = d
   (* Only for those who track thread IDs. *)
 
-  let sync ctx _ = ctx.local
+  let sync man _ = man.local
   (* Most domains do not have a global part. *)
 
-  let context ctx fd x = x
+  let context man fd x = x
   (* Everything is context sensitive --- override in MCP and maybe elsewhere*)
 
-  let paths_as_set ctx = [ctx.local]
+  let paths_as_set man = [man.local]
 
   module A = UnitA
   let access _ _ = ()
@@ -399,39 +390,39 @@ end
 module IdentitySpec =
 struct
   include DefaultSpec
-  let assign ctx (lval:lval) (rval:exp) =
-    ctx.local
+  let assign man (lval:lval) (rval:exp) =
+    man.local
 
-  let branch ctx (exp:exp) (tv:bool) =
-    ctx.local
+  let branch man (exp:exp) (tv:bool) =
+    man.local
 
-  let body ctx (f:fundec) =
-    ctx.local
+  let body man (f:fundec) =
+    man.local
 
-  let return ctx (exp:exp option) (f:fundec) =
-    ctx.local
+  let return man (exp:exp option) (f:fundec) =
+    man.local
 
-  let enter ctx (lval: lval option) (f:fundec) (args:exp list) =
-    [ctx.local, ctx.local]
+  let enter man (lval: lval option) (f:fundec) (args:exp list) =
+    [man.local, man.local]
 
-  let combine_env ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc au (f_ask: Queries.ask) =
+  let combine_env man (lval:lval option) fexp (f:fundec) (args:exp list) fc au (f_ask: Queries.ask) =
     au
 
-  let combine_assign ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc au (f_ask: Queries.ask) =
-    ctx.local
+  let combine_assign man (lval:lval option) fexp (f:fundec) (args:exp list) fc au (f_ask: Queries.ask) =
+    man.local
 
-  let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) =
-    ctx.local
+  let special man (lval: lval option) (f:varinfo) (arglist:exp list) =
+    man.local
 
-  let threadenter ctx ~multiple lval f args = [ctx.local]
-  let threadspawn ctx ~multiple lval f args fctx = ctx.local
+  let threadenter man ~multiple lval f args = [man.local]
+  let threadspawn man ~multiple lval f args fman = man.local
 end
 
 module IdentityUnitContextsSpec = struct
   include IdentitySpec
   module C = Printable.Unit
 
-  let context ctx _ _ = ()
+  let context man _ _ = ()
   let startcontext () = ()
 end
 

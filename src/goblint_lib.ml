@@ -23,6 +23,7 @@ module CfgTools = CfgTools
 module Analyses = Analyses
 module ConstrSys = ConstrSys
 module Constraints = Constraints
+module CompareConstraints = CompareConstraints
 module AnalysisState = AnalysisState
 module AnalysisStateUtil = AnalysisStateUtil
 module ControlSpecC = ControlSpecC
@@ -108,6 +109,7 @@ module MutexAnalysis = MutexAnalysis
 module MayLocks = MayLocks
 module SymbLocks = SymbLocks
 module Deadlock = Deadlock
+module MutexGhosts = MutexGhosts
 
 (** {3 Threads}
 
@@ -169,6 +171,20 @@ module UnassumeAnalysis = UnassumeAnalysis
 module ExpRelation = ExpRelation
 module AbortUnless = AbortUnless
 module PtranalAnalysis = PtranalAnalysis
+
+
+(** {1 Analysis lifters}
+
+    Transformations of analyses into extended analyses. *)
+
+module SpecLifters = SpecLifters
+module LongjmpLifter = LongjmpLifter
+module RecursionTermLifter = RecursionTermLifter
+module ContextGasLifter = ContextGasLifter
+module WideningToken = WideningToken
+module WideningTokenLifter = WideningTokenLifter
+
+module WitnessConstraints = WitnessConstraints
 
 
 (** {1 Domains}
@@ -244,6 +260,7 @@ module ValueDomainQueries = ValueDomainQueries
 module RelationDomain = RelationDomain
 module ApronDomain = ApronDomain
 module AffineEqualityDomain = AffineEqualityDomain
+module AffineEqualityDenseDomain = AffineEqualityDenseDomain
 module LinearTwoVarEqualityDomain = LinearTwoVarEqualityDomain
 
 (** {3 Concurrency} *)
@@ -326,7 +343,6 @@ module WitnessUtil = WitnessUtil
     Automaton-based GraphML witnesses used in SV-COMP. *)
 
 module MyARG = MyARG
-module WitnessConstraints = WitnessConstraints
 module ArgTools = ArgTools
 module Witness = Witness
 module Graphml = Graphml
@@ -337,7 +353,7 @@ module Graphml = Graphml
 
 module YamlWitness = YamlWitness
 module YamlWitnessType = YamlWitnessType
-module WideningTokens = WideningTokens
+module WitnessGhost = WitnessGhost
 
 (** {3 Violation}
 
@@ -418,7 +434,15 @@ module BaseInvariant = BaseInvariant
 module CommonPriv = CommonPriv
 module WideningThresholds = WideningThresholds
 
-module VectorMatrix = VectorMatrix
+(* There might be a more elegant solution. *)
+module Vector = Vector
+module Matrix = Matrix
+module ArrayVector = ArrayVector
+module ArrayMatrix = ArrayMatrix
+module SparseVector = SparseVector
+module ListMatrix = ListMatrix
+module RatOps = RatOps
+
 module SharedFunctions = SharedFunctions
 module GobApron = GobApron
 

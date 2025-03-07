@@ -1,4 +1,5 @@
 // PARAM: --enable exp.earlyglobs
+// NOCRASH
 char a;
 int c;
 

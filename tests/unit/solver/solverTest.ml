@@ -18,6 +18,7 @@ struct
   let node _ = failwith "no node"
   let relift x = x
   let is_write_only _ = false
+  let is_category _ _ = false
 end
 
 (* domain is (reversed) integers *)

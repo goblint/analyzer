@@ -17,7 +17,7 @@ type spec_modules = { name : string
                     ; path : (module DisjointDomain.Representative) }
 
 let activated  : (int * spec_modules) list ref = ref []
-let activated_ctx_sens: (int * spec_modules) list ref = ref []
+let activated_context_sens: (int * spec_modules) list ref = ref []
 let activated_path_sens: (int * spec_modules) list ref = ref []
 let registered: (int, spec_modules) Hashtbl.t = Hashtbl.create 100
 let registered_name: (string, int) Hashtbl.t = Hashtbl.create 100
@@ -440,7 +440,7 @@ end
 module ContextListSpec : DomainListPrintableSpec =
 struct
   let assoc_dom n = (find_spec n).cont
-  let domain_list () = List.map (fun (n,p) -> n, p.cont) !activated_ctx_sens
+  let domain_list () = List.map (fun (n,p) -> n, p.cont) !activated_context_sens
 end
 
 module VarListSpec : DomainListSysVarSpec =

@@ -28,9 +28,6 @@ let domains: (module Lattice.S) list = [
   (* (module IntDomainProperties.IntegerSet); (* TODO: top properties error *) *)
   (module IntDomain.Lifted); (* not abstraction of IntegerSet *)
 
-  (* TODO: move to intDomains if passing *)
-  (module IntDomain.Booleans);
-
   (* TODO: fix *)
   (* (module IntDomain.Enums); *)
   (* (module IntDomain.IntDomTuple); *)
@@ -49,6 +46,7 @@ let intDomains: (module IntDomainProperties.S) list = [
   (module IntDomain.Enums);
   (module IntDomain.Congruence);
   (module IntDomain.SOverflowUnlifter(IntDomain.IntervalSet));
+  (module IntDomain.SOverflowUnlifter(IntDomain.Bitfield));
   (* (module IntDomain.Flattened); *)
   (* (module IntDomain.Interval32); *)
   (* (module IntDomain.Booleans); *)

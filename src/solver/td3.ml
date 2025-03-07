@@ -49,7 +49,7 @@ module Base =
     open SolverBox.Warrow (S.Dom)
     include Generic.SolverStats (S) (HM)
     module VS = Set.Make (S.Var)
-    let exists_key f hm = HM.fold (fun k _ a -> a || f k) hm false
+    let exists_key f hm = HM.exists (fun k _ -> f k) hm
 
     type divided_side_phase = D_Widen | D_Narrow | D_Box [@@deriving show]
 
@@ -320,7 +320,11 @@ module Base =
       let destabilize_ref: (S.v -> unit) ref = ref (fun _ -> failwith "no destabilize yet") in
       let destabilize x = !destabilize_ref x in (* must be eta-expanded to use changed destabilize_ref *)
 
-      let format_wpoint x = Option.map_default (fun x -> Printf.sprintf "true (gas: %d)" x) "false" (HM.find_option wpoint_gas x) in
+      let pretty_wpoint () x =
+        match HM.find_option wpoint_gas x with
+        | None -> Pretty.text "false"
+        | Some x -> Pretty.dprintf "true (gas: %d)" x
+      in
       let mark_wpoint x default_gas =
         if not (HM.mem wpoint_gas x) then (HM.replace wpoint_gas x default_gas) in
       let reduce_gas x =
@@ -349,9 +353,9 @@ module Base =
               destabilize_vs y || b || was_stable && List.mem_cmp S.Var.compare y vs
             else
               true
-          ) w false
+          ) w false (* nosemgrep: fold-exists *) (* does side effects *)
       and solve ?reuse_eq x phase =
-        if tracing then trace "sol2" "solve %a, phase: %s, called: %b, stable: %b, wpoint: %s" S.Var.pretty_trace x (show_phase phase) (HM.mem called x) (HM.mem stable x) (format_wpoint x);
+        if tracing then trace "sol2" "solve %a, phase: %s, called: %b, stable: %b, wpoint: %a" S.Var.pretty_trace x (show_phase phase) (HM.mem called x) (HM.mem stable x) pretty_wpoint x;
         init x;
         assert (Hooks.system x <> None);
         if not (HM.mem called x || HM.mem stable x) then (
@@ -441,7 +445,7 @@ module Base =
           if not (Timing.wrap "S.Dom.equal" (fun () -> S.Dom.equal old wpd) ()) then ( (* value changed *)
             if tracing then trace "sol" "Changed";
             (* if tracing && not (S.Dom.is_bot old) && HM.mem wpoint x then trace "solchange" "%a (wpx: %b): %a -> %a" S.Var.pretty_trace x (HM.mem wpoint x) S.Dom.pretty old S.Dom.pretty wpd; *)
-            if tracing && not (S.Dom.is_bot old) && should_widen x then trace "solchange" "%a (wpx: %s): %a" S.Var.pretty_trace x (format_wpoint x) S.Dom.pretty_diff (wpd, old);
+            if tracing && not (S.Dom.is_bot old) && should_widen x then trace "solchange" "%a (wpx: %a): %a" S.Var.pretty_trace x pretty_wpoint x S.Dom.pretty_diff (wpd, old);
             update_var_event x old wpd;
             HM.replace rho x wpd;
             destabilize x;
@@ -460,7 +464,7 @@ module Base =
                 Hooks.stable_remove x;
                 (solve[@tailcall]) ~reuse_eq:eqd x Narrow
               ) else if remove_wpoint && not space && (not term || phase = Narrow) then ( (* this makes e.g. nested loops precise, ex. tests/regression/34-localization/01-nested.c - if we do not remove wpoint, the inner loop head will stay a wpoint and widen the outer loop variable. *)
-                if tracing then trace "sol2" "solve removing wpoint %a (%s)" S.Var.pretty_trace x (format_wpoint x);
+                if tracing then trace "sol2" "solve removing wpoint %a (%a)" S.Var.pretty_trace x pretty_wpoint x;
                 HM.remove wpoint_gas x;
               )
             )
@@ -692,7 +696,7 @@ module Base =
         if tracing then trace "sol2" "eval %a ## %a -> %a" S.Var.pretty_trace x S.Var.pretty_trace y S.Dom.pretty tmp;
         tmp
       and side ?x y d = (* side from x to y; only to variables y w/o rhs; x only used for trace *)
-        if tracing then trace "sol2" "side to %a (wpx: %s) from %a ## value: %a" S.Var.pretty_trace y (format_wpoint y) (Pretty.docOpt (S.Var.pretty_trace ())) x S.Dom.pretty d;
+        if tracing then trace "sol2" "side to %a (wpx: %a) from %a ## value: %a" S.Var.pretty_trace y pretty_wpoint y (Pretty.docOpt (S.Var.pretty_trace ())) x S.Dom.pretty d;
         if Hooks.system y <> None then (
           Logs.warn "side-effect to unknown w/ rhs: %a, contrib: %a" S.Var.pretty_trace y S.Dom.pretty d;
         );
@@ -717,8 +721,8 @@ module Base =
         if tracing then trace "sol2" "stable add %a" S.Var.pretty_trace y;
         HM.replace stable y ();
         if not (S.Dom.leq tmp old) then (
-          if tracing && not (S.Dom.is_bot old) then trace "solside" "side to %a (wpx: %s) from %a: %a -> %a" S.Var.pretty_trace y (format_wpoint y) (Pretty.docOpt (S.Var.pretty_trace ())) x S.Dom.pretty old S.Dom.pretty tmp;
-          if tracing && not (S.Dom.is_bot old) then trace "solchange" "side to %a (wpx: %s) from %a: %a" S.Var.pretty_trace y (format_wpoint y) (Pretty.docOpt (S.Var.pretty_trace ())) x S.Dom.pretty_diff (tmp, old);
+          if tracing && not (S.Dom.is_bot old) then trace "solside" "side to %a (wpx: %a) from %a: %a -> %a" S.Var.pretty_trace y pretty_wpoint y (Pretty.docOpt (S.Var.pretty_trace ())) x S.Dom.pretty old S.Dom.pretty tmp;
+          if tracing && not (S.Dom.is_bot old) then trace "solchange" "side to %a (wpx: %a) from %a: %a" S.Var.pretty_trace y pretty_wpoint y (Pretty.docOpt (S.Var.pretty_trace ())) x S.Dom.pretty_diff (tmp, old);
 
           (match x with
            | Some x ->
