@@ -790,6 +790,20 @@
               "title": "ana.base.priv",
               "type": "object",
               "properties": {
+                "protection": {
+                  "title": "ana.base.priv.protection",
+                  "description": "Options for protection based privatization schemes.",
+                  "type": "object",
+                  "properties": {
+                    "changes-only": {
+                      "title": "ana.base.priv.protection.changes-only",
+                      "description": "Only propagate changes to globals on unlock, don't side the full value of the privatized global.",
+                      "type": "boolean",
+                      "default": false
+                    }
+                  },
+                  "additionalProperties": false
+                },
                 "not-started": {
                   "title": "ana.base.priv.not-started",
                   "description":
@@ -2473,6 +2487,43 @@
               "description": "Reuse value when switching from widening to narrowing phase. Avoids one unnecessary re-evaluation.",
               "type": "boolean",
               "default": true
+            },
+            "narrow-globs": {
+              "title": "solvers.td3.narrow-globs",
+              "type": "object",
+              "properties": {
+                "enabled": {
+                  "title": "solvers.td3.narrow-globs.enabled",
+                  "description": "Individually track side-effects from different unknowns to enable narrowing of globals.",
+                  "type": "boolean",
+                  "default": false
+                },
+                "conservative-widen": {
+                  "title": "solvers.td3.narrow-globs.conservative-widen",
+                  "description": "Controls when to widen divided sides. true: Only widen on a side-effect, if joining would affect the overall value of the global. false: Always widen increasing/incomparable side-effects",
+                  "type": "boolean",
+                  "default": true
+                },
+                "immediate-growth": {
+                  "title": "solvers.td3.narrow-globs.immediate-growth",
+                  "description": "Controls when growing side-effects are applied. true: immediately when they are triggered. false: after the source unknown has been fully evaluated",
+                  "type": "boolean",
+                  "default": true
+                },
+                "narrow-gas": {
+                  "title": "solvers.td3.narrow-globs.narrow-gas",
+                  "description": "Limits the number of times a side-effect can switch from widening to narrowing to enforce termination. 0 disables narrowing, -1 allows narrowing infinitely often.",
+                  "type": "integer",
+                  "default": 5
+                },
+                "eliminate-dead": {
+                  "title": "solvers.td3.narrow-globs.eliminate-dead",
+                  "description": "side-effects that no longer occur are narrowed with bot.",
+                  "type": "boolean",
+                  "default": false
+                }
+              },
+              "additionalProperties": false
             },
             "remove-wpoint": {
               "title": "solvers.td3.remove-wpoint",
