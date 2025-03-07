@@ -1,4 +1,4 @@
-// PARAM: --set solvers.td3.side_widen always --set solvers.td3.side_widen_gas 0 --enable ana.int.interval --set ana.base.privatization protection
+// PARAM: --set solvers.td3.side_widen never --enable ana.int.interval --set ana.base.privatization protection
 #include <pthread.h>
 #include <goblint.h>
 
@@ -39,7 +39,7 @@ int main(void) {
 
   pthread_mutex_lock(&C);
   __goblint_check(g >= 40);
-  __goblint_check(g <= 42); // UNKNOWN (widen)
+  __goblint_check(g <= 42); // unknown with widening
   pthread_mutex_unlock(&C);
 
   return 0;
