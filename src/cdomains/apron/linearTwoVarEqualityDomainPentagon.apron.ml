@@ -47,22 +47,6 @@ struct
   let dim_add (ch: Apron.Dim.change) (econj, i, ineq) =
     (EConj.dim_add ch econj, modify_variables_in_domain_values i ch.dim (+), Ineq.modify_variables_in_domain ineq ch.dim (+))
 
-
-  let forget_variable (econj, is, ineq) var = (EConj.forget_variable econj var, IntMap.remove var is, Ineq.forget_variable ineq var)
-
-  let dim_remove (ch: Apron.Dim.change) (econj, v, ineq) ~del =
-    if Array.length ch.dim = 0 || is_empty (econj, v, ineq) then
-      (econj, v, ineq)
-    else (
-      let cpy = Array.copy ch.dim in
-      Array.modifyi (+) cpy; (* this is a hack to restore the original https://antoinemine.github.io/Apron/doc/api/ocaml/Dim.html remove_dimensions semantics for dim_remove *)
-      let (econj', v', ineq') = Array.fold_lefti (fun y i x -> forget_variable y (x)) (econj, v, ineq) cpy in  (* clear m' from relations concerning ch.dim *)
-      let econj'' = EConj.modify_variables_in_domain econj' cpy (-) in
-      let v'' = modify_variables_in_domain_values v' cpy (-) in
-      let ineq'' = Ineq.modify_variables_in_domain ineq' cpy (-) in
-      (econj'', v'', ineq''))
-
-
   let get_rhs (econ, _, _) = EConj.get_rhs econ
 
   let get_value ((econ, vs, _) as t) lhs = 
@@ -176,6 +160,70 @@ struct
     let res = set_rhs t lhs rhs  in
     if M.tracing then M.tracel "modify_pentagon" "set_rhs before: %s eq: var_%d=%s  ->  %s " (show t) lhs (Rhs.show rhs) (show res);
     res
+
+  let forget_variable ((econj, _, _) as d) var = 
+    let rhs_var = get_rhs d var in
+    let value_var = get_value d var in
+    let (econj', vs', ineq'), newRoot =
+      (let ref_var_opt = Tuple3.first rhs_var in
+       match ref_var_opt with
+       | Some (_,ref_var) when ref_var = var ->
+         if M.tracing then M.trace "forget" "headvar var_%d" var;
+         (* var is the reference variable of its connected component *)
+         (let cluster = List.sort (Int.compare) @@ IntMap.fold
+              (fun i (refe,_,_) l -> BatOption.map_default (fun (coeff,refe) -> if (refe=ref_var) then i::l else l) l refe) (snd econj) [] in
+          if M.tracing then M.trace "forget" "cluster varindices: [%s]" (String.concat ", " (List.map (string_of_int) cluster));
+          (* obtain cluster with common reference variable ref_var*)
+          match cluster with (* new ref_var is taken from head of the cluster *)
+          | head :: clusterrest ->
+            (* head: divi*x = coeff*y + offs *)
+            (* divi*x = coeff*y + offs   =inverse=>    y =( divi*x - offs)/coeff     *)
+            let (newref,offs,divi) = (get_rhs d head) in
+            let (coeff,y) = BatOption.get newref in
+            let (y,yrhs) = EConj.inverse head (coeff,y,offs,divi) in (* reassemble yrhs out of components *)
+            let shifted_cluster =  (List.fold (fun map i ->
+                let irhs = (get_rhs d i) in (* old entry is i = irhs *)
+                Rhs.subst yrhs y irhs |>    (* new entry for i is irhs [yrhs/y] *)
+                set_rhs map i
+              ) d clusterrest) in
+            set_rhs shifted_cluster head (Rhs.var_zero head), Some head (* finally make sure that head is now trivial *)
+          | [] -> d, None) (* empty cluster means no work for us *)
+       | _ -> d, None) (* variable is either a constant or expressed by another refvar *) in
+    (*Forget old information*)
+    let econj'' = (fst econj', IntMap.remove var (snd econj')) in (* set d(var) to unknown, finally *)
+    let vs'' = IntMap.remove var vs' in
+    let ineq'' = Ineq.forget_variable ineq' var in
+    let d' = (econj'', vs'', ineq'') in
+    (*Try restoring information for new head*)
+    let d'' = 
+      match newRoot with
+      | None -> d'
+      | Some newRoot -> 
+        let cond = 
+          match get_rhs d newRoot with
+          | (Some (c,_), o, d) when Z.equal c Z.one && Z.equal o Z.zero && Z.equal d Z.one -> Some Ineq.Eq
+          | rhs_new -> match Ineq.is_less_than (rhs_new, get_value d newRoot) (rhs_var, value_var) ineq'' with (*relation of new root to root before this call*)
+            | None -> None
+            | Some true -> Some Lt
+            | Some false -> Some Gt 
+        in match cond with 
+        | None -> d'
+        | Some cond -> econj'', vs'', Ineq.transfer var newRoot cond ineq' (get_rhs d) (get_value d) ineq'' (get_rhs d') (get_value d')  
+    in
+    if M.tracing then M.tracel "forget" "forget var_%d in { %s } -> { %s }" var (show d) (show d'');
+    d''
+
+  let dim_remove (ch: Apron.Dim.change) (econj, v, ineq) ~del =
+    if Array.length ch.dim = 0 || is_empty (econj, v, ineq) then
+      (econj, v, ineq)
+    else (
+      let cpy = Array.copy ch.dim in
+      Array.modifyi (+) cpy; (* this is a hack to restore the original https://antoinemine.github.io/Apron/doc/api/ocaml/Dim.html remove_dimensions semantics for dim_remove *)
+      let (econj', v', ineq') = Array.fold_lefti (fun y i x -> forget_variable y (x)) (econj, v, ineq) cpy in  (* clear m' from relations concerning ch.dim *)
+      let econj'' = EConj.modify_variables_in_domain econj' cpy (-) in
+      let v'' = modify_variables_in_domain_values v' cpy (-) in
+      let ineq'' = Ineq.modify_variables_in_domain ineq' cpy (-) in
+      (econj'', v'', ineq''))
 
   let meet_with_one_conj ((ts, is, ineq) as t:t) i (var, offs, divi) =
     let (var,offs,divi) = Rhs.canonicalize (var,offs,divi) in (* make sure that the one new conj is properly canonicalized *)
@@ -815,7 +863,6 @@ struct
       (* normalize in case of a full blown equality *)
       | Some (coeffj,j) -> tuple_cmp (EConj.get_rhs ts i) @@ Rhs.subst (EConj.get_rhs ts j) j (var, offs, divi)
     in
-    (*TODO allow congruence implied by Rhs? or fix bug that some aren't always set!!*)
     let implies_value v i value = Value.leq (EConjI.get_value v i) value
     in
     if env_comp = -2 || env_comp > 0 then false else
@@ -947,7 +994,7 @@ struct
               Ineq.meet_condition var_i dim cond (EConjI.get_rhs d') (EConjI.get_value d') ineq
             else
               (*TODO If cond = Eq, we could restore the previous rhs. Does this ever happen?*)
-              Ineq.transfer dim cond ineq_old (EConjI.get_rhs d) (EConjI.get_value d) ineq (EConjI.get_rhs d') (EConjI.get_value d')
+              Ineq.transfer dim dim cond ineq_old (EConjI.get_rhs d) (EConjI.get_value d) ineq (EConjI.get_rhs d') (EConjI.get_value d')
           in
           let ineq' = List.fold meet_cond ineq (VarManagement.to_inequalities t texp) in
           if M.tracing then M.tracel "assign_texpr" "after inequality: %s" (show {d = Some (econ, vs, ineq'); env = t.env});
@@ -1089,20 +1136,23 @@ struct
                 | SUP when Z.gt constant Z.zero -> t
                 | DISEQ when not @@ Z.equal constant Z.zero -> t
                 | EQMOD _ -> t
-                | _ -> bot_env (* all other results are violating the guard *)
+                | _ ->                     if M.tracing then M.tracel "meet_tcons" "meet_one_conj case 0";
+                  bot_env (* all other results are violating the guard *)
               end
             | [(coeff, index, divi)] -> (* guard has a single reference variable only *)
-              if Tcons1.get_typ tcons = EQ then
+              if Tcons1.get_typ tcons = EQ then begin
+                if M.tracing then M.tracel "meet_tcons" "meet_one_conj case 1";
                 meet_with_one_conj t index (Rhs.canonicalize (None, Z.neg @@ Z.(divi*constant),Z.(coeff*divisor)))
-              else
+              end else
                 t (* only EQ is supported in equality based domains *)
             | [(c1,var1,d1); (c2,var2,d2)] -> (* two variables in relation needs a little sorting out *)
               begin match Tcons1.get_typ tcons with
                 | EQ -> (* c1*var1/d1 + c2*var2/d2 +constant/divisor = 0*)
                   (* ======>  c1*divisor*d2 * var1 = -c2*divisor*d1 * var2 +constant*-d1*d2*)
                   (*   \/     c2*divisor*d1 * var2 = -c1*divisor*d2 * var1 +constant*-d1*d2*)
+                  if M.tracing then M.tracel "meet_tcons" "meet_one_conj case 2";
                   let open Z in
-                  if var1 < var2 then
+                  if var1 < var2 then 
                     meet_with_one_conj t var2 (Rhs.canonicalize (Some (neg @@ c1*divisor,var1),neg @@ constant*d2*d1,c2*divisor*d1))
                   else
                     meet_with_one_conj t var1 (Rhs.canonicalize (Some (neg @@ c2*divisor,var2),neg @@ constant*d2*d1,c1*divisor*d2))
