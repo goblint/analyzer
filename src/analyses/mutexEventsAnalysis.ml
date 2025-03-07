@@ -21,11 +21,15 @@ struct
     let compute_refine_split (e: Addr.t) = match e with
       | Addr a ->
         let arg_e = AddrOf (PreValueDomain.Mval.to_cil a) in
-        if not (CilType.Exp.equal arg arg_e) then
-          let e' = BinOp (Eq, arg, arg_e, intType) in
-          [Events.SplitBranch (e', true)]
-        else
-          []
+        (try
+           (* Don't lure ourselves in a stupid trap *)
+           let t = Cilfacade.typeOf arg_e in
+           if not (CilType.Exp.equal arg arg_e) then
+             let e' = BinOp (Eq, arg, arg_e, intType) in
+             [Events.SplitBranch (e', true)]
+           else
+             []
+         with _ -> [])
       | _ -> []
     in
     match lv_opt with
