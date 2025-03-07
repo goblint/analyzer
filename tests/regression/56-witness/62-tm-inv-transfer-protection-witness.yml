@@ -1,15 +1,16 @@
-- entry_type: location_invariant
+- entry_type: invariant_set
   metadata:
-    format_version: "0.1"
-    uuid: 9ee02271-d3f1-4821-bee6-ac57700e48eb
-    creation_time: 2025-03-07T11:06:06Z
+    format_version: "2.0"
+    uuid: c999d11f-cb5e-4e7a-b63b-6b4600eefe0a
+    creation_time: 2025-03-07T11:44:35Z
     producer:
       name: Goblint
       version: heads/arg-complete-array-0-gf35516955-dirty
       command_line: '''../../../goblint'' ''--set'' ''solvers.td3.side_widen'' ''always''
         ''--enable'' ''ana.int.interval'' ''--set'' ''ana.base.privatization'' ''mine''
         ''--enable'' ''witness.yaml.enabled'' ''--disable'' ''witness.invariant.other''
-        ''--set'' ''witness.yaml.entry-types[*]'' ''location_invariant'' ''62-tm-inv-transfer-protection-witness.c'''
+        ''--set'' ''witness.yaml.entry-types[*]'' ''invariant_set'' ''--set'' ''witness.yaml.format-version''
+        ''2.0'' ''62-tm-inv-transfer-protection-witness.c'''
     task:
       input_files:
       - 62-tm-inv-transfer-protection-witness.c
@@ -17,564 +18,184 @@
         62-tm-inv-transfer-protection-witness.c: bcb3785ef06661495164be10f538f9d169301aaacdc22573b2db89c8f8c8b178
       data_model: LP64
       language: C
-  location:
-    file_name: 62-tm-inv-transfer-protection-witness.c
-    file_hash: bcb3785ef06661495164be10f538f9d169301aaacdc22573b2db89c8f8c8b178
-    line: 35
-    column: 3
-    function: main
-  location_invariant:
-    string: 40 <= g
-    type: assertion
-    format: C
-- entry_type: location_invariant
-  metadata:
-    format_version: "0.1"
-    uuid: dd40f553-4e46-4b3c-9923-89dde4438ec7
-    creation_time: 2025-03-07T11:06:06Z
-    producer:
-      name: Goblint
-      version: heads/arg-complete-array-0-gf35516955-dirty
-      command_line: '''../../../goblint'' ''--set'' ''solvers.td3.side_widen'' ''always''
-        ''--enable'' ''ana.int.interval'' ''--set'' ''ana.base.privatization'' ''mine''
-        ''--enable'' ''witness.yaml.enabled'' ''--disable'' ''witness.invariant.other''
-        ''--set'' ''witness.yaml.entry-types[*]'' ''location_invariant'' ''62-tm-inv-transfer-protection-witness.c'''
-    task:
-      input_files:
-      - 62-tm-inv-transfer-protection-witness.c
-      input_file_hashes:
-        62-tm-inv-transfer-protection-witness.c: bcb3785ef06661495164be10f538f9d169301aaacdc22573b2db89c8f8c8b178
-      data_model: LP64
-      language: C
-  location:
-    file_name: 62-tm-inv-transfer-protection-witness.c
-    file_hash: bcb3785ef06661495164be10f538f9d169301aaacdc22573b2db89c8f8c8b178
-    line: 35
-    column: 3
-    function: main
-  location_invariant:
-    string: g <= 41
-    type: assertion
-    format: C
-- entry_type: location_invariant
-  metadata:
-    format_version: "0.1"
-    uuid: be1365a2-a839-4a76-b838-3b3110e25dd0
-    creation_time: 2025-03-07T11:06:06Z
-    producer:
-      name: Goblint
-      version: heads/arg-complete-array-0-gf35516955-dirty
-      command_line: '''../../../goblint'' ''--set'' ''solvers.td3.side_widen'' ''always''
-        ''--enable'' ''ana.int.interval'' ''--set'' ''ana.base.privatization'' ''mine''
-        ''--enable'' ''witness.yaml.enabled'' ''--disable'' ''witness.invariant.other''
-        ''--set'' ''witness.yaml.entry-types[*]'' ''location_invariant'' ''62-tm-inv-transfer-protection-witness.c'''
-    task:
-      input_files:
-      - 62-tm-inv-transfer-protection-witness.c
-      input_file_hashes:
-        62-tm-inv-transfer-protection-witness.c: bcb3785ef06661495164be10f538f9d169301aaacdc22573b2db89c8f8c8b178
-      data_model: LP64
-      language: C
-  location:
-    file_name: 62-tm-inv-transfer-protection-witness.c
-    file_hash: bcb3785ef06661495164be10f538f9d169301aaacdc22573b2db89c8f8c8b178
-    line: 11
-    column: 3
-    function: t_fun
-  location_invariant:
-    string: 40 <= g
-    type: assertion
-    format: C
-- entry_type: location_invariant
-  metadata:
-    format_version: "0.1"
-    uuid: 81af500d-afe5-4780-a7c0-94c21e473c21
-    creation_time: 2025-03-07T11:06:06Z
-    producer:
-      name: Goblint
-      version: heads/arg-complete-array-0-gf35516955-dirty
-      command_line: '''../../../goblint'' ''--set'' ''solvers.td3.side_widen'' ''always''
-        ''--enable'' ''ana.int.interval'' ''--set'' ''ana.base.privatization'' ''mine''
-        ''--enable'' ''witness.yaml.enabled'' ''--disable'' ''witness.invariant.other''
-        ''--set'' ''witness.yaml.entry-types[*]'' ''location_invariant'' ''62-tm-inv-transfer-protection-witness.c'''
-    task:
-      input_files:
-      - 62-tm-inv-transfer-protection-witness.c
-      input_file_hashes:
-        62-tm-inv-transfer-protection-witness.c: bcb3785ef06661495164be10f538f9d169301aaacdc22573b2db89c8f8c8b178
-      data_model: LP64
-      language: C
-  location:
-    file_name: 62-tm-inv-transfer-protection-witness.c
-    file_hash: bcb3785ef06661495164be10f538f9d169301aaacdc22573b2db89c8f8c8b178
-    line: 11
-    column: 3
-    function: t_fun
-  location_invariant:
-    string: g <= 41
-    type: assertion
-    format: C
-- entry_type: location_invariant
-  metadata:
-    format_version: "0.1"
-    uuid: abaa4c8c-0169-4c6e-b79a-84c9aad7b1f5
-    creation_time: 2025-03-07T11:06:06Z
-    producer:
-      name: Goblint
-      version: heads/arg-complete-array-0-gf35516955-dirty
-      command_line: '''../../../goblint'' ''--set'' ''solvers.td3.side_widen'' ''always''
-        ''--enable'' ''ana.int.interval'' ''--set'' ''ana.base.privatization'' ''mine''
-        ''--enable'' ''witness.yaml.enabled'' ''--disable'' ''witness.invariant.other''
-        ''--set'' ''witness.yaml.entry-types[*]'' ''location_invariant'' ''62-tm-inv-transfer-protection-witness.c'''
-    task:
-      input_files:
-      - 62-tm-inv-transfer-protection-witness.c
-      input_file_hashes:
-        62-tm-inv-transfer-protection-witness.c: bcb3785ef06661495164be10f538f9d169301aaacdc22573b2db89c8f8c8b178
-      data_model: LP64
-      language: C
-  location:
-    file_name: 62-tm-inv-transfer-protection-witness.c
-    file_hash: bcb3785ef06661495164be10f538f9d169301aaacdc22573b2db89c8f8c8b178
-    line: 11
-    column: 3
-    function: t_fun
-  location_invariant:
-    string: (unsigned long )arg == 0UL
-    type: assertion
-    format: C
-- entry_type: location_invariant
-  metadata:
-    format_version: "0.1"
-    uuid: fd0c4661-7b9d-4830-9d6f-067f55bf1f98
-    creation_time: 2025-03-07T11:06:06Z
-    producer:
-      name: Goblint
-      version: heads/arg-complete-array-0-gf35516955-dirty
-      command_line: '''../../../goblint'' ''--set'' ''solvers.td3.side_widen'' ''always''
-        ''--enable'' ''ana.int.interval'' ''--set'' ''ana.base.privatization'' ''mine''
-        ''--enable'' ''witness.yaml.enabled'' ''--disable'' ''witness.invariant.other''
-        ''--set'' ''witness.yaml.entry-types[*]'' ''location_invariant'' ''62-tm-inv-transfer-protection-witness.c'''
-    task:
-      input_files:
-      - 62-tm-inv-transfer-protection-witness.c
-      input_file_hashes:
-        62-tm-inv-transfer-protection-witness.c: bcb3785ef06661495164be10f538f9d169301aaacdc22573b2db89c8f8c8b178
-      data_model: LP64
-      language: C
-  location:
-    file_name: 62-tm-inv-transfer-protection-witness.c
-    file_hash: bcb3785ef06661495164be10f538f9d169301aaacdc22573b2db89c8f8c8b178
-    line: 34
-    column: 3
-    function: main
-  location_invariant:
-    string: 40 <= g
-    type: assertion
-    format: C
-- entry_type: location_invariant
-  metadata:
-    format_version: "0.1"
-    uuid: 8e190cf5-96ab-4296-98d7-6033e2327465
-    creation_time: 2025-03-07T11:06:06Z
-    producer:
-      name: Goblint
-      version: heads/arg-complete-array-0-gf35516955-dirty
-      command_line: '''../../../goblint'' ''--set'' ''solvers.td3.side_widen'' ''always''
-        ''--enable'' ''ana.int.interval'' ''--set'' ''ana.base.privatization'' ''mine''
-        ''--enable'' ''witness.yaml.enabled'' ''--disable'' ''witness.invariant.other''
-        ''--set'' ''witness.yaml.entry-types[*]'' ''location_invariant'' ''62-tm-inv-transfer-protection-witness.c'''
-    task:
-      input_files:
-      - 62-tm-inv-transfer-protection-witness.c
-      input_file_hashes:
-        62-tm-inv-transfer-protection-witness.c: bcb3785ef06661495164be10f538f9d169301aaacdc22573b2db89c8f8c8b178
-      data_model: LP64
-      language: C
-  location:
-    file_name: 62-tm-inv-transfer-protection-witness.c
-    file_hash: bcb3785ef06661495164be10f538f9d169301aaacdc22573b2db89c8f8c8b178
-    line: 34
-    column: 3
-    function: main
-  location_invariant:
-    string: g <= 41
-    type: assertion
-    format: C
-- entry_type: location_invariant
-  metadata:
-    format_version: "0.1"
-    uuid: 84ab7fb3-c742-4b61-af5d-858d85ac8e9e
-    creation_time: 2025-03-07T11:06:06Z
-    producer:
-      name: Goblint
-      version: heads/arg-complete-array-0-gf35516955-dirty
-      command_line: '''../../../goblint'' ''--set'' ''solvers.td3.side_widen'' ''always''
-        ''--enable'' ''ana.int.interval'' ''--set'' ''ana.base.privatization'' ''mine''
-        ''--enable'' ''witness.yaml.enabled'' ''--disable'' ''witness.invariant.other''
-        ''--set'' ''witness.yaml.entry-types[*]'' ''location_invariant'' ''62-tm-inv-transfer-protection-witness.c'''
-    task:
-      input_files:
-      - 62-tm-inv-transfer-protection-witness.c
-      input_file_hashes:
-        62-tm-inv-transfer-protection-witness.c: bcb3785ef06661495164be10f538f9d169301aaacdc22573b2db89c8f8c8b178
-      data_model: LP64
-      language: C
-  location:
-    file_name: 62-tm-inv-transfer-protection-witness.c
-    file_hash: bcb3785ef06661495164be10f538f9d169301aaacdc22573b2db89c8f8c8b178
-    line: 15
-    column: 3
-    function: t_fun
-  location_invariant:
-    string: 41 <= g
-    type: assertion
-    format: C
-- entry_type: location_invariant
-  metadata:
-    format_version: "0.1"
-    uuid: 747fa085-e015-481c-86f3-ba4d576c9e26
-    creation_time: 2025-03-07T11:06:06Z
-    producer:
-      name: Goblint
-      version: heads/arg-complete-array-0-gf35516955-dirty
-      command_line: '''../../../goblint'' ''--set'' ''solvers.td3.side_widen'' ''always''
-        ''--enable'' ''ana.int.interval'' ''--set'' ''ana.base.privatization'' ''mine''
-        ''--enable'' ''witness.yaml.enabled'' ''--disable'' ''witness.invariant.other''
-        ''--set'' ''witness.yaml.entry-types[*]'' ''location_invariant'' ''62-tm-inv-transfer-protection-witness.c'''
-    task:
-      input_files:
-      - 62-tm-inv-transfer-protection-witness.c
-      input_file_hashes:
-        62-tm-inv-transfer-protection-witness.c: bcb3785ef06661495164be10f538f9d169301aaacdc22573b2db89c8f8c8b178
-      data_model: LP64
-      language: C
-  location:
-    file_name: 62-tm-inv-transfer-protection-witness.c
-    file_hash: bcb3785ef06661495164be10f538f9d169301aaacdc22573b2db89c8f8c8b178
-    line: 15
-    column: 3
-    function: t_fun
-  location_invariant:
-    string: g <= 42
-    type: assertion
-    format: C
-- entry_type: location_invariant
-  metadata:
-    format_version: "0.1"
-    uuid: e23a506a-ae1c-49a1-8500-dd4238b774ca
-    creation_time: 2025-03-07T11:06:06Z
-    producer:
-      name: Goblint
-      version: heads/arg-complete-array-0-gf35516955-dirty
-      command_line: '''../../../goblint'' ''--set'' ''solvers.td3.side_widen'' ''always''
-        ''--enable'' ''ana.int.interval'' ''--set'' ''ana.base.privatization'' ''mine''
-        ''--enable'' ''witness.yaml.enabled'' ''--disable'' ''witness.invariant.other''
-        ''--set'' ''witness.yaml.entry-types[*]'' ''location_invariant'' ''62-tm-inv-transfer-protection-witness.c'''
-    task:
-      input_files:
-      - 62-tm-inv-transfer-protection-witness.c
-      input_file_hashes:
-        62-tm-inv-transfer-protection-witness.c: bcb3785ef06661495164be10f538f9d169301aaacdc22573b2db89c8f8c8b178
-      data_model: LP64
-      language: C
-  location:
-    file_name: 62-tm-inv-transfer-protection-witness.c
-    file_hash: bcb3785ef06661495164be10f538f9d169301aaacdc22573b2db89c8f8c8b178
-    line: 15
-    column: 3
-    function: t_fun
-  location_invariant:
-    string: (unsigned long )arg == 0UL
-    type: assertion
-    format: C
-- entry_type: location_invariant
-  metadata:
-    format_version: "0.1"
-    uuid: b2bab27b-4228-495e-a465-6040948433b8
-    creation_time: 2025-03-07T11:06:06Z
-    producer:
-      name: Goblint
-      version: heads/arg-complete-array-0-gf35516955-dirty
-      command_line: '''../../../goblint'' ''--set'' ''solvers.td3.side_widen'' ''always''
-        ''--enable'' ''ana.int.interval'' ''--set'' ''ana.base.privatization'' ''mine''
-        ''--enable'' ''witness.yaml.enabled'' ''--disable'' ''witness.invariant.other''
-        ''--set'' ''witness.yaml.entry-types[*]'' ''location_invariant'' ''62-tm-inv-transfer-protection-witness.c'''
-    task:
-      input_files:
-      - 62-tm-inv-transfer-protection-witness.c
-      input_file_hashes:
-        62-tm-inv-transfer-protection-witness.c: bcb3785ef06661495164be10f538f9d169301aaacdc22573b2db89c8f8c8b178
-      data_model: LP64
-      language: C
-  location:
-    file_name: 62-tm-inv-transfer-protection-witness.c
-    file_hash: bcb3785ef06661495164be10f538f9d169301aaacdc22573b2db89c8f8c8b178
-    line: 12
-    column: 3
-    function: t_fun
-  location_invariant:
-    string: 40 <= g
-    type: assertion
-    format: C
-- entry_type: location_invariant
-  metadata:
-    format_version: "0.1"
-    uuid: 4ed60272-e037-429f-b761-4a77df14d540
-    creation_time: 2025-03-07T11:06:06Z
-    producer:
-      name: Goblint
-      version: heads/arg-complete-array-0-gf35516955-dirty
-      command_line: '''../../../goblint'' ''--set'' ''solvers.td3.side_widen'' ''always''
-        ''--enable'' ''ana.int.interval'' ''--set'' ''ana.base.privatization'' ''mine''
-        ''--enable'' ''witness.yaml.enabled'' ''--disable'' ''witness.invariant.other''
-        ''--set'' ''witness.yaml.entry-types[*]'' ''location_invariant'' ''62-tm-inv-transfer-protection-witness.c'''
-    task:
-      input_files:
-      - 62-tm-inv-transfer-protection-witness.c
-      input_file_hashes:
-        62-tm-inv-transfer-protection-witness.c: bcb3785ef06661495164be10f538f9d169301aaacdc22573b2db89c8f8c8b178
-      data_model: LP64
-      language: C
-  location:
-    file_name: 62-tm-inv-transfer-protection-witness.c
-    file_hash: bcb3785ef06661495164be10f538f9d169301aaacdc22573b2db89c8f8c8b178
-    line: 12
-    column: 3
-    function: t_fun
-  location_invariant:
-    string: g <= 41
-    type: assertion
-    format: C
-- entry_type: location_invariant
-  metadata:
-    format_version: "0.1"
-    uuid: fed861d4-6752-4925-8cba-3475bca4d2a9
-    creation_time: 2025-03-07T11:06:06Z
-    producer:
-      name: Goblint
-      version: heads/arg-complete-array-0-gf35516955-dirty
-      command_line: '''../../../goblint'' ''--set'' ''solvers.td3.side_widen'' ''always''
-        ''--enable'' ''ana.int.interval'' ''--set'' ''ana.base.privatization'' ''mine''
-        ''--enable'' ''witness.yaml.enabled'' ''--disable'' ''witness.invariant.other''
-        ''--set'' ''witness.yaml.entry-types[*]'' ''location_invariant'' ''62-tm-inv-transfer-protection-witness.c'''
-    task:
-      input_files:
-      - 62-tm-inv-transfer-protection-witness.c
-      input_file_hashes:
-        62-tm-inv-transfer-protection-witness.c: bcb3785ef06661495164be10f538f9d169301aaacdc22573b2db89c8f8c8b178
-      data_model: LP64
-      language: C
-  location:
-    file_name: 62-tm-inv-transfer-protection-witness.c
-    file_hash: bcb3785ef06661495164be10f538f9d169301aaacdc22573b2db89c8f8c8b178
-    line: 12
-    column: 3
-    function: t_fun
-  location_invariant:
-    string: (unsigned long )arg == 0UL
-    type: assertion
-    format: C
-- entry_type: location_invariant
-  metadata:
-    format_version: "0.1"
-    uuid: 27791833-54b9-471d-9300-7e916d67e655
-    creation_time: 2025-03-07T11:06:06Z
-    producer:
-      name: Goblint
-      version: heads/arg-complete-array-0-gf35516955-dirty
-      command_line: '''../../../goblint'' ''--set'' ''solvers.td3.side_widen'' ''always''
-        ''--enable'' ''ana.int.interval'' ''--set'' ''ana.base.privatization'' ''mine''
-        ''--enable'' ''witness.yaml.enabled'' ''--disable'' ''witness.invariant.other''
-        ''--set'' ''witness.yaml.entry-types[*]'' ''location_invariant'' ''62-tm-inv-transfer-protection-witness.c'''
-    task:
-      input_files:
-      - 62-tm-inv-transfer-protection-witness.c
-      input_file_hashes:
-        62-tm-inv-transfer-protection-witness.c: bcb3785ef06661495164be10f538f9d169301aaacdc22573b2db89c8f8c8b178
-      data_model: LP64
-      language: C
-  location:
-    file_name: 62-tm-inv-transfer-protection-witness.c
-    file_hash: bcb3785ef06661495164be10f538f9d169301aaacdc22573b2db89c8f8c8b178
-    line: 23
-    column: 3
-    function: t_fun2
-  location_invariant:
-    string: 0 <= g
-    type: assertion
-    format: C
-- entry_type: location_invariant
-  metadata:
-    format_version: "0.1"
-    uuid: 264e2e7a-2e86-4d18-9fa1-aafa11026d78
-    creation_time: 2025-03-07T11:06:06Z
-    producer:
-      name: Goblint
-      version: heads/arg-complete-array-0-gf35516955-dirty
-      command_line: '''../../../goblint'' ''--set'' ''solvers.td3.side_widen'' ''always''
-        ''--enable'' ''ana.int.interval'' ''--set'' ''ana.base.privatization'' ''mine''
-        ''--enable'' ''witness.yaml.enabled'' ''--disable'' ''witness.invariant.other''
-        ''--set'' ''witness.yaml.entry-types[*]'' ''location_invariant'' ''62-tm-inv-transfer-protection-witness.c'''
-    task:
-      input_files:
-      - 62-tm-inv-transfer-protection-witness.c
-      input_file_hashes:
-        62-tm-inv-transfer-protection-witness.c: bcb3785ef06661495164be10f538f9d169301aaacdc22573b2db89c8f8c8b178
-      data_model: LP64
-      language: C
-  location:
-    file_name: 62-tm-inv-transfer-protection-witness.c
-    file_hash: bcb3785ef06661495164be10f538f9d169301aaacdc22573b2db89c8f8c8b178
-    line: 23
-    column: 3
-    function: t_fun2
-  location_invariant:
-    string: g <= 42
-    type: assertion
-    format: C
-- entry_type: location_invariant
-  metadata:
-    format_version: "0.1"
-    uuid: 5dd1ca6c-3cb9-4ddf-a048-a17dabb4fc2d
-    creation_time: 2025-03-07T11:06:06Z
-    producer:
-      name: Goblint
-      version: heads/arg-complete-array-0-gf35516955-dirty
-      command_line: '''../../../goblint'' ''--set'' ''solvers.td3.side_widen'' ''always''
-        ''--enable'' ''ana.int.interval'' ''--set'' ''ana.base.privatization'' ''mine''
-        ''--enable'' ''witness.yaml.enabled'' ''--disable'' ''witness.invariant.other''
-        ''--set'' ''witness.yaml.entry-types[*]'' ''location_invariant'' ''62-tm-inv-transfer-protection-witness.c'''
-    task:
-      input_files:
-      - 62-tm-inv-transfer-protection-witness.c
-      input_file_hashes:
-        62-tm-inv-transfer-protection-witness.c: bcb3785ef06661495164be10f538f9d169301aaacdc22573b2db89c8f8c8b178
-      data_model: LP64
-      language: C
-  location:
-    file_name: 62-tm-inv-transfer-protection-witness.c
-    file_hash: bcb3785ef06661495164be10f538f9d169301aaacdc22573b2db89c8f8c8b178
-    line: 23
-    column: 3
-    function: t_fun2
-  location_invariant:
-    string: (unsigned long )arg == 0UL
-    type: assertion
-    format: C
-- entry_type: location_invariant
-  metadata:
-    format_version: "0.1"
-    uuid: 65d7492f-3650-42b9-86b1-2ecbba1f4d2c
-    creation_time: 2025-03-07T11:06:06Z
-    producer:
-      name: Goblint
-      version: heads/arg-complete-array-0-gf35516955-dirty
-      command_line: '''../../../goblint'' ''--set'' ''solvers.td3.side_widen'' ''always''
-        ''--enable'' ''ana.int.interval'' ''--set'' ''ana.base.privatization'' ''mine''
-        ''--enable'' ''witness.yaml.enabled'' ''--disable'' ''witness.invariant.other''
-        ''--set'' ''witness.yaml.entry-types[*]'' ''location_invariant'' ''62-tm-inv-transfer-protection-witness.c'''
-    task:
-      input_files:
-      - 62-tm-inv-transfer-protection-witness.c
-      input_file_hashes:
-        62-tm-inv-transfer-protection-witness.c: bcb3785ef06661495164be10f538f9d169301aaacdc22573b2db89c8f8c8b178
-      data_model: LP64
-      language: C
-  location:
-    file_name: 62-tm-inv-transfer-protection-witness.c
-    file_hash: bcb3785ef06661495164be10f538f9d169301aaacdc22573b2db89c8f8c8b178
-    line: 23
-    column: 3
-    function: t_fun2
-  location_invariant:
-    string: g != 0
-    type: assertion
-    format: C
-- entry_type: location_invariant
-  metadata:
-    format_version: "0.1"
-    uuid: c4d1cf3a-6dae-400c-bab8-98d7437df344
-    creation_time: 2025-03-07T11:06:06Z
-    producer:
-      name: Goblint
-      version: heads/arg-complete-array-0-gf35516955-dirty
-      command_line: '''../../../goblint'' ''--set'' ''solvers.td3.side_widen'' ''always''
-        ''--enable'' ''ana.int.interval'' ''--set'' ''ana.base.privatization'' ''mine''
-        ''--enable'' ''witness.yaml.enabled'' ''--disable'' ''witness.invariant.other''
-        ''--set'' ''witness.yaml.entry-types[*]'' ''location_invariant'' ''62-tm-inv-transfer-protection-witness.c'''
-    task:
-      input_files:
-      - 62-tm-inv-transfer-protection-witness.c
-      input_file_hashes:
-        62-tm-inv-transfer-protection-witness.c: bcb3785ef06661495164be10f538f9d169301aaacdc22573b2db89c8f8c8b178
-      data_model: LP64
-      language: C
-  location:
-    file_name: 62-tm-inv-transfer-protection-witness.c
-    file_hash: bcb3785ef06661495164be10f538f9d169301aaacdc22573b2db89c8f8c8b178
-    line: 41
-    column: 3
-    function: main
-  location_invariant:
-    string: 0 <= g
-    type: assertion
-    format: C
-- entry_type: location_invariant
-  metadata:
-    format_version: "0.1"
-    uuid: 6fec3abc-a0a4-454a-98c5-d7be3fe1f95a
-    creation_time: 2025-03-07T11:06:06Z
-    producer:
-      name: Goblint
-      version: heads/arg-complete-array-0-gf35516955-dirty
-      command_line: '''../../../goblint'' ''--set'' ''solvers.td3.side_widen'' ''always''
-        ''--enable'' ''ana.int.interval'' ''--set'' ''ana.base.privatization'' ''mine''
-        ''--enable'' ''witness.yaml.enabled'' ''--disable'' ''witness.invariant.other''
-        ''--set'' ''witness.yaml.entry-types[*]'' ''location_invariant'' ''62-tm-inv-transfer-protection-witness.c'''
-    task:
-      input_files:
-      - 62-tm-inv-transfer-protection-witness.c
-      input_file_hashes:
-        62-tm-inv-transfer-protection-witness.c: bcb3785ef06661495164be10f538f9d169301aaacdc22573b2db89c8f8c8b178
-      data_model: LP64
-      language: C
-  location:
-    file_name: 62-tm-inv-transfer-protection-witness.c
-    file_hash: bcb3785ef06661495164be10f538f9d169301aaacdc22573b2db89c8f8c8b178
-    line: 41
-    column: 3
-    function: main
-  location_invariant:
-    string: g <= 42
-    type: assertion
-    format: C
-- entry_type: location_invariant
-  metadata:
-    format_version: "0.1"
-    uuid: 4829dfc0-592e-4452-9e47-746c57ea2494
-    creation_time: 2025-03-07T11:06:06Z
-    producer:
-      name: Goblint
-      version: heads/arg-complete-array-0-gf35516955-dirty
-      command_line: '''../../../goblint'' ''--set'' ''solvers.td3.side_widen'' ''always''
-        ''--enable'' ''ana.int.interval'' ''--set'' ''ana.base.privatization'' ''mine''
-        ''--enable'' ''witness.yaml.enabled'' ''--disable'' ''witness.invariant.other''
-        ''--set'' ''witness.yaml.entry-types[*]'' ''location_invariant'' ''62-tm-inv-transfer-protection-witness.c'''
-    task:
-      input_files:
-      - 62-tm-inv-transfer-protection-witness.c
-      input_file_hashes:
-        62-tm-inv-transfer-protection-witness.c: bcb3785ef06661495164be10f538f9d169301aaacdc22573b2db89c8f8c8b178
-      data_model: LP64
-      language: C
-  location:
-    file_name: 62-tm-inv-transfer-protection-witness.c
-    file_hash: bcb3785ef06661495164be10f538f9d169301aaacdc22573b2db89c8f8c8b178
-    line: 41
-    column: 3
-    function: main
-  location_invariant:
-    string: g != 0
-    type: assertion
-    format: C
+  content:
+  - invariant:
+      type: location_invariant
+      location:
+        file_name: 62-tm-inv-transfer-protection-witness.c
+        line: 35
+        column: 3
+        function: main
+      value: 40 <= g
+      format: c_expression
+  - invariant:
+      type: location_invariant
+      location:
+        file_name: 62-tm-inv-transfer-protection-witness.c
+        line: 35
+        column: 3
+        function: main
+      value: g <= 41
+      format: c_expression
+  - invariant:
+      type: location_invariant
+      location:
+        file_name: 62-tm-inv-transfer-protection-witness.c
+        line: 11
+        column: 3
+        function: t_fun
+      value: 40 <= g
+      format: c_expression
+  - invariant:
+      type: location_invariant
+      location:
+        file_name: 62-tm-inv-transfer-protection-witness.c
+        line: 11
+        column: 3
+        function: t_fun
+      value: g <= 41
+      format: c_expression
+  - invariant:
+      type: location_invariant
+      location:
+        file_name: 62-tm-inv-transfer-protection-witness.c
+        line: 11
+        column: 3
+        function: t_fun
+      value: (unsigned long )arg == 0UL
+      format: c_expression
+  - invariant:
+      type: location_invariant
+      location:
+        file_name: 62-tm-inv-transfer-protection-witness.c
+        line: 34
+        column: 3
+        function: main
+      value: 40 <= g
+      format: c_expression
+  - invariant:
+      type: location_invariant
+      location:
+        file_name: 62-tm-inv-transfer-protection-witness.c
+        line: 34
+        column: 3
+        function: main
+      value: g <= 41
+      format: c_expression
+  - invariant:
+      type: location_invariant
+      location:
+        file_name: 62-tm-inv-transfer-protection-witness.c
+        line: 15
+        column: 3
+        function: t_fun
+      value: 41 <= g
+      format: c_expression
+  - invariant:
+      type: location_invariant
+      location:
+        file_name: 62-tm-inv-transfer-protection-witness.c
+        line: 15
+        column: 3
+        function: t_fun
+      value: g <= 42
+      format: c_expression
+  - invariant:
+      type: location_invariant
+      location:
+        file_name: 62-tm-inv-transfer-protection-witness.c
+        line: 15
+        column: 3
+        function: t_fun
+      value: (unsigned long )arg == 0UL
+      format: c_expression
+  - invariant:
+      type: location_invariant
+      location:
+        file_name: 62-tm-inv-transfer-protection-witness.c
+        line: 12
+        column: 3
+        function: t_fun
+      value: 40 <= g
+      format: c_expression
+  - invariant:
+      type: location_invariant
+      location:
+        file_name: 62-tm-inv-transfer-protection-witness.c
+        line: 12
+        column: 3
+        function: t_fun
+      value: g <= 41
+      format: c_expression
+  - invariant:
+      type: location_invariant
+      location:
+        file_name: 62-tm-inv-transfer-protection-witness.c
+        line: 12
+        column: 3
+        function: t_fun
+      value: (unsigned long )arg == 0UL
+      format: c_expression
+  - invariant:
+      type: location_invariant
+      location:
+        file_name: 62-tm-inv-transfer-protection-witness.c
+        line: 23
+        column: 3
+        function: t_fun2
+      value: 0 <= g
+      format: c_expression
+  - invariant:
+      type: location_invariant
+      location:
+        file_name: 62-tm-inv-transfer-protection-witness.c
+        line: 23
+        column: 3
+        function: t_fun2
+      value: g <= 42
+      format: c_expression
+  - invariant:
+      type: location_invariant
+      location:
+        file_name: 62-tm-inv-transfer-protection-witness.c
+        line: 23
+        column: 3
+        function: t_fun2
+      value: (unsigned long )arg == 0UL
+      format: c_expression
+  - invariant:
+      type: location_invariant
+      location:
+        file_name: 62-tm-inv-transfer-protection-witness.c
+        line: 23
+        column: 3
+        function: t_fun2
+      value: g != 0
+      format: c_expression
+  - invariant:
+      type: location_invariant
+      location:
+        file_name: 62-tm-inv-transfer-protection-witness.c
+        line: 41
+        column: 3
+        function: main
+      value: 0 <= g
+      format: c_expression
+  - invariant:
+      type: location_invariant
+      location:
+        file_name: 62-tm-inv-transfer-protection-witness.c
+        line: 41
+        column: 3
+        function: main
+      value: g <= 42
+      format: c_expression
+  - invariant:
+      type: location_invariant
+      location:
+        file_name: 62-tm-inv-transfer-protection-witness.c
+        line: 41
+        column: 3
+        function: main
+      value: g != 0
+      format: c_expression
