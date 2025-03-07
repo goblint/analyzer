@@ -287,6 +287,7 @@ module Base =
       let narrow_sides_gas_default = if narrow_sides_gas_default < 0 then None else Some (narrow_sides_gas_default, D_Widen) in
       let narrow_sides_eliminate_dead = GobConfig.get_bool "solvers.td3.narrow-sides.eliminate-dead" in
       let apinis = GobConfig.get_bool "solvers.td3.narrow-sides.apinis" in
+      let narrow_sides_stats = GobConfig.get_bool "solvers.td3.narrow-sides.stats" in
 
       let reluctant = GobConfig.get_bool "incremental.reluctant.enabled" in
 
@@ -391,9 +392,9 @@ module Base =
                           | Some prev_sides_x -> VS.iter (fun y ->
                               if Option.is_none @@ HM.find_option acc y then begin
                                 ignore @@ divided_side D_Narrow ~x y (S.Dom.bot ());
-                                HM.replace omitted_contributions y @@ VS.add x @@ HM.find_default omitted_contributions y VS.empty;
+                                if narrow_sides_stats then HM.replace omitted_contributions y @@ VS.add x @@ HM.find_default omitted_contributions y VS.empty;
                                 if S.Dom.is_bot @@ HM.find rho y then
-                                  dead_globals := VS.add y !dead_globals;
+                                  if narrow_sides_stats then dead_globals := VS.add y !dead_globals;
                                   let casualties = S.postmortem y in
                                   List.iter (fun x -> solve x Widen) casualties
                               end;
@@ -1133,24 +1134,24 @@ module Base =
         HM.iter (fun k gas -> Logs.debug "%a (gas: %d)" S.Var.pretty_trace k gas) wpoint_gas;
         Logs.newline ();
       );
-
+      (* Can't easily remove this in the non-stat case *)
       let remove_non_function_entries unknowns =
         VS.filter (fun u -> match S.Var.node u with
             | x when Node.equal x (Function GoblintCil.dummyFunDec) -> false
             | FunctionEntry _ -> true
             | _ -> false
           ) unknowns in
-      let all_unknowns = HM.fold (fun u _ -> VS.add u) rho VS.empty in
+      let all_unknowns = if narrow_sides_stats then HM.fold (fun u _ -> VS.add u) rho VS.empty else VS.empty in
       let killed_entries_count = VS.cardinal (remove_non_function_entries !dead_globals) in
       let all_entries_count = VS.cardinal (remove_non_function_entries all_unknowns) in
-      let all_contributions_count = HM.fold (fun k v acc -> acc + HM.length v) divided_side_effects 0 in
+      let all_contributions_count = if narrow_sides_stats then HM.fold (fun k v acc -> acc + HM.length v) divided_side_effects 0 else 0 in
       let omitted_contributions_count = HM.fold (fun k v acc -> acc + VS.cardinal v) omitted_contributions 0 in
       (*let truly_omitted_contributions_count = HM.fold (fun y xs acc -> acc + VS.fold (fun x -> Option.bind (fun cs -> Option.bind (f) HM.find_option cs x) @@ HM.find_option divided_side_effects y) xs) omitted_contributions 0 in *)
       let truly_omitted_contributions_count = HM.fold (fun y xs acc ->
           VS.fold (fun x acc ->
               acc + (
                 Option.map_default (fun is_bot -> if is_bot then 1 else 0) 1 @@
-                Option.bind (HM.find_option divided_side_effects y) (fun cs -> 
+                Option.bind (HM.find_option divided_side_effects y) (fun cs ->
                     Option.bind (HM.find_option cs x) (fun (d,_) ->
                         Some (S.Dom.is_bot d)
                       )
@@ -1341,15 +1342,16 @@ module Base =
 
       print_data_verbose data "Data after postsolve";
 
-      let omitted_to_dead_count = HM.fold (fun g ls acc -> if HM.mem rho g then acc else acc + VS.cardinal ls) omitted_contributions 0 in
-      let omitted_from_dead_count = HM.fold (fun g ls acc -> VS.fold (fun l acc -> if HM.mem rho l then acc else acc + 1) ls acc) omitted_contributions 0 in
-      Logs.info "Omitted contributions: %d still bot of %d omitted of %d; %d to dead; %d from dead" truly_omitted_contributions_count omitted_contributions_count all_contributions_count omitted_from_dead_count omitted_to_dead_count;
+      if narrow_sides_stats then (
+        let omitted_to_dead_count = HM.fold (fun g ls acc -> if HM.mem rho g then acc else acc + VS.cardinal ls) omitted_contributions 0 in
+        let omitted_from_dead_count = HM.fold (fun g ls acc -> VS.fold (fun l acc -> if HM.mem rho l then acc else acc + 1) ls acc) omitted_contributions 0 in
+        Logs.info "Omitted contributions: %d still bot of %d omitted of %d; %d to dead; %d from dead" truly_omitted_contributions_count omitted_contributions_count all_contributions_count omitted_from_dead_count omitted_to_dead_count;
 
-      let truly_live_unknowns = HM.fold (fun u _ -> VS.add u) rho VS.empty in
-      let truly_live_entries_count = VS.cardinal (remove_non_function_entries truly_live_unknowns) in
-      let truly_dead_entries_count = all_entries_count - truly_live_entries_count in
-      Logs.info "Botified contextualized functions: %d botified of %d dead of %d total" killed_entries_count truly_dead_entries_count all_entries_count;
-
+        let truly_live_unknowns = HM.fold (fun u _ -> VS.add u) rho VS.empty in
+        let truly_live_entries_count = VS.cardinal (remove_non_function_entries truly_live_unknowns) in
+        let truly_dead_entries_count = all_entries_count - truly_live_entries_count in
+        Logs.info "Botified contextualized functions: %d botified of %d dead of %d total" killed_entries_count truly_dead_entries_count all_entries_count;
+      );
       verify_data data;
       (rho, {st; infl; sides; prev_sides; divided_side_effects; orphan_side_effects; rho; wpoint_gas; stable; side_dep; side_infl; var_messages; rho_write; dep})
   end

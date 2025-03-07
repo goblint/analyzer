@@ -2510,6 +2510,12 @@
                   "type": "boolean",
                   "default": false
                 },
+                "stats": {
+                  "title": "solvers.td3.narrow-sides.stats",
+                  "description": "Record stats on botified side-effects and dead globals.",
+                  "type": "boolean",
+                  "default": false
+                },
                 "stable": {
                   "title": "solvers.td3.narrow-sides.stable",
                   "description": "Controls when to narrow. true: If unknown remains stable after evaluating its rhs, apply all sides with narrowing. false: Apply sides that did not increase with narrowing.",
