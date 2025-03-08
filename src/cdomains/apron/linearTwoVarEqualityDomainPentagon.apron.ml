@@ -290,18 +290,11 @@ struct
     if M.tracing then M.tracel "meet_with_one_conj" "meet_with_one_conj conj: %s eq: var_%d=%s  ->  %s " (show t) i (Rhs.show (var,offs,divi)) (show res)
   ; res
 
-
-  let affine_transform ((econ, vs, ineq) as t) i (coeff, j, offs, divi) =
-    if EConj.nontrivial econ i then (* i cannot occur on any other rhs apart from itself *)
-      set_rhs t i (Rhs.subst (get_rhs t i) i (Some (coeff,j), offs, divi))
-    else (* var_i = var_i, i.e. it may occur on the rhs of other equalities *)
-      (* so now, we transform with the inverse of the transformer: *)
-      let inv = snd (EConj.inverse i (coeff,j,offs,divi)) in
-      IntMap.fold (fun k v acc ->
-          match v with
-          | (Some (c,x),o,d) when x=i-> set_rhs acc k (Rhs.subst inv i v)
-          | _ -> acc
-        ) (snd econ) t
+  let affine_transform (econ, vs, ineq) i rhs =
+    (*This is a place we want to use the original set_rhs, as the implied congruence might contradict each other during the transformation*)
+    (*e.g. with  2x = y and 2z = y, and the assignment y = y+1 *)
+    (*This is only called in assign_texpr, after which the value will be set correctly.*)
+    (EConj.affine_transform econ i rhs, vs, ineq)
 
   let affine_transform econ i rhs =
     let res = affine_transform econ i rhs in
