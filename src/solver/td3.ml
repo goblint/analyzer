@@ -1142,7 +1142,8 @@ module Base =
             | _ -> false
           ) unknowns in
       let all_unknowns = if narrow_sides_stats then HM.fold (fun u _ -> VS.add u) rho VS.empty else VS.empty in
-      let killed_entries_count = VS.cardinal (remove_non_function_entries !dead_globals) in
+      let killed_entries = remove_non_function_entries !dead_globals in
+      let killed_entries_count = VS.cardinal (killed_entries) in
       let all_entries_count = VS.cardinal (remove_non_function_entries all_unknowns) in
       let all_contributions_count = if narrow_sides_stats then HM.fold (fun k v acc -> acc + HM.length v) divided_side_effects 0 else 0 in
       let omitted_contributions_count = HM.fold (fun k v acc -> acc + VS.cardinal v) omitted_contributions 0 in
@@ -1348,9 +1349,11 @@ module Base =
         Logs.info "Omitted contributions: %d still bot of %d omitted of %d; %d to dead; %d from dead" truly_omitted_contributions_count omitted_contributions_count all_contributions_count omitted_from_dead_count omitted_to_dead_count;
 
         let truly_live_unknowns = HM.fold (fun u _ -> VS.add u) rho VS.empty in
-        let truly_live_entries_count = VS.cardinal (remove_non_function_entries truly_live_unknowns) in
+        let truly_live_entries = remove_non_function_entries truly_live_unknowns in
+        let truly_live_entries_count = VS.cardinal truly_live_entries in
         let truly_dead_entries_count = all_entries_count - truly_live_entries_count in
-        Logs.info "Botified contextualized functions: %d botified of %d dead of %d total" killed_entries_count truly_dead_entries_count all_entries_count;
+        let still_bot_entries_count = VS.cardinal @@ VS.diff killed_entries truly_live_entries  in
+        Logs.info "Botified contextualized functions (still bot,botified,dead,total): %d/%d/%d/%d" still_bot_entries_count killed_entries_count truly_dead_entries_count all_entries_count;
       );
       verify_data data;
       (rho, {st; infl; sides; prev_sides; divided_side_effects; orphan_side_effects; rho; wpoint_gas; stable; side_dep; side_infl; var_messages; rho_write; dep})
