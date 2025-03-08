@@ -1996,6 +1996,12 @@
       "description": "Debugging options",
       "type": "object",
       "properties": {
+        "stats-at-end": {
+          "title": "dbg.stats-at-end",
+          "description": "Self signal at the end to get memory stats for sure.",
+          "type": "boolean",
+          "default": false
+        },
         "level": {
           "title": "dbg.level",
           "description": "Logging level.",
