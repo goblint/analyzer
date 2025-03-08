@@ -1342,7 +1342,7 @@ module Base =
 
       print_data_verbose data "Data after postsolve";
 
-      if narrow_sides_stats then (
+      if narrow_sides_stats && narrow_sides_eliminate_dead then (
         let omitted_to_dead_count = HM.fold (fun g ls acc -> if HM.mem rho g then acc else acc + VS.cardinal ls) omitted_contributions 0 in
         let omitted_from_dead_count = HM.fold (fun g ls acc -> VS.fold (fun l acc -> if HM.mem rho l then acc else acc + 1) ls acc) omitted_contributions 0 in
         Logs.info "Omitted contributions: %d still bot of %d omitted of %d; %d to dead; %d from dead" truly_omitted_contributions_count omitted_contributions_count all_contributions_count omitted_from_dead_count omitted_to_dead_count;
