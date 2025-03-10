@@ -1,8 +1,8 @@
 - entry_type: invariant_set
   metadata:
     format_version: "2.0"
-    uuid: 1dfbece3-f0f2-4c72-986c-fd8b9563764b
-    creation_time: 2025-03-07T14:55:47Z
+    uuid: 198dd98d-49a8-4e2a-a516-bebbe4ddc11f
+    creation_time: 2025-03-07T15:01:05Z
     producer:
       name: Goblint
       version: heads/tm-inv-transfer-0-g2297ee03e-dirty
@@ -15,7 +15,7 @@
       input_files:
       - 62-tm-inv-transfer-protection-witness.c
       input_file_hashes:
-        62-tm-inv-transfer-protection-witness.c: bcb3785ef06661495164be10f538f9d169301aaacdc22573b2db89c8f8c8b178
+        62-tm-inv-transfer-protection-witness.c: 139627d4167e48c2399f0a6359e533d8ac7597e9b4155c58ddcb2b7bfe780088
       data_model: LP64
       language: C
   content:
@@ -23,7 +23,7 @@
       type: location_invariant
       location:
         file_name: 62-tm-inv-transfer-protection-witness.c
-        line: 35
+        line: 27
         column: 3
         function: main
       value: 40 <= g
@@ -32,52 +32,7 @@
       type: location_invariant
       location:
         file_name: 62-tm-inv-transfer-protection-witness.c
-        line: 35
-        column: 3
-        function: main
-      value: g <= 41
-      format: c_expression
-  - invariant:
-      type: location_invariant
-      location:
-        file_name: 62-tm-inv-transfer-protection-witness.c
-        line: 11
-        column: 3
-        function: t_fun
-      value: 40 <= g
-      format: c_expression
-  - invariant:
-      type: location_invariant
-      location:
-        file_name: 62-tm-inv-transfer-protection-witness.c
-        line: 11
-        column: 3
-        function: t_fun
-      value: g <= 41
-      format: c_expression
-  - invariant:
-      type: location_invariant
-      location:
-        file_name: 62-tm-inv-transfer-protection-witness.c
-        line: 11
-        column: 3
-        function: t_fun
-      value: (unsigned long )arg == 0UL
-      format: c_expression
-  - invariant:
-      type: location_invariant
-      location:
-        file_name: 62-tm-inv-transfer-protection-witness.c
-        line: 34
-        column: 3
-        function: main
-      value: 40 <= g
-      format: c_expression
-  - invariant:
-      type: location_invariant
-      location:
-        file_name: 62-tm-inv-transfer-protection-witness.c
-        line: 34
+        line: 27
         column: 3
         function: main
       value: g <= 41
@@ -86,34 +41,7 @@
       type: location_invariant
       location:
         file_name: 62-tm-inv-transfer-protection-witness.c
-        line: 15
-        column: 3
-        function: t_fun
-      value: 41 <= g
-      format: c_expression
-  - invariant:
-      type: location_invariant
-      location:
-        file_name: 62-tm-inv-transfer-protection-witness.c
-        line: 15
-        column: 3
-        function: t_fun
-      value: g <= 42
-      format: c_expression
-  - invariant:
-      type: location_invariant
-      location:
-        file_name: 62-tm-inv-transfer-protection-witness.c
-        line: 15
-        column: 3
-        function: t_fun
-      value: (unsigned long )arg == 0UL
-      format: c_expression
-  - invariant:
-      type: location_invariant
-      location:
-        file_name: 62-tm-inv-transfer-protection-witness.c
-        line: 12
+        line: 10
         column: 3
         function: t_fun
       value: 40 <= g
@@ -122,7 +50,7 @@
       type: location_invariant
       location:
         file_name: 62-tm-inv-transfer-protection-witness.c
-        line: 12
+        line: 10
         column: 3
         function: t_fun
       value: g <= 41
@@ -131,53 +59,8 @@
       type: location_invariant
       location:
         file_name: 62-tm-inv-transfer-protection-witness.c
-        line: 12
+        line: 10
         column: 3
         function: t_fun
       value: (unsigned long )arg == 0UL
-      format: c_expression
-  - invariant:
-      type: location_invariant
-      location:
-        file_name: 62-tm-inv-transfer-protection-witness.c
-        line: 23
-        column: 3
-        function: t_fun2
-      value: 40 <= g
-      format: c_expression
-  - invariant:
-      type: location_invariant
-      location:
-        file_name: 62-tm-inv-transfer-protection-witness.c
-        line: 23
-        column: 3
-        function: t_fun2
-      value: g <= 42
-      format: c_expression
-  - invariant:
-      type: location_invariant
-      location:
-        file_name: 62-tm-inv-transfer-protection-witness.c
-        line: 23
-        column: 3
-        function: t_fun2
-      value: (unsigned long )arg == 0UL
-      format: c_expression
-  - invariant:
-      type: location_invariant
-      location:
-        file_name: 62-tm-inv-transfer-protection-witness.c
-        line: 41
-        column: 3
-        function: main
-      value: 40 <= g
-      format: c_expression
-  - invariant:
-      type: location_invariant
-      location:
-        file_name: 62-tm-inv-transfer-protection-witness.c
-        line: 41
-        column: 3
-        function: main
-      value: g <= 42
       format: c_expression
