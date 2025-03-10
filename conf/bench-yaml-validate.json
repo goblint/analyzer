@@ -71,7 +71,6 @@
   },
   "pre": {
     "cppflags": [
-      "-DGOBLINT_NO_PTHREAD_ONCE",
       "-DGOBLINT_NO_QSORT",
       "-DGOBLINT_NO_BSEARCH"
     ]
