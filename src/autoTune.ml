@@ -246,7 +246,7 @@ let focusOnMemSafetySpecification () =
 let focusOnTermination (spec: Svcomp.Specification.t) =
   match spec with
   | Termination ->
-    let terminationAnas = ["threadflag"; "apron"] in
+    let terminationAnas = ["threadflag"; "lin2vareq_p"] in
     Logs.info "Specification: Termination -> enabling termination analyses \"%s\"" (String.concat ", " terminationAnas);
     enableAnalyses terminationAnas;
     set_string "sem.int.signed_overflow" "assume_none";
