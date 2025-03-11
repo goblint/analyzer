@@ -25,9 +25,13 @@ struct
     | _ , Top Neg 
     | Top Pos, _ -> 1
 
+  let max_val = Int_t.add Int_t.one @@ Int_t.of_bigint @@ snd @@ IntDomain0.Size.range IULongLong
+  let min_val = Int_t.add (Int_t.of_int @@ -1) @@ Int_t.of_bigint @@ fst @@ IntDomain0.Size.range ILongLong
+
   let get_int_t = function
     | Int i -> i
-    | _ -> failwith "get_int_t on top value"
+    | Top Pos -> max_val (*needed so that we can call to_bigint on Top (e.g. for widening constants)*)
+    | Top Neg -> min_val
 
   let neg_s = function
     | Pos -> Neg
@@ -133,7 +137,14 @@ struct
     | Top Pos -> "+∞"
     | Top Neg -> "-∞"
 
-  let of_bigint i = Int (Int_t.of_bigint i)
+  (*Normalizes values outside the maximum range. Normalization is not done anywhere else 
+    because we may temporarily have values outside that range e.g. when applying an equations*)
+  let of_bigint i = let i = Int_t.of_bigint i in 
+    if Int_t.compare i max_val >= 0 
+    then Top Pos 
+    else if Int_t.compare i min_val <= 0
+    then Top Neg
+    else Int i 
   let to_bigint t = Int_t.to_bigint @@ get_int_t t
 
   (*TODO*)
