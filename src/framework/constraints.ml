@@ -38,24 +38,24 @@ struct
      1. S.V -> S.G  --  used for Spec
      2. fundec -> set of S.C  --  used for IterSysVars Node *)
 
-  let sync ctx =
-    match ctx.prev_node, Cfg.prev ctx.prev_node with
+  let sync man =
+    match man.prev_node, Cfg.prev man.prev_node with
     | _, _ :: _ :: _ -> (* Join in CFG. *)
-      S.sync ctx `Join
+      S.sync man `Join
     | FunctionEntry f, _ -> (* Function entry, also needs sync because partial contexts joined by solver, see 00-sanity/35-join-contexts. *)
-      S.sync ctx (`JoinCall f)
-    | _, _ -> S.sync ctx `Normal
+      S.sync man (`JoinCall f)
+    | _, _ -> S.sync man `Normal
 
   let side_context sideg f c =
     if !AnalysisState.postsolving then
       sideg (GVar.contexts f) (G.create_contexts (G.CSet.singleton c))
 
-  let common_ctx var edge prev_node pval (getl:lv -> ld) sidel getg sideg : (D.t, S.G.t, S.C.t, S.V.t) ctx * D.t list ref * (lval option * varinfo * exp list * D.t * bool) list ref =
+  let common_man var edge prev_node pval (getl:lv -> ld) sidel getg sideg : (D.t, S.G.t, S.C.t, S.V.t) man * D.t list ref * (lval option * varinfo * exp list * D.t * bool) list ref =
     let r = ref [] in
     let spawns = ref [] in
     (* now watch this ... *)
-    let rec ctx =
-      { ask     = (fun (type a) (q: a Queries.t) -> S.query ctx q)
+    let rec man =
+      { ask     = (fun (type a) (q: a Queries.t) -> S.query man q)
       ; emit    = (fun _ -> failwith "emit outside MCP")
       ; node    = fst var
       ; prev_node = prev_node
@@ -69,159 +69,169 @@ struct
       ; sideg   = (fun g d -> sideg (GVar.spec g) (G.create_spec d))
       }
     and spawn ?(multiple=false) lval f args =
-      (* TODO: adjust ctx node/edge? *)
+      (* TODO: adjust man node/edge? *)
       (* TODO: don't repeat for all paths that spawn same *)
-      let ds = S.threadenter ~multiple ctx lval f args in
+      let ds = S.threadenter ~multiple man lval f args in
       List.iter (fun d ->
           spawns := (lval, f, args, d, multiple) :: !spawns;
           match Cilfacade.find_varinfo_fundec f with
           | fd ->
-            let c = S.context ctx fd d in
+            let c = S.context man fd d in
             sidel (FunctionEntry fd, c) d;
             ignore (getl (Function fd, c))
           | exception Not_found ->
             (* unknown function *)
-            M.error ~category:Imprecise ~tags:[Category Unsound] "Created a thread from unknown function %s" f.vname
+            M.error ~category:Imprecise ~tags:[Category Unsound] "Created a thread from unknown function %s" f.vname;
             (* actual implementation (e.g. invalidation) is done by threadenter *)
+            (* must still sync for side effects, e.g., old sync-based none privatization soundness in 02-base/51-spawn-special *)
+            let rec sync_man =
+              { man with
+                ask = (fun (type a) (q: a Queries.t) -> S.query sync_man q);
+                local = d;
+                prev_node = Function dummyFunDec;
+              }
+            in
+            (* TODO: more accurate man? *)
+            ignore (sync sync_man)
         ) ds
     in
     (* ... nice, right! *)
-    let pval = sync ctx in
-    { ctx with local = pval }, r, spawns
+    let pval = sync man in
+    { man with local = pval }, r, spawns
 
   let rec bigsqcup = function
     | []    -> D.bot ()
     | [x]   -> x
     | x::xs -> D.join x (bigsqcup xs)
 
-  let thread_spawns ctx d spawns =
+  let thread_spawns man d spawns =
     if List.is_empty spawns then
       d
     else
-      let rec ctx' =
-        { ctx with
-          ask = (fun (type a) (q: a Queries.t) -> S.query ctx' q)
+      let rec man' =
+        { man with
+          ask = (fun (type a) (q: a Queries.t) -> S.query man' q)
         ; local = d
         }
       in
       (* TODO: don't forget path dependencies *)
       let one_spawn (lval, f, args, fd, multiple) =
-        let rec fctx =
-          { ctx with
-            ask = (fun (type a) (q: a Queries.t) -> S.query fctx q)
+        let rec fman =
+          { man with
+            ask = (fun (type a) (q: a Queries.t) -> S.query fman q)
           ; local = fd
           }
         in
-        S.threadspawn ctx' ~multiple lval f args fctx
+        S.threadspawn man' ~multiple lval f args fman
       in
       bigsqcup (List.map one_spawn spawns)
 
-  let common_join ctx d splits spawns =
-    thread_spawns ctx (bigsqcup (d :: splits)) spawns
+  let common_join man d splits spawns =
+    thread_spawns man (bigsqcup (d :: splits)) spawns
 
-  let common_joins ctx ds splits spawns = common_join ctx (bigsqcup ds) splits spawns
+  let common_joins man ds splits spawns = common_join man (bigsqcup ds) splits spawns
 
   let tf_assign var edge prev_node lv e getl sidel getg sideg d =
-    let ctx, r, spawns = common_ctx var edge prev_node d getl sidel getg sideg in
-    let d = S.assign ctx lv e in (* Force transfer function to be evaluated before dereferencing in common_join argument. *)
-    common_join ctx d !r !spawns
+    let man, r, spawns = common_man var edge prev_node d getl sidel getg sideg in
+    let d = S.assign man lv e in (* Force transfer function to be evaluated before dereferencing in common_join argument. *)
+    common_join man d !r !spawns
 
   let tf_vdecl var edge prev_node v getl sidel getg sideg d =
-    let ctx, r, spawns = common_ctx var edge prev_node d getl sidel getg sideg in
-    let d = S.vdecl ctx v in (* Force transfer function to be evaluated before dereferencing in common_join argument. *)
-    common_join ctx d !r !spawns
+    let man, r, spawns = common_man var edge prev_node d getl sidel getg sideg in
+    let d = S.vdecl man v in (* Force transfer function to be evaluated before dereferencing in common_join argument. *)
+    common_join man d !r !spawns
 
-  let normal_return r fd ctx sideg =
-    let spawning_return = S.return ctx r fd in
-    let nval = S.sync { ctx with local = spawning_return } `Return in
+  let normal_return r fd man sideg =
+    let spawning_return = S.return man r fd in
+    let nval = S.sync { man with local = spawning_return } `Return in
     nval
 
-  let toplevel_kernel_return r fd ctx sideg =
-    let st = if fd.svar.vname = MyCFG.dummy_func.svar.vname then ctx.local else S.return ctx r fd in
-    let spawning_return = S.return {ctx with local = st} None MyCFG.dummy_func in
-    let nval = S.sync { ctx with local = spawning_return } `Return in
+  let toplevel_kernel_return r fd man sideg =
+    let st = if fd.svar.vname = MyCFG.dummy_func.svar.vname then man.local else S.return man r fd in
+    let spawning_return = S.return {man with local = st} None MyCFG.dummy_func in
+    let nval = S.sync { man with local = spawning_return } `Return in
     nval
 
   let tf_ret var edge prev_node ret fd getl sidel getg sideg d =
-    let ctx, r, spawns = common_ctx var edge prev_node d getl sidel getg sideg in
+    let man, r, spawns = common_man var edge prev_node d getl sidel getg sideg in
     let d = (* Force transfer function to be evaluated before dereferencing in common_join argument. *)
       if (CilType.Fundec.equal fd MyCFG.dummy_func ||
           List.mem fd.svar.vname (get_string_list "mainfun")) &&
          get_bool "kernel"
-      then toplevel_kernel_return ret fd ctx sideg
-      else normal_return ret fd ctx sideg
+      then toplevel_kernel_return ret fd man sideg
+      else normal_return ret fd man sideg
     in
-    common_join ctx d !r !spawns
+    common_join man d !r !spawns
 
   let tf_entry var edge prev_node fd getl sidel getg sideg d =
     (* Side effect function context here instead of at sidel to FunctionEntry,
        because otherwise context for main functions (entrystates) will be missing or pruned during postsolving. *)
     let c: unit -> S.C.t = snd var |> Obj.obj in
     side_context sideg fd (c ());
-    let ctx, r, spawns = common_ctx var edge prev_node d getl sidel getg sideg in
-    let d = S.body ctx fd in (* Force transfer function to be evaluated before dereferencing in common_join argument. *)
-    common_join ctx d !r !spawns
+    let man, r, spawns = common_man var edge prev_node d getl sidel getg sideg in
+    let d = S.body man fd in (* Force transfer function to be evaluated before dereferencing in common_join argument. *)
+    common_join man d !r !spawns
 
   let tf_test var edge prev_node e tv getl sidel getg sideg d =
-    let ctx, r, spawns = common_ctx var edge prev_node d getl sidel getg sideg in
-    let d = S.branch ctx e tv in (* Force transfer function to be evaluated before dereferencing in common_join argument. *)
-    common_join ctx d !r !spawns
+    let man, r, spawns = common_man var edge prev_node d getl sidel getg sideg in
+    let d = S.branch man e tv in (* Force transfer function to be evaluated before dereferencing in common_join argument. *)
+    common_join man d !r !spawns
 
-  let tf_normal_call ctx lv e (f:fundec) args getl sidel getg sideg =
+  let tf_normal_call man lv e (f:fundec) args getl sidel getg sideg =
     let combine (cd, fc, fd) =
       if M.tracing then M.traceli "combine" "local: %a" S.D.pretty cd;
       if M.tracing then M.trace "combine" "function: %a" S.D.pretty fd;
-      let rec cd_ctx =
-        { ctx with
-          ask = (fun (type a) (q: a Queries.t) -> S.query cd_ctx q);
+      let rec cd_man =
+        { man with
+          ask = (fun (type a) (q: a Queries.t) -> S.query cd_man q);
           local = cd;
         }
       in
-      let fd_ctx =
-        (* Inner scope to prevent unsynced fd_ctx from being used. *)
+      let fd_man =
+        (* Inner scope to prevent unsynced fd_man from being used. *)
         (* Extra sync in case function has multiple returns.
            Each `Return sync is done before joining, so joined value may be unsound.
-           Since sync is normally done before tf (in common_ctx), simulate it here for fd. *)
+           Since sync is normally done before tf (in common_man), simulate it here for fd. *)
         (* TODO: don't do this extra sync here *)
-        let rec sync_ctx =
-          { ctx with
-            ask = (fun (type a) (q: a Queries.t) -> S.query sync_ctx q);
+        let rec sync_man =
+          { man with
+            ask = (fun (type a) (q: a Queries.t) -> S.query sync_man q);
             local = fd;
             prev_node = Function f;
           }
         in
-        (* TODO: more accurate ctx? *)
-        let synced = sync sync_ctx in
-        let rec fd_ctx =
-          { sync_ctx with
-            ask = (fun (type a) (q: a Queries.t) -> S.query fd_ctx q);
+        (* TODO: more accurate man? *)
+        let synced = sync sync_man in
+        let rec fd_man =
+          { sync_man with
+            ask = (fun (type a) (q: a Queries.t) -> S.query fd_man q);
             local = synced;
           }
         in
-        fd_ctx
+        fd_man
       in
       let r = List.fold_left (fun acc fd1 ->
-          let rec fd1_ctx =
-            { fd_ctx with
-              ask = (fun (type a) (q: a Queries.t) -> S.query fd1_ctx q);
+          let rec fd1_man =
+            { fd_man with
+              ask = (fun (type a) (q: a Queries.t) -> S.query fd1_man q);
               local = fd1;
             }
           in
-          let combine_enved = S.combine_env cd_ctx lv e f args fc fd1_ctx.local (Analyses.ask_of_ctx fd1_ctx) in
-          let rec combine_assign_ctx =
-            { cd_ctx with
-              ask = (fun (type a) (q: a Queries.t) -> S.query combine_assign_ctx q);
+          let combine_enved = S.combine_env cd_man lv e f args fc fd1_man.local (Analyses.ask_of_man fd1_man) in
+          let rec combine_assign_man =
+            { cd_man with
+              ask = (fun (type a) (q: a Queries.t) -> S.query combine_assign_man q);
               local = combine_enved;
             }
           in
-          S.D.join acc (S.combine_assign combine_assign_ctx lv e f args fc fd1_ctx.local (Analyses.ask_of_ctx fd1_ctx))
-        ) (S.D.bot ()) (S.paths_as_set fd_ctx)
+          S.D.join acc (S.combine_assign combine_assign_man lv e f args fc fd1_man.local (Analyses.ask_of_man fd1_man))
+        ) (S.D.bot ()) (S.paths_as_set fd_man)
       in
       if M.tracing then M.traceu "combine" "combined local: %a" S.D.pretty r;
       r
     in
-    let paths = S.enter ctx lv f args in
-    let paths = List.map (fun (c,v) -> (c, S.context ctx f v, v)) paths in
+    let paths = S.enter man lv f args in
+    let paths = List.map (fun (c,v) -> (c, S.context man f v, v)) paths in
     List.iter (fun (c,fc,v) -> if not (S.D.is_bot v) then sidel (FunctionEntry f, fc) v) paths;
     let paths = List.map (fun (c,fc,v) -> (c, fc, if S.D.is_bot v then v else getl (Function f, fc))) paths in
     (* Don't filter bot paths, otherwise LongjmpLifter is not called. *)
@@ -233,10 +243,10 @@ struct
     if M.tracing then M.traceu "combine" "combined: %a" S.D.pretty r;
     r
 
-  let tf_special_call ctx lv f args = S.special ctx lv f args
+  let tf_special_call man lv f args = S.special man lv f args
 
   let tf_proc var edge prev_node lv e args getl sidel getg sideg d =
-    let ctx, r, spawns = common_ctx var edge prev_node d getl sidel getg sideg in
+    let man, r, spawns = common_man var edge prev_node d getl sidel getg sideg in
     let functions =
       match e with
       | Lval (Var v, NoOffset) ->
@@ -245,11 +255,11 @@ struct
         [v]
       | _ ->
         (* Depends on base for query. *)
-        let ad = ctx.ask (Queries.EvalFunvar e) in
+        let ad = man.ask (Queries.EvalFunvar e) in
         Queries.AD.to_var_may ad (* TODO: don't convert, handle UnknownPtr below *)
     in
     let one_function f =
-      match f.vtype with
+      match Cil.unrollType f.vtype with
       | TFun (_, params, var_arg, _)  ->
         let arg_length = List.length args in
         let p_length = Option.map_default List.length 0 params in
@@ -259,11 +269,11 @@ struct
           begin Some (match Cilfacade.find_varinfo_fundec f with
               | fd when LibraryFunctions.use_special f.vname ->
                 M.info ~category:Analyzer "Using special for defined function %s" f.vname;
-                tf_special_call ctx lv f args
+                tf_special_call man lv f args
               | fd ->
-                tf_normal_call ctx lv e fd args getl sidel getg sideg
+                tf_normal_call man lv e fd args getl sidel getg sideg
               | exception Not_found ->
-                tf_special_call ctx lv f args)
+                tf_special_call man lv f args)
           end
         else begin
           let geq = if var_arg then ">=" else "" in
@@ -275,22 +285,22 @@ struct
         None
     in
     let funs = List.filter_map one_function functions in
-    if [] = funs && not (S.D.is_bot ctx.local) then begin
+    if [] = funs && not (S.D.is_bot man.local) then begin
       M.msg_final Warning ~category:Unsound ~tags:[Category Call] "No suitable function to call";
       M.warn ~category:Unsound ~tags:[Category Call] "No suitable function to be called at call site. Continuing with state before call.";
       d (* because LevelSliceLifter *)
     end else
-      common_joins ctx funs !r !spawns
+      common_joins man funs !r !spawns
 
   let tf_asm var edge prev_node getl sidel getg sideg d =
-    let ctx, r, spawns = common_ctx var edge prev_node d getl sidel getg sideg in
-    let d = S.asm ctx in (* Force transfer function to be evaluated before dereferencing in common_join argument. *)
-    common_join ctx d !r !spawns
+    let man, r, spawns = common_man var edge prev_node d getl sidel getg sideg in
+    let d = S.asm man in (* Force transfer function to be evaluated before dereferencing in common_join argument. *)
+    common_join man d !r !spawns
 
   let tf_skip var edge prev_node getl sidel getg sideg d =
-    let ctx, r, spawns = common_ctx var edge prev_node d getl sidel getg sideg in
-    let d = S.skip ctx in (* Force transfer function to be evaluated before dereferencing in common_join argument. *)
-    common_join ctx d !r !spawns
+    let man, r, spawns = common_man var edge prev_node d getl sidel getg sideg in
+    let d = S.skip man in (* Force transfer function to be evaluated before dereferencing in common_join argument. *)
+    common_join man d !r !spawns
 
   let tf var getl sidel getg sideg prev_node edge d =
     begin match edge with
@@ -382,13 +392,13 @@ struct
 
   let iter_vars getl getg vq fl fg =
     (* vars for Spec *)
-    let rec ctx =
-      { ask    = (fun (type a) (q: a Queries.t) -> S.query ctx q)
+    let rec man =
+      { ask    = (fun (type a) (q: a Queries.t) -> S.query man q)
       ; emit   = (fun _ -> failwith "Cannot \"emit\" in query context.")
       ; node   = MyCFG.dummy_node (* TODO maybe ask should take a node (which could be used here) instead of a location *)
       ; prev_node = MyCFG.dummy_node
-      ; control_context = (fun () -> ctx_failwith "No context in query context.")
-      ; context = (fun () -> ctx_failwith "No context in query context.")
+      ; control_context = (fun () -> man_failwith "No context in query context.")
+      ; context = (fun () -> man_failwith "No context in query context.")
       ; edge    = MyCFG.Skip
       ; local  = S.startstate Cil.dummyFunDec.svar (* bot and top both silently raise and catch Deadcode in DeadcodeLifter *)
       ; global = (fun g -> G.spec (getg (GVar.spec g)))
@@ -398,7 +408,7 @@ struct
       }
     in
     let f v = fg (GVar.spec (Obj.obj v)) in
-    S.query ctx (IterSysVars (vq, f));
+    S.query man (IterSysVars (vq, f));
 
     (* node vars for locals *)
     match vq with

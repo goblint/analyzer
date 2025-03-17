@@ -6,6 +6,16 @@ open GobConfig
 
 module M = Messages
 
+let intmax_t = lazy (
+  let res = ref None in
+  GoblintCil.iterGlobals !Cilfacade.current_file (function
+      | GType ({tname = "intmax_t"; ttype; _}, _) ->
+        res := Some ttype;
+      | _ -> ()
+    );
+  !res
+)
+
 (** C standard library functions.
     These are specified by the C standard. *)
 let c_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
@@ -139,7 +149,7 @@ let c_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("abs", special [__ "j" []] @@ fun j -> Math { fun_args = (Abs (IInt, j)) });
     ("labs", special [__ "j" []] @@ fun j -> Math { fun_args = (Abs (ILong, j)) });
     ("llabs", special [__ "j" []] @@ fun j -> Math { fun_args = (Abs (ILongLong, j)) });
-    ("imaxabs", unknown [drop "j" []]);
+    ("imaxabs", special [__ "j" []] @@ fun j -> Math { fun_args = (Abs (Cilfacade.get_ikind (Option.get (Lazy.force intmax_t)), j)) });
     ("localtime_r", unknown [drop "timep" [r]; drop "result" [w]]);
     ("strpbrk", unknown [drop "s" [r]; drop "accept" [r]]);
     ("_setjmp", special [__ "env" [w]] @@ fun env -> Setjmp { env }); (* only has one underscore *)
@@ -1087,6 +1097,7 @@ let svcomp_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("__VERIFIER_nondet_int", unknown []);  (* declare invalidate actions to prevent invalidating globals when extern in regression tests *)
     ("__VERIFIER_nondet_size_t", unknown []); (* cannot give it in sv-comp.c without including stdlib or similar *)
     ("__VERIFIER_assert", special [__ "exp" []] @@ fun exp -> Assert { exp; check = true; refine = get_bool "sem.assert.refine" }); (* only used if definition missing (e.g. in evalAssert transformed output) or extraspecial *)
+    ("reach_error", special [] @@ Abort); (* only used if definition missing (e.g. in evalAssert transformed output) or extraspecial *)
   ]
 [@@coverage off]
 
@@ -1277,7 +1288,7 @@ let reset_lazy () =
   ResettableLazy.reset activated_library_descs
 
 let lib_funs = ref (Set.String.of_list ["__raw_read_unlock"; "__raw_write_unlock"; "spin_trylock"])
-let add_lib_funs funs = lib_funs := List.fold_right Set.String.add funs !lib_funs
+let add_lib_funs funs = lib_funs := List.fold_left (Fun.flip Set.String.add) !lib_funs funs
 let use_special fn_name = Set.String.mem fn_name !lib_funs
 
 let kernel_safe_uncalled = Set.String.of_list ["__inittest"; "init_module"; "__exittest"; "cleanup_module"]

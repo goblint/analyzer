@@ -84,22 +84,22 @@ struct
   open Q.Protection
   open Q.ProtectionKind
 
-  let is_unprotected ask ?(protection=Strong) x: bool =
+  let is_unprotected ask ?(kind=Write) ?(protection=Strong) x: bool =
     let multi = if protection = Weak then ThreadFlag.is_currently_multi ask else ThreadFlag.has_ever_been_multi ask in
     (!GobConfig.earlyglobs && not multi && not (is_excluded_from_earlyglobs x)) ||
     (
       multi &&
-      ask.f (Q.MayBePublic {global=x; kind=Write; protection})
+      ask.f (Q.MayBePublic {global=x; kind; protection})
     )
 
   let is_unprotected_without ask ?(kind=Write) ?(protection=Strong) x m: bool =
     (if protection = Weak then ThreadFlag.is_currently_multi ask else ThreadFlag.has_ever_been_multi ask) &&
     ask.f (Q.MayBePublicWithout {global=x; kind; without_mutex=m; protection})
 
-  let is_protected_by ask ?(protection=Strong) m x: bool =
+  let is_protected_by ask ?(kind=Write) ?(protection=Strong) m x: bool =
     is_global ask x &&
     not (VD.is_immediate_type x.vtype) &&
-    ask.f (Q.MustBeProtectedBy {mutex=m; global=x; kind=Write; protection})
+    ask.f (Q.MustBeProtectedBy {mutex=m; global=x; kind; protection})
 
   let protected_vars (ask: Q.ask): varinfo list =
     LockDomain.MustLockset.fold (fun ml acc ->
@@ -239,7 +239,7 @@ struct
     | _ -> false
 end
 
-module PerMutexTidCommon (Digest: Digest) (LD:Lattice.S) =
+module PerMutexTidCommon (Digest: Digest) (LD:Lattice.S) (Cluster:Printable.S) =
 struct
   include ConfCheck.RequireThreadFlagPathSensInit
 
@@ -268,9 +268,9 @@ struct
     let global x = `Right x
   end
 
-  (** Mutexes / globals to which values have been published, i.e. for which the initializers need not be read **)
+  (** Mutexes / clusters of globals to which values have been published, i.e., for which the initializers need not be read **)
   module LMust = struct
-    include SetDomain.Reverse (SetDomain.ToppedSet (LLock) (struct let topname = "All locks" end))
+    include SetDomain.Reverse (SetDomain.ToppedSet (Printable.Prod(LLock)(Cluster)) (struct let topname = "All locks" end))
     let name () = "LMust"
   end
 
@@ -317,6 +317,14 @@ struct
   let startstate () = W.bot (), LMust.top (), L.bot ()
 end
 
+module PerMutexTidCommonNC (Digest: Digest) (LD:Lattice.S) = struct
+  include PerMutexTidCommon (Digest) (LD) (Printable.Unit)
+  module LMust = struct
+    include LMust
+    let mem lm lmust = mem (lm, ()) lmust
+    let add lm lmust = add (lm, ()) lmust
+  end
+end
 
 let lift_lock (ask: Q.ask) f st (addr: LockDomain.Addr.t) =
   (* Should be in sync with:

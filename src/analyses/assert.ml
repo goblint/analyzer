@@ -13,10 +13,10 @@ struct
 
   (* transfer functions *)
 
-  let assert_fn ctx e check refine =
+  let assert_fn man e check refine =
 
     let check_assert e st =
-      match ctx.ask (Queries.EvalInt e) with
+      match man.ask (Queries.EvalInt e) with
       | v when Queries.ID.is_bot v -> `Bot
       | v ->
         match Queries.ID.to_bool v with
@@ -41,25 +41,25 @@ struct
           warn_fn msg
     in
     (* TODO: use format instead of %s for the following messages *)
-    match check_assert e ctx.local with
+    match check_assert e man.local with
     | `Lifted false ->
       warn (M.error ~category:Assert "%s") ~annot:"FAIL" ("Assertion \"" ^ expr ^ "\" will fail.");
-      if refine then raise Analyses.Deadcode else ctx.local
+      if refine then raise Analyses.Deadcode else man.local
     | `Lifted true ->
       warn (M.success ~category:Assert "%s") ("Assertion \"" ^ expr ^ "\" will succeed");
-      ctx.local
+      man.local
     | `Bot ->
       M.error ~category:Assert "%s" ("Assertion \"" ^ expr ^ "\" produces a bottom. What does that mean? (currently uninitialized arrays' content is bottom)");
-      ctx.local
+      man.local
     | `Top ->
       warn (M.warn ~category:Assert "%s") ~annot:"UNKNOWN" ("Assertion \"" ^ expr ^ "\" is unknown.");
-      ctx.local
+      man.local
 
-  let special ctx (lval: lval option) (f:varinfo) (args:exp list) : D.t =
+  let special man (lval: lval option) (f:varinfo) (args:exp list) : D.t =
     let desc = LibraryFunctions.find f in
     match desc.special args, f.vname with
-    | Assert { exp; check; refine }, _ -> assert_fn ctx exp check refine
-    | _, _ -> ctx.local
+    | Assert { exp; check; refine }, _ -> assert_fn man exp check refine
+    | _, _ -> man.local
 end
 
 let _ =

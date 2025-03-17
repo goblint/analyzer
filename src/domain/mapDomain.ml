@@ -263,7 +263,7 @@ module HConsed (M: S) : S with
   type key = M.key and
   type value = M.value =
 struct
-  include Lattice.HConsed (M) (struct let assume_idempotent = false end)
+  include Lattice.HConsed (struct let assume_idempotent = false end) (M)
 
   type key = M.key
   type value = M.value
@@ -398,7 +398,7 @@ struct
   let leq = leq_with_fct Range.leq
 
   let find x m = try find x m with | Not_found -> Range.bot ()
-  let top () = Lattice.unsupported "partial map top"
+  let top () = raise Lattice.TopValue
   let bot () = empty ()
   let is_top _ = false
   let is_bot = is_empty
@@ -448,7 +448,7 @@ struct
 
   let find x m = try find x m with | Not_found -> Range.top ()
   let top () = empty ()
-  let bot () = Lattice.unsupported "partial map bot"
+  let bot () = raise Lattice.BotValue
   let is_top = is_empty
   let is_bot _ = false
 

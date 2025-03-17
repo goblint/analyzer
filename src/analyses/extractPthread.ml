@@ -248,7 +248,7 @@ module Tasks = SetDomain.Make (Lattice.Prod (Queries.AD) (PthreadDomain.D))
 module rec Env : sig
   type t
 
-  val get : (PthreadDomain.D.t, Tasks.t, PthreadDomain.D.t, _) ctx -> t
+  val get : (PthreadDomain.D.t, Tasks.t, PthreadDomain.D.t, _) man -> t
 
   val d : t -> PthreadDomain.D.t
 
@@ -262,8 +262,8 @@ end = struct
     ; resource : Resource.t
     }
 
-  let get ctx =
-    let d : PthreadDomain.D.t = ctx.local in
+  let get man =
+    let d : PthreadDomain.D.t = man.local in
     let node = Option.get !MyCFG.current_node in
     let fundec = Node.find_fundec node in
     let thread_name =
@@ -359,7 +359,7 @@ end
 module Variable = struct
   type t = varinfo
 
-  let is_integral v = match v.vtype with TInt _ -> true | _ -> false
+  let is_integral v = isIntegralType v.vtype
 
   let is_global v = v.vglob
 
@@ -452,12 +452,12 @@ module Variables = struct
 
 
   (* all vars on rhs should be already registered, otherwise -> do not add this var *)
-  let rec all_vars_are_valid ctx = function
+  let rec all_vars_are_valid man = function
     | Const _ ->
       true
     | Lval l ->
       let open PthreadDomain in
-      let d = Env.d @@ Env.get ctx in
+      let d = Env.d @@ Env.get man in
       let tid = Int64.to_int @@ Option.get @@ Tid.to_int d.tid in
 
       l
@@ -465,9 +465,9 @@ module Variables = struct
       |> Option.map @@ valid_var tid
       |> Option.default false
     | UnOp (_, e, _) ->
-      all_vars_are_valid ctx e
+      all_vars_are_valid man e
     | BinOp (_, a, b, _) ->
-      all_vars_are_valid ctx a && all_vars_are_valid ctx b
+      all_vars_are_valid man a && all_vars_are_valid man b
     | _ ->
       false
 end
@@ -876,56 +876,56 @@ module Spec : Analyses.MCPSpec = struct
 
 
   module ExprEval = struct
-    let eval_ptr ctx exp =
-      ctx.ask (Queries.MayPointTo exp)
+    let eval_ptr man exp =
+      man.ask (Queries.MayPointTo exp)
       |> Queries.AD.remove UnknownPtr (* UNSOUND *)
       |> Queries.AD.to_var_may
 
-    let eval_var ctx exp =
+    let eval_var man exp =
       match exp with
       | Lval (Mem e, _) ->
-        eval_ptr ctx e
+        eval_ptr man e
       | Lval (Var v, _) ->
         [ v ]
       | _ ->
-        eval_ptr ctx exp
+        eval_ptr man exp
 
 
-    let eval_ptr_id ctx exp get =
-      List.map (get % Variable.show) @@ eval_ptr ctx exp
+    let eval_ptr_id man exp get =
+      List.map (get % Variable.show) @@ eval_ptr man exp
 
 
-    let eval_var_id ctx exp get =
-      List.map (get % Variable.show) @@ eval_var ctx exp
+    let eval_var_id man exp get =
+      List.map (get % Variable.show) @@ eval_var man exp
   end
 
   let name () = "extract-pthread"
 
-  let assign ctx (lval : lval) (rval : exp) : D.t =
+  let assign man (lval : lval) (rval : exp) : D.t =
     let should_ignore_assigns = GobConfig.get_bool "ana.extract-pthread.ignore_assign" in
-    if PthreadDomain.D.is_bot ctx.local || should_ignore_assigns
-    then ctx.local
+    if PthreadDomain.D.is_bot man.local || should_ignore_assigns
+    then man.local
     else if Option.is_none !MyCFG.current_node
     then (
       (* it is global var assignment *)
       let var_opt = Variable.make_from_lval lval in
-      if Variables.all_vars_are_valid ctx rval
+      if Variables.all_vars_are_valid man rval
       (* TODO: handle the assignment of the global *)
       then Option.may (Variables.add (-1)) var_opt
       else Option.may (Variables.add_top (-1)) var_opt ;
-      ctx.local )
+      man.local )
     else
-      let env = Env.get ctx in
+      let env = Env.get man in
       let d = Env.d env in
       let tid = Int64.to_int @@ Option.get @@ Tid.to_int d.tid in
 
       let var_opt = Variable.make_from_lval lval in
 
-      if Option.is_none var_opt || (not @@ Variables.all_vars_are_valid ctx rval)
+      if Option.is_none var_opt || (not @@ Variables.all_vars_are_valid man rval)
       then (
         (* set lhs var to TOP *)
         Option.may (Variables.add_top tid) var_opt ;
-        ctx.local )
+        man.local )
       else
         let var = Option.get var_opt in
 
@@ -938,11 +938,11 @@ module Spec : Analyses.MCPSpec = struct
         { d with pred = Pred.of_node @@ Env.node env }
 
 
-  let branch ctx (exp : exp) (tv : bool) : D.t =
-    if PthreadDomain.D.is_bot ctx.local
-    then ctx.local
+  let branch man (exp : exp) (tv : bool) : D.t =
+    if PthreadDomain.D.is_bot man.local
+    then man.local
     else
-      let env = Env.get ctx in
+      let env = Env.get man in
       let d = Env.d env in
       let tid = Int64.to_int @@ Option.get @@ Tid.to_int d.tid in
       let is_valid_var =
@@ -981,7 +981,7 @@ module Spec : Analyses.MCPSpec = struct
             Tbls.NodeTbl.get (if tv then then_stmt else else_stmt).sid
           in
           Edges.add ~dst:intermediate_node env (Action.Cond pred_str) ;
-          { ctx.local with pred = Pred.of_node intermediate_node }
+          { man.local with pred = Pred.of_node intermediate_node }
         | _ ->
           failwith "branch: current_node is not an If"
       in
@@ -996,7 +996,7 @@ module Spec : Analyses.MCPSpec = struct
           when is_valid_var lhostA && is_valid_var lhostB ->
           add_action @@ pred_str op (var_str lhostA) (var_str lhostB)
         | _ ->
-          ctx.local
+          man.local
       in
       let handle_unop x tv =
         match x with
@@ -1004,7 +1004,7 @@ module Spec : Analyses.MCPSpec = struct
           let pred = (if tv then "" else "!") ^ var_str lhost in
           add_action pred
         | _ ->
-          ctx.local
+          man.local
       in
       match exp with
       | BinOp (op, a, b, _) ->
@@ -1014,26 +1014,26 @@ module Spec : Analyses.MCPSpec = struct
       | Const (CInt _) ->
         handle_unop exp tv
       | _ ->
-        ctx.local
+        man.local
 
 
-  let body ctx (f : fundec) : D.t =
+  let body man (f : fundec) : D.t =
     (* enter is not called for spawned threads -> initialize them here *)
-    let context_hash = Int64.of_int (if not !AnalysisState.global_initialization then ControlSpecC.hash (ctx.control_context ()) else 37) in
-    { ctx.local with ctx = Ctx.of_int context_hash }
+    let context_hash = Int64.of_int (if not !AnalysisState.global_initialization then ControlSpecC.hash (man.control_context ()) else 37) in
+    { man.local with ctx = Ctx.of_int context_hash }
 
 
-  let return ctx (exp : exp option) (f : fundec) : D.t = ctx.local
+  let return man (exp : exp option) (f : fundec) : D.t = man.local
 
-  let enter ctx (lval : lval option) (f : fundec) (args : exp list) :
+  let enter man (lval : lval option) (f : fundec) (args : exp list) :
     (D.t * D.t) list =
     (* on function calls (also for main); not called for spawned threads *)
-    let d_caller = ctx.local in
+    let d_caller = man.local in
     let d_callee =
-      if D.is_bot ctx.local
-      then ctx.local
+      if D.is_bot man.local
+      then man.local
       else
-        { ctx.local with
+        { man.local with
           pred = Pred.of_node (MyCFG.Function f)
         ; ctx = Ctx.top ()
         }
@@ -1041,14 +1041,14 @@ module Spec : Analyses.MCPSpec = struct
     (* set predecessor set to start node of function *)
     [ (d_caller, d_callee) ]
 
-  let combine_env ctx lval fexp f args fc au f_ask =
-    ctx.local
+  let combine_env man lval fexp f args fc au f_ask =
+    man.local
 
-  let combine_assign ctx (lval : lval option) fexp (f : fundec) (args : exp list) fc (au : D.t) (f_ask: Queries.ask) : D.t =
-    if D.any_is_bot ctx.local || D.any_is_bot au
-    then ctx.local
+  let combine_assign man (lval : lval option) fexp (f : fundec) (args : exp list) fc (au : D.t) (f_ask: Queries.ask) : D.t =
+    if D.any_is_bot man.local || D.any_is_bot au
+    then man.local
     else
-      let d_caller = ctx.local in
+      let d_caller = man.local in
       let d_callee = au in
       (* check if the callee has some relevant edges, i.e. advanced from the entry point
        * if not, we generate no edge for the call and keep the predecessors from the caller *)
@@ -1059,7 +1059,7 @@ module Spec : Analyses.MCPSpec = struct
         (* set current node as new predecessor, since something interesting happend during the call *)
         { d_callee with pred = d_caller.pred; ctx = d_caller.ctx }
       else
-        let env = Env.get ctx in
+        let env = Env.get man in
         (* write out edges with call to f coming from all predecessor nodes of the caller *)
         ( if Ctx.to_int d_callee.ctx <> None
           then
@@ -1073,11 +1073,11 @@ module Spec : Analyses.MCPSpec = struct
         }
 
 
-  let special ctx (lval : lval option) (f : varinfo) (arglist : exp list) : D.t =
-    if D.any_is_bot ctx.local then
-      ctx.local
+  let special man (lval : lval option) (f : varinfo) (arglist : exp list) : D.t =
+    if D.any_is_bot man.local then
+      man.local
     else
-      let env = Env.get ctx in
+      let env = Env.get man in
       let d = Env.d env in
       let tid = Int64.to_int @@ Option.get @@ Tid.to_int d.tid in
 
@@ -1110,7 +1110,7 @@ module Spec : Analyses.MCPSpec = struct
       match (LibraryFunctions.find f).special arglist', f.vname, arglist with
       | ThreadCreate { thread; start_routine = func; _ }, _, _ ->
         let funs_ad =
-          let ad = ctx.ask (Queries.ReachableFrom func) in
+          let ad = man.ask (Queries.ReachableFrom func) in
           Queries.AD.filter
             (function
               | Queries.AD.Addr.Addr mval ->
@@ -1128,13 +1128,13 @@ module Spec : Analyses.MCPSpec = struct
           let tasks =
             let f_d:PthreadDomain.D.t =
               { tid = Tid.of_int @@ Int64.of_int tid
-              ; pred = Pred.of_node (ctx.prev_node)
+              ; pred = Pred.of_node (man.prev_node)
               ; ctx = Ctx.top ()
               }
             in
             Tasks.singleton (funs_ad, f_d)
           in
-          ctx.sideg tasks_var tasks ;
+          man.sideg tasks_var tasks ;
         in
         let thread_create tid =
           let fun_name = Variable.show thread_fun in
@@ -1180,20 +1180,20 @@ module Spec : Analyses.MCPSpec = struct
 
         add_actions
         @@ List.map thread_create
-        @@ ExprEval.eval_ptr_id ctx thread Tbls.ThreadTidTbl.get
+        @@ ExprEval.eval_ptr_id man thread Tbls.ThreadTidTbl.get
 
       | ThreadJoin { thread; ret_var = thread_ret }, _, _ ->
         add_actions
         @@ List.map (fun tid -> Action.ThreadJoin tid)
-        @@ ExprEval.eval_var_id ctx thread Tbls.ThreadTidTbl.get
+        @@ ExprEval.eval_var_id man thread Tbls.ThreadTidTbl.get
       | Lock { lock = mutex; _ }, _, _ ->
         add_actions
         @@ List.map (fun mid -> Action.MutexLock mid)
-        @@ ExprEval.eval_ptr_id ctx mutex Tbls.MutexMidTbl.get
+        @@ ExprEval.eval_ptr_id man mutex Tbls.MutexMidTbl.get
       | Unlock mutex, _, _ ->
         add_actions
         @@ List.map (fun mid -> Action.MutexUnlock mid)
-        @@ ExprEval.eval_ptr_id ctx mutex Tbls.MutexMidTbl.get
+        @@ ExprEval.eval_ptr_id man mutex Tbls.MutexMidTbl.get
       | ThreadExit _, _ , _ ->
         add_action Action.ThreadExit
       | Abort, _, _ ->
@@ -1202,22 +1202,22 @@ module Spec : Analyses.MCPSpec = struct
         (* TODO: reentrant mutex handling *)
         add_actions
         @@ List.map (fun mid -> Action.MutexInit mid)
-        @@ ExprEval.eval_ptr_id ctx mutex Tbls.MutexMidTbl.get
+        @@ ExprEval.eval_ptr_id man mutex Tbls.MutexMidTbl.get
       | Unknown, "pthread_cond_init", [ cond_var; cond_var_attr ] ->
         add_actions
         @@ List.map (fun id -> Action.CondVarInit id)
-        @@ ExprEval.eval_ptr_id ctx cond_var Tbls.CondVarIdTbl.get
+        @@ ExprEval.eval_ptr_id man cond_var Tbls.CondVarIdTbl.get
       | Broadcast cond_var, _, _ ->
         add_actions
         @@ List.map (fun id -> Action.CondVarBroadcast id)
-        @@ ExprEval.eval_ptr_id ctx cond_var Tbls.CondVarIdTbl.get
+        @@ ExprEval.eval_ptr_id man cond_var Tbls.CondVarIdTbl.get
       | Signal cond_var, _, _ ->
         add_actions
         @@ List.map (fun id -> Action.CondVarSignal id)
-        @@ ExprEval.eval_ptr_id ctx cond_var Tbls.CondVarIdTbl.get
+        @@ ExprEval.eval_ptr_id man cond_var Tbls.CondVarIdTbl.get
       | Wait {cond = cond_var; mutex = mutex}, _, _ ->
-        let cond_vars = ExprEval.eval_ptr ctx cond_var in
-        let mutex_vars = ExprEval.eval_ptr ctx mutex in
+        let cond_vars = ExprEval.eval_ptr man cond_var in
+        let mutex_vars = ExprEval.eval_ptr man mutex in
         let cond_var_action (v, m) =
           let open Action in
           CondVarWait
@@ -1228,7 +1228,7 @@ module Spec : Analyses.MCPSpec = struct
         add_actions
         @@ List.map cond_var_action
         @@ List.cartesian_product cond_vars mutex_vars
-      | _ -> ctx.local
+      | _ -> man.local
 
   let startstate v =
     let open D in
@@ -1238,9 +1238,9 @@ module Spec : Analyses.MCPSpec = struct
       (Ctx.top ())
 
 
-  let threadenter ctx ~multiple lval f args =
-    let d : D.t = ctx.local in
-    let tasks = ctx.global tasks_var in
+  let threadenter man ~multiple lval f args =
+    let d : D.t = man.local in
+    let tasks = man.global tasks_var in
     (* TODO: optimize finding *)
     let tasks_f =
       let var_in_ad ad f = Queries.AD.exists (function
@@ -1254,7 +1254,7 @@ module Spec : Analyses.MCPSpec = struct
     [ { f_d with pred = d.pred } ]
 
 
-  let threadspawn ctx ~multiple lval f args fctx = ctx.local
+  let threadspawn man ~multiple lval f args fman = man.local
 
   let exitstate v = D.top ()
 

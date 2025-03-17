@@ -12,11 +12,11 @@ sig
   val is_main: t -> bool
   val is_unique: t -> bool
 
-  (** Overapproximates whether the first TID can be involved in the creation fo the second TID*)
-  val may_create: t -> t -> bool
+  (** Overapproximates whether the first TID can be involved in the creation of the second TID*)
+  val may_be_ancestor: t -> t -> bool
 
-  (** Is the first TID a must parent of the second thread. Always false if the first TID is not unique *)
-  val is_must_parent: t -> t -> bool
+  (** Is the first TID a must ancestor of the second thread. Always false if the first TID is not unique *)
+  val must_be_ancestor: t -> t -> bool
 end
 
 module type Stateless =
@@ -87,8 +87,8 @@ struct
     | _ -> false
 
   let is_unique = is_main
-  let may_create _ _ = true
-  let is_must_parent _ _ = false
+  let may_be_ancestor _ _ = true
+  let must_be_ancestor _ _ = false
 end
 
 
@@ -140,18 +140,34 @@ struct
   let is_unique (_, s) =
     S.is_empty s
 
-  let is_must_parent (p,s) (p',s') =
-    if not (S.is_empty s) then
+  let must_be_ancestor ((p, s) as t) ((p', s') as t') =
+    if not (is_unique t) then
       false
-    else if P.equal p' p && S.is_empty s' then (* s is already empty *)
-      (* We do not consider a thread its own parent *)
-      false
-    else
-      let cdef_ancestor = P.common_suffix p p' in
-      P.equal p cdef_ancestor
+    else if is_unique t' && P.equal p p' then (* t is already unique, so no need to compare sets *)
+      false (* thread is not its own parent *)
+    else ( (* t is already unique, so no need to check sets *)
+      match GobList.remove_common_prefix Base.equal (List.rev p) (List.rev p') with (* prefixes are stored reversed *)
+      | [], _ -> true (* p is prefix of p' *)
+      | _ :: _, _ -> false
+    )
 
-  let may_create (p,s) (p',s') =
-    S.subset (S.union (S.of_list p) s) (S.union (S.of_list p') s')
+  let may_be_ancestor ((p, s) as t) ((p', s') as t') =
+    if is_unique t' then
+      must_be_ancestor t t' (* unique must be created by something unique (that's a prefix) *)
+    else ( (* t' is already non-unique (but doesn't matter) *)
+      match GobList.remove_common_prefix Base.equal (List.rev p) (List.rev p') with (* prefixes are stored reversed *)
+      | [], dp when is_unique t -> (* p is prefix of p' *)
+        (* dp = elements added to prefix (reversed, but doesn't matter) *)
+        true (* all elements are contained: p is prefix of p' and s is empty (due to uniqueness) *)
+      | dp', [] -> (* p' is prefix of p *)
+        (* dp' = elements removed from prefix (reversed, but doesn't matter) *)
+        S.subset (S.of_list dp') s' && (* removed elements become part of set, must be contained, because compose can only add them *)
+        S.subset s s' (* set elements must be contained, because compose can only add them *)
+      | [], _ :: _ -> (* p is strict prefix of p' and t is non-unique *)
+        false (* composing to non-unique cannot lengthen prefix *)
+      | _ :: _, _ :: _ -> (* prefixes are incompatible *)
+        false (* composing cannot fix incompatibility there *)
+    )
 
   let compose ((p, s) as current) ni =
     if BatList.mem_cmp Base.compare ni p then (
@@ -242,8 +258,8 @@ struct
 
   let is_main = unop H.is_main P.is_main
   let is_unique = unop H.is_unique P.is_unique
-  let may_create = binop H.may_create P.may_create
-  let is_must_parent = binop H.is_must_parent P.is_must_parent
+  let may_be_ancestor = binop H.may_be_ancestor P.may_be_ancestor
+  let must_be_ancestor = binop H.must_be_ancestor P.must_be_ancestor
 
   let created x d =
     let lifth x' d' =
@@ -339,14 +355,14 @@ struct
     | Thread tid -> FlagConfiguredTID.is_unique tid
     | UnknownThread -> false
 
-  let may_create t1 t2 =
+  let may_be_ancestor t1 t2 =
     match t1, t2 with
-    | Thread tid1, Thread tid2 -> FlagConfiguredTID.may_create tid1 tid2
+    | Thread tid1, Thread tid2 -> FlagConfiguredTID.may_be_ancestor tid1 tid2
     | _, _ -> true
 
-  let is_must_parent t1 t2 =
+  let must_be_ancestor t1 t2 =
     match t1, t2 with
-    | Thread tid1, Thread tid2 -> FlagConfiguredTID.is_must_parent tid1 tid2
+    | Thread tid1, Thread tid2 -> FlagConfiguredTID.must_be_ancestor tid1 tid2
     | _, _ -> false
 
   module D = FlagConfiguredTID.D

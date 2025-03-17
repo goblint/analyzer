@@ -11,10 +11,10 @@ type t =
   | SplitBranch of exp * bool (** Used to simulate old branch-based split. *)
   | AssignSpawnedThread of lval * ThreadIdDomain.Thread.t (** Assign spawned thread's ID to lval. *)
   | Access of {exp: CilType.Exp.t; ad: Queries.AD.t; kind: AccessKind.t; reach: bool}
-  | Assign of {lval: CilType.Lval.t; exp: CilType.Exp.t} (** Used to simulate old [ctx.assign]. *) (* TODO: unused *)
+  | Assign of {lval: CilType.Lval.t; exp: CilType.Exp.t} (** Used to simulate old [man.assign]. *) (* TODO: unused *)
   | UpdateExpSplit of exp (** Used by expsplit analysis to evaluate [exp] on post-state. *)
   | Assert of exp
-  | Unassume of {exp: CilType.Exp.t; uuids: string list}
+  | Unassume of {exp: CilType.Exp.t; tokens: WideningToken.t list}
   | Longjmped of {lval: CilType.Lval.t option}
 
 (** Should event be emitted after transfer function raises [Deadcode]? *)
@@ -45,5 +45,5 @@ let pretty () = function
   | Assign {lval; exp} -> dprintf "Assign {lval=%a, exp=%a}" CilType.Lval.pretty lval CilType.Exp.pretty exp
   | UpdateExpSplit exp -> dprintf "UpdateExpSplit %a" d_exp exp
   | Assert exp -> dprintf "Assert %a" d_exp exp
-  | Unassume {exp; uuids} -> dprintf "Unassume {exp=%a; uuids=%a}" d_exp exp (docList Pretty.text) uuids
+  | Unassume {exp; tokens} -> dprintf "Unassume {exp=%a; tokens=%a}" d_exp exp (d_list ", " WideningToken.pretty) tokens
   | Longjmped {lval} -> dprintf "Longjmped {lval=%a}" (docOpt (CilType.Lval.pretty ())) lval

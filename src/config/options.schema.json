@@ -414,6 +414,13 @@
               "type": "boolean",
               "default": false
             },
+            "bitfield": {
+              "title": "ana.int.bitfield",
+              "description":
+                "Use IntDomain.Bitfield: Bitfield domain for integers.",
+              "type": "boolean",
+              "default": false
+            },
             "congruence": {
               "title": "ana.int.congruence",
               "description":
@@ -506,6 +513,13 @@
               "type": "boolean",
               "default": true
             },
+            "hashcached": {
+              "title": "ana.opt.hashcached",
+              "description":
+                "Should we try to save memory and speed up equality by caching hashes of contexts? This is useful when hashconsing is off",
+              "type": "boolean",
+              "default": false
+            },
             "equal": {
               "title": "ana.opt.equal",
               "description":
@@ -534,7 +548,7 @@
                 "type": "string",
                 "enum": [
                   "congruence",
-                  "singleThreaded",
+                  "reduceAnalyses",
                   "mallocWrappers",
                   "noRecursiveIntervals",
                   "enums",
@@ -552,7 +566,7 @@
               },
               "default": [
                 "congruence",
-                "singleThreaded",
+                "reduceAnalyses",
                 "mallocWrappers",
                 "noRecursiveIntervals",
                 "enums",
@@ -639,6 +653,12 @@
                   "title": "ana.base.context.interval_set",
                   "description":
                     "Integer values of the IntervalSet domain in function contexts.",
+                  "type": "boolean",
+                  "default": true
+                },
+                "bitfield": {
+                  "title": "ana.base.context.bitfield",
+                  "description": "Bitfield values in function contexts.",
                   "type": "boolean",
                   "default": true
                 }
@@ -761,9 +781,9 @@
             "privatization": {
               "title": "ana.base.privatization",
               "description":
-                "Which privatization to use? none/mutex-oplus/mutex-meet/mutex-meet-tid/protection/protection-read/mine/mine-nothread/mine-W/mine-W-noinit/lock/lock-tid/write/write-tid/write+lock/write+lock-tid",
+                "Which privatization to use? none/vojdani/mutex-oplus/mutex-meet/mutex-meet-tid/protection/protection-read/mine/mine-nothread/mine-W/mine-W-noinit/lock/lock-tid/write/write-tid/write+lock/write+lock-tid",
               "type": "string",
-              "enum": ["none", "mutex-oplus", "mutex-meet", "protection", "protection-tid", "protection-atomic", "protection-read", "protection-read-tid", "protection-read-atomic", "mine", "mine-nothread", "mine-W", "mine-W-noinit", "lock", "lock-tid", "write", "write-tid", "write+lock", "write+lock-tid", "mutex-meet-tid"],
+              "enum": ["none", "vojdani", "mutex-oplus", "mutex-meet", "protection", "protection-tid", "protection-atomic", "protection-read", "protection-read-tid", "protection-read-atomic", "mine", "mine-nothread", "mine-W", "mine-W-noinit", "lock", "lock-tid", "write", "write-tid", "write+lock", "write+lock-tid", "mutex-meet-tid"],
               "default": "protection-read"
             },
             "priv": {
@@ -794,6 +814,18 @@
                 "enabled": {
                   "title": "ana.base.invariant.enabled",
                   "description": "Generate base analysis invariants",
+                  "type": "boolean",
+                  "default": true
+                },
+                "local": {
+                  "title": "ana.base.invariant.local",
+                  "description": "Keep local variables in invariants",
+                  "type": "boolean",
+                  "default": true
+                },
+                "global": {
+                  "title": "ana.base.invariant.global",
+                  "description": "Keep global variables in invariants",
                   "type": "boolean",
                   "default": true
                 },
@@ -1163,6 +1195,39 @@
               "description": "Check if invariant contradicts reached state before unassuming.",
               "type": "boolean",
               "default": false
+            }
+          },
+          "additionalProperties": false
+        },
+        "var_eq": {
+          "title": "ana.var_eq",
+          "type": "object",
+          "properties": {
+            "invariant": {
+              "title": "ana.var_eq.invariant",
+              "type": "object",
+              "properties": {
+                "enabled": {
+                  "title": "ana.var_eq.invariant.enabled",
+                  "description": "Generate var_eq analysis invariants",
+                  "type": "boolean",
+                  "default": true
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "additionalProperties": false
+        },
+        "affeq": {
+          "title": "ana.affeq",
+          "type": "object",
+          "properties": {
+            "sparse": {
+              "title": "ana.affeq.sparse",
+              "description": "Use sparse implementation of Affine Equality analysis (using lists). If set to false, the dense version is used (using arrays). Default is true (sparse implementation)",
+              "type": "boolean",
+              "default": true
             }
           },
           "additionalProperties": false
@@ -1669,7 +1734,7 @@
             "type": "array",
             "items": {
               "type": "string",
-              "enum": ["base.no-non-ptr", "base.non-ptr", "base.no-int", "base.int", "base.no-interval", "base.no-interval_set","base.interval", "base.interval_set","relation.no-context", "relation.context", "no-widen", "widen"]
+              "enum": ["base.no-non-ptr", "base.non-ptr", "base.no-int", "base.int", "base.no-interval", "base.no-interval_set", "base.no-bitfield", "base.interval", "base.interval_set", "base.bitfield", "relation.no-context", "relation.context", "no-widen", "widen"]
             },
             "default": []
           }
@@ -2165,6 +2230,12 @@
           "description": "Output abstract values, etc. with full internal details, without readability-oriented simplifications.",
           "type": "boolean",
           "default": false
+        },
+        "termination-bounds": {
+          "title": "dbg.termination-bounds",
+          "description": "Output loop iteration bounds for terminating loops when termination analysis is activated.",
+          "type": "boolean",
+          "default": false
         }
       },
       "additionalProperties": false
@@ -2362,6 +2433,20 @@
               "type": "string",
               "enum": ["never", "always", "sides", "cycle", "unstable_called", "unstable_self", "sides-pp","sides-local"],
               "default": "sides"
+            },
+            "side_widen_gas": {
+              "title": "solvers.td3.side_widen_gas",
+              "description":
+                "Delay widening globals through side-effects. With a widening gas of N, the solver will perform widening only once unknown has grown through side-effects N times and the widening condition according to the side_widen policy has been met. A value of 0 behaves as before the feature was introduced.",
+              "type": "integer",
+              "default": 0
+            },
+            "widen_gas": {
+              "title": "solvers.td3.widen_gas",
+              "description":
+                "Delay widening non-globals, i.e. unknowns with right hand sides. With a widening gas of N, the solver will perform widening only once unknown has grown N times. A value of 0 behaves as before the feature was introduced.",
+              "type": "integer",
+              "default": 0
             },
             "space": {
               "title": "solvers.td3.space",
@@ -2594,6 +2679,13 @@
               "description": "Emit invariants with typedef-ed types (e.g. in casts). Our validator cannot parse these.",
               "type": "boolean",
               "default": true
+            },
+            "flow_insensitive-as": {
+              "title": "witness.invariant.flow_insensitive-as",
+              "description": "Emit flow-insensitive invariants as location invariants at certain locations.",
+              "type": "string",
+              "enum": ["flow_insensitive_invariant", "location_invariant", "invariant_set-location_invariant"],
+              "default": "flow_insensitive_invariant"
             }
           },
           "additionalProperties": false
@@ -2614,7 +2706,8 @@
               "type": "string",
               "enum": [
                 "0.1",
-                "2.0"
+                "2.0",
+                "2.1"
               ],
               "default": "0.1"
             },
@@ -2632,7 +2725,8 @@
                   "loop_invariant_certificate",
                   "precondition_loop_invariant_certificate",
                   "invariant_set",
-                  "violation_sequence"
+                  "violation_sequence",
+                  "ghost_instrumentation"
                 ]
               },
               "default": [
@@ -2674,7 +2768,7 @@
             },
             "strict": {
               "title": "witness.yaml.strict",
-              "description": "",
+              "description": "Fail YAML witness validation if there's an error/unsupported/disabled entry.",
               "type": "boolean",
               "default": false
             },

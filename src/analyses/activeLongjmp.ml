@@ -12,25 +12,25 @@ struct
   (* The first component are the longjmp targets, the second are the longjmp callers *)
   module D = JmpBufDomain.ActiveLongjmps
 
-  let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
+  let special man (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
     let desc = LibraryFunctions.find f in
     match desc.special arglist, f.vname with
     | Longjmp {env; value}, _ ->
       (* Set target to current value of env *)
-      let bufs = ctx.ask (EvalJumpBuf env) in
-      bufs, JmpBufDomain.NodeSet.singleton(ctx.prev_node)
-    | _ -> ctx.local
+      let bufs = man.ask (EvalJumpBuf env) in
+      bufs, JmpBufDomain.NodeSet.singleton(man.prev_node)
+    | _ -> man.local
 
   (* Initial values don't really matter: overwritten at longjmp call. *)
   let startstate v = D.bot ()
-  let threadenter ctx ~multiple lval f args = [D.bot ()]
+  let threadenter man ~multiple lval f args = [D.bot ()]
   let exitstate  v = D.top ()
 
-  let query ctx (type a) (q: a Queries.t): a Queries.result =
+  let query man (type a) (q: a Queries.t): a Queries.result =
     match q with
     | ActiveJumpBuf ->
       (* Does not compile without annotation: "This instance (...) is ambiguous: it would escape the scope of its equation" *)
-      (ctx.local:JmpBufDomain.ActiveLongjmps.t)
+      (man.local:JmpBufDomain.ActiveLongjmps.t)
     | _ -> Queries.Result.top q
 end
 

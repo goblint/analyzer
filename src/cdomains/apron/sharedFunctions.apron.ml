@@ -4,8 +4,8 @@ open Batteries
 
 open GobApron
 
-module M = Messages
 
+module M = Messages
 
 let int_of_scalar ?(scalewith=Z.one) ?round (scalar: Scalar.t) =
   if Scalar.is_infty scalar <> 0 then (* infinity means unbounded *)
@@ -53,12 +53,18 @@ module type SV =  RelationDomain.RV with type t = Var.t
 type unsupported_cilExp =
   | Var_not_found of CilType.Varinfo.t (** Variable not found in Apron environment. *)
   | Cast_not_injective of CilType.Typ.t (** Cast is not injective, i.e. may under-/overflow. *)
-  | Exp_not_supported (** Expression constructor not supported. *)
+  | Exp_not_supported of exp[@printer fun ppf e -> Format.pp_print_string ppf (GobPretty.show (Cil.d_plainexp () e))]
   | Overflow (** May overflow according to Apron bounds. *)
   | Exp_typeOf of exn [@printer fun ppf e -> Format.pp_print_string ppf (Printexc.to_string e)] (** Expression type could not be determined. *)
-  | BinOp_not_supported (** BinOp constructor not supported. *)
+  | BinOp_not_supported of binop [@printer fun ppf op -> Format.pp_print_string ppf (match op with
+        | BAnd | BOr | BXor -> "Bitwise binop"
+        | Shiftlt | Shiftrt -> "Shift binop"
+        | PlusPI | MinusPI | IndexPI | MinusPP -> "Pointer binop"
+        | LAnd | LOr -> "Logical binop"
+        | Lt | Gt | Le | Ge | Eq | Ne -> "Comparison binop"
+        | _ -> "other binop")](** BinOp constructor not supported. *)
+  | Ikind_non_integer of string (** Exception during trying to get ikind of a non-integer typed expression *)
 [@@deriving show { with_path = false }]
-
 
 (** Interface for Bounds which calculates bounds for expressions and is used inside the - Convert module. *)
 module type ConvBounds =
@@ -92,7 +98,7 @@ struct
       established by other analyses.*)
   let overflow_handling no_ov ik env expr d exp =
     match Cilfacade.get_ikind_exp exp with
-    | exception Invalid_argument e ->  raise (Unsupported_CilExp Exp_not_supported)       (* expression is not an integer expression, i.e. float *)
+    | exception Invalid_argument a ->  raise (Unsupported_CilExp (Ikind_non_integer a))       (* expression is not an integer expression, i.e. float *)
     | ik ->
       if IntDomain.should_wrap ik || not (Lazy.force no_ov) then (
         let (type_min, type_max) = IntDomain.Size.range ik in
@@ -110,7 +116,7 @@ struct
       let query e ik =
         let res =
           match ask.f (EvalInt e) with
-          | `Bot -> raise (Unsupported_CilExp Exp_not_supported) (* This should never happen according to Michael Schwarz *)
+          | `Bot  (* This happens when called on a pointer type; -> we can safely return top *)
           | `Top -> IntDomain.IntDomTuple.top_of ik
           | `Lifted x -> x (* Cast should be unnecessary because it should be taken care of by EvalInt. *) in
         if M.tracing then M.trace "relation-query" "texpr1_expr_of_cil_exp/query: %a -> %a" d_plainexp e IntDomain.IntDomTuple.pretty res;
@@ -143,13 +149,13 @@ struct
                   might be able to be represented by means of 2 var equalities
 
                   This simplification happens during a time, when there are temporary variables a#in and a#out part of the expression,
-                  but are not represented in the ctx, thus queries may result in top for these variables. Wrapping this in speculative
+                  but are not represented in the man, thus queries may result in top for these variables. Wrapping this in speculative
                   mode is a stop-gap measure to avoid flagging overflows. We however should address simplification in a more generally useful way.
                   outside of the apron-related expression conversion.
               *)
               let simplify e =
                 GobRef.wrap AnalysisState.executing_speculative_computations true @@ fun () ->
-                let ikind = try (Cilfacade.get_ikind_exp e) with Invalid_argument _ -> raise (Unsupported_CilExp Exp_not_supported)   in
+                let ikind = try (Cilfacade.get_ikind_exp e) with Invalid_argument a -> raise (Unsupported_CilExp (Ikind_non_integer a))   in
                 let simp = query e ikind in
                 let const = IntDomain.IntDomTuple.to_int @@ IntDomain.IntDomTuple.cast_to ikind simp in
                 if M.tracing then M.trace "relation" "texpr1_expr_of_cil_exp/simplify: %a -> %a" d_plainexp e IntDomain.IntDomTuple.pretty simp;
@@ -165,15 +171,18 @@ struct
               | BinOp (Mod, e1, e2, _) -> bop_near Mod e1 e2
               | BinOp (Div, e1, e2, _) ->
                 Binop (Div, texpr1 e1, texpr1 e2, Int, Zero)
-              | CastE (TInt (t_ik, _) as t, e) ->
+              | CastE (t, e) when Cil.isIntegralType t ->
                 begin match  IntDomain.Size.is_cast_injective ~from_type:(Cilfacade.typeOf e) ~to_type:t with (* TODO: unnecessary cast check due to overflow check below? or maybe useful in general to also assume type bounds based on argument types? *)
-                  | exception Invalid_argument _ -> raise (Unsupported_CilExp Exp_not_supported)
+                  | exception Invalid_argument a -> raise (Unsupported_CilExp (Ikind_non_integer a))
                   | true -> texpr1 e
                   | false -> (* Cast is not injective - we now try to establish suitable ranges manually  *)
-                    (* try to evaluate e by EvalInt Query *)
-                    let res = try (query e @@ Cilfacade.get_ikind_exp e) with Invalid_argument _ -> raise (Unsupported_CilExp Exp_not_supported)  in
-                    (* convert response to a constant *)
-                    let const = IntDomain.IntDomTuple.to_int @@ IntDomain.IntDomTuple.cast_to t_ik res in
+                    let t_ik = Cilfacade.get_ikind t in
+                    (* retrieving a valuerange for a non-injective cast works by a query to the value-domain with subsequent value extraction from domtuple - which should be speculative, since it is not program code *)
+                    let const,res = GobRef.wrap AnalysisState.executing_speculative_computations true @@ fun () ->
+                      (* try to evaluate e by EvalInt Query *)
+                      let res = try (query e @@ Cilfacade.get_ikind_exp e) with Invalid_argument a -> raise (Unsupported_CilExp (Ikind_non_integer a))  in
+                      (* convert response to a constant *)
+                      IntDomain.IntDomTuple.to_int @@ IntDomain.IntDomTuple.cast_to t_ik res, res in
                     match const with
                     | Some c -> Cst (Coeff.s_of_z c) (* Got a constant value -> use it straight away *)
                     (* I gotten top, we can not guarantee injectivity *)
@@ -187,21 +196,31 @@ struct
                     | exception Invalid_argument _ ->
                       raise (Unsupported_CilExp (Cast_not_injective t))
                 end
-              | _ ->
-                raise (Unsupported_CilExp Exp_not_supported)
+              | BinOp (op, _,_,_) ->
+                raise (Unsupported_CilExp (BinOp_not_supported op))
+              | e ->
+                raise (Unsupported_CilExp (Exp_not_supported e))
             in
             overflow_handling no_ov ik env expr d exp;
             expr
-          | exception (Cilfacade.TypeOfError _ as e)
-          | exception (Invalid_argument _ as e) ->
+          | exception (Cilfacade.TypeOfError _ as e) ->
             raise (Unsupported_CilExp (Exp_typeOf e))
+          | exception (Invalid_argument a) ->
+            raise (Unsupported_CilExp (Ikind_non_integer a))
       in
       texpr1_expr_of_cil_exp exp
     in
     let exp = Cil.constFold false exp in
-    let res = conv exp in
-    if M.tracing then M.trace "relation" "texpr1_expr_of_cil_exp: %a -> %a (%b)" d_plainexp exp Texpr1.Expr.pretty res (Lazy.force no_ov);
-    res
+    if M.tracing then 
+      match conv exp with
+      | exception Unsupported_CilExp ex -> 
+        M.tracel "rel-texpr-cil-conv" "unsuccessfull: %s" (show_unsupported_cilExp ex);
+        raise (Unsupported_CilExp ex)
+      | res -> 
+        M.trace "relation" "texpr1_expr_of_cil_exp: %a -> %a (%b)" d_plainexp exp Texpr1.Expr.pretty res (Lazy.force no_ov);
+        M.tracel "rel-texpr-cil-conv" "successfull: Good";
+        res
+    else conv exp
 
   let texpr1_of_cil_exp ask d env e no_ov =
     let res = texpr1_expr_of_cil_exp ask d env e no_ov in
@@ -222,9 +241,9 @@ struct
           | Ge -> (texpr1_1, texpr1_2, SUPEQ) (* e1 >= e2  ==>  e1 - e2 >= 0 *)
           | Eq -> (texpr1_1, texpr1_2, EQ)    (* e1 == e2  ==>  e1 - e2 == 0 *)
           | Ne -> (texpr1_1, texpr1_2, DISEQ) (* e1 != e2  ==>  e1 - e2 != 0 *)
-          | _ -> raise (Unsupported_CilExp BinOp_not_supported)
+          | _ -> raise (Unsupported_CilExp (BinOp_not_supported r))
         end
-      | _ -> raise (Unsupported_CilExp Exp_not_supported)
+      | _ -> raise (Unsupported_CilExp (Exp_not_supported e))
     in
     let inverse_typ = function
       | EQ -> DISEQ
@@ -402,7 +421,7 @@ struct
         in
         {d = Some (if add then RelDomain.dim_add dim_change m else RelDomain.dim_remove dim_change m ~del:del); env = new_env}
 
-  let change_d t new_env ~add ~del = VectorMatrix.timing_wrap "dimension change" (fun del -> change_d t new_env ~add:add ~del:del) del
+  let change_d t new_env ~add ~del = Vector.timing_wrap "dimension change" (fun del -> change_d t new_env ~add:add ~del:del) del
 
   let vars x = Environment.ivars_only x.env
 
@@ -411,18 +430,18 @@ struct
     let env' = Environment.add_vars t.env vars in
     change_d t env' ~add:true ~del:false
 
-  let add_vars t vars = VectorMatrix.timing_wrap "add_vars" (add_vars t) vars
+  let add_vars t vars = Vector.timing_wrap "add_vars" (add_vars t) vars
 
   let drop_vars t vars ~del =
     let t = copy t in
     let env' = Environment.remove_vars t.env vars in
     change_d t env' ~add:false ~del:del
 
-  let drop_vars t vars = VectorMatrix.timing_wrap "drop_vars" (drop_vars t) vars
+  let drop_vars t vars = Vector.timing_wrap "drop_vars" (drop_vars t) vars
 
   let remove_vars t vars = drop_vars t vars ~del:false
 
-  let remove_vars t vars = VectorMatrix.timing_wrap "remove_vars" (remove_vars t) vars
+  let remove_vars t vars = Vector.timing_wrap "remove_vars" (remove_vars t) vars
 
   let remove_vars_with t vars =
     let t' = remove_vars t vars in
@@ -433,7 +452,7 @@ struct
     let env' = Environment.remove_filter t.env f in
     change_d t env' ~add:false ~del:false
 
-  let remove_filter t f = VectorMatrix.timing_wrap "remove_filter" (remove_filter t) f
+  let remove_filter t f = Vector.timing_wrap "remove_filter" (remove_filter t) f
 
   let remove_filter_with t f =
     let t' = remove_filter t f in
@@ -445,14 +464,14 @@ struct
     let env' = Environment.keep_filter t.env f in
     change_d t env' ~add:false ~del:false
 
-  let keep_filter t f = VectorMatrix.timing_wrap "keep_filter" (keep_filter t) f
+  let keep_filter t f = Vector.timing_wrap "keep_filter" (keep_filter t) f
 
   let keep_vars t vs =
     let t = copy t in
     let env' = Environment.keep_vars t.env vs in
     change_d t env' ~add:false ~del:false
 
-  let keep_vars t vs = VectorMatrix.timing_wrap "keep_vars" (keep_vars t) vs
+  let keep_vars t vs = Vector.timing_wrap "keep_vars" (keep_vars t) vs
 
   let mem_var t var = Environment.mem_var t.env var
 
