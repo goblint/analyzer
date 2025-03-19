@@ -260,6 +260,20 @@ struct
             M.info_noloc ~category:Race "Mutex %a read-write protects %d variable(s): %a" LockDomain.MustLock.pretty m s VarSet.pretty protected
           )
       end
+    | YamlEntryGlobal (g, task) ->
+      let g: V.t = Obj.obj g in
+      begin match g with
+        | `Left g' when YamlWitness.entry_type_enabled YamlWitnessType.ProtectedBy.entry_type -> (* protecting *)
+          let protecting = GProtecting.get ~write:false Strong (G.protecting (man.global g)) in (* readwrite protecting *)
+          MustLockset.fold (fun mutex acc ->
+              let variable = g'.vname in
+              let mutex = LockDomain.MustLock.show mutex in
+              let entry = YamlWitness.Entry.protected_by ~task ~variable ~mutex in
+              Queries.YS.add entry acc
+            ) protecting (Queries.YS.empty ())
+        | _ -> (* protected *)
+          Queries.Result.top q
+      end
     | _ -> Queries.Result.top q
 
   module A =

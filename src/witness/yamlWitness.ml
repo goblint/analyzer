@@ -177,6 +177,15 @@ struct
       };
     metadata = metadata ~task ();
   }
+
+  (* non-standard extension *)
+  let protected_by ~task ~variable ~(mutex): Entry.t = {
+    entry_type = ProtectedBy {
+        variable;
+        mutex;
+      };
+    metadata = metadata ~task ();
+  }
 end
 
 let yaml_entries_to_file yaml_entries file =
@@ -402,7 +411,7 @@ struct
 
     (* Generate flow-insensitive entries (ghost instrumentation) *)
     let entries =
-      if entry_type_enabled YamlWitnessType.GhostInstrumentation.entry_type then (
+      if entry_type_enabled YamlWitnessType.GhostInstrumentation.entry_type || entry_type_enabled YamlWitnessType.ProtectedBy.entry_type then (
         (* TODO: only at most one ghost_instrumentation entry can ever be produced, so this fold and deduplication is overkill *)
         let module EntrySet = Queries.YS in
         fst @@ GHT.fold (fun g v accs ->
