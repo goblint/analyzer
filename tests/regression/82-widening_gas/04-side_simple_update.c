@@ -1,4 +1,4 @@
-// PARAM: --set solvers.td3.side_widen always --set solvers.td3.side_widen_gas 3 --enable ana.int.interval --enable exp.earlyglobs
+// PARAM: --set solvers.td3.side_widen always --set solvers.td3.side_widen_gas 2 --enable ana.int.interval --enable exp.earlyglobs
 #include <pthread.h>
 #include <goblint.h>
 
@@ -12,10 +12,17 @@ void *thread(void *arg) {
   pthread_mutex_lock(&A);
   a = 1;
   b = 1;
-  b = 2;
   c = 1;
+  pthread_mutex_unlock(&A);
+
+  pthread_mutex_lock(&A);
+  b = 2;
   c = 2;
   c = 3;
+  pthread_mutex_unlock(&A);
+
+  pthread_mutex_lock(&A);
+  c = 4;
   pthread_mutex_unlock(&A);
   return NULL;
 }
@@ -28,7 +35,7 @@ int main(void) {
   pthread_mutex_lock(&A);
   __goblint_check(a <= 1);
   __goblint_check(b <= 2);
-  __goblint_check(c <= 3);
+  __goblint_check(c <= 4); // UNKNOWN!
   pthread_mutex_unlock(&A);
   return 0;
 }
