@@ -9,6 +9,7 @@ module Cil = GoblintCil.Cil
 module NH = CfgTools.NH
 module FH = Hashtbl.Make (CilType.Fundec)
 module EH = Hashtbl.Make (CilType.Exp)
+module VH = Hashtbl.Make (CilType.Varinfo)
 
 module Spec =
 struct
@@ -36,6 +37,13 @@ struct
 
   let fun_pres: Cil.exp FH.t = FH.create 100
   let pre_invs: inv EH.t NH.t = NH.create 100
+
+  type prot = {
+    mutex: LockDomain.MustLock.t;
+    token: WideningToken.t;
+  }
+
+  let prots: prot VH.t = VH.create 100
 
   let init _ =
     Locator.clear location_locator;
@@ -85,6 +93,7 @@ struct
     NH.clear invs;
     FH.clear fun_pres;
     NH.clear pre_invs;
+    VH.clear prots;
 
     let unassume_entry (entry: YamlWitnessType.Entry.t) =
       let uuid = entry.metadata.uuid in
@@ -227,6 +236,34 @@ struct
         List.iteri validate_invariant invariant_set.content
       in
 
+      let unassume_protected_by (protected_by: YamlWitnessType.ProtectedBy.t) =
+        match InvariantParser.parse_cabs protected_by.variable with
+        | Ok variable_cabs ->
+          begin match InvariantParser.parse_cil inv_parser ~fundec:Cil.dummyFunDec ~loc:Cil.dummyFunDec.svar.vdecl variable_cabs with (* TODO: parsing in global scope *)
+            | Ok (Lval (Var variable, NoOffset)) -> (* TODO: support offsets *)
+              begin
+                match InvariantParser.parse_cabs protected_by.mutex with
+                | Ok variable_cabs ->
+                  begin match InvariantParser.parse_cil inv_parser ~fundec:Cil.dummyFunDec ~loc:Cil.dummyFunDec.svar.vdecl variable_cabs with (* TODO: parsing in global scope *)
+                    | Ok (Lval (Var mutex, NoOffset)) -> (* TODO: support offsets *)
+                      VH.add prots variable {mutex = LockDomain.MustLock.of_var mutex; token = (uuid, None)}
+                    | Ok _ ->
+                      M.error ~category:Witness "not a variable: %s" protected_by.mutex
+                    | Error e ->
+                      M.error ~category:Witness "CIL couldn't parse mutex: %s" protected_by.mutex
+                  end
+                | Error e ->
+                  M.error ~category:Witness "Frontc couldn't parse mutex: %s" protected_by.mutex
+              end
+            | Ok _ ->
+              M.error ~category:Witness "not a variable: %s" protected_by.variable
+            | Error e ->
+              M.error ~category:Witness "CIL couldn't parse variable: %s" protected_by.variable
+          end
+        | Error e ->
+          M.error ~category:Witness "Frontc couldn't parse variable: %s" protected_by.variable
+      in
+
       match YamlWitness.entry_type_enabled target_type, entry.entry_type with
       | true, LocationInvariant x ->
         unassume_location_invariant x
@@ -236,7 +273,9 @@ struct
         unassume_precondition_loop_invariant x
       | true, InvariantSet x ->
         unassume_invariant_set x
-      | false, (LocationInvariant _ | LoopInvariant _ | PreconditionLoopInvariant _ | InvariantSet _) ->
+      | true, ProtectedBy x ->
+        unassume_protected_by x
+      | false, (LocationInvariant _ | LoopInvariant _ | PreconditionLoopInvariant _ | InvariantSet _ | ProtectedBy _) ->
         M.info_noloc ~category:Witness "disabled entry of type %s" target_type
       | _ ->
         M.warn_noloc ~category:Witness "cannot unassume entry of type %s" target_type
@@ -262,8 +301,8 @@ struct
       M.info ~category:Witness "unassume invariant: %a" CilType.Exp.pretty e;
       if not !AnalysisState.postsolving then (
         if not (GobConfig.get_bool "ana.unassume.precheck" && Queries.ID.to_bool (man.ask (EvalInt e)) = Some false) then (
-          let tokens = x.token :: List.map (fun {token; _} -> token) xs in
-          man.emit (Unassume {exp = e; tokens});
+          let tokens = x.token :: List.map (fun ({token; _}: inv) -> token) xs in
+          man.emit (Unassume {value = Exp e; tokens});
           List.iter WideningTokenLifter.add tokens
         )
       );
@@ -311,6 +350,8 @@ struct
 
   (* not in sync, query, entry, threadenter because they aren't final transfer function on edge *)
   (* not in vdecl, return, threadspawn because unnecessary targets for invariants? *)
+
+  (* TODO: unassume protected_by somewhere *)
 end
 
 let _ =
