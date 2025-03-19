@@ -18,11 +18,10 @@ void *thread(void *arg) {
   pthread_mutex_lock(&A);
   b = 2;
   c = 2;
-  c = 3;
   pthread_mutex_unlock(&A);
 
   pthread_mutex_lock(&A);
-  c = 4;
+  c = 3;
   pthread_mutex_unlock(&A);
   return NULL;
 }
