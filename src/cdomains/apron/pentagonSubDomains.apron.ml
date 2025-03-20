@@ -297,11 +297,14 @@ module type TwoVarInequalities = sig
   (*meet x' < y' (or with = / <= *)
   val meet_condition : int -> int -> cond -> (int -> Rhs.t) -> (int -> Value.t) -> t -> t
 
-  val meet : (int -> Rhs.t) -> (int -> Value.t) -> t -> t -> t
+  val meet : (int -> Value.t) -> t -> t -> t
+  val narrow : (int -> Value.t) -> t -> t -> t
+
 
   val leq : t -> (int -> Value.t) -> t -> bool
 
   val join : t -> (int -> Value.t) -> t -> (int -> Value.t) -> t
+  val widen : t -> (int -> Value.t) -> t -> (int -> Value.t) -> t
 
   (*copy all constraints for some variable to a different t if they still hold for a new x' with x' (cond) x *)
   val transfer : int -> int -> cond -> t -> (int -> Rhs.t) -> (int -> Value.t) -> t -> (int -> Rhs.t) -> (int -> Value.t) -> t
@@ -331,10 +334,13 @@ module NoInequalties : TwoVarInequalities = struct
   let is_less_than _ _ _ = None
   let meet_condition _ _ _ _ _ _ = ()
 
-  let meet _ _ _ _ = ()
+  let meet _ _ _ = ()
+  let narrow _ _ _ = ()
 
   let leq _ _ _ = true
   let join _ _ _ _ = ()
+  let widen _ _ _ _ = ()
+
 
   let show_formatted _ _ = "{}"
   let hash _ = 3
@@ -352,11 +358,15 @@ module type Coeffs = sig
   type t
   val implies : Value.t -> Value.t -> t option -> t -> bool
   val meet : Value.t -> Value.t -> t -> t -> t
+  val narrow : Value.t -> Value.t -> t -> t -> t
+
+  val join : int -> int -> (int -> Value.t) -> (int -> Value.t) -> t option -> t option -> t option
+  val widen : int -> int -> (int -> Value.t) -> (int -> Value.t) -> t option -> t option -> t option
+
   val hash : t -> int
   val equal : t -> t -> bool
   val compare : t -> t -> int
   val show_formatted : string -> string -> t -> string
-
 end
 
 module CommonActions (Coeffs : Coeffs) = struct
@@ -407,16 +417,34 @@ module CommonActions (Coeffs : Coeffs) = struct
     in
     IntMap.for_all (fun x ys -> IntMap.for_all (implies x) ys) t2
 
-  let meet_one_coeff get_value x y coeff t =
+  let meet_one_coeff narrow get_value x y coeff t =
     let coeff_t = get_coeff x y t in
     let coeff_met = match coeff_t with 
       | None -> coeff
-      | Some coeff_t -> Coeffs.meet (get_value x) (get_value y) coeff coeff_t
+      | Some coeff_t -> (if narrow then Coeffs.narrow else Coeffs.meet) (get_value x) (get_value y) coeff coeff_t
     in set_coeff x y coeff_met t
 
-  (*TODO I do not see an obvious way that an inequalitiy between roots could contradict a rhs. Is there one?*)
-  let meet get_rhs get_value t1 t2 = 
-    IntMap.fold (fun x ys t -> IntMap.fold (meet_one_coeff get_value x) ys t) t2 t1
+  let meet get_value t1 t2 = 
+    IntMap.fold (fun x ys t -> IntMap.fold (meet_one_coeff false get_value x) ys t) t2 t1
+
+  let narrow get_value t1 t2 = 
+    IntMap.fold (fun x ys t -> IntMap.fold (meet_one_coeff true get_value x) ys t) t2 t1
+
+  let join' widen t1 get_val_t1 t2 get_val_t2 = 
+    let merge_y x y = (if widen then Coeffs.widen else Coeffs.join) x y get_val_t1 get_val_t2
+    in let merge_x x ys1 ys2 = 
+         let ignore_empty ls = 
+           if IntMap.is_empty ls then None
+           else Some ls
+         in match ys1, ys2 with
+         | Some ys1, None -> ignore_empty (IntMap.filter (fun y coeff -> Coeffs.implies (get_val_t2 x) (get_val_t2 y) None coeff ) ys1)
+         | None, Some ys2 -> ignore_empty (IntMap.filter (fun y coeff -> Coeffs.implies (get_val_t1 x) (get_val_t1 y) None coeff ) ys2)
+         | Some ys1, Some ys2 -> ignore_empty (IntMap.merge (merge_y x) ys1 ys2)
+         | _, _ -> None in 
+    IntMap.merge (merge_x) t1 t2
+
+  let join = join' false
+  let widen = join' true
 
 end
 
@@ -435,6 +463,18 @@ module NoCoeffs = struct
     | Some x, Some y when  TopIntOps.compare x y > 0 -> raise EConj.Contradiction
     | _, _ -> ()
 
+  let narrow = meet
+
+  let join x y get_val_t1 get_val_t2 t1 t2 =      
+    let of_bool b = if b then Some () else None in  
+    match t1 with 
+    | Some t1 -> of_bool (implies (get_val_t2 x) (get_val_t2 y) t2 t1)
+    | None -> match t2 with 
+      | Some t2 -> of_bool (implies (get_val_t1 x) (get_val_t1 y) t1 t2)
+      | None -> None
+
+  let widen = join
+
   let show_formatted x y t = x ^ " < " ^ y
 
 end
@@ -443,25 +483,6 @@ end
 module SimpleInequalities : TwoVarInequalities = struct
   module Coeffs = NoCoeffs
   include CommonActions(Coeffs)
-
-  let join t1 get_val_t1 t2 get_val_t2 = 
-    let merge_y x y c1 c2 =
-      let of_bool b = if b then Some () else None in  
-      match c1 with 
-      | Some c1 -> of_bool (Coeffs.implies (get_val_t2 x) (get_val_t2 y) c2 c1)
-      | None -> match c2 with 
-        | Some c2 -> of_bool (Coeffs.implies (get_val_t1 x) (get_val_t1 y) c1 c2)
-        | None -> None
-    in let merge_x x ys1 ys2 = 
-         let ignore_empty ls = 
-           if IntMap.is_empty ls then None
-           else Some ls
-         in match ys1, ys2 with
-         | Some ys1, None -> ignore_empty (IntMap.filter (fun y coeff -> Coeffs.implies (get_val_t2 x) (get_val_t2 y) None coeff ) ys1)
-         | None, Some ys2 -> ignore_empty (IntMap.filter (fun y coeff -> Coeffs.implies (get_val_t1 x) (get_val_t1 y) None coeff ) ys2)
-         | Some ys1, Some ys2 -> ignore_empty (IntMap.merge (merge_y x) ys1 ys2)
-         | _, _ -> None in 
-    IntMap.merge (merge_x) t1 t2
 
   let is_less_than x y t = 
     let check_inequality ((var_x,o_x,d_x), val_x) ((var_y,o_y,d_y), val_y) =
@@ -608,3 +629,97 @@ module SimpleInequalities : TwoVarInequalities = struct
     res
 
 end 
+
+(*List of inequalities ax < by + c, mapping a and b to c*)
+(*We need to make sure that x has lower index than y to keep this representation unique! *)
+module ArbitraryCoeffsSet = struct
+  module Key = struct
+    type t = Q.t * Q.t [@@deriving ord]
+  end 
+  module CoeffMap = Map.Make(Key)
+
+  type t = Q.t CoeffMap.t [@@deriving eq, ord]
+
+  let hash t = CoeffMap.fold (fun (a,b) c acc -> let open Q in Q.to_int @@ a + b + b + c+c+ c) t 0
+
+  let show_single_inequality x y a b c = Printf.sprintf "%s %s < %s %s + %s" (Q.to_string a) x (Q.to_string b) y (Q.to_string c)
+
+  let show_formatted x y t = 
+    CoeffMap.fold (fun (a,b) c acc -> Printf.sprintf "%s , %s" (show_single_inequality x y a b c ) acc) t ""
+
+  (*TODO this function should limit how many inequalities we are saving. What information does this need?
+    likely: values, coefficients of Rhs relating to x and y*)
+  (* Throw away inequalities that are least useful:
+     implied by the current values? -> need to adapt implies to check all inequalities !!, otherwise join is not valid
+     least rhs with fitting coefficients *)
+  let limit = identity
+
+  let meet_single_inequality narrow x_val y_val (a,b) c t = 
+    (*Look for contradicting inequality*)
+    match CoeffMap.find_opt (Q.neg a, Q.neg b) t with 
+    | Some c' when Q.geq (Q.neg c') c -> raise EConj.Contradiction
+    | _ ->  match CoeffMap.find_opt (a,b) t with 
+      | Some c_old -> if narrow then (*TODO*)undefined "narrow not implemented" else CoeffMap.add (a,b) (Q.min c c_old) t 
+      | None -> CoeffMap.add (a,b) c t 
+
+  let meet' narrow x_val y_val t1 t2 = limit @@ CoeffMap.fold (meet_single_inequality narrow x_val y_val) t1 t2
+
+  (*TODO: We could check all inequalities if they imply this for the specific values, but it might be too inefficient! leq O(|t|^2) instead of O(|t|) ?*)
+  let implies_single_inequality x_val y_val t_opt (a,b) c = 
+    let implied_by_value () =
+      let ax = Value.div (Value.mul x_val @@ Value.of_bigint @@ Q.num a) @@ Value.of_bigint @@ Q.den a in
+      let by = Value.div (Value.mul y_val @@ Value.of_bigint @@ Q.num b) @@ Value.of_bigint @@ Q.den b in
+      let c' = Value.maximal @@ Value.sub ax by in
+      match c' with 
+      | Some (TopIntOps.Int c') -> Q.leq (Q.of_bigint c') c
+      | _ -> false
+    in match t_opt with 
+    | Some t -> begin match CoeffMap.find_opt (a,b) t with 
+        | Some c' -> Q.leq c' c
+        | None -> implied_by_value ()
+      end 
+    | None -> implied_by_value ()
+  let implies x_val y_val t_opt t = CoeffMap.for_all (implies_single_inequality x_val y_val t_opt) t
+
+  let join' widen x y get_val_t1 get_val_t2 t1 t2 =
+    let join_single_inequality (a,b) c1 c2 = 
+      match c1, c2 with
+      | None, None -> None 
+      | Some c1, Some c2 -> if widen && c2 > c1 then None else Some (Q.max c1 c2) (*TODO widening thresholds?*)
+      | Some c1, None -> if implies_single_inequality (get_val_t2 x) (get_val_t2 y) None (a,b) c1 then Some c1 else None 
+      | None, Some c2 -> if implies_single_inequality (get_val_t1 x) (get_val_t1 y) None (a,b) c2 then Some c2 else None 
+    in
+    let ignore_empty ls = 
+      if CoeffMap.is_empty ls then None
+      else Some ls
+    in
+    match t1, t2 with 
+    | None, None -> None
+    | Some t1, None -> ignore_empty @@ limit @@ CoeffMap.filter (implies_single_inequality (get_val_t2 x) (get_val_t2 y) None) t1
+    | None, Some t2 -> ignore_empty @@ limit @@ CoeffMap.filter (implies_single_inequality (get_val_t1 x) (get_val_t1 y) None) t2
+    | Some t1, Some t2 -> ignore_empty @@ limit @@ CoeffMap.merge join_single_inequality t1 t2
+
+  let join = join' false
+  let widen = join' true
+  let meet = meet' false
+  let narrow = meet' true
+end
+
+
+module LinearInequalities (*: TwoVarInequalities *)= struct
+  module Coeffs = ArbitraryCoeffsSet
+  include CommonActions(Coeffs)
+(*
+  `is_less_than' 
+  `meet_condition' 
+  `transfer'
+  *)
+end
+
+(*TODOs:*)
+(*allow inequalities with offset for meet_condition, is_less_than, transfer*)
+(*generate inequalities with offset*)
+(*limit in ArbitraryCoeaffsList*)
+(*store information about representants to avoid recalculating them: congruence information, group size/ coefficients ??*)
+(*widening thresholds: from offsets of rhs?*)
+(*domain inbetween these two: with offset between roots? -> should be trivial to implement*)

@@ -301,7 +301,8 @@ struct
     if M.tracing then M.tracel "modify_pentagon" "affine_transform %s ->  %s " (show econ) (show res); 
     res
 
-  let meet_with_one_value var value t meet_function =
+  let meet_with_one_value var value t narrow =
+    let meet_function = if narrow then Value.narrow else Value.meet in
     let new_value = meet_function value (get_value t var)
     in if Value.is_bot new_value then raise EConj.Contradiction else 
       let res = set_value t var new_value
@@ -671,7 +672,7 @@ struct
           | _ -> d (*TODO if value is a constant, we sometimes could do some refinement*)
         end else (
           if M.tracing then M.trace "refine_tcons" "refining var %s with %s" (Var.to_string var) (Value.show value) ;
-          EConjI.meet_with_one_value dim value d Value.meet )
+          EConjI.meet_with_one_value dim value d false )
       in
       (*TODO Could be more precise with query ?? would need to convert back to Cil *)
       let eval d texpr = eval_texpr {d= Some d; env = t.env} texpr in
@@ -812,12 +813,12 @@ struct
     if M.tracing then M.tracel "meet" "%s with single eq %s=%s -> %s" (show t) (Z.(to_string @@ Tuple3.third e)^ show_var t.env i) (Rhs.show_rhs_formatted (show_var t.env) e) (show res);
     res
 
-  let meet_with_one_value meet_function i value t =
+  let meet_with_one_value narrow i value t =
     let res = match t.d with
       | None -> t
       | Some d ->
         try
-          { d = Some (EConjI.meet_with_one_value i value d meet_function); env = t.env}
+          { d = Some (EConjI.meet_with_one_value i value d narrow); env = t.env}
         with EConj.Contradiction ->
           if M.tracing then M.trace "meet" " -> Contradiction with value\n";
           { d = None; env = t.env}
@@ -825,35 +826,34 @@ struct
     if M.tracing then M.tracel "meet" "%s with single value %s=%s -> %s" (show t) (show_var t.env i) (Value.show value) (show res);
     res
 
-  (*TODO do I need a narrow function??*)
-  let meet_with_inequalities ineq t = 
+  let meet_with_inequalities narrow ineq t = 
     match t.d with 
     | None -> t
     | Some ((econ, vs, ineq2) as d) ->
       try
-        { d = Some (econ, vs, Ineq.meet (EConjI.get_rhs d) (EConjI.get_value d) ineq ineq2); env = t.env}
+        { d = Some (econ, vs, (if narrow then Ineq.narrow else Ineq.meet) (EConjI.get_value d) ineq ineq2); env = t.env}
       with EConj.Contradiction ->
         if M.tracing then M.trace "meet" " -> Contradiction with inequalities\n";
         { d = None; env = t.env}
 
-  let meet_with_inequalities ineq t = 
-    let res = meet_with_inequalities ineq t in
+  let meet_with_inequalities narrow ineq t = 
+    let res = meet_with_inequalities narrow ineq t in
     if M.tracing then M.tracel "meet" "%s with inequalities %s -> %s" (show t) (Ineq.show_formatted (show_var t.env) ineq) (show res);
     res
 
-  let meet' t1 t2 meet_function =     
+  let meet' t1 t2 narrow =     
     let sup_env = Environment.lce t1.env t2.env in
     let t1 = change_d t1 sup_env ~add:true ~del:false in
     let t2 = change_d t2 sup_env ~add:true ~del:false in
     match t1.d, t2.d with
     | Some d1', Some (econ, vs, ineq) ->
       let conj_met = IntMap.fold (fun lhs rhs map -> meet_with_one_conj map lhs rhs) (snd econ) t1 (* even on sparse d2, this will chose the relevant conjs to meet with*)
-      in let vals_met = IntMap.fold (meet_with_one_value meet_function) vs conj_met
-      in meet_with_inequalities ineq vals_met 
+      in let vals_met = IntMap.fold (meet_with_one_value narrow) vs conj_met
+      in meet_with_inequalities narrow ineq vals_met 
     | _ -> {d = None; env = sup_env}
 
   let meet t1 t2 =
-    meet' t1 t2 Value.meet
+    meet' t1 t2 false
 
   let meet t1 t2 =
     let res = meet t1 t2 in
@@ -890,17 +890,15 @@ struct
     if M.tracing then M.tracel "leq" "leq a: %s b: %s -> %b" (show t1) (show t2) res ;
     res
 
-  (*The first parameter is the function used to join two values. Different uses for join / widen*)
-  (*TODO do we need the same for the inequalities? not for simple inequalities, but for more complex ones*)
-  let join' join_function a b  = 
+  let join' widen a b  = 
     let join_econj ad bd env = (LinearTwoVarEqualityDomain.D.join {d = Some ad; env} {d = Some bd; env}).d
     in
     (*Check all variables (up to index vars) if we need to save an value for them*)
     let rec collect_values x y econj_joined vars t =
       if vars < 0 then t
       else if EConj.nontrivial econj_joined vars then collect_values x y econj_joined (vars-1) t (*we only need values for roots of the connected components*)
-      else let joined_value = join_function (EConjI.get_value x vars) (EConjI.get_value y vars) in
-        collect_values x y econj_joined (vars-1) (EConjI.meet_with_one_value vars joined_value t Value.meet)
+      else let joined_value = (if widen then Value.widen else Value.join) (EConjI.get_value x vars) (EConjI.get_value y vars) in
+        collect_values x y econj_joined (vars-1) (EConjI.meet_with_one_value vars joined_value t false)
     in
     let join_d ((econ_x, _, ineq_x) as x) ((econ_y, _, ineq_y) as y) env = 
       let econj' = join_econj (econ_x) (econ_y) env in
@@ -908,7 +906,8 @@ struct
         None ->  None 
       | Some econj'' ->
         if M.tracing then M.tracel "join" "join_econj of %s, %s resulted in %s" (EConjI.show x) (EConjI.show y) (EConj.show @@ snd econj'');
-        let ineq' = Ineq.join ineq_x (EConjI.get_value x) ineq_y (EConjI.get_value y) in
+        (*TODO: I'm not sure if this is precise enough in all cases or if we would need to do something similar to collecting the values!*)
+        let ineq' = (if widen then Ineq.widen else Ineq.join) ineq_x (EConjI.get_value x) ineq_y (EConjI.get_value y) in
         Some (collect_values x y econj'' ((Environment.size env)-1) (econj'', IntMap.empty, ineq'))         
     in
     (*Normalize the two domains a and b such that both talk about the same variables*)
@@ -927,7 +926,7 @@ struct
     | Some x, Some y  -> {d = join_d x y a.env; env = a.env} 
 
 
-  let join = join' (Value.join) 
+  let join = join' false
   let join a b = timing_wrap "join" (join a) b
 
   let join a b =
@@ -937,14 +936,14 @@ struct
     assert(leq b res);
     res
 
-  let widen = join' (Value.widen) 
+  let widen = join' true
 
   let widen a b =
     let res = widen a b in
     if M.tracing then M.tracel "widen" "widen a: %s b: %s -> %s" (show a) (show b) (show res) ;
     res
 
-  let narrow a b = meet' a b Value.narrow
+  let narrow a b = meet' a b true
 
   let narrow a b =
     let res = narrow a b in
