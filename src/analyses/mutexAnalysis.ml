@@ -359,6 +359,13 @@ struct
              old_access None None *) (* TODO: what about this case? *)
       end;
       man.local
+    | Unassume {value = ProtectedBy {global; mutexes}; tokens} ->
+      let s = GProtecting.make ~write:true ~recovered:false mutexes in
+      WideningTokenLifter.with_side_tokens (WideningTokenLifter.TS.of_list tokens) (fun () ->
+          man.sideg (V.protecting global) (G.create_protecting s);
+        );
+      M.info ~category:Witness "mutex unassumed %a protected_by: %a" CilType.Varinfo.pretty global MustLockset.pretty mutexes;
+      man.local
     | _ ->
       event man e oman (* delegate to must lockset analysis *)
 

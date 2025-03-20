@@ -351,7 +351,20 @@ struct
   (* not in sync, query, entry, threadenter because they aren't final transfer function on edge *)
   (* not in vdecl, return, threadspawn because unnecessary targets for invariants? *)
 
-  (* TODO: unassume protected_by somewhere *)
+  let event man e oman =
+    begin match e with
+      | Events.EnterMultiThreaded ->
+        VH.to_seq_keys prots
+        |> Seq.iter (fun global ->
+            let ps = VH.find_all prots global in
+            let mutexes = LockDomain.MustLockset.of_list @@ List.map (fun {mutex; _} -> mutex) ps in
+            let tokens = List.map (fun {token; _} -> token) ps in
+            man.emit (Unassume {value = ProtectedBy {global; mutexes}; tokens});
+            List.iter WideningTokenLifter.add tokens
+          )
+      | _ -> ()
+    end;
+    man.local
 end
 
 let _ =
