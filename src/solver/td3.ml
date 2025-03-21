@@ -262,8 +262,6 @@ module Base =
          These don't have to be re-verified and warnings can be reused. *)
       let superstable = HM.copy stable in
 
-      let narrow_globs = GobConfig.get_bool "solvers.td3.narrow-globs.enabled" in
-
       let reluctant = GobConfig.get_bool "incremental.reluctant.enabled" in
 
       let var_messages = data.var_messages in
@@ -427,11 +425,10 @@ module Base =
         else (
           HM.replace called y ();
           let eqd =
-            if narrow_globs then
-              failwith "narrow-globs not yet implemented for simple solve"
-            else
-              eq y (eval l x) (side ~x)
-            in
+            (* We check in maingoblint that `solvers.td3.space` and `solvers.td3.narrow-globs.enabled` are not on at the same time *)
+            (* Narrowing on for globals ('solvers.td3.narrow-globs.enabled') would require enhancing this to work withe Narrow update rule *)
+            eq y (eval l x) (side ~x)
+          in
           HM.remove called y;
           if HM.mem wpoint_gas y then (HM.remove l y; solve y Widen; HM.find rho y)
           else (if cache then HM.replace l y eqd; eqd)

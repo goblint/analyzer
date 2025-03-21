@@ -165,6 +165,7 @@ let check_arguments () =
         ^ String.concat " and " @@ List.map (fun s -> "'" ^ s ^ "'") imprecise_options)
   );
   if get_bool "solvers.td3.space" && get_bool "solvers.td3.remove-wpoint" then fail "solvers.td3.space is incompatible with solvers.td3.remove-wpoint";
+  if get_bool "solvers.td3.space" && get_bool "solvers.td3.narrow-globs.enabled" then fail "solvers.td3.space is incompatible with solvers.td3.narrow-globs.enabled";
   if get_bool "solvers.td3.space" && get_string "solvers.td3.side_widen" = "sides-local" then fail "solvers.td3.space is incompatible with solvers.td3.side_widen = 'sides-local'";
   if get_bool "solvers.td3.space" && get_bool "solvers.td3.narrow-globs.enabled" then fail "solvers.td3.space is incompatible with solvers.td3.narrow-globs.enabled";
   if (get_bool "incremental.load" || get_bool "incremental.save") && get_bool "solvers.td3.narrow-globs.enabled" then (
