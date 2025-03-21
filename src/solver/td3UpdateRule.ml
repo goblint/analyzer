@@ -44,7 +44,7 @@ module Inactive:S =
       eqx (side ~x)
   end
 
-module Ours:S =
+module Narrow:S =
 functor (S:EqConstrSys) ->
   functor (HM:Hashtbl.S with type key = S.v) ->
   functor (VS:Set.S with type elt = S.v) ->
@@ -225,6 +225,6 @@ end
 
 let choose () =
   if GobConfig.get_bool "solvers.td3.narrow-globs.enabled" then
-    (module Ours : S)
+    (module Narrow : S)
   else
     (module Inactive : S)
