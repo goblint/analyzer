@@ -330,6 +330,7 @@ module Base =
             else
               true
           ) w false (* nosemgrep: fold-exists *) (* does side effects *)
+      and eq_wrapper x eqx  = ((UpdateRule.get_wrapper ~solve_widen:(fun x-> solve x Widen) ~init ~stable ~data:update_rule_data ~sides ~add_sides ~rho ~destabilize ~side ~assert_can_receive_side):UpdateRule.eq_wrap) x eqx
       and solve ?reuse_eq x phase =
         if tracing then trace "sol2" "solve %a, phase: %s, called: %b, stable: %b, wpoint: %a" S.Var.pretty_trace x (show_phase phase) (HM.mem called x) (HM.mem stable x) pretty_wpoint x;
         init x;
@@ -355,8 +356,7 @@ module Base =
             | _ ->
               (* The RHS is re-evaluated, all deps are re-trigerred *)
               HM.replace dep x VS.empty;
-              let eqx = eq x (eval l x) in
-              UpdateRule.eq_wrap x eqx (fun x-> solve x Widen) init stable data.update_rule_data sides add_sides rho destabilize side assert_can_receive_side
+              eq_wrapper x (eq x (eval l x))
           in
           HM.remove called x;
           let old = HM.find rho x in (* d from older solve *) (* find old value after eq since wpoint restarting in eq/eval might have changed it meanwhile *)
