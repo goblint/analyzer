@@ -17,7 +17,7 @@ module type S = functor (S:EqConstrSys) -> functor (HM:Hashtbl.S with type key =
   S.v ->
   ((S.v -> S.d -> unit) -> S.d) ->
   (S.v -> unit) ->
-  (S.v -> 'b) ->
+  (S.v -> unit) ->
   unit HM.t ->
   data ->
   VS.t HM.t ->
@@ -101,7 +101,6 @@ functor (S:EqConstrSys) ->
     let narrow_globs_gas_default = if narrow_globs_gas_default < 0 then None else Some (narrow_globs_gas_default, D_Widen)
     let narrow_globs_eliminate_dead = GobConfig.get_bool "solvers.td3.narrow-globs.eliminate-dead"
 
-    type phase = Widen | Narrow [@@deriving show] (* used in inner solve *)
 
     let eq_wrap x eqx widen_solve init stable data sides add_sides rho destabilize side assert_can_receive_side =
       let rec side_acc acc changed x y d:unit =
