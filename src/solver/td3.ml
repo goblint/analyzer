@@ -330,7 +330,7 @@ module Base =
             else
               true
           ) w false (* nosemgrep: fold-exists *) (* does side effects *)
-      and eq_wrapper x eqx  = ((UpdateRule.get_wrapper ~solve_widen:(fun x-> solve x Widen) ~init ~stable ~data:update_rule_data ~sides ~add_sides ~rho ~destabilize ~side ~assert_can_receive_side):UpdateRule.eq_wrap) x eqx
+      and eq_wrapper x eqx  = ((UpdateRule.get_wrapper ~solve_widen:(fun x-> solve x Widen) ~init ~stable ~data:update_rule_data ~sides ~add_sides ~rho ~destabilize ~side ~assert_can_receive_side):UpdateRule.eq_wrapper) x eqx
       and solve ?reuse_eq x phase =
         if tracing then trace "sol2" "solve %a, phase: %s, called: %b, stable: %b, wpoint: %a" S.Var.pretty_trace x (show_phase phase) (HM.mem called x) (HM.mem stable x) pretty_wpoint x;
         init x;
