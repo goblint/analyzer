@@ -414,6 +414,13 @@
               "type": "boolean",
               "default": false
             },
+            "bitfield": {
+              "title": "ana.int.bitfield",
+              "description":
+                "Use IntDomain.Bitfield: Bitfield domain for integers.",
+              "type": "boolean",
+              "default": false
+            },
             "congruence": {
               "title": "ana.int.congruence",
               "description":
@@ -506,6 +513,13 @@
               "type": "boolean",
               "default": true
             },
+            "hashcached": {
+              "title": "ana.opt.hashcached",
+              "description":
+                "Should we try to save memory and speed up equality by caching hashes of contexts? This is useful when hashconsing is off",
+              "type": "boolean",
+              "default": false
+            },
             "equal": {
               "title": "ana.opt.equal",
               "description":
@@ -534,7 +548,7 @@
                 "type": "string",
                 "enum": [
                   "congruence",
-                  "singleThreaded",
+                  "reduceAnalyses",
                   "mallocWrappers",
                   "noRecursiveIntervals",
                   "enums",
@@ -552,7 +566,7 @@
               },
               "default": [
                 "congruence",
-                "singleThreaded",
+                "reduceAnalyses",
                 "mallocWrappers",
                 "noRecursiveIntervals",
                 "enums",
@@ -639,6 +653,12 @@
                   "title": "ana.base.context.interval_set",
                   "description":
                     "Integer values of the IntervalSet domain in function contexts.",
+                  "type": "boolean",
+                  "default": true
+                },
+                "bitfield": {
+                  "title": "ana.base.context.bitfield",
+                  "description": "Bitfield values in function contexts.",
                   "type": "boolean",
                   "default": true
                 }
@@ -1212,6 +1232,19 @@
             }
           },
           "additionalProperties": false
+        },
+        "affeq": {
+          "title": "ana.affeq",
+          "type": "object",
+          "properties": {
+            "sparse": {
+              "title": "ana.affeq.sparse",
+              "description": "Use sparse implementation of Affine Equality analysis (using lists). If set to false, the dense version is used (using arrays). Default is true (sparse implementation)",
+              "type": "boolean",
+              "default": true
+            }
+          },
+          "additionalProperties": false
         }
       },
       "additionalProperties": false
@@ -1715,7 +1748,7 @@
             "type": "array",
             "items": {
               "type": "string",
-              "enum": ["base.no-non-ptr", "base.non-ptr", "base.no-int", "base.int", "base.no-interval", "base.no-interval_set","base.interval", "base.interval_set","relation.no-context", "relation.context", "no-widen", "widen"]
+              "enum": ["base.no-non-ptr", "base.non-ptr", "base.no-int", "base.int", "base.no-interval", "base.no-interval_set", "base.no-bitfield", "base.interval", "base.interval_set", "base.bitfield", "relation.no-context", "relation.context", "no-widen", "widen"]
             },
             "default": []
           }

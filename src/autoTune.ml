@@ -206,29 +206,31 @@ let hasFunction pred =
   calls.calledBy |> FunctionCallMap.exists (fun var _ -> relevant_static var) ||
   calls.dynamicallyCalled |> FunctionSet.exists relevant_dynamic
 
-let disableAnalyses anas =
-  List.iter (GobConfig.set_auto "ana.activated[-]") anas
+let disableAnalyses reason analyses =
+  Logs.info "%s -> disabling analyses: \"%s\"" reason (String.concat ", " analyses);
+  List.iter (GobConfig.set_auto "ana.activated[-]") analyses
 
-let enableAnalyses anas =
-  List.iter (GobConfig.set_auto "ana.activated[+]") anas
+let enableAnalyses reason description analyses =
+  Logs.info "%s -> enabling %s: \"%s\"" reason description (String.concat ", " analyses);
+  List.iter (GobConfig.set_auto "ana.activated[+]") analyses
 
 (*If only one thread is used in the program, we can disable most thread analyses*)
 (*The exceptions are analyses that are depended on by others: base -> mutex -> mutexEvents, access; termination -> threadflag *)
 (*escape is also still enabled, because otherwise we get a warning*)
 (*does not consider dynamic calls!*)
+let notNeccessaryRaceAnalyses = ["race"; "symb_locks"; "region"]
+let notNeccessaryThreadAnalyses = notNeccessaryRaceAnalyses @ ["deadlock"; "maylocks"; "thread"; "threadid"; "threadJoins"; "threadreturn"; "mhp"; "pthreadMutexType"]
 
-let notNeccessaryThreadAnalyses = ["race"; "deadlock"; "maylocks"; "symb_locks"; "thread"; "threadid"; "threadJoins"; "threadreturn"; "mhp"; "region"; "pthreadMutexType"]
-let reduceThreadAnalyses () =
+let hasSpec spec = List.mem spec (Svcomp.Specification.of_option ())
+
+let reduceAnalyses () =
   let isThreadCreate (desc: LibraryDesc.t) args =
     match desc.special args with
     | LibraryDesc.ThreadCreate _ -> true
     | _ -> LibraryDesc.Accesses.find_kind desc.accs Spawn args <> []
   in
   let hasThreadCreate = hasFunction isThreadCreate in
-  if not @@ hasThreadCreate then (
-    Logs.info "no thread creation -> disabling thread analyses \"%s\"" (String.concat ", " notNeccessaryThreadAnalyses);
-    disableAnalyses notNeccessaryThreadAnalyses;
-  )
+  if not hasThreadCreate then disableAnalyses "no thread creation" notNeccessaryThreadAnalyses
 
 let focusOnMemSafetySpecification (spec: Svcomp.Specification.t) =
   match spec with
@@ -247,8 +249,7 @@ let focusOnTermination (spec: Svcomp.Specification.t) =
   match spec with
   | Termination ->
     let terminationAnas = ["threadflag"; "apron"] in
-    Logs.info "Specification: Termination -> enabling termination analyses \"%s\"" (String.concat ", " terminationAnas);
-    enableAnalyses terminationAnas;
+    enableAnalyses "Specification: Termination" "termination analyses" terminationAnas;
     set_string "sem.int.signed_overflow" "assume_none";
     set_bool "ana.int.interval" true;
     set_string "ana.apron.domain" "polyhedra"; (* TODO: Needed? *)
@@ -258,16 +259,16 @@ let focusOnTermination (spec: Svcomp.Specification.t) =
 let focusOnTermination () =
   List.iter focusOnTermination (Svcomp.Specification.of_option ())
 
-let concurrencySafety (spec: Svcomp.Specification.t) =
-  match spec with
-  | NoDataRace -> (*enable all thread analyses*)
-    Logs.info "Specification: NoDataRace -> enabling thread analyses \"%s\"" (String.concat ", " notNeccessaryThreadAnalyses);
-    enableAnalyses notNeccessaryThreadAnalyses;
-  | _ -> ()
+let focusOnConcurrencySafety () =
+  if hasSpec SvcompSpec.NoDataRace then
+    (*enable all thread analyses*)
+    (* TODO: what's the exact relation between thread analyses enabled in conf, the ones we disable in reduceAnalyses and the ones we enable here? *)
+    enableAnalyses "Specification: NoDataRace" "thread analyses" notNeccessaryThreadAnalyses
+  else
+    disableAnalyses "NoDataRace property is not in spec" notNeccessaryRaceAnalyses
 
-let noOverflows (spec: Svcomp.Specification.t) =
-  match spec with
-  | NoOverflow ->
+let focusOnNoOverflows () =
+  if hasSpec SvcompSpec.NoOverflow then (
     (*We focus on integer analysis*)
     set_bool "ana.int.def_exc" true;
     begin
@@ -276,10 +277,7 @@ let noOverflows (spec: Svcomp.Specification.t) =
         set_int "ana.malloc.unique_address_count" 1
       with Found -> set_int "ana.malloc.unique_address_count" 0;
     end
-  | _ -> ()
-
-let focusOn (f : SvcompSpec.t -> unit) =
-  List.iter f (Svcomp.Specification.of_option ())
+  )
 
 (*Detect enumerations and enable the "ana.int.enums" option*)
 exception EnumFound
@@ -313,6 +311,7 @@ class addTypeAttributeVisitor = object
 
   (*Set arrays with important types for thread analysis to unroll*)
   method! vtype typ =
+    (* TODO: reuse predicates in Access module (also handles TNamed correctly) *)
     let is_important_type (t: typ): bool = match t with
       | TNamed (info, attr) -> List.mem info.tname ["pthread_mutex_t"; "spinlock_t"; "pthread_t"]
       | TInt (IInt, attr) -> hasAttribute "mutex" attr
@@ -377,7 +376,7 @@ class octagonVariableVisitor(varMap, globals) = object
 
   method! vexpr = function
     (*an expression of type +/- a +/- b where a,b are either variables or constants*)
-    | BinOp (op, e1,e2, (TInt _)) when isComparison op -> (
+    | BinOp (op, e1,e2, _) when isComparison op -> (
         List.iter (fun var -> addOrCreateVarMapping varMap var 5 globals) (extractOctagonVars e1);
         List.iter (fun var -> addOrCreateVarMapping varMap var 5 globals) (extractOctagonVars e2);
         DoChildren
@@ -492,8 +491,7 @@ let activateTmpSpecialAnalysis () =
   in
   let hasMathFunctions = hasFunction isMathFun in
   if hasMathFunctions then (
-    Logs.info "math function -> enabling tmpSpecial analysis and floating-point domain";
-    enableAnalyses ["tmpSpecial"];
+    enableAnalyses "Math function" "tmpSpecial analysis and floating-point domain" ["tmpSpecial"];
     set_bool "ana.float.interval" true;
   )
 
@@ -546,15 +544,17 @@ let chooseConfig file =
   if isActivated "mallocWrappers" then
     findMallocWrappers ();
 
-  if isActivated "concurrencySafetySpecification" then focusOn concurrencySafety;
+  if isActivated "concurrencySafetySpecification" then
+    focusOnConcurrencySafety ();
 
-  if isActivated "noOverflows" then focusOn noOverflows;
+  if isActivated "noOverflows" then
+    focusOnNoOverflows ();
 
   if isActivated "enums" && hasEnums file then
     set_bool "ana.int.enums" true;
 
-  if isActivated "singleThreaded" then
-    reduceThreadAnalyses ();
+  if isActivated "reduceAnalyses" then
+    reduceAnalyses ();
 
   if isActivated "arrayDomain" then
     selectArrayDomains file;

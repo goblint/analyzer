@@ -5,4 +5,5 @@ include IntervalSetDomain
 include DefExcDomain
 include EnumsDomain
 include CongruenceDomain
+include BitfieldDomain
 include IntDomTuple

@@ -250,6 +250,19 @@ module Enums : S with type int_t = Z.t = struct
   let is_excl_list = BatOption.is_some % to_excl_list
   let to_incl_list = function Inc s when not (BISet.is_empty s) -> Some (BISet.elements s) | _ -> None
 
+  let to_bitfield ik x = 
+    let ik_mask = snd (Size.range ik) in 
+    let one_mask = Z.lognot Z.zero in
+    match x with 
+    | Inc i when BISet.is_empty i -> (Z.zero, Z.zero) 
+    | Inc i when BISet.is_singleton i ->       
+      let o = BISet.choose i in 
+      let o = if Cil.isSigned ik then o else Z.logand ik_mask o in 
+      (Z.lognot o, o) 
+    | Inc i -> BISet.fold (fun o (az, ao) -> (Z.logor (Z.lognot o) az, Z.logor (if Cil.isSigned ik then o else Z.logand ik_mask o) ao)) i (Z.zero, Z.zero) 
+    | _ when Cil.isSigned ik -> (one_mask, one_mask)
+    | _ -> (one_mask, ik_mask)
+
   let starting ?(suppress_ovwarn=false) ikind x =
     let _,u_ik = Size.range ikind in
     of_interval ~suppress_ovwarn ikind (x, u_ik)
@@ -361,6 +374,13 @@ module Enums : S with type int_t = Z.t = struct
     | Inc e, None -> bot_of ik
     | Inc e, Some (c, m) -> Inc (BISet.filter (contains c m) e)
     | _ -> a
+
+  let refine_with_bitfield ik x (z,o) =
+    match x, BitfieldDomain.Bitfield.to_int (z,o) with 
+    | Inc _, Some y ->     
+      meet ik x (Inc (BISet.singleton y))
+    | _ ->
+      x
 
   let refine_with_interval ik a b =
     match a, b with
