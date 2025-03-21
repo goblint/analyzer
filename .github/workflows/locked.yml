@@ -143,7 +143,7 @@ jobs:
         run: sed -i 's/"ocaml" {= "4.14.2"}/"ocaml" {= "5.0.0"}/' goblint.opam.locked && sed -i 's/"ocaml-variants" {= "4.14.2+options"}/"ocaml-variants" {= "5.0.0+options"}/' goblint.opam.locked
 
       - name: Install dependencies
-        run: opam install . --deps-only --locked
+        run: opam install . --deps-only --locked --working-dir
 
       - name: Setup Gobview
         run: ./make.sh setup_gobview
