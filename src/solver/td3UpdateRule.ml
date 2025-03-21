@@ -10,11 +10,24 @@ module type S = functor (S:EqConstrSys) -> functor (HM:Hashtbl.S with type key =
   val create_empty_data : unit -> data
   val copy_marshal: data -> data
   val relift_marshal: data -> data
+
+  val register_start: data -> S.v -> S.d -> unit
+
+  val eq_wrap:
+  S.v ->
+  ((S.v -> S.d -> unit) -> S.d) ->
+  (S.v -> unit) ->
+  (S.v -> 'b) ->
+  unit HM.t ->
+  data ->
+  VS.t HM.t ->
+  (S.v -> S.v -> unit) ->
+  S.d HM.t -> (S.v -> unit) -> (?x:S.v -> S.v -> S.d -> unit) -> (S.v -> unit) -> S.d
 end
 
 (** Inactive *)
 
-module Inactive: S =
+module Inactive:S =
   functor (S:EqConstrSys) ->
   functor (HM:Hashtbl.S with type key = S.v) ->
   functor (VS:Set.S with type elt = S.v) ->
@@ -25,10 +38,13 @@ module Inactive: S =
     let copy_marshal _ = ()
     let relift_marshal _ = ()
 
-    let register_start x d = ()
+    let register_start _ _ _  = ()
+
+    let eq_wrap x eqx _ _ _ _ _ _ _ _ (side:?x:S.v -> S.v -> S.d -> unit) _ =
+      eqx (side ~x)
   end
 
-module Ours =
+module Ours:S =
 functor (S:EqConstrSys) ->
   functor (HM:Hashtbl.S with type key = S.v) ->
   functor (VS:Set.S with type elt = S.v) ->
@@ -77,7 +93,8 @@ functor (S:EqConstrSys) ->
         narrow_globs_start_values;
       }
 
-    let narrow_globs = GobConfig.get_bool "solvers.td3.narrow-globs.enabled"
+    let register_start data x d = HM.replace data.narrow_globs_start_values x d
+
     let narrow_globs_conservative_widen = GobConfig.get_bool "solvers.td3.narrow-globs.conservative-widen"
     let narrow_globs_immediate_growth = GobConfig.get_bool "solvers.td3.narrow-globs.immediate-growth"
     let narrow_globs_gas_default = GobConfig.get_int "solvers.td3.narrow-globs.narrow-gas"
@@ -86,7 +103,7 @@ functor (S:EqConstrSys) ->
 
     type phase = Widen | Narrow [@@deriving show] (* used in inner solve *)
 
-    let eq_wrap x eqx widen_solve init stable data sides add_sides rho destabilize system =
+    let eq_wrap x eqx widen_solve init stable data sides add_sides rho destabilize side assert_can_receive_side =
       let rec side_acc acc changed x y d:unit =
         let new_acc = match HM.find_option acc y with
           | Some acc -> if not @@ S.Dom.leq d acc then Some (S.Dom.join acc d) else None
@@ -103,10 +120,7 @@ functor (S:EqConstrSys) ->
       and divided_side (phase:divided_side_mode) x y d: bool =
         if tracing then trace "side" "divided side to %a from %a ## value: %a" S.Var.pretty_trace y S.Var.pretty_trace x S.Dom.pretty d;
         if tracing then trace "sol2" "divided side to %a from %a ## value: %a" S.Var.pretty_trace y S.Var.pretty_trace x S.Dom.pretty d;
-        if system y <> None then (
-          Logs.warn "side-effect to unknown w/ rhs: %a, contrib: %a" S.Var.pretty_trace y S.Dom.pretty d;
-        );
-        assert (system y = None);
+        assert_can_receive_side y;
         init y;
         if tracing then trace "sol2" "stable add %a" S.Var.pretty_trace y;
         HM.replace stable y ();
@@ -207,7 +221,10 @@ functor (S:EqConstrSys) ->
               HM.iter (fun y acc -> ignore @@ divided_side D_Box x y acc) acc
             )
         )) (fun () -> eqx (side_acc acc changed x))
-
-
-    let register_start data x d = HM.replace data.narrow_globs_start_values x d
 end
+
+let choose () =
+  if GobConfig.get_bool "solvers.td3.narrow-globs.enabled" then
+    (module Ours : S)
+  else
+    (module Inactive : S)

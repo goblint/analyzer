@@ -45,14 +45,20 @@ module Base =
   functor (S:EqConstrSys) ->
   functor (HM:Hashtbl.S with type key = S.v) ->
   functor (Hooks: Hooks with module S = S and module HM = HM) ->
+  functor (UpdateRule: Td3UpdateRule.S) ->
   struct
     open SolverBox.Warrow (S.Dom)
     include Generic.SolverStats (S) (HM)
     module VS = Set.Make (S.Var)
 
-    module UpdateRule = Td3UpdateRule.Ours(S) (HM) (VS)
+    module UpdateRule = UpdateRule(S) (HM) (VS)
 
     let exists_key f hm = HM.exists (fun k _ -> f k) hm
+
+    let assert_can_receive_side x =
+      if Hooks.system x <> None then (
+        failwith ("side-effect to unknown w/ rhs: " ^ GobPretty.sprint S.Var.pretty_trace x);
+      )
 
     type solver_data = {
       st: (S.Var.t * S.Dom.t) list; (* needed to destabilize start functions if their start state changed because of some changed global initializer *)
@@ -352,11 +358,7 @@ module Base =
               (* The RHS is re-evaluated, all deps are re-trigerred *)
               HM.replace dep x VS.empty;
               let eqx = eq x (eval l x) in
-              if narrow_globs then
-                let solve_widen x = solve x Widen in
-                UpdateRule.eq_wrap x eqx solve_widen init stable data.update_rule_data sides add_sides rho destabilize (Hooks.system)
-              else
-                eqx (side ~x)
+              UpdateRule.eq_wrap x eqx (fun x-> solve x Widen) init stable data.update_rule_data sides add_sides rho destabilize side assert_can_receive_side
           in
           HM.remove called x;
           let old = HM.find rho x in (* d from older solve *) (* find old value after eq since wpoint restarting in eq/eval might have changed it meanwhile *)
@@ -458,10 +460,7 @@ module Base =
         tmp
       and side ?x y d = (* side from x to y; only to variables y w/o rhs; x only used for trace *)
         if tracing then trace "sol2" "side to %a (wpx: %a) from %a ## value: %a" S.Var.pretty_trace y pretty_wpoint y (Pretty.docOpt (S.Var.pretty_trace ())) x S.Dom.pretty d;
-        if Hooks.system y <> None then (
-          Logs.warn "side-effect to unknown w/ rhs: %a, contrib: %a" S.Var.pretty_trace y S.Dom.pretty d;
-        );
-        assert (Hooks.system y = None);
+        assert_can_receive_side y;
         init y;
 
         WPS.notify_side wps_data x y;
@@ -518,8 +517,7 @@ module Base =
       let set_start (x,d) =
         if tracing then trace "sol2" "set_start %a ## %a" S.Var.pretty_trace x S.Dom.pretty d;
         init x;
-        if narrow_globs then
-          UpdateRule.register_start update_rule_data x d;
+        UpdateRule.register_start update_rule_data x d;
         HM.replace rho x d;
         HM.replace stable x ();
         (* solve x Widen *)
@@ -1076,10 +1074,10 @@ module Base =
   end
 
 (** TD3 with no hooks. *)
-module Basic: GenericEqIncrSolver =
+module Basic(UpdateRule: Td3UpdateRule.S): GenericEqIncrSolver =
   functor (Arg: IncrSolverArg) ->
   functor (S:EqConstrSys) ->
-  functor (HM:Hashtbl.S with type key = S.v) ->
+  functor (HM:Hashtbl.S with type key = S.v)->
   struct
     include Generic.SolverStats (S) (HM)
 
@@ -1105,11 +1103,11 @@ module Basic: GenericEqIncrSolver =
       let prune ~reachable = ()
     end
 
-    include Base (Arg) (S) (HM) (Hooks)
+    include Base (Arg) (S) (HM) (Hooks) (UpdateRule)
   end
 
 (** TD3 with eval skipping using [dep_vals]. *)
-module DepVals: GenericEqIncrSolver =
+module DepVals(UpdateRule: Td3UpdateRule.S): GenericEqIncrSolver =
   functor (Arg: IncrSolverArg) ->
   functor (S:EqConstrSys) ->
   functor (HM:Hashtbl.S with type key = S.v) ->
@@ -1184,7 +1182,7 @@ module DepVals: GenericEqIncrSolver =
           ) !current_dep_vals
     end
 
-    module Base = Base (Arg) (S) (HM) (Hooks)
+    module Base = Base (Arg) (S) (HM) (Hooks) (UpdateRule)
 
     type marshal = {
       base: Base.marshal;
@@ -1223,17 +1221,18 @@ let after_config () =
   let restart_wpoint = GobConfig.get_bool "solvers.td3.restart.wpoint.enabled" in
   let restart_once = GobConfig.get_bool "solvers.td3.restart.wpoint.once" in
   let skip_unchanged_rhs = GobConfig.get_bool "solvers.td3.skip-unchanged-rhs" in
+  let module UpdateRule = (val Td3UpdateRule.choose ()) in
   if skip_unchanged_rhs then (
     if restart_sided || restart_wpoint || restart_once then (
       M.warn "restarting active, ignoring solvers.td3.skip-unchanged-rhs";
       (* TODO: fix DepVals with restarting, https://github.com/goblint/analyzer/pull/738#discussion_r876005821 *)
-      Selector.add_solver ("td3", (module Basic: GenericEqIncrSolver))
+      Selector.add_solver ("td3", (module Basic(UpdateRule): GenericEqIncrSolver))
     )
     else
-      Selector.add_solver ("td3", (module DepVals: GenericEqIncrSolver))
+      Selector.add_solver ("td3", (module DepVals(UpdateRule): GenericEqIncrSolver))
   )
   else
-    Selector.add_solver ("td3", (module Basic: GenericEqIncrSolver))
+    Selector.add_solver ("td3", (module Basic(UpdateRule): GenericEqIncrSolver))
 
 let () =
   AfterConfig.register after_config
