@@ -49,6 +49,9 @@ module Base =
     open SolverBox.Warrow (S.Dom)
     include Generic.SolverStats (S) (HM)
     module VS = Set.Make (S.Var)
+
+    module UpdateRule = Td3UpdateRule.Ours(S) (HM) (VS)
+
     let exists_key f hm = HM.exists (fun k _ -> f k) hm
 
     type divided_side_mode = D_Widen | D_Narrow | D_Box [@@deriving show]
@@ -57,6 +60,7 @@ module Base =
       st: (S.Var.t * S.Dom.t) list; (* needed to destabilize start functions if their start state changed because of some changed global initializer *)
       infl: VS.t HM.t;
       sides: VS.t HM.t;
+      update_rule_data: UpdateRule.data;
       prev_sides: VS.t HM.t;
       divided_side_effects: ((S.Dom.t * (int *  divided_side_mode) option) HM.t) HM.t;
       narrow_globs_start_values: S.Dom.t HM.t;
@@ -78,6 +82,7 @@ module Base =
       st = [];
       infl = HM.create 10;
       sides = HM.create 10;
+      update_rule_data = UpdateRule.create_empty_data ();
       prev_sides = HM.create 10;
       divided_side_effects = HM.create (if narrow_globs then 10 else 0);
       narrow_globs_start_values = HM.create (if narrow_globs then 10 else 0);
@@ -129,6 +134,7 @@ module Base =
         wpoint_gas = HM.copy data.wpoint_gas;
         infl = HM.copy data.infl;
         sides = HM.copy data.sides;
+        update_rule_data = UpdateRule.copy_marshal data.update_rule_data;
         prev_sides = HM.copy data.prev_sides;
         divided_side_effects = HM.map (fun k v -> HM.copy v) data.divided_side_effects;
         narrow_globs_start_values = HM.copy data.narrow_globs_start_values;
@@ -177,6 +183,7 @@ module Base =
       HM.iter (fun k v ->
           HM.replace sides (S.Var.relift k) (VS.map S.Var.relift v)
         ) data.sides;
+      let update_rule_data = UpdateRule.relift_marshal data.update_rule_data in
       let prev_sides = HM.create (HM.length data.prev_sides) in
       HM.iter (fun k v ->
           HM.replace prev_sides (S.Var.relift k) (VS.map S.Var.relift v)
@@ -216,7 +223,7 @@ module Base =
       HM.iter (fun k v ->
           HM.replace dep (S.Var.relift k) (VS.map S.Var.relift v)
         ) data.dep;
-      {st; infl; sides; prev_sides; divided_side_effects; narrow_globs_start_values; rho; wpoint_gas; stable; side_dep; side_infl; var_messages; rho_write; dep}
+      {st; infl; sides; update_rule_data; prev_sides; divided_side_effects; narrow_globs_start_values; rho; wpoint_gas; stable; side_dep; side_infl; var_messages; rho_write; dep}
 
     type phase = Widen | Narrow [@@deriving show] (* used in inner solve *)
 
@@ -252,9 +259,12 @@ module Base =
 
       let infl = data.infl in
       let sides = data.sides in
+      let update_rule_data = data.update_rule_data in
       let prev_sides = data.prev_sides in
       let divided_side_effects = data.divided_side_effects in
       let narrow_globs_start_values = data.narrow_globs_start_values in
+
+
       let rho = data.rho in
       let wpoint_gas = data.wpoint_gas in
       let stable = data.stable in
@@ -377,7 +387,7 @@ module Base =
             | _ ->
               (* The RHS is re-evaluated, all deps are re-trigerred *)
               HM.replace dep x VS.empty;
-              if narrow_globs then
+              let alpha x eq eval solve =
                 let acc = HM.create 0 in
                 let changed = HM.create 0 in
                 Fun.protect ~finally:(fun () -> (
@@ -403,6 +413,12 @@ module Base =
                         HM.iter (fun y acc -> ignore @@ divided_side D_Box x y acc) acc
                       )
                     )) (fun () -> eq x (eval l x) (side_acc acc changed x))
+              in
+              if narrow_globs then
+                let eq_delayed = fun () -> eq x (eval l x) in
+                let solve_widen x = solve x Widen in
+                UpdateRule.narrow_globals x eq_delayed solve_widen rho init stable data.update_rule_data sides add_sides rho destabilize (Hooks.system)
+                (* alpha x eq eval solve *)
               else
                 eq x (eval l x) (side ~x)
           in
@@ -661,7 +677,7 @@ module Base =
         if tracing then trace "sol2" "set_start %a ## %a" S.Var.pretty_trace x S.Dom.pretty d;
         init x;
         if narrow_globs then
-          HM.replace narrow_globs_start_values x d;
+          UpdateRule.register_start update_rule_data x d;
         HM.replace rho x d;
         HM.replace stable x ();
         (* solve x Widen *)
@@ -1214,7 +1230,7 @@ module Base =
       print_data_verbose data "Data after postsolve";
 
       verify_data data;
-      (rho, {st; infl; sides; prev_sides; divided_side_effects; narrow_globs_start_values; rho; wpoint_gas; stable; side_dep; side_infl; var_messages; rho_write; dep})
+      (rho, {st; infl; sides; update_rule_data; prev_sides; divided_side_effects; narrow_globs_start_values; rho; wpoint_gas; stable; side_dep; side_infl; var_messages; rho_write; dep})
   end
 
 (** TD3 with no hooks. *)
