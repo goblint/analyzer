@@ -14,15 +14,15 @@ module type S = functor (S:EqConstrSys) -> functor (HM:Hashtbl.S with type key =
   val register_start: data -> S.v -> S.d -> unit
 
   val eq_wrap:
-  S.v ->
-  ((S.v -> S.d -> unit) -> S.d) ->
-  (S.v -> unit) ->
-  (S.v -> unit) ->
-  unit HM.t ->
-  data ->
-  VS.t HM.t ->
-  (S.v -> S.v -> unit) ->
-  S.d HM.t -> (S.v -> unit) -> (?x:S.v -> S.v -> S.d -> unit) -> (S.v -> unit) -> S.d
+    S.v ->
+    ((S.v -> S.d -> unit) -> S.d) ->
+    (S.v -> unit) ->
+    (S.v -> unit) ->
+    unit HM.t ->
+    data ->
+    VS.t HM.t ->
+    (S.v -> S.v -> unit) ->
+    S.d HM.t -> (S.v -> unit) -> (?x:S.v -> S.v -> S.d -> unit) -> (S.v -> unit) -> S.d
 end
 
 (** Inactive *)
@@ -45,7 +45,7 @@ module Inactive:S =
   end
 
 module Narrow:S =
-functor (S:EqConstrSys) ->
+  functor (S:EqConstrSys) ->
   functor (HM:Hashtbl.S with type key = S.v) ->
   functor (VS:Set.S with type elt = S.v) ->
   struct
@@ -114,7 +114,7 @@ functor (S:EqConstrSys) ->
               let y_changed = divided_side D_Widen x y new_acc in
               if y_changed then
                 HM.replace changed y ();
-          )
+            )
           ) new_acc;
       and divided_side (phase:divided_side_mode) x y d: bool =
         if tracing then trace "side" "divided side to %a from %a ## value: %a" S.Var.pretty_trace y S.Var.pretty_trace x S.Dom.pretty d;
@@ -158,7 +158,7 @@ functor (S:EqConstrSys) ->
                   narrow_gas
               in
               (result, narrow_gas)
-            | _ -> failwith "unreachable"
+            | _ -> failwith "unreachable" (* handled above *)
           in
 
           if not (S.Dom.equal old_side new_side) then (
@@ -219,8 +219,8 @@ functor (S:EqConstrSys) ->
             else (
               HM.iter (fun y acc -> ignore @@ divided_side D_Box x y acc) acc
             )
-        )) (fun () -> eqx (side_acc acc changed x))
-end
+          )) (fun () -> eqx (side_acc acc changed x))
+  end
 
 let choose () =
   if GobConfig.get_bool "solvers.td3.narrow-globs.enabled" then
