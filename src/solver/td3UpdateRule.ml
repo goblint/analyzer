@@ -86,102 +86,103 @@ functor (S:EqConstrSys) ->
 
     type phase = Widen | Narrow [@@deriving show] (* used in inner solve *)
 
-    let rec side_acc init stable data sides add_sides rho destabilize system acc changed x y d:unit =
-      let new_acc = match HM.find_option acc y with
-        | Some acc -> if not @@ S.Dom.leq d acc then Some (S.Dom.join acc d) else None
-        | None -> Some d
-      in
-      Option.may (fun new_acc ->
-          HM.replace acc y new_acc;
-          if narrow_globs_immediate_growth then (
-            let y_changed = divided_side D_Widen x y new_acc init stable data sides add_sides rho destabilize system in
-            if y_changed then
-              HM.replace changed y ();
-        )
-        ) new_acc;
-    and divided_side (phase:divided_side_mode) x y d init stable data sides add_sides rho destabilize system: bool =
-      if tracing then trace "side" "divided side to %a from %a ## value: %a" S.Var.pretty_trace y S.Var.pretty_trace x S.Dom.pretty d;
-      if tracing then trace "sol2" "divided side to %a from %a ## value: %a" S.Var.pretty_trace y S.Var.pretty_trace x S.Dom.pretty d;
-      if system y <> None then (
-        Logs.warn "side-effect to unknown w/ rhs: %a, contrib: %a" S.Var.pretty_trace y S.Dom.pretty d;
-      );
-      assert (system y = None);
-      init y;
-      if tracing then trace "sol2" "stable add %a" S.Var.pretty_trace y;
-      HM.replace stable y ();
 
-      let sided = GobOption.exists (VS.mem x) (HM.find_option sides y) in
-      if not sided then add_sides y x;
-      if not (HM.mem data.divided_side_effects y) then HM.replace data.divided_side_effects y (HM.create 10);
-
-      let y_sides = HM.find data.divided_side_effects y in
-      let (old_side, narrow_gas) = HM.find_default y_sides x (S.Dom.bot (), narrow_globs_gas_default) in
-      let phase = if phase = D_Box then
-          if S.Dom.leq d old_side then D_Narrow else D_Widen
-        else
-          phase
-      in
-      if not (phase = D_Narrow && narrow_gas = Some (0, D_Widen)) then (
-        let (new_side, narrow_gas) = match phase with
-          | D_Widen ->
-            let tmp = S.Dom.join old_side d in
-            if not @@ S.Dom.equal tmp old_side then
-              let new_side =
-                if narrow_globs_conservative_widen && S.Dom.leq tmp (HM.find rho y) then
-                  tmp
-                else
-                  S.Dom.widen old_side tmp
-              in
-              let new_gas = Option.map (fun (x, _) -> (x, D_Widen)) narrow_gas in
-              (new_side, new_gas)
-            else
-              (old_side, narrow_gas)
-          | D_Narrow ->
-            let result = S.Dom.narrow old_side d in
-            let narrow_gas = if not @@ S.Dom.equal result old_side then
-                Option.map (fun (gas, phase) -> if phase = D_Widen then (gas - 1, D_Narrow) else (gas, phase)) narrow_gas
-              else
-                narrow_gas
-            in
-            (result, narrow_gas)
-          | _ -> failwith "unreachable"
+    let eq_wrap x eqx widen_solve rho init stable data sides add_sides rho destabilize system =
+      let rec side_acc init stable data sides add_sides rho system acc changed x y d:unit =
+        let new_acc = match HM.find_option acc y with
+          | Some acc -> if not @@ S.Dom.leq d acc then Some (S.Dom.join acc d) else None
+          | None -> Some d
         in
+        Option.may (fun new_acc ->
+            HM.replace acc y new_acc;
+            if narrow_globs_immediate_growth then (
+              let y_changed = divided_side D_Widen x y new_acc init stable data sides add_sides rho system in
+              if y_changed then
+                HM.replace changed y ();
+          )
+          ) new_acc;
+      and divided_side (phase:divided_side_mode) x y d init stable data sides add_sides rho system: bool =
+        if tracing then trace "side" "divided side to %a from %a ## value: %a" S.Var.pretty_trace y S.Var.pretty_trace x S.Dom.pretty d;
+        if tracing then trace "sol2" "divided side to %a from %a ## value: %a" S.Var.pretty_trace y S.Var.pretty_trace x S.Dom.pretty d;
+        if system y <> None then (
+          Logs.warn "side-effect to unknown w/ rhs: %a, contrib: %a" S.Var.pretty_trace y S.Dom.pretty d;
+        );
+        assert (system y = None);
+        init y;
+        if tracing then trace "sol2" "stable add %a" S.Var.pretty_trace y;
+        HM.replace stable y ();
 
-        if not (S.Dom.equal old_side new_side) then (
-          if tracing then trace "side" "divided side to %a from %a changed (phase: %s) Old value: %a ## New value: %a" S.Var.pretty_trace y S.Var.pretty_trace x (show_divided_side_mode phase) S.Dom.pretty old_side S.Dom.pretty new_side;
+        let sided = GobOption.exists (VS.mem x) (HM.find_option sides y) in
+        if not sided then add_sides y x;
+        if not (HM.mem data.divided_side_effects y) then HM.replace data.divided_side_effects y (HM.create 10);
 
-          if S.Dom.is_bot new_side && narrow_gas = None then
-            HM.remove y_sides x
+        let y_sides = HM.find data.divided_side_effects y in
+        let (old_side, narrow_gas) = HM.find_default y_sides x (S.Dom.bot (), narrow_globs_gas_default) in
+        let phase = if phase = D_Box then
+            if S.Dom.leq d old_side then D_Narrow else D_Widen
           else
-            HM.replace y_sides x (new_side, narrow_gas);
+            phase
+        in
+        if not (phase = D_Narrow && narrow_gas = Some (0, D_Widen)) then (
+          let (new_side, narrow_gas) = match phase with
+            | D_Widen ->
+              let tmp = S.Dom.join old_side d in
+              if not @@ S.Dom.equal tmp old_side then
+                let new_side =
+                  if narrow_globs_conservative_widen && S.Dom.leq tmp (HM.find rho y) then
+                    tmp
+                  else
+                    S.Dom.widen old_side tmp
+                in
+                let new_gas = Option.map (fun (x, _) -> (x, D_Widen)) narrow_gas in
+                (new_side, new_gas)
+              else
+                (old_side, narrow_gas)
+            | D_Narrow ->
+              let result = S.Dom.narrow old_side d in
+              let narrow_gas = if not @@ S.Dom.equal result old_side then
+                  Option.map (fun (gas, phase) -> if phase = D_Widen then (gas - 1, D_Narrow) else (gas, phase)) narrow_gas
+                else
+                  narrow_gas
+              in
+              (result, narrow_gas)
+            | _ -> failwith "unreachable"
+          in
 
-          let combined_side y =
-            let contribs = HM.find_option data.divided_side_effects y in
-            let join map = HM.fold (fun _ (value, _) acc -> S.Dom.join acc value) map (S.Dom.bot ()) in
-            let combined = Option.map_default join (S.Dom.bot ()) contribs in
-            let start_value = HM.find_default data.narrow_globs_start_values y (S.Dom.bot()) in
-            S.Dom.join combined start_value
-          in
-          let y_oldval = HM.find rho y in
-          let y_newval = if S.Dom.leq old_side new_side then
-              (* If new side is strictly greater than the old one, the value of y can only increase. *)
-              S.Dom.join y_oldval new_side
+          if not (S.Dom.equal old_side new_side) then (
+            if tracing then trace "side" "divided side to %a from %a changed (phase: %s) Old value: %a ## New value: %a" S.Var.pretty_trace y S.Var.pretty_trace x (show_divided_side_mode phase) S.Dom.pretty old_side S.Dom.pretty new_side;
+
+            if S.Dom.is_bot new_side && narrow_gas = None then
+              HM.remove y_sides x
             else
-              combined_side y
-          in
-          if not (S.Dom.equal y_newval y_oldval) then (
-            if tracing then trace "side" "value of %a changed by side from %a (phase: %s) Old value: %a ## New value: %a"
-                S.Var.pretty_trace y S.Var.pretty_trace x (show_divided_side_mode phase) S.Dom.pretty y_oldval S.Dom.pretty y_newval;
-            HM.replace rho y y_newval;
-            destabilize y;
-          );
-          true
+              HM.replace y_sides x (new_side, narrow_gas);
+
+            let combined_side y =
+              let contribs = HM.find_option data.divided_side_effects y in
+              let join map = HM.fold (fun _ (value, _) acc -> S.Dom.join acc value) map (S.Dom.bot ()) in
+              let combined = Option.map_default join (S.Dom.bot ()) contribs in
+              let start_value = HM.find_default data.narrow_globs_start_values y (S.Dom.bot()) in
+              S.Dom.join combined start_value
+            in
+            let y_oldval = HM.find rho y in
+            let y_newval = if S.Dom.leq old_side new_side then
+                (* If new side is strictly greater than the old one, the value of y can only increase. *)
+                S.Dom.join y_oldval new_side
+              else
+                combined_side y
+            in
+            if not (S.Dom.equal y_newval y_oldval) then (
+              if tracing then trace "side" "value of %a changed by side from %a (phase: %s) Old value: %a ## New value: %a"
+                  S.Var.pretty_trace y S.Var.pretty_trace x (show_divided_side_mode phase) S.Dom.pretty y_oldval S.Dom.pretty y_newval;
+              HM.replace rho y y_newval;
+              destabilize y;
+            );
+            true
+          ) else
+            false
         ) else
           false
-      ) else
-        false
-
-    let narrow_globals x eq_delayed widen_solve rho init stable data sides add_sides rho destabilize system =
+      in
       let acc = HM.create 0 in
       let changed = HM.create 0 in
       Fun.protect ~finally:(fun () -> (
@@ -189,7 +190,7 @@ functor (S:EqConstrSys) ->
               let prev_sides_x = HM.find_option data.prev_sides x in
               Option.may (VS.iter (fun y ->
                   if not @@ HM.mem acc y then begin
-                    ignore @@ divided_side D_Narrow x y (S.Dom.bot ()) init stable data sides add_sides rho destabilize system;
+                    ignore @@ divided_side D_Narrow x y (S.Dom.bot ()) init stable data sides add_sides rho system;
                     if S.Dom.is_bot @@ HM.find rho y then
                       let casualties = S.postmortem y in
                       List.iter widen_solve casualties
@@ -202,11 +203,11 @@ functor (S:EqConstrSys) ->
                 HM.replace data.prev_sides x new_sides;
             end;
             if narrow_globs_immediate_growth then
-              HM.iter (fun y acc -> if not @@ HM.mem changed y then ignore @@ divided_side D_Narrow x y acc init stable data sides add_sides rho destabilize system) acc
+              HM.iter (fun y acc -> if not @@ HM.mem changed y then ignore @@ divided_side D_Narrow x y acc init stable data sides add_sides rho system) acc
             else (
-              HM.iter (fun y acc -> ignore @@ divided_side D_Box x y acc init stable data sides add_sides rho destabilize system) acc
+              HM.iter (fun y acc -> ignore @@ divided_side D_Box x y acc init stable data sides add_sides rho system) acc
             )
-        )) (fun () -> (eq_delayed ()) (side_acc init stable data sides add_sides rho destabilize system acc changed x))
+        )) (fun () -> eqx (side_acc init stable data sides add_sides rho system acc changed x))
 
 
     let register_start data x d = HM.replace data.narrow_globs_start_values x d
