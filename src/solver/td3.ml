@@ -354,7 +354,7 @@ module Base =
               let eqx = eq x (eval l x) in
               if narrow_globs then
                 let solve_widen x = solve x Widen in
-                UpdateRule.eq_wrap x eqx solve_widen rho init stable data.update_rule_data sides add_sides rho destabilize (Hooks.system)
+                UpdateRule.eq_wrap x eqx solve_widen init stable data.update_rule_data sides add_sides rho destabilize (Hooks.system)
               else
                 eqx (side ~x)
           in
