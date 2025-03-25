@@ -756,6 +756,7 @@ struct
            let vss = EConjI.get_value d in
            (*a - b + interval (in arbitrary order)*)
            let meet_relation a b value = 
+             if M.tracing then M.tracel "refine_tcons" "meet_relation: %s - %s + %s" (Var.show a) (Var.show b) (Value.show value);
              let dim_a = Environment.dim_of_var t.env a in
              let dim_b = Environment.dim_of_var t.env b in
              if M.tracing then M.tracel "meet_relation" "calling from refine with %s inside %s" (Tcons1.show tcons) (EConjI.show d);
@@ -763,16 +764,21 @@ struct
                | Some (Int min), _, SUP -> Ineq.meet_relation dim_b dim_a (Relation.Lt, min) rhss vss ineq 
                | Some (Int min), _, SUPEQ -> Ineq.meet_relation dim_b dim_a (Relation.Lt, Z.add Z.one min) rhss vss ineq 
                | Some min, Some max, EQ -> begin 
-                   let ineq, refine = match min with 
-                     | Int min -> Ineq.meet_relation dim_b dim_a (Relation.Gt, Z.sub min Z.one) rhss vss ineq 
-                     | _ -> ineq, []
-                   in match max with 
-                   | Int max -> BatTuple.Tuple2.map2 ((@) refine) @@ Ineq.meet_relation dim_b dim_a (Relation.Lt, Z.add Z.one max) rhss vss ineq 
-                   | _ -> ineq, refine
+                   if TopIntOps.equal min max then ineq, [] else (*If this is a constant, we have a equality that the lin2vareq domain should handle*)
+                     let ineq, refine = match min with 
+                       | Int min -> Ineq.meet_relation dim_b dim_a (Relation.Gt, Z.sub min Z.one) rhss vss ineq 
+                       | _ -> ineq, []
+                     in match max with 
+                     | Int max -> BatTuple.Tuple2.map2 ((@) refine) @@ Ineq.meet_relation dim_b dim_a (Relation.Lt, Z.add Z.one max) rhss vss ineq 
+                     | _ -> ineq, refine
                  end
                | _, _,_ -> ineq, []
              in let d' = (econ, vs, ineq')
-             in List.fold (fun d (var,value) -> EConjI.meet_with_one_value var value d false) d' value_refinements
+             in let refine_value d (var,value) =
+                  let res = EConjI.meet_with_one_value var value d false in
+                  if M.tracing then M.tracel "refine_tcons" "refinement from ineq: var_%d: %s => %s -> %s" var (Value.show value) (EConjI.show d) (EConjI.show res);
+                  res 
+             in List.fold (refine_value) d' value_refinements
            in match expr with (*TODO we could do this in a more general way -> normalisation??*)
            (*currently only hits if two variables are at the first two levels. Also, we only choose one pattern even if multiple are possible 
              e.g. x + y - z arbitrarily selects x or y to convert into an interval, instead we could meet for both*)

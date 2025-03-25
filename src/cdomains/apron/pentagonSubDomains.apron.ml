@@ -824,20 +824,20 @@ module LinearInequalities: TwoVarInequalities = struct
     res
 
   let rec meet_relation x' y' cond get_rhs get_value t = 
-    if x' > y' then
+    let get_rhs' lhs =
+      let rhs = get_rhs lhs in
+      match rhs with 
+      | (Some (c,var), o ,d) -> (c,o,d), var
+      | (None, o ,d)-> (Z.one,Z.zero,Z.one), lhs (*TODO I think we should not save relations to constants here, as that information will be saved in the intervals, but am not sure if this is always done*)
+    in let (rhs_x, x) = get_rhs' x'
+    in let (rhs_y, y) = get_rhs' y'
+    in if x > y then
       (*We save information only in one of the directions*)
       meet_relation y' x' (Relation.invert cond) get_rhs get_value t
     else
-      let get_rhs' lhs =
-        let rhs = get_rhs lhs in
-        match rhs with 
-        | (Some (c,var), o ,d) -> (c,o,d), var
-        | (None, o ,d)-> (Z.one,Z.zero,Z.one), lhs (*TODO I think we should not save relations to constants here, as that information will be saved in the intervals, but am not sure if this is always done*)
-      in let (rhs_x, x) = get_rhs' x'
-      in let (rhs_y, y) = get_rhs' y'
-      in let coeffs = match get_coeff x y t with
-          | None -> Coeffs.empty
-          | Some c -> c
+      let coeffs = match get_coeff x y t with
+        | None -> Coeffs.empty
+        | Some c -> c
       in let (a,b,c_rhs) = Coeffs.coeffs_from_rhss rhs_x rhs_y
       in let meet_relation_roots (a,b) c t = 
            if M.tracing then M.tracel "meet_relation" "meet_relation_roots: %s var_%d < %s var_%d + %s" (Q.to_string a) x (Q.to_string b) y (Q.to_string c);
@@ -856,7 +856,7 @@ module LinearInequalities: TwoVarInequalities = struct
                  t, [x, Value.starting @@ Z.fdiv (Q.num min) (Q.den min)]
            else Coeffs.meet_single_inequality (Some (x,y)) false (get_value x) (get_value y) (a,b) c t
       in let (new_coeffs, refine_acc) = match cond with 
-          | Lt, o -> meet_relation_roots (a,b) (Q.add c_rhs @@ Q.of_bigint o) coeffs
+          | Relation.Lt, o -> meet_relation_roots (a,b) (Q.add c_rhs @@ Q.of_bigint o) coeffs
           | Gt, o -> meet_relation_roots (Q.neg a ,Q.neg b) (Q.neg @@ (Q.add c_rhs @@ Q.of_bigint o)) coeffs
           | Eq, o -> coeffs, []
           (*TODO: I think this should always be stored by the lin2vareq domain (at least the way we are generating this information)
