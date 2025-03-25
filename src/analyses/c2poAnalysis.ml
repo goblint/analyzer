@@ -15,13 +15,8 @@ struct
   module D = D
   module C = D
 
-  type marshal = unit
-
   let name () = "c2po"
   let startcontext () = D.top ()
-
-  let init d = ()
-  let finalize () = ()
 
   (** Find reachable variables in a function *)
   let reachable_from_args ctx args =
