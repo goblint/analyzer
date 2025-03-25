@@ -599,30 +599,16 @@ module MRMap = struct
     List.fold_left add_element empty (SSet.elements set)
 end
 
-(**
-   This is the type for the abstract domain.
-
-   - `uf` is the union find tree
-
-   - `set` is the set of terms that are currently considered.
-     It is the set of terms that have a mapping in the `uf` tree.
-
-   - `map` maps reference variables v to a map that maps integers z to terms that are equivalent to *(v + z).
-     It represents the transitions of the quantitative finite automata.
-
-   - `normal_form` is the unique normal form of the domain element, it is a lazily computed when needed and stored such that it can be used again later.
-
-   - `diseq` represents the disequalities. It is a map from a term t1 to a map from an integer z to a set of terms T, which represents the disequality t1 != z + t2 for each t2 in T.
-
-   - `bldis` represents the block disequalities. It is a map that maps each term to a set of terms that are definitely in a different block.
-*)
-type t = {uf: TUF.t;
-          set: SSet.t;
-          map: LMap.t;
-          normal_form: (T.v_prop list Lazy.t[@compare fun _ _ -> 0][@eq fun _ _ -> true][@hash fun _ -> 0]);
-          diseq: Disequalities.t;
-          bldis: BlDis.t}
-[@@deriving eq, ord, hash]
+(** Returns a list of all the transition that are present in the automata. *)
+let get_transitions (uf, map) =
+  let do_binding t (edge_z, res_t) =
+    (edge_z, t, TUF.find_no_pc uf res_t)
+  in
+  let do_bindings ((t : term), zmap) =
+    let bindings = LMap.zmap_bindings zmap in
+    List.map (do_binding t) bindings
+  in
+  List.concat_map do_bindings (LMap.bindings map)
 
 let show_conj list =
   match list with
@@ -633,22 +619,13 @@ let show_conj list =
     in
     List.fold_left show_prop "" list
 
-(** Returns a list of all the transition that are present in the automata. *)
-let get_transitions (uf , map) =
-  let do_binding t (edge_z, res_t) =
-    (edge_z, t, TUF.find_no_pc uf res_t)
-  in
-  let do_bindings ((t : term), zmap) =
-    let bindings = LMap.zmap_bindings zmap in
-    List.map (do_binding t) bindings
-  in
-  List.concat_map do_bindings (LMap.bindings map)
-
-let exactly_equal cc1 cc2 =
-  cc1.uf == cc2.uf &&
-  cc1.map == cc2.map &&
-  cc1.diseq == cc2.diseq &&
-  cc1.bldis == cc2.bldis
+type data = {
+  uf: TUF.t;
+  set: SSet.t;
+  map: LMap.t;
+  diseq: Disequalities.t;
+  bldis: BlDis.t
+} [@@deriving eq, ord, hash]
 
 (** Converts the domain representation to a conjunction, using
     the function `get_normal_repr` to compute the representatives that need to be used in the conjunction.*)
@@ -719,56 +696,104 @@ let get_normal_conjunction cc get_normal_repr =
   let all_props = conjunctions_of_atoms @ conjunctions_of_transitions @ disequalities @ conjunctions_of_bl_diseqs in
   BatList.sort_unique T.compare_v_prop all_props
 
+module NormalFormEval =
+struct
+  type t = data
+  type result = T.v_prop list
+
+  let eval (cc: t) : result =
+    let f min_repr t =
+      match MRMap.find_opt t min_repr with
+      | None -> t, Z.zero
+      | Some minr -> minr
+    in
+
+    let min_repr = MRMap.compute_minimal_representatives (cc.uf, cc.set, cc.map) in
+    let conj = get_normal_conjunction cc (f min_repr) in
+    conj
+
+
+end
+
+module LazyNormalFormEval = struct
+  include LazyEval.Make(NormalFormEval)
+
+  (* For usage in mo*)
+  let equal _ _ = true
+end
+
+(**
+   This is the type for the abstract domain.
+
+   - `uf` is the union find tree
+
+   - `set` is the set of terms that are currently considered.
+     It is the set of terms that have a mapping in the `uf` tree.
+
+   - `map` maps reference variables v to a map that maps integers z to terms that are equivalent to *(v + z).
+     It represents the transitions of the quantitative finite automata.
+
+   - `normal_form` is the unique normal form of the domain element, it is a lazily computed when needed and stored such that it can be used again later.
+
+   - `diseq` represents the disequalities. It is a map from a term t1 to a map from an integer z to a set of terms T, which represents the disequality t1 != z + t2 for each t2 in T.
+
+   - `bldis` represents the block disequalities. It is a map that maps each term to a set of terms that are definitely in a different block.
+*)
+type t = {data: data;
+          normal_form: (LazyNormalFormEval.t [@compare fun _ _ -> 0][@eq fun _ _ -> true][@hash fun _ -> 0]);
+         }
+[@@deriving eq, ord, hash]
+
+let exactly_equal cc1 cc2 =
+  cc1.uf == cc2.uf &&
+  cc1.map == cc2.map &&
+  cc1.diseq == cc2.diseq &&
+  cc1.bldis == cc2.bldis
+
 (** Returns the canonical normal form of the data structure in form of a sorted list of conjunctions. *)
 let get_normal_form cc =
-  if M.tracing && not (Lazy.is_val cc.normal_form) then M.trace "c2po-normal-form" "Computing normal form";
-  Lazy.force cc.normal_form
+  if M.tracing && not (LazyNormalFormEval.is_val cc.normal_form) then M.trace "c2po-normal-form" "Computing normal form";
+  LazyNormalFormEval.force cc.normal_form
 
 (** Converts the normal form to string, but only if it was already computed. *)
 let show_normal_form normal_form =
-  if Lazy.is_val normal_form then
-    show_conj (Lazy.force normal_form)
+  if LazyNormalFormEval.is_val normal_form then
+    show_conj (LazyNormalFormEval.force normal_form)
   else
     "not computed"
+
+
+let get_conjunction_from_data data =
+  get_normal_conjunction data (fun t -> t, Z.zero)
 
 (** Returns a list of conjunctions that follow from the data structure in form of a sorted list of conjunctions.
     This is not a normal form, but it is useful to print information
     about the current state of the analysis. *)
 let get_conjunction cc =
-  get_normal_conjunction cc (fun t -> t, Z.zero)
+  get_conjunction_from_data cc.data
 
 (** Sets the normal_form to an uncomputed value,
     that will be lazily computed when it is needed. *)
 let reset_normal_form cc =
-  let f min_repr t =
-    match MRMap.find_opt t min_repr with
-    | None -> t, Z.zero
-    | Some minr -> minr
-  in
-  {cc with normal_form =
-             lazy(
-               let min_repr = MRMap.compute_minimal_representatives (cc.uf, cc.set, cc.map) in
-               let conj = get_normal_conjunction cc (f min_repr) in
+  {cc with normal_form = LazyNormalFormEval.make cc.data}
 
-               if M.tracing then M.trace "c2po-min-repr" "Computed minimal represntative: %s" (MRMap.show_min_rep min_repr);
-               if M.tracing then M.trace "c2po-equal" "Computed normal form: %s" (show_conj conj);
+let data_to_t (cc : data) : t =
+  {data = cc;
+   normal_form = LazyNormalFormEval.make cc}
 
-               conj
-             )}
-
-let show_all x =
+let show_all (x: t) =
   "Normal form:\n" ^
   show_conj((get_conjunction x)) ^
   "Union Find partition:\n" ^
-  TUF.show_uf x.uf
+  TUF.show_uf x.data.uf
   ^ "\nSubterm set:\n"
-  ^ SSet.show_set x.set
+  ^ SSet.show_set x.data.set
   ^ "\nLookup map/transitions:\n"
-  ^ LMap.show_map x.map
+  ^ LMap.show_map x.data.map
   ^ "\nNeq:\n"
-  ^ Disequalities.show_neq x.diseq
+  ^ Disequalities.show_neq x.data.diseq
   ^ "\nBlock diseqs:\n"
-  ^ show_conj (BlDis.to_conj x.bldis)
+  ^ show_conj (BlDis.to_conj x.data.bldis)
   ^ "\nMin repr:\n"
   ^ show_normal_form x.normal_form
 
@@ -788,12 +813,13 @@ let split conj =
    where all data structures are initialized with an empty map/set.
 *)
 let init_cc () =
-  {uf = TUF.empty;
-   set = SSet.empty;
-   map = LMap.empty;
-   normal_form = lazy([]);
-   diseq = Disequalities.empty;
-   bldis = BlDis.empty}
+  let data = {uf = TUF.empty;
+              set = SSet.empty;
+              map = LMap.empty;
+              diseq = Disequalities.empty;
+              bldis = BlDis.empty}
+  in
+  data
 
 (** Computes the closure of disequalities. *)
 let congruence_neq cc neg' =
@@ -1024,7 +1050,7 @@ let meet_pos_conjs cc pos_conjs =
     let cc = insert_set cc subterms in
     closure cc pos_conjs
   in
-  if M.tracing then M.trace "c2po-meet" "meet_pos_conjs result: %s\n" (show_conj (get_conjunction res));
+  if M.tracing then M.trace "c2po-meet" "meet_pos_conjs result: %s\n" (show_conj (get_conjunction_from_data res));
   res
 
 (** Adds propositions to the data structure.
