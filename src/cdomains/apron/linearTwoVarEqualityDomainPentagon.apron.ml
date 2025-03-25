@@ -458,9 +458,9 @@ struct
       let v = eval_texpr t expr in (*TODO we evaluate some subexpressions twice when calling this in assign_texpr -> bad for performance??*)
       match Value.minimal v, Value.maximal v with
       | Some (Int min), Some (Int maxi) when min = maxi -> [(Relation.Eq, min), var]
-      | Some (Int min), Some (Int maxi) -> [(Relation.Gt, min), var; (Relation.Lt, maxi), var]
-      | Some (Int min), _ -> [(Relation.Gt, min), var]
-      | _,Some (Int maxi) -> [(Relation.Lt, maxi), var]
+      | Some (Int min), Some (Int maxi) -> [(Relation.Gt, Z.add Z.minus_one min), var; (Relation.Lt, Z.add Z.one maxi), var]
+      | Some (Int min), _ -> [(Relation.Gt, Z.add Z.minus_one min), var]
+      | _,Some (Int maxi) -> [(Relation.Lt, Z.add Z.one maxi), var]
       | _,_ -> []
     in let inequality_from_mul var expr = 
          let v_expr = eval_texpr t expr in
@@ -486,9 +486,9 @@ struct
       let v = eval_texpr t e in begin
         match Value.minimal v, Value.maximal v with
         | Some (Int min), Some (Int maxi) when min = maxi -> [(Relation.Eq, Z.neg min), y]
-        | Some (Int min), Some (Int maxi) -> [(Relation.Lt, Z.neg  min), y; (Relation.Gt, Z.neg maxi), y]
-        | Some (Int min), _ -> [(Relation.Lt, Z.neg min), y]
-        | _,Some (Int maxi) -> [(Relation.Gt, Z.neg maxi), y]
+        | Some (Int min), Some (Int maxi) -> [(Relation.Lt, Z.add Z.one @@ Z.neg min), y; (Relation.Gt, Z.add Z.minus_one @@ Z.neg maxi), y]
+        | Some (Int min), _ -> [(Relation.Lt, Z.add Z.one @@ Z.neg min), y]
+        | _,Some (Int maxi) -> [(Relation.Gt, Z.add Z.minus_one @@ Z.neg maxi), y]
         | _,_ -> []
       end
     | Binop (Div, Var y, e, _, _) -> begin

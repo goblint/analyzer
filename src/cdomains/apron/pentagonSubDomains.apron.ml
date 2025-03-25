@@ -669,7 +669,7 @@ module ArbitraryCoeffsSet = struct
 
   type t = Q.t CoeffMap.t [@@deriving eq, ord]
 
-  let hash t = CoeffMap.fold (fun (a,b) c acc -> let open Q in Q.to_int @@ a + b + b + c+c+ c) t 0
+  let hash t = CoeffMap.fold (fun (a,b) c acc -> let open Q in Z.hash @@ Q.to_bigint @@ a + b + b + c+c+ c) t 0
 
   let show_single_inequality x y a b c = Printf.sprintf "%s %s < %s %s + %s" (Q.to_string a) x (Q.to_string b) y (Q.to_string c)
 
@@ -744,13 +744,17 @@ module ArbitraryCoeffsSet = struct
 
   (*TODO: We could check all inequalities if they imply this for the specific intervals, but it might be too inefficient! leq O(|t|^2) instead of O(|t|) ?*)
   let implies_single_inequality x_val y_val t_opt (a,b) c = 
-    let implied_by_value () =
+    let implied_by_value () = (*TODO will rounding lead to problems?*)
       let ax = Value.div (Value.mul x_val @@ Value.of_bigint @@ Q.num a) @@ Value.of_bigint @@ Q.den a in
       let by = Value.div (Value.mul y_val @@ Value.of_bigint @@ Q.num b) @@ Value.of_bigint @@ Q.den b in
       let c' = Value.maximal @@ Value.sub ax by in
       match c' with 
-      | Some (TopIntOps.Int c') -> Q.leq (Q.of_bigint c') c
+      | Some (TopIntOps.Int c') -> Q.lt (Q.of_bigint c') c
       | _ -> false
+    in let implied_by_value () = 
+         let res = implied_by_value () in
+         if M.tracing then M.trace "implied" "checking %s returned %b" (show_single_inequality (Value.show x_val) (Value.show y_val) a b c) res ;
+         res
     in match t_opt with 
     | Some t -> begin match CoeffMap.find_opt (a,b) t with 
         | Some c' -> Q.leq c' c
@@ -900,8 +904,9 @@ module LinearInequalities: TwoVarInequalities = struct
     in BatEnum.fold (transfer_single_var) t vars_to_check
 
   let transfer x x_new cond t_old get_rhs_old get_value_old t get_rhs get_value = 
+    if M.tracing then M.tracel "transfer" "transfering  with %s from %s into %s" (Relation.show (Int.to_string x) cond (Int.to_string x_new) ) (show t_old) (show t);  
     let res = transfer x x_new cond t_old get_rhs_old get_value_old t get_rhs get_value in
-    if M.tracing then M.tracel "transfer" "transfering  with %s from %s into %s -> %s" (Relation.show (Int.to_string x) cond (Int.to_string x_new) ) (show t_old) (show t) (show res);  
+    if M.tracing then M.tracel "transfer" "result: %s" (show res);  
     res
 
 end
