@@ -65,7 +65,7 @@ struct
 
 
   (*Does not check the values directly, only the inequality domain, so we can use this to detect contradictions *)
-  let is_less_than ((_,vs,ineq) as t) x y = 
+  let get_relations ((_,vs,ineq) as t) x y = 
     let get_information lhs =
       let rhs = get_rhs t lhs in
       match rhs with 
@@ -73,7 +73,7 @@ struct
       (*We need to know which root a constant is referring to, so we use this the trivial equation to carry that information*)
       | (_,o,_) -> (Rhs.var_zero lhs, Value.of_bigint o) 
     in
-    Ineq.is_less_than (get_information x) (get_information y) ineq
+    Ineq.get_relations (get_information x) (get_information y) ineq
 
 
   let get_value t lhs = 
@@ -166,6 +166,7 @@ struct
   let forget_variable ((econj, _, _) as d) var = 
     let rhs_var = get_rhs d var in
     let value_var = get_value d var in
+    (*Forgetting EConj, but also return new representative if it changed*)
     let (econj', vs', ineq'), newRoot =
       (let ref_var_opt = Tuple3.first rhs_var in
        match ref_var_opt with
@@ -192,29 +193,31 @@ struct
           | [] -> d, None) (* empty cluster means no work for us *)
        | _ -> d, None) (* variable is either a constant or expressed by another refvar *) in
     (*Forget old information*)
-    let econj'' = (fst econj', IntMap.remove var (snd econj')) in (* set d(var) to unknown, finally *)
+    let econj'' = (fst econj', IntMap.remove var (snd econj')) in 
     let vs'' = IntMap.remove var vs' in
     let ineq'' = Ineq.forget_variable ineq' var in
     let d' = (econj'', vs'', ineq'') in
-    (*Try restoring information for new head*)
-    let d'' = 
-      match newRoot with
-      | None -> d'
-      | Some newRoot -> 
-        let cond = 
-          match get_rhs d newRoot with
-          | (Some (c,_), o, d) when Z.equal c Z.one && Z.equal o Z.zero && Z.equal d Z.one -> Some Ineq.Eq
-          | rhs_new -> match Ineq.is_less_than (rhs_new, get_value d newRoot) (rhs_var, value_var) ineq'' with (*relation of new root to root before this call*)
-            | None -> None
-            | Some true -> Some Lt
-            | Some false -> Some Gt 
-        in let after_ineq = match cond with 
-            | None -> d'  
-            | Some cond -> econj'', vs'', Ineq.transfer var newRoot cond ineq' (get_rhs d) (get_value d) ineq'' (get_rhs d') (get_value d')
-        in set_value after_ineq newRoot @@ get_value d newRoot
-    in
-    if M.tracing then M.tracel "forget" "forget var_%d in { %s } -> { %s }" var (show d) (show d'');
-    d''
+    (*Try restoring information for new head if root changed*)
+    match newRoot with
+    | None -> d'
+    | Some newRoot -> 
+      (*restoring inequalities*)
+      let relations = 
+        match get_rhs d newRoot with
+        | (Some (c,_), o, d) when Z.equal c Z.one && Z.equal d Z.one -> [Relation.Eq, o]
+        | rhs_new -> Ineq.get_relations (rhs_new, get_value d newRoot) (rhs_var, value_var) ineq'' (*relation of new root to root before this call*)
+      in let after_ineq = 
+           let transfer_single_relation ineq_acc cond =
+             Ineq.transfer var newRoot cond ineq' (get_rhs d) (get_value d) ineq_acc (get_rhs d') (get_value d')
+           in econj'', vs'', List.fold transfer_single_relation ineq'' relations
+           (*restoring values*)
+      in set_value after_ineq newRoot @@ get_value d newRoot
+
+  let forget_variable d var = 
+    let res = forget_variable d var in
+    if M.tracing then M.tracel "forget" "forget var_%d in { %s } -> { %s }" var (show d) (show res);
+    res
+
 
   let dim_remove (ch: Apron.Dim.change) (econj, v, ineq) ~del =
     if Array.length ch.dim = 0 || is_empty (econj, v, ineq) then
@@ -432,10 +435,12 @@ struct
             | None -> Value.top
             | Some d -> 
               let v = Value.sub (EConjI.get_value d dim_a) (EConjI.get_value d dim_b) in
-              match EConjI.is_less_than d dim_a dim_b with
-              | None -> v
-              | Some true -> Value.meet v (Value.ending Z.minus_one)
-              | Some false -> Value.meet v (Value.starting Z.one)
+              let relations = EConjI.get_relations d dim_a dim_b in
+              let meet_relation v = function
+                | Relation.Lt, o -> Value.meet v @@ Value.ending @@ Z.sub o Z.one
+                | Relation.Eq, o -> Value.of_bigint o
+                | Relation.Gt, o -> Value.meet v @@ Value.starting @@ Z.add o Z.one
+              in List.fold meet_relation v relations 
           end
         | Binop (op, a, b, Int, _) -> (binop_function op) (eval a) (eval b)
         | Unop (op, a, Int, _) -> (unop_function op) (eval a)
@@ -451,30 +456,24 @@ struct
     let open Apron.Texpr1 in
     let inequality_from_add var expr = 
       let v = eval_texpr t expr in (*TODO we evaluate some subexpressions twice when calling this in assign_texpr -> bad for performance??*)
-      if Value.must_be_pos v then 
-        [(Ineq.Gt, var)]
-      else if Value.must_be_neg v then 
-        [(Ineq.Lt, var)]
-      else if Value.leq v (Value.of_bigint Z.zero) then 
-        [(Ineq.Eq, var)]
-      else if Value.leq v (Value.starting Z.zero) then 
-        [(Ineq.Ge, var)]
-      else if Value.leq v (Value.ending Z.zero) then
-        [(Ineq.Le, var)]
-      else
-        []
+      match Value.minimal v, Value.maximal v with
+      | Some (Int min), Some (Int maxi) when min = maxi -> [(Relation.Eq, min), var]
+      | Some (Int min), Some (Int maxi) -> [(Relation.Gt, min), var; (Relation.Lt, maxi), var]
+      | Some (Int min), _ -> [(Relation.Gt, min), var]
+      | _,Some (Int maxi) -> [(Relation.Lt, maxi), var]
+      | _,_ -> []
     in let inequality_from_mul var expr = 
          let v_expr = eval_texpr t expr in
          let v_var = eval_texpr t (Var var) in
          if   Value.leq v_expr (Value.of_bigint Z.one)
            || Value.leq v_var (Value.of_bigint Z.zero) 
-         then [(Ineq.Eq, var)]
+         then [((Relation.Eq, Z.zero), var)]
          else
            match Value.must_be_pos v_expr, Value.must_be_neg v_expr, Value.must_be_pos v_var, Value.must_be_neg v_var with
-           | true, _   , true, _    -> if Value.contains v_expr Z.one then [Ineq.Ge, var] else [Ineq.Gt, var]
-           | _,    true, _   , true -> [Ineq.Gt, var]
-           | true, _   , _   , true -> if Value.contains v_expr Z.one then [Ineq.Le, var] else [Ineq.Lt, var] 
-           | _   , true, true, _    -> [Ineq.Lt, var]
+           | true, _   , true, _    -> if Value.contains v_expr Z.one then [(Relation.Gt, Z.minus_one), var] else [(Relation.Gt, Z.zero), var]
+           | _,    true, _   , true -> [(Relation.Gt, Z.zero), var]
+           | true, _   , _   , true -> if Value.contains v_expr Z.one then [(Relation.Lt, Z.one), var] else [(Relation.Lt, Z.zero), var] 
+           | _   , true, true, _    -> [(Relation.Lt, Z.zero), var]
            | _   , _   , _   , _    -> []
     in match texpr with 
     | Binop (Add, Var x, Var y, _, _) -> inequality_from_add x (Var y) @ inequality_from_add y (Var x)
@@ -484,73 +483,53 @@ struct
     | Binop (Mul, e, Var y, _, _)
     | Binop (Mul, Var y, e, _, _) -> inequality_from_mul y e
     | Binop (Sub, Var y, e, _, _) ->       
-      let v = eval_texpr t e in 
-      if Value.must_be_pos v then 
-        [(Ineq.Lt, y)]
-      else if Value.must_be_neg v then 
-        [(Ineq.Gt, y)]
-      else if Value.leq v (Value.of_bigint Z.zero) then 
-        [(Ineq.Eq, y)]
-      else if Value.leq v (Value.starting Z.zero) then 
-        [(Ineq.Le, y)]
-      else if Value.leq v (Value.ending Z.zero) then
-        [(Ineq.Ge, y)]
-      else
-        []
+      let v = eval_texpr t e in begin
+        match Value.minimal v, Value.maximal v with
+        | Some (Int min), Some (Int maxi) when min = maxi -> [(Relation.Eq, Z.neg min), y]
+        | Some (Int min), Some (Int maxi) -> [(Relation.Lt, Z.neg  min), y; (Relation.Gt, Z.neg maxi), y]
+        | Some (Int min), _ -> [(Relation.Lt, Z.neg min), y]
+        | _,Some (Int maxi) -> [(Relation.Gt, Z.neg maxi), y]
+        | _,_ -> []
+      end
     | Binop (Div, Var y, e, _, _) -> begin
         let v_expr = eval_texpr t e in
         let v_var = eval_texpr t (Var y) in
         if   Value.leq v_expr (Value.of_bigint Z.one)
           || Value.leq v_var (Value.of_bigint Z.zero) 
-        then [(Ineq.Eq, y)]
+        then [((Relation.Eq, Z.zero), y)]
         else
           match Value.must_be_pos v_expr, Value.must_be_neg v_expr, Value.must_be_pos v_var, Value.must_be_neg v_var with
-          | true, _   , true, _    -> if Value.contains v_expr Z.one then [Ineq.Le, y] else [Ineq.Lt, y]
-          | _,    true, _   , true -> [Ineq.Gt, y]
-          | true, _   , _   , true -> if Value.contains v_expr Z.one then [Ineq.Ge, y] else [Ineq.Gt, y] 
-          | _   , true, true, _    -> [Ineq.Lt, y]
+          | true, _   , true, _    -> if Value.contains v_expr Z.one then [(Relation.Lt, Z.one), y] else [(Relation.Lt, Z.zero), y] 
+          | _,    true, _   , true -> [(Relation.Gt, Z.zero), y]
+          | true, _   , _   , true -> if Value.contains v_expr Z.one then [(Relation.Gt, Z.minus_one), y] else [(Relation.Gt, Z.zero), y]
+          | _   , true, true, _    -> [(Relation.Lt, Z.zero), y] 
           | _   , _   , _   , _    -> []
       end
     | Binop (Mod, e, Var y, _, _) -> 
       let v_var = eval_texpr t (Var y) in
       if Value.must_be_pos v_var then
-        [Ineq.Lt, y]
+        [(Relation.Lt, Z.zero), y]
       else if Value.must_be_neg v_var then 
-        [Ineq.Gt, y]
+        [(Relation.Gt, Z.zero), y]
       else []
     | Unop (Neg, e, _, _) ->
-      let v = eval_texpr t e in
-      let negate (cond, var) =
-        if Value.must_be_pos v then 
-          match cond with 
-          | Ineq.Lt | Ineq.Le | Ineq.Eq -> Some (Ineq.Lt, var)
-          | _ -> None
-        else if Value.must_be_neg v then 
-          match cond with 
-          | Ineq.Gt | Ineq.Ge | Ineq.Eq -> Some (Ineq.Gt, var)
-          | _ -> None
-        else if Value.leq v (Value.of_bigint Z.zero) then 
-          Some (cond, var)
-        else if Value.leq v (Value.starting Z.zero) then 
-          match cond with 
-          | Ineq.Lt -> Some (Ineq.Lt, var)
-          | Ineq.Le | Ineq.Eq -> Some (Ineq.Le, var)
-          | _ -> None
-        else if Value.leq v (Value.ending Z.zero) then
-          match cond with 
-          | Ineq.Gt -> Some (Ineq.Gt, var)
-          | Ineq.Ge | Ineq.Eq -> Some (Ineq.Ge, var)
-          | _ -> None
-        else
-          None
-      in List.filter_map negate (to_inequalities t e)
+      let v = eval_texpr t e in begin
+        match Value.minimal v, Value.maximal v with 
+        | Some (Int min), _ when Z.geq min Z.zero -> 
+          let neg_cond = (Relation.Lt, Z.sub Z.one @@ Z.add min min ) in (*relation of -x to x*)
+          List.filter_map (fun (old_cond,var) -> BatOption.map (fun x -> x,var) @@ Relation.combine neg_cond old_cond) (to_inequalities t e)
+        | _, Some (Int maxi) when Z.leq maxi Z.zero -> 
+          let neg_cond = (Relation.Gt, Z.sub Z.minus_one @@ Z.add maxi maxi ) in (*relation of -x to x*)
+          List.filter_map (fun (old_cond,var) -> BatOption.map (fun x -> x,var) @@ Relation.combine neg_cond old_cond) (to_inequalities t e)
+        | _,_ -> []
+      end
     | Unop (Cast, e, _, _) -> to_inequalities t e
-    | Var x -> [(Ineq.Eq, x)]
+    | Var x -> [((Relation.Eq, Z.zero), x)]
     | _ -> []
 
   let to_inequalities (t:t) texpr = 
     let res = to_inequalities t texpr in
-    let show_ineq (cond, var) = Ineq.show_cond cond ^ " " ^ Var.show var ^ ", "
+    let show_ineq (cond, var) = Relation.show "expr" cond (Var.show var) ^ ", "
     in if M.tracing then M.tracel "inequalities" "expr: %a ineq: %s" Texpr1.Expr.pretty texpr (List.fold (^) "" @@ List.map show_ineq res);
     res 
 
@@ -665,11 +644,15 @@ struct
       let refine_var d var value =
         let dim = Environment.dim_of_var t.env var in
         if is_inequality then begin
-          match Value.to_int value, Value.to_int (EConjI.get_value d dim) with 
-          | Some v, Some i when TopIntOps.equal v i ->
-            if M.tracing then M.trace "refine_tcons" "inequality %s <> %s must be wrong" (Var.to_string var) (Value.show value);
-            raise EConj.Contradiction
-          | _ -> d (*TODO if value is a constant, we sometimes could do some refinement*)
+          (*If the value is at the bounds of the interval of var, we can make it smaller*)
+          match Value.to_int value with 
+          | Some (Int v) -> let old_value = (EConjI.get_value d dim) in 
+            if Value.minimal old_value = Some (Int v) then 
+              EConjI.meet_with_one_value dim (Value.starting @@ Z.add v Z.one) d false
+            else if Value.maximal old_value = Some (Int v) then 
+              EConjI.meet_with_one_value dim (Value.ending @@ Z.sub v Z.one) d false
+            else d 
+          | _-> d
         end else (
           if M.tracing then M.trace "refine_tcons" "refining var %s with %s" (Var.to_string var) (Value.show value) ;
           EConjI.meet_with_one_value dim value d false )
@@ -692,7 +675,7 @@ struct
             | Sub -> refine_both (Value.add) (Fun.flip Value.sub) 
             (*Because the overflow handeling in SharedFunctions guarantees us no wrapping behaviour, this is always invertible *)
             | Mul -> refine_both (Value.div) (Value.div)
-            (*DIV and MOD are largely inspired by BaseInvariant*)
+            (*DIV and MOD are largely adapted from BaseInvariant*)
             | Div -> 
               (* Integer division means we need to add the remainder, so instead of just `a = c*b` we have `a = c*b + a%b`.
                * However, a%b will give [-b+1, b-1] for a=top, but we only want the positive/negative side depending on the sign of c*b.
@@ -771,20 +754,37 @@ struct
       in let refine_inequalities ((econ, vs, ineq) as d) expr = 
            let rhss = EConjI.get_rhs d in
            let vss = EConjI.get_value d in
-           match expr with 
-           (*TODO we could use to_inequalities for more flexible handeling?*)
-           | Binop (Sub, Var a, Var b, Int, _) -> 
-             begin
-               let dim_a = Environment.dim_of_var t.env a in
-               let dim_b = Environment.dim_of_var t.env b in
-               if M.tracing then M.tracel "meet_condition" "calling from refine inside %s" (EConjI.show d)   ;
-               let ineq' = match Tcons1.get_typ tcons with 
-                 | EQ -> Ineq.meet_condition dim_a dim_b Ineq.Eq rhss vss ineq
-                 | SUP -> Ineq.meet_condition dim_b dim_a Ineq.Lt rhss vss ineq
-                 | SUPEQ -> Ineq.meet_condition dim_b dim_a Ineq.Le rhss vss ineq
-                 | _ -> ineq
-               in (econ, vs, ineq')
-             end
+           (*a - b + interval (in arbitrary order)*)
+           let meet_relation a b value = 
+             let dim_a = Environment.dim_of_var t.env a in
+             let dim_b = Environment.dim_of_var t.env b in
+             if M.tracing then M.tracel "meet_relation" "calling from refine with %s inside %s" (Tcons1.show tcons) (EConjI.show d);
+             let ineq', value_refinements = match Value.minimal value, Value.maximal value, Tcons1.get_typ tcons with
+               | Some (Int min), _, SUP -> Ineq.meet_relation dim_b dim_a (Relation.Lt, min) rhss vss ineq 
+               | Some (Int min), _, SUPEQ -> Ineq.meet_relation dim_b dim_a (Relation.Lt, Z.add Z.one min) rhss vss ineq 
+               | Some min, Some max, EQ -> begin 
+                   let ineq, refine = match min with 
+                     | Int min -> Ineq.meet_relation dim_b dim_a (Relation.Gt, Z.sub min Z.one) rhss vss ineq 
+                     | _ -> ineq, []
+                   in match max with 
+                   | Int max -> BatTuple.Tuple2.map2 ((@) refine) @@ Ineq.meet_relation dim_b dim_a (Relation.Lt, Z.add Z.one max) rhss vss ineq 
+                   | _ -> ineq, refine
+                 end
+               | _, _,_ -> ineq, []
+             in let d' = (econ, vs, ineq')
+             in List.fold (fun d (var,value) -> EConjI.meet_with_one_value var value d false) d' value_refinements
+           in match expr with (*TODO we could do this in a more general way -> normalisation??*)
+           (*currently only hits if two variables are at the first two levels. Also, we only choose one pattern even if multiple are possible 
+             e.g. x + y - z arbitrarily selects x or y to convert into an interval, instead we could meet for both*)
+           | Binop (Add, Var a, (Binop (Sub, exp,   Var b,_,_)),_,_) 
+           | Binop (Add, exp,   (Binop (Sub, Var a, Var b,_,_)),_,_) 
+           | Binop (Add, (Binop (Sub, exp,   Var b,_,_)), Var a, _,_) 
+           | Binop (Add, (Binop (Sub, Var a, Var b,_,_)), exp,   _,_)
+           | Binop (Sub, exp,   (Binop (Sub, Var b, Var a,_,_)),_,_) -> meet_relation a b (eval_texpr {d=Some d;env=t.env} exp)
+           | Binop (Sub, Var a, Var b, _, _) -> meet_relation a b (Value.of_bigint Z.zero)
+           | Binop (Sub, (Binop (Sub, Var a, Var b,_,_)), exp,   _,_) 
+           | Binop (Sub, Var a, (Binop (Add, Var b, exp,_,_)),_,_) 
+           | Binop (Sub, Var a, (Binop (Add, exp, Var b,_,_)),_,_) -> meet_relation a b (Value.neg @@ eval_texpr {d=Some d;env=t.env} exp)
            | _ -> d
       in try 
         let expr = to_expr @@ Tcons1.get_texpr1 tcons in 
@@ -987,6 +987,7 @@ struct
           assign_const (forget_var t var) var_i off divi
         | Some (Some (coeff_var,exp_var), off, divi) when var_i = exp_var ->
           (* Statement "assigned_var = (coeff_var*assigned_var + off) / divi" *)
+          (*TODO in this case, the transfer of information could be more precise for the exact inequalities! But currently COndition.t can not transfer that information*)
           let econji' = econj, IntMap.remove var_i vs, Ineq.forget_variable ineq_old var_i in
           {d=Some (EConjI.affine_transform econji' var_i (coeff_var, var_i, off, divi)); env=t.env }          
         | Some (Some monomial, off, divi) ->
@@ -995,19 +996,20 @@ struct
       in begin match t'.d with 
           None -> if M.tracing then M.tracel "ops" "assign_texpr resulted in bot (before: %s, expr: %s) " (show t) (Texpr1.show (Texpr1.of_expr t.env texp));
           bot_env
-        | Some ((econ, vs, ineq) as d') -> 
-          if M.tracing then M.tracel "assign_texpr" "assigning %s = %s before inequality: %s" (Var.show var) (Texpr1.show (Texpr1.of_expr t.env texp)) (show {d = Some (econ, vs, ineq); env = t.env});
-          let meet_cond ineq (cond, var) = 
+        | Some d' -> 
+          if M.tracing then M.tracel "assign_texpr" "assigning %s = %s before inequality: %s" (Var.show var) (Texpr1.show (Texpr1.of_expr t.env texp)) (show {d = Some d'; env = t.env});
+          let meet_cond (e,v,ineq) (cond, var) = 
             let dim = Environment.dim_of_var t.env var in
             if dim <> var_i then 
-              Ineq.meet_condition var_i dim cond (EConjI.get_rhs d') (EConjI.get_value d') ineq
+              let ineq', refinements = Ineq.meet_relation var_i dim cond (EConjI.get_rhs d') (EConjI.get_value d') ineq
+              in List.fold (fun d (var,value) -> EConjI.meet_with_one_value var value d false) (e,v,ineq') refinements 
             else
-              (*TODO If cond = Eq, we could restore the previous rhs. Does this ever happen?*)
-              Ineq.transfer dim dim cond ineq_old (EConjI.get_rhs d) (EConjI.get_value d) ineq (EConjI.get_rhs d') (EConjI.get_value d')
+              (*TODO If cond = Eq, we could restore the previous rhs. Does this ever happen without being handled above?*)
+              e,v,Ineq.transfer dim dim cond ineq_old (EConjI.get_rhs d) (EConjI.get_value d) ineq (EConjI.get_rhs d') (EConjI.get_value d')
           in
-          let ineq' = List.fold meet_cond ineq (VarManagement.to_inequalities t texp) in
-          if M.tracing then M.tracel "assign_texpr" "after inequality: %s" (show {d = Some (econ, vs, ineq'); env = t.env});
-          {d = Some (econ, vs, ineq'); env = t'.env} 
+          let d'' = List.fold meet_cond d' (VarManagement.to_inequalities t texp) in
+          if M.tracing then M.tracel "assign_texpr" "after inequality: %s" (show {d = Some d''; env = t.env});
+          {d = Some d''; env = t'.env} 
       end
     | None -> bot_env
 

@@ -6,7 +6,7 @@ open Analyses
 include RelationAnalysis
 
 module NoIneq = LinearTwoVarEqualityDomainPentagon.D2(PentagonSubDomains.NoInequalties)
-module WithIneq = LinearTwoVarEqualityDomainPentagon.D2(PentagonSubDomains.SimpleInequalities)
+module WithIneq = LinearTwoVarEqualityDomainPentagon.D2(PentagonSubDomains.LinearInequalities)
 
 let spec_module: (module MCPSpec) Lazy.t =
   lazy (
