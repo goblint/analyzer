@@ -139,8 +139,8 @@ post-messages: [
 ]
 pin-depends: [
   [
-    "goblint-cil.2.0.5"
-    "git+https://github.com/goblint/cil.git#f5ee39bd344dc74e2a10e407d877e0ddf73c9c6f"
+    "goblint-cil.2.0.6"
+    "git+https://github.com/goblint/cil.git#8385ab315bc7461f6801af57673c64731bfa036a"
   ]
   [
     "camlidl.1.12"
