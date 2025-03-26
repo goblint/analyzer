@@ -214,8 +214,9 @@ struct
       in set_value after_ineq newRoot @@ get_value d newRoot
 
   let forget_variable d var = 
+    if M.tracing then M.tracel "forget" "forget var_%d in { %s } " var (show d);
     let res = forget_variable d var in
-    if M.tracing then M.tracel "forget" "forget var_%d in { %s } -> { %s }" var (show d) (show res);
+    if M.tracing then M.trace "forget" "-> { %s }" (show res);
     res
 
 
@@ -234,7 +235,7 @@ struct
   let meet_with_one_conj ((ts, is, ineq) as t:t) i (var, offs, divi) =
     let (var,offs,divi) = Rhs.canonicalize (var,offs,divi) in (* make sure that the one new conj is properly canonicalized *)
     let res : t =
-      let subst_var ((dim,econj), is, ineq) x (vary, o, d) =
+      let subst_var (((dim,econj), is, ineq) as t) x (vary, o, d) =
         let (vary, o, d) = Rhs.canonicalize (vary, o, d) in
         (* [[x substby (cy+o)/d ]] ((c'x+o')/d')             *)
         (* =====>   (c'cy + c'o+o'd)/(dd')                   *)
@@ -243,7 +244,7 @@ struct
             let open Z in Rhs.canonicalize (BatOption.map (fun (c, y)-> (c * c', y)) vary, c'*o + o'*d, d'*d)
           | e -> e
         in
-        let value = get_value (ts, is, ineq) x in
+        let value = get_value t x in
         if vary = None then begin
           if d <> Z.one then 
             (if M.tracing then M.tracel "meet_with_one_conj" "meet_with_one_conj substituting var_%d with constant %s, which is not an integer" i (Rhs.show (var,offs,divi));
@@ -251,10 +252,21 @@ struct
           if not @@ Value.contains value (Z.div offs divi) then 
             (if M.tracing then M.tracel "meet_with_one_conj" "meet_with_one_conj substituting var_%d with constant %s, Contradicts %s" (i) (Rhs.show (var,offs,divi)) (Value.show value);
              raise EConj.Contradiction)
-        end;        
-        let is' = IntMap.remove x is in (*if x was the representative, it might not be anymore -> remove value and add it back afterwards*)
-        let t' = (dim, IntMap.add x (vary, o, d) @@ IntMap.map adjust econj), is', ineq in (* in case of sparse representation, make sure that the equality is now included in the conjunction *)
-        set_value t' x value 
+        end;
+        let econj' = (dim, IntMap.add x (vary, o, d) @@ IntMap.map adjust econj) in (* in case of sparse representation, make sure that the equality is now included in the conjunction *)
+        match vary with 
+        | Some (c,y) -> (*x was a representant but is not anymore*)
+          let relations = 
+            if Z.equal c Z.one && Z.equal d Z.one then [Relation.Eq, o]
+            else Ineq.get_relations (get_rhs t x, value) (get_rhs t y, get_value t y) ineq (*relation of new root to root before this call*)
+          in let ineq' = 
+               let transfer_single_relation ineq_acc cond =
+                 Ineq.transfer x y cond ineq (get_rhs t) (get_value t) ineq_acc (get_rhs (econj', is, ineq)) (get_value (econj', is, ineq))
+               in List.fold transfer_single_relation ineq relations
+          in let is' = IntMap.remove x is in (*remove value and add it back in the new econj *)
+          let t' = econj', is', ineq' in
+          set_value t' x value 
+        | None -> econj', is, ineq
       in
       (match var, (EConj.get_rhs ts i) with
        (*| new conj      , old conj          *)
@@ -912,9 +924,19 @@ struct
         None ->  None 
       | Some econj'' ->
         if M.tracing then M.tracel "join" "join_econj of %s, %s resulted in %s" (EConjI.show x) (EConjI.show y) (EConj.show @@ snd econj'');
-        (*TODO: I'm not sure if this is precise enough in all cases or if we would need to do something similar to collecting the values!*)
         let ineq' = (if widen then Ineq.widen else Ineq.join) ineq_x (EConjI.get_value x) ineq_y (EConjI.get_value y) in
-        Some (collect_values x y econj'' ((Environment.size env)-1) (econj'', IntMap.empty, ineq'))         
+        let (e,v,i) as d' = collect_values x y econj'' ((Environment.size env)-1) (econj'', IntMap.empty, ineq') in
+        (*We do not want to save inequalities for non-representants. in some cases, we can transfer these*)
+        (*TODO this feels inefficient, but I'm not sure how else to do it*)
+        (*TODO here and at forgetvar, we could be more precise by transforming with the whole rhs!!*)
+        let not_constant (c,_,_) = BatOption.is_some c in 
+        let transfer_if_possible var rhs ineq_acc = 
+          match rhs with 
+          | (Some (c,v), o, d) when Z.equal c d -> Ineq.transfer var v (Relation.Eq, Z.neg @@ Z.divexact o d) ineq' (EConjI.get_rhs d') (EConjI.get_value d') ineq_acc (EConjI.get_rhs d') (EConjI.get_value d')
+          | _ -> ineq_acc
+        in
+        let i' = EConj.IntMap.fold (fun var rhs ineq_acc -> if not_constant rhs then transfer_if_possible var rhs @@ Ineq.forget_variable ineq_acc var else ineq_acc) (snd econj'') i in
+        Some (e,v,i')        
     in
     (*Normalize the two domains a and b such that both talk about the same variables*)
     match a.d, b.d with

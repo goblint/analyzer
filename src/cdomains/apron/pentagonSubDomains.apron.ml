@@ -898,7 +898,9 @@ module LinearInequalities: TwoVarInequalities = struct
          in BatEnum.append (IntMap.keys @@ IntMap.find_default IntMap.empty root t_old) (List.enum @@ IntMap.fold (fun k ys acc -> if IntMap.mem root ys then k :: acc else acc) t_old [])   
     in let transfer_single_condition y t' old_cond =
          match Relation.combine cond old_cond with 
-         | Some new_cond -> fst @@ meet_relation x_new y new_cond get_rhs get_value t' 
+         | Some new_cond -> 
+           if M.tracing then M.tracel "transfer" "combined %s , %s -> %s" (Relation.show (Int.to_string x_new) cond (Int.to_string x) ) (Relation.show (Int.to_string x) old_cond (Int.to_string y) ) (Relation.show (Int.to_string x_new) new_cond (Int.to_string y) );  
+           fst @@ meet_relation x_new y new_cond get_rhs get_value t' 
          | None -> t'
     in let transfer_single_var t' y = List.fold (transfer_single_condition y ) t' (get_old_condition x y) 
     in BatEnum.fold (transfer_single_var) t vars_to_check
