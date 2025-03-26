@@ -31,7 +31,7 @@ struct
       Obj.obj (man.ask (PartAccess Point))
 
     let add man ((l, _): LockDomain.AddrRW.t) =
-      let after: LockEvent.t = (l, man.prev_node, part_access man) in (* use octx for access to use locksets before event *)
+      let after: LockEvent.t = (l, man.prev_node, part_access man) in (* use oman for access to use locksets before event *)
       D.iter (fun before ->
           side_lock_event_pair man before after
         ) man.local;

@@ -359,7 +359,7 @@ end
 module Variable = struct
   type t = varinfo
 
-  let is_integral v = match v.vtype with TInt _ -> true | _ -> false
+  let is_integral v = isIntegralType v.vtype
 
   let is_global v = v.vglob
 

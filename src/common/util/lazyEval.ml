@@ -11,11 +11,17 @@ module Make (M : sig
   end) : sig
   type t
   val make : M.t -> t
+  val is_val : t -> bool
   val force : t -> M.result
 end = struct
   type t = { mutable value : [ `Computed of M.result | `Closure of M.t ] }
 
   let make arg = { value = `Closure arg }
+
+  let is_val l =
+    match l.value with
+    | `Computed _ -> true
+    | `Closure _ -> false
 
   let force l =
     match l.value with

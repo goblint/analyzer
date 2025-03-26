@@ -11,7 +11,7 @@ int main()
   if (rand())
   {
     // Loop inside the if part
-    for (int i = 1; i >= 0; i++) // NONTERMLOOP termination analysis shall mark beginning of while as non-terminating loop
+    for (unsigned int i = 1; i >= 0; i++) // NONTERMLOOP termination analysis shall mark beginning of while as non-terminating loop
     {
       printf("Loop inside if part: %d\n", i);
     }

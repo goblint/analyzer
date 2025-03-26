@@ -257,7 +257,11 @@ let get_type fb e =
   let r = get_type fb e in
   (* printf "result = %a\n" d_acct r; *)
   match r with
-  | `Type (TPtr (t,a)) -> `Type t (* Why this special case? Almost always taken if not `Struct. *)
+  | `Type t as x ->
+    begin match Cil.unrollType t with
+      | TPtr (t, a) ->  `Type t (* Why this special case? Almost always taken if not `Struct. *)
+      | _ -> x
+    end
   | x -> x (* Mostly for `Struct, but also rare cases with non-pointer `Type. Should they happen at all? *)
 
 let get_val_type e: acc_typ =

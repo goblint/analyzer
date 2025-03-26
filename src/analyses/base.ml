@@ -271,8 +271,8 @@ struct
           let n_offset = iDtoIdx n in
           begin match t with
             | Some t ->
-              let (f_offset_bits, _) = bitsOffset t (Field (f, NoOffset)) in
-              let f_offset = IdxDom.of_int (Cilfacade.ptrdiff_ikind ()) (Z.of_int (f_offset_bits / 8)) in
+              let f_offset_bytes = Cilfacade.bytesOffsetOnly t (Field (f, NoOffset)) in
+              let f_offset = IdxDom.of_int (Cilfacade.ptrdiff_ikind ()) (Z.of_int f_offset_bytes) in
               begin match IdxDom.(to_bool (eq f_offset (neg n_offset))) with
                 | Some true -> `NoOffset
                 | _ -> `Field (f, `Index (n_offset, `NoOffset))
@@ -518,7 +518,7 @@ struct
   (* From a list of values, presumably arguments to a function, simply extract
    * the pointer arguments. *)
   let get_ptrs (vals: value list): address list =
-    let f (x:value) acc = match x with
+    let f acc (x:value) = match x with
       | Address adrs when AD.is_top adrs ->
         M.info ~category:Unsound "Unknown address given as function argument"; acc
       | Address adrs when AD.to_var_may adrs = [] -> acc
@@ -528,7 +528,7 @@ struct
       | Top -> M.info ~category:Unsound "Unknown value type given as function argument"; acc
       | _ -> acc
     in
-    List.fold_right f vals []
+    List.fold_left f [] vals
 
   let rec reachable_from_value ask (value: value) (t: typ) (description: string)  =
     let empty = AD.empty () in
@@ -572,7 +572,7 @@ struct
     if M.tracing then M.traceli "reachability" "Checking reachable arguments from [%a]!" (d_list ", " AD.pretty) args;
     let empty = AD.empty () in
     (* We begin looking at the parameters: *)
-    let argset = List.fold_right (AD.join) args empty in
+    let argset = List.fold_left (AD.join) empty args in
     let workset = ref argset in
     (* And we keep a set of already visited variables *)
     let visited = ref empty in
@@ -624,6 +624,8 @@ struct
 
   let drop_intervalSet = CPA.map (function Int x -> Int (ID.no_intervalSet x) | x -> x )
 
+  let drop_bitfield = CPA.map (function Int x -> Int (ID.no_bitfield x) | x -> x )
+
   let context man (fd: fundec) (st: store): store =
     let f keep drop_fn (st: store) = if keep then st else { st with cpa = drop_fn st.cpa} in
     st |>
@@ -634,6 +636,7 @@ struct
     %> f (ContextUtil.should_keep ~isAttr:GobContext ~keepOption:"ana.base.context.int" ~removeAttr:"base.no-int" ~keepAttr:"base.int" fd) drop_ints
     %> f (ContextUtil.should_keep ~isAttr:GobContext ~keepOption:"ana.base.context.interval" ~removeAttr:"base.no-interval" ~keepAttr:"base.interval" fd) drop_interval
     %> f (ContextUtil.should_keep ~isAttr:GobContext ~keepOption:"ana.base.context.interval_set" ~removeAttr:"base.no-interval_set" ~keepAttr:"base.interval_set" fd) drop_intervalSet
+    %> f (ContextUtil.should_keep ~isAttr:GobContext ~keepOption:"ana.base.context.bitfield" ~removeAttr:"base.no-bitfield" ~keepAttr:"base.bitfield" fd) drop_bitfield
 
 
   let reachable_top_pointers_types man (ps: AD.t) : Queries.TS.t =
@@ -925,7 +928,7 @@ struct
     (* | Lval (Mem e, ofs) -> get ~man st (eval_lv ~man (Mem e, ofs)) *)
     | (Mem e, ofs) ->
       (*if M.tracing then M.tracel "cast" "Deref: lval: %a" d_plainlval lv;*)
-      let rec contains_vla (t:typ) = match t with
+      let rec contains_vla (t:typ) = match Cil.unrollType t with
         | TPtr (t, _) -> contains_vla t
         | TArray(t, None, args) -> true
         | TArray(t, Some exp, args) when isConstant exp -> contains_vla t
@@ -1449,7 +1452,8 @@ struct
         match eval_rv_address ~man man.local e with
         | Address a ->
           let slen = Seq.map String.length (List.to_seq (AD.to_string a)) in
-          let lenOf = function
+          let lenOf t =
+            match Cil.unrollType t with
             | TArray (_, l, _) -> (try Some (lenOfArray l) with LenOfArray -> None)
             | _ -> None
           in
@@ -1560,7 +1564,7 @@ struct
               let lval = Addr.Mval.to_cil mval in
               (try `Lifted (Bytes.to_string (Hashtbl.find char_array lval))
                with Not_found -> Queries.Result.top q)
-            | _ -> (* what about ISChar and IUChar? *)
+            | _ -> (* TODO: what about ISChar and IUChar? what about TEnum? *)
               (* ignore @@ printf "Type %a\n" d_plaintype t; *)
               Queries.Result.top q
           end
@@ -1613,7 +1617,7 @@ struct
   let set ~(man: _ man) ?(invariant=false) ?(blob_destructive=false) ?lval_raw ?rval_raw ?t_override (st: store) (lval: AD.t) (lval_type: Cil.typ) (value: value) : store =
     let update_variable x t y z =
       if M.tracing then M.tracel "set" ~var:x.vname "update_variable: start '%s' '%a'\nto\n%a" x.vname VD.pretty y CPA.pretty z;
-      let r = update_variable x t y z in (* refers to defintion that is outside of set *)
+      let r = update_variable x t y z in (* refers to definition that is outside of set *)
       if M.tracing then M.tracel "set" ~var:x.vname "update_variable: start '%s' '%a'\nto\n%a\nresults in\n%a" x.vname VD.pretty y CPA.pretty z CPA.pretty r;
       r
     in
@@ -2027,10 +2031,8 @@ struct
       match exp with
       | None -> nst
       | Some exp ->
-        let t_override = match Cilfacade.fundec_return_type fundec with
-          | TVoid _ -> M.warn ~category:M.Category.Program "Returning a value from a void function"; assert false
-          | ret -> ret
-        in
+        let t_override = Cilfacade.fundec_return_type fundec in
+        assert (not (Cil.isVoidType t_override)); (* Returning a value from a void function, CIL removes the Return expression for us anyway. *)
         let rv = eval_rv ~man man.local exp in
         let st' = set ~man ~t_override nst (return_var ()) t_override rv in
         match ThreadId.get_current ask with
@@ -2281,13 +2283,12 @@ struct
         ) a
     | _ -> false
 
-  let get_size_of_ptr_target man ptr =
+  let get_size_of_ptr_target man ptr = (* TODO: deduplicate with memOutOfBounds *)
     let intdom_of_int x =
       ID.of_int (Cilfacade.ptrdiff_ikind ()) (Z.of_int x)
     in
     let size_of_type_in_bytes typ =
-      let typ_size_in_bytes = (bitsSizeOf typ) / 8 in
-      intdom_of_int typ_size_in_bytes
+      intdom_of_int (Cilfacade.bytesSizeOf typ)
     in
     if points_to_heap_only man ptr then
       (* Ask for BlobSize from the base address (the second component being set to true) in order to avoid BlobSize giving us bot *)
@@ -2299,7 +2300,7 @@ struct
         let pts_elems_to_sizes (addr: Queries.AD.elt) =
           begin match addr with
             | Addr (v, _) ->
-              begin match v.vtype with
+              begin match Cil.unrollType v.vtype with
                 | TArray (item_typ, _, _) ->
                   let item_typ_size_in_bytes = size_of_type_in_bytes item_typ in
                   begin match man.ask (Queries.EvalLength ptr) with

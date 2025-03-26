@@ -27,16 +27,26 @@ let isCharType t =
   | TInt ((IChar | ISChar | IUChar), _) -> true
   | _ -> false
 
+let isBoolType t =
+  match Cil.unrollType t with
+  | TInt (IBool, _) -> true
+  | _ -> false
+
 let isFloatType t =
   match Cil.unrollType t with
   | TFloat _ -> true
   | _ -> false
 
-let rec isVLAType t =
+let rec isVLAType t = (* TODO: use in base? *)
   match Cil.unrollType t with
   | TArray (et, len, _) ->
     let variable_len = GobOption.exists (Fun.negate Cil.isConstant) len in
     variable_len || isVLAType et
+  | _ -> false
+
+let isStructOrUnionType t =
+  match Cil.unrollType t with
+  | TComp _ -> true
   | _ -> false
 
 let is_first_field x = match x.fcomp.cfields with
@@ -381,6 +391,17 @@ let typeSigBlendAttributes baseAttrs =
   typeSigAddAttrs contageous
 
 
+let bytesSizeOf t =
+  let bits = bitsSizeOf t in
+  assert (bits mod 8 = 0);
+  bits / 8
+
+let bytesOffsetOnly t o =
+  let bits_offset, _ = bitsOffset t o in
+  assert (bits_offset mod 8 = 0);
+  bits_offset / 8
+
+
 (** {!Cil.mkCast} using our {!typeOf}. *)
 let mkCast ~(e: exp) ~(newt: typ) =
   let oldt =
@@ -565,7 +586,7 @@ let countLoc fn =
 
 
 let fundec_return_type f =
-  match f.svar.vtype with
+  match Cil.unrollType f.svar.vtype with
   | TFun (return_type, _, _, _) -> return_type
   | _ -> failwith "fundec_return_type: not TFun"
 
