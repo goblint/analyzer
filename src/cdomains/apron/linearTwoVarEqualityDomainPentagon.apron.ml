@@ -266,7 +266,7 @@ struct
           in let is' = IntMap.remove x is in (*remove value and add it back in the new econj *)
           let t' = econj', is', ineq' in
           set_value t' x value 
-        | None -> econj', is, ineq
+        | None -> econj', IntMap.remove x is, ineq (*we replaced x by a constant -> do not save a value anymore*)
       in
       (match var, (EConj.get_rhs ts i) with
        (*| new conj      , old conj          *)
