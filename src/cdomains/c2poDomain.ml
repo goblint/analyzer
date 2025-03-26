@@ -17,7 +17,9 @@ module C2PODomain = struct
   type domain = t
   include Printable.SimpleShow (struct type t = domain let show = show end)
 
-  let equal_standard cc1 cc2 =
+  let equal_standard x y  =
+    let cc1 = x.data in
+    let cc2 = y.data in
     let res =
       if exactly_equal cc1 cc2 then
         true
@@ -34,12 +36,14 @@ module C2PODomain = struct
         && equal_diseqs cc1 cc2
         && equal_bldis cc1 cc2
     in
-    if M.tracing then M.trace "c2po-equal" "equal eq classes. %b\nx=\n%s\ny=\n%s" res (show_all cc1) (show_all cc2);
+    if M.tracing then M.trace "c2po-equal" "equal eq classes. %b\nx=\n%s\ny=\n%s" res (show_all x) (show_all y);
     res
 
   let equal_normal_form x y =
+    let cc1 = x.data in
+    let cc2 = y.data in
     let res =
-      if exactly_equal x y then
+      if exactly_equal cc1 cc2 then
         true
       else
         let nf1 = get_normal_form x in
@@ -62,34 +66,43 @@ module C2PODomain = struct
 
   let bot() = failwith "not supported"
   let is_bot x = false
-  let empty () = init_cc ()
+  let empty () =
+    let cc = init_cc () in
+    data_to_t cc
+
   let init () = empty ()
   let top () = empty ()
-  let is_top cc =
+  let is_top x =
+    let cc = x.data in
     TUF.is_empty cc.uf &&
     Disequalities.is_empty cc.diseq &&
     BlDis.is_empty cc.bldis
 
-  let join_f a b join_cc_function =
+  let join_f x y join_cc_function =
+    let cc1 = x.data in
+    let cc2 = y.data in
     let res =
-      if exactly_equal a b then
-        a
+      if exactly_equal cc1 cc2 then
+        cc1
       else begin
         if M.tracing then M.tracel "c2po-join" "JOIN AUTOMATON. FIRST ELEMENT: %s\nSECOND ELEMENT: %s\n"
-            (show_all a) (show_all b);
+            (show_all x) (show_all y);
+        let a = cc1 in
+        let b = cc2 in
         let cc, _ = join_cc_function a b in
         let cmap1, _ = Disequalities.comp_map a.uf  in
         let cmap2, _ = Disequalities.comp_map b.uf in
         let cc = join_bldis a.bldis b.bldis a b cc cmap1 cmap2 in
         let cc = join_neq a.diseq b.diseq a b cc cmap1 cmap2 in
-        reset_normal_form cc
+        cc
       end
     in
+    let res = CongruenceClosure.data_to_t res in
     if M.tracing then M.tracel "c2po-join" "JOIN. JOIN: %s\n"
         (show_all res);
     res
 
-  let join a b =
+  let join (a: t) (b :t) =
     match GobConfig.get_string "ana.c2po.join_algorithm" with
     | "precise" ->
       if M.tracing then M.trace "c2po-join" "Join Automaton";
@@ -105,10 +118,10 @@ module C2PODomain = struct
     (* we calculate the join and then restrict to the term set of a' *)
     let join_result = join a b in
     let not_in_a_set t =
-      not @@ SSet.mem t a.set
+      not @@ SSet.mem t a.data.set
     in
-    let filtered_join = remove_terms not_in_a_set join_result in
-    reset_normal_form filtered_join
+    let filtered_join = remove_terms not_in_a_set join_result.data in
+    data_to_t filtered_join
 
   let widen_eq_classes a b =
     join_f a b widen_eq_no_automata
@@ -122,37 +135,43 @@ module C2PODomain = struct
       widen_eq_classes a b
 
 
-  let meet a b =
-    if M.tracing then M.trace "c2po-meet" "Meet x= %s; y=%s" (show a) (show b);
+  let meet x y  =
+    let cc1 = x.data in
+    let cc2 = y.data in
+    if M.tracing then M.trace "c2po-meet" "Meet x= %s; y=%s" (show x) (show y);
     let res =
-      if exactly_equal a b then
-        a
+      if exactly_equal cc1 cc2 then
+        cc1
       else
-        match get_conjunction a with
+        match get_conjunction x with
         | [] ->
-          b
+          cc2
         | a_conj ->
-          reset_normal_form (meet_conjs_opt a_conj b)
+          meet_conjs_opt a_conj cc2
     in
+    let res = data_to_t res in
     if M.tracing then M.trace "c2po-meet" "Meet result = %s" (show res);
     res
 
-  let narrow a b =
+  let narrow x y =
+    let cc1 = x.data in
+    let cc2 = y.data in
     let res =
-      if exactly_equal a b then
-        a
+      if exactly_equal cc1 cc2 then
+        cc1
       else
         let terms_contained_in_a = function
           | Equal (t1,t2,_)
           | Nequal (t1,t2,_)
           | BlNequal (t1,t2) ->
-            SSet.mem t1 a.set && SSet.mem t2 a.set
+            SSet.mem t1 cc1.set && SSet.mem t2 cc1.set
         in
-        let b_conj = get_conjunction b in
+        let b_conj = get_conjunction_from_data cc2 in
         let b_conj = List.filter terms_contained_in_a b_conj in
-        let meet = meet_conjs_opt b_conj a in
-        reset_normal_form meet
+        let meet = meet_conjs_opt b_conj cc1 in
+        meet
     in
+    let res = data_to_t res in
     if M.tracing then M.trace "c2po-meet" "NARROW RESULT = %s" (show res);
     res
 
@@ -200,11 +219,11 @@ module D = struct
     | `Lifted x ->
       BatPrintf.fprintf f "<value>\n<map>\n<key>\nnormal form\n</key>\n<value>\n%s</value>\n<key>\nuf\n</key>\n<value>\n%s</value>\n<key>\nsubterm set\n</key>\n<value>\n%s</value>\n<key>\nmap\n</key>\n<value>\n%s</value>\n<key>\nmin. repr\n</key>\n<value>\n%s</value>\n<key>\ndiseq\n</key>\n<value>\n%s</value>\n</map>\n</value>\n"
         (XmlUtil.escape (Format.asprintf "%s" (show (`Lifted x))))
-        (XmlUtil.escape (Format.asprintf "%s" (TUF.show_uf x.uf)))
-        (XmlUtil.escape (Format.asprintf "%s" (SSet.show_set x.set)))
-        (XmlUtil.escape (Format.asprintf "%s" (LMap.show_map x.map)))
+        (XmlUtil.escape (Format.asprintf "%s" (TUF.show_uf x.data.uf)))
+        (XmlUtil.escape (Format.asprintf "%s" (SSet.show_set x.data.set)))
+        (XmlUtil.escape (Format.asprintf "%s" (LMap.show_map x.data.map)))
         (XmlUtil.escape (Format.asprintf "%s" (show_normal_form x.normal_form)))
-        (XmlUtil.escape (Format.asprintf "%s" (Disequalities.show_neq x.diseq)))
+        (XmlUtil.escape (Format.asprintf "%s" (Disequalities.show_neq x.data.diseq)))
     | `Bot ->
       BatPrintf.fprintf f "<value>\nbottom\n</value>\n"
 
