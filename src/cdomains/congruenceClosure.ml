@@ -813,13 +813,12 @@ let split conj =
    where all data structures are initialized with an empty map/set.
 *)
 let init_cc () =
-  let data = {uf = TUF.empty;
-              set = SSet.empty;
-              map = LMap.empty;
-              diseq = Disequalities.empty;
-              bldis = BlDis.empty}
-  in
-  data
+  {uf = TUF.empty;
+   set = SSet.empty;
+   map = LMap.empty;
+   diseq = Disequalities.empty;
+   bldis = BlDis.empty}
+
 
 (** Computes the closure of disequalities. *)
 let congruence_neq cc neg' =
