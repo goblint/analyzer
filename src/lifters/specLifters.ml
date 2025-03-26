@@ -22,6 +22,7 @@ module type LatticeLifter =
 module DomainLifter (N: NameLifter) (F: LatticeLifter) (S:Spec)
   : Spec with module G = S.G
           and module C = S.C
+          and module D = F (S.D)
 =
 struct
   module D = F (S.D)

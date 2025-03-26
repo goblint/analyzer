@@ -52,71 +52,29 @@ end
     All transfer functions reset the counter to 0, so counting only happens between old and new values at a local unknown. *)
 module DLifter (S: Spec): Spec =
 struct
-  module D =
+  module DD (D: Lattice.S) =
   struct
-    include Dom (S.D) (LocalChainParams)
+    include Dom (D) (LocalChainParams)
 
     let printXml f (b, i) =
-      BatPrintf.fprintf f "%a<analysis name=\"widen-delay\">%a</analysis>" S.D.printXml b Chain.printXml i
+      BatPrintf.fprintf f "%a<analysis name=\"widen-delay\">%a</analysis>" D.printXml b Chain.printXml i
+
+    let lift d = (d, 0)
+    let unlift (d, _) = d
   end
-  module G = S.G
-  module C = S.C
-  module V = S.V
-  module P =
+
+  module NameLifter =
   struct
-    include S.P
-    let of_elt (x, _) = of_elt x
+    let lift_name x = x ^ " with widening delay"
   end
+  include SpecLifters.DomainLifter (NameLifter) (DD) (S)
 
-  let name () = S.name () ^ " with widening delay"
-
-  type marshal = S.marshal
-  let init = S.init
-  let finalize = S.finalize
-
-  let startstate v = (S.startstate v, 0)
-  let exitstate  v = (S.exitstate  v, 0)
   let morphstate v (d, l) = (S.morphstate v d, l)
 
-  let conv (man: (D.t, G.t, C.t, V.t) man): (S.D.t, S.G.t, S.C.t, S.V.t) man =
-    { man with local = fst man.local
-             ; split = (fun d es -> man.split (d, 0) es)
-    }
-
-  let context man fd (d, _) = S.context (conv man) fd d
-  let startcontext () = S.startcontext ()
-
-  let lift_fun man f g h =
-    f @@ h (g (conv man))
-
-  let lift d = (d, 0)
-
-  let sync man reason = lift_fun man lift S.sync   ((|>) reason)
-  let query man (type a) (q: a Queries.t): a Queries.result = S.query (conv man) q
-  let assign man lv e = lift_fun man lift S.assign ((|>) e % (|>) lv)
-  let vdecl man v     = lift_fun man lift S.vdecl  ((|>) v)
-  let branch man e tv = lift_fun man lift S.branch ((|>) tv % (|>) e)
-  let body man f      = lift_fun man lift S.body   ((|>) f)
-  let return man r f  = lift_fun man lift S.return ((|>) f % (|>) r)
-  let asm man         = lift_fun man lift S.asm    identity
-  let skip man        = lift_fun man lift S.skip identity
-  let special man r f args = lift_fun man lift S.special ((|>) args % (|>) f % (|>) r)
-
-  let enter man r f args =
-    let liftmap = List.map (Tuple2.mapn lift) in
-    lift_fun man liftmap S.enter ((|>) args % (|>) f % (|>) r)
-  let combine_env man r fe f args fc es f_ask = lift_fun man lift S.combine_env (fun p -> p r fe f args fc (fst es) f_ask)
-  let combine_assign man r fe f args fc es f_ask = lift_fun man lift S.combine_assign (fun p -> p r fe f args fc (fst es) f_ask)
-
-  let threadenter man ~multiple lval f args = lift_fun man (List.map lift) (S.threadenter ~multiple) ((|>) args % (|>) f % (|>) lval)
-  let threadspawn man ~multiple lval f args fman = lift_fun man lift (S.threadspawn ~multiple) ((|>) (conv fman) % (|>) args % (|>) f % (|>) lval)
-
   let paths_as_set man =
-    let liftmap = List.map (fun x -> (x, snd man.local)) in
-    lift_fun man liftmap S.paths_as_set Fun.id
-
-  let event man e oman =
-    lift_fun man lift S.event ((|>) (conv oman) % (|>) e)
+    let liftmap = List.map (fun (x, _) -> (x, snd man.local)) in
+    (* TODO: expose conv from DomainLifter? *)
+    liftmap (paths_as_set man)
 end
 
 (** Lift {!S} to use widening delay for global unknowns. *)
