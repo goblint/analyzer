@@ -171,7 +171,10 @@ module MallocWrapper : MCPSpec = struct
       NodeVarinfoMap.mem_varinfo v
     | Q.IsMultiple v ->
       begin match NodeVarinfoMap.from_varinfo v with
-        | Some (_, _, c) -> UniqueCount.is_top c || not (man.ask Q.MustBeUniqueThread)
+        | Some (t, _, c) -> UniqueCount.is_top c ||
+                            (match t with
+                             | `Lifted tid -> not (Thread.is_unique tid)
+                             | _ -> true)
         | None -> false
       end
     | _ -> Queries.Result.top q
