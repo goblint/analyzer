@@ -715,14 +715,14 @@ module ArbitraryCoeffsSet = struct
                  | Some a, Some b -> TopIntOps.min a b
                  | _,_ -> failwith "trying to refine bot in inequalities"
                in match min_x with 
-               | Int min -> [y, Value.starting @@ Z.add Z.one @@ Z.sub min @@ round_up @@ Q.div c a]
+               | Int min -> [y, Value.starting @@ Z.add Z.one @@ Z.sub min @@ round_up @@ Q.div c b]
                | _ -> [] 
              else (*a/b x - c/b > y*)
                let max_x = match Value.maximal (Value.mul x_val (Value.of_bigint (round_down ba))) , Value.maximal @@ Value.mul x_val (Value.of_bigint (round_up ba)) with
                  | Some a, Some b -> TopIntOps.max a b
                  | _,_ -> failwith "trying to refine bot in inequalities"
                in match max_x with 
-               | Int max -> [y, Value.ending @@ Z.add Z.minus_one @@ Z.sub max @@ round_down @@ Q.div c a]
+               | Int max -> [y, Value.ending @@ Z.add Z.minus_one @@ Z.sub max @@ round_down @@ Q.div c b]
                | _ -> [] 
         in match Q.compare a Q.zero, Q.compare b Q.zero with
         | 0, 0 -> (*0 < c*) if Q.gt c Q.zero then [], true else raise EConj.Contradiction

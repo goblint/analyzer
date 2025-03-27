@@ -812,8 +812,9 @@ struct
       with EConj.Contradiction -> bot_env
 
   let refine_with_tcons t tcons = 
+    if M.tracing then M.tracel "refine_tcons" "refining %s with %s" (show t) (Tcons1.show tcons);
     let res = refine_with_tcons t tcons in
-    if M.tracing then M.tracel "refine_tcons" "before: %s \n refined with %s\n result: %s " (show t) (Tcons1.show tcons) (show res)  ;
+    if M.tracing then M.tracel "refine_tcons" "result: %s" (show res)  ;
     res
 
   let meet_with_one_conj t i (var, o, divi) =
