@@ -12,13 +12,13 @@ module Token = WideningToken
 module TS = SetDomain.ToppedSet (Token) (struct let topname = "Top" end)
 
 (** Reference to current {!add} implementation. Maintained by {!Lifter}. *)
-let add_ref: (Token.t -> unit) ref = ref (fun _ ->
+let add_ref: (Token.t -> unit) Domain.DLS.key = Domain.DLS.new_key (fun () _ ->
     if GobConfig.get_bool "ana.widen.tokens" then
       failwith "Unhandled widening token"
   )
 
 (** Add widening token to local state. *)
-let add t = !add_ref t
+let add t = (Domain.DLS.get add_ref) t
 
 
 (** Widening tokens added to side effects.
@@ -137,16 +137,16 @@ struct
 
   let lift_fun man f g h =
     let new_tokens = ref (snd man.local) in (* New tokens not yet used during this transfer function, such that it is deterministic. *)
-    let old_add = !add_ref in
+    let old_add = Domain.DLS.get add_ref in
     let old_local_tokens = !local_tokens in
-    add_ref := (fun t -> new_tokens := TS.add t !new_tokens);
+    Domain.DLS.set add_ref (fun t -> new_tokens := TS.add t !new_tokens);
     local_tokens := snd man.local;
     let d =
       Fun.protect (fun () ->
           h (g (conv man))
         ) ~finally:(fun () ->
           local_tokens := old_local_tokens;
-          add_ref := old_add
+          Domain.DLS.set add_ref old_add
         )
     in
     (* If transfer function exits via exception, then new tokens are forgotten.
