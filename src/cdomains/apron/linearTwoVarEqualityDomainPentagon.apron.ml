@@ -773,8 +773,8 @@ struct
              let dim_b = Environment.dim_of_var t.env b in
              if M.tracing then M.tracel "meet_relation" "calling from refine with %s inside %s" (Tcons1.show tcons) (EConjI.show d);
              let ineq', value_refinements = match Value.minimal value, Value.maximal value, Tcons1.get_typ tcons with
-               | Some (Int min), _, SUP -> Ineq.meet_relation dim_b dim_a (Relation.Lt, min) rhss vss ineq 
-               | Some (Int min), _, SUPEQ -> Ineq.meet_relation dim_b dim_a (Relation.Lt, Z.add Z.one min) rhss vss ineq 
+               | _, Some (Int max), SUP -> Ineq.meet_relation dim_b dim_a (Relation.Lt, max) rhss vss ineq 
+               | _, Some (Int max), SUPEQ -> Ineq.meet_relation dim_b dim_a (Relation.Lt, Z.add Z.one max) rhss vss ineq 
                | Some min, Some max, EQ -> begin 
                    if TopIntOps.equal min max then ineq, [] else (*If this is a constant, we have a equality that the lin2vareq domain should handle*)
                      let ineq, refine = match min with 
