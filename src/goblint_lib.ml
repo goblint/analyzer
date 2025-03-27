@@ -184,6 +184,7 @@ module SpecLifters = SpecLifters
 module LongjmpLifter = LongjmpLifter
 module RecursionTermLifter = RecursionTermLifter
 module ContextGasLifter = ContextGasLifter
+module WideningDelay = WideningDelay
 module WideningToken = WideningToken
 module WideningTokenLifter = WideningTokenLifter
 
