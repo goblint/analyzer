@@ -45,16 +45,26 @@ module Base =
   functor (S:EqConstrSys) ->
   functor (HM:Hashtbl.S with type key = S.v) ->
   functor (Hooks: Hooks with module S = S and module HM = HM) ->
+  functor (UpdateRule: Td3UpdateRule.S) ->
   struct
     open SolverBox.Warrow (S.Dom)
     include Generic.SolverStats (S) (HM)
     module VS = Set.Make (S.Var)
+
+    module UpdateRule = UpdateRule(S) (HM) (VS)
+
     let exists_key f hm = HM.exists (fun k _ -> f k) hm
+
+    let assert_can_receive_side x =
+      if Hooks.system x <> None then (
+        failwith ("side-effect to unknown w/ rhs: " ^ GobPretty.sprint S.Var.pretty_trace x);
+      )
 
     type solver_data = {
       st: (S.Var.t * S.Dom.t) list; (* needed to destabilize start functions if their start state changed because of some changed global initializer *)
       infl: VS.t HM.t;
       sides: VS.t HM.t;
+      update_rule_data: UpdateRule.data;
       rho: S.Dom.t HM.t;
       wpoint_gas: int HM.t; (** Tracks the widening gas of both side-effected and non-side-effected variables. Although they may have different gas budgets, they can be in the same map since no side-effected variable may ever have a rhs.*)
       stable: unit HM.t;
@@ -71,6 +81,7 @@ module Base =
       st = [];
       infl = HM.create 10;
       sides = HM.create 10;
+      update_rule_data = UpdateRule.create_empty_data ();
       rho = HM.create 10;
       wpoint_gas = HM.create 10;
       stable = HM.create 10;
@@ -119,6 +130,7 @@ module Base =
         wpoint_gas = HM.copy data.wpoint_gas;
         infl = HM.copy data.infl;
         sides = HM.copy data.sides;
+        update_rule_data = UpdateRule.copy_marshal data.update_rule_data;
         side_infl = HM.copy data.side_infl;
         side_dep = HM.copy data.side_dep;
         st = data.st; (* data.st is immutable *)
@@ -164,6 +176,7 @@ module Base =
       HM.iter (fun k v ->
           HM.replace sides (S.Var.relift k) (VS.map S.Var.relift v)
         ) data.sides;
+      let update_rule_data = UpdateRule.relift_marshal data.update_rule_data in
       let side_infl = HM.create (HM.length data.side_infl) in
       HM.iter (fun k v ->
           HM.replace side_infl (S.Var.relift k) (VS.map S.Var.relift v)
@@ -189,7 +202,7 @@ module Base =
       HM.iter (fun k v ->
           HM.replace dep (S.Var.relift k) (VS.map S.Var.relift v)
         ) data.dep;
-      {st; infl; sides; rho; wpoint_gas; stable; side_dep; side_infl; var_messages; rho_write; dep}
+      {st; infl; sides; update_rule_data; rho; wpoint_gas; stable; side_dep; side_infl; var_messages; rho_write; dep}
 
     type phase = Widen | Narrow [@@deriving show] (* used in inner solve *)
 
@@ -225,6 +238,8 @@ module Base =
 
       let infl = data.infl in
       let sides = data.sides in
+      let update_rule_data = data.update_rule_data in
+
       let rho = data.rho in
       let wpoint_gas = data.wpoint_gas in
       let stable = data.stable in
@@ -315,6 +330,7 @@ module Base =
             else
               true
           ) w false (* nosemgrep: fold-exists *) (* does side effects *)
+      and eq_wrapper x eqx  = ((UpdateRule.get_wrapper ~solve_widen:(fun x-> solve x Widen) ~init ~stable ~data:update_rule_data ~sides ~add_sides ~rho ~destabilize ~side ~assert_can_receive_side):UpdateRule.eq_wrapper) x eqx
       and solve ?reuse_eq x phase =
         if tracing then trace "sol2" "solve %a, phase: %s, called: %b, stable: %b, wpoint: %a" S.Var.pretty_trace x (show_phase phase) (HM.mem called x) (HM.mem stable x) pretty_wpoint x;
         init x;
@@ -340,7 +356,7 @@ module Base =
             | _ ->
               (* The RHS is re-evaluated, all deps are re-trigerred *)
               HM.replace dep x VS.empty;
-              eq x (eval l x) (side ~x)
+              eq_wrapper x (eq x (eval l x))
           in
           HM.remove called x;
           let old = HM.find rho x in (* d from older solve *) (* find old value after eq since wpoint restarting in eq/eval might have changed it meanwhile *)
@@ -408,7 +424,11 @@ module Base =
         if cache && HM.mem l y then HM.find l y
         else (
           HM.replace called y ();
-          let eqd = eq y (eval l x) (side ~x) in
+          let eqd =
+            (* We check in maingoblint that `solvers.td3.space` and `solvers.td3.narrow-globs.enabled` are not on at the same time *)
+            (* Narrowing on for globals ('solvers.td3.narrow-globs.enabled') would require enhancing this to work withe Narrow update rule *)
+            eq y (eval l x) (side ~x)
+          in
           HM.remove called y;
           if HM.mem wpoint_gas y then (HM.remove l y; solve y Widen; HM.find rho y)
           else (if cache then HM.replace l y eqd; eqd)
@@ -437,10 +457,7 @@ module Base =
         tmp
       and side ?x y d = (* side from x to y; only to variables y w/o rhs; x only used for trace *)
         if tracing then trace "sol2" "side to %a (wpx: %a) from %a ## value: %a" S.Var.pretty_trace y pretty_wpoint y (Pretty.docOpt (S.Var.pretty_trace ())) x S.Dom.pretty d;
-        if Hooks.system y <> None then (
-          Logs.warn "side-effect to unknown w/ rhs: %a, contrib: %a" S.Var.pretty_trace y S.Dom.pretty d;
-        );
-        assert (Hooks.system y = None);
+        assert_can_receive_side y;
         init y;
 
         WPS.notify_side wps_data x y;
@@ -497,6 +514,7 @@ module Base =
       let set_start (x,d) =
         if tracing then trace "sol2" "set_start %a ## %a" S.Var.pretty_trace x S.Dom.pretty d;
         init x;
+        UpdateRule.register_start update_rule_data x d;
         HM.replace rho x d;
         HM.replace stable x ();
         (* solve x Widen *)
@@ -1049,14 +1067,14 @@ module Base =
       print_data_verbose data "Data after postsolve";
 
       verify_data data;
-      (rho, {st; infl; sides; rho; wpoint_gas; stable; side_dep; side_infl; var_messages; rho_write; dep})
+      (rho, {st; infl; sides; update_rule_data; rho; wpoint_gas; stable; side_dep; side_infl; var_messages; rho_write; dep})
   end
 
 (** TD3 with no hooks. *)
-module Basic: GenericEqIncrSolver =
+module Basic(UpdateRule: Td3UpdateRule.S): GenericEqIncrSolver =
   functor (Arg: IncrSolverArg) ->
   functor (S:EqConstrSys) ->
-  functor (HM:Hashtbl.S with type key = S.v) ->
+  functor (HM:Hashtbl.S with type key = S.v)->
   struct
     include Generic.SolverStats (S) (HM)
 
@@ -1082,11 +1100,11 @@ module Basic: GenericEqIncrSolver =
       let prune ~reachable = ()
     end
 
-    include Base (Arg) (S) (HM) (Hooks)
+    include Base (Arg) (S) (HM) (Hooks) (UpdateRule)
   end
 
 (** TD3 with eval skipping using [dep_vals]. *)
-module DepVals: GenericEqIncrSolver =
+module DepVals(UpdateRule: Td3UpdateRule.S): GenericEqIncrSolver =
   functor (Arg: IncrSolverArg) ->
   functor (S:EqConstrSys) ->
   functor (HM:Hashtbl.S with type key = S.v) ->
@@ -1161,7 +1179,7 @@ module DepVals: GenericEqIncrSolver =
           ) !current_dep_vals
     end
 
-    module Base = Base (Arg) (S) (HM) (Hooks)
+    module Base = Base (Arg) (S) (HM) (Hooks) (UpdateRule)
 
     type marshal = {
       base: Base.marshal;
@@ -1200,17 +1218,18 @@ let after_config () =
   let restart_wpoint = GobConfig.get_bool "solvers.td3.restart.wpoint.enabled" in
   let restart_once = GobConfig.get_bool "solvers.td3.restart.wpoint.once" in
   let skip_unchanged_rhs = GobConfig.get_bool "solvers.td3.skip-unchanged-rhs" in
+  let module UpdateRule = (val Td3UpdateRule.choose ()) in
   if skip_unchanged_rhs then (
     if restart_sided || restart_wpoint || restart_once then (
       M.warn "restarting active, ignoring solvers.td3.skip-unchanged-rhs";
       (* TODO: fix DepVals with restarting, https://github.com/goblint/analyzer/pull/738#discussion_r876005821 *)
-      Selector.add_solver ("td3", (module Basic: GenericEqIncrSolver))
+      Selector.add_solver ("td3", (module Basic(UpdateRule): GenericEqIncrSolver))
     )
     else
-      Selector.add_solver ("td3", (module DepVals: GenericEqIncrSolver))
+      Selector.add_solver ("td3", (module DepVals(UpdateRule): GenericEqIncrSolver))
   )
   else
-    Selector.add_solver ("td3", (module Basic: GenericEqIncrSolver))
+    Selector.add_solver ("td3", (module Basic(UpdateRule): GenericEqIncrSolver))
 
 let () =
   AfterConfig.register after_config
