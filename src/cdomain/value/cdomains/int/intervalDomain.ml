@@ -260,10 +260,6 @@ struct
 
   let lognot = bit1 (fun _ik -> Ints_t.lognot)
 
-  let rec power_of_two n = 
-    if n = 0 then 1 
-    else 2 * power_of_two (n - 1)
-
   let shift_right_helper f ik i1 i2 =
     match is_bot i1, is_bot i2 with
     | true, true -> (bot_of ik,{underflow=false; overflow=false})
@@ -274,8 +270,14 @@ struct
       | Some x, Some y -> (try of_int ik (f ik x y) with Division_by_zero | Invalid_argument _ -> (top_of ik,{underflow=false; overflow=false}))
       | _              -> 
         match i1, i2 with 
-        | Some (x1, x2), Some (y1,y2) when not (Cil.isSigned ik) -> of_interval ik (Ints_t.zero, Ints_t.div x2 (Ints_t.of_int (power_of_two (Ints_t.to_int y1))))
-        | _ -> (top_of ik,{underflow=true; overflow=true}) (* TODO: kui signed ja mõlemad >0 *)
+        | Some (x1, x2), Some (y1,y2) when not (Cil.isSigned ik) -> 
+          of_interval ik (Ints_t.zero, Ints_t.div x2 (Ints_t.shift_left Ints_t.one (Ints_t.to_int y1)))
+        | Some (x1, x2), Some (y1,y2) when Cil.isSigned ik ->
+          if Ints_t.compare x1 Ints_t.zero >= 0 && Ints_t.compare y1 Ints_t.zero >= 0 then
+            of_interval ik (Ints_t.zero, Ints_t.div x2 (Ints_t.shift_left Ints_t.one (Ints_t.to_int y1)))
+          else
+            (top_of ik,{underflow=true; overflow=true})
+        | _ -> (top_of ik,{underflow=true; overflow=true})
 
   let shift_right = shift_right_helper (fun _ik x y -> Ints_t.shift_right x (Ints_t.to_int y))
 

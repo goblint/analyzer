@@ -16,7 +16,7 @@ int main() {
 
   int b = a | -2;
 
-  __goblint_check(b <= 0); // TODO
+  __goblint_check(b <= 0); 
 
   int c;
 
@@ -26,6 +26,6 @@ int main() {
 
   int d = c | 2;
 
-  __goblint_check(d <= 0); // TODO
+  __goblint_check(d <= 0);
   return 0;
 }

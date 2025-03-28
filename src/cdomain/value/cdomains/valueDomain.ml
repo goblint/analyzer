@@ -1056,13 +1056,9 @@ struct
                 | Blob (y, s, zeroinit) -> mu (Blob (join x y, s, zeroinit))
                 | Int i -> begin 
                   match bitfield with 
-                  | None -> cast t value
-                  | Some b -> let max_value = ID.of_int (ID.ikind i) (Z.sub (Z.shift_left Z.one b) Z.one) in 
-                    let min_value = ID.of_int (ID.ikind i) (Z.neg (Z.shift_left Z.one (b-1))) in
-                    match ID.to_bool (ID.le i max_value), ID.to_bool (ID.ge i min_value) with
-                    | None, _ | _, None -> cast t value (* IDK, error visata ? *)
-                    | Some false, _ | _, Some false -> Messages.warn ~category:Analyzer "Assigned value %a is too large for bit-field of size %d bits." pretty value b; Top
-                    | _ -> cast t value
+                  | Some b when not @@ ID.leq i (ID.top_of ~bitfield:b (ID.ikind i)) -> 
+                    Messages.warn ~category:Analyzer "Assigned value %a has a size that is too large for bit-field of size %d bits." pretty value b; Top
+                  | _ -> cast t value
                 end
                 | _ -> value
               end

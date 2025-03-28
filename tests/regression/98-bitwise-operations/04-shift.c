@@ -10,15 +10,15 @@ int main() {
 
   unsigned int y = x >> 0;
 
-  __goblint_check(y <= 10); // TODO
+  __goblint_check(y <= 10); 
 
   unsigned int z = x >> 1;
 
-  __goblint_check(z <= 5); // TODO
+  __goblint_check(z <= 5); 
 
   unsigned int w = x >> 2;
 
-  __goblint_check(w <= 2); // TODO
+  __goblint_check(w <= 2); 
 
   unsigned int a;
 

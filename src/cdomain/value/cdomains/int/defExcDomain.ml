@@ -84,13 +84,13 @@ struct
   let top_range = R.of_interval range_ikind (-99L, 99L) (* Since there is no top ikind we use a range that includes both ILongLong [-63,63] and IULongLong [0,64]. Only needed for intermediate range computation on longs. Correct range is set by cast. *)
   let top () = `Excluded (S.empty (), top_range)
   let bot () = `Bot
-  (* TODO: vaja kontrollida, et bitfieldi suurus ei oleks liiga suur*)
   let top_of ?bitfield ik = match bitfield with 
-  | None ->  `Excluded (S.empty (), size ik)
-  | Some b -> `Excluded (S.empty (), match Cil.isSigned ik with 
-                                     | true ->  R.of_interval range_ikind (Int64.of_int @@ -(b-1), Int64.of_int b)
-                                     | false -> R.of_interval range_ikind (Int64.of_int 0, Int64.of_int b)
-                        )
+  | Some b when b <= Z.numbits (Size.range ik |> snd) ->
+    let range = match Cil.isSigned ik with 
+                | true ->  R.of_interval range_ikind (Int64.of_int @@ -(b-1), Int64.of_int b)
+                | false -> R.of_interval range_ikind (Int64.of_int 0, Int64.of_int b) in 
+    `Excluded (S.empty (), range)
+  | _ -> `Excluded (S.empty (), size ik)
   let bot_of ik = bot ()
   let show x =
     let short_size x = "("^R.show x^")" in
@@ -449,22 +449,26 @@ struct
 
   let logand ik x y = norm ik (match x,y with
       (* We don't bother with exclusion sets: *)
-      | `Excluded _, `Definite i ->
+      | `Excluded (_, r), `Definite i ->
         (* Except in two special cases *)
         if Z.equal i Z.zero then
           `Definite Z.zero
         else if Z.equal i Z.one then
           of_interval IBool (Z.zero, Z.one)
+        else if Z.compare i Z.zero > 0 then
+          `Excluded (S.empty (), R.meet r (R.of_interval range_ikind (Int64.of_int 0, Int64.of_int @@ Z.numbits i)))
         else
-          top ()        (* TODO: kui i >= 0, siis saab kasutada Z.numbits, et muuta range'i *)
-      | `Definite i, `Excluded _ ->
+          top ()
+      | `Definite i, `Excluded (_, r) ->
         if Z.equal i Z.zero then
           `Definite Z.zero
         else if Z.equal i Z.one then
           of_interval IBool (Z.zero, Z.one)
-        else
-          top () 
-      | `Excluded _, `Excluded _ -> top ()
+        else if Z.compare i Z.zero > 0 then
+          `Excluded (S.empty (), R.meet r (R.of_interval range_ikind (Int64.of_int 0, Int64.of_int @@ Z.numbits i)))
+        else 
+          top ()
+      | `Excluded (_, r1), `Excluded (_, r2) -> `Excluded (S.empty (), R.meet r1 r2)
       (* The good case: *)
       | `Definite x, `Definite y ->
         (try `Definite (Z.logand x y) with | Division_by_zero -> top ())

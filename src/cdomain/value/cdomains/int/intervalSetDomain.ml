@@ -346,17 +346,13 @@ struct
     let interval_shiftleft = bitcomp (fun x y -> Ints_t.shift_left x (Ints_t.to_int y)) ik in
     binary_op_with_ovc x y interval_shiftleft
 
-  let rec power_of_two n = 
-    if n = 0 then 1 
-    else 2 * power_of_two (n - 1)
-
-  (* TODO: power_of_two asemel shifti arvu 1 vasakule*)
   let shift_right_helper f ik (i1, i2) =
     match (interval_to_int i1, interval_to_int i2) with
     | Some x, Some y -> (try of_int ik (f x y) with Division_by_zero | Invalid_argument _ -> (top_of ik,{overflow=false; underflow=false}))
     | _, _ -> 
       match i1, i2 with
-      | (x1, x2), (y1, y2) when not (Cil.isSigned ik) -> of_interval ik (Ints_t.zero, Ints_t.div x2 (Ints_t.of_int (power_of_two (Ints_t.to_int y1))))
+      | (x1, x2), (y1, y2) when not (Cil.isSigned ik) -> 
+        of_interval ik (Ints_t.zero, Ints_t.div x2 (Ints_t.shift_left Ints_t.one (Ints_t.to_int y1)))
       | _ -> 
         (top_of ik,{overflow=true; underflow=true})
 
