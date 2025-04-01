@@ -478,9 +478,31 @@ struct
         raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y))))
 
   (* TODO: saab teha täpsemaks *)
-  let logor = lift2 Z.logor
+  let logor ik x y = norm ik (match x,y with
+    (* We don't bother with exclusion sets: *)
+    | `Excluded _, `Definite _
+    | `Definite _, `Excluded _ -> top ()
+    | `Excluded (_, r1), `Excluded (_, r2) -> `Excluded (S.empty (), R.join r1 r2)
+    (* The good case: *)
+    | `Definite x, `Definite y ->
+      (try `Definite (Z.logor x y) with | Division_by_zero -> top ())
+    | `Bot, `Bot -> `Bot
+    | _ ->
+      (* If only one of them is bottom, we raise an exception that eval_rv will catch *)
+      raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y))))
   
-  let logxor = lift2 Z.logxor
+  let logxor ik x y = norm ik (match x,y with
+    (* We don't bother with exclusion sets: *)
+    | `Excluded _, `Definite _
+    | `Definite _, `Excluded _ -> top ()
+    | `Excluded (_, r1), `Excluded (_, r2) -> `Excluded (S.empty (), R.join r1 r2)
+    (* The good case: *)
+    | `Definite x, `Definite y ->
+      (try `Definite (Z.logxor x y) with | Division_by_zero -> top ())
+    | `Bot, `Bot -> `Bot
+    | _ ->
+      (* If only one of them is bottom, we raise an exception that eval_rv will catch *)
+      raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y))))
 
   let shift (shift_op: int_t -> int -> int_t) (ik: Cil.ikind) (x: t) (y: t) =
     (* BigInt only accepts int as second argument for shifts; perform conversion here *)

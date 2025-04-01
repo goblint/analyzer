@@ -26,8 +26,8 @@ module Enums : S with type int_t = Z.t = struct
     | _ -> match bitfield with 
            | Some b when b <= Z.numbits(Size.range ik |> snd) -> 
              Exc (BISet.empty (), match Cil.isSigned ik with
-                                  | true -> R.of_interval range_ikind (Int64.of_int @@ -(b-1), Int64.of_int b)
-                                  | false -> R.of_interval range_ikind (Int64.of_int 0, Int64.of_int b)
+                  | true -> R.of_interval range_ikind (Int64.of_int @@ -(b-1), Int64.of_int b)
+                  | false -> R.of_interval range_ikind (Int64.of_int 0, Int64.of_int b)
                  )
            | _ -> Exc (BISet.empty (), size ik)
 
