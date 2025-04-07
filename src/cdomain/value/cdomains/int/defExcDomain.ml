@@ -449,25 +449,27 @@ struct
 
   let logand ik x y = norm ik (match x,y with
       (* We don't bother with exclusion sets: *)
-      | `Excluded (_, r), `Definite i ->
+      | `Excluded (_, r), `Definite i 
+      | `Definite i, `Excluded (_, r) ->
         (* Except in two special cases *)
         if Z.equal i Z.zero then
           `Definite Z.zero
         else if Z.equal i Z.one then
           of_interval IBool (Z.zero, Z.one)
-        else if Z.compare i Z.zero > 0 then
+        else if Z.compare i Z.zero >= 0 then
           `Excluded (S.empty (), R.meet r (R.of_interval range_ikind (Int64.of_int 0, Int64.of_int @@ Z.numbits i)))
         else
-          top ()
-      | `Definite i, `Excluded (_, r) ->
-        if Z.equal i Z.zero then
-          `Definite Z.zero
-        else if Z.equal i Z.one then
-          of_interval IBool (Z.zero, Z.one)
-        else if Z.compare i Z.zero > 0 then
-          `Excluded (S.empty (), R.meet r (R.of_interval range_ikind (Int64.of_int 0, Int64.of_int @@ Z.numbits i)))
-        else 
-          top ()
+          (match (R.minimal r, R.maximal r) with 
+          | (None, _) | (_, None) -> top ()
+          | (Some r1, Some r2) -> 
+              let b = Int64.max (Int64.of_int @@ Z.numbits i) (Int64.max (Int64.abs r1) (Int64.abs r2)) in
+              if (Int64.compare r2 Int64.zero < 0) then
+                `Excluded (S.empty (), R.of_interval range_ikind (Int64.neg b, Int64.zero)) 
+              else if (Int64.compare r1 Int64.zero >= 0) then
+                `Excluded (S.empty (), R.of_interval range_ikind (Int64.zero, b))
+              else 
+                `Excluded (S.empty (), R.of_interval range_ikind (Int64.neg b, b))
+          ) 
       | `Excluded (_, r1), `Excluded (_, r2) -> `Excluded (S.empty (), R.meet r1 r2)
       (* The good case: *)
       | `Definite x, `Definite y ->
@@ -480,8 +482,16 @@ struct
   (* TODO: saab teha täpsemaks *)
   let logor ik x y = norm ik (match x,y with
     (* We don't bother with exclusion sets: *)
-    | `Excluded _, `Definite _
-    | `Definite _, `Excluded _ -> top ()
+    | `Excluded (_, r), `Definite i
+    | `Definite i, `Excluded (_, r) -> 
+      if Z.compare i Z.zero >= 0 then
+        `Excluded (S.empty (), R.join r (R.of_interval range_ikind (Int64.zero, Int64.of_int @@ Z.numbits i)))
+      else 
+        (match R.minimal r, R.maximal r with 
+        | None, _ | _, None -> top ()
+        | Some r1, Some r2 -> let b = Int.max (Z.numbits i) (Int64.to_int(Int64.max (Int64.abs r1) (Int64.abs r2))) in
+          `Excluded (S.empty (), R.of_interval range_ikind (Int64.of_int @@ -b, Int64.of_int b))
+        ) 
     | `Excluded (_, r1), `Excluded (_, r2) -> `Excluded (S.empty (), R.join r1 r2)
     (* The good case: *)
     | `Definite x, `Definite y ->
@@ -490,11 +500,21 @@ struct
     | _ ->
       (* If only one of them is bottom, we raise an exception that eval_rv will catch *)
       raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y))))
-  
+
   let logxor ik x y = norm ik (match x,y with
     (* We don't bother with exclusion sets: *)
-    | `Excluded _, `Definite _
-    | `Definite _, `Excluded _ -> top ()
+    | `Definite i, `Excluded (_, r) 
+    | `Excluded (_, r), `Definite i -> begin
+      if Z.compare i Z.zero >= 0 then
+        `Excluded (S.empty (), R.join r (R.of_interval range_ikind (Int64.zero, Int64.of_int @@ Z.numbits i)))
+      else if (R.compare r (R.of_int range_ikind (Int64.zero)) < 0) && (Z.compare i Z.zero >= 0) then
+        `Excluded (S.empty (), R.of_interval range_ikind (Int64.zero, Int64.of_int @@ Z.numbits i))
+      else
+        match R.minimal r, R.maximal r with 
+        | None, _ | _, None -> top ()
+        | Some r1, Some r2 -> let b = Int.max (Z.numbits i) (Int64.to_int(Int64.max (Int64.abs r1) (Int64.abs r2))) in
+          `Excluded (S.empty (), R.of_interval range_ikind (Int64.of_int @@ -b, Int64.of_int b)) 
+      end
     | `Excluded (_, r1), `Excluded (_, r2) -> `Excluded (S.empty (), R.join r1 r2)
     (* The good case: *)
     | `Definite x, `Definite y ->

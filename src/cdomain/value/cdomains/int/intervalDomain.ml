@@ -226,7 +226,7 @@ struct
     match Ints_t.compare x1 Ints_t.zero >= 0, Ints_t.compare x2 Ints_t.zero >= 0, Ints_t.compare y1 Ints_t.zero >= 0, Ints_t.compare y2 Ints_t.zero >= 0 with
     | true, _, true, _ -> of_interval ik (Ints_t.zero, Ints_t.min x2 y2) |> fst
     | _, false, _, false -> of_interval ik (fst (range ik), Ints_t.zero) |> fst
-    | true, _, _, false | _, false, true, _ -> of_interval ik (Ints_t.zero, snd (range ik)) |> fst
+    | true, _, _, false | _, false, true, _ -> of_interval ik (Ints_t.zero, f @@ Ints_t.max (Ints_t.abs x2) (Ints_t.abs y2)) |> fst (* VIST ei saa minna väiksemaks kui lähim kahe aste*)
     | _ -> let b = f @@ Ints_t.max (Ints_t.max (Ints_t.abs x1) (Ints_t.abs x2)) (Ints_t.max (Ints_t.abs y1) (Ints_t.abs y2)) in   
     of_interval ik (Ints_t.neg b, Ints_t.sub b Ints_t.one) |> fst (* TODO: siia panna midagi, et selle range ei saa olla suurem kui meet x y *)
 
@@ -255,7 +255,7 @@ struct
     | true, _, true, _ -> of_interval ik (Ints_t.max x1 y1, snd (range ik)) |> fst
     | _, false, _, _ | _, _, _, false -> of_interval ik (fst (range ik), Ints_t.zero) |> fst
     |_ -> let b = (f (Ints_t.max (Ints_t.max (Ints_t.abs x1) (Ints_t.abs x2)) (Ints_t.max (Ints_t.abs y1) (Ints_t.abs y2)))) in   
-    of_interval ik (Ints_t.neg b, b) |> fst 
+      of_interval ik (Ints_t.neg b, b) |> fst 
 
   let logor ik i1 i2 = 
     match is_bot i1, is_bot i2 with

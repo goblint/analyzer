@@ -34,12 +34,12 @@ struct
   let top () = failwith @@ "top () not implemented for " ^ (name ())
 
   let top_of ?bitfield ik = [match bitfield with 
-                            | None -> range ik
-                            | Some b -> let signed_lower_bound = Ints_t.neg @@ Ints_t.shift_left Ints_t.one (b-1) in
-                                        let unsigned_upper_bound = Ints_t.sub (Ints_t.shift_left Ints_t.one b) Ints_t.one in
-                                        match Cil.isSigned ik with
-                                        | true -> (signed_lower_bound, unsigned_upper_bound)
-                                        | false -> (range ik |> fst, unsigned_upper_bound)]
+    | None -> range ik
+    | Some b -> let signed_lower_bound = Ints_t.neg @@ Ints_t.shift_left Ints_t.one (b-1) in
+                let unsigned_upper_bound = Ints_t.sub (Ints_t.shift_left Ints_t.one b) Ints_t.one in
+                match Cil.isSigned ik with
+                | true -> (signed_lower_bound, unsigned_upper_bound)
+                | false -> (range ik |> fst, unsigned_upper_bound)]
 
   let bot () = []
 
@@ -306,14 +306,31 @@ struct
     | Some x, Some y -> (try of_int ik (f x y) with Division_by_zero | Invalid_argument _ -> (top_of ik,{overflow=false; underflow=false}))
     | _, _ -> (top_of ik,{overflow=false; underflow=false})
 
+  let f n = 
+    let abs_n = Ints_t.abs n in
+    if Ints_t.compare abs_n Ints_t.one < 0 then Ints_t.one
+    else
+      let rec loop x =
+        if Ints_t.compare x abs_n >= 0 then x
+        else loop (Ints_t.shift_left x 1)
+      in
+      loop Ints_t.one
+
   let logand_helper ik (i1, i2) = 
     match bit Ints_t.logand ik (i1,i2) with
     | result when result <> top_of ik -> result
     | _ ->
       match i1, i2 with
       | (x1, x2), (y1, y2) when not (Cil.isSigned ik) -> of_interval ik (Ints_t.zero, Ints_t.min x2 y2) |> fst
+      | (x1, x2), (y1, y2) when (Cil.isSigned ik) -> begin
+        match Ints_t.compare x1 Ints_t.zero >= 0, Ints_t.compare x2 Ints_t.zero >= 0, Ints_t.compare y1 Ints_t.zero >= 0, Ints_t.compare y2 Ints_t.zero >= 0 with
+        | true, _, true, _ -> of_interval ik (Ints_t.zero, Ints_t.min x2 y2) |> fst
+        | _, false, _, false -> of_interval ik (fst (range ik), Ints_t.zero) |> fst
+        | true, _, _, false | _, false, true, _ -> of_interval ik (Ints_t.zero, snd (range ik)) |> fst (* VIST ei saa minna väiksemaks kui lähim kahe aste*)
+        | _ -> let b = f @@ Ints_t.max (Ints_t.max (Ints_t.abs x1) (Ints_t.abs x2)) (Ints_t.max (Ints_t.abs y1) (Ints_t.abs y2)) in   
+        of_interval ik (Ints_t.neg b, Ints_t.sub b Ints_t.one) |> fst
+        end
       | _ -> top_of ik
-
   let logand ik x y =
     let interval_logand = logand_helper ik in
     binop x y interval_logand
