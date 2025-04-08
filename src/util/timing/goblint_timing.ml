@@ -16,7 +16,7 @@ let next_tef_pid = ref 0
 module Make (Name: Name): S =
 struct
   let enabled_dls = Domain.DLS.new_key (fun () -> false)
-  let options_dls = Domain.DLS.new_key (fun () -> dummy_options)
+  let options = ref dummy_options
   let tef_pid =
     let tef_pid = !next_tef_pid in
     incr next_tef_pid;
@@ -55,12 +55,11 @@ struct
   let current_allocated = Gc.allocated_bytes
 
   let create_frame tree =
-    let options = Domain.DLS.get options_dls in
     {
       tree;
-      start_cputime = if options.cputime then current_cputime () else 0.0;
-      start_walltime = if options.walltime then current_walltime () else 0.0;
-      start_allocated = if options.allocated then current_allocated () else 0.0;
+      start_cputime = if !options.cputime then current_cputime () else 0.0;
+      start_walltime = if !options.walltime then current_walltime () else 0.0;
+      start_allocated = if !options.allocated then current_allocated () else 0.0;
     }
 
   (** Stack of currently active timing frames. *)
@@ -80,9 +79,8 @@ struct
     )
 
   let start options' =
-    Domain.DLS.set options_dls options';
-    let options = Domain.DLS.get options_dls in
-    if options.tef then (
+    options := options';
+    if !options.tef then (
       (* Override TEF process and thread name for track rendering. *)
       Catapult.Tracing.emit ~pid:tef_pid "thread_name" ~cat:["__firefox_profiler_hack__"] ~args:[("name", `String Name.name)] Catapult.Event_type.M;
       (* First event must have category, otherwise Firefox Profiler refuses to open. *)
@@ -96,7 +94,6 @@ struct
     Domain.DLS.set enabled_dls false
 
   let enter ?args name =
-    let options = Domain.DLS.get options_dls in
     (* Find the right tree. *)
     let tree: tree =
       let {tree; _} = Stack.top (Domain.DLS.get current) in
@@ -112,33 +109,31 @@ struct
       loop tree.children
     in
     Stack.push (create_frame tree) (Domain.DLS.get current);
-    if options.tef then
+    if !options.tef then
       Catapult.Tracing.begin' ~pid:tef_pid ?args name
 
   (** Add current frame measurements to tree node accumulators. *)
   let add_frame_to_tree frame tree =
-    let options = Domain.DLS.get options_dls in
-    if options.cputime then (
+    if !options.cputime then (
       let diff = current_cputime () -. frame.start_cputime in
       tree.cputime <- tree.cputime +. diff
     );
-    if options.walltime then (
+    if !options.walltime then (
       let diff = current_walltime () -. frame.start_walltime in
       tree.walltime <- tree.walltime +. diff
     );
-    if options.allocated then (
+    if !options.allocated then (
       let diff = current_allocated () -. frame.start_allocated in
       tree.allocated <- tree.allocated +. diff
     );
-    if options.count then
+    if !options.count then
       tree.count <- tree.count + 1
 
   let exit name =
-    let options = Domain.DLS.get options_dls in
     let {tree; _} as frame = Stack.pop (Domain.DLS.get current) in
     assert (tree.name = name);
     add_frame_to_tree frame tree;
-    if options.tef then
+    if !options.tef then
       Catapult.Tracing.exit' ~pid:tef_pid name
 
   let wrap ?args name f x =
@@ -186,30 +181,28 @@ struct
     tree_with_current current_rev root
 
   let rec pp_tree ppf node =
-    let options = Domain.DLS.get options_dls in
     Format.fprintf ppf "@[<v 2>%-25s      " node.name;
-    if options.cputime then
+    if !options.cputime then
       Format.fprintf ppf "%9.3fs" node.cputime;
-    if options.walltime then
+    if !options.walltime then
       Format.fprintf ppf "%10.3fs" node.walltime;
-    if options.allocated then
+    if !options.allocated then
       Format.fprintf ppf "%10.2fMB" (node.allocated /. 1_000_000.0); (* TODO: or should it be 1024-based (MiB)? *)
-    if options.count then
+    if !options.count then
       Format.fprintf ppf "%7d×" node.count;
     (* cut also before first child *)
     List.iter (Format.fprintf ppf "@,%a" pp_tree) (List.rev node.children);
     Format.fprintf ppf "@]"
 
   let pp_header ppf =
-    let options = Domain.DLS.get options_dls in
     Format.fprintf ppf "%-25s      " "";
-    if options.cputime then
+    if !options.cputime then
       Format.fprintf ppf "   cputime";
-    if options.walltime then
+    if !options.walltime then
       Format.fprintf ppf "   walltime";
-    if options.allocated then
+    if !options.allocated then
       Format.fprintf ppf "   allocated";
-    if options.count then
+    if !options.count then
       Format.fprintf ppf "   count";
     Format.fprintf ppf "@\n"
 
