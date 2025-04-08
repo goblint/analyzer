@@ -1,0 +1,13 @@
+# GitHub repository language overrides
+# https://github.com/github-linguist/linguist/blob/main/docs/overrides.md
+
+# currently only dune-project is classified: https://github.com/github-linguist/linguist/pull/7126
+dune linguist-language=dune
+dune.inc linguist-language=dune
+
+# avoid misclassification as Standard ML
+*.ml linguist-language=ocaml
+*.mli linguist-language=ocaml
+
+# cram tests are classified as Raku/Terra/Turing, cram isn't separate language so consider them also dune
+*.t linguist-language=dune

@@ -12,9 +12,15 @@ void *thread(void *arg) {
   pthread_mutex_lock(&A);
   a = 1;
   b = 1;
-  b = 2;
   c = 1;
+  pthread_mutex_unlock(&A);
+
+  pthread_mutex_lock(&A);
+  b = 2;
   c = 2;
+  pthread_mutex_unlock(&A);
+
+  pthread_mutex_lock(&A);
   c = 3;
   pthread_mutex_unlock(&A);
   return NULL;
@@ -28,7 +34,7 @@ int main(void) {
   pthread_mutex_lock(&A);
   __goblint_check(a <= 1);
   __goblint_check(b <= 2);
-  __goblint_check(c <= 3);
+  __goblint_check(c <= 3); 
   pthread_mutex_unlock(&A);
   return 0;
 }
