@@ -2553,9 +2553,9 @@
             },
             "parallel_domains" :{
               "title": "solvers.td3.parallel_domains",
-              "description": "Maximal number of Domains that the solver can use in parallel. Only applies, when a solver of the 'td_parallel_*' family is used.",
+              "description": "Maximal number of Domains that the solver can use in parallel. Only applies, when a solver of the 'td_parallel_*' family is used. If left at -1, the value of jobs will be used.",
               "type": "integer",
-              "default": 2
+              "default": -1
             }
           },
           "additionalProperties": false
