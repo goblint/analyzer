@@ -191,7 +191,7 @@
       format: C
   - entry_type: flow_insensitive_invariant
     flow_insensitive_invariant:
-      string: '! multithreaded || ((0 <= B && B <= 127) && B != 0)'
+      string: '! multithreaded || (3 <= B && B <= 7)'
       type: assertion
       format: C
 
@@ -266,7 +266,7 @@ Location invariant at `for` loop in `main` should be on column 3, not 7.
   >     column: 3
   >     function: main
   >   location_invariant:
-  >     string: '! multithreaded || ((0 <= B && B <= 127) && B != 0)'
+  >     string: '! multithreaded || (3 <= B && B <= 7)'
   >     type: assertion
   >     format: C
   > - entry_type: location_invariant
@@ -299,7 +299,7 @@ Location invariant at `for` loop in `main` should be on column 3, not 7.
   >     column: 3
   >     function: main
   >   location_invariant:
-  >     string: '! multithreaded || ((0 <= B && B <= 127) && B != 0)'
+  >     string: '! multithreaded || (3 <= B && B <= 7)'
   >     type: assertion
   >     format: C
   > - entry_type: location_invariant
