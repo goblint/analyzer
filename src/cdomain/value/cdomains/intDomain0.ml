@@ -264,10 +264,10 @@ sig
   val shift_right : Cil.ikind -> t -> t -> t * overflow_info
 end
 
-module type Bitfield_SOverflow = 
-sig 
+module type Bitfield_SOverflow =
+sig
 
-  include SOverflow 
+  include SOverflow
 
   (* necessary for baseInvariant *)
   val refine_bor : t -> t -> t -> t * t
