@@ -471,6 +471,10 @@ module Size = struct (* size in bits as int, range as int64 *)
     in
     if sign x = `Signed then
       size (min_for x)
+    else if Z.compare x Z.zero > 0 then (
+      let n = Int64.of_int (Z.numbits x) in
+      (Int64.pred n, n)
+    )
     else
       let a, b = size (min_for x) in
       if b <= 64L then
@@ -487,7 +491,7 @@ module Size = struct (* size in bits as int, range as int64 *)
   let max_from_bit_range pos_bits = Z.(pred @@ shift_left Z.one (to_int (Z.of_int64 pos_bits)))
 
   (* From the number of bits used to represent a non-positive value, determines the minimal representable value *)
-  let min_from_bit_range neg_bits = Z.(if neg_bits = 0L then Z.zero else neg @@ shift_left Z.one (to_int (neg (Z.of_int64 neg_bits))))
+  let min_from_bit_range neg_bits = Z.(if neg_bits = 0L then Z.zero else if neg_bits < 0L then neg @@ shift_left Z.one (to_int (neg (Z.of_int64 neg_bits))) else max_from_bit_range neg_bits)
 
 end
 

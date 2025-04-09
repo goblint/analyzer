@@ -110,10 +110,11 @@ struct
     | `Bot -> None
 
   let in_range r i =
-    if Z.compare i Z.zero < 0 then
+    (* if Z.compare i Z.zero < 0 then *)
       let lowerb = Exclusion.min_of_range r in
       Z.compare lowerb i <= 0
-    else
+      &&
+    (* else *)
       let upperb = Exclusion.max_of_range r in
       Z.compare i upperb <= 0
 
@@ -269,6 +270,9 @@ struct
      * just DeMorgans Law *)
     | `Excluded (x,r1), `Excluded (y,r2) ->
       let r' = R.meet r1 r2 in
+      if R.is_bot r' then
+        `Bot
+      else
       let s' = S.union x y |> S.filter (in_range r') in
       `Excluded (s', r')
 
