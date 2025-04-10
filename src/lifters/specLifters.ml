@@ -5,20 +5,26 @@ open GoblintCil
 open Analyses
 open GobConfig
 
+module type NameLifter =
+sig
+  val lift_name: string -> string
+end
 
-(** Lifts a [Spec] so that the domain is [Hashcons]d *)
-module HashconsLifter (S:Spec)
+module type LatticeLifter =
+  functor (L: Lattice.S) ->
+  sig
+    include Lattice.S
+
+    val lift: L.t -> t
+    val unlift: t -> L.t
+  end
+
+module DomainLifter (N: NameLifter) (F: LatticeLifter) (S:Spec)
   : Spec with module G = S.G
           and module C = S.C
 =
 struct
-  module HConsedArg =
-  struct
-    (* We do refine int values on narrow and meet {!IntDomain.IntDomTupleImpl}, which can lead to fixpoint issues if we assume x op x = x *)
-    (* see https://github.com/goblint/analyzer/issues/1005 *)
-    let assume_idempotent = GobConfig.get_string "ana.int.refinement" = "never"
-  end
-  module D = Lattice.HConsed (S.D) (HConsedArg)
+  module D = F (S.D)
   module G = S.G
   module C = S.C
   module V = S.V
@@ -28,9 +34,9 @@ struct
     let of_elt x = of_elt (D.unlift x)
   end
 
-  let name () = S.name () ^" hashconsed"
+  let name () = N.lift_name (S.name ())
 
-  type marshal = S.marshal (* TODO: should hashcons table be in here to avoid relift altogether? *)
+  type marshal = S.marshal
   let init = S.init
   let finalize = S.finalize
 
@@ -98,22 +104,50 @@ struct
     D.lift @@ S.event (conv man) e (conv oman)
 end
 
-(** Lifts a [Spec] so that the context is [Hashcons]d. *)
-module HashconsContextLifter (S:Spec)
+(** Lifts a [Spec] so that the domain is [Hashcons]d *)
+module HashconsLifter (S: Spec) = (* keep functor eta-expanded to look up option when lifter is actually used *)
+struct
+  module NameLifter =
+  struct
+    let lift_name x = x ^ " hashconsed"
+  end
+
+  module HConsedArg =
+  struct
+    (* We do refine int values on narrow and meet {!IntDomain.IntDomTupleImpl}, which can lead to fixpoint issues if we assume x op x = x *)
+    (* see https://github.com/goblint/analyzer/issues/1005 *)
+    let assume_idempotent = GobConfig.get_string "ana.int.refinement" = "never"
+  end
+
+  include DomainLifter (NameLifter) (Lattice.HConsed (HConsedArg)) (S)
+
+  (* TODO: should marshal hashcons table to avoid relift altogether? *)
+end
+
+module type PrintableLifter =
+  functor (P: Printable.S) ->
+  sig
+    include Printable.S
+
+    val lift: P.t -> t
+    val unlift: t -> P.t
+  end
+
+module ContextLifter (N: NameLifter) (F: PrintableLifter) (S:Spec)
   : Spec with module D = S.D
           and module G = S.G
-          and module C = Printable.HConsed (S.C)
+          and module C = F (S.C)
 =
 struct
   module D = S.D
   module G = S.G
-  module C = Printable.HConsed (S.C)
+  module C = F (S.C)
   module V = S.V
   module P = S.P
 
-  let name () = S.name () ^" context hashconsed"
+  let name () = N.lift_name (S.name ())
 
-  type marshal = S.marshal (* TODO: should hashcons table be in here to avoid relift altogether? *)
+  type marshal = S.marshal
   let init = S.init
   let finalize = S.finalize
 
@@ -179,6 +213,13 @@ struct
   let paths_as_set man = S.paths_as_set (conv man)
   let event man e oman = S.event (conv man) e (conv oman)
 end
+
+(** Lifts a [Spec] so that the context is [Hashcons]d. *)
+module HashconsContextLifter = ContextLifter (struct let lift_name s = s ^ " context hashconsed" end) (Printable.HConsed)
+(* TODO: should marshal hashcons table to avoid relift altogether? *)
+
+(** Lifts a [Spec] so that the context is [HashCached]. *)
+module HashCachedContextLifter = ContextLifter (struct let lift_name s = s ^ " context hashcached" end) (Printable.HashCached)
 
 (* see option ana.opt.equal *)
 module OptEqual (S: Spec) = struct

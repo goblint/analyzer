@@ -351,7 +351,8 @@ struct
             | ts ->
               if not (Queries.TS.is_empty ts) then
                 includes_uk := true;
-              let f = function
+              let f t =
+                match Cil.unrollType t with
                 | TComp (ci, _) ->
                   add_access_struct (conf - 50) ci
                 | _ -> ()

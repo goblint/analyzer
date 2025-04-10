@@ -386,12 +386,12 @@ struct
   *)
   (* Give the set of reachables from argument. *)
   let reachables ~deep (ask: Queries.ask) es =
-    let reachable e st =
+    let reachable acc e =
       let q = if deep then Queries.ReachableFrom e else Queries.MayPointTo e in
       let ad = ask.f q in
-      Queries.AD.join ad st
+      Queries.AD.join ad acc
     in
-    List.fold_right reachable es (Queries.AD.empty ())
+    List.fold_left reachable (Queries.AD.empty ()) es
 
 
   (* Probably ok as is. *)
@@ -402,8 +402,8 @@ struct
 
   (* Just remove things that go out of scope. *)
   let return man exp fundec  =
-    let rm v = remove (Analyses.ask_of_man man) (Var v,NoOffset) in
-    List.fold_right rm (fundec.sformals@fundec.slocals) man.local
+    let rm acc v = remove (Analyses.ask_of_man man) (Var v, NoOffset) acc in
+    List.fold_left rm man.local (fundec.sformals@fundec.slocals)
 
   (* removes all equalities with lval and then tries to make a new one: lval=rval *)
   let assign man (lval:lval) (rval:exp) : D.t  =

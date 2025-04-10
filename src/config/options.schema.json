@@ -414,6 +414,13 @@
               "type": "boolean",
               "default": false
             },
+            "bitfield": {
+              "title": "ana.int.bitfield",
+              "description":
+                "Use IntDomain.Bitfield: Bitfield domain for integers.",
+              "type": "boolean",
+              "default": false
+            },
             "congruence": {
               "title": "ana.int.congruence",
               "description":
@@ -506,6 +513,13 @@
               "type": "boolean",
               "default": true
             },
+            "hashcached": {
+              "title": "ana.opt.hashcached",
+              "description":
+                "Should we try to save memory and speed up equality by caching hashes of contexts? This is useful when hashconsing is off",
+              "type": "boolean",
+              "default": false
+            },
             "equal": {
               "title": "ana.opt.equal",
               "description":
@@ -534,7 +548,7 @@
                 "type": "string",
                 "enum": [
                   "congruence",
-                  "singleThreaded",
+                  "reduceAnalyses",
                   "mallocWrappers",
                   "noRecursiveIntervals",
                   "enums",
@@ -552,7 +566,7 @@
               },
               "default": [
                 "congruence",
-                "singleThreaded",
+                "reduceAnalyses",
                 "mallocWrappers",
                 "noRecursiveIntervals",
                 "enums",
@@ -639,6 +653,12 @@
                   "title": "ana.base.context.interval_set",
                   "description":
                     "Integer values of the IntervalSet domain in function contexts.",
+                  "type": "boolean",
+                  "default": true
+                },
+                "bitfield": {
+                  "title": "ana.base.context.bitfield",
+                  "description": "Bitfield values in function contexts.",
                   "type": "boolean",
                   "default": true
                 }
@@ -761,9 +781,9 @@
             "privatization": {
               "title": "ana.base.privatization",
               "description":
-                "Which privatization to use? none/mutex-oplus/mutex-meet/mutex-meet-tid/protection/protection-read/mine/mine-nothread/mine-W/mine-W-noinit/lock/lock-tid/write/write-tid/write+lock/write+lock-tid",
+                "Which privatization to use? none/vojdani/mutex-oplus/mutex-meet/mutex-meet-tid/protection/protection-read/mine/mine-nothread/mine-W/mine-W-noinit/lock/lock-tid/write/write-tid/write+lock/write+lock-tid",
               "type": "string",
-              "enum": ["none", "mutex-oplus", "mutex-meet", "protection", "protection-tid", "protection-atomic", "protection-read", "protection-read-tid", "protection-read-atomic", "mine", "mine-nothread", "mine-W", "mine-W-noinit", "lock", "lock-tid", "write", "write-tid", "write+lock", "write+lock-tid", "mutex-meet-tid"],
+              "enum": ["none", "vojdani", "mutex-oplus", "mutex-meet", "protection", "protection-tid", "protection-atomic", "protection-read", "protection-read-tid", "protection-read-atomic", "mine", "mine-nothread", "mine-W", "mine-W-noinit", "lock", "lock-tid", "write", "write-tid", "write+lock", "write+lock-tid", "mutex-meet-tid"],
               "default": "protection-read"
             },
             "priv": {
@@ -1185,6 +1205,39 @@
           },
           "additionalProperties": false
         },
+        "c2po": {
+          "title": "ana.c2po",
+          "type": "object",
+          "properties": {
+            "askbase": {
+              "title": "ana.c2po.askbase",
+              "description": "If true, the C-2PO Analysis uses the MayPointTo query to infer additional disequalities.",
+              "type": "boolean",
+              "default": true
+            },
+            "join_algorithm": {
+              "title": "ana.c2po.join_algorithm",
+              "description": "Which join algorithm 'c2po' should use. Values: 'partition' (default): the more efficient version, it uses only the partition to compute the join. Circular equalities are lost during the join; 'precise': a more precise version, uses the automaton to compute the join.",
+              "type": "string",
+              "enum": [
+                "precise",
+                "partition"
+              ],
+              "default": "partition"
+            },
+            "equal": {
+              "title": "ana.c2po.equal",
+              "description": "Which equal algorithm 'c2po' should use. Values: 'partition' (default): it compares the partitions each time; 'normal_form': computes a normal form of the domain to compare them. It is lazily computed. The two possibilities are equivalent in precision, but in some cases computing the normal form is more efficient, as it is computed only once per distinct domain element.",
+              "type": "string",
+              "enum": [
+                "normal_form",
+                "partition"
+              ],
+              "default": "partition"
+            }
+          },
+          "additionalProperties": false
+        },
         "unassume": {
           "title": "ana.unassume",
           "type": "object",
@@ -1214,6 +1267,19 @@
                 }
               },
               "additionalProperties": false
+            }
+          },
+          "additionalProperties": false
+        },
+        "affeq": {
+          "title": "ana.affeq",
+          "type": "object",
+          "properties": {
+            "sparse": {
+              "title": "ana.affeq.sparse",
+              "description": "Use sparse implementation of Affine Equality analysis (using lists). If set to false, the dense version is used (using arrays). Default is true (sparse implementation)",
+              "type": "boolean",
+              "default": true
             }
           },
           "additionalProperties": false
@@ -1720,7 +1786,7 @@
             "type": "array",
             "items": {
               "type": "string",
-              "enum": ["base.no-non-ptr", "base.non-ptr", "base.no-int", "base.int", "base.no-interval", "base.no-interval_set","base.interval", "base.interval_set","relation.no-context", "relation.context", "no-widen", "widen"]
+              "enum": ["base.no-non-ptr", "base.non-ptr", "base.no-int", "base.int", "base.no-interval", "base.no-interval_set", "base.no-bitfield", "base.interval", "base.interval_set", "base.bitfield", "relation.no-context", "relation.context", "no-widen", "widen"]
             },
             "default": []
           }
@@ -2216,6 +2282,12 @@
           "description": "Output abstract values, etc. with full internal details, without readability-oriented simplifications.",
           "type": "boolean",
           "default": false
+        },
+        "termination-bounds": {
+          "title": "dbg.termination-bounds",
+          "description": "Output loop iteration bounds for terminating loops when termination analysis is activated.",
+          "type": "boolean",
+          "default": false
         }
       },
       "additionalProperties": false
@@ -2413,6 +2485,20 @@
               "type": "string",
               "enum": ["never", "always", "sides", "cycle", "unstable_called", "unstable_self", "sides-pp","sides-local"],
               "default": "sides"
+            },
+            "side_widen_gas": {
+              "title": "solvers.td3.side_widen_gas",
+              "description":
+                "Delay widening globals through side-effects. With a widening gas of N, the solver will perform widening only once unknown has grown through side-effects N times and the widening condition according to the side_widen policy has been met. A value of 0 behaves as before the feature was introduced.",
+              "type": "integer",
+              "default": 0
+            },
+            "widen_gas": {
+              "title": "solvers.td3.widen_gas",
+              "description":
+                "Delay widening non-globals, i.e. unknowns with right hand sides. With a widening gas of N, the solver will perform widening only once unknown has grown N times. A value of 0 behaves as before the feature was introduced.",
+              "type": "integer",
+              "default": 0
             },
             "space": {
               "title": "solvers.td3.space",
