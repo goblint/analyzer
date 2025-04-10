@@ -8,7 +8,7 @@ void foo()
 
 int main()
 {
-    void (*p)() = &foo;
+    void (*p)(void) = &foo;
     free(p); // TODO: free shouldn't spawn
     return 0;
 }
