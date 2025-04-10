@@ -299,9 +299,9 @@ struct
     let c,v = BatOption.get m in 
     (EConj.affine_transform econ i rhs, vs, Ineq.affine_transform ineq i (c,v,o,d))
 
-  let affine_transform econ i rhs =
-    let res = affine_transform econ i rhs in
-    if M.tracing then M.tracel "affine_transform" "affine_transform %s ->  %s " (show econ) (show res); 
+  let affine_transform econ i (c,v,o,d) =
+    let res = affine_transform econ i (c,v,o,d) in
+    if M.tracing then M.tracel "affine_transform" "affine_transform %s with var_%d=%s ->  %s " (show econ) i (Rhs.show (Some (c,v),o,d)) (show res); 
     res
 
   let meet_with_one_value var value t narrow =

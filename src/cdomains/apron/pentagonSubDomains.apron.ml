@@ -769,10 +769,10 @@ module LinearInequality = struct
     in let ineqs = match Value.minimal x_val with 
         | Some (Int z) -> (*x >= z *) (GT Q.inf, Q.of_bigint @@ Z.add Z.minus_one z) :: ineqs
         | _ -> ineqs
-    in let ineqs = match Value.maximal x_val with 
+    in let ineqs = match Value.maximal y_val with 
         | Some (Int z) -> (*y <= z *) (GT Q.zero, Q.neg @@ Q.of_bigint @@ Z.add Z.one z ) :: ineqs
         | _ -> ineqs
-    in let ineqs = match Value.minimal x_val with 
+    in let ineqs = match Value.minimal y_val with 
         | Some (Int z) -> (*y >= z *) (LT Q.zero, Q.neg @@ Q.of_bigint @@ Z.add Z.minus_one z ) :: ineqs
         | _ -> ineqs
     in ineqs
@@ -1211,7 +1211,7 @@ module LinearInequalities: TwoVarInequalities = struct
               let combine = function
                 | None -> Some cs'
                 | Some cs_j -> Some (Coeffs.meet Value.top Value.top cs' cs_j)
-              in Some (IntMap.update_stdlib j combine ys)
+              in Some (IntMap.update_stdlib j combine (IntMap.remove i ys))
         in match ys' with 
         | Some ys' -> IntMap.add x ys' acc
         | _ -> acc
