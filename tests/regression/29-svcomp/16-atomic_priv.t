@@ -105,7 +105,6 @@ Non-atomic privatization:
       format: C
   - entry_type: flow_insensitive_invariant
     flow_insensitive_invariant:
-      string: '! multithreaded || ((0 <= myglobal && myglobal <= 127) && myglobal !=
-        0)'
+      string: '! multithreaded || (3 <= myglobal && myglobal <= 7)'
       type: assertion
       format: C
