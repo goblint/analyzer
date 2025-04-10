@@ -1182,6 +1182,25 @@
               "description": "Delay widenings using widening tokens.",
               "type": "boolean",
               "default": false
+            },
+            "delay": {
+              "title": "ana.widen.delay",
+              "type": "object",
+              "properties": {
+                "local": {
+                  "title": "ana.widen.delay.local",
+                  "description": "Delay local constraint unknown widenings by count.",
+                  "type": "integer",
+                  "default": 0
+                },
+                "global": {
+                  "title": "ana.widen.delay.global",
+                  "description": "Delay global constraint unknown widenings by count.",
+                  "type": "integer",
+                  "default": 0
+                }
+              },
+              "additionalProperties": false
             }
           },
           "additionalProperties": false
