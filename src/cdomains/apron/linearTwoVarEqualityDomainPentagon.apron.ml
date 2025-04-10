@@ -56,7 +56,7 @@ struct
       let (v,o,d) = get_rhs t lhs in
       if (v,o,d) = Rhs.var_zero lhs then Value.top  (*no relation -> Top*) 
       else match v with 
-          None -> Value.div (Value.of_bigint o) (Value.of_bigint d)(*constant*) (*TODO is divisor always 1?*) 
+          None -> Value.of_bigint @@ Z.divexact o d (*constant*) 
         | Some (coeff,v) -> 
           let i = match IntMap.find_opt v vs with
               None -> Value.top (*uninitialised. Still translate it with the Rhs for congruence information*) 
@@ -132,7 +132,9 @@ struct
       set_value_for_root lhs i
     else
       match v with
-      | None -> (econ, is, ineq) (*For a constant, we do not need to save an value*) (*TODO should we check for equality?*)
+      | None -> 
+        if not @@ Value.contains i @@ Z.div o d then raise EConj.Contradiction;
+        (econ, is, ineq) (*For a constant, we do not need to save an value*)
       | Some (coeff, v) ->
         let i1 = Value.mul (Value.of_bigint d) i in
         let i2 = Value.sub i1 (Value.of_bigint o) in
@@ -165,8 +167,7 @@ struct
 
   let forget_variable ((econj, _, _) as d) var = 
     let rhs_var = get_rhs d var in
-    let value_var = get_value d var in
-    (*Forgetting EConj, but also return new representative if it changed*)
+    (*Forgetting EConj, but also return relation of new representative to the old if this changes*)
     let (econj', vs', ineq'), newRoot =
       (let ref_var_opt = Tuple3.first rhs_var in
        match ref_var_opt with
@@ -189,29 +190,20 @@ struct
                 Rhs.subst yrhs y irhs |>    (* new entry for i is irhs [yrhs/y] *)
                 set_rhs map i
               ) d clusterrest) in
-            set_rhs shifted_cluster head (Rhs.var_zero head), Some head (* finally make sure that head is now trivial *)
+            set_rhs shifted_cluster head (Rhs.var_zero head), Some yrhs (* finally make sure that head is now trivial *)
           | [] -> d, None) (* empty cluster means no work for us *)
        | _ -> d, None) (* variable is either a constant or expressed by another refvar *) in
     (*Forget old information*)
     let econj'' = (fst econj', IntMap.remove var (snd econj')) in 
     let vs'' = IntMap.remove var vs' in
-    let ineq'' = Ineq.forget_variable ineq' var in
-    let d' = (econj'', vs'', ineq'') in
-    (*Try restoring information for new head if root changed*)
     match newRoot with
-    | None -> d'
-    | Some newRoot -> 
-      (*restoring inequalities*)
-      let relations = 
-        match get_rhs d newRoot with
-        | (Some (c,_), o, d) when Z.equal c Z.one && Z.equal d Z.one -> [Relation.Eq, o]
-        | rhs_new -> Ineq.get_relations (rhs_new, get_value d newRoot) (rhs_var, value_var) ineq'' (*relation of new root to root before this call*)
-      in let after_ineq = 
-           let transfer_single_relation ineq_acc cond =
-             Ineq.transfer var newRoot cond ineq' (get_rhs d) (get_value d) ineq_acc (get_rhs d') (get_value d')
-           in econj'', vs'', List.fold transfer_single_relation ineq'' relations
-           (*restoring values*)
-      in set_value after_ineq newRoot @@ get_value d newRoot
+    | None -> (econj'', vs'', Ineq.forget_variable ineq' var)
+    | Some (Some (coeff,y),offs,divi) -> 
+      (*modify inequalities*)
+      let ineq'' = Ineq.affine_transform ineq' var (coeff,y,offs,divi)
+      (*restoring value information*)
+      in set_value (econj'', vs'', ineq'') y @@ get_value d y
+    | _ -> failwith "Should not happen" (*transformation can not be a constant*)
 
   let forget_variable d var = 
     if M.tracing then M.tracel "forget" "forget var_%d in { %s } " var (show d);
@@ -256,17 +248,11 @@ struct
         let econj' = (dim, IntMap.add x (vary, o, d) @@ IntMap.map adjust econj) in (* in case of sparse representation, make sure that the equality is now included in the conjunction *)
         match vary with 
         | Some (c,y) -> (*x was a representant but is not anymore*)
-          let relations = 
-            if Z.equal c Z.one && Z.equal d Z.one then [Relation.Eq, o]
-            else Ineq.get_relations (get_rhs t x, value) (get_rhs t y, get_value t y) ineq (*relation of new root to root before this call*)
-          in let ineq' = 
-               let transfer_single_relation ineq_acc cond =
-                 Ineq.transfer x y cond ineq (get_rhs t) (get_value t) ineq_acc (get_rhs (econj', is, ineq)) (get_value (econj', is, ineq))
-               in List.fold transfer_single_relation ineq relations
+          let ineq' = Ineq.affine_transform ineq x (c, y, o, d)
           in let is' = IntMap.remove x is in (*remove value and add it back in the new econj *)
           let t' = econj', is', ineq' in
           set_value t' x value 
-        | None -> econj', IntMap.remove x is, ineq (*we replaced x by a constant -> do not save a value anymore*)
+        | None -> econj', IntMap.remove x is, Ineq.forget_variable ineq x (*we replaced x (and all connected vars) by a constant -> do not save a value and inequality anymore*)
       in
       (match var, (EConj.get_rhs ts i) with
        (*| new conj      , old conj          *)
@@ -306,21 +292,23 @@ struct
   ; res
 
   let affine_transform (econ, vs, ineq) i rhs =
-    (*This is a place we want to use the original set_rhs, as the implied congruence might contradict each other during the transformation*)
+    (*This is a place we want to use the original set_rhs (therefore use EConj directly), as the implied congruence might contradict each other during the transformation*)
     (*e.g. with  2x = y and 2z = y, and the assignment y = y+1 *)
     (*This is only called in assign_texpr, after which the value will be set correctly.*)
-    (EConj.affine_transform econ i rhs, vs, ineq)
+    let (_, (m,o,d)) = EConj.inverse i rhs in
+    let c,v = BatOption.get m in 
+    (EConj.affine_transform econ i rhs, vs, Ineq.affine_transform ineq i (c,v,o,d))
 
   let affine_transform econ i rhs =
     let res = affine_transform econ i rhs in
-    if M.tracing then M.tracel "modify_pentagon" "affine_transform %s ->  %s " (show econ) (show res); 
+    if M.tracing then M.tracel "affine_transform" "affine_transform %s ->  %s " (show econ) (show res); 
     res
 
   let meet_with_one_value var value t narrow =
     let meet_function = if narrow then Value.narrow else Value.meet in
     let new_value = meet_function value (get_value t var)
     in if Value.is_bot new_value then raise EConj.Contradiction else 
-      let res = set_value t var new_value
+      let res = set_value t var new_value (*TODO because we meet with an already saved values, we already confirm to the congruence constraints -> skip calculating them again!*)
       in if M.tracing then M.tracel "meet_value" "meet var_%d: before: %s meeting: %s -> %s, total: %s-> %s" (var) (Value.show @@ get_value t var) (Value.show value) (Value.show new_value) (show t) (show res);
       res
 
@@ -412,7 +400,6 @@ struct
 
   let simplify_to_ref_and_offset t texp = timing_wrap "coeff_vec" (simplify_to_ref_and_offset t) texp
 
-  (*TODO texpr has rather few constructors. Would we be more precise if we evaluated the CIL expression instead??*)
   let eval_texpr (t:t) texp = 
     let open Apron.Texpr1 in
     let binop_function = function
@@ -421,18 +408,18 @@ struct
       | Mul -> Value.mul
       | Div -> Value.div
       | Mod -> Value.rem
-      | Pow -> failwith "power is not supported" (*TODO should this be supported*)
+      | Pow -> failwith "power is not supported"
     in let unop_function = function
         | Neg -> Value.neg
         | Cast -> identity
-        | Sqrt -> failwith "sqrt is not supported" (*TODO should this be supported*)
+        | Sqrt -> failwith "sqrt is not supported"
     in let rec eval = function
         | Cst (Scalar x) -> 
           begin match SharedFunctions.int_of_scalar ?round:None x with
             | Some x -> Value.of_bigint x
             | None -> Value.top
           end
-        | Cst (Interval _) -> failwith "constant was an interval; this is not supported" (*TODO monomials_from_texp does not support this as well, but maybe we should*)
+        | Cst (Interval _) -> failwith "constant was an interval; this is not supported"
         | Var x -> 
           let var_dim = Environment.dim_of_var t.env x in
           begin match t.d with
@@ -440,7 +427,6 @@ struct
             | Some d -> EConjI.get_value d var_dim
           end
         | Binop (Sub, Var a , Var b, Int, _) ->
-          (*TODO are there more locations where we can use the inequality information? What if we allow Ineq to return more precise information? (e.g. 5a < 4b + 11)*)
           let dim_a = Environment.dim_of_var t.env a in
           let dim_b = Environment.dim_of_var t.env b in
           begin match t.d with
@@ -469,7 +455,7 @@ struct
     let inequality_from_add var expr = 
       let v = eval_texpr t expr in (*TODO we evaluate some subexpressions twice when calling this in assign_texpr -> bad for performance??*)
       match Value.minimal v, Value.maximal v with
-      | Some (Int min), Some (Int maxi) when min = maxi -> [(Relation.Eq, min), var]
+      | Some (Int min), Some (Int maxi) when min = maxi -> [] (*Should be caught by the lin2var domain -> do not repeat that information*)
       | Some (Int min), Some (Int maxi) -> [(Relation.Gt, Z.add Z.minus_one min), var; (Relation.Lt, Z.add Z.one maxi), var]
       | Some (Int min), _ -> [(Relation.Gt, Z.add Z.minus_one min), var]
       | _,Some (Int maxi) -> [(Relation.Lt, Z.add Z.one maxi), var]
@@ -479,7 +465,7 @@ struct
          let v_var = eval_texpr t (Var var) in
          if   Value.leq v_expr (Value.of_bigint Z.one)
            || Value.leq v_var (Value.of_bigint Z.zero) 
-         then [((Relation.Eq, Z.zero), var)]
+         then [] (*Should be caught by the lin2var domain -> do not repeat that information*)
          else
            match Value.must_be_pos v_expr, Value.must_be_neg v_expr, Value.must_be_pos v_var, Value.must_be_neg v_var with
            | true, _   , true, _    -> if Value.contains v_expr Z.one then [(Relation.Gt, Z.minus_one), var] else [(Relation.Gt, Z.zero), var]
@@ -497,7 +483,7 @@ struct
     | Binop (Sub, Var y, e, _, _) ->       
       let v = eval_texpr t e in begin
         match Value.minimal v, Value.maximal v with
-        | Some (Int min), Some (Int maxi) when min = maxi -> [(Relation.Eq, Z.neg min), y]
+        | Some (Int min), Some (Int maxi) when min = maxi -> [] (*Should be caught by the lin2var domain -> do not repeat that information*)
         | Some (Int min), Some (Int maxi) -> [(Relation.Lt, Z.add Z.one @@ Z.neg min), y; (Relation.Gt, Z.add Z.minus_one @@ Z.neg maxi), y]
         | Some (Int min), _ -> [(Relation.Lt, Z.add Z.one @@ Z.neg min), y]
         | _,Some (Int maxi) -> [(Relation.Gt, Z.add Z.minus_one @@ Z.neg maxi), y]
@@ -508,7 +494,7 @@ struct
         let v_var = eval_texpr t (Var y) in
         if   Value.leq v_expr (Value.of_bigint Z.one)
           || Value.leq v_var (Value.of_bigint Z.zero) 
-        then [((Relation.Eq, Z.zero), y)]
+        then [] (*Should be caught by the lin2var domain -> do not repeat that information*)
         else
           match Value.must_be_pos v_expr, Value.must_be_neg v_expr, Value.must_be_pos v_var, Value.must_be_neg v_var with
           | true, _   , true, _    -> if Value.contains v_expr Z.one then [(Relation.Lt, Z.one), y] else [(Relation.Lt, Z.zero), y] 
@@ -536,7 +522,7 @@ struct
         | _,_ -> []
       end
     | Unop (Cast, e, _, _) -> to_inequalities t e
-    | Var x -> [((Relation.Eq, Z.zero), x)]
+    | Var x -> [] (*Should be caught by the lin2var domain -> do not repeat that information*)
     | _ -> []
 
   let to_inequalities (t:t) texpr = 
@@ -742,7 +728,6 @@ struct
                     (* a%b == c  -> a: c+bℤ *)
                     let t = Value.of_congruence (c, b) in
                     (*If the calculated congruence implies this one, we have a contradiction*)
-                    (*TODO we could check for definite values and contradictions at every step, not just in MOD / Variable assignment*)
                     if is_inequality && Value.leq a_val (Value.of_congruence (c,b)) then raise EConj.Contradiction;
                     Value.meet a'' t
                   | _, _ -> a''
@@ -754,7 +739,7 @@ struct
         | Unop (op, e,_,_) -> begin match op with 
             | Neg -> refine_values d (Value.neg value) e
             | Cast -> refine_values d value e
-            | Sqrt -> failwith "sqrt is not supported" (*TODO should this be supported*)
+            | Sqrt -> failwith "sqrt is not supported"
           end
         | Cst (Scalar x) -> 
           begin match SharedFunctions.int_of_scalar ?round:None x with
@@ -926,17 +911,15 @@ struct
       | Some econj'' ->
         if M.tracing then M.tracel "join" "join_econj of %s, %s resulted in %s" (EConjI.show x) (EConjI.show y) (EConj.show @@ snd econj'');
         let ineq' = (if widen then Ineq.widen else Ineq.join) ineq_x (EConjI.get_value x) ineq_y (EConjI.get_value y) in
-        let (e,v,i) as d' = collect_values x y econj'' ((Environment.size env)-1) (econj'', IntMap.empty, ineq') in
-        (*We do not want to save inequalities for non-representants. in some cases, we can transfer these*)
-        (*TODO this feels inefficient, but I'm not sure how else to do it*)
-        (*TODO here and at forgetvar, we could be more precise by transforming with the whole rhs!!*)
-        let not_constant (c,_,_) = BatOption.is_some c in 
-        let transfer_if_possible var rhs ineq_acc = 
+        let (e,v,i) = collect_values x y econj'' ((Environment.size env)-1) (econj'', IntMap.empty, ineq') in
+        (*The above joins might result in inequalities for variables that are no longer representants after joining the equations -> transform them*)
+        (*TODO what if we split a connected component?? *)
+        let transform_non_representant var rhs ineq_acc = 
           match rhs with 
-          | (Some (c,v), o, d) when Z.equal c d -> Ineq.transfer var v (Relation.Eq, Z.neg @@ Z.divexact o d) ineq' (EConjI.get_rhs d') (EConjI.get_value d') ineq_acc (EConjI.get_rhs d') (EConjI.get_value d')
+          | (Some (c,v), o, d) when v <> var -> Ineq.affine_transform ineq_acc var (c,v,o,d) 
           | _ -> ineq_acc
         in
-        let i' = EConj.IntMap.fold (fun var rhs ineq_acc -> if not_constant rhs then transfer_if_possible var rhs @@ Ineq.forget_variable ineq_acc var else ineq_acc) (snd econj'') i in
+        let i' = EConj.IntMap.fold (transform_non_representant) (snd econj'') i in
         Some (e,v,i')        
     in
     (*Normalize the two domains a and b such that both talk about the same variables*)
@@ -1016,8 +999,7 @@ struct
           assign_const (forget_var t var) var_i off divi
         | Some (Some (coeff_var,exp_var), off, divi) when var_i = exp_var ->
           (* Statement "assigned_var = (coeff_var*assigned_var + off) / divi" *)
-          (*TODO in this case, the transfer of information could be more precise for the exact inequalities! But currently COndition.t can not transfer that information*)
-          let econji' = econj, IntMap.remove var_i vs, Ineq.forget_variable ineq_old var_i in
+          let econji' = econj, IntMap.remove var_i vs, ineq_old in (*value will be updated afterwards with query*)
           {d=Some (EConjI.affine_transform econji' var_i (coeff_var, var_i, off, divi)); env=t.env }          
         | Some (Some monomial, off, divi) ->
           (* Statement "assigned_var = (monomial) + off / divi" (assigned_var is not the same as exp_var) *)
@@ -1033,8 +1015,7 @@ struct
               let ineq', refinements = Ineq.meet_relation var_i dim cond (EConjI.get_rhs d') (EConjI.get_value d') ineq
               in List.fold (fun d (var,value) -> EConjI.meet_with_one_value var value d false) (e,v,ineq') refinements 
             else
-              (*TODO If cond = Eq, we could restore the previous rhs. Does this ever happen without being handled above?*)
-              e,v,Ineq.transfer dim dim cond ineq_old (EConjI.get_rhs d) (EConjI.get_value d) ineq (EConjI.get_rhs d') (EConjI.get_value d')
+              e,v,Ineq.transfer dim cond ineq_old (EConjI.get_rhs d) (EConjI.get_value d) ineq (EConjI.get_rhs d') (EConjI.get_value d')
           in
           let d'' = List.fold meet_cond d' (VarManagement.to_inequalities t texp) in
           if M.tracing then M.tracel "assign_texpr" "after inequality: %s" (show {d = Some d''; env = t.env});
@@ -1072,7 +1053,7 @@ struct
                    ))
           with Invalid_argument _ -> Value.top (*get_ikind_exp failed*)
         in 
-        (*TODO If the newly assigned value must be greater / lower than the old, we can transfer conditions!*)
+        (*TODO If the newly assigned value must be greater / lower than the old, we can restore some conditions?*)
         let d' = if Value.is_bot value then None
           else Some (EConjI.set_value d (Environment.dim_of_var t.env var) value)
         in {d= d'; env = t.env}
