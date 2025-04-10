@@ -1119,7 +1119,7 @@ module LinearInequalities: TwoVarInequalities = struct
           in match Coeffs.get_best_offset (Coeffs.Key.negate k) coeff with (*lower bound*)
           | None -> upper_bound
           | Some c_ineq -> 
-            let c' = Q.mul factor @@ Q.neg ( Q.add c_ineq c_rhs) in
+            let c' = Q.mul factor ( Q.add c_ineq c_rhs) in
             (Gt, Z.cdiv (Q.num c') (Q.den c')) :: upper_bound
       end
     | _, _ -> failwith "Inequalities.is_less_than does not take constants directly" (*TODO should we take the coefficients directly to enforce this*)
@@ -1150,9 +1150,10 @@ module LinearInequalities: TwoVarInequalities = struct
            (*do not save inequalities refering to the same variable*) 
            if x = y then
              let s = Coeffs.Key.get_slope k in
-             if Q.equal Q.one s then (* x < x + c*)
-               if Q.leq c Q.zero then raise EConj.Contradiction
-               else t, [] (*trivially true*)
+             if Q.equal Q.one s then (* x < x + c (or >) *)
+               match k with 
+               | LT _ -> if Q.leq c Q.zero then raise EConj.Contradiction else (t, []) (*trivially true*)
+               | GT _ -> if Q.geq c Q.zero then raise EConj.Contradiction else (t, []) (*trivially true*)
              else (* sx < x + c (or >) -> refine the value in this case*)
                let s' = Q.sub s Q.one in
                let s', c' = match k with LT _ -> s',c | GT _ -> Q.neg s', Q.neg c in 
@@ -1192,18 +1193,35 @@ module LinearInequalities: TwoVarInequalities = struct
   (*this is now used in other places where i think this way is correct -> name it inverse_affine_transform? *)
   let affine_transform t i (coeff, j, offs, divi) = 
     let fold_x x ys acc = 
+      let check_for_contradiction cs = (*TODO value refinement?*)
+        let check_single k c = 
+          match k with 
+          | Coeffs.Key.LT s -> if Q.leq c Q.zero then raise EConj.Contradiction 
+          | GT s -> if Q.geq c Q.zero then raise EConj.Contradiction 
+        in Coeffs.CoeffMap.iter check_single cs
+      in
       if x < i then 
         let ys' = match IntMap.find_opt i ys with
-          | None -> ys
+          | None -> Some ys
           | Some cs -> 
             let cs' = Coeffs.affine_transform_right (coeff, offs, divi) cs in
-            let combine = function
-              | None -> Some cs'
-              | Some cs_j -> Some (Coeffs.meet Value.top Value.top cs' cs_j)
-            in IntMap.update_stdlib j combine ys
-        in IntMap.add x ys' acc
+            if x = j then (*We now have inequalities with the same variable on both sides -> check for contradictions*)
+              (check_for_contradiction cs'; None)
+            else
+              let combine = function
+                | None -> Some cs'
+                | Some cs_j -> Some (Coeffs.meet Value.top Value.top cs' cs_j)
+              in Some (IntMap.update_stdlib j combine ys)
+        in match ys' with 
+        | Some ys' -> IntMap.add x ys' acc
+        | _ -> acc
       else if x = i then  
-        let ys' = IntMap.filter_map (fun y cs -> if y = j then None else Some (Coeffs.affine_transform_left (coeff, offs, divi) cs)) ys in
+        let convert y cs = 
+          let tranformed = Coeffs.affine_transform_left (coeff, offs, divi) cs in
+          if y = j 
+          then (check_for_contradiction tranformed; None) 
+          else Some tranformed
+        in let ys' = IntMap.filter_map convert ys in
         if IntMap.is_empty ys' then 
           acc
         else 
