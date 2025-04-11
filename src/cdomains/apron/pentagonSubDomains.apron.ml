@@ -722,7 +722,7 @@ module LinearInequality = struct
     Printf.sprintf "%s%s %s%s" 
       (show_var (Q.num s) x true) 
       (match k with LT _ -> "<=" | GT _ -> ">=") 
-      (show_var (Q.den s) y false) 
+      (show_var (Q.den s) y (Q.equal c Q.zero)) 
       (show_offset @@ if Q.equal s Q.inf then c else Q.mul c @@ Q.of_bigint @@ Q.den s )
 
   (*Convert into coefficients of inequality ax + by <= c
@@ -801,9 +801,10 @@ module LinearInequality = struct
         | _ -> ineqs
     in ineqs
 
-  (*Convert two righthandsides into an inequality*)
-  let from_rhss (cx, ox, dx) (cy, oy, dy) = 
-    let a,b,c = (Q.make cx dx, Q.make cy dy, Q.sub (Q.sub (Q.make oy dy) (Q.make ox dx)) Q.one) in (*subtracting one to convert it into a nonstrict inequality*)
+  (*Convert two righthandsides into an inequality isLessThan is the direction of the inequality and needed for making the inequality non-strict while we still know that all variables are integers*)
+  let from_rhss (cx, ox, dx) (cy, oy, dy) isLessThan_opt = 
+    let non_strict_offset = match isLessThan_opt with None -> Q.zero | Some isLessThan -> if isLessThan then Q.minus_one else Q.one in
+    let a,b,c = (Q.make cx dx, Q.make cy dy, Q.add non_strict_offset @@ Q.sub (Q.make oy dy) (Q.make ox dx)) in (*subtracting one to convert it into a nonstrict inequality*)
     let s = Q.div a b in
     if Q.equal b Q.zero 
     then OriginInequality.norm (LT s), Q.div c a
@@ -946,7 +947,7 @@ module ArbitraryCoeffsSet = struct
               | Some a, Some b -> TopIntOps.max a b
               | _,_ -> failwith "trying to refine bot in inequalities"
             in match max_y with 
-            | Int max -> [x, Value.ending @@ Z.add max @@ round_up @@ Q.div c s]
+            | Int max -> [x, Value.ending @@ Z.add max @@ round_up @@ Q.div c s] (*TODO I'm not sure anymore: why are we rounding up?*)
             | _ -> [] 
           in let lower_bound s = (*x >= y / s + c / s*)
                let min_y = match Value.minimal (Value.mul y_val (Value.of_bigint (round_down (Q.inv s)))) , Value.minimal @@ Value.mul y_val (Value.of_bigint (round_up (Q.inv s))) with
@@ -990,8 +991,8 @@ module ArbitraryCoeffsSet = struct
     in if skip_adding then t, refinements 
     else (*Look for contradicting inequality*)
       let contradicts c' = match k with 
-        | LT _ -> Q.geq c' c
-        | GT _ -> Q.leq c' c
+        | LT _ -> Q.gt c' c
+        | GT _ -> Q.lt c' c
       in
       match get_best_offset (Key.negate k) t with  
       | Some c' when contradicts c' -> raise EConj.Contradiction
@@ -1130,7 +1131,7 @@ module LinearInequalities: TwoVarInequalities = struct
         | Some coeff -> 
           let interval_ineqs = LinearInequality.from_values x_val y_val in
           let coeff = List.fold (fun t (k,c) -> Coeffs.add_inequality k c t) coeff interval_ineqs in
-          let (k,c_rhs) = LinearInequality.from_rhss (c_x,o_x,d_x) (c_y,o_y,d_y) in
+          let (k,c_rhs) = LinearInequality.from_rhss (c_x,o_x,d_x) (c_y,o_y,d_y) None in
           let factor = (*we need to muliply c' with this factor because LinearInequalities scales them down*)
             let a = Q.make c_x d_x in
             let b = Q.make c_y d_y in
@@ -1140,7 +1141,7 @@ module LinearInequalities: TwoVarInequalities = struct
             | None -> []
             | Some c_ineq -> 
               let c' = Q.mul factor @@ Q.sub c_ineq c_rhs in 
-              [Relation.Lt, Z.add Z.one @@ Z.fdiv (Q.num c') (Q.den c')] (*add one to convert from a strict to an nonstrict inequality*)
+              [Relation.Lt, Z.add Z.one @@ Z.fdiv (Q.num c') (Q.den c')] (*add one to make it a strict inequality*)
           in match Coeffs.get_best_offset (Coeffs.Key.negate k) coeff with (*lower bound*)
           | None -> upper_bound
           | Some c_ineq -> 
@@ -1169,7 +1170,7 @@ module LinearInequalities: TwoVarInequalities = struct
       let coeffs = match get_coeff x y t with
         | None -> Coeffs.empty
         | Some c -> c
-      in let (k,c) = LinearInequality.from_rhss rhs_x rhs_y
+      in let (k,c) = LinearInequality.from_rhss rhs_x rhs_y (Some (match fst cond with Relation.Lt -> true | _ -> false))
       in let meet_relation_roots k c t = 
            if M.tracing then M.tracel "meet_relation" "meet_relation_roots: %s" @@ LinearInequality.show ("var_" ^ Int.to_string x) ("var_" ^ Int.to_string y) (k,c);
            (*do not save inequalities refering to the same variable*) 
@@ -1196,14 +1197,9 @@ module LinearInequalities: TwoVarInequalities = struct
            if Q.equal b Q.zero then a else b
            (*TODO: transfer some transitivity, similar to the simple inequalities*)
       in let (new_coeffs, refine_acc) = match cond with 
-          | Relation.Lt, o -> meet_relation_roots k (Q.add c @@ Q. div (Q.of_bigint o) factor) coeffs
-          | Gt, o -> meet_relation_roots (Coeffs.Key.negate k) ((Q.add c @@ Q. div (Q.of_bigint o) factor) ) coeffs
-          | Eq, o -> coeffs, []
-          (*TODO: I think this should always be stored by the lin2vareq domain (at least the way we are generating this information)
-            (*meet with < +1 und > -1*)
-            if M.tracing then M.tracel "meet_relation" "meeting equality!";
-            meet_relation_roots (a,b) (Q.add c_rhs @@ Q.of_bigint @@ Z.add Z.one o) @@
-            meet_relation_roots (Q.neg a ,Q.neg b) (Q.neg @@ (Q.add c_rhs @@ Q.of_bigint @@ Z.add Z.minus_one o)) coeffs*)
+          | Relation.Lt, o -> meet_relation_roots k (Q.add c @@ Q.div (Q.of_bigint o) factor) coeffs
+          | Gt, o -> meet_relation_roots (Coeffs.Key.negate k) ((Q.add c @@ Q.div (Q.of_bigint o) factor) ) coeffs
+          | Eq, o -> coeffs, [] (*This should always be stored by the lin2vareq domain (at least the way we are generating this information)*)
       in if Coeffs.CoeffMap.is_empty new_coeffs 
       then remove_coeff x y t , refine_acc
       else set_coeff x y new_coeffs t, refine_acc
@@ -1267,7 +1263,7 @@ module LinearInequalities: TwoVarInequalities = struct
     match get_rhs_old x, get_rhs x with 
     | (Some (coeff_old,x_root_old), off_old, divi_old), ((Some (coeff,x_root), off, divi) as rhs) -> 
       (*convert the relation to a linear inequality refering to the old root *)
-      let (k,c) = LinearInequality.from_rhss (coeff_old, off_old, divi_old) (coeff_old, off_old, divi_old)
+      let (k,c) = LinearInequality.from_rhss (coeff_old, off_old, divi_old) (coeff_old, off_old, divi_old) (Some (match fst cond with Relation.Lt -> true | _ -> false))
       in let factor = Q.make coeff_old divi_old (*we need to divide o by this factor because LinearInequalities scales everything down. TODO is there a better way?*)
       in let ineq_from_cond = match cond with 
           | Relation.Lt, o -> k, (Q.add c @@ Q. div (Q.of_bigint o) factor)
