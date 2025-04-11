@@ -672,7 +672,7 @@ let qhash q = Z.hash (Q.num q) + 13 * Z.hash (Q.den q)
 
 module LinearInequality = struct
   (*Normalised representation of an inequality through the origin 
-    a/b x < y (or >) bzw. slope and direction. infinite slope represents 0 < x / 0 > x*)
+    a/b x <= y (or >=) bzw. slope and direction. infinite slope represents 0 <= x / 0 >= x*)
   module OriginInequality = struct (*Separate module so we can use it as key in a map*)
     type t = LT of Q.t | GT of Q.t
 
@@ -705,15 +705,38 @@ module LinearInequality = struct
   (*add an offset to the inequalities*)
   type t = OriginInequality.t * Q.t [@@deriving eq]
 
-  let show x y (k,c) = Printf.sprintf "%s %s %s %s %s + %s" (Z.to_string @@ Q.num @@ OriginInequality.get_slope k ) x (match k with LT _ -> "<" | GT _ -> ">") (Z.to_string  @@ Q.den @@ OriginInequality.get_slope k ) y (Q.to_string c)
+  let show x y (k,c) = 
+    let show_var coeff var show_zero = 
+      let open Z in 
+      if coeff = zero then (if show_zero then "0 " else "")
+      else if coeff = one then var ^ " "
+      else to_string coeff ^ var ^ " "
+    in
+    let show_offset o = 
+      let open Q in 
+      if o = zero then ""
+      else if o > zero then "+ " ^ to_string o
+      else "- " ^ to_string (abs o)
+    in
+    let s = OriginInequality.get_slope k in
+    Printf.sprintf "%s%s %s%s" 
+      (show_var (Q.num s) x true) 
+      (match k with LT _ -> "<=" | GT _ -> ">=") 
+      (show_var (Q.den s) y false) 
+      (show_offset @@ if Q.equal s Q.inf then c else Q.mul c @@ Q.of_bigint @@ Q.den s )
 
-  (*Convert into coefficients of inequality ax + by < c
+  (*Convert into coefficients of inequality ax + by <= c
     Useful because the TVLI paper (DOI: 10.1007/3-540-45013-0_7) uses this representation *)
   let to_coeffs = function
     | OriginInequality.LT s, c when Q.equal s Q.inf -> (Q.one,Q.zero,c)
     | GT s, c when Q.equal s Q.inf -> (Q.minus_one, Q.zero, Q.neg c)
     | LT s, c -> (s,Q.minus_one,c)
     | GT s, c -> (Q.neg s, Q.one, Q.neg c)
+
+  let to_coeffs t = 
+    let a,b,c as res = to_coeffs t in
+    if M.tracing then M.trace "entails" "slope %s, whole: %s -> %s,%s,%s" (Q.to_string @@ OriginInequality.get_slope @@ fst t) (show "x" "y" t)  (Q.to_string a) (Q.to_string b) (Q.to_string c);
+    res
 
   (*From TVLI: check if one or two inequalities imply an inequality*)
   let entails1 (s1,c1) (s2,c2) = OriginInequality.equal s1 s2 &&  match s1 with LT _ -> Q.leq c1 c2 | GT _ -> Q.geq c1 c2
@@ -727,6 +750,7 @@ module LinearInequality = struct
     let (a1,b1,c1) = to_coeffs t1 in
     let (a2,b2,c2) = to_coeffs t2 in
     let (a ,b ,c ) = to_coeffs t  in
+    if M.tracing then M.trace "entails" "coeffs: %s,%s,%s  %s,%s,%s  %s,%s,%s" (Q.to_string a1) (Q.to_string b1) (Q.to_string c1) (Q.to_string a2) (Q.to_string b2) (Q.to_string c2) (Q.to_string a) (Q.to_string b) (Q.to_string c);
     let open Q in
     let d = a1 * b2 - a2 * b1 in
     if equal d zero then 
@@ -764,22 +788,22 @@ module LinearInequality = struct
   let from_values x_val y_val =
     let open OriginInequality in
     let ineqs = match Value.maximal x_val with 
-      | Some (Int z) -> (*x <= z *) [LT Q.inf, Q.of_bigint @@ Z.add Z.one z] 
+      | Some (Int z) -> (*x <= z *) [LT Q.inf, Q.of_bigint z] 
       | _ -> []
     in let ineqs = match Value.minimal x_val with 
-        | Some (Int z) -> (*x >= z *) (GT Q.inf, Q.of_bigint @@ Z.add Z.minus_one z) :: ineqs
+        | Some (Int z) -> (*x >= z *) (GT Q.inf, Q.of_bigint z) :: ineqs
         | _ -> ineqs
     in let ineqs = match Value.maximal y_val with 
-        | Some (Int z) -> (*y <= z *) (GT Q.zero, Q.neg @@ Q.of_bigint @@ Z.add Z.one z ) :: ineqs
+        | Some (Int z) -> (*y <= z *) (GT Q.zero, Q.neg @@ Q.of_bigint z ) :: ineqs
         | _ -> ineqs
     in let ineqs = match Value.minimal y_val with 
-        | Some (Int z) -> (*y >= z *) (LT Q.zero, Q.neg @@ Q.of_bigint @@ Z.add Z.minus_one z ) :: ineqs
+        | Some (Int z) -> (*y >= z *) (LT Q.zero, Q.neg @@ Q.of_bigint z ) :: ineqs
         | _ -> ineqs
     in ineqs
 
   (*Convert two righthandsides into an inequality*)
   let from_rhss (cx, ox, dx) (cy, oy, dy) = 
-    let a,b,c = (Q.make cx dx, Q.make cy dy, Q.sub (Q.make oy dy) (Q.make ox dx)) in
+    let a,b,c = (Q.make cx dx, Q.make cy dy, Q.sub (Q.sub (Q.make oy dy) (Q.make ox dx)) Q.one) in (*subtracting one to convert it into a nonstrict inequality*)
     let s = Q.div a b in
     if Q.equal b Q.zero 
     then OriginInequality.norm (LT s), Q.div c a
@@ -804,7 +828,7 @@ module LinearInequality = struct
     let s = get_slope k in
     let f = Q.make coeff divi in
     let s' = Q.div s f in
-    let o' = Q.add o @@ Q.make offs coeff in
+    let o' = Q.add (Q.div o f) @@ Q.make offs coeff in
     let k' = match k with 
       | LT _ -> LT s'
       | GT _ -> GT s'
@@ -989,7 +1013,8 @@ module ArbitraryCoeffsSet = struct
       | Some t -> t
     in let interval_ineqs = LinearInequality.from_values x_val y_val in
     let t1 = List.fold (fun t (k,c) -> add_inequality k c t) t1 interval_ineqs (*makes this O(n log n) instead of O(n)*)
-    in if CoeffMap.is_empty t2 then true
+    in if M.tracing then M.trace "implies" "after adding intervals: %s" (show_formatted "x" "y" t1);
+    if CoeffMap.is_empty t2 then true
     else if CoeffMap.is_empty t1 then false
     else(*functional version of the entailment check from TVLI*)
       let ts1 = CoeffMap.bindings t1 in 
@@ -1115,12 +1140,12 @@ module LinearInequalities: TwoVarInequalities = struct
             | None -> []
             | Some c_ineq -> 
               let c' = Q.mul factor @@ Q.sub c_ineq c_rhs in 
-              [Relation.Lt, Z.fdiv (Q.num c') (Q.den c')]
+              [Relation.Lt, Z.add Z.one @@ Z.fdiv (Q.num c') (Q.den c')] (*add one to convert from a strict to an nonstrict inequality*)
           in match Coeffs.get_best_offset (Coeffs.Key.negate k) coeff with (*lower bound*)
           | None -> upper_bound
           | Some c_ineq -> 
             let c' = Q.mul factor ( Q.add c_ineq c_rhs) in
-            (Gt, Z.cdiv (Q.num c') (Q.den c')) :: upper_bound
+            (Gt, Z.add Z.minus_one @@ Z.cdiv (Q.num c') (Q.den c')) :: upper_bound
       end
     | _, _ -> failwith "Inequalities.is_less_than does not take constants directly" (*TODO should we take the coefficients directly to enforce this*)
 
@@ -1150,19 +1175,19 @@ module LinearInequalities: TwoVarInequalities = struct
            (*do not save inequalities refering to the same variable*) 
            if x = y then
              let s = Coeffs.Key.get_slope k in
-             if Q.equal Q.one s then (* x < x + c (or >) *)
+             if Q.equal Q.one s then (* x <= x + c (or >=) *)
                match k with 
-               | LT _ -> if Q.leq c Q.zero then raise EConj.Contradiction else (t, []) (*trivially true*)
-               | GT _ -> if Q.geq c Q.zero then raise EConj.Contradiction else (t, []) (*trivially true*)
-             else (* sx < x + c (or >) -> refine the value in this case*)
+               | LT _ -> if Q.lt c Q.zero then raise EConj.Contradiction else (t, []) (*trivially true*)
+               | GT _ -> if Q.gt c Q.zero then raise EConj.Contradiction else (t, []) (*trivially true*)
+             else (* sx <= x + c (or =>) -> refine the value in this case*)
                let s' = Q.sub s Q.one in
                let s', c' = match k with LT _ -> s',c | GT _ -> Q.neg s', Q.neg c in 
-               (*s'x < c' *) 
+               (*s'x <= c' *) 
                if Q.gt s' Q.zero then 
-                 let max = Q.sub (Q.div c' s') Q.one in
+                 let max = Q.div c' s' in
                  t, [x, Value.ending @@ Z.cdiv (Q.num max) (Q.den max)]
                else
-                 let min = Q.add (Q.div c' s') Q.one in
+                 let min = Q.div c' s' in
                  t, [x, Value.starting @@ Z.fdiv (Q.num min) (Q.den min)]
            else Coeffs.limit @@ Coeffs.meet_single_inequality (Some (x,y)) false (get_value x) (get_value y) k c t
       in let factor = (*we need to divide o by this factor because LinearInequalities scales everything down. TODO is there a better way?*)
@@ -1196,8 +1221,8 @@ module LinearInequalities: TwoVarInequalities = struct
       let check_for_contradiction cs = (*TODO value refinement?*)
         let check_single k c = 
           match k with 
-          | Coeffs.Key.LT s -> if Q.leq c Q.zero then raise EConj.Contradiction 
-          | GT s -> if Q.geq c Q.zero then raise EConj.Contradiction 
+          | Coeffs.Key.LT s -> if Q.lt c Q.zero then raise EConj.Contradiction 
+          | GT s -> if Q.gt c Q.zero then raise EConj.Contradiction 
         in Coeffs.CoeffMap.iter check_single cs
       in
       if x < i then 
@@ -1232,6 +1257,11 @@ module LinearInequalities: TwoVarInequalities = struct
       else
         acc
     in IntMap.fold fold_x t IntMap.empty 
+
+  let affine_transform t i (c,j,o,d) = 
+    let res = affine_transform t i (c,j,o,d) in
+    if M.tracing then M.trace "affine_transform" "transforming var_%d in %s with %s -> %s" i (show t) (Rhs.show (Some (c,j), o, d)) (show res);
+    res
 
   let transfer x cond t_old get_rhs_old get_value_old t get_rhs get_value = 
     match get_rhs_old x, get_rhs x with 
