@@ -878,6 +878,7 @@ struct
     in
     let implies_value v i value = Value.leq (EConjI.get_value v i) value
     in
+    if BatOption.is_none t1.d then true else (*This kind of bot does not require the environment to be a superset*)
     if env_comp = -2 || env_comp > 0 then false else
     if is_bot_env t1 || is_top t2 then true
     else if is_bot_env t2 || is_top t1 then false else
