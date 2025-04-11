@@ -885,12 +885,16 @@ struct
       let (econ1, _, ineq1) as m1' = if env_comp = 0 then m1 else VarManagement.dim_add (Environment.dimchange t1.env t2.env) m1 in
       (*If econ1 has some representants that are not representants in econ2, we need to transform the inequalities *)
       let transform_non_representant var (m,o,d) ineq_acc =
-        let (c,v) = BatOption.get m in
-        if not @@ EConj.nontrivial econ1 var then 
-          Ineq.affine_transform ineq_acc var  (c,v,o,d)
-        else ineq_acc
+        match m with 
+        | None -> ineq_acc
+        | Some (c,v) ->
+          if M.tracing then M.trace "leq" "econ2 not representant: %s with rhs: %s" (Var.show @@ Environment.var_of_dim t2.env var) (Rhs.show (m,o,d));
+          match EConj.get_rhs econ1 var with 
+          | Some (_,v),_,_ when v <> var -> (if M.tracing then M.trace "leq" "and not representant in econ1 -> do nothing"); ineq_acc
+          | _ -> (if M.tracing then M.trace "leq" "and not representant in econ1 -> transform"); Ineq.affine_transform ineq_acc var (c,v,o,d) 
       in
       let ineq1' = IntMap.fold transform_non_representant (snd econ2) ineq1 in
+      if M.tracing then M.trace "leq" "transformed %s into %s" (Ineq.show_formatted (fun i -> Var.show @@ Environment.var_of_dim t2.env i) ineq1) (Ineq.show_formatted (fun i -> Var.show @@ Environment.var_of_dim t2.env i) ineq1');  
       IntMap.for_all (implies econ1) (snd econ2) (* even on sparse m2, it suffices to check the non-trivial equalities, still present in sparse m2 *)
       && IntMap.for_all (implies_value m1') (vs2)
       && Ineq.leq ineq1' (EConjI.get_value m1') ineq2
