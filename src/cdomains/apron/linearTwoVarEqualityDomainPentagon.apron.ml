@@ -883,9 +883,17 @@ struct
     else if is_bot_env t2 || is_top t1 then false else
       let m1, (econ2, vs2, ineq2) = Option.get t1.d, Option.get t2.d in
       let (econ1, _, ineq1) as m1' = if env_comp = 0 then m1 else VarManagement.dim_add (Environment.dimchange t1.env t2.env) m1 in
+      (*If econ1 has some representants that are not representants in econ2, we need to transform the inequalities *)
+      let transform_non_representant var (m,o,d) ineq_acc =
+        let (c,v) = BatOption.get m in
+        if not @@ EConj.nontrivial econ1 var then 
+          Ineq.affine_transform ineq_acc var  (c,v,o,d)
+        else ineq_acc
+      in
+      let ineq1' = IntMap.fold transform_non_representant (snd econ2) ineq1 in
       IntMap.for_all (implies econ1) (snd econ2) (* even on sparse m2, it suffices to check the non-trivial equalities, still present in sparse m2 *)
       && IntMap.for_all (implies_value m1') (vs2)
-      && Ineq.leq ineq1 (EConjI.get_value m1') ineq2
+      && Ineq.leq ineq1' (EConjI.get_value m1') ineq2
 
   let leq a b = timing_wrap "leq" (leq a) b
 
