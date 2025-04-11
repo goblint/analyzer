@@ -32,3 +32,4 @@ module SolverStats = SolverStats
 module SolverBox = SolverBox
 
 module SideWPointSelect = SideWPointSelect
+module Td3UpdateRule = Td3UpdateRule
