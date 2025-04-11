@@ -941,19 +941,19 @@ module ArbitraryCoeffsSet = struct
         let round_up q = Z.cdiv (Q.num q) (Q.den q) in
         let round_down q = Z.fdiv (Q.num q) (Q.den q) in
         let x_refine = 
-          let upper_bound s = (*x < y / s + c / s*)
+          let upper_bound s = (*x <= y / s + c / s*)
             let max_y = match Value.maximal (Value.mul y_val (Value.of_bigint (round_down (Q.inv s)))) , Value.maximal @@ Value.mul y_val (Value.of_bigint (round_up (Q.inv s))) with
               | Some a, Some b -> TopIntOps.max a b
               | _,_ -> failwith "trying to refine bot in inequalities"
             in match max_y with 
-            | Int max -> [x, Value.ending @@ Z.add Z.minus_one @@ Z.add max @@ round_up @@ Q.div c s]
+            | Int max -> [x, Value.ending @@ Z.add max @@ round_up @@ Q.div c s]
             | _ -> [] 
-          in let lower_bound s = (*x > y / s + c / s*)
+          in let lower_bound s = (*x >= y / s + c / s*)
                let min_y = match Value.minimal (Value.mul y_val (Value.of_bigint (round_down (Q.inv s)))) , Value.minimal @@ Value.mul y_val (Value.of_bigint (round_up (Q.inv s))) with
                  | Some a, Some b -> TopIntOps.min a b
                  | _,_ -> failwith "trying to refine bot in inequalities"
                in match min_y with 
-               | Int min -> [x, Value.starting @@ Z.add Z.one @@ Z.add min @@ round_down @@ Q.div c s]
+               | Int min -> [x, Value.starting @@ Z.add min @@ round_down @@ Q.div c s]
                | _ -> []
           in
           match k with 
@@ -964,38 +964,38 @@ module ArbitraryCoeffsSet = struct
           | _ -> [] (*Should never be used in this case*)
         in let y_refine =
              match k with 
-             | LT s -> begin (*sx -c < y*)
+             | LT s -> begin (*sx -c <= y*)
                  let min_x = match Value.minimal (Value.mul x_val (Value.of_bigint (round_down s))) , Value.minimal @@ Value.mul x_val (Value.of_bigint (round_up s)) with
                    | Some a, Some b -> TopIntOps.min a b
                    | _,_ -> failwith "trying to refine bot in inequalities"
                  in match min_x with 
-                 | Int min -> [y, Value.starting @@ Z.add Z.one @@ Z.sub min @@ round_up c]
+                 | Int min -> [y, Value.starting @@ Z.sub min @@ round_up c]
                  | _ -> [] 
                end
-             | GT s ->  (*s x - c > y*)
+             | GT s ->  (*s x - c >= y*)
                let max_x = match Value.maximal (Value.mul x_val (Value.of_bigint (round_down s))) , Value.maximal @@ Value.mul x_val (Value.of_bigint (round_up s)) with
                  | Some a, Some b -> TopIntOps.max a b
                  | _,_ -> failwith "trying to refine bot in inequalities"
                in match max_x with 
-               | Int max -> [y, Value.ending @@ Z.add Z.minus_one @@ Z.sub max @@ round_down c]
+               | Int max -> [y, Value.ending @@ Z.sub max @@ round_down c]
                | _ -> [] 
         in match k with
-        | LT s when Q.equal Q.zero s -> (* -c > y *) [y, Value.ending @@ Z.add Z.minus_one @@ round_up @@ Q.neg c] , true
-        | GT s when Q.equal Q.zero s -> (* -c < y *) [y, Value.starting @@ Z.add Z.one @@ round_down @@ Q.neg c] , true
-        | LT s when Q.equal Q.inf s -> (*x > c*) [x, Value.starting @@ Z.add Z.one @@ round_down c ], true
-        | GT s when Q.equal Q.minus_inf s -> (*x > c*) [x, Value.starting @@ Z.add Z.one @@ round_down c ], true 
-        | LT s when Q.equal Q.minus_inf s -> (*x < c*) [x, Value.ending @@ Z.add Z.minus_one @@ round_up c], true
-        | GT s when Q.equal Q.inf s -> (*x < c*) [x, Value.ending @@ Z.add Z.minus_one @@ round_up c], true
+        | LT s when Q.equal Q.zero s -> (* -c >= y *) [y, Value.ending @@ round_up @@ Q.neg c] , true
+        | GT s when Q.equal Q.zero s -> (* -c <= y *) [y, Value.starting @@ round_down @@ Q.neg c] , true
+        | LT s when Q.equal Q.inf s -> (*x >= c*) [x, Value.starting @@ round_down c ], true
+        | GT s when Q.equal Q.minus_inf s -> (*x >= c*) [x, Value.starting @@ round_down c ], true 
+        | LT s when Q.equal Q.minus_inf s -> (*x <= c*) [x, Value.ending @@ round_up c], true
+        | GT s when Q.equal Q.inf s -> (*x <= c*) [x, Value.ending @@ round_up c], true
         | k -> (*an actual inequality *) x_refine @ y_refine, false 
     in if skip_adding then t, refinements 
     else (*Look for contradicting inequality*)
       let contradicts c' = match k with 
-        | LT _ -> Q.geq c' @@ Q.sub c Q.one
-        | GT _ -> Q.leq c' @@ Q.add c Q.one
+        | LT _ -> Q.geq c' c
+        | GT _ -> Q.leq c' c
       in
       match get_best_offset (Key.negate k) t with  
       | Some c' when contradicts c' -> raise EConj.Contradiction
-      (*TODO if c = c' + 2 , then we have an equality -> maybe we can update the econj domain *) 
+      (*TODO if c = c', then we have an equality -> maybe we can update the econj domain *) 
       | _ ->  
         (*add the inequality, while making sure that we do not save redundant inequalities*)
         (*TODO make this consider the intervals! -> adapt get_next and get_previous?*)
