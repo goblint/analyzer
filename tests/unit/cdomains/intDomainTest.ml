@@ -555,8 +555,8 @@ struct
                                             (Printf.sprintf "test_shift_right_ik_%s" (CilType.Ikind.show ik)) Int.shift_right I.shift_right :: acc
                                         ) [] ik_lst |> QCheck_ounit.to_ounit2_test_list
 
-  let bot = `B (I.bot ())
-  let top = `B (I.top ())
+  let bot = `B (I.bot_of ik)
+  let top = `B (I.top_of ik)
 
   let isSigned = GoblintCil.Cil.isSigned
 
