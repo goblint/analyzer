@@ -321,7 +321,7 @@ struct
   let is_bot x = I.is_bot x.v
   let top_of ikind = { v = I.top_of ikind; ikind}
   let top () = failwith "top () is not implemented for IntDomLifter."
-  let is_top x = I.is_top x.v
+  let is_top _ = false
 
   (* Leq does not check for ikind, because it is used in invariant with arguments of different type.
      TODO: check ikinds here and fix invariant to work with right ikinds *)
@@ -521,7 +521,6 @@ module Std (B: sig
   include Printable.StdLeaf
   let name = B.name (* overwrite the one from Printable.Std *)
   open B
-  let is_top x = failwith "is_top not implemented for IntDomain.Std"
   let is_bot x = B.equal x (bot_of Cil.IInt) (* Here we assume that the representation of bottom is independent of the ikind
                                                 This may be true for intdomain implementations, but not e.g. for IntDomLifter. *)
   let is_top_of ik x = B.equal x (top_of ik)

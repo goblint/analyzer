@@ -114,7 +114,6 @@ module IntDomTupleImpl = struct
     | _ -> true
 
   (* f0: constructors *)
-  let top () = create { fi = fun (type a) (module I:SOverflow with type t = a) -> I.top } ()
   let bot () = create { fi = fun (type a) (module I:SOverflow with type t = a) -> I.bot } ()
   let top_of = create { fi = fun (type a) (module I:SOverflow with type t = a) -> I.top_of }
   let bot_of = create { fi = fun (type a) (module I:SOverflow with type t = a) -> I.bot_of }
@@ -206,7 +205,6 @@ module IntDomTupleImpl = struct
 
   (* exists/for_all *)
   let is_bot = exists % mapp { fp = fun (type a) (module I:SOverflow with type t = a) -> I.is_bot }
-  let is_top = for_all % mapp { fp = fun (type a) (module I:SOverflow with type t = a) -> I.is_top }
   let is_top_of ik = for_all % mapp { fp = fun (type a) (module I:SOverflow with type t = a) -> I.is_top_of ik }
   let is_excl_list = exists % mapp { fp = fun (type a) (module I:SOverflow with type t = a) -> I.is_excl_list }
 

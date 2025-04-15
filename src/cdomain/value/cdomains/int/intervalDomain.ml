@@ -9,7 +9,6 @@ struct
 
   let range ik = BatTuple.Tuple2.mapn Ints_t.of_bigint (Size.range ik)
 
-  let top () = failwith @@ "top () not implemented for " ^ (name ())
   let top_of ik = Some (range ik)
   let bot () = None
   let bot_of ik = bot () (* TODO: improve *)

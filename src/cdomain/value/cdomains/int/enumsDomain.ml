@@ -16,7 +16,6 @@ module Enums : S with type int_t = Z.t = struct
   type int_t = Z.t
   let name () = "enums"
   let bot () = failwith "bot () not implemented for Enums"
-  let top () = failwith "top () not implemented for Enums"
   let bot_of ik = Inc (BISet.empty ())
   let top_bool = Inc (BISet.of_list [Z.zero; Z.one])
   let top_of ik =
