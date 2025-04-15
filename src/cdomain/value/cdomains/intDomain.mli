@@ -439,9 +439,6 @@ module Flat (Base: IkindUnawareS): IkindUnawareS with type t = [ `Bot | `Lifted 
 module Lift (Base: IkindUnawareS): IkindUnawareS with type t = [ `Bot | `Lifted of Base.t | `Top ] and type int_t = Base.int_t
 (** Just like {!Value.Flat} except the order is preserved. *)
 
-module Reverse (Base: IkindUnawareS): IkindUnawareS with type t = Base.t and type int_t = Base.int_t
-(** Reverses bot, top, leq, join, meet *)
-
 (* module Interval : S *)
 (** Interval domain with int64-s --- use with caution! *)
 

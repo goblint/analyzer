@@ -906,12 +906,6 @@ end
 module Flattened = Flat (Integers (IntOps.Int64Ops))
 module Lifted = Lift (Integers (IntOps.Int64Ops))
 
-module Reverse (Base: IkindUnawareS) =
-struct
-  include Base
-  include (Lattice.Reverse (Base) : Lattice.S with type t := Base.t)
-end
-
 module SOverflowLifter (D : S) : SOverflow with type int_t = D.int_t and type t = D.t = struct
 
   include D
