@@ -80,6 +80,9 @@ struct
   type int_t = Z.t
   let name () = "def_exc"
 
+
+  let top_range = R.of_interval range_ikind (-99L, 99L) (* Since there is no top ikind we use a range that includes both ILongLong [-63,63] and IULongLong [0,64]. Only needed for intermediate range computation on longs. Correct range is set by cast. *)
+  let top_overflow () = `Excluded (S.empty (), top_range)
   let bot () = `Bot
   let top_of ik = `Excluded (S.empty (), size ik)
   let bot_of ik = bot ()
@@ -346,10 +349,10 @@ struct
       (* We don't bother with exclusion sets: *)
       | `Excluded _, `Definite _
       | `Definite _, `Excluded _
-      | `Excluded _, `Excluded _ -> top_of ik
+      | `Excluded _, `Excluded _ -> top_overflow ()
       (* The good case: *)
       | `Definite x, `Definite y ->
-        (try `Definite (f x y) with | Division_by_zero -> top_of ik)
+        (try `Definite (f x y) with | Division_by_zero -> top_overflow ())
       | `Bot, `Bot -> `Bot
       | _ ->
         (* If only one of them is bottom, we raise an exception that eval_rv will catch *)
@@ -362,7 +365,7 @@ struct
     norm ik @@
     match x,y with
     (* If both are exclusion sets, there isn't anything we can do: *)
-    | `Excluded _, `Excluded _ -> top_of ik
+    | `Excluded _, `Excluded _ -> top_overflow ()
     (* A definite value should be applied to all members of the exclusion set *)
     | `Definite x, `Excluded (s,r) -> def_exc f x s r
     (* Same thing here, but we should flip the operator to map it properly *)
