@@ -464,6 +464,7 @@ module Size = struct (* size in bits as int, range as int64 *)
       if M.tracing then M.tracel "cast" "Cast %a to range [%a, %a] (%a) = %a (%s in int64)" GobZ.pretty x GobZ.pretty a GobZ.pretty b GobZ.pretty c GobZ.pretty y (if is_int64_big_int y then "fits" else "does not fit");
       y
 
+  (** @return Bit range always includes 0. *)
   let min_range_sign_agnostic x =
     let size ik =
       let a,b = bits_i64 ik in

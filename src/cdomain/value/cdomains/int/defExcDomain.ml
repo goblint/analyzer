@@ -73,7 +73,7 @@ struct
 
 
   type t = [
-    | `Excluded of S.t * R.t
+    | `Excluded of S.t * R.t (** Bit range always includes 0. *)
     | `Definite of Z.t
     | `Bot
   ] [@@deriving eq, ord, hash]
