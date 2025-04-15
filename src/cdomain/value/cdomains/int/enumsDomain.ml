@@ -11,7 +11,10 @@ module Enums : S with type int_t = Z.t = struct
   let range_ikind = Cil.IInt
   let size t = R.of_interval range_ikind (let a,b = Size.bits_i64 t in Int64.neg a,b)
 
-  type t = Inc of BISet.t | Exc of BISet.t * R.t [@@deriving eq, ord, hash] (* inclusion/exclusion set *)
+  type t =
+    | Inc of BISet.t (* Inclusion set. *)
+    | Exc of BISet.t * R.t (** Exclusion set. Bit range always includes 0. *)
+  [@@deriving eq, ord, hash]
 
   type int_t = Z.t
   let name () = "enums"
