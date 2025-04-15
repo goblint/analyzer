@@ -321,7 +321,7 @@ struct
   let is_bot x = I.is_bot x.v
   let top_of ikind = { v = I.top_of ikind; ikind}
   let top () = failwith "top () is not implemented for IntDomLifter."
-  let is_top _ = false
+  let is_top _ = failwith "is_top is not implemented for IntDomLifter."
 
   (* Leq does not check for ikind, because it is used in invariant with arguments of different type.
      TODO: check ikinds here and fix invariant to work with right ikinds *)
