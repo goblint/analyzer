@@ -305,7 +305,7 @@ end
 
 module Lift = LiftConf (Printable.DefaultConf)
 
-module Lift2Conf (Conf: Printable.Lift2Conf) (Base1: S) (Base2: S) =
+module Lift2Conf (Conf: Printable.Lift2Conf) (Base1: PO) (Base2: PO) =
 struct
   include Printable.Lift2Conf (Conf) (Base1) (Base2)
 
