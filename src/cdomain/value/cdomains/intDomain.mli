@@ -170,7 +170,8 @@ end
 (* Shared signature of IntDomain implementations and the lifted IntDomains *)
 module type B =
 sig
-  include Lattice.S
+  include Lattice.PO
+  include Lattice.Bot with type t := t
   type int_t
   (** {b Accessing values of the ADT} *)
 
@@ -215,6 +216,7 @@ end
 module type IkindUnawareS =
 sig
   include B
+  include Lattice.Top with type t := t
   include Arith with type t:= t
   val starting   : ?suppress_ovwarn:bool -> Cil.ikind -> int_t -> t
   val ending     : ?suppress_ovwarn:bool -> Cil.ikind -> int_t -> t
@@ -316,6 +318,7 @@ module SOverflowUnlifter (D : SOverflow) : S with type int_t = D.int_t and type 
 module type Y =
 sig
   include B
+  include Lattice.Top with type t := t
   include Arith with type t:=t
 
   val of_int: Cil.ikind -> int_t -> t

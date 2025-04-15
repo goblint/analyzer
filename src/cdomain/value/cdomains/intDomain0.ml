@@ -161,7 +161,8 @@ end
 (* Shared functions between S and Z *)
 module type B =
 sig
-  include Lattice.S
+  include Lattice.PO
+  include Lattice.Bot with type t := t
   type int_t
   val bot_of: Cil.ikind -> t
   val top_of: Cil.ikind -> t
@@ -185,6 +186,7 @@ end
 module type IkindUnawareS =
 sig
   include B
+  include Lattice.Top with type t := t
   include Arith with type t := t
   val starting   : ?suppress_ovwarn:bool -> Cil.ikind -> int_t -> t
   val ending     : ?suppress_ovwarn:bool -> Cil.ikind -> int_t -> t
@@ -277,8 +279,8 @@ end
 
 module type Y =
 sig
-  (* include B *)
   include B
+  include Lattice.Top with type t := t
   include Arith with type t:= t
   val of_int: Cil.ikind -> int_t -> t
   val of_bool: Cil.ikind -> bool -> t
