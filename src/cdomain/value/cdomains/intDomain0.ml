@@ -840,7 +840,7 @@ end
 
 module Lift (Base: IkindUnawareS): IkindUnawareS with type t = [ `Bot | `Lifted of Base.t | `Top ] and type int_t = Base.int_t = (* identical to Flat, but does not go to `Top/Bot` if Base raises Unknown/Error *)
 struct
-  include Lattice.LiftPO (struct
+  include Lattice.LiftConf (struct
       include Printable.DefaultConf
       let top_name = "MaxInt"
       let bot_name = "MinInt"
