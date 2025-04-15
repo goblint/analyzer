@@ -419,6 +419,7 @@ module IntDomWithDefaultIkind (I: Y) (Ik: Ikind) : Y with type t = I.t and type 
 struct
   include I
   let top () = I.top_of (Ik.ikind ())
+  let is_top x = I.is_top_of (Ik.ikind ()) x
   let bot () = I.bot_of (Ik.ikind ())
 end
 
