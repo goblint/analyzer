@@ -50,6 +50,8 @@ sig
   (** Compute incremental constraint system change from old solution. *)
 
   val postmortem: v -> v list
+
+  val must_same_context: v -> v -> bool
 end
 
 (** Any system of side-effecting equations over lattices. *)
@@ -67,6 +69,7 @@ sig
   val iter_vars: (LVar.t -> D.t) -> (GVar.t -> G.t) -> VarQuery.t -> LVar.t VarQuery.f -> GVar.t VarQuery.f -> unit
   val sys_change: (LVar.t -> D.t) -> (GVar.t -> G.t) -> [`L of LVar.t | `G of GVar.t] sys_change_info
   val postmortem: LVar.t -> LVar.t list
+  val must_same_context: LVar.t -> LVar.t -> bool
 end
 
 (** A solver is something that can translate a system into a solution (hash-table).
@@ -212,6 +215,11 @@ struct
   let postmortem = function
     | `L g -> List.map (fun x -> `L x) @@ S.postmortem g
     | _ -> []
+
+  let must_same_context x y =
+    match x, y with
+    | `L x, `L y -> S.must_same_context x y
+    | _ -> false
 end
 
 (** Splits a [EqConstrSys] solution into a [GlobConstrSys] solution with given [Hashtbl.S] for the [EqConstrSys]. *)

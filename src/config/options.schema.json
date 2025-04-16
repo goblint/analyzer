@@ -2521,6 +2521,12 @@
                   "description": "side-effects that no longer occur are narrowed with bot.",
                   "type": "boolean",
                   "default": false
+                },
+                "eliminate-cyclic-dead": {
+                  "title": "solvers.td3.narrow-globs.eliminate-cyclic-dead",
+                  "description": "Collect recursive garbage.",
+                  "type": "boolean",
+                  "default": false
                 }
               },
               "additionalProperties": false

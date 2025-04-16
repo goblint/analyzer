@@ -553,4 +553,7 @@ struct
   let postmortem = function
     | FunctionEntry fd, c -> [(Function fd, c)]
     | _ -> []
+
+  let must_same_context (_,cx) (_,cy) = S.C.equal cx cy
+
 end

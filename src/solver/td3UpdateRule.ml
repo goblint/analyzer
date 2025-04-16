@@ -110,6 +110,7 @@ module Narrow:S =
     let narrow_globs_gas_default = GobConfig.get_int "solvers.td3.narrow-globs.narrow-gas"
     let narrow_globs_gas_default = if narrow_globs_gas_default < 0 then None else Some (narrow_globs_gas_default, D_Widen)
     let narrow_globs_eliminate_dead = GobConfig.get_bool "solvers.td3.narrow-globs.eliminate-dead"
+    let narrow_globs_eliminate_cyclic_dead = GobConfig.get_bool "solvers.td3.narrow-globs.eliminate-cyclic-dead"
 
     let get_wrapper ~solve_widen ~init ~stable ~data ~sides ~add_sides ~rho ~destabilize ~(side:?x:S.v -> S.v -> S.d -> unit) ~assert_can_receive_side =
       let eq_wrapper x eqx  =
@@ -186,10 +187,32 @@ module Narrow:S =
                 let start_value = HM.find_default data.narrow_globs_start_values y (S.Dom.bot()) in
                 S.Dom.join combined start_value
               in
+              let combined_side_elim_dead y =
+                if HM.mem data.narrow_globs_start_values y then
+                  (* If there is a start value, then we cannot get this back to bot anyway *)
+                  combined_side y
+                else
+                  let contribs = Option.get @@ HM.find_option data.divided_side_effects y in
+                  let find_fundec v = Node.find_fundec (S.Var.node y) in
+                  let y_fundec = find_fundec y  in
+                  let has_outside_contrib = HM.exists (fun k _ -> (not @@ S.Var.equal k x) && ((not @@ CilType.Fundec.equal y_fundec (find_fundec k)) || (not @@ S.must_same_context y k))) contribs in
+                  if has_outside_contrib then
+                    (* If there is a contribution from outside the fundec, we cannot eliminate it *)
+                    combined_side y
+                  else
+                    (* We can eliminate the contribution *)
+                    if narrow_gas = None then
+                      (HM.clear contribs; S.Dom.bot ())
+                    else
+                      (HM.map_inplace (fun _ (value, gas) -> (S.Dom.bot(), gas)) contribs; S.Dom.bot ())
+              in
+
               let y_oldval = HM.find rho y in
               let y_newval = if S.Dom.leq old_side new_side then
                   (* If new side is strictly greater than the old one, the value of y can only increase. *)
                   S.Dom.join y_oldval new_side
+                else if S.Dom.is_bot new_side && narrow_globs_eliminate_cyclic_dead then
+                  combined_side_elim_dead y
                 else
                   combined_side y
               in
