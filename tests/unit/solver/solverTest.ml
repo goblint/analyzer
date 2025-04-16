@@ -48,6 +48,7 @@ module ConstrSys = struct
   let iter_vars _ _ _ _ _ = ()
   let sys_change _ _ = {obsolete = []; delete = []; reluctant = []; restart = []}
   let postmortem _ = []
+  let must_same_context _ _ = false
 end
 
 module LH = BatHashtbl.Make (ConstrSys.LVar)
