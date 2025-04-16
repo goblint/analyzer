@@ -380,11 +380,11 @@ struct
   (* The equality check: *)
   let eq ik x y = match x,y with
     (* Not much to do with two exclusion sets: *)
-    | `Excluded _, `Excluded _ -> top_of ik
+    | `Excluded _, `Excluded _ -> top_of IInt
     (* Is x equal to an exclusion set, if it is a member then NO otherwise we
      * don't know: *)
-    | `Definite x, `Excluded (s,r) -> if S.mem x s then of_bool IInt false else top_of ik
-    | `Excluded (s,r), `Definite x -> if S.mem x s then of_bool IInt false else top_of ik
+    | `Definite x, `Excluded (s,r) -> if S.mem x s then of_bool IInt false else top_of IInt
+    | `Excluded (s,r), `Definite x -> if S.mem x s then of_bool IInt false else top_of IInt
     (* The good case: *)
     | `Definite x, `Definite y -> of_bool IInt (x = y)
     | `Bot, `Bot -> `Bot
@@ -395,11 +395,11 @@ struct
   (* The inequality check: *)
   let ne ik x y = match x,y with
     (* Not much to do with two exclusion sets: *)
-    | `Excluded _, `Excluded _ -> top_of ik
+    | `Excluded _, `Excluded _ -> top_of IInt
     (* Is x unequal to an exclusion set, if it is a member then Yes otherwise we
      * don't know: *)
-    | `Definite x, `Excluded (s,r) -> if S.mem x s then of_bool IInt true else top_of ik
-    | `Excluded (s,r), `Definite x -> if S.mem x s then of_bool IInt true else top_of ik
+    | `Definite x, `Excluded (s,r) -> if S.mem x s then of_bool IInt true else top_of IInt
+    | `Excluded (s,r), `Definite x -> if S.mem x s then of_bool IInt true else top_of IInt
     (* The good case: *)
     | `Definite x, `Definite y -> of_bool IInt (x <> y)
     | `Bot, `Bot -> `Bot
