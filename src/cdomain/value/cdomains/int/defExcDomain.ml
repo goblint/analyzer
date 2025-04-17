@@ -81,8 +81,8 @@ struct
   let name () = "def_exc"
 
 
-  let top_range = R.of_interval range_ikind (-999L, 999L) (* Since there is no top ikind we use a range that includes both IInt128 [-127,127] and IUInt128 [0,128]. Only needed for intermediate range computation on longs. Correct range is set by cast. *)
-  let top_overflow () = `Excluded (S.empty (), top_range)
+  let overflow_range = R.of_interval range_ikind (-999L, 999L) (* Since there is no top ikind we use a range that includes both IInt128 [-127,127] and IUInt128 [0,128]. Only needed for intermediate range computation on longs. Correct range is set by cast. *)
+  let top_overflow () = `Excluded (S.empty (), overflow_range)
   let bot () = `Bot
   let top_of ik = `Excluded (S.empty (), size ik)
   let bot_of ik = bot ()
