@@ -42,7 +42,6 @@
       ghost_updates:
       - location:
           file_name: 66-ghost-alloc-lock.c
-          file_hash: $FILE_HASH
           line: 10
           column: 3
           function: t_fun
@@ -52,7 +51,6 @@
           format: c_expression
       - location:
           file_name: 66-ghost-alloc-lock.c
-          file_hash: $FILE_HASH
           line: 13
           column: 3
           function: t_fun
@@ -62,7 +60,6 @@
           format: c_expression
       - location:
           file_name: 66-ghost-alloc-lock.c
-          file_hash: $FILE_HASH
           line: 14
           column: 3
           function: t_fun
@@ -72,7 +69,6 @@
           format: c_expression
       - location:
           file_name: 66-ghost-alloc-lock.c
-          file_hash: $FILE_HASH
           line: 17
           column: 3
           function: t_fun
@@ -82,7 +78,6 @@
           format: c_expression
       - location:
           file_name: 66-ghost-alloc-lock.c
-          file_hash: $FILE_HASH
           line: 28
           column: 3
           function: main
@@ -92,7 +87,6 @@
           format: c_expression
       - location:
           file_name: 66-ghost-alloc-lock.c
-          file_hash: $FILE_HASH
           line: 30
           column: 3
           function: main
@@ -102,7 +96,6 @@
           format: c_expression
       - location:
           file_name: 66-ghost-alloc-lock.c
-          file_hash: $FILE_HASH
           line: 32
           column: 3
           function: main
@@ -112,7 +105,6 @@
           format: c_expression
       - location:
           file_name: 66-ghost-alloc-lock.c
-          file_hash: $FILE_HASH
           line: 33
           column: 3
           function: main
@@ -122,7 +114,6 @@
           format: c_expression
       - location:
           file_name: 66-ghost-alloc-lock.c
-          file_hash: $FILE_HASH
           line: 35
           column: 3
           function: main
