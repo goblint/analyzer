@@ -27,14 +27,26 @@ sig
   val pretty_diff: unit -> (t * t) -> Pretty.doc
 end
 
+module type Bot =
+sig
+  type t
+  val bot: unit -> t
+  val is_bot: t -> bool
+end
+
+module type Top =
+sig
+  type t
+  val top: unit -> t
+  val is_top: t -> bool
+end
+
 (* complete lattice *)
 module type S =
 sig
   include PO
-  val bot: unit -> t
-  val is_bot: t -> bool
-  val top: unit -> t
-  val is_top: t -> bool
+  include Bot with type t := t
+  include Top with type t := t
 end
 
 exception TopValue
