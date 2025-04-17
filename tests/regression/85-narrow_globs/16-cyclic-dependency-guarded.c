@@ -1,6 +1,5 @@
 // PARAM: --enable solvers.td3.narrow-globs.enabled --set solvers.td3.narrow-globs.narrow-gas 9 --enable ana.int.interval --set ana.base.privatization protection-read  --enable ana.base.priv.protection.changes-only
-
-// This is supposed to check if the solver terminates
+// NOTIMEOUT
 #include <pthread.h>
 #include <goblint.h>
 

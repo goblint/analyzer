@@ -1,5 +1,6 @@
 // PARAM: --enable ana.int.interval --enable solvers.td3.narrow-globs.enabled
-#include <stdlib.h>
+#include <pthread.h>
+#include <goblint.h>
 
 int state = 0;
 

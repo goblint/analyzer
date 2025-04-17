@@ -1,6 +1,6 @@
-// PARAM: --enable ana.int.interval --enable solvers.td3.narrow-globs.enabled 
+// PARAM: --enable ana.int.interval --enable solvers.td3.narrow-globs.enabled
 #include <pthread.h>
-#include <stdio.h>
+#include <goblint.h>
 
 int a, b;
 pthread_mutex_t m = PTHREAD_MUTEX_INITIALIZER;

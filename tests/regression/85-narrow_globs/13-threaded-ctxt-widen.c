@@ -1,11 +1,12 @@
 // PARAM: --enable ana.int.interval_set --set ana.context.gas_value 0 --enable solvers.td3.narrow-globs.enabled
 #include <pthread.h>
+#include <goblint.h>
 
 pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 int glob = 0;
 int glob2 = 0;
 
-void *thread(void *d) {    
+void *thread(void *d) {
     f(10);
     return NULL;
 }

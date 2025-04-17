@@ -1,7 +1,7 @@
 // PARAM: --enable ana.int.interval --enable ana.int.interval_threshold_widening --set ana.int.interval_threshold_widening_constants comparisons --enable solvers.td3.narrow-globs.enabled
 #include <pthread.h>
+#include <goblint.h>
 
-//TODO: this tests that threshold widening also narrows correctly. This should not be in this folder
 pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 int glob = 0;
 

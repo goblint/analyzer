@@ -1,11 +1,12 @@
 // PARAM: --enable ana.int.interval_set --enable solvers.td3.narrow-globs.enabled
 #include <pthread.h>
+#include <goblint.h>
 
 pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 int glob = 0;
 int glob2 = 0;
 
-void *thread(void *d) {    
+void *thread(void *d) {
     for(int i = 0; i < 10; i++) {
         pthread_mutex_lock(&mutex);
         glob = i;
