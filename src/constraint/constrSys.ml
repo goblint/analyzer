@@ -46,9 +46,11 @@ sig
   (** The system in functional form. *)
   val system : v -> ((v -> d) -> (v -> d -> unit) -> d) m
 
-  val sys_change: (v -> d) -> v sys_change_info
   (** Compute incremental constraint system change from old solution. *)
+  val sys_change: (v -> d) -> v sys_change_info
 
+  (** List of unknowns that should be queried again when the argument unknown has shrunk to bot, to eagerly trigger (analysis-time!) abstract garbage collection idependently of reach-based pruning at the end.
+      @see <https://arxiv.org/abs/2504.06026> Stemmler, F., Schwarz, M., Erhard, J., Tilscher, S., Seidl, H. Taking out the Toxic Trash: Recovering Precision in Mixed Flow-Sensitive Static Analyses *)
   val postmortem: v -> v list
 end
 
