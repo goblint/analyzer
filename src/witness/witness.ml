@@ -6,6 +6,7 @@ open Svcomp
 open GobConfig
 
 module M = Messages
+module OuterInvariant = Invariant
 
 module type WitnessTaskResult = TaskResult with module Arg.Edge = MyARG.InlineEdge
 
@@ -38,8 +39,8 @@ let write_file filename (module Task:Task) (module TaskResult:WitnessTaskResult)
         | MyARG.CFGEdge (Test _) -> true
         | _ -> false
       end || begin if Invariant.is_invariant_node to_cfgnode then
-               match to_cfgnode, TaskResult.invariant to_node with
-               | Statement _, `Lifted _ -> true
+               match to_cfgnode, OuterInvariant.to_exp (TaskResult.invariant to_node) with
+               | Statement _, Some _ -> true
                | _, _ -> false
              else
                false
@@ -137,8 +138,8 @@ let write_file filename (module Task:Task) (module TaskResult:WitnessTaskResult)
         end;
         begin
           if Invariant.is_invariant_node cfgnode then
-            match cfgnode, TaskResult.invariant node with
-            | Statement _, `Lifted i ->
+            match cfgnode, OuterInvariant.to_exp (TaskResult.invariant node) with
+            | Statement _, Some i ->
               let i = InvariantCil.exp_replace_original_name i in
               [("invariant", CilType.Exp.show i);
               ("invariant.scope", (Node.find_fundec cfgnode).svar.vname)]
