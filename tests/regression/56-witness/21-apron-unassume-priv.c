@@ -1,4 +1,4 @@
-// SKIP PARAM: --set ana.base.privatization none --set ana.activated[+] apron --set ana.activated[+] unassume --set witness.yaml.unassume 21-apron-unassume-priv.yml
+// SKIP PARAM: --set ana.base.privatization none --set ana.activated[+] apron --set witness.yaml.entry-types[*] location_invariant --set ana.activated[+] unassume --set witness.yaml.unassume 21-apron-unassume-priv.yml
 #include <pthread.h>
 #include <assert.h>
 
