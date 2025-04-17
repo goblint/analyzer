@@ -64,7 +64,7 @@ depends: [
   "fileutils" {= "0.6.4"}
   "fmt" {= "0.9.0"}
   "fpath" {= "0.7.3"}
-  "goblint-cil" {= "2.0.5"}
+  "goblint-cil" {= "2.0.6"}
   "hex" {= "1.5.0"}
   "integers" {= "0.7.0"}
   "json-data-encoding" {= "1.0.1"}
@@ -139,8 +139,8 @@ post-messages: [
 ]
 pin-depends: [
   [
-    "goblint-cil.2.0.5"
-    "git+https://github.com/goblint/cil.git#f5ee39bd344dc74e2a10e407d877e0ddf73c9c6f"
+    "goblint-cil.2.0.6"
+    "git+https://github.com/goblint/cil.git#8385ab315bc7461f6801af57673c64731bfa036a"
   ]
   [
     "camlidl.1.12"

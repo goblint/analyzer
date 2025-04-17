@@ -3,7 +3,6 @@
     that can be used to remeber the initial value of these parameters.
     It uses RichVarinfo to create the duplicated variables. *)
 open CilType
-open GoblintCil
 open Batteries
 open GoblintCil
 module M = Messages

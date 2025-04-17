@@ -161,7 +161,8 @@ end
 (* Shared functions between S and Z *)
 module type B =
 sig
-  include Lattice.S
+  include Lattice.PO
+  include Lattice.Bot with type t := t
   type int_t
   val bot_of: Cil.ikind -> t
   val top_of: Cil.ikind -> t
@@ -185,6 +186,7 @@ end
 module type IkindUnawareS =
 sig
   include B
+  include Lattice.Top with type t := t
   include Arith with type t := t
   val starting   : ?suppress_ovwarn:bool -> Cil.ikind -> int_t -> t
   val ending     : ?suppress_ovwarn:bool -> Cil.ikind -> int_t -> t
@@ -264,10 +266,10 @@ sig
   val shift_right : Cil.ikind -> t -> t -> t * overflow_info
 end
 
-module type Bitfield_SOverflow = 
-sig 
+module type Bitfield_SOverflow =
+sig
 
-  include SOverflow 
+  include SOverflow
 
   (* necessary for baseInvariant *)
   val refine_bor : t -> t -> t -> t * t
@@ -277,8 +279,8 @@ end
 
 module type Y =
 sig
-  (* include B *)
   include B
+  include Lattice.Top with type t := t
   include Arith with type t:= t
   val of_int: Cil.ikind -> int_t -> t
   val of_bool: Cil.ikind -> bool -> t
@@ -319,7 +321,7 @@ struct
   let is_bot x = I.is_bot x.v
   let top_of ikind = { v = I.top_of ikind; ikind}
   let top () = failwith "top () is not implemented for IntDomLifter."
-  let is_top x = I.is_top x.v
+  let is_top _ = failwith "is_top is not implemented for IntDomLifter."
 
   (* Leq does not check for ikind, because it is used in invariant with arguments of different type.
      TODO: check ikinds here and fix invariant to work with right ikinds *)
@@ -417,6 +419,7 @@ module IntDomWithDefaultIkind (I: Y) (Ik: Ikind) : Y with type t = I.t and type 
 struct
   include I
   let top () = I.top_of (Ik.ikind ())
+  let is_top x = I.is_top_of (Ik.ikind ()) x
   let bot () = I.bot_of (Ik.ikind ())
 end
 
@@ -464,6 +467,7 @@ module Size = struct (* size in bits as int, range as int64 *)
       if M.tracing then M.tracel "cast" "Cast %a to range [%a, %a] (%a) = %a (%s in int64)" GobZ.pretty x GobZ.pretty a GobZ.pretty b GobZ.pretty c GobZ.pretty y (if is_int64_big_int y then "fits" else "does not fit");
       y
 
+  (** @return Bit range always includes 0. *)
   let min_range_sign_agnostic x =
     let size ik =
       let a,b = bits_i64 ik in
@@ -519,7 +523,6 @@ module Std (B: sig
   include Printable.StdLeaf
   let name = B.name (* overwrite the one from Printable.Std *)
   open B
-  let is_top x = failwith "is_top not implemented for IntDomain.Std"
   let is_bot x = B.equal x (bot_of Cil.IInt) (* Here we assume that the representation of bottom is independent of the ikind
                                                 This may be true for intdomain implementations, but not e.g. for IntDomLifter. *)
   let is_top_of ik x = B.equal x (top_of ik)
@@ -838,7 +841,7 @@ end
 
 module Lift (Base: IkindUnawareS): IkindUnawareS with type t = [ `Bot | `Lifted of Base.t | `Top ] and type int_t = Base.int_t = (* identical to Flat, but does not go to `Top/Bot` if Base raises Unknown/Error *)
 struct
-  include Lattice.LiftPO (struct
+  include Lattice.LiftConf (struct
       include Printable.DefaultConf
       let top_name = "MaxInt"
       let bot_name = "MinInt"
@@ -905,12 +908,6 @@ end
 
 module Flattened = Flat (Integers (IntOps.Int64Ops))
 module Lifted = Lift (Integers (IntOps.Int64Ops))
-
-module Reverse (Base: IkindUnawareS) =
-struct
-  include Base
-  include (Lattice.Reverse (Base) : Lattice.S with type t := Base.t)
-end
 
 module SOverflowLifter (D : S) : SOverflow with type int_t = D.int_t and type t = D.t = struct
 
