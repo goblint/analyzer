@@ -9,7 +9,6 @@ open Messages
 module type S = functor (S:EqConstrSys) -> functor (HM:Hashtbl.S with type key = S.v) -> functor (VS:Set.S with type elt = S.v) -> sig
   type data
   type eq_wrapper = S.v -> ((S.v -> S.d -> unit) -> S.d) -> S.d
-  val active: bool
   val create_empty_data : unit -> data
   val copy_marshal: data -> data
   val relift_marshal: data -> data
@@ -40,7 +39,6 @@ module Inactive:S =
   struct
     type data = unit
     type eq_wrapper = S.v -> ((S.v -> S.d -> unit) -> S.d) -> S.d
-    let active = false
     let create_empty_data () = ()
     let copy_marshal _ = ()
     let relift_marshal _ = ()
@@ -66,7 +64,6 @@ module Narrow:S =
 
     type eq_wrapper = S.v -> ((S.v -> S.d -> unit) -> S.d) -> S.d
 
-    let active = false
     let create_empty_data () =
       let narrow_globs = GobConfig.get_bool "solvers.td3.narrow-globs.enabled" in
       {
