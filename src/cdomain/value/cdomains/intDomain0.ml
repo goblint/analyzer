@@ -321,7 +321,7 @@ struct
   let is_bot x = I.is_bot x.v
   let top_of ikind = { v = I.top_of ikind; ikind}
   let top () = failwith "top () is not implemented for IntDomLifter."
-  let is_top _ = false
+  let is_top _ = failwith "is_top is not implemented for IntDomLifter."
 
   (* Leq does not check for ikind, because it is used in invariant with arguments of different type.
      TODO: check ikinds here and fix invariant to work with right ikinds *)
@@ -467,6 +467,7 @@ module Size = struct (* size in bits as int, range as int64 *)
       if M.tracing then M.tracel "cast" "Cast %a to range [%a, %a] (%a) = %a (%s in int64)" GobZ.pretty x GobZ.pretty a GobZ.pretty b GobZ.pretty c GobZ.pretty y (if is_int64_big_int y then "fits" else "does not fit");
       y
 
+  (** @return Bit range always includes 0. *)
   let min_range_sign_agnostic x =
     let size ik =
       let a,b = bits_i64 ik in

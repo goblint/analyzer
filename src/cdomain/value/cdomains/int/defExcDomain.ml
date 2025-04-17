@@ -73,13 +73,16 @@ struct
 
 
   type t = [
-    | `Excluded of S.t * R.t
+    | `Excluded of S.t * R.t (** Bit range always includes 0. *)
     | `Definite of Z.t
     | `Bot
   ] [@@deriving eq, ord, hash]
   type int_t = Z.t
   let name () = "def_exc"
 
+
+  let overflow_range = R.of_interval range_ikind (-999L, 999L) (* Since there is no top ikind we use a range that includes both IInt128 [-127,127] and IUInt128 [0,128]. Only needed for intermediate range computation on longs. Correct range is set by cast. *)
+  let top_overflow () = `Excluded (S.empty (), overflow_range)
   let bot () = `Bot
   let top_of ik = `Excluded (S.empty (), size ik)
   let bot_of ik = bot ()
@@ -346,10 +349,10 @@ struct
       (* We don't bother with exclusion sets: *)
       | `Excluded _, `Definite _
       | `Definite _, `Excluded _
-      | `Excluded _, `Excluded _ -> top_of ik
+      | `Excluded _, `Excluded _ -> top_overflow ()
       (* The good case: *)
       | `Definite x, `Definite y ->
-        (try `Definite (f x y) with | Division_by_zero -> top_of ik)
+        (try `Definite (f x y) with | Division_by_zero -> top_overflow ())
       | `Bot, `Bot -> `Bot
       | _ ->
         (* If only one of them is bottom, we raise an exception that eval_rv will catch *)
@@ -362,7 +365,7 @@ struct
     norm ik @@
     match x,y with
     (* If both are exclusion sets, there isn't anything we can do: *)
-    | `Excluded _, `Excluded _ -> top_of ik
+    | `Excluded _, `Excluded _ -> top_overflow ()
     (* A definite value should be applied to all members of the exclusion set *)
     | `Definite x, `Excluded (s,r) -> def_exc f x s r
     (* Same thing here, but we should flip the operator to map it properly *)
@@ -377,11 +380,11 @@ struct
   (* The equality check: *)
   let eq ik x y = match x,y with
     (* Not much to do with two exclusion sets: *)
-    | `Excluded _, `Excluded _ -> top_of ik
+    | `Excluded _, `Excluded _ -> top_of IInt
     (* Is x equal to an exclusion set, if it is a member then NO otherwise we
      * don't know: *)
-    | `Definite x, `Excluded (s,r) -> if S.mem x s then of_bool IInt false else top_of ik
-    | `Excluded (s,r), `Definite x -> if S.mem x s then of_bool IInt false else top_of ik
+    | `Definite x, `Excluded (s,r) -> if S.mem x s then of_bool IInt false else top_of IInt
+    | `Excluded (s,r), `Definite x -> if S.mem x s then of_bool IInt false else top_of IInt
     (* The good case: *)
     | `Definite x, `Definite y -> of_bool IInt (x = y)
     | `Bot, `Bot -> `Bot
@@ -392,11 +395,11 @@ struct
   (* The inequality check: *)
   let ne ik x y = match x,y with
     (* Not much to do with two exclusion sets: *)
-    | `Excluded _, `Excluded _ -> top_of ik
+    | `Excluded _, `Excluded _ -> top_of IInt
     (* Is x unequal to an exclusion set, if it is a member then Yes otherwise we
      * don't know: *)
-    | `Definite x, `Excluded (s,r) -> if S.mem x s then of_bool IInt true else top_of ik
-    | `Excluded (s,r), `Definite x -> if S.mem x s then of_bool IInt true else top_of ik
+    | `Definite x, `Excluded (s,r) -> if S.mem x s then of_bool IInt true else top_of IInt
+    | `Excluded (s,r), `Definite x -> if S.mem x s then of_bool IInt true else top_of IInt
     (* The good case: *)
     | `Definite x, `Definite y -> of_bool IInt (x <> y)
     | `Bot, `Bot -> `Bot
