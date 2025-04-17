@@ -22,7 +22,10 @@ void* f(void *d) {
   // so none of these unknowns are queried and this check
   // succeeds whether eliminate-dead is on or not.
   __goblint_check(i == 1);
-  // Paradoxically, a != &i is not known without eliminate-dead.
+  // a != &i is not known without eliminate-dead
+  // The pointer has escaped at some point and was recorded at the global a.
+  // We don't filter points-to-sets read from globals to exclude things which are locally known  (by the ThreadEscape analysis) to not have escaped.
+  // I don't think this is particularly common, and iterating and querying for each lval is probably just expensive.
   __goblint_check(a != &i);
   return NULL;
 }
@@ -34,6 +37,6 @@ int main(void) {
   // a is thought to (possibly) point to the *flow-insensitively* tracked i,
   // which is widened by the i++.
   __goblint_check(*a <= 1);
-  
+
   return 0;
 }
