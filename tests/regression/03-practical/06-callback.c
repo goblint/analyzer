@@ -9,7 +9,7 @@ void callme(void)  {
   x = 5;
 }
 
-void callfun(void (*fun)()) {
+void callfun(void (*fun)(void)) {
   fun();
   return;
 }
