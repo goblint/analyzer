@@ -488,9 +488,11 @@ module Base =
           combined_side y
         else
           let contribs = Option.get @@ HM.find_option data.divided_side_effects y in
-          let find_fundec v = Node.find_fundec (S.Var.node y) in
+          let find_fundec = Node.find_fundec % S.Var.node in
           let y_fundec = find_fundec y  in
-          let has_outside_contrib = HM.exists (fun k _ -> (not @@ S.Var.equal k x) && ((not @@ CilType.Fundec.equal y_fundec (find_fundec k)) || (not @@ S.must_same_context y k))) contribs in
+          let is_recursive_contrib k = CilType.Fundec.equal y_fundec (find_fundec k) && S.must_same_context y k in
+          let is_outside_contrib k = (not @@ S.Var.equal k x) && (not @@ is_recursive_contrib k) in
+          let has_outside_contrib = HM.exists (fun k (v,_) -> (not @@ S.Dom.is_bot v) && is_outside_contrib k) contribs in
           if has_outside_contrib then
             (* If there is a contribution from outside the fundec, we cannot eliminate it *)
             combined_side y
