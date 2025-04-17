@@ -899,18 +899,25 @@ struct
     let name () = "P"
   end
 
-  (* W is implicitly represented by CPA domain *)
-  module D = P
+  (** May written variables. *)
+  module W =
+  struct
+    include MayVars
+    let name () = "W"
+  end
+
+  module D = Lattice.Prod (P) (W)
 
   module Wrapper = Wrapper (VD)
   module G = Wrapper.G
   module V = ProtectionBasedV.V
 
-  let startstate () = P.empty ()
+  let startstate () = P.empty (), W.empty ()
 
   let read_global (ask: Queries.ask) getg (st: BaseComponents (D).t) x =
     let getg = Wrapper.getg ask getg in
-    if P.mem x st.priv then
+    let (p, _) = st.priv in
+    if P.mem x p then
       CPA.find x st.cpa
     else if Param.handle_atomic && ask.f MustBeAtomic then
       VD.join (CPA.find x st.cpa) (getg (V.unprotected x)) (* Account for previous unpublished unprotected writes in current atomic section. *)
@@ -921,28 +928,35 @@ struct
 
   let write_global ?(invariant=false) (ask: Queries.ask) getg sideg (st: BaseComponents (D).t) x v =
     let sideg = Wrapper.sideg ask sideg in
-    if not invariant then (
-      if not (Param.handle_atomic && ask.f MustBeAtomic) then
-        sideg (V.unprotected x) v; (* Delay publishing unprotected write in the atomic section. *)
-      if !earlyglobs && not (ThreadFlag.is_currently_multi ask) then (* earlyglobs workaround for 13/60 *)
-        sideg (V.protected x) v (* Also side to protected because with earlyglobs enter_multithreaded does not side everything to protected *)
-        (* Unlock after invariant will still side effect refined value (if protected) from CPA, because cannot distinguish from non-invariant write since W is implicit. *)
-    );
+    let (p, w) = st.priv in
+    let w' =
+      if not invariant then (
+        if not (Param.handle_atomic && ask.f MustBeAtomic) then
+          sideg (V.unprotected x) v; (* Delay publishing unprotected write in the atomic section. *)
+        if !earlyglobs && not (ThreadFlag.is_currently_multi ask) then (* earlyglobs workaround for 13/60 *)
+          sideg (V.protected x) v; (* Also side to protected because with earlyglobs enter_multithreaded does not side everything to protected *)
+          (* Unlock after invariant will still side effect refined value (if protected) from CPA, because cannot distinguish from non-invariant write since W is implicit. *)
+        W.add x w
+      )
+      else
+        w
+    in
     if Param.handle_atomic && ask.f MustBeAtomic then
-      {st with cpa = CPA.add x v st.cpa; priv = P.add x st.priv} (* Keep write local as if it were protected by the atomic section. *)
+      {st with cpa = CPA.add x v st.cpa; priv = (P.add x p, w')} (* Keep write local as if it were protected by the atomic section. *)
     else if is_unprotected ask x then
       st
     else
-      {st with cpa = CPA.add x v st.cpa; priv = P.add x st.priv}
+      {st with cpa = CPA.add x v st.cpa; priv = (P.add x p, w')}
 
   let lock ask getg st m = st
 
   let unlock ask getg sideg (st: BaseComponents (D).t) m =
     let sideg = Wrapper.sideg ask sideg in
     let atomic = Param.handle_atomic && LockDomain.MustLock.equal m (LockDomain.MustLock.of_var LibraryFunctions.verifier_atomic_var) in
-    (* TODO: what about G_m globals in cpa that weren't actually written? *)
-    CPA.fold (fun x v (st: BaseComponents (D).t) ->
+    let (_, w) = st.priv in
+    W.fold (fun x (st: BaseComponents (D).t) ->
         if is_protected_by ask m x then ( (* is_in_Gm *)
+          let v = CPA.find x st.cpa in
           (* Extra precision in implementation to pass tests:
              If global is read-protected by multiple locks,
              then inner unlock shouldn't yet publish. *)
@@ -951,14 +965,16 @@ struct
           if atomic then
             sideg (V.unprotected x) v; (* Publish delayed unprotected write as if it were protected by the atomic section. *)
 
-          if is_unprotected_without ask x m then (* is_in_V' *)
-            {st with cpa = CPA.remove x st.cpa; priv = P.remove x st.priv}
+          if is_unprotected_without ask x m then ( (* is_in_V' *)
+            let (p, w) = st.priv in
+            {st with cpa = CPA.remove x st.cpa; priv = (P.remove x p, W.remove x w)}
+          )
           else
             st
         )
         else
           st
-      ) st.cpa st
+      ) w st
 
   let sync ask getg sideg (st: BaseComponents (D).t) reason =
     let branched_sync () =
@@ -968,7 +984,8 @@ struct
           if is_global ask x && is_unprotected ask x then (
             sideg (V.unprotected x) v;
             sideg (V.protected x) v; (* must be like enter_multithreaded *)
-            {st with cpa = CPA.remove x st.cpa; priv = P.remove x st.priv}
+            let (p, w) = st.priv in
+            {st with cpa = CPA.remove x st.cpa; priv = (P.remove x p, W.remove x w)}
           )
           else
             st
@@ -1007,7 +1024,8 @@ struct
         if is_global ask x then (
           sideg (V.unprotected x) v;
           sideg (V.protected x) v;
-          {st with cpa = CPA.remove x st.cpa; priv = P.remove x st.priv}
+          let (p, w) = st.priv in
+          {st with cpa = CPA.remove x st.cpa; priv = (P.remove x p, W.remove x w)}
         )
         else
           st
