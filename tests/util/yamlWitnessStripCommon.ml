@@ -79,6 +79,8 @@ struct
           ghost_variables = List.sort GhostInstrumentation.Variable.compare x.ghost_variables;
           ghost_updates = List.sort GhostInstrumentation.LocationUpdate.compare (List.map ghost_location_update_strip_file_hash x.ghost_updates);
         }
+      | ProtectedBy x ->
+        ProtectedBy x (* no location to strip *)
     in
     {entry_type}
 
