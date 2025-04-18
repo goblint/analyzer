@@ -80,64 +80,20 @@ end
 (** Lift {!S} to use widening delay for global unknowns. *)
 module GLifter (S: Spec): Spec =
 struct
-  module D = S.D
-  module G =
+  module GG (G: Lattice.S) =
   struct
-    include Dom (S.G) (GlobalChainParams)
+    include Dom (G) (GlobalChainParams)
 
     let printXml f (b, i) =
-      BatPrintf.fprintf f "%a<analysis name=\"widen-delay\">%a</analysis>" S.G.printXml b Chain.printXml i
+      BatPrintf.fprintf f "%a<analysis name=\"widen-delay\">%a</analysis>" G.printXml b Chain.printXml i
+
+    let lift d = (d, 0)
+    let unlift (d, _) = d
   end
-  module C = S.C
-  module V = S.V
-  module P = S.P
 
-  let name () = S.name () ^ " with widening delay"
-
-  type marshal = S.marshal
-  let init = S.init
-  let finalize = S.finalize
-
-  let startstate v = S.startstate v
-  let exitstate  v = S.exitstate  v
-  let morphstate v d = S.morphstate v d
-
-  let conv (man: (D.t, G.t, C.t, V.t) man): (S.D.t, S.G.t, S.C.t, S.V.t) man =
-    { man with global = (fun v -> fst (man.global v))
-             ; sideg = (fun v g -> man.sideg v (g, 0))
-    }
-
-  let context man fd d = S.context (conv man) fd d
-  let startcontext () = S.startcontext ()
-
-  let lift_fun man f g h =
-    f @@ h (g (conv man))
-
-  let lift d = d
-
-  let sync man reason = lift_fun man lift S.sync   ((|>) reason)
-  let query man (type a) (q: a Queries.t): a Queries.result = S.query (conv man) q
-  let assign man lv e = lift_fun man lift S.assign ((|>) e % (|>) lv)
-  let vdecl man v     = lift_fun man lift S.vdecl  ((|>) v)
-  let branch man e tv = lift_fun man lift S.branch ((|>) tv % (|>) e)
-  let body man f      = lift_fun man lift S.body   ((|>) f)
-  let return man r f  = lift_fun man lift S.return ((|>) f % (|>) r)
-  let asm man         = lift_fun man lift S.asm    identity
-  let skip man        = lift_fun man lift S.skip identity
-  let special man r f args = lift_fun man lift S.special ((|>) args % (|>) f % (|>) r)
-
-  let enter man r f args =
-    let liftmap = List.map (Tuple2.mapn lift) in
-    lift_fun man liftmap S.enter ((|>) args % (|>) f % (|>) r)
-  let combine_env man r fe f args fc es f_ask = lift_fun man lift S.combine_env (fun p -> p r fe f args fc es f_ask)
-  let combine_assign man r fe f args fc es f_ask = lift_fun man lift S.combine_assign (fun p -> p r fe f args fc es f_ask)
-
-  let threadenter man ~multiple lval f args = lift_fun man (List.map lift) (S.threadenter ~multiple) ((|>) args % (|>) f % (|>) lval)
-  let threadspawn man ~multiple lval f args fman = lift_fun man lift (S.threadspawn ~multiple) ((|>) (conv fman) % (|>) args % (|>) f % (|>) lval)
-
-  let paths_as_set man =
-    lift_fun man Fun.id S.paths_as_set Fun.id
-
-  let event man e oman =
-    lift_fun man lift S.event ((|>) (conv oman) % (|>) e)
+  module NameLifter =
+  struct
+    let lift_name x = x ^ " with widening delay"
+  end
+  include SpecLifters.GlobalDomainLifter (NameLifter) (GG) (S)
 end

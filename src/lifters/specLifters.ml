@@ -105,6 +105,85 @@ struct
     D.lift @@ S.event (conv man) e (conv oman)
 end
 
+module GlobalDomainLifter (N: NameLifter) (F: LatticeLifter) (S:Spec)
+  : Spec with module D = S.D
+          and module G = F (S.G)
+          and module C = S.C
+=
+struct
+  module D = S.D
+  module G = F (S.G)
+  module C = S.C
+  module V = S.V
+  module P = S.P
+
+  let name () = N.lift_name (S.name ())
+
+  type marshal = S.marshal
+  let init = S.init
+  let finalize = S.finalize
+
+  let startstate = S.startstate
+  let exitstate  = S.exitstate
+  let morphstate = S.morphstate
+
+  let conv man =
+    { man with global = (fun v -> G.unlift (man.global v))
+             ; sideg = (fun v g -> man.sideg v (G.lift g))
+    }
+
+  let context man fd = S.context (conv man) fd
+  let startcontext () = S.startcontext ()
+
+  let sync man reason =
+    S.sync (conv man) reason
+
+  let query man =
+    S.query (conv man)
+
+  let assign man lv e =
+    S.assign (conv man) lv e
+
+  let vdecl man v =
+    S.vdecl (conv man) v
+
+  let branch man e tv =
+    S.branch (conv man) e tv
+
+  let body man f =
+    S.body (conv man) f
+
+  let return man r f =
+    S.return (conv man) r f
+
+  let asm man =
+    S.asm (conv man)
+
+  let skip man =
+    S.skip (conv man)
+
+  let enter man r f args =
+    S.enter (conv man) r f args
+
+  let special man r f args =
+    S.special (conv man) r f args
+
+  let combine_env man r fe f args fc es f_ask =
+    S.combine_env (conv man) r fe f args fc es f_ask
+
+  let combine_assign man r fe f args fc es f_ask =
+    S.combine_assign (conv man) r fe f args fc es f_ask
+
+  let threadenter man ~multiple lval f args =
+    S.threadenter (conv man) ~multiple lval f args
+
+  let threadspawn man ~multiple lval f args fman =
+    S.threadspawn (conv man) ~multiple lval f args (conv fman)
+
+  let paths_as_set man = S.paths_as_set (conv man)
+  let event man e oman = S.event (conv man) e (conv oman)
+end
+
 (** Lifts a [Spec] so that the domain is [Hashcons]d *)
 module HashconsLifter (S: Spec) = (* keep functor eta-expanded to look up option when lifter is actually used *)
 struct
