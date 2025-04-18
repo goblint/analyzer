@@ -21,7 +21,6 @@ The sound invariant is `result == 1 || result == 0`.
   - entry_type: precondition_loop_invariant
     location:
       file_name: 05-prec-problem.c
-      file_hash: $FILE_HASH
       line: 13
       column: 5
       function: foo
@@ -36,7 +35,6 @@ The sound invariant is `result == 1 || result == 0`.
   - entry_type: precondition_loop_invariant
     location:
       file_name: 05-prec-problem.c
-      file_hash: $FILE_HASH
       line: 13
       column: 5
       function: foo
@@ -51,7 +49,6 @@ The sound invariant is `result == 1 || result == 0`.
   - entry_type: precondition_loop_invariant
     location:
       file_name: 05-prec-problem.c
-      file_hash: $FILE_HASH
       line: 13
       column: 5
       function: foo

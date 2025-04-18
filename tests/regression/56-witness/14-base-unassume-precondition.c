@@ -1,4 +1,4 @@
-// PARAM: --enable ana.int.interval --set ana.activated[+] unassume --set witness.yaml.unassume 14-base-unassume-precondition.yml --set witness.yaml.entry-types[+] precondition_loop_invariant
+// PARAM: --enable ana.int.interval --set ana.activated[+] unassume --set witness.yaml.unassume 14-base-unassume-precondition.yml --set witness.yaml.entry-types[+] loop_invariant --set witness.yaml.entry-types[+] precondition_loop_invariant
 #include <assert.h>
 
 void foo(int n) {

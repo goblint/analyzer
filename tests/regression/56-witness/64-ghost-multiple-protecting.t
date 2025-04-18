@@ -41,7 +41,6 @@ protection doesn't have precise protected invariant for g2.
       ghost_updates:
       - location:
           file_name: 64-ghost-multiple-protecting.c
-          file_hash: $FILE_HASH
           line: 9
           column: 3
           function: t_fun
@@ -51,7 +50,6 @@ protection doesn't have precise protected invariant for g2.
           format: c_expression
       - location:
           file_name: 64-ghost-multiple-protecting.c
-          file_hash: $FILE_HASH
           line: 10
           column: 3
           function: t_fun
@@ -61,7 +59,6 @@ protection doesn't have precise protected invariant for g2.
           format: c_expression
       - location:
           file_name: 64-ghost-multiple-protecting.c
-          file_hash: $FILE_HASH
           line: 13
           column: 3
           function: t_fun
@@ -71,7 +68,6 @@ protection doesn't have precise protected invariant for g2.
           format: c_expression
       - location:
           file_name: 64-ghost-multiple-protecting.c
-          file_hash: $FILE_HASH
           line: 14
           column: 3
           function: t_fun
@@ -81,7 +77,6 @@ protection doesn't have precise protected invariant for g2.
           format: c_expression
       - location:
           file_name: 64-ghost-multiple-protecting.c
-          file_hash: $FILE_HASH
           line: 16
           column: 3
           function: t_fun
@@ -91,7 +86,6 @@ protection doesn't have precise protected invariant for g2.
           format: c_expression
       - location:
           file_name: 64-ghost-multiple-protecting.c
-          file_hash: $FILE_HASH
           line: 17
           column: 3
           function: t_fun
@@ -101,7 +95,6 @@ protection doesn't have precise protected invariant for g2.
           format: c_expression
       - location:
           file_name: 64-ghost-multiple-protecting.c
-          file_hash: $FILE_HASH
           line: 19
           column: 3
           function: t_fun
@@ -111,7 +104,6 @@ protection doesn't have precise protected invariant for g2.
           format: c_expression
       - location:
           file_name: 64-ghost-multiple-protecting.c
-          file_hash: $FILE_HASH
           line: 20
           column: 3
           function: t_fun
@@ -121,7 +113,6 @@ protection doesn't have precise protected invariant for g2.
           format: c_expression
       - location:
           file_name: 64-ghost-multiple-protecting.c
-          file_hash: $FILE_HASH
           line: 22
           column: 3
           function: t_fun
@@ -131,7 +122,6 @@ protection doesn't have precise protected invariant for g2.
           format: c_expression
       - location:
           file_name: 64-ghost-multiple-protecting.c
-          file_hash: $FILE_HASH
           line: 23
           column: 3
           function: t_fun
@@ -141,7 +131,6 @@ protection doesn't have precise protected invariant for g2.
           format: c_expression
       - location:
           file_name: 64-ghost-multiple-protecting.c
-          file_hash: $FILE_HASH
           line: 29
           column: 3
           function: main
@@ -208,7 +197,6 @@ protection-read has precise protected invariant for g2.
       ghost_updates:
       - location:
           file_name: 64-ghost-multiple-protecting.c
-          file_hash: $FILE_HASH
           line: 9
           column: 3
           function: t_fun
@@ -218,7 +206,6 @@ protection-read has precise protected invariant for g2.
           format: c_expression
       - location:
           file_name: 64-ghost-multiple-protecting.c
-          file_hash: $FILE_HASH
           line: 10
           column: 3
           function: t_fun
@@ -228,7 +215,6 @@ protection-read has precise protected invariant for g2.
           format: c_expression
       - location:
           file_name: 64-ghost-multiple-protecting.c
-          file_hash: $FILE_HASH
           line: 13
           column: 3
           function: t_fun
@@ -238,7 +224,6 @@ protection-read has precise protected invariant for g2.
           format: c_expression
       - location:
           file_name: 64-ghost-multiple-protecting.c
-          file_hash: $FILE_HASH
           line: 14
           column: 3
           function: t_fun
@@ -248,7 +233,6 @@ protection-read has precise protected invariant for g2.
           format: c_expression
       - location:
           file_name: 64-ghost-multiple-protecting.c
-          file_hash: $FILE_HASH
           line: 16
           column: 3
           function: t_fun
@@ -258,7 +242,6 @@ protection-read has precise protected invariant for g2.
           format: c_expression
       - location:
           file_name: 64-ghost-multiple-protecting.c
-          file_hash: $FILE_HASH
           line: 17
           column: 3
           function: t_fun
@@ -268,7 +251,6 @@ protection-read has precise protected invariant for g2.
           format: c_expression
       - location:
           file_name: 64-ghost-multiple-protecting.c
-          file_hash: $FILE_HASH
           line: 19
           column: 3
           function: t_fun
@@ -278,7 +260,6 @@ protection-read has precise protected invariant for g2.
           format: c_expression
       - location:
           file_name: 64-ghost-multiple-protecting.c
-          file_hash: $FILE_HASH
           line: 20
           column: 3
           function: t_fun
@@ -288,7 +269,6 @@ protection-read has precise protected invariant for g2.
           format: c_expression
       - location:
           file_name: 64-ghost-multiple-protecting.c
-          file_hash: $FILE_HASH
           line: 22
           column: 3
           function: t_fun
@@ -298,7 +278,6 @@ protection-read has precise protected invariant for g2.
           format: c_expression
       - location:
           file_name: 64-ghost-multiple-protecting.c
-          file_hash: $FILE_HASH
           line: 23
           column: 3
           function: t_fun
@@ -308,7 +287,6 @@ protection-read has precise protected invariant for g2.
           format: c_expression
       - location:
           file_name: 64-ghost-multiple-protecting.c
-          file_hash: $FILE_HASH
           line: 29
           column: 3
           function: main
@@ -380,7 +358,6 @@ vojdani has precise protected invariant for g2, but no unprotected invariants.
       ghost_updates:
       - location:
           file_name: 64-ghost-multiple-protecting.c
-          file_hash: $FILE_HASH
           line: 9
           column: 3
           function: t_fun
@@ -390,7 +367,6 @@ vojdani has precise protected invariant for g2, but no unprotected invariants.
           format: c_expression
       - location:
           file_name: 64-ghost-multiple-protecting.c
-          file_hash: $FILE_HASH
           line: 10
           column: 3
           function: t_fun
@@ -400,7 +376,6 @@ vojdani has precise protected invariant for g2, but no unprotected invariants.
           format: c_expression
       - location:
           file_name: 64-ghost-multiple-protecting.c
-          file_hash: $FILE_HASH
           line: 13
           column: 3
           function: t_fun
@@ -410,7 +385,6 @@ vojdani has precise protected invariant for g2, but no unprotected invariants.
           format: c_expression
       - location:
           file_name: 64-ghost-multiple-protecting.c
-          file_hash: $FILE_HASH
           line: 14
           column: 3
           function: t_fun
@@ -420,7 +394,6 @@ vojdani has precise protected invariant for g2, but no unprotected invariants.
           format: c_expression
       - location:
           file_name: 64-ghost-multiple-protecting.c
-          file_hash: $FILE_HASH
           line: 16
           column: 3
           function: t_fun
@@ -430,7 +403,6 @@ vojdani has precise protected invariant for g2, but no unprotected invariants.
           format: c_expression
       - location:
           file_name: 64-ghost-multiple-protecting.c
-          file_hash: $FILE_HASH
           line: 17
           column: 3
           function: t_fun
@@ -440,7 +412,6 @@ vojdani has precise protected invariant for g2, but no unprotected invariants.
           format: c_expression
       - location:
           file_name: 64-ghost-multiple-protecting.c
-          file_hash: $FILE_HASH
           line: 19
           column: 3
           function: t_fun
@@ -450,7 +421,6 @@ vojdani has precise protected invariant for g2, but no unprotected invariants.
           format: c_expression
       - location:
           file_name: 64-ghost-multiple-protecting.c
-          file_hash: $FILE_HASH
           line: 20
           column: 3
           function: t_fun
@@ -460,7 +430,6 @@ vojdani has precise protected invariant for g2, but no unprotected invariants.
           format: c_expression
       - location:
           file_name: 64-ghost-multiple-protecting.c
-          file_hash: $FILE_HASH
           line: 22
           column: 3
           function: t_fun
@@ -470,7 +439,6 @@ vojdani has precise protected invariant for g2, but no unprotected invariants.
           format: c_expression
       - location:
           file_name: 64-ghost-multiple-protecting.c
-          file_hash: $FILE_HASH
           line: 23
           column: 3
           function: t_fun
@@ -480,7 +448,6 @@ vojdani has precise protected invariant for g2, but no unprotected invariants.
           format: c_expression
       - location:
           file_name: 64-ghost-multiple-protecting.c
-          file_hash: $FILE_HASH
           line: 29
           column: 3
           function: main
@@ -540,7 +507,6 @@ vojdani has precise protected invariant for g2, but no unprotected invariants.
       ghost_updates:
       - location:
           file_name: 64-ghost-multiple-protecting.c
-          file_hash: $FILE_HASH
           line: 9
           column: 3
           function: t_fun
@@ -550,7 +516,6 @@ vojdani has precise protected invariant for g2, but no unprotected invariants.
           format: c_expression
       - location:
           file_name: 64-ghost-multiple-protecting.c
-          file_hash: $FILE_HASH
           line: 10
           column: 3
           function: t_fun
@@ -560,7 +525,6 @@ vojdani has precise protected invariant for g2, but no unprotected invariants.
           format: c_expression
       - location:
           file_name: 64-ghost-multiple-protecting.c
-          file_hash: $FILE_HASH
           line: 13
           column: 3
           function: t_fun
@@ -570,7 +534,6 @@ vojdani has precise protected invariant for g2, but no unprotected invariants.
           format: c_expression
       - location:
           file_name: 64-ghost-multiple-protecting.c
-          file_hash: $FILE_HASH
           line: 14
           column: 3
           function: t_fun
@@ -580,7 +543,6 @@ vojdani has precise protected invariant for g2, but no unprotected invariants.
           format: c_expression
       - location:
           file_name: 64-ghost-multiple-protecting.c
-          file_hash: $FILE_HASH
           line: 16
           column: 3
           function: t_fun
@@ -590,7 +552,6 @@ vojdani has precise protected invariant for g2, but no unprotected invariants.
           format: c_expression
       - location:
           file_name: 64-ghost-multiple-protecting.c
-          file_hash: $FILE_HASH
           line: 17
           column: 3
           function: t_fun
@@ -600,7 +561,6 @@ vojdani has precise protected invariant for g2, but no unprotected invariants.
           format: c_expression
       - location:
           file_name: 64-ghost-multiple-protecting.c
-          file_hash: $FILE_HASH
           line: 19
           column: 3
           function: t_fun
@@ -610,7 +570,6 @@ vojdani has precise protected invariant for g2, but no unprotected invariants.
           format: c_expression
       - location:
           file_name: 64-ghost-multiple-protecting.c
-          file_hash: $FILE_HASH
           line: 20
           column: 3
           function: t_fun
@@ -620,7 +579,6 @@ vojdani has precise protected invariant for g2, but no unprotected invariants.
           format: c_expression
       - location:
           file_name: 64-ghost-multiple-protecting.c
-          file_hash: $FILE_HASH
           line: 22
           column: 3
           function: t_fun
@@ -630,7 +588,6 @@ vojdani has precise protected invariant for g2, but no unprotected invariants.
           format: c_expression
       - location:
           file_name: 64-ghost-multiple-protecting.c
-          file_hash: $FILE_HASH
           line: 23
           column: 3
           function: t_fun
@@ -640,7 +597,6 @@ vojdani has precise protected invariant for g2, but no unprotected invariants.
           format: c_expression
       - location:
           file_name: 64-ghost-multiple-protecting.c
-          file_hash: $FILE_HASH
           line: 29
           column: 3
           function: main
