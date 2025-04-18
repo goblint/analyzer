@@ -19,10 +19,14 @@ module type LatticeLifter =
     val unlift: t -> L.t
   end
 
-module DomainLifter (N: NameLifter) (F: LatticeLifter) (S:Spec)
-  : Spec with module G = S.G
-          and module C = S.C
-          and module D = F (S.D)
+module DomainLifter (N: NameLifter) (F: LatticeLifter) (S:Spec):
+sig
+  include Spec with module G = S.G
+                and module C = S.C
+                and module D = F (S.D)
+                and module V = S.V
+  val conv: (D.t, G.t, C.t, V.t) man -> (S.D.t, G.t, C.t, V.t) man
+end
 =
 struct
   module D = F (S.D)
@@ -105,10 +109,14 @@ struct
     D.lift @@ S.event (conv man) e (conv oman)
 end
 
-module GlobalDomainLifter (N: NameLifter) (F: LatticeLifter) (S:Spec)
-  : Spec with module D = S.D
-          and module G = F (S.G)
-          and module C = S.C
+module GlobalDomainLifter (N: NameLifter) (F: LatticeLifter) (S:Spec):
+sig
+  include Spec with module D = S.D
+                and module G = F (S.G)
+                and module C = S.C
+                and module V = S.V
+  val conv: (D.t, G.t, C.t, V.t) man -> (D.t, S.G.t, C.t, V.t) man
+end
 =
 struct
   module D = S.D
@@ -213,10 +221,14 @@ module type PrintableLifter =
     val unlift: t -> P.t
   end
 
-module ContextLifter (N: NameLifter) (F: PrintableLifter) (S:Spec)
-  : Spec with module D = S.D
-          and module G = S.G
-          and module C = F (S.C)
+module ContextLifter (N: NameLifter) (F: PrintableLifter) (S:Spec):
+sig
+  include Spec with module D = S.D
+                and module G = S.G
+                and module C = F (S.C)
+                and module V = S.V
+  val conv: (D.t, G.t, C.t, V.t) man -> (D.t, G.t, S.C.t, V.t) man
+end
 =
 struct
   module D = S.D

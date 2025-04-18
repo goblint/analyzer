@@ -69,12 +69,12 @@ struct
   end
   include SpecLifters.DomainLifter (NameLifter) (DD) (S)
 
+  (* Redefine morphstate and paths_as_set to keep counter instead of resetting to 0. *)
+
   let morphstate v (d, l) = (S.morphstate v d, l)
 
   let paths_as_set man =
-    let liftmap = List.map (fun (x, _) -> (x, snd man.local)) in
-    (* TODO: expose conv from DomainLifter? *)
-    liftmap (paths_as_set man)
+    List.map (fun x -> (x, snd man.local)) @@ S.paths_as_set (conv man)
 end
 
 (** Lift {!S} to use widening delay for global unknowns. *)
