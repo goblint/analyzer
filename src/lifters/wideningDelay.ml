@@ -24,6 +24,9 @@ struct
   module Chain = Printable.Chain (ChainParams)
   include Printable.Prod (Base) (Chain)
 
+  let lift d = (d, 0)
+  let unlift (d, _) = d
+
   let bot () = (Base.bot (), 0)
   let is_bot (b, _) = Base.is_bot b
   let top () = (Base.top (), ChainParams.n ())
@@ -58,9 +61,6 @@ struct
 
     let printXml f (b, i) =
       BatPrintf.fprintf f "%a<analysis name=\"widen-delay\">%a</analysis>" D.printXml b Chain.printXml i
-
-    let lift d = (d, 0)
-    let unlift (d, _) = d
   end
 
   module NameLifter =
@@ -86,9 +86,6 @@ struct
 
     let printXml f (b, i) =
       BatPrintf.fprintf f "%a<analysis name=\"widen-delay\">%a</analysis>" G.printXml b Chain.printXml i
-
-    let lift d = (d, 0)
-    let unlift (d, _) = d
   end
 
   module NameLifter =
