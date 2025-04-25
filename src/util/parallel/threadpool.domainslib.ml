@@ -2,6 +2,8 @@ module Thread_pool =
 struct
   module T = Domainslib.Task
 
+  let run = T.run
+
   let create n = T.setup_pool ~num_domains:n ()
 
   let add_work pool f = T.async pool f 
