@@ -321,10 +321,17 @@ end
 module type TwoVarInequalities = sig
   type t
 
+  (*returns the best lower and upper bound for the relation between variables with the given Rhs*)
   val get_relations :  (Rhs.t * Value.t) -> (Rhs.t * Value.t) -> t -> Relation.t list
 
-  (*meet x' < y' + c (or with = / > *)
+  (*meet relation between two variables. also returns a list of value refinements *)
   val meet_relation : int -> int -> Relation.t -> (int -> Rhs.t) -> (int -> Value.t) -> t -> t * (int * Value.t) list
+
+  (*substitutes all occurences of a variable by a rhs*)
+  val substitute : t -> int -> Z.t * int * Z.t * Z.t -> t
+
+  (*called after every operation to limit the inequalities to the most relevant*)
+  val limit : EConj.t -> t -> t
 
   val meet : (int -> Value.t) -> t -> t -> t
   val narrow : (int -> Value.t) -> t -> t -> t
@@ -334,9 +341,10 @@ module type TwoVarInequalities = sig
   val join : t -> (int -> Value.t) -> t -> (int -> Value.t) -> t
   val widen : t -> (int -> Value.t) -> t -> (int -> Value.t) -> t
 
-  val affine_transform : t -> int -> Z.t * int * Z.t * Z.t -> t
+  (*a join can split groups of variables. This function copies the relevant inequalities to all new representants*)
+  val copy_to_new_representants : EConj.t -> EConj.t -> t -> t
 
-  (*copy all constraints for some root to a different t if they still hold for a new x' with x' (cond) x *)
+  (*restore inequalities after an assignment that makes the assigned to variable have a known relation to before the assignment *)
   val transfer : int -> Relation.t -> t -> (int -> Rhs.t) -> (int -> Value.t) -> t -> (int -> Rhs.t) -> (int -> Value.t) -> t
 
   val show_formatted : (int -> string) -> t -> string
@@ -356,6 +364,8 @@ module NoInequalties : TwoVarInequalities = struct
   let get_relations _ _ _ = []
   let meet_relation _ _ _ _ _ _ = (), []
 
+  let limit _ _ = ()
+
   let meet _ _ _ = ()
   let narrow _ _ _ = ()
 
@@ -372,7 +382,9 @@ module NoInequalties : TwoVarInequalities = struct
   let modify_variables_in_domain _ _ _ = ()
   let forget_variable _ _ = ()
 
-  let affine_transform _ _ _ = ()
+  let substitute _ _ _ = ()
+
+  let copy_to_new_representants _ _ _ = ()
 
   let transfer _ _ _ _ _ _ _ _ = ()
 end
@@ -399,6 +411,10 @@ module CommonActions (Coeffs : Coeffs) = struct
   let empty = IntMap.empty
   let is_empty = IntMap.is_empty
   let hash t = IntMap.fold (fun _ ys acc -> IntMap.fold (fun _ coeff acc -> Coeffs.hash coeff + 3*acc) ys (5*acc)) t 0
+
+  let ignore_empty ls = 
+    if IntMap.is_empty ls then None
+    else Some ls
 
   let show_formatted formatter t = 
     if IntMap.is_empty t then "{}" else
@@ -448,10 +464,7 @@ module CommonActions (Coeffs : Coeffs) = struct
   let join' widen t1 get_val_t1 t2 get_val_t2 = 
     let merge_y x y = (if widen then Coeffs.widen else Coeffs.join) x y get_val_t1 get_val_t2
     in let merge_x x ys1 ys2 = 
-         let ignore_empty ls = 
-           if IntMap.is_empty ls then None
-           else Some ls
-         in match ys1, ys2 with
+         match ys1, ys2 with
          | Some ys1, None -> ignore_empty (IntMap.filter (fun y coeff -> Coeffs.implies (get_val_t2 x) (get_val_t2 y) None coeff ) ys1)
          | None, Some ys2 -> ignore_empty (IntMap.filter (fun y coeff -> Coeffs.implies (get_val_t1 x) (get_val_t1 y) None coeff ) ys2)
          | Some ys1, Some ys2 -> ignore_empty (IntMap.merge (merge_y x) ys1 ys2)
@@ -667,8 +680,8 @@ end
 
 *)
 
-let qhash q = Z.hash (Q.num q) + 13 * Z.hash (Q.den q)
 
+let qhash q = Z.hash (Q.num q) + 13 * Z.hash (Q.den q)
 
 module LinearInequality = struct
   (*Normalised representation of an inequality through the origin 
@@ -814,7 +827,7 @@ module LinearInequality = struct
 
 
   (*apply the transformation to the variable on the left side*)
-  let affine_transform_left (coeff, offs, divi) (k,o) =
+  let substitute_left (coeff, offs, divi) (k,o) =
     let open OriginInequality in
     let s = get_slope k in
     let s' = Q.mul s (Q.make coeff divi) in
@@ -824,7 +837,7 @@ module LinearInequality = struct
     | GT _ -> GT s', o'
 
   (*apply the transformation to the variable on the right side*)
-  let affine_transform_right (coeff, offs, divi) (k,o) = 
+  let substitute_right (coeff, offs, divi) (k,o) = 
     let open OriginInequality in
     let s = get_slope k in
     let f = Q.make coeff divi in
@@ -836,6 +849,15 @@ module LinearInequality = struct
     in if Q.lt f Q.zero 
     then (negate k', Q.neg o')
     else k', o' 
+
+  let swap_sides (k,o) =
+    let open Q in
+    let open OriginInequality in  
+    match k with 
+    | LT s when s < zero -> (GT (inv s), - (o / s))
+    | LT s -> (LT (inv s), - (o / s))
+    | GT s when s < zero -> (LT (inv s), - (o / s))
+    | GT s -> (GT (inv s), - (o / s))
 
   (*combine an inequaliy x_old -> x_new with x_old -> y to x_new -> y*)
   let combine_left (k_rel, o_rel) (k, o) =
@@ -862,7 +884,30 @@ module LinearInequality = struct
     | GT s_rel, GT s -> Some (GT (Q.mul s s_rel), Q.add o_rel @@ Q.mul s o) 
 
 
+  let slopes_from_econj ((dim, _)as econj) =
+    let table = BatHashtbl.create @@ dim * (dim + 1) / 2 in (*TODO this overestimates the actual number because there are constants*)
+    for x' = 0 to dim do
+      for y' = x' to dim do
+        match EConj.get_rhs econj x', EConj.get_rhs econj y' with
+        | (Some (cx,x),ox,dx), (Some (cy,y),oy,dy) -> begin
+            let (k,_) = from_rhss (cx, ox, dx) (cy, oy, dy) None in 
+            let s = Q.abs @@ OriginInequality.get_slope k in (*absolute so that x < y and y < x (and x > y, y > x) map to the same s *)
+            let key = min x y, max x y in
+            match BatHashtbl.find_option table key with
+            | Some xy_tbl -> BatHashtbl.modify_def 0 s ((+) 1) xy_tbl
+            | None -> 
+              let xy_tbl = BatHashtbl.create 5 in
+              BatHashtbl.add xy_tbl s 1;
+              BatHashtbl.add table key xy_tbl
+          end
+        | _ -> () (*ignore constants*)
+      done 
+    done;
+    table
+
 end
+
+
 (*List of inequalities ax < by + c, mapping a and b to c*)
 (*We need to make sure that x has lower index than y to keep this representation unique! *)
 module ArbitraryCoeffsSet = struct
@@ -878,11 +923,26 @@ module ArbitraryCoeffsSet = struct
 
   let empty = CoeffMap.empty
 
-  (*TODO this function should limit how many inequalities we are saving. What information does this need?
-    likely: values, coefficients of Rhs relating to x and y*)
-  (* Throw away inequalities that are least useful:
-     least rhss with fitting coefficients *)
-  let limit = identity
+
+  let ignore_empty ls = 
+    if CoeffMap.is_empty ls then None
+    else Some ls
+
+  (*limit how many inequalities we are saving: only keep inequalities with slopes that correspond to variables. 
+    optionally, limit it further to the slopes that correspond to the most inequalities *)
+  let limit slopes t = 
+    let open LinearInequality.OriginInequality in
+    let filtered = CoeffMap.filter (fun k c -> BatHashtbl.mem slopes (Q.abs @@ get_slope k) ) t in
+    if true then (*TODO add option to configure this*)
+      filtered
+    else 
+      let keep = 10 in  (*TODO add option to configure this. there are possibly 4 inequalities per slope, so should be adjusted accordingly*)
+      let comp (k1,_) (k2,_) = 
+        let v1 = BatHashtbl.find_default slopes (Q.abs @@ get_slope k1) 0 in
+        let v2 = BatHashtbl.find_default slopes (Q.abs @@ get_slope k2) 0 in
+        v2 - v1 (*list sorts ascending, we need descending -> inverted comparison*)
+      in
+      CoeffMap.of_list @@ List.take keep @@ List.sort comp @@ CoeffMap.bindings filtered
 
   (*get the next key in anti-clockwise order*)
   let get_previous k t =
@@ -919,7 +979,6 @@ module ArbitraryCoeffsSet = struct
                else t
         in CoeffMap.add k c @@ remove_prev prev @@ remove_next next t
     | _,_ -> failwith "impossible state"
-
 
   (*get the thightest offset for an inequality with a given slope that is implied by the current set of inequalities*)
   let get_best_offset k t = 
@@ -1005,7 +1064,7 @@ module ArbitraryCoeffsSet = struct
           | _ -> add_inequality k c @@ CoeffMap.remove k t (*we replace the current value with a new one *)
         in t', refinements (*TODO: lookup the best interval information from the inequalities!*)
 
-  (*when meeting, the values should already been refined before -> ignore the refinement data*)
+  (*when meeting, the values should already been refined before -> ignore the refinement data*) (*TODO is this actually true?*)
   let meet' narrow x_val y_val t1 t2 = CoeffMap.fold (fun k c t -> fst @@ meet_single_inequality None narrow x_val y_val k c t) t1 t2
 
   let implies x_val y_val t1_opt t2 = 
@@ -1068,9 +1127,6 @@ module ArbitraryCoeffsSet = struct
     in let t1_filtered', t2_filtered' = CoeffMap.fold relax t2_filtered (t1_filtered, t2_filtered)
     in let merged = CoeffMap.fold add_inequality t2_filtered' t1_filtered' 
     (*remove the explicetly stored interval inequalities*)
-    in let ignore_empty ls = 
-         if CoeffMap.is_empty ls then None
-         else Some ls
     in ignore_empty @@ CoeffMap.remove (LT Q.zero) @@ CoeffMap.remove (GT Q.zero) @@ CoeffMap.remove (LT Q.inf) @@ CoeffMap.remove (GT Q.inf) merged
 
   let join = join' false
@@ -1078,21 +1134,21 @@ module ArbitraryCoeffsSet = struct
   let meet = meet' false
   let narrow = meet' true
 
-  let affine_transform_left (coeff, offs, divi) t =
+  let substitute_left (coeff, offs, divi) t =
     let f k c t_acc = 
-      let (k',c') = LinearInequality.affine_transform_left (coeff, offs, divi) (k,c) in
+      let (k',c') = LinearInequality.substitute_left (coeff, offs, divi) (k,c) in
       CoeffMap.add k' c' t_acc (*affine transformation does not make a non redundant inequality redundant -> add directly*)
     in
     CoeffMap.fold f t CoeffMap.empty
 
-  let affine_transform_right (coeff, offs, divi) t =
+  let substitute_right (coeff, offs, divi) t =
     let f k c t_acc = 
-      let (k',c') = LinearInequality.affine_transform_right (coeff, offs, divi) (k,c) in
+      let (k',c') = LinearInequality.substitute_right (coeff, offs, divi) (k,c) in
       CoeffMap.add k' c' t_acc
     in
     CoeffMap.fold f t CoeffMap.empty
 
-  (**)
+  (*combine two inequalities into a single one if possible*)
   let combine_left rel t = 
     let fold_fun k c acc = 
       match LinearInequality.combine_left rel (k,c) with 
@@ -1117,6 +1173,10 @@ end
 module LinearInequalities: TwoVarInequalities = struct
   module Coeffs = ArbitraryCoeffsSet
   include CommonActions(Coeffs)
+
+  let ignore_empty ls = 
+    if IntMap.is_empty ls then None
+    else Some ls
 
   let rec get_relations (((var_x,o_x,d_x), x_val) as x') (((var_y,o_y,d_y), y_val) as y') t = 
     match var_x, var_y with
@@ -1190,7 +1250,7 @@ module LinearInequalities: TwoVarInequalities = struct
                else
                  let min = Q.div c' s' in
                  t, [x, Value.starting @@ Z.fdiv (Q.num min) (Q.den min)]
-           else Coeffs.limit @@ Coeffs.meet_single_inequality (Some (x,y)) false (get_value x) (get_value y) k c t
+           else Coeffs.meet_single_inequality (Some (x,y)) false (get_value x) (get_value y) k c t
       in let factor = (*we need to divide o by this factor because LinearInequalities scales everything down. TODO is there a better way?*)
            let a = Q.make (Tuple3.first rhs_x) (Tuple3.third rhs_x) in
            let b = Q.make (Tuple3.first rhs_y) (Tuple3.third rhs_y) in
@@ -1210,22 +1270,22 @@ module LinearInequalities: TwoVarInequalities = struct
     if M.tracing then M.tracel "meet_relation" "result: %s, refinements: %s " (show res) (List.fold (fun acc (var,value) -> Printf.sprintf "var_%d: %s, %s" var (Value.show value) acc) "" refine_acc);  
     res, refine_acc
 
-  (*TODO we programmed this slightly different to EConj: this expects the rhs to be inverted, EConj does it itself *)
-  (*this is now used in other places where i think this way is correct -> name it inverse_affine_transform? *)
-  let affine_transform t i (coeff, j, offs, divi) = 
+  (*TODO switching sides ov variables because of substitution??*)
+  let substitute t i (coeff, j, offs, divi) = 
     let fold_x x ys acc = 
-      let check_for_contradiction cs = (*TODO value refinement?*)
+      let check_for_contradiction cs = 
         let check_single k c = 
           match k with 
-          | Coeffs.Key.LT s -> if Q.lt c Q.zero then raise EConj.Contradiction 
-          | GT s -> if Q.gt c Q.zero then raise EConj.Contradiction 
+          | Coeffs.Key.LT s when Q.equal s Q.one -> if Q.lt c Q.zero then raise EConj.Contradiction 
+          | GT s when Q.equal s Q.one -> if Q.gt c Q.zero then raise EConj.Contradiction
+          | _ -> () (*TODO value refinement?*)
         in Coeffs.CoeffMap.iter check_single cs
       in
       if x < i then 
         let ys' = match IntMap.find_opt i ys with
           | None -> Some ys
           | Some cs -> 
-            let cs' = Coeffs.affine_transform_right (coeff, offs, divi) cs in
+            let cs' = Coeffs.substitute_right (coeff, offs, divi) cs in
             if x = j then (*We now have inequalities with the same variable on both sides -> check for contradictions*)
               (check_for_contradiction cs'; None)
             else
@@ -1238,7 +1298,7 @@ module LinearInequalities: TwoVarInequalities = struct
         | _ -> acc
       else if x = i then  
         let convert y cs = 
-          let tranformed = Coeffs.affine_transform_left (coeff, offs, divi) cs in
+          let tranformed = Coeffs.substitute_left (coeff, offs, divi) cs in
           if y = j 
           then (check_for_contradiction tranformed; None) 
           else Some tranformed
@@ -1254,9 +1314,9 @@ module LinearInequalities: TwoVarInequalities = struct
         acc
     in IntMap.fold fold_x t IntMap.empty 
 
-  let affine_transform t i (c,j,o,d) = 
-    let res = affine_transform t i (c,j,o,d) in
-    if M.tracing then M.trace "affine_transform" "transforming var_%d in %s with %s -> %s" i (show t) (Rhs.show (Some (c,j), o, d)) (show res);
+  let substitute t i (c,j,o,d) = 
+    let res = substitute t i (c,j,o,d) in
+    if M.tracing then M.trace "substitute" "substituting var_%d in %s with %s -> %s" i (show t) (Rhs.show (Some (c,j), o, d)) (show res);
     res
 
   let transfer x cond t_old get_rhs_old get_value_old t get_rhs get_value = 
@@ -1270,10 +1330,6 @@ module LinearInequalities: TwoVarInequalities = struct
           | Gt, o -> (Coeffs.Key.negate k), (Q.add c @@ Q. div (Q.of_bigint o) factor)
           | Eq, o -> undefined "TODO" (*Should we exclude EQ from relation?*)
       in
-      let ignore_empty ls = 
-        if IntMap.is_empty ls then None
-        else Some ls
-      in
       (*combine the inequality from cond with all inequalities*)
       (*throw out all inequalities that do not contain the representative of x*)
       let combine_1 v1 v2s = 
@@ -1283,11 +1339,14 @@ module LinearInequalities: TwoVarInequalities = struct
           ignore_empty @@ IntMap.filter_map combine_2 v2s
       in
       let filtered = IntMap.filter_map combine_1 t_old in
+      if M.tracing then M.tracel "transfer" "filtered: %s" (show filtered);  
+
       (*transform all inequalities to refer to new root of x*)
       (*invert old rhs, then substitute the new rhs for x*)
       let (m, o, d) = Rhs.subst rhs x @@ snd @@ EConj.inverse x (coeff_old,x_root_old, off_old, divi_old) in
       let c, v = BatOption.get m in
-      let transformed = affine_transform filtered x_root (c, v, o, d) in
+      let transformed = substitute filtered x_root (c, v, o, d) in
+      if M.tracing then M.tracel "transfer" "transformed: %s" (show transformed);  
       (*meet with this set of equations*)
       meet get_value t transformed
     | _,_ -> t (*ignore constants*)
@@ -1298,16 +1357,82 @@ module LinearInequalities: TwoVarInequalities = struct
     if M.tracing then M.tracel "transfer" "result: %s" (show res);  
     res
 
+  let limit econj t = 
+    let slopes = LinearInequality.slopes_from_econj econj in
+    let limit_single x y cs = 
+      Coeffs.limit (BatHashtbl.find_default slopes (min x y, max x y) (Hashtbl.create 0)) cs
+    in IntMap.filter_map (fun x ys -> ignore_empty @@ IntMap.filter_map (fun y cs -> Coeffs.ignore_empty @@ limit_single x y cs) ys) t
+
+  let copy_to_new_representants econj_old econj_new t = 
+    let slopes = LinearInequality.slopes_from_econj econj_new in
+    (*a var is representant if it does not show up in the sparse map*)
+    let all_representants_in_new = 
+      let rec aux acc n =
+        if n > (fst econj_new) then acc
+        else if IntMap.mem n (snd econj_new) then aux acc (n + 1)
+        else aux (n :: acc) (n + 1)
+      in aux [] 0
+    in let new_representants_in_new = List.filter (fun v -> IntMap.mem v (snd econj_old)) all_representants_in_new
+    in let add_new v_new t_acc other_var = 
+         (*get the old rhs*)
+         match IntMap.find v_new (snd econj_old) with 
+         | None,_,_ -> t_acc (*skip constants*)
+         | (Some (c,old_rep), o, d) ->
+           let allowed_slopes = Hashtbl.keys @@ Hashtbl.find slopes (min v_new other_var, max v_new other_var) in
+           (*inverse rhs so that we can translate the inequalities of the old representant to slopes corresponding to the new representant*)
+           let (_, (mi,oi,di)) = EConj.inverse v_new (c,old_rep,o,d) in
+           let ci,_ = BatOption.get mi in 
+           (*convert the slope from new representant to old*)
+           let convert_to_old ineq = 
+             if v_new < other_var then 
+               LinearInequality.substitute_left (c,o,d) ineq
+             else 
+               let ineq' = LinearInequality.substitute_right (c,o,d) ineq in
+               if old_rep < other_var then 
+                 LinearInequality.swap_sides ineq'
+               else ineq'
+               (*convert back*)
+           in let convert_to_new ineq = 
+                if v_new < other_var then 
+                  LinearInequality.substitute_left (ci,oi,di) ineq
+                else 
+                  let ineq' =  if old_rep < other_var then LinearInequality.swap_sides ineq else ineq
+                  in LinearInequality.substitute_right (ci,oi,di) ineq'
+                  (*relations between the old representant and the other variable*)
+           in let coeffs_old = BatOption.default Coeffs.empty @@ get_coeff (min old_rep other_var) (max old_rep other_var) t in 
+           let add_single_slope c_acc s = 
+             (*the given slope has been normed to be positive -> copy both it and the negative*)
+             let ineqs = [LinearInequality.OriginInequality.LT s, Q.zero; GT s, Q.zero; LT (Q.neg s), Q.zero; GT (Q.neg s), Q.zero;]
+             in let copy_single_ineq c_acc ineq = 
+                  let k_old = fst @@ convert_to_old ineq in
+                  (*TODO maybe this introduces too many new inequalities -> only take explicit stored ones?*)
+                  match Coeffs.get_best_offset k_old coeffs_old with 
+                  | None -> c_acc
+                  | Some o -> 
+                    let k_neq, o_new = convert_to_new (k_old, o) in
+                    Coeffs.add_inequality k_neq o_new c_acc
+             in List.fold copy_single_ineq c_acc ineqs 
+           in let coeffs_new = Enum.fold add_single_slope Coeffs.empty allowed_slopes
+           in if Coeffs.CoeffMap.is_empty coeffs_new then t_acc else set_coeff (min v_new other_var) (max v_new other_var) coeffs_new t_acc
+
+    in List.fold (fun acc v_new -> List.fold (add_new v_new ) acc all_representants_in_new ) t new_representants_in_new 
 
 end
 
 (*TODOs:*)
-(*relation to offset domain *)
-(*transfer: allow RHS for more information transfer!*)
-(*rework transfer: allow affine transfer, look at complexities*)
-(*limit in ArbitraryCoeaffsList*)
+(*limit: join and affine_transform*)
+(*D.meet: transform to roots!
+  ArbitraryCoeaffsList.meet + affine_transform -> refinement
+  D.join, leq: splitting groups
+*)
+(*look at complexities. I expect: 
+  Meet, join, leq, widen, forget: (n² log n)
+  assert ?
+  assign: same
+*)
+(*rework relation to offset domain -> remove Eq? *)
 (*store information about representants to avoid recalculating them: congruence information, group size/ coefficients ??*)
-(*adapt simple equalities to take advantage of the offset!*)
+(*redo simple equalities (take advantage of the offset!, affine transform)*)
 (*domain inbetween these two: with offset between roots? -> should be trivial to implement*)
 (*what is required of narrow?*)
 (*widening thresholds: from offsets of rhs?*)

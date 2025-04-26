@@ -5,8 +5,8 @@ int main() {
     x = 3*y + 1; // a
     z = 5*x + 7; // b
     if (x>0) {
-    __goblint_check( x >  0 );
-    __goblint_check( y > -1 ); // A
-    __goblint_check( z >  7 ); // B
+    __goblint_check( x >  0 ); //SUCCESS
+    __goblint_check( y > -1 ); //SUCCESS
+    __goblint_check( z >  7 ); //SUCCESS
     }
 }

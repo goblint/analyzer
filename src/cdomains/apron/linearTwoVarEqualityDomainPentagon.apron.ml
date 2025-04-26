@@ -200,7 +200,7 @@ struct
     | None -> (econj'', vs'', Ineq.forget_variable ineq' var)
     | Some (Some (coeff,y),offs,divi) -> 
       (*modify inequalities*)
-      let ineq'' = Ineq.affine_transform ineq' var (coeff,y,offs,divi)
+      let ineq'' = Ineq.substitute ineq' var (coeff,y,offs,divi)
       (*restoring value information*)
       in set_value (econj'', vs'', ineq'') y @@ get_value d y
     | _ -> failwith "Should not happen" (*transformation can not be a constant*)
@@ -248,7 +248,7 @@ struct
         let econj' = (dim, IntMap.add x (vary, o, d) @@ IntMap.map adjust econj) in (* in case of sparse representation, make sure that the equality is now included in the conjunction *)
         match vary with 
         | Some (c,y) -> (*x was a representant but is not anymore*)
-          let ineq' = Ineq.affine_transform ineq x (c, y, o, d)
+          let ineq' = Ineq.substitute ineq x (c, y, o, d)
           in let is' = IntMap.remove x is in (*remove value and add it back in the new econj *)
           let t' = econj', is', ineq' in
           set_value t' x value 
@@ -296,8 +296,8 @@ struct
     (*e.g. with  2x = y and 2z = y, and the assignment y = y+1 *)
     (*This is only called in assign_texpr, after which the value will be set correctly.*)
     let (_, (m,o,d)) = EConj.inverse i rhs in
-    let c,v = BatOption.get m in 
-    (EConj.affine_transform econ i rhs, vs, Ineq.affine_transform ineq i (c,v,o,d))
+    let c,_ = BatOption.get m in 
+    (EConj.affine_transform econ i rhs, vs, Ineq.substitute ineq i (c,i,o,d))
 
   let affine_transform econ i (c,v,o,d) =
     let res = affine_transform econ i (c,v,o,d) in
@@ -830,19 +830,22 @@ struct
     if M.tracing then M.tracel "meet" "%s with single value %s=%s -> %s" (show t) (show_var t.env i) (Value.show value) (show res);
     res
 
-  let meet_with_inequalities narrow ineq t = 
-    match t.d with 
-    | None -> t
-    | Some ((econ, vs, ineq2) as d) ->
+  let meet_with_inequalities narrow t_ineq t = 
+    match t_ineq.d, t.d with 
+    | _, None 
+    | None, _ -> t
+    | Some (_,_,ineq), Some ((econ, vs, ineq2) as d) ->
       try
-        { d = Some (econ, vs, (if narrow then Ineq.narrow else Ineq.meet) (EConjI.get_value d) ineq ineq2); env = t.env}
+        let new_ineqs = (if narrow then Ineq.narrow else Ineq.meet) (EConjI.get_value d) ineq ineq2
+        in let new_ineqs = Ineq.limit econ new_ineqs
+        in { d = Some (econ, vs, new_ineqs); env = t.env}
       with EConj.Contradiction ->
         if M.tracing then M.trace "meet" " -> Contradiction with inequalities\n";
         { d = None; env = t.env}
 
   let meet_with_inequalities narrow ineq t = 
     let res = meet_with_inequalities narrow ineq t in
-    if M.tracing then M.tracel "meet" "%s with inequalities %s -> %s" (show t) (Ineq.show_formatted (show_var t.env) ineq) (show res);
+    if M.tracing then M.tracel "meet" "%s with inequalities from %s -> %s" (show t) (show ineq) (show res);
     res
 
   let meet' t1 t2 narrow =     
@@ -850,10 +853,12 @@ struct
     let t1 = change_d t1 sup_env ~add:true ~del:false in
     let t2 = change_d t2 sup_env ~add:true ~del:false in
     match t1.d, t2.d with
-    | Some d1', Some (econ, vs, ineq) ->
-      let conj_met = IntMap.fold (fun lhs rhs map -> meet_with_one_conj map lhs rhs) (snd econ) t1 (* even on sparse d2, this will chose the relevant conjs to meet with*)
-      in let vals_met = IntMap.fold (meet_with_one_value narrow) vs conj_met
-      in meet_with_inequalities narrow ineq vals_met 
+    | Some (econ, vs, _), Some (econ2, vs2, _) ->
+      let t1_conj = IntMap.fold (fun lhs rhs map -> meet_with_one_conj map lhs rhs) (snd econ2) t1 (* even on sparse d2, this will chose the relevant conjs to meet with*)
+      in let t1_val = IntMap.fold (meet_with_one_value narrow) vs2 t1_conj
+      (*meet conj with t2 as well so that for both the inequalities refer to the correct roots*)
+      in let t2_conj = IntMap.fold (fun lhs rhs map -> meet_with_one_conj map lhs rhs) (snd econ) t2 
+      in meet_with_inequalities narrow t2_conj t1_val 
     | _ -> {d = None; env = sup_env}
 
   let meet t1 t2 =
@@ -884,7 +889,7 @@ struct
     else if is_bot_env t2 || is_top t1 then false else
       let m1, (econ2, vs2, ineq2) = Option.get t1.d, Option.get t2.d in
       let (econ1, _, ineq1) as m1' = if env_comp = 0 then m1 else VarManagement.dim_add (Environment.dimchange t1.env t2.env) m1 in
-      (*If econ1 has some representants that are not representants in econ2, we need to transform the inequalities *)
+      (*make ineq1 refer to the new representants*)
       let transform_non_representant var (m,o,d) ineq_acc =
         match m with 
         | None -> ineq_acc
@@ -892,9 +897,11 @@ struct
           if M.tracing then M.trace "leq" "econ2 not representant: %s with rhs: %s" (Var.show @@ Environment.var_of_dim t2.env var) (Rhs.show (m,o,d));
           match EConj.get_rhs econ1 var with 
           | Some (_,v),_,_ when v <> var -> (if M.tracing then M.trace "leq" "and not representant in econ1 -> do nothing"); ineq_acc
-          | _ -> (if M.tracing then M.trace "leq" "and not representant in econ1 -> transform"); Ineq.affine_transform ineq_acc var (c,v,o,d) 
+          | _ -> (if M.tracing then M.trace "leq" "and representant in econ1 -> transform"); Ineq.substitute ineq_acc var (c,v,o,d) 
       in
       let ineq1' = IntMap.fold transform_non_representant (snd econ2) ineq1 in
+      (*further, econ2 might have some new representants -> transform further*)
+      let ineq1' = Ineq.copy_to_new_representants econ1 econ2 ineq1' in
       if M.tracing then M.trace "leq" "transformed %s into %s" (Ineq.show_formatted (fun i -> Var.show @@ Environment.var_of_dim t2.env i) ineq1) (Ineq.show_formatted (fun i -> Var.show @@ Environment.var_of_dim t2.env i) ineq1');  
       IntMap.for_all (implies econ1) (snd econ2) (* even on sparse m2, it suffices to check the non-trivial equalities, still present in sparse m2 *)
       && IntMap.for_all (implies_value m1') (vs2)
@@ -923,17 +930,17 @@ struct
         None ->  None 
       | Some econj'' ->
         if M.tracing then M.tracel "join" "join_econj of %s, %s resulted in %s" (EConjI.show x) (EConjI.show y) (EConj.show @@ snd econj'');
-        let ineq' = (if widen then Ineq.widen else Ineq.join) ineq_x (EConjI.get_value x) ineq_y (EConjI.get_value y) in
-        let (e,v,i) = collect_values x y econj'' ((Environment.size env)-1) (econj'', IntMap.empty, ineq') in
-        (*The above joins might result in inequalities for variables that are no longer representants after joining the equations -> transform them*)
-        (*TODO what if we split a connected component?? *)
+        (*transform the inequalities to represent only representants, and make the inequalities for new representants explicit*)
         let transform_non_representant var rhs ineq_acc = 
           match rhs with 
-          | (Some (c,v), o, d) when v <> var -> Ineq.affine_transform ineq_acc var (c,v,o,d) 
+          | (Some (c,v), o, d) when v <> var -> Ineq.substitute ineq_acc var (c,v,o,d) 
           | _ -> ineq_acc
         in
-        let i' = EConj.IntMap.fold (transform_non_representant) (snd econj'') i in
-        Some (e,v,i')        
+        let ineq_x_split = IntMap.fold (transform_non_representant) (snd econj'') @@ Ineq.copy_to_new_representants econ_x econj'' ineq_x in
+        let ineq_y_split = IntMap.fold (transform_non_representant) (snd econj'') @@ Ineq.copy_to_new_representants econ_y econj'' ineq_y in
+        let ineq' = (if widen then Ineq.widen else Ineq.join) ineq_x_split (EConjI.get_value x) ineq_y_split (EConjI.get_value y) in
+        let (e,v,i) = collect_values x y econj'' ((Environment.size env)-1) (econj'', IntMap.empty, ineq') in
+        Some (e,v, Ineq.limit e i)        
     in
     (*Normalize the two domains a and b such that both talk about the same variables*)
     match a.d, b.d with
