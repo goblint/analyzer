@@ -1,5 +1,7 @@
 open Batteries
 open GoblintCil
+open VectorMatrix
+
 module M = Messages
 
 
@@ -887,23 +889,43 @@ module LinearInequality = struct
   let slopes_from_econj ((dim, _)as econj) =
     let table = BatHashtbl.create @@ dim * (dim + 1) / 2 in (*TODO this overestimates the actual number because there are constants*)
     for x' = 0 to dim do
-      for y' = x' to dim do
-        match EConj.get_rhs econj x', EConj.get_rhs econj y' with
-        | (Some (cx,x),ox,dx), (Some (cy,y),oy,dy) -> begin
-            let (k,_) = from_rhss (cx, ox, dx) (cy, oy, dy) None in 
-            let s = Q.abs @@ OriginInequality.get_slope k in (*absolute so that x < y and y < x (and x > y, y > x) map to the same s *)
-            let key = min x y, max x y in
-            match BatHashtbl.find_option table key with
-            | Some xy_tbl -> BatHashtbl.modify_def 0 s ((+) 1) xy_tbl
-            | None -> 
-              let xy_tbl = BatHashtbl.create 5 in
-              BatHashtbl.add xy_tbl s 1;
-              BatHashtbl.add table key xy_tbl
-          end
-        | _ -> () (*ignore constants*)
-      done 
+      match EConj.get_rhs econj x' with 
+      | (Some (cx,x),ox,dx) -> 
+        for y' = x' to dim do
+          match EConj.get_rhs econj y' with
+          | (Some (cy,y),oy,dy) -> begin
+              let (k,_) = from_rhss (cx, ox, dx) (cy, oy, dy) None in 
+              let s = Q.abs @@ OriginInequality.get_slope k in (*absolute so that x < y and y < x (and x > y, y > x) map to the same s *)
+              let key = min x y, max x y in
+              match BatHashtbl.find_option table key with
+              | Some xy_tbl -> BatHashtbl.modify_def 0 s ((+) 1) xy_tbl
+              | None -> 
+                let xy_tbl = BatHashtbl.create 5 in
+                BatHashtbl.add xy_tbl s 1;
+                BatHashtbl.add table key xy_tbl
+            end
+          | _ -> () (*ignore constants*)
+        done 
+      | _ -> () (*ignore constants*)
     done;
     table
+
+  (*TODO this is a hack because the above function is slow
+    without it, limit (and copy_to_new_representants) will dominate the runtime
+    this will leak memory
+    !!! make this reset !!! 
+  *)
+  let slopes_cache =  BatHashtbl.create 100
+
+  let slopes_from_econj e = 
+    match BatHashtbl.find_option slopes_cache e with
+    | Some result -> result
+    | None ->
+      let result = slopes_from_econj e in
+      Hashtbl.add slopes_cache e result; 
+      result
+
+  let slopes_from_econj = timing_wrap "slopes" slopes_from_econj
 
 end
 
@@ -1363,6 +1385,8 @@ module LinearInequalities: TwoVarInequalities = struct
       Coeffs.limit (BatHashtbl.find_default slopes (min x y, max x y) (Hashtbl.create 0)) cs
     in IntMap.filter_map (fun x ys -> ignore_empty @@ IntMap.filter_map (fun y cs -> Coeffs.ignore_empty @@ limit_single x y cs) ys) t
 
+  let limit e t = timing_wrap "limit" (limit e) t
+
   let copy_to_new_representants econj_old econj_new t = 
     let slopes = LinearInequality.slopes_from_econj econj_new in
     (*a var is representant if it does not show up in the sparse map*)
@@ -1416,6 +1440,8 @@ module LinearInequalities: TwoVarInequalities = struct
            in if Coeffs.CoeffMap.is_empty coeffs_new then t_acc else set_coeff (min v_new other_var) (max v_new other_var) coeffs_new t_acc
 
     in List.fold (fun acc v_new -> List.fold (add_new v_new ) acc all_representants_in_new ) t new_representants_in_new 
+
+  let copy_to_new_representants econj_old econj_new t = timing_wrap "new_reps" (copy_to_new_representants econj_old econj_new) t
 
 end
 
