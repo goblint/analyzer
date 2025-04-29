@@ -885,49 +885,47 @@ module LinearInequality = struct
     | LT s_rel, LT s -> Some (LT (Q.mul s s_rel), Q.add o_rel @@ Q.mul s o)
     | GT s_rel, GT s -> Some (GT (Q.mul s s_rel), Q.add o_rel @@ Q.mul s o) 
 
+end
 
-  let slopes_from_econj ((dim, _)as econj) =
-    let table = BatHashtbl.create @@ dim * (dim + 1) / 2 in (*TODO this overestimates the actual number because there are constants*)
-    for x' = 0 to dim do
-      match EConj.get_rhs econj x' with 
-      | (Some (cx,x),ox,dx) -> 
-        for y' = x' to dim do
-          match EConj.get_rhs econj y' with
-          | (Some (cy,y),oy,dy) -> begin
-              let (k,_) = from_rhss (cx, ox, dx) (cy, oy, dy) None in 
-              let s = Q.abs @@ OriginInequality.get_slope k in (*absolute so that x < y and y < x (and x > y, y > x) map to the same s *)
-              let key = min x y, max x y in
-              match BatHashtbl.find_option table key with
-              | Some xy_tbl -> BatHashtbl.modify_def 0 s ((+) 1) xy_tbl
-              | None -> 
-                let xy_tbl = BatHashtbl.create 5 in
-                BatHashtbl.add xy_tbl s 1;
-                BatHashtbl.add table key xy_tbl
-            end
-          | _ -> () (*ignore constants*)
-        done 
-      | _ -> () (*ignore constants*)
-    done;
-    table
+(*very small wrapper to make the following code clearer to me*)
+module MultiSet = struct
+  module M = BatHashtbl
 
-  (*TODO this is a hack because the above function is slow
-    without it, limit (and copy_to_new_representants) will dominate the runtime
-    this will leak memory
-    !!! make this reset !!! 
-  *)
-  let slopes_cache =  BatHashtbl.create 100
+  type 'a t = ('a, int) M.t
 
-  let slopes_from_econj e = 
-    match BatHashtbl.find_option slopes_cache e with
-    | Some result -> result
-    | None ->
-      let result = slopes_from_econj e in
-      Hashtbl.add slopes_cache e result; 
-      result
+  let create ?(initial_size = 5) () = M.create initial_size
 
-  let slopes_from_econj = timing_wrap "slopes" slopes_from_econj
+  let change_member_count (ms : 'a t) (x : 'a) (count : int) = M.modify_def 0 x ((+) count) ms
+
+  let iter = M.iter
 
 end
+
+let coeffs_from_econj (dim, map) =
+  let m = BatHashtbl.create @@ IntMap.cardinal map in (*This is an overestimation*)
+  let add_rhs _ = function
+    | (Some (cy,y),oy,dy) ->               
+      let s = Q.make cy dy in
+      BatHashtbl.modify_def (MultiSet.create ()) y (fun set -> MultiSet.change_member_count set s 1; set) m (*TODO unneccessary readding!*)
+    | _ -> () (*ignore constants*)
+  in
+  IntMap.iter add_rhs map;
+  m
+
+let coeffs_from_econj = timing_wrap "coeffs" coeffs_from_econj
+
+(*assumes x < y*)
+let slopes_from_coeffs mapping (x,y) =
+  let x_coeffs = BatHashtbl.find_default mapping x (MultiSet.create ~initial_size:1 ()) in 
+  let y_coeffs = BatHashtbl.find_default mapping y (MultiSet.create ~initial_size:1 ()) in
+  (*We do not explicetly store the representants coefficient -> add it here*)
+  MultiSet.change_member_count x_coeffs Q.one 1;
+  MultiSet.change_member_count y_coeffs Q.one 1;
+  let slopes = MultiSet.create ~initial_size:(BatHashtbl.length x_coeffs * BatHashtbl.length y_coeffs) () in
+  MultiSet.iter (fun cx cx_count -> MultiSet.iter (fun cy cy_count -> let s = Q.div cx cy in MultiSet.change_member_count slopes s (cx_count * cy_count)) y_coeffs) x_coeffs;
+  slopes
+
+let slopes_from_coeffs = timing_wrap "slopes" slopes_from_coeffs
 
 
 (*List of inequalities ax < by + c, mapping a and b to c*)
@@ -954,14 +952,14 @@ module ArbitraryCoeffsSet = struct
     optionally, limit it further to the slopes that correspond to the most inequalities *)
   let limit slopes t = 
     let open LinearInequality.OriginInequality in
-    let filtered = CoeffMap.filter (fun k c -> BatHashtbl.mem slopes (Q.abs @@ get_slope k) ) t in
+    let filtered = CoeffMap.filter (fun k c -> BatHashtbl.mem slopes (get_slope k) ) t in
     if true then (*TODO add option to configure this*)
       filtered
     else 
-      let keep = 10 in  (*TODO add option to configure this. there are possibly 4 inequalities per slope, so should be adjusted accordingly*)
+      let keep = 10 in  (*TODO add option to configure this. there are possibly 2 inequalities per slope, so should be adjusted accordingly*)
       let comp (k1,_) (k2,_) = 
-        let v1 = BatHashtbl.find_default slopes (Q.abs @@ get_slope k1) 0 in
-        let v2 = BatHashtbl.find_default slopes (Q.abs @@ get_slope k2) 0 in
+        let v1 = BatHashtbl.find_default slopes (get_slope k1) 0 in
+        let v2 = BatHashtbl.find_default slopes (get_slope k2) 0 in
         v2 - v1 (*list sorts ascending, we need descending -> inverted comparison*)
       in
       CoeffMap.of_list @@ List.take keep @@ List.sort comp @@ CoeffMap.bindings filtered
@@ -1380,15 +1378,15 @@ module LinearInequalities: TwoVarInequalities = struct
     res
 
   let limit econj t = 
-    let slopes = LinearInequality.slopes_from_econj econj in
+    let coeffs = coeffs_from_econj econj in
     let limit_single x y cs = 
-      Coeffs.limit (BatHashtbl.find_default slopes (min x y, max x y) (Hashtbl.create 0)) cs
+      Coeffs.limit ( slopes_from_coeffs coeffs (min x y, max x y)) cs
     in IntMap.filter_map (fun x ys -> ignore_empty @@ IntMap.filter_map (fun y cs -> Coeffs.ignore_empty @@ limit_single x y cs) ys) t
 
   let limit e t = timing_wrap "limit" (limit e) t
 
   let copy_to_new_representants econj_old econj_new t = 
-    let slopes = LinearInequality.slopes_from_econj econj_new in
+    let coeffs = coeffs_from_econj econj_new in
     (*a var is representant if it does not show up in the sparse map*)
     let all_representants_in_new = 
       let rec aux acc n =
@@ -1402,7 +1400,7 @@ module LinearInequalities: TwoVarInequalities = struct
          match IntMap.find v_new (snd econj_old) with 
          | None,_,_ -> t_acc (*skip constants*)
          | (Some (c,old_rep), o, d) ->
-           let allowed_slopes = Hashtbl.keys @@ Hashtbl.find slopes (min v_new other_var, max v_new other_var) in
+           let allowed_slopes = Hashtbl.keys @@ slopes_from_coeffs coeffs (min v_new other_var, max v_new other_var) in
            (*inverse rhs so that we can translate the inequalities of the old representant to slopes corresponding to the new representant*)
            let (_, (mi,oi,di)) = EConj.inverse v_new (c,old_rep,o,d) in
            let ci,_ = BatOption.get mi in 
@@ -1425,8 +1423,7 @@ module LinearInequalities: TwoVarInequalities = struct
                   (*relations between the old representant and the other variable*)
            in let coeffs_old = BatOption.default Coeffs.empty @@ get_coeff (min old_rep other_var) (max old_rep other_var) t in 
            let add_single_slope c_acc s = 
-             (*the given slope has been normed to be positive -> copy both it and the negative*)
-             let ineqs = [LinearInequality.OriginInequality.LT s, Q.zero; GT s, Q.zero; LT (Q.neg s), Q.zero; GT (Q.neg s), Q.zero;]
+             let ineqs = [LinearInequality.OriginInequality.LT s, Q.zero; GT s, Q.zero;]
              in let copy_single_ineq c_acc ineq = 
                   let k_old = fst @@ convert_to_old ineq in
                   (*TODO maybe this introduces too many new inequalities -> only take explicit stored ones?*)
@@ -1438,7 +1435,6 @@ module LinearInequalities: TwoVarInequalities = struct
              in List.fold copy_single_ineq c_acc ineqs 
            in let coeffs_new = Enum.fold add_single_slope Coeffs.empty allowed_slopes
            in if Coeffs.CoeffMap.is_empty coeffs_new then t_acc else set_coeff (min v_new other_var) (max v_new other_var) coeffs_new t_acc
-
     in List.fold (fun acc v_new -> List.fold (add_new v_new ) acc all_representants_in_new ) t new_representants_in_new 
 
   let copy_to_new_representants econj_old econj_new t = timing_wrap "new_reps" (copy_to_new_representants econj_old econj_new) t
@@ -1446,16 +1442,12 @@ module LinearInequalities: TwoVarInequalities = struct
 end
 
 (*TODOs:*)
-(*limit: join and affine_transform*)
-(*D.meet: transform to roots!
+(*
   ArbitraryCoeaffsList.meet + affine_transform -> refinement
-  D.join, leq: splitting groups
+  refinement of equalities must be limited to have acceptable runtimes! 
 *)
-(*look at complexities. I expect: 
-  Meet, join, leq, widen, forget: (n² log n)
-  assert ?
-  assign: same
-*)
+(*look at complexities. I expect for all: (n² log n) *)
+
 (*rework relation to offset domain -> remove Eq? *)
 (*store information about representants to avoid recalculating them: congruence information, group size/ coefficients ??*)
 (*redo simple equalities (take advantage of the offset!, affine transform)*)
