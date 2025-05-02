@@ -1246,6 +1246,13 @@ module ArbitraryCoeffsSet = struct
     let t' = CoeffMap.fold fold_fun t CoeffMap.empty in
     if CoeffMap.is_empty t' then None else Some t'
 
+  let swap_sides t = 
+    let fold_fun k c acc = 
+      let (k', c') = LinearInequality.swap_sides (k,c) in
+      CoeffMap.add k' c' acc
+    in
+    CoeffMap.fold fold_fun t CoeffMap.empty 
+
   let invariant env x y t acc = CoeffMap.fold (LinearInequality.invariant env x y) t acc
 
 end
@@ -1351,9 +1358,9 @@ module LinearInequalities: TwoVarInequalities = struct
     if M.tracing then M.tracel "meet_relation" "result: %s, refinements: %s " (show res) (List.fold (fun acc (var,value) -> Printf.sprintf "var_%d: %s, %s" var (Value.show value) acc) "" refine_acc);  
     res, refine_acc
 
-  (*TODO switching sides ov variables because of substitution??*)
   let substitute t i (coeff, j, offs, divi) = 
     let fold_x x ys acc = 
+      (*check for contradictions if both sides refer to the same variable*)
       let check_for_contradiction cs = 
         let check_single k c = 
           match k with 
@@ -1363,34 +1370,42 @@ module LinearInequalities: TwoVarInequalities = struct
         in Coeffs.CoeffMap.iter check_single cs
       in
       if x < i then 
-        let ys' = match IntMap.find_opt i ys with
-          | None -> Some ys
-          | Some cs -> 
-            let cs' = Coeffs.substitute_right (coeff, offs, divi) cs in
-            if x = j then (*We now have inequalities with the same variable on both sides -> check for contradictions*)
-              (check_for_contradiction cs'; None)
-            else
-              let combine = function
-                | None -> Some cs'
-                | Some cs_j -> Some (Coeffs.meet Value.top Value.top cs' cs_j)
-              in Some (IntMap.update_stdlib j combine (IntMap.remove i ys))
-        in match ys' with 
-        | Some ys' -> IntMap.add x ys' acc
-        | _ -> acc
+        match IntMap.find_opt i ys with
+        | None -> acc
+        | Some cs ->
+          let ys' = IntMap.remove i ys in
+          let cs' = Coeffs.substitute_right (coeff, offs, divi) cs in
+          if x = j then (*We now have inequalities with the same variable on both sides -> check for contradictions*)
+            (check_for_contradiction cs'; IntMap.add x ys' acc)
+          else if x < j then 
+            let cs_j = IntMap.find_default (Coeffs.empty) j ys' in
+            let cs_new = Coeffs.meet Value.top Value.top cs' cs_j in
+            let ys'' = if Coeffs.CoeffMap.is_empty cs_new then ys' else IntMap.add j cs_new ys' in
+            if IntMap.is_empty ys'' then IntMap.remove x acc else IntMap.add x ys'' acc
+          else (*x > j -> swap sides and add to correct map*)
+            let cs'' = Coeffs.swap_sides cs' in
+            let acc' = if IntMap.is_empty ys' then IntMap.remove x acc else IntMap.add x ys' acc in
+            let cs_x_j = BatOption.default Coeffs.empty @@ get_coeff j x acc' in
+            let cs_new = Coeffs.meet Value.top Value.top cs'' cs_x_j in
+            if Coeffs.CoeffMap.is_empty cs_new then acc' else set_coeff x j cs_new acc'
       else if x = i then  
-        let convert y cs = 
-          let tranformed = Coeffs.substitute_left (coeff, offs, divi) cs in
-          if y = j 
-          then (check_for_contradiction tranformed; None) 
-          else Some tranformed
-        in let ys' = IntMap.filter_map convert ys in
-        if IntMap.is_empty ys' then 
-          acc
-        else 
-          let combine = function 
-            | None -> Some ys'
-            | Some js -> Some (IntMap.union (fun y c1 c2 -> Some (Coeffs.meet Value.top Value.top c1 c2)) ys' js) 
-          in IntMap.update_stdlib j combine acc
+        let acc' = IntMap.remove x acc in
+        let fold_y y cs acc = 
+          let cs' = Coeffs.substitute_left (coeff, offs, divi) cs in
+          if j < y then 
+            let cs_j_y = BatOption.default Coeffs.empty @@ get_coeff j y acc' in
+            let cs_new = Coeffs.meet Value.top Value.top cs' cs_j_y in
+            if Coeffs.CoeffMap.is_empty cs_new then acc' else set_coeff j y cs_new acc'
+          else if j = y then begin
+            check_for_contradiction cs';
+            acc'
+          end else
+            let cs'' = Coeffs.swap_sides cs' in
+            let cs_y_j = BatOption.default Coeffs.empty @@ get_coeff y j acc' in
+            let cs_new = Coeffs.meet Value.top Value.top cs'' cs_y_j in
+            if Coeffs.CoeffMap.is_empty cs_new then acc' else set_coeff y j cs_new acc'
+        in
+        IntMap.fold fold_y ys acc' 
       else
         acc
     in IntMap.fold fold_x t IntMap.empty 
@@ -1505,7 +1520,6 @@ end
 (*TODOs:*)
 
 (*! ArbitraryCoeaffsList meet_single: be sure about rounding*)
-(*!!substitute: swap side if necessary*)
 (*+ Why do inverted conditions work strangely?*)
 
 (*+
