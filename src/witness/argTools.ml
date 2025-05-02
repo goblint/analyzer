@@ -20,6 +20,26 @@ sig
   val extra_node_styles: node -> string list
 end
 
+module EnumerateNode (Node: MyARG.Node): MyARG.Node with type t = Node.t =
+struct
+  include Node
+
+  module NH = Hashtbl.Make (Node)
+  let node_numbers: int NH.t = NH.create 100
+  let next_number = ref 0
+
+  let to_string node =
+    let number = match NH.find_opt node_numbers node with
+      | Some number -> number
+      | None ->
+        let number = !next_number in
+        NH.replace node_numbers node number;
+        next_number := number + 1;
+        number
+    in
+    "N" ^ string_of_int number
+end
+
 module Dot (Arg: BiArg) (NodeStyles: NodeStyles with type node = Arg.Node.t) =
 struct
   let dot_node_name ppf node =
@@ -149,7 +169,15 @@ struct
 
     let module Arg =
     struct
-      module Node = Node
+      module Node: MyARG.Node with type t = Node.t =
+        (val match GobConfig.get_string "exp.arg.id" with
+          | "node" ->
+            (module Node: MyARG.Node with type t = Node.t)
+          | "enumerate" ->
+            (module EnumerateNode (Node): MyARG.Node with type t = Node.t)
+          | _ -> failwith "exp.arg.id: illegal value"
+        )
+
       module Edge = MyARG.InlineEdge
       let main_entry = witness_main
       let next = witness_next

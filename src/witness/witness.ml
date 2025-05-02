@@ -57,15 +57,7 @@ let write_file filename (module Task:Task) (module TaskResult:WitnessTaskResult)
 
   let module N = Arg.Node in
   let module GML = XmlGraphMlWriter in
-  let module GML =
-    (val match get_string "witness.graphml.id" with
-      | "node" ->
-        (module ArgNodeGraphMlWriter (N) (GML) : GraphMlWriter with type node = N.t)
-      | "enumerate" ->
-        (module EnumerateNodeGraphMlWriter (N) (GML))
-      | _ -> failwith "witness.graphml.id: illegal value"
-    )
-  in
+  let module GML = ArgNodeGraphMlWriter (N) (GML) in
   let module GML = DeDupGraphMlWriter (N) (GML) in
   let module NH = Hashtbl.Make (N) in
 

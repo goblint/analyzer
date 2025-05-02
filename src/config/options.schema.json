@@ -2016,6 +2016,13 @@
               "type": "boolean",
               "default": false
             },
+            "id": {
+              "title": "exp.arg.id",
+              "description": "Which ARG node IDs to use? node/enumerate",
+              "type": "string",
+              "enum": ["node", "enumerate"],
+              "default": "node"
+            },
             "dot": {
               "title": "exp.arg.dot",
               "description": "ARG output as .dot file",
@@ -2649,13 +2656,6 @@
           "title": "witness.graphml",
           "type": "object",
           "properties": {
-            "id": {
-              "title": "witness.graphml.id",
-              "description": "Which witness node IDs to use? node/enumerate",
-              "type": "string",
-              "enum": ["node", "enumerate"],
-              "default": "node"
-            },
             "minimize": {
               "title": "witness.graphml.minimize",
               "description": "Try to minimize the witness",
