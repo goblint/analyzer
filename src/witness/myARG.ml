@@ -214,6 +214,7 @@ sig
   val is_interesting: node -> edge -> node -> bool
 end
 
+(* Unused *)
 module InterestingArg (Arg: S) (IsInteresting: IsInteresting with type node := Arg.Node.t and type edge := Arg.Edge.t):
   S with module Node = Arg.Node and module Edge = Arg.Edge =
 struct

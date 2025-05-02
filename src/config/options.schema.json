@@ -2665,19 +2665,6 @@
       "title": "witness",
       "type": "object",
       "properties": {
-        "graphml": {
-          "title": "witness.graphml",
-          "type": "object",
-          "properties": {
-            "minimize": {
-              "title": "witness.graphml.minimize",
-              "description": "Try to minimize the witness",
-              "type": "boolean",
-              "default": false
-            }
-          },
-          "additionalProperties": false
-        },
         "invariant": {
           "title": "witness.invariant",
           "type": "object",

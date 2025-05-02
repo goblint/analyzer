@@ -13,40 +13,7 @@ let write_file filename (module Task:Task) (module TaskResult:WitnessTaskResult)
   let module Invariant = WitnessUtil.Invariant (Task) in
 
   let module N = TaskResult.Arg.Node in
-  let module IsInteresting =
-  struct
-    (* type node = N.t
-    type edge = TaskResult.Arg.Edge.t *)
-    let minwitness = get_bool "witness.graphml.minimize"
-    let is_interesting_real from_node edge to_node =
-      (* TODO: don't duplicate this logic with write_node, write_edge *)
-      (* startlines aren't currently interesting because broken, see below *)
-      let from_cfgnode = N.cfgnode from_node in
-      let to_cfgnode = N.cfgnode to_node in
-      if TaskResult.is_violation to_node || TaskResult.is_sink to_node then
-        true
-      else if WitnessUtil.NH.mem Invariant.loop_heads to_cfgnode then
-        true
-      else begin match edge with
-        | MyARG.CFGEdge (Test _) -> true
-        | _ -> false
-      end || begin if Invariant.is_invariant_node to_cfgnode then
-               match to_cfgnode, TaskResult.invariant to_node with
-               | Statement _, `Lifted _ -> true
-               | _, _ -> false
-             else
-               false
-           end || begin match from_cfgnode, to_cfgnode with
-          | _, FunctionEntry f -> true
-          | Function f, _ -> true
-          | _, _ -> false
-        end
-    let is_interesting from_node edge to_node =
-      not minwitness || is_interesting_real from_node edge to_node
-  end
-  in
   let module Arg = TaskResult.Arg in
-  let module Arg = MyARG.InterestingArg (Arg) (IsInteresting) in
 
   let module N = Arg.Node in
   let module GML = XmlGraphMlWriter in
