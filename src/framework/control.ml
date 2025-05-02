@@ -31,7 +31,7 @@ let spec_module: (module Spec) Lazy.t = lazy (
       |> lift (get_bool "ana.opt.hashcons" || arg_enabled) (module HashconsContextLifter)
       |> lift (get_bool "ana.opt.hashcached") (module HashCachedContextLifter)
       |> lift arg_enabled (module HashconsLifter)
-      |> lift arg_enabled (module WitnessConstraints.PathSensitive3)
+      |> lift arg_enabled (module ArgConstraints.PathSensitive3)
       |> lift (not arg_enabled) (module PathSensitive2)
       |> lift (get_bool "ana.dead-code.branches") (module DeadBranchLifter)
       |> lift true (module DeadCodeLifter)

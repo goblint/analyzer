@@ -188,7 +188,7 @@ module WideningDelay = WideningDelay
 module WideningToken = WideningToken
 module WideningTokenLifter = WideningTokenLifter
 
-module WitnessConstraints = WitnessConstraints
+module ArgConstraints = ArgConstraints
 
 
 (** {1 Domains}
