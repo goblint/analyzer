@@ -887,7 +887,7 @@ module LinearInequality = struct
       | LT _ -> LT s'
       | GT _ -> GT s'
     in if Q.lt f Q.zero 
-    then (negate k', Q.neg o')
+    then (negate k', o')
     else k', o' 
 
   let swap_sides (k,o) =
@@ -1134,7 +1134,9 @@ module ArbitraryCoeffsSet = struct
         | GT _ -> Q.lt c' c
       in
       match get_best_offset (Key.negate k) t with  
-      | Some c' when contradicts c' -> raise EConj.Contradiction
+      | Some c' when contradicts c' -> 
+        if M.tracing then M.trace "meet" "single_ineq new: %s contradicts existing information %s" (LinearInequality.show "x" "y" (k,c)) (show_formatted "x" "y" t);
+        raise EConj.Contradiction
       (*TODO if c = c', then we have an equality -> maybe we can update the econj domain *) 
       | _ ->  
         (*add the inequality, while making sure that we do not save redundant inequalities*)
@@ -1408,11 +1410,12 @@ module LinearInequalities: TwoVarInequalities = struct
         IntMap.fold fold_y ys acc' 
       else
         acc
-    in IntMap.fold fold_x t IntMap.empty 
+    in IntMap.fold fold_x t t 
 
   let substitute t i (c,j,o,d) = 
+    if M.tracing then M.trace "substitute" "substituting var_%d in %s with %s" i (show t) (Rhs.show (Some (c,j), o, d));
     let res = substitute t i (c,j,o,d) in
-    if M.tracing then M.trace "substitute" "substituting var_%d in %s with %s -> %s" i (show t) (Rhs.show (Some (c,j), o, d)) (show res);
+    if M.tracing then M.trace "substitute" "resulting in %s" (show res);
     res
 
   let transfer x cond t_old get_rhs_old get_value_old t get_rhs get_value = 
