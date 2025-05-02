@@ -17,9 +17,9 @@ struct
         let signed_lower_bound = Ints_t.neg @@ Ints_t.shift_left Ints_t.one (b-1) in
         let unsigned_upper_bound = Ints_t.sub (Ints_t.shift_left Ints_t.one b) Ints_t.one in
         match Cil.isSigned ik with
-          (* An implicit signed int can also store unsigned int values in memory. *) 
+          (* An "int" can also store unsigned int values in a bit-field. Goblint doesn't differentiate between implicit and explicit signed ints.*) 
           | true -> Some (signed_lower_bound, unsigned_upper_bound)
-          | false -> Some (range ik |> fst, unsigned_upper_bound)
+          | false -> Some (Ints_t.zero, unsigned_upper_bound)
       end
       | _ -> Some (range ik)
   let bot () = None
@@ -197,84 +197,75 @@ struct
       | Some x, Some y -> (try of_int ik (f ik x y) with Division_by_zero | Invalid_argument _ -> (top_of ik,{underflow=false; overflow=false}))
       | _              -> (top_of ik,{underflow=true; overflow=true})
 
-  let f n = 
+  let ceil_pow_2 n = 
     let abs_n = Ints_t.abs n in
-    if Ints_t.compare abs_n Ints_t.one < 0 then Ints_t.one
+    if Ints_t.compare abs_n Ints_t.one <= 0 then Ints_t.one
     else
       let rec loop x =
-        if Ints_t.compare x abs_n >= 0 then x
+        if Ints_t.compare x abs_n > 0 then x 
         else loop (Ints_t.shift_left x 1)
       in
       loop Ints_t.one
 
   let logxor ik i1 i2 =
-    match is_bot i1, is_bot i2 with
-    | true, true -> bot_of ik
-    | true, _
-    | _   , true -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show i1) (show i2)))
+    match bit (fun _ik -> Ints_t.logxor) ik i1 i2 with
+    | result when result <> top_of ik -> result
     | _ ->
-      match to_int i1, to_int i2 with
-      | Some x, Some y -> (try of_int ik ((fun _ik -> Ints_t.logxor) ik x y) |> fst with Division_by_zero -> top_of ik)
-      | _              -> 
-        match i1, i2 with
-        | Some (x1, x2), Some (y1, y2) -> 
-          let b = (f (Ints_t.max (Ints_t.max (Ints_t.abs x1) (Ints_t.abs x2)) (Ints_t.max (Ints_t.abs y1) (Ints_t.abs y2)))) in   
-          of_interval ik (Ints_t.neg b, Ints_t.sub b Ints_t.one) |> fst
-        | _ -> top_of ik
-
-  let logand_helper ik (x1, x2) (y1, y2) = 
-    match Ints_t.compare x1 Ints_t.zero >= 0, Ints_t.compare x2 Ints_t.zero >= 0, Ints_t.compare y1 Ints_t.zero >= 0, Ints_t.compare y2 Ints_t.zero >= 0 with
-    | true, _, true, _ -> of_interval ik (Ints_t.zero, Ints_t.min x2 y2) |> fst
-    | _, false, _, false -> of_interval ik (fst (range ik), Ints_t.zero) |> fst
-    | true, _, _, false | _, false, true, _ -> of_interval ik (Ints_t.zero, f @@ Ints_t.max (Ints_t.abs x2) (Ints_t.abs y2)) |> fst (* VIST ei saa minna väiksemaks kui lähim kahe aste*)
-    | _ -> let b = f @@ Ints_t.max (Ints_t.max (Ints_t.abs x1) (Ints_t.abs x2)) (Ints_t.max (Ints_t.abs y1) (Ints_t.abs y2)) in   
-    of_interval ik (Ints_t.neg b, Ints_t.sub b Ints_t.one) |> fst (* TODO: siia panna midagi, et selle range ei saa olla suurem kui meet x y *)
+      match i1, i2 with
+      | Some (x1, x2), Some (y1, y2) -> 
+        (match Ints_t.compare x1 Ints_t.zero >= 0, Ints_t.compare x2 Ints_t.zero >= 0, Ints_t.compare y1 Ints_t.zero >= 0, Ints_t.compare y2 Ints_t.zero >= 0 with
+        | true, _, true, _ -> 
+          of_interval ik (Ints_t.zero, Ints_t.sub (ceil_pow_2 @@ Ints_t.max x2 y2) Ints_t.one) |> fst
+        | _, false, _, false -> 
+          let upper = Ints_t.sub (ceil_pow_2 @@ Ints_t.abs @@ Ints_t.add (Ints_t.min x1 y1) Ints_t.one) Ints_t.one in
+          of_interval ik (Ints_t.zero, upper) |> fst
+        | true, _, _, false | _, false, true, _ -> 
+          let lower = Ints_t.neg @@ ceil_pow_2 @@ List.fold_left Ints_t.max Ints_t.zero (List.map (fun x -> Ints_t.sub (Ints_t.abs x) Ints_t.one) [x1; x2; y1; y2]) in
+          of_interval ik (lower, Ints_t.zero) |> fst 
+        | _ -> let b = (ceil_pow_2 @@ List.fold_left max Ints_t.zero (List.map Ints_t.abs [x1;x2;y1;y2])) in   
+          of_interval ik (Ints_t.neg b, Ints_t.sub b Ints_t.one) |> fst)
+      | _ -> top_of ik
 
   let logand ik i1 i2 =
-    match is_bot i1, is_bot i2 with
-    | true, true -> bot_of ik
-    | true, _
-    | _   , true -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show i1) (show i2)))
-    | _ ->
-      match to_int i1, to_int i2 with
-      | Some x, Some y -> (try of_int ik (Ints_t.logand x y) |> fst with Division_by_zero -> top_of ik)
-      | _ -> 
-        if Cil.isSigned ik then
-          match i1, i2 with
-          | Some (x1, x2), Some (y1, y2) ->
-            
-            logand_helper ik (x1, x2) (y1, y2)
-          | _ -> top_of ik
-        else
-          match i1, i2 with
-          | Some (x1, x2), Some (y1, y2) -> of_interval ik (Ints_t.zero, Ints_t.min x2 y2) |> fst
-          | _ -> top_of ik
+    match bit (fun _ik -> Ints_t.logand) ik i1 i2 with
+    | result when result <> top_of ik -> result
+    | _ -> 
+      match i1, i2 with
+        | Some (x1, x2), Some (y1, y2) -> begin
+          match Ints_t.compare x1 Ints_t.zero >= 0, Ints_t.compare x2 Ints_t.zero >= 0, Ints_t.compare y1 Ints_t.zero >= 0, Ints_t.compare y2 Ints_t.zero >= 0 with
+          | true, _, true, _ -> 
+            of_interval ik (Ints_t.zero, Ints_t.min x2 y2) |> fst
+          | _, false, _, false -> 
+            of_interval ik (Ints_t.neg @@ ceil_pow_2 @@ Ints_t.max (Ints_t.sub (Ints_t.abs x1) Ints_t.one) (Ints_t.sub (Ints_t.abs y1) Ints_t.one), Ints_t.zero) |> fst
+          | true, _, _, false | _, false, true, _ -> 
+            of_interval ik (Ints_t.zero, Ints_t.sub (ceil_pow_2 @@ Ints_t.max (Ints_t.abs x2) (Ints_t.abs y2)) Ints_t.one) |> fst
+          | _ -> let b = ceil_pow_2 @@ Ints_t.max (Ints_t.max (Ints_t.abs x1) (Ints_t.abs x2)) (Ints_t.max (Ints_t.abs y1) (Ints_t.abs y2)) in   
+            of_interval ik (Ints_t.neg b, Ints_t.sub b Ints_t.one) |> fst
+        end
+        | _ -> top_of ik
 
   let logor_helper ik x1 x2 y1 y2 =
     match Ints_t.compare x1 Ints_t.zero >= 0, Ints_t.compare x2 Ints_t.zero >= 0, Ints_t.compare y1 Ints_t.zero >= 0, Ints_t.compare y2 Ints_t.zero >= 0 with
     | true, _, true, _ -> of_interval ik (Ints_t.max x1 y1, snd (range ik)) |> fst
     | _, false, _, _ | _, _, _, false -> of_interval ik (fst (range ik), Ints_t.zero) |> fst
-    |_ -> let b = (f (Ints_t.max (Ints_t.max (Ints_t.abs x1) (Ints_t.abs x2)) (Ints_t.max (Ints_t.abs y1) (Ints_t.abs y2)))) in   
+    |_ -> let b = (ceil_pow_2 (Ints_t.max (Ints_t.max (Ints_t.abs x1) (Ints_t.abs x2)) (Ints_t.max (Ints_t.abs y1) (Ints_t.abs y2)))) in   
       of_interval ik (Ints_t.neg b, b) |> fst 
 
   let logor ik i1 i2 = 
-    match is_bot i1, is_bot i2 with
-    | true, true -> bot_of ik
-    | true, _
-    | _   , true -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show i1) (show i2)))
+    match bit (fun _ik -> Ints_t.logor) ik i1 i2 with
+    | result when result <> top_of ik -> result
     | _ ->
-      match to_int i1, to_int i2 with
-      | Some x, Some y -> (try of_int ik (Ints_t.logor x y) |> fst with Division_by_zero -> top_of ik)
-      | _              ->
-        if Cil.isSigned ik then
-          match i1, i2 with
-          | Some (x1, x2), Some (y1, y2) ->
-            logor_helper ik x1 x2 y1 y2
-          | _ -> top_of ik
-        else   
-          match i1, i2 with
-          | Some (x1, x2), Some (y1, y2) -> of_interval ik (Ints_t.max x1 y1, snd (range ik)) |> fst
-          | _ -> top_of ik 
+      match i1, i2 with 
+      | Some (x1, x2), Some (y1, y2) ->
+        let is_nonneg x = Ints_t.compare x Ints_t.zero >= 0 in
+        (match is_nonneg x1, is_nonneg x2, is_nonneg y1, is_nonneg y2 with
+          | true, _, true, _ -> of_interval ik (Ints_t.max x1 y1, Ints_t.sub (ceil_pow_2 (Ints_t.max x2 y2)) Ints_t.one) |> fst
+          | true, _, _, false | _, false, true, _ -> 
+            let lower = Ints_t.neg @@ ceil_pow_2 @@ List.fold_left Ints_t.max Ints_t.zero (List.map (fun x -> Ints_t.sub (Ints_t.abs x) Ints_t.one) [x1; x2; y1; y2]) in 
+            of_interval ik (lower, Ints_t.zero) |> fst
+          |_ -> let b = (ceil_pow_2 (Ints_t.max (Ints_t.max (Ints_t.sub (Ints_t.abs x1) Ints_t.one) (Ints_t.sub (Ints_t.abs x2) Ints_t.one)) (Ints_t.max (Ints_t.sub (Ints_t.abs y1) Ints_t.one) (Ints_t.sub (Ints_t.abs y2) Ints_t.one)))) in     
+            of_interval ik (Ints_t.neg b, Ints_t.sub b Ints_t.one) |> fst) 
+      | _ -> top_of ik
         
   let bit1 f ik i1 =
     if is_bot i1 then
@@ -284,7 +275,18 @@ struct
       | Some x -> of_int ik (f ik x) |> fst
       | _      -> top_of ik
 
-  let lognot = bit1 (fun _ik -> Ints_t.lognot)
+  let lognot ik i1 = 
+    if is_bot i1 then
+      bot_of ik
+    else
+      match to_int i1 with
+      | Some x -> of_int ik ((fun _ik -> Ints_t.lognot) ik x) |> fst 
+      | _      ->
+        match i1 with 
+        | Some (x1, x2) -> let y1 = Ints_t.lognot x1 in
+          let y2 = Ints_t.lognot x2 in
+          of_interval ik (Ints_t.min y1 y2, Ints_t.max y1 y2) |> fst
+        | _ -> top_of ik
 
   let shift_right_helper f ik i1 i2 =
     match is_bot i1, is_bot i2 with
@@ -297,7 +299,7 @@ struct
       | _              -> 
         match i1, i2 with 
         | Some (x1, x2), Some (y1,y2) when not (Cil.isSigned ik) -> 
-          of_interval ik (Ints_t.zero, Ints_t.div x2 (Ints_t.shift_left Ints_t.one (Ints_t.to_int y1)))
+            of_interval ik (Ints_t.zero, Ints_t.div x2 (Ints_t.shift_left Ints_t.one (Ints_t.to_int y1)))
         | Some (x1, x2), Some (y1,y2) when Cil.isSigned ik ->
           if Ints_t.compare x1 Ints_t.zero >= 0 && Ints_t.compare y1 Ints_t.zero >= 0 then
             of_interval ik (Ints_t.zero, Ints_t.div x2 (Ints_t.shift_left Ints_t.one (Ints_t.to_int y1)))

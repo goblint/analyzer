@@ -1,4 +1,4 @@
-// PARAM: --enable ana.int.interval_set
+// PARAM: --enable ana.int.interval
 #include <goblint.h>
 
 int main() {

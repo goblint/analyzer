@@ -35,18 +35,6 @@ int main() {
 
   int aa;
 
-  int bound = __INT_MAX__ - 1;
-
-  if (aa >= bound) {
-    aa = bound;
-  }
-  if (aa < -bound) {
-    aa = -bound;
-  }
-  long long bb; 
-
-  int cc = aa & bb;
-
   int test = -55;
 
   int test2;
@@ -57,5 +45,13 @@ int main() {
 
   int test3 = test2 & test;
   __goblint_check(test3 <= 63);
+
+  long long lltest = 4829301800843266965LL;
+
+  int lltest2;
+
+  long long lltestcon = lltest2 & lltest;
+
+  __goblint_check(lltestcon <= __LONG_LONG_MAX__);
   return 0;
 }

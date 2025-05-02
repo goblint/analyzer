@@ -445,7 +445,16 @@ struct
 
   let ge ik x y = le ik y x
 
-  let lognot = lift1 Z.lognot
+  let lognot ik x= norm ik @@ match x with
+    | `Excluded (s,r) ->
+      let s' = S.map Z.lognot s in
+      let r' = match R.minimal r, R.maximal r with
+        | Some min, Some max -> R.of_interval range_ikind (Int64.neg max, Int64.neg min) 
+        | _ -> apply_range Z.lognot r 
+      in 
+      `Excluded (s', r')
+    | `Definite x -> `Definite (Z.lognot x)
+    | `Bot -> `Bot
 
   let logand ik x y = norm ik (match x,y with
       (* We don't bother with exclusion sets: *)
@@ -502,12 +511,11 @@ struct
       raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y))))
 
   let logxor ik x y = norm ik (match x,y with
-    (* We don't bother with exclusion sets: *)
     | `Definite i, `Excluded (_, r) 
     | `Excluded (_, r), `Definite i -> begin
       if Z.compare i Z.zero >= 0 then
         `Excluded (S.empty (), R.join r (R.of_interval range_ikind (Int64.zero, Int64.of_int @@ Z.numbits i)))
-      else if (R.compare r (R.of_int range_ikind (Int64.zero)) < 0) && (Z.compare i Z.zero >= 0) then
+      else if (R.compare r (R.of_int range_ikind (Int64.zero)) < 0) && (Z.compare i Z.zero >= 0) then (* TODO: see branch ei käivitu kunagi*)
         `Excluded (S.empty (), R.of_interval range_ikind (Int64.zero, Int64.of_int @@ Z.numbits i))
       else
         match R.minimal r, R.maximal r with 

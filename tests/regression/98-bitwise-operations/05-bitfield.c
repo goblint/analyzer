@@ -19,14 +19,7 @@ int main(void)
     int x;
     int y;
     struct S s;
-
-    if (x) {
-        y = 4;
-    }
-    else {
-        y = 9; // WARN
-    }
-
+    
     s.a = 1;
     s.b = 1;
 
