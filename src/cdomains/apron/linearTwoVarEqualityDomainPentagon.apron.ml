@@ -148,10 +148,10 @@ struct
     if M.tracing then M.tracel "modify_pentagon" "set_value before: %s eq: var_%d=%s  ->  %s " (show t) lhs (Value.show i) (show res);
     res
 
-  (*TODO: If we are uptdating a variable, we will overwrite the value again -> maybe skip setting it here, because of performance?*)
   let set_rhs (econ, is, ineq) lhs rhs  =
     let econ' = EConj.set_rhs econ lhs rhs in
     match rhs with 
+    (*TODO remove from ineq, convert to interval information!*)
     | (None, _, _) -> econ', IntMap.remove lhs is, ineq (*when setting as a constant, we do not need a separate value *)
     | _ -> 
       let new_constraint = get_value (econ', is, ineq) lhs in
@@ -448,7 +448,6 @@ struct
     if M.tracing then M.tracel "eval_texp" "%s %a -> %s" (match t.d with None -> "⊥" | Some d ->EConjI.show d) Texpr1.Expr.pretty texp (Value.show res);
     res
 
-  (*TODO Could be more precise with query*)
   (*TODO We also only catch variables on the first level, but miss e.g. (x+7)+7 -> use more recursion similar to negate?*)
   let rec to_inequalities (t:t) texpr = 
     let open Apron.Texpr1 in
@@ -655,7 +654,6 @@ struct
           if M.tracing then M.trace "refine_tcons" "refining var %s with %s" (Var.to_string var) (Value.show value) ;
           EConjI.meet_with_one_value dim value d false )
       in
-      (*TODO Could be more precise with query ?? would need to convert back to Cil *)
       let eval d texpr = eval_texpr {d= Some d; env = t.env} texpr in
       let open Texpr1 in
       let rec refine_values d value expr = 
@@ -905,7 +903,7 @@ struct
       if M.tracing then M.trace "leq" "transformed %s into %s" (Ineq.show_formatted (fun i -> Var.show @@ Environment.var_of_dim t2.env i) ineq1) (Ineq.show_formatted (fun i -> Var.show @@ Environment.var_of_dim t2.env i) ineq1');  
       IntMap.for_all (implies econ1) (snd econ2) (* even on sparse m2, it suffices to check the non-trivial equalities, still present in sparse m2 *)
       && IntMap.for_all (implies_value m1') (vs2)
-      && Ineq.leq ineq1' (EConjI.get_value m1') ineq2
+      && Ineq.leq ineq1' (EConjI.get_value m1') ineq2 (*TODO the transformations are likely the most expensive part. -> only do it when both above options did not already deterime the result *)
 
   let leq a b = timing_wrap "leq" (leq a) b
 
@@ -1270,7 +1268,10 @@ struct
     in
     match t.d with 
     | None -> []
-    | Some d -> d |> fun ((_,map),_,_) -> IntMap.fold (fun lhs rhs list -> get_const list lhs rhs) map []
+    | Some  ((_,map),vs,ineq) ->
+      let from_ineq = Ineq.invariant ineq t.env in      
+      let with_eq = IntMap.fold (fun lhs rhs list -> get_const list lhs rhs) map from_ineq in
+      IntMap.fold (Value.invariant t.env) vs with_eq
 
   let cil_exp_of_lincons1 = Convert.cil_exp_of_lincons1
 

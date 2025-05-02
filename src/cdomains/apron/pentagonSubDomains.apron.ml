@@ -1,6 +1,7 @@
 open Batteries
 open GoblintCil
 open VectorMatrix
+open GobApron
 
 module M = Messages
 
@@ -149,8 +150,7 @@ struct
     else Int i 
   let to_bigint t = Int_t.to_bigint @@ get_int_t t
 
-  (*TODO*)
-  let arbitrary () = failwith "arbitrary not implemented yet"
+  let arbitrary () = failwith "arbitrary not implemented"
 end
 
 (*TODO this is a copy of the IntOpsDecorator, but we keep the constructor of type t -> is there a better way??*)
@@ -284,6 +284,35 @@ module IntervalAndCongruence = struct
       | _ -> None
     in refine (interval, IntDomain.IntDomTuple.to_congruence tuple) 
 
+  let invariant env var ((i,c):t) acc =
+    let with_i = 
+      let lower l = 
+        (*x - l >= 0*)
+        let expr = Linexpr1.make env in
+        Linexpr1.set_coeff expr (Environment.var_of_dim env var) (GobApron.Coeff.s_of_int 1);
+        Linexpr1.set_cst expr (GobApron.Coeff.s_of_z @@ Z.neg l);
+        Lincons1.make expr Lincons0.SUPEQ
+      in
+      let higher u = 
+        (*-x + u >= 0*)
+        let expr = Linexpr1.make env in
+        Linexpr1.set_coeff expr (Environment.var_of_dim env var) (GobApron.Coeff.s_of_int (-1));
+        Linexpr1.set_cst expr (GobApron.Coeff.s_of_z u);
+        Lincons1.make expr Lincons0.SUPEQ
+      in
+      match i with
+      | Some (TopIntOps.Int l, TopIntOps.Int u) -> lower l :: higher u :: acc
+      | Some (TopIntOps.Int l, _) -> lower l :: acc
+      | Some (_, TopIntOps.Int u) -> higher u :: acc
+      | _ -> acc
+    in match c with
+    | Some (o, m) -> 
+      (*x-o % m = 0*)
+      let expr = Linexpr1.make env in
+      Linexpr1.set_coeff expr (Environment.var_of_dim env var) (GobApron.Coeff.s_of_int 1);
+      Linexpr1.set_cst expr (GobApron.Coeff.s_of_z @@ Z.neg o);
+      Lincons1.make expr (Lincons0.EQMOD (Mpqf (Z_mlgmpidl.mpqf_of_q @@ Q.of_bigint m))) :: with_i
+    | _ -> Lincons1.make_unsat env :: with_i
 end 
 
 module Value = IntervalAndCongruence
@@ -358,6 +387,8 @@ module type TwoVarInequalities = sig
   val modify_variables_in_domain : t -> int array -> (int -> int -> int) -> t
   val forget_variable : t -> int -> t
 
+  val invariant : t -> Environment.t -> Lincons1.t list
+
 end
 
 module NoInequalties : TwoVarInequalities = struct
@@ -389,6 +420,9 @@ module NoInequalties : TwoVarInequalities = struct
   let copy_to_new_representants _ _ _ = ()
 
   let transfer _ _ _ _ _ _ _ _ = ()
+
+  let invariant _ _ = []
+
 end
 
 module type Coeffs = sig
@@ -404,6 +438,8 @@ module type Coeffs = sig
   val equal : t -> t -> bool
   val compare : t -> t -> int
   val show_formatted : string -> string -> t -> string
+
+  val invariant : Environment.t -> int -> int -> t -> Lincons1.t list -> Lincons1.t list
 end
 
 module CommonActions (Coeffs : Coeffs) = struct
@@ -475,6 +511,8 @@ module CommonActions (Coeffs : Coeffs) = struct
 
   let join = join' false
   let widen = join' true
+
+  let invariant t env = IntMap.fold (fun x ys acc -> IntMap.fold (Coeffs.invariant env x) ys acc) t []
 
 end
 
@@ -689,7 +727,7 @@ module LinearInequality = struct
   (*Normalised representation of an inequality through the origin 
     a/b x <= y (or >=) bzw. slope and direction. infinite slope represents 0 <= x / 0 >= x*)
   module OriginInequality = struct (*Separate module so we can use it as key in a map*)
-    type t = LT of Q.t | GT of Q.t
+    type t = LT of Q.t | GT of Q.t (*TODO rename into LE / GE*)
 
     (*make the representation of inequalities without y unique*)
     let norm = function
@@ -885,6 +923,21 @@ module LinearInequality = struct
     | LT s_rel, LT s -> Some (LT (Q.mul s s_rel), Q.add o_rel @@ Q.mul s o)
     | GT s_rel, GT s -> Some (GT (Q.mul s s_rel), Q.add o_rel @@ Q.mul s o) 
 
+  let invariant env x y k o acc = 
+    (*for LE, we need to swap signs of all coefficients*)
+    let s, o = match k with
+      | OriginInequality.LT s -> Q.neg s, Q.neg o 
+      | GT s -> s, o
+    in
+    let o' = if Q.equal s Q.inf then Q.neg o else Q.neg @@ Q.mul o @@ Q.of_bigint @@ Q.den s in
+    let coeffs = [
+      GobApron.Coeff.s_of_z (Q.num s), Environment.var_of_dim env x; 
+      GobApron.Coeff.s_of_z @@ Z.neg @@ Q.den s, Environment.var_of_dim env y
+    ] in
+    let expr = Linexpr1.make env in
+    Linexpr1.set_list expr coeffs  (Some (GobApron.Coeff.s_of_mpq @@ Z_mlgmpidl.mpq_of_q o')); 
+    Lincons1.make expr Lincons0.SUPEQ :: acc
+
 end
 
 (*very small wrapper to make the following code clearer to me*)
@@ -906,7 +959,14 @@ let coeffs_from_econj (dim, map) =
   let add_rhs _ = function
     | (Some (cy,y),oy,dy) ->               
       let s = Q.make cy dy in
-      BatHashtbl.modify_def (MultiSet.create ()) y (fun set -> MultiSet.change_member_count set s 1; set) m (*TODO unneccessary readding!*)
+      begin 
+        match BatHashtbl.find_option m y with 
+        | None -> 
+          let set = MultiSet.create () in
+          MultiSet.change_member_count set s 1;
+          BatHashtbl.add m y set;
+        | Some set -> MultiSet.change_member_count set s 1;
+      end
     | _ -> () (*ignore constants*)
   in
   IntMap.iter add_rhs map;
@@ -1136,7 +1196,6 @@ module ArbitraryCoeffsSet = struct
     (* merge the two sets. if one inequality is in both, take the less tight bound *)
     (* we make two passes over the list: first the relaxation, then adding all other inequalities*)
     (* this prevents an inequality from being deemed redundant by an inequality that is later relaxed*)
-    (* TODO: test if this increased precision is worth the time?*)
     let relax k c2 (t1_f, t2_f) = (*we need to modify t2 because in the case of widening, the key might not be in both after this first step *)
       match CoeffMap.find_opt k t1 with (*look up in original t1 so that we can take care of widening for inequalities that get filtered*)
       | None -> (t1_f, t2_f)
@@ -1187,6 +1246,8 @@ module ArbitraryCoeffsSet = struct
     let t' = CoeffMap.fold fold_fun t CoeffMap.empty in
     if CoeffMap.is_empty t' then None else Some t'
 
+  let invariant env x y t acc = CoeffMap.fold (LinearInequality.invariant env x y) t acc
+
 end
 
 
@@ -1228,7 +1289,7 @@ module LinearInequalities: TwoVarInequalities = struct
             let c' = Q.mul factor ( Q.add c_ineq c_rhs) in
             (Gt, Z.add Z.minus_one @@ Z.cdiv (Q.num c') (Q.den c')) :: upper_bound
       end
-    | _, _ -> failwith "Inequalities.is_less_than does not take constants directly" (*TODO should we take the coefficients directly to enforce this*)
+    | _, _ -> failwith "Inequalities.is_less_than does not take constants directly" (*Should probably enforced by the type system :) *)
 
   let get_relations x y t = 
     let res = get_relations x y t in
@@ -1240,7 +1301,7 @@ module LinearInequalities: TwoVarInequalities = struct
       let rhs = get_rhs lhs in
       match rhs with 
       | (Some (c,var), o ,d) -> (c,o,d), var
-      | (None, o ,d)-> (Z.one,Z.zero,Z.one), lhs (*TODO I think we should not save relations to constants here, as that information will be saved in the intervals, but am not sure if this is always done*)
+      | (None, o ,d)-> (Z.one,Z.zero,Z.one), lhs (*TODO do not save relations to constants -> interval refinement*)
     in let (rhs_x, x) = get_rhs' x'
     in let (rhs_y, y) = get_rhs' y'
     in if x > y then
@@ -1271,7 +1332,7 @@ module LinearInequalities: TwoVarInequalities = struct
                  let min = Q.div c' s' in
                  t, [x, Value.starting @@ Z.fdiv (Q.num min) (Q.den min)]
            else Coeffs.meet_single_inequality (Some (x,y)) false (get_value x) (get_value y) k c t
-      in let factor = (*we need to divide o by this factor because LinearInequalities scales everything down. TODO is there a better way?*)
+      in let factor = (*we need to divide o by this factor because LinearInequalities normalises it.*)
            let a = Q.make (Tuple3.first rhs_x) (Tuple3.third rhs_x) in
            let b = Q.make (Tuple3.first rhs_y) (Tuple3.third rhs_y) in
            if Q.equal b Q.zero then a else b
@@ -1344,7 +1405,7 @@ module LinearInequalities: TwoVarInequalities = struct
     | (Some (coeff_old,x_root_old), off_old, divi_old), ((Some (coeff,x_root), off, divi) as rhs) -> 
       (*convert the relation to a linear inequality refering to the old root *)
       let (k,c) = LinearInequality.from_rhss (coeff_old, off_old, divi_old) (coeff_old, off_old, divi_old) (Some (match fst cond with Relation.Lt -> true | _ -> false))
-      in let factor = Q.make coeff_old divi_old (*we need to divide o by this factor because LinearInequalities scales everything down. TODO is there a better way?*)
+      in let factor = Q.make coeff_old divi_old (*we need to divide o by this factor because LinearInequalities normalizes*)
       in let ineq_from_cond = match cond with 
           | Relation.Lt, o -> k, (Q.add c @@ Q. div (Q.of_bigint o) factor)
           | Gt, o -> (Coeffs.Key.negate k), (Q.add c @@ Q. div (Q.of_bigint o) factor)
@@ -1442,17 +1503,43 @@ module LinearInequalities: TwoVarInequalities = struct
 end
 
 (*TODOs:*)
-(*
-  ArbitraryCoeaffsList.meet + affine_transform -> refinement
-  refinement of equalities must be limited to have acceptable runtimes! 
-*)
-(*look at complexities. I expect for all: (n² log n) *)
 
-(*rework relation to offset domain -> remove Eq? *)
-(*store information about representants to avoid recalculating them: congruence information, group size/ coefficients ??*)
-(*redo simple equalities (take advantage of the offset!, affine transform)*)
-(*domain inbetween these two: with offset between roots? -> should be trivial to implement*)
-(*what is required of narrow?*)
-(*widening thresholds: from offsets of rhs?*)
-(*general renaming*)
-(*rebase to main branch*)
+(*! ArbitraryCoeaffsList meet_single: be sure about rounding*)
+(*!!substitute: swap side if necessary*)
+(*+ Why do inverted conditions work strangely?*)
+
+(*+
+    ArbitraryCoeaffsList meet_single: take intervals into account better
+      re-add them every time, remove them afterwards and update interval with this information
+    ArbitraryCoeaffsList.meet + affine_transform -> refinement
+    refinement of equalities must be limited to have acceptable runtimes!
+    substitute refinement
+    set_rhs constant refinement
+    meet_relations: refinement of intervals if var is constant
+    meet_relations: do some transitivity !
+
+*)
+(*-- assign expr restore ineqs based on value *)
+
+(*!! options for limit function*)
+
+(*+ look at complexities. I expect for all: (n² log n) *)
+(*+ How to do a useful narrow?*)
+(*  widening thresholds: from offsets of rhs?*)
+(*  store information about representants to avoid recalculating them: congruence information, group size/ coefficients ??*)
+(*- copy_to_new: introduces too many inequlities?*)
+
+(*+ redo simple equalities (take advantage of the offset!, affine transform)*)
+(*  domain inbetween these two: with offset between roots? -> should be trivial to implement*)
+(*- better to_inequalities? with query?*)
+(*- ineq refine_with_tcons: normalisation*)
+
+(*+ rework relation to offset domain -> remove Eq? *)
+(*- memo_bumbvar created 3 times*)
+(*- leq performance?*)
+(*--eval_int: answer nonlinear*)
+(*! general renaming*)
+(*+ rename constuctor in OriginInequality into LE / GE*)
+
+(*!!rebase to main branch*)
+(*!!documentation (failing check!!) *)

@@ -1,7 +1,6 @@
 open IntDomain0
 open GoblintCil
 
-(*TODO Test and remove code duplication*)
 module type Norm = sig
   val normalize : ikind -> (Z.t * Z.t) option -> (Z.t * Z.t) option
 end
