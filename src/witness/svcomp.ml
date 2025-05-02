@@ -48,7 +48,7 @@ struct
       let result_spec = match spec with
         | UnreachCall _ -> "unreach-call"
         | NoOverflow -> "no-overflow"
-        | NoDataRace -> "no-data-race" (* not yet in SV-COMP/Benchexec *)
+        | NoDataRace -> "no-data-race"
         | Termination -> "termination"
         | ValidFree -> "valid-free"
         | ValidDeref -> "valid-deref"
