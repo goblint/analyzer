@@ -375,7 +375,11 @@ struct
     let interval_lognot i =
       match interval_to_int i with
       | Some x -> of_int ik (Ints_t.lognot x) |> fst
-      | _ -> top_of ik
+      | _ -> 
+        let (x1, x2) = i in
+        let y1 = Ints_t.lognot x1 in
+        let y2 = Ints_t.lognot x2 in
+        of_interval ik (Ints_t.min y1 y2, Ints_t.max y1 y2) |> fst
     in
     unop x interval_lognot
 
@@ -394,8 +398,7 @@ struct
             of_interval ik (Ints_t.zero, Ints_t.div x2 (Ints_t.shift_left Ints_t.one (Ints_t.to_int y1)))
         | _ -> (top_of ik,{underflow=false; overflow=false})
 
-  let shift_right ik x y =
-    binary_op_with_ovc x y (interval_shiftright ik)
+  let shift_right ik x y = binary_op_with_ovc x y (interval_shiftright ik)
 
   let c_lognot ik x =
     let log1 f ik i1 =
