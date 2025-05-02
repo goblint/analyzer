@@ -356,7 +356,6 @@ module WitnessUtil = WitnessUtil
 module MyARG = MyARG
 module ArgTools = ArgTools
 module Witness = Witness
-module Graphml = Graphml
 
 (** {3 YAML}
 
