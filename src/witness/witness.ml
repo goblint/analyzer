@@ -58,8 +58,8 @@ let write_file filename (module Task:Task) (module Arg: MyARG.S with type Edge.t
 let print_svcomp_result (s: string): unit =
   Logs.result "SV-COMP result: %s" s
 
-let print_task_result (module TaskResult:TaskResult): unit =
-  print_svcomp_result (Result.to_string TaskResult.result)
+let print_task_result result: unit =
+  print_svcomp_result (Result.to_string result)
 
 let init (module FileCfg: MyCFG.FileCfg) =
   (* TODO: toggle analyses based on specification *)
@@ -87,7 +87,7 @@ struct
     val find_invariant: Node.t -> Invariant.t
   end
 
-  let determine_result entrystates (module Task:Task) (spec: Svcomp.Specification.t): (module TaskResult) =
+  let determine_result entrystates (module Task:Task) (spec: Svcomp.Specification.t): Svcomp.Result.t =
     let module Arg: BiArgInvariant =
     struct
       module Node = ArgTool.Node
@@ -117,14 +117,9 @@ struct
           ) lh
       in
 
-      if is_unreach_call then (
-        let module TaskResult =
-        struct
-          let result = Result.True
-        end
-        in
-        (module TaskResult:TaskResult)
-      ) else (
+      if is_unreach_call then
+        Result.True
+      else (
         let is_violation = function
           | FunctionEntry f when Svcomp.is_error_function f.svar -> true
           | _ -> false
@@ -153,23 +148,13 @@ struct
         let result_unknown () =
           (* TODO: exclude sinks before find_path? *)
           (* let is_sink = Violation.find_sinks (module ViolationArg) in *)
-          let module TaskResult =
-          struct
-            let result = Result.Unknown
-          end
-          in
-          (module TaskResult:TaskResult)
+          Result.Unknown
         in
         if get_bool "ana.wp" then (
           match Violation.find_path (module ViolationArg) (module ViolationZ3.WP (ViolationArg.Node)) with
           | Feasible (module PathArg) ->
             (* TODO: add assumptions *)
-            let module TaskResult =
-            struct
-              let result = Result.False (Some spec)
-            end
-            in
-            (module TaskResult:TaskResult)
+            Result.False (Some spec)
           | Infeasible subpath ->
             (* TODO: match edges in observer? *)
             let observer_path = List.map (fun (n1, e, n2) ->
@@ -198,146 +183,68 @@ struct
           result_unknown ()
       )
     | NoDataRace ->
-      if !Access.is_all_safe then (
-        let module TaskResult =
-        struct
-          let result = Result.True
-        end
-        in
-        (module TaskResult:TaskResult)
-      ) else (
-        let module TaskResult =
-        struct
-          let result = Result.Unknown
-        end
-        in
-        (module TaskResult:TaskResult)
-      )
+      if !Access.is_all_safe then
+        Result.True
+      else
+        Result.Unknown
     | Termination ->
       if not !AnalysisState.svcomp_may_not_terminate then
-        let module TaskResult =
-        struct
-          let result = Result.True
-        end
-        in
-        (module TaskResult:TaskResult)
-      else (
-        let module TaskResult =
-        struct
-          let result = Result.Unknown
-        end
-        in
-        (module TaskResult:TaskResult)
-      )
+        Result.True
+      else
+        Result.Unknown
     | NoOverflow ->
       if not !AnalysisState.svcomp_may_overflow then
-        let module TaskResult =
-        struct
-          let result = Result.True
-        end
-        in
-        (module TaskResult:TaskResult)
-      else (
-        let module TaskResult =
-        struct
-          let result = Result.Unknown
-        end
-        in
-        (module TaskResult:TaskResult)
-      )
+        Result.True
+      else
+        Result.Unknown
     | ValidFree ->
-      if not !AnalysisState.svcomp_may_invalid_free then (
-        let module TaskResult =
-        struct
-          let result = Result.True
-        end
-        in
-        (module TaskResult:TaskResult)
-      ) else (
-        let module TaskResult =
-        struct
-          let result = Result.Unknown
-        end
-        in
-        (module TaskResult:TaskResult)
-      )
+      if not !AnalysisState.svcomp_may_invalid_free then
+        Result.True
+      else
+        Result.Unknown
     | ValidDeref ->
-      if not !AnalysisState.svcomp_may_invalid_deref then (
-        let module TaskResult =
-        struct
-          let result = Result.True
-        end
-        in
-        (module TaskResult:TaskResult)
-      ) else (
-        let module TaskResult =
-        struct
-          let result = Result.Unknown
-        end
-        in
-        (module TaskResult:TaskResult)
-      )
+      if not !AnalysisState.svcomp_may_invalid_deref then
+        Result.True
+      else
+        Result.Unknown
     | ValidMemtrack ->
-      if not !AnalysisState.svcomp_may_invalid_memtrack then (
-        let module TaskResult =
-        struct
-          let result = Result.True
-        end
-        in
-        (module TaskResult:TaskResult)
-      ) else (
-        let module TaskResult =
-        struct
-          let result = Result.Unknown
-        end
-        in
-        (module TaskResult:TaskResult)
-      )
+      if not !AnalysisState.svcomp_may_invalid_memtrack then
+        Result.True
+      else
+        Result.Unknown
     | ValidMemcleanup ->
-      if not !AnalysisState.svcomp_may_invalid_memcleanup then (
-        let module TaskResult =
-        struct
-          let result = Result.True
-        end
-        in
-        (module TaskResult:TaskResult)
-      ) else (
-        let module TaskResult =
-        struct
-          let result = Result.Unknown
-        end
-        in
-        (module TaskResult:TaskResult)
-      )
+      if not !AnalysisState.svcomp_may_invalid_memcleanup then
+        Result.True
+      else
+        Result.Unknown
 
-  let determine_result entrystates (module Task:Task): (module TaskResult) =
+  let determine_result entrystates (module Task:Task): Svcomp.Result.t =
     Task.specification
     |> List.fold_left (fun acc spec ->
-        let module TaskResult = (val determine_result entrystates (module Task) spec) in
+        let result = determine_result entrystates (module Task) spec in
         match acc with
-        | None -> Some (module TaskResult: TaskResult)
-        | Some (module Acc: TaskResult) ->
-          match Acc.result, TaskResult.result with
+        | None -> Some result
+        | Some acc ->
+          match acc, result with
           (* keep old violation/unknown *)
           | False _, True
           | False _, Unknown
-          | Unknown, True -> Some (module Acc: TaskResult)
+          | Unknown, True -> Some acc
           (* use new violation/unknown *)
           | True, False _
           | Unknown, False _
-          | True, Unknown -> Some (module TaskResult: TaskResult)
+          | True, Unknown -> Some result
           (* both same, arbitrarily keep old *)
-          | True, True -> Some (module Acc: TaskResult)
-          | Unknown, Unknown -> Some (module Acc: TaskResult)
+          | True, True -> Some acc
+          | Unknown, Unknown -> Some acc
           | False _, False _ -> failwith "multiple violations"
       ) None
     |> Option.get
 
   let write entrystates =
     let module Task = (val (BatOption.get !task)) in
-    let module TaskResult = (val (Timing.wrap "sv-comp result" (determine_result entrystates) (module Task))) in
-
-    print_task_result (module TaskResult)
+    let result = Timing.wrap "sv-comp result" (determine_result entrystates) (module Task) in
+    print_task_result result
 
   let write yaml_validate_result entrystates =
     match !AnalysisState.verified, !AnalysisState.unsound_both_branches_dead with

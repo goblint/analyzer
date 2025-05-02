@@ -62,9 +62,3 @@ end
 exception Error of string
 
 let errorwith s = raise (Error s)
-
-
-module type TaskResult =
-sig
-  val result: Result.t (* TODO: remove module wrapper *)
-end
