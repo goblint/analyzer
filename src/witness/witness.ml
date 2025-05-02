@@ -6,14 +6,9 @@ open GobConfig
 
 module M = Messages
 
-module type WitnessTaskResult = TaskResult with module Arg.Edge = MyARG.InlineEdge
-
 (* Unused *)
-let write_file filename (module Task:Task) (module TaskResult:WitnessTaskResult): unit =
+let write_file filename (module Task:Task) (module Arg: MyARG.S with type Edge.t = MyARG.InlineEdge.t): unit =
   let module Invariant = WitnessUtil.Invariant (Task) in
-
-  let module N = TaskResult.Arg.Node in
-  let module Arg = TaskResult.Arg in
 
   let module N = Arg.Node in
   let module NH = Hashtbl.Make (N) in
@@ -26,39 +21,34 @@ let write_file filename (module Task:Task) (module TaskResult:WitnessTaskResult)
     if not (NH.mem itered_nodes node) then begin
       NH.add itered_nodes node ();
       (* write_node node; *)
-      let is_sink = TaskResult.is_violation node || TaskResult.is_sink node in
       if M.tracing then M.tracei "witness" "iter_node %s" (N.to_string node);
-      if not is_sink then begin
-        let edge_to_nodes =
-          Arg.next node
-          (* TODO: keep control (Test) edges to dead (sink) nodes for violation witness? *)
-          |> List.filter_map (fun ((edge, to_node) as edge_to_node) ->
-              match edge with
-              | MyARG.CFGEdge _ ->
-                Some edge_to_node
-              | InlineEntry (_, f, args) ->
-                Some (InlineEntry (None, f, args), to_node) (* remove lval to avoid duplicate edges in witness *)
-              | InlineReturn (lval, f, _) ->
-                Some (InlineReturn (lval, f, []), to_node) (* remove args to avoid duplicate edges in witness *)
-              | InlinedEdge _
-              | ThreadEntry _ ->
-                None
-            )
-          (* deduplicate after removed lvals/args *)
-          |> BatList.unique_cmp ~cmp:[%ord: MyARG.inline_edge * N.t]
-        in
-        List.iter (fun (edge, to_node) ->
-            if M.tracing then M.tracec "witness" "edge %a to_node %s" MyARG.pretty_inline_edge edge (N.to_string to_node);
-            (* write_node to_node;
-            write_edge node edge to_node *)
-          ) edge_to_nodes;
-        if M.tracing then M.traceu "witness" "iter_node %s" (N.to_string node);
-        List.iter (fun (edge, to_node) ->
-            iter_node to_node
-          ) edge_to_nodes
-      end
-      else
+      let edge_to_nodes =
+        Arg.next node
+        (* TODO: keep control (Test) edges to dead (sink) nodes for violation witness? *)
+        |> List.filter_map (fun ((edge, to_node) as edge_to_node) ->
+            match edge with
+            | MyARG.CFGEdge _ ->
+              Some edge_to_node
+            | InlineEntry (_, f, args) ->
+              Some (InlineEntry (None, f, args), to_node) (* remove lval to avoid duplicate edges in witness *)
+            | InlineReturn (lval, f, _) ->
+              Some (InlineReturn (lval, f, []), to_node) (* remove args to avoid duplicate edges in witness *)
+            | InlinedEdge _
+            | ThreadEntry _ ->
+              None
+          )
+        (* deduplicate after removed lvals/args *)
+        |> BatList.unique_cmp ~cmp:[%ord: MyARG.inline_edge * N.t]
+      in
+      List.iter (fun (edge, to_node) ->
+          if M.tracing then M.tracec "witness" "edge %a to_node %s" MyARG.pretty_inline_edge edge (N.to_string to_node);
+          (* write_node to_node;
+          write_edge node edge to_node *)
+        ) edge_to_nodes;
       if M.tracing then M.traceu "witness" "iter_node %s" (N.to_string node);
+      List.iter (fun (edge, to_node) ->
+          iter_node to_node
+        ) edge_to_nodes
     end
   in
 
@@ -97,7 +87,7 @@ struct
     val find_invariant: Node.t -> Invariant.t
   end
 
-  let determine_result entrystates (module Task:Task) (spec: Svcomp.Specification.t): (module WitnessTaskResult) =
+  let determine_result entrystates (module Task:Task) (spec: Svcomp.Specification.t): (module TaskResult) =
     let module Arg: BiArgInvariant =
     struct
       module Node = ArgTool.Node
@@ -130,14 +120,10 @@ struct
       if is_unreach_call then (
         let module TaskResult =
         struct
-          module Arg = Arg
           let result = Result.True
-          let invariant = Arg.find_invariant
-          let is_violation _ = false
-          let is_sink _ = false
         end
         in
-        (module TaskResult:WitnessTaskResult)
+        (module TaskResult:TaskResult)
       ) else (
         let is_violation = function
           | FunctionEntry f when Svcomp.is_error_function f.svar -> true
@@ -166,17 +152,13 @@ struct
         in
         let result_unknown () =
           (* TODO: exclude sinks before find_path? *)
-          let is_sink = Violation.find_sinks (module ViolationArg) in
+          (* let is_sink = Violation.find_sinks (module ViolationArg) in *)
           let module TaskResult =
           struct
-            module Arg = Arg
             let result = Result.Unknown
-            let invariant = Arg.find_invariant
-            let is_violation = is_violation
-            let is_sink = is_sink
           end
           in
-          (module TaskResult:WitnessTaskResult)
+          (module TaskResult:TaskResult)
         in
         if get_bool "ana.wp" then (
           match Violation.find_path (module ViolationArg) (module ViolationZ3.WP (ViolationArg.Node)) with
@@ -184,14 +166,10 @@ struct
             (* TODO: add assumptions *)
             let module TaskResult =
             struct
-              module Arg = PathArg
               let result = Result.False (Some spec)
-              let invariant _ = Invariant.none
-              let is_violation = is_violation
-              let is_sink _ = false
             end
             in
-            (module TaskResult:WitnessTaskResult)
+            (module TaskResult:TaskResult)
           | Infeasible subpath ->
             (* TODO: match edges in observer? *)
             let observer_path = List.map (fun (n1, e, n2) ->
@@ -220,236 +198,137 @@ struct
           result_unknown ()
       )
     | NoDataRace ->
-      (* TODO: something better than trivial ARG *)
-      let module TrivialArg =
-      struct
-        include Arg
-        let next _ = []
-      end
-      in
       if !Access.is_all_safe then (
         let module TaskResult =
         struct
-          module Arg = TrivialArg
           let result = Result.True
-          let invariant _ = Invariant.none
-          let is_violation _ = false
-          let is_sink _ = false
         end
         in
-        (module TaskResult:WitnessTaskResult)
+        (module TaskResult:TaskResult)
       ) else (
         let module TaskResult =
         struct
-          module Arg = TrivialArg
           let result = Result.Unknown
-          let invariant _ = Invariant.none
-          let is_violation _ = false
-          let is_sink _ = false
         end
         in
-        (module TaskResult:WitnessTaskResult)
+        (module TaskResult:TaskResult)
       )
     | Termination ->
-      let module TrivialArg =
-      struct
-        include Arg
-        let next _ = []
-      end
-      in
       if not !AnalysisState.svcomp_may_not_terminate then
         let module TaskResult =
         struct
-          module Arg = TrivialArg
           let result = Result.True
-          let invariant _ = Invariant.none
-          let is_violation _ = false
-          let is_sink _ = false
         end
         in
-        (module TaskResult:WitnessTaskResult)
+        (module TaskResult:TaskResult)
       else (
         let module TaskResult =
         struct
-          module Arg = TrivialArg
           let result = Result.Unknown
-          let invariant _ = Invariant.none
-          let is_violation _ = false
-          let is_sink _ = false
         end
         in
-        (module TaskResult:WitnessTaskResult)
+        (module TaskResult:TaskResult)
       )
     | NoOverflow ->
-      let module TrivialArg =
-      struct
-        include Arg
-        let next _ = []
-      end
-      in
       if not !AnalysisState.svcomp_may_overflow then
         let module TaskResult =
         struct
-          module Arg = Arg
           let result = Result.True
-          let invariant = Arg.find_invariant
-          let is_violation _ = false
-          let is_sink _ = false
         end
         in
-        (module TaskResult:WitnessTaskResult)
+        (module TaskResult:TaskResult)
       else (
         let module TaskResult =
         struct
-          module Arg = TrivialArg
           let result = Result.Unknown
-          let invariant _ = Invariant.none
-          let is_violation _ = false
-          let is_sink _ = false
         end
         in
-        (module TaskResult:WitnessTaskResult)
+        (module TaskResult:TaskResult)
       )
     | ValidFree ->
-      let module TrivialArg =
-      struct
-        include Arg
-        let next _ = []
-      end
-      in
       if not !AnalysisState.svcomp_may_invalid_free then (
         let module TaskResult =
         struct
-          module Arg = Arg
           let result = Result.True
-          let invariant _ = Invariant.none
-          let is_violation _ = false
-          let is_sink _ = false
         end
         in
-        (module TaskResult:WitnessTaskResult)
+        (module TaskResult:TaskResult)
       ) else (
         let module TaskResult =
         struct
-          module Arg = TrivialArg
           let result = Result.Unknown
-          let invariant _ = Invariant.none
-          let is_violation _ = false
-          let is_sink _ = false
         end
         in
-        (module TaskResult:WitnessTaskResult)
+        (module TaskResult:TaskResult)
       )
     | ValidDeref ->
-      let module TrivialArg =
-      struct
-        include Arg
-        let next _ = []
-      end
-      in
       if not !AnalysisState.svcomp_may_invalid_deref then (
         let module TaskResult =
         struct
-          module Arg = Arg
           let result = Result.True
-          let invariant _ = Invariant.none
-          let is_violation _ = false
-          let is_sink _ = false
         end
         in
-        (module TaskResult:WitnessTaskResult)
+        (module TaskResult:TaskResult)
       ) else (
         let module TaskResult =
         struct
-          module Arg = TrivialArg
           let result = Result.Unknown
-          let invariant _ = Invariant.none
-          let is_violation _ = false
-          let is_sink _ = false
         end
         in
-        (module TaskResult:WitnessTaskResult)
+        (module TaskResult:TaskResult)
       )
     | ValidMemtrack ->
-      let module TrivialArg =
-      struct
-        include Arg
-        let next _ = []
-      end
-      in
       if not !AnalysisState.svcomp_may_invalid_memtrack then (
         let module TaskResult =
         struct
-          module Arg = Arg
           let result = Result.True
-          let invariant _ = Invariant.none
-          let is_violation _ = false
-          let is_sink _ = false
         end
         in
-        (module TaskResult:WitnessTaskResult)
+        (module TaskResult:TaskResult)
       ) else (
         let module TaskResult =
         struct
-          module Arg = TrivialArg
           let result = Result.Unknown
-          let invariant _ = Invariant.none
-          let is_violation _ = false
-          let is_sink _ = false
         end
         in
-        (module TaskResult:WitnessTaskResult)
+        (module TaskResult:TaskResult)
       )
     | ValidMemcleanup ->
-      let module TrivialArg =
-      struct
-        include Arg
-        let next _ = []
-      end
-      in
       if not !AnalysisState.svcomp_may_invalid_memcleanup then (
         let module TaskResult =
         struct
-          module Arg = Arg
           let result = Result.True
-          let invariant _ = Invariant.none
-          let is_violation _ = false
-          let is_sink _ = false
         end
         in
-        (module TaskResult:WitnessTaskResult)
+        (module TaskResult:TaskResult)
       ) else (
         let module TaskResult =
         struct
-          module Arg = TrivialArg
           let result = Result.Unknown
-          let invariant _ = Invariant.none
-          let is_violation _ = false
-          let is_sink _ = false
         end
         in
-        (module TaskResult:WitnessTaskResult)
+        (module TaskResult:TaskResult)
       )
 
-  let determine_result entrystates (module Task:Task): (module WitnessTaskResult) =
+  let determine_result entrystates (module Task:Task): (module TaskResult) =
     Task.specification
     |> List.fold_left (fun acc spec ->
         let module TaskResult = (val determine_result entrystates (module Task) spec) in
         match acc with
-        | None -> Some (module TaskResult: WitnessTaskResult)
-        | Some (module Acc: WitnessTaskResult) ->
+        | None -> Some (module TaskResult: TaskResult)
+        | Some (module Acc: TaskResult) ->
           match Acc.result, TaskResult.result with
           (* keep old violation/unknown *)
           | False _, True
           | False _, Unknown
-          | Unknown, True -> Some (module Acc: WitnessTaskResult)
+          | Unknown, True -> Some (module Acc: TaskResult)
           (* use new violation/unknown *)
           | True, False _
           | Unknown, False _
-          | True, Unknown -> Some (module TaskResult: WitnessTaskResult)
+          | True, Unknown -> Some (module TaskResult: TaskResult)
           (* both same, arbitrarily keep old *)
-          | True, True -> Some (module Acc: WitnessTaskResult)
-          | Unknown, Unknown -> Some (module Acc: WitnessTaskResult)
+          | True, True -> Some (module Acc: TaskResult)
+          | Unknown, Unknown -> Some (module Acc: TaskResult)
           | False _, False _ -> failwith "multiple violations"
       ) None
     |> Option.get
