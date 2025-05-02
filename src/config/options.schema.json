@@ -2023,6 +2023,13 @@
               "enum": ["node", "enumerate"],
               "default": "node"
             },
+            "uncil": {
+              "title": "exp.arg.uncil",
+              "description":
+                "Try to undo CIL control flow transformations in ARG",
+              "type": "boolean",
+              "default": false
+            },
             "dot": {
               "title": "exp.arg.dot",
               "description": "ARG output as .dot file",
@@ -2659,13 +2666,6 @@
             "minimize": {
               "title": "witness.graphml.minimize",
               "description": "Try to minimize the witness",
-              "type": "boolean",
-              "default": false
-            },
-            "uncil": {
-              "title": "witness.graphml.uncil",
-              "description":
-                "Try to undo CIL control flow transformations in witness",
               "type": "boolean",
               "default": false
             },
