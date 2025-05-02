@@ -14,6 +14,34 @@ sig
   val query: Node.t -> 'a Queries.t -> 'a Queries.result
 end
 
+module Stack (Arg: BiArg): BiArg with module Node = MyARG.StackNode (Arg.Node) =
+struct
+  include MyARG.Stack (Arg)
+
+  let prev _ = failwith "TODO"
+
+  module NHT = BatHashtbl.Make (Node)
+
+  (** Iterate over {e reachable} nodes. *)
+  let iter_nodes (f: Node.t -> unit): unit = (* Copied from Make.create below. *)
+    let reachable = NHT.create 100 in
+
+    (* DFS *)
+    let rec iter_node node =
+      if not (NHT.mem reachable node) then (
+        NHT.replace reachable node ();
+        f node;
+        List.iter (fun (edge, to_node) ->
+            iter_node to_node
+          ) (next node)
+      )
+    in
+
+    iter_node main_entry
+
+  let query nl = Arg.query (List.hd nl)
+end
+
 module type NodeStyles =
 sig
   type node
@@ -126,7 +154,7 @@ struct
 
   module NHT = BatHashtbl.Make (Node)
 
-  let create entrystates: (module BiArg with type Node.t = MyCFG.node * Spec.C.t * int) =
+  let create entrystates: (module BiArg) =
     let (witness_prev_map, witness_prev, witness_next) =
       (* Get all existing vars *)
       let vars = NHT.create 100 in
@@ -212,7 +240,14 @@ struct
         R.ask_local (n, c) (PathQuery (i, q))
     end
     in
-    (module Arg: BiArg with type Node.t = MyCFG.node * Spec.C.t * int)
+    let module Arg =
+      (val if GobConfig.get_bool "exp.arg.stack" then
+          (module Stack (Arg): BiArg)
+        else
+          (module Arg: BiArg)
+      )
+    in
+    (module Arg: BiArg)
 
   let create entrystates =
     Timing.wrap "arg create" create entrystates

@@ -2030,6 +2030,12 @@
               "type": "boolean",
               "default": false
             },
+            "stack": {
+              "title": "exp.arg.stack",
+              "description": "Construct stacktrace-based ARG nodes",
+              "type": "boolean",
+              "default": false
+            },
             "dot": {
               "title": "exp.arg.dot",
               "description": "ARG output as .dot file",
@@ -2668,12 +2674,6 @@
               "description": "Try to minimize the witness",
               "type": "boolean",
               "default": false
-            },
-            "stack": {
-              "title": "witness.graphml.stack",
-              "description": "Construct stacktrace-based witness nodes",
-              "type": "boolean",
-              "default": true
             }
           },
           "additionalProperties": false

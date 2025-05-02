@@ -12,13 +12,6 @@ module type WitnessTaskResult = TaskResult with module Arg.Edge = MyARG.InlineEd
 let write_file filename (module Task:Task) (module TaskResult:WitnessTaskResult): unit =
   let module Invariant = WitnessUtil.Invariant (Task) in
 
-  let module TaskResult =
-    (val if get_bool "witness.graphml.stack" then
-        (module StackTaskResult (TaskResult) : WitnessTaskResult)
-      else
-        (module TaskResult)
-    )
-  in
   let module N = TaskResult.Arg.Node in
   let module IsInteresting =
   struct
