@@ -112,9 +112,6 @@
     }
   },
   "witness": {
-    "graphml": {
-      "enabled": false
-    },
     "yaml": {
       "enabled": true,
       "format-version": "2.1",

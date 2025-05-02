@@ -2649,18 +2649,6 @@
           "title": "witness.graphml",
           "type": "object",
           "properties": {
-            "enabled": {
-              "title": "witness.graphml.enabled",
-              "description": "Output GraphML witness",
-              "type": "boolean",
-              "default": false
-            },
-            "path": {
-              "title": "witness.graphml.path",
-              "description": "GraphML witness output path",
-              "type": "string",
-              "default": "witness.graphml"
-            },
             "id": {
               "title": "witness.graphml.id",
               "description": "Which witness node IDs to use? node/enumerate",
@@ -2684,12 +2672,6 @@
             "stack": {
               "title": "witness.graphml.stack",
               "description": "Construct stacktrace-based witness nodes",
-              "type": "boolean",
-              "default": true
-            },
-            "unknown": {
-              "title": "witness.graphml.unknown",
-              "description": "Output witness for unknown result",
               "type": "boolean",
               "default": true
             }

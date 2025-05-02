@@ -16,7 +16,7 @@ module type S2S = Spec2Spec
 (* spec is lazy, so HConsed table in Hashcons lifters is preserved between analyses in server mode *)
 let spec_module: (module Spec) Lazy.t = lazy (
   GobConfig.building_spec := true;
-  let arg_enabled = get_bool "witness.graphml.enabled" || get_bool "exp.arg.enabled" in
+  let arg_enabled = get_bool "exp.arg.enabled" in
   let termination_enabled = List.mem "termination" (get_string_list "ana.activated") in (* check if loop termination analysis is enabled*)
   let open Batteries in
   (* apply functor F on module X if opt is true *)

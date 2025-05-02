@@ -305,37 +305,18 @@ struct
 
   let determine_result entrystates (module Task:Task) (spec: Svcomp.Specification.t): (module WitnessTaskResult) =
     let module Arg: BiArgInvariant =
-      (val if GobConfig.get_bool "witness.graphml.enabled" then (
-           let module Arg = (val ArgTool.create entrystates) in
-           let module Arg =
-           struct
-             include Arg
-
-             let find_invariant (n, c, i) =
-               let context = {Invariant.default_context with path = Some i} in
-               ask_local (n, c) (Invariant context)
-           end
-           in
-           (module Arg: BiArgInvariant)
-         )
-         else (
-           let module Arg =
-           struct
-             module Node = ArgTool.Node
-             module Edge = MyARG.InlineEdge
-             let next _ = []
-             let prev _ = []
-             let find_invariant _ = Invariant.none
-             let main_entry =
-               let lvar = WitnessUtil.find_main_entry entrystates in
-               (fst lvar, snd lvar, -1)
-             let iter_nodes f = f main_entry
-             let query _ q = Queries.Result.top q
-           end
-           in
-           (module Arg: BiArgInvariant)
-         )
-      )
+    struct
+      module Node = ArgTool.Node
+      module Edge = MyARG.InlineEdge
+      let next _ = []
+      let prev _ = []
+      let find_invariant _ = Invariant.none
+      let main_entry =
+        let lvar = WitnessUtil.find_main_entry entrystates in
+        (fst lvar, snd lvar, -1)
+      let iter_nodes f = f main_entry
+      let query _ q = Queries.Result.top q
+    end
     in
 
     match spec with
@@ -683,12 +664,7 @@ struct
     let module Task = (val (BatOption.get !task)) in
     let module TaskResult = (val (Timing.wrap "sv-comp result" (determine_result entrystates) (module Task))) in
 
-    print_task_result (module TaskResult);
-
-    if get_bool "witness.graphml.enabled" && (TaskResult.result <> Result.Unknown || get_bool "witness.graphml.unknown") then (
-      let witness_path = get_string "witness.graphml.path" in
-      Timing.wrap "graphml witness" (write_file witness_path (module Task)) (module TaskResult)
-    )
+    print_task_result (module TaskResult)
 
   let write yaml_validate_result entrystates =
     match !AnalysisState.verified, !AnalysisState.unsound_both_branches_dead with
