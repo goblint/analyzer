@@ -43,7 +43,7 @@ let write_file filename (module Task:Task) (module Arg: MyARG.S with type Edge.t
       List.iter (fun (edge, to_node) ->
           if M.tracing then M.tracec "witness" "edge %a to_node %s" MyARG.pretty_inline_edge edge (N.to_string to_node);
           (* write_node to_node;
-          write_edge node edge to_node *)
+             write_edge node edge to_node *)
         ) edge_to_nodes;
       if M.tracing then M.traceu "witness" "iter_node %s" (N.to_string node);
       List.iter (fun (edge, to_node) ->
