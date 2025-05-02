@@ -2,7 +2,20 @@
 #include <goblint.h>
 
 int main() {
+
+  unsigned int unsigned_x;
+  unsigned int unsigned_y;
+
+  if (unsigned_x > 14) {
+    unsigned_x = 0;
+  } 
   
+  if (unsigned_y > 30) {
+    unsigned_y = 0;
+  }
+
+  __goblint_check((unsigned_x ^ unsigned_y) <= 31);
+
   int zero_x = 0;
   int zero_y = 0;
 
@@ -12,12 +25,12 @@ int main() {
   int both_pos_x;
   int both_pos_y;
 
-  if (both_pos_x < 0 ||both_pos_x > 63) {
-    both_pos_x = 50;
+  if (both_pos_x < 0 ||both_pos_x > 62) {
+    both_pos_x = 0;
   }
 
   if (both_pos_y < 0 || both_pos_y > 30) {
-    both_pos_y = 32;
+    both_pos_y = 0;
   }
   __goblint_check((both_pos_x ^ both_pos_y) >= 0);
   __goblint_check((both_pos_x ^ both_pos_y) <= 63);

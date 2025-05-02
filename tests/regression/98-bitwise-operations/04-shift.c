@@ -8,39 +8,49 @@ int main() {
     x = 10;
   }
 
-  unsigned int y = x >> 0;
+  unsigned int u_res = x >> 0;
 
-  __goblint_check(y <= 10); 
+  __goblint_check(u_res >= 0);
+  __goblint_check(u_res <= 10); 
 
-  unsigned int z = x >> 1;
+  u_res = x >> 1;
 
-  __goblint_check(z <= 5); 
+  __goblint_check(u_res >= 0);
+  __goblint_check(u_res <= 5); 
 
-  unsigned int w = x >> 2;
+  u_res = x >> 2;
 
-  __goblint_check(w <= 2); 
+  __goblint_check(u_res >= 0);
+  __goblint_check(u_res <= 2); 
 
-  unsigned int a;
+  int x;
 
-  if (a == 0) {
-    a = 1;
+  if (x < 0) {
+    x = 0;
   }
 
-  if (a > 10) {
-    a = 10;
-  }
+  int res = x >> 0;
 
-  unsigned int b = a << 0;
+  __goblint_check(res >= 0);
+  __goblint_check(res <= __INT_MAX__);
 
-  __goblint_check(b >= 1); // TODO
 
-  unsigned int c = a << 1;
+  res = x >> 1;
 
-  __goblint_check(c >= 2); // TODO
+  __goblint_check(res >= 0);
+  __goblint_check(res <= (__INT_MAX__ / 2));
 
-  unsigned int d = a << 2;
 
-  __goblint_check(d >= 4); // TODO
+  long long ll_x = __LONG_LONG_MAX__;
+  long long ll_res = ll_x >> 0;
 
+  __goblint_check(ll_res >= 0);
+  __goblint_check(ll_res <= __LONG_LONG_MAX__);
+
+
+  ll_res = ll_x >> 2;
+
+  __goblint_check(ll_res >= 0);
+  __goblint_check(ll_res <= (__LONG_LONG_MAX__ / 4));
   return 0;
 }
