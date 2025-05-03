@@ -1595,7 +1595,6 @@ end
 (*  store information about representants to avoid recalculating them: congruence information, group size/ coefficients ??*)
 (*- copy_to_new: introduces too many inequlities?*)
 
-(*+ Why do inverted conditions work strangely?*)
 (*+ redo simple equalities (take advantage of the offset!, affine transform)*)
 (*  domain inbetween these two: with offset between roots? -> should be trivial to implement*)
 (*- better to_inequalities? with query?*)
