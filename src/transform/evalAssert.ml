@@ -58,8 +58,8 @@ struct
           | Some lval -> Lval.(Set.singleton lval)
         in
         let context = {Invariant.default_context with lvals} in
-        match (ask ~node loc).f (Queries.Invariant context) with
-        | `Lifted e ->
+        match Invariant.to_exp ((ask ~node loc).f (Queries.Invariant context)) with
+        | Some e ->
           let es = WitnessUtil.InvariantExp.process_exp e in
           let asserts = List.map (fun e -> cInstr ("%v:assert (%e:exp);") loc [("assert", Fv assert_function); ("exp", Fe e)]) es in
           if surroundByAtomic then
@@ -68,7 +68,7 @@ struct
             abegin :: (asserts @ [aend])
           else
             asserts
-        | _ -> []
+        | None -> []
       in
 
       let instrument_instructions il s =
