@@ -239,10 +239,10 @@ struct
         let value = get_value t x in
         if vary = None then begin
           if d <> Z.one then 
-            (if M.tracing then M.tracel "meet_with_one_conj" "meet_with_one_conj substituting var_%d with constant %s, which is not an integer" i (Rhs.show (var,offs,divi));
+            (if M.tracing then M.tracel "meet_with_one_conj" "meet_with_one_conj substituting var_%d with constant %s, which is not an integer" i (Rhs.show (vary,o,d));
              raise EConj.Contradiction);
-          if not @@ Value.contains value (Z.div offs divi) then 
-            (if M.tracing then M.tracel "meet_with_one_conj" "meet_with_one_conj substituting var_%d with constant %s, Contradicts %s" (i) (Rhs.show (var,offs,divi)) (Value.show value);
+          if not @@ Value.contains value (Z.div o d) then 
+            (if M.tracing then M.tracel "meet_with_one_conj" "meet_with_one_conj substituting var_%d with constant %s, Contradicts %s" (i) (Rhs.show (vary,o,d)) (Value.show value);
              raise EConj.Contradiction)
         end;
         let econj' = (dim, IntMap.add x (vary, o, d) @@ IntMap.map adjust econj) in (* in case of sparse representation, make sure that the equality is now included in the conjunction *)
@@ -311,6 +311,31 @@ struct
       let res = set_value t var new_value (*TODO because we meet with an already saved values, we already confirm to the congruence constraints -> skip calculating them again!*)
       in if M.tracing then M.tracel "meet_value" "meet var_%d: before: %s meeting: %s -> %s, total: %s-> %s" (var) (Value.show @@ get_value t var) (Value.show value) (Value.show new_value) (show t) (show res);
       res
+
+  let apply_refinements (refs : Refinement.t) (t:t) = 
+    let apply_single t = function
+      | var, Either.Left value -> 
+        begin try 
+            meet_with_one_value var value t false
+          with EConj.Contradiction -> 
+            if M.tracing then M.trace "refinements" "Contradiction when applying var_%d=%s in %s" var (Value.show value) (show t);
+            raise EConj.Contradiction
+        end
+      | var, Right rhs ->
+        begin try 
+            meet_with_one_conj t var rhs
+          with EConj.Contradiction -> 
+            if M.tracing then M.trace "refinements" "Contradiction when applying var_%d=%s in %s" var (Rhs.show rhs) (show t);
+            raise EConj.Contradiction
+        end
+    in
+    List.fold apply_single t refs
+
+  let apply_refinements refs t = 
+    if M.tracing then M.trace "refinements" "applying %s to %s" (Refinement.show refs) (show t);
+    let res = apply_refinements refs t in
+    if M.tracing then M.trace "refinements" "resulted in %s" (show res);
+    res
 
 end
 
@@ -768,12 +793,7 @@ struct
                      | _ -> ineq, refine
                  end
                | _, _,_ -> ineq, []
-             in let d' = (econ, vs, ineq')
-             in let refine_value d (var,value) =
-                  let res = EConjI.meet_with_one_value var value d false in
-                  if M.tracing then M.tracel "refine_tcons" "refinement from ineq: var_%d: %s => %s -> %s" var (Value.show value) (EConjI.show d) (EConjI.show res);
-                  res 
-             in List.fold (refine_value) d' value_refinements
+             in EConjI.apply_refinements value_refinements (econ, vs, ineq')
            in match expr with (*TODO we could do this in a more general way -> normalisation??*)
            (*currently only hits if two variables are at the first two levels. Also, we only choose one pattern even if multiple are possible 
              e.g. x + y - z arbitrarily selects x or y to convert into an interval, instead we could meet for both*)
@@ -1031,7 +1051,7 @@ struct
             let dim = Environment.dim_of_var t.env var in
             if dim <> var_i then 
               let ineq', refinements = Ineq.meet_relation var_i dim cond (EConjI.get_rhs d') (EConjI.get_value d') ineq
-              in List.fold (fun d (var,value) -> EConjI.meet_with_one_value var value d false) (e,v,ineq') refinements 
+              in EConjI.apply_refinements refinements (e,v,ineq') 
             else
               e,v,Ineq.transfer dim cond ineq_old (EConjI.get_rhs d) (EConjI.get_value d) ineq (EConjI.get_rhs d') (EConjI.get_value d')
           in

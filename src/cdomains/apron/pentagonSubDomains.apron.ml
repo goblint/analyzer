@@ -348,6 +348,24 @@ module Relation = struct
     | Gt, Lt -> None
 end
 
+module Refinement = struct 
+  type t = (int * (Value.t, Rhs.t) Either.t) list
+
+  let show_formatted_single formatter (var, ref) = 
+    let rhs = match ref with 
+      | Either.Left x -> Value.show x
+      | Right x -> Rhs.show_rhs_formatted formatter x 
+    in
+    Printf.sprintf "%s = %s" (formatter var) rhs
+
+  let show_formatted formatter t = "[" ^ List.fold (fun acc r -> Printf.sprintf "%s, %s" (show_formatted_single formatter r) acc) "]" t
+
+  let show = show_formatted (fun x -> "var_"^Int.to_string x)
+
+  let of_value var v = (var, Either.Left v)
+  let of_rhs var r = (var, Either.right r)
+
+end
 
 module type TwoVarInequalities = sig
   type t
@@ -356,7 +374,7 @@ module type TwoVarInequalities = sig
   val get_relations :  (Rhs.t * Value.t) -> (Rhs.t * Value.t) -> t -> Relation.t list
 
   (*meet relation between two variables. also returns a list of value refinements *)
-  val meet_relation : int -> int -> Relation.t -> (int -> Rhs.t) -> (int -> Value.t) -> t -> t * (int * Value.t) list
+  val meet_relation : int -> int -> Relation.t -> (int -> Rhs.t) -> (int -> Value.t) -> t -> t * Refinement.t
 
   (*substitutes all occurences of a variable by a rhs*)
   val substitute : t -> int -> Z.t * int * Z.t * Z.t -> t
@@ -1075,25 +1093,25 @@ module ArbitraryCoeffsSet = struct
 
   let meet_single_inequality refine_data narrow x_val y_val k c t = 
     (*calculate value refine. If one of the coefficients is zero, we should not add it to the map*)
+    let round_up q = Z.cdiv (Q.num q) (Q.den q) in
+    let round_down q = Z.fdiv (Q.num q) (Q.den q) in
     let refinements, skip_adding = match refine_data with 
       | None -> [], (Q.equal Q.zero @@ Key.get_slope k) || not @@ Q.is_real @@ Key.get_slope k
       | Some (x,y) -> 
-        let round_up q = Z.cdiv (Q.num q) (Q.den q) in
-        let round_down q = Z.fdiv (Q.num q) (Q.den q) in
         let x_refine = 
           let upper_bound s = (*x <= y / s + c / s*)
             let max_y = match Value.maximal (Value.mul y_val (Value.of_bigint (round_down (Q.inv s)))) , Value.maximal @@ Value.mul y_val (Value.of_bigint (round_up (Q.inv s))) with
               | Some a, Some b -> TopIntOps.max a b
               | _,_ -> failwith "trying to refine bot in inequalities"
             in match max_y with 
-            | Int max -> [x, Value.ending @@ Z.add max @@ round_down @@ Q.div c s]
+            | Int max -> [Refinement.of_value x (Value.ending @@ Z.add max @@ round_down @@ Q.div c s)]
             | _ -> [] 
           in let lower_bound s = (*x >= y / s + c / s*)
                let min_y = match Value.minimal (Value.mul y_val (Value.of_bigint (round_down (Q.inv s)))) , Value.minimal @@ Value.mul y_val (Value.of_bigint (round_up (Q.inv s))) with
                  | Some a, Some b -> TopIntOps.min a b
                  | _,_ -> failwith "trying to refine bot in inequalities"
                in match min_y with 
-               | Int min -> [x, Value.starting @@ Z.add min @@ round_up @@ Q.div c s]
+               | Int min -> [Refinement.of_value x (Value.starting @@ Z.add min @@ round_up @@ Q.div c s)]
                | _ -> []
           in
           match k with 
@@ -1109,7 +1127,7 @@ module ArbitraryCoeffsSet = struct
                    | Some a, Some b -> TopIntOps.min a b
                    | _,_ -> failwith "trying to refine bot in inequalities"
                  in match min_x with 
-                 | Int min -> [y, Value.starting @@ Z.sub min @@ round_up c]
+                 | Int min -> [Refinement.of_value y (Value.starting @@ Z.sub min @@ round_up c)]
                  | _ -> [] 
                end
              | GE s ->  (*s x - c >= y*)
@@ -1117,15 +1135,15 @@ module ArbitraryCoeffsSet = struct
                  | Some a, Some b -> TopIntOps.max a b
                  | _,_ -> failwith "trying to refine bot in inequalities"
                in match max_x with 
-               | Int max -> [y, Value.ending @@ Z.sub max @@ round_down c]
+               | Int max -> [Refinement.of_value y (Value.ending @@ Z.sub max @@ round_down c)]
                | _ -> [] 
         in match k with
-        | LE s when Q.equal Q.zero s -> (* -c >= y *) [y, Value.ending @@ round_up @@ Q.neg c] , true
-        | GE s when Q.equal Q.zero s -> (* -c <= y *) [y, Value.starting @@ round_down @@ Q.neg c] , true
-        | LE s when Q.equal Q.inf s -> (*x >= c*) [x, Value.starting @@ round_down c ], true
-        | GE s when Q.equal Q.minus_inf s -> (*x >= c*) [x, Value.starting @@ round_down c ], true 
-        | LE s when Q.equal Q.minus_inf s -> (*x <= c*) [x, Value.ending @@ round_up c], true
-        | GE s when Q.equal Q.inf s -> (*x <= c*) [x, Value.ending @@ round_up c], true
+        | LE s when Q.equal Q.zero s -> (* -c >= y *) [Refinement.of_value y @@ Value.ending @@ round_up @@ Q.neg c] , true
+        | GE s when Q.equal Q.zero s -> (* -c <= y *) [Refinement.of_value y @@ Value.starting @@ round_down @@ Q.neg c] , true
+        | LE s when Q.equal Q.inf s -> (*x >= c*) [Refinement.of_value x @@ Value.starting @@ round_down c ], true
+        | GE s when Q.equal Q.minus_inf s -> (*x >= c*) [Refinement.of_value x @@ Value.starting @@ round_down c ], true 
+        | LE s when Q.equal Q.minus_inf s -> (*x <= c*) [Refinement.of_value x @@ Value.ending @@ round_up c], true
+        | GE s when Q.equal Q.inf s -> (*x <= c*) [Refinement.of_value x @@ Value.ending @@ round_up c], true
         | k -> (*an actual inequality *) x_refine @ y_refine, false 
     in if skip_adding then t, refinements 
     else (*Look for contradicting inequality*)
@@ -1137,14 +1155,51 @@ module ArbitraryCoeffsSet = struct
       | Some c' when contradicts c' -> 
         if M.tracing then M.trace "meet" "single_ineq new: %s contradicts existing information %s" (LinearInequality.show "x" "y" (k,c)) (show_formatted "x" "y" t);
         raise EConj.Contradiction
-      (*TODO if c = c', then we have an equality -> maybe we can update the econj domain *) 
+      (*we have an equality -> update the econj domain sn / sd x = y + cn/cd -> x = (sd y cd + sd cn) / sn cd *)
+      | Some c' when c = c' -> begin
+          let s = Key.get_slope k in
+          let sn, sd = Q.num s, Q.den s in
+          let cn, cd = Q.num c, Q.den c in
+          let open Z in
+          match refine_data with 
+          | Some (x,y) -> 
+            if M.tracing then begin 
+              let show_var = (fun x -> "var_"^Int.to_string x) in
+              M.trace "refinements" "single_ineq new: %s with %s results in equality" 
+                (LinearInequality.show (show_var x) (show_var y) (k,c)) 
+                (show_formatted (show_var x) (show_var y) t)
+            end;
+            t, (Refinement.of_rhs x @@ Rhs.canonicalize (Some (sd * cd, y), sd*cn, sn * cd)) :: refinements
+          | _ -> t, []
+        end
       | _ ->  
         (*add the inequality, while making sure that we do not save redundant inequalities*)
         (*TODO make this consider the intervals! -> adapt get_next and get_previous?*)
         let t' = match CoeffMap.find_opt k t with 
           | Some c_old when LinearInequality.entails1 (k,c_old) (k,c) -> t (*saved inequality is already thighter than new one*) (*TODO narrow?*) 
           | _ -> add_inequality k c @@ CoeffMap.remove k t (*we replace the current value with a new one *)
-        in t', refinements (*TODO: lookup the best interval information from the inequalities!*)
+        in 
+        (*lookup the best interval bounds from the inequalities!*)
+        match refine_data with 
+        | Some (x,y) -> 
+          let refinements = match get_best_offset (LE Q.inf) t' with 
+            | Some upper -> (Refinement.of_value x @@ Value.ending @@ round_down upper ):: refinements 
+            | _ -> refinements
+          in
+          let refinements = match get_best_offset (GE Q.inf) t' with 
+            | Some lower -> (Refinement.of_value x @@ Value.starting @@ round_up lower ):: refinements 
+            | _ -> refinements
+          in
+          let refinements = match get_best_offset (GE Q.zero) t' with 
+            | Some upper -> (Refinement.of_value y @@ Value.ending @@ round_down @@ Q.neg upper ):: refinements 
+            | _ -> refinements
+          in
+          let refinements = match get_best_offset (LE Q.zero) t' with 
+            | Some lower -> (Refinement.of_value y @@ Value.starting @@ round_up @@ Q.neg lower ):: refinements 
+            | _ -> refinements
+          in
+          t', refinements
+        | _ -> t', refinements 
 
   (*when meeting, the values should already been refined before -> ignore the refinement data*) (*TODO is this actually true?*)
   let meet' narrow x_val y_val t1 t2 = CoeffMap.fold (fun k c t -> fst @@ meet_single_inequality None narrow x_val y_val k c t) t1 t2
@@ -1336,10 +1391,10 @@ module LinearInequalities: TwoVarInequalities = struct
                (*s'x <= c' *) 
                if Q.gt s' Q.zero then 
                  let max = Q.div c' s' in
-                 t, [x, Value.ending @@ Z.cdiv (Q.num max) (Q.den max)]
+                 t, [x, Either.Left (Value.ending @@ Z.cdiv (Q.num max) (Q.den max))]
                else
                  let min = Q.div c' s' in
-                 t, [x, Value.starting @@ Z.fdiv (Q.num min) (Q.den min)]
+                 t, [x, Left (Value.starting @@ Z.fdiv (Q.num min) (Q.den min))]
            else Coeffs.meet_single_inequality (Some (x,y)) false (get_value x) (get_value y) k c t
       in let factor = (*we need to divide o by this factor because LinearInequalities normalises it.*)
            let a = Q.make (Tuple3.first rhs_x) (Tuple3.third rhs_x) in
@@ -1357,7 +1412,7 @@ module LinearInequalities: TwoVarInequalities = struct
   let meet_relation x y c r v t = 
     if M.tracing then M.tracel "meet_relation" "meeting %s with %s" (show t) (Relation.show ("var_"^Int.to_string x) c ("var_"^Int.to_string y));  
     let res, refine_acc = meet_relation x y c r v t in
-    if M.tracing then M.tracel "meet_relation" "result: %s, refinements: %s " (show res) (List.fold (fun acc (var,value) -> Printf.sprintf "var_%d: %s, %s" var (Value.show value) acc) "" refine_acc);  
+    if M.tracing then M.tracel "meet_relation" "result: %s, refinements: %s " (show res) (Refinement.show refine_acc);  
     res, refine_acc
 
   let substitute t i (coeff, j, offs, divi) = 
@@ -1521,14 +1576,12 @@ end
 
 (*++
   ArbitraryCoeaffsList meet_single: take intervals into account better
-  re-add them every time, remove them afterwards and update interval with this information
+  re-add them every time, remove them afterwards?
   ArbitraryCoeaffsList.meet + affine_transform -> refinement
-  refinement of equalities must be limited to have acceptable runtimes!
   substitute refinement
+  in those cases: refinement of equalities must be limited to have acceptable runtimes!
   set_rhs constant refinement
   meet_relations: refinement of intervals if var is constant
-
-
 
 *)
 (*-- assign expr restore ineqs based on value *)
