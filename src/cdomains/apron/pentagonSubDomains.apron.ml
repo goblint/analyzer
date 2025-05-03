@@ -1391,7 +1391,7 @@ module LinearInequalities: TwoVarInequalities = struct
             merge_single x j cs' acc'
           else (*x > j -> swap sides*)
             let cs'' = Coeffs.swap_sides cs' in
-            merge_single x j cs'' acc'
+            merge_single j x cs'' acc'
       else if x = i then  
         let fold_y y cs acc = 
           let cs' = Coeffs.substitute_left (coeff, offs, divi) cs in
