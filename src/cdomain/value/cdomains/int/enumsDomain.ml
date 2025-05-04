@@ -214,10 +214,83 @@ module Enums : S with type int_t = Z.t = struct
 
   let rem = lift2 Z.rem
 
-  let lognot = lift1 Z.lognot
-  let logand = lift2 Z.logand
-  let logor  = lift2 Z.logor
-  let logxor = lift2 Z.logxor
+  let apply_range f r = (* apply f to the min/max of the old range r to get a new range *)
+    (* If the Int64 might overflow on us during computation, we instead go to top_range *)
+    match R.minimal r, R.maximal r with
+    | _ ->
+      let rf m = (size % Size.min_for % f) (m r) in
+      let r1, r2 = rf Exclusion.min_of_range, rf Exclusion.max_of_range in
+      R.join r1 r2
+
+  let lognot ikind v = norm ikind @@ match v with
+    | Inc x when BISet.is_empty x -> v 
+    | Inc x when BISet.is_singleton x -> Inc (BISet.singleton (Z.lognot (BISet.choose x)))
+    | Exc (s,r) -> 
+      let s' = BISet.map Z.lognot s in
+      let r' = match R.minimal r, R.maximal r with
+        | Some min, Some max -> R.of_interval range_ikind (Int64.neg max, Int64.neg min) 
+        | _ -> apply_range Z.lognot r
+      in
+      Exc (s', r')
+    | _ -> top_of ikind
+
+  let logand ikind u v = 
+    handle_bot u v (fun () ->
+      norm ikind @@ match u, v with
+      | Inc x,Inc y when BISet.is_singleton x && BISet.is_singleton y -> Inc (BISet.singleton (Z.logand (BISet.choose x) (BISet.choose y)))
+      | Inc x, Exc (s,r)
+      | Exc (s,r), Inc x -> 
+        let f = fun i -> 
+          if Z.compare i Z.zero >= 0 then
+            R.join r (R.of_interval range_ikind (Int64.zero, Int64.of_int @@ Z.numbits i))
+          else 
+            (match R.minimal r, R.maximal r with 
+            | None, _ | _, None -> top ()
+            | Some r1, Some r2 -> let b = Int.max (Z.numbits i) (Int64.to_int(Int64.max (Int64.abs r1) (Int64.abs r2))) in
+              R.of_interval range_ikind (Int64.of_int @@ -b, Int64.of_int b)
+            ) in 
+        let r' = BISet.fold (fun i acc -> R.join (f i) acc) x (R.bot ()) in 
+        Exc (BISet.empty (), r')
+      | Exc (_, r1), Exc (_, r2) -> Exc (BISet.empty (), R.meet r1 r2)
+      | _,_ -> top_of ikind)
+
+  let logor ikind u v = handle_bot u v (fun () -> 
+    norm ikind @@ match u, v with
+    | Inc x,Inc y when BISet.is_singleton x && BISet.is_singleton y -> Inc (BISet.singleton (Z.logor (BISet.choose x) (BISet.choose y)))
+    | Inc x, Exc (_,r)
+    | Exc (_,r), Inc x ->
+      let f = fun i -> 
+        if Z.compare i Z.zero >= 0 then
+          R.join r (R.of_interval range_ikind (Int64.zero, Int64.of_int @@ Z.numbits i))
+        else 
+          (match R.minimal r, R.maximal r with 
+          | None, _ | _, None -> top ()
+          | Some r1, Some r2 -> let b = Int.max (Z.numbits i) (Int64.to_int(Int64.max (Int64.abs r1) (Int64.abs r2))) in
+            R.of_interval range_ikind (Int64.of_int @@ -b, Int64.of_int b)
+          ) in 
+      let r' = BISet.fold (fun i acc -> R.join (f i) acc) x (R.bot ()) in
+      Exc (BISet.empty (), r')
+    | Exc (_, r1), Exc (_, r2) -> Exc (BISet.empty (), R.join r1 r2)
+    | _ -> top_of ikind)
+
+  let logxor ikind u v = handle_bot u v (fun () ->
+    norm ikind @@ match u, v with
+    | Inc x,Inc y when BISet.is_singleton x && BISet.is_singleton y -> Inc (BISet.singleton (Z.logxor (BISet.choose x) (BISet.choose y)))
+    | Inc x, Exc (_,r)
+    | Exc (_,r), Inc x -> 
+      let f = fun i -> 
+        if Z.compare i Z.zero >= 0 then
+          R.join r (R.of_interval range_ikind (Int64.zero, Int64.of_int @@ Z.numbits i))
+        else
+          match R.minimal r, R.maximal r with 
+          | None, _ | _, None -> top ()
+          | Some r1, Some r2 -> let b = Int.max (Z.numbits i) (Int64.to_int(Int64.max (Int64.abs r1) (Int64.abs r2))) in
+            R.of_interval range_ikind (Int64.of_int @@ -b, Int64.of_int b)
+      in 
+      let r' = BISet.fold (fun i acc -> R.join (f i) acc) x (R.bot ()) in 
+      Exc (BISet.empty (), r')
+    | Exc (_, r1), Exc (_, r2) -> Exc (BISet.empty (), R.join r1 r2)
+    | _ -> top_of ikind)
 
   let shift (shift_op: int_t -> int -> int_t) (ik: Cil.ikind) (x: t) (y: t) =
     handle_bot x y (fun () ->

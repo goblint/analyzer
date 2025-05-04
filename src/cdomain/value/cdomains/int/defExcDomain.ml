@@ -457,16 +457,14 @@ struct
     | `Bot -> `Bot
 
   let logand ik x y = norm ik (match x,y with
-      (* We don't bother with exclusion sets: *)
       | `Excluded (_, r), `Definite i 
       | `Definite i, `Excluded (_, r) ->
-        (* Except in two special cases *)
         if Z.equal i Z.zero then
           `Definite Z.zero
         else if Z.equal i Z.one then
           of_interval IBool (Z.zero, Z.one)
         else if Z.compare i Z.zero >= 0 then
-          `Excluded (S.empty (), R.meet r (R.of_interval range_ikind (Int64.of_int 0, Int64.of_int @@ Z.numbits i)))
+          `Excluded (S.empty (), R.meet r (R.of_interval range_ikind (Int64.zero, Int64.of_int @@ Z.numbits i)))
         else
           (match (R.minimal r, R.maximal r) with 
           | (None, _) | (_, None) -> top ()
@@ -488,9 +486,7 @@ struct
         (* If only one of them is bottom, we raise an exception that eval_rv will catch *)
         raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y))))
 
-  (* TODO: saab teha täpsemaks *)
   let logor ik x y = norm ik (match x,y with
-    (* We don't bother with exclusion sets: *)
     | `Excluded (_, r), `Definite i
     | `Definite i, `Excluded (_, r) -> 
       if Z.compare i Z.zero >= 0 then
@@ -502,7 +498,6 @@ struct
           `Excluded (S.empty (), R.of_interval range_ikind (Int64.of_int @@ -b, Int64.of_int b))
         ) 
     | `Excluded (_, r1), `Excluded (_, r2) -> `Excluded (S.empty (), R.join r1 r2)
-    (* The good case: *)
     | `Definite x, `Definite y ->
       (try `Definite (Z.logor x y) with | Division_by_zero -> top ())
     | `Bot, `Bot -> `Bot
@@ -515,8 +510,6 @@ struct
     | `Excluded (_, r), `Definite i -> begin
       if Z.compare i Z.zero >= 0 then
         `Excluded (S.empty (), R.join r (R.of_interval range_ikind (Int64.zero, Int64.of_int @@ Z.numbits i)))
-      else if (R.compare r (R.of_int range_ikind (Int64.zero)) < 0) && (Z.compare i Z.zero >= 0) then (* TODO: see branch ei käivitu kunagi*)
-        `Excluded (S.empty (), R.of_interval range_ikind (Int64.zero, Int64.of_int @@ Z.numbits i))
       else
         match R.minimal r, R.maximal r with 
         | None, _ | _, None -> top ()

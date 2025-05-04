@@ -262,24 +262,22 @@ struct
             of_interval ik (Ints_t.neg b, Ints_t.sub b Ints_t.one) |> fst) 
       | _ -> top_of ik
         
-  let bit1 f ik i1 =
+  let bit1 f ik i1 f' =
     if is_bot i1 then
       bot_of ik
     else
       match to_int i1 with
       | Some x -> of_int ik (f ik x) |> fst
-      | _      -> top_of ik
+      | _      -> f' ()
 
   let lognot ik i1 = 
-    match bit1 (fun _ik -> Ints_t.lognot) ik i1 with
-    | result when result <> top_of ik && result <> bot_of ik -> result
-    | _ ->
+    bit1 (fun _ik -> Ints_t.lognot) ik i1 (fun () -> 
       match i1 with 
       | Some (x1, x2) -> 
         let y1 = Ints_t.lognot x1 in
         let y2 = Ints_t.lognot x2 in
         of_interval ik (Ints_t.min y1 y2, Ints_t.max y1 y2) |> fst
-      | _ -> top_of ik
+      | _ -> top_of ik)
 
   let shift_right ik i1 i2 =
     match is_bot i1, is_bot i2 with
