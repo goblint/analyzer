@@ -27,9 +27,8 @@
              ┌──────────────────────────┐               ┌───────────────────────────────┐
              │ foo.c:7:3-7:11           │               │ foo.c:3:3-6:3 (synthetic)     │
              │ (foo.c:7:10-7:11)        │               │ (foo.c:3:10-3:20 (synthetic)) │
-             │ YAML loc: foo.c:7:3-7:11 │               │ YAML loop: foo.c:3:3-6:3      │
-             │ server: true             │  Neg(a > 0)   │ server: false                 │
-    ┌──────▶ │                          │ ◀──────────── │ loop: foo.c:3:3-6:3           │ ◀┐
+             │ YAML loc: foo.c:7:3-7:11 │  Neg(a > 0)   │ YAML loop: foo.c:3:3-6:3      │
+    ┌──────▶ │ server: true             │ ◀──────────── │ server: false                 │ ◀┐
     │        └──────────────────────────┘               └───────────────────────────────┘  │
     │          │                                          │                                │
     │          │ return 0                                 │ Pos(a > 0)                     │

@@ -39,11 +39,10 @@
     │ (body)
     ▼
   ┌────────────────────────────────────────────┐
-  │ 21-empty-loops.c:63:3-63:14 (synthetic)    │
-  │ (21-empty-loops.c:63:10-63:11 (synthetic)) │   Pos(1)
-  │ YAML loop: 21-empty-loops.c:63:3-63:14     │ ─────────┐
-  │ server: false                              │          │
-  │ loop: 21-empty-loops.c:63:3-63:14          │ ◀────────┘
+  │ 21-empty-loops.c:63:3-63:14 (synthetic)    │   Pos(1)
+  │ (21-empty-loops.c:63:10-63:11 (synthetic)) │ ─────────┐
+  │ YAML loop: 21-empty-loops.c:63:3-63:14     │          │
+  │ server: false                              │ ◀────────┘
   └────────────────────────────────────────────┘
     │
     │ Neg(1)
@@ -106,11 +105,10 @@
     │ (body)
     ▼
   ┌────────────────────────────────────────────┐
-  │ 21-empty-loops.c:81:3-81:14 (synthetic)    │
-  │ (21-empty-loops.c:81:10-81:11 (synthetic)) │   Pos(1)
-  │ YAML loop: 21-empty-loops.c:81:3-81:14     │ ─────────┐
-  │ server: false                              │          │
-  │ loop: 21-empty-loops.c:81:3-81:14          │ ◀────────┘
+  │ 21-empty-loops.c:81:3-81:14 (synthetic)    │   Pos(1)
+  │ (21-empty-loops.c:81:10-81:11 (synthetic)) │ ─────────┐
+  │ YAML loop: 21-empty-loops.c:81:3-81:14     │          │
+  │ server: false                              │ ◀────────┘
   └────────────────────────────────────────────┘
     │
     │ Neg(1)
@@ -179,9 +177,8 @@
   ┌─────────────────────────────────────────┐           ┌──────────────────────────────────────────────┐  │
   │ 21-empty-loops.c:102:5-102:11           │           │ 21-empty-loops.c:100:3-103:3 (synthetic)     │  │
   │ (21-empty-loops.c:102:5-102:11)         │           │ (21-empty-loops.c:100:10-100:11 (synthetic)) │  │
-  │ YAML loc: 21-empty-loops.c:102:5-102:11 │           │ YAML loop: 21-empty-loops.c:100:3-103:3      │  │
-  │ server: true                            │  Pos(1)   │ server: false                                │  │
-  │                                         │ ◀──────── │ loop: 21-empty-loops.c:100:3-103:3           │ ◀┘
+  │ YAML loc: 21-empty-loops.c:102:5-102:11 │  Pos(1)   │ YAML loop: 21-empty-loops.c:100:3-103:3      │  │
+  │ server: true                            │ ◀──────── │ server: false                                │ ◀┘
   └─────────────────────────────────────────┘           └──────────────────────────────────────────────┘
                                                           │
                                                           │ Neg(1)
@@ -257,11 +254,10 @@
     │ prefix()
     ▼
   ┌──────────────────────────────────────────────┐
-  │ 21-empty-loops.c:123:3-123:14 (synthetic)    │
-  │ (21-empty-loops.c:123:10-123:11 (synthetic)) │   Pos(1)
-  │ YAML loop: 21-empty-loops.c:123:3-123:14     │ ─────────┐
-  │ server: false                                │          │
-  │ loop: 21-empty-loops.c:123:3-123:14          │ ◀────────┘
+  │ 21-empty-loops.c:123:3-123:14 (synthetic)    │   Pos(1)
+  │ (21-empty-loops.c:123:10-123:11 (synthetic)) │ ─────────┐
+  │ YAML loop: 21-empty-loops.c:123:3-123:14     │          │
+  │ server: false                                │ ◀────────┘
   └──────────────────────────────────────────────┘
     │
     │ Neg(1)
@@ -317,11 +313,10 @@
     │ (body)
     ▼
   ┌──────────────────────────────────────────────┐
-  │ 21-empty-loops.c:136:3-138:3 (synthetic)     │
-  │ (21-empty-loops.c:136:10-136:11 (synthetic)) │   Pos(1)
-  │ YAML loop: 21-empty-loops.c:136:3-138:3      │ ─────────┐
-  │ server: false                                │          │
-  │ loop: 21-empty-loops.c:136:3-138:3           │ ◀────────┘
+  │ 21-empty-loops.c:136:3-138:3 (synthetic)     │   Pos(1)
+  │ (21-empty-loops.c:136:10-136:11 (synthetic)) │ ─────────┐
+  │ YAML loop: 21-empty-loops.c:136:3-138:3      │          │
+  │ server: false                                │ ◀────────┘
   └──────────────────────────────────────────────┘
     │
     │ Neg(1)

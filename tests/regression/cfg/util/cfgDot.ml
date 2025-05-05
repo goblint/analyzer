@@ -69,20 +69,16 @@ let main () =
     let pp_yaml_loop ppf loc =
       Format.fprintf ppf "@;YAML loop: %a" CilType.Location.pp loc
 
-    let pp_loop_loc ppf loop =
-      Format.fprintf ppf "@;loop: %a" CilType.Location.pp loop
-
     let extraNodeStyles = function
       | Node.Statement stmt as n ->
         let locs: CilLocation.locs = CilLocation.get_stmtLoc stmt in
         let label =
-          Format.asprintf "@[<v 2>%a%a%a%a@;server: %B%a@]"
+          Format.asprintf "@[<v 2>%a%a%a%a@;server: %B@]"
             pp_locs locs
             (Format.pp_print_list ~pp_sep:GobFormat.pp_print_nothing pp_label_locs) stmt.labels
             (Format.pp_print_option pp_yaml_loc) (YamlWitnessInvariant.location_location n)
             (Format.pp_print_option pp_yaml_loop) (YamlWitnessInvariant.loop_location n)
             (Server.is_server_node n)
-            (Format.pp_print_option pp_loop_loc) (YamlWitnessInvariant.find_syntactic_loop_head n)
         in
         [Printf.sprintf "label=\"%s\"" (Str.global_replace (Str.regexp "\n") "\\n" label)]
       | _ -> []
