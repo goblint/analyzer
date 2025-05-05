@@ -8,8 +8,6 @@ module M = Messages
 
 (* Unused *)
 let write_file filename (module Task:Task) (module Arg: MyARG.S with type Edge.t = MyARG.InlineEdge.t): unit =
-  let module Invariant = WitnessUtil.Invariant (Task) in
-
   let module N = Arg.Node in
   let module NH = Hashtbl.Make (N) in
 

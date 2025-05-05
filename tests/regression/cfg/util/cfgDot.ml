@@ -42,7 +42,6 @@ let main () =
   end
   in
 
-  let module GraphmlWitnessInvariant = WitnessUtil.Invariant (FileCfg) in
   let module YamlWitnessInvariant = WitnessUtil.YamlInvariant (FileCfg) in
 
   let module LocationExtraNodeStyles =
@@ -77,13 +76,13 @@ let main () =
       | Node.Statement stmt as n ->
         let locs: CilLocation.locs = CilLocation.get_stmtLoc stmt in
         let label =
-          Format.asprintf "@[<v 2>%a%a%a%a@;GraphML: %B; server: %B%a@]"
+          Format.asprintf "@[<v 2>%a%a%a%a@;server: %B%a@]"
             pp_locs locs
             (Format.pp_print_list ~pp_sep:GobFormat.pp_print_nothing pp_label_locs) stmt.labels
             (Format.pp_print_option pp_yaml_loc) (YamlWitnessInvariant.location_location n)
             (Format.pp_print_option pp_yaml_loop) (YamlWitnessInvariant.loop_location n)
-            (GraphmlWitnessInvariant.is_invariant_node n) (Server.is_server_node n)
-            (Format.pp_print_option pp_loop_loc) (GraphmlWitnessInvariant.find_syntactic_loop_head n)
+            (Server.is_server_node n)
+            (Format.pp_print_option pp_loop_loc) (YamlWitnessInvariant.find_syntactic_loop_head n)
         in
         [Printf.sprintf "label=\"%s\"" (Str.global_replace (Str.regexp "\n") "\\n" label)]
       | _ -> []
