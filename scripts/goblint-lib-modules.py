@@ -46,7 +46,7 @@ exclude_module_names = set([
     # (x.domainslib.ml or x.no-domainslib.ml) and therefore not recognized
     # by the script
     "GobMutex",
-    "ThreadPool",
+    "Threadpool",
     "DomainsafeLazy",
 
     # ppx-s
