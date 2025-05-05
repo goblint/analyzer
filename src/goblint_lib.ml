@@ -465,15 +465,6 @@ module PrivPrecCompareUtil = PrivPrecCompareUtil
 module RelationPrecCompareUtil = RelationPrecCompareUtil
 module ApronPrecCompareUtil = ApronPrecCompareUtil
 
-(** {2 Solver parallelism}
-
-    These modules provide utilities required for parallelizing the solver,
-    as well as backwards compatibility with OCaml 4 for the non-parallelized solvers.
-*)
-module DomainsafeLazy = DomainsafeLazy
-module Threadpool = Threadpool
-module GobMutex = GobMutex
-
 (** {2 Debugging} *)
 
 (** {1 Library extensions}

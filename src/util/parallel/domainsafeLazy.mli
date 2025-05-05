@@ -1,4 +1,4 @@
-(** Lazy type which protects against concurrent calls of 'force'. *)
+(** Lazy type which protects against concurrent calls of {!force}. *)
 
 type 'a t
 

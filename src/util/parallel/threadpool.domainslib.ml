@@ -2,6 +2,9 @@ module Thread_pool =
 struct
   module T = Domainslib.Task
 
+  type t = T.pool
+  type 'a promise = 'a T.promise
+
   let run = T.run
 
   let create n = T.setup_pool ~num_domains:n ()
