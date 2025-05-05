@@ -101,7 +101,7 @@ rule() {
       fi
       cd webapp && npm install && npm start
     ;; jar)
-      echo "Make sure you have the following installed: javac, ant"
+      echo "Make sure you have the following installed: javac, ant, dot (from graphviz)"
       if test ! -e "g2html/build.xml"; then
         git submodule update --init --recursive g2html
       fi

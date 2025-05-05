@@ -170,7 +170,8 @@ end
 (* Shared signature of IntDomain implementations and the lifted IntDomains *)
 module type B =
 sig
-  include Lattice.S
+  include Lattice.PO
+  include Lattice.Bot with type t := t
   type int_t
   (** {b Accessing values of the ADT} *)
 
@@ -215,6 +216,7 @@ end
 module type IkindUnawareS =
 sig
   include B
+  include Lattice.Top with type t := t
   include Arith with type t:= t
   val starting   : ?suppress_ovwarn:bool -> Cil.ikind -> int_t -> t
   val ending     : ?suppress_ovwarn:bool -> Cil.ikind -> int_t -> t
@@ -228,6 +230,7 @@ sig
   val of_interval: ?suppress_ovwarn:bool -> Cil.ikind -> int_t * int_t -> t
 
   val of_congruence: Cil.ikind -> int_t * int_t -> t
+  val of_bitfield: Cil.ikind -> int_t * int_t -> t
   val arbitrary: unit -> t QCheck.arbitrary
   val invariant: Cil.exp -> t -> Invariant.t
 end
@@ -262,10 +265,13 @@ sig
 
   val of_interval: ?suppress_ovwarn:bool -> Cil.ikind -> int_t * int_t -> t
   val of_congruence: Cil.ikind -> int_t * int_t -> t
+  val of_bitfield: Cil.ikind -> int_t * int_t -> t
+  val to_bitfield: Cil.ikind -> t -> int_t * int_t
   val is_top_of: Cil.ikind -> t -> bool
   val invariant_ikind : Cil.exp -> Cil.ikind -> t -> Invariant.t
 
   val refine_with_congruence: Cil.ikind -> t -> (int_t * int_t) option -> t
+  val refine_with_bitfield: Cil.ikind -> t -> (int_t * int_t) -> t
   val refine_with_interval: Cil.ikind -> t -> (int_t * int_t) option -> t
   val refine_with_excl_list: Cil.ikind -> t -> (int_t list * (int64 * int64)) option -> t
   val refine_with_incl_list: Cil.ikind -> t -> int_t list option -> t
@@ -312,6 +318,7 @@ module SOverflowUnlifter (D : SOverflow) : S with type int_t = D.int_t and type 
 module type Y =
 sig
   include B
+  include Lattice.Top with type t := t
   include Arith with type t:=t
 
   val of_int: Cil.ikind -> int_t -> t
@@ -324,6 +331,9 @@ sig
   val of_interval: ?suppress_ovwarn:bool -> Cil.ikind -> int_t * int_t -> t
 
   val of_congruence: Cil.ikind -> int_t * int_t -> t
+
+  val of_bitfield: Cil.ikind -> int_t * int_t -> t
+  val to_bitfield: Cil.ikind -> t -> int_t * int_t
 
   val starting   : ?suppress_ovwarn:bool -> Cil.ikind -> int_t -> t
   val ending     : ?suppress_ovwarn:bool -> Cil.ikind -> int_t -> t
@@ -354,6 +364,7 @@ module IntDomTuple : sig
   include Z
   val no_interval: t -> t
   val no_intervalSet: t -> t
+  val no_bitfield: t -> t
   val ikind: t -> ikind
 end
 
@@ -402,11 +413,15 @@ module Lifted : IkindUnawareS with type t = [`Top | `Lifted of int64 | `Bot] and
 
 module IntervalFunctor(Ints_t : IntOps.IntOps): SOverflow with type int_t = Ints_t.t and type t = (Ints_t.t * Ints_t.t) option
 
+module BitfieldFunctor(Ints_t : IntOps.IntOps): SOverflow with type int_t = Ints_t.t and type t = (Ints_t.t * Ints_t.t)
+
 module IntervalSetFunctor(Ints_t : IntOps.IntOps): SOverflow with type int_t = Ints_t.t and type t = (Ints_t.t * Ints_t.t) list
 
 module Interval32 :Y with (* type t = (IntOps.Int64Ops.t * IntOps.Int64Ops.t) option and *) type int_t = IntOps.Int64Ops.t
 
 module Interval : SOverflow with type int_t = Z.t
+
+module Bitfield : SOverflow with type int_t = Z.t
 
 module IntervalSet : SOverflow with type int_t = Z.t
 
@@ -426,9 +441,6 @@ module Flat (Base: IkindUnawareS): IkindUnawareS with type t = [ `Bot | `Lifted 
 
 module Lift (Base: IkindUnawareS): IkindUnawareS with type t = [ `Bot | `Lifted of Base.t | `Top ] and type int_t = Base.int_t
 (** Just like {!Value.Flat} except the order is preserved. *)
-
-module Reverse (Base: IkindUnawareS): IkindUnawareS with type t = Base.t and type int_t = Base.int_t
-(** Reverses bot, top, leq, join, meet *)
 
 (* module Interval : S *)
 (** Interval domain with int64-s --- use with caution! *)

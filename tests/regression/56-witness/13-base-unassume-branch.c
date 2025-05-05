@@ -1,4 +1,4 @@
-// SKIP PARAM: --enable ana.int.interval --set ana.activated[+] unassume --set witness.yaml.unassume 13-base-unassume-branch.yml
+// SKIP PARAM: --enable ana.int.interval --set witness.yaml.entry-types[*] location_invariant --set ana.activated[+] unassume --set witness.yaml.unassume 13-base-unassume-branch.yml
 #include <assert.h>
 
 int main() {

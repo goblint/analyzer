@@ -1,4 +1,4 @@
-// PARAM: --enable ana.int.interval --set ana.activated[+] unassume --set witness.yaml.unassume 34-base-unassume-inc-dec-traces.yml --set solvers.td3.side_widen always --enable ana.widen.tokens --set ana.base.privatization write+lock
+// PARAM: --enable ana.int.interval --set witness.yaml.entry-types[*] location_invariant --set ana.activated[+] unassume --set witness.yaml.unassume 34-base-unassume-inc-dec-traces.yml --set solvers.td3.side_widen always --enable ana.widen.tokens --set ana.base.privatization write+lock
 #include <pthread.h>
 #include <goblint.h>
 int g = 0;

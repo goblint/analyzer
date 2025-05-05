@@ -76,7 +76,6 @@
   - entry_type: loop_invariant
     location:
       file_name: foo.c
-      file_hash: $FILE_HASH
       line: 3
       column: 3
       function: main
@@ -87,7 +86,6 @@
   - entry_type: loop_invariant
     location:
       file_name: foo.c
-      file_hash: $FILE_HASH
       line: 3
       column: 3
       function: main
@@ -98,7 +96,6 @@
   - entry_type: location_invariant
     location:
       file_name: foo.c
-      file_hash: $FILE_HASH
       line: 7
       column: 3
       function: main
@@ -109,7 +106,6 @@
   - entry_type: location_invariant
     location:
       file_name: foo.c
-      file_hash: $FILE_HASH
       line: 7
       column: 3
       function: main
@@ -120,7 +116,6 @@
   - entry_type: location_invariant
     location:
       file_name: foo.c
-      file_hash: $FILE_HASH
       line: 5
       column: 5
       function: main
@@ -131,7 +126,6 @@
   - entry_type: location_invariant
     location:
       file_name: foo.c
-      file_hash: $FILE_HASH
       line: 5
       column: 5
       function: main
@@ -142,7 +136,6 @@
   - entry_type: location_invariant
     location:
       file_name: foo.c
-      file_hash: $FILE_HASH
       line: 5
       column: 5
       function: main
@@ -153,7 +146,6 @@
   - entry_type: location_invariant
     location:
       file_name: foo.c
-      file_hash: $FILE_HASH
       line: 4
       column: 5
       function: main
@@ -164,7 +156,6 @@
   - entry_type: location_invariant
     location:
       file_name: foo.c
-      file_hash: $FILE_HASH
       line: 4
       column: 5
       function: main
@@ -175,7 +166,6 @@
   - entry_type: location_invariant
     location:
       file_name: foo.c
-      file_hash: $FILE_HASH
       line: 4
       column: 5
       function: main
