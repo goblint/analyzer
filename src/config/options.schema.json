@@ -2016,6 +2016,26 @@
               "type": "boolean",
               "default": false
             },
+            "id": {
+              "title": "exp.arg.id",
+              "description": "Which ARG node IDs to use? node/enumerate",
+              "type": "string",
+              "enum": ["node", "enumerate"],
+              "default": "node"
+            },
+            "uncil": {
+              "title": "exp.arg.uncil",
+              "description":
+                "Try to undo CIL control flow transformations in ARG",
+              "type": "boolean",
+              "default": false
+            },
+            "stack": {
+              "title": "exp.arg.stack",
+              "description": "Construct stacktrace-based ARG nodes",
+              "type": "boolean",
+              "default": false
+            },
             "dot": {
               "title": "exp.arg.dot",
               "description": "ARG output as .dot file",
@@ -2645,57 +2665,6 @@
       "title": "witness",
       "type": "object",
       "properties": {
-        "graphml": {
-          "title": "witness.graphml",
-          "type": "object",
-          "properties": {
-            "enabled": {
-              "title": "witness.graphml.enabled",
-              "description": "Output GraphML witness",
-              "type": "boolean",
-              "default": false
-            },
-            "path": {
-              "title": "witness.graphml.path",
-              "description": "GraphML witness output path",
-              "type": "string",
-              "default": "witness.graphml"
-            },
-            "id": {
-              "title": "witness.graphml.id",
-              "description": "Which witness node IDs to use? node/enumerate",
-              "type": "string",
-              "enum": ["node", "enumerate"],
-              "default": "node"
-            },
-            "minimize": {
-              "title": "witness.graphml.minimize",
-              "description": "Try to minimize the witness",
-              "type": "boolean",
-              "default": false
-            },
-            "uncil": {
-              "title": "witness.graphml.uncil",
-              "description":
-                "Try to undo CIL control flow transformations in witness",
-              "type": "boolean",
-              "default": false
-            },
-            "stack": {
-              "title": "witness.graphml.stack",
-              "description": "Construct stacktrace-based witness nodes",
-              "type": "boolean",
-              "default": true
-            },
-            "unknown": {
-              "title": "witness.graphml.unknown",
-              "description": "Output witness for unknown result",
-              "type": "boolean",
-              "default": true
-            }
-          },
-          "additionalProperties": false
-        },
         "invariant": {
           "title": "witness.invariant",
           "type": "object",
