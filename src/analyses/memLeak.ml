@@ -227,7 +227,7 @@ struct
       (* Upon a call to the "Abort" special function in the multi-threaded case, we give up and conservatively warn *)
       warn_for_multi_threaded_due_to_abort man;
       state
-    | Assert { exp; _ } ->
+    | Assert { exp; refine = true; _ } ->
       begin match man.ask (Queries.EvalInt exp) with
         | a when Queries.ID.is_bot a -> M.warn ~category:Assert "assert expression %a is bottom" d_exp exp
         | a ->

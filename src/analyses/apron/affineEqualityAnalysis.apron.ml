@@ -4,11 +4,30 @@
 
 open Analyses
 
+open SparseVector
+open ListMatrix
+
+open ArrayVector
+open ArrayMatrix
+
 include RelationAnalysis
+
+(* There are two versions of the affeq domain.
+   1. Sparse without side effects
+   2. Dense Array with side effects
+   Default: sparse implementation
+   The array implementation with side effects of the affeq domain is used when the --disable ana.affeq.sparse option is set *)
+let get_domain: (module RelationDomain.RD) Lazy.t =
+  lazy (
+    if GobConfig.get_bool "ana.affeq.sparse" then
+      (module AffineEqualityDomain.D2 (SparseVector) (ListMatrix))
+    else
+      (module AffineEqualityDenseDomain.D2 (ArrayVector) (ArrayMatrix))
+  )
 
 let spec_module: (module MCPSpec) Lazy.t =
   lazy (
-    let module AD = AffineEqualityDomain.D2 (VectorMatrix.ArrayVector) (VectorMatrix.ArrayMatrix) in
+    let module AD = (val Lazy.force get_domain) in
     let module Priv = (val RelationPriv.get_priv ()) in
     let module Spec =
     struct

@@ -18,13 +18,8 @@ struct
   (* No contexts *)
   include Analyses.IdentityUnitContextsSpec
 
-  let is_integer_var (v: varinfo) =
-    match v.vtype with
-      | TInt _ -> true
-      | _ -> false
-
   let get_local = function
-    | Var v, NoOffset when is_integer_var v && not (v.vglob || v.vaddrof) -> Some v (* local integer variable whose address is never taken *)
+    | Var v, NoOffset when isIntegralType v.vtype && not (v.vglob || v.vaddrof) -> Some v (* local integer variable whose address is never taken *)
     | _, _ -> None
 
   (** Evaluates expressions *)

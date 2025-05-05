@@ -15,7 +15,6 @@ def_exc only:
   - entry_type: location_invariant
     location:
       file_name: 46-top-bool-invariant.c
-      file_hash: $FILE_HASH
       line: 5
       column: 3
       function: main
@@ -26,7 +25,6 @@ def_exc only:
   - entry_type: location_invariant
     location:
       file_name: 46-top-bool-invariant.c
-      file_hash: $FILE_HASH
       line: 5
       column: 3
       function: main
@@ -52,7 +50,6 @@ interval only:
   - entry_type: location_invariant
     location:
       file_name: 46-top-bool-invariant.c
-      file_hash: $FILE_HASH
       line: 5
       column: 3
       function: main
@@ -63,7 +60,6 @@ interval only:
   - entry_type: location_invariant
     location:
       file_name: 46-top-bool-invariant.c
-      file_hash: $FILE_HASH
       line: 5
       column: 3
       function: main
@@ -89,7 +85,6 @@ enums only:
   - entry_type: location_invariant
     location:
       file_name: 46-top-bool-invariant.c
-      file_hash: $FILE_HASH
       line: 5
       column: 3
       function: main
@@ -131,7 +126,6 @@ interval_set only:
   - entry_type: location_invariant
     location:
       file_name: 46-top-bool-invariant.c
-      file_hash: $FILE_HASH
       line: 5
       column: 3
       function: main
@@ -142,7 +136,6 @@ interval_set only:
   - entry_type: location_invariant
     location:
       file_name: 46-top-bool-invariant.c
-      file_hash: $FILE_HASH
       line: 5
       column: 3
       function: main
@@ -168,7 +161,6 @@ all:
   - entry_type: location_invariant
     location:
       file_name: 46-top-bool-invariant.c
-      file_hash: $FILE_HASH
       line: 5
       column: 3
       function: main

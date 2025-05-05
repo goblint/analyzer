@@ -51,7 +51,6 @@
       ghost_updates:
       - location:
           file_name: 04-priv_multi.c
-          file_hash: $FILE_HASH
           line: 15
           column: 5
           function: generate
@@ -61,7 +60,6 @@
           format: c_expression
       - location:
           file_name: 04-priv_multi.c
-          file_hash: $FILE_HASH
           line: 18
           column: 5
           function: generate
@@ -71,7 +69,6 @@
           format: c_expression
       - location:
           file_name: 04-priv_multi.c
-          file_hash: $FILE_HASH
           line: 26
           column: 5
           function: process
@@ -81,7 +78,6 @@
           format: c_expression
       - location:
           file_name: 04-priv_multi.c
-          file_hash: $FILE_HASH
           line: 29
           column: 7
           function: process
@@ -91,7 +87,6 @@
           format: c_expression
       - location:
           file_name: 04-priv_multi.c
-          file_hash: $FILE_HASH
           line: 32
           column: 7
           function: process
@@ -101,7 +96,6 @@
           format: c_expression
       - location:
           file_name: 04-priv_multi.c
-          file_hash: $FILE_HASH
           line: 34
           column: 7
           function: process
@@ -111,7 +105,6 @@
           format: c_expression
       - location:
           file_name: 04-priv_multi.c
-          file_hash: $FILE_HASH
           line: 46
           column: 5
           function: dispose
@@ -121,7 +114,6 @@
           format: c_expression
       - location:
           file_name: 04-priv_multi.c
-          file_hash: $FILE_HASH
           line: 49
           column: 7
           function: dispose
@@ -131,7 +123,6 @@
           format: c_expression
       - location:
           file_name: 04-priv_multi.c
-          file_hash: $FILE_HASH
           line: 63
           column: 3
           function: main
@@ -141,7 +132,6 @@
           format: c_expression
       - location:
           file_name: 04-priv_multi.c
-          file_hash: $FILE_HASH
           line: 68
           column: 5
           function: main
@@ -151,7 +141,6 @@
           format: c_expression
       - location:
           file_name: 04-priv_multi.c
-          file_hash: $FILE_HASH
           line: 69
           column: 5
           function: main
@@ -161,7 +150,6 @@
           format: c_expression
       - location:
           file_name: 04-priv_multi.c
-          file_hash: $FILE_HASH
           line: 73
           column: 5
           function: main
@@ -171,7 +159,6 @@
           format: c_expression
       - location:
           file_name: 04-priv_multi.c
-          file_hash: $FILE_HASH
           line: 74
           column: 5
           function: main
@@ -230,38 +217,35 @@ Flow-insensitive invariants as location invariants.
 Location invariant at `for` loop in `main` should be on column 3, not 7.
 
   $ diff witness.flow_insensitive.yml witness.location.yml
-  153,154c153,160
+  140,141c140,146
   < - entry_type: flow_insensitive_invariant
   <   flow_insensitive_invariant:
   ---
   > - entry_type: location_invariant
   >   location:
   >     file_name: 04-priv_multi.c
-  >     file_hash: $FILE_HASH
   >     line: 67
   >     column: 3
   >     function: main
   >   location_invariant:
-  158,159c164,171
+  145,146c150,156
   < - entry_type: flow_insensitive_invariant
   <   flow_insensitive_invariant:
   ---
   > - entry_type: location_invariant
   >   location:
   >     file_name: 04-priv_multi.c
-  >     file_hash: $FILE_HASH
   >     line: 67
   >     column: 3
   >     function: main
   >   location_invariant:
-  163,164c175,248
+  150,151c160,226
   < - entry_type: flow_insensitive_invariant
   <   flow_insensitive_invariant:
   ---
   > - entry_type: location_invariant
   >   location:
   >     file_name: 04-priv_multi.c
-  >     file_hash: $FILE_HASH
   >     line: 67
   >     column: 3
   >     function: main
@@ -272,7 +256,6 @@ Location invariant at `for` loop in `main` should be on column 3, not 7.
   > - entry_type: location_invariant
   >   location:
   >     file_name: 04-priv_multi.c
-  >     file_hash: $FILE_HASH
   >     line: 65
   >     column: 3
   >     function: main
@@ -283,7 +266,6 @@ Location invariant at `for` loop in `main` should be on column 3, not 7.
   > - entry_type: location_invariant
   >   location:
   >     file_name: 04-priv_multi.c
-  >     file_hash: $FILE_HASH
   >     line: 65
   >     column: 3
   >     function: main
@@ -294,7 +276,6 @@ Location invariant at `for` loop in `main` should be on column 3, not 7.
   > - entry_type: location_invariant
   >   location:
   >     file_name: 04-priv_multi.c
-  >     file_hash: $FILE_HASH
   >     line: 65
   >     column: 3
   >     function: main
@@ -305,7 +286,6 @@ Location invariant at `for` loop in `main` should be on column 3, not 7.
   > - entry_type: location_invariant
   >   location:
   >     file_name: 04-priv_multi.c
-  >     file_hash: $FILE_HASH
   >     line: 64
   >     column: 3
   >     function: main
@@ -316,7 +296,6 @@ Location invariant at `for` loop in `main` should be on column 3, not 7.
   > - entry_type: location_invariant
   >   location:
   >     file_name: 04-priv_multi.c
-  >     file_hash: $FILE_HASH
   >     line: 64
   >     column: 3
   >     function: main
@@ -327,7 +306,6 @@ Location invariant at `for` loop in `main` should be on column 3, not 7.
   > - entry_type: location_invariant
   >   location:
   >     file_name: 04-priv_multi.c
-  >     file_hash: $FILE_HASH
   >     line: 64
   >     column: 3
   >     function: main

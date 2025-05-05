@@ -1,4 +1,4 @@
-// PARAM: --set ana.activated[+] unassume --set witness.yaml.unassume 15-base-unassume-query.yml
+// PARAM: --set witness.yaml.entry-types[*] location_invariant --set ana.activated[+] unassume --set witness.yaml.unassume 15-base-unassume-query.yml
 #include <pthread.h>
 #include <assert.h>
 

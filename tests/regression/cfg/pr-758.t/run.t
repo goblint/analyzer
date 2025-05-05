@@ -102,7 +102,6 @@
   - entry_type: loop_invariant
     location:
       file_name: pr-758.c
-      file_hash: $FILE_HASH
       line: 6
       column: 3
       function: main
@@ -113,7 +112,6 @@
   - entry_type: loop_invariant
     location:
       file_name: pr-758.c
-      file_hash: $FILE_HASH
       line: 6
       column: 3
       function: main
@@ -124,7 +122,6 @@
   - entry_type: location_invariant
     location:
       file_name: pr-758.c
-      file_hash: $FILE_HASH
       line: 21
       column: 3
       function: main
@@ -135,7 +132,6 @@
   - entry_type: location_invariant
     location:
       file_name: pr-758.c
-      file_hash: $FILE_HASH
       line: 21
       column: 3
       function: main
@@ -146,7 +142,6 @@
   - entry_type: location_invariant
     location:
       file_name: pr-758.c
-      file_hash: $FILE_HASH
       line: 21
       column: 3
       function: main
@@ -157,7 +152,6 @@
   - entry_type: location_invariant
     location:
       file_name: pr-758.c
-      file_hash: $FILE_HASH
       line: 21
       column: 3
       function: main
@@ -168,7 +162,6 @@
   - entry_type: location_invariant
     location:
       file_name: pr-758.c
-      file_hash: $FILE_HASH
       line: 21
       column: 3
       function: main
@@ -179,7 +172,6 @@
   - entry_type: location_invariant
     location:
       file_name: pr-758.c
-      file_hash: $FILE_HASH
       line: 20
       column: 3
       function: main
@@ -190,7 +182,6 @@
   - entry_type: location_invariant
     location:
       file_name: pr-758.c
-      file_hash: $FILE_HASH
       line: 20
       column: 3
       function: main
@@ -201,7 +192,6 @@
   - entry_type: location_invariant
     location:
       file_name: pr-758.c
-      file_hash: $FILE_HASH
       line: 20
       column: 3
       function: main
@@ -212,7 +202,6 @@
   - entry_type: location_invariant
     location:
       file_name: pr-758.c
-      file_hash: $FILE_HASH
       line: 12
       column: 3
       function: main
@@ -223,7 +212,6 @@
   - entry_type: location_invariant
     location:
       file_name: pr-758.c
-      file_hash: $FILE_HASH
       line: 6
       column: 3
       function: main

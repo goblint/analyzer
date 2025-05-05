@@ -36,7 +36,6 @@
       ghost_updates:
       - location:
           file_name: 16-atomic_priv.c
-          file_hash: $FILE_HASH
           line: 23
           column: 3
           function: main
@@ -90,7 +89,6 @@ Non-atomic privatization:
       ghost_updates:
       - location:
           file_name: 16-atomic_priv.c
-          file_hash: $FILE_HASH
           line: 23
           column: 3
           function: main

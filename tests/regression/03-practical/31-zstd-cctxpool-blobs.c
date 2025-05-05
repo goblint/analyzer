@@ -21,7 +21,7 @@ int main() {
 
   ZSTDMT_CCtxPool* const cctxPool = calloc(1, sizeof(ZSTDMT_CCtxPool));
   cctxPool->cctx[0] = malloc(sizeof(ZSTD_CCtx));
-  if (!cctxPool->cctx[0]) // TODO NOWARN
+  if (!cctxPool->cctx[0]) // NOWARN (Trying to update a field, but the struct is unknown)
     __goblint_check(1); // reachable
   else
     __goblint_check(1); // reachable

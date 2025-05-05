@@ -18,9 +18,9 @@ int main () {
 
   int a[] = {2,2,2};
   int b[2], c[3];
-  int (*f[2])() = {fun_5, fun_6};
-  int (*g[2])() = {fun_5, fun_5b};
-  int (*fp)();
+  int (*f[2])(void) = {fun_5, fun_6};
+  int (*g[2])(void) = {fun_5, fun_5b};
+  int (*fp)(void);
   int *ip;
   int (*iap)[];
 

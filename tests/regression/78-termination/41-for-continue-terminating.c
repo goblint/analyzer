@@ -4,7 +4,7 @@
 int main()
 {
   // Loop with a continue statement
-  for (int i = 1; i <= 10; i++)
+  for (unsigned int i = 1; i <= 10; i++)
   {
     if (i % 2 == 0)
     {
@@ -16,7 +16,7 @@ int main()
 
 
   // Loop with a continue statement
-  for (int r = 1; r <= 10; r++)
+  for (unsigned int r = 1; r <= 10; r++)
   {
     if (r % 3 == 0)
     {

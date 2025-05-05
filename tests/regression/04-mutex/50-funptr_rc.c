@@ -5,7 +5,7 @@
 int f1() { return 4; }
 int f2() { return 5; }
 
-int (*fp)() = f1;
+int (*fp)(void) = f1;
 
 pthread_mutex_t mutex1 = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t mutex2 = PTHREAD_MUTEX_INITIALIZER;
