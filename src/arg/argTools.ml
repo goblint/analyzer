@@ -199,11 +199,11 @@ struct
     struct
       module Node: MyARG.Node with type t = Node.t =
         (val match GobConfig.get_string "exp.arg.id" with
-          | "node" ->
-            (module Node: MyARG.Node with type t = Node.t)
-          | "enumerate" ->
-            (module EnumerateNode (Node): MyARG.Node with type t = Node.t)
-          | _ -> failwith "exp.arg.id: illegal value"
+           | "node" ->
+             (module Node: MyARG.Node with type t = Node.t)
+           | "enumerate" ->
+             (module EnumerateNode (Node): MyARG.Node with type t = Node.t)
+           | _ -> failwith "exp.arg.id: illegal value"
         )
 
       module Edge = MyARG.InlineEdge

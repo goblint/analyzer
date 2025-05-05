@@ -94,18 +94,18 @@ struct
       type t = Node.t * Node.t [@@deriving eq]
       let pattern = Array.of_list Arg.path
     end
-  )
+    )
 
   include MakeSpec (KMP)
 
   (* let () = Arg.path
-    |> List.map (fun (p, n) -> Printf.sprintf "(%d, %d)" p n)
-    |> String.concat "; "
-    |> Printf.printf "observer path: [%s]\n" *)
+     |> List.map (fun (p, n) -> Printf.sprintf "(%d, %d)" p n)
+     |> String.concat "; "
+     |> Printf.printf "observer path: [%s]\n" *)
 end
 
 (* let _ =
-  let module Spec = MakeSpec (
+   let module Spec = MakeSpec (
     struct
       (* let path = [(23, 24); (24, 25)] *)
       (* let path = [(30, 32); (32, 34); (34, 26); (26, 29)] *)
@@ -126,6 +126,6 @@ end
       (* let path = [(20, 21); (21, 25); (25, 27)] *)
       let path = [(23, 24); (24, 25); (25, 27)]
     end
-  )
-  in
-  MCP.register_analysis (module Spec) *)
+   )
+   in
+   MCP.register_analysis (module Spec) *)
