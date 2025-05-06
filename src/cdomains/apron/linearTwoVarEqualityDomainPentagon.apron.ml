@@ -65,15 +65,10 @@ struct
 
 
   (*Does not check the values directly, only the inequality domain, so we can use this to detect contradictions *)
-  let get_relations ((_,vs,ineq) as t) x y = 
-    let get_information lhs =
-      let rhs = get_rhs t lhs in
-      match rhs with 
-      | (Some (_,var), _ ,_) -> (rhs, get_value t var)
-      (*We need to know which root a constant is referring to, so we use this the trivial equation to carry that information*)
-      | (_,o,_) -> (Rhs.var_zero lhs, Value.of_bigint o) 
-    in
-    Ineq.get_relations (get_information x) (get_information y) ineq
+  let get_relations ((_,vs,ineq) as t) x' y' = 
+    match get_rhs t x', get_rhs t y' with   
+    | (Some (c_x, x),o_x,d_x), (Some (c_y, y),o_y,d_y) -> Ineq.get_relations ((c_x, x,o_x,d_x), get_value t x) ((c_y, y,o_y,d_y), get_value t y) ineq
+    | _, _ -> [] (*One of the variables is a constant -> there are no inequalities*)
 
 
   let get_value t lhs = 
@@ -199,8 +194,8 @@ struct
     match newRoot with
     | None -> (econj'', vs'', Ineq.forget_variable ineq' var)
     | Some (Some (coeff,y),offs,divi) -> 
-      (*modify inequalities*)
-      let ineq'' = Ineq.substitute ineq' var (coeff,y,offs,divi)
+      (*modify inequalities. We ignore refinements as they should not matter in this case*)
+      let ineq'', _ = Ineq.substitute ineq' var (coeff,y,offs,divi)
       (*restoring value information*)
       in set_value (econj'', vs'', ineq'') y @@ get_value d y
     | _ -> failwith "Should not happen" (*transformation can not be a constant*)
@@ -224,7 +219,18 @@ struct
       let ineq'' = Ineq.modify_variables_in_domain ineq' cpy (-) in
       (econj'', v'', ineq''))
 
-  let meet_with_one_conj ((ts, is, ineq) as t:t) i (var, offs, divi) =
+  let meet_with_one_value var value t narrow =
+    let meet_function = if narrow then Value.narrow else Value.meet in
+    let new_value = meet_function value (get_value t var)
+    in if Value.is_bot new_value then raise EConj.Contradiction else 
+      let res = set_value t var new_value (*TODO because we meet with an already saved values, we already confirm to the congruence constraints -> skip calculating them again!*)
+      in if M.tracing then M.tracel "meet_value" "meet var_%d: before: %s meeting: %s -> %s, total: %s-> %s" (var) (Value.show @@ get_value t var) (Value.show value) (Value.show new_value) (show t) (show res);
+      res
+
+  (*TODO make this configureable with options*)
+  let refine_depth = 5
+
+  let rec meet_with_one_conj ?(refine_depth = refine_depth) ((ts, is, ineq) as t:t) i (var, offs, divi) =
     let (var,offs,divi) = Rhs.canonicalize (var,offs,divi) in (* make sure that the one new conj is properly canonicalized *)
     let res : t =
       let subst_var (((dim,econj), is, ineq) as t) x (vary, o, d) =
@@ -248,10 +254,11 @@ struct
         let econj' = (dim, IntMap.add x (vary, o, d) @@ IntMap.map adjust econj) in (* in case of sparse representation, make sure that the equality is now included in the conjunction *)
         match vary with 
         | Some (c,y) -> (*x was a representant but is not anymore*)
-          let ineq' = Ineq.substitute ineq x (c, y, o, d)
+          let ineq', refinements = Ineq.substitute ineq x (c, y, o, d)
           in let is' = IntMap.remove x is in (*remove value and add it back in the new econj *)
           let t' = econj', is', ineq' in
-          set_value t' x value 
+          let t'' = set_value t' x value in
+          apply_refinements ~refine_depth refinements t''
         | None -> econj', IntMap.remove x is, Ineq.forget_variable ineq x (*we replaced x (and all connected vars) by a constant -> do not save a value and inequality anymore*)
       in
       (match var, (EConj.get_rhs ts i) with
@@ -291,28 +298,7 @@ struct
     if M.tracing then M.tracel "meet_with_one_conj" "meet_with_one_conj conj: %s eq: var_%d=%s  ->  %s " (show t) i (Rhs.show (var,offs,divi)) (show res)
   ; res
 
-  let affine_transform (econ, vs, ineq) i rhs =
-    (*This is a place we want to use the original set_rhs (therefore use EConj directly), as the implied congruence might contradict each other during the transformation*)
-    (*e.g. with  2x = y and 2z = y, and the assignment y = y+1 *)
-    (*This is only called in assign_texpr, after which the value will be set correctly.*)
-    let (_, (m,o,d)) = EConj.inverse i rhs in
-    let c,_ = BatOption.get m in 
-    (EConj.affine_transform econ i rhs, vs, Ineq.substitute ineq i (c,i,o,d))
-
-  let affine_transform econ i (c,v,o,d) =
-    let res = affine_transform econ i (c,v,o,d) in
-    if M.tracing then M.tracel "affine_transform" "affine_transform %s with var_%d=%s ->  %s " (show econ) i (Rhs.show (Some (c,v),o,d)) (show res); 
-    res
-
-  let meet_with_one_value var value t narrow =
-    let meet_function = if narrow then Value.narrow else Value.meet in
-    let new_value = meet_function value (get_value t var)
-    in if Value.is_bot new_value then raise EConj.Contradiction else 
-      let res = set_value t var new_value (*TODO because we meet with an already saved values, we already confirm to the congruence constraints -> skip calculating them again!*)
-      in if M.tracing then M.tracel "meet_value" "meet var_%d: before: %s meeting: %s -> %s, total: %s-> %s" (var) (Value.show @@ get_value t var) (Value.show value) (Value.show new_value) (show t) (show res);
-      res
-
-  let apply_refinements (refs : Refinement.t) (t:t) = 
+  and apply_refinements ?(refine_depth = refine_depth) (refs : Refinement.t) (t:t) =     
     let apply_single t = function
       | var, Either.Left value -> 
         begin try 
@@ -323,18 +309,34 @@ struct
         end
       | var, Right rhs ->
         begin try 
-            meet_with_one_conj t var rhs
+            meet_with_one_conj ~refine_depth:(refine_depth-1) t var rhs
           with EConj.Contradiction -> 
             if M.tracing then M.trace "refinements" "Contradiction when applying var_%d=%s in %s" var (Rhs.show rhs) (show t);
             raise EConj.Contradiction
         end
     in
-    List.fold apply_single t refs
+    if refine_depth > 0 then begin
+      if M.tracing then M.trace "refinements" "applying %s to %s, remaining depth: %d" (Refinement.show refs) (show t) refine_depth;
+      let res = List.fold apply_single t refs in
+      if M.tracing then M.trace "refinements" "resulted in %s" (show res);
+      res
+    end else begin
+      if M.tracing then M.trace "refinements" "call with depth 0 ignored";
+      t
+    end
 
-  let apply_refinements refs t = 
-    if M.tracing then M.trace "refinements" "applying %s to %s" (Refinement.show refs) (show t);
-    let res = apply_refinements refs t in
-    if M.tracing then M.trace "refinements" "resulted in %s" (show res);
+  let affine_transform (econ, vs, ineq) i rhs =
+    (*This is a place we want to use the original set_rhs (therefore use EConj directly), as the implied congruence might contradict each other during the transformation*)
+    (*e.g. with  2x = y and 2z = y, and the assignment y = y+1 *)
+    (*This is only called in assign_texpr, after which the value will be set correctly.*)
+    let (_, (m,o,d)) = EConj.inverse i rhs in
+    let c,_ = BatOption.get m in 
+    let ineq', refinements = Ineq.substitute ineq i (c,i,o,d) in
+    apply_refinements refinements (EConj.affine_transform econ i rhs, vs, ineq')
+
+  let affine_transform econ i (c,v,o,d) =
+    let res = affine_transform econ i (c,v,o,d) in
+    if M.tracing then M.tracel "affine_transform" "affine_transform %s with var_%d=%s ->  %s " (show econ) i (Rhs.show (Some (c,v),o,d)) (show res); 
     res
 
 end
@@ -854,9 +856,11 @@ struct
     | None, _ -> t
     | Some (_,_,ineq), Some ((econ, vs, ineq2) as d) ->
       try
-        let new_ineqs = (if narrow then Ineq.narrow else Ineq.meet) (EConjI.get_value d) ineq ineq2
+        let new_ineqs, refinements = (if narrow then Ineq.narrow else Ineq.meet) (EConjI.get_value d) ineq ineq2
         in let new_ineqs = Ineq.limit econ new_ineqs
-        in { d = Some (econ, vs, new_ineqs); env = t.env}
+        in let d' = (econ, vs, new_ineqs)
+        in let d''= EConjI.apply_refinements refinements d'  
+        in { d = Some d''; env = t.env}
       with EConj.Contradiction ->
         if M.tracing then M.trace "meet" " -> Contradiction with inequalities\n";
         { d = None; env = t.env}
@@ -912,10 +916,9 @@ struct
         match m with 
         | None -> ineq_acc
         | Some (c,v) ->
-          if M.tracing then M.trace "leq" "econ2 not representant: %s with rhs: %s" (Var.show @@ Environment.var_of_dim t2.env var) (Rhs.show (m,o,d));
           match EConj.get_rhs econ1 var with 
-          | Some (_,v),_,_ when v <> var -> (if M.tracing then M.trace "leq" "and not representant in econ1 -> do nothing"); ineq_acc
-          | _ -> (if M.tracing then M.trace "leq" "and representant in econ1 -> transform"); Ineq.substitute ineq_acc var (c,v,o,d) 
+          | Some (_,v),_,_ when v <> var -> ineq_acc
+          | _ -> let ineq', _ = Ineq.substitute ineq_acc var (c,v,o,d) in ineq' 
       in
       let ineq1' = IntMap.fold transform_non_representant (snd econ2) ineq1 in
       (*further, econ2 might have some new representants -> transform further*)
@@ -951,7 +954,7 @@ struct
         (*transform the inequalities to represent only representants, and make the inequalities for new representants explicit*)
         let transform_non_representant var rhs ineq_acc = 
           match rhs with 
-          | (Some (c,v), o, d) when v <> var -> Ineq.substitute ineq_acc var (c,v,o,d) 
+          | (Some (c,v), o, d) when v <> var -> let  ineq', _ = Ineq.substitute ineq_acc var (c,v,o,d) in ineq'
           | _ -> ineq_acc
         in
         let ineq_x_split = IntMap.fold (transform_non_representant) (snd econj'') @@ Ineq.copy_to_new_representants econ_x econj'' ineq_x in
@@ -1048,12 +1051,14 @@ struct
         | Some d' -> 
           if M.tracing then M.tracel "assign_texpr" "assigning %s = %s before inequality: %s" (Var.show var) (Texpr1.show (Texpr1.of_expr t.env texp)) (show {d = Some d'; env = t.env});
           let meet_cond (e,v,ineq) (cond, var) = 
+            (*TODO value for i will be overwritten -> delay refinement?*)
             let dim = Environment.dim_of_var t.env var in
             if dim <> var_i then 
               let ineq', refinements = Ineq.meet_relation var_i dim cond (EConjI.get_rhs d') (EConjI.get_value d') ineq
               in EConjI.apply_refinements refinements (e,v,ineq') 
             else
-              e,v,Ineq.transfer dim cond ineq_old (EConjI.get_rhs d) (EConjI.get_value d) ineq (EConjI.get_rhs d') (EConjI.get_value d')
+              let ineq', refinements = Ineq.transfer dim cond ineq_old (EConjI.get_rhs d) (EConjI.get_value d) ineq (EConjI.get_rhs d') (EConjI.get_value d')
+              in EConjI.apply_refinements refinements (e,v,ineq') 
           in
           let d'' = List.fold meet_cond d' (VarManagement.to_inequalities t texp) in
           if M.tracing then M.tracel "assign_texpr" "after inequality: %s" (show {d = Some d''; env = t.env});
@@ -1196,12 +1201,10 @@ struct
                 | SUP when Z.gt constant Z.zero -> t
                 | DISEQ when not @@ Z.equal constant Z.zero -> t
                 | EQMOD _ -> t
-                | _ ->                     if M.tracing then M.tracel "meet_tcons" "meet_one_conj case 0";
-                  bot_env (* all other results are violating the guard *)
+                | _ -> bot_env (* all other results are violating the guard *)
               end
             | [(coeff, index, divi)] -> (* guard has a single reference variable only *)
               if Tcons1.get_typ tcons = EQ then begin
-                if M.tracing then M.tracel "meet_tcons" "meet_one_conj case 1";
                 meet_with_one_conj t index (Rhs.canonicalize (None, Z.neg @@ Z.(divi*constant),Z.(coeff*divisor)))
               end else
                 t (* only EQ is supported in equality based domains *)
