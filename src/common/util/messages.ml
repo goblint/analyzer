@@ -195,7 +195,7 @@ let print ?(ppf= !formatter) (m: Message.t) =
     | Debug -> "white" (* non-bright white is actually some gray *)
     | Success -> "green"
   in
-  let pp_prefix = (fun ppf -> Format.fprintf ppf "@{<%s>[%a]%a@}" severity_stag Severity.pp m.severity Tags.pp m.tags) in
+  let pp_prefix = Format.dprintf "@{<%s>[%a]%a@}" severity_stag Severity.pp m.severity Tags.pp m.tags in
   let pp_loc ppf = Format.fprintf ppf " @{<violet>(%a)@}" CilType.Location.pp in
   let pp_loc ppf loc =
     Format.fprintf ppf "%a" (Format.pp_print_option pp_loc) (Option.map Location.to_cil loc)

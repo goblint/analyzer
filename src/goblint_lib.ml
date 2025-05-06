@@ -465,8 +465,6 @@ module PrivPrecCompareUtil = PrivPrecCompareUtil
 module RelationPrecCompareUtil = RelationPrecCompareUtil
 module ApronPrecCompareUtil = ApronPrecCompareUtil
 
-(** {2 Debugging} *)
-
 (** {1 Library extensions}
 
     OCaml library extensions which are completely independent of Goblint.
