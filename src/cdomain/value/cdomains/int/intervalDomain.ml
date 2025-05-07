@@ -224,15 +224,19 @@ struct
       | Some x, Some y -> (try of_int ik (f ik x y) with Division_by_zero | Invalid_argument _ -> (top_of ik,{underflow=false; overflow=false}))
       | _              -> (top_of ik,{underflow=true; overflow=true})
 
-  let ceil_pow_2 n = 
+  let min_val_bit_constrained n =
     let abs_n = Ints_t.abs n in
-    if Ints_t.compare abs_n Ints_t.one <= 0 then Ints_t.one
+    if Ints_t.compare abs_n Ints_t.one <= 0 then Ints_t.neg Ints_t.one
     else
-      let rec loop x =
-        if Ints_t.compare x abs_n > 0 then x 
-        else loop (Ints_t.shift_left x 1)
-      in
-      loop Ints_t.one
+      let rec loop x = if Ints_t.compare x abs_n >= 0 then x else loop (Ints_t.shift_left x 1) in
+      Ints_t.neg @@ loop Ints_t.one
+
+  let max_val_bit_constrained n =
+    let abs_n = if Ints_t.compare n Ints_t.zero < 0 then Ints_t.sub (Ints_t.neg n) Ints_t.one else n in
+    let rec loop x =
+      if Ints_t.compare x abs_n > 0 then x else loop (Ints_t.shift_left x 1)
+    in
+    Ints_t.sub (loop Ints_t.one) Ints_t.one
 
   let logxor ik i1 i2 =
     match bit (fun _ik -> Ints_t.logxor) ik i1 i2 with
@@ -242,16 +246,17 @@ struct
       | Some (x1, x2), Some (y1, y2) -> 
         let is_nonneg x = Ints_t.compare x Ints_t.zero >= 0 in
         (match is_nonneg x1, is_nonneg x2, is_nonneg y1, is_nonneg y2 with
-        | true, _, true, _ -> 
-          of_interval ik (Ints_t.zero, Ints_t.sub (ceil_pow_2 @@ Ints_t.max x2 y2) Ints_t.one) |> fst
-        | _, false, _, false -> 
-          let upper = Ints_t.sub (ceil_pow_2 @@ Ints_t.abs @@ Ints_t.add (Ints_t.min x1 y1) Ints_t.one) Ints_t.one in
-          of_interval ik (Ints_t.zero, upper) |> fst
-        | true, _, _, false | _, false, true, _ -> 
-          let lower = Ints_t.neg @@ ceil_pow_2 @@ List.fold_left Ints_t.max Ints_t.zero (List.map (fun x -> Ints_t.sub (Ints_t.abs x) Ints_t.one) [x1; x2; y1; y2]) in
-          of_interval ik (lower, Ints_t.zero) |> fst 
-        | _ -> let b = (ceil_pow_2 @@ List.fold_left max Ints_t.zero (List.map Ints_t.abs [x1;x2;y1;y2])) in   
-          of_interval ik (Ints_t.neg b, Ints_t.sub b Ints_t.one) |> fst)
+         | true, _, true, _ ->
+           of_interval ik (Ints_t.zero, max_val_bit_constrained @@ Ints_t.max x2 y2) |> fst
+         | _, false, _, false ->
+           let upper = max_val_bit_constrained @@ Ints_t.min x1 y1 in
+           of_interval ik (Ints_t.zero, upper) |> fst
+         | true, _, _, false | _, false, true, _ ->
+           let lower = List.fold_left Ints_t.min Ints_t.zero (List.map min_val_bit_constrained [x1; x2; y1; y2]) in
+           of_interval ik (lower, Ints_t.zero) |> fst
+         | _ -> let lower = List.fold_left Ints_t.min Ints_t.zero (List.map min_val_bit_constrained [x1;x2;y1;y2]) in
+           let upper = List.fold_left Ints_t.max Ints_t.zero (List.map max_val_bit_constrained [x1;x2;y1;y2]) in
+           of_interval ik (lower, upper) |> fst)
       | _ -> top_of ik
 
   let logand ik i1 i2 =
@@ -264,12 +269,14 @@ struct
           (match is_nonneg x1, is_nonneg x2, is_nonneg y1, is_nonneg y2 with
           | true, _, true, _ -> 
             of_interval ik (Ints_t.zero, Ints_t.min x2 y2) |> fst
-          | _, false, _, false -> 
-            of_interval ik (Ints_t.neg @@ ceil_pow_2 @@ Ints_t.max (Ints_t.sub (Ints_t.abs x1) Ints_t.one) (Ints_t.sub (Ints_t.abs y1) Ints_t.one), Ints_t.zero) |> fst
-          | true, _, _, false | _, false, true, _ -> (*TODO: vahemik tuleb 0, positiivse intervalli ülemine arv*)
-            of_interval ik (Ints_t.zero, Ints_t.sub (ceil_pow_2 @@ Ints_t.max (Ints_t.sub (Ints_t.abs x2) Ints_t.one) (Ints_t.sub (Ints_t.abs y2) Ints_t.one)) Ints_t.one) |> fst
-          | _ -> let b = ceil_pow_2 @@ Ints_t.max (Ints_t.max (Ints_t.abs x1) (Ints_t.abs x2)) (Ints_t.max (Ints_t.abs y1) (Ints_t.abs y2)) in   
-            of_interval ik (Ints_t.neg b, Ints_t.sub b Ints_t.one) |> fst)
+          | _, false, _, false ->
+            of_interval ik (min_val_bit_constrained @@ Ints_t.min x1 y1, Ints_t.zero) |> fst
+          | true, _, _, false | _, false, true, _ ->
+            of_interval ik (Ints_t.zero, Ints_t.max x2 y2) |> fst
+          | _ ->
+            let lower = min_val_bit_constrained @@ Ints_t.min x1 y1 in
+            let upper = Ints_t.max x2 y2 in
+            of_interval ik (lower, upper) |> fst)
         | _ -> top_of ik
 
   let logor ik i1 i2 = 
@@ -280,13 +287,14 @@ struct
       | Some (x1, x2), Some (y1, y2) ->
         let is_nonneg x = Ints_t.compare x Ints_t.zero >= 0 in
         (match is_nonneg x1, is_nonneg x2, is_nonneg y1, is_nonneg y2 with
-          | true, _, true, _ -> of_interval ik (Ints_t.max x1 y1, Ints_t.sub (ceil_pow_2 (Ints_t.max x2 y2)) Ints_t.one) |> fst
-          | _, false, _, false -> of_interval ik (Ints_t.max x1 y1, Ints_t.zero) |> fst
-          | true, _, _, false | _, false, true, _ -> 
-            let lower = Ints_t.neg @@ ceil_pow_2 @@ List.fold_left Ints_t.max Ints_t.zero (List.map (fun x -> Ints_t.sub (Ints_t.abs x) Ints_t.one) [x1; x2; y1; y2]) in 
-            of_interval ik (lower, Ints_t.zero) |> fst
-          |_ -> let b = (ceil_pow_2 (Ints_t.max (Ints_t.max (Ints_t.sub (Ints_t.abs x1) Ints_t.one) (Ints_t.sub (Ints_t.abs x2) Ints_t.one)) (Ints_t.max (Ints_t.sub (Ints_t.abs y1) Ints_t.one) (Ints_t.sub (Ints_t.abs y2) Ints_t.one)))) in     
-            of_interval ik (Ints_t.neg b, Ints_t.sub b Ints_t.one) |> fst) 
+         | true, _, true, _ -> of_interval ik (Ints_t.max x1 y1, max_val_bit_constrained (Ints_t.max x2 y2)) |> fst
+         | _, false, _, false -> of_interval ik (Ints_t.max x1 y1, Ints_t.zero) |> fst
+         | true, _, _, false | _, false, true, _ ->
+           of_interval ik (Ints_t.min x1 y1, Ints_t.zero) |> fst
+         |_ ->
+           let lower = Ints_t.min x1 y1 in
+           let upper = max_val_bit_constrained @@ Ints_t.max x2 y2 in
+           of_interval ik (lower, upper) |> fst)
       | _ -> top_of ik
         
   let bit1 f ik i1 f' =
