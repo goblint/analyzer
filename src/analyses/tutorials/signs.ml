@@ -33,7 +33,7 @@ struct
 end
 
 (* Now we turn this into a lattice by adding Top and Bottom elements.
-  * We then lift the above operations to the lattice. *)
+ * We then lift the above operations to the lattice. *)
 module SL =
 struct
   include Lattice.Flat (Signs)
@@ -65,7 +65,7 @@ struct
 
 
   (* Transfer functions: we only implement assignments here.
-    * You can leave this code alone... *)
+   * You can leave this code alone... *)
   let assign man (lval:lval) (rval:exp) : D.t =
     let d = man.local in
     match lval with
@@ -79,8 +79,8 @@ struct
     | _ -> false
 
   (* We should now provide this information to Goblint. Assertions are integer expressions,
-    * so we implement here a response to EvalInt queries.
-    * You should definitely leave this alone... *)
+   * so we implement here a response to EvalInt queries.
+   * You should definitely leave this alone... *)
   let query man (type a) (q: a Queries.t): a Queries.result =
     let open Queries in
     match q with
