@@ -2,7 +2,7 @@
 #include <goblint.h>
 
 int main() {
-
+  unsigned int u_res;
   unsigned int unsigned_x;
   unsigned int unsigned_y;
 
@@ -14,13 +14,16 @@ int main() {
     unsigned_y = 0;
   }
 
-  __goblint_check((unsigned_x ^ unsigned_y) <= 31);
+  u_res = unsigned_x ^ unsigned_y;
+  __goblint_check(u_res <= 31);
 
+  int res;
   int zero_x = 0;
   int zero_y = 0;
 
-  __goblint_check((zero_x ^ zero_y) >= 0);
-  __goblint_check((zero_x ^ zero_y) <= 0);
+  res = zero_x ^ zero_y;
+  __goblint_check(res >= 0);
+  __goblint_check(res <= 0);
   
   int both_pos_x;
   int both_pos_y;
@@ -32,8 +35,10 @@ int main() {
   if (both_pos_y < 0 || both_pos_y > 30) {
     both_pos_y = 0;
   }
-  __goblint_check((both_pos_x ^ both_pos_y) >= 0);
-  __goblint_check((both_pos_x ^ both_pos_y) <= 63);
+
+  res = both_pos_x ^ both_pos_y;
+  __goblint_check(res >= 0);
+  __goblint_check(res <= 63);
 
   int both_pos_x2;
   int both_pos_y2;
@@ -45,8 +50,9 @@ int main() {
     both_pos_y2 = 0;
   }
 
-  __goblint_check((both_pos_x2 ^ both_pos_y2) >= 0);
-  __goblint_check((both_pos_x2 ^ both_pos_y2) <= 1);
+  res = both_pos_x2 ^ both_pos_y2;
+  __goblint_check(res >= 0);
+  __goblint_check(res <= 1);
 
   int both_neg_x;
   int both_neg_y;
@@ -59,14 +65,16 @@ int main() {
     both_neg_y = -64;
   }
 
-  __goblint_check((both_neg_x ^ both_neg_y) >= 0);
-  __goblint_check((both_neg_x ^ both_neg_y) <= 63);
+  res = both_neg_x ^ both_neg_y;
+  __goblint_check(res >= 0);
+  __goblint_check(res <= 63);
 
   int both_neg_x2 = -1;
   int both_neg_y2 = -1;
 
-  __goblint_check((both_neg_x2 ^ both_neg_y2) >= 0);
-  __goblint_check((both_neg_x2 ^ both_neg_y2) <= 0);
+  res = both_neg_x2 ^ both_neg_y2;
+  __goblint_check(res >= 0);
+  __goblint_check(res <= 0);
 
   int neg_pos_x;
   int neg_pos_y;
@@ -79,8 +87,9 @@ int main() {
     neg_pos_y = 64;
   }
 
-  __goblint_check((neg_pos_x ^ neg_pos_y) <= 0);
-  __goblint_check((neg_pos_x ^ neg_pos_y) >= -64);
+  res = neg_pos_x ^ neg_pos_y;
+  __goblint_check(res <= 0);
+  __goblint_check(res >= -64);
 
   int neg_pos_x2;
   int neg_pos_y2;
@@ -93,8 +102,9 @@ int main() {
     neg_pos_y2 = 65;
   }
 
-  __goblint_check((neg_pos_x2 ^ neg_pos_y2) <= 0);
-  __goblint_check((neg_pos_x2 ^ neg_pos_y2) >= -128);  
+  res = neg_pos_x2 ^ neg_pos_y2;
+  __goblint_check(res <= 0);
+  __goblint_check(res >= -128);
 
   int neg_pos_x3 = -1;
   int neg_pos_y3;
@@ -103,8 +113,9 @@ int main() {
     neg_pos_y3 = 1;
   }
 
-  __goblint_check((neg_pos_x3 ^ neg_pos_y3) <= 0);
-  __goblint_check((neg_pos_x3 ^ neg_pos_y3) >= -2);
+  res = neg_pos_x3 ^ neg_pos_y3;
+  __goblint_check(res <= 0);
+  __goblint_check(res >= -2);
 
   int otherwise_x;
   int otherwise_y;
@@ -117,8 +128,9 @@ int main() {
     otherwise_y = 0;
   }
 
-  __goblint_check((otherwise_x ^ otherwise_y) >= -64);
-  __goblint_check((otherwise_x ^ otherwise_y) <= 63);
+  res = otherwise_x ^ otherwise_y;
+  __goblint_check(res >= -64);
+  __goblint_check(res <= 63);
 
   int x_otherwise2;
   int y_otherwise2;
@@ -131,8 +143,9 @@ int main() {
     y_otherwise2 = 0;
   }
 
-  __goblint_check((x_otherwise2 ^ y_otherwise2) >= -128);
-  __goblint_check((x_otherwise2 ^ y_otherwise2) <= 127);
+  res = x_otherwise2 ^ y_otherwise2;
+  __goblint_check(res >= -128);
+  __goblint_check(res <= 127);
 
   int x_otherwise3;
   int y_otherwise3;
@@ -145,10 +158,26 @@ int main() {
     y_otherwise3 = 0;
   }
 
-  __goblint_check((x_otherwise3 ^ y_otherwise3) >= -2);
-  __goblint_check((x_otherwise3 ^ y_otherwise3) <= 1);
+  res = x_otherwise3 ^ y_otherwise3;
+  __goblint_check(res >= -2);
+  __goblint_check(res <= 1);
 
+  long long ll_res;
+  long long ll_int_x;
+  long long ll_int_y;
 
+  if (ll_int_x < -__INT_MAX__ - 1 || ll_int_x > __INT_MAX__ ) {
+    ll_int_x = 0;
+  }
+
+  if (ll_int_y < -__INT_MAX__ - 1 || ll_int_y > __INT_MAX__ ) {
+    ll_int_y = 0;
+  }
+
+  ll_res = ll_int_x ^ ll_int_y;
+  __goblint_check(ll_res >= -__INT_MAX__ - 1);
+  __goblint_check(ll_res <= __INT_MAX__);
+  
   long long ll_large_x;
   long long ll_large_y;
 
@@ -160,8 +189,9 @@ int main() {
     ll_large_y = 0;
   }
 
-  __goblint_check((ll_large_x ^ ll_large_y) >= -__LONG_LONG_MAX__ - 1);
-  __goblint_check((ll_large_x ^ ll_large_y) <= __LONG_LONG_MAX__);
+  ll_res = ll_large_x ^ ll_large_y;
+  __goblint_check(ll_res >= -__LONG_LONG_MAX__ - 1);
+  __goblint_check(ll_res <= __LONG_LONG_MAX__);
 
   long long ll_max_x;
   long long ll_max_y;
@@ -170,7 +200,8 @@ int main() {
     ll_max_y = 0;
   }
 
-  __goblint_check((ll_max_x ^ ll_max_y) >= -__LONG_LONG_MAX__ - 1);
-  __goblint_check((ll_max_x ^ ll_max_y) <= __LONG_LONG_MAX__);
+  ll_res = ll_max_x ^ ll_max_y;
+  __goblint_check(ll_res >= -__LONG_LONG_MAX__ - 1);
+  __goblint_check(ll_res <= __LONG_LONG_MAX__);
   return 0;
 }
