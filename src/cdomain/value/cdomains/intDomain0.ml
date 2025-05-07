@@ -1,7 +1,6 @@
 open GobConfig
 open GoblintCil
 open Pretty
-open PrecisionUtil
 
 include IntDomain_intf
 
@@ -110,28 +109,6 @@ sig
 
 end
 
-module type Y =
-sig
-  include B
-  include Lattice.Top with type t := t
-  include Arith with type t:= t
-  val of_int: Cil.ikind -> int_t -> t
-  val of_bool: Cil.ikind -> bool -> t
-  val of_interval: ?suppress_ovwarn:bool -> Cil.ikind -> int_t * int_t -> t
-  val of_congruence: Cil.ikind -> int_t * int_t -> t
-  val of_bitfield: Cil.ikind -> int_t * int_t -> t
-  val to_bitfield: Cil.ikind -> t -> int_t * int_t
-
-  val starting   : ?suppress_ovwarn:bool -> Cil.ikind -> int_t -> t
-  val ending     : ?suppress_ovwarn:bool -> Cil.ikind -> int_t -> t
-  val is_top_of: Cil.ikind -> t -> bool
-
-  val project: int_precision -> t -> t
-  val invariant: Cil.exp -> t -> Invariant.t
-end
-
-module type Z = Y with type int_t = Z.t
-
 
 module IntDomLifter (I : S) =
 struct
@@ -238,10 +215,6 @@ struct
   let project p v =  { v = I.project v.ikind p v.v; ikind = v.ikind }
 end
 
-module type Ikind =
-sig
-  val ikind: unit -> Cil.ikind
-end
 
 module PtrDiffIkind : Ikind =
 struct
