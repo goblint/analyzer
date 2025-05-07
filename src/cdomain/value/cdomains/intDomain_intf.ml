@@ -1,5 +1,3 @@
-(** Abstract domains for C integers. *)
-
 open GoblintCil
 
 
