@@ -1,4 +1,4 @@
-  $ goblint --enable witness.yaml.enabled --disable witness.invariant.accessed --set pre.cppflags[+] -DGOBLINT_NO_PTHREAD_ONCE 35-base-mutex-macos.c
+  $ goblint --enable witness.yaml.enabled --disable witness.invariant.accessed 35-base-mutex-macos.c
   [Info][Deadcode] Logical lines of code (LLoC) summary:
     live: 2
     dead: 0
