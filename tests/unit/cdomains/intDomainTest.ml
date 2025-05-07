@@ -253,10 +253,14 @@ struct
     assert_equal i_minus_one_zero narrowed;
     assert_equal widened narrowed2
 
+  let test_interval_logand _ =
+    assert_equal (I.of_interval ik (Z.zero, Z.of_int 4)) (I.logand ik (I.of_interval ik (Z.of_int (-4), Z.of_int (-2))) (I.of_int ik (Z.of_int 4)))
+
   let test () = [
     "test_interval_rem" >:: test_interval_rem;
     "test_interval_widen" >:: test_interval_widen;
     "test_interval_narrow" >:: test_interval_narrow;
+    "test_interval_logand" >:: test_interval_logand;
   ]
 end
 
