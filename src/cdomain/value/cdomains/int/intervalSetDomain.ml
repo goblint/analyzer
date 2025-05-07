@@ -31,8 +31,6 @@ struct
 
   let range ik = BatTuple.Tuple2.mapn Ints_t.of_bigint (Size.range ik)
 
-  let top () = failwith @@ "top () not implemented for " ^ (name ())
-
   let top_of ?bitfield ik = [match bitfield with 
     | None -> range ik
     | Some b -> let signed_lower_bound = Ints_t.neg @@ Ints_t.shift_left Ints_t.one (b-1) in
@@ -241,6 +239,15 @@ struct
   let of_bool _ = function true -> one | false -> zero
 
   let of_interval ?(suppress_ovwarn=false) ik (x,y) =  norm_interval  ~suppress_ovwarn ~cast:false ik (x,y)
+
+  let of_bitfield ik x =
+    match Interval.of_bitfield ik x with
+    | None -> []
+    | Some (a,b) -> norm_interval ik (a,b) |> fst
+
+  let to_bitfield ik x =
+    let joinbf (z1,o1) (z2,o2) = (Ints_t.logor z1 z2, Ints_t.logor o1 o2) in
+    List.fold_left (fun acc i -> joinbf acc (Interval.to_bitfield ik (Some i))) (Ints_t.zero, Ints_t.zero) x
 
   let of_int ik (x: int_t) = of_interval ik (x, x)
 
@@ -572,6 +579,10 @@ struct
     List.concat_map (fun x -> refine_with_congruence_interval ik cong (Some x)) intvs
 
   let refine_with_interval ik xs = function None -> [] | Some (a,b) -> meet ik xs [(a,b)]
+
+  let refine_with_bitfield ik x y =
+    let interv = of_bitfield ik y in
+    norm_intvs ik (meet ik x interv) |> fst
 
   let refine_with_incl_list ik intvs  = function
     | None -> intvs

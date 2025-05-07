@@ -414,6 +414,13 @@
               "type": "boolean",
               "default": false
             },
+            "bitfield": {
+              "title": "ana.int.bitfield",
+              "description":
+                "Use IntDomain.Bitfield: Bitfield domain for integers.",
+              "type": "boolean",
+              "default": false
+            },
             "congruence": {
               "title": "ana.int.congruence",
               "description":
@@ -506,6 +513,13 @@
               "type": "boolean",
               "default": true
             },
+            "hashcached": {
+              "title": "ana.opt.hashcached",
+              "description":
+                "Should we try to save memory and speed up equality by caching hashes of contexts? This is useful when hashconsing is off",
+              "type": "boolean",
+              "default": false
+            },
             "equal": {
               "title": "ana.opt.equal",
               "description":
@@ -534,7 +548,7 @@
                 "type": "string",
                 "enum": [
                   "congruence",
-                  "singleThreaded",
+                  "reduceAnalyses",
                   "mallocWrappers",
                   "noRecursiveIntervals",
                   "enums",
@@ -552,7 +566,7 @@
               },
               "default": [
                 "congruence",
-                "singleThreaded",
+                "reduceAnalyses",
                 "mallocWrappers",
                 "noRecursiveIntervals",
                 "enums",
@@ -639,6 +653,12 @@
                   "title": "ana.base.context.interval_set",
                   "description":
                     "Integer values of the IntervalSet domain in function contexts.",
+                  "type": "boolean",
+                  "default": true
+                },
+                "bitfield": {
+                  "title": "ana.base.context.bitfield",
+                  "description": "Bitfield values in function contexts.",
                   "type": "boolean",
                   "default": true
                 }
@@ -770,6 +790,20 @@
               "title": "ana.base.priv",
               "type": "object",
               "properties": {
+                "protection": {
+                  "title": "ana.base.priv.protection",
+                  "description": "Options for protection based privatization schemes.",
+                  "type": "object",
+                  "properties": {
+                    "changes-only": {
+                      "title": "ana.base.priv.protection.changes-only",
+                      "description": "Only propagate changes to globals on unlock, don't side the full value of the privatized global.",
+                      "type": "boolean",
+                      "default": false
+                    }
+                  },
+                  "additionalProperties": false
+                },
                 "not-started": {
                   "title": "ana.base.priv.not-started",
                   "description":
@@ -1162,6 +1196,58 @@
               "description": "Delay widenings using widening tokens.",
               "type": "boolean",
               "default": false
+            },
+            "delay": {
+              "title": "ana.widen.delay",
+              "type": "object",
+              "properties": {
+                "local": {
+                  "title": "ana.widen.delay.local",
+                  "description": "Delay local constraint unknown widenings by count.",
+                  "type": "integer",
+                  "default": 0
+                },
+                "global": {
+                  "title": "ana.widen.delay.global",
+                  "description": "Delay global constraint unknown widenings by count.",
+                  "type": "integer",
+                  "default": 0
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "additionalProperties": false
+        },
+        "c2po": {
+          "title": "ana.c2po",
+          "type": "object",
+          "properties": {
+            "askbase": {
+              "title": "ana.c2po.askbase",
+              "description": "If true, the C-2PO Analysis uses the MayPointTo query to infer additional disequalities.",
+              "type": "boolean",
+              "default": true
+            },
+            "join_algorithm": {
+              "title": "ana.c2po.join_algorithm",
+              "description": "Which join algorithm 'c2po' should use. Values: 'partition' (default): the more efficient version, it uses only the partition to compute the join. Circular equalities are lost during the join; 'precise': a more precise version, uses the automaton to compute the join.",
+              "type": "string",
+              "enum": [
+                "precise",
+                "partition"
+              ],
+              "default": "partition"
+            },
+            "equal": {
+              "title": "ana.c2po.equal",
+              "description": "Which equal algorithm 'c2po' should use. Values: 'partition' (default): it compares the partitions each time; 'normal_form': computes a normal form of the domain to compare them. It is lazily computed. The two possibilities are equivalent in precision, but in some cases computing the normal form is more efficient, as it is computed only once per distinct domain element.",
+              "type": "string",
+              "enum": [
+                "normal_form",
+                "partition"
+              ],
+              "default": "partition"
             }
           },
           "additionalProperties": false
@@ -1195,6 +1281,19 @@
                 }
               },
               "additionalProperties": false
+            }
+          },
+          "additionalProperties": false
+        },
+        "affeq": {
+          "title": "ana.affeq",
+          "type": "object",
+          "properties": {
+            "sparse": {
+              "title": "ana.affeq.sparse",
+              "description": "Use sparse implementation of Affine Equality analysis (using lists). If set to false, the dense version is used (using arrays). Default is true (sparse implementation)",
+              "type": "boolean",
+              "default": true
             }
           },
           "additionalProperties": false
@@ -1701,7 +1800,7 @@
             "type": "array",
             "items": {
               "type": "string",
-              "enum": ["base.no-non-ptr", "base.non-ptr", "base.no-int", "base.int", "base.no-interval", "base.no-interval_set","base.interval", "base.interval_set","relation.no-context", "relation.context", "no-widen", "widen"]
+              "enum": ["base.no-non-ptr", "base.non-ptr", "base.no-int", "base.int", "base.no-interval", "base.no-interval_set", "base.no-bitfield", "base.interval", "base.interval_set", "base.bitfield", "relation.no-context", "relation.context", "no-widen", "widen"]
             },
             "default": []
           }
@@ -2401,6 +2500,20 @@
               "enum": ["never", "always", "sides", "cycle", "unstable_called", "unstable_self", "sides-pp","sides-local"],
               "default": "sides"
             },
+            "side_widen_gas": {
+              "title": "solvers.td3.side_widen_gas",
+              "description":
+                "Delay widening globals through side-effects. With a widening gas of N, the solver will perform widening only once unknown has grown through side-effects N times and the widening condition according to the side_widen policy has been met. A value of 0 behaves as before the feature was introduced.",
+              "type": "integer",
+              "default": 0
+            },
+            "widen_gas": {
+              "title": "solvers.td3.widen_gas",
+              "description":
+                "Delay widening non-globals, i.e. unknowns with right hand sides. With a widening gas of N, the solver will perform widening only once unknown has grown N times. A value of 0 behaves as before the feature was introduced.",
+              "type": "integer",
+              "default": 0
+            },
             "space": {
               "title": "solvers.td3.space",
               "description":
@@ -2426,6 +2539,43 @@
               "description": "Reuse value when switching from widening to narrowing phase. Avoids one unnecessary re-evaluation.",
               "type": "boolean",
               "default": true
+            },
+            "narrow-globs": {
+              "title": "solvers.td3.narrow-globs",
+              "type": "object",
+              "properties": {
+                "enabled": {
+                  "title": "solvers.td3.narrow-globs.enabled",
+                  "description": "Individually track side-effects from different unknowns to enable narrowing of globals.",
+                  "type": "boolean",
+                  "default": false
+                },
+                "conservative-widen": {
+                  "title": "solvers.td3.narrow-globs.conservative-widen",
+                  "description": "Controls when to widen divided sides. true: Only widen on a side-effect, if joining would affect the overall value of the global. false: Always widen increasing/incomparable side-effects",
+                  "type": "boolean",
+                  "default": true
+                },
+                "immediate-growth": {
+                  "title": "solvers.td3.narrow-globs.immediate-growth",
+                  "description": "Controls when growing side-effects are applied. true: immediately when they are triggered. false: after the source unknown has been fully evaluated",
+                  "type": "boolean",
+                  "default": true
+                },
+                "narrow-gas": {
+                  "title": "solvers.td3.narrow-globs.narrow-gas",
+                  "description": "Limits the number of times a side-effect can switch from widening to narrowing to enforce termination. 0 disables narrowing, -1 allows narrowing infinitely often.",
+                  "type": "integer",
+                  "default": 5
+                },
+                "eliminate-dead": {
+                  "title": "solvers.td3.narrow-globs.eliminate-dead",
+                  "description": "side-effects that no longer occur are narrowed with bot.",
+                  "type": "boolean",
+                  "default": false
+                }
+              },
+              "additionalProperties": false
             },
             "remove-wpoint": {
               "title": "solvers.td3.remove-wpoint",
@@ -2662,7 +2812,7 @@
                 "2.0",
                 "2.1"
               ],
-              "default": "0.1"
+              "default": "2.0"
             },
             "entry-types": {
               "title": "witness.yaml.entry-types",
@@ -2683,11 +2833,6 @@
                 ]
               },
               "default": [
-                "location_invariant",
-                "loop_invariant",
-                "flow_insensitive_invariant",
-                "loop_invariant_certificate",
-                "precondition_loop_invariant_certificate",
                 "invariant_set"
               ]
             },

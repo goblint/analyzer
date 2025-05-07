@@ -1,6 +1,5 @@
 (** {{!Spec} Analysis specification} and {{!MonSystem} constraint system} signatures. *)
 
-open Batteries
 open GoblintCil
 open Pretty
 open GobConfig

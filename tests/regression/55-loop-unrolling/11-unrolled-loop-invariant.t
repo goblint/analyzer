@@ -220,7 +220,6 @@
   - entry_type: loop_invariant
     location:
       file_name: 11-unrolled-loop-invariant.c
-      file_hash: $FILE_HASH
       line: 9
       column: 5
       function: main
@@ -231,7 +230,6 @@
   - entry_type: loop_invariant
     location:
       file_name: 11-unrolled-loop-invariant.c
-      file_hash: $FILE_HASH
       line: 9
       column: 5
       function: main
@@ -245,7 +243,6 @@
   - entry_type: loop_invariant
     location:
       file_name: 11-unrolled-loop-invariant.c
-      file_hash: $FILE_HASH
       line: 8
       column: 3
       function: main
@@ -256,7 +253,6 @@
   - entry_type: loop_invariant
     location:
       file_name: 11-unrolled-loop-invariant.c
-      file_hash: $FILE_HASH
       line: 8
       column: 3
       function: main
@@ -268,7 +264,6 @@
   - entry_type: loop_invariant
     location:
       file_name: 11-unrolled-loop-invariant.c
-      file_hash: $FILE_HASH
       line: 4
       column: 3
       function: main
@@ -280,7 +275,6 @@
   - entry_type: location_invariant
     location:
       file_name: 11-unrolled-loop-invariant.c
-      file_hash: $FILE_HASH
       line: 13
       column: 3
       function: main
@@ -291,7 +285,6 @@
   - entry_type: location_invariant
     location:
       file_name: 11-unrolled-loop-invariant.c
-      file_hash: $FILE_HASH
       line: 13
       column: 3
       function: main
@@ -302,7 +295,6 @@
   - entry_type: location_invariant
     location:
       file_name: 11-unrolled-loop-invariant.c
-      file_hash: $FILE_HASH
       line: 13
       column: 3
       function: main
@@ -313,7 +305,6 @@
   - entry_type: location_invariant
     location:
       file_name: 11-unrolled-loop-invariant.c
-      file_hash: $FILE_HASH
       line: 11
       column: 5
       function: main
@@ -324,7 +315,6 @@
   - entry_type: location_invariant
     location:
       file_name: 11-unrolled-loop-invariant.c
-      file_hash: $FILE_HASH
       line: 11
       column: 5
       function: main
@@ -335,7 +325,6 @@
   - entry_type: location_invariant
     location:
       file_name: 11-unrolled-loop-invariant.c
-      file_hash: $FILE_HASH
       line: 11
       column: 5
       function: main
@@ -347,7 +336,6 @@
   - entry_type: location_invariant
     location:
       file_name: 11-unrolled-loop-invariant.c
-      file_hash: $FILE_HASH
       line: 10
       column: 7
       function: main
@@ -358,7 +346,6 @@
   - entry_type: location_invariant
     location:
       file_name: 11-unrolled-loop-invariant.c
-      file_hash: $FILE_HASH
       line: 10
       column: 7
       function: main
@@ -369,7 +356,6 @@
   - entry_type: location_invariant
     location:
       file_name: 11-unrolled-loop-invariant.c
-      file_hash: $FILE_HASH
       line: 10
       column: 7
       function: main
@@ -381,7 +367,6 @@
   - entry_type: location_invariant
     location:
       file_name: 11-unrolled-loop-invariant.c
-      file_hash: $FILE_HASH
       line: 7
       column: 3
       function: main
@@ -392,7 +377,6 @@
   - entry_type: location_invariant
     location:
       file_name: 11-unrolled-loop-invariant.c
-      file_hash: $FILE_HASH
       line: 5
       column: 5
       function: main

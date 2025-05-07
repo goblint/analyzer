@@ -381,7 +381,7 @@ struct
 end
 
 module DomVariantLattice0 (DLSpec : DomainListLatticeSpec)
-  : Lattice.S with type t = int * Obj.t
+  : Lattice.PO with type t = int * Obj.t
 =
 struct
   open DLSpec
@@ -402,11 +402,6 @@ struct
   let join   = binop_map (fun (module S : Lattice.S) x y -> Obj.repr @@ S.join   (Obj.obj x) (Obj.obj y))
 
   let leq    = binop_map' (fun _ (module S : Lattice.S) x y -> S.leq (Obj.obj x) (Obj.obj y))
-
-  let is_top x = false
-  let is_bot x = false
-  let top () = failwith "DomVariantLattice0.top"
-  let bot () = failwith "DomVariantLattice0.bot"
 
   let pretty_diff () (x, y) =
     let f _ (module S : Lattice.S) x y =
