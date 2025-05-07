@@ -1645,7 +1645,7 @@ struct
               M.debug ~category:Analyzer "Cilfacade.typeOfLval failed Could not obtain the type of %a" d_lval (Var x, cil_offset);
               lval_type
       in
-      let update_offset old_value = 
+      let update_offset old_value =
         (* Projection globals to highest Precision *)
         let projected_value = project_val (Queries.to_value_domain_ask ask) None None value (is_global ask x) in
         let new_value = VD.update_offset ~blob_destructive (Queries.to_value_domain_ask ask) old_value offs projected_value lval_raw ((Var x), cil_offset) t in
