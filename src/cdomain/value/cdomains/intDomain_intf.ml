@@ -348,124 +348,122 @@ end
 
 module type IntDomain =
 sig
-(* TODO: fix indent *)
+  val should_wrap: Cil.ikind -> bool
+  val should_ignore_overflow: Cil.ikind -> bool
 
-val should_wrap: Cil.ikind -> bool
-val should_ignore_overflow: Cil.ikind -> bool
+  val reset_lazy: unit -> unit
 
-val reset_lazy: unit -> unit
+  type nonrec overflow_info = overflow_info = { overflow: bool; underflow: bool;}
 
-type nonrec overflow_info = overflow_info = { overflow: bool; underflow: bool;}
+  module type Arith = Arith
+  module type ArithIkind = ArithIkind
+  module type B = B
+  module type IkindUnawareS = IkindUnawareS
+  module type S = S
+  module type SOverflow = SOverflow
 
-module type Arith = Arith
-module type ArithIkind = ArithIkind
-module type B = B
-module type IkindUnawareS = IkindUnawareS
-module type S = S
-module type SOverflow = SOverflow
+  module SOverflowUnlifter (D : SOverflow) : S with type int_t = D.int_t and type t = D.t
 
-module SOverflowUnlifter (D : SOverflow) : S with type int_t = D.int_t and type t = D.t
+  module type Y = Y
+  module type Z = Z
 
-module type Y = Y
-module type Z = Z
+  module IntDomLifter (I: S): Y with type int_t = I.int_t
 
-module IntDomLifter (I: S): Y with type int_t = I.int_t
+  module type Ikind = Ikind
 
-module type Ikind = Ikind
+  module PtrDiffIkind : Ikind
 
-module PtrDiffIkind : Ikind
+  module IntDomWithDefaultIkind (I: Y) (Ik: Ikind) : Y with type t = I.t and type int_t = I.int_t
 
-module IntDomWithDefaultIkind (I: Y) (Ik: Ikind) : Y with type t = I.t and type int_t = I.int_t
+  (* module ManyInts : S *)
+  (* module IntDomList : S *)
+  module IntDomTuple : sig
+    include Z
+    val no_interval: t -> t
+    val no_intervalSet: t -> t
+    val no_bitfield: t -> t
+    val ikind: t -> ikind
+  end
 
-(* module ManyInts : S *)
-(* module IntDomList : S *)
-module IntDomTuple : sig
-  include Z
-  val no_interval: t -> t
-  val no_intervalSet: t -> t
-  val no_bitfield: t -> t
-  val ikind: t -> ikind
-end
-
-val of_const: Z.t * Cil.ikind * string option -> IntDomTuple.t
+  val of_const: Z.t * Cil.ikind * string option -> IntDomTuple.t
 
 
-module Size : sig
-  (** The biggest type we support for integers. *)
-  val top_typ         : Cil.typ
-  val range           : Cil.ikind -> Z.t * Z.t
-  val is_cast_injective : from_type:Cil.typ -> to_type:Cil.typ -> bool
-  val bits            : Cil.ikind -> int * int
-  val cast            : Cil.ikind -> Z.t -> Z.t
-end
+  module Size : sig
+    (** The biggest type we support for integers. *)
+    val top_typ         : Cil.typ
+    val range           : Cil.ikind -> Z.t * Z.t
+    val is_cast_injective : from_type:Cil.typ -> to_type:Cil.typ -> bool
+    val bits            : Cil.ikind -> int * int
+    val cast            : Cil.ikind -> Z.t -> Z.t
+  end
 
-module BISet: SetDomain.S with type elt = Z.t
+  module BISet: SetDomain.S with type elt = Z.t
 
-exception ArithmeticOnIntegerBot of string
+  exception ArithmeticOnIntegerBot of string
 
-exception Unknown
-(** An exception that can be raised when the result of a computation is unknown.
-  * This is caught by lifted domains and will be replaced by top. *)
+  exception Unknown
+  (** An exception that can be raised when the result of a computation is unknown.
+    * This is caught by lifted domains and will be replaced by top. *)
 
-exception Error
-(** An exception that can be raised when an arithmetic error occurs. This is
-  * caught by lifted domains and the evaluation will then be set to bot, which
-  * signifies an error in computation *)
+  exception Error
+  (** An exception that can be raised when an arithmetic error occurs. This is
+    * caught by lifted domains and the evaluation will then be set to bot, which
+    * signifies an error in computation *)
 
-exception IncompatibleIKinds of string
+  exception IncompatibleIKinds of string
 
-(** {b Predefined domains} *)
-module Integers(Ints_t : IntOps.IntOps): IkindUnawareS with type t = Ints_t.t and type int_t = Ints_t.t
-(** The integers with their natural orderings. Calling [top] and [bot] will
-  * raise exceptions. *)
+  (** {b Predefined domains} *)
+  module Integers(Ints_t : IntOps.IntOps): IkindUnawareS with type t = Ints_t.t and type int_t = Ints_t.t
+  (** The integers with their natural orderings. Calling [top] and [bot] will
+    * raise exceptions. *)
 
-module FlatPureIntegers: IkindUnawareS with type t = IntOps.Int64Ops.t and type int_t = IntOps.Int64Ops.t
-(** The integers with flattened orderings. Calling [top] and [bot] or [join]ing
-    or [meet]ing inequal elements will raise exceptions. *)
+  module FlatPureIntegers: IkindUnawareS with type t = IntOps.Int64Ops.t and type int_t = IntOps.Int64Ops.t
+  (** The integers with flattened orderings. Calling [top] and [bot] or [join]ing
+      or [meet]ing inequal elements will raise exceptions. *)
 
-module Flattened : IkindUnawareS with type t = [`Top | `Lifted of IntOps.Int64Ops.t | `Bot] and type int_t = IntOps.Int64Ops.t
-(** This is the typical flattened integer domain used in Kildall's constant
-  * propagation. *)
+  module Flattened : IkindUnawareS with type t = [`Top | `Lifted of IntOps.Int64Ops.t | `Bot] and type int_t = IntOps.Int64Ops.t
+  (** This is the typical flattened integer domain used in Kildall's constant
+    * propagation. *)
 
-module Lifted : IkindUnawareS with type t = [`Top | `Lifted of int64 | `Bot] and type int_t = int64
-(** Artificially bounded integers in their natural ordering. *)
+  module Lifted : IkindUnawareS with type t = [`Top | `Lifted of int64 | `Bot] and type int_t = int64
+  (** Artificially bounded integers in their natural ordering. *)
 
-module IntervalFunctor(Ints_t : IntOps.IntOps): SOverflow with type int_t = Ints_t.t and type t = (Ints_t.t * Ints_t.t) option
+  module IntervalFunctor(Ints_t : IntOps.IntOps): SOverflow with type int_t = Ints_t.t and type t = (Ints_t.t * Ints_t.t) option
 
-module BitfieldFunctor(Ints_t : IntOps.IntOps): SOverflow with type int_t = Ints_t.t and type t = (Ints_t.t * Ints_t.t)
+  module BitfieldFunctor(Ints_t : IntOps.IntOps): SOverflow with type int_t = Ints_t.t and type t = (Ints_t.t * Ints_t.t)
 
-module IntervalSetFunctor(Ints_t : IntOps.IntOps): SOverflow with type int_t = Ints_t.t and type t = (Ints_t.t * Ints_t.t) list
+  module IntervalSetFunctor(Ints_t : IntOps.IntOps): SOverflow with type int_t = Ints_t.t and type t = (Ints_t.t * Ints_t.t) list
 
-module Interval32 :Y with (* type t = (IntOps.Int64Ops.t * IntOps.Int64Ops.t) option and *) type int_t = IntOps.Int64Ops.t
+  module Interval32 :Y with (* type t = (IntOps.Int64Ops.t * IntOps.Int64Ops.t) option and *) type int_t = IntOps.Int64Ops.t
 
-module Interval : SOverflow with type int_t = Z.t
+  module Interval : SOverflow with type int_t = Z.t
 
-module Bitfield : SOverflow with type int_t = Z.t
+  module Bitfield : SOverflow with type int_t = Z.t
 
-module IntervalSet : SOverflow with type int_t = Z.t
+  module IntervalSet : SOverflow with type int_t = Z.t
 
-module Congruence : S with type int_t = Z.t
+  module Congruence : S with type int_t = Z.t
 
-module DefExc : S with type int_t = Z.t
-(** The DefExc domain. The Flattened integer domain is topped by exclusion sets.
-  * Good for analysing branches. *)
+  module DefExc : S with type int_t = Z.t
+  (** The DefExc domain. The Flattened integer domain is topped by exclusion sets.
+    * Good for analysing branches. *)
 
-(** {b Domain constructors} *)
+  (** {b Domain constructors} *)
 
-module Flat (Base: IkindUnawareS): IkindUnawareS with type t = [ `Bot | `Lifted of Base.t | `Top ] and type int_t = Base.int_t
-(** Creates a flat value domain, where all ordering is lost. Arithmetic
-  * operations are lifted such that only lifted values can be evaluated
-  * otherwise the top/bot is simply propagated with bot taking precedence over
-  * top. *)
+  module Flat (Base: IkindUnawareS): IkindUnawareS with type t = [ `Bot | `Lifted of Base.t | `Top ] and type int_t = Base.int_t
+  (** Creates a flat value domain, where all ordering is lost. Arithmetic
+    * operations are lifted such that only lifted values can be evaluated
+    * otherwise the top/bot is simply propagated with bot taking precedence over
+    * top. *)
 
-module Lift (Base: IkindUnawareS): IkindUnawareS with type t = [ `Bot | `Lifted of Base.t | `Top ] and type int_t = Base.int_t
-(** Just like {!Value.Flat} except the order is preserved. *)
+  module Lift (Base: IkindUnawareS): IkindUnawareS with type t = [ `Bot | `Lifted of Base.t | `Top ] and type int_t = Base.int_t
+  (** Just like {!Value.Flat} except the order is preserved. *)
 
-(* module Interval : S *)
-(** Interval domain with int64-s --- use with caution! *)
+  (* module Interval : S *)
+  (** Interval domain with int64-s --- use with caution! *)
 
-(* module IncExcInterval : S with type t = [ | `Excluded of Interval.t| `Included of Interval.t ] *)
-(** Inclusive and exclusive intervals. Warning: NOT A LATTICE *)
-module Enums : S with type int_t = Z.t
+  (* module IncExcInterval : S with type t = [ | `Excluded of Interval.t| `Included of Interval.t ] *)
+  (** Inclusive and exclusive intervals. Warning: NOT A LATTICE *)
+  module Enums : S with type int_t = Z.t
 
 end
