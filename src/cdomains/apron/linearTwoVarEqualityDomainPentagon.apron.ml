@@ -910,7 +910,7 @@ struct
     if is_bot_env t1 || is_top t2 then true
     else if is_bot_env t2 || is_top t1 then false else
       let m1, (econ2, vs2, ineq2) = Option.get t1.d, Option.get t2.d in
-      let (econ1, _, ineq1) as m1' = if env_comp = 0 then m1 else VarManagement.dim_add (Environment.dimchange t1.env t2.env) m1 in
+      let (econ1, vs1, ineq1) = if env_comp = 0 then m1 else VarManagement.dim_add (Environment.dimchange t1.env t2.env) m1 in
       (*make ineq1 refer to the new representants*)
       let transform_non_representant var (m,o,d) ineq_acc =
         match m with 
@@ -923,10 +923,25 @@ struct
       let ineq1' = IntMap.fold transform_non_representant (snd econ2) ineq1 in
       (*further, econ2 might have some new representants -> transform further*)
       let ineq1' = Ineq.copy_to_new_representants econ1 econ2 ineq1' in
-      if M.tracing then M.trace "leq" "transformed %s into %s" (Ineq.show_formatted (fun i -> Var.show @@ Environment.var_of_dim t2.env i) ineq1) (Ineq.show_formatted (fun i -> Var.show @@ Environment.var_of_dim t2.env i) ineq1');  
-      IntMap.for_all (implies econ1) (snd econ2) (* even on sparse m2, it suffices to check the non-trivial equalities, still present in sparse m2 *)
-      && IntMap.for_all (implies_value m1') (vs2)
-      && Ineq.leq ineq1' (EConjI.get_value m1') ineq2 (*TODO the transformations are likely the most expensive part. -> only do it when both above options did not already deterime the result *)
+      if M.tracing then M.trace "leq" "transformed %s into %s" (Ineq.show_formatted (fun i -> Var.show @@ Environment.var_of_dim t2.env i) ineq1) (Ineq.show_formatted (fun i -> Var.show @@ Environment.var_of_dim t2.env i) ineq1');
+      (*Normally, we do not apply closure to the intervals because it is too expensive (O(n^3)), but if we do not do it here, we get some actually implied elements being not leq, failing verifying*)
+      let rec refine_intervals_until_fixpoint t = 
+        let refinements = Ineq.interval_refinements (EConjI.get_value t) (Tuple3.third t) in
+        if M.tracing then M.trace "leq" "refined with %s" (Refinement.show_formatted (fun i -> Var.show @@ Environment.var_of_dim t2.env i) refinements);
+        let t' = EConjI.apply_refinements ~refine_depth:1 refinements t in
+        if t = t' then t else refine_intervals_until_fixpoint t'
+      in
+      try
+        let (econ1', _, ineq1') as m1' = timing_wrap "leq_refine" refine_intervals_until_fixpoint (econ1, vs1, ineq1') in
+        if M.tracing then M.trace "leq" "refined into %s" (EConjI.show_formatted (fun i -> Var.show @@ Environment.var_of_dim t2.env i) m1');
+        (*TODO the transformations are likely the most expensive part. -> only do it when econj did not rule it out*)
+        IntMap.for_all (implies econ1') (snd econ2) (* even on sparse m2, it suffices to check the non-trivial equalities, still present in sparse m2 *)
+        && IntMap.for_all (implies_value m1') (vs2)
+        && Ineq.leq ineq1' (EConjI.get_value m1') ineq2
+      with EConj.Contradiction -> 
+        if M.tracing then M.trace "leq" "refinement showed contradiction";
+        true (*t1 was secretely bot -> leq all*)
+
 
   let leq a b = timing_wrap "leq" (leq a) b
 

@@ -386,7 +386,7 @@ module type TwoVarInequalities = sig
   (*returns the best lower and upper bound for the relation between variables with the given Rhs*)
   val get_relations :  ((Z.t * int * Z.t * Z.t) * Value.t) -> ((Z.t * int * Z.t * Z.t) * Value.t) -> t -> Relation.t list
 
-  (*meet relation between two variables. also returns a list of value refinements *)
+  (*meet a single relation between two variables.*)
   val meet_relation : int -> int -> Relation.t -> (int -> Rhs.t) -> (int -> Value.t) -> t -> t * Refinement.t
 
   (*substitutes all occurences of a variable by a rhs*)
@@ -417,6 +417,8 @@ module type TwoVarInequalities = sig
   val compare : t -> t -> int
   val modify_variables_in_domain : t -> int array -> (int -> int -> int) -> t
   val forget_variable : t -> int -> t
+
+  val interval_refinements : (int -> Value.t) -> t ->  Refinement.t 
 
   val invariant : t -> Environment.t -> Lincons1.t list
 
@@ -452,6 +454,8 @@ module NoInequalties : TwoVarInequalities = struct
 
   let transfer _ _ _ _ _ _ _ _ = (), []
 
+  let interval_refinements _ _ = []
+
   let invariant _ _ = []
 
 end
@@ -469,6 +473,8 @@ module type Coeffs = sig
   val equal : t -> t -> bool
   val compare : t -> t -> int
   val show_formatted : string -> string -> t -> string
+
+  val interval_refinements :(int * Value.t) -> (int * Value.t) -> t -> Refinement.t -> Refinement.t 
 
   val invariant : Environment.t -> int -> int -> t -> Lincons1.t list -> Lincons1.t list
 end
@@ -542,6 +548,15 @@ module CommonActions (Coeffs : Coeffs) = struct
 
   let join = join' false
   let widen = join' true
+
+  let interval_refinements get_value t = IntMap.fold (fun x ys acc -> 
+      IntMap.fold (fun y cs acc -> 
+          Coeffs.interval_refinements 
+            (x, get_value x) 
+            (y, get_value y) 
+            cs acc
+        ) ys acc
+    ) t []
 
   let invariant t env = IntMap.fold (fun x ys acc -> IntMap.fold (Coeffs.invariant env x) ys acc) t []
 
@@ -753,6 +768,8 @@ end
 
 
 let qhash q = Z.hash (Q.num q) + 13 * Z.hash (Q.den q)
+let round_up q = Z.cdiv (Q.num q) (Q.den q)
+let round_down q = Z.fdiv (Q.num q) (Q.den q)
 
 module LinearInequality = struct
   (*Normalised representation of an inequality through the origin 
@@ -766,13 +783,30 @@ module LinearInequality = struct
       | LE s when Q.equal s Q.minus_inf -> GE Q.inf
       | t -> t
 
+
     (*We want the inequalities to be ordered by angle (with arbitrary start point and direction), which is tan(slope) (+ pi for other direction) *)
-    (*because tan is monotone, we can simply sort by slope: LE < GE, LE ordered by a, GE ordered by -a*)
-    let compare t1 t2 = match t1, t2 with  
-      | LE _, GE _ -> -1
-      | GE _, LE _ -> 1
-      | LE a1, LE a2 -> Q.compare a1 a2
-      | GE a1, GE a2 -> -(Q.compare a1 a2)
+    let compare t1 t2 =
+      let classify t = 
+        let a,b = match t with  
+          | LE s when Q.equal s Q.inf -> (Q.one,Q.zero)
+          | GE s when Q.equal s Q.inf -> (Q.minus_one, Q.zero)
+          | LE s -> (s,Q.minus_one)
+          | GE s -> (Q.neg s, Q.one)
+        in let open Q in
+        let c = if a < zero then 
+            Int.(-) 7 (sign b)
+          else if a = zero then 
+            (if b <= zero then 1 else 5)
+          else 
+            Int.(+) 3 (sign b)
+        in a, b, c
+      in
+      let a1, b1, class1 = classify t1 in
+      let a2, b2, class2 = classify t2 in
+      if class1 <> class2 then 
+        class1 - class2
+      else
+        let open Q in compare (a1 * b2) (a2*b1) 
 
     let equal t1 t2 = 0 = compare t1 t2
 
@@ -1057,13 +1091,13 @@ module ArbitraryCoeffsSet = struct
 
   (*get the next key in anti-clockwise order*)
   let get_previous k t =
-    match CoeffMap.find_first_opt (fun key -> Key.compare key k >= 0) t with
+    match CoeffMap.find_first_opt (fun key -> Key.compare key k > 0) t with
     | None -> CoeffMap.min_binding_opt t (*there is no larger key -> take the first one*)
     | s -> s
 
   (*get the next key in clockwise order*)
   let get_next k t =
-    match CoeffMap.find_last_opt (fun key -> Key.compare key k <= 0) t with
+    match CoeffMap.find_last_opt (fun key -> Key.compare key k < 0) t with
     | None -> CoeffMap.max_binding_opt t (*there is no smaller key -> take the last one*)
     | s -> s
 
@@ -1072,24 +1106,65 @@ module ArbitraryCoeffsSet = struct
     match get_previous k t, get_next k t with 
     | None, None -> CoeffMap.add k c t (* the map is empty *)
     | Some prev, Some next -> 
-      if LinearInequality.entails2 prev next (k,c) then t (*new inequality is already implied*)
+      if LinearInequality.entails2 prev next (k,c) then (
+        if M.tracing then M.trace "add_ineq" "new %s entailed by prev: %s, next %s"  (LinearInequality.show "x" "y" (k,c))  (LinearInequality.show "x" "y" prev) (LinearInequality.show "x" "y" next);
+        t) (*new inequality is already implied*)
       else (*check in both direction if the next inequality is now implied, and remove those that are. recursive because multiple may now be implied*)
         let rec remove_prev prev t = 
           match get_previous (fst prev) t with
-          | None -> t
+          | None -> 
+            if M.tracing then M.trace "add_ineq" "remove_prev?: none left to remove";
+            t
           | Some prev_prev -> 
-            if not (LinearInequality.equal prev prev_prev) && LinearInequality.entails2 prev_prev (k,c) prev then
+            if LinearInequality.equal prev prev_prev then begin
+              if M.tracing then M.trace "add_ineq" "remove_prev?: only one left in %s -> no removal" (show_formatted "x" "y" t);
+              t
+            end else if LinearInequality.entails2 prev_prev (k,c) prev then begin
+              if M.tracing then M.trace "add_ineq" "remove_prev?: new: %s and prev_prev: %s imply prev %s -> removing and continuing"  (LinearInequality.show "x" "y" (k,c))  (LinearInequality.show "x" "y" prev_prev) (LinearInequality.show "x" "y" prev);
               remove_prev prev_prev @@ CoeffMap.remove (fst prev) t
-            else t
+            end else begin
+              if M.tracing then M.trace "add_ineq" "remove_prev?: new: %s and prev_prev: %s do not imply prev %s -> stop"  (LinearInequality.show "x" "y" (k,c))  (LinearInequality.show "x" "y" prev_prev) (LinearInequality.show "x" "y" prev);
+              t
+            end
         in let rec remove_next next t = 
              match get_next (fst next) t with
-             | None -> t
+             | None -> 
+               if M.tracing then M.trace "add_ineq" "remove_next?: none left to remove";
+               t
              | Some next_next -> 
-               if not (LinearInequality.equal next next_next) && LinearInequality.entails2 next_next (k,c) next then
+               if LinearInequality.equal next next_next then begin
+                 if M.tracing then M.trace "add_ineq" "remove_next?: only one left in %s -> no removal" (show_formatted "x" "y" t);
+                 t
+               end else if LinearInequality.entails2 next_next (k,c) next then begin
+                 if M.tracing then M.trace "add_ineq" "remove_next?: new: %s and next_next: %s imply next %s -> removing and continuing"  (LinearInequality.show "x" "y" (k,c))  (LinearInequality.show "x" "y" next_next) (LinearInequality.show "x" "y" next);
                  remove_next next_next @@ CoeffMap.remove (fst next) t
-               else t
+               end else begin
+                 if M.tracing then M.trace "add_ineq" "remove_next?: new: %s and next_next: %s do not imply next %s -> stop"  (LinearInequality.show "x" "y" (k,c))  (LinearInequality.show "x" "y" next_next) (LinearInequality.show "x" "y" next);
+                 t
+               end
         in CoeffMap.add k c @@ remove_prev prev @@ remove_next next t
     | _,_ -> failwith "impossible state"
+
+  let add_inequality k c t = 
+    let res = add_inequality k c t in
+    if M.tracing then M.trace "add_ineq" "adding %s to %s -> %s"  (LinearInequality.show "x" "y" (k,c))  (show_formatted "x" "y" t) (show_formatted "x" "y" res);
+    res
+
+
+  let test () = () (*
+    let t = empty in
+    let t = add_inequality (LE Q.inf) (Q.of_int 5) t in
+    let t = add_inequality (GE Q.minus_one) (Q.of_int (-7)) t in 
+    let t = add_inequality (LE Q.zero) (Q.of_int 5) t in 
+    let t = add_inequality (GE Q.one) (Q.of_int (-7)) t in 
+    let t = add_inequality (GE Q.inf) (Q.of_int (-5)) t in 
+    let t = add_inequality (LE Q.minus_one) (Q.of_int 7) t in 
+    let t = add_inequality (GE Q.zero) (Q.of_int (-5)) t in 
+    let t = add_inequality (LE Q.one) (Q.of_int 7) t in 
+    if M.tracing then M.trace "test" "%s" (show_formatted "x" "y" t);
+    let t = add_inequality (GE (Q.of_int (2))) (Q.of_int 9) t in
+    if M.tracing then M.trace "test" "with more: %s" (show_formatted "x" "y" t)
+*)
 
   (*get the thightest offset for an inequality with a given slope that is implied by the current set of inequalities*)
   let get_best_offset k t = 
@@ -1104,9 +1179,28 @@ module ArbitraryCoeffsSet = struct
     if M.tracing then M.trace "get_offset" "%s implies %s" (show_formatted "x" "y" t) (BatOption.map_default (fun c -> LinearInequality.show "x" "y" (k,c)) "Nothing for this slope" res);
     res
 
+  (*lookup the best interval bounds from the inequalities!*)
+  let interval_refinements (x,x_val) (y,y_val) t ref_acc =
+    test ();
+    let ineqs = LinearInequality.from_values x_val y_val in
+    let t = List.fold (fun t (k,c) -> add_inequality k c t) t ineqs in
+    let ref_acc = match get_best_offset (LE Q.inf) t with 
+      | Some upper -> (Refinement.of_value x @@ Value.ending @@ round_down upper ):: ref_acc 
+      | _ -> ref_acc
+    in
+    let ref_acc = match get_best_offset (GE Q.inf) t with 
+      | Some lower -> (Refinement.of_value x @@ Value.starting @@ round_up lower ):: ref_acc 
+      | _ -> ref_acc
+    in
+    let ref_acc = match get_best_offset (GE Q.zero) t with 
+      | Some upper -> (Refinement.of_value y @@ Value.ending @@ round_down @@ Q.neg upper ):: ref_acc 
+      | _ -> ref_acc
+    in
+    match get_best_offset (LE Q.zero) t with 
+    | Some lower -> (Refinement.of_value y @@ Value.starting @@ round_up @@ Q.neg lower ):: ref_acc 
+    | _ -> ref_acc
+
   let meet_single_inequality narrow (x,x_val) (y,y_val) k c (t,ref_acc) = 
-    let round_up q = Z.cdiv (Q.num q) (Q.den q) in
-    let round_down q = Z.fdiv (Q.num q) (Q.den q) in
     (*calculate value refinement. If one of the coefficients is zero, we should not add the inequality to the map*)
     let refinements, skip_adding = 
       let x_refine = 
@@ -1149,12 +1243,12 @@ module ArbitraryCoeffsSet = struct
              | Int max -> [Refinement.of_value y (Value.ending @@ Z.sub max @@ round_down c)]
              | _ -> [] 
       in match k with
-      | LinearInequality.OriginInequality.LE s when Q.equal Q.zero s -> (* -c >= y *) [Refinement.of_value y @@ Value.ending @@ round_up @@ Q.neg c] , true
-      | GE s when Q.equal Q.zero s -> (* -c <= y *) [Refinement.of_value y @@ Value.starting @@ round_down @@ Q.neg c] , true
-      | LE s when Q.equal Q.inf s -> (*x >= c*) [Refinement.of_value x @@ Value.starting @@ round_down c ], true
-      | GE s when Q.equal Q.minus_inf s -> (*x >= c*) [Refinement.of_value x @@ Value.starting @@ round_down c ], true 
-      | LE s when Q.equal Q.minus_inf s -> (*x <= c*) [Refinement.of_value x @@ Value.ending @@ round_up c], true
-      | GE s when Q.equal Q.inf s -> (*x <= c*) [Refinement.of_value x @@ Value.ending @@ round_up c], true
+      | LinearInequality.OriginInequality.LE s when Q.equal Q.zero s -> (* -c >= y *) [Refinement.of_value y @@ Value.ending @@ round_down @@ Q.neg c] , true
+      | GE s when Q.equal Q.zero s -> (* -c <= y *) [Refinement.of_value y @@ Value.starting @@ round_up @@ Q.neg c] , true
+      | LE s when Q.equal Q.inf s -> (*x >= c*) [Refinement.of_value x @@ Value.starting @@ round_up c ], true
+      | GE s when Q.equal Q.minus_inf s -> (*x >= c*) [Refinement.of_value x @@ Value.starting @@ round_up c ], true 
+      | LE s when Q.equal Q.minus_inf s -> (*x <= c*) [Refinement.of_value x @@ Value.ending @@ round_down c], true
+      | GE s when Q.equal Q.inf s -> (*x <= c*) [Refinement.of_value x @@ Value.ending @@ round_down c], true
       | k -> (*an actual inequality *) x_refine @ y_refine, false 
     in 
     let ref_acc = refinements @ ref_acc in
@@ -1189,23 +1283,7 @@ module ArbitraryCoeffsSet = struct
           | Some c_old when LinearInequality.entails1 (k,c_old) (k,c) -> t (*saved inequality is already thighter than new one*) (*TODO narrow?*) 
           | _ -> add_inequality k c @@ CoeffMap.remove k t (*we replace the current value with a new one *)
         in 
-        (*lookup the best interval bounds from the inequalities!*)
-        let ref_acc = match get_best_offset (LE Q.inf) t' with 
-          | Some upper -> (Refinement.of_value x @@ Value.ending @@ round_down upper ):: ref_acc 
-          | _ -> ref_acc
-        in
-        let ref_acc = match get_best_offset (GE Q.inf) t' with 
-          | Some lower -> (Refinement.of_value x @@ Value.starting @@ round_up lower ):: ref_acc 
-          | _ -> ref_acc
-        in
-        let ref_acc = match get_best_offset (GE Q.zero) t' with 
-          | Some upper -> (Refinement.of_value y @@ Value.ending @@ round_down @@ Q.neg upper ):: ref_acc 
-          | _ -> ref_acc
-        in
-        let ref_acc = match get_best_offset (LE Q.zero) t' with 
-          | Some lower -> (Refinement.of_value y @@ Value.starting @@ round_up @@ Q.neg lower ):: ref_acc 
-          | _ -> ref_acc
-        in
+        let ref_acc = interval_refinements (x,x_val) (y,y_val) t' ref_acc in
         t', ref_acc
 
   let meet' narrow x_val y_val t1 t2 ref_acc = CoeffMap.fold (fun k c acc -> meet_single_inequality narrow x_val y_val k c acc) t1 (t2,ref_acc)
@@ -1607,6 +1685,7 @@ end
   ArbitraryCoeaffsList meet_single: take intervals into account better
   re-add them every time, remove them afterwards?
   set_rhs constant refinement
+  set_value constant refinement
 *)
 (*-- assign expr restore ineqs based on value *)
 
