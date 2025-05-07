@@ -51,7 +51,6 @@ Without diff-box:
   - entry_type: location_invariant
     location:
       file_name: 52-queuesize.c
-      file_hash: $FILE_HASH
       line: 36
       column: 3
       function: push
@@ -62,7 +61,6 @@ Without diff-box:
   - entry_type: location_invariant
     location:
       file_name: 52-queuesize.c
-      file_hash: $FILE_HASH
       line: 36
       column: 3
       function: push
@@ -73,7 +71,6 @@ Without diff-box:
   - entry_type: location_invariant
     location:
       file_name: 52-queuesize.c
-      file_hash: $FILE_HASH
       line: 36
       column: 3
       function: push
@@ -84,7 +81,6 @@ Without diff-box:
   - entry_type: location_invariant
     location:
       file_name: 52-queuesize.c
-      file_hash: $FILE_HASH
       line: 36
       column: 3
       function: push
@@ -96,7 +92,6 @@ Without diff-box:
   - entry_type: location_invariant
     location:
       file_name: 52-queuesize.c
-      file_hash: $FILE_HASH
       line: 15
       column: 3
       function: pop
@@ -107,7 +102,6 @@ Without diff-box:
   - entry_type: location_invariant
     location:
       file_name: 52-queuesize.c
-      file_hash: $FILE_HASH
       line: 15
       column: 3
       function: pop
@@ -118,7 +112,6 @@ Without diff-box:
   - entry_type: location_invariant
     location:
       file_name: 52-queuesize.c
-      file_hash: $FILE_HASH
       line: 15
       column: 3
       function: pop
@@ -129,7 +122,6 @@ Without diff-box:
   - entry_type: location_invariant
     location:
       file_name: 52-queuesize.c
-      file_hash: $FILE_HASH
       line: 15
       column: 3
       function: pop
@@ -190,7 +182,6 @@ With diff-box:
   - entry_type: location_invariant
     location:
       file_name: 52-queuesize.c
-      file_hash: $FILE_HASH
       line: 36
       column: 3
       function: push
@@ -201,7 +192,6 @@ With diff-box:
   - entry_type: location_invariant
     location:
       file_name: 52-queuesize.c
-      file_hash: $FILE_HASH
       line: 36
       column: 3
       function: push
@@ -212,7 +202,6 @@ With diff-box:
   - entry_type: location_invariant
     location:
       file_name: 52-queuesize.c
-      file_hash: $FILE_HASH
       line: 36
       column: 3
       function: push
@@ -224,7 +213,6 @@ With diff-box:
   - entry_type: location_invariant
     location:
       file_name: 52-queuesize.c
-      file_hash: $FILE_HASH
       line: 15
       column: 3
       function: pop
@@ -235,7 +223,6 @@ With diff-box:
   - entry_type: location_invariant
     location:
       file_name: 52-queuesize.c
-      file_hash: $FILE_HASH
       line: 15
       column: 3
       function: pop
@@ -246,7 +233,6 @@ With diff-box:
   - entry_type: location_invariant
     location:
       file_name: 52-queuesize.c
-      file_hash: $FILE_HASH
       line: 15
       column: 3
       function: pop
@@ -263,7 +249,6 @@ Compare witnesses:
   - entry_type: location_invariant
     location:
       file_name: 52-queuesize.c
-      file_hash: $FILE_HASH
       line: 36
       column: 3
       function: push
@@ -274,7 +259,6 @@ Compare witnesses:
   - entry_type: location_invariant
     location:
       file_name: 52-queuesize.c
-      file_hash: $FILE_HASH
       line: 15
       column: 3
       function: pop

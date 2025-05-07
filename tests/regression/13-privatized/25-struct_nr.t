@@ -37,7 +37,6 @@
       ghost_updates:
       - location:
           file_name: 25-struct_nr.c
-          file_hash: $FILE_HASH
           line: 14
           column: 3
           function: t_fun
@@ -47,7 +46,6 @@
           format: c_expression
       - location:
           file_name: 25-struct_nr.c
-          file_hash: $FILE_HASH
           line: 20
           column: 3
           function: t_fun
@@ -57,7 +55,6 @@
           format: c_expression
       - location:
           file_name: 25-struct_nr.c
-          file_hash: $FILE_HASH
           line: 27
           column: 3
           function: main
@@ -67,7 +64,6 @@
           format: c_expression
       - location:
           file_name: 25-struct_nr.c
-          file_hash: $FILE_HASH
           line: 28
           column: 3
           function: main
@@ -77,7 +73,6 @@
           format: c_expression
       - location:
           file_name: 25-struct_nr.c
-          file_hash: $FILE_HASH
           line: 32
           column: 3
           function: main

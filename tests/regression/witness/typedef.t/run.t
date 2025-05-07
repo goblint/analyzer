@@ -13,7 +13,6 @@
   - entry_type: location_invariant
     location:
       file_name: typedef.c
-      file_hash: $FILE_HASH
       line: 14
       column: 3
       function: main
@@ -24,7 +23,6 @@
   - entry_type: location_invariant
     location:
       file_name: typedef.c
-      file_hash: $FILE_HASH
       line: 14
       column: 3
       function: main
@@ -35,7 +33,6 @@
   - entry_type: location_invariant
     location:
       file_name: typedef.c
-      file_hash: $FILE_HASH
       line: 14
       column: 3
       function: main
@@ -46,7 +43,6 @@
   - entry_type: location_invariant
     location:
       file_name: typedef.c
-      file_hash: $FILE_HASH
       line: 14
       column: 3
       function: main
@@ -57,7 +53,6 @@
   - entry_type: location_invariant
     location:
       file_name: typedef.c
-      file_hash: $FILE_HASH
       line: 14
       column: 3
       function: main
@@ -68,7 +63,6 @@
   - entry_type: location_invariant
     location:
       file_name: typedef.c
-      file_hash: $FILE_HASH
       line: 13
       column: 3
       function: main
@@ -79,7 +73,6 @@
   - entry_type: location_invariant
     location:
       file_name: typedef.c
-      file_hash: $FILE_HASH
       line: 13
       column: 3
       function: main
@@ -90,7 +83,6 @@
   - entry_type: location_invariant
     location:
       file_name: typedef.c
-      file_hash: $FILE_HASH
       line: 13
       column: 3
       function: main
@@ -101,7 +93,6 @@
   - entry_type: location_invariant
     location:
       file_name: typedef.c
-      file_hash: $FILE_HASH
       line: 13
       column: 3
       function: main
@@ -112,7 +103,6 @@
   - entry_type: location_invariant
     location:
       file_name: typedef.c
-      file_hash: $FILE_HASH
       line: 12
       column: 3
       function: main
@@ -123,7 +113,6 @@
   - entry_type: location_invariant
     location:
       file_name: typedef.c
-      file_hash: $FILE_HASH
       line: 12
       column: 3
       function: main
@@ -134,7 +123,6 @@
   - entry_type: location_invariant
     location:
       file_name: typedef.c
-      file_hash: $FILE_HASH
       line: 12
       column: 3
       function: main
@@ -145,7 +133,6 @@
   - entry_type: location_invariant
     location:
       file_name: typedef.c
-      file_hash: $FILE_HASH
       line: 9
       column: 3
       function: main
@@ -169,7 +156,6 @@
   - entry_type: location_invariant
     location:
       file_name: typedef.c
-      file_hash: $FILE_HASH
       line: 14
       column: 3
       function: main
@@ -180,7 +166,6 @@
   - entry_type: location_invariant
     location:
       file_name: typedef.c
-      file_hash: $FILE_HASH
       line: 14
       column: 3
       function: main
@@ -191,7 +176,6 @@
   - entry_type: location_invariant
     location:
       file_name: typedef.c
-      file_hash: $FILE_HASH
       line: 14
       column: 3
       function: main
@@ -202,7 +186,6 @@
   - entry_type: location_invariant
     location:
       file_name: typedef.c
-      file_hash: $FILE_HASH
       line: 14
       column: 3
       function: main
@@ -213,7 +196,6 @@
   - entry_type: location_invariant
     location:
       file_name: typedef.c
-      file_hash: $FILE_HASH
       line: 14
       column: 3
       function: main
@@ -224,7 +206,6 @@
   - entry_type: location_invariant
     location:
       file_name: typedef.c
-      file_hash: $FILE_HASH
       line: 14
       column: 3
       function: main
@@ -235,7 +216,6 @@
   - entry_type: location_invariant
     location:
       file_name: typedef.c
-      file_hash: $FILE_HASH
       line: 13
       column: 3
       function: main
@@ -246,7 +226,6 @@
   - entry_type: location_invariant
     location:
       file_name: typedef.c
-      file_hash: $FILE_HASH
       line: 13
       column: 3
       function: main
@@ -257,7 +236,6 @@
   - entry_type: location_invariant
     location:
       file_name: typedef.c
-      file_hash: $FILE_HASH
       line: 13
       column: 3
       function: main
@@ -268,7 +246,6 @@
   - entry_type: location_invariant
     location:
       file_name: typedef.c
-      file_hash: $FILE_HASH
       line: 13
       column: 3
       function: main
@@ -279,7 +256,6 @@
   - entry_type: location_invariant
     location:
       file_name: typedef.c
-      file_hash: $FILE_HASH
       line: 12
       column: 3
       function: main
@@ -290,7 +266,6 @@
   - entry_type: location_invariant
     location:
       file_name: typedef.c
-      file_hash: $FILE_HASH
       line: 12
       column: 3
       function: main
@@ -301,7 +276,6 @@
   - entry_type: location_invariant
     location:
       file_name: typedef.c
-      file_hash: $FILE_HASH
       line: 12
       column: 3
       function: main
@@ -312,7 +286,6 @@
   - entry_type: location_invariant
     location:
       file_name: typedef.c
-      file_hash: $FILE_HASH
       line: 9
       column: 3
       function: main

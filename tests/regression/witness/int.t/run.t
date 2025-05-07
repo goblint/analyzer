@@ -16,7 +16,6 @@
   - entry_type: location_invariant
     location:
       file_name: int.c
-      file_hash: $FILE_HASH
       line: 15
       column: 5
       function: main
@@ -27,7 +26,6 @@
   - entry_type: location_invariant
     location:
       file_name: int.c
-      file_hash: $FILE_HASH
       line: 12
       column: 5
       function: main
@@ -38,7 +36,6 @@
   - entry_type: location_invariant
     location:
       file_name: int.c
-      file_hash: $FILE_HASH
       line: 9
       column: 5
       function: main

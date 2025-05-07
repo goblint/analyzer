@@ -1,4 +1,4 @@
-// PARAM: --enable ana.int.interval --set ana.activated[+] unassume --set witness.yaml.unassume 22-base-unassume-priv.yml
+// PARAM: --enable ana.int.interval --set witness.yaml.entry-types[*] location_invariant --set ana.activated[+] unassume --set witness.yaml.unassume 22-base-unassume-priv.yml
 #include <pthread.h>
 #include <assert.h>
 

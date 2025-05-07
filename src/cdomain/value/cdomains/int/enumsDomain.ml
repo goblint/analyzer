@@ -11,12 +11,14 @@ module Enums : S with type int_t = Z.t = struct
   let range_ikind = Cil.IInt
   let size t = R.of_interval range_ikind (let a,b = Size.bits_i64 t in Int64.neg a,b)
 
-  type t = Inc of BISet.t | Exc of BISet.t * R.t [@@deriving eq, ord, hash] (* inclusion/exclusion set *)
+  type t =
+    | Inc of BISet.t (* Inclusion set. *)
+    | Exc of BISet.t * R.t (** Exclusion set. Bit range always includes 0. *)
+  [@@deriving eq, ord, hash]
 
   type int_t = Z.t
   let name () = "enums"
   let bot () = failwith "bot () not implemented for Enums"
-  let top () = failwith "top () not implemented for Enums"
   let bot_of ik = Inc (BISet.empty ())
   let top_bool = Inc (BISet.of_list [Z.zero; Z.one])
 
@@ -245,7 +247,7 @@ module Enums : S with type int_t = Z.t = struct
             R.meet r (R.of_interval range_ikind (Int64.zero, Int64.of_int @@ Z.numbits i))
           else 
             (match R.minimal r, R.maximal r with 
-            | None, _ | _, None -> top ()
+            | None, _ | _, None -> R.top ()
             | Some r1, Some r2 -> let b = Int.max (Z.numbits i) (Int64.to_int(Int64.max (Int64.abs r1) (Int64.abs r2))) in
               R.of_interval range_ikind (Int64.of_int @@ -b, Int64.of_int b)
             ) in 
@@ -264,7 +266,7 @@ module Enums : S with type int_t = Z.t = struct
           R.join r (R.of_interval range_ikind (Int64.zero, Int64.of_int @@ Z.numbits i))
         else 
           (match R.minimal r, R.maximal r with 
-          | None, _ | _, None -> top ()
+          | None, _ | _, None -> R.top ()
           | Some r1, Some r2 -> let b = Int.max (Z.numbits i) (Int64.to_int(Int64.max (Int64.abs r1) (Int64.abs r2))) in
             R.of_interval range_ikind (Int64.of_int @@ -b, Int64.of_int b)
           ) in 
@@ -283,7 +285,7 @@ module Enums : S with type int_t = Z.t = struct
           R.join r (R.of_interval range_ikind (Int64.zero, Int64.of_int @@ Z.numbits i))
         else
           match R.minimal r, R.maximal r with 
-          | None, _ | _, None -> top ()
+          | None, _ | _, None -> R.top ()
           | Some r1, Some r2 -> let b = Int.max (Z.numbits i) (Int64.to_int(Int64.max (Int64.abs r1) (Int64.abs r2))) in
             R.of_interval range_ikind (Int64.of_int @@ -b, Int64.of_int b)
       in 
@@ -329,6 +331,19 @@ module Enums : S with type int_t = Z.t = struct
     norm ik @@ Exc (exc, size ik)
   let is_excl_list = BatOption.is_some % to_excl_list
   let to_incl_list = function Inc s when not (BISet.is_empty s) -> Some (BISet.elements s) | _ -> None
+
+  let to_bitfield ik x =
+    let ik_mask = snd (Size.range ik) in
+    let one_mask = Z.lognot Z.zero in
+    match x with
+    | Inc i when BISet.is_empty i -> (Z.zero, Z.zero)
+    | Inc i when BISet.is_singleton i ->
+      let o = BISet.choose i in
+      let o = if Cil.isSigned ik then o else Z.logand ik_mask o in
+      (Z.lognot o, o)
+    | Inc i -> BISet.fold (fun o (az, ao) -> (Z.logor (Z.lognot o) az, Z.logor (if Cil.isSigned ik then o else Z.logand ik_mask o) ao)) i (Z.zero, Z.zero)
+    | _ when Cil.isSigned ik -> (one_mask, one_mask)
+    | _ -> (one_mask, ik_mask)
 
   let starting ?(suppress_ovwarn=false) ikind x =
     let _,u_ik = Size.range ikind in
@@ -429,6 +444,12 @@ module Enums : S with type int_t = Z.t = struct
       10, QCheck.map pos (BISet.arbitrary ());
     ] (* S TODO: decide frequencies *)
 
+
+  (* One needs to be exceedingly careful here to not cause new elements to appear that are not originally tracked by the domain *)
+  (* to avoid breaking the termination guarantee that only constants from the program can appear in exclusion or inclusion sets here *)
+  (* What is generally safe is shrinking an inclusion set as no new elements appear here. *)
+  (* What is not safe is growing an exclusion set or switching from an exclusion set to an inclusion set *)
+
   let refine_with_congruence ik a b =
     let contains c m x = if Z.equal m Z.zero then Z.equal c x else Z.equal (Z.rem (Z.sub x c) m) Z.zero in
     match a, b with
@@ -436,11 +457,22 @@ module Enums : S with type int_t = Z.t = struct
     | Inc e, Some (c, m) -> Inc (BISet.filter (contains c m) e)
     | _ -> a
 
-  let refine_with_interval ik a b = a (* TODO: refine inclusion (exclusion?) set *)
+  let refine_with_bitfield ik x (z,o) =
+    match x, BitfieldDomain.Bitfield.to_int (z,o) with
+    | Inc _, Some y ->
+      meet ik x (Inc (BISet.singleton y))
+    | _ ->
+      x
+
+  let refine_with_interval ik a b =
+    match a, b with
+    | Inc _, None -> bot_of ik
+    | Inc e, Some (l, u) -> Inc (BISet.filter (value_in_range (l,u)) e)
+    | _ -> a
 
   let refine_with_excl_list ik a b =
-    match b with
-    | Some (ls, _) -> meet ik a (of_excl_list ik ls) (* TODO: refine with excl range? *)
+    match a, b with
+    | Inc _, Some (ls, _) -> meet ik a (of_excl_list ik ls) (* TODO: refine with excl range? *)
     | _ -> a
 
   let refine_with_incl_list ik a b =

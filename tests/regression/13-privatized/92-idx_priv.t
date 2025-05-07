@@ -28,7 +28,6 @@
       ghost_updates:
       - location:
           file_name: 92-idx_priv.c
-          file_hash: $FILE_HASH
           line: 20
           column: 3
           function: main

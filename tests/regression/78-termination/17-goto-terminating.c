@@ -4,7 +4,7 @@
 
 int main()
 {
-  int num = 1;
+  unsigned int num = 1;
 
 loop:
   printf("Current number: %d\n", num);
