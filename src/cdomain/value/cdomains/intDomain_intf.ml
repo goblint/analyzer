@@ -2,6 +2,10 @@
 
 open GoblintCil
 
+module type IntDomain =
+sig
+(* TODO: fix indent *)
+
 val should_wrap: Cil.ikind -> bool
 val should_ignore_overflow: Cil.ikind -> bool
 
@@ -448,3 +452,5 @@ module Lift (Base: IkindUnawareS): IkindUnawareS with type t = [ `Bot | `Lifted 
 (* module IncExcInterval : S with type t = [ | `Excluded of Interval.t| `Included of Interval.t ] *)
 (** Inclusive and exclusive intervals. Warning: NOT A LATTICE *)
 module Enums : S with type int_t = Z.t
+
+end
