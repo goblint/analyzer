@@ -225,6 +225,7 @@ module Enums : S with type int_t = Z.t = struct
   let lognot ikind v = norm ikind @@ match v with
     | Inc x when BISet.is_empty x -> v 
     | Inc x when BISet.is_singleton x -> Inc (BISet.singleton (Z.lognot (BISet.choose x)))
+    | Inc x -> Inc (BISet.map Z.lognot x)
     | Exc (s,r) -> 
       let s' = BISet.map Z.lognot s in
       let r' = match R.minimal r, R.maximal r with
@@ -232,7 +233,6 @@ module Enums : S with type int_t = Z.t = struct
         | _ -> apply_range Z.lognot r
       in
       Exc (s', r')
-    | _ -> top_of ikind
 
   let logand ikind u v = 
     handle_bot u v (fun () ->
@@ -242,7 +242,7 @@ module Enums : S with type int_t = Z.t = struct
       | Exc (s,r), Inc x -> 
         let f = fun i -> 
           if Z.compare i Z.zero >= 0 then
-            R.join r (R.of_interval range_ikind (Int64.zero, Int64.of_int @@ Z.numbits i))
+            R.meet r (R.of_interval range_ikind (Int64.zero, Int64.of_int @@ Z.numbits i))
           else 
             (match R.minimal r, R.maximal r with 
             | None, _ | _, None -> top ()
