@@ -52,7 +52,7 @@ int main() {
   int both_neg_x2;
   int both_neg_y2;
 
-  if (both_neg_x2 <= -64 || both_neg_x2 > -1) {
+  if (both_neg_x2 < -64 || both_neg_x2 > -1) {
     both_neg_x2 = -64;
   }
 
@@ -107,12 +107,27 @@ int main() {
 
   res = pos_neg_x2 & pos_neg_y2;
   __goblint_check(res >= 0);
-  __goblint_check(res <= 127); 
+  __goblint_check(res <= 30); 
+
+  int pos_neg_x3;
+  int pos_neg_y3;
+
+  if (pos_neg_x3 < -65 || pos_neg_x3 > -40) {
+    pos_neg_x3 = -40;
+  }
+
+  if (pos_neg_y3 > 30 || pos_neg_y3 < 0) {
+    pos_neg_y3 = 30;
+  }
+
+  res = pos_neg_x3 & pos_neg_y3;
+  __goblint_check(res >= 0);
+  __goblint_check(res <= 30);
 
   int otherwise_x;
   int otherwise_y;
 
-  if (otherwise_x < -63 || otherwise_x > 20) {
+  if (otherwise_x < -64 || otherwise_x > 20) {
     otherwise_x = 0;
   }
 
@@ -154,6 +169,21 @@ int main() {
   __goblint_check(res <= 1);
 
   long long ll_res;
+  long long ll_int_x;
+  long long ll_int_y;
+
+  if (ll_int_x < -__INT_MAX__ - 1 || ll_int_x > __INT_MAX__ ) {
+    ll_int_x = 0;
+  }
+
+  if (ll_int_y < -__INT_MAX__ - 1 || ll_int_y > __INT_MAX__ ) {
+    ll_int_y = 0;
+  }
+
+  ll_res = ll_int_x & ll_int_y;
+  __goblint_check(ll_res >= -__INT_MAX__ - 1);
+  __goblint_check(ll_res <= __INT_MAX__);
+
   long long ll_large_x;
   long long ll_large_y;
 
