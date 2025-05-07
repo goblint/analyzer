@@ -23,17 +23,17 @@ struct
 
   (* TODO: An attempt to abstract integers, but it's just a little wrong... *)
   let of_int i =
-    if Z.compare i Z.zero < 0 then Neg
-    else if Z.compare i Z.zero > 0 then Pos
+    if Z.compare i Z.zero < 0 then Zero
+    else if Z.compare i Z.zero > 0 then Zero
     else Zero
 
   let lt x y = match x, y with
-    | Neg, Pos | Neg, Zero | Zero, Pos -> true (* TODO: Maybe something missing? *)
+    | Neg, Pos | Neg, Zero -> true (* TODO: Maybe something missing? *)
     | _ -> false
 end
 
 (* Now we turn this into a lattice by adding Top and Bottom elements.
- * We then lift the above operations to the lattice. *)
+  * We then lift the above operations to the lattice. *)
 module SL =
 struct
   include Lattice.Flat (Signs)
@@ -59,15 +59,15 @@ struct
 
   (* This should now evaluate expressions. *)
   let eval (d: D.t) (exp: exp): SL.t = match exp with
-    | Const (CInt (i, _, _)) -> SL.of_int i (* TODO: Fix me! *)
+    | Const (CInt (i, _, _)) -> SL.top () (* TODO: Fix me! *)
     | Lval (Var x, NoOffset) -> D.find x d
     | _ -> SL.top ()
 
 
   (* Transfer functions: we only implement assignments here.
-   * You can leave this code alone... *)
-  let assign man (lval:lval) (rval:exp) : D.t =
-    let d = man.local in
+    * You can leave this code alone... *)
+  let assign ctx (lval:lval) (rval:exp) : D.t =
+    let d = ctx.local in
     match lval with
     | (Var x, NoOffset) when not x.vaddrof -> D.add x (eval d rval) d
     | _ -> D.top ()
@@ -79,12 +79,12 @@ struct
     | _ -> false
 
   (* We should now provide this information to Goblint. Assertions are integer expressions,
-   * so we implement here a response to EvalInt queries.
-   * You should definitely leave this alone... *)
-  let query man (type a) (q: a Queries.t): a Queries.result =
+    * so we implement here a response to EvalInt queries.
+    * You should definitely leave this alone... *)
+  let query ctx (type a) (q: a Queries.t): a Queries.result =
     let open Queries in
     match q with
-    | EvalInt e when assert_holds man.local e ->
+    | EvalInt e when assert_holds ctx.local e ->
       let ik = Cilfacade.get_ikind_exp e in
       ID.of_bool ik true
     | _ -> Result.top q
