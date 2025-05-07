@@ -1065,7 +1065,7 @@ struct
                 Top
           end
         | _ ->
-          let result =              (* TODO: siin toimub*)
+          let result =
             match offs with
             | `NoOffset -> begin
                 match value with
