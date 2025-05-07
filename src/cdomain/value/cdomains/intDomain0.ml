@@ -3,6 +3,8 @@ open GoblintCil
 open Pretty
 open PrecisionUtil
 
+include IntDomain_intf
+
 module M = Messages
 
 let (%) = Batteries.(%)
@@ -69,7 +71,7 @@ let should_wrap ik = not (Cil.isSigned ik) || get_string "sem.int.signed_overflo
   * Always false for unsigned types, true for signed types if 'sem.int.signed_overflow' is 'assume_none'  *)
 let should_ignore_overflow ik = Cil.isSigned ik && get_string "sem.int.signed_overflow" = "assume_none"
 
-type overflow_info = { overflow: bool; underflow: bool;}
+type overflow_info = IntDomain_intf.overflow_info = { overflow: bool; underflow: bool;}
 
 let set_overflow_flag ~cast ~underflow ~overflow ik =
   if !AnalysisState.executing_speculative_computations then
@@ -96,175 +98,6 @@ let reset_lazy () =
   ana_int_config.interval_threshold_widening_constants <- None;
   ana_int_config.refinement <- None
 
-module type Arith =
-sig
-  type t
-  val neg: t -> t
-  val add: t -> t -> t
-  val sub: t -> t -> t
-  val mul: t -> t -> t
-  val div: t -> t -> t
-  val rem: t -> t -> t
-
-  val lt: t -> t -> t
-  val gt: t -> t -> t
-  val le: t -> t -> t
-  val ge: t -> t -> t
-  val eq: t -> t -> t
-  val ne: t -> t -> t
-
-  val lognot: t -> t
-  val logand: t -> t -> t
-  val logor : t -> t -> t
-  val logxor: t -> t -> t
-
-  val shift_left : t -> t -> t
-  val shift_right: t -> t -> t
-
-  val c_lognot: t -> t
-  val c_logand: t -> t -> t
-  val c_logor : t -> t -> t
-
-end
-
-module type ArithIkind =
-sig
-  type t
-  val neg: Cil.ikind -> t -> t
-  val add: Cil.ikind -> t -> t -> t
-  val sub: Cil.ikind -> t -> t -> t
-  val mul: Cil.ikind -> t -> t -> t
-  val div: Cil.ikind -> t -> t -> t
-  val rem: Cil.ikind -> t -> t -> t
-
-  val lt: Cil.ikind -> t -> t -> t
-  val gt: Cil.ikind -> t -> t -> t
-  val le: Cil.ikind -> t -> t -> t
-  val ge: Cil.ikind -> t -> t -> t
-  val eq: Cil.ikind -> t -> t -> t
-  val ne: Cil.ikind -> t -> t -> t
-
-  val lognot: Cil.ikind -> t -> t
-  val logand: Cil.ikind -> t -> t -> t
-  val logor : Cil.ikind -> t -> t -> t
-  val logxor: Cil.ikind -> t -> t -> t
-
-  val shift_left : Cil.ikind -> t -> t -> t
-  val shift_right: Cil.ikind -> t -> t -> t
-
-  val c_lognot: Cil.ikind -> t -> t
-  val c_logand: Cil.ikind -> t -> t -> t
-  val c_logor : Cil.ikind -> t -> t -> t
-
-end
-
-(* Shared functions between S and Z *)
-module type B =
-sig
-  include Lattice.PO
-  include Lattice.Bot with type t := t
-  type int_t
-  val bot_of: Cil.ikind -> t
-  val top_of: Cil.ikind -> t
-  val to_int: t -> int_t option
-  val equal_to: int_t -> t -> [`Eq | `Neq | `Top]
-
-  val to_bool: t -> bool option
-  val to_excl_list: t -> (int_t list * (int64 * int64)) option
-  val of_excl_list: Cil.ikind -> int_t list -> t
-  val is_excl_list: t -> bool
-
-  val to_incl_list: t -> int_t list option
-
-  val maximal    : t -> int_t option
-  val minimal    : t -> int_t option
-
-  val cast_to: ?suppress_ovwarn:bool -> ?torg:Cil.typ -> Cil.ikind -> t -> t
-end
-
-(** Interface of IntDomain implementations that do not take ikinds for arithmetic operations yet. TODO: Should be ported to S in the future. *)
-module type IkindUnawareS =
-sig
-  include B
-  include Lattice.Top with type t := t
-  include Arith with type t := t
-  val starting   : ?suppress_ovwarn:bool -> Cil.ikind -> int_t -> t
-  val ending     : ?suppress_ovwarn:bool -> Cil.ikind -> int_t -> t
-  val of_int: int_t -> t
-  val of_bool: bool -> t
-  val of_interval: ?suppress_ovwarn:bool -> Cil.ikind -> int_t * int_t -> t
-  val of_congruence: Cil.ikind -> int_t * int_t -> t
-  val of_bitfield: Cil.ikind -> int_t * int_t -> t
-  val arbitrary: unit -> t QCheck.arbitrary
-  val invariant: Cil.exp -> t -> Invariant.t
-end
-
-(** Interface of IntDomain implementations taking an ikind for arithmetic operations *)
-module type S =
-sig
-  include B
-  include ArithIkind with type t:= t
-
-  val add : ?no_ov:bool -> Cil.ikind ->  t -> t -> t
-  val sub : ?no_ov:bool -> Cil.ikind ->  t -> t -> t
-  val mul : ?no_ov:bool -> Cil.ikind ->  t -> t -> t
-  val div : ?no_ov:bool -> Cil.ikind ->  t -> t -> t
-  val neg : ?no_ov:bool -> Cil.ikind ->  t -> t
-  val cast_to : ?suppress_ovwarn:bool -> ?torg:Cil.typ -> ?no_ov:bool -> Cil.ikind -> t -> t
-
-  val join: Cil.ikind -> t -> t -> t
-  val meet: Cil.ikind -> t -> t -> t
-  val narrow: Cil.ikind -> t -> t -> t
-  val widen: Cil.ikind -> t -> t -> t
-  val starting : ?suppress_ovwarn:bool -> Cil.ikind -> int_t -> t
-  val ending : ?suppress_ovwarn:bool -> Cil.ikind -> int_t -> t
-  val of_int: Cil.ikind -> int_t -> t
-  val of_bool: Cil.ikind -> bool -> t
-  val of_interval: ?suppress_ovwarn:bool -> Cil.ikind -> int_t * int_t -> t
-  val of_congruence: Cil.ikind -> int_t * int_t -> t
-  val of_bitfield: Cil.ikind -> int_t * int_t -> t
-  val to_bitfield: Cil.ikind -> t -> int_t * int_t
-  val is_top_of: Cil.ikind -> t -> bool
-  val invariant_ikind : Cil.exp -> Cil.ikind -> t -> Invariant.t
-
-  val refine_with_congruence: Cil.ikind -> t -> (int_t * int_t) option -> t
-  val refine_with_bitfield: Cil.ikind -> t -> (int_t * int_t) -> t
-  val refine_with_interval: Cil.ikind -> t -> (int_t * int_t) option -> t
-  val refine_with_excl_list: Cil.ikind -> t -> (int_t list * (int64 * int64)) option -> t
-  val refine_with_incl_list: Cil.ikind -> t -> int_t list option -> t
-
-  val project: Cil.ikind -> int_precision -> t -> t
-  val arbitrary: Cil.ikind -> t QCheck.arbitrary
-end
-
-module type SOverflow =
-sig
-
-  include S
-
-  val add : ?no_ov:bool -> Cil.ikind ->  t -> t -> t * overflow_info
-
-  val sub : ?no_ov:bool -> Cil.ikind ->  t -> t -> t * overflow_info
-
-  val mul : ?no_ov:bool -> Cil.ikind ->  t -> t -> t * overflow_info
-
-  val div : ?no_ov:bool -> Cil.ikind ->  t -> t -> t * overflow_info
-
-  val neg : ?no_ov:bool -> Cil.ikind ->  t -> t * overflow_info
-
-  val cast_to : ?suppress_ovwarn:bool -> ?torg:Cil.typ -> ?no_ov:bool -> Cil.ikind -> t -> t * overflow_info
-
-  val of_int : Cil.ikind -> int_t -> t * overflow_info
-
-  val of_interval: ?suppress_ovwarn:bool -> Cil.ikind -> int_t * int_t -> t * overflow_info
-
-  val starting : ?suppress_ovwarn:bool -> Cil.ikind -> int_t -> t * overflow_info
-  val ending : ?suppress_ovwarn:bool -> Cil.ikind -> int_t -> t * overflow_info
-
-  val shift_left : Cil.ikind -> t -> t -> t * overflow_info
-
-  val shift_right : Cil.ikind -> t -> t -> t * overflow_info
-end
 
 module type Bitfield_SOverflow =
 sig

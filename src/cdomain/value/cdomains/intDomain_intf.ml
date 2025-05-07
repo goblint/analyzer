@@ -2,14 +2,6 @@
 
 open GoblintCil
 
-module type IntDomain =
-sig
-(* TODO: fix indent *)
-
-val should_wrap: Cil.ikind -> bool
-val should_ignore_overflow: Cil.ikind -> bool
-
-val reset_lazy: unit -> unit
 
 type overflow_info = { overflow: bool; underflow: bool;}
 
@@ -315,6 +307,25 @@ sig
 
 
 end
+
+module type IntDomain =
+sig
+(* TODO: fix indent *)
+
+val should_wrap: Cil.ikind -> bool
+val should_ignore_overflow: Cil.ikind -> bool
+
+val reset_lazy: unit -> unit
+
+type nonrec overflow_info = overflow_info = { overflow: bool; underflow: bool;}
+
+module type Arith = Arith
+module type ArithIkind = ArithIkind
+module type B = B
+module type IkindUnawareS = IkindUnawareS
+module type S = S
+module type SOverflow = SOverflow
+
 
 module SOverflowUnlifter (D : SOverflow) : S with type int_t = D.int_t and type t = D.t
 
