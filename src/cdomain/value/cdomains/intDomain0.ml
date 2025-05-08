@@ -233,7 +233,6 @@ module Size = struct (* size in bits as int, range as int64 *)
   open Cil
   let sign x = if Z.compare x Z.zero < 0 then `Signed else `Unsigned
 
-  let top_typ = TInt (ILongLong, [])
   let min_for x = intKindForValue x (sign x = `Unsigned)
   let bit = function (* bits needed for representation *)
     | IBool -> 1
