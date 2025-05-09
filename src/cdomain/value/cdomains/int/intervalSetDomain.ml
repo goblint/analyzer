@@ -31,13 +31,13 @@ struct
 
   let range ik = BatTuple.Tuple2.mapn Ints_t.of_bigint (Size.range ik)
 
-  let top_of ?bitfield ik = [match bitfield with 
-    | None -> range ik
-    | Some b -> let signed_lower_bound = Ints_t.neg @@ Ints_t.shift_left Ints_t.one (b-1) in
-                let unsigned_upper_bound = Ints_t.sub (Ints_t.shift_left Ints_t.one b) Ints_t.one in
-                match Cil.isSigned ik with
-                | true -> (signed_lower_bound, unsigned_upper_bound)
-                | false -> (Ints_t.zero, unsigned_upper_bound)]
+  let top_of ?bitfield ik = [match bitfield with
+      | None -> range ik
+      | Some b -> let signed_lower_bound = Ints_t.neg @@ Ints_t.shift_left Ints_t.one (b-1) in
+        let unsigned_upper_bound = Ints_t.sub (Ints_t.shift_left Ints_t.one b) Ints_t.one in
+        match Cil.isSigned ik with
+        | true -> (signed_lower_bound, unsigned_upper_bound)
+        | false -> (Ints_t.zero, unsigned_upper_bound)]
 
   let bot () = []
 
@@ -341,8 +341,8 @@ struct
         of_interval ik (Ints_t.zero, Ints_t.min x2 y2) |> fst
       | _, false, _, false ->
         of_interval ik (min_val_bit_constrained @@ Ints_t.min x1 y1, Ints_t.zero) |> fst
-      | true, _, _, false | _, false, true, _ ->
-        of_interval ik (Ints_t.zero, Ints_t.max x2 y2) |> fst
+      | true, _, _, _ -> of_interval ik (Ints_t.zero, x2) |> fst
+      | _, _, true, _ -> of_interval ik (Ints_t.zero, y2) |> fst
       | _ ->
         let lower = min_val_bit_constrained @@ Ints_t.min x1 y1 in
         let upper = Ints_t.max x2 y2 in
@@ -381,9 +381,9 @@ struct
         let upper = max_val_bit_constrained @@ Ints_t.min x1 y1 in
         of_interval ik (Ints_t.zero, upper) |> fst
       | true, _, _, false | _, false, true, _ ->
-        let lower = List.fold_left Ints_t.min Ints_t.zero (List.map min_val_bit_constrained [x1; x2; y1; y2]) in
+        let lower = List.fold_left Ints_t.min Ints_t.zero (List.map (fun i -> min_val_bit_constrained @@ Ints_t.abs (Ints_t.add i Ints_t.one)) [x1; x2; y1; y2]) in 
         of_interval ik (lower, Ints_t.zero) |> fst
-      | _ -> let lower = List.fold_left Ints_t.min Ints_t.zero (List.map min_val_bit_constrained [x1;x2;y1;y2]) in
+      | _ -> let lower = List.fold_left Ints_t.min Ints_t.zero (List.map (fun i -> min_val_bit_constrained @@ Ints_t.abs (Ints_t.add i Ints_t.one)) [x1;x2;y1;y2]) in
         let upper = List.fold_left Ints_t.max Ints_t.zero (List.map max_val_bit_constrained [x1;x2;y1;y2]) in
         of_interval ik (lower, upper) |> fst
 
@@ -407,14 +407,14 @@ struct
 
   let interval_shiftright ik (i1, i2) =
     match (interval_to_int i1, interval_to_int i2) with
-    | Some x, Some y -> (try of_int ik (Ints_t.shift_right x (Ints_t.to_int y)) with Division_by_zero | Invalid_argument _ -> 
-      (top_of ik,{overflow=false; underflow=false}))
+    | Some x, Some y -> (try of_int ik (Ints_t.shift_right x (Ints_t.to_int y)) with Division_by_zero | Invalid_argument _ ->
+        (top_of ik,{overflow=false; underflow=false}))
     | _ ->
       let is_nonneg x = Ints_t.compare x Ints_t.zero >= 0 in
-      match i1, i2 with 
-        | (x1, x2), (y1,y2) when is_nonneg x1 && is_nonneg y1 ->
-            of_interval ik (Ints_t.zero, Ints_t.div x2 (Ints_t.shift_left Ints_t.one (Ints_t.to_int y1)))
-        | _ -> (top_of ik,{underflow=false; overflow=false})
+      match i1, i2 with
+      | (x1, x2), (y1,y2) when is_nonneg x1 && is_nonneg y1 ->
+        of_interval ik (Ints_t.zero, Ints_t.div x2 (Ints_t.shift_left Ints_t.one (Ints_t.to_int y1)))
+      | _ -> (top_of ik,{underflow=false; overflow=false})
 
   let shift_right ik x y = binary_op_with_ovc x y (interval_shiftright ik)
 
