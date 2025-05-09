@@ -248,9 +248,9 @@ struct
            let upper = max_val_bit_constrained @@ Ints_t.min x1 y1 in
            of_interval ik (Ints_t.zero, upper) |> fst
          | true, _, _, false | _, false, true, _ ->
-           let lower = List.fold_left Ints_t.min Ints_t.zero (List.map min_val_bit_constrained [x1; x2; y1; y2]) in
+           let lower = List.fold_left Ints_t.min Ints_t.zero (List.map (fun i -> min_val_bit_constrained @@ Ints_t.abs (Ints_t.add i Ints_t.one)) [x1; x2; y1; y2]) in 
            of_interval ik (lower, Ints_t.zero) |> fst
-         | _ -> let lower = List.fold_left Ints_t.min Ints_t.zero (List.map min_val_bit_constrained [x1;x2;y1;y2]) in
+         | _ -> let lower = List.fold_left Ints_t.min Ints_t.zero (List.map (fun i -> min_val_bit_constrained @@ Ints_t.abs (Ints_t.add i Ints_t.one)) [x1;x2;y1;y2]) in
            let upper = List.fold_left Ints_t.max Ints_t.zero (List.map max_val_bit_constrained [x1;x2;y1;y2]) in
            of_interval ik (lower, upper) |> fst)
       | _ -> top_of ik
