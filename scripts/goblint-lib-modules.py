@@ -42,6 +42,13 @@ exclude_module_names = set([
     "Goblint_build_info",
     "Dune_build_info",
 
+    # mocked parallelism: These files are called differently
+    # (x.domainslib.ml or x.no-domainslib.ml) and therefore not recognized
+    # by the script
+    "GobMutex",
+    "Threadpool",
+    "DomainsafeLazy",
+
     # ppx-s
     "Ppx_deriving_printable",
     "Ppx_deriving_lattice",

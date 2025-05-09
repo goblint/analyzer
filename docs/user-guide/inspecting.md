@@ -11,6 +11,8 @@ Modern browsers' security settings forbid some file access which is necessary fo
 
 ## GobView
 
+**Note:** GobView is not compatible with OCaml 4 any more. Use OCaml 5.0.0 or newer.
+
 For the initial setup:
 
 1. Install Node.js (preferably ≥ 12.0.0) and npm (≥ 5.2.0)
