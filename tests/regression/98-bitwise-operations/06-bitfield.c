@@ -18,8 +18,8 @@ int main(void)
         x = 0;
     }
     
-    s.a = 1;
-    s.b = 1;
+    s.a = 1; // NOWARN
+    s.b = 1; // NOWARN
 
     __goblint_check(s.a <= 7);
     __goblint_check(s.a >= -4);
