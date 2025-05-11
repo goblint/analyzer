@@ -2,6 +2,7 @@
 #include <goblint.h>
 
 int main() {
+
   unsigned int u_res;
   unsigned int unsigned_x;
   unsigned int unsigned_y;

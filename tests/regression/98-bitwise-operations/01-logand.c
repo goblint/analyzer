@@ -79,48 +79,48 @@ int main() {
   __goblint_check(res <= 0);
   __goblint_check(res >= -128); 
 
-  int pos_neg_x;
-  int pos_neg_y;
+  int one_pos_x;
+  int one_pos_y;
 
-  if (pos_neg_x < -64 || pos_neg_x > -1) {
-    pos_neg_x = -64;
+  if (one_pos_x < -64 || one_pos_x > -1) {
+    one_pos_x = -64;
   }
 
-  if (pos_neg_y > 63 || pos_neg_y < 0) {
-    pos_neg_y = 63;
+  if (one_pos_y > 30 || one_pos_y < 0) {
+    one_pos_y = 30;
   }
 
-  res = pos_neg_x & pos_neg_y;
+  res = one_pos_x & one_pos_y;
   __goblint_check(res >= 0);
-  __goblint_check(res <= 63);
+  __goblint_check(res <= 30);
 
-  int pos_neg_x2;
-  int pos_neg_y2;
+  int one_pos_x2;
+  int one_pos_y2;
 
-  if (pos_neg_x2 < -65 || pos_neg_x2 > -1) {
-    pos_neg_x2 = -65;
+  if (one_pos_x2 < -65 || one_pos_x2 > 40) {
+    one_pos_x2 = -65;
   }
 
-  if (pos_neg_y2 > 30 || pos_neg_y2 < 0) {
-    pos_neg_y2 = 30;
+  if (one_pos_y2 > 30 || one_pos_y2 < 0) {
+    one_pos_y2 = 30;
   }
 
-  res = pos_neg_x2 & pos_neg_y2;
+  res = one_pos_x2 & one_pos_y2;
   __goblint_check(res >= 0);
   __goblint_check(res <= 30); 
 
-  int pos_neg_x3;
-  int pos_neg_y3;
+  int one_pos_x3;
+  int one_pos_y3;
 
-  if (pos_neg_x3 < -65 || pos_neg_x3 > -40) {
-    pos_neg_x3 = -40;
+  if (one_pos_x3 < -65 || one_pos_x3 > 10) {
+    one_pos_x3 = 0;
   }
 
-  if (pos_neg_y3 > 30 || pos_neg_y3 < 0) {
-    pos_neg_y3 = 30;
+  if (one_pos_y3 > 30 || one_pos_y3 < 0) {
+    one_pos_y3 = 0;
   }
 
-  res = pos_neg_x3 & pos_neg_y3;
+  res = one_pos_x3 & one_pos_y3;
   __goblint_check(res >= 0);
   __goblint_check(res <= 30);
 

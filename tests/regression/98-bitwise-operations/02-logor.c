@@ -49,63 +49,63 @@ int main() {
   __goblint_check(res <= 0);
   __goblint_check(res >= -30);
 
-  int pos_neg_x;
-  int pos_neg_y;
+  int one_neg_x;
+  int one_neg_y;
 
-  if (pos_neg_x < -64 || pos_neg_x > -1) {
-    pos_neg_x = -64;
+  if (one_neg_x < -64 || one_neg_x > -1) {
+    one_neg_x = -64;
   }
 
-  if (pos_neg_y > 63 || pos_neg_y < 0) {
-    pos_neg_y = 63;
+  if (one_neg_y > 63 || one_neg_y < 0) {
+    one_neg_y = 63;
   }
 
-  res = pos_neg_x | pos_neg_y;
+  res = one_neg_x | one_neg_y;
   __goblint_check(res <= 0);
   __goblint_check(res >= -64);
 
-  int pos_neg_x2;
-  int pos_neg_y2;
+  int one_neg_x2;
+  int one_neg_y2;
 
-  if (pos_neg_x2 < -65 || pos_neg_x2 > -1) {
-    pos_neg_x2 = -65;
+  if (one_neg_x2 < -20 || one_neg_x2 > -1) {
+    one_neg_x2 = -20;
   }
 
-  if (pos_neg_y2 > 30 || pos_neg_y2 < 0) {
-    pos_neg_y2 = 30;
+  if (one_neg_y2 > 30 || one_neg_y2 < 0) {
+    one_neg_y2 = 30;
   }
 
-  res = pos_neg_x2 | pos_neg_y2;
+  res = one_neg_x2 | one_neg_y2;
   __goblint_check(res <= 0);
-  __goblint_check(res >= -65); 
+  __goblint_check(res >= -20); 
 
-  int pos_neg_x3;
-  int pos_neg_y3;
+  int one_neg_x3;
+  int one_neg_y3;
 
-  if (pos_neg_x3 < -30 || pos_neg_x3 > -1) {
-    pos_neg_x3 = -30;
+  if (one_neg_x3 < -10 || one_neg_x3 > -1) {
+    one_neg_x3 = -10;
   }
 
-  if (pos_neg_y3 > 64 || pos_neg_y3 < 0) {
-    pos_neg_y3 = 64;
+  if (one_neg_y3 > 64 || one_neg_y3 < -64) {
+    one_neg_y3 = 64;
   }
 
-  res = pos_neg_x3 | pos_neg_y3;
+  res = one_neg_x3 | one_neg_y3;
   __goblint_check(res <= 0);
-  __goblint_check(res >= -30);
+  __goblint_check(res >= -10);
 
-  int pos_neg_x4;
-  int pos_neg_y4;
+  int one_neg_x4;
+  int one_neg_y4;
 
-  if (pos_neg_x4 < -30 || pos_neg_x4 > -1) {
-    pos_neg_x4 = -30;
+  if (one_neg_x4 < -30 || one_neg_x4 > -1) {
+    one_neg_x4 = -30;
   }
 
-  if (pos_neg_y4 > 65 || pos_neg_y4 < 0) {
-    pos_neg_y4 = 65;
+  if (one_neg_y4 > 10 || one_neg_y4 < -10) {
+    one_neg_y4 = 10;
   }
 
-  res = pos_neg_x4 | pos_neg_y4;
+  res = one_neg_x4 | one_neg_y4;
   __goblint_check(res <= 0);
   __goblint_check(res >= -30);
 
