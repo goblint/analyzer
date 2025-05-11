@@ -246,29 +246,24 @@ module Enums : S with type int_t = Z.t = struct
             (match (R.minimal r, R.maximal r) with
              | (None, _) | (_, None) -> R.top_of ikind
              | (Some r1, Some r2) ->
-               let b = Int64.max (Int64.of_int @@ Z.numbits i) (Int64.max (Int64.abs r1) (Int64.abs r2)) in
-               if (Z.compare i Z.zero >= 0 && Int64.compare r1 Int64.zero >= 0) then 
-                 R.of_interval range_ikind (Int64.zero, Int64.min r2 (Int64.of_int @@ Z.numbits i))
-               else if (Z.compare i Z.zero >= 0 && Int64.compare r1 Int64.zero < 0) then
-                 R.join r (R.of_interval range_ikind (Int64.zero, Int64.of_int @@ Z.numbits i))
-               else if (Z.compare i Z.zero < 0 && Int64.compare r1 Int64.zero >= 0) then
-                 R.of_interval range_ikind (Int64.zero, b)
-               else
-                 R.of_interval range_ikind (Int64.neg b, b)
+               match Z.compare i Z.zero >= 0, Int64.compare r1 Int64.zero >= 0 with
+               | true, true -> R.of_interval range_ikind (Int64.zero, Int64.min r2 (Int64.of_int @@ Z.numbits i))
+               | true, _ -> R.of_interval range_ikind (Int64.zero, Int64.of_int @@ Z.numbits i)
+               | _, true -> R.of_interval range_ikind (Int64.zero, r2)
+               | _, _ -> let b = Int64.max (Int64.of_int @@ Z.numbits i) (Int64.max (Int64.abs r1) (Int64.abs r2)) in
+                 R.of_interval range_ikind (Int64.neg b, b)             
             ) in 
           let r' = BISet.fold (fun i acc -> R.join (f i) acc) x (R.bot ()) in 
           Exc (BISet.empty (), r')
         | Exc (_, p), Exc (_, r) -> 
           (match R.minimal p, R.maximal p, R.minimal r, R.maximal r with
-           | Some p1, Some p2, Some r1, Some r2 -> 
-             if Int64.compare p1 Int64.zero >= 0 && Int64.compare r1 Int64.zero >= 0 then 
-               Exc (BISet.empty (), R.of_interval range_ikind (Int64.zero, Int64.min p2 r2))
-             else if Int64.compare p1 Int64.zero >= 0 && Int64.compare r1 Int64.zero < 0 then 
-               Exc (BISet.empty (), R.of_interval range_ikind (Int64.zero, p2))
-             else if Int64.compare r1 Int64.zero >= 0 && Int64.compare p1 Int64.zero < 0 then
-               Exc (BISet.empty (), R.of_interval range_ikind (Int64.zero, r2))
-             else
-               Exc (BISet.empty (), R.join p r)
+           | Some p1, Some p2, Some r1, Some r2 -> begin
+               match Int64.compare p1 Int64.zero >= 0, Int64.compare r1 Int64.zero >= 0 with
+               | true, true -> Exc (BISet.empty (), R.of_interval range_ikind (Int64.zero, Int64.min p2 r2))
+               | true, _ -> Exc (BISet.empty (), R.of_interval range_ikind (Int64.zero, p2))
+               | _, true -> Exc (BISet.empty (), R.of_interval range_ikind (Int64.zero, r2))
+               | _ -> Exc (BISet.empty (), R.join p r)            
+             end
            | _ -> top_of ikind)
         | _,_ -> top_of ikind)
 

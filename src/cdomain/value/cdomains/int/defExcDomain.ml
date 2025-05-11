@@ -475,27 +475,22 @@ struct
           (match (R.minimal r, R.maximal r) with
            | (None, _) | (_, None) -> top_of ik
            | (Some r1, Some r2) ->
-             let b = Int64.max (Int64.of_int @@ Z.numbits i) (Int64.max (Int64.abs r1) (Int64.abs r2)) in
-             if (Z.compare i Z.zero >= 0 && Int64.compare r1 Int64.zero >= 0) then 
-               `Excluded (S.empty (), R.of_interval range_ikind (Int64.zero, Int64.min r2 (Int64.of_int @@ Z.numbits i)))
-             else if (Z.compare i Z.zero >= 0 && Int64.compare r1 Int64.zero < 0) then
-               `Excluded (S.empty (), R.join r (R.of_interval range_ikind (Int64.zero, Int64.of_int @@ Z.numbits i)))
-             else if (Z.compare i Z.zero < 0 && Int64.compare r1 Int64.zero >= 0) then
-               `Excluded (S.empty (), R.of_interval range_ikind (Int64.zero, b))
-             else
-               `Excluded (S.empty (), R.of_interval range_ikind (Int64.neg b, b))
+             match Z.compare i Z.zero >= 0, Int64.compare r1 Int64.zero >= 0 with
+             | true, true ->`Excluded (S.empty (), R.of_interval range_ikind (Int64.zero, Int64.min r2 (Int64.of_int @@ Z.numbits i)))
+             | true, _ -> `Excluded (S.empty (), R.of_interval range_ikind (Int64.zero, Int64.of_int @@ Z.numbits i))
+             | _, true -> `Excluded (S.empty (), R.of_interval range_ikind (Int64.zero, r2))
+             | _, _ -> let b = Int64.max (Int64.of_int @@ Z.numbits i) (Int64.max (Int64.abs r1) (Int64.abs r2)) in
+               `Excluded (S.empty (), R.of_interval range_ikind (Int64.neg b, b))               
           )
       | `Excluded (_, p), `Excluded (_, r) -> begin
           match R.minimal p, R.maximal p, R.minimal r, R.maximal r with
-          | Some p1, Some p2, Some r1, Some r2 -> 
-            if Int64.compare p1 Int64.zero >= 0 && Int64.compare r1 Int64.zero >= 0 then 
-              `Excluded (S.empty (), R.of_interval range_ikind (Int64.zero, Int64.min p2 r2))
-            else if Int64.compare p1 Int64.zero >= 0 && Int64.compare r1 Int64.zero < 0 then 
-              `Excluded (S.empty (), R.of_interval range_ikind (Int64.zero, p2))
-            else if Int64.compare r1 Int64.zero >= 0 && Int64.compare p1 Int64.zero < 0 then
-              `Excluded (S.empty (), R.of_interval range_ikind (Int64.zero, r2))
-            else
-              `Excluded (S.empty (), R.join p r)
+          | Some p1, Some p2, Some r1, Some r2 -> begin
+              match Int64.compare p1 Int64.zero >= 0, Int64.compare r1 Int64.zero >= 0 with
+              | true, true -> `Excluded (S.empty (), R.of_interval range_ikind (Int64.zero, Int64.min p2 r2))
+              | true, _ -> `Excluded (S.empty (), R.of_interval range_ikind (Int64.zero, p2))
+              | _, true -> `Excluded (S.empty (), R.of_interval range_ikind (Int64.zero, r2))
+              | _ -> `Excluded (S.empty (), R.join p r)            
+            end
           | _ -> top_of ik
         end
       (* The good case: *)
