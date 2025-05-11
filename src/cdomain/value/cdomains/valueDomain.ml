@@ -1073,7 +1073,7 @@ struct
                 | Int i -> begin
                   match bitfield with
                   | Some b when not @@ ID.leq i (ID.top_of ~bitfield:b (ID.ikind i)) ->
-                    Messages.warn ~category:Analyzer "Assigned value %a has a size that is too large for bit-field of size %d bits." pretty value b; Top
+                    Messages.warn ~category:Analyzer "Assigned value %a exceeds the representable range of a %d-bit bit-field." pretty value b; Top
                   | _ -> cast t value
                 end
                 | _ -> value
