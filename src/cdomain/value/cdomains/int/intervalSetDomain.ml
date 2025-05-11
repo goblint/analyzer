@@ -359,8 +359,8 @@ struct
       match is_nonneg x1, is_nonneg x2, is_nonneg y1, is_nonneg y2 with
       | true, _, true, _ -> of_interval ik (Ints_t.max x1 y1, max_val_bit_constrained (Ints_t.max x2 y2)) |> fst
       | _, false, _, false -> of_interval ik (Ints_t.max x1 y1, Ints_t.zero) |> fst
-      | true, _, _, false | _, false, true, _ ->
-        of_interval ik (Ints_t.min x1 y1, Ints_t.zero) |> fst
+      | _, false, _, _ -> of_interval ik (x1, Ints_t.zero) |> fst
+      | _, _, _, false -> of_interval ik (y1, Ints_t.zero) |> fst
       |_ ->
         let lower = Ints_t.min x1 y1 in
         let upper = max_val_bit_constrained @@ Ints_t.max x2 y2 in
@@ -381,9 +381,13 @@ struct
         let upper = max_val_bit_constrained @@ Ints_t.min x1 y1 in
         of_interval ik (Ints_t.zero, upper) |> fst
       | true, _, _, false | _, false, true, _ ->
-        let lower = List.fold_left Ints_t.min Ints_t.zero (List.map (fun i -> min_val_bit_constrained @@ Ints_t.abs (Ints_t.add i Ints_t.one)) [x1; x2; y1; y2]) in 
+        let lower = List.fold_left Ints_t.min Ints_t.zero 
+            (List.append (List.map min_val_bit_constrained [x1; y1]) 
+               (List.map (fun i -> Ints_t.neg @@ Ints_t.add (max_val_bit_constrained i) Ints_t.one) [x2; y2])) in  
         of_interval ik (lower, Ints_t.zero) |> fst
-      | _ -> let lower = List.fold_left Ints_t.min Ints_t.zero (List.map (fun i -> min_val_bit_constrained @@ Ints_t.abs (Ints_t.add i Ints_t.one)) [x1;x2;y1;y2]) in
+      | _ -> let lower = List.fold_left Ints_t.min Ints_t.zero 
+                 (List.append (List.map min_val_bit_constrained [x1; y1]) 
+                    (List.map (fun i -> Ints_t.neg @@ Ints_t.add (max_val_bit_constrained i) Ints_t.one) [x2; y2])) in 
         let upper = List.fold_left Ints_t.max Ints_t.zero (List.map max_val_bit_constrained [x1;x2;y1;y2]) in
         of_interval ik (lower, upper) |> fst
 
@@ -393,11 +397,8 @@ struct
     let interval_lognot i =
       match interval_to_int i with
       | Some x -> of_int ik (Ints_t.lognot x) |> fst
-      | _ -> 
-        let (x1, x2) = i in
-        let y1 = Ints_t.lognot x1 in
-        let y2 = Ints_t.lognot x2 in
-        of_interval ik (Ints_t.min y1 y2, Ints_t.max y1 y2) |> fst
+      | _ ->
+        let (x1, x2) = i in of_interval ik (Ints_t.lognot x2, Ints_t.lognot x1) |> fst
     in
     unop x interval_lognot
 
