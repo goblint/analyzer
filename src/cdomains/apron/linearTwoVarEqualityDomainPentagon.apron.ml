@@ -929,8 +929,9 @@ struct
         if M.tracing then M.trace "leq" "refined into %s" (EConjI.show_formatted (fun i -> Var.show @@ Environment.var_of_dim t2.env i) m1');
         (*TODO the transformations are likely the most expensive part. -> only do it when econj did not rule it out*)
         IntMap.for_all (implies econ1') (snd econ2) (* even on sparse m2, it suffices to check the non-trivial equalities, still present in sparse m2 *)
-        && IntMap.for_all (implies_value m1') (vs2)
-        && Ineq.leq ineq1' (EConjI.get_value m1') ineq2
+        && (if M.tracing then M.trace "leq" "econj true";
+            IntMap.for_all (implies_value m1') (vs2))
+        && (if M.tracing then M.trace "leq" "values true"; Ineq.leq ineq1' (EConjI.get_value m1') ineq2)
       with EConj.Contradiction -> 
         if M.tracing then M.trace "leq" "refinement showed contradiction";
         true (*t1 was secretely bot -> leq all*)
@@ -1059,14 +1060,14 @@ struct
         | Some d' -> 
           if M.tracing then M.tracel "assign_texpr" "assigning %s = %s before inequality: %s" (Var.show var) (Texpr1.show (Texpr1.of_expr t.env texp)) (show {d = Some d'; env = t.env});
           let meet_cond (e,v,ineq) (cond, var) = 
-            (*TODO value for i will be overwritten -> delay refinement?*)
             let dim = Environment.dim_of_var t.env var in
             if dim <> var_i then 
               let ineq', refinements = Ineq.meet_relation var_i dim cond (EConjI.get_rhs d') (EConjI.get_value d') ineq
               in EConjI.apply_refinements refinements (e,v,ineq') 
             else
               let ineq', refinements = Ineq.transfer dim cond ineq_old (EConjI.get_rhs d) (EConjI.get_value d) ineq (EConjI.get_rhs d') (EConjI.get_value d')
-              in EConjI.apply_refinements refinements (e,v,ineq') 
+              (*TODO value for i will be overwritten -> delay refinement?*)
+              in EConjI.apply_refinements (Refinement.rhs_only refinements) (e,v,ineq') 
           in
           let d'' = List.fold meet_cond d' (VarManagement.to_inequalities t texp) in
           if M.tracing then M.tracel "assign_texpr" "after inequality: %s" (show {d = Some d''; env = t.env});
@@ -1074,7 +1075,9 @@ struct
       end
     | None -> bot_env
 
-  let assign_texpr t var texp = timing_wrap "assign_texpr" (assign_texpr t var) texp
+  let assign_texpr t var texp = 
+    if M.tracing then M.tracel "assign_texpr" "before assign: %s" (show t);
+    timing_wrap "assign_texpr" (assign_texpr t var) texp
 
   (* no_ov -> no overflow
      if it's true then there is no overflow

@@ -368,7 +368,7 @@ module Refinement = struct
   let of_value var v = (var, Either.Left v)
   let of_rhs var r = (var, Either.right r)
 
-  let rhs_only t = List.filter (BatEither.is_right) t
+  let rhs_only t = List.filter (fun x -> BatEither.is_right (snd x)) t
 
 end
 
@@ -816,7 +816,7 @@ module LinearInequality = struct
       if class1 <> class2 then 
         class1 - class2
       else
-        let open Q in compare (a1 * b2) (a2*b1) 
+        let open Q in compare  (a2*b1) (a1 * b2) (*different from paper , but otherwise wrong?*)
 
     let equal t1 t2 = 0 = compare t1 t2
 
@@ -1358,7 +1358,7 @@ module ArbitraryCoeffsSet = struct
       match CoeffMap.find_opt k t1 with (*look up in original t1 so that we can take care of widening for inequalities that get filtered*)
       | None -> (t1_f, t2_f)
       | Some c1 when Q.equal c1 c2 -> (t1_f, CoeffMap.remove k t2_f)
-      | Some c1 when LinearInequality.entails1 (k,c1) (k,c2) && widen-> (CoeffMap.remove k t1_f, CoeffMap.remove k t2_f) (*t2 has more relaxed bound -> do widening*)
+      | Some c1 when widen-> (CoeffMap.remove k t1_f, CoeffMap.remove k t2_f) (*t2 has more relaxed bound -> do widening*)
       | Some c1 when LinearInequality.entails1 (k,c1) (k,c2) -> (CoeffMap.add k c2 t1_f, CoeffMap.remove k t2_f) (*t2 has more relaxed bound*)
       | Some c1 -> (t1_f, CoeffMap.remove k t2_f) (*last remaining case: t1 has more relaxed bound*)
     in let t1_filtered', t2_filtered' = CoeffMap.fold relax t2_filtered (t1_filtered, t2_filtered)
@@ -1462,9 +1462,9 @@ module LinearInequalities : TwoVarInequalities = struct
     if M.tracing then M.trace "get_relations" "result: %s" (BatList.fold (fun acc c -> acc ^ ", " ^ Relation.show "x'" c "y'") "" res);
     res
 
-  let rec meet_relation x' y' cond get_rhs get_value t =
-    let meet_relation_roots x y k c (t, ref_acc) = 
-      if M.tracing then M.tracel "transitivity" "meet_relation_roots: %s" @@ LinearInequality.show ("var_" ^ Int.to_string x) ("var_" ^ Int.to_string y) (k,c);
+  let meet_relation x' y' cond get_rhs get_value t =
+    let rec meet_relation_roots x y k c (t, ref_acc) = 
+      if M.tracing then M.tracel "meet_relation" "meet_relation_roots: %s" @@ LinearInequality.show ("var_" ^ Int.to_string x) ("var_" ^ Int.to_string y) (k,c);
       (*do not save inequalities refering to the same variable*) 
       if x = y then
         let s = Coeffs.Key.get_slope k in
@@ -1482,7 +1482,10 @@ module LinearInequalities : TwoVarInequalities = struct
           else
             let min = Q.div c' s' in
             t, (x, Left (Value.starting @@ Z.fdiv (Q.num min) (Q.den min))) :: ref_acc
-      else 
+      else if x > y then 
+        let k', c' = LinearInequality.swap_sides (k,c) in
+        meet_relation_roots y x k' c' (t, ref_acc)
+      else
         let coeffs = match get_coeff x y t with
           | None -> Coeffs.empty
           | Some c -> c
@@ -1492,72 +1495,72 @@ module LinearInequalities : TwoVarInequalities = struct
         else set_coeff x y coeffs' t, ref_acc
     in
     let apply_transivity x y k c t = 
-      if M.tracing then M.tracel "transitivity" "transitivity with %s and %s" (LinearInequality.show ("var_" ^ Int.to_string x) ("var_" ^ Int.to_string y) (k,c)) (show t);
-      IntMap.fold (fun w zs acc -> 
-          if w = x then 
-            IntMap.fold (fun z cs acc ->   
-                match Coeffs.combine_left (k,c) cs with
-                | None -> 
-                  if M.tracing then M.tracel "transitivity" "case 1, combined with %s into Nothing " (Coeffs.show_formatted ("var_" ^ Int.to_string w) ("var_" ^ Int.to_string z) cs);
-                  acc 
-                | Some cs' -> 
-                  if M.tracing then M.tracel "transitivity" "case 1, combined with %s into %s " (Coeffs.show_formatted ("var_" ^ Int.to_string w) ("var_" ^ Int.to_string z) cs) (Coeffs.show_formatted ("var_" ^ Int.to_string y) ("var_" ^ Int.to_string z) cs');
-                  Coeffs.CoeffMap.fold (fun k c acc -> meet_relation_roots y z k c acc) cs' acc
-              ) zs acc
-          else if w = y then 
-            IntMap.fold (fun z cs acc ->
-                match Coeffs.combine_right (k,c) cs with
-                | None -> 
-                  if M.tracing then M.tracel "transitivity" "case 2, combined with %s into Nothing " (Coeffs.show_formatted ("var_" ^ Int.to_string w) ("var_" ^ Int.to_string z) cs);
-                  acc 
-                | Some cs' -> 
-                  if M.tracing then M.tracel "transitivity" "case 2, combined with %s into %s " (Coeffs.show_formatted ("var_" ^ Int.to_string w) ("var_" ^ Int.to_string z) cs) (Coeffs.show_formatted ("var_" ^ Int.to_string x) ("var_" ^ Int.to_string z) cs');
-                  Coeffs.CoeffMap.fold (fun k c acc -> meet_relation_roots x z k c acc) cs' acc
-              ) zs acc
-          else  
-            IntMap.fold (fun z cs acc -> 
-                if z = x then 
-                  match Coeffs.combine_left (LinearInequality.swap_sides (k,c)) cs with
+      if x = y then begin
+        if M.tracing then M.tracel "transitivity" "transitivity between same variable %d -> skip" x;
+        t, []
+      end else begin
+        if M.tracing then M.tracel "transitivity" "transitivity with %s and %s" (LinearInequality.show ("var_" ^ Int.to_string x) ("var_" ^ Int.to_string y) (k,c)) (show t);
+        IntMap.fold (fun w zs acc -> 
+            if w = x then 
+              IntMap.fold (fun z cs acc ->   
+                  match Coeffs.combine_left (k,c) cs with
                   | None -> 
-                    if M.tracing then M.tracel "transitivity" "case 3, combined with %s into Nothing " (Coeffs.show_formatted ("var_" ^ Int.to_string w) ("var_" ^ Int.to_string z) cs);
+                    if M.tracing then M.tracel "transitivity" "case 1, combined with %s into Nothing " (Coeffs.show_formatted ("var_" ^ Int.to_string w) ("var_" ^ Int.to_string z) cs);
                     acc 
                   | Some cs' -> 
-                    if M.tracing then M.tracel "transitivity" "case 3, combined with %s into %s " (Coeffs.show_formatted ("var_" ^ Int.to_string w) ("var_" ^ Int.to_string z) cs) (Coeffs.show_formatted ("var_" ^ Int.to_string w) ("var_" ^ Int.to_string y) cs');
-                    Coeffs.CoeffMap.fold (fun k c acc -> meet_relation_roots w y k c acc) cs' acc
-                else if z = y then 
-                  match Coeffs.combine_right (LinearInequality.swap_sides (k,c)) cs with
+                    if M.tracing then M.tracel "transitivity" "case 1, combined with %s into %s " (Coeffs.show_formatted ("var_" ^ Int.to_string w) ("var_" ^ Int.to_string z) cs) (Coeffs.show_formatted ("var_" ^ Int.to_string y) ("var_" ^ Int.to_string z) cs');
+                    Coeffs.CoeffMap.fold (fun k c acc -> meet_relation_roots y z k c acc) cs' acc
+                ) zs acc
+            else if w = y then 
+              IntMap.fold (fun z cs acc ->
+                  match Coeffs.combine_right (k,c) cs with
                   | None -> 
-                    if M.tracing then M.tracel "transitivity" "case 4, combined with %s into Nothing " (Coeffs.show_formatted ("var_" ^ Int.to_string w) ("var_" ^ Int.to_string z) cs);
+                    if M.tracing then M.tracel "transitivity" "case 2, combined with %s into Nothing " (Coeffs.show_formatted ("var_" ^ Int.to_string w) ("var_" ^ Int.to_string z) cs);
                     acc 
                   | Some cs' -> 
-                    if M.tracing then M.tracel "transitivity" "case 4, combined with %s into %s " (Coeffs.show_formatted ("var_" ^ Int.to_string w) ("var_" ^ Int.to_string z) cs) (Coeffs.show_formatted ("var_" ^ Int.to_string w) ("var_" ^ Int.to_string x) cs');
-                    Coeffs.CoeffMap.fold (fun k c acc -> meet_relation_roots w x k c acc) cs' acc
-                else
-                  acc
-              ) zs acc
-        ) t (t, [])
-    in
+                    if M.tracing then M.tracel "transitivity" "case 2, combined with %s into %s " (Coeffs.show_formatted ("var_" ^ Int.to_string w) ("var_" ^ Int.to_string z) cs) (Coeffs.show_formatted ("var_" ^ Int.to_string x) ("var_" ^ Int.to_string z) cs');
+                    Coeffs.CoeffMap.fold (fun k c acc -> meet_relation_roots x z k c acc) cs' acc
+                ) zs acc
+            else  
+              IntMap.fold (fun z cs acc -> 
+                  if z = x then 
+                    match Coeffs.combine_left (LinearInequality.swap_sides (k,c)) cs with
+                    | None -> 
+                      if M.tracing then M.tracel "transitivity" "case 3, combined with %s into Nothing " (Coeffs.show_formatted ("var_" ^ Int.to_string w) ("var_" ^ Int.to_string z) cs);
+                      acc 
+                    | Some cs' -> 
+                      if M.tracing then M.tracel "transitivity" "case 3, combined with %s into %s " (Coeffs.show_formatted ("var_" ^ Int.to_string w) ("var_" ^ Int.to_string z) cs) (Coeffs.show_formatted ("var_" ^ Int.to_string w) ("var_" ^ Int.to_string y) cs');
+                      Coeffs.CoeffMap.fold (fun k c acc -> meet_relation_roots w y k c acc) cs' acc
+                  else if z = y then 
+                    match Coeffs.combine_right (LinearInequality.swap_sides (k,c)) cs with
+                    | None -> 
+                      if M.tracing then M.tracel "transitivity" "case 4, combined with %s into Nothing " (Coeffs.show_formatted ("var_" ^ Int.to_string w) ("var_" ^ Int.to_string z) cs);
+                      acc 
+                    | Some cs' -> 
+                      if M.tracing then M.tracel "transitivity" "case 4, combined with %s into %s " (Coeffs.show_formatted ("var_" ^ Int.to_string w) ("var_" ^ Int.to_string z) cs) (Coeffs.show_formatted ("var_" ^ Int.to_string w) ("var_" ^ Int.to_string x) cs');
+                      Coeffs.CoeffMap.fold (fun k c acc -> meet_relation_roots w x k c acc) cs' acc
+                  else
+                    acc
+                ) zs acc
+          ) t (t, [])
+      end in
     match get_rhs x', get_rhs y' with 
     | (Some (c_x, x),o_x,d_x), (Some (c_y, y),o_y,d_y) -> begin
-        if x > y then
-          (*We save information only in one of the directions*)
-          meet_relation y' x' (Relation.swap_sides cond) get_rhs get_value t
-        else
-          let (k,c) = LinearInequality.from_rhss (c_x,o_x,d_x) (c_y,o_y,d_y) (Some (match fst cond with Relation.Lt -> true | _ -> false))
-          in let factor = (*we need to divide o by this factor because LinearInequalities normalises it.*)
-               let a = Q.make c_x d_x in
-               let b = Q.make c_y d_y in
-               if Q.equal b Q.zero then a else b
-          in match cond with 
-          | Relation.Lt, o -> 
-            let c' = (Q.add c @@ Q.div (Q.of_bigint o) factor) in
-            let t, ref_acc = apply_transivity x y k c' t in
-            meet_relation_roots x y k c' (t, ref_acc)
-          | Gt, o -> 
-            let k = Coeffs.Key.negate k in
-            let c' = (Q.add c @@ Q.div (Q.of_bigint o) factor) in
-            let t, ref_acc = apply_transivity x y k c' t in
-            meet_relation_roots x y k c' (t,ref_acc)
+        let (k,c) = LinearInequality.from_rhss (c_x,o_x,d_x) (c_y,o_y,d_y) (Some (match fst cond with Relation.Lt -> true | _ -> false))
+        in let factor = (*we need to divide o by this factor because LinearInequalities normalises it.*)
+             let a = Q.make c_x d_x in
+             let b = Q.make c_y d_y in
+             if Q.equal b Q.zero then a else b
+        in match cond with 
+        | Relation.Lt, o -> 
+          let c' = (Q.add c @@ Q.div (Q.of_bigint o) factor) in
+          let t, ref_acc = apply_transivity x y k c' t in
+          meet_relation_roots x y k c' (t, ref_acc)
+        | Gt, o -> 
+          let k = Coeffs.Key.negate k in
+          let c' = (Q.add c @@ Q.div (Q.of_bigint o) factor) in
+          let t, ref_acc = apply_transivity x y k c' t in
+          meet_relation_roots x y k c' (t,ref_acc)
       end
     (*Cases where one of the variables is a constant -> refine value*)
     | (None, o_x, _), (Some (_,y),_,_) -> t, [Refinement.of_value y @@ Relation.value_with_const_left cond o_x]
@@ -1571,9 +1574,9 @@ module LinearInequalities : TwoVarInequalities = struct
 
 
   let meet_relation x y c r v t = 
-    if M.tracing then M.tracel "transitivity" "meeting %s with %s" (show t) (Relation.show ("var_"^Int.to_string x) c ("var_"^Int.to_string y));  
+    if M.tracing then M.tracel "meet_relation" "meeting %s with %s" (show t) (Relation.show ("var_"^Int.to_string x) c ("var_"^Int.to_string y));  
     let res, refine_acc = meet_relation x y c r v t in
-    if M.tracing then M.tracel "transitivity" "result: %s, refinements: skipped! " (show res) (*Refinement.show refine_acc*);  
+    if M.tracing then M.tracel "meet_relation" "result: %s, refinements: skipped! " (show res) (*Refinement.show refine_acc*);  
     res, refine_acc
 
   let substitute t i (coeff, j, offs, divi) = 
@@ -1665,7 +1668,6 @@ module LinearInequalities : TwoVarInequalities = struct
       in
       let filtered = IntMap.filter_map combine_1 t_old in
       if M.tracing then M.tracel "transfer" "filtered + combined %s" (show filtered);  
-
       (*transform all inequalities to refer to new root of x*)
       (*invert old rhs, then substitute the new rhs for x*)
       let (m, o, d) = Rhs.subst rhs x @@ snd @@ EConj.inverse x (coeff_old,x_root_old, off_old, divi_old) in
@@ -1677,7 +1679,8 @@ module LinearInequalities : TwoVarInequalities = struct
       t', ref_acc @ ref_acc_2
     | _,_ -> t, [] (*ignore constants*)
 
-  let transfer x cond t_old get_rhs_old get_value_old t get_rhs get_value = 
+  let transfer x cond t_old get_rhs_old get_value_old t get_rhs get_value =
+    let cond = Relation.swap_sides cond in (*The interface changed, but I do not want to reimplement this function*)
     if M.tracing then M.tracel "transfer" "transfering  with %s from %s into %s" (Relation.show ("var_" ^ Int.to_string x ^ "_old") cond ("var_" ^ Int.to_string x ^ "_new") ) (show t_old) (show t);  
     let res, ref_acc = transfer x cond t_old get_rhs_old get_value_old t get_rhs get_value in
     if M.tracing then M.tracel "transfer" "result: %s, refinements: %s" (show res) (Refinement.show ref_acc);  
