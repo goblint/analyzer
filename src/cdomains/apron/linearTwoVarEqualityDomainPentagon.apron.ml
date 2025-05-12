@@ -104,7 +104,10 @@ struct
     in
     IntMap.fold meet_with_rhs (snd econ) i 
 
-  let set_value ((econ, is, ineq) as t:t) lhs i =
+  (*TODO make this configureable with options*)
+  let refine_depth = 5
+
+  let rec set_value ((econ, is, ineq) as t:t) lhs i =
     if M.tracing then M.tracel "modify_pentagon" "set_value var_%d=%s, before: %s" lhs (Value.show i) (show t);
     if Value.is_bot i then raise EConj.Contradiction;
     let set_value_for_root lhs i =
@@ -114,13 +117,8 @@ struct
       if i = Value.top then (econ, IntMap.remove lhs is, ineq) (*stay sparse*)
       else if Value.is_bot i then raise EConj.Contradiction
       else match Value.to_int i with
-        | Some (Int x) ->  (*If we have a constant, update all equations refering to this root*)
-          let update_references = function
-            | (Some (coeff, v), o, d) when v = lhs -> (None, Z.div (Z.add o @@ Z.mul x coeff) d, Z.one)
-            | t -> t
-          in
-          ((fst econ, IntMap.add lhs (None, x, Z.one) @@ IntMap.map update_references (snd econ)), IntMap.remove lhs is, ineq)
-        | _ -> (econ, IntMap.add lhs i is, ineq) (*Not a constant*)
+        | Some (Int x) -> meet_with_one_conj t lhs (None, x, Z.one) (*constant value*)
+        | _ -> (econ, IntMap.add lhs i is, ineq)
     in 
     let (v,o,d) = get_rhs t lhs in
     if (v,o,d) = Rhs.var_zero lhs then
@@ -138,16 +136,15 @@ struct
         if M.tracing then M.tracel "modify_pentagon" "transforming with %s i: %s i1: %s i2: %s i3: %s" (Rhs.show ((Some (coeff, v)),o,d)) (Value.show i) (Value.show i1) (Value.show i2) (Value.show i3);
         set_value_for_root v i_transformed
 
-  let set_value t lhs i =
-    let res = set_value t lhs i in
-    if M.tracing then M.tracel "modify_pentagon" "set_value before: %s eq: var_%d=%s  ->  %s " (show t) lhs (Value.show i) (show res);
-    res
-
-  let set_rhs (econ, is, ineq) lhs rhs  =
+  and set_rhs (econ, is, ineq) lhs rhs  =
     let econ' = EConj.set_rhs econ lhs rhs in
     match rhs with 
-    (*TODO remove from ineq, convert to interval information!*)
-    | (None, _, _) -> econ', IntMap.remove lhs is, ineq (*when setting as a constant, we do not need a separate value *)
+    | (None, o, d) -> 
+      if not @@ Z.equal d Z.one then 
+        raise EConj.Contradiction;
+      let ineq', refinements = Ineq.set_constant lhs o ineq in  
+      let t' = econ', IntMap.remove lhs is, ineq' in (*when setting as a constant, we do not need a separate value *)
+      apply_refinements refinements t' (*TODO limit depth ?*)
     | _ -> 
       let new_constraint = get_value (econ', is, ineq) lhs in
       let old_constraint = get_value (econ, is, ineq) lhs in
@@ -155,71 +152,8 @@ struct
       if Value.is_bot new_value then raise EConj.Contradiction
       else set_value (econ', is, ineq) lhs new_value
 
-  let set_rhs t lhs rhs = 
-    let res = set_rhs t lhs rhs  in
-    if M.tracing then M.tracel "modify_pentagon" "set_rhs before: %s eq: var_%d=%s  ->  %s " (show t) lhs (Rhs.show rhs) (show res);
-    res
 
-  let forget_variable ((econj, _, _) as d) var = 
-    let rhs_var = get_rhs d var in
-    (*Forgetting EConj, but also return relation of new representative to the old if this changes*)
-    let (econj', vs', ineq'), newRoot =
-      (let ref_var_opt = Tuple3.first rhs_var in
-       match ref_var_opt with
-       | Some (_,ref_var) when ref_var = var ->
-         if M.tracing then M.trace "forget" "headvar var_%d" var;
-         (* var is the reference variable of its connected component *)
-         (let cluster = List.sort (Int.compare) @@ IntMap.fold
-              (fun i (refe,_,_) l -> BatOption.map_default (fun (coeff,refe) -> if (refe=ref_var) then i::l else l) l refe) (snd econj) [] in
-          if M.tracing then M.trace "forget" "cluster varindices: [%s]" (String.concat ", " (List.map (string_of_int) cluster));
-          (* obtain cluster with common reference variable ref_var*)
-          match cluster with (* new ref_var is taken from head of the cluster *)
-          | head :: clusterrest ->
-            (* head: divi*x = coeff*y + offs *)
-            (* divi*x = coeff*y + offs   =inverse=>    y =( divi*x - offs)/coeff     *)
-            let (newref,offs,divi) = (get_rhs d head) in
-            let (coeff,y) = BatOption.get newref in
-            let (y,yrhs) = EConj.inverse head (coeff,y,offs,divi) in (* reassemble yrhs out of components *)
-            let shifted_cluster =  (List.fold (fun map i ->
-                let irhs = (get_rhs d i) in (* old entry is i = irhs *)
-                Rhs.subst yrhs y irhs |>    (* new entry for i is irhs [yrhs/y] *)
-                set_rhs map i
-              ) d clusterrest) in
-            set_rhs shifted_cluster head (Rhs.var_zero head), Some yrhs (* finally make sure that head is now trivial *)
-          | [] -> d, None) (* empty cluster means no work for us *)
-       | _ -> d, None) (* variable is either a constant or expressed by another refvar *) in
-    (*Forget old information*)
-    let econj'' = (fst econj', IntMap.remove var (snd econj')) in 
-    let vs'' = IntMap.remove var vs' in
-    match newRoot with
-    | None -> (econj'', vs'', Ineq.forget_variable ineq' var)
-    | Some (Some (coeff,y),offs,divi) -> 
-      (*modify inequalities. We ignore refinements as they should not matter in this case*)
-      let ineq'', _ = Ineq.substitute ineq' var (coeff,y,offs,divi)
-      (*restoring value information*)
-      in set_value (econj'', vs'', ineq'') y @@ get_value d y
-    | _ -> failwith "Should not happen" (*transformation can not be a constant*)
-
-  let forget_variable d var = 
-    if M.tracing then M.tracel "forget" "forget var_%d in { %s } " var (show d);
-    let res = forget_variable d var in
-    if M.tracing then M.trace "forget" "-> { %s }" (show res);
-    res
-
-
-  let dim_remove (ch: Apron.Dim.change) (econj, v, ineq) ~del =
-    if Array.length ch.dim = 0 || is_empty (econj, v, ineq) then
-      (econj, v, ineq)
-    else (
-      let cpy = Array.copy ch.dim in
-      Array.modifyi (+) cpy; (* this is a hack to restore the original https://antoinemine.github.io/Apron/doc/api/ocaml/Dim.html remove_dimensions semantics for dim_remove *)
-      let (econj', v', ineq') = Array.fold_lefti (fun y i x -> forget_variable y (x)) (econj, v, ineq) cpy in  (* clear m' from relations concerning ch.dim *)
-      let econj'' = EConj.modify_variables_in_domain econj' cpy (-) in
-      let v'' = modify_variables_in_domain_values v' cpy (-) in
-      let ineq'' = Ineq.modify_variables_in_domain ineq' cpy (-) in
-      (econj'', v'', ineq''))
-
-  let meet_with_one_value var value t narrow =
+  and meet_with_one_value var value t narrow =
     let meet_function = if narrow then Value.narrow else Value.meet in
     let new_value = meet_function value (get_value t var)
     in if Value.is_bot new_value then raise EConj.Contradiction else 
@@ -227,10 +161,7 @@ struct
       in if M.tracing then M.tracel "meet_value" "meet var_%d: before: %s meeting: %s -> %s, total: %s-> %s" (var) (Value.show @@ get_value t var) (Value.show value) (Value.show new_value) (show t) (show res);
       res
 
-  (*TODO make this configureable with options*)
-  let refine_depth = 5
-
-  let rec meet_with_one_conj ?(refine_depth = refine_depth) ((ts, is, ineq) as t:t) i (var, offs, divi) =
+  and meet_with_one_conj ?(refine_depth = refine_depth) ((ts, is, ineq) as t:t) i (var, offs, divi) =
     let (var,offs,divi) = Rhs.canonicalize (var,offs,divi) in (* make sure that the one new conj is properly canonicalized *)
     let res : t =
       let subst_var (((dim,econj), is, ineq) as t) x (vary, o, d) =
@@ -259,7 +190,10 @@ struct
           let t' = econj', is', ineq' in
           let t'' = set_value t' x value in
           apply_refinements ~refine_depth refinements t''
-        | None -> econj', IntMap.remove x is, Ineq.forget_variable ineq x (*we replaced x (and all connected vars) by a constant -> do not save a value and inequality anymore*)
+        | None -> 
+          let ineq', refinements = Ineq.set_constant x (Z.div o d) ineq in
+          let t' = econj', IntMap.remove x is, ineq' in (*we replaced x (and all connected vars) by a constant -> do not save a value and inequality anymore*)
+          apply_refinements ~refine_depth refinements t'
       in
       (match var, (EConj.get_rhs ts i) with
        (*| new conj      , old conj          *)
@@ -324,6 +258,66 @@ struct
       if M.tracing then M.trace "refinements" "call with depth 0 ignored";
       t
     end
+
+  let forget_variable ((econj, _, _) as d) var = 
+    let rhs_var = get_rhs d var in
+    (*Forgetting EConj, but also return relation of new representative to the old if this changes*)
+    let (econj', vs', ineq'), newRoot =
+      (let ref_var_opt = Tuple3.first rhs_var in
+       match ref_var_opt with
+       | Some (_,ref_var) when ref_var = var ->
+         if M.tracing then M.trace "forget" "headvar var_%d" var;
+         (* var is the reference variable of its connected component *)
+         (let cluster = List.sort (Int.compare) @@ IntMap.fold
+              (fun i (refe,_,_) l -> BatOption.map_default (fun (coeff,refe) -> if (refe=ref_var) then i::l else l) l refe) (snd econj) [] in
+          if M.tracing then M.trace "forget" "cluster varindices: [%s]" (String.concat ", " (List.map (string_of_int) cluster));
+          (* obtain cluster with common reference variable ref_var*)
+          match cluster with (* new ref_var is taken from head of the cluster *)
+          | head :: clusterrest ->
+            (* head: divi*x = coeff*y + offs *)
+            (* divi*x = coeff*y + offs   =inverse=>    y =( divi*x - offs)/coeff     *)
+            let (newref,offs,divi) = (get_rhs d head) in
+            let (coeff,y) = BatOption.get newref in
+            let (y,yrhs) = EConj.inverse head (coeff,y,offs,divi) in (* reassemble yrhs out of components *)
+            let shifted_cluster =  (List.fold (fun map i ->
+                let irhs = (get_rhs d i) in (* old entry is i = irhs *)
+                Rhs.subst yrhs y irhs |>    (* new entry for i is irhs [yrhs/y] *)
+                set_rhs map i
+              ) d clusterrest) in
+            set_rhs shifted_cluster head (Rhs.var_zero head), Some yrhs (* finally make sure that head is now trivial *)
+          | [] -> d, None) (* empty cluster means no work for us *)
+       | _ -> d, None) (* variable is either a constant or expressed by another refvar *) in
+    (*Forget old information*)
+    let econj'' = (fst econj', IntMap.remove var (snd econj')) in 
+    let vs'' = IntMap.remove var vs' in
+    match newRoot with
+    | None -> (econj'', vs'', Ineq.forget_variable ineq' var)
+    | Some (Some (coeff,y),offs,divi) -> 
+      (*modify inequalities. We ignore refinements as they should not matter in this case*)
+      let ineq'', _ = Ineq.substitute ineq' var (coeff,y,offs,divi)
+      (*restoring value information*)
+      in set_value (econj'', vs'', ineq'') y @@ get_value d y
+    | _ -> failwith "Should not happen" (*transformation can not be a constant*)
+
+  let forget_variable d var = 
+    if M.tracing then M.tracel "forget" "forget var_%d in { %s } " var (show d);
+    let res = forget_variable d var in
+    if M.tracing then M.trace "forget" "-> { %s }" (show res);
+    res
+
+
+  let dim_remove (ch: Apron.Dim.change) (econj, v, ineq) ~del =
+    if Array.length ch.dim = 0 || is_empty (econj, v, ineq) then
+      (econj, v, ineq)
+    else (
+      let cpy = Array.copy ch.dim in
+      Array.modifyi (+) cpy; (* this is a hack to restore the original https://antoinemine.github.io/Apron/doc/api/ocaml/Dim.html remove_dimensions semantics for dim_remove *)
+      let (econj', v', ineq') = Array.fold_lefti (fun y i x -> forget_variable y (x)) (econj, v, ineq) cpy in  (* clear m' from relations concerning ch.dim *)
+      let econj'' = EConj.modify_variables_in_domain econj' cpy (-) in
+      let v'' = modify_variables_in_domain_values v' cpy (-) in
+      let ineq'' = Ineq.modify_variables_in_domain ineq' cpy (-) in
+      (econj'', v'', ineq''))
+
 
   let affine_transform (econ, vs, ineq) i rhs =
     (*This is a place we want to use the original set_rhs (therefore use EConj directly), as the implied congruence might contradict each other during the transformation*)
@@ -463,7 +457,6 @@ struct
               let relations = EConjI.get_relations d dim_a dim_b in
               let meet_relation v = function
                 | Relation.Lt, o -> Value.meet v @@ Value.ending @@ Z.sub o Z.one
-                | Relation.Eq, o -> Value.of_bigint o
                 | Relation.Gt, o -> Value.meet v @@ Value.starting @@ Z.add o Z.one
               in List.fold meet_relation v relations 
           end

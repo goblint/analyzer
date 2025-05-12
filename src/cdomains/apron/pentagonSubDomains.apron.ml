@@ -318,12 +318,11 @@ end
 module Value = IntervalAndCongruence
 
 module Relation = struct
-  type cond = Lt |  Eq | Gt
+  type cond = Lt | Gt
   type t = cond * Z.t
 
   let show_cond c = match c with 
     | Lt -> "<"
-    | Eq -> "="
     | Gt -> ">"
 
   let show x (c,o) y = x ^ show_cond c ^ y ^ " + " ^ Z.to_string o 
@@ -333,17 +332,11 @@ module Relation = struct
     match cond with 
     | Lt -> Gt, o'
     | Gt -> Lt, o'
-    | Eq -> Eq, o'
 
   (*Tries to combine two relations, with the variable on the rhs of the first condition being equal to the one at the lhs of the second*)
   let combine (c1, o1) (c2, o2) = match c1, c2 with
     | Lt, Lt -> Some ( Lt, Z.add o1 @@ Z.add o2 Z.one )
-    | Lt, Eq 
-    | Eq, Lt -> Some ( Lt, Z.add o1 o2 )
-    | Eq, Eq -> Some ( Eq, Z.add o1 o2 )
     | Gt, Gt -> Some ( Gt, Z.add o1 @@ Z.add o2 Z.one )
-    | Gt, Eq 
-    | Eq, Gt -> Some ( Gt, Z.add o1 o2 )
     | Lt, Gt 
     | Gt, Lt -> None
 
@@ -353,7 +346,6 @@ module Relation = struct
     match cond with
     | Lt -> Value.ending (o + const - one)
     | Gt -> Value.starting (o + const + one)
-    | Eq -> Value.of_bigint (o + const)
 
   let value_with_const_left t const =  value_with_const_right (swap_sides t) const
 
@@ -418,7 +410,8 @@ module type TwoVarInequalities = sig
   val modify_variables_in_domain : t -> int array -> (int -> int -> int) -> t
   val forget_variable : t -> int -> t
 
-  val interval_refinements : (int -> Value.t) -> t ->  Refinement.t 
+  val interval_refinements : (int -> Value.t) -> t ->  Refinement.t
+  val set_constant : int -> Z.t -> t -> t * Refinement.t
 
   val invariant : t -> Environment.t -> Lincons1.t list
 
@@ -456,6 +449,8 @@ module NoInequalties : TwoVarInequalities = struct
 
   let interval_refinements _ _ = []
 
+  let set_constant _ _ _ = (), []
+
   let invariant _ _ = []
 
 end
@@ -474,7 +469,10 @@ module type Coeffs = sig
   val compare : t -> t -> int
   val show_formatted : string -> string -> t -> string
 
-  val interval_refinements :(int * Value.t) -> (int * Value.t) -> t -> Refinement.t -> Refinement.t 
+  val interval_refinements : (int * Value.t) -> (int * Value.t) -> t -> Refinement.t -> Refinement.t 
+
+  val set_constant_lhs : int -> Z.t -> t -> Refinement.t -> Refinement.t
+  val set_constant_rhs : int -> Z.t -> t -> Refinement.t -> Refinement.t
 
   val invariant : Environment.t -> int -> int -> t -> Lincons1.t list -> Lincons1.t list
 end
@@ -557,6 +555,18 @@ module CommonActions (Coeffs : Coeffs) = struct
             cs acc
         ) ys acc
     ) t []
+
+  let set_constant var const t = IntMap.fold (fun x ys (t_acc, ref_acc) ->
+      if x = var then 
+        t_acc, IntMap.fold (fun y cs ref_acc -> Coeffs.set_constant_lhs y const cs ref_acc) ys ref_acc
+      else 
+        match IntMap.find_opt var ys with
+        | None -> IntMap.add x ys t_acc, ref_acc
+        | Some cs -> 
+          let ys' = IntMap.remove var ys in
+          let ref_acc = Coeffs.set_constant_rhs x const cs ref_acc in
+          if IntMap.is_empty ys' then t_acc, ref_acc else (IntMap.add x ys' t_acc, ref_acc) 
+    ) t (IntMap.empty,[])
 
   let invariant t env = IntMap.fold (fun x ys acc -> IntMap.fold (Coeffs.invariant env x) ys acc) t []
 
@@ -988,6 +998,30 @@ module LinearInequality = struct
     | LE s_rel, LE s -> Some (LE (Q.mul s s_rel), Q.add o_rel @@ Q.mul s o)
     | GE s_rel, GE s -> Some (GE (Q.mul s s_rel), Q.add o_rel @@ Q.mul s o) 
 
+  let set_constant_lhs rhs_var const (k,o) ref_acc = 
+    let open Q in 
+    let s = OriginInequality.get_slope k in
+    let bound = s * of_bigint const - o in
+    let new_ref = match k with 
+      | LE _ -> Refinement.of_value rhs_var @@ Value.starting @@ round_up bound
+      | GE _ -> Refinement.of_value rhs_var @@ Value.ending @@ round_down bound
+    in new_ref :: ref_acc 
+
+  let set_constant_rhs lhs_var const (k,o) ref_acc = 
+    let open Q in 
+    let s = OriginInequality.get_slope k in
+    let bound = (of_bigint const + o) / s in
+    let is_leq = match k with 
+      | LE _ -> s > zero
+      | GE _ -> s < zero 
+    in let new_ref = 
+         if is_leq then
+           Refinement.of_value lhs_var @@ Value.ending @@ round_down bound
+         else
+           Refinement.of_value lhs_var @@ Value.starting @@ round_up bound
+
+    in new_ref :: ref_acc 
+
   let invariant env x y k o acc = 
     (*for LE, we need to swap signs of all coefficients*)
     let s, o = match k with
@@ -1150,22 +1184,6 @@ module ArbitraryCoeffsSet = struct
     if M.tracing then M.trace "add_ineq" "adding %s to %s -> %s"  (LinearInequality.show "x" "y" (k,c))  (show_formatted "x" "y" t) (show_formatted "x" "y" res);
     res
 
-
-  let test () = () (*
-    let t = empty in
-    let t = add_inequality (LE Q.inf) (Q.of_int 5) t in
-    let t = add_inequality (GE Q.minus_one) (Q.of_int (-7)) t in 
-    let t = add_inequality (LE Q.zero) (Q.of_int 5) t in 
-    let t = add_inequality (GE Q.one) (Q.of_int (-7)) t in 
-    let t = add_inequality (GE Q.inf) (Q.of_int (-5)) t in 
-    let t = add_inequality (LE Q.minus_one) (Q.of_int 7) t in 
-    let t = add_inequality (GE Q.zero) (Q.of_int (-5)) t in 
-    let t = add_inequality (LE Q.one) (Q.of_int 7) t in 
-    if M.tracing then M.trace "test" "%s" (show_formatted "x" "y" t);
-    let t = add_inequality (GE (Q.of_int (2))) (Q.of_int 9) t in
-    if M.tracing then M.trace "test" "with more: %s" (show_formatted "x" "y" t)
-*)
-
   (*get the thightest offset for an inequality with a given slope that is implied by the current set of inequalities*)
   let get_best_offset k t = 
     match CoeffMap.find_opt k t with
@@ -1181,7 +1199,6 @@ module ArbitraryCoeffsSet = struct
 
   (*lookup the best interval bounds from the inequalities!*)
   let interval_refinements (x,x_val) (y,y_val) t ref_acc =
-    test ();
     let ineqs = LinearInequality.from_values x_val y_val in
     let t = List.fold (fun t (k,c) -> add_inequality k c t) t ineqs in
     let ref_acc = match get_best_offset (LE Q.inf) t with 
@@ -1394,6 +1411,10 @@ module ArbitraryCoeffsSet = struct
     in
     CoeffMap.fold fold_fun t CoeffMap.empty 
 
+  let set_constant_lhs rhs_var const t ref_acc = CoeffMap.fold (fun k c ref_acc -> LinearInequality.set_constant_lhs rhs_var const (k,c) ref_acc) t ref_acc
+  let set_constant_rhs lhs_var const t ref_acc = CoeffMap.fold (fun k c ref_acc -> LinearInequality.set_constant_rhs lhs_var const (k,c) ref_acc) t ref_acc
+
+
   let invariant env x y t acc = CoeffMap.fold (LinearInequality.invariant env x y) t acc
 
 end
@@ -1442,53 +1463,101 @@ module LinearInequalities : TwoVarInequalities = struct
     res
 
   let rec meet_relation x' y' cond get_rhs get_value t =
+    let meet_relation_roots x y k c (t, ref_acc) = 
+      if M.tracing then M.tracel "transitivity" "meet_relation_roots: %s" @@ LinearInequality.show ("var_" ^ Int.to_string x) ("var_" ^ Int.to_string y) (k,c);
+      (*do not save inequalities refering to the same variable*) 
+      if x = y then
+        let s = Coeffs.Key.get_slope k in
+        if Q.equal Q.one s then (* x <= x + c (or >=) *)
+          match k with 
+          | LE _ -> if Q.lt c Q.zero then raise EConj.Contradiction else (t, []) (*trivially true*)
+          | GE _ -> if Q.gt c Q.zero then raise EConj.Contradiction else (t, []) (*trivially true*)
+        else (* sx <= x + c (or =>) -> refine the value in this case*)
+          let s' = Q.sub s Q.one in
+          let s', c' = match k with LE _ -> s',c | GE _ -> Q.neg s', Q.neg c in 
+          (*s'x <= c' *) 
+          if Q.gt s' Q.zero then 
+            let max = Q.div c' s' in
+            t, (x, Either.Left (Value.ending @@ Z.cdiv (Q.num max) (Q.den max))) :: ref_acc
+          else
+            let min = Q.div c' s' in
+            t, (x, Left (Value.starting @@ Z.fdiv (Q.num min) (Q.den min))) :: ref_acc
+      else 
+        let coeffs = match get_coeff x y t with
+          | None -> Coeffs.empty
+          | Some c -> c
+        in let coeffs', ref_acc = Coeffs.meet_single_inequality false (x,get_value x) (y,get_value y) k c (coeffs,ref_acc) in
+        if Coeffs.CoeffMap.is_empty coeffs' 
+        then remove_coeff x y t , ref_acc
+        else set_coeff x y coeffs' t, ref_acc
+    in
+    let apply_transivity x y k c t = 
+      if M.tracing then M.tracel "transitivity" "transitivity with %s and %s" (LinearInequality.show ("var_" ^ Int.to_string x) ("var_" ^ Int.to_string y) (k,c)) (show t);
+      IntMap.fold (fun w zs acc -> 
+          if w = x then 
+            IntMap.fold (fun z cs acc ->   
+                match Coeffs.combine_left (k,c) cs with
+                | None -> 
+                  if M.tracing then M.tracel "transitivity" "case 1, combined with %s into Nothing " (Coeffs.show_formatted ("var_" ^ Int.to_string w) ("var_" ^ Int.to_string z) cs);
+                  acc 
+                | Some cs' -> 
+                  if M.tracing then M.tracel "transitivity" "case 1, combined with %s into %s " (Coeffs.show_formatted ("var_" ^ Int.to_string w) ("var_" ^ Int.to_string z) cs) (Coeffs.show_formatted ("var_" ^ Int.to_string y) ("var_" ^ Int.to_string z) cs');
+                  Coeffs.CoeffMap.fold (fun k c acc -> meet_relation_roots y z k c acc) cs' acc
+              ) zs acc
+          else if w = y then 
+            IntMap.fold (fun z cs acc ->
+                match Coeffs.combine_right (k,c) cs with
+                | None -> 
+                  if M.tracing then M.tracel "transitivity" "case 2, combined with %s into Nothing " (Coeffs.show_formatted ("var_" ^ Int.to_string w) ("var_" ^ Int.to_string z) cs);
+                  acc 
+                | Some cs' -> 
+                  if M.tracing then M.tracel "transitivity" "case 2, combined with %s into %s " (Coeffs.show_formatted ("var_" ^ Int.to_string w) ("var_" ^ Int.to_string z) cs) (Coeffs.show_formatted ("var_" ^ Int.to_string x) ("var_" ^ Int.to_string z) cs');
+                  Coeffs.CoeffMap.fold (fun k c acc -> meet_relation_roots x z k c acc) cs' acc
+              ) zs acc
+          else  
+            IntMap.fold (fun z cs acc -> 
+                if z = x then 
+                  match Coeffs.combine_left (LinearInequality.swap_sides (k,c)) cs with
+                  | None -> 
+                    if M.tracing then M.tracel "transitivity" "case 3, combined with %s into Nothing " (Coeffs.show_formatted ("var_" ^ Int.to_string w) ("var_" ^ Int.to_string z) cs);
+                    acc 
+                  | Some cs' -> 
+                    if M.tracing then M.tracel "transitivity" "case 3, combined with %s into %s " (Coeffs.show_formatted ("var_" ^ Int.to_string w) ("var_" ^ Int.to_string z) cs) (Coeffs.show_formatted ("var_" ^ Int.to_string w) ("var_" ^ Int.to_string y) cs');
+                    Coeffs.CoeffMap.fold (fun k c acc -> meet_relation_roots w y k c acc) cs' acc
+                else if z = y then 
+                  match Coeffs.combine_right (LinearInequality.swap_sides (k,c)) cs with
+                  | None -> 
+                    if M.tracing then M.tracel "transitivity" "case 4, combined with %s into Nothing " (Coeffs.show_formatted ("var_" ^ Int.to_string w) ("var_" ^ Int.to_string z) cs);
+                    acc 
+                  | Some cs' -> 
+                    if M.tracing then M.tracel "transitivity" "case 4, combined with %s into %s " (Coeffs.show_formatted ("var_" ^ Int.to_string w) ("var_" ^ Int.to_string z) cs) (Coeffs.show_formatted ("var_" ^ Int.to_string w) ("var_" ^ Int.to_string x) cs');
+                    Coeffs.CoeffMap.fold (fun k c acc -> meet_relation_roots w x k c acc) cs' acc
+                else
+                  acc
+              ) zs acc
+        ) t (t, [])
+    in
     match get_rhs x', get_rhs y' with 
     | (Some (c_x, x),o_x,d_x), (Some (c_y, y),o_y,d_y) -> begin
-        let rhs_x = (c_x,o_x,d_x) in
-        let rhs_y = (c_y,o_y,d_y) in
         if x > y then
           (*We save information only in one of the directions*)
           meet_relation y' x' (Relation.swap_sides cond) get_rhs get_value t
         else
-          let coeffs = match get_coeff x y t with
-            | None -> Coeffs.empty
-            | Some c -> c
-          in let (k,c) = LinearInequality.from_rhss rhs_x rhs_y (Some (match fst cond with Relation.Lt -> true | _ -> false))
-          in let meet_relation_roots k c (t:Coeffs.t) = 
-               if M.tracing then M.tracel "meet_relation" "meet_relation_roots: %s" @@ LinearInequality.show ("var_" ^ Int.to_string x) ("var_" ^ Int.to_string y) (k,c);
-               (*do not save inequalities refering to the same variable*) 
-               if x = y then
-                 let s = Coeffs.Key.get_slope k in
-                 if Q.equal Q.one s then (* x <= x + c (or >=) *)
-                   match k with 
-                   | LE _ -> if Q.lt c Q.zero then raise EConj.Contradiction else (t, []) (*trivially true*)
-                   | GE _ -> if Q.gt c Q.zero then raise EConj.Contradiction else (t, []) (*trivially true*)
-                 else (* sx <= x + c (or =>) -> refine the value in this case*)
-                   let s' = Q.sub s Q.one in
-                   let s', c' = match k with LE _ -> s',c | GE _ -> Q.neg s', Q.neg c in 
-                   (*s'x <= c' *) 
-                   if Q.gt s' Q.zero then 
-                     let max = Q.div c' s' in
-                     t, [x, Either.Left (Value.ending @@ Z.cdiv (Q.num max) (Q.den max))]
-                   else
-                     let min = Q.div c' s' in
-                     t, [x, Left (Value.starting @@ Z.fdiv (Q.num min) (Q.den min))]
-                     (*TODO: transfer some transitivity, similar to the simple inequalities
-                       idea: for every z combine every inequality relating z,x with this for a ineq relating z,y
-                       same for z,y -> z,x 
-                       is this too arbitrary to be useful??? *)
-               else Coeffs.meet_single_inequality false (x,get_value x) (y,get_value y) k c (t,[])
+          let (k,c) = LinearInequality.from_rhss (c_x,o_x,d_x) (c_y,o_y,d_y) (Some (match fst cond with Relation.Lt -> true | _ -> false))
           in let factor = (*we need to divide o by this factor because LinearInequalities normalises it.*)
-               let a = Q.make (Tuple3.first rhs_x) (Tuple3.third rhs_x) in
-               let b = Q.make (Tuple3.first rhs_y) (Tuple3.third rhs_y) in
+               let a = Q.make c_x d_x in
+               let b = Q.make c_y d_y in
                if Q.equal b Q.zero then a else b
-          in let (new_coeffs, refine_acc) = match cond with 
-              | Relation.Lt, o -> meet_relation_roots k (Q.add c @@ Q.div (Q.of_bigint o) factor) coeffs
-              | Gt, o -> meet_relation_roots (Coeffs.Key.negate k) ((Q.add c @@ Q.div (Q.of_bigint o) factor) ) coeffs
-              | Eq, o -> coeffs, [] (*This should always be stored by the lin2vareq domain (at least the way we are generating this information)*)
-          in if Coeffs.CoeffMap.is_empty new_coeffs 
-          then remove_coeff x y t , refine_acc
-          else set_coeff x y new_coeffs t, refine_acc
+          in match cond with 
+          | Relation.Lt, o -> 
+            let c' = (Q.add c @@ Q.div (Q.of_bigint o) factor) in
+            let t, ref_acc = apply_transivity x y k c' t in
+            meet_relation_roots x y k c' (t, ref_acc)
+          | Gt, o -> 
+            let k = Coeffs.Key.negate k in
+            let c' = (Q.add c @@ Q.div (Q.of_bigint o) factor) in
+            let t, ref_acc = apply_transivity x y k c' t in
+            meet_relation_roots x y k c' (t,ref_acc)
       end
     (*Cases where one of the variables is a constant -> refine value*)
     | (None, o_x, _), (Some (_,y),_,_) -> t, [Refinement.of_value y @@ Relation.value_with_const_left cond o_x]
@@ -1502,9 +1571,9 @@ module LinearInequalities : TwoVarInequalities = struct
 
 
   let meet_relation x y c r v t = 
-    if M.tracing then M.tracel "meet_relation" "meeting %s with %s" (show t) (Relation.show ("var_"^Int.to_string x) c ("var_"^Int.to_string y));  
+    if M.tracing then M.tracel "transitivity" "meeting %s with %s" (show t) (Relation.show ("var_"^Int.to_string x) c ("var_"^Int.to_string y));  
     let res, refine_acc = meet_relation x y c r v t in
-    if M.tracing then M.tracel "meet_relation" "result: %s, refinements: %s " (show res) (Refinement.show refine_acc);  
+    if M.tracing then M.tracel "transitivity" "result: %s, refinements: skipped! " (show res) (*Refinement.show refine_acc*);  
     res, refine_acc
 
   let substitute t i (coeff, j, offs, divi) = 
@@ -1585,7 +1654,6 @@ module LinearInequalities : TwoVarInequalities = struct
       in let ineq_from_cond = match cond with 
           | Relation.Lt, o -> k, (Q.add c @@ Q. div (Q.of_bigint o) factor)
           | Gt, o -> (Coeffs.Key.negate k), (Q.add c @@ Q. div (Q.of_bigint o) factor)
-          | Eq, o -> undefined "TODO" (*Should we exclude EQ from relation?*)
       in
       (*combine the inequality from cond with all inequalities*)
       (*throw out all inequalities that do not contain the representative of x*)
@@ -1681,33 +1749,33 @@ end
 
 (*TODOs:*)
 
-(*++
-  ArbitraryCoeaffsList meet_single: take intervals into account better
-  re-add them every time, remove them afterwards?
-  set_rhs constant refinement
-  set_value constant refinement
-*)
-(*-- assign expr restore ineqs based on value *)
-
 (*!! options for limit function*)
 
-(*+ look at complexities. I expect for all: (n² log n) *)
+(*++ redo simple equalities (take advantage of the offset!, affine transform)*)
+
+(*++ ArbitraryCoeaffsList meet_single: take intervals into account better
+  re-add them every time, remove them afterwards?
+*) 
+
+(*+ value refinement after every step?? *)
+
+(*+ look at complexities. I expect for all: (n² log n) 
+    not leq because of interval fixpoint!!!*)
 (*+ How to do a useful narrow?*)
-(*! meet_relations: do some transitivity: possible in complexity, but maybe expensive!*)
+
+(*  domain inbetween these two: with offset between roots? -> should be trivial to implement*)
+
 (*  widening thresholds: from offsets of rhs?*)
 (*  store information about representants to avoid recalculating them: congruence information, group size/ coefficients ??*)
+
 (*- copy_to_new: introduces too many inequlities?*)
-
-(*+ redo simple equalities (take advantage of the offset!, affine transform)*)
-(*  domain inbetween these two: with offset between roots? -> should be trivial to implement*)
-(*- better to_inequalities? with query?*)
 (*- ineq refine_with_tcons: normalisation*)
+(*- better to_inequalities? with query?*)
 
-(*+ rework relation to offset domain -> remove Eq? *)
-(*- memo_bumbvar created 3 times*)
-(*- leq performance?*)
+(*-- assign expr restore ineqs based on value *)
+(*--memo_bumbvar created 3 times*)
 (*--eval_int: answer nonlinear*)
-(*! general renaming*)
 
+(*! general renaming*)
 (*!!rebase to main branch*)
 (*!!documentation (failing check!!) *)
