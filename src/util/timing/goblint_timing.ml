@@ -15,7 +15,7 @@ let next_tef_pid = ref 0
 
 module Make (Name: Name): S =
 struct
-  let enabled_dls = Domain.DLS.new_key (fun () -> false)
+  let enabled = ref false
   let options = ref dummy_options
   let tef_pid =
     let tef_pid = !next_tef_pid in
@@ -63,7 +63,14 @@ struct
     }
 
   (** Stack of currently active timing frames. *)
-  let current: frame Stack.t Domain.DLS.key = Domain.DLS.new_key (fun () -> Stack.create ())
+  let current: frame Stack.t Domain.DLS.key = Domain.DLS.new_key 
+      (fun () -> Stack.create ())
+      (* A root frame must be created for new threads, as each thread has its own stack *)
+      ~split_from_parent: (fun _ -> begin
+            let (stack : frame Stack.t) = Stack.create () in 
+            Stack.push (create_frame root) stack;
+            stack
+          end)
 
   let reset () =
     (* Reset tree. *)
@@ -86,12 +93,12 @@ struct
       (* First event must have category, otherwise Firefox Profiler refuses to open. *)
       Catapult.Tracing.emit ~pid:tef_pid "process_name" ~args:[("name", `String Name.name)] Catapult.Event_type.M
     );
-    Domain.DLS.set enabled_dls true;
+    enabled := true;
     if Stack.is_empty (Domain.DLS.get current) then (* If never started. *)
       Stack.push (create_frame root) (Domain.DLS.get current)
 
   let stop () =
-    Domain.DLS.set enabled_dls false
+    enabled := false
 
   let enter ?args name =
     (* Find the right tree. *)
@@ -149,15 +156,15 @@ struct
   (* Shortcutting measurement functions to avoid any work when disabled. *)
 
   let enter ?args name =
-    if Domain.DLS.get enabled_dls then
+    if !enabled then
       enter ?args name
 
   let exit name =
-    if Domain.DLS.get enabled_dls then
+    if !enabled then
       exit name
 
   let wrap ?args name f x =
-    if Domain.DLS.get enabled_dls then
+    if !enabled then
       wrap ?args name f x
     else
       f x
