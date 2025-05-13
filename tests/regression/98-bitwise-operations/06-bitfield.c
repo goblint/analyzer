@@ -17,18 +17,18 @@ int main(void)
     if (x < -30 || x > 30) {
         x = 0;
     }
+    __goblint_check(s.a <= 7);
+    __goblint_check(s.a >= -4);
+    __goblint_check(s.b <= 7);
+    __goblint_check(s.b >= 0);
     
     s.a = 1; // NOWARN
     s.b = 1; // NOWARN
 
-    __goblint_check(s.a <= 7);
-    __goblint_check(s.a >= -4);
     s.a = 8; // WARN
     s.a = -5; // WARN
-
-    __goblint_check(s.b <= 7);
-    __goblint_check(s.b >= 0);
-    // s.b = 8; // WARN
+    s.b = 8; // WARN
     s.a = x; // WARN
+
     return 0; 
 }
