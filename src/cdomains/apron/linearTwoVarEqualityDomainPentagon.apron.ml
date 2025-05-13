@@ -1275,7 +1275,6 @@ struct
 
   let relift t = t
 
-  (*TODO add inequalities (and value information?) to invariants*)
   (** representation as C expression
 
       This function returns all the equalities that are saved in our datastructure t.
