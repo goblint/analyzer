@@ -36,7 +36,6 @@ let spec_module: (module Spec) Lazy.t = lazy (
       |> lift (get_bool "ana.dead-code.branches") (module DeadBranchLifter)
       |> lift true (module DeadCodeLifter)
       |> lift (get_bool "dbg.slice.on") (module LevelSliceLifter)
-      |> lift (get_int "dbg.limit.widen" > 0) (module LimitLifter)
       |> lift (get_bool "ana.opt.equal" && not (get_bool "ana.opt.hashcons")) (module OptEqual)
       |> lift (get_bool "ana.opt.hashcons") (module HashconsLifter)
       (* Widening tokens must be outside of hashcons, because widening token domain ignores token sets for identity, so hashcons doesn't allow adding tokens.

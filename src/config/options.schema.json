@@ -2187,20 +2187,6 @@
           },
           "additionalProperties": false
         },
-        "limit": {
-          "title": "dbg.limit",
-          "type": "object",
-          "properties": {
-            "widen": {
-              "title": "dbg.limit.widen",
-              "description":
-                "Limit for number of widenings per node (0 = no limit).",
-              "type": "integer",
-              "default": 0
-            }
-          },
-          "additionalProperties": false
-        },
         "warn_with_context": {
           "title": "dbg.warn_with_context",
           "description":
