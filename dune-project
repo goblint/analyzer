@@ -72,6 +72,7 @@ Goblint includes analyses for assertions, overflows, deadlocks, etc and can be e
   )
   (depopts
     (apron (>= v0.9.15))
+    domainslib
     z3
   )
   (conflicts
