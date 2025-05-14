@@ -73,6 +73,7 @@ depends: [
 depopts: [
   "apron" {>= "v0.9.15"}
   "z3"
+  "domainslib"
 ]
 conflicts: [
   "result" {< "1.5"}
