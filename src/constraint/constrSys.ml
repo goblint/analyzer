@@ -71,6 +71,16 @@ sig
   val postmortem: LVar.t -> LVar.t list
 end
 
+(** A solver is something that can translate a system into a solution (hash-table) *)
+module type GenericEqSolver =
+  functor (S:EqConstrSys) ->
+  functor (H:Hashtbl.S with type key=S.v) ->
+  sig
+    (** The hash-map that is the first component of [solve xs vs] is a local solution for interesting variables [vs],
+        reached from starting values [xs]. *)
+    val solve : (S.v*S.d) list -> S.v list -> S.d H.t
+  end
+
 (** A solver is something that can translate a system into a solution (hash-table).
     Incremental solver has data to be marshaled. *)
 module type GenericEqIncrSolverBase =
@@ -101,16 +111,6 @@ end
 module type GenericEqIncrSolver =
   functor (Arg: IncrSolverArg) ->
     GenericEqIncrSolverBase
-
-(** A solver is something that can translate a system into a solution (hash-table) *)
-module type GenericEqSolver =
-  functor (S:EqConstrSys) ->
-  functor (H:Hashtbl.S with type key=S.v) ->
-  sig
-    (** The hash-map that is the first component of [solve xs vs] is a local solution for interesting variables [vs],
-        reached from starting values [xs]. *)
-    val solve : (S.v*S.d) list -> S.v list -> S.d H.t
-  end
 
 (** A solver is something that can translate a system into a solution (hash-table) *)
 module type GenericGlobSolver =
