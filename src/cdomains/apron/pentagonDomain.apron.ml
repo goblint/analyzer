@@ -11,51 +11,52 @@ open GobApron
 
 module Mpqf = SharedFunctions.Mpqf
 
-(** [VarManagement] defines the type t of the affine equality domain (a record that contains an optional matrix and an apron environment) and provides the functions needed for handling variables (which are defined by [RelationDomain.D2]) such as [add_vars], [remove_vars].
-    Furthermore, it provides the function [simplified_monomials_from_texp] that converts an apron expression into a list of monomials of reference variables and a constant offset *)
-module VarManagement =
-struct
-  type t = T (** TODO Change this type *)
 
-end
+module Inequalities = struct
+  module IntMap = BatMap.Make(Int)
+  module IntSet = BatSet.Make(Int)
 
+  type t =  IntSet.t IntMap.t [@@deriving eq, ord]
 
-module ExpressionBounds: (SharedFunctions.ConvBounds with type t = VarManagement.t) =
-struct
-  include VarManagement
+  let equal : (t -> t -> bool) = failwith "TODO"
+  let compare : (t -> t -> int)  = failwith "TODO"
+  let hash : (t -> int)  = failwith "TODO"
+  let copy : (t -> t)  = failwith "TODO"
+  let empty : (unit -> t)  = failwith "TODO"
+  let is_empty : (t -> bool)  = failwith "TODO"
+  let dim_add : (Apron.Dim.change -> t -> t)  = failwith "TODO"
+  let dim_remove : (Apron.Dim.change -> t -> del:bool-> t)  = failwith "TODO"
 
-  let bound_texpr t texpr = failwith "TODO"
-
-  let bound_texpr d texpr1 = Timing.wrap "bounds calculation" (bound_texpr d) texpr1
 end
 
 module SUB =
 struct
-  type t = T (*change*)
-  let leq  _  = failwith "TODO"
-  let join  _ = failwith "TODO"
-  let meet  _ = failwith "TODO"
-  let widen  _ = failwith "TODO"
-  let narrow  _ = failwith "TODO"
-  let bot _ = failwith "TODO"
-  let is_bot t = failwith "TODO"
-  let top () = failwith "TODO"
-  let is_top t = failwith "TODO"
+  include SharedFunctions.VarManagementOps (Inequalities)
+
+  let leq: (t -> t -> bool)  = failwith "TODO"
+  let join: (t -> t -> t) = failwith "TODO"
+  let meet: (t -> t -> t) = failwith "TODO"
+  let widen: (t -> t -> t) = failwith "TODO"
+  let narrow: (t -> t -> t) = failwith "TODO"
+  let bot (): (unit -> t) = failwith "TODO"
+  let is_bot t: (t -> bool) = failwith "TODO"
+  let top (): (unit -> t) = failwith "TODO"
+  let is_top t: (t -> bool) = failwith "TODO"
 
 end
 
 module Intervals = 
 struct
   type t = T (*change*)
-  let leq  _ = failwith "TODO"
-  let join  _ = failwith "TODO"
-  let meet  _ = failwith "TODO"
-  let widen  _ = failwith "TODO"
-  let narrow  _ = failwith "TODO"
-  let bot _ = failwith "TODO"
-  let is_bot t = failwith "TODO"
-  let top () = failwith "TODO"
-  let is_top t = failwith "TODO"
+  let leq: (t -> t -> bool)  = failwith "TODO"
+  let join: (t -> t -> t) = failwith "TODO"
+  let meet: (t -> t -> t) = failwith "TODO"
+  let widen: (t -> t -> t) = failwith "TODO"
+  let narrow: (t -> t -> t) = failwith "TODO"
+  let bot (): (unit -> t) = failwith "TODO"
+  let is_bot t: (t -> bool) = failwith "TODO"
+  let top (): (unit -> t) = failwith "TODO"
+  let is_top t: (t -> bool) = failwith "TODO"
 end
 
 module type Tracked =
