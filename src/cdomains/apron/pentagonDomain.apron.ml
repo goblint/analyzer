@@ -13,50 +13,66 @@ module Mpqf = SharedFunctions.Mpqf
 
 
 module Inequalities = struct
-  module IntMap = BatMap.Make(Int)
-  module IntSet = BatSet.Make(Int)
+  module VarMap = BatMap.Make(Int)
+  module VarSet = BatSet.Make(Int)
 
-  type t =  IntSet.t IntMap.t [@@deriving eq, ord]
-
-  let equal : (t -> t -> bool) = failwith "TODO"
-  let compare : (t -> t -> int)  = failwith "TODO"
-  let hash : (t -> int)  = failwith "TODO"
-  let copy : (t -> t)  = failwith "TODO"
-  let empty : (unit -> t)  = failwith "TODO"
-  let is_empty : (t -> bool)  = failwith "TODO"
-  let dim_add : (Apron.Dim.change -> t -> t)  = failwith "TODO"
-  let dim_remove : (Apron.Dim.change -> t -> del:bool-> t)  = failwith "TODO"
+  type t =  VarSet.t VarMap.t [@@deriving eq, ord]
+  let hash : (t -> int)  = fun _ -> failwith "TODO"
+  let copy : (t -> t)  = fun _ -> failwith "TODO"
+  let empty : (unit -> t)  = fun _ -> VarMap.empty
+  let is_empty : (t -> bool)  = VarMap.is_empty 
+  let dim_add : (Apron.Dim.change -> t -> t)  = fun _ -> failwith "TODO"
+  let dim_remove : (Apron.Dim.change -> t -> del:bool-> t)  = fun _ -> failwith "TODO"
 
 end
 
 module SUB =
 struct
   include SharedFunctions.VarManagementOps (Inequalities)
+  include Inequalities
 
-  let leq: (t -> t -> bool)  = failwith "TODO"
-  let join: (t -> t -> t) = failwith "TODO"
-  let meet: (t -> t -> t) = failwith "TODO"
-  let widen: (t -> t -> t) = failwith "TODO"
-  let narrow: (t -> t -> t) = failwith "TODO"
-  let bot (): (unit -> t) = failwith "TODO"
-  let is_bot t: (t -> bool) = failwith "TODO"
-  let top (): (unit -> t) = failwith "TODO"
-  let is_top t: (t -> bool) = failwith "TODO"
+  (**
+     The inequalities map s1 is less than or equal to s2 iff
+
+      forall x in s2.
+      s1(x) subseteq s2(x)
+
+      or equivalently
+
+      forall x in s2
+      !(s2(x) subset s1(x))
+  *)
+  let leq (sub1: t) (sub2: t) = 
+    let f variable_key greater_variables_2 = 
+      let greater_variables_1 = VarMap.find variable_key sub1 in
+      not (VarSet.subset greater_variables_1 greater_variables_2) 
+    in
+    VarMap.for_all f sub2
+
+
+  let join: (t -> t -> t) = fun _ -> failwith "TODO"
+  let meet: (t -> t -> t) = fun _ -> failwith "TODO"
+  let widen: (t -> t -> t) = fun _ -> failwith "TODO"
+  let narrow: (t -> t -> t) = fun _ -> failwith "TODO"
+  let bot (): (unit -> t) = fun _ -> failwith "TODO"
+  let is_bot t: (t -> bool) = fun _ -> failwith "TODO"
+  let top (): (unit -> t) = fun _ -> failwith "TODO"
+  let is_top t: (t -> bool) = fun _ -> failwith "TODO"
 
 end
 
 module Intervals = 
 struct
   type t = T (*change*)
-  let leq: (t -> t -> bool)  = failwith "TODO"
-  let join: (t -> t -> t) = failwith "TODO"
-  let meet: (t -> t -> t) = failwith "TODO"
-  let widen: (t -> t -> t) = failwith "TODO"
-  let narrow: (t -> t -> t) = failwith "TODO"
-  let bot (): (unit -> t) = failwith "TODO"
-  let is_bot t: (t -> bool) = failwith "TODO"
-  let top (): (unit -> t) = failwith "TODO"
-  let is_top t: (t -> bool) = failwith "TODO"
+  let leq: (t -> t -> bool)  = fun _ -> failwith "TODO"
+  let join: (t -> t -> t) = fun _ -> failwith "TODO"
+  let meet: (t -> t -> t) = fun _ -> failwith "TODO"
+  let widen: (t -> t -> t) = fun _ -> failwith "TODO"
+  let narrow: (t -> t -> t) = fun _ -> failwith "TODO"
+  let bot (): (unit -> t) = fun _ -> failwith "TODO"
+  let is_bot t: (t -> bool) = fun _ -> failwith "TODO"
+  let top (): (unit -> t) = fun _ -> failwith "TODO"
+  let is_top t: (t -> bool) = fun _ -> failwith "TODO"
 end
 
 module type Tracked =
@@ -69,14 +85,12 @@ module D =
 struct
   include Printable.Std
   include RatOps.ConvenienceOps (Mpqf)
-  include VarManagement
 
   module Bounds = ExpressionBounds
   module V = RelationDomain.V
   module Arg = struct
     let allow_global = true
   end
-  module Convert = SharedFunctions.Convert (V) (Bounds) (Arg) (SharedFunctions.Tracked)
 
   module Tracked = struct let varinfo_tracked _ = failwith "TODO";; let type_tracked _ = failwith "TODO";; end
 
