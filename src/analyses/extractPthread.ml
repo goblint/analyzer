@@ -264,7 +264,7 @@ end = struct
 
   let get man =
     let d : PthreadDomain.D.t = man.local in
-    let node = Option.get !MyCFG.current_node in
+    let node = man.prev_node in
     let fundec = Node.find_fundec node in
     let thread_name =
       let cur_tid =
