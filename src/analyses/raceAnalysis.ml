@@ -312,7 +312,7 @@ struct
         (*partitions & locks*)
         Obj.obj (oman.ask (PartAccess (Memory {exp; var_opt=vo; kind})))
       in
-      let node = Option.get !Node.current_node in
+      let node = man.prev_node (* Option.get !Node.current_node *) in
       let add_access conf voffs =
         let acc = part_access (Option.map fst voffs) in
         Access.add ~side:(side_access oman {conf; kind; node; exp; acc}) ~side_empty:(side_access_empty oman) exp voffs;
@@ -374,7 +374,7 @@ struct
       let exp = Lval (Var f, NoOffset) in
       let conf = 110 in
       let kind = AccessKind.Call in
-      let node = Option.get !Node.current_node in
+      let node = man.prev_node (* Option.get !Node.current_node *) in
       let vo = Some f in
       let acc = Obj.obj (man.ask (PartAccess (Memory {exp; var_opt=vo; kind}))) in
       side_access man {conf; kind; node; exp; acc} ((`Var f), `NoOffset) ;
