@@ -113,7 +113,7 @@ module type GenericEqIncrSolver =
     GenericEqIncrSolverBase
 
 (** A solver is something that can translate a system into a solution (hash-table) *)
-module type GenericGlobSolver =
+module type GenericGlobIncrSolver =
   functor (S:GlobConstrSys) ->
   functor (LH:Hashtbl.S with type key=S.LVar.t) ->
   functor (GH:Hashtbl.S with type key=S.GVar.t) ->
@@ -254,7 +254,7 @@ struct
   include GlobConstrSolFromEqConstrSolBase (S) (LH) (GH) (VH)
 end
 
-(** Transforms a [GenericEqIncrSolver] into a [GenericGlobSolver]. *)
+(** Transforms a [GenericEqIncrSolver] into a [GenericGlobIncrSolver]. *)
 module GlobSolverFromEqSolver (Sol:GenericEqIncrSolverBase)
   = functor (S:GlobConstrSys) ->
     functor (LH:Hashtbl.S with type key=S.LVar.t) ->
