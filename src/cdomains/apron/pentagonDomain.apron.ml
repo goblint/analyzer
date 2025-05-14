@@ -37,7 +37,11 @@ struct
   let meet  _ = failwith "TODO"
   let widen  _ = failwith "TODO"
   let narrow  _ = failwith "TODO"
-  let pretty_dif  _ = failwith "TODO" 
+  let bot _ = failwith "TODO"
+  let is_bot t = failwith "TODO"
+  let top () = failwith "TODO"
+  let is_top t = failwith "TODO"
+
 end
 
 module Intervals = 
@@ -48,7 +52,10 @@ struct
   let meet  _ = failwith "TODO"
   let widen  _ = failwith "TODO"
   let narrow  _ = failwith "TODO"
-  let pretty_dif  _ = failwith "TODO" 
+  let bot _ = failwith "TODO"
+  let is_bot t = failwith "TODO"
+  let top () = failwith "TODO"
+  let is_top t = failwith "TODO"
 end
 
 module type Tracked =
