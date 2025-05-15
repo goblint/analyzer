@@ -31,7 +31,7 @@ type 'v sys_change_info = {
 }
 
 (** A side-effecting system. *)
-module type MonSystem =
+module type MonadicSystem =
 sig
   type v    (* variables *)
   type d    (* values    *)
@@ -55,7 +55,7 @@ sig
 end
 
 (** Any system of side-effecting equations over lattices. *)
-module type EqConstrSys = MonSystem with type 'a m := 'a option
+module type EqConstrSys = MonadicSystem with type 'a m := 'a option
 
 (** A side-effecting system with globals. *)
 module type GlobConstrSys =
