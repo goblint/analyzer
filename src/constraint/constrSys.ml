@@ -1,4 +1,4 @@
-(** {{!MonadicSystem} constraint system} signatures. *)
+(** {{!EqConstrSys} constraint system} signatures. *)
 
 open Batteries
 
@@ -64,11 +64,10 @@ type 'v sys_change_info = {
 }
 
 (** A side-effecting system. *)
-module type MonadicSystem =
+module type EqConstrSys =
 sig
   type v    (* variables *)
   type d    (* values    *)
-  type 'a m (* basically a monad carrier *)
 
   (** Variables must be hashable, comparable, etc.  *)
   module Var : VarType with type t = v
@@ -77,7 +76,7 @@ sig
   module Dom : Lattice.S with type t = d
 
   (** The system in functional form. *)
-  val system : v -> ((v -> d) -> (v -> d -> unit) -> d) m
+  val system : v -> ((v -> d) -> (v -> d -> unit) -> d) option
 
   (** Compute incremental constraint system change from old solution. *)
   val sys_change: (v -> d) -> v sys_change_info
@@ -86,9 +85,6 @@ sig
       @see <https://arxiv.org/abs/2504.06026> Stemmler, F., Schwarz, M., Erhard, J., Tilscher, S., Seidl, H. Taking out the Toxic Trash: Recovering Precision in Mixed Flow-Sensitive Static Analyses *)
   val postmortem: v -> v list
 end
-
-(** Any system of side-effecting equations over lattices. *)
-module type EqConstrSys = MonadicSystem with type 'a m := 'a option
 
 (** A side-effecting system with globals. *)
 module type GlobConstrSys =
