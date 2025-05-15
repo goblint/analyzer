@@ -6,6 +6,7 @@
  (libraries
    batteries.unthreaded
    goblint_std
+   goblint_parallel
    goblint_logs
    goblint_common
    goblint_config
