@@ -1,4 +1,4 @@
-(** Construction of a {{!Analyses.MonSystem} constraint system} from an {{!Analyses.Spec} analysis specification} and {{!MyCFG.CfgBackward} CFGs}.
+(** Construction of a {{!Goblint_constraint} constraint system} from an {{!Analyses.Spec} analysis specification} and {{!MyCFG.CfgBackward} CFGs}.
     Transformatons of analysis specifications as functors. *)
 
 open Batteries

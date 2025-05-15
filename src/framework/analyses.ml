@@ -1,4 +1,4 @@
-(** {{!Spec} Analysis specification} and {{!MonSystem} constraint system} signatures. *)
+(** {{!Spec} Analysis specification} signatures. *)
 
 open GoblintCil
 open Pretty
