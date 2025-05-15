@@ -52,25 +52,21 @@ struct
   let top (): (unit -> t) = fun _ -> failwith "TODO" (** Philip *)
   let is_top t: (t -> bool) = fun _ -> failwith "TODO" (** Philip *)
 
+  let subseteq set1 set2 = VarSet.subset set1 set2 || VarSet.equal set1 set2 (** helper, missing in batteries *)
+
   (**
      The inequalities map s1 is less than or equal to s2 iff
-
       forall x in s2.
-      s1(x) subseteq s2(x)
-
-      or equivalently
-
-      forall x in s2
-      !(s2(x) subset s1(x))
+      s2(x) subseteq s1(x)
   *)
 
   let leq (sub1: t) (sub2: t) =
     let sub_map_1, sub_map_2 = get_map_default_2 sub1 sub2 in
-    let subseteq sub1 var_key greater_vars_2 = 
-      let greater_vars_1 = VarMap.find var_key sub1 in
-      not (VarSet.subset greater_vars_1 greater_vars_2) 
+    let subseteq_s1 var_key_2 greater_vars_2 = 
+      let greater_vars_1 = VarMap.find var_key_2 sub_map_1 in
+      subseteq greater_vars_2 greater_vars_1
     in
-    VarMap.for_all (subseteq sub_map_1) sub_map_2
+    VarMap.for_all subseteq_s1 sub_map_2
 
   let join (sub1: t) (sub2: t) = 
     let sub_map_1, sub_map_2 = get_map_default_2 sub1 sub2 in
@@ -84,8 +80,28 @@ struct
     VarMap.merge intersect_values sub_map_1 sub_map_2
 
 
-  let meet: (t -> t -> t) = fun _ -> failwith "TODO" (** Alex *)
-  let widen: (t -> t -> t) = fun _ -> failwith "TODO" (** Alex *)
+let meet (sub1: t) (sub2: t) =
+  let sub_map_1, sub_map_2 = get_map_default_2 sub1 sub2 in
+  let union_values var_key var_set1_opt car_set2_opt =
+    match var_set1_opt, var_set2_opt with
+    | Some(var_set1), Some(var_set2) -> Some(VarSet.union var_set1 var_set2)
+    | None, None -> failwith "This should never happen :)"
+    | _ -> None
+  in
+  VarMap.merge union_values sub_map_1 sub_map_2
+
+let widen (sub1: t) (sub2: t) =
+  let sub_map_1, sub_map_2 = get_map_default_2 sub1 sub2 in
+  let widen_set var_key var_set1_opt car_set2_opt =
+    match var_set1_opt, var_set2_opt with
+    | Some(var_set1), Some(var_set2) ->
+        if subseteq var_set1 var_set2 then Some (var_set2) else Some (VarSet.empty)
+    | None, Some(var_set2) -> Some(var_set2)
+    | None, None -> failwith "This should never happen :)"
+    | _ -> Some (VarSet.empty)
+  in
+  VarMap.merge widen_set sub_map_1 sub_map_2
+
   let narrow: (t -> t -> t) = fun _ -> failwith "TODO" (** Philip *)
 
 
