@@ -16,20 +16,41 @@ module Inequalities = struct
   module VarMap = BatMap.Make(Int)
   module VarSet = BatSet.Make(Int)
 
-  type t =  (VarSet.t VarMap.t [@@deriving eq, ord])
+  type t =  (VarSet.t VarMap.t) [@@deriving eq, ord]
   let hash : (t -> int)  = fun _ -> failwith "TODO"
-  let copy : (t -> t)  = fun _ -> failwith "TODO"
-  let empty : (unit -> t)  = fun _ -> VarMap.empty
+  let copy (x: t) = x
+  let empty () = (VarMap.empty: t)
   let is_empty : (t -> bool)  = VarMap.is_empty 
   let dim_add : (Apron.Dim.change -> t -> t)  = fun _ -> failwith "TODO"
   let dim_remove : (Apron.Dim.change -> t -> del:bool-> t)  = fun _ -> failwith "TODO"
 
 end
 
-module SUB =
+
+module VariableManagement =
 struct
   include SharedFunctions.VarManagementOps (Inequalities)
-  include Inequalities
+
+  let get_map_opt t = t.d
+
+  let get_map_default t = BatOption.default (Inequalities.empty ()) t.d
+end
+
+module SUB =
+struct
+  module VarMan = VariableManagement
+  module VarMap = Inequalities.VarMap
+  module VarSet = Inequalities.VarSet
+
+  type t = VarMan.t
+
+  let get_map_default_2 s1 s2 = 
+    VarMan.get_map_default s1, VarMan.get_map_default s2
+
+  let (bot: unit -> t) = VarMan.bot
+  let is_bot sub = VarMan.equal sub (bot ())
+  let top (): (unit -> t) = fun _ -> failwith "TODO" (** Philip *)
+  let is_top t: (t -> bool) = fun _ -> failwith "TODO" (** Philip *)
 
   (**
      The inequalities map s1 is less than or equal to s2 iff
@@ -43,14 +64,16 @@ struct
       !(s2(x) subset s1(x))
   *)
 
-  let leq (sub1: t) (sub2: t) = 
+  let leq (sub1: t) (sub2: t) =
+    let sub_map_1, sub_map_2 = get_map_default_2 sub1 sub2 in
     let subseteq sub1 var_key greater_vars_2 = 
       let greater_vars_1 = VarMap.find var_key sub1 in
       not (VarSet.subset greater_vars_1 greater_vars_2) 
     in
-    VarMap.for_all (subseteq sub1) sub2
+    VarMap.for_all (subseteq sub_map_1) sub_map_2
 
   let join (sub1: t) (sub2: t) = 
+    let sub_map_1, sub_map_2 = get_map_default_2 sub1 sub2 in
     let intersect_values var_key var_set1_opt var_set2_opt = 
       match var_set1_opt, var_set2_opt with
       | Some(var_set1), Some(var_set2) -> Some(VarSet.inter var_set1 var_set2)
@@ -58,16 +81,13 @@ struct
       | None, s -> s
       | s, None -> s
     in
-    VarMap.merge intersect_values sub1 sub2
+    VarMap.merge intersect_values sub_map_1 sub_map_2
 
 
   let meet: (t -> t -> t) = fun _ -> failwith "TODO" (** Alex *)
   let widen: (t -> t -> t) = fun _ -> failwith "TODO" (** Alex *)
   let narrow: (t -> t -> t) = fun _ -> failwith "TODO" (** Philip *)
-  let bot (): (unit -> t) = fun _ -> failwith "TODO"
-  let is_bot t: (t -> bool) = fun _ -> failwith "TODO"
-  let top (): (unit -> t) = fun _ -> failwith "TODO" (** Philip *)
-  let is_top t: (t -> bool) = fun _ -> failwith "TODO" (** Philip *)
+
 
 end
 
