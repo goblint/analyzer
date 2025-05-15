@@ -34,6 +34,7 @@ exclude_module_names = set([
 
     # libraries
     "Goblint_std",
+    "Goblint_constraint",
     "Goblint_solver",
     "Goblint_timing",
     "Goblint_backtrace",
