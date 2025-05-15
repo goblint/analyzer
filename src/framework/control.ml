@@ -6,7 +6,8 @@ open Batteries
 open GoblintCil
 open MyCFG
 open Analyses
-open ConstrSys
+open Translators
+open SolverTypes
 open GobConfig
 open Constraints
 open SpecLifters

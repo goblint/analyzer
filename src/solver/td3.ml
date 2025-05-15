@@ -15,6 +15,7 @@
 
 open Batteries
 open ConstrSys
+open SolverTypes
 open Messages
 
 module M = Messages

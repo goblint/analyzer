@@ -2,6 +2,7 @@
 
 open Batteries
 open ConstrSys
+open SolverTypes
 open GobConfig
 module Pretty = GoblintCil.Pretty
 module M  = Messages
