@@ -16,5 +16,3 @@
     ppx_deriving_hash
     ppx_deriving_yojson))
  (instrumentation (backend bisect_ppx)))
-
-(documentation)
