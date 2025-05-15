@@ -8,6 +8,7 @@ src_root_path = Path("./src")
 
 goblint_lib_paths = [
     src_root_path / "goblint_lib.ml",
+    src_root_path / "constraint" / "goblint_constraint.ml",
     src_root_path / "solver" / "goblint_solver.ml",
     src_root_path / "util" / "std" / "goblint_std.ml",
 ]
