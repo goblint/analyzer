@@ -16,7 +16,7 @@ module Inequalities = struct
   module VarMap = BatMap.Make(Int)
   module VarSet = BatSet.Make(Int)
 
-  type t =  VarSet.t VarMap.t [@@deriving eq, ord]
+  type t =  (VarSet.t VarMap.t [@@deriving eq, ord])
   let hash : (t -> int)  = fun _ -> failwith "TODO"
   let copy : (t -> t)  = fun _ -> failwith "TODO"
   let empty : (unit -> t)  = fun _ -> VarMap.empty
@@ -42,22 +42,32 @@ struct
       forall x in s2
       !(s2(x) subset s1(x))
   *)
+
   let leq (sub1: t) (sub2: t) = 
-    let f variable_key greater_variables_2 = 
-      let greater_variables_1 = VarMap.find variable_key sub1 in
-      not (VarSet.subset greater_variables_1 greater_variables_2) 
+    let subseteq sub1 var_key greater_vars_2 = 
+      let greater_vars_1 = VarMap.find var_key sub1 in
+      not (VarSet.subset greater_vars_1 greater_vars_2) 
     in
-    VarMap.for_all f sub2
+    VarMap.for_all (subseteq sub1) sub2
+
+  let join (sub1: t) (sub2: t) = 
+    let intersect_values var_key var_set1_opt var_set2_opt = 
+      match var_set1_opt, var_set2_opt with
+      | Some(var_set1), Some(var_set2) -> Some(VarSet.inter var_set1 var_set2)
+      | None, None -> failwith "This should never happen :)"  
+      | None, s -> s
+      | s, None -> s
+    in
+    VarMap.merge intersect_values sub1 sub2
 
 
-  let join: (t -> t -> t) = fun _ -> failwith "TODO"
-  let meet: (t -> t -> t) = fun _ -> failwith "TODO"
-  let widen: (t -> t -> t) = fun _ -> failwith "TODO"
-  let narrow: (t -> t -> t) = fun _ -> failwith "TODO"
+  let meet: (t -> t -> t) = fun _ -> failwith "TODO" (** Alex *)
+  let widen: (t -> t -> t) = fun _ -> failwith "TODO" (** Alex *)
+  let narrow: (t -> t -> t) = fun _ -> failwith "TODO" (** Philip *)
   let bot (): (unit -> t) = fun _ -> failwith "TODO"
   let is_bot t: (t -> bool) = fun _ -> failwith "TODO"
-  let top (): (unit -> t) = fun _ -> failwith "TODO"
-  let is_top t: (t -> bool) = fun _ -> failwith "TODO"
+  let top (): (unit -> t) = fun _ -> failwith "TODO" (** Philip *)
+  let is_top t: (t -> bool) = fun _ -> failwith "TODO" (** Philip *)
 
 end
 
