@@ -5,7 +5,7 @@ open Batteries
 open GoblintCil
 open MyCFG
 open Analyses
-open ConstrSys
+open Goblint_constraint.ConstrSys
 open GobConfig
 
 

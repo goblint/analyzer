@@ -3,7 +3,7 @@
     @see <http://www2.in.tum.de/bib/files/apinis14diss.pdf> Apinis, K. Frameworks for analyzing multi-threaded C. *)
 
 open Batteries
-open ConstrSys
+open Goblint_constraint.ConstrSys
 open Messages
 
 let narrow f = if GobConfig.get_bool "exp.no-narrow" then (fun a b -> a) else f

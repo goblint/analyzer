@@ -1,8 +1,8 @@
 (** Solver, which delegates at runtime to the configured solver. *)
 
 open Batteries
-open ConstrSys
-open SolverTypes
+open Goblint_constraint.ConstrSys
+open Goblint_constraint.SolverTypes
 open GobConfig
 
 (* Registered solvers. *)

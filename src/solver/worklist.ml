@@ -1,7 +1,7 @@
 (** Worklist solver ([WL]). *)
 
 open Batteries
-open ConstrSys
+open Goblint_constraint.ConstrSys
 
 module Make =
   functor (S:EqConstrSys) ->

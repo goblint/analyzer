@@ -2,7 +2,7 @@
     Simpler version of {!SLRphased} without phases. *)
 
 open Batteries
-open ConstrSys
+open Goblint_constraint.ConstrSys
 open Messages
 open SLR
 

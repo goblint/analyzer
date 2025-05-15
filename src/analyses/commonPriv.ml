@@ -130,7 +130,7 @@ struct
 
   let iter_sys_vars getg vq vf =
     match vq with
-    | VarQuery.Global g -> vf (V.global g)
+    | Goblint_constraint.VarQuery.Global g -> vf (V.global g)
     | _ -> ()
 end
 
