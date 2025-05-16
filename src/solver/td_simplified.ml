@@ -3,7 +3,8 @@
 (** Top down solver that uses the box-operator for widening/narrowing at widening points. *)
 
 open Batteries
-open ConstrSys
+open Goblint_constraint.ConstrSys
+open Goblint_constraint.SolverTypes
 open Messages
 
 module M = Messages

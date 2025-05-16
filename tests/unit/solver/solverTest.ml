@@ -2,7 +2,8 @@ open Goblint_lib
 open OUnit2
 open GoblintCil
 open Pretty
-open ConstrSys
+open Goblint_constraint.ConstrSys
+open Goblint_constraint.Translators
 open Goblint_solver
 
 (* variables are strings *)

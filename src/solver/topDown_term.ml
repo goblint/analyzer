@@ -2,7 +2,7 @@
     Simpler version of {!Td3} without space-efficiency and incremental. *)
 
 open Batteries
-open ConstrSys
+open Goblint_constraint.ConstrSys
 open Messages
 
 module WP =

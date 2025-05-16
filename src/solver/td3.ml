@@ -14,7 +14,8 @@
  * For simpler (but unmaintained) versions without the incremental parts see the paper or topDown{,_space_cache_term}.ml. *)
 
 open Batteries
-open ConstrSys
+open Goblint_constraint.ConstrSys
+open Goblint_constraint.SolverTypes
 open Messages
 
 module M = Messages
@@ -206,7 +207,7 @@ module Base =
 
     type phase = Widen | Narrow [@@deriving show] (* used in inner solve *)
 
-    module CurrentVarS = ConstrSys.CurrentVarEqConstrSys (S)
+    module CurrentVarS = Goblint_constraint.ConstrSys.CurrentVarEqConstrSys (S)
     module S = CurrentVarS.S
 
     let solve st vs marshal =

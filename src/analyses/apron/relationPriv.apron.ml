@@ -12,6 +12,8 @@ module Q = Queries
 
 module RelationComponents = RelationDomain.RelComponents
 
+module VarQuery = Goblint_constraint.VarQuery
+
 open CommonPriv
 
 

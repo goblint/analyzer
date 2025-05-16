@@ -20,7 +20,7 @@ This {{!page-domain}unwrapped library} contains various domain modules extracted
 This {{!page-cdomain_value}unwrapped library} contains various value domain modules extracted from {!Goblint_lib}.
 
 {2 Library goblint.constraint}
-This {{!page-constraint}unwrapped library} contains various constraint system modules extracted from {!Goblint_lib}.
+{!modules:Goblint_constraint}
 
 {2 Library goblint.solver}
 {!modules:Goblint_solver}

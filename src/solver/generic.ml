@@ -2,7 +2,8 @@
 
 open Batteries
 open GobConfig
-open ConstrSys
+open Goblint_constraint.ConstrSys
+open Goblint_constraint.SolverTypes
 
 module LoadRunSolver: GenericEqSolver =
   functor (S: EqConstrSys) (VH: Hashtbl.S with type key = S.v) ->

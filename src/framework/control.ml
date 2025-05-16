@@ -6,7 +6,8 @@ open Batteries
 open GoblintCil
 open MyCFG
 open Analyses
-open ConstrSys
+open Goblint_constraint.Translators
+open Goblint_constraint.SolverTypes
 open GobConfig
 open Constraints
 open SpecLifters
@@ -57,7 +58,7 @@ let get_spec (): (module Spec) =
 
 let current_node_state_json : (Node.t -> Yojson.Safe.t option) ref = ref (fun _ -> None)
 
-let current_varquery_global_state_json: (VarQuery.t option -> Yojson.Safe.t) ref = ref (fun _ -> `Null)
+let current_varquery_global_state_json: (Goblint_constraint.VarQuery.t option -> Yojson.Safe.t) ref = ref (fun _ -> `Null)
 
 (** Given a [Cfg], a [Spec], and an [Inc], computes the solution to [MCP.Path] *)
 module AnalyzeCFG (Cfg:CfgBidirSkip) (Spec:Spec) (Inc:Increment) =

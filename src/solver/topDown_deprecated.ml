@@ -1,7 +1,7 @@
 (** Deprecated top-down solver ([topdown_deprecated]). *)
 
 open Batteries
-open ConstrSys
+open Goblint_constraint.ConstrSys
 open Messages
 
 

@@ -1,7 +1,8 @@
 (** Extra constraint system evaluation pass for warning generation, verification, pruning, etc. *)
 
 open Batteries
-open ConstrSys
+open Goblint_constraint.ConstrSys
+open Goblint_constraint.SolverTypes
 open GobConfig
 module Pretty = GoblintCil.Pretty
 module M  = Messages

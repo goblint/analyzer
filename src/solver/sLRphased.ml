@@ -1,7 +1,7 @@
 (** Two-phased terminating SLR3 solver ([slr3tp]). *)
 
 open Batteries
-open ConstrSys
+open Goblint_constraint.ConstrSys
 open Messages
 open SLR
 
