@@ -325,12 +325,16 @@ struct
     (*This is only called in assign_texpr, after which the value will be set correctly.*)
     let (_, (m,o,d)) = EConj.inverse i rhs in
     let c,_ = BatOption.get m in 
-    let ineq', refinements = Ineq.substitute ineq i (c,i,o,d) in
+    let ineq', refinements = 
+      if EConj.nontrivial econ i 
+        then ineq, [] 
+        else Ineq.substitute ineq i (c,i,o,d) 
+      in
     apply_refinements refinements (EConj.affine_transform econ i rhs, vs, ineq')
 
   let affine_transform econ i (c,v,o,d) =
     let res = affine_transform econ i (c,v,o,d) in
-    if M.tracing then M.tracel "affine_transform" "affine_transform %s with var_%d=%s ->  %s " (show econ) i (Rhs.show (Some (c,v),o,d)) (show res); 
+    if M.tracing then M.tracel "affine_transform" "affine_transform %s with var_%d'=%s ->  %s " (show econ) i (Rhs.show (Some (c,v),o,d)) (show res); 
     res
 
 end

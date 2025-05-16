@@ -535,14 +535,14 @@ module CommonActions (Coeffs : Coeffs) = struct
     IntMap.fold (fun x ys acc -> IntMap.fold (fun y coeff acc -> meet_one_coeff true get_value x y coeff acc) ys acc) t2 (t1,[])
 
   let join' widen t1 get_val_t1 t2 get_val_t2 = 
-    let merge_y x y = (if widen then Coeffs.widen else Coeffs.join) x y get_val_t1 get_val_t2
-    in let merge_x x ys1 ys2 = 
+    let merge_y x y = (if widen then Coeffs.widen else Coeffs.join) x y get_val_t1 get_val_t2 in 
+    let merge_x x ys1 ys2 = 
          match ys1, ys2 with
-         | Some ys1, None -> ignore_empty (IntMap.filter (fun y coeff -> Coeffs.implies (get_val_t2 x) (get_val_t2 y) None coeff ) ys1)
-         | None, Some ys2 -> ignore_empty (IntMap.filter (fun y coeff -> Coeffs.implies (get_val_t1 x) (get_val_t1 y) None coeff ) ys2)
+         | Some ys1, None -> ignore_empty (IntMap.filter_map (fun y coeff1 -> merge_y x y (Some coeff1) None) ys1)
+         | None, Some ys2 -> ignore_empty (IntMap.filter_map (fun y coeff2 -> merge_y x y None (Some coeff2)) ys2)
          | Some ys1, Some ys2 -> ignore_empty (IntMap.merge (merge_y x) ys1 ys2)
-         | _, _ -> None in 
-    IntMap.merge (merge_x) t1 t2
+         | _, _ -> None
+    in IntMap.merge (merge_x) t1 t2
 
   let join = join' false
   let widen = join' true
@@ -1342,15 +1342,10 @@ module ArbitraryCoeffsSet = struct
     if M.tracing then M.trace "implies" "x = %s, y = %s, %s implies %s ? -> %b" (Value.show x_val) (Value.show y_val) (BatOption.map_default (show_formatted "x" "y") "{}" t1_opt) (show_formatted "x" "y" t2) res;
     res 
 
-  let join' widen x y get_val_t1 get_val_t2 t1 t2 =
-    let implies_single_equality t k c = 
-      let res = match get_best_offset k t with None -> false | Some c' -> LinearInequality.entails1 (k, c') (k,c)
-      in if M.tracing then M.trace "implies" "single ineq: %s implies %s ? -> %b" (show_formatted "x" "y" t) (LinearInequality.show "x" "y" (k,c)) res;
-      res
-    in
+  let join x y get_val_t1 get_val_t2 t1 t2 =
     let t1 = match t1 with None -> CoeffMap.empty | Some t1 -> t1 in
     let t2 = match t2 with None -> CoeffMap.empty | Some t2 -> t2 in
-    (*add interval inequalities to copies, because doing it at every filter step would be more work*)
+    (*add interval inequalities to copies*)
     let t1_with_interval = 
       let ineqs = LinearInequality.from_values (get_val_t1 x) (get_val_t1 y) in
       List.fold (fun t (k,c) -> add_inequality k c t) t1 ineqs
@@ -1358,26 +1353,35 @@ module ArbitraryCoeffsSet = struct
          let ineqs = LinearInequality.from_values (get_val_t2 x) (get_val_t2 y) in
          List.fold (fun t (k,c) -> add_inequality k c t) t2 ineqs
     in
-    (*we want to keep inequalities that are in one of the elements and implied by the other (maxbe by also being in there) *)
-    let t1_filtered = CoeffMap.filter (implies_single_equality t2_with_interval) t1_with_interval in
-    let t2_filtered = CoeffMap.filter (implies_single_equality t1_with_interval) t2_with_interval in
-    (* merge the two sets. if one inequality is in both, take the less tight bound *)
-    (* we make two passes over the list: first the relaxation, then adding all other inequalities*)
-    (* this prevents an inequality from being deemed redundant by an inequality that is later relaxed*)
-    let relax k c2 (t1_f, t2_f) = (*we need to modify t2 because in the case of widening, the key might not be in both after this first step *)
-      match CoeffMap.find_opt k t1 with (*look up in original t1 so that we can take care of widening for inequalities that get filtered*)
-      | Some c1 when Q.equal c1 c2 -> (t1_f, CoeffMap.remove k t2_f)
-      | _ when widen -> (CoeffMap.remove k t1_f, CoeffMap.remove k t2_f) (*t2 has different bound -> do widening*)
-      | None -> (t1_f, t2_f)
-      | Some c1 when LinearInequality.entails1 (k,c1) (k,c2) -> (CoeffMap.add k c2 t1_f, CoeffMap.remove k t2_f) (*t2 has more relaxed bound*)
-      | Some c1 -> (t1_f, CoeffMap.remove k t2_f) (*last remaining case: t1 has more relaxed bound*)
-    in let t1_filtered', t2_filtered' = CoeffMap.fold relax t2_filtered (t1_filtered, t2_filtered)
-    in let merged = CoeffMap.fold add_inequality t2_filtered' t1_filtered' 
-    (*remove the explicetly stored interval inequalities*)
-    in ignore_empty @@ CoeffMap.remove (LE Q.zero) @@ CoeffMap.remove (GE Q.zero) @@ CoeffMap.remove (LE Q.inf) @@ CoeffMap.remove (GE Q.inf) merged
+    (*Keep slopes where the other element implies some inequality for the same slope *)
+    let relax t k c = 
+        let res = match get_best_offset k t with
+        | None -> None (*drop if nothing is implied *)
+        | Some c' -> (* in this case, we need to take the more relaxed bound*)
+          if LinearInequality.entails1 (k, c') (k,c) then 
+            Some c
+          else 
+            Some c'
+        in
+        if M.tracing then M.trace "relax" "%s with %s relaxed to %s" (show_formatted "x" "y" t) (LinearInequality.show "x" "y" (k,c)) (BatOption.map_default (fun c -> LinearInequality.show "x" "y" (k,c)) "Nothing" res);
+        res
+    in
+    let t1_mapped = CoeffMap.filter_map (relax t2_with_interval) t1 in
+    let t2_mapped = CoeffMap.filter_map (relax t1_with_interval) t2 in
+    (* merge the two sets *)
+    (*the existing add assumes there to be no inequality with this key. this happens only if both have the same offset now *)
+    let add_inequality k c t = if CoeffMap.mem k t then t else add_inequality k c t in 
+    let merged = CoeffMap.fold add_inequality t2_mapped t1_mapped
+    in ignore_empty merged
 
-  let join = join' false
-  let widen = join' true
+  let widen _ _ _ _ t1 t2 = 
+    let open GobOption.Syntax in
+    (*only keep inequalities that are in both equations*)
+    let keep_same k c1 c2 = if c1 = c2 then c1 else None in
+    let* t1 = t1 in
+    let* t2 = t2 in 
+    ignore_empty @@ CoeffMap.merge (keep_same) t1 t2
+
   let meet = meet' false
   let narrow = meet' true
 
@@ -1764,6 +1768,7 @@ end
 
 (*!! options for limit function*)
 
+(*!! fix cohencu tests*)
 (*++ redo simple equalities (take advantage of the offset!, affine transform)*)
 
 (*++ ArbitraryCoeaffsList meet_single: take intervals into account better
