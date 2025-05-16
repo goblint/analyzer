@@ -3,6 +3,28 @@ open Batteries
 open ConstrSys
 open SolverTypes
 
+(** Translate a [DemandConstrSys] into a [EqConstrSys] *)
+module EqConstrSysFromDemandConstrSys (S: DemandEqConstrSys)
+  : EqConstrSys   with type v = S.v
+                   and type d = S.d
+                   and module Var = S.Var
+                   and module Dom = S.Dom =
+struct
+  type v = S.v
+  type d = S.d
+  module Var = S.Var
+  module Dom = S.Dom
+
+  let system (x: v) =
+    match S.system x with
+    | None -> None
+    | Some f ->
+      let f' get set = f get set (ignore % get) in
+      Some f'
+
+  let sys_change = S.sys_change
+  let postmortem = S.postmortem
+end
 
 (** Translate a [GlobConstrSys] into a [EqConstrSys] *)
 module EqConstrSysFromGlobConstrSys (S:GlobConstrSys)
@@ -93,6 +115,21 @@ struct
 
   include GlobConstrSolFromEqConstrSolBase (S) (LH) (GH) (VH)
 end
+
+
+module DemandEqIncrSolverFromGenericEqIncrSolver (Sol: GenericEqIncrSolverBase) =
+  functor (S: DemandEqConstrSys) ->
+  functor (H: Hashtbl.S with type key = S.v) ->
+  struct
+    module EqSys = EqConstrSysFromDemandConstrSys (S)
+    module Sol' = Sol (EqSys) (H)
+
+    type marshal = Sol'.marshal
+    let copy_marshal = Sol'.copy_marshal
+    let relift_marshal = Sol'.relift_marshal
+    let solve = Sol'.solve
+  end
+
 
 (** Transforms a [GenericEqIncrSolver] into a [GenericGlobIncrSolver]. *)
 module GlobSolverFromEqSolver (Sol:GenericEqIncrSolverBase)
