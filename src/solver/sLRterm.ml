@@ -224,4 +224,4 @@ module SLR3term =
   end
 
 let _ =
-  Selector.add_solver ("slr3t", (module PostSolver.EqIncrSolverFromEqSolver (SLR3term))); (* same as S2 but number of W-points may also shrink + terminating? *)
+  Selector.add_solver ("slr3t", (module PostSolver.DemandEqIncrSolverFromEqSolver (SLR3term))); (* same as S2 but number of W-points may also shrink + terminating? *)

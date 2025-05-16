@@ -133,4 +133,4 @@ module WP =
   end
 
 let _ =
-  Selector.add_solver ("topdown_term", (module PostSolver.EqIncrSolverFromEqSolver (WP)));
+  Selector.add_solver ("topdown_term", (module PostSolver.DemandEqIncrSolverFromEqSolver (WP)));

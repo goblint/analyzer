@@ -62,4 +62,4 @@ module Make =
 
 
 let _ =
-  Selector.add_solver ("WL",  (module PostSolver.EqIncrSolverFromEqSolver (Make)));
+  Selector.add_solver ("WL",  (module PostSolver.DemandEqIncrSolverFromEqSolver (Make)));

@@ -203,4 +203,4 @@ module Base : GenericEqSolver =
   end
 
 let () =
-  Selector.add_solver ("td_simplified", (module PostSolver.EqIncrSolverFromEqSolver (Base)));
+  Selector.add_solver ("td_simplified", (module PostSolver.DemandEqIncrSolverFromEqSolver (Base)));

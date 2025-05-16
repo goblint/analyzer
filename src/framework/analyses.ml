@@ -424,7 +424,7 @@ end
 module type SpecSys =
 sig
   module Spec: Spec
-  module EQSys: Goblint_constraint.ConstrSys.GlobConstrSys with module LVar = VarF (Spec.C)
+  module EQSys: Goblint_constraint.ConstrSys.DemandGlobConstrSys with module LVar = VarF (Spec.C)
                                and module GVar = GVarF (Spec.V)
                                and module D = Spec.D
                                and module G = GVarG (Spec.G) (Spec.C)
