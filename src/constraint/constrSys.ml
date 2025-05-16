@@ -110,8 +110,15 @@ end
 (** A side-effecting system with globals that supports [demand] calls *)
 module type DemandGlobConstrSys =
 sig
-  include GlobConstrSys
-  val system: LVar.t -> ((LVar.t -> D.t) -> (LVar.t -> D.t -> unit) -> (GVar.t -> G.t) -> (GVar.t -> G.t -> unit) -> (LVar.t -> unit) -> D.t) option
+  module LVar : VarType
+  module GVar : VarType
+
+  module D : Lattice.S
+  module G : Lattice.S
+  val system: LVar.t -> ((LVar.t -> D.t) -> (LVar.t -> D.t -> unit) -> (LVar.t -> unit) -> (GVar.t -> G.t) -> (GVar.t -> G.t -> unit) -> D.t) option
+  val iter_vars: (LVar.t -> D.t) -> (GVar.t -> G.t) -> VarQuery.t -> LVar.t VarQuery.f -> GVar.t VarQuery.f -> unit
+  val sys_change: (LVar.t -> D.t) -> (GVar.t -> G.t) -> [`L of LVar.t | `G of GVar.t] sys_change_info
+  val postmortem: LVar.t -> LVar.t list
 end
 
 

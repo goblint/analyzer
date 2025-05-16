@@ -523,29 +523,29 @@ let _ =
   let module W1 = JustWiden (struct let ver = 1 end) in
   let module W2 = JustWiden (struct let ver = 2 end) in
   let module W3 = JustWiden (struct let ver = 3 end) in
-  Selector.add_solver ("widen1",  (module PostSolver.EqIncrSolverFromEqSolver (W1)));
-  Selector.add_solver ("widen2",  (module PostSolver.EqIncrSolverFromEqSolver (W2)));
-  Selector.add_solver ("widen3",  (module PostSolver.EqIncrSolverFromEqSolver (W3)));
+  Selector.add_solver ("widen1",  (module PostSolver.DemandEqIncrSolverFromEqSolver (W1)));
+  Selector.add_solver ("widen2",  (module PostSolver.DemandEqIncrSolverFromEqSolver (W2)));
+  Selector.add_solver ("widen3",  (module PostSolver.DemandEqIncrSolverFromEqSolver (W3)));
   let module S2 = TwoPhased (struct let ver = 1 end) in
   (* Selector.add_solver ("two",  (module PostSolver.EqIncrSolverFromEqSolver (S2))); (* TODO: broken even on 00-sanity/01-assert *) *)
   let module S1 = Make (struct let ver = 1 end) in
-  Selector.add_solver ("new",  (module PostSolver.EqIncrSolverFromEqSolver (S1)));
-  Selector.add_solver ("slr+", (module PostSolver.EqIncrSolverFromEqSolver (S1)))
+  Selector.add_solver ("new",  (module PostSolver.DemandEqIncrSolverFromEqSolver (S1)));
+  Selector.add_solver ("slr+", (module PostSolver.DemandEqIncrSolverFromEqSolver (S1)))
 
 let _ =
   let module S1 = Make (struct let ver = 1 end) in
   let module S2 = Make (struct let ver = 2 end) in
   let module S3 = SLR3 in
   let module S4 = Make (struct let ver = 4 end) in
-  Selector.add_solver ("slr1", (module PostSolver.EqIncrSolverFromEqSolver (S1))); (* W&N at every program point *)
-  Selector.add_solver ("slr2", (module PostSolver.EqIncrSolverFromEqSolver (S2))); (* W&N dynamic at certain points, growing number of W-points *)
-  Selector.add_solver ("slr3", (module PostSolver.EqIncrSolverFromEqSolver (S3))); (* same as S2 but number of W-points may also shrink *)
-  Selector.add_solver ("slr4", (module PostSolver.EqIncrSolverFromEqSolver (S4))); (* restarting: set influenced variables to bot and start up-iteration instead of narrowing *)
+  Selector.add_solver ("slr1", (module PostSolver.DemandEqIncrSolverFromEqSolver (S1))); (* W&N at every program point *)
+  Selector.add_solver ("slr2", (module PostSolver.DemandEqIncrSolverFromEqSolver (S2))); (* W&N dynamic at certain points, growing number of W-points *)
+  Selector.add_solver ("slr3", (module PostSolver.DemandEqIncrSolverFromEqSolver (S3))); (* same as S2 but number of W-points may also shrink *)
+  Selector.add_solver ("slr4", (module PostSolver.DemandEqIncrSolverFromEqSolver (S4))); (* restarting: set influenced variables to bot and start up-iteration instead of narrowing *)
   let module S1p = PrintInfluence (Make (struct let ver = 1 end)) in
   let module S2p = PrintInfluence (Make (struct let ver = 2 end)) in
   let module S3p = PrintInfluence (Make (struct let ver = 3 end)) in
   let module S4p = PrintInfluence (Make (struct let ver = 4 end)) in
-  Selector.add_solver ("slr1p", (module PostSolver.EqIncrSolverFromEqSolver (S1p))); (* same as S1-4 above but with side-effects *)
-  Selector.add_solver ("slr2p", (module PostSolver.EqIncrSolverFromEqSolver (S2p)));
-  Selector.add_solver ("slr3p", (module PostSolver.EqIncrSolverFromEqSolver (S3p)));
-  Selector.add_solver ("slr4p", (module PostSolver.EqIncrSolverFromEqSolver (S4p)));
+  Selector.add_solver ("slr1p", (module PostSolver.DemandEqIncrSolverFromEqSolver (S1p))); (* same as S1-4 above but with side-effects *)
+  Selector.add_solver ("slr2p", (module PostSolver.DemandEqIncrSolverFromEqSolver (S2p)));
+  Selector.add_solver ("slr3p", (module PostSolver.DemandEqIncrSolverFromEqSolver (S3p)));
+  Selector.add_solver ("slr4p", (module PostSolver.DemandEqIncrSolverFromEqSolver (S4p)));

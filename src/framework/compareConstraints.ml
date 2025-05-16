@@ -158,7 +158,7 @@ struct
   include PrecCompare.MakeHashtbl (Var) (Dom) (VH)
 end
 
-module CompareEqSys (Sys: EqConstrSys) (VH: Hashtbl.S with type key = Sys.Var.t) =
+module CompareEqSys (Sys: DemandEqConstrSys) (VH: Hashtbl.S with type key = Sys.Var.t) =
 struct
   module Compare = CompareHashtbl (Sys.Var) (Sys.Dom) (VH)
 

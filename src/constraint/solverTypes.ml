@@ -77,8 +77,8 @@ module type DemandEqIncrSolver =
 (** A solver is something that can translate a system into a solution (hash-table)
 
 *)
-module type GenericGlobIncrSolver =
-  functor (S:GlobConstrSys) ->
+module type DemandGlobIncrSolver =
+  functor (S:DemandGlobConstrSys) ->
   functor (LH:Hashtbl.S with type key=S.LVar.t) ->
   functor (GH:Hashtbl.S with type key=S.GVar.t) ->
   sig
