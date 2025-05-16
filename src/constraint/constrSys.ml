@@ -86,6 +86,13 @@ sig
   val postmortem: v -> v list
 end
 
+(** A side-effecting system that supports [demand] calls *)
+module type DemandEqConstrSys =
+sig
+  include EqConstrSys
+  val system: v -> ((v -> d) -> (v -> d -> unit) -> (v -> unit) -> d) option
+end
+
 (** A side-effecting system with globals. *)
 module type GlobConstrSys =
 sig
@@ -99,6 +106,14 @@ sig
   val sys_change: (LVar.t -> D.t) -> (GVar.t -> G.t) -> [`L of LVar.t | `G of GVar.t] sys_change_info
   val postmortem: LVar.t -> LVar.t list
 end
+
+(** A side-effecting system with globals that supports [demand] calls *)
+module type DemandGlobConstrSys =
+sig
+  include GlobConstrSys
+  val system: LVar.t -> ((LVar.t -> D.t) -> (LVar.t -> D.t -> unit) -> (GVar.t -> G.t) -> (GVar.t -> G.t -> unit) -> (LVar.t -> unit) -> D.t) option
+end
+
 
 (** [EqConstrSys] where [current_var] indicates the variable whose right-hand side is currently being evaluated. *)
 module CurrentVarEqConstrSys (S: EqConstrSys) =
