@@ -87,4 +87,4 @@ module Make =
   end
 
 let _ =
-  Selector.add_solver ("effectWConDemandEq", (module PostSolver.DemandEqIncrSolverFromEqSolver (Make)));
+  Selector.add_solver ("effectWConEq", (module PostSolver.DemandEqIncrSolverFromEqSolver (Make)));
