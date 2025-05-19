@@ -524,28 +524,33 @@ module CommonActions (Coeffs : Coeffs) = struct
   let meet_one_coeff narrow get_value x y coeff (t,ref_acc) =
     let coeff_t = get_coeff x y t in
     let coeff_met, ref_acc' = match coeff_t with 
-      | None -> coeff, ref_acc
-      | Some coeff_t -> (if narrow then Coeffs.narrow else Coeffs.meet) (x, get_value x) (y, get_value y) coeff coeff_t ref_acc
+      | None -> coeff, ref_acc (*also fine for narrow if t is the one on the righthandside*)
+      | Some coeff_t -> (if narrow then Coeffs.narrow else Coeffs.meet) (x, get_value x) (y, get_value y) coeff_t coeff ref_acc
     in set_coeff x y coeff_met t, ref_acc'
 
   let meet get_value t1 t2 = 
-    IntMap.fold (fun x ys acc -> IntMap.fold (fun y coeff acc -> meet_one_coeff false get_value x y coeff acc) ys acc) t2 (t1,[])
+    IntMap.fold (fun x ys acc -> IntMap.fold (fun y coeff acc -> meet_one_coeff false get_value x y coeff acc) ys acc) t1 (t2,[])
 
   let narrow get_value t1 t2 = 
-    IntMap.fold (fun x ys acc -> IntMap.fold (fun y coeff acc -> meet_one_coeff true get_value x y coeff acc) ys acc) t2 (t1,[])
+    IntMap.fold (fun x ys acc -> IntMap.fold (fun y coeff acc -> meet_one_coeff true get_value x y coeff acc) ys acc) t1 (t2,[])
 
   let join' widen t1 get_val_t1 t2 get_val_t2 = 
     let merge_y x y = (if widen then Coeffs.widen else Coeffs.join) x y get_val_t1 get_val_t2 in 
     let merge_x x ys1 ys2 = 
-         match ys1, ys2 with
-         | Some ys1, None -> ignore_empty (IntMap.filter_map (fun y coeff1 -> merge_y x y (Some coeff1) None) ys1)
-         | None, Some ys2 -> ignore_empty (IntMap.filter_map (fun y coeff2 -> merge_y x y None (Some coeff2)) ys2)
-         | Some ys1, Some ys2 -> ignore_empty (IntMap.merge (merge_y x) ys1 ys2)
-         | _, _ -> None
+      match ys1, ys2 with
+      | Some ys1, None -> ignore_empty (IntMap.filter_map (fun y coeff1 -> merge_y x y (Some coeff1) None) ys1)
+      | None, Some ys2 -> ignore_empty (IntMap.filter_map (fun y coeff2 -> merge_y x y None (Some coeff2)) ys2)
+      | Some ys1, Some ys2 -> ignore_empty (IntMap.merge (merge_y x) ys1 ys2)
+      | _, _ -> None
     in IntMap.merge (merge_x) t1 t2
 
   let join = join' false
   let widen = join' true
+
+  let widen a b c d =
+    let res = widen a b c d in
+    if M.tracing then M.trace "widen" "called for inequalities";
+    res
 
   let interval_refinements get_value t = IntMap.fold (fun x ys acc -> 
       IntMap.fold (fun y cs acc -> 
@@ -1227,7 +1232,7 @@ module ArbitraryCoeffsSet = struct
     | Some lower -> (Refinement.of_value y @@ Value.starting @@ round_up @@ Q.neg lower ):: ref_acc 
     | _ -> ref_acc
 
-  let meet_single_inequality narrow (x,x_val) (y,y_val) k c (t,ref_acc) = 
+  let meet_single_inequality (x,x_val) (y,y_val) k c (t,ref_acc) = 
     (*calculate value refinement. If one of the coefficients is zero, we should not add the inequality to the map*)
     let refinements, skip_adding = 
       let x_refine = 
@@ -1307,13 +1312,28 @@ module ArbitraryCoeffsSet = struct
         (*add the inequality, while making sure that we do not save redundant inequalities*)
         (*TODO make this consider the intervals! -> adapt get_next and get_previous?*)
         let t' = match CoeffMap.find_opt k t with 
-          | Some c_old when LinearInequality.entails1 (k,c_old) (k,c) -> t (*saved inequality is already thighter than new one*) (*TODO narrow?*) 
+          | Some c_old when LinearInequality.entails1 (k,c_old) (k,c) -> t (*saved inequality is already thighter than new one*)
           | _ -> add_inequality k c @@ CoeffMap.remove k t (*we replace the current value with a new one *)
         in 
         let ref_acc = interval_refinements (x,x_val) (y,y_val) t' ref_acc in
         t', ref_acc
 
-  let meet' narrow x_val y_val t1 t2 ref_acc = CoeffMap.fold (fun k c acc -> meet_single_inequality narrow x_val y_val k c acc) t1 (t2,ref_acc)
+  let meet x_val y_val t1 t2 ref_acc = CoeffMap.fold (meet_single_inequality x_val y_val) t1 (t2,ref_acc)
+
+  let narrow x_val y_val t1 t2 ref_acc = 
+    let narrow_single_inequality k c ((t,_) as acc) = 
+      if CoeffMap.mem k t then
+        acc (*accelerated narowing: only restrict top bounds to only have finite number of narrowings*)
+      else      
+        fst @@ meet_single_inequality x_val y_val k c acc, []
+    in
+    CoeffMap.fold narrow_single_inequality t2 (t1,ref_acc)
+
+  let narrow x_val y_val t1 t2 ref_acc = 
+    let res = narrow x_val y_val t1 t2 ref_acc in 
+    if M.tracing then M.trace "narrow" "narrow for coeffs a: %s b: %s -> %s" (show_formatted "x" "y" t1) (show_formatted "x" "y" t2) (show_formatted "x" "y" @@ fst res);
+    res
+
 
   let implies x_val y_val t1_opt t2 = 
     let t1 = match t1_opt with 
@@ -1355,16 +1375,16 @@ module ArbitraryCoeffsSet = struct
     in
     (*Keep slopes where the other element implies some inequality for the same slope *)
     let relax t k c = 
-        let res = match get_best_offset k t with
+      let res = match get_best_offset k t with
         | None -> None (*drop if nothing is implied *)
         | Some c' -> (* in this case, we need to take the more relaxed bound*)
           if LinearInequality.entails1 (k, c') (k,c) then 
             Some c
           else 
             Some c'
-        in
-        if M.tracing then M.trace "relax" "%s with %s relaxed to %s" (show_formatted "x" "y" t) (LinearInequality.show "x" "y" (k,c)) (BatOption.map_default (fun c -> LinearInequality.show "x" "y" (k,c)) "Nothing" res);
-        res
+      in
+      if M.tracing then M.trace "relax" "%s with %s relaxed to %s" (show_formatted "x" "y" t) (LinearInequality.show "x" "y" (k,c)) (BatOption.map_default (fun c -> LinearInequality.show "x" "y" (k,c)) "Nothing" res);
+      res
     in
     let t1_mapped = CoeffMap.filter_map (relax t2_with_interval) t1 in
     let t2_mapped = CoeffMap.filter_map (relax t1_with_interval) t2 in
@@ -1376,14 +1396,11 @@ module ArbitraryCoeffsSet = struct
 
   let widen _ _ _ _ t1 t2 = 
     let open GobOption.Syntax in
-    (*only keep inequalities that are in both equations*)
+    (*only keep inequalities that the same are in both equations*)
     let keep_same k c1 c2 = if c1 = c2 then c1 else None in
     let* t1 = t1 in
     let* t2 = t2 in 
     ignore_empty @@ CoeffMap.merge (keep_same) t1 t2
-
-  let meet = meet' false
-  let narrow = meet' true
 
   let substitute_left (coeff, offs, divi) t =
     let f k c t_acc = 
@@ -1503,7 +1520,7 @@ module LinearInequalities : TwoVarInequalities = struct
           let coeffs = match get_coeff x y t with
             | None -> Coeffs.empty
             | Some c -> c
-          in let coeffs', ref_acc = Coeffs.meet_single_inequality false (x,get_value x) (y,get_value y) k c (coeffs,ref_acc) in
+          in let coeffs', ref_acc = Coeffs.meet_single_inequality (x,get_value x) (y,get_value y) k c (coeffs,ref_acc) in
           if Coeffs.CoeffMap.is_empty coeffs' 
           then remove_coeff x y t , ref_acc
           else set_coeff x y coeffs' t, ref_acc

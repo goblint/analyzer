@@ -104,6 +104,9 @@ struct
     in
     IntMap.fold meet_with_rhs (snd econ) i 
 
+  let constrain_with_congruence_from_rhs econ lhs i =(**TODO do not recalculate this every time?*)
+    timing_wrap "congruence" (constrain_with_congruence_from_rhs econ lhs) i
+
   (*TODO make this configureable with options*)
   let refine_depth = 5
 
@@ -327,9 +330,9 @@ struct
     let c,_ = BatOption.get m in 
     let ineq', refinements = 
       if EConj.nontrivial econ i 
-        then ineq, [] 
-        else Ineq.substitute ineq i (c,i,o,d) 
-      in
+      then ineq, [] 
+      else Ineq.substitute ineq i (c,i,o,d) 
+    in
     apply_refinements refinements (EConj.affine_transform econ i rhs, vs, ineq')
 
   let affine_transform econ i (c,v,o,d) =
