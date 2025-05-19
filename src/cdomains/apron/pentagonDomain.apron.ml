@@ -20,7 +20,7 @@ module Inequalities = struct
   let hash : (t -> int)  = fun _ -> failwith "TODO"
   let copy (x: t) = x
   let empty () = (VarMap.empty: t)
-  let is_empty : (t -> bool)  = VarMap.is_empty 
+  let is_empty ineq  = VarMap.is_empty ineq
   let dim_add : (Apron.Dim.change -> t -> t)  = fun _ -> failwith "TODO"
   let dim_remove : (Apron.Dim.change -> t -> del:bool-> t)  = fun _ -> failwith "TODO"
 
@@ -47,10 +47,15 @@ struct
   let get_map_default_2 s1 s2 = 
     VarMan.get_map_default s1, VarMan.get_map_default s2
 
-  let (bot: unit -> t) = VarMan.bot
+  (** Verify that this is actually top *)
+  let bot () = VarMan.bot ()
   let is_bot sub = VarMan.equal sub (bot ())
-  let top (): (unit -> t) = fun _ -> failwith "TODO" (** Philip *)
-  let is_top t: (t -> bool) = fun _ -> failwith "TODO" (** Philip *)
+
+  (** Verify that this is actually top *)
+  let top () = ({ d = Some(Inequalities.empty ()); env = VarMan.empty_env }: t)
+  let is_top (sub: t) = 
+    let sub_map = VarMan.get_map_default sub in    
+    VarMap.for_all (fun _ set -> VarSet.is_empty set) sub_map 
 
   let subseteq set1 set2 = VarSet.subset set1 set2 || VarSet.equal set1 set2 (** helper, missing in batteries *)
 
@@ -80,33 +85,35 @@ struct
     VarMap.merge intersect_values sub_map_1 sub_map_2
 
 
-let meet (sub1: t) (sub2: t) =
-  let sub_map_1, sub_map_2 = get_map_default_2 sub1 sub2 in
-  let union_values var_key var_set1_opt car_set2_opt =
-    match var_set1_opt, var_set2_opt with
-    | Some(var_set1), Some(var_set2) -> Some(VarSet.union var_set1 var_set2)
-    | None, None -> failwith "This should never happen :)"
-    | _ -> None
-  in
-  VarMap.merge union_values sub_map_1 sub_map_2
+  let meet (sub1: t) (sub2: t) =
+    let sub_map_1, sub_map_2 = get_map_default_2 sub1 sub2 in
+    let union_values var_key var_set1_opt var_set2_opt =
+      match var_set1_opt, var_set2_opt with
+      | Some(var_set1), Some(var_set2) -> Some(VarSet.union var_set1 var_set2)
+      | None, None -> failwith "This should never happen :)"
+      | _ -> None
+    in
+    VarMap.merge union_values sub_map_1 sub_map_2
 
-let widen (sub1: t) (sub2: t) =
-  let sub_map_1, sub_map_2 = get_map_default_2 sub1 sub2 in
-  let widen_set var_key var_set1_opt car_set2_opt =
-    match var_set1_opt, var_set2_opt with
-    | Some(var_set1), Some(var_set2) ->
+  let widen (sub1: t) (sub2: t) =
+    let sub_map_1, sub_map_2 = get_map_default_2 sub1 sub2 in
+    let widen_set var_key var_set1_opt var_set2_opt =
+      match var_set1_opt, var_set2_opt with
+      | Some(var_set1), Some(var_set2) ->
         if subseteq var_set1 var_set2 then Some (var_set2) else Some (VarSet.empty)
-    | None, Some(var_set2) -> Some(var_set2)
-    | None, None -> failwith "This should never happen :)"
-    | _ -> Some (VarSet.empty)
-  in
-  VarMap.merge widen_set sub_map_1 sub_map_2
+      | None, Some(var_set2) -> Some(var_set2)
+      | None, None -> failwith "This should never happen :)"
+      | _ -> Some (VarSet.empty)
+    in
+    VarMap.merge widen_set sub_map_1 sub_map_2
 
-  let narrow: (t -> t -> t) = fun _ -> failwith "TODO" (** Philip *)
+  (** TODO: No narrowing mentioned in the paper. Can we improve on this? *)
+  let narrow sub1 sub2 = meet sub1 sub2
 
 
 end
 
+(** TODO: Alex *)
 module Intervals = 
 struct
   type t = T (*change*)
