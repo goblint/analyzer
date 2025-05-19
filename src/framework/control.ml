@@ -507,7 +507,7 @@ struct
           match compare_runs with
           | d1::d2::[] -> (* the directories of the runs *)
             if d1 = d2 then Logs.warn "Beware that you are comparing a run with itself! There should be no differences.";
-            (* instead of rewriting Compare for EqConstrSys, just transform unmarshaled EqConstrSys solutions to GlobConstrSys soltuions *)
+            (* instead of rewriting Compare for EqConstrSys, just transform unmarshaled EqConstrSys solutions to GlobConstrSys solutions *)
             let module Splitter = GlobConstrSolFromEqConstrSol (EQSys: DemandGlobConstrSys) (LHT) (GHT) in
             let module S2 = Splitter.S2 in
             let module VH = Splitter.VH in
