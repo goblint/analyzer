@@ -19,9 +19,9 @@ end
 module FromSpec (S:Spec) (Cfg:CfgBackward) (I: Increment)
   : sig
     include DemandGlobConstrSys with module LVar = VarF (S.C)
-                           and module GVar = GVarF (S.V)
-                           and module D = S.D
-                           and module G = GVarG (S.G) (S.C)
+                                 and module GVar = GVarF (S.V)
+                                 and module D = S.D
+                                 and module G = GVarG (S.G) (S.C)
   end
 =
 struct

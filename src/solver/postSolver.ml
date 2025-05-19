@@ -338,8 +338,9 @@ module EqIncrSolverFromEqSolver (Sol: GenericEqSolver): GenericEqIncrSolver =
 module DemandEqIncrSolverFromEqSolver (Sol: GenericEqSolver): DemandEqIncrSolver =
   functor (Arg: IncrSolverArg) (S: DemandEqConstrSys) (VH: Hashtbl.S with type key = S.v) ->
   struct
-    module Sol' = Sol (EqConstrSysFromDemandConstrSys (S)) (VH)
-    module Post = MakeList (ListArgFromStdArg (EqConstrSysFromDemandConstrSys (S)) (VH) (Arg))
+    module Sys = EqConstrSysFromDemandConstrSys (S)
+    module Sol' = Sol (Sys) (VH)
+    module Post = MakeList (ListArgFromStdArg (Sys) (VH) (Arg))
     type marshal = unit
     let copy_marshal () = ()
     let relift_marshal () = ()
