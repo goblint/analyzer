@@ -526,7 +526,7 @@ struct
             if get_bool "dbg.compare_runs.globsys" then
               CompareGlobSys.compare (d1, d2) r1 r2;
 
-            let module CompareEqSys = CompareConstraints.CompareEqSys (S2) (VH) in
+            let module CompareEqSys = CompareConstraints.CompareEqSys (EqConstrSysFromDemandConstrSys (S2) ) (VH) in
             if get_bool "dbg.compare_runs.eqsys" then
               CompareEqSys.compare (d1, d2) r1' r2';
 
