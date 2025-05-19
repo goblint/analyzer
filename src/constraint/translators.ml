@@ -3,13 +3,35 @@ open Batteries
 open ConstrSys
 open SolverTypes
 
+(** Translate a [DemandConstrSys] into a [EqConstrSys] *)
+module EqConstrSysFromDemandConstrSys (S: DemandEqConstrSys)
+  : EqConstrSys   with type v = S.v
+                   and type d = S.d
+                   and module Var = S.Var
+                   and module Dom = S.Dom =
+struct
+  type v = S.v
+  type d = S.d
+  module Var = S.Var
+  module Dom = S.Dom
 
-(** Translate a [GlobConstrSys] into a [EqConstrSys] *)
-module EqConstrSysFromGlobConstrSys (S:GlobConstrSys)
-  : EqConstrSys   with type v = Var2(S.LVar)(S.GVar).t
-                   and type d = Lattice.Lift2(S.G)(S.D).t
-                   and module Var = Var2(S.LVar)(S.GVar)
-                   and module Dom = Lattice.Lift2(S.G)(S.D)
+  let system (x: v) =
+    match S.system x with
+    | None -> None
+    | Some f ->
+      let f' get set = f get set (ignore % get) in
+      Some f'
+
+  let sys_change = S.sys_change
+  let postmortem = S.postmortem
+end
+
+(** Translate a [DemandGlobConstrSys] into a [DemandEqConstrSys] *)
+module EqConstrSysFromGlobConstrSys (S:DemandGlobConstrSys)
+  : DemandEqConstrSys   with type v = Var2(S.LVar)(S.GVar).t
+                         and type d = Lattice.Lift2(S.G)(S.D).t
+                         and module Var = Var2(S.LVar)(S.GVar)
+                         and module Dom = Lattice.Lift2(S.G)(S.D)
 =
 struct
   module Var = Var2(S.LVar)(S.GVar)
@@ -39,8 +61,8 @@ struct
   let l, g = (fun x -> `L x), (fun x -> `G x)
   let lD, gD = (fun x -> `Lifted2 x), (fun x -> `Lifted1 x)
 
-  let conv f get set =
-    f (getL % get % l) (fun x v -> set (l x) (lD v))
+  let conv f get set demand =
+    f (getL % get % l) (fun x v -> set (l x) (lD v)) (fun x -> ignore @@ getL @@ get @@ l x)
       (getG % get % g) (fun x v -> set (g x) (gD v))
     |> lD
 
@@ -57,7 +79,7 @@ struct
 end
 
 (** Splits a [EqConstrSys] solution into a [GlobConstrSys] solution with given [Hashtbl.S] for the [EqConstrSys]. *)
-module GlobConstrSolFromEqConstrSolBase (S: GlobConstrSys) (LH: Hashtbl.S with type key = S.LVar.t) (GH: Hashtbl.S with type key = S.GVar.t) (VH: Hashtbl.S with type key = Var2 (S.LVar) (S.GVar).t) =
+module GlobConstrSolFromEqConstrSolBase (S: DemandGlobConstrSys) (LH: Hashtbl.S with type key = S.LVar.t) (GH: Hashtbl.S with type key = S.GVar.t) (VH: Hashtbl.S with type key = Var2 (S.LVar) (S.GVar).t) =
 struct
   let split_solution hm =
     let l' = LH.create 113 in
@@ -86,7 +108,7 @@ struct
 end
 
 (** Splits a [EqConstrSys] solution into a [GlobConstrSys] solution. *)
-module GlobConstrSolFromEqConstrSol (S: GlobConstrSys) (LH: Hashtbl.S with type key = S.LVar.t) (GH: Hashtbl.S with type key = S.GVar.t) =
+module GlobConstrSolFromEqConstrSol (S: DemandGlobConstrSys) (LH: Hashtbl.S with type key = S.LVar.t) (GH: Hashtbl.S with type key = S.GVar.t) =
 struct
   module S2 = EqConstrSysFromGlobConstrSys (S)
   module VH = Hashtbl.Make (S2.Var)
@@ -94,9 +116,17 @@ struct
   include GlobConstrSolFromEqConstrSolBase (S) (LH) (GH) (VH)
 end
 
-(** Transforms a [GenericEqIncrSolver] into a [GenericGlobIncrSolver]. *)
-module GlobSolverFromEqSolver (Sol:GenericEqIncrSolverBase)
-  = functor (S:GlobConstrSys) ->
+
+module DemandEqIncrSolverFromGenericEqIncrSolver (Sol: GenericEqIncrSolver): DemandEqIncrSolver =
+  functor (Arg: IncrSolverArg) ->
+  functor (S: DemandEqConstrSys) ->
+  functor (H: Hashtbl.S with type key = S.v) ->
+    Sol (Arg) (EqConstrSysFromDemandConstrSys  (S)) (H)
+
+
+(** Transforms a [DemandEqIncrSolver] into a [DemandGlobIncrSolver]. *)
+module GlobSolverFromEqSolver (Sol:DemandEqIncrSolverBase)
+  = functor (S:DemandGlobConstrSys) ->
     functor (LH:Hashtbl.S with type key=S.LVar.t) ->
     functor (GH:Hashtbl.S with type key=S.GVar.t) ->
     struct

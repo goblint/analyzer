@@ -28,8 +28,8 @@ module LoadRunSolver: GenericEqSolver =
         vh
   end
 
-module LoadRunIncrSolver: GenericEqIncrSolver =
-  PostSolver.EqIncrSolverFromEqSolver (LoadRunSolver)
+module LoadRunIncrSolver: DemandEqIncrSolver =
+  PostSolver.DemandEqIncrSolverFromEqSolver (LoadRunSolver)
 
 module SolverStats (S:EqConstrSys) (HM:Hashtbl.S with type key = S.v) =
 struct

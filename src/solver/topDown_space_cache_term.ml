@@ -195,4 +195,4 @@ module WP =
   end
 
 let _ =
-  Selector.add_solver ("topdown_space_cache_term", (module PostSolver.EqIncrSolverFromEqSolver (WP)));
+  Selector.add_solver ("topdown_space_cache_term", (module PostSolver.DemandEqIncrSolverFromEqSolver (WP)));

@@ -6,6 +6,7 @@ open Batteries
 open GoblintCil
 open MyCFG
 open Analyses
+open Goblint_constraint.ConstrSys
 open Goblint_constraint.Translators
 open Goblint_constraint.SolverTypes
 open GobConfig
@@ -506,8 +507,8 @@ struct
           match compare_runs with
           | d1::d2::[] -> (* the directories of the runs *)
             if d1 = d2 then Logs.warn "Beware that you are comparing a run with itself! There should be no differences.";
-            (* instead of rewriting Compare for EqConstrSys, just transform unmarshaled EqConstrSys solutions to GlobConstrSys soltuions *)
-            let module Splitter = GlobConstrSolFromEqConstrSol (EQSys) (LHT) (GHT) in
+            (* instead of rewriting Compare for EqConstrSys, just transform unmarshaled EqConstrSys solutions to GlobConstrSys solutions *)
+            let module Splitter = GlobConstrSolFromEqConstrSol (EQSys: DemandGlobConstrSys) (LHT) (GHT) in
             let module S2 = Splitter.S2 in
             let module VH = Splitter.VH in
             let (r1, r1'), (r2, r2') = Tuple2.mapn (fun d ->
@@ -525,7 +526,7 @@ struct
             if get_bool "dbg.compare_runs.globsys" then
               CompareGlobSys.compare (d1, d2) r1 r2;
 
-            let module CompareEqSys = CompareConstraints.CompareEqSys (S2) (VH) in
+            let module CompareEqSys = CompareConstraints.CompareEqSys (EqConstrSysFromDemandConstrSys (S2) ) (VH) in
             if get_bool "dbg.compare_runs.eqsys" then
               CompareEqSys.compare (d1, d2) r1' r2';
 
@@ -588,7 +589,7 @@ struct
       in
 
       if get_string "comparesolver" <> "" then (
-        let compare_with (module S2 : GenericEqIncrSolver) =
+        let compare_with (module S2 : DemandEqIncrSolver) =
           let module PostSolverArg2 =
           struct
             include PostSolverArg
