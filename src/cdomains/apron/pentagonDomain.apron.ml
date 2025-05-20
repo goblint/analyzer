@@ -119,17 +119,46 @@ struct
   type t = interval VarMap.t
   module IArith = IntervalArith(IntOps.BigIntOps)
 
+  let leq_single (i1: interval) (i2: interval) =
+    fst i1 >= fst i2 && snd i1 <= snd i2
+
+  let join_single (i1: interval) (i2: interval) =
+    (Z.min (fst i1) (fst i2), Z.max (snd i1) (snd i2))
+
+  let meet_single (i1: interval) (i2: interval) =
+    let l = Z.max (fst i1) (fst i2) in
+    let u = Z.min (snd i1) (snd i2) in
+    if l <= u then Some (l, u) else None
+
+  let top_single () = (Z.of_int min_int, Z.of_int max_int)
+
+  let is_top_single (i: interval) =
+    fst i = Z.of_int min_int && snd i = Z.of_int max_int
+
+  let widen_single (i1: interval) (i2: interval) =
+    let l = if fst i1 <= fst i2 then fst i1 else Z.of_int min_int in
+    let u = if snd i1 >= snd i2 then snd i1 else Z.of_int max_int in
+    (l, u)
+
+  let narrow_single (i1: interval) (i2: interval) =
+    let l = Z.max (fst i1) (fst i2) in
+    let u = Z.min (snd i1) (snd i2) in
+    if l <= u then Some (l, u) else None
+
+  let is_bot_single (i: interval) =
+    fst i > snd i
+
   let leq (i1: t) (i2: t) =
-    VarMap.for_all (fun var (l2, u2) ->
+    VarMap.for_all (fun var iv2 ->
       match VarMap.find_opt var i1 with
-      | Some (l1, u1) -> l1 >= l2 && u1 <= u2
+      | Some iv1 -> leq_single iv1 iv2
       | None -> false
     ) i2
 
   let join (i1: t) (i2: t) =
     VarMap.merge (fun _ iv1 iv2 ->
       match iv1, iv2 with
-      | Some (l1, u1), Some (l2, u2) -> Some (Z.min l1 l2, Z.max u1 u2)
+      | Some iv1, Some iv2 -> Some (join_single iv1 iv2)
       | Some iv, None | None, Some iv -> Some iv
       | None, None -> None
     ) i1 i2
@@ -137,26 +166,20 @@ struct
   let meet (i1: t) (i2: t) =
     VarMap.merge (fun _ iv1 iv2 ->
       match iv1, iv2 with
-      | Some (l1, u1), Some (l2, u2) ->
-        let l = Z.max l1 l2 in
-        let u = Z.min u1 u2 in
-        if l <= u then Some (l, u) else None
+      | Some iv1, Some iv2 -> meet_single iv1 iv2
       | _ -> None
     ) i1 i2
 
   let top () =
-    VarMap.empty |> VarMap.map (fun _ -> (Z.of_int min_int, Z.of_int max_int))
+    VarMap.empty |> VarMap.map (fun _ -> top_single ())
 
   let is_top (i: t) =
-    VarMap.for_all (fun _ (l, u) -> l = Z.of_int min_int && u = Z.of_int max_int) i
+    VarMap.for_all (fun _ iv -> is_top_single iv) i
 
   let widen (i1: t) (i2: t) =
     VarMap.merge (fun _ iv1 iv2 ->
       match iv1, iv2 with
-      | Some (l1, u1), Some (l2, u2) ->
-        let l = if l1 <= l2 then l1 else Z.of_int min_int in
-        let u = if u1 >= u2 then u1 else Z.of_int max_int in
-        Some (l, u)
+      | Some iv1, Some iv2 -> Some (widen_single iv1 iv2)
       | Some iv, None | None, Some iv -> Some iv
       | None, None -> None
     ) i1 i2
@@ -164,17 +187,12 @@ struct
   let narrow (i1: t) (i2: t) =
     VarMap.merge (fun _ iv1 iv2 ->
       match iv1, iv2 with
-      | Some (l1, u1), Some (l2, u2) ->
-        let l = Z.max l1 l2 in
-        let u = Z.min u1 u2 in
-        if l <= u then Some (l, u) else None
+      | Some iv1, Some iv2 -> narrow_single iv1 iv2
       | _ -> None
     ) i1 i2
 
-  let bot () = VarMap.empty
-
   let is_bot (i: t) =
-    VarMap.exists (fun _ (l, u) -> l > u) i
+    VarMap.exists (fun _ iv -> is_bot_single iv) i
 
   let sup (x: interval) = snd x
 
