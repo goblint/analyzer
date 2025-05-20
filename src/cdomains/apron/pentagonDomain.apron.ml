@@ -8,9 +8,7 @@ open GoblintCil
 open Pretty
 module M = Messages
 open GobApron
-
-module Mpqf = SharedFunctions.Mpqf
-
+open IntDomain0
 
 module Inequalities = struct
   module VarMap = BatMap.Make(Int)
@@ -113,19 +111,74 @@ struct
 
 end
 
-(** TODO: Alex *)
 module Intervals = 
 struct
-  type t = T (*change*)
-  let leq: (t -> t -> bool)  = fun _ -> failwith "TODO"
-  let join: (t -> t -> t) = fun _ -> failwith "TODO"
-  let meet: (t -> t -> t) = fun _ -> failwith "TODO"
-  let widen: (t -> t -> t) = fun _ -> failwith "TODO"
-  let narrow: (t -> t -> t) = fun _ -> failwith "TODO"
-  let bot (): (unit -> t) = fun _ -> failwith "TODO"
-  let is_bot t: (t -> bool) = fun _ -> failwith "TODO"
-  let top (): (unit -> t) = fun _ -> failwith "TODO"
-  let is_top t: (t -> bool) = fun _ -> failwith "TODO"
+  module VarMap = BatMap.Make(Int)
+
+  type interval = Z.t * Z.t
+  type t = interval VarMap.t
+  module IArith = IntervalArith(IntOps.BigIntOps)
+
+  let leq (i1: t) (i2: t) =
+    VarMap.for_all (fun var (l2, u2) ->
+      match VarMap.find_opt var i1 with
+      | Some (l1, u1) -> l1 >= l2 && u1 <= u2
+      | None -> false
+    ) i2
+
+  let join (i1: t) (i2: t) =
+    VarMap.merge (fun _ iv1 iv2 ->
+      match iv1, iv2 with
+      | Some (l1, u1), Some (l2, u2) -> Some (Z.min l1 l2, Z.max u1 u2)
+      | Some iv, None | None, Some iv -> Some iv
+      | None, None -> None
+    ) i1 i2
+
+  let meet (i1: t) (i2: t) =
+    VarMap.merge (fun _ iv1 iv2 ->
+      match iv1, iv2 with
+      | Some (l1, u1), Some (l2, u2) ->
+        let l = Z.max l1 l2 in
+        let u = Z.min u1 u2 in
+        if l <= u then Some (l, u) else None
+      | _ -> None
+    ) i1 i2
+
+  let top () =
+    VarMap.empty |> VarMap.map (fun _ -> (Z.of_int min_int, Z.of_int max_int))
+
+  let is_top (i: t) =
+    VarMap.for_all (fun _ (l, u) -> l = Z.of_int min_int && u = Z.of_int max_int) i
+
+  let widen (i1: t) (i2: t) =
+    VarMap.merge (fun _ iv1 iv2 ->
+      match iv1, iv2 with
+      | Some (l1, u1), Some (l2, u2) ->
+        let l = if l1 <= l2 then l1 else Z.of_int min_int in
+        let u = if u1 >= u2 then u1 else Z.of_int max_int in
+        Some (l, u)
+      | Some iv, None | None, Some iv -> Some iv
+      | None, None -> None
+    ) i1 i2
+
+  let narrow (i1: t) (i2: t) =
+    VarMap.merge (fun _ iv1 iv2 ->
+      match iv1, iv2 with
+      | Some (l1, u1), Some (l2, u2) ->
+        let l = Z.max l1 l2 in
+        let u = Z.min u1 u2 in
+        if l <= u then Some (l, u) else None
+      | _ -> None
+    ) i1 i2
+
+  let bot () = VarMap.empty
+
+  let is_bot (i: t) =
+    VarMap.exists (fun _ (l, u) -> l > u) i
+
+  let sup (x: interval) = snd x
+
+  let inf (x: interval) = fst x
 end
 
 module type Tracked =
@@ -137,7 +190,6 @@ end
 module D =
 struct
   include Printable.Std
-  include RatOps.ConvenienceOps (Mpqf)
 
   module Bounds = ExpressionBounds
   module V = RelationDomain.V
@@ -219,7 +271,6 @@ struct
   let remove_vars_with _ = failwith "TODO"
 
   let remove_filter _ = failwith "TODO"
-
   let remove_filter_with _ = failwith "TODO"
 
   let copy _ = failwith "TODO"
