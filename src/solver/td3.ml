@@ -50,11 +50,11 @@ module Base =
   functor (UpdateRule: Td3UpdateRule.S) ->
   struct
     open SolverBox.Warrow (S.Dom)
-    module EqS = EqConstrSysFromDemandConstrSys (S)
-    include Generic.SolverStats (EqS) (HM)
+    module EqS0 = EqConstrSysFromDemandConstrSys (S)
+    include Generic.SolverStats (EqS0) (HM)
     module VS = Set.Make (S.Var)
 
-    module UpdateRule = UpdateRule(EqS) (HM) (VS)
+    module UpdateRule = UpdateRule(EqS0) (HM) (VS)
 
     let exists_key f hm = HM.exists (fun k _ -> f k) hm
 
@@ -219,6 +219,7 @@ module Base =
 
     module CurrentVarS = Goblint_constraint.ConstrSys.CurrentVarDemandEqConstrSys (S)
     module S = CurrentVarS.S
+    module EqS = EqConstrSysFromDemandConstrSys (S) (* new S, so must construct new EqS *)
 
     let solve st vs marshal =
       let reuse_stable = GobConfig.get_bool "incremental.stable" in
