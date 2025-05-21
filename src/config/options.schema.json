@@ -2633,18 +2633,12 @@
               "type": "integer",
               "default": -1
             },
-            "wk_deps": {
-              "title": "solvers.td3.wk_deps",
-              "type": "object",
-              "properties": {
-                "eager": {
-                  "title": "solvers.td3.wk_deps.eager",
-                  "description": "Should weak dependencies be solved immediately when first added to wk_deps",
-                  "type": "boolean",
-                  "default": false
-                }
-              },
-              "additionalProperties": false
+            "weak-deps": {
+              "title": "solvers.td3.weak-deps",
+              "description": "Handling of weak dependencies from demand: 'none' - as normal dependencies, 'eager' - solve immediately, 'lazy' - solve at top level.",
+              "type": "string",
+              "enum": ["none", "eager", "lazy"],
+              "default": "lazy"
             }
           },
           "additionalProperties": false
