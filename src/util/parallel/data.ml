@@ -14,35 +14,33 @@ module ConcurrentBucket (Key: Hashtbl.HashedType) (Val: DefaultType) = struct
   }
 
   let create key = {
-    key = key;
+    key;
     value = Atomic.make @@ Val.default ();
     next = Atomic.make None;
   }
 
   let create_with_value key value = {
-    key = key;
+    key;
     value = value;
     next = Atomic.make None;
   }
 
   let create_with_value_and_next key value next = {
-    key = key;
-    value = value;
+    key;
+    value;
     next = Atomic.make (Some next);
   }
 
-  let find_option sll key =
-    let rec find sll key =
+  let find_option sll (key : Key.t): Val.t Atomic.t option =
+    let rec find (sll: t) (key: Key.t): Val.t Atomic.t option =
       if Key.equal sll.key key then Some sll.value
-      else match Atomic.get sll.next with
-        | None -> None
-        | Some next -> find next key
+      else Option.bind (Atomic.get sll.next) (fun next -> find next key)
     in
     find sll key
 
   let find sll key =
     match find_option sll key with
-    | None -> failwith "Key not found"
+    | None -> raise Not_found
     | Some value -> value
 
   let rec find_create sll key =
@@ -51,7 +49,7 @@ module ConcurrentBucket (Key: Hashtbl.HashedType) (Val: DefaultType) = struct
       match Atomic.get sll.next with
       | None ->
         let new_sll = {
-          key = key;
+          key;
           value = Atomic.make @@ Val.default (); 
           next = Atomic.make None;
         } in
@@ -67,23 +65,14 @@ module ConcurrentBucket (Key: Hashtbl.HashedType) (Val: DefaultType) = struct
       match Atomic.get sll.next with
       | None ->
         let new_sll = {
-          key = key;
-          value = value;
+          key;
+          value;
           next = Atomic.make None;
         } in
         let success = Atomic.compare_and_set sll.next None (Some new_sll) in
         if not success then insert_value sll key value
       | Some next -> insert_value next key value
     )
-
-  let to_list sll =
-    let rec aux acc sll =
-      match sll with
-      | None -> acc
-      | Some sll ->
-        aux (acc @ [(sll.key, sll.value)]) (Atomic.get sll.next)
-    in
-    aux [] (Some sll)
 
   let to_seq sll =
     let rec aux sll () =
@@ -92,14 +81,11 @@ module ConcurrentBucket (Key: Hashtbl.HashedType) (Val: DefaultType) = struct
       | Some sll -> Seq.Cons ((sll.key, sll.value), aux (Atomic.get sll.next))
     in aux (Some sll)
 
+  let to_list sll = List.of_seq (to_seq sll)
+
   let to_string sll =
-    let rec aux acc sll =
-      match sll with
-      | None -> acc
-      | Some sll ->
-        aux (acc ^ Val.to_string (Atomic.get sll.value) ^ " ") (Atomic.get sll.next)
-    in
-    aux "" (Some sll)
+    to_seq sll |> Seq.map (fun (k, v) -> Val.to_string (Atomic.get v)) 
+    |> Seq.fold_left (fun acc v -> acc ^ v ^ " ") "" |> String.trim
 end
 
 
@@ -116,19 +102,19 @@ module ConcurrentHashmap =
     type value = D.t Atomic.t
 
     type t = {
-      size: int Atomic.t;
+      nr_buckets: int Atomic.t;
       nr_elements: int Atomic.t;
       resize_generation: int Atomic.t;
       buckets: Bucket.t option Atomic.t array Atomic.t;
     }
 
     let create () = 
-      let size = 100 in
+      let nr_buckets = 100 in
       {
-        size = Atomic.make size;
+        nr_buckets = Atomic.make nr_buckets;
         nr_elements = Atomic.make 0;
         resize_generation = Atomic.make 0;
-        buckets = Atomic.make @@ Array.init size (fun _ -> Atomic.make None);
+        buckets = Atomic.make @@ Array.init nr_buckets (fun _ -> Atomic.make None);
       }
 
     let to_list hm =
@@ -139,33 +125,26 @@ module ConcurrentHashmap =
         ) [] (Atomic.get hm.buckets)
 
     let to_seq hm =
-      let bucket_seq = Array.to_seq (Atomic.get hm.buckets) in
-      let non_atomic_bucket_seq = Seq.map Atomic.get bucket_seq in
-      let non_option_bucket_seq = Seq.filter (fun x -> x <> None) non_atomic_bucket_seq in
-      let non_atomic_bucket_seq = Seq.map (fun x -> match x with | Some x -> x | None -> failwith "This should not happen") non_option_bucket_seq in
-      Seq.flat_map Bucket.to_seq non_atomic_bucket_seq
+      let bucket_seq = Array.to_seq (Atomic.get hm.buckets) |> Seq.filter_map Atomic.get in
+      Seq.flat_map Bucket.to_seq bucket_seq
 
-    let find_option hm key =
+    let find_option (hm : t) (key : key): value Option.t =
       let hash = abs @@ H.hash key in
-      let bucket = Array.get (Atomic.get hm.buckets) (hash mod (Atomic.get hm.size)) in
-      match Atomic.get bucket with
-      | None -> None
-      | Some bucket -> Bucket.find_option bucket key
+      let bucket = Array.get (Atomic.get hm.buckets) (hash mod (Atomic.get hm.nr_buckets)) in
+      Option.bind (Atomic.get bucket) (fun bucket -> Bucket.find_option bucket key)
 
     let find hm key =
       match find_option hm key with
-      | None -> failwith "Key not found"
+      | None -> raise Not_found
       | Some value -> value
 
     let mem hm key =
-      match find_option hm key with
-      | None -> false
-      | Some _ -> true
+      Option.is_some @@ find_option hm key
 
 
     let rec find_create (hm : t) (key : H.t) =
       let rec find_create_inner hm key hash buckets =
-        let bucket = Array.get buckets (hash mod (Atomic.get hm.size)) in
+        let bucket = Array.get buckets (hash mod (Atomic.get hm.nr_buckets)) in
         match Atomic.get bucket with
         | None ->
           let new_bucket = Bucket.create key in
@@ -175,40 +154,38 @@ module ConcurrentHashmap =
           )
           else find_create_inner hm key hash buckets 
         | Some bucket -> 
-          let value, was_created = Bucket.find_create bucket key in
-          (value, was_created)
+          Bucket.find_create bucket key
       in
       let current_generation = Atomic.get hm.resize_generation in
       let hash = abs @@ H.hash key in
       let value, was_created = find_create_inner hm key hash (Atomic.get hm.buckets) in
-      if (current_generation mod 2 == 0) && (Atomic.get hm.resize_generation == current_generation || not was_created) then (
-        if (Atomic.get hm.nr_elements >= Atomic.get hm.size * 2) then (
+      if (current_generation mod 2 = 0) && (Atomic.get hm.resize_generation = current_generation || not was_created) then (
+        if (Atomic.get hm.nr_elements >= Atomic.get hm.nr_buckets * 2) then (
           resize hm;
         );
         if (was_created) then Atomic.incr hm.nr_elements;
         (value, was_created)
       )
       else (
-        while (Atomic.get hm.resize_generation == current_generation) do () (* spin *)
+        while (Atomic.get hm.resize_generation = current_generation) do () (* spin *)
         done;
         find_create hm key)
 
 
     and resize hm =
       let current_generation = Atomic.get hm.resize_generation in
-      if ((current_generation mod 2 == 0) && Atomic.compare_and_set hm.resize_generation current_generation (current_generation+1)) then (
+      if ((current_generation mod 2 = 0) && Atomic.compare_and_set hm.resize_generation current_generation (current_generation+1)) then (
 
-        let old_size = Atomic.get hm.size in
+        let old_size = Atomic.get hm.nr_buckets in
         let new_size = old_size * 2 in
 
+        (* Note that we need a new atomic for each element, so we need Array.init *)
         let new_buckets = Array.init new_size (fun _ -> Atomic.make None) in
         let rec rehash_bucket (bucket: Bucket.t option Atomic.t) =
           match Atomic.get bucket with
           | None -> ()
-          | Some element -> 
+          | Some {key; value; next} -> 
             begin
-              let value = element.value in
-              let key = element.key in
               let hash = abs @@ H.hash key in
               let new_location = Array.get new_buckets (hash mod new_size) in
               let _ = match Atomic.get new_location with
@@ -216,13 +193,13 @@ module ConcurrentHashmap =
                 | Some new_bucket -> 
                   let newer_bucket = Bucket.create_with_value_and_next key value new_bucket in
                   (ignore @@ Atomic.set new_location (Some newer_bucket)) in
-              rehash_bucket element.next
+              rehash_bucket next
             end
         in
-        Array.iter (fun bucket -> rehash_bucket bucket) (Atomic.get hm.buckets);
+        Array.iter rehash_bucket (Atomic.get hm.buckets);
 
         Atomic.set hm.buckets new_buckets;
-        Atomic.set hm.size new_size;
+        Atomic.set hm.nr_buckets new_size;
         Atomic.incr hm.resize_generation;
       )
 
