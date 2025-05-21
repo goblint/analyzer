@@ -21,7 +21,7 @@ module ConcurrentBucket (Key: Hashtbl.HashedType) (Val: DefaultType) = struct
 
   let create_with_value key value = {
     key;
-    value = value;
+    value;
     next = Atomic.make None;
   }
 
@@ -37,11 +37,6 @@ module ConcurrentBucket (Key: Hashtbl.HashedType) (Val: DefaultType) = struct
       else Option.bind (Atomic.get sll.next) (fun next -> find next key)
     in
     find sll key
-
-  let find sll key =
-    match find_option sll key with
-    | None -> raise Not_found
-    | Some value -> value
 
   let rec find_create sll key =
     if Key.equal sll.key key then (sll.value, false)
@@ -59,21 +54,6 @@ module ConcurrentBucket (Key: Hashtbl.HashedType) (Val: DefaultType) = struct
       | Some next -> find_create next key 
     )
 
-  let rec insert_value sll key value =
-    if Key.equal sll.key key then ()
-    else (
-      match Atomic.get sll.next with
-      | None ->
-        let new_sll = {
-          key;
-          value;
-          next = Atomic.make None;
-        } in
-        let success = Atomic.compare_and_set sll.next None (Some new_sll) in
-        if not success then insert_value sll key value
-      | Some next -> insert_value next key value
-    )
-
   let to_seq sll =
     let rec aux sll () =
       match sll with
@@ -83,9 +63,10 @@ module ConcurrentBucket (Key: Hashtbl.HashedType) (Val: DefaultType) = struct
 
   let to_list sll = List.of_seq (to_seq sll)
 
-  let to_string sll =
-    to_seq sll |> Seq.map (fun (k, v) -> Val.to_string (Atomic.get v)) 
-    |> Seq.fold_left (fun acc v -> acc ^ v ^ " ") "" |> String.trim
+  (* Can be useful for debugging *)
+  (* let to_string sll = *)
+  (*   to_seq sll |> Seq.map (fun (k, v) -> Val.to_string (Atomic.get v))  *)
+  (*   |> Seq.fold_left (fun acc v -> acc ^ v ^ " ") "" |> String.trim *)
 end
 
 
@@ -119,10 +100,8 @@ module ConcurrentHashmap =
 
     let to_list hm =
       Array.fold_left (fun acc bucket ->
-          match Atomic.get bucket with
-          | None -> acc
-          | Some bucket -> acc @ Bucket.to_list bucket
-        ) [] (Atomic.get hm.buckets)
+        Option.map_default (fun bucket -> acc @ Bucket.to_list bucket) acc (Atomic.get bucket)
+      ) [] (Atomic.get hm.buckets)
 
     let to_seq hm =
       let bucket_seq = Array.to_seq (Atomic.get hm.buckets) |> Seq.filter_map Atomic.get in
@@ -163,7 +142,7 @@ module ConcurrentHashmap =
         if (Atomic.get hm.nr_elements >= Atomic.get hm.nr_buckets * 2) then (
           resize hm;
         );
-        if (was_created) then Atomic.incr hm.nr_elements;
+        if was_created then Atomic.incr hm.nr_elements;
         (value, was_created)
       )
       else (
@@ -188,11 +167,12 @@ module ConcurrentHashmap =
             begin
               let hash = abs @@ H.hash key in
               let new_location = Array.get new_buckets (hash mod new_size) in
-              let _ = match Atomic.get new_location with
+              match Atomic.get new_location with
                 | None -> (ignore @@ Atomic.set new_location (Some (Bucket.create_with_value key value)))
-                | Some new_bucket -> 
+                | Some new_bucket ->
                   let newer_bucket = Bucket.create_with_value_and_next key value new_bucket in
-                  (ignore @@ Atomic.set new_location (Some newer_bucket)) in
+                  (ignore @@ Atomic.set new_location (Some newer_bucket))
+              ;
               rehash_bucket next
             end
         in
@@ -203,11 +183,9 @@ module ConcurrentHashmap =
         Atomic.incr hm.resize_generation;
       )
 
-    let to_value_seq hm =
+    let to_seq_values hm =
       let bucket_seq = Array.to_seq (Atomic.get hm.buckets) in 
-      let rec bucket_to_value_seq (bucket : Bucket.t option Atomic.t) = match Atomic.get bucket with
-        | None -> Seq.empty
-        | Some b -> fun () -> Seq.Cons (b.value, bucket_to_value_seq b.next) in
+      let bucket_to_value_seq bucket = Option.map_default (fun b -> Bucket.to_seq b |> Seq.map snd) Seq.empty (Atomic.get bucket) in
       Seq.flat_map bucket_to_value_seq bucket_seq
 
     let to_hashtbl hm =
@@ -215,5 +193,4 @@ module ConcurrentHashmap =
       let seq = to_seq hm in
       Seq.iter (fun (k, v) -> HM.add ht k (Atomic.get v)) seq;
       ht
-
   end
