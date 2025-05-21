@@ -206,7 +206,7 @@ module ConcurrentHashmap =
     let to_value_seq hm =
       let bucket_seq = Array.to_seq (Atomic.get hm.buckets) in 
       let rec bucket_to_value_seq (bucket : Bucket.t option Atomic.t) = match Atomic.get bucket with
-        | None -> fun () -> Seq.Nil
+        | None -> Seq.empty
         | Some b -> fun () -> Seq.Cons (b.value, bucket_to_value_seq b.next) in
       Seq.flat_map bucket_to_value_seq bucket_seq
 
