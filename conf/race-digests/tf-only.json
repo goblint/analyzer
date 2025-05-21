@@ -1,0 +1,128 @@
+{
+  "ana": {
+    "sv-comp": {
+      "enabled": true,
+      "functions": true
+    },
+    "int": {
+      "def_exc": true,
+      "enums": false,
+      "interval": true
+    },
+    "float": {
+      "interval": true,
+      "evaluate_math_functions": true
+    },
+    "activated": [
+      "base",
+      "threadid",
+      "threadflag",
+      "threadreturn",
+      "mallocWrapper",
+      "mutexEvents",
+      "mutex",
+      "access",
+      "race",
+      "escape",
+      "expRelation",
+      "mhp",
+      "assert",
+      "var_eq",
+      "symb_locks",
+      "region",
+      "thread",
+      "threadJoins",
+      "abortUnless"
+    ],
+    "path_sens": [
+      "mutex",
+      "malloc_null",
+      "uninit",
+      "expsplit",
+      "activeSetjmp",
+      "memLeak",
+      "threadflag"
+    ],
+    "context": {
+      "widen": false
+    },
+    "base": {
+      "arrays": {
+        "domain": "partitioned"
+      }
+    },
+    "race": {
+      "free": false,
+      "call": false,
+      "digests": {
+        "lockset": false,
+        "thread": false,
+        "fresh": false,
+        "region": false,
+        "symb_locks": false,
+        "threadflag": true,
+        "tid": false,
+        "join" : false
+      }
+    },
+    "autotune": {
+      "enabled": true,
+      "activated": [
+        "singleThreaded",
+        "mallocWrappers",
+        "noRecursiveIntervals",
+        "enums",
+        "congruence",
+        "octagon",
+        "wideningThresholds",
+        "loopUnrollHeuristic",
+        "memsafetySpecification",
+        "noOverflows",
+        "termination",
+        "tmpSpecialAnalysis"
+      ]
+    }
+  },
+  "exp": {
+    "region-offsets": true
+  },
+  "solver": "td3",
+  "sem": {
+    "unknown_function": {
+      "spawn": false
+    },
+    "int": {
+      "signed_overflow": "assume_none"
+    },
+    "null-pointer": {
+      "dereference": "assume_none"
+    }
+  },
+  "witness": {
+    "graphml": {
+      "enabled": true,
+      "id": "enumerate",
+      "unknown": false
+    },
+    "yaml": {
+      "enabled": true,
+      "format-version": "2.0",
+      "entry-types": [
+        "invariant_set"
+      ],
+      "invariant-types": [
+        "loop_invariant"
+      ]
+    },
+    "invariant": {
+      "loop-head": true,
+      "after-lock": false,
+      "other": false,
+      "accessed": false,
+      "exact": true
+    }
+  },
+  "pre": {
+    "enabled": false
+  }
+}
