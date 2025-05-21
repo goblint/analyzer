@@ -105,6 +105,7 @@ depends: [
   "stdlib-shims" {= "0.3.0"}
   "stdune" {= "3.16.0"}
   "stringext" {= "1.6.0"}
+  "thread-table" {= "1.0.0"}
   "topkg" {= "1.0.7"}
   "tyxml" {= "4.6.0" & with-doc}
   "uri" {= "4.4.0"}
