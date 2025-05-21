@@ -352,82 +352,6 @@ struct
   let dim_add = EConjI.dim_add
   let size t = BatOption.map_default (fun ((d,_),_,_) -> d) 0 t.d
 
-  (** Parses a Texpr to obtain a (coefficient, variable) pair list to repr. a sum of a variables that have a coefficient. If variable is None, the coefficient represents a constant offset. *)
-  let monomials_from_texp (t: t) texp =
-    let open Apron.Texpr1 in
-    let exception NotLinearExpr in
-    let exception ScalarIsInfinity in
-    let negate coeff_var_list =
-      List.map (fun (monom, offs, divi) -> Z.(BatOption.map (fun (coeff,i) -> (neg coeff, i)) monom, neg offs, divi)) coeff_var_list in
-    let multiply_with_Q dividend divisor coeff_var_list =
-      List.map (fun (monom, offs, divi) -> Rhs.canonicalize Z.(BatOption.map (fun (coeff,i) -> (dividend*coeff,i)) monom, dividend*offs, divi*divisor) ) coeff_var_list in
-    let multiply a b =
-      (* if one of them is a constant, then multiply. Otherwise, the expression is not linear *)
-      match a, b with
-      | [(None,coeff, divi)], c
-      | c, [(None,coeff, divi)] -> multiply_with_Q coeff divi c
-      | _ -> raise NotLinearExpr
-    in
-    let rec convert_texpr texp =
-      begin match texp with
-        | Cst (Interval _) -> failwith "constant was an interval; this is not supported"
-        | Cst (Scalar x) ->
-          begin match SharedFunctions.int_of_scalar ?round:None x with
-            | Some x -> [(None,x,Z.one)]
-            | None -> raise ScalarIsInfinity end
-        | Var x ->
-          let var_dim = Environment.dim_of_var t.env x in
-          begin match t.d with
-            | None -> [(Some (Z.one,var_dim),Z.zero,Z.one)]
-            | Some d ->
-              (match (EConjI.get_rhs d var_dim) with
-               | (Some (coeff,i), k,divi) -> [(Some (coeff,i),Z.zero,divi); (None,k,divi)]
-               | (None,           k,divi) -> [                              (None,k,divi)])
-          end
-        | Unop  (Neg,  e, _, _) -> negate (convert_texpr e)
-        | Unop  (Cast, e, _, _) -> convert_texpr e (* Ignore since casts in apron are used for floating point nums and rounding in contrast to CIL casts *)
-        | Unop  (Sqrt, e, _, _) -> raise NotLinearExpr
-        | Binop (Add, e1, e2, _, _) -> convert_texpr e1 @ convert_texpr e2
-        | Binop (Sub, e1, e2, _, _) -> convert_texpr e1 @ negate (convert_texpr e2)
-        | Binop (Mul, e1, e2, _, _) -> multiply (convert_texpr e1) (convert_texpr e2)
-        | Binop _  -> raise NotLinearExpr end
-    in match convert_texpr texp with
-    | exception NotLinearExpr -> None
-    | exception ScalarIsInfinity -> None
-    | x -> Some(x)
-
-  (** convert and simplify (wrt. reference variables) a texpr into a tuple of a list of monomials (coeff,varidx,divi) and a (constant/divi) *)
-  let simplified_monomials_from_texp (t: t) texp =
-    BatOption.bind (monomials_from_texp t texp)
-      (fun monomiallist ->
-         let d = Option.get t.d in
-         let module IMap = IntMap in
-         let accumulate_constants (exprcache,(aconst,adiv)) (v,offs,divi) = match v with
-           | None -> let gcdee = Z.gcd adiv divi in exprcache,(Z.(aconst*divi/gcdee + offs*adiv/gcdee),Z.lcm adiv divi)
-           | Some (coeff,idx) -> let (somevar,someoffs,somedivi)=Rhs.subst (EConjI.get_rhs d idx) idx (v,offs,divi) in (* normalize! *)
-             let newcache = Option.map_default (fun (coef,ter) -> IMap.add ter Q.((IMap.find_default zero ter exprcache) + make coef somedivi) exprcache) exprcache somevar in
-             let gcdee = Z.gcd adiv divi in
-             (newcache,(Z.(aconst*divi/gcdee + offs*adiv/gcdee),Z.lcm adiv divi))
-         in
-         let (expr,constant) = List.fold_left accumulate_constants (IMap.empty,(Z.zero,Z.one)) monomiallist in (* abstract simplification of the guard wrt. reference variables *)
-         Some (IMap.fold (fun v c acc -> if Q.equal c Q.zero then acc else (Q.num c,v,Q.den c)::acc) expr [], constant) )
-
-  let simplified_monomials_from_texp (t: t) texp =
-    let res = simplified_monomials_from_texp t texp in
-    if M.tracing then M.tracel "from_texp" "%s %a -> %s" (EConjI.show @@ BatOption.get t.d) Texpr1.Expr.pretty texp
-        (BatOption.map_default (fun (l,(o,d)) -> List.fold_right (fun (a,x,b) acc -> Printf.sprintf "%s*var_%d/%s + %s" (Z.to_string a) x (Z.to_string b) acc) l ((Z.to_string o)^"/"^(Z.to_string d))) "" res);
-    res
-
-  let simplify_to_ref_and_offset (t: t) texp =
-    BatOption.bind (simplified_monomials_from_texp t texp )
-      (fun (sum_of_terms, (constant,divisor)) ->
-         (match sum_of_terms with
-          | [] -> Some (None, constant,divisor)
-          | [(coeff,var,divi)] -> Some (Rhs.canonicalize (Some (Z.mul divisor coeff,var), Z.mul constant divi,Z.mul divisor divi))
-          |_ -> None))
-
-  let simplify_to_ref_and_offset t texp = timing_wrap "coeff_vec" (simplify_to_ref_and_offset t) texp
-
   let eval_texpr (t:t) texp = 
     let open Apron.Texpr1 in
     let binop_function = function
@@ -474,6 +398,97 @@ struct
     let res = eval texp in
     if M.tracing then M.tracel "eval_texp" "%s %a -> %s" (match t.d with None -> "⊥" | Some d ->EConjI.show d) Texpr1.Expr.pretty texp (Value.show res);
     res
+
+  (** Parses a Texpr to obtain a (coefficient, variable) pair list to repr. a sum of a variables that have a coefficient. If variable is None, the coefficient represents a constant offset. *)
+  let monomials_from_texp (t: t) texp =
+    let open Apron.Texpr1 in
+    let exception NotLinearExpr in
+    let exception ScalarIsInfinity in
+    let negate coeff_var_list =
+      List.map (fun (monom, offs, divi) -> Z.(BatOption.map (fun (coeff,i) -> (neg coeff, i)) monom, neg offs, divi)) coeff_var_list in
+    let multiply_with_Q dividend divisor coeff_var_list =
+      List.map (fun (monom, offs, divi) -> Rhs.canonicalize Z.(BatOption.map (fun (coeff,i) -> (dividend*coeff,i)) monom, dividend*offs, divi*divisor) ) coeff_var_list in
+    let multiply a b =
+      (* if one of them is a constant, then multiply. Otherwise, the expression is not linear *)
+      match a, b with
+      | [(None,coeff, divi)], c
+      | c, [(None,coeff, divi)] -> multiply_with_Q coeff divi c
+      | _ -> raise NotLinearExpr
+    in
+    let rec convert_texpr texp =
+      begin match texp with
+        | Cst (Interval _) -> failwith "constant was an interval; this is not supported"
+        | Cst (Scalar x) ->
+          begin match SharedFunctions.int_of_scalar ?round:None x with
+            | Some x -> [(None,x,Z.one)]
+            | None -> raise ScalarIsInfinity end
+        | Var x ->
+          let var_dim = Environment.dim_of_var t.env x in
+          begin match t.d with
+            | None -> [(Some (Z.one,var_dim),Z.zero,Z.one)]
+            | Some d ->
+              (match (EConjI.get_rhs d var_dim) with
+               | (Some (coeff,i), k,divi) -> [(Some (coeff,i),Z.zero,divi); (None,k,divi)]
+               | (None,           k,divi) -> [                              (None,k,divi)])
+          end
+        | Unop  (Neg,  e, _, _) -> negate (convert_texpr e)
+        | Unop  (Cast, e, _, _) -> convert_texpr e (* Ignore since casts in apron are used for floating point nums and rounding in contrast to CIL casts *)
+        | Unop  (Sqrt, e, _, _) -> raise NotLinearExpr
+        | Binop (Add, e1, e2, _, _) -> convert_texpr e1 @ convert_texpr e2
+        | Binop (Sub, e1, e2, _, _) -> convert_texpr e1 @ negate (convert_texpr e2)
+        | Binop (Mul, e1, e2, _, _) -> multiply (convert_texpr e1) (convert_texpr e2)
+        | Binop (Div, e1, e2, _, _) -> begin
+            match convert_texpr e2 with
+            | [(None,coeff, divi)] -> 
+              if Z.equal (Z.rem coeff divi) Z.zero then 
+                let d = Z.divexact coeff divi in
+                let e1_val = eval_texpr t e1 in
+                if Value.leq e1_val (Value.of_congruence (Z.zero, d)) then
+                  (*the division is exact -> the expression is still linear*)
+                  List.map (fun (monom, offs, divi) -> Rhs.canonicalize Z.(monom, offs, divi*d) ) (convert_texpr e1)
+                else 
+                  raise NotLinearExpr
+              else 
+                raise NotLinearExpr
+            | _ -> raise NotLinearExpr
+          end
+        | Binop _  -> raise NotLinearExpr end
+    in match convert_texpr texp with
+    | exception NotLinearExpr -> None
+    | exception ScalarIsInfinity -> None
+    | x -> Some(x)
+
+  (** convert and simplify (wrt. reference variables) a texpr into a tuple of a list of monomials (coeff,varidx,divi) and a (constant/divi) *)
+  let simplified_monomials_from_texp (t: t) texp =
+    BatOption.bind (monomials_from_texp t texp)
+      (fun monomiallist ->
+         let d = Option.get t.d in
+         let module IMap = IntMap in
+         let accumulate_constants (exprcache,(aconst,adiv)) (v,offs,divi) = match v with
+           | None -> let gcdee = Z.gcd adiv divi in exprcache,(Z.(aconst*divi/gcdee + offs*adiv/gcdee),Z.lcm adiv divi)
+           | Some (coeff,idx) -> let (somevar,someoffs,somedivi)=Rhs.subst (EConjI.get_rhs d idx) idx (v,offs,divi) in (* normalize! *)
+             let newcache = Option.map_default (fun (coef,ter) -> IMap.add ter Q.((IMap.find_default zero ter exprcache) + make coef somedivi) exprcache) exprcache somevar in
+             let gcdee = Z.gcd adiv divi in
+             (newcache,(Z.(aconst*divi/gcdee + offs*adiv/gcdee),Z.lcm adiv divi))
+         in
+         let (expr,constant) = List.fold_left accumulate_constants (IMap.empty,(Z.zero,Z.one)) monomiallist in (* abstract simplification of the guard wrt. reference variables *)
+         Some (IMap.fold (fun v c acc -> if Q.equal c Q.zero then acc else (Q.num c,v,Q.den c)::acc) expr [], constant) )
+
+  let simplified_monomials_from_texp (t: t) texp =
+    let res = simplified_monomials_from_texp t texp in
+    if M.tracing then M.tracel "from_texp" "%s %a -> %s" (EConjI.show @@ BatOption.get t.d) Texpr1.Expr.pretty texp
+        (BatOption.map_default (fun (l,(o,d)) -> List.fold_right (fun (a,x,b) acc -> Printf.sprintf "%s*var_%d/%s + %s" (Z.to_string a) x (Z.to_string b) acc) l ((Z.to_string o)^"/"^(Z.to_string d))) "" res);
+    res
+
+  let simplify_to_ref_and_offset (t: t) texp =
+    BatOption.bind (simplified_monomials_from_texp t texp )
+      (fun (sum_of_terms, (constant,divisor)) ->
+         (match sum_of_terms with
+          | [] -> Some (None, constant,divisor)
+          | [(coeff,var,divi)] -> Some (Rhs.canonicalize (Some (Z.mul divisor coeff,var), Z.mul constant divi,Z.mul divisor divi))
+          |_ -> None))
+
+  let simplify_to_ref_and_offset t texp = timing_wrap "coeff_vec" (simplify_to_ref_and_offset t) texp
 
   (*TODO We also only catch variables on the first level, but miss e.g. (x+7)+7 -> use more recursion similar to negate?*)
   let rec to_inequalities (t:t) texpr = 
@@ -803,9 +818,12 @@ struct
            | Binop (Add, exp,   (Binop (Sub, Var a, Var b,_,_)),_,_) 
            | Binop (Add, (Binop (Sub, exp,   Var b,_,_)), Var a, _,_) 
            | Binop (Add, (Binop (Sub, Var a, Var b,_,_)), exp,   _,_)
+           | Binop (Sub, (Binop (Add, Var a, exp,_,_)), Var b,   _,_)
+           | Binop (Sub, (Binop (Add, exp, Var a,_,_)), Var b,   _,_)
            | Binop (Sub, exp,   (Binop (Sub, Var b, Var a,_,_)),_,_) -> meet_relation a b (eval_texpr {d=Some d;env=t.env} exp)
            | Binop (Sub, Var a, Var b, _, _) -> meet_relation a b (Value.of_bigint Z.zero)
-           | Binop (Sub, (Binop (Sub, Var a, Var b,_,_)), exp,   _,_) 
+           | Binop (Sub, (Binop (Sub, Var a, Var b,_,_)), exp,   _,_)
+           | Binop (Sub, (Binop (Sub, Var a, exp,_,_)), Var b,   _,_) 
            | Binop (Sub, Var a, (Binop (Add, Var b, exp,_,_)),_,_) 
            | Binop (Sub, Var a, (Binop (Add, exp, Var b,_,_)),_,_) -> meet_relation a b (Value.neg @@ eval_texpr {d=Some d;env=t.env} exp)
            | _ -> d
@@ -905,6 +923,7 @@ struct
     in
     let implies_value v i value = Value.leq (EConjI.get_value v i) value
     in
+    if is_bot t1 then true else
     if BatOption.is_none t1.d then true else (*This kind of bot does not require the environment to be a superset*)
     if env_comp = -2 || env_comp > 0 then false else
     if is_bot_env t1 || is_top t2 then true
@@ -979,6 +998,9 @@ struct
         let (e,v,i) = collect_values x y econj'' ((Environment.size env)-1) (econj'', IntMap.empty, ineq') in
         Some (e,v, Ineq.limit e i)        
     in
+    (*This is a different kind of bot that we need to catch*)
+    if is_bot a then b else
+    if is_bot b then a else 
     (*Normalize the two domains a and b such that both talk about the same variables*)
     match a.d, b.d with
     | None, _ -> b
