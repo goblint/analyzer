@@ -100,8 +100,8 @@ module ConcurrentHashmap =
 
     let to_list hm =
       Array.fold_left (fun acc bucket ->
-        Option.map_default (fun bucket -> acc @ Bucket.to_list bucket) acc (Atomic.get bucket)
-      ) [] (Atomic.get hm.buckets)
+          Option.map_default (fun bucket -> acc @ Bucket.to_list bucket) acc (Atomic.get bucket)
+        ) [] (Atomic.get hm.buckets)
 
     let to_seq hm =
       let bucket_seq = Array.to_seq (Atomic.get hm.buckets) |> Seq.filter_map Atomic.get in
@@ -168,12 +168,12 @@ module ConcurrentHashmap =
               let hash = abs @@ H.hash key in
               let new_location = Array.get new_buckets (hash mod new_size) in
               match Atomic.get new_location with
-                | None -> (ignore @@ Atomic.set new_location (Some (Bucket.create_with_value key value)))
-                | Some new_bucket ->
-                  let newer_bucket = Bucket.create_with_value_and_next key value new_bucket in
-                  (ignore @@ Atomic.set new_location (Some newer_bucket))
-              ;
-              rehash_bucket next
+              | None -> (ignore @@ Atomic.set new_location (Some (Bucket.create_with_value key value)))
+              | Some new_bucket ->
+                let newer_bucket = Bucket.create_with_value_and_next key value new_bucket in
+                (ignore @@ Atomic.set new_location (Some newer_bucket))
+                ;
+                rehash_bucket next
             end
         in
         Array.iter rehash_bucket (Atomic.get hm.buckets);
