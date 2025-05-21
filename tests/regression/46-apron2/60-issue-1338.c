@@ -1,4 +1,5 @@
 // SKIP PARAM: --set ana.activated[+] apron
+// NOCRASH
 #include <stdlib.h>
 int main()
 {

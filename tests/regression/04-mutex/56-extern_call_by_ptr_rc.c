@@ -1,6 +1,6 @@
 #include<pthread.h>
 
-extern void foo(int (*callback)());
+extern void foo(int (*callback)(void));
 
 
 int glob;

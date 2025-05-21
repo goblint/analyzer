@@ -17,7 +17,7 @@ type spec_modules = { name : string
                     ; path : (module DisjointDomain.Representative) }
 
 let activated  : (int * spec_modules) list ref = ref []
-let activated_ctx_sens: (int * spec_modules) list ref = ref []
+let activated_context_sens: (int * spec_modules) list ref = ref []
 let activated_path_sens: (int * spec_modules) list ref = ref []
 let registered: (int, spec_modules) Hashtbl.t = Hashtbl.create 100
 let registered_name: (string, int) Hashtbl.t = Hashtbl.create 100
@@ -381,7 +381,7 @@ struct
 end
 
 module DomVariantLattice0 (DLSpec : DomainListLatticeSpec)
-  : Lattice.S with type t = int * Obj.t
+  : Lattice.PO with type t = int * Obj.t
 =
 struct
   open DLSpec
@@ -402,11 +402,6 @@ struct
   let join   = binop_map (fun (module S : Lattice.S) x y -> Obj.repr @@ S.join   (Obj.obj x) (Obj.obj y))
 
   let leq    = binop_map' (fun _ (module S : Lattice.S) x y -> S.leq (Obj.obj x) (Obj.obj y))
-
-  let is_top x = false
-  let is_bot x = false
-  let top () = failwith "DomVariantLattice0.top"
-  let bot () = failwith "DomVariantLattice0.bot"
 
   let pretty_diff () (x, y) =
     let f _ (module S : Lattice.S) x y =
@@ -437,7 +432,7 @@ end
 module ContextListSpec : DomainListPrintableSpec =
 struct
   let assoc_dom n = (find_spec n).cont
-  let domain_list () = List.map (fun (n,p) -> n, p.cont) !activated_ctx_sens
+  let domain_list () = List.map (fun (n,p) -> n, p.cont) !activated_context_sens
 end
 
 module VarListSpec : DomainListSysVarSpec =

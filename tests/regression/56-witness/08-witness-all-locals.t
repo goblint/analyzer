@@ -4,13 +4,15 @@
     dead: 0
     total lines: 4
   [Info][Witness] witness generation summary:
+    location invariants: 3
+    loop invariants: 0
+    flow-insensitive invariants: 0
     total generation entries: 3
 
   $ yamlWitnessStrip < witness.yml
   - entry_type: location_invariant
     location:
       file_name: 08-witness-all-locals.c
-      file_hash: $FILE_HASH
       line: 9
       column: 3
       function: main
@@ -21,7 +23,6 @@
   - entry_type: location_invariant
     location:
       file_name: 08-witness-all-locals.c
-      file_hash: $FILE_HASH
       line: 9
       column: 3
       function: main
@@ -32,7 +33,6 @@
   - entry_type: location_invariant
     location:
       file_name: 08-witness-all-locals.c
-      file_hash: $FILE_HASH
       line: 7
       column: 5
       function: main
@@ -50,13 +50,15 @@ Fewer entries are emitted if locals from nested block scopes are excluded:
     dead: 0
     total lines: 4
   [Info][Witness] witness generation summary:
+    location invariants: 2
+    loop invariants: 0
+    flow-insensitive invariants: 0
     total generation entries: 2
 
   $ yamlWitnessStrip < witness.yml
   - entry_type: location_invariant
     location:
       file_name: 08-witness-all-locals.c
-      file_hash: $FILE_HASH
       line: 9
       column: 3
       function: main
@@ -67,7 +69,6 @@ Fewer entries are emitted if locals from nested block scopes are excluded:
   - entry_type: location_invariant
     location:
       file_name: 08-witness-all-locals.c
-      file_hash: $FILE_HASH
       line: 7
       column: 5
       function: main

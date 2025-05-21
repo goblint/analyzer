@@ -14,19 +14,19 @@ struct
   let name () = "memLeak"
 
   module D = ToppedVarInfoSet
-  module C = D
+  include Analyses.ValueContexts(D)
   module P = IdentityP (D)
 
   module V = UnitV
   module G = WasMallocCalled
 
-  let context _ d = d
+  let context man _ d = d
 
-  let must_be_single_threaded ~since_start ctx =
-    ctx.ask (Queries.MustBeSingleThreaded { since_start })
+  let must_be_single_threaded ~since_start man =
+    man.ask (Queries.MustBeSingleThreaded { since_start })
 
-  let was_malloc_called ctx =
-    ctx.global ()
+  let was_malloc_called man =
+    man.global ()
 
   (* HELPER FUNCTIONS *)
   let get_global_vars () =
@@ -50,21 +50,21 @@ struct
         | (TNamed ({ttype = TComp (ci,_); _}, _)) -> ci.cstruct
         | _ -> false)
 
-  let get_reachable_mem_from_globals (global_vars:varinfo list) ctx =
+  let get_reachable_mem_from_globals (global_vars:varinfo list) man =
     global_vars
     |> List.map (fun v -> Lval (Var v, NoOffset))
     |> List.filter_map (fun exp ->
-        match ctx.ask (Queries.MayPointTo exp) with
+        match man.ask (Queries.MayPointTo exp) with
         | a when not (Queries.AD.is_top a) && Queries.AD.cardinal a = 1  ->
           begin match List.hd @@ Queries.AD.elements a with
-            | Queries.AD.Addr.Addr (v, _) when (ctx.ask (Queries.IsHeapVar v)) && not (ctx.ask (Queries.IsMultiple v)) -> Some v
+            | Queries.AD.Addr.Addr (v, _) when (man.ask (Queries.IsHeapVar v)) && not (man.ask (Queries.IsMultiple v)) -> Some v
             | _ -> None
           end
         | _ -> None)
 
-  let rec get_reachable_mem_from_str_ptr_globals (global_struct_ptr_vars:varinfo list) ctx =
+  let rec get_reachable_mem_from_str_ptr_globals (global_struct_ptr_vars:varinfo list) man =
     let eval_value_of_heap_var heap_var =
-      match ctx.ask (Queries.EvalValue (Lval (Var heap_var, NoOffset))) with
+      match man.ask (Queries.EvalValue (Lval (Var heap_var, NoOffset))) with
       | a when not (Queries.VD.is_top a) ->
         begin match a with
           | Struct s ->
@@ -75,7 +75,7 @@ struct
                       let reachable_from_addr_set =
                         Queries.AD.fold (fun addr acc ->
                             match addr with
-                            | Queries.AD.Addr.Addr (v, _) -> (v :: get_reachable_mem_from_str_ptr_globals [v] ctx) @ acc
+                            | Queries.AD.Addr.Addr (v, _) -> (v :: get_reachable_mem_from_str_ptr_globals [v] man) @ acc
                             | _ -> acc
                           ) a []
                       in
@@ -89,27 +89,27 @@ struct
       | _ -> []
     in
     let get_pts_of_non_heap_ptr_var var =
-      match ctx.ask (Queries.MayPointTo (Lval (Var var, NoOffset))) with
+      match man.ask (Queries.MayPointTo (Lval (Var var, NoOffset))) with
       | a when not (Queries.AD.is_top a) && Queries.AD.cardinal a = 1  ->
         begin match List.hd @@ Queries.AD.elements a with
-          | Queries.AD.Addr.Addr (v, _) when (ctx.ask (Queries.IsHeapVar v)) && not (ctx.ask (Queries.IsMultiple v)) -> v :: (eval_value_of_heap_var v)
-          | Queries.AD.Addr.Addr (v, _) when not (ctx.ask (Queries.IsAllocVar v)) && isPointerType v.vtype -> get_reachable_mem_from_str_ptr_globals [v] ctx
+          | Queries.AD.Addr.Addr (v, _) when (man.ask (Queries.IsHeapVar v)) && not (man.ask (Queries.IsMultiple v)) -> v :: (eval_value_of_heap_var v)
+          | Queries.AD.Addr.Addr (v, _) when not (man.ask (Queries.IsAllocVar v)) && isPointerType v.vtype -> get_reachable_mem_from_str_ptr_globals [v] man
           | _ -> []
         end
       | _ -> []
     in
     global_struct_ptr_vars
     |> List.fold_left (fun acc var ->
-        if ctx.ask (Queries.IsHeapVar var) then (eval_value_of_heap_var var) @ acc
-        else if not (ctx.ask (Queries.IsAllocVar var)) && isPointerType var.vtype then (get_pts_of_non_heap_ptr_var var) @ acc
+        if man.ask (Queries.IsHeapVar var) then (eval_value_of_heap_var var) @ acc
+        else if not (man.ask (Queries.IsAllocVar var)) && isPointerType var.vtype then (get_pts_of_non_heap_ptr_var var) @ acc
         else acc
       ) []
 
-  let get_reachable_mem_from_str_non_ptr_globals (global_struct_non_ptr_vars:varinfo list) ctx =
+  let get_reachable_mem_from_str_non_ptr_globals (global_struct_non_ptr_vars:varinfo list) man =
     global_struct_non_ptr_vars
     (* Filter out global struct vars that don't have pointer fields *)
     |> List.filter_map (fun v ->
-        match ctx.ask (Queries.EvalValue (Lval (Var v, NoOffset))) with
+        match man.ask (Queries.EvalValue (Lval (Var v, NoOffset))) with
         | a when not (Queries.VD.is_top a) ->
           begin match a with
             | Queries.VD.Struct s ->
@@ -129,7 +129,7 @@ struct
                   Queries.AD.fold (fun addr acc_addr ->
                       match addr with
                       | Queries.AD.Addr.Addr (v, _) ->
-                        let reachable_from_v = Queries.AD.of_list (List.map (fun v -> Queries.AD.Addr.Addr (v, `NoOffset)) (get_reachable_mem_from_str_ptr_globals [v] ctx)) in
+                        let reachable_from_v = Queries.AD.of_list (List.map (fun v -> Queries.AD.Addr.Addr (v, `NoOffset)) (get_reachable_mem_from_str_ptr_globals [v] man)) in
                         Queries.AD.join (Queries.AD.add addr reachable_from_v) acc_addr
                       | _ -> acc_addr
                     ) a (Queries.AD.empty ())
@@ -140,29 +140,29 @@ struct
         reachable_from_fields @ acc_struct
       ) []
 
-  let warn_for_multi_threaded_due_to_abort ctx =
-    let malloc_called = was_malloc_called ctx in
-    if not (must_be_single_threaded ctx ~since_start:true) && malloc_called then (
+  let warn_for_multi_threaded_due_to_abort man =
+    let malloc_called = was_malloc_called man in
+    if not (must_be_single_threaded man ~since_start:true) && malloc_called then (
       set_mem_safety_flag InvalidMemTrack;
       set_mem_safety_flag InvalidMemcleanup;
       M.warn ~category:(Behavior (Undefined MemoryLeak)) ~tags:[CWE 401] "Program aborted while running in multi-threaded mode. A memory leak might occur"
     )
 
   (* If [is_return] is set to [true], then a thread return occurred, else a thread exit *)
-  let warn_for_thread_return_or_exit ctx is_return =
-    if not (ToppedVarInfoSet.is_empty ctx.local) then (
+  let warn_for_thread_return_or_exit man is_return =
+    if not (ToppedVarInfoSet.is_empty man.local) then (
       set_mem_safety_flag InvalidMemTrack;
       set_mem_safety_flag InvalidMemcleanup;
-      let current_thread = ctx.ask (Queries.CurrentThreadId) in
+      let current_thread = man.ask (Queries.CurrentThreadId) in
       M.warn ~category:(Behavior (Undefined MemoryLeak)) ~tags:[CWE 401] "Memory may be leaked at thread %s for thread %a" (if is_return then "return" else "exit") ThreadIdDomain.ThreadLifted.pretty current_thread
     )
 
-  let check_for_mem_leak ?(assert_exp_imprecise = false) ?(exp = None) ctx =
-    let allocated_mem = ctx.local in
+  let check_for_mem_leak ?(assert_exp_imprecise = false) ?(exp = None) man =
+    let allocated_mem = man.local in
     if not (D.is_empty allocated_mem) then
-      let reachable_mem_from_non_struct_globals = D.of_list (get_reachable_mem_from_globals (get_global_vars ()) ctx) in
-      let reachable_mem_from_struct_ptr_globals = D.of_list (get_reachable_mem_from_str_ptr_globals (get_global_struct_ptr_vars ()) ctx) in
-      let reachable_mem_from_struct_non_ptr_globals = D.of_list (get_reachable_mem_from_str_non_ptr_globals (get_global_struct_non_ptr_vars ()) ctx) in
+      let reachable_mem_from_non_struct_globals = D.of_list (get_reachable_mem_from_globals (get_global_vars ()) man) in
+      let reachable_mem_from_struct_ptr_globals = D.of_list (get_reachable_mem_from_str_ptr_globals (get_global_struct_ptr_vars ()) man) in
+      let reachable_mem_from_struct_non_ptr_globals = D.of_list (get_reachable_mem_from_str_non_ptr_globals (get_global_struct_non_ptr_vars ()) man) in
       let reachable_mem_from_struct_globals = D.join reachable_mem_from_struct_ptr_globals reachable_mem_from_struct_non_ptr_globals in
       let reachable_mem = D.join reachable_mem_from_non_struct_globals reachable_mem_from_struct_globals in
       (* Check and warn if there's unreachable allocated memory at program exit *)
@@ -181,72 +181,72 @@ struct
         M.warn ~category:(Behavior (Undefined MemoryLeak)) ~tags:[CWE 401] "Memory leak detected for heap variables"
 
   (* TRANSFER FUNCTIONS *)
-  let return ctx (exp:exp option) (f:fundec) : D.t =
+  let return man (exp:exp option) (f:fundec) : D.t =
     (* Check for a valid-memcleanup and memtrack violation in a multi-threaded setting *)
     (* The check for multi-threadedness is to ensure that valid-memtrack and valid-memclenaup are treated separately for single-threaded programs *)
-    if (ctx.ask (Queries.MayBeThreadReturn) &&  not (must_be_single_threaded ctx ~since_start:true)) then (
-      warn_for_thread_return_or_exit ctx true
+    if (man.ask (Queries.MayBeThreadReturn) &&  not (must_be_single_threaded man ~since_start:true)) then (
+      warn_for_thread_return_or_exit man true
     );
     (* Returning from "main" is one possible program exit => need to check for memory leaks *)
     if f.svar.vname = "main" then (
-      check_for_mem_leak ctx;
-      if not (must_be_single_threaded ctx ~since_start:false) && was_malloc_called ctx then begin
+      check_for_mem_leak man;
+      if not (must_be_single_threaded man ~since_start:false) && was_malloc_called man then begin
         set_mem_safety_flag InvalidMemTrack;
         set_mem_safety_flag InvalidMemcleanup;
         M.warn ~category:(Behavior (Undefined MemoryLeak)) ~tags:[CWE 401] "Possible memory leak: Memory was allocated in a multithreaded program, but not all threads are joined."
       end
     );
-    ctx.local
+    man.local
 
-  let special ctx (lval:lval option) (f:varinfo) (arglist:exp list) : D.t =
-    let state = ctx.local in
+  let special man (lval:lval option) (f:varinfo) (arglist:exp list) : D.t =
+    let state = man.local in
     let desc = LibraryFunctions.find f in
     match desc.special arglist with
     | Malloc _
     | Calloc _
     | Realloc _ ->
-      ctx.sideg () true;
-      begin match ctx.ask (Queries.AllocVar {on_stack = false}) with
+      man.sideg () true;
+      begin match man.ask (Queries.AllocVar {on_stack = false}) with
         | `Lifted var ->
           ToppedVarInfoSet.add var state
         | _ -> state
       end
     | Free ptr ->
-      begin match ctx.ask (Queries.MayPointTo ptr) with
+      begin match man.ask (Queries.MayPointTo ptr) with
         | ad when (not (Queries.AD.is_top ad)) && Queries.AD.cardinal ad = 1 ->
           (* Note: Need to always set "ana.malloc.unique_address_count" to a value > 0 *)
           begin match Queries.AD.choose ad with
-            | Queries.AD.Addr.Addr (v,_) when ctx.ask (Queries.IsAllocVar v) && ctx.ask (Queries.IsHeapVar v) && not @@ ctx.ask (Queries.IsMultiple v) ->
-              ToppedVarInfoSet.remove v ctx.local
-            | _ -> ctx.local
+            | Queries.AD.Addr.Addr (v,_) when man.ask (Queries.IsAllocVar v) && man.ask (Queries.IsHeapVar v) && not @@ man.ask (Queries.IsMultiple v) ->
+              ToppedVarInfoSet.remove v man.local
+            | _ -> man.local
           end
-        | _ -> ctx.local
+        | _ -> man.local
       end
     | Abort ->
-      check_for_mem_leak ctx;
+      check_for_mem_leak man;
       (* Upon a call to the "Abort" special function in the multi-threaded case, we give up and conservatively warn *)
-      warn_for_multi_threaded_due_to_abort ctx;
+      warn_for_multi_threaded_due_to_abort man;
       state
-    | Assert { exp; _ } ->
-      begin match ctx.ask (Queries.EvalInt exp) with
+    | Assert { exp; refine = true; _ } ->
+      begin match man.ask (Queries.EvalInt exp) with
         | a when Queries.ID.is_bot a -> M.warn ~category:Assert "assert expression %a is bottom" d_exp exp
         | a ->
           begin match Queries.ID.to_bool a with
             | Some true -> ()
             | Some false ->
               (* If we know for sure that the expression in "assert" is false => need to check for memory leaks *)
-              warn_for_multi_threaded_due_to_abort ctx;
-              check_for_mem_leak ctx
+              warn_for_multi_threaded_due_to_abort man;
+              check_for_mem_leak man
             | None ->
-              warn_for_multi_threaded_due_to_abort ctx;
-              check_for_mem_leak ctx ~assert_exp_imprecise:true ~exp:(Some exp)
+              warn_for_multi_threaded_due_to_abort man;
+              check_for_mem_leak man ~assert_exp_imprecise:true ~exp:(Some exp)
           end
       end;
       state
     | ThreadExit _ ->
-      begin match ctx.ask (Queries.CurrentThreadId) with
+      begin match man.ask (Queries.CurrentThreadId) with
         | `Lifted tid ->
-          warn_for_thread_return_or_exit ctx false
+          warn_for_thread_return_or_exit man false
         | _ -> ()
       end;
       state
@@ -255,7 +255,7 @@ struct
   let startstate v = D.bot ()
   let exitstate v = D.top ()
 
-  let threadenter ctx ~multiple lval f args = [D.bot ()]
+  let threadenter man ~multiple lval f args = [D.bot ()]
 end
 
 let _ =

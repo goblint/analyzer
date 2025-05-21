@@ -11,10 +11,7 @@ type t = {
   tid: ThreadIdDomain.ThreadLifted.t;
   created: ConcDomain.ThreadSet.t;
   must_joined: ConcDomain.ThreadSet.t;
-} [@@deriving eq, ord, hash]
-
-let relift {tid; created; must_joined} =
-  {tid = ThreadIdDomain.ThreadLifted.relift tid; created = ConcDomain.ThreadSet.relift created; must_joined = ConcDomain.ThreadSet.relift must_joined}
+} [@@deriving eq, ord, hash, relift]
 
 let current (ask:Queries.ask) =
   {
@@ -24,7 +21,7 @@ let current (ask:Queries.ask) =
   }
 
 let pretty () {tid; created; must_joined} =
-  let tid_doc = 
+  let tid_doc =
     if GobConfig.get_bool "dbg.full-output" then
       Some (Pretty.dprintf "tid=%a" ThreadIdDomain.ThreadLifted.pretty tid)
     else
@@ -56,10 +53,10 @@ include Printable.SimplePretty (
 (** Can it be excluded that the thread tid2 is running at a program point where  *)
 (*  thread tid1 has created the threads in created1 *)
 let definitely_not_started (current, created) other =
-  if (not (TID.is_must_parent current other)) then
+  if (not (TID.must_be_ancestor current other)) then
     false
   else
-    let ident_or_may_be_created creator = TID.equal creator other || TID.may_create creator other in
+    let ident_or_may_be_created creator = TID.equal creator other || TID.may_be_ancestor creator other in
     if ConcDomain.ThreadSet.is_top created then
       false
     else

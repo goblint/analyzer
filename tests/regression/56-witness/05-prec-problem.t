@@ -6,6 +6,9 @@
     total lines: 13
   [Warning][Deadcode][CWE-570] condition '0' (possibly inserted by CIL) is always false (05-prec-problem.c:13:12-13:13)
   [Info][Witness] witness generation summary:
+    location invariants: 0
+    loop invariants: 0
+    flow-insensitive invariants: 0
     total generation entries: 6
 
 TODO: Don't generate duplicate entries from each context: should have generated just 3.
@@ -18,7 +21,6 @@ The sound invariant is `result == 1 || result == 0`.
   - entry_type: precondition_loop_invariant
     location:
       file_name: 05-prec-problem.c
-      file_hash: $FILE_HASH
       line: 13
       column: 5
       function: foo
@@ -33,7 +35,6 @@ The sound invariant is `result == 1 || result == 0`.
   - entry_type: precondition_loop_invariant
     location:
       file_name: 05-prec-problem.c
-      file_hash: $FILE_HASH
       line: 13
       column: 5
       function: foo
@@ -48,7 +49,6 @@ The sound invariant is `result == 1 || result == 0`.
   - entry_type: precondition_loop_invariant
     location:
       file_name: 05-prec-problem.c
-      file_hash: $FILE_HASH
       line: 13
       column: 5
       function: foo

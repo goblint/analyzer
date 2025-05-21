@@ -7,10 +7,10 @@
   (name goblint_lib)
   (public_name goblint.lib)
   (modules :standard \ goblint privPrecCompare apronPrecCompare messagesCompare)
-  (libraries goblint.sites goblint.build-info goblint-cil goblint-cil.pta goblint-cil.syntacticsearch batteries.unthreaded qcheck-core.runner sha json-data-encoding jsonrpc cpu arg-complete fpath yaml yaml.unix uuidm goblint_timing catapult goblint_backtrace fileutils goblint_std goblint_config goblint_common goblint_domain goblint_constraint goblint_solver goblint_library goblint_cdomain_value goblint_incremental goblint_tracing goblint_logs
+  (libraries goblint.sites goblint.build-info goblint-cil goblint-cil.pta goblint-cil.syntacticsearch batteries.unthreaded qcheck-core.runner sha json-data-encoding jsonrpc cpu arg-complete fpath yaml yaml.unix uuidm goblint_timing catapult goblint_backtrace fileutils goblint_std goblint_config goblint_common goblint_domain goblint_constraint goblint_solver goblint_library goblint_cdomain_value goblint_incremental goblint_tracing goblint_logs domain_shims
     ; Conditionally compile based on whether apron optional dependency is installed or not.
     ; Alternative dependencies seem like the only way to optionally depend on optional dependencies.
-    ; See: https://dune.readthedocs.io/en/stable/concepts.html#alternative-dependencies.
+    ; See: https://dune.readthedocs.io/en/stable/reference/library-dependencies.html#alternative-dependencies
     (select gobApron.ml from
       (apron -> gobApron.apron.ml)
       (-> gobApron.no-apron.ml)
@@ -34,6 +34,10 @@
     (select affineEqualityDomain.ml from
       (apron -> affineEqualityDomain.apron.ml)
       (-> affineEqualityDomain.no-apron.ml)
+    )
+    (select affineEqualityDenseDomain.ml from
+      (apron -> affineEqualityDenseDomain.apron.ml)
+      (-> affineEqualityDenseDomain.no-apron.ml)
     )
     (select linearTwoVarEqualityAnalysis.ml from
       (apron -> linearTwoVarEqualityAnalysis.apron.ml)
@@ -71,7 +75,7 @@
   (flags :standard -open Goblint_std -open Goblint_logs)
   (ocamlopt_flags :standard -no-float-const-prop)
   (preprocess
-    (pps ppx_deriving.std ppx_deriving_hash ppx_deriving_yojson ppx_blob))
+    (pps ppx_deriving.std ppx_deriving_hash ppx_deriving_yojson ppx_blob ppx_deriving_printable ppx_deriving_lattice))
   (instrumentation (backend bisect_ppx))
 )
 
@@ -81,14 +85,14 @@
 (copy_files# cdomains/apron/*.ml)
 (copy_files# analyses/apron/*.ml)
 (copy_files# util/apron/*.ml)
-(copy_files# witness/z3/*.ml)
+(copy_files# arg/z3/*.ml)
 
 (executables
   (names goblint)
   (public_names goblint)
   (modes byte native) ; https://dune.readthedocs.io/en/stable/dune-files.html#linking-modes
   (modules goblint)
-  (libraries goblint.lib goblint.sites.dune goblint.build-info.dune goblint_std)
+  (libraries goblint.lib goblint_std)
   (preprocess (pps ppx_deriving.std ppx_deriving_hash ppx_deriving_yojson))
   (flags :standard -linkall -open Goblint_std)
 )
@@ -96,7 +100,7 @@
 (executable
   (name privPrecCompare)
   (modules privPrecCompare)
-  (libraries goblint.lib goblint.sites.dune goblint.build-info.dune goblint_std)
+  (libraries goblint.lib goblint_std)
   (preprocess (pps ppx_deriving.std ppx_deriving_hash ppx_deriving_yojson))
   (flags :standard -linkall -open Goblint_std)
 )
@@ -104,7 +108,7 @@
 (executable
   (name apronPrecCompare)
   (modules apronPrecCompare)
-  (libraries goblint.lib goblint.sites.dune goblint.build-info.dune goblint_std)
+  (libraries goblint.lib goblint_std)
   (preprocess (pps ppx_deriving.std ppx_deriving_hash ppx_deriving_yojson))
   (flags :standard -linkall -open Goblint_std)
 )
@@ -112,7 +116,7 @@
 (executable
   (name messagesCompare)
   (modules messagesCompare)
-  (libraries goblint.lib goblint.sites.dune goblint.build-info.dune goblint_std)
+  (libraries goblint.lib goblint_std)
   (preprocess (pps ppx_deriving.std ppx_deriving_hash ppx_deriving_yojson))
   (flags :standard -linkall -open Goblint_std)
 )

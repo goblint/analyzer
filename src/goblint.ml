@@ -5,8 +5,8 @@ open Maingoblint
 (** the main function *)
 let main () =
   try
-    Cilfacade.init ();
     Maingoblint.parse_arguments ();
+    Cilfacade.init ();
 
     (* Timing. *)
     Maingoblint.reset_stats ();
@@ -36,7 +36,8 @@ let main () =
     Logs.debug "%s" (GobUnix.localtime ());
     Logs.debug "%s" GobSys.command_line;
     (* When analyzing a termination specification, activate the termination analysis before pre-processing. *)
-    if get_bool "ana.autotune.enabled" && AutoTune.specificationTerminationIsActivated () then AutoTune.focusOnTermination ();
+    if get_string "ana.specification" <> "" then AutoSoundConfig.enableAnalysesForTerminationSpecification ();
+    if AutoTune.isActivated "termination" then AutoTune.focusOnTermination ();
     let file = lazy (Fun.protect ~finally:GoblintDir.finalize preprocess_parse_merge) in
     if get_bool "server.enabled" then (
       let file =
@@ -55,14 +56,16 @@ let main () =
         else
           None
       in
-      (* This is run independant of the autotuner being enabled or not be sound for programs with longjmp *)
-      AutoTune.activateLongjmpAnalysesWhenRequired ();
+      (* This is run independant of the autotuner being enabled or not to be sound for programs with longjmp *)
+      AutoSoundConfig.activateLongjmpAnalysesWhenRequired ();
+      if get_string "ana.specification" <> "" then AutoSoundConfig.enableAnalysesForSpecification ();
       if get_bool "ana.autotune.enabled" then AutoTune.chooseConfig file;
       file |> do_analyze changeInfo;
       do_html_output ();
       do_gobview file;
       do_stats ();
       Goblint_timing.teardown_tef ();
+      (* TODO: generalize exit codes for AnalysisState.unsound_both_branches_dead? *)
       if !AnalysisState.verified = Some false then exit 3 (* verifier failed! *)
     )
   with
@@ -81,6 +84,11 @@ let main () =
     Logs.error "%s" (MessageUtil.colorize ~fd:Unix.stderr ("{RED}Analysis was aborted because it reached the set timeout of " ^ get_string "dbg.timeout" ^ " or was signalled SIGPROF!"));
     Goblint_timing.teardown_tef ();
     exit 124
+  | Svcomp.Error msg ->
+    do_stats ();
+    Witness.print_svcomp_result ("ERROR (" ^ msg ^ ")");
+    Goblint_timing.teardown_tef ();
+    exit 1
 
 (* We do this since the evaluation order of top-level bindings is not defined, but we want `main` to run after all the other side-effects (e.g. registering analyses/solvers) have happened. *)
 let () = at_exit main

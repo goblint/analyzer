@@ -73,7 +73,7 @@ let forward_list_equal ?(propF = (&&>>)) f l1 l2 ~(rename_mapping: rename_mappin
 let compare_name (a: string) (b: string) =
   let anon_struct = "__anonstruct_" in
   let anon_union = "__anonunion_" in
-  if a = b then true else BatString.(starts_with a anon_struct && starts_with b anon_struct || starts_with a anon_union && starts_with b anon_union)
+  if a = b then true else String.(starts_with a ~prefix:anon_struct && starts_with b ~prefix:anon_struct || starts_with a ~prefix:anon_union && starts_with b ~prefix:anon_union)
 
 let rec eq_constant ~(rename_mapping: rename_mapping) ~(acc: (typ * typ) list) (a: constant) (b: constant) : bool * rename_mapping =
   match a, b with
@@ -91,7 +91,7 @@ and eq_exp (a: exp) (b: exp) ~(rename_mapping: rename_mapping) ~(acc: (typ * typ
   | AlignOf typ1, AlignOf typ2 -> eq_typ_acc typ1 typ2 ~rename_mapping ~acc
   | AlignOfE exp1, AlignOfE exp2 -> eq_exp exp1 exp2 ~rename_mapping ~acc
   | UnOp (op1, exp1, typ1), UnOp (op2, exp2, typ2) ->
-    ((op1 == op2), rename_mapping) &&>> eq_exp exp1 exp2 ~acc &&>> eq_typ_acc typ1 typ2 ~acc
+    (CilType.Unop.equal op1 op2, rename_mapping) &&>> eq_exp exp1 exp2 ~acc &&>> eq_typ_acc typ1 typ2 ~acc
   | BinOp (op1, left1, right1, typ1), BinOp (op2, left2, right2, typ2) ->  (op1 = op2, rename_mapping) &&>> eq_exp left1 left2 ~acc &&>> eq_exp right1 right2 ~acc &&>> eq_typ_acc typ1 typ2 ~acc
   | CastE (typ1, exp1), CastE (typ2, exp2) -> eq_typ_acc typ1 typ2 ~rename_mapping ~acc &&>> eq_exp exp1 exp2 ~acc
   | AddrOf lv1, AddrOf lv2 -> eq_lval lv1 lv2 ~rename_mapping ~acc
@@ -178,8 +178,8 @@ and eq_typ_acc ?(fun_parameter_name_comparison_enabled: bool = true) (a: typ) (b
   if Messages.tracing then Messages.traceu "compareast" "eq_typ_acc %a vs %a" d_type a d_type b;
   (r, updated_rename_mapping)
 
-and eq_eitems (a: string * exp * location) (b: string * exp * location) ~(rename_mapping: rename_mapping) ~(acc: (typ * typ) list) = match a, b with
-    (name1, exp1, _l1), (name2, exp2, _l2) -> (name1 = name2, rename_mapping) &&>> eq_exp exp1 exp2 ~acc
+and eq_eitems (a: string * attributes * exp * location) (b: string * attributes * exp * location) ~(rename_mapping: rename_mapping) ~(acc: (typ * typ) list) = match a, b with
+    (name1, attr1, exp1, _l1), (name2, attr2, exp2, _l2) -> (name1 = name2, rename_mapping) &&>> forward_list_equal (eq_attribute ~acc) attr1 attr2 &&>> eq_exp exp1 exp2 ~acc
 (* Ignore location *)
 
 and eq_enuminfo (a: enuminfo) (b: enuminfo) ~(rename_mapping: rename_mapping) ~(acc: (typ * typ) list) =
@@ -210,6 +210,7 @@ and eq_attrparam (a: attrparam) (b: attrparam) ~(rename_mapping: rename_mapping)
   | AAddrOf attrparam1, AAddrOf attrparam2 -> eq_attrparam attrparam1 attrparam2 ~rename_mapping ~acc
   | AIndex (left1, right1), AIndex (left2, right2) -> eq_attrparam left1 left2 ~rename_mapping ~acc &&>> eq_attrparam right1 right2 ~acc
   | AQuestion (left1, middle1, right1), AQuestion (left2, middle2, right2) -> eq_attrparam left1 left2 ~rename_mapping ~acc &&>> eq_attrparam middle1 middle2 ~acc &&>> eq_attrparam right1 right2 ~acc
+  | AAssign (left1, right1), AAssign (left2, right2) -> eq_attrparam left1 left2 ~rename_mapping ~acc &&>> eq_attrparam right1 right2 ~acc
   | a, b -> a = b, rename_mapping
 
 and eq_attribute (a: attribute) (b: attribute) ~(acc: (typ * typ) list) ~(rename_mapping: rename_mapping) = match a, b with

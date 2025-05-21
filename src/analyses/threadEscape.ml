@@ -21,7 +21,7 @@ struct
 
   let name () = "escape"
   module D = EscapeDomain.EscapedVars
-  module C = EscapeDomain.EscapedVars
+  include Analyses.ValueContexts(D)
   module V = VarinfoV
   module G = ThreadIdSet
 
@@ -53,30 +53,30 @@ struct
       if M.tracing then M.tracel "escape" "mpt %a: %a" d_exp e AD.pretty ad;
       D.empty ()
 
-  let thread_id ctx =
-    ctx.ask Queries.CurrentThreadId
+  let thread_id man =
+    man.ask Queries.CurrentThreadId
 
   (** Emit an escape event:
       Only necessary when code has ever been multithreaded,
       or when about to go multithreaded. *)
-  let emit_escape_event ctx escaped =
+  let emit_escape_event man escaped =
     (* avoid emitting unnecessary event *)
     if not (D.is_empty escaped) then
-      ctx.emit (Events.Escape escaped)
+      man.emit (Events.Escape escaped)
 
   (** Side effect escapes: In contrast to the emitting the event, side-effecting is
       necessary in single threaded mode, since we rely on escape status in Base
       for passing locals reachable via globals *)
-  let side_effect_escape ctx escaped threadid =
+  let side_effect_escape man escaped threadid =
     let threadid = G.singleton threadid in
     D.iter (fun v ->
-        ctx.sideg v threadid) escaped
+        man.sideg v threadid) escaped
 
   (* queries *)
-  let query ctx (type a) (q: a Queries.t): a Queries.result =
+  let query man (type a) (q: a Queries.t): a Queries.result =
     match q with
     | Queries.MayEscape v ->
-      let threads = ctx.global v in
+      let threads = man.global v in
       if ThreadIdSet.is_empty threads then
         false
       else begin
@@ -85,7 +85,7 @@ struct
             (* if our own (unique) thread is started here, that is not a problem *)
             false
           | `Lifted tid ->
-            let threads = ctx.ask Queries.CreatedThreads in
+            let threads = man.ask Queries.CreatedThreads in
             let not_started = MHP.definitely_not_started (current, threads) tid in
             let possibly_started = not not_started in
             possibly_started
@@ -98,7 +98,7 @@ struct
           | `Top -> true
           | `Bot -> false
         in
-        match ctx.ask Queries.CurrentThreadId with
+        match man.ask Queries.CurrentThreadId with
         | `Lifted current ->
           let possibly_started = ThreadIdSet.exists (other_possibly_started current) threads in
           if possibly_started then
@@ -111,7 +111,7 @@ struct
               true
             else
               (* Check whether current unique thread has escaped the variable *)
-              D.mem v ctx.local
+              D.mem v man.local
         | `Top ->
           true
         | `Bot ->
@@ -120,76 +120,76 @@ struct
       end
     | _ -> Queries.Result.top q
 
-  let escape_rval ctx ask (rval:exp) =
+  let escape_rval man ask (rval:exp) =
     let escaped = reachable ask rval in
     let escaped = D.filter (fun v -> not v.vglob) escaped in
 
-    let thread_id = thread_id ctx in
-    side_effect_escape ctx escaped thread_id;
+    let thread_id = thread_id man in
+    side_effect_escape man escaped thread_id;
     if ThreadFlag.has_ever_been_multi ask then (* avoid emitting unnecessary event *)
-      emit_escape_event ctx escaped;
+      emit_escape_event man escaped;
     escaped
 
   (* transfer functions *)
-  let assign ctx (lval:lval) (rval:exp) : D.t =
-    let ask = Analyses.ask_of_ctx ctx in
+  let assign man (lval:lval) (rval:exp) : D.t =
+    let ask = Analyses.ask_of_man man in
     let vs = mpt ask (AddrOf lval) in
     if D.exists (fun v -> v.vglob || has_escaped ask v) vs then (
-      let escaped = escape_rval ctx ask rval in
-      D.join ctx.local escaped
+      let escaped = escape_rval man ask rval in
+      D.join man.local escaped
     ) else begin
-      ctx.local
+      man.local
     end
 
-  let combine_assign ctx (lval:lval option) (fexp:exp) f args fc au f_ask : D.t =
-    let ask = Analyses.ask_of_ctx ctx in
+  let combine_assign man (lval:lval option) (fexp:exp) f args fc au f_ask : D.t =
+    let ask = Analyses.ask_of_man man in
     match lval with
     | Some lval when D.exists (fun v -> v.vglob || has_escaped ask v) (mpt ask (AddrOf lval)) ->
       let rval = Lval (ReturnUtil.return_lval ()) in
-      let escaped = escape_rval ctx f_ask rval in (* Using f_ask because the return value is only accessible in the context of that function at this point *)
-      D.join ctx.local escaped
-    | _ -> ctx.local
+      let escaped = escape_rval man f_ask rval in (* Using f_ask because the return value is only accessible in the context of that function at this point *)
+      D.join man.local escaped
+    | _ -> man.local
 
-  let special ctx (lval: lval option) (f:varinfo) (args:exp list) : D.t =
+  let special man (lval: lval option) (f:varinfo) (args:exp list) : D.t =
     let desc = LibraryFunctions.find f in
     match desc.special args, f.vname, args with
     | Globalize ptr, _, _ ->
-      let escaped = escape_rval ctx (Analyses.ask_of_ctx ctx) ptr in
-      D.join ctx.local escaped
+      let escaped = escape_rval man (Analyses.ask_of_man man) ptr in
+      D.join man.local escaped
     | _, "pthread_setspecific" , [key; pt_value] ->
-      let escaped = escape_rval ctx (Analyses.ask_of_ctx ctx) pt_value in
-      D.join ctx.local escaped
-    | _ -> ctx.local
+      let escaped = escape_rval man (Analyses.ask_of_man man) pt_value in
+      D.join man.local escaped
+    | _ -> man.local
 
   let startstate v = D.bot ()
   let exitstate  v = D.bot ()
 
-  let threadenter ctx ~multiple lval f args =
+  let threadenter man ~multiple lval f args =
     [D.bot ()]
 
-  let threadspawn ctx ~multiple lval f args fctx =
-    D.join ctx.local @@
+  let threadspawn man ~multiple lval f args fman =
+    D.join man.local @@
     match args with
     | [ptc_arg] ->
-      (* not reusing fctx.local to avoid unnecessarily early join of extra *)
-      let escaped = reachable (Analyses.ask_of_ctx ctx) ptc_arg in
+      (* not reusing fman.local to avoid unnecessarily early join of extra *)
+      let escaped = reachable (Analyses.ask_of_man man) ptc_arg in
       let escaped = D.filter (fun v -> not v.vglob) escaped in
       if M.tracing then M.tracel "escape" "%a: %a" d_exp ptc_arg D.pretty escaped;
-      let thread_id = thread_id ctx in
-      emit_escape_event ctx escaped;
-      side_effect_escape ctx escaped thread_id;
+      let thread_id = thread_id man in
+      emit_escape_event man escaped;
+      side_effect_escape man escaped thread_id;
       escaped
     | _ -> D.bot ()
 
-  let event ctx e octx =
+  let event man e oman =
     match e with
     | Events.EnterMultiThreaded ->
-      let escaped = ctx.local in
-      let thread_id = thread_id ctx in
-      emit_escape_event ctx escaped;
-      side_effect_escape ctx escaped thread_id;
-      ctx.local
-    | _ -> ctx.local
+      let escaped = man.local in
+      let thread_id = thread_id man in
+      emit_escape_event man escaped;
+      side_effect_escape man escaped thread_id;
+      man.local
+    | _ -> man.local
 end
 
 let _ =

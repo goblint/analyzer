@@ -10,7 +10,8 @@
       "interval": true
     },
     "float": {
-      "interval": true
+      "interval": true,
+      "evaluate_math_functions": true
     },
     "activated": [
       "base",
@@ -78,7 +79,7 @@
     "autotune": {
       "enabled": true,
       "activated": [
-        "singleThreaded",
+        "reduceAnalyses",
         "mallocWrappers",
         "noRecursiveIntervals",
         "enums",
@@ -111,9 +112,6 @@
     }
   },
   "witness": {
-    "graphml": {
-      "enabled": false
-    },
     "yaml": {
       "enabled": false,
       "strict": true,

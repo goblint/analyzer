@@ -5,6 +5,7 @@ open Jsonrpc
 open GoblintCil
 
 module InvariantParser = WitnessUtil.InvariantParser
+module VarQuery = Goblint_constraint.VarQuery
 
 module type ArgWrapper =
 sig
@@ -320,6 +321,7 @@ let () =
     let process { reset } serve =
       try
         analyze serve ~reset;
+        (* TODO: generalize VerifyError for AnalysisState.unsound_both_branches_dead *)
         {status = if !AnalysisState.verified = Some false then VerifyError else Success}
       with
       | Sys.Break ->
@@ -554,7 +556,13 @@ let () =
     } [@@deriving to_yojson]
     let process () serv =
       let module ArgWrapper = (val (ResettableLazy.force serv.arg_wrapper)) in
-      let module ArgDot = ArgTools.Dot (ArgWrapper.Arg) in
+      let module NoExtraNodeStyle =
+      struct
+        type node = ArgWrapper.Arg.Node.t
+        let extra_node_styles node = []
+      end
+      in
+      let module ArgDot = ArgTools.Dot (ArgWrapper.Arg) (NoExtraNodeStyle) in
       let arg = Format.asprintf "%t" ArgDot.dot in
       {arg}
   end);

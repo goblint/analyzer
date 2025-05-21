@@ -1,4 +1,4 @@
-// PARAM: --set witness.yaml.validate 02-base-lor-addr.yml
+// PARAM: --set witness.yaml.entry-types[*] location_invariant --set witness.yaml.validate 02-base-lor-addr.yml
 
 int main() {
   int r; // rand

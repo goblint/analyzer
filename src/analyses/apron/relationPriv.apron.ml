@@ -12,6 +12,8 @@ module Q = Queries
 
 module RelationComponents = RelationDomain.RelComponents
 
+module VarQuery = Goblint_constraint.VarQuery
+
 open CommonPriv
 
 
@@ -33,10 +35,10 @@ module type S =
        the state when following conditional guards. *)
     val write_global: ?invariant:bool -> Q.ask -> (V.t -> G.t) -> (V.t -> G.t -> unit) -> relation_components_t -> varinfo -> varinfo -> relation_components_t
 
-    val lock: Q.ask -> (V.t -> G.t) -> relation_components_t -> LockDomain.Addr.t -> relation_components_t
-    val unlock: Q.ask -> (V.t -> G.t) -> (V.t -> G.t -> unit) -> relation_components_t -> LockDomain.Addr.t -> relation_components_t
+    val lock: Q.ask -> (V.t -> G.t) -> relation_components_t -> LockDomain.MustLock.t -> relation_components_t
+    val unlock: Q.ask -> (V.t -> G.t) -> (V.t -> G.t -> unit) -> relation_components_t -> LockDomain.MustLock.t -> relation_components_t
 
-    val sync: Q.ask -> (V.t -> G.t) -> (V.t -> G.t -> unit) -> relation_components_t -> [`Normal | `Join | `Return | `Init | `Thread] -> relation_components_t
+    val sync: Q.ask -> (V.t -> G.t) -> (V.t -> G.t -> unit) -> relation_components_t -> [`Normal | `Join | `JoinCall of CilType.Fundec.t | `Return | `Init | `Thread] -> relation_components_t
 
     val escape: Node.t -> Q.ask -> (V.t -> G.t) -> (V.t -> G.t -> unit) -> relation_components_t -> EscapeDomain.EscapedVars.t -> relation_components_t
     val enter_multithreaded: Q.ask -> (V.t -> G.t) -> (V.t -> G.t -> unit) -> relation_components_t -> relation_components_t
@@ -45,6 +47,9 @@ module type S =
     val thread_join: ?force:bool -> Q.ask -> (V.t -> G.t) -> Cil.exp -> relation_components_t -> relation_components_t
     val thread_return: Q.ask -> (V.t -> G.t) -> (V.t -> G.t -> unit) -> ThreadIdDomain.Thread.t -> relation_components_t -> relation_components_t
     val iter_sys_vars: (V.t -> G.t) -> VarQuery.t -> V.t VarQuery.f -> unit (** [Queries.IterSysVars] for apron. *)
+
+    val invariant_global: Q.ask -> (V.t -> G.t) -> V.t -> Invariant.t
+    (** Returns flow-insensitive invariant for global unknown. *)
 
     val invariant_vars: Q.ask -> (V.t -> G.t) -> relation_components_t -> varinfo list
     (** Returns global variables which are privatized. *)
@@ -96,8 +101,7 @@ struct
     { st with rel = rel_local }
 
   let sync (ask: Q.ask) getg sideg (st: relation_components_t) reason =
-    match reason with
-    | `Join ->
+    let branched_sync () =
       if ask.f (Q.MustBeSingleThreaded {since_start = true}) then
         st
       else
@@ -110,6 +114,14 @@ struct
           )
         in
         {st with rel = rel_local}
+    in
+    match reason with
+    | `Join when ConfCheck.branched_thread_creation () ->
+      branched_sync ()
+    | `JoinCall _ when ConfCheck.branched_thread_creation () ->
+      branched_sync ()
+    | `Join
+    | `JoinCall _
     | `Normal
     | `Init
     | `Thread
@@ -130,6 +142,7 @@ struct
     {rel = RD.top (); priv = startstate ()}
 
   let iter_sys_vars getg vq vf = ()
+  let invariant_global ask getg g = Invariant.none
   let invariant_vars ask getg st = []
 
   let init () = ()
@@ -336,18 +349,9 @@ struct
   let thread_join ?(force=false) ask getg exp st = st
   let thread_return ask getg sideg tid st = st
 
-  let sync ask getg sideg (st: relation_components_t) reason =
-    match reason with
-    | `Return -> (* required for thread return *)
-      (* TODO: implement? *)
-      begin match ThreadId.get_current ask with
-        | `Lifted x (* when CPA.mem x st.cpa *) ->
-          st
-        | _ ->
-          st
-      end
-    | `Join ->
-      if (ask.f (Q.MustBeSingleThreaded { since_start= true })) then
+  let sync (ask:Q.ask) getg sideg (st: relation_components_t) reason =
+    let branched_sync () =
+      if ask.f (Q.MustBeSingleThreaded { since_start= true }) then
         st
       else
         (* must be like enter_multithreaded *)
@@ -375,6 +379,22 @@ struct
            let rel_local' = RD.meet rel_local (getg ()) in
            {st with rel = rel_local'} *)
         st
+    in
+    match reason with
+    | `Return -> (* required for thread return *)
+      (* TODO: implement? *)
+      begin match ThreadId.get_current ask with
+        | `Lifted x (* when CPA.mem x st.cpa *) ->
+          st
+        | _ ->
+          st
+      end
+    | `Join when ConfCheck.branched_thread_creation () ->
+      branched_sync ()
+    | `JoinCall f when ConfCheck.branched_thread_creation_at_call ask f ->
+      branched_sync ()
+    | `Join
+    | `JoinCall _
     | `Normal
     | `Init
     | `Thread ->
@@ -410,6 +430,7 @@ struct
     {rel = getg (); priv = startstate ()}
 
   let iter_sys_vars getg vq vf = () (* TODO: or report singleton global for any Global query? *)
+  let invariant_global ask getg g = Invariant.none
   let invariant_vars ask getg st = protected_vars ask (* TODO: is this right? *)
 
   let finalize () = ()
@@ -469,7 +490,7 @@ struct
 
   let startstate () = ()
 
-  let atomic_mutex = LockDomain.Addr.of_var LibraryFunctions.verifier_atomic_var
+  let atomic_mutex = LockDomain.MustLock.of_var LibraryFunctions.verifier_atomic_var
 
   let get_m_with_mutex_inits ask getg m =
     let get_m = getg (V.mutex m) in
@@ -489,7 +510,7 @@ struct
     in
     let get_mutex_inits = getg V.mutex_inits in
     let get_mutex_inits' = RD.keep_vars get_mutex_inits [g_var] in
-    if not (RD.mem_var get_mutex_inits' g_var) then (* TODO: is this just a workaround for an escape bug? https://github.com/goblint/analyzer/pull/1354/files#r1498882657 *)
+    if RD.mem_var get_mutex_global_g g_var && not (RD.mem_var get_mutex_inits' g_var) then (* TODO: is this just a workaround for an escape bug? https://github.com/goblint/analyzer/pull/1354/files#r1498882657 *)
       (* This is an escaped variable whose value was never side-effected to get_mutex_inits' *)
       get_mutex_global_g
     else
@@ -575,9 +596,9 @@ struct
   let write_escape = write_global_internal ~skip_meet:true
 
   let lock ask getg (st: relation_components_t) m =
-    let atomic = Param.handle_atomic && LockDomain.Addr.equal m (atomic_mutex) in
+    let atomic = Param.handle_atomic && LockDomain.MustLock.equal m atomic_mutex in
     (* TODO: somehow actually unneeded here? *)
-    if not atomic && Locksets.(not (Lockset.mem m (current_lockset ask))) then (
+    if not atomic && Locksets.(not (MustLockset.mem m (current_lockset ask))) then (
       let rel = st.rel in
       let get_m = get_m_with_mutex_inits ask getg m in
       (* Additionally filter get_m in case it contains variables it no longer protects. E.g. in 36/22. *)
@@ -590,7 +611,7 @@ struct
       st (* sound w.r.t. recursive lock *)
 
   let unlock ask getg sideg (st: relation_components_t) m: relation_components_t =
-    let atomic = Param.handle_atomic && LockDomain.Addr.equal m (atomic_mutex) in
+    let atomic = Param.handle_atomic && LockDomain.MustLock.equal m atomic_mutex in
     let rel = st.rel in
     if not atomic then (
       let rel_side = keep_only_protected_globals ask m rel in
@@ -624,18 +645,9 @@ struct
   let thread_join ?(force=false) ask getg exp st = st
   let thread_return ask getg sideg tid st = st
 
-  let sync ask getg sideg (st: relation_components_t) reason =
-    match reason with
-    | `Return -> (* required for thread return *)
-      (* TODO: implement? *)
-      begin match ThreadId.get_current ask with
-        | `Lifted x (* when CPA.mem x st.cpa *) ->
-          st
-        | _ ->
-          st
-      end
-    | `Join ->
-      if (ask.f (Q.MustBeSingleThreaded {since_start = true})) then
+  let sync (ask:Q.ask) getg sideg (st: relation_components_t) reason =
+    let branched_sync () =
+      if ask.f (Q.MustBeSingleThreaded {since_start = true}) then
         st
       else
         let rel = st.rel in
@@ -657,6 +669,22 @@ struct
           )
         in
         {st with rel = rel_local}
+    in
+    match reason with
+    | `Return -> (* required for thread return *)
+      (* TODO: implement? *)
+      begin match ThreadId.get_current ask with
+        | `Lifted x (* when CPA.mem x st.cpa *) ->
+          st
+        | _ ->
+          st
+      end
+    | `Join when ConfCheck.branched_thread_creation () ->
+      branched_sync ()
+    | `JoinCall f when ConfCheck.branched_thread_creation_at_call ask f ->
+      branched_sync ()
+    | `Join
+    | `JoinCall _
     | `Normal
     | `Init
     | `Thread ->
@@ -687,6 +715,41 @@ struct
 
   let init () = ()
   let finalize () = ()
+
+  let invariant_global (ask: Q.ask) (getg: V.t -> G.t): V.t -> Invariant.t = function
+    | `Left m' -> (* mutex *)
+      let atomic = LockDomain.MustLock.equal m' (LockDomain.MustLock.of_var LibraryFunctions.verifier_atomic_var) in
+      if atomic || ask.f (GhostVarAvailable (Locked m')) then (
+        (* filters like query_invariant *)
+        let one_var = GobConfig.get_bool "ana.relation.invariant.one-var" in
+        let exact = GobConfig.get_bool "witness.invariant.exact" in
+
+        let rel = keep_only_protected_globals ask m' (get_m_with_mutex_inits ask getg m') in (* Could be more precise if mutex_inits invariant is added by disjunction instead of joining abstract values. *)
+        let inv =
+          RD.invariant rel
+          |> List.enum
+          |> Enum.filter_map (fun (lincons1: Apron.Lincons1.t) ->
+              (* filter one-vars and exact *)
+              (* TODO: exact filtering doesn't really work with octagon because it returns two SUPEQ constraints instead *)
+              if (one_var || GobApron.Lincons1.num_vars lincons1 >= 2) && (exact || Apron.Lincons1.get_typ lincons1 <> EQ) then
+                RD.cil_exp_of_lincons1 lincons1
+                |> Option.filter (fun exp -> not (InvariantCil.exp_contains_tmp exp))
+              else
+                None
+            )
+          |> Enum.fold (fun acc x -> Invariant.(acc && of_exp x)) Invariant.none
+        in
+        if atomic then
+          inv
+        else (
+          let var = WitnessGhost.to_varinfo (Locked m') in
+          Invariant.(of_exp (Lval (GoblintCil.var var)) || inv) [@coverage off] (* bisect_ppx cannot handle redefined (||) *)
+        )
+      )
+      else
+        Invariant.none
+    | g -> (* global *)
+      Invariant.none (* Could output unprotected one-variable (so non-relational) invariants, but probably not very useful. [BasePriv] does those anyway. *)
 end
 
 (** May written variables. *)
@@ -700,11 +763,15 @@ module type ClusterArg = functor (RD: RelationDomain.RD) ->
 sig
   module LRD: Lattice.S
 
-  val keep_only_protected_globals: Q.ask -> LockDomain.Addr.t -> LRD.t -> LRD.t
+  module Cluster: Printable.S
+
+  val keep_only_protected_globals: Q.ask -> LockDomain.MustLock.t -> LRD.t -> LRD.t
   val keep_global: varinfo -> LRD.t -> LRD.t
 
   val lock: RD.t -> LRD.t -> LRD.t -> RD.t
-  val unlock: W.t -> RD.t -> LRD.t
+  val unlock: W.t -> RD.t -> LRD.t * (Cluster.t list)
+
+  val filter_clusters: (Cluster.t -> bool) -> LRD.t -> LRD.t
 
   val name: unit -> string
 end
@@ -714,6 +781,7 @@ module NoCluster:ClusterArg = functor (RD: RelationDomain.RD) ->
 struct
   open CommonPerMutex(RD)
   module LRD = RD
+  module Cluster = Printable.Unit
 
   let keep_only_protected_globals = keep_only_protected_globals
 
@@ -725,7 +793,13 @@ struct
     RD.meet oct (RD.join local_m get_m)
 
   let unlock w oct_side =
-    oct_side
+    oct_side, [()]
+
+  let filter_clusters f oct =
+    if f () then
+      oct
+    else
+      RD.bot ()
 
   let name () = "no-clusters"
 end
@@ -799,6 +873,8 @@ struct
   module VS = SetDomain.Make (CilType.Varinfo)
   module LRD = MapDomain.MapBot (VS) (RD)
 
+  module Cluster = VS
+
   let keep_only_protected_globals ask m octs =
     (* normal (strong) mapping: contains only still fully protected *)
     (* must filter by protection to avoid later meeting with non-protecting *)
@@ -810,7 +886,9 @@ struct
     let g_var = V.global g in
     (* normal (strong) mapping: contains only still fully protected *)
     let g' = VS.singleton g in
-    let oct = LRD.find g' octs in
+    (* If there is no map entry yet which contains the global, default to top rather than bot *)
+    (* Happens e.g. in 46/86 because of escape *)
+    let oct = Option.default (RD.top ()) (LRD.find_opt g' octs) in
     LRD.singleton g' (RD.keep_vars oct [g_var])
 
   let lock_get_m oct local_m get_m =
@@ -846,7 +924,10 @@ struct
     let oct_side_cluster gs =
       RD.keep_vars oct_side (gs |> VS.elements |> List.map V.global)
     in
-    LRD.add_list_fun clusters oct_side_cluster (LRD.empty ())
+    (LRD.add_list_fun clusters oct_side_cluster (LRD.empty ()), clusters)
+
+  let filter_clusters f oct =
+    LRD.filter (fun gs _ -> f gs) oct
 
   let name = ClusteringArg.name
 end
@@ -861,6 +942,8 @@ struct
   module VS = DCCluster.VS
   module LRD1 = DCCluster.LRD
   module LRD = Lattice.Prod (LRD1) (LRD1) (* second component is only used between keep_* and lock for additional weak mapping *)
+
+  module Cluster = DCCluster.Cluster
 
   let name = ClusteringArg.name
 
@@ -923,7 +1006,11 @@ struct
     r
 
   let unlock w oct_side =
-    (DCCluster.unlock w oct_side, LRD1.bot ())
+    let lad, clusters = DCCluster.unlock w oct_side in
+    ((lad, LRD1.bot ()), clusters)
+
+  let filter_clusters f (lad,lad') =
+    (LRD1.filter (fun gs _ -> f gs) lad, LRD1.filter (fun gs _ -> f gs) lad')
 end
 
 (** Per-mutex meet with TIDs. *)
@@ -937,7 +1024,7 @@ struct
   module Cluster = NC
   module LRD = NC.LRD
 
-  include PerMutexTidCommon (Digest) (LRD)
+  include PerMutexTidCommon (Digest) (LRD) (NC.Cluster)
 
   module AV = RD.V
   module P = UnitP
@@ -957,20 +1044,18 @@ struct
 
   let get_m_with_mutex_inits inits ask getg m =
     let get_m = get_relevant_writes ask m (G.mutex @@ getg (V.mutex m)) in
-    if M.tracing then M.traceli "relationpriv" "get_m_with_mutex_inits %a\n  get=%a" LockDomain.Addr.pretty m LRD.pretty get_m;
+    if M.tracing then M.traceli "relationpriv" "get_m_with_mutex_inits %a\n  get=%a" LockDomain.MustLock.pretty m LRD.pretty get_m;
     let r =
-      if not inits then
-        get_m
-      else
-        let get_mutex_inits = merge_all @@ G.mutex @@ getg V.mutex_inits in
-        let get_mutex_inits' = Cluster.keep_only_protected_globals ask m get_mutex_inits in
-        if M.tracing then M.trace "relationpriv" "inits=%a\n  inits'=%a" LRD.pretty get_mutex_inits LRD.pretty get_mutex_inits';
-        LRD.join get_m get_mutex_inits'
+      let get_mutex_inits = merge_all @@ G.mutex @@ getg V.mutex_inits in
+      let get_mutex_inits' = Cluster.keep_only_protected_globals ask m get_mutex_inits in
+      let get_mutex_inits' = Cluster.filter_clusters inits get_mutex_inits' in
+      if M.tracing then M.trace "relationpriv" "inits=%a\n  inits'=%a" LRD.pretty get_mutex_inits LRD.pretty get_mutex_inits';
+      LRD.join get_m get_mutex_inits'
     in
     if M.tracing then M.traceu "relationpriv" "-> %a" LRD.pretty r;
     r
 
-  let atomic_mutex = LockDomain.Addr.of_var LibraryFunctions.verifier_atomic_var
+  let atomic_mutex = LockDomain.MustLock.of_var LibraryFunctions.verifier_atomic_var
 
   let get_mutex_global_g_with_mutex_inits inits ask getg g =
     let get_mutex_global_g =
@@ -984,13 +1069,11 @@ struct
     in
     if M.tracing then M.traceli "relationpriv" "get_mutex_global_g_with_mutex_inits %a\n  get=%a" CilType.Varinfo.pretty g LRD.pretty get_mutex_global_g;
     let r =
-      if not inits then
-        get_mutex_global_g
-      else
-        let get_mutex_inits = merge_all @@ G.mutex @@ getg V.mutex_inits in
-        let get_mutex_inits' = Cluster.keep_global g get_mutex_inits in
-        if M.tracing then M.trace "relationpriv" "inits=%a\n  inits'=%a" LRD.pretty get_mutex_inits LRD.pretty get_mutex_inits';
-        LRD.join get_mutex_global_g get_mutex_inits'
+      let get_mutex_inits = merge_all @@ G.mutex @@ getg V.mutex_inits in
+      let get_mutex_inits' = Cluster.keep_global g get_mutex_inits in
+      let get_mutex_inits' = Cluster.filter_clusters inits get_mutex_inits' in
+      if M.tracing then M.trace "relationpriv" "inits=%a\n  inits'=%a" LRD.pretty get_mutex_inits LRD.pretty get_mutex_inits';
+      LRD.join get_mutex_global_g get_mutex_inits'
     in
     if M.tracing then M.traceu "relationpriv" "-> %a" LRD.pretty r;
     r
@@ -998,11 +1081,9 @@ struct
   let get_mutex_global_g_with_mutex_inits_atomic inits ask getg =
     (* Unprotected invariant is one big relation. *)
     let get_mutex_global_g = get_relevant_writes_nofilter ask @@ G.mutex @@ getg (V.mutex atomic_mutex) in
-    if not inits then
-      get_mutex_global_g
-    else
-      let get_mutex_inits = merge_all @@ G.mutex @@ getg V.mutex_inits in
-      LRD.join get_mutex_global_g get_mutex_inits
+    let get_mutex_inits = merge_all @@ G.mutex @@ getg V.mutex_inits in
+    let get_mutex_inits' = Cluster.filter_clusters inits get_mutex_inits in
+    LRD.join get_mutex_global_g get_mutex_inits'
 
   let read_global (ask: Q.ask) getg (st: relation_components_t) g x: RD.t =
     let atomic = Param.handle_atomic && ask.f MustBeAtomic in
@@ -1016,9 +1097,9 @@ struct
       if atomic && RD.mem_var rel (AV.global g) then
         rel (* Read previous unpublished unprotected write in current atomic section. *)
       else if atomic then
-        Cluster.lock rel local_m (get_mutex_global_g_with_mutex_inits_atomic (not (LMust.mem lm lmust)) ask getg) (* Read unprotected invariant as full relation. *)
+        Cluster.lock rel local_m (get_mutex_global_g_with_mutex_inits_atomic (fun c -> (not (LMust.mem (lm,c) lmust))) ask getg) (* Read unprotected invariant as full relation. *)
       else
-        Cluster.lock rel local_m (get_mutex_global_g_with_mutex_inits (not (LMust.mem lm lmust)) ask getg g)
+        Cluster.lock rel local_m (get_mutex_global_g_with_mutex_inits (fun c -> (not (LMust.mem (lm,c) lmust))) ask getg g)
     in
     (* read *)
     let g_var = AV.global g in
@@ -1050,9 +1131,9 @@ struct
       if atomic && RD.mem_var rel (AV.global g) then
         rel (* Read previous unpublished unprotected write in current atomic section. *)
       else if atomic then
-        Cluster.lock rel local_m (get_mutex_global_g_with_mutex_inits_atomic (not (LMust.mem lm lmust)) ask getg) (* Read unprotected invariant as full relation. *)
+        Cluster.lock rel local_m (get_mutex_global_g_with_mutex_inits_atomic (fun c -> (not (LMust.mem (lm,c) lmust))) ask getg) (* Read unprotected invariant as full relation. *)
       else
-        Cluster.lock rel local_m (get_mutex_global_g_with_mutex_inits (not (LMust.mem lm lmust)) ask getg g)
+        Cluster.lock rel local_m (get_mutex_global_g_with_mutex_inits (fun c -> (not (LMust.mem (lm,c) lmust))) ask getg g)
     in
     (* write *)
     let g_var = AV.global g in
@@ -1062,7 +1143,7 @@ struct
     (* unlock *)
     if not atomic then (
       let rel_side = RD.keep_vars rel_local [g_var] in
-      let rel_side = Cluster.unlock (W.singleton g) rel_side in
+      let rel_side, clusters = Cluster.unlock (W.singleton g) rel_side in
       let digest = Digest.current ask in
       let sidev = GMutex.singleton digest rel_side in
       if Param.handle_atomic then
@@ -1076,19 +1157,20 @@ struct
         else
           rel_local
       in
-      {rel = rel_local'; priv = (W.add g w,LMust.add lm lmust,l')}
+      let lmust' = List.fold (fun a c -> LMust.add (lm,c) a) lmust clusters in
+      {rel = rel_local'; priv = (W.add g w,lmust',l')}
     )
     else
       (* Delay publishing unprotected write in the atomic section. *)
       {rel = rel_local; priv = (W.add g w,lmust,l)} (* Keep write local as if it were protected by the atomic section. *)
 
   let lock ask getg (st: relation_components_t) m =
-    let atomic = Param.handle_atomic && LockDomain.Addr.equal m (atomic_mutex) in
-    if not atomic && Locksets.(not (Lockset.mem m (current_lockset ask))) then (
+    let atomic = Param.handle_atomic && LockDomain.MustLock.equal m atomic_mutex in
+    if not atomic && Locksets.(not (MustLockset.mem m (current_lockset ask))) then (
       let rel = st.rel in
       let _,lmust,l = st.priv in
       let lm = LLock.mutex m in
-      let get_m = get_m_with_mutex_inits (not (LMust.mem lm lmust)) ask getg m in
+      let get_m = get_m_with_mutex_inits (fun c -> (not (LMust.mem (lm,c) lmust))) ask getg m in
       let local_m = BatOption.default (LRD.bot ()) (L.find_opt lm l) in
       (* Additionally filter get_m in case it contains variables it no longer protects. E.g. in 36/22. *)
       let local_m = Cluster.keep_only_protected_globals ask m local_m in
@@ -1107,7 +1189,7 @@ struct
     RD.keep_filter oct protected
 
   let unlock ask getg sideg (st: relation_components_t) m: relation_components_t =
-    let atomic = Param.handle_atomic && LockDomain.Addr.equal m (atomic_mutex) in
+    let atomic = Param.handle_atomic && LockDomain.MustLock.equal m atomic_mutex in
     let rel = st.rel in
     let w,lmust,l = st.priv in
     if not atomic then (
@@ -1118,13 +1200,14 @@ struct
         {rel = rel_local; priv = (w',lmust,l)}
       else
         let rel_side = keep_only_protected_globals ask m rel in
-        let rel_side = Cluster.unlock w rel_side in
+        let rel_side, clusters = Cluster.unlock w rel_side in
         let digest = Digest.current ask in
         let sidev = GMutex.singleton digest rel_side in
         sideg (V.mutex m) (G.create_mutex sidev);
         let lm = LLock.mutex m in
         let l' = L.add lm rel_side l in
-        {rel = rel_local; priv = (w',LMust.add lm lmust,l')}
+        let lmust' = List.fold (fun a c -> LMust.add (lm,c) a) lmust clusters in
+        {rel = rel_local; priv = (w',lmust',l')}
     )
     else (
       (* Publish delayed unprotected write as if it were protected by the atomic section. *)
@@ -1135,14 +1218,15 @@ struct
         {rel = rel_local; priv = (w',lmust,l)}
       else
         let rel_side = keep_only_globals ask m rel in
-        let rel_side = Cluster.unlock w rel_side in
+        let rel_side, clusters = Cluster.unlock w rel_side in
         let digest = Digest.current ask in
         let sidev = GMutex.singleton digest rel_side in
         (* Unprotected invariant is one big relation. *)
         sideg (V.mutex atomic_mutex) (G.create_mutex sidev);
         let (lmust', l') = W.fold (fun g (lmust, l) ->
             let lm = LLock.global g in
-            (LMust.add lm lmust, L.add lm rel_side l)
+            let lmust'' = List.fold (fun a c -> LMust.add (lm,c) a) lmust clusters in
+            (lmust'', L.add lm rel_side l)
           ) w (lmust, l)
         in
         {rel = rel_local; priv = (w',lmust',l')}
@@ -1187,10 +1271,8 @@ struct
     st
 
   let sync (ask:Q.ask) getg sideg (st: relation_components_t) reason =
-    match reason with
-    | `Return -> st (* TODO: implement? *)
-    | `Join ->
-      if (ask.f (Q.MustBeSingleThreaded {since_start = true})) then
+    let branched_sync () =
+      if ask.f (Q.MustBeSingleThreaded {since_start = true}) then
         st
       else
         let rel = st.rel in
@@ -1204,6 +1286,15 @@ struct
           )
         in
         {st with rel = rel_local}
+    in
+    match reason with
+    | `Return -> st (* TODO: implement? *)
+    | `Join when ConfCheck.branched_thread_creation () ->
+      branched_sync ()
+    | `JoinCall f when ConfCheck.branched_thread_creation_at_call ask f ->
+      branched_sync ()
+    | `Join
+    | `JoinCall _
     | `Normal
     | `Init
     | `Thread ->
@@ -1225,7 +1316,7 @@ struct
       ) (RD.vars rel)
     in
     let rel_side = RD.keep_vars rel g_vars in
-    let rel_side = Cluster.unlock (W.top ()) rel_side in (* top W to avoid any filtering *)
+    let rel_side, clusters = Cluster.unlock (W.top ()) rel_side in (* top W to avoid any filtering *)
     let digest = Digest.current ask in
     let sidev = GMutex.singleton digest rel_side in
     sideg V.mutex_inits (G.create_mutex sidev);
@@ -1245,6 +1336,8 @@ struct
     | _ -> ()
 
   let finalize () = ()
+
+  let invariant_global ask getg g = Invariant.none
 end
 
 module TracingPriv = functor (Priv: S) -> functor (RD: RelationDomain.RD) ->
@@ -1284,7 +1377,7 @@ struct
     r
 
   let lock ask getg st m =
-    if M.tracing then M.traceli "relationpriv" "lock %a" LockDomain.Addr.pretty m;
+    if M.tracing then M.traceli "relationpriv" "lock %a" LockDomain.MustLock.pretty m;
     if M.tracing then M.trace "relationpriv" "st: %a" RelComponents.pretty st;
     let getg x =
       let r = getg x in
@@ -1296,7 +1389,7 @@ struct
     r
 
   let unlock ask getg sideg st m =
-    if M.tracing then M.traceli "relationpriv" "unlock %a" LockDomain.Addr.pretty m;
+    if M.tracing then M.traceli "relationpriv" "unlock %a" LockDomain.MustLock.pretty m;
     if M.tracing then M.trace "relationpriv" "st: %a" RelComponents.pretty st;
     let getg x =
       let r = getg x in

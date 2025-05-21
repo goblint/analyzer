@@ -11,8 +11,6 @@ open Analyses
 
 module Spec =
 struct
-  exception Top
-
   include Analyses.DefaultSpec
 
   module D =
@@ -38,13 +36,13 @@ struct
         ) ss (Invariant.top ())
   end
 
-  module C = D
+  include Analyses.ValueContexts(D)
 
   let name () = "var_eq"
 
   let startstate v = D.top ()
-  let threadenter ctx ~multiple lval f args = [D.top ()]
-  let threadspawn ctx ~multiple lval f args fctx = ctx.local
+  let threadenter man ~multiple lval f args = [D.top ()]
+  let threadspawn man ~multiple lval f args fman = man.local
   let exitstate  v = D.top ()
 
   let typ_equal = CilType.Typ.equal (* TODO: Used to have equality checking, which ignores attributes. Is that needed? *)
@@ -388,56 +386,56 @@ struct
   *)
   (* Give the set of reachables from argument. *)
   let reachables ~deep (ask: Queries.ask) es =
-    let reachable e st =
+    let reachable acc e =
       let q = if deep then Queries.ReachableFrom e else Queries.MayPointTo e in
       let ad = ask.f q in
-      Queries.AD.join ad st
+      Queries.AD.join ad acc
     in
-    List.fold_right reachable es (Queries.AD.empty ())
+    List.fold_left reachable (Queries.AD.empty ()) es
 
 
   (* Probably ok as is. *)
-  let body ctx f = ctx.local
+  let body man f = man.local
 
   (* Branch could be improved to set invariants like base tries to do. *)
-  let branch ctx exp tv = ctx.local
+  let branch man exp tv = man.local
 
   (* Just remove things that go out of scope. *)
-  let return ctx exp fundec  =
-    let rm v = remove (Analyses.ask_of_ctx ctx) (Var v,NoOffset) in
-    List.fold_right rm (fundec.sformals@fundec.slocals) ctx.local
+  let return man exp fundec  =
+    let rm acc v = remove (Analyses.ask_of_man man) (Var v, NoOffset) acc in
+    List.fold_left rm man.local (fundec.sformals@fundec.slocals)
 
   (* removes all equalities with lval and then tries to make a new one: lval=rval *)
-  let assign ctx (lval:lval) (rval:exp) : D.t  =
+  let assign man (lval:lval) (rval:exp) : D.t  =
     let rval = constFold true (stripCasts rval) in
-    add_eq (Analyses.ask_of_ctx ctx) lval rval ctx.local
+    add_eq (Analyses.ask_of_man man) lval rval man.local
 
   (* First assign arguments to parameters. Then join it with reachables, to get
      rid of equalities that are not reachable. *)
-  let enter ctx lval f args =
+  let enter man lval f args =
     let rec fold_left2 f r xs ys =
       match xs, ys with
       | x::xs, y::ys -> fold_left2 f (f r x y) xs ys
       | _ -> r
     in
     let assign_one_param st lv exp =
-      let rm = remove (Analyses.ask_of_ctx ctx) (Var lv, NoOffset) st in
-      add_eq (Analyses.ask_of_ctx ctx) (Var lv, NoOffset) exp rm
+      let rm = remove (Analyses.ask_of_man man) (Var lv, NoOffset) st in
+      add_eq (Analyses.ask_of_man man) (Var lv, NoOffset) exp rm
     in
     let nst =
-      try fold_left2 assign_one_param ctx.local f.sformals args
+      try fold_left2 assign_one_param man.local f.sformals args
       with SetDomain.Unsupported _ -> (* ignore varargs fr now *) D.top ()
     in
-    match D.is_bot ctx.local with
+    match D.is_bot man.local with
     | true -> raise Analyses.Deadcode
-    | false -> [ctx.local,nst]
+    | false -> [man.local,nst]
 
-  let combine_env ctx lval fexp f args fc au (f_ask: Queries.ask) =
+  let combine_env man lval fexp f args fc au (f_ask: Queries.ask) =
     let tainted = f_ask.f Queries.MayBeTainted in
     let d_local =
       (* if we are multithreaded, we run the risk, that some mutex protected variables got unlocked, so in this case caller state goes to top
          TODO: !!Unsound, this analysis does not handle this case -> regtest 63 08!! *)
-      if Queries.AD.is_top tainted || not (ctx.ask (Queries.MustBeSingleThreaded {since_start = true})) then
+      if Queries.AD.is_top tainted || not (man.ask (Queries.MustBeSingleThreaded {since_start = true})) then
         D.top ()
       else
         let taint_exp =
@@ -445,17 +443,17 @@ struct
           |> List.map Addr.Mval.to_cil_exp
           |> Queries.ES.of_list
         in
-        D.filter (fun exp -> not (Queries.ES.mem exp taint_exp)) ctx.local
+        D.filter (fun exp -> not (Queries.ES.mem exp taint_exp)) man.local
     in
     let d = D.meet au d_local in
-    match D.is_bot ctx.local with
+    match D.is_bot man.local with
     | true -> raise Analyses.Deadcode
     | false -> d
 
-  let combine_assign ctx lval fexp f args fc st2 (f_ask : Queries.ask) =
+  let combine_assign man lval fexp f args fc st2 (f_ask : Queries.ask) =
     match lval with
-    | Some lval -> remove (Analyses.ask_of_ctx ctx) lval ctx.local
-    | None -> ctx.local
+    | Some lval -> remove (Analyses.ask_of_man man) lval man.local
+    | None -> man.local
 
   let remove_reachable ~deep ask es st =
     let rs = reachables ~deep ask es in
@@ -470,7 +468,7 @@ struct
         | _ -> st
       ) rs st
 
-  let unknown_fn ctx lval f args =
+  let unknown_fn man lval f args =
     let desc = LF.find f in
     let shallow_args = LibraryDesc.Accesses.find desc.accs { kind = Write; deep = false } args in
     let deep_args = LibraryDesc.Accesses.find desc.accs { kind = Write; deep = true } args in
@@ -479,29 +477,29 @@ struct
       | Some l -> mkAddrOf l :: shallow_args
       | None -> shallow_args
     in
-    match D.is_bot ctx.local with
+    match D.is_bot man.local with
     | true -> raise Analyses.Deadcode
     | false ->
-      let ask = Analyses.ask_of_ctx ctx in
-      ctx.local
+      let ask = Analyses.ask_of_man man in
+      man.local
       |> remove_reachable ~deep:false ask shallow_args
       |> remove_reachable ~deep:true ask deep_args
 
   (* remove all variables that are reachable from arguments *)
-  let special ctx lval f args =
+  let special man lval f args =
     let desc = LibraryFunctions.find f in
     match desc.special args with
     | Identity e ->
       begin match lval with
-        | Some x -> assign ctx x e
-        | None -> unknown_fn ctx lval f args
+        | Some x -> assign man x e
+        | None -> unknown_fn man lval f args
       end
     | ThreadCreate { arg; _ } ->
-      begin match D.is_bot ctx.local with
+      begin match D.is_bot man.local with
         | true -> raise Analyses.Deadcode
-        | false -> remove_reachable ~deep:true (Analyses.ask_of_ctx ctx) [arg] ctx.local
+        | false -> remove_reachable ~deep:true (Analyses.ask_of_man man) [arg] man.local
       end
-    | _ -> unknown_fn ctx lval f args
+    | _ -> unknown_fn man lval f args
   (* query stuff *)
 
   let eq_set (e:exp) s =
@@ -556,20 +554,20 @@ struct
     r
 
 
-  let query ctx (type a) (x: a Queries.t): a Queries.result =
+  let query man (type a) (x: a Queries.t): a Queries.result =
     match x with
-    | Queries.EvalInt (BinOp (Eq, e1, e2, t)) when query_exp_equal (Analyses.ask_of_ctx ctx) e1 e2 ctx.global ctx.local ->
+    | Queries.EvalInt (BinOp (Eq, e1, e2, t)) when query_exp_equal (Analyses.ask_of_man man) e1 e2 man.global man.local ->
       Queries.ID.of_bool (Cilfacade.get_ikind t) true
     | Queries.EqualSet e ->
-      let r = eq_set_clos e ctx.local in
+      let r = eq_set_clos e man.local in
       if M.tracing then M.tracel "var_eq" "equalset %a = %a" d_plainexp e Queries.ES.pretty r;
       r
-    | Queries.Invariant context when GobConfig.get_bool "witness.invariant.exact" -> (* only exact equalities here *)
-      let scope = Node.find_fundec ctx.node in
-      D.invariant ~scope ctx.local
+    | Queries.Invariant context when GobConfig.get_bool "ana.var_eq.invariant.enabled" && GobConfig.get_bool "witness.invariant.exact" -> (* only exact equalities here *)
+      let scope = Node.find_fundec man.node in
+      D.invariant ~scope man.local
     | _ -> Queries.Result.top x
 
-  let event ctx e octx =
+  let event man e oman =
     match e with
     | Events.Unassume {exp; _} ->
       (* Unassume must forget equalities,
@@ -578,19 +576,19 @@ struct
       Basetype.CilExp.get_vars exp
       |> List.map Cil.var
       |> List.fold_left (fun st lv ->
-          remove (Analyses.ask_of_ctx ctx) lv st
-        ) ctx.local
+          remove (Analyses.ask_of_man man) lv st
+        ) man.local
     | Events.Escape vars ->
       if EscapeDomain.EscapedVars.is_top vars then
         D.top ()
       else
-        let ask = Analyses.ask_of_ctx ctx in
+        let ask = Analyses.ask_of_man man in
         let remove_var st v =
           remove ask (Cil.var v) st
         in
-        List.fold_left remove_var ctx.local (EscapeDomain.EscapedVars.elements vars)
+        List.fold_left remove_var man.local (EscapeDomain.EscapedVars.elements vars)
     | _ ->
-      ctx.local
+      man.local
 end
 
 let _ =

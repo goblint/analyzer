@@ -13,11 +13,11 @@ void good() {
   pthread_mutex_unlock(&gm);
 }
 
-void (*f)() = good;
+void (*f)(void) = good;
 pthread_mutex_t fm = PTHREAD_MUTEX_INITIALIZER;
 
 void *t_fun(void *arg) {
-  void (*g)();
+  void (*g)(void);
 
   pthread_mutex_lock(&fm);
   g = f; // NORACE

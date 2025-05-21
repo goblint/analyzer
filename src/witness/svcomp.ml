@@ -1,7 +1,6 @@
 (** SV-COMP tasks and results. *)
 
 open GoblintCil
-open Batteries
 
 module Specification = SvcompSpec
 
@@ -27,9 +26,9 @@ let is_error_function f =
 (* TODO: unused, but should be used? *)
 let is_special_function f =
   let loc = f.vdecl in
-  let is_svcomp = String.ends_with loc.file "sv-comp.c" in (* only includes/sv-comp.c functions, not __VERIFIER_assert in benchmark *)
+  let is_svcomp = String.ends_with loc.file ~suffix:"sv-comp.c" in (* only includes/sv-comp.c functions, not __VERIFIER_assert in benchmark *)
   let is_verifier = match f.vname with
-    | fname when String.starts_with fname "__VERIFIER" -> true
+    | fname when String.starts_with fname ~prefix:"__VERIFIER" -> true
     | fname -> is_error_function f
   in
   is_svcomp && is_verifier
@@ -49,7 +48,7 @@ struct
       let result_spec = match spec with
         | UnreachCall _ -> "unreach-call"
         | NoOverflow -> "no-overflow"
-        | NoDataRace -> "no-data-race" (* not yet in SV-COMP/Benchexec *)
+        | NoDataRace -> "no-data-race"
         | Termination -> "termination"
         | ValidFree -> "valid-free"
         | ValidDeref -> "valid-deref"
@@ -60,28 +59,6 @@ struct
     | Unknown -> "unknown"
 end
 
-module type TaskResult =
-sig
-  module Arg: MyARG.S
+exception Error of string
 
-  val result: Result.t
-
-  (* correctness witness *)
-  val invariant: Arg.Node.t -> Invariant.t
-
-  (* violation witness *)
-  val is_violation: Arg.Node.t -> bool
-  val is_sink: Arg.Node.t -> bool
-end
-
-module StackTaskResult (TaskResult: TaskResult with module Arg.Edge = MyARG.InlineEdge) =
-struct
-  module Arg = MyARG.Stack (TaskResult.Arg)
-
-  let result = TaskResult.result
-
-  let invariant nl = TaskResult.invariant (List.hd nl)
-
-  let is_violation nl = TaskResult.is_violation (List.hd nl)
-  let is_sink nl = TaskResult.is_sink (List.hd nl)
-end
+let errorwith s = raise (Error s)

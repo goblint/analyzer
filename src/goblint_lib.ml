@@ -21,8 +21,8 @@ module CfgTools = CfgTools
     A dynamic composition of analyses is combined with CFGs to produce a constraint system. *)
 
 module Analyses = Analyses
-module ConstrSys = ConstrSys
 module Constraints = Constraints
+module CompareConstraints = CompareConstraints
 module AnalysisState = AnalysisState
 module AnalysisStateUtil = AnalysisStateUtil
 module ControlSpecC = ControlSpecC
@@ -48,7 +48,6 @@ module Events = Events
 
 module AnalysisResult = AnalysisResult
 module ResultQuery = ResultQuery
-module VarQuery = VarQuery
 
 (** {2 Configuration}
 
@@ -59,6 +58,7 @@ module GobConfig = GobConfig
 module AfterConfig = AfterConfig
 
 module AutoTune = AutoTune
+module AutoSoundConfig = AutoSoundConfig
 
 module JsonSchema = JsonSchema
 module Options = Options
@@ -80,6 +80,7 @@ module LinearTwoVarEqualityAnalysis = LinearTwoVarEqualityAnalysis
 module VarEq = VarEq
 module CondVars = CondVars
 module TmpSpecial = TmpSpecial
+module C2poAnalysis = C2poAnalysis
 
 (** {2 Heap}
 
@@ -107,6 +108,7 @@ module MutexAnalysis = MutexAnalysis
 module MayLocks = MayLocks
 module SymbLocks = SymbLocks
 module Deadlock = Deadlock
+module MutexGhosts = MutexGhosts
 
 (** {3 Threads}
 
@@ -168,6 +170,21 @@ module UnassumeAnalysis = UnassumeAnalysis
 module ExpRelation = ExpRelation
 module AbortUnless = AbortUnless
 module PtranalAnalysis = PtranalAnalysis
+module StartStateAnalysis = StartStateAnalysis
+module SingleThreadedLifter = SingleThreadedLifter
+
+
+(** {1 Analysis lifters}
+
+    Transformations of analyses into extended analyses. *)
+
+module SpecLifters = SpecLifters
+module LongjmpLifter = LongjmpLifter
+module RecursionTermLifter = RecursionTermLifter
+module ContextGasLifter = ContextGasLifter
+module WideningDelay = WideningDelay
+module WideningToken = WideningToken
+module WideningTokenLifter = WideningTokenLifter
 
 
 (** {1 Domains}
@@ -243,7 +260,15 @@ module ValueDomainQueries = ValueDomainQueries
 module RelationDomain = RelationDomain
 module ApronDomain = ApronDomain
 module AffineEqualityDomain = AffineEqualityDomain
+module AffineEqualityDenseDomain = AffineEqualityDenseDomain
 module LinearTwoVarEqualityDomain = LinearTwoVarEqualityDomain
+
+(** {5 2-Pointer Logic}
+
+    Domains for {!C2poAnalysis}. *)
+module CongruenceClosure = CongruenceClosure
+module UnionFind = UnionFind
+module C2poDomain = C2poDomain
 
 (** {3 Concurrency} *)
 
@@ -313,6 +338,7 @@ module TerminationPreprocessing = TerminationPreprocessing
 
     Witnesses are an exchangeable format for analysis results. *)
 
+module Witness = Witness
 module Svcomp = Svcomp
 module SvcompSpec = SvcompSpec
 
@@ -320,39 +346,38 @@ module Invariant = Invariant
 module InvariantCil = InvariantCil
 module WitnessUtil = WitnessUtil
 
-(** {3 GraphML}
-
-    Automaton-based GraphML witnesses used in SV-COMP. *)
-
-module MyARG = MyARG
-module WitnessConstraints = WitnessConstraints
-module ArgTools = ArgTools
-module Witness = Witness
-module Graphml = Graphml
-
 (** {3 YAML}
 
     Entry-based YAML witnesses to be used in SV-COMP. *)
 
 module YamlWitness = YamlWitness
 module YamlWitnessType = YamlWitnessType
-module WideningTokens = WideningTokens
-
-(** {3 Violation}
-
-    Experimental generation of violation witness automata or refinement with observer automata. *)
-
-module Violation = Violation
-module ViolationZ3 = ViolationZ3
-module ObserverAutomaton = ObserverAutomaton
-module ObserverAnalysis = ObserverAnalysis
-module Refinement = Refinement
+module WitnessGhost = WitnessGhost
 
 (** {2 SARIF} *)
 
 module Sarif = Sarif
 module SarifType = SarifType
 module SarifRules = SarifRules
+
+(** {2 ARG}
+
+    Abstract reachability graphs (ARGs).
+    Used to be for automaton-based GraphML witnesses used in SV-COMP, now for abstract debugging. *)
+
+module MyARG = MyARG
+module ArgConstraints = ArgConstraints
+module ArgTools = ArgTools
+
+(** {3 Violation}
+
+    Experimental refinement with observer automata. *)
+
+module Violation = Violation
+module ViolationZ3 = ViolationZ3
+module ObserverAutomaton = ObserverAutomaton
+module ObserverAnalysis = ObserverAnalysis
+module Refinement = Refinement
 
 
 (** {1 Transformations}
@@ -394,6 +419,7 @@ module CilType = CilType
 module Cilfacade = Cilfacade
 module CilLocation = CilLocation
 module RichVarinfo = RichVarinfo
+module DuplicateVars = DuplicateVars
 
 module CilCfg = CilCfg
 module LoopUnrolling = LoopUnrolling
@@ -417,7 +443,15 @@ module BaseInvariant = BaseInvariant
 module CommonPriv = CommonPriv
 module WideningThresholds = WideningThresholds
 
-module VectorMatrix = VectorMatrix
+(* There might be a more elegant solution. *)
+module Vector = Vector
+module Matrix = Matrix
+module ArrayVector = ArrayVector
+module ArrayMatrix = ArrayMatrix
+module SparseVector = SparseVector
+module ListMatrix = ListMatrix
+module RatOps = RatOps
+
 module SharedFunctions = SharedFunctions
 module GobApron = GobApron
 

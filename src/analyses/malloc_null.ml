@@ -13,7 +13,7 @@ struct
 
   module Addr = ValueDomain.Addr
   module D = ValueDomain.AddrSetDomain
-  module C = ValueDomain.AddrSetDomain
+  include Analyses.ValueContexts(D)
   module P = IdentityP (D)
 
   (*
@@ -94,7 +94,7 @@ struct
   (* Remove null values from state that are unreachable from exp.*)
   let remove_unreachable (ask: Queries.ask) (args: exp list) (st: D.t) : D.t =
     let reachable =
-      let do_exp e a =
+      let do_exp a e =
         match ask.f (Queries.ReachableFrom e) with
         | ad when not (Queries.AD.is_top ad) ->
           ad
@@ -103,9 +103,9 @@ struct
               | _ -> false)
           |> Queries.AD.join a
         (* Ignore soundness warnings, as invalidation proper will raise them. *)
-        | _ -> AD.empty ()
+        | _ -> a
       in
-      List.fold_right do_exp args (AD.empty ())
+      List.fold_left do_exp (AD.empty ()) args
     in
     let vars =
       reachable
@@ -145,78 +145,78 @@ struct
   *)
 
   (* One step tf-s *)
-  let assign ctx (lval:lval) (rval:exp) : D.t =
-    warn_deref_exp (Analyses.ask_of_ctx ctx) ctx.local (Lval lval) ;
-    warn_deref_exp (Analyses.ask_of_ctx ctx) ctx.local rval;
-    match get_concrete_exp rval ctx.global ctx.local, get_concrete_lval (Analyses.ask_of_ctx ctx) lval with
-    | Some rv, Some mval when might_be_null (Analyses.ask_of_ctx ctx) rv ctx.global ctx.local ->
-      D.add (Addr.of_mval mval) ctx.local
-    | _ -> ctx.local
+  let assign man (lval:lval) (rval:exp) : D.t =
+    warn_deref_exp (Analyses.ask_of_man man) man.local (Lval lval) ;
+    warn_deref_exp (Analyses.ask_of_man man) man.local rval;
+    match get_concrete_exp rval man.global man.local, get_concrete_lval (Analyses.ask_of_man man) lval with
+    | Some rv, Some mval when might_be_null (Analyses.ask_of_man man) rv man.global man.local ->
+      D.add (Addr.of_mval mval) man.local
+    | _ -> man.local
 
-  let branch ctx (exp:exp) (tv:bool) : D.t =
-    warn_deref_exp (Analyses.ask_of_ctx ctx) ctx.local exp;
-    ctx.local
+  let branch man (exp:exp) (tv:bool) : D.t =
+    warn_deref_exp (Analyses.ask_of_man man) man.local exp;
+    man.local
 
-  let body ctx (f:fundec) : D.t =
-    ctx.local
+  let body man (f:fundec) : D.t =
+    man.local
 
   let return_addr_ = ref Addr.NullPtr
   let return_addr () = !return_addr_
 
-  let return ctx (exp:exp option) (f:fundec) : D.t =
-    let remove_var x v = List.fold_right D.remove (to_addrs v) x in
-    let nst = List.fold_left remove_var ctx.local (f.slocals @ f.sformals) in
+  let return man (exp:exp option) (f:fundec) : D.t =
+    let remove_var x v = List.fold_left (Fun.flip D.remove) x (to_addrs v) in
+    let nst = List.fold_left remove_var man.local (f.slocals @ f.sformals) in
     match exp with
     | Some ret ->
-      warn_deref_exp (Analyses.ask_of_ctx ctx) ctx.local ret;
-      begin match get_concrete_exp ret ctx.global ctx.local with
-        | Some ev when might_be_null (Analyses.ask_of_ctx ctx) ev ctx.global ctx.local ->
+      warn_deref_exp (Analyses.ask_of_man man) man.local ret;
+      begin match get_concrete_exp ret man.global man.local with
+        | Some ev when might_be_null (Analyses.ask_of_man man) ev man.global man.local ->
           D.add (return_addr ()) nst
         | _ -> nst  end
     | None -> nst
 
   (* Function calls *)
 
-  let enter ctx (lval: lval option) (f:fundec) (args:exp list) : (D.t * D.t) list =
-    let nst = remove_unreachable (Analyses.ask_of_ctx ctx) args ctx.local in
-    Option.iter (fun x -> warn_deref_exp (Analyses.ask_of_ctx ctx) ctx.local (Lval x)) lval;
-    List.iter (warn_deref_exp (Analyses.ask_of_ctx ctx) ctx.local) args;
-    [ctx.local,nst]
+  let enter man (lval: lval option) (f:fundec) (args:exp list) : (D.t * D.t) list =
+    let nst = remove_unreachable (Analyses.ask_of_man man) args man.local in
+    Option.iter (fun x -> warn_deref_exp (Analyses.ask_of_man man) man.local (Lval x)) lval;
+    List.iter (warn_deref_exp (Analyses.ask_of_man man) man.local) args;
+    [man.local,nst]
 
-  let combine_env ctx lval fexp f args fc au f_ask =
-    let cal_st = remove_unreachable (Analyses.ask_of_ctx ctx) args ctx.local in
-    D.union (D.remove (return_addr ()) au) (D.diff ctx.local cal_st)
+  let combine_env man lval fexp f args fc au f_ask =
+    let cal_st = remove_unreachable (Analyses.ask_of_man man) args man.local in
+    D.union (D.remove (return_addr ()) au) (D.diff man.local cal_st)
 
-  let combine_assign ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) (f_ask: Queries.ask) : D.t =
+  let combine_assign man (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) (f_ask: Queries.ask) : D.t =
     match lval, D.mem (return_addr ()) au with
     | Some lv, true ->
-      begin match get_concrete_lval (Analyses.ask_of_ctx ctx) lv with
-        | Some mval -> D.add (Addr.of_mval mval) ctx.local
-        | _ -> ctx.local
+      begin match get_concrete_lval (Analyses.ask_of_man man) lv with
+        | Some mval -> D.add (Addr.of_mval mval) man.local
+        | _ -> man.local
       end
-    | _ -> ctx.local
+    | _ -> man.local
 
-  let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
-    Option.iter (fun x -> warn_deref_exp (Analyses.ask_of_ctx ctx) ctx.local (Lval x)) lval;
-    List.iter (warn_deref_exp (Analyses.ask_of_ctx ctx) ctx.local) arglist;
+  let special man (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
+    Option.iter (fun x -> warn_deref_exp (Analyses.ask_of_man man) man.local (Lval x)) lval;
+    List.iter (warn_deref_exp (Analyses.ask_of_man man) man.local) arglist;
     let desc = LibraryFunctions.find f in
     match desc.special arglist, lval with
     | Malloc _, Some lv ->
       begin
-        match get_concrete_lval (Analyses.ask_of_ctx ctx) lv with
+        match get_concrete_lval (Analyses.ask_of_man man) lv with
         | Some mval ->
-          ctx.split ctx.local [Events.SplitBranch ((Lval lv), true)];
-          ctx.split (D.add (Addr.of_mval mval) ctx.local) [Events.SplitBranch ((Lval lv), false)];
+          man.split man.local [Events.SplitBranch ((Lval lv), true)];
+          man.split (D.add (Addr.of_mval mval) man.local) [Events.SplitBranch ((Lval lv), false)];
           raise Analyses.Deadcode
-        | _ -> ctx.local
+        | _ -> man.local
       end
-    | _ -> ctx.local
+    | _ -> man.local
 
   let name () = "malloc_null"
 
   let startstate v = D.empty ()
-  let threadenter ctx ~multiple lval f args = [D.empty ()]
-  let threadspawn ctx ~multiple lval f args fctx = ctx.local
+  let threadenter man ~multiple lval f args = [D.empty ()]
+  let threadspawn man ~multiple lval f args fman = man.local
   let exitstate  v = D.empty ()
 
   let init marshal =

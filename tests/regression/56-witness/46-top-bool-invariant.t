@@ -6,13 +6,15 @@ def_exc only:
     dead: 0
     total lines: 2
   [Info][Witness] witness generation summary:
+    location invariants: 2
+    loop invariants: 0
+    flow-insensitive invariants: 0
     total generation entries: 2
 
   $ yamlWitnessStrip < witness.yml
   - entry_type: location_invariant
     location:
       file_name: 46-top-bool-invariant.c
-      file_hash: $FILE_HASH
       line: 5
       column: 3
       function: main
@@ -23,7 +25,6 @@ def_exc only:
   - entry_type: location_invariant
     location:
       file_name: 46-top-bool-invariant.c
-      file_hash: $FILE_HASH
       line: 5
       column: 3
       function: main
@@ -40,13 +41,15 @@ interval only:
     dead: 0
     total lines: 2
   [Info][Witness] witness generation summary:
+    location invariants: 2
+    loop invariants: 0
+    flow-insensitive invariants: 0
     total generation entries: 2
 
   $ yamlWitnessStrip < witness.yml
   - entry_type: location_invariant
     location:
       file_name: 46-top-bool-invariant.c
-      file_hash: $FILE_HASH
       line: 5
       column: 3
       function: main
@@ -57,7 +60,6 @@ interval only:
   - entry_type: location_invariant
     location:
       file_name: 46-top-bool-invariant.c
-      file_hash: $FILE_HASH
       line: 5
       column: 3
       function: main
@@ -74,13 +76,15 @@ enums only:
     dead: 0
     total lines: 2
   [Info][Witness] witness generation summary:
+    location invariants: 1
+    loop invariants: 0
+    flow-insensitive invariants: 0
     total generation entries: 1
 
   $ yamlWitnessStrip < witness.yml
   - entry_type: location_invariant
     location:
       file_name: 46-top-bool-invariant.c
-      file_hash: $FILE_HASH
       line: 5
       column: 3
       function: main
@@ -97,6 +101,9 @@ congruence only:
     dead: 0
     total lines: 2
   [Info][Witness] witness generation summary:
+    location invariants: 0
+    loop invariants: 0
+    flow-insensitive invariants: 0
     total generation entries: 0
 
   $ yamlWitnessStrip < witness.yml
@@ -110,13 +117,15 @@ interval_set only:
     dead: 0
     total lines: 2
   [Info][Witness] witness generation summary:
+    location invariants: 2
+    loop invariants: 0
+    flow-insensitive invariants: 0
     total generation entries: 2
 
   $ yamlWitnessStrip < witness.yml
   - entry_type: location_invariant
     location:
       file_name: 46-top-bool-invariant.c
-      file_hash: $FILE_HASH
       line: 5
       column: 3
       function: main
@@ -127,7 +136,6 @@ interval_set only:
   - entry_type: location_invariant
     location:
       file_name: 46-top-bool-invariant.c
-      file_hash: $FILE_HASH
       line: 5
       column: 3
       function: main
@@ -144,40 +152,20 @@ all:
     dead: 0
     total lines: 2
   [Info][Witness] witness generation summary:
-    total generation entries: 3
+    location invariants: 1
+    loop invariants: 0
+    flow-insensitive invariants: 0
+    total generation entries: 1
 
   $ yamlWitnessStrip < witness.yml
   - entry_type: location_invariant
     location:
       file_name: 46-top-bool-invariant.c
-      file_hash: $FILE_HASH
       line: 5
       column: 3
       function: main
     location_invariant:
       string: x == (_Bool)0 || x == (_Bool)1
-      type: assertion
-      format: C
-  - entry_type: location_invariant
-    location:
-      file_name: 46-top-bool-invariant.c
-      file_hash: $FILE_HASH
-      line: 5
-      column: 3
-      function: main
-    location_invariant:
-      string: x <= (_Bool)1
-      type: assertion
-      format: C
-  - entry_type: location_invariant
-    location:
-      file_name: 46-top-bool-invariant.c
-      file_hash: $FILE_HASH
-      line: 5
-      column: 3
-      function: main
-    location_invariant:
-      string: (_Bool)0 <= x
       type: assertion
       format: C
 
@@ -189,6 +177,9 @@ all without inexact-type-bounds:
     dead: 0
     total lines: 2
   [Info][Witness] witness generation summary:
+    location invariants: 0
+    loop invariants: 0
+    flow-insensitive invariants: 0
     total generation entries: 0
 
   $ yamlWitnessStrip < witness.yml
