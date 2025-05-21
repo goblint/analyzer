@@ -834,7 +834,7 @@ module Base =
         let to_list (acc: S.v list ) (v: VS.t) = VS.fold (fun el acc -> el :: acc) v acc in
         let hm_keys (hm: VS.t HM.t) = HM.fold (fun k v acc -> to_list acc v) hm [] in
         let unstable_wk_dps = List.filter (neg (HM.mem stable)) (hm_keys weak_dep)  in
-        if List.length unstable_wk_dps = 0 then (
+        if unstable_wk_dps = [] then (
           if tracing then trace "sol2" "unstable_wk_deps is empty";
         ) else (
           if tracing then trace "sol2" "unstable_wk_deps length %i" (List.length unstable_wk_dps);
