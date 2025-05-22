@@ -178,10 +178,8 @@ module EqualitiesConjunction = struct
     if Array.length ch.dim = 0 || is_empty m then
       m
     else (
-      let cpy = Array.copy ch.dim in
-      Array.modifyi (+) cpy; (* this is a hack to restore the original https://antoinemine.github.io/Apron/doc/api/ocaml/Dim.html remove_dimensions semantics for dim_remove *)
-      let m' = Array.fold_lefti (fun y i x -> forget_variable y (x)) m cpy in  (* clear m' from relations concerning ch.dim *)
-      modify_variables_in_domain m' cpy (-))
+      let m' = Array.fold_lefti (fun y i x -> forget_variable y (x)) m ch.dim in  (* clear m' from relations concerning ch.dim *)
+      modify_variables_in_domain m' ch.dim (-))
 
   let dim_remove ch m = Timing.wrap "dim remove" (fun m -> dim_remove ch m) m
 

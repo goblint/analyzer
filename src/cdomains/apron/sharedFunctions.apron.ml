@@ -406,20 +406,12 @@ struct
       match t.d with
       | None -> bot_env
       | Some m ->
-        let dim_change = (* using Environment.dimchange with swapped parameters is not the originally inteded way for APRON dimchanges if keeping to the spec;
-                            instead, we should make use of Environment.dimchange2, which explicitely provides different format for diff arrays for adding and removing.
-                            We here however produce add_dimension format in both cases.
-                            Weirdly, affineEqualities needs an overhaul of its dim_add and dim_remove before this can be migrated to APRON standard, since it internally
-                            ironically converts from add_dimensions format into remove_dimensions format in both cases;
-                            lin2var already has the correct implementation that can handle the respective diff arrays,
-                            but as a stopgap transforms add_dimensions into remove_dimension format itself for the dim_remove case to be compatible to change_d
-                         *)
-          if add then
-            Environment.dimchange t.env new_env
-          else
-            Environment.dimchange new_env t.env
-        in
-        {d = Some (if add then RelDomain.dim_add dim_change m else RelDomain.dim_remove dim_change m ~del:del); env = new_env}
+        let dim_change2 = Environment.dimchange2 t.env new_env in
+        {
+          d = Some (if add then RelDomain.dim_add (BatOption.get dim_change2.add) m 
+                    else RelDomain.dim_remove (BatOption.get dim_change2.remove) m ~del:del); 
+          env = new_env
+        }
 
   let change_d t new_env ~add ~del = Vector.timing_wrap "dimension change" (fun del -> change_d t new_env ~add:add ~del:del) del
 
