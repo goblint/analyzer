@@ -165,11 +165,11 @@ module ConcurrentHashmap =
               let hash = abs @@ H.hash key in
               let new_location = Array.get new_buckets (hash mod new_size) in
               (match Atomic.get new_location with
-              | None -> (ignore @@ Atomic.set new_location (Some (Bucket.create_with_value key value)))
-              | Some new_bucket -> begin
-                  let newer_bucket = Bucket.create_with_value_and_next key value new_bucket in
-                  (ignore @@ Atomic.set new_location (Some newer_bucket))
-                end);
+               | None -> (ignore @@ Atomic.set new_location (Some (Bucket.create_with_value key value)))
+               | Some new_bucket -> begin
+                   let newer_bucket = Bucket.create_with_value_and_next key value new_bucket in
+                   (ignore @@ Atomic.set new_location (Some newer_bucket))
+                 end);
               rehash_bucket next
             end;
         in
