@@ -31,6 +31,8 @@ This {{!page-library}unwrapped library} contains various library specification m
 {2 Library goblint.incremental}
 This {{!page-incremental}unwrapped library} contains various incremental modules extracted from {!Goblint_lib}.
 
+{2 Library goblint.parallel}
+{!modules:Goblint_parallel}
 
 {1 Library extensions}
 The following libraries provide extensions to other OCaml libraries.
