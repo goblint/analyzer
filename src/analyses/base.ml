@@ -3120,7 +3120,7 @@ struct
       set ~man man.local (eval_lv ~man man.local lval) (Cilfacade.typeOfLval lval) (Thread (ValueDomain.Threads.singleton tid))
     | Events.Assert exp ->
       assert_fn man exp true
-    | Events.Unassume {exp; tokens} ->
+    | Events.Unassume {value = Exp exp; tokens} ->
       Timing.wrap "base unassume" (unassume man exp) tokens
     | Events.Longjmped {lval} ->
       begin match lval with

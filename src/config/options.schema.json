@@ -2790,7 +2790,8 @@
                   "precondition_loop_invariant_certificate",
                   "invariant_set",
                   "violation_sequence",
-                  "ghost_instrumentation"
+                  "ghost_instrumentation",
+                  "protected_by"
                 ]
               },
               "default": [
