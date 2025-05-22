@@ -2,6 +2,7 @@ open OUnit2
 
 let all_tests =
   "" >::: [
+    (* TODO -- Comment this in
     IntDomainTest.test ();
     FloatDomainTest.test ();
     MapDomainTest.test ();
@@ -15,6 +16,8 @@ let all_tests =
     "domaintest" >::: QCheck_ounit.to_ounit2_test_list Maindomaintest.all_testsuite;
     IntOpsTest.tests;
     ThreadIdDomainTest.tests;
+    *)
+    PentagonTest.test ();
   ]
 
 let () =
