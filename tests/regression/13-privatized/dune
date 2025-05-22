@@ -1,5 +1,5 @@
 (cram
- (deps (glob_files *.c)))
+ (deps (glob_files *.c) (glob_files *.yml)))
 
 (cram
  (applies_to 04-priv_multi)

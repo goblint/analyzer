@@ -1,0 +1,20 @@
+- entry_type: protected_by
+  metadata:
+    format_version: "2.0"
+    uuid: e4cac607-b3b3-4bd5-85a4-42e34baa9f1d
+    creation_time: 2025-05-22T13:23:20Z
+    producer:
+      name: Goblint
+      version: heads/simmo-phd-thesis-vojdani-lt-protection-0-g896437377-dirty
+      command_line: '''./goblint'' ''--enable'' ''warn.debug'' ''--enable'' ''dbg.regression''
+        ''--html'' ''--set'' ''ana.int.interval'' ''true'' ''--enable'' ''witness.yaml.enabled''
+        ''--set'' ''witness.yaml.entry-types[*]'' ''protected_by'' ''20-publish-regression.c'''
+    task:
+      input_files:
+      - 20-publish-regression.c
+      input_file_hashes:
+        20-publish-regression.c: ca8794c2f116ff6b31099ca911c7dc9def15b272de2fb44f125d1e083fa5ecc0
+      data_model: LP64
+      language: C
+  variable: glob1
+  mutex: mutex1
