@@ -59,15 +59,16 @@ struct
 
   include C
 
+
+  let printXml_print_one f n v =
+    (* Not using Node.location here to have updated locations in incremental analysis.
+        See: https://github.com/goblint/analyzer/issues/290#issuecomment-881258091. *)
+    let loc = UpdateCil.getLoc n in
+    BatPrintf.fprintf f "<call id=\"%s\" file=\"%s\" line=\"%d\" order=\"%d\" column=\"%d\" endLine=\"%d\" endColumn=\"%d\" synthetic=\"%B\">\n" (Node.show_id n) loc.file loc.line loc.byte loc.column loc.endLine loc.endColumn loc.synthetic;
+    BatPrintf.fprintf f "%a</call>\n" Range.printXml v
+
   let printXml f xs =
-    let print_one n v =
-      (* Not using Node.location here to have updated locations in incremental analysis.
-         See: https://github.com/goblint/analyzer/issues/290#issuecomment-881258091. *)
-      let loc = UpdateCil.getLoc n in
-      BatPrintf.fprintf f "<call id=\"%s\" file=\"%s\" line=\"%d\" order=\"%d\" column=\"%d\" endLine=\"%d\" endColumn=\"%d\" synthetic=\"%B\">\n" (Node.show_id n) loc.file loc.line loc.byte loc.column loc.endLine loc.endColumn loc.synthetic;
-      BatPrintf.fprintf f "%a</call>\n" Range.printXml v
-    in
-    iter print_one xs
+    iter (printXml_print_one f) xs
 
   let printJson f xs =
     let print_one n v =
@@ -78,26 +79,27 @@ struct
     in
     iter print_one xs
 
+  let printXmlWarning_one_text f Messages.Piece.{loc; text = m; _} =
+    match loc with
+    | Some loc ->
+      let l = Messages.Location.to_cil loc in
+      BatPrintf.fprintf f "\n<text file=\"%s\" line=\"%d\" column=\"%d\">%s</text>" l.file l.line l.column (XmlUtil.escape m)
+    | None ->
+      () (* TODO: not outputting warning without location *)
+
+  let printXmlWarning_one_w f (m: Messages.Message.t) = match m.multipiece with
+    | Single piece  -> printXmlWarning_one_text f piece
+    | Group {group_text = n; pieces = e; group_loc} ->
+      let group_loc_text = match group_loc with
+        | None -> ""
+        | Some group_loc -> GobPretty.sprintf " (%a)" CilType.Location.pretty (Messages.Location.to_cil group_loc)
+      in
+      BatPrintf.fprintf f "<group name=\"%s%s\">%a</group>\n" n group_loc_text (BatList.print ~first:"" ~last:"" ~sep:"" printXmlWarning_one_text) e
+
+  let printXmlWarning_one_w f x = BatPrintf.fprintf f "\n<warning>%a</warning>" printXmlWarning_one_w x
+
   let printXmlWarning f () =
-    let one_text f Messages.Piece.{loc; text = m; _} =
-      match loc with
-      | Some loc ->
-        let l = Messages.Location.to_cil loc in
-        BatPrintf.fprintf f "\n<text file=\"%s\" line=\"%d\" column=\"%d\">%s</text>" l.file l.line l.column (XmlUtil.escape m)
-      | None ->
-        () (* TODO: not outputting warning without location *)
-    in
-    let one_w f (m: Messages.Message.t) = match m.multipiece with
-      | Single piece  -> one_text f piece
-      | Group {group_text = n; pieces = e; group_loc} ->
-        let group_loc_text = match group_loc with
-          | None -> ""
-          | Some group_loc -> GobPretty.sprintf " (%a)" CilType.Location.pretty (Messages.Location.to_cil group_loc)
-        in
-        BatPrintf.fprintf f "<group name=\"%s%s\">%a</group>\n" n group_loc_text (BatList.print ~first:"" ~last:"" ~sep:"" one_text) e
-    in
-    let one_w f x = BatPrintf.fprintf f "\n<warning>%a</warning>" one_w x in
-    List.iter (one_w f) !Messages.Table.messages_list
+    List.iter (printXmlWarning_one_w f) !Messages.Table.messages_list
 
   let output table gtable gtfxml (file: file) =
     let out = Messages.get_out result_name !Messages.out in
@@ -146,6 +148,64 @@ struct
       else
         let f = BatIO.output_channel out in
         write_file f (get_string "outfile")
+    | "g2html" ->
+      (* copied from above *)
+      let module SH = BatHashtbl.Make (Basetype.RawStrings) in
+      let file2funs = SH.create 100 in
+      let funs2node = SH.create 100 in
+      iter (fun n _ -> SH.add funs2node (Node.find_fundec n).svar.vname n) (Lazy.force table);
+      iterGlobals file (function
+          | GFun (fd,loc) -> SH.add file2funs loc.file fd.svar.vname
+          | _ -> ()
+        );
+      let p_node f n = BatPrintf.fprintf f "%s" (Node.show_id n) in
+      let p_nodes f xs =
+        List.iter (BatPrintf.fprintf f "<node name=\"%a\"/>\n" p_node) xs
+      in
+      let p_funs f xs =
+        let one_fun n =
+          BatPrintf.fprintf f "<function name=\"%s\">\n%a</function>\n" n p_nodes (SH.find_all funs2node n)
+        in
+        List.iter one_fun xs
+      in
+      GobSys.mkdir_or_exists Fpath.(v "result2");
+      GobSys.mkdir_or_exists Fpath.(v "result2" / "nodes");
+      GobSys.mkdir_or_exists Fpath.(v "result2" / "warn");
+      BatFile.with_file_out "result2/index.xml" (fun f ->
+          BatPrintf.fprintf f {xml|<?xml version="1.0" ?>
+<?xml-stylesheet type="text/xsl" href="report.xsl"?>
+<report>|xml};
+          (* TODO: exclude <file> path? *)
+          (* TODO: exclude <node>s? *)
+          (* TODO: exclude dead files/functions? *)
+          BatEnum.iter (fun b -> BatPrintf.fprintf f "<file name=\"%s\" path=\"%s\">\n%a</file>\n" (Filename.basename b) b p_funs (SH.find_all file2funs b)) (BatEnum.uniq @@ SH.keys file2funs);
+          BatPrintf.fprintf f "</report>";
+        );
+      BatFile.with_file_out "result2/nodes/globals.xml" (fun f ->
+          BatPrintf.fprintf f {xml|<?xml version="1.0" ?>
+<?xml-stylesheet type="text/xsl" href="../globals.xsl"?>
+<globs>|xml};
+          gtfxml f gtable;
+          BatPrintf.fprintf f "</globs>";
+        );
+      iter (fun n v ->
+          BatFile.with_file_out (Printf.sprintf "result2/nodes/%s.xml" (Node.show_id n)) (fun f ->
+              BatPrintf.fprintf f {xml|<?xml version="1.0" ?>
+<?xml-stylesheet type="text/xsl" href="../node.xsl"?>
+<loc>|xml};
+              (* TODO: need fun in <call>? *)
+              printXml_print_one f n v;
+              BatPrintf.fprintf f "</loc>";
+            )
+        ) (Lazy.force table);
+      List.iteri (fun i w ->
+          BatFile.with_file_out (Printf.sprintf "result2/warn/warn%d.xml" (i + 1)) (fun f ->
+              BatPrintf.fprintf f {xml|<?xml version="1.0" ?>
+<?xml-stylesheet type="text/xsl" href="../warn.xsl"?>|xml};
+              printXmlWarning_one_w f w;
+            )
+        ) !Messages.Table.messages_list;
+      assert false
     | "json" ->
       let open BatPrintf in
       let module SH = BatHashtbl.Make (Basetype.RawStrings) in
