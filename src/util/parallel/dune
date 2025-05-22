@@ -3,7 +3,6 @@
 (library
  (name goblint_parallel)
  (public_name goblint.parallel)
- (modules gobMutex threadpool domainsafeLazy data)
  (libraries
    batteries
    (select gobMutex.ml from

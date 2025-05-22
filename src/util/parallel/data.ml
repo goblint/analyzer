@@ -3,7 +3,7 @@ open Batteries
 module type DefaultType = sig
   type t
   val default: unit -> t
-  val to_string: t -> string
+  val show: t -> string
 end
 
 module ConcurrentBucket (Key: Hashtbl.HashedType) (Val: DefaultType) = struct
@@ -31,12 +31,9 @@ module ConcurrentBucket (Key: Hashtbl.HashedType) (Val: DefaultType) = struct
     next = Atomic.make (Some next);
   }
 
-  let find_option sll (key : Key.t): Val.t Atomic.t option =
-    let rec find (sll: t) (key: Key.t): Val.t Atomic.t option =
-      if Key.equal sll.key key then Some sll.value
-      else Option.bind (Atomic.get sll.next) (fun next -> find next key)
-    in
-    find sll key
+  let rec find_option sll (key : Key.t): Val.t Atomic.t option =
+    if Key.equal sll.key key then Some sll.value
+    else Option.bind (Atomic.get sll.next) (fun next -> find_option next key)
 
   let rec find_create sll key =
     if Key.equal sll.key key then (sll.value, false)
