@@ -206,7 +206,35 @@ struct
               printXmlWarning_one_w f w;
             )
         ) !Messages.Table.messages_list;
-      CfgTools.dead_code_cfg ~path:Fpath.(v "result2" / "dot") (module FileCfg) live;
+      (* CfgTools.dead_code_cfg ~path:Fpath.(v "result2" / "dot") (module FileCfg) live; *)
+      (* TODO: copied and modified... *)
+      let tasks = foldGlobals FileCfg.file (fun acc glob ->
+          match glob with
+          | GFun (fd,loc) ->
+            (* ignore (Printf.printf "fun: %s\n" fd.svar.vname); *)
+            let base_dir = GobSys.mkdir_or_exists_absolute Fpath.(v "result2" / "dot") in
+            let base_dir2 = GobSys.mkdir_or_exists_absolute Fpath.(v "result2" / "cfgs") in
+            let c_file_name = Str.global_substitute (Str.regexp Filename.dir_sep) (fun _ -> "%2F") loc.file in
+            let dot_file_name = fd.svar.vname^".dot" in
+            let svg_file_name = fd.svar.vname^".svg" in
+            let file_dir = GobSys.mkdir_or_exists_absolute Fpath.(base_dir / c_file_name) in
+            let file_dir2 = GobSys.mkdir_or_exists_absolute Fpath.(base_dir2 / c_file_name) in
+            let fname = Fpath.(file_dir / dot_file_name) in
+            let fname2 = Fpath.(file_dir2 / svg_file_name) in
+            let out = open_out (Fpath.to_string fname) in
+            let ppf = Format.formatter_of_out_channel out in
+            CfgTools.fprint_fundec_html_dot (module FileCfg.Cfg) live fd ppf;
+            Format.pp_print_flush ppf ();
+            close_out out;
+            let task: ProcessPool.task = {
+              command = Filename.quote_command "dot" [Fpath.to_string fname; "-Tsvg"; "-o"; Fpath.to_string fname2];
+              cwd = None;
+            } in
+            task :: acc
+          | _ -> acc
+        ) []
+      in
+      Timing.wrap "graphviz" (ProcessPool.run ~jobs:(GobConfig.jobs ())) tasks;
       assert false
     | "json" ->
       let open BatPrintf in
