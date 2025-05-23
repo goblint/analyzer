@@ -193,7 +193,7 @@ struct
           gtfxml f gtable;
           BatPrintf.fprintf f "</globs>";
         );
-      let file2line2nodes: string IH.t SH.t = SH.create 10 in
+      let file2line2nodes: Node.t IH.t SH.t = SH.create 10 in
       iter (fun n v ->
           BatFile.with_file_out (Printf.sprintf "result2/nodes/%s.xml" (Node.show_id n)) (fun f ->
               BatPrintf.fprintf f {xml|<?xml version="1.0" ?>
@@ -204,7 +204,7 @@ struct
               BatPrintf.fprintf f "</loc>";
             );
           let loc = UpdateCil.getLoc n in (* from printXml_print_one *)
-          let line2nodes: string IH.t =
+          let line2nodes: Node.t IH.t =
             match SH.find_option file2line2nodes loc.file with
             | Some line2nodes -> line2nodes
             | None ->
@@ -212,7 +212,7 @@ struct
               SH.replace file2line2nodes loc.file line2nodes;
               line2nodes
           in
-          IH.add line2nodes loc.line (Node.show_id n)
+          IH.add line2nodes loc.line n
         ) (Lazy.force table);
       let file2line2warns: int IH.t SH.t = SH.create 10 in
       List.iteri (fun i w ->
@@ -250,11 +250,11 @@ struct
               BatEnum.iteri (fun line text ->
                   let nodes =
                     match SH.find_option file2line2nodes b with
-                    | Some line2nodes -> IH.find_all line2nodes (line + 1) |> BatList.unique
+                    | Some line2nodes -> IH.find_all line2nodes (line + 1) |> BatList.unique ~eq:Node.equal
                     | None -> []
                   in
                   let print_node f w =
-                    BatPrintf.fprintf f "&quot;%s&quot;" w
+                    BatPrintf.fprintf f "&quot;%s&quot;" (Node.show_id w)
                   in
                   let warns =
                     match SH.find_option file2line2warns b with
@@ -264,8 +264,9 @@ struct
                   let print_warn f w =
                     BatPrintf.fprintf f "&quot;warn%d&quot;" w
                   in
-                  BatPrintf.fprintf f {xml|<ln nr="%d" ns="[%a]" wrn="[%a]" ded="false">%s</ln>
-|xml} (line + 1) (BatList.print ~first:"" ~sep:"," ~last:"" print_node) nodes (BatList.print ~first:"" ~sep:"," ~last:"" print_warn) warns (XmlUtil.escape text)
+                  let dead = nodes <> [] && not (List.exists live nodes) in
+                  BatPrintf.fprintf f {xml|<ln nr="%d" ns="[%a]" wrn="[%a]" ded="%B">%s</ln>
+|xml} (line + 1) (BatList.print ~first:"" ~sep:"," ~last:"" print_node) nodes (BatList.print ~first:"" ~sep:"," ~last:"" print_warn) warns dead (XmlUtil.escape text)
                 ) lines;
               BatPrintf.fprintf f "</file>";
             )
