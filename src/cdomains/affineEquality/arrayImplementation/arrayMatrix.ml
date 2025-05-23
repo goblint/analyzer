@@ -165,16 +165,16 @@ module ArrayMatrix: ArrayMatrixFunctor =
 
     let del_cols m cols =
       let n_c = Array.length cols in
-      if n_c = 0 || is_empty m then m
+      if n_c = 0 || is_empty m then m                           (* if #toberemoved=0, return m *)
       else
         let m_r, m_c = num_rows m, num_cols m in
-        if m_c = n_c then empty () else
-          let m' = Array.make_matrix m_r (m_c - n_c) A.zero in
-          for i = 0 to m_r - 1 do
-            let offset = ref 0 in
-            for j = 0 to (m_c - n_c) - 1 do
+        if m_c = n_c then empty () else                         (* if #cols = #toberemoved, return empty *)
+          let m' = Array.make_matrix m_r (m_c - n_c) A.zero in  (* else alloc smaller array m' *)
+          for i = 0 to m_r - 1 do                               (* i iterates rows of m' *)
+            let offset = ref 0 in                               (* offset keeps track of coloffset *)
+            for j = 0 to (m_c - n_c) - 1 do                     (* j iterates cols of m' *)
               while  !offset < n_c &&  !offset + j = cols.(!offset) do incr offset done;
-              m'.(i).(j) <- m.(i).(j + !offset);
+              m'.(i).(j) <- m.(i).(j + !offset);                (* copy m to m' *)
             done
           done;
           m'
