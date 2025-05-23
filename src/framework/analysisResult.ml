@@ -202,12 +202,31 @@ struct
               BatPrintf.fprintf f "</loc>";
             )
         ) (Lazy.force table);
+      let module IH = BatHashtbl.Make (struct type t = int [@@deriving hash, eq] end) in
+      let file2line2warns: int IH.t SH.t = SH.create 10 in
       List.iteri (fun i w ->
           BatFile.with_file_out (Printf.sprintf "result2/warn/warn%d.xml" (i + 1)) (fun f ->
               BatPrintf.fprintf f {xml|<?xml version="1.0" ?>
 <?xml-stylesheet type="text/xsl" href="../warn.xsl"?>|xml};
               printXmlWarning_one_w f w;
-            )
+            );
+          let locs =
+            match w.multipiece with
+            | Single piece -> [piece.loc]
+            | Group {pieces; _} -> List.map (fun p -> p.Messages.Piece.loc) pieces (* TODO: add group_loc, old doesn't *)
+          in
+          List.iter (fun (loc: Messages.Location.t) ->
+              let loc = Messages.Location.to_cil loc in
+              let line2warns: int IH.t =
+                match SH.find_option file2line2warns loc.file with
+                | Some line2warns -> line2warns
+                | None ->
+                  let line2warns = IH.create 100 in
+                  SH.replace file2line2warns loc.file line2warns;
+                  line2warns
+              in
+              IH.add line2warns loc.line (i + 1)
+            ) (List.filter_map Fun.id locs)
         ) !Messages.Table.messages_list;
       BatEnum.iter (fun b ->
           let c_file_name = Str.global_substitute (Str.regexp Filename.dir_sep) (fun _ -> "%2F") b in
@@ -218,8 +237,16 @@ struct
 |xml};
               let lines = BatFile.lines_of b in
               BatEnum.iteri (fun line text ->
-                  BatPrintf.fprintf f {xml|<ln nr="%d" ns="[]" wrn="[]" ded="false">%s</ln>
-|xml} (line + 1) (XmlUtil.escape text)
+                  let warns =
+                    match SH.find_option file2line2warns b with
+                    | Some line2warns -> IH.find_all line2warns (line + 1) |> BatList.unique
+                    | None -> []
+                  in
+                  let print_warn f w =
+                    BatPrintf.fprintf f "&quot;warn%d&quot;" w
+                  in
+                  BatPrintf.fprintf f {xml|<ln nr="%d" ns="[]" wrn="[%a]" ded="false">%s</ln>
+|xml} (line + 1) (BatList.print ~first:"" ~sep:"," ~last:"" print_warn) warns (XmlUtil.escape text)
                 ) lines;
               BatPrintf.fprintf f "</file>";
             )
