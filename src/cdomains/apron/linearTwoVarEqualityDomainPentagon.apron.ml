@@ -1001,20 +1001,20 @@ struct
     (*This is a different kind of bot that we need to catch*)
     if is_bot a then b else
     if is_bot b then a else 
-    (*Normalize the two domains a and b such that both talk about the same variables*)
-    match a.d, b.d with
-    | None, _ -> b
-    | _, None -> a
-    | Some x, Some y when is_top a || is_top b ->
-      let new_env = Environment.lce a.env b.env in
-      top_of new_env
-    | Some x, Some y when (Environment.cmp a.env b.env <> 0) ->
-      let sup_env = Environment.lce a.env b.env in
-      let mod_x = dim_add (Environment.dimchange a.env sup_env) x in
-      let mod_y = dim_add (Environment.dimchange b.env sup_env) y in
-      {d = join_d mod_x mod_y sup_env; env = sup_env}
-    | Some x, Some y when EConjI.equal x y -> {d = Some x; env = a.env}
-    | Some x, Some y  -> {d = join_d x y a.env; env = a.env} 
+      (*Normalize the two domains a and b such that both talk about the same variables*)
+      match a.d, b.d with
+      | None, _ -> b
+      | _, None -> a
+      | Some x, Some y when is_top a || is_top b ->
+        let new_env = Environment.lce a.env b.env in
+        top_of new_env
+      | Some x, Some y when (Environment.cmp a.env b.env <> 0) ->
+        let sup_env = Environment.lce a.env b.env in
+        let mod_x = dim_add (Environment.dimchange a.env sup_env) x in
+        let mod_y = dim_add (Environment.dimchange b.env sup_env) y in
+        {d = join_d mod_x mod_y sup_env; env = sup_env}
+      | Some x, Some y when EConjI.equal x y -> {d = Some x; env = a.env}
+      | Some x, Some y  -> {d = join_d x y a.env; env = a.env} 
 
 
   let join = join' false
@@ -1065,7 +1065,7 @@ struct
 
   (** implemented as described on page 10 in the paper about Fast Interprocedural Linear Two-Variable Equalities in the Section "Abstract Effect of Statements"
       This makes a copy of the data structure, it doesn't change it in-place. *)
-  let assign_texpr (t: VarManagement.t) var texp =
+  let assign_texpr (t: VarManagement.t) var texp assign_value =
     match t.d with
     | Some ((econj, vs, ineq_old) as d) ->
       let var_i = Environment.dim_of_var t.env var (* this is the variable we are assigning to *) in
@@ -1078,12 +1078,14 @@ struct
           assign_const (forget_var t var) var_i off divi
         | Some (Some (coeff_var,exp_var), off, divi) when var_i = exp_var ->
           (* Statement "assigned_var = (coeff_var*assigned_var + off) / divi" *)
-          let econji' = econj, IntMap.remove var_i vs, ineq_old in (*value will be updated afterwards with query*)
+          let econji' = econj, IntMap.remove var_i vs, ineq_old in 
           {d=Some (EConjI.affine_transform econji' var_i (coeff_var, var_i, off, divi)); env=t.env }          
         | Some (Some monomial, off, divi) ->
           (* Statement "assigned_var = (monomial) + off / divi" (assigned_var is not the same as exp_var) *)
           meet_with_one_conj (forget_var t var) var_i (Some (monomial), off, divi)
-      in begin match t'.d with 
+      in 
+      let t' = if assign_value then meet_with_one_value false var_i (eval_texpr t texp) t' else t' (*value will be updated afterwards with query*) in          
+      begin match t'.d with 
           None -> if M.tracing then M.tracel "ops" "assign_texpr resulted in bot (before: %s, expr: %s) " (show t) (Texpr1.show (Texpr1.of_expr t.env texp));
           bot_env
         | Some d' -> 
@@ -1104,9 +1106,9 @@ struct
       end
     | None -> bot_env
 
-  let assign_texpr t var texp = 
-    if M.tracing then M.tracel "assign_texpr" "before assign: %s" (show t);
-    timing_wrap "assign_texpr" (assign_texpr t var) texp
+  let assign_texpr t var texp assign_value = 
+    if M.tracing then M.tracel "assign_texpr" "before assign: %s, assign_value= %b" (show t) assign_value;
+    timing_wrap "assign_texpr" (assign_texpr t var texp) assign_value
 
   (* no_ov -> no overflow
      if it's true then there is no overflow
@@ -1115,7 +1117,7 @@ struct
     let t = if not @@ Environment.mem_var t.env var then add_vars t [var] else t in
     (*evaluate in the same way as is used for simplification*)
     let t = match Convert.texpr1_expr_of_cil_exp ask t t.env exp no_ov with
-      | texp -> assign_texpr t var texp
+      | texp -> assign_texpr t var texp false
       | exception Convert.Unsupported_CilExp _ -> forget_var t var
     in match t.d with 
     | None -> t
@@ -1150,7 +1152,7 @@ struct
 
   let assign_var (t: VarManagement.t) v v' =
     let t = add_vars t [v; v'] in
-    assign_texpr t v (Var v')
+    assign_texpr t v (Var v') true
 
   let assign_var t v v' =
     let res = assign_var t v v' in
