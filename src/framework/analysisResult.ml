@@ -180,7 +180,9 @@ struct
           (* TODO: exclude <file> path? *)
           (* TODO: exclude <node>s? *)
           (* TODO: exclude dead files/functions? *)
-          BatEnum.iter (fun b -> BatPrintf.fprintf f "<file name=\"%s\" path=\"%s\">\n%a</file>\n" (Filename.basename b) b p_funs (SH.find_all file2funs b)) (BatEnum.uniq @@ SH.keys file2funs);
+          (* BatEnum.iter (fun b -> BatPrintf.fprintf f "<file name=\"%s\" path=\"%s\">\n%a</file>\n" (Filename.basename b) b p_funs (SH.find_all file2funs b)) (BatEnum.uniq @@ SH.keys file2funs); *)
+          (* g2html has full path in name field *)
+          BatEnum.iter (fun b -> BatPrintf.fprintf f "<file name=\"%s\">\n%a</file>\n" b p_funs (SH.find_all file2funs b)) (BatEnum.uniq @@ SH.keys file2funs);
           BatPrintf.fprintf f "</report>";
         );
       BatFile.with_file_out "result2/nodes/globals.xml" (fun f ->
