@@ -124,35 +124,35 @@ let find_path (type node) (module Arg:ViolationArg with type Node.t = node) (mod
     | Some path ->
       print_path path;
       begin match Feasibility.check_path path with
-      | Feasibility.Feasible ->
-        Logs.debug "feasible";
+        | Feasibility.Feasible ->
+          Logs.debug "feasible";
 
-        let module PathArg =
-        struct
-          module Node = Arg.Node
-          module Edge = Arg.Edge
+          let module PathArg =
+          struct
+            module Node = Arg.Node
+            module Edge = Arg.Edge
 
-          let main_entry = BatTuple.Tuple3.first (List.hd path)
+            let main_entry = BatTuple.Tuple3.first (List.hd path)
 
-          let next =
-            let module NHT = BatHashtbl.Make (Node) in
-            let next = NHT.create (List.length path) in
-            List.iter (fun (n1, e, n2) ->
-                NHT.modify_def [] n1 (fun nexts -> (e, n2) :: nexts) next
-              ) path;
+            let next =
+              let module NHT = BatHashtbl.Make (Node) in
+              let next = NHT.create (List.length path) in
+              List.iter (fun (n1, e, n2) ->
+                  NHT.modify_def [] n1 (fun nexts -> (e, n2) :: nexts) next
+                ) path;
 
-            (fun n -> NHT.find_default next n [])
-        end
-        in
-        Feasible (module PathArg)
-      | Feasibility.Infeasible subpath ->
-        Logs.debug "infeasible";
-        print_path subpath;
+              (fun n -> NHT.find_default next n [])
+          end
+          in
+          Feasible (module PathArg)
+        | Feasibility.Infeasible subpath ->
+          Logs.debug "infeasible";
+          print_path subpath;
 
-        Infeasible subpath
-      | Feasibility.Unknown ->
-        Logs.debug "unknown";
-        Unknown
+          Infeasible subpath
+        | Feasibility.Unknown ->
+          Logs.debug "unknown";
+          Unknown
       end
     | None ->
       Unknown

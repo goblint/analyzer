@@ -7,7 +7,7 @@ open Analyses
 (** Add path sensitivity to a analysis *)
 module PathSensitive3 (Spec:Spec)
   : Spec
-    (* with type D.t = SetDomain.ToppedSet(Spec.D)(N).t
+  (* with type D.t = SetDomain.ToppedSet(Spec.D)(N).t
      and module G = Spec.G
      and module C = Spec.C *)
 =
@@ -266,7 +266,7 @@ struct
 
   let should_inline f =
     (* (* inline __VERIFIER_error because Control requires the corresponding FunctionEntry node *)
-    not (Svcomp.is_special_function f) || Svcomp.is_error_function f *)
+       not (Svcomp.is_special_function f) || Svcomp.is_error_function f *)
     (* TODO: don't inline __VERIFIER functions for CPAchecker, but inlining needed for WP *)
     true
 

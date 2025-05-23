@@ -445,34 +445,6 @@ struct
     | q -> query' man q
 end
 
-
-(** Limits the number of widenings per node. *)
-module LimitLifter (S:Spec) =
-struct
-  include (S : module type of S with module D := S.D and type marshal = S.marshal)
-
-  let name () = S.name ()^" limited"
-
-  let limit = ref 0
-
-  let init marshal =
-    limit := get_int "dbg.limit.widen";
-    S.init marshal
-
-  module H = MyCFG.NodeH
-  let h = H.create 13
-  let incr k =
-    H.modify_def 1 k (fun v ->
-        if v >= !limit then failwith (GobPretty.sprintf "LimitLifter: Reached limit (%d) for node %a" !limit Node.pretty_plain_short (Option.get !MyCFG.current_node));
-        v+1
-      ) h;
-  module D = struct
-    include S.D
-    let widen x y = Option.may incr !MyCFG.current_node; widen x y (* when is this None? *)
-  end
-end
-
-
 (* widening on contexts, keeps contexts for calls only in D *)
 module WidenContextLifterSide (S:Spec)
 =

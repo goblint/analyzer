@@ -6,6 +6,7 @@
  (libraries
    batteries.unthreaded
    goblint_std
+   goblint_parallel
    goblint_logs
    goblint_common
    goblint_config
@@ -20,5 +21,3 @@
     ppx_deriving_hash
     ppx_deriving_yojson))
  (instrumentation (backend bisect_ppx)))
-
-(documentation)

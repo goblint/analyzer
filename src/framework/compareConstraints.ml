@@ -1,6 +1,6 @@
 open Batteries
 open Analyses
-open ConstrSys
+open Goblint_constraint.ConstrSys
 open GobConfig
 
 

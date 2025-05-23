@@ -214,6 +214,7 @@ sig
   val is_interesting: node -> edge -> node -> bool
 end
 
+(* Unused *)
 module InterestingArg (Arg: S) (IsInteresting: IsInteresting with type node := Arg.Node.t and type edge := Arg.Edge.t):
   S with module Node = Arg.Node and module Edge = Arg.Edge =
 struct
@@ -306,7 +307,7 @@ struct
 
 
   let rec next_opt' n = match n with
-    | Statement {sid; skind=If _; _} when GobConfig.get_bool "witness.graphml.uncil" ->
+    | Statement {sid; skind=If _; _} when GobConfig.get_bool "exp.arg.uncil" ->
       let (e, if_true_next_n,  if_false_next_n) = partition_if_next (Arg.next n) in
       (* avoid infinite recursion with sid <> sid2 in if_nondet_var *)
       (* TODO: why physical comparison if_false_next_n != n doesn't work? *)
@@ -360,7 +361,7 @@ struct
       Question(e_cond, e_true, e_false, Cilfacade.typeOf e_false)
 
   let next_opt' n = match n with
-    | Statement {skind=If _; _} when GobConfig.get_bool "witness.graphml.uncil" ->
+    | Statement {skind=If _; _} when GobConfig.get_bool "exp.arg.uncil" ->
       let (e_cond, if_true_next_n, if_false_next_n) = partition_if_next (Arg.next n) in
       let loc = Node.location n in
       if CilType.Location.equal (Node.location if_true_next_n) loc && CilType.Location.equal (Node.location if_false_next_n) loc then

@@ -1,4 +1,4 @@
-(** Generic solvers for {{!ConstrSys.MonSystem} (side-effecting) constraint systems}. *)
+(** Generic solvers for {{!Goblint_constraint} (side-effecting) constraint systems}. *)
 
 (** {1 Top-down}
 

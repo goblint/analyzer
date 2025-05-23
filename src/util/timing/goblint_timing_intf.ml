@@ -20,7 +20,7 @@ type tree = {
   mutable cputime: float; (** Accumulated CPU time in seconds. *)
   mutable walltime: float; (** Accumulated wall time in seconds. *)
   mutable allocated: float; (** Accumulated allocated memory in bytes. *)
-  mutable count: int; (** Number of repetitions. Only set if {!Timing.countCalls} is true. *)
+  mutable count: int; (** Number of calls. *)
   mutable children: tree list; (** Child nodes. *)
 }
 

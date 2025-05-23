@@ -91,6 +91,12 @@ let int_precision_from_node_or_config (): int_precision =
   else
     (get_def_exc (), get_interval (), get_enums (), get_congruence (), get_interval_set (), get_bitfield ())
 
+let int_precision_from_fundec_or_config f: int_precision =
+  if get_annotation_int_enabled () then
+    int_precision_from_fundec f
+  else
+    (get_def_exc (), get_interval (), get_enums (), get_congruence (), get_interval_set (), get_bitfield ())
+
 let float_precision_from_node_or_config (): float_precision =
   if GobConfig.get_bool "annotation.float.enabled" then
     float_precision_from_node ()

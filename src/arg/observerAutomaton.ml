@@ -30,14 +30,14 @@ struct
   let accepting q = q = m
 
   (* let next_inner prefix q x =
-    let q' = ref q in
-    while !q' > 0 && not (equal pattern.(!q') x) do
+     let q' = ref q in
+     while !q' > 0 && not (equal pattern.(!q') x) do
       q' := prefix.(!q' - 1)
-    done;
-    if equal pattern.(!q') x then begin
+     done;
+     if equal pattern.(!q') x then begin
       q' := !q' + 1
-    end;
-    !q' *)
+     end;
+     !q' *)
   let rec next_inner prefix q x =
     if q > 0 && not (equal pattern.(q) x) then
       next_inner prefix prefix.(q - 1) x

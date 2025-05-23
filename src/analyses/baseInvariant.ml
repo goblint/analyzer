@@ -362,7 +362,8 @@ struct
         in
         let a,b = meet_bin a''' b' in
         (* Special handling for case a % 2 != c *)
-        let a = if PrecisionUtil.(is_congruence_active (int_precision_from_node_or_config ())) then
+        let callerFundec = Node.find_fundec man.node in
+        let a = if PrecisionUtil.(is_congruence_active (int_precision_from_fundec_or_config callerFundec)) then
             let two = Z.of_int 2 in
             match ID.to_int b, ID.to_excl_list c with
             | Some b, Some ([v], _) when Z.equal b two ->

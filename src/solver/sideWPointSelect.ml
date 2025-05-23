@@ -1,7 +1,7 @@
 (** Strategies for widening leaf unknowns *)
 
 open Batteries
-open ConstrSys
+open Goblint_constraint.ConstrSys
 open Messages
 
 module type S =

@@ -21,7 +21,6 @@ module CfgTools = CfgTools
     A dynamic composition of analyses is combined with CFGs to produce a constraint system. *)
 
 module Analyses = Analyses
-module ConstrSys = ConstrSys
 module Constraints = Constraints
 module CompareConstraints = CompareConstraints
 module AnalysisState = AnalysisState
@@ -49,7 +48,6 @@ module Events = Events
 
 module AnalysisResult = AnalysisResult
 module ResultQuery = ResultQuery
-module VarQuery = VarQuery
 
 (** {2 Configuration}
 
@@ -187,8 +185,6 @@ module ContextGasLifter = ContextGasLifter
 module WideningDelay = WideningDelay
 module WideningToken = WideningToken
 module WideningTokenLifter = WideningTokenLifter
-
-module WitnessConstraints = WitnessConstraints
 
 
 (** {1 Domains}
@@ -342,21 +338,13 @@ module TerminationPreprocessing = TerminationPreprocessing
 
     Witnesses are an exchangeable format for analysis results. *)
 
+module Witness = Witness
 module Svcomp = Svcomp
 module SvcompSpec = SvcompSpec
 
 module Invariant = Invariant
 module InvariantCil = InvariantCil
 module WitnessUtil = WitnessUtil
-
-(** {3 GraphML}
-
-    Automaton-based GraphML witnesses used in SV-COMP. *)
-
-module MyARG = MyARG
-module ArgTools = ArgTools
-module Witness = Witness
-module Graphml = Graphml
 
 (** {3 YAML}
 
@@ -366,21 +354,30 @@ module YamlWitness = YamlWitness
 module YamlWitnessType = YamlWitnessType
 module WitnessGhost = WitnessGhost
 
+(** {2 SARIF} *)
+
+module Sarif = Sarif
+module SarifType = SarifType
+module SarifRules = SarifRules
+
+(** {2 ARG}
+
+    Abstract reachability graphs (ARGs).
+    Used to be for automaton-based GraphML witnesses used in SV-COMP, now for abstract debugging. *)
+
+module MyARG = MyARG
+module ArgConstraints = ArgConstraints
+module ArgTools = ArgTools
+
 (** {3 Violation}
 
-    Experimental generation of violation witness automata or refinement with observer automata. *)
+    Experimental refinement with observer automata. *)
 
 module Violation = Violation
 module ViolationZ3 = ViolationZ3
 module ObserverAutomaton = ObserverAutomaton
 module ObserverAnalysis = ObserverAnalysis
 module Refinement = Refinement
-
-(** {2 SARIF} *)
-
-module Sarif = Sarif
-module SarifType = SarifType
-module SarifRules = SarifRules
 
 
 (** {1 Transformations}

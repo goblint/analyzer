@@ -93,9 +93,6 @@
     }
   },
   "witness": {
-    "graphml": {
-      "enabled": false
-    },
     "yaml": {
       "enabled": false,
       "strict": true,

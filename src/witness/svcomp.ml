@@ -62,30 +62,3 @@ end
 exception Error of string
 
 let errorwith s = raise (Error s)
-
-
-module type TaskResult =
-sig
-  module Arg: MyARG.S
-
-  val result: Result.t
-
-  (* correctness witness *)
-  val invariant: Arg.Node.t -> Invariant.t
-
-  (* violation witness *)
-  val is_violation: Arg.Node.t -> bool
-  val is_sink: Arg.Node.t -> bool
-end
-
-module StackTaskResult (TaskResult: TaskResult with module Arg.Edge = MyARG.InlineEdge) =
-struct
-  module Arg = MyARG.Stack (TaskResult.Arg)
-
-  let result = TaskResult.result
-
-  let invariant nl = TaskResult.invariant (List.hd nl)
-
-  let is_violation nl = TaskResult.is_violation (List.hd nl)
-  let is_sink nl = TaskResult.is_sink (List.hd nl)
-end

@@ -5,6 +5,7 @@ open Jsonrpc
 open GoblintCil
 
 module InvariantParser = WitnessUtil.InvariantParser
+module VarQuery = Goblint_constraint.VarQuery
 
 module type ArgWrapper =
 sig

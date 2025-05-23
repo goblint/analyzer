@@ -76,9 +76,6 @@
     "region-offsets": true
   },
   "witness": {
-    "graphml": {
-      "enabled": false
-    },
     "yaml": {
       "enabled": true
     },
