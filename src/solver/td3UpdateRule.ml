@@ -1,7 +1,7 @@
 (** Narrowing strategies for side-effects *)
 
 open Batteries
-open ConstrSys
+open Goblint_constraint.ConstrSys
 open Messages
 
 

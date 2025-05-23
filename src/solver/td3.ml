@@ -14,7 +14,9 @@
  * For simpler (but unmaintained) versions without the incremental parts see the paper or topDown{,_space_cache_term}.ml. *)
 
 open Batteries
-open ConstrSys
+open Goblint_constraint.ConstrSys
+open Goblint_constraint.SolverTypes
+open Goblint_constraint.Translators
 open Messages
 
 module M = Messages
@@ -206,7 +208,7 @@ module Base =
 
     type phase = Widen | Narrow [@@deriving show] (* used in inner solve *)
 
-    module CurrentVarS = ConstrSys.CurrentVarEqConstrSys (S)
+    module CurrentVarS = Goblint_constraint.ConstrSys.CurrentVarEqConstrSys (S)
     module S = CurrentVarS.S
 
     let solve st vs marshal =
@@ -1223,13 +1225,16 @@ let after_config () =
     if restart_sided || restart_wpoint || restart_once then (
       M.warn "restarting active, ignoring solvers.td3.skip-unchanged-rhs";
       (* TODO: fix DepVals with restarting, https://github.com/goblint/analyzer/pull/738#discussion_r876005821 *)
-      Selector.add_solver ("td3", (module Basic(UpdateRule): GenericEqIncrSolver))
+      Selector.add_solver ("td3", (module DemandEqIncrSolverFromGenericEqIncrSolver
+            (Basic(UpdateRule): GenericEqIncrSolver): DemandEqIncrSolver))
     )
     else
-      Selector.add_solver ("td3", (module DepVals(UpdateRule): GenericEqIncrSolver))
+      Selector.add_solver ("td3", (module DemandEqIncrSolverFromGenericEqIncrSolver
+            (DepVals(UpdateRule): GenericEqIncrSolver): DemandEqIncrSolver))
   )
   else
-    Selector.add_solver ("td3", (module Basic(UpdateRule): GenericEqIncrSolver))
+    Selector.add_solver ("td3", (module DemandEqIncrSolverFromGenericEqIncrSolver
+          (Basic(UpdateRule): GenericEqIncrSolver): DemandEqIncrSolver))
 
 let () =
   AfterConfig.register after_config

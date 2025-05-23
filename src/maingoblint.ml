@@ -176,7 +176,6 @@ let check_arguments () =
     set_string "sem.int.signed_overflow" "assume_none";
     warn "termination analysis implicitly activates threadflag analysis and set sem.int.signed_overflow to assume_none";
   );
-  if not (get_bool "ana.sv-comp.enabled") && get_bool "witness.graphml.enabled" then fail "witness.graphml.enabled: cannot generate GraphML witness without SV-COMP mode (ana.sv-comp.enabled)";
   if get_bool "dbg.print_wpoints" && not (Logs.Level.should_log Debug) then
     warn "dbg.print_wpoints requires dbg.level debug";
   if get_bool "dbg.print_tids" && not (Logs.Level.should_log Debug) then
@@ -655,7 +654,7 @@ let diff_and_rename current_file =
         let max_ids = UpdateCil.update_ids old_file max_ids current_file changes in
 
         let restarting = GobConfig.get_string_list "incremental.restart.list" in
-        let restarting, not_found = VarQuery.varqueries_from_names current_file restarting in
+        let restarting, not_found = Goblint_constraint.VarQuery.varqueries_from_names current_file restarting in
         if not (List.is_empty not_found) then begin
           List.iter
             (fun s ->

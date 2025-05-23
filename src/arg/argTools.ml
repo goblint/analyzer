@@ -14,10 +14,58 @@ sig
   val query: Node.t -> 'a Queries.t -> 'a Queries.result
 end
 
+module Stack (Arg: BiArg): BiArg with module Node = MyARG.StackNode (Arg.Node) =
+struct
+  include MyARG.Stack (Arg)
+
+  let prev _ = failwith "TODO"
+
+  module NHT = BatHashtbl.Make (Node)
+
+  (** Iterate over {e reachable} nodes. *)
+  let iter_nodes (f: Node.t -> unit): unit = (* Copied from Make.create below. *)
+    let reachable = NHT.create 100 in
+
+    (* DFS *)
+    let rec iter_node node =
+      if not (NHT.mem reachable node) then (
+        NHT.replace reachable node ();
+        f node;
+        List.iter (fun (edge, to_node) ->
+            iter_node to_node
+          ) (next node)
+      )
+    in
+
+    iter_node main_entry
+
+  let query nl = Arg.query (List.hd nl)
+end
+
 module type NodeStyles =
 sig
   type node
   val extra_node_styles: node -> string list
+end
+
+module EnumerateNode (Node: MyARG.Node): MyARG.Node with type t = Node.t =
+struct
+  include Node
+
+  module NH = Hashtbl.Make (Node)
+  let node_numbers: int NH.t = NH.create 100
+  let next_number = ref 0
+
+  let to_string node =
+    let number = match NH.find_opt node_numbers node with
+      | Some number -> number
+      | None ->
+        let number = !next_number in
+        NH.replace node_numbers node number;
+        next_number := number + 1;
+        number
+    in
+    "N" ^ string_of_int number
 end
 
 module Dot (Arg: BiArg) (NodeStyles: NodeStyles with type node = Arg.Node.t) =
@@ -106,7 +154,7 @@ struct
 
   module NHT = BatHashtbl.Make (Node)
 
-  let create entrystates: (module BiArg with type Node.t = MyCFG.node * Spec.C.t * int) =
+  let create entrystates: (module BiArg) =
     let (witness_prev_map, witness_prev, witness_next) =
       (* Get all existing vars *)
       let vars = NHT.create 100 in
@@ -149,7 +197,15 @@ struct
 
     let module Arg =
     struct
-      module Node = Node
+      module Node: MyARG.Node with type t = Node.t =
+        (val match GobConfig.get_string "exp.arg.id" with
+           | "node" ->
+             (module Node: MyARG.Node with type t = Node.t)
+           | "enumerate" ->
+             (module EnumerateNode (Node): MyARG.Node with type t = Node.t)
+           | _ -> failwith "exp.arg.id: illegal value"
+        )
+
       module Edge = MyARG.InlineEdge
       let main_entry = witness_main
       let next = witness_next
@@ -184,7 +240,14 @@ struct
         R.ask_local (n, c) (PathQuery (i, q))
     end
     in
-    (module Arg: BiArg with type Node.t = MyCFG.node * Spec.C.t * int)
+    let module Arg =
+      (val if GobConfig.get_bool "exp.arg.stack" then
+          (module Stack (Arg): BiArg)
+        else
+          (module Arg: BiArg)
+      )
+    in
+    (module Arg: BiArg)
 
   let create entrystates =
     Timing.wrap "arg create" create entrystates
