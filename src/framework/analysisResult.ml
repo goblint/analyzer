@@ -253,6 +253,13 @@ struct
         ) []
       in
       Timing.wrap "graphviz" (ProcessPool.run ~jobs:(GobConfig.jobs ())) tasks;
+      (* TODO: vendor resources *)
+      begin
+        Sys.readdir "g2html/resources"
+        |> Array.to_list
+        |> List.map (fun f -> "g2html/resources/" ^ f)
+        |> (fun fs -> FileUtil.cp fs "result2")
+      end;
       assert false
     | "json" ->
       let open BatPrintf in
