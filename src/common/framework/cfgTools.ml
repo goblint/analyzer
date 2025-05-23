@@ -657,12 +657,12 @@ let sprint_fundec_html_dot (module Cfg : CfgBidir) live fd =
   fprint_fundec_html_dot (module Cfg) live fd Format.str_formatter;
   Format.flush_str_formatter ()
 
-let dead_code_cfg (module FileCfg: MyCFG.FileCfg) live =
+let dead_code_cfg ~path (module FileCfg: MyCFG.FileCfg) live =
   iterGlobals FileCfg.file (fun glob ->
       match glob with
       | GFun (fd,loc) ->
         (* ignore (Printf.printf "fun: %s\n" fd.svar.vname); *)
-        let base_dir = GobSys.mkdir_or_exists_absolute (Fpath.v "cfgs") in
+        let base_dir = GobSys.mkdir_or_exists_absolute path in
         let c_file_name = Str.global_substitute (Str.regexp Filename.dir_sep) (fun _ -> "%2F") loc.file in
         let dot_file_name = fd.svar.vname^".dot" in
         let file_dir = GobSys.mkdir_or_exists_absolute Fpath.(base_dir / c_file_name) in

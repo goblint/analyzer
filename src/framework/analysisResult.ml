@@ -101,7 +101,8 @@ struct
   let printXmlWarning f () =
     List.iter (printXmlWarning_one_w f) !Messages.Table.messages_list
 
-  let output table gtable gtfxml (file: file) =
+  let output table live gtable gtfxml (module FileCfg: MyCFG.FileCfg) =
+    let file = FileCfg.file in
     let out = Messages.get_out result_name !Messages.out in
     match get_string "result" with
     | "pretty" -> ignore (fprintf out "%a\n" pretty (Lazy.force table))
@@ -205,6 +206,7 @@ struct
               printXmlWarning_one_w f w;
             )
         ) !Messages.Table.messages_list;
+      CfgTools.dead_code_cfg ~path:Fpath.(v "result2" / "dot") (module FileCfg) live;
       assert false
     | "json" ->
       let open BatPrintf in
