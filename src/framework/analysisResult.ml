@@ -172,6 +172,7 @@ struct
       GobSys.mkdir_or_exists Fpath.(v "result2");
       GobSys.mkdir_or_exists Fpath.(v "result2" / "nodes");
       GobSys.mkdir_or_exists Fpath.(v "result2" / "warn");
+      GobSys.mkdir_or_exists Fpath.(v "result2" / "files");
       BatFile.with_file_out "result2/index.xml" (fun f ->
           BatPrintf.fprintf f {xml|<?xml version="1.0" ?>
 <?xml-stylesheet type="text/xsl" href="report.xsl"?>
@@ -206,6 +207,21 @@ struct
               printXmlWarning_one_w f w;
             )
         ) !Messages.Table.messages_list;
+      BatEnum.iter (fun b ->
+          let c_file_name = Str.global_substitute (Str.regexp Filename.dir_sep) (fun _ -> "%2F") b in
+          BatFile.with_file_out (Printf.sprintf "result2/files/%s.xml" c_file_name) (fun f ->
+              BatPrintf.fprintf f {xml|<?xml version="1.0" ?>
+<?xml-stylesheet type="text/xsl" href="../file.xsl"?>
+<file>
+|xml};
+              let lines = BatFile.lines_of b in
+              BatEnum.iteri (fun line text ->
+                  BatPrintf.fprintf f {xml|<ln nr="%d" ns="[]" wrn="[]" ded="false">%s</ln>
+|xml} (line + 1) (XmlUtil.escape text)
+                ) lines;
+              BatPrintf.fprintf f "</file>";
+            )
+        ) (BatEnum.uniq @@ SH.keys file2funs);
       (* CfgTools.dead_code_cfg ~path:Fpath.(v "result2" / "dot") (module FileCfg) live; *)
       (* TODO: copied and modified... *)
       let tasks = foldGlobals FileCfg.file (fun acc glob ->
