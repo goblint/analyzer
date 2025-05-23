@@ -152,6 +152,7 @@ struct
     | "g2html" ->
       (* copied from above *)
       let module SH = BatHashtbl.Make (Basetype.RawStrings) in
+      let module IH = BatHashtbl.Make (struct type t = int [@@deriving hash, eq] end) in
       let file2funs = SH.create 100 in
       let funs2node = SH.create 100 in
       iter (fun n _ -> SH.add funs2node (Node.find_fundec n).svar.vname n) (Lazy.force table);
@@ -192,6 +193,7 @@ struct
           gtfxml f gtable;
           BatPrintf.fprintf f "</globs>";
         );
+      let file2line2nodes: string IH.t SH.t = SH.create 10 in
       iter (fun n v ->
           BatFile.with_file_out (Printf.sprintf "result2/nodes/%s.xml" (Node.show_id n)) (fun f ->
               BatPrintf.fprintf f {xml|<?xml version="1.0" ?>
@@ -200,9 +202,18 @@ struct
               (* TODO: need fun in <call>? *)
               printXml_print_one f n v;
               BatPrintf.fprintf f "</loc>";
-            )
+            );
+          let loc = UpdateCil.getLoc n in (* from printXml_print_one *)
+          let line2nodes: string IH.t =
+            match SH.find_option file2line2nodes loc.file with
+            | Some line2nodes -> line2nodes
+            | None ->
+              let line2nodes = IH.create 100 in
+              SH.replace file2line2nodes loc.file line2nodes;
+              line2nodes
+          in
+          IH.add line2nodes loc.line (Node.show_id n)
         ) (Lazy.force table);
-      let module IH = BatHashtbl.Make (struct type t = int [@@deriving hash, eq] end) in
       let file2line2warns: int IH.t SH.t = SH.create 10 in
       List.iteri (fun i w ->
           BatFile.with_file_out (Printf.sprintf "result2/warn/warn%d.xml" (i + 1)) (fun f ->
@@ -237,6 +248,14 @@ struct
 |xml};
               let lines = BatFile.lines_of b in
               BatEnum.iteri (fun line text ->
+                  let nodes =
+                    match SH.find_option file2line2nodes b with
+                    | Some line2nodes -> IH.find_all line2nodes (line + 1) |> BatList.unique
+                    | None -> []
+                  in
+                  let print_node f w =
+                    BatPrintf.fprintf f "&quot;%s&quot;" w
+                  in
                   let warns =
                     match SH.find_option file2line2warns b with
                     | Some line2warns -> IH.find_all line2warns (line + 1) |> BatList.unique
@@ -245,8 +264,8 @@ struct
                   let print_warn f w =
                     BatPrintf.fprintf f "&quot;warn%d&quot;" w
                   in
-                  BatPrintf.fprintf f {xml|<ln nr="%d" ns="[]" wrn="[%a]" ded="false">%s</ln>
-|xml} (line + 1) (BatList.print ~first:"" ~sep:"," ~last:"" print_warn) warns (XmlUtil.escape text)
+                  BatPrintf.fprintf f {xml|<ln nr="%d" ns="[%a]" wrn="[%a]" ded="false">%s</ln>
+|xml} (line + 1) (BatList.print ~first:"" ~sep:"," ~last:"" print_node) nodes (BatList.print ~first:"" ~sep:"," ~last:"" print_warn) warns (XmlUtil.escape text)
                 ) lines;
               BatPrintf.fprintf f "</file>";
             )
