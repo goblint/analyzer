@@ -177,6 +177,15 @@ struct
       };
     metadata = metadata ~task ();
   }
+
+  (* non-standard extension *)
+  let protected_by ~task ~variable ~(mutex): Entry.t = {
+    entry_type = ProtectedBy {
+        variable;
+        mutex;
+      };
+    metadata = metadata ~task ();
+  }
 end
 
 let yaml_entries_to_file yaml_entries file =
@@ -402,7 +411,7 @@ struct
 
     (* Generate flow-insensitive entries (ghost instrumentation) *)
     let entries =
-      if entry_type_enabled YamlWitnessType.GhostInstrumentation.entry_type then (
+      if entry_type_enabled YamlWitnessType.GhostInstrumentation.entry_type || entry_type_enabled YamlWitnessType.ProtectedBy.entry_type then (
         (* TODO: only at most one ghost_instrumentation entry can ever be produced, so this fold and deduplication is overkill *)
         let module EntrySet = Queries.YS in
         fst @@ GHT.fold (fun g v accs ->
@@ -944,6 +953,54 @@ struct
         None
       in
 
+      let validate_protected_by (protected_by: YamlWitnessType.ProtectedBy.t) =
+        match InvariantParser.parse_cabs protected_by.variable with
+        | Ok variable_cabs ->
+          begin match InvariantParser.parse_cil inv_parser ~fundec:Cil.dummyFunDec ~loc:Cil.dummyFunDec.svar.vdecl variable_cabs with (* TODO: parsing in global scope *)
+            | Ok (Lval (Var variable, NoOffset)) -> (* TODO: support offsets *)
+              begin
+                match InvariantParser.parse_cabs protected_by.mutex with
+                | Ok variable_cabs ->
+                  begin match InvariantParser.parse_cil inv_parser ~fundec:Cil.dummyFunDec ~loc:Cil.dummyFunDec.svar.vdecl variable_cabs with (* TODO: parsing in global scope *)
+                    | Ok (Lval (Var mutex, NoOffset)) -> (* TODO: support offsets *)
+                      if R.ask_global (MustBeProtectedBy {mutex = LockDomain.MustLock.of_var mutex; global = variable; write = false; protection = Strong}) then (
+                        incr cnt_confirmed;
+                        M.success ~category:Witness "protection confirmed";
+                      )
+                      else (
+                        incr cnt_unconfirmed;
+                        M.warn ~category:Witness "protection unconfirmed";
+                      );
+                      None
+                    | Ok _ ->
+                      incr cnt_error;
+                      M.error ~category:Witness "not a variable: %s" protected_by.mutex;
+                      None
+                    | Error e ->
+                      incr cnt_error;
+                      M.error ~category:Witness "CIL couldn't parse mutex: %s" protected_by.mutex;
+                      None
+                  end
+                | Error e ->
+                  incr cnt_error;
+                  M.error ~category:Witness "Frontc couldn't parse mutex: %s" protected_by.mutex;
+                  None
+              end
+            | Ok _ ->
+              incr cnt_error;
+              M.error ~category:Witness "not a variable: %s" protected_by.variable;
+              None
+            | Error e ->
+              incr cnt_error;
+              M.error ~category:Witness "CIL couldn't parse variable: %s" protected_by.variable;
+              None
+          end
+        | Error e ->
+          incr cnt_error;
+          M.error ~category:Witness "Frontc couldn't parse variable: %s" protected_by.variable;
+          None
+      in
+
       match entry_type_enabled target_type, entry.entry_type with
       | true, LocationInvariant x ->
         validate_location_invariant x
@@ -955,7 +1012,9 @@ struct
         validate_invariant_set x
       | true, ViolationSequence x ->
         validate_violation_sequence x
-      | false, (LocationInvariant _ | LoopInvariant _ | PreconditionLoopInvariant _ | InvariantSet _ | ViolationSequence _) ->
+      | true, ProtectedBy x ->
+        validate_protected_by x
+      | false, (LocationInvariant _ | LoopInvariant _ | PreconditionLoopInvariant _ | InvariantSet _ | ViolationSequence _ | ProtectedBy _) ->
         incr cnt_disabled;
         M.info_noloc ~category:Witness "disabled entry of type %s" target_type;
         None
