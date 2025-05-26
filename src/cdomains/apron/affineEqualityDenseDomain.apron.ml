@@ -446,37 +446,35 @@ struct
     if M.tracing then M.tracel "ops" "assign_var t:\n %s \n v: %a \n v': %a\n -> %s" (show t) Var.pretty v Var.pretty v' (show res);
     res
 
-  let assign_var_parallel t vv's =
+  let assign_var_parallel t vv's =                                (* vv's is a list of pairs of lhs-variables and their rhs-values *)
     let assigned_vars = List.map fst vv's in
-    let t = add_vars t assigned_vars in
-    let primed_vars = List.init (List.length assigned_vars) (fun i -> Var.of_string (Int.to_string i  ^"'")) in (* TODO: we use primed vars in analysis, conflict? *)
-    let t_primed = add_vars t primed_vars in
+    let t = add_vars t assigned_vars in                           (* introduce all lhs-variables to the relation data structure *)
+    let primed_vars = List.init                                   (* create a list with primed variables "i'" for each lhs-variable *)
+        (List.length assigned_vars) 
+        (fun i -> Var.of_string (Int.to_string i  ^"'")) 
+    in (* TODO: we use primed integers as var names, conflict? *)
+    let t_primed = add_vars t primed_vars in                      (* introduce primed variables to the relation data structure *)
+    (* sequence of assignments: i' = snd vv_i : *)
     let multi_t = List.fold_left2 (fun t' v_prime (_,v') -> assign_var t' v_prime v') t_primed primed_vars vv's in
     match multi_t.d with
-    | Some m when not @@ is_top_env multi_t ->
-      let replace_col m x y =
+    | Some m when not @@ is_top_env multi_t ->                    (* SUBSTITUTE assigned_vars/primed_vars via OVERWRITE & ERASE *)
+      let replace_col m x y =                                     (* OVERWRITES column for var_y with column for var_x *)
         let dim_x, dim_y = Environment.dim_of_var multi_t.env x, Environment.dim_of_var multi_t.env y in
         let col_x = Matrix.get_col m dim_x in
         Matrix.set_col_with m col_x dim_y
       in
-      let dropvars m oldenv vars =
-        let dropcols (ch:Apron.Dim.change) m = 
-          if Matrix.is_empty m then (* might be empty when assigned_vars/primed_vars are empty *)
-            m
-          else
-            Matrix.remove_zero_rows @@ Matrix.del_cols m ch.dim
-        in
+      let erase_cols m old_env to_erase =                         (* ERASES (i.e. entries are removed and column collapsed) from m all to_erase-columns *)
         let m = Matrix.copy m in
-        let new_env = Environment.remove_vars oldenv vars in
-        let dimchange = Environment.dimchange2 oldenv new_env in
-        if Environment.equal oldenv new_env then
+        let new_env = Environment.remove_vars old_env to_erase in
+        let dimchange = Environment.dimchange2 old_env new_env in
+        if Environment.equal old_env new_env then
           {d = Some m; env = new_env}
         else
-          { d = Some (dropcols (Option.get dimchange.remove) m); env=new_env}
+          { d = Some (Matrix.remove_zero_rows @@ Matrix.del_cols m (Option.get dimchange.remove).dim); env=new_env}
       in
       let m_cp = Matrix.copy m in
-      let switched_m = List.fold_left2 replace_col m_cp primed_vars assigned_vars in
-      let res = dropvars switched_m multi_t.env primed_vars in
+      let switched_m = List.fold_left2 replace_col m_cp primed_vars assigned_vars in (* OVERWRITE columns for assigned_vars with column for primed_vars *)
+      let res = erase_cols switched_m multi_t.env primed_vars in                     (* ERASE column for primed_vars *)
       let x = Option.get res.d in
       if Matrix.normalize_with x then
         {d = Some x; env = res.env}
