@@ -258,7 +258,7 @@ module Base =
 
       let narrow_reuse = GobConfig.get_bool "solvers.td3.narrow-reuse" in
       let remove_wpoint = GobConfig.get_bool "solvers.td3.remove-wpoint" in
-      let weak_deps = GobConfig.get_string "solvers.td3.weak-deps" in
+      let weak_deps_handling = GobConfig.get_string "solvers.td3.weak-deps" in
 
       let side_dep = data.side_dep in
       let side_infl = data.side_infl in
@@ -519,7 +519,7 @@ module Base =
         )
       and demand l x y =
         if tracing then trace "sol2" "demand weak dep %a from %a" S.Var.pretty_trace y S.Var.pretty_trace x;
-        match weak_deps with
+        match weak_deps_handling with
         | "none" -> ignore (eval l x y)
         | "eager" ->
           HM.replace weak_dep x (VS.add y (try HM.find weak_dep x with Not_found -> VS.empty));
