@@ -76,7 +76,7 @@ module Base =
       var_messages: Message.t HM.t; (** Messages from right-hand sides of variables. Used for incremental postsolving. *)
       rho_write: S.Dom.t HM.t HM.t; (** Side effects from variables to write-only variables with values. Used for fast incremental restarting of write-only variables. *)
       dep: VS.t HM.t; (** Dependencies of variables. Inverse of [infl]. Used for fast pre-reachable pruning in incremental postsolving. *)
-      weak_dep: VS.t HM.t; (** Map of weak dependencies. "caller" -> "end of function" **)
+      weak_dep: VS.t HM.t; (** Weak dependencies of variables via [demand] (if enabled). *)
     }
 
     type marshal = solver_data
