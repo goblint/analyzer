@@ -30,14 +30,14 @@ struct
   let dim_add ch m = timing_wrap "dim add" (dim_add ch) m
 
 
-  let dim_remove (ch: Apron.Dim.change) m ~del =
+  let dim_remove (ch: Apron.Dim.change) m =
     if Array.length ch.dim = 0 || is_empty m then
       m
     else (
-      let m' = if not del then let m = copy m in Array.fold_left (fun y x -> reduce_col_with y x; y) m ch.dim else m in
+      let m' = let m = copy m in Array.fold_left (fun y x -> reduce_col_with y x; y) m ch.dim in
       remove_zero_rows @@ del_cols m' ch.dim)
 
-  let dim_remove ch m ~del = timing_wrap "dim remove" (fun del -> dim_remove ch m ~del:del) del
+  let dim_remove ch m = timing_wrap "dim remove" (dim_remove ch) m
 end
 
 (** It defines the type t of the affine equality domain (a struct that contains an optional matrix and an apron environment) and provides the functions needed for handling variables (which are defined by RelationDomain.D2) such as add_vars remove_vars.
@@ -233,12 +233,11 @@ struct
   let meet t1 t2 =
     let sup_env = Environment.lce t1.env t2.env in
 
-    let t1, t2 = change_d t1 sup_env ~add:true ~del:false, change_d t2 sup_env ~add:true ~del:false in
+    let t1, t2 = dimchange2_add t1 sup_env, dimchange2_add t2 sup_env in
     if is_bot t1 || is_bot t2 then
       bot ()
     else
-      (* TODO: Why can I be sure that m1 && m2 are all Some here?
-         Answer: because is_bot checks if t1.d is None and we checked is_bot before. *)
+      (* Option.get, because is_bot checks if t1.d is None and we checked is_bot before. *)
       let m1, m2 = Option.get t1.d, Option.get t2.d in
       if is_top_env t1 then
         {d = Some (dim_add (Environment.dimchange t2.env sup_env) m2); env = sup_env}
@@ -460,9 +459,24 @@ struct
         let col_x = Matrix.get_col m dim_x in
         Matrix.set_col_with m col_x dim_y
       in
+      let dropvars m oldenv vars =
+        let dropcols (ch:Apron.Dim.change) m = 
+          if Matrix.is_empty m then (* might be empty when assigned_vars/primed_vars are empty *)
+            m
+          else
+            Matrix.remove_zero_rows @@ Matrix.del_cols m ch.dim
+        in
+        let m = Matrix.copy m in
+        let new_env = Environment.remove_vars oldenv vars in
+        let dimchange = Environment.dimchange2 oldenv new_env in
+        if Environment.equal oldenv new_env then
+          {d = Some m; env = new_env}
+        else
+          { d = Some (dropcols (Option.get dimchange.remove) m); env=new_env}
+      in
       let m_cp = Matrix.copy m in
       let switched_m = List.fold_left2 replace_col m_cp primed_vars assigned_vars in
-      let res = drop_vars {d = Some switched_m; env = multi_t.env} primed_vars ~del:true in
+      let res = dropvars switched_m multi_t.env primed_vars in
       let x = Option.get res.d in
       if Matrix.normalize_with x then
         {d = Some x; env = res.env}

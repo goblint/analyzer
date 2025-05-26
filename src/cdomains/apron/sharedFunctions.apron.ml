@@ -373,8 +373,10 @@ sig
 
   (** is_empty is true, if the domain representation has a dimension size of zero *)
   val is_empty : t -> bool
+  (** interpret dimension addition in change2.add semantics, see https://antoinemine.github.io/Apron/doc/api/ocaml/Dim.html*)
   val dim_add : Apron.Dim.change -> t -> t
-  val dim_remove : Apron.Dim.change -> t -> del:bool-> t
+  (** interpret dimension removal in change2.remove semantics, see https://antoinemine.github.io/Apron/doc/api/ocaml/Dim.html*)
+  val dim_remove : Apron.Dim.change -> t -> t
 end
 
 (* Shared operations for the management of the Matrix or Array representations of the domains,
@@ -399,7 +401,7 @@ struct
 
   let copy t = {t with d = Option.map RelDomain.copy t.d}
 
-  let change_d t new_env ~add ~del =
+  let dimchange2_add t new_env =
     if Environment.equal t.env new_env then
       t
     else
@@ -408,30 +410,36 @@ struct
       | Some m ->
         let dim_change2 = Environment.dimchange2 t.env new_env in
         {
-          d = Some (if add then RelDomain.dim_add (BatOption.get dim_change2.add) m 
-                    else RelDomain.dim_remove (BatOption.get dim_change2.remove) m ~del:del); 
+          d = Some (RelDomain.dim_add (Option.get dim_change2.add) m );
           env = new_env
         }
 
-  let change_d t new_env ~add ~del = Vector.timing_wrap "dimension change" (fun del -> change_d t new_env ~add:add ~del:del) del
+  let dimchange2_remove t new_env =
+    if Environment.equal t.env new_env then
+      t
+    else
+      match t.d with
+      | None -> bot_env
+      | Some m ->
+        let dim_change2 = Environment.dimchange2 t.env new_env in
+        {
+          d = Some (RelDomain.dim_remove (Option.get dim_change2.remove) m);
+          env = new_env
+        }
 
   let vars x = Environment.ivars_only x.env
 
   let add_vars t vars =
     let t = copy t in
     let env' = Environment.add_vars t.env vars in
-    change_d t env' ~add:true ~del:false
+    dimchange2_add t env'
 
   let add_vars t vars = Vector.timing_wrap "add_vars" (add_vars t) vars
 
-  let drop_vars t vars ~del =
-    let t = copy t in
+  let remove_vars t vars =
+    let t = copy t in 
     let env' = Environment.remove_vars t.env vars in
-    change_d t env' ~add:false ~del:del
-
-  let drop_vars t vars = Vector.timing_wrap "drop_vars" (drop_vars t) vars
-
-  let remove_vars t vars = drop_vars t vars ~del:false
+    dimchange2_remove t env'
 
   let remove_vars t vars = Vector.timing_wrap "remove_vars" (remove_vars t) vars
 
@@ -442,7 +450,7 @@ struct
 
   let remove_filter t f =
     let env' = Environment.remove_filter t.env f in
-    change_d t env' ~add:false ~del:false
+    dimchange2_remove t env'
 
   let remove_filter t f = Vector.timing_wrap "remove_filter" (remove_filter t) f
 
@@ -454,14 +462,14 @@ struct
   let keep_filter t f =
     let t = copy t in
     let env' = Environment.keep_filter t.env f in
-    change_d t env' ~add:false ~del:false
+    dimchange2_remove t env'
 
   let keep_filter t f = Vector.timing_wrap "keep_filter" (keep_filter t) f
 
   let keep_vars t vs =
     let t = copy t in
     let env' = Environment.keep_vars t.env vs in
-    change_d t env' ~add:false ~del:false
+    dimchange2_remove t env'
 
   let keep_vars t vs = Vector.timing_wrap "keep_vars" (keep_vars t) vs
 
