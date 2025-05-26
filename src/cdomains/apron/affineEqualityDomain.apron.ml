@@ -30,15 +30,14 @@ struct
   let dim_add ch m = timing_wrap "dim add" (dim_add ch) m
 
 
-  let dim_remove (ch: Apron.Dim.change) m ~del =
+  let dim_remove (ch: Apron.Dim.change) m =
     if Array.length ch.dim = 0 || is_empty m then
       m
     else (
-      Array.modifyi (+) ch.dim;
-      let m' = if not del then Array.fold_left (fun y x -> reduce_col y x) m ch.dim else m in
+      let m' = Array.fold_left (fun y x -> reduce_col y x) m ch.dim in
       remove_zero_rows @@ del_cols m' ch.dim)
 
-  let dim_remove ch m ~del = timing_wrap "dim remove" (fun del -> dim_remove ch m ~del:del) del
+  let dim_remove ch m = timing_wrap "dim remove" (dim_remove ch) m 
 end
 
 (** It defines the type t of the affine equality domain (a struct that contains an optional matrix and an apron environment) and provides the functions needed for handling variables (which are defined by RelationDomain.D2) such as add_vars remove_vars.
@@ -235,12 +234,11 @@ struct
   let meet t1 t2 =
     let sup_env = Environment.lce t1.env t2.env in
 
-    let t1, t2 = change_d t1 sup_env ~add:true ~del:false, change_d t2 sup_env ~add:true ~del:false in
+    let t1, t2 = dimchange2_add t1 sup_env, dimchange2_add t2 sup_env in
     if is_bot t1 || is_bot t2 then
       bot ()
     else
-      (* TODO: Why can I be sure that m1 && m2 are all Some here?
-         Answer: because is_bot checks if t1.d is None and we checked is_bot before. *)
+      (* Option.get, because is_bot checks if t1.d is None and we checked is_bot before. *)
       let m1, m2 = Option.get t1.d, Option.get t2.d in
       if is_top_env t1 then
         {d = Some (dim_add (Environment.dimchange t2.env sup_env) m2); env = sup_env}
@@ -442,21 +440,33 @@ struct
     if M.tracing then M.tracel "ops" "assign_var t:\n %s \n v: %a \n v': %a\n -> %s" (show t) Var.pretty v Var.pretty v' (show res);
     res
 
-  let assign_var_parallel t vv's =
-    let assigned_vars = List.map fst vv's in
-    let t = add_vars t assigned_vars in
-    let primed_vars = List.init (List.length assigned_vars) (fun i -> Var.of_string (Int.to_string i  ^"'")) in (* TODO: we use primed vars in analysis, conflict? *)
-    let t_primed = add_vars t primed_vars in
+  let assign_var_parallel t vv's =                                (* vv's is a list of pairs of lhs-variables and their rhs-values *)
+    let assigned_vars = List.map fst vv's in 
+    let t = add_vars t assigned_vars in                           (* introduce all lhs-variables to the relation data structure *)
+    let primed_vars = List.init                                   (* create a list with primed variables "i'" for each lhs-variable *)
+        (List.length assigned_vars) 
+        (fun i -> Var.of_string (Int.to_string i  ^"'")) 
+    in (* TODO: we use primed integers as var names, conflict? *)
+    let t_primed = add_vars t primed_vars in                      (* introduce primed variables to the relation data structure *)
+    (* sequence of assignments: i' = snd vv_i : *)
     let multi_t = List.fold_left2 (fun t' v_prime (_,v') -> assign_var t' v_prime v') t_primed primed_vars vv's in
     match multi_t.d with
-    | Some m when not @@ is_top_env multi_t -> 
-      let replace_col m x y =
+    | Some m when not @@ is_top_env multi_t ->                    (* SUBSTITUTE assigned_vars/primed_vars via OVERWRITE & ERASE *)
+      let replace_col m x y =                                     (* OVERWRITES column for var_y with column for var_x *)
         let dim_x, dim_y = Environment.dim_of_var multi_t.env x, Environment.dim_of_var multi_t.env y in
         let col_x = Matrix.get_col_upper_triangular m dim_x in
         Matrix.set_col m col_x dim_y
       in
-      let switched_m = List.fold_left2 replace_col m primed_vars assigned_vars in
-      let res = drop_vars {d = Some switched_m; env = multi_t.env} primed_vars ~del:true in
+      let erase_cols m old_env to_erase =                         (* ERASES (i.e. entries are removed and column collapsed) from m all to_erase-columns *)
+        let new_env = Environment.remove_vars old_env to_erase in
+        let dimchange = Environment.dimchange2 old_env new_env in
+        if Environment.equal old_env new_env then
+          {d = Some m; env = new_env}
+        else
+          { d = Some (Matrix.remove_zero_rows @@ Matrix.del_cols m (BatOption.get dimchange.remove).dim); env = new_env}
+      in
+      let switched_m = List.fold_left2 replace_col m primed_vars assigned_vars in (* OVERWRITE columns for assigned_vars with column for primed_vars *)
+      let res = erase_cols switched_m multi_t.env primed_vars in                  (* ERASE column for primed_vars *)
       let x = Option.get res.d in
       (match Matrix.normalize x with 
        | None -> bot ()

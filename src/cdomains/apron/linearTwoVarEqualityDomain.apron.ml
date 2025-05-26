@@ -178,14 +178,12 @@ module EqualitiesConjunction = struct
     if Array.length ch.dim = 0 || is_empty m then
       m
     else (
-      let cpy = Array.copy ch.dim in
-      Array.modifyi (+) cpy; (* this is a hack to restore the original https://antoinemine.github.io/Apron/doc/api/ocaml/Dim.html remove_dimensions semantics for dim_remove *)
-      let m' = Array.fold_lefti (fun y i x -> forget_variable y (x)) m cpy in  (* clear m' from relations concerning ch.dim *)
-      modify_variables_in_domain m' cpy (-))
+      let m' = Array.fold_lefti (fun y i x -> forget_variable y (x)) m ch.dim in  (* clear m' from relations concerning ch.dim *)
+      modify_variables_in_domain m' ch.dim (-))
 
   let dim_remove ch m = Timing.wrap "dim remove" (fun m -> dim_remove ch m) m
 
-  let dim_remove ch m ~del = let res = dim_remove ch m in if M.tracing then
+  let dim_remove ch m = let res = dim_remove ch m in if M.tracing then
       M.tracel "dim_remove" "dim remove at positions [%s] in { %s } -> { %s }"
         (Array.fold_right (fun i str -> (string_of_int i) ^ ", " ^ str)  ch.dim "")
         (show (snd m))
@@ -443,8 +441,8 @@ struct
 
   let meet t1 t2 =
     let sup_env = Environment.lce t1.env t2.env in
-    let t1 = change_d t1 sup_env ~add:true ~del:false in
-    let t2 = change_d t2 sup_env ~add:true ~del:false in
+    let t1 = dimchange2_add t1 sup_env in
+    let t2 = dimchange2_add t2 sup_env in
     match t1.d, t2.d with
     | Some d1', Some d2' ->
       EConj.IntMap.fold (fun lhs rhs map -> meet_with_one_conj map lhs rhs) (snd d2') t1 (* even on sparse d2, this will chose the relevant conjs to meet with*)
@@ -655,7 +653,7 @@ struct
     match multi_t.d with
     | Some arr when not @@ is_top multi_t ->
       let switched_arr = List.fold_left2 (fun multi_t assigned_var primed_var-> assign_var multi_t assigned_var primed_var) multi_t assigned_vars primed_vars in
-      drop_vars switched_arr primed_vars ~del:true
+      remove_vars switched_arr primed_vars
     | _ -> t
 
   let assign_var_parallel t vv's =
