@@ -831,17 +831,13 @@ module Base =
       let i = ref 0 in
       let rec solver () = (* as while loop in paper *)
         incr i;
-        let to_list (acc: S.v list ) (v: VS.t) = VS.fold (fun el acc -> el :: acc) v acc in
-        let hm_keys (hm: VS.t HM.t) = HM.fold (fun k v acc -> to_list acc v) hm [] in
-        let unstable_wk_dps = List.filter (neg (HM.mem stable)) (hm_keys weak_dep)  in
-        if unstable_wk_dps = [] then (
-          if tracing then trace "sol2" "unstable_wk_deps is empty";
-        ) else (
-          if tracing then trace "sol2" "unstable_wk_deps length %i" (List.length unstable_wk_dps);
-        );
-
-        let interesting_vs = List.append (List.append List.([]) unstable_wk_dps ) vs in
-        let unstable_vs = List.filter (neg (HM.mem stable)) (interesting_vs) in
+        let weak_dep_vs =
+          HM.values weak_dep
+          |> Enum.concat_map VS.enum
+          |> List.of_enum
+        in
+        let all_vs = vs @ weak_dep_vs in (* vs is singleton for us, so it's cheap to prepend *)
+        let unstable_vs = List.filter (neg (HM.mem stable)) all_vs in
         if unstable_vs <> [] then (
           if Logs.Level.should_log Debug then (
             if !i = 1 then Logs.newline ();
