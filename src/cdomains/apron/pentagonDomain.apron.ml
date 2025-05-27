@@ -315,7 +315,6 @@ struct
   let leq t1 t2 =
     let b1, b2 = t1.intv, t2.intv in
     let s_map_opt_1, s_map_opt_2 = t1.sub.d, t2.sub.d in
-    (* b1 \sqsubseteq_b b2*)
     INTERVALS.leq b1 b2
     &&
     match s_map_opt_1, s_map_opt_2 with
