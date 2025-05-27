@@ -9,6 +9,10 @@
         (apron -> sparseMatrixImplementationTest.apron.ml)
         (-> sparseMatrixImplementationTest.no-apron.ml)
     )
+    (select pentagonTest.ml from
+        (apron -> pentagonTest.apron.ml)
+        (-> pentagonTest.no-apron.ml)
+    )
   )
   (preprocess (pps ppx_deriving.std ppx_deriving_hash ppx_deriving_yojson))
   (flags :standard -linkall))
@@ -24,3 +28,9 @@
 ; TODO: Remove workaround with dune 3.0, where this should get fixed.
 ; A dune file with "include_subdirs no" is located in cdomains/affineEqualityDomain to avoid a dependency cycle
 (copy_files# cdomains/affineEqualityDomain/sparseImplementation/*.ml)
+
+; Workaround for alternative dependencies with unqualified subdirs.
+; See: https://github.com/ocaml/dune/issues/4383#issuecomment-805107435.
+; TODO: Remove workaround with dune 3.0, where this should get fixed.
+; A dune file with "include_subdirs no" is located in cdomains/affineEqualityDomain to avoid a dependency cycle
+(copy_files# cdomains/pentagonDomain/*.ml)
