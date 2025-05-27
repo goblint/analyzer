@@ -74,6 +74,53 @@ let test_widening_env _ =
     let expected = VarMap.empty |> VarMap.add 1 (Z.of_int 3, Z.of_int max_int) in
     assert_equal expected result ~msg:"widen_env failed"
 
+(* Test cases for the SUB module *)
+let test_sub_equal _ =
+    let sub1 = VarMap.empty |> VarMap.add 1 (VarSet.singleton 2) in
+    let sub2 = VarMap.empty |> VarMap.add 1 (VarSet.singleton 2) in
+    let sub3 = VarMap.empty |> VarMap.add 1 (VarSet.singleton 3) in
+    assert_bool "sub1 should be equal to sub2" (SUB.equal sub1 sub2);
+    assert_bool "sub1 should not be equal to sub3" (not (SUB.equal sub1 sub3))
+
+let test_sub_is_bot _ =
+    let sub = VarMap.empty in
+    assert_bool "Empty sub should be bottom" (SUB.is_bot sub);
+    let non_bot_sub = VarMap.empty |> VarMap.add 1 (VarSet.singleton 2) in
+    assert_bool "Non-empty sub should not be bottom" (not (SUB.is_bot non_bot_sub))
+
+let test_sub_leq _ =
+    let sub1 = VarMap.empty |> VarMap.add 1 (VarSet.singleton 2) in
+    let sub2 = VarMap.empty |> VarMap.add 1 (VarSet.singleton 2) in
+    let sub3 = VarMap.empty |> VarMap.add 1 (VarSet.singleton 3) in
+    assert_bool "sub1 should be less than or equal to sub2" (SUB.leq sub1 sub2);
+    assert_bool "sub1 should not be less than or equal to sub3" (not (SUB.leq sub1 sub3))
+
+let test_sub_join _ =
+    let sub1 = VarMap.empty |> VarMap.add 1 (VarSet.of_list [2; 3]) in
+    let sub2 = VarMap.empty |> VarMap.add 1 (VarSet.singleton 2) in
+    let result = SUB.join sub1 sub2 in
+    let expected = VarMap.empty |> VarMap.add 1 (VarSet.singleton 2) in
+    assert_equal expected result ~msg:"join failed"
+
+let test_sub_meet _ =
+    let sub1 = VarMap.empty |> VarMap.add 1 (VarSet.singleton 2) in
+    let sub2 = VarMap.empty |> VarMap.add 1 (VarSet.singleton 3) in
+    let result = SUB.meet sub1 sub2 in
+    let expected = VarMap.empty |> VarMap.add 1 (VarSet.of_list [2; 3]) in
+    assert_equal expected result ~msg:"meet failed"
+
+let test_sub_widening _ =
+    let sub1 = VarMap.empty |> VarMap.add 1 (VarSet.singleton 2) in
+    let sub2 = VarMap.empty |> VarMap.add 1 (VarSet.of_list [2; 3]) in
+    let result = SUB.widening sub1 sub2 in
+    let expected = VarMap.empty |> VarMap.add 1 (VarSet.of_list [2; 3]) in
+    assert_equal expected result ~msg:"widening failed"
+
+let test_sub_top _ =
+    let top_sub = SUB.top () in
+    assert_bool "Top sub should not be bottom" (not (SUB.is_bot top_sub));
+    assert_bool "Top sub should be equal to itself" (SUB.equal top_sub top_sub)
+
 let test_suite =
   "IntervalsTests" >::: [
     "test_order_single" >:: test_order_single;
@@ -88,6 +135,13 @@ let test_suite =
     "test_join_env" >:: test_join_env;
     "test_meet_env" >:: test_meet_env;
     "test_widening_env" >:: test_widening_env;
+    "test_sub_equal" >:: test_sub_equal;
+    "test_sub_is_bot" >:: test_sub_is_bot;
+    "test_sub_leq" >:: test_sub_leq;
+    "test_sub_join" >:: test_sub_join;
+    "test_sub_meet" >:: test_sub_meet;
+    "test_sub_widening" >:: test_sub_widening;
+    "test_sub_top" >:: test_sub_top;
   ]
 
 let () = run_test_tt_main (test_suite)
