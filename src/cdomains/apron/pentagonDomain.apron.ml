@@ -201,10 +201,7 @@ struct
     let u = if snd i1 >= snd i2 then snd i1 else Z.of_int max_int in
     (l, u)
 
-  let narrow_single (i1: interval) (i2: interval) =
-    let l = Z.max (fst i1) (fst i2) in
-    let u = Z.min (snd i1) (snd i2) in
-    if l <= u then Some (l, u) else None
+  let narrow_single (i1: interval) (i2: interval) = meet_single i1 i2
 
   let is_bot_single (i: interval) =
     fst i > snd i
@@ -318,32 +315,28 @@ struct
   let leq t1 t2 =
     let b1, b2 = t1.intv, t2.intv in
     let s_map_opt_1, s_map_opt_2 = t1.sub.d, t2.sub.d in
-    INTERVALS.leq b1 b2 &&
+    (* b1 \sqsubseteq_b b2*)
+    INTERVALS.leq b1 b2
+    &&
     match s_map_opt_1, s_map_opt_2 with
-    | None, _ -> true
-    | _, None -> false
+    | None, _ -> true (** might be wrong? *)
+    | _, None -> false (** might be wrong? *)
     | Some(s_map_1), Some(s_map_2) -> 
       (
         (* Boilerplate *)     
         let lce = Environment.lce t1.sub.env t2.sub.env in
         let sub_map_1, sub_map_2 = SUB.unify_from_env t1.sub t2.sub lce in
 
-        (*y in s1(x) || sup(b1(x)) <= inf (b1(y))*)
-        (*let g = fun x y -> (
-          let s1x = VarMap.find x sub_map_1 in
-          let b1x = VarMap.find x b1 in
-          VarSet.exists y s1x ||
-          INTERVALS.sup b1x < INTERVALS.inf b1x
-          ) in*)
-        (*forall y in s2(x)*)
-        (*let f = fun x s2x -> VarSet.forall (g x) s2x in*)
-        (* forall x in s2 *)
-        VarMap.forall (VarSet.forall (
-            let s1x = VarMap.find x sub_map_1 in
-            let b1x = VarMap.find x b1 in
-            VarSet.exists y s1x ||
-            INTERVALS.sup b1x < INTERVALS.inf b1x
-          ) s2x) sub_map_2
+        SUB.VarMap.for_all (
+          fun x s2x -> 
+            SUB.VarSet.for_all (
+              fun y -> (
+                  let s1x = SUB.VarMap.find x sub_map_1 in
+                  let b1x = INTERVALS.VarMap.find x b1 in
+                  SUB.VarSet.exists (Int.equal y) s1x ||
+                  INTERVALS.sup b1x < INTERVALS.inf b1x
+                )          
+            ) s2x) sub_map_2
       )
 
   let leq a b = Timing.wrap "leq" (leq a) b
