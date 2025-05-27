@@ -304,7 +304,7 @@ struct
 
   let event man e oman =
     match e with
-    | Events.Access {exp; ad; kind; reach} when ThreadFlag.is_currently_multi (Analyses.ask_of_man man) -> (* threadflag query in post-threadspawn man *)
+    | Events.Access {exp; ad; kind; reach} when true (* ThreadFlag.is_currently_multi (Analyses.ask_of_man man) *) -> (* threadflag query in post-threadspawn man *)
       (* must use original (pre-assign, etc) man queries *)
       let conf = 110 in
       let module AD = Queries.AD in
