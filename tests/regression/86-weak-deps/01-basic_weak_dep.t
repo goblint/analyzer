@@ -1,9 +1,0 @@
-  $ goblint --set solver td3 --set solvers.td3.weak-deps none -v 01-basic_weak_dep.c 2>&1 | grep 'evals'
-  [Info] vars = 41    evals = 33    narrow_reuses = 0
-
-  $ goblint --set solver td3 --set solvers.td3.weak-deps eager -v 01-basic_weak_dep.c 2>&1 | grep 'evals'
-  [Info] vars = 41    evals = 36    narrow_reuses = 0
-
-  $ goblint --set solver td3 --set solvers.td3.weak-deps lazy -v 01-basic_weak_dep.c 2>&1 | grep 'evals'
-  [Info] vars = 41    evals = 32    narrow_reuses = 0
-
