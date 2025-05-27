@@ -402,14 +402,18 @@ struct
     if M.tracing then M.tracel "join" "join a: %s b: %s -> %s" (show a) (show b) (show res) ;
     res
 
-  let widen a b = failwith "TODO"
+  let widen t1 t2 = 
+    { intv = INTERVALS.widen t1.intv t2.intv;
+    sub = SUB.widen t1.sub t2.sub }
 
   let widen a b =
     let res = widen a b in
     if M.tracing then M.tracel "widen" "widen a: %s b: %s -> %s" (show a) (show b) (show res) ;
     res
 
-  let narrow a b = failwith "TODO"
+  let narrow t1 t2 = 
+    { intv = INTERVALS.narrow t1.intv t2.intv;
+      sub = SUB.narrow t1.sub t2.sub }
 
   let narrow a b =
     let res = narrow a b in
