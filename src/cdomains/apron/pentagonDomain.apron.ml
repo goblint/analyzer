@@ -54,7 +54,13 @@ struct
 
 
 
-  let equal sub1 sub2 = VarMap.equal (VarSet.equal) sub1 sub2
+  let equal (sub1:t) (sub2:t) = 
+    match sub1.d, sub2.d with
+    | None, None -> true
+    | Some(sub_map_1), Some(sub_map_2) -> (
+        VarMap.equal (VarSet.equal) sub_map_1 sub_map_2
+      )
+    | _ -> false
 
   let bot_of env = ({ d = None; env = env}: t)
 
@@ -197,8 +203,8 @@ struct
     fst i = Z.of_int min_int && snd i = Z.of_int max_int
 
   let widen_single (i1: interval) (i2: interval) =
-    let l = if fst i1 <= fst i2 then fst i1 else Z.of_int min_int in
-    let u = if snd i1 >= snd i2 then snd i1 else Z.of_int max_int in
+    let l = if fst i1 <= fst i2 then fst i2 else Z.of_int min_int in
+    let u = if snd i1 >= snd i2 then snd i2 else Z.of_int max_int in
     (l, u)
 
   let narrow_single (i1: interval) (i2: interval) = meet_single i1 i2
@@ -386,9 +392,8 @@ struct
             let s''x = SUB.VarMap.find x s'' in
             let s'''x = SUB.VarMap.find x s''' in
             SUB.VarSet.union s'x (SUB.VarSet.union s''x s'''x)
-        ) sub_map_1 (* sub_map_1 & sub_map_2 should hold the same keys*) in
+        ) sub_map_1 (* sub_map_1 & sub_map_2 should hold the same keys *) in
 
-      (** s' \cup s'' \cup s''' *)
       ({d = Some(joined_sub_map); env = lce}: SUB.t)
     ) in
     ({intv = intv_join; sub = sub_join}:t)
@@ -404,7 +409,7 @@ struct
 
   let widen t1 t2 = 
     { intv = INTERVALS.widen t1.intv t2.intv;
-    sub = SUB.widen t1.sub t2.sub }
+      sub = SUB.widen t1.sub t2.sub }
 
   let widen a b =
     let res = widen a b in
