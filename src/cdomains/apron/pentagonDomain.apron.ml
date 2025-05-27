@@ -314,17 +314,17 @@ struct
 
   let leq t1 t2 =
     let b1, b2 = t1.intv, t2.intv in
-    let s_map_opt_1, s_map_opt_2 = t1.sub.d, t2.sub.d in
+    let sub1, sub2 = t1.sub, t2.sub in
     INTERVALS.leq b1 b2
     &&
-    match s_map_opt_1, s_map_opt_2 with
+    match sub1.d, sub2.d with
     | None, _ -> true (** might be wrong? *)
     | _, None -> false (** might be wrong? *)
     | Some(s_map_1), Some(s_map_2) -> 
       (
         (* Boilerplate *)     
-        let lce = Environment.lce t1.sub.env t2.sub.env in
-        let sub_map_1, sub_map_2 = SUB.unify_from_env t1.sub t2.sub lce in
+        let lce = Environment.lce sub1.env sub2.env in
+        let sub_map_1, sub_map_2 = SUB.unify_from_env sub1 sub2 lce in
 
         SUB.VarMap.for_all (
           fun x s2x -> 
@@ -332,10 +332,12 @@ struct
               fun y -> (
                   let s1x = SUB.VarMap.find x sub_map_1 in
                   let b1x = INTERVALS.VarMap.find x b1 in
+                  let b1y = INTERVALS.VarMap.find y b1 in
                   SUB.VarSet.exists (Int.equal y) s1x ||
-                  INTERVALS.sup b1x < INTERVALS.inf b1x
+                  INTERVALS.sup b1x < INTERVALS.inf b1y
                 )          
-            ) s2x) sub_map_2
+            ) s2x
+        ) sub_map_2
       )
 
   let leq a b = Timing.wrap "leq" (leq a) b
@@ -345,7 +347,53 @@ struct
     if M.tracing then M.tracel "leq" "leq a: %s b: %s -> %b" (show t1) (show t2) res ;
     res
 
-  let join a b = failwith "TODO"
+  let join t1 t2 = (
+    let intv_join = INTERVALS.join t1.intv t2.intv in
+    let sub_join = (
+      (* Boilerplate *)
+      let b1, b2 = t1.intv, t2.intv in
+      let sub1, sub2 = t1.sub, t2.sub in
+      let lce = Environment.lce sub1.env sub2.env in
+      let sub_map_1, sub_map_2 = SUB.unify_from_env sub1 sub2 lce in
+
+      let s' = SUB.VarMap.mapi (
+          fun x s2x -> 
+            let s1x = SUB.VarMap.find x sub_map_1 in
+            SUB.VarSet.inter s1x s2x
+        ) sub_map_2 in
+
+      let s'' = SUB.VarMap.mapi (
+          fun x s1x -> SUB.VarSet.filter (
+              fun y -> 
+                let b2x = INTERVALS.VarMap.find x b2 in
+                let b2y = INTERVALS.VarMap.find y b2 in
+                INTERVALS.sup b2x < INTERVALS.inf b2y
+            ) s1x
+        ) sub_map_1 in
+
+      let s''' = SUB.VarMap.mapi (
+          fun x s2x -> SUB.VarSet.filter (
+              fun y -> 
+                let b1x = INTERVALS.VarMap.find x b1 in
+                let b1y = INTERVALS.VarMap.find y b1 in
+                INTERVALS.sup b1x < INTERVALS.inf b1y
+            ) s2x
+        ) sub_map_2 in
+
+      let joined_sub_map = SUB.VarMap.mapi (
+          fun x _ -> 
+            let s'x = SUB.VarMap.find x s' in
+            let s''x = SUB.VarMap.find x s'' in
+            let s'''x = SUB.VarMap.find x s''' in
+            SUB.VarSet.union s'x (SUB.VarSet.union s''x s'''x)
+        ) sub_map_1 (* sub_map_1 & sub_map_2 should hold the same keys*) in
+
+      (** s' \cup s'' \cup s''' *)
+      ({d = Some(joined_sub_map); env = lce}: SUB.t)
+    ) in
+    ({intv = intv_join; sub = sub_join}:t)
+  )
+
 
   let join a b = Timing.wrap "join" (join a) b
 
@@ -386,7 +434,6 @@ struct
   let keep_vars _ = failwith "TODO"
   let keep_filter _ = failwith "TODO"
   let forget_vars _ = failwith "TODO"
-
 
   let assign_exp _ = failwith "TODO"
   let assign_var _ = failwith "TODO"
