@@ -5,9 +5,9 @@
     dead: 0
     total lines: 15
   [Warning][Race] Memory location p (race with conf. 110): (69-ghost-ptr-protection.c:7:5-7:12)
-    write with [lock:{m2}, thread:[main, t_fun@69-ghost-ptr-protection.c:22:3-22:40]] (conf. 110)  (exp: & p) (69-ghost-ptr-protection.c:14:3-14:9)
-    write with [lock:{m2}, thread:[main, t_fun@69-ghost-ptr-protection.c:22:3-22:40]] (conf. 110)  (exp: & p) (69-ghost-ptr-protection.c:15:3-15:9)
-    read with [mhp:{created={[main, t_fun@69-ghost-ptr-protection.c:22:3-22:40]}}, lock:{m1}, thread:[main]] (conf. 110)  (exp: & p) (69-ghost-ptr-protection.c:26:3-26:27)
+    write with [lock:{m2}, threadflag:(MT mode:Multithreaded (other), bool:true), thread:[main, t_fun@69-ghost-ptr-protection.c:22:3-22:40]] (conf. 110)  (exp: & p) (69-ghost-ptr-protection.c:14:3-14:9)
+    write with [lock:{m2}, threadflag:(MT mode:Multithreaded (other), bool:true), thread:[main, t_fun@69-ghost-ptr-protection.c:22:3-22:40]] (conf. 110)  (exp: & p) (69-ghost-ptr-protection.c:15:3-15:9)
+    read with [mhp:{created={[main, t_fun@69-ghost-ptr-protection.c:22:3-22:40]}}, lock:{m1}, threadflag:(MT mode:Multithreaded (main), bool:true), thread:[main]] (conf. 110)  (exp: & p) (69-ghost-ptr-protection.c:26:3-26:27)
   [Info][Witness] witness generation summary:
     location invariants: 0
     loop invariants: 0
@@ -124,9 +124,9 @@ Same with vojdani.
     dead: 0
     total lines: 15
   [Warning][Race] Memory location p (race with conf. 110): (69-ghost-ptr-protection.c:7:5-7:12)
-    write with [lock:{m2}, thread:[main, t_fun@69-ghost-ptr-protection.c:22:3-22:40]] (conf. 110)  (exp: & p) (69-ghost-ptr-protection.c:14:3-14:9)
-    write with [lock:{m2}, thread:[main, t_fun@69-ghost-ptr-protection.c:22:3-22:40]] (conf. 110)  (exp: & p) (69-ghost-ptr-protection.c:15:3-15:9)
-    read with [mhp:{created={[main, t_fun@69-ghost-ptr-protection.c:22:3-22:40]}}, lock:{m1}, thread:[main]] (conf. 110)  (exp: & p) (69-ghost-ptr-protection.c:26:3-26:27)
+    write with [lock:{m2}, threadflag:(MT mode:Multithreaded (other), bool:true), thread:[main, t_fun@69-ghost-ptr-protection.c:22:3-22:40]] (conf. 110)  (exp: & p) (69-ghost-ptr-protection.c:14:3-14:9)
+    write with [lock:{m2}, threadflag:(MT mode:Multithreaded (other), bool:true), thread:[main, t_fun@69-ghost-ptr-protection.c:22:3-22:40]] (conf. 110)  (exp: & p) (69-ghost-ptr-protection.c:15:3-15:9)
+    read with [mhp:{created={[main, t_fun@69-ghost-ptr-protection.c:22:3-22:40]}}, lock:{m1}, threadflag:(MT mode:Multithreaded (main), bool:true), thread:[main]] (conf. 110)  (exp: & p) (69-ghost-ptr-protection.c:26:3-26:27)
   [Info][Witness] witness generation summary:
     location invariants: 0
     loop invariants: 0

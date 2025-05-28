@@ -6,9 +6,9 @@
     dead: 0
     total lines: 15
   [Warning][Race] Memory location data (race with conf. 110): (68-ghost-ambiguous-idx.c:4:5-4:9)
-    write with [lock:{m[4]}, thread:[main, t_fun@68-ghost-ambiguous-idx.c:20:3-20:40]] (conf. 110)  (exp: & data) (68-ghost-ambiguous-idx.c:9:3-9:9)
-    write with [lock:{m[4]}, thread:[main, t_fun@68-ghost-ambiguous-idx.c:20:3-20:40]] (conf. 110)  (exp: & data) (68-ghost-ambiguous-idx.c:10:3-10:9)
-    read with [mhp:{created={[main, t_fun@68-ghost-ambiguous-idx.c:20:3-20:40]}}, thread:[main]] (conf. 110)  (exp: & data) (68-ghost-ambiguous-idx.c:24:3-24:29)
+    write with [lock:{m[4]}, threadflag:(MT mode:Multithreaded (other), bool:true), thread:[main, t_fun@68-ghost-ambiguous-idx.c:20:3-20:40]] (conf. 110)  (exp: & data) (68-ghost-ambiguous-idx.c:9:3-9:9)
+    write with [lock:{m[4]}, threadflag:(MT mode:Multithreaded (other), bool:true), thread:[main, t_fun@68-ghost-ambiguous-idx.c:20:3-20:40]] (conf. 110)  (exp: & data) (68-ghost-ambiguous-idx.c:10:3-10:9)
+    read with [mhp:{created={[main, t_fun@68-ghost-ambiguous-idx.c:20:3-20:40]}}, threadflag:(MT mode:Multithreaded (main), bool:true), thread:[main]] (conf. 110)  (exp: & data) (68-ghost-ambiguous-idx.c:24:3-24:29)
   [Info][Witness] witness generation summary:
     location invariants: 0
     loop invariants: 0

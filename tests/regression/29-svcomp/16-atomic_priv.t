@@ -9,9 +9,9 @@
     dead: 0
     total lines: 17
   [Warning][Race] Memory location myglobal (race with conf. 110): (16-atomic_priv.c:8:5-8:17)
-    write with [lock:{[__VERIFIER_atomic]}, thread:[main, t_fun@16-atomic_priv.c:23:3-23:40]] (conf. 110)  (exp: & myglobal) (16-atomic_priv.c:13:3-13:13)
-    write with [lock:{[__VERIFIER_atomic]}, thread:[main, t_fun@16-atomic_priv.c:23:3-23:40]] (conf. 110)  (exp: & myglobal) (16-atomic_priv.c:15:3-15:13)
-    read with [mhp:{created={[main, t_fun@16-atomic_priv.c:23:3-23:40]}}, thread:[main]] (conf. 110)  (exp: & myglobal) (16-atomic_priv.c:24:3-24:33)
+    write with [lock:{[__VERIFIER_atomic]}, threadflag:(MT mode:Multithreaded (other), bool:true), thread:[main, t_fun@16-atomic_priv.c:23:3-23:40]] (conf. 110)  (exp: & myglobal) (16-atomic_priv.c:13:3-13:13)
+    write with [lock:{[__VERIFIER_atomic]}, threadflag:(MT mode:Multithreaded (other), bool:true), thread:[main, t_fun@16-atomic_priv.c:23:3-23:40]] (conf. 110)  (exp: & myglobal) (16-atomic_priv.c:15:3-15:13)
+    read with [mhp:{created={[main, t_fun@16-atomic_priv.c:23:3-23:40]}}, threadflag:(MT mode:Multithreaded (main), bool:true), thread:[main]] (conf. 110)  (exp: & myglobal) (16-atomic_priv.c:24:3-24:33)
   [Info][Witness] witness generation summary:
     location invariants: 0
     loop invariants: 0
@@ -63,9 +63,9 @@ Non-atomic privatization:
     dead: 0
     total lines: 17
   [Warning][Race] Memory location myglobal (race with conf. 110): (16-atomic_priv.c:8:5-8:17)
-    write with [lock:{[__VERIFIER_atomic]}, thread:[main, t_fun@16-atomic_priv.c:23:3-23:40]] (conf. 110)  (exp: & myglobal) (16-atomic_priv.c:13:3-13:13)
-    write with [lock:{[__VERIFIER_atomic]}, thread:[main, t_fun@16-atomic_priv.c:23:3-23:40]] (conf. 110)  (exp: & myglobal) (16-atomic_priv.c:15:3-15:13)
-    read with [mhp:{created={[main, t_fun@16-atomic_priv.c:23:3-23:40]}}, thread:[main]] (conf. 110)  (exp: & myglobal) (16-atomic_priv.c:24:3-24:33)
+    write with [lock:{[__VERIFIER_atomic]}, threadflag:(MT mode:Multithreaded (other), bool:true), thread:[main, t_fun@16-atomic_priv.c:23:3-23:40]] (conf. 110)  (exp: & myglobal) (16-atomic_priv.c:13:3-13:13)
+    write with [lock:{[__VERIFIER_atomic]}, threadflag:(MT mode:Multithreaded (other), bool:true), thread:[main, t_fun@16-atomic_priv.c:23:3-23:40]] (conf. 110)  (exp: & myglobal) (16-atomic_priv.c:15:3-15:13)
+    read with [mhp:{created={[main, t_fun@16-atomic_priv.c:23:3-23:40]}}, threadflag:(MT mode:Multithreaded (main), bool:true), thread:[main]] (conf. 110)  (exp: & myglobal) (16-atomic_priv.c:24:3-24:33)
   [Info][Witness] witness generation summary:
     location invariants: 0
     loop invariants: 0

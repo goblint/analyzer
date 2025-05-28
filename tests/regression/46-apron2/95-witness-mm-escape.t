@@ -27,3 +27,8 @@
     unsupported: 0
     disabled: 0
     total validation entries: 15
+  [Info][Race] Memory locations race summary:
+    safe: 1
+    vulnerable: 0
+    unsafe: 0
+    total memory locations: 1

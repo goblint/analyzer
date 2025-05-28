@@ -6,6 +6,11 @@
     live: 8
     dead: 0
     total lines: 8
+  [Info][Race] Memory locations race summary:
+    safe: 2
+    vulnerable: 0
+    unsafe: 0
+    total memory locations: 2
 
   $ goblint --set ana.activated[+] memOutOfBounds --enable ana.int.interval --enable dbg.full-output 01-oob-heap-simple.c > full-output.txt 2>&1
 

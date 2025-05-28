@@ -63,7 +63,7 @@ struct
       let one_not_main = Flag.is_not_main m1 || Flag.is_not_main m2 in
       ((not use_threadflag) || (both_mt && one_not_main)) && b1 && b2
 
-      (* kill access when single threaded *)
+    (* kill access when single threaded *)
 
     let should_print m = true
   end

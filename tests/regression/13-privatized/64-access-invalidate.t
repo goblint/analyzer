@@ -12,7 +12,8 @@ Should have (safe) write access to id1 and magic2 invalidate to A:
     dead: 0
     total lines: 10
   [Success][Race] Memory location id (safe): (64-access-invalidate.c:4:11-4:13)
-    write with [multi:false, thread:[main]] (conf. 110)  (exp: & *((pthread_t * __restrict  )(& id))) (64-access-invalidate.c:21:3-21:36)
+    write with [threadflag:(MT mode:Singlethreaded, bool:false), thread:[main]] (conf. 110)  (exp: (pthread_t * __restrict  )(& id)) (64-access-invalidate.c:21:3-21:36)
+    write with [threadflag:(MT mode:Singlethreaded, bool:false), thread:[main]] (conf. 110)  (exp: & *((pthread_t * __restrict  )(& id))) (64-access-invalidate.c:21:3-21:36)
   [Info][Race] Memory locations race summary:
     safe: 1
     vulnerable: 0
