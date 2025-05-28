@@ -398,7 +398,6 @@ struct
 
   let is_top_env t = (not @@ Environment.equal empty_env t.env) && GobOption.exists EConj.is_top_con t.d
 
-  (** is_bot_env returns true for empty env and empty d *)
 
   let to_subscript i =
     let transl = [|"₀";"₁";"₂";"₃";"₄";"₅";"₆";"₇";"₈";"₉"|] in
