@@ -11,17 +11,34 @@ open GobApron
 open IntDomain0
 
 module Inequalities = struct
-  module VarMap = BatMap.Make(Int)
-  module VarSet = BatSet.Make(Int)
+  module Idx = Int
+  module VarMap = BatMap.Make(Idx)
+  module VarSet = BatSet.Make(Idx)
 
   type t =  (VarSet.t VarMap.t) [@@deriving eq, ord]
   let hash : (t -> int)  = fun _ -> failwith "TODO"
   let copy (x: t) = x
   let empty () = (VarMap.empty: t)
   let is_empty ineq  = VarMap.is_empty ineq
-  let dim_add : (Apron.Dim.change -> t -> t)  = fun _ -> failwith "TODO"
-  let dim_remove : (Apron.Dim.change -> t -> del:bool-> t)  = fun _ -> failwith "TODO"
 
+  (** See https://antoinemine.github.io/Apron/doc/api/ocaml/Dim.html for the semantic of Dim.change *)
+  let dim_add (dim_change: Apron.Dim.change) sub_map =
+    let dim_array, intdim, realdim = dim_change.dim, dim_change.intdim, dim_change.realdim in
+    failwith "dim_add needs implementing!"
+
+
+  let dim_remove : (Apron.Dim.change -> t -> del:bool-> t)  = fun _ -> failwith "dim_remove needs implementing"
+
+  let to_string (t:t) = 
+    (* { y1, y2, ..., yn }*)
+    let set_string set = "{" ^ (VarSet.to_list set |> List.map (Int.to_string) |> String.concat ",") ^ "}" in
+    (* x_1 -> {y1, y2, ..., yn} *)
+    let relations_string = Seq.fold_left (fun acc (x, six) -> (Int.to_string x) ^ " -> " ^ (set_string six) ^ "\n") "" (VarMap.to_seq t) in
+    (* {
+        x_1 -> {y1, y2, ..., yn}
+        }
+    *)
+    "{\n" ^ relations_string ^ "}\n"
 end
 
 
@@ -76,13 +93,19 @@ struct
   let is_bot (sub:t) = 
     match sub.d with
     | None -> true
-    (** 
-       TODO: Implement contradiction search -- transitive closure in the worst-case.
-    *)
     | Some(sub_map) ->
-      let key_is_equal_for_all k1 = (fun k2 -> VarSet.exists (fun k -> k == k1) (VarMap.find k2 sub_map)) in
-      let iterate_greater_variables = (fun k1 v -> VarSet.exists (key_is_equal_for_all k1) v) in
-      VarMap.exists iterate_greater_variables sub_map 
+      VarMap.exists (
+        fun k1 v ->
+          VarSet.mem k1 v 
+          ||
+          (** 
+             TODO: Implement further contradiction search -- transitive closure in the worst-case.
+          *)
+          VarSet.exists (
+            fun k2 ->
+              VarSet.exists (fun k -> k == k1) (VarMap.find_default VarSet.empty k2 sub_map)
+          ) v
+      ) sub_map 
 
   (** The environment (env) manages the number of variables stored in our datatype and 
       therefore the dimensions of our value space. The inequalities should
@@ -108,12 +131,14 @@ struct
     match sub1.d, sub2.d with
     | None, _ -> true
     | _, None -> false
-    | Some(sub_map_1), Some(sub_map_2) -> 
-      let subseteq_s1 var_key_2 greater_vars_2 = 
-        let greater_vars_1 = VarMap.find var_key_2 sub_map_1 in
-        subseteq greater_vars_2 greater_vars_1
-      in
-      VarMap.for_all subseteq_s1 sub_map_2
+    | Some(sub_map_1), Some(sub_map_2) ->
+      let lce = Environment.lce sub1.env sub2.env in
+      let sub_map_1, sub_map_2 = unify_from_env sub1 sub2 lce in
+      VarMap.for_all (
+        fun x s2x -> 
+          let s1x = VarMap.find x sub_map_1 in
+          subseteq s1x s2x
+      ) sub_map_2
 
   let join (sub1: t) (sub2: t) =
     let lce = Environment.lce sub1.env sub2.env in
@@ -125,29 +150,28 @@ struct
       top_of lce
     | Some(sub_map_1), Some(sub_map_2) ->
       (** Make sure that the maps contain keys for all variables before comparing. *)
-      let ext_sub1 = Inequalities.dim_add (Environment.dimchange sub1.env lce) sub_map_1 in
-      let ext_sub2 = Inequalities.dim_add (Environment.dimchange sub2.env lce) sub_map_2 in
+      let sub_map_1, sub_map_2 = unify_from_env sub1 sub2 lce in
       let intersect_sets_of_key var_key var_set1_opt var_set2_opt =
         match var_set1_opt, var_set2_opt with
         | Some(var_set1), Some(var_set2) -> Some(VarSet.inter var_set1 var_set2)
         | None, None -> failwith "This should never happen :)"
-        | _ -> failwith "dim_add should take care of that :)"
+        | _ -> failwith "unify_from_env should take care of that :)"
       in
-      { d = Some(VarMap.merge (intersect_sets_of_key) ext_sub1 ext_sub2); env = lce }
+      { d = Some(VarMap.merge (intersect_sets_of_key) sub_map_1 sub_map_2); env = lce }
 
   let meet (sub1: t) (sub2: t) =
     let lce = Environment.lce sub1.env sub2.env in
     match sub1.d, sub2.d with
     | Some(sub_map_1), Some(sub_map_2) -> (
-        let ext_sub_map_1 = Inequalities.dim_add (Environment.dimchange sub1.env lce) sub_map_1 in
-        let ext_sub_map_2 = Inequalities.dim_add (Environment.dimchange sub2.env lce) sub_map_2 in
+        (** Make sure that the maps contain keys for all variables before comparing. *)
+        let sub_map_1, sub_map_2 = unify_from_env sub1 sub2 lce in
         let union_sets_of_key var_key var_set1_opt var_set2_opt =
           match var_set1_opt, var_set2_opt with
           | Some(var_set1), Some(var_set2) -> Some(VarSet.union var_set1 var_set2)
           | None, None -> failwith "This should never happen :)"
-          | _ -> failwith "dim_add should take care of that :)"
+          | _ -> failwith "unify_from_env should take care of that :)"
         in
-        ({ d = Some(VarMap.merge union_sets_of_key ext_sub_map_1 ext_sub_map_2); env=lce }: t)
+        ({ d = Some(VarMap.merge union_sets_of_key sub_map_1 sub_map_2); env=lce }: t)
       )
     | _ -> bot_of lce
 
@@ -155,22 +179,34 @@ struct
     let lce = Environment.lce sub1.env sub2.env in
     match sub1.d, sub2.d with
     | Some(sub_map_1), Some(sub_map_2) -> (
-        let ext_sub_map_1 = Inequalities.dim_add (Environment.dimchange sub1.env lce) sub_map_1 in
-        let ext_sub_map_2 = Inequalities.dim_add (Environment.dimchange sub2.env lce) sub_map_2 in
+        (** Make sure that the maps contain keys for all variables before comparing. *)
+        let sub_map_1, sub_map_2 = unify_from_env sub1 sub2 lce in
         let widen_sets_of_key var_key var_set1_opt var_set2_opt =
           match var_set1_opt, var_set2_opt with
           | Some(var_set1), Some(var_set2) ->
             if subseteq var_set1 var_set2 then Some (var_set2) else Some (VarSet.empty)
           | None, None -> failwith "This should never happen :)"
-          | _ -> failwith "dim_add should take care of that :)"
+          | _ -> failwith "unify_from_env should take care of that :)"
         in
-        ({ d = Some(VarMap.merge widen_sets_of_key ext_sub_map_1 ext_sub_map_2); env = lce }:t)
+        ({ d = Some(VarMap.merge widen_sets_of_key sub_map_1 sub_map_2); env = lce }:t)
       )
     | _ -> top_of lce (** Naively extrapolate to top. We are unsure if this is intented by the papers definitions. *)
 
   (** No narrowing mentioned in the paper. *)
   let narrow sub1 sub2 = meet sub1 sub2
 
+
+  let to_string (sub: t) = 
+    if is_bot sub then
+      "bot"
+    else if is_top sub then
+      "top"
+    else
+      match sub.d with
+      | None -> failwith "is_bot should take care of that :)"
+      | Some(sub_map) -> (
+          Inequalities.to_string sub_map
+        )
 
 end
 
