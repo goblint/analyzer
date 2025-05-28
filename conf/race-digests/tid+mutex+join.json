@@ -56,7 +56,7 @@
       "call": false,
       "digests": {
         "lockset": true,
-        "thread": false,
+
         "fresh": false,
         "region": false,
         "symb_locks": false,

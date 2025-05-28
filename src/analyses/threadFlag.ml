@@ -54,15 +54,30 @@ struct
 
   module A =
   struct
-    include BoolDomain.Bool
-    let name () = "multi"
-    let may_race m1 m2 =
+    include Lattice.Prod(Flag)(BoolDomain.MayBool)
+    let name () = "threadflag"
+
+    let may_race (m1,b1) (m2,b2) =
       let use_threadflag = GobConfig.get_bool "ana.race.digests.threadflag" in
-      (not use_threadflag) || (m1 && m2) (* kill access when single threaded *)
-    let should_print m = not m
+      let both_mt = Flag.is_multi m1 && Flag.is_multi m2 in
+      let one_not_main = Flag.is_not_main m1 || Flag.is_not_main m2 in
+      ((not use_threadflag) || (both_mt && one_not_main)) && b1 && b2
+
+      (* kill access when single threaded *)
+
+    let should_print m = true
   end
+
   let access man _ =
-    is_currently_multi (Analyses.ask_of_man man)
+    let st =
+      if GobConfig.get_bool "ana.race.digests.join" then
+        is_currently_multi (Analyses.ask_of_man man)
+      else if GobConfig.get_bool "ana.race.digests.tid" then
+        has_ever_been_multi (Analyses.ask_of_man man)
+      else
+        true
+    in
+    ((man.local,st):A.t)
 
   let threadenter man ~multiple lval f args =
     if not (has_ever_been_multi (Analyses.ask_of_man man)) then
