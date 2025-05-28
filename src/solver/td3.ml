@@ -23,13 +23,13 @@ module M = Messages
 
 module type Hooks =
 sig
-  module S: EqConstrSys
+  module S: DemandEqConstrSys
   module HM: Hashtbl.S with type key = S.v
 
   val print_data: unit -> unit
   (** Print additional solver data statistics. *)
 
-  val system: S.v -> ((S.v -> S.d) -> (S.v -> S.d -> unit) -> S.d) option
+  val system: S.v -> ((S.v -> S.d) -> (S.v -> S.d -> unit) -> (S.v -> unit) -> S.d) option
   (** Wrap [S.system]. Always use this hook instead of [S.system]! *)
 
   val delete_marked: S.v list -> unit
@@ -44,16 +44,17 @@ end
 
 module Base =
   functor (Arg: IncrSolverArg) ->
-  functor (S:EqConstrSys) ->
+  functor (S:DemandEqConstrSys) ->
   functor (HM:Hashtbl.S with type key = S.v) ->
   functor (Hooks: Hooks with module S = S and module HM = HM) ->
   functor (UpdateRule: Td3UpdateRule.S) ->
   struct
     open SolverBox.Warrow (S.Dom)
-    include Generic.SolverStats (S) (HM)
+    module EqS0 = EqConstrSysFromDemandConstrSys (S)
+    include Generic.SolverStats (EqS0) (HM)
     module VS = Set.Make (S.Var)
 
-    module UpdateRule = UpdateRule(S) (HM) (VS)
+    module UpdateRule = UpdateRule(EqS0) (HM) (VS)
 
     let exists_key f hm = HM.exists (fun k _ -> f k) hm
 
@@ -75,6 +76,7 @@ module Base =
       var_messages: Message.t HM.t; (** Messages from right-hand sides of variables. Used for incremental postsolving. *)
       rho_write: S.Dom.t HM.t HM.t; (** Side effects from variables to write-only variables with values. Used for fast incremental restarting of write-only variables. *)
       dep: VS.t HM.t; (** Dependencies of variables. Inverse of [infl]. Used for fast pre-reachable pruning in incremental postsolving. *)
+      weak_dep: VS.t HM.t; (** Weak dependencies of variables via [demand] (if enabled). *)
     }
 
     type marshal = solver_data
@@ -92,6 +94,7 @@ module Base =
       var_messages = HM.create 10;
       rho_write = HM.create 10;
       dep = HM.create 10;
+      weak_dep = HM.create 10;
     }
 
     let print_data data =
@@ -139,6 +142,7 @@ module Base =
         var_messages = HM.copy data.var_messages;
         rho_write = HM.map (fun x w -> HM.copy w) data.rho_write; (* map copies outer HM *)
         dep = HM.copy data.dep;
+        weak_dep = HM.copy data.weak_dep;
       }
 
     (* The following hack is for fixing hashconsing.
@@ -204,12 +208,18 @@ module Base =
       HM.iter (fun k v ->
           HM.replace dep (S.Var.relift k) (VS.map S.Var.relift v)
         ) data.dep;
-      {st; infl; sides; update_rule_data; rho; wpoint_gas; stable; side_dep; side_infl; var_messages; rho_write; dep}
+      let weak_dep = HM.create (HM.length data.weak_dep) in
+      HM.iter (fun k v ->
+          HM.replace weak_dep (S.Var.relift k) (VS.map S.Var.relift v)
+        ) data.weak_dep;
+
+      {st; infl; sides; update_rule_data; rho; wpoint_gas; stable; side_dep; side_infl; var_messages; rho_write; dep; weak_dep}
 
     type phase = Widen | Narrow [@@deriving show] (* used in inner solve *)
 
-    module CurrentVarS = Goblint_constraint.ConstrSys.CurrentVarEqConstrSys (S)
+    module CurrentVarS = Goblint_constraint.ConstrSys.CurrentVarDemandEqConstrSys (S)
     module S = CurrentVarS.S
+    module EqS = EqConstrSysFromDemandConstrSys (S) (* new S, so must construct new EqS *)
 
     let solve st vs marshal =
       let reuse_stable = GobConfig.get_bool "incremental.stable" in
@@ -248,6 +258,7 @@ module Base =
 
       let narrow_reuse = GobConfig.get_bool "solvers.td3.narrow-reuse" in
       let remove_wpoint = GobConfig.get_bool "solvers.td3.remove-wpoint" in
+      let weak_deps_handling = GobConfig.get_string "solvers.td3.weak-deps" in
 
       let side_dep = data.side_dep in
       let side_infl = data.side_infl in
@@ -269,10 +280,11 @@ module Base =
       let var_messages = data.var_messages in
       let rho_write = data.rho_write in
       let dep = data.dep in
+      let weak_dep = data.weak_dep in
 
       let (module WPS) = SideWPointSelect.choose_impl () in
       let module WPS = struct
-        include WPS (S) (HM) (VS)
+        include WPS (EqS) (HM) (VS)
       end in
 
       let () = print_solver_stats := fun () ->
@@ -358,7 +370,7 @@ module Base =
             | _ ->
               (* The RHS is re-evaluated, all deps are re-trigerred *)
               HM.replace dep x VS.empty;
-              eq_wrapper x (eq x (eval l x))
+              eq_wrapper x (fun side -> eq x (eval l x) side (demand l x))
           in
           HM.remove called x;
           let old = HM.find rho x in (* d from older solve *) (* find old value after eq since wpoint restarting in eq/eval might have changed it meanwhile *)
@@ -411,11 +423,11 @@ module Base =
             )
           )
         )
-      and eq x get set =
+      and eq x get set demand =
         if tracing then trace "sol2" "eq %a" S.Var.pretty_trace x;
         match Hooks.system x with
         | None -> S.Dom.bot ()
-        | Some f -> f get set
+        | Some f -> f get set demand
       and simple_solve l x y =
         if tracing then trace "sol2" "simple_solve %a (rhs: %b)" S.Var.pretty_trace y (Hooks.system y <> None);
         if Hooks.system y = None then (init y; HM.replace stable y (); HM.find rho y) else
@@ -429,7 +441,7 @@ module Base =
           let eqd =
             (* We check in maingoblint that `solvers.td3.space` and `solvers.td3.narrow-globs.enabled` are not on at the same time *)
             (* Narrowing on for globals ('solvers.td3.narrow-globs.enabled') would require enhancing this to work withe Narrow update rule *)
-            eq y (eval l x) (side ~x)
+            eq y (eval l x) (side ~x) (demand l x)
           in
           HM.remove called y;
           if HM.mem wpoint_gas y then (HM.remove l y; solve y Widen; HM.find rho y)
@@ -505,6 +517,16 @@ module Base =
           (* y has grown. Reduce widening gas! *)
           if not vetoed_widen then reduce_gas y;
         )
+      and demand l x y =
+        if tracing then trace "sol2" "demand weak dep %a from %a" S.Var.pretty_trace y S.Var.pretty_trace x;
+        match weak_deps_handling with
+        | "none" -> ignore (eval l x y)
+        | "eager" ->
+          HM.replace weak_dep x (VS.add y (try HM.find weak_dep x with Not_found -> VS.empty));
+          solve y Widen
+        | "lazy" ->
+          HM.replace weak_dep x (VS.add y (try HM.find weak_dep x with Not_found -> VS.empty))
+        | _ -> assert false
       and init x =
         if tracing then trace "sol2" "init %a" S.Var.pretty_trace x;
         if not (HM.mem rho x) then (
@@ -809,7 +831,13 @@ module Base =
       let i = ref 0 in
       let rec solver () = (* as while loop in paper *)
         incr i;
-        let unstable_vs = List.filter (neg (HM.mem stable)) vs in
+        let weak_dep_vs =
+          HM.values weak_dep
+          |> Enum.concat_map VS.enum
+          |> List.of_enum
+        in
+        let all_vs = vs @ weak_dep_vs in (* vs is singleton for us, so it's cheap to prepend *)
+        let unstable_vs = List.filter (neg (HM.mem stable)) all_vs in
         if unstable_vs <> [] then (
           if Logs.Level.should_log Debug then (
             if !i = 1 then Logs.newline ();
@@ -840,7 +868,7 @@ module Base =
         HM.replace visited x ();
         match Hooks.system x with
         | None -> if HM.mem rho x then HM.find rho x else (Logs.warn "TDFP Found variable %a w/o rhs and w/o value in rho" S.Var.pretty_trace x; S.Dom.bot ())
-        | Some f -> f (get ~check) (check_side x)
+        | Some f -> f (get ~check) (check_side x) (demand ~check)
       and get ?(check=false) x =
         if HM.mem visited x then (
           HM.find rho x
@@ -858,6 +886,8 @@ module Base =
           HM.replace rho x d;
           d
         )
+      and demand ?check x =
+        ignore (get ?check x)
       in
       (* restore values for non-widening-points *)
       if space && GobConfig.get_bool "solvers.td3.space_restore" then (
@@ -885,6 +915,8 @@ module Base =
         HM.iter (fun k gas -> Logs.debug "%a (gas: %d)" S.Var.pretty_trace k gas) wpoint_gas;
         Logs.newline ();
       );
+
+      let module S = EqS in (* TODO: expose demand to postsolvers? *)
 
       (* Prune other data structures than rho with reachable.
          These matter for the incremental data. *)
@@ -1069,16 +1101,16 @@ module Base =
       print_data_verbose data "Data after postsolve";
 
       verify_data data;
-      (rho, {st; infl; sides; update_rule_data; rho; wpoint_gas; stable; side_dep; side_infl; var_messages; rho_write; dep})
+      (rho, {st; infl; sides; update_rule_data; rho; wpoint_gas; stable; side_dep; side_infl; var_messages; rho_write; dep; weak_dep})
   end
 
 (** TD3 with no hooks. *)
-module Basic(UpdateRule: Td3UpdateRule.S): GenericEqIncrSolver =
+module Basic(UpdateRule: Td3UpdateRule.S): DemandEqIncrSolver =
   functor (Arg: IncrSolverArg) ->
-  functor (S:EqConstrSys) ->
+  functor (S:DemandEqConstrSys) ->
   functor (HM:Hashtbl.S with type key = S.v)->
   struct
-    include Generic.SolverStats (S) (HM)
+    include Generic.SolverStats (EqConstrSysFromDemandConstrSys (S)) (HM)
 
     module Hooks =
     struct
@@ -1091,9 +1123,9 @@ module Basic(UpdateRule: Td3UpdateRule.S): GenericEqIncrSolver =
         match S.system x with
         | None -> None
         | Some f ->
-          let f' get set =
+          let f' get set demand =
             eval_rhs_event x;
-            f get set
+            f get set demand
           in
           Some f'
 
@@ -1106,12 +1138,12 @@ module Basic(UpdateRule: Td3UpdateRule.S): GenericEqIncrSolver =
   end
 
 (** TD3 with eval skipping using [dep_vals]. *)
-module DepVals(UpdateRule: Td3UpdateRule.S): GenericEqIncrSolver =
+module DepVals(UpdateRule: Td3UpdateRule.S): DemandEqIncrSolver =
   functor (Arg: IncrSolverArg) ->
-  functor (S:EqConstrSys) ->
+  functor (S:DemandEqConstrSys) ->
   functor (HM:Hashtbl.S with type key = S.v) ->
   struct
-    include Generic.SolverStats (S) (HM)
+    include Generic.SolverStats (EqConstrSysFromDemandConstrSys (S)) (HM)
 
     (* TODO: more efficient inner data structure than assoc list, https://github.com/goblint/analyzer/pull/738#discussion_r876016079 *)
     type dep_vals = (S.Dom.t * (S.Var.t * S.Dom.t) list) HM.t
@@ -1132,7 +1164,7 @@ module DepVals(UpdateRule: Td3UpdateRule.S): GenericEqIncrSolver =
         | None -> None
         | Some f ->
           let dep_vals = !current_dep_vals in
-          let f' get set =
+          let f' get set demand =
             let all_deps_unchanged =
               match HM.find_option dep_vals x with
               | None -> None
@@ -1159,7 +1191,7 @@ module DepVals(UpdateRule: Td3UpdateRule.S): GenericEqIncrSolver =
               eval_rhs_event x;
               (* Reset dep_vals to [] *)
               HM.replace dep_vals x (S.Dom.bot (),[]);
-              let res = f get set in
+              let res = f get set demand in (* TODO: also need to wrap demand? *)
               (* Insert old value of last RHS evaluation *)
               HM.replace dep_vals x (res, snd (HM.find dep_vals x));
               res
@@ -1225,16 +1257,13 @@ let after_config () =
     if restart_sided || restart_wpoint || restart_once then (
       M.warn "restarting active, ignoring solvers.td3.skip-unchanged-rhs";
       (* TODO: fix DepVals with restarting, https://github.com/goblint/analyzer/pull/738#discussion_r876005821 *)
-      Selector.add_solver ("td3", (module DemandEqIncrSolverFromGenericEqIncrSolver
-            (Basic(UpdateRule): GenericEqIncrSolver): DemandEqIncrSolver))
+      Selector.add_solver ("td3", (module Basic(UpdateRule): DemandEqIncrSolver))
     )
     else
-      Selector.add_solver ("td3", (module DemandEqIncrSolverFromGenericEqIncrSolver
-            (DepVals(UpdateRule): GenericEqIncrSolver): DemandEqIncrSolver))
+      Selector.add_solver ("td3", (module DepVals(UpdateRule): DemandEqIncrSolver))
   )
   else
-    Selector.add_solver ("td3", (module DemandEqIncrSolverFromGenericEqIncrSolver
-          (Basic(UpdateRule): GenericEqIncrSolver): DemandEqIncrSolver))
+    Selector.add_solver ("td3", (module Basic(UpdateRule): DemandEqIncrSolver))
 
 let () =
   AfterConfig.register after_config
