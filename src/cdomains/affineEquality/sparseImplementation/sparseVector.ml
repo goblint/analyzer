@@ -257,13 +257,15 @@ module SparseVector: SparseVectorFunctor =
       {v with entries = entries'}
 
     (**
-       [map2_f_preserves_zero f v v'] returns the mapping of [v] and [v'] specified by [f].
+       [map2_f_preserves_zero termorder f v v'] returns the mapping of [v] and [v'] specified by [f].
 
        Note that [f] {b must} be such that [f 0 0 = 0]!
 
+       [termorder] is a function specifying, if the entries of [v] and [v'] are ordered in increasing or decreasing index order.
+
        @raise Invalid_argument if [v] and [v'] have unequal lengths
     *)
-    let map2_f_preserves_zero f v v' =
+    let map2_f_preserves_zero_helper termorder f v v' =
       let f_rem_zero acc idx e1 e2 =
         let r = f e1 e2 in 
         if r =: A.zero then acc else (idx, r) :: acc
@@ -274,13 +276,24 @@ module SparseVector: SparseVectorFunctor =
         | [], (yidx, yval) :: ys -> aux (f_rem_zero acc yidx A.zero yval) [] ys
         | (xidx, xval) :: xs, [] -> aux (f_rem_zero acc xidx xval A.zero) xs []
         | (xidx, xval) :: xs, (yidx, yval) :: ys -> 
-          match xidx - yidx with
+          match termorder xidx yidx with
           | d when d < 0 -> aux (f_rem_zero acc xidx xval A.zero) xs v2
           | d when d > 0 -> aux (f_rem_zero acc yidx A.zero yval) v1 ys
           | _            -> aux (f_rem_zero acc xidx xval yval) xs ys
       in
       if v.len <> v'.len then raise (Invalid_argument "Unequal lengths") else 
         {v with entries = List.rev (aux [] v.entries v'.entries)}
+
+    (**
+       [map2_f_preserves_zero f v v'] returns the mapping of [v] and [v'] specified by [f].
+
+       Note that [f] {b must} be such that [f 0 0 = 0]!
+
+       The entries of [v] and [v'] are assumed to be ordered in increasing index order.
+
+       @raise Invalid_argument if [v] and [v'] have unequal lengths
+    *)
+    let map2_f_preserves_zero f v v'= map2_f_preserves_zero_helper (-) f v v'
 
     let map2_f_preserves_zero f v1 v2 = timing_wrap "map2_f_preserves_zero" (map2_f_preserves_zero f v1) v2
 
