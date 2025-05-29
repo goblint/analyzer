@@ -120,18 +120,11 @@ end
 
 module SUB =
 struct
-  (**
-     TODO: Evaluate --
-     Maybe we need to use (BatSet(Idx).t list) as the type, because we do
-     not need to manually track the variable keys 
-     (apron Environments take care of that)
-  *)
   module Idx = Int
-  module VarMap = BatMap.Make(Idx)
   module VarSet = BatSet.Make(Idx)
+  module VarList = BatList
 
-
-  type t = (VarSet.t VarMap.t) [@@deriving eq, ord]
+  type t = VarSet.t VarList.t [@@deriving eq, ord]
 
   let dim_add (dim_change: Apron.Dim.change) (sub: t) = failwith "TODO"
 

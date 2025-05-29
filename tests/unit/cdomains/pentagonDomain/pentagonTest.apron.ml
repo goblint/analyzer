@@ -124,29 +124,28 @@ let test_widening_env _ =
 
 (* Test cases for the SUB module *)
 let test_sub_equal _ =
-  let sub1 = SUB.VarMap.empty |> SUB.VarMap.add 1 (SUB.VarSet.singleton 2) in
-  let sub2 = SUB.VarMap.empty |> SUB.VarMap.add 1 (SUB.VarSet.singleton 2) in
-  let sub3 = SUB.VarMap.empty |> SUB.VarMap.add 1 (SUB.VarSet.singleton 3) in
+  let sub1 = [SUB.VarSet.singleton 2] in
+  let sub2 = [SUB.VarSet.singleton 2] in
+  let sub3 = [SUB.VarSet.singleton 3] in
   assert_bool "sub1 should be equal to sub2" (SUB.equal sub1 sub2);
   assert_bool "sub1 should not be equal to sub3" (not (SUB.equal sub1 sub3))
 
 let test_sub_leq _ =
-  let sub = SUB.VarMap.empty |>
-            SUB.VarMap.add 1 (SUB.VarSet.of_list [2; 3; 4]) |>
-            SUB.VarMap.add 2 (SUB.VarSet.of_list [7; 6]) in
-
-  let equal_sub = 
-    SUB.VarMap.empty |>
-    SUB.VarMap.add 1 (SUB.VarSet.of_list [2; 3; 4]) |>
-    SUB.VarMap.add 2 (SUB.VarSet.of_list [7; 6]) in
-
-  let uncomparable_sub = SUB.VarMap.empty |>
-                         SUB.VarMap.add 1 (SUB.VarSet.singleton 3) in
-
-
-  let less_specific_sub = SUB.VarMap.empty |>
-                          SUB.VarMap.add 1 (SUB.VarSet.of_list [4]) |>
-                          SUB.VarMap.add 2 (SUB.VarSet.of_list [6]) in
+  let sub = [
+    SUB.VarSet.of_list [2; 3; 4];
+    SUB.VarSet.of_list [7; 6]
+  ] in
+  let equal_sub = [
+    SUB.VarSet.of_list [2; 3; 4];
+    SUB.VarSet.of_list [7; 6]
+  ] in
+  let uncomparable_sub = [
+    SUB.VarSet.singleton 3
+  ] in
+  let less_specific_sub = [
+    SUB.VarSet.of_list [4];
+    SUB.VarSet.of_list [6]
+  ] in
 
   assert_bool
     "sub should be less than or equal to an equal sub" (SUB.leq sub equal_sub);
@@ -164,38 +163,35 @@ let test_sub_leq _ =
 
 let test_sub_to_string _ = 
   let sub_string = 
-    SUB.to_string 
-      ( SUB.VarMap.empty |>
-        SUB.VarMap.add 1 (SUB.VarSet.of_list [2;3;4;28])
-      ) in
-  print_string sub_string; assert_equal sub_string "{\n}\n";;
+    SUB.to_string [SUB.VarSet.of_list [2;3;4;28]] in
+  print_string sub_string; assert_equal sub_string "{\n1 -> {2,3,4,28}\n}\n";;
 
-let test_sub_dim_add _ = 
+let test_sub_dim_add _ =
   let dim_change = ({dim = [|0; 1; 1; 2; 3|]; intdim = 5; realdim = 0 }: Apron.Dim.change) in
-  let sub = 
-    SUB.VarMap.empty |>
-    SUB.VarMap.add 1 (SUB.VarSet.singleton 2) |>
-    SUB.VarMap.add 2 (SUB.VarSet.singleton 3) |>
-    SUB.VarMap.add 4 (SUB.VarSet.singleton 5) in 
+  let sub = [
+    SUB.VarSet.singleton 2;
+    SUB.VarSet.singleton 3;
+    SUB.VarSet.singleton 5
+  ] in 
   (*
   0_
     1 -> {2}
   1_
     2 -> {3}
   2_
-    4 -> {5}
+    3 -> {5}
   3_
   *)
-  let expected_sub = 
-    SUB.VarMap.empty |>
-    SUB.VarMap.add 1 (SUB.VarSet.empty) |>  (* insert 0 *)
-    SUB.VarMap.add 2 (SUB.VarSet.singleton 2) |>
-    SUB.VarMap.add 3 (SUB.VarSet.empty) |>  (* insert 1 *)
-    SUB.VarMap.add 4 (SUB.VarSet.empty) |>  (* insert 1 *)
-    SUB.VarMap.add 5 (SUB.VarSet.singleton 3) |>
-    SUB.VarMap.add 6 (SUB.VarSet.empty) |>  (* insert 2 *)
-    SUB.VarMap.add 7 (SUB.VarSet.singleton 5) |>
-    SUB.VarMap.add 8 (SUB.VarSet.empty)     (* insert 3 *)
+  let expected_sub = [
+    SUB.VarSet.empty;  (* insert 0 *)
+    SUB.VarSet.singleton 2;
+    SUB.VarSet.empty;  (* insert 1 *)
+    SUB.VarSet.empty;  (* insert 1 *)
+    SUB.VarSet.singleton 3;
+    SUB.VarSet.empty;  (* insert 2 *)
+    SUB.VarSet.singleton 5;
+    SUB.VarSet.empty   (* insert 3 *)
+  ]
   in 
   (*
   1 -> {} // new
@@ -204,7 +200,7 @@ let test_sub_dim_add _ =
   4 -> {} // new
   5 -> {3}
   6 -> {} // new
-  7 -> {3}
+  7 -> {5}
   8 -> {} // new
   *)
   let resulting_sub = SUB.dim_add dim_change sub in
