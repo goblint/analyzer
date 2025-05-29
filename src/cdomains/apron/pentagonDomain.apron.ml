@@ -131,8 +131,7 @@ struct
 
 
   type t = VarSet.t VarList.t [@@deriving eq, ord]
-  let print_int io n =
-    BatIO.nwrite io (string_of_int n)
+
 
   let dim_add (dim_change: Apron.Dim.change) (sub: t) =
     if dim_change.realdim != 0 then 
@@ -141,14 +140,15 @@ struct
     else
       (* 
       This is basically a fold_lefti with rev at the end.
-      Could not use fold_lefti because I might need to append at the end of the list.
+      Could not use fold_lefti directly because I might need to append at the end of the list.
       This would have forced me to use List.length, which is \theta(n).
       *)
       let rec aux (dim_change: Apron.Dim.change) i sub (moved: MoveMap.t) acc =
-        (** Counts the number of empty sets to prepend at the current index. *)
+        (** Computes the number by which the current index/variable will be shifted/moved *)
         let moved_by = 
           Array.count_matching (fun k -> k <= i) dim_change.dim 
         in
+        (** Counts the number of empty sets to prepend at the current index. *)
         let append_count = 
           Array.count_matching (fun k -> k == i) dim_change.dim 
         in
@@ -160,20 +160,15 @@ struct
         in
         match sub with
         | h::t ->
-          (** Store the new index mappings to later adjust the sets *)
+          (** Store the new index mappings to later adjust the sets. *)
           let moved = (MoveMap.add i (i+moved_by) moved) in
-          (** Insert `append_count` many dimensions before `h` *)
+          (** Insert `append_count` many dimensions before `h`, then append `h` *)
           let acc = (h :: (prepend_dim append_count acc)) in
           aux dim_change (i+1) t moved acc
         | [] ->
-          (** Complete sub by reversing and prepending the last dimensions *)
+          (** Complete sub prepending the last dimensions and reversing *)
           let sub = (List.rev (prepend_dim append_count acc)) in
-          MoveMap.print
-            print_int
-            print_int
-            BatIO.stdout
-            moved;
-          (** Now we need to adjust the sets because our indices have moved *)
+          (** Adjust the stored indices in our sets *)
           VarList.map (
             fun set ->
               VarSet.map (
@@ -184,7 +179,50 @@ struct
       aux dim_change 0 sub MoveMap.empty []
   ;;
 
-  let dim_remove _ _ = failwith "TODO"
+  let dim_add (dim_change: Apron.Dim.change) (sub: t) = failwith "Implement the analog function to dim_add"
+  (* if dim_change.realdim != 0 then 
+     failwith "Pentagons are defined over integers: \
+              dim_change should not contain `realdim`" 
+     else
+     (* 
+     This is basically a fold_lefti with rev at the end.
+     Could not use fold_lefti directly because I might need to append at the end of the list.
+     This would have forced me to use List.length, which is \theta(n).
+    *)
+     let rec aux (dim_change: Apron.Dim.change) i sub (moved: MoveMap.t) acc =
+      (** Computes the number by which the current index/variable will be shifted/moved *)
+      let moved_by = 
+        Array.count_matching (fun k -> k <= i) dim_change.dim 
+      in
+      (** Counts the number of empty sets to prepend at the current index. *)
+      let append_count = 
+        Array.count_matching (fun k -> k == i) dim_change.dim 
+      in
+      (** Prepends n many empty sets to the accumulator. *)
+      let rec prepend_dim n acc = 
+        if n == 0 then 
+          acc
+        else prepend_dim (n-1) (VarSet.empty :: acc)
+      in
+      match sub with
+      | h::t ->
+        (** Store the new index mappings to later adjust the sets. *)
+        let moved = (MoveMap.add i (i+moved_by) moved) in
+        (** Insert `append_count` many dimensions before `h`, then append `h` *)
+        let acc = (h :: (prepend_dim append_count acc)) in
+        aux dim_change (i+1) t moved acc
+      | [] ->
+        (** Complete sub prepending the last dimensions and reversing *)
+        let sub = (List.rev (prepend_dim append_count acc)) in
+        (** Adjust the stored indices in our sets *)
+        VarList.map (
+          fun set ->
+            VarSet.map (
+              fun v -> match MoveMap.find_opt v moved with | None -> v | Some(v') -> v'
+            ) set
+        ) sub 
+     in
+     aux dim_change 0 sub MoveMap.empty [] *)
 
   let equal (sub1: t) (sub2: t) = VarList.equal VarSet.equal sub1 sub2
 
