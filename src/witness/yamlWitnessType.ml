@@ -783,6 +783,29 @@ struct
     {ghost_variables; ghost_updates}
 end
 
+module ProtectedBy =
+struct
+  type t = {
+    variable: string; (* TODO: rename to data? *)
+    mutex: string;
+  }
+  [@@deriving eq, ord, hash]
+
+  let entry_type = "protected_by"
+
+  let to_yaml' {variable; mutex} =
+    [
+      ("variable", `String variable);
+      ("mutex", `String mutex);
+    ]
+
+  let of_yaml y =
+    let open GobYaml in
+    let+ variable = y |> find "variable" >>= to_string
+    and+ mutex = y |> find "mutex" >>= to_string in
+    {variable; mutex}
+end
+
 (* TODO: could maybe use GADT, but adds ugly existential layer to entry type pattern matching *)
 module EntryType =
 struct
@@ -796,6 +819,7 @@ struct
     | InvariantSet of InvariantSet.t
     | ViolationSequence of ViolationSequence.t
     | GhostInstrumentation of GhostInstrumentation.t
+    | ProtectedBy of ProtectedBy.t
   [@@deriving eq, ord, hash]
 
   let entry_type = function
@@ -808,6 +832,7 @@ struct
     | InvariantSet _ -> InvariantSet.entry_type
     | ViolationSequence _ -> ViolationSequence.entry_type
     | GhostInstrumentation _ -> GhostInstrumentation.entry_type
+    | ProtectedBy _ -> ProtectedBy.entry_type
 
   let to_yaml' = function
     | LocationInvariant x -> LocationInvariant.to_yaml' x
@@ -819,6 +844,7 @@ struct
     | InvariantSet x -> InvariantSet.to_yaml' x
     | ViolationSequence x -> ViolationSequence.to_yaml' x
     | GhostInstrumentation x -> GhostInstrumentation.to_yaml' x
+    | ProtectedBy x -> ProtectedBy.to_yaml' x
 
   let of_yaml y =
     let open GobYaml in
@@ -850,6 +876,9 @@ struct
     else if entry_type = GhostInstrumentation.entry_type then
       let+ x = y |> GhostInstrumentation.of_yaml in
       GhostInstrumentation x
+    else if entry_type = ProtectedBy.entry_type then
+      let+ x = y |> ProtectedBy.of_yaml in
+      ProtectedBy x
     else
       Error (`Msg ("entry_type " ^ entry_type))
 end
