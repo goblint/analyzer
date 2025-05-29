@@ -110,21 +110,6 @@ struct
   module VarMap = BatMap.Make(Idx)
   module VarSet = BatSet.Make(Idx)
 
-  (*
-  TODO: 
-    Moved from Inequalities
-      let to_string (t:t) = 
-    (* { y1, y2, ..., yn }*)
-    let set_string set = "{" ^ (VarSet.to_list set |> List.map (Int.to_string) |> String.concat ",") ^ "}" in
-    (* x_1 -> {y1, y2, ..., yn} *)
-    let relations_string = Seq.fold_left (fun acc (x, six) -> (Int.to_string x) ^ " -> " ^ (set_string six) ^ "\n") "" (VarMap.to_seq t) in
-    (* {
-        x_1 -> {y1, y2, ..., yn}
-        }
-    *)
-    "{\n" ^ relations_string ^ "}\n"
-  *)
-
   let dim_add _ _ = failwith "TODO"
 
   let dim_remove _ _ = failwith "TODO"
@@ -254,6 +239,24 @@ struct
   (** No narrowing mentioned in the paper. *)
   let narrow sub1 sub2 = meet sub1 sub2
 
+  let to_string (t:t) = 
+    (* Results in: { y1, y2, ..., yn }*)
+    let set_string set = "{" ^ (
+        VarSet.to_list set |>
+        List.map (Int.to_string) |>
+        String.concat ","
+      ) ^ "}" in
+    (* Results in: x_1 -> {y1, y2, ..., yn} *)
+    let relations_string = Seq.fold_left (
+        fun acc (x, six) ->
+          (Int.to_string x) ^ " -> " ^ (set_string six) ^ "\n"
+      ) "" (VarMap.to_seq t) in
+    (* Results in:
+        {
+        x_1 -> {y1, y2, ..., yn}
+        }
+    *)
+    "{\n" ^ relations_string ^ "}\n"
 
   let to_string (sub: t) = 
     if is_bot sub then
@@ -261,11 +264,7 @@ struct
     else if is_top sub then
       "top"
     else
-      match sub.d with
-      | None -> failwith "is_bot should take care of that :)"
-      | Some(sub_map) -> (
-          Inequalities.to_string sub_map
-        )
+      to_string sub
 
 end
 
@@ -287,14 +286,35 @@ struct
 
   let is_empty _ = failwith "TODO"
 
-  (** See https://antoinemine.github.io/Apron/doc/api/ocaml/Dim.html for the semantic of Dim.change *)
-  let dim_add (dim_change: Apron.Dim.change) sub_map =
-    let dim_array, intdim, realdim = dim_change.dim, dim_change.intdim, dim_change.realdim in
-    failwith "dim_add needs implementing!"
+  (**
+     See https://antoinemine.github.io/Apron/doc/api/ocaml/Dim.html
+     for the semantic of Dim.change
+  *)
+  let dim_add (dim_change: Apron.Dim.change) pntg =
+    if dim_change.realdim != 0 then
+      failwith "Pentagons are defined over integers: \
+                extension with real domain is nonsensical"
+    else 
+      let intv, sub = 
+        INTERVALS.dim_add dim_change pntg.intv,
+        SUB.dim_add dim_change pntg.sub 
+      in
+      ({intv = intv; sub = sub}: t)
 
-
-  let dim_remove : (Apron.Dim.change -> t -> del:bool-> t)  = fun _ -> failwith "dim_remove needs implementing"
-
+  (** 
+     See https://antoinemine.github.io/Apron/doc/api/ocaml/Dim.html
+     for the semantic of Dim.change 
+  *)
+  let dim_remove (dim_change: Apron.Dim.change) pntg  =
+    if dim_change.realdim != 0 then
+      failwith "Pentagons are defined over integers: \
+                extension with real domain is nonsensical"
+    else 
+      let intv, sub = 
+        INTERVALS.dim_remove dim_change pntg.intv,
+        SUB.dim_remove dim_change pntg.sub 
+      in
+      ({intv = intv; sub = sub}: t)
 end
 
 module D =
