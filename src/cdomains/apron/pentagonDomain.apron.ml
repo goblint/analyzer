@@ -83,7 +83,7 @@ struct
 
   let narrow (i1: t) (i2: t) = 
     meet i1 i2
-  
+
   let is_bot (i: t) = 
     BatList.exists is_bot_single i
 
@@ -119,8 +119,31 @@ struct
 
   type t = VarSet.t VarList.t [@@deriving eq, ord]
 
-  let dim_add (dim_change: Apron.Dim.change) (sub: t) = failwith "TODO"
-
+  let dim_add (dim_change: Apron.Dim.change) (sub: t) = 
+    if dim_change.realdim != 0 then 
+      failwith "Pentagons are defined over integers: \
+                dim_change should not contain `realdim`" 
+    else
+      (* 
+      This is basically a fold_lefti with rev at the end.
+      Could not use fold_lefti because i need to append at the end of the list.
+      *)
+      let rec aux (dim_change: Apron.Dim.change) i sub acc =
+        (** Counts the number of empty sets to prepend at the current index. *)
+        let append_count = 
+          Array.count_matching (fun k -> k == i) dim_change.dim 
+        in
+        (** Prepends n many empty sets to the accumulator. *)
+        let rec prepend_dim n acc = 
+          if n == 0 then 
+            acc
+          else prepend_dim (n-1) (VarSet.empty :: acc)
+        in
+        match sub with
+        | h::t -> aux dim_change (i+1) t (VarSet.map (fun v -> Idx.add append_count v) h :: (prepend_dim append_count acc))
+        | [] -> List.rev (prepend_dim append_count acc) in
+      aux dim_change 0 sub []
+  ;;
 
   let dim_remove _ _ = failwith "TODO"
 
@@ -376,7 +399,10 @@ struct
   let pretty () (x:t) = failwith "TODO"
   let printXml f x = failwith "TODO"
 
-  let meet t1 t2 = failwith "TODO" (*
+  let meet t1 t2 = 
+    unify_from_env pntg.env t1 t2
+
+      failwith "TODO" (*
     { intv = INTERVALS.meet t1.intv t2.intv;
       sub = SUB.meet t1.sub t2.sub }*)
 
