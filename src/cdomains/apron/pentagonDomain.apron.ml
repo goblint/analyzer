@@ -10,21 +10,6 @@ module M = Messages
 open GobApron
 open BatList
 
-
-(* Insert a new key k by shifting all other keys by one *)
-let shift_and_insert k v m = failwith "TODO" (*
-  let updated =
-    BatMap.fold
-      (fun key value acc ->
-         if key >= k then
-           BatMap.add (key + 1) value acc
-         else
-           BatMap.add key value acc)
-      m BatMap.empty
-  in
-  BatMap.add k v updated
-  *)
-
 module INTERVALS  = 
 struct
 
@@ -141,7 +126,7 @@ struct
 
   type t = VarSet.t VarList.t [@@deriving eq, ord]
 
-  let dim_add (dim_change: Apron.Dim.change) (sub: t) = 
+  let dim_add (dim_change: Apron.Dim.change) (sub: t) = failwith "TODO" (*
     if dim_change.realdim != 0 then 
       failwith "Pentagons are defined over integers: \
                 dim_change should not contain `realdim`" 
@@ -150,7 +135,29 @@ struct
       This is basically a fold_lefti with rev at the end.
       Could not use fold_lefti because i need to append at the end of the list.
       *)
-      let rec aux (dim_change: Apron.Dim.change) i sub acc =
+
+      (**
+      1 {2, 3, 25}
+
+      2 {2, 3}
+
+      3 {}
+
+      -> 
+
+      1 {}  
+
+      2 {2, 3, 25}
+
+      3 {2, 3}
+
+      4 {}
+
+      -> 
+
+
+      *)
+      let rec aux (dim_change: Apron.Dim.change) i sub moved acc =
         (** Counts the number of empty sets to prepend at the current index. *)
         let append_count = 
           Array.count_matching (fun k -> k == i) dim_change.dim 
@@ -162,10 +169,15 @@ struct
           else prepend_dim (n-1) (VarSet.empty :: acc)
         in
         match sub with
-        | h::t -> aux dim_change (i+1) t (VarSet.map (fun v -> Idx.add append_count v) h :: (prepend_dim append_count acc))
-        | [] -> List.rev (prepend_dim append_count acc) in
-      aux dim_change 0 sub []
-  ;;
+        | h::t -> aux dim_change (i+1) t (Map.add i (i+append_count)) (h :: (prepend_dim append_count acc))
+        | [] -> VarList.map (
+          fun set ->
+            VarSet.map (
+              fun v ->
+                Map.find v moved
+                ) set) (List.rev (prepend_dim append_count acc)) in
+      aux dim_change 0 sub Map.empty []
+  ;;*)
 
   let dim_remove _ _ = failwith "TODO"
 
@@ -213,7 +225,7 @@ struct
 
   (** This is the top value for the null-space i.e. the space with dimension 0 or no stored variables.
       In the case where there are no variables, it holds that bot == top. *)
-  let top () =failwith "TODO" (* ({ d = Some(Inequalities.empty ()); env = VarMan.empty_env }: t)*)
+  let top () = failwith "TODO" (* ({ d = Some(Inequalities.empty ()); env = VarMan.empty_env }: t)*)
   let is_top (sub: t) = failwith "TODO" (*
     match VarMan.get_map_opt sub with
     | None -> false
@@ -375,20 +387,40 @@ struct
       ({intv = intv; sub = sub}: t)
 end
 
+(** [VarManagement] defines the type t of the affine equality domain (a record that contains an optional matrix and an apron environment) and provides the functions needed for handling variables (which are defined by [RelationDomain.D2]) such as [add_vars], [remove_vars].
+    Furthermore, it provides the function [simplified_monomials_from_texp] that converts an apron expression into a list of monomials of reference variables and a constant offset *)
+module VarManagement =
+struct
+  module PNTG = PNTG
+  include SharedFunctions.VarManagementOps (PNTG)
+end
+
+
+module ExpressionBounds: (SharedFunctions.ConvBounds with type t = VarManagement.t) =
+struct
+  include VarManagement
+
+  let bound_texpr t texpr = failwith "TODO"
+
+  let bound_texpr d texpr1 = Timing.wrap "bounds calculation" (bound_texpr d) texpr1
+end
+
+
 module D =
 struct
   include Printable.Std
-  include SharedFunctions.VarManagementOps (PNTG)
+  include VarManagement
   module Bounds = ExpressionBounds
   module V = RelationDomain.V
   module Arg = struct
     let allow_global = true
   end
 
+  module Convert = SharedFunctions.Convert (V) (Bounds) (Arg) (SharedFunctions.Tracked)
   (**
      TODO: module Tracked
   *)
-  module Tracked = struct let varinfo_tracked _ = failwith "TODO";; let type_tracked _ = failwith "TODO";; end
+  module Tracked = struct let varinfo_tracked _ = failwith "TODO Tracked";; let type_tracked _ = failwith "TODO Tracked";; end
 
   type var = V.t
   type marshal
@@ -540,35 +572,36 @@ struct
     if M.tracing then M.tracel "narrow" "narrow a: %s b: %s -> %s" (show a) (show b) (show res) ;
     res
 
-  let pretty_diff () (x, y) = failwith "TODO"
+  let pretty_diff () (x, y) = failwith "TODO pretty_diff"
 
 
   (* S2 Specific functions of RelationDomain *)
-  let is_bot_env _ = failwith "TODO"
+  let is_bot_env _ = failwith "TODO is_bot_env"
 
 
 
-  let forget_vars _ = failwith "TODO"
+  let forget_vars _ = failwith "TODO forget_vars"
 
-  let assign_exp _ = failwith "TODO"
-  let assign_var _ = failwith "TODO"
+  let assign_exp _ = failwith "TODO assign_exp"
+  let assign_var _ = failwith "TODO assign_var"
 
-  let assign_var_parallel_with _ = failwith "TODO"
+  let assign_var_parallel_with _ = failwith "TODO assign_var_parallel_with"
 
-  let assign_var_parallel' _ = failwith "TODO"
-  let substitute_exp _ = failwith "TODO"
+  let assign_var_parallel' _ = failwith "TODO assign_var_parallel"
+  let substitute_exp _ = failwith "TODO substitute_exp"
   let unify _ = failwith "Probably meet"
   let marshal _ = failwith "identity function in other domains"
   let unmarshal _ = failwith "identity function in other domains"
 
   let assert_inv _ = failwith "SF but we most likely need assert_constraint"
-  let invariant _ = failwith "TODO"
-  let equal _ = failwith "TODO"
-  let hash _ = failwith "TODO"
-  let compare _ = failwith "TODO"
-  let relift _ = failwith "TODO"
-  let eval_int = failwith "TODO"
-  let cil_exp_of_lincons1 = failwith "TODO"
+  let invariant _ = failwith "TODO invariant"
+  let equal _ = failwith "TODO equal"
+  let hash _ = failwith "TODO hash"
+  let compare _ = failwith "TODO compare"
+  let relift _ = failwith "TODO relift"
+  let eval_int = failwith "TODO eval_int"
+
+  let cil_exp_of_lincons1 = Convert.cil_exp_of_lincons1
 
 end
 
