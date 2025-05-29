@@ -11,6 +11,8 @@ module VD     = BaseDomain.VD
 module CPA    = BaseDomain.CPA
 module BaseComponents = BaseDomain.BaseComponents
 
+module VarQuery = Goblint_constraint.VarQuery
+
 open CommonPriv
 
 

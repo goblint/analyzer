@@ -54,6 +54,8 @@ depends: [
   "csexp" {= "1.5.2"}
   "cstruct" {= "6.2.0"}
   "ctypes" {= "0.22.0"}
+  "domain-local-await" {= "1.0.1"}
+  "domain_shims" {= "0.1.0"}
   "dune" {= "3.16.0"}
   "dune-build-info" {= "3.16.0"}
   "dune-configurator" {= "3.16.0"}
@@ -79,7 +81,7 @@ depends: [
   "ocaml-syntax-shims" {= "1.0.0"}
   "ocaml-variants" {= "4.14.2+options"}
   "ocamlbuild" {= "0.14.3"}
-  "ocamlfind" {= "1.9.6"}
+  "ocamlfind" {= "1.9.8"}
   "odoc" {= "2.4.2" & with-doc}
   "odoc-parser" {= "2.4.2" & with-doc}
   "ordering" {= "3.16.0"}
@@ -103,6 +105,7 @@ depends: [
   "stdlib-shims" {= "0.3.0"}
   "stdune" {= "3.16.0"}
   "stringext" {= "1.6.0"}
+  "thread-table" {= "1.0.0"}
   "topkg" {= "1.0.7"}
   "tyxml" {= "4.6.0" & with-doc}
   "uri" {= "4.4.0"}

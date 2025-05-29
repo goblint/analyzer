@@ -2187,20 +2187,6 @@
           },
           "additionalProperties": false
         },
-        "limit": {
-          "title": "dbg.limit",
-          "type": "object",
-          "properties": {
-            "widen": {
-              "title": "dbg.limit.widen",
-              "description":
-                "Limit for number of widenings per node (0 = no limit).",
-              "type": "integer",
-              "default": 0
-            }
-          },
-          "additionalProperties": false
-        },
         "warn_with_context": {
           "title": "dbg.warn_with_context",
           "description":
@@ -2640,6 +2626,19 @@
               "description": "Check TD3 data structure invariants",
               "type": "boolean",
               "default": false
+            },
+            "parallel_domains" :{
+              "title": "solvers.td3.parallel_domains",
+              "description": "Maximal number of Domains that the solver can use in parallel. Only applies, when a solver of the 'td_parallel_*' family is used. If left at -1, the value of jobs will be used.",
+              "type": "integer",
+              "default": -1
+            },
+            "weak-deps": {
+              "title": "solvers.td3.weak-deps",
+              "description": "Handling of weak dependencies from demand: 'none' - as normal dependencies, 'eager' - solve immediately, 'lazy' - solve at top level.",
+              "type": "string",
+              "enum": ["none", "eager", "lazy"],
+              "default": "none"
             }
           },
           "additionalProperties": false
