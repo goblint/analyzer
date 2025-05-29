@@ -97,30 +97,38 @@ struct
     fst x
 
   let dim_add (dim_change: Apron.Dim.change) (intervals: t) =
-    let rec insert_dimensions intervals dim_changes =
-      match dim_changes with
-      | [||] -> intervals
-      | _ ->
-        let k = dim_changes.(0) in
-        let left, right = BatList.split_at k intervals in
-        let new_array = (BatArray.sub dim_changes 1 (BatArray.length dim_changes - 1)) in
-        let new_array = BatArray.map (fun i -> i + 1) new_array in
-        insert_dimensions (left @ [(Z.of_int 0, Z.of_int 0)] @ right) new_array
-    in
-    insert_dimensions intervals dim_change.dim
+    if dim_change.realdim != 0 then
+      failwith "Pentagons are defined over integers: \
+                extension with real domain is nonsensical"
+    else 
+      let change_arr = Array.rev dim_change.dim in
+      let rec insert_dimensions intervals dim_changes =
+        match dim_changes with
+        | [||] -> intervals
+        | _ ->
+          let k = dim_changes.(0) in
+          let left, right = BatList.split_at k intervals in
+          let new_array = (BatArray.sub dim_changes 1 (BatArray.length dim_changes - 1)) in
+          insert_dimensions (left @ [(Z.of_int 0, Z.of_int 0)] @ right) new_array
+      in
+      insert_dimensions intervals change_arr
 
   let dim_remove (dim_change: Apron.Dim.change) (intervals: t) =
-    let rec remove_dimensions intervals dim_changes =
-      match dim_changes with
-      | [||] -> intervals
-      | _ ->
-        let k = dim_changes.(0) in
-        let left, right = BatList.split_at k intervals in
-        let new_array = (BatArray.sub dim_changes 1 (BatArray.length dim_changes - 1)) in
-        let new_array = BatArray.map (fun i -> i - 1) new_array in
-        remove_dimensions (left @ (BatList.tl right)) new_array
-    in
-    remove_dimensions intervals dim_change.dim
+    if dim_change.realdim != 0 then
+      failwith "Pentagons are defined over integers: \
+                extension with real domain is nonsensical"
+    else 
+      let change_arr = Array.rev dim_change.dim in
+      let rec remove_dimensions intervals dim_changes =
+        match dim_changes with
+        | [||] -> intervals
+        | _ ->
+          let k = dim_changes.(0) in
+          let left, right = BatList.split_at k intervals in
+          let new_array = (BatArray.sub dim_changes 1 (BatArray.length dim_changes - 1)) in
+          remove_dimensions (left @ (BatList.tl right)) new_array
+      in
+      remove_dimensions intervals change_arr
 end
 
 module SUB =
