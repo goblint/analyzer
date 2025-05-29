@@ -106,6 +106,12 @@ end
 
 module SUB =
 struct
+  (**
+     TODO: Evaluate --
+     Maybe we need to use (BatSet(Idx).t list) as the type, because we do
+     not need to manually track the variable keys 
+     (apron Environments take care of that)
+  *)
   module Idx = Int
   module VarMap = BatMap.Make(Idx)
   module VarSet = BatSet.Make(Idx)

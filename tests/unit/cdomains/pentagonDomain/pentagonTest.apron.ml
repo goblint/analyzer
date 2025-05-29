@@ -171,17 +171,36 @@ let test_sub_to_string _ =
   print_string sub_string; assert_equal sub_string "{\n}\n";;
 
 let test_sub_dim_add _ = 
-  let dim_change = ({dim = [|0; 1; 1; 2; 5|]; intdim = 5; realdim = 0 }: Apron.Dim.change) in
+  let dim_change = ({dim = [|0; 1; 1; 2; 3|]; intdim = 5; realdim = 0 }: Apron.Dim.change) in
   let sub = 
     SUB.VarMap.empty |>
     SUB.VarMap.add 1 (SUB.VarSet.of_list [2; 3]) |>
     SUB.VarMap.add 2 (SUB.VarSet.of_list [3]) |>
     SUB.VarMap.add 4 (SUB.VarSet.empty) in 
+  (*
+  0_
+    1 -> {2, 3}
+  1_
+    2 -> {3}
+  2_
+    4 -> {3}
+  3_
+  *)
   let expected_sub = 
     SUB.VarMap.empty |>
     SUB.VarMap.add 1 (SUB.VarSet.of_list [2; 3]) |>
     SUB.VarMap.add 2 (SUB.VarSet.of_list [3]) |>
     SUB.VarMap.add 4 (SUB.VarSet.empty) in 
+  (*
+  1 -> {} // new
+  2 -> {2, 3}
+  3 -> {} // new
+  4 -> {} // new
+  5 -> {3}
+  6 -> {} // new
+  7 -> {3}
+  8 -> {} // new
+  *)
   let resulting_sub = SUB.dim_add dim_change sub in
   assert_equal expected_sub resulting_sub;;
 
