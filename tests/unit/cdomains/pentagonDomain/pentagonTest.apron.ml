@@ -50,52 +50,62 @@ let test_sub_leq _ =
      containing more precise information"
     (not (SUB.leq less_specific_sub sub));;
 
-(* let test_sub_to_string _ = 
-   let sub_string =
-   SUB.to_string [SUB.VarSet.of_list [2;3;4;28]; SUB.VarSet.of_list [2;32;28]] 
-   in
-   let expected_regex_str = "{0 -> {\d+,\d+,\d+,\d+}, 1 -> {\d+,\d+,\d+}}" in
-   let expected_regex = Str.regexp expected_regex_str in
-   print_string sub_string;
-   assert_bool 
-   ("expected regex: " ^ expected_regex_str ^ "\ngot string: " ^ sub_string)
-   (Str.string_match expected_regex sub_string 0);; *)
-
 let test_sub_dim_add_1 _ =
 
   let dim_change = ({dim = [|0; 1; 1; 2; 3|]; intdim = 5; realdim = 0 }: Apron.Dim.change) in
   let sub = [
-    SUB.VarSet.singleton 2;
-    SUB.VarSet.singleton 2;
-    SUB.VarSet.singleton 5;
-    SUB.VarSet.singleton 0
+    (*0*) SUB.VarSet.singleton 2;
+    (*1*) SUB.VarSet.singleton 2;
+    (*2*) SUB.VarSet.singleton 5;
+    (*3*) SUB.VarSet.singleton 0
   ] in 
-   (*
-    0 -> {2}
-    1 -> {2}
-    2 -> {5}
-    3 -> {0}
-  *)
   let expected_sub = [
-    (*0*) SUB.VarSet.empty;  (* insert 0 *)
-    (*1*) SUB.VarSet.singleton 7;   (* prev 0 *)
-    (*2*) SUB.VarSet.empty;  (* insert 1 *)
-    (*3*) SUB.VarSet.empty;  (* insert 1 *)
-    (*4*) SUB.VarSet.singleton 7;   (* prev 1 *)
-    (*5*) SUB.VarSet.empty;  (* insert 2 *)
+    (*0*) SUB.VarSet.empty;(* insert 0 *)
+    (*1*) SUB.VarSet.singleton 6;   (* prev 0 *)
+    (*2*) SUB.VarSet.empty;(* insert 1 *)
+    (*3*) SUB.VarSet.empty;(* insert 1 *)
+    (*4*) SUB.VarSet.singleton 6;   (* prev 1 *)
+    (*5*) SUB.VarSet.empty;(* insert 2 *)
     (*6*) SUB.VarSet.singleton 5;   (* prev 2 *)
-    (*7*) SUB.VarSet.empty;  (* insert 3 *)
+    (*7*) SUB.VarSet.empty;(* insert 3 *)
     (*8*) SUB.VarSet.singleton 1    (* prev 3 *)
   ]
-  in 
-   (*
-    0 -> {2}
-    1 -> {2}
-    2 -> {5}
-    3 -> {0}
-  *)
+  in
   let resulting_sub = SUB.dim_add dim_change sub in
-  assert_equal ~msg:("expected:" ^ SUB.to_string expected_sub ^ "\ngot:" ^ SUB.to_string resulting_sub) expected_sub resulting_sub;;
+  assert_equal ~msg:(
+    "expected:" ^ SUB.to_string expected_sub ^
+    "\ngot:" ^ SUB.to_string resulting_sub
+  ) expected_sub resulting_sub;;
+
+let test_sub_dim_add_2 _ =
+  let dim_change = ({dim = [|0; 3; 3; 3; 3; 3|]; intdim = 5; realdim = 0 }: Apron.Dim.change) in
+  let sub = [
+    (*0*) SUB.VarSet.singleton 3;
+    (*1*) SUB.VarSet.empty;
+    (*2*) SUB.VarSet.empty;
+    (*3*) SUB.VarSet.singleton 0;
+    (*4*)
+  ] in 
+  let expected_sub = [
+    (*0*) SUB.VarSet.empty;
+    (*1*) SUB.VarSet.singleton 9;
+    (*2*) SUB.VarSet.empty;
+    (*3*) SUB.VarSet.empty;
+    (*4*) SUB.VarSet.empty;
+    (*5*) SUB.VarSet.empty;
+    (*6*) SUB.VarSet.empty;
+    (*7*) SUB.VarSet.empty;
+    (*8*) SUB.VarSet.empty;
+    (*9*) SUB.VarSet.singleton 1;
+    (*10*)
+  ]
+  in
+  let resulting_sub = SUB.dim_add dim_change sub in
+  assert_equal ~msg:(
+    "expected:" ^ SUB.to_string expected_sub ^
+    "\ngot:" ^ SUB.to_string resulting_sub
+  ) expected_sub resulting_sub;;
+
 
 
 let noop _ = assert_bool "" true
@@ -105,7 +115,7 @@ let test () =
     "noop" >:: noop;
     "test_sub_equal" >:: test_sub_equal;
     (* "test_sub_leq" >:: test_sub_leq; *)
-    "test_sub_dim_add" >:: test_sub_dim_add_1;
-    (* "test_sub_to_string" >:: test_sub_to_string; *)
+    "test_sub_dim_add_1" >:: test_sub_dim_add_1;
+    "test_sub_dim_add_2" >:: test_sub_dim_add_2;
   ]
 
