@@ -8,6 +8,7 @@ open GoblintCil
 open Pretty
 module M = Messages
 open GobApron
+open BatList
 
 
 (* Insert a new key k by shifting all other keys by one *)
@@ -26,14 +27,13 @@ let shift_and_insert k v m = failwith "TODO" (*
 
 module INTERVALS  = 
 struct
-  module VarMap = BatMap.Make(Int)
 
-  type interval = Z.t * Z.t
-  type t = interval VarMap.t
+  type interval = Z.t * Z.t [@@deriving eq, hash, ord]
+  type t = interval list [@@deriving eq, hash, ord]
 
   let equal intv1 intv2 =
     let tuple_equal (a1, b1) (a2, b2) = Z.equal a1 a2 && Z.equal b1 b2 in
-    VarMap.equal tuple_equal intv1 intv2
+    BatList.for_all2 tuple_equal intv1 intv2
 
   let leq_single (i1: interval) (i2: interval) =
     fst i1 >= fst i2 && snd i1 <= snd i2
@@ -46,7 +46,8 @@ struct
     let u = Z.min (snd i1) (snd i2) in
     if l <= u then Some (l, u) else None
 
-  let top_single () = (Z.of_int min_int, Z.of_int max_int)
+  let top_single () = 
+    (Z.of_int min_int, Z.of_int max_int)
 
   let is_top_single (i: interval) =
     fst i = Z.of_int min_int && snd i = Z.of_int max_int
@@ -56,66 +57,58 @@ struct
     let u = if snd i1 >= snd i2 then snd i2 else Z.of_int max_int in
     (l, u)
 
-  let narrow_single (i1: interval) (i2: interval) = meet_single i1 i2
+  let narrow_single (i1: interval) (i2: interval) = 
+    meet_single i1 i2
 
   let is_bot_single (i: interval) =
     fst i > snd i
 
-  let leq (i1: t) (i2: t) =
-    VarMap.for_all (fun var iv2 ->
-        match VarMap.find_opt var i1 with
-        | Some iv1 -> leq_single iv1 iv2
-        | None -> false
-      ) i2
+  let leq (i1: t) (i2: t) = 
+    BatList.for_all2 leq_single i1 i2
 
-  let join (i1: t) (i2: t) =
-    VarMap.merge (fun _ iv1 iv2 ->
-        match iv1, iv2 with
-        | Some iv1, Some iv2 -> Some (join_single iv1 iv2)
-        | Some iv, None | None, Some iv -> Some iv
-        | None, None -> None
-      ) i1 i2
+  let join (i1: t) (i2: t) = 
+    BatList.map2 join_single i1 i2
 
-  let meet (i1: t) (i2: t) =
-    VarMap.merge (fun _ iv1 iv2 ->
-        match iv1, iv2 with
-        | Some iv1, Some iv2 -> meet_single iv1 iv2
-        | _ -> None
-      ) i1 i2
+  let meet (i1: t) (i2: t) = 
+    BatList.map2 meet_single i1 i2
 
-  let top () =
-    VarMap.empty |> VarMap.map (fun _ -> top_single ())
+  let top () = 
+    [top_single ()]
 
-  let is_top (i: t) =
-    VarMap.for_all (fun _ iv -> is_top_single iv) i
+  let is_top (i: t) = 
+    BatList.for_all is_top_single i
 
-  let widen (i1: t) (i2: t) =
-    VarMap.merge (fun _ iv1 iv2 ->
-        match iv1, iv2 with
-        | Some iv1, Some iv2 -> Some (widen_single iv1 iv2)
-        | Some iv, None | None, Some iv -> Some iv
-        | None, None -> None
-      ) i1 i2
+  let widen (i1: t) (i2: t) = 
+    BatList.map2 widen_single i1 i2
 
-  let narrow (i1: t) (i2: t) =
-    VarMap.merge (fun _ iv1 iv2 ->
-        match iv1, iv2 with
-        | Some iv1, Some iv2 -> narrow_single iv1 iv2
-        | _ -> None
-      ) i1 i2
+  let narrow (i1: t) (i2: t) = 
+    meet i1 i2
+  
+  let is_bot (i: t) = 
+    BatList.exists is_bot_single i
 
-  let is_bot (i: t) =
-    VarMap.exists (fun _ iv -> is_bot_single iv) i
+  let bot () = 
+    [(Z.of_int max_int, Z.of_int min_int)]
 
-  let bot () = VarMap.empty |> VarMap.add 0 ( Z.of_int max_int, Z.of_int min_int)
+  let sup (x: interval) = 
+    snd x
 
-  let sup (x: interval) = snd x
+  let inf (x: interval) = 
+    fst x
 
-  let inf (x: interval) = fst x
+  let dim_add (dim_change: Apron.Dim.change) (i: t) =
+    if dim_change.realdim != 0 then
+      failwith "Pentagons are defined over integers: \
+                extension with real domain is nonsensical"
+    else
+      BatList.map (fun (l, u) -> (Z.add l (Z.of_int dim_change.intdim), Z.add u (Z.of_int dim_change.intdim))) i
 
-  let dim_add _ _ = failwith "TODO"
-
-  let dim_remove _ _ = failwith "TODO"
+  let dim_remove (dim_change: Apron.Dim.change) (i: t) = 
+    if dim_change.realdim != 0 then
+      failwith "Pentagons are defined over integers: \
+                extension with real domain is nonsensical"
+    else
+      BatList.map (fun (l, u) -> (Z.sub l (Z.of_int dim_change.intdim), Z.sub u (Z.of_int dim_change.intdim))) i
 end
 
 module SUB =
@@ -400,8 +393,8 @@ struct
     INTERVALS.leq b1 b2
     &&
     match sub1.d, sub2.d with
-    | None, _ -> true (** might be wrong? *)
-    | _, None -> false (** might be wrong? *)
+    | None, _ -> true
+    | _, None -> false
     | Some(s_map_1), Some(s_map_2) -> 
       (
         (* Boilerplate *)     
