@@ -185,21 +185,21 @@ struct
 
   let bot () = failwith "TODO" (* empty list? *)
 
-(**
-      This isn't precise: we might return false even if there are transitive contradictions;
-      Other possibility: compute transitive closure first (would be expensive)
+  (**
+        This isn't precise: we might return false even if there are transitive contradictions;
+        Other possibility: compute transitive closure first (would be expensive)
   *)
   let is_bot (sub:t) =
-     (* exists function for lists where the predicate f also gets the index of a list element *)
+    (* exists function for lists where the predicate f also gets the index of a list element *)
     let existsi f lst =
       let rec aux i = function
         | [] -> false
         | x :: xs -> if f i x then true else aux (i + 1) xs
-    in aux 0 lst
-  in
+      in aux 0 lst
+    in
     sub = [] || (* if we don't know any variables, bot = top *)
     existsi (fun x ys -> VarSet.mem x ys ||
-    VarSet.exists (fun y -> VarSet.mem x (List.nth sub y)) ys) sub
+                         VarSet.exists (fun y -> VarSet.mem x (List.nth sub y)) ys) sub
 
   let top () = failwith "TODO" (* empty list? *)
 
