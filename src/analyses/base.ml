@@ -2908,11 +2908,8 @@ struct
       let nst = add_globals st fun_st in
 
       (* Projection to Precision of the Caller *)
-      let p = PrecisionUtil.int_precision_from_node () in (* Since f is the fundec of the Callee we have to get the fundec of the current Node instead *)
-      let callerFundec = match !MyCFG.current_node with
-        | Some n -> Node.find_fundec n
-        | None -> failwith "callerfundec not found"
-      in
+      let callerFundec = Node.find_fundec man.node in
+      let p:PrecisionUtil.int_precision = PrecisionUtil.int_precision_from_fundec callerFundec in (* Since f is the fundec of the Callee we have to get the fundec of the current Node instead *)
       let cpa' = project (Queries.to_value_domain_ask (Analyses.ask_of_man man)) (Some p) nst.cpa callerFundec in
 
       if get_bool "sem.noreturn.dead_code" && Cil.hasAttribute "noreturn" f.svar.vattr then raise Deadcode;
@@ -2931,11 +2928,8 @@ struct
       in
 
       (* Projection to Precision of the Caller *)
-      let p = PrecisionUtil.int_precision_from_node () in (* Since f is the fundec of the Callee we have to get the fundec of the current Node instead *)
-      let callerFundec = match !MyCFG.current_node with
-        | Some n -> Node.find_fundec n
-        | None -> failwith "callerfundec not found"
-      in
+      let callerFundec = Node.find_fundec man.node in
+      let p = PrecisionUtil.int_precision_from_fundec callerFundec in (* Since f is the fundec of the Callee we have to get the fundec of the current Node instead *)
       let return_val = project_val (Queries.to_value_domain_ask (Analyses.ask_of_man man)) (attributes_varinfo (return_varinfo ()) callerFundec) (Some p) return_val (is_privglob (return_varinfo ())) in
 
       match lval with
