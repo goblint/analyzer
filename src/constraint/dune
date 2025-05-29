@@ -3,7 +3,6 @@
 (library
  (name goblint_constraint)
  (public_name goblint.constraint)
- (wrapped false) ; TODO: wrap
  (libraries
    batteries.unthreaded
    goblint_std
@@ -17,5 +16,3 @@
     ppx_deriving_hash
     ppx_deriving_yojson))
  (instrumentation (backend bisect_ppx)))
-
-(documentation)

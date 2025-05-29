@@ -20,6 +20,8 @@ module ML = LibraryDesc.MathLifted
 
 module VI = Lattice.Flat (Basetype.Variables)
 
+module VarQuery = Goblint_constraint.VarQuery
+
 type iterprevvar = int -> (MyCFG.node * Obj.t * int) -> MyARG.inline_edge -> unit
 type itervar = int -> unit
 let compare_itervar _ _ = 0

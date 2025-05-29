@@ -186,17 +186,16 @@ module ListMatrix: SparseMatrixFunctor =
     let reduce_col m j = 
       if is_empty m then m 
       else
-        let rec find_pivot idx entries = (* Finds non-zero element in column j and returns pair of row idx and the pivot value *)
+        let rec find_pivot idx entries = (* Finds non-zero element in column j and returns pair of row idx, the pivot value and the row *)
           match entries with
           | [] -> None
           | row :: rest -> let value = V.nth row j in 
-            if value =: A.zero then find_pivot (idx - 1) rest else Some (idx, value)
+            if value =: A.zero then find_pivot (idx - 1) rest else Some (idx, value, row)
         in
         match (find_pivot (num_rows m - 1) (List.rev m)) with
         | None -> m (* column is already filled with zeroes *)
-        | Some (row_idx, pivot) -> 
-          let pivot_row = List.nth m row_idx in (* use the pivot row to reduce all entries in column j to zero, then "delete" the pivot row *)
-          List.mapi (fun idx row ->
+        | Some (row_idx, pivot,pivot_row) -> 
+          List.mapi (fun idx row ->  (* use the pivot row to reduce all entries in column j to zero, then "delete" the pivot row *)
               if idx = row_idx then 
                 V.zero_vec (num_cols m)
               else
