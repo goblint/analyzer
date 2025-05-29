@@ -109,7 +109,7 @@ struct
           let k = dim_changes.(0) in
           let left, right = BatList.split_at k intervals in
           let new_array = (BatArray.sub dim_changes 1 (BatArray.length dim_changes - 1)) in
-          insert_dimensions (left @ [(Z.of_int 0, Z.of_int 0)] @ right) new_array
+          insert_dimensions (left @ top() @ right) new_array
       in
       insert_dimensions intervals change_arr
 
