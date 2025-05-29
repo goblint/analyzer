@@ -124,41 +124,31 @@ struct
   module VarSet = BatSet.Make(Idx)
   module VarList = BatList
 
-  type t = VarSet.t VarList.t [@@deriving eq, ord]
+  module MoveMap = struct 
+    include BatMap.Make(Idx)
+    type t = Idx.t BatMap.Make(Idx).t
+  end
 
-  let dim_add (dim_change: Apron.Dim.change) (sub: t) = failwith "TODO" (*
+
+  type t = VarSet.t VarList.t [@@deriving eq, ord]
+  let print_int io n =
+    BatIO.nwrite io (string_of_int n)
+
+  let dim_add (dim_change: Apron.Dim.change) (sub: t) =
     if dim_change.realdim != 0 then 
       failwith "Pentagons are defined over integers: \
                 dim_change should not contain `realdim`" 
     else
       (* 
       This is basically a fold_lefti with rev at the end.
-      Could not use fold_lefti because i need to append at the end of the list.
+      Could not use fold_lefti because I might need to append at the end of the list.
+      This would have forced me to use List.length, which is \theta(n).
       *)
-
-      (**
-      1 {2, 3, 25}
-
-      2 {2, 3}
-
-      3 {}
-
-      -> 
-
-      1 {}  
-
-      2 {2, 3, 25}
-
-      3 {2, 3}
-
-      4 {}
-
-      -> 
-
-
-      *)
-      let rec aux (dim_change: Apron.Dim.change) i sub moved acc =
+      let rec aux (dim_change: Apron.Dim.change) i sub (moved: MoveMap.t) acc =
         (** Counts the number of empty sets to prepend at the current index. *)
+        let moved_by = 
+          Array.count_matching (fun k -> k <= i) dim_change.dim 
+        in
         let append_count = 
           Array.count_matching (fun k -> k == i) dim_change.dim 
         in
@@ -169,15 +159,30 @@ struct
           else prepend_dim (n-1) (VarSet.empty :: acc)
         in
         match sub with
-        | h::t -> aux dim_change (i+1) t (Map.add i (i+append_count)) (h :: (prepend_dim append_count acc))
-        | [] -> VarList.map (
-          fun set ->
-            VarSet.map (
-              fun v ->
-                Map.find v moved
-                ) set) (List.rev (prepend_dim append_count acc)) in
-      aux dim_change 0 sub Map.empty []
-  ;;*)
+        | h::t ->
+          (** Store the new index mappings to later adjust the sets *)
+          let moved = (MoveMap.add i (i+moved_by) moved) in
+          (** Insert `append_count` many dimensions before `h` *)
+          let acc = (h :: (prepend_dim append_count acc)) in
+          aux dim_change (i+1) t moved acc
+        | [] ->
+          (** Complete sub by reversing and prepending the last dimensions *)
+          let sub = (List.rev (prepend_dim append_count acc)) in
+          MoveMap.print
+            print_int
+            print_int
+            BatIO.stdout
+            moved;
+          (** Now we need to adjust the sets because our indices have moved *)
+          VarList.map (
+            fun set ->
+              VarSet.map (
+                fun v -> match MoveMap.find_opt v moved with | None -> v | Some(v') -> v'
+              ) set
+          ) sub 
+      in
+      aux dim_change 0 sub MoveMap.empty []
+  ;;
 
   let dim_remove _ _ = failwith "TODO"
 
@@ -223,33 +228,32 @@ struct
   (** No narrowing mentioned in the paper. *)
   let narrow sub1 sub2 = meet sub1 sub2
 
-  let to_string (sub: t) = failwith "TODO"
-  (*
+  let to_string (sub: t) =
     (* Results in: { y1, y2, ..., yn }*)
     let set_string set = "{" ^ (
         VarSet.to_list set |>
-        List.map (Int.to_string) |>
+        List.map (Idx.to_string) |>
         String.concat ","
       ) ^ "}" in
     (* Results in: x_1 -> {y1, y2, ..., yn} *)
-    let relations_string = Seq.fold_left (
-        fun acc (x, six) ->
-          (Int.to_string x) ^ " -> " ^ (set_string six) ^ "\n"
-      ) "" (VarMap.to_seq t) in
+    let relations_string = String.concat ", " (VarList.mapi (
+        fun  i set ->
+          (Idx.to_string i) ^ " -> " ^ (set_string set)
+      ) sub) in
     (* Results in:
         {
         x_1 -> {y1, y2, ..., yn}
         }
     *)
-    "{\n" ^ relations_string ^ "}\n"
+    "{" ^ relations_string ^ "}"
 
   let to_string (sub: t) = 
-    if is_bot sub then
-      "bot"
-    else if is_top sub then
-      "top"
-    else
-      to_string sub *)
+    (* if is_bot sub then
+       "bot"
+       else if is_top sub then
+       "top"
+       else *)
+    to_string sub 
 
 end
 
@@ -343,11 +347,21 @@ struct
 
   let to_yojson _ = failwith "TODO"
 
+  (**
+     Bottom creation does not make sense if we do not know anything about our variables.
+     We assume no variables have been encountered when this funciton is called.
+     It therefore holds that: bot = top.
+  *)
   let bot () = failwith "TODO" (* { intv = INTERVALS.bot (); sub = SUB.bot () } *)
 
-  let is_bot t = failwith "TODO" (* INTERVALS.is_bot t.intv || SUB.is_bot t.sub *)
-
+  (**
+     Top creation does not make sense if we do not know anything about our variables.
+     We assume no variables have been encountered when this funciton is called.
+     It therefore holds that: top = bot.
+  *)
   let top () = failwith "TODO" (* { intv = INTERVALS.top (); sub = SUB.top () } *)
+
+  let is_bot t = failwith "TODO" (* INTERVALS.is_bot t.intv || SUB.is_bot t.sub *)
 
   let is_top t = failwith "TODO" (* INTERVALS.is_top t.intv && SUB.is_top t.sub *)
 
@@ -504,7 +518,7 @@ struct
   let hash _ = failwith "TODO hash"
   let compare _ = failwith "TODO compare"
   let relift _ = failwith "TODO relift"
-  let eval_int = failwith "TODO eval_int"
+  let eval_int _ = failwith "TODO eval_int"
 
   let cil_exp_of_lincons1 = Convert.cil_exp_of_lincons1
 
