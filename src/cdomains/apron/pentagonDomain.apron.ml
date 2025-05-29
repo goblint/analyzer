@@ -10,6 +10,20 @@ module M = Messages
 open GobApron
 
 
+(* Insert a new key k by shifting all other keys by one *)
+let shift_and_insert k v m = failwith "TODO" (*
+  let updated =
+    BatMap.fold
+      (fun key value acc ->
+         if key >= k then
+           BatMap.add (key + 1) value acc
+         else
+           BatMap.add key value acc)
+      m BatMap.empty
+  in
+  BatMap.add k v updated
+  *)
+
 module INTERVALS  = 
 struct
   module VarMap = BatMap.Make(Int)
@@ -116,24 +130,26 @@ struct
   module VarMap = BatMap.Make(Idx)
   module VarSet = BatSet.Make(Idx)
 
-  let dim_add _ _ = failwith "TODO"
+
+  type t = (VarSet.t VarMap.t) [@@deriving eq, ord]
+
+  let dim_add (dim_change: Apron.Dim.change) (sub: t) = failwith "TODO"
+
 
   let dim_remove _ _ = failwith "TODO"
 
 
-  type t = (VarSet.t VarMap.t) [@@deriving eq, ord]
-
-  let equal (sub1:t) (sub2:t) = 
+  let equal (sub1:t) (sub2:t) = failwith "TODO" (*
     match sub1.d, sub2.d with
     | None, None -> true
     | Some(sub_map_1), Some(sub_map_2) -> (
         VarMap.equal (VarSet.equal) sub_map_1 sub_map_2
       )
-    | _ -> false
+    | _ -> false*)
 
-  let bot_of env = ({ d = None; env = env}: t)
+  let bot_of env = failwith "TODO" (* ({ d = None; env = env}: t) *)
 
-  let bot () = ({ d = None; env= VarMan.empty_env } :t )
+  let bot () = failwith "TODO" (*({ d = None; env= VarMan.empty_env } :t ) *)
 
   (** 
       When possible, we use `d = None` to signal a bot value.
@@ -142,44 +158,45 @@ struct
       which indicates a bot value. This search is expensive and
       we try to shortcut it as best as possible.
   *)
-  let is_bot (sub:t) = 
-    match sub.d with
-    | None -> true
-    | Some(sub_map) ->
-      VarMap.exists (
-        fun k1 v ->
-          VarSet.mem k1 v 
-          ||
-          (** 
-             TODO: Implement further contradiction search -- transitive closure in the worst-case.
-          *)
-          VarSet.exists (
-            fun k2 ->
-              VarSet.exists (fun k -> k == k1) (VarMap.find_default VarSet.empty k2 sub_map)
-          ) v
-      ) sub_map 
+  let is_bot (sub:t) = failwith "TODO"
+  (* match sub.d with
+     | None -> true
+     | Some(sub_map) ->
+     VarMap.exists (
+      fun k1 v ->
+        VarSet.mem k1 v 
+        ||
+        (** 
+           TODO: Implement further contradiction search -- transitive closure in the worst-case.
+        *)
+        VarSet.exists (
+          fun k2 ->
+            VarSet.exists (fun k -> k == k1) (VarMap.find_default VarSet.empty k2 sub_map)
+        ) v
+     ) sub_map *)
 
   (** The environment (env) manages the number of variables stored in our datatype and 
       therefore the dimensions of our value space. The inequalities should
       return empty on variables not found in the underlying map.*)
-  let top_of env = ({ d = Some(Inequalities.empty ()); env = env }: t)
+  let top_of env = failwith "TODO" (* ({ d = Some(Inequalities.empty ()); env = env }: t) *)
 
   (** This is the top value for the null-space i.e. the space with dimension 0 or no stored variables.
       In the case where there are no variables, it holds that bot == top. *)
-  let top () = ({ d = Some(Inequalities.empty ()); env = VarMan.empty_env }: t)
-  let is_top (sub: t) = 
+  let top () =failwith "TODO" (* ({ d = Some(Inequalities.empty ()); env = VarMan.empty_env }: t)*)
+  let is_top (sub: t) = failwith "TODO" (*
     match VarMan.get_map_opt sub with
     | None -> false
-    | Some(sub_map) -> VarMap.for_all (fun _ set -> VarSet.is_empty set) sub_map 
+    | Some(sub_map) -> VarMap.for_all (fun _ set -> VarSet.is_empty set) sub_map *)
 
-  let subseteq set1 set2 = VarSet.subset set1 set2 || VarSet.equal set1 set2 (** helper, missing in batteries *)
+  let subseteq set1 set2 = failwith "TODO" (* VarSet.subset set1 set2 || VarSet.equal set1 set2 *) (** helper, missing in batteries *)
 
   (**
      The inequalities map s1 is less than or equal to s2 iff
       forall x in s2.
       s2(x) subseteq s1(x)
   *)
-  let leq (sub1: t) (sub2: t) =
+  let leq (sub1: t) (sub2: t) = failwith "TODO"
+    (*
     match sub1.d, sub2.d with
     | None, _ -> true
     | _, None -> false
@@ -190,9 +207,10 @@ struct
         fun x s2x -> 
           let s1x = VarMap.find x sub_map_1 in
           subseteq s1x s2x
-      ) sub_map_2
+      ) sub_map_2 *)
 
-  let join (sub1: t) (sub2: t) =
+  let join (sub1: t) (sub2: t) = failwith "TODO"
+  (*
     match sub1.d, sub2.d with
     | None, None -> bot ()
     | None, _ -> sub2
@@ -207,9 +225,10 @@ struct
         | None, None -> failwith "This should never happen :)"
         | _ -> failwith "unify_from_env should take care of that :)"
       in
-      { d = Some(VarMap.merge (intersect_sets_of_key) sub_map_1 sub_map_2); env = lce }
+      { d = Some(VarMap.merge (intersect_sets_of_key) sub_map_1 sub_map_2); env = lce }*)
 
-  let meet (sub1: t) (sub2: t) =
+  let meet (sub1: t) (sub2: t) = failwith "TODO"
+  (*
     let lce = Environment.lce sub1.env sub2.env in
     match sub1.d, sub2.d with
     | Some(sub_map_1), Some(sub_map_2) -> (
@@ -223,9 +242,10 @@ struct
         in
         ({ d = Some(VarMap.merge union_sets_of_key sub_map_1 sub_map_2); env=lce }: t)
       )
-    | _ -> bot_of lce
+    | _ -> bot_of lce *)
 
-  let widen (sub1: t) (sub2: t) =
+  let widen (sub1: t) (sub2: t) = failwith "TODO"
+  (*
     let lce = Environment.lce sub1.env sub2.env in
     match sub1.d, sub2.d with
     | Some(sub_map_1), Some(sub_map_2) -> (
@@ -241,11 +261,12 @@ struct
         ({ d = Some(VarMap.merge widen_sets_of_key sub_map_1 sub_map_2); env = lce }:t)
       )
     | _ -> top_of lce (** Naively extrapolate to top. We are unsure if this is intented by the papers definitions. *)
-
+*)
   (** No narrowing mentioned in the paper. *)
   let narrow sub1 sub2 = meet sub1 sub2
 
-  let to_string (t:t) = 
+  let to_string (t:t) = failwith "TODO"
+  (*
     (* Results in: { y1, y2, ..., yn }*)
     let set_string set = "{" ^ (
         VarSet.to_list set |>
@@ -270,7 +291,7 @@ struct
     else if is_top sub then
       "top"
     else
-      to_string sub
+      to_string sub *)
 
 end
 
@@ -325,8 +346,8 @@ end
 
 module D =
 struct
+  include Printable.Std
   include SharedFunctions.VarManagementOps (PNTG)
-
   module Bounds = ExpressionBounds
   module V = RelationDomain.V
   module Arg = struct
@@ -345,16 +366,16 @@ struct
 
   let to_yojson _ = failwith "TODO"
 
-  let bot () = { intv = INTERVALS.bot (); sub = SUB.bot () }
+  let bot () = failwith "TODO" (* { intv = INTERVALS.bot (); sub = SUB.bot () } *)
 
-  let is_bot t = INTERVALS.is_bot t.intv || SUB.is_bot t.sub
+  let is_bot t = failwith "TODO" (* INTERVALS.is_bot t.intv || SUB.is_bot t.sub *)
 
-  let top () = { intv = INTERVALS.top (); sub = SUB.top () }
+  let top () = failwith "TODO" (* { intv = INTERVALS.top (); sub = SUB.top () } *)
 
-  let is_top t = INTERVALS.is_top t.intv && SUB.is_top t.sub
+  let is_top t = failwith "TODO" (* INTERVALS.is_top t.intv && SUB.is_top t.sub *)
 
 
-  let unify_from_env (pntg1: t) (pntg2: t) (lce: Environment.t) =
+  let unify_from_env (pntg1: t) (pntg2: t) (lce: Environment.t) = failwith "TODO" (*
     let env1, env2 = pntg1.env, pntg2.env in
     let dim_change_1, dim_change_2 = (Environment.dimchange env1 lce), (Environment.dimchange env1 lce) in
     match pntg1.d, pntg2.d with
@@ -363,24 +384,24 @@ struct
         let intv2, sub2 = INTERVALS.dim_add dim_change_1 pntg2.intv, SUB.dim_add dim_change_2 pntg2.intv in
         ({}:t, {}: t)
       )
-    | _ -> failwith "Do not use unify on bottom values!"
+    | _ -> failwith "Do not use unify on bottom values!" *)
 
   let show varM = failwith "TODO"
   let pretty () (x:t) = failwith "TODO"
   let printXml f x = failwith "TODO"
 
-  let meet t1 t2 =
+  let meet t1 t2 = failwith "TODO" (*
     { intv = INTERVALS.meet t1.intv t2.intv;
-      sub = SUB.meet t1.sub t2.sub }
+      sub = SUB.meet t1.sub t2.sub }*)
 
-  let meet t1 t2 =
+  let meet t1 t2 = 
     let res = meet t1 t2 in
     if M.tracing then M.tracel "meet" "meet a: %s\n U  \n b: %s \n -> %s" (show t1) (show t2) (show res) ;
     res
 
   let meet t1 t2 = Timing.wrap "meet" (meet t1) t2
 
-  let leq t1 t2 =
+  let leq t1 t2 = failwith "TODO" (*
     let b1, b2 = t1.intv, t2.intv in
     let sub1, sub2 = t1.sub, t2.sub in
     INTERVALS.leq b1 b2
@@ -406,7 +427,7 @@ struct
                 )          
             ) s2x
         ) sub_map_2
-      )
+      )*)
 
   let leq a b = Timing.wrap "leq" (leq a) b
 
@@ -415,51 +436,51 @@ struct
     if M.tracing then M.tracel "leq" "leq a: %s b: %s -> %b" (show t1) (show t2) res ;
     res
 
-  let join t1 t2 = (
-    let intv_join = INTERVALS.join t1.intv t2.intv in
-    let sub_join = (
-      (* Boilerplate *)
-      let b1, b2 = t1.intv, t2.intv in
-      let sub1, sub2 = t1.sub, t2.sub in
-      let lce = Environment.lce sub1.env sub2.env in
-      let sub_map_1, sub_map_2 = SUB.unify_from_env sub1 sub2 lce in
+  let join t1 t2 = failwith "TODO" (* (
+                                      let intv_join = INTERVALS.join t1.intv t2.intv in
+                                      let sub_join = (
+                                      (* Boilerplate *)
+                                      let b1, b2 = t1.intv, t2.intv in
+                                      let sub1, sub2 = t1.sub, t2.sub in
+                                      let lce = Environment.lce sub1.env sub2.env in
+                                      let sub_map_1, sub_map_2 = SUB.unify_from_env sub1 sub2 lce in
 
-      let s' = SUB.VarMap.mapi (
-          fun x s2x -> 
-            let s1x = SUB.VarMap.find x sub_map_1 in
-            SUB.VarSet.inter s1x s2x
-        ) sub_map_2 in
+                                      let s' = SUB.VarMap.mapi (
+                                      fun x s2x -> 
+                                      let s1x = SUB.VarMap.find x sub_map_1 in
+                                      SUB.VarSet.inter s1x s2x
+                                      ) sub_map_2 in
 
-      let s'' = SUB.VarMap.mapi (
-          fun x s1x -> SUB.VarSet.filter (
-              fun y -> 
-                let b2x = INTERVALS.VarMap.find x b2 in
-                let b2y = INTERVALS.VarMap.find y b2 in
-                INTERVALS.sup b2x < INTERVALS.inf b2y
-            ) s1x
-        ) sub_map_1 in
+                                      let s'' = SUB.VarMap.mapi (
+                                      fun x s1x -> SUB.VarSet.filter (
+                                      fun y -> 
+                                      let b2x = INTERVALS.VarMap.find x b2 in
+                                      let b2y = INTERVALS.VarMap.find y b2 in
+                                      INTERVALS.sup b2x < INTERVALS.inf b2y
+                                      ) s1x
+                                      ) sub_map_1 in
 
-      let s''' = SUB.VarMap.mapi (
-          fun x s2x -> SUB.VarSet.filter (
-              fun y -> 
-                let b1x = INTERVALS.VarMap.find x b1 in
-                let b1y = INTERVALS.VarMap.find y b1 in
-                INTERVALS.sup b1x < INTERVALS.inf b1y
-            ) s2x
-        ) sub_map_2 in
+                                      let s''' = SUB.VarMap.mapi (
+                                      fun x s2x -> SUB.VarSet.filter (
+                                      fun y -> 
+                                      let b1x = INTERVALS.VarMap.find x b1 in
+                                      let b1y = INTERVALS.VarMap.find y b1 in
+                                      INTERVALS.sup b1x < INTERVALS.inf b1y
+                                      ) s2x
+                                      ) sub_map_2 in
 
-      let joined_sub_map = SUB.VarMap.mapi (
-          fun x _ -> 
-            let s'x = SUB.VarMap.find x s' in
-            let s''x = SUB.VarMap.find x s'' in
-            let s'''x = SUB.VarMap.find x s''' in
-            SUB.VarSet.union s'x (SUB.VarSet.union s''x s'''x)
-        ) sub_map_1 (* sub_map_1 & sub_map_2 should hold the same keys *) in
+                                      let joined_sub_map = SUB.VarMap.mapi (
+                                      fun x _ -> 
+                                      let s'x = SUB.VarMap.find x s' in
+                                      let s''x = SUB.VarMap.find x s'' in
+                                      let s'''x = SUB.VarMap.find x s''' in
+                                      SUB.VarSet.union s'x (SUB.VarSet.union s''x s'''x)
+                                      ) sub_map_1 (* sub_map_1 & sub_map_2 should hold the same keys *) in
 
-      ({d = Some(joined_sub_map); env = lce}: SUB.t)
-    ) in
-    ({intv = intv_join; sub = sub_join}:t)
-  )
+                                      ({d = Some(joined_sub_map); env = lce}: SUB.t)
+                                      ) in
+                                      ({intv = intv_join; sub = sub_join}:t)
+                                      ) *)
 
 
   let join a b = Timing.wrap "join" (join a) b
@@ -469,18 +490,19 @@ struct
     if M.tracing then M.tracel "join" "join a: %s b: %s -> %s" (show a) (show b) (show res) ;
     res
 
-  let widen t1 t2 = 
+  let widen t1 t2 = failwith "TODO" (*
     { intv = INTERVALS.widen t1.intv t2.intv;
       sub = SUB.widen t1.sub t2.sub }
+      *)
 
   let widen a b =
     let res = widen a b in
     if M.tracing then M.tracel "widen" "widen a: %s b: %s -> %s" (show a) (show b) (show res) ;
     res
 
-  let narrow t1 t2 = 
+  let narrow t1 t2 = failwith "TODO" (* 
     { intv = INTERVALS.narrow t1.intv t2.intv;
-      sub = SUB.narrow t1.sub t2.sub }
+      sub = SUB.narrow t1.sub t2.sub } *)
 
   let narrow a b =
     let res = narrow a b in
