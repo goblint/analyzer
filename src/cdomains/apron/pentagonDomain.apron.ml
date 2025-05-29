@@ -31,7 +31,7 @@ struct
   let meet_single (i1: interval) (i2: interval) =
     let l = Z.max (fst i1) (fst i2) in
     let u = Z.min (snd i1) (snd i2) in
-    if l <= u then Some (l, u) else None
+    (l, u)
 
   let top_single () = 
     (Z.of_int min_int, Z.of_int max_int)
@@ -261,7 +261,7 @@ end
 
 module PNTG =
 struct
-  type t = { intv: INTERVALS.t; sub: SUB.t }
+  type t = { intv: INTERVALS.t; sub: SUB.t } [@@deriving eq, ord]
 
   let hash : (t -> int)  = fun _ -> failwith "TODO"
   let equal _ _ = failwith "TODO"
@@ -338,7 +338,6 @@ struct
   module Tracked = struct let varinfo_tracked _ = failwith "TODO Tracked";; let type_tracked _ = failwith "TODO Tracked";; end
 
   type var = V.t
-  type marshal
 
   let name () = "pentagon"
 
@@ -352,25 +351,18 @@ struct
 
   let is_top t = failwith "TODO" (* INTERVALS.is_top t.intv && SUB.is_top t.sub *)
 
-
-  let unify_from_env (pntg1: t) (pntg2: t) (lce: Environment.t) = failwith "TODO" (*
-    let env1, env2 = pntg1.env, pntg2.env in
-    let dim_change_1, dim_change_2 = (Environment.dimchange env1 lce), (Environment.dimchange env1 lce) in
-    match pntg1.d, pntg2.d with
-    | Some(pntg1), Some(pntg2) -> (
-        let intv1, sub1 = INTERVALS.dim_add dim_change_1 pntg1.intv, SUB.dim_add dim_change_1 pntg1.sub in
-        let intv2, sub2 = INTERVALS.dim_add dim_change_1 pntg2.intv, SUB.dim_add dim_change_2 pntg2.intv in
-        ({}:t, {}: t)
-      )
-    | _ -> failwith "Do not use unify on bottom values!" *)
-
   let show varM = failwith "TODO"
   let pretty () (x:t) = failwith "TODO"
   let printXml f x = failwith "TODO"
 
-  let meet t1 t2 = failwith "TODO" (*
-    { intv = INTERVALS.meet t1.intv t2.intv;
-      sub = SUB.meet t1.sub t2.sub }*)
+  let meet t1 t2 =
+    let sup_env = Environment.lce t1.env t2.env in
+    let t1 = dimchange2_add t1 sup_env in
+    let t2 = dimchange2_add t2 sup_env in
+    match t1.d, t2.d with
+    | Some d1', Some d2' ->
+      ({d = Some {intv = INTERVALS.meet d1'.intv d2'.intv; sub = SUB.meet d1'.sub d2'.sub}; env = sup_env}: t)
+    | _ -> {d = None; env = sup_env}
 
   let meet t1 t2 = 
     let res = meet t1 t2 in
@@ -478,9 +470,7 @@ struct
     if M.tracing then M.tracel "widen" "widen a: %s b: %s -> %s" (show a) (show b) (show res) ;
     res
 
-  let narrow t1 t2 = failwith "TODO" (* 
-    { intv = INTERVALS.narrow t1.intv t2.intv;
-      sub = SUB.narrow t1.sub t2.sub } *)
+  let narrow t1 t2 = meet t1 t2
 
   let narrow a b =
     let res = narrow a b in
@@ -491,9 +481,7 @@ struct
 
 
   (* S2 Specific functions of RelationDomain *)
-  let is_bot_env _ = failwith "TODO is_bot_env"
-
-
+  let is_bot_env t = t.d = None
 
   let forget_vars _ = failwith "TODO forget_vars"
 
@@ -504,9 +492,11 @@ struct
 
   let assign_var_parallel' _ = failwith "TODO assign_var_parallel"
   let substitute_exp _ = failwith "TODO substitute_exp"
-  let unify _ = failwith "Probably meet"
-  let marshal _ = failwith "identity function in other domains"
-  let unmarshal _ = failwith "identity function in other domains"
+  let unify pntg1 pntg2 = meet pntg1 pntg2
+
+  type marshal = t
+  let marshal t = t
+  let unmarshal t = t
 
   let assert_inv _ = failwith "SF but we most likely need assert_constraint"
   let invariant _ = failwith "TODO invariant"
