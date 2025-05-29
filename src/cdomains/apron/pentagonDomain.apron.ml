@@ -181,134 +181,49 @@ struct
 
   let dim_remove _ _ = failwith "TODO"
 
+  let equal (sub1: t) (sub2: t) = VarList.equal VarSet.equal sub1 sub2
 
-  let equal (sub1:t) (sub2:t) = failwith "TODO" (*
-    match sub1.d, sub2.d with
-    | None, None -> true
-    | Some(sub_map_1), Some(sub_map_2) -> (
-        VarMap.equal (VarSet.equal) sub_map_1 sub_map_2
-      )
-    | _ -> false*)
+  let bot () = failwith "TODO" (* empty list? *)
 
-  let bot_of env = failwith "TODO" (* ({ d = None; env = env}: t) *)
-
-  let bot () = failwith "TODO" (*({ d = None; env= VarMan.empty_env } :t ) *)
-
-  (** 
-      When possible, we use `d = None` to signal a bot value.
-      However, we cannot be sure if a value differs from bot, when
-      `d != None`, as there might still be contradictions in our map,
-      which indicates a bot value. This search is expensive and
-      we try to shortcut it as best as possible.
+(**
+      This isn't precise: we might return false even if there are transitive contradictions;
+      Other possibility: compute transitive closure first (would be expensive)
   *)
-  let is_bot (sub:t) = failwith "TODO"
-  (* match sub.d with
-     | None -> true
-     | Some(sub_map) ->
-     VarMap.exists (
-      fun k1 v ->
-        VarSet.mem k1 v 
-        ||
-        (** 
-           TODO: Implement further contradiction search -- transitive closure in the worst-case.
-        *)
-        VarSet.exists (
-          fun k2 ->
-            VarSet.exists (fun k -> k == k1) (VarMap.find_default VarSet.empty k2 sub_map)
-        ) v
-     ) sub_map *)
+  let is_bot (sub:t) =
+     (* exists function for lists where the predicate f also gets the index of a list element *)
+    let existsi f lst =
+      let rec aux i = function
+        | [] -> false
+        | x :: xs -> if f i x then true else aux (i + 1) xs
+    in aux 0 lst
+  in
+    sub = [] || (* if we don't know any variables, bot = top *)
+    existsi (fun x ys -> VarSet.mem x ys ||
+    VarSet.exists (fun y -> VarSet.mem x (List.nth sub y)) ys) sub
 
-  (** The environment (env) manages the number of variables stored in our datatype and 
-      therefore the dimensions of our value space. The inequalities should
-      return empty on variables not found in the underlying map.*)
-  let top_of env = failwith "TODO" (* ({ d = Some(Inequalities.empty ()); env = env }: t) *)
+  let top () = failwith "TODO" (* empty list? *)
 
-  (** This is the top value for the null-space i.e. the space with dimension 0 or no stored variables.
-      In the case where there are no variables, it holds that bot == top. *)
-  let top () = failwith "TODO" (* ({ d = Some(Inequalities.empty ()); env = VarMan.empty_env }: t)*)
-  let is_top (sub: t) = failwith "TODO" (*
-    match VarMan.get_map_opt sub with
-    | None -> false
-    | Some(sub_map) -> VarMap.for_all (fun _ set -> VarSet.is_empty set) sub_map *)
+  let is_top (sub: t) = VarList.for_all VarSet.is_empty sub
 
-  let subseteq set1 set2 = failwith "TODO" (* VarSet.subset set1 set2 || VarSet.equal set1 set2 *) (** helper, missing in batteries *)
+  let subseteq set1 set2 = VarSet.subset set1 set2 || VarSet.equal set1 set2 (** helper, missing in batteries *)
 
   (**
      The inequalities map s1 is less than or equal to s2 iff
       forall x in s2.
       s2(x) subseteq s1(x)
   *)
-  let leq (sub1: t) (sub2: t) = failwith "TODO"
-    (*
-    match sub1.d, sub2.d with
-    | None, _ -> true
-    | _, None -> false
-    | Some(sub_map_1), Some(sub_map_2) ->
-      let lce = Environment.lce sub1.env sub2.env in
-      let sub_map_1, sub_map_2 = unify_from_env sub1 sub2 lce in
-      VarMap.for_all (
-        fun x s2x -> 
-          let s1x = VarMap.find x sub_map_1 in
-          subseteq s1x s2x
-      ) sub_map_2 *)
+  let leq (sub1: t) (sub2: t) = BatList.for_all2 subseteq sub2 sub1
 
-  let join (sub1: t) (sub2: t) = failwith "TODO"
-  (*
-    match sub1.d, sub2.d with
-    | None, None -> bot ()
-    | None, _ -> sub2
-    | _, None -> sub1
-    | Some(sub_map_1), Some(sub_map_2) when is_top sub1 || is_top sub2 ->
-      top_of lce
-    | Some(sub_map_1), Some(sub_map_2) ->
-      (** Make sure that the maps contain keys for all variables before comparing. *)
-      let intersect_sets_of_key var_key var_set1_opt var_set2_opt =
-        match var_set1_opt, var_set2_opt with
-        | Some(var_set1), Some(var_set2) -> Some(VarSet.inter var_set1 var_set2)
-        | None, None -> failwith "This should never happen :)"
-        | _ -> failwith "unify_from_env should take care of that :)"
-      in
-      { d = Some(VarMap.merge (intersect_sets_of_key) sub_map_1 sub_map_2); env = lce }*)
+  let join (sub1: t) (sub2: t) = BatList.map2 VarSet.inter sub1 sub2
 
-  let meet (sub1: t) (sub2: t) = failwith "TODO"
-  (*
-    let lce = Environment.lce sub1.env sub2.env in
-    match sub1.d, sub2.d with
-    | Some(sub_map_1), Some(sub_map_2) -> (
-        (** Make sure that the maps contain keys for all variables before comparing. *)
-        let sub_map_1, sub_map_2 = unify_from_env sub1 sub2 lce in
-        let union_sets_of_key var_key var_set1_opt var_set2_opt =
-          match var_set1_opt, var_set2_opt with
-          | Some(var_set1), Some(var_set2) -> Some(VarSet.union var_set1 var_set2)
-          | None, None -> failwith "This should never happen :)"
-          | _ -> failwith "unify_from_env should take care of that :)"
-        in
-        ({ d = Some(VarMap.merge union_sets_of_key sub_map_1 sub_map_2); env=lce }: t)
-      )
-    | _ -> bot_of lce *)
+  let meet (sub1: t) (sub2: t) = BatList.map2 VarSet.union sub1 sub2
 
-  let widen (sub1: t) (sub2: t) = failwith "TODO"
-  (*
-    let lce = Environment.lce sub1.env sub2.env in
-    match sub1.d, sub2.d with
-    | Some(sub_map_1), Some(sub_map_2) -> (
-        (** Make sure that the maps contain keys for all variables before comparing. *)
-        let sub_map_1, sub_map_2 = unify_from_env sub1 sub2 lce in
-        let widen_sets_of_key var_key var_set1_opt var_set2_opt =
-          match var_set1_opt, var_set2_opt with
-          | Some(var_set1), Some(var_set2) ->
-            if subseteq var_set1 var_set2 then Some (var_set2) else Some (VarSet.empty)
-          | None, None -> failwith "This should never happen :)"
-          | _ -> failwith "unify_from_env should take care of that :)"
-        in
-        ({ d = Some(VarMap.merge widen_sets_of_key sub_map_1 sub_map_2); env = lce }:t)
-      )
-    | _ -> top_of lce (** Naively extrapolate to top. We are unsure if this is intented by the papers definitions. *)
-*)
+  let widen (sub1: t) (sub2: t) = BatList.map2 (fun s1x s2x -> if subseteq s1x s2x then s2x else VarSet.empty) sub1 sub2
+
   (** No narrowing mentioned in the paper. *)
   let narrow sub1 sub2 = meet sub1 sub2
 
-  let to_string (t:t) = failwith "TODO"
+  let to_string (sub: t) = failwith "TODO"
   (*
     (* Results in: { y1, y2, ..., yn }*)
     let set_string set = "{" ^ (
