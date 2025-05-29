@@ -28,6 +28,8 @@ let shift_and_insert k v m = failwith "TODO" (*
 module INTERVALS  = 
 struct
 
+  module VarList = BatList
+
   type interval = Z.t * Z.t [@@deriving eq, hash, ord]
   type t = interval list [@@deriving eq, hash, ord]
 
@@ -411,10 +413,7 @@ struct
   let pretty () (x:t) = failwith "TODO"
   let printXml f x = failwith "TODO"
 
-  let meet t1 t2 = 
-    unify_from_env pntg.env t1 t2
-
-      failwith "TODO" (*
+  let meet t1 t2 = failwith "TODO" (*
     { intv = INTERVALS.meet t1.intv t2.intv;
       sub = SUB.meet t1.sub t2.sub }*)
 
@@ -538,18 +537,9 @@ struct
 
   (* S2 Specific functions of RelationDomain *)
   let is_bot_env _ = failwith "TODO"
-  let vars _ = failwith "SF"
-  let add_vars _ = failwith "SF"
-  let remove_vars _ = failwith "SF"
 
-  let remove_vars_with _ = failwith "SF"
 
-  let remove_filter _ = failwith "SF"
-  let remove_filter_with _ = failwith "SF"
 
-  let copy _ = failwith "SF"
-  let keep_vars _ = failwith "SF"
-  let keep_filter _ = failwith "SF"
   let forget_vars _ = failwith "TODO"
 
   let assign_exp _ = failwith "TODO"
@@ -562,14 +552,15 @@ struct
   let unify _ = failwith "Probably meet"
   let marshal _ = failwith "identity function in other domains"
   let unmarshal _ = failwith "identity function in other domains"
-  let mem_var _ = failwith "SF"
+
   let assert_inv _ = failwith "SF but we most likely need assert_constraint"
-  let cil_exp_of_lincons1 _ = failwith "SF"
   let invariant _ = failwith "TODO"
   let equal _ = failwith "TODO"
   let hash _ = failwith "TODO"
   let compare _ = failwith "TODO"
   let relift _ = failwith "TODO"
-  let eval_int _ = failwith "SF"
+  let eval_int = failwith "TODO"
+  let cil_exp_of_lincons1 = failwith "TODO"
+
 end
 

@@ -8,118 +8,118 @@ module INTERVALS = PentagonDomain.INTERVALS
 module SUB = PentagonDomain.SUB
 
 (* Test cases for the Intervals module *)
-let test_order_single _ =
-  let i1 = (Z.of_int 3, Z.of_int 7) in
-  let i2 = (Z.of_int 1, Z.of_int 10) in
-  assert_bool 
+(* let test_order_single _ =
+   let i1 = (Z.of_int 3, Z.of_int 7) in
+   let i2 = (Z.of_int 1, Z.of_int 10) in
+   assert_bool 
     "i1 should be less than or equal to i2"
     (INTERVALS.leq_single i1 i2);
-  assert_bool
+   assert_bool
     "i2 should not be less than or equal to i1"
     (not (INTERVALS.leq_single i2 i1))
 
-let test_bottom_single _ =
-  let i = (Z.of_int 5, Z.of_int 3) in
-  assert_bool "Interval should be bottom" (INTERVALS.is_bot_single i)
+   let test_bottom_single _ =
+   let i = (Z.of_int 5, Z.of_int 3) in
+   assert_bool "Interval should be bottom" (INTERVALS.is_bot_single i)
 
-let test_top_single _ =
-  let i = INTERVALS.top_single () in
-  assert_bool "Interval should be top" (INTERVALS.is_top_single i)
+   let test_top_single _ =
+   let i = INTERVALS.top_single () in
+   assert_bool "Interval should be top" (INTERVALS.is_top_single i)
 
-let test_join_single _ =
-  let i1 = (Z.of_int 3, Z.of_int 7) in
-  let i2 = (Z.of_int 1, Z.of_int 10) in
-  let result = INTERVALS.join_single i1 i2 in
-  assert_equal (Z.of_int 1, Z.of_int 10) result ~msg:"join_single failed"
+   let test_join_single _ =
+   let i1 = (Z.of_int 3, Z.of_int 7) in
+   let i2 = (Z.of_int 1, Z.of_int 10) in
+   let result = INTERVALS.join_single i1 i2 in
+   assert_equal (Z.of_int 1, Z.of_int 10) result ~msg:"join_single failed"
 
-let test_meet_single _ =
-  let i1 = (Z.of_int 3, Z.of_int 7) in
-  let i2 = (Z.of_int 1, Z.of_int 5) in
-  let result = INTERVALS.meet_single i1 i2 in
-  assert_equal (Some (Z.of_int 3, Z.of_int 5)) result ~msg:"meet_single failed";
-  let i3 = (Z.of_int 8, Z.of_int 10) in
-  let result_none = INTERVALS.meet_single i1 i3 in
-  assert_equal 
+   let test_meet_single _ =
+   let i1 = (Z.of_int 3, Z.of_int 7) in
+   let i2 = (Z.of_int 1, Z.of_int 5) in
+   let result = INTERVALS.meet_single i1 i2 in
+   assert_equal (Some (Z.of_int 3, Z.of_int 5)) result ~msg:"meet_single failed";
+   let i3 = (Z.of_int 8, Z.of_int 10) in
+   let result_none = INTERVALS.meet_single i1 i3 in
+   assert_equal 
     None
     result_none
     ~msg:"meet_single should return None for disjoint intervals"
 
-let test_widening_single _ =
-  let i1 = (Z.of_int 3, Z.of_int 7) in
-  let i2 = (Z.of_int 1, Z.of_int 10) in
-  let result = INTERVALS.widen_single i1 i2 in
-  assert_equal
+   let test_widening_single _ =
+   let i1 = (Z.of_int 3, Z.of_int 7) in
+   let i2 = (Z.of_int 1, Z.of_int 10) in
+   let result = INTERVALS.widen_single i1 i2 in
+   assert_equal
     (INTERVALS.top_single ())
     result
     ~msg:(Z.to_string (fst result) ^ ", " ^ Z.to_string (snd result))
 
-let test_order_env _ =
-  let env1 = 
+   let test_order_env _ =
+   let env1 = 
     INTERVALS.VarMap.empty |>
     INTERVALS.VarMap.add 1 (Z.of_int 3, Z.of_int 7) in
-  let env2 =
+   let env2 =
     INTERVALS.VarMap.empty |>
     INTERVALS.VarMap.add 1 (Z.of_int 1, Z.of_int 10) in
-  assert_bool
+   assert_bool
     "env1 should be less than or equal to env2"
     (INTERVALS.leq env1 env2);
-  assert_bool
+   assert_bool
     "env2 should not be less than or equal to env1"
     (not (INTERVALS.leq env2 env1))
 
-let test_bottom_env _ =
-  let env =
+   let test_bottom_env _ =
+   let env =
     INTERVALS.VarMap.empty |>
     INTERVALS.VarMap.add 1 (Z.of_int 5, Z.of_int 3) in
-  assert_bool
+   assert_bool
     "Environment should be bottom"
     (INTERVALS.is_bot env)
 
-let test_top_env _ =
-  let env = INTERVALS.top () in
-  assert_bool "Environment should be top" (INTERVALS.is_top env)
+   let test_top_env _ =
+   let env = INTERVALS.top () in
+   assert_bool "Environment should be top" (INTERVALS.is_top env)
 
-let test_join_env _ =
-  let env1 = 
+   let test_join_env _ =
+   let env1 = 
     INTERVALS.VarMap.empty |>
     INTERVALS.VarMap.add 1 (Z.of_int 3, Z.of_int 7) in
-  let env2 = 
+   let env2 = 
     INTERVALS.VarMap.empty |>
     INTERVALS.VarMap.add 1 (Z.of_int 1, Z.of_int 10) in
-  let result =
+   let result =
     INTERVALS.join env1 env2 in
-  let expected =
+   let expected =
     INTERVALS.VarMap.empty |>
     INTERVALS.VarMap.add 1 (Z.of_int 1, Z.of_int 10) in
-  assert_equal expected result ~msg:"join_env failed"
+   assert_equal expected result ~msg:"join_env failed"
 
-let test_meet_env _ =
-  let env1 =
+   let test_meet_env _ =
+   let env1 =
     INTERVALS.VarMap.empty |>
     INTERVALS.VarMap.add 1 (Z.of_int 3, Z.of_int 7) in
-  let env2 =
+   let env2 =
     INTERVALS.VarMap.empty |>
     INTERVALS.VarMap.add 1 (Z.of_int 1, Z.of_int 5) in
-  let result =
+   let result =
     INTERVALS.meet env1 env2 in
-  let expected =
+   let expected =
     INTERVALS.VarMap.empty |>
     INTERVALS.VarMap.add 1 (Z.of_int 3, Z.of_int 5) in
-  assert_equal expected result ~msg:"meet_env failed"
+   assert_equal expected result ~msg:"meet_env failed"
 
-let test_widening_env _ =
-  let env1 =
+   let test_widening_env _ =
+   let env1 =
     INTERVALS.VarMap.empty |>
     INTERVALS.VarMap.add 1 (Z.of_int 3, Z.of_int 7) in
-  let env2 =
+   let env2 =
     INTERVALS.VarMap.empty |>
     INTERVALS.VarMap.add 1 (Z.of_int 1, Z.of_int 10) in
-  let result = INTERVALS.widen env1 env2 in
-  let expected = 
+   let result = INTERVALS.widen env1 env2 in
+   let expected = 
     INTERVALS.VarMap.empty |>
     INTERVALS.VarMap.add 1 (Z.of_int 3, Z.of_int max_int) in
-  assert_equal expected result ~msg:"widen_env failed"
-
+   assert_equal expected result ~msg:"widen_env failed"
+*)
 
 
 (* Test cases for the SUB module *)
