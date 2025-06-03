@@ -133,6 +133,17 @@ struct
           else x :: aux (lst_i + 1) arr_i xs
       in
       aux 0 0 intervals
+
+      let to_string (intervals: t) =
+        if is_bot intervals then
+          "bot"
+        else if is_top intervals then
+          "top"
+        else
+          let string_of_interval (l, u) =
+            Printf.sprintf "[%s, %s]" (Z.to_string l) (Z.to_string u)
+          in
+          "{" ^ (String.concat "; " (List.map string_of_interval intervals)) ^ "}"
 end
 
 module SUB =
