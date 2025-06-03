@@ -59,8 +59,13 @@ struct
         HM.add histo v 1
       end
 
-  let start_event () = ()
-  let stop_event () = ()
+  let start_time = ref 0.
+  let end_time = ref 0.
+  let start_event () = start_time := Unix.gettimeofday ()
+  let stop_event () = end_time := Unix.gettimeofday ()
+  let report_duration () =
+    let duration = !end_time -. !start_time in
+    Logs.info "Solver duration: %.2f" duration
 
   let new_var_event x =
     incr SolverStats.vars;

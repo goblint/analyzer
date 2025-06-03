@@ -201,6 +201,7 @@ module Base : GenericEqSolver =
        * - effected by side-effects and have no constraints on their own (this should be the case for all of our analyses). *)
 
       stop_event ();
+      report_duration ();
       if Logs.Level.should_log Debug then (
         Logs.debug "Data after iterate completed";
         Logs.debug "|data|=%d" (HM.length data);
