@@ -127,10 +127,10 @@ struct
                 extension with real domain is nonsensical"
     else
       let rec aux lst_i arr_i = function
-      | [] -> []
-      | x::xs -> if arr_i = BatArray.length dim_change.dim then x::xs
-        else if dim_change.dim.(arr_i) = lst_i then aux (lst_i + 1) (arr_i + 1) xs
-        else x :: aux (lst_i + 1) arr_i xs
+        | [] -> []
+        | x::xs -> if arr_i = BatArray.length dim_change.dim then x::xs
+          else if dim_change.dim.(arr_i) = lst_i then aux (lst_i + 1) (arr_i + 1) xs
+          else x :: aux (lst_i + 1) arr_i xs
       in
       aux 0 0 intervals
 end
@@ -486,52 +486,22 @@ struct
     if M.tracing then M.tracel "leq" "leq a: %s b: %s -> %b" (show t1) (show t2) res ;
     res
 
-  let join t1 t2 = failwith "TODO" (* (
-                                      let intv_join = INTERVALS.join t1.intv t2.intv in
-                                      let sub_join = (
-                                      (* Boilerplate *)
-                                      let b1, b2 = t1.intv, t2.intv in
-                                      let sub1, sub2 = t1.sub, t2.sub in
-                                      let lce = Environment.lce sub1.env sub2.env in
-                                      let sub_map_1, sub_map_2 = SUB.unify_from_env sub1 sub2 lce in
+  let join t1 t2 =
+    let sup_env = Environment.lce t1.env t2.env in
+    let t1 = dimchange2_add t1 sup_env in
+    let t2 = dimchange2_add t2 sup_env in
+    match t1.d, t2.d with
+    | Some d1', Some d2' ->
+      let intv_join = INTERVALS.join d1'.intv d1'.intv in
+      let s' x s1x = SUB.VarSet.inter s1x (List.nth d2'.sub x) in
+      let s'' x s1x = SUB.VarSet.filter (fun y -> INTERVALS.sup (List.nth d2'.intv x) < INTERVALS.inf (List.nth d2'.intv y)) s1x in
+      let s''' x = SUB.VarSet.filter (fun y -> INTERVALS.sup (List.nth d1'.intv x) < INTERVALS.inf (List.nth d1'.intv y)) (List.nth d2'.sub x) in
+      let sub_join = List.mapi (fun x s1x -> SUB.VarSet.union (s' x s1x) (SUB.VarSet.union (s'' x s1x) (s''' x))) d1'.sub in
 
-                                      let s' = SUB.VarMap.mapi (
-                                      fun x s2x -> 
-                                      let s1x = SUB.VarMap.find x sub_map_1 in
-                                      SUB.VarSet.inter s1x s2x
-                                      ) sub_map_2 in
-
-                                      let s'' = SUB.VarMap.mapi (
-                                      fun x s1x -> SUB.VarSet.filter (
-                                      fun y -> 
-                                      let b2x = INTERVALS.VarMap.find x b2 in
-                                      let b2y = INTERVALS.VarMap.find y b2 in
-                                      INTERVALS.sup b2x < INTERVALS.inf b2y
-                                      ) s1x
-                                      ) sub_map_1 in
-
-                                      let s''' = SUB.VarMap.mapi (
-                                      fun x s2x -> SUB.VarSet.filter (
-                                      fun y -> 
-                                      let b1x = INTERVALS.VarMap.find x b1 in
-                                      let b1y = INTERVALS.VarMap.find y b1 in
-                                      INTERVALS.sup b1x < INTERVALS.inf b1y
-                                      ) s2x
-                                      ) sub_map_2 in
-
-                                      let joined_sub_map = SUB.VarMap.mapi (
-                                      fun x _ -> 
-                                      let s'x = SUB.VarMap.find x s' in
-                                      let s''x = SUB.VarMap.find x s'' in
-                                      let s'''x = SUB.VarMap.find x s''' in
-                                      SUB.VarSet.union s'x (SUB.VarSet.union s''x s'''x)
-                                      ) sub_map_1 (* sub_map_1 & sub_map_2 should hold the same keys *) in
-
-                                      ({d = Some(joined_sub_map); env = lce}: SUB.t)
-                                      ) in
-                                      ({intv = intv_join; sub = sub_join}:t)
-                                      ) *)
-
+      ({d = Some {intv = intv_join; sub = sub_join}; env = sup_env}: t)
+    | Some d1', None -> {d = Some d1'; env = sup_env}
+    | None, Some d2' -> {d = Some d2'; env = sup_env}
+    | _ -> {d = None; env = sup_env}
 
   let join a b = Timing.wrap "join" (join a) b
 
