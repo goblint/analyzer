@@ -380,8 +380,7 @@ struct
      We assume no variables have been encountered when this funciton is called.
      It therefore holds that: bot = top.
   *)
-  let bot () =
-    {d = None; env = empty_env}
+  let bot () = {d = None; env = empty_env}
 
   (**
      Top creation does not make sense if we do not know anything about our variables.
@@ -397,7 +396,7 @@ struct
 
   let is_top t = 
     match t.d with
-    | None -> true
+    | None -> false
     | Some d -> INTERVALS.is_top d.intv && SUB.is_top d.sub
 
   let show varM = failwith "TODO"
