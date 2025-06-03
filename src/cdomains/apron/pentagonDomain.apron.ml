@@ -540,10 +540,14 @@ struct
     if M.tracing then M.tracel "join" "join a: %s b: %s -> %s" (show a) (show b) (show res) ;
     res
 
-  let widen t1 t2 = failwith "TODO" (*
-    { intv = INTERVALS.widen t1.intv t2.intv;
-      sub = SUB.widen t1.sub t2.sub }
-      *)
+  let widen t1 t2 = 
+    let sup_env = Environment.lce t1.env t2.env in
+    let t1 = dimchange2_add t1 sup_env in
+    let t2 = dimchange2_add t2 sup_env in
+    match t1.d, t2.d with
+    | Some d1', Some d2' ->
+      ({d = Some {intv = INTERVALS.widen d1'.intv d2'.intv; sub = SUB.widen d1'.sub d2'.sub}; env = sup_env}: t)
+    | _ -> {d = None; env = sup_env}
 
   let widen a b =
     let res = widen a b in
