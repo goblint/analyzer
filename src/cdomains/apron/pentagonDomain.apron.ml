@@ -73,9 +73,6 @@ struct
   let meet (i1: t) (i2: t) = 
     BatList.map2 meet_single i1 i2
 
-  let top () = 
-    [top_single ()]
-
   let is_top (i: t) = 
     BatList.for_all is_top_single i
 
@@ -87,9 +84,6 @@ struct
 
   let is_bot (i: t) = 
     BatList.exists is_bot_single i
-
-  let bot () = 
-    [(Z.of_int max_int, Z.of_int min_int)]
 
   let sup (x: interval) = 
     snd x
@@ -110,7 +104,7 @@ struct
           let k = dim_changes.(0) in
           let left, right = BatList.split_at k intervals in
           let new_array = (BatArray.sub dim_changes 1 (BatArray.length dim_changes - 1)) in
-          insert_dimensions (left @ top() @ right) new_array
+          insert_dimensions (left @ [top_single ()] @ right) new_array
       in
       insert_dimensions intervals change_arr
 
@@ -226,8 +220,6 @@ struct
 
   let equal (sub1: t) (sub2: t) = VarList.equal VarSet.equal sub1 sub2
 
-  let bot () = failwith "TODO" (* empty list? *)
-
   (**
         This isn't precise: we might return false even if there are transitive contradictions;
         Other possibility: compute transitive closure first (would be expensive)
@@ -243,8 +235,6 @@ struct
     sub = [] || (* if we don't know any variables, bot = top *)
     existsi (fun x ys -> VarSet.mem x ys ||
                          VarSet.exists (fun y -> VarSet.mem x (List.nth sub y)) ys) sub
-
-  let top () = failwith "TODO" (* empty list? *)
 
   let is_top (sub: t) = VarList.for_all VarSet.is_empty sub
 
@@ -286,12 +276,12 @@ struct
     "{" ^ relations_string ^ "}"
 
   let to_string (sub: t) = 
-    (* if is_bot sub then
-       "bot"
-       else if is_top sub then
-       "top"
-       else *)
-    to_string sub 
+    if is_bot sub then
+      "bot"
+    else if is_top sub then
+      "top"
+    else
+      to_string sub 
 
 end
 
@@ -391,15 +381,14 @@ struct
      It therefore holds that: bot = top.
   *)
   let bot () =
-    {d = Some {intv = INTERVALS.bot (); sub = SUB.bot ()}; env = empty_env}
-    (* { intv = INTERVALS.bot (); sub = SUB.bot () } *)
+    {d = None; env = empty_env}
 
   (**
      Top creation does not make sense if we do not know anything about our variables.
      We assume no variables have been encountered when this funciton is called.
      It therefore holds that: top = bot.
   *)
-  let top () = {d = Some {intv = INTERVALS.top (); sub = SUB.top ()}; env = empty_env}
+  let top () = {d = Some {intv = []; sub = []}; env = empty_env}
 
   let is_bot t = 
     match t.d with
@@ -536,6 +525,16 @@ struct
   let eval_int _ = failwith "TODO eval_int"
 
   let cil_exp_of_lincons1 = Convert.cil_exp_of_lincons1
+
+  let to_string pntg = 
+    if is_bot pntg then
+      "bot"
+    else if is_top pntg then
+      "top"
+    else
+      match pntg.d with
+      | None -> failwith "is_bot should take care of that"
+      | Some(d) -> INTERVALS.to_string d.intv ^ " " ^ SUB.to_string d.sub;;
 
 end
 
