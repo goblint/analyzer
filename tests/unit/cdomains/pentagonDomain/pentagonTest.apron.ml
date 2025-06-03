@@ -248,6 +248,21 @@ let test_pntg_meet _ =
   let pntg_1 = {}:
                  let pntg_2 = {}
 
+let test_d_leq _ =
+  let env = Apron.Environment.make (Array.init 4 (fun i -> Apron.Var.of_string (string_of_int i))) [||] in
+  let intvs1 = [INTERVALS.create_single 0 2; INTERVALS.create_single 2 3; INTERVALS.create_single 3 3; INTERVALS.create_single 1 5] in
+  (* [0 < {1}; 1 < {2}; 2 < {}; 3 < {}] *)
+  let sub1 = [SUB.VarSet.empty |> SUB.VarSet.add 1; SUB.VarSet.empty |> SUB.VarSet.add 2; SUB.VarSet.empty; SUB.VarSet.empty] in
+  let intvs2 = List.init 4 (fun i -> INTERVALS.create_single 0 (i + 2)) in
+  (* [0 < {1, 2}; 1 < {2}; 2 < {}; 3 < {}] *)
+  let sub2 = [SUB.VarSet.empty |> SUB.VarSet.add 1 |> SUB.VarSet.add 2; SUB.VarSet.empty |> SUB.VarSet.add 2; SUB.VarSet.empty; SUB.VarSet.empty] in
+  let (pntg1 : PNTG.t) = {intv = intvs1; sub = sub1} in
+  let (pntg2 : PNTG.t) = {intv = intvs2; sub = sub2} in
+  let (d1 : D.t) = {d = Some pntg1; env = env} in
+  let (d2 : D.t) = {d = Some pntg2; env = env} in
+  (* (0 < 2 is missing in sub1, but implied by intvs1: [0,2] < [3,3]) *)
+  assert_bool "" (D.leq d1 d2)
+
 let noop _ = assert_bool "" true
 
 let test () =
@@ -263,5 +278,7 @@ let test () =
     "test_sub_dim_add_1" >:: test_sub_dim_add_1;
     "test_sub_dim_add_2" >:: test_sub_dim_add_2;
     "test_sub_dim_remove_1" >:: test_sub_dim_remove_1;
+
+    "test_d_leq" >:: test_d_leq;
   ]
 

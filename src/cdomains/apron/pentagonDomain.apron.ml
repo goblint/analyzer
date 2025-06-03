@@ -50,6 +50,9 @@ struct
   let top_single () = 
     (Z.of_int min_int, Z.of_int max_int)
 
+  let create_single a b =
+    (Z.of_int a, Z.of_int b)
+
   let is_top_single (i: interval) =
     fst i = Z.of_int min_int && snd i = Z.of_int max_int
 
@@ -430,17 +433,18 @@ struct
       let for_alli f lst =
         List.for_all (fun (i, x) -> f i x) (List.mapi (fun i x -> (i, x)) lst) in
       let bool1 = INTERVALS.leq interval1 interval2 in
-      let bool2 = for_alli(fun i s2x -> 
+      let bool2 = for_alli(fun x s2x -> 
           SUB.VarSet.for_all(fun y -> 
-              let s1x = SUB.VarList.at sub1 i in
-              let b1x = BatList.at interval1 i in
+              let s1x = SUB.VarList.at sub1 x in
+              let b1x = BatList.at interval1 x in
               let b1y = BatList.at interval1 y in
-              SUB.VarSet.exists (Int.equal y) s1x ||
+              SUB.VarSet.mem y s1x ||
               INTERVALS.sup b1x < INTERVALS.inf b1y
             ) s2x
         ) sub2 in
       bool1 && bool2
-    | _ -> false
+    | Some d1', None -> INTERVALS.is_bot d1'.intv || SUB.is_bot d1'.sub
+    | _ -> true
 
   let leq a b = Timing.wrap "leq" (leq a) b
 
