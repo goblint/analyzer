@@ -235,9 +235,16 @@ struct
         | x :: xs -> if f i x then true else aux (i + 1) xs
       in aux 0 lst
     in
-    sub = [] || (* if we don't know any variables, bot = top *)
-    existsi (fun x ys -> VarSet.mem x ys ||
-                         VarSet.exists (fun y -> VarSet.mem x (List.nth sub y)) ys) sub
+    (* If we don't know any variables, i.e. sub = [], then bot = top holds. *)
+    sub = [] || 
+    existsi (
+      fun i set ->
+        (* direct contradiction *)
+        VarSet.mem i set ||
+        (* We assume that the sets inside sub only contain values < length of the list.*)
+        VarSet.exists (fun y -> VarSet.mem i (List.at sub y)) set
+    ) sub
+
 
   let is_top (sub: t) = VarList.for_all VarSet.is_empty sub
 
@@ -299,7 +306,7 @@ struct
   type t = { intv: INTERVALS.t; sub: SUB.t } [@@deriving eq, ord]
 
   let hash : (t -> int)  = fun _ -> failwith "TODO"
-  let equal _ _ = failwith "TODO"
+  let equal t1 t2  = INTERVALS.equal t1.intv t2.intv && SUB.equal t1.sub t2.sub;; 
   let compare _ _ = failwith "TODO"
   let copy (x: t) = x
   let empty () = failwith "TODO"
@@ -375,6 +382,8 @@ struct
   type var = V.t
 
   let name () = "pentagon"
+
+  let equal _ _ = failwith "TODO IMPLEMENT EQUAL"
 
   let to_yojson _ = failwith "TODO"
 
@@ -460,9 +469,9 @@ struct
     match t1.d, t2.d with
     | Some d1', Some d2' ->
       let intv_join = INTERVALS.join d1'.intv d1'.intv in
-      let s' x s1x = SUB.VarSet.inter s1x (List.nth d2'.sub x) in
-      let s'' x s1x = SUB.VarSet.filter (fun y -> INTERVALS.sup (List.nth d2'.intv x) < INTERVALS.inf (List.nth d2'.intv y)) s1x in
-      let s''' x = SUB.VarSet.filter (fun y -> INTERVALS.sup (List.nth d1'.intv x) < INTERVALS.inf (List.nth d1'.intv y)) (List.nth d2'.sub x) in
+      let s' x s1x = SUB.VarSet.inter s1x (List.at d2'.sub x) in
+      let s'' x s1x = SUB.VarSet.filter (fun y -> INTERVALS.sup (List.at d2'.intv x) < INTERVALS.inf (List.at d2'.intv y)) s1x in
+      let s''' x = SUB.VarSet.filter (fun y -> INTERVALS.sup (List.at d1'.intv x) < INTERVALS.inf (List.at d1'.intv y)) (List.at d2'.sub x) in
       let sub_join = List.mapi (fun x s1x -> SUB.VarSet.union (s' x s1x) (SUB.VarSet.union (s'' x s1x) (s''' x))) d1'.sub in
 
       ({d = Some {intv = intv_join; sub = sub_join}; env = sup_env}: t)
@@ -529,7 +538,6 @@ struct
 
   let assert_inv _ = failwith "SF but we most likely need assert_constraint"
   let invariant _ = failwith "TODO invariant"
-  let equal _ = failwith "TODO equal"
   let hash _ = failwith "TODO hash"
   let compare _ = failwith "TODO compare"
   let relift _ = failwith "TODO relift"

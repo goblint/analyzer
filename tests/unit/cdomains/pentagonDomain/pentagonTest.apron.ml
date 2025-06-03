@@ -294,6 +294,66 @@ let test_pntg_leq_2 _ =
   let (d2 : D.t) = {d = Some pntg2; env = env} in
   (* 0 < 2 is missing in sub1, would be implied by transitivity, but we must not check for that *)
   assert_bool "" (not (D.leq d1 d2))
+(* Test cases for the D module (PNTG) *)
+
+(** Check behaviour of meet and bot *)
+let test_pntg_meet_bots _ =
+  let cs = INTERVALS.create_single in
+  let pntg_1 = PNTG.bot () in
+  let pntg_2 = PNTG.bot () in
+  let pntg_3 = ({d = Some {intv = [cs 1 2; cs 2 4]; sub = [SUB.VarSet.singleton 1; SUB.VarSet.empty]}; env = PNTG.empty_env}: PNTG.t) in
+
+  (* let result = (PNTG.meet pntg_1 pntg_2) in  
+     let expected = (PNTG.bot ()) in
+     assert_equal ~msg:(
+     "expected:" ^ PNTG.to_string expected ^
+     "\ngot:" ^ PNTG.to_string result
+     ) expected result;; *)
+
+  (* let result = (PNTG.meet pntg_1 pntg_3) in  
+     let expected = PNTG.bot () in
+     assert_equal ~msg:(
+     "expected:" ^ PNTG.to_string expected ^
+     "\ngot:" ^ PNTG.to_string result
+     ) expected result;; *)
+
+  let result = (PNTG.meet pntg_3 pntg_2) in  
+  let expected = PNTG.bot () in
+  assert_equal ~msg:(
+    "expected:" ^ PNTG.to_string expected ^
+    "\ngot:" ^ PNTG.to_string result
+  ) expected result;; 
+
+
+(** Meet empty pentagons *)
+let test_pntg_meet_bot_intv_sub _ =
+  let pntg_1 = ({d = Some {intv = []; sub = []}; env = PNTG.empty_env}: PNTG.t) in
+  let pntg_2 = ({d = Some {intv = []; sub = []}; env = PNTG.empty_env}: PNTG.t) in
+  let expected_pntg = ({d = Some {intv = []; sub = []}; env = PNTG.empty_env}: PNTG.t) in
+  let resulting_pntg = PNTG.meet pntg_1 pntg_2 in
+  assert_equal ~msg:(
+    "expected:" ^ PNTG.to_string expected_pntg ^
+    "\ngot:" ^ PNTG.to_string resulting_pntg
+  ) expected_pntg resulting_pntg;;
+
+(* let test_pntg_meet _ = 
+   let ci = INTERVALS.create_single in
+
+   let env1 = Apron.Environment.make (Array.init 3 (fun i -> Apron.Var.of_string (string_of_int i))) [||] in
+   let env2 = Apron.Environment.make (Array.init 2 (fun i -> Apron.Var.of_string (string_of_int i))) [||] in
+
+   let pntg_1 = ({d = Some {intv = [ci (-2) 2; ci (-1) 3; ci 0 max_int]; sub = SUB.bot ()}; env = env1}: PNTG.t) in
+   let pntg_2 = ({d = Some {intv = [ci (-2) 2; ci 1 5 (* implicit (min_int, max_int)*)]; sub = SUB.bot ()}; env = env2}: PNTG.t) in
+
+   let lce = Apron.Environment.lce env1 env2 in
+
+   let expected_pntg = ({d = Some {intv = [ci (-2) 2; ci 1 3; ci 0 max_int]; sub = SUB.bot ()}; env = lce}: PNTG.t) in
+   let resulting_pntg = PNTG.meet pntg_1 pntg_2 in
+
+   assert_equal ~msg:(
+    "expected:" ^ PNTG.to_string expected_pntg ^
+    "\ngot:" ^ PNTG.to_string resulting_pntg
+   ) expected_pntg resulting_pntg;; *)
 
 let noop _ = assert_bool "" true
 
@@ -314,5 +374,11 @@ let test () =
     "test_pntg_leq_1" >:: test_pntg_leq_1;
     "test_pntg_leq_2" >:: test_pntg_leq_2;
     "test_pntg_widen" >:: test_pntg_widen;
+
+    "test_pntg_meet_bots" >:: test_pntg_meet_bots;
+    "test_pntg_meet_bot_intv_sub" >:: test_pntg_meet_bot_intv_sub;
+    (* "test_pntg_meet" >:: test_pntg_meet; *)
+
+
   ]
 
