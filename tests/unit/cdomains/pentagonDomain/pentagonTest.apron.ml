@@ -249,22 +249,23 @@ let test_pntg_widen _ =
   let sub1 = [SUB.VarSet.empty |> SUB.VarSet.add 1; SUB.VarSet.empty |> SUB.VarSet.add 2; SUB.VarSet.empty; SUB.VarSet.empty] in
   let intvs2 = [INTERVALS.create_single 40 60; INTERVALS.create_single 120 201; INTERVALS.create_single 199 301] in
   let sub2 = [SUB.VarSet.empty |> SUB.VarSet.add 1 |> SUB.VarSet.add 2; SUB.VarSet.empty |> SUB.VarSet.add 2; SUB.VarSet.empty; SUB.VarSet.empty] in
-  let (pntg1 : PNTG.t) = {intv = intvs1; sub = sub1} in
-  let (pntg2 : PNTG.t) = {intv = intvs2; sub = sub2} in
+  let (pntg1 : PentagonDomain.PNTG.t) = {intv = intvs1; sub = sub1} in
+  let (pntg2 : PentagonDomain.PNTG.t) = {intv = intvs2; sub = sub2} in
   let (d1 : D.t) = {d = Some pntg1; env = env} in
   let (d2 : D.t) = {d = Some pntg2; env = env} in
-  let resulting_pntg = D.widen d1 d2 in
+  let (resulting_pntg : D.t) = D.widen d1 d2 in
 
-  let expected_intvs = [INTERVALS.create_single 40 100; INTERVALS.create_single 120 Z.of_int max_int; INTERVALS.create_single Z.of_int min_int Z.of_int max_int] in
+  let expected_intvs = [INTERVALS.create_single 40 60; INTERVALS.create_single 120 max_int; INTERVALS.create_single min_int max_int] in
   let expected_sub = [SUB.VarSet.empty |> SUB.VarSet.add 1 |> SUB.VarSet.add 2; SUB.VarSet.empty |> SUB.VarSet.add 2; SUB.VarSet.empty; SUB.VarSet.empty] in
-  let expected_pntg = {intv = expected_intvs; sub = expected_sub} in
+  let (expected_pntg' : PentagonDomain.PNTG.t) = {intv = expected_intvs; sub = expected_sub} in
+  let (expected_pntg : D.t) = {d = Some expected_pntg'; env = env} in
 
   assert_equal ~msg:(
     "expected:" ^ D.to_string expected_pntg ^
     "\ngot:" ^ D.to_string resulting_pntg
-  ) expected_pntg resulting_pntg
+  ) (D.to_string expected_pntg) (D.to_string resulting_pntg) (* we haven't implemented D.equal yet, so we compare the strings *)
 
-let test_d_leq _ =
+let test_pntg_leq_1 _ =
   let env = Apron.Environment.make (Array.init 4 (fun i -> Apron.Var.of_string (string_of_int i))) [||] in
   let intvs1 = [INTERVALS.create_single 0 2; INTERVALS.create_single 2 3; INTERVALS.create_single 3 3; INTERVALS.create_single 1 5] in
   (* [0 < {1}; 1 < {2}; 2 < {}; 3 < {}] *)
@@ -272,12 +273,27 @@ let test_d_leq _ =
   let intvs2 = List.init 4 (fun i -> INTERVALS.create_single 0 (i + 2)) in
   (* [0 < {1, 2}; 1 < {2}; 2 < {}; 3 < {}] *)
   let sub2 = [SUB.VarSet.empty |> SUB.VarSet.add 1 |> SUB.VarSet.add 2; SUB.VarSet.empty |> SUB.VarSet.add 2; SUB.VarSet.empty; SUB.VarSet.empty] in
-  let (pntg1 : PNTG.t) = {intv = intvs1; sub = sub1} in
-  let (pntg2 : PNTG.t) = {intv = intvs2; sub = sub2} in
+  let (pntg1 : PentagonDomain.PNTG.t) = {intv = intvs1; sub = sub1} in
+  let (pntg2 : PentagonDomain.PNTG.t) = {intv = intvs2; sub = sub2} in
   let (d1 : D.t) = {d = Some pntg1; env = env} in
   let (d2 : D.t) = {d = Some pntg2; env = env} in
-  (* (0 < 2 is missing in sub1, but implied by intvs1: [0,2] < [3,3]) *)
+  (* 0 < 2 is missing in sub1, but implied by intvs1: [0,2] < [3,3] *)
   assert_bool "" (D.leq d1 d2)
+
+let test_pntg_leq_2 _ =
+  let env = Apron.Environment.make (Array.init 4 (fun i -> Apron.Var.of_string (string_of_int i))) [||] in
+  let intvs1 = List.init 4 (fun i -> INTERVALS.create_single 0 (i + 2)) in
+  (* [0 < {1}; 1 < {2}; 2 < {}; 3 < {}] *)
+  let sub1 = [SUB.VarSet.empty |> SUB.VarSet.add 1; SUB.VarSet.empty |> SUB.VarSet.add 2; SUB.VarSet.empty; SUB.VarSet.empty] in
+  let intvs2 = List.init 4 (fun i -> INTERVALS.create_single 0 (i + 2)) in
+  (* [0 < {1, 2}; 1 < {2}; 2 < {}; 3 < {}] *)
+  let sub2 = [SUB.VarSet.empty |> SUB.VarSet.add 1 |> SUB.VarSet.add 2; SUB.VarSet.empty |> SUB.VarSet.add 2; SUB.VarSet.empty; SUB.VarSet.empty] in
+  let (pntg1 : PentagonDomain.PNTG.t) = {intv = intvs1; sub = sub1} in
+  let (pntg2 : PentagonDomain.PNTG.t) = {intv = intvs2; sub = sub2} in
+  let (d1 : D.t) = {d = Some pntg1; env = env} in
+  let (d2 : D.t) = {d = Some pntg2; env = env} in
+  (* 0 < 2 is missing in sub1, would be implied by transitivity, but we must not check for that *)
+  assert_bool "" (not (D.leq d1 d2))
 
 let noop _ = assert_bool "" true
 
@@ -295,6 +311,8 @@ let test () =
     "test_sub_dim_add_2" >:: test_sub_dim_add_2;
     "test_sub_dim_remove_1" >:: test_sub_dim_remove_1;
 
-    "test_d_leq" >:: test_d_leq;
+    "test_pntg_leq_1" >:: test_pntg_leq_1;
+    "test_pntg_leq_2" >:: test_pntg_leq_2;
+    "test_pntg_widen" >:: test_pntg_widen;
   ]
 
