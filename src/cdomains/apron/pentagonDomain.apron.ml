@@ -390,18 +390,26 @@ struct
      We assume no variables have been encountered when this funciton is called.
      It therefore holds that: bot = top.
   *)
-  let bot () = failwith "TODO" (* { intv = INTERVALS.bot (); sub = SUB.bot () } *)
+  let bot () =
+    {d = Some {intv = INTERVALS.bot (); sub = SUB.bot ()}; env = empty_env}
+    (* { intv = INTERVALS.bot (); sub = SUB.bot () } *)
 
   (**
      Top creation does not make sense if we do not know anything about our variables.
      We assume no variables have been encountered when this funciton is called.
      It therefore holds that: top = bot.
   *)
-  let top () = failwith "TODO" (* { intv = INTERVALS.top (); sub = SUB.top () } *)
+  let top () = {d = Some {intv = INTERVALS.top (); sub = SUB.top ()}; env = empty_env}
 
-  let is_bot t = failwith "TODO" (* INTERVALS.is_bot t.intv || SUB.is_bot t.sub *)
+  let is_bot t = 
+    match t.d with
+    | None -> true
+    | Some d -> INTERVALS.is_bot d.intv && SUB.is_bot d.sub
 
-  let is_top t = failwith "TODO" (* INTERVALS.is_top t.intv && SUB.is_top t.sub *)
+  let is_top t = 
+    match t.d with
+    | None -> true
+    | Some d -> INTERVALS.is_top d.intv && SUB.is_top d.sub
 
   let show varM = failwith "TODO"
   let pretty () (x:t) = failwith "TODO"
