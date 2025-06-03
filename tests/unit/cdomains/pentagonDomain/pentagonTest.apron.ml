@@ -6,6 +6,7 @@ open PentagonDomain
 
 module INTERVALS = PentagonDomain.INTERVALS
 module SUB = PentagonDomain.SUB
+module PNTG = PentagonDomain.D
 
 (* Test cases for the Intervals module *)
 let test_intv_equal _ =
@@ -243,6 +244,9 @@ let test_sub_dim_remove_1 _ =
 
 (* Test cases for the D module (PNTG) *)
 
+let test_pntg_meet _ = 
+  let pntg_1 = {}:
+                 let pntg_2 = {}
 
 let noop _ = assert_bool "" true
 
