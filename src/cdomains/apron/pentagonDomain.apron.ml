@@ -147,6 +147,17 @@ struct
           else x :: aux (lst_i + 1) arr_i xs
       in
       aux 0 0 intervals
+
+      let to_string (intervals: t) =
+        if is_bot intervals then
+          "bot"
+        else if is_top intervals then
+          "top"
+        else
+          let string_of_interval (l, u) =
+            Printf.sprintf "[%s, %s]" (Z.to_string l) (Z.to_string u)
+          in
+          "{" ^ (String.concat "; " (List.map string_of_interval intervals)) ^ "}"
 end
 
 module SUB =
@@ -422,33 +433,28 @@ struct
 
   let meet t1 t2 = Timing.wrap "meet" (meet t1) t2
 
-  let leq t1 t2 = failwith "TODO" (*
-    let b1, b2 = t1.intv, t2.intv in
-    let sub1, sub2 = t1.sub, t2.sub in
-    INTERVALS.leq b1 b2
-    &&
-    match sub1.d, sub2.d with
-    | None, _ -> true
-    | _, None -> false
-    | Some(s_map_1), Some(s_map_2) -> 
-      (
-        (* Boilerplate *)     
-        let lce = Environment.lce sub1.env sub2.env in
-        let sub_map_1, sub_map_2 = SUB.unify_from_env sub1 sub2 lce in
-
-        SUB.VarMap.for_all (
-          fun x s2x -> 
-            SUB.VarSet.for_all (
-              fun y -> (
-                  let s1x = SUB.VarMap.find x sub_map_1 in
-                  let b1x = INTERVALS.VarMap.find x b1 in
-                  let b1y = INTERVALS.VarMap.find y b1 in
-                  SUB.VarSet.exists (Int.equal y) s1x ||
-                  INTERVALS.sup b1x < INTERVALS.inf b1y
-                )          
-            ) s2x
-        ) sub_map_2
-      )*)
+  let leq t1 t2 = 
+    let sup_env = Environment.lce t1.env t2.env in
+    let t1 = dimchange2_add t1 sup_env in
+    let t2 = dimchange2_add t2 sup_env in
+    match t1.d, t2.d with
+    | Some d1', Some d2' ->
+      let interval1, interval2 = d1'.intv, d2'.intv in
+      let sub1, sub2 = d1'.sub, d2'.sub in
+      let for_alli f lst =
+        List.for_all (fun (i, x) -> f i x) (List.mapi (fun i x -> (i, x)) lst) in
+      let bool1 = INTERVALS.leq interval1 interval2 in
+      let bool2 = for_alli(fun i s2x -> 
+        SUB.VarSet.for_all(fun y -> 
+            let s1x = SUB.VarList.at sub1 i in
+            let b1x = INTERVALS.VarList.at interval1 i in
+            let b1y = INTERVALS.VarList.at interval1 y in
+            SUB.VarSet.exists (Int.equal y) s1x ||
+            INTERVALS.sup b1x < INTERVALS.inf b1y
+          ) s2x
+        ) sub2 in
+      bool1 && bool2
+    | _ -> false
 
   let leq a b = Timing.wrap "leq" (leq a) b
 
@@ -457,52 +463,22 @@ struct
     if M.tracing then M.tracel "leq" "leq a: %s b: %s -> %b" (show t1) (show t2) res ;
     res
 
-  let join t1 t2 = failwith "TODO" (* (
-                                      let intv_join = INTERVALS.join t1.intv t2.intv in
-                                      let sub_join = (
-                                      (* Boilerplate *)
-                                      let b1, b2 = t1.intv, t2.intv in
-                                      let sub1, sub2 = t1.sub, t2.sub in
-                                      let lce = Environment.lce sub1.env sub2.env in
-                                      let sub_map_1, sub_map_2 = SUB.unify_from_env sub1 sub2 lce in
+  let join t1 t2 =
+    let sup_env = Environment.lce t1.env t2.env in
+    let t1 = dimchange2_add t1 sup_env in
+    let t2 = dimchange2_add t2 sup_env in
+    match t1.d, t2.d with
+    | Some d1', Some d2' ->
+      let intv_join = INTERVALS.join d1'.intv d1'.intv in
+      let s' x s1x = SUB.VarSet.inter s1x (List.nth d2'.sub x) in
+      let s'' x s1x = SUB.VarSet.filter (fun y -> INTERVALS.sup (List.nth d2'.intv x) < INTERVALS.inf (List.nth d2'.intv y)) s1x in
+      let s''' x = SUB.VarSet.filter (fun y -> INTERVALS.sup (List.nth d1'.intv x) < INTERVALS.inf (List.nth d1'.intv y)) (List.nth d2'.sub x) in
+      let sub_join = List.mapi (fun x s1x -> SUB.VarSet.union (s' x s1x) (SUB.VarSet.union (s'' x s1x) (s''' x))) d1'.sub in
 
-                                      let s' = SUB.VarMap.mapi (
-                                      fun x s2x -> 
-                                      let s1x = SUB.VarMap.find x sub_map_1 in
-                                      SUB.VarSet.inter s1x s2x
-                                      ) sub_map_2 in
-
-                                      let s'' = SUB.VarMap.mapi (
-                                      fun x s1x -> SUB.VarSet.filter (
-                                      fun y -> 
-                                      let b2x = INTERVALS.VarMap.find x b2 in
-                                      let b2y = INTERVALS.VarMap.find y b2 in
-                                      INTERVALS.sup b2x < INTERVALS.inf b2y
-                                      ) s1x
-                                      ) sub_map_1 in
-
-                                      let s''' = SUB.VarMap.mapi (
-                                      fun x s2x -> SUB.VarSet.filter (
-                                      fun y -> 
-                                      let b1x = INTERVALS.VarMap.find x b1 in
-                                      let b1y = INTERVALS.VarMap.find y b1 in
-                                      INTERVALS.sup b1x < INTERVALS.inf b1y
-                                      ) s2x
-                                      ) sub_map_2 in
-
-                                      let joined_sub_map = SUB.VarMap.mapi (
-                                      fun x _ -> 
-                                      let s'x = SUB.VarMap.find x s' in
-                                      let s''x = SUB.VarMap.find x s'' in
-                                      let s'''x = SUB.VarMap.find x s''' in
-                                      SUB.VarSet.union s'x (SUB.VarSet.union s''x s'''x)
-                                      ) sub_map_1 (* sub_map_1 & sub_map_2 should hold the same keys *) in
-
-                                      ({d = Some(joined_sub_map); env = lce}: SUB.t)
-                                      ) in
-                                      ({intv = intv_join; sub = sub_join}:t)
-                                      ) *)
-
+      ({d = Some {intv = intv_join; sub = sub_join}; env = sup_env}: t)
+    | Some d1', None -> {d = Some d1'; env = sup_env}
+    | None, Some d2' -> {d = Some d2'; env = sup_env}
+    | _ -> {d = None; env = sup_env}
 
   let join a b = Timing.wrap "join" (join a) b
 
@@ -511,10 +487,14 @@ struct
     if M.tracing then M.tracel "join" "join a: %s b: %s -> %s" (show a) (show b) (show res) ;
     res
 
-  let widen t1 t2 = failwith "TODO" (*
-    { intv = INTERVALS.widen t1.intv t2.intv;
-      sub = SUB.widen t1.sub t2.sub }
-      *)
+  let widen t1 t2 = 
+    let sup_env = Environment.lce t1.env t2.env in
+    let t1 = dimchange2_add t1 sup_env in
+    let t2 = dimchange2_add t2 sup_env in
+    match t1.d, t2.d with
+    | Some d1', Some d2' ->
+      ({d = Some {intv = INTERVALS.widen d1'.intv d2'.intv; sub = SUB.widen d1'.sub d2'.sub}; env = sup_env}: t)
+    | _ -> {d = None; env = sup_env}
 
   let widen a b =
     let res = widen a b in
