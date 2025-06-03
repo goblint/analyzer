@@ -3,295 +3,415 @@ open OUnit2
 open Goblint_lib
 open Batteries
 open PentagonDomain
-
 module INTERVALS = PentagonDomain.INTERVALS
 module SUB = PentagonDomain.SUB
 module PNTG = PentagonDomain.D
 
 (* Test cases for the Intervals module *)
 let test_intv_equal _ =
-  let intv = [
-    INTERVALS.create_single max_int min_int;
-    INTERVALS.create_single 1 5;
-    INTERVALS.top_single ()] 
+  let intv =
+    [
+      INTERVALS.create_single max_int min_int;
+      INTERVALS.create_single 1 5;
+      INTERVALS.top_single ();
+    ]
   in
-  let intv_equal = [
-    INTERVALS.create_single max_int min_int;
-    INTERVALS.create_single 1 5;
-    INTERVALS.top_single ()] 
+  let intv_equal =
+    [
+      INTERVALS.create_single max_int min_int;
+      INTERVALS.create_single 1 5;
+      INTERVALS.top_single ();
+    ]
   in
-  let intv_not_equal = [
-    (Z.of_int max_int, Z.of_int min_int);
-    INTERVALS.top_single ()
-  ]
+  let intv_not_equal =
+    [ (Z.of_int max_int, Z.of_int min_int); INTERVALS.top_single () ]
   in
-  let intv_slightly_not_equal = [
-    INTERVALS.create_single max_int min_int;
-    INTERVALS.create_single 1 4;
-    INTERVALS.top_single ()]
+  let intv_slightly_not_equal =
+    [
+      INTERVALS.create_single max_int min_int;
+      INTERVALS.create_single 1 4;
+      INTERVALS.top_single ();
+    ]
   in
-  assert_bool "intv should be equal to intv_equal" (INTERVALS.equal intv intv_equal);
-  assert_bool "intv should not be equal to intv_not_equal" (not (INTERVALS.equal intv intv_not_equal));
-  assert_bool "sub1 should be equal to sub2" (not (INTERVALS.equal intv intv_slightly_not_equal));;
+  assert_bool "intv should be equal to intv_equal"
+    (INTERVALS.equal intv intv_equal);
+  assert_bool "intv should not be equal to intv_not_equal"
+    (not (INTERVALS.equal intv intv_not_equal));
+  assert_bool "sub1 should be equal to sub2"
+    (not (INTERVALS.equal intv intv_slightly_not_equal))
 
-let test_intv_dim_add_1 _ =   
-  let dim_change = ({dim = [|0; 1; 1; 2; 4|]; intdim = 5; realdim = 0 }: Apron.Dim.change) in
-  let intv = [
-    (* 0 *) INTERVALS.create_single 1 3; (* prev 0 *)
-    (* 1 *) INTERVALS.create_single (-3) 25; (* prev 1 *)
-    (* 2 *) INTERVALS.create_single 2 2; (* prev 2 *)
-    (* 3 *) INTERVALS.create_single (-1) max_int; (* prev 3 *)
-  ] in
-  let expected_intv = [
-    (* 0 *) INTERVALS.top_single ();
-    (* 1 *) INTERVALS.create_single 1 3; (* prev 0 *)
-    (* 2 *) INTERVALS.top_single ();
-    (* 3 *) INTERVALS.top_single ();
-    (* 4 *) INTERVALS.create_single (-3) 25; (* prev 1 *)
-    (* 5 *) INTERVALS.top_single ();
-    (* 6 *) INTERVALS.create_single 2 2; (* prev 2 *)
-    (* 7 *) INTERVALS.create_single (-1) max_int; (* prev 3 *)
-    (* 8 *) INTERVALS.top_single ();
-  ]
+let test_intv_dim_add_1 _ =
+  let dim_change =
+    ({ dim = [| 0; 1; 1; 2; 4 |]; intdim = 5; realdim = 0 } : Apron.Dim.change)
+  in
+  let intv =
+    [
+      (* 0 *) INTERVALS.create_single 1 3;
+      (* 1 *) INTERVALS.create_single (-3) 25;
+      (* 2 *) INTERVALS.create_single 2 2;
+      (* 3 *) INTERVALS.create_single (-1) max_int;
+    ]
+  in
+  let expected_intv =
+    [
+      (* 0 *) INTERVALS.top_single ();
+      (* 1 *) INTERVALS.create_single 1 3; (* prev 0 *)
+      (* 2 *) INTERVALS.top_single ();
+      (* 3 *) INTERVALS.top_single ();
+      (* 4 *) INTERVALS.create_single (-3) 25; (* prev 1 *)
+      (* 5 *) INTERVALS.top_single ();
+      (* 6 *) INTERVALS.create_single 2 2; (* prev 2 *)
+      (* 7 *) INTERVALS.create_single (-1) max_int; (* prev 3 *)
+      (* 8 *) INTERVALS.top_single ();
+    ]
   in
   let resulting_intv = INTERVALS.dim_add dim_change intv in
-  assert_equal ~msg:( 
-    "expected:" ^ INTERVALS.to_string expected_intv ^
-    "\ngot:" ^ INTERVALS.to_string resulting_intv
-  ) expected_intv resulting_intv;;
+  assert_equal
+    ~msg:
+      ("expected:"
+       ^ INTERVALS.to_string expected_intv
+       ^ "\ngot:"
+       ^ INTERVALS.to_string resulting_intv)
+    expected_intv resulting_intv
 
 let test_intv_dim_add_2 _ =
-  let dim_change = ({dim = [|0; 3; 3; 3; 3; 3; 4|]; intdim = 5; realdim = 0 }: Apron.Dim.change) in
-  let intv = [
-    (*0*) (Z.of_int 1, Z.of_int 3);
-    (*1*) (Z.of_int (-1), Z.of_int 1);
-    (*2*) INTERVALS.top_single ();
-    (*3*) (Z.of_int (-100), Z.of_int max_int);
-    (*4*)
-  ] in 
-  let expected_intv = [
-    (* 0 *) INTERVALS.top_single ();
-    (* 1 *) (Z.of_int 1, Z.of_int 3); (* prev 0 *)
-    (* 2 *) (Z.of_int (-1), Z.of_int 1);  (* prev 1 *)
-    (* 3 *) INTERVALS.top_single ();  (* prev 2 *)
-    (* 4 *) INTERVALS.top_single ();
-    (* 5 *) INTERVALS.top_single ();
-    (* 6 *) INTERVALS.top_single ();
-    (* 7 *) INTERVALS.top_single ();
-    (* 8 *) INTERVALS.top_single ();
-    (* 9 *) (Z.of_int (-100), Z.of_int max_int);  (* prev 3 *)
-    (* 10 *) INTERVALS.top_single ();
-    (* 11 *)
-  ]
+  let dim_change =
+    ({ dim = [| 0; 3; 3; 3; 3; 3; 4 |]; intdim = 5; realdim = 0 }
+     : Apron.Dim.change)
+  in
+  let intv =
+    [
+      (*0*) (Z.of_int 1, Z.of_int 3);
+      (*1*) (Z.of_int (-1), Z.of_int 1);
+      (*2*) INTERVALS.top_single ();
+      (*3*) (Z.of_int (-100), Z.of_int max_int);
+      (*4*)
+    ]
+  in
+  let expected_intv =
+    [
+      (* 0 *) INTERVALS.top_single ();
+      (* 1 *) (Z.of_int 1, Z.of_int 3); (* prev 0 *)
+      (* 2 *) (Z.of_int (-1), Z.of_int 1); (* prev 1 *)
+      (* 3 *) INTERVALS.top_single (); (* prev 2 *)
+      (* 4 *) INTERVALS.top_single ();
+      (* 5 *) INTERVALS.top_single ();
+      (* 6 *) INTERVALS.top_single ();
+      (* 7 *) INTERVALS.top_single ();
+      (* 8 *) INTERVALS.top_single ();
+      (* 9 *) (Z.of_int (-100), Z.of_int max_int); (* prev 3 *)
+      (* 10 *) INTERVALS.top_single ();
+      (* 11 *)
+    ]
   in
   let resulting_intv = INTERVALS.dim_add dim_change intv in
-  assert_equal ~msg:(
-    "expected:" ^ INTERVALS.to_string expected_intv ^
-    "\ngot:" ^ INTERVALS.to_string resulting_intv
-  ) expected_intv resulting_intv;;
+  assert_equal
+    ~msg:
+      ("expected:"
+       ^ INTERVALS.to_string expected_intv
+       ^ "\ngot:"
+       ^ INTERVALS.to_string resulting_intv)
+    expected_intv resulting_intv
 
-let test_intv_dim_remove_1 _ = 
-  let dim_change = ({dim = [|0; 2; 3; 5; 7|]; intdim = 5; realdim = 0 }: Apron.Dim.change) in
-  let intv = [
-    (* 0 *) INTERVALS.top_single ();
-    (* 1 *) INTERVALS.create_single 1 3;
-    (* 2 *) INTERVALS.top_single ();
-    (* 3 *) INTERVALS.top_single ();
-    (* 4 *) INTERVALS.create_single (-3) 25;
-    (* 5 *) INTERVALS.top_single ();
-    (* 6 *) INTERVALS.create_single 2 2;
-    (* 7 *) INTERVALS.top_single ();
-    (* 8 *) INTERVALS.create_single (-1) max_int;
-  ] in
-  let expected_intv = [
-    (* 0 *) INTERVALS.create_single 1 3;
-    (* 1 *) INTERVALS.create_single (-3) 25;
-    (* 2 *) INTERVALS.create_single 2 2;
-    (* 3 *) INTERVALS.create_single (-1) max_int;
-  ] 
+let test_intv_dim_remove_1 _ =
+  let dim_change =
+    ({ dim = [| 0; 2; 3; 5; 7 |]; intdim = 5; realdim = 0 } : Apron.Dim.change)
+  in
+  let intv =
+    [
+      (* 0 *) INTERVALS.top_single ();
+      (* 1 *) INTERVALS.create_single 1 3;
+      (* 2 *) INTERVALS.top_single ();
+      (* 3 *) INTERVALS.top_single ();
+      (* 4 *) INTERVALS.create_single (-3) 25;
+      (* 5 *) INTERVALS.top_single ();
+      (* 6 *) INTERVALS.create_single 2 2;
+      (* 7 *) INTERVALS.top_single ();
+      (* 8 *) INTERVALS.create_single (-1) max_int;
+    ]
+  in
+  let expected_intv =
+    [
+      (* 0 *) INTERVALS.create_single 1 3;
+      (* 1 *) INTERVALS.create_single (-3) 25;
+      (* 2 *) INTERVALS.create_single 2 2;
+      (* 3 *) INTERVALS.create_single (-1) max_int;
+    ]
   in
   let resulting_intv = INTERVALS.dim_remove dim_change intv in
-  assert_equal ~msg:(
-    "expected:" ^ INTERVALS.to_string expected_intv ^
-    "\ngot:" ^ INTERVALS.to_string resulting_intv
-  ) expected_intv resulting_intv;;
-
+  assert_equal
+    ~msg:
+      ("expected:"
+       ^ INTERVALS.to_string expected_intv
+       ^ "\ngot:"
+       ^ INTERVALS.to_string resulting_intv)
+    expected_intv resulting_intv
 
 (* Test cases for the SUB module *)
 let test_sub_equal _ =
-  let sub1 = [SUB.VarSet.singleton 2] in
-  let sub2 = [SUB.VarSet.singleton 2] in
-  let sub3 = [SUB.VarSet.singleton 3] in
+  let sub1 = [ SUB.VarSet.singleton 2 ] in
+  let sub2 = [ SUB.VarSet.singleton 2 ] in
+  let sub3 = [ SUB.VarSet.singleton 3 ] in
   assert_bool "sub1 should be equal to sub2" (SUB.equal sub1 sub2);
   assert_bool "sub1 should not be equal to sub3" (not (SUB.equal sub1 sub3))
 
 let test_sub_leq _ =
-  let sub = [
-    SUB.VarSet.of_list [2; 3; 4];
-    SUB.VarSet.of_list [7; 6]
-  ] in
-  let equal_sub = [
-    SUB.VarSet.of_list [2; 3; 4];
-    SUB.VarSet.of_list [7; 6]
-  ] in
-  let uncomparable_sub = [
-    SUB.VarSet.singleton 3
-  ] in
-  let less_specific_sub = [
-    SUB.VarSet.of_list [4];
-    SUB.VarSet.of_list [6]
-  ] in
+  let sub = [ SUB.VarSet.of_list [ 2; 3; 4 ]; SUB.VarSet.of_list [ 7; 6 ] ] in
+  let equal_sub =
+    [ SUB.VarSet.of_list [ 2; 3; 4 ]; SUB.VarSet.of_list [ 7; 6 ] ]
+  in
+  let uncomparable_sub = [ SUB.VarSet.singleton 3 ] in
+  let less_specific_sub =
+    [ SUB.VarSet.of_list [ 4 ]; SUB.VarSet.of_list [ 6 ] ]
+  in
 
-  assert_bool
-    "sub should be less than or equal to an equal sub" (SUB.leq sub equal_sub);
-  assert_bool
-    "sub should not be less than or equal to an uncomparable sub"
+  assert_bool "sub should be less than or equal to an equal sub"
+    (SUB.leq sub equal_sub);
+  assert_bool "sub should not be less than or equal to an uncomparable sub"
     (not (SUB.leq sub uncomparable_sub));
   assert_bool
-    "sub should be less than or equal to a sub containing \
-     less precise information"
+    "sub should be less than or equal to a sub containing less precise \
+     information"
     (SUB.leq sub less_specific_sub);
-  assert_bool 
-    "sub should not be less than or equal to a sub \
-     containing more precise information"
-    (not (SUB.leq less_specific_sub sub));;
+  assert_bool
+    "sub should not be less than or equal to a sub containing more precise \
+     information"
+    (not (SUB.leq less_specific_sub sub))
 
 let test_sub_dim_add_1 _ =
-
-  let dim_change = ({dim = [|0; 1; 1; 2; 3|]; intdim = 5; realdim = 0 }: Apron.Dim.change) in
-  let sub = [
-    (*0*) SUB.VarSet.singleton 2;
-    (*1*) SUB.VarSet.singleton 2;
-    (*2*) SUB.VarSet.singleton 5;
-    (*3*) SUB.VarSet.singleton 0
-  ] in 
-  let expected_sub = [
-    (*0*) SUB.VarSet.empty;(* insert 0 *)
-    (*1*) SUB.VarSet.singleton 6;   (* prev 0 *)
-    (*2*) SUB.VarSet.empty;(* insert 1 *)
-    (*3*) SUB.VarSet.empty;(* insert 1 *)
-    (*4*) SUB.VarSet.singleton 6;   (* prev 1 *)
-    (*5*) SUB.VarSet.empty;(* insert 2 *)
-    (*6*) SUB.VarSet.singleton 5;   (* prev 2 *)
-    (*7*) SUB.VarSet.empty;(* insert 3 *)
-    (*8*) SUB.VarSet.singleton 1    (* prev 3 *)
-  ]
+  let dim_change =
+    ({ dim = [| 0; 1; 1; 2; 3 |]; intdim = 5; realdim = 0 } : Apron.Dim.change)
+  in
+  let sub =
+    [
+      (*0*) SUB.VarSet.singleton 2;
+      (*1*) SUB.VarSet.singleton 2;
+      (*2*) SUB.VarSet.singleton 5;
+      (*3*) SUB.VarSet.singleton 0;
+    ]
+  in
+  let expected_sub =
+    [
+      (*0*) SUB.VarSet.empty; (* insert 0 *)
+      (*1*) SUB.VarSet.singleton 6; (* prev 0 *)
+      (*2*) SUB.VarSet.empty; (* insert 1 *)
+      (*3*) SUB.VarSet.empty; (* insert 1 *)
+      (*4*) SUB.VarSet.singleton 6; (* prev 1 *)
+      (*5*) SUB.VarSet.empty; (* insert 2 *)
+      (*6*) SUB.VarSet.singleton 5; (* prev 2 *)
+      (*7*) SUB.VarSet.empty; (* insert 3 *)
+      (*8*) SUB.VarSet.singleton 1 (* prev 3 *);
+    ]
   in
   let resulting_sub = SUB.dim_add dim_change sub in
-  assert_equal ~msg:(
-    "expected:" ^ SUB.to_string expected_sub ^
-    "\ngot:" ^ SUB.to_string resulting_sub
-  ) expected_sub resulting_sub;;
+  assert_equal
+    ~msg:
+      ("expected:" ^ SUB.to_string expected_sub ^ "\ngot:"
+       ^ SUB.to_string resulting_sub)
+    expected_sub resulting_sub
 
 let test_sub_dim_add_2 _ =
-  let dim_change = ({dim = [|0; 3; 3; 3; 3; 3|]; intdim = 5; realdim = 0 }: Apron.Dim.change) in
-  let sub = [
-    (*0*) SUB.VarSet.singleton 3;
-    (*1*) SUB.VarSet.empty;
-    (*2*) SUB.VarSet.empty;
-    (*3*) SUB.VarSet.singleton 0;
-    (*4*)
-  ] in 
-  let expected_sub = [
-    (*0*) SUB.VarSet.empty;
-    (*1*) SUB.VarSet.singleton 9;
-    (*2*) SUB.VarSet.empty;
-    (*3*) SUB.VarSet.empty;
-    (*4*) SUB.VarSet.empty;
-    (*5*) SUB.VarSet.empty;
-    (*6*) SUB.VarSet.empty;
-    (*7*) SUB.VarSet.empty;
-    (*8*) SUB.VarSet.empty;
-    (*9*) SUB.VarSet.singleton 1;
-    (*10*)
-  ]
+  let dim_change =
+    ({ dim = [| 0; 3; 3; 3; 3; 3 |]; intdim = 5; realdim = 0 }
+     : Apron.Dim.change)
+  in
+  let sub =
+    [
+      (*0*) SUB.VarSet.singleton 3;
+      (*1*) SUB.VarSet.empty;
+      (*2*) SUB.VarSet.empty;
+      (*3*) SUB.VarSet.singleton 0;
+      (*4*)
+    ]
+  in
+  let expected_sub =
+    [
+      (*0*) SUB.VarSet.empty;
+      (*1*) SUB.VarSet.singleton 9;
+      (*2*) SUB.VarSet.empty;
+      (*3*) SUB.VarSet.empty;
+      (*4*) SUB.VarSet.empty;
+      (*5*) SUB.VarSet.empty;
+      (*6*) SUB.VarSet.empty;
+      (*7*) SUB.VarSet.empty;
+      (*8*) SUB.VarSet.empty;
+      (*9*) SUB.VarSet.singleton 1;
+      (*10*)
+    ]
   in
   let resulting_sub = SUB.dim_add dim_change sub in
-  assert_equal ~msg:(
-    "expected:" ^ SUB.to_string expected_sub ^
-    "\ngot:" ^ SUB.to_string resulting_sub
-  ) expected_sub resulting_sub;;
+  assert_equal
+    ~msg:
+      ("expected:" ^ SUB.to_string expected_sub ^ "\ngot:"
+       ^ SUB.to_string resulting_sub)
+    expected_sub resulting_sub
 
 let test_sub_dim_remove_1 _ =
-  let dim_change = ({dim = [|0; 2; 3; 5; 7|]; intdim = 5; realdim = 0 }: Apron.Dim.change) in
+  let dim_change =
+    ({ dim = [| 0; 2; 3; 5; 7 |]; intdim = 5; realdim = 0 } : Apron.Dim.change)
+  in
   (* If dim contains duplicates, then its not well-formed. *)
   (* let dim_change_with_duplicates = ({dim = [|0; 2; 2; 3; 5; 7|]; intdim = 5; realdim = 0 }: Apron.Dim.change) in *)
-  let sub = [
-    (*0*) SUB.VarSet.empty;
-    (*1*) SUB.VarSet.singleton 6;
-    (*2*) SUB.VarSet.empty;
-    (*3*) SUB.VarSet.empty;
-    (*4*) SUB.VarSet.singleton 6;
-    (*5*) SUB.VarSet.empty;
-    (*6*) SUB.VarSet.singleton 5;
-    (*7*) SUB.VarSet.empty;
-    (*8*) SUB.VarSet.singleton 1
-  ] 
+  let sub =
+    [
+      (*0*) SUB.VarSet.empty;
+      (*1*) SUB.VarSet.singleton 6;
+      (*2*) SUB.VarSet.empty;
+      (*3*) SUB.VarSet.empty;
+      (*4*) SUB.VarSet.singleton 6;
+      (*5*) SUB.VarSet.empty;
+      (*6*) SUB.VarSet.singleton 5;
+      (*7*) SUB.VarSet.empty;
+      (*8*) SUB.VarSet.singleton 1;
+    ]
   in
-  let expected_sub = [
-    (*0*) SUB.VarSet.singleton 2;
-    (*1*) SUB.VarSet.singleton 2;
-    (*2*) SUB.VarSet.empty;
-    (*3*) SUB.VarSet.singleton 0
-  ] 
+  let expected_sub =
+    [
+      (*0*) SUB.VarSet.singleton 2;
+      (*1*) SUB.VarSet.singleton 2;
+      (*2*) SUB.VarSet.empty;
+      (*3*) SUB.VarSet.singleton 0;
+    ]
   in
   let resulting_sub = SUB.dim_remove dim_change sub in
-  assert_equal ~msg:(
-    "expected:" ^ SUB.to_string expected_sub ^
-    "\ngot:" ^ SUB.to_string resulting_sub
-  ) expected_sub resulting_sub;;
+  assert_equal
+    ~msg:
+      ("expected:" ^ SUB.to_string expected_sub ^ "\ngot:"
+       ^ SUB.to_string resulting_sub)
+    expected_sub resulting_sub
 
+(* Test cases for the D module (PNTG) *)
 
-(* Test cases for the D module (PNTG) *)      
-let test_pntg_widen _ = 
-  let env = Apron.Environment.make (Array.init 3 (fun i -> Apron.Var.of_string (string_of_int i))) [||] in
-  let intvs1 = [INTERVALS.create_single 0 100; INTERVALS.create_single 100 200; INTERVALS.create_single 200 300] in
-  let sub1 = [SUB.VarSet.empty |> SUB.VarSet.add 1; SUB.VarSet.empty |> SUB.VarSet.add 2; SUB.VarSet.empty; SUB.VarSet.empty] in
-  let intvs2 = [INTERVALS.create_single 40 60; INTERVALS.create_single 120 201; INTERVALS.create_single 199 301] in
-  let sub2 = [SUB.VarSet.empty |> SUB.VarSet.add 1 |> SUB.VarSet.add 2; SUB.VarSet.empty |> SUB.VarSet.add 2; SUB.VarSet.empty; SUB.VarSet.empty] in
-  let (pntg1 : PentagonDomain.PNTG.t) = {intv = intvs1; sub = sub1} in
-  let (pntg2 : PentagonDomain.PNTG.t) = {intv = intvs2; sub = sub2} in
-  let (d1 : D.t) = {d = Some pntg1; env = env} in
-  let (d2 : D.t) = {d = Some pntg2; env = env} in
-  let (resulting_pntg : D.t) = D.widen d1 d2 in
+let assert_equal expected result = 
+  assert_equal ~cmp: PNTG.equal ~msg:(
+    "expected:" ^ PNTG.to_string expected ^
+    "\ngot:" ^ PNTG.to_string result
+  ) expected result;;
 
-  let expected_intvs = [INTERVALS.create_single 40 60; INTERVALS.create_single 120 max_int; INTERVALS.create_single min_int max_int] in
-  let expected_sub = [SUB.VarSet.empty |> SUB.VarSet.add 1 |> SUB.VarSet.add 2; SUB.VarSet.empty |> SUB.VarSet.add 2; SUB.VarSet.empty; SUB.VarSet.empty] in
-  let (expected_pntg' : PentagonDomain.PNTG.t) = {intv = expected_intvs; sub = expected_sub} in
-  let (expected_pntg : D.t) = {d = Some expected_pntg'; env = env} in
+let test_pntg_widen _ =
+  let env =
+    Apron.Environment.make
+      (Array.init 3 (fun i -> Apron.Var.of_string (string_of_int i)))
+      [||]
+  in
+  let (pntg1: PNTG.t) = { d = 
+                            Some({
+                                intv = [
+                                  INTERVALS.create_single 0 100;
+                                  INTERVALS.create_single 100 200;
+                                  INTERVALS.create_single 200 300;];
+                                sub = [
+                                  SUB.VarSet.empty |> SUB.VarSet.add 1;
+                                  SUB.VarSet.empty |> SUB.VarSet.add 2;
+                                  SUB.VarSet.empty;
+                                  SUB.VarSet.empty;]
+                              }); env } in
+  let (pntg2: PNTG.t) = { d = Some({
+      intv = [
+        INTERVALS.create_single 40 60;
+        INTERVALS.create_single 120 201;
+        INTERVALS.create_single 199 301;
+      ]; sub = [
+          SUB.VarSet.empty |> SUB.VarSet.add 1 |> SUB.VarSet.add 2;
+          SUB.VarSet.empty |> SUB.VarSet.add 2;
+          SUB.VarSet.empty;
+          SUB.VarSet.empty;
+        ] }); env } in
+  let (resulting_pntg : D.t) = D.widen pntg1 pntg2 in
 
-  assert_equal ~msg:(
-    "expected:" ^ D.to_string expected_pntg ^
-    "\ngot:" ^ D.to_string resulting_pntg
-  ) (D.to_string expected_pntg) (D.to_string resulting_pntg) (* we haven't implemented D.equal yet, so we compare the strings *)
+  let expected_intvs =
+    [
+      INTERVALS.create_single 40 60;
+      INTERVALS.create_single 120 max_int;
+      INTERVALS.create_single min_int max_int;
+    ]
+  in
+  let expected_sub =
+    [
+      SUB.VarSet.empty |> SUB.VarSet.add 1 |> SUB.VarSet.add 2;
+      SUB.VarSet.empty |> SUB.VarSet.add 2;
+      SUB.VarSet.empty;
+      SUB.VarSet.empty;
+    ]
+  in
+  let (expected_pntg' : PentagonDomain.PNTG.t) =
+    { intv = expected_intvs; sub = expected_sub }
+  in
+  let (expected_pntg : D.t) = { d = Some expected_pntg'; env } in
+
+  assert_equal expected_pntg resulting_pntg
+(* we haven't implemented D.equal yet, so we compare the strings *)
 
 let test_pntg_leq_1 _ =
-  let env = Apron.Environment.make (Array.init 4 (fun i -> Apron.Var.of_string (string_of_int i))) [||] in
-  let intvs1 = [INTERVALS.create_single 0 2; INTERVALS.create_single 2 3; INTERVALS.create_single 3 3; INTERVALS.create_single 1 5] in
+  let env =
+    Apron.Environment.make
+      (Array.init 4 (fun i -> Apron.Var.of_string (string_of_int i)))
+      [||]
+  in
+  let intvs1 =
+    [
+      INTERVALS.create_single 0 2;
+      INTERVALS.create_single 2 3;
+      INTERVALS.create_single 3 3;
+      INTERVALS.create_single 1 5;
+    ]
+  in
   (* [0 < {1}; 1 < {2}; 2 < {}; 3 < {}] *)
-  let sub1 = [SUB.VarSet.empty |> SUB.VarSet.add 1; SUB.VarSet.empty |> SUB.VarSet.add 2; SUB.VarSet.empty; SUB.VarSet.empty] in
+  let sub1 =
+    [
+      SUB.VarSet.empty |> SUB.VarSet.add 1;
+      SUB.VarSet.empty |> SUB.VarSet.add 2;
+      SUB.VarSet.empty;
+      SUB.VarSet.empty;
+    ]
+  in
   let intvs2 = List.init 4 (fun i -> INTERVALS.create_single 0 (i + 2)) in
   (* [0 < {1, 2}; 1 < {2}; 2 < {}; 3 < {}] *)
-  let sub2 = [SUB.VarSet.empty |> SUB.VarSet.add 1 |> SUB.VarSet.add 2; SUB.VarSet.empty |> SUB.VarSet.add 2; SUB.VarSet.empty; SUB.VarSet.empty] in
-  let (pntg1 : PentagonDomain.PNTG.t) = {intv = intvs1; sub = sub1} in
-  let (pntg2 : PentagonDomain.PNTG.t) = {intv = intvs2; sub = sub2} in
-  let (d1 : D.t) = {d = Some pntg1; env = env} in
-  let (d2 : D.t) = {d = Some pntg2; env = env} in
+  let sub2 =
+    [
+      SUB.VarSet.empty |> SUB.VarSet.add 1 |> SUB.VarSet.add 2;
+      SUB.VarSet.empty |> SUB.VarSet.add 2;
+      SUB.VarSet.empty;
+      SUB.VarSet.empty;
+    ]
+  in
+  let (pntg1 : PentagonDomain.PNTG.t) = { intv = intvs1; sub = sub1 } in
+  let (pntg2 : PentagonDomain.PNTG.t) = { intv = intvs2; sub = sub2 } in
+  let (d1 : D.t) = { d = Some pntg1; env } in
+  let (d2 : D.t) = { d = Some pntg2; env } in
   (* 0 < 2 is missing in sub1, but implied by intvs1: [0,2] < [3,3] *)
   assert_bool "" (D.leq d1 d2)
 
 let test_pntg_leq_2 _ =
-  let env = Apron.Environment.make (Array.init 4 (fun i -> Apron.Var.of_string (string_of_int i))) [||] in
+  let env =
+    Apron.Environment.make
+      (Array.init 4 (fun i -> Apron.Var.of_string (string_of_int i)))
+      [||]
+  in
   let intvs1 = List.init 4 (fun i -> INTERVALS.create_single 0 (i + 2)) in
   (* [0 < {1}; 1 < {2}; 2 < {}; 3 < {}] *)
-  let sub1 = [SUB.VarSet.empty |> SUB.VarSet.add 1; SUB.VarSet.empty |> SUB.VarSet.add 2; SUB.VarSet.empty; SUB.VarSet.empty] in
+  let sub1 =
+    [
+      SUB.VarSet.empty |> SUB.VarSet.add 1;
+      SUB.VarSet.empty |> SUB.VarSet.add 2;
+      SUB.VarSet.empty;
+      SUB.VarSet.empty;
+    ]
+  in
   let intvs2 = List.init 4 (fun i -> INTERVALS.create_single 0 (i + 2)) in
   (* [0 < {1, 2}; 1 < {2}; 2 < {}; 3 < {}] *)
-  let sub2 = [SUB.VarSet.empty |> SUB.VarSet.add 1 |> SUB.VarSet.add 2; SUB.VarSet.empty |> SUB.VarSet.add 2; SUB.VarSet.empty; SUB.VarSet.empty] in
-  let (pntg1 : PentagonDomain.PNTG.t) = {intv = intvs1; sub = sub1} in
-  let (pntg2 : PentagonDomain.PNTG.t) = {intv = intvs2; sub = sub2} in
-  let (d1 : D.t) = {d = Some pntg1; env = env} in
-  let (d2 : D.t) = {d = Some pntg2; env = env} in
+  let sub2 =
+    [
+      SUB.VarSet.empty |> SUB.VarSet.add 1 |> SUB.VarSet.add 2;
+      SUB.VarSet.empty |> SUB.VarSet.add 2;
+      SUB.VarSet.empty;
+      SUB.VarSet.empty;
+    ]
+  in
+  let (pntg1 : PentagonDomain.PNTG.t) = { intv = intvs1; sub = sub1 } in
+  let (pntg2 : PentagonDomain.PNTG.t) = { intv = intvs2; sub = sub2 } in
+  let (d1 : D.t) = { d = Some pntg1; env } in
+  let (d2 : D.t) = { d = Some pntg2; env } in
   (* 0 < 2 is missing in sub1, would be implied by transitivity, but we must not check for that *)
   assert_bool "" (not (D.leq d1 d2))
 (* Test cases for the D module (PNTG) *)
@@ -299,86 +419,71 @@ let test_pntg_leq_2 _ =
 (** Check behaviour of meet and bot *)
 let test_pntg_meet_bots _ =
   let cs = INTERVALS.create_single in
+  let assert_equal expected result = 
+    assert_equal expected result
+  in
   let pntg_1 = PNTG.bot () in
   let pntg_2 = PNTG.bot () in
-  let pntg_3 = ({d = Some {intv = [cs 1 2; cs 2 4]; sub = [SUB.VarSet.singleton 1; SUB.VarSet.empty]}; env = PNTG.empty_env}: PNTG.t) in
+  let pntg_3 =
+    ({
+      d =
+        Some
+          {
+            intv = [ cs 1 2; cs 2 4 ];
+            sub = [ SUB.VarSet.singleton 1; SUB.VarSet.empty ];
+          };
+      env = PNTG.empty_env;
+    }
+      : PNTG.t)
+  in
 
-  (* let result = (PNTG.meet pntg_1 pntg_2) in  
-     let expected = (PNTG.bot ()) in
-     assert_equal ~msg:(
-     "expected:" ^ PNTG.to_string expected ^
-     "\ngot:" ^ PNTG.to_string result
-     ) expected result;; *)
+  let result = (PNTG.meet pntg_1 pntg_2) in
+  let expected = (PNTG.bot ()) in
+  assert_equal expected result;
 
-  (* let result = (PNTG.meet pntg_1 pntg_3) in  
-     let expected = PNTG.bot () in
-     assert_equal ~msg:(
-     "expected:" ^ PNTG.to_string expected ^
-     "\ngot:" ^ PNTG.to_string result
-     ) expected result;; *)
-
-  let result = (PNTG.meet pntg_3 pntg_2) in  
+  let result = (PNTG.meet pntg_1 pntg_3) in
   let expected = PNTG.bot () in
-  assert_equal ~msg:(
-    "expected:" ^ PNTG.to_string expected ^
-    "\ngot:" ^ PNTG.to_string result
-  ) expected result;; 
+  assert_equal expected result;
 
+  let result = PNTG.meet pntg_3 pntg_2 in
+  let expected = PNTG.bot () in
+  assert_equal expected result;;
 
 (** Meet empty pentagons *)
-let test_pntg_meet_bot_intv_sub _ =
-  let pntg_1 = ({d = Some {intv = []; sub = []}; env = PNTG.empty_env}: PNTG.t) in
-  let pntg_2 = ({d = Some {intv = []; sub = []}; env = PNTG.empty_env}: PNTG.t) in
-  let expected_pntg = ({d = Some {intv = []; sub = []}; env = PNTG.empty_env}: PNTG.t) in
-  let resulting_pntg = PNTG.meet pntg_1 pntg_2 in
-  assert_equal ~msg:(
-    "expected:" ^ PNTG.to_string expected_pntg ^
-    "\ngot:" ^ PNTG.to_string resulting_pntg
-  ) expected_pntg resulting_pntg;;
+let test_pntg_meet _ =
+  let cs = INTERVALS.create_single in
+  let env1 = Apron.Environment.make (Array.init 2 (fun i -> Apron.Var.of_string (string_of_int i))) [||] in 
+  let env2 = Apron.Environment.make (Array.init 3 (fun i -> Apron.Var.of_string (string_of_int i))) [||] in 
+  let pntg_1 =
+    ({ d = Some { intv = [cs 1 2; cs (-3) 5]; sub = [SUB.VarSet.singleton 2; SUB.VarSet.empty] }; env = env1 } : PNTG.t)
+  in
+  let pntg_2 =
+    ({ d = Some { intv = [cs (-2) 5; INTERVALS.top_single (); cs min_int max_int]; sub = [SUB.VarSet.empty; SUB.VarSet.singleton 1; SUB.VarSet.empty] }; env = env2 } : PNTG.t)
+  in
+  let expected =
+    ({ d = Some { intv = [cs 1 2; cs (-3) 5; cs min_int max_int]; sub = [SUB.VarSet.singleton 2; SUB.VarSet.singleton 1; SUB.VarSet.empty]};  env = Apron.Environment.lce env1 env2 } : PNTG.t)
+  in
+  let result = PNTG.meet pntg_1 pntg_2 in
+  assert_equal expected result
 
-(* let test_pntg_meet _ = 
-   let ci = INTERVALS.create_single in
-
-   let env1 = Apron.Environment.make (Array.init 3 (fun i -> Apron.Var.of_string (string_of_int i))) [||] in
-   let env2 = Apron.Environment.make (Array.init 2 (fun i -> Apron.Var.of_string (string_of_int i))) [||] in
-
-   let pntg_1 = ({d = Some {intv = [ci (-2) 2; ci (-1) 3; ci 0 max_int]; sub = SUB.bot ()}; env = env1}: PNTG.t) in
-   let pntg_2 = ({d = Some {intv = [ci (-2) 2; ci 1 5 (* implicit (min_int, max_int)*)]; sub = SUB.bot ()}; env = env2}: PNTG.t) in
-
-   let lce = Apron.Environment.lce env1 env2 in
-
-   let expected_pntg = ({d = Some {intv = [ci (-2) 2; ci 1 3; ci 0 max_int]; sub = SUB.bot ()}; env = lce}: PNTG.t) in
-   let resulting_pntg = PNTG.meet pntg_1 pntg_2 in
-
-   assert_equal ~msg:(
-    "expected:" ^ PNTG.to_string expected_pntg ^
-    "\ngot:" ^ PNTG.to_string resulting_pntg
-   ) expected_pntg resulting_pntg;; *)
 
 let noop _ = assert_bool "" true
 
 let test () =
-  "PentagonTests" >::: [
+  "PentagonTests"
+  >::: [
     "noop" >:: noop;
-
     "test_intv_equal" >:: test_intv_equal;
     "test_intv_dim_add_1" >:: test_intv_dim_add_1;
     "test_intv_dim_add_2" >:: test_intv_dim_add_2;
     "test_intv_dim_remove_2" >:: test_intv_dim_remove_1;
-
     "test_sub_equal" >:: test_sub_equal;
     "test_sub_dim_add_1" >:: test_sub_dim_add_1;
     "test_sub_dim_add_2" >:: test_sub_dim_add_2;
     "test_sub_dim_remove_1" >:: test_sub_dim_remove_1;
-
     "test_pntg_leq_1" >:: test_pntg_leq_1;
     "test_pntg_leq_2" >:: test_pntg_leq_2;
     "test_pntg_widen" >:: test_pntg_widen;
-
     "test_pntg_meet_bots" >:: test_pntg_meet_bots;
-    "test_pntg_meet_bot_intv_sub" >:: test_pntg_meet_bot_intv_sub;
-    (* "test_pntg_meet" >:: test_pntg_meet; *)
-
-
+    "test_pntg_meet" >:: test_pntg_meet;
   ]
-

@@ -379,6 +379,8 @@ struct
   *)
   module Tracked = struct let varinfo_tracked _ = failwith "TODO Tracked";; let type_tracked _ = failwith "TODO Tracked";; end
 
+  type t = VarManagement.t [@@deriving eq]
+
   type var = V.t
 
   let name () = "pentagon"
@@ -544,6 +546,14 @@ struct
   let eval_int _ = failwith "TODO eval_int"
 
   let cil_exp_of_lincons1 = Convert.cil_exp_of_lincons1
+
+  let equal t1 t2 = 
+    Environment.equal t1.env t2.env
+    &&
+    match t1.d, t2.d with
+    | None, None -> true
+    | Some(d1), Some(d2) -> PNTG.equal d1 d2
+    | _ -> false
 
   let to_string pntg = 
     if is_bot pntg then
