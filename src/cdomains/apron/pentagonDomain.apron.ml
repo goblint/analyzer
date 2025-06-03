@@ -13,10 +13,24 @@ open BatList
 module INTERVALS  = 
 struct
 
-  module VarList = BatList
-
   type interval = Z.t * Z.t [@@deriving eq, hash, ord]
   type t = interval list [@@deriving eq, hash, ord]
+
+  (**
+     Creates a single interval from the supplied integer values.
+  *)
+  let create_single z1 z2 = (Z.of_int z1, Z.of_int z2)
+
+  (**
+     Sets the lowerbound of the given interval to the supplied integer value.
+  *)
+  let set_lb (lowerbound:int) (i: interval) = (Z.of_int lowerbound, snd i)
+
+
+  (**
+     Sets the upperbound of the given interval to the supplied integer value.
+  *)
+  let set_ub (upperbound:int) (i: interval) = (fst i, Z.of_int upperbound)
 
   let equal intv1 intv2 =
     let tuple_equal (a1, b1) (a2, b2) = Z.equal a1 a2 && Z.equal b1 b2 in
@@ -127,10 +141,10 @@ struct
                 extension with real domain is nonsensical"
     else
       let rec aux lst_i arr_i = function
-      | [] -> []
-      | x::xs -> if arr_i = BatArray.length dim_change.dim then x::xs
-        else if dim_change.dim.(arr_i) = lst_i then aux (lst_i + 1) (arr_i + 1) xs
-        else x :: aux (lst_i + 1) arr_i xs
+        | [] -> []
+        | x::xs -> if arr_i = BatArray.length dim_change.dim then x::xs
+          else if dim_change.dim.(arr_i) = lst_i then aux (lst_i + 1) (arr_i + 1) xs
+          else x :: aux (lst_i + 1) arr_i xs
       in
       aux 0 0 intervals
 end
@@ -196,52 +210,9 @@ struct
       aux dim_change 0 sub MoveMap.empty []
   ;;
 
-  let dim_remove (dim_change: Apron.Dim.change) (sub: t) = failwith "Implement the analog function to dim_add"
-  (* if dim_change.realdim != 0 then 
-     failwith "Pentagons are defined over integers: \
-              dim_change should not contain `realdim`" 
-     else
-     (* 
-     This is basically a fold_lefti with rev at the end.
-     Could not use fold_lefti directly because I might need to append at the end of the list.
-     This would have forced me to use List.length, which is \theta(n).
-    *)
-     let rec aux (dim_change: Apron.Dim.change) i sub (moved: MoveMap.t) acc =
-      (** Computes the number by which the current index/variable will be shifted/moved *)
-      let moved_by = 
-        Array.count_matching (fun k -> k <= i) dim_change.dim 
-      in
-      (** Counts the number of empty sets to prepend at the current index. *)
-      let append_count = 
-        Array.count_matching (fun k -> k == i) dim_change.dim 
-      in
-      (** Prepends n many empty sets to the accumulator. *)
-      let rec prepend_dim n acc = 
-        if n == 0 then 
-          acc
-        else prepend_dim (n-1) (VarSet.empty :: acc)
-      in
-      match sub with
-      | h::t ->
-        (** Store the new index mappings to later adjust the sets. *)
-        let moved = (MoveMap.add i (i+moved_by) moved) in
-        (** Insert `append_count` many dimensions before `h`, then append `h` *)
-        let acc = (h :: (prepend_dim append_count acc)) in
-        aux dim_change (i+1) t moved acc
-      | [] ->
-        (** Complete sub prepending the last dimensions and reversing *)
-        let sub = (List.rev (prepend_dim append_count acc)) in
-        (** Adjust the stored indices in our sets *)
-        VarList.map (
-          fun set ->
-            VarSet.map (
-              fun v -> match MoveMap.find_opt v moved with | None -> v | Some(v') -> v'
-            ) set
-        ) sub 
-     in
-     aux dim_change 0 sub MoveMap.empty [] *)
 
-  let dim_remove_dumb (dim_change: Apron.Dim.change) (sub : t) =
+  let dim_remove (dim_change: Apron.Dim.change) (sub : t) =
+    (* This implementation assumes, that dim_change.dim is well-formed, i.e., does not contain duplicates. *)
     let move_or_delete_var y =
       if Array.mem y dim_change.dim then None
       else Some (y - Array.count_matching (fun k -> k < y) dim_change.dim)
