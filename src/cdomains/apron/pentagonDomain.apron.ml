@@ -451,33 +451,28 @@ struct
 
   let meet t1 t2 = Timing.wrap "meet" (meet t1) t2
 
-  let leq t1 t2 = failwith "TODO" (*
-    let b1, b2 = t1.intv, t2.intv in
-    let sub1, sub2 = t1.sub, t2.sub in
-    INTERVALS.leq b1 b2
-    &&
-    match sub1.d, sub2.d with
-    | None, _ -> true
-    | _, None -> false
-    | Some(s_map_1), Some(s_map_2) -> 
-      (
-        (* Boilerplate *)     
-        let lce = Environment.lce sub1.env sub2.env in
-        let sub_map_1, sub_map_2 = SUB.unify_from_env sub1 sub2 lce in
-
-        SUB.VarMap.for_all (
-          fun x s2x -> 
-            SUB.VarSet.for_all (
-              fun y -> (
-                  let s1x = SUB.VarMap.find x sub_map_1 in
-                  let b1x = INTERVALS.VarMap.find x b1 in
-                  let b1y = INTERVALS.VarMap.find y b1 in
-                  SUB.VarSet.exists (Int.equal y) s1x ||
-                  INTERVALS.sup b1x < INTERVALS.inf b1y
-                )          
-            ) s2x
-        ) sub_map_2
-      )*)
+  let leq t1 t2 = 
+    let sup_env = Environment.lce t1.env t2.env in
+    let t1 = dimchange2_add t1 sup_env in
+    let t2 = dimchange2_add t2 sup_env in
+    match t1.d, t2.d with
+    | Some d1', Some d2' ->
+      let interval1, interval2 = d1'.intv, d2'.intv in
+      let sub1, sub2 = d1'.sub, d2'.sub in
+      let for_alli f lst =
+        List.for_all (fun (i, x) -> f i x) (List.mapi (fun i x -> (i, x)) lst) in
+      let bool1 = INTERVALS.leq interval1 interval2 in
+      let bool2 = for_alli(fun i s2x -> 
+        SUB.VarSet.for_all(fun y -> 
+            let s1x = SUB.VarList.at sub1 i in
+            let b1x = INTERVALS.VarList.at interval1 i in
+            let b1y = INTERVALS.VarList.at interval1 y in
+            SUB.VarSet.exists (Int.equal y) s1x ||
+            INTERVALS.sup b1x < INTERVALS.inf b1y
+          ) s2x
+        ) sub2 in
+      bool1 && bool2
+    | _ -> false
 
   let leq a b = Timing.wrap "leq" (leq a) b
 
