@@ -242,11 +242,27 @@ let test_sub_dim_remove_1 _ =
   ) expected_sub resulting_sub;;
 
 
-(* Test cases for the D module (PNTG) *)
+(* Test cases for the D module (PNTG) *)      
+let test_pntg_widen _ = 
+  let env = Apron.Environment.make (Array.init 3 (fun i -> Apron.Var.of_string (string_of_int i))) [||] in
+  let intvs1 = [INTERVALS.create_single 0 100; INTERVALS.create_single 100 200; INTERVALS.create_single 200 300] in
+  let sub1 = [SUB.VarSet.empty |> SUB.VarSet.add 1; SUB.VarSet.empty |> SUB.VarSet.add 2; SUB.VarSet.empty; SUB.VarSet.empty] in
+  let intvs2 = [INTERVALS.create_single 40 60; INTERVALS.create_single 120 201; INTERVALS.create_single 199 301] in
+  let sub2 = [SUB.VarSet.empty |> SUB.VarSet.add 1 |> SUB.VarSet.add 2; SUB.VarSet.empty |> SUB.VarSet.add 2; SUB.VarSet.empty; SUB.VarSet.empty] in
+  let (pntg1 : PNTG.t) = {intv = intvs1; sub = sub1} in
+  let (pntg2 : PNTG.t) = {intv = intvs2; sub = sub2} in
+  let (d1 : D.t) = {d = Some pntg1; env = env} in
+  let (d2 : D.t) = {d = Some pntg2; env = env} in
+  let resulting_pntg = D.widen d1 d2 in
 
-let test_pntg_meet _ = 
-  let pntg_1 = {}:
-                 let pntg_2 = {}
+  let expected_intvs = [INTERVALS.create_single 40 100; INTERVALS.create_single 120 Z.of_int max_int; INTERVALS.create_single Z.of_int min_int Z.of_int max_int] in
+  let expected_sub = [SUB.VarSet.empty |> SUB.VarSet.add 1 |> SUB.VarSet.add 2; SUB.VarSet.empty |> SUB.VarSet.add 2; SUB.VarSet.empty; SUB.VarSet.empty] in
+  let expected_pntg = {intv = expected_intvs; sub = expected_sub} in
+
+  assert_equal ~msg:(
+    "expected:" ^ D.to_string expected_pntg ^
+    "\ngot:" ^ D.to_string resulting_pntg
+  ) expected_pntg resulting_pntg
 
 let test_d_leq _ =
   let env = Apron.Environment.make (Array.init 4 (fun i -> Apron.Var.of_string (string_of_int i))) [||] in

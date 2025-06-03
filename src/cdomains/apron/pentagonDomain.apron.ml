@@ -498,6 +498,14 @@ struct
     if M.tracing then M.tracel "narrow" "narrow a: %s b: %s -> %s" (show a) (show b) (show res) ;
     res
 
+  let to_string pntg1 =
+    match pntg1.d with
+    | None -> "bot"
+    | Some d ->
+      let intv_str = INTERVALS.to_string d.intv in
+      let sub_str = SUB.to_string d.sub in
+      Printf.sprintf "Pentagon: %s, %s" intv_str sub_str
+
   let pretty_diff () (x, y) = failwith "TODO pretty_diff"
 
 
