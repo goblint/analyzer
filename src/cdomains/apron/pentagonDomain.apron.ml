@@ -392,7 +392,7 @@ struct
   let is_bot t = 
     match t.d with
     | None -> true
-    | Some d -> INTERVALS.is_bot d.intv && SUB.is_bot d.sub
+    | Some d -> INTERVALS.is_bot d.intv || SUB.is_bot d.sub
 
   let is_top t = 
     match t.d with
