@@ -114,50 +114,40 @@ struct
       in
       insert_dimensions intervals change_arr
 
-  let dim_remove (dim_change: Apron.Dim.change) (intervals: t) =
+  let dim_remove (dim_change: Apron.Dim.change) (intervals : t) =
     if dim_change.realdim != 0 then
       failwith "Pentagons are defined over integers: \
                 extension with real domain is nonsensical"
     else 
-      let change_arr = Array.rev dim_change.dim in
-      let rec remove_dimensions intervals dim_changes =
-        match dim_changes with
-        | [||] -> intervals
-        | _ ->
-          let k = dim_changes.(0) in
-          let left, right = BatList.split_at k intervals in
-          let new_array = (BatArray.sub dim_changes 1 (BatArray.length dim_changes - 1)) in
-          remove_dimensions (left @ (BatList.tl right)) new_array
-      in
-      remove_dimensions intervals change_arr
+      List.filteri (fun i _ -> not (Array.mem i dim_change.dim)) intervals
 
-  let dim_remove_very_dumb (dim_change: Apron.Dim.change) (intervals : t) =
-    List.filteri (fun i _ -> not (Array.mem i dim_change.dim)) intervals
-
+  (*
+  TODO: Evaluate if the dim_change.dim is always sorted.
+    *)
   (* precondition: dim_change is sorted and has unique elements *)
-  let dim_remove_dumb (dim_change: Apron.Dim.change) (intervals : t) =
-    if dim_change.realdim != 0 then
+  (* let dim_remove_on_sorted_dim_change (dim_change: Apron.Dim.change) (intervals : t) =
+     if dim_change.realdim != 0 then
       failwith "Pentagons are defined over integers: \
                 extension with real domain is nonsensical"
-    else
+     else
       let rec aux lst_i arr_i = function
         | [] -> []
         | x::xs -> if arr_i = BatArray.length dim_change.dim then x::xs
           else if dim_change.dim.(arr_i) = lst_i then aux (lst_i + 1) (arr_i + 1) xs
           else x :: aux (lst_i + 1) arr_i xs
       in
-      aux 0 0 intervals
+      aux 0 0 intervals *)
 
-      let to_string (intervals: t) =
-        if is_bot intervals then
-          "bot"
-        else if is_top intervals then
-          "top"
-        else
-          let string_of_interval (l, u) =
-            Printf.sprintf "[%s, %s]" (Z.to_string l) (Z.to_string u)
-          in
-          "{" ^ (String.concat "; " (List.map string_of_interval intervals)) ^ "}"
+  let to_string (intervals: t) =
+    if is_bot intervals then
+      "bot"
+    else if is_top intervals then
+      "top"
+    else
+      let string_of_interval (l, u) =
+        Printf.sprintf "[%s, %s]" (Z.to_string l) (Z.to_string u)
+      in
+      "{" ^ (String.concat "; " (List.map string_of_interval intervals)) ^ "}"
 end
 
 module SUB =
@@ -445,13 +435,13 @@ struct
         List.for_all (fun (i, x) -> f i x) (List.mapi (fun i x -> (i, x)) lst) in
       let bool1 = INTERVALS.leq interval1 interval2 in
       let bool2 = for_alli(fun i s2x -> 
-        SUB.VarSet.for_all(fun y -> 
-            let s1x = SUB.VarList.at sub1 i in
-            let b1x = INTERVALS.VarList.at interval1 i in
-            let b1y = INTERVALS.VarList.at interval1 y in
-            SUB.VarSet.exists (Int.equal y) s1x ||
-            INTERVALS.sup b1x < INTERVALS.inf b1y
-          ) s2x
+          SUB.VarSet.for_all(fun y -> 
+              let s1x = SUB.VarList.at sub1 i in
+              let b1x = BatList.at interval1 i in
+              let b1y = BatList.at interval1 y in
+              SUB.VarSet.exists (Int.equal y) s1x ||
+              INTERVALS.sup b1x < INTERVALS.inf b1y
+            ) s2x
         ) sub2 in
       bool1 && bool2
     | _ -> false
