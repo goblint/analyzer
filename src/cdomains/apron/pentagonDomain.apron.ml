@@ -116,6 +116,23 @@ struct
           remove_dimensions (left @ (BatList.tl right)) new_array
       in
       remove_dimensions intervals change_arr
+
+  let dim_remove_very_dumb (dim_change: Apron.Dim.change) (intervals : t) =
+    List.filteri (fun i _ -> not (Array.mem i dim_change.dim)) intervals
+
+  (* precondition: dim_change is sorted and has unique elements *)
+  let dim_remove_dumb (dim_change: Apron.Dim.change) (intervals : t) =
+    if dim_change.realdim != 0 then
+      failwith "Pentagons are defined over integers: \
+                extension with real domain is nonsensical"
+    else
+      let rec aux lst_i arr_i = function
+      | [] -> []
+      | x::xs -> if arr_i = BatArray.length dim_change.dim then x::xs
+        else if dim_change.dim.(arr_i) = lst_i then aux (lst_i + 1) (arr_i + 1) xs
+        else x :: aux (lst_i + 1) arr_i xs
+      in
+      aux 0 0 intervals
 end
 
 module SUB =
@@ -179,7 +196,7 @@ struct
       aux dim_change 0 sub MoveMap.empty []
   ;;
 
-  let dim_add (dim_change: Apron.Dim.change) (sub: t) = failwith "Implement the analog function to dim_add"
+  let dim_remove (dim_change: Apron.Dim.change) (sub: t) = failwith "Implement the analog function to dim_add"
   (* if dim_change.realdim != 0 then 
      failwith "Pentagons are defined over integers: \
               dim_change should not contain `realdim`" 
@@ -223,6 +240,17 @@ struct
         ) sub 
      in
      aux dim_change 0 sub MoveMap.empty [] *)
+
+  let dim_remove_dumb (dim_change: Apron.Dim.change) (sub : t) =
+    let move_or_delete_var y =
+      if Array.mem y dim_change.dim then None
+      else Some (y - Array.count_matching (fun k -> k < y) dim_change.dim)
+    in
+    let move_or_delete_set x ys =
+      if Array.mem x dim_change.dim then None
+      else Some (VarSet.filter_map move_or_delete_var ys)
+    in
+    List.filteri_map move_or_delete_set sub
 
   let equal (sub1: t) (sub2: t) = VarList.equal VarSet.equal sub1 sub2
 
