@@ -580,13 +580,16 @@ struct
            let intv = BatList.modify_at dim_x (fun _ -> BatList.at d.intv dim_y) d.intv in
            let sub = d.sub |>
                      SUB.forget_vars [dim_x] |>
+                     (* x = y ==> if z < y then also z < x *)
                      SUB.VarList.map (
                        fun set ->
                          if SUB.VarSet.mem dim_y set then
                            SUB.VarSet.add dim_x set
                          else 
                            set
-                     ) 
+                     ) |>
+                     (* SUBs of x := SUBs of y *)
+                     BatList.modify_at dim_x (fun _ -> BatList.at d.sub dim_y)
            in
            ({d=Some({intv = intv; sub = sub}); env=t.env}: t)
 
