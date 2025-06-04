@@ -271,7 +271,7 @@ struct
   let narrow sub1 sub2 = meet sub1 sub2
 
   let forget_vars sub (vars : int BatList.t) : t =
-    BatList.mapi (fun x ys -> if BatList.mem x vars then VarSet.empty else ys) sub
+    BatList.mapi (fun x ys -> if BatList.mem x vars then VarSet.empty else VarSet.filter (fun y -> not (BatList.mem y vars)) ys) sub
 
   let to_string (sub: t) =
     (* Results in: { y1, y2, ..., yn }*)
