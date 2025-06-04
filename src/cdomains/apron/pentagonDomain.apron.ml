@@ -266,6 +266,9 @@ struct
   (** No narrowing mentioned in the paper. *)
   let narrow sub1 sub2 = meet sub1 sub2
 
+  let forget_vars sub (vars : int BatList.t) : t =
+    BatList.mapi (fun x ys -> if BatList.mem x vars then VarSet.empty else ys) sub
+
   let to_string (sub: t) =
     (* Results in: { y1, y2, ..., yn }*)
     let set_string set = "{" ^ (
@@ -385,7 +388,6 @@ struct
 
   let name () = "pentagon"
 
-  let equal _ _ = failwith "TODO IMPLEMENT EQUAL"
 
   let to_yojson _ = failwith "TODO"
 
@@ -523,7 +525,12 @@ struct
   (* S2 Specific functions of RelationDomain *)
   let is_bot_env t = t.d = None
 
-  let forget_vars _ = failwith "TODO forget_vars"
+  let forget_vars t vars =
+    let vars_idx = List.map (fun x -> Environment.dim_of_var t.env x) vars in
+    match t.d with
+    | Some d' ->
+      ({d = Some {intv = INTERVALS.forget_vars d'.intv vars_idx; sub = SUB.forget_vars d'.sub vars_idx}; env = t.env}: t)
+    | _ -> {d = None; env = t.env}
 
   let assign_exp _ = failwith "TODO assign_exp"
   let assign_var _ = failwith "TODO assign_var"
@@ -546,14 +553,6 @@ struct
   let eval_int _ = failwith "TODO eval_int"
 
   let cil_exp_of_lincons1 = Convert.cil_exp_of_lincons1
-
-  let equal t1 t2 = 
-    Environment.equal t1.env t2.env
-    &&
-    match t1.d, t2.d with
-    | None, None -> true
-    | Some(d1), Some(d2) -> PNTG.equal d1 d2
-    | _ -> false
 
   let to_string pntg = 
     if is_bot pntg then

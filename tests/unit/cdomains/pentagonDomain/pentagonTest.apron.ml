@@ -340,7 +340,6 @@ let test_pntg_widen _ =
   let (expected_pntg : D.t) = { d = Some expected_pntg'; env } in
 
   assert_equal expected_pntg resulting_pntg
-(* we haven't implemented D.equal yet, so we compare the strings *)
 
 let test_pntg_leq_1 _ =
   let env =
