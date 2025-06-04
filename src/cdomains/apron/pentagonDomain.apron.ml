@@ -145,6 +145,10 @@ struct
         Printf.sprintf "[%s, %s]" (Z.to_string l) (Z.to_string u)
       in
       "{" ^ (String.concat "; " (List.map string_of_interval intervals)) ^ "}"
+
+  let forget_var (intervals: t) (vars: int BatList.t) =
+    BatList.mapi (fun x ys -> if BatList.mem x vars then top_single() else ys) intervals
+    
 end
 
 module SUB =
@@ -549,7 +553,7 @@ struct
   let invariant _ = failwith "TODO invariant"
   let hash _ = failwith "TODO hash"
   let compare _ = failwith "TODO compare"
-  let relift _ = failwith "TODO relift"
+  let relift t = t
   let eval_int _ = failwith "TODO eval_int"
 
   let cil_exp_of_lincons1 = Convert.cil_exp_of_lincons1
