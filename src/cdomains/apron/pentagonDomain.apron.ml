@@ -5,7 +5,6 @@
 
 open Batteries
 open GoblintCil
-open Pretty
 module M = Messages
 open GobApron
 open BatList
@@ -109,8 +108,10 @@ struct
           let new_array = (BatArray.sub dim_changes 1 (BatArray.length dim_changes - 1)) in
           insert_dimensions (left @ [top_single ()] @ right) new_array
       in
-      insert_dimensions intervals change_arr
+      insert_dimensions intervals change_arr;;
 
+
+  (* Backup implementation, if dim_change.dim is not sorted and contains duplicates. *)
   let dim_remove (dim_change: Apron.Dim.change) (intervals : t) =
     if dim_change.realdim != 0 then
       failwith "Pentagons are defined over integers: \
@@ -118,22 +119,20 @@ struct
     else 
       List.filteri (fun i _ -> not (Array.mem i dim_change.dim)) intervals
 
-  (*
-  TODO: Evaluate if the dim_change.dim is always sorted.
-    *)
+
   (* precondition: dim_change is sorted and has unique elements *)
-  (* let dim_remove_on_sorted_dim_change (dim_change: Apron.Dim.change) (intervals : t) =
-     if dim_change.realdim != 0 then
+  let dim_remove (dim_change: Apron.Dim.change) (intervals : t) =
+    if dim_change.realdim != 0 then
       failwith "Pentagons are defined over integers: \
                 extension with real domain is nonsensical"
-     else
+    else
       let rec aux lst_i arr_i = function
         | [] -> []
         | x::xs -> if arr_i = BatArray.length dim_change.dim then x::xs
           else if dim_change.dim.(arr_i) = lst_i then aux (lst_i + 1) (arr_i + 1) xs
           else x :: aux (lst_i + 1) arr_i xs
       in
-      aux 0 0 intervals *)
+      aux 0 0 intervals
 
   let to_string (intervals: t) =
     if is_bot intervals then
@@ -146,9 +145,9 @@ struct
       in
       "{" ^ (String.concat "; " (List.map string_of_interval intervals)) ^ "}"
 
-  let forget_var (intervals: t) (vars: int BatList.t) =
-    BatList.mapi (fun x ys -> if BatList.mem x vars then top_single() else ys) intervals
-    
+  let forget_vars (vars: int BatList.t) =
+    BatList.mapi (fun x ys -> if BatList.mem x vars then top_single() else ys)
+
 end
 
 module SUB =
@@ -270,8 +269,8 @@ struct
   (** No narrowing mentioned in the paper. *)
   let narrow sub1 sub2 = meet sub1 sub2
 
-  let forget_vars sub (vars : int BatList.t) : t =
-    BatList.mapi (fun x ys -> if BatList.mem x vars then VarSet.empty else ys) sub
+  let forget_vars (vars : int BatList.t) =
+    BatList.mapi (fun x ys -> if BatList.mem x vars then VarSet.empty else ys)
 
   let to_string (sub: t) =
     (* Results in: { y1, y2, ..., yn }*)
@@ -355,7 +354,6 @@ end
     Furthermore, it provides the function [simplified_monomials_from_texp] that converts an apron expression into a list of monomials of reference variables and a constant offset *)
 module VarManagement =
 struct
-  module PNTG = PNTG
   include SharedFunctions.VarManagementOps (PNTG)
 end
 
@@ -390,8 +388,15 @@ struct
 
   type var = V.t
 
-  let name () = "pentagon"
+  let pretty_diff () (x, y) = failwith "TODO pretty_diff"
 
+  let show varM = failwith "TODO"
+
+  let pretty () (x:t) = failwith "TODO"
+
+  let printXml f x = failwith "TODO"
+
+  let name () = "pentagon"
 
   let to_yojson _ = failwith "TODO"
 
@@ -409,6 +414,8 @@ struct
   *)
   let top () = {d = Some {intv = []; sub = []}; env = empty_env}
 
+  let top_of_env env = dimchange2_add (top ()) env
+
   let is_bot t = 
     match t.d with
     | None -> true
@@ -419,9 +426,6 @@ struct
     | None -> false
     | Some d -> INTERVALS.is_top d.intv && SUB.is_top d.sub
 
-  let show varM = failwith "TODO"
-  let pretty () (x:t) = failwith "TODO"
-  let printXml f x = failwith "TODO"
 
   let meet t1 t2 =
     let sup_env = Environment.lce t1.env t2.env in
@@ -523,40 +527,144 @@ struct
       let sub_str = SUB.to_string d.sub in
       Printf.sprintf "Pentagon: %s, %s" intv_str sub_str
 
-  let pretty_diff () (x, y) = failwith "TODO pretty_diff"
 
 
   (* S2 Specific functions of RelationDomain *)
   let is_bot_env t = t.d = None
 
-  let forget_vars t vars =
-    let vars_idx = List.map (fun x -> Environment.dim_of_var t.env x) vars in
-    match t.d with
-    | Some d' ->
-      ({d = Some {intv = INTERVALS.forget_vars d'.intv vars_idx; sub = SUB.forget_vars d'.sub vars_idx}; env = t.env}: t)
-    | _ -> {d = None; env = t.env}
+  let forget_vars t vars = 
+    if is_bot t || is_bot_env t || vars = [] then t
+    else 
+      let (pntg: PNTG.t) = Option.get t.d in
+      let int_vars = List.map (fun v -> Environment.dim_of_var t.env v) vars in
+      {d = Some({intv = INTERVALS.forget_vars int_vars pntg.intv; sub = SUB.forget_vars int_vars pntg.sub}); env=t.env};;
 
-  let assign_exp _ = failwith "TODO assign_exp"
-  let assign_var _ = failwith "TODO assign_var"
+
+  let z_of_scalar (s: Scalar.t) = 
+    match s with
+    | Float(f) -> Z.of_float f
+    | Mpqf(mpqf) -> Z.of_float (Mpqf.to_float mpqf)
+    | Mpfrf(mpfrf) -> Z.of_float (Mpfrf.to_float mpfrf)
+
+
+  let assign_texpr (t: t) var (texp: Texpr1.expr) =
+    let negate _ = failwith "TODO" in
+    match t.d with
+    | None -> bot ()
+    | Some d ->
+      (* this is the variable we are assigning to *)
+      let dim_x = Environment.dim_of_var t.env var in
+      let rec convert_texpr (texp: Texpr1.expr) =
+        (match texp with
+         (** Case: x := [inv.inf, inv.sup] *)
+         | Cst (Interval inv) ->
+           let intv = BatList.modify_at dim_x (fun _ -> (z_of_scalar inv.inf, z_of_scalar inv.sup)) d.intv
+           in
+           ({d=Some({intv = intv; sub = d.sub}); env=t.env}: t)
+
+         (** Case: x := s *)
+         | Cst (Scalar s) -> 
+           let intv = BatList.modify_at dim_x (fun _ -> (z_of_scalar s, z_of_scalar s)) d.intv
+           in
+           ({d=Some({intv = intv; sub = d.sub}); env=t.env}: t)
+
+         (** Case: x := y *)
+         | Var y ->
+           let dim_y = Environment.dim_of_var t.env y in
+           let intv = BatList.modify_at dim_x (fun _ -> BatList.at d.intv dim_y) d.intv in
+           let sub = d.sub |>
+                     SUB.forget_vars [dim_x] |>
+                     SUB.VarList.map (
+                       fun set ->
+                         if SUB.VarSet.mem dim_y set then
+                           SUB.VarSet.add dim_x set
+                         else 
+                           set
+                     ) 
+           in
+           ({d=Some({intv = intv; sub = sub}); env=t.env}: t)
+
+         | Unop  (Neg,  e, _, _) -> negate (convert_texpr e)
+
+         | Unop  (Cast, e, _, _) -> convert_texpr e
+
+         | Unop  (Sqrt, e, _, _) ->
+           let pntg1 = convert_texpr e in
+           top_of_env t.env 
+
+         | Binop (Add, e1, e2, _, _) -> 
+           let pntg1 = convert_texpr e1 in
+           let pntg2 = convert_texpr e2 in
+           top_of_env t.env 
+
+         | Binop (Sub, e1, e2, _, _) -> 
+           let pntg1 = convert_texpr e1 in
+           let pntg2 = convert_texpr e2 in
+           top_of_env t.env
+
+         | Binop (Mul, e1, e2, _, _) ->
+           let pntg1 = convert_texpr e1 in
+           let pntg2 = convert_texpr e2 in
+           top_of_env t.env
+
+         | Binop (Div, e1, e2, _, _) ->
+           let pntg1 = convert_texpr e1 in
+           let pntg2 = convert_texpr e2 in
+           top_of_env t.env
+
+         | Binop (Mod, e1, e2, _, _)  ->
+           let pntg1 = convert_texpr e1 in
+           let pntg2 = convert_texpr e2 in
+           top_of_env t.env
+
+         | Binop (Pow, e1, e2, _, _) -> 
+           let pntg1 = convert_texpr e1 in
+           let pntg2 = convert_texpr e2 in
+           top_of_env t.env)
+      in
+      convert_texpr texp;;
+
+
+  let assign_texpr t var texp = Timing.wrap "assign_texpr" (assign_texpr t var) texp
+
+  let assign_exp ask (t: VarManagement.t) var exp (no_ov: bool Lazy.t) = 
+    let t = if not @@ Environment.mem_var t.env var then add_vars t [var] else t in
+    match Convert.texpr1_expr_of_cil_exp ask t t.env exp no_ov with
+    | texp -> assign_texpr t var texp
+    | exception Convert.Unsupported_CilExp _ -> forget_vars t [var]
+
+  let assign_var t v v' = 
+    let t = add_vars t [v; v'] in
+    assign_texpr t v (Var v');;
 
   let assign_var_parallel_with _ = failwith "TODO assign_var_parallel_with"
 
   let assign_var_parallel' _ = failwith "TODO assign_var_parallel"
-  let substitute_exp _ = failwith "TODO substitute_exp"
+
+  let assert_constraint _ = failwith "TODO"
+
+  let invariant _ = failwith "TODO invariant"
+
+  (** Taken from lin2var. *)
+  let substitute_exp ask (t:t) var exp no_ov = 
+    let t = if not @@ Environment.mem_var t.env var then add_vars t [var] else t in 
+    let res = assign_exp ask t var exp no_ov in
+    forget_vars res [var]
+  ;;
+
   let unify pntg1 pntg2 = meet pntg1 pntg2
 
   type marshal = t
   let marshal t = t
   let unmarshal t = t
 
-  let assert_inv _ = failwith "SF but we most likely need assert_constraint"
-  let invariant _ = failwith "TODO invariant"
-  let hash _ = failwith "TODO hash"
-  let compare _ = failwith "TODO compare"
   let relift t = t
-  let eval_int _ = failwith "TODO eval_int"
 
   let cil_exp_of_lincons1 = Convert.cil_exp_of_lincons1
+
+  let env t = t.env
+
+  let eval_interval (ask) = Bounds.bound_texpr
 
   let to_string pntg = 
     if is_bot pntg then
@@ -570,3 +678,12 @@ struct
 
 end
 
+module D2: RelationDomain.RD with type var = Var.t =
+struct
+  module D = D
+  module ConvArg = struct
+    let allow_global = false
+  end
+  include SharedFunctions.AssertionModule (D.V) (D) (ConvArg)
+  include D
+end

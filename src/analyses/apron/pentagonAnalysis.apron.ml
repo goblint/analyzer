@@ -8,7 +8,7 @@ include RelationAnalysis
 
 let spec_module: (module MCPSpec) Lazy.t =
   lazy (
-    let module AD = PentagonDomain.D
+    let module AD = PentagonDomain.D2
     in
     let module Priv = (val RelationPriv.get_priv ()) in
     let module Spec =

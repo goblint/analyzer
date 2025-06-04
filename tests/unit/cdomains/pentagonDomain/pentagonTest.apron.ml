@@ -5,7 +5,7 @@ open Batteries
 open PentagonDomain
 module INTERVALS = PentagonDomain.INTERVALS
 module SUB = PentagonDomain.SUB
-module PNTG = PentagonDomain.D
+module D = PentagonDomain.D
 
 (* Test cases for the Intervals module *)
 let test_intv_equal _ =
@@ -283,9 +283,9 @@ let test_sub_dim_remove_1 _ =
 (* Test cases for the D module (PNTG) *)
 
 let assert_equal expected result = 
-  assert_equal ~cmp: PNTG.equal ~msg:(
-    "expected:" ^ PNTG.to_string expected ^
-    "\ngot:" ^ PNTG.to_string result
+  assert_equal ~cmp: D.equal ~msg:(
+    "expected:" ^ D.to_string expected ^
+    "\ngot:" ^ D.to_string result
   ) expected result;;
 
 let test_pntg_widen _ =
@@ -294,19 +294,19 @@ let test_pntg_widen _ =
       (Array.init 3 (fun i -> Apron.Var.of_string (string_of_int i)))
       [||]
   in
-  let (pntg1: PNTG.t) = { d = 
-                            Some({
-                                intv = [
-                                  INTERVALS.create_single 0 100;
-                                  INTERVALS.create_single 100 200;
-                                  INTERVALS.create_single 200 300;];
-                                sub = [
-                                  SUB.VarSet.empty |> SUB.VarSet.add 1;
-                                  SUB.VarSet.empty |> SUB.VarSet.add 2;
-                                  SUB.VarSet.empty;
-                                  SUB.VarSet.empty;]
-                              }); env } in
-  let (pntg2: PNTG.t) = { d = Some({
+  let (pntg1: D.t) = { d = 
+                         Some({
+                             intv = [
+                               INTERVALS.create_single 0 100;
+                               INTERVALS.create_single 100 200;
+                               INTERVALS.create_single 200 300;];
+                             sub = [
+                               SUB.VarSet.empty |> SUB.VarSet.add 1;
+                               SUB.VarSet.empty |> SUB.VarSet.add 2;
+                               SUB.VarSet.empty;
+                               SUB.VarSet.empty;]
+                           }); env } in
+  let (pntg2: D.t) = { d = Some({
       intv = [
         INTERVALS.create_single 40 60;
         INTERVALS.create_single 120 201;
@@ -421,8 +421,8 @@ let test_pntg_meet_bots _ =
   let assert_equal expected result = 
     assert_equal expected result
   in
-  let pntg_1 = PNTG.bot () in
-  let pntg_2 = PNTG.bot () in
+  let pntg_1 = D.bot () in
+  let pntg_2 = D.bot () in
   let pntg_3 =
     ({
       d =
@@ -431,21 +431,21 @@ let test_pntg_meet_bots _ =
             intv = [ cs 1 2; cs 2 4 ];
             sub = [ SUB.VarSet.singleton 1; SUB.VarSet.empty ];
           };
-      env = PNTG.empty_env;
+      env = D.empty_env;
     }
-      : PNTG.t)
+      : D.t)
   in
 
-  let result = (PNTG.meet pntg_1 pntg_2) in
-  let expected = (PNTG.bot ()) in
+  let result = (D.meet pntg_1 pntg_2) in
+  let expected = (D.bot ()) in
   assert_equal expected result;
 
-  let result = (PNTG.meet pntg_1 pntg_3) in
-  let expected = PNTG.bot () in
+  let result = (D.meet pntg_1 pntg_3) in
+  let expected = D.bot () in
   assert_equal expected result;
 
-  let result = PNTG.meet pntg_3 pntg_2 in
-  let expected = PNTG.bot () in
+  let result = D.meet pntg_3 pntg_2 in
+  let expected = D.bot () in
   assert_equal expected result;;
 
 (** Meet empty pentagons *)
@@ -454,15 +454,15 @@ let test_pntg_meet _ =
   let env1 = Apron.Environment.make (Array.init 2 (fun i -> Apron.Var.of_string (string_of_int i))) [||] in 
   let env2 = Apron.Environment.make (Array.init 3 (fun i -> Apron.Var.of_string (string_of_int i))) [||] in 
   let pntg_1 =
-    ({ d = Some { intv = [cs 1 2; cs (-3) 5]; sub = [SUB.VarSet.singleton 2; SUB.VarSet.empty] }; env = env1 } : PNTG.t)
+    ({ d = Some { intv = [cs 1 2; cs (-3) 5]; sub = [SUB.VarSet.singleton 2; SUB.VarSet.empty] }; env = env1 } : D.t)
   in
   let pntg_2 =
-    ({ d = Some { intv = [cs (-2) 5; INTERVALS.top_single (); cs min_int max_int]; sub = [SUB.VarSet.empty; SUB.VarSet.singleton 1; SUB.VarSet.empty] }; env = env2 } : PNTG.t)
+    ({ d = Some { intv = [cs (-2) 5; INTERVALS.top_single (); cs min_int max_int]; sub = [SUB.VarSet.empty; SUB.VarSet.singleton 1; SUB.VarSet.empty] }; env = env2 } : D.t)
   in
   let expected =
-    ({ d = Some { intv = [cs 1 2; cs (-3) 5; cs min_int max_int]; sub = [SUB.VarSet.singleton 2; SUB.VarSet.singleton 1; SUB.VarSet.empty]};  env = Apron.Environment.lce env1 env2 } : PNTG.t)
+    ({ d = Some { intv = [cs 1 2; cs (-3) 5; cs min_int max_int]; sub = [SUB.VarSet.singleton 2; SUB.VarSet.singleton 1; SUB.VarSet.empty]};  env = Apron.Environment.lce env1 env2 } : D.t)
   in
-  let result = PNTG.meet pntg_1 pntg_2 in
+  let result = D.meet pntg_1 pntg_2 in
   assert_equal expected result
 
 
