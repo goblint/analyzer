@@ -94,8 +94,8 @@ struct
 
   let rec div z1 z2 =
     match z1, z2 with
-    | Arb z1, Arb z2 -> Arb(Z.mul z1 z2)
-    | Arb(z1), z2 -> mul z2 (Arb z1)
+    | Arb z1, Arb z2 -> Arb(Z.div z1 z2)
+    | Arb(z1), z2 -> div z2 (Arb z1)
     (** z1 is definitely a infty *)
     | z1, z2 ->
       if sign z2 < 0 then
@@ -269,12 +269,12 @@ struct
 
 
   (* Backup implementation, if dim_change.dim is not sorted and contains duplicates. *)
-  let dim_remove (dim_change: Apron.Dim.change) (intervals : t) =
+  (*let dim_remove (dim_change: Apron.Dim.change) (intervals : t) =
     if dim_change.realdim != 0 then
       failwith "Pentagons are defined over integers: \
                 extension with real domain is nonsensical"
     else 
-      List.filteri (fun i _ -> not (Array.mem i dim_change.dim)) intervals
+      List.filteri (fun i _ -> not (Array.mem i dim_change.dim)) intervals*)
 
 
   (* precondition: dim_change is sorted and has unique elements *)
@@ -310,6 +310,7 @@ end
 
 module SUB =
 struct
+
   module Idx = Int
   module VarSet = BatSet.Make(Idx)
   module VarList = BatList
@@ -446,11 +447,7 @@ struct
         fun  i set ->
           (Idx.to_string i) ^ " -> " ^ (set_string set)
       ) sub) in
-    (* Results in:
-        {
-        x_1 -> {y1, y2, ..., yn}
-        }
-    *)
+    (* Results in: {x_1 -> {y1, y2, ..., yn}} *)
     "{" ^ relations_string ^ "}"
 
   let to_string (sub: t) = 
@@ -474,12 +471,13 @@ struct
   type t = { intv: INTV.t; sub: SUB.t } [@@deriving eq, ord]
 
   let hash : (t -> int)  = fun _ -> failwith "TODO"
-  let equal t1 t2  = INTV.equal t1.intv t2.intv && SUB.equal t1.sub t2.sub;; 
-  let compare _ _ = failwith "TODO"
+  let equal pntg1 pntg2  = INTV.equal pntg1.intv pntg2.intv && SUB.equal pntg1.sub pntg2.sub;;
   let copy (x: t) = x
-  let empty () = failwith "TODO"
-
-  let is_empty _ = failwith "TODO"
+  let empty () = { intv = []; sub = [] }
+  let is_empty pntg =
+    match pntg.intv, pntg.sub with
+    | [], [] -> true
+    | _ -> false
 
   (**
      See https://antoinemine.github.io/Apron/doc/api/ocaml/Dim.html
