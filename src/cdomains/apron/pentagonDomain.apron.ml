@@ -28,11 +28,6 @@ struct
     | Arb(z1), Arb(z2) -> Z.equal z1 z2
     | _ -> false ;;
 
-  (** 
-     z1 < z2 -> -1;
-     z1 > z2 -> 1;
-     z1 = z2 -> 0
-  *)
   let compare_z_ext (z1: z_ext) (z2: z_ext) = 
     match z1, z2 with
     | NegInfty, NegInfty -> 0
@@ -43,14 +38,14 @@ struct
     | _, PosInfty -> -1
     | Arb(z1), Arb(z2) -> Z.compare z1 z2;;
 
-  type interval = z_ext * z_ext [@@deriving eq, hash, ord]
+  type interval = (z_ext * z_ext) [@@deriving eq, hash, ord]
   type t = interval list [@@deriving eq, hash, ord]
 
 
   (**
      Creates a single interval from the supplied integer values.
   *)
-  let create_single z1 z2 = (Z.of_int z1, Z.of_int z2)
+  let create_single z1 z2 = (Arb(Z.of_int z1), Arb(Z.of_int z2))
 
   (**
      Sets the lowerbound of the given interval to the supplied integer value.
@@ -65,41 +60,43 @@ struct
 
 
   let equal intv1 intv2 =
-    let tuple_equal (a1, b1) (a2, b2) = Z.equal a1 a2 && Z.equal b1 b2 in
+    let tuple_equal (a1, b1) (a2, b2) = equal_z_ext a1 a2 && equal_z_ext b1 b2 in
     BatList.for_all2 tuple_equal intv1 intv2
 
-  let leq_single (i1: interval) (i2: interval) =
-    fst i1 >= fst i2 && snd i1 <= snd i2
+  let leq_single (l1, u1) (l2, u2) =
+    l2 <= l1 && u1 <= u2
 
-  let join_single (i1: interval) (i2: interval) =
-    (Z.min (fst i1) (fst i2), Z.max (snd i1) (snd i2))
+  let join_single (l1, u1) (l2, u2) =
+    let min_lb = if l1 <= l2 then l1 else l2 in
+    let max_ub = if u2 <= u1 then u1 else u2 in
+    (min_lb, max_ub)
 
-  let meet_single (i1: interval) (i2: interval) =
-    let l = Z.max (fst i1) (fst i2) in
-    let u = Z.min (snd i1) (snd i2) in
-    (l, u)
-
-  let top_single () = 
-    (Z.of_int min_int, Z.of_int max_int)
+  let meet_single (l1, u1) (l2, u2) =
+    let max_lb = if l1 <= l2 then l2 else l1 in
+    let min_ub = if u1 <= u2 then u1 else u2 in
+    (max_lb, min_ub)
 
   let create_single a b =
-    (Z.of_int a, Z.of_int b)
+    (Arb(Z.of_int a), Arb(Z.of_int b))
 
-  let is_top_single (i: interval) =
-    fst i = Z.of_int min_int && snd i = Z.of_int max_int
 
-  let widen_single (i1: interval) (i2: interval) =
-    let l = if fst i1 <= fst i2 then fst i2 else Z.of_int min_int in
-    let u = if snd i1 >= snd i2 then snd i2 else Z.of_int max_int in
+  let top_single () = (NegInfty, PosInfty)
+
+  let is_top_single (l, u) =
+    l = NegInfty && u = PosInfty
+
+  let widen_single (l1, u1) (l2, u2) =
+    let l = if l1 <= l2 then l2 else NegInfty in
+    let u = if u2 <= u1 then u2 else PosInfty in
     (l, u)
 
   let narrow_single (i1: interval) (i2: interval) = 
     meet_single i1 i2
 
-  let is_bot_single (i: interval) =
-    fst i > snd i
+  let is_bot_single (l, u) =
+    not (l <= u)
 
-  let leq (i1: t) (i2: t) = 
+  let leq i1 i2 =
     BatList.for_all2 leq_single i1 i2
 
   let join (i1: t) (i2: t) = 
@@ -108,7 +105,7 @@ struct
   let meet (i1: t) (i2: t) = 
     BatList.map2 meet_single i1 i2
 
-  let is_top (i: t) = 
+  let is_top i =
     BatList.for_all is_top_single i
 
   let widen (i1: t) (i2: t) = 
@@ -120,28 +117,17 @@ struct
   let is_bot (i: t) = 
     BatList.exists is_bot_single i
 
-  let sup (x: interval) = 
-    snd x
+  let sup (_, u) = u
+  let inf (l, _) = l
 
-  let inf (x: interval) = 
-    fst x
-
-  (** The value for infinity *)
-  let infty = Z.of_int max_int
-
-
-  (** The value for negative infinity *)
-  let neg_infty = Z.of_int min_int
 
   (** Checks whether the lower bound is -infty, i.e., unbound *)
   let is_lb_unbound (i: interval) = 
-    neg_infty = inf i
+    NegInfty = inf i
 
   (** Checks whether the upper bound is +infty, i.e., unbound *)
   let is_ub_unbound (i: interval) = 
-    infty = sup i
-
-
+    PosInfty = sup i
 
   let dim_add (dim_change: Apron.Dim.change) (intervals: t) =
     if dim_change.realdim != 0 then
@@ -190,13 +176,19 @@ struct
     else if is_top intervals then
       "top"
     else
+      let string_of_z_ext = function
+        | NegInfty -> "-∞"
+        | PosInfty -> "+∞"
+        | Arb z -> Z.to_string z
+      in
       let string_of_interval (l, u) =
-        Printf.sprintf "[%s, %s]" (Z.to_string l) (Z.to_string u)
+        Printf.sprintf "[%s, %s]" (string_of_z_ext l) (string_of_z_ext u)
       in
       "{" ^ (String.concat "; " (List.map string_of_interval intervals)) ^ "}"
 
+
   let forget_vars (vars: int BatList.t) =
-    BatList.mapi (fun x ys -> if BatList.mem x vars then top_single() else ys)
+    BatList.mapi (fun x intv -> if BatList.mem x vars then top_single() else intv)
 
 end
 
@@ -596,11 +588,11 @@ struct
       {d = Some({intv = INTERVALS.forget_vars int_vars pntg.intv; sub = SUB.forget_vars int_vars pntg.sub}); env=t.env};;
 
 
-  let z_of_scalar (s: Scalar.t) = 
+  let z_ext_of_scalar (s: Scalar.t) = 
     match s with
-    | Float(f) -> Z.of_float f
-    | Mpqf(mpqf) -> Z.of_float (Mpqf.to_float mpqf)
-    | Mpfrf(mpfrf) -> Z.of_float (Mpfrf.to_float mpfrf)
+    | Float(f) -> INTERVALS.Arb(Z.of_float f)
+    | Mpqf(mpqf) -> INTERVALS.Arb(Z.of_float (Mpqf.to_float mpqf))
+    | Mpfrf(mpfrf) -> INTERVALS.Arb(Z.of_float (Mpfrf.to_float mpfrf))
 
 
   open IntDomain0
@@ -616,13 +608,13 @@ struct
         (match texp with
          (** Case: x := [inv.inf, inv.sup] *)
          | Cst (Interval inv) ->
-           let intv = BatList.modify_at dim_x (fun _ -> (z_of_scalar inv.inf, z_of_scalar inv.sup)) d.intv
+           let intv = BatList.modify_at dim_x (fun _ -> (z_ext_of_scalar inv.inf, z_ext_of_scalar inv.sup)) d.intv
            in
            ({d=Some({intv = intv; sub = d.sub}); env=t.env}: t)
 
          (** Case: x := s *)
          | Cst (Scalar s) -> 
-           let intv = BatList.modify_at dim_x (fun _ -> (z_of_scalar s, z_of_scalar s)) d.intv
+           let intv = BatList.modify_at dim_x (fun _ -> (z_ext_of_scalar s, z_ext_of_scalar s)) d.intv
            in
            ({d=Some({intv = intv; sub = d.sub}); env=t.env}: t)
 
