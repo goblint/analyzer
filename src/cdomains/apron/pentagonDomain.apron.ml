@@ -9,11 +9,43 @@ module M = Messages
 open GobApron
 open BatList
 
+
 module INTERVALS  = 
 struct
 
-  type interval = Z.t * Z.t [@@deriving eq, hash, ord]
+  type z_ext = PosInfty | NegInfty | Arb of Z.t
+
+  let hash_z_ext (z: z_ext) = 
+    match z with
+    | PosInfty -> failwith "TODO" 
+    | NegInfty -> failwith "TODO"
+    | Arb(z) -> Z.hash z;;
+
+  let equal_z_ext (z1: z_ext) (z2: z_ext) = 
+    match z1, z2 with
+    | PosInfty, PosInfty -> true
+    | NegInfty, NegInfty -> true
+    | Arb(z1), Arb(z2) -> Z.equal z1 z2
+    | _ -> false ;;
+
+  (** 
+     z1 < z2 -> -1;
+     z1 > z2 -> 1;
+     z1 = z2 -> 0
+  *)
+  let compare_z_ext (z1: z_ext) (z2: z_ext) = 
+    match z1, z2 with
+    | NegInfty, NegInfty -> 0
+    | PosInfty, PosInfty -> 0
+    | NegInfty, _ -> -1
+    | _, NegInfty -> 1
+    | PosInfty, _ -> 1
+    | _, PosInfty -> -1
+    | Arb(z1), Arb(z2) -> Z.compare z1 z2;;
+
+  type interval = z_ext * z_ext [@@deriving eq, hash, ord]
   type t = interval list [@@deriving eq, hash, ord]
+
 
   (**
      Creates a single interval from the supplied integer values.
@@ -30,6 +62,7 @@ struct
      Sets the upperbound of the given interval to the supplied integer value.
   *)
   let set_ub (upperbound:int) (i: interval) = (fst i, Z.of_int upperbound)
+
 
   let equal intv1 intv2 =
     let tuple_equal (a1, b1) (a2, b2) = Z.equal a1 a2 && Z.equal b1 b2 in
@@ -92,6 +125,23 @@ struct
 
   let inf (x: interval) = 
     fst x
+
+  (** The value for infinity *)
+  let infty = Z.of_int max_int
+
+
+  (** The value for negative infinity *)
+  let neg_infty = Z.of_int min_int
+
+  (** Checks whether the lower bound is -infty, i.e., unbound *)
+  let is_lb_unbound (i: interval) = 
+    neg_infty = inf i
+
+  (** Checks whether the upper bound is +infty, i.e., unbound *)
+  let is_ub_unbound (i: interval) = 
+    infty = sup i
+
+
 
   let dim_add (dim_change: Apron.Dim.change) (intervals: t) =
     if dim_change.realdim != 0 then
@@ -553,12 +603,14 @@ struct
     | Mpfrf(mpfrf) -> Z.of_float (Mpfrf.to_float mpfrf)
 
 
+  open IntDomain0
+  module IArith = IntervalArith (IntOps.BigIntOps)
   let assign_texpr (t: t) var (texp: Texpr1.expr) =
-    let negate _ = failwith "TODO" in
+    let exception NotLinear in
     match t.d with
     | None -> bot ()
     | Some d ->
-      (* this is the variable we are assigning to *)
+      (* This is the variable we are assigning to *)
       let dim_x = Environment.dim_of_var t.env var in
       let rec convert_texpr (texp: Texpr1.expr) =
         (match texp with
@@ -593,28 +645,67 @@ struct
            in
            ({d=Some({intv = intv; sub = sub}); env=t.env}: t)
 
-         | Unop  (Neg,  e, _, _) -> negate (convert_texpr e)
+         | Unop  (Neg,  e, _, _) -> 
+           let pntg = convert_texpr e in
+           let d = Option.get pntg.d in
+           let intv, sub = d.intv, d.sub in
+           let intv = BatList.modify_at dim_x (
+               fun intv ->
+                 (Z.neg (INTERVALS.sup intv), Z.neg (INTERVALS.inf intv))
+             ) intv
+           in
+           (**
+              We do not add redundant information in SUBs. 
+              Later checks can derive inequalities by looking at intv.
+           *)
+           ({d=Some({intv = intv; sub = SUB.forget_vars [dim_x] sub}); env=t.env}: t)
 
          | Unop  (Cast, e, _, _) -> convert_texpr e
 
          | Unop  (Sqrt, e, _, _) ->
-           let pntg1 = convert_texpr e in
-           top_of_env t.env 
+           (** What is the semantics of Sqrt. May we still support this? *)
+           raise NotLinear
 
          | Binop (Add, e1, e2, _, _) -> 
            let pntg1 = convert_texpr e1 in
            let pntg2 = convert_texpr e2 in
-           top_of_env t.env 
+           let d1, d2 = Option.get pntg1.d, Option.get pntg2.d in
+           let intv_1, sub_1 = d1.intv, d1.sub in
+           let intv_2, sub_2 = d2.intv, d2.sub in
 
-         | Binop (Sub, e1, e2, _, _) -> 
-           let pntg1 = convert_texpr e1 in
-           let pntg2 = convert_texpr e2 in
-           top_of_env t.env
+           let i2 = BatList.at intv_2 dim_x in
+           let intv = BatList.modify_at dim_x (
+               fun i1 ->
+                 let i = IArith.add i1 i2 in
+                 let inf = Z.max INTERVALS.neg_infty (INTERVALS.inf i) in
+                 let sup = Z.min INTERVALS.infty (INTERVALS.sup i) in
+                 (inf, sup)
+             ) intv_1
+           in
+           (** TODO: Adjust SUBs *)
+           ({d=Some({intv = intv; sub = SUB.forget_vars [dim_x] d.sub}); env=t.env}: t)
+
+         | Binop (Sub, e1, e2, t, r) ->
+           convert_texpr (Binop (Add, e1, Unop (Neg, e2, t, r), t, r))
 
          | Binop (Mul, e1, e2, _, _) ->
            let pntg1 = convert_texpr e1 in
            let pntg2 = convert_texpr e2 in
-           top_of_env t.env
+           let d1, d2 = Option.get pntg1.d, Option.get pntg2.d in
+           let intv_1, sub_1 = d1.intv, d1.sub in
+           let intv_2, sub_2 = d2.intv, d2.sub in
+
+           let i2 = BatList.at intv_2 dim_x in
+           let intv = BatList.modify_at dim_x (
+               fun i1 ->
+                 let i = IArith.mul i1 i2 in
+                 let inf = Z.max INTERVALS.neg_infty (INTERVALS.inf i) in
+                 let sup = Z.min INTERVALS.infty (INTERVALS.sup i) in
+                 (inf, sup)
+             ) intv_1 in
+
+           (** TODO: Adjust SUBs *)
+           ({d=Some({intv = intv; sub = SUB.forget_vars [dim_x] d.sub}); env=t.env}: t)
 
          | Binop (Div, e1, e2, _, _) ->
            let pntg1 = convert_texpr e1 in
