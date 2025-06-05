@@ -11,7 +11,7 @@ val use_special : string -> bool
 val is_safe_uncalled : string -> bool
 
 (** Find library function descriptor for {e special} function (as per {!is_special}). *)
-val find: Cil.varinfo -> LibraryDesc.t
+val find: ?nowarn:bool -> Cil.varinfo -> LibraryDesc.t
 
 val is_special: Cil.varinfo -> bool
 (** Check if function is treated specially. *)
