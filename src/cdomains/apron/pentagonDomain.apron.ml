@@ -643,13 +643,24 @@ struct
     let t = add_vars t [v; v'] in
     assign_texpr t v (Var v');;
 
-  let assign_var_parallel_with _ = failwith "TODO assign_var_parallel_with"
 
-  let assign_var_parallel' _ = failwith "TODO assign_var_parallel"
+  let assign_var_parallel (t: t) (var_tuples: (var *  var) list) : t = failwith "TODO assign_var_parallel"
 
-  let assert_constraint _ = failwith "TODO"
+  (**
+     Combines two var lists into a list of tuples and runs assign_var_parallel
+  *)
+  let assign_var_parallel' t vs1 vs2 =
+    let var_tuples = List.combine vs1 vs2 in
+    assign_var_parallel t var_tuples
 
-  let invariant _ = failwith "TODO invariant"
+  let assign_var_parallel_with t (var_tuples: (var * var) list) : unit =  
+    let t' = assign_var_parallel t var_tuples in
+    t.d <- t'.d;
+    t.env <- t'.env;;
+
+  let assert_constraint ask d e negate no_ov : t = failwith "TODO assert constraint"
+
+  let invariant t : Lincons1Set.elt list = failwith "TODO invariant"
 
   (** Taken from lin2var. *)
   let substitute_exp ask (t:t) var exp no_ov = 
@@ -658,6 +669,7 @@ struct
     forget_vars res [var]
   ;;
 
+  (** Taken from lin2var.  *)
   let unify pntg1 pntg2 = meet pntg1 pntg2
 
   type marshal = t
