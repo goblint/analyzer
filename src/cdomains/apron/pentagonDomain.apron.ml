@@ -10,25 +10,24 @@ open GobApron
 open BatList
 
 
-module INTERVALS  = 
+module ZExt =
 struct
+  type t = PosInfty | NegInfty | Arb of Z.t
 
-  type z_ext = PosInfty | NegInfty | Arb of Z.t
-
-  let hash_z_ext (z: z_ext) = 
+  let hash (z: t) = 
     match z with
     | PosInfty -> failwith "TODO" 
     | NegInfty -> failwith "TODO"
     | Arb(z) -> Z.hash z;;
 
-  let equal_z_ext (z1: z_ext) (z2: z_ext) = 
+  let equal (z1: t) (z2: t) = 
     match z1, z2 with
     | PosInfty, PosInfty -> true
     | NegInfty, NegInfty -> true
     | Arb(z1), Arb(z2) -> Z.equal z1 z2
     | _ -> false ;;
 
-  let compare_z_ext (z1: z_ext) (z2: z_ext) = 
+  let compare (z1: t) (z2: t) = 
     match z1, z2 with
     | NegInfty, NegInfty -> 0
     | PosInfty, PosInfty -> 0
@@ -38,14 +37,157 @@ struct
     | _, PosInfty -> -1
     | Arb(z1), Arb(z2) -> Z.compare z1 z2;;
 
-  type interval = (z_ext * z_ext) [@@deriving eq, hash, ord]
+
+  let of_int i = Arb(Z.of_int i)
+
+  let of_float i = Arb(Z.of_float i)
+
+  let zero = of_int 0
+
+  let to_string = function
+    | NegInfty -> "-∞"
+    | PosInfty -> "+∞"
+    | Arb z -> Z.to_string z
+
+  let neg = function
+    | NegInfty -> PosInfty
+    | PosInfty -> NegInfty
+    | Arb z -> Arb(Z.neg z)
+
+  let sign = function
+    | NegInfty -> -1
+    | PosInfty -> +1
+    | Arb z -> Z.sign z
+
+  let add_opt z1 z2 =
+    match z1, z2 with
+    | PosInfty, NegInfty -> None
+    | NegInfty, PosInfty -> None
+    | Arb z1, Arb z2 -> Some(Arb(Z.add z1 z2))
+    | PosInfty, _ -> Some(PosInfty)
+    | NegInfty, _ -> Some(NegInfty)
+    | _, PosInfty -> Some(PosInfty)
+    | _, NegInfty -> Some(NegInfty)
+
+  let add_unsafe z1 z2 =
+    match add_opt z1 z2 with
+    | None -> failwith "Cannot add PosInfty and NegInfty or vice versa."
+    | Some(s) -> s
+
+  let rec mul z1 z2 =
+    match z1, z2 with
+    | Arb z1, Arb z2 -> Arb(Z.mul z1 z2)
+    | Arb(z1), z2 -> mul z2 (Arb z1)
+    (** z1 is definitely a infty *)
+    | z1, z2 ->
+      if sign z2 < 0 then
+        neg z1
+      else
+      if z2 = zero then
+        zero
+      else
+        z1
+
+  let rec div z1 z2 =
+    match z1, z2 with
+    | Arb z1, Arb z2 -> Arb(Z.mul z1 z2)
+    | Arb(z1), z2 -> mul z2 (Arb z1)
+    (** z1 is definitely a infty *)
+    | z1, z2 ->
+      if sign z2 < 0 then
+        neg z1
+      else
+      if z2 = zero then
+        zero
+      else
+        z1
+
+  let abs z1 = if z1 < zero then neg z1 else z1;;
+
+  let max z1 z2 = if z1 > z2 then z1 else z2;;
+
+  let min z1 z2 = if z1 < z2 then z1 else z2;;
+
+
+  (** Taken from module IArith *)
+  let min4 a b c d = min (min a b) (min c d)
+
+  (** Taken from module IArith *)
+  let max4 a b c d = max (max a b) (max c d)
+
+end
+
+module INTERVALS  = 
+struct
+  type interval = (ZExt.t * ZExt.t) [@@deriving eq, hash, ord]
   type t = interval list [@@deriving eq, hash, ord]
+
+  let top_single () = (ZExt.NegInfty, ZExt.PosInfty)
+
+  let meet_single ((l1, u1):interval) ((l2, u2):interval) =
+    let max_lb = if l1 <= l2 then l2 else l1 in
+    let min_ub = if u1 <= u2 then u1 else u2 in
+    ((max_lb, min_ub): interval)
+
+  let add ((l1, u1): interval) ((l2, u2): interval) =
+    let inf = ZExt.add_opt l1 l2 in
+    let sup = ZExt.add_opt u1 u2 in
+    ((Option.default ZExt.NegInfty inf, Option.default ZExt.PosInfty sup): interval)
+
+  (** Taken from module IArith *)
+  let mul ((x1, x2): interval) ((y1, y2): interval) =
+    let x1y1 = (ZExt.mul x1 y1) in
+    let x1y2 = (ZExt.mul x1 y2) in
+    let x2y1 = (ZExt.mul x2 y1) in
+    let x2y2 = (ZExt.mul x2 y2) in
+    ((ZExt.min4 x1y1 x1y2 x2y1 x2y2, ZExt.max4 x1y1 x1y2 x2y1 x2y2): interval)
+
+
+  (** Taken from module IArith *)
+  let div ((x1, x2): interval) ((y1, y2): interval) =
+    if y1 <= ZExt.zero && y2 >= ZExt.zero then top_single() else
+      let x1y1n = (ZExt.div x1 y1) in
+      let x1y2n = (ZExt.div x1 y2) in
+      let x2y1n = (ZExt.div x2 y1) in
+      let x2y2n = (ZExt.div x2 y2) in
+      let x1y1p = (ZExt.div x1 y1) in
+      let x1y2p = (ZExt.div x1 y2) in
+      let x2y1p = (ZExt.div x2 y1) in
+      let x2y2p = (ZExt.div x2 y2) in
+      ((ZExt.min4 x1y1n x1y2n x2y1n x2y2n, ZExt.max4 x1y1p x1y2p x2y1p x2y2p): interval)
+
+
+  let is_bot_single (l, u) =
+    not (l <= u)
+
+  let sup (i: interval) = if is_bot_single i then ZExt.NegInfty else snd i;;
+
+  let inf (i: interval) = if is_bot_single i then ZExt.PosInfty else fst i;;
+
+  (** Checks whether the lower bound is -infty, i.e., unbound *)
+  let is_lb_unbound (i: interval) = 
+    ZExt.NegInfty = inf i
+
+  (** Checks whether the upper bound is +infty, i.e., unbound *)
+  let is_ub_unbound (i: interval) = 
+    ZExt.PosInfty = sup i
+
+  let rem (i1: interval) i2 =
+    (* i1 % i2 *)
+    let (l1, u1), (l2, u2) = i1, i2 in
+    if l2 <= ZExt.zero && u2 >= ZExt.zero then
+      top_single() 
+    else if is_lb_unbound i2 || is_ub_unbound i2 then
+      i1
+    else
+      let ub_minus_1 = ZExt.add_unsafe (ZExt.max (ZExt.abs l2) (ZExt.abs u2)) (ZExt.of_int (-1)) in
+      meet_single i1 ((ZExt.neg ub_minus_1, ub_minus_1): interval)
 
 
   (**
      Creates a single interval from the supplied integer values.
   *)
-  let create_single z1 z2 = (Arb(Z.of_int z1), Arb(Z.of_int z2))
+  let create_single z1 z2 = (ZExt.of_int z1, ZExt.of_int z2)
 
   (**
      Sets the lowerbound of the given interval to the supplied integer value.
@@ -60,7 +202,7 @@ struct
 
 
   let equal intv1 intv2 =
-    let tuple_equal (a1, b1) (a2, b2) = equal_z_ext a1 a2 && equal_z_ext b1 b2 in
+    let tuple_equal (a1, b1) (a2, b2) = ZExt.equal a1 a2 && ZExt.equal b1 b2 in
     BatList.for_all2 tuple_equal intv1 intv2
 
   let leq_single (l1, u1) (l2, u2) =
@@ -71,30 +213,20 @@ struct
     let max_ub = if u2 <= u1 then u1 else u2 in
     (min_lb, max_ub)
 
-  let meet_single (l1, u1) (l2, u2) =
-    let max_lb = if l1 <= l2 then l2 else l1 in
-    let min_ub = if u1 <= u2 then u1 else u2 in
-    (max_lb, min_ub)
-
   let create_single a b =
-    (Arb(Z.of_int a), Arb(Z.of_int b))
-
-
-  let top_single () = (NegInfty, PosInfty)
+    (ZExt.of_int a, ZExt.of_int b)
 
   let is_top_single (l, u) =
-    l = NegInfty && u = PosInfty
+    l = ZExt.NegInfty && u = ZExt.PosInfty
 
   let widen_single (l1, u1) (l2, u2) =
-    let l = if l1 <= l2 then l2 else NegInfty in
-    let u = if u2 <= u1 then u2 else PosInfty in
+    let l = if l1 <= l2 then l2 else ZExt.NegInfty in
+    let u = if u2 <= u1 then u2 else ZExt.PosInfty in
     (l, u)
 
   let narrow_single (i1: interval) (i2: interval) = 
     meet_single i1 i2
 
-  let is_bot_single (l, u) =
-    not (l <= u)
 
   let leq i1 i2 =
     BatList.for_all2 leq_single i1 i2
@@ -117,17 +249,6 @@ struct
   let is_bot (i: t) = 
     BatList.exists is_bot_single i
 
-  let sup (_, u) = u
-  let inf (l, _) = l
-
-
-  (** Checks whether the lower bound is -infty, i.e., unbound *)
-  let is_lb_unbound (i: interval) = 
-    NegInfty = inf i
-
-  (** Checks whether the upper bound is +infty, i.e., unbound *)
-  let is_ub_unbound (i: interval) = 
-    PosInfty = sup i
 
   let dim_add (dim_change: Apron.Dim.change) (intervals: t) =
     if dim_change.realdim != 0 then
@@ -176,13 +297,8 @@ struct
     else if is_top intervals then
       "top"
     else
-      let string_of_z_ext = function
-        | NegInfty -> "-∞"
-        | PosInfty -> "+∞"
-        | Arb z -> Z.to_string z
-      in
       let string_of_interval (l, u) =
-        Printf.sprintf "[%s, %s]" (string_of_z_ext l) (string_of_z_ext u)
+        Printf.sprintf "[%s, %s]" (ZExt.to_string l) (ZExt.to_string u)
       in
       "{" ^ (String.concat "; " (List.map string_of_interval intervals)) ^ "}"
 
@@ -590,9 +706,9 @@ struct
 
   let z_ext_of_scalar (s: Scalar.t) = 
     match s with
-    | Float(f) -> INTERVALS.Arb(Z.of_float f)
-    | Mpqf(mpqf) -> INTERVALS.Arb(Z.of_float (Mpqf.to_float mpqf))
-    | Mpfrf(mpfrf) -> INTERVALS.Arb(Z.of_float (Mpfrf.to_float mpfrf))
+    | Float(f) -> ZExt.of_float f
+    | Mpqf(mpqf) -> ZExt.of_float (Mpqf.to_float mpqf)
+    | Mpfrf(mpfrf) -> ZExt.of_float (Mpfrf.to_float mpfrf)
 
 
   open IntDomain0
@@ -602,6 +718,10 @@ struct
     match t.d with
     | None -> bot ()
     | Some d ->
+      (**
+         TODO: Adjust the environments of the returned pentagons, currently new variables are not added.
+      *)
+
       (* This is the variable we are assigning to *)
       let dim_x = Environment.dim_of_var t.env var in
       let rec convert_texpr (texp: Texpr1.expr) =
@@ -643,7 +763,7 @@ struct
            let intv, sub = d.intv, d.sub in
            let intv = BatList.modify_at dim_x (
                fun intv ->
-                 (Z.neg (INTERVALS.sup intv), Z.neg (INTERVALS.inf intv))
+                 (ZExt.neg (INTERVALS.sup intv), ZExt.neg (INTERVALS.inf intv))
              ) intv
            in
            (**
@@ -668,10 +788,7 @@ struct
            let i2 = BatList.at intv_2 dim_x in
            let intv = BatList.modify_at dim_x (
                fun i1 ->
-                 let i = IArith.add i1 i2 in
-                 let inf = Z.max INTERVALS.neg_infty (INTERVALS.inf i) in
-                 let sup = Z.min INTERVALS.infty (INTERVALS.sup i) in
-                 (inf, sup)
+                 INTERVALS.add i1 i2
              ) intv_1
            in
            (** TODO: Adjust SUBs *)
@@ -689,12 +806,7 @@ struct
 
            let i2 = BatList.at intv_2 dim_x in
            let intv = BatList.modify_at dim_x (
-               fun i1 ->
-                 let i = IArith.mul i1 i2 in
-                 let inf = Z.max INTERVALS.neg_infty (INTERVALS.inf i) in
-                 let sup = Z.min INTERVALS.infty (INTERVALS.sup i) in
-                 (inf, sup)
-             ) intv_1 in
+               fun i1 -> INTERVALS.mul i1 i2 ) intv_1 in
 
            (** TODO: Adjust SUBs *)
            ({d=Some({intv = intv; sub = SUB.forget_vars [dim_x] d.sub}); env=t.env}: t)
@@ -702,12 +814,49 @@ struct
          | Binop (Div, e1, e2, _, _) ->
            let pntg1 = convert_texpr e1 in
            let pntg2 = convert_texpr e2 in
-           top_of_env t.env
+           let d1, d2 = Option.get pntg1.d, Option.get pntg2.d in
+           let intv_1, sub_1 = d1.intv, d1.sub in
+           let intv_2, sub_2 = d2.intv, d2.sub in
 
+           let i2 = BatList.at intv_2 dim_x in
+           let intv = BatList.modify_at dim_x (
+               fun i1 -> INTERVALS.div i1 i2 ) intv_1 in
+           (** TODO: Adjust SUBs *)
+           ({d=Some({intv = intv; sub = SUB.forget_vars [dim_x] d.sub}); env=t.env}: t)
+
+         (** 
+            Implemented as described by the paper mention at the beginning of this file.
+            Refer to 6.2.2 Remainder.
+         *)
          | Binop (Mod, e1, e2, _, _)  ->
            let pntg1 = convert_texpr e1 in
            let pntg2 = convert_texpr e2 in
-           top_of_env t.env
+           let d1, d2 = Option.get pntg1.d, Option.get pntg2.d in
+           let intv_1, sub_1 = d1.intv, d1.sub in
+           let intv_2, sub_2 = d2.intv, d2.sub in
+
+           let i2 = BatList.at intv_2 dim_x in
+           let intv = BatList.modify_at dim_x (
+               fun i1 -> 
+                 INTERVALS.rem i1 i2
+             ) intv_1 in
+
+           let sub_without_x = SUB.forget_vars [dim_x] d.sub in
+           let sub = 
+             match e2 with
+             | Var divisor -> (
+                 let dim_divisor = Environment.dim_of_var t.env divisor in 
+                 let intv_divisor = BatList.at intv_2 dim_divisor
+                 in
+                 if (INTERVALS.inf intv_divisor) < ZExt.zero then 
+                   sub_without_x
+                 else
+                   BatList.modify_at dim_x (fun _ -> SUB.VarSet.singleton dim_divisor) sub_without_x
+               )
+             | _ -> sub_without_x
+           in
+           ({d=Some({intv = intv; sub = sub}); env=t.env}: t)
+
 
          | Binop (Pow, e1, e2, _, _) -> 
            let pntg1 = convert_texpr e1 in
