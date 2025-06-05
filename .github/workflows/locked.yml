@@ -48,6 +48,9 @@ jobs:
       - name: Install dependencies
         run: opam install . --deps-only --locked --with-test
 
+      - name: Install os gem for operating system detection
+        run: sudo gem install os
+
       - name: Build
         run: ./make.sh nat
 
@@ -99,6 +102,9 @@ jobs:
 
       - name: Install dependencies
         run: opam install . --deps-only --locked --with-test
+
+      - name: Install os gem for operating system detection
+        run: sudo gem install os
 
       - name: Build
         run: ./make.sh nat
