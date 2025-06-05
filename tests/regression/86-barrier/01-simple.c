@@ -2,6 +2,7 @@
 #include<pthread.h>
 #include<stdio.h>
 #include<unistd.h>
+#include<goblint.h>
 
 int g;
 
@@ -12,9 +13,9 @@ int main(int argc, char const *argv[])
 {
     int top;
     int i = 0;
-    
+
     pthread_barrier_init(&barrier, NULL, 2);
-    
+
     if(top) {
         pthread_barrier_wait(&barrier);
         // Unreachable

@@ -2,6 +2,7 @@
 #include<pthread.h>
 #include<stdio.h>
 #include<unistd.h>
+#include<goblint.h>
 
 int g;
 
@@ -26,7 +27,7 @@ int main(int argc, char const *argv[])
 {
     int top;
     int i = 0;
-    
+
     pthread_barrier_init(&barrier, NULL, 2);
 
     pthread_t t1;
@@ -34,8 +35,8 @@ int main(int argc, char const *argv[])
 
     pthread_t t2;
     pthread_create(&t2,NULL,f2,NULL);
-    
-    
+
+
     if(top) {
         pthread_barrier_wait(&barrier);
         i = 1;

@@ -2,6 +2,7 @@
 #include<pthread.h>
 #include<stdio.h>
 #include<unistd.h>
+#include<goblint.h>
 
 int g;
 
@@ -12,7 +13,7 @@ int main(int argc, char const *argv[])
 {
     int top;
     int i = 0;
-    
+
     pthread_barrierattr_t barattr;
     pthread_barrierattr_setpshared(&barattr, PTHREAD_PROCESS_SHARED);
 
@@ -20,7 +21,7 @@ int main(int argc, char const *argv[])
 
     fork();
     pthread_t t1;
-    
+
     if(top) {
         pthread_barrier_wait(&barrier);
         // Reachable if both processes go into this branch

@@ -2,6 +2,7 @@
 #include<pthread.h>
 #include<stdio.h>
 #include<unistd.h>
+#include<goblint.h>
 
 int g;
 int h;
@@ -21,7 +22,7 @@ int main(int argc, char const *argv[])
 {
     int top;
     int i = 0;
-    
+
     pthread_barrier_init(&barrier, NULL, 2);
 
     pthread_t t1;
