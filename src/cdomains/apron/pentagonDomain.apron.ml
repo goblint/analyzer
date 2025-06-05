@@ -10,6 +10,10 @@ open GobApron
 open BatList
 
 
+(** 
+   Extension of the Zarith types and funcitons.
+   The values represent arbitrary precision integers and also negative or positive infinity.
+*)
 module ZExt =
 struct
   type t = PosInfty | NegInfty | Arb of Z.t
@@ -108,6 +112,15 @@ struct
 
   let min z1 z2 = if z1 < z2 then z1 else z2;;
 
+  (* let min_of_list zs = function 
+     | [] -> failwith "min is undefined on empty lists!"
+     (** Everything is less or equal to PosInfty. *)
+     | zs -> List.fold (fun acc x -> min acc x) PosInfty zs *)
+
+  (* let max_of_list zs = function 
+     | [] -> failwith "max is undefined on empty lists!"
+     (** Everything is greater or equal to NegInfty. *)
+     | zs -> List.fold (fun acc x -> max acc x) NegInfty zs *)
 
   (** Taken from module IArith *)
   let min4 a b c d = min (min a b) (min c d)
@@ -117,137 +130,124 @@ struct
 
 end
 
-module INTERVALS  = 
+(**
+   Stores functions and types for single intervals $\mathbb{Z}^\infty$
+   according to the pentagon domains semantics. Beware, this module is NOT generic.
+*)
+module Interval =
 struct
-  type interval = (ZExt.t * ZExt.t) [@@deriving eq, hash, ord]
-  type t = interval list [@@deriving eq, hash, ord]
+  type t = (ZExt.t * ZExt.t) [@@deriving eq, hash, ord]
 
-  let top_single () = (ZExt.NegInfty, ZExt.PosInfty)
+  let top () = ((ZExt.NegInfty, ZExt.PosInfty): t)
 
-  let meet_single ((l1, u1):interval) ((l2, u2):interval) =
+  let bot () = ((ZExt.PosInfty, ZExt.NegInfty): t)
+
+  let is_top (x:t) = ((ZExt.NegInfty, ZExt.PosInfty) = x)
+
+  let is_bot ((l, u): t) = l > u
+
+  (** Interval intersection *)
+  let inter ((l1, u1): t) ((l2, u2): t) =
     let max_lb = if l1 <= l2 then l2 else l1 in
     let min_ub = if u1 <= u2 then u1 else u2 in
-    ((max_lb, min_ub): interval)
+    ((max_lb, min_ub): t)
 
-  let add ((l1, u1): interval) ((l2, u2): interval) =
-    let inf = ZExt.add_opt l1 l2 in
-    let sup = ZExt.add_opt u1 u2 in
-    ((Option.default ZExt.NegInfty inf, Option.default ZExt.PosInfty sup): interval)
-
-  (** Taken from module IArith *)
-  let mul ((x1, x2): interval) ((y1, y2): interval) =
-    let x1y1 = (ZExt.mul x1 y1) in
-    let x1y2 = (ZExt.mul x1 y2) in
-    let x2y1 = (ZExt.mul x2 y1) in
-    let x2y2 = (ZExt.mul x2 y2) in
-    ((ZExt.min4 x1y1 x1y2 x2y1 x2y2, ZExt.max4 x1y1 x1y2 x2y1 x2y2): interval)
-
+  let add ((l1, u1): t) ((l2, u2): t) =
+    let ( + ) = ZExt.add_opt in
+    ((Option.default ZExt.NegInfty (l1 + l2), Option.default ZExt.PosInfty (u1 + u2)): t)
 
   (** Taken from module IArith *)
-  let div ((x1, x2): interval) ((y1, y2): interval) =
-    if y1 <= ZExt.zero && y2 >= ZExt.zero then top_single() else
-      let x1y1n = (ZExt.div x1 y1) in
-      let x1y2n = (ZExt.div x1 y2) in
-      let x2y1n = (ZExt.div x2 y1) in
-      let x2y2n = (ZExt.div x2 y2) in
-      let x1y1p = (ZExt.div x1 y1) in
-      let x1y2p = (ZExt.div x1 y2) in
-      let x2y1p = (ZExt.div x2 y1) in
-      let x2y2p = (ZExt.div x2 y2) in
-      ((ZExt.min4 x1y1n x1y2n x2y1n x2y2n, ZExt.max4 x1y1p x1y2p x2y1p x2y2p): interval)
+  let mul ((x1, x2): t) ((y1, y2): t) =
+    let ( * ) = ZExt.mul in
+    ((
+      ZExt.min4 (x1 * y1) (x1 * y2) (x2 * y1) (x2 * y2),
+      ZExt.max4 (x1 * y1) (x1 * y2) (x2 * y1) (x2 * y2)
+    ): t)
 
+  (** Taken from module IArith *)
+  let div ((x1, x2): t) ((y1, y2): t) =
+    if y1 <= ZExt.zero && y2 >= ZExt.zero then top() else
+      let ( / ) = ZExt.div in
+      ((
+        ZExt.min4 (x1 / y1) (x1 / y2) (x2 / y1) (x2 / y2),
+        ZExt.max4 (x1 / y1) (x1 / y2) (x2 / y1) (x2 / y2)
+      ): t)
 
-  let is_bot_single (l, u) =
-    not (l <= u)
+  let sup (i: t) = if is_bot i then ZExt.NegInfty else snd i;;
 
-  let sup (i: interval) = if is_bot_single i then ZExt.NegInfty else snd i;;
-
-  let inf (i: interval) = if is_bot_single i then ZExt.PosInfty else fst i;;
+  let inf (i: t) = if is_bot i then ZExt.PosInfty else fst i;;
 
   (** Checks whether the lower bound is -infty, i.e., unbound *)
-  let is_lb_unbound (i: interval) = 
-    ZExt.NegInfty = inf i
+  (**
+     TODO: Verfiy that `inf` is correct here. Alternative `fst`.
+  *)
+  let no_lowerbound (i: t) = ZExt.NegInfty = inf i
 
   (** Checks whether the upper bound is +infty, i.e., unbound *)
-  let is_ub_unbound (i: interval) = 
-    ZExt.PosInfty = sup i
+  (**
+     TODO: Verfiy that `sup` is correct here. Alternative `snd`.
+  *)
+  let no_upperbound (i: t) = ZExt.PosInfty = sup i
 
-  let rem (i1: interval) i2 =
+  let rem (i1: t) i2 =
     (* i1 % i2 *)
-    let (l1, u1), (l2, u2) = i1, i2 in
+    let (l2, u2) = i2 in
     if l2 <= ZExt.zero && u2 >= ZExt.zero then
-      top_single() 
-    else if is_lb_unbound i2 || is_ub_unbound i2 then
+      top() 
+    else if no_lowerbound i2 || no_upperbound i2 then
       i1
     else
       let ub_minus_1 = ZExt.add_unsafe (ZExt.max (ZExt.abs l2) (ZExt.abs u2)) (ZExt.of_int (-1)) in
-      meet_single i1 ((ZExt.neg ub_minus_1, ub_minus_1): interval)
+      inter i1 ((ZExt.neg ub_minus_1, ub_minus_1): t)
 
 
   (**
      Creates a single interval from the supplied integer values.
   *)
-  let create_single z1 z2 = (ZExt.of_int z1, ZExt.of_int z2)
+  let create i1 i2 = (ZExt.of_int i1, ZExt.of_int i2)
 
-  (**
-     Sets the lowerbound of the given interval to the supplied integer value.
-  *)
-  let set_lb (lowerbound:int) (i: interval) = (Z.of_int lowerbound, snd i)
+  let leq ((l1, u1): t) ((l2, u2): t) = l2 <= l1 && u1 <= u2
 
+  let union ((l1, u1): t) ((l2, u2): t) = (ZExt.min l1 l2, ZExt.max u1 u2)
 
-  (**
-     Sets the upperbound of the given interval to the supplied integer value.
-  *)
-  let set_ub (upperbound:int) (i: interval) = (fst i, Z.of_int upperbound)
-
-
-  let equal intv1 intv2 =
-    let tuple_equal (a1, b1) (a2, b2) = ZExt.equal a1 a2 && ZExt.equal b1 b2 in
-    BatList.for_all2 tuple_equal intv1 intv2
-
-  let leq_single (l1, u1) (l2, u2) =
-    l2 <= l1 && u1 <= u2
-
-  let join_single (l1, u1) (l2, u2) =
-    let min_lb = if l1 <= l2 then l1 else l2 in
-    let max_ub = if u2 <= u1 then u1 else u2 in
-    (min_lb, max_ub)
-
-  let create_single a b =
-    (ZExt.of_int a, ZExt.of_int b)
-
-  let is_top_single (l, u) =
-    l = ZExt.NegInfty && u = ZExt.PosInfty
-
-  let widen_single (l1, u1) (l2, u2) =
+  let widen (l1, u1) (l2, u2) =
     let l = if l1 <= l2 then l2 else ZExt.NegInfty in
     let u = if u2 <= u1 then u2 else ZExt.PosInfty in
     (l, u)
 
-  let narrow_single (i1: interval) (i2: interval) = 
-    meet_single i1 i2
+  let narrow (i1: t) (i2: t) = 
+    inter i1 i2
 
+end
+
+(** Provides functions and types for collections of Interval. *)
+module INTV  = 
+struct
+  type t = Interval.t list [@@deriving eq, hash, ord]
+
+  let equal intv1 intv2 =
+    BatList.for_all2 (Interval.equal) intv1 intv2
 
   let leq i1 i2 =
-    BatList.for_all2 leq_single i1 i2
+    BatList.for_all2 Interval.leq i1 i2
 
   let join (i1: t) (i2: t) = 
-    BatList.map2 join_single i1 i2
+    BatList.map2 Interval.union i1 i2
 
   let meet (i1: t) (i2: t) = 
-    BatList.map2 meet_single i1 i2
+    BatList.map2 Interval.inter i1 i2
 
   let is_top i =
-    BatList.for_all is_top_single i
+    BatList.for_all Interval.is_top i
 
   let widen (i1: t) (i2: t) = 
-    BatList.map2 widen_single i1 i2
+    BatList.map2 Interval.widen i1 i2
 
   let narrow (i1: t) (i2: t) = 
     meet i1 i2
 
   let is_bot (i: t) = 
-    BatList.exists is_bot_single i
+    BatList.exists Interval.is_bot i
 
 
   let dim_add (dim_change: Apron.Dim.change) (intervals: t) =
@@ -263,7 +263,7 @@ struct
           let k = dim_changes.(0) in
           let left, right = BatList.split_at k intervals in
           let new_array = (BatArray.sub dim_changes 1 (BatArray.length dim_changes - 1)) in
-          insert_dimensions (left @ [top_single ()] @ right) new_array
+          insert_dimensions (left @ [Interval.top ()] @ right) new_array
       in
       insert_dimensions intervals change_arr;;
 
@@ -304,7 +304,7 @@ struct
 
 
   let forget_vars (vars: int BatList.t) =
-    BatList.mapi (fun x intv -> if BatList.mem x vars then top_single() else intv)
+    BatList.mapi (fun x intv -> if BatList.mem x vars then Interval.top() else intv)
 
 end
 
@@ -319,9 +319,7 @@ struct
     type t = Idx.t BatMap.Make(Idx).t
   end
 
-
   type t = VarSet.t VarList.t [@@deriving eq, ord]
-
 
   let dim_add (dim_change: Apron.Dim.change) (sub: t) =
     if dim_change.realdim != 0 then 
@@ -473,10 +471,10 @@ end
 
 module PNTG =
 struct
-  type t = { intv: INTERVALS.t; sub: SUB.t } [@@deriving eq, ord]
+  type t = { intv: INTV.t; sub: SUB.t } [@@deriving eq, ord]
 
   let hash : (t -> int)  = fun _ -> failwith "TODO"
-  let equal t1 t2  = INTERVALS.equal t1.intv t2.intv && SUB.equal t1.sub t2.sub;; 
+  let equal t1 t2  = INTV.equal t1.intv t2.intv && SUB.equal t1.sub t2.sub;; 
   let compare _ _ = failwith "TODO"
   let copy (x: t) = x
   let empty () = failwith "TODO"
@@ -493,7 +491,7 @@ struct
                 extension with real domain is nonsensical"
     else 
       let intv, sub = 
-        INTERVALS.dim_add dim_change pntg.intv,
+        INTV.dim_add dim_change pntg.intv,
         SUB.dim_add dim_change pntg.sub 
       in
       ({intv = intv; sub = sub}: t)
@@ -508,7 +506,7 @@ struct
                 extension with real domain is nonsensical"
     else 
       let intv, sub = 
-        INTERVALS.dim_remove dim_change pntg.intv,
+        INTV.dim_remove dim_change pntg.intv,
         SUB.dim_remove dim_change pntg.sub 
       in
       ({intv = intv; sub = sub}: t)
@@ -583,12 +581,12 @@ struct
   let is_bot t = 
     match t.d with
     | None -> true
-    | Some d -> INTERVALS.is_bot d.intv || SUB.is_bot d.sub
+    | Some d -> INTV.is_bot d.intv || SUB.is_bot d.sub
 
   let is_top t = 
     match t.d with
     | None -> false
-    | Some d -> INTERVALS.is_top d.intv && SUB.is_top d.sub
+    | Some d -> INTV.is_top d.intv && SUB.is_top d.sub
 
 
   let meet t1 t2 =
@@ -597,7 +595,7 @@ struct
     let t2 = dimchange2_add t2 sup_env in
     match t1.d, t2.d with
     | Some d1', Some d2' ->
-      ({d = Some {intv = INTERVALS.meet d1'.intv d2'.intv; sub = SUB.meet d1'.sub d2'.sub}; env = sup_env}: t)
+      ({d = Some {intv = INTV.meet d1'.intv d2'.intv; sub = SUB.meet d1'.sub d2'.sub}; env = sup_env}: t)
     | _ -> {d = None; env = sup_env}
 
   let meet t1 t2 = 
@@ -615,20 +613,20 @@ struct
     | Some d1', Some d2' ->
       let interval1, interval2 = d1'.intv, d2'.intv in
       let sub1, sub2 = d1'.sub, d2'.sub in
-      let for_alli f lst =
+      let for_all_i f lst =
         List.for_all (fun (i, x) -> f i x) (List.mapi (fun i x -> (i, x)) lst) in
-      let bool1 = INTERVALS.leq interval1 interval2 in
-      let bool2 = for_alli(fun x s2x -> 
+      let bool1 = INTV.leq interval1 interval2 in
+      let bool2 = for_all_i(fun x s2x -> 
           SUB.VarSet.for_all(fun y -> 
               let s1x = SUB.VarList.at sub1 x in
               let b1x = BatList.at interval1 x in
               let b1y = BatList.at interval1 y in
               SUB.VarSet.mem y s1x ||
-              INTERVALS.sup b1x < INTERVALS.inf b1y
+              Interval.sup b1x < Interval.inf b1y
             ) s2x
         ) sub2 in
       bool1 && bool2
-    | Some d1', None -> INTERVALS.is_bot d1'.intv || SUB.is_bot d1'.sub
+    | Some d1', None -> INTV.is_bot d1'.intv || SUB.is_bot d1'.sub
     | _ -> true
 
   let leq a b = Timing.wrap "leq" (leq a) b
@@ -644,10 +642,10 @@ struct
     let t2 = dimchange2_add t2 sup_env in
     match t1.d, t2.d with
     | Some d1', Some d2' ->
-      let intv_join = INTERVALS.join d1'.intv d1'.intv in
+      let intv_join = INTV.join d1'.intv d1'.intv in
       let s' x s1x = SUB.VarSet.inter s1x (List.at d2'.sub x) in
-      let s'' x s1x = SUB.VarSet.filter (fun y -> INTERVALS.sup (List.at d2'.intv x) < INTERVALS.inf (List.at d2'.intv y)) s1x in
-      let s''' x = SUB.VarSet.filter (fun y -> INTERVALS.sup (List.at d1'.intv x) < INTERVALS.inf (List.at d1'.intv y)) (List.at d2'.sub x) in
+      let s'' x s1x = SUB.VarSet.filter (fun y -> Interval.sup (List.at d2'.intv x) < Interval.inf (List.at d2'.intv y)) s1x in
+      let s''' x = SUB.VarSet.filter (fun y -> Interval.sup (List.at d1'.intv x) < Interval.inf (List.at d1'.intv y)) (List.at d2'.sub x) in
       let sub_join = List.mapi (fun x s1x -> SUB.VarSet.union (s' x s1x) (SUB.VarSet.union (s'' x s1x) (s''' x))) d1'.sub in
 
       ({d = Some {intv = intv_join; sub = sub_join}; env = sup_env}: t)
@@ -668,7 +666,7 @@ struct
     let t2 = dimchange2_add t2 sup_env in
     match t1.d, t2.d with
     | Some d1', Some d2' ->
-      ({d = Some {intv = INTERVALS.widen d1'.intv d2'.intv; sub = SUB.widen d1'.sub d2'.sub}; env = sup_env}: t)
+      ({d = Some {intv = INTV.widen d1'.intv d2'.intv; sub = SUB.widen d1'.sub d2'.sub}; env = sup_env}: t)
     | _ -> {d = None; env = sup_env}
 
   let widen a b =
@@ -687,7 +685,7 @@ struct
     match pntg1.d with
     | None -> "bot"
     | Some d ->
-      let intv_str = INTERVALS.to_string d.intv in
+      let intv_str = INTV.to_string d.intv in
       let sub_str = SUB.to_string d.sub in
       Printf.sprintf "Pentagon: %s, %s" intv_str sub_str
 
@@ -701,7 +699,7 @@ struct
     else 
       let (pntg: PNTG.t) = Option.get t.d in
       let int_vars = List.map (fun v -> Environment.dim_of_var t.env v) vars in
-      {d = Some({intv = INTERVALS.forget_vars int_vars pntg.intv; sub = SUB.forget_vars int_vars pntg.sub}); env=t.env};;
+      {d = Some({intv = INTV.forget_vars int_vars pntg.intv; sub = SUB.forget_vars int_vars pntg.sub}); env=t.env};;
 
 
   let z_ext_of_scalar (s: Scalar.t) = 
@@ -764,7 +762,7 @@ struct
            let intv, sub = d.intv, d.sub in
            let intv = BatList.modify_at dim_x (
                fun intv ->
-                 (ZExt.neg (INTERVALS.sup intv), ZExt.neg (INTERVALS.inf intv))
+                 (ZExt.neg (Interval.sup intv), ZExt.neg (Interval.inf intv))
              ) intv
            in
            (**
@@ -789,10 +787,9 @@ struct
            let i2 = BatList.at intv_2 dim_x in
            let intv = BatList.modify_at dim_x (
                fun i1 ->
-                 INTERVALS.add i1 i2
+                 Interval.add i1 i2
              ) intv_1
            in
-           (** TODO: Adjust SUBs *)
            ({d=Some({intv = intv; sub = sub_without_x}); env=t.env}: t)
 
          | Binop (Sub, e1, e2, t, r) ->
@@ -807,9 +804,8 @@ struct
 
            let i2 = BatList.at intv_2 dim_x in
            let intv = BatList.modify_at dim_x (
-               fun i1 -> INTERVALS.mul i1 i2 ) intv_1 in
+               fun i1 -> Interval.mul i1 i2 ) intv_1 in
 
-           (** TODO: Adjust SUBs *)
            ({d=Some({intv = intv; sub = sub_without_x}); env=t.env}: t)
 
          | Binop (Div, e1, e2, _, _) ->
@@ -821,7 +817,7 @@ struct
 
            let i2 = BatList.at intv_2 dim_x in
            let intv = BatList.modify_at dim_x (
-               fun i1 -> INTERVALS.div i1 i2 ) intv_1 in
+               fun i1 -> Interval.div i1 i2 ) intv_1 in
            (** TODO: Adjust SUBs *)
            ({d=Some({intv = intv; sub = sub_without_x}); env=t.env}: t)
 
@@ -839,7 +835,7 @@ struct
            let i2 = BatList.at intv_2 dim_x in
            let intv = BatList.modify_at dim_x (
                fun i1 -> 
-                 INTERVALS.rem i1 i2
+                 Interval.rem i1 i2
              ) intv_1 in
 
            let sub = 
@@ -848,7 +844,7 @@ struct
                  let dim_divisor = Environment.dim_of_var t.env divisor in 
                  let intv_divisor = BatList.at intv_2 dim_divisor
                  in
-                 if (INTERVALS.inf intv_divisor) < ZExt.zero then 
+                 if (Interval.inf intv_divisor) < ZExt.zero then 
                    sub_without_x
                  else
                    BatList.modify_at dim_x (fun _ -> SUB.VarSet.singleton dim_divisor) sub_without_x
@@ -927,7 +923,7 @@ struct
     else
       match pntg.d with
       | None -> failwith "is_bot should take care of that"
-      | Some(d) -> INTERVALS.to_string d.intv ^ " " ^ SUB.to_string d.sub;;
+      | Some(d) -> INTV.to_string d.intv ^ " " ^ SUB.to_string d.sub;;
 
 end
 

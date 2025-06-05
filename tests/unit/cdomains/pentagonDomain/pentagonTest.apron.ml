@@ -3,42 +3,43 @@ open OUnit2
 open Goblint_lib
 open Batteries
 open PentagonDomain
-module INTERVALS = PentagonDomain.INTERVALS
-module SUB = PentagonDomain.SUB
-module D = PentagonDomain.D
 
 (* Test cases for the Intervals module *)
+let assert_equal expected result = 
+  OUnit2.assert_equal ~cmp: INTV.equal ~msg:(
+    "expected:" ^ INTV.to_string expected ^
+    "\ngot:" ^ INTV.to_string result
+  ) expected result;;
 let test_intv_equal _ =
   let intv =
     [
-      INTERVALS.create_single max_int min_int;
-      INTERVALS.create_single 1 5;
-      INTERVALS.top_single ();
+      Interval.create max_int min_int;
+      Interval.create 1 5;
+      Interval.top ();
     ]
   in
   let intv_equal =
     [
-      INTERVALS.create_single max_int min_int;
-      INTERVALS.create_single 1 5;
-      INTERVALS.top_single ();
+      Interval.create max_int min_int;
+      Interval.create 1 5;
+      Interval.top ();
     ]
   in
   let intv_not_equal =
-    [ (Z.of_int max_int, Z.of_int min_int); INTERVALS.top_single () ]
+    [ Interval.bot (); Interval.top () ]
   in
   let intv_slightly_not_equal =
     [
-      INTERVALS.create_single max_int min_int;
-      INTERVALS.create_single 1 4;
-      INTERVALS.top_single ();
+      Interval.create max_int min_int;
+      Interval.create 1 4;
+      Interval.top ();
     ]
   in
-  assert_bool "intv should be equal to intv_equal"
-    (INTERVALS.equal intv intv_equal);
+  assert_equal intv intv_equal;
   assert_bool "intv should not be equal to intv_not_equal"
-    (not (INTERVALS.equal intv intv_not_equal));
+    (not (INTV.equal intv intv_not_equal));
   assert_bool "sub1 should be equal to sub2"
-    (not (INTERVALS.equal intv intv_slightly_not_equal))
+    (not (INTV.equal intv intv_slightly_not_equal))
 
 let test_intv_dim_add_1 _ =
   let dim_change =
@@ -46,33 +47,27 @@ let test_intv_dim_add_1 _ =
   in
   let intv =
     [
-      (* 0 *) INTERVALS.create_single 1 3;
-      (* 1 *) INTERVALS.create_single (-3) 25;
-      (* 2 *) INTERVALS.create_single 2 2;
-      (* 3 *) INTERVALS.create_single (-1) max_int;
+      (* 0 *) Interval.create 1 3;
+      (* 1 *) Interval.create (-3) 25;
+      (* 2 *) Interval.create 2 2;
+      (* 3 *) Interval.create (-1) max_int;
     ]
   in
   let expected_intv =
     [
-      (* 0 *) INTERVALS.top_single ();
-      (* 1 *) INTERVALS.create_single 1 3; (* prev 0 *)
-      (* 2 *) INTERVALS.top_single ();
-      (* 3 *) INTERVALS.top_single ();
-      (* 4 *) INTERVALS.create_single (-3) 25; (* prev 1 *)
-      (* 5 *) INTERVALS.top_single ();
-      (* 6 *) INTERVALS.create_single 2 2; (* prev 2 *)
-      (* 7 *) INTERVALS.create_single (-1) max_int; (* prev 3 *)
-      (* 8 *) INTERVALS.top_single ();
+      (* 0 *) Interval.top ();
+      (* 1 *) Interval.create 1 3; (* prev 0 *)
+      (* 2 *) Interval.top ();
+      (* 3 *) Interval.top ();
+      (* 4 *) Interval.create (-3) 25; (* prev 1 *)
+      (* 5 *) Interval.top ();
+      (* 6 *) Interval.create 2 2; (* prev 2 *)
+      (* 7 *) Interval.create (-1) max_int; (* prev 3 *)
+      (* 8 *) Interval.top ();
     ]
   in
-  let resulting_intv = INTERVALS.dim_add dim_change intv in
-  assert_equal
-    ~msg:
-      ("expected:"
-       ^ INTERVALS.to_string expected_intv
-       ^ "\ngot:"
-       ^ INTERVALS.to_string resulting_intv)
-    expected_intv resulting_intv
+  let resulting_intv = INTV.dim_add dim_change intv in
+  assert_equal expected_intv resulting_intv
 
 let test_intv_dim_add_2 _ =
   let dim_change =
@@ -81,37 +76,31 @@ let test_intv_dim_add_2 _ =
   in
   let intv =
     [
-      (*0*) (Z.of_int 1, Z.of_int 3);
-      (*1*) (Z.of_int (-1), Z.of_int 1);
-      (*2*) INTERVALS.top_single ();
-      (*3*) (Z.of_int (-100), Z.of_int max_int);
+      (*0*) (ZExt.of_int 1, ZExt.of_int 3);
+      (*1*) (ZExt.of_int (-1), ZExt.of_int 1);
+      (*2*) Interval.top ();
+      (*3*) (ZExt.of_int (-100), ZExt.of_int max_int);
       (*4*)
     ]
   in
   let expected_intv =
     [
-      (* 0 *) INTERVALS.top_single ();
-      (* 1 *) (Z.of_int 1, Z.of_int 3); (* prev 0 *)
-      (* 2 *) (Z.of_int (-1), Z.of_int 1); (* prev 1 *)
-      (* 3 *) INTERVALS.top_single (); (* prev 2 *)
-      (* 4 *) INTERVALS.top_single ();
-      (* 5 *) INTERVALS.top_single ();
-      (* 6 *) INTERVALS.top_single ();
-      (* 7 *) INTERVALS.top_single ();
-      (* 8 *) INTERVALS.top_single ();
-      (* 9 *) (Z.of_int (-100), Z.of_int max_int); (* prev 3 *)
-      (* 10 *) INTERVALS.top_single ();
+      (* 0 *) Interval.top ();
+      (* 1 *) (ZExt.of_int 1, ZExt.of_int 3); (* prev 0 *)
+      (* 2 *) (ZExt.of_int (-1), ZExt.of_int 1); (* prev 1 *)
+      (* 3 *) Interval.top (); (* prev 2 *)
+      (* 4 *) Interval.top ();
+      (* 5 *) Interval.top ();
+      (* 6 *) Interval.top ();
+      (* 7 *) Interval.top ();
+      (* 8 *) Interval.top ();
+      (* 9 *) (ZExt.of_int (-100), ZExt.of_int max_int); (* prev 3 *)
+      (* 10 *) Interval.top ();
       (* 11 *)
     ]
   in
-  let resulting_intv = INTERVALS.dim_add dim_change intv in
-  assert_equal
-    ~msg:
-      ("expected:"
-       ^ INTERVALS.to_string expected_intv
-       ^ "\ngot:"
-       ^ INTERVALS.to_string resulting_intv)
-    expected_intv resulting_intv
+  let resulting_intv = INTV.dim_add dim_change intv in
+  assert_equal expected_intv resulting_intv
 
 let test_intv_dim_remove_1 _ =
   let dim_change =
@@ -119,35 +108,36 @@ let test_intv_dim_remove_1 _ =
   in
   let intv =
     [
-      (* 0 *) INTERVALS.top_single ();
-      (* 1 *) INTERVALS.create_single 1 3;
-      (* 2 *) INTERVALS.top_single ();
-      (* 3 *) INTERVALS.top_single ();
-      (* 4 *) INTERVALS.create_single (-3) 25;
-      (* 5 *) INTERVALS.top_single ();
-      (* 6 *) INTERVALS.create_single 2 2;
-      (* 7 *) INTERVALS.top_single ();
-      (* 8 *) INTERVALS.create_single (-1) max_int;
+      (* 0 *) Interval.top ();
+      (* 1 *) Interval.create 1 3;
+      (* 2 *) Interval.top ();
+      (* 3 *) Interval.top ();
+      (* 4 *) Interval.create (-3) 25;
+      (* 5 *) Interval.top ();
+      (* 6 *) Interval.create 2 2;
+      (* 7 *) Interval.top ();
+      (* 8 *) Interval.create (-1) max_int;
     ]
   in
   let expected_intv =
     [
-      (* 0 *) INTERVALS.create_single 1 3;
-      (* 1 *) INTERVALS.create_single (-3) 25;
-      (* 2 *) INTERVALS.create_single 2 2;
-      (* 3 *) INTERVALS.create_single (-1) max_int;
+      (* 0 *) Interval.create 1 3;
+      (* 1 *) Interval.create (-3) 25;
+      (* 2 *) Interval.create 2 2;
+      (* 3 *) Interval.create (-1) max_int;
     ]
   in
-  let resulting_intv = INTERVALS.dim_remove dim_change intv in
-  assert_equal
-    ~msg:
-      ("expected:"
-       ^ INTERVALS.to_string expected_intv
-       ^ "\ngot:"
-       ^ INTERVALS.to_string resulting_intv)
-    expected_intv resulting_intv
+  let resulting_intv = INTV.dim_remove dim_change intv in
+  assert_equal expected_intv resulting_intv
 
 (* Test cases for the SUB module *)
+let assert_equal expected_sub resulting_sub = 
+  OUnit2.assert_equal 
+    ~cmp: SUB.equal
+    ~msg: ("expected:" ^ SUB.to_string expected_sub ^ "\ngot:" ^ SUB.to_string resulting_sub)
+    expected_sub
+    resulting_sub
+
 let test_sub_equal _ =
   let sub1 = [ SUB.VarSet.singleton 2 ] in
   let sub2 = [ SUB.VarSet.singleton 2 ] in
@@ -204,11 +194,7 @@ let test_sub_dim_add_1 _ =
     ]
   in
   let resulting_sub = SUB.dim_add dim_change sub in
-  assert_equal
-    ~msg:
-      ("expected:" ^ SUB.to_string expected_sub ^ "\ngot:"
-       ^ SUB.to_string resulting_sub)
-    expected_sub resulting_sub
+  assert_equal expected_sub resulting_sub
 
 let test_sub_dim_add_2 _ =
   let dim_change =
@@ -240,11 +226,7 @@ let test_sub_dim_add_2 _ =
     ]
   in
   let resulting_sub = SUB.dim_add dim_change sub in
-  assert_equal
-    ~msg:
-      ("expected:" ^ SUB.to_string expected_sub ^ "\ngot:"
-       ^ SUB.to_string resulting_sub)
-    expected_sub resulting_sub
+  assert_equal expected_sub resulting_sub
 
 let test_sub_dim_remove_1 _ =
   let dim_change =
@@ -274,16 +256,12 @@ let test_sub_dim_remove_1 _ =
     ]
   in
   let resulting_sub = SUB.dim_remove dim_change sub in
-  assert_equal
-    ~msg:
-      ("expected:" ^ SUB.to_string expected_sub ^ "\ngot:"
-       ^ SUB.to_string resulting_sub)
-    expected_sub resulting_sub
+  assert_equal expected_sub resulting_sub
 
 (* Test cases for the D module (PNTG) *)
 
 let assert_equal expected result = 
-  assert_equal ~cmp: D.equal ~msg:(
+  OUnit2.assert_equal ~cmp: D.equal ~msg:(
     "expected:" ^ D.to_string expected ^
     "\ngot:" ^ D.to_string result
   ) expected result;;
@@ -297,9 +275,9 @@ let test_pntg_widen _ =
   let (pntg1: D.t) = { d = 
                          Some({
                              intv = [
-                               INTERVALS.create_single 0 100;
-                               INTERVALS.create_single 100 200;
-                               INTERVALS.create_single 200 300;];
+                               Interval.create 0 100;
+                               Interval.create 100 200;
+                               Interval.create 200 300;];
                              sub = [
                                SUB.VarSet.empty |> SUB.VarSet.add 1;
                                SUB.VarSet.empty |> SUB.VarSet.add 2;
@@ -308,9 +286,9 @@ let test_pntg_widen _ =
                            }); env } in
   let (pntg2: D.t) = { d = Some({
       intv = [
-        INTERVALS.create_single 40 60;
-        INTERVALS.create_single 120 201;
-        INTERVALS.create_single 199 301;
+        Interval.create 40 60;
+        Interval.create 120 201;
+        Interval.create 199 301;
       ]; sub = [
           SUB.VarSet.empty |> SUB.VarSet.add 1 |> SUB.VarSet.add 2;
           SUB.VarSet.empty |> SUB.VarSet.add 2;
@@ -321,9 +299,9 @@ let test_pntg_widen _ =
 
   let expected_intvs =
     [
-      INTERVALS.create_single 40 60;
-      INTERVALS.create_single 120 max_int;
-      INTERVALS.create_single min_int max_int;
+      Interval.create 40 60;
+      Interval.create 120 max_int;
+      Interval.create min_int max_int;
     ]
   in
   let expected_sub =
@@ -349,10 +327,10 @@ let test_pntg_leq_1 _ =
   in
   let intvs1 =
     [
-      INTERVALS.create_single 0 2;
-      INTERVALS.create_single 2 3;
-      INTERVALS.create_single 3 3;
-      INTERVALS.create_single 1 5;
+      Interval.create 0 2;
+      Interval.create 2 3;
+      Interval.create 3 3;
+      Interval.create 1 5;
     ]
   in
   (* [0 < {1}; 1 < {2}; 2 < {}; 3 < {}] *)
@@ -364,7 +342,7 @@ let test_pntg_leq_1 _ =
       SUB.VarSet.empty;
     ]
   in
-  let intvs2 = List.init 4 (fun i -> INTERVALS.create_single 0 (i + 2)) in
+  let intvs2 = List.init 4 (fun i -> Interval.create 0 (i + 2)) in
   (* [0 < {1, 2}; 1 < {2}; 2 < {}; 3 < {}] *)
   let sub2 =
     [
@@ -387,7 +365,7 @@ let test_pntg_leq_2 _ =
       (Array.init 4 (fun i -> Apron.Var.of_string (string_of_int i)))
       [||]
   in
-  let intvs1 = List.init 4 (fun i -> INTERVALS.create_single 0 (i + 2)) in
+  let intvs1 = List.init 4 (fun i -> Interval.create 0 (i + 2)) in
   (* [0 < {1}; 1 < {2}; 2 < {}; 3 < {}] *)
   let sub1 =
     [
@@ -397,7 +375,7 @@ let test_pntg_leq_2 _ =
       SUB.VarSet.empty;
     ]
   in
-  let intvs2 = List.init 4 (fun i -> INTERVALS.create_single 0 (i + 2)) in
+  let intvs2 = List.init 4 (fun i -> Interval.create 0 (i + 2)) in
   (* [0 < {1, 2}; 1 < {2}; 2 < {}; 3 < {}] *)
   let sub2 =
     [
@@ -417,7 +395,7 @@ let test_pntg_leq_2 _ =
 
 (** Check behaviour of meet and bot *)
 let test_pntg_meet_bots _ =
-  let cs = INTERVALS.create_single in
+  let cs = Interval.create in
   let assert_equal expected result = 
     assert_equal expected result
   in
@@ -450,14 +428,14 @@ let test_pntg_meet_bots _ =
 
 (** Meet empty pentagons *)
 let test_pntg_meet _ =
-  let cs = INTERVALS.create_single in
+  let cs = Interval.create in
   let env1 = Apron.Environment.make (Array.init 2 (fun i -> Apron.Var.of_string (string_of_int i))) [||] in 
   let env2 = Apron.Environment.make (Array.init 3 (fun i -> Apron.Var.of_string (string_of_int i))) [||] in 
   let pntg_1 =
     ({ d = Some { intv = [cs 1 2; cs (-3) 5]; sub = [SUB.VarSet.singleton 2; SUB.VarSet.empty] }; env = env1 } : D.t)
   in
   let pntg_2 =
-    ({ d = Some { intv = [cs (-2) 5; INTERVALS.top_single (); cs min_int max_int]; sub = [SUB.VarSet.empty; SUB.VarSet.singleton 1; SUB.VarSet.empty] }; env = env2 } : D.t)
+    ({ d = Some { intv = [cs (-2) 5; Interval.top (); cs min_int max_int]; sub = [SUB.VarSet.empty; SUB.VarSet.singleton 1; SUB.VarSet.empty] }; env = env2 } : D.t)
   in
   let expected =
     ({ d = Some { intv = [cs 1 2; cs (-3) 5; cs min_int max_int]; sub = [SUB.VarSet.singleton 2; SUB.VarSet.singleton 1; SUB.VarSet.empty]};  env = Apron.Environment.lce env1 env2 } : D.t)
