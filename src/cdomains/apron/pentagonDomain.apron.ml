@@ -725,6 +725,7 @@ struct
       (* This is the variable we are assigning to *)
       let dim_x = Environment.dim_of_var t.env var in
       let rec convert_texpr (texp: Texpr1.expr) =
+        let sub_without_x = SUB.forget_vars [dim_x] d.sub in
         (match texp with
          (** Case: x := [inv.inf, inv.sup] *)
          | Cst (Interval inv) ->
@@ -770,7 +771,7 @@ struct
               We do not add redundant information in SUBs. 
               Later checks can derive inequalities by looking at intv.
            *)
-           ({d=Some({intv = intv; sub = SUB.forget_vars [dim_x] sub}); env=t.env}: t)
+           ({d=Some({intv = intv; sub = sub_without_x}); env=t.env}: t)
 
          | Unop  (Cast, e, _, _) -> convert_texpr e
 
@@ -792,7 +793,7 @@ struct
              ) intv_1
            in
            (** TODO: Adjust SUBs *)
-           ({d=Some({intv = intv; sub = SUB.forget_vars [dim_x] d.sub}); env=t.env}: t)
+           ({d=Some({intv = intv; sub = sub_without_x}); env=t.env}: t)
 
          | Binop (Sub, e1, e2, t, r) ->
            convert_texpr (Binop (Add, e1, Unop (Neg, e2, t, r), t, r))
@@ -809,7 +810,7 @@ struct
                fun i1 -> INTERVALS.mul i1 i2 ) intv_1 in
 
            (** TODO: Adjust SUBs *)
-           ({d=Some({intv = intv; sub = SUB.forget_vars [dim_x] d.sub}); env=t.env}: t)
+           ({d=Some({intv = intv; sub = sub_without_x}); env=t.env}: t)
 
          | Binop (Div, e1, e2, _, _) ->
            let pntg1 = convert_texpr e1 in
@@ -822,7 +823,7 @@ struct
            let intv = BatList.modify_at dim_x (
                fun i1 -> INTERVALS.div i1 i2 ) intv_1 in
            (** TODO: Adjust SUBs *)
-           ({d=Some({intv = intv; sub = SUB.forget_vars [dim_x] d.sub}); env=t.env}: t)
+           ({d=Some({intv = intv; sub = sub_without_x}); env=t.env}: t)
 
          (** 
             Implemented as described by the paper mention at the beginning of this file.
@@ -841,7 +842,6 @@ struct
                  INTERVALS.rem i1 i2
              ) intv_1 in
 
-           let sub_without_x = SUB.forget_vars [dim_x] d.sub in
            let sub = 
              match e2 with
              | Var divisor -> (
