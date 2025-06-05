@@ -2,7 +2,6 @@
 
 # gobopt environment variable can be used to override goblint defaults and PARAMs
 
-require 'os'
 require 'find'
 require 'fileutils'
 require 'timeout'
@@ -576,7 +575,14 @@ class ProjectWitness < Project
     end
 end
 
-mac = OS.mac?
+maybemac = true
+
+begin
+    require 'os'
+    maybemac = OS.mac?
+rescue LoadError => e
+    puts "Missing os gem (install with: gem install os), skipping tests that do not work on mac"
+end
 
 #processing the file information
 projects = []
@@ -606,7 +612,7 @@ regs.sort.each do |d|
     lines = IO.readlines(path, :encoding => "UTF-8")
 
     next if not future and only.nil? and lines[0] =~ /SKIP/
-    next if mac and lines[0] =~ /NOMAC/
+    next if maybemac and lines[0] =~ /NOMAC/
     next if marshal and lines[0] =~ /NOMARSHAL/
     next if not has_linux_headers and lines[0] =~ /kernel/
     if incremental then
