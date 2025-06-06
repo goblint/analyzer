@@ -125,7 +125,7 @@ struct
                 value_after
 
       method private try_ask location expression =
-        match ~? (fun () -> (ask location).Queries.f (Queries.EvalInt expression)) with
+        match ~? (fun () -> (ask location).Queries.f (Queries.EvalInt expression)) with (* TODO: Queries.eval_bool? *)
         (* Inapplicable: Unreachable *)
         | Some x when Queries.ID.is_bot_ikind x -> None
         | Some x ->
