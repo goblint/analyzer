@@ -313,22 +313,15 @@ struct
     | Some x, Some y -> (try of_int ik (f x y) with Division_by_zero | Invalid_argument _ -> (top_of ik,{overflow=false; underflow=false}))
     | _, _ -> (top_of ik,{overflow=false; underflow=false})
 
-  let min_val_bit_constrained n =
-    let abs_n = Ints_t.abs n in
-    if Ints_t.compare abs_n Ints_t.one <= 0 then
-      Ints_t.neg Ints_t.one
-    else
-      let rec aux x =
-        if Ints_t.compare x abs_n >= 0 then x else aux (Ints_t.shift_left x 1)
-      in
-      Ints_t.neg @@ aux Ints_t.one
+  let min_val_bit_constrained n = 
+    if Ints_t.equal n Ints_t.zero then 
+      Ints_t.neg Ints_t.one 
+    else 
+      Ints_t.neg @@ Ints_t.shift_left Ints_t.one (Z.numbits (Z.sub (Z.abs @@ Ints_t.to_bigint n) Z.one)) 
 
-  let max_val_bit_constrained n =
-    let abs_n = if Ints_t.compare n Ints_t.zero < 0 then Ints_t.sub (Ints_t.neg n) Ints_t.one else n in
-    let rec aux x =
-      if Ints_t.compare x abs_n > 0 then x else aux (Ints_t.shift_left x 1)
-    in
-    Ints_t.sub (aux Ints_t.one) Ints_t.one
+  let max_val_bit_constrained n = 
+    let x = if Ints_t.compare n Ints_t.zero < 0 then Ints_t.sub (Ints_t.neg n) Ints_t.one else n in
+    Ints_t.sub (Ints_t.shift_left Ints_t.one (Z.numbits @@ Z.abs @@ Ints_t.to_bigint x)) Ints_t.one
 
   let interval_logand ik (i1, i2) = 
     match bit Ints_t.logand ik (i1,i2) with
