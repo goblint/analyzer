@@ -20,8 +20,8 @@ struct
 
   let hash (z: t) = 
     match z with
-    | PosInfty -> failwith "TODO" 
-    | NegInfty -> failwith "TODO"
+    | PosInfty -> failwith "ZExt.pow: TODO" 
+    | NegInfty -> failwith "ZExt.pow: TODO"
     | Arb(z) -> Z.hash z;;
 
   let equal (z1: t) (z2: t) = 
@@ -75,7 +75,7 @@ struct
 
   let add_unsafe z1 z2 =
     match add_opt z1 z2 with
-    | None -> failwith "Cannot add PosInfty and NegInfty or vice versa."
+    | None -> failwith "ZExt.pow: Cannot add PosInfty and NegInfty or vice versa."
     | Some(s) -> s
 
   let rec mul z1 z2 =
@@ -105,6 +105,29 @@ struct
         zero
       else
         z1
+
+  (** We assume that z2 is a non negative value. *)
+  let pow z1 z2 =
+    if sign z2 < 0 then failwith "ZExt.pow: z2 should be non negative" else
+      match z1, z2 with
+      | Arb z1, Arb z2 when Z.sign z1 < 0 && not (Z.fits_nativeint z2)-> 
+        if Z.is_even z2 then PosInfty else NegInfty
+      | Arb z1, Arb z2 when Z.sign z1 > 0 && not (Z.fits_nativeint z2)-> PosInfty
+      | _, Arb z when Z.of_int 0 = z -> of_int 1
+      | Arb z, _ when Z.of_int 0 = z -> zero 
+      | Arb z, _ when Z.of_int 1 = z -> of_int 1
+      | Arb z1, Arb z2 -> Arb(Z.pow z1 (Z.to_int z2))
+      | Arb z, PosInfty -> 
+        if Z.sign z < 0 then
+          failwith "ZExt.pow: Can't decide if positive or negative"
+        else
+          PosInfty
+      | PosInfty, _ -> PosInfty
+      | NegInfty, Arb z -> if Z.is_even z then PosInfty else NegInfty
+      | NegInfty, PosInfty -> failwith "ZExt.pow: Can't decide if positive or negative"
+      | _, NegInfty -> failwith "ZExt.pow: z2 should be non negative"
+
+
 
   let abs z1 = if z1 < zero then neg z1 else z1;;
 
@@ -173,8 +196,11 @@ struct
         ZExt.max4 (x1 / y1) (x1 / y2) (x2 / y1) (x2 / y2)
       ): t)
 
+
+  (** Checks for bot interval. *)
   let sup (i: t) = if is_bot i then ZExt.NegInfty else snd i;;
 
+  (** Checks for bot interval. *)
   let inf (i: t) = if is_bot i then ZExt.PosInfty else fst i;;
 
   (** Checks whether the lower bound is -infty, i.e., unbound *)
@@ -199,6 +225,44 @@ struct
     else
       let ub_minus_1 = ZExt.add_unsafe (ZExt.max (ZExt.abs l2) (ZExt.abs u2)) (ZExt.of_int (-1)) in
       inter i1 ((ZExt.neg ub_minus_1, ub_minus_1): t)
+
+
+  (**
+     We assume that i2 does not contain negative values.
+     We assume that i1 and i2 are well-formed, i.e. not bot or empty.
+  *)
+  let pow (i1: t) (i2: t) =
+    let (l1, u1) = i1 in
+    let (l2, u2) = i2 in
+
+    if l2 < ZExt.zero then
+      top ()
+
+    else if l2 = u2 then
+      let b1 = ZExt.pow l1 l2 in
+      let b2 = ZExt.pow u1 u2 in
+      (ZExt.min b1 b2, ZExt.max b1 b2)
+
+    else if l1 < ZExt.of_int (-1) then
+      match u2 with
+      | PosInfty -> top ()
+      | NegInfty -> failwith "Interval.pow should not happen"
+      | Arb z -> 
+        if Z.is_even z then
+          let l = ZExt.pow l1 (ZExt.add_unsafe u2 (ZExt.of_int(-1))) in
+          let max = ZExt.max (ZExt.abs u1) (ZExt.abs l1) in
+          let u = ZExt.pow max u2 in
+          (l, u)
+        else
+          let l = ZExt.pow l1 u2 in
+          let u' = ZExt.pow l1 (ZExt.add_unsafe u2 (ZExt.of_int(-1))) in
+          let u'' = if u1 > (ZExt.of_int 0) then ZExt.pow u1 u2 else u' in
+          let u = ZExt.max u' u'' in
+          (l, u)
+    else
+      failwith "toto"
+  ;;
+
 
 
   (**
@@ -707,58 +771,55 @@ struct
     | Mpfrf(mpfrf) -> ZExt.of_float (Mpfrf.to_float mpfrf)
 
 
-  open IntDomain0
-  module IArith = IntervalArith (IntOps.BigIntOps)
-  let assign_texpr (t: t) var (texp: Texpr1.expr) =
-    let exception NotLinear in
-    match t.d with
-    | None -> bot ()
-    | Some d ->
-      (**
-         TODO: Adjust the environments of the returned pentagons, currently new variables are not added.
-      *)
 
-      (* This is the variable we are assigning to *)
-      let dim_x = Environment.dim_of_var t.env var in
-      let rec convert_texpr (texp: Texpr1.expr) =
-        let sub_without_x = SUB.forget_vars [dim_x] d.sub in
+  let assign_texpr (t: t) var (texp: Texpr1.expr) =
+
+    let dim = Environment.dim_of_var t.env var in
+
+    let rec convert_texpr (texp: Texpr1.expr) t : INTV.t * SUB.t =
+      match t.d with
+      | None -> ([], []) (** Bot *)
+      | Some d ->
+        let intv, sub = d.intv, d.sub in
+
+        let sub_without_var = SUB.forget_vars [dim] sub in
+        let intv_without_var = INTV.forget_vars [dim] intv in
         (match texp with
          (** Case: x := [inv.inf, inv.sup] *)
          | Cst (Interval inv) ->
-           let intv = BatList.modify_at dim_x (fun _ -> (z_ext_of_scalar inv.inf, z_ext_of_scalar inv.sup)) d.intv
+           let intv = BatList.modify_at dim (fun _ -> (z_ext_of_scalar inv.inf, z_ext_of_scalar inv.sup)) intv
            in
-           ({d=Some({intv = intv; sub = d.sub}); env=t.env}: t)
+           (intv, sub)
 
          (** Case: x := s *)
          | Cst (Scalar s) -> 
-           let intv = BatList.modify_at dim_x (fun _ -> (z_ext_of_scalar s, z_ext_of_scalar s)) d.intv
+           let intv = BatList.modify_at dim (fun _ -> (z_ext_of_scalar s, z_ext_of_scalar s)) intv
            in
-           ({d=Some({intv = intv; sub = d.sub}); env=t.env}: t)
+           (intv, sub)
 
          (** Case: x := y *)
          | Var y ->
            let dim_y = Environment.dim_of_var t.env y in
-           let intv = BatList.modify_at dim_x (fun _ -> BatList.at d.intv dim_y) d.intv in
-           let sub = d.sub |>
-                     SUB.forget_vars [dim_x] |>
+           let intv = BatList.modify_at dim (fun _ -> BatList.at intv dim_y) intv in
+           let sub = sub |>
+                     SUB.forget_vars [dim] |>
                      (* x = y ==> if z < y then also z < x *)
                      SUB.VarList.map (
                        fun set ->
                          if SUB.VarSet.mem dim_y set then
-                           SUB.VarSet.add dim_x set
+                           SUB.VarSet.add dim set
                          else 
                            set
                      ) |>
                      (* SUBs of x := SUBs of y *)
-                     BatList.modify_at dim_x (fun _ -> BatList.at d.sub dim_y)
+                     BatList.modify_at dim (fun _ -> BatList.at sub dim_y)
            in
-           ({d=Some({intv = intv; sub = sub}); env=t.env}: t)
+           (intv, sub)
 
          | Unop  (Neg,  e, _, _) -> 
-           let pntg = convert_texpr e in
-           let d = Option.get pntg.d in
-           let intv, sub = d.intv, d.sub in
-           let intv = BatList.modify_at dim_x (
+           let (intv, sub) = convert_texpr e t in
+
+           let intv = BatList.modify_at dim (
                fun intv ->
                  (ZExt.neg (Interval.sup intv), ZExt.neg (Interval.inf intv))
              ) intv
@@ -767,71 +828,58 @@ struct
               We do not add redundant information in SUBs. 
               Later checks can derive inequalities by looking at intv.
            *)
-           ({d=Some({intv = intv; sub = sub_without_x}); env=t.env}: t)
+           (intv, sub_without_var)
 
-         | Unop  (Cast, e, _, _) -> convert_texpr e
+         | Unop  (Cast, e, _, _) -> convert_texpr e t
 
          | Unop  (Sqrt, e, _, _) ->
-           (** What is the semantics of Sqrt. May we still support this? *)
-           raise NotLinear
-
+           (** 
+              TODO: What is the semantics of Sqrt. May we still support this? 
+           *)
+           (intv_without_var, sub_without_var)
          | Binop (Add, e1, e2, _, _) -> 
-           let pntg1 = convert_texpr e1 in
-           let pntg2 = convert_texpr e2 in
-           let d1, d2 = Option.get pntg1.d, Option.get pntg2.d in
-           let intv_1, sub_1 = d1.intv, d1.sub in
-           let intv_2, sub_2 = d2.intv, d2.sub in
+           let (intv_1, sub_1) = convert_texpr e1 t in
+           let (intv_2, sub_2) = convert_texpr e2 t in
 
-           let i2 = BatList.at intv_2 dim_x in
-           let intv = BatList.modify_at dim_x (
+           let i2 = BatList.at intv_2 dim in
+           let intv = BatList.modify_at dim (
                fun i1 ->
                  Interval.add i1 i2
              ) intv_1
            in
-           ({d=Some({intv = intv; sub = sub_without_x}); env=t.env}: t)
+           (intv, sub_without_var)
 
          | Binop (Sub, e1, e2, t, r) ->
-           convert_texpr (Binop (Add, e1, Unop (Neg, e2, t, r), t, r))
+           convert_texpr (Binop (Add, e1, Unop (Neg, e2, t, r), t, r)) t
 
          | Binop (Mul, e1, e2, _, _) ->
-           let pntg1 = convert_texpr e1 in
-           let pntg2 = convert_texpr e2 in
-           let d1, d2 = Option.get pntg1.d, Option.get pntg2.d in
-           let intv_1, sub_1 = d1.intv, d1.sub in
-           let intv_2, sub_2 = d2.intv, d2.sub in
+           let (intv_1, sub_1) = convert_texpr e1 t in
+           let (intv_2, sub_2) = convert_texpr e2 t in
 
-           let i2 = BatList.at intv_2 dim_x in
-           let intv = BatList.modify_at dim_x (
+           let i2 = BatList.at intv_2 dim in
+           let intv = BatList.modify_at dim (
                fun i1 -> Interval.mul i1 i2 ) intv_1 in
-
-           ({d=Some({intv = intv; sub = sub_without_x}); env=t.env}: t)
+           (intv, sub_without_var)
 
          | Binop (Div, e1, e2, _, _) ->
-           let pntg1 = convert_texpr e1 in
-           let pntg2 = convert_texpr e2 in
-           let d1, d2 = Option.get pntg1.d, Option.get pntg2.d in
-           let intv_1, sub_1 = d1.intv, d1.sub in
-           let intv_2, sub_2 = d2.intv, d2.sub in
+           let (intv_1, sub_1) = convert_texpr e1 t in
+           let (intv_2, sub_2) = convert_texpr e2 t in
 
-           let i2 = BatList.at intv_2 dim_x in
-           let intv = BatList.modify_at dim_x (
+           let i2 = BatList.at intv_2 dim in
+           let intv = BatList.modify_at dim (
                fun i1 -> Interval.div i1 i2 ) intv_1 in
-           (** TODO: Adjust SUBs *)
-           ({d=Some({intv = intv; sub = sub_without_x}); env=t.env}: t)
+           (intv, sub_without_var)
 
          (** 
             Implemented as described by the paper mention at the beginning of this file.
             Refer to 6.2.2 Remainder.
          *)
          | Binop (Mod, e1, e2, _, _)  ->
-           let pntg1 = convert_texpr e1 in
-           let pntg2 = convert_texpr e2 in
-           let d1, d2 = Option.get pntg1.d, Option.get pntg2.d in
-           let intv_1, sub_1 = d1.intv, d1.sub in
-           let intv_2, sub_2 = d2.intv, d2.sub in
+           let (intv_1, sub_1) = convert_texpr e1 t in
+           let (intv_2, sub_2) = convert_texpr e2 t in
 
-           let i2 = BatList.at intv_2 dim_x in
-           let intv = BatList.modify_at dim_x (
+           let i2 = BatList.at intv_2 dim in
+           let intv = BatList.modify_at dim (
                fun i1 -> 
                  Interval.rem i1 i2
              ) intv_1 in
@@ -843,21 +891,32 @@ struct
                  let intv_divisor = BatList.at intv_2 dim_divisor
                  in
                  if (Interval.inf intv_divisor) < ZExt.zero then 
-                   sub_without_x
+                   sub_without_var
                  else
-                   BatList.modify_at dim_x (fun _ -> SUB.VarSet.singleton dim_divisor) sub_without_x
+                   BatList.modify_at dim (fun _ -> SUB.VarSet.singleton dim_divisor) sub_without_var
                )
-             | _ -> sub_without_x
+             | _ -> sub_without_var
            in
-           ({d=Some({intv = intv; sub = sub}); env=t.env}: t)
+           (intv, sub)
 
 
+         (** e1 ^ e2 *)
          | Binop (Pow, e1, e2, _, _) -> 
-           let pntg1 = convert_texpr e1 in
-           let pntg2 = convert_texpr e2 in
-           top_of_env t.env)
-      in
-      convert_texpr texp;;
+           let (intv_1, sub_1) = convert_texpr e1 t in
+           let (intv_2, sub_2) = convert_texpr e2 t in
+
+           let i2 = BatList.at intv_2 dim in
+           let intv = BatList.modify_at dim (
+               fun i1 -> 
+                 Interval.pow i1 i2
+             ) intv_1 in
+
+           (intv, sub_without_var)
+        ) in
+
+    let (intv, sub) = convert_texpr texp t in
+    { d=Some({ intv = intv; sub = sub }); env = t.env }
+  ;;
 
 
   let assign_texpr t var texp = Timing.wrap "assign_texpr" (assign_texpr t var) texp
@@ -875,6 +934,16 @@ struct
 
   let assign_var_parallel (t: t) (var_tuples: (var *  var) list) : t = failwith "TODO assign_var_parallel"
 
+
+  (**sig: f(a, z, e)
+
+     f(3, -2, 24)
+
+     a:= 3
+     z:= -2
+     e:= 24
+
+   **)
   (**
      Combines two var lists into a list of tuples and runs assign_var_parallel
   *)
@@ -887,7 +956,24 @@ struct
     t.d <- t'.d;
     t.env <- t'.env;;
 
-  let assert_constraint ask d e negate no_ov : t = failwith "TODO assert constraint"
+
+  let modify_pntg t texpr = failwith "TODO"
+
+  (**
+      Taken from Lin2Var.
+      Assert a constraint expression. Defined in apronDomain.apron.ml
+
+      If the constraint is never fulfilled, then return bottom.
+      Else the domain can be modified with the new information given by the constraint.
+
+      It is called by eval (defined in sharedFunctions), but also when a guard in
+      e.g. an if statement is encountered in the C code.
+
+  *)
+  let assert_constraint ask t e negate (no_ov: bool Lazy.t) =
+    match Convert.tcons1_of_cil_exp ask t t.env e negate no_ov with
+    | tcons1 -> let texpr = (Texpr1.to_expr @@ Tcons1.get_texpr1 tcons1) in modify_pntg t texpr
+    | exception Convert.Unsupported_CilExp _ -> t
 
   let invariant t : Lincons1Set.elt list = failwith "TODO invariant"
 
