@@ -106,28 +106,20 @@ struct
       else
         z1
 
-  (** We assume that z2 is a non negative value. *)
   let pow z1 z2 =
     if sign z2 < 0 then failwith "ZExt.pow: z2 should be non negative" else
       match z1, z2 with
-      | Arb z1, Arb z2 when Z.sign z1 < 0 && not (Z.fits_nativeint z2)-> 
+      | Arb z1, Arb z2 when Z.sign z1 < 0 && not (Z.fits_nativeint z2) -> 
         if Z.is_even z2 then PosInfty else NegInfty
-      | Arb z1, Arb z2 when Z.sign z1 > 0 && not (Z.fits_nativeint z2)-> PosInfty
-      | _, Arb z when Z.of_int 0 = z -> of_int 1
+      | Arb z1, Arb z2 when Z.sign z1 > 0 && not (Z.fits_nativeint z2) -> PosInfty
+      | _, Arb z when Z.of_int 0 = z -> (of_int 1)
       | Arb z, _ when Z.of_int 0 = z -> zero 
-      | Arb z, _ when Z.of_int 1 = z -> of_int 1
-      | Arb z1, Arb z2 -> Arb(Z.pow z1 (Z.to_int z2))
-      | Arb z, PosInfty -> 
-        if Z.sign z < 0 then
-          failwith "ZExt.pow: Can't decide if positive or negative"
-        else
-          PosInfty
-      | PosInfty, _ -> PosInfty
+      | Arb z, _ when Z.of_int 1 = z -> (of_int 1)
+      | Arb z1, Arb z2 -> (Arb(Z.pow z1 (Z.to_int z2)))
+      | z1, PosInfty when sign z1 < 0 -> failwith "ZExt.pow: Cannot determine whether result is NegInfty or PosInfty (or -1 or 1 for z1 = -1) -> depends on the side of the interval"
+      | PosInfty, _ | _, PosInfty -> PosInfty
       | NegInfty, Arb z -> if Z.is_even z then PosInfty else NegInfty
-      | NegInfty, PosInfty -> failwith "ZExt.pow: Can't decide if positive or negative"
-      | _, NegInfty -> failwith "ZExt.pow: z2 should be non negative"
-
-
+      | _, NegInfty -> failwith "This shouldn't happen (caught in second line of ZExt.pow)"
 
   let abs z1 = if z1 < zero then neg z1 else z1;;
 
@@ -228,42 +220,52 @@ struct
 
 
   (**
-     We assume that i2 does not contain negative values.
-     We assume that i1 and i2 are well-formed, i.e. not bot or empty.
+     We assume that i1 and i2 are well-formed, i.e. not bot/empty.
   *)
-  let pow (i1: t) (i2: t) =
-    let (l1, u1) = i1 in
-    let (l2, u2) = i2 in
-
-    if l2 < ZExt.zero then
-      top ()
-
-    else if l2 = u2 then
-      let b1 = ZExt.pow l1 l2 in
-      let b2 = ZExt.pow u1 u2 in
-      (ZExt.min b1 b2, ZExt.max b1 b2)
-
-    else if l1 < ZExt.of_int (-1) then
+  let pow ((l1, u1): t) ((l2, u2): t) =
+    if l2 < ZExt.zero then top () (* x ^ (-1) is unsupported operation on ints ==> we treat it as undefined behavior, same as division by 0 *)
+    else
       match u2 with
-      | PosInfty -> top ()
+      | PosInfty -> if l1 <= ZExt.of_int (-2) then top () (* can create arbitrarily big numbers with (-2) ^ x *)
+        else if l1 >= ZExt.zero then (ZExt.pow l1 l2, ZExt.pow u1 PosInfty)
+        else (* l1 = -1 *)
+        if u1 = ZExt.of_int (-1) then (ZExt.of_int (-1), ZExt.of_int 1)
+        else (ZExt.of_int (-1), ZExt.pow u1 PosInfty)
       | NegInfty -> failwith "Interval.pow should not happen"
-      | Arb z -> 
-        if Z.is_even z then
-          let l = ZExt.pow l1 (ZExt.add_unsafe u2 (ZExt.of_int(-1))) in
-          let max = ZExt.max (ZExt.abs u1) (ZExt.abs l1) in
-          let u = ZExt.pow max u2 in
+      | Arb u2z when l1 < ZExt.zero ->
+        if l2 = u2 then (* special case because we don't have an even AND an odd number ==> may be impossible to mirror negative numbers *)
+          let exp = l2 in
+          if exp = ZExt.zero then (ZExt.of_int 1, ZExt.of_int 1) else
+          if Z.is_even u2z then
+            if u1 >= ZExt.zero then
+              (* i1 contains negative and nonnegative numbers, exp != 0 is even ==> lb = 0, ub depends on greater abs value of bounds *)
+              let max_abs = ZExt.max (ZExt.abs l1) u1 in
+              let u = ZExt.pow max_abs exp in
+              (ZExt.zero, u) else
+              (* x -> x ^ n is monotonically decreasing for even n and negative x *)
+              let l = ZExt.pow u1 exp in
+              let u = ZExt.pow l1 exp in
+              (l, u)
+          else (* exp is odd *)
+            (* x -> x ^ n is monotonically increasing for odd n *)
+            (ZExt.pow l1 exp, ZExt.pow u1 exp)
+        else
+          (* we have at least one even and one odd number in the exponent ==> negative numbers can be mirrored if needed *)
+        if Z.is_even u2z then
+          let l = ZExt.pow l1 (ZExt.add_unsafe u2 (ZExt.of_int (-1))) in
+          let max_abs = ZExt.max (ZExt.abs l1) (ZExt.abs u1) in
+          let u = ZExt.pow max_abs u2 in
           (l, u)
         else
           let l = ZExt.pow l1 u2 in
-          let u' = ZExt.pow l1 (ZExt.add_unsafe u2 (ZExt.of_int(-1))) in
+          let u' = ZExt.pow l1 (ZExt.add_unsafe u2 (ZExt.of_int (-1))) in
           let u'' = if u1 > (ZExt.of_int 0) then ZExt.pow u1 u2 else u' in
           let u = ZExt.max u' u'' in
           (l, u)
-    else
-      failwith "toto"
-  ;;
-
-
+      | _ -> (* i1 is nonnegative ==> no special cases here :) *)
+        let l = ZExt.pow l1 l2 in
+        let u = ZExt.pow u1 u2 in
+        (l, u)
 
   (**
      Creates a single interval from the supplied integer values.
