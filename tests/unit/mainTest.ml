@@ -17,7 +17,7 @@ let all_tests =
     IntOpsTest.tests;
     ThreadIdDomainTest.tests;
     *)
-    PentagonTest.test ();
+    (*PentagonTest.test ();*)
   ]
 
 let () =

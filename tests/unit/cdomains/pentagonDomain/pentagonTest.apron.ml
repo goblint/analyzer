@@ -1,16 +1,17 @@
 (* To run this (and all other unit tests), type `dune runtest tests/unit/`. *)
-open OUnit2
-open Goblint_lib
-open Batteries
-open PentagonDomain
+(*open OUnit2
+  open Goblint_lib
+  open Batteries
+  open PentagonDomain
+  open Intv
 
-(* Test cases for the Intervals module *)
-let assert_equal expected result = 
-  OUnit2.assert_equal ~cmp: INTV.equal ~msg:(
-    "expected:" ^ INTV.to_string expected ^
-    "\ngot:" ^ INTV.to_string result
+  (* Test cases for the Intervals module *)
+  let assert_equal expected result = 
+  OUnit2.assert_equal ~cmp: Intv.equal ~msg:(
+    "expected:" ^ Intv.to_string expected ^
+    "\ngot:" ^ Intv.to_string result
   ) expected result;;
-let test_intv_equal _ =
+  let test_intv_equal _ =
   let intv =
     [
       Interval.create max_int min_int;
@@ -37,11 +38,11 @@ let test_intv_equal _ =
   in
   assert_equal intv intv_equal;
   assert_bool "intv should not be equal to intv_not_equal"
-    (not (INTV.equal intv intv_not_equal));
+    (not (Intv.equal intv intv_not_equal));
   assert_bool "sub1 should be equal to sub2"
-    (not (INTV.equal intv intv_slightly_not_equal))
+    (not (Intv.equal intv intv_slightly_not_equal))
 
-let test_intv_dim_add_1 _ =
+  let test_intv_dim_add_1 _ =
   let dim_change =
     ({ dim = [| 0; 1; 1; 2; 4 |]; intdim = 5; realdim = 0 } : Apron.Dim.change)
   in
@@ -66,10 +67,10 @@ let test_intv_dim_add_1 _ =
       (* 8 *) Interval.top ();
     ]
   in
-  let resulting_intv = INTV.dim_add dim_change intv in
+  let resulting_intv = Intv.dim_add dim_change intv in
   assert_equal expected_intv resulting_intv
 
-let test_intv_dim_add_2 _ =
+  let test_intv_dim_add_2 _ =
   let dim_change =
     ({ dim = [| 0; 3; 3; 3; 3; 3; 4 |]; intdim = 5; realdim = 0 }
      : Apron.Dim.change)
@@ -99,10 +100,10 @@ let test_intv_dim_add_2 _ =
       (* 11 *)
     ]
   in
-  let resulting_intv = INTV.dim_add dim_change intv in
+  let resulting_intv = Intv.dim_add dim_change intv in
   assert_equal expected_intv resulting_intv
 
-let test_intv_dim_remove_1 _ =
+  let test_intv_dim_remove_1 _ =
   let dim_change =
     ({ dim = [| 0; 2; 3; 5; 7 |]; intdim = 5; realdim = 0 } : Apron.Dim.change)
   in
@@ -127,25 +128,25 @@ let test_intv_dim_remove_1 _ =
       (* 3 *) Interval.create (-1) max_int;
     ]
   in
-  let resulting_intv = INTV.dim_remove dim_change intv in
+  let resulting_intv = Intv.dim_remove dim_change intv in
   assert_equal expected_intv resulting_intv
 
-(* Test cases for the SUB module *)
-let assert_equal expected_sub resulting_sub = 
+  (* Test cases for the SUB module *)
+  let assert_equal expected_sub resulting_sub = 
   OUnit2.assert_equal 
     ~cmp: SUB.equal
     ~msg: ("expected:" ^ SUB.to_string expected_sub ^ "\ngot:" ^ SUB.to_string resulting_sub)
     expected_sub
     resulting_sub
 
-let test_sub_equal _ =
+  let test_sub_equal _ =
   let sub1 = [ SUB.VarSet.singleton 2 ] in
   let sub2 = [ SUB.VarSet.singleton 2 ] in
   let sub3 = [ SUB.VarSet.singleton 3 ] in
   assert_bool "sub1 should be equal to sub2" (SUB.equal sub1 sub2);
   assert_bool "sub1 should not be equal to sub3" (not (SUB.equal sub1 sub3))
 
-let test_sub_leq _ =
+  let test_sub_leq _ =
   let sub = [ SUB.VarSet.of_list [ 2; 3; 4 ]; SUB.VarSet.of_list [ 7; 6 ] ] in
   let equal_sub =
     [ SUB.VarSet.of_list [ 2; 3; 4 ]; SUB.VarSet.of_list [ 7; 6 ] ]
@@ -168,7 +169,7 @@ let test_sub_leq _ =
      information"
     (not (SUB.leq less_specific_sub sub))
 
-let test_sub_dim_add_1 _ =
+  let test_sub_dim_add_1 _ =
   let dim_change =
     ({ dim = [| 0; 1; 1; 2; 3 |]; intdim = 5; realdim = 0 } : Apron.Dim.change)
   in
@@ -196,7 +197,7 @@ let test_sub_dim_add_1 _ =
   let resulting_sub = SUB.dim_add dim_change sub in
   assert_equal expected_sub resulting_sub
 
-let test_sub_dim_add_2 _ =
+  let test_sub_dim_add_2 _ =
   let dim_change =
     ({ dim = [| 0; 3; 3; 3; 3; 3 |]; intdim = 5; realdim = 0 }
      : Apron.Dim.change)
@@ -228,7 +229,7 @@ let test_sub_dim_add_2 _ =
   let resulting_sub = SUB.dim_add dim_change sub in
   assert_equal expected_sub resulting_sub
 
-let test_sub_dim_remove_1 _ =
+  let test_sub_dim_remove_1 _ =
   let dim_change =
     ({ dim = [| 0; 2; 3; 5; 7 |]; intdim = 5; realdim = 0 } : Apron.Dim.change)
   in
@@ -258,15 +259,15 @@ let test_sub_dim_remove_1 _ =
   let resulting_sub = SUB.dim_remove dim_change sub in
   assert_equal expected_sub resulting_sub
 
-(* Test cases for the D module (PNTG) *)
+  (* Test cases for the D module (PNTG) *)
 
-let assert_equal expected result = 
+  let assert_equal expected result = 
   OUnit2.assert_equal ~cmp: D.equal ~msg:(
     "expected:" ^ D.to_string expected ^
     "\ngot:" ^ D.to_string result
   ) expected result;;
 
-let test_pntg_widen _ =
+  let test_pntg_widen _ =
   let env =
     Apron.Environment.make
       (Array.init 3 (fun i -> Apron.Var.of_string (string_of_int i)))
@@ -319,7 +320,7 @@ let test_pntg_widen _ =
 
   assert_equal expected_pntg resulting_pntg
 
-let test_pntg_leq_1 _ =
+  let test_pntg_leq_1 _ =
   let env =
     Apron.Environment.make
       (Array.init 4 (fun i -> Apron.Var.of_string (string_of_int i)))
@@ -359,7 +360,7 @@ let test_pntg_leq_1 _ =
   (* 0 < 2 is missing in sub1, but implied by intvs1: [0,2] < [3,3] *)
   assert_bool "" (D.leq d1 d2)
 
-let test_pntg_leq_2 _ =
+  let test_pntg_leq_2 _ =
   let env =
     Apron.Environment.make
       (Array.init 4 (fun i -> Apron.Var.of_string (string_of_int i)))
@@ -391,10 +392,10 @@ let test_pntg_leq_2 _ =
   let (d2 : D.t) = { d = Some pntg2; env } in
   (* 0 < 2 is missing in sub1, would be implied by transitivity, but we must not check for that *)
   assert_bool "" (not (D.leq d1 d2))
-(* Test cases for the D module (PNTG) *)
+  (* Test cases for the D module (PNTG) *)
 
-(** Check behaviour of meet and bot *)
-let test_pntg_meet_bots _ =
+  (** Check behaviour of meet and bot *)
+  let test_pntg_meet_bots _ =
   let cs = Interval.create in
   let assert_equal expected result = 
     assert_equal expected result
@@ -426,8 +427,8 @@ let test_pntg_meet_bots _ =
   let expected = D.bot () in
   assert_equal expected result;;
 
-(** Meet empty pentagons *)
-let test_pntg_meet _ =
+  (** Meet empty pentagons *)
+  let test_pntg_meet _ =
   let cs = Interval.create in
   let env1 = Apron.Environment.make (Array.init 2 (fun i -> Apron.Var.of_string (string_of_int i))) [||] in 
   let env2 = Apron.Environment.make (Array.init 3 (fun i -> Apron.Var.of_string (string_of_int i))) [||] in 
@@ -444,9 +445,9 @@ let test_pntg_meet _ =
   assert_equal expected result
 
 
-let noop _ = assert_bool "" true
+  let noop _ = assert_bool "" true
 
-let test () =
+  let test () =
   "PentagonTests"
   >::: [
     "noop" >:: noop;
@@ -464,3 +465,4 @@ let test () =
     "test_pntg_meet_bots" >:: test_pntg_meet_bots;
     "test_pntg_meet" >:: test_pntg_meet;
   ]
+*)

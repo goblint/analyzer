@@ -32,5 +32,5 @@
 ; Workaround for alternative dependencies with unqualified subdirs.
 ; See: https://github.com/ocaml/dune/issues/4383#issuecomment-805107435.
 ; TODO: Remove workaround with dune 3.0, where this should get fixed.
-; A dune file with "include_subdirs no" is located in cdomains/affineEqualityDomain to avoid a dependency cycle
+; A dune file with "include_subdirs no" is located in cdomains/pentagonDomain to avoid a dependency cycle
 (copy_files# cdomains/pentagonDomain/*.ml)
