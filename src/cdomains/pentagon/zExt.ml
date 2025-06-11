@@ -1,4 +1,5 @@
 open Z
+open GobApron
 
 (** 
    Extension of the Zarith types and funcitons.
@@ -34,7 +35,15 @@ struct
 
   let of_int i = Arb(Z.of_int i)
 
-  let of_float i = Arb(Z.of_float i)
+  let of_float f =
+    if Float.is_nan f then 
+      failwith "ZExt.of_float: Tried to convert Nan." 
+    else if Float.is_finite f then 
+      Arb(Z.of_float f) 
+    else if Float.sign_bit f then 
+      NegInfty
+    else 
+      PosInfty
 
   let zero = of_int 0
 
@@ -65,8 +74,21 @@ struct
 
   let add_unsafe z1 z2 =
     match add_opt z1 z2 with
-    | None -> failwith "ZExt.pow: Cannot add PosInfty and NegInfty or vice versa."
+    | None -> failwith "ZExt.add_unsafe: Cannot add PosInfty and NegInfty or vice versa."
     | Some(s) -> s
+
+  (** Alias for add_unsafe *)
+  let add = add_unsafe
+
+  (** Alias for add z1 (neg z2) *)
+  let sub z1 z2 = add z1 (neg z2)
+
+  let rem_add (Arb z1) (Arb z2) =
+    let rem = Z.rem z1 z2 in
+    if Z.sign rem < 0 then 
+      Arb (Z.add rem z2)
+    else
+      Arb(rem)
 
   let rec mul z1 z2 =
     match z1, z2 with
@@ -133,4 +155,11 @@ struct
   (** Taken from module IArith *)
   let max4 a b c d = max (max a b) (max c d)
 
+
+  let of_scalar (s :Scalar.t) = 
+    match s with
+    | Float of float
+    | Mpqf of Mpqf.t
+    | Mpfrf of Mpfrf.t
+  ;;
 end

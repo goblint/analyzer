@@ -119,6 +119,9 @@ struct
   *)
   let bot () = {d = None; env = empty_env}
 
+  let bot_of_env env = ({ d = None; env = env }:t)
+
+
   (**
      Top creation does not make sense if we do not know anything about our variables.
      We assume no variables have been encountered when this funciton is called.
@@ -403,7 +406,10 @@ struct
         ) in
 
     let (intv, sub) = convert_texpr texp t in
-    { d=Some({ intv = intv; sub = sub }); env = t.env }
+    match intv, sub with
+    | [], [] -> { d= None; env=t.env }
+    | _ ->
+      { d=Some({ intv = intv; sub = sub }); env = t.env }
   ;;
 
 
@@ -433,15 +439,6 @@ struct
     | _ -> t
 
 
-  (**sig: f(a, z, e)
-
-     f(3, -2, 24)
-
-     a:= 3
-     z:= -2
-     e:= 24
-
-   **)
   (**
      Combines two var lists into a list of tuples and runs assign_var_parallel
   *)
@@ -454,24 +451,54 @@ struct
     t.d <- t'.d;
     t.env <- t'.env;;
 
-
-  let modify_pntg t texpr = failwith "TODO"
-
   (**
       Taken from Lin2Var.
-      Assert a constraint expression. Defined in apronDomain.apron.ml
-
-      If the constraint is never fulfilled, then return bottom.
-      Else the domain can be modified with the new information given by the constraint.
-
-      It is called by eval (defined in sharedFunctions), but also when a guard in
-      e.g. an if statement is encountered in the C code.
 
   *)
   let assert_constraint ask t e negate (no_ov: bool Lazy.t) =
-    match Convert.tcons1_of_cil_exp ask t t.env e negate no_ov with
-    | tcons1 -> let texpr = (Texpr1.to_expr @@ Tcons1.get_texpr1 tcons1) in modify_pntg t texpr
-    | exception Convert.Unsupported_CilExp _ -> t
+    let interval_helper ((lb, ub): ZExt.t * ZExt.t) tcons =
+      let zero = ZExt.of_int 0 in 
+      match Tcons1.get_typ tcons with
+      | EQ when lb <= zero && ub >= zero -> t
+      | SUPEQ when ub >= zero -> t
+      | SUP when ub >= zero -> t
+      | DISEQ when ub <> zero || lb <> zero -> t
+      | EQMOD (s) -> (
+          let s = z_ext_of_scalar s in
+          let ( - ) = ZExt.sub in
+          if (ub - lb) <= (s - ZExt.of_int 2) && (ZExt.rem_add lb s) <= (ZExt.rem_add ub s) then
+            t 
+          else
+            bot_of_env t.env
+        )
+      | _ -> bot_of_env t.env
+    in
+    match t.d with 
+    | None -> t
+    | Some d -> 
+      match Convert.tcons1_of_cil_exp ask t t.env e negate no_ov with
+      | exception Convert.Unsupported_CilExp _ -> t
+      | tcons1 -> 
+        match (Texpr1.to_expr @@ Tcons1.get_texpr1 tcons1) with 
+        | Cst (Interval inv) -> 
+          interval_helper (z_ext_of_scalar inv.inf, z_ext_of_scalar inv.sup) tcons1
+        | Cst (Scalar s) -> 
+          interval_helper (z_ext_of_scalar s, z_ext_of_scalar s) tcons1
+        | Var y -> (
+            (** We ignore sub-information for now. *)
+            let dim_y = Environment.dim_of_var t.env y in
+            let intv_y = List.at d.intv dim_y in
+            interval_helper intv_y tcons1
+          )
+        | Unop  (Neg,  e, _, _) -> failwith "TODO"
+        | Unop  (Cast, e, _, _) -> failwith "TODO"
+        | Unop  (Sqrt, e, _, _) ->failwith "TODO"
+        | Binop (Add, e1, e2, _, _) -> failwith "TODO"
+        | Binop (Sub, e1, e2, t0, r) ->failwith "TODO"
+        | Binop (Mul, e1, e2, _, _) ->failwith "TODO"
+        | Binop (Div, e1, e2, _, _) ->failwith "TODO"
+        | Binop (Mod, e1, e2, _, _)  -> failwith "TODO"
+        | Binop (Pow, e1, e2, _, _) -> failwith "TODO"
 
   let invariant t : Lincons1Set.elt list = failwith "TODO invariant"
 
