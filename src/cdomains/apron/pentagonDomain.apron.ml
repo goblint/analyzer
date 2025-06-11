@@ -996,15 +996,15 @@ struct
       match Tcons1.get_typ tcons with
       | EQ when lb <= zero && ub >= zero -> t
       | SUPEQ when ub >= zero -> t
-      | SUP when ub >= zero -> t
+      | SUP when ub > zero -> t
       | DISEQ when ub <> zero || lb <> zero -> t
       | EQMOD (s) -> (
           let s = z_ext_of_scalar s in
           let ( - ) = ZExt.sub in
           if (ub - lb) <= (s - ZExt.of_int 2) && (ZExt.rem_add lb s) <= (ZExt.rem_add ub s) then
-            t 
-          else
             bot_of_env t.env
+          else
+            t
         )
       | _ -> bot_of_env t.env
     in
