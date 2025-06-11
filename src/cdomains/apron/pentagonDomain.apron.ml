@@ -420,7 +420,17 @@ struct
     assign_texpr t v (Var v');;
 
 
-  let assign_var_parallel (t: t) (var_tuples: (var *  var) list) : t = failwith "TODO assign_var_parallel"
+  let assign_var_parallel (t: t) (var_tuples: (var *  var) list) : t = 
+    let assigned_vars = List.map fst var_tuples in
+    let t = add_vars t assigned_vars in
+    let primed_vars = List.init (List.length assigned_vars) (fun i -> Var.of_string (Int.to_string i  ^"'")) in
+    let t_primed = add_vars t primed_vars in
+    let multi_t = List.fold_left2 (fun t' v_prime (_,v') -> assign_var t' v_prime v') t_primed primed_vars var_tuples in
+    match multi_t.d with
+    | Some m when not @@ is_top multi_t ->
+      let switched_arr = List.fold_left2 (fun multi_t assigned_var primed_var-> assign_var multi_t assigned_var primed_var) multi_t assigned_vars primed_vars in
+      remove_vars switched_arr primed_vars
+    | _ -> t
 
 
   (**sig: f(a, z, e)
