@@ -254,7 +254,7 @@ struct
         else (ZExt.of_int (-1), ZExt.pow u1 PosInfty)
       | NegInfty -> failwith "Interval.pow should not happen"
       | Arb u2z when l1 < ZExt.zero ->
-        if l2 = u2 then (* special case because we don't have an even AND an odd number ==> may be impossible to mirror negative numbers *)
+        if l2 = u2 then (* special case because we don't have an even AND an odd number ==> either impossible to mirror negative numbers or everything gets nonnegative *)
           let exp = l2 in
           if exp = ZExt.zero then (ZExt.of_int 1, ZExt.of_int 1) else
           if Z.is_even u2z then
@@ -272,17 +272,12 @@ struct
             (ZExt.pow l1 exp, ZExt.pow u1 exp)
         else
           (* we have at least one even and one odd number in the exponent ==> negative numbers can be mirrored if needed *)
-        if Z.is_even u2z then
-          let l = ZExt.pow l1 (ZExt.add_unsafe u2 (ZExt.of_int (-1))) in
-          let max_abs = ZExt.max (ZExt.abs l1) (ZExt.abs u1) in
-          let u = ZExt.pow max_abs u2 in
-          (l, u)
-        else
-          let l = ZExt.pow l1 u2 in
-          let u' = ZExt.pow l1 (ZExt.add_unsafe u2 (ZExt.of_int (-1))) in
-          let u'' = if u1 > (ZExt.of_int 0) then ZExt.pow u1 u2 else u' in
-          let u = ZExt.max u' u'' in
-          (l, u)
+          let greatest_even = if Z.is_even u2z then u2 else ZExt.sub u2 (ZExt.of_int 1) in
+          let greatest_odd = if Z.is_odd u2z then u2 else ZExt.sub u2 (ZExt.of_int 1) in
+          let l = ZExt.pow l1 greatest_odd in
+          let u' = ZExt.pow l1 greatest_even in
+          let u'' = if ZExt.sign u1 > 0 then ZExt.pow u1 u2 else u' in
+          (l, ZExt.max u' u'')
       | _ -> (* i1 is nonnegative ==> no special cases here :) *)
         let l = ZExt.pow l1 l2 in
         let u = ZExt.pow u1 u2 in
