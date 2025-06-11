@@ -8,9 +8,549 @@ open GoblintCil
 module M = Messages
 open GobApron
 open BatList
-open Intv
-open Sub
-open ZExt
+
+
+(** 
+   Extension of the Zarith types and funcitons.
+   The values represent arbitrary precision integers and also negative or positive infinity.
+*)
+module ZExt =
+struct
+  type t = PosInfty | NegInfty | Arb of Z.t
+
+  let hash (z: t) = 
+    match z with
+    | PosInfty -> failwith "ZExt.pow: TODO" 
+    | NegInfty -> failwith "ZExt.pow: TODO"
+    | Arb(z) -> Z.hash z;;
+
+  let equal (z1: t) (z2: t) = 
+    match z1, z2 with
+    | PosInfty, PosInfty -> true
+    | NegInfty, NegInfty -> true
+    | Arb(z1), Arb(z2) -> Z.equal z1 z2
+    | _ -> false ;;
+
+  let compare (z1: t) (z2: t) = 
+    match z1, z2 with
+    | NegInfty, NegInfty -> 0
+    | PosInfty, PosInfty -> 0
+    | NegInfty, _ -> -1
+    | _, NegInfty -> 1
+    | PosInfty, _ -> 1
+    | _, PosInfty -> -1
+    | Arb(z1), Arb(z2) -> Z.compare z1 z2;;
+
+
+  let of_int i = Arb(Z.of_int i)
+
+  let of_float f =
+    if Float.is_nan f then 
+      failwith "ZExt.of_float: Tried to convert Nan." 
+    else if Float.is_finite f then 
+      Arb(Z.of_float f) 
+    else if Float.signbit f then 
+      NegInfty
+    else 
+      PosInfty
+
+  let zero = of_int 0
+
+  let to_string = function
+    | NegInfty -> "-∞"
+    | PosInfty -> "+∞"
+    | Arb z -> Z.to_string z
+
+  let neg = function
+    | NegInfty -> PosInfty
+    | PosInfty -> NegInfty
+    | Arb z -> Arb(Z.neg z)
+
+  let sign = function
+    | NegInfty -> -1
+    | PosInfty -> +1
+    | Arb z -> Z.sign z
+
+  let add_opt z1 z2 =
+    match z1, z2 with
+    | PosInfty, NegInfty -> None
+    | NegInfty, PosInfty -> None
+    | Arb z1, Arb z2 -> Some(Arb(Z.add z1 z2))
+    | PosInfty, _ -> Some(PosInfty)
+    | NegInfty, _ -> Some(NegInfty)
+    | _, PosInfty -> Some(PosInfty)
+    | _, NegInfty -> Some(NegInfty)
+
+  let add_unsafe z1 z2 =
+    match add_opt z1 z2 with
+    | None -> failwith "ZExt.add_unsafe: Cannot add PosInfty and NegInfty or vice versa."
+    | Some(s) -> s
+
+  (** Alias for add_unsafe *)
+  let add = add_unsafe
+
+  (** Alias for add z1 (neg z2) *)
+  let sub z1 z2 = add z1 (neg z2)
+
+  let rem_add (Arb z1) (Arb z2) =
+    let rem = Z.rem z1 z2 in
+    if Z.sign rem < 0 then 
+      Arb (Z.add rem z2)
+    else
+      Arb(rem)
+
+  let rec mul z1 z2 =
+    match z1, z2 with
+    | Arb z1, Arb z2 -> Arb(Z.mul z1 z2)
+    | Arb(z1), z2 -> mul z2 (Arb z1)
+    (** z1 is definitely a infty *)
+    | z1, z2 ->
+      if sign z2 < 0 then
+        neg z1
+      else
+      if z2 = zero then
+        zero
+      else
+        z1
+
+  let rec div z1 z2 =
+    match z1, z2 with
+    | Arb z1, Arb z2 -> Arb(Z.div z1 z2)
+    | Arb(z1), z2 -> div z2 (Arb z1)
+    (** z1 is definitely a infty *)
+    | z1, z2 ->
+      if sign z2 < 0 then
+        neg z1
+      else
+      if z2 = zero then
+        zero
+      else
+        z1
+
+  let pow z1 z2 =
+    if sign z2 < 0 then failwith "ZExt.pow: z2 should be non negative" else
+      match z1, z2 with
+      | Arb z1, Arb z2 when Z.sign z1 < 0 && not (Z.fits_nativeint z2) -> 
+        if Z.is_even z2 then PosInfty else NegInfty
+      | Arb z1, Arb z2 when Z.sign z1 > 0 && not (Z.fits_nativeint z2) -> PosInfty
+      | _, Arb z when Z.of_int 0 = z -> (of_int 1)
+      | Arb z, _ when Z.of_int 0 = z -> zero 
+      | Arb z, _ when Z.of_int 1 = z -> (of_int 1)
+      | Arb z1, Arb z2 -> (Arb(Z.pow z1 (Z.to_int z2)))
+      | z1, PosInfty when sign z1 < 0 -> failwith "ZExt.pow: Cannot determine whether result is NegInfty or PosInfty (or -1 or 1 for z1 = -1) -> depends on the side of the interval"
+      | PosInfty, _ | _, PosInfty -> PosInfty
+      | NegInfty, Arb z -> if Z.is_even z then PosInfty else NegInfty
+      | _, NegInfty -> failwith "This shouldn't happen (caught in second line of ZExt.pow)"
+
+  let abs z1 = if z1 < zero then neg z1 else z1;;
+
+  let max z1 z2 = if z1 > z2 then z1 else z2;;
+
+  let min z1 z2 = if z1 < z2 then z1 else z2;;
+
+  (* let min_of_list zs = function 
+     | [] -> failwith "min is undefined on empty lists!"
+     (** Everything is less or equal to PosInfty. *)
+     | zs -> List.fold (fun acc x -> min acc x) PosInfty zs *)
+
+  (* let max_of_list zs = function 
+     | [] -> failwith "max is undefined on empty lists!"
+     (** Everything is greater or equal to NegInfty. *)
+     | zs -> List.fold (fun acc x -> max acc x) NegInfty zs *)
+
+  (** Taken from module IArith *)
+  let min4 a b c d = min (min a b) (min c d)
+
+  (** Taken from module IArith *)
+  let max4 a b c d = max (max a b) (max c d)
+
+end
+
+(**
+   Stores functions and types for single intervals $\mathbb{Z}^\infty$
+   according to the pentagon domains semantics. Beware, this module is NOT generic.
+*)
+module Interval =
+struct
+  type t = (ZExt.t * ZExt.t) [@@deriving eq, hash, ord]
+
+  let top () = ((ZExt.NegInfty, ZExt.PosInfty): t)
+
+  let bot () = ((ZExt.PosInfty, ZExt.NegInfty): t)
+
+  let is_top (x:t) = ((ZExt.NegInfty, ZExt.PosInfty) = x)
+
+  let is_bot ((l, u): t) = l > u
+
+  (** Interval intersection *)
+  let inter ((l1, u1): t) ((l2, u2): t) =
+    let max_lb = if l1 <= l2 then l2 else l1 in
+    let min_ub = if u1 <= u2 then u1 else u2 in
+    ((max_lb, min_ub): t)
+
+  let add ((l1, u1): t) ((l2, u2): t) =
+    let ( + ) = ZExt.add_opt in
+    ((Option.default ZExt.NegInfty (l1 + l2), Option.default ZExt.PosInfty (u1 + u2)): t)
+
+  (** Taken from module IArith *)
+  let mul ((x1, x2): t) ((y1, y2): t) =
+    let ( * ) = ZExt.mul in
+    ((
+      ZExt.min4 (x1 * y1) (x1 * y2) (x2 * y1) (x2 * y2),
+      ZExt.max4 (x1 * y1) (x1 * y2) (x2 * y1) (x2 * y2)
+    ): t)
+
+  (** Taken from module IArith *)
+  let div ((x1, x2): t) ((y1, y2): t) =
+    if y1 <= ZExt.zero && y2 >= ZExt.zero then top() else
+      let ( / ) = ZExt.div in
+      ((
+        ZExt.min4 (x1 / y1) (x1 / y2) (x2 / y1) (x2 / y2),
+        ZExt.max4 (x1 / y1) (x1 / y2) (x2 / y1) (x2 / y2)
+      ): t)
+
+
+  (** Checks for bot interval. *)
+  let sup (i: t) = if is_bot i then ZExt.NegInfty else snd i;;
+
+  (** Checks for bot interval. *)
+  let inf (i: t) = if is_bot i then ZExt.PosInfty else fst i;;
+
+  (** Checks whether the lower bound is -infty, i.e., unbound *)
+  (**
+     TODO: Verfiy that `inf` is correct here. Alternative `fst`.
+  *)
+  let no_lowerbound (i: t) = ZExt.NegInfty = inf i
+
+  (** Checks whether the upper bound is +infty, i.e., unbound *)
+  (**
+     TODO: Verfiy that `sup` is correct here. Alternative `snd`.
+  *)
+  let no_upperbound (i: t) = ZExt.PosInfty = sup i
+
+  let rem (i1: t) i2 =
+    (* i1 % i2 *)
+    let (l2, u2) = i2 in
+    if l2 <= ZExt.zero && u2 >= ZExt.zero then
+      top() 
+    else if no_lowerbound i2 || no_upperbound i2 then
+      i1
+    else
+      let ub_minus_1 = ZExt.add_unsafe (ZExt.max (ZExt.abs l2) (ZExt.abs u2)) (ZExt.of_int (-1)) in
+      inter i1 ((ZExt.neg ub_minus_1, ub_minus_1): t)
+
+
+  (**
+     We assume that i1 and i2 are well-formed, i.e. not bot/empty.
+  *)
+  let pow ((l1, u1): t) ((l2, u2): t) =
+    if l2 < ZExt.zero then top () (* x ^ (-1) is unsupported operation on ints ==> we treat it as undefined behavior, same as division by 0 *)
+    else
+      match u2 with
+      | PosInfty -> if l1 <= ZExt.of_int (-2) then top () (* can create arbitrarily big numbers with (-2) ^ x *)
+        else if l1 >= ZExt.zero then (ZExt.pow l1 l2, ZExt.pow u1 PosInfty)
+        else (* l1 = -1 *)
+        if u1 = ZExt.of_int (-1) then (ZExt.of_int (-1), ZExt.of_int 1)
+        else (ZExt.of_int (-1), ZExt.pow u1 PosInfty)
+      | NegInfty -> failwith "Interval.pow should not happen"
+      | Arb u2z when l1 < ZExt.zero ->
+        if l2 = u2 then (* special case because we don't have an even AND an odd number ==> may be impossible to mirror negative numbers *)
+          let exp = l2 in
+          if exp = ZExt.zero then (ZExt.of_int 1, ZExt.of_int 1) else
+          if Z.is_even u2z then
+            if u1 >= ZExt.zero then
+              (* i1 contains negative and nonnegative numbers, exp != 0 is even ==> lb = 0, ub depends on greater abs value of bounds *)
+              let max_abs = ZExt.max (ZExt.abs l1) u1 in
+              let u = ZExt.pow max_abs exp in
+              (ZExt.zero, u) else
+              (* x -> x ^ n is monotonically decreasing for even n and negative x *)
+              let l = ZExt.pow u1 exp in
+              let u = ZExt.pow l1 exp in
+              (l, u)
+          else (* exp is odd *)
+            (* x -> x ^ n is monotonically increasing for odd n *)
+            (ZExt.pow l1 exp, ZExt.pow u1 exp)
+        else
+          (* we have at least one even and one odd number in the exponent ==> negative numbers can be mirrored if needed *)
+        if Z.is_even u2z then
+          let l = ZExt.pow l1 (ZExt.add_unsafe u2 (ZExt.of_int (-1))) in
+          let max_abs = ZExt.max (ZExt.abs l1) (ZExt.abs u1) in
+          let u = ZExt.pow max_abs u2 in
+          (l, u)
+        else
+          let l = ZExt.pow l1 u2 in
+          let u' = ZExt.pow l1 (ZExt.add_unsafe u2 (ZExt.of_int (-1))) in
+          let u'' = if u1 > (ZExt.of_int 0) then ZExt.pow u1 u2 else u' in
+          let u = ZExt.max u' u'' in
+          (l, u)
+      | _ -> (* i1 is nonnegative ==> no special cases here :) *)
+        let l = ZExt.pow l1 l2 in
+        let u = ZExt.pow u1 u2 in
+        (l, u)
+
+  (**
+     Creates a single interval from the supplied integer values.
+  *)
+  let create i1 i2 = (ZExt.of_int i1, ZExt.of_int i2)
+
+  let leq ((l1, u1): t) ((l2, u2): t) = l2 <= l1 && u1 <= u2
+
+  let union ((l1, u1): t) ((l2, u2): t) = (ZExt.min l1 l2, ZExt.max u1 u2)
+
+  let widen (l1, u1) (l2, u2) =
+    let l = if l1 <= l2 then l2 else ZExt.NegInfty in
+    let u = if u2 <= u1 then u2 else ZExt.PosInfty in
+    (l, u)
+
+  let narrow (i1: t) (i2: t) = 
+    inter i1 i2
+
+end
+
+(** Provides functions and types for collections of Interval. *)
+module Intv  = 
+struct
+  type t = Interval.t list [@@deriving eq, ord]
+
+  let equal intv1 intv2 =
+    BatList.for_all2 (Interval.equal) intv1 intv2
+
+  let leq i1 i2 =
+    BatList.for_all2 Interval.leq i1 i2
+
+  let join (i1: t) (i2: t) = 
+    BatList.map2 Interval.union i1 i2
+
+  let meet (i1: t) (i2: t) = 
+    BatList.map2 Interval.inter i1 i2
+
+  let is_top i =
+    BatList.for_all Interval.is_top i
+
+  let widen (i1: t) (i2: t) = 
+    BatList.map2 Interval.widen i1 i2
+
+  let narrow (i1: t) (i2: t) = 
+    meet i1 i2
+
+  let is_bot (i: t) = 
+    BatList.exists Interval.is_bot i
+
+
+  let dim_add (dim_change: Apron.Dim.change) (intervals: t) =
+    if dim_change.realdim != 0 then
+      failwith "Pentagons are defined over integers: \
+                extension with real domain is nonsensical"
+    else 
+      let change_arr = Array.rev dim_change.dim in
+      let rec insert_dimensions intervals dim_changes =
+        match dim_changes with
+        | [||] -> intervals
+        | _ ->
+          let k = dim_changes.(0) in
+          let left, right = BatList.split_at k intervals in
+          let new_array = (BatArray.sub dim_changes 1 (BatArray.length dim_changes - 1)) in
+          insert_dimensions (left @ [Interval.top ()] @ right) new_array
+      in
+      insert_dimensions intervals change_arr;;
+
+
+  (* Backup implementation, if dim_change.dim is not sorted and contains duplicates. *)
+  (*let dim_remove (dim_change: Apron.Dim.change) (intervals : t) =
+    if dim_change.realdim != 0 then
+      failwith "Pentagons are defined over integers: \
+                extension with real domain is nonsensical"
+    else 
+      List.filteri (fun i _ -> not (Array.mem i dim_change.dim)) intervals*)
+
+
+  (* precondition: dim_change is sorted and has unique elements *)
+  let dim_remove (dim_change: Apron.Dim.change) (intervals : t) =
+    if dim_change.realdim != 0 then
+      failwith "Pentagons are defined over integers: \
+                extension with real domain is nonsensical"
+    else
+      let rec aux lst_i arr_i = function
+        | [] -> []
+        | x::xs -> if arr_i = BatArray.length dim_change.dim then x::xs
+          else if dim_change.dim.(arr_i) = lst_i then aux (lst_i + 1) (arr_i + 1) xs
+          else x :: aux (lst_i + 1) arr_i xs
+      in
+      aux 0 0 intervals
+
+  let to_string (intervals: t) =
+    if is_bot intervals then
+      "bot"
+    else if is_top intervals then
+      "top"
+    else
+      let string_of_interval (l, u) =
+        Printf.sprintf "[%s, %s]" (ZExt.to_string l) (ZExt.to_string u)
+      in
+      "{" ^ (String.concat "; " (List.map string_of_interval intervals)) ^ "}"
+
+
+  let forget_vars (vars: int BatList.t) =
+    BatList.mapi (fun x intv -> if BatList.mem x vars then Interval.top() else intv)
+
+end
+
+(** Stores functions and types for strict upper bounds. *)
+module Sub =
+struct
+
+  module Idx = Int
+  module VarSet = BatSet.Make(Idx)
+  module VarList = BatList
+
+  module MoveMap = struct 
+    include BatMap.Make(Idx)
+    type t = Idx.t BatMap.Make(Idx).t
+  end
+
+  type t = VarSet.t VarList.t [@@deriving eq, ord]
+
+  let dim_add (dim_change: Apron.Dim.change) (sub: t) =
+    if dim_change.realdim != 0 then 
+      failwith "Pentagons are defined over integers: \
+                dim_change should not contain `realdim`" 
+    else
+      (* 
+      This is basically a fold_lefti with rev at the end.
+      Could not use fold_lefti directly because I might need to append at the end of the list.
+      This would have forced me to use List.length, which is \theta(n).
+      *)
+      let rec aux (dim_change: Apron.Dim.change) i sub (moved: MoveMap.t) acc =
+        (** Computes the number by which the current index/variable will be shifted/moved *)
+        let moved_by = 
+          Array.count_matching (fun k -> k <= i) dim_change.dim 
+        in
+        (** Counts the number of empty sets to prepend at the current index. *)
+        let append_count = 
+          Array.count_matching (fun k -> k == i) dim_change.dim 
+        in
+        (** Prepends n many empty sets to the accumulator. *)
+        let rec prepend_dim n acc = 
+          if n == 0 then 
+            acc
+          else prepend_dim (n-1) (VarSet.empty :: acc)
+        in
+        match sub with
+        | h::t ->
+          (** Store the new index mappings to later adjust the sets. *)
+          let moved = (MoveMap.add i (i+moved_by) moved) in
+          (** Insert `append_count` many dimensions before `h`, then append `h` *)
+          let acc = (h :: (prepend_dim append_count acc)) in
+          aux dim_change (i+1) t moved acc
+        | [] ->
+          (** Complete sub prepending the last dimensions and reversing *)
+          let sub = (List.rev (prepend_dim append_count acc)) in
+          (** Adjust the stored indices in our sets *)
+          VarList.map (
+            fun set ->
+              VarSet.map (
+                fun v -> match MoveMap.find_opt v moved with | None -> v | Some(v') -> v'
+              ) set
+          ) sub 
+      in
+      aux dim_change 0 sub MoveMap.empty []
+  ;;
+
+
+  let dim_remove (dim_change: Apron.Dim.change) (sub : t) =
+    (* This implementation assumes, that dim_change.dim is well-formed, i.e., does not contain duplicates. *)
+    let move_or_delete_var y =
+      if Array.mem y dim_change.dim then None
+      else Some (y - Array.count_matching (fun k -> k < y) dim_change.dim)
+    in
+    let move_or_delete_set x ys =
+      if Array.mem x dim_change.dim then None
+      else Some (VarSet.filter_map move_or_delete_var ys)
+    in
+    List.filteri_map move_or_delete_set sub
+
+  let equal (sub1: t) (sub2: t) = VarList.equal VarSet.equal sub1 sub2
+
+  (**
+        This isn't precise: we might return false even if there are transitive contradictions;
+        Other possibility: compute transitive closure first (would be expensive)
+  *)
+  let is_bot (sub:t) =
+    (* exists function for lists where the predicate f also gets the index of a list element *)
+    let existsi f lst =
+      let rec aux i = function
+        | [] -> false
+        | x :: xs -> if f i x then true else aux (i + 1) xs
+      in aux 0 lst
+    in
+    (* If we don't know any variables, i.e. sub = [], then bot = top holds. *)
+    sub = [] || 
+    existsi (
+      fun i set ->
+        (* direct contradiction *)
+        VarSet.mem i set ||
+        (* We assume that the sets inside sub only contain values < length of the list.*)
+        VarSet.exists (fun y -> VarSet.mem i (List.at sub y)) set
+    ) sub
+
+
+  let is_top (sub: t) = VarList.for_all VarSet.is_empty sub
+
+  let subseteq set1 set2 = VarSet.subset set1 set2 || VarSet.equal set1 set2 (** helper, missing in batteries *)
+
+  (**
+     The inequalities map s1 is less than or equal to s2 iff
+      forall x in s2.
+      s2(x) subseteq s1(x)
+  *)
+  let leq (sub1: t) (sub2: t) = BatList.for_all2 subseteq sub2 sub1
+
+  let join (sub1: t) (sub2: t) = BatList.map2 VarSet.inter sub1 sub2
+
+  let meet (sub1: t) (sub2: t) = BatList.map2 VarSet.union sub1 sub2
+
+  let widen (sub1: t) (sub2: t) = BatList.map2 (fun s1x s2x -> if subseteq s1x s2x then s2x else VarSet.empty) sub1 sub2
+
+  (** No narrowing mentioned in the paper. *)
+  let narrow sub1 sub2 = meet sub1 sub2
+
+  let forget_vars (vars : int BatList.t) =
+    BatList.mapi (fun x ys ->
+        if BatList.mem x vars then
+          VarSet.empty
+        else
+          VarSet.filter (fun y -> not (BatList.mem y vars)) ys
+      )
+
+
+  let to_string (sub: t) =
+    (* Results in: { y1, y2, ..., yn }*)
+    let set_string set = "{" ^ (
+        VarSet.to_list set |>
+        List.map (Idx.to_string) |>
+        String.concat ","
+      ) ^ "}" in
+    (* Results in: x_1 -> {y1, y2, ..., yn} *)
+    let relations_string = String.concat ", " (VarList.mapi (
+        fun  i set ->
+          (Idx.to_string i) ^ " -> " ^ (set_string set)
+      ) sub) in
+    (* Results in: {x_1 -> {y1, y2, ..., yn}} *)
+    "{" ^ relations_string ^ "}"
+
+  let to_string (sub: t) = 
+    if is_bot sub then
+      "bot"
+    else if is_top sub then
+      "top"
+    else
+      to_string sub 
+
+end
+
+
+
+
 
 module type Tracked =
 sig
@@ -457,7 +997,7 @@ struct
   *)
   let assert_constraint ask t e negate (no_ov: bool Lazy.t) =
     let interval_helper ((lb, ub): ZExt.t * ZExt.t) tcons =
-      let zero = ZExt.of_int 0 in 
+      let zero = ZExt.zero in 
       match Tcons1.get_typ tcons with
       | EQ when lb <= zero && ub >= zero -> t
       | SUPEQ when ub >= zero -> t
@@ -473,6 +1013,19 @@ struct
         )
       | _ -> bot_of_env t.env
     in
+    let intv_helper i dim_y (t:t) = (
+      (* Already matched to be not None. *)
+      let d = Option.get t.d in
+      let intv_y = List.at d.intv dim_y in
+      let meet_intv_y = Interval.inter intv_y i in
+      if Interval.is_bot meet_intv_y then
+        bot_of_env t.env
+      else 
+        let intv = List.modify_at dim_y (fun _ -> meet_intv_y) d.intv in
+        { d = Some({intv = intv; sub = d.sub}); env=t.env}
+
+
+    ) in
     match t.d with 
     | None -> t
     | Some d -> 
@@ -488,7 +1041,22 @@ struct
             (** We ignore sub-information for now. *)
             let dim_y = Environment.dim_of_var t.env y in
             let intv_y = List.at d.intv dim_y in
-            interval_helper intv_y tcons1
+            let (lb, ub) = intv_y in
+            let zero = ZExt.zero in
+            match Tcons1.get_typ tcons1 with
+            | EQ -> assign_texpr t y (Cst (Scalar (Scalar.of_int 0)))
+            | SUPEQ -> intv_helper (ZExt.of_int 0, PosInfty) dim_y t
+            | SUP when ub >= zero -> t
+            | DISEQ when ub <> zero || lb <> zero -> t
+            | EQMOD (s) -> (
+                let s = z_ext_of_scalar s in
+                let ( - ) = ZExt.sub in
+                if (ub - lb) <= (s - ZExt.of_int 2) && (ZExt.rem_add lb s) <= (ZExt.rem_add ub s) then
+                  t 
+                else
+                  bot_of_env t.env
+              )
+            | _ -> bot_of_env t.env
           )
         | Unop  (Neg,  e, _, _) -> failwith "TODO"
         | Unop  (Cast, e, _, _) -> failwith "TODO"
