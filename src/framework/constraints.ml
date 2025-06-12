@@ -260,7 +260,7 @@ struct
     in
     let once once_control init_routine =
       let enter =
-        let d' = S.event man (Events.EnterOnce { once_control;  tf = true }) man in
+        let d' = S.event man (Events.EnterOnce { once_control;  ran = false }) man in
         let proc = tf_proc var edge prev_node None init_routine [] getl sidel demandl getg sideg d' in
         if not (S.D.is_bot proc) then
           let rec proc_man =
@@ -275,7 +275,7 @@ struct
       in
       let not_enter =
         (* Always possible, will never yield `Bot *)
-        let d' = S.event man (Events.EnterOnce { once_control;  tf = false }) man in
+        let d' = S.event man (Events.EnterOnce { once_control;  ran = true }) man in
         let rec d'_man =
           { man with
             ask = (fun (type a) (q: a Queries.t) -> S.query d'_man q);
