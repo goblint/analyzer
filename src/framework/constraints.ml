@@ -292,7 +292,7 @@ struct
             match is_once.special args with
             | Once { once_control; init_routine } -> once once_control init_routine
             | _
-            | exception LibraryDsl.Expected _-> (* propagate weirdness inside *)
+            | exception LibraryDsl.Expected _ -> (* If there is a mismatch between our library function prototype and the call here, this is raised. However, we catch this here to still do `tf_special_call` where this case is handeled *)
               (match Cilfacade.find_varinfo_fundec f with
                 | fd when LibraryFunctions.use_special f.vname ->
                   M.info ~category:Analyzer "Using special for defined function %s" f.vname;
