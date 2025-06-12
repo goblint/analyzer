@@ -148,16 +148,6 @@ struct
 
   let min z1 z2 = if z1 < z2 then z1 else z2;;
 
-  (* let min_of_list zs = function 
-     | [] -> failwith "min is undefined on empty lists!"
-     (** Everything is less or equal to PosInfty. *)
-     | zs -> List.fold (fun acc x -> min acc x) PosInfty zs *)
-
-  (* let max_of_list zs = function 
-     | [] -> failwith "max is undefined on empty lists!"
-     (** Everything is greater or equal to NegInfty. *)
-     | zs -> List.fold (fun acc x -> max acc x) NegInfty zs *)
-
   (** Taken from module IArith *)
   let min4 a b c d = min (min a b) (min c d)
 
@@ -170,7 +160,7 @@ end
    Stores functions and types for single intervals $\mathbb{Z}^\infty$
    according to the pentagon domains semantics. Beware, this module is NOT generic.
 *)
-module Interval =
+module Intv =
 struct
   type t = (ZExt.t * ZExt.t) [@@deriving eq, hash, ord]
 
@@ -182,7 +172,7 @@ struct
 
   let is_bot ((l, u): t) = l > u
 
-  (** Interval intersection *)
+  (** Intv intersection *)
   let inter ((l1, u1): t) ((l2, u2): t) =
     let max_lb = if l1 <= l2 then l2 else l1 in
     let min_ub = if u1 <= u2 then u1 else u2 in
@@ -252,7 +242,7 @@ struct
         else (* l1 = -1 *)
         if u1 = ZExt.of_int (-1) then (ZExt.of_int (-1), ZExt.of_int 1)
         else (ZExt.of_int (-1), ZExt.pow u1 PosInfty)
-      | NegInfty -> failwith "Interval.pow should not happen"
+      | NegInfty -> failwith "Intv.pow should not happen"
       | Arb u2z when l1 < ZExt.zero ->
         if l2 = u2 then (* special case because we don't have an even AND an odd number ==> either impossible to mirror negative numbers or everything gets nonnegative *)
           let exp = l2 in
@@ -302,34 +292,34 @@ struct
 
 end
 
-(** Provides functions and types for collections of Interval. *)
-module Intv  = 
+(** Provides functions and types for collections of Intv. *)
+module Boxes  = 
 struct
-  type t = Interval.t list [@@deriving eq, ord]
+  type t = Intv.t list [@@deriving eq, ord]
 
   let equal intv1 intv2 =
-    BatList.for_all2 (Interval.equal) intv1 intv2
+    BatList.for_all2 (Intv.equal) intv1 intv2
 
   let leq i1 i2 =
-    BatList.for_all2 Interval.leq i1 i2
+    BatList.for_all2 Intv.leq i1 i2
 
   let join (i1: t) (i2: t) = 
-    BatList.map2 Interval.union i1 i2
+    BatList.map2 Intv.union i1 i2
 
   let meet (i1: t) (i2: t) = 
-    BatList.map2 Interval.inter i1 i2
+    BatList.map2 Intv.inter i1 i2
 
   let is_top i =
-    BatList.for_all Interval.is_top i
+    BatList.for_all Intv.is_top i
 
   let widen (i1: t) (i2: t) = 
-    BatList.map2 Interval.widen i1 i2
+    BatList.map2 Intv.widen i1 i2
 
   let narrow (i1: t) (i2: t) = 
     meet i1 i2
 
   let is_bot (i: t) = 
-    BatList.exists Interval.is_bot i
+    BatList.exists Intv.is_bot i
 
 
   let dim_add (dim_change: Apron.Dim.change) (intervals: t) =
@@ -345,7 +335,7 @@ struct
           let k = dim_changes.(0) in
           let left, right = BatList.split_at k intervals in
           let new_array = (BatArray.sub dim_changes 1 (BatArray.length dim_changes - 1)) in
-          insert_dimensions (left @ [Interval.top ()] @ right) new_array
+          insert_dimensions (left @ [Intv.top ()] @ right) new_array
       in
       insert_dimensions intervals change_arr;;
 
@@ -386,7 +376,7 @@ struct
 
 
   let forget_vars (vars: int BatList.t) =
-    BatList.mapi (fun x intv -> if BatList.mem x vars then Interval.top() else intv)
+    BatList.mapi (fun x intv -> if BatList.mem x vars then Intv.top() else intv)
 
 end
 
@@ -544,9 +534,6 @@ struct
 end
 
 
-
-
-
 module type Tracked =
 sig
   val type_tracked: typ -> bool
@@ -555,10 +542,10 @@ end
 
 module PNTG =
 struct
-  type t = { intv: Intv.t; sub: Sub.t } [@@deriving eq, ord]
+  type t = { intv: Boxes.t; sub: Sub.t } [@@deriving eq, ord]
 
-  let hash : (t -> int)  = fun _ -> failwith "TODO"
-  let equal pntg1 pntg2  = Intv.equal pntg1.intv pntg2.intv && Sub.equal pntg1.sub pntg2.sub;;
+  let hash : (t -> int)  = fun _ -> 1
+  let equal pntg1 pntg2  = Boxes.equal pntg1.intv pntg2.intv && Sub.equal pntg1.sub pntg2.sub;;
   let copy (x: t) = x
   let empty () = { intv = []; sub = [] }
   let is_empty pntg =
@@ -576,7 +563,7 @@ struct
                 extension with real domain is nonsensical"
     else 
       let intv, sub = 
-        Intv.dim_add dim_change pntg.intv,
+        Boxes.dim_add dim_change pntg.intv,
         Sub.dim_add dim_change pntg.sub 
       in
       ({intv = intv; sub = sub}: t)
@@ -591,7 +578,7 @@ struct
                 extension with real domain is nonsensical"
     else 
       let intv, sub = 
-        Intv.dim_remove dim_change pntg.intv,
+        Boxes.dim_remove dim_change pntg.intv,
         Sub.dim_remove dim_change pntg.sub 
       in
       ({intv = intv; sub = sub}: t)
@@ -609,7 +596,7 @@ module ExpressionBounds: (SharedFunctions.ConvBounds with type t = VarManagement
 struct
   include VarManagement
 
-  let bound_texpr t texpr = failwith "TODO"
+  let bound_texpr t texpr = None, None
 
   let bound_texpr d texpr1 = Timing.wrap "bounds calculation" (bound_texpr d) texpr1
 end
@@ -626,26 +613,22 @@ struct
   end
 
   module Convert = SharedFunctions.Convert (V) (Bounds) (Arg) (SharedFunctions.Tracked)
-  (**
-     TODO: module Tracked
-  *)
-  module Tracked = struct let varinfo_tracked _ = failwith "TODO Tracked";; let type_tracked _ = failwith "TODO Tracked";; end
 
   type t = VarManagement.t [@@deriving eq]
 
   type var = V.t
 
-  let pretty_diff () (x, y) = failwith "TODO pretty_diff"
+  let pretty () (x:t) = Pretty.real 2.
 
-  let show varM = failwith "TODO"
+  let pretty_diff () (x, y) = Pretty.real 2.
 
-  let pretty () (x:t) = failwith "TODO"
+  let show t = ""
 
-  let printXml f x = failwith "TODO"
+  let printXml f x = ()
 
   let name () = "pentagon"
 
-  let to_yojson _ = failwith "TODO"
+  let to_yojson t = failwith "TODO"
 
   (**
      Bottom creation does not make sense if we do not know anything about our variables.
@@ -669,12 +652,12 @@ struct
   let is_bot t = 
     match t.d with
     | None -> true
-    | Some d -> Intv.is_bot d.intv || Sub.is_bot d.sub
+    | Some d -> Boxes.is_bot d.intv || Sub.is_bot d.sub
 
   let is_top t = 
     match t.d with
     | None -> false
-    | Some d -> Intv.is_top d.intv && Sub.is_top d.sub
+    | Some d -> Boxes.is_top d.intv && Sub.is_top d.sub
 
 
   let meet t1 t2 =
@@ -683,7 +666,7 @@ struct
     let t2 = dimchange2_add t2 sup_env in
     match t1.d, t2.d with
     | Some d1', Some d2' ->
-      ({d = Some {intv = Intv.meet d1'.intv d2'.intv; sub = Sub.meet d1'.sub d2'.sub}; env = sup_env}: t)
+      ({d = Some {intv = Boxes.meet d1'.intv d2'.intv; sub = Sub.meet d1'.sub d2'.sub}; env = sup_env}: t)
     | _ -> {d = None; env = sup_env}
 
   let meet t1 t2 = 
@@ -703,18 +686,18 @@ struct
       let sub1, sub2 = d1'.sub, d2'.sub in
       let for_all_i f lst =
         List.for_all (fun (i, x) -> f i x) (List.mapi (fun i x -> (i, x)) lst) in
-      let bool1 = Intv.leq interval1 interval2 in
+      let bool1 = Boxes.leq interval1 interval2 in
       let bool2 = for_all_i(fun x s2x -> 
           Sub.VarSet.for_all(fun y -> 
               let s1x = Sub.VarList.at sub1 x in
               let b1x = BatList.at interval1 x in
               let b1y = BatList.at interval1 y in
               Sub.VarSet.mem y s1x ||
-              Interval.sup b1x < Interval.inf b1y
+              Intv.sup b1x < Intv.inf b1y
             ) s2x
         ) sub2 in
       bool1 && bool2
-    | Some d1', None -> Intv.is_bot d1'.intv || Sub.is_bot d1'.sub
+    | Some d1', None -> Boxes.is_bot d1'.intv || Sub.is_bot d1'.sub
     | _ -> true
 
   let leq a b = Timing.wrap "leq" (leq a) b
@@ -730,10 +713,10 @@ struct
     let t2 = dimchange2_add t2 sup_env in
     match t1.d, t2.d with
     | Some d1', Some d2' ->
-      let intv_join = Intv.join d1'.intv d1'.intv in
+      let intv_join = Boxes.join d1'.intv d1'.intv in
       let s' x s1x = Sub.VarSet.inter s1x (List.at d2'.sub x) in
-      let s'' x s1x = Sub.VarSet.filter (fun y -> Interval.sup (List.at d2'.intv x) < Interval.inf (List.at d2'.intv y)) s1x in
-      let s''' x = Sub.VarSet.filter (fun y -> Interval.sup (List.at d1'.intv x) < Interval.inf (List.at d1'.intv y)) (List.at d2'.sub x) in
+      let s'' x s1x = Sub.VarSet.filter (fun y -> Intv.sup (List.at d2'.intv x) < Intv.inf (List.at d2'.intv y)) s1x in
+      let s''' x = Sub.VarSet.filter (fun y -> Intv.sup (List.at d1'.intv x) < Intv.inf (List.at d1'.intv y)) (List.at d2'.sub x) in
       let sub_join = List.mapi (fun x s1x -> Sub.VarSet.union (s' x s1x) (Sub.VarSet.union (s'' x s1x) (s''' x))) d1'.sub in
 
       ({d = Some {intv = intv_join; sub = sub_join}; env = sup_env}: t)
@@ -754,7 +737,7 @@ struct
     let t2 = dimchange2_add t2 sup_env in
     match t1.d, t2.d with
     | Some d1', Some d2' ->
-      ({d = Some {intv = Intv.widen d1'.intv d2'.intv; sub = Sub.widen d1'.sub d2'.sub}; env = sup_env}: t)
+      ({d = Some {intv = Boxes.widen d1'.intv d2'.intv; sub = Sub.widen d1'.sub d2'.sub}; env = sup_env}: t)
     | _ -> {d = None; env = sup_env}
 
   let widen a b =
@@ -773,7 +756,7 @@ struct
     match pntg1.d with
     | None -> "bot"
     | Some d ->
-      let intv_str = Intv.to_string d.intv in
+      let intv_str = Boxes.to_string d.intv in
       let sub_str = Sub.to_string d.sub in
       Printf.sprintf "Pentagon: %s, %s" intv_str sub_str
 
@@ -787,7 +770,7 @@ struct
     else 
       let (pntg: PNTG.t) = Option.get t.d in
       let int_vars = List.map (fun v -> Environment.dim_of_var t.env v) vars in
-      {d = Some({intv = Intv.forget_vars int_vars pntg.intv; sub = Sub.forget_vars int_vars pntg.sub}); env=t.env};;
+      {d = Some({intv = Boxes.forget_vars int_vars pntg.intv; sub = Sub.forget_vars int_vars pntg.sub}); env=t.env};;
 
 
   let z_ext_of_scalar (s: Scalar.t) = 
@@ -802,14 +785,14 @@ struct
 
     let dim = Environment.dim_of_var t.env var in
 
-    let rec convert_texpr (texp: Texpr1.expr) t : Intv.t * Sub.t =
+    let rec convert_texpr (texp: Texpr1.expr) t : Boxes.t * Sub.t =
       match t.d with
       | None -> ([], []) (** Bot *)
       | Some d ->
         let intv, sub = d.intv, d.sub in
 
         let sub_without_var = Sub.forget_vars [dim] sub in
-        let intv_without_var = Intv.forget_vars [dim] intv in
+        let intv_without_var = Boxes.forget_vars [dim] intv in
         (match texp with
          (** Case: x := [inv.inf, inv.sup] *)
          | Cst (Interval inv) ->
@@ -847,7 +830,7 @@ struct
 
            let intv = BatList.modify_at dim (
                fun intv ->
-                 (ZExt.neg (Interval.sup intv), ZExt.neg (Interval.inf intv))
+                 (ZExt.neg (Intv.sup intv), ZExt.neg (Intv.inf intv))
              ) intv
            in
            (**
@@ -870,7 +853,7 @@ struct
            let i2 = BatList.at intv_2 dim in
            let intv = BatList.modify_at dim (
                fun i1 ->
-                 Interval.add i1 i2
+                 Intv.add i1 i2
              ) intv_1
            in
            (intv, sub_without_var)
@@ -884,7 +867,7 @@ struct
 
            let i2 = BatList.at intv_2 dim in
            let intv = BatList.modify_at dim (
-               fun i1 -> Interval.mul i1 i2 ) intv_1 in
+               fun i1 -> Intv.mul i1 i2 ) intv_1 in
            (intv, sub_without_var)
 
          | Binop (Div, e1, e2, _, _) ->
@@ -893,7 +876,7 @@ struct
 
            let i2 = BatList.at intv_2 dim in
            let intv = BatList.modify_at dim (
-               fun i1 -> Interval.div i1 i2 ) intv_1 in
+               fun i1 -> Intv.div i1 i2 ) intv_1 in
            (intv, sub_without_var)
 
          (** 
@@ -907,7 +890,7 @@ struct
            let i2 = BatList.at intv_2 dim in
            let intv = BatList.modify_at dim (
                fun i1 -> 
-                 Interval.rem i1 i2
+                 Intv.rem i1 i2
              ) intv_1 in
 
            let sub = 
@@ -916,7 +899,7 @@ struct
                  let dim_divisor = Environment.dim_of_var t.env divisor in 
                  let intv_divisor = BatList.at intv_2 dim_divisor
                  in
-                 if (Interval.inf intv_divisor) < ZExt.zero then 
+                 if (Intv.inf intv_divisor) < ZExt.zero then 
                    sub_without_var
                  else
                    BatList.modify_at dim (fun _ -> Sub.VarSet.singleton dim_divisor) sub_without_var
@@ -934,7 +917,7 @@ struct
            let i2 = BatList.at intv_2 dim in
            let intv = BatList.modify_at dim (
                fun i1 -> 
-                 Interval.pow i1 i2
+                 Intv.pow i1 i2
              ) intv_1 in
 
            (intv, sub_without_var)
@@ -991,9 +974,10 @@ struct
 
   *)
   let assert_constraint ask t e negate (no_ov: bool Lazy.t) =
-    let interval_helper ((lb, ub): ZExt.t * ZExt.t) tcons =
+    (** Checks if the constraining interval violates the assertion. *)
+    let interval_helper ((lb, ub): ZExt.t * ZExt.t) (tcons_typ: Tcons1.typ) =
       let zero = ZExt.zero in 
-      match Tcons1.get_typ tcons with
+      match tcons_typ with
       | EQ when lb <= zero && ub >= zero -> t
       | SUPEQ when ub >= zero -> t
       | SUP when ub > zero -> t
@@ -1001,22 +985,22 @@ struct
       | EQMOD (s) -> (
           let s = z_ext_of_scalar s in
           let ( - ) = ZExt.sub in
-          if (ub - lb) <= (s - ZExt.of_int 2) && (ZExt.rem_add lb s) <= (ZExt.rem_add ub s) then
+          if (ub - lb) <= (s - ZExt.of_int 2) && lb <> zero && (ZExt.rem_add lb s) <= (ZExt.rem_add ub s) then
             bot_of_env t.env
           else
             t
         )
       | _ -> bot_of_env t.env
     in
-    let intv_helper i dim_y (t:t) = (
+    let var_intv_meet constraining_interval dim_y = (
       (* Already matched to be not None. *)
       let d = Option.get t.d in
       let intv_y = List.at d.intv dim_y in
-      let meet_intv_y = Interval.inter intv_y i in
-      if Interval.is_bot meet_intv_y then
+      let intersected_intv_y = Intv.inter intv_y constraining_interval in
+      if Intv.is_bot intersected_intv_y then
         bot_of_env t.env
       else 
-        let intv = List.modify_at dim_y (fun _ -> meet_intv_y) d.intv in
+        let intv = List.modify_at dim_y (fun _ -> intersected_intv_y) d.intv in
         { d = Some({intv = intv; sub = d.sub}); env=t.env}
 
 
@@ -1026,44 +1010,66 @@ struct
     | Some d -> 
       match Convert.tcons1_of_cil_exp ask t t.env e negate no_ov with
       | exception Convert.Unsupported_CilExp _ -> t
-      | tcons1 -> 
+      | tcons1 ->
+        let tcons_typ = Tcons1.get_typ tcons1 in
         match (Texpr1.to_expr @@ Tcons1.get_texpr1 tcons1) with 
         | Cst (Interval inv) -> 
-          interval_helper (z_ext_of_scalar inv.inf, z_ext_of_scalar inv.sup) tcons1
+          interval_helper (z_ext_of_scalar inv.inf, z_ext_of_scalar inv.sup) tcons_typ
         | Cst (Scalar s) -> 
-          interval_helper (z_ext_of_scalar s, z_ext_of_scalar s) tcons1
+          interval_helper (z_ext_of_scalar s, z_ext_of_scalar s) tcons_typ
         | Var y -> (
             (** We ignore sub-information for now. *)
             let dim_y = Environment.dim_of_var t.env y in
             let intv_y = List.at d.intv dim_y in
             let (lb, ub) = intv_y in
             let zero = ZExt.zero in
-            match Tcons1.get_typ tcons1 with
-            | EQ -> assign_texpr t y (Cst (Scalar (Scalar.of_int 0)))
-            | SUPEQ -> intv_helper (ZExt.of_int 0, PosInfty) dim_y t
-            | SUP when ub >= zero -> t
-            | DISEQ when ub <> zero || lb <> zero -> t
+            match tcons_typ with
+            | EQ -> var_intv_meet (zero, zero) dim_y
+            | SUPEQ -> var_intv_meet (zero, PosInfty) dim_y
+            | SUP -> var_intv_meet (ZExt.of_int 1, PosInfty) dim_y
+            | DISEQ ->
+              if lb <> zero && ub <> zero then
+                t
+              else if lb = zero && ub > zero then
+                var_intv_meet (ZExt.of_int 1, PosInfty) dim_y
+              else if lb < zero && ub = zero then
+                var_intv_meet (NegInfty, ZExt.of_int (-1)) dim_y
+              else 
+                bot_of_env t.env
             | EQMOD (s) -> (
+                let t = interval_helper intv_y tcons_typ in
                 let s = z_ext_of_scalar s in
-                let ( - ) = ZExt.sub in
-                if (ub - lb) <= (s - ZExt.of_int 2) && (ZExt.rem_add lb s) <= (ZExt.rem_add ub s) then
-                  t 
-                else
-                  bot_of_env t.env
+                match t.d with
+                | None -> t
+                | Some(pntg) -> (
+                    let corrected_intv = (
+                      let ( - ) = ZExt.sub in
+                      let ( + ) = ZExt.add in
+                      let tmp_lb = lb - ZExt.rem_add lb s in
+                      let lb = if tmp_lb < lb then (tmp_lb) + s else tmp_lb in
+                      let ub = ub - ZExt.rem_add ub s in
+                      (lb, ub)
+                    )
+                    in
+                    let intv = List.modify_at dim_y (fun _ -> corrected_intv) d.intv in
+                    ({ d = Some({intv=intv; sub=d.sub}); env=t.env})
+                  )
               )
-            | _ -> bot_of_env t.env
           )
+        (* 
         | Unop  (Neg,  e, _, _) -> failwith "TODO"
         | Unop  (Cast, e, _, _) -> failwith "TODO"
-        | Unop  (Sqrt, e, _, _) ->failwith "TODO"
+        | Unop  (Sqrt, e, _, _) -> failwith "TODO"
         | Binop (Add, e1, e2, _, _) -> failwith "TODO"
-        | Binop (Sub, e1, e2, t0, r) ->failwith "TODO"
-        | Binop (Mul, e1, e2, _, _) ->failwith "TODO"
-        | Binop (Div, e1, e2, _, _) ->failwith "TODO"
+        | Binop (Sub, e1, e2, t0, r) -> failwith "TODO"
+        | Binop (Mul, e1, e2, _, _) -> failwith "TODO"
+        | Binop (Div, e1, e2, _, _) -> failwith "TODO"
         | Binop (Mod, e1, e2, _, _)  -> failwith "TODO"
-        | Binop (Pow, e1, e2, _, _) -> failwith "TODO"
+        | Binop (Pow, e1, e2, _, _) -> failwith "TODO" 
+        *)
+        | _ -> t
 
-  let invariant t : Lincons1Set.elt list = failwith "TODO invariant"
+  let invariant t : Lincons1Set.elt list = []
 
   (** Taken from lin2var. *)
   let substitute_exp ask (t:t) var exp no_ov = 
@@ -1095,7 +1101,7 @@ struct
     else
       match pntg.d with
       | None -> failwith "is_bot should take care of that"
-      | Some(d) -> Intv.to_string d.intv ^ " " ^ Sub.to_string d.sub;;
+      | Some(d) -> Boxes.to_string d.intv ^ " " ^ Sub.to_string d.sub;;
 
 end
 
