@@ -287,14 +287,13 @@ struct
         (* Check whether number of arguments fits. *)
         (* If params is None, the function or its parameters are not declared, so we still analyze the unknown function call. *)
         if Option.is_none params || p_length = arg_length || (var_arg && arg_length >= p_length) then
-          begin
+          let d =
             let is_once = LibraryFunctions.find ~nowarn:true f in
             match is_once.special args with
-            | Once { once_control; init_routine } ->
-              Some (once once_control init_routine)
+            | Once { once_control; init_routine } -> once once_control init_routine
             | _
             | exception LibraryDsl.Expected _-> (* propagate weirdness inside *)
-              Some (match Cilfacade.find_varinfo_fundec f with
+              (match Cilfacade.find_varinfo_fundec f with
                 | fd when LibraryFunctions.use_special f.vname ->
                   M.info ~category:Analyzer "Using special for defined function %s" f.vname;
                   tf_special_call man lv f args
@@ -302,7 +301,8 @@ struct
                   tf_normal_call man lv e fd args getl sidel demandl getg sideg
                 | exception Not_found ->
                   tf_special_call man lv f args)
-          end
+          in
+          Some d
         else begin
           let geq = if var_arg then ">=" else "" in
           M.warn ~category:Unsound ~tags:[Category Call; CWE 685] "Potential call to function %a with wrong number of arguments (expected: %s%d, actual: %d). This call will be ignored." CilType.Varinfo.pretty f geq p_length arg_length;
