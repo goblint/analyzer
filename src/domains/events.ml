@@ -16,7 +16,7 @@ type t =
   | Assert of exp
   | Unassume of {exp: CilType.Exp.t; tokens: WideningToken.t list}
   | Longjmped of {lval: CilType.Lval.t option}
-  | EnterOnce of {once_control: CilType.Exp.t; ran:bool} (** Once is transformed into a sequence of: enter_once(o) if(!ran(o)) f() leave_once *)
+  | EnterOnce of {once_control: CilType.Exp.t; ran:bool} (** Once is transformed into a sequence of: enter_once(o) if(!ran(o)) f() leave_once(o) *)
   | LeaveOnce of {once_control: CilType.Exp.t}
 
 (** Should event be emitted after transfer function raises [Deadcode]? *)
