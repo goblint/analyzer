@@ -259,32 +259,25 @@ struct
         Queries.AD.to_var_may ad (* TODO: don't convert, handle UnknownPtr below *)
     in
     let once once_control init_routine =
-      let enter =
-        let d' = S.event man (Events.EnterOnce { once_control;  ran = false }) man in
-        let proc = tf_proc var edge prev_node None init_routine [] getl sidel demandl getg sideg d' in
-        if not (S.D.is_bot proc) then
-          let rec proc_man =
+      (* Executes leave event for new local state d if it is not bottom *)
+      let leave_once d =
+        if not (S.D.is_bot d) then
+          let rec man' =
             { man with
-              ask = (fun (type a) (q: a Queries.t) -> S.query proc_man q);
-              local = proc;
+              ask = (fun (type a) (q: a Queries.t) -> S.query man' q);
+              local = d;
             }
           in
-          S.event proc_man (Events.LeaveOnce { once_control }) proc_man
+          S.event man' (Events.LeaveOnce { once_control }) man'
         else
           S.D.bot ()
       in
-      let not_enter =
-        (* Always possible, will never yield `Bot *)
-        let d' = S.event man (Events.EnterOnce { once_control;  ran = true }) man in
-        let rec d'_man =
-          { man with
-            ask = (fun (type a) (q: a Queries.t) -> S.query d'_man q);
-            local = d';
-          }
-        in
-        S.event d'_man (Events.LeaveOnce { once_control }) d'_man
+      let first_call =
+        let d' = S.event man (Events.EnterOnce { once_control;  ran = false }) man in
+        tf_proc var edge prev_node None init_routine [] getl sidel demandl getg sideg d'
       in
-      D.join enter not_enter
+      let later_call = S.event man (Events.EnterOnce { once_control;  ran = true }) man in
+      D.join (leave_once first_call) (leave_once later_call)
     in
     let one_function f =
       match Cil.unrollType f.vtype with
