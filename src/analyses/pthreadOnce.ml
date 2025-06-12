@@ -21,36 +21,11 @@ struct
     let name () = "seen"
   end
 
-  include Analyses.DefaultSpec
+  include Analyses.IdentitySpec
 
   let name () = "pthreadOnce"
   module D = Lattice.Prod (ActiveOnces) (SeenOnces)
   include Analyses.ValueContexts(D)
-
-  (* transfer functions *)
-  let assign man (lval:lval) (rval:exp) : D.t =
-    man.local
-
-  let branch man (exp:exp) (tv:bool) : D.t =
-    man.local
-
-  let body man (f:fundec) : D.t =
-    man.local
-
-  let return man (exp:exp option) (f:fundec) : D.t =
-    man.local
-
-  let enter man (lval: lval option) (f:fundec) (args:exp list) : (D.t * D.t) list =
-    [man.local, man.local]
-
-  let combine_env man lval fexp f args fc au f_ask =
-    au
-
-  let combine_assign man (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) (f_ask: Queries.ask) : D.t =
-    man.local
-
-  let special man (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
-    man.local
 
   let startstate v = (Onces.empty (), Onces.empty ())
 
