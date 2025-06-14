@@ -24,7 +24,7 @@ bug-reports: "https://github.com/goblint/analyzer/issues"
 depends: [
   "angstrom" {= "0.16.0"}
   "apron" {= "v0.9.15"}
-  "arg-complete" {= "0.1.0"}
+  "arg-complete" {= "0.2.1"}
   "astring" {= "0.8.5"}
   "base-bigarray" {= "base"}
   "base-bytes" {= "base"}
@@ -54,6 +54,8 @@ depends: [
   "csexp" {= "1.5.2"}
   "cstruct" {= "6.2.0"}
   "ctypes" {= "0.22.0"}
+  "domain-local-await" {= "1.0.1"}
+  "domain_shims" {= "0.1.0"}
   "dune" {= "3.16.0"}
   "dune-build-info" {= "3.16.0"}
   "dune-configurator" {= "3.16.0"}
@@ -64,7 +66,7 @@ depends: [
   "fileutils" {= "0.6.4"}
   "fmt" {= "0.9.0"}
   "fpath" {= "0.7.3"}
-  "goblint-cil" {= "2.0.5"}
+  "goblint-cil" {= "2.0.6"}
   "hex" {= "1.5.0"}
   "integers" {= "0.7.0"}
   "json-data-encoding" {= "1.0.1"}
@@ -79,7 +81,7 @@ depends: [
   "ocaml-syntax-shims" {= "1.0.0"}
   "ocaml-variants" {= "4.14.2+options"}
   "ocamlbuild" {= "0.14.3"}
-  "ocamlfind" {= "1.9.6"}
+  "ocamlfind" {= "1.9.8"}
   "odoc" {= "2.4.2" & with-doc}
   "odoc-parser" {= "2.4.2" & with-doc}
   "ordering" {= "3.16.0"}
@@ -103,6 +105,7 @@ depends: [
   "stdlib-shims" {= "0.3.0"}
   "stdune" {= "3.16.0"}
   "stringext" {= "1.6.0"}
+  "thread-table" {= "1.0.0"}
   "topkg" {= "1.0.7"}
   "tyxml" {= "4.6.0" & with-doc}
   "uri" {= "4.4.0"}
@@ -139,8 +142,8 @@ post-messages: [
 ]
 pin-depends: [
   [
-    "goblint-cil.2.0.5"
-    "git+https://github.com/goblint/cil.git#f5ee39bd344dc74e2a10e407d877e0ddf73c9c6f"
+    "goblint-cil.2.0.6"
+    "git+https://github.com/goblint/cil.git#8385ab315bc7461f6801af57673c64731bfa036a"
   ]
   [
     "camlidl.1.12"

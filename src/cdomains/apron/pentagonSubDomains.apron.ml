@@ -1,10 +1,8 @@
 open Batteries
 open GoblintCil
-open VectorMatrix
 open GobApron
 
 module M = Messages
-
 
 module Rhs = LinearTwoVarEqualityDomain.Rhs
 
@@ -1086,7 +1084,7 @@ let coeffs_from_econj (dim, map) =
   IntMap.iter add_rhs map;
   m
 
-let coeffs_from_econj = timing_wrap "coeffs" coeffs_from_econj
+let coeffs_from_econj = Timing.wrap "coeffs" coeffs_from_econj
 
 (*assumes x < y*)
 let slopes_from_coeffs mapping (x,y) =
@@ -1099,7 +1097,7 @@ let slopes_from_coeffs mapping (x,y) =
   MultiSet.iter (fun cx cx_count -> MultiSet.iter (fun cy cy_count -> let s = Q.div cx cy in MultiSet.change_member_count slopes s (cx_count * cy_count)) y_coeffs) x_coeffs;
   slopes
 
-let slopes_from_coeffs = timing_wrap "slopes" slopes_from_coeffs
+let slopes_from_coeffs = Timing.wrap "slopes" slopes_from_coeffs
 
 
 (*List of inequalities ax < by + c, mapping a and b to c*)
@@ -1723,7 +1721,7 @@ module LinearInequalities : TwoVarInequalities = struct
       Coeffs.limit ( slopes_from_coeffs coeffs (min x y, max x y)) cs
     in IntMap.filter_map (fun x ys -> ignore_empty @@ IntMap.filter_map (fun y cs -> Coeffs.ignore_empty @@ limit_single x y cs) ys) t
 
-  let limit e t = timing_wrap "limit" (limit e) t
+  let limit e t = Timing.wrap "limit" (limit e) t
 
   let copy_to_new_representants econj_old econj_new t = 
     let coeffs = coeffs_from_econj econj_new in
@@ -1777,7 +1775,7 @@ module LinearInequalities : TwoVarInequalities = struct
            in if Coeffs.CoeffMap.is_empty coeffs_new then t_acc else set_coeff (min v_new other_var) (max v_new other_var) coeffs_new t_acc
     in List.fold (fun acc v_new -> List.fold (add_new v_new ) acc all_representants_in_new ) t new_representants_in_new 
 
-  let copy_to_new_representants econj_old econj_new t = timing_wrap "new_reps" (copy_to_new_representants econj_old econj_new) t
+  let copy_to_new_representants econj_old econj_new t = Timing.wrap "new_reps" (copy_to_new_representants econj_old econj_new) t
 
 end
 

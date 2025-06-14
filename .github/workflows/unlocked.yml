@@ -251,3 +251,49 @@ jobs:
 
       - name: Test incremental regression with cfg comparison
         run: ruby scripts/update_suite.rb -c
+
+  gobview:
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-22.04 # https://github.com/ocaml/setup-ocaml/issues/872
+        ocaml-compiler:
+          - ocaml-variants.5.0.0+options,ocaml-option-flambda 
+        node-version:
+          - 14
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up OCaml ${{ matrix.ocaml-compiler }}
+        uses: ocaml/setup-ocaml@v3
+        with:
+          ocaml-compiler: ${{ matrix.ocaml-compiler }}
+
+      - name: Set up Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+
+      - name: Install dependencies
+        run: opam install . --deps-only
+
+      - name: Setup Gobview
+        run: ./make.sh setup_gobview
+
+      - name: Build
+        run: ./make.sh nat
+
+      - name: Build Gobview
+        run: ./make.sh view
+
+      - name: Install selenium
+        run: pip3 install selenium webdriver-manager
+
+      - name: Test Gobview
+        run: |
+          python3 scripts/test-gobview.py

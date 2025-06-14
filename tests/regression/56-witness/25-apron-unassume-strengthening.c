@@ -1,4 +1,4 @@
-// SKIP PARAM: --set ana.activated[+] apron --set ana.activated[+] unassume --set witness.yaml.unassume 25-apron-unassume-strengthening.yml --enable ana.apron.strengthening --set sem.int.signed_overflow assume_none --set ana.apron.domain octagon
+// SKIP PARAM: --set ana.activated[+] apron --set witness.yaml.entry-types[*] location_invariant --set ana.activated[+] unassume --set witness.yaml.unassume 25-apron-unassume-strengthening.yml --enable ana.apron.strengthening --set sem.int.signed_overflow assume_none --set ana.apron.domain octagon
 #include <goblint.h>
 
 int main() {

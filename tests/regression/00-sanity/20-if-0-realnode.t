@@ -13,7 +13,7 @@
   │ [20-if-0-realnode.c:9:5-10:5            │   Neg(0)
   │ (unknown)]                              │ ─────────┐
   │ YAML loc: 20-if-0-realnode.c:10:5-16:5  │          │
-  │ GraphML: true; server: true             │ ◀────────┘
+  │ server: true                            │ ◀────────┘
   └─────────────────────────────────────────┘
     │
     │ Pos(0)
@@ -22,7 +22,7 @@
   │ 20-if-0-realnode.c:12:9-12:16           │
   │ (20-if-0-realnode.c:12:9-12:16)         │
   │ YAML loc: 20-if-0-realnode.c:12:9-12:16 │
-  │ GraphML: true; server: true             │
+  │ server: true                            │
   └─────────────────────────────────────────┘
     │
     │ stuff()
@@ -31,7 +31,7 @@
   │ 20-if-0-realnode.c:17:5-17:13           │
   │ (20-if-0-realnode.c:17:12-17:13)        │
   │ YAML loc: 20-if-0-realnode.c:17:5-17:13 │
-  │ GraphML: true; server: true             │
+  │ server: true                            │
   └─────────────────────────────────────────┘
     │
     │ return 0

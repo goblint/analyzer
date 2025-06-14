@@ -13,10 +13,10 @@ class extractThresholdsFromConditionsVisitor(upper_thresholds,lower_thresholds, 
 
   method! vexpr = function
     (* Comparisons of type: 10 <= expr, expr >= 10, expr < 10, 10 > expr *)
-    | BinOp (Le, (Const (CInt(i,_,_))), _, (TInt _))
-    | BinOp (Ge, _, (Const (CInt(i,_,_))), (TInt _))
-    | BinOp (Lt, _, (Const (CInt(i,_,_))), (TInt _))
-    | BinOp (Gt, (Const (CInt(i,_,_))), _, (TInt _)) ->
+    | BinOp (Le, (Const (CInt(i,_,_))), _, _)
+    | BinOp (Ge, _, (Const (CInt(i,_,_))), _)
+    | BinOp (Lt, _, (Const (CInt(i,_,_))), _)
+    | BinOp (Gt, (Const (CInt(i,_,_))), _, _) ->
       addThreshold upper_thresholds @@ i;
       addThreshold lower_thresholds @@ Z.pred i;
 
@@ -28,10 +28,10 @@ class extractThresholdsFromConditionsVisitor(upper_thresholds,lower_thresholds, 
       DoChildren
 
     (* Comparisons of type: 10 < expr, expr > 10, expr <= 10, 10 >= expr *)
-    | BinOp (Lt, (Const (CInt(i,_,_))), _, (TInt _))
-    | BinOp (Gt, _, (Const (CInt(i,_,_))), (TInt _))
-    | BinOp (Le, _, (Const (CInt(i,_,_))), (TInt _))
-    | BinOp (Ge, (Const (CInt(i,_,_))), _, (TInt _)) ->
+    | BinOp (Lt, (Const (CInt(i,_,_))), _, _)
+    | BinOp (Gt, _, (Const (CInt(i,_,_))), _)
+    | BinOp (Le, _, (Const (CInt(i,_,_))), _)
+    | BinOp (Ge, (Const (CInt(i,_,_))), _, _) ->
       let i = Z.succ i in (* The same as above with i+1 because for integers expr <= 10 <=> expr < 11 *)
       addThreshold upper_thresholds @@ i;
       addThreshold lower_thresholds @@ Z.pred i;
@@ -44,10 +44,10 @@ class extractThresholdsFromConditionsVisitor(upper_thresholds,lower_thresholds, 
       DoChildren
 
     (* Comparisons of type: 10 == expr, expr == 10, expr != 10, 10 != expr *)
-    | BinOp (Eq, (Const (CInt(i,_,_))), _, (TInt _))
-    | BinOp (Eq, _, (Const (CInt(i,_,_))), (TInt _))
-    | BinOp (Ne, _, (Const (CInt(i,_,_))), (TInt _))
-    | BinOp (Ne, (Const (CInt(i,_,_))), _, (TInt _)) ->
+    | BinOp (Eq, (Const (CInt(i,_,_))), _, _)
+    | BinOp (Eq, _, (Const (CInt(i,_,_))), _)
+    | BinOp (Ne, _, (Const (CInt(i,_,_))), _)
+    | BinOp (Ne, (Const (CInt(i,_,_))), _, _) ->
       addThreshold upper_thresholds @@ i;
       addThreshold lower_thresholds @@ i;
 

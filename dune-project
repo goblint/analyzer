@@ -1,4 +1,4 @@
-(lang dune 3.7)
+(lang dune 3.13)
 (using dune_site 0.1)
 (cram enable)
 (name goblint)
@@ -58,7 +58,7 @@ Goblint includes analyses for assertions, overflows, deadlocks, etc and can be e
     (sha (>= 1.12))
     (fileutils (>= 0.6.4))
     cpu
-    arg-complete
+    (arg-complete (>= 0.2.1))
     (yaml (>= 3.0.0))
     uuidm
     catapult
@@ -67,10 +67,13 @@ Goblint includes analyses for assertions, overflows, deadlocks, etc and can be e
     (conf-ruby :with-test)
     (benchmark :with-test) ; TODO: make this optional somehow, (optional) on bench executable doesn't work
     conf-gcc ; ensures opam-repository CI installs real gcc from homebrew on MacOS
+    domain-local-await
+    domain_shims
   )
   (depopts
     (apron (>= v0.9.15))
     z3
+    domainslib
   )
   (conflicts
     (result (< 1.5)) ; transitive dependency, overrides standard Result module and doesn't have map_error, bind
