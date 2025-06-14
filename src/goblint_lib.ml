@@ -80,6 +80,7 @@ module ApronAnalysis = ApronAnalysis
 module AffineEqualityAnalysis = AffineEqualityAnalysis
 module LinearTwoVarEqualityAnalysis = LinearTwoVarEqualityAnalysis
 module LinearTwoVarEqualityAnalysisPentagon = LinearTwoVarEqualityAnalysisPentagon
+module PentagonSubDomains = PentagonSubDomains
 module VarEq = VarEq
 module CondVars = CondVars
 module TmpSpecial = TmpSpecial
