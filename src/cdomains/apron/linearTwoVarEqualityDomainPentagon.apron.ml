@@ -4,7 +4,7 @@ open Batteries
 open GoblintCil
 open Pretty
 open GobApron
-open PentagonSubDomains
+open RepresentantDomains
 
 module EqualitiesConjunctionWithIntervals (Ineq : TwoVarInequalities) =
 struct
