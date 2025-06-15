@@ -51,9 +51,9 @@
       (apron -> linearTwoVarEqualityAnalysisPentagon.apron.ml)
       (-> linearTwoVarEqualityAnalysisPentagon.no-apron.ml)
     )
-    (select pentagonSubDomains.ml from
-      (apron -> pentagonSubDomains.apron.ml)
-      (-> pentagonSubDomains.no-apron.ml)
+    (select representantDomains.ml from
+      (apron -> representantDomains.apron.ml)
+      (-> representantDomains.no-apron.ml)
     )
     (select linearTwoVarEqualityDomainPentagon.ml from
       (apron -> linearTwoVarEqualityDomainPentagon.apron.ml)
