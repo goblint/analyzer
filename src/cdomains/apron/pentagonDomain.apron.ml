@@ -637,6 +637,7 @@ end
 
 module D =
 struct
+  include ZExtOps
   include Printable.Std
   include VarManagement
   module Bounds = ExpressionBounds
@@ -726,7 +727,7 @@ struct
               let b1x = BatList.at interval1 x in
               let b1y = BatList.at interval1 y in
               Sub.VarSet.mem y s1x ||
-              Intv.sup b1x < Intv.inf b1y
+              Intv.sup b1x <* Intv.inf b1y
             ) s2x
         ) sub2 in
       bool1 && bool2
@@ -933,7 +934,7 @@ struct
                  let dim_divisor = Environment.dim_of_var t.env divisor in 
                  let intv_divisor = BatList.at intv_2 dim_divisor
                  in
-                 if (Intv.inf intv_divisor) < ZExt.zero then 
+                 if (Intv.inf intv_divisor) <* ZExt.zero then 
                    sub_without_var
                  else
                    BatList.modify_at dim (fun _ -> Sub.VarSet.singleton dim_divisor) sub_without_var
@@ -1014,14 +1015,14 @@ struct
     let interval_helper ((lb, ub): ZExt.t * ZExt.t) (tcons_typ: Tcons1.typ) =
       let zero = ZExt.zero in 
       match tcons_typ with
-      | EQ when lb <= zero && ub >= zero -> t
-      | SUPEQ when ub >= zero -> t
-      | SUP when ub > zero -> t
-      | DISEQ when ub <> zero || lb <> zero -> t
+      | EQ when lb <=* zero && ub >=* zero -> t
+      | SUPEQ when ub >=* zero -> t
+      | SUP when ub >* zero -> t
+      | DISEQ when ub <>* zero || lb <>* zero -> t
       | EQMOD (s) -> (
           let s = z_ext_of_scalar s in
           let ( - ) = ZExt.sub in
-          if (ub - lb) <= (s - ZExt.of_int 2) && lb <> zero && (ZExt.rem_add lb s) <= (ZExt.rem_add ub s) then
+          if (ub - lb) <= (s - ZExt.of_int 2) && lb <>* zero && (ZExt.rem_add lb s) <=* (ZExt.rem_add ub s) then
             bot_of_env t.env
           else
             t
@@ -1066,11 +1067,11 @@ struct
             | SUPEQ -> var_intv_meet (zero, PosInfty) dim_y
             | SUP -> var_intv_meet (ZExt.of_int 1, PosInfty) dim_y
             | DISEQ ->
-              if lb <> zero && ub <> zero then
+              if lb <>* zero && ub <>* zero then
                 t
-              else if lb = zero && ub > zero then
+              else if lb =* zero && ub >* zero then
                 var_intv_meet (ZExt.of_int 1, PosInfty) dim_y
-              else if lb < zero && ub = zero then
+              else if lb <* zero && ub =* zero then
                 var_intv_meet (NegInfty, ZExt.of_int (-1)) dim_y
               else 
                 bot_of_env t.env
@@ -1084,7 +1085,7 @@ struct
                       let ( - ) = ZExt.sub in
                       let ( + ) = ZExt.add in
                       let tmp_lb = lb - ZExt.rem_add lb s in
-                      let lb = if tmp_lb < lb then (tmp_lb) + s else tmp_lb in
+                      let lb = if tmp_lb <* lb then (tmp_lb) + s else tmp_lb in
                       let ub = ub - ZExt.rem_add ub s in
                       (lb, ub)
                     )
