@@ -43,6 +43,14 @@ struct
     | _, PosInfty -> -1
     | Arb(z1), Arb(z2) -> Z.compare z1 z2;;
 
+  let (<*) z1 z2 = compare z1 z2 < 0;;
+  let (>*) z1 z2 = compare z1 z2 > 0;;
+  let (=*) z1 z2 = compare z1 z2 = 0;;
+  let (<=*) z1 z2 = compare z1 z2 <= 0;;
+  let (>=*) z1 z2 = compare z1 z2 >= 0;;
+  let (<>*) z1 z2 = compare z1 z2 <> 0;;
+
+
   let of_int i = Arb(Z.of_int i)
 
   let of_float f =
@@ -157,12 +165,26 @@ struct
 
 end
 
+module ZExtOps =
+struct 
+
+  let (<*) = ZExt.(<*);;
+  let (>*) = ZExt.(>*);;
+  let (=*) = ZExt.(=*);;
+  let (<=*) = ZExt.(<=*);;
+  let (>=*) = ZExt.(>=*);;
+  let (<>*) = ZExt.(<>*);;
+
+end
+
 (**
    Stores functions and types for single intervals $\mathbb{Z}^\infty$
    according to the pentagon domains semantics. Beware, this module is NOT generic.
 *)
 module Intv =
 struct
+  include ZExtOps
+
   type t = (ZExt.t * ZExt.t) [@@deriving eq, hash, ord]
 
   let top () = ((ZExt.NegInfty, ZExt.PosInfty): t)
@@ -171,7 +193,7 @@ struct
 
   let is_top (x:t) = ((ZExt.NegInfty, ZExt.PosInfty) = x)
 
-  let is_bot ((l, u): t) = l > u
+  let is_bot ((l, u): t) = u <* l 
 
   (** Intv intersection *)
   let inter ((l1, u1): t) ((l2, u2): t) =
