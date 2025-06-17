@@ -215,7 +215,7 @@ struct
 
   (** Taken from module IArith *)
   let div ((x1, x2): t) ((y1, y2): t) =
-    if y1 <= ZExt.zero && y2 >= ZExt.zero then top() else
+    if y1 <=* ZExt.zero && y2 >=* ZExt.zero then top() else
       let ( / ) = ZExt.div in
       ((
         ZExt.min4 (x1 / y1) (x1 / y2) (x2 / y1) (x2 / y2),
@@ -244,7 +244,7 @@ struct
   let rem (i1: t) i2 =
     (* i1 % i2 *)
     let (l2, u2) = i2 in
-    if l2 <= ZExt.zero && u2 >= ZExt.zero then
+    if l2 <=* ZExt.zero && u2 >=* ZExt.zero then
       top() 
     else if no_lowerbound i2 || no_upperbound i2 then
       i1
@@ -257,21 +257,21 @@ struct
      We assume that i1 and i2 are well-formed, i.e. not bot/empty.
   *)
   let pow ((l1, u1): t) ((l2, u2): t) =
-    if l2 < ZExt.zero then top () (* x ^ (-1) is unsupported operation on ints ==> we treat it as undefined behavior, same as division by 0 *)
+    if l2 <* ZExt.zero then top () (* x ^ (-1) is unsupported operation on ints ==> we treat it as undefined behavior, same as division by 0 *)
     else
       match u2 with
-      | PosInfty -> if l1 <= ZExt.of_int (-2) then top () (* can create arbitrarily big numbers with (-2) ^ x *)
-        else if l1 >= ZExt.zero then (ZExt.pow l1 l2, ZExt.pow u1 PosInfty)
+      | PosInfty -> if l1 <=* ZExt.of_int (-2) then top () (* can create arbitrarily big numbers with (-2) ^ x *)
+        else if l1 >=* ZExt.zero then (ZExt.pow l1 l2, ZExt.pow u1 PosInfty)
         else (* l1 = -1 *)
         if u1 = ZExt.of_int (-1) then (ZExt.of_int (-1), ZExt.of_int 1)
         else (ZExt.of_int (-1), ZExt.pow u1 PosInfty)
       | NegInfty -> failwith "Intv.pow should not happen"
-      | Arb u2z when l1 < ZExt.zero ->
+      | Arb u2z when l1 <* ZExt.zero ->
         if l2 = u2 then (* special case because we don't have an even AND an odd number ==> either impossible to mirror negative numbers or everything gets nonnegative *)
           let exp = l2 in
-          if exp = ZExt.zero then (ZExt.of_int 1, ZExt.of_int 1) else
+          if exp =* ZExt.zero then (ZExt.of_int 1, ZExt.of_int 1) else
           if Z.is_even u2z then
-            if u1 >= ZExt.zero then
+            if u1 >=* ZExt.zero then
               (* i1 contains negative and nonnegative numbers, exp != 0 is even ==> lb = 0, ub depends on greater abs value of bounds *)
               let max_abs = ZExt.max (ZExt.abs l1) u1 in
               let u = ZExt.pow max_abs exp in
