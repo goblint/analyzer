@@ -7,6 +7,7 @@
 #include <goblint.h>
 
 void main(void) {
-  int x = 4;
-  __goblint_check(x == 4);
+  int x = 1;
+  // __goblint_check(x == 0);
+  __goblint_check(x < 0);
 }
