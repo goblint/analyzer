@@ -780,7 +780,7 @@ struct
   let assert_constraint ask d e negate (no_ov: bool Lazy.t) =
     match Convert.tcons1_of_cil_exp ask d d.env e negate no_ov with
     | tcons1 -> meet_tcons ask d tcons1 e no_ov
-    | exception Convert.Unsupported_CilExp _ -> d
+    | exception Convert.Unsupported_CilExp _ -> Printf.printf "failed to convert cil expression\n"; d
 
   let assert_constraint ask d e negate no_ov = Timing.wrap "assert_constraint" (assert_constraint ask d e negate) no_ov
 

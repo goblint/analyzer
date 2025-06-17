@@ -243,7 +243,7 @@ struct
           | Ne -> (texpr1_1, texpr1_2, DISEQ) (* e1 != e2  ==>  e1 - e2 != 0 *)
           | _ -> raise (Unsupported_CilExp (BinOp_not_supported r))
         end
-      | _ -> raise (Unsupported_CilExp (Exp_not_supported e))
+      | _ -> Printf.printf "7"; raise (Unsupported_CilExp (Exp_not_supported e))
     in
     let inverse_typ = function
       | EQ -> DISEQ

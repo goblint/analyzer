@@ -1,7 +1,8 @@
 {
   "ana": {
     "activated": [
-      "pentagon"
+      "assert",
+      "pntg"
     ]
   },
   "result": "none",

@@ -205,6 +205,7 @@ struct
     let ( + ) = ZExt.add_opt in
     ((Option.default ZExt.NegInfty (l1 + l2), Option.default ZExt.PosInfty (u1 + u2)): t)
 
+
   (** Taken from module IArith *)
   let mul ((x1, x2): t) ((y1, y2): t) =
     let ( * ) = ZExt.mul in
@@ -296,6 +297,7 @@ struct
         let u = ZExt.pow u1 u2 in
         (l, u)
 
+
   (**
      Creates a single interval from the supplied integer values.
   *)
@@ -312,6 +314,13 @@ struct
 
   let narrow (i1: t) (i2: t) = 
     inter i1 i2
+
+
+  let neg intv = (ZExt.neg (sup intv), ZExt.neg (inf intv))
+
+  let sub intv_1 intv_2 =
+    let intv_2 =  neg intv_2 in
+    add intv_1 intv_2
 
 end
 
@@ -637,6 +646,7 @@ struct
 
   let bound_texpr t texpr = None, None
 
+
   let bound_texpr d texpr1 = Timing.wrap "bounds calculation" (bound_texpr d) texpr1
 end
 
@@ -829,6 +839,45 @@ struct
     | Float(f) -> ZExt.of_float f
     | Mpqf(mpqf) -> ZExt.of_float (Mpqf.to_float mpqf)
     | Mpfrf(mpfrf) -> ZExt.of_float (Mpfrf.to_float mpfrf)
+
+
+
+  let eval_texpr_to_intv (texpr:Texpr1.expr) (t:t) : Intv.t = 
+    let get_dim var = Environment.dim_of_var t.env var in
+    let d = Option.get t.d in
+    let boxes = d.intv in
+    let rec aux texpr =
+      match texpr with
+      | Texpr1.Cst (Interval inv) -> (z_ext_of_scalar inv.inf, z_ext_of_scalar inv.sup)
+      | Cst (Scalar s) -> let s = z_ext_of_scalar s in (s, s)
+      | Var y -> List.at boxes (get_dim y) 
+      | Unop  (Neg,  e, _, _) -> Intv.neg (aux e)
+      | Unop  (Cast, e, _, _) -> aux e
+      | Unop  (Sqrt, e, _, _) -> failwith "Do the sqrt. :)"
+      | Binop (Add, e1, e2, _, _) -> (
+          let ( + ) = Intv.add in
+          aux e1 + aux e2 
+        )
+      | Binop (Sub, e1, e2, _, _) -> (
+          let ( - ) = Intv.sub in
+          aux e1 - aux e2
+        )
+      | Binop (Mul, e1, e2, _, _) -> (
+          let ( * ) = Intv.mul in
+          aux e1 * aux e2
+        )
+      | Binop (Div, e1, e2, _, _) -> (
+          let ( / ) = Intv.div in
+          aux e1 / aux e2
+        )
+      | Binop (Mod, e1, e2, _, _)  -> (
+          Intv.rem (aux e1) (aux e2)
+        )
+      | Binop (Pow, e1, e2, _, _) -> (
+          Intv.pow (aux e1) (aux e2)
+        )
+    in
+    aux texpr
 
 
 
@@ -1060,6 +1109,7 @@ struct
     string_of_texpr1 texpr ^ " " ^  Tcons1.string_of_typ (Tcons1.get_typ tcons1) ^ "0"
 
 
+
   (**
       Taken from Lin2Var.
   *)
@@ -1098,13 +1148,14 @@ struct
     ) in
     match t.d with 
     | None -> t
-    | Some d -> 
-      match Convert.tcons1_of_cil_exp ask t t.env e negate no_ov with
-      | exception Convert.Unsupported_CilExp _ -> t
-      | tcons1 ->        
+    | Some d ->
+      match Convert.tcons1_of_cil_exp ask t t.env e negate (Lazy.from_val true) with
+      | exception Convert.Unsupported_CilExp _ -> Printf.printf "failed to convert cil expression\n"; t
+      | tcons1 -> 
         let tcons_typ = Tcons1.get_typ tcons1 in
         let texpr = (Texpr1.to_expr @@ Tcons1.get_texpr1 tcons1) in
         Printf.printf "%s\n" (string_of_texpr_tcons1 texpr tcons1);
+
         let rec assert_constraint t (texpr: Texpr1.expr) =
           match texpr with 
           | Cst (Interval inv) -> 
@@ -1149,22 +1200,23 @@ struct
                       ({ d = Some({intv=intv; sub=d.sub}); env=t.env})
                     )
                 )
-            )
-          | Unop  (Neg,  e, _, _) ->  t (* - texpr >= 0 *)
+            )           
+          | Unop  (Neg,  e, _, _) ->  t (* - texpr op 0 *)
           | Unop  (Cast, e, _, _) ->  t (* (cst) texpr >= 0 *)
           | Unop  (Sqrt, e, _, _) ->  t (* sqrt texpr >= 0 *)
-          | Binop (Add, e1, e2, _, _) -> t
-          | Binop (Sub, e1, e2, t0, r) -> (
+          | Binop (Add, e1, e2, _, _) ->  t 
+          | Binop (Sub, e1, e2, t0, r) -> ( (* x - 2*y >= 0 *)
               match e1, e2 with
-              | Var y, Cst(Scalar s) when tcons_typ = EQ || tcons_typ = DISEQ -> if (z_ext_of_scalar s) =* zero then assert_constraint t e1 else t
-              | Cst(Scalar s), Var y when tcons_typ = DISEQ || tcons_typ = EQ -> if (z_ext_of_scalar s) =* zero then assert_constraint t e2 else t
-              | _ -> t
+              | Var y, Cst(Scalar s) when (z_ext_of_scalar s) =* zero && (tcons_typ = EQ || tcons_typ = DISEQ) -> assert_constraint t e1
+              | Cst(Scalar s), Var y when (z_ext_of_scalar s) =* zero && (tcons_typ = DISEQ || tcons_typ = EQ) -> assert_constraint t e2
+              | _ -> let intv = eval_texpr_to_intv (Binop (Sub, e1, e2, t0, r)) t in interval_helper intv tcons_typ 
             )
-          | Binop (Mul, e1, e2, _, _) -> t
+
+          (** [2,2]  - [2, 2]*)
+          | Binop (Mul, e1, e2, _, _) -> Printf.printf "MUL"; t
           | Binop (Div, e1, e2, _, _) -> t
           | Binop (Mod, e1, e2, _, _)  -> t
           | Binop (Pow, e1, e2, _, _) -> t 
-
           | _ -> t
         in
         assert_constraint t texpr

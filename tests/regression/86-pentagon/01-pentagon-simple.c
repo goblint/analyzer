@@ -7,7 +7,14 @@
 #include <goblint.h>
 
 void main(void) {
-  int x = 1;
-  // __goblint_check(x == 0);
-  __goblint_check(x < 0);
+  int x = rand();
+
+  if(x == 0){
+
+  __goblint_check(x == 0);
+  }
+  else{
+
+  __goblint_check(x != 0);
+  }
 }
