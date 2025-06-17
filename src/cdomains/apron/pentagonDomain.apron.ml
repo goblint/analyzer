@@ -339,20 +339,16 @@ struct
 
   let to_string (intervals: t) =
     if is_bot intervals then
-      let list = List.fold_left (fun acc i -> (acc ^  ((ZExt.to_string (fst i)) ^", "^ (ZExt.to_string (snd i))))) "" intervals in
-      "(bot: " ^ (String.of_int (List.length intervals)) ^ " " ^ list ^ ")"
+      "⊥"
     else if is_top intervals then
-      let list = List.fold_left (fun acc i -> (acc ^  ((ZExt.to_string (fst i)) ^ ", " ^ (ZExt.to_string (snd i))))) "" intervals in
-      "(top: " ^ (String.of_int (List.length intervals)) ^ " " ^ list ^ ")"
+      "⊤"
     else
       let string_of_interval (l, u) =
         Printf.sprintf "[%s, %s]" (ZExt.to_string l) (ZExt.to_string u)
       in
-      "{" ^ (String.concat "; " (List.map string_of_interval intervals)) ^ "}"
+      "( " ^ (String.concat "; " (List.map string_of_interval intervals)) ^ " )"
 
   let equal boxes1 boxes2 =
-    (* Printf.printf "boxes.equal\n";
-       Printf.printf "%s\n%s\n" (to_string boxes1) (to_string boxes2); *)
     BatList.for_all2 (Intv.equal) boxes1 boxes2
 
   let leq i1 i2 =
@@ -561,7 +557,7 @@ struct
     let set_string set = "{" ^ (
         VarSet.to_list set |>
         List.map (Idx.to_string) |>
-        String.concat ","
+        String.concat ", "
       ) ^ "}" in
     (* Results in: x_1 -> {y1, y2, ..., yn} *)
     let relations_string = String.concat ", " (VarList.mapi (
@@ -569,15 +565,15 @@ struct
           (Idx.to_string i) ^ " -> " ^ (set_string set)
       ) sub) in
     (* Results in: {x_1 -> {y1, y2, ..., yn}} *)
-    "{" ^ relations_string ^ "}"
+    "( " ^ relations_string ^ " )"
 
   let to_string (sub: t) = 
     if is_bot sub then
-      "(bot " ^ (String.of_int (List.length sub)) ^ ")"
+      "⊥"
     else if is_top sub then
-      "top " ^ (String.of_int (List.length sub)) ^ ")"
+      "⊤"
     else
-      "(" ^ to_string sub ^ ")"
+      to_string sub
 
 end
 
@@ -707,15 +703,41 @@ struct
 
 
   type var = V.t
-
-
-  let pretty_diff () (x, y) = Pretty.real 2.
-
-  let show t = ""
-
-  let printXml f x = ()
-
   let name () = "pentagon"
+
+  let is_bot t = 
+    match t.d with
+    | None -> true
+    | Some d -> Boxes.is_bot d.boxes || Sub.is_bot d.sub
+
+  let is_top t = 
+    match t.d with
+    | None -> false
+    | Some d -> Boxes.is_top d.boxes && Sub.is_top d.sub
+
+  let to_string pntg =
+    if is_bot pntg then
+      "⊥"
+    else if is_top pntg then
+      "⊤"
+    else
+      (* d = None should have been handled by is_bot. *)
+      let d = Option.get pntg.d in
+      let boxes_str = Boxes.to_string d.boxes in
+      let sub_str = Sub.to_string d.sub in
+      Printf.sprintf "{ boxes = %s; sub = %s }" boxes_str sub_str
+
+  let show = to_string
+
+  let pretty () (t:t) = text (show t)
+
+
+  let pretty_diff () (x, y) =
+    dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
+
+
+  let printXml f (t:t) =  BatPrintf.fprintf f "<value>\n<map>\n<key>\npntg\n</key>\n<value>\n%s</value>\n<key>\nenv\n</key>\n<value>\n%a</value>\n</map>\n</value>\n" (XmlUtil.escape (show t)) Environment.printXml t.env
+
 
   let to_yojson t = failwith "TODO"
 
@@ -737,17 +759,6 @@ struct
   let top () = {d = Some {boxes = []; sub = []}; env = empty_env}
 
   let top_of_env env = dimchange2_add (top ()) env
-
-  let is_bot t = 
-    match t.d with
-    | None -> true
-    | Some d -> Boxes.is_bot d.boxes || Sub.is_bot d.sub
-
-  let is_top t = 
-    match t.d with
-    | None -> false
-    | Some d -> Boxes.is_top d.boxes && Sub.is_top d.sub
-
 
   let meet t1 t2 =
     let sup_env = Environment.lce t1.env t2.env in
@@ -839,17 +850,6 @@ struct
     let res = narrow a b in
     if M.tracing then M.tracel "narrow" "narrow a: %s b: %s -> %s" (show a) (show b) (show res) ;
     res
-
-  let to_string pntg1 =
-    match pntg1.d with
-    | None -> "bot"
-    | Some d ->
-      let boxes_str = Boxes.to_string d.boxes in
-      let sub_str = Sub.to_string d.sub in
-      Printf.sprintf "Pentagon: %s, %s" boxes_str sub_str
-
-  let pretty () (t:t) = text (to_string t)
-
 
   (* S2 Specific functions of RelationDomain *)
   let is_bot_env t = t.d = None
@@ -1228,9 +1228,9 @@ struct
 
   let to_string pntg = 
     if is_bot pntg then
-      "bot"
+      "⊥"
     else if is_top pntg then
-      "top"
+      "⊤"
     else
       match pntg.d with
       | None -> failwith "is_bot should take care of that"
