@@ -8,7 +8,7 @@ open GoblintCil
 module M = Messages
 open GobApron
 open BatList
-
+open Pretty
 
 (** 
    Extension of the Zarith types and funcitons.
@@ -708,7 +708,6 @@ struct
 
   type var = V.t
 
-  let pretty () (x:t) = Pretty.real 2.
 
   let pretty_diff () (x, y) = Pretty.real 2.
 
@@ -849,6 +848,7 @@ struct
       let sub_str = Sub.to_string d.sub in
       Printf.sprintf "Pentagon: %s, %s" boxes_str sub_str
 
+  let pretty () (t:t) = text (to_string t)
 
 
   (* S2 Specific functions of RelationDomain *)
