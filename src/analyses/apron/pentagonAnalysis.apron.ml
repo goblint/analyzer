@@ -26,7 +26,7 @@ let get_spec (): (module MCPSpec) =
 let after_config () =
   let module Spec = (val get_spec ()) in
   MCP.register_analysis (module Spec : MCPSpec);
-  GobConfig.set_string "ana.pentagon[+]"  (Spec.name ())
+  GobConfig.set_string "ana.path_sens[+]"  (Spec.name ())
 
 let _ =
   AfterConfig.register after_config

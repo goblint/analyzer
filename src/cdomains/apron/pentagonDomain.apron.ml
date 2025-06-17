@@ -25,6 +25,7 @@ struct
     | Arb(z) -> Z.hash z;;
 
   let equal (z1: t) (z2: t) = 
+    Printf.printf "ZExt.equal";
     match z1, z2 with
     | PosInfty, PosInfty -> true
     | NegInfty, NegInfty -> true
@@ -32,15 +33,15 @@ struct
     | _ -> false ;;
 
   let compare (z1: t) (z2: t) = 
+    Printf.printf "Zext.compare";
     match z1, z2 with
     | NegInfty, NegInfty -> 0
     | PosInfty, PosInfty -> 0
-    | NegInfty, _ -> -1
+    | NegInfty, _ -> -1 
     | _, NegInfty -> 1
     | PosInfty, _ -> 1
     | _, PosInfty -> -1
     | Arb(z1), Arb(z2) -> Z.compare z1 z2;;
-
 
   let of_int i = Arb(Z.of_int i)
 
@@ -298,9 +299,11 @@ struct
   type t = Intv.t list [@@deriving eq, ord]
 
   let equal intv1 intv2 =
+    Printf.printf "boxes.equal\n";
     BatList.for_all2 (Intv.equal) intv1 intv2
 
   let leq i1 i2 =
+    Printf.printf "boxes.leq\n";
     BatList.for_all2 Intv.leq i1 i2
 
   let join (i1: t) (i2: t) = 
@@ -310,6 +313,7 @@ struct
     BatList.map2 Intv.inter i1 i2
 
   let is_top i =
+    Printf.printf "boxes.is_top\n";
     BatList.for_all Intv.is_top i
 
   let widen (i1: t) (i2: t) = 
@@ -321,6 +325,18 @@ struct
   let is_bot (i: t) = 
     BatList.exists Intv.is_bot i
 
+  let to_string (intervals: t) =
+    if is_bot intervals then
+      let list = List.fold_left (fun acc i -> (acc ^  ((ZExt.to_string (fst i)) ^", "^ (ZExt.to_string (snd i))))) "" intervals in
+      "bot " ^ (String.of_int (List.length intervals)) ^ " " ^ list
+    else if is_top intervals then
+      let list = List.fold_left (fun acc i -> (acc ^  ((ZExt.to_string (fst i)) ^ ", " ^ (ZExt.to_string (snd i))))) "" intervals in
+      "top " ^ (String.of_int (List.length intervals)) ^ " " ^ list
+    else
+      let string_of_interval (l, u) =
+        Printf.sprintf "[%s, %s]" (ZExt.to_string l) (ZExt.to_string u)
+      in
+      "{" ^ (String.concat "; " (List.map string_of_interval intervals)) ^ "}"
 
   let dim_add (dim_change: Apron.Dim.change) (intervals: t) =
     if dim_change.realdim != 0 then
@@ -337,7 +353,10 @@ struct
           let new_array = (BatArray.sub dim_changes 1 (BatArray.length dim_changes - 1)) in
           insert_dimensions (left @ [Intv.top ()] @ right) new_array
       in
-      insert_dimensions intervals change_arr;;
+      let tmp = insert_dimensions intervals change_arr in
+      Printf.printf "dim_add %s\n" (to_string ([Intv.top ()]));
+      tmp
+  ;;
 
 
   (* Backup implementation, if dim_change.dim is not sorted and contains duplicates. *)
@@ -363,16 +382,7 @@ struct
       in
       aux 0 0 intervals
 
-  let to_string (intervals: t) =
-    if is_bot intervals then
-      "bot"
-    else if is_top intervals then
-      "top"
-    else
-      let string_of_interval (l, u) =
-        Printf.sprintf "[%s, %s]" (ZExt.to_string l) (ZExt.to_string u)
-      in
-      "{" ^ (String.concat "; " (List.map string_of_interval intervals)) ^ "}"
+
 
 
   let forget_vars (vars: int BatList.t) =
@@ -488,7 +498,8 @@ struct
       forall x in s2.
       s2(x) subseteq s1(x)
   *)
-  let leq (sub1: t) (sub2: t) = BatList.for_all2 subseteq sub2 sub1
+  let leq (sub1: t) (sub2: t) = 
+    Printf.printf "sub.leq\n";BatList.for_all2 subseteq sub2 sub1
 
   let join (sub1: t) (sub2: t) = BatList.map2 VarSet.inter sub1 sub2
 
@@ -527,7 +538,7 @@ struct
     if is_bot sub then
       "bot"
     else if is_top sub then
-      "top"
+      "top " ^ (String.of_int (List.length sub))
     else
       to_string sub 
 
@@ -782,6 +793,7 @@ struct
 
 
   let assign_texpr (t: t) var (texp: Texpr1.expr) =
+    Printf.printf "assign_texpr\n";
 
     let dim = Environment.dim_of_var t.env var in
 
@@ -974,6 +986,8 @@ struct
 
   *)
   let assert_constraint ask t e negate (no_ov: bool Lazy.t) =
+    Printf.printf "assert_constraint\n";
+    Printf.printf "%s\n" (to_string t);
     (** Checks if the constraining interval violates the assertion. *)
     let interval_helper ((lb, ub): ZExt.t * ZExt.t) (tcons_typ: Tcons1.typ) =
       let zero = ZExt.zero in 
@@ -1012,6 +1026,8 @@ struct
       | exception Convert.Unsupported_CilExp _ -> t
       | tcons1 ->
         let tcons_typ = Tcons1.get_typ tcons1 in
+        Printf.printf "%s\n" (Tcons1.string_of_typ tcons_typ);
+
         match (Texpr1.to_expr @@ Tcons1.get_texpr1 tcons1) with 
         | Cst (Interval inv) -> 
           interval_helper (z_ext_of_scalar inv.inf, z_ext_of_scalar inv.sup) tcons_typ
