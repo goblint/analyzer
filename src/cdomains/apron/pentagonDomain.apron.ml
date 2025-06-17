@@ -590,14 +590,14 @@ end
 
 module PNTG =
 struct
-  type t = { intv: Boxes.t; sub: Sub.t } [@@deriving eq, ord]
+  type t = { boxes: Boxes.t; sub: Sub.t } [@@deriving eq, ord]
 
   let hash : (t -> int)  = fun _ -> 1
-  let equal pntg1 pntg2  = Boxes.equal pntg1.intv pntg2.intv && Sub.equal pntg1.sub pntg2.sub;;
+  let equal pntg1 pntg2  = Boxes.equal pntg1.boxes pntg2.boxes && Sub.equal pntg1.sub pntg2.sub;;
   let copy (x: t) = x
-  let empty () = { intv = []; sub = [] }
+  let empty () = { boxes = []; sub = [] }
   let is_empty pntg =
-    match pntg.intv, pntg.sub with
+    match pntg.boxes, pntg.sub with
     | [], [] -> true
     | _ -> false
 
@@ -610,11 +610,11 @@ struct
       failwith "Pentagons are defined over integers: \
                 extension with real domain is nonsensical"
     else 
-      let intv, sub = 
-        Boxes.dim_add dim_change pntg.intv,
+      let boxes, sub = 
+        Boxes.dim_add dim_change pntg.boxes,
         Sub.dim_add dim_change pntg.sub 
       in
-      ({intv = intv; sub = sub}: t)
+      ({boxes = boxes; sub = sub}: t)
 
   (** 
      See https://antoinemine.github.io/Apron/doc/api/ocaml/Dim.html
@@ -625,11 +625,11 @@ struct
       failwith "Pentagons are defined over integers: \
                 extension with real domain is nonsensical"
     else 
-      let intv, sub = 
-        Boxes.dim_remove dim_change pntg.intv,
+      let boxes, sub = 
+        Boxes.dim_remove dim_change pntg.boxes,
         Sub.dim_remove dim_change pntg.sub 
       in
-      ({intv = intv; sub = sub}: t)
+      ({boxes = boxes; sub = sub}: t)
 end
 
 (** [VarManagement] defines the type t of the affine equality domain (a record that contains an optional matrix and an apron environment) and provides the functions needed for handling variables (which are defined by [RelationDomain.D2]) such as [add_vars], [remove_vars].
@@ -639,17 +639,46 @@ struct
   include SharedFunctions.VarManagementOps (PNTG)
 end
 
+let z_ext_of_scalar (s: Scalar.t) = 
+  match s with
+  | Float(f) -> ZExt.of_float f
+  | Mpqf(mpqf) -> ZExt.of_float (Mpqf.to_float mpqf)
+  | Mpfrf(mpfrf) -> ZExt.of_float (Mpfrf.to_float mpfrf)
+
+let eval_texpr_to_intv (t: VarManagement.t) (texpr:Texpr1.expr) : Intv.t = 
+  let get_dim var = Environment.dim_of_var t.env var in
+  let d = Option.get t.d in
+  let boxes = d.boxes in
+  let rec aux texpr =
+    match texpr with
+    | Texpr1.Cst (Interval inv) -> (z_ext_of_scalar inv.inf, z_ext_of_scalar inv.sup)
+    | Cst (Scalar s) -> let s = z_ext_of_scalar s in (s, s)
+    | Var y -> List.at boxes (get_dim y) 
+    | Unop  (Cast, e, _, _) -> aux e
+    | Unop  (Sqrt, e, _, _) -> failwith "Do the sqrt. :)"
+    | Unop  (Neg,  e, _, _) -> Intv.neg (aux e)
+    | Binop (Add, e1, e2, _, _) -> Intv.add (aux e1) (aux e2)
+    | Binop (Sub, e1, e2, _, _) -> Intv.sub (aux e1) (aux e2)
+    | Binop (Mul, e1, e2, _, _) -> Intv.mul (aux e1) (aux e2)
+    | Binop (Div, e1, e2, _, _) -> Intv.div (aux e1) (aux e2)
+    | Binop (Mod, e1, e2, _, _)  -> Intv.rem (aux e1) (aux e2)
+    | Binop (Pow, e1, e2, _, _) -> Intv.pow (aux e1) (aux e2)
+  in
+  aux texpr;;
 
 module ExpressionBounds: (SharedFunctions.ConvBounds with type t = VarManagement.t) =
 struct
   include VarManagement
 
-  let bound_texpr t texpr = None, None
-
+  let bound_texpr t texpr =
+    match (eval_texpr_to_intv t (Texpr1.to_expr texpr)) with
+    | Arb s1, Arb s2 -> Some(s1), Some(s2)
+    | Arb s1, _ -> Some(s1), None
+    | _, Arb s2 -> None, Some(s2)
+    | _, _ -> None, None
 
   let bound_texpr d texpr1 = Timing.wrap "bounds calculation" (bound_texpr d) texpr1
 end
-
 
 module D =
 struct
@@ -706,19 +735,19 @@ struct
      We assume no variables have been encountered when this funciton is called.
      It therefore holds that: top = bot.
   *)
-  let top () = {d = Some {intv = []; sub = []}; env = empty_env}
+  let top () = {d = Some {boxes = []; sub = []}; env = empty_env}
 
   let top_of_env env = dimchange2_add (top ()) env
 
   let is_bot t = 
     match t.d with
     | None -> true
-    | Some d -> Boxes.is_bot d.intv || Sub.is_bot d.sub
+    | Some d -> Boxes.is_bot d.boxes || Sub.is_bot d.sub
 
   let is_top t = 
     match t.d with
     | None -> false
-    | Some d -> Boxes.is_top d.intv && Sub.is_top d.sub
+    | Some d -> Boxes.is_top d.boxes && Sub.is_top d.sub
 
 
   let meet t1 t2 =
@@ -727,7 +756,7 @@ struct
     let t2 = dimchange2_add t2 sup_env in
     match t1.d, t2.d with
     | Some d1', Some d2' ->
-      ({d = Some {intv = Boxes.meet d1'.intv d2'.intv; sub = Sub.meet d1'.sub d2'.sub}; env = sup_env}: t)
+      ({d = Some {boxes = Boxes.meet d1'.boxes d2'.boxes; sub = Sub.meet d1'.sub d2'.sub}; env = sup_env}: t)
     | _ -> {d = None; env = sup_env}
 
   let meet t1 t2 = 
@@ -743,22 +772,22 @@ struct
     let t2 = dimchange2_add t2 sup_env in
     match t1.d, t2.d with
     | Some d1', Some d2' ->
-      let interval1, interval2 = d1'.intv, d2'.intv in
+      let boxes_1, boxes_2 = d1'.boxes, d2'.boxes in
       let sub1, sub2 = d1'.sub, d2'.sub in
       let for_all_i f lst =
         List.for_all (fun (i, x) -> f i x) (List.mapi (fun i x -> (i, x)) lst) in
-      let bool1 = Boxes.leq interval1 interval2 in
+      let bool1 = Boxes.leq boxes_1 boxes_2 in
       let bool2 = for_all_i(fun x s2x -> 
           Sub.VarSet.for_all(fun y -> 
               let s1x = Sub.VarList.at sub1 x in
-              let b1x = BatList.at interval1 x in
-              let b1y = BatList.at interval1 y in
+              let b1x = BatList.at boxes_1 x in
+              let b1y = BatList.at boxes_1 y in
               Sub.VarSet.mem y s1x ||
               Intv.sup b1x <* Intv.inf b1y
             ) s2x
         ) sub2 in
       bool1 && bool2
-    | Some d1', None -> Boxes.is_bot d1'.intv || Sub.is_bot d1'.sub
+    | Some d1', None -> Boxes.is_bot d1'.boxes || Sub.is_bot d1'.sub
     | _ -> true
 
   let leq a b = Timing.wrap "leq" (leq a) b
@@ -774,13 +803,12 @@ struct
     let t2 = dimchange2_add t2 sup_env in
     match t1.d, t2.d with
     | Some d1', Some d2' ->
-      let intv_join = Boxes.join d1'.intv d1'.intv in
+      let joined_boxes = Boxes.join d1'.boxes d1'.boxes in
       let s' x s1x = Sub.VarSet.inter s1x (List.at d2'.sub x) in
-      let s'' x s1x = Sub.VarSet.filter (fun y -> Intv.sup (List.at d2'.intv x) < Intv.inf (List.at d2'.intv y)) s1x in
-      let s''' x = Sub.VarSet.filter (fun y -> Intv.sup (List.at d1'.intv x) < Intv.inf (List.at d1'.intv y)) (List.at d2'.sub x) in
-      let sub_join = List.mapi (fun x s1x -> Sub.VarSet.union (s' x s1x) (Sub.VarSet.union (s'' x s1x) (s''' x))) d1'.sub in
-
-      ({d = Some {intv = intv_join; sub = sub_join}; env = sup_env}: t)
+      let s'' x s1x = Sub.VarSet.filter (fun y -> Intv.sup (List.at d2'.boxes x) < Intv.inf (List.at d2'.boxes y)) s1x in
+      let s''' x = Sub.VarSet.filter (fun y -> Intv.sup (List.at d1'.boxes x) < Intv.inf (List.at d1'.boxes y)) (List.at d2'.sub x) in
+      let joined_sub = List.mapi (fun x s1x -> Sub.VarSet.union (s' x s1x) (Sub.VarSet.union (s'' x s1x) (s''' x))) d1'.sub in
+      ({d = Some {boxes = joined_boxes; sub = joined_sub}; env = sup_env}: t)
     | Some d1', None -> {d = Some d1'; env = sup_env}
     | None, Some d2' -> {d = Some d2'; env = sup_env}
     | _ -> {d = None; env = sup_env}
@@ -798,7 +826,7 @@ struct
     let t2 = dimchange2_add t2 sup_env in
     match t1.d, t2.d with
     | Some d1', Some d2' ->
-      ({d = Some {intv = Boxes.widen d1'.intv d2'.intv; sub = Sub.widen d1'.sub d2'.sub}; env = sup_env}: t)
+      ({d = Some {boxes = Boxes.widen d1'.boxes d2'.boxes; sub = Sub.widen d1'.sub d2'.sub}; env = sup_env}: t)
     | _ -> {d = None; env = sup_env}
 
   let widen a b =
@@ -817,9 +845,9 @@ struct
     match pntg1.d with
     | None -> "bot"
     | Some d ->
-      let intv_str = Boxes.to_string d.intv in
+      let boxes_str = Boxes.to_string d.boxes in
       let sub_str = Sub.to_string d.sub in
-      Printf.sprintf "Pentagon: %s, %s" intv_str sub_str
+      Printf.sprintf "Pentagon: %s, %s" boxes_str sub_str
 
 
 
@@ -831,54 +859,7 @@ struct
     else 
       let (pntg: PNTG.t) = Option.get t.d in
       let int_vars = List.map (fun v -> Environment.dim_of_var t.env v) vars in
-      {d = Some({intv = Boxes.forget_vars int_vars pntg.intv; sub = Sub.forget_vars int_vars pntg.sub}); env=t.env};;
-
-
-  let z_ext_of_scalar (s: Scalar.t) = 
-    match s with
-    | Float(f) -> ZExt.of_float f
-    | Mpqf(mpqf) -> ZExt.of_float (Mpqf.to_float mpqf)
-    | Mpfrf(mpfrf) -> ZExt.of_float (Mpfrf.to_float mpfrf)
-
-
-
-  let eval_texpr_to_intv (texpr:Texpr1.expr) (t:t) : Intv.t = 
-    let get_dim var = Environment.dim_of_var t.env var in
-    let d = Option.get t.d in
-    let boxes = d.intv in
-    let rec aux texpr =
-      match texpr with
-      | Texpr1.Cst (Interval inv) -> (z_ext_of_scalar inv.inf, z_ext_of_scalar inv.sup)
-      | Cst (Scalar s) -> let s = z_ext_of_scalar s in (s, s)
-      | Var y -> List.at boxes (get_dim y) 
-      | Unop  (Neg,  e, _, _) -> Intv.neg (aux e)
-      | Unop  (Cast, e, _, _) -> aux e
-      | Unop  (Sqrt, e, _, _) -> failwith "Do the sqrt. :)"
-      | Binop (Add, e1, e2, _, _) -> (
-          let ( + ) = Intv.add in
-          aux e1 + aux e2 
-        )
-      | Binop (Sub, e1, e2, _, _) -> (
-          let ( - ) = Intv.sub in
-          aux e1 - aux e2
-        )
-      | Binop (Mul, e1, e2, _, _) -> (
-          let ( * ) = Intv.mul in
-          aux e1 * aux e2
-        )
-      | Binop (Div, e1, e2, _, _) -> (
-          let ( / ) = Intv.div in
-          aux e1 / aux e2
-        )
-      | Binop (Mod, e1, e2, _, _)  -> (
-          Intv.rem (aux e1) (aux e2)
-        )
-      | Binop (Pow, e1, e2, _, _) -> (
-          Intv.pow (aux e1) (aux e2)
-        )
-    in
-    aux texpr
-
+      {d = Some({boxes = Boxes.forget_vars int_vars pntg.boxes; sub = Sub.forget_vars int_vars pntg.sub}); env=t.env};;
 
 
   let assign_texpr (t: t) var (texp: Texpr1.expr) =
@@ -890,32 +871,32 @@ struct
       match t.d with
       | None -> ([], []) (** Bot *)
       | Some d ->
-        let intv, sub = d.intv, d.sub in
+        let boxes, sub = d.boxes, d.sub in
 
         let sub_without_var = Sub.forget_vars [dim] sub in
-        let intv_without_var = Boxes.forget_vars [dim] intv in
+        let boxes_without_var = Boxes.forget_vars [dim] boxes in
         (match texp with
          (** Case: x := [inv.inf, inv.sup] *)
          | Cst (Interval inv) ->
 
            Printf.printf "assign_texpr: Cst (Interval inv)\n";
-           let intv = BatList.modify_at dim (fun _ -> (z_ext_of_scalar inv.inf, z_ext_of_scalar inv.sup)) intv
+           let boxes = BatList.modify_at dim (fun _ -> (z_ext_of_scalar inv.inf, z_ext_of_scalar inv.sup)) boxes
            in
-           (intv, sub)
+           (boxes, sub)
 
          (** Case: x := s *)
          | Cst (Scalar s) -> 
            Printf.printf "assign_texpr: Cst (Scalar s)\n";
 
-           let intv = BatList.modify_at dim (fun _ -> (z_ext_of_scalar s, z_ext_of_scalar s)) intv
+           let boxes = BatList.modify_at dim (fun _ -> (z_ext_of_scalar s, z_ext_of_scalar s)) boxes
            in
-           (intv, sub)
+           (boxes, sub)
 
          (** Case: x := y *)
          | Var y ->
            Printf.printf "assign_texpr: Var y\n";
            let dim_y = Environment.dim_of_var t.env y in
-           let intv = BatList.modify_at dim (fun _ -> BatList.at intv dim_y) intv in
+           let boxes = BatList.modify_at dim (fun _ -> BatList.at boxes dim_y) boxes in
            let sub = sub |>
                      Sub.forget_vars [dim] |>
                      (* x = y ==> if z < y then also z < x *)
@@ -929,22 +910,22 @@ struct
                      (* Subs of x := Subs of y *)
                      BatList.modify_at dim (fun _ -> BatList.at sub dim_y)
            in
-           (intv, sub)
+           (boxes, sub)
 
          | Unop  (Neg,  e, _, _) -> 
            Printf.printf "assign_texpr: Unop (Neg)\n";
-           let (intv, sub) = aux e t in
+           let (boxes, sub) = aux e t in
 
-           let intv = BatList.modify_at dim (
+           let boxes = BatList.modify_at dim (
                fun intv ->
                  (ZExt.neg (Intv.sup intv), ZExt.neg (Intv.inf intv))
-             ) intv
+             ) boxes
            in
            (**
               We do not add redundant information in Subs. 
-              Later checks can derive inequalities by looking at intv.
+              Later checks can derive inequalities by looking at Boxes.
            *)
-           (intv, sub_without_var)
+           (boxes, sub_without_var)
 
          | Unop  (Cast, e, _, _) -> 
            Printf.printf "assign_texpr: Unop (Cast)\n";aux e t
@@ -955,20 +936,20 @@ struct
            (** 
               TODO: What is the semantics of Sqrt. May we still support this? 
            *)
-           (intv_without_var, sub_without_var)
+           (boxes_without_var, sub_without_var)
          | Binop (Add, e1, e2, _, _) ->
 
            Printf.printf "assign_texpr: BinOp (Add)\n";
-           let (intv_1, sub_1) = aux e1 t in
-           let (intv_2, sub_2) = aux e2 t in
+           let (boxes_1, sub_1) = aux e1 t in
+           let (boxes_2, sub_2) = aux e2 t in
 
-           let i2 = BatList.at intv_2 dim in
-           let intv = BatList.modify_at dim (
+           let i2 = BatList.at boxes_2 dim in
+           let boxes = BatList.modify_at dim (
                fun i1 ->
                  Intv.add i1 i2
-             ) intv_1
+             ) boxes_1
            in
-           (intv, sub_without_var)
+           (boxes, sub_without_var)
 
          | Binop (Sub, e1, e2, t0, r) ->
            Printf.printf "assign_texpr: BinOp (Sub)\n";
@@ -976,22 +957,22 @@ struct
 
          | Binop (Mul, e1, e2, _, _) ->
            Printf.printf "assign_texpr: BinOp (Mul)\n";
-           let (intv_1, sub_1) = aux e1 t in
-           let (intv_2, sub_2) = aux e2 t in
+           let (boxes_1, sub_1) = aux e1 t in
+           let (boxes_2, sub_2) = aux e2 t in
 
-           let i2 = BatList.at intv_2 dim in
+           let i2 = BatList.at boxes_2 dim in
            let intv = BatList.modify_at dim (
-               fun i1 -> Intv.mul i1 i2 ) intv_1 in
+               fun i1 -> Intv.mul i1 i2 ) boxes_1 in
            (intv, sub_without_var)
 
          | Binop (Div, e1, e2, _, _) ->
            Printf.printf "assign_texpr: BinOp (Div)\n";
-           let (intv_1, sub_1) = aux e1 t in
-           let (intv_2, sub_2) = aux e2 t in
+           let (boxes_1, sub_1) = aux e1 t in
+           let (boxes_2, sub_2) = aux e2 t in
 
-           let i2 = BatList.at intv_2 dim in
+           let i2 = BatList.at boxes_2 dim in
            let intv = BatList.modify_at dim (
-               fun i1 -> Intv.div i1 i2 ) intv_1 in
+               fun i1 -> Intv.div i1 i2 ) boxes_1 in
            (intv, sub_without_var)
 
          (** 
@@ -1000,20 +981,20 @@ struct
          *)
          | Binop (Mod, e1, e2, _, _)  ->
            Printf.printf "assign_texpr: BinOp (Mod)\n";
-           let (intv_1, sub_1) = aux e1 t in
-           let (intv_2, sub_2) = aux e2 t in
+           let (boxes_1, sub_1) = aux e1 t in
+           let (boxes_2, sub_2) = aux e2 t in
 
-           let i2 = BatList.at intv_2 dim in
+           let i2 = BatList.at boxes_2 dim in
            let intv = BatList.modify_at dim (
                fun i1 -> 
                  Intv.rem i1 i2
-             ) intv_1 in
+             ) boxes_1 in
 
            let sub = 
              match e2 with
              | Var divisor -> (
                  let dim_divisor = Environment.dim_of_var t.env divisor in 
-                 let intv_divisor = BatList.at intv_2 dim_divisor
+                 let intv_divisor = BatList.at boxes_2 dim_divisor
                  in
                  if (Intv.inf intv_divisor) <* ZExt.zero then 
                    sub_without_var
@@ -1028,23 +1009,23 @@ struct
          (** e1 ^ e2 *)
          | Binop (Pow, e1, e2, _, _) -> 
            Printf.printf "assign_texpr: BinOp (Pow)\n";
-           let (intv_1, sub_1) = aux e1 t in
-           let (intv_2, sub_2) = aux e2 t in
+           let (boxes_1, sub_1) = aux e1 t in
+           let (boxes_2, sub_2) = aux e2 t in
 
-           let i2 = BatList.at intv_2 dim in
+           let i2 = BatList.at boxes_2 dim in
            let intv = BatList.modify_at dim (
                fun i1 -> 
                  Intv.pow i1 i2
-             ) intv_1 in
+             ) boxes_1 in
 
            (intv, sub_without_var)
         ) in
 
-    let (intv, sub) = aux texp t in
-    match intv, sub with
+    let (boxes, sub) = aux texp t in
+    match boxes, sub with
     | [], [] -> { d= None; env=t.env }
     | _ ->
-      { d=Some({ intv = intv; sub = sub }); env = t.env }
+      { d=Some({ boxes = boxes; sub = sub }); env = t.env }
   ;;
 
 
@@ -1135,16 +1116,16 @@ struct
         )
       | _ -> bot_of_env t.env
     in
-    let var_intv_meet constraining_interval dim_y = (
+    let var_intv_meet constraining_interval dim_y : t = (
       (* Already matched to be not None. *)
       let d = Option.get t.d in
-      let intv_y = List.at d.intv dim_y in
+      let intv_y = List.at d.boxes dim_y in
       let intersected_intv_y = Intv.inter intv_y constraining_interval in
       if Intv.is_bot intersected_intv_y then
         bot_of_env t.env
       else 
-        let intv = List.modify_at dim_y (fun _ -> intersected_intv_y) d.intv in
-        { d = Some({intv = intv; sub = d.sub}); env=t.env}
+        let boxes = List.modify_at dim_y (fun _ -> intersected_intv_y) d.boxes in
+        { d = Some({boxes = boxes; sub = d.sub}); env=t.env}
     ) in
     match t.d with 
     | None -> t
@@ -1165,7 +1146,7 @@ struct
           | Var y -> (
               (** We ignore sub-information for now. *)
               let dim_y = Environment.dim_of_var t.env y in
-              let intv_y = List.at d.intv dim_y in
+              let intv_y = List.at d.boxes dim_y in
               let (lb, ub) = intv_y in
               let zero = ZExt.zero in
               match tcons_typ with
@@ -1196,8 +1177,8 @@ struct
                         (lb, ub)
                       )
                       in
-                      let intv = List.modify_at dim_y (fun _ -> corrected_intv) d.intv in
-                      ({ d = Some({intv=intv; sub=d.sub}); env=t.env})
+                      let boxes = List.modify_at dim_y (fun _ -> corrected_intv) d.boxes in
+                      ({ d = Some({boxes=boxes; sub=d.sub}); env=t.env})
                     )
                 )
             )           
@@ -1209,7 +1190,7 @@ struct
               match e1, e2 with
               | Var y, Cst(Scalar s) when (z_ext_of_scalar s) =* zero && (tcons_typ = EQ || tcons_typ = DISEQ) -> assert_constraint t e1
               | Cst(Scalar s), Var y when (z_ext_of_scalar s) =* zero && (tcons_typ = DISEQ || tcons_typ = EQ) -> assert_constraint t e2
-              | _ -> let intv = eval_texpr_to_intv (Binop (Sub, e1, e2, t0, r)) t in interval_helper intv tcons_typ 
+              | _ -> let intv = eval_texpr_to_intv t (Binop (Sub, e1, e2, t0, r)) in interval_helper intv tcons_typ 
             )
 
           (** [2,2]  - [2, 2]*)
@@ -1253,9 +1234,10 @@ struct
     else
       match pntg.d with
       | None -> failwith "is_bot should take care of that"
-      | Some(d) -> Boxes.to_string d.intv ^ " " ^ Sub.to_string d.sub;;
+      | Some(d) -> Boxes.to_string d.boxes ^ " " ^ Sub.to_string d.sub;;
 
 end
+
 
 module D2: RelationDomain.RD with type var = Var.t =
 struct
