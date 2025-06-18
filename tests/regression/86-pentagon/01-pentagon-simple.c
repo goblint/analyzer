@@ -7,7 +7,15 @@
 #include <goblint.h>
 
 void main(void) {
-  int x = 0;
+  // Cil convert exception Var_not_found:
+  int x;
   __goblint_check(x == 0);
 
+  // Cil convert execption Overflow:
+  /*int y = 0;
+  __goblint_check(y + 1 > 0);*/
+
+  // works
+  /*int z = 0;
+  __goblint_check (z == 0);*/
 }

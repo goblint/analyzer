@@ -338,15 +338,12 @@ struct
     BatList.for_all Intv.is_top i
 
   let to_string (intervals: t) =
-    if is_bot intervals then
-      "⊥"
-    else if is_top intervals then
-      "⊤"
-    else
-      let string_of_interval (l, u) =
-        Printf.sprintf "[%s, %s]" (ZExt.to_string l) (ZExt.to_string u)
-      in
-      "( " ^ (String.concat "; " (List.map string_of_interval intervals)) ^ " )"
+    let string_of_interval i (l, u) =
+      Printf.sprintf "%i -> [%s, %s]" i (ZExt.to_string l) (ZExt.to_string u)
+    in
+    let bot_or_top = if is_bot intervals then "bot" else if is_top intervals then "top" else ""
+    in
+    Printf.sprintf "Boxes: (%s) {%s}" bot_or_top (String.concat ", " (List.mapi string_of_interval intervals))
 
   let equal boxes1 boxes2 =
     BatList.for_all2 (Intv.equal) boxes1 boxes2
@@ -371,7 +368,7 @@ struct
 
 
   let dim_add (dim_change: Apron.Dim.change) (intervals: t) =
-    (* Printf.printf "Boxes.dim_add\n"; *)
+    (*Printf.printf "Boxes.dim_add\n";*)
     if dim_change.realdim != 0 then
       failwith "Pentagons are defined over integers: \
                 extension with real domain is nonsensical"
@@ -402,7 +399,7 @@ struct
 
   (* precondition: dim_change is sorted and has unique elements *)
   let dim_remove (dim_change: Apron.Dim.change) (intervals : t) =
-    (* Printf.printf "Boxes.dim_remove\n"; *)
+    (*Printf.printf "Boxes.dim_remove\n";*)
     if dim_change.realdim != 0 then
       failwith "Pentagons are defined over integers: \
                 extension with real domain is nonsensical"
@@ -560,20 +557,15 @@ struct
         String.concat ", "
       ) ^ "}" in
     (* Results in: x_1 -> {y1, y2, ..., yn} *)
-    let relations_string = String.concat ", " (VarList.mapi (
+    String.concat ", " (VarList.mapi (
         fun  i set ->
           (Idx.to_string i) ^ " -> " ^ (set_string set)
-      ) sub) in
-    (* Results in: {x_1 -> {y1, y2, ..., yn}} *)
-    "( " ^ relations_string ^ " )"
+      ) sub)
 
-  let to_string (sub: t) = 
-    if is_bot sub then
-      "⊥"
-    else if is_top sub then
-      "⊤"
-    else
-      to_string sub
+  let to_string (sub: t) =
+    let bot_or_top = if is_bot sub then "bot" else if is_top sub then "top" else ""
+    in
+    Printf.sprintf "Sub: (%s) {%s}" bot_or_top (to_string sub)
 
 end
 
@@ -605,12 +597,13 @@ struct
     if dim_change.realdim != 0 then
       failwith "Pentagons are defined over integers: \
                 extension with real domain is nonsensical"
-    else 
-      let boxes, sub = 
-        Boxes.dim_add dim_change pntg.boxes,
+    else
+      let intv, sub = 
+        Boxes.dim_add dim_change pntg.intv,
         Sub.dim_add dim_change pntg.sub 
       in
-      ({boxes = boxes; sub = sub}: t)
+      Printf.printf "add %i dims: %i -> %i\n" dim_change.intdim (List.length pntg.intv) (List.length intv);
+      ({intv = intv; sub = sub}: t)
 
   (** 
      See https://antoinemine.github.io/Apron/doc/api/ocaml/Dim.html
@@ -620,12 +613,13 @@ struct
     if dim_change.realdim != 0 then
       failwith "Pentagons are defined over integers: \
                 extension with real domain is nonsensical"
-    else 
-      let boxes, sub = 
-        Boxes.dim_remove dim_change pntg.boxes,
+    else
+      let intv, sub = 
+        Boxes.dim_remove dim_change pntg.intv,
         Sub.dim_remove dim_change pntg.sub 
       in
-      ({boxes = boxes; sub = sub}: t)
+      Printf.printf "remove %i dims: %i -> %i\n" dim_change.intdim (List.length pntg.intv) (List.length intv);
+      ({intv = intv; sub = sub}: t)
 end
 
 (** [VarManagement] defines the type t of the affine equality domain (a record that contains an optional matrix and an apron environment) and provides the functions needed for handling variables (which are defined by [RelationDomain.D2]) such as [add_vars], [remove_vars].
@@ -851,6 +845,16 @@ struct
     if M.tracing then M.tracel "narrow" "narrow a: %s b: %s -> %s" (show a) (show b) (show res) ;
     res
 
+  let to_string pntg1 =
+    match pntg1.d with
+    | None -> "bot"
+    | Some d ->
+      let intv_str = Boxes.to_string d.intv in
+      let sub_str = Sub.to_string d.sub in
+      Printf.sprintf "%s, %s" intv_str sub_str
+
+
+
   (* S2 Specific functions of RelationDomain *)
   let is_bot_env t = t.d = None
 
@@ -1072,22 +1076,22 @@ struct
     let rec aux texpr = 
       match texpr with
       | Texpr1.Cst (Interval inv) -> "Cst(Interval inv)"
-      | Cst (Scalar s) -> "Cst(Scalar " ^ Scalar.to_string s ^")"
+      | Cst (Scalar s) -> Scalar.to_string s
       | Var y -> "Var " ^ Var.to_string y 
-      | Unop  (Neg,  e, _, _) -> "Unop (Neg, " ^ aux e ^ ")"
-      | Unop  (Cast, e, _, _) -> "Unop (Cast, " ^ aux e ^ ")"
-      | Unop  (Sqrt, e, _, _) -> "Unop (Sqrt, " ^ aux e ^ ")"
-      | Binop (Add, e1, e2, _, _) -> "Binop (Add," ^ aux e1 ^ ", " ^ aux e2 ^ ")"
-      | Binop (Sub, e1, e2, _, _) -> "Binop (Sub," ^ aux e1 ^ ", " ^ aux e2 ^ ")"
-      | Binop (Mul, e1, e2, _, _) -> "Binop (Mul," ^ aux e1 ^ ", " ^ aux e2 ^ ")"
-      | Binop (Div, e1, e2, _, _) -> "Binop (Div," ^ aux e1 ^ ", " ^ aux e2 ^ ")"
-      | Binop (Mod, e1, e2, _, _)  -> "Binop (Mod," ^ aux e1 ^ ", " ^ aux e2 ^ ")"
-      | Binop (Pow, e1, e2, _, _) ->   "Binop (Pow," ^ aux e1 ^ ", " ^ aux e2 ^ ")"
+      | Unop  (Neg,  e, _, _) -> "Neg(" ^ aux e ^ ")"
+      | Unop  (Cast, e, _, _) -> "Cast(" ^ aux e ^ ")"
+      | Unop  (Sqrt, e, _, _) -> "Sqrt(" ^ aux e ^ ")"
+      | Binop (Add, e1, e2, _, _) -> "Add(" ^ aux e1 ^ ", " ^ aux e2 ^ ")"
+      | Binop (Sub, e1, e2, _, _) -> "Sub(" ^ aux e1 ^ ", " ^ aux e2 ^ ")"
+      | Binop (Mul, e1, e2, _, _) -> "Mul(" ^ aux e1 ^ ", " ^ aux e2 ^ ")"
+      | Binop (Div, e1, e2, _, _) -> "Div(" ^ aux e1 ^ ", " ^ aux e2 ^ ")"
+      | Binop (Mod, e1, e2, _, _) -> "Mod(" ^ aux e1 ^ ", " ^ aux e2 ^ ")"
+      | Binop (Pow, e1, e2, _, _) -> "Pow(" ^ aux e1 ^ ", " ^ aux e2 ^ ")"
     in
     aux texpr
 
   let string_of_texpr_tcons1 texpr (tcons1) =
-    string_of_texpr1 texpr ^ " " ^  Tcons1.string_of_typ (Tcons1.get_typ tcons1) ^ "0"
+    string_of_texpr1 texpr ^ " " ^  Tcons1.string_of_typ (Tcons1.get_typ tcons1) ^ " 0"
 
 
 
@@ -1130,8 +1134,8 @@ struct
     match t.d with 
     | None -> t
     | Some d ->
-      match Convert.tcons1_of_cil_exp ask t t.env e negate (Lazy.from_val true) with
-      | exception Convert.Unsupported_CilExp _ -> Printf.printf "failed to convert cil expression\n"; t
+      match Convert.tcons1_of_cil_exp ask t t.env e negate no_ov with
+      | exception Convert.Unsupported_CilExp exn -> Printf.printf "failed to convert cil expression: exception %s\n" (SharedFunctions.show_unsupported_cilExp exn); t
       | tcons1 -> 
         let tcons_typ = Tcons1.get_typ tcons1 in
         let texpr = (Texpr1.to_expr @@ Tcons1.get_texpr1 tcons1) in
@@ -1198,7 +1202,6 @@ struct
           | Binop (Div, e1, e2, _, _) -> t
           | Binop (Mod, e1, e2, _, _)  -> t
           | Binop (Pow, e1, e2, _, _) -> t 
-          | _ -> t
         in
         assert_constraint t texpr
 

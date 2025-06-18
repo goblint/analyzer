@@ -170,7 +170,9 @@ module EqualitiesConjunction = struct
     res
 
   let dim_add (ch: Apron.Dim.change) m =
-    modify_variables_in_domain m ch.dim (+)
+    let new_m = modify_variables_in_domain m ch.dim (+) in
+    Printf.printf "add %i dims: %i -> %i\n" ch.intdim (fst m) (fst new_m);
+    new_m
 
   let dim_add ch m = Timing.wrap "dim add" (dim_add ch) m
 
@@ -179,7 +181,10 @@ module EqualitiesConjunction = struct
       m
     else (
       let m' = Array.fold_lefti (fun y i x -> forget_variable y (x)) m ch.dim in  (* clear m' from relations concerning ch.dim *)
-      modify_variables_in_domain m' ch.dim (-))
+      let new_m = modify_variables_in_domain m' ch.dim (-) in
+      Printf.printf "remove %i dims: %i -> %i\n" ch.intdim (fst m) (fst new_m);
+      new_m
+    )
 
   let dim_remove ch m = Timing.wrap "dim remove" (fun m -> dim_remove ch m) m
 
@@ -703,6 +708,28 @@ struct
 
   let substitute_exp ask t var exp no_ov = Timing.wrap "substitution" (substitute_exp ask t var exp) no_ov
 
+  let string_of_texpr1 (texpr: Texpr1.expr) =
+    let rec aux texpr = 
+      match texpr with
+      | Texpr1.Cst (Interval inv) -> "Cst(Interval inv)"
+      | Cst (Scalar s) -> Scalar.to_string s
+      | Var y -> "Var " ^ Var.to_string y 
+      | Unop  (Neg,  e, _, _) -> "Neg(" ^ aux e ^ ")"
+      | Unop  (Cast, e, _, _) -> "Cast(" ^ aux e ^ ")"
+      | Unop  (Sqrt, e, _, _) -> "Sqrt(" ^ aux e ^ ")"
+      | Binop (Add, e1, e2, _, _) -> "Add(" ^ aux e1 ^ ", " ^ aux e2 ^ ")"
+      | Binop (Sub, e1, e2, _, _) -> "Sub(" ^ aux e1 ^ ", " ^ aux e2 ^ ")"
+      | Binop (Mul, e1, e2, _, _) -> "Mul(" ^ aux e1 ^ ", " ^ aux e2 ^ ")"
+      | Binop (Div, e1, e2, _, _) -> "Div(" ^ aux e1 ^ ", " ^ aux e2 ^ ")"
+      | Binop (Mod, e1, e2, _, _) -> "Mod(" ^ aux e1 ^ ", " ^ aux e2 ^ ")"
+      | Binop (Pow, e1, e2, _, _) -> "Pow(" ^ aux e1 ^ ", " ^ aux e2 ^ ")"
+    in
+    aux texpr
+
+  let string_of_texpr_tcons1 texpr (tcons1) =
+    string_of_texpr1 texpr ^ " " ^  Tcons1.string_of_typ (Tcons1.get_typ tcons1) ^ " 0"
+
+
 
   (** Assert a constraint expression.
       The overflow is completely handled by the flag "no_ov",
@@ -720,6 +747,7 @@ struct
     match t.d with
     | None -> t
     | Some d ->
+      Printf.printf "%s\n" (string_of_texpr_tcons1 (Texpr1.to_expr @@ Tcons1.get_texpr1 tcons) tcons);
       match simplified_monomials_from_texp t (Texpr1.to_expr @@ Tcons1.get_texpr1 tcons) with
       | None -> t
       | Some (sum_of_terms, (constant,divisor)) ->(
