@@ -563,7 +563,7 @@ struct
       ) sub)
 
   let to_string (sub: t) =
-    let bot_or_top = if is_bot sub then "bot" else if is_top sub then "top" else ""
+    let bot_or_top = if is_bot sub then "⊥" else if is_top sub then "top" else ""
     in
     Printf.sprintf "Sub: (%s) {%s}" bot_or_top (to_string sub)
 
@@ -685,10 +685,9 @@ struct
 
   type t = VarManagement.t
 
-  let equal t1 t2 = 
-    let sup_env = Environment.lce t1.env t2.env in
-    let t1 = dimchange2_add t1 sup_env in
-    let t2 = dimchange2_add t2 sup_env in
+  let equal t1 t2 =
+    Environment.equal t1.env t2.env
+    &&
     match t1.d, t2.d with
     | None, None -> true
     | None, _ -> false
@@ -847,7 +846,7 @@ struct
 
   let to_string pntg1 =
     match pntg1.d with
-    | None -> "bot"
+    | None -> "⊥"
     | Some d ->
       let intv_str = Boxes.to_string d.boxes in
       let sub_str = Sub.to_string d.sub in
@@ -1120,21 +1119,21 @@ struct
         )
       | _ -> bot_of_env t.env
     in
-    let var_intv_meet constraining_interval dim_y : t = (
+    let var_intv_meet constraining_interval dim_x : t = (
       (* Already matched to be not None. *)
       let d = Option.get t.d in
-      let intv_y = List.at d.boxes dim_y in
-      let intersected_intv_y = Intv.inter intv_y constraining_interval in
-      if Intv.is_bot intersected_intv_y then
+      let intv_x = List.at d.boxes dim_x in
+      let intersected_intv_x = Intv.inter intv_x constraining_interval in
+      if Intv.is_bot intersected_intv_x then
         bot_of_env t.env
       else 
-        let boxes = List.modify_at dim_y (fun _ -> intersected_intv_y) d.boxes in
+        let boxes = List.modify_at dim_x (fun _ -> intersected_intv_x) d.boxes in
         { d = Some({boxes = boxes; sub = d.sub}); env=t.env}
     ) in
     match t.d with 
     | None -> t
     | Some d ->
-      match Convert.tcons1_of_cil_exp ask t t.env e negate no_ov with
+      match Convert.tcons1_of_cil_exp ask t t.env e negate (Lazy.from_val true) with
       | exception Convert.Unsupported_CilExp exn -> Printf.printf "failed to convert cil expression: exception %s\n" (SharedFunctions.show_unsupported_cilExp exn); t
       | tcons1 -> 
         let tcons_typ = Tcons1.get_typ tcons1 in
@@ -1147,27 +1146,27 @@ struct
             interval_helper (z_ext_of_scalar inv.inf, z_ext_of_scalar inv.sup) tcons_typ
           | Cst (Scalar s) -> 
             interval_helper (z_ext_of_scalar s, z_ext_of_scalar s) tcons_typ
-          | Var y -> (
+          | Var x -> (
               (** We ignore sub-information for now. *)
-              let dim_y = Environment.dim_of_var t.env y in
-              let intv_y = List.at d.boxes dim_y in
-              let (lb, ub) = intv_y in
+              let dim_x = Environment.dim_of_var t.env x in
+              let intv_x = List.at d.boxes dim_x in
+              let (lb, ub) = intv_x in
               let zero = ZExt.zero in
               match tcons_typ with
-              | EQ -> var_intv_meet (zero, zero) dim_y
-              | SUPEQ -> var_intv_meet (zero, PosInfty) dim_y
-              | SUP -> var_intv_meet (ZExt.of_int 1, PosInfty) dim_y
+              | EQ -> var_intv_meet (zero, zero) dim_x
+              | SUPEQ -> var_intv_meet (zero, PosInfty) dim_x
+              | SUP -> var_intv_meet (ZExt.of_int 1, PosInfty) dim_x
               | DISEQ ->
                 if lb <>* zero && ub <>* zero then
                   t
                 else if lb =* zero && ub >* zero then
-                  var_intv_meet (ZExt.of_int 1, PosInfty) dim_y
+                  var_intv_meet (ZExt.of_int 1, PosInfty) dim_x
                 else if lb <* zero && ub =* zero then
-                  var_intv_meet (NegInfty, ZExt.of_int (-1)) dim_y
+                  var_intv_meet (NegInfty, ZExt.of_int (-1)) dim_x
                 else 
                   bot_of_env t.env
               | EQMOD (s) -> (
-                  let t = interval_helper intv_y tcons_typ in
+                  let t = interval_helper intv_x tcons_typ in
                   let s = z_ext_of_scalar s in
                   match t.d with
                   | None -> t
@@ -1181,27 +1180,73 @@ struct
                         (lb, ub)
                       )
                       in
-                      let boxes = List.modify_at dim_y (fun _ -> corrected_intv) d.boxes in
+                      let boxes = List.modify_at dim_x (fun _ -> corrected_intv) d.boxes in
                       ({ d = Some({boxes=boxes; sub=d.sub}); env=t.env})
                     )
                 )
-            )           
-          | Unop  (Neg,  e, _, _) ->  t (* - texpr op 0 *)
-          | Unop  (Cast, e, _, _) ->  t (* (cst) texpr >= 0 *)
-          | Unop  (Sqrt, e, _, _) ->  t (* sqrt texpr >= 0 *)
-          | Binop (Add, e1, e2, _, _) ->  t 
-          | Binop (Sub, e1, e2, t0, r) -> ( (* x - 2*y >= 0 *)
-              match e1, e2 with
-              | Var y, Cst(Scalar s) when (z_ext_of_scalar s) =* zero && (tcons_typ = EQ || tcons_typ = DISEQ) -> assert_constraint t e1
-              | Cst(Scalar s), Var y when (z_ext_of_scalar s) =* zero && (tcons_typ = DISEQ || tcons_typ = EQ) -> assert_constraint t e2
-              | _ -> let intv = eval_texpr_to_intv t (Binop (Sub, e1, e2, t0, r)) in interval_helper intv tcons_typ 
             )
+          | Binop (Sub, e1, e2, t0, r) -> (
+              match e1, e2 with
+              | Var x, Cst(Scalar s) when (z_ext_of_scalar s) =* zero -> assert_constraint t e1
 
-          (** [2,2]  - [2, 2]*)
-          | Binop (Mul, e1, e2, _, _) -> Printf.printf "MUL"; t
-          | Binop (Div, e1, e2, _, _) -> t
-          | Binop (Mod, e1, e2, _, _)  -> t
-          | Binop (Pow, e1, e2, _, _) -> t 
+              | Var x, e -> (
+                  let inf = Intv.inf in
+                  let intv = eval_texpr_to_intv t (e) in
+                  let dim_x = Environment.dim_of_var t.env x in
+
+                  match tcons_typ with
+                  | EQ -> var_intv_meet intv dim_x
+                  | SUPEQ -> var_intv_meet (Intv.inf intv, PosInfty) dim_x
+                  | SUP -> var_intv_meet (ZExt.add (Intv.inf intv) (ZExt.of_int 1), PosInfty) dim_x
+                  | DISEQ when Intv.inf intv = Intv.sup intv -> (
+                      let c = inf intv in
+                      let (lb_x, ub_x) = List.at d.boxes dim_x in
+
+                      if c = lb_x && c = ub_x then
+                        bot_of_env t.env
+                      else if c = lb_x then
+                        var_intv_meet (ZExt.add c (ZExt.of_int 1), PosInfty) dim_x
+                      else if c = ub_x then
+                        var_intv_meet (NegInfty ,ZExt.sub c (ZExt.of_int 1)) dim_x
+                      else
+                        t
+
+                    )
+                  | DISEQ -> t 
+                  | EQMOD(s) -> t
+                )
+
+              | Cst(Scalar s), Var x when (z_ext_of_scalar s) =* zero && (tcons_typ = DISEQ || tcons_typ = EQ) -> assert_constraint t e2
+
+              | e, Var x -> (let inf = Intv.inf in
+                             let intv = eval_texpr_to_intv t (e) in
+                             let dim_x = Environment.dim_of_var t.env x in
+
+                             match tcons_typ with
+                             | EQ -> var_intv_meet intv dim_x
+                             | SUPEQ -> var_intv_meet (NegInfty, Intv.sup intv) dim_x
+                             | SUP -> var_intv_meet (NegInfty, ZExt.sub (Intv.sup intv) (ZExt.of_int 1)) dim_x
+                             | DISEQ when Intv.inf intv = Intv.sup intv -> (
+                                 let c = inf intv in
+                                 let (lb_x, ub_x) = List.at d.boxes dim_x in
+
+                                 if c = lb_x && c = ub_x then
+                                   bot_of_env t.env
+                                 else if c = lb_x then
+                                   var_intv_meet (ZExt.add c (ZExt.of_int 1), PosInfty) dim_x
+                                 else if c = ub_x then
+                                   var_intv_meet (NegInfty ,ZExt.sub c (ZExt.of_int 1)) dim_x
+                                 else
+                                   t
+
+                               )
+                             | DISEQ -> t 
+                             | EQMOD(s) -> t
+                            )
+
+              | _ -> let intv = eval_texpr_to_intv t (Binop (Sub, e1, e2, t0, r)) in interval_helper intv tcons_typ
+            )
+          | _ -> t
         in
         assert_constraint t texpr
 
