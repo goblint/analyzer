@@ -599,11 +599,11 @@ struct
                 extension with real domain is nonsensical"
     else
       let intv, sub = 
-        Boxes.dim_add dim_change pntg.intv,
+        Boxes.dim_add dim_change pntg.boxes,
         Sub.dim_add dim_change pntg.sub 
       in
-      Printf.printf "add %i dims: %i -> %i\n" dim_change.intdim (List.length pntg.intv) (List.length intv);
-      ({intv = intv; sub = sub}: t)
+      Printf.printf "add %i dims: %i -> %i\n" dim_change.intdim (List.length pntg.boxes) (List.length intv);
+      ({boxes = intv; sub = sub}: t)
 
   (** 
      See https://antoinemine.github.io/Apron/doc/api/ocaml/Dim.html
@@ -615,11 +615,11 @@ struct
                 extension with real domain is nonsensical"
     else
       let intv, sub = 
-        Boxes.dim_remove dim_change pntg.intv,
+        Boxes.dim_remove dim_change pntg.boxes,
         Sub.dim_remove dim_change pntg.sub 
       in
-      Printf.printf "remove %i dims: %i -> %i\n" dim_change.intdim (List.length pntg.intv) (List.length intv);
-      ({intv = intv; sub = sub}: t)
+      Printf.printf "remove %i dims: %i -> %i\n" dim_change.intdim (List.length pntg.boxes) (List.length intv);
+      ({boxes = intv; sub = sub}: t)
 end
 
 (** [VarManagement] defines the type t of the affine equality domain (a record that contains an optional matrix and an apron environment) and provides the functions needed for handling variables (which are defined by [RelationDomain.D2]) such as [add_vars], [remove_vars].
@@ -849,7 +849,7 @@ struct
     match pntg1.d with
     | None -> "bot"
     | Some d ->
-      let intv_str = Boxes.to_string d.intv in
+      let intv_str = Boxes.to_string d.boxes in
       let sub_str = Sub.to_string d.sub in
       Printf.sprintf "%s, %s" intv_str sub_str
 
