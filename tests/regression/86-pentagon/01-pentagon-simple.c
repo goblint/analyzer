@@ -7,9 +7,12 @@
 #include <goblint.h>
 
 void main(void) {
-  int x = 24;
-  int y = 1;
-  int z = 23;
+  int x;
+  
+  if (x <= 0) {
+    x = -x;
+  }
 
-  __goblint_check(x - y >= z - y);
+__goblint_check(x >= 0);
+
 }
