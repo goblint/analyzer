@@ -117,7 +117,7 @@ struct
       if sign z2 < 0 then
         neg z1
       else
-      if z2 = zero then
+      if z2 =* zero then
         zero
       else
         z1
@@ -131,7 +131,7 @@ struct
       if sign z2 < 0 then
         neg z1
       else
-      if z2 = zero then
+      if z2 =* zero then
         zero
       else
         z1
@@ -151,11 +151,11 @@ struct
       | NegInfty, Arb z -> if Z.is_even z then PosInfty else NegInfty
       | _, NegInfty -> failwith "This shouldn't happen (caught in second line of ZExt.pow)"
 
-  let abs z1 = if z1 < zero then neg z1 else z1;;
+  let abs z1 = if z1 <* zero then neg z1 else z1;;
 
-  let max z1 z2 = if z1 > z2 then z1 else z2;;
+  let max z1 z2 = if z1 >* z2 then z1 else z2;;
 
-  let min z1 z2 = if z1 < z2 then z1 else z2;;
+  let min z1 z2 = if z1 <* z2 then z1 else z2;;
 
   (** Taken from module IArith *)
   let min4 a b c d = min (min a b) (min c d)
@@ -594,11 +594,12 @@ struct
 
   let to_string (sub: t) =
     (* Results in: { y1, y2, ..., yn }*)
-    let set_string set = "{" ^ (
-        VarSet.to_list set |>
-        List.map (Idx.to_string) |>
-        String.concat ", "
-      ) ^ "}" in
+    let set_string set = 
+      if VarSet.cardinal set = 0 then "∅" else "{" ^ (
+          VarSet.to_list set |>
+          List.map (Idx.to_string) |>
+          String.concat ", "
+        ) ^ "}" in
     (* Results in: x_1 -> {y1, y2, ..., yn} *)
     String.concat "; " (
       VarList.mapi (
@@ -770,15 +771,25 @@ struct
     | None -> false
     | Some d -> Boxes.is_top d.boxes && Sub.is_top d.sub
 
-  let to_string pntg =
-    if is_bot pntg then
+  let to_string t =
+    if is_bot t then
       "⊥"
-    else if is_top pntg then
+    else if is_top t then
       "⊤"
     else
       (* d = None should have been handled by is_bot. *)
-      let d = Option.get pntg.d in
-      PNTG.to_string d
+      let d = Option.get t.d in
+      let vars = Array.map (StringUtils.string_of_var) (fst (Environment.vars t.env)) in
+      let res = PNTG.to_string d in
+      let re = Str.regexp "\\([0-9]+\\)->" in
+      Str.global_substitute re (
+        fun m -> 
+          let idx = int_of_string (Str.matched_group 1 m) in
+          if idx < Array.length vars then
+            (vars.(idx) ^ "->")
+          else
+            failwith "D.to_string hit unknown variable!"
+      ) res
 
   let show = to_string
 
@@ -873,9 +884,10 @@ struct
     let sup_env = Environment.lce t1.env t2.env in
     let t1 = dimchange2_add t1 sup_env in
     let t2 = dimchange2_add t2 sup_env in
+
     match t1.d, t2.d with
     | Some d1', Some d2' ->
-      let joined_boxes = Boxes.join d1'.boxes d1'.boxes in
+      let joined_boxes = Boxes.join d1'.boxes d2'.boxes in
       let s' x s1x = Sub.VarSet.inter s1x (List.at d2'.sub x) in
       let s'' x s1x = Sub.VarSet.filter (fun y -> Intv.sup (List.at d2'.boxes x) < Intv.inf (List.at d2'.boxes y)) s1x in
       let s''' x = Sub.VarSet.filter (fun y -> Intv.sup (List.at d1'.boxes x) < Intv.inf (List.at d1'.boxes y)) (List.at d2'.sub x) in
