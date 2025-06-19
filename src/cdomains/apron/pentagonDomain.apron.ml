@@ -328,7 +328,7 @@ end
 module Boxes  = 
 struct
   type t = Intv.t list [@@deriving eq, ord]
-
+  include ZExtOps
   let is_bot (i: t) = 
     (* Printf.printf "boxes.is_bot\n"; *)
     BatList.exists Intv.is_bot i
@@ -338,12 +338,27 @@ struct
     BatList.for_all Intv.is_top i
 
   let to_string (intervals: t) =
-    let string_of_interval i (l, u) =
-      Printf.sprintf "%i -> [%s, %s]" i (ZExt.to_string l) (ZExt.to_string u)
+
+    (** Special strings for the bounds of a 32 integer. *)
+    let min_or_max_int z = if z =* (ZExt.of_int (-2147483648)) then 
+        "-I32" 
+      else if z =* (ZExt.of_int (2147483647)) then 
+        "+I32"
+      else
+        ZExt.to_string z
     in
-    let bot_or_top = if is_bot intervals then "bot" else if is_top intervals then "top" else ""
+    let string_of_interval i (lb, ub) =
+      Printf.sprintf "%i->[%s, %s]" i (min_or_max_int lb) (min_or_max_int ub)
     in
-    Printf.sprintf "Boxes: (%s) {%s}" bot_or_top (String.concat ", " (List.mapi string_of_interval intervals))
+    let bot_or_top =
+      if is_bot intervals then
+        "(⊥)"
+      else if is_top intervals then
+        "(⊤)"
+      else 
+        "( )"
+    in
+    Printf.sprintf "%s { %s }" bot_or_top (String.concat "; " (List.mapi string_of_interval intervals))
 
   let equal boxes1 boxes2 =
     BatList.for_all2 (Intv.equal) boxes1 boxes2
@@ -557,15 +572,23 @@ struct
         String.concat ", "
       ) ^ "}" in
     (* Results in: x_1 -> {y1, y2, ..., yn} *)
-    String.concat ", " (VarList.mapi (
-        fun  i set ->
-          (Idx.to_string i) ^ " -> " ^ (set_string set)
-      ) sub)
+    String.concat "; " (
+      VarList.mapi (
+        fun i set ->
+          Printf.sprintf "%s->%s" (Idx.to_string i) (set_string set)
+      ) sub
+    )
 
   let to_string (sub: t) =
-    let bot_or_top = if is_bot sub then "⊥" else if is_top sub then "top" else ""
+    let bot_or_top = 
+      if is_bot sub then
+        "(⊥)"
+      else if is_top sub then
+        "(⊤)"
+      else
+        "( )"
     in
-    Printf.sprintf "Sub: (%s) {%s}" bot_or_top (to_string sub)
+    Printf.sprintf "%s { %s }" bot_or_top (to_string sub)
 
 end
 
@@ -588,6 +611,10 @@ struct
     match pntg.boxes, pntg.sub with
     | [], [] -> true
     | _ -> false
+
+  let to_string pntg =
+    Printf.sprintf "{ boxes = %s; sub = %s }" (Boxes.to_string pntg.boxes) (Sub.to_string pntg.sub)
+
 
   (**
      See https://antoinemine.github.io/Apron/doc/api/ocaml/Dim.html
@@ -716,9 +743,7 @@ struct
     else
       (* d = None should have been handled by is_bot. *)
       let d = Option.get pntg.d in
-      let boxes_str = Boxes.to_string d.boxes in
-      let sub_str = Sub.to_string d.sub in
-      Printf.sprintf "{ boxes = %s; sub = %s }" boxes_str sub_str
+      PNTG.to_string d
 
   let show = to_string
 
@@ -843,16 +868,6 @@ struct
     let res = narrow a b in
     if M.tracing then M.tracel "narrow" "narrow a: %s b: %s -> %s" (show a) (show b) (show res) ;
     res
-
-  let to_string pntg1 =
-    match pntg1.d with
-    | None -> "⊥"
-    | Some d ->
-      let intv_str = Boxes.to_string d.boxes in
-      let sub_str = Sub.to_string d.sub in
-      Printf.sprintf "%s, %s" intv_str sub_str
-
-
 
   (* S2 Specific functions of RelationDomain *)
   let is_bot_env t = t.d = None
@@ -1099,7 +1114,7 @@ struct
   *)
   let assert_constraint ask t e negate (no_ov: bool Lazy.t) =
     Printf.printf "assert_constraint\n";
-    Printf.printf "%s\n" (to_string t);
+    Printf.printf "%s\n\n" (to_string t);
 
     let zero = ZExt.zero in 
     (** Checks if the constraining interval violates the assertion. *)
@@ -1274,15 +1289,15 @@ struct
 
   let eval_interval (ask) = Bounds.bound_texpr
 
-  let to_string pntg = 
-    if is_bot pntg then
+  let to_string t = 
+    if is_bot t then
       "⊥"
-    else if is_top pntg then
+    else if is_top t then
       "⊤"
     else
-      match pntg.d with
+      match t.d with
       | None -> failwith "is_bot should take care of that"
-      | Some(d) -> Boxes.to_string d.boxes ^ " " ^ Sub.to_string d.sub;;
+      | Some(d) -> PNTG.to_string d;;
 
 end
 
