@@ -185,17 +185,18 @@ struct
     let int_dim = dim_change.intdim in
     Printf.sprintf "{ real_dim=%i; int_dim=%i; dim=[|%s|]}" real_dim int_dim (String.concat ", " (Array.to_list (Array.map Int.to_string (dim))))
 
+  let string_of_var (var: Var.t) =
+    let s = (Var.to_string var) in
+    match String.index_opt s '#' with
+    | Some i -> String.sub s 0 i
+    | None -> s
+
   let string_of_texpr1 (texpr: Texpr1.expr) =
     let rec aux texpr = 
       match texpr with
       | Texpr1.Cst (Interval inv) -> "Cst(Interval inv)"
       | Cst (Scalar s) -> Scalar.to_string s
-      | Var x -> (
-          let s = (Var.to_string x) in
-          match String.index_opt s '#' with
-          | Some i -> String.sub s 0 i
-          | None -> s 
-        )
+      | Var x -> string_of_var x
       | Unop  (Neg,  e, _, _) -> "(-" ^ aux e ^ ")"
       | Unop  (Cast, e, _, _) -> "((cast)" ^ aux e ^ ")"
       | Unop  (Sqrt, e, _, _) -> "(sqrt(" ^ aux e ^ "))"
@@ -1078,7 +1079,7 @@ struct
 
   let assign_texpr t var texp =
     let res = assign_texpr t var texp in
-    if M.tracing then M.trace "pntg" "D.assign_texpr:\ntexp:\t%s\nt:\t%s\nres:\t%s\n\n" (StringUtils.string_of_texpr1 texp) (show t) (show res);
+    if M.tracing then M.trace "pntg" "D.assign_texpr:\nassign:\t%s := %s\nt:\t%s\nres:\t%s\n\n" (StringUtils.string_of_var var) (StringUtils.string_of_texpr1 texp) (show t) (show res);
     res
 
 
@@ -1312,7 +1313,7 @@ struct
           )
         | tcons1 -> StringUtils.string_of_tcons1 tcons1
       in
-      M.trace "pntg" "D.assert_constraint:\ntexp:\t%s\nt:\t%s\nres:\t%s\n\n" tcons_str (show t) (show res));
+      M.trace "pntg" "D.assert_constraint:\ntcons:\t%s\nt:\t%s\nres:\t%s\n\n" tcons_str (show t) (show res));
     res
 
   let assert_constraint ask t e negate no_ov =
