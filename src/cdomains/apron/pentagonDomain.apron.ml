@@ -10,7 +10,6 @@ open GobApron
 open BatList
 open Pretty
 
-
 (** 
    Extension of the Zarith types and funcitons.
    The values represent arbitrary precision integers and also negative or positive infinity.
@@ -193,7 +192,7 @@ struct
           let s = (Var.to_string x) in
           match String.index_opt s '#' with
           | Some i -> String.sub s 0 i
-          | None -> s
+          | None -> s 
         )
       | Unop  (Neg,  e, _, _) -> "(-" ^ aux e ^ ")"
       | Unop  (Cast, e, _, _) -> "((cast)" ^ aux e ^ ")"
@@ -683,7 +682,7 @@ struct
 
   let dim_remove (dim_change: Apron.Dim.change) pntg = 
     let res = dim_remove dim_change pntg in
-    if M.tracing then M.trace "pntg_dim" "PNTG.dim_remove:\ndim_change:\t%s\npntg:%s\n\tres:%s" 
+    if M.tracing then M.trace "pntg_dim" "PNTG.dim_remove:\ndim_change:\t%s\npntg:%s\nres:\t%s\n\n" 
         (StringUtils.string_of_dim_change dim_change)
         (to_string pntg)
         (to_string res);
