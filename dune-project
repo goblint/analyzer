@@ -72,6 +72,7 @@ Goblint includes analyses for assertions, overflows, deadlocks, etc and can be e
   )
   (depopts
     (apron (>= v0.9.15))
+    (camlidl (>= 1.13)) ; for stability (https://github.com/goblint/analyzer/issues/1520)
     z3
     domainslib
   )
