@@ -798,22 +798,22 @@ module TwoVarInequalitySet = struct
   let limit slopes t = 
     let opt =  GobConfig.get_string "ana.lin2vareq_p.inequalities" in
     if opt = "unlimited" then Some t else
-    let open LinearInequality.OriginInequality in
-    let filtered = CoeffMap.filter (fun k c -> BatHashtbl.mem slopes (get_slope k) ) t in
-    let keep = 
-      if opt = "coeffs_count" then 
-        GobConfig.get_int "ana.lin2vareq_p.coeffs_count"
-      else
-        let f = GobConfig.get_int "ana.lin2vareq_p.coeffs_threshold" in
-        let total = BatHashtbl.fold (fun _ c acc -> c + acc) slopes 0 in
-        (total * f) / 100
-    in
-    let comp (k1,_) (k2,_) = 
-      let v1 = BatHashtbl.find_default slopes (get_slope k1) 0 in
-      let v2 = BatHashtbl.find_default slopes (get_slope k2) 0 in
-      v2 - v1 (*list sorts ascending, we need descending -> inverted comparison*)
-    in
-    ignore_empty @@ CoeffMap.of_list @@ List.take keep @@ List.sort comp @@ CoeffMap.bindings filtered
+      let open LinearInequality.OriginInequality in
+      let filtered = CoeffMap.filter (fun k c -> BatHashtbl.mem slopes (get_slope k) ) t in
+      let keep = 
+        if opt = "coeffs_count" then 
+          GobConfig.get_int "ana.lin2vareq_p.coeffs_count"
+        else
+          let f = GobConfig.get_int "ana.lin2vareq_p.coeffs_threshold" in
+          let total = BatHashtbl.fold (fun _ c acc -> c + acc) slopes 0 in
+          (total * f) / 100
+      in
+      let comp (k1,_) (k2,_) = 
+        let v1 = BatHashtbl.find_default slopes (get_slope k1) 0 in
+        let v2 = BatHashtbl.find_default slopes (get_slope k2) 0 in
+        v2 - v1 (*list sorts ascending, we need descending -> inverted comparison*)
+      in
+      ignore_empty @@ CoeffMap.of_list @@ List.take keep @@ List.sort comp @@ CoeffMap.bindings filtered
 
   (*get the next key in anti-clockwise order*)
   let get_previous k t =
@@ -1166,8 +1166,8 @@ module InequalityFunctor (Coeffs : Coeffs): TwoVarInequalities = struct
 
   let show_map formatter elem_formatter t = 
     if IntMap.is_empty t then "{}" else
-    let str = IntMap.fold (fun x ys acc -> IntMap.fold (fun y coeff acc -> Printf.sprintf "%s , %s" (elem_formatter (formatter x) (formatter y) coeff) acc) ys acc) t "" 
-    in "{" ^ String.sub str 0 (String.length str - 3) ^ "}"
+      let str = IntMap.fold (fun x ys acc -> IntMap.fold (fun y coeff acc -> Printf.sprintf "%s , %s" (elem_formatter (formatter x) (formatter y) coeff) acc) ys acc) t "" 
+      in "{" ^ String.sub str 0 (String.length str - 3) ^ "}"
 
   let show_formatted formatter t = show_map formatter Coeffs.show_formatted t
 
@@ -1203,8 +1203,8 @@ module InequalityFunctor (Coeffs : Coeffs): TwoVarInequalities = struct
       | None -> coeff, ref_acc (*also fine for narrow if t is the one on the righthandside*)
       | Some coeff_t -> (if narrow then TVIS.narrow else TVIS.meet) (x, get_value x) (y, get_value y) (Coeffs.to_set coeff_t) coeff ref_acc
     in match (Coeffs.of_set (get_value x) (get_value y)) coeff_met with 
-      | None -> remove_coeff x y t, ref_acc'
-      | Some coeff_met -> set_coeff x y coeff_met t, ref_acc'
+    | None -> remove_coeff x y t, ref_acc'
+    | Some coeff_met -> set_coeff x y coeff_met t, ref_acc'
 
   let meet get_value t1 t2 = 
     IntMap.fold (fun x ys acc -> IntMap.fold (fun y coeff acc -> meet_one_coeff false get_value x y (Coeffs.to_set coeff)  acc) ys acc) t1 (t2,[])
@@ -1322,8 +1322,8 @@ module InequalityFunctor (Coeffs : Coeffs): TwoVarInequalities = struct
             | Some c -> Coeffs.to_set c
           in let coeffs', ref_acc = TVIS.meet_single_inequality (x,get_value x) (y,get_value y) k c (coeffs,ref_acc) 
           in match Coeffs.of_set (get_value x) (get_value y) coeffs' with 
-            | None -> remove_coeff x y t , ref_acc
-            | Some c ->  set_coeff x y c t, ref_acc
+          | None -> remove_coeff x y t , ref_acc
+          | Some c ->  set_coeff x y c t, ref_acc
       end in
     let apply_transivity x y k c t = 
       if x = y then begin
@@ -1438,8 +1438,8 @@ module InequalityFunctor (Coeffs : Coeffs): TwoVarInequalities = struct
       let cs_curr = BatOption.default TVIS.empty @@ BatOption.map to_set @@ get_coeff x y t in
       let cs_combined, ref_acc = TVIS.meet (x,Value.top) (y,Value.top) cs_new cs_curr ref_acc in
       match of_set x y cs_combined with 
-        | None -> t,ref_acc 
-        | Some cs_combined -> set_coeff x y cs_combined t, ref_acc
+      | None -> t,ref_acc 
+      | Some cs_combined -> set_coeff x y cs_combined t, ref_acc
     in
     let merge_ys x ys acc = IntMap.fold (merge_single x) ys acc in
     let fold_x x ys acc = 
@@ -1581,8 +1581,8 @@ module InequalityFunctor (Coeffs : Coeffs): TwoVarInequalities = struct
            in let coeffs_new = Enum.fold add_single_slope TVIS.empty allowed_slopes
            in let x, y = min v_new other_var , max v_new other_var
            in match Coeffs.of_set (get_value x) (get_value y) coeffs_new with 
-            | Some coeffs_new ->  set_coeff x y coeffs_new t_acc
-            | _ -> t_acc
+           | Some coeffs_new ->  set_coeff x y coeffs_new t_acc
+           | _ -> t_acc
     in List.fold (fun acc v_new -> List.fold (add_new v_new ) acc all_representants_in_new ) t new_representants_in_new 
 
   let copy_to_new_representants econj_old econj_new t = Timing.wrap "new_reps" (copy_to_new_representants econj_old econj_new) t
@@ -1604,7 +1604,7 @@ module PentagonCoeffs : Coeffs = struct
     | None, Some false ->  if Value.must_be_neg @@ Value.sub (get_val_t1 x) (get_val_t1 y) then Some false else None 
 
   let widen x y get_val_t1 get_val_t2 t1 t2 = t2
-  
+
   let  limit _ t = Some t
 
   let show_formatted x y t = x ^ (if t then "<" else ">") ^ y
@@ -1685,11 +1685,11 @@ module PentagonOffsetCoeffs : Coeffs = struct
 
   let show_formatted x y (u,l) = 
     let u = match u with 
-    | None -> ""
-    | Some u -> x ^ " <= " ^ y ^ " + " ^ Z.to_string u
+      | None -> ""
+      | Some u -> x ^ " <= " ^ y ^ " + " ^ Z.to_string u
     in let l = match l with 
-    | None -> ""
-    | Some l -> x ^ " >= " ^ y ^ " + " ^ Z.to_string l
+        | None -> ""
+        | Some l -> x ^ " >= " ^ y ^ " + " ^ Z.to_string l
     in u ^ " , " ^ l
 
   let to_set (u,l) = 
