@@ -580,7 +580,13 @@
                 "termination",
                 "tmpSpecialAnalysis"
               ]
-            }
+            }, 
+            "extraTerminationDomain": {
+              "title": "ana.autotune.extraTerminationDomain",
+              "description": "Domain activated by the 'termination' autotuner. Specifying 'apron' also selects the polyhedra domain",
+              "type": "string",
+              "default": "apron"
+            } 
           },
           "additionalProperties": false
         },
@@ -1031,10 +1037,29 @@
         },
         "lin2vareq_p": {
           "title": "ana.lin2vareq_p",
-          "description":
-            "Use inequalities",
-          "type": "boolean",
-          "default": true
+          "type": "object",
+          "properties": {
+            "inequalities": {
+              "title": "ana.lin2vareq_p.inequalities",
+              "description": "Which domain to use to detect inequalities",
+              "type": "string",
+              "enum": ["none","pentagon", "pentagon_offset", "coeffs_count", "coeffs_threshold", "unlimited"],
+              "default": "coeffs_threshold"
+            },
+            "coeffs_count": {
+              "title": "ana.lin2vareq_p.coeffs_count",
+              "description": "How many inequalities to keep for every representant pair when using coeffs_count. ",
+              "type": "integer",
+              "default": 14
+            },
+            "coeffs_threshold": {
+              "title": "ana.lin2vareq_p.coeffs_threshold",
+              "description": "Percentage of inequalities to keep for every representant pair when using coeffs_threshold. Larger connected groups are allowed more coefficients.",
+              "type": "integer",
+              "default": 100
+            }
+          },
+          "additionalProperties": false
         },
         "context": {
           "title": "ana.context",

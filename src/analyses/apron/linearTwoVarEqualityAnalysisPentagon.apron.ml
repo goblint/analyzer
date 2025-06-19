@@ -6,11 +6,17 @@ open Analyses
 include RelationAnalysis
 
 module NoIneq = LinearTwoVarEqualityDomainPentagon.D2(RepresentantDomains.NoInequalties)
-module WithIneq = LinearTwoVarEqualityDomainPentagon.D2(RepresentantDomains.LinearInequalities)
+module PentagonIneq = LinearTwoVarEqualityDomainPentagon.D2(RepresentantDomains.InequalityFunctor(RepresentantDomains.PentagonCoeffs))
+module PentagonOffsetIneq = LinearTwoVarEqualityDomainPentagon.D2(RepresentantDomains.InequalityFunctor(RepresentantDomains.PentagonOffsetCoeffs))
+module FullIneq = LinearTwoVarEqualityDomainPentagon.D2(RepresentantDomains.InequalityFunctor(RepresentantDomains.TwoVarInequalitySet))
 
 let spec_module: (module MCPSpec) Lazy.t =
   lazy (
-    let (module AD) = if GobConfig.get_bool "ana.lin2vareq_p" then (module WithIneq : RelationDomain.RD) else (module NoIneq : RelationDomain.RD)
+    let (module AD) = match GobConfig.get_string "ana.lin2vareq_p.inequalities" with 
+      | "none" -> (module NoIneq : RelationDomain.RD)
+      | "pentagon" -> (module PentagonIneq : RelationDomain.RD)
+      | "pentagon_offset" -> (module PentagonOffsetIneq : RelationDomain.RD)
+      | _ ->  (module FullIneq : RelationDomain.RD) (*Other options differ only in the limit function*)
     in
     let module Priv = (val RelationPriv.get_priv ()) in
     let module Spec =

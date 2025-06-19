@@ -187,7 +187,7 @@ struct
         let econj' = (dim, IntMap.add x (vary, o, d) @@ IntMap.map adjust econj) in (* in case of sparse representation, make sure that the equality is now included in the conjunction *)
         match vary with 
         | Some (c,y) -> (*x was a representant but is not anymore*)
-          let ineq', refinements = Ineq.substitute ineq x (c, y, o, d)
+          let ineq', refinements = Ineq.substitute (get_value (econj', is, ineq)) ineq x (c, y, o, d)
           in let is' = IntMap.remove x is in (*remove value and add it back in the new econj *)
           let t' = econj', is', ineq' in
           let t'' = set_value t' x value in
@@ -296,7 +296,7 @@ struct
     | None -> (econj'', vs'', Ineq.forget_variable ineq' var)
     | Some (Some (coeff,y),offs,divi) -> 
       (*modify inequalities. We ignore refinements as they should not matter in this case*)
-      let ineq'', _ = Ineq.substitute ineq' var (coeff,y,offs,divi)
+      let ineq'', _ = Ineq.substitute (get_value (econj'', vs'', ineq')) ineq' var (coeff,y,offs,divi)
       (*restoring value information*)
       in set_value (econj'', vs'', ineq'') y @@ get_value d y
     | _ -> failwith "Should not happen" (*transformation can not be a constant*)
@@ -328,7 +328,7 @@ struct
     let ineq', refinements = 
       if EConj.nontrivial econ i 
       then ineq, [] 
-      else Ineq.substitute ineq i (c,i,o,d) 
+      else Ineq.substitute (get_value (econ, vs, ineq)) ineq i (c,i,o,d) 
     in
     apply_refinements refinements (EConj.affine_transform econ i rhs, vs, ineq')
 
@@ -936,11 +936,11 @@ struct
         | Some (c,v) ->
           match EConj.get_rhs econ1 var with 
           | Some (_,v),_,_ when v <> var -> ineq_acc
-          | _ -> let ineq', _ = Ineq.substitute ineq_acc var (c,v,o,d) in ineq' 
+          | _ -> let ineq', _ = Ineq.substitute (EConjI.get_value (econ1, vs1, ineq1)) ineq_acc var (c,v,o,d) in ineq' 
       in
       let ineq1' = IntMap.fold transform_non_representant (snd econ2) ineq1 in
       (*further, econ2 might have some new representants -> transform further*)
-      let ineq1' = Ineq.copy_to_new_representants econ1 econ2 ineq1' in
+      let ineq1' = Ineq.copy_to_new_representants econ1 econ2 (EConjI.get_value (econ2, vs2, ineq2)) ineq1' in
       if M.tracing then M.trace "leq" "transformed %s into %s" (Ineq.show_formatted (fun i -> Var.show @@ Environment.var_of_dim t2.env i) ineq1) (Ineq.show_formatted (fun i -> Var.show @@ Environment.var_of_dim t2.env i) ineq1');
       (*Normally, we do not apply closure to the intervals because it is too expensive (O(n^3)), but if we do not do it here, we get some actually implied elements being not leq, failing verifying*)
       let rec refine_intervals_until_fixpoint t = 
@@ -986,13 +986,13 @@ struct
       | Some econj'' ->
         if M.tracing then M.tracel "join" "join_econj of %s, %s resulted in %s" (EConjI.show x) (EConjI.show y) (EConj.show @@ snd econj'');
         (*transform the inequalities to represent only representants, and make the inequalities for new representants explicit*)
-        let transform_non_representant var rhs ineq_acc = 
+        let transform_non_representant get_value var rhs ineq_acc = 
           match rhs with 
-          | (Some (c,v), o, d) when v <> var -> let  ineq', _ = Ineq.substitute ineq_acc var (c,v,o,d) in ineq'
+          | (Some (c,v), o, d) when v <> var -> let  ineq', _ = Ineq.substitute get_value ineq_acc var (c,v,o,d) in ineq'
           | _ -> ineq_acc
         in
-        let ineq_x_split = IntMap.fold (transform_non_representant) (snd econj'') @@ Ineq.copy_to_new_representants econ_x econj'' ineq_x in
-        let ineq_y_split = IntMap.fold (transform_non_representant) (snd econj'') @@ Ineq.copy_to_new_representants econ_y econj'' ineq_y in
+        let ineq_x_split = IntMap.fold (transform_non_representant (EConjI.get_value x)) (snd econj'') @@ Ineq.copy_to_new_representants econ_x econj'' (EConjI.get_value x) ineq_x in
+        let ineq_y_split = IntMap.fold (transform_non_representant (EConjI.get_value y)) (snd econj'') @@ Ineq.copy_to_new_representants econ_y econj'' (EConjI.get_value y) ineq_y in
         let ineq' = (if widen then Ineq.widen else Ineq.join) ineq_x_split (EConjI.get_value x) ineq_y_split (EConjI.get_value y) in
         let (e,v,i) = collect_values x y econj'' ((Environment.size env)-1) (econj'', IntMap.empty, ineq') in
         Some (e,v, Ineq.limit e i)        

@@ -315,6 +315,7 @@ end
 
 module Value = IntervalAndCongruence
 
+(*The type used for the simulated domain*)
 module Relation = struct
   type cond = Lt | Gt
   type t = cond * Z.t
@@ -380,7 +381,7 @@ module type TwoVarInequalities = sig
   val meet_relation : int -> int -> Relation.t -> (int -> Rhs.t) -> (int -> Value.t) -> t -> t * Refinement.t
 
   (*substitutes all occurences of a variable by a rhs*)
-  val substitute : t -> int -> Z.t * int * Z.t * Z.t -> t * Refinement.t
+  val substitute : (int -> Value.t) -> t -> int -> Z.t * int * Z.t * Z.t -> t * Refinement.t
 
   (*called after every operation to limit the inequalities to the most relevant*)
   val limit : EConj.t -> t -> t
@@ -394,7 +395,7 @@ module type TwoVarInequalities = sig
   val widen : t -> (int -> Value.t) -> t -> (int -> Value.t) -> t
 
   (*second loop of transform: e.g. a join can split groups of variables. This function copies the relevant inequalities to all new representants*)
-  val copy_to_new_representants : EConj.t -> EConj.t -> t -> t
+  val copy_to_new_representants : EConj.t -> EConj.t -> (int -> Value.t) -> t -> t
 
   (*restore inequalities after an assignment that makes the assigned-to variable have a known relation to before the assignment*)
   val transfer : int -> Relation.t -> t -> (int -> Rhs.t) -> (int -> Value.t) -> t -> (int -> Rhs.t) -> (int -> Value.t) -> t * Refinement.t
@@ -439,9 +440,9 @@ module NoInequalties : TwoVarInequalities = struct
   let modify_variables_in_domain _ _ _ = ()
   let forget_variable _ _ = ()
 
-  let substitute _ _ _ = (), []
+  let substitute _ _ _ _ = (), []
 
-  let copy_to_new_representants _ _ _ = ()
+  let copy_to_new_representants _ _ _ _ = ()
 
   let transfer _ _ _ _ _ _ _ _ = (), []
 
@@ -452,333 +453,6 @@ module NoInequalties : TwoVarInequalities = struct
   let invariant _ _ = []
 
 end
-
-module type Coeffs = sig
-  type t
-  val implies : Value.t -> Value.t -> t option -> t -> bool
-  val meet : (int * Value.t) -> (int * Value.t) -> t -> t -> Refinement.t -> t * Refinement.t
-  val narrow : (int * Value.t) -> (int * Value.t) -> t -> t -> Refinement.t -> t * Refinement.t
-
-  val join : int -> int -> (int -> Value.t) -> (int -> Value.t) -> t option -> t option -> t option
-  val widen : int -> int -> (int -> Value.t) -> (int -> Value.t) -> t option -> t option -> t option
-
-  val hash : t -> int
-  val equal : t -> t -> bool
-  val compare : t -> t -> int
-  val show_formatted : string -> string -> t -> string
-
-  val interval_refinements : (int * Value.t) -> (int * Value.t) -> t -> Refinement.t -> Refinement.t 
-
-  val set_constant_lhs : int -> Z.t -> t -> Refinement.t -> Refinement.t
-  val set_constant_rhs : int -> Z.t -> t -> Refinement.t -> Refinement.t
-
-  val invariant : Environment.t -> int -> int -> t -> Lincons1.t list -> Lincons1.t list
-end
-
-module CommonActions (Coeffs : Coeffs) = struct
-
-  type t = Coeffs.t IntMap.t IntMap.t  [@@deriving eq, ord ]
-
-  let empty = IntMap.empty
-  let is_empty = IntMap.is_empty
-  let hash t = IntMap.fold (fun _ ys acc -> IntMap.fold (fun _ coeff acc -> Coeffs.hash coeff + 3*acc) ys (5*acc)) t 0
-
-  let ignore_empty ls = 
-    if IntMap.is_empty ls then None
-    else Some ls
-
-  let show_formatted formatter t = 
-    if IntMap.is_empty t then "{}" else
-    if IntMap.exists (fun _ -> IntMap.is_empty) t then failwith "Map not sparse" else
-      let str = IntMap.fold (fun x ys acc -> IntMap.fold (fun y coeff acc -> Printf.sprintf "%s , %s" (Coeffs.show_formatted (formatter x) (formatter y) coeff) acc) ys acc) t "" 
-      in "{" ^ String.sub str 0 (String.length str - 3) ^ "}"
-
-  let show = show_formatted (Printf.sprintf "var_%d")
-
-  let forget_variable t v = 
-    IntMap.filter_map (fun _ ys -> let ys' = IntMap.remove v ys in if IntMap.is_empty ys' then None else Some ys') (IntMap.remove v t)
-
-  let modify_variables_in_domain map indexes op =
-    let map_fun bump_var ys = IntMap.fold (fun y ->  IntMap.add (bump_var y) ) ys IntMap.empty in  
-    EConj.modify_variables_in_domain_general map map_fun indexes op 
-
-  let get_coeff x y t = BatOption.bind (IntMap.find_opt x t) (fun ys -> IntMap.find_opt y ys)
-
-  let set_coeff x y coeff t = 
-    IntMap.add x (IntMap.add y coeff @@ IntMap.find_default IntMap.empty x t ) t
-
-  let remove_coeff x y t =
-    let new_map = IntMap.remove y @@ IntMap.find_default IntMap.empty x t  in
-    if IntMap.is_empty new_map then t
-    else IntMap.add x new_map t
-
-  let leq t1 get_value_t1 t2 = 
-    let implies x y t2_coeff = 
-      let t1_coeff = get_coeff x y t1 in 
-      Coeffs.implies (get_value_t1 x) (get_value_t1 y) t1_coeff  t2_coeff
-    in
-    IntMap.for_all (fun x ys -> IntMap.for_all (implies x) ys) t2
-
-  let meet_one_coeff narrow get_value x y coeff (t,ref_acc) =
-    let coeff_t = get_coeff x y t in
-    let coeff_met, ref_acc' = match coeff_t with 
-      | None -> coeff, ref_acc (*also fine for narrow if t is the one on the righthandside*)
-      | Some coeff_t -> (if narrow then Coeffs.narrow else Coeffs.meet) (x, get_value x) (y, get_value y) coeff_t coeff ref_acc
-    in set_coeff x y coeff_met t, ref_acc'
-
-  let meet get_value t1 t2 = 
-    IntMap.fold (fun x ys acc -> IntMap.fold (fun y coeff acc -> meet_one_coeff false get_value x y coeff acc) ys acc) t1 (t2,[])
-
-  let narrow get_value t1 t2 = 
-    IntMap.fold (fun x ys acc -> IntMap.fold (fun y coeff acc -> meet_one_coeff true get_value x y coeff acc) ys acc) t1 (t2,[])
-
-  let join' widen t1 get_val_t1 t2 get_val_t2 = 
-    let merge_y x y = (if widen then Coeffs.widen else Coeffs.join) x y get_val_t1 get_val_t2 in 
-    let merge_x x ys1 ys2 = 
-      match ys1, ys2 with
-      | Some ys1, None -> ignore_empty (IntMap.filter_map (fun y coeff1 -> merge_y x y (Some coeff1) None) ys1)
-      | None, Some ys2 -> ignore_empty (IntMap.filter_map (fun y coeff2 -> merge_y x y None (Some coeff2)) ys2)
-      | Some ys1, Some ys2 -> ignore_empty (IntMap.merge (merge_y x) ys1 ys2)
-      | _, _ -> None
-    in IntMap.merge (merge_x) t1 t2
-
-  let join = join' false
-  let widen = join' true
-
-  let widen a b c d =
-    let res = widen a b c d in
-    if M.tracing then M.trace "widen" "called for inequalities";
-    res
-
-  let interval_refinements get_value t = IntMap.fold (fun x ys acc -> 
-      IntMap.fold (fun y cs acc -> 
-          Coeffs.interval_refinements 
-            (x, get_value x) 
-            (y, get_value y) 
-            cs acc
-        ) ys acc
-    ) t []
-
-  let set_constant var const t = IntMap.fold (fun x ys (t_acc, ref_acc) ->
-      if x = var then 
-        t_acc, IntMap.fold (fun y cs ref_acc -> Coeffs.set_constant_lhs y const cs ref_acc) ys ref_acc
-      else 
-        match IntMap.find_opt var ys with
-        | None -> IntMap.add x ys t_acc, ref_acc
-        | Some cs -> 
-          let ys' = IntMap.remove var ys in
-          let ref_acc = Coeffs.set_constant_rhs x const cs ref_acc in
-          if IntMap.is_empty ys' then t_acc, ref_acc else (IntMap.add x ys' t_acc, ref_acc) 
-    ) t (IntMap.empty,[])
-
-  let invariant t env = IntMap.fold (fun x ys acc -> IntMap.fold (Coeffs.invariant env x) ys acc) t []
-
-end
-
-(* TODO Redo this
-
-
-   (*Equations of the type x < y*)
-   module NoCoeffs = struct
-   type t = unit [@@deriving eq, ord, hash ]
-
-   let implies x y t1_opt _ = match t1_opt with 
-    | Some _ -> true
-    | None -> match Value.maximal x, Value.minimal y with 
-      | Some x, Some y -> TopIntOps.compare x y < 0
-      | _, _ -> false
-
-   let meet x y _ _ = ()
-
-   let narrow = meet
-
-   let join x y get_val_t1 get_val_t2 t1 t2 =      
-    let of_bool b = if b then Some () else None in  
-    match t1 with 
-    | Some t1 -> of_bool (implies (get_val_t2 x) (get_val_t2 y) t2 t1)
-    | None -> match t2 with 
-      | Some t2 -> of_bool (implies (get_val_t1 x) (get_val_t1 y) t1 t2)
-      | None -> None
-
-   let widen = join
-
-   let show_formatted x y t = x ^ " < " ^ y
-
-   let add_constraints x y x_val y_val acc = 
-    let acc = match Value.maximal y_val with
-      | Some (Int v) -> (x, Value.ending @@ Z.sub v Z.one) :: acc
-      | _ -> acc
-    in match Value.minimal x_val with
-    | Some (Int v) -> (y, Value.starting @@ Z.add v Z.one) :: acc
-    | _ -> acc
-
-   end
-
-   (*Semantics: x -> y -> () => x < y*)
-   module SimpleInequalities : TwoVarInequalities = struct
-   module Coeffs = NoCoeffs
-   include CommonActions(Coeffs)
-
-   let get_relations x y t = 
-    let open Relation in
-    let check_inequality ((var_x,o_x,d_x), val_x) ((var_y,o_y,d_y), val_y) =
-      if M.tracing then M.trace "get_relations" "checking x: %s, y: %s" (Rhs.show (var_x,o_x,d_x)) (Rhs.show (var_y,o_y,d_y));
-      match var_x, var_y with
-      | Some (c_x, x), Some (c_y, y) -> begin
-          match get_coeff x y t with 
-          | None -> 
-            if M.tracing then M.trace "get_relations" "no inequality for roots";
-            [] (*No information*)
-          | Some _ -> (*we know x < y -> check if this translates to x' < y' or x' > y'*) 
-            let d_c = Z.sub (Z.mul d_x c_y) (Z.mul d_y c_x) in
-            let d_o = Z.sub (Z.mul o_x d_y) (Z.mul o_y d_x) in
-            let x_d_c = Value.mul val_x (Value.of_bigint d_c) in
-            if Z.lt c_y Z.zero && Value.leq x_d_c (Value.ending d_o) (* c_y < 0, x * d_c <= d_o*) 
-            then[ (Gt, Z.zero)] (*x' > y '*)
-            else if Z.gt c_y Z.zero && Value.leq x_d_c (Value.starting d_o) (* c_y > 0, x * d_c >= d_o*) 
-            then [(Lt, Z.zero)] (*x' < y '*)
-            else  
-              let d_c' = Z.neg d_c in
-              let d_o' = Z.neg d_o in
-              let y_d_c = Value.mul val_y (Value.of_bigint d_c') in
-              if Z.lt c_x Z.zero && Value.leq y_d_c (Value.starting d_o') (* c_x < 0, y * d_c >= d_o*) 
-              then [(Gt, Z.zero) ](*x' > y '*)
-              else if  Z.gt c_x Z.zero && Value.leq y_d_c (Value.ending d_o') (* c_x > 0, y * d_c <= d_o*) 
-              then [Lt, Z.zero] (*x' < y '*)
-              else []
-        end
-      | _, _ -> failwith "Inequalities.get_relations does not take constants directly" (*TODO should we take the coefficients directly to enforce this*)
-    in 
-    let res = check_inequality x y in
-    if res = [] then List.map invert @@ check_inequality y x
-    else res
-
-   let get_relations x y t = 
-    let res = get_relations x y t in
-    if M.tracing then M.trace "get_relations" "result: %s" (BatList.fold (fun acc c -> acc ^ ", " ^ Relation.show "x'" c "y'") "" res);
-    res
-
-   let meet_relation x' y' cond get_rhs get_value t =
-    let open Relation in
-    (*strict: if the inequality is strict *)
-    let meet_less_root x y strict t = 
-      if M.tracing then M.tracel "meet_relation" "meet_less_root x: %d y: %d strict: %b " x y strict;  
-      let union = IntMap.union (fun _ _ _ -> Some ()) (IntMap.find_default IntMap.empty x t) (IntMap.find_default IntMap.empty y t) 
-      in let union' = if strict then IntMap.add y () union else union 
-      in if IntMap.mem x union' then raise EConj.Contradiction
-      else if IntMap.is_empty union' then t, []
-      else IntMap.add x union' t, IntMap.fold (fun z _ acc -> Coeffs.add_constraints x z (get_value x) (get_value z) acc) union' []
-    in
-    let meet_less x' y' strict t = 
-      if M.tracing then M.tracel "meet_relation" "meet_less x': %d y': %d strict: %b" x' y' strict;  
-      let get_rhs' lhs = 
-        match get_rhs lhs with 
-        | (Some (c,v),o,d) -> c,v,o,d
-        | (None, o, d) -> Z.one, lhs, Z.zero, Z.one
-      in let (c_x, x, o_x, d_x) = get_rhs' x'
-      in let (c_y, y, o_y, d_y) = get_rhs' y'
-      in if M.tracing then M.tracel "meet_relation" "x' = %s, y' = %s " (Rhs.show (Some (c_x, x),o_x,d_x)) (Rhs.show (Some (c_y,y),o_y,d_y));  
-      let val_x = get_value x
-      in let val_y = get_value y in
-      let d_c = Z.sub (Z.mul d_x c_y) (Z.mul d_y c_x) in
-      let d_o = Z.sub (Z.mul o_x d_y) (Z.mul o_y d_x) in
-      let x_d_c = Value.mul val_x (Value.of_bigint d_c) in
-      if Value.leq x_d_c (Value.ending d_o) then (*x * d_c <= d_o*)
-        (*We are strict iff we have been strict before or this bound is strict*)
-        if Z.lt c_y Z.zero then meet_less_root y x (strict || Value.leq x_d_c (Value.ending (Z.sub d_o Z.one))) t
-        else meet_less_root x y (strict || Value.leq x_d_c (Value.ending (Z.sub d_o Z.one))) t
-      else
-        let d_c' = Z.neg d_c in
-        let d_o' = Z.neg d_o in
-        let y_d_c = Value.mul val_y (Value.of_bigint d_c') in
-        if Value.leq y_d_c (Value.starting d_o') then (*x * d_c >= d_o*)
-          (*We are strict iff we have been strict before or this bound is strict*)
-          if Z.gt c_y Z.zero then meet_less_root x y (strict || Value.leq y_d_c (Value.ending (Z.add d_o' Z.one))) t
-          else meet_less_root y x (strict || Value.leq y_d_c (Value.ending (Z.add d_o' Z.one))) t
-        else t, []
-    in
-    match cond with 
-    | Gt, z when Z.geq z Z.zero -> meet_less y' x' true t 
-    | Gt, z when Z.equal z Z.minus_one -> meet_less y' x' false t 
-    | Eq, z when Z.equal z Z.zero -> 
-      let rhs_x = get_rhs x' in
-      let rhs_y = get_rhs y' in
-      if M.tracing then M.tracel "meet_relation" "in equality: x' (var_%d) = %s, y' (var_%d)= %s " x' (Rhs.show rhs_x) y' (Rhs.show rhs_y);  
-      if Rhs.equal rhs_x rhs_y then begin
-        if M.tracing then M.tracel "meet_relation" "equality with same rhs";  
-        let x,y = match rhs_x, rhs_y with 
-          | (Some (_,x), _,_), (Some (_,y), _,_) -> (x,y)
-          | (None,_,_), (None, _,_) -> x',y'
-          | _,_ -> failwith "Should never happen"
-        in
-        let union = IntMap.union (fun _ _ _ -> Some ()) (IntMap.find_default IntMap.empty x t) (IntMap.find_default IntMap.empty y t) in
-        if IntMap.mem x union || IntMap.mem y union then raise EConj.Contradiction
-        else if IntMap.is_empty union then t, []
-        else IntMap.add x union @@ IntMap.add y union t, [] (*TODO more is possible for refinement, but is it worth it?*)
-      end else 
-        let (t', acc) = meet_less y' x' false t in
-        let (t'', acc2) = meet_less x' y' false t' in
-        t'', acc @ acc2 
-    | Eq, z when Z.gt z Z.zero -> meet_less y' x' true t
-    | Eq, z when Z.lt z Z.zero -> meet_less x' y' true t
-    | Lt, z when Z.equal z Z.one -> meet_less x' y' false t 
-    | Lt, z when Z.leq z Z.zero-> meet_less x' y' true t 
-    | _ -> t, [] (*TODO adapt the equations to take care of offsets!*)
-
-   let meet_relation x y c r v t = 
-    if M.tracing then M.tracel "meet_relation" "meeting %s with %s" (show t) (Relation.show ("var_"^Int.to_string x) c ("var_"^Int.to_string y));  
-    let res, refinements = meet_relation x y c r v t in
-    if M.tracing then M.tracel "meet_relation" "result: %s " (show res);  
-    res, refinements
-
-   let transfer x x_new cond t_old get_rhs_old get_value_old t get_rhs get_value = 
-    let get_old_condition x y = 
-      let get_information lhs =
-        let rhs = get_rhs_old lhs in
-        match rhs with 
-        | (Some (_,var), _ ,_) -> (rhs, get_value_old var)
-        (*We need to know which root a constant is referring to, so we use the trivial equation to carry that information*)
-        | (_,o,_) -> (Rhs.var_zero lhs, Value.of_bigint o) 
-      in
-      get_relations (get_information x) (get_information y) t_old 
-    in let vars_to_check = 
-         let root = match get_rhs_old x with
-           | (Some (_,var), _ ,_) -> var
-           | (_,o,_) -> x
-           (*we need to check all y with root -> y -> coeff  or y -> root -> coeff*)
-         in BatEnum.append (IntMap.keys @@ IntMap.find_default IntMap.empty root t_old) (List.enum @@ IntMap.fold (fun k ys acc -> if IntMap.mem root ys then k :: acc else acc) t_old [])   
-    in let keep_less = match cond with 
-        | Relation.Eq | Lt -> true 
-        | _ -> false
-    in let keep_greater = match cond with 
-        | Eq | Gt -> true 
-        | _ -> false
-    in let transfer_single_var t' y = 
-         match get_old_condition x y with 
-         |[ (Lt, o)] -> (*transfering the variables does not lead to new information -> drop the refinements*)
-           if keep_less then fst @@ meet_relation x_new y (Lt, o) get_rhs get_value t' else t'
-         | [(Gt, o)] ->
-           if keep_greater then fst @@ meet_relation x_new y (Gt, o) get_rhs get_value t' else t'
-         | _ -> t'
-    in BatEnum.fold (transfer_single_var) t vars_to_check
-
-   (*TODO we currently just strip the offset, but could take advantage of the offset*)
-   let transfer x x_new cond t_old get_rhs_old get_value_old t get_rhs get_value = 
-    match cond with 
-    | Relation.Eq, o when Z.equal o Z.zero -> transfer x x_new Eq t_old get_rhs_old get_value_old t get_rhs get_value 
-    | Relation.Lt, o when Z.leq o Z.zero -> transfer x x_new Lt t_old get_rhs_old get_value_old t get_rhs get_value 
-    | Relation.Gt, o when Z.geq o Z.zero -> transfer x x_new Gt t_old get_rhs_old get_value_old t get_rhs get_value 
-    | _ -> t 
-
-   let transfer x x_new cond t_old get_rhs_old get_value_old t get_rhs get_value = 
-    let res = transfer x x_new cond t_old get_rhs_old get_value_old t get_rhs get_value in
-    if M.tracing then M.tracel "transfer" "transfering  with %s from %s into %s -> %s" (Relation.show (Int.to_string x) cond (Int.to_string x_new) ) (show t_old) (show t) (show res);  
-    res
-
-   end 
-
-*)
-
 
 let qhash q = Z.hash (Q.num q) + 13 * Z.hash (Q.den q)
 let round_up q = Z.cdiv (Q.num q) (Q.den q)
@@ -1099,10 +773,9 @@ let slopes_from_coeffs mapping (x,y) =
 
 let slopes_from_coeffs = Timing.wrap "slopes" slopes_from_coeffs
 
-
 (*List of inequalities ax < by + c, mapping a and b to c*)
 (*We need to make sure that x has lower index than y to keep this representation unique! *)
-module ArbitraryCoeffsSet = struct
+module TwoVarInequalitySet = struct
   module Key = LinearInequality.OriginInequality
   module CoeffMap = Map.Make(Key)
 
@@ -1123,18 +796,24 @@ module ArbitraryCoeffsSet = struct
   (*limit how many inequalities we are saving: only keep inequalities with slopes that correspond to variables. 
     optionally, limit it further to the slopes that correspond to the most inequalities *)
   let limit slopes t = 
+    let opt =  GobConfig.get_string "ana.lin2vareq_p.inequalities" in
+    if opt = "unlimited" then Some t else
     let open LinearInequality.OriginInequality in
     let filtered = CoeffMap.filter (fun k c -> BatHashtbl.mem slopes (get_slope k) ) t in
-    if true then (*TODO add option to configure this*)
-      filtered
-    else 
-      let keep = 10 in  (*TODO add option to configure this. there are possibly 2 inequalities per slope, so should be adjusted accordingly*)
-      let comp (k1,_) (k2,_) = 
-        let v1 = BatHashtbl.find_default slopes (get_slope k1) 0 in
-        let v2 = BatHashtbl.find_default slopes (get_slope k2) 0 in
-        v2 - v1 (*list sorts ascending, we need descending -> inverted comparison*)
-      in
-      CoeffMap.of_list @@ List.take keep @@ List.sort comp @@ CoeffMap.bindings filtered
+    let keep = 
+      if opt = "coeffs_count" then 
+        GobConfig.get_int "ana.lin2vareq_p.coeffs_count"
+      else
+        let f = GobConfig.get_int "ana.lin2vareq_p.coeffs_threshold" in
+        let total = BatHashtbl.fold (fun _ c acc -> c + acc) slopes 0 in
+        (total * f) / 100
+    in
+    let comp (k1,_) (k2,_) = 
+      let v1 = BatHashtbl.find_default slopes (get_slope k1) 0 in
+      let v2 = BatHashtbl.find_default slopes (get_slope k2) 0 in
+      v2 - v1 (*list sorts ascending, we need descending -> inverted comparison*)
+    in
+    ignore_empty @@ CoeffMap.of_list @@ List.take keep @@ List.sort comp @@ CoeffMap.bindings filtered
 
   (*get the next key in anti-clockwise order*)
   let get_previous k t =
@@ -1308,7 +987,6 @@ module ArbitraryCoeffsSet = struct
         end
       | _ ->  
         (*add the inequality, while making sure that we do not save redundant inequalities*)
-        (*TODO make this consider the intervals! -> adapt get_next and get_previous?*)
         let t' = match CoeffMap.find_opt k t with 
           | Some c_old when LinearInequality.entails1 (k,c_old) (k,c) -> t (*saved inequality is already thighter than new one*)
           | _ -> add_inequality k c @@ CoeffMap.remove k t (*we replace the current value with a new one *)
@@ -1446,12 +1124,135 @@ module ArbitraryCoeffsSet = struct
 
   let invariant env x y t acc = CoeffMap.fold (LinearInequality.invariant env x y) t acc
 
+  let to_set t = t
+
+  let of_set _ _ t = Some t
+
+end
+
+module TVIS = TwoVarInequalitySet
+
+module type Coeffs = sig
+  type t
+
+  val join : int -> int -> (int -> Value.t) -> (int -> Value.t) -> t option -> t option -> t option
+  val widen : int -> int -> (int -> Value.t) -> (int -> Value.t) -> t option -> t option -> t option
+
+  val limit : (Q.t, int) Hashtbl.t -> t -> t option
+
+  val hash : t -> int
+  val equal : t -> t -> bool
+  val compare : t -> t -> int
+  val show_formatted : string -> string -> t -> string
+
+  val to_set : t -> TwoVarInequalitySet.t
+
+  val of_set : Value.t -> Value.t -> TwoVarInequalitySet.t -> t option
+
 end
 
 
-module LinearInequalities : TwoVarInequalities = struct
-  module Coeffs = ArbitraryCoeffsSet
-  include CommonActions(Coeffs)
+module InequalityFunctor (Coeffs : Coeffs): TwoVarInequalities = struct
+
+  type t = Coeffs.t IntMap.t IntMap.t  [@@deriving eq, ord ]
+
+  let empty = IntMap.empty
+  let is_empty = IntMap.is_empty
+  let hash t = IntMap.fold (fun _ ys acc -> IntMap.fold (fun _ coeff acc -> Coeffs.hash coeff + 3*acc) ys (5*acc)) t 0
+
+  let ignore_empty ls = 
+    if IntMap.is_empty ls then None
+    else Some ls
+
+  let show_map formatter elem_formatter t = 
+    if IntMap.is_empty t then "{}" else
+    let str = IntMap.fold (fun x ys acc -> IntMap.fold (fun y coeff acc -> Printf.sprintf "%s , %s" (elem_formatter (formatter x) (formatter y) coeff) acc) ys acc) t "" 
+    in "{" ^ String.sub str 0 (String.length str - 3) ^ "}"
+
+  let show_formatted formatter t = show_map formatter Coeffs.show_formatted t
+
+  let show = show_formatted (Printf.sprintf "var_%d") 
+
+  let forget_variable t v = 
+    IntMap.filter_map (fun _ ys -> let ys' = IntMap.remove v ys in if IntMap.is_empty ys' then None else Some ys') (IntMap.remove v t)
+
+  let modify_variables_in_domain map indexes op =
+    let map_fun bump_var ys = IntMap.fold (fun y ->  IntMap.add (bump_var y) ) ys IntMap.empty in  
+    EConj.modify_variables_in_domain_general map map_fun indexes op 
+
+  let get_coeff x y t = BatOption.bind (IntMap.find_opt x t) (fun ys -> IntMap.find_opt y ys)
+
+  let set_coeff x y coeff t = 
+    IntMap.add x (IntMap.add y coeff @@ IntMap.find_default IntMap.empty x t ) t
+
+  let remove_coeff x y t =
+    let new_map = IntMap.remove y @@ IntMap.find_default IntMap.empty x t  in
+    if IntMap.is_empty new_map then t
+    else IntMap.add x new_map t
+
+  let leq t1 get_value_t1 t2 = 
+    let implies x y t2_coeff = 
+      let t1_coeff = get_coeff x y t1 in 
+      TVIS.implies (get_value_t1 x) (get_value_t1 y) (BatOption.map Coeffs.to_set t1_coeff)  (Coeffs.to_set t2_coeff)
+    in
+    IntMap.for_all (fun x ys -> IntMap.for_all (implies x) ys) t2
+
+  let meet_one_coeff narrow get_value x y coeff (t,ref_acc) =
+    let coeff_t = get_coeff x y t in
+    let coeff_met, ref_acc' = match coeff_t with 
+      | None -> coeff, ref_acc (*also fine for narrow if t is the one on the righthandside*)
+      | Some coeff_t -> (if narrow then TVIS.narrow else TVIS.meet) (x, get_value x) (y, get_value y) (Coeffs.to_set coeff_t) coeff ref_acc
+    in match (Coeffs.of_set (get_value x) (get_value y)) coeff_met with 
+      | None -> remove_coeff x y t, ref_acc'
+      | Some coeff_met -> set_coeff x y coeff_met t, ref_acc'
+
+  let meet get_value t1 t2 = 
+    IntMap.fold (fun x ys acc -> IntMap.fold (fun y coeff acc -> meet_one_coeff false get_value x y (Coeffs.to_set coeff)  acc) ys acc) t1 (t2,[])
+
+  let narrow get_value t1 t2 = 
+    IntMap.fold (fun x ys acc -> IntMap.fold (fun y coeff acc -> meet_one_coeff true get_value x y (Coeffs.to_set coeff) acc) ys acc) t1 (t2,[])
+
+  let join' widen t1 get_val_t1 t2 get_val_t2 = 
+    let merge_y x y = (if widen then Coeffs.widen else Coeffs.join) x y get_val_t1 get_val_t2 in 
+    let merge_x x ys1 ys2 = 
+      match ys1, ys2 with
+      | Some ys1, None -> ignore_empty (IntMap.filter_map (fun y coeff1 -> merge_y x y (Some coeff1) None) ys1)
+      | None, Some ys2 -> ignore_empty (IntMap.filter_map (fun y coeff2 -> merge_y x y None (Some coeff2)) ys2)
+      | Some ys1, Some ys2 -> ignore_empty (IntMap.merge (merge_y x) ys1 ys2)
+      | _, _ -> None
+    in IntMap.merge (merge_x) t1 t2
+
+  let join = join' false
+  let widen = join' true
+
+  let widen a b c d =
+    let res = widen a b c d in
+    if M.tracing then M.trace "widen" "called for inequalities";
+    res
+
+  let interval_refinements get_value t = IntMap.fold (fun x ys acc -> 
+      IntMap.fold (fun y cs acc -> 
+          TVIS.interval_refinements 
+            (x, get_value x) 
+            (y, get_value y) 
+            (Coeffs.to_set cs) 
+            acc
+        ) ys acc
+    ) t []
+
+  let set_constant var const t = IntMap.fold (fun x ys (t_acc, ref_acc) ->
+      if x = var then 
+        t_acc, IntMap.fold (fun y cs ref_acc -> TVIS.set_constant_lhs y const (Coeffs.to_set cs) ref_acc) ys ref_acc
+      else 
+        match IntMap.find_opt var ys with
+        | None -> IntMap.add x ys t_acc, ref_acc
+        | Some cs -> 
+          let ys' = IntMap.remove var ys in
+          let ref_acc = TVIS.set_constant_rhs x const (Coeffs.to_set cs) ref_acc in
+          if IntMap.is_empty ys' then t_acc, ref_acc else (IntMap.add x ys' t_acc, ref_acc) 
+    ) t (IntMap.empty,[])
+
+  let invariant t env = IntMap.fold (fun x ys acc -> IntMap.fold (fun y cs acc -> TVIS.invariant env x y (Coeffs.to_set cs) acc) ys acc) t []
 
   let ignore_empty ls = 
     if IntMap.is_empty ls then None
@@ -1466,20 +1267,21 @@ module LinearInequalities : TwoVarInequalities = struct
       match get_coeff x y t with 
       | None -> begin if M.tracing then M.trace "get_relations" "no inequality for roots"; [] end (*No information*)
       | Some coeff -> 
+        let coeff = Coeffs.to_set coeff in
         let interval_ineqs = LinearInequality.from_values x_val y_val in
-        let coeff = List.fold (fun t (k,c) -> Coeffs.add_inequality k c t) coeff interval_ineqs in
+        let coeff = List.fold (fun t (k,c) -> TVIS.add_inequality k c t) coeff interval_ineqs in
         let (k,c_rhs) = LinearInequality.from_rhss (c_x,o_x,d_x) (c_y,o_y,d_y) None in
         let factor = (*we need to muliply c' with this factor because LinearInequalities scales them down*)
           let a = Q.make c_x d_x in
           let b = Q.make c_y d_y in
           if Q.equal b Q.zero then a else b
         in
-        let upper_bound = match Coeffs.get_best_offset k coeff with
+        let upper_bound = match TVIS.get_best_offset k coeff with
           | None -> []
           | Some c_ineq -> 
             let c' = Q.mul factor @@ Q.sub c_ineq c_rhs in 
             [Relation.Lt, Z.add Z.one @@ Z.fdiv (Q.num c') (Q.den c')] (*add one to make it a strict inequality*)
-        in match Coeffs.get_best_offset (Coeffs.Key.negate k) coeff with (*lower bound*)
+        in match TVIS.get_best_offset (TVIS.Key.negate k) coeff with (*lower bound*)
         | None -> upper_bound
         | Some c_ineq -> 
           let c' = Q.mul factor ( Q.add c_ineq c_rhs) in
@@ -1499,7 +1301,7 @@ module LinearInequalities : TwoVarInequalities = struct
       else begin
         if M.tracing then M.tracel "meet_relation" "meet_relation_roots: %s" @@ LinearInequality.show ("var_" ^ Int.to_string x) ("var_" ^ Int.to_string y) (k,c);
         if x = y then
-          let s = Coeffs.Key.get_slope k in
+          let s = TVIS.Key.get_slope k in
           if Q.equal Q.one s then (* x <= x + c (or >=) *)
             match k with 
             | LE _ -> if Q.lt c Q.zero then raise EConj.Contradiction else (t, []) (*trivially true*)
@@ -1516,12 +1318,12 @@ module LinearInequalities : TwoVarInequalities = struct
               t, (x, Left (Value.starting @@ Z.fdiv (Q.num min) (Q.den min))) :: ref_acc
         else 
           let coeffs = match get_coeff x y t with
-            | None -> Coeffs.empty
-            | Some c -> c
-          in let coeffs', ref_acc = Coeffs.meet_single_inequality (x,get_value x) (y,get_value y) k c (coeffs,ref_acc) in
-          if Coeffs.CoeffMap.is_empty coeffs' 
-          then remove_coeff x y t , ref_acc
-          else set_coeff x y coeffs' t, ref_acc
+            | None -> TVIS.empty
+            | Some c -> Coeffs.to_set c
+          in let coeffs', ref_acc = TVIS.meet_single_inequality (x,get_value x) (y,get_value y) k c (coeffs,ref_acc) 
+          in match Coeffs.of_set (get_value x) (get_value y) coeffs' with 
+            | None -> remove_coeff x y t , ref_acc
+            | Some c ->  set_coeff x y c t, ref_acc
       end in
     let apply_transivity x y k c t = 
       if x = y then begin
@@ -1532,42 +1334,42 @@ module LinearInequalities : TwoVarInequalities = struct
         IntMap.fold (fun w zs acc -> 
             if w = x then 
               IntMap.fold (fun z cs acc ->   
-                  match Coeffs.combine_left (k,c) cs with
+                  match TVIS.combine_left (k,c) @@ Coeffs.to_set cs with
                   | None -> 
                     if M.tracing then M.tracel "transitivity" "case 1, combined with %s into Nothing " (Coeffs.show_formatted ("var_" ^ Int.to_string w) ("var_" ^ Int.to_string z) cs);
                     acc 
                   | Some cs' -> 
-                    if M.tracing then M.tracel "transitivity" "case 1, combined with %s into %s " (Coeffs.show_formatted ("var_" ^ Int.to_string w) ("var_" ^ Int.to_string z) cs) (Coeffs.show_formatted ("var_" ^ Int.to_string y) ("var_" ^ Int.to_string z) cs');
-                    Coeffs.CoeffMap.fold (fun k c acc -> meet_relation_roots y z k c acc) cs' acc
+                    if M.tracing then M.tracel "transitivity" "case 1, combined with %s into %s " (Coeffs.show_formatted ("var_" ^ Int.to_string w) ("var_" ^ Int.to_string z) cs) (TVIS.show_formatted ("var_" ^ Int.to_string y) ("var_" ^ Int.to_string z) cs');
+                    TVIS.CoeffMap.fold (fun k c acc -> meet_relation_roots y z k c acc) cs' acc
                 ) zs acc
             else if w = y then 
               IntMap.fold (fun z cs acc ->
-                  match Coeffs.combine_left (LinearInequality.swap_sides (k,c)) cs  with
+                  match TVIS.combine_left (LinearInequality.swap_sides (k,c)) @@ Coeffs.to_set cs with
                   | None -> 
                     if M.tracing then M.tracel "transitivity" "case 2, combined with %s into Nothing " (Coeffs.show_formatted ("var_" ^ Int.to_string w) ("var_" ^ Int.to_string z) cs);
                     acc 
                   | Some cs' -> 
-                    if M.tracing then M.tracel "transitivity" "case 2, combined with %s into %s " (Coeffs.show_formatted ("var_" ^ Int.to_string w) ("var_" ^ Int.to_string z) cs) (Coeffs.show_formatted ("var_" ^ Int.to_string x) ("var_" ^ Int.to_string z) cs');
-                    Coeffs.CoeffMap.fold (fun k c acc -> meet_relation_roots x z k c acc) cs' acc
+                    if M.tracing then M.tracel "transitivity" "case 2, combined with %s into %s " (Coeffs.show_formatted ("var_" ^ Int.to_string w) ("var_" ^ Int.to_string z) cs) (TVIS.show_formatted ("var_" ^ Int.to_string x) ("var_" ^ Int.to_string z) cs');
+                    TVIS.CoeffMap.fold (fun k c acc -> meet_relation_roots x z k c acc) cs' acc
                 ) zs acc
             else  
               IntMap.fold (fun z cs acc -> 
                   if z = x then 
-                    match Coeffs.combine_right (k,c) cs with
+                    match TVIS.combine_right (k,c) @@ Coeffs.to_set cs with
                     | None -> 
                       if M.tracing then M.tracel "transitivity" "case 3, combined with %s into Nothing " (Coeffs.show_formatted ("var_" ^ Int.to_string w) ("var_" ^ Int.to_string z) cs);
                       acc 
                     | Some cs' -> 
-                      if M.tracing then M.tracel "transitivity" "case 3, combined with %s into %s " (Coeffs.show_formatted ("var_" ^ Int.to_string w) ("var_" ^ Int.to_string z) cs) (Coeffs.show_formatted ("var_" ^ Int.to_string w) ("var_" ^ Int.to_string y) cs');
-                      Coeffs.CoeffMap.fold (fun k c acc -> meet_relation_roots w y k c acc) cs' acc
+                      if M.tracing then M.tracel "transitivity" "case 3, combined with %s into %s " (Coeffs.show_formatted ("var_" ^ Int.to_string w) ("var_" ^ Int.to_string z) cs) (TVIS.show_formatted ("var_" ^ Int.to_string w) ("var_" ^ Int.to_string y) cs');
+                      TVIS.CoeffMap.fold (fun k c acc -> meet_relation_roots w y k c acc) cs' acc
                   else if z = y then 
-                    match Coeffs.combine_right (LinearInequality.swap_sides (k,c)) cs with
+                    match TVIS.combine_right (LinearInequality.swap_sides (k,c)) @@ Coeffs.to_set cs with
                     | None -> 
                       if M.tracing then M.tracel "transitivity" "case 4, combined with %s into Nothing " (Coeffs.show_formatted ("var_" ^ Int.to_string w) ("var_" ^ Int.to_string z) cs);
                       acc 
                     | Some cs' -> 
-                      if M.tracing then M.tracel "transitivity" "case 4, combined with %s into %s " (Coeffs.show_formatted ("var_" ^ Int.to_string w) ("var_" ^ Int.to_string z) cs) (Coeffs.show_formatted ("var_" ^ Int.to_string w) ("var_" ^ Int.to_string x) cs');
-                      Coeffs.CoeffMap.fold (fun k c acc -> meet_relation_roots w x k c acc) cs' acc
+                      if M.tracing then M.tracel "transitivity" "case 4, combined with %s into %s " (Coeffs.show_formatted ("var_" ^ Int.to_string w) ("var_" ^ Int.to_string z) cs) (TVIS.show_formatted ("var_" ^ Int.to_string w) ("var_" ^ Int.to_string x) cs');
+                      TVIS.CoeffMap.fold (fun k c acc -> meet_relation_roots w x k c acc) cs' acc
                   else
                     acc
                 ) zs acc
@@ -1586,7 +1388,7 @@ module LinearInequalities : TwoVarInequalities = struct
           let t, ref_acc = apply_transivity x y k c' t in
           meet_relation_roots x y k c' (t, ref_acc)
         | Gt, o -> 
-          let k = Coeffs.Key.negate k in
+          let k = TVIS.Key.negate k in
           let c' = (Q.add c @@ Q.div (Q.of_bigint o) factor) in
           let t, ref_acc = apply_transivity x y k c' t in
           meet_relation_roots x y k c' (t,ref_acc)
@@ -1608,11 +1410,13 @@ module LinearInequalities : TwoVarInequalities = struct
     if M.tracing then M.tracel "meet_relation" "result: %s, refinements: %s " (show res) (Refinement.show refine_acc);  
     res, refine_acc
 
-  let substitute t i (coeff, j, offs, divi) = 
+  (*We want to be lazy and only convert to TVIS if necessary. To be able to reuse this function in transfer,
+    we also need to be able to work with an already converted Map -> add functions for conversion*)
+  let substitute' t i (coeff, j, offs, divi) to_set of_set = 
     (*if both sides refer to the same variable: check for contradictions  or refine the value*)
     let constraints_same_variable cs  = 
       let check_single k c value = 
-        let s = Coeffs.Key.get_slope k in
+        let s = TVIS.Key.get_slope k in
         if Q.equal Q.one s then (* x <= x + c (or >=) *)
           match k with 
           | LE _ -> if Q.lt c Q.zero then raise EConj.Contradiction else value (*trivially true*)
@@ -1627,23 +1431,26 @@ module LinearInequalities : TwoVarInequalities = struct
           else
             let min = Q.div c' s' in
             Value.meet value @@ Value.starting @@ Z.fdiv (Q.num min) (Q.den min)
-      in Coeffs.CoeffMap.fold check_single cs Value.top
+      in TVIS.CoeffMap.fold check_single cs Value.top
     in
     (*add to bindings, meeting with existing if necessary*)
     let merge_single x y cs_new (t,ref_acc) = 
-      let cs_curr = BatOption.default Coeffs.empty @@ get_coeff x y t in
-      let cs_combined, ref_acc = Coeffs.meet (x,Value.top) (y,Value.top) cs_new cs_curr ref_acc in
-      if Coeffs.CoeffMap.is_empty cs_combined then t,ref_acc else set_coeff x y cs_combined t, ref_acc
+      let cs_curr = BatOption.default TVIS.empty @@ BatOption.map to_set @@ get_coeff x y t in
+      let cs_combined, ref_acc = TVIS.meet (x,Value.top) (y,Value.top) cs_new cs_curr ref_acc in
+      match of_set x y cs_combined with 
+        | None -> t,ref_acc 
+        | Some cs_combined -> set_coeff x y cs_combined t, ref_acc
     in
     let merge_ys x ys acc = IntMap.fold (merge_single x) ys acc in
     let fold_x x ys acc = 
       if x < i then 
         match IntMap.find_opt i ys with
-        | None -> merge_ys x ys acc
+        | None -> merge_ys x (IntMap.map to_set ys) acc
         | Some cs ->
+          let cs = to_set cs in
           let ys' = IntMap.remove i ys in
-          let acc' = merge_ys x ys' acc in (*everything else is added unchanged*)
-          let cs' = Coeffs.substitute_right (coeff, offs, divi) cs in
+          let acc' = merge_ys x (IntMap.map to_set ys') acc in (*everything else is added unchanged*)
+          let cs' = TVIS.substitute_right (coeff, offs, divi) cs in
           if x = j then (*We now have inequalities with the same variable on both sides *)
             let t,ref_acc = acc' in 
             let v = constraints_same_variable cs' in
@@ -1651,11 +1458,11 @@ module LinearInequalities : TwoVarInequalities = struct
           else if x < j then 
             merge_single x j cs' acc'
           else (*x > j -> swap sides*)
-            let cs'' = Coeffs.swap_sides cs' in
+            let cs'' = TVIS.swap_sides cs' in
             merge_single j x cs'' acc'
       else if x = i then  
         let fold_y y cs acc = 
-          let cs' = Coeffs.substitute_left (coeff, offs, divi) cs in
+          let cs' = TVIS.substitute_left (coeff, offs, divi) cs in
           if j < y then 
             merge_single j y cs' acc
           else if j = y then begin
@@ -1663,17 +1470,17 @@ module LinearInequalities : TwoVarInequalities = struct
             let v = constraints_same_variable cs' in
             t, Refinement.of_value x v :: ref_acc
           end else
-            let cs'' = Coeffs.swap_sides cs' in
+            let cs'' = TVIS.swap_sides cs' in
             merge_single y j cs'' acc
         in
-        IntMap.fold fold_y ys acc
+        IntMap.fold fold_y (IntMap.map to_set ys) acc
       else
-        merge_ys x ys acc
+        merge_ys x (IntMap.map to_set ys) acc
     in IntMap.fold fold_x t (IntMap.empty, [])
 
-  let substitute t i (c,j,o,d) = 
+  let substitute get_value t i (c,j,o,d) = 
     if M.tracing then M.trace "substitute" "substituting var_%d in %s with %s" i (show t) (Rhs.show (Some (c,j), o, d));
-    let t, ref_acc = substitute t i (c,j,o,d) in
+    let t, ref_acc = substitute' t i (c,j,o,d) Coeffs.to_set (fun x y s -> Coeffs.of_set (get_value x) (get_value y) s) in
     if M.tracing then M.trace "substitute" "resulting in %s, refinements: %s" (show t) (Refinement.show ref_acc);
     t, ref_acc
 
@@ -1685,27 +1492,27 @@ module LinearInequalities : TwoVarInequalities = struct
       in let factor = Q.make coeff_old divi_old (*we need to divide o by this factor because LinearInequalities normalizes*)
       in let ineq_from_cond = match cond with 
           | Relation.Lt, o -> k, (Q.add c @@ Q. div (Q.of_bigint o) factor)
-          | Gt, o -> (Coeffs.Key.negate k), (Q.add c @@ Q. div (Q.of_bigint o) factor)
+          | Gt, o -> (TVIS.Key.negate k), (Q.add c @@ Q. div (Q.of_bigint o) factor)
       in
       (*combine the inequality from cond with all inequalities*)
       (*throw out all inequalities that do not contain the representative of x*)
       let combine_1 v1 v2s = 
-        if v1 = x_root_old then ignore_empty @@ IntMap.filter_map (fun _ c -> Coeffs.combine_left ineq_from_cond c) v2s
+        if v1 = x_root_old then ignore_empty @@ IntMap.filter_map (fun _ c -> TVIS.combine_left ineq_from_cond @@ Coeffs.to_set c) v2s
         else
-          let combine_2 v2 c = if v2 = x_root_old then Coeffs.combine_right ineq_from_cond c else None in
+          let combine_2 v2 c = if v2 = x_root_old then TVIS.combine_right ineq_from_cond @@ Coeffs.to_set c else None in
           ignore_empty @@ IntMap.filter_map combine_2 v2s
       in
       let filtered = IntMap.filter_map combine_1 t_old in
-      if M.tracing then M.tracel "transfer" "filtered + combined %s" (show filtered);  
+      if M.tracing then M.tracel "transfer" "filtered + combined %s" (show_map (Printf.sprintf "var_%d") TVIS.show_formatted filtered);  
       (*transform all inequalities to refer to new root of x*)
       (*invert old rhs, then substitute the new rhs for x*)
       let (m, o, d) = Rhs.subst rhs x @@ snd @@ EConj.inverse x (coeff_old,x_root_old, off_old, divi_old) in
       let c, v = BatOption.get m in
-      let transformed, ref_acc = substitute filtered x_root (c, v, o, d) in
-      if M.tracing then M.tracel "transfer" "transformed: %s, refinements: %s" (show transformed) (Refinement.show ref_acc);  
+      let transformed, ref_acc = substitute' filtered x_root (c, v, o, d) identity (fun _ _ c -> TVIS.ignore_empty c) in
+      if M.tracing then M.tracel "transfer" "transformed: %s, refinements: %s" (show_map (Printf.sprintf "var_%d") TVIS.show_formatted transformed) (Refinement.show ref_acc);  
       (*meet with this set of equations*)
-      let t', ref_acc_2 = meet get_value t transformed in
-      t', ref_acc @ ref_acc_2
+      let meet' t1 t2 = IntMap.fold (fun x ys acc -> IntMap.fold (fun y coeff acc -> meet_one_coeff true get_value x y coeff acc) ys acc) t1 (t2,ref_acc) in
+      meet' transformed t
     | _,_ -> t, [] (*ignore constants*)
 
   let transfer x cond t_old get_rhs_old get_value_old t get_rhs get_value =
@@ -1719,11 +1526,11 @@ module LinearInequalities : TwoVarInequalities = struct
     let coeffs = coeffs_from_econj econj in
     let limit_single x y cs = 
       Coeffs.limit ( slopes_from_coeffs coeffs (min x y, max x y)) cs
-    in IntMap.filter_map (fun x ys -> ignore_empty @@ IntMap.filter_map (fun y cs -> Coeffs.ignore_empty @@ limit_single x y cs) ys) t
+    in IntMap.filter_map (fun x ys -> ignore_empty @@ IntMap.filter_map (fun y cs -> limit_single x y cs) ys) t
 
   let limit e t = Timing.wrap "limit" (limit e) t
 
-  let copy_to_new_representants econj_old econj_new t = 
+  let copy_to_new_representants econj_old econj_new get_value t = 
     let coeffs = coeffs_from_econj econj_new in
     (*a var is representant if it does not show up in the sparse map*)
     let all_representants_in_new = 
@@ -1759,23 +1566,153 @@ module LinearInequalities : TwoVarInequalities = struct
                   let ineq' =  if old_rep < other_var then LinearInequality.swap_sides ineq else ineq
                   in LinearInequality.substitute_right (ci,oi,di) ineq'
                   (*relations between the old representant and the other variable*)
-           in let coeffs_old = BatOption.default Coeffs.empty @@ get_coeff (min old_rep other_var) (max old_rep other_var) t in 
+           in let coeffs_old = BatOption.default TVIS.empty @@ BatOption.map Coeffs.to_set @@ get_coeff (min old_rep other_var) (max old_rep other_var) t in 
            let add_single_slope c_acc s = 
              let ineqs = [LinearInequality.OriginInequality.LE s, Q.zero; GE s, Q.zero;]
              in let copy_single_ineq c_acc ineq = 
                   let k_old = fst @@ convert_to_old ineq in
                   (*TODO maybe this introduces too many new inequalities -> only take explicit stored ones?*)
-                  match Coeffs.get_best_offset k_old coeffs_old with 
+                  match TVIS.get_best_offset k_old coeffs_old with 
                   | None -> c_acc
                   | Some o -> 
                     let k_neq, o_new = convert_to_new (k_old, o) in
-                    Coeffs.add_inequality k_neq o_new c_acc
+                    TVIS.add_inequality k_neq o_new c_acc
              in List.fold copy_single_ineq c_acc ineqs 
-           in let coeffs_new = Enum.fold add_single_slope Coeffs.empty allowed_slopes
-           in if Coeffs.CoeffMap.is_empty coeffs_new then t_acc else set_coeff (min v_new other_var) (max v_new other_var) coeffs_new t_acc
+           in let coeffs_new = Enum.fold add_single_slope TVIS.empty allowed_slopes
+           in let x, y = min v_new other_var , max v_new other_var
+           in match Coeffs.of_set (get_value x) (get_value y) coeffs_new with 
+            | Some coeffs_new ->  set_coeff x y coeffs_new t_acc
+            | _ -> t_acc
     in List.fold (fun acc v_new -> List.fold (add_new v_new ) acc all_representants_in_new ) t new_representants_in_new 
 
   let copy_to_new_representants econj_old econj_new t = Timing.wrap "new_reps" (copy_to_new_representants econj_old econj_new) t
+
+end
+
+module PentagonCoeffs : Coeffs = struct
+  (*true  -> x < y *)
+  (*false -> x > y *)
+  type t = bool [@@deriving eq, hash, ord]
+
+  let join x y get_val_t1 get_val_t2 t1 t2 = 
+    match t1, t2 with 
+    | None, None -> None 
+    | Some d1, Some d2 -> if d1 = d2 then Some d1 else None
+    | Some true, None ->  if Value.must_be_neg @@ Value.sub (get_val_t2 x) (get_val_t2 y) then Some true else None 
+    | Some false, None ->  if Value.must_be_pos @@ Value.sub (get_val_t2 x) (get_val_t2 y) then Some false else None 
+    | None, Some true ->  if Value.must_be_neg @@ Value.sub (get_val_t1 x) (get_val_t1 y) then Some true else None 
+    | None, Some false ->  if Value.must_be_neg @@ Value.sub (get_val_t1 x) (get_val_t1 y) then Some false else None 
+
+  let widen x y get_val_t1 get_val_t2 t1 t2 = t2
+  
+  let  limit _ t = Some t
+
+  let show_formatted x y t = x ^ (if t then "<" else ">") ^ y
+
+  let to_set t = 
+    let open LinearInequality.OriginInequality in
+    let i = if t then LE Q.one else GE Q.one in
+    (*x < y  <==> x <= y - 1*)
+    let o = if t then Q.minus_one else Q.one in
+    TVIS.CoeffMap.singleton i o
+
+  let to_set = Timing.wrap "to_set" to_set
+
+  let of_set x_val y_val s = 
+    let open LinearInequality.OriginInequality in
+    let s' = List.fold (fun t (k,c) -> TVIS.add_inequality k c t) s @@ LinearInequality.from_values x_val y_val in
+    match TVIS.get_best_offset (LE Q.one) s' with 
+    | Some c when Q.(<=) c Q.minus_one -> Some true 
+    | _ -> match TVIS.get_best_offset (GE Q.one) s' with 
+      | Some c when Q.(>=) c Q.one -> Some false 
+      | _ -> None
+
+  let of_set x_val y_val = Timing.wrap "of_set" (of_set x_val y_val)
+
+end
+
+module PentagonOffsetCoeffs : Coeffs = struct
+  (*x <= y + c, x >= y + c, None = Top  *)
+  type t = Z.t option * Z.t option [@@deriving eq, hash, ord]
+
+  let flatten (u,l) = if u = None && l = None then None else Some (u,l)
+
+  let join x y get_val_t1 get_val_t2 t1 t2 = 
+    let l_of_values get_values = 
+      let diff = Value.sub (get_values x) (get_values y) in
+      match Value.maximal diff with 
+      | Some (Int i) -> Some i
+      | _ -> None 
+    in
+    let u_of_values get_values =
+      let diff = Value.sub (get_values x) (get_values y) in
+      match Value.minimal diff with 
+      | Some (Int i) -> Some i
+      | _ -> None 
+    in
+    let open BatOption in
+    let lift2 f a b = bind a (fun a -> bind b (fun b -> Some (f a b))) in
+    match t1, t2 with
+    | None, None -> None 
+    | None, Some (u,l) -> 
+      let u = lift2 max u @@ u_of_values get_val_t1 in
+      let l = lift2 min l @@ l_of_values get_val_t1 in
+      flatten (u,l)
+    | Some (u,l), None -> 
+      let u = lift2 max u @@ u_of_values get_val_t2 in
+      let l = lift2 min l @@ l_of_values get_val_t2 in
+      flatten (u,l)
+    | Some (u1,l1), Some (u2,l2) ->
+      let u1 = lift2 max u1 @@ u_of_values get_val_t1 in
+      let l1 = lift2 min l2 @@ l_of_values get_val_t1 in
+      let u2 = lift2 max u2 @@ u_of_values get_val_t2 in
+      let l2 = lift2 min l2 @@ l_of_values get_val_t2 in
+      let u = lift2 max u1 u2 in
+      let l = lift2 min l1 l2 in
+      flatten (u,l)
+
+  let widen x y get_val_t1 get_val_t2 t1 t2 =
+    match t1, t2 with
+    | None, None 
+    | None, Some _ 
+    | Some _, None -> None
+    | Some (u1,l1), Some (u2,l2) ->
+      let l = if l1 = l2 then l2 else None in  
+      let u = if u1 = u2 then u2 else None in
+      flatten (u,l)
+
+  let limit _ t = Some t
+
+  let show_formatted x y (u,l) = 
+    let u = match u with 
+    | None -> ""
+    | Some u -> x ^ " <= " ^ y ^ " + " ^ Z.to_string u
+    in let l = match l with 
+    | None -> ""
+    | Some l -> x ^ " >= " ^ y ^ " + " ^ Z.to_string l
+    in u ^ " , " ^ l
+
+  let to_set (u,l) = 
+    let open LinearInequality.OriginInequality in
+    let s = TVIS.empty in
+    let s = match u with 
+      | None -> s
+      | Some u -> TVIS.add_inequality (LE Q.one) (Q.of_bigint u) s
+    in  
+    match l with 
+    | None -> s
+    | Some l -> TVIS.add_inequality (GE Q.one) (Q.of_bigint l) s
+
+  let to_set = Timing.wrap "to_set" to_set
+
+  let of_set x_val y_val s = 
+    let open LinearInequality.OriginInequality in
+    let s' = List.fold (fun t (k,c) -> TVIS.add_inequality k c t) s @@ LinearInequality.from_values x_val y_val in
+    let u = BatOption.map round_down @@ TVIS.get_best_offset (LE Q.one) s' in 
+    let l = BatOption.map round_up @@ TVIS.get_best_offset (GE Q.one) s' in 
+    flatten (u,l)
+
+  let of_set x_val y_val = Timing.wrap "of_set" (of_set x_val y_val)
 
 end
 
@@ -1784,19 +1721,10 @@ end
 (*!! options for limit function*)
 
 (*!! fix cohencu tests*)
-(*++ redo simple equalities (take advantage of the offset!, affine transform)*)
-
-(*++ ArbitraryCoeaffsList meet_single: take intervals into account better
-  re-add them every time, remove them afterwards?
-*) 
-
-(*+ value refinement after every step?? *)
 
 (*+ look at complexities. I expect for all: (n² log n) 
     not leq because of interval fixpoint!!!*)
 (*+ How to do a useful narrow?*)
-
-(*  domain inbetween these two: with offset between roots? -> should be trivial to implement*)
 
 (*  widening thresholds: from offsets of rhs?*)
 (*  store information about representants to avoid recalculating them: congruence information, group size/ coefficients ??*)
@@ -1810,5 +1738,3 @@ end
 (*--eval_int: answer nonlinear*)
 
 (*! general renaming*)
-(*!!rebase to main branch*)
-(*!!documentation (failing check!!) *)

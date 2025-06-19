@@ -56,6 +56,9 @@
       "free": false,
       "call": false
     },
+    "lin2vareq_p": {
+      "inequalities" : "coeffs_threshold"
+    },
     "autotune": {
       "enabled": false,
       "activated": [
@@ -71,7 +74,8 @@
         "noOverflows",
         "termination",
         "tmpSpecialAnalysis"
-      ]
+      ],
+      "extraTerminationDomain": "lin2vareq_p"
     }
   },
   "exp": {
