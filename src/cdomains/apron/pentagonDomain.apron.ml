@@ -99,6 +99,8 @@ struct
   (** Alias for add z1 (neg z2) *)
   let sub z1 z2 = add z1 (neg z2)
 
+  let rem (Arb z1) (Arb z2) = Arb (Z.rem z1 z2)
+
   let rem_add (Arb z1) (Arb z2) =
     let rem = Z.rem z1 z2 in
     if Z.sign rem < 0 then 
@@ -236,7 +238,9 @@ struct
 
   let is_top (x:t) = ((ZExt.NegInfty, ZExt.PosInfty) = x)
 
-  let is_bot ((l, u): t) = u <* l 
+  let is_bot ((l, u): t) = u <* l
+
+  let mem a (l, u) = l <=* a && u >=* a
 
   (** Intv intersection *)
   let inter ((l1, u1): t) ((l2, u2): t) =
@@ -1229,7 +1233,36 @@ struct
 
                     )
                   | DISEQ -> t 
-                  | EQMOD(s) -> t
+                  | EQMOD(s) ->
+                    let s = z_ext_of_scalar s in
+                    let (-) = ZExt.sub in
+                    let (+) = ZExt.add in
+                    let (lb_x, ub_x) = List.at d.boxes dim_x in
+                    let intv_mod_s = Intv.rem intv (s, s) in
+                    let (lb_intv_mod_s, ub_intv_mod_s) = intv_mod_s in
+
+                    let lb = if lb_intv_mod_s = NegInfty || lb_x = NegInfty || Intv.mem lb_x intv_mod_s then lb_x else
+                        (* greatest_zero_leq is the greatest number n <= lb_x equivalent to 0 (mod s) *)
+                        let greatest_zero_leq = lb_x - ZExt.rem_add lb_x s in
+                        let tmp_lb = greatest_zero_leq + lb_intv_mod_s in
+                        if tmp_lb >* lb_x then tmp_lb else
+                          let tmp_lb = tmp_lb + s in
+                          if tmp_lb >* lb_x then tmp_lb else
+                            let tmp_lb = tmp_lb + s in
+                            if tmp_lb >* lb_x then tmp_lb else
+                              failwith "EQMOD: this shouldn't happen"
+                    in
+                    let ub = if ub_intv_mod_s = PosInfty || ub_x = PosInfty || Intv.mem ub_x intv_mod_s then ub_x else
+                        let greatest_zero_leq = ub_x - ZExt.rem_add ub_x s in
+                        let tmp_ub = greatest_zero_leq + ub_intv_mod_s in
+                        if tmp_ub <* ub_x then tmp_ub else
+                          let tmp_ub = tmp_ub - s in
+                          if tmp_ub <* ub_x then tmp_ub else
+                            failwith "EQMOD: this shouldn't happen"
+
+                    in
+                    let boxes = List.modify_at dim_x (fun _ -> (lb, ub)) d.boxes in
+                    ({d = Some({boxes=boxes; sub=d.sub}); env=t.env})
                 )
 
               | Cst(Scalar s), Var x when (z_ext_of_scalar s) =* zero && (tcons_typ = DISEQ || tcons_typ = EQ) -> assert_constraint t e2
