@@ -77,6 +77,7 @@ module RelationAnalysis = RelationAnalysis
 module ApronAnalysis = ApronAnalysis
 module AffineEqualityAnalysis = AffineEqualityAnalysis
 module LinearTwoVarEqualityAnalysis = LinearTwoVarEqualityAnalysis
+module PentagonAnalysis = PentagonAnalysis
 module VarEq = VarEq
 module CondVars = CondVars
 module TmpSpecial = TmpSpecial
@@ -262,6 +263,7 @@ module ApronDomain = ApronDomain
 module AffineEqualityDomain = AffineEqualityDomain
 module AffineEqualityDenseDomain = AffineEqualityDenseDomain
 module LinearTwoVarEqualityDomain = LinearTwoVarEqualityDomain
+module PentagonDomain = PentagonDomain
 
 (** {5 2-Pointer Logic}
 
