@@ -2477,6 +2477,7 @@ struct
             set ~man st lv_a lv_typ (VD.top_value (unrollType lv_typ))
         end
     in
+    List.map (eval_rv ~man st) args |> ignore;
     let st = match desc.special args, f.vname with
     | Memset { dest; ch; count; }, _ ->
       (* TODO: check count *)
