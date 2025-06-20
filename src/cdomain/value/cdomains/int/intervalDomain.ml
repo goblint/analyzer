@@ -296,7 +296,7 @@ struct
       begin
         let is_zero v = Ints_t.compare v Ints_t.zero = 0 in
         match y1, y2 with
-        | l, u when is_zero l && is_zero u -> (top_of ik,{underflow=false; overflow=false}) (* TODO warn about undefined behavior *)
+        | l, u when is_zero l && is_zero u -> (top_of ik,{underflow=false; overflow=false})
         | l, _ when is_zero l              -> div ik (Some (x1,x2)) (Some (Ints_t.one,y2))
         | _, u when is_zero u              -> div ik (Some (x1,x2)) (Some (y1, Ints_t.(neg one)))
         | _ when leq (of_int ik (Ints_t.zero) |> fst) (Some (y1,y2)) -> (top_of ik,{underflow=false; overflow=false})
