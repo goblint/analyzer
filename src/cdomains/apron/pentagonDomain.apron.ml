@@ -243,6 +243,12 @@ struct
 
   let mem a (l, u) = l <=* a && u >=* a
 
+  (** Checks for bot interval. *)
+  let sup (i: t) = if is_bot i then ZExt.NegInfty else snd i;;
+
+  (** Checks for bot interval. *)
+  let inf (i: t) = if is_bot i then ZExt.PosInfty else fst i;;
+
   (** Intv intersection *)
   let inter ((l1, u1): t) ((l2, u2): t) =
     let max_lb = if l1 <=* l2 then l2 else l1 in
@@ -253,6 +259,11 @@ struct
     let ( + ) = ZExt.add_opt in
     ((Option.default ZExt.NegInfty (l1 + l2), Option.default ZExt.PosInfty (u1 + u2)): t)
 
+  let neg intv = (ZExt.neg (sup intv), ZExt.neg (inf intv))
+
+  let sub intv_1 intv_2 =
+    let intv_2 = neg intv_2 in
+    add intv_1 intv_2
 
   (** Taken from module IArith *)
   let mul ((x1, x2): t) ((y1, y2): t) =
@@ -271,13 +282,6 @@ struct
         ZExt.max4 (x1 / y1) (x1 / y2) (x2 / y1) (x2 / y2)
       ): t)
 
-
-  (** Checks for bot interval. *)
-  let sup (i: t) = if is_bot i then ZExt.NegInfty else snd i;;
-
-  (** Checks for bot interval. *)
-  let inf (i: t) = if is_bot i then ZExt.PosInfty else fst i;;
-
   (** Checks whether the lower bound is -infty, i.e., unbound *)
   (**
      TODO: Verfiy that `inf` is correct here. Alternative `fst`.
@@ -290,16 +294,21 @@ struct
   *)
   let no_upperbound (i: t) = ZExt.PosInfty = sup i
 
+  (* taken from https://people.eng.unimelb.edu.au/pstuckey/papers/toplas15.pdf *)
   let rem (i1: t) i2 =
-    (* i1 % i2 *)
     let (l2, u2) = i2 in
-    if l2 <=* ZExt.zero && u2 >=* ZExt.zero then
-      top() 
-    else if no_lowerbound i2 || no_upperbound i2 then
-      i1
+    if inf i2 <=* ZExt.zero && sup i2 >=* ZExt.zero then top ()
+    else if no_lowerbound i2 || no_upperbound i2 then i1
     else
-      let ub_minus_1 = ZExt.add (ZExt.max (ZExt.abs l2) (ZExt.abs u2)) (ZExt.of_int (-1)) in
-      inter i1 ((ZExt.neg ub_minus_1, ub_minus_1): t)
+      let ( - ), ( * ), ( / ) = sub, mul, div in
+      let quotient = i1 / i2 in
+      if inf quotient =* sup quotient
+      then i1 - (quotient * i2)
+      else
+        let ub_minus_1 = ZExt.sub (ZExt.max (ZExt.abs l2) (ZExt.abs u2)) (ZExt.of_int 1) in
+        if ZExt.sign (sup i1) < 0 then (ZExt.neg ub_minus_1, ZExt.zero) else
+        if ZExt.sign (inf i1) > 0 then (ZExt.zero, ub_minus_1) else
+          (ZExt.neg ub_minus_1, ub_minus_1)
 
 
   (**
@@ -362,14 +371,6 @@ struct
 
   let narrow (i1: t) (i2: t) = 
     inter i1 i2
-
-
-  let neg intv = (ZExt.neg (sup intv), ZExt.neg (inf intv))
-
-  let sub intv_1 intv_2 =
-    let intv_2 =  neg intv_2 in
-    add intv_1 intv_2
-
 end
 
 (** Provides functions and types for collections of Intv. *)
@@ -1247,14 +1248,16 @@ struct
                     )
                   | DISEQ -> t 
                   | EQMOD(s) ->
+                    (* still missing: bot handling (like everywhere) *)
                     let s = z_ext_of_scalar s in
                     let (-) = ZExt.sub in
                     let (+) = ZExt.add in
                     let (lb_x, ub_x) = List.at d.boxes dim_x in
                     let intv_mod_s = Intv.rem intv (s, s) in
                     let (lb_intv_mod_s, ub_intv_mod_s) = intv_mod_s in
-
-                    let lb = if lb_intv_mod_s = NegInfty || lb_x = NegInfty || Intv.mem lb_x intv_mod_s then lb_x else
+                    let (lb_x, ub_x) = if ZExt.sign ub_intv_mod_s < 0 then Intv.inter (lb_x, ub_x) (NegInfty, ZExt.of_int (-1)) else
+                      if ZExt.sign lb_intv_mod_s > 0 then Intv.inter (lb_x, ub_x) (ZExt.of_int 1, PosInfty) else (lb_x, ub_x) in
+                    let lb = if lb_intv_mod_s = NegInfty || lb_x = NegInfty || Intv.mem (ZExt.rem lb_x s) intv_mod_s then lb_x else
                         (* greatest_zero_leq is the greatest number n <= lb_x equivalent to 0 (mod s) *)
                         let greatest_zero_leq = lb_x - ZExt.rem_add lb_x s in
                         let tmp_lb = greatest_zero_leq + lb_intv_mod_s in
@@ -1265,7 +1268,7 @@ struct
                             if tmp_lb >* lb_x then tmp_lb else
                               failwith "EQMOD: this shouldn't happen"
                     in
-                    let ub = if ub_intv_mod_s = PosInfty || ub_x = PosInfty || Intv.mem ub_x intv_mod_s then ub_x else
+                    let ub = if ub_intv_mod_s = PosInfty || ub_x = PosInfty || Intv.mem (ZExt.rem lb_x s) intv_mod_s then ub_x else
                         let greatest_zero_leq = ub_x - ZExt.rem_add ub_x s in
                         let tmp_ub = greatest_zero_leq + ub_intv_mod_s in
                         if tmp_ub <* ub_x then tmp_ub else
