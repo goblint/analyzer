@@ -84,6 +84,7 @@ type special =
   | Longjmp of { env: Cil.exp; value: Cil.exp; }
   | Bounded of { exp: Cil.exp}  (** Used to check for bounds for termination analysis. *)
   | Rand
+  | Once of { once_control: Cil.exp; init_routine: Cil.exp; }
   | Unknown (** Anything not belonging to other types. *) (* TODO: rename to Other? *)
 
 

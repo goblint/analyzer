@@ -82,3 +82,5 @@ val c_deep: access
 
 (** Conditional access, e.g. on an option. *)
 val if_: (unit -> bool) -> access -> access
+
+exception Expected of string
