@@ -44,7 +44,7 @@ struct
   let range ik = Size.range ik
 
   let top () = Some (Z.zero, Z.one)
-  let top_of ik = Some (Z.zero, Z.one)
+  let top_of ?bitfield ik = Some (Z.zero, Z.one)
   let bot () = None
   let bot_of ik = bot ()
 

@@ -38,6 +38,7 @@ module IntDomTupleImpl = struct
 
   (* only first-order polymorphism on functions -> use records to get around monomorphism restriction on arguments *)
   type 'b poly_in  = { fi  : 'a. 'a m -> 'b -> 'a } [@@unboxed] (* inject *)
+  type 'b poly_in_bitfield  = { fi_bitfield  : 'a. 'a m ->  ?bitfield:int -> 'b -> 'a } [@@unboxed] (* inject *)
   type 'b poly2_in  = { fi2  : 'a. 'a m2 -> 'b -> 'a } [@@unboxed] (* inject for functions that depend on int_t *)
   type 'b poly2_in_ovc  = { fi2_ovc  : 'a. 'a m2 -> 'b -> 'a * overflow_info} [@@unboxed] (* inject for functions that depend on int_t *)
 
@@ -115,7 +116,7 @@ module IntDomTupleImpl = struct
 
   (* f0: constructors *)
   let bot () = create { fi = fun (type a) (module I:SOverflow with type t = a) -> I.bot } ()
-  let top_of = create { fi = fun (type a) (module I:SOverflow with type t = a) -> I.top_of }
+  let top_of ?bitfield = create { fi = fun (type a) (module I:SOverflow with type t = a) -> I.top_of ?bitfield }
   let bot_of = create { fi = fun (type a) (module I:SOverflow with type t = a) -> I.bot_of }
   let of_bool ik = create { fi = fun (type a) (module I:SOverflow with type t = a) -> I.of_bool ik }
   let of_excl_list ik = create2 { fi2 = fun (type a) (module I:SOverflow with type t = a and type int_t = int_t) -> I.of_excl_list ik}
