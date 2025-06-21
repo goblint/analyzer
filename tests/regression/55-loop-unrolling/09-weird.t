@@ -1,8 +1,8 @@
   $ goblint --set lib.activated '["goblint"]' --set exp.unrolling-factor 2 --enable justcil --set dbg.justcil-printer clean 09-weird.c
   [Info] unrolling loop at 09-weird.c:8:5-11:5 with factor 2
-  extern void __goblint_check(int exp ) ;
-  extern void __goblint_assume(int exp ) ;
-  extern void __goblint_assert(int exp ) ;
+  extern void __goblint_check(_Bool exp ) ;
+  extern void __goblint_assume(_Bool exp ) ;
+  extern void __goblint_assert(_Bool exp ) ;
   extern void __goblint_assume_join() ;
   extern void __goblint_globalize(void *ptr ) ;
   extern void __goblint_split_begin(int exp ) ;
@@ -48,7 +48,7 @@
     }
     loop_end: /* CIL Label */ ;
     }
-    __goblint_check(j == 8);
+    __goblint_check((_Bool )(j == 8));
     return;
   }
   }
