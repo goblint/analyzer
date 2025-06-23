@@ -797,23 +797,27 @@ module TwoVarInequalitySet = struct
     optionally, limit it further to the slopes that correspond to the most inequalities *)
   let limit slopes t = 
     let opt =  GobConfig.get_string "ana.lin2vareq_p.inequalities" in
-    if opt = "unlimited" then Some t else
+    if opt = "unlimited" then ignore_empty t else
       let open LinearInequality.OriginInequality in
       let filtered = CoeffMap.filter (fun k c -> BatHashtbl.mem slopes (get_slope k) ) t in
       let keep = 
         if opt = "coeffs_count" then 
-          GobConfig.get_int "ana.lin2vareq_p.coeffs_count"
+          GobConfig.get_int "ana.lin2vareq_p.coeffs_count" (*TODO for a fixed number, we do not need to sort but could instead use an O(n algorithm!)*)
         else
           let f = GobConfig.get_int "ana.lin2vareq_p.coeffs_threshold" in
           let total = BatHashtbl.fold (fun _ c acc -> c + acc) slopes 0 in
-          (total * f) / 100
+          max 4 @@ (total * f) / 100 (*allow a minimum of 4 inequality angles *)
       in
       let comp (k1,_) (k2,_) = 
         let v1 = BatHashtbl.find_default slopes (get_slope k1) 0 in
         let v2 = BatHashtbl.find_default slopes (get_slope k2) 0 in
         v2 - v1 (*list sorts ascending, we need descending -> inverted comparison*)
       in
-      ignore_empty @@ CoeffMap.of_list @@ List.take keep @@ List.sort comp @@ CoeffMap.bindings filtered
+      (*skip sorting if we keep all inequalities*)
+      if keep >= CoeffMap.cardinal filtered then 
+        ignore_empty filtered 
+      else
+        ignore_empty @@ CoeffMap.of_list @@ List.take keep @@ List.sort comp @@ CoeffMap.bindings filtered
 
   (*get the next key in anti-clockwise order*)
   let get_previous k t =
@@ -1126,7 +1130,7 @@ module TwoVarInequalitySet = struct
 
   let to_set t = t
 
-  let of_set _ _ t = Some t
+  let of_set _ _ t = ignore_empty t
 
 end
 
@@ -1640,13 +1644,13 @@ module PentagonOffsetCoeffs : Coeffs = struct
   let join x y get_val_t1 get_val_t2 t1 t2 = 
     let l_of_values get_values = 
       let diff = Value.sub (get_values x) (get_values y) in
-      match Value.maximal diff with 
+      match Value.minimal diff with 
       | Some (Int i) -> Some i
       | _ -> None 
     in
     let u_of_values get_values =
       let diff = Value.sub (get_values x) (get_values y) in
-      match Value.minimal diff with 
+      match Value.maximal diff with 
       | Some (Int i) -> Some i
       | _ -> None 
     in
@@ -1663,6 +1667,9 @@ module PentagonOffsetCoeffs : Coeffs = struct
       let l = lift2 min l @@ l_of_values get_val_t2 in
       flatten (u,l)
     | Some (u1,l1), Some (u2,l2) ->
+      (*TODO is this needed for monotonicity?
+        like this, we have  a problem: we rely on value bounds 
+        that might not hold in the joined case -> leq fails *)
       let u1 = lift2 max u1 @@ u_of_values get_val_t1 in
       let l1 = lift2 min l2 @@ l_of_values get_val_t1 in
       let u2 = lift2 max u2 @@ u_of_values get_val_t2 in
@@ -1718,7 +1725,7 @@ end
 
 (*TODOs:*)
 
-(*!! options for limit function*)
+(*?? limit: use linear time algorithm for coeffs_count instead of sorting??*)
 
 (*!! fix cohencu tests*)
 
