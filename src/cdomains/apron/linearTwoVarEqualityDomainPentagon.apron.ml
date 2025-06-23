@@ -384,8 +384,8 @@ struct
               let v = Value.sub (EConjI.get_value d dim_a) (EConjI.get_value d dim_b) in
               let relations = EConjI.get_relations d dim_a dim_b in
               let meet_relation v = function
-                | Relation.Lt, o -> Value.meet v @@ Value.ending @@ Z.sub o Z.one
-                | Relation.Gt, o -> Value.meet v @@ Value.starting @@ Z.add o Z.one
+                | Relation.Lt, o -> Value.meet v @@ Value.ending @@ Z.pred o
+                | Relation.Gt, o -> Value.meet v @@ Value.starting @@ Z.succ o
               in List.fold meet_relation v relations 
           end
         | Binop (op, a, b, Int, _) -> (binop_function op) (eval a) (eval b)
@@ -494,9 +494,9 @@ struct
       let v = eval_texpr t expr in (*TODO we evaluate some subexpressions twice when calling this in assign_texpr -> bad for performance??*)
       match Value.minimal v, Value.maximal v with
       | Some (Int min), Some (Int maxi) when min = maxi -> [] (*Should be caught by the lin2var domain -> do not repeat that information*)
-      | Some (Int min), Some (Int maxi) -> [(Relation.Gt, Z.add Z.minus_one min), var; (Relation.Lt, Z.add Z.one maxi), var]
-      | Some (Int min), _ -> [(Relation.Gt, Z.add Z.minus_one min), var]
-      | _,Some (Int maxi) -> [(Relation.Lt, Z.add Z.one maxi), var]
+      | Some (Int min), Some (Int maxi) -> [(Relation.Gt, Z.pred min), var; (Relation.Lt, Z.succ maxi), var]
+      | Some (Int min), _ -> [(Relation.Gt, Z.pred min), var]
+      | _,Some (Int maxi) -> [(Relation.Lt, Z.succ maxi), var]
       | _,_ -> []
     in let inequality_from_mul var expr = 
          let v_expr = eval_texpr t expr in
@@ -522,9 +522,9 @@ struct
       let v = eval_texpr t e in begin
         match Value.minimal v, Value.maximal v with
         | Some (Int min), Some (Int maxi) when min = maxi -> [] (*Should be caught by the lin2var domain -> do not repeat that information*)
-        | Some (Int min), Some (Int maxi) -> [(Relation.Lt, Z.add Z.one @@ Z.neg min), y; (Relation.Gt, Z.add Z.minus_one @@ Z.neg maxi), y]
-        | Some (Int min), _ -> [(Relation.Lt, Z.add Z.one @@ Z.neg min), y]
-        | _,Some (Int maxi) -> [(Relation.Gt, Z.add Z.minus_one @@ Z.neg maxi), y]
+        | Some (Int min), Some (Int maxi) -> [(Relation.Lt, Z.succ @@ Z.neg min), y; (Relation.Gt, Z.pred @@ Z.neg maxi), y]
+        | Some (Int min), _ -> [(Relation.Lt, Z.succ @@ Z.neg min), y]
+        | _,Some (Int maxi) -> [(Relation.Gt, Z.pred @@ Z.neg maxi), y]
         | _,_ -> []
       end
     | Binop (Div, Var y, e, _, _) -> begin
@@ -686,9 +686,9 @@ struct
           match Value.to_int value with 
           | Some (Int v) -> let old_value = (EConjI.get_value d dim) in 
             if Value.minimal old_value = Some (Int v) then 
-              EConjI.meet_with_one_value dim (Value.starting @@ Z.add v Z.one) d false
+              EConjI.meet_with_one_value dim (Value.starting @@ Z.succ v) d false
             else if Value.maximal old_value = Some (Int v) then 
-              EConjI.meet_with_one_value dim (Value.ending @@ Z.sub v Z.one) d false
+              EConjI.meet_with_one_value dim (Value.ending @@ Z.pred v) d false
             else d 
           | _-> d
         end else (
@@ -798,14 +798,14 @@ struct
              if M.tracing then M.tracel "meet_relation" "calling from refine with %s inside %s" (Tcons1.show tcons) (EConjI.show d);
              let ineq', value_refinements = match Value.minimal value, Value.maximal value, Tcons1.get_typ tcons with
                | _, Some (Int max), SUP -> Ineq.meet_relation dim_b dim_a (Relation.Lt, max) rhss vss ineq 
-               | _, Some (Int max), SUPEQ -> Ineq.meet_relation dim_b dim_a (Relation.Lt, Z.add Z.one max) rhss vss ineq 
+               | _, Some (Int max), SUPEQ -> Ineq.meet_relation dim_b dim_a (Relation.Lt, Z.succ max) rhss vss ineq 
                | Some min, Some max, EQ -> begin 
                    if TopIntOps.equal min max then ineq, [] else (*If this is a constant, we have a equality that the lin2vareq domain should handle*)
                      let ineq, refine = match min with 
-                       | Int min -> Ineq.meet_relation dim_b dim_a (Relation.Gt, Z.sub min Z.one) rhss vss ineq 
+                       | Int min -> Ineq.meet_relation dim_b dim_a (Relation.Gt, Z.pred min) rhss vss ineq 
                        | _ -> ineq, []
                      in match max with 
-                     | Int max -> BatTuple.Tuple2.map2 ((@) refine) @@ Ineq.meet_relation dim_b dim_a (Relation.Lt, Z.add Z.one max) rhss vss ineq 
+                     | Int max -> BatTuple.Tuple2.map2 ((@) refine) @@ Ineq.meet_relation dim_b dim_a (Relation.Lt, Z.succ max) rhss vss ineq 
                      | _ -> ineq, refine
                  end
                | _, _,_ -> ineq, []

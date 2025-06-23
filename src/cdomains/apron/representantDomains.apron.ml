@@ -334,8 +334,8 @@ module Relation = struct
 
   (*Tries to combine two relations, with the variable on the rhs of the first condition being equal to the one at the lhs of the second*)
   let combine (c1, o1) (c2, o2) = match c1, c2 with
-    | Lt, Lt -> Some ( Lt, Z.add o1 @@ Z.add o2 Z.one )
-    | Gt, Gt -> Some ( Gt, Z.add o1 @@ Z.add o2 Z.one )
+    | Lt, Lt -> Some ( Lt, Z.add o1 @@ Z.succ o2 )
+    | Gt, Gt -> Some ( Gt, Z.add o1 @@ Z.succ o2 )
     | Lt, Gt 
     | Gt, Lt -> None
 
@@ -1284,12 +1284,12 @@ module InequalityFunctor (Coeffs : Coeffs): TwoVarInequalities = struct
           | None -> []
           | Some c_ineq -> 
             let c' = Q.mul factor @@ Q.sub c_ineq c_rhs in 
-            [Relation.Lt, Z.add Z.one @@ Z.fdiv (Q.num c') (Q.den c')] (*add one to make it a strict inequality*)
+            [Relation.Lt, Z.succ @@ Z.fdiv (Q.num c') (Q.den c')] (*add one to make it a strict inequality*)
         in match TVIS.get_best_offset (TVIS.Key.negate k) coeff with (*lower bound*)
         | None -> upper_bound
         | Some c_ineq -> 
           let c' = Q.mul factor ( Q.add c_ineq c_rhs) in
-          (Gt, Z.add Z.minus_one @@ Z.cdiv (Q.num c') (Q.den c')) :: upper_bound
+          (Gt, Z.pred @@ Z.cdiv (Q.num c') (Q.den c')) :: upper_bound
     end
 
   let get_relations x y t = 
