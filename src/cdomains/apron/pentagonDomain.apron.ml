@@ -295,20 +295,23 @@ struct
   let no_upperbound (i: t) = ZExt.PosInfty = sup i
 
   (* taken from https://people.eng.unimelb.edu.au/pstuckey/papers/toplas15.pdf *)
-  let rem (i1: t) i2 =
+  let rec rem (i1: t) i2 =
     let (l2, u2) = i2 in
-    if inf i2 <=* ZExt.zero && sup i2 >=* ZExt.zero then top ()
+    let zero = ZExt.zero in
+    if inf i2 <=* zero && sup i2 >=* zero then top () (* cannot rule out division by zero *)
     else if no_lowerbound i2 || no_upperbound i2 then i1
+    else if inf i1 <* zero && sup i1 >* zero then (* split the interval into negative and nonnegative parts *)
+      let (l, _), (_, u) = (rem (inf i1, ZExt.of_int (-1)) i2), (rem (zero, sup i1) i2)
+      in (l, u)
     else
       let ( - ), ( * ), ( / ) = sub, mul, div in
       let quotient = i1 / i2 in
-      if inf quotient =* sup quotient
+      if inf quotient =* sup quotient (* if every possible division yields the same result, we can use the remainders *)
       then i1 - (quotient * i2)
       else
         let ub_minus_1 = ZExt.sub (ZExt.max (ZExt.abs l2) (ZExt.abs u2)) (ZExt.of_int 1) in
-        if ZExt.sign (sup i1) < 0 then (ZExt.neg ub_minus_1, ZExt.zero) else
-        if ZExt.sign (inf i1) > 0 then (ZExt.zero, ub_minus_1) else
-          (ZExt.neg ub_minus_1, ub_minus_1)
+        if ZExt.sign (sup i1) <= 0 then (ZExt.neg ub_minus_1, zero)
+        else (zero, ub_minus_1)
 
 
   (**
@@ -890,8 +893,8 @@ struct
     | Some d1', Some d2' ->
       let joined_boxes = Boxes.join d1'.boxes d2'.boxes in
       let s' x s1x = Sub.VarSet.inter s1x (List.at d2'.sub x) in
-      let s'' x s1x = Sub.VarSet.filter (fun y -> Intv.sup (List.at d2'.boxes x) < Intv.inf (List.at d2'.boxes y)) s1x in
-      let s''' x = Sub.VarSet.filter (fun y -> Intv.sup (List.at d1'.boxes x) < Intv.inf (List.at d1'.boxes y)) (List.at d2'.sub x) in
+      let s'' x s1x = Sub.VarSet.filter (fun y -> Intv.sup (List.at d2'.boxes x) <* Intv.inf (List.at d2'.boxes y)) s1x in
+      let s''' x = Sub.VarSet.filter (fun y -> Intv.sup (List.at d1'.boxes x) <* Intv.inf (List.at d1'.boxes y)) (List.at d2'.sub x) in
       let joined_sub = List.mapi (fun x s1x -> Sub.VarSet.union (s' x s1x) (Sub.VarSet.union (s'' x s1x) (s''' x))) d1'.sub in
       ({d = Some {boxes = joined_boxes; sub = joined_sub}; env = sup_env}: t)
     | Some d1', None -> {d = Some d1'; env = sup_env}
