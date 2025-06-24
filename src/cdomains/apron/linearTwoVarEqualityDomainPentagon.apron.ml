@@ -985,6 +985,7 @@ struct
         None ->  None 
       | Some econj'' ->
         if M.tracing then M.tracel "join" "join_econj of %s, %s resulted in %s" (EConjI.show x) (EConjI.show y) (EConj.show @@ snd econj'');
+        let (e,v,i) = collect_values x y econj'' ((Environment.size env)-1) (econj'', IntMap.empty, ineq_x) in (*ineq_x doesn't matter*)
         (*transform the inequalities to represent only representants, and make the inequalities for new representants explicit*)
         let transform_non_representant get_value var rhs ineq_acc = 
           match rhs with 
@@ -993,9 +994,9 @@ struct
         in
         let ineq_x_split = IntMap.fold (transform_non_representant (EConjI.get_value x)) (snd econj'') @@ Ineq.copy_to_new_representants econ_x econj'' (EConjI.get_value x) ineq_x in
         let ineq_y_split = IntMap.fold (transform_non_representant (EConjI.get_value y)) (snd econj'') @@ Ineq.copy_to_new_representants econ_y econj'' (EConjI.get_value y) ineq_y in
-        let ineq' = (if widen then Ineq.widen else Ineq.join) ineq_x_split (EConjI.get_value x) ineq_y_split (EConjI.get_value y) in
-        let (e,v,i) = collect_values x y econj'' ((Environment.size env)-1) (econj'', IntMap.empty, ineq') in
-        Some (e,v, Ineq.limit e i)        
+        let get_value = (EConjI.get_value (e,v,i)) in
+        let ineq' = (if widen then Ineq.widen else Ineq.join) ineq_x_split get_value ineq_y_split get_value in
+        Some (e,v, Ineq.limit e ineq')        
     in
     (*This is a different kind of bot that we need to catch*)
     if is_bot a then b else
