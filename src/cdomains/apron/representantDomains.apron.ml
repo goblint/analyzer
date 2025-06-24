@@ -472,6 +472,7 @@ module LinearInequality = struct
 
 
     (*We want the inequalities to be ordered by angle (with arbitrary start point and direction), which is tan(slope) (+ pi for other direction) *)
+    (*TODO: this is called very often -> performance optimisation?*)
     let compare t1 t2 =
       let classify t = 
         let a,b = match t with  
@@ -1226,6 +1227,12 @@ module InequalityFunctor (Coeffs : Coeffs): TwoVarInequalities = struct
       | _, _ -> None
     in IntMap.merge (merge_x) t1 t2
 
+  let join' widen t1 get_val_t1 t2 get_val_t2 = 
+    let res = join' widen t1 get_val_t1 t2 get_val_t2 in
+    if M.tracing then M.trace "join'" "a: %s b: %s -> %s" (show t1) (show t2) (show res);
+    res
+
+
   let join = join' false
   let widen = join' true
 
@@ -1527,10 +1534,12 @@ module InequalityFunctor (Coeffs : Coeffs): TwoVarInequalities = struct
     res, ref_acc
 
   let limit econj t = 
-    let coeffs = coeffs_from_econj econj in
-    let limit_single x y cs = 
-      Coeffs.limit ( slopes_from_coeffs coeffs (min x y, max x y)) cs
-    in IntMap.filter_map (fun x ys -> ignore_empty @@ IntMap.filter_map (fun y cs -> limit_single x y cs) ys) t
+    let conf = GobConfig.get_string "ana.lin2vareq_p.inequalities" in
+    if  conf <> "coeffs_count" && conf <> "coeffs_threshold" then t else 
+      let coeffs = coeffs_from_econj econj in
+      let limit_single x y cs = 
+        Coeffs.limit ( slopes_from_coeffs coeffs (min x y, max x y)) cs
+      in IntMap.filter_map (fun x ys -> ignore_empty @@ IntMap.filter_map (fun y cs -> limit_single x y cs) ys) t
 
   let limit e t = Timing.wrap "limit" (limit e) t
 
@@ -1544,49 +1553,53 @@ module InequalityFunctor (Coeffs : Coeffs): TwoVarInequalities = struct
         else aux (n :: acc) (n + 1)
       in aux [] 0
     in let new_representants_in_new = List.filter (fun v -> IntMap.mem v (snd econj_old)) all_representants_in_new
-    in let add_new v_new t_acc other_var = 
-         (*get the old rhs*)
-         match IntMap.find v_new (snd econj_old) with 
-         | None,_,_ -> t_acc (*skip constants*)
-         | (Some (c,old_rep), o, d) ->
-           let allowed_slopes = Hashtbl.keys @@ slopes_from_coeffs coeffs (min v_new other_var, max v_new other_var) in
-           (*inverse rhs so that we can translate the inequalities of the old representant to slopes corresponding to the new representant*)
-           let (_, (mi,oi,di)) = EConj.inverse v_new (c,old_rep,o,d) in
-           let ci,_ = BatOption.get mi in 
-           (*convert the slope from new representant to old*)
-           let convert_to_old ineq = 
-             if v_new < other_var then 
-               LinearInequality.substitute_left (c,o,d) ineq
-             else 
-               let ineq' = LinearInequality.substitute_right (c,o,d) ineq in
-               if old_rep < other_var then 
-                 LinearInequality.swap_sides ineq'
-               else ineq'
-               (*convert back*)
-           in let convert_to_new ineq = 
-                if v_new < other_var then 
-                  LinearInequality.substitute_left (ci,oi,di) ineq
-                else 
-                  let ineq' =  if old_rep < other_var then LinearInequality.swap_sides ineq else ineq
-                  in LinearInequality.substitute_right (ci,oi,di) ineq'
-                  (*relations between the old representant and the other variable*)
-           in let coeffs_old = BatOption.default TVIS.empty @@ BatOption.map Coeffs.to_set @@ get_coeff (min old_rep other_var) (max old_rep other_var) t in 
-           let add_single_slope c_acc s = 
-             let ineqs = [LinearInequality.OriginInequality.LE s, Q.zero; GE s, Q.zero;]
-             in let copy_single_ineq c_acc ineq = 
-                  let k_old = fst @@ convert_to_old ineq in
-                  (*TODO maybe this introduces too many new inequalities -> only take explicit stored ones?*)
-                  match TVIS.get_best_offset k_old coeffs_old with 
-                  | None -> c_acc
-                  | Some o -> 
-                    let k_neq, o_new = convert_to_new (k_old, o) in
-                    TVIS.add_inequality k_neq o_new c_acc
-             in List.fold copy_single_ineq c_acc ineqs 
-           in let coeffs_new = Enum.fold add_single_slope TVIS.empty allowed_slopes
-           in let x, y = min v_new other_var , max v_new other_var
-           in match Coeffs.of_set (get_value x) (get_value y) coeffs_new with 
-           | Some coeffs_new ->  set_coeff x y coeffs_new t_acc
-           | _ -> t_acc
+    in if M.tracing then M.trace "new_reps" "all_in_new: %s, new_in_new: %s" (List.fold (fun a i -> Int.to_string i ^ ", " ^ a) "" all_representants_in_new) (List.fold (fun a i -> Int.to_string i ^ ", " ^ a) "" new_representants_in_new);
+    let add_new v_new t_acc other_var = 
+      if v_new = other_var then t_acc else
+        (*get the old rhs*)
+        match IntMap.find v_new (snd econj_old) with 
+        | None,_,_ -> t_acc (*skip constants*)
+        | (Some (c,old_rep), o, d) ->
+          let allowed_slopes = Hashtbl.keys @@ slopes_from_coeffs coeffs (min v_new other_var, max v_new other_var) in
+          (*inverse rhs so that we can translate the inequalities of the old representant to slopes corresponding to the new representant*)
+          let (_, (mi,oi,di)) = EConj.inverse v_new (c,old_rep,o,d) in
+          let ci,_ = BatOption.get mi in 
+          (*convert the slope from new representant to old*)
+          let convert_to_old ineq = 
+            if v_new < other_var then 
+              LinearInequality.substitute_left (c,o,d) ineq
+            else 
+              let ineq' = LinearInequality.substitute_right (c,o,d) ineq in
+              if old_rep < other_var then 
+                LinearInequality.swap_sides ineq'
+              else ineq'
+              (*convert back*)
+          in let convert_to_new ineq = 
+               if v_new < other_var then 
+                 LinearInequality.substitute_left (ci,oi,di) ineq
+               else 
+                 let ineq' =  if old_rep < other_var then LinearInequality.swap_sides ineq else ineq
+                 in LinearInequality.substitute_right (ci,oi,di) ineq'
+                 (*relations between the old representant and the other variable*)
+          in let coeffs_old = BatOption.default TVIS.empty @@ BatOption.map Coeffs.to_set @@ get_coeff (min old_rep other_var) (max old_rep other_var) t in
+          if M.tracing then M.trace "new_reps" "coeffs_old for old %d other %d new %d: %s" old_rep other_var v_new (TVIS.show_formatted "min" "max" coeffs_old);
+          if TVIS.CoeffMap.is_empty coeffs_old then t_acc else (*skip the rest if there is no need *)
+            let add_single_slope c_acc s = 
+              let ineqs = [LinearInequality.OriginInequality.LE s, Q.zero; GE s, Q.zero;]
+              in let copy_single_ineq c_acc ineq = 
+                   let k_old = fst @@ convert_to_old ineq in
+                   (*TODO maybe this introduces too many new inequalities -> only take explicit stored ones?*)
+                   match TVIS.get_best_offset k_old coeffs_old with 
+                   | None -> c_acc
+                   | Some o -> 
+                     let k_neq, o_new = convert_to_new (k_old, o) in
+                     TVIS.add_inequality k_neq o_new c_acc
+              in List.fold copy_single_ineq c_acc ineqs 
+            in let coeffs_new = Enum.fold add_single_slope TVIS.empty allowed_slopes
+            in let x, y = min v_new other_var , max v_new other_var
+            in match Coeffs.of_set (get_value x) (get_value y) coeffs_new with 
+            | Some coeffs_new ->  set_coeff x y coeffs_new t_acc
+            | _ -> t_acc
     in List.fold (fun acc v_new -> List.fold (add_new v_new ) acc all_representants_in_new ) t new_representants_in_new 
 
   let copy_to_new_representants econj_old econj_new t = Timing.wrap "new_reps" (copy_to_new_representants econj_old econj_new) t
@@ -1605,7 +1618,7 @@ module PentagonCoeffs : Coeffs = struct
     | Some true, None ->  if Value.must_be_neg @@ Value.sub (get_val_t2 x) (get_val_t2 y) then Some true else None 
     | Some false, None ->  if Value.must_be_pos @@ Value.sub (get_val_t2 x) (get_val_t2 y) then Some false else None 
     | None, Some true ->  if Value.must_be_neg @@ Value.sub (get_val_t1 x) (get_val_t1 y) then Some true else None 
-    | None, Some false ->  if Value.must_be_neg @@ Value.sub (get_val_t1 x) (get_val_t1 y) then Some false else None 
+    | None, Some false ->  if Value.must_be_pos @@ Value.sub (get_val_t1 x) (get_val_t1 y) then Some false else None 
 
   let widen x y get_val_t1 get_val_t2 t1 t2 = t2
 
@@ -1667,9 +1680,6 @@ module PentagonOffsetCoeffs : Coeffs = struct
       let l = lift2 min l @@ l_of_values get_val_t2 in
       flatten (u,l)
     | Some (u1,l1), Some (u2,l2) ->
-      (*TODO is this needed for monotonicity?
-        like this, we have  a problem: we rely on value bounds 
-        that might not hold in the joined case -> leq fails *)
       let u1 = lift2 max u1 @@ u_of_values get_val_t1 in
       let l1 = lift2 min l2 @@ l_of_values get_val_t1 in
       let u2 = lift2 max u2 @@ u_of_values get_val_t2 in

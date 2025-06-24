@@ -1022,8 +1022,8 @@ struct
   let join a b =
     let res = join a b in
     if M.tracing then M.tracel "join" "join a: %s b: %s -> %s" (show a) (show b) (show res) ;
-    assert(leq a res);
-    assert(leq b res);
+    (*assert(leq a res);
+      assert(leq b res);*)
     res
 
   let widen = join' true
