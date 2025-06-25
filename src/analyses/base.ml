@@ -206,7 +206,7 @@ struct
          | `Eq ->
            M.error ~category:M.Category.Integer.div_by_zero ~tags:[CWE 369] "Second argument of division is zero"
          | `Top ->
-           M.warn ~category:M.Category.Integer.div_by_zero "Second argument of division might be zero"
+           M.warn ~category:M.Category.Integer.div_by_zero ~tags:[CWE 369] "Second argument of division might be zero"
          | `Neq -> ());
         ID.div x y
     | Mod -> 
@@ -215,7 +215,7 @@ struct
          | `Eq ->
            M.error ~category:M.Category.Integer.div_by_zero ~tags:[CWE 369] "Second argument of modulo is zero"
          | `Top ->
-           M.warn ~category:M.Category.Integer.div_by_zero "Second argument of modulo might be zero"
+           M.warn ~category:M.Category.Integer.div_by_zero ~tags:[CWE 369] "Second argument of modulo might be zero"
          | `Neq -> ());
         ID.rem x y
     | Lt -> ID.lt
