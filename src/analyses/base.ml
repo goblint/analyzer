@@ -200,7 +200,7 @@ struct
     | PlusA -> ID.add
     | MinusA -> ID.sub
     | Mult -> ID.mul
-    | Div -> 
+    | Div ->
       fun x y ->
         (match ID.equal_to Z.zero y with
          | `Eq ->
@@ -209,7 +209,7 @@ struct
            M.warn ~category:M.Category.Integer.div_by_zero ~tags:[CWE 369] "Second argument of division might be zero"
          | `Neq -> ());
         ID.div x y
-    | Mod -> 
+    | Mod ->
       fun x y ->
         (match ID.equal_to Z.zero y with
          | `Eq ->
@@ -304,23 +304,24 @@ struct
         | `NoOffset -> `Index(iDtoIdx n, `NoOffset)
       in
       let default = function
-        | Addr.NullPtr when GobOption.exists (Z.equal Z.zero) (ID.to_int n) -> Addr.NullPtr
-        | _ -> Addr.UnknownPtr
+        | Addr.NullPtr when GobOption.exists (Z.equal Z.zero) (ID.to_int n) -> AD.null_ptr
+        | _ -> AD.unknown_ptr
       in
       match Addr.to_mval addr with
-      | Some (x, o) -> Addr.of_mval (x, addToOffset n (Some x.vtype) o)
+      | Some (x, o) -> AD.of_mval (x, addToOffset n (Some x.vtype) o)
       | None -> default addr
     in
+    let ad_concat_map f a = AD.fold (fun a acc -> AD.join (f a) acc) a (AD.empty ()) in
     let addToAddrOp p (n:ID.t):value =
       match op with
       (* For array indexing e[i] and pointer addition e + i we have: *)
       | IndexPI | PlusPI ->
-        Address (AD.map (addToAddr n) p)
+        Address (ad_concat_map (addToAddr n) p)
       (* Pointer subtracted by a value (e-i) is very similar *)
       (* Cast n to the (signed) ptrdiff_ikind, then add the its negated value. *)
       | MinusPI ->
         let n = ID.neg (ID.cast_to (Cilfacade.ptrdiff_ikind ()) n) in
-        Address (AD.map (addToAddr n) p)
+        Address (ad_concat_map (addToAddr n) p)
       | Mod -> Int (ID.top_of (Cilfacade.ptrdiff_ikind ())) (* we assume that address is actually casted to int first*)
       | _ -> Address AD.top_ptr
     in
