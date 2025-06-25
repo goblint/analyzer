@@ -303,13 +303,16 @@ struct
           `Field(f, addToOffset n t' o)
         | `NoOffset -> `Index(iDtoIdx n, `NoOffset)
       in
-      let default = function
-        | Addr.NullPtr when GobOption.exists (Z.equal Z.zero) (ID.to_int n) -> AD.null_ptr
-        | _ -> AD.unknown_ptr
-      in
-      match Addr.to_mval addr with
-      | Some (x, o) -> AD.of_mval (x, addToOffset n (Some x.vtype) o)
-      | None -> default addr
+      match addr with
+      | Addr (x, o) -> AD.of_mval (x, addToOffset n (Some x.vtype) o)
+      | NullPtr ->
+        begin match ID.equal_to Z.zero n with
+          | `Eq -> AD.null_ptr
+          | `Neq -> AD.unknown_ptr
+          | `Top -> AD.top_ptr
+        end
+      | UnknownPtr
+      | StrPtr _ -> AD.unknown_ptr
     in
     let ad_concat_map f a = AD.fold (fun a acc -> AD.join (f a) acc) a (AD.empty ()) in
     let addToAddrOp p (n:ID.t):value =
