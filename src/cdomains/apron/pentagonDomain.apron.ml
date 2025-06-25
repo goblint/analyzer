@@ -420,7 +420,7 @@ struct
   let gt ((lb1, _):t) ((_, ub2):t) =
     lb1 > ub2
 
-  
+
 end
 
 (** Provides functions and types for collections of Intv. *)
@@ -639,7 +639,7 @@ struct
 
   let forget_vars_from_sets (vars: int BatList.t) =
     BatList.mapi (fun x ys ->
-          VarSet.filter (fun y -> not (BatList.mem y vars)) ys
+        VarSet.filter (fun y -> not (BatList.mem y vars)) ys
       )
 
   let forget_vars (vars : int BatList.t) =
@@ -796,8 +796,8 @@ let rec eval_monoms_to_intv boxes (terms, (constant, _)) =
   match terms with
   | [] -> Intv.create_const_of_z constant
   | (coeff, index, _)::terms -> (
-    let intv_coeff = Intv.create_const_of_z coeff in
-    Intv.add (Intv.mul intv_coeff (Boxes.get_value index boxes)) (eval_monoms_to_intv boxes (terms, (constant, Z.one)))
+      let intv_coeff = Intv.create_const_of_z coeff in
+      Intv.add (Intv.mul intv_coeff (Boxes.get_value index boxes)) (eval_monoms_to_intv boxes (terms, (constant, Z.one)))
     );;  
 module ExpressionBounds: (SharedFunctions.ConvBounds with type t = VarManagement.t) =
 struct
@@ -1058,7 +1058,7 @@ struct
          in
          let (expr,constant) = List.fold_left accumulate_constants (IMap.empty,(Z.zero,Z.one)) monomiallist in (* abstract simplification of the guard wrt. reference variables *)
          Some (IMap.fold (fun v c acc -> if Q.equal c Q.zero then acc else (Q.num c,v,Q.den c)::acc) expr [], constant) )
-        ;;
+  ;;
 
   let assign_texpr (t: t) var (texp: Texpr1.expr) : t =
     let wrap b s = {d=Some({boxes = b; sub=s}); env=t.env} in
@@ -1076,30 +1076,30 @@ struct
         | [] -> 
           wrap (Boxes.set_value dim_var (ZExt.Arb constant, ZExt.Arb constant) d.boxes) (Sub.forget_vars [dim_var] d.sub)
         | [(coefficient, index, _)] when index = dim_var -> (
-          let new_intv = eval_monoms_to_intv d.boxes monoms in
-          let boxes = (Boxes.set_value index new_intv d.boxes) in
-          (* We analyse x op (a-1)x + b *)
-          let modified_monoms = ([(Z.(-) coefficient Z.one, index, Z.one)], (constant, Z.one)) in
-          let (lb, ub) = eval_monoms_to_intv d.boxes modified_monoms in
+            let new_intv = eval_monoms_to_intv d.boxes monoms in
+            let boxes = (Boxes.set_value index new_intv d.boxes) in
+            (* We analyse x op (a-1)x + b *)
+            let modified_monoms = ([(Z.(-) coefficient Z.one, index, Z.one)], (constant, Z.one)) in
+            let (lb, ub) = eval_monoms_to_intv d.boxes modified_monoms in
 
-          let sub =
-            if lb >* ZExt.zero then
-              Sub.set_value index Sub.VarSet.empty d.sub
-            else
-            if ub <* ZExt.zero then
-              Sub.forget_vars_from_sets [index] d.sub
-            else
-            if lb <* ZExt.zero && ub >* ZExt.zero then
-              Sub.forget_vars [index] d.sub 
-            else d.sub
-          
-          in
-          wrap boxes sub
+            let sub =
+              if lb >* ZExt.zero then
+                Sub.set_value index Sub.VarSet.empty d.sub
+              else
+              if ub <* ZExt.zero then
+                Sub.forget_vars_from_sets [index] d.sub
+              else
+              if lb <* ZExt.zero && ub >* ZExt.zero then
+                Sub.forget_vars [index] d.sub 
+              else d.sub
+
+            in
+            wrap boxes sub
           )
         | [(coefficient, index, _)] -> failwith "TODO"
         | _ -> failwith "TODO"
-        
-        (* { d=Some({ boxes = boxes; sub = sub }); env = t.env } *)
+
+  (* { d=Some({ boxes = boxes; sub = sub }); env = t.env } *)
 
         (*
          (** Case: x := y *)
