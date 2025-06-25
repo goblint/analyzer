@@ -7,7 +7,7 @@ int main(void) {
 		a += 100/i; //WARN
 	}
 	a = 5;
-	a /= 0; //FAIL
+	a /= 0; //WARN
 
 	return 0;
 }
