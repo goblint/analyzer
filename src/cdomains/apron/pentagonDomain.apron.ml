@@ -177,6 +177,41 @@ struct
 
 end
 
+module Rhs = struct
+  (* Rhs represents coefficient*var_i + offset / divisor
+     depending on whether coefficient is 0, the monomial term may disappear completely, not refering to any var_i, thus:
+     (Some (coefficient, i), offset, divisor )         with coefficient != 0    , or
+     (None                 , offset, divisor ) *)
+  type t = ((GobZ.t * int) option *  GobZ.t * GobZ.t) [@@deriving eq, ord, hash]
+  let var_zero i = (Some (Z.one,i), Z.zero, Z.one)
+  let show_coeff c =
+    if Z.equal c Z.one then ""
+    else if Z.equal c Z.minus_one then "-"
+    else (Z.to_string c) ^"·"
+  let show_rhs_formatted formatter = let ztostring n = (if Z.(geq n zero) then "+" else "") ^ Z.to_string n in
+    function
+    | (Some (coeff,v), o,_) when Z.equal o Z.zero -> Printf.sprintf "%s%s" (show_coeff coeff) (formatter v)
+    | (Some (coeff,v), o,_) -> Printf.sprintf "%s%s %s" (show_coeff coeff) (formatter v) (ztostring o)
+    | (None,   o,_) -> Printf.sprintf "%s" (Z.to_string o)
+  let show (v,o,d) =
+    let rhs=show_rhs_formatted (Printf.sprintf "var_%d") (v,o,d) in
+    if not (Z.equal d Z.one) then "(" ^ rhs ^ ")/" ^ (Z.to_string d) else rhs
+
+  (** factor out gcd from all terms, i.e. ax=by+c with a positive is the canonical form for adx+bdy+cd *)
+  let canonicalize (v,o,d) =
+    let gcd = Z.gcd o d in (* gcd of coefficients *)
+    let gcd = Option.map_default (fun (c,_) -> Z.gcd c gcd) gcd v in (* include monomial in gcd computation *)
+    let commondivisor = if Z.(lt d zero) then Z.neg gcd else gcd in (* canonical form dictates d being positive *)
+    (BatOption.map (fun (coeff,i) -> (Z.div coeff commondivisor,i)) v, Z.div o commondivisor, Z.div d commondivisor)
+
+  (** Substitute rhs for varx in rhs' *)
+  let subst rhs varx rhs' =
+    match rhs,rhs' with
+    | (monom, o, d), (Some (c', x'), o', d') when x'=varx -> canonicalize (Option.map (fun (c,x) -> (Z.mul c c',x)) monom, Z.((o*c')+(d*o')), Z.mul d d')
+    | _ -> rhs'
+
+end
+
 module StringUtils =
 struct
   let string_of_dim_change (dim_change:Apron.Dim.change) = 
@@ -363,6 +398,10 @@ struct
   *)
   let create i1 i2 = (ZExt.of_int i1, ZExt.of_int i2)
 
+  let create_const i = (ZExt.of_int i, ZExt.of_int i)
+
+  let create_const_of_z z = (ZExt.Arb z, ZExt.Arb z)
+
   let leq ((l1, u1): t) ((l2, u2): t) = l2 <=* l1 && u1 <=* u2
 
   let union ((l1, u1): t) ((l2, u2): t) = (ZExt.min l1 l2, ZExt.max u1 u2)
@@ -374,6 +413,14 @@ struct
 
   let narrow (i1: t) (i2: t) = 
     inter i1 i2
+
+  let lt ((_, ub1):t) ((lb2, _):t) = 
+    ub1 < lb2
+
+  let gt ((lb1, _):t) ((_, ub2):t) =
+    lb1 > ub2
+
+  
 end
 
 (** Provides functions and types for collections of Intv. *)
@@ -465,6 +512,9 @@ struct
   let forget_vars (vars: int BatList.t) =
     BatList.mapi (fun x intv -> if BatList.mem x vars then Intv.top() else intv)
 
+  let set_value (var: int) (value: Intv.t) = BatList.modify_at var (fun _ -> value) 
+
+  let get_value (var:int) boxes = BatList.at boxes var
 end
 
 (** Stores functions and types for strict upper bounds. *)
@@ -587,6 +637,11 @@ struct
   (** No narrowing mentioned in the paper. *)
   let narrow sub1 sub2 = meet sub1 sub2
 
+  let forget_vars_from_sets (vars: int BatList.t) =
+    BatList.mapi (fun x ys ->
+          VarSet.filter (fun y -> not (BatList.mem y vars)) ys
+      )
+
   let forget_vars (vars : int BatList.t) =
     BatList.mapi (fun x ys ->
         if BatList.mem x vars then
@@ -595,6 +650,9 @@ struct
           VarSet.filter (fun y -> not (BatList.mem y vars)) ys
       )
 
+  let set_value index value = BatList.modify_at index (fun _ -> value)
+
+  let get_value index subs = BatList.at subs index
 
   let to_string (sub: t) =
     (* Results in: { y1, y2, ..., yn }*)
@@ -733,6 +791,14 @@ let eval_texpr_to_intv (t: VarManagement.t) (texpr:Texpr1.expr) : Intv.t =
   in
   aux texpr;;
 
+(* We assume that the divisor is always 1, so we omit it and that t is not bottom. *)
+let rec eval_monoms_to_intv boxes (terms, (constant, _)) =
+  match terms with
+  | [] -> Intv.create_const_of_z constant
+  | (coeff, index, _)::terms -> (
+    let intv_coeff = Intv.create_const_of_z coeff in
+    Intv.add (Intv.mul intv_coeff (Boxes.get_value index boxes)) (eval_monoms_to_intv boxes (terms, (constant, Z.one)))
+    );;  
 module ExpressionBounds: (SharedFunctions.ConvBounds with type t = VarManagement.t) =
 struct
   include VarManagement
@@ -939,34 +1005,103 @@ struct
       let int_vars = List.map (fun v -> Environment.dim_of_var t.env v) vars in
       {d = Some({boxes = Boxes.forget_vars int_vars pntg.boxes; sub = Sub.forget_vars int_vars pntg.sub}); env=t.env};;
 
+  (** Taken from lin2var and modified for our domain. *)
+  (** Parses a Texpr to obtain a Rhs.t list to repr. a sum of a variables that have a coefficient. If variable is None, the coefficient represents a constant offset. *)
+  let monomials_from_texp texp =
+    let open Apron.Texpr1 in
+    let exception NotLinearExpr in
+    let exception ScalarIsInfinity in
+    let negate coeff_var_list =
+      List.map (fun (monom, offs, divi) -> Z.(BatOption.map (fun (coeff,i) -> (neg coeff, i)) monom, neg offs, divi)) coeff_var_list in
+    let multiply_with_Q dividend divisor coeff_var_list =
+      List.map (fun (monom, offs, divi) -> Rhs.canonicalize Z.(BatOption.map (fun (coeff,i) -> (dividend*coeff,i)) monom, dividend*offs, divi*divisor) ) coeff_var_list in
+    let multiply a b =
+      (* if one of them is a constant, then multiply. Otherwise, the expression is not linear *)
+      match a, b with
+      | [(None,coeff, divi)], c
+      | c, [(None,coeff, divi)] -> multiply_with_Q coeff divi c
+      | _ -> raise NotLinearExpr
+    in
+    let rec convert_texpr texp =
+      begin match texp with
+        | Cst (Interval _) -> failwith "constant was an interval; this is not supported"
+        | Cst (Scalar x) ->
+          begin match SharedFunctions.int_of_scalar ?round:None x with
+            | Some x -> [(None,x,Z.one)]
+            | None -> raise ScalarIsInfinity end
+        | Var x ->
+          let var_dim = Environment.dim_of_var t.env x in
+          [(Some (Z.one,var_dim),Z.zero,Z.one)]
+        | Unop  (Neg,  e, _, _) -> negate (convert_texpr e)
+        | Unop  (Cast, e, _, _) -> convert_texpr e (* Ignore since casts in apron are used for floating point nums and rounding in contrast to CIL casts *)
+        | Unop  (Sqrt, e, _, _) -> raise NotLinearExpr
+        | Binop (Add, e1, e2, _, _) -> convert_texpr e1 @ convert_texpr e2
+        | Binop (Sub, e1, e2, _, _) -> convert_texpr e1 @ negate (convert_texpr e2)
+        | Binop (Mul, e1, e2, _, _) -> multiply (convert_texpr e1) (convert_texpr e2)
+        | Binop _  -> raise NotLinearExpr end
+    in match convert_texpr texp with
+    | exception NotLinearExpr -> None
+    | exception ScalarIsInfinity -> None
+    | x -> Some(x)
+  ;;
+  (** convert and simplify (wrt. reference variables) a texpr into a tuple of a list of monomials (coeff,varidx,divi) and a (constant/divi) *)
+  let simplified_monomials_from_texp texp =
+    BatOption.bind (monomials_from_texp  texp)
+      (fun monomiallist ->
+         let module IMap = BatMap.Make(Int) in
+         let accumulate_constants (exprcache,(aconst,adiv)) (v,offs,divi) = match v with
+           | None -> let gcdee = Z.gcd adiv divi in exprcache,(Z.(aconst*divi/gcdee + offs*adiv/gcdee),Z.lcm adiv divi)
+           | Some (coeff,idx) -> let (somevar,someoffs,somedivi)= v,offs,divi in (* normalize! *)
+             let newcache = Option.map_default (fun (coef,ter) -> IMap.add ter Q.((IMap.find_default zero ter exprcache) + make coef somedivi) exprcache) exprcache somevar in
+             let gcdee = Z.gcd adiv divi in
+             (newcache,(Z.(aconst*divi/gcdee + offs*adiv/gcdee),Z.lcm adiv divi))
+         in
+         let (expr,constant) = List.fold_left accumulate_constants (IMap.empty,(Z.zero,Z.one)) monomiallist in (* abstract simplification of the guard wrt. reference variables *)
+         Some (IMap.fold (fun v c acc -> if Q.equal c Q.zero then acc else (Q.num c,v,Q.den c)::acc) expr [], constant) )
+        ;;
 
-  let assign_texpr (t: t) var (texp: Texpr1.expr) =
+  let assign_texpr (t: t) var (texp: Texpr1.expr) : t =
+    let wrap b s = {d=Some({boxes = b; sub=s}); env=t.env} in
+    let dim_var = Environment.dim_of_var t.env var in 
+    match t.d with
+    | None -> t 
+    | Some d ->
+      let monoms = simplified_monomials_from_texp texp in
+      match monoms with
+      | None -> forget_vars t [var] 
+      | Some(sum_of_terms, (constant,divisor)) ->
+        let monoms = Option.get monoms in
+        match sum_of_terms with
+        | _ when divisor <> Z.one -> failwith "assign_texpr: DIVISOR WAS NOT ONE"
+        | [] -> 
+          wrap (Boxes.set_value dim_var (ZExt.Arb constant, ZExt.Arb constant) d.boxes) (Sub.forget_vars [dim_var] d.sub)
+        | [(coefficient, index, _)] when index = dim_var -> (
+          let new_intv = eval_monoms_to_intv d.boxes monoms in
+          let boxes = (Boxes.set_value index new_intv d.boxes) in
+          (* We analyse x op (a-1)x + b *)
+          let modified_monoms = ([(Z.(-) coefficient Z.one, index, Z.one)], (constant, Z.one)) in
+          let (lb, ub) = eval_monoms_to_intv d.boxes modified_monoms in
 
-    let dim = Environment.dim_of_var t.env var in
+          let sub =
+            if lb >* ZExt.zero then
+              Sub.set_value index Sub.VarSet.empty d.sub
+            else
+            if ub <* ZExt.zero then
+              Sub.forget_vars_from_sets [index] d.sub
+            else
+            if lb <* ZExt.zero && ub >* ZExt.zero then
+              Sub.forget_vars [index] d.sub 
+            else d.sub
+          
+          in
+          wrap boxes sub
+          )
+        | [(coefficient, index, _)] -> failwith "TODO"
+        | _ -> failwith "TODO"
+        
+        (* { d=Some({ boxes = boxes; sub = sub }); env = t.env } *)
 
-    let rec aux (texp: Texpr1.expr) t : Boxes.t * Sub.t =
-      match t.d with
-      | None -> ([], []) (** Bot *)
-      | Some d ->
-        let boxes, sub = d.boxes, d.sub in
-
-        let sub_without_var = Sub.forget_vars [dim] sub in
-        let boxes_without_var = Boxes.forget_vars [dim] boxes in
-        (match texp with
-         (** Case: x := [inv.inf, inv.sup] *)
-         | Cst (Interval inv) ->
-
-           let boxes = BatList.modify_at dim (fun _ -> (z_ext_of_scalar inv.inf, z_ext_of_scalar inv.sup)) boxes
-           in
-           (boxes, sub)
-
-         (** Case: x := s *)
-         | Cst (Scalar s) -> 
-
-           let boxes = BatList.modify_at dim (fun _ -> (z_ext_of_scalar s, z_ext_of_scalar s)) boxes
-           in
-           (boxes, sub)
-
+        (*
          (** Case: x := y *)
          | Var y ->
            let dim_y = Environment.dim_of_var t.env y in
@@ -985,62 +1120,6 @@ struct
                      BatList.modify_at dim (fun _ -> BatList.at sub dim_y)
            in
            (boxes, sub)
-
-         | Unop  (Neg,  e, _, _) -> 
-           let (boxes, sub) = aux e t in
-
-           let boxes = BatList.modify_at dim (
-               fun intv ->
-                 (ZExt.neg (Intv.sup intv), ZExt.neg (Intv.inf intv))
-             ) boxes
-           in
-           (**
-              We do not add redundant information in Subs. 
-              Later checks can derive inequalities by looking at Boxes.
-           *)
-           (boxes, sub_without_var)
-
-         | Unop  (Cast, e, _, _) -> aux e t
-
-         | Unop  (Sqrt, e, _, _) ->
-
-           (** 
-              TODO: What is the semantics of Sqrt. May we still support this? 
-           *)
-           (boxes_without_var, sub_without_var)
-         | Binop (Add, e1, e2, _, _) ->
-
-           let (boxes_1, sub_1) = aux e1 t in
-           let (boxes_2, sub_2) = aux e2 t in
-
-           let i2 = BatList.at boxes_2 dim in
-           let boxes = BatList.modify_at dim (
-               fun i1 ->
-                 Intv.add i1 i2
-             ) boxes_1
-           in
-           (boxes, sub_without_var)
-
-         | Binop (Sub, e1, e2, t0, r) ->
-           aux (Binop (Add, e1, Unop (Neg, e2, t0, r), t0, r)) t
-
-         | Binop (Mul, e1, e2, _, _) ->
-           let (boxes_1, sub_1) = aux e1 t in
-           let (boxes_2, sub_2) = aux e2 t in
-
-           let i2 = BatList.at boxes_2 dim in
-           let intv = BatList.modify_at dim (
-               fun i1 -> Intv.mul i1 i2 ) boxes_1 in
-           (intv, sub_without_var)
-
-         | Binop (Div, e1, e2, _, _) ->
-           let (boxes_1, sub_1) = aux e1 t in
-           let (boxes_2, sub_2) = aux e2 t in
-
-           let i2 = BatList.at boxes_2 dim in
-           let intv = BatList.modify_at dim (
-               fun i1 -> Intv.div i1 i2 ) boxes_1 in
-           (intv, sub_without_var)
 
          (** 
             Implemented as described by the paper mention at the beginning of this file.
@@ -1070,27 +1149,8 @@ struct
              | _ -> sub_without_var
            in
            (intv, sub)
+ *)
 
-
-         (** e1 ^ e2 *)
-         | Binop (Pow, e1, e2, _, _) -> 
-           let (boxes_1, sub_1) = aux e1 t in
-           let (boxes_2, sub_2) = aux e2 t in
-
-           let i2 = BatList.at boxes_2 dim in
-           let intv = BatList.modify_at dim (
-               fun i1 -> 
-                 Intv.pow i1 i2
-             ) boxes_1 in
-
-           (intv, sub_without_var)
-        ) in
-
-    let (boxes, sub) = aux texp t in
-    match boxes, sub with
-    | [], [] -> { d= None; env=t.env }
-    | _ ->
-      { d=Some({ boxes = boxes; sub = sub }); env = t.env }
   ;;
 
   let assign_texpr t var texp =
