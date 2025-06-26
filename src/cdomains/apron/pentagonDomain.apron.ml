@@ -205,7 +205,7 @@ module Rhs = struct
     (BatOption.map (fun (coeff,i) -> (Z.div coeff commondivisor,i)) v, Z.div o commondivisor, Z.div d commondivisor)
 
   (** Substitute rhs for varx in rhs' *)
-  let subst rhs varx rhs' =
+  let subt rhs varx rhs' =
     match rhs,rhs' with
     | (monom, o, d), (Some (c', x'), o', d') when x'=varx -> canonicalize (Option.map (fun (c,x) -> (Z.mul c c',x)) monom, Z.((o*c')+(d*o')), Z.mul d d')
     | _ -> rhs'
@@ -531,7 +531,7 @@ struct
 end
 
 (** Stores functions and types for strict upper bounds. *)
-module Sub =
+module Subs =
 struct
 
   module Idx = Int
@@ -545,7 +545,7 @@ struct
 
   type t = VarSet.t VarList.t [@@deriving eq, ord]
 
-  let dim_add (dim_change: Apron.Dim.change) (sub: t) =
+  let dim_add (dim_change: Apron.Dim.change) (subs: t) =
     if dim_change.realdim != 0 then 
       failwith "Pentagons are defined over integers: \
                 dim_change should not contain `realdim`" 
@@ -555,7 +555,7 @@ struct
       Could not use fold_lefti directly because I might need to append at the end of the list.
       This would have forced me to use List.length, which is \theta(n).
       *)
-      let rec aux (dim_change: Apron.Dim.change) i sub (moved: MoveMap.t) acc =
+      let rec aux (dim_change: Apron.Dim.change) i subs (moved: MoveMap.t) acc =
         (** Computes the number by which the current index/variable will be shifted/moved *)
         let moved_by = 
           Array.count_matching (fun k -> k <= i) dim_change.dim 
@@ -570,7 +570,7 @@ struct
             acc
           else prepend_dim (n-1) (VarSet.empty :: acc)
         in
-        match sub with
+        match subs with
         | h::t ->
           (** Store the new index mappings to later adjust the sets. *)
           let moved = (MoveMap.add i (i+moved_by) moved) in
@@ -578,21 +578,21 @@ struct
           let acc = (h :: (prepend_dim append_count acc)) in
           aux dim_change (i+1) t moved acc
         | [] ->
-          (** Complete sub prepending the last dimensions and reversing *)
-          let sub = (List.rev (prepend_dim append_count acc)) in
+          (** Complete subs prepending the last dimensions and reversing *)
+          let subs = (List.rev (prepend_dim append_count acc)) in
           (** Adjust the stored indices in our sets *)
           VarList.map (
             fun set ->
               VarSet.map (
                 fun v -> match MoveMap.find_opt v moved with | None -> v | Some(v') -> v'
               ) set
-          ) sub 
+          ) subs 
       in
-      aux dim_change 0 sub MoveMap.empty []
+      aux dim_change 0 subs MoveMap.empty []
   ;;
 
 
-  let dim_remove (dim_change: Apron.Dim.change) (sub : t) =
+  let dim_remove (dim_change: Apron.Dim.change) (subs: t) =
     (* This implementation assumes, that dim_change.dim is well-formed, i.e., does not contain duplicates. *)
     let move_or_delete_var y =
       if Array.mem y dim_change.dim then None
@@ -602,7 +602,7 @@ struct
       if Array.mem x dim_change.dim then None
       else Some (VarSet.filter_map move_or_delete_var ys)
     in
-    List.filteri_map move_or_delete_set sub
+    List.filteri_map move_or_delete_set subs
 
   let equal (sub1: t) (sub2: t) = VarList.equal VarSet.equal sub1 sub2
 
@@ -610,7 +610,7 @@ struct
         This isn't precise: we might return false even if there are transitive contradictions;
         Other possibility: compute transitive closure first (would be expensive)
   *)
-  let is_bot (sub:t) =
+  let is_bot (subs: t) =
     (* exists function for lists where the predicate f also gets the index of a list element *)
     let existsi f lst =
       let rec aux i = function
@@ -618,15 +618,15 @@ struct
         | x :: xs -> if f i x then true else aux (i + 1) xs
       in aux 0 lst
     in
-    (* If we don't know any variables, i.e. sub = [], then bot = top holds. *)
-    sub = [] || 
+    (* If we don't know any variables, i.e. subs = [], then bot = top holds. *)
+    subs = [] || 
     existsi (
       fun i set ->
         (* direct contradiction *)
         VarSet.mem i set ||
-        (* We assume that the sets inside sub only contain values < length of the list.*)
-        VarSet.exists (fun y -> VarSet.mem i (List.at sub y)) set
-    ) sub
+        (* We assume that the sets inside subs only contain values < length of the list.*)
+        VarSet.exists (fun y -> VarSet.mem i (List.at subs y)) set
+    ) subs
 
 
   let is_top (sub: t) = VarList.for_all VarSet.is_empty sub
@@ -684,16 +684,16 @@ struct
       ) sub
     )
 
-  let to_string (sub: t) =
+  let to_string (subs: t) =
     let bot_or_top = 
-      if is_bot sub then
+      if is_bot subs then
         "(⊥)"
-      else if is_top sub then
+      else if is_top subs then
         "(⊤)"
       else
         "( )"
     in
-    Printf.sprintf "%s { %s }" bot_or_top (to_string sub)
+    Printf.sprintf "%s { %s }" bot_or_top (to_string subs)
 
   (* x_i < x_j <== x_j \in SUBs(x_i) *)
   let lt subs i j =
@@ -714,19 +714,19 @@ end
 
 module PNTG =
 struct
-  type t = { boxes: Boxes.t; sub: Sub.t } [@@deriving eq, ord]
+  type t = { boxes: Boxes.t; subs: Subs.t } [@@deriving eq, ord]
 
   let hash : (t -> int)  = fun _ -> 1
-  let equal pntg1 pntg2  = Boxes.equal pntg1.boxes pntg2.boxes && Sub.equal pntg1.sub pntg2.sub;;
+  let equal pntg1 pntg2  = Boxes.equal pntg1.boxes pntg2.boxes && Subs.equal pntg1.subs pntg2.subs;;
   let copy (x: t) = x
-  let empty () = { boxes = []; sub = [] }
+  let empty () = { boxes = []; subs = [] }
   let is_empty pntg =
-    match pntg.boxes, pntg.sub with
+    match pntg.boxes, pntg.subs with
     | [], [] -> true
     | _ -> false
 
   let to_string pntg =
-    Printf.sprintf "{ boxes = %s; sub = %s }" (Boxes.to_string pntg.boxes) (Sub.to_string pntg.sub)
+    Printf.sprintf "{ boxes = %s; subs = %s }" (Boxes.to_string pntg.boxes) (Subs.to_string pntg.subs)
 
 
   (**
@@ -738,11 +738,11 @@ struct
       failwith "Pentagons are defined over integers: \
                 extension with real domain is nonsensical"
     else
-      let intv, sub = 
+      let intv, subs = 
         Boxes.dim_add dim_change pntg.boxes,
-        Sub.dim_add dim_change pntg.sub 
+        Subs.dim_add dim_change pntg.subs 
       in
-      ({boxes = intv; sub = sub}: t)
+      ({boxes = intv; subs = subs}: t)
 
 
 
@@ -764,11 +764,11 @@ struct
       failwith "Pentagons are defined over integers: \
                 extension with real domain is nonsensical"
     else
-      let intv, sub = 
+      let boxes, subs = 
         Boxes.dim_remove dim_change pntg.boxes,
-        Sub.dim_remove dim_change pntg.sub 
+        Subs.dim_remove dim_change pntg.subs 
       in
-      ({boxes = intv; sub = sub}: t)
+      ({boxes = boxes; subs = subs}: t)
 
   let dim_remove (dim_change: Apron.Dim.change) pntg = 
     let res = dim_remove dim_change pntg in
@@ -821,6 +821,7 @@ let rec eval_monoms_to_intv boxes (terms, (constant, _)) =
       let intv_coeff = Intv.create_const_of_z coeff in
       Intv.add (Intv.mul intv_coeff (Boxes.get_value index boxes)) (eval_monoms_to_intv boxes (terms, (constant, Z.one)))
     );;  
+
 module ExpressionBounds: (SharedFunctions.ConvBounds with type t = VarManagement.t) =
 struct
   include VarManagement
@@ -856,12 +857,12 @@ struct
   let is_bot t = 
     match t.d with
     | None -> true
-    | Some d -> Boxes.is_bot d.boxes || Sub.is_bot d.sub
+    | Some d -> Boxes.is_bot d.boxes || Subs.is_bot d.subs
 
   let is_top t = 
     match t.d with
     | None -> false
-    | Some d -> Boxes.is_top d.boxes && Sub.is_top d.sub
+    | Some d -> Boxes.is_top d.boxes && Subs.is_top d.subs
 
   let to_string t =
     if is_bot t then
@@ -873,7 +874,7 @@ struct
       let d = Option.get t.d in
       let vars = Array.map (StringUtils.string_of_var) (fst (Environment.vars t.env)) in
       let res = PNTG.to_string d in
-      let keys_re = Str.regexp {|\([0-9]+\)->|} in
+      let key_re = Str.regexp {|\([0-9]+\)->|} in
       let subs_re = Str.regexp {|\([0-9]+\)#|} in
       let varname_and_append = fun postfix m -> (
           let idx = int_of_string (Str.matched_group 1 m) in
@@ -883,9 +884,10 @@ struct
             failwith "D.to_string hit unknown variable!"
         ) in
       (* First pass substitutes the variable names for the keys left to the arrow. *)
-      Str.global_substitute keys_re (varname_and_append "->") res |>
+      Str.global_substitute key_re (varname_and_append "->") res |>
       (* Second pass adjusts the variable name for the subs sets. *)
-      Str.global_substitute subs_re (varname_and_append "") 
+      Str.global_substitute subs_re (varname_and_append "");;
+
   let show = to_string
 
   let equal t1 t2 =
@@ -924,7 +926,7 @@ struct
      We assume no variables have been encountered when this funciton is called.
      It therefore holds that: top = bot.
   *)
-  let top () = {d = Some {boxes = []; sub = []}; env = empty_env}
+  let top () = {d = Some {boxes = []; subs = []}; env = empty_env}
 
   let top_of_env env = dimchange2_add (top ()) env
 
@@ -934,7 +936,7 @@ struct
     let t2 = dimchange2_add t2 sup_env in
     match t1.d, t2.d with
     | Some d1', Some d2' ->
-      ({d = Some {boxes = Boxes.meet d1'.boxes d2'.boxes; sub = Sub.meet d1'.sub d2'.sub}; env = sup_env}: t)
+      ({d = Some {boxes = Boxes.meet d1'.boxes d2'.boxes; subs = Subs.meet d1'.subs d2'.subs}; env = sup_env}: t)
     | _ -> {d = None; env = sup_env}
 
   let meet t1 t2 = 
@@ -951,21 +953,21 @@ struct
     match t1.d, t2.d with
     | Some d1', Some d2' ->
       let boxes_1, boxes_2 = d1'.boxes, d2'.boxes in
-      let sub1, sub2 = d1'.sub, d2'.sub in
+      let sub1, sub2 = d1'.subs, d2'.subs in
       let for_all_i f lst =
         List.for_all (fun (i, x) -> f i x) (List.mapi (fun i x -> (i, x)) lst) in
       let bool1 = Boxes.leq boxes_1 boxes_2 in
       let bool2 = for_all_i(fun x s2x -> 
-          Sub.VarSet.for_all(fun y -> 
-              let s1x = Sub.VarList.at sub1 x in
+          Subs.VarSet.for_all(fun y -> 
+              let s1x = Subs.VarList.at sub1 x in
               let b1x = BatList.at boxes_1 x in
               let b1y = BatList.at boxes_1 y in
-              Sub.VarSet.mem y s1x ||
+              Subs.VarSet.mem y s1x ||
               Intv.sup b1x <* Intv.inf b1y
             ) s2x
         ) sub2 in
       bool1 && bool2
-    | Some d1', None -> Boxes.is_bot d1'.boxes || Sub.is_bot d1'.sub
+    | Some d1', None -> Boxes.is_bot d1'.boxes || Subs.is_bot d1'.subs
     | _ -> true
 
   let leq t1 t2 =
@@ -983,11 +985,11 @@ struct
     match t1.d, t2.d with
     | Some d1', Some d2' ->
       let joined_boxes = Boxes.join d1'.boxes d2'.boxes in
-      let s' x s1x = Sub.VarSet.inter s1x (List.at d2'.sub x) in
-      let s'' x s1x = Sub.VarSet.filter (fun y -> Intv.sup (List.at d2'.boxes x) <* Intv.inf (List.at d2'.boxes y)) s1x in
-      let s''' x = Sub.VarSet.filter (fun y -> Intv.sup (List.at d1'.boxes x) <* Intv.inf (List.at d1'.boxes y)) (List.at d2'.sub x) in
-      let joined_sub = List.mapi (fun x s1x -> Sub.VarSet.union (s' x s1x) (Sub.VarSet.union (s'' x s1x) (s''' x))) d1'.sub in
-      ({d = Some {boxes = joined_boxes; sub = joined_sub}; env = sup_env}: t)
+      let s' x s1x = Subs.VarSet.inter s1x (List.at d2'.subs x) in
+      let s'' x s1x = Subs.VarSet.filter (fun y -> Intv.sup (List.at d2'.boxes x) <* Intv.inf (List.at d2'.boxes y)) s1x in
+      let s''' x = Subs.VarSet.filter (fun y -> Intv.sup (List.at d1'.boxes x) <* Intv.inf (List.at d1'.boxes y)) (List.at d2'.subs x) in
+      let joined_subs = List.mapi (fun x s1x -> Subs.VarSet.union (s' x s1x) (Subs.VarSet.union (s'' x s1x) (s''' x))) d1'.subs in
+      ({d = Some {boxes = joined_boxes; subs = joined_subs}; env = sup_env}: t)
     | Some d1', None -> {d = Some d1'; env = sup_env}
     | None, Some d2' -> {d = Some d2'; env = sup_env}
     | _ -> {d = None; env = sup_env}
@@ -1005,7 +1007,7 @@ struct
     let t2 = dimchange2_add t2 sup_env in
     match t1.d, t2.d with
     | Some d1', Some d2' ->
-      ({d = Some {boxes = Boxes.widen d1'.boxes d2'.boxes; sub = Sub.widen d1'.sub d2'.sub}; env = sup_env}: t)
+      ({d = Some {boxes = Boxes.widen d1'.boxes d2'.boxes; subs = Subs.widen d1'.subs d2'.subs}; env = sup_env}: t)
     | _ -> {d = None; env = sup_env}
 
   let widen a b =
@@ -1028,7 +1030,7 @@ struct
     else 
       let (pntg: PNTG.t) = Option.get t.d in
       let int_vars = List.map (fun v -> Environment.dim_of_var t.env v) vars in
-      {d = Some({boxes = Boxes.forget_vars int_vars pntg.boxes; sub = Sub.forget_vars int_vars pntg.sub}); env=t.env};;
+      {d = Some({boxes = Boxes.forget_vars int_vars pntg.boxes; subs = Subs.forget_vars int_vars pntg.subs}); env=t.env};;
 
   (** Taken from lin2var and modified for our domain. *)
   (** Parses a Texpr to obtain a Rhs.t list to repr. a sum of a variables that have a coefficient. If variable is None, the coefficient represents a constant offset. *)
@@ -1069,6 +1071,8 @@ struct
     | exception ScalarIsInfinity -> None
     | x -> Some(x)
   ;;
+
+  (** Taken from lin2var and modified for our domain. *)
   (** convert and simplify (wrt. reference variables) a texpr into a tuple of a list of monomials (coeff,varidx,divi) and a (constant/divi) *)
   let simplified_monomials_from_texp env texp =
     BatOption.bind (monomials_from_texp env texp)
@@ -1086,7 +1090,7 @@ struct
   ;;
 
   let assign_texpr (t: t) var (texp: Texpr1.expr) : t =
-    let wrap b s = {d=Some({boxes = b; sub=s}); env=t.env} in
+    let wrap b s = {d=Some({boxes = b; subs = s}); env=t.env} in
     let dim_var = Environment.dim_of_var t.env var in 
     match t.d with
     | None -> t 
@@ -1100,7 +1104,7 @@ struct
         match sum_of_terms with
         | _ when divisor <> Z.one -> failwith "assign_texpr: DIVISOR WAS NOT ONE"
         | [] -> (* instead of always forgetting, you could use old Sub information here, too *)
-          wrap (Boxes.set_value dim_var (ZExt.Arb constant, ZExt.Arb constant) d.boxes) (Sub.forget_vars [dim_var] d.sub)
+          wrap (Boxes.set_value dim_var (ZExt.Arb constant, ZExt.Arb constant) d.boxes) (Subs.forget_vars [dim_var] d.subs)
         | [(coefficient, index, _)] when index = dim_var ->
           let new_intv = eval_monoms_to_intv d.boxes monoms in
           let boxes = (Boxes.set_value index new_intv d.boxes) in
@@ -1110,14 +1114,14 @@ struct
 
           let sub =
             if lb >* ZExt.zero then
-              Sub.set_value index Sub.VarSet.empty d.sub
+              Subs.set_value index Subs.VarSet.empty d.subs
             else
             if ub <* ZExt.zero then
-              Sub.forget_vars_from_sets [index] d.sub
+              Subs.forget_vars_from_sets [index] d.subs
             else
             if lb <* ZExt.zero && ub >* ZExt.zero then
-              Sub.forget_vars [index] d.sub 
-            else d.sub
+              Subs.forget_vars [index] d.subs
+            else d.subs
 
           in
           wrap boxes sub
@@ -1146,18 +1150,18 @@ struct
 
           let delete_subs_flag = (* x could have got greater / we can't rule out x' > x *)
             Intv.sup intv_x' >* Intv.inf intv_x &&
-            if Sub.lt d.sub dim_var index (* x < y ==> -x + ay + b >= (a-1)y + b + 1 ==> if (a-1)y + b >= 0 is possible, x' > x is possible *)
+            if Subs.lt d.subs dim_var index (* x < y ==> -x + ay + b >= (a-1)y + b + 1 ==> if (a-1)y + b >= 0 is possible, x' > x is possible *)
             then cmp_ub >=* ZExt.zero
             else true in
           let delete_slbs_flag = (* x could have got lower / we can't rule out x' < x *)
             Intv.inf intv_x' <* Intv.sup intv_x &&
-            if Sub.gt d.sub dim_var index
+            if Subs.gt d.subs dim_var index
             then cmp_lb <=* ZExt.zero
             else true in
 
-          let sub = (d.sub
-                     |> if delete_subs_flag then Sub.set_value dim_var Sub.VarSet.empty else Fun.id)
-                    |> if delete_slbs_flag then Sub.forget_vars_from_sets [dim_var] else Fun.id
+          let subs = (d.subs
+                      |> if delete_subs_flag then Subs.set_value dim_var Subs.VarSet.empty else Fun.id)
+                     |> if delete_slbs_flag then Subs.forget_vars_from_sets [dim_var] else Fun.id
           in
 
 
@@ -1169,52 +1173,52 @@ struct
 
         *)
 
-          let sub =
+          let subs =
             if cmp_ub <* ZExt.zero then
-              let sub_x = Sub.get_value dim_var sub in
-              let sub_y = Sub.get_value index sub in
-              let meet_sub_x_sub_y = Sub.VarSet.union sub_x sub_y in
-              let complete_sub = Sub.VarSet.union meet_sub_x_sub_y (Sub.VarSet.singleton index) in
+              let subs_x = Subs.get_value dim_var subs in
+              let subs_y = Subs.get_value index subs in
+              let meet_subs_x_subs_y = Subs.VarSet.union subs_x subs_y in
+              let complete_sub = Subs.VarSet.union meet_subs_x_subs_y (Subs.VarSet.singleton index) in
 
-              Sub.set_value dim_var complete_sub sub
+              Subs.set_value dim_var complete_sub subs
             else
             if cmp_ub <=* ZExt.zero then
-              let sub_x = Sub.get_value dim_var sub in
-              let sub_y = Sub.get_value index sub in
-              let meet_sub_x_sub_y = Sub.VarSet.union sub_x sub_y in
+              let subs_x = Subs.get_value dim_var subs in
+              let subs_y = Subs.get_value index subs in
+              let meet_subs_x_sub_y = Subs.VarSet.union subs_x subs_y in
 
-              Sub.set_value dim_var meet_sub_x_sub_y sub
+              Subs.set_value dim_var meet_subs_x_sub_y subs
             else
             if cmp_lb >* ZExt.zero then
-              let subs_y = Sub.get_value index sub in
-              let complete_sub = Sub.VarSet.union subs_y (Sub.VarSet.singleton dim_var) in
-              Sub.set_value index complete_sub sub
+              let subs_y = Subs.get_value index subs in
+              let complete_sub = Subs.VarSet.union subs_y (Subs.VarSet.singleton dim_var) in
+              Subs.set_value index complete_sub subs
             else 
-              sub in
+              subs in
 
           let boxes = (Boxes.set_value dim_var intv_x' d.boxes) in
-          wrap boxes sub
+          wrap boxes subs
         | _ -> failwith "TODO"
 
-  (* { d=Some({ boxes = boxes; sub = sub }); env = t.env } *)
+  (* { d=Some({ boxes = boxes; subs = subs }); env = t.env } *)
 
         (*
          (** Case: x := y *)
          | Var y ->
            let dim_y = Environment.dim_of_var t.env y in
            let boxes = BatList.modify_at dim (fun _ -> BatList.at boxes dim_y) boxes in
-           let sub = sub |>
-                     Sub.forget_vars [dim] |>
+           let sub = subs |>
+                     Subs.forget_vars [dim] |>
                      (* x = y ==> if z < y then also z < x *)
-                     Sub.VarList.map (
+                     Subs.VarList.map (
                        fun set ->
-                         if Sub.VarSet.mem dim_y set then
-                           Sub.VarSet.add dim set
+                         if Subs.VarSet.mem dim_y set then
+                           Subs.VarSet.add dim set
                          else 
                            set
                      ) |>
                      (* Subs of x := Subs of y *)
-                     BatList.modify_at dim (fun _ -> BatList.at sub dim_y)
+                     BatList.modify_at dim (fun _ -> BatList.at subs dim_y)
            in
            (boxes, sub)
 
@@ -1241,7 +1245,7 @@ struct
                  if (Intv.inf intv_divisor) <* ZExt.zero then 
                    sub_without_var
                  else
-                   BatList.modify_at dim (fun _ -> Sub.VarSet.singleton dim_divisor) sub_without_var
+                   BatList.modify_at dim (fun _ -> Subs.VarSet.singleton dim_divisor) sub_without_var
                )
              | _ -> sub_without_var
            in
@@ -1344,7 +1348,7 @@ struct
         bot_of_env t.env
       else 
         let boxes = List.modify_at dim_x (fun _ -> intersected_intv_x) d.boxes in
-        { d = Some({boxes = boxes; sub = d.sub}); env=t.env}
+        { d = Some({boxes = boxes; subs = d.subs}); env=t.env}
     ) in
     match t.d with 
     | None -> t
@@ -1395,7 +1399,7 @@ struct
                       )
                       in
                       let boxes = List.modify_at dim_x (fun _ -> corrected_intv) d.boxes in
-                      ({ d = Some({boxes=boxes; sub=d.sub}); env=t.env})
+                      ({ d = Some({boxes=boxes; subs=d.subs}); env=t.env})
                     )
                 )
             )
@@ -1458,7 +1462,7 @@ struct
 
                     in
                     let boxes = List.modify_at dim_x (fun _ -> (lb, ub)) d.boxes in
-                    ({d = Some({boxes=boxes; sub=d.sub}); env=t.env})
+                    ({d = Some({boxes=boxes; subs=d.subs}); env=t.env})
                 )
 
               | Cst(Scalar s), Var x when (z_ext_of_scalar s) =* zero && (tcons_typ = DISEQ || tcons_typ = EQ) -> assert_constraint t e2
@@ -1480,7 +1484,7 @@ struct
                                  else if c = lb_x then
                                    var_intv_meet (ZExt.add c (ZExt.of_int 1), PosInfty) dim_x
                                  else if c = ub_x then
-                                   var_intv_meet (NegInfty ,ZExt.sub c (ZExt.of_int 1)) dim_x
+                                   var_intv_meet (NegInfty, ZExt.sub c (ZExt.of_int 1)) dim_x
                                  else
                                    t
 
