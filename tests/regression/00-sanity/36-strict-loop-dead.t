@@ -7,4 +7,4 @@
     live: 7
     dead: 3
     total lines: 10
-  [Warning][Deadcode][CWE-571] condition 'n < 0' is always true (36-strict-loop-dead.c:5:7-5:12)
+  [Warning][Deadcode][CWE-571] condition 'n < 0' is always true (36-strict-loop-dead.c:5.7-5.12)

@@ -20,170 +20,170 @@
     │    │    │    │                                                    │ (body)                             │               │    │    │
     │    │    │    │                                                    ▼                                    │               │    │    │
     │    │    │    │                                                  ┌───────────────────────────────────┐  │               │    │    │
-    │    │    │    │                                                  │ loops.c:7:3-7:8                   │  │               │    │    │
-    │    │    │    │                                                  │ (loops.c:7:3-7:8)                 │  │               │    │    │
-    │    │    │    │                                                  │ YAML loc: loops.c:7:3-7:8         │  │               │    │    │
+    │    │    │    │                                                  │ loops.c:7.3-7.8                   │  │               │    │    │
+    │    │    │    │                                                  │ (loops.c:7.3-7.8)                 │  │               │    │    │
+    │    │    │    │                                                  │ YAML loc: loops.c:7.3-7.8         │  │               │    │    │
     │    │    │    │                                                  │ server: true                      │  │               │    │    │
     │    │    │    │                                                  └───────────────────────────────────┘  │               │    │    │
     │    │    │    │                                                    │                                    │               │    │    │
     │    │    │    │                                                    │ i = 0                              │               │    │    │
     │    │    │    │                                                    ▼                                    │               │    │    │
     │    │    │  ┌───────────────────────────────────┐                ┌───────────────────────────────────┐  │               │    │    │
-    │    │    │  │ loops.c:9:5-9:8                   │                │ loops.c:8:3-10:3 (synthetic)      │  │               │    │    │
-    │    │    │  │ (loops.c:9:5-9:8)                 │                │ (loops.c:8:10-8:16 (synthetic))   │  │               │    │    │
-    │    │    │  │ YAML loc: loops.c:9:5-9:8         │  Pos(i < 10)   │ YAML loop: loops.c:8:3-10:3       │  │               │    │    │
+    │    │    │  │ loops.c:9.5-9.8                   │                │ loops.c:8.3-10.3 (synthetic)      │  │               │    │    │
+    │    │    │  │ (loops.c:9.5-9.8)                 │                │ (loops.c:8.10-8.16 (synthetic))   │  │               │    │    │
+    │    │    │  │ YAML loc: loops.c:9.5-9.8         │  Pos(i < 10)   │ YAML loop: loops.c:8.3-10.3       │  │               │    │    │
     │    │    │  │ server: true                      │ ◀───────────── │ server: false                     │ ◀┼───────────────┼────┼────┘
     │    │    │  └───────────────────────────────────┘                └───────────────────────────────────┘  │               │    │
     │    │    │                                                         │                                    │               │    │
     │    │    │                                                         │ Neg(i < 10)                        │               │    │
     │    │    │                                                         ▼                                    │               │    │
     │    │    │                                                       ┌───────────────────────────────────┐  │               │    │
-    │    │    │                                                       │ loops.c:13:3-15:3                 │  │               │    │
-    │    │    │                                                       │ (loops.c:13:7-13:26 (synthetic))  │  │               │    │
-    │    │    │                                                       │ YAML loc: loops.c:13:3-15:3       │  │ i = i + 1     │    │
+    │    │    │                                                       │ loops.c:13.3-15.3                 │  │               │    │
+    │    │    │                                                       │ (loops.c:13.7-13.26 (synthetic))  │  │               │    │
+    │    │    │                                                       │ YAML loc: loops.c:13.3-15.3       │  │ i = i + 1     │    │
     │    │    │                                                       │ server: false                     │  │               │    │
     │    │    │                                                       └───────────────────────────────────┘  │               │    │
     │    │    │                                                         │                                    │               │    │
     │    │    │                                                         │ i = 0                              │               │    │
     │    │    │                                                         ▼                                    │               │    │
     │    │    │  ┌───────────────────────────────────┐                ┌───────────────────────────────────┐  │               │    │
-    │    │    │  │ loops.c:14:5-14:23                │                │ loops.c:13:3-15:3 (synthetic)     │  │               │    │
-    │    │    │  │ (loops.c:14:5-14:23)              │                │ (loops.c:13:7-13:26 (synthetic))  │  │               │    │
-    │    │    │  │ YAML loc: loops.c:14:5-14:23      │  Pos(i < 10)   │ YAML loop: loops.c:13:3-15:3      │  │               │    │
+    │    │    │  │ loops.c:14.5-14.23                │                │ loops.c:13.3-15.3 (synthetic)     │  │               │    │
+    │    │    │  │ (loops.c:14.5-14.23)              │                │ (loops.c:13.7-13.26 (synthetic))  │  │               │    │
+    │    │    │  │ YAML loc: loops.c:14.5-14.23      │  Pos(i < 10)   │ YAML loop: loops.c:13.3-15.3      │  │               │    │
     │    │    │  │ server: true                      │ ◀───────────── │ server: false                     │ ◀┘               │    │
     │    │    │  └───────────────────────────────────┘                └───────────────────────────────────┘                  │    │
     │    │    │    │                                                    │                                                    │    │
     │    │    │    │ __goblint_check(1)                                 │ Neg(i < 10)                                        │    │
     │    │    │    ▼                                                    ▼                                                    │    │
     │    │    │  ┌───────────────────────────────────┐                ┌───────────────────────────────────┐                  │    │
-    │    │    │  │ loops.c:13:3-15:3 (synthetic)     │                │ loops.c:18:3-20:3                 │                  │    │
-    │    │    │  │ (loops.c:13:7-13:26 (synthetic))  │                │ (loops.c:18:7-18:26 (synthetic))  │                  │    │
-    │    │    │  │ server: false                     │                │ YAML loc: loops.c:18:3-20:3       │                  │    │
+    │    │    │  │ loops.c:13.3-15.3 (synthetic)     │                │ loops.c:18.3-20.3                 │                  │    │
+    │    │    │  │ (loops.c:13.7-13.26 (synthetic))  │                │ (loops.c:18.7-18.26 (synthetic))  │                  │    │
+    │    │    │  │ server: false                     │                │ YAML loc: loops.c:18.3-20.3       │                  │    │
     │    │    └─ │                                   │                │ server: false                     │                  │    │
     │    │       └───────────────────────────────────┘                └───────────────────────────────────┘                  │    │
     │    │                                                              │                                                    │    │
     │    │                                                              │ i = 0                                              │    │
     │    │                                                              ▼                                                    │    │
     │    │       ┌───────────────────────────────────┐                ┌───────────────────────────────────┐                  │    │
-    │    │       │ loops.c:18:3-20:3 (synthetic)     │                │ loops.c:18:3-20:3 (synthetic)     │                  │    │
-    │    │       │ (loops.c:18:7-18:26 (synthetic))  │                │ (loops.c:18:7-18:26 (synthetic))  │                  │    │
-    │    │       │ server: false                     │  Pos(i < 10)   │ YAML loop: loops.c:18:3-20:3      │  i = i + 1       │    │
+    │    │       │ loops.c:18.3-20.3 (synthetic)     │                │ loops.c:18.3-20.3 (synthetic)     │                  │    │
+    │    │       │ (loops.c:18.7-18.26 (synthetic))  │                │ (loops.c:18.7-18.26 (synthetic))  │                  │    │
+    │    │       │ server: false                     │  Pos(i < 10)   │ YAML loop: loops.c:18.3-20.3      │  i = i + 1       │    │
     │    └────── │                                   │ ◀───────────── │ server: false                     │ ◀────────────────┘    │
     │            └───────────────────────────────────┘                └───────────────────────────────────┘                       │
     │                                                                   │                                                         │
     │                                                                   │ Neg(i < 10)                                             │
     │                                                                   ▼                                                         │
     │                                                                 ┌───────────────────────────────────┐                       │
-    │                                                                 │ loops.c:23:3-25:3                 │                       │
-    │                                                                 │ (loops.c:23:7-23:22 (synthetic))  │                       │
-    │                                                                 │ YAML loc: loops.c:23:3-25:3       │                       │
+    │                                                                 │ loops.c:23.3-25.3                 │                       │
+    │                                                                 │ (loops.c:23.7-23.22 (synthetic))  │                       │
+    │                                                                 │ YAML loc: loops.c:23.3-25.3       │                       │
     │                                                                 │ server: false                     │                       │
     │                                                                 └───────────────────────────────────┘                       │
     │                                                                   │                                                         │
     │                                                                   │ i = 0                                                   │
     │                                                                   ▼                                                         │
     │            ┌───────────────────────────────────┐                ┌───────────────────────────────────┐                       │
-    │            │ loops.c:24:5-24:8                 │                │ loops.c:23:3-25:3 (synthetic)     │                       │
-    │            │ (loops.c:24:5-24:8)               │                │ (loops.c:23:7-23:22 (synthetic))  │                       │
-    │            │ YAML loc: loops.c:24:5-24:8       │  Pos(i < 10)   │ YAML loop: loops.c:23:3-25:3      │  i = i + 1            │
+    │            │ loops.c:24.5-24.8                 │                │ loops.c:23.3-25.3 (synthetic)     │                       │
+    │            │ (loops.c:24.5-24.8)               │                │ (loops.c:23.7-23.22 (synthetic))  │                       │
+    │            │ YAML loc: loops.c:24.5-24.8       │  Pos(i < 10)   │ YAML loop: loops.c:23.3-25.3      │  i = i + 1            │
     └─────────── │ server: true                      │ ◀───────────── │ server: false                     │ ◀─────────────────────┘
                  └───────────────────────────────────┘                └───────────────────────────────────┘
                                                                         │
                                                                         │ Neg(i < 10)
                                                                         ▼
                                                                       ┌───────────────────────────────────┐
-                                                                      │ loops.c:28:3-28:8                 │
-                                                                      │ (loops.c:28:3-28:8)               │
-                                                                      │ YAML loc: loops.c:28:3-28:8       │
+                                                                      │ loops.c:28.3-28.8                 │
+                                                                      │ (loops.c:28.3-28.8)               │
+                                                                      │ YAML loc: loops.c:28.3-28.8       │
                                                                       │ server: true                      │
                                                                       └───────────────────────────────────┘
                                                                         │
                                                                         │ i = 0
                                                                         ▼
                  ┌───────────────────────────────────┐                ┌───────────────────────────────────┐
-                 │ loops.c:30:5-30:23                │                │ loops.c:29:3-31:3 (synthetic)     │
-                 │ (loops.c:30:5-30:23)              │                │ (loops.c:29:7-29:21 (synthetic))  │
-                 │ YAML loc: loops.c:30:5-30:23      │  Pos(i < 10)   │ YAML loop: loops.c:29:3-31:3      │  i = i + 1
+                 │ loops.c:30.5-30.23                │                │ loops.c:29.3-31.3 (synthetic)     │
+                 │ (loops.c:30.5-30.23)              │                │ (loops.c:29.7-29.21 (synthetic))  │
+                 │ YAML loc: loops.c:30.5-30.23      │  Pos(i < 10)   │ YAML loop: loops.c:29.3-31.3      │  i = i + 1
                  │ server: true                      │ ◀───────────── │ server: false                     │ ◀─────────────────────┐
                  └───────────────────────────────────┘                └───────────────────────────────────┘                       │
                    │                                                    │                                                         │
                    │ __goblint_check(1)                                 │ Neg(i < 10)                                             │
                    ▼                                                    ▼                                                         │
                  ┌───────────────────────────────────┐                ┌───────────────────────────────────┐                       │
-                 │ loops.c:29:3-31:3 (synthetic)     │                │ loops.c:34:3-36:3                 │                       │
-                 │ (loops.c:29:7-29:21 (synthetic))  │                │ (loops.c:34:12-34:17 (synthetic)) │                       │
-                 │ server: false                     │                │ YAML loc: loops.c:34:3-36:3       │                       │
+                 │ loops.c:29.3-31.3 (synthetic)     │                │ loops.c:34.3-36.3                 │                       │
+                 │ (loops.c:29.7-29.21 (synthetic))  │                │ (loops.c:34.12-34.17 (synthetic)) │                       │
+                 │ server: false                     │                │ YAML loc: loops.c:34.3-36.3       │                       │
          ┌────── │                                   │                │ server: false                     │                       │
          │       └───────────────────────────────────┘                └───────────────────────────────────┘                       │
          │                                                              │                                                         │
          │                                                              │ j = 0                                                   │
          │                                                              ▼                                                         │
          │       ┌───────────────────────────────────┐                ┌───────────────────────────────────┐                       │
-         │       │ loops.c:35:5-35:23                │                │ loops.c:34:3-36:3 (synthetic)     │                       │
-         │       │ (loops.c:35:5-35:23)              │                │ (loops.c:34:7-34:30 (synthetic))  │                       │
-         │       │ YAML loc: loops.c:35:5-35:23      │  Pos(j < 10)   │ YAML loop: loops.c:34:3-36:3      │  j = j + 1            │
+         │       │ loops.c:35.5-35.23                │                │ loops.c:34.3-36.3 (synthetic)     │                       │
+         │       │ (loops.c:35.5-35.23)              │                │ (loops.c:34.7-34.30 (synthetic))  │                       │
+         │       │ YAML loc: loops.c:35.5-35.23      │  Pos(j < 10)   │ YAML loop: loops.c:34.3-36.3      │  j = j + 1            │
          │       │ server: true                      │ ◀───────────── │ server: false                     │ ◀─────────────────────┼────┐
          │       └───────────────────────────────────┘                └───────────────────────────────────┘                       │    │
          │         │                                                    │                                                         │    │
          │         │ __goblint_check(1)                                 │ Neg(j < 10)                                             │    │
          │         ▼                                                    ▼                                                         │    │
          │       ┌───────────────────────────────────┐                ┌───────────────────────────────────┐                       │    │
-         │       │ loops.c:34:3-36:3 (synthetic)     │                │ loops.c:39:3-41:3                 │                       │    │
-         │       │ (loops.c:34:12-34:17 (synthetic)) │                │ (loops.c:39:12-39:23 (synthetic)) │                       │    │
-         │       │ server: false                     │                │ YAML loc: loops.c:39:3-41:3       │                       │    │
+         │       │ loops.c:34.3-36.3 (synthetic)     │                │ loops.c:39.3-41.3                 │                       │    │
+         │       │ (loops.c:34.12-34.17 (synthetic)) │                │ (loops.c:39.12-39.23 (synthetic)) │                       │    │
+         │       │ server: false                     │                │ YAML loc: loops.c:39.3-41.3       │                       │    │
          │       │                                   │                │ server: false                     │                       │    │
          │       └───────────────────────────────────┘                └───────────────────────────────────┘                       │    │
          │         │                                                    │                                                         │    │
          │         │                                                    │ i = 0                                                   │    │
          │         │                                                    ▼                                                         │    │
          │         │                                                  ┌───────────────────────────────────┐                       │    │
-         │         │                                                  │ loops.c:39:3-41:3 (synthetic)     │                       │    │
-         │         │                                                  │ (loops.c:39:12-39:23 (synthetic)) │                       │    │
+         │         │                                                  │ loops.c:39.3-41.3 (synthetic)     │                       │    │
+         │         │                                                  │ (loops.c:39.12-39.23 (synthetic)) │                       │    │
          │         │                                                  │ server: false                     │                       │    │
          │         │                                                  └───────────────────────────────────┘                       │    │
          │         │                                                    │                                                         │    │
          │    ┌────┘                                                    │ k = i                                                   │    │
          │    │                                                         ▼                                                         │    │
          │    │  ┌───────────────────────────────────┐                ┌───────────────────────────────────┐                       │    │
-         │    │  │ loops.c:40:5-40:23                │                │ loops.c:39:3-41:3 (synthetic)     │                       │    │
-         │    │  │ (loops.c:40:5-40:23)              │                │ (loops.c:39:7-39:36 (synthetic))  │                       │    │
-         │    │  │ YAML loc: loops.c:40:5-40:23      │  Pos(i < 10)   │ YAML loop: loops.c:39:3-41:3      │  i = i + 1            │    │
+         │    │  │ loops.c:40.5-40.23                │                │ loops.c:39.3-41.3 (synthetic)     │                       │    │
+         │    │  │ (loops.c:40.5-40.23)              │                │ (loops.c:39.7-39.36 (synthetic))  │                       │    │
+         │    │  │ YAML loc: loops.c:40.5-40.23      │  Pos(i < 10)   │ YAML loop: loops.c:39.3-41.3      │  i = i + 1            │    │
          │    │  │ server: true                      │ ◀───────────── │ server: false                     │ ◀─────────────────────┼────┼─────────────┐
          │    │  └───────────────────────────────────┘                └───────────────────────────────────┘                       │    │             │
          │    │    │                                                    │                                                         │    │             │
          │    │    │ __goblint_check(1)                                 │ Neg(i < 10)                                             │    │             │
          │    │    ▼                                                    ▼                                                         │    │             │
          │    │  ┌───────────────────────────────────┐                ┌───────────────────────────────────┐                       │    │             │
-         │    │  │ loops.c:39:3-41:3 (synthetic)     │                │ loops.c:44:3-44:8                 │                       │    │             │
-         │    │  │ (loops.c:39:12-39:23 (synthetic)) │                │ (loops.c:44:3-44:8)               │                       │    │             │
-         │    │  │ server: false                     │                │ YAML loc: loops.c:44:3-44:8       │                       │    │             │
+         │    │  │ loops.c:39.3-41.3 (synthetic)     │                │ loops.c:44.3-44.8                 │                       │    │             │
+         │    │  │ (loops.c:39.12-39.23 (synthetic)) │                │ (loops.c:44.3-44.8)               │                       │    │             │
+         │    │  │ server: false                     │                │ YAML loc: loops.c:44.3-44.8       │                       │    │             │
          │    │  │                                   │                │ server: true                      │                       │    │             │
          │    │  └───────────────────────────────────┘                └───────────────────────────────────┘                       │    │             │
          │    │    │                                                    │                                                         │    │             │
          │    │    │                                                    │ i = 0                                                   │    │             │
          │    │    │                                                    ▼                                                         │    │             │
          │    │    │                                                  ┌───────────────────────────────────┐                       │    │             │
-         │    │    │                                                  │ loops.c:46:5-46:8                 │                       │    │             │
-         │    │    │                                                  │ (loops.c:46:5-46:8)               │                       │    │             │
-         │    │    │                                                  │ YAML loc: loops.c:46:5-46:8       │                       │    │             │
-         │    │    │                                                  │ YAML loop: loops.c:45:3-47:19     │                       │    │             │
+         │    │    │                                                  │ loops.c:46.5-46.8                 │                       │    │             │
+         │    │    │                                                  │ (loops.c:46.5-46.8)               │                       │    │             │
+         │    │    │                                                  │ YAML loc: loops.c:46.5-46.8       │                       │    │             │
+         │    │    │                                                  │ YAML loop: loops.c:45.3-47.19     │                       │    │             │
          │    │    │                                                  │ server: true                      │ ◀┐                    │    │             │
          │    │    │                                                  └───────────────────────────────────┘  │                    │    │             │
          │    │    │                                                    │                                    │                    │    │             │
          │    │    │                                                    │ i = i + 1                          │ Pos(i < 10)        │    │             │
          │    │    │                                                    ▼                                    │                    │    │             │
          │    │    │                                                  ┌───────────────────────────────────┐  │                    │    │             │
-         │    │    │                                                  │ loops.c:45:3-47:19 (synthetic)    │  │                    │    │             │
-         │    │    │                                                  │ (loops.c:47:12-47:19 (synthetic)) │  │                    │    │             │
+         │    │    │                                                  │ loops.c:45.3-47.19 (synthetic)    │  │                    │    │             │
+         │    │    │                                                  │ (loops.c:47.12-47.19 (synthetic)) │  │                    │    │             │
          │    │    │                                                  │ server: false                     │ ─┘                    │    │             │
          │    │    │                                                  └───────────────────────────────────┘                       │    │             │
          │    │    │                                                    │                                                         │    │             │
          │    │    │                                                    │ Neg(i < 10)                                             │    │             │
          │    │    │                                                    ▼                                                         │    │             │
          │    │    │                                                  ┌───────────────────────────────────┐                       │    │             │
-         │    │    │                                                  │ loops.c:49:3-49:11                │                       │    │             │
-         │    │    │                                                  │ (loops.c:49:10-49:11)             │                       │    │             │
-         │    │    │                                                  │ YAML loc: loops.c:49:3-49:11      │                       │    │             │
+         │    │    │                                                  │ loops.c:49.3-49.11                │                       │    │             │
+         │    │    │                                                  │ (loops.c:49.10-49.11)             │                       │    │             │
+         │    │    │                                                  │ YAML loc: loops.c:49.3-49.11      │                       │    │             │
          │    │    │                                                  │ server: true                      │                       │    │             │
          │    │    │                                                  └───────────────────────────────────┘                       │    │             │
          │    │    │                                                    │                                                         │    │             │
@@ -202,10 +202,10 @@
                    └─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
 
   $ goblint --enable ana.int.interval --enable witness.yaml.enabled --set witness.yaml.entry-types '["location_invariant", "loop_invariant"]' loops.c
-  [Success][Assert] Assertion "1" will succeed (loops.c:14:5-14:23)
-  [Success][Assert] Assertion "1" will succeed (loops.c:30:5-30:23)
-  [Success][Assert] Assertion "1" will succeed (loops.c:35:5-35:23)
-  [Success][Assert] Assertion "1" will succeed (loops.c:40:5-40:23)
+  [Success][Assert] Assertion "1" will succeed (loops.c:14.5-14.23)
+  [Success][Assert] Assertion "1" will succeed (loops.c:30.5-30.23)
+  [Success][Assert] Assertion "1" will succeed (loops.c:35.5-35.23)
+  [Success][Assert] Assertion "1" will succeed (loops.c:40.5-40.23)
   [Info][Deadcode] Logical lines of code (LLoC) summary:
     live: 20
     dead: 0
