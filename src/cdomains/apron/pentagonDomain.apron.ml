@@ -220,10 +220,23 @@ struct
     let int_dim = dim_change.intdim in
     Printf.sprintf "{ real_dim=%i; int_dim=%i; dim=[|%s|]}" real_dim int_dim (String.concat ", " (Array.to_list (Array.map Int.to_string (dim))))
 
+  let to_subscript i =
+    let transl = [|"₀";"₁";"₂";"₃";"₄";"₅";"₆";"₇";"₈";"₉"|] in
+    let rec subscr i =
+      if i = 0 then ""
+      else (subscr (i/10)) ^ transl.(i mod 10) in
+    subscr i
+
   let string_of_var (var: Var.t) =
     let s = (Var.to_string var) in
     match String.index_opt s '#' with
-    | Some i -> String.sub s 0 i
+    | Some i -> 
+      (* Environment might contain variable names like #ret *)
+      if i = 0 then 
+        let len = String.length s in
+        String.sub s 1 (len-1)
+      else
+        String.sub s 0 i
     | None -> s
 
   let string_of_texpr1 (texpr: Texpr1.expr) =
@@ -659,7 +672,8 @@ struct
     let set_string set = 
       if VarSet.cardinal set = 0 then "∅" else "{" ^ (
           VarSet.to_list set |>
-          List.map (Idx.to_string) |>
+          (* Marking for later variable name replacement *)
+          List.map (fun v -> Idx.to_string v ^ "**#**") |> 
           String.concat ", "
         ) ^ "}" in
     (* Results in: x_1 -> {y1, y2, ..., yn} *)
@@ -859,15 +873,26 @@ struct
       let d = Option.get t.d in
       let vars = Array.map (StringUtils.string_of_var) (fst (Environment.vars t.env)) in
       let res = PNTG.to_string d in
-      let re = Str.regexp "\\([0-9]+\\)->" in
-      Str.global_substitute re (
+      let boxes_re = Str.regexp {|\([0-9]+\)->|} in
+      let subs_re = Str.regexp {|\([0-9]+\)#|} in
+      Str.global_substitute boxes_re (
         fun m -> 
-          let idx = int_of_string (Str.matched_group 1 m) in
+          let idx = int_of_string (Str.matched_group 1 res) in
           if idx < Array.length vars then
             (vars.(idx) ^ "->")
           else
             failwith "D.to_string hit unknown variable!"
-      ) res
+      ) res |>
+      (* Second pass to adjust subs. *)
+      Str.global_substitute subs_re (
+        fun m -> 
+          Printf.printf "%s" m;
+          let idx = int_of_string (Str.matched_group 1 m) in
+          if idx < Array.length vars then
+            vars.(idx)
+          else
+            failwith "D.to_string hit unknown variable!"
+      )
 
   let show = to_string
 
