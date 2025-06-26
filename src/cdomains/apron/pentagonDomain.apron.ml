@@ -1015,7 +1015,7 @@ struct
 
   (** Taken from lin2var and modified for our domain. *)
   (** Parses a Texpr to obtain a Rhs.t list to repr. a sum of a variables that have a coefficient. If variable is None, the coefficient represents a constant offset. *)
-  let monomials_from_texp texp =
+  let monomials_from_texp env texp =
     let open Apron.Texpr1 in
     let exception NotLinearExpr in
     let exception ScalarIsInfinity in
@@ -1038,7 +1038,7 @@ struct
             | Some x -> [(None,x,Z.one)]
             | None -> raise ScalarIsInfinity end
         | Var x ->
-          let var_dim = Environment.dim_of_var t.env x in
+          let var_dim = Environment.dim_of_var env x in
           [(Some (Z.one,var_dim),Z.zero,Z.one)]
         | Unop  (Neg,  e, _, _) -> negate (convert_texpr e)
         | Unop  (Cast, e, _, _) -> convert_texpr e (* Ignore since casts in apron are used for floating point nums and rounding in contrast to CIL casts *)
@@ -1053,8 +1053,8 @@ struct
     | x -> Some(x)
   ;;
   (** convert and simplify (wrt. reference variables) a texpr into a tuple of a list of monomials (coeff,varidx,divi) and a (constant/divi) *)
-  let simplified_monomials_from_texp texp =
-    BatOption.bind (monomials_from_texp  texp)
+  let simplified_monomials_from_texp env texp =
+    BatOption.bind (monomials_from_texp env texp)
       (fun monomiallist ->
          let module IMap = BatMap.Make(Int) in
          let accumulate_constants (exprcache,(aconst,adiv)) (v,offs,divi) = match v with
@@ -1075,7 +1075,7 @@ struct
     | None -> t 
     | Some d ->
       (* TODO: Modulo support is lost after linearisation, may be quite important for us, as it is mentioned in the paper *)
-      let monoms = simplified_monomials_from_texp texp in
+      let monoms = simplified_monomials_from_texp t.env texp in
       match monoms with
       | None -> forget_vars t [var] 
       | Some(sum_of_terms, (constant,divisor)) ->
@@ -1152,29 +1152,29 @@ struct
 
         *)
 
-        let intv_y = Boxes.get_value index d.boxes in
-        let sub =
-          if cmp_ub <* ZExt.zero then
-            let sub_x = Sub.get_value dim_var d.sub in
-            let sub_y = Sub.get_value index d.sub in
-            let meet_sub_x_sub_y = Sub.VarSet.union sub_x sub_y in
-            let complete_sub = Sub.VarSet.union meet_sub_x_sub_y (Sub.VarSet.singleton index) in
+          let intv_y = Boxes.get_value index d.boxes in
+          let sub =
+            if cmp_ub <* ZExt.zero then
+              let sub_x = Sub.get_value dim_var d.sub in
+              let sub_y = Sub.get_value index d.sub in
+              let meet_sub_x_sub_y = Sub.VarSet.union sub_x sub_y in
+              let complete_sub = Sub.VarSet.union meet_sub_x_sub_y (Sub.VarSet.singleton index) in
 
-            Sub.set_value dim_var complete_sub d.sub
-          else
-          if cmp_ub <=* ZExt.zero then
-            let sub_x = Sub.get_value dim_var d.sub in
-            let sub_y = Sub.get_value index d.sub in
-            let meet_sub_x_sub_y = Sub.VarSet.union sub_x sub_y in
+              Sub.set_value dim_var complete_sub d.sub
+            else
+            if cmp_ub <=* ZExt.zero then
+              let sub_x = Sub.get_value dim_var d.sub in
+              let sub_y = Sub.get_value index d.sub in
+              let meet_sub_x_sub_y = Sub.VarSet.union sub_x sub_y in
 
-            Sub.set_value dim_var meet_sub_x_sub_y d.sub
-          else
-          if cmp_lb >* ZExt.zero then
-            let subs_y = Sub.get_value index d.sub in
-            let complete_sub = Sub.VarSet.union subs_y (Sub.VarSet.singleton dim_var) in
-            Sub.set_value index complete_sub d.sub
-          else 
-            d.sub in
+              Sub.set_value dim_var meet_sub_x_sub_y d.sub
+            else
+            if cmp_lb >* ZExt.zero then
+              let subs_y = Sub.get_value index d.sub in
+              let complete_sub = Sub.VarSet.union subs_y (Sub.VarSet.singleton dim_var) in
+              Sub.set_value index complete_sub d.sub
+            else 
+              d.sub in
 
           let boxes = (Boxes.set_value dim_var intv_x' d.boxes) in
           wrap boxes sub
