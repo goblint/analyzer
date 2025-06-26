@@ -1151,6 +1151,29 @@ struct
             x' > y sicher:  SUBs(y) := SUBs(y) u {x}
 
         *)
+        let intv_y = Boxes.get_value index d.boxes in
+        let sub =
+          if Intv.sup intv_x' <* Intv.inf intv_y then
+            let sub_x = Sub.get_value dim_var d.sub in
+            let sub_y = Sub.get_value index d.sub in
+            let meet_sub_x_sub_y = SUB.VarSet.union sub_x sub_y in
+            let complete_sub = SUB.VarSet.union meet_sub_x_sub_y (Sub.VarSet.singleton index) in
+
+            Sub.set_value dim_var complete_sub d.sub
+          else
+          if Intv.sup intv_x' <=* Intv.inf intv_y then
+            let sub_x = Sub.get_value dim_var d.sub in
+            let sub_y = Sub.get_value index d.sub in
+            let meet_sub_x_sub_y = SUB.VarSet.union sub_x sub_y in
+
+            Sub.set_value dim_var meet_sub_x_sub_y d.sub
+          else
+          if Intv.inf intv_x' >* Intv.sup intv_y then
+            let subs_y = Sub.get_value index d.sub in
+            let complete_sub = Sub.VarSet.union subs_y (Sub.VarSet.singleton dim_var)
+            Sub.set_value index complete_sub d.sub
+          else d.sub in
+
           let boxes = (Boxes.set_value dim_var intv_x' d.boxes) in
           wrap boxes sub
         | _ -> failwith "TODO"
