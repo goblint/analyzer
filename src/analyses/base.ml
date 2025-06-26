@@ -312,7 +312,12 @@ struct
           | `Top -> AD.top_ptr
         end
       | UnknownPtr
-      | StrPtr _ -> AD.unknown_ptr
+      | StrPtr _ ->
+        begin match ID.equal_to Z.zero n with
+          | `Eq -> AD.singleton addr (* remains unchanged *)
+          | `Neq
+          | `Top -> AD.top_ptr
+        end
     in
     let ad_concat_map f a = AD.fold (fun a acc -> AD.join (f a) acc) a (AD.empty ()) in
     let addToAddrOp p (n:ID.t):value =
