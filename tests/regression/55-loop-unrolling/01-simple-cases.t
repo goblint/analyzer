@@ -4,12 +4,12 @@
   [Info] unrolling loop at 01-simple-cases.c:57.5-60.5 with factor 5
   [Info] unrolling loop at 01-simple-cases.c:74.5-80.5 with factor 5
   [Info] unrolling loop at 01-simple-cases.c:95.5-105:5 with factor 5
-  [Info] unrolling loop at 01-simple-cases.c:119:5-123:5 with factor 5
-  [Info] unrolling loop at 01-simple-cases.c:143:2-146:2 with factor 5
-  [Info] unrolling loop at 01-simple-cases.c:160:9-163:9 with factor 5
-  [Info] unrolling loop at 01-simple-cases.c:157:2-165:2 with factor 5
-  [Info] unrolling loop at 01-simple-cases.c:174:2-178:2 with factor 5
-  [Info] unrolling loop at 01-simple-cases.c:187:2-194:2 with factor 5
+  [Info] unrolling loop at 01-simple-cases.c:119.5-123.5 with factor 5
+  [Info] unrolling loop at 01-simple-cases.c:143.2-146.2 with factor 5
+  [Info] unrolling loop at 01-simple-cases.c:160.9-163.9 with factor 5
+  [Info] unrolling loop at 01-simple-cases.c:157.2-165.2 with factor 5
+  [Info] unrolling loop at 01-simple-cases.c:174.2-178.2 with factor 5
+  [Info] unrolling loop at 01-simple-cases.c:187.2-194.2 with factor 5
   extern void __goblint_check(int exp ) ;
   extern void __goblint_assume(int exp ) ;
   extern void __goblint_assert(int exp ) ;
