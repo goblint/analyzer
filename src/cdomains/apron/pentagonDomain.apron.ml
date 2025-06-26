@@ -1280,7 +1280,27 @@ struct
       Taken from Lin2Var.
   *)
   let assert_constraint ask t e negate (no_ov: bool Lazy.t) =
-
+    (*let wrap b s = {d=Some({boxes = b; sub=s}); env=t.env} in
+      let texp = (
+      match Convert.tcons1_of_cil_exp ask t t.env e negate no_ov with
+      | exception Convert.Unsupported_CilExp _ -> failwith "Failed to convert cil expression\n"
+      | tcons1 -> Texpr1.to_expr @@ Tcons1.get_texpr1 tcons1
+      ) 
+      in
+      match t.d with
+      | None -> t 
+      | Some d ->
+      (* TODO: Modulo support is lost after linearisation, may be quite important for us, as it is mentioned in the paper *)
+      let monoms = simplified_monomials_from_texp t.env texp in
+      match monoms with
+      | None -> t
+      | Some(sum_of_terms, (constant,divisor)) ->
+        let monoms = Option.get monoms in
+        match sum_of_terms with
+        | _ when divisor <> Z.one -> failwith "assign_texpr: DIVISOR WAS NOT ONE"
+        | [] ->  t
+        | [(coefficient, index, _)] -> t
+        | _ -> t*)
     let zero = ZExt.zero in 
     (** Checks if the constraining interval violates the assertion. *)
     let interval_helper ((lb, ub): ZExt.t * ZExt.t) (tcons_typ: Tcons1.typ) =
