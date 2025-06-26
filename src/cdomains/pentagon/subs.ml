@@ -1,6 +1,8 @@
 open Batteries
 open GobApron
 
+open StringUtils
+
 (** Stores functions and types for strict upper bounds. *)
 module Subs =
 struct
@@ -139,7 +141,7 @@ struct
   let get_value index subs = BatList.at subs index
 
   let to_string (sub: t) =
-    (* Results in: { y1, y2, ..., yn }*)
+    (* The following results in: { y1#, y2#, ..., yn# }*)
     let set_string set = 
       if VarSet.cardinal set = 0 then "∅" else "{" ^ (
           VarSet.to_list set |>
@@ -147,7 +149,7 @@ struct
           List.map (fun v -> Idx.to_string v ^ "#") |> 
           String.concat ", "
         ) ^ "}" in
-    (* Results in: x_1 -> {y1, y2, ..., yn} *)
+    (* The following results in: x_1 -> {y1#, y2#, ..., yn#}; ... ; x_n -> {y1#, ..., yn#} *)
     String.concat "; " (
       VarList.mapi (
         fun i set ->
@@ -158,11 +160,12 @@ struct
   let to_string (subs: t) =
     let bot_or_top = 
       if is_bot subs then
-        "(⊥)"
+        StringUtils.bot_str
       else if is_top subs then
-        "(⊤)"
+        StringUtils.top_str
       else
-        "( )"
+        " "
+        |> Printf.sprintf "(%s)"
     in
     Printf.sprintf "%s { %s }" bot_or_top (to_string subs)
 

@@ -20,11 +20,12 @@ struct
     in
     let bot_or_top =
       if is_bot intervals then
-        "(⊥)"
+        StringUtils.bot_str
       else if is_top intervals then
-        "(⊤)"
+        StringUtils.top_str
       else 
-        "( )"
+        " "
+        |> Printf.sprintf "(%s)"
     in
     Printf.sprintf "%s { %s }" bot_or_top (String.concat "; " (List.mapi string_of_interval intervals))
 
@@ -46,7 +47,6 @@ struct
   let narrow (i1: t) (i2: t) = 
     meet i1 i2
 
-
   let dim_add (dim_change: Apron.Dim.change) (intervals: t) =
     if dim_change.realdim != 0 then
       failwith "Pentagons are defined over integers: \
@@ -64,16 +64,6 @@ struct
       in
       insert_dimensions intervals change_arr
   ;;
-
-
-  (* Backup implementation, if dim_change.dim is not sorted and contains duplicates. *)
-  (*let dim_remove (dim_change: Apron.Dim.change) (intervals : t) =
-    if dim_change.realdim != 0 then
-      failwith "Pentagons are defined over integers: \
-                extension with real domain is nonsensical"
-    else 
-      List.filteri (fun i _ -> not (Array.mem i dim_change.dim)) intervals*)
-
 
   (* precondition: dim_change is sorted and has unique elements *)
   let dim_remove (dim_change: Apron.Dim.change) (intervals : t) =

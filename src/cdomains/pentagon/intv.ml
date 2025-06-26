@@ -60,16 +60,8 @@ struct
         ZExt.max4 (x1 / y1) (x1 / y2) (x2 / y1) (x2 / y2)
       ): t)
 
-  (** Checks whether the lower bound is -infty, i.e., unbound *)
-  (**
-     TODO: Verfiy that `inf` is correct here. Alternative `fst`.
-  *)
   let no_lowerbound (i: t) = ZExt.NegInfty = inf i
 
-  (** Checks whether the upper bound is +infty, i.e., unbound *)
-  (**
-     TODO: Verfiy that `sup` is correct here. Alternative `snd`.
-  *)
   let no_upperbound (i: t) = ZExt.PosInfty = sup i
 
   (* taken from https://people.eng.unimelb.edu.au/pstuckey/papers/toplas15.pdf *)

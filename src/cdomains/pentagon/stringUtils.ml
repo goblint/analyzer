@@ -3,18 +3,21 @@ open ZExt
 
 module StringUtils =
 struct
+
+  (* Symbol for top.  *)
+  let top_str = "⊤";;
+
+  (* Symbol for bot. *)
+  let bot_str = "⊥";;
+
+  (* Symbol for a 32 bit integer. *)
+  let int32_str = "I32";;
+
   let string_of_dim_change (dim_change:Apron.Dim.change) = 
     let dim = dim_change.dim in
     let real_dim = dim_change.realdim in
     let int_dim = dim_change.intdim in
     Printf.sprintf "{ real_dim=%i; int_dim=%i; dim=[|%s|]}" real_dim int_dim (String.concat ", " (Array.to_list (Array.map Int.to_string (dim))))
-
-  let to_subscript i =
-    let transl = [|"₀";"₁";"₂";"₃";"₄";"₅";"₆";"₇";"₈";"₉"|] in
-    let rec subscr i =
-      if i = 0 then ""
-      else (subscr (i/10)) ^ transl.(i mod 10) in
-    subscr i
 
   let string_of_var (var: Var.t) =
     let s = (Var.to_string var) in
@@ -52,10 +55,12 @@ struct
   (** Returns "-I32" or "+I32" if z is bound, else just the string of z. *)
   let int32_bound_str z =
     let (=*) = ZExtOps.(=*) in
-    if z =* (ZExt.of_int (-2147483648)) then 
-      "-I32" 
-    else if z =* (ZExt.of_int (2147483647)) then 
-      "+I32"
+    let min_int = Int32.to_int Int32.min_int in
+    let max_int = Int32.to_int Int32.max_int in
+    if z =* (ZExt.of_int min_int) then 
+      "-" ^ int32_str 
+    else if z =* (ZExt.of_int max_int) then 
+      "+" ^ int32_str
     else
       ZExt.to_string z
 end
