@@ -873,26 +873,19 @@ struct
       let d = Option.get t.d in
       let vars = Array.map (StringUtils.string_of_var) (fst (Environment.vars t.env)) in
       let res = PNTG.to_string d in
-      let boxes_re = Str.regexp {|\([0-9]+\)->|} in
+      let keys_re = Str.regexp {|\([0-9]+\)->|} in
       let subs_re = Str.regexp {|\([0-9]+\)#|} in
-      Str.global_substitute boxes_re (
-        fun m -> 
-          let idx = int_of_string (Str.matched_group 1 res) in
-          if idx < Array.length vars then
-            (vars.(idx) ^ "->")
-          else
-            failwith "D.to_string hit unknown variable!"
-      ) res |>
-      (* Second pass to adjust subs. *)
-      Str.global_substitute subs_re (
-        fun m ->
+      let varname_and_append = fun postfix m -> (
           let idx = int_of_string (Str.matched_group 1 m) in
           if idx < Array.length vars then
-            vars.(idx)
+            vars.(idx) ^ postfix
           else
             failwith "D.to_string hit unknown variable!"
-      )
-
+        ) in
+      (* First pass substitutes the variable names for the keys left to the arrow. *)
+      Str.global_substitute keys_re (varname_and_append "->") res |>
+      (* Second pass adjusts the variable name for the subs sets. *)
+      Str.global_substitute subs_re (varname_and_append "") 
   let show = to_string
 
   let equal t1 t2 =
