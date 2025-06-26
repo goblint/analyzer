@@ -345,8 +345,8 @@ struct
       then i1 - (quotient * i2)
       else
         let ub_minus_1 = ZExt.sub (ZExt.max (ZExt.abs l2) (ZExt.abs u2)) (ZExt.of_int 1) in
-        if ZExt.sign (sup i1) <= 0 then (ZExt.neg ub_minus_1, zero)
-        else (zero, ub_minus_1)
+        if ZExt.sign (sup i1) <= 0 then (ZExt.max (ZExt.neg ub_minus_1) (inf i1), zero)
+        else (zero, ZExt.min ub_minus_1 (sup i1))
 
 
   (**
@@ -1066,6 +1066,7 @@ struct
     match t.d with
     | None -> t 
     | Some d ->
+      (* TODO: Modulo support is lost after linearisation, may be quite important for us, as it is mentioned in the paper *)
       let monoms = simplified_monomials_from_texp texp in
       match monoms with
       | None -> forget_vars t [var] 
@@ -1075,10 +1076,10 @@ struct
         | _ when divisor <> Z.one -> failwith "assign_texpr: DIVISOR WAS NOT ONE"
         | [] -> 
           wrap (Boxes.set_value dim_var (ZExt.Arb constant, ZExt.Arb constant) d.boxes) (Sub.forget_vars [dim_var] d.sub)
-        | [(coefficient, index, _)] when index = dim_var -> (
+        | [(coefficient, index, _)] when index = dim_var ->
             let new_intv = eval_monoms_to_intv d.boxes monoms in
             let boxes = (Boxes.set_value index new_intv d.boxes) in
-            (* We analyse x op (a-1)x + b *)
+            (* We analyse 0 >< (a-1)x + b because it is more precise than x >< ax + b *)
             let modified_monoms = ([(Z.(-) coefficient Z.one, index, Z.one)], (constant, Z.one)) in
             let (lb, ub) = eval_monoms_to_intv d.boxes modified_monoms in
 
@@ -1095,8 +1096,30 @@ struct
 
             in
             wrap boxes sub
-          )
-        | [(coefficient, index, _)] -> failwith "TODO"
+        | [(coefficient, index, _)] -> (* x' := ay + b *)
+        (*
+            x < x'
+            <==> x < ay + b
+            <==> 0 < -x + ay + b
+
+
+            analysiere 0 >< -x + ay + b, hier kann man auch vorherige SUBs-Infos verwenden
+            x < y ==> -x + ay + b >= (a-1)y + b + 1 ==> wenn (a-1)y + b + 1 > 0 möglich, dann x' > x möglich, also delete SUBs(x)
+            x > y ==> -x + ay + b <= (a-1)y + b - 1 ==> wenn (a-1)y + b - 1 < 0 möglich, dann x' < x möglich, also delete SLBs(x)
+
+            FRAGE: Sind die modifizierten Terme immer genauer als die direkte Version, also für den ersten Fall:
+            Gilt immer sup(-x + ay + b) >= sup ((a-1)y + b + 1)?
+
+            x' < x möglich: delete SLBs(x)
+            x' > x möglich: delete SUBs(x)
+
+            analysiere 0 >< (a-1)y + b
+            x' < y sicher:  SUBs(x) := SUBs(x) u SUBs(y) u {y}
+            x' <= y sicher: SUBs(x) := SUBs(x) u SUBs(y)
+            x' > y sicher:  SUBs(y) := SUBs(y) u {x}
+
+        *)
+          failwith "TODO"
         | _ -> failwith "TODO"
 
   (* { d=Some({ boxes = boxes; sub = sub }); env = t.env } *)
