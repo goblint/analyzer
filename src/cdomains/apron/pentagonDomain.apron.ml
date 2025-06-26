@@ -1106,7 +1106,7 @@ struct
         let monoms = Option.get monoms in
         match sum_of_terms with
         | _ when divisor <> Z.one -> failwith "assign_texpr: DIVISOR WAS NOT ONE"
-        | [] -> 
+        | [] -> (* instead of always forgetting, you could use old Sub information here, too *)
           wrap (Boxes.set_value dim_var (ZExt.Arb constant, ZExt.Arb constant) d.boxes) (Sub.forget_vars [dim_var] d.sub)
         | [(coefficient, index, _)] when index = dim_var ->
           let new_intv = eval_monoms_to_intv d.boxes monoms in
@@ -1176,29 +1176,28 @@ struct
 
         *)
 
-          let intv_y = Boxes.get_value index d.boxes in
           let sub =
             if cmp_ub <* ZExt.zero then
-              let sub_x = Sub.get_value dim_var d.sub in
-              let sub_y = Sub.get_value index d.sub in
+              let sub_x = Sub.get_value dim_var sub in
+              let sub_y = Sub.get_value index sub in
               let meet_sub_x_sub_y = Sub.VarSet.union sub_x sub_y in
               let complete_sub = Sub.VarSet.union meet_sub_x_sub_y (Sub.VarSet.singleton index) in
 
-              Sub.set_value dim_var complete_sub d.sub
+              Sub.set_value dim_var complete_sub sub
             else
             if cmp_ub <=* ZExt.zero then
-              let sub_x = Sub.get_value dim_var d.sub in
-              let sub_y = Sub.get_value index d.sub in
+              let sub_x = Sub.get_value dim_var sub in
+              let sub_y = Sub.get_value index sub in
               let meet_sub_x_sub_y = Sub.VarSet.union sub_x sub_y in
 
-              Sub.set_value dim_var meet_sub_x_sub_y d.sub
+              Sub.set_value dim_var meet_sub_x_sub_y sub
             else
             if cmp_lb >* ZExt.zero then
-              let subs_y = Sub.get_value index d.sub in
+              let subs_y = Sub.get_value index sub in
               let complete_sub = Sub.VarSet.union subs_y (Sub.VarSet.singleton dim_var) in
-              Sub.set_value index complete_sub d.sub
+              Sub.set_value index complete_sub sub
             else 
-              d.sub in
+              sub in
 
           let boxes = (Boxes.set_value dim_var intv_x' d.boxes) in
           wrap boxes sub
