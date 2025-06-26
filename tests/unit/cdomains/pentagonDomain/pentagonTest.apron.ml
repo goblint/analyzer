@@ -3,7 +3,7 @@ open OUnit2
 open Goblint_lib
 open Batteries
 open PentagonDomain
-open Intv
+
 
 let stringing _ =
   let s = "{ boxes = ( ) { 0->[1, 1]; 1->[2, 2]; 2->[-I32, +I32] }; sub = (⊤) { 0->∅; 1->{0#, 2#}; 2->{0#} } }" in
@@ -28,9 +28,8 @@ let stringing _ =
         vars.(idx)
       else
         failwith "D.to_string hit unknown variable!"
-  ) |> 
-  Printf.printf "%s\n";
-  assert_bool "" true
+  ) |>
+  assert_equal expected
 
 let noop _ = assert_bool "" true
 
