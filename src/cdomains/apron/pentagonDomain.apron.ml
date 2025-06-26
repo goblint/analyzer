@@ -681,6 +681,14 @@ struct
     in
     Printf.sprintf "%s { %s }" bot_or_top (to_string sub)
 
+  (* x_i < x_j <== x_j \in SUBs(x_i) *)
+  let lt subs i j =
+    let subs_i = List.at subs i in
+    VarSet.mem j subs_i
+
+  let gt subs i j =
+    lt subs j i
+
 end
 
 
@@ -1077,25 +1085,25 @@ struct
         | [] -> 
           wrap (Boxes.set_value dim_var (ZExt.Arb constant, ZExt.Arb constant) d.boxes) (Sub.forget_vars [dim_var] d.sub)
         | [(coefficient, index, _)] when index = dim_var ->
-            let new_intv = eval_monoms_to_intv d.boxes monoms in
-            let boxes = (Boxes.set_value index new_intv d.boxes) in
-            (* We analyse 0 >< (a-1)x + b because it is more precise than x >< ax + b *)
-            let modified_monoms = ([(Z.(-) coefficient Z.one, index, Z.one)], (constant, Z.one)) in
-            let (lb, ub) = eval_monoms_to_intv d.boxes modified_monoms in
+          let new_intv = eval_monoms_to_intv d.boxes monoms in
+          let boxes = (Boxes.set_value index new_intv d.boxes) in
+          (* We analyse 0 >< (a-1)x + b because it is more precise than x >< ax + b *)
+          let modified_monoms = ([(Z.(-) coefficient Z.one, index, Z.one)], (constant, Z.one)) in
+          let (lb, ub) = eval_monoms_to_intv d.boxes modified_monoms in
 
-            let sub =
-              if lb >* ZExt.zero then
-                Sub.set_value index Sub.VarSet.empty d.sub
-              else
-              if ub <* ZExt.zero then
-                Sub.forget_vars_from_sets [index] d.sub
-              else
-              if lb <* ZExt.zero && ub >* ZExt.zero then
-                Sub.forget_vars [index] d.sub 
-              else d.sub
+          let sub =
+            if lb >* ZExt.zero then
+              Sub.set_value index Sub.VarSet.empty d.sub
+            else
+            if ub <* ZExt.zero then
+              Sub.forget_vars_from_sets [index] d.sub
+            else
+            if lb <* ZExt.zero && ub >* ZExt.zero then
+              Sub.forget_vars [index] d.sub 
+            else d.sub
 
-            in
-            wrap boxes sub
+          in
+          wrap boxes sub
         | [(coefficient, index, _)] -> (* x' := ay + b *)
         (*
             x < x'
@@ -1104,22 +1112,47 @@ struct
 
 
             analysiere 0 >< -x + ay + b, hier kann man auch vorherige SUBs-Infos verwenden
-            x < y ==> -x + ay + b >= (a-1)y + b + 1 ==> wenn (a-1)y + b + 1 > 0 möglich, dann x' > x möglich, also delete SUBs(x)
-            x > y ==> -x + ay + b <= (a-1)y + b - 1 ==> wenn (a-1)y + b - 1 < 0 möglich, dann x' < x möglich, also delete SLBs(x)
+            x < y ==> -x + ay + b >= (a-1)y + b + 1 ==> wenn (a-1)y + b >= 0 möglich, dann x' > x möglich, also delete SUBs(x)
+            x > y ==> -x + ay + b <= (a-1)y + b - 1 ==> wenn (a-1)y + b <= 0 möglich, dann x' < x möglich, also delete SLBs(x)
 
             FRAGE: Sind die modifizierten Terme immer genauer als die direkte Version, also für den ersten Fall:
             Gilt immer sup(-x + ay + b) >= sup ((a-1)y + b + 1)?
 
             x' < x möglich: delete SLBs(x)
-            x' > x möglich: delete SUBs(x)
+            x' > x möglich: delete SUBs(x)*)
 
+          let intv_x = Boxes.get_value dim_var d.boxes in
+          let intv_x' = eval_monoms_to_intv d.boxes monoms in
+          (* If there is SUBs information between x and y, we can be more precise if we also analyse 0 >< (a-1)y + b *)
+          let comparison = ([(Z.(-) coefficient Z.one, index, Z.one)], (constant, Z.one)) in
+          let (cmp_lb, cmp_ub) = eval_monoms_to_intv d.boxes comparison in
+
+          let delete_subs_flag = (* x could have got greater / we can't rule out x' > x *)
+            Intv.sup intv_x' >* Intv.inf intv_x &&
+            if Sub.lt d.sub dim_var index (* x < y ==> -x + ay + b >= (a-1)y + b + 1 ==> if (a-1)y + b >= 0 is possible, x' > x is possible *)
+            then cmp_ub >=* ZExt.zero
+            else true in
+          let delete_slbs_flag = (* x could have got lower / we can't rule out x' < x *)
+            Intv.inf intv_x' <* Intv.sup intv_x &&
+            if Sub.gt d.sub dim_var index
+            then cmp_lb <=* ZExt.zero
+            else true in
+
+          let sub = (d.sub
+                     |> if delete_subs_flag then Sub.set_value dim_var Sub.VarSet.empty else Fun.id)
+                    |> if delete_slbs_flag then Sub.forget_vars_from_sets [dim_var] else Fun.id
+          in
+
+
+        (*
             analysiere 0 >< (a-1)y + b
             x' < y sicher:  SUBs(x) := SUBs(x) u SUBs(y) u {y}
             x' <= y sicher: SUBs(x) := SUBs(x) u SUBs(y)
             x' > y sicher:  SUBs(y) := SUBs(y) u {x}
 
         *)
-          failwith "TODO"
+          let boxes = (Boxes.set_value dim_var intv_x' d.boxes) in
+          wrap boxes sub
         | _ -> failwith "TODO"
 
   (* { d=Some({ boxes = boxes; sub = sub }); env = t.env } *)
