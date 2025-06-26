@@ -1,10 +1,10 @@
   $ goblint --enable witness.yaml.enabled --enable ana.int.interval --set witness.yaml.entry-types '["precondition_loop_invariant"]' 05-prec-problem.c
-  [Success][Assert] Assertion "y != z" will succeed (05-prec-problem.c:22:5-22:28)
+  [Success][Assert] Assertion "y != z" will succeed (05-prec-problem.c:22.5-22.28)
   [Info][Deadcode] Logical lines of code (LLoC) summary:
     live: 13
     dead: 0
     total lines: 13
-  [Warning][Deadcode][CWE-570] condition '0' (possibly inserted by CIL) is always false (05-prec-problem.c:13:12-13:13)
+  [Warning][Deadcode][CWE-570] condition '0' (possibly inserted by CIL) is always false (05-prec-problem.c:13.12-13.13)
   [Info][Witness] witness generation summary:
     location invariants: 0
     loop invariants: 0

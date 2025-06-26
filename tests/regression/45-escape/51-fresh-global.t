@@ -3,9 +3,9 @@
     live: 15
     dead: 0
     total lines: 15
-  [Warning][Race] Memory location (alloc@sid:$SID@tid:main) (race with conf. 110): (51-fresh-global.c:25:7-25:31)
-    write with lock:{A} (conf. 110)  (exp: & *i) (51-fresh-global.c:10:3-10:10)
-    write with thread:main (conf. 110)  (exp: & *i) (51-fresh-global.c:27:3-27:9)
+  [Warning][Race] Memory location (alloc@sid:$SID@tid:main) (race with conf. 110): (51-fresh-global.c:25.7-25.31)
+    write with lock:{A} (conf. 110)  (exp: & *i) (51-fresh-global.c:10.3-10.10)
+    write with thread:main (conf. 110)  (exp: & *i) (51-fresh-global.c:27.3-27.9)
   [Info][Race] Memory locations race summary:
     safe: 1
     vulnerable: 0
@@ -16,7 +16,7 @@
 
   $ diff default-output.txt full-output.txt
   5c5
-  < [Warning][Race] Memory location (alloc@sid:$SID@tid:main) (race with conf. 110): (51-fresh-global.c:25:7-25:31)
+  < [Warning][Race] Memory location (alloc@sid:$SID@tid:main) (race with conf. 110): (51-fresh-global.c:25.7-25.31)
   ---
-  > [Warning][Race] Memory location (alloc@sid:$SID@tid:main(#top)) (race with conf. 110): (51-fresh-global.c:25:7-25:31)
+  > [Warning][Race] Memory location (alloc@sid:$SID@tid:main(#top)) (race with conf. 110): (51-fresh-global.c:25.7-25.31)
   [1]

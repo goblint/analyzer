@@ -1,8 +1,8 @@
   $ goblint --set lib.activated '["goblint"]' --set exp.unrolling-factor 5 --enable justcil --set dbg.justcil-printer clean 01-simple-cases.c
-  [Info] unrolling loop at 01-simple-cases.c:27:5-30:5 with factor 5
-  [Info] unrolling loop at 01-simple-cases.c:42:5-45:19 with factor 5
-  [Info] unrolling loop at 01-simple-cases.c:57:5-60:5 with factor 5
-  [Info] unrolling loop at 01-simple-cases.c:74:5-80:5 with factor 5
+  [Info] unrolling loop at 01-simple-cases.c:27.5-30.5 with factor 5
+  [Info] unrolling loop at 01-simple-cases.c:42.5-45.19 with factor 5
+  [Info] unrolling loop at 01-simple-cases.c:57.5-60.5 with factor 5
+  [Info] unrolling loop at 01-simple-cases.c:74.5-80.5 with factor 5
   [Info] unrolling loop at 01-simple-cases.c:95:5-105:5 with factor 5
   [Info] unrolling loop at 01-simple-cases.c:119:5-123:5 with factor 5
   [Info] unrolling loop at 01-simple-cases.c:143:2-146:2 with factor 5

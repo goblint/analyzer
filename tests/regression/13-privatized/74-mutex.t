@@ -1,12 +1,12 @@
   $ goblint --enable ana.sv-comp.functions --set ana.base.privatization protection --enable witness.yaml.enabled --set ana.activated[+] mutexGhosts --set witness.yaml.entry-types '["flow_insensitive_invariant", "ghost_instrumentation"]' 74-mutex.c
-  [Success][Assert] Assertion "used == 0" will succeed (74-mutex.c:37:3-37:29)
+  [Success][Assert] Assertion "used == 0" will succeed (74-mutex.c:37.3-37.29)
   [Warning][Deadcode] Function 'producer' has dead code:
     on line 26 (74-mutex.c:26-26)
   [Warning][Deadcode] Logical lines of code (LLoC) summary:
     live: 14
     dead: 1
     total lines: 15
-  [Warning][Deadcode][CWE-571] condition '1' (possibly inserted by CIL) is always true (74-mutex.c:19:10-19:11)
+  [Warning][Deadcode][CWE-571] condition '1' (possibly inserted by CIL) is always true (74-mutex.c:19.10-19.11)
   [Info][Witness] witness generation summary:
     location invariants: 0
     loop invariants: 0
@@ -94,14 +94,14 @@
 Flow-insensitive invariants as location invariants.
 
   $ goblint --enable ana.sv-comp.functions --set ana.base.privatization protection --enable witness.yaml.enabled --set ana.activated[+] mutexGhosts --set witness.yaml.entry-types '["flow_insensitive_invariant", "ghost_instrumentation"]' --set witness.invariant.flow_insensitive-as location_invariant 74-mutex.c
-  [Success][Assert] Assertion "used == 0" will succeed (74-mutex.c:37:3-37:29)
+  [Success][Assert] Assertion "used == 0" will succeed (74-mutex.c:37.3-37.29)
   [Warning][Deadcode] Function 'producer' has dead code:
     on line 26 (74-mutex.c:26-26)
   [Warning][Deadcode] Logical lines of code (LLoC) summary:
     live: 14
     dead: 1
     total lines: 15
-  [Warning][Deadcode][CWE-571] condition '1' (possibly inserted by CIL) is always true (74-mutex.c:19:10-19:11)
+  [Warning][Deadcode][CWE-571] condition '1' (possibly inserted by CIL) is always true (74-mutex.c:19.10-19.11)
   [Info][Witness] witness generation summary:
     location invariants: 2
     loop invariants: 0
@@ -144,14 +144,14 @@ Should also work with earlyglobs.
 Earlyglobs shouldn't cause protected writes in multithreaded mode from being immediately published to protected invariant.
 
   $ goblint --enable ana.sv-comp.functions --set ana.base.privatization protection --enable exp.earlyglobs 74-mutex.c
-  [Success][Assert] Assertion "used == 0" will succeed (74-mutex.c:37:3-37:29)
+  [Success][Assert] Assertion "used == 0" will succeed (74-mutex.c:37.3-37.29)
   [Warning][Deadcode] Function 'producer' has dead code:
     on line 26 (74-mutex.c:26-26)
   [Warning][Deadcode] Logical lines of code (LLoC) summary:
     live: 14
     dead: 1
     total lines: 15
-  [Warning][Deadcode][CWE-571] condition '1' (possibly inserted by CIL) is always true (74-mutex.c:19:10-19:11)
+  [Warning][Deadcode][CWE-571] condition '1' (possibly inserted by CIL) is always true (74-mutex.c:19.10-19.11)
   [Info][Race] Memory locations race summary:
     safe: 1
     vulnerable: 0
@@ -161,14 +161,14 @@ Earlyglobs shouldn't cause protected writes in multithreaded mode from being imm
 Same with ghost_instrumentation and invariant_set entries.
 
   $ goblint --enable ana.sv-comp.functions --set ana.base.privatization protection --enable witness.yaml.enabled --set ana.activated[+] mutexGhosts --set witness.yaml.entry-types '["flow_insensitive_invariant", "ghost_instrumentation"]' --set witness.invariant.flow_insensitive-as invariant_set-location_invariant 74-mutex.c
-  [Success][Assert] Assertion "used == 0" will succeed (74-mutex.c:37:3-37:29)
+  [Success][Assert] Assertion "used == 0" will succeed (74-mutex.c:37.3-37.29)
   [Warning][Deadcode] Function 'producer' has dead code:
     on line 26 (74-mutex.c:26-26)
   [Warning][Deadcode] Logical lines of code (LLoC) summary:
     live: 14
     dead: 1
     total lines: 15
-  [Warning][Deadcode][CWE-571] condition '1' (possibly inserted by CIL) is always true (74-mutex.c:19:10-19:11)
+  [Warning][Deadcode][CWE-571] condition '1' (possibly inserted by CIL) is always true (74-mutex.c:19.10-19.11)
   [Info][Witness] witness generation summary:
     location invariants: 2
     loop invariants: 0
@@ -266,14 +266,14 @@ Same with ghost_instrumentation and invariant_set entries.
 Same protected invariant with vojdani but no unprotected invariant.
 
   $ goblint --enable ana.sv-comp.functions --set ana.base.privatization vojdani --enable witness.yaml.enabled --set ana.activated[+] mutexGhosts --set witness.yaml.entry-types '["flow_insensitive_invariant", "ghost_instrumentation"]' 74-mutex.c
-  [Success][Assert] Assertion "used == 0" will succeed (74-mutex.c:37:3-37:29)
+  [Success][Assert] Assertion "used == 0" will succeed (74-mutex.c:37.3-37.29)
   [Warning][Deadcode] Function 'producer' has dead code:
     on line 26 (74-mutex.c:26-26)
   [Warning][Deadcode] Logical lines of code (LLoC) summary:
     live: 14
     dead: 1
     total lines: 15
-  [Warning][Deadcode][CWE-571] condition '1' (possibly inserted by CIL) is always true (74-mutex.c:19:10-19:11)
+  [Warning][Deadcode][CWE-571] condition '1' (possibly inserted by CIL) is always true (74-mutex.c:19.10-19.11)
   [Info][Witness] witness generation summary:
     location invariants: 0
     loop invariants: 0
@@ -356,14 +356,14 @@ Same protected invariant with vojdani but no unprotected invariant.
 Same as protection with mutex-meet.
 
   $ goblint --enable ana.sv-comp.functions --set ana.base.privatization mutex-meet --enable witness.yaml.enabled --set ana.activated[+] mutexGhosts --set witness.yaml.entry-types '["flow_insensitive_invariant", "ghost_instrumentation"]' 74-mutex.c
-  [Success][Assert] Assertion "used == 0" will succeed (74-mutex.c:37:3-37:29)
+  [Success][Assert] Assertion "used == 0" will succeed (74-mutex.c:37.3-37.29)
   [Warning][Deadcode] Function 'producer' has dead code:
     on line 26 (74-mutex.c:26-26)
   [Warning][Deadcode] Logical lines of code (LLoC) summary:
     live: 14
     dead: 1
     total lines: 15
-  [Warning][Deadcode][CWE-571] condition '1' (possibly inserted by CIL) is always true (74-mutex.c:19:10-19:11)
+  [Warning][Deadcode][CWE-571] condition '1' (possibly inserted by CIL) is always true (74-mutex.c:19.10-19.11)
   [Info][Witness] witness generation summary:
     location invariants: 0
     loop invariants: 0
@@ -451,14 +451,14 @@ Same as protection with mutex-meet.
 Should also work with earlyglobs.
 
   $ goblint --enable ana.sv-comp.functions --set ana.base.privatization mutex-meet --enable exp.earlyglobs 74-mutex.c
-  [Success][Assert] Assertion "used == 0" will succeed (74-mutex.c:37:3-37:29)
+  [Success][Assert] Assertion "used == 0" will succeed (74-mutex.c:37.3-37.29)
   [Warning][Deadcode] Function 'producer' has dead code:
     on line 26 (74-mutex.c:26-26)
   [Warning][Deadcode] Logical lines of code (LLoC) summary:
     live: 14
     dead: 1
     total lines: 15
-  [Warning][Deadcode][CWE-571] condition '1' (possibly inserted by CIL) is always true (74-mutex.c:19:10-19:11)
+  [Warning][Deadcode][CWE-571] condition '1' (possibly inserted by CIL) is always true (74-mutex.c:19.10-19.11)
   [Info][Race] Memory locations race summary:
     safe: 1
     vulnerable: 0

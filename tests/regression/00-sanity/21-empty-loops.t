@@ -8,20 +8,20 @@
     │ (body)
     ▼
   ┌───────────────────────────────────────┐
-  │ 21-empty-loops.c:58:3-58:31           │
+  │ 21-empty-loops.c:58.3-58.31           │
   │ (unknown)                             │
-  │ [21-empty-loops.c:57:1-58:3           │   skip
+  │ [21-empty-loops.c:57.1-58.3           │   skip
   │ (unknown)]                            │ ───────┐
-  │ YAML loc: 21-empty-loops.c:58:3-58:31 │        │
+  │ YAML loc: 21-empty-loops.c:58.3-58.31 │        │
   │ server: true                          │ ◀──────┘
   └───────────────────────────────────────┘
     │
     │ Neg(1)
     ▼
   ┌───────────────────────────────────────┐
-  │ 21-empty-loops.c:59:1-59:1            │
+  │ 21-empty-loops.c:59.1-59.1            │
   │ (unknown)                             │
-  │ YAML loc: 21-empty-loops.c:59:1-59:1  │
+  │ YAML loc: 21-empty-loops.c:59.1-59.1  │
   │ server: true                          │
   └───────────────────────────────────────┘
     │
@@ -39,18 +39,18 @@
     │ (body)
     ▼
   ┌────────────────────────────────────────────┐
-  │ 21-empty-loops.c:63:3-63:14 (synthetic)    │   Pos(1)
-  │ (21-empty-loops.c:63:10-63:11 (synthetic)) │ ─────────┐
-  │ YAML loop: 21-empty-loops.c:63:3-63:14     │          │
+  │ 21-empty-loops.c:63.3-63.14 (synthetic)    │   Pos(1)
+  │ (21-empty-loops.c:63.10-63.11 (synthetic)) │ ─────────┐
+  │ YAML loop: 21-empty-loops.c:63.3-63.14     │          │
   │ server: false                              │ ◀────────┘
   └────────────────────────────────────────────┘
     │
     │ Neg(1)
     ▼
   ┌────────────────────────────────────────────┐
-  │ 21-empty-loops.c:64:1-64:1                 │
+  │ 21-empty-loops.c:64.1-64.1                 │
   │ (unknown)                                  │
-  │ YAML loc: 21-empty-loops.c:64:1-64:1       │
+  │ YAML loc: 21-empty-loops.c:64.1-64.1       │
   │ server: true                               │
   └────────────────────────────────────────────┘
     │
@@ -62,18 +62,18 @@
 
   $ graph-easy --as=boxart f_empty_goto_loop_suffix.dot
              ┌───────────────────────────────────────┐
-             │ 21-empty-loops.c:76:3-76:11           │
-             │ (21-empty-loops.c:76:3-76:11)         │
-             │ YAML loc: 21-empty-loops.c:76:3-76:11 │
+             │ 21-empty-loops.c:76.3-76.11           │
+             │ (21-empty-loops.c:76.3-76.11)         │
+             │ YAML loc: 21-empty-loops.c:76.3-76.11 │
              │ server: true                          │
              └───────────────────────────────────────┘
                │
                │ suffix()
                ▼
              ┌───────────────────────────────────────┐
-             │ 21-empty-loops.c:77:1-77:1            │
+             │ 21-empty-loops.c:77.1-77.1            │
              │ (unknown)                             │
-             │ YAML loc: 21-empty-loops.c:77:1-77:1  │
+             │ YAML loc: 21-empty-loops.c:77.1-77.1  │
              │ server: true                          │ ◀┐
              └───────────────────────────────────────┘  │
                │                                        │
@@ -89,11 +89,11 @@
                │ (body)                                 │
                ▼                                        │
              ┌───────────────────────────────────────┐  │
-             │ 21-empty-loops.c:74:3-74:38           │  │
+             │ 21-empty-loops.c:74.3-74.38           │  │
              │ (unknown)                             │  │
-      skip   │ [21-empty-loops.c:73:1-74:3           │  │
+      skip   │ [21-empty-loops.c:73.1-74.3           │  │
     ┌─────── │ (unknown)]                            │  │
-    │        │ YAML loc: 21-empty-loops.c:74:3-74:38 │  │
+    │        │ YAML loc: 21-empty-loops.c:74.3-74.38 │  │
     └──────▶ │ server: true                          │ ─┘
              └───────────────────────────────────────┘
 
@@ -105,27 +105,27 @@
     │ (body)
     ▼
   ┌────────────────────────────────────────────┐
-  │ 21-empty-loops.c:81:3-81:14 (synthetic)    │   Pos(1)
-  │ (21-empty-loops.c:81:10-81:11 (synthetic)) │ ─────────┐
-  │ YAML loop: 21-empty-loops.c:81:3-81:14     │          │
+  │ 21-empty-loops.c:81.3-81.14 (synthetic)    │   Pos(1)
+  │ (21-empty-loops.c:81.10-81.11 (synthetic)) │ ─────────┐
+  │ YAML loop: 21-empty-loops.c:81.3-81.14     │          │
   │ server: false                              │ ◀────────┘
   └────────────────────────────────────────────┘
     │
     │ Neg(1)
     ▼
   ┌────────────────────────────────────────────┐
-  │ 21-empty-loops.c:83:3-83:11                │
-  │ (21-empty-loops.c:83:3-83:11)              │
-  │ YAML loc: 21-empty-loops.c:83:3-83:11      │
+  │ 21-empty-loops.c:83.3-83.11                │
+  │ (21-empty-loops.c:83.3-83.11)              │
+  │ YAML loc: 21-empty-loops.c:83.3-83.11      │
   │ server: true                               │
   └────────────────────────────────────────────┘
     │
     │ suffix()
     ▼
   ┌────────────────────────────────────────────┐
-  │ 21-empty-loops.c:84:1-84:1                 │
+  │ 21-empty-loops.c:84.1-84.1                 │
   │ (unknown)                                  │
-  │ YAML loc: 21-empty-loops.c:84:1-84:1       │
+  │ YAML loc: 21-empty-loops.c:84.1-84.1       │
   │ server: true                               │
   └────────────────────────────────────────────┘
     │
@@ -143,18 +143,18 @@
     │ (body)
     ▼
   ┌──────────────────────────────────────┐
-  │ 21-empty-loops.c:94:3-94:9           │   body()
-  │ (21-empty-loops.c:94:3-94:9)         │ ─────────┐
-  │ YAML loc: 21-empty-loops.c:94:3-94:9 │          │
+  │ 21-empty-loops.c:94.3-94.9           │   body()
+  │ (21-empty-loops.c:94.3-94.9)         │ ─────────┐
+  │ YAML loc: 21-empty-loops.c:94.3-94.9 │          │
   │ server: true                         │ ◀────────┘
   └──────────────────────────────────────┘
     │
     │ Neg(1)
     ▼
   ┌──────────────────────────────────────┐
-  │ 21-empty-loops.c:96:1-96:1           │
+  │ 21-empty-loops.c:96.1-96.1           │
   │ (unknown)                            │
-  │ YAML loc: 21-empty-loops.c:96:1-96:1 │
+  │ YAML loc: 21-empty-loops.c:96.1-96.1 │
   │ server: true                         │
   └──────────────────────────────────────┘
     │

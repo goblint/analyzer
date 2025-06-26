@@ -2,7 +2,7 @@ Violation witness for a correct program can be refuted by proving the program co
 
   $ goblint --enable ana.sv-comp.enabled --set witness.yaml.entry-types[+] violation_sequence --set ana.specification "CHECK( init(main()), LTL(G ! call(reach_error())) )" correct.c --set witness.yaml.validate correct.yml
   [Info] SV-COMP specification: CHECK( init(main()), LTL(G ! call(reach_error())) )
-  [Warning][Deadcode] Function 'reach_error' is uncalled: 1 LLoC (correct.c:1:1-1:20)
+  [Warning][Deadcode] Function 'reach_error' is uncalled: 1 LLoC (correct.c:1.1-1.20)
   [Info][Deadcode] Logical lines of code (LLoC) summary:
     live: 2
     dead: 1 (1 in uncalled functions)

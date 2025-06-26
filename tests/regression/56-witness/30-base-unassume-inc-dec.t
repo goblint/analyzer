@@ -4,8 +4,8 @@
 
 Assertions not proven.
   $ goblint --enable ana.int.interval --set solvers.td3.side_widen always --set ana.base.privatization vojdani 30-base-unassume-inc-dec.c
-  [Warning][Assert] Assertion "-10 <= g" is unknown. (30-base-unassume-inc-dec.c:33:3-33:28)
-  [Warning][Assert] Assertion "g <= 10" is unknown. (30-base-unassume-inc-dec.c:34:3-34:27)
+  [Warning][Assert] Assertion "-10 <= g" is unknown. (30-base-unassume-inc-dec.c:33.3-33.28)
+  [Warning][Assert] Assertion "g <= 10" is unknown. (30-base-unassume-inc-dec.c:34.3-34.27)
   [Warning][Deadcode] Function 't_fun' has dead code:
     on line 14 (30-base-unassume-inc-dec.c:14-14)
   [Warning][Deadcode] Function 't_fun2' has dead code:
@@ -14,8 +14,8 @@ Assertions not proven.
     live: 20
     dead: 2
     total lines: 22
-  [Warning][Deadcode][CWE-571] condition '1' (possibly inserted by CIL) is always true (30-base-unassume-inc-dec.c:8:10-8:11)
-  [Warning][Deadcode][CWE-571] condition '1' (possibly inserted by CIL) is always true (30-base-unassume-inc-dec.c:18:10-18:11)
+  [Warning][Deadcode][CWE-571] condition '1' (possibly inserted by CIL) is always true (30-base-unassume-inc-dec.c:8.10-8.11)
+  [Warning][Deadcode][CWE-571] condition '1' (possibly inserted by CIL) is always true (30-base-unassume-inc-dec.c:18.10-18.11)
   [Info][Race] Memory locations race summary:
     safe: 1
     vulnerable: 0
@@ -30,10 +30,10 @@ Easiest to run again to get evals.
 
 Assertions proven.
   $ goblint --enable ana.int.interval --set solvers.td3.side_widen always --set ana.base.privatization vojdani --set witness.yaml.entry-types[*] location_invariant --set ana.activated[+] unassume --set witness.yaml.unassume 30-base-unassume-inc-dec.yml --enable ana.widen.tokens 30-base-unassume-inc-dec.c
-  [Info][Witness] unassume invariant: -10 <= g && g <= 10 (30-base-unassume-inc-dec.c:9:5-9:27)
-  [Info][Witness] unassume invariant: -10 <= g && g <= 10 (30-base-unassume-inc-dec.c:19:5-19:27)
-  [Success][Assert] Assertion "-10 <= g" will succeed (30-base-unassume-inc-dec.c:33:3-33:28)
-  [Success][Assert] Assertion "g <= 10" will succeed (30-base-unassume-inc-dec.c:34:3-34:27)
+  [Info][Witness] unassume invariant: -10 <= g && g <= 10 (30-base-unassume-inc-dec.c:9.5-9.27)
+  [Info][Witness] unassume invariant: -10 <= g && g <= 10 (30-base-unassume-inc-dec.c:19.5-19.27)
+  [Success][Assert] Assertion "-10 <= g" will succeed (30-base-unassume-inc-dec.c:33.3-33.28)
+  [Success][Assert] Assertion "g <= 10" will succeed (30-base-unassume-inc-dec.c:34.3-34.27)
   [Warning][Deadcode] Function 't_fun' has dead code:
     on line 14 (30-base-unassume-inc-dec.c:14-14)
   [Warning][Deadcode] Function 't_fun2' has dead code:
@@ -42,8 +42,8 @@ Assertions proven.
     live: 20
     dead: 2
     total lines: 22
-  [Warning][Deadcode][CWE-571] condition '1' (possibly inserted by CIL) is always true (30-base-unassume-inc-dec.c:8:10-8:11)
-  [Warning][Deadcode][CWE-571] condition '1' (possibly inserted by CIL) is always true (30-base-unassume-inc-dec.c:18:10-18:11)
+  [Warning][Deadcode][CWE-571] condition '1' (possibly inserted by CIL) is always true (30-base-unassume-inc-dec.c:8.10-8.11)
+  [Warning][Deadcode][CWE-571] condition '1' (possibly inserted by CIL) is always true (30-base-unassume-inc-dec.c:18.10-18.11)
   [Info][Race] Memory locations race summary:
     safe: 1
     vulnerable: 0
@@ -59,14 +59,14 @@ TODO: Should not be according to Simmo's PhD thesis?
 
 Assertions proven.
   $ goblint --enable ana.int.interval --set solvers.td3.side_widen always --set ana.base.privatization vojdani --set witness.yaml.entry-types[*] location_invariant --set ana.activated[+] unassume --set witness.yaml.unassume 30-base-unassume-inc-dec2.yml --enable ana.widen.tokens 30-base-unassume-inc-dec.c
-  [Info][Witness] unassume invariant: -10 <= g && g <= 10 (30-base-unassume-inc-dec.c:9:5-9:27)
-  [Info][Witness] unassume invariant: -10 <= g && g <= 10 (30-base-unassume-inc-dec.c:11:7-11:10)
-  [Info][Witness] unassume invariant: -10 <= g && g <= 10 (30-base-unassume-inc-dec.c:10:9-10:15)
-  [Info][Witness] unassume invariant: -10 <= g && g <= 10 (30-base-unassume-inc-dec.c:19:5-19:27)
-  [Info][Witness] unassume invariant: -10 <= g && g <= 10 (30-base-unassume-inc-dec.c:21:7-21:10)
-  [Info][Witness] unassume invariant: -10 <= g && g <= 10 (30-base-unassume-inc-dec.c:20:9-20:16)
-  [Success][Assert] Assertion "-10 <= g" will succeed (30-base-unassume-inc-dec.c:33:3-33:28)
-  [Success][Assert] Assertion "g <= 10" will succeed (30-base-unassume-inc-dec.c:34:3-34:27)
+  [Info][Witness] unassume invariant: -10 <= g && g <= 10 (30-base-unassume-inc-dec.c:9.5-9.27)
+  [Info][Witness] unassume invariant: -10 <= g && g <= 10 (30-base-unassume-inc-dec.c:11.7-11.10)
+  [Info][Witness] unassume invariant: -10 <= g && g <= 10 (30-base-unassume-inc-dec.c:10.9-10.15)
+  [Info][Witness] unassume invariant: -10 <= g && g <= 10 (30-base-unassume-inc-dec.c:19.5-19.27)
+  [Info][Witness] unassume invariant: -10 <= g && g <= 10 (30-base-unassume-inc-dec.c:21.7-21.10)
+  [Info][Witness] unassume invariant: -10 <= g && g <= 10 (30-base-unassume-inc-dec.c:20.9-20.16)
+  [Success][Assert] Assertion "-10 <= g" will succeed (30-base-unassume-inc-dec.c:33.3-33.28)
+  [Success][Assert] Assertion "g <= 10" will succeed (30-base-unassume-inc-dec.c:34.3-34.27)
   [Warning][Deadcode] Function 't_fun' has dead code:
     on line 14 (30-base-unassume-inc-dec.c:14-14)
   [Warning][Deadcode] Function 't_fun2' has dead code:
@@ -75,8 +75,8 @@ Assertions proven.
     live: 20
     dead: 2
     total lines: 22
-  [Warning][Deadcode][CWE-571] condition '1' (possibly inserted by CIL) is always true (30-base-unassume-inc-dec.c:8:10-8:11)
-  [Warning][Deadcode][CWE-571] condition '1' (possibly inserted by CIL) is always true (30-base-unassume-inc-dec.c:18:10-18:11)
+  [Warning][Deadcode][CWE-571] condition '1' (possibly inserted by CIL) is always true (30-base-unassume-inc-dec.c:8.10-8.11)
+  [Warning][Deadcode][CWE-571] condition '1' (possibly inserted by CIL) is always true (30-base-unassume-inc-dec.c:18.10-18.11)
   [Info][Race] Memory locations race summary:
     safe: 1
     vulnerable: 0
@@ -91,12 +91,12 @@ Evals less than from scratch.
 
 Assertions proven.
   $ goblint --enable ana.int.interval --set solvers.td3.side_widen always --set ana.base.privatization vojdani --set witness.yaml.entry-types[*] location_invariant --set ana.activated[+] unassume --set witness.yaml.unassume 30-base-unassume-inc-dec3.yml --enable ana.widen.tokens 30-base-unassume-inc-dec.c
-  [Info][Witness] unassume invariant: -10 <= g && g <= 10 (30-base-unassume-inc-dec.c:11:7-11:10)
-  [Info][Witness] unassume invariant: -10 <= g && g <= 10 (30-base-unassume-inc-dec.c:10:9-10:15)
-  [Info][Witness] unassume invariant: -10 <= g && g <= 10 (30-base-unassume-inc-dec.c:21:7-21:10)
-  [Info][Witness] unassume invariant: -10 <= g && g <= 10 (30-base-unassume-inc-dec.c:20:9-20:16)
-  [Success][Assert] Assertion "-10 <= g" will succeed (30-base-unassume-inc-dec.c:33:3-33:28)
-  [Success][Assert] Assertion "g <= 10" will succeed (30-base-unassume-inc-dec.c:34:3-34:27)
+  [Info][Witness] unassume invariant: -10 <= g && g <= 10 (30-base-unassume-inc-dec.c:11.7-11.10)
+  [Info][Witness] unassume invariant: -10 <= g && g <= 10 (30-base-unassume-inc-dec.c:10.9-10.15)
+  [Info][Witness] unassume invariant: -10 <= g && g <= 10 (30-base-unassume-inc-dec.c:21.7-21.10)
+  [Info][Witness] unassume invariant: -10 <= g && g <= 10 (30-base-unassume-inc-dec.c:20.9-20.16)
+  [Success][Assert] Assertion "-10 <= g" will succeed (30-base-unassume-inc-dec.c:33.3-33.28)
+  [Success][Assert] Assertion "g <= 10" will succeed (30-base-unassume-inc-dec.c:34.3-34.27)
   [Warning][Deadcode] Function 't_fun' has dead code:
     on line 14 (30-base-unassume-inc-dec.c:14-14)
   [Warning][Deadcode] Function 't_fun2' has dead code:
@@ -105,8 +105,8 @@ Assertions proven.
     live: 20
     dead: 2
     total lines: 22
-  [Warning][Deadcode][CWE-571] condition '1' (possibly inserted by CIL) is always true (30-base-unassume-inc-dec.c:8:10-8:11)
-  [Warning][Deadcode][CWE-571] condition '1' (possibly inserted by CIL) is always true (30-base-unassume-inc-dec.c:18:10-18:11)
+  [Warning][Deadcode][CWE-571] condition '1' (possibly inserted by CIL) is always true (30-base-unassume-inc-dec.c:8.10-8.11)
+  [Warning][Deadcode][CWE-571] condition '1' (possibly inserted by CIL) is always true (30-base-unassume-inc-dec.c:18.10-18.11)
   [Info][Race] Memory locations race summary:
     safe: 1
     vulnerable: 0
@@ -125,8 +125,8 @@ TODO: Why more than unassume after lock and before unlock?
 
 Assertions not proven.
   $ goblint --enable ana.int.interval --set solvers.td3.side_widen always --set ana.base.privatization protection 30-base-unassume-inc-dec.c
-  [Warning][Assert] Assertion "-10 <= g" is unknown. (30-base-unassume-inc-dec.c:33:3-33:28)
-  [Warning][Assert] Assertion "g <= 10" is unknown. (30-base-unassume-inc-dec.c:34:3-34:27)
+  [Warning][Assert] Assertion "-10 <= g" is unknown. (30-base-unassume-inc-dec.c:33.3-33.28)
+  [Warning][Assert] Assertion "g <= 10" is unknown. (30-base-unassume-inc-dec.c:34.3-34.27)
   [Warning][Deadcode] Function 't_fun' has dead code:
     on line 14 (30-base-unassume-inc-dec.c:14-14)
   [Warning][Deadcode] Function 't_fun2' has dead code:
@@ -135,8 +135,8 @@ Assertions not proven.
     live: 20
     dead: 2
     total lines: 22
-  [Warning][Deadcode][CWE-571] condition '1' (possibly inserted by CIL) is always true (30-base-unassume-inc-dec.c:8:10-8:11)
-  [Warning][Deadcode][CWE-571] condition '1' (possibly inserted by CIL) is always true (30-base-unassume-inc-dec.c:18:10-18:11)
+  [Warning][Deadcode][CWE-571] condition '1' (possibly inserted by CIL) is always true (30-base-unassume-inc-dec.c:8.10-8.11)
+  [Warning][Deadcode][CWE-571] condition '1' (possibly inserted by CIL) is always true (30-base-unassume-inc-dec.c:18.10-18.11)
   [Info][Race] Memory locations race summary:
     safe: 1
     vulnerable: 0
@@ -150,10 +150,10 @@ Assertions not proven.
 
 Assertions proven.
   $ goblint --enable ana.int.interval --set solvers.td3.side_widen always --set ana.base.privatization protection --set witness.yaml.entry-types[*] location_invariant --set ana.activated[+] unassume --set witness.yaml.unassume 30-base-unassume-inc-dec.yml --enable ana.widen.tokens 30-base-unassume-inc-dec.c
-  [Info][Witness] unassume invariant: -10 <= g && g <= 10 (30-base-unassume-inc-dec.c:9:5-9:27)
-  [Info][Witness] unassume invariant: -10 <= g && g <= 10 (30-base-unassume-inc-dec.c:19:5-19:27)
-  [Success][Assert] Assertion "-10 <= g" will succeed (30-base-unassume-inc-dec.c:33:3-33:28)
-  [Success][Assert] Assertion "g <= 10" will succeed (30-base-unassume-inc-dec.c:34:3-34:27)
+  [Info][Witness] unassume invariant: -10 <= g && g <= 10 (30-base-unassume-inc-dec.c:9.5-9.27)
+  [Info][Witness] unassume invariant: -10 <= g && g <= 10 (30-base-unassume-inc-dec.c:19.5-19.27)
+  [Success][Assert] Assertion "-10 <= g" will succeed (30-base-unassume-inc-dec.c:33.3-33.28)
+  [Success][Assert] Assertion "g <= 10" will succeed (30-base-unassume-inc-dec.c:34.3-34.27)
   [Warning][Deadcode] Function 't_fun' has dead code:
     on line 14 (30-base-unassume-inc-dec.c:14-14)
   [Warning][Deadcode] Function 't_fun2' has dead code:
@@ -162,8 +162,8 @@ Assertions proven.
     live: 20
     dead: 2
     total lines: 22
-  [Warning][Deadcode][CWE-571] condition '1' (possibly inserted by CIL) is always true (30-base-unassume-inc-dec.c:8:10-8:11)
-  [Warning][Deadcode][CWE-571] condition '1' (possibly inserted by CIL) is always true (30-base-unassume-inc-dec.c:18:10-18:11)
+  [Warning][Deadcode][CWE-571] condition '1' (possibly inserted by CIL) is always true (30-base-unassume-inc-dec.c:8.10-8.11)
+  [Warning][Deadcode][CWE-571] condition '1' (possibly inserted by CIL) is always true (30-base-unassume-inc-dec.c:18.10-18.11)
   [Info][Race] Memory locations race summary:
     safe: 1
     vulnerable: 0
@@ -179,14 +179,14 @@ Fits old TODO from Simmo's PhD thesis: "No improvement in number of steps using 
 
 Assertions proven.
   $ goblint --enable ana.int.interval --set solvers.td3.side_widen always --set ana.base.privatization protection --set witness.yaml.entry-types[*] location_invariant --set ana.activated[+] unassume --set witness.yaml.unassume 30-base-unassume-inc-dec2.yml --enable ana.widen.tokens 30-base-unassume-inc-dec.c
-  [Info][Witness] unassume invariant: -10 <= g && g <= 10 (30-base-unassume-inc-dec.c:9:5-9:27)
-  [Info][Witness] unassume invariant: -10 <= g && g <= 10 (30-base-unassume-inc-dec.c:11:7-11:10)
-  [Info][Witness] unassume invariant: -10 <= g && g <= 10 (30-base-unassume-inc-dec.c:10:9-10:15)
-  [Info][Witness] unassume invariant: -10 <= g && g <= 10 (30-base-unassume-inc-dec.c:19:5-19:27)
-  [Info][Witness] unassume invariant: -10 <= g && g <= 10 (30-base-unassume-inc-dec.c:21:7-21:10)
-  [Info][Witness] unassume invariant: -10 <= g && g <= 10 (30-base-unassume-inc-dec.c:20:9-20:16)
-  [Success][Assert] Assertion "-10 <= g" will succeed (30-base-unassume-inc-dec.c:33:3-33:28)
-  [Success][Assert] Assertion "g <= 10" will succeed (30-base-unassume-inc-dec.c:34:3-34:27)
+  [Info][Witness] unassume invariant: -10 <= g && g <= 10 (30-base-unassume-inc-dec.c:9.5-9.27)
+  [Info][Witness] unassume invariant: -10 <= g && g <= 10 (30-base-unassume-inc-dec.c:11.7-11.10)
+  [Info][Witness] unassume invariant: -10 <= g && g <= 10 (30-base-unassume-inc-dec.c:10.9-10.15)
+  [Info][Witness] unassume invariant: -10 <= g && g <= 10 (30-base-unassume-inc-dec.c:19.5-19.27)
+  [Info][Witness] unassume invariant: -10 <= g && g <= 10 (30-base-unassume-inc-dec.c:21.7-21.10)
+  [Info][Witness] unassume invariant: -10 <= g && g <= 10 (30-base-unassume-inc-dec.c:20.9-20.16)
+  [Success][Assert] Assertion "-10 <= g" will succeed (30-base-unassume-inc-dec.c:33.3-33.28)
+  [Success][Assert] Assertion "g <= 10" will succeed (30-base-unassume-inc-dec.c:34.3-34.27)
   [Warning][Deadcode] Function 't_fun' has dead code:
     on line 14 (30-base-unassume-inc-dec.c:14-14)
   [Warning][Deadcode] Function 't_fun2' has dead code:
@@ -195,8 +195,8 @@ Assertions proven.
     live: 20
     dead: 2
     total lines: 22
-  [Warning][Deadcode][CWE-571] condition '1' (possibly inserted by CIL) is always true (30-base-unassume-inc-dec.c:8:10-8:11)
-  [Warning][Deadcode][CWE-571] condition '1' (possibly inserted by CIL) is always true (30-base-unassume-inc-dec.c:18:10-18:11)
+  [Warning][Deadcode][CWE-571] condition '1' (possibly inserted by CIL) is always true (30-base-unassume-inc-dec.c:8.10-8.11)
+  [Warning][Deadcode][CWE-571] condition '1' (possibly inserted by CIL) is always true (30-base-unassume-inc-dec.c:18.10-18.11)
   [Info][Race] Memory locations race summary:
     safe: 1
     vulnerable: 0
@@ -211,12 +211,12 @@ Evals less than from scratch.
 
 Assertions proven.
   $ goblint --enable ana.int.interval --set solvers.td3.side_widen always --set ana.base.privatization protection --set witness.yaml.entry-types[*] location_invariant --set ana.activated[+] unassume --set witness.yaml.unassume 30-base-unassume-inc-dec3.yml --enable ana.widen.tokens 30-base-unassume-inc-dec.c
-  [Info][Witness] unassume invariant: -10 <= g && g <= 10 (30-base-unassume-inc-dec.c:11:7-11:10)
-  [Info][Witness] unassume invariant: -10 <= g && g <= 10 (30-base-unassume-inc-dec.c:10:9-10:15)
-  [Info][Witness] unassume invariant: -10 <= g && g <= 10 (30-base-unassume-inc-dec.c:21:7-21:10)
-  [Info][Witness] unassume invariant: -10 <= g && g <= 10 (30-base-unassume-inc-dec.c:20:9-20:16)
-  [Success][Assert] Assertion "-10 <= g" will succeed (30-base-unassume-inc-dec.c:33:3-33:28)
-  [Success][Assert] Assertion "g <= 10" will succeed (30-base-unassume-inc-dec.c:34:3-34:27)
+  [Info][Witness] unassume invariant: -10 <= g && g <= 10 (30-base-unassume-inc-dec.c:11.7-11.10)
+  [Info][Witness] unassume invariant: -10 <= g && g <= 10 (30-base-unassume-inc-dec.c:10.9-10.15)
+  [Info][Witness] unassume invariant: -10 <= g && g <= 10 (30-base-unassume-inc-dec.c:21.7-21.10)
+  [Info][Witness] unassume invariant: -10 <= g && g <= 10 (30-base-unassume-inc-dec.c:20.9-20.16)
+  [Success][Assert] Assertion "-10 <= g" will succeed (30-base-unassume-inc-dec.c:33.3-33.28)
+  [Success][Assert] Assertion "g <= 10" will succeed (30-base-unassume-inc-dec.c:34.3-34.27)
   [Warning][Deadcode] Function 't_fun' has dead code:
     on line 14 (30-base-unassume-inc-dec.c:14-14)
   [Warning][Deadcode] Function 't_fun2' has dead code:
@@ -225,8 +225,8 @@ Assertions proven.
     live: 20
     dead: 2
     total lines: 22
-  [Warning][Deadcode][CWE-571] condition '1' (possibly inserted by CIL) is always true (30-base-unassume-inc-dec.c:8:10-8:11)
-  [Warning][Deadcode][CWE-571] condition '1' (possibly inserted by CIL) is always true (30-base-unassume-inc-dec.c:18:10-18:11)
+  [Warning][Deadcode][CWE-571] condition '1' (possibly inserted by CIL) is always true (30-base-unassume-inc-dec.c:8.10-8.11)
+  [Warning][Deadcode][CWE-571] condition '1' (possibly inserted by CIL) is always true (30-base-unassume-inc-dec.c:18.10-18.11)
   [Info][Race] Memory locations race summary:
     safe: 1
     vulnerable: 0
