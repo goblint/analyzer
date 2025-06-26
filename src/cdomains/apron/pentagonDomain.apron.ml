@@ -1015,7 +1015,7 @@ struct
 
   (** Taken from lin2var and modified for our domain. *)
   (** Parses a Texpr to obtain a Rhs.t list to repr. a sum of a variables that have a coefficient. If variable is None, the coefficient represents a constant offset. *)
-  let monomials_from_texp texp =
+  let monomials_from_texp env texp =
     let open Apron.Texpr1 in
     let exception NotLinearExpr in
     let exception ScalarIsInfinity in
@@ -1038,7 +1038,7 @@ struct
             | Some x -> [(None,x,Z.one)]
             | None -> raise ScalarIsInfinity end
         | Var x ->
-          let var_dim = Environment.dim_of_var t.env x in
+          let var_dim = Environment.dim_of_var env x in
           [(Some (Z.one,var_dim),Z.zero,Z.one)]
         | Unop  (Neg,  e, _, _) -> negate (convert_texpr e)
         | Unop  (Cast, e, _, _) -> convert_texpr e (* Ignore since casts in apron are used for floating point nums and rounding in contrast to CIL casts *)
@@ -1053,8 +1053,8 @@ struct
     | x -> Some(x)
   ;;
   (** convert and simplify (wrt. reference variables) a texpr into a tuple of a list of monomials (coeff,varidx,divi) and a (constant/divi) *)
-  let simplified_monomials_from_texp texp =
-    BatOption.bind (monomials_from_texp  texp)
+  let simplified_monomials_from_texp env texp =
+    BatOption.bind (monomials_from_texp env texp)
       (fun monomiallist ->
          let module IMap = BatMap.Make(Int) in
          let accumulate_constants (exprcache,(aconst,adiv)) (v,offs,divi) = match v with
@@ -1075,7 +1075,7 @@ struct
     | None -> t 
     | Some d ->
       (* TODO: Modulo support is lost after linearisation, may be quite important for us, as it is mentioned in the paper *)
-      let monoms = simplified_monomials_from_texp texp in
+      let monoms = simplified_monomials_from_texp t.env texp in
       match monoms with
       | None -> forget_vars t [var] 
       | Some(sum_of_terms, (constant,divisor)) ->
