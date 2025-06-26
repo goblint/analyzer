@@ -673,7 +673,7 @@ struct
       if VarSet.cardinal set = 0 then "∅" else "{" ^ (
           VarSet.to_list set |>
           (* Marking for later variable name replacement *)
-          List.map (fun v -> Idx.to_string v ^ "**#**") |> 
+          List.map (fun v -> Idx.to_string v ^ "'#") |> 
           String.concat ", "
         ) ^ "}" in
     (* Results in: x_1 -> {y1, y2, ..., yn} *)
@@ -874,7 +874,7 @@ struct
       let vars = Array.map (StringUtils.string_of_var) (fst (Environment.vars t.env)) in
       let res = PNTG.to_string d in
       let boxes_re = Str.regexp {|\([0-9]+\)->|} in
-      let subs_re = Str.regexp {|\([0-9]+\)#|} in
+      let subs_re = Str.regexp {|\([0-9]+\)'#|} in
       Str.global_substitute boxes_re (
         fun m -> 
           let idx = int_of_string (Str.matched_group 1 res) in
