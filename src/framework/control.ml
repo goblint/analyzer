@@ -754,7 +754,7 @@ struct
     in
 
     if get_bool "exp.cfgdot" then
-      CfgTools.dead_code_cfg (module FileCfg) liveness;
+      CfgTools.dead_code_cfg ~path:(Fpath.v "cfgs") (module FileCfg) liveness;
 
     let warn_global g v =
       (* Logs.debug "warn_global %a %a" EQSys.GVar.pretty_trace g EQSys.G.pretty v; *)
@@ -830,7 +830,7 @@ struct
     if get_string "result" <> "none" then Logs.debug "Generating output: %s" (get_string "result");
 
     Messages.finalize ();
-    Timing.wrap "result output" (Result.output (lazy local_xml) gh make_global_fast_xml) file
+    Timing.wrap "result output" (Result.output (lazy local_xml) liveness gh make_global_fast_xml) (module FileCfg)
 end
 
 (* This function was originally a part of the [AnalyzeCFG] module, but
