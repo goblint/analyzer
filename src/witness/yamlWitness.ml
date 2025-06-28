@@ -194,6 +194,23 @@ struct
     action = "follow";
   }
 
+  let function_enter ~location ~action : ViolationSequence.FunctionEnter.t = {
+    location = location;
+    action = action;
+  }
+
+  let function_return ~location ~action ~constraint_ : ViolationSequence.FunctionReturn.t = {
+    location = location;
+    action = action;
+    constraint_ = constraint_;
+  }
+
+  let branching ~location ~action ~constraint_ : ViolationSequence.Branching.t = {
+    location = location;
+    action = action;
+    constraint_ = constraint_;
+  }
+
   let waypoint ~waypoint_type : ViolationSequence.Waypoint.t = {
     waypoint_type = waypoint_type;
   }

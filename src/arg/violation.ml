@@ -83,6 +83,21 @@ struct
 
         let segments =
           List.map (fun (prev, edge, node) ->
+              match edge with
+              | MyARG.InlineEntry _ ->
+                let function_enter = YamlWitness.Entry.function_enter ~location:(loc prev) ~action:"follow" in
+                let waypoints = [YamlWitness.Entry.waypoint ~waypoint_type:(FunctionEnter function_enter)] in
+                YamlWitness.Entry.segment ~waypoints
+              | MyARG.InlineReturn _ ->
+                let constraint_ = YamlWitness.Entry.constraint_ ~value:(String "1") in
+                let function_return = YamlWitness.Entry.function_return ~location:(loc prev) ~action:"follow" ~constraint_ in
+                let waypoints = [YamlWitness.Entry.waypoint ~waypoint_type:(FunctionReturn function_return)] in
+                YamlWitness.Entry.segment ~waypoints
+              | MyARG.CFGEdge Test (_, bool) ->
+                let constraint_ = YamlWitness.Entry.constraint_ ~value:(String (Bool.to_string bool)) in
+                let branching = YamlWitness.Entry.branching ~location:(loc prev) ~action:"follow" ~constraint_ in
+                let waypoints = [YamlWitness.Entry.waypoint ~waypoint_type:(Branching branching)] in
+                YamlWitness.Entry.segment ~waypoints
               | _ ->
                 let constraint_ = YamlWitness.Entry.constraint_ ~value:(String "1") in
                 let assumption = YamlWitness.Entry.assumption ~location:(loc prev) ~constraint_ in
