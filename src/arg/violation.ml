@@ -43,6 +43,8 @@ sig
   val check_path: (Node.t * MyARG.inline_edge * Node.t) list -> result
 end
 
+module CfgNode = Node
+
 module UnknownFeasibility (Node: MyARG.Node): Feasibility with module Node = Node =
 struct
   module Node = Node
@@ -52,7 +54,7 @@ struct
     | Infeasible of (Node.t * MyARG.inline_edge * Node.t) list
     | Unknown
 
-  let write () =
+  let write (path : (Node.t * MyARG.inline_edge * Node.t) list) =
     (* TODO: duplicate code copied from YamlWitness.write *)
     let input_files = GobConfig.get_string_list "files" in
     let data_model = match GobConfig.get_string "exp.architecture" with
@@ -65,13 +67,54 @@ struct
       ) !Svcomp.task
     in
     let task = YamlWitness.Entry.task ~input_files ~data_model ~specification in
-    let violation = [] in
-    let entry = YamlWitness.Entry.violation_sequence ~task ~violation in
-    let entries = [entry] in
+
+    let entries = [] in
+
+    let entries =
+      if YamlWitness.entry_type_enabled YamlWitnessType.ViolationSequence.entry_type then (
+
+        let loc prev =
+          let cfgNode = Node.cfgnode prev in
+          let location = CfgNode.location cfgNode in
+          let fundec = CfgNode.find_fundec cfgNode in
+          let location_function = fundec.svar.vname in
+          YamlWitness.Entry.location ~location ~location_function
+        in
+
+        let segments =
+          List.map (fun (prev, edge, node) ->
+              | _ ->
+                let constraint_ = YamlWitness.Entry.constraint_ ~value:(String "1") in
+                let assumption = YamlWitness.Entry.assumption ~location:(loc prev) ~constraint_ in
+                let waypoints = [YamlWitness.Entry.waypoint ~waypoint_type:(Assumption assumption)] in
+                YamlWitness.Entry.segment ~waypoints
+            ) path;
+        in
+
+        (* TODO: extremely inefficient *)
+        let target =
+          let (_,_,node) = BatList.last path in
+          let target = YamlWitness.Entry.violation_target ~location:(loc node) in
+          let waypoints = [YamlWitness.Entry.waypoint ~waypoint_type:(Target target)] in
+          YamlWitness.Entry.segment ~waypoints
+        in
+
+        let segments = List.append segments [target] in
+
+        let entry = YamlWitness.Entry.violation_sequence ~task ~violation:segments in
+        [entry]
+      )
+      else
+        entries
+    in  
+
     let yaml_entries = List.rev_map YamlWitnessType.Entry.to_yaml entries in
+    (* TODO: "witness generation summary" message *)
     YamlWitness.yaml_entries_to_file yaml_entries (Fpath.v (GobConfig.get_string "witness.yaml.path"))
 
-  let check_path n = write (); Unknown
+  let check_path path =
+    write path;
+    Unknown
 end
 
 

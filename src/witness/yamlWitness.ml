@@ -178,6 +178,30 @@ struct
     metadata = metadata ~task ();
   }
 
+  let constraint_ ~value : ViolationSequence.Constraint.t = {
+    value = value;
+    format = Some "c_expression";
+  }
+
+  let assumption ~location ~constraint_ : ViolationSequence.Assumption.t = {
+    location = location;
+    action = "follow";
+    constraint_ = constraint_;
+  }
+
+  let violation_target ~location : ViolationSequence.Target.t = {
+    location = location;
+    action = "follow";
+  }
+
+  let waypoint ~waypoint_type : ViolationSequence.Waypoint.t = {
+    waypoint_type = waypoint_type;
+  }
+
+  let segment ~waypoints : ViolationSequence.Segment.t = {
+    segment = waypoints;
+  }
+
   let violation_sequence ~task ~(violation): Entry.t = {
     entry_type = ViolationSequence {
         content = violation;
