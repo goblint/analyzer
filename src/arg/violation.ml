@@ -55,6 +55,7 @@ struct
     | Unknown
 
   let write (path : (Node.t * MyARG.inline_edge * Node.t) list) =
+    let open YamlWitness.Entry in
     (* TODO: duplicate code copied from YamlWitness.write *)
     let input_files = GobConfig.get_string_list "files" in
     let data_model = match GobConfig.get_string "exp.architecture" with
@@ -66,7 +67,7 @@ struct
         Svcomp.Specification.to_string Task.specification
       ) !Svcomp.task
     in
-    let task = YamlWitness.Entry.task ~input_files ~data_model ~specification in
+    let task = task ~input_files ~data_model ~specification in
 
     let entries = [] in
 
@@ -81,40 +82,41 @@ struct
           YamlWitness.Entry.location ~location ~location_function
         in
 
-        let segments =
-          List.map (fun (prev, edge, node) ->
-              match edge with
-              | MyARG.InlineEntry _ ->
-                let function_enter = YamlWitness.Entry.function_enter ~location:(loc prev) ~action:"follow" in
-                let waypoints = [YamlWitness.Entry.waypoint ~waypoint_type:(FunctionEnter function_enter)] in
-                YamlWitness.Entry.segment ~waypoints
-              | MyARG.InlineReturn _ ->
-                let constraint_ = YamlWitness.Entry.constraint_ ~value:(String "1") in
-                let function_return = YamlWitness.Entry.function_return ~location:(loc prev) ~action:"follow" ~constraint_ in
-                let waypoints = [YamlWitness.Entry.waypoint ~waypoint_type:(FunctionReturn function_return)] in
-                YamlWitness.Entry.segment ~waypoints
-              | MyARG.CFGEdge Test (_, bool) ->
-                let constraint_ = YamlWitness.Entry.constraint_ ~value:(String (Bool.to_string bool)) in
-                let branching = YamlWitness.Entry.branching ~location:(loc prev) ~action:"follow" ~constraint_ in
-                let waypoints = [YamlWitness.Entry.waypoint ~waypoint_type:(Branching branching)] in
-                YamlWitness.Entry.segment ~waypoints
-              | _ ->
-                let constraint_ = YamlWitness.Entry.constraint_ ~value:(String "1") in
-                let assumption = YamlWitness.Entry.assumption ~location:(loc prev) ~constraint_ in
-                let waypoints = [YamlWitness.Entry.waypoint ~waypoint_type:(Assumption assumption)] in
-                YamlWitness.Entry.segment ~waypoints
-            ) path;
+        let segment_for_edge prev edge =
+          let location = loc prev in
+          match edge with
+          | MyARG.InlineEntry _ ->
+            let function_enter = function_enter ~location ~action:"follow" in
+            let waypoints = [waypoint ~waypoint_type:(FunctionEnter function_enter)] in
+            segment ~waypoints
+          | MyARG.InlineReturn _ ->
+            let constraint_ = constraint_ ~value:(String "1") in
+            let function_return = function_return ~location ~action:"follow" ~constraint_ in
+            let waypoints = [waypoint ~waypoint_type:(FunctionReturn function_return)] in
+            segment ~waypoints
+          | MyARG.CFGEdge Test (_, b) ->
+            let constraint_ = constraint_ ~value:(String (Bool.to_string b)) in
+            let branching = branching ~location ~action:"follow" ~constraint_ in
+            let waypoints = [waypoint ~waypoint_type:(Branching branching)] in
+            segment ~waypoints
+          | _ ->
+            let constraint_ = constraint_ ~value:(String "1") in
+            let assumption = assumption ~location ~constraint_ in
+            let waypoints = [waypoint ~waypoint_type:(Assumption assumption)] in
+            segment ~waypoints
         in
 
-        (* TODO: extremely inefficient *)
-        let target =
-          let (_,_,node) = BatList.last path in
-          let target = YamlWitness.Entry.violation_target ~location:(loc node) in
-          let waypoints = [YamlWitness.Entry.waypoint ~waypoint_type:(Target target)] in
-          YamlWitness.Entry.segment ~waypoints
+        let rec build_segments = function
+          | [] -> []
+          | [(prev, edge, node)] ->
+            let target = segment ~waypoints:[waypoint ~waypoint_type:(Target (violation_target ~location:(loc node)))] in
+            [segment_for_edge prev edge; target]
+          | (prev, edge, _) :: rest ->
+            let seg = segment_for_edge prev edge in
+            seg :: build_segments rest
         in
 
-        let segments = List.append segments [target] in
+        let segments = build_segments path in
 
         let entry = YamlWitness.Entry.violation_sequence ~task ~violation:segments in
         [entry]
