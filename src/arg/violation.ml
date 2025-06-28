@@ -52,7 +52,26 @@ struct
     | Infeasible of (Node.t * MyARG.inline_edge * Node.t) list
     | Unknown
 
-  let check_path _ = Unknown
+  let write () =
+    (* TODO: duplicate code copied from YamlWitness.write *)
+    let input_files = GobConfig.get_string_list "files" in
+    let data_model = match GobConfig.get_string "exp.architecture" with
+      | "64bit" -> "LP64"
+      | "32bit" -> "ILP32"
+      | _ -> failwith "invalid architecture"
+    in
+    let specification = Option.map (fun (module Task: Svcomp.Task) ->
+        Svcomp.Specification.to_string Task.specification
+      ) !Svcomp.task
+    in
+    let task = YamlWitness.Entry.task ~input_files ~data_model ~specification in
+    let violation = [] in
+    let entry = YamlWitness.Entry.violation_sequence ~task ~violation in
+    let entries = [entry] in
+    let yaml_entries = List.rev_map YamlWitnessType.Entry.to_yaml entries in
+    YamlWitness.yaml_entries_to_file yaml_entries (Fpath.v (GobConfig.get_string "witness.yaml.path"))
+
+  let check_path n = write (); Unknown
 end
 
 

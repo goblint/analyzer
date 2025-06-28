@@ -177,6 +177,13 @@ struct
       };
     metadata = metadata ~task ();
   }
+
+  let violation_sequence ~task ~(violation): Entry.t = {
+    entry_type = ViolationSequence {
+        content = violation;
+      };
+    metadata = metadata ~task ();
+  }
 end
 
 let yaml_entries_to_file yaml_entries file =
