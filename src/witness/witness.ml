@@ -87,18 +87,35 @@ struct
 
   let determine_result entrystates (module Task:Task) (spec: Svcomp.Specification.t): Svcomp.Result.t =
     let module Arg: BiArgInvariant =
-    struct
-      module Node = ArgTool.Node
-      module Edge = MyARG.InlineEdge
-      let next _ = []
-      let prev _ = []
-      let find_invariant _ = Invariant.none
-      let main_entry =
-        let lvar = WitnessUtil.find_main_entry entrystates in
-        (fst lvar, snd lvar, -1)
-      let iter_nodes f = f main_entry
-      let query _ q = Queries.Result.top q
-    end
+      (val if GobConfig.get_bool "exp.arg.enabled" then (
+           let module Arg = (val ArgTool.create entrystates) in
+           let module Arg =
+           struct
+             include Arg
+
+             let find_invariant _ = Invariant.none
+           end
+           in
+           (module Arg: BiArgInvariant)
+         )
+         else (
+           let module Arg =
+           struct
+             module Node = ArgTool.Node
+             module Edge = MyARG.InlineEdge
+             let next _ = []
+             let prev _ = []
+             let find_invariant _ = Invariant.none
+             let main_entry =
+               let lvar = WitnessUtil.find_main_entry entrystates in
+               (fst lvar, snd lvar, -1)
+             let iter_nodes f = f main_entry
+             let query _ q = Queries.Result.top q
+           end
+           in
+           (module Arg: BiArgInvariant)
+         )
+      )
     in
 
     match spec with
