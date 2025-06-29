@@ -55,6 +55,13 @@ struct
     | Unknown
 
   let write (path : (Node.t * MyARG.inline_edge * Node.t) list) =
+    let module FileCfg =
+    struct
+      let file = !Cilfacade.current_file
+      module Cfg = (val !MyCFG.current_cfg)
+    end  in
+    let module WitnessInvariant = WitnessUtil.YamlInvariant (FileCfg) in
+
     let open YamlWitness.Entry in
     (* TODO: duplicate code copied from YamlWitness.write *)
     let input_files = GobConfig.get_string_list "files" in
@@ -73,17 +80,18 @@ struct
 
     let entries =
       if YamlWitness.entry_type_enabled YamlWitnessType.ViolationSequence.entry_type then (
+        let open GobOption.Syntax in
 
         let loc prev =
           let cfgNode = Node.cfgnode prev in
-          let location = CfgNode.location cfgNode in
+          let+ location = WitnessInvariant.location_location cfgNode in
           let fundec = CfgNode.find_fundec cfgNode in
           let location_function = fundec.svar.vname in
           YamlWitness.Entry.location ~location ~location_function
         in
 
         let segment_for_edge prev edge =
-          let location = loc prev in
+          let+ location = loc prev in
           match edge with
           | MyARG.InlineEntry _ ->
             let function_enter = function_enter ~location ~action:"follow" in
@@ -109,11 +117,15 @@ struct
         let rec build_segments = function
           | [] -> []
           | [(prev, edge, node)] ->
-            let target = segment ~waypoints:[waypoint ~waypoint_type:(Target (violation_target ~location:(loc node)))] in
-            [segment_for_edge prev edge; target]
+            let target = segment ~waypoints:[waypoint ~waypoint_type:(Target (violation_target ~location:(Option.get (loc node))))] in
+            begin match segment_for_edge prev edge with
+              | Some seg -> [seg; target]
+              | None -> [target]
+            end
           | (prev, edge, _) :: rest ->
-            let seg = segment_for_edge prev edge in
-            seg :: build_segments rest
+            match segment_for_edge prev edge with
+            | Some seg -> seg :: build_segments rest
+            | None -> build_segments rest
         in
 
         let segments = build_segments path in
