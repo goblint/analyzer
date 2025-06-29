@@ -1680,13 +1680,34 @@ module PentagonOffsetCoeffs : Coeffs = struct
       let l = lift2 min l @@ l_of_values get_val_t2 in
       flatten (u,l)
     | Some (u1,l1), Some (u2,l2) ->
-      let u1 = lift2 max u1 @@ u_of_values get_val_t1 in
-      let l1 = lift2 min l2 @@ l_of_values get_val_t1 in
-      let u2 = lift2 max u2 @@ u_of_values get_val_t2 in
-      let l2 = lift2 min l2 @@ l_of_values get_val_t2 in
+      let u1 = lift2 min u1 @@ u_of_values get_val_t1 in
+      let u2 = lift2 min u2 @@ u_of_values get_val_t2 in
       let u = lift2 max u1 u2 in
+      let l1 = lift2 max l1 @@ l_of_values get_val_t1 in
+      let l2 = lift2 max l2 @@ l_of_values get_val_t2 in 
       let l = lift2 min l1 l2 in
       flatten (u,l)
+
+  let show_formatted x y (u,l) = 
+    let u = match u with 
+      | None -> ""
+      | Some u -> x ^ " <= " ^ y ^ " + " ^ Z.to_string u
+    in let l = match l with 
+        | None -> ""
+        | Some l -> x ^ " >= " ^ y ^ " + " ^ Z.to_string l
+    in u ^ " , " ^ l
+
+  let join x y get_val_t1 get_val_t2 t1 t2 =
+    let res = join x y get_val_t1 get_val_t2 t1 t2 in
+    if M.tracing then M.trace "joinc" "\na: %s, x=%s,y=%s\nb: %s, x=%s,y=%s\n -> %s" 
+        (BatOption.map_default (show_formatted "x" "y") "None" t1) 
+        (Value.show @@ get_val_t1 x)
+        (Value.show @@ get_val_t1 y)
+        (BatOption.map_default (show_formatted "x" "y") "None" t2) 
+        (Value.show @@ get_val_t2 x)
+        (Value.show @@ get_val_t2 y)
+        (BatOption.map_default (show_formatted "x" "y") "None" res);
+    res 
 
   let widen x y get_val_t1 get_val_t2 t1 t2 =
     match t1, t2 with
@@ -1699,15 +1720,6 @@ module PentagonOffsetCoeffs : Coeffs = struct
       flatten (u,l)
 
   let limit _ t = Some t
-
-  let show_formatted x y (u,l) = 
-    let u = match u with 
-      | None -> ""
-      | Some u -> x ^ " <= " ^ y ^ " + " ^ Z.to_string u
-    in let l = match l with 
-        | None -> ""
-        | Some l -> x ^ " >= " ^ y ^ " + " ^ Z.to_string l
-    in u ^ " , " ^ l
 
   let to_set (u,l) = 
     let open LinearInequality.OriginInequality in

@@ -994,8 +994,7 @@ struct
         in
         let ineq_x_split = IntMap.fold (transform_non_representant (EConjI.get_value x)) (snd econj'') @@ Ineq.copy_to_new_representants econ_x econj'' (EConjI.get_value x) ineq_x in
         let ineq_y_split = IntMap.fold (transform_non_representant (EConjI.get_value y)) (snd econj'') @@ Ineq.copy_to_new_representants econ_y econj'' (EConjI.get_value y) ineq_y in
-        let get_value = (EConjI.get_value (e,v,i)) in
-        let ineq' = (if widen then Ineq.widen else Ineq.join) ineq_x_split get_value ineq_y_split get_value in
+        let ineq' = (if widen then Ineq.widen else Ineq.join) ineq_x_split (EConjI.get_value x) ineq_y_split (EConjI.get_value y) in
         Some (e,v, Ineq.limit e ineq')        
     in
     (*This is a different kind of bot that we need to catch*)
