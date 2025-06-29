@@ -93,6 +93,11 @@ struct
         let segment_for_edge prev edge =
           let+ location = loc prev in
           match edge with
+          (* TODO: Correct locations for function entry and return are currently unavailable.
+             As specified by the Witness 2.0 format, these locations must point to
+             the closing parenthesis after the function's parameter list.
+          *)
+          (*
           | MyARG.InlineEntry _ ->
             let function_enter = function_enter ~location ~action:"follow" in
             let waypoints = [waypoint ~waypoint_type:(FunctionEnter function_enter)] in
@@ -102,6 +107,7 @@ struct
             let function_return = function_return ~location ~action:"follow" ~constraint_ in
             let waypoints = [waypoint ~waypoint_type:(FunctionReturn function_return)] in
             segment ~waypoints
+          *)
           | MyARG.CFGEdge Test (_, b) ->
             let constraint_ = constraint_ ~value:(String (Bool.to_string b)) in
             let branching = branching ~location ~action:"follow" ~constraint_ in
