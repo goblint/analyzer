@@ -2492,7 +2492,9 @@ struct
           | _ ->
             set ~man st lv_a lv_typ (VD.top_value (unrollType lv_typ))
         end
-    in
+    in 
+    (* Evaluate each functions arguments. `eval_rv` is only called for its side effects, we ignore the result. *)
+    List.iter (fun arg -> eval_rv ~man st arg |> ignore) args; 
     let st = match desc.special args, f.vname with
     | Memset { dest; ch; count; }, _ ->
       (* TODO: check count *)
