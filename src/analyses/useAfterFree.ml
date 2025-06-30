@@ -110,8 +110,10 @@ struct
           let warn_for_heap_var v =
             if HeapVars.mem v (snd state) then begin
               if is_double_free then set_mem_safety_flag InvalidFree else set_mem_safety_flag InvalidDeref;
-              M.warn ~category:(Behavior undefined_behavior) ~tags:[CWE cwe_number] "lval (%s) in \"%s\" points to a maybe freed memory region" v.vname transfer_fn_name
-            end
+              M.warn ~category:(Behavior undefined_behavior) ~tags:[CWE cwe_number] "lval (%s) in \"%s\" points to a maybe freed memory region" v.vname transfer_fn_name;
+              Checks.warn Checks.Category.DoubleFree "lval (%s) in \"%s\" points to a maybe freed memory region" v.vname transfer_fn_name;
+            end else
+              Checks.safe Checks.Category.DoubleFree
           in
           let pointed_to_heap_vars =
             Queries.AD.fold (fun addr vars ->

@@ -83,11 +83,14 @@ let set_overflow_flag ~cast ~underflow ~overflow ik =
     let sign = if signed then "Signed" else "Unsigned" in
     match underflow, overflow with
     | true, true ->
-      M.warn ~category:M.Category.Integer.overflow ~tags:[CWE 190; CWE 191] "%s integer overflow and underflow" sign
+      M.warn ~category:M.Category.Integer.overflow ~tags:[CWE 190; CWE 191] "%s integer overflow and underflow" sign;
+      Checks.warn Checks.Category.IntegerOverflow "%s integer overflow and underflow" sign
     | true, false ->
-      M.warn ~category:M.Category.Integer.overflow ~tags:[CWE 191] "%s integer underflow" sign
+      M.warn ~category:M.Category.Integer.overflow ~tags:[CWE 191] "%s integer underflow" sign;
+      Checks.warn Checks.Category.IntegerOverflow "%s integer underflow" sign
     | false, true ->
-      M.warn ~category:M.Category.Integer.overflow ~tags:[CWE 190] "%s integer overflow" sign
+      M.warn ~category:M.Category.Integer.overflow ~tags:[CWE 190] "%s integer overflow" sign;
+      Checks.warn Checks.Category.IntegerOverflow "%s integer overflow" sign
     | false, false -> assert false
 
 let reset_lazy () =

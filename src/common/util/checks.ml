@@ -2,17 +2,21 @@ module Kind = struct
   type t =
     | Error
     | Warning
-    | Success
+    | Safe
+
+  let is_safe = function
+    | Safe -> true
+    | _ -> false
 
   let to_yojson x = `String (match x with
       | Error -> "error"
       | Warning -> "warning"
-      | Success -> "success")
+      | Safe -> "safe")
 
   let of_yojson = function
     | `String "error" -> Ok Error
     | `String "warning" -> Ok Warning
-    | `String "success" -> Ok Success
+    | `String "safe" -> Ok Safe
     | kind -> Error ("Checks.Kind.of_yojson: Invalid kind :" ^ Yojson.Safe.to_string kind)
 end
 
@@ -26,6 +30,7 @@ module Category = struct
     | InvalidPointerSubtraction
     | DoubleFree
     | NegativeArraySize
+    | StubCondition
 
   let to_yojson x = `String (match x with
       | AssersionFaillure -> "Assertion failure"
@@ -35,7 +40,8 @@ module Category = struct
       | InvalidPointerComparison -> "Invalid pointer comparison"
       | InvalidPointerSubtraction -> "Invalid pointer subtraction"
       | DoubleFree -> "Double free"
-      | NegativeArraySize -> "Negative array size")
+      | NegativeArraySize -> "Negative array size"
+      | StubCondition -> "Stub condition")
 
   let of_yojson = function
     | `String "Assertion failure" -> Ok AssersionFaillure
@@ -52,20 +58,64 @@ end
 module Check = struct
   type t = {
     kind: Kind.t;
-    category: Category.t;
-    location: CilType.Location.t;
-    message: string;
+    title: Category.t;
+    range: CilType.Location.t option;
+    messages: string;
   } [@@deriving yojson, make]
 
-  let checks = ref []
+  let to_yojson check =
+    `Assoc [
+      ("kind", Kind.to_yojson check.kind);
+      ("title", Category.to_yojson check.title);
+      ("range", match check.range with
+        | Some loc -> `Assoc [
+            ("start", `Assoc [
+                ("file", `String loc.file);
+                ("line", `Int loc.line);
+                ("column", `Int loc.column)
+              ]);
+            ("end", `Assoc [
+                ("file", `String loc.file);
+                ("line", `Int loc.endLine);
+                ("column", `Int loc.endColumn)
+              ])
+          ]
+        | None -> `Null);
+      ("messages", `String check.messages)
+    ]
 
-  let check kind category location message =
-    let check = make ~kind ~category ~location ~message in
-    checks := check :: !checks
+  type key = (Category.t * CilType.Location.t option) 
+  let checks : (key, t list) Hashtbl.t = Hashtbl.create 113
+
+  let add_check check =
+    if !AnalysisState.should_warn then (
+      let check_key = (check.title, check.range) in
+      match Hashtbl.find_opt checks check_key with
+      | Some existing_checks ->
+        if Kind.is_safe check.kind then
+          ()
+        else if Kind.is_safe (List.hd existing_checks).kind then
+          Hashtbl.replace checks check_key [check]
+        else
+          Hashtbl.replace checks check_key (check :: existing_checks)
+      | None ->
+        Hashtbl.add checks check_key [check])
+
+  let check kind title =
+    let finish doc =
+      let loc = Option.map UpdateCil0.getLoc !Node0.current_node in
+      let messages = GobPretty.show doc in
+      let check = make ~kind ~title ?range:loc ~messages () in
+      add_check check
+    in GoblintCil.Pretty.gprintf finish  
+
+
+  let export () =
+    `List (List.map to_yojson @@ Hashtbl.fold (fun _ checks acc -> List.rev_append checks acc) checks [])
 end
 
-let error = Check.check Kind.Error
+let error category = Check.check Kind.Error category
 
-let warning = Check.check Kind.Warning
+let warn category = Check.check Kind.Warning category
 
-let success = Check.check Kind.Success
+let safe category = Check.check Kind.Safe category ""

@@ -27,7 +27,10 @@ struct
       if D.exists (fun x -> GobOption.exists (fun x -> is_prefix_of x v) (Addr.to_mval x)) st
       then
         let var = Addr.of_mval v in
-        Messages.warn ~category:Messages.Category.Behavior.Undefined.nullpointer_dereference "Possible dereferencing of null on variable '%a'." Addr.pretty var
+        Messages.warn ~category:Messages.Category.Behavior.Undefined.nullpointer_dereference "Possible dereferencing of null on variable '%a'." Addr.pretty var;
+        Checks.warn Checks.Category.InvalidMemoryAccess "Possible dereferencing of null on variable '%a'." Addr.pretty var
+      else
+        Checks.safe Checks.Category.InvalidMemoryAccess
     with SetDomain.Unsupported _ -> ()
 
   (* Warn null-lval dereferences, but not normal (null-) lvals*)
