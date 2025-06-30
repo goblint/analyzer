@@ -72,12 +72,12 @@ module Check = struct
             ("start", `Assoc [
                 ("file", `String loc.file);
                 ("line", `Int loc.line);
-                ("column", `Int loc.column)
+                ("column", `Int (loc.column - 1))
               ]);
             ("end", `Assoc [
                 ("file", `String loc.file);
                 ("line", `Int loc.endLine);
-                ("column", `Int loc.endColumn)
+                ("column", `Int (loc.endColumn - 1))
               ])
           ]
         | None -> `Null);
