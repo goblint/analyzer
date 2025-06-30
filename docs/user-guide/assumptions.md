@@ -34,5 +34,20 @@ _NB! This list is likely incomplete._
 
     See [PR #1511](https://github.com/goblint/analyzer/pull/1511).
 
+3.  Memory allocated with `malloc` is initialized before reading.
+
+    [C11's N1570][n1570] at J.2 states that
+
+    > The behavior is undefined in the following circumstances:
+    >
+    > - [...]
+    > - The value of the object allocated by the `malloc` function is used (7.22.3.4).
+
+    after a long list of undefined behaviors.
+
+    Goblint does not report reading from uninitialized memory allocated by `malloc`.
+
+    This affects the `base` analysis.
+
 
 [n1570]: https://www.open-std.org/jtc1/sc22/wg14/www/docs/n1570.pdf
