@@ -74,6 +74,7 @@ module IntDomTupleImpl = struct
       let overflow = overflow_intv && overflow_intv_set && overflow_bf in
       set_overflow_flag ~cast ~underflow ~overflow ik;
     );
+    if no_ov && not suppress_ovwarn then Checks.safe Checks.Category.IntegerOverflow;
     no_ov
 
   let create2_ovc ik r x ((p1, p2, p3, p4, p5, p6): int_precision) =
