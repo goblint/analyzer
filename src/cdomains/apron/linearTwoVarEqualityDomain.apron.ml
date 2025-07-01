@@ -396,6 +396,9 @@ struct
   (** is_top returns true for top_of array and empty array; precondition: t.env and t.d are of same size *)
   let is_top t = GobOption.exists EConj.is_top_con t.d
 
+  let is_top_env t = (not @@ Environment.equal empty_env t.env) && GobOption.exists EConj.is_top_con t.d
+
+
   let to_subscript i =
     let transl = [|"₀";"₁";"₂";"₃";"₄";"₅";"₆";"₇";"₈";"₉"|] in
     let rec subscr i =
@@ -466,8 +469,8 @@ struct
       | Some (coeffj,j) -> tuple_cmp (EConj.get_rhs ts i) @@ Rhs.subst (EConj.get_rhs ts j) j (var, offs, divi)
     in
     if env_comp = -2 || env_comp > 0 then false else
-    if is_bot_env t1 || is_top t2 then true
-    else if is_bot_env t2 || is_top t1 then false else
+    if is_bot_env t1 || is_top_env t2 then true
+    else if is_bot_env t2 || is_top_env t1 then false else
       let m1, m2 = Option.get t1.d, Option.get t2.d in
       let m1' = if env_comp = 0 then m1 else VarManagement.dim_add (Environment.dimchange t1.env t2.env) m1 in
       EConj.IntMap.for_all (implies m1') (snd m2) (* even on sparse m2, it suffices to check the non-trivial equalities, still present in sparse m2 *)
@@ -534,19 +537,24 @@ struct
 
     in
     (*Normalize the two domains a and b such that both talk about the same variables*)
-    match a.d, b.d with
-    | None, _ -> b
-    | _, None -> a
-    | Some x, Some y when is_top a || is_top b ->
-      let new_env = Environment.lce a.env b.env in
-      top_of new_env
-    | Some x, Some y when (Environment.cmp a.env b.env <> 0) ->
-      let sup_env = Environment.lce a.env b.env in
-      let mod_x = dim_add (Environment.dimchange a.env sup_env) x in
-      let mod_y = dim_add (Environment.dimchange b.env sup_env) y in
-      {d = join_d mod_x mod_y; env = sup_env}
-    | Some x, Some y when EConj.equal x y -> {d = Some x; env = a.env}
-    | Some x, Some y  -> {d = join_d x y; env = a.env}
+    if is_bot a then
+      b
+    else if is_bot b then
+      a
+    else
+      match a.d, b.d with
+      | None, _ -> b
+      | _, None -> a
+      | Some x, Some y when is_top_env a || is_top_env b ->
+        let new_env = Environment.lce a.env b.env in
+        top_of new_env
+      | Some x, Some y when (Environment.cmp a.env b.env <> 0) ->
+        let sup_env = Environment.lce a.env b.env in
+        let mod_x = dim_add (Environment.dimchange a.env sup_env) x in
+        let mod_y = dim_add (Environment.dimchange b.env sup_env) y in
+        {d = join_d mod_x mod_y; env = sup_env}
+      | Some x, Some y when EConj.equal x y -> {d = Some x; env = a.env}
+      | Some x, Some y  -> {d = join_d x y; env = a.env}
 
   let join a b = Timing.wrap "join" (join a) b
 
@@ -574,12 +582,12 @@ struct
     dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
 
   let forget_var t var =
-    if is_bot_env t || is_top t then t
+    if is_bot_env t || is_top_env t then t
     else
       {d = Some (EConj.forget_variable (Option.get t.d) (Environment.dim_of_var t.env var)); env = t.env}
 
   let forget_vars t vars =
-    if is_bot_env t || is_top t || List.is_empty vars then
+    if is_bot_env t || is_top_env t || List.is_empty vars then
       t
     else
       let newm = List.fold (fun map i -> EConj.forget_variable map (Environment.dim_of_var t.env i)) (Option.get t.d) vars in
@@ -651,7 +659,7 @@ struct
     let t_primed = add_vars t primed_vars in
     let multi_t = List.fold_left2 (fun t' v_prime (_,v') -> assign_var t' v_prime v') t_primed primed_vars vv's in
     match multi_t.d with
-    | Some arr when not @@ is_top multi_t ->
+    | Some arr when not @@ is_top_env multi_t ->
       let switched_arr = List.fold_left2 (fun multi_t assigned_var primed_var-> assign_var multi_t assigned_var primed_var) multi_t assigned_vars primed_vars in
       remove_vars switched_arr primed_vars
     | _ -> t

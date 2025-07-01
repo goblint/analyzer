@@ -200,8 +200,24 @@ struct
     | PlusA -> ID.add
     | MinusA -> ID.sub
     | Mult -> ID.mul
-    | Div -> ID.div
-    | Mod -> ID.rem
+    | Div ->
+      fun x y ->
+        (match ID.equal_to Z.zero y with
+         | `Eq ->
+           M.error ~category:M.Category.Integer.div_by_zero ~tags:[CWE 369] "Second argument of division is zero"
+         | `Top ->
+           M.warn ~category:M.Category.Integer.div_by_zero ~tags:[CWE 369] "Second argument of division might be zero"
+         | `Neq -> ());
+        ID.div x y
+    | Mod ->
+      fun x y ->
+        (match ID.equal_to Z.zero y with
+         | `Eq ->
+           M.error ~category:M.Category.Integer.div_by_zero ~tags:[CWE 369] "Second argument of modulo is zero"
+         | `Top ->
+           M.warn ~category:M.Category.Integer.div_by_zero ~tags:[CWE 369] "Second argument of modulo might be zero"
+         | `Neq -> ());
+        ID.rem x y
     | Lt -> ID.lt
     | Gt -> ID.gt
     | Le -> ID.le
@@ -287,24 +303,33 @@ struct
           `Field(f, addToOffset n t' o)
         | `NoOffset -> `Index(iDtoIdx n, `NoOffset)
       in
-      let default = function
-        | Addr.NullPtr when GobOption.exists (Z.equal Z.zero) (ID.to_int n) -> Addr.NullPtr
-        | _ -> Addr.UnknownPtr
-      in
-      match Addr.to_mval addr with
-      | Some (x, o) -> Addr.of_mval (x, addToOffset n (Some x.vtype) o)
-      | None -> default addr
+      match addr with
+      | Addr (x, o) -> AD.of_mval (x, addToOffset n (Some x.vtype) o)
+      | NullPtr ->
+        begin match ID.equal_to Z.zero n with
+          | `Eq -> AD.null_ptr
+          | `Neq -> AD.unknown_ptr
+          | `Top -> AD.top_ptr
+        end
+      | UnknownPtr
+      | StrPtr _ ->
+        begin match ID.equal_to Z.zero n with
+          | `Eq -> AD.singleton addr (* remains unchanged *)
+          | `Neq
+          | `Top -> AD.top_ptr
+        end
     in
+    let ad_concat_map f a = AD.fold (fun a acc -> AD.join (f a) acc) a (AD.empty ()) in
     let addToAddrOp p (n:ID.t):value =
       match op with
       (* For array indexing e[i] and pointer addition e + i we have: *)
       | IndexPI | PlusPI ->
-        Address (AD.map (addToAddr n) p)
+        Address (ad_concat_map (addToAddr n) p)
       (* Pointer subtracted by a value (e-i) is very similar *)
       (* Cast n to the (signed) ptrdiff_ikind, then add the its negated value. *)
       | MinusPI ->
         let n = ID.neg (ID.cast_to (Cilfacade.ptrdiff_ikind ()) n) in
-        Address (AD.map (addToAddr n) p)
+        Address (ad_concat_map (addToAddr n) p)
       | Mod -> Int (ID.top_of (Cilfacade.ptrdiff_ikind ())) (* we assume that address is actually casted to int first*)
       | _ -> Address AD.top_ptr
     in
@@ -2476,7 +2501,9 @@ struct
           | _ ->
             set ~man st lv_a lv_typ (VD.top_value (unrollType lv_typ))
         end
-    in
+    in 
+    (* Evaluate each functions arguments. `eval_rv` is only called for its side effects, we ignore the result. *)
+    List.iter (fun arg -> eval_rv ~man st arg |> ignore) args; 
     let st = match desc.special args, f.vname with
     | Memset { dest; ch; count; }, _ ->
       (* TODO: check count *)
