@@ -153,8 +153,6 @@ struct
 end
 
 
-exception Found
-
 module type PathArg = MyARG.S with module Edge = MyARG.InlineEdge
 
 type 'node result =
@@ -182,27 +180,29 @@ let find_path (type node) (module Arg:ViolationArg with type Node.t = node) (mod
       ) path
   in
 
+  let exception Found of Arg.Node.t in
+
   let find_path nodes =
     let next_nodes = NHT.create 100 in
 
     let itered_nodes = NHT.create 100 in
     let rec bfs curs nexts = match curs with
       | node :: curs' ->
-        if Arg.Node.equal node Arg.main_entry then
-          raise Found
+        if BatList.mem_cmp Arg.Node.compare node Arg.violations then
+          raise (Found node)
         else if not (NHT.mem itered_nodes node) then begin
           NHT.replace itered_nodes node ();
-          List.iter (fun (edge, prev_node) ->
+          List.iter (fun (edge, next_node) ->
               match edge with
               | MyARG.CFGEdge _
               | InlineEntry _
               | InlineReturn _
               | InlinedEdge _ ->
-                if not (NHT.mem itered_nodes prev_node) then
-                  NHT.replace next_nodes prev_node (edge, node)
+                if not (NHT.mem itered_nodes next_node) then
+                  NHT.replace next_nodes next_node (edge, node)
               | ThreadEntry _ -> ()
-            ) (Arg.prev node);
-          bfs curs' (List.map snd (Arg.prev node) @ nexts)
+            ) (Arg.next node);
+          bfs curs' (List.map snd (Arg.next node) @ nexts)
         end
         else
           bfs curs' nexts
@@ -213,11 +213,11 @@ let find_path (type node) (module Arg:ViolationArg with type Node.t = node) (mod
     in
 
     try bfs nodes []; None with
-    | Found ->
-      Some (trace_path next_nodes Arg.main_entry)
+    | Found violation ->
+      Some (List.rev_map (fun (n1, e, n2) -> (n2, e, n1)) (trace_path next_nodes violation)) (* TODO: inefficient rev *)
   in
 
-  begin match find_path Arg.violations with
+  begin match find_path [Arg.main_entry] with
     | Some path ->
       print_path path;
       begin match Feasibility.check_path path with
