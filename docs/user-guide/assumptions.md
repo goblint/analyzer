@@ -63,7 +63,7 @@ _NB! This list is likely incomplete._
     after a long list of undefined behaviors.
 
     Goblint does not by default report reading from out of bounds array indices.
-    Goblint reports out of bounds array index accesses when `ana.arrayoob` option is enabled.
+    Goblint reports out of bounds array index accesses when the `ana.arrayoob` option is enabled.
 
     This affects the `base` analysis.
 
