@@ -1,12 +1,18 @@
 open Vector
 open RatOps
 
+module M = Messages
+
 open Batteries
 
 module type SparseVector = 
 sig 
   include Vector
+  val push_first: t -> int -> num -> t
+
   val is_zero_vec: t -> bool
+
+  val tail_afterindex: t -> int -> t
 
   val insert_zero_at_indices: t -> (int * int) list -> int -> t
 
@@ -22,6 +28,8 @@ sig
   val mapi_f_preserves_zero: (int -> num -> num) -> t -> t
 
   val map2_f_preserves_zero: (num -> num -> num) -> t ->  t -> t
+
+  val map2_f_preserves_zero_helper: (int -> int -> int) -> (num -> num -> num) -> t ->  t -> t
 
   val find2i_f_false_at_zero: (num -> num -> bool) -> t -> t -> int
 
@@ -86,7 +94,8 @@ module SparseVector: SparseVectorFunctor =
     let show v = 
       let rec sparse_list_str i l =
         if i >= v.len then "]"
-        else match l with
+        else
+          match l with
           | [] -> (A.to_string A.zero) ^" "^ (sparse_list_str (i + 1) l)
           | (idx, value) :: xs -> 
             if i = idx then (A.to_string value) ^" "^ sparse_list_str (i + 1) xs
@@ -126,6 +135,13 @@ module SparseVector: SparseVectorFunctor =
         | Some (idx, value) when idx = n -> value
         | _ -> A.zero
 
+    let push_first v n num =
+      if n >= v.len then raise (Invalid_argument "Index out of bounds")
+      else let res =
+             {v with entries = (n,num)::v.entries} in
+        if M.tracing then M.trace "push_first" "pushed %s at index %d, new length: %d, resulting in %s" (A.to_string num) n res.len (res.entries |> List.map (fun (i, x) -> Printf.sprintf "(%d, %s)" i (A.to_string x)) |> String.concat ", ");
+        res
+
     (**
        [set_nth v n num] returns [v] where the [n]-th entry has been set to [num].
        @raise Invalid_argument if [n] is out of bounds.
@@ -155,6 +171,22 @@ module SparseVector: SparseVectorFunctor =
         | (idx, value) :: xs, ((i, count) :: ys) -> add_indices_helper xs cur_idx added_count ((idx + added_count, value) :: acc)
       in
       {entries = add_indices_helper v.entries indices 0 []; len = v.len + num_zeros}
+
+    (**
+        [tail_afterindex v n] returns the vector starting after the [n]-th entry, i.e. all entries with index > [n].
+        @raise Invalid_argument if [n] is out of bounds.
+    *)
+    let tail_afterindex v n =
+      if n >= v.len then raise (Invalid_argument "Index out of bounds")
+      else
+        match v.entries with
+        | [] -> v (* If the vector is empty, return it as is *)
+        | (headidx,headval) :: _ ->
+          if M.tracing then M.trace "tail_afterindex" "headidx: %d, n: %d, v.len: %d" headidx n v.len;
+          if headidx > n then v
+          else
+            let entries = List.tl v.entries in
+            {entries; len = v.len }
 
     (**
        [remove_nth v n] returns [v] where the [n]-th entry is removed, decreasing the length of the vector by one.
@@ -334,6 +366,5 @@ module SparseVector: SparseVectorFunctor =
 
     let rev v = 
       let entries = List.rev_map (fun (idx, value) -> (v.len - 1 - idx, value)) v.entries in 
-      {entries; len = v.len}
-
+      {entries; len = v.len}    
   end 
