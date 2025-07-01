@@ -136,9 +136,9 @@ struct
           VarSet.filter (fun y -> not (BatList.mem y vars)) ys
       )
 
-  let set_value index value = BatList.modify_at index (fun _ -> value)
+  let set_value (index: Idx.t) (value: VarSet.t) = BatList.modify_at index (fun _ -> value)
 
-  let get_value index subs = BatList.at subs index
+  let get_value (index: Idx.t) (subs: t) = BatList.at subs index
 
   let to_string (sub: t) =
     (* The following results in: { y1#, y2#, ..., yn# }*)

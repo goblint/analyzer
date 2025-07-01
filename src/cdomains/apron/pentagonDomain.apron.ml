@@ -382,9 +382,37 @@ struct
     | None -> t 
     | Some d ->
       (* TODO: Modulo support is lost after linearisation, may be quite important for us, as it is mentioned in the paper *)
-      let monoms = simplified_monomials_from_texp t.env texp in
-      match monoms with
-      | None -> forget_vars t [var] 
+      match simplified_monomials_from_texp t.env texp with
+      | None -> (
+          match texp with
+          | Binop(Mod, e1, e2, _, _) as rem_op -> (
+              let rem_intv = eval_texpr_to_intv t rem_op in
+
+              let boxes = Boxes.set_value dim_var rem_intv d.boxes in
+
+              let subs: Subs.t =
+                (* We might want to linearize here. *)
+                (match e2 with
+                 | Var(x) -> (
+                     (* Interpret e2 as an interval. *)
+                     let lhs_intv = eval_texpr_to_intv t e2 in
+                     (* Check if all i ∈ d. i >= 0.*)
+                     if (Intv.inf lhs_intv) >=* ZExt.zero then
+                       (** Add x to the subs of var *)
+                       let dim_x = Environment.dim_of_var t.env x in
+                       let subs_var = Subs.get_value dim_var d.subs in
+                       let subs_var_with_x = Subs.VarSet.add dim_x subs_var in
+                       Subs.set_value dim_var subs_var_with_x d.subs
+                     else
+                       d.subs
+                   )
+                 | _ -> d.subs)
+              in
+
+              wrap boxes subs
+            )
+          | _ -> forget_vars t [var]
+        )
       | Some(sum_of_terms, (constant,divisor)) ->
         if divisor <> Z.one then failwith "assign_texpr: DIVISOR WAS NOT ONE"
         else

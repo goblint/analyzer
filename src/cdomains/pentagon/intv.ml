@@ -1,5 +1,6 @@
 open ZExt
 open Batteries
+open StringUtils
 
 (**
    Stores functions and types for single intervals $\mathbb{Z}^\infty$
@@ -10,6 +11,8 @@ struct
   include ZExtOps
 
   type t = (ZExt.t * ZExt.t) [@@deriving eq, hash, ord]
+
+  let to_string ((lb, ub): t) = Printf.sprintf "[%s,%s]" (StringUtils.int32_bound_str lb) (StringUtils.int32_bound_str ub)
 
   let top () = ((ZExt.NegInfty, ZExt.PosInfty): t)
 
@@ -154,6 +157,5 @@ struct
 
   let gt ((lb1, _):t) ((_, ub2):t) =
     lb1 > ub2
-
 
 end

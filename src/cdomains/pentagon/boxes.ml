@@ -15,8 +15,8 @@ struct
     BatList.for_all Intv.is_top i
 
   let to_string (intervals: t) =
-    let string_of_interval i (lb, ub) =
-      Printf.sprintf "%i->[%s, %s]" i (StringUtils.int32_bound_str lb) (StringUtils.int32_bound_str ub)
+    let string_of_interval i intv =
+      Printf.sprintf "%i->%s" i (Intv.to_string intv)
     in
     let bot_or_top =
       if is_bot intervals then
