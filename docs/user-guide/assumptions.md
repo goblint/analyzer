@@ -49,5 +49,25 @@ _NB! This list is likely incomplete._
 
     This affects the `base` analysis.
 
+    See [issue #1770](https://github.com/goblint/analyzer/issues/1770).
+
+4.  Array index reads are in bounds.
+
+    [C11's N1570][n1570] at J.2 states that
+
+    > The behavior is undefined in the following circumstances:
+    >
+    > - [...]
+    > - An array subscript is out of range, even if an object is apparently accessible with the given subscript (as in the lvalue expression `a[1][7]` given the declaration `int a[4][5]`) (6.5.6).
+
+    after a long list of undefined behaviors.
+
+    Goblint does not by default report reading from out of bounds array indices.
+    Goblint reports out of bounds array index accesses when `ana.arrayoob` option is enabled.
+
+    This affects the `base` analysis.
+
+    See [issue #1702](https://github.com/goblint/analyzer/issues/1702).
+
 
 [n1570]: https://www.open-std.org/jtc1/sc22/wg14/www/docs/n1570.pdf
