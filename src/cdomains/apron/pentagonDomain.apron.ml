@@ -386,32 +386,50 @@ struct
       match monoms with
       | None -> forget_vars t [var] 
       | Some(sum_of_terms, (constant,divisor)) ->
-        let monoms = Option.get monoms in
-        match sum_of_terms with
-        | _ when divisor <> Z.one -> failwith "assign_texpr: DIVISOR WAS NOT ONE"
-        | [] -> (* instead of always forgetting, you could use old Sub information here, too *)
-          wrap (Boxes.set_value dim_var (ZExt.Arb constant, ZExt.Arb constant) d.boxes) (Subs.forget_vars [dim_var] d.subs)
-        | [(coefficient, index, _)] when index = dim_var ->
-          let new_intv = eval_monoms_to_intv d.boxes monoms in
-          let boxes = (Boxes.set_value index new_intv d.boxes) in
-          (* We analyse 0 >< (a-1)x + b because it is more precise than x >< ax + b *)
-          let modified_monoms = ([(Z.(-) coefficient Z.one, index, Z.one)], (constant, Z.one)) in
-          let (lb, ub) = eval_monoms_to_intv d.boxes modified_monoms in
+        if divisor <> Z.one then failwith "assign_texpr: DIVISOR WAS NOT ONE"
+        else
+          (* intv_acc: interval analysation of constant + all linear terms from indices 1 to i-1 *)
+          let rec aux sum_of_terms intv_acc (subs_acc : Subs.VarSet.t) (slbs_acc : Subs.VarSet.t) delete_subs_flag delete_slbs_flag =
+            match sum_of_terms with
+            | (_, _, div) :: _ when div <> Z.one -> failwith "assign_texpr: DIVISOR WAS NOT ONE"
+            | [] ->
+              let intv_x = Boxes.get_value dim_var d.boxes in
+              let delete_subs_flag = delete_subs_flag && Intv.sup intv_acc >* Intv.inf intv_x in
+              let delete_slbs_flag = delete_slbs_flag && Intv.inf intv_acc <* Intv.sup intv_x in
 
-          let sub =
-            if lb >* ZExt.zero then
-              Subs.set_value index Subs.VarSet.empty d.subs
-            else
-            if ub <* ZExt.zero then
-              Subs.forget_vars_from_sets [index] d.subs
-            else
-            if lb <* ZExt.zero && ub >* ZExt.zero then
-              Subs.forget_vars [index] d.subs
-            else d.subs
+              let new_subs = Subs.VarSet.remove dim_var subs_acc in
+              let new_slbs = slbs_acc in
 
-          in
-          wrap boxes sub
-        | [(coefficient, index, _)] -> (* x' := ay + b *)
+              let update_subs i subs_i =
+                if i = dim_var then (* i = x ==> update Subs(x) *)
+                  if delete_subs_flag then
+                    new_subs
+                  else
+                    Subs.VarSet.union subs_i new_subs
+                else (* i <> x ==> update Subs(i) *)
+                if Subs.VarSet.mem i new_slbs then 
+                  Subs.VarSet.add dim_var subs_i else
+                if delete_slbs_flag then
+                  Subs.VarSet.remove dim_var subs_i
+                else
+                  subs_i
+              in
+              wrap (Boxes.set_value dim_var intv_acc d.boxes) (List.mapi update_subs d.subs)
+
+            | (coefficient, index, _) :: rem_terms when index = dim_var -> (* x' := ax + ... *)
+              let rem_terms_intv = eval_monoms_to_intv d.boxes (rem_terms, (Z.zero, Z.one)) in
+              let all_except_i = Intv.add intv_acc rem_terms_intv in
+              (* We analyse 0 >< (a-1)x + b because it is more precise than x >< ax + b *)
+              let a_decr_x = ([(Z.(-) coefficient Z.one, index, Z.one)], (Z.zero, Z.one)) in
+              let (cmp_lb, cmp_ub) = Intv.add (eval_monoms_to_intv d.boxes a_decr_x) all_except_i in
+              let delete_subs_flag = delete_subs_flag && cmp_ub >* ZExt.zero in (* x could have got greater *)
+              let delete_slbs_flag = delete_slbs_flag && cmp_lb <* ZExt.zero (* x could have got lower *)
+              in
+
+              let this_intv = eval_monoms_to_intv d.boxes ([(coefficient, index, Z.one)], (Z.zero, Z.one)) in
+              aux rem_terms (Intv.add intv_acc this_intv) subs_acc slbs_acc delete_subs_flag delete_slbs_flag
+
+            | (coefficient, index, _) :: rem_terms -> (* x' := a1x1 + a2x2 + ... + ay + ... *)
         (*
             x < x'
             <==> x < ay + b
@@ -428,86 +446,60 @@ struct
             x' < x möglich: delete SLBs(x)
             x' > x möglich: delete SUBs(x)*)
 
-          let intv_x = Boxes.get_value dim_var d.boxes in
-          let intv_x' = eval_monoms_to_intv d.boxes monoms in
-          (* If there is SUBs information between x and y, we can be more precise if we also analyse 0 >< (a-1)y + b *)
-          let comparison = ([(Z.(-) coefficient Z.one, index, Z.one)], (constant, Z.one)) in
-          let (cmp_lb, cmp_ub) = eval_monoms_to_intv d.boxes comparison in
+              (*let intv_x = Boxes.get_value dim_var d.boxes in
+                let intv_x' = eval_monoms_to_intv d.boxes monoms in*)
 
-          let delete_subs_flag = (* x could have got greater / we can't rule out x' > x *)
-            Intv.sup intv_x' >* Intv.inf intv_x &&
-            if Subs.lt d.subs dim_var index (* x < y ==> -x + ay + b >= (a-1)y + b + 1 ==> if (a-1)y + b >= 0 is possible, x' > x is possible *)
-            then cmp_ub >=* ZExt.zero
-            else true in
-          let delete_slbs_flag = (* x could have got lower / we can't rule out x' < x *)
-            Intv.inf intv_x' <* Intv.sup intv_x &&
-            if Subs.gt d.subs dim_var index
-            then cmp_lb <=* ZExt.zero
-            else true in
+              let rem_terms_intv = eval_monoms_to_intv d.boxes (rem_terms, (Z.zero, Z.one)) in
+              let all_except_i = Intv.add intv_acc rem_terms_intv in
+              (* We analyse 0 >< (a-1)y + b because it is more precise than y >< ay + b *)
+              let a_decr_y = ([(Z.(-) coefficient Z.one, index, Z.one)], (Z.zero, Z.one)) in
+              let (cmp_lb, cmp_ub) = Intv.add (eval_monoms_to_intv d.boxes a_decr_y) all_except_i in
 
-          let subs = (d.subs
-                      |> if delete_subs_flag then Subs.set_value dim_var Subs.VarSet.empty else Fun.id)
-                     |> if delete_slbs_flag then Subs.forget_vars_from_sets [dim_var] else Fun.id
-          in
-
+              let delete_subs_flag = (* x could have got greater / we can't rule out x' > x *)
+                delete_subs_flag &&
+                (*Intv.sup intv_x' >* Intv.inf intv_x &&*)
+                if Subs.lt d.subs dim_var index (* x < y ==> -x + ay + b >= (a-1)y + b + 1 ==> if (a-1)y + b >= 0 is possible, x' > x is possible *)
+                then cmp_ub >=* ZExt.zero
+                else true in
+              let delete_slbs_flag = (* x could have got lower / we can't rule out x' < x *)
+                delete_slbs_flag &&
+                (*Intv.inf intv_x' <* Intv.sup intv_x &&*)
+                if Subs.gt d.subs dim_var index
+                then cmp_lb <=* ZExt.zero
+                else true in
 
         (*
             analysiere 0 >< (a-1)y + b
-            x' < y sicher:  SUBs(x) := SUBs(x) u SUBs(y) u {y}
-            x' <= y sicher: SUBs(x) := SUBs(x) u SUBs(y)
-            x' > y sicher:  SUBs(y) := SUBs(y) u {x}
+            x' < y sicher:  SUBs(x') := SUBs(x') u SUBs(y) u {y}
+            x' <= y sicher: SUBs(x') := SUBs(x') u SUBs(y)
+            x' > y sicher:  SUBs(y) := SUBs(y) u {x'}
 
         *)
+              let subs_y = Subs.get_value index d.subs in
+              (* Caution: New subs/slbs can contain the old x. This is not a contradiction, it just has to be deleted afterwards. *)
+              let new_subs =
+                if cmp_ub <* ZExt.zero then
+                  Subs.VarSet.union subs_y (Subs.VarSet.singleton index)
+                else if cmp_ub =* ZExt.zero then
+                  subs_y
+                else
+                  Subs.VarSet.empty
+              in
+              let new_slbs =
+                if cmp_lb >* ZExt.zero then
+                  (Subs.VarSet.singleton index)
+                else
+                  Subs.VarSet.empty
+              in
+              let subs_acc = Subs.VarSet.union subs_acc new_subs in
+              let slbs_acc = Subs.VarSet.union slbs_acc new_slbs in
+              let this_intv = eval_monoms_to_intv d.boxes ([(coefficient, index, Z.one)], (Z.zero, Z.zero))
+              in
+              aux rem_terms (Intv.add intv_acc this_intv) subs_acc slbs_acc delete_subs_flag delete_slbs_flag
 
-          let subs =
-            if cmp_ub <* ZExt.zero then
-              let subs_x = Subs.get_value dim_var subs in
-              let subs_y = Subs.get_value index subs in
-              let meet_subs_x_subs_y = Subs.VarSet.union subs_x subs_y in
-              let complete_sub = Subs.VarSet.union meet_subs_x_subs_y (Subs.VarSet.singleton index) in
-
-              Subs.set_value dim_var complete_sub subs
-            else
-            if cmp_ub <=* ZExt.zero then
-              let subs_x = Subs.get_value dim_var subs in
-              let subs_y = Subs.get_value index subs in
-              let meet_subs_x_sub_y = Subs.VarSet.union subs_x subs_y in
-
-              Subs.set_value dim_var meet_subs_x_sub_y subs
-            else
-            if cmp_lb >* ZExt.zero then
-              let subs_y = Subs.get_value index subs in
-              let complete_sub = Subs.VarSet.union subs_y (Subs.VarSet.singleton dim_var) in
-              Subs.set_value index complete_sub subs
-            else 
-              subs in
-
-          let boxes = (Boxes.set_value dim_var intv_x' d.boxes) in
-          wrap boxes subs
-        | _ -> failwith "TODO"
-
-  (* { d=Some({ boxes = boxes; subs = subs }); env = t.env } *)
+          in aux sum_of_terms ((Arb constant, Arb constant) : Intv.t) Subs.VarSet.empty Subs.VarSet.empty true true
 
         (*
-         (** Case: x := y *)
-         | Var y ->
-           let dim_y = Environment.dim_of_var t.env y in
-           let boxes = BatList.modify_at dim (fun _ -> BatList.at boxes dim_y) boxes in
-           let sub = subs |>
-                     Subs.forget_vars [dim] |>
-                     (* x = y ==> if z < y then also z < x *)
-                     Subs.VarList.map (
-                       fun set ->
-                         if Subs.VarSet.mem dim_y set then
-                           Subs.VarSet.add dim set
-                         else 
-                           set
-                     ) |>
-                     (* Subs of x := Subs of y *)
-                     BatList.modify_at dim (fun _ -> BatList.at subs dim_y)
-           in
-           (boxes, sub)
-
          (** 
             Implemented as described by the paper mention at the beginning of this file.
             Refer to 6.2.2 Remainder.
@@ -536,7 +528,7 @@ struct
              | _ -> sub_without_var
            in
            (intv, sub)
- *)
+           *)
 
   ;;
 
