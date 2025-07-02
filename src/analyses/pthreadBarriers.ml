@@ -133,10 +133,10 @@ struct
       if Barriers.is_empty may then raise Analyses.Deadcode;
       (may, must)
     | BarrierInit { barrier; attr; count } ->
-      let multitprocess = not @@ Queries.AD.is_null @@ man.ask (Queries.MayPointTo attr) in
-      if multitprocess then M.warn "Barrier initialized with a non-NULL attr argument. Handled as if PTHREAD_PROCESS_SHARED potentially set.";
+      let multiprocess = not @@ Queries.AD.is_null @@ man.ask (Queries.MayPointTo attr) in
+      if multiprocess then M.warn "Barrier initialized with a non-NULL attr argument. Handled as if PTHREAD_PROCESS_SHARED potentially set.";
       let count = man.ask (Queries.EvalInt count) in
-      let publish_one b = man.sideg b (multitprocess, count, Waiters.bot ()) in
+      let publish_one b = man.sideg b (multiprocess, count, Waiters.bot ()) in
       let barriers = possible_vinfos (Analyses.ask_of_man man) barrier in
       List.iter publish_one barriers;
       man.local
