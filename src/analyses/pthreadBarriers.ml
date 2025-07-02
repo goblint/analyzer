@@ -97,7 +97,10 @@ struct
                 else if Z.geq (Z.of_int (count + 1)) min_cap then
                   (* This is quite a cute problem: Do (min_cap-1) elements exist in the set such that
                       MHP is pairwise true? This solution is a sledgehammer, there should be something much
-                      better algorithmically (beyond just laziness) *)
+                      better algorithmically (beyond just laziness)
+                      Simmo: This sounds like looking for a (min_cap - 1)-clique in the MHP graph with the set of nodes.
+                        That seems to be exponential in min_cap though: https://en.wikipedia.org/wiki/Clique_problem#Cliques_of_fixed_size.
+                  *)
                   let must =
                     let waiters = Waiters.elements relevant_waiters in
                     let min_cap = Z.to_int min_cap in
