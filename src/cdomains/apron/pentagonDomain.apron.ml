@@ -375,43 +375,53 @@ struct
          Some (IMap.fold (fun v c acc -> if Q.equal c Q.zero then acc else (Q.num c,v,Q.den c)::acc) expr [], constant) )
   ;;
 
+  (*
+  Rename var to x
+  *)
   let assign_texpr (t: t) var (texp: Texpr1.expr) : t =
     let wrap b s = {d=Some({boxes = b; subs = s}); env=t.env} in
     let dim_var = Environment.dim_of_var t.env var in 
     match t.d with
     | None -> t 
     | Some d ->
-      (* TODO: Modulo support is lost after linearisation, may be quite important for us, as it is mentioned in the paper *)
       match simplified_monomials_from_texp t.env texp with
       | None -> (
           match texp with
+          (* x:= u % d *)
           | Binop(Mod, e1, e2, _, _) as rem_op -> (
               let rem_intv = eval_texpr_to_intv t rem_op in
-
               let boxes = Boxes.set_value dim_var rem_intv d.boxes in
 
               let subs: Subs.t =
-                (* We might want to linearize here. *)
+                (* We remove any subs of x. *)
+                Subs.forget_vars [dim_var] d.subs |>
                 (match e2 with
-                 | Var(x) -> (
-                     (* Interpret e2 as an interval. *)
-                     let lhs_intv = eval_texpr_to_intv t e2 in
-                     (* Check if all i ∈ d. i >= 0.*)
-                     if (Intv.inf lhs_intv) >=* ZExt.zero then
-                       (** Add x to the subs of var *)
-                       let dim_x = Environment.dim_of_var t.env x in
-                       let subs_var = Subs.get_value dim_var d.subs in
-                       let subs_var_with_x = Subs.VarSet.add dim_x subs_var in
-                       Subs.set_value dim_var subs_var_with_x d.subs
-                     else
-                       d.subs
-                   )
-                 | _ -> d.subs)
-              in
+                 | Var(d) -> (
 
+                     let d_intv = eval_texpr_to_intv t e2 in
+                     let dim_d = Environment.dim_of_var t.env d in
+
+                     (* Check if all i ∈ d. i >= 0.*)
+                     if (Intv.inf d_intv) >* ZExt.zero then
+                       (* We can add x < d *)
+                       Subs.set_value dim_var (Subs.VarSet.singleton dim_d)
+                     else if Intv.sup d_intv <* ZExt.zero then
+                       (* We can add d < x *)
+                       Subs.set_value dim_d (Subs.VarSet.singleton dim_var)
+                     else
+                       (* We cannot add any subs. Potentially div-by-zero. *)
+                       Fun.id
+                   )
+                 | _ -> Fun.id)
+              in
               wrap boxes subs
             )
-          | _ -> forget_vars t [var]
+          (* Non-Linear cases. We only do interval analysis and forget any sub information. *)
+          | expr -> (
+              let boxes = (Boxes.set_value dim_var (eval_texpr_to_intv t expr) d.boxes) in
+              let subs = (Subs.forget_vars [dim_var] d.subs) in
+              wrap boxes subs
+            )  
         )
       | Some(sum_of_terms, (constant,divisor)) ->
         if divisor <> Z.one then failwith "assign_texpr: DIVISOR WAS NOT ONE"

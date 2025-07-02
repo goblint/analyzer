@@ -123,11 +123,6 @@ struct
   (** No narrowing mentioned in the paper. *)
   let narrow sub1 sub2 = meet sub1 sub2
 
-  let forget_vars_from_sets (vars: int BatList.t) =
-    BatList.mapi (fun x ys ->
-        VarSet.filter (fun y -> not (BatList.mem y vars)) ys
-      )
-
   let forget_vars (vars : int BatList.t) =
     BatList.mapi (fun x ys ->
         if BatList.mem x vars then
