@@ -378,9 +378,9 @@ struct
   (*
   Rename var to x
   *)
-  let assign_texpr (t: t) var (texp: Texpr1.expr) : t =
+  let assign_texpr (t: t) x (texp: Texpr1.expr) : t =
     let wrap b s = {d=Some({boxes = b; subs = s}); env=t.env} in
-    let dim_var = Environment.dim_of_var t.env var in 
+    let dim_x = Environment.dim_of_var t.env x in 
     match t.d with
     | None -> t 
     | Some d ->
@@ -390,11 +390,11 @@ struct
           (* x:= u % d *)
           | Binop(Mod, e1, e2, _, _) as rem_op -> (
               let rem_intv = eval_texpr_to_intv t rem_op in
-              let boxes = Boxes.set_value dim_var rem_intv d.boxes in
+              let boxes = Boxes.set_value dim_x rem_intv d.boxes in
 
               let subs: Subs.t =
                 (* We remove any subs of x. *)
-                Subs.forget_vars [dim_var] d.subs |>
+                Subs.forget_vars [dim_x] d.subs |>
                 (match e2 with
                  | Var(d) -> (
 
@@ -404,10 +404,10 @@ struct
                      (* Check if all i ∈ d. i >= 0.*)
                      if (Intv.inf d_intv) >* ZExt.zero then
                        (* We can add x < d *)
-                       Subs.set_value dim_var (Subs.VarSet.singleton dim_d)
+                       Subs.set_value dim_x (Subs.VarSet.singleton dim_d)
                      else if Intv.sup d_intv <* ZExt.zero then
                        (* We can add d < x *)
-                       Subs.set_value dim_d (Subs.VarSet.singleton dim_var)
+                       Subs.set_value dim_d (Subs.VarSet.singleton dim_x)
                      else
                        (* We cannot add any subs. Potentially div-by-zero. *)
                        Fun.id
@@ -418,8 +418,8 @@ struct
             )
           (* Non-Linear cases. We only do interval analysis and forget any sub information. *)
           | expr -> (
-              let boxes = (Boxes.set_value dim_var (eval_texpr_to_intv t expr) d.boxes) in
-              let subs = (Subs.forget_vars [dim_var] d.subs) in
+              let boxes = (Boxes.set_value dim_x (eval_texpr_to_intv t expr) d.boxes) in
+              let subs = (Subs.forget_vars [dim_x] d.subs) in
               wrap boxes subs
             )  
         )
@@ -431,43 +431,43 @@ struct
             match sum_of_terms with
             | (_, _, div) :: _ when div <> Z.one -> failwith "assign_texpr: DIVISOR WAS NOT ONE"
             | [] ->
-              let intv_x = Boxes.get_value dim_var d.boxes in
+              let intv_x = Boxes.get_value dim_x d.boxes in
               let delete_subs_flag = delete_subs_flag && Intv.sup intv_acc >* Intv.inf intv_x in
               let delete_slbs_flag = delete_slbs_flag && Intv.inf intv_acc <* Intv.sup intv_x in
 
-              let new_subs = Subs.VarSet.remove dim_var subs_acc in
+              let new_subs = Subs.VarSet.remove dim_x subs_acc in
               let new_slbs = slbs_acc in
 
               let update_subs i subs_i =
-                if i = dim_var then (* i = x ==> update Subs(x) *)
+                if i = dim_x then (* i = x ==> update Subs(x) *)
                   if delete_subs_flag then
                     new_subs
                   else
                     Subs.VarSet.union subs_i new_subs
                 else (* i <> x ==> update Subs(i) *)
                 if Subs.VarSet.mem i new_slbs then 
-                  Subs.VarSet.add dim_var subs_i else
+                  Subs.VarSet.add dim_x subs_i else
                 if delete_slbs_flag then
-                  Subs.VarSet.remove dim_var subs_i
+                  Subs.VarSet.remove dim_x subs_i
                 else
                   subs_i
               in
-              wrap (Boxes.set_value dim_var intv_acc d.boxes) (List.mapi update_subs d.subs)
+              wrap (Boxes.set_value dim_x intv_acc d.boxes) (List.mapi update_subs d.subs)
 
-            | (coefficient, index, _) :: rem_terms when index = dim_var -> (* x' := ax + ... *)
+            | (coefficient, y, _) :: rem_terms when y = dim_x -> (* x' := ax + ... *)
               let rem_terms_intv = eval_monoms_to_intv d.boxes (rem_terms, (Z.zero, Z.one)) in
               let all_except_i = Intv.add intv_acc rem_terms_intv in
               (* We analyse 0 >< (a-1)x + b because it is more precise than x >< ax + b *)
-              let a_decr_x = ([(Z.(-) coefficient Z.one, index, Z.one)], (Z.zero, Z.one)) in
+              let a_decr_x = ([(Z.(-) coefficient Z.one, y, Z.one)], (Z.zero, Z.one)) in
               let (cmp_lb, cmp_ub) = Intv.add (eval_monoms_to_intv d.boxes a_decr_x) all_except_i in
               let delete_subs_flag = delete_subs_flag && cmp_ub >* ZExt.zero in (* x could have got greater *)
               let delete_slbs_flag = delete_slbs_flag && cmp_lb <* ZExt.zero (* x could have got lower *)
               in
 
-              let this_intv = eval_monoms_to_intv d.boxes ([(coefficient, index, Z.one)], (Z.zero, Z.one)) in
+              let this_intv = eval_monoms_to_intv d.boxes ([(coefficient, y, Z.one)], (Z.zero, Z.one)) in
               aux rem_terms (Intv.add intv_acc this_intv) subs_acc slbs_acc delete_subs_flag delete_slbs_flag
 
-            | (coefficient, index, _) :: rem_terms -> (* x' := a1x1 + a2x2 + ... + ay + ... *)
+            | (coefficient, y, _) :: rem_terms -> (* x' := a1x1 + a2x2 + ... + ay + ... *)
         (*
             x < x'
             <==> x < ay + b
@@ -490,19 +490,19 @@ struct
               let rem_terms_intv = eval_monoms_to_intv d.boxes (rem_terms, (Z.zero, Z.one)) in
               let all_except_i = Intv.add intv_acc rem_terms_intv in
               (* We analyse 0 >< (a-1)y + b because it is more precise than y >< ay + b *)
-              let a_decr_y = ([(Z.(-) coefficient Z.one, index, Z.one)], (Z.zero, Z.one)) in
+              let a_decr_y = ([(Z.(-) coefficient Z.one, y, Z.one)], (Z.zero, Z.one)) in
               let (cmp_lb, cmp_ub) = Intv.add (eval_monoms_to_intv d.boxes a_decr_y) all_except_i in
 
               let delete_subs_flag = (* x could have got greater / we can't rule out x' > x *)
                 delete_subs_flag &&
                 (*Intv.sup intv_x' >* Intv.inf intv_x &&*)
-                if Subs.lt d.subs dim_var index (* x < y ==> -x + ay + b >= (a-1)y + b + 1 ==> if (a-1)y + b >= 0 is possible, x' > x is possible *)
+                if Subs.lt d.subs dim_x y (* x < y ==> -x + ay + b >= (a-1)y + b + 1 ==> if (a-1)y + b >= 0 is possible, x' > x is possible *)
                 then cmp_ub >=* ZExt.zero
                 else true in
               let delete_slbs_flag = (* x could have got lower / we can't rule out x' < x *)
                 delete_slbs_flag &&
                 (*Intv.inf intv_x' <* Intv.sup intv_x &&*)
-                if Subs.gt d.subs dim_var index
+                if Subs.gt d.subs dim_x y
                 then cmp_lb <=* ZExt.zero
                 else true in
 
@@ -513,11 +513,11 @@ struct
             x' > y sicher:  SUBs(y) := SUBs(y) u {x'}
 
         *)
-              let subs_y = Subs.get_value index d.subs in
+              let subs_y = Subs.get_value y d.subs in
               (* Caution: New subs/slbs can contain the old x. This is not a contradiction, it just has to be deleted afterwards. *)
               let new_subs =
                 if cmp_ub <* ZExt.zero then
-                  Subs.VarSet.union subs_y (Subs.VarSet.singleton index)
+                  Subs.VarSet.union subs_y (Subs.VarSet.singleton y)
                 else if cmp_ub =* ZExt.zero then
                   subs_y
                 else
@@ -525,13 +525,13 @@ struct
               in
               let new_slbs =
                 if cmp_lb >* ZExt.zero then
-                  (Subs.VarSet.singleton index)
+                  (Subs.VarSet.singleton y)
                 else
                   Subs.VarSet.empty
               in
               let subs_acc = Subs.VarSet.union subs_acc new_subs in
               let slbs_acc = Subs.VarSet.union slbs_acc new_slbs in
-              let this_intv = eval_monoms_to_intv d.boxes ([(coefficient, index, Z.one)], (Z.zero, Z.zero))
+              let this_intv = eval_monoms_to_intv d.boxes ([(coefficient, y, Z.one)], (Z.zero, Z.zero))
               in
               aux rem_terms (Intv.add intv_acc this_intv) subs_acc slbs_acc delete_subs_flag delete_slbs_flag
 
@@ -570,9 +570,9 @@ struct
 
   ;;
 
-  let assign_texpr t var texp =
-    let res = assign_texpr t var texp in
-    if M.tracing then M.trace "pntg" "D.assign_texpr:\nassign:\t%s := %s\nt:\t%s\nres:\t%s\n\n" (StringUtils.string_of_var var) (StringUtils.string_of_texpr1 texp) (show t) (show res);
+  let assign_texpr t x texp =
+    let res = assign_texpr t x texp in
+    if M.tracing then M.trace "pntg" "D.assign_texpr:\nassign:\t%s := %s\nt:\t%s\nres:\t%s\n\n" (StringUtils.string_of_var x) (StringUtils.string_of_texpr1 texp) (show t) (show res);
     res
 
 
@@ -635,7 +635,7 @@ struct
         match sum_of_terms with
         | _ when divisor <> Z.one -> failwith "assign_texpr: DIVISOR WAS NOT ONE"
         | [] ->  t
-        | [(coefficient, index, _)] -> t
+        | [(coefficient, y, _)] -> t
         | _ -> t*)
     let zero = ZExt.zero in 
     (** Checks if the constraining interval violates the assertion. *)
