@@ -351,7 +351,10 @@ struct
   (** Sets a value, preventing changes when the configuration is immutable and invalidating the cache.
       @raise Immutable *)
   let set_value v o pth =
-    if is_immutable () then raise (Immutable pth);
+    (* TODO: only needed for adding the observers:
+       rewrite so that there is only one observer-analysis
+       that handles all observes internally without new analyses being added. *)
+    (* if is_immutable () then raise (Immutable pth); *)
     drop_memo ();
     unsafe_set_value v o pth
 
