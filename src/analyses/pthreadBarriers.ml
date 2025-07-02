@@ -107,7 +107,7 @@ struct
                     let can_proceed_pred seq =
                       let rec doit seq = match Seq.uncons seq with
                         | None -> true
-                        | Some (h, t) -> Seq.for_all (MHPplusLock.mhp h) t && doit t
+                        | Some (h, t) -> Seq.for_all (MHPplusLock.mhp h) t && (doit [@tailcall]) t
                       in
                       doit seq
                     in
