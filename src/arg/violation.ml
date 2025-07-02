@@ -175,8 +175,8 @@ struct
     let command = Printf.sprintf "%s --witness-check %s %s %s" witch witness_file_path data_model files in
     let lines = read_command_output command in
     match extract_result_line lines with
-    | Some "true" -> Printf.printf "Verification result: false\n"; Infeasible path
-    | Some "false" -> Printf.printf "Verification result: true\n"; Feasible
+    | Some result when String.starts_with ~prefix:"true" result -> Printf.printf "Verification result: %s\n" result; Infeasible path
+    | Some result when String.starts_with ~prefix:"false" result -> Printf.printf "Verification result: %s\n" result; Feasible
     | Some _ -> Unknown
     | None -> Unknown
 
