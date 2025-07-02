@@ -587,6 +587,11 @@ struct
           remove ask (Cil.var v) st
         in
         List.fold_left remove_var man.local (EscapeDomain.EscapedVars.elements vars)
+    | Events.Longjmped {lval} ->
+      BatOption.map_default (fun lv ->
+          let ask = Analyses.ask_of_man man in
+          man.local|> remove_reachable ~deep:false ask [mkAddrOf lv])
+        man.local lval
     | _ ->
       man.local
 end
