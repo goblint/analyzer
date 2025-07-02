@@ -147,9 +147,45 @@ struct
     (* TODO: "witness generation summary" message *)
     YamlWitness.yaml_entries_to_file yaml_entries (Fpath.v (GobConfig.get_string "witness.yaml.path"))
 
+  let read_command_output command =
+    let (ic, _) as process = Unix.open_process command in
+    let rec read_lines acc =
+      try
+        let line = input_line ic in
+        read_lines (line :: acc)
+      with End_of_file ->
+        ignore (Unix.close_process process);
+        acc
+    in
+    read_lines []
+
+  let extract_result_line lines =
+    let re = Str.regexp "^RESULT: \\(.*\\)$" in
+    List.find_map (fun line -> if Str.string_match re line 0 then Some (Str.matched_group 1 line) else None) lines
+
+  let check_feasability_with_witch witch path =
+    let files = String.concat " " (GobConfig.get_string_list "files") in
+    let data_model = match GobConfig.get_string "exp.architecture" with
+      | "64bit" -> "--64"
+      | "32bit" -> "--32"
+      | _ -> failwith "invalid architecture"
+    in
+    let witness_file_path = GobConfig.get_string "witness.yaml.path" in
+    (*  ../witch/scripts/symbiotic --witness-check ../analyzer/witness.yml --32 ../analyzer/violation-witness.c *)
+    let command = Printf.sprintf "%s --witness-check %s %s %s" witch witness_file_path data_model files in
+    let lines = read_command_output command in
+    match extract_result_line lines with
+    | Some "true" -> Printf.printf "Verification result: false\n"; Infeasible path
+    | Some "false" -> Printf.printf "Verification result: true\n"; Feasible
+    | Some _ -> Unknown
+    | None -> Unknown
+
   let check_path path =
     write path;
-    Unknown
+    let witch = GobConfig.get_string "exp.witch" in
+    match witch with
+    | "" -> Unknown
+    | _ -> check_feasability_with_witch witch path
 end
 
 
