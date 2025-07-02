@@ -590,7 +590,7 @@ struct
     | Events.Longjmped {lval} ->
       BatOption.map_default (fun lv ->
           let ask = Analyses.ask_of_man man in
-          man.local|> remove_reachable ~deep:false ask [mkAddrOf lv])
+          remove ask lv man.local)
         man.local lval
     | _ ->
       man.local
