@@ -572,7 +572,7 @@ struct
 
   let assign_const t var const divi = match t.d with
     | None -> t
-    | Some t_d -> {d = Some (EConjI.set_rhs t_d var (None, const, divi)); env = t.env}
+    | Some t_d -> {d = Some (EConjI.set_rhs t_d var @@ Rhs.canonicalize (None, const, divi)); env = t.env}
 
 
 end
@@ -732,7 +732,8 @@ struct
                   else if is_neg then Value.meet (Value.ending Z.zero) full
                   else full
                 in let d' = refine_values d (Value.add b_c rem) a in
-                refine_values d' (Value.div (Value.sub a_val rem) value) b
+                if Value.contains value Z.zero then d' else  (*do not divide by zero for our refinements*)
+                  refine_values d' (Value.div (Value.sub a_val rem) value) b
             | Mod ->         
               (* a' = a/b*b + c and derived from it b' = (a-c)/(a/b)
                 * The idea is to formulate a' as quotient * divisor + remainder. *)
@@ -743,7 +744,8 @@ struct
                 d
               end else 
                 let a' = Value.add (Value.mul (Value.div a_val b_val) b_val) value in
-                let b' = Value.div (Value.sub a_val value) (Value.div a_val value) in
+                let a_c = (Value.div a_val value) in
+                let b' = Value.div (Value.sub a_val value) a_c  in
                 (* However, for [2,4]%2 == 1 this only gives [3,4].
                  * If the upper bound of a is divisible by b, we can also meet with the result of a/b*b - c to get the precise [3,3].
                  * If b is negative we have to look at the lower bound. *)
@@ -771,7 +773,7 @@ struct
                     Value.meet a'' t
                   | _, _ -> a''
                 in
-                let d' = refine_values d (b') b in
+                let d' = if Value.contains b' Z.zero || Value.contains a_c Z.zero then d else refine_values d (b') b in
                 refine_values d' (a''') a
             | Pow -> failwith "refine_with tcons: pow unsupported"
           end
@@ -1114,11 +1116,13 @@ struct
       -> Convert.texpr1_expr_of_cil_exp handles overflow *)
   let assign_exp ask (t: VarManagement.t) var exp (no_ov: bool Lazy.t) =
     let t = if not @@ Environment.mem_var t.env var then add_vars t [var] else t in
-    (*evaluate in the same way as is used for simplification*)
     let t = match Convert.texpr1_expr_of_cil_exp ask t t.env exp no_ov with
-      | texp -> assign_texpr t var texp false
-      | exception Convert.Unsupported_CilExp _ -> forget_var t var
-    in match t.d with 
+      | texp -> if M.tracing then M.trace "assign_exp" "conversion success"; assign_texpr t var texp false
+      | exception Convert.Unsupported_CilExp _ -> if M.tracing then M.trace "assign_exp" "conversion failed"; forget_var t var
+    in 
+    (*evaluate in the same way as is used for simplification*)
+    if M.tracing then M.trace "assign_exp" "assign_exp after EConjI + ineqs: %s" (show t);
+    match t.d with 
     | None -> t
     | Some d -> 
       if exp = MyCFG.unknown_exp then
@@ -1129,7 +1133,7 @@ struct
                 (GobRef.wrap AnalysisState.executing_speculative_computations true ( fun () ->
                      let ikind = Cilfacade.get_ikind_exp exp in
                      match ask.f (EvalInt exp) with
-                     | `Bot -> IntDomain.IntDomTuple.bot_of ikind
+                     | `Bot (* This happens when called on a pointer type; -> we can safely return top *)
                      | `Top -> IntDomain.IntDomTuple.top_of ikind
                      | `Lifted x -> 
                        if M.tracing then M.trace "assign_exp" "Query for %a returned %s" d_exp exp (IntDomain.IntDomTuple.show x);
@@ -1137,8 +1141,9 @@ struct
                    ))
           with Invalid_argument _ -> Value.top (*get_ikind_exp failed*)
         in 
+        if M.tracing then M.trace "assign_exp" "value for %a set to %s" Var.pretty var (Value.show value);
         (*TODO If the newly assigned value must be greater / lower than the old, we can restore some conditions?*)
-        let d' = if Value.is_bot value then None
+        let d' = if Value.is_bot value then Some ((EConjI.make_empty_with_size (Environment.size t.env)))
           else Some (EConjI.set_value d (Environment.dim_of_var t.env var) value)
         in {d= d'; env = t.env}
 

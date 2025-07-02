@@ -74,7 +74,6 @@ struct
   let norm = Ints_t.norm
   let bot_of = Ints_t.bot_of
 
-  let top () = failwith @@ "top () not implemented for " ^ (name ())
   let bot () = None
 
   let show = function None -> "bottom" | Some (x,y) -> "["^Ints_t.to_string x^","^Ints_t.to_string y^"]"

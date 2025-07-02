@@ -468,11 +468,11 @@ struct
   let reachables (ask: Queries.ask) es =
     let reachable acc e =
       Option.bind acc (fun st ->
-        let ad = ask.f (Queries.ReachableFrom e) in
-        if Queries.AD.is_top ad then
-          None
-        else
-          Some (Queries.AD.join ad st))
+          let ad = ask.f (Queries.ReachableFrom e) in
+          if Queries.AD.is_top ad then
+            None
+          else
+            Some (Queries.AD.join ad st))
     in
     List.fold_left reachable (Some (Queries.AD.empty ())) es
 
@@ -538,8 +538,8 @@ struct
       Priv.thread_join ~force:true ask man.global id st
     | Rand, _ ->
       Option.map_default (fun lv ->
-         let st = invalidate_one ask man st lv in
-         assert_fn {man with local = st} (BinOp (Ge, Lval lv, zero, intType)) true
+          let st = invalidate_one ask man st lv in
+          assert_fn {man with local = st} (BinOp (Ge, Lval lv, zero, intType)) true
         ) st r
     | _, _ ->
       let lvallist e =
@@ -763,6 +763,8 @@ struct
       if M.tracing then M.traceu "apron" "unassume join";
       M.info ~category:Witness "relation unassumed invariant: %a" d_exp e_orig;
       st
+    | Events.Longjmped {lval} ->
+      Option.map_default (invalidate_one ask man st) st lval
     | _ ->
       st
 
