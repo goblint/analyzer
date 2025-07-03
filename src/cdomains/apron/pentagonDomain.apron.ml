@@ -505,7 +505,6 @@ struct
                 if Subs.gt d.subs dim_x y
                 then cmp_lb <=* ZExt.zero
                 else true in
-
         (*
             analysiere 0 >< (a-1)y + b
             x' < y sicher:  SUBs(x') := SUBs(x') u SUBs(y) u {y}
@@ -536,38 +535,6 @@ struct
               aux rem_terms (Intv.add intv_acc this_intv) subs_acc slbs_acc delete_subs_flag delete_slbs_flag
 
           in aux sum_of_terms ((Arb constant, Arb constant) : Intv.t) Subs.VarSet.empty Subs.VarSet.empty true true
-
-        (*
-         (** 
-            Implemented as described by the paper mention at the beginning of this file.
-            Refer to 6.2.2 Remainder.
-         *)
-         | Binop (Mod, e1, e2, _, _)  ->
-           let (boxes_1, sub_1) = aux e1 t in
-           let (boxes_2, sub_2) = aux e2 t in
-
-           let i2 = BatList.at boxes_2 dim in
-           let intv = BatList.modify_at dim (
-               fun i1 -> 
-                 Intv.rem i1 i2
-             ) boxes_1 in
-
-           let sub = 
-             match e2 with
-             | Var divisor -> (
-                 let dim_divisor = Environment.dim_of_var t.env divisor in 
-                 let intv_divisor = BatList.at boxes_2 dim_divisor
-                 in
-                 if (Intv.inf intv_divisor) <* ZExt.zero then 
-                   sub_without_var
-                 else
-                   BatList.modify_at dim (fun _ -> Subs.VarSet.singleton dim_divisor) sub_without_var
-               )
-             | _ -> sub_without_var
-           in
-           (intv, sub)
-           *)
-
   ;;
 
   let assign_texpr t x texp =
@@ -615,54 +582,96 @@ struct
   (**
       Taken from Lin2Var.
   *)
-  let assert_constraint ask t tcons negate (no_ov: bool Lazy.t) =
-    let wrap b s = {d=Some({boxes = b; sub=s}); env=t.env} in
+  let rec assert_constraint ask t tcons negate (no_ov: bool Lazy.t) =
+    let wrap b s = {d=Some({boxes = b; subs=s}); env=t.env} in
     match t.d with
     | None -> t
     | Some d ->
-      let monoms = simplified_monomials_from_texp t (Texpr1.to_expr @@ Tcons1.get_texpr1 tcons) in
-      match monoms with
-      | None -> t
-      | Some (sum_of_terms, (constant,divisor)) -> (
-        let monoms = Option.get monoms in  
-        match sum_of_terms with
-          | [] -> (* no reference variables in the guard, so check constant for zero *)
-            begin match Tcons1.get_typ tcons with
-              | EQ when Z.equal constant Z.zero -> t
-              | SUPEQ when Z.geq constant Z.zero -> t
-              | SUP when Z.gt constant Z.zero -> t
-              | DISEQ when not @@ Z.equal constant Z.zero -> t
-              | EQMOD _ -> t
-              | _ -> bot_env (* all other results are violating the guard *)
-            end
-          | [(coeff, index, _)] -> (* guard has a single reference variable only *)
-              let (lb, ub) = eval_monoms_to_intv d.boxes monoms in
-              | EQ when zExt.equal intv zExt.zero -> t
-              | SUPEQ when zExt.geq intv zExt.zero -> t
-              | SUP when zExt.gt intv zExt.zero -> t
-              | DISEQ when not @@ zExt.equal intv zExt.zero -> t
-              | EQMOD _ -> t
-              | _ -> bot_env (* all other results are violating the guard *)
-          | (coefficient, index, _) :: rem_terms -> (* multiple variables available (flatten others to interval) *)
-            begin match Tcons1.get_typ tcons with
-              | _-> t 
-            end
-          | _ -> t
+      match Tcons1.get_typ tcons with
+      | EQ -> (
+          let e = Texpr1.to_expr @@ Tcons1.get_texpr1 tcons in
+          let e = Texpr1.of_expr t.env (Texpr1.Unop(Texpr1.Neg, e, Texpr1.Int, Texpr1.Near)) in
+          let tcons1 = Tcons1.make e Tcons1.SUPEQ in
+
+          let expr2 = Tcons1.get_texpr1 tcons in
+          let tcons2 = Tcons1.make expr2 Tcons1.SUPEQ in
+          let t1 = assert_constraint ask t tcons1 negate no_ov in
+          let t2 = assert_constraint ask t tcons2 negate no_ov in
+          meet t1 t2
+        ) 
+      | SUP -> (
+          let e = Texpr1.to_expr @@ Tcons1.get_texpr1 tcons in
+          let e = Texpr1.of_expr t.env (Texpr1.Binop(Texpr1.Sub, e, Cst(Scalar(Scalar.of_int 1)) ,Texpr1.Int, Texpr1.Near)) in
+          let tcons1 = Tcons1.make e Tcons1.SUPEQ in
+          assert_constraint ask t tcons1 negate no_ov)
+      | DISEQ -> (
+          let e = Texpr1.to_expr @@ Tcons1.get_texpr1 tcons in
+          let e = Texpr1.of_expr t.env (Texpr1.Unop(Texpr1.Neg, e, Texpr1.Int, Texpr1.Near)) in
+          let tcons1 = Tcons1.make e Tcons1.SUP in
+
+          let expr2 = Tcons1.get_texpr1 tcons in
+          let tcons2 = Tcons1.make expr2 Tcons1.SUP in
+
+          let t1 = assert_constraint ask t tcons1 negate no_ov in
+          let t2 = assert_constraint ask t tcons2 negate no_ov in
+          join t1 t2
+        )
+      | EQMOD (s) -> t
+      (* Base case :) *)
+      | SUPEQ -> (
+          let monoms = simplified_monomials_from_texp t.env (Texpr1.to_expr @@ Tcons1.get_texpr1 tcons) in
+          match monoms with
+          | None -> t
+          | Some (sum_of_terms, (constant,_)) -> (
+              match sum_of_terms with
+              | [] -> (* no reference variables in the guard, so check constant for zero *)
+                if constant >= Z.zero then t else bot_of_env t.env
+              | [(coeff, x, _)] -> (* guard has a single reference variable only *)
+                let x_intv = Boxes.get_value x d.boxes in
+                let k = Z.div constant coeff in
+                let (constraining_intv: Intv.t) = 
+                  if Z.sign coeff > 0 then
+                    (Arb k,PosInfty)
+                  else
+                    (NegInfty, Arb k)
+                in
+
+                let intersected_intv = Intv.inter constraining_intv x_intv in
+
+                if Intv.is_bot intersected_intv then
+                  bot_of_env t.env 
+                else
+                  let boxes = Boxes.set_value x intersected_intv d.boxes in
+                  wrap boxes d.subs
+
+              | [(a, x, _); (b, y, _)] ->
+                t
+              | (coeff, x, _) :: rem_terms -> (* multiple variables available (flatten others to interval) *)
+                t
+            )
         )
 
+
   let assert_constraint ask t e negate no_ov ~trace =
-    let res = assert_constraint ask t e negate no_ov in
-    if M.tracing && trace then (
-      let tcons_str = 
-        match Convert.tcons1_of_cil_exp ask t t.env e negate (Lazy.from_val true) with
-        | exception Convert.Unsupported_CilExp exn -> (
+    let (str, res) = 
+      match Convert.tcons1_of_cil_exp ask t t.env e negate (Lazy.from_val true) with 
+      | exception Convert.Unsupported_CilExp exn -> (
+          (
             Printf.sprintf 
               "Failed to convert cil expression: exception %s"
-              (SharedFunctions.show_unsupported_cilExp exn)
+              (SharedFunctions.show_unsupported_cilExp exn),
+            t
           )
-        | tcons1 -> StringUtils.string_of_tcons1 tcons1
-      in
-      M.trace "pntg" "D.assert_constraint:\ntcons:\t%s\nt:\t%s\nres:\t%s\n\n" tcons_str (show t) (show res));
+        )
+      | tcons -> (
+          (
+            StringUtils.string_of_tcons1 tcons,
+            assert_constraint ask t tcons negate no_ov
+          )
+        )
+    in
+    if M.tracing && trace then (
+      M.trace "pntg" "D.assert_constraint:\ntcons:\t%s\nt:\t%s\nres:\t%s\n\n" str (show t) (show res));
     res
 
   let assert_constraint ask t e negate no_ov =
