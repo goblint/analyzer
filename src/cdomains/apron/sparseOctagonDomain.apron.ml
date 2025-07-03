@@ -204,12 +204,8 @@ module Oct (Var : Var) = struct
             let p1 = normal (Pos x, v1) in (* setup normalized pairs, connected via pos/neg x *)
             let p2 = normal (Neg x, v2) in
             match BinaryMap.find_opt p1 m2, BinaryMap.find_opt p2 m2 with (* lookup the bounds b1, b2 for these pairs *)
-            | None, _ ->    print_string (Var.string_of x ^ " :\t");
-              print_string (string_of_lit Var.string_of v1);
-              print_string (string_of_lit Var.string_of v2);
-              print_string "\n";
-              raise (Failure "m2 should have value for p1!")
-            | _, None -> raise (Failure "m2 should have value for p2!")
+            | None, _  
+            | _, None -> failwith (Var.string_of x ^ " :\t" ^ string_of_lit Var.string_of v1 ^ string_of_lit Var.string_of v2 ^ "\n m2 should have value for p1!")
             | Some b1, Some b2 -> let b = b1 + b2 in (* calculate the bound b for v1+v2 ≤ b*)
               (* checks and updates *)
               if v1 = negate v2 then (* we connected x-y ≤ b1 and y-x ≤ b2 *)
