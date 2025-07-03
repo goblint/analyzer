@@ -34,7 +34,7 @@ struct
 
     let tid ((mhp:MHP.t), _) = mhp.tid
 
-    let may_be_non_unique_thread (mhp, _) = MHP.may_be_non_unique_thread mhp
+    let is_unique_thread (mhp, _) = MHP.is_unique_thread mhp
   end
 
   module Waiters = SetDomain.ToppedSet (MHPplusLock) (struct let topname = "All MHP" end)
@@ -83,7 +83,7 @@ struct
             (may, must)
           else
             let relevant_waiters = Waiters.filter (fun other -> MHPplusLock.mhp (mhp, locks) other) waiters in
-            if Waiters.exists MHPplusLock.may_be_non_unique_thread relevant_waiters then
+            if Waiters.exists (fun t -> not @@ MHPplusLock.is_unique_thread t) relevant_waiters then
               (may, must)
             else
               match capacity with
