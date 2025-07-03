@@ -50,6 +50,10 @@ module Protection = struct
   type t = Strong | Weak [@@deriving ord, hash]
 end
 
+module AllocationLocation = struct
+  type t = Stack | Heap [@@deriving ord, hash]
+end
+
 (* Helper definitions for deriving complex parts of Any.compare below. *)
 type maybepublic = {global: CilType.Varinfo.t; write: bool; protection: Protection.t} [@@deriving ord, hash]
 type maybepublicwithout = {global: CilType.Varinfo.t; write: bool; without_mutex: LockDomain.MustLock.t; protection: Protection.t} [@@deriving ord, hash]
@@ -101,7 +105,7 @@ type _ t =
   | IterVars: itervar -> Unit.t t
   | PathQuery: int * 'a t -> 'a t (** Query only one path under witness lifter. *)
   | DYojson: FlatYojson.t t (** Get local state Yojson of one path under [PathQuery]. *)
-  | AllocVar: {on_stack: bool} -> VI.t t
+  | AllocVar: AllocationLocation.t -> VI.t t
   (* Create a variable representing a dynamic allocation-site *)
   (* If on_stack is [true], then the dynamic allocation is on the stack (i.e., alloca() or a similar function was called). Otherwise, allocation is on the heap *)
   | IsAllocVar: varinfo -> MayBool.t t (* [true] if variable represents dynamically allocated memory *)
@@ -497,7 +501,7 @@ struct
     | Any (IterPrevVars i) -> Pretty.dprintf "IterPrevVars _"
     | Any (IterVars i) -> Pretty.dprintf "IterVars _"
     | Any (PathQuery (i, q)) -> Pretty.dprintf "PathQuery (%d, %a)" i pretty (Any q)
-    | Any (AllocVar {on_stack = on_stack}) -> Pretty.dprintf "AllocVar %b" on_stack
+    | Any (AllocVar location) -> Pretty.dprintf "AllocVar _"
     | Any (IsHeapVar v) -> Pretty.dprintf "IsHeapVar %a" CilType.Varinfo.pretty v
     | Any (IsAllocVar v) -> Pretty.dprintf "IsAllocVar %a" CilType.Varinfo.pretty v
     | Any (IsMultiple v) -> Pretty.dprintf "IsMultiple %a" CilType.Varinfo.pretty v

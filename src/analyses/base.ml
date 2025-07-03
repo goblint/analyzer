@@ -143,8 +143,8 @@ struct
    * Initializing my variables
    **************************************************************************)
 
-  let heap_var on_stack man =
-    let info = match (man.ask (Q.AllocVar {on_stack})) with
+  let alloced_var location man =
+    let info = match (man.ask (Q.AllocVar location)) with
       | `Lifted vinfo -> vinfo
       | _ -> failwith("Ran without a malloc analysis.") in
     info
@@ -2501,9 +2501,27 @@ struct
           | _ ->
             set ~man st lv_a lv_typ (VD.top_value (unrollType lv_typ))
         end
-    in 
+    in
+    let alloc ?(offset=`NoOffset) loc size =
+      let bytes = eval_int ~man st size in
+      let is_zero = ID.equal_to Z.zero bytes in
+      let heap_var =
+        let include_null = get_bool "sem.malloc.fail" || (is_zero <> `Neq && get_string "sem.malloc.zero" <> "pointer") in
+        let include_pointer = (is_zero <> `Eq || get_string "sem.malloc.zero" <> "null") in
+        let res = if include_pointer then
+            AD.of_mval (alloced_var loc man, offset)
+          else
+            AD.bot ()
+        in
+        if include_null then
+          AD.join res AD.null_ptr
+        else
+          res
+      in
+      heap_var
+    in
     (* Evaluate each functions arguments. `eval_rv` is only called for its side effects, we ignore the result. *)
-    List.iter (fun arg -> eval_rv ~man st arg |> ignore) args; 
+    List.iter (fun arg -> eval_rv ~man st arg |> ignore) args;
     let st = match desc.special args, f.vname with
     | Memset { dest; ch; count; }, _ ->
       (* TODO: check count *)
@@ -2723,7 +2741,7 @@ struct
     | Alloca size, _ -> begin
         match lv with
         | Some lv ->
-          let heap_var = AD.of_var (heap_var true man) in
+          let heap_var = alloc Queries.AllocationLocation.Stack size in
           (* ignore @@ printf "alloca will allocate %a bytes\n" ID.pretty (eval_int ~man size); *)
           set_many ~man st [(heap_var, TVoid [], Blob (VD.bot (), eval_int ~man st size, ZeroInit.malloc));
                             (eval_lv ~man st lv, (Cilfacade.typeOfLval lv), Address heap_var)]
@@ -2732,11 +2750,7 @@ struct
     | Malloc size, _ -> begin
         match lv with
         | Some lv ->
-          let heap_var =
-            if (get_bool "sem.malloc.fail")
-            then AD.join (AD.of_var (heap_var false man)) AD.null_ptr
-            else AD.of_var (heap_var false man)
-          in
+          let heap_var = alloc Queries.AllocationLocation.Heap size in
           (* ignore @@ printf "malloc will allocate %a bytes\n" ID.pretty (eval_int ~man size); *)
           set_many ~man st [(heap_var, TVoid [], Blob (VD.bot (), eval_int ~man st size, ZeroInit.malloc));
                             (eval_lv ~man st lv, (Cilfacade.typeOfLval lv), Address heap_var)]
@@ -2745,26 +2759,24 @@ struct
     | Calloc { count = n; size }, _ ->
       begin match lv with
         | Some lv -> (* array length is set to one, as num*size is done when turning into `Calloc *)
-          let heap_var = heap_var false man in
-          let add_null addr =
-            if get_bool "sem.malloc.fail"
-            then AD.join addr AD.null_ptr (* calloc can fail and return NULL *)
-            else addr in
+          let heap_var = alloc Queries.AllocationLocation.Heap size in
           let ik = Cilfacade.ptrdiff_ikind () in
           let sizeval = eval_int ~man st size in
           let countval = eval_int ~man st n in
           if ID.to_int countval = Some Z.one then (
-            set_many ~man st [
-              (add_null (AD.of_var heap_var), TVoid [], Blob (VD.bot (), sizeval, ZeroInit.calloc));
-              (eval_lv ~man st lv, (Cilfacade.typeOfLval lv), Address (add_null (AD.of_var heap_var)))
-            ]
+            set_many ~man st [(heap_var, TVoid [], Blob (VD.bot (), sizeval, ZeroInit.calloc));
+                              (eval_lv ~man st lv, (Cilfacade.typeOfLval lv), Address heap_var)]
           )
           else (
             let blobsize = ID.mul (ID.cast_to ik @@ sizeval) (ID.cast_to ik @@ countval) in
+            let heap_var = alloc Queries.AllocationLocation.Heap size in
+            let offset = `Index (IdxDom.of_int (Cilfacade.ptrdiff_ikind ()) Z.zero, `NoOffset) in
+            (* the heap_var is the base address of the allocated memory, but we need to keep track of the offset for the blob *)
+            let heap_var_offset = AD.map (fun a -> Addr.add_offset a offset) heap_var in
             (* the memory that was allocated by calloc is set to bottom, but we keep track that it originated from calloc, so when bottom is read from memory allocated by calloc it is turned to zero *)
             set_many ~man st [
-              (add_null (AD.of_var heap_var), TVoid [], Array (CArrays.make (IdxDom.of_int (Cilfacade.ptrdiff_ikind ()) Z.one) (Blob (VD.bot (), blobsize, ZeroInit.calloc))));
-              (eval_lv ~man st lv, (Cilfacade.typeOfLval lv), Address (add_null (AD.of_mval (heap_var, `Index (IdxDom.of_int (Cilfacade.ptrdiff_ikind ()) Z.zero, `NoOffset)))))
+              (heap_var, TVoid [], Array (CArrays.make (IdxDom.of_int (Cilfacade.ptrdiff_ikind ()) Z.one) (Blob (VD.bot (), blobsize, ZeroInit.calloc))));
+              (eval_lv ~man st lv, (Cilfacade.typeOfLval lv), Address (heap_var_offset))
             ]
           )
         | _ -> st
@@ -2787,17 +2799,11 @@ struct
           let p_addr_get = get ~man st p_addr' None in (* implicitly includes join of malloc value (VD.bot) *)
           let size_int = eval_int ~man st size in
           let heap_val:value = Blob (p_addr_get, size_int, ZeroInit.malloc) in (* copy old contents with new size *)
-          let heap_addr = AD.of_var (heap_var false man) in
-          let heap_addr' =
-            if get_bool "sem.malloc.fail" then
-              AD.join heap_addr AD.null_ptr
-            else
-              heap_addr
-          in
+          let heap_addr = alloc Queries.AllocationLocation.Heap size in
           let lv_addr = eval_lv ~man st lv in
           set_many ~man st [
             (heap_addr, TVoid [], heap_val);
-            (lv_addr, Cilfacade.typeOfLval lv, Address heap_addr');
+            (lv_addr, Cilfacade.typeOfLval lv, Address heap_addr);
           ] (* TODO: free (i.e. invalidate) old blob if successful? *)
         | None ->
           st
