@@ -1,8 +1,8 @@
   $ goblint --set lib.activated '["goblint"]' --set exp.unrolling-factor 5 --set ana.base.arrays.domain unroll --set ana.base.arrays.unrolling-factor 5 --enable justcil --set dbg.justcil-printer clean 07-nested-unroll.c
-  [Info] unrolling loop at 07-nested-unroll.c:7:9-9:9 with factor 5
-  [Info] unrolling loop at 07-nested-unroll.c:6:5-10:5 with factor 5
-  [Info] unrolling loop at 07-nested-unroll.c:13:9-15:9 with factor 5
-  [Info] unrolling loop at 07-nested-unroll.c:12:5-16:5 with factor 5
+  [Info] unrolling loop at 07-nested-unroll.c:7.9-9.9 with factor 5
+  [Info] unrolling loop at 07-nested-unroll.c:6.5-10.5 with factor 5
+  [Info] unrolling loop at 07-nested-unroll.c:13.9-15.9 with factor 5
+  [Info] unrolling loop at 07-nested-unroll.c:12.5-16.5 with factor 5
   extern void __goblint_check(int exp ) ;
   extern void __goblint_assume(int exp ) ;
   extern void __goblint_assert(int exp ) ;
