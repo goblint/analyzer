@@ -314,7 +314,8 @@ module ListMatrix: SparseMatrixFunctor =
               | [] -> (res, [])
               | (row_idx, piv_col, row) :: ps when piv_col = col_idx -> ((row_idx, piv_col, row, value) :: res, ps)
               | _ -> (res, pivs_tail)
-            ) ([], pivot_positions) (V.to_sparse_list v) in
+            ) ([], pivot_positions) (V.to_sparse_list v)
+         in
           let v_after_elim = List.fold_left (fun acc (row_idx, pivot_position, piv_row, v_at_piv) ->
               sub_scaled_row acc piv_row v_at_piv
             ) v filtered_pivots in
@@ -327,9 +328,7 @@ module ListMatrix: SparseMatrixFunctor =
               let normalized_v = V.map_f_preserves_zero (fun x -> x /: value) v_after_elim in
               Some (insert_v_according_to_piv m normalized_v idx pivot_positions)
       in
-      if M.tracing then
-        M.trace "rref_vec" "rref_vec: m:\n%s, v: %s => res:\n%s" (show m) (V.show v) (match res with None -> "None" | Some r -> show r)
-      ;
+      if M.tracing then M.trace "rref_vec" "rref_vec: m:\n%s, v: %s => res:\n%s" (show m) (V.show v) (match res with None -> "None" | Some r -> show r);
       res
 
     let rref_vec m v = timing_wrap "rref_vec" (rref_vec m) v
@@ -510,7 +509,7 @@ module ListMatrix: SparseMatrixFunctor =
       in
       (* create a totally empty intial result, with dimensions rows x cols *)
       let pseudoempty = List.init (max (num_rows m1) (num_rows m1)) (fun _ -> V.zero_vec (num_cols m1)) in
-      let res = rev_matrix @@ lindisjunc_aux 0 0 m1 m2 (pseudoempty) in
+      let res = rev_matrix @@ lindisjunc_aux 0 0 m1 m2 pseudoempty in
       if M.tracing then (
         let pleinly = String.concat "\n" (List.map (fun line -> String.concat "," (List.map (fun (idx,valu) ->  "("^string_of_int idx^","^A.to_string valu^")") (V.to_sparse_list line)) ) res) in 
         M.tracel "linear_disjunct" "linear_disjunct between \n%s and \n%s =>\n%s  \n(%s)" (show m1)  (show m2) (show res) pleinly);
