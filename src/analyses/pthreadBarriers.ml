@@ -23,21 +23,16 @@ struct
 
   module TID = ThreadIdDomain.ThreadLifted
 
-  module MHPplusLock = struct
-    module Locks = LockDomain.MustLockset
-
-    include Printable.Prod (MHP) (Locks)
-    let name () = "MHPplusLock"
-
-    let mhp (mhp1, l1) (mhp2, l2) =
-      MHP.may_happen_in_parallel mhp1 mhp2 && Locks.is_empty (Locks.inter l1 l2)
-
-    let tid ((mhp:MHP.t), _) = mhp.tid
-
-    let is_unique_thread (mhp, _) = MHP.is_unique_thread mhp
+  (* Tracking TID separately, as there is no type-safe way to get it from MCPATuple *)
+  module MCPAPlusTID = struct
+    include Printable.Prod (MCPAccess.A) (TID)
+    let name () = "MCPAPlusTID"
   end
 
-  module Waiters = SetDomain.ToppedSet (MHPplusLock) (struct let topname = "All MHP" end)
+  let part_access man: MCPAccess.A.t =
+    Obj.obj (man.ask (PartAccess Point))
+
+  module Waiters = SetDomain.ToppedSet (MCPAPlusTID) (struct let topname = "All MHP" end)
   module Multiprocess = BoolDomain.MayBool
   module G = Lattice.Prod3 (Multiprocess) (Capacity) (Waiters)
 
@@ -70,20 +65,20 @@ struct
     | BarrierWait barrier ->
       let ask = Analyses.ask_of_man man in
       let may, must = man.local in
+      let mcpa = part_access man in
+      let tid = ThreadId.get_current ask in
       let barriers = possible_vinfos ask barrier in
-      let mhp = MHP.current ask in
       let handle_one b =
         try
-          let locks = man.ask (Queries.MustLockset) in
-          man.sideg b (Multiprocess.bot (), Capacity.bot (), Waiters.singleton (mhp, locks));
+          man.sideg b (Multiprocess.bot (), Capacity.bot (), Waiters.singleton (mcpa, tid));
           let addr = ValueDomain.Addr.of_var b in
           let (multiprocess, capacity, waiters) = man.global b in
           let may = Barriers.add addr may in
           if multiprocess then
             (may, must)
           else
-            let relevant_waiters = Waiters.filter (fun other -> MHPplusLock.mhp (mhp, locks) other) waiters in
-            if Waiters.exists (fun t -> not @@ MHPplusLock.is_unique_thread t) relevant_waiters then
+            let relevant_waiters = Waiters.filter (fun (othermcpa, _) -> MCPAccess.A.may_race mcpa othermcpa) waiters in
+            if Waiters.exists (fun (t,_) -> MCPAccess.A.may_race t t) relevant_waiters then
               (may, must)
             else
               match capacity with
@@ -107,7 +102,7 @@ struct
                     let can_proceed_pred seq =
                       let rec doit seq = match Seq.uncons seq with
                         | None -> true
-                        | Some (h, t) -> Seq.for_all (MHPplusLock.mhp h) t && (doit [@tailcall]) t
+                        | Some ((h,_), t) -> Seq.for_all (fun (x,_) -> MCPAccess.A.may_race h x) t && (doit [@tailcall]) t
                       in
                       doit seq
                     in
@@ -115,8 +110,7 @@ struct
                     if not can_proceed then raise Analyses.Deadcode;
                     (* limit to this case to avoid having to construct all permutations above *)
                     if BatList.compare_length_with waiters (min_cap - 1) = 0 then
-                      List.fold_left (fun acc elem ->
-                          let tid = MHPplusLock.tid elem in
+                      List.fold_left (fun acc (_,tid) ->
                           let curr = MustObserved.find tid acc in
                           let must' = MustObserved.add tid (Barriers.add addr curr) acc in
                           must'
