@@ -228,17 +228,19 @@ let find_path (type node) (module Arg:ViolationArg with type Node.t = node) (mod
           raise (Found node)
         else if not (NHT.mem itered_nodes node) then begin
           NHT.replace itered_nodes node ();
-          List.iter (fun (edge, next_node) ->
+          let next_nodes = List.filter_map (fun (edge, next_node) ->
               match edge with
               | MyARG.CFGEdge _
               | InlineEntry _
-              | InlineReturn _
-              | InlinedEdge _ ->
+              | InlineReturn _ ->
                 if not (NHT.mem itered_nodes next_node) then
-                  NHT.replace next_nodes next_node (edge, node)
-              | ThreadEntry _ -> ()
-            ) (Arg.next node);
-          bfs curs' (List.map snd (Arg.next node) @ nexts)
+                  NHT.replace next_nodes next_node (edge, node);
+                Some next_node
+              | InlinedEdge _
+              | ThreadEntry _ -> None
+            ) (Arg.next node)
+          in
+          bfs curs' (next_nodes @ nexts)
         end
         else
           bfs curs' nexts
