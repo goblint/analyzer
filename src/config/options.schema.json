@@ -1650,10 +1650,10 @@
             },
             "zero": {
               "title": "sem.malloc.zero",
-              "description": "What happens when allocating zero bytes? null: Return null pointer, pointer: Return a pointer to valid memory of size 0, either: Consider both cases.",
+              "description": "What happens when allocating zero bytes? 'null': Return null pointer, 'pointer': Return a pointer to valid memory of size 0, 'either': Consider both cases.",
               "type": "string",
               "enum": ["null", "pointer","either"],
-              "default": "pointer"
+              "default": "either"
             }
           },
           "additionalProperties": false
