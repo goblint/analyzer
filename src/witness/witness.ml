@@ -166,7 +166,7 @@ struct
           Result.Unknown
         in
         if get_bool "ana.wp" then (
-          match Violation.find_path (module ViolationArg) (module ViolationZ3.WP (ViolationArg.Node)) with
+          match Violation.find_path (module ViolationArg) (module ViolationZ3.WP (ViolationArg)) with
           | Feasible (module PathArg) ->
             (* TODO: add assumptions *)
             Result.False (Some spec)

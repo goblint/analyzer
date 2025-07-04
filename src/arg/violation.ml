@@ -1,4 +1,5 @@
 (** Violation checking in an ARG. *)
+open MyARG
 
 module type ViolationArg =
 sig
@@ -45,9 +46,10 @@ end
 
 module CfgNode = Node
 
-module UnknownFeasibility (Node: MyARG.Node): Feasibility with module Node = Node =
+module UnknownFeasibility (Arg: ArgTools.BiArg): Feasibility with module Node = Arg.Node =
 struct
-  module Node = Node
+  module Node = Arg.Node
+  module SegMap = Map.Make (Node)
 
   type result =
     | Feasible
@@ -59,8 +61,9 @@ struct
     struct
       let file = !Cilfacade.current_file
       module Cfg = (val !MyCFG.current_cfg)
-    end  in
+    end in
     let module WitnessInvariant = WitnessUtil.YamlInvariant (FileCfg) in
+    let module UnCilArg = Intra (UnCilTernaryIntra (UnCilLogicIntra (CfgIntra (FileCfg.Cfg)))) (Arg) in
 
     let open YamlWitness.Entry in
     (* TODO: duplicate code copied from YamlWitness.write *)
@@ -122,21 +125,46 @@ struct
             segment ~waypoints
         in
 
-        let rec build_segments = function
-          | [] -> []
-          | [(prev, edge, node)] ->
-            let target = segment ~waypoints:[waypoint ~waypoint_type:(Target (violation_target ~location:(Option.get (loc node))))] in
-            begin match segment_for_edge prev edge with
-              | Some seg -> [seg; target]
-              | None -> [target]
-            end
-          | (prev, edge, _) :: rest ->
-            match segment_for_edge prev edge with
-            | Some seg -> seg :: build_segments rest
-            | None -> build_segments rest
+        let find_next_segment prev edge node segmap =
+          let nexts = UnCilArg.next prev in
+          let potential_nodes = List.filter_map (fun (new_edge, new_node) ->
+              match new_edge with
+              | MyARG.InlinedEdge _ -> None
+              | _ ->
+                let+ res : YamlWitnessType.ViolationSequence.Segment.t list = SegMap.find_opt new_node segmap in
+                (new_edge, res)
+            ) nexts in
+          assert (List.length potential_nodes == 1); (* TODO: there might be more than one node *)
+          List.hd potential_nodes
         in
 
-        let segments = build_segments path in
+        let rec build_segments path =
+          match path with
+          | [] -> SegMap.empty
+          | [(prev, edge, node)] ->
+            let target = segment ~waypoints:[waypoint ~waypoint_type:(Target (violation_target ~location:(Option.get (loc node))))] in
+            let new_seg = match segment_for_edge prev edge with
+              | Some seg -> seg :: [target]
+              | None -> [target]
+            in
+            let segmap = SegMap.singleton node [target] in
+            SegMap.add prev new_seg segmap
+          | (prev, edge, node) :: rest ->
+            let segmap = build_segments rest in
+            let new_edge, uncilled = find_next_segment prev edge node segmap in
+            let this_seg = match segment_for_edge prev new_edge with
+              | Some seg -> seg :: uncilled
+              | None -> uncilled
+            in
+            SegMap.add prev this_seg segmap
+        in
+
+        let segmap = build_segments path in
+        let segments =
+          match path with
+          | [] -> []
+          | (prev, _, _) :: _ -> SegMap.find prev segmap
+        in
 
         let entry = YamlWitness.Entry.violation_sequence ~task ~violation:segments in
         [entry]

@@ -214,7 +214,7 @@ struct
     let module Arg =
     struct
       open MyARG
-      module ArgIntra = UnCilTernaryIntra (UnCilLogicIntra (CfgIntra (FileCfg.Cfg)))
+      module ArgIntra = CfgIntra (FileCfg.Cfg) (* TODO: put UnCilTernaryIntra and UnCilLogicIntra back so that the uncil option works *)
       include Intra (ArgIntra) (Arg)
 
       let prev = witness_prev
