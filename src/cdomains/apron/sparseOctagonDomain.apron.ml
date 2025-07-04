@@ -76,11 +76,14 @@ module Oct (Var : Var) = struct
   module PairSet = Set.Make(PairLV)
 
   (** t encodes a valid octagon. oct leaves room for none as bottom *)
-  type t' = {
+  type t = {
     unary: int UnaryMap.t; 
     binary: int BinaryMap.t;
     infl: LitSet.t UnaryMap.t
-  }  and t = t' option [@@deriving eq,ord]
+  } [@@deriving eq,ord]
+
+  let is_top {unary; binary; infl} =
+    UnaryMap.is_empty unary && BinaryMap.is_empty binary && UnaryMap.is_empty infl
 
   (** exception Bot is raised if the octagon is inconsistent, i.e. contains a constraint that is not satisfiable *)
 
@@ -292,18 +295,16 @@ module Oct (Var : Var) = struct
       List.map (fun c -> "\t" ^ string_of_constr f c ^ "\n") list)
 
   let string_of oct = match list_of oct with
-    | None -> "\tBot\n"
+    | None -> "\t⊥\n"
     | Some  list -> string_of_constraints Var.string_of list
 
   (* AbstractRelationalDomainRepresentation duties: *)
   let copy = Fun.id
-  let hash oct = match oct with
-    | None -> 0
-    | Some {unary; binary; infl} ->
+  let hash {unary; binary; infl} =
       let h1 = UnaryMap.fold (fun k value acc -> 13*13 * acc+ 31* LitV.hash k + value) unary in
       let h2 = BinaryMap.fold (fun k value acc -> 13*13 * acc+ 31* PairLV.hash k + value) binary in
       Hashtbl.hash (h1, h2) (* do we need to hash infl as well?*)
-  let empty () = Some {unary = UnaryMap.empty; binary = BinaryMap.empty; infl = UnaryMap.empty}
+  let empty () = {unary = UnaryMap.empty; binary = BinaryMap.empty; infl = UnaryMap.empty}
   let is_empty o = true
   let dim_add (ch: Apron.Dim.change) o = failwith  "SparseOctagonDomain.dim_add: not implemented"
   let dim_remove (ch: Apron.Dim.change) o = failwith  "SparseOctagonDomain.dim_remove: not implemented"
@@ -323,10 +324,6 @@ struct
   end
   module SparseOctagon = Oct(Str)
   include SharedFunctions.VarManagementOps (SparseOctagon)
-
-  let dim_add = SparseOctagon.dim_add
-  let size t = failwith "SparseOctagonDomain.size: not implemented"
-
 
 end
 
@@ -352,16 +349,17 @@ struct
   let name () = "sparseOctagon"
   let to_yojson _ = failwith "SparseOctagonDomain.to_yojson: not implemented"
   (* pretty printing *)
-  let show a = failwith "SparseOctagonDomain.show: not implemented"
-  let pretty () x = failwith "SparseOctagonDomain.pretty: not implemented"
-  let pretty_diff () (x, y) =
-    dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
-  let printXml f x = failwith "SparseOctagonDomain.printXml: not implemented"
+  let show a = SparseOctagon.string_of a.d
+  let pretty () x = text (show x)
+  let pretty_diff () (x, y) = dprintf "%s: %a ≰ %a" (name ()) pretty x pretty y
+  let printXml f x = BatPrintf.fprintf f "<value>\n<map>\n<key>\ninequalities\n</key>\n<value>\n%s</value>\n<key>\nenv\n</key>\n<value>\n%a</value>\n</map>\n</value>\n" (XmlUtil.escape (show x)) Environment.printXml x.env
 
   (* basic lattice handling *)
-  let top () = failwith "SparseOctagonDomain.top: not implemented"
-  let is_top _ = failwith "SparseOctagonDomain.is_top: not implemented"
-  let is_bot _ = failwith "SparseOctagonDomain.is_bot: not implemented"
+  let top () = {d= Some (SparseOctagon.empty ()); env = empty_env }
+  let is_top t = match t.d with
+    | None -> false
+    | Some d -> SparseOctagon.is_top d
+  let is_bot t = equal t (bot ())
 
   (* fixpoint iteration handling *)
   let meet a b = failwith "SparseOctagonDomain.meet: not implemented"
@@ -383,7 +381,7 @@ struct
   let cil_exp_of_lincons1 = Convert.cil_exp_of_lincons1
   (* Module AssertionRels demands: *)
   let assert_constraint ask d e negate (no_ov: bool Lazy.t) = failwith "SparseOctagonDomain.assert_constraint: not implemented"
-  let env t = failwith "SparseOctagonDomain.env: not implemented"
+  let env t = t.env
   let eval_interval ask = Bounds.bound_texpr
   let invariant t = failwith "SparseOctagonDomain.invariant: not implemented"
   type marshal = t
