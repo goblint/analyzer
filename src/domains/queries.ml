@@ -392,6 +392,7 @@ struct
       | Any (CondVars e1), Any (CondVars e2) -> CilType.Exp.compare e1 e2
       | Any (PartAccess p1), Any (PartAccess p2) -> compare_access p1 p2
       | Any (IterPrevVars ip1), Any (IterPrevVars ip2) -> compare_iterprevvar ip1 ip2
+      | Any (AllocVar location), Any (AllocVar location2) -> AllocationLocation.compare location location2
       | Any (IterVars i1), Any (IterVars i2) -> compare_itervar i1 i2
       | Any (PathQuery (i1, q1)), Any (PathQuery (i2, q2)) ->
         let r = Stdlib.compare i1 i2 in
@@ -445,6 +446,7 @@ struct
     | Any (PartAccess p) -> hash_access p
     | Any (IterPrevVars i) -> 0
     | Any (IterVars i) -> 0
+    | Any (AllocVar location) -> AllocationLocation.hash location
     | Any (PathQuery (i, q)) -> 31 * i + hash (Any q)
     | Any (IsHeapVar v) -> CilType.Varinfo.hash v
     | Any (MustTermLoop s) -> CilType.Stmt.hash s
