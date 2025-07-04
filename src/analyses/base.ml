@@ -2502,17 +2502,13 @@ struct
             set ~man st lv_a lv_typ (VD.top_value (unrollType lv_typ))
         end
     in
-    let alloc ?(offset=`NoOffset) loc size =
+    let alloc loc size =
       let bytes = eval_int ~man st size in
       let is_zero = ID.equal_to Z.zero bytes in
       let heap_var =
         let include_null = get_bool "sem.malloc.fail" || (is_zero <> `Neq && get_string "sem.malloc.zero" <> "pointer") in
         let include_pointer = (is_zero <> `Eq || get_string "sem.malloc.zero" <> "null") in
-        let res = if include_pointer then
-            AD.of_mval (alloced_var loc man, offset)
-          else
-            AD.bot ()
-        in
+        let res = if include_pointer then AD.of_var (alloced_var loc man) else AD.bot () in
         if include_null then
           AD.join res AD.null_ptr
         else
