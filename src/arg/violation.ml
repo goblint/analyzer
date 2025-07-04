@@ -50,6 +50,7 @@ module UnknownFeasibility (Arg: ArgTools.BiArg): Feasibility with module Node = 
 struct
   module Node = Arg.Node
   module SegMap = Map.Make (Node)
+  module SegNrToPathMap = Map.Make (Int)
 
   type result =
     | Feasible
@@ -81,7 +82,7 @@ struct
 
     let entries = [] in
 
-    let entries =
+    let entries, segToPathMap, segments =
       if YamlWitness.entry_type_enabled YamlWitnessType.ViolationSequence.entry_type then (
         let open GobOption.Syntax in
 
@@ -138,28 +139,32 @@ struct
           List.hd potential_nodes
         in
 
-        let rec build_segments path =
+        let rec build_segments path segToPathMap segNr =
           match path with
-          | [] -> SegMap.empty
-          | [(prev, edge, node)] ->
+          | [] -> SegMap.empty, segToPathMap, 0
+          | [(prev, edge, node)] as sub_path ->
             let target = segment ~waypoints:[waypoint ~waypoint_type:(Target (violation_target ~location:(Option.get (loc node))))] in
-            let new_seg = match segment_for_edge prev edge with
-              | Some seg -> seg :: [target]
-              | None -> [target]
+            let this_seg, segToPathMap, segNr = match segment_for_edge prev edge with
+              | Some seg ->
+                let segToPathMap1 = SegNrToPathMap.add 0 sub_path segToPathMap in
+                let segToPathMap2 = SegNrToPathMap.add 1 sub_path segToPathMap1 in
+                seg :: [target], segToPathMap2, 2
+              | None ->
+                [target], SegNrToPathMap.add 0 sub_path segToPathMap, 1
             in
             let segmap = SegMap.singleton node [target] in
-            SegMap.add prev new_seg segmap
-          | (prev, edge, node) :: rest ->
-            let segmap = build_segments rest in
+            SegMap.add prev this_seg segmap, segToPathMap, segNr
+          | (prev, edge, node) :: rest as sub_path ->
+            let segmap, segToPathMap, segNr = build_segments rest segToPathMap segNr in
             let new_edge, uncilled = find_next_segment prev edge node segmap in
-            let this_seg = match segment_for_edge prev new_edge with
-              | Some seg -> seg :: uncilled
-              | None -> uncilled
+            let this_seg, segToPathMap, segNr = match segment_for_edge prev new_edge with
+              | Some seg -> seg :: uncilled, SegNrToPathMap.add segNr sub_path segToPathMap, segNr + 1
+              | None -> uncilled, segToPathMap, segNr
             in
-            SegMap.add prev this_seg segmap
+            SegMap.add prev this_seg segmap, segToPathMap, segNr
         in
 
-        let segmap = build_segments path in
+        let segmap, segToPathMap, _ = build_segments path SegNrToPathMap.empty 0 in
         let segments =
           match path with
           | [] -> []
@@ -167,15 +172,16 @@ struct
         in
 
         let entry = YamlWitness.Entry.violation_sequence ~task ~violation:segments in
-        [entry]
+        [entry], segToPathMap, segments
       )
       else
-        entries
-    in  
+        entries, SegNrToPathMap.empty, []
+    in
 
     let yaml_entries = List.rev_map YamlWitnessType.Entry.to_yaml entries in
     (* TODO: "witness generation summary" message *)
-    YamlWitness.yaml_entries_to_file yaml_entries (Fpath.v (GobConfig.get_string "witness.yaml.path"))
+    YamlWitness.yaml_entries_to_file yaml_entries (Fpath.v (GobConfig.get_string "witness.yaml.path"));
+    segToPathMap, segments
 
   let read_command_output command =
     let (ic, _) as process = Unix.open_process command in
@@ -193,7 +199,15 @@ struct
     let re = Str.regexp "^RESULT: \\(.*\\)$" in
     List.find_map (fun line -> if Str.string_match re line 0 then Some (Str.matched_group 1 line) else None) lines
 
-  let check_feasability_with_witch witch path =
+  (* TODO: find both (result and seg nr) with one traversal *)
+  let extract_unreach_seg_nr lines =
+    let re = Str.regexp "segment \\([0-9]+\\) cannot be passed" in
+    List.find_map (fun line ->
+        try ignore (Str.search_forward re line 0); Some (int_of_string (Str.matched_group 1 line))
+        with Not_found -> None
+      ) lines
+
+  let run_witch witch =
     let files = String.concat " " (GobConfig.get_string_list "files") in
     let data_model = match GobConfig.get_string "exp.architecture" with
       | "64bit" -> "--64"
@@ -203,7 +217,24 @@ struct
     let witness_file_path = GobConfig.get_string "witness.yaml.path" in
     (*  ../witch/scripts/symbiotic --witness-check ../analyzer/witness.yml --32 ../analyzer/violation-witness.c *)
     let command = Printf.sprintf "%s --witness-check %s %s --guide-only %s" witch witness_file_path data_model files in
-    let lines = read_command_output command in
+    read_command_output command
+
+  let get_unreachable_path lines (path: (Node.t * inline_edge * Node.t) list) (segToPathMap, segments) =
+    let has_no_branching_before_unreachable segments seg_nr =
+      let rec check i: YamlWitnessType.ViolationSequence.Segment.t list -> bool = function
+        | _ when i == seg_nr -> true
+        | [] -> true
+        | {segment = {waypoint_type = Branching _} :: _} :: _ -> false
+        | _ :: rest -> check (i + 1) rest
+      in
+      check 0 segments
+    in 
+
+    match extract_unreach_seg_nr lines with
+    | Some seg_nr when has_no_branching_before_unreachable segments seg_nr -> SegNrToPathMap.find (List.length segments - seg_nr -1) segToPathMap
+    | _ -> path
+
+  let check_feasability_with_witch lines path =
     match extract_result_line lines with
     | Some result when String.starts_with ~prefix:"true" result -> Printf.printf "Verification result: %s\n" result; Infeasible path
     | Some result when String.starts_with ~prefix:"false" result -> Printf.printf "Verification result: %s\n" result; Feasible
@@ -211,11 +242,14 @@ struct
     | None -> Unknown
 
   let check_path path =
-    write path;
+    let seg = write path in
     let witch = GobConfig.get_string "exp.witch" in
     match witch with
     | "" -> Unknown
-    | _ -> check_feasability_with_witch witch path
+    | _ ->
+      let lines = run_witch witch in
+      let path = get_unreachable_path lines path seg in
+      check_feasability_with_witch lines path
 end
 
 
