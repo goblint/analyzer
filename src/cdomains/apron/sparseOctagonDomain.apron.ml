@@ -316,13 +316,19 @@ end
 *)
 module VarManagement =
 struct
-  module Str = struct
-    type t = string
-    let compare = String.compare
-    let string_of = Fun.id
-    let hash = Hashtbl.hash
+  module IntBased = struct
+
+    type t = int [@@deriving eq, ord, hash]
+    let string_of i = 
+      let to_subscript i =
+        let transl = [|"₀";"₁";"₂";"₃";"₄";"₅";"₆";"₇";"₈";"₉"|] in
+        let rec subscr i =
+          if i = 0 then ""
+          else (subscr (i/10)) ^ transl.(i mod 10) in
+        subscr i in
+      "x"^to_subscript i
   end
-  module SparseOctagon = Oct(Str)
+  module SparseOctagon = Oct(IntBased)
   include SharedFunctions.VarManagementOps (SparseOctagon)
 
 end
@@ -354,24 +360,68 @@ struct
   let pretty_diff () (x, y) = dprintf "%s: %a ≰ %a" (name ()) pretty x pretty y
   let printXml f x = BatPrintf.fprintf f "<value>\n<map>\n<key>\ninequalities\n</key>\n<value>\n%s</value>\n<key>\nenv\n</key>\n<value>\n%a</value>\n</map>\n</value>\n" (XmlUtil.escape (show x)) Environment.printXml x.env
 
+  (* ********************** *)
   (* basic lattice handling *)
+  (* ********************** *)
+
   let top () = {d= Some (SparseOctagon.empty ()); env = empty_env }
   let is_top t = match t.d with
     | None -> false
     | Some d -> SparseOctagon.is_top d
   let is_bot t = equal t (bot ())
 
+  (* *************************** *)
   (* fixpoint iteration handling *)
-  let meet a b = failwith "SparseOctagonDomain.meet: not implemented"
+  (* *************************** *)
+
+  (** oct ⊓ constraintlist implemented as a continuation of init *)
+  let cap_list ({unary; binary; infl} : SparseOctagon.t) list = 
+    let (set, m1, m2, infl) = SparseOctagon.init (unary, binary, infl) list in
+    let (m1, binary, infl) = SparseOctagon.propagate2 (set, m1, m2, infl) in
+    let unary = SparseOctagon.propagate1 (m1, binary, infl) in
+    (* TODO: evaluate, whether optimize would be a good idea here, or whether propagate1/2 are even necessary*)
+    ({unary; binary; infl} : SparseOctagon.t)
+
+  let meet octa octb = 
+    let oct =
+      match octa.d, SparseOctagon.list_of octb.d with
+      | None, _ | _, None -> None
+      | Some oct, Some l2 -> try Some (cap_list oct l2)
+        with Bot -> None
+    in
+    { d = oct; env = octb.env }
   let leq a b = failwith "SparseOctagonDomain.leq: not implemented"
   let join a b = failwith "SparseOctagonDomain.join: not implemented"
   let widen a b = failwith "SparseOctagonDomain.widen: not implemented"
   let narrow a b = failwith "SparseOctagonDomain.narrow: not implemented"
   let unify a b = failwith "SparseOctagonDomain.unify: not implemented"
 
+  (* ****************** *)
   (* transfer functions *)
-  let forget_var t v = failwith "SparseOctagonDomain.forget_var: not implemented"
-  let forget_vars t vs = failwith "SparseOctagonDomain.forget_vars: not implemented"
+  (* ****************** *)
+
+  (** Remove all bounds that relate to a particular literal, i.e. x or -x from oct *)
+  let remove_lit v (oct : SparseOctagon.t option) : SparseOctagon.t option= match oct with
+    | None -> None
+    | Some {unary; binary; infl} ->
+      let unary =  SparseOctagon.UnaryMap.remove v unary in (* Unary bound is easily removed *)
+      let infl, binary =  match SparseOctagon.UnaryMap.find_opt v infl with
+        | None -> infl, binary
+        | Some set -> let infl = SparseOctagon.UnaryMap.remove v infl in (* remove v influenced set *)
+          SparseOctagon.LitSet.fold (fun v' (infl,binary) ->  (* clean up infl sets from v , and remove pair constraints with v *)
+              let p = SparseOctagon.normal (v, v') in
+              SparseOctagon.rem_elem v' v infl,
+              SparseOctagon.BinaryMap.remove p binary) set (infl,binary) in
+      Some {unary; binary; infl}
+
+  (** Remove all bounds that relate to a variable x from oct i.e. [[x := ?]] *)
+  let forget_var oct x = remove_lit (Pos x) oct |> remove_lit (Neg x)
+  (** Remove all bounds for variables x ∈ X, i.e. [[x := ?  | x ∈ X]]*)
+  let forget_vars t vars =
+    if is_bot_env t || is_top t then t
+    else let newoct = List.fold (fun oct i-> forget_var oct i) (t.d) vars in
+      { d = newoct; env = t.env }
+
   let assign_exp ask t var exp _ = failwith "SparseOctagonDomain.assign_exp: not implemented"
   let assign_var t v v' = failwith "SparseOctagonDomain.assign_var: not implemented"
   let assign_var_parallel t vvs = failwith "SparseOctagonDomain.assign_var_parallel: not implemented"
@@ -379,7 +429,11 @@ struct
   let assign_var_parallel' t vvs = failwith "SparseOctagonDomain.assign_var_parallel': not implemented"
   let substitute_exp ask t var exp no_ov = failwith "SparseOctagonDomain.substitute_exp: not implemented"
   let cil_exp_of_lincons1 = Convert.cil_exp_of_lincons1
+
+  (* ***************************** *)
   (* Module AssertionRels demands: *)
+  (* ***************************** *)
+
   let assert_constraint ask d e negate (no_ov: bool Lazy.t) = failwith "SparseOctagonDomain.assert_constraint: not implemented"
   let env t = t.env
   let eval_interval ask = Bounds.bound_texpr
