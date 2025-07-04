@@ -128,6 +128,7 @@ module BasePriv = BasePriv
 module RelationPriv = RelationPriv
 module ThreadEscape = ThreadEscape
 module PthreadSignals = PthreadSignals
+module PthreadBarriers = PthreadBarriers
 module ExtractPthread = ExtractPthread
 
 (** {2 Longjmp}
