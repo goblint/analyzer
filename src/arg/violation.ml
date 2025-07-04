@@ -202,7 +202,7 @@ struct
     in
     let witness_file_path = GobConfig.get_string "witness.yaml.path" in
     (*  ../witch/scripts/symbiotic --witness-check ../analyzer/witness.yml --32 ../analyzer/violation-witness.c *)
-    let command = Printf.sprintf "%s --witness-check %s %s %s" witch witness_file_path data_model files in
+    let command = Printf.sprintf "%s --witness-check %s %s --guide-only %s" witch witness_file_path data_model files in
     let lines = read_command_output command in
     match extract_result_line lines with
     | Some result when String.starts_with ~prefix:"true" result -> Printf.printf "Verification result: %s\n" result; Infeasible path
