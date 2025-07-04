@@ -230,7 +230,7 @@ struct
       end
     | Alloca _ ->
       (* Create fresh heap var for the alloca() call *)
-      begin match man.ask (Queries.AllocVar {on_stack = true}) with
+      begin match man.ask (Queries.AllocVar Stack) with
         | `Lifted v -> (AllocaVars.add v (fst state), snd state)
         | _ -> state
       end
