@@ -402,9 +402,10 @@ module ListMatrix: SparseMatrixFunctor =
       in 
 
       let col_and_rc m colidx rowidx = 
-        let col = get_col_upper_triangular m colidx in col , 
-                                                       try V.nth col rowidx with (* V.nth could be integrated into get_col for the last few bits of performance... *)
-                                                       | Invalid_argument _ -> A.zero (* if col is empty, we return zero *)
+        let col = get_col_upper_triangular m colidx in
+        let rc = try V.nth col rowidx with (* V.nth could be integrated into get_col for the last few bits of performance... *)
+          | Invalid_argument _ -> A.zero (* if col is empty, we return zero *) in
+        col, rc
       in 
 
       let push_col m colidx col = 
@@ -433,20 +434,15 @@ module ListMatrix: SparseMatrixFunctor =
           let rec sub_and_last_aux (acclist,acc) c1 c2 =
             match c1, c2 with
             | (i,_)::_,_ when i >= ridx -> (acclist,acc) (* we are done, no more entries in c1 that are relevant *)
-            | (i1, v1) :: xs1, (i2, v2) :: xs2 ->
-              if i1 = i2 then
-                let res = A.sub v1 v2 in
-                if A.equal res A.zero then 
-                  sub_and_last_aux ((i1,res)::acclist,acc) xs1 xs2
-                else
-                  sub_and_last_aux ((i1,res)::acclist,Some (i1,v1,v2)) xs1 xs2
-              else if i1 < i2 then
-                sub_and_last_aux ((i1,v1)::acclist,Some (i1,v1,A.zero)) xs1 ((i2, v2)::xs2)
-              else (* i1 > i2 *)
-                sub_and_last_aux ((i2,A.neg v2)::acclist,Some (i2,A.zero,v2))  ((i1, v1)::xs1) xs2
+            | (i1, v1) :: xs1, (i2, v2) :: xs2    when i1 = i2 ->
+              let res = A.sub v1 v2 in
+              let acc = if A.equal res A.zero then acc else Some (i1, v1, v2) in
+              sub_and_last_aux ((i1,res)::acclist,acc) xs1 xs2
+            | (i1, v1) :: xs1, (i2, v2) :: xs2    when i1 < i2   -> sub_and_last_aux ((i1,v1)::acclist,Some (i1,v1,A.zero)) xs1 ((i2, v2)::xs2)
+            | (i1, v1) :: xs1, (i2, v2) :: xs2 (* when i1 > i2 *)-> sub_and_last_aux ((i2,A.neg v2)::acclist,Some (i2,A.zero,v2))  ((i1, v1)::xs1) xs2
             | (i,v)::xs ,[] -> sub_and_last_aux ((i,v)::acclist,Some (i,v,A.zero)) xs []
             | [], (i,v)::xs -> sub_and_last_aux ((i,v)::acclist,Some (i,A.zero,v)) [] xs
-            | _ -> (acclist,acc)
+            | [], [] -> (acclist,acc)
           in
           let resl,rest = sub_and_last_aux ([],None) c1 c2 in
           if M.tracing then M.trace "linear_disjunct_cases" "sub_and_last: ridx: %d c1: %s, c2: %s, resultlist: %s, result_pivot: %s" ridx (V.show col1) (V.show col2) (String.concat "," (List.map (fun (i,v) -> Printf.sprintf "(%d,%s)" i (A.to_string v)) resl)) (match rest with None -> "None" | Some (i,v1,v2) -> Printf.sprintf "(%d,%s,%s)" i (A.to_string v1) (A.to_string v2));
@@ -456,8 +452,7 @@ module ListMatrix: SparseMatrixFunctor =
         match lastdiff with
         | None -> 
           let sameinboth=get_col_upper_triangular m1 cidx in 
-          if M.tracing then M.trace "linear_disjunct_cases" "case_three: no difference found, cidx: %d, ridx: %d, coldiff: %s, sameinboth: %s" 
-              cidx ridx (V.show coldiff) (V.show sameinboth);
+          if M.tracing then M.trace "linear_disjunct_cases" "case_three: no difference found, cidx: %d, ridx: %d, coldiff: %s, sameinboth: %s" cidx ridx (V.show coldiff) (V.show sameinboth);
           (del_col m1 cidx,  del_col m2 cidx, push_col result cidx sameinboth, ridx) (* No difference found -> (del_col m1 cidx, del_col m2 cidx, push hd to result, ridx)*)
         | Some (idx,x,y) ->
           let r1 = safe_get_row m1 idx in
@@ -508,11 +503,9 @@ module ListMatrix: SparseMatrixFunctor =
           | a,b -> failwith ("matrix not in rref m1: " ^ (string_of_int a) ^ (string_of_int b)^(show m1) ^ " m2: " ^ (show m2))
       in
       (* create a totally empty intial result, with dimensions rows x cols *)
-      let pseudoempty = List.init (max (num_rows m1) (num_rows m1)) (fun _ -> V.zero_vec (num_cols m1)) in
+      let pseudoempty = BatList.make (max (num_rows m1) (num_rows m1)) (V.zero_vec (num_cols m1)) in
       let res = rev_matrix @@ lindisjunc_aux 0 0 m1 m2 pseudoempty in
-      if M.tracing then (
-        let pleinly = String.concat "\n" (List.map (fun line -> String.concat "," (List.map (fun (idx,valu) ->  "("^string_of_int idx^","^A.to_string valu^")") (V.to_sparse_list line)) ) res) in 
-        M.tracel "linear_disjunct" "linear_disjunct between \n%s and \n%s =>\n%s  \n(%s)" (show m1)  (show m2) (show res) pleinly);
+      if M.tracing then M.tracel "linear_disjunct" "linear_disjunct between \n%s and \n%s =>\n%s" (show m1)  (show m2) (show res);
       res
 
   end
