@@ -170,7 +170,8 @@ struct
       Array.modify (( *:) lcm) row;
       let int_arr = Array.map Mpqf.get_num row in
       let div = Array.fold_left Z.gcd int_arr.(0) int_arr in
-      Array.modify (fun x -> Z.div x div) int_arr;
+      if not @@ Z.equal div Z.zero then
+        Array.modify (fun x -> Z.div x div) int_arr;
       int_arr
     in
     let vec_to_constraint arr env =
@@ -282,47 +283,6 @@ struct
     res
 
   let join a b =
-    let rec lin_disjunc r s a b =
-      if s >= Matrix.num_cols a then a else
-        let case_two a r col_b =
-          let a_r = Matrix.get_row a r in
-          let a = Matrix.map2i (fun i x y -> if i < r then Vector.map2_f_preserves_zero (fun u j -> u +: y *: j) x a_r else x) a col_b; in
-          Matrix.remove_row a r
-        in
-        let case_three a b col_a col_b max =
-          let col_a, col_b = Vector.keep_vals col_a max, Vector.keep_vals col_b max in
-          let col_diff = Vector.map2_f_preserves_zero (-:) col_a col_b in
-          if Vector.is_zero_vec col_diff then
-            (a, b, max)
-          else
-            (
-              let col_a = Vector.rev col_a in
-              let col_b = Vector.rev col_b in
-              let i = Vector.find2i_f_false_at_zero (<>:) col_a col_b in
-              let (x, y) = Vector.nth col_a i, Vector.nth col_b i in
-              let r, diff = Vector.length col_a - (i + 1), x -: y  in
-              let a_r, b_r = Matrix.get_row a r, Matrix.get_row b r in
-              let multiply_by_t m t =
-                Matrix.map2i (fun i' x c -> if i' <= max then (let beta = c /: diff in Vector.map2_f_preserves_zero (fun u j -> u -: (beta *: j)) x t) else x) m col_diff
-              in
-              Matrix.remove_row (multiply_by_t a a_r) r, Matrix.remove_row (multiply_by_t b b_r) r, (max - 1)
-            )
-        in
-        let col_a, col_b = Matrix.get_col_upper_triangular a s, Matrix.get_col_upper_triangular b s in
-        let nth_zero v i =  match Vector.nth v i with
-          | exception Invalid_argument _ -> Mpqf.zero
-          | x -> x
-        in
-        let a_rs, b_rs = nth_zero col_a r, nth_zero col_b r in
-        if not (Z.equal (Mpqf.get_den a_rs) Z.one) || not (Z.equal (Mpqf.get_den b_rs) Z.one) then failwith "Matrix not in rref form" else
-          begin match Z.to_int @@ Mpqf.get_num a_rs, Z.to_int @@ Mpqf.get_num b_rs with
-            | 1, 1 -> lin_disjunc (r + 1) (s + 1) a b
-            | 1, 0 -> lin_disjunc r (s + 1) (case_two a r col_b) b
-            | 0, 1 -> lin_disjunc r (s + 1) a (case_two b r col_a)
-            | 0, 0 ->  let new_a, new_b, new_r = case_three a b col_a col_b r in
-              lin_disjunc new_r (s + 1) new_a new_b
-            | _      -> failwith "Matrix not in rref form" end
-    in
     if is_bot a then
       b
     else if is_bot b then
@@ -334,9 +294,9 @@ struct
         let sup_env = Environment.lce a.env b.env in
         let mod_x = dim_add (Environment.dimchange a.env sup_env) x in
         let mod_y = dim_add (Environment.dimchange b.env sup_env) y in
-        {d = Some (lin_disjunc 0 0 mod_x mod_y); env = sup_env}
+        {d = Some (Matrix.linear_disjunct mod_x mod_y); env = sup_env}
       | x, y when Matrix.equal x y -> {d = Some x; env = a.env}
-      | x, y  -> {d = Some(lin_disjunc 0 0 x y); env = a.env}
+      | x, y  -> {d = Some(Matrix.linear_disjunct x y); env = a.env}
 
   let join a b = timing_wrap "join" (join a) b
 
