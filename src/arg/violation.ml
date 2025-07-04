@@ -91,7 +91,6 @@ struct
         in
 
         let segment_for_edge prev edge =
-          let+ location = loc prev in
           match edge with
           (* TODO: Correct locations for function entry and return are currently unavailable.
              As specified by the Witness 2.0 format, these locations must point to
@@ -108,12 +107,15 @@ struct
             let waypoints = [waypoint ~waypoint_type:(FunctionReturn function_return)] in
             segment ~waypoints
           *)
+          | MyARG.CFGEdge Ret (None, _) -> None
           | MyARG.CFGEdge Test (_, b) ->
+            let+ location = loc prev in
             let constraint_ = constraint_ ~value:(String (Bool.to_string b)) in
             let branching = branching ~location ~action:"follow" ~constraint_ in
             let waypoints = [waypoint ~waypoint_type:(Branching branching)] in
             segment ~waypoints
           | _ ->
+            let+ location = loc prev in
             let constraint_ = constraint_ ~value:(String "1") in
             let assumption = assumption ~location ~constraint_ in
             let waypoints = [waypoint ~waypoint_type:(Assumption assumption)] in
