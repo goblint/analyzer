@@ -13,7 +13,7 @@ pthread_barrier_t barrier2;
 pthread_mutex_t mutex;
 
 void* f1(void* ptr) {
-    g = 2; //NORACE
+    g = 2;
     pthread_barrier_wait(&barrier);
     pthread_barrier_wait(&barrier2);
 
