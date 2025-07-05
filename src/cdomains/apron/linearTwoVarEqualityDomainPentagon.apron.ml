@@ -70,11 +70,6 @@ struct
     | _, _ -> [] (*One of the variables is a constant -> there are no inequalities*)
 
 
-  let get_value t lhs = 
-    let res = get_value t lhs in
-    if M.tracing then M.tracel "get_value" "reading var_%d from %s -> %s" lhs (show t) (Value.show res);
-    res
-
   let constrain_with_congruence_from_rhs econ lhs i =(**TODO do not recalculate this every time?*)
     (*calculate the congruence constraint for x from a single equation (cx + o) / d  *)
     let congruence_of_rhs (c, o, d) =
@@ -110,12 +105,9 @@ struct
   let refine_depth = 5
 
   let rec set_value ((econ, is, ineq) as t:t) lhs i =
-    if M.tracing then M.tracel "modify_pentagon" "set_value var_%d=%s, before: %s" lhs (Value.show i) (show t);
     if Value.is_bot i then raise EConj.Contradiction;
     let set_value_for_root lhs i =
-      if M.tracing then M.tracel "modify_pentagon" "set_value_for_root var_%d=%s, before: %s" lhs (Value.show i) (show t);
       let i = constrain_with_congruence_from_rhs econ lhs i in
-      if M.tracing then M.tracel "modify_pentagon" "set_value_for_root refined to %s" (Value.show i);
       if i = Value.top then (econ, IntMap.remove lhs is, ineq) (*stay sparse*)
       else if Value.is_bot i then raise EConj.Contradiction
       else match Value.to_int i with
@@ -135,7 +127,6 @@ struct
         let i2 = Value.sub i1 (Value.of_bigint o) in
         let i3 = Value.div i2 (Value.of_bigint coeff) in
         let i_transformed = i3 in 
-        if M.tracing then M.tracel "modify_pentagon" "transforming with %s i: %s i1: %s i2: %s i3: %s" (Rhs.show ((Some (coeff, v)),o,d)) (Value.show i) (Value.show i1) (Value.show i2) (Value.show i3);
         set_value_for_root v i_transformed
 
   and set_rhs (econ, is, ineq) lhs rhs  =
@@ -156,7 +147,8 @@ struct
 
 
   and meet_with_one_value var value t narrow =
-    let meet_function = if narrow then Value.narrow else Value.meet in
+    (*We do not want to do any narrowing ourselves, as this leads to strange behaiviour in combination with base*)
+    let meet_function = if narrow then (fun x y -> y) else Value.meet in
     let new_value = meet_function value (get_value t var)
     in if Value.is_bot new_value then raise EConj.Contradiction else 
       let res = set_value t var new_value (*TODO because we meet with an already saved values, we already confirm to the congruence constraints -> skip calculating them again!*)
@@ -252,12 +244,9 @@ struct
         end
     in
     if refine_depth > 0 then begin
-      if M.tracing then M.trace "refinements" "applying %s to %s, remaining depth: %d" (Refinement.show refs) (show t) refine_depth;
       let res = List.fold apply_single t refs in
-      if M.tracing then M.trace "refinements" "resulted in %s" (show res);
       res
     end else begin
-      if M.tracing then M.trace "refinements" "call with depth 0 ignored";
       t
     end
 
@@ -301,12 +290,6 @@ struct
       in set_value (econj'', vs'', ineq'') y @@ get_value d y
     | _ -> failwith "Should not happen" (*transformation can not be a constant*)
 
-  let forget_variable d var = 
-    if M.tracing then M.tracel "forget" "forget var_%d in { %s } " var (show d);
-    let res = forget_variable d var in
-    if M.tracing then M.trace "forget" "-> { %s }" (show res);
-    res
-
 
   let dim_remove (ch: Apron.Dim.change) (econj, v, ineq) =
     if Array.length ch.dim = 0 || is_empty (econj, v, ineq) then
@@ -331,11 +314,6 @@ struct
       else Ineq.substitute (get_value (econ, vs, ineq)) ineq i (c,i,o,d) 
     in
     apply_refinements refinements (EConj.affine_transform econ i rhs, vs, ineq')
-
-  let affine_transform econ i (c,v,o,d) =
-    let res = affine_transform econ i (c,v,o,d) in
-    if M.tracing then M.tracel "affine_transform" "affine_transform %s with var_%d'=%s ->  %s " (show econ) i (Rhs.show (Some (c,v),o,d)) (show res); 
-    res
 
 end
 
@@ -1024,8 +1002,8 @@ struct
   let join a b =
     let res = join a b in
     if M.tracing then M.tracel "join" "join a: %s b: %s -> %s" (show a) (show b) (show res) ;
-    (*assert(leq a res);
-      assert(leq b res);*)
+    assert(leq a res);
+    assert(leq b res);
     res
 
   let widen = join' true
@@ -1381,14 +1359,15 @@ struct
         match Convert.texpr1_of_cil_exp ask d (env d) e no_ov with
         | texpr1 ->
           let (i, c) = eval_texpr d (Texpr1.to_expr texpr1) in
+          let (min, max) = IntDomain.Size.range ik in
           let c =  match c with 
             | None -> ID.bot_of ik
             | Some c -> ID.of_congruence ik c
           in let i = match i with
               | None -> ID.bot_of ik
-              | Some (TopIntOps.Int l, TopIntOps.Int u) -> ID.of_interval ik (l,u)
-              | Some (TopIntOps.Int l, _) -> ID.starting ik l
-              | Some (_, TopIntOps.Int u) -> ID.ending ik u
+              | Some (TopIntOps.Int l, TopIntOps.Int u) -> ID.of_interval ~suppress_ovwarn:true ik ((Z.max l min),(Z.min u max))
+              | Some (TopIntOps.Int l, _) -> ID.starting ~suppress_ovwarn:true ik (Z.max l min)
+              | Some (_, TopIntOps.Int u) -> ID.ending ~suppress_ovwarn:true ik (Z.min u max)
               | _ -> ID.top_of ik
           in ID.meet c i
         | exception Convert.Unsupported_CilExp _ -> ID.top_of ik

@@ -1217,24 +1217,29 @@ module InequalityFunctor (Coeffs : Coeffs): TwoVarInequalities = struct
   let narrow get_value t1 t2 = 
     IntMap.fold (fun x ys acc -> IntMap.fold (fun y coeff acc -> meet_one_coeff true get_value x y (Coeffs.to_set coeff) acc) ys acc) t1 (t2,[])
 
-  let join' widen t1 get_val_t1 t2 get_val_t2 = 
-    let merge_y x y = (if widen then Coeffs.widen else Coeffs.join) x y get_val_t1 get_val_t2 in 
+  let join t1 get_val_t1 t2 get_val_t2 = 
+    let merge_y x y = Coeffs.join x y get_val_t1 get_val_t2 in 
     let merge_x x ys1 ys2 = 
       match ys1, ys2 with
-      | Some ys1, None -> ignore_empty (IntMap.filter_map (fun y coeff1 -> merge_y x y (Some coeff1) None) ys1)
-      | None, Some ys2 -> ignore_empty (IntMap.filter_map (fun y coeff2 -> merge_y x y None (Some coeff2)) ys2)
+      | Some ys1, None -> None
+      | None, Some ys2 -> None
       | Some ys1, Some ys2 -> ignore_empty (IntMap.merge (merge_y x) ys1 ys2)
       | _, _ -> None
     in IntMap.merge (merge_x) t1 t2
 
-  let join' widen t1 get_val_t1 t2 get_val_t2 = 
-    let res = join' widen t1 get_val_t1 t2 get_val_t2 in
+  let join  t1 get_val_t1 t2 get_val_t2 = 
+    let res = Timing.wrap "join_ineq" (join t1 get_val_t1 t2 ) get_val_t2 in
     if M.tracing then M.trace "join'" "a: %s b: %s -> %s" (show t1) (show t2) (show res);
     res
 
-
-  let join = join' false
-  let widen = join' true
+  let widen t1 get_val_t1 t2 get_val_t2 = 
+    let merge_x x ys1 ys2 = 
+      match ys1, ys2 with
+      | Some ys1, None -> ignore_empty (IntMap.filter_map (fun y coeff1 -> Coeffs.widen x y get_val_t1 get_val_t2 (Some coeff1) None ) ys1)
+      | None, Some ys2 -> ignore_empty (IntMap.filter_map (fun y coeff2 -> Coeffs.widen x y get_val_t1 get_val_t2 None (Some coeff2)) ys2)
+      | Some ys1, Some ys2 -> ignore_empty (IntMap.merge (fun y cs1 cs2 -> Coeffs.widen x y get_val_t1 get_val_t2 cs1 cs2) ys1 ys2)
+      | _, _ -> None
+    in IntMap.merge (merge_x) t1 t2
 
   let widen a b c d =
     let res = widen a b c d in
@@ -1405,8 +1410,8 @@ module InequalityFunctor (Coeffs : Coeffs): TwoVarInequalities = struct
           meet_relation_roots x y k c' (t,ref_acc)
       end
     (*Cases where one of the variables is a constant -> refine value*)
-    | (None, o_x, _), (Some (_,y),_,_) -> t, [Refinement.of_value y @@ Relation.value_with_const_left cond o_x]
-    | (Some (_,x),_,_), (None, o_y, _) -> t, [Refinement.of_value x @@ Relation.value_with_const_right cond o_y]
+    | (None, o_x, _), (Some _,_,_) -> t, [Refinement.of_value y' @@ Relation.value_with_const_left cond o_x]
+    | (Some _,_,_), (None, o_y, _) -> t, [Refinement.of_value x' @@ Relation.value_with_const_right cond o_y]
     | (None, o_x, _), (None, o_y, _) -> 
       let v = Relation.value_with_const_right cond o_y in
       if Value.contains v o_x then
@@ -1444,6 +1449,7 @@ module InequalityFunctor (Coeffs : Coeffs): TwoVarInequalities = struct
             Value.meet value @@ Value.starting @@ Z.fdiv (Q.num min) (Q.den min)
       in TVIS.CoeffMap.fold check_single cs Value.top
     in
+    let without_i = forget_variable t i in
     (*add to bindings, meeting with existing if necessary*)
     let merge_single x y cs_new (t,ref_acc) = 
       let cs_curr = BatOption.default TVIS.empty @@ BatOption.map to_set @@ get_coeff x y t in
@@ -1452,25 +1458,22 @@ module InequalityFunctor (Coeffs : Coeffs): TwoVarInequalities = struct
       | None -> t,ref_acc 
       | Some cs_combined -> set_coeff x y cs_combined t, ref_acc
     in
-    let merge_ys x ys acc = IntMap.fold (merge_single x) ys acc in
     let fold_x x ys acc = 
       if x < i then 
         match IntMap.find_opt i ys with
-        | None -> merge_ys x (IntMap.map to_set ys) acc
+        | None -> acc
         | Some cs ->
-          let cs = to_set cs in
-          let ys' = IntMap.remove i ys in
-          let acc' = merge_ys x (IntMap.map to_set ys') acc in (*everything else is added unchanged*)
+          let cs = to_set cs in          
           let cs' = TVIS.substitute_right (coeff, offs, divi) cs in
           if x = j then (*We now have inequalities with the same variable on both sides *)
-            let t,ref_acc = acc' in 
+            let t,ref_acc = acc in 
             let v = constraints_same_variable cs' in
             t, Refinement.of_value x v :: ref_acc
           else if x < j then 
-            merge_single x j cs' acc'
+            merge_single x j cs' acc
           else (*x > j -> swap sides*)
             let cs'' = TVIS.swap_sides cs' in
-            merge_single j x cs'' acc'
+            merge_single j x cs'' acc
       else if x = i then  
         let fold_y y cs acc = 
           let cs' = TVIS.substitute_left (coeff, offs, divi) cs in
@@ -1486,8 +1489,8 @@ module InequalityFunctor (Coeffs : Coeffs): TwoVarInequalities = struct
         in
         IntMap.fold fold_y (IntMap.map to_set ys) acc
       else
-        merge_ys x (IntMap.map to_set ys) acc
-    in IntMap.fold fold_x t (IntMap.empty, [])
+        acc
+    in IntMap.fold fold_x t (without_i, [])
 
   let substitute get_value t i (c,j,o,d) = 
     if M.tracing then M.trace "substitute" "substituting var_%d in %s with %s" i (show t) (Rhs.show (Some (c,j), o, d));
