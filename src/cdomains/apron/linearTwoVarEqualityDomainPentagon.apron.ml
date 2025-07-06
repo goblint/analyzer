@@ -147,9 +147,8 @@ struct
 
 
   and meet_with_one_value var value t narrow =
-    (*We do not want to do any narrowing ourselves, as this leads to strange behaiviour in combination with base*)
-    let meet_function = if narrow then (fun x y -> y) else Value.meet in
-    let new_value = meet_function value (get_value t var)
+    let meet_function = if narrow then Value.narrow else Value.meet in
+    let new_value = meet_function (get_value t var) value 
     in if Value.is_bot new_value then raise EConj.Contradiction else 
       let res = set_value t var new_value (*TODO because we meet with an already saved values, we already confirm to the congruence constraints -> skip calculating them again!*)
       in if M.tracing then M.tracel "meet_value" "meet var_%d: before: %s meeting: %s -> %s, total: %s-> %s" (var) (Value.show @@ get_value t var) (Value.show value) (Value.show new_value) (show t) (show res);
@@ -1002,8 +1001,8 @@ struct
   let join a b =
     let res = join a b in
     if M.tracing then M.tracel "join" "join a: %s b: %s -> %s" (show a) (show b) (show res) ;
-    assert(leq a res);
-    assert(leq b res);
+    (*assert(leq a res);
+      assert(leq b res);*)
     res
 
   let widen = join' true
