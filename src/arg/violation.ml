@@ -41,7 +41,7 @@ sig
     | Infeasible of (Node.t * MyARG.inline_edge * Node.t) list
     | Unknown
 
-  val check_path: (Node.t * MyARG.inline_edge * Node.t) list -> result
+  val check_path: (Node.t * MyARG.inline_edge * Node.t) list -> (Node.t, Node.t list) Hashtbl.t -> result
 end
 
 module CfgNode = Node
@@ -219,7 +219,7 @@ struct
     let command = Printf.sprintf "%s --witness-check %s %s --guide-only %s" witch witness_file_path data_model files in
     read_command_output command
 
-  let get_unreachable_path lines (path: (Node.t * inline_edge * Node.t) list) (segToPathMap, segments) =
+  let get_unreachable_path lines (path: (Node.t * inline_edge * Node.t) list) (segToPathMap, segments) node_to_stack =
     let has_no_branching_before_unreachable segments seg_nr =
       let rec check i: YamlWitnessType.ViolationSequence.Segment.t list -> bool = function
         | _ when i == seg_nr -> true
@@ -228,10 +228,27 @@ struct
         | _ :: rest -> check (i + 1) rest
       in
       check 0 segments
-    in 
+    in
+
+    let is_within_loop (node, _, _) =
+      let callstack = List.rev (Hashtbl.find node_to_stack node) in (* TODO: inefficient rev *)
+      let cfg_node = match callstack with
+        | hd :: _ -> Node.cfgnode hd
+        | [] -> Node.cfgnode node
+      in
+      Logs.error "node: %a" CfgNode.pretty cfg_node;
+      let scc_components = CfgTools.node_scc_global in
+      match CfgTools.NH.find_option scc_components cfg_node with
+      | Some scc when CfgTools.NH.length scc.nodes > 1 -> true
+      | _ -> false
+    in
 
     match extract_unreach_seg_nr lines with
-    | Some seg_nr when has_no_branching_before_unreachable segments seg_nr -> SegNrToPathMap.find (List.length segments - seg_nr -1) segToPathMap
+    | Some seg_nr when has_no_branching_before_unreachable segments seg_nr ->
+      (* TODO: consider seg_nr == 0 separately *)
+      let path_suffix = SegNrToPathMap.find (List.length segments - seg_nr -1) segToPathMap in
+      if not (is_within_loop (List.hd path_suffix)) then path_suffix
+      else path
     | _ -> path
 
   let check_feasability_with_witch lines path =
@@ -241,14 +258,14 @@ struct
     | Some _ -> Unknown
     | None -> Unknown
 
-  let check_path path =
+  let check_path path node_to_stack =
     let seg = write path in
     let witch = GobConfig.get_string "exp.witch" in
     match witch with
     | "" -> Unknown
     | _ ->
       let lines = run_witch witch in
-      let path = get_unreachable_path lines path seg in
+      let path = get_unreachable_path lines path seg node_to_stack in
       check_feasability_with_witch lines path
 end
 
@@ -284,8 +301,20 @@ let find_path (type node) (module Arg:ViolationArg with type Node.t = node) (mod
 
   let find_path nodes =
     let next_nodes = NHT.create 100 in
-
     let itered_nodes = NHT.create 100 in
+    let node_to_stack = Hashtbl.create 100 in
+
+    let collect_callstack node edge next_node =
+      let prev_stack = Hashtbl.find_opt node_to_stack node |> Option.value ~default:[] in
+      let new_stack = match edge with
+        | MyARG.CFGEdge (Entry f) when f.svar.vname <> "main" -> node :: prev_stack
+        | InlineEntry _ -> node :: prev_stack
+        | InlineReturn _ -> BatList.drop 1 prev_stack
+        | _ -> prev_stack
+      in
+      Hashtbl.replace node_to_stack next_node new_stack;
+    in
+
     let rec bfs curs nexts = match curs with
       | node :: curs' ->
         if BatList.mem_cmp Arg.Node.compare node Arg.violations then
@@ -297,8 +326,10 @@ let find_path (type node) (module Arg:ViolationArg with type Node.t = node) (mod
               | MyARG.CFGEdge _
               | InlineEntry _
               | InlineReturn _ ->
-                if not (NHT.mem itered_nodes next_node) then
+                if not (NHT.mem itered_nodes next_node) then (
                   NHT.replace next_nodes next_node (edge, node);
+                  collect_callstack node edge next_node
+                );
                 Some next_node
               | InlinedEdge _
               | ThreadEntry _ -> None
@@ -316,13 +347,13 @@ let find_path (type node) (module Arg:ViolationArg with type Node.t = node) (mod
 
     try bfs nodes []; None with
     | Found violation ->
-      Some (List.rev_map (fun (n1, e, n2) -> (n2, e, n1)) (trace_path next_nodes violation)) (* TODO: inefficient rev *)
-  in
+      Some ((List.rev_map (fun (n1, e, n2) -> (n2, e, n1)) (trace_path next_nodes violation)), node_to_stack) (* TODO: inefficient rev *)
+    in
 
-  begin match find_path [Arg.main_entry] with
-    | Some path ->
+    begin match find_path [Arg.main_entry] with
+    | Some (path, node_to_stack) ->
       print_path path;
-      begin match Feasibility.check_path path with
+      begin match Feasibility.check_path path node_to_stack with
         | Feasibility.Feasible ->
           Logs.debug "feasible";
 
