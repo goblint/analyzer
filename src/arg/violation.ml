@@ -237,7 +237,6 @@ struct
         | hd :: _ -> Node.cfgnode hd
         | [] -> Node.cfgnode node
       in
-      Logs.error "node: %a" CfgNode.pretty cfg_node;
       let scc_components = CfgTools.node_scc_global in
       match CfgTools.NH.find_option scc_components cfg_node with
       | Some scc when CfgTools.NH.length scc.nodes > 1 -> true
