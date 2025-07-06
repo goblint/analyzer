@@ -188,6 +188,7 @@ struct
     let rec read_lines acc =
       try
         let line = input_line ic in
+        Logs.info "Witch: %s" line;
         read_lines (line :: acc)
       with End_of_file ->
         ignore (Unix.close_process process);
