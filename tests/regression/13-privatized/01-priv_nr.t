@@ -1,10 +1,10 @@
 `protection` privatization:
 
   $ goblint --enable witness.yaml.enabled --set witness.yaml.entry-types '["location_invariant"]' --disable witness.invariant.other --set ana.base.privatization protection 01-priv_nr.c
-  [Success][Assert] Assertion "glob1 == 5" will succeed (01-priv_nr.c:22:3-22:30)
-  [Success][Assert] Assertion "t == 5" will succeed (01-priv_nr.c:12:3-12:26)
-  [Success][Assert] Assertion "glob1 == -10" will succeed (01-priv_nr.c:14:3-14:32)
-  [Success][Assert] Assertion "glob1 == 6" will succeed (01-priv_nr.c:26:3-26:30)
+  [Success][Assert] Assertion "glob1 == 5" will succeed (01-priv_nr.c:22.3-22.30)
+  [Success][Assert] Assertion "t == 5" will succeed (01-priv_nr.c:12.3-12.26)
+  [Success][Assert] Assertion "glob1 == -10" will succeed (01-priv_nr.c:14.3-14.32)
+  [Success][Assert] Assertion "glob1 == 6" will succeed (01-priv_nr.c:26.3-26.30)
   [Info][Deadcode] Logical lines of code (LLoC) summary:
     live: 19
     dead: 0
@@ -55,10 +55,10 @@
 `vojdani` privatization:
 
   $ goblint --enable witness.yaml.enabled --set witness.yaml.entry-types '["location_invariant"]' --disable witness.invariant.other --set ana.base.privatization vojdani 01-priv_nr.c
-  [Success][Assert] Assertion "glob1 == 5" will succeed (01-priv_nr.c:22:3-22:30)
-  [Success][Assert] Assertion "t == 5" will succeed (01-priv_nr.c:12:3-12:26)
-  [Success][Assert] Assertion "glob1 == -10" will succeed (01-priv_nr.c:14:3-14:32)
-  [Success][Assert] Assertion "glob1 == 6" will succeed (01-priv_nr.c:26:3-26:30)
+  [Success][Assert] Assertion "glob1 == 5" will succeed (01-priv_nr.c:22.3-22.30)
+  [Success][Assert] Assertion "t == 5" will succeed (01-priv_nr.c:12.3-12.26)
+  [Success][Assert] Assertion "glob1 == -10" will succeed (01-priv_nr.c:14.3-14.32)
+  [Success][Assert] Assertion "glob1 == 6" will succeed (01-priv_nr.c:26.3-26.30)
   [Info][Deadcode] Logical lines of code (LLoC) summary:
     live: 19
     dead: 0
@@ -109,10 +109,10 @@
 `mutex-meet` privatization:
 
   $ goblint --enable witness.yaml.enabled --set witness.yaml.entry-types '["location_invariant"]' --disable witness.invariant.other --set ana.base.privatization mutex-meet 01-priv_nr.c
-  [Success][Assert] Assertion "glob1 == 5" will succeed (01-priv_nr.c:22:3-22:30)
-  [Success][Assert] Assertion "t == 5" will succeed (01-priv_nr.c:12:3-12:26)
-  [Success][Assert] Assertion "glob1 == -10" will succeed (01-priv_nr.c:14:3-14:32)
-  [Success][Assert] Assertion "glob1 == 6" will succeed (01-priv_nr.c:26:3-26:30)
+  [Success][Assert] Assertion "glob1 == 5" will succeed (01-priv_nr.c:22.3-22.30)
+  [Success][Assert] Assertion "t == 5" will succeed (01-priv_nr.c:12.3-12.26)
+  [Success][Assert] Assertion "glob1 == -10" will succeed (01-priv_nr.c:14.3-14.32)
+  [Success][Assert] Assertion "glob1 == 6" will succeed (01-priv_nr.c:26.3-26.30)
   [Info][Deadcode] Logical lines of code (LLoC) summary:
     live: 19
     dead: 0
@@ -163,10 +163,10 @@
 `write+lock` privatization:
 
   $ goblint --enable witness.yaml.enabled --set witness.yaml.entry-types '["location_invariant"]' --disable witness.invariant.other --set ana.base.privatization write+lock 01-priv_nr.c
-  [Success][Assert] Assertion "glob1 == 5" will succeed (01-priv_nr.c:22:3-22:30)
-  [Success][Assert] Assertion "t == 5" will succeed (01-priv_nr.c:12:3-12:26)
-  [Success][Assert] Assertion "glob1 == -10" will succeed (01-priv_nr.c:14:3-14:32)
-  [Success][Assert] Assertion "glob1 == 6" will succeed (01-priv_nr.c:26:3-26:30)
+  [Success][Assert] Assertion "glob1 == 5" will succeed (01-priv_nr.c:22.3-22.30)
+  [Success][Assert] Assertion "t == 5" will succeed (01-priv_nr.c:12.3-12.26)
+  [Success][Assert] Assertion "glob1 == -10" will succeed (01-priv_nr.c:14.3-14.32)
+  [Success][Assert] Assertion "glob1 == 6" will succeed (01-priv_nr.c:26.3-26.30)
   [Info][Deadcode] Logical lines of code (LLoC) summary:
     live: 19
     dead: 0

@@ -1,5 +1,5 @@
   $ goblint --set ana.base.privatization protection --enable witness.yaml.enabled --set ana.activated[+] mutexGhosts --set witness.yaml.entry-types '["flow_insensitive_invariant", "ghost_instrumentation"]' 67-ghost-no-unlock.c
-  [Success][Assert] Assertion "g1 == 0" will succeed (67-ghost-no-unlock.c:24:3-24:27)
+  [Success][Assert] Assertion "g1 == 0" will succeed (67-ghost-no-unlock.c:24.3-24.27)
   [Info][Deadcode] Logical lines of code (LLoC) summary:
     live: 11
     dead: 0

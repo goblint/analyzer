@@ -3,21 +3,21 @@
     live: 7
     dead: 0
     total lines: 7
-  [Success][Witness] invariant confirmed: 0 <= g (95-witness-mm-escape.c:19:1)
-  [Success][Witness] invariant confirmed: 0 <= *b (95-witness-mm-escape.c:19:1)
-  [Success][Witness] invariant confirmed: g <= 127 (95-witness-mm-escape.c:19:1)
-  [Success][Witness] invariant confirmed: *b <= 127 (95-witness-mm-escape.c:19:1)
-  [Success][Witness] invariant confirmed: -8LL + (long long )g >= 0LL (95-witness-mm-escape.c:19:1)
-  [Success][Witness] invariant confirmed: 2147483648LL + (long long )a >= 0LL (95-witness-mm-escape.c:19:1)
-  [Success][Witness] invariant confirmed: (2147483638LL + (long long )a) + (long long )g >= 0LL (95-witness-mm-escape.c:19:1)
-  [Success][Witness] invariant confirmed: (2147483637LL - (long long )a) + (long long )g >= 0LL (95-witness-mm-escape.c:19:1)
-  [Success][Witness] invariant confirmed: 10LL - (long long )g >= 0LL (95-witness-mm-escape.c:19:1)
-  [Success][Witness] invariant confirmed: 2147483647LL - (long long )a >= 0LL (95-witness-mm-escape.c:19:1)
-  [Success][Witness] invariant confirmed: (2147483658LL + (long long )a) - (long long )g >= 0LL (95-witness-mm-escape.c:19:1)
-  [Success][Witness] invariant confirmed: (2147483657LL - (long long )a) - (long long )g >= 0LL (95-witness-mm-escape.c:19:1)
-  [Success][Witness] invariant confirmed: b == & g (95-witness-mm-escape.c:19:1)
-  [Success][Witness] invariant confirmed: g != 0 (95-witness-mm-escape.c:19:1)
-  [Success][Witness] invariant confirmed: *b != 0 (95-witness-mm-escape.c:19:1)
+  [Success][Witness] invariant confirmed: 0 <= g (95-witness-mm-escape.c:19.1)
+  [Success][Witness] invariant confirmed: 0 <= *b (95-witness-mm-escape.c:19.1)
+  [Success][Witness] invariant confirmed: g <= 127 (95-witness-mm-escape.c:19.1)
+  [Success][Witness] invariant confirmed: *b <= 127 (95-witness-mm-escape.c:19.1)
+  [Success][Witness] invariant confirmed: -8LL + (long long )g >= 0LL (95-witness-mm-escape.c:19.1)
+  [Success][Witness] invariant confirmed: 2147483648LL + (long long )a >= 0LL (95-witness-mm-escape.c:19.1)
+  [Success][Witness] invariant confirmed: (2147483638LL + (long long )a) + (long long )g >= 0LL (95-witness-mm-escape.c:19.1)
+  [Success][Witness] invariant confirmed: (2147483637LL - (long long )a) + (long long )g >= 0LL (95-witness-mm-escape.c:19.1)
+  [Success][Witness] invariant confirmed: 10LL - (long long )g >= 0LL (95-witness-mm-escape.c:19.1)
+  [Success][Witness] invariant confirmed: 2147483647LL - (long long )a >= 0LL (95-witness-mm-escape.c:19.1)
+  [Success][Witness] invariant confirmed: (2147483658LL + (long long )a) - (long long )g >= 0LL (95-witness-mm-escape.c:19.1)
+  [Success][Witness] invariant confirmed: (2147483657LL - (long long )a) - (long long )g >= 0LL (95-witness-mm-escape.c:19.1)
+  [Success][Witness] invariant confirmed: b == & g (95-witness-mm-escape.c:19.1)
+  [Success][Witness] invariant confirmed: g != 0 (95-witness-mm-escape.c:19.1)
+  [Success][Witness] invariant confirmed: *b != 0 (95-witness-mm-escape.c:19.1)
   [Info][Witness] witness validation summary:
     confirmed: 15
     unconfirmed: 0

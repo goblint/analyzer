@@ -171,7 +171,7 @@ class Tests
         @evals = $2
       end
       if l =~ /\[Termination\]/ then warnings[-1] = "nonterm" end # Get Termination warning
-      next unless l =~ /(.*)\(.*?\:(\d+)(?:\:\d+)?(?:-(?:\d+)(?:\:\d+)?)?\)/
+      next unless l =~ /(.*)\(.*?\:(\d+)(?:\.\d+)?(?:-(?:\d+)(?:\.\d+)?)?\)/
       obj,i = $1,$2.to_i
 
       ranking = ["other", "warn", "goto", "fundec", "loop", "term", "nonterm", "race", "norace", "deadlock", "nodeadlock", "success", "fail", "unknown"]

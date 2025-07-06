@@ -1,15 +1,15 @@
   $ goblint --set lib.activated '["goblint"]' --set exp.unrolling-factor 5 --set ana.base.arrays.domain unroll --set ana.base.arrays.unrolling-factor 5 --enable justcil --set dbg.justcil-printer clean 06-simple-cases-unrolled.c
-  [Info] unrolling loop at 06-simple-cases-unrolled.c:27:5-30:5 with factor 5
-  [Info] unrolling loop at 06-simple-cases-unrolled.c:42:5-45:19 with factor 5
-  [Info] unrolling loop at 06-simple-cases-unrolled.c:57:5-60:5 with factor 5
-  [Info] unrolling loop at 06-simple-cases-unrolled.c:74:5-80:5 with factor 5
-  [Info] unrolling loop at 06-simple-cases-unrolled.c:95:5-105:5 with factor 5
-  [Info] unrolling loop at 06-simple-cases-unrolled.c:119:5-123:5 with factor 5
-  [Info] unrolling loop at 06-simple-cases-unrolled.c:143:2-146:2 with factor 5
-  [Info] unrolling loop at 06-simple-cases-unrolled.c:160:9-163:9 with factor 5
-  [Info] unrolling loop at 06-simple-cases-unrolled.c:157:2-165:2 with factor 5
-  [Info] unrolling loop at 06-simple-cases-unrolled.c:174:2-178:2 with factor 5
-  [Info] unrolling loop at 06-simple-cases-unrolled.c:187:2-194:2 with factor 5
+  [Info] unrolling loop at 06-simple-cases-unrolled.c:27.5-30.5 with factor 5
+  [Info] unrolling loop at 06-simple-cases-unrolled.c:42.5-45.19 with factor 5
+  [Info] unrolling loop at 06-simple-cases-unrolled.c:57.5-60.5 with factor 5
+  [Info] unrolling loop at 06-simple-cases-unrolled.c:74.5-80.5 with factor 5
+  [Info] unrolling loop at 06-simple-cases-unrolled.c:95.5-105.5 with factor 5
+  [Info] unrolling loop at 06-simple-cases-unrolled.c:119.5-123.5 with factor 5
+  [Info] unrolling loop at 06-simple-cases-unrolled.c:143.2-146.2 with factor 5
+  [Info] unrolling loop at 06-simple-cases-unrolled.c:160.9-163.9 with factor 5
+  [Info] unrolling loop at 06-simple-cases-unrolled.c:157.2-165.2 with factor 5
+  [Info] unrolling loop at 06-simple-cases-unrolled.c:174.2-178.2 with factor 5
+  [Info] unrolling loop at 06-simple-cases-unrolled.c:187.2-194.2 with factor 5
   extern void __goblint_check(int exp ) ;
   extern void __goblint_assume(int exp ) ;
   extern void __goblint_assert(int exp ) ;
