@@ -243,11 +243,20 @@ struct
       | _ -> false
     in
 
+    let has_setjump_calls (path: (Node.t * inline_edge * Node.t) list): bool =
+      let rec check: (Node.t * inline_edge * Node.t) list -> bool = function
+        | [] -> false
+        | (_, MyARG.CFGEdge Proc (_, Lval((Var v, _)), _) , _) :: _ when v.vname = "_setjmp" -> true
+        | _ :: rest -> check rest
+      in
+      check path
+    in
+
     match extract_unreach_seg_nr lines with
     | Some seg_nr when has_no_branching_before_unreachable segments seg_nr ->
       (* TODO: consider seg_nr == 0 separately *)
       let path_suffix = SegNrToPathMap.find (List.length segments - seg_nr -1) segToPathMap in
-      if not (is_within_loop (List.hd path_suffix)) then path_suffix
+      if not (is_within_loop (List.hd path_suffix)) && not (has_setjump_calls path) then path_suffix
       else path
     | _ -> path
 
