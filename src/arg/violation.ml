@@ -318,7 +318,7 @@ let find_path (type node) (module Arg:ViolationArg with type Node.t = node) (mod
       let new_stack = match edge with
         | MyARG.CFGEdge (Entry f) when f.svar.vname <> "main" -> node :: prev_stack
         | InlineEntry _ -> node :: prev_stack
-        | InlineReturn _ -> BatList.drop 1 prev_stack
+        | InlineReturn _ | MyARG.CFGEdge (Ret _) -> BatList.drop 1 prev_stack
         | _ -> prev_stack
       in
       Hashtbl.replace node_to_stack next_node new_stack;
