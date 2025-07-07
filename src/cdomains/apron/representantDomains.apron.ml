@@ -1048,11 +1048,18 @@ module TwoVarInequalitySet = struct
     let t2 = match t2 with None -> CoeffMap.empty | Some t2 -> t2 in
     (*add interval inequalities to copies*)
     let t1_with_interval = 
-      let ineqs = LinearInequality.from_values (get_val_t1 x) (get_val_t1 y) in
-      List.fold (fun t (k,c) -> add_inequality k c t) t1 ineqs
+      (*Do not do this work if we never need it*)
+      if CoeffMap.is_empty t2 then 
+        CoeffMap.empty 
+      else 
+        let ineqs = LinearInequality.from_values (get_val_t1 x) (get_val_t1 y) in
+        List.fold (fun t (k,c) -> add_inequality k c t) t1 ineqs
     in let t2_with_interval = 
-         let ineqs = LinearInequality.from_values (get_val_t2 x) (get_val_t2 y) in
-         List.fold (fun t (k,c) -> add_inequality k c t) t2 ineqs
+         if CoeffMap.is_empty t1 then 
+           CoeffMap.empty 
+         else 
+           let ineqs = LinearInequality.from_values (get_val_t2 x) (get_val_t2 y) in
+           List.fold (fun t (k,c) -> add_inequality k c t) t2 ineqs
     in
     (*Keep slopes where the other element implies some inequality for the same slope *)
     let relax t k c = 
@@ -1221,8 +1228,8 @@ module InequalityFunctor (Coeffs : Coeffs): TwoVarInequalities = struct
     let merge_y x y = Coeffs.join x y get_val_t1 get_val_t2 in 
     let merge_x x ys1 ys2 = 
       match ys1, ys2 with
-      | Some ys1, None -> None
-      | None, Some ys2 -> None
+      | Some ys1, None -> ignore_empty (IntMap.filter_map (fun y coeff1 -> merge_y x y (Some coeff1) None) ys1)
+      | None, Some ys2 -> ignore_empty (IntMap.filter_map (fun y coeff2 -> merge_y x y None (Some coeff2)) ys2)
       | Some ys1, Some ys2 -> ignore_empty (IntMap.merge (merge_y x) ys1 ys2)
       | _, _ -> None
     in IntMap.merge (merge_x) t1 t2
@@ -1235,10 +1242,9 @@ module InequalityFunctor (Coeffs : Coeffs): TwoVarInequalities = struct
   let widen t1 get_val_t1 t2 get_val_t2 = 
     let merge_x x ys1 ys2 = 
       match ys1, ys2 with
-      | Some ys1, None -> ignore_empty (IntMap.filter_map (fun y coeff1 -> Coeffs.widen x y get_val_t1 get_val_t2 (Some coeff1) None ) ys1)
-      | None, Some ys2 -> ignore_empty (IntMap.filter_map (fun y coeff2 -> Coeffs.widen x y get_val_t1 get_val_t2 None (Some coeff2)) ys2)
+      | _, None 
+      | None, _ -> None
       | Some ys1, Some ys2 -> ignore_empty (IntMap.merge (fun y cs1 cs2 -> Coeffs.widen x y get_val_t1 get_val_t2 cs1 cs2) ys1 ys2)
-      | _, _ -> None
     in IntMap.merge (merge_x) t1 t2
 
   let widen a b c d =
@@ -1748,25 +1754,7 @@ module PentagonOffsetCoeffs : Coeffs = struct
 
 end
 
-(*TODOs:*)
-
-(*?? limit: use linear time algorithm for coeffs_count instead of sorting??*)
-
-(*!! fix cohencu tests*)
-
-(*+ look at complexities. I expect for all: (n² log n) 
-    not leq because of interval fixpoint!!!*)
-(*+ How to do a useful narrow?*)
-
+(*  limit: use linear time algorithm for coeffs_count instead of sorting??*)
 (*  widening thresholds: from offsets of rhs?*)
 (*  store information about representants to avoid recalculating them: congruence information, group size/ coefficients ??*)
-
-(*- copy_to_new: introduces too many inequlities?*)
-(*- ineq refine_with_tcons: normalisation*)
-(*- better to_inequalities? with query?*)
-
-(*-- assign expr restore ineqs based on value *)
-(*--memo_bumbvar created 3 times*)
-(*--eval_int: answer nonlinear*)
-
-(*! general renaming*)
+(*  rename Coeff projection?*)
