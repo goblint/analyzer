@@ -41,7 +41,7 @@ sig
     | Infeasible of (Node.t * MyARG.inline_edge * Node.t) list
     | Unknown
 
-  val check_path: (Node.t * MyARG.inline_edge * Node.t) list -> (Node.t, Node.t list) Hashtbl.t -> result
+  val check_path: (Node.t * MyARG.inline_edge * Node.t) list -> result
 end
 
 module CfgNode = Node
@@ -220,7 +220,22 @@ struct
     let command = Printf.sprintf "%s --witness-check %s %s --guide-only %s" witch witness_file_path data_model files in
     read_command_output command
 
-  let get_unreachable_path lines (path: (Node.t * inline_edge * Node.t) list) (segToPathMap, segments) node_to_stack =
+  let get_unreachable_path lines (path: (Node.t * inline_edge * Node.t) list) (segToPathMap, segments) =
+    let module NHT = BatHashtbl.Make (Arg.Node) in
+    let node_to_stack = NHT.create 100 in
+
+    let collect_callstack node edge next_node =
+      let prev_stack = NHT.find_option node_to_stack node |> Option.value ~default:[] in
+      let new_stack = match edge with
+        | InlineEntry _ -> node :: prev_stack
+        | InlineReturn _ -> BatList.drop 1 prev_stack
+        | _ -> prev_stack
+      in
+      NHT.replace node_to_stack next_node new_stack;
+    in
+
+    List.iter (fun (node, edge, next_node) -> collect_callstack node edge next_node) path;
+
     let has_no_branching_before_unreachable segments seg_nr =
       let rec check i: YamlWitnessType.ViolationSequence.Segment.t list -> bool = function
         | _ when i = seg_nr -> true
@@ -232,7 +247,7 @@ struct
     in
 
     let is_within_loop (node, _, _) =
-      let callstack = Hashtbl.find_opt node_to_stack node |> Option.value ~default:[] in
+      let callstack = NHT.find_option node_to_stack node |> Option.value ~default:[] in
       let scc_components = CfgTools.node_scc_global in
 
       let is_in_loop node =
@@ -268,14 +283,14 @@ struct
     | Some _ -> Unknown
     | None -> Unknown
 
-  let check_path path node_to_stack =
+  let check_path path =
     let seg = write path in
     let witch = GobConfig.get_string "exp.witch" in
     match witch with
     | "" -> Unknown
     | _ ->
       let lines = run_witch witch in
-      let path = get_unreachable_path lines path seg node_to_stack in
+      let path = get_unreachable_path lines path seg in
       check_feasability_with_witch lines path
 end
 
@@ -312,18 +327,6 @@ let find_path (type node) (module Arg:ViolationArg with type Node.t = node) (mod
   let find_path nodes =
     let next_nodes = NHT.create 100 in
     let itered_nodes = NHT.create 100 in
-    let node_to_stack = Hashtbl.create 100 in
-
-    let collect_callstack node edge next_node =
-      let prev_stack = Hashtbl.find_opt node_to_stack node |> Option.value ~default:[] in
-      let new_stack = match edge with
-        | MyARG.CFGEdge (Entry f) when f.svar.vname <> "main" -> node :: prev_stack
-        | InlineEntry _ -> node :: prev_stack
-        | InlineReturn _ | MyARG.CFGEdge (Ret _) -> BatList.drop 1 prev_stack
-        | _ -> prev_stack
-      in
-      Hashtbl.replace node_to_stack next_node new_stack;
-    in
 
     let rec bfs curs nexts = match curs with
       | node :: curs' ->
@@ -336,10 +339,8 @@ let find_path (type node) (module Arg:ViolationArg with type Node.t = node) (mod
               | MyARG.CFGEdge _
               | InlineEntry _
               | InlineReturn _ ->
-                if not (NHT.mem itered_nodes next_node) then (
+                if not (NHT.mem itered_nodes next_node) then
                   NHT.replace next_nodes next_node (edge, node);
-                  collect_callstack node edge next_node
-                );
                 Some next_node
               | InlinedEdge _
               | ThreadEntry _ -> None
@@ -357,13 +358,13 @@ let find_path (type node) (module Arg:ViolationArg with type Node.t = node) (mod
 
     try bfs nodes []; None with
     | Found violation ->
-      Some ((List.rev_map (fun (n1, e, n2) -> (n2, e, n1)) (trace_path next_nodes violation)), node_to_stack) (* TODO: inefficient rev *)
+      Some (List.rev_map (fun (n1, e, n2) -> (n2, e, n1)) (trace_path next_nodes violation)) (* TODO: inefficient rev *)
     in
 
     begin match find_path [Arg.main_entry] with
-    | Some (path, node_to_stack) ->
-      print_path path;
-      begin match Feasibility.check_path path node_to_stack with
+      | Some path ->
+        print_path path;
+        begin match Feasibility.check_path path with
         | Feasibility.Feasible ->
           Logs.debug "feasible";
 
