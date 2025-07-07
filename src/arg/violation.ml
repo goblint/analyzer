@@ -232,15 +232,16 @@ struct
     in
 
     let is_within_loop (node, _, _) =
-      let callstack = List.rev (Hashtbl.find node_to_stack node) in (* TODO: inefficient rev *)
-      let cfg_node = match callstack with
-        | hd :: _ -> Node.cfgnode hd
-        | [] -> Node.cfgnode node
-      in
+      let callstack = Hashtbl.find_opt node_to_stack node |> Option.value ~default:[] in
       let scc_components = CfgTools.node_scc_global in
-      match CfgTools.NH.find_option scc_components cfg_node with
-      | Some scc when CfgTools.NH.length scc.nodes > 1 -> true
-      | _ -> false
+
+      let is_in_loop node =
+        match CfgTools.NH.find_option scc_components (Node.cfgnode node) with
+        | Some scc when CfgTools.NH.length scc.nodes > 1 -> true
+        | _ -> false
+      in
+
+      List.exists is_in_loop callstack
     in
 
     let has_setjump_calls (path: (Node.t * inline_edge * Node.t) list): bool =
