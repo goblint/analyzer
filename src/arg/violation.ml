@@ -269,10 +269,10 @@ struct
     in
 
     match extract_unreach_seg_nr lines with
-    | Some seg_nr when has_no_branching_before_unreachable segments seg_nr ->
+    | Some seg_nr when has_no_branching_before_unreachable segments seg_nr && not (has_setjump_calls path) ->
       (* TODO: consider seg_nr = 0 separately *)
       let path_suffix = SegNrToPathMap.find (List.length segments - seg_nr -1) segToPathMap in
-      if not (is_within_loop (List.hd path_suffix)) && not (has_setjump_calls path) then path_suffix
+      if not (is_within_loop (List.hd path_suffix)) then path_suffix
       else path
     | _ -> path
 
