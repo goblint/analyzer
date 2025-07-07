@@ -1644,7 +1644,7 @@
             "fail": {
               "title": "sem.malloc.fail",
               "description":
-                "Consider the case where malloc or calloc fails.",
+                "Consider the case where malloc or calloc fails when called with an argument other than zero. For the case of zero, see `sem.malloc.zero`.",
               "type": "boolean",
               "default": false
             },

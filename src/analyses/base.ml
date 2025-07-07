@@ -2516,7 +2516,7 @@ struct
       let bytes_may_be_zero = cmp_bytes_with_zero <> `Neq in
       let bytes_may_be_nonzero = cmp_bytes_with_zero <> `Eq in
       let heap_var =
-        let include_null = get_bool "sem.malloc.fail" || (bytes_may_be_zero && malloc_zero_null) in
+        let include_null = (bytes_may_be_nonzero && get_bool "sem.malloc.fail") || (bytes_may_be_zero && malloc_zero_null) in
         let include_pointer = bytes_may_be_nonzero || malloc_zero_pointer in
         let res = if include_pointer then AD.of_var (alloced_var loc man) else AD.bot () in
         if include_null then
