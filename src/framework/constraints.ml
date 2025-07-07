@@ -268,11 +268,10 @@ struct
         D.join (leave_once first_call) (leave_once later_call)
       in
       let is_once = LibraryFunctions.find ~nowarn:true f in
+      (* If the prototpye for a library function is wrong, this will throw an exception. Such exceptions are usually unrelated to pthread_once, it is just that the call to `is_once.special` raises here *)
       match is_once.special args with
       | Once { once_control; init_routine } -> once once_control init_routine
-      | _
-      | exception LibraryDsl.Expected _ -> (* If there is a mismatch between our library function prototype and the call here, this is raised. However, we catch this here to still do `tf_special_call` where this case is handeled *)
-        S.special man lv f args
+      | _  -> S.special man lv f args
     in
     let man, r, spawns = common_man var edge prev_node d getl sidel demandl getg sideg in
     let functions =
