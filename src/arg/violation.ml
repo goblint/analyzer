@@ -135,7 +135,7 @@ struct
                 let+ res : YamlWitnessType.ViolationSequence.Segment.t list = SegMap.find_opt new_node segmap in
                 (new_edge, res)
             ) nexts in
-          assert (List.length potential_nodes == 1); (* TODO: there might be more than one node *)
+          assert (List.length potential_nodes = 1); (* TODO: there might be more than one node *)
           List.hd potential_nodes
         in
 
@@ -223,7 +223,7 @@ struct
   let get_unreachable_path lines (path: (Node.t * inline_edge * Node.t) list) (segToPathMap, segments) node_to_stack =
     let has_no_branching_before_unreachable segments seg_nr =
       let rec check i: YamlWitnessType.ViolationSequence.Segment.t list -> bool = function
-        | _ when i == seg_nr -> true
+        | _ when i = seg_nr -> true
         | [] -> true
         | {segment = {waypoint_type = Branching _} :: _} :: _ -> false
         | _ :: rest -> check (i + 1) rest
@@ -254,7 +254,7 @@ struct
 
     match extract_unreach_seg_nr lines with
     | Some seg_nr when has_no_branching_before_unreachable segments seg_nr ->
-      (* TODO: consider seg_nr == 0 separately *)
+      (* TODO: consider seg_nr = 0 separately *)
       let path_suffix = SegNrToPathMap.find (List.length segments - seg_nr -1) segToPathMap in
       if not (is_within_loop (List.hd path_suffix)) && not (has_setjump_calls path) then path_suffix
       else path
