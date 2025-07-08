@@ -763,6 +763,8 @@ struct
       if M.tracing then M.traceu "apron" "unassume join";
       M.info ~category:Witness "relation unassumed invariant: %a" d_exp e_orig;
       st
+    | Events.Longjmped {lval} ->
+      Option.map_default (invalidate_one ask man st) st lval
     | _ ->
       st
 
