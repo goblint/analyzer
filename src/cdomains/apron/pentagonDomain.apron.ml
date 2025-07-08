@@ -703,7 +703,7 @@ struct
                                 Intv.inf neg_expr_intv +* Intv.inf x_intv
                             in
 
-                            let ( -* ) = ZExt.add in
+                            let ( -* ) = ZExt.sub in
 
                             (* Adjust lowerbound by [-] V_j and evaluate V_i [-] V_j [-] expr > 0 *)
                             let constraint_lb =
