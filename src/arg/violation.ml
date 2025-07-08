@@ -272,7 +272,8 @@ struct
     | Some seg_nr when has_no_branching_before_unreachable segments seg_nr && not (has_setjump_calls path) ->
       (* TODO: consider seg_nr = 0 separately *)
       let path_suffix = SegNrToPathMap.find (List.length segments - seg_nr -1) segToPathMap in
-      if not (is_within_loop (List.hd path_suffix)) then path_suffix
+      let path_suffix_plus_one = BatList.drop (List.length path - List.length path_suffix -1) path in
+      if not (is_within_loop (List.hd path_suffix_plus_one)) then path_suffix_plus_one
       else path
     | _ -> path
 
