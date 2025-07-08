@@ -2745,6 +2745,7 @@ struct
           st
       end
     | Alloca size, _ -> begin
+        (* The behavior for alloc(0) is implementation defined. Here, we rely on the options specified for the malloc also applying to alloca. *)
         match lv with
         | Some lv ->
           let heap_var = alloc Queries.AllocationLocation.Stack size in
