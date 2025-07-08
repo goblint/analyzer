@@ -25,7 +25,7 @@ module AffineEqualityMatrix (Vec: SparseVectorFunctor) (Mx: SparseMatrixFunctor)
 struct
   include Mx(Mpqf) (Vec)
   let dim_add (ch: Apron.Dim.change) m =
-    add_empty_columns m ch.dim 
+    add_empty_columns m ch.dim
 
   let dim_add ch m = timing_wrap "dim add" (dim_add ch) m
 
@@ -37,7 +37,7 @@ struct
       let m' = Array.fold_left (fun y x -> reduce_col y x) m ch.dim in
       remove_zero_rows @@ del_cols m' ch.dim)
 
-  let dim_remove ch m = timing_wrap "dim remove" (dim_remove ch) m 
+  let dim_remove ch m = timing_wrap "dim remove" (dim_remove ch) m
 end
 
 (** It defines the type t of the affine equality domain (a struct that contains an optional matrix and an apron environment) and provides the functions needed for handling variables (which are defined by RelationDomain.D2) such as add_vars remove_vars.
@@ -68,7 +68,7 @@ struct
     let exception NotLinear in
     let zero_vec = Vector.zero_vec @@ Environment.size t.env + 1 in
     let neg v = Vector.map_f_preserves_zero Mpqf.neg v in
-    let is_const_vec = Vector.is_const_vec 
+    let is_const_vec = Vector.is_const_vec
     in
     let rec convert_texpr = function
       (*If x is a constant, replace it with its const. val. immediately*)
@@ -319,7 +319,7 @@ struct
   let remove_rels_with_var x var env =
     let j0 = Environment.dim_of_var env var in Matrix.reduce_col x j0
 
-  let remove_rels_with_var x var env = timing_wrap "remove_rels_with_var" remove_rels_with_var x var env 
+  let remove_rels_with_var x var env = timing_wrap "remove_rels_with_var" remove_rels_with_var x var env
 
   let forget_vars t vars =
     if is_bot t || is_top_env t || vars = [] then
@@ -348,7 +348,7 @@ struct
           else z +: y *: d) x b) m rd_a
       in
       let x = recalc_entries x a_j0 in
-      match Matrix.normalize x with 
+      match Matrix.normalize x with
       | None -> bot ()
       | some_normalized_matrix -> {d = some_normalized_matrix; env = env}
     in
@@ -366,11 +366,11 @@ struct
     in let affineEq_vec = get_coeff_vec t texp in
     if is_bot t then t else let m = Option.get t.d in
       match affineEq_vec with
-      | Some v when is_top_env t -> 
+      | Some v when is_top_env t ->
         if is_invertible v then t else assign_uninvertible_rel m var v t.env
-      | Some v -> 
+      | Some v ->
         if is_invertible v then let t' = assign_invertible_rels m var v t.env in {d = t'.d; env = t'.env}
-        else let new_m = Matrix.remove_zero_rows @@ remove_rels_with_var m var t.env 
+        else let new_m = Matrix.remove_zero_rows @@ remove_rels_with_var m var t.env
           in assign_uninvertible_rel new_m var v t.env
       | None -> {d = Some (Matrix.remove_zero_rows @@ remove_rels_with_var m var t.env); env = t.env}
 
@@ -401,11 +401,11 @@ struct
     res
 
   let assign_var_parallel t vv's =                                (* vv's is a list of pairs of lhs-variables and their rhs-values *)
-    let assigned_vars = List.map fst vv's in 
+    let assigned_vars = List.map fst vv's in
     let t = add_vars t assigned_vars in                           (* introduce all lhs-variables to the relation data structure *)
     let primed_vars = List.init                                   (* create a list with primed variables "i'" for each lhs-variable *)
-        (List.length assigned_vars) 
-        (fun i -> Var.of_string (Int.to_string i  ^"'")) 
+        (List.length assigned_vars)
+        (fun i -> Var.of_string (Int.to_string i  ^"'"))
     in (* TODO: we use primed integers as var names, conflict? *)
     let t_primed = add_vars t primed_vars in                      (* introduce primed variables to the relation data structure *)
     (* sequence of assignments: i' = snd vv_i : *)
@@ -428,7 +428,7 @@ struct
       let switched_m = List.fold_left2 replace_col m primed_vars assigned_vars in (* OVERWRITE columns for assigned_vars with column for primed_vars *)
       let res = erase_cols switched_m multi_t.env primed_vars in                  (* ERASE column for primed_vars *)
       let x = Option.get res.d in
-      (match Matrix.normalize x with 
+      (match Matrix.normalize x with
        | None -> bot ()
        | some_matrix -> {d = some_matrix; env = res.env})
     | _ -> t

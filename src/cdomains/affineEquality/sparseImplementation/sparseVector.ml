@@ -5,8 +5,8 @@ module M = Messages
 
 open Batteries
 
-module type SparseVector = 
-sig 
+module type SparseVector =
+sig
   include Vector
   val push_first: t -> int -> num -> t
 
@@ -38,7 +38,7 @@ end
 
 module type SparseVectorFunctor =
   functor (A: RatOps) ->
-  sig 
+  sig
     include SparseVector with type num:= A.t
   end
 
@@ -53,10 +53,10 @@ module SparseVector: SparseVectorFunctor =
       len: int
     }[@@deriving eq, ord, hash]
 
-    let copy v = v 
+    let copy v = v
 
     (** [of_list l] returns a vector constructed from the non-sparse list [l] *)
-    let of_list l = 
+    let of_list l =
       let entries = List.filteri_map (fun i x -> if x <> A.zero then Some (i, x) else None) l in
       let len = List.length l in
       {entries; len}
@@ -64,12 +64,12 @@ module SparseVector: SparseVectorFunctor =
     (** [of_array a] returns a vector constructed from the non-sparse array [a] *)
     let of_array a =
       let entries = Array.fold_righti (fun i x acc -> if x <> A.zero then (i, x) :: acc else acc ) a [] in
-      let len = Array.length a in 
+      let len = Array.length a in
       {entries; len}
 
     (** [of_sparse_list len entries] returns a vector of length [len] constructed from the sorted sparse list [entries].
         A sparse list is a list of tuples of the form [(i, value)] which represent that the vector has an entry [value] at index [i].
-        All non-specified entries are assumed to be [Zero]. The sparse list has to be sorted by the index [i]. 
+        All non-specified entries are assumed to be [Zero]. The sparse list has to be sorted by the index [i].
     *)
     let of_sparse_list len entries =
       {entries; len}
@@ -83,21 +83,21 @@ module SparseVector: SparseVectorFunctor =
       in
       extend_zero_aux 0 [] v.entries
 
-    let to_array v = 
-      let vec = Array.make v.len A.zero in 
+    let to_array v =
+      let vec = Array.make v.len A.zero in
       List.iter (fun (idx, value) -> vec.(idx) <- value) v.entries;
       vec
 
-    let to_sparse_list v = 
+    let to_sparse_list v =
       v.entries
 
-    let show v = 
+    let show v =
       let rec sparse_list_str i l =
         if i >= v.len then "]"
         else
           match l with
           | [] -> (A.to_string A.zero) ^" "^ (sparse_list_str (i + 1) l)
-          | (idx, value) :: xs -> 
+          | (idx, value) :: xs ->
             if i = idx then (A.to_string value) ^" "^ sparse_list_str (i + 1) xs
             else (A.to_string A.zero) ^" "^ sparse_list_str (i + 1) l
       in
@@ -106,10 +106,10 @@ module SparseVector: SparseVectorFunctor =
     let length v =
       v.len
 
-    let compare_length_with v n = 
+    let compare_length_with v n =
       Int.compare v.len n
 
-    let zero_vec len = 
+    let zero_vec len =
       {entries = []; len}
 
     let is_zero_vec v = (v.entries = [])
@@ -117,8 +117,8 @@ module SparseVector: SparseVectorFunctor =
     (**
        [is_const_vec v] returns true if the v can be interpreted as an expression with one variable and possibly a constant, i.e. x_i  + c
     *)
-    let is_const_vec v = 
-      match v.entries with 
+    let is_const_vec v =
+      match v.entries with
       | [] -> false
       | (idx, _) :: (const_idx , _) :: [] when const_idx = (v.len - 1) -> true
       | (idx, _)::[] when idx <> v.len -1 -> true
@@ -146,7 +146,7 @@ module SparseVector: SparseVectorFunctor =
        [set_nth v n num] returns [v] where the [n]-th entry has been set to [num].
        @raise Invalid_argument if [n] is out of bounds.
     *)
-    let set_nth v n num = 
+    let set_nth v n num =
       if n >= v.len then raise (Invalid_argument "Index out of bounds")
       else
         let rec set_nth_helper vec acc =
@@ -222,7 +222,7 @@ module SparseVector: SparseVectorFunctor =
       {entries = remove_indices_helper v.entries indices 0 []; len = v.len - List.length indices}
 
     (** [keep_vals v n] returns returns a vector only containing the first [n] elements of [v] *)
-    let keep_vals v n = 
+    let keep_vals v n =
       if n >= v.len then v else
         {entries = List.take_while (fun (idx, _) -> idx < n) v.entries; len=n}
 
@@ -238,7 +238,7 @@ module SparseVector: SparseVectorFunctor =
     *)
     let find2i_f_false_at_zero f v v' = (*Very welcome to change the name*)
       let rec aux v1 v2 =
-        match v1, v2 with 
+        match v1, v2 with
         | [], [] -> raise Not_found
         | [], (yidx, yval)::ys -> if f A.zero yval then yidx else aux [] ys
         | (xidx, xval) :: xs, [] -> if f xval A.zero then xidx else aux xs []
@@ -270,8 +270,8 @@ module SparseVector: SparseVectorFunctor =
     *)
     let map_f_preserves_zero f v = (* map for functions f such that f 0 = 0 since f won't be applied to zero values. See also map *)
       let entries' = List.filter_map (
-          fun (idx, value) -> let new_val = f value in 
-            if new_val = A.zero then None else Some (idx, new_val)) v.entries in 
+          fun (idx, value) -> let new_val = f value in
+            if new_val = A.zero then None else Some (idx, new_val)) v.entries in
       {v with entries = entries'}
 
     let map_f_preserves_zero f v = timing_wrap "map_f_preserves_zero" (map_f_preserves_zero f) v
@@ -284,8 +284,8 @@ module SparseVector: SparseVectorFunctor =
     *)
     let mapi_f_preserves_zero f v =
       let entries' = List.filter_map (
-          fun (idx, value) -> let new_val = f idx value in 
-            if new_val = A.zero then None else Some (idx, new_val)) v.entries in 
+          fun (idx, value) -> let new_val = f idx value in
+            if new_val = A.zero then None else Some (idx, new_val)) v.entries in
       {v with entries = entries'}
 
     (**
@@ -299,21 +299,21 @@ module SparseVector: SparseVectorFunctor =
     *)
     let map2_f_preserves_zero_helper termorder f v v' =
       let f_rem_zero acc idx e1 e2 =
-        let r = f e1 e2 in 
+        let r = f e1 e2 in
         if r =: A.zero then acc else (idx, r) :: acc
-      in  
+      in
       let rec aux acc v1 v2 =
-        match v1, v2 with 
-        | [], [] -> acc 
+        match v1, v2 with
+        | [], [] -> acc
         | [], (yidx, yval) :: ys -> aux (f_rem_zero acc yidx A.zero yval) [] ys
         | (xidx, xval) :: xs, [] -> aux (f_rem_zero acc xidx xval A.zero) xs []
-        | (xidx, xval) :: xs, (yidx, yval) :: ys -> 
+        | (xidx, xval) :: xs, (yidx, yval) :: ys ->
           match termorder xidx yidx with
           | d when d < 0 -> aux (f_rem_zero acc xidx xval A.zero) xs v2
           | d when d > 0 -> aux (f_rem_zero acc yidx A.zero yval) v1 ys
           | _            -> aux (f_rem_zero acc xidx xval yval) xs ys
       in
-      if v.len <> v'.len then raise (Invalid_argument "Unequal lengths") else 
+      if v.len <> v'.len then raise (Invalid_argument "Unequal lengths") else
         {v with entries = List.rev (aux [] v.entries v'.entries)}
 
     (**
@@ -335,17 +335,17 @@ module SparseVector: SparseVectorFunctor =
     let map2i f v v' = (*might more memory efficient, but definitly not faster (asymptotically)*)
       if v.len <> v'.len then raise (Invalid_argument "Unequal lengths") else
         let f_rem_zero idx acc e1 e2 =
-          let r = f idx e1 e2 in 
+          let r = f idx e1 e2 in
           if r =: A.zero then acc else (idx, r) :: acc
-        in  
+        in
         let rec aux acc vec1 vec2 i =
-          match vec1, vec2 with 
-          | [], [] when i = v.len -> acc 
+          match vec1, vec2 with
+          | [], [] when i = v.len -> acc
           | [], [] -> aux (f_rem_zero i acc A.zero A.zero) [] [] (i + 1)
           | [], (yidx, yval) :: ys when i = yidx -> aux (f_rem_zero i acc A.zero yval) [] ys (i + 1)
           | (xidx, xval) :: xs, [] when i = xidx -> aux (f_rem_zero i acc xval A.zero) xs [] (i + 1)
           | [], (_, _) :: _ | (_, _) :: _, [] -> aux (f_rem_zero i acc A.zero A.zero) vec1 vec2 (i + 1) (* When one vec is not zero_vec, but has implicit zeroes at front *)
-          | (xidx, xval)::xs, (yidx, yval)::ys -> 
+          | (xidx, xval)::xs, (yidx, yval)::ys ->
             if xidx <> i && yidx <> i then aux (f_rem_zero i acc A.zero A.zero) vec1 vec2 (i+1) (* When both vectors have implicit zeroes at front *)
             else
               match xidx - yidx with (* Here at least one of the idx is i, which is the smaller one *)
@@ -364,7 +364,7 @@ module SparseVector: SparseVectorFunctor =
       let entries = List.filter_map (fun (idx, value) -> let new_val = f value c in if new_val =: A.zero then None else Some (idx, new_val)) v.entries in
       {entries; len = v.len}
 
-    let rev v = 
-      let entries = List.rev_map (fun (idx, value) -> (v.len - 1 - idx, value)) v.entries in 
-      {entries; len = v.len}    
-  end 
+    let rev v =
+      let entries = List.rev_map (fun (idx, value) -> (v.len - 1 - idx, value)) v.entries in
+      {entries; len = v.len}
+  end
