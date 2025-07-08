@@ -256,7 +256,7 @@ struct
         | _ -> false
       in
 
-      List.exists is_in_loop callstack
+      List.exists is_in_loop (node :: callstack)
     in
 
     let has_setjump_calls (path: (Node.t * inline_edge * Node.t) list): bool =
