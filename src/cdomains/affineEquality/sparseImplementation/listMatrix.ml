@@ -315,7 +315,7 @@ module ListMatrix: SparseMatrixFunctor =
               | (row_idx, piv_col, row) :: ps when piv_col = col_idx -> ((row_idx, piv_col, row, value) :: res, ps)
               | _ -> (res, pivs_tail)
             ) ([], pivot_positions) (V.to_sparse_list v)
-         in
+          in
           let v_after_elim = List.fold_left (fun acc (row_idx, pivot_position, piv_row, v_at_piv) ->
               sub_scaled_row acc piv_row v_at_piv
             ) v filtered_pivots in
