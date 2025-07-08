@@ -6,15 +6,15 @@
 int main(void) {
     int x = 0;
 
-    //while(x < 42 || x > 42) {
-    //    x++;
-    //    __goblint_check(x >= 1); // SUCC
-    //}
+   while(x < 42 || x > 42) {
+       x++;
+       __goblint_check(x >= 1); // SUCC
+   }
 
 
-    while(x != 42) {
-        x++;
-        __goblint_check(x >= 1); // UNKNOWN WHY?
-    }
+   while(x != 42) {
+       x++;
+       __goblint_check(x >= 1); // UNKNOWN
+   }
 
 }

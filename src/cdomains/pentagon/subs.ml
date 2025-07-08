@@ -133,6 +133,12 @@ struct
 
   let set_value (index: Idx.t) (value: VarSet.t) = BatList.modify_at index (fun _ -> value)
 
+  (* Adds to index i a strict upper bound j, i.e., i < j.*)
+  let add_lt (index: Idx.t) (sub: Idx.t) = BatList.modify_at index (VarSet.add sub)
+
+  (* Adds to index j a strict upper bound i, i.e., i > j.*)
+  let add_gt (index: Idx.t) (sub: Idx.t) = add_lt sub index
+
   let get_value (index: Idx.t) (subs: t) = BatList.at subs index
 
   let to_string (sub: t) =
@@ -165,11 +171,11 @@ struct
     Printf.sprintf "%s { %s }" bot_or_top (to_string subs)
 
   (* x_i < x_j <== x_j \in SUBs(x_i) *)
-  let lt subs i j =
+  let lt i j subs =
     let subs_i = List.at subs i in
     VarSet.mem j subs_i
 
-  let gt subs i j =
-    lt subs j i
+  let gt i j =
+    lt j i
 
 end

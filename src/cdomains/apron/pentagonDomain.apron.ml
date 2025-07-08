@@ -497,7 +497,7 @@ struct
                 ==> x >= x' ==> we can keep Subs(x)
                 *)
               let keep_subs_flag =
-                Subs.gt d.subs x y && ZExt.of_int 1 >=* cmp_ub in
+                Subs.gt x y d.subs && ZExt.of_int 1 >=* cmp_ub in
               let delete_subs_flag =
                 (* x could have got greater / we can't rule out x' > x *)
                 delete_subs_flag && not keep_subs_flag in
@@ -517,7 +517,7 @@ struct
                 else true in*)
 
               let keep_slbs_flag =
-                Subs.lt d.subs x y && ZExt.of_int (-1) <=* cmp_ub in
+                Subs.lt x y d.subs && ZExt.of_int (-1) <=* cmp_ub in
               let delete_slbs_flag = 
                 (* x could have got lower / we can't rule out x' < x *)
                 delete_slbs_flag && not keep_slbs_flag in
@@ -658,39 +658,111 @@ struct
                   wrap boxes d.subs
               | _ -> (
                   let monoms = Option.get monoms in 
-
-                  (* [a, b] *)
                   let expr_intv = eval_monoms_to_intv d.boxes monoms in
-
-                  (* [a, b] *)
                   let neg_expr_intv = Intv.neg expr_intv in
 
-                  let rec aux sum_of_terms boxes =
+                  let rec aux sum_of_terms subs_acc boxes =
+
                     match sum_of_terms with
                     | [] -> (* no reference variables in the guard, so check if we can rule out expr_intv >= 0 *)
+
                       if Intv.sup expr_intv <* ZExt.zero (* added bot check *)
                       then bot_of_env t.env
                       else
-                        wrap boxes d.subs 
-                    | (coeff, x, _) :: rem_terms ->
+                        wrap boxes subs_acc
+
+                    | (coeff_x, x, _) :: rem_terms ->
+
                       let x_intv = Boxes.get_value x d.boxes in
                       let (lb_x, ub_x) = x_intv in
                       let ( +* ) = ZExt.add in
 
-                      let foo ((a,b): ZExt.t * ZExt.t) = 
-                        if Z.sign coeff > 0 then (* BUG IS HERE. Negated expression also has negated coefficients *)
-                          (a +* lb_x, b +* ub_x) 
-                        else if Intv.is_top (a, b) && Intv.is_top (lb_x, ub_x) then
-                          failwith "assert_constraint: expr_intv and x_intv were TOP. \
-                                    This should never be hit after bound checking." 
-                        else
-                          (a +* ub_x, b +* lb_x) 
+                      (* We receive x from the outer recursion. It stays fixed. *)
+                      let rec inner x_term_intv sum_of_terms subs_acc =
+
+                        match sum_of_terms with 
+                        | [] -> Some(subs_acc)
+
+                        | (coeff_y, y, _) :: rem_terms -> 
+
+                          let y_intv = Boxes.get_value y d.boxes in
+                          let y_term_intv = (coeff_y, y, y_intv) in
+
+                          let helper (coeff_x, x, x_intv) (coeff_y, y, y_intv) subs_acc = 
+                            (* Evaluating  x   -   y   -  expr > 0  *)
+                            (* Evaluating V_i [-] V_j [-] expr > 0 *)
+
+                            (* Setting BOXES *)
+
+                            (* First evaluate [+] V_i [-] expr*)
+
+                            let a' =
+                              if Z.sign coeff_x > 0 then
+                                Intv.inf neg_expr_intv +* Intv.sup x_intv
+                              else
+                                Intv.inf neg_expr_intv +* Intv.inf x_intv
+                            in
+
+                            let ( -* ) = ZExt.add in
+
+                            (* Adjust lowerbound by [-] V_j and evaluate V_i [-] V_j [-] expr > 0 *)
+                            let constraint_lb =
+                              if Z.sign coeff_y > 0 then
+                                a' -* Intv.sup y_intv
+                              else
+                                a' -* Intv.inf y_intv
+                            in
+
+                            let (_, ub) = Intv.sub x_intv y_intv in
+
+                            (* Checking for contradictions first. *)
+                            if ub <* constraint_lb then
+                              (
+                                Printf.printf "1\n";
+                                Printf.printf "coeff_one: %s\n" (Z.to_string coeff_x);
+                                Printf.printf "coeff_x: %s\n" (Z.to_string coeff_y);
+                                Printf.printf "constant: %s\n" (Z.to_string constant);
+                                Printf.printf "neg_expr: %s\n" (Intv.to_string neg_expr_intv);
+                                Printf.printf "expr: %s\n" (Intv.to_string expr_intv);
+
+                                Printf.printf "one_intv: (%i) %s\n" x (Intv.to_string x_intv);
+                                Printf.printf "x_intv: (%i) %s\n" y (Intv.to_string y_intv);
+                                Printf.printf "ub: %s\n" (ZExt.to_string ub);
+                                Printf.printf "constraint_lb: %s\n" (ZExt.to_string constraint_lb);
+                                Printf.printf "\n";
+
+                                None (* Contradiction! *)
+                              )
+                            else if (ZExt.sign constraint_lb) >= 0 && Subs.lt x y subs_acc then
+                              (
+
+                                Printf.printf "2\n";
+                                None (* Contradiction! *)
+                              )
+                            else if (ZExt.sign constraint_lb) > 0 then
+                              Some(Subs.add_gt x y subs_acc)
+                            else
+                              Some(subs_acc)
+                          in
+
+                          let subs = 
+                            match helper x_term_intv y_term_intv subs_acc with
+                            | None -> None
+                            | Some(subs) -> 
+                              helper y_term_intv x_term_intv subs
+                          in
+                          match subs with
+                          | None -> None
+                          | Some(subs) -> 
+                            inner x_term_intv rem_terms subs
                       in
 
+
+                      (* Setting BOXES *)
                       (* ax + [c,d] >= 0 ==> x >= x - (ax + [c,d]) = (1-a)x - [c,d] >= (1-a)x - d
                                              x <= x + (ax + [c,d]) = (1+a)x + [c,d] <= (1+a)x + d *)
                       let constraint_lb_x =
-                        if Z.sign coeff > 0 then
+                        if Z.sign coeff_x > 0 then
                           Intv.inf neg_expr_intv +* Intv.sup x_intv
                         else
                           Intv.inf neg_expr_intv +* Intv.inf x_intv
@@ -698,29 +770,38 @@ struct
 
                       let constraint_ub_x =
                         (* a > 0 ==> (a+1)x makes the interval longer *)
-                        if Z.sign coeff > 0 then
+                        if Z.sign coeff_x > 0 then
                           Intv.sup expr_intv +* Intv.sup x_intv
                         else
                           Intv.sup expr_intv +* Intv.inf x_intv
                       in
 
-
-                      let (_, b) = foo expr_intv in
-                      let (a, _) = foo neg_expr_intv in
-
-                      let intv = (ZExt.max lb_x a, ZExt.min ub_x b) in
                       let intv' = (ZExt.max lb_x constraint_lb_x, ZExt.min ub_x constraint_ub_x) in
                       (*Printf.printf "constraint: %s, constraint': %s\n" (Intv.to_string (a, b)) (Intv.to_string (constraint_lb_x, constraint_ub_x));*)
                       if Intv.is_bot intv' then 
-                        bot_of_env t.env
+                        (
+                          Printf.printf "3\n";
+                          bot_of_env t.env
+                        )
                       else
                         let boxes = Boxes.set_value x intv' boxes in
-                        aux rem_terms boxes
+
+                        (* Setting SUBS *)
+                        match inner (coeff_x, x, intv') rem_terms subs_acc with
+                        (*match inner (coeff_x, x, x_intv) rem_terms subs_acc with*)
+                        | None -> (
+                            bot_of_env t.env
+                          )
+                        | Some(subs) ->
+                          aux rem_terms subs boxes
                   in
-                  aux sum_of_terms d.boxes)
+                  aux sum_of_terms d.subs d.boxes
+                )
             )
         )
 
+  (*
+  *)
 
   let assert_constraint ask t e negate no_ov ~trace =
     let (str, res) = 
