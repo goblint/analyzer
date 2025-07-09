@@ -108,6 +108,84 @@ let rec eval_monoms_to_intv boxes (terms, (constant, _)) =
       Intv.add (Intv.mul intv_coeff (Boxes.get_value index boxes)) (eval_monoms_to_intv boxes (terms, (constant, Z.one)))
     );;  
 
+
+
+let eval_texpr_to_intv (t: VarManagement.t) (texpr:Texpr1.expr) : Intv.t = 
+  let get_dim var = Environment.dim_of_var t.env var in
+  let d = Option.get t.d in
+  let boxes = d.boxes in
+  let rec aux texpr =
+    match texpr with
+    | Texpr1.Cst (Interval inv) -> (z_ext_of_scalar inv.inf, z_ext_of_scalar inv.sup)
+    | Cst (Scalar s) -> let s = z_ext_of_scalar s in (s, s)
+    | Var y -> List.at boxes (get_dim y) 
+    | Unop  (Cast, e, _, _) -> aux e
+    | Unop  (Sqrt, e, _, _) -> failwith "Do the sqrt. :)"
+    | Unop  (Neg,  e, _, _) -> Intv.neg (aux e)
+    | Binop (Add, e1, e2, _, _) -> Intv.add (aux e1) (aux e2)
+    | Binop (Sub, e1, e2, _, _) -> Intv.sub (aux e1) (aux e2)
+    | Binop (Mul, e1, e2, _, _) -> Intv.mul (aux e1) (aux e2)
+    | Binop (Div, e1, e2, _, _) -> Intv.div (aux e1) (aux e2)
+    | Binop (Mod, e1, e2, _, _)  -> Intv.rem (aux e1) (aux e2)
+    | Binop (Pow, e1, e2, _, _) -> Intv.pow (aux e1) (aux e2)
+  in
+  aux texpr;;
+
+
+(* c: ZExt.t , (x: opt , y: opt) *)
+
+(* We assume that the divisor is always 1, so we omit it and that t is not bottom. *)
+let rec eval_monoms_to_intv boxes (terms, (constant, _)) =
+  match terms with
+  | [] -> Intv.create_const_of_z constant
+  | (coeff, index, _)::terms -> (
+      let intv_coeff = Intv.create_const_of_z coeff in
+      Intv.add (Intv.mul intv_coeff (Boxes.get_value index boxes)) (eval_monoms_to_intv boxes (terms, (constant, Z.one)))
+    );;  
+
+type intv_infty_list = ZExt.t * Int.t list
+
+(* We assume that the divisor is always 1, so we omit it and that t is not bottom. *)
+let rec eval_monoms_to_intv_infty_list boxes (terms, (constant, _)) : intv_infty_list * intv_infty_list =
+  match terms with
+  | [] -> ((ZExt.Arb constant, []), (ZExt.Arb constant, []))
+  | (coeff, index, _)::terms -> (
+      let terms_intv_infty_list = eval_monoms_to_intv_infty_list boxes (terms, (constant, Z.one)) in
+      let i_intv = Boxes.get_value index boxes in
+
+      let ub = match snd terms_intv_infty_list with
+        | (NegInfty, _) -> failwith "This should not happen :)"
+        | (PosInfty, l ) -> (ZExt.PosInfty, l)
+        | (c, l) -> (
+
+            if List.length l > 2 then
+              (ZExt.PosInfty, l) 
+            else
+
+              let coeff_x_ub = 
+                if Z.sign coeff > 0 then
+                  ZExt.mul (Arb coeff) (Intv.sup i_intv)
+                else
+                  ZExt.mul (Arb coeff) (Intv.inf i_intv)
+              in
+
+              match coeff_x_ub with
+              | ZExt.NegInfty -> failwith "This should not happen :)"
+              | ZExt.PosInfty -> (
+                  if Z.abs coeff = Z.one then 
+                    c, (index :: l)
+                  else 
+                    PosInfty, l
+                )
+              | ub -> ZExt.add c ub, l
+
+          ) 
+
+      in
+      failwith "TODO"
+
+    );;
+
 module ExpressionBounds: (SharedFunctions.ConvBounds with type t = VarManagement.t) =
 struct
   include VarManagement
