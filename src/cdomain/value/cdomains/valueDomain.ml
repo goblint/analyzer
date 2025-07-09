@@ -182,7 +182,7 @@ struct
     | Blob x -> Blobs.is_bot x
     | Thread x -> Threads.is_bot x
     | JmpBuf x -> JmpBufs.is_bot x
-    | Mutex -> true
+    | Mutex -> false
     | MutexAttr x -> MutexAttr.is_bot x
     | Bot -> true
     | Top -> false
