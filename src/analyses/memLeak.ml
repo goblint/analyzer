@@ -206,7 +206,7 @@ struct
     | Calloc _
     | Realloc _ ->
       man.sideg () true;
-      begin match man.ask (Queries.AllocVar {on_stack = false}) with
+      begin match man.ask (Queries.AllocVar Heap) with
         | `Lifted var ->
           ToppedVarInfoSet.add var state
         | _ -> state

@@ -88,13 +88,7 @@ let rec option_spec_list: Arg_complete.speclist Lazy.t = lazy (
     Arg_complete.strings Options.paths s
   in
   let complete_bool_option s =
-    let cs = complete_option s in
-    let is_bool c =
-      match GobConfig.get_json c with
-      | `Bool _ -> true
-      | _ -> false
-    in
-    List.filter is_bool cs
+    Arg_complete.strings Options.bool_paths s
   in
   let complete_last_option_value s =
     complete_option_value !last_complete_option s
