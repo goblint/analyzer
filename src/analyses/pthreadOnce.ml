@@ -66,7 +66,9 @@ struct
     include D
     let name () = "onces"
     let may_race (a1, s1) (a2, s2) =
-      (Onces.is_empty (Onces.inter a1 (Onces.union a2 s2))) && (Onces.is_empty (Onces.inter a2 (Onces.union a1 s1)))
+      (* Following the paper, we check the commented thing below, but it simplifies to three disjointness checks and no unions *)
+      (* (Onces.disjoint a1 (Onces.union a2 s2))) && (Onces.disjoint a2 (Onces.union a1 s1))) *)
+      Onces.disjoint a1 a2 && Onces.disjoint a1 s2 && Onces.disjoint a2 s1
     let should_print (a1, s1) = not (Onces.is_empty a1) || not (Onces.is_empty s1)
   end
 
