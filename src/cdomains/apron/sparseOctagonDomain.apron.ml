@@ -25,7 +25,7 @@ let string_of_lit f = function
 (** Variable
  * type t, basically ordered and printable
 *)
-module type Var = sig
+module type Carrier = sig
   type t [@@deriving hash]
   val compare : t -> t -> int
   val string_of : t -> string
@@ -34,29 +34,29 @@ end
 (** Literal, i.e. +var or -var
  *  ordered and printable
 *)
-module Lit (Var : Var) = struct
-  type t = Var.t lit 
+module Lit (C : Carrier) = struct
+  type t = C.t lit 
   let compare a b = match a, b with
     | Pos x, Pos y
-    | Neg x, Neg y -> Var.compare x y
+    | Neg x, Neg y -> C.compare x y
     | Pos x, Neg y -> 1
     | Neg x, Pos y -> -1
-  let string_of lit = string_of_lit Var.string_of lit
+  let string_of lit = string_of_lit C.string_of lit
   let hash = function
-    | Pos v -> Hashtbl.hash (1, Var.hash v)
-    | Neg v -> Hashtbl.hash (0, Var.hash v)
+    | Pos v -> Hashtbl.hash (1, C.hash v)
+    | Neg v -> Hashtbl.hash (0, C.hash v)
 end
 
 (**
  * Pair of literals, i.e. (+var, +var) or (+var, -var)
  * ordered and printable
 *)
-module Pair (Lit : Var) (Lit : Var) = struct
-  type t = Lit.t * Lit.t [@@deriving hash]
+module Pair (C : Carrier) (C : Carrier) = struct
+  type t = C.t * C.t [@@deriving hash]
   let compare (a1, a2) (b1, b2) = match compare a1 b1 with
     | 0 -> compare a2 b2
     | x -> x
-  let string_of (v1,v2) = Lit.string_of v1 ^ Lit.string_of v2
+  let string_of (v1,v2) = C.string_of v1 ^ C.string_of v2
 end
 
 
@@ -65,13 +65,13 @@ end
  * - maps Literals and Pairs to their upper bounds wrt ≤
  * - internally maps Literals to their set of influencing Literals
 *)
-module Oct (Var : Var) = struct
+module Oct (Carrier : Carrier) = struct
 
-  module LitV = Lit (Var)
+  module LitV = Lit (Carrier)
   module PairLV = Pair (LitV) (LitV)
   module UnaryMap = Map.Make(LitV)
   module BinaryMap = Map.Make(PairLV)
-  module VarSet = Set.Make(Var)
+  module VarSet = Set.Make(Carrier)
   module LitSet = Set.Make(LitV)
   module PairSet = Set.Make(PairLV)
 
@@ -148,9 +148,9 @@ module Oct (Var : Var) = struct
     * - influence graph infl 
     * creating a constistent set of occuring variables, set
   *)
-  let init (m1, m2, infl) (list : (Var.t comb * int) list) =
+  let init (m1, m2, infl) (list : (Carrier.t comb * int) list) =
     let set = VarSet.empty in
-    List.fold_left (fun (set, m1, m2, infl) ((comb : Var.t comb),b) -> match comb with
+    List.fold_left (fun (set, m1, m2, infl) ((comb : Carrier.t comb),b) -> match comb with
         | Binary (v1, v2) -> let p = normal (v1, v2) in (* normalizing pair, s.t. v1 < v2 *)
           (match add2_min m2 p b with (* add binary variable bound, sensitive about actual change *)
            | Some false, m2 -> set,m1,m2,infl (* entry present, but no change *)
@@ -208,7 +208,7 @@ module Oct (Var : Var) = struct
             let p2 = normal (Neg x, v2) in
             match BinaryMap.find_opt p1 m2, BinaryMap.find_opt p2 m2 with (* lookup the bounds b1, b2 for these pairs *)
             | None, _  
-            | _, None -> failwith (Var.string_of x ^ " :\t" ^ string_of_lit Var.string_of v1 ^ string_of_lit Var.string_of v2 ^ "\n m2 should have value for p1!")
+            | _, None -> failwith (Carrier.string_of x ^ " :\t" ^ string_of_lit Carrier.string_of v1 ^ string_of_lit Carrier.string_of v2 ^ "\n m2 should have value for p1!")
             | Some b1, Some b2 -> let b = b1 + b2 in (* calculate the bound b for v1+v2 ≤ b*)
               (* checks and updates *)
               if v1 = negate v2 then (* we connected x-y ≤ b1 and y-x ≤ b2 *)
@@ -261,7 +261,7 @@ module Oct (Var : Var) = struct
    * 4. Propagate unary constraints through the octagon
    * 5. Optimize the octagon by removing subsumed binary constraints
   *)
-  let of_list (list : (Var.t comb * int) list) =  try
+  let of_list (list : (Carrier.t comb * int) list) =  try
       let m1 = UnaryMap.empty in
       let m2 = BinaryMap.empty in
       let infl = UnaryMap.empty in
@@ -296,7 +296,7 @@ module Oct (Var : Var) = struct
 
   let string_of oct = match list_of oct with
     | None -> "\t⊥\n"
-    | Some  list -> string_of_constraints Var.string_of list
+    | Some  list -> string_of_constraints Carrier.string_of list
 
   (* AbstractRelationalDomainRepresentation duties: *)
   let copy = Fun.id
@@ -415,11 +415,13 @@ struct
       Some {unary; binary; infl}
 
   (** Remove all bounds that relate to a variable x from oct i.e. [[x := ?]] *)
-  let forget_var oct x = remove_lit (Pos x) oct |> remove_lit (Neg x)
+  let forget_var oct x = 
+    let x = Environment.dim_of_var oct.env x in
+    remove_lit (Pos x) oct.d |> remove_lit (Neg x)
   (** Remove all bounds for variables x ∈ X, i.e. [[x := ?  | x ∈ X]]*)
   let forget_vars t vars =
     if is_bot_env t || is_top t then t
-    else let newoct = List.fold (fun oct i-> forget_var oct i) (t.d) vars in
+    else let newoct = List.fold (fun oct i-> forget_var t i) (t.d) vars in
       { d = newoct; env = t.env }
 
   let assign_exp ask t var exp _ = failwith "SparseOctagonDomain.assign_exp: not implemented"
