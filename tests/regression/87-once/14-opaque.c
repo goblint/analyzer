@@ -1,4 +1,4 @@
-// PARAM: --set ana.activated[+] pthreadOnce --enable ana.int.interval
+// NOMAC PARAM: --set ana.activated[+] pthreadOnce --enable ana.int.interval
 #include <pthread.h>
 #include <stdio.h>
 // #include <goblint.h>
