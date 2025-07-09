@@ -1,6 +1,7 @@
 // PARAM: --set ana.activated[+] pthreadOnce
 #include <pthread.h>
 #include <stdio.h>
+#include <goblint.h>
 
 int g;
 pthread_once_t once = PTHREAD_ONCE_INIT;
@@ -19,7 +20,7 @@ int main(void) {
 
   __goblint_check(g < 2);
 
-  if(g = 1) {
+  if(g == 1) {
     __goblint_check(1); //Reachable
   }
 
