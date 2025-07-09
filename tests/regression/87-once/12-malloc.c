@@ -1,4 +1,4 @@
-// PARAM: --set ana.activated[+] pthreadOnce --enable ana.int.interval
+// NOMAC PARAM: --set ana.activated[+] pthreadOnce --enable ana.int.interval
 #include <pthread.h>
 #include <stdio.h>
 #include <goblint.h>
@@ -18,6 +18,9 @@ int main(void) {
 
   for(int i = 0; i < 10; i++) {
     optr = malloc(sizeof(pthread_once_t));
+    // PTHREAD_ONCE_INIT on OS X is an aggregate initializer
+    // #define PTHREAD_ONCE_INIT {_PTHREAD_ONCE_SIG_init, {0}}
+    // so there, this assignment is not valid.
     *optr = PTHREAD_ONCE_INIT;
 
     if(i == 5) {
