@@ -4,7 +4,8 @@
 
 int g;
 pthread_once_t once1 = PTHREAD_ONCE_INIT;
-pthread_once_t once2; // PTHREAD_ONCE_INIT is `0`
+ // PTHREAD_ONCE_INIT is `0`, so coincides with the default value for global variables (c.f. also PTHREAD_MUTEX_INITIALIZER)
+pthread_once_t once2;
 pthread_mutex_t mutex1 = PTHREAD_MUTEX_INITIALIZER;
 
 pthread_once_t *ptr;
