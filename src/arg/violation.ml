@@ -86,9 +86,8 @@ struct
       if YamlWitness.entry_type_enabled YamlWitnessType.ViolationSequence.entry_type then (
         let open GobOption.Syntax in
 
-        let loc prev =
+        let loc prev location =
           let cfgNode = Node.cfgnode prev in
-          let+ location = WitnessInvariant.location_location cfgNode in
           let fundec = CfgNode.find_fundec cfgNode in
           let location_function = fundec.svar.vname in
           YamlWitness.Entry.location ~location ~location_function
@@ -113,13 +112,22 @@ struct
           *)
           | MyARG.CFGEdge Ret (None, _) -> None
           | MyARG.CFGEdge Test (_, b) ->
-            let+ location = loc prev in
+            let cfgNode = Node.cfgnode prev in
+            let+ location =
+              match WitnessInvariant.location_location cfgNode, WitnessInvariant.loop_location cfgNode with
+              | None, None -> None
+              | Some l1, Some l2 -> assert (CilType.Location.equal l1 l2); Some (loc prev l1)
+              | Some l, None
+              | None, Some l -> Some (loc prev l)
+            in
             let constraint_ = constraint_ ~value:(String (Bool.to_string b)) in
             let branching = branching ~location ~action:"follow" ~constraint_ in
             let waypoints = [waypoint ~waypoint_type:(Branching branching)] in
             segment ~waypoints
           | _ ->
-            let+ location = loc prev in
+            let cfgNode = Node.cfgnode prev in
+            let+ l = WitnessInvariant.location_location cfgNode in
+            let location = loc prev l in
             let constraint_ = constraint_ ~value:(String "1") in
             let assumption = assumption ~location ~constraint_ in
             let waypoints = [waypoint ~waypoint_type:(Assumption assumption)] in
@@ -143,7 +151,9 @@ struct
           match path with
           | [] -> SegMap.empty, segToPathMap, 0
           | [(prev, edge, node)] as sub_path ->
-            let target = segment ~waypoints:[waypoint ~waypoint_type:(Target (violation_target ~location:(Option.get (loc node))))] in
+            let cfgNode = Node.cfgnode node in
+            let l = Option.get (WitnessInvariant.location_location cfgNode) in
+            let target = segment ~waypoints:[waypoint ~waypoint_type:(Target (violation_target ~location:(loc node l)))] in
             let this_seg, segToPathMap, segNr = match segment_for_edge prev edge with
               | Some seg ->
                 let segToPathMap1 = SegNrToPathMap.add 0 sub_path segToPathMap in
