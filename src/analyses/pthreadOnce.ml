@@ -42,18 +42,18 @@ struct
         (let unseen = List.filter (fun v -> not (Onces.mem v seen) && not (Onces.mem v active)) possible_vinfos in
          match unseen with
          | [] -> raise Deadcode
-         | [v] -> (Onces.add v active, seen)
+         | [v] when not (ask.f (Queries.IsMultiple v)) -> (Onces.add v active, seen)
          | _ :: _ -> man.local)
       else
         (match possible_vinfos with
-         | [v] -> (Onces.add v active, seen)
+         | [v] when not (ask.f (Queries.IsMultiple v)) -> (Onces.add v active, seen)
          | _ -> man.local)
     | Events.LeaveOnce { once_control } ->
       (let (active, seen) = man.local in
        let ask = Analyses.ask_of_man man in
        let active' = Onces.diff active (Onces.of_list (possible_vinfos ask once_control)) in
        let seen' = match possible_vinfos ask once_control with
-         | [v] -> Onces.add v seen
+         | [v] when not (ask.f (Queries.IsMultiple v)) -> Onces.add v seen
          | _ -> seen
        in
        (active', seen'))
