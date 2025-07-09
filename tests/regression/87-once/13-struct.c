@@ -21,7 +21,9 @@ int main(void) {
   pthread_once(&onces.once1, increment);
   pthread_once(&onces.once2, increment);
 
-  __goblint_check(g == 2); //TODO
+  if(g == 2) {
+    __goblint_check(1); // Reachable
+  }
   printf("g = %d\n", g);
 
   return 0;

@@ -28,7 +28,10 @@ int main(void) {
   pthread_once(optr, increment);
   pthread_once(optr5, increment);
 
-  __goblint_check(g == 2); //TODO
+  if(g == 2) {
+    __goblint_check(1); // Reachable
+  }
+
 
   return 0;
 }
