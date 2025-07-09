@@ -1,6 +1,8 @@
 (** Violation checking in an ARG. *)
 open MyARG
 
+let witch_runs = ref 0
+
 module type ViolationArg =
 sig
   include MyARG.S with module Edge = MyARG.InlineEdge
@@ -296,6 +298,7 @@ struct
 
   let check_path path =
     let seg = write path in
+    incr witch_runs;
     let witch = GobConfig.get_string "exp.witch" in
     match witch with
     | "" -> Unknown
