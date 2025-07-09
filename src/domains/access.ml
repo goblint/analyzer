@@ -31,7 +31,7 @@ let is_ignorable_attrs attrs =
 let rec is_ignorable_type (t: typ): bool =
   (* efficient pattern matching first *)
   match t with
-  | TNamed ({ tname = "atomic_t" | "pthread_mutex_t" | "pthread_rwlock_t" | "pthread_spinlock_t" | "spinlock_t" | "pthread_cond_t" | "atomic_flag" | "FILE" | "__FILE"; _ }, _) -> true
+  | TNamed ({ tname = "atomic_t" | "pthread_mutex_t" | "pthread_once_t" | "pthread_rwlock_t" | "pthread_spinlock_t" | "spinlock_t" | "pthread_cond_t" | "atomic_flag" | "FILE" | "__FILE"; _ }, _) -> true
   | TComp ({ cname; _}, _) when is_ignorable_comp_name cname -> true
   | TInt (IInt, attr) when hasAttribute "mutex" attr -> true (* kernel? *)
   | TFun _ -> true
