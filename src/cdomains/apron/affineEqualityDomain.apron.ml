@@ -25,7 +25,7 @@ module AffineEqualityMatrix (Vec: SparseVectorFunctor) (Mx: SparseMatrixFunctor)
 struct
   include Mx(Mpqf) (Vec)
   let dim_add (ch: Apron.Dim.change) m =
-    add_empty_columns m ch.dim 
+    add_empty_columns m ch.dim
 
   let dim_add ch m = timing_wrap "dim add" (dim_add ch) m
 
@@ -37,7 +37,7 @@ struct
       let m' = Array.fold_left (fun y x -> reduce_col y x) m ch.dim in
       remove_zero_rows @@ del_cols m' ch.dim)
 
-  let dim_remove ch m = timing_wrap "dim remove" (dim_remove ch) m 
+  let dim_remove ch m = timing_wrap "dim remove" (dim_remove ch) m
 end
 
 (** It defines the type t of the affine equality domain (a struct that contains an optional matrix and an apron environment) and provides the functions needed for handling variables (which are defined by RelationDomain.D2) such as add_vars remove_vars.
@@ -68,7 +68,7 @@ struct
     let exception NotLinear in
     let zero_vec = Vector.zero_vec @@ Environment.size t.env + 1 in
     let neg v = Vector.map_f_preserves_zero Mpqf.neg v in
-    let is_const_vec = Vector.is_const_vec 
+    let is_const_vec = Vector.is_const_vec
     in
     let rec convert_texpr = function
       (*If x is a constant, replace it with its const. val. immediately*)
@@ -170,7 +170,8 @@ struct
       Array.modify (( *:) lcm) row;
       let int_arr = Array.map Mpqf.get_num row in
       let div = Array.fold_left Z.gcd int_arr.(0) int_arr in
-      Array.modify (fun x -> Z.div x div) int_arr;
+      if not @@ Z.equal div Z.zero then
+        Array.modify (fun x -> Z.div x div) int_arr;
       int_arr
     in
     let vec_to_constraint arr env =
@@ -282,47 +283,6 @@ struct
     res
 
   let join a b =
-    let rec lin_disjunc r s a b =
-      if s >= Matrix.num_cols a then a else
-        let case_two a r col_b =
-          let a_r = Matrix.get_row a r in
-          let a = Matrix.map2i (fun i x y -> if i < r then Vector.map2_f_preserves_zero (fun u j -> u +: y *: j) x a_r else x) a col_b; in
-          Matrix.remove_row a r
-        in
-        let case_three a b col_a col_b max =
-          let col_a, col_b = Vector.keep_vals col_a max, Vector.keep_vals col_b max in
-          let col_diff = Vector.map2_f_preserves_zero (-:) col_a col_b in
-          if Vector.is_zero_vec col_diff then
-            (a, b, max)
-          else
-            (
-              let col_a = Vector.rev col_a in
-              let col_b = Vector.rev col_b in
-              let i = Vector.find2i_f_false_at_zero (<>:) col_a col_b in
-              let (x, y) = Vector.nth col_a i, Vector.nth col_b i in
-              let r, diff = Vector.length col_a - (i + 1), x -: y  in
-              let a_r, b_r = Matrix.get_row a r, Matrix.get_row b r in
-              let multiply_by_t m t =
-                Matrix.map2i (fun i' x c -> if i' <= max then (let beta = c /: diff in Vector.map2_f_preserves_zero (fun u j -> u -: (beta *: j)) x t) else x) m col_diff
-              in
-              Matrix.remove_row (multiply_by_t a a_r) r, Matrix.remove_row (multiply_by_t b b_r) r, (max - 1)
-            )
-        in
-        let col_a, col_b = Matrix.get_col_upper_triangular a s, Matrix.get_col_upper_triangular b s in
-        let nth_zero v i =  match Vector.nth v i with
-          | exception Invalid_argument _ -> Mpqf.zero
-          | x -> x
-        in
-        let a_rs, b_rs = nth_zero col_a r, nth_zero col_b r in
-        if not (Z.equal (Mpqf.get_den a_rs) Z.one) || not (Z.equal (Mpqf.get_den b_rs) Z.one) then failwith "Matrix not in rref form" else
-          begin match Z.to_int @@ Mpqf.get_num a_rs, Z.to_int @@ Mpqf.get_num b_rs with
-            | 1, 1 -> lin_disjunc (r + 1) (s + 1) a b
-            | 1, 0 -> lin_disjunc r (s + 1) (case_two a r col_b) b
-            | 0, 1 -> lin_disjunc r (s + 1) a (case_two b r col_a)
-            | 0, 0 ->  let new_a, new_b, new_r = case_three a b col_a col_b r in
-              lin_disjunc new_r (s + 1) new_a new_b
-            | _      -> failwith "Matrix not in rref form" end
-    in
     if is_bot a then
       b
     else if is_bot b then
@@ -334,9 +294,9 @@ struct
         let sup_env = Environment.lce a.env b.env in
         let mod_x = dim_add (Environment.dimchange a.env sup_env) x in
         let mod_y = dim_add (Environment.dimchange b.env sup_env) y in
-        {d = Some (lin_disjunc 0 0 mod_x mod_y); env = sup_env}
+        {d = Some (Matrix.linear_disjunct mod_x mod_y); env = sup_env}
       | x, y when Matrix.equal x y -> {d = Some x; env = a.env}
-      | x, y  -> {d = Some(lin_disjunc 0 0 x y); env = a.env}
+      | x, y  -> {d = Some(Matrix.linear_disjunct x y); env = a.env}
 
   let join a b = timing_wrap "join" (join a) b
 
@@ -359,7 +319,7 @@ struct
   let remove_rels_with_var x var env =
     let j0 = Environment.dim_of_var env var in Matrix.reduce_col x j0
 
-  let remove_rels_with_var x var env = timing_wrap "remove_rels_with_var" remove_rels_with_var x var env 
+  let remove_rels_with_var x var env = timing_wrap "remove_rels_with_var" remove_rels_with_var x var env
 
   let forget_vars t vars =
     if is_bot t || is_top_env t || vars = [] then
@@ -388,7 +348,7 @@ struct
           else z +: y *: d) x b) m rd_a
       in
       let x = recalc_entries x a_j0 in
-      match Matrix.normalize x with 
+      match Matrix.normalize x with
       | None -> bot ()
       | some_normalized_matrix -> {d = some_normalized_matrix; env = env}
     in
@@ -406,11 +366,11 @@ struct
     in let affineEq_vec = get_coeff_vec t texp in
     if is_bot t then t else let m = Option.get t.d in
       match affineEq_vec with
-      | Some v when is_top_env t -> 
+      | Some v when is_top_env t ->
         if is_invertible v then t else assign_uninvertible_rel m var v t.env
-      | Some v -> 
+      | Some v ->
         if is_invertible v then let t' = assign_invertible_rels m var v t.env in {d = t'.d; env = t'.env}
-        else let new_m = Matrix.remove_zero_rows @@ remove_rels_with_var m var t.env 
+        else let new_m = Matrix.remove_zero_rows @@ remove_rels_with_var m var t.env
           in assign_uninvertible_rel new_m var v t.env
       | None -> {d = Some (Matrix.remove_zero_rows @@ remove_rels_with_var m var t.env); env = t.env}
 
@@ -441,11 +401,11 @@ struct
     res
 
   let assign_var_parallel t vv's =                                (* vv's is a list of pairs of lhs-variables and their rhs-values *)
-    let assigned_vars = List.map fst vv's in 
+    let assigned_vars = List.map fst vv's in
     let t = add_vars t assigned_vars in                           (* introduce all lhs-variables to the relation data structure *)
     let primed_vars = List.init                                   (* create a list with primed variables "i'" for each lhs-variable *)
-        (List.length assigned_vars) 
-        (fun i -> Var.of_string (Int.to_string i  ^"'")) 
+        (List.length assigned_vars)
+        (fun i -> Var.of_string (Int.to_string i  ^"'"))
     in (* TODO: we use primed integers as var names, conflict? *)
     let t_primed = add_vars t primed_vars in                      (* introduce primed variables to the relation data structure *)
     (* sequence of assignments: i' = snd vv_i : *)
@@ -468,7 +428,7 @@ struct
       let switched_m = List.fold_left2 replace_col m primed_vars assigned_vars in (* OVERWRITE columns for assigned_vars with column for primed_vars *)
       let res = erase_cols switched_m multi_t.env primed_vars in                  (* ERASE column for primed_vars *)
       let x = Option.get res.d in
-      (match Matrix.normalize x with 
+      (match Matrix.normalize x with
        | None -> bot ()
        | some_matrix -> {d = some_matrix; env = res.env})
     | _ -> t

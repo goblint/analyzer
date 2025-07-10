@@ -92,3 +92,8 @@ let may_happen_in_parallel one two =
     else
       true
   | _ -> true
+
+let is_unique_thread mhp =
+  match mhp.tid with
+  | `Lifted tid -> TID.is_unique tid
+  | _ -> false
