@@ -95,7 +95,19 @@ struct
           YamlWitness.Entry.location ~location ~location_function
         in
 
-        let segment_for_edge prev edge =
+        let segment_for_edge ((prev, edge, node) as path_elem) prev_path_elem =
+          let check_if_skips_loop () =
+            let nodes_in_same_loop_scc (prev, _, node) =
+              let scc_of n = CfgTools.NH.find_option CfgTools.node_scc_global (Node.cfgnode n) in
+              match scc_of prev, scc_of node with
+              | Some scc1, Some scc2 -> CfgTools.SCC.equal scc1 scc2
+              | _ -> false
+            in
+            match prev_path_elem with
+            | Some prev_path_elem -> not (nodes_in_same_loop_scc path_elem || nodes_in_same_loop_scc prev_path_elem)
+            | _ -> false
+          in
+
           match edge with
           (* TODO: Correct locations for function entry and return are currently unavailable.
              As specified by the Witness 2.0 format, these locations must point to
@@ -117,10 +129,10 @@ struct
             let cfgNode = Node.cfgnode prev in
             let+ location =
               match WitnessInvariant.location_location cfgNode, WitnessInvariant.loop_location cfgNode with
-              | None, None -> None
-              | Some l1, Some l2 -> assert (CilType.Location.equal l1 l2); Some (loc prev l1)
-              | Some l, None
-              | None, Some l -> Some (loc prev l)
+              | Some l1, Some l2 when b = false && check_if_skips_loop () -> assert (CilType.Location.equal l1 l2); Some (loc prev l1)
+              | _, Some l when b = false && check_if_skips_loop () -> Some (loc prev l)
+              | Some l, _ -> Some (loc prev l)
+              | _ -> None
             in
             let constraint_ = constraint_ ~value:(String (Bool.to_string b)) in
             let branching = branching ~location ~action:"follow" ~constraint_ in
@@ -143,20 +155,20 @@ struct
               | MyARG.InlinedEdge _ -> None
               | _ ->
                 let+ res : YamlWitnessType.ViolationSequence.Segment.t list = SegMap.find_opt new_node segmap in
-                (new_edge, res)
+                (new_edge, res, new_node)
             ) nexts in
           assert (List.length potential_nodes = 1); (* TODO: there might be more than one node *)
           List.hd potential_nodes
         in
 
-        let rec build_segments path segToPathMap segNr =
+        let rec build_segments path segToPathMap segNr ~prev_path_elem =
           match path with
           | [] -> SegMap.empty, segToPathMap, 0
-          | [(prev, edge, node)] as sub_path ->
+          | [(prev, edge, node) as path_elem] as sub_path ->
             let cfgNode = Node.cfgnode node in
             let l = Option.get (WitnessInvariant.location_location cfgNode) in
             let target = segment ~waypoints:[waypoint ~waypoint_type:(Target (violation_target ~location:(loc node l)))] in
-            let this_seg, segToPathMap, segNr = match segment_for_edge prev edge with
+            let this_seg, segToPathMap, segNr = match segment_for_edge path_elem prev_path_elem with
               | Some seg ->
                 let segToPathMap1 = SegNrToPathMap.add 0 sub_path segToPathMap in
                 let segToPathMap2 = SegNrToPathMap.add 1 sub_path segToPathMap1 in
@@ -166,17 +178,17 @@ struct
             in
             let segmap = SegMap.singleton node [target] in
             SegMap.add prev this_seg segmap, segToPathMap, segNr
-          | (prev, edge, node) :: rest as sub_path ->
-            let segmap, segToPathMap, segNr = build_segments rest segToPathMap segNr in
-            let new_edge, uncilled = find_next_segment prev edge node segmap in
-            let this_seg, segToPathMap, segNr = match segment_for_edge prev new_edge with
+          | (prev, edge, node) as path_elem :: rest as sub_path ->
+            let segmap, segToPathMap, segNr = build_segments rest segToPathMap segNr ~prev_path_elem:(Some path_elem) in
+            let new_edge, uncilled, new_node = find_next_segment prev edge node segmap in
+            let this_seg, segToPathMap, segNr = match segment_for_edge (prev, new_edge, new_node) prev_path_elem with
               | Some seg -> seg :: uncilled, SegNrToPathMap.add segNr sub_path segToPathMap, segNr + 1
               | None -> uncilled, segToPathMap, segNr
             in
             SegMap.add prev this_seg segmap, segToPathMap, segNr
         in
 
-        let segmap, segToPathMap, _ = build_segments path SegNrToPathMap.empty 0 in
+        let segmap, segToPathMap, _ = build_segments path SegNrToPathMap.empty 0 ~prev_path_elem:None in
         let segments =
           match path with
           | [] -> []
