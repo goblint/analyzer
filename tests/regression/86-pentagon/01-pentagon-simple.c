@@ -1,18 +1,8 @@
-//SKIP PARAM: --set ana.activated[+] lin2vareq --set sem.int.signed_overflow assume_none
-
-// Adapted example from https://link.springer.com/content/pdf/10.1007/BF00268497.pdf
-
-// Run with ./goblint tests/regression/86-pentagon/01-pentagon-simple.c --conf ./conf/empty.json
-
 #include <goblint.h>
 
 void main(void) {
-  int x;
-  
-  if (x <= 0) {
-    x = -x;
-  }
-
-__goblint_check(x >= 0);
-
+  int x = rand(), y = x, z = x;
+  y = x - 1;
+  z = y - 1;
+  __goblint_check(z < x); // SUCC
 }
