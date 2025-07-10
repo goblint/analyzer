@@ -1,11 +1,13 @@
-// SKIP PARAM: --enable ana.int.interval --set ana.activated[+] apron
 #include <goblint.h>
 
 int main(void) {
-    int x;
-    x = f2(x);
+    int x = -1;
+    int y = 42;
+    double z = 0;
+    x = f(x, y, z);
+    __goblint_check(x == 48); // SUCC
 }
 
-int f2(int x) {
+int f(int x, int y, double z) {
     return 48;
 }
