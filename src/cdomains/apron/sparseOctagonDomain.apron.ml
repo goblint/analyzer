@@ -301,9 +301,9 @@ module Oct (Carrier : Carrier) = struct
   (* AbstractRelationalDomainRepresentation duties: *)
   let copy = Fun.id
   let hash {unary; binary; infl} =
-      let h1 = UnaryMap.fold (fun k value acc -> 13*13 * acc+ 31* LitV.hash k + value) unary in
-      let h2 = BinaryMap.fold (fun k value acc -> 13*13 * acc+ 31* PairLV.hash k + value) binary in
-      Hashtbl.hash (h1, h2) (* do we need to hash infl as well?*)
+    let h1 = UnaryMap.fold (fun k value acc -> 13*13 * acc+ 31* LitV.hash k + value) unary in
+    let h2 = BinaryMap.fold (fun k value acc -> 13*13 * acc+ 31* PairLV.hash k + value) binary in
+    Hashtbl.hash (h1, h2) (* do we need to hash infl as well?*)
   let empty () = {unary = UnaryMap.empty; binary = BinaryMap.empty; infl = UnaryMap.empty}
   let is_empty o = true
   let dim_add (ch: Apron.Dim.change) o = failwith  "SparseOctagonDomain.dim_add: not implemented"
@@ -371,7 +371,7 @@ struct
   let is_bot t = equal t (bot ())
 
   (* *************************** *)
-  (* fixpoint iteration handling *)
+  (* domain specific support code *)
   (* *************************** *)
 
   (** oct ⊓ constraintlist implemented as a continuation of init *)
@@ -382,6 +382,92 @@ struct
     (* TODO: evaluate, whether optimize would be a good idea here, or whether propagate1/2 are even necessary*)
     ({unary; binary; infl} : SparseOctagon.t)
 
+  (**
+   * process both binary bounds lists to collect the common maximum of both bounds
+   * preconditions: 
+   * - l1 and l2 ordered wrt. pair order
+   * - all implied pair bounds must already have been provided!
+  *)
+  let cup_list2 l1 l2 = let m2 = SparseOctagon.BinaryMap.empty in
+    let infl = SparseOctagon.UnaryMap.empty in
+    let rec doit (m2, infl) l1 l2 = match l1, l2 with
+      | [], _ | _, [] -> m2, infl
+      | (p1, b1)::t1, (p2, b2)::t2 -> 
+        (match SparseOctagon.PairLV.compare p1 p2 with (* remove the smaller bounds wrt. pair order until we reach same pairs *)
+         | -1 -> doit (m2,infl) t1 l2
+         |  0 -> let m2 = SparseOctagon.BinaryMap.add p1 (max b1 b2) m2 in (* collect p1 ≤ b1 ⊔ b2 *)
+           let (v1, v2) = p1 in
+           let infl = SparseOctagon.add_elem v1 v2 infl in (* make sure to record infl sets *)
+           let infl = SparseOctagon.add_elem v2 v1 infl in
+           doit (m2, infl) t1 t2
+         |  _ -> doit (m2, infl) l1 t2
+        ) in
+    doit (m2, infl) l1 l2
+
+  (**
+   * process both unary bounds lists to collect the common maximum of both bounds
+   * preconditions: 
+   * - l1 and l2 ordered wrt. literal order
+   * - all implied unary bounds must already have been provided!
+  *)
+  let cup_list l1 l2 = 
+    let m1 = SparseOctagon.UnaryMap.empty in        (* initialize with empty unary bounds *)
+    let rec doit m1 l1 l2 = match l1, l2 with
+      | [], _ | _, [] -> m1
+      | (v1, b1) :: t1, (v2, b2) :: t2 -> 
+        (match SparseOctagon.LitV.compare v1 v2 with (* remove the smaller bounds wrt. variable order until we reach same variables *)
+         | -1 -> doit m1 t1 l2
+         |  0 -> let m1 = SparseOctagon.UnaryMap.add v1 (max b1 b2) m1 in (* collect v1 ≤ b1 ⊔ b2 *)
+           doit m1 t1 t2
+         |  _ -> doit m1 l1 t2
+        ) in
+    doit m1 l1 l2
+
+  (** enrich binary bounds by summing up unaries *)
+  let complete ({unary; binary; infl} : SparseOctagon.t) = 
+    let l1 = SparseOctagon.UnaryMap.bindings unary in (* l1 = list of all unary bounds *)
+    let binary, infl = (* cross-product of all unary bounds *)
+      List.fold_left (fun (m2, infl) (v1, b1) ->
+          List.fold_left (fun (m2, infl) (v2, b2) -> (* ignore same-variable bounds *)
+              if      SparseOctagon.LitV.compare v1         v2  = 0 then (m2, infl)
+              else if SparseOctagon.LitV.compare v1 (negate v2) = 0 then (m2, infl)
+              else
+                let p = SparseOctagon.normal (v1, v2) in (* synthesize binary constraints from unary ones *)
+                match SparseOctagon.add2_min m2 p (b1 + b2) with  (* collect v1+v2 ≤ b1 + b2 *)
+                | None, m2 -> 
+                  let infl = SparseOctagon.add_elem v1 v2 infl in
+                  let infl = SparseOctagon.add_elem v2 v1 infl in
+                  SparseOctagon.check2 m2 p (b1 + b2); (* probably, superfluous! *)
+                  m2, infl
+                | Some false, m2 -> m2, infl
+                | Some true, m2 -> SparseOctagon.check2 m2 p (b1 + b2); (* probably, superfluous! *)
+                  m2, infl)
+            (m2, infl) l1) 
+        (binary, infl) l1 in
+    ({unary; binary; infl} : SparseOctagon.t)
+
+  (** oct1 ⊔ oct2 as convex hull *)
+  let cup o1 o2  = match o1.d,o2.d with
+    | None, _ -> o2.d
+    | _, None -> o1.d
+    | Some o1, Some o2 -> 
+      let {unary; binary; infl} :              SparseOctagon.t = complete o1 in  (* full hull on o1 *)
+      let {unary = unary2; binary = binary2} : SparseOctagon.t = complete o2 in  (* full hull on o2 *)
+      (* BinaryMap.bindings is a pair-ordered list *)
+      let l1 = SparseOctagon.BinaryMap.bindings binary in
+      let l2 = SparseOctagon.BinaryMap.bindings binary2 in 
+      let binary, infl = cup_list2 l1 l2 in     (* binary1 ⊔ binary2 *)
+      (* UnaryMap.bindings is a literal-ordered list *)
+      let l1 = SparseOctagon.UnaryMap.bindings unary in
+      let l2 = SparseOctagon.UnaryMap.bindings unary2 in 
+      let unary = cup_list l1 l2 in             (*  unary1 ⊔ unary2  *)
+      (* TODO: Do we need to think about calling optimize to get rid of redundant pair bounds?*)
+      Some {unary; binary; infl}
+
+  (* *************************** *)
+  (* fixpoint iteration handling *)
+  (* *************************** *)
+
   let meet octa octb = 
     let oct =
       match octa.d, SparseOctagon.list_of octb.d with
@@ -390,8 +476,30 @@ struct
         with Bot -> None
     in
     { d = oct; env = octb.env }
-  let leq a b = failwith "SparseOctagonDomain.leq: not implemented"
-  let join a b = failwith "SparseOctagonDomain.join: not implemented"
+
+  let leq a b =
+    let env_comp = Environment.cmp a.env b.env in
+    if env_comp = -2 || env_comp > 0 then false else
+    if is_bot_env a || is_top b then true else
+    if is_bot_env b || is_top a then false else
+      let oct1, oct2 = Option.get a.d, Option.get b.d in
+      let oct1'= if env_comp = 0 then oct1 else SparseOctagon.dim_add (Environment.dimchange a.env b.env) (Some oct1) in
+      (* TODO: can we assume, that all operations keep the octagons in normal form? Then we can do: *)
+      (* check if ∀ (x ≤ c) ∈ a  ⇒ (x ≤ c) ∈ b *)
+      (* check if ∀ (x ± y ≤ c) ∈ a  ⇒ (x ± y ≤ c) ∈ b *)
+      failwith "SparseOctagonDomain.leq: not implemented"
+
+  let join a b = 
+    match a.d,b.d with
+    | None, _ -> b
+    | _, None -> a
+    | Some octa, Some octb when (Environment.cmp a.env b.env <> 0)->
+      let sup_env = Environment.lce a.env b.env in
+      let mod_a = SparseOctagon.dim_add (Environment.dimchange a.env sup_env) (Some octa) in
+      let mod_b = SparseOctagon.dim_add (Environment.dimchange b.env sup_env) (Some octb) in
+      {d=cup mod_a mod_b; env = sup_env}
+    | Some octa, Some octb -> { d = cup a b; env = a.env} (* same environment, so we can just join the octagons *)
+
   let widen a b = failwith "SparseOctagonDomain.widen: not implemented"
   let narrow a b = failwith "SparseOctagonDomain.narrow: not implemented"
   let unify a b = failwith "SparseOctagonDomain.unify: not implemented"
