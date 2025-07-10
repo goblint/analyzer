@@ -149,42 +149,104 @@ type intv_infty_list = ZExt.t * Int.t list
 let rec eval_monoms_to_intv_infty_list boxes (terms, (constant, _)) : intv_infty_list * intv_infty_list =
   match terms with
   | [] -> ((ZExt.Arb constant, []), (ZExt.Arb constant, []))
-  | (coeff, index, _)::terms -> (
+  | (coeff, x, _)::terms -> (
       let terms_intv_infty_list = eval_monoms_to_intv_infty_list boxes (terms, (constant, Z.one)) in
-      let i_intv = Boxes.get_value index boxes in
+      let x_intv = Boxes.get_value x boxes in
 
       let ub = match snd terms_intv_infty_list with
         | (NegInfty, _) -> failwith "This should not happen :)"
         | (PosInfty, l ) -> (ZExt.PosInfty, l)
-        | (c, l) -> (
+        | (c, l) -> 
 
-            if List.length l > 2 then
-              (ZExt.PosInfty, l) 
+
+          let coeff_x_ub = 
+            if Z.sign coeff > 0 then
+              ZExt.mul (Arb coeff) (Intv.sup x_intv)
             else
+              ZExt.mul (Arb coeff) (Intv.inf x_intv)
+          in
 
-              let coeff_x_ub = 
-                if Z.sign coeff > 0 then
-                  ZExt.mul (Arb coeff) (Intv.sup i_intv)
+          match coeff_x_ub with
+          | ZExt.NegInfty -> failwith "This should not happen :)"
+          | ZExt.PosInfty -> (
+              if Z.abs coeff = Z.one then
+                if List.length l >= 2 then
+                  (ZExt.PosInfty, [])
                 else
-                  ZExt.mul (Arb coeff) (Intv.inf i_intv)
-              in
-
-              match coeff_x_ub with
-              | ZExt.NegInfty -> failwith "This should not happen :)"
-              | ZExt.PosInfty -> (
-                  if Z.abs coeff = Z.one then 
-                    c, (index :: l)
-                  else 
-                    PosInfty, l
-                )
-              | ub -> ZExt.add c ub, l
-
-          ) 
-
+                  c, (x :: l)
+              else 
+                PosInfty, l
+            )
+          | ub -> ZExt.add c ub, l
       in
-      failwith "TODO"
+
+      let lb = match fst terms_intv_infty_list with
+        | (PosInfty, _) -> failwith "This should not happen :)"
+        | (NegInfty, l ) -> (ZExt.NegInfty, l)
+        | (c, l) -> 
+
+
+          let coeff_x_lb = 
+            if Z.sign coeff > 0 then
+              ZExt.mul (Arb coeff) (Intv.inf x_intv)
+            else
+              ZExt.mul (Arb coeff) (Intv.sup x_intv)
+          in
+
+          match coeff_x_lb with
+          | ZExt.PosInfty -> failwith "This should not happen :)"
+          | ZExt.NegInfty -> (
+              if Z.abs coeff = Z.one then
+                if List.length l >= 2 then
+                  (ZExt.NegInfty, [])
+                else
+                  c, (x :: l)
+              else 
+                NegInfty, l
+            )
+          | lb -> ZExt.add c lb, l
+      in
+
+
+      (lb, ub)
 
     );;
+
+let ext_intv_to_intv (((c_lb, infty_list_lb), (c_ub, infty_list_ub)) : intv_infty_list * intv_infty_list) : Intv.t =
+  let lb = ZExt.add c_lb (if infty_list_lb = [] then ZExt.zero else NegInfty) in
+  let ub = ZExt.add c_ub (if infty_list_ub = [] then ZExt.zero else PosInfty) in
+  (lb, ub)
+
+let eval_ext_intv_plus_x (x, coeff_x, x_intv) (ext_intv : intv_infty_list * intv_infty_list) =
+  if Z.sign coeff_x > 0 then Intv.add x_intv (ext_intv_to_intv ext_intv) (* easy case: normal interval addition *)
+  else
+
+    let lb, ub = ext_intv in
+    let lb_aux = function
+      | [] -> ZExt.zero
+      | [x'] when x = x' && coeff_x = Z.of_int (-1) && Intv.inf x_intv = NegInfty -> ZExt.zero
+      | _ -> NegInfty
+    in
+    let ub_aux = function
+      | [] -> ZExt.zero
+      | [x'] when x = x' && coeff_x = Z.of_int (-1) && Intv.sup x_intv = PosInfty -> ZExt.zero
+      | _ -> PosInfty
+    in
+
+    let (lb : ZExt.t) =
+      if fst lb = NegInfty then NegInfty
+      else failwith "TODO"
+    in
+    let ub = failwith "TODO"
+    in
+    failwith "TODO"
+
+let string_of_infty_list (c, infty_list : intv_infty_list) =
+  let list_string = String.concat " +- " (List.map (fun i -> "∞" ^ (string_of_int i)) infty_list) in
+  ZExt.to_string c ^ " + " ^ list_string 
+
+let string_of_ext_intv (ext_intv : intv_infty_list * intv_infty_list) =
+  "[" ^ string_of_infty_list (fst ext_intv) ^ ", " ^ string_of_infty_list (snd ext_intv) ^ "]"
 
 module ExpressionBounds: (SharedFunctions.ConvBounds with type t = VarManagement.t) =
 struct
@@ -505,6 +567,9 @@ struct
         else
           let monoms = Option.get monoms in
           let expr_intv = eval_monoms_to_intv d.boxes monoms in
+          let expr_intv_infty_list = eval_monoms_to_intv_infty_list d.boxes monoms in
+          Printf.printf "length of monoms: %i\nexpr_intv: %s\nexpr_ext_intV: %s\n" (List.length (fst monoms)) (Intv.to_string expr_intv) (string_of_ext_intv expr_intv_infty_list);
+
           let x_intv = Boxes.get_value x d.boxes in
 
 
@@ -718,6 +783,19 @@ struct
               (* Our general formula can't comprehend top variables, so we need special cases for int/long/short/whatever bounds setting *)
               | [(coeff, x, _)] when coeff = Z.one ->
                 (* x + c >= 0 <==> x >= -c ==> Boxes(x) := Boxes(x) \inter [-c, ∞] *)
+                let monoms = Option.get monoms in 
+                let expr_intv = eval_monoms_to_intv d.boxes monoms in
+                let ext_expr_intv = eval_monoms_to_intv_infty_list d.boxes monoms in
+                Printf.printf "length of monoms: %i\nexpr_intv: %s\nexpr_ext_intV: %s\n" (List.length (fst monoms)) (Intv.to_string expr_intv) (string_of_ext_intv ext_expr_intv);
+
+                let _ = let ((c_lb, lst_lb), (c_ub, lst_ub)) = ext_expr_intv in
+                  match lst_lb, lst_ub with
+                  | [elem1], [elem2] when elem1 = x && elem2 = x -> Printf.printf "HIT\n"
+                  | [elem1], [elem2] -> Printf.printf "elem1 = %i, elem2 = %i\n" elem1 elem2; failwith "Should not happen"
+                  | _ -> failwith "Should not happen: different lengths"
+                in
+
+
                 let intv_x = Boxes.get_value x d.boxes in
                 let intv_x_constrained = Intv.inter intv_x (Arb (Z.neg constant), PosInfty) in
                 if Intv.is_bot intv_x_constrained (* added bot check *)
@@ -726,6 +804,12 @@ struct
                   let boxes = Boxes.set_value x intv_x_constrained d.boxes in
                   wrap boxes d.subs
               | [(coeff, x, _)] when coeff = Z.neg Z.one ->
+                let monoms = Option.get monoms in 
+                let expr_intv = eval_monoms_to_intv d.boxes monoms in
+                let ext_expr_intv = eval_monoms_to_intv_infty_list d.boxes monoms in
+                Printf.printf "length of monoms: %i\nexpr_intv: %s\nexpr_ext_intV: %s\n" (List.length (fst monoms)) (Intv.to_string expr_intv) (string_of_ext_intv ext_expr_intv);
+
+
                 (* -x + c >= 0 <==> x <= c ==> Boxes(x) := Boxes(x) \inter [-∞, c] *)
                 let intv_x = Boxes.get_value x d.boxes in
                 let intv_x_constrained = Intv.inter intv_x (NegInfty, Arb constant) in
@@ -795,28 +879,26 @@ struct
 
                             (* Checking for contradictions first. *)
                             if ub <* constraint_lb then
-                              (
-                                Printf.printf "1\n";
-                                Printf.printf "coeff_one: %s\n" (Z.to_string coeff_x);
-                                Printf.printf "coeff_x: %s\n" (Z.to_string coeff_y);
-                                Printf.printf "constant: %s\n" (Z.to_string constant);
-                                Printf.printf "neg_expr: %s\n" (Intv.to_string neg_expr_intv);
-                                Printf.printf "expr: %s\n" (Intv.to_string expr_intv);
+                              (**
+                                 Printf.printf "1\n";
+                                 Printf.printf "coeff_one: %s\n" (Z.to_string coeff_x);
+                                 Printf.printf "coeff_x: %s\n" (Z.to_string coeff_y);
+                                 Printf.printf "constant: %s\n" (Z.to_string constant);
+                                 Printf.printf "neg_expr: %s\n" (Intv.to_string neg_expr_intv);
+                                 Printf.printf "expr: %s\n" (Intv.to_string expr_intv);
 
-                                Printf.printf "one_intv: (%i) %s\n" x (Intv.to_string x_intv);
-                                Printf.printf "x_intv: (%i) %s\n" y (Intv.to_string y_intv);
-                                Printf.printf "ub: %s\n" (ZExt.to_string ub);
-                                Printf.printf "constraint_lb: %s\n" (ZExt.to_string constraint_lb);
-                                Printf.printf "\n";
+                                 Printf.printf "one_intv: (%i) %s\n" x (Intv.to_string x_intv);
+                                 Printf.printf "x_intv: (%i) %s\n" y (Intv.to_string y_intv);
+                                 Printf.printf "ub: %s\n" (ZExt.to_string ub);
+                                 Printf.printf "constraint_lb: %s\n" (ZExt.to_string constraint_lb);
+                                 Printf.printf "\n";*)
 
-                                None (* Contradiction! *)
-                              )
+                              None (* Contradiction! *)
                             else if (ZExt.sign constraint_lb) >= 0 && Subs.lt x y subs_acc then
-                              (
+                              (*
 
-                                Printf.printf "2\n";
-                                None (* Contradiction! *)
-                              )
+                                Printf.printf "2\n";*)
+                              None (* Contradiction! *)
                             else if (ZExt.sign constraint_lb) > 0 then
                               Some(Subs.add_gt x y subs_acc)
                             else
@@ -857,10 +939,10 @@ struct
                       let intv' = (ZExt.max lb_x constraint_lb_x, ZExt.min ub_x constraint_ub_x) in
                       (*Printf.printf "constraint: %s, constraint': %s\n" (Intv.to_string (a, b)) (Intv.to_string (constraint_lb_x, constraint_ub_x));*)
                       if Intv.is_bot intv' then 
-                        (
-                          Printf.printf "3\n";
-                          bot_of_env t.env
-                        )
+                        (*
+                          Printf.printf "3\n";*)
+                        bot_of_env t.env
+
                       else
                         let boxes = Boxes.set_value x intv' boxes in
 
