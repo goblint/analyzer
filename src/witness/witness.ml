@@ -54,6 +54,7 @@ let write_file filename (module Task:Task) (module Arg: MyARG.S with type Edge.t
 
 
 let print_svcomp_result (s: string): unit =
+  Logs.info "Witch runs: %d" !Violation.witch_runs;
   Logs.result "SV-COMP result: %s" s
 
 let print_task_result result: unit =
@@ -262,7 +263,6 @@ struct
     print_task_result result
 
   let write yaml_validate_result entrystates =
-    Logs.info "Witch runs: %d" !Violation.witch_runs;
     match !AnalysisState.verified, !AnalysisState.unsound_both_branches_dead with
     | _, Some true -> print_svcomp_result "ERROR (both branches dead)"
     | Some false, _ -> print_svcomp_result "ERROR (verify)"

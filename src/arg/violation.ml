@@ -290,6 +290,7 @@ struct
     | _ -> path
 
   let check_feasability_with_witch lines path =
+    incr witch_runs;
     match extract_result_line lines with
     | Some result when String.starts_with ~prefix:"true" result -> Printf.printf "Verification result: %s\n" result; Infeasible path
     | Some result when String.starts_with ~prefix:"false" result -> Printf.printf "Verification result: %s\n" result; Feasible
@@ -298,7 +299,6 @@ struct
 
   let check_path path =
     let seg = write path in
-    incr witch_runs;
     let witch = GobConfig.get_string "exp.witch" in
     match witch with
     | "" -> Unknown
