@@ -95,10 +95,11 @@ struct
           YamlWitness.Entry.location ~location ~location_function
         in
 
+        let scc_of n = CfgTools.NH.find_option CfgTools.node_scc_global (Node.cfgnode n) in
+
         let segment_for_edge ((prev, edge, node) as path_elem) prev_path_elem =
           let check_if_skips_loop () =
             let nodes_in_same_loop_scc (prev, _, node) =
-              let scc_of n = CfgTools.NH.find_option CfgTools.node_scc_global (Node.cfgnode n) in
               match scc_of prev, scc_of node with
               | Some scc1, Some scc2 -> CfgTools.SCC.equal scc1 scc2
               | _ -> false
@@ -108,44 +109,47 @@ struct
             | _ -> false
           in
 
-          match edge with
-          (* TODO: Correct locations for function entry and return are currently unavailable.
-             As specified by the Witness 2.0 format, these locations must point to
-             the closing parenthesis after the function's parameter list.
-          *)
-          (*
-          | MyARG.InlineEntry _ ->
-            let function_enter = function_enter ~location ~action:"follow" in
-            let waypoints = [waypoint ~waypoint_type:(FunctionEnter function_enter)] in
-            segment ~waypoints
-          | MyARG.InlineReturn _ ->
-            let constraint_ = constraint_ ~value:(String "1") in
-            let function_return = function_return ~location ~action:"follow" ~constraint_ in
-            let waypoints = [waypoint ~waypoint_type:(FunctionReturn function_return)] in
-            segment ~waypoints
-          *)
-          | MyARG.CFGEdge Ret (None, _) -> None
-          | MyARG.CFGEdge Test (_, b) ->
-            let cfgNode = Node.cfgnode prev in
-            let+ location =
-              match WitnessInvariant.location_location cfgNode, WitnessInvariant.loop_location cfgNode with
-              | Some l1, Some l2 when b = false && check_if_skips_loop () -> assert (CilType.Location.equal l1 l2); Some (loc prev l1)
-              | _, Some l when b = false && check_if_skips_loop () -> Some (loc prev l)
-              | Some l, _ -> Some (loc prev l)
-              | _ -> None
-            in
-            let constraint_ = constraint_ ~value:(String (Bool.to_string b)) in
-            let branching = branching ~location ~action:"follow" ~constraint_ in
-            let waypoints = [waypoint ~waypoint_type:(Branching branching)] in
-            segment ~waypoints
+          match scc_of node with
+          | Some scc2 when CfgTools.NH.length scc2.nodes > 1 -> None
           | _ ->
-            let cfgNode = Node.cfgnode prev in
-            let+ l = WitnessInvariant.location_location cfgNode in
-            let location = loc prev l in
-            let constraint_ = constraint_ ~value:(String "1") in
-            let assumption = assumption ~location ~constraint_ in
-            let waypoints = [waypoint ~waypoint_type:(Assumption assumption)] in
-            segment ~waypoints
+            match edge with
+            (* TODO: Correct locations for function entry and return are currently unavailable.
+               As specified by the Witness 2.0 format, these locations must point to
+               the closing parenthesis after the function's parameter list.
+            *)
+            (*
+            | MyARG.InlineEntry _ ->
+              let function_enter = function_enter ~location ~action:"follow" in
+              let waypoints = [waypoint ~waypoint_type:(FunctionEnter function_enter)] in
+              segment ~waypoints
+            | MyARG.InlineReturn _ ->
+              let constraint_ = constraint_ ~value:(String "1") in
+              let function_return = function_return ~location ~action:"follow" ~constraint_ in
+              let waypoints = [waypoint ~waypoint_type:(FunctionReturn function_return)] in
+              segment ~waypoints
+            *)
+            | MyARG.CFGEdge Ret (None, _) -> None
+            | MyARG.CFGEdge Test (_, b) ->
+              let cfgNode = Node.cfgnode prev in
+              let+ location =
+                match WitnessInvariant.location_location cfgNode, WitnessInvariant.loop_location cfgNode with
+                | Some l1, Some l2 when b = false && check_if_skips_loop () -> assert (CilType.Location.equal l1 l2); Some (loc prev l1)
+                | _, Some l when b = false && check_if_skips_loop () -> Some (loc prev l)
+                | Some l, _ -> Some (loc prev l)
+                | _ -> None
+              in
+              let constraint_ = constraint_ ~value:(String (Bool.to_string b)) in
+              let branching = branching ~location ~action:"follow" ~constraint_ in
+              let waypoints = [waypoint ~waypoint_type:(Branching branching)] in
+              segment ~waypoints
+            | _ ->
+              let cfgNode = Node.cfgnode prev in
+              let+ l = WitnessInvariant.location_location cfgNode in
+              let location = loc prev l in
+              let constraint_ = constraint_ ~value:(String "1") in
+              let assumption = assumption ~location ~constraint_ in
+              let waypoints = [waypoint ~waypoint_type:(Assumption assumption)] in
+              segment ~waypoints
         in
 
         let find_next_segment prev edge node segmap =
