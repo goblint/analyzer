@@ -10,614 +10,48 @@ open GobApron
 open BatList
 open Pretty
 
-(** 
-   Extension of the Zarith types and funcitons.
-   The values represent arbitrary precision integers and also negative or positive infinity.
-*)
-module ZExt =
-struct
-  type t = PosInfty | NegInfty | Arb of Z.t
-
-  let hash (z: t) = 
-    match z with
-    | PosInfty -> failwith "ZExt.pow: TODO" 
-    | NegInfty -> failwith "ZExt.pow: TODO"
-    | Arb(z) -> Z.hash z;;
-
-  let equal (z1: t) (z2: t) = 
-    match z1, z2 with
-    | PosInfty, PosInfty -> true
-    | NegInfty, NegInfty -> true
-    | Arb(z1), Arb(z2) -> Z.equal z1 z2
-    | _ -> false ;;
-
-  let compare (z1: t) (z2: t) = 
-    match z1, z2 with
-    | NegInfty, NegInfty -> 0
-    | PosInfty, PosInfty -> 0
-    | NegInfty, _ -> -1 
-    | _, NegInfty -> 1
-    | PosInfty, _ -> 1
-    | _, PosInfty -> -1
-    | Arb(z1), Arb(z2) -> Z.compare z1 z2;;
-
-  let (<*) z1 z2 = compare z1 z2 < 0;;
-  let (>*) z1 z2 = compare z1 z2 > 0;;
-  let (=*) z1 z2 = compare z1 z2 = 0;;
-  let (<=*) z1 z2 = compare z1 z2 <= 0;;
-  let (>=*) z1 z2 = compare z1 z2 >= 0;;
-  let (<>*) z1 z2 = compare z1 z2 <> 0;;
-
-
-  let of_int i = Arb(Z.of_int i)
-
-  let of_float f =
-    if Float.is_nan f then 
-      failwith "ZExt.of_float: Tried to convert Nan." 
-    else if Float.is_finite f then 
-      Arb(Z.of_float f) 
-    else if Float.signbit f then 
-      NegInfty
-    else 
-      PosInfty
-
-  let zero = of_int 0
-
-  let to_string = function
-    | NegInfty -> "-∞"
-    | PosInfty -> "+∞"
-    | Arb z -> Z.to_string z
-
-  let neg = function
-    | NegInfty -> PosInfty
-    | PosInfty -> NegInfty
-    | Arb z -> Arb(Z.neg z)
-
-  let sign = function
-    | NegInfty -> -1
-    | PosInfty -> +1
-    | Arb z -> Z.sign z
-
-  let add_opt z1 z2 =
-    match z1, z2 with
-    | PosInfty, NegInfty -> None
-    | NegInfty, PosInfty -> None
-    | Arb z1, Arb z2 -> Some(Arb(Z.add z1 z2))
-    | PosInfty, _ -> Some(PosInfty)
-    | NegInfty, _ -> Some(NegInfty)
-    | _, PosInfty -> Some(PosInfty)
-    | _, NegInfty -> Some(NegInfty)
-
-  let add_unsafe z1 z2 =
-    match add_opt z1 z2 with
-    | None -> failwith "ZExt.add_unsafe: Cannot add PosInfty and NegInfty or vice versa."
-    | Some(s) -> s
-
-  (** Alias for add_unsafe *)
-  let add = add_unsafe
-
-  (** Alias for add z1 (neg z2) *)
-  let sub z1 z2 = add z1 (neg z2)
-
-  let rem (Arb z1) (Arb z2) = Arb (Z.rem z1 z2)
-
-  let rem_add (Arb z1) (Arb z2) =
-    let rem = Z.rem z1 z2 in
-    if Z.sign rem < 0 then 
-      Arb (Z.add rem z2)
-    else
-      Arb(rem)
-
-  let rec mul z1 z2 =
-    match z1, z2 with
-    | Arb z1, Arb z2 -> Arb(Z.mul z1 z2)
-    | Arb(z1), z2 -> mul z2 (Arb z1)
-    (** z1 is definitely a infty *)
-    | z1, z2 ->
-      if sign z2 < 0 then
-        neg z1
-      else
-      if z2 =* zero then
-        zero
-      else
-        z1
-
-  let rec div z1 z2 =
-    match z1, z2 with
-    | Arb z1, Arb z2 -> Arb(Z.div z1 z2)
-    | Arb(z1), z2 -> div z2 (Arb z1)
-    (** z1 is definitely a infty *)
-    | z1, z2 ->
-      if sign z2 < 0 then
-        neg z1
-      else
-      if z2 =* zero then
-        zero
-      else
-        z1
-
-  let pow z1 z2 =
-    if sign z2 < 0 then failwith "ZExt.pow: z2 should be non negative" else
-      match z1, z2 with
-      | Arb z1, Arb z2 when Z.sign z1 < 0 && not (Z.fits_nativeint z2) -> 
-        if Z.is_even z2 then PosInfty else NegInfty
-      | Arb z1, Arb z2 when Z.sign z1 > 0 && not (Z.fits_nativeint z2) -> PosInfty
-      | _, Arb z when Z.zero = z -> (of_int 1)
-      | Arb z, _ when Z.zero = z -> zero 
-      | Arb z, _ when Z.one = z -> (of_int 1)
-      | Arb z1, Arb z2 -> (Arb(Z.pow z1 (Z.to_int z2)))
-      | z1, PosInfty when sign z1 < 0 -> failwith "ZExt.pow: Cannot determine whether result is NegInfty or PosInfty (or -1 or 1 for z1 = -1) -> depends on the side of the interval"
-      | PosInfty, _ | _, PosInfty -> PosInfty
-      | NegInfty, Arb z -> if Z.is_even z then PosInfty else NegInfty
-      | _, NegInfty -> failwith "This shouldn't happen (caught in second line of ZExt.pow)"
-
-  let abs z1 = if z1 <* zero then neg z1 else z1;;
-
-  let max z1 z2 = if z1 >* z2 then z1 else z2;;
-
-  let min z1 z2 = if z1 <* z2 then z1 else z2;;
-
-  (** Taken from module IArith *)
-  let min4 a b c d = min (min a b) (min c d)
-
-  (** Taken from module IArith *)
-  let max4 a b c d = max (max a b) (max c d)
-
-end
-
-module ZExtOps =
-struct 
-
-  let (<*) = ZExt.(<*);;
-  let (>*) = ZExt.(>*);;
-  let (=*) = ZExt.(=*);;
-  let (<=*) = ZExt.(<=*);;
-  let (>=*) = ZExt.(>=*);;
-  let (<>*) = ZExt.(<>*);;
-
-end
-
-module StringUtils =
-struct
-  let string_of_dim_change (dim_change:Apron.Dim.change) = 
-    let dim = dim_change.dim in
-    let real_dim = dim_change.realdim in
-    let int_dim = dim_change.intdim in
-    Printf.sprintf "{ real_dim=%i; int_dim=%i; dim=[|%s|]}" real_dim int_dim (String.concat ", " (Array.to_list (Array.map Int.to_string (dim))))
-
-  let string_of_var (var: Var.t) =
-    let s = (Var.to_string var) in
-    match String.index_opt s '#' with
-    | Some i -> String.sub s 0 i
-    | None -> s
-
-  let string_of_texpr1 (texpr: Texpr1.expr) =
-    let rec aux texpr = 
-      match texpr with
-      | Texpr1.Cst (Interval inv) -> "Cst(Interval inv)"
-      | Cst (Scalar s) -> Scalar.to_string s
-      | Var x -> string_of_var x
-      | Unop  (Neg,  e, _, _) -> "(-" ^ aux e ^ ")"
-      | Unop  (Cast, e, _, _) -> "((cast)" ^ aux e ^ ")"
-      | Unop  (Sqrt, e, _, _) -> "(sqrt(" ^ aux e ^ "))"
-      | Binop (Add, e1, e2, _, _) -> "(" ^ aux e1 ^ " + " ^ aux e2 ^ ")"
-      | Binop (Sub, e1, e2, _, _) -> "(" ^ aux e1 ^ " - " ^ aux e2 ^ ")"
-      | Binop (Mul, e1, e2, _, _) -> "(" ^ aux e1 ^ " * " ^ aux e2 ^ ")"
-      | Binop (Div, e1, e2, _, _) -> "(" ^ aux e1 ^ " / " ^ aux e2 ^ ")"
-      | Binop (Mod, e1, e2, _, _) -> "(" ^ aux e1 ^ " % " ^ aux e2 ^ ")"
-      | Binop (Pow, e1, e2, _, _) -> "(" ^ aux e1 ^ " ^ " ^ aux e2 ^ ")"
-    in
-    aux texpr
-
-  let string_of_tcons1 tcons1 =
-    (string_of_texpr1 @@ Texpr1.to_expr @@ Tcons1.get_texpr1 @@ tcons1) ^ " " ^  Tcons1.string_of_typ (Tcons1.get_typ tcons1) ^ " 0";;
-
-  (** Returns "-I32" or "+I32" if z is bound, else just the string of z. *)
-  let int32_bound_str z =
-    let (=*) = ZExtOps.(=*) in
-    if z =* (ZExt.of_int (-2147483648)) then 
-      "-I32" 
-    else if z =* (ZExt.of_int (2147483647)) then 
-      "+I32"
-    else
-      ZExt.to_string z
-end
-
-(**
-   Stores functions and types for single intervals $\mathbb{Z}^\infty$
-   according to the pentagon domains semantics. Beware, this module is NOT generic.
-*)
-module Intv =
-struct
-  include ZExtOps
-
-  type t = (ZExt.t * ZExt.t) [@@deriving eq, hash, ord]
-
-  let top () = ((ZExt.NegInfty, ZExt.PosInfty): t)
-
-  let bot () = ((ZExt.PosInfty, ZExt.NegInfty): t)
-
-  let is_top (x:t) = ((ZExt.NegInfty, ZExt.PosInfty) = x)
-
-  let is_bot ((l, u): t) = u <* l
-
-  let mem a (l, u) = l <=* a && u >=* a
-
-  (** Intv intersection *)
-  let inter ((l1, u1): t) ((l2, u2): t) =
-    let max_lb = if l1 <=* l2 then l2 else l1 in
-    let min_ub = if u1 <=* u2 then u1 else u2 in
-    ((max_lb, min_ub): t)
-
-  let add ((l1, u1): t) ((l2, u2): t) =
-    let ( + ) = ZExt.add_opt in
-    ((Option.default ZExt.NegInfty (l1 + l2), Option.default ZExt.PosInfty (u1 + u2)): t)
-
-
-  (** Taken from module IArith *)
-  let mul ((x1, x2): t) ((y1, y2): t) =
-    let ( * ) = ZExt.mul in
-    ((
-      ZExt.min4 (x1 * y1) (x1 * y2) (x2 * y1) (x2 * y2),
-      ZExt.max4 (x1 * y1) (x1 * y2) (x2 * y1) (x2 * y2)
-    ): t)
-
-  (** Taken from module IArith *)
-  let div ((x1, x2): t) ((y1, y2): t) =
-    if y1 <=* ZExt.zero && y2 >=* ZExt.zero then top() else
-      let ( / ) = ZExt.div in
-      ((
-        ZExt.min4 (x1 / y1) (x1 / y2) (x2 / y1) (x2 / y2),
-        ZExt.max4 (x1 / y1) (x1 / y2) (x2 / y1) (x2 / y2)
-      ): t)
-
-
-  (** Checks for bot interval. *)
-  let sup (i: t) = if is_bot i then ZExt.NegInfty else snd i;;
-
-  (** Checks for bot interval. *)
-  let inf (i: t) = if is_bot i then ZExt.PosInfty else fst i;;
-
-  (** Checks whether the lower bound is -infty, i.e., unbound *)
-  (**
-     TODO: Verfiy that `inf` is correct here. Alternative `fst`.
-  *)
-  let no_lowerbound (i: t) = ZExt.NegInfty = inf i
-
-  (** Checks whether the upper bound is +infty, i.e., unbound *)
-  (**
-     TODO: Verfiy that `sup` is correct here. Alternative `snd`.
-  *)
-  let no_upperbound (i: t) = ZExt.PosInfty = sup i
-
-  let rem (i1: t) i2 =
-    (* i1 % i2 *)
-    let (l2, u2) = i2 in
-    if l2 <=* ZExt.zero && u2 >=* ZExt.zero then
-      top() 
-    else if no_lowerbound i2 || no_upperbound i2 then
-      i1
-    else
-      let ub_minus_1 = ZExt.add (ZExt.max (ZExt.abs l2) (ZExt.abs u2)) (ZExt.of_int (-1)) in
-      inter i1 ((ZExt.neg ub_minus_1, ub_minus_1): t)
-
-
-  (**
-     We assume that i1 and i2 are well-formed, i.e. not bot/empty.
-  *)
-  let pow ((l1, u1): t) ((l2, u2): t) =
-    if l2 <* ZExt.zero then top () (* x ^ (-1) is unsupported operation on ints ==> we treat it as undefined behavior, same as division by 0 *)
-    else
-      match u2 with
-      | PosInfty -> if l1 <=* ZExt.of_int (-2) then top () (* can create arbitrarily big numbers with (-2) ^ x *)
-        else if l1 >=* ZExt.zero then (ZExt.pow l1 l2, ZExt.pow u1 PosInfty)
-        else (* l1 = -1 *)
-        if u1 =* ZExt.of_int (-1) then (ZExt.of_int (-1), ZExt.of_int 1)
-        else (ZExt.of_int (-1), ZExt.pow u1 PosInfty)
-      | NegInfty -> failwith "Intv.pow should not happen"
-      | Arb u2z when l1 <* ZExt.zero ->
-        if l2 =* u2 then (* special case because we don't have an even AND an odd number ==> either impossible to mirror negative numbers or everything gets nonnegative *)
-          let exp = l2 in
-          if exp =* ZExt.zero then (ZExt.of_int 1, ZExt.of_int 1) else
-          if Z.is_even u2z then
-            if u1 >=* ZExt.zero then
-              (* i1 contains negative and nonnegative numbers, exp != 0 is even ==> lb = 0, ub depends on greater abs value of bounds *)
-              let max_abs = ZExt.max (ZExt.abs l1) u1 in
-              let u = ZExt.pow max_abs exp in
-              (ZExt.zero, u) else
-              (* x -> x ^ n is monotonically decreasing for even n and negative x *)
-              let l = ZExt.pow u1 exp in
-              let u = ZExt.pow l1 exp in
-              (l, u)
-          else (* exp is odd *)
-            (* x -> x ^ n is monotonically increasing for odd n *)
-            (ZExt.pow l1 exp, ZExt.pow u1 exp)
-        else
-          (* we have at least one even and one odd number in the exponent ==> negative numbers can be mirrored if needed *)
-          let greatest_even = if Z.is_even u2z then u2 else ZExt.sub u2 (ZExt.of_int 1) in
-          let greatest_odd = if Z.is_odd u2z then u2 else ZExt.sub u2 (ZExt.of_int 1) in
-          let l = ZExt.pow l1 greatest_odd in
-          let u' = ZExt.pow l1 greatest_even in
-          let u'' = if ZExt.sign u1 > 0 then ZExt.pow u1 u2 else u' in
-          (l, ZExt.max u' u'')
-      | _ -> (* i1 is nonnegative ==> no special cases here :) *)
-        let l = ZExt.pow l1 l2 in
-        let u = ZExt.pow u1 u2 in
-        (l, u)
-
-
-  (**
-     Creates a single interval from the supplied integer values.
-  *)
-  let create i1 i2 = (ZExt.of_int i1, ZExt.of_int i2)
-
-  let leq ((l1, u1): t) ((l2, u2): t) = l2 <=* l1 && u1 <=* u2
-
-  let union ((l1, u1): t) ((l2, u2): t) = (ZExt.min l1 l2, ZExt.max u1 u2)
-
-  let widen (l1, u1) (l2, u2) =
-    let l = if l1 <=* l2 then l2 else ZExt.NegInfty in
-    let u = if u2 <=* u1 then u2 else ZExt.PosInfty in
-    (l, u)
-
-  let narrow (i1: t) (i2: t) = 
-    inter i1 i2
-
-
-  let neg intv = (ZExt.neg (sup intv), ZExt.neg (inf intv))
-
-  let sub intv_1 intv_2 =
-    let intv_2 =  neg intv_2 in
-    add intv_1 intv_2
-
-end
-
-(** Provides functions and types for collections of Intv. *)
-module Boxes  = 
-struct
-  type t = Intv.t list [@@deriving eq, ord]
-  include ZExtOps
-  let is_bot (i: t) = 
-    BatList.exists Intv.is_bot i
-
-  let is_top i =
-    BatList.for_all Intv.is_top i
-
-  let to_string (intervals: t) =
-    let string_of_interval i (lb, ub) =
-      Printf.sprintf "%i->[%s, %s]" i (StringUtils.int32_bound_str lb) (StringUtils.int32_bound_str ub)
-    in
-    let bot_or_top =
-      if is_bot intervals then
-        "(⊥)"
-      else if is_top intervals then
-        "(⊤)"
-      else 
-        "( )"
-    in
-    Printf.sprintf "%s { %s }" bot_or_top (String.concat "; " (List.mapi string_of_interval intervals))
-
-  let equal boxes1 boxes2 =
-    BatList.for_all2 (Intv.equal) boxes1 boxes2
-
-  let leq i1 i2 =
-    BatList.for_all2 Intv.leq i1 i2
-
-  let join (i1: t) (i2: t) = 
-    BatList.map2 Intv.union i1 i2
-
-  let meet (i1: t) (i2: t) = 
-    BatList.map2 Intv.inter i1 i2
-
-  let widen (i1: t) (i2: t) = 
-    BatList.map2 Intv.widen i1 i2
-
-  let narrow (i1: t) (i2: t) = 
-    meet i1 i2
-
-
-  let dim_add (dim_change: Apron.Dim.change) (intervals: t) =
-    if dim_change.realdim != 0 then
-      failwith "Pentagons are defined over integers: \
-                extension with real domain is nonsensical"
-    else 
-      let change_arr = Array.rev dim_change.dim in
-      let rec insert_dimensions intervals dim_changes =
-        match dim_changes with
-        | [||] -> intervals
-        | _ ->
-          let k = dim_changes.(0) in
-          let left, right = BatList.split_at k intervals in
-          let new_array = (BatArray.sub dim_changes 1 (BatArray.length dim_changes - 1)) in
-          insert_dimensions (left @ [Intv.top ()] @ right) new_array
-      in
-      insert_dimensions intervals change_arr
-  ;;
-
-
-  (* Backup implementation, if dim_change.dim is not sorted and contains duplicates. *)
-  (*let dim_remove (dim_change: Apron.Dim.change) (intervals : t) =
-    if dim_change.realdim != 0 then
-      failwith "Pentagons are defined over integers: \
-                extension with real domain is nonsensical"
-    else 
-      List.filteri (fun i _ -> not (Array.mem i dim_change.dim)) intervals*)
-
-
-  (* precondition: dim_change is sorted and has unique elements *)
-  let dim_remove (dim_change: Apron.Dim.change) (intervals : t) =
-    if dim_change.realdim != 0 then
-      failwith "Pentagons are defined over integers: \
-                extension with real domain is nonsensical"
-    else
-      let rec aux lst_i arr_i = function
-        | [] -> []
-        | x::xs -> if arr_i = BatArray.length dim_change.dim then x::xs
-          else if dim_change.dim.(arr_i) = lst_i then aux (lst_i + 1) (arr_i + 1) xs
-          else x :: aux (lst_i + 1) arr_i xs
-      in
-      aux 0 0 intervals
-
-  let forget_vars (vars: int BatList.t) =
-    BatList.mapi (fun x intv -> if BatList.mem x vars then Intv.top() else intv)
-
-end
-
-(** Stores functions and types for strict upper bounds. *)
-module Sub =
-struct
-
-  module Idx = Int
-  module VarSet = BatSet.Make(Idx)
-  module VarList = BatList
-
-  module MoveMap = struct 
-    include BatMap.Make(Idx)
-    type t = Idx.t BatMap.Make(Idx).t
-  end
-
-  type t = VarSet.t VarList.t [@@deriving eq, ord]
-
-  let dim_add (dim_change: Apron.Dim.change) (sub: t) =
-    if dim_change.realdim != 0 then 
-      failwith "Pentagons are defined over integers: \
-                dim_change should not contain `realdim`" 
-    else
-      (* 
-      This is basically a fold_lefti with rev at the end.
-      Could not use fold_lefti directly because I might need to append at the end of the list.
-      This would have forced me to use List.length, which is \theta(n).
-      *)
-      let rec aux (dim_change: Apron.Dim.change) i sub (moved: MoveMap.t) acc =
-        (** Computes the number by which the current index/variable will be shifted/moved *)
-        let moved_by = 
-          Array.count_matching (fun k -> k <= i) dim_change.dim 
-        in
-        (** Counts the number of empty sets to prepend at the current index. *)
-        let append_count = 
-          Array.count_matching (fun k -> k == i) dim_change.dim 
-        in
-        (** Prepends n many empty sets to the accumulator. *)
-        let rec prepend_dim n acc = 
-          if n == 0 then 
-            acc
-          else prepend_dim (n-1) (VarSet.empty :: acc)
-        in
-        match sub with
-        | h::t ->
-          (** Store the new index mappings to later adjust the sets. *)
-          let moved = (MoveMap.add i (i+moved_by) moved) in
-          (** Insert `append_count` many dimensions before `h`, then append `h` *)
-          let acc = (h :: (prepend_dim append_count acc)) in
-          aux dim_change (i+1) t moved acc
-        | [] ->
-          (** Complete sub prepending the last dimensions and reversing *)
-          let sub = (List.rev (prepend_dim append_count acc)) in
-          (** Adjust the stored indices in our sets *)
-          VarList.map (
-            fun set ->
-              VarSet.map (
-                fun v -> match MoveMap.find_opt v moved with | None -> v | Some(v') -> v'
-              ) set
-          ) sub 
-      in
-      aux dim_change 0 sub MoveMap.empty []
-  ;;
-
-
-  let dim_remove (dim_change: Apron.Dim.change) (sub : t) =
-    (* This implementation assumes, that dim_change.dim is well-formed, i.e., does not contain duplicates. *)
-    let move_or_delete_var y =
-      if Array.mem y dim_change.dim then None
-      else Some (y - Array.count_matching (fun k -> k < y) dim_change.dim)
-    in
-    let move_or_delete_set x ys =
-      if Array.mem x dim_change.dim then None
-      else Some (VarSet.filter_map move_or_delete_var ys)
-    in
-    List.filteri_map move_or_delete_set sub
-
-  let equal (sub1: t) (sub2: t) = VarList.equal VarSet.equal sub1 sub2
-
-  (**
-        This isn't precise: we might return false even if there are transitive contradictions;
-        Other possibility: compute transitive closure first (would be expensive)
-  *)
-  let is_bot (sub:t) =
-    (* exists function for lists where the predicate f also gets the index of a list element *)
-    let existsi f lst =
-      let rec aux i = function
-        | [] -> false
-        | x :: xs -> if f i x then true else aux (i + 1) xs
-      in aux 0 lst
-    in
-    (* If we don't know any variables, i.e. sub = [], then bot = top holds. *)
-    sub = [] || 
-    existsi (
-      fun i set ->
-        (* direct contradiction *)
-        VarSet.mem i set ||
-        (* We assume that the sets inside sub only contain values < length of the list.*)
-        VarSet.exists (fun y -> VarSet.mem i (List.at sub y)) set
-    ) sub
-
-
-  let is_top (sub: t) = VarList.for_all VarSet.is_empty sub
-
-  let subseteq set1 set2 = VarSet.subset set1 set2 || VarSet.equal set1 set2 (** helper, missing in batteries *)
-
-  (**
-     The inequalities map s1 is less than or equal to s2 iff
-      forall x in s2.
-      s2(x) subseteq s1(x)
-  *)
-  let leq (sub1: t) (sub2: t) = 
-    BatList.for_all2 subseteq sub2 sub1
-
-  let join (sub1: t) (sub2: t) = BatList.map2 VarSet.inter sub1 sub2
-
-  let meet (sub1: t) (sub2: t) = BatList.map2 VarSet.union sub1 sub2
-
-  let widen (sub1: t) (sub2: t) = BatList.map2 (fun s1x s2x -> if subseteq s1x s2x then s2x else VarSet.empty) sub1 sub2
-
-  (** No narrowing mentioned in the paper. *)
-  let narrow sub1 sub2 = meet sub1 sub2
-
-  let forget_vars (vars : int BatList.t) =
-    BatList.mapi (fun x ys ->
-        if BatList.mem x vars then
-          VarSet.empty
-        else
-          VarSet.filter (fun y -> not (BatList.mem y vars)) ys
-      )
-
-
-  let to_string (sub: t) =
-    (* Results in: { y1, y2, ..., yn }*)
-    let set_string set = 
-      if VarSet.cardinal set = 0 then "∅" else "{" ^ (
-          VarSet.to_list set |>
-          List.map (Idx.to_string) |>
-          String.concat ", "
-        ) ^ "}" in
-    (* Results in: x_1 -> {y1, y2, ..., yn} *)
-    String.concat "; " (
-      VarList.mapi (
-        fun i set ->
-          Printf.sprintf "%s->%s" (Idx.to_string i) (set_string set)
-      ) sub
-    )
-
-  let to_string (sub: t) =
-    let bot_or_top = 
-      if is_bot sub then
-        "(⊥)"
-      else if is_top sub then
-        "(⊤)"
-      else
-        "( )"
-    in
-    Printf.sprintf "%s { %s }" bot_or_top (to_string sub)
+(* Pentagon specific modules *)
+open StringUtils
+open ZExt
+open Intv
+open Boxes
+open Subs
+open Pntg
+
+
+
+module Rhs = struct
+  (* Rhs represents coefficient*var_i + offset / divisor
+     depending on whether coefficient is 0, the monomial term may disappear completely, not refering to any var_i, thus:
+     (Some (coefficient, i), offset, divisor )         with coefficient != 0    , or
+     (None                 , offset, divisor ) *)
+  type t = ((GobZ.t * int) option *  GobZ.t * GobZ.t) [@@deriving eq, ord, hash]
+  let var_zero i = (Some (Z.one,i), Z.zero, Z.one)
+  let show_coeff c =
+    if Z.equal c Z.one then ""
+    else if Z.equal c Z.minus_one then "-"
+    else (Z.to_string c) ^"·"
+  let show_rhs_formatted formatter = let ztostring n = (if Z.(geq n zero) then "+" else "") ^ Z.to_string n in
+    function
+    | (Some (coeff,v), o,_) when Z.equal o Z.zero -> Printf.sprintf "%s%s" (show_coeff coeff) (formatter v)
+    | (Some (coeff,v), o,_) -> Printf.sprintf "%s%s %s" (show_coeff coeff) (formatter v) (ztostring o)
+    | (None,   o,_) -> Printf.sprintf "%s" (Z.to_string o)
+  let show (v,o,d) =
+    let rhs=show_rhs_formatted (Printf.sprintf "var_%d") (v,o,d) in
+    if not (Z.equal d Z.one) then "(" ^ rhs ^ ")/" ^ (Z.to_string d) else rhs
+
+  (** factor out gcd from all terms, i.e. ax=by+c with a positive is the canonical form for adx+bdy+cd *)
+  let canonicalize (v,o,d) =
+    let gcd = Z.gcd o d in (* gcd of coefficients *)
+    let gcd = Option.map_default (fun (c,_) -> Z.gcd c gcd) gcd v in (* include monomial in gcd computation *)
+    let commondivisor = if Z.(lt d zero) then Z.neg gcd else gcd in (* canonical form dictates d being positive *)
+    (BatOption.map (fun (coeff,i) -> (Z.div coeff commondivisor,i)) v, Z.div o commondivisor, Z.div d commondivisor)
+
+  (** Substitute rhs for varx in rhs' *)
+  let subt rhs varx rhs' =
+    match rhs,rhs' with
+    | (monom, o, d), (Some (c', x'), o', d') when x'=varx -> canonicalize (Option.map (fun (c,x) -> (Z.mul c c',x)) monom, Z.((o*c')+(d*o')), Z.mul d d')
+    | _ -> rhs'
 
 end
 
@@ -628,80 +62,16 @@ sig
   val varinfo_tracked: varinfo -> bool
 end
 
-module PNTG =
-struct
-  type t = { boxes: Boxes.t; sub: Sub.t } [@@deriving eq, ord]
 
-  let hash : (t -> int)  = fun _ -> 1
-  let equal pntg1 pntg2  = Boxes.equal pntg1.boxes pntg2.boxes && Sub.equal pntg1.sub pntg2.sub;;
-  let copy (x: t) = x
-  let empty () = { boxes = []; sub = [] }
-  let is_empty pntg =
-    match pntg.boxes, pntg.sub with
-    | [], [] -> true
-    | _ -> false
-
-  let to_string pntg =
-    Printf.sprintf "{ boxes = %s; sub = %s }" (Boxes.to_string pntg.boxes) (Sub.to_string pntg.sub)
-
-
-  (**
-     See https://antoinemine.github.io/Apron/doc/api/ocaml/Dim.html
-     for the semantic of Dim.change
-  *)
-  let dim_add (dim_change: Apron.Dim.change) pntg =
-    if dim_change.realdim != 0 then
-      failwith "Pentagons are defined over integers: \
-                extension with real domain is nonsensical"
-    else
-      let intv, sub = 
-        Boxes.dim_add dim_change pntg.boxes,
-        Sub.dim_add dim_change pntg.sub 
-      in
-      ({boxes = intv; sub = sub}: t)
-
-
-
-  let dim_add (dim_change: Apron.Dim.change) pntg = 
-    let res = dim_add dim_change pntg in
-    if M.tracing then M.trace "pntg_dim" "PNTG.dim_add:\ndim_change:\t%s\npntg:\t\t%s\nres:\t\t%s\n\n" 
-        (StringUtils.string_of_dim_change dim_change)
-        (to_string pntg)
-        (to_string res);
-    res
-
-
-  (** 
-     See https://antoinemine.github.io/Apron/doc/api/ocaml/Dim.html
-     for the semantic of Dim.change 
-  *)
-  let dim_remove (dim_change: Apron.Dim.change) pntg  =
-    if dim_change.realdim != 0 then
-      failwith "Pentagons are defined over integers: \
-                extension with real domain is nonsensical"
-    else
-      let intv, sub = 
-        Boxes.dim_remove dim_change pntg.boxes,
-        Sub.dim_remove dim_change pntg.sub 
-      in
-      ({boxes = intv; sub = sub}: t)
-
-  let dim_remove (dim_change: Apron.Dim.change) pntg = 
-    let res = dim_remove dim_change pntg in
-    if M.tracing then M.trace "pntg_dim" "PNTG.dim_remove:\ndim_change:\t%s\npntg:\t\t%s\nres:\t\t%s\n\n" 
-        (StringUtils.string_of_dim_change dim_change)
-        (to_string pntg)
-        (to_string res);
-    res
-end
 
 (** [VarManagement] defines the type t of the affine equality domain (a record that contains an optional matrix and an apron environment) and provides the functions needed for handling variables (which are defined by [RelationDomain.D2]) such as [add_vars], [remove_vars].
     Furthermore, it provides the function [simplified_monomials_from_texp] that converts an apron expression into a list of monomials of reference variables and a constant offset *)
 module VarManagement =
 struct
-  include SharedFunctions.VarManagementOps (PNTG)
+  include SharedFunctions.VarManagementOps (Pntg)
 end
 
+(* Helper functions *)
 let z_ext_of_scalar (s: Scalar.t) = 
   match s with
   | Float(f) -> ZExt.of_float f
@@ -728,6 +98,188 @@ let eval_texpr_to_intv (t: VarManagement.t) (texpr:Texpr1.expr) : Intv.t =
     | Binop (Pow, e1, e2, _, _) -> Intv.pow (aux e1) (aux e2)
   in
   aux texpr;;
+
+(* We assume that the divisor is always 1, so we omit it and that t is not bottom. *)
+let rec eval_monoms_to_intv boxes (terms, (constant, _)) =
+  match terms with
+  | [] -> Intv.create_const_of_z constant
+  | (coeff, index, _)::terms -> (
+      let intv_coeff = Intv.create_const_of_z coeff in
+      Intv.add (Intv.mul intv_coeff (Boxes.get_value index boxes)) (eval_monoms_to_intv boxes (terms, (constant, Z.one)))
+    );;  
+
+
+
+let eval_texpr_to_intv (t: VarManagement.t) (texpr:Texpr1.expr) : Intv.t = 
+  let get_dim var = Environment.dim_of_var t.env var in
+  let d = Option.get t.d in
+  let boxes = d.boxes in
+  let rec aux texpr =
+    match texpr with
+    | Texpr1.Cst (Interval inv) -> (z_ext_of_scalar inv.inf, z_ext_of_scalar inv.sup)
+    | Cst (Scalar s) -> let s = z_ext_of_scalar s in (s, s)
+    | Var y -> List.at boxes (get_dim y) 
+    | Unop  (Cast, e, _, _) -> aux e
+    | Unop  (Sqrt, e, _, _) -> failwith "Do the sqrt. :)"
+    | Unop  (Neg,  e, _, _) -> Intv.neg (aux e)
+    | Binop (Add, e1, e2, _, _) -> Intv.add (aux e1) (aux e2)
+    | Binop (Sub, e1, e2, _, _) -> Intv.sub (aux e1) (aux e2)
+    | Binop (Mul, e1, e2, _, _) -> Intv.mul (aux e1) (aux e2)
+    | Binop (Div, e1, e2, _, _) -> Intv.div (aux e1) (aux e2)
+    | Binop (Mod, e1, e2, _, _)  -> Intv.rem (aux e1) (aux e2)
+    | Binop (Pow, e1, e2, _, _) -> Intv.pow (aux e1) (aux e2)
+  in
+  aux texpr;;
+
+
+
+(* We assume that the divisor is always 1, so we omit it and that t is not bottom. *)
+let rec eval_monoms_to_intv boxes (terms, (constant, _)) =
+  match terms with
+  | [] -> Intv.create_const_of_z constant
+  | (coeff, index, _)::terms -> (
+      let intv_coeff = Intv.create_const_of_z coeff in
+      Intv.add (Intv.mul intv_coeff (Boxes.get_value index boxes)) (eval_monoms_to_intv boxes (terms, (constant, Z.one)))
+    );;  
+
+
+type intv_infty_list = ZExt.t * Int.t list
+type ext_intv = intv_infty_list * intv_infty_list
+
+(* We assume that the divisor is always 1, so we omit it and that t is not bottom. *)
+(*
+TODO: Remove duplicate code.
+TODO: Rename to eval_monoms_to_ext_intv
+*)
+let rec eval_monoms_to_intv_infty_list boxes (terms, (constant, _)) : ext_intv =
+  match terms with
+  | [] -> ((ZExt.Arb constant, []), (ZExt.Arb constant, []))
+  | (coeff, x, _)::terms -> (
+      let terms_intv_infty_list = eval_monoms_to_intv_infty_list boxes (terms, (constant, Z.one)) in
+      let x_intv = Boxes.get_value x boxes in
+
+      let ub = match snd terms_intv_infty_list with
+        | (NegInfty, _) -> failwith "This should not happen :)"
+        | (PosInfty, l ) -> (ZExt.PosInfty, l)
+        | (c, l) -> 
+
+
+          let coeff_x_ub = 
+            if Z.sign coeff > 0 then
+              ZExt.mul (Arb coeff) (Intv.sup x_intv)
+            else
+              ZExt.mul (Arb coeff) (Intv.inf x_intv)
+          in
+
+          match coeff_x_ub with
+          | ZExt.NegInfty -> failwith "This should not happen :)"
+          | ZExt.PosInfty -> (
+              if Z.abs coeff = Z.one then
+                if List.length l >= 2 then
+                  (ZExt.PosInfty, [])
+                else
+                  c, (x :: l)
+              else 
+                PosInfty, l
+            )
+          | ub -> ZExt.add c ub, l
+      in
+
+      let lb = match fst terms_intv_infty_list with
+        | (PosInfty, _) -> failwith "This should not happen :)"
+        | (NegInfty, l ) -> (ZExt.NegInfty, l)
+        | (c, l) -> 
+
+
+          let coeff_x_lb = 
+            if Z.sign coeff > 0 then
+              ZExt.mul (Arb coeff) (Intv.inf x_intv)
+            else
+              ZExt.mul (Arb coeff) (Intv.sup x_intv)
+          in
+
+          match coeff_x_lb with
+          | ZExt.PosInfty -> failwith "This should not happen :)"
+          | ZExt.NegInfty -> (
+              if Z.abs coeff = Z.one then
+                if List.length l >= 2 then
+                  (ZExt.NegInfty, [])
+                else
+                  c, (x :: l)
+              else 
+                NegInfty, l
+            )
+          | lb -> ZExt.add c lb, l
+      in
+
+
+      (lb, ub)
+
+    );;
+
+let ext_intv_to_intv (((c_lb, infty_list_lb), (c_ub, infty_list_ub)) : ext_intv) : Intv.t =
+  let lb = ZExt.add c_lb (if infty_list_lb = [] then ZExt.zero else NegInfty) in
+  let ub = ZExt.add c_ub (if infty_list_ub = [] then ZExt.zero else PosInfty) in
+  (lb, ub)
+
+
+let ext_intv_plus_x (coeff_x, x, x_intv) (ext_intv: ext_intv) =
+  let (const_lb, lb_list), (const_ub, ub_list) = ext_intv in
+
+  let lb_correction_term = if Z.sign coeff_x < 0 then Intv.sup x_intv else Intv.inf x_intv in
+  let ub_correction_term = if Z.sign coeff_x < 0 then Intv.inf x_intv else Intv.sup x_intv in
+
+  let ext_lb = 
+    if const_lb = NegInfty then ZExt.NegInfty, [] else
+      match lb_list with
+      | [] -> (ZExt.add const_lb lb_correction_term, [])
+      | x'::l when x = x'-> 
+        if lb_correction_term = PosInfty then (const_lb, l) else (ZExt.add const_lb lb_correction_term, l)
+      | [y; x'] when x = x' -> 
+        if lb_correction_term = PosInfty then (const_lb, [y]) else (ZExt.add const_lb lb_correction_term, [y])
+      | l -> (
+          if lb_correction_term = PosInfty then
+            failwith "This should not happen."
+          else
+            (ZExt.add const_lb lb_correction_term, l)
+        )
+  in
+
+  let ext_ub = 
+    if const_ub = PosInfty then ZExt.PosInfty, [] else 
+      match ub_list with
+      | [] -> (ZExt.add const_ub ub_correction_term, [])
+      | x'::l when x = x'-> 
+        if ub_correction_term = NegInfty then (const_ub, l) else (ZExt.add const_ub ub_correction_term, l)
+      | [y; x'] when x = x' -> 
+        if ub_correction_term = NegInfty then (const_ub, [y]) else (ZExt.add const_ub ub_correction_term, [y])
+      | l -> (
+          if ub_correction_term = NegInfty then
+            failwith "This should not happen."
+          else
+            (ZExt.add const_ub ub_correction_term, l)
+        )
+  in
+  (ext_lb, ext_ub)
+
+(*
+First argument: Values of a variable corresponding to a term in the associated expr of the extended intv.
+Second argument: The evaluation of an expression as an extended intv. 
+*)
+let eval_ext_intv_plus_x x ext_intv =
+  ext_intv_to_intv (ext_intv_plus_x x ext_intv);;
+
+let eval_ext_intv_minus_x (coeff_x, x, x_intv) (ext_intv: ext_intv) = 
+  eval_ext_intv_plus_x (Z.neg coeff_x, x, Intv.neg x_intv) (ext_intv);;
+
+let neg_ext_intv ((c1, lst1), (c2, lst2)) = (ZExt.neg c2, lst2), (ZExt.neg c1, lst1)
+
+let string_of_infty_list (c, infty_list : intv_infty_list) =
+  let list_string = String.concat " +- " (List.map (fun i -> "∞" ^ (string_of_int i)) infty_list) in
+  ZExt.to_string c ^ " + " ^ list_string 
+
+let string_of_ext_intv (ext_intv : intv_infty_list * intv_infty_list) =
+  "[" ^ string_of_infty_list (fst ext_intv) ^ ", " ^ string_of_infty_list (snd ext_intv) ^ "]"
 
 module ExpressionBounds: (SharedFunctions.ConvBounds with type t = VarManagement.t) =
 struct
@@ -764,12 +316,12 @@ struct
   let is_bot t = 
     match t.d with
     | None -> true
-    | Some d -> Boxes.is_bot d.boxes || Sub.is_bot d.sub
+    | Some d -> Boxes.is_bot d.boxes || Subs.is_bot d.subs
 
   let is_top t = 
     match t.d with
     | None -> false
-    | Some d -> Boxes.is_top d.boxes && Sub.is_top d.sub
+    | Some d -> Boxes.is_top d.boxes && Subs.is_top d.subs
 
   let to_string t =
     if is_bot t then
@@ -780,16 +332,20 @@ struct
       (* d = None should have been handled by is_bot. *)
       let d = Option.get t.d in
       let vars = Array.map (StringUtils.string_of_var) (fst (Environment.vars t.env)) in
-      let res = PNTG.to_string d in
-      let re = Str.regexp "\\([0-9]+\\)->" in
-      Str.global_substitute re (
-        fun m -> 
+      let res = Pntg.to_string d in
+      let key_re = Str.regexp {|\([0-9]+\)->|} in
+      let subs_re = Str.regexp {|\([0-9]+\)#|} in
+      let varname_and_append = fun postfix m -> (
           let idx = int_of_string (Str.matched_group 1 m) in
           if idx < Array.length vars then
-            (vars.(idx) ^ "->")
+            vars.(idx) ^ postfix
           else
             failwith "D.to_string hit unknown variable!"
-      ) res
+        ) in
+      (* First pass substitutes the variable names for the keys left to the arrow. *)
+      Str.global_substitute key_re (varname_and_append "->") res |>
+      (* Second pass adjusts the variable name for the subs sets. *)
+      Str.global_substitute subs_re (varname_and_append "");;
 
   let show = to_string
 
@@ -800,7 +356,7 @@ struct
     | None, None -> true
     | None, _ -> false
     | _ , None -> false
-    | Some(d1), Some(d2) -> PNTG.equal d1 d2
+    | Some(d1), Some(d2) -> Pntg.equal d1 d2
 
   let pretty () (t:t) = text (show t)
 
@@ -829,7 +385,7 @@ struct
      We assume no variables have been encountered when this funciton is called.
      It therefore holds that: top = bot.
   *)
-  let top () = {d = Some {boxes = []; sub = []}; env = empty_env}
+  let top () = {d = Some {boxes = []; subs = []}; env = empty_env}
 
   let top_of_env env = dimchange2_add (top ()) env
 
@@ -839,7 +395,7 @@ struct
     let t2 = dimchange2_add t2 sup_env in
     match t1.d, t2.d with
     | Some d1', Some d2' ->
-      ({d = Some {boxes = Boxes.meet d1'.boxes d2'.boxes; sub = Sub.meet d1'.sub d2'.sub}; env = sup_env}: t)
+      ({d = Some {boxes = Boxes.meet d1'.boxes d2'.boxes; subs = Subs.meet d1'.subs d2'.subs}; env = sup_env}: t)
     | _ -> {d = None; env = sup_env}
 
   let meet t1 t2 = 
@@ -856,21 +412,21 @@ struct
     match t1.d, t2.d with
     | Some d1', Some d2' ->
       let boxes_1, boxes_2 = d1'.boxes, d2'.boxes in
-      let sub1, sub2 = d1'.sub, d2'.sub in
+      let sub1, sub2 = d1'.subs, d2'.subs in
       let for_all_i f lst =
         List.for_all (fun (i, x) -> f i x) (List.mapi (fun i x -> (i, x)) lst) in
       let bool1 = Boxes.leq boxes_1 boxes_2 in
       let bool2 = for_all_i(fun x s2x -> 
-          Sub.VarSet.for_all(fun y -> 
-              let s1x = Sub.VarList.at sub1 x in
+          Subs.VarSet.for_all(fun y -> 
+              let s1x = Subs.VarList.at sub1 x in
               let b1x = BatList.at boxes_1 x in
               let b1y = BatList.at boxes_1 y in
-              Sub.VarSet.mem y s1x ||
+              Subs.VarSet.mem y s1x ||
               Intv.sup b1x <* Intv.inf b1y
             ) s2x
         ) sub2 in
       bool1 && bool2
-    | Some d1', None -> Boxes.is_bot d1'.boxes || Sub.is_bot d1'.sub
+    | Some d1', None -> Boxes.is_bot d1'.boxes || Subs.is_bot d1'.subs
     | _ -> true
 
   let leq t1 t2 =
@@ -888,11 +444,11 @@ struct
     match t1.d, t2.d with
     | Some d1', Some d2' ->
       let joined_boxes = Boxes.join d1'.boxes d2'.boxes in
-      let s' x s1x = Sub.VarSet.inter s1x (List.at d2'.sub x) in
-      let s'' x s1x = Sub.VarSet.filter (fun y -> Intv.sup (List.at d2'.boxes x) < Intv.inf (List.at d2'.boxes y)) s1x in
-      let s''' x = Sub.VarSet.filter (fun y -> Intv.sup (List.at d1'.boxes x) < Intv.inf (List.at d1'.boxes y)) (List.at d2'.sub x) in
-      let joined_sub = List.mapi (fun x s1x -> Sub.VarSet.union (s' x s1x) (Sub.VarSet.union (s'' x s1x) (s''' x))) d1'.sub in
-      ({d = Some {boxes = joined_boxes; sub = joined_sub}; env = sup_env}: t)
+      let s' x s1x = Subs.VarSet.inter s1x (List.at d2'.subs x) in
+      let s'' x s1x = Subs.VarSet.filter (fun y -> Intv.sup (List.at d2'.boxes x) <* Intv.inf (List.at d2'.boxes y)) s1x in
+      let s''' x = Subs.VarSet.filter (fun y -> Intv.sup (List.at d1'.boxes x) <* Intv.inf (List.at d1'.boxes y)) (List.at d2'.subs x) in
+      let joined_subs = List.mapi (fun x s1x -> Subs.VarSet.union (s' x s1x) (Subs.VarSet.union (s'' x s1x) (s''' x))) d1'.subs in
+      ({d = Some {boxes = joined_boxes; subs = joined_subs}; env = sup_env}: t)
     | Some d1', None -> {d = Some d1'; env = sup_env}
     | None, Some d2' -> {d = Some d2'; env = sup_env}
     | _ -> {d = None; env = sup_env}
@@ -910,7 +466,7 @@ struct
     let t2 = dimchange2_add t2 sup_env in
     match t1.d, t2.d with
     | Some d1', Some d2' ->
-      ({d = Some {boxes = Boxes.widen d1'.boxes d2'.boxes; sub = Sub.widen d1'.sub d2'.sub}; env = sup_env}: t)
+      ({d = Some {boxes = Boxes.widen d1'.boxes d2'.boxes; subs = Subs.widen d1'.subs d2'.subs}; env = sup_env}: t)
     | _ -> {d = None; env = sup_env}
 
   let widen a b =
@@ -931,167 +487,244 @@ struct
   let forget_vars t vars = 
     if is_bot t || is_bot_env t || vars = [] then t
     else 
-      let (pntg: PNTG.t) = Option.get t.d in
+      let (pntg: Pntg.t) = Option.get t.d in
       let int_vars = List.map (fun v -> Environment.dim_of_var t.env v) vars in
-      {d = Some({boxes = Boxes.forget_vars int_vars pntg.boxes; sub = Sub.forget_vars int_vars pntg.sub}); env=t.env};;
+      {d = Some({boxes = Boxes.forget_vars int_vars pntg.boxes; subs = Subs.forget_vars int_vars pntg.subs}); env=t.env};;
 
-
-  let assign_texpr (t: t) var (texp: Texpr1.expr) =
-
-    let dim = Environment.dim_of_var t.env var in
-
-    let rec aux (texp: Texpr1.expr) t : Boxes.t * Sub.t =
-      match t.d with
-      | None -> ([], []) (** Bot *)
-      | Some d ->
-        let boxes, sub = d.boxes, d.sub in
-
-        let sub_without_var = Sub.forget_vars [dim] sub in
-        let boxes_without_var = Boxes.forget_vars [dim] boxes in
-        (match texp with
-         (** Case: x := [inv.inf, inv.sup] *)
-         | Cst (Interval inv) ->
-
-           let boxes = BatList.modify_at dim (fun _ -> (z_ext_of_scalar inv.inf, z_ext_of_scalar inv.sup)) boxes
-           in
-           (boxes, sub)
-
-         (** Case: x := s *)
-         | Cst (Scalar s) -> 
-
-           let boxes = BatList.modify_at dim (fun _ -> (z_ext_of_scalar s, z_ext_of_scalar s)) boxes
-           in
-           (boxes, sub)
-
-         (** Case: x := y *)
-         | Var y ->
-           let dim_y = Environment.dim_of_var t.env y in
-           let boxes = BatList.modify_at dim (fun _ -> BatList.at boxes dim_y) boxes in
-           let sub = sub |>
-                     Sub.forget_vars [dim] |>
-                     (* x = y ==> if z < y then also z < x *)
-                     Sub.VarList.map (
-                       fun set ->
-                         if Sub.VarSet.mem dim_y set then
-                           Sub.VarSet.add dim set
-                         else 
-                           set
-                     ) |>
-                     (* Subs of x := Subs of y *)
-                     BatList.modify_at dim (fun _ -> BatList.at sub dim_y)
-           in
-           (boxes, sub)
-
-         | Unop  (Neg,  e, _, _) -> 
-           let (boxes, sub) = aux e t in
-
-           let boxes = BatList.modify_at dim (
-               fun intv ->
-                 (ZExt.neg (Intv.sup intv), ZExt.neg (Intv.inf intv))
-             ) boxes
-           in
-           (**
-              We do not add redundant information in Subs. 
-              Later checks can derive inequalities by looking at Boxes.
-           *)
-           (boxes, sub_without_var)
-
-         | Unop  (Cast, e, _, _) -> aux e t
-
-         | Unop  (Sqrt, e, _, _) ->
-
-           (** 
-              TODO: What is the semantics of Sqrt. May we still support this? 
-           *)
-           (boxes_without_var, sub_without_var)
-         | Binop (Add, e1, e2, _, _) ->
-
-           let (boxes_1, sub_1) = aux e1 t in
-           let (boxes_2, sub_2) = aux e2 t in
-
-           let i2 = BatList.at boxes_2 dim in
-           let boxes = BatList.modify_at dim (
-               fun i1 ->
-                 Intv.add i1 i2
-             ) boxes_1
-           in
-           (boxes, sub_without_var)
-
-         | Binop (Sub, e1, e2, t0, r) ->
-           aux (Binop (Add, e1, Unop (Neg, e2, t0, r), t0, r)) t
-
-         | Binop (Mul, e1, e2, _, _) ->
-           let (boxes_1, sub_1) = aux e1 t in
-           let (boxes_2, sub_2) = aux e2 t in
-
-           let i2 = BatList.at boxes_2 dim in
-           let intv = BatList.modify_at dim (
-               fun i1 -> Intv.mul i1 i2 ) boxes_1 in
-           (intv, sub_without_var)
-
-         | Binop (Div, e1, e2, _, _) ->
-           let (boxes_1, sub_1) = aux e1 t in
-           let (boxes_2, sub_2) = aux e2 t in
-
-           let i2 = BatList.at boxes_2 dim in
-           let intv = BatList.modify_at dim (
-               fun i1 -> Intv.div i1 i2 ) boxes_1 in
-           (intv, sub_without_var)
-
-         (** 
-            Implemented as described by the paper mention at the beginning of this file.
-            Refer to 6.2.2 Remainder.
-         *)
-         | Binop (Mod, e1, e2, _, _)  ->
-           let (boxes_1, sub_1) = aux e1 t in
-           let (boxes_2, sub_2) = aux e2 t in
-
-           let i2 = BatList.at boxes_2 dim in
-           let intv = BatList.modify_at dim (
-               fun i1 -> 
-                 Intv.rem i1 i2
-             ) boxes_1 in
-
-           let sub = 
-             match e2 with
-             | Var divisor -> (
-                 let dim_divisor = Environment.dim_of_var t.env divisor in 
-                 let intv_divisor = BatList.at boxes_2 dim_divisor
-                 in
-                 if (Intv.inf intv_divisor) <* ZExt.zero then 
-                   sub_without_var
-                 else
-                   BatList.modify_at dim (fun _ -> Sub.VarSet.singleton dim_divisor) sub_without_var
-               )
-             | _ -> sub_without_var
-           in
-           (intv, sub)
-
-
-         (** e1 ^ e2 *)
-         | Binop (Pow, e1, e2, _, _) -> 
-           let (boxes_1, sub_1) = aux e1 t in
-           let (boxes_2, sub_2) = aux e2 t in
-
-           let i2 = BatList.at boxes_2 dim in
-           let intv = BatList.modify_at dim (
-               fun i1 -> 
-                 Intv.pow i1 i2
-             ) boxes_1 in
-
-           (intv, sub_without_var)
-        ) in
-
-    let (boxes, sub) = aux texp t in
-    match boxes, sub with
-    | [], [] -> { d= None; env=t.env }
-    | _ ->
-      { d=Some({ boxes = boxes; sub = sub }); env = t.env }
+  (** Taken from lin2var and modified for our domain. *)
+  (** Parses a Texpr to obtain a Rhs.t list to repr. a sum of a variables that have a coefficient. If variable is None, the coefficient represents a constant offset. *)
+  let monomials_from_texp env texp =
+    let open Apron.Texpr1 in
+    let exception NotLinearExpr in
+    let exception ScalarIsInfinity in
+    let negate coeff_var_list =
+      List.map (fun (monom, offs, divi) -> Z.(BatOption.map (fun (coeff,i) -> (neg coeff, i)) monom, neg offs, divi)) coeff_var_list in
+    let multiply_with_Q dividend divisor coeff_var_list =
+      List.map (fun (monom, offs, divi) -> Rhs.canonicalize Z.(BatOption.map (fun (coeff,i) -> (dividend*coeff,i)) monom, dividend*offs, divi*divisor) ) coeff_var_list in
+    let multiply a b =
+      (* if one of them is a constant, then multiply. Otherwise, the expression is not linear *)
+      match a, b with
+      | [(None,coeff, divi)], c
+      | c, [(None,coeff, divi)] -> multiply_with_Q coeff divi c
+      | _ -> raise NotLinearExpr
+    in
+    let rec convert_texpr texp =
+      begin match texp with
+        | Cst (Interval _) -> failwith "constant was an interval; this is not supported"
+        | Cst (Scalar x) ->
+          begin match SharedFunctions.int_of_scalar ?round:None x with
+            | Some x -> [(None,x,Z.one)]
+            | None -> raise ScalarIsInfinity end
+        | Var x ->
+          let var_dim = Environment.dim_of_var env x in
+          [(Some (Z.one,var_dim),Z.zero,Z.one)]
+        | Unop  (Neg,  e, _, _) -> negate (convert_texpr e)
+        | Unop  (Cast, e, _, _) -> convert_texpr e (* Ignore since casts in apron are used for floating point nums and rounding in contrast to CIL casts *)
+        | Unop  (Sqrt, e, _, _) -> raise NotLinearExpr
+        | Binop (Add, e1, e2, _, _) -> convert_texpr e1 @ convert_texpr e2
+        | Binop (Sub, e1, e2, _, _) -> convert_texpr e1 @ negate (convert_texpr e2)
+        | Binop (Mul, e1, e2, _, _) -> multiply (convert_texpr e1) (convert_texpr e2)
+        | Binop _  -> raise NotLinearExpr end
+    in match convert_texpr texp with
+    | exception NotLinearExpr -> None
+    | exception ScalarIsInfinity -> None
+    | x -> Some(x)
   ;;
 
-  let assign_texpr t var texp =
-    let res = assign_texpr t var texp in
-    if M.tracing then M.trace "pntg" "D.assign_texpr:\nassign:\t%s := %s\nt:\t%s\nres:\t%s\n\n" (StringUtils.string_of_var var) (StringUtils.string_of_texpr1 texp) (show t) (show res);
+  (** Taken from lin2var and modified for our domain. *)
+  (** convert and simplify (wrt. reference variables) a texpr into a tuple of a list of monomials (coeff,varidx,divi) and a (constant/divi) *)
+  let simplified_monomials_from_texp env texp =
+    BatOption.bind (monomials_from_texp env texp)
+      (fun monomiallist ->
+         let module IMap = BatMap.Make(Int) in
+         let accumulate_constants (exprcache,(aconst,adiv)) (v,offs,divi) = match v with
+           | None -> let gcdee = Z.gcd adiv divi in exprcache,(Z.(aconst*divi/gcdee + offs*adiv/gcdee),Z.lcm adiv divi)
+           | Some (coeff,idx) -> let (somevar,someoffs,somedivi)= v,offs,divi in (* normalize! *)
+             let newcache = Option.map_default (fun (coef,ter) -> IMap.add ter Q.((IMap.find_default zero ter exprcache) + make coef somedivi) exprcache) exprcache somevar in
+             let gcdee = Z.gcd adiv divi in
+             (newcache,(Z.(aconst*divi/gcdee + offs*adiv/gcdee),Z.lcm adiv divi))
+         in
+         let (expr,constant) = List.fold_left accumulate_constants (IMap.empty,(Z.zero,Z.one)) monomiallist in (* abstract simplification of the guard wrt. reference variables *)
+         Some (IMap.fold (fun v c acc -> if Q.equal c Q.zero then acc else (Q.num c,v,Q.den c)::acc) expr [], constant) )
+  ;;
+
+
+  (* TODO: discuss whether to implement the subtraction like the pentagon paper
+     (special case? different eval_monoms_to_intv that also uses relational information?) *)
+  let assign_texpr (t: t) x (texp: Texpr1.expr) : t =
+    let wrap b s = {d=Some({boxes = b; subs = s}); env=t.env} in
+    let x = Environment.dim_of_var t.env x in 
+    match t.d with
+    | None -> t 
+    | Some d ->
+      match simplified_monomials_from_texp t.env texp with
+      | None -> (
+          match texp with
+          (* x:= u % div
+             Implemented like the paper suggests: If the divisor is positive, it is a strict upper bound for x'. *)
+          | Binop(Mod, e1, Var(d'), _, _) as rem_op -> (
+              let rem_intv = eval_texpr_to_intv t rem_op in
+              let boxes = Boxes.set_value x rem_intv d.boxes in
+
+              let subs: Subs.t =
+                (* We remove any subs of x.
+                   TODO: We could add a special case for x' := x % d, x >= 0 ==> x' <= x ==> SUBs(x) can stay *)
+                Subs.forget_vars [x] d.subs |>
+                let dim_d = Environment.dim_of_var t.env d' in
+                let d_intv = Boxes.get_value dim_d d.boxes in
+
+                (* Check if all possible divisors are positive. *)
+                if (Intv.inf d_intv) >* ZExt.zero then
+                  (* We can set SUBs(x) := {d} *)
+                  Subs.set_value x (Subs.VarSet.singleton dim_d)
+                else if Intv.sup d_intv <* ZExt.zero then
+                  (* We can set SUBs(d) := SUBs(d) u {x} *)
+                  let subs_d = Subs.get_value dim_d d.subs in
+                  Subs.set_value dim_d (Subs.VarSet.add x subs_d) (* BUG WAS HERE *)
+                else
+                  (* We cannot add any subs. Potentially div-by-zero. *)
+                  Fun.id
+              in
+              wrap boxes subs
+            )
+          (* Non-Linear cases. We only do interval analysis and forget all relational information. *)
+          | expr ->
+            let boxes = (Boxes.set_value x (eval_texpr_to_intv t expr) d.boxes) in
+            let subs = (Subs.forget_vars [x] d.subs) in
+            wrap boxes subs
+        )
+      | Some(sum_of_terms, (constant,divisor)) as monoms  ->
+
+        if divisor <> Z.one then failwith "assign_texpr: DIVISOR WAS NOT ONE"
+        else
+          let monoms = Option.get monoms in
+          let expr_intv = eval_monoms_to_intv d.boxes monoms in
+          let expr_ext_intv = eval_monoms_to_intv_infty_list d.boxes monoms in
+
+          if expr_intv <> ext_intv_to_intv expr_ext_intv then
+            failwith "ext_intv <> expr_intv"
+          else
+
+            let x_intv = Boxes.get_value x d.boxes in
+
+            let rec aux sum_of_terms (subs_acc : Subs.VarSet.t) (slbs_acc : Subs.VarSet.t) delete_subs_flag delete_slbs_flag =
+              match sum_of_terms with
+              | (_, _, div) :: _ when div <> Z.one -> failwith "assign_texpr: DIVISOR WAS NOT ONE"
+
+              (* We finished recursion through the linear expression. Time to set the subs and boxes for our pentagon. *)
+              | [] ->
+
+                (* If x after the assignment can be greater than the value of x before the assignment, we must delete its subs. *)
+                let delete_subs_flag = delete_subs_flag && Intv.sup expr_intv >* Intv.inf x_intv in
+
+                (* If x after the assignment can be lower than the value of x before the assignment, we must delete its slbs. *)
+                let delete_slbs_flag = delete_slbs_flag && Intv.inf expr_intv <* Intv.sup x_intv in
+
+                (* Variables which are the upper bound of x. Remove x which might be wrongfully added. *)
+                let new_subs = Subs.VarSet.remove x subs_acc in 
+
+                (* Variables where x is the upper bound. *)
+                let new_slbs = slbs_acc in 
+
+                let update_subs y subs_y =
+                  if y = x then (* y = x ==> update Subs(x) *)
+                    if delete_subs_flag then
+                      new_subs
+                    else
+                      Subs.VarSet.union subs_y new_subs
+                  else (* y <> x ==> possibly add x to / delete x from Subs(y) *)
+                  if Subs.VarSet.mem y new_slbs then 
+                    Subs.VarSet.add x subs_y else
+                  if delete_slbs_flag then
+                    Subs.VarSet.remove x subs_y
+                  else
+                    subs_y
+                in
+                wrap (Boxes.set_value x expr_intv d.boxes) (List.mapi update_subs d.subs)
+
+              | (coefficient, x', _) :: rem_terms when x' = x -> (* x' := ax + ... *)
+                (* We analyze 0 >< (a-1)x + [c,d] because it is more precise than x >< ax + [c,d] *)
+                let (cmp_lb, cmp_ub) = 
+                  eval_ext_intv_minus_x (coefficient, x, x_intv) expr_ext_intv 
+                in
+                (* x could have got greater *)
+                let delete_subs_flag = delete_subs_flag && cmp_ub >* ZExt.zero in 
+                (* x could have got lower *)
+                let delete_slbs_flag = delete_slbs_flag && cmp_lb <* ZExt.zero 
+                in
+                aux rem_terms subs_acc slbs_acc delete_subs_flag delete_slbs_flag
+
+              | (coefficient, y, _) :: rem_terms -> (* x' := ay + ... *)
+                let y_intv = Boxes.get_value y d.boxes in (* BUG WAS HERE *)
+
+                (* We analyze 0 >< (a-1)y + [c,d] because it is more precise than y >< ay + [c,d] *)
+                let (cmp_lb, cmp_ub) = 
+                  eval_ext_intv_minus_x (coefficient, y, y_intv) expr_ext_intv 
+                in
+
+              (*
+                x >= y + 1 (by Subs)
+                y + 1 >= x' (by cmp)
+                ==> x >= x' ==> we can keep Subs(x)
+                *)
+                let keep_subs_flag =
+                  Subs.gt x y d.subs && ZExt.of_int 1 >=* cmp_ub in
+                let delete_subs_flag =
+                  (* x could have got greater / we can't rule out x' > x *)
+                  delete_subs_flag && not keep_subs_flag in
+                (* If x' is guaranteed to be less then / equal to x, we can keep the subs.
+                   We want to know x' > x? 
+
+                   In this case x' := ay + [c,d], therefore we get:
+                   ay + [c, d] > x <===> -x + ay + [c,d] > 0
+
+                   From x < y (y \in Subs(x)) we can derive 
+                   -x + ay + [c,d] > (a-1)y + [c,d]
+
+                   So if (a-1)y + [c,d] >= 0 is possible, x' > x is possible. *)
+
+                (*if Subs.lt d.subs x y
+                  then cmp_ub >=* ZExt.zero
+                  else true in*)
+
+                let keep_slbs_flag =
+                  Subs.lt x y d.subs && ZExt.of_int (-1) <=* cmp_ub in
+                let delete_slbs_flag = 
+                  (* x could have got lower / we can't rule out x' < x *)
+                  delete_slbs_flag && not keep_slbs_flag in
+                (*if Subs.gt d.subs x y
+                  then cmp_lb <=* ZExt.zero
+                  else true in*)
+        (*
+            analyze 0 >< (a-1)y + [c,d]
+            x' < y known:  SUBs(x') := SUBs(x') u SUBs(y) u {y}
+            x' <= y known: SUBs(x') := SUBs(x') u SUBs(y)
+            x' > y known:  SLBs(x') := SLBs(x') u {y}
+
+        *)
+                let subs_y = Subs.get_value y d.subs in
+              (*
+              Caution: New subs can contain the old x.
+              This is not a contradiction, it just has to be deleted afterwards.
+              *)
+                let new_subs =
+                  if cmp_ub <* ZExt.zero then
+                    Subs.VarSet.union subs_y (Subs.VarSet.singleton y)
+                  else if cmp_ub =* ZExt.zero then
+                    subs_y
+                  else
+                    Subs.VarSet.empty
+                in
+                let subs_acc = Subs.VarSet.union subs_acc new_subs in
+                let slbs_acc = if cmp_lb >* ZExt.zero then Subs.VarSet.add y slbs_acc else slbs_acc in
+                aux rem_terms subs_acc slbs_acc delete_subs_flag delete_slbs_flag
+
+            in aux sum_of_terms Subs.VarSet.empty Subs.VarSet.empty true true
+  ;;
+
+  let assign_texpr t x texp =
+    let res = assign_texpr t x texp in
+    if M.tracing then M.trace "pntg" "D.assign_texpr:\nassign:\t%s := %s\nt:\t%s\nres:\t%s\n\n" (StringUtils.string_of_var x) (StringUtils.string_of_texpr1 texp) (show t) (show res);
     res
 
 
@@ -1131,201 +764,174 @@ struct
     t.d <- t'.d;
     t.env <- t'.env;;
 
-  (**
-      Taken from Lin2Var.
-  *)
-  let assert_constraint ask t e negate (no_ov: bool Lazy.t) =
-
-    let zero = ZExt.zero in 
-    (** Checks if the constraining interval violates the assertion. *)
-    let interval_helper ((lb, ub): ZExt.t * ZExt.t) (tcons_typ: Tcons1.typ) =
-      match tcons_typ with
-      | EQ when lb <=* zero && ub >=* zero -> t
-      | SUPEQ when ub >=* zero -> t
-      | SUP when ub >* zero -> t
-      | DISEQ when ub <>* zero || lb <>* zero -> t
-      | EQMOD (s) -> (
-          let s = z_ext_of_scalar s in
-          let ( - ) = ZExt.sub in
-          if (ub - lb) <= (s - ZExt.of_int 2) && lb <>* zero && (ZExt.rem_add lb s) <=* (ZExt.rem_add ub s) then
-            bot_of_env t.env
-          else
-            t
-        )
-      | _ -> bot_of_env t.env
-    in
-    let var_intv_meet constraining_interval dim_x : t = (
-      (* Already matched to be not None. *)
-      let d = Option.get t.d in
-      let intv_x = List.at d.boxes dim_x in
-      let intersected_intv_x = Intv.inter intv_x constraining_interval in
-      if Intv.is_bot intersected_intv_x then
-        bot_of_env t.env
-      else 
-        let boxes = List.modify_at dim_x (fun _ -> intersected_intv_x) d.boxes in
-        { d = Some({boxes = boxes; sub = d.sub}); env=t.env}
-    ) in
-    match t.d with 
+  let rec assert_constraint ask t tcons negate (no_ov: bool Lazy.t) =
+    let wrap b s = {d=Some({boxes = b; subs=s}); env=t.env} in
+    match t.d with
     | None -> t
     | Some d ->
-      match Convert.tcons1_of_cil_exp ask t t.env e negate (Lazy.from_val true) with
-      | exception Convert.Unsupported_CilExp exn -> t
-      | tcons1 -> 
-        let tcons_typ = Tcons1.get_typ tcons1 in
-        let texpr = (Texpr1.to_expr @@ Tcons1.get_texpr1 tcons1) in
-        let rec assert_constraint t (texpr: Texpr1.expr) =
-          match texpr with 
-          | Cst (Interval inv) -> 
-            interval_helper (z_ext_of_scalar inv.inf, z_ext_of_scalar inv.sup) tcons_typ
-          | Cst (Scalar s) -> 
-            interval_helper (z_ext_of_scalar s, z_ext_of_scalar s) tcons_typ
-          | Var x -> (
-              (** We ignore sub-information for now. *)
-              let dim_x = Environment.dim_of_var t.env x in
-              let intv_x = List.at d.boxes dim_x in
-              let (lb, ub) = intv_x in
-              let zero = ZExt.zero in
-              match tcons_typ with
-              | EQ -> var_intv_meet (zero, zero) dim_x
-              | SUPEQ -> var_intv_meet (zero, PosInfty) dim_x
-              | SUP -> var_intv_meet (ZExt.of_int 1, PosInfty) dim_x
-              | DISEQ ->
-                if lb <>* zero && ub <>* zero then
-                  t
-                else if lb =* zero && ub >* zero then
-                  var_intv_meet (ZExt.of_int 1, PosInfty) dim_x
-                else if lb <* zero && ub =* zero then
-                  var_intv_meet (NegInfty, ZExt.of_int (-1)) dim_x
-                else 
-                  bot_of_env t.env
-              | EQMOD (s) -> (
-                  let t = interval_helper intv_x tcons_typ in
-                  let s = z_ext_of_scalar s in
-                  match t.d with
-                  | None -> t
-                  | Some(pntg) -> (
-                      let corrected_intv = (
-                        let ( - ) = ZExt.sub in
-                        let ( + ) = ZExt.add in
-                        let tmp_lb = lb - ZExt.rem_add lb s in
-                        let lb = if tmp_lb <* lb then (tmp_lb) + s else tmp_lb in
-                        let ub = ub - ZExt.rem_add ub s in
-                        (lb, ub)
-                      )
-                      in
-                      let boxes = List.modify_at dim_x (fun _ -> corrected_intv) d.boxes in
-                      ({ d = Some({boxes=boxes; sub=d.sub}); env=t.env})
-                    )
-                )
-            )
-          | Binop (Sub, e1, e2, t0, r) -> (
-              match e1, e2 with
-              | Var x, Cst(Scalar s) when (z_ext_of_scalar s) =* zero -> assert_constraint t e1
+      match Tcons1.get_typ tcons with
+      (* Reduction of all Tcons1 comparison operators to SUPEQ, analogous to Miné dissertation, section 3.6.3 *)
+      | EQ -> (
+          let e = Texpr1.to_expr @@ Tcons1.get_texpr1 tcons in
+          let e = Texpr1.of_expr t.env (Texpr1.Unop(Texpr1.Neg, e, Texpr1.Int, Texpr1.Near)) in
+          let tcons1 = Tcons1.make e Tcons1.SUPEQ in
 
-              | Var x, e -> (
-                  let inf = Intv.inf in
-                  let intv = eval_texpr_to_intv t (e) in
-                  let dim_x = Environment.dim_of_var t.env x in
+          let expr2 = Tcons1.get_texpr1 tcons in
+          let tcons2 = Tcons1.make expr2 Tcons1.SUPEQ in
+          let t1 = assert_constraint ask t tcons1 negate no_ov in
+          let t2 = assert_constraint ask t tcons2 negate no_ov in
+          meet t1 t2
+        ) 
+      | SUP -> (
+          let e = Texpr1.to_expr @@ Tcons1.get_texpr1 tcons in
+          let e = Texpr1.of_expr t.env (Texpr1.Binop(Texpr1.Sub, e, Cst(Scalar(Scalar.of_int 1)) ,Texpr1.Int, Texpr1.Near)) in
+          let tcons1 = Tcons1.make e Tcons1.SUPEQ in
+          assert_constraint ask t tcons1 negate no_ov)
+      | DISEQ -> (
+          let e = Texpr1.to_expr @@ Tcons1.get_texpr1 tcons in
+          let e = Texpr1.of_expr t.env (Texpr1.Unop(Texpr1.Neg, e, Texpr1.Int, Texpr1.Near)) in
+          let tcons1 = Tcons1.make e Tcons1.SUP in
 
-                  match tcons_typ with
-                  | EQ -> var_intv_meet intv dim_x
-                  | SUPEQ -> var_intv_meet (Intv.inf intv, PosInfty) dim_x
-                  | SUP -> var_intv_meet (ZExt.add (Intv.inf intv) (ZExt.of_int 1), PosInfty) dim_x
-                  | DISEQ when Intv.inf intv = Intv.sup intv -> (
-                      let c = inf intv in
-                      let (lb_x, ub_x) = List.at d.boxes dim_x in
+          let expr2 = Tcons1.get_texpr1 tcons in
+          let tcons2 = Tcons1.make expr2 Tcons1.SUP in
 
-                      if c = lb_x && c = ub_x then
-                        bot_of_env t.env
-                      else if c = lb_x then
-                        var_intv_meet (ZExt.add c (ZExt.of_int 1), PosInfty) dim_x
-                      else if c = ub_x then
-                        var_intv_meet (NegInfty ,ZExt.sub c (ZExt.of_int 1)) dim_x
-                      else
-                        t
+          let t1 = assert_constraint ask t tcons1 negate no_ov in
+          let t2 = assert_constraint ask t tcons2 negate no_ov in
+          join t1 t2
+        )
+      | EQMOD (s) -> t
+      (* Base case :) *)
+      | SUPEQ -> (
+          (* e >= 0 *)
+          let monoms = simplified_monomials_from_texp t.env (Texpr1.to_expr @@ Tcons1.get_texpr1 tcons) in
+          match monoms with
+          | None -> t
+          | Some (sum_of_terms, (constant,_)) -> (
+              let monoms = Option.get monoms in 
 
-                    )
-                  | DISEQ -> t 
-                  | EQMOD(s) ->
-                    let s = z_ext_of_scalar s in
-                    let (-) = ZExt.sub in
-                    let (+) = ZExt.add in
-                    let (lb_x, ub_x) = List.at d.boxes dim_x in
-                    let intv_mod_s = Intv.rem intv (s, s) in
-                    let (lb_intv_mod_s, ub_intv_mod_s) = intv_mod_s in
+              let expr_intv = eval_monoms_to_intv d.boxes monoms in
+              let neg_expr_intv = Intv.neg expr_intv in
 
-                    let lb = if lb_intv_mod_s = NegInfty || lb_x = NegInfty || Intv.mem lb_x intv_mod_s then lb_x else
-                        (* greatest_zero_leq is the greatest number n <= lb_x equivalent to 0 (mod s) *)
-                        let greatest_zero_leq = lb_x - ZExt.rem_add lb_x s in
-                        let tmp_lb = greatest_zero_leq + lb_intv_mod_s in
-                        if tmp_lb >* lb_x then tmp_lb else
-                          let tmp_lb = tmp_lb + s in
-                          if tmp_lb >* lb_x then tmp_lb else
-                            let tmp_lb = tmp_lb + s in
-                            if tmp_lb >* lb_x then tmp_lb else
-                              failwith "EQMOD: this shouldn't happen"
+              let expr_ext_intv = eval_monoms_to_intv_infty_list d.boxes monoms in
+              let neg_expr_ext_intv = neg_ext_intv expr_ext_intv in
+
+
+              if expr_intv <> ext_intv_to_intv expr_ext_intv ||
+                 neg_expr_intv <> ext_intv_to_intv neg_expr_ext_intv then
+                failwith "ext_intv <> expr_intv"
+              else
+
+                let rec aux sum_of_terms subs_acc boxes =
+
+                  match sum_of_terms with
+                  | [] -> (* no reference variables in the guard, so check if we can rule out expr_intv >= 0 *)
+
+                    if Intv.sup expr_intv <* ZExt.zero (* added bot check *)
+                    then bot_of_env t.env
+                    else
+                      wrap boxes subs_acc
+
+                  | (coeff_x, x, _) :: rem_terms ->
+
+                    let x_intv = Boxes.get_value x d.boxes in
+                    let (lb_x, ub_x) = x_intv in
+
+                    (* We receive x from the outer recursion. It stays fixed. *)
+                    let rec inner x_term_intv sum_of_terms subs_acc =
+
+                      match sum_of_terms with 
+                      | [] -> Some(subs_acc)
+
+                      | (coeff_y, y, _) :: rem_terms -> 
+
+                        let y_intv = Boxes.get_value y d.boxes in
+                        let y_term_intv = (coeff_y, y, y_intv) in
+
+                        let helper (coeff_x, x, x_intv) (coeff_y, y, y_intv) subs_acc_opt = 
+                          match subs_acc_opt with
+                          | None -> None
+                          | Some(subs_acc) ->
+
+                            let neg_expr_plus_x_ext_intv = ext_intv_plus_x (Z.neg coeff_x, x, x_intv) neg_expr_ext_intv in
+
+                            let (constraint_lb,_) = eval_ext_intv_minus_x (Z.neg coeff_y, y, y_intv) neg_expr_plus_x_ext_intv in
+
+                            let (_, numeric_ub) = Intv.sub x_intv y_intv in
+
+                            (* Checking for contradictions first. *)
+                            if numeric_ub <* constraint_lb then
+                              None (* Contradiction! *)
+                            else if (ZExt.sign constraint_lb) >= 0 && Subs.lt x y subs_acc then
+                              None (* Contradiction! *)
+                            else if (ZExt.sign constraint_lb) > 0 then
+                              Some(Subs.add_gt x y subs_acc)
+                            else
+                              Some(subs_acc)
+                        in
+
+                        let subs = 
+                          helper x_term_intv y_term_intv (Some subs_acc) |> 
+                          helper y_term_intv x_term_intv
+                        in
+                        match subs with
+                        | None -> None
+                        | Some(subs) -> 
+                          inner x_term_intv rem_terms subs
                     in
-                    let ub = if ub_intv_mod_s = PosInfty || ub_x = PosInfty || Intv.mem ub_x intv_mod_s then ub_x else
-                        let greatest_zero_leq = ub_x - ZExt.rem_add ub_x s in
-                        let tmp_ub = greatest_zero_leq + ub_intv_mod_s in
-                        if tmp_ub <* ub_x then tmp_ub else
-                          let tmp_ub = tmp_ub - s in
-                          if tmp_ub <* ub_x then tmp_ub else
-                            failwith "EQMOD: this shouldn't happen"
 
+
+                    (* Setting BOXES *)
+                    (* ax + [c,d] >= 0 ==> x >= x - (ax + [c,d]) = (1-a)x - [c,d] >= (1-a)x - d
+                                            x <= x + (ax + [c,d]) = (1+a)x + [c,d] <= (1+a)x + d *)
+                    let constraint_lb_x, _ =
+                      eval_ext_intv_plus_x (Z.neg coeff_x, x, x_intv) neg_expr_ext_intv
                     in
-                    let boxes = List.modify_at dim_x (fun _ -> (lb, ub)) d.boxes in
-                    ({d = Some({boxes=boxes; sub=d.sub}); env=t.env})
-                )
 
-              | Cst(Scalar s), Var x when (z_ext_of_scalar s) =* zero && (tcons_typ = DISEQ || tcons_typ = EQ) -> assert_constraint t e2
+                    let _, constraint_ub_x =
+                      eval_ext_intv_plus_x (coeff_x, x, x_intv) expr_ext_intv
+                    in
 
-              | e, Var x -> (let inf = Intv.inf in
-                             let intv = eval_texpr_to_intv t (e) in
-                             let dim_x = Environment.dim_of_var t.env x in
+                    let intv' = (ZExt.max lb_x constraint_lb_x, ZExt.min ub_x constraint_ub_x) in
+                    (*Printf.printf "constraint: %s, constraint': %s\n" (Intv.to_string (a, b)) (Intv.to_string (constraint_lb_x, constraint_ub_x));*)
+                    if Intv.is_bot intv' then 
+                      bot_of_env t.env
 
-                             match tcons_typ with
-                             | EQ -> var_intv_meet intv dim_x
-                             | SUPEQ -> var_intv_meet (NegInfty, Intv.sup intv) dim_x
-                             | SUP -> var_intv_meet (NegInfty, ZExt.sub (Intv.sup intv) (ZExt.of_int 1)) dim_x
-                             | DISEQ when Intv.inf intv = Intv.sup intv -> (
-                                 let c = inf intv in
-                                 let (lb_x, ub_x) = List.at d.boxes dim_x in
+                    else
+                      let boxes = Boxes.set_value x intv' boxes in
 
-                                 if c = lb_x && c = ub_x then
-                                   bot_of_env t.env
-                                 else if c = lb_x then
-                                   var_intv_meet (ZExt.add c (ZExt.of_int 1), PosInfty) dim_x
-                                 else if c = ub_x then
-                                   var_intv_meet (NegInfty ,ZExt.sub c (ZExt.of_int 1)) dim_x
-                                 else
-                                   t
-
-                               )
-                             | DISEQ -> t 
-                             | EQMOD(s) -> t
-                            )
-
-              | _ -> let intv = eval_texpr_to_intv t (Binop (Sub, e1, e2, t0, r)) in interval_helper intv tcons_typ
+                      (* Setting SUBS *)
+                      match inner (coeff_x, x, intv') rem_terms subs_acc with
+                      | None -> (
+                          bot_of_env t.env
+                        )
+                      | Some(subs) ->
+                        aux rem_terms subs boxes
+                in
+                aux sum_of_terms d.subs d.boxes
             )
-          | _ -> t
-        in
-        assert_constraint t texpr
+        )
 
 
   let assert_constraint ask t e negate no_ov ~trace =
-    let res = assert_constraint ask t e negate no_ov in
-    if M.tracing && trace then (
-      let tcons_str = 
-        match Convert.tcons1_of_cil_exp ask t t.env e negate (Lazy.from_val true) with
-        | exception Convert.Unsupported_CilExp exn -> (
+    let (str, res) = 
+      match Convert.tcons1_of_cil_exp ask t t.env e negate no_ov with 
+      | exception Convert.Unsupported_CilExp exn -> (
+          (
             Printf.sprintf 
               "Failed to convert cil expression: exception %s"
-              (SharedFunctions.show_unsupported_cilExp exn)
+              (SharedFunctions.show_unsupported_cilExp exn),
+            t
           )
-        | tcons1 -> StringUtils.string_of_tcons1 tcons1
-      in
-      M.trace "pntg" "D.assert_constraint:\ntcons:\t%s\nt:\t%s\nres:\t%s\n\n" tcons_str (show t) (show res));
+        )
+      | tcons -> (
+          (
+            StringUtils.string_of_tcons1 tcons,
+            assert_constraint ask t tcons negate no_ov
+          )
+        )
+    in
+    if M.tracing && trace then (
+      M.trace "pntg" "D.assert_constraint:\ntcons:\t%s\nt:\t%s\nres:\t%s\n\n" str (show t) (show res));
     res
 
   let assert_constraint ask t e negate no_ov =
@@ -1334,7 +940,6 @@ struct
       We remove clutter here: 
       Do not trace interger bound checking assertions. 
     *)
-
     | BinOp(Le,Lval(_),Const(CInt(i, _, _)),_) when Z.equal i (Z.of_int (Int32.to_int Int32.max_int)) -> assert_constraint ask t e negate no_ov ~trace:false
     | BinOp(Ge,Lval(_),Const(CInt(i, _, _)),_) when Z.equal i (Z.of_int (Int32.to_int Int32.min_int)) ->  assert_constraint ask t e negate no_ov ~trace:false
     | _ -> assert_constraint ask t e negate no_ov ~trace:true
@@ -1371,7 +976,7 @@ struct
     else
       match t.d with
       | None -> failwith "is_bot should take care of that"
-      | Some(d) -> PNTG.to_string d;;
+      | Some(d) -> Pntg.to_string d;;
 
 end
 
