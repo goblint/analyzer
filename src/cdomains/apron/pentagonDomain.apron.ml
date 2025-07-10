@@ -368,6 +368,9 @@ struct
   let printXml f (t:t) =  BatPrintf.fprintf f "<value>\n<map>\n<key>\npntg\n</key>\n<value>\n%s</value>\n<key>\nenv\n</key>\n<value>\n%a</value>\n</map>\n</value>\n" (XmlUtil.escape (show t)) Environment.printXml t.env
 
 
+  (*
+  TODO:
+  *)
   let to_yojson t = failwith "TODO"
 
   (**
@@ -549,7 +552,8 @@ struct
   ;;
 
 
-  (* TODO: discuss whether to implement the subtraction like the pentagon paper
+  (* 
+  TODO: discuss whether to implement the subtraction like the pentagon paper
      (special case? different eval_monoms_to_intv that also uses relational information?) *)
   let assign_texpr (t: t) x (texp: Texpr1.expr) : t =
     let wrap b s = {d=Some({boxes = b; subs = s}); env=t.env} in
@@ -944,7 +948,80 @@ struct
     | BinOp(Ge,Lval(_),Const(CInt(i, _, _)),_) when Z.equal i (Z.of_int (Int32.to_int Int32.min_int)) ->  assert_constraint ask t e negate no_ov ~trace:false
     | _ -> assert_constraint ask t e negate no_ov ~trace:true
 
-  let invariant t : Lincons1Set.elt list = []
+
+  (* 
+  This function returns linear constraints of form: 
+  y - x > 0 for all x in t.env and y in SUBS(x)
+  and
+  z - a >= 0, -z + b >= 0 for all z in t.env with z in [a, b]
+  *)
+  let invariant (t:t) : GobApron.Lincons1Set.elt list = 
+    (* It`s safe to assume that t.d <> None. *)
+    let ({boxes; subs}: Pntg.t) = Option.get t.d in
+    let s_of_int i: Coeff.union_5 = (GobApron.Coeff.s_of_int i) in
+    let s_of_zext (z: ZExt.t): Coeff.union_5 = 
+      match z with
+      | NegInfty -> Scalar (Scalar.of_infty (-1))
+      | PosInfty -> Scalar (Scalar.of_infty (1))
+      | Arb z -> Scalar (Scalar.of_z z)
+    in
+    (* 
+        Creates a lincons of the form: 
+          0*x_1 + ... + coeff * var + ... + 0*x_n + cst >= 0
+      *)
+    let create_supeq_lincons (var: Var.t) ~coeff ~cst= 
+      (* Create a "empty" lincons: 0*x_1 + ... + 0 * var + ... + 0*x_n + 0 >= 0 *)
+      let lincons = Lincons1.make (Linexpr1.make t.env) Lincons1.SUPEQ in
+      (* Set the coefficient for the given x to 1. *)
+      Lincons1.set_coeff lincons var (s_of_int coeff);
+      (* Add the constant. *)
+      Lincons1.set_cst lincons (s_of_zext cst);
+      (* Return the side-effected lincons. *)
+      lincons 
+    in
+
+    (* 
+        Creates a lincons of the form: 
+          0*x_1 + ... + (-1) * var1 + 1 * var2 ... + 0*x_n + 0 > 0
+      *)
+    let create_sup_lincons (var1: Var.t) (var2: Var.t) = 
+      (* Create a "empty" lincons: 0*x_1 + ... + 0 * var + ... + 0*x_n + 0 >= 0 *)
+      let lincons = Lincons1.make (Linexpr1.make t.env) Lincons1.SUP in
+      (* Set the coefficient for the given var1 to -1. *)
+      Lincons1.set_coeff lincons var1 (s_of_int (-1));
+      (* Set the coefficient for the given var2 to 1. *)
+      Lincons1.set_coeff lincons var2 (s_of_int 1);
+      (* Return the side-effected lincons. *)
+      lincons 
+    in
+
+    (** Create a list of constraints x >= lb, x <= ub, i.e. x - lb >= 0, -x + ub >= 0. *)
+    let constraints_of_intv var intv = 
+      let lb, ub = intv in
+      [
+        create_supeq_lincons var ~coeff:(1) ~cst:(ZExt.neg lb);
+        create_supeq_lincons var ~coeff:(-1) ~cst:(lb) 
+      ]
+    in
+
+    let constraints_of_subs x subs =
+      (* Creation of constraints y > x, i.e. y - x > 0 forall y in SUBS(x). *)
+      List.map (create_sup_lincons x) subs
+    in
+    (* Zip variables, intervals and subs into one list and transform the subs into variables. *)
+    List.map2i (fun i intv subs -> (
+          Tuple3.make
+            (Environment.var_of_dim t.env i)
+            intv
+            (List.map (Environment.var_of_dim t.env) (Subs.VarSet.to_list subs))
+
+        )) boxes subs |>
+    List.fold_left (
+      fun acc (var,intv,subs) -> 
+        acc @ (constraints_of_intv var intv) @ (constraints_of_subs var subs)
+    ) []
+  ;;
+
 
   (** Taken from lin2var. *)
   let substitute_exp ask (t:t) var exp no_ov = 
