@@ -19,7 +19,7 @@ end
 
 module type Edge =
 sig
-  type t [@@deriving eq]
+  type t [@@deriving eq, ord]
 
   val embed: MyCFG.edge -> t
   val to_string: t -> string
@@ -27,7 +27,7 @@ end
 
 module CFGEdge: Edge with type t = MyCFG.edge =
 struct
-  type t = Edge.t [@@deriving eq]
+  type t = Edge.t [@@deriving eq, ord]
 
   let embed e = e
   let to_string e = GobPretty.sprint Edge.pretty_plain e
@@ -102,7 +102,7 @@ end
 
 module InlineEdge: Edge with type t = inline_edge =
 struct
-  type t = inline_edge [@@deriving eq]
+  type t = inline_edge [@@deriving eq, ord]
 
   let embed e = CFGEdge e
   let to_string e = InlineEdgePrintable.show e
@@ -415,4 +415,5 @@ struct
           let+ to_node = follow node to_n p in
           (Edge.embed e, to_node)
         )
+      |> BatList.unique_cmp ~cmp:[%ord: Edge.t * Node.t] (* TODO: avoid generating duplicates in the first place? *)
 end
