@@ -22,6 +22,7 @@
      (run %{update_suite} bh-ex1-poly -q)
      (run %{update_suite} apron-unassume-precheck -q)
      (run %{update_suite} apron-tracked-global-annot -q)
+     (run %{update_suite} apron-unassume-no-strengthening -q)
      (run %{update_suite} apron-unassume-set-tokens -q)))))
 
 (cram

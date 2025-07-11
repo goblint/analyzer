@@ -740,7 +740,12 @@ struct
         in
         ({ f } : Queries.ask) in
       let rel = RD.assert_inv dummyask rel e false (no_overflow ask e_orig) in (* assume *)
-      let rel = RD.keep_vars rel (List.map RV.local vars) in (* restrict *)
+      let rel =
+        if GobConfig.get_bool "ana.apron.strengthening" then
+          RD.keep_vars rel (List.map RV.local vars) (* restrict *)
+        else
+          rel (* naive unassume: will be homogeneous join below *)
+      in
 
       (* TODO: parallel write_global? *)
       let st =
@@ -758,6 +763,8 @@ struct
       if M.tracing then M.traceu "apron" "unassume join";
       M.info ~category:Witness "relation unassumed invariant: %a" d_exp e_orig;
       st
+    | Events.Longjmped {lval} ->
+      Option.map_default (invalidate_one ask man st) st lval
     | _ ->
       st
 

@@ -20,6 +20,8 @@ module ML = LibraryDesc.MathLifted
 
 module VI = Lattice.Flat (Basetype.Variables)
 
+module VarQuery = Goblint_constraint.VarQuery
+
 type iterprevvar = int -> (MyCFG.node * Obj.t * int) -> MyARG.inline_edge -> unit
 type itervar = int -> unit
 let compare_itervar _ _ = 0
@@ -51,6 +53,10 @@ end
 *)
 module Protection = struct
   type t = Strong | Weak [@@deriving ord, hash]
+end
+
+module AllocationLocation = struct
+  type t = Stack | Heap [@@deriving ord, hash]
 end
 
 (* Helper definitions for deriving complex parts of Any.compare below. *)
@@ -104,7 +110,7 @@ type _ t =
   | IterVars: itervar -> Unit.t t
   | PathQuery: int * 'a t -> 'a t (** Query only one path under witness lifter. *)
   | DYojson: FlatYojson.t t (** Get local state Yojson of one path under [PathQuery]. *)
-  | AllocVar: {on_stack: bool} -> VI.t t
+  | AllocVar: AllocationLocation.t -> VI.t t
   (* Create a variable representing a dynamic allocation-site *)
   (* If on_stack is [true], then the dynamic allocation is on the stack (i.e., alloca() or a similar function was called). Otherwise, allocation is on the heap *)
   | IsAllocVar: varinfo -> MayBool.t t (* [true] if variable represents dynamically allocated memory *)
@@ -391,6 +397,7 @@ struct
       | Any (CondVars e1), Any (CondVars e2) -> CilType.Exp.compare e1 e2
       | Any (PartAccess p1), Any (PartAccess p2) -> compare_access p1 p2
       | Any (IterPrevVars ip1), Any (IterPrevVars ip2) -> compare_iterprevvar ip1 ip2
+      | Any (AllocVar location), Any (AllocVar location2) -> AllocationLocation.compare location location2
       | Any (IterVars i1), Any (IterVars i2) -> compare_itervar i1 i2
       | Any (PathQuery (i1, q1)), Any (PathQuery (i2, q2)) ->
         let r = Stdlib.compare i1 i2 in
@@ -444,6 +451,7 @@ struct
     | Any (PartAccess p) -> hash_access p
     | Any (IterPrevVars i) -> 0
     | Any (IterVars i) -> 0
+    | Any (AllocVar location) -> AllocationLocation.hash location
     | Any (PathQuery (i, q)) -> 31 * i + hash (Any q)
     | Any (IsHeapVar v) -> CilType.Varinfo.hash v
     | Any (MustTermLoop s) -> CilType.Stmt.hash s
@@ -500,7 +508,7 @@ struct
     | Any (IterPrevVars i) -> Pretty.dprintf "IterPrevVars _"
     | Any (IterVars i) -> Pretty.dprintf "IterVars _"
     | Any (PathQuery (i, q)) -> Pretty.dprintf "PathQuery (%d, %a)" i pretty (Any q)
-    | Any (AllocVar {on_stack = on_stack}) -> Pretty.dprintf "AllocVar %b" on_stack
+    | Any (AllocVar location) -> Pretty.dprintf "AllocVar _"
     | Any (IsHeapVar v) -> Pretty.dprintf "IsHeapVar %a" CilType.Varinfo.pretty v
     | Any (IsAllocVar v) -> Pretty.dprintf "IsAllocVar %a" CilType.Varinfo.pretty v
     | Any (IsMultiple v) -> Pretty.dprintf "IsMultiple %a" CilType.Varinfo.pretty v

@@ -385,7 +385,7 @@ struct
     assert_bool "join leq widen" (I.leq (I.join ik b1 b2) (I.widen ik b1 b2))
 
   let assert_of_interval lb ub =
-    let intvl = (of_int lb, of_int ub) in 
+    let intvl = (of_int lb, of_int ub) in
     let bf = I.of_interval ik intvl in
     let print_err_message i = "Missing value: " ^ string_of_int i ^ " in [" ^ string_of_int lb ^ ", " ^ string_of_int ub ^ "]" in
     for i = lb to ub do
@@ -485,7 +485,7 @@ struct
   let over_precision ik = Int.succ @@ precision ik
   let under_precision ik = Int.pred @@ precision ik
 
-  let assert_shift ?(rev_cond=false) ?(expected_ov_info=None) shift ik a b expected = 
+  let assert_shift ?(rev_cond=false) ?(expected_ov_info=None) shift ik a b expected =
     let module I = I_ in
     let symb, shift_op_bf, shift_op_int = match shift with
       | `L -> "<<", I.shift_left ik, Int.shift_left
@@ -519,7 +519,7 @@ struct
   let assert_shift_left ?(rev_cond=false) ?(ov_info=None) = assert_shift ~rev_cond:rev_cond ~expected_ov_info:ov_info `L
   let assert_shift_right ?(rev_cond=false) ?(ov_info=None) = assert_shift ~rev_cond:rev_cond ~expected_ov_info:ov_info `R
 
-  let gen_sized_set size_gen gen = 
+  let gen_sized_set size_gen gen =
     let open QCheck2.Gen in
     map (List.sort_uniq Int.compare) (list_size size_gen gen)
 
@@ -555,8 +555,8 @@ struct
                                             (Printf.sprintf "test_shift_right_ik_%s" (CilType.Ikind.show ik)) Int.shift_right I.shift_right :: acc
                                         ) [] ik_lst |> QCheck_ounit.to_ounit2_test_list
 
-  let bot = `B (I.bot ())
-  let top = `B (I.top ())
+  let bot = `B (I.bot_of ik)
+  let top = `B (I.top_of ik)
 
   let isSigned = GoblintCil.Cil.isSigned
 
@@ -650,7 +650,7 @@ struct
 
   (* Arith *)
 
-  let print_err_message bf1 bf2 bfr = 
+  let print_err_message bf1 bf2 bfr =
     I.show bfr ^ " on input " ^ I.show bf1 ^ " and " ^ I.show bf2
 
   let ik_arithu = Cil.IUChar
@@ -659,12 +659,12 @@ struct
 
   let result_list op is1 is2 = List.concat (List.map (fun x -> List.map (op x) is2) is1)
 
-  let generate_test ?(debug=false) opc opa ik is1 is2 = 
-    let zs1 = List.map Z.of_int is1 in 
-    let zs2 = List.map Z.of_int is2 in 
-    let res = of_list ik (result_list opc zs1 zs2) in 
-    let bs1 = of_list ik zs1 in 
-    let bs2 = of_list ik zs2 in 
+  let generate_test ?(debug=false) opc opa ik is1 is2 =
+    let zs1 = List.map Z.of_int is1 in
+    let zs2 = List.map Z.of_int is2 in
+    let res = of_list ik (result_list opc zs1 zs2) in
+    let bs1 = of_list ik zs1 in
+    let bs2 = of_list ik zs2 in
     let bsr = opa ik bs1 bs2 in
     OUnit2.assert_equal ~cmp:I.leq ~printer:(print_err_message bs1 bs2) res bsr
 
@@ -682,50 +682,50 @@ struct
   let testsuite = [c1;c2;c3;c4;is1;is2;is3;is4]
   let testsuite_unsigned = [c1;c2;is1;is2]
 
-  let arith_testsuite ?(debug=false) opc opa ts ik = 
+  let arith_testsuite ?(debug=false) opc opa ts ik =
     List.iter (fun x -> List.iter (generate_test opc opa ik x) ts) ts
 
-  let test_add _ = 
+  let test_add _ =
     let _ = arith_testsuite Z.add I.add testsuite ik_arithu in
-    let _ = arith_testsuite Z.add I.add testsuite ik_ariths in 
+    let _ = arith_testsuite Z.add I.add testsuite ik_ariths in
     ()
 
-  let test_sub _ = 
+  let test_sub _ =
     let _ = arith_testsuite Z.sub I.sub testsuite ik_arithu in
-    let _ = arith_testsuite Z.sub I.sub testsuite ik_ariths in 
+    let _ = arith_testsuite Z.sub I.sub testsuite ik_ariths in
     ()
 
-  let test_mul _ =     
+  let test_mul _ =
     let _ = arith_testsuite Z.mul I.mul testsuite ik_arithu in
-    let _ = arith_testsuite Z.mul I.mul testsuite ik_ariths in 
+    let _ = arith_testsuite Z.mul I.mul testsuite ik_ariths in
     ()
 
-  let test_div _ = 
+  let test_div _ =
     let _ = arith_testsuite Z.div I.div testsuite_unsigned ik_arithu in
-    let _ = arith_testsuite Z.div I.div testsuite IShort in 
+    let _ = arith_testsuite Z.div I.div testsuite IShort in
     ()
 
-  let test_rem _ = 
+  let test_rem _ =
     let _ = arith_testsuite Z.rem I.rem testsuite_unsigned ik_arithu in
-    let _ = arith_testsuite Z.rem I.rem testsuite IShort in 
+    let _ = arith_testsuite Z.rem I.rem testsuite IShort in
     ()
 
-  let test_neg _ = 
-    let print_neg_err_message bfi bfr = 
+  let test_neg _ =
+    let print_neg_err_message bfi bfr =
       I.show bfr ^ " on input " ^ I.show bfi
     in
-    let generate_test_neg opc opa ik is = 
-      let zs = List.map Z.of_int is in 
-      let res = of_list ik (List.map opc zs) in 
-      let bs = of_list ik zs in 
+    let generate_test_neg opc opa ik is =
+      let zs = List.map Z.of_int is in
+      let res = of_list ik (List.map opc zs) in
+      let bs = of_list ik zs in
       OUnit2.assert_equal ~cmp:I.leq ~printer:(print_neg_err_message bs) res (opa ik bs)
-    in 
-    let neg_testsuite opc opa ik = 
+    in
+    let neg_testsuite opc opa ik =
       let testsuite = [c1;c2;c3;c4;is1;is2;is3;is4] in
       List.map (generate_test_neg opc opa ik) testsuite
     in
     let _ = neg_testsuite Z.neg I.neg ik_arithu in
-    let _ = neg_testsuite Z.neg I.neg ik_ariths in 
+    let _ = neg_testsuite Z.neg I.neg ik_ariths in
     ()
 
   (* Comparisons *)
@@ -924,7 +924,7 @@ struct
     "test_ending" >:: test_ending;
 
     "test_refine_with_congruence" >:: test_refine_with_congruence;
-    "test_refine_with_inclusion_list" >:: test_refine_with_inclusion_list;    
+    "test_refine_with_inclusion_list" >:: test_refine_with_inclusion_list;
   ]
 
 end

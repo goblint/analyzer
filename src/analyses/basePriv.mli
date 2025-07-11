@@ -6,6 +6,8 @@ open GoblintCil
 (* Cannot use local module substitutions because ppx_import is still stuck at 4.07 AST: https://github.com/ocaml-ppx/ppx_import/issues/50#issuecomment-775817579. *)
 (* TODO: try again, because ppx_import is now removed *)
 
+module VarQuery = Goblint_constraint.VarQuery
+
 module type S =
 sig
   module D: Lattice.S

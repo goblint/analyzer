@@ -1,7 +1,7 @@
 (** ([effectWConEq]). *)
 
 open Batteries
-open ConstrSys
+open Goblint_constraint.ConstrSys
 
 module Make =
   functor (S:EqConstrSys) ->
@@ -87,4 +87,4 @@ module Make =
   end
 
 let _ =
-  Selector.add_solver ("effectWConEq", (module PostSolver.EqIncrSolverFromEqSolver (Make)));
+  Selector.add_solver ("effectWConEq", (module PostSolver.DemandEqIncrSolverFromEqSolver (Make)));

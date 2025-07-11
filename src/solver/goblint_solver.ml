@@ -1,4 +1,4 @@
-(** Generic solvers for {{!ConstrSys.MonSystem} (side-effecting) constraint systems}. *)
+(** Generic solvers for {{!Goblint_constraint} (side-effecting) constraint systems}. *)
 
 (** {1 Top-down}
 
@@ -32,3 +32,4 @@ module SolverStats = SolverStats
 module SolverBox = SolverBox
 
 module SideWPointSelect = SideWPointSelect
+module Td3UpdateRule = Td3UpdateRule

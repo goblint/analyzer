@@ -11,12 +11,14 @@ module Enums : S with type int_t = Z.t = struct
   let range_ikind = Cil.IInt
   let size t = R.of_interval range_ikind (let a,b = Size.bits_i64 t in Int64.neg a,b)
 
-  type t = Inc of BISet.t | Exc of BISet.t * R.t [@@deriving eq, ord, hash] (* inclusion/exclusion set *)
+  type t =
+    | Inc of BISet.t (* Inclusion set. *)
+    | Exc of BISet.t * R.t (** Exclusion set. Bit range always includes 0. *)
+  [@@deriving eq, ord, hash]
 
   type int_t = Z.t
   let name () = "enums"
   let bot () = failwith "bot () not implemented for Enums"
-  let top () = failwith "top () not implemented for Enums"
   let bot_of ik = Inc (BISet.empty ())
   let top_bool = Inc (BISet.of_list [Z.zero; Z.one])
   let top_of ik =
@@ -250,16 +252,16 @@ module Enums : S with type int_t = Z.t = struct
   let is_excl_list = BatOption.is_some % to_excl_list
   let to_incl_list = function Inc s when not (BISet.is_empty s) -> Some (BISet.elements s) | _ -> None
 
-  let to_bitfield ik x = 
-    let ik_mask = snd (Size.range ik) in 
+  let to_bitfield ik x =
+    let ik_mask = snd (Size.range ik) in
     let one_mask = Z.lognot Z.zero in
-    match x with 
-    | Inc i when BISet.is_empty i -> (Z.zero, Z.zero) 
-    | Inc i when BISet.is_singleton i ->       
-      let o = BISet.choose i in 
-      let o = if Cil.isSigned ik then o else Z.logand ik_mask o in 
-      (Z.lognot o, o) 
-    | Inc i -> BISet.fold (fun o (az, ao) -> (Z.logor (Z.lognot o) az, Z.logor (if Cil.isSigned ik then o else Z.logand ik_mask o) ao)) i (Z.zero, Z.zero) 
+    match x with
+    | Inc i when BISet.is_empty i -> (Z.zero, Z.zero)
+    | Inc i when BISet.is_singleton i ->
+      let o = BISet.choose i in
+      let o = if Cil.isSigned ik then o else Z.logand ik_mask o in
+      (Z.lognot o, o)
+    | Inc i -> BISet.fold (fun o (az, ao) -> (Z.logor (Z.lognot o) az, Z.logor (if Cil.isSigned ik then o else Z.logand ik_mask o) ao)) i (Z.zero, Z.zero)
     | _ when Cil.isSigned ik -> (one_mask, one_mask)
     | _ -> (one_mask, ik_mask)
 
@@ -376,8 +378,8 @@ module Enums : S with type int_t = Z.t = struct
     | _ -> a
 
   let refine_with_bitfield ik x (z,o) =
-    match x, BitfieldDomain.Bitfield.to_int (z,o) with 
-    | Inc _, Some y ->     
+    match x, BitfieldDomain.Bitfield.to_int (z,o) with
+    | Inc _, Some y ->
       meet ik x (Inc (BISet.singleton y))
     | _ ->
       x

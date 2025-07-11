@@ -2,7 +2,7 @@
     Simpler version of {!Td3} without terminating, space-efficiency and incremental. *)
 
 open Batteries
-open ConstrSys
+open Goblint_constraint.ConstrSys
 open Messages
 
 module WP =
@@ -154,4 +154,4 @@ module WP =
   end
 
 let _ =
-  Selector.add_solver ("topdown", (module PostSolver.EqIncrSolverFromEqSolver (WP)));
+  Selector.add_solver ("topdown", (module PostSolver.DemandEqIncrSolverFromEqSolver (WP)));

@@ -133,7 +133,7 @@ struct
     | _ -> false
 
   let is_mutex_type (t: typ): bool = match t with
-    | TNamed (info, attr) -> info.tname = "pthread_mutex_t" || info.tname = "spinlock_t" || info.tname = "pthread_spinlock_t" || info.tname = "pthread_cond_t" || info.tname = "pthread_rwlock_t"
+    | TNamed (info, attr) -> info.tname = "pthread_mutex_t" || info.tname = "spinlock_t" || info.tname = "pthread_spinlock_t" || info.tname = "pthread_cond_t" || info.tname = "pthread_rwlock_t" || info.tname = "pthread_once_t"
     | TInt (IInt, attr) -> hasAttribute "mutex" attr
     | _ -> false
 
@@ -182,7 +182,7 @@ struct
     | Blob x -> Blobs.is_bot x
     | Thread x -> Threads.is_bot x
     | JmpBuf x -> JmpBufs.is_bot x
-    | Mutex -> true
+    | Mutex -> false
     | MutexAttr x -> MutexAttr.is_bot x
     | Bot -> true
     | Top -> false
@@ -702,7 +702,7 @@ struct
     | (x, Top) -> x
     | (Int x, Int y) -> Int (ID.meet x y)
     | (Float x, Float y) -> Float (FD.meet x y)
-    | (Int _, Address _) -> meet x (cast (TInt(Cilfacade.ptr_ikind (),[])) y)
+    | (Int _, Address _) -> meet x (cast !GoblintCil.upointType y)
     | (Address x, Int y) -> Address (AD.meet x (AD.of_int y))
     | (Address x, Address y) -> Address (AD.meet x y)
     | (Struct x, Struct y) -> Struct (Structs.meet x y)
@@ -727,7 +727,7 @@ struct
     match (x,y) with
     | (Int x, Int y) -> Int (ID.narrow x y)
     | (Float x, Float y) -> Float (FD.narrow x y)
-    | (Int _, Address _) -> narrow x (cast IntDomain.Size.top_typ y)
+    | (Int _, Address _) -> narrow x (cast !GoblintCil.upointType y)
     | (Address x, Int y) -> Address (AD.narrow x (AD.of_int y))
     | (Address x, Address y) -> Address (AD.narrow x y)
     | (Struct x, Struct y) -> Struct (Structs.narrow x y)
