@@ -265,7 +265,10 @@ struct
 
   let test_FI_div_zero_result_top =
     QCheck.Test.make ~name:"test_FI_div_zero_result_top" (FI.arbitrary ()) (fun arg ->
-        FI.is_top (FI.div arg (FI.of_const 0.)))
+        let res = FI.div arg (FI.of_const 0.) in
+        if FI.equal arg fi_zero
+        then FI.equal res (FI.nan ())
+        else FI.is_top res)
 
   let test_FI_accurate_neg =
     QCheck.Test.make ~name:"test_FI_accurate_neg" QCheck.float (fun arg ->
