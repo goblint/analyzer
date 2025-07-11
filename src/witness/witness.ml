@@ -54,7 +54,7 @@ let write_file filename (module Task:Task) (module Arg: MyARG.S with type Edge.t
 
 
 let print_svcomp_result (s: string): unit =
-  Logs.info "Witch runs: %d" !Violation.witch_runs;
+  if GobConfig.get_string "exp.witch" <> "" then Logs.info "Witch runs: %d" !Violation.witch_runs;
   Logs.result "SV-COMP result: %s" s
 
 let print_task_result result: unit =
