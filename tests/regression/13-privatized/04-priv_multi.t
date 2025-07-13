@@ -1,6 +1,6 @@
   $ goblint --set ana.base.privatization protection --enable witness.yaml.enabled --set ana.activated[+] mutexGhosts --set witness.yaml.entry-types '["flow_insensitive_invariant", "ghost_instrumentation"]' 04-priv_multi.c
-  [Success][Assert] Assertion "p == 5" will succeed (04-priv_multi.c:50:7-50:30)
-  [Success][Assert] Assertion "A == B" will succeed (04-priv_multi.c:71:5-71:28)
+  [Success][Assert] Assertion "p == 5" will succeed (04-priv_multi.c:50.7-50.30)
+  [Success][Assert] Assertion "A == B" will succeed (04-priv_multi.c:71.5-71.28)
   [Warning][Deadcode] Function 'dispose' has dead code:
     on line 53 (04-priv_multi.c:53-53)
     on line 56 (04-priv_multi.c:56-56)
@@ -11,10 +11,10 @@
     live: 40
     dead: 4
     total lines: 44
-  [Warning][Deadcode][CWE-571] condition '1' (possibly inserted by CIL) is always true (04-priv_multi.c:25:10-25:11)
-  [Warning][Deadcode][CWE-571] condition 'A > 0' is always true (04-priv_multi.c:27:9-27:14)
-  [Warning][Deadcode][CWE-571] condition '1' (possibly inserted by CIL) is always true (04-priv_multi.c:45:10-45:11)
-  [Warning][Deadcode][CWE-571] condition 'B > 0' is always true (04-priv_multi.c:47:9-47:14)
+  [Warning][Deadcode][CWE-571] condition '1' (possibly inserted by CIL) is always true (04-priv_multi.c:25.10-25.11)
+  [Warning][Deadcode][CWE-571] condition 'A > 0' is always true (04-priv_multi.c:27.9-27.14)
+  [Warning][Deadcode][CWE-571] condition '1' (possibly inserted by CIL) is always true (04-priv_multi.c:45.10-45.11)
+  [Warning][Deadcode][CWE-571] condition 'B > 0' is always true (04-priv_multi.c:47.9-47.14)
   [Info][Witness] witness generation summary:
     location invariants: 0
     loop invariants: 0
@@ -185,8 +185,8 @@
 Flow-insensitive invariants as location invariants.
 
   $ goblint --set ana.base.privatization protection --enable witness.yaml.enabled --set ana.activated[+] mutexGhosts --set witness.yaml.entry-types '["flow_insensitive_invariant", "ghost_instrumentation"]' --set witness.invariant.flow_insensitive-as location_invariant 04-priv_multi.c
-  [Success][Assert] Assertion "p == 5" will succeed (04-priv_multi.c:50:7-50:30)
-  [Success][Assert] Assertion "A == B" will succeed (04-priv_multi.c:71:5-71:28)
+  [Success][Assert] Assertion "p == 5" will succeed (04-priv_multi.c:50.7-50.30)
+  [Success][Assert] Assertion "A == B" will succeed (04-priv_multi.c:71.5-71.28)
   [Warning][Deadcode] Function 'dispose' has dead code:
     on line 53 (04-priv_multi.c:53-53)
     on line 56 (04-priv_multi.c:56-56)
@@ -197,10 +197,10 @@ Flow-insensitive invariants as location invariants.
     live: 40
     dead: 4
     total lines: 44
-  [Warning][Deadcode][CWE-571] condition '1' (possibly inserted by CIL) is always true (04-priv_multi.c:25:10-25:11)
-  [Warning][Deadcode][CWE-571] condition 'A > 0' is always true (04-priv_multi.c:27:9-27:14)
-  [Warning][Deadcode][CWE-571] condition '1' (possibly inserted by CIL) is always true (04-priv_multi.c:45:10-45:11)
-  [Warning][Deadcode][CWE-571] condition 'B > 0' is always true (04-priv_multi.c:47:9-47:14)
+  [Warning][Deadcode][CWE-571] condition '1' (possibly inserted by CIL) is always true (04-priv_multi.c:25.10-25.11)
+  [Warning][Deadcode][CWE-571] condition 'A > 0' is always true (04-priv_multi.c:27.9-27.14)
+  [Warning][Deadcode][CWE-571] condition '1' (possibly inserted by CIL) is always true (04-priv_multi.c:45.10-45.11)
+  [Warning][Deadcode][CWE-571] condition 'B > 0' is always true (04-priv_multi.c:47.9-47.14)
   [Info][Witness] witness generation summary:
     location invariants: 9
     loop invariants: 0

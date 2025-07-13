@@ -1,8 +1,8 @@
   $ goblint --set ana.base.privatization protection --enable witness.yaml.enabled --set ana.activated[+] mutexGhosts --set witness.yaml.entry-types '["flow_insensitive_invariant", "ghost_instrumentation"]' 25-struct_nr.c
-  [Success][Assert] Assertion "glob1 == 5" will succeed (25-struct_nr.c:26:3-26:30)
-  [Success][Assert] Assertion "t == 5" will succeed (25-struct_nr.c:16:3-16:26)
-  [Success][Assert] Assertion "glob1 == -10" will succeed (25-struct_nr.c:18:3-18:32)
-  [Success][Assert] Assertion "glob1 == 6" will succeed (25-struct_nr.c:30:3-30:30)
+  [Success][Assert] Assertion "glob1 == 5" will succeed (25-struct_nr.c:26.3-26.30)
+  [Success][Assert] Assertion "t == 5" will succeed (25-struct_nr.c:16.3-16.26)
+  [Success][Assert] Assertion "glob1 == -10" will succeed (25-struct_nr.c:18.3-18.32)
+  [Success][Assert] Assertion "glob1 == 6" will succeed (25-struct_nr.c:30.3-30.30)
   [Info][Deadcode] Logical lines of code (LLoC) summary:
     live: 19
     dead: 0

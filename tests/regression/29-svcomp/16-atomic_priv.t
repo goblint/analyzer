@@ -1,17 +1,17 @@
   $ goblint --enable ana.sv-comp.functions --set ana.base.privatization protection-atomic --enable witness.yaml.enabled --set ana.activated[+] mutexGhosts --set witness.yaml.entry-types '["flow_insensitive_invariant", "ghost_instrumentation"]' 16-atomic_priv.c
-  [Success][Assert] Assertion "myglobal == 5" will succeed (16-atomic_priv.c:12:3-12:33)
-  [Success][Assert] Assertion "myglobal == 6" will succeed (16-atomic_priv.c:14:3-14:33)
-  [Success][Assert] Assertion "myglobal == 5" will succeed (16-atomic_priv.c:16:3-16:33)
-  [Success][Assert] Assertion "myglobal == 5" will succeed (16-atomic_priv.c:24:3-24:33)
-  [Success][Assert] Assertion "myglobal == 5" will succeed (16-atomic_priv.c:26:3-26:33)
+  [Success][Assert] Assertion "myglobal == 5" will succeed (16-atomic_priv.c:12.3-12.33)
+  [Success][Assert] Assertion "myglobal == 6" will succeed (16-atomic_priv.c:14.3-14.33)
+  [Success][Assert] Assertion "myglobal == 5" will succeed (16-atomic_priv.c:16.3-16.33)
+  [Success][Assert] Assertion "myglobal == 5" will succeed (16-atomic_priv.c:24.3-24.33)
+  [Success][Assert] Assertion "myglobal == 5" will succeed (16-atomic_priv.c:26.3-26.33)
   [Info][Deadcode] Logical lines of code (LLoC) summary:
     live: 17
     dead: 0
     total lines: 17
-  [Warning][Race] Memory location myglobal (race with conf. 110): (16-atomic_priv.c:8:5-8:17)
-    write with [lock:{[__VERIFIER_atomic]}, thread:[main, t_fun@16-atomic_priv.c:23:3-23:40]] (conf. 110)  (exp: & myglobal) (16-atomic_priv.c:13:3-13:13)
-    write with [lock:{[__VERIFIER_atomic]}, thread:[main, t_fun@16-atomic_priv.c:23:3-23:40]] (conf. 110)  (exp: & myglobal) (16-atomic_priv.c:15:3-15:13)
-    read with [mhp:{created={[main, t_fun@16-atomic_priv.c:23:3-23:40]}}, thread:[main]] (conf. 110)  (exp: & myglobal) (16-atomic_priv.c:24:3-24:33)
+  [Warning][Race] Memory location myglobal (race with conf. 110): (16-atomic_priv.c:8.5-8.17)
+    write with [lock:{[__VERIFIER_atomic]}, thread:[main, t_fun@16-atomic_priv.c:23.3-23.40]] (conf. 110)  (exp: & myglobal) (16-atomic_priv.c:13.3-13.13)
+    write with [lock:{[__VERIFIER_atomic]}, thread:[main, t_fun@16-atomic_priv.c:23.3-23.40]] (conf. 110)  (exp: & myglobal) (16-atomic_priv.c:15.3-15.13)
+    read with [mhp:{created={[main, t_fun@16-atomic_priv.c:23.3-23.40]}}, thread:[main]] (conf. 110)  (exp: & myglobal) (16-atomic_priv.c:24.3-24.33)
   [Info][Witness] witness generation summary:
     location invariants: 0
     loop invariants: 0
@@ -52,19 +52,19 @@
 Non-atomic privatization:
 
   $ goblint --enable ana.sv-comp.functions --set ana.base.privatization protection --enable witness.yaml.enabled --set ana.activated[+] mutexGhosts --set witness.yaml.entry-types '["flow_insensitive_invariant", "ghost_instrumentation"]' 16-atomic_priv.c
-  [Success][Assert] Assertion "myglobal == 5" will succeed (16-atomic_priv.c:12:3-12:33)
-  [Success][Assert] Assertion "myglobal == 6" will succeed (16-atomic_priv.c:14:3-14:33)
-  [Success][Assert] Assertion "myglobal == 5" will succeed (16-atomic_priv.c:16:3-16:33)
-  [Warning][Assert] Assertion "myglobal == 5" is unknown. (16-atomic_priv.c:24:3-24:33)
-  [Success][Assert] Assertion "myglobal == 5" will succeed (16-atomic_priv.c:26:3-26:33)
+  [Success][Assert] Assertion "myglobal == 5" will succeed (16-atomic_priv.c:12.3-12.33)
+  [Success][Assert] Assertion "myglobal == 6" will succeed (16-atomic_priv.c:14.3-14.33)
+  [Success][Assert] Assertion "myglobal == 5" will succeed (16-atomic_priv.c:16.3-16.33)
+  [Warning][Assert] Assertion "myglobal == 5" is unknown. (16-atomic_priv.c:24.3-24.33)
+  [Success][Assert] Assertion "myglobal == 5" will succeed (16-atomic_priv.c:26.3-26.33)
   [Info][Deadcode] Logical lines of code (LLoC) summary:
     live: 17
     dead: 0
     total lines: 17
-  [Warning][Race] Memory location myglobal (race with conf. 110): (16-atomic_priv.c:8:5-8:17)
-    write with [lock:{[__VERIFIER_atomic]}, thread:[main, t_fun@16-atomic_priv.c:23:3-23:40]] (conf. 110)  (exp: & myglobal) (16-atomic_priv.c:13:3-13:13)
-    write with [lock:{[__VERIFIER_atomic]}, thread:[main, t_fun@16-atomic_priv.c:23:3-23:40]] (conf. 110)  (exp: & myglobal) (16-atomic_priv.c:15:3-15:13)
-    read with [mhp:{created={[main, t_fun@16-atomic_priv.c:23:3-23:40]}}, thread:[main]] (conf. 110)  (exp: & myglobal) (16-atomic_priv.c:24:3-24:33)
+  [Warning][Race] Memory location myglobal (race with conf. 110): (16-atomic_priv.c:8.5-8.17)
+    write with [lock:{[__VERIFIER_atomic]}, thread:[main, t_fun@16-atomic_priv.c:23.3-23.40]] (conf. 110)  (exp: & myglobal) (16-atomic_priv.c:13.3-13.13)
+    write with [lock:{[__VERIFIER_atomic]}, thread:[main, t_fun@16-atomic_priv.c:23.3-23.40]] (conf. 110)  (exp: & myglobal) (16-atomic_priv.c:15.3-15.13)
+    read with [mhp:{created={[main, t_fun@16-atomic_priv.c:23.3-23.40]}}, thread:[main]] (conf. 110)  (exp: & myglobal) (16-atomic_priv.c:24.3-24.33)
   [Info][Witness] witness generation summary:
     location invariants: 0
     loop invariants: 0
