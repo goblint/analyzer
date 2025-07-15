@@ -8,7 +8,7 @@ opam_setup() {
   set -x
   opam init -y -a --bare $SANDBOXING # sandboxing is disabled in travis and docker
   opam update
-  opam switch -y create . --deps-only --packages=ocaml-variants.4.14.2+options,ocaml-option-flambda --locked
+  opam switch -y create . --deps-only --packages=ocaml-variants.5.2.1+options,ocaml-option-flambda --locked
 }
 
 rule() {
@@ -21,17 +21,17 @@ rule() {
       eval $(opam config env)
       dune build $TARGET.exe &&
       rm -f goblint &&
-      cp _build/default/$TARGET.exe goblint
+      cp _build/default/$TARGET.exe goblint_bin
     ;; coverage)
       eval $(opam config env)
       dune build --instrument-with bisect_ppx $TARGET.exe &&
       rm -f goblint &&
-      cp _build/default/$TARGET.exe goblint
+      cp _build/default/$TARGET.exe goblint_bin
     ;; release)
       eval $(opam config env)
       dune build --profile=release $TARGET.exe &&
       rm -f goblint &&
-      cp _build/default/$TARGET.exe goblint
+      cp _build/default/$TARGET.exe goblint_bin
     ;; view)
       eval $(opam config env)
       dune build gobview
@@ -75,7 +75,7 @@ rule() {
     ;; setup)
       echo "Make sure you have the following installed: opam >= 2.0.0, git, patch, m4, autoconf, libgmp-dev, libmpfr-dev, pkg-config"
       echo "For the --html output you also need: javac, ant, dot (graphviz)"
-      echo "For running the regression tests you also need: ruby, gem, curl, and the `os` gem"
+      echo "For running the regression tests you also need: ruby, gem, curl"
       echo "For reference see ./Dockerfile or ./scripts/travis-ci.sh"
       opam_setup
     ;; dev)
@@ -90,7 +90,6 @@ rule() {
       # Use `git commit -n` to temporarily bypass the hook if necessary.
       echo "Installing gem parallel (not needed for ./scripts/update_suite.rb -s)"
       sudo gem install parallel
-      sudo gem install os
     ;; headers)
       curl -L -O https://github.com/goblint/linux-headers/archive/master.tar.gz
       tar xf master.tar.gz && rm master.tar.gz
