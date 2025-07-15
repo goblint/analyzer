@@ -226,8 +226,8 @@ struct
         true
       else *)
       MustLockset.mem ml protecting
-    | Queries.MustProtectingLocks g ->
-      protecting ~write:true Strong g
+    | Queries.MustProtectingLocks {global; write} ->
+      protecting ~write Strong global
     | Queries.MustLockset ->
       let held_locks = MustLocksetRW.to_must_lockset (MustLocksetRW.filter snd ls) in
       held_locks
@@ -337,11 +337,7 @@ struct
             | ts when Queries.TS.is_top ts ->
               ()
             | ts ->
-              let f = function
-                | TComp (_, _) -> true
-                | _ -> false
-              in
-              if Queries.TS.exists f ts then
+              if Queries.TS.exists Cilfacade.isStructOrUnionType ts then
                 old_access None
           end;
           on_ad ad

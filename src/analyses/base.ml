@@ -143,8 +143,8 @@ struct
    * Initializing my variables
    **************************************************************************)
 
-  let heap_var on_stack man =
-    let info = match (man.ask (Q.AllocVar {on_stack})) with
+  let alloced_var location man =
+    let info = match (man.ask (Q.AllocVar location)) with
       | `Lifted vinfo -> vinfo
       | _ -> failwith("Ran without a malloc analysis.") in
     info
@@ -200,8 +200,24 @@ struct
     | PlusA -> ID.add
     | MinusA -> ID.sub
     | Mult -> ID.mul
-    | Div -> ID.div
-    | Mod -> ID.rem
+    | Div ->
+      fun x y ->
+        (match ID.equal_to Z.zero y with
+         | `Eq ->
+           M.error ~category:M.Category.Integer.div_by_zero ~tags:[CWE 369] "Second argument of division is zero"
+         | `Top ->
+           M.warn ~category:M.Category.Integer.div_by_zero ~tags:[CWE 369] "Second argument of division might be zero"
+         | `Neq -> ());
+        ID.div x y
+    | Mod ->
+      fun x y ->
+        (match ID.equal_to Z.zero y with
+         | `Eq ->
+           M.error ~category:M.Category.Integer.div_by_zero ~tags:[CWE 369] "Second argument of modulo is zero"
+         | `Top ->
+           M.warn ~category:M.Category.Integer.div_by_zero ~tags:[CWE 369] "Second argument of modulo might be zero"
+         | `Neq -> ());
+        ID.rem x y
     | Lt -> ID.lt
     | Gt -> ID.gt
     | Le -> ID.le
@@ -271,8 +287,8 @@ struct
           let n_offset = iDtoIdx n in
           begin match t with
             | Some t ->
-              let (f_offset_bits, _) = bitsOffset t (Field (f, NoOffset)) in
-              let f_offset = IdxDom.of_int (Cilfacade.ptrdiff_ikind ()) (Z.of_int (f_offset_bits / 8)) in
+              let f_offset_bytes = Cilfacade.bytesOffsetOnly t (Field (f, NoOffset)) in
+              let f_offset = IdxDom.of_int (Cilfacade.ptrdiff_ikind ()) (Z.of_int f_offset_bytes) in
               begin match IdxDom.(to_bool (eq f_offset (neg n_offset))) with
                 | Some true -> `NoOffset
                 | _ -> `Field (f, `Index (n_offset, `NoOffset))
@@ -287,24 +303,33 @@ struct
           `Field(f, addToOffset n t' o)
         | `NoOffset -> `Index(iDtoIdx n, `NoOffset)
       in
-      let default = function
-        | Addr.NullPtr when GobOption.exists (Z.equal Z.zero) (ID.to_int n) -> Addr.NullPtr
-        | _ -> Addr.UnknownPtr
-      in
-      match Addr.to_mval addr with
-      | Some (x, o) -> Addr.of_mval (x, addToOffset n (Some x.vtype) o)
-      | None -> default addr
+      match addr with
+      | Addr (x, o) -> AD.of_mval (x, addToOffset n (Some x.vtype) o)
+      | NullPtr ->
+        begin match ID.equal_to Z.zero n with
+          | `Eq -> AD.null_ptr
+          | `Neq -> AD.unknown_ptr
+          | `Top -> AD.top_ptr
+        end
+      | UnknownPtr
+      | StrPtr _ ->
+        begin match ID.equal_to Z.zero n with
+          | `Eq -> AD.singleton addr (* remains unchanged *)
+          | `Neq
+          | `Top -> AD.top_ptr
+        end
     in
+    let ad_concat_map f a = AD.fold (fun a acc -> AD.join (f a) acc) a (AD.empty ()) in
     let addToAddrOp p (n:ID.t):value =
       match op with
       (* For array indexing e[i] and pointer addition e + i we have: *)
       | IndexPI | PlusPI ->
-        Address (AD.map (addToAddr n) p)
+        Address (ad_concat_map (addToAddr n) p)
       (* Pointer subtracted by a value (e-i) is very similar *)
       (* Cast n to the (signed) ptrdiff_ikind, then add the its negated value. *)
       | MinusPI ->
         let n = ID.neg (ID.cast_to (Cilfacade.ptrdiff_ikind ()) n) in
-        Address (AD.map (addToAddr n) p)
+        Address (ad_concat_map (addToAddr n) p)
       | Mod -> Int (ID.top_of (Cilfacade.ptrdiff_ikind ())) (* we assume that address is actually casted to int first*)
       | _ -> Address AD.top_ptr
     in
@@ -518,7 +543,7 @@ struct
   (* From a list of values, presumably arguments to a function, simply extract
    * the pointer arguments. *)
   let get_ptrs (vals: value list): address list =
-    let f (x:value) acc = match x with
+    let f acc (x:value) = match x with
       | Address adrs when AD.is_top adrs ->
         M.info ~category:Unsound "Unknown address given as function argument"; acc
       | Address adrs when AD.to_var_may adrs = [] -> acc
@@ -528,7 +553,7 @@ struct
       | Top -> M.info ~category:Unsound "Unknown value type given as function argument"; acc
       | _ -> acc
     in
-    List.fold_right f vals []
+    List.fold_left f [] vals
 
   let rec reachable_from_value ask (value: value) (t: typ) (description: string)  =
     let empty = AD.empty () in
@@ -572,7 +597,7 @@ struct
     if M.tracing then M.traceli "reachability" "Checking reachable arguments from [%a]!" (d_list ", " AD.pretty) args;
     let empty = AD.empty () in
     (* We begin looking at the parameters: *)
-    let argset = List.fold_right (AD.join) args empty in
+    let argset = List.fold_left (AD.join) empty args in
     let workset = ref argset in
     (* And we keep a set of already visited variables *)
     let visited = ref empty in
@@ -624,6 +649,8 @@ struct
 
   let drop_intervalSet = CPA.map (function Int x -> Int (ID.no_intervalSet x) | x -> x )
 
+  let drop_bitfield = CPA.map (function Int x -> Int (ID.no_bitfield x) | x -> x )
+
   let context man (fd: fundec) (st: store): store =
     let f keep drop_fn (st: store) = if keep then st else { st with cpa = drop_fn st.cpa} in
     st |>
@@ -634,6 +661,7 @@ struct
     %> f (ContextUtil.should_keep ~isAttr:GobContext ~keepOption:"ana.base.context.int" ~removeAttr:"base.no-int" ~keepAttr:"base.int" fd) drop_ints
     %> f (ContextUtil.should_keep ~isAttr:GobContext ~keepOption:"ana.base.context.interval" ~removeAttr:"base.no-interval" ~keepAttr:"base.interval" fd) drop_interval
     %> f (ContextUtil.should_keep ~isAttr:GobContext ~keepOption:"ana.base.context.interval_set" ~removeAttr:"base.no-interval_set" ~keepAttr:"base.interval_set" fd) drop_intervalSet
+    %> f (ContextUtil.should_keep ~isAttr:GobContext ~keepOption:"ana.base.context.bitfield" ~removeAttr:"base.no-bitfield" ~keepAttr:"base.bitfield" fd) drop_bitfield
 
 
   let reachable_top_pointers_types man (ps: AD.t) : Queries.TS.t =
@@ -925,7 +953,7 @@ struct
     (* | Lval (Mem e, ofs) -> get ~man st (eval_lv ~man (Mem e, ofs)) *)
     | (Mem e, ofs) ->
       (*if M.tracing then M.tracel "cast" "Deref: lval: %a" d_plainlval lv;*)
-      let rec contains_vla (t:typ) = match t with
+      let rec contains_vla (t:typ) = match Cil.unrollType t with
         | TPtr (t, _) -> contains_vla t
         | TArray(t, None, args) -> true
         | TArray(t, Some exp, args) when isConstant exp -> contains_vla t
@@ -1449,7 +1477,8 @@ struct
         match eval_rv_address ~man man.local e with
         | Address a ->
           let slen = Seq.map String.length (List.to_seq (AD.to_string a)) in
-          let lenOf = function
+          let lenOf t =
+            match Cil.unrollType t with
             | TArray (_, l, _) -> (try Some (lenOfArray l) with LenOfArray -> None)
             | _ -> None
           in
@@ -1560,7 +1589,7 @@ struct
               let lval = Addr.Mval.to_cil mval in
               (try `Lifted (Bytes.to_string (Hashtbl.find char_array lval))
                with Not_found -> Queries.Result.top q)
-            | _ -> (* what about ISChar and IUChar? *)
+            | _ -> (* TODO: what about ISChar and IUChar? what about TEnum? *)
               (* ignore @@ printf "Type %a\n" d_plaintype t; *)
               Queries.Result.top q
           end
@@ -1613,7 +1642,7 @@ struct
   let set ~(man: _ man) ?(invariant=false) ?(blob_destructive=false) ?lval_raw ?rval_raw ?t_override (st: store) (lval: AD.t) (lval_type: Cil.typ) (value: value) : store =
     let update_variable x t y z =
       if M.tracing then M.tracel "set" ~var:x.vname "update_variable: start '%s' '%a'\nto\n%a" x.vname VD.pretty y CPA.pretty z;
-      let r = update_variable x t y z in (* refers to defintion that is outside of set *)
+      let r = update_variable x t y z in (* refers to definition that is outside of set *)
       if M.tracing then M.tracel "set" ~var:x.vname "update_variable: start '%s' '%a'\nto\n%a\nresults in\n%a" x.vname VD.pretty y CPA.pretty z CPA.pretty r;
       r
     in
@@ -2027,10 +2056,8 @@ struct
       match exp with
       | None -> nst
       | Some exp ->
-        let t_override = match Cilfacade.fundec_return_type fundec with
-          | TVoid _ -> M.warn ~category:M.Category.Program "Returning a value from a void function"; assert false
-          | ret -> ret
-        in
+        let t_override = Cilfacade.fundec_return_type fundec in
+        assert (not (Cil.isVoidType t_override)); (* Returning a value from a void function, CIL removes the Return expression for us anyway. *)
         let rv = eval_rv ~man man.local exp in
         let st' = set ~man ~t_override nst (return_var ()) t_override rv in
         match ThreadId.get_current ask with
@@ -2281,13 +2308,12 @@ struct
         ) a
     | _ -> false
 
-  let get_size_of_ptr_target man ptr =
+  let get_size_of_ptr_target man ptr = (* TODO: deduplicate with memOutOfBounds *)
     let intdom_of_int x =
       ID.of_int (Cilfacade.ptrdiff_ikind ()) (Z.of_int x)
     in
     let size_of_type_in_bytes typ =
-      let typ_size_in_bytes = (bitsSizeOf typ) / 8 in
-      intdom_of_int typ_size_in_bytes
+      intdom_of_int (Cilfacade.bytesSizeOf typ)
     in
     if points_to_heap_only man ptr then
       (* Ask for BlobSize from the base address (the second component being set to true) in order to avoid BlobSize giving us bot *)
@@ -2299,7 +2325,7 @@ struct
         let pts_elems_to_sizes (addr: Queries.AD.elt) =
           begin match addr with
             | Addr (v, _) ->
-              begin match v.vtype with
+              begin match Cil.unrollType v.vtype with
                 | TArray (item_typ, _, _) ->
                   let item_typ_size_in_bytes = size_of_type_in_bytes item_typ in
                   begin match man.ask (Queries.EvalLength ptr) with
@@ -2476,6 +2502,30 @@ struct
             set ~man st lv_a lv_typ (VD.top_value (unrollType lv_typ))
         end
     in
+    (* Returns a tuple, the first is the address of the blob if one was allocated, the second is the returned address (may contain null pointer or be only null-pointer) *)
+    let alloc loc size =
+      (* Whether malloc(0) is assumed to return the null pointer, a valid pointer, or both cases need to be considered. *)
+      let malloc_zero_null, malloc_zero_pointer =
+        match get_string "sem.malloc.zero" with
+        | "null" -> true, false
+        | "pointer" -> false, true
+        | "either" -> true, true
+        | _ -> failwith "Invalid value for sem.malloc.zero."
+      in
+      let bytes = eval_int ~man st size in
+      let cmp_bytes_with_zero = ID.equal_to Z.zero bytes in
+      let bytes_may_be_zero = cmp_bytes_with_zero <> `Neq in
+      let bytes_may_be_nonzero = cmp_bytes_with_zero <> `Eq in
+      let include_null = (bytes_may_be_nonzero && get_bool "sem.malloc.fail") || (bytes_may_be_zero && malloc_zero_null) in
+      let include_pointer = bytes_may_be_nonzero || malloc_zero_pointer in
+      if not include_pointer then
+        (None, AD.null_ptr)
+      else
+        let var = AD.of_var (alloced_var loc man) in
+        (Some var, if include_null then AD.join var AD.null_ptr else var)
+    in
+    (* Evaluate each functions arguments. `eval_rv` is only called for its side effects, we ignore the result. *)
+    List.iter (fun arg -> eval_rv ~man st arg |> ignore) args;
     let st = match desc.special args, f.vname with
     | Memset { dest; ch; count; }, _ ->
       (* TODO: check count *)
@@ -2692,53 +2742,39 @@ struct
         | None, _ ->
           st
       end
-    | Alloca size, _ -> begin
+    | ((Alloca size) as op), _
+    | ((Malloc size) as op), _ ->
+      let open Queries.AllocationLocation in
+      begin
+        (* The behavior for alloc(0) is implementation defined. Here, we rely on the options specified for the malloc also applying to alloca. *)
         match lv with
         | Some lv ->
-          let heap_var = AD.of_var (heap_var true man) in
+          let loc = match op with | Alloca _ -> Stack | Malloc _ -> Heap | _ -> assert false in
+          let (heap_var, addr) = alloc loc size in
           (* ignore @@ printf "alloca will allocate %a bytes\n" ID.pretty (eval_int ~man size); *)
-          set_many ~man st [(heap_var, TVoid [], Blob (VD.bot (), eval_int ~man st size, ZeroInit.malloc));
-                            (eval_lv ~man st lv, (Cilfacade.typeOfLval lv), Address heap_var)]
-        | _ -> st
-      end
-    | Malloc size, _ -> begin
-        match lv with
-        | Some lv ->
-          let heap_var =
-            if (get_bool "sem.malloc.fail")
-            then AD.join (AD.of_var (heap_var false man)) AD.null_ptr
-            else AD.of_var (heap_var false man)
-          in
-          (* ignore @@ printf "malloc will allocate %a bytes\n" ID.pretty (eval_int ~man size); *)
-          set_many ~man st [(heap_var, TVoid [], Blob (VD.bot (), eval_int ~man st size, ZeroInit.malloc));
-                            (eval_lv ~man st lv, (Cilfacade.typeOfLval lv), Address heap_var)]
+          let blob_set = Option.map_default (fun heap_var -> [(heap_var, TVoid [], VD.Blob (VD.bot (), eval_int ~man st size, ZeroInit.malloc))]) [] heap_var in
+          set_many ~man st ((eval_lv ~man st lv, (Cilfacade.typeOfLval lv), VD.Address addr) :: blob_set)
         | _ -> st
       end
     | Calloc { count = n; size }, _ ->
+      let open Queries.AllocationLocation in
       begin match lv with
         | Some lv -> (* array length is set to one, as num*size is done when turning into `Calloc *)
-          let heap_var = heap_var false man in
-          let add_null addr =
-            if get_bool "sem.malloc.fail"
-            then AD.join addr AD.null_ptr (* calloc can fail and return NULL *)
-            else addr in
+          let (heap_var, addr) = alloc Queries.AllocationLocation.Heap size in
           let ik = Cilfacade.ptrdiff_ikind () in
           let sizeval = eval_int ~man st size in
           let countval = eval_int ~man st n in
-          if ID.to_int countval = Some Z.one then (
-            set_many ~man st [
-              (add_null (AD.of_var heap_var), TVoid [], Blob (VD.bot (), sizeval, ZeroInit.calloc));
-              (eval_lv ~man st lv, (Cilfacade.typeOfLval lv), Address (add_null (AD.of_var heap_var)))
-            ]
-          )
-          else (
+          if ID.to_int countval = Some Z.one then
+            let blob_set = Option.map_default (fun heap_var -> [heap_var, TVoid [], VD.Blob (VD.bot (), sizeval, ZeroInit.calloc)]) [] heap_var in
+            set_many ~man st ((eval_lv ~man st lv, (Cilfacade.typeOfLval lv), Address addr):: blob_set)
+          else
             let blobsize = ID.mul (ID.cast_to ik @@ sizeval) (ID.cast_to ik @@ countval) in
+            let offset = `Index (IdxDom.of_int (Cilfacade.ptrdiff_ikind ()) Z.zero, `NoOffset) in
+            (* the heap_var is the base address of the allocated memory, but we need to keep track of the offset for the blob *)
+            let addr_offset = AD.map (fun a -> Addr.add_offset a offset) addr in
             (* the memory that was allocated by calloc is set to bottom, but we keep track that it originated from calloc, so when bottom is read from memory allocated by calloc it is turned to zero *)
-            set_many ~man st [
-              (add_null (AD.of_var heap_var), TVoid [], Array (CArrays.make (IdxDom.of_int (Cilfacade.ptrdiff_ikind ()) Z.one) (Blob (VD.bot (), blobsize, ZeroInit.calloc))));
-              (eval_lv ~man st lv, (Cilfacade.typeOfLval lv), Address (add_null (AD.of_mval (heap_var, `Index (IdxDom.of_int (Cilfacade.ptrdiff_ikind ()) Z.zero, `NoOffset)))))
-            ]
-          )
+            let blob_set = Option.map_default (fun heap_var -> [heap_var, TVoid [], VD.Array (CArrays.make (IdxDom.of_int (Cilfacade.ptrdiff_ikind ()) Z.one) (Blob (VD.bot (), blobsize, ZeroInit.calloc)))]) [] heap_var in
+            set_many ~man st ((eval_lv ~man st lv, (Cilfacade.typeOfLval lv), Address addr_offset) :: blob_set)
         | _ -> st
       end
     | Realloc { ptr = p; size }, _ ->
@@ -2759,18 +2795,11 @@ struct
           let p_addr_get = get ~man st p_addr' None in (* implicitly includes join of malloc value (VD.bot) *)
           let size_int = eval_int ~man st size in
           let heap_val:value = Blob (p_addr_get, size_int, ZeroInit.malloc) in (* copy old contents with new size *)
-          let heap_addr = AD.of_var (heap_var false man) in
-          let heap_addr' =
-            if get_bool "sem.malloc.fail" then
-              AD.join heap_addr AD.null_ptr
-            else
-              heap_addr
-          in
+          let (heap_var,addr) = alloc Queries.AllocationLocation.Heap size in
           let lv_addr = eval_lv ~man st lv in
-          set_many ~man st [
-            (heap_addr, TVoid [], heap_val);
-            (lv_addr, Cilfacade.typeOfLval lv, Address heap_addr');
-          ] (* TODO: free (i.e. invalidate) old blob if successful? *)
+          let blob_set = Option.map_default (fun heap_addr -> [heap_addr, TVoid [], heap_val]) [] heap_var in
+          (* TODO: free (i.e. invalidate) old blob if successful? *)
+          set_many ~man st ((lv_addr, Cilfacade.typeOfLval lv, Address addr) :: blob_set)
         | None ->
           st
       end
@@ -2907,11 +2936,8 @@ struct
       let nst = add_globals st fun_st in
 
       (* Projection to Precision of the Caller *)
-      let p = PrecisionUtil.int_precision_from_node () in (* Since f is the fundec of the Callee we have to get the fundec of the current Node instead *)
-      let callerFundec = match !MyCFG.current_node with
-        | Some n -> Node.find_fundec n
-        | None -> failwith "callerfundec not found"
-      in
+      let callerFundec = Node.find_fundec man.node in
+      let p:PrecisionUtil.int_precision = PrecisionUtil.int_precision_from_fundec callerFundec in (* Since f is the fundec of the Callee we have to get the fundec of the current Node instead *)
       let cpa' = project (Queries.to_value_domain_ask (Analyses.ask_of_man man)) (Some p) nst.cpa callerFundec in
 
       if get_bool "sem.noreturn.dead_code" && Cil.hasAttribute "noreturn" f.svar.vattr then raise Deadcode;
@@ -2930,11 +2956,8 @@ struct
       in
 
       (* Projection to Precision of the Caller *)
-      let p = PrecisionUtil.int_precision_from_node () in (* Since f is the fundec of the Callee we have to get the fundec of the current Node instead *)
-      let callerFundec = match !MyCFG.current_node with
-        | Some n -> Node.find_fundec n
-        | None -> failwith "callerfundec not found"
-      in
+      let callerFundec = Node.find_fundec man.node in
+      let p = PrecisionUtil.int_precision_from_fundec callerFundec in (* Since f is the fundec of the Callee we have to get the fundec of the current Node instead *)
       let return_val = project_val (Queries.to_value_domain_ask (Analyses.ask_of_man man)) (attributes_varinfo (return_varinfo ()) callerFundec) (Some p) return_val (is_privglob (return_varinfo ())) in
 
       match lval with

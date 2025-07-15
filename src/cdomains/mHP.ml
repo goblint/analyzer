@@ -21,7 +21,7 @@ let current (ask:Queries.ask) =
   }
 
 let pretty () {tid; created; must_joined} =
-  let tid_doc = 
+  let tid_doc =
     if GobConfig.get_bool "dbg.full-output" then
       Some (Pretty.dprintf "tid=%a" ThreadIdDomain.ThreadLifted.pretty tid)
     else
@@ -53,10 +53,10 @@ include Printable.SimplePretty (
 (** Can it be excluded that the thread tid2 is running at a program point where  *)
 (*  thread tid1 has created the threads in created1 *)
 let definitely_not_started (current, created) other =
-  if (not (TID.is_must_parent current other)) then
+  if (not (TID.must_be_ancestor current other)) then
     false
   else
-    let ident_or_may_be_created creator = TID.equal creator other || TID.may_create creator other in
+    let ident_or_may_be_created creator = TID.equal creator other || TID.may_be_ancestor creator other in
     if ConcDomain.ThreadSet.is_top created then
       false
     else
@@ -92,3 +92,8 @@ let may_happen_in_parallel one two =
     else
       true
   | _ -> true
+
+let is_unique_thread mhp =
+  match mhp.tid with
+  | `Lifted tid -> TID.is_unique tid
+  | _ -> false

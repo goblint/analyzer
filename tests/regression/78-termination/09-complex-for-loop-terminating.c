@@ -3,7 +3,7 @@
 #include <stdio.h>
 
 int loops0(){
-  int i, j, k;
+  unsigned int i, j, k;
 
   // Outer loop
   for (i = 1; i <= 5; i++)
@@ -36,7 +36,7 @@ int loops0(){
 }
 
 int loops1(){
-  int i, j, k;
+  unsigned int i, j, k;
 
   // Loop with conditions
   for (i = 1; i <= 10; i++)
@@ -81,7 +81,7 @@ int loops1(){
   printf("\n");
 
   // Loop with multiple variables
-  int a, b, c;
+  unsigned int a, b, c;
   for (a = 1, b = 2, c = 3; a <= 10; a++, b += 2, c += 3)
   {
     printf("%d %d %d\n", a, b, c);

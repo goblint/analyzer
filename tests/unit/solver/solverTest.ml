@@ -2,7 +2,8 @@ open Goblint_lib
 open OUnit2
 open GoblintCil
 open Pretty
-open ConstrSys
+open Goblint_constraint.ConstrSys
+open Goblint_constraint.Translators
 open Goblint_solver
 
 (* variables are strings *)
@@ -37,15 +38,16 @@ module ConstrSys = struct
     3. z := y
     4. w := w + 1 [also g := 42; _ := z]
     *)
-  let system : LVar.t -> ((LVar.t -> D.t) -> (LVar.t -> D.t -> unit) -> (GVar.t -> G.t) -> (GVar.t -> G.t -> unit) -> D.t) option = function
-    | "x" -> Some (fun loc _ glob gside -> glob "g")
-    | "y" -> Some (fun loc _ glob gside -> (ignore (loc "x"); Int.of_int (Z.of_int64 8L)))
-    | "z" -> Some (fun loc _ glob gside -> (ignore (loc "y"); loc "y"))
-    | "w" -> Some (fun loc _ glob gside -> (gside "g" (Int.of_int (Z.of_int64 42L)); ignore (loc "z"); try Int.add (loc "w") (Int.of_int (Z.of_int64 1L)) with IntDomain.ArithmeticOnIntegerBot _ -> Int.top ()))
+  let system : LVar.t -> ((LVar.t -> D.t) -> (LVar.t -> D.t -> unit) -> (LVar.t -> unit) -> (GVar.t -> G.t) -> (GVar.t -> G.t -> unit) -> D.t) option = function
+    | "x" -> Some (fun loc _ _ glob gside -> glob "g")
+    | "y" -> Some (fun loc _ _ glob gside -> (ignore (loc "x"); Int.of_int (Z.of_int64 8L)))
+    | "z" -> Some (fun loc _ _ glob gside -> (ignore (loc "y"); loc "y"))
+    | "w" -> Some (fun loc _ _ glob gside -> (gside "g" (Int.of_int (Z.of_int64 42L)); ignore (loc "z"); try Int.add (loc "w") (Int.of_int (Z.of_int64 1L)) with IntDomain.ArithmeticOnIntegerBot _ -> Int.top ()))
     | _   -> None
 
   let iter_vars _ _ _ _ _ = ()
   let sys_change _ _ = {obsolete = []; delete = []; reluctant = []; restart = []}
+  let postmortem _ = []
 end
 
 module LH = BatHashtbl.Make (ConstrSys.LVar)
@@ -57,7 +59,7 @@ struct
   let should_warn = false
   let should_save_run = false
 end
-module Solver = GlobSolverFromEqSolver (PostSolver.EqIncrSolverFromEqSolver (EffectWConEq.Make) (PostSolverArg)) (ConstrSys) (LH) (GH)
+module Solver = GlobSolverFromEqSolver (PostSolver.DemandEqIncrSolverFromEqSolver (EffectWConEq.Make) (PostSolverArg)) (ConstrSys) (LH) (GH)
 
 let test1 _ =
   let id x = x in

@@ -27,7 +27,6 @@
       ghost_updates:
       - location:
           file_name: 65-ghost-ambiguous-lock.c
-          file_hash: $FILE_HASH
           line: 29
           column: 3
           function: main

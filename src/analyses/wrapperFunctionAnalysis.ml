@@ -155,7 +155,7 @@ module MallocWrapper : MCPSpec = struct
   let query (man: (D.t, G.t, C.t, V.t) man) (type a) (q: a Q.t): a Q.result =
     let wrapper_node, counter = man.local in
     match q with
-    | Q.AllocVar {on_stack = on_stack} ->
+    | Q.AllocVar location ->
       let node = match wrapper_node with
         | `Lifted wrapper_node -> wrapper_node
         | _ -> node_for_man man
@@ -163,7 +163,7 @@ module MallocWrapper : MCPSpec = struct
       let count = UniqueCallCounter.find (`Lifted node) counter in
       let var = NodeVarinfoMap.to_varinfo (man.ask Q.CurrentThreadId, node, count) in
       var.vdecl <- UpdateCil.getLoc node; (* TODO: does this do anything bad for incremental? *)
-      if on_stack then var.vattr <- addAttribute (Attr ("stack_alloca", [])) var.vattr; (* If the call was for stack allocation, add an attr to mark the heap var *)
+      if location = Stack then var.vattr <- addAttribute (Attr ("stack_alloca", [])) var.vattr; (* If the call was for stack allocation, add an attr to mark the heap var *)
       `Lifted var
     | Q.IsHeapVar v ->
       NodeVarinfoMap.mem_varinfo v && not @@ hasAttribute "stack_alloca" v.vattr
@@ -171,7 +171,13 @@ module MallocWrapper : MCPSpec = struct
       NodeVarinfoMap.mem_varinfo v
     | Q.IsMultiple v ->
       begin match NodeVarinfoMap.from_varinfo v with
-        | Some (_, _, c) -> UniqueCount.is_top c || not (man.ask Q.MustBeUniqueThread)
+        | Some (t, _, c) -> UniqueCount.is_top c ||
+                            (match t with
+                             | `Lifted tid -> not (Thread.is_unique tid)
+                             | _ ->
+                               (* The thread analysis may be completely disabled; in this case we fall back on checking whether the program has been single threaded since start *)
+                               not (man.ask (Q.MustBeSingleThreaded {since_start = true}))
+                            )
         | None -> false
       end
     | _ -> Queries.Result.top q
