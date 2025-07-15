@@ -243,9 +243,36 @@ struct
     if M.tracing then M.traceu "combine" "combined: %a" S.D.pretty r;
     r
 
-  let tf_special_call man lv f args = S.special man lv f args
 
-  let tf_proc var edge prev_node lv e args getl sidel demandl getg sideg d =
+  let rec tf_proc var edge prev_node lv e args getl sidel demandl getg sideg d =
+    let tf_special_call man f =
+      let once once_control init_routine =
+        (* Executes leave event for new local state d if it is not bottom *)
+        let leave_once d =
+          if not (S.D.is_bot d) then
+            let rec man' =
+              { man with
+                ask = (fun (type a) (q: a Queries.t) -> S.query man' q);
+                local = d;
+              }
+            in
+            S.event man' (Events.LeaveOnce { once_control }) man'
+          else
+            S.D.bot ()
+        in
+        let first_call =
+          let d' = S.event man (Events.EnterOnce { once_control;  ran = false }) man in
+          tf_proc var edge prev_node None init_routine [] getl sidel demandl getg sideg d'
+        in
+        let later_call = S.event man (Events.EnterOnce { once_control;  ran = true }) man in
+        D.join (leave_once first_call) (leave_once later_call)
+      in
+      let is_once = LibraryFunctions.find ~nowarn:true f in
+      (* If the prototpye for a library function is wrong, this will throw an exception. Such exceptions are usually unrelated to pthread_once, it is just that the call to `is_once.special` raises here *)
+      match is_once.special args with
+      | Once { once_control; init_routine } -> once once_control init_routine
+      | _  -> S.special man lv f args
+    in
     let man, r, spawns = common_man var edge prev_node d getl sidel demandl getg sideg in
     let functions =
       match e with
@@ -266,15 +293,17 @@ struct
         (* Check whether number of arguments fits. *)
         (* If params is None, the function or its parameters are not declared, so we still analyze the unknown function call. *)
         if Option.is_none params || p_length = arg_length || (var_arg && arg_length >= p_length) then
-          begin Some (match Cilfacade.find_varinfo_fundec f with
-              | fd when LibraryFunctions.use_special f.vname ->
-                M.info ~category:Analyzer "Using special for defined function %s" f.vname;
-                tf_special_call man lv f args
-              | fd ->
-                tf_normal_call man lv e fd args getl sidel demandl getg sideg
-              | exception Not_found ->
-                tf_special_call man lv f args)
-          end
+          let d =
+            (match Cilfacade.find_varinfo_fundec f with
+             | fd when LibraryFunctions.use_special f.vname ->
+               M.info ~category:Analyzer "Using special for defined function %s" f.vname;
+               tf_special_call man f
+             | fd ->
+               tf_normal_call man lv e fd args getl sidel demandl getg sideg
+             | exception Not_found ->
+               tf_special_call man f)
+          in
+          Some d
         else begin
           let geq = if var_arg then ">=" else "" in
           M.warn ~category:Unsound ~tags:[Category Call; CWE 685] "Potential call to function %a with wrong number of arguments (expected: %s%d, actual: %d). This call will be ignored." CilType.Varinfo.pretty f geq p_length arg_length;
