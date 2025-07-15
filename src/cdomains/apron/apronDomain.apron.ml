@@ -18,8 +18,8 @@ module M = Messages
     - heterogeneous environments: https://link.springer.com/chapter/10.1007%2F978-3-030-17184-1_26 (Section 4.1) *)
 
 let widening_thresholds_apron = ResettableLazy.from_fun (fun () ->
-    let t = if GobConfig.get_string "ana.apron.threshold_widening_constants" = "comparisons" then WideningThresholds.octagon_thresholds () else WideningThresholds.thresholds_incl_mul2 () in
-    let r = List.map Scalar.of_z t in
+    let t = if GobConfig.get_string "ana.apron.threshold_widening_constants" = "comparisons" then WideningThresholds.octagon_thresholds else WideningThresholds.thresholds_incl_mul2 in
+    let r = List.map Scalar.of_z (WideningThresholds.Thresholds.elements (ResettableLazy.force t)) in
     Array.of_list r
   )
 
@@ -552,7 +552,9 @@ struct
     |> Enum.map (fun (lincons0: Lincons0.t) ->
         Lincons1.{lincons0; env = array_env}
       )
-    |> List.of_enum
+    |> Lincons1Set.of_enum
+    |> (if Oct.manager_is_oct Man.mgr then Lincons1Set.simplify else Fun.id)
+    |> Lincons1Set.elements
 end
 
 (** With heterogeneous environments. *)
@@ -808,6 +810,7 @@ sig
 
   module V: RV
   module Tracked: RelationDomain.Tracked
+  module Man: Manager
 
   val assert_inv : Queries.ask -> t -> exp -> bool -> bool Lazy.t -> t
   val eval_int : Queries.ask -> t -> exp -> bool Lazy.t -> Queries.ID.t
@@ -928,6 +931,7 @@ struct
     let lcb = D.to_lincons_array (D.of_lincons_array (BoxD.to_lincons_array b)) in (* convert through D to make lincons use the same format *)
     let lcd = D.to_lincons_array d in
     Lincons1Set.(diff (of_earray lcd) (of_earray lcb))
+    |> (if Oct.manager_is_oct D.Man.mgr then Lincons1Set.simplify else Fun.id)
     |> Lincons1Set.elements
 end
 

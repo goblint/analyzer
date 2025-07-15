@@ -27,33 +27,33 @@ struct
       ) d;
     d
 
-  let emit_splits_ctx man =
+  let emit_splits_man man =
     emit_splits man man.local
 
   let assign man (lval:lval) (rval:exp) =
-    emit_splits_ctx man
+    emit_splits_man man
 
   let vdecl man (var:varinfo) =
-    emit_splits_ctx man
+    emit_splits_man man
 
   let branch man (exp:exp) (tv:bool) =
-    emit_splits_ctx man
+    emit_splits_man man
 
   let enter man (lval: lval option) (f:fundec) (args:exp list) =
     [man.local, man.local]
 
   let body man (f:fundec) =
-    emit_splits_ctx man
+    emit_splits_man man
 
   let return man (exp:exp option) (f:fundec) =
-    emit_splits_ctx man
+    emit_splits_man man
 
   let combine_env man lval fexp f args fc au f_ask =
     let d = D.join man.local au in
     emit_splits man d (* Update/preserve splits for globals in combined environment. *)
 
   let combine_assign man (lval:lval option) fexp (f:fundec) (args:exp list) fc au (f_ask: Queries.ask) =
-    emit_splits_ctx man (* Update/preserve splits over assigned variable. *)
+    emit_splits_man man (* Update/preserve splits over assigned variable. *)
 
   let special man (lval: lval option) (f:varinfo) (arglist:exp list) =
     let d = match (LibraryFunctions.find f).special arglist, f.vname with
@@ -87,15 +87,15 @@ struct
   let threadenter man ~multiple lval f args = [man.local]
 
   let threadspawn man ~multiple lval f args fman =
-    emit_splits_ctx man
+    emit_splits_man man
 
-  let event man (event: Events.t) octx =
+  let event man (event: Events.t) oman =
     match event with
     | UpdateExpSplit exp ->
       let value = man.ask (EvalInt exp) in
       D.add exp value man.local
     | Longjmped _ ->
-      emit_splits_ctx man
+      emit_splits_man man
     | _ ->
       man.local
 end

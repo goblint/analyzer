@@ -3,7 +3,7 @@
 
 int main()
 {
-  int i = 1;
+  unsigned int i = 1;
 
   while (i <= 10)
   {

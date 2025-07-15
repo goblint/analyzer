@@ -1,9 +1,9 @@
-// SKIP TERM PARAM: --set "ana.activated[+]" termination --set ana.activated[+] apron --enable ana.int.interval --set ana.apron.domain polyhedra
+// SKIP TODO TERM PARAM: --set "ana.activated[+]" termination --set ana.activated[+] apron --enable ana.int.interval --set ana.apron.domain polyhedra
 #include <stdio.h>
 
 int main()
 {
-  int counter = 0;
+  unsigned int counter = 0;
 
   while (1)
   {

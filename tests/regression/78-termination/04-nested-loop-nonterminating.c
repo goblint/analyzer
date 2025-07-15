@@ -7,7 +7,7 @@ int main()
 
   while (outerCount <= 3)
   {
-    int innerCount = 1;
+    unsigned int innerCount = 1;
 
     while (1) // NONTERMLOOP termination analysis shall mark beginning of while as non-terminating loop
     {

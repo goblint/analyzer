@@ -1,7 +1,7 @@
 (** Deprecated top-down solver ([topdown_deprecated]). *)
 
 open Batteries
-open ConstrSys
+open Goblint_constraint.ConstrSys
 open Messages
 
 
@@ -161,4 +161,4 @@ module TD3 =
   end
 
 let _ =
-  Selector.add_solver ("topdown_deprecated", (module PostSolver.EqIncrSolverFromEqSolver (TD3)));
+  Selector.add_solver ("topdown_deprecated", (module PostSolver.DemandEqIncrSolverFromEqSolver (TD3)));

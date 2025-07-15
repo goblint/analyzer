@@ -1,6 +1,5 @@
-(** {{!Spec} Analysis specification} and {{!MonSystem} constraint system} signatures. *)
+(** {{!Spec} Analysis specification} signatures. *)
 
-open Batteries
 open GoblintCil
 open Pretty
 open GobConfig
@@ -50,7 +49,7 @@ end
 module type SpecSysVar =
 sig
   include Printable.S
-  include ConstrSys.SysVar with type t := t
+  include Goblint_constraint.ConstrSys.SysVar with type t := t
 end
 
 module GVarF (V: SpecSysVar) =
@@ -290,7 +289,7 @@ type increment_data = {
 
   (* Globals for which the constraint
      system unknowns should be restarted *)
-  restarting: VarQuery.t list;
+  restarting: Goblint_constraint.VarQuery.t list;
 }
 
 module StdV =
@@ -425,7 +424,7 @@ end
 module type SpecSys =
 sig
   module Spec: Spec
-  module EQSys: ConstrSys.GlobConstrSys with module LVar = VarF (Spec.C)
+  module EQSys: Goblint_constraint.ConstrSys.DemandGlobConstrSys with module LVar = VarF (Spec.C)
                                and module GVar = GVarF (Spec.V)
                                and module D = Spec.D
                                and module G = GVarG (Spec.G) (Spec.C)
