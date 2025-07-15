@@ -23,7 +23,89 @@ open Goblint_parallel
 open ParallelStats
 open Messages
 
+module Htbl = Saturn.Htbl
+module Stack = Saturn.Stack
+module Bag = Saturn.Bag
+module Queue = Saturn.Queue
+
 module M = Messages
+
+module type Key = sig
+  type t
+  val equal : t -> t -> bool
+  val hash : t -> int
+end
+
+module type MessageQueueParams = sig
+  module Subscriber: Key
+  type message
+  module Topic: Key
+end
+
+module MessageQueue (X: MessageQueueParams) = struct
+  type subscriber = X.Subscriber.t
+  type message = X.message
+  type topic = X.Topic.t
+
+  type t = {
+    subscriptions: (topic, (subscriber Stack.t)) Htbl.t;
+    messages: (subscriber, (message Stack.t)) Htbl.t;
+    messages_by_topic: (topic, (message Stack.t)) Htbl.t;
+  }
+
+  let create () = { 
+    subscriptions = Htbl.create ~hashed_type:(module X.Topic) ();
+    messages = Htbl.create ~hashed_type:(module X.Subscriber) ();
+    messages_by_topic = Htbl.create ~hashed_type:(module X.Topic) ()
+  }
+
+  let subscribe mq topic subscriber =
+    let stack = Stack.create () in
+    let added = Htbl.try_add mq.subscriptions topic stack in
+    let stack = if added then stack else Htbl.find_exn mq.subscriptions topic in
+    Stack.push stack subscriber;
+
+    let queue_for_subscriber = Stack.create () in
+    let added = Htbl.try_add mq.messages subscriber queue_for_subscriber in
+    let queue_for_subscriber = if added then queue_for_subscriber else Htbl.find_exn mq.messages subscriber in
+    let unread_messages = match (Htbl.find_opt mq.messages_by_topic topic) with
+      | None -> Seq.empty
+      | Some s -> Stack.to_seq s in
+    Seq.iter (Stack.push queue_for_subscriber) unread_messages
+
+
+  let push (mq : t) (topic : topic) (message : message): unit =
+    let queue_for_topic = Stack.create () in
+    let added = Htbl.try_add mq.messages_by_topic topic queue_for_topic in
+    let queue_for_topic = if added then queue_for_topic else Htbl.find_exn mq.messages_by_topic topic in
+    Stack.push queue_for_topic message;
+
+
+    let subs: subscriber Seq.t = match Htbl.find_opt mq.subscriptions topic with
+      | Some l -> Stack.to_seq l
+      | None -> Seq.empty in
+
+    let push_to_subscriber (subscriber : subscriber): unit =
+      let queue_for_subscriber = Stack.create () in
+      let added = Htbl.try_add mq.messages subscriber queue_for_subscriber in
+      let queue_for_subscriber = if added then queue_for_subscriber else Htbl.find_exn mq.messages subscriber in
+      Stack.push queue_for_subscriber message
+    in
+    Seq.iter push_to_subscriber subs
+
+  let consume mq subscriber f =
+    let rec consume_queue q =
+      match Stack.pop_opt q with 
+      | None -> ()
+      | Some v -> (f v; consume_queue q) in
+    let q = Htbl.find_opt mq.messages subscriber in
+    match q with 
+      None -> trace "sub" "is none"
+    | Some q -> consume_queue q
+  (* ignore (Option.map consume_queue (Htbl.find_opt mq.messages subscriber)) *)
+
+  let is_empty mq subscriber = Option.map_default Stack.is_empty true (Htbl.find_opt mq.messages subscriber)
+end
 
 module Base : DemandEqSolver =
   functor (S: DemandEqConstrSys) ->
@@ -43,6 +125,7 @@ module Base : DemandEqSolver =
       val process_updates: int -> obs_bookmark -> (side_effect -> unit) -> obs_bookmark
       val add_side: int -> (unit -> unit) -> side_effect -> unit
       val no_observations: unit -> obs_bookmark
+      val subscribe: S.Var.t -> unit
 
       val updates_or_fin: int -> obs_bookmark -> (unit -> unit) -> remaining_status
     end
@@ -50,124 +133,36 @@ module Base : DemandEqSolver =
     let sides_registered = Atomic.make 0
     let sides_processed = Atomic.make 0
 
-    (* TODO: I am not sure if the data structure currently used is the best solution *)
-    (* It is kind of difficult to manage the indices *)
-    (* We could use a lock-free linked list and remember the element that was processed last *)
-    (* An AtomicLinkedList is already defined in parallel_util.ml *)
-    module OldSides: Sides = struct
-      (** Each solver thread keeps a bookmark of the last processed updates,
-          so that it can stop processing the updates once that point in the
-          queue is reached *)
-      type obs_bookmark = int
-      (** Return value representing if all updates are already processed *)
+    module SubscriptionSides = struct
+      module MQ = MessageQueue (struct
+          module Subscriber = S.Var (* identify threads by their root unknown *)
+          type message = S.Var.t * S.Dom.t 
+          module Topic = S.Var
+        end)
+      let mq = MQ.create ()
       type remaining_status = NewSide | Fin
       type side_effect = S.Var.t * S.Dom.t
-      type side_entry = obs_bookmark * side_effect
-      (** Index of the next observation, used to determine if we have processed all sides *)
-      let next_obs_index = ref 1
-      (** List of all registered side effects.
-          This is defined once module-wise, and not per solver thread *)
-      let (sides : side_entry list ref) = ref []
-      let no_observations () = 0
 
-      let mutex = GobMutex.create ()
 
-      (* Resolve is used to create threads for preliminary unknowns. *)
-      let add_side thread_id resolve ((v,d) as side) =
-        GobMutex.lock mutex;
-        if tracing then trace "handle" "Adding %a with %a" S.Var.pretty_trace v S.Dom.pretty d;
-        if tracing then trace "side_add" "%d adding side to %a (obs index: %d)" thread_id S.Var.pretty_trace v !next_obs_index;
-        Atomic.incr sides_registered;
-        sides := (!next_obs_index, side) :: !sides;
-        incr next_obs_index;
-        resolve ();
-        GobMutex.unlock mutex
-
-      (* Process all existing updates via f *)
-      (* id is the thread ID *)
-      (* Returns the new observation index *)
-      let process_updates thread_id last_obs_index f =
-        let f_log s = if tracing then trace "process" "from: %d, on: %a" thread_id S.Var.pretty_trace (fst s); f s in
-        GobMutex.lock mutex;
+      let process_updates thread_id thread_root_var f = 
         if tracing then trace "process" "process begin";
-        let current_sides = !sides in
-        let obs' = !next_obs_index-1 in
-        GobMutex.unlock mutex;
-        Seq.of_list current_sides 
-        |> Seq.take_while (fun (o,_) -> o <> last_obs_index) 
-        |> Seq.iter (fun (_, side) -> Atomic.incr sides_processed; f_log side);
-        if tracing then trace "process_update" "%d processed sides %d to %d" thread_id (last_obs_index) (obs');
-        if tracing then trace "process" "process end";
-        obs'
+        let f_log s = if tracing then trace "process" "from: %d, on: %a" thread_id S.Var.pretty_trace (fst s); f s in
+        MQ.consume mq thread_root_var f_log;
+        if tracing then trace "process" "process end"
 
-      (* Returns if we have updates or if we are finished *)
-      (* Unknowns must be marked as preliminary, even if all updates are accounted for *)
-      (* since new updates might come later *)
-      (* Thread id is included for consistency with other functions *)
-      let updates_or_fin thread_id obs mark_prelim =
-        GobMutex.lock mutex;
-        let result = if !next_obs_index-1 <> obs then NewSide 
-          else (mark_prelim (); Fin) in
-        GobMutex.unlock mutex;
-        result
+      let add_side thread_id resolve ((v,d) as side) = 
+        if tracing then trace "handle" "Adding %a with %a" S.Var.pretty_trace v S.Dom.pretty d;
+        MQ.push mq v side; resolve ()
+      let no_observations () = ()
+      let subscribe v thread_root_var = 
+        if tracing then trace "sub" "%a: subscription to %a" S.Var.pretty_trace thread_root_var S.Var.pretty_trace v;
+        MQ.subscribe mq v thread_root_var
+
+      let updates_or_fin thread_id thread_root_var mark_prelim =
+        if MQ.is_empty mq thread_root_var then (mark_prelim (); Fin) else NewSide
     end
 
-    module LockFreeSides: Sides = struct
-      (** Each solver thread keeps a bookmark of the last processed updates,
-          so that it can stop processing the updates once that point in the
-          queue is reached *)
-      type obs_bookmark = int
-      (** Return value representing if all updates are already processed *)
-      type remaining_status = NewSide | Fin
-      type side_effect = S.Var.t * S.Dom.t
-      type side_entry = obs_bookmark * side_effect
-
-      type entry_node = LFin | Next of (side_entry * entry_node)
-
-      let (head : entry_node Atomic.t) = Atomic.make LFin
-
-      (* val add_side: int -> (unit -> unit) -> side_effect -> unit *)
-      (* Resolve is used to create threads for preliminary unknowns. *)
-      let rec add_side thread_id resolve ((v,d) as side) =
-        if tracing then trace "handle" "Adding %a with %a" S.Var.pretty_trace v S.Dom.pretty d;
-        (* if tracing then trace "side_add" "%d adding side to %a (obs index: %d)" thread_id S.Var.pretty_trace v !(Atomic.get next_obs_index); *)
-        let old_head = Atomic.get head in
-        let new_head = match old_head with
-            LFin -> Next ((1, side), LFin)
-          | (Next ((bookmark, _), _) as old) -> Next ((bookmark + 1, side), old) in 
-        let success = Atomic.compare_and_set head old_head new_head in
-        if success then (Atomic.incr sides_registered; resolve) () else add_side thread_id resolve side
-
-      let no_observations () = 0
-
-      let rec seq_of_updates head () =
-        match head with
-          LFin -> Seq.Nil
-        | Next (entry, rest) -> Seq.Cons (entry, seq_of_updates rest)
-
-      let process_updates thread_id last_obs_bookmark f =
-        let f_log s = if tracing then trace "process" "from: %d, on: %a" thread_id S.Var.pretty_trace (fst s); f s in
-        if tracing then trace "process" "process begin";
-        let head_value = Atomic.get head in
-        let new_bookmark = match head_value with
-          | LFin -> 0
-          | Next ((bookmark, _), _) -> bookmark in
-        seq_of_updates head_value
-        |> Seq.take_while (fun (o,_) -> o <> last_obs_bookmark) 
-        |> Seq.iter (fun (_, side) -> (Atomic.incr sides_processed; f_log side));
-        if tracing then trace "process_update" "%d processed sides %d to %d" thread_id (last_obs_bookmark) (new_bookmark);
-        if tracing then trace "process" "process end";
-        new_bookmark
-
-      let updates_or_fin thread_id observation_bookmark mark_prelim =
-        let head_value = Atomic.get head in
-        match head_value with
-          LFin -> (mark_prelim (); Fin)
-        | Next ((bookmark, _), _) -> 
-          if observation_bookmark <> bookmark then NewSide else (mark_prelim (); Fin)
-    end
-
-    module Sides = OldSides
+    module Sides = SubscriptionSides
 
     type unknown_data = {
       infl: VS.t;
@@ -189,14 +184,16 @@ module Base : DemandEqSolver =
       (* Sides.obs is an index! The actual observations are stored in the sides data structure *)
       (* Therefore, this obs is solver thread specific! *)
       (* TODO: obs_index should rather be called bookmark, bc. not necessarily an index *)
-      obs_index: Sides.obs_bookmark ref;
+      (* obs_index: Sides.obs_bookmark ref; *)
 
       unknowns: unknown_data ref HM.t;
+      subscriptions: (S.Var.t, unit) Htbl.t;
     }
 
     let create_empty_data () = {
-      obs_index = ref (Sides.no_observations ());
+      (* obs_index = ref (Sides.no_observations ()); *)
       unknowns = HM.create 10;
+      subscriptions = Htbl.create ~hashed_type:(module S.Var)();
     }
 
     let init (unknowns : unknown_data ref HM.t) x =
@@ -289,8 +286,9 @@ module Base : DemandEqSolver =
 
       and solve_single_rec is_primary x_poi sd job_id =
         if tracing then trace "handle" "solving for: %a" S.Var.pretty_trace x_poi;
-        let obs = sd.obs_index in
+        (* let obs = sd.obs_index in *)
         let unknowns = sd.unknowns in
+        let subs = sd.subscriptions in
 
         let add_infl y x =
           if tracing then trace "infl" "%d add %a influences %a" job_id S.Var.pretty_trace y S.Var.pretty_trace x;
@@ -336,11 +334,15 @@ module Base : DemandEqSolver =
               if S.system y = None then (
                 (* init rho y; *) (* Should not be necessary, since it is searched/created at the beginning of the method *)
                 y_ref := {!y_ref with stable = true};
+                if not (Htbl.mem subs y) then (
+                  Htbl.try_add subs y ();
+                  if tracing then trace "sub" "%a subscribed to %a" S.Var.pretty_trace x_poi S.Var.pretty_trace y;
+                  Sides.subscribe y x_poi);
                 (* Normally, we process updates in iterate *)
                 (* For vars without constraints, we need to handle sides here *)
                 (* as they do not result in an iterate call *)
                 if tracing then trace "process" "from query";
-                obs := Sides.process_updates job_id !obs handle_side; 
+                Sides.process_updates job_id x_poi handle_side; 
                 add_infl y x
               ) else (
                 y_ref := {!y_ref with called = true; stable = true};
@@ -390,7 +392,7 @@ module Base : DemandEqSolver =
           let wp = !x_ref.wpoint in (* if x becomes a wpoint during eq, checking this will delay widening until next iterate *)
           let eqd = eq x (query x) (side x) (create x) in
           (* Process updates before! every rhs and save new index *)
-          obs := Sides.process_updates job_id !obs handle_side;
+          Sides.process_updates job_id x_poi handle_side;
           let old = !x_ref.rho in
           let wpd = (* d after widen/narrow (if wp) *)
             if not wp then eqd
@@ -438,7 +440,12 @@ module Base : DemandEqSolver =
                 promises := (Threadpool.add_work pool (fun () -> solve_single is_primary z rsd new_id))::!promises
               ) should_revive
           in
-          (* TODO: Does doing it in this order somehow effect the locality of sides? *)
+          if not (Htbl.mem subs y) then (
+            let _ = Htbl.try_add subs y () in
+            Sides.subscribe y x_poi
+          );
+          (*   (* Sides.process_updates job_id x_poi handle_side *) *)
+          (* ); *)
           Sides.add_side job_id revive_suspended (y, d)
         and handle_side (y, v) =
           if tracing then trace "handle" "handling side to %a" S.Var.pretty_trace y;
@@ -482,11 +489,11 @@ module Base : DemandEqSolver =
             prelim_vars := (is_primary, x_poi, sd, job_id)::!prelim_vars;
             GobMutex.unlock prom_mutex
           in
-          match Sides.updates_or_fin job_id !obs suspend with
+          match Sides.updates_or_fin job_id x_poi suspend with
           | Sides.NewSide -> (
               if tracing then trace "wait" "%d processing new sides" job_id;
               if tracing then trace "process" "from newside";
-              obs := Sides.process_updates job_id !obs handle_side;
+              Sides.process_updates job_id x_poi handle_side;
               if !x_poi_ref.stable then
                 wait ()
               else (
@@ -579,7 +586,7 @@ module Base : DemandEqSolver =
               | None, None -> None
               | Some a, None -> ao
               | None, Some b -> bo
-              | Some a, Some b -> if S.Dom.equal a b then ao 
+              | Some a, Some b -> if S.Dom.equal a b then (if tracing then trace "dbg_para" "found both";ao) 
                 else (if tracing then trace "dbg_para" "Inconsistent data for %a:\n left: %a\n right (%d): %a" S.Var.pretty_trace k S.Dom.pretty a job_id S.Dom.pretty b; Some (S.Dom.join a b)) 
           ) acc (unknowns_to_rho sd.unknowns)
         ) start_rho !prelim_vars in
@@ -588,4 +595,4 @@ module Base : DemandEqSolver =
   end
 
 let () =
-  Selector.add_solver ("td_parallel_dist", (module PostSolver.DemandEqIncrSolverFromDemandEqSolver (Base)))
+  Selector.add_solver ("td_parallel_dist_sub", (module PostSolver.DemandEqIncrSolverFromDemandEqSolver (Base)))
