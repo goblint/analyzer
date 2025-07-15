@@ -276,21 +276,21 @@ struct
     match c with
     | Scalar c ->
       (match int_of_scalar ?scalewith c with
-      | Some i ->
-        let ci,truncation = truncateCilint ILongLong i in
-        if truncation = NoTruncation then
-          if Z.compare i Z.zero >= 0 then
-            false, Const (CInt(i,ILongLong,None))
-          else
-            (* attempt to negate if that does not cause an overflow *)
-            let cneg, truncation = truncateCilint ILongLong (Z.neg i) in
-            if truncation = NoTruncation then
-              true, Const (CInt((Z.neg i),ILongLong,None))
-            else
-              false, Const (CInt(i,ILongLong,None))
-        else
-          (M.warn ~category:Analyzer "Invariant Apron: coefficient is not int: %a" Scalar.pretty c; raise Unsupported_Linexpr1)
-      | None -> raise Unsupported_Linexpr1)
+       | Some i ->
+         let ci,truncation = truncateCilint ILongLong i in
+         if truncation = NoTruncation then
+           if Z.compare i Z.zero >= 0 then
+             false, Const (CInt(i,ILongLong,None))
+           else
+             (* attempt to negate if that does not cause an overflow *)
+             let cneg, truncation = truncateCilint ILongLong (Z.neg i) in
+             if truncation = NoTruncation then
+               true, Const (CInt((Z.neg i),ILongLong,None))
+             else
+               false, Const (CInt(i,ILongLong,None))
+         else
+           (M.warn ~category:Analyzer "Invariant Apron: coefficient is not int: %a" Scalar.pretty c; raise Unsupported_Linexpr1)
+       | None -> raise Unsupported_Linexpr1)
     | _ -> raise Unsupported_Linexpr1
 
   (** Returned boolean indicates whether returned expression should be negated. *)
