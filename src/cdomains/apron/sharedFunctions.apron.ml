@@ -271,6 +271,7 @@ struct
   let longlong = TInt(ILongLong,[])
 
 
+  (** Returned boolean indicates whether returned expression should be negated. *)
   let coeff_to_const ~scalewith (c:Coeff.union_5) =
     match c with
     | Scalar c ->
@@ -292,6 +293,7 @@ struct
       | None -> raise Unsupported_Linexpr1)
     | _ -> raise Unsupported_Linexpr1
 
+  (** Returned boolean indicates whether returned expression should be negated. *)
   let cil_exp_of_linexpr1_term ~scalewith (c: Coeff.t) v =
     match V.to_cil_varinfo v with
     | Some vinfo when IntDomain.Size.is_cast_injective ~from_type:vinfo.vtype ~to_type:(TInt(ILongLong,[]))   ->
@@ -306,6 +308,7 @@ struct
       M.warn ~category:Analyzer "Invariant Apron: cannot convert to cil var in overflow preserving manner: %a" Var.pretty v;
       raise Unsupported_Linexpr1
 
+  (** Returned booleans indicates whether returned expressions should be negated. *)
   let cil_exp_of_linexpr1 ?scalewith (linexpr1:Linexpr1.t) =
     let terms = ref [coeff_to_const ~scalewith (Linexpr1.get_cst linexpr1)] in
     let append_summand (c:Coeff.union_5) v =
@@ -348,7 +351,7 @@ struct
       let linexpr1 = Lincons1.get_linexpr1 lincons1 in
       let common_denominator = lcm_den linexpr1 in
       let terms = cil_exp_of_linexpr1 ~scalewith:common_denominator linexpr1 in
-      let (nterms, pterms) = Tuple2.mapn (List.map snd) (List.partition fst terms) in
+      let (nterms, pterms) = Tuple2.mapn (List.map snd) (List.partition fst terms) in (* partition terms into negative (nterms) and positive (pterms) *)
       let fold_terms terms =
         List.fold_left (fun acc term ->
             match acc with
@@ -358,7 +361,7 @@ struct
         |> Option.default zero
       in
       let lhs = fold_terms pterms in
-      let rhs = fold_terms nterms in
+      let rhs = fold_terms nterms in (* negative terms are moved from Apron's lhs to our rhs, so they all become positive there *)
       let binop =
         match Lincons1.get_typ lincons1 with
         | EQ -> Eq
@@ -367,7 +370,7 @@ struct
         | DISEQ -> Ne
         | EQMOD _ -> raise Unsupported_Linexpr1
       in
-      Some (Cil.constFold false @@ BinOp(binop, lhs, rhs, TInt(IInt,[])))
+      Some (Cil.constFold false @@ BinOp(binop, lhs, rhs, TInt(IInt,[]))) (* constFold removes multiplication by factor 1 *)
     with
       Unsupported_Linexpr1 -> None
 end
