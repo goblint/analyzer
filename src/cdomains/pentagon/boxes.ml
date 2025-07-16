@@ -6,7 +6,7 @@ open StringUtils
 (** Provides functions and types for collections of Intv. *)
 module Boxes  = 
 struct
-  type t = Intv.t list [@@deriving eq, ord]
+  type t = Intv.t list [@@deriving eq, ord, hash]
   include ZExtOps
   let is_bot (i: t) = 
     BatList.exists Intv.is_bot i
@@ -28,9 +28,6 @@ struct
         |> Printf.sprintf "(%s)"
     in
     Printf.sprintf "%s { %s }" bot_or_top (String.concat "; " (List.mapi string_of_interval intervals))
-
-  let equal boxes1 boxes2 =
-    BatList.for_all2 (Intv.equal) boxes1 boxes2
 
   let leq i1 i2 =
     BatList.for_all2 Intv.leq i1 i2

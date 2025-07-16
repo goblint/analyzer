@@ -3,10 +3,6 @@
     "Pentagons: A weakly relational abstract domain for the efficient validation of array accesses"
     -- Francesco Logozzo, Manuel Fähndrich (2010) *)
 
-(*
-TODO: Timing Wrap für alle Funktionen
-*)
-
 open Batteries
 open GoblintCil
 module M = Messages
@@ -22,6 +18,9 @@ open Boxes
 open Subs
 open Pntg
 
+(* Global function to enable or disable timing wrap. *)
+let timing_wrap s f a = Timing.wrap s f a
+(* let timing_wrap s f a = f a *)
 
 
 module Rhs = struct
@@ -59,13 +58,11 @@ module Rhs = struct
 
 end
 
-
 module type Tracked =
 sig
   val type_tracked: typ -> bool
   val varinfo_tracked: varinfo -> bool
 end
-
 
 
 (** [VarManagement] defines the type t of the affine equality domain (a record that contains an optional matrix and an apron environment) and provides the functions needed for handling variables (which are defined by [RelationDomain.D2]) such as [add_vars], [remove_vars].
@@ -82,6 +79,7 @@ let z_ext_of_scalar (s: Scalar.t) =
   | Mpqf(mpqf) -> ZExt.of_float (Mpqf.to_float mpqf)
   | Mpfrf(mpfrf) -> ZExt.of_float (Mpfrf.to_float mpfrf)
 
+(* Returns the current best approximation using the provided pentagon for the given texpr. *)
 let eval_texpr_to_intv (t: VarManagement.t) (texpr:Texpr1.expr) : Intv.t = 
   let get_dim var = Environment.dim_of_var t.env var in
   let d = Option.get t.d in
@@ -101,7 +99,9 @@ let eval_texpr_to_intv (t: VarManagement.t) (texpr:Texpr1.expr) : Intv.t =
     | Binop (Mod, e1, e2, _, _)  -> Intv.rem (aux e1) (aux e2)
     | Binop (Pow, e1, e2, _, _) -> Intv.pow (aux e1) (aux e2)
   in
-  aux texpr;;
+  aux texpr
+
+(* let eval_texpr_to_intv t texpr = timing_wrap "eval_texpr_to_intv" (eval_texpr_to_intv t) texpr *)
 
 (* We assume that the divisor is always 1, so we omit it and that t is not bottom. *)
 let rec eval_monoms_to_intv boxes (terms, (constant, _)) =
@@ -110,42 +110,9 @@ let rec eval_monoms_to_intv boxes (terms, (constant, _)) =
   | (coeff, index, _)::terms -> (
       let intv_coeff = Intv.create_const_of_z coeff in
       Intv.add (Intv.mul intv_coeff (Boxes.get_value index boxes)) (eval_monoms_to_intv boxes (terms, (constant, Z.one)))
-    );;  
+    )  
 
-
-
-let eval_texpr_to_intv (t: VarManagement.t) (texpr:Texpr1.expr) : Intv.t = 
-  let get_dim var = Environment.dim_of_var t.env var in
-  let d = Option.get t.d in
-  let boxes = d.boxes in
-  let rec aux texpr =
-    match texpr with
-    | Texpr1.Cst (Interval inv) -> (z_ext_of_scalar inv.inf, z_ext_of_scalar inv.sup)
-    | Cst (Scalar s) -> let s = z_ext_of_scalar s in (s, s)
-    | Var y -> List.at boxes (get_dim y) 
-    | Unop  (Cast, e, _, _) -> aux e
-    | Unop  (Sqrt, e, _, _) -> failwith "Do the sqrt. :)"
-    | Unop  (Neg,  e, _, _) -> Intv.neg (aux e)
-    | Binop (Add, e1, e2, _, _) -> Intv.add (aux e1) (aux e2)
-    | Binop (Sub, e1, e2, _, _) -> Intv.sub (aux e1) (aux e2)
-    | Binop (Mul, e1, e2, _, _) -> Intv.mul (aux e1) (aux e2)
-    | Binop (Div, e1, e2, _, _) -> Intv.div (aux e1) (aux e2)
-    | Binop (Mod, e1, e2, _, _)  -> Intv.rem (aux e1) (aux e2)
-    | Binop (Pow, e1, e2, _, _) -> Intv.pow (aux e1) (aux e2)
-  in
-  aux texpr;;
-
-
-
-(* We assume that the divisor is always 1, so we omit it and that t is not bottom. *)
-let rec eval_monoms_to_intv boxes (terms, (constant, _)) =
-  match terms with
-  | [] -> Intv.create_const_of_z constant
-  | (coeff, index, _)::terms -> (
-      let intv_coeff = Intv.create_const_of_z coeff in
-      Intv.add (Intv.mul intv_coeff (Boxes.get_value index boxes)) (eval_monoms_to_intv boxes (terms, (constant, Z.one)))
-    );;  
-
+(* let eval_monoms_to_intv boxes monoms = timing_wrap "eval_monoms_to_intv" (eval_monoms_to_intv boxes) monoms *)
 
 type intv_infty_list = ZExt.t * Int.t list
 type ext_intv = intv_infty_list * intv_infty_list
@@ -215,11 +182,11 @@ let rec eval_monoms_to_intv_infty_list boxes (terms, (constant, _)) : ext_intv =
             )
           | lb -> ZExt.add c lb, l
       in
-
-
       (lb, ub)
 
-    );;
+    )
+
+(* let eval_monoms_to_intv_infty_list boxes monoms = timing_wrap "eval_monoms_to_intv_infty_list" (eval_monoms_to_intv_infty_list boxes) monoms *)
 
 let ext_intv_to_intv (((c_lb, infty_list_lb), (c_ub, infty_list_ub)) : ext_intv) : Intv.t =
   let lb = ZExt.add c_lb (if infty_list_lb = [] then ZExt.zero else NegInfty) in
@@ -271,10 +238,10 @@ First argument: Values of a variable corresponding to a term in the associated e
 Second argument: The evaluation of an expression as an extended intv. 
 *)
 let eval_ext_intv_plus_x x ext_intv =
-  ext_intv_to_intv (ext_intv_plus_x x ext_intv);;
+  ext_intv_to_intv (ext_intv_plus_x x ext_intv)
 
 let eval_ext_intv_minus_x (coeff_x, x, x_intv) (ext_intv: ext_intv) = 
-  eval_ext_intv_plus_x (Z.neg coeff_x, x, Intv.neg x_intv) (ext_intv);;
+  eval_ext_intv_plus_x (Z.neg coeff_x, x, Intv.neg x_intv) (ext_intv)
 
 let neg_ext_intv ((c1, lst1), (c2, lst2)) = (ZExt.neg c2, lst2), (ZExt.neg c1, lst1)
 
@@ -289,19 +256,16 @@ module ExpressionBounds: (SharedFunctions.ConvBounds with type t = VarManagement
 struct
   include VarManagement
 
-  (*
-  TODO: Check if s1 > s2 to check for bot values.
-  *)
   let bound_texpr t texpr =
     let intv = (eval_texpr_to_intv t (Texpr1.to_expr texpr)) in
     if Intv.is_bot intv then failwith "BOT DETECTED!" else
       match intv with
-      | Arb s1, Arb s2 -> Some(s1), Some(s2)
-      | Arb s1, _ -> Some(s1), None
-      | _, Arb s2 -> None, Some(s2)
+      | ZExt.Arb s1, ZExt.Arb s2 -> Some(s1), Some(s2)
+      | ZExt.Arb s1, _ -> Some(s1), None
+      | _, ZExt.Arb s2 -> None, Some(s2)
       | _, _ -> None, None
 
-  let bound_texpr d texpr1 = Timing.wrap "bounds calculation" (bound_texpr d) texpr1
+  (* let bound_texpr d texpr1 = timing_wrap "bound_texpr" (bound_texpr d) texpr1 *)
 end
 
 module D =
@@ -327,10 +291,14 @@ struct
     | None -> true
     | Some d -> Boxes.is_bot d.boxes || Subs.is_bot d.subs
 
+  (* let is_bot t = timing_wrap "is_bot" (is_bot) t *)
+
   let is_top t = 
     match t.d with
     | None -> false
     | Some d -> Boxes.is_top d.boxes && Subs.is_top d.subs
+
+  (* let is_top t = timing_wrap "is_top" (is_top) t *)
 
   let to_string t =
     if is_bot t then
@@ -354,21 +322,13 @@ struct
       (* First pass substitutes the variable names for the keys left to the arrow. *)
       Str.global_substitute key_re (varname_and_append "->") res |>
       (* Second pass adjusts the variable name for the subs sets. *)
-      Str.global_substitute subs_re (varname_and_append "");;
+      Str.global_substitute subs_re (varname_and_append "")
+
+  (* let to_string t = timing_wrap "to_string" (to_string) t *)
 
   let show = to_string
 
-  let equal t1 t2 =
-    Environment.equal t1.env t2.env
-    &&
-    match t1.d, t2.d with
-    | None, None -> true
-    | None, _ -> false
-    | _ , None -> false
-    | Some(d1), Some(d2) -> Pntg.equal d1 d2
-
   let pretty () (t:t) = text (show t)
-
 
   let pretty_diff () (x, y) =
     dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
@@ -377,9 +337,6 @@ struct
   let printXml f (t:t) =  BatPrintf.fprintf f "<value>\n<map>\n<key>\npntg\n</key>\n<value>\n%s</value>\n<key>\nenv\n</key>\n<value>\n%a</value>\n</map>\n</value>\n" (XmlUtil.escape (show t)) Environment.printXml t.env
 
 
-  (*
-  TODO:
-  *)
   let to_yojson t = failwith "TODO"
 
   (**
@@ -415,7 +372,7 @@ struct
     if M.tracing then M.trace "pntg" "D.meet:\nt1:\t%s\nt2:\t%s\nres:\t%s\n\n" (show t1) (show t2) (show res);
     res
 
-  let meet t1 t2 = Timing.wrap "meet" (meet t1) t2
+  let meet t1 t2 = timing_wrap "meet" (meet t1) t2
 
   let leq t1 t2 = 
     let sup_env = Environment.lce t1.env t2.env in
@@ -446,7 +403,7 @@ struct
     if M.tracing then M.trace "pntg" "D.leq:\nt1:\t%s\nt2:\t%s\nres:\t%b\n\n" (show t1) (show t2) res;
     res
 
-  let leq a b = Timing.wrap "leq" (leq a) b
+  let leq a b = timing_wrap "leq" (leq a) b
 
   let join t1 t2 =
     let sup_env = Environment.lce t1.env t2.env in
@@ -465,12 +422,12 @@ struct
     | None, Some d2' -> {d = Some d2'; env = sup_env}
     | _ -> {d = None; env = sup_env}
 
-  let join a b = Timing.wrap "join" (join a) b
-
   let join a b =
     let res = join a b in
     if M.tracing then M.trace "pntg" "D.join:\nt1:\t%s\nt2:\t%s\nres:\t%s\n\n" (show a) (show b) (show res) ;
     res
+
+  let join a b = timing_wrap "join" (join a) b
 
   let widen t1 t2 = 
     let sup_env = Environment.lce t1.env t2.env in
@@ -486,12 +443,16 @@ struct
     if M.tracing then M.trace "pntg" "D.widen:\nt1:\t%s\nt2:\t%s\nres:\t%s\n\n" (show a) (show b) (show res) ;
     res
 
+  let widen a b = timing_wrap "widen" (widen a) b
+
   let narrow t1 t2 = meet t1 t2
 
   let narrow a b =
     let res = narrow a b in
     if M.tracing then M.trace "pntg" "D.narrow:\nt1:\t%s\nt2:\t%s\nres:\t%s\n\n" (show a) (show b) (show res) ;
     res
+
+  let narrow a b = timing_wrap "narrow" (narrow a) b
 
   (* S2 Specific functions of RelationDomain *)
   let is_bot_env t = t.d = None
@@ -501,7 +462,9 @@ struct
     else 
       let (pntg: Pntg.t) = Option.get t.d in
       let int_vars = List.map (fun v -> Environment.dim_of_var t.env v) vars in
-      {d = Some({boxes = Boxes.forget_vars int_vars pntg.boxes; subs = Subs.forget_vars int_vars pntg.subs}); env=t.env};;
+      {d = Some({boxes = Boxes.forget_vars int_vars pntg.boxes; subs = Subs.forget_vars int_vars pntg.subs}); env=t.env}
+
+  (* let forget_vars t vars = timing_wrap "forget_vars" (forget_vars t) vars *)
 
   (** Taken from lin2var and modified for our domain. *)
   (** Parses a Texpr to obtain a Rhs.t list to repr. a sum of a variables that have a coefficient. If variable is None, the coefficient represents a constant offset. *)
@@ -541,7 +504,8 @@ struct
     | exception NotLinearExpr -> None
     | exception ScalarIsInfinity -> None
     | x -> Some(x)
-  ;;
+
+  (* let monomials_from_texp env texp = timing_wrap "monomials_from_texp" (monomials_from_texp env) texp *)
 
   (** Taken from lin2var and modified for our domain. *)
   (** convert and simplify (wrt. reference variables) a texpr into a tuple of a list of monomials (coeff,varidx,divi) and a (constant/divi) *)
@@ -558,12 +522,14 @@ struct
          in
          let (expr,constant) = List.fold_left accumulate_constants (IMap.empty,(Z.zero,Z.one)) monomiallist in (* abstract simplification of the guard wrt. reference variables *)
          Some (IMap.fold (fun v c acc -> if Q.equal c Q.zero then acc else (Q.num c,v,Q.den c)::acc) expr [], constant) )
-  ;;
 
+
+  (* let simplified_monomials_from_texp env texp = timing_wrap "simplified_monomials_from_texp" (simplified_monomials_from_texp env) texp *)
 
   (* 
   TODO: discuss whether to implement the subtraction like the pentagon paper
-     (special case? different eval_monoms_to_intv that also uses relational information?) *)
+     (special case? different eval_monoms_to_intv that also uses relational information?)
+  *)
   let assign_texpr (t: t) x (texp: Texpr1.expr) : t =
     let wrap b s = {d=Some({boxes = b; subs = s}); env=t.env} in
     let x = Environment.dim_of_var t.env x in 
@@ -733,14 +699,14 @@ struct
                 aux rem_terms subs_acc slbs_acc delete_subs_flag delete_slbs_flag
 
             in aux sum_of_terms Subs.VarSet.empty Subs.VarSet.empty true true
-  ;;
+
 
   let assign_texpr t x texp =
     let res = assign_texpr t x texp in
     if M.tracing then M.trace "pntg" "D.assign_texpr:\nassign:\t%s := %s\nt:\t%s\nres:\t%s\n\n" (StringUtils.string_of_var x) (StringUtils.string_of_texpr1 texp) (show t) (show res);
     res
 
-  let assign_texpr t x texp = Timing.wrap "assign_texpr" (assign_texpr t x) texp
+  let assign_texpr t x texp = timing_wrap "assign_texpr" (assign_texpr t x) texp
 
   let assign_exp ask (t: VarManagement.t) var exp (no_ov: bool Lazy.t) = 
     let t = if not @@ Environment.mem_var t.env var then add_vars t [var] else t in
@@ -748,9 +714,13 @@ struct
     | texp -> assign_texpr t var texp
     | exception Convert.Unsupported_CilExp _ -> forget_vars t [var]
 
+  (* let assign_exp ask t var exp no_ov = timing_wrap "assign_exp" (assign_exp ask t var exp) no_ov *)
+
   let assign_var t v v' = 
     let t = add_vars t [v; v'] in
-    assign_texpr t v (Var v');;
+    assign_texpr t v (Var v')
+
+  (* let assign_var t v v' = timing_wrap "assign_var" (assign_var t v) v' *)
 
 
   let assign_var_parallel (t: t) (var_tuples: (var *  var) list) : t = 
@@ -765,6 +735,7 @@ struct
       remove_vars switched_arr primed_vars
     | _ -> t
 
+  (* let assign_var_parallel t var_tuples = timing_wrap "assign_var_parallel" (assign_var_parallel t) var_tuples *)
 
   (**
      Combines two var lists into a list of tuples and runs assign_var_parallel
@@ -773,10 +744,14 @@ struct
     let var_tuples = List.combine vs1 vs2 in
     assign_var_parallel t var_tuples
 
+  (* let assign_var_parallel' t vs1 vs2 = timing_wrap "assign_var_parallel'" (assign_var_parallel' t vs1) vs2 *)
+
   let assign_var_parallel_with t (var_tuples: (var * var) list) : unit =  
     let t' = assign_var_parallel t var_tuples in
     t.d <- t'.d;
-    t.env <- t'.env;;
+    t.env <- t'.env
+
+  (* let assign_var_parallel_with t var_tuples = timing_wrap "assign_var_parallel_with" (assign_var_parallel_with t) var_tuples *)
 
   let rec assert_constraint ask t tcons negate (no_ov: bool Lazy.t) =
     let wrap b s = {d=Some({boxes = b; subs=s}); env=t.env} in
@@ -959,7 +934,7 @@ struct
     | _ -> assert_constraint ask t e negate no_ov ~trace:true
 
 
-  let assert_constraint ask t e negate no_ov = Timing.wrap "assert_constraint" (assert_constraint ask t e negate) no_ov
+  let assert_constraint ask t e negate no_ov = timing_wrap "assert_constraint" (assert_constraint ask t e negate) no_ov
 
   (* 
   This function returns linear constraints of form: 
@@ -1032,18 +1007,22 @@ struct
       fun acc (var,intv,subs) -> 
         acc @ (constraints_of_intv var intv) @ (constraints_of_subs var subs)
     ) []
-  ;;
 
+  (* let invariant t = timing_wrap "invariant" invariant t *)
 
   (** Taken from lin2var. *)
   let substitute_exp ask (t:t) var exp no_ov = 
     let t = if not @@ Environment.mem_var t.env var then add_vars t [var] else t in 
     let res = assign_exp ask t var exp no_ov in
     forget_vars res [var]
-  ;;
+
+  (* let substitute_exp ask t var exp no_ov = timing_wrap "substitute_exp" (substitute_exp ask t var exp) no_ov *)
+
 
   (** Taken from lin2var.  *)
   let unify pntg1 pntg2 = meet pntg1 pntg2
+
+  (* let unify pntg1 pntg2 = timing_wrap "unify" (unify pntg1) pntg2  *)
 
   type marshal = t
   let marshal t = t
@@ -1065,7 +1044,7 @@ struct
     else
       match t.d with
       | None -> failwith "is_bot should take care of that"
-      | Some(d) -> Pntg.to_string d;;
+      | Some(d) -> Pntg.to_string d
 
 end
 

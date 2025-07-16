@@ -8,10 +8,8 @@ open Subs
 
 module Pntg =
 struct
-  type t = { boxes: Boxes.t; subs: Subs.t } [@@deriving eq, ord]
+  type t = { boxes: Boxes.t; subs: Subs.t } [@@deriving eq, ord, hash]
 
-  let hash : (t -> int)  = fun _ -> 1
-  let equal pntg1 pntg2  = Boxes.equal pntg1.boxes pntg2.boxes && Subs.equal pntg1.subs pntg2.subs;;
   let copy (x: t) = x
   let empty () = { boxes = []; subs = [] }
   let is_empty pntg =
