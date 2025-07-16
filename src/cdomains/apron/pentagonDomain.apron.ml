@@ -295,11 +295,11 @@ struct
   let bound_texpr t texpr =
     let intv = (eval_texpr_to_intv t (Texpr1.to_expr texpr)) in
     if Intv.is_bot intv then failwith "BOT DETECTED!" else
-    match intv with
-    | Arb s1, Arb s2 -> Some(s1), Some(s2)
-    | Arb s1, _ -> Some(s1), None
-    | _, Arb s2 -> None, Some(s2)
-    | _, _ -> None, None
+      match intv with
+      | Arb s1, Arb s2 -> Some(s1), Some(s2)
+      | Arb s1, _ -> Some(s1), None
+      | _, Arb s2 -> None, Some(s2)
+      | _, _ -> None, None
 
   let bound_texpr d texpr1 = Timing.wrap "bounds calculation" (bound_texpr d) texpr1
 end
@@ -958,7 +958,7 @@ struct
     | BinOp(Ge,Lval(_),Const(CInt(i, _, _)),_) when Z.equal i (Z.of_int (Int32.to_int Int32.min_int)) ->  assert_constraint ask t e negate no_ov ~trace:false
     | _ -> assert_constraint ask t e negate no_ov ~trace:true
 
-  
+
   let assert_constraint ask t e negate no_ov = Timing.wrap "assert_constraint" (assert_constraint ask t e negate) no_ov
 
   (* 
