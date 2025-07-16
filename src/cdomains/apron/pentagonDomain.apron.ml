@@ -257,12 +257,15 @@ struct
   include VarManagement
 
   let bound_texpr t texpr =
+    let texpr = Texpr1.to_expr texpr in
     (*
     TODO: Find out why this fixes things?
 
     None,None
     *)
-    let intv = (eval_texpr_to_intv t (Texpr1.to_expr texpr)) in
+    Printf.printf "%s\n" (StringUtils.string_of_texpr1 texpr);
+    let intv = eval_texpr_to_intv t texpr in
+    Printf.printf "%s\n" (Intv.to_string intv);
     if Intv.is_bot intv then failwith "BOT DETECTED!" else
       match intv with
       | ZExt.Arb s1, ZExt.Arb s2 -> Some(s1), Some(s2)
