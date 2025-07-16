@@ -3,6 +3,10 @@
     "Pentagons: A weakly relational abstract domain for the efficient validation of array accesses"
     -- Francesco Logozzo, Manuel Fähndrich (2010) *)
 
+(*
+TODO: Timing Wrap für alle Funktionen
+*)
+
 open Batteries
 open GoblintCil
 module M = Messages
@@ -285,8 +289,13 @@ module ExpressionBounds: (SharedFunctions.ConvBounds with type t = VarManagement
 struct
   include VarManagement
 
+  (*
+  TODO: Check if s1 > s2 to check for bot values.
+  *)
   let bound_texpr t texpr =
-    match (eval_texpr_to_intv t (Texpr1.to_expr texpr)) with
+    let intv = (eval_texpr_to_intv t (Texpr1.to_expr texpr)) in
+    if Intv.is_bot intv then failwith "BOT DETECTED!" else
+    match intv with
     | Arb s1, Arb s2 -> Some(s1), Some(s2)
     | Arb s1, _ -> Some(s1), None
     | _, Arb s2 -> None, Some(s2)
@@ -406,7 +415,7 @@ struct
     if M.tracing then M.trace "pntg" "D.meet:\nt1:\t%s\nt2:\t%s\nres:\t%s\n\n" (show t1) (show t2) (show res);
     res
 
-  let meet t1 t2 = Timing.wrap "pntg" (meet t1) t2
+  let meet t1 t2 = Timing.wrap "meet" (meet t1) t2
 
   let leq t1 t2 = 
     let sup_env = Environment.lce t1.env t2.env in
@@ -731,6 +740,7 @@ struct
     if M.tracing then M.trace "pntg" "D.assign_texpr:\nassign:\t%s := %s\nt:\t%s\nres:\t%s\n\n" (StringUtils.string_of_var x) (StringUtils.string_of_texpr1 texp) (show t) (show res);
     res
 
+  let assign_texpr t x texp = Timing.wrap "assign_texpr" (assign_texpr t x) texp
 
   let assign_exp ask (t: VarManagement.t) var exp (no_ov: bool Lazy.t) = 
     let t = if not @@ Environment.mem_var t.env var then add_vars t [var] else t in
@@ -948,6 +958,8 @@ struct
     | BinOp(Ge,Lval(_),Const(CInt(i, _, _)),_) when Z.equal i (Z.of_int (Int32.to_int Int32.min_int)) ->  assert_constraint ask t e negate no_ov ~trace:false
     | _ -> assert_constraint ask t e negate no_ov ~trace:true
 
+  
+  let assert_constraint ask t e negate no_ov = Timing.wrap "assert_constraint" (assert_constraint ask t e negate) no_ov
 
   (* 
   This function returns linear constraints of form: 
