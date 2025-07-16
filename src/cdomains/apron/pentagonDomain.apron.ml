@@ -257,6 +257,11 @@ struct
   include VarManagement
 
   let bound_texpr t texpr =
+    (*
+    TODO: Find out why this fixes things?
+
+    None,None
+    *)
     let intv = (eval_texpr_to_intv t (Texpr1.to_expr texpr)) in
     if Intv.is_bot intv then failwith "BOT DETECTED!" else
       match intv with
@@ -264,6 +269,7 @@ struct
       | ZExt.Arb s1, _ -> Some(s1), None
       | _, ZExt.Arb s2 -> None, Some(s2)
       | _, _ -> None, None
+
 
   (* let bound_texpr d texpr1 = timing_wrap "bound_texpr" (bound_texpr d) texpr1 *)
 end
