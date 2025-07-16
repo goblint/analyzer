@@ -1676,9 +1676,16 @@
             "fail": {
               "title": "sem.malloc.fail",
               "description":
-                "Consider the case where malloc or calloc fails.",
+                "Consider the case where malloc or calloc fails when called with an argument other than zero. For the case of zero, see `sem.malloc.zero`.",
               "type": "boolean",
               "default": false
+            },
+            "zero": {
+              "title": "sem.malloc.zero",
+              "description": "What happens when allocating zero bytes? 'null': Return null pointer, 'pointer': Return a pointer to valid memory of size 0, 'either': Consider both cases.",
+              "type": "string",
+              "enum": ["null", "pointer","either"],
+              "default": "either"
             }
           },
           "additionalProperties": false

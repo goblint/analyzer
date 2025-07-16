@@ -35,7 +35,7 @@ depends: [
   "bigarray-compat" {= "1.1.0"}
   "bigstringaf" {= "0.9.1"}
   "bos" {= "0.2.1"}
-  "camlidl" {= "1.12"}
+  "camlidl" {= "1.13"}
   "camlp-streams" {= "5.0.1"}
   "catapult" {= "0.2"}
   "catapult-file" {= "0.2"}
@@ -143,11 +143,7 @@ post-messages: [
 pin-depends: [
   [
     "goblint-cil.2.0.6"
-    "git+https://github.com/goblint/cil.git#8385ab315bc7461f6801af57673c64731bfa036a"
-  ]
-  [
-    "camlidl.1.12"
-    "git+https://github.com/xavierleroy/camlidl.git#1c1e87e3f56c2c6b3226dd0af3510ef414b462d0"
+    "git+https://github.com/goblint/cil.git#c0b10d1848223a67de45ef608f4e05c082977ac1"
   ]
   [
     "apron.v0.9.15"
