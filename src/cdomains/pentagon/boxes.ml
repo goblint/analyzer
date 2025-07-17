@@ -42,7 +42,7 @@ struct
     BatList.map2 Intv.widen i1 i2
 
   let narrow (i1: t) (i2: t) = 
-    meet i1 i2
+    BatList.map2 Intv.narrow i1 i2
 
   let dim_add (dim_change: Apron.Dim.change) (intervals: t) =
     if dim_change.realdim != 0 then
