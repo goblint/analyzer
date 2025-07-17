@@ -1,0 +1,20 @@
+rules:
+  - id: batenum-module
+    pattern-either:
+      - pattern: BatEnum.$F
+      - pattern: Enum.$F
+    message: use Seq.$F instead
+    languages: [ocaml]
+    severity: WARNING
+
+  - id: batenum-of_enum
+    pattern: $M.of_enum
+    message: use $M.of_seq instead
+    languages: [ocaml]
+    severity: WARNING
+
+  - id: batenum-enum
+    pattern: $M.enum
+    message: use $M.to_seq instead
+    languages: [ocaml]
+    severity: WARNING
