@@ -147,7 +147,6 @@ struct
 
   let startstate v = D.empty ()
   let threadenter man ~multiple lval f args = [D.empty ()]
-  let threadspawn man ~multiple lval f args fman = man.local
   let exitstate  v = D.empty ()
 
   let init marshal =
