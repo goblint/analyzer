@@ -149,6 +149,10 @@ struct
     let u = if u2 <=* u1 then u2 else ZExt.PosInfty in
     (l, u)
 
+  (*
+    Taken from Compiler Design: Analysis and Transformation -
+    https://link.springer.com/book/10.1007/978-3-642-17548-0.
+   *)
   let narrow (l1, u1) (l2, u2) = 
     let l = if l1 =* ZExt.NegInfty then l2 else l1 in
     let u = if u2 =* ZExt.PosInfty then u2 else u1 in
@@ -159,5 +163,13 @@ struct
 
   let gt ((lb1, _):t) ((_, ub2):t) =
     lb1 > ub2
+
+
+  let to_z_opt_intv (z_ext_intv : t) =
+    match z_ext_intv with
+    | ZExt.Arb s1, ZExt.Arb s2 -> Some(s1), Some(s2)
+    | ZExt.Arb s1, _ -> Some(s1), None
+    | _, ZExt.Arb s2 -> None, Some(s2)
+    | _, _ -> None, None
 
 end

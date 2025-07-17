@@ -1,7 +1,12 @@
-(** Implementation of the pentagon domain (pntg)
-    @see <https://doi.org/10.1016/j.scico.2009.04.004> 
-    "Pentagons: A weakly relational abstract domain for the efficient validation of array accesses"
-    -- Francesco Logozzo, Manuel Fähndrich (2010) *)
+(** 
+   Implementation of the pentagon domain (pntg)
+   "Pentagons: A weakly relational abstract domain for the efficient validation of array accesses"
+   -- Francesco Logozzo, Manuel Fähndrich (2010) @see <https://doi.org/10.1016/j.scico.2009.04.004> 
+
+
+   We additionally took some inspiration from "Weakly Relational Numerical Abstract Domains"
+   -- Antoine MINÉ @see <https://www-apr.lip6.fr/~mine/these/these-color.pdf>.
+*)
 
 open Batteries
 open GoblintCil
@@ -21,7 +26,6 @@ open Pntg
 (* Global function to enable or disable timing wrap. *)
 let timing_wrap s f a = Timing.wrap s f a
 (* let timing_wrap s f a = f a *)
-
 
 module Rhs = struct
   (* Rhs represents coefficient*var_i + offset / divisor
@@ -72,13 +76,6 @@ struct
   include SharedFunctions.VarManagementOps (Pntg)
 end
 
-(* Helper functions *)
-let z_ext_of_scalar (s: Scalar.t) = 
-  match s with
-  | Float(f) -> ZExt.of_float f
-  | Mpqf(mpqf) -> ZExt.of_float (Mpqf.to_float mpqf)
-  | Mpfrf(mpfrf) -> ZExt.of_float (Mpfrf.to_float mpfrf)
-
 (* Returns the current best approximation using the provided pentagon for the given texpr. *)
 let eval_texpr_to_intv (t: VarManagement.t) (texpr:Texpr1.expr) : Intv.t = 
   let get_dim var = Environment.dim_of_var t.env var in
@@ -86,11 +83,24 @@ let eval_texpr_to_intv (t: VarManagement.t) (texpr:Texpr1.expr) : Intv.t =
   let boxes = d.boxes in
   let rec aux texpr =
     match texpr with
-    | Texpr1.Cst (Interval inv) -> (z_ext_of_scalar inv.inf, z_ext_of_scalar inv.sup)
-    | Cst (Scalar s) -> let s = z_ext_of_scalar s in (s, s)
+    | Texpr1.Cst (Interval inv) -> (
+        let lb = SharedFunctions.int_of_scalar inv.inf in
+        let ub = SharedFunctions.int_of_scalar inv.sup in
+        match lb, ub with
+        | None, None -> Intv.top () 
+        | None, Some(ub) -> ZExt.NegInfty, Arb ub
+        | Some(lb), None -> Arb lb, ZExt.PosInfty
+        | Some(lb), Some(ub) -> Arb lb, Arb ub
+      )
+    | Cst (Scalar s) -> (
+        let s = SharedFunctions.int_of_scalar s in
+        match s with 
+        | None -> Intv.top () 
+        | Some(s) -> (Arb s, Arb s)
+      )
     | Var y -> List.at boxes (get_dim y) 
     | Unop  (Cast, e, _, _) -> aux e
-    | Unop  (Sqrt, e, _, _) -> failwith "Do the sqrt. :)"
+    | Unop  (Sqrt, e, _, _) -> failwith "We can not do the sqrt. :)"
     | Unop  (Neg,  e, _, _) -> Intv.neg (aux e)
     | Binop (Add, e1, e2, _, _) -> Intv.add (aux e1) (aux e2)
     | Binop (Sub, e1, e2, _, _) -> Intv.sub (aux e1) (aux e2)
@@ -312,36 +322,20 @@ let simplified_monomials_from_texp env texp =
 
 (* let simplified_monomials_from_texp env texp = timing_wrap "simplified_monomials_from_texp" (simplified_monomials_from_texp env) texp *)
 
-let to_z_intv (z_ext_intv : Intv.t) =
-  match z_ext_intv with
-  | ZExt.Arb s1, ZExt.Arb s2 -> Some(s1), Some(s2)
-  | ZExt.Arb s1, _ -> Some(s1), None
-  | _, ZExt.Arb s2 -> None, Some(s2)
-  | _, _ -> None, None
-
 module ExpressionBounds: (SharedFunctions.ConvBounds with type t = VarManagement.t) =
 struct
   include VarManagement
 
   let bound_texpr t texpr =
-    let texpr = Texpr1.to_expr texpr in
-    Printf.printf "%s\n" (StringUtils.string_of_texpr1 texpr);
-    (* Without linearization *)
-    let intv = eval_texpr_to_intv t texpr in
-    Printf.printf "%s\n" (Intv.to_string intv);
-    if Intv.is_bot intv then failwith "BOT DETECTED!"
-    else
-      match t.d with
-      | None -> None, None
-      | Some d ->
-        match simplified_monomials_from_texp t.env texpr with
-        | None -> to_z_intv intv
-        | Some monoms ->
-          let intv_lin = eval_monoms_to_intv d.boxes monoms in
-          let intersected_intvs = Intv.inter intv intv_lin in
-          if Intv.is_bot intersected_intvs
-          then failwith "Conflict between linearized and non-linearized evaluation"
-          else to_z_intv intv_lin
+    match t.d with
+    | None -> None, None
+    | Some d ->
+      let texpr = Texpr1.to_expr texpr in
+      match simplified_monomials_from_texp t.env texpr with
+      | None -> 
+        Intv.to_z_opt_intv (eval_texpr_to_intv t texpr)
+      | Some monoms ->
+        Intv.to_z_opt_intv (eval_monoms_to_intv d.boxes monoms)
 
 
   (* let bound_texpr d texpr1 = timing_wrap "bound_texpr" (bound_texpr d) texpr1 *)
@@ -524,7 +518,14 @@ struct
 
   let widen a b = timing_wrap "widen" (widen a) b
 
-  let narrow t1 t2 = meet t1 t2
+  let narrow t1 t2 =
+    let sup_env = Environment.lce t1.env t2.env in
+    let t1 = dimchange2_add t1 sup_env in
+    let t2 = dimchange2_add t2 sup_env in
+    match t1.d, t2.d with
+    | Some d1', Some d2' ->
+      ({d = Some {boxes = Boxes.narrow d1'.boxes d2'.boxes; subs =d1'.subs}; env = sup_env}: t)
+    | _ -> {d = None; env = sup_env}
 
   let narrow a b =
     let res = narrow a b in
@@ -544,6 +545,7 @@ struct
       {d = Some({boxes = Boxes.forget_vars int_vars pntg.boxes; subs = Subs.forget_vars int_vars pntg.subs}); env=t.env}
 
   (* let forget_vars t vars = timing_wrap "forget_vars" (forget_vars t) vars *)
+
 
   (* 
   TODO: discuss whether to implement the subtraction like the pentagon paper
@@ -596,128 +598,124 @@ struct
         if divisor <> Z.one then failwith "assign_texpr: DIVISOR WAS NOT ONE"
         else
           let monoms = Option.get monoms in
-          let expr_intv = eval_monoms_to_intv d.boxes monoms in
           let expr_ext_intv = eval_monoms_to_intv_infty_list d.boxes monoms in
+          let expr_intv = ext_intv_to_intv expr_ext_intv in
 
-          if expr_intv <> ext_intv_to_intv expr_ext_intv then
-            failwith "ext_intv <> expr_intv"
-          else
+          let x_intv = Boxes.get_value x d.boxes in
 
-            let x_intv = Boxes.get_value x d.boxes in
+          let rec aux sum_of_terms (subs_acc : Subs.VarSet.t) (slbs_acc : Subs.VarSet.t) delete_subs_flag delete_slbs_flag =
+            match sum_of_terms with
+            | (_, _, div) :: _ when div <> Z.one -> failwith "assign_texpr: DIVISOR WAS NOT ONE"
 
-            let rec aux sum_of_terms (subs_acc : Subs.VarSet.t) (slbs_acc : Subs.VarSet.t) delete_subs_flag delete_slbs_flag =
-              match sum_of_terms with
-              | (_, _, div) :: _ when div <> Z.one -> failwith "assign_texpr: DIVISOR WAS NOT ONE"
+            (* We finished recursion through the linear expression. Time to set the subs and boxes for our pentagon. *)
+            | [] ->
 
-              (* We finished recursion through the linear expression. Time to set the subs and boxes for our pentagon. *)
-              | [] ->
+              (* If x after the assignment can be greater than the value of x before the assignment, we must delete its subs. *)
+              let delete_subs_flag = delete_subs_flag && Intv.sup expr_intv >* Intv.inf x_intv in
 
-                (* If x after the assignment can be greater than the value of x before the assignment, we must delete its subs. *)
-                let delete_subs_flag = delete_subs_flag && Intv.sup expr_intv >* Intv.inf x_intv in
+              (* If x after the assignment can be lower than the value of x before the assignment, we must delete its slbs. *)
+              let delete_slbs_flag = delete_slbs_flag && Intv.inf expr_intv <* Intv.sup x_intv in
 
-                (* If x after the assignment can be lower than the value of x before the assignment, we must delete its slbs. *)
-                let delete_slbs_flag = delete_slbs_flag && Intv.inf expr_intv <* Intv.sup x_intv in
+              (* Variables which are the upper bound of x. Remove x which might be wrongfully added. *)
+              let new_subs = Subs.VarSet.remove x subs_acc in 
 
-                (* Variables which are the upper bound of x. Remove x which might be wrongfully added. *)
-                let new_subs = Subs.VarSet.remove x subs_acc in 
+              (* Variables where x is the upper bound. *)
+              let new_slbs = slbs_acc in 
 
-                (* Variables where x is the upper bound. *)
-                let new_slbs = slbs_acc in 
-
-                let update_subs y subs_y =
-                  if y = x then (* y = x ==> update Subs(x) *)
-                    if delete_subs_flag then
-                      new_subs
-                    else
-                      Subs.VarSet.union subs_y new_subs
-                  else (* y <> x ==> possibly add x to / delete x from Subs(y) *)
-                  if Subs.VarSet.mem y new_slbs then 
-                    Subs.VarSet.add x subs_y else
-                  if delete_slbs_flag then
-                    Subs.VarSet.remove x subs_y
+              let update_subs y subs_y =
+                if y = x then (* y = x ==> update Subs(x) *)
+                  if delete_subs_flag then
+                    new_subs
                   else
-                    subs_y
-                in
-                wrap (Boxes.set_value x expr_intv d.boxes) (List.mapi update_subs d.subs)
+                    Subs.VarSet.union subs_y new_subs
+                else (* y <> x ==> possibly add x to / delete x from Subs(y) *)
+                if Subs.VarSet.mem y new_slbs then 
+                  Subs.VarSet.add x subs_y else
+                if delete_slbs_flag then
+                  Subs.VarSet.remove x subs_y
+                else
+                  subs_y
+              in
+              wrap (Boxes.set_value x expr_intv d.boxes) (List.mapi update_subs d.subs)
 
-              | (coefficient, x', _) :: rem_terms when x' = x -> (* x' := ax + ... *)
-                (* We analyze 0 >< (a-1)x + [c,d] because it is more precise than x >< ax + [c,d] *)
-                let (cmp_lb, cmp_ub) = 
-                  eval_ext_intv_minus_x (coefficient, x, x_intv) expr_ext_intv 
-                in
-                (* x could have got greater *)
-                let delete_subs_flag = delete_subs_flag && cmp_ub >* ZExt.zero in 
-                (* x could have got lower *)
-                let delete_slbs_flag = delete_slbs_flag && cmp_lb <* ZExt.zero 
-                in
-                aux rem_terms subs_acc slbs_acc delete_subs_flag delete_slbs_flag
+            | (coefficient, x', _) :: rem_terms when x' = x -> (* x' := ax + ... *)
+              (* We analyze 0 >< (a-1)x + [c,d] because it is more precise than x >< ax + [c,d] *)
+              let (cmp_lb, cmp_ub) = 
+                eval_ext_intv_minus_x (coefficient, x, x_intv) expr_ext_intv 
+              in
+              (* x could have got greater *)
+              let delete_subs_flag = delete_subs_flag && cmp_ub >* ZExt.zero in 
+              (* x could have got lower *)
+              let delete_slbs_flag = delete_slbs_flag && cmp_lb <* ZExt.zero 
+              in
+              aux rem_terms subs_acc slbs_acc delete_subs_flag delete_slbs_flag
 
-              | (coefficient, y, _) :: rem_terms -> (* x' := ay + ... *)
-                let y_intv = Boxes.get_value y d.boxes in (* BUG WAS HERE *)
+            | (coefficient, y, _) :: rem_terms -> (* x' := ay + ... *)
+              let y_intv = Boxes.get_value y d.boxes in (* BUG WAS HERE *)
 
-                (* We analyze 0 >< (a-1)y + [c,d] because it is more precise than y >< ay + [c,d] *)
-                let (cmp_lb, cmp_ub) = 
-                  eval_ext_intv_minus_x (coefficient, y, y_intv) expr_ext_intv 
-                in
+              (* We analyze 0 >< (a-1)y + [c,d] because it is more precise than y >< ay + [c,d] *)
+              let (cmp_lb, cmp_ub) = 
+                eval_ext_intv_minus_x (coefficient, y, y_intv) expr_ext_intv 
+              in
 
-              (*
-                x >= y + 1 (by Subs)
-                y + 1 >= x' (by cmp)
-                ==> x >= x' ==> we can keep Subs(x)
-                *)
-                let keep_subs_flag =
-                  Subs.gt x y d.subs && ZExt.of_int 1 >=* cmp_ub in
-                let delete_subs_flag =
-                  (* x could have got greater / we can't rule out x' > x *)
-                  delete_subs_flag && not keep_subs_flag in
-                (* If x' is guaranteed to be less then / equal to x, we can keep the subs.
-                   We want to know x' > x? 
-
-                   In this case x' := ay + [c,d], therefore we get:
-                   ay + [c, d] > x <===> -x + ay + [c,d] > 0
-
-                   From x < y (y \in Subs(x)) we can derive 
-                   -x + ay + [c,d] > (a-1)y + [c,d]
-
-                   So if (a-1)y + [c,d] >= 0 is possible, x' > x is possible. *)
-
-                (*if Subs.lt d.subs x y
-                  then cmp_ub >=* ZExt.zero
-                  else true in*)
-
-                let keep_slbs_flag =
-                  Subs.lt x y d.subs && ZExt.of_int (-1) <=* cmp_ub in
-                let delete_slbs_flag = 
-                  (* x could have got lower / we can't rule out x' < x *)
-                  delete_slbs_flag && not keep_slbs_flag in
-                (*if Subs.gt d.subs x y
-                  then cmp_lb <=* ZExt.zero
-                  else true in*)
-        (*
-            analyze 0 >< (a-1)y + [c,d]
-            x' < y known:  SUBs(x') := SUBs(x') u SUBs(y) u {y}
-            x' <= y known: SUBs(x') := SUBs(x') u SUBs(y)
-            x' > y known:  SLBs(x') := SLBs(x') u {y}
-
-        *)
-                let subs_y = Subs.get_value y d.subs in
-              (*
-              Caution: New subs can contain the old x.
-              This is not a contradiction, it just has to be deleted afterwards.
+            (*
+              x >= y + 1 (by Subs)
+              y + 1 >= x' (by cmp)
+              ==> x >= x' ==> we can keep Subs(x)
               *)
-                let new_subs =
-                  if cmp_ub <* ZExt.zero then
-                    Subs.VarSet.union subs_y (Subs.VarSet.singleton y)
-                  else if cmp_ub =* ZExt.zero then
-                    subs_y
-                  else
-                    Subs.VarSet.empty
-                in
-                let subs_acc = Subs.VarSet.union subs_acc new_subs in
-                let slbs_acc = if cmp_lb >* ZExt.zero then Subs.VarSet.add y slbs_acc else slbs_acc in
-                aux rem_terms subs_acc slbs_acc delete_subs_flag delete_slbs_flag
+              let keep_subs_flag =
+                Subs.gt x y d.subs && ZExt.of_int 1 >=* cmp_ub in
+              let delete_subs_flag =
+                (* x could have got greater / we can't rule out x' > x *)
+                delete_subs_flag && not keep_subs_flag in
+              (* If x' is guaranteed to be less then / equal to x, we can keep the subs.
+                  We want to know x' > x? 
 
-            in aux sum_of_terms Subs.VarSet.empty Subs.VarSet.empty true true
+                  In this case x' := ay + [c,d], therefore we get:
+                  ay + [c, d] > x <===> -x + ay + [c,d] > 0
+
+                  From x < y (y \in Subs(x)) we can derive 
+                  -x + ay + [c,d] > (a-1)y + [c,d]
+
+                  So if (a-1)y + [c,d] >= 0 is possible, x' > x is possible. *)
+
+              (*if Subs.lt d.subs x y
+                then cmp_ub >=* ZExt.zero
+                else true in*)
+
+              let keep_slbs_flag =
+                Subs.lt x y d.subs && ZExt.of_int (-1) <=* cmp_ub in
+              let delete_slbs_flag = 
+                (* x could have got lower / we can't rule out x' < x *)
+                delete_slbs_flag && not keep_slbs_flag in
+              (*if Subs.gt d.subs x y
+                then cmp_lb <=* ZExt.zero
+                else true in*)
+      (*
+          analyze 0 >< (a-1)y + [c,d]
+          x' < y known:  SUBs(x') := SUBs(x') u SUBs(y) u {y}
+          x' <= y known: SUBs(x') := SUBs(x') u SUBs(y)
+          x' > y known:  SLBs(x') := SLBs(x') u {y}
+
+      *)
+              let subs_y = Subs.get_value y d.subs in
+            (*
+            Caution: New subs can contain the old x.
+            This is not a contradiction, it just has to be deleted afterwards.
+            *)
+              let new_subs =
+                if cmp_ub <* ZExt.zero then
+                  Subs.VarSet.union subs_y (Subs.VarSet.singleton y)
+                else if cmp_ub =* ZExt.zero then
+                  subs_y
+                else
+                  Subs.VarSet.empty
+              in
+              let subs_acc = Subs.VarSet.union subs_acc new_subs in
+              let slbs_acc = if cmp_lb >* ZExt.zero then Subs.VarSet.add y slbs_acc else slbs_acc in
+              aux rem_terms subs_acc slbs_acc delete_subs_flag delete_slbs_flag
+
+          in aux sum_of_terms Subs.VarSet.empty Subs.VarSet.empty true true
 
 
   let assign_texpr t x texp =
@@ -740,7 +738,6 @@ struct
     assign_texpr t v (Var v')
 
   (* let assign_var t v v' = timing_wrap "assign_var" (assign_var t v) v' *)
-
 
   let assign_var_parallel (t: t) (var_tuples: (var *  var) list) : t = 
     let assigned_vars = List.map fst var_tuples in
@@ -817,105 +814,98 @@ struct
           | Some (sum_of_terms, (constant,_)) -> (
               let monoms = Option.get monoms in 
 
-              let expr_intv = eval_monoms_to_intv d.boxes monoms in
-              let neg_expr_intv = Intv.neg expr_intv in
-
               let expr_ext_intv = eval_monoms_to_intv_infty_list d.boxes monoms in
               let neg_expr_ext_intv = neg_ext_intv expr_ext_intv in
 
+              let expr_intv = ext_intv_to_intv expr_ext_intv in
 
-              if expr_intv <> ext_intv_to_intv expr_ext_intv ||
-                 neg_expr_intv <> ext_intv_to_intv neg_expr_ext_intv then
-                failwith "ext_intv <> expr_intv"
-              else
+              let rec aux sum_of_terms subs_acc boxes =
 
-                let rec aux sum_of_terms subs_acc boxes =
+                match sum_of_terms with
+                | [] -> (* no reference variables in the guard, so check if we can rule out expr_intv >= 0 *)
 
-                  match sum_of_terms with
-                  | [] -> (* no reference variables in the guard, so check if we can rule out expr_intv >= 0 *)
+                  if Intv.sup expr_intv <* ZExt.zero (* added bot check *)
+                  then bot_of_env t.env
+                  else
+                    wrap boxes subs_acc
 
-                    if Intv.sup expr_intv <* ZExt.zero (* added bot check *)
-                    then bot_of_env t.env
-                    else
-                      wrap boxes subs_acc
+                | (coeff_x, x, _) :: rem_terms ->
 
-                  | (coeff_x, x, _) :: rem_terms ->
+                  let x_intv = Boxes.get_value x d.boxes in
+                  let (lb_x, ub_x) = x_intv in
 
-                    let x_intv = Boxes.get_value x d.boxes in
-                    let (lb_x, ub_x) = x_intv in
+                  (* We receive x from the outer recursion. It stays fixed. *)
+                  let rec inner x_term_intv sum_of_terms subs_acc =
 
-                    (* We receive x from the outer recursion. It stays fixed. *)
-                    let rec inner x_term_intv sum_of_terms subs_acc =
+                    match sum_of_terms with 
+                    | [] -> Some(subs_acc)
 
-                      match sum_of_terms with 
-                      | [] -> Some(subs_acc)
+                    | (coeff_y, y, _) :: rem_terms -> 
 
-                      | (coeff_y, y, _) :: rem_terms -> 
+                      let y_intv = Boxes.get_value y d.boxes in
+                      let y_term_intv = (coeff_y, y, y_intv) in
 
-                        let y_intv = Boxes.get_value y d.boxes in
-                        let y_term_intv = (coeff_y, y, y_intv) in
-
-                        let helper (coeff_x, x, x_intv) (coeff_y, y, y_intv) subs_acc_opt = 
-                          match subs_acc_opt with
-                          | None -> None
-                          | Some(subs_acc) ->
-
-                            let neg_expr_plus_x_ext_intv = ext_intv_plus_x (Z.neg coeff_x, x, x_intv) neg_expr_ext_intv in
-
-                            let (constraint_lb,_) = eval_ext_intv_minus_x (Z.neg coeff_y, y, y_intv) neg_expr_plus_x_ext_intv in
-
-                            let (_, numeric_ub) = Intv.sub x_intv y_intv in
-
-                            (* Checking for contradictions first. *)
-                            if numeric_ub <* constraint_lb then
-                              None (* Contradiction! *)
-                            else if (ZExt.sign constraint_lb) >= 0 && Subs.lt x y subs_acc then
-                              None (* Contradiction! *)
-                            else if (ZExt.sign constraint_lb) > 0 then
-                              Some(Subs.add_gt x y subs_acc)
-                            else
-                              Some(subs_acc)
-                        in
-
-                        let subs = 
-                          helper x_term_intv y_term_intv (Some subs_acc) |> 
-                          helper y_term_intv x_term_intv
-                        in
-                        match subs with
+                      let helper (coeff_x, x, x_intv) (coeff_y, y, y_intv) subs_acc_opt = 
+                        match subs_acc_opt with
                         | None -> None
-                        | Some(subs) -> 
-                          inner x_term_intv rem_terms subs
-                    in
+                        | Some(subs_acc) ->
+
+                          let neg_expr_plus_x_ext_intv = ext_intv_plus_x (Z.neg coeff_x, x, x_intv) neg_expr_ext_intv in
+
+                          let (constraint_lb,_) = eval_ext_intv_minus_x (Z.neg coeff_y, y, y_intv) neg_expr_plus_x_ext_intv in
+
+                          let (_, numeric_ub) = Intv.sub x_intv y_intv in
+
+                          (* Checking for contradictions first. *)
+                          if numeric_ub <* constraint_lb then
+                            None (* Contradiction! *)
+                          else if (ZExt.sign constraint_lb) >= 0 && Subs.lt x y subs_acc then
+                            None (* Contradiction! *)
+                          else if (ZExt.sign constraint_lb) > 0 then
+                            Some(Subs.add_gt x y subs_acc)
+                          else
+                            Some(subs_acc)
+                      in
+
+                      let subs = 
+                        helper x_term_intv y_term_intv (Some subs_acc) |> 
+                        helper y_term_intv x_term_intv
+                      in
+                      match subs with
+                      | None -> None
+                      | Some(subs) -> 
+                        inner x_term_intv rem_terms subs
+                  in
 
 
-                    (* Setting BOXES *)
-                    (* ax + [c,d] >= 0 ==> x >= x - (ax + [c,d]) = (1-a)x - [c,d] >= (1-a)x - d
-                                            x <= x + (ax + [c,d]) = (1+a)x + [c,d] <= (1+a)x + d *)
-                    let constraint_lb_x, _ =
-                      eval_ext_intv_plus_x (Z.neg coeff_x, x, x_intv) neg_expr_ext_intv
-                    in
+                  (* Setting BOXES *)
+                  (* ax + [c,d] >= 0 ==> x >= x - (ax + [c,d]) = (1-a)x - [c,d] >= (1-a)x - d
+                                          x <= x + (ax + [c,d]) = (1+a)x + [c,d] <= (1+a)x + d *)
+                  let constraint_lb_x, _ =
+                    eval_ext_intv_plus_x (Z.neg coeff_x, x, x_intv) neg_expr_ext_intv
+                  in
 
-                    let _, constraint_ub_x =
-                      eval_ext_intv_plus_x (coeff_x, x, x_intv) expr_ext_intv
-                    in
+                  let _, constraint_ub_x =
+                    eval_ext_intv_plus_x (coeff_x, x, x_intv) expr_ext_intv
+                  in
 
-                    let intv' = (ZExt.max lb_x constraint_lb_x, ZExt.min ub_x constraint_ub_x) in
-                    (*Printf.printf "constraint: %s, constraint': %s\n" (Intv.to_string (a, b)) (Intv.to_string (constraint_lb_x, constraint_ub_x));*)
-                    if Intv.is_bot intv' then 
-                      bot_of_env t.env
+                  let intv' = (ZExt.max lb_x constraint_lb_x, ZExt.min ub_x constraint_ub_x) in
+                  (*Printf.printf "constraint: %s, constraint': %s\n" (Intv.to_string (a, b)) (Intv.to_string (constraint_lb_x, constraint_ub_x));*)
+                  if Intv.is_bot intv' then 
+                    bot_of_env t.env
 
-                    else
-                      let boxes = Boxes.set_value x intv' boxes in
+                  else
+                    let boxes = Boxes.set_value x intv' boxes in
 
-                      (* Setting SUBS *)
-                      match inner (coeff_x, x, intv') rem_terms subs_acc with
-                      | None -> (
-                          bot_of_env t.env
-                        )
-                      | Some(subs) ->
-                        aux rem_terms subs boxes
-                in
-                aux sum_of_terms d.subs d.boxes
+                    (* Setting SUBS *)
+                    match inner (coeff_x, x, intv') rem_terms subs_acc with
+                    | None -> (
+                        bot_of_env t.env
+                      )
+                    | Some(subs) ->
+                      aux rem_terms subs boxes
+              in
+              aux sum_of_terms d.subs d.boxes
             )
         )
 
