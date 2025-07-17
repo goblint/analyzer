@@ -1,4 +1,4 @@
-(** Helper analysis to be path-sensitive in failed dynamic memory allocations ([malloc_null]). *)
+(** Helper analysis to be path-sensitive in failed dynamic memory allocations ([malloc_null]). It is not soundness critical, it only causes certain paths to be kept separate. *)
 
 module AD = ValueDomain.AD
 module IdxDom = ValueDomain.IndexDomain
