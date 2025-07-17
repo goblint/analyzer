@@ -149,8 +149,10 @@ struct
     let u = if u2 <=* u1 then u2 else ZExt.PosInfty in
     (l, u)
 
-  let narrow (i1: t) (i2: t) = 
-    inter i1 i2
+  let narrow (l1, u1) (l2, u2) = 
+    let l = if l1 =* ZExt.NegInfty then l2 else l1 in
+    let u = if u2 =* ZExt.PosInfty then u2 else u1 in
+    (l, u)
 
   let lt ((_, ub1):t) ((lb2, _):t) = 
     ub1 < lb2
