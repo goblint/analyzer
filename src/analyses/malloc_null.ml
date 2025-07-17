@@ -114,7 +114,17 @@ struct
 
   let enter man (lval: lval option) (f:fundec) (args:exp list) : (D.t * D.t) list =
     let nst = remove_unreachable (Analyses.ask_of_man man) args man.local in
-    [man.local,nst]
+    let args = GobList.combine_short f.sformals args in
+    let res = List.fold_left (fun acc (v, e) ->
+        BatOption.map_default (fun rv ->
+            if might_be_null (Analyses.ask_of_man man) rv man.global man.local then
+              D.add (Addr.of_var v) acc
+            else
+              acc
+          ) acc (get_concrete_exp e man.global man.local)
+      ) (D.empty ()) args
+    in
+    [man.local,D.join res nst]
 
   let combine_env man lval fexp f args fc au f_ask =
     let cal_st = remove_unreachable (Analyses.ask_of_man man) args man.local in
