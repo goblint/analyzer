@@ -551,10 +551,10 @@ struct
        A.minimize Man.mgr x; *)
     let {lincons0_array; array_env}: Lincons1.earray = A.to_lincons_array Man.mgr x in
     Array.to_seq lincons0_array
-    |> Seq.map (fun (lincons0: Lincons0.t) ->
-        Lincons1.{lincons0; env = array_env}
-      )
-    |> List.of_seq
+    |> Seq.map (fun (lincons0: Lincons0.t) -> Lincons1.{lincons0; env = array_env})
+    |> Lincons1Set.of_seq
+    |> (if Oct.manager_is_oct Man.mgr then Lincons1Set.simplify else Fun.id)
+    |> Lincons1Set.elements
 end
 
 (** With heterogeneous environments. *)
@@ -810,6 +810,7 @@ sig
 
   module V: RV
   module Tracked: RelationDomain.Tracked
+  module Man: Manager
 
   val assert_inv : Queries.ask -> t -> exp -> bool -> bool Lazy.t -> t
   val eval_int : Queries.ask -> t -> exp -> bool Lazy.t -> Queries.ID.t
@@ -930,6 +931,7 @@ struct
     let lcb = D.to_lincons_array (D.of_lincons_array (BoxD.to_lincons_array b)) in (* convert through D to make lincons use the same format *)
     let lcd = D.to_lincons_array d in
     Lincons1Set.(diff (of_earray lcd) (of_earray lcb))
+    |> (if Oct.manager_is_oct D.Man.mgr then Lincons1Set.simplify else Fun.id)
     |> Lincons1Set.elements
 end
 

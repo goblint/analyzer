@@ -258,7 +258,7 @@ end = struct
 
   let get man =
     let d : PthreadDomain.D.t = man.local in
-    let node = Option.get !MyCFG.current_node in
+    let node = man.prev_node in
     let fundec = Node.find_fundec node in
     let thread_name =
       let cur_tid =
@@ -350,7 +350,7 @@ end
 module Variable = struct
   type t = varinfo
 
-  let is_integral v = match v.vtype with TInt _ -> true | _ -> false
+  let is_integral v = isIntegralType v.vtype
 
   let is_global v = v.vglob
 
@@ -887,7 +887,7 @@ module Spec : Analyses.MCPSpec = struct
     let should_ignore_assigns = GobConfig.get_bool "ana.extract-pthread.ignore_assign" in
     if PthreadDomain.D.is_bot man.local || should_ignore_assigns
     then man.local
-    else if Option.is_none !MyCFG.current_node
+    else if !AnalysisState.global_initialization
     then (
       (* it is global var assignment *)
       let var_opt = Variable.make_from_lval lval in

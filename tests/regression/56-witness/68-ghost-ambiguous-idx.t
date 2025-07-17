@@ -33,7 +33,6 @@
       ghost_updates:
       - location:
           file_name: 68-ghost-ambiguous-idx.c
-          file_hash: $FILE_HASH
           line: 20
           column: 3
           function: main

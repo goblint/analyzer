@@ -16,17 +16,18 @@
     unsafe: 0
     total memory locations: 4
 
-  $ yamlWitnessStrip < witness.yml
+  $ (yamlWitnessStrip < witness.yml) > new-stripped.yml
+  $ ./strip-ghost-alloc.sh new-stripped.yml
   - entry_type: ghost_instrumentation
     content:
       ghost_variables:
-      - name: alloc_m559918035_locked
+      - name: ALLOC_VAR1_LOCKED
         scope: global
         type: int
         initial:
           value: "0"
           format: c_expression
-      - name: alloc_m861095507_locked
+      - name: ALLOC_VAR2_LOCKED
         scope: global
         type: int
         initial:
@@ -41,47 +42,42 @@
       ghost_updates:
       - location:
           file_name: 66-ghost-alloc-lock.c
-          file_hash: $FILE_HASH
           line: 10
           column: 3
           function: t_fun
         updates:
-        - variable: alloc_m559918035_locked
+        - variable: ALLOC_VAR1_LOCKED
           value: "1"
           format: c_expression
       - location:
           file_name: 66-ghost-alloc-lock.c
-          file_hash: $FILE_HASH
           line: 13
           column: 3
           function: t_fun
         updates:
-        - variable: alloc_m559918035_locked
+        - variable: ALLOC_VAR1_LOCKED
           value: "0"
           format: c_expression
       - location:
           file_name: 66-ghost-alloc-lock.c
-          file_hash: $FILE_HASH
           line: 14
           column: 3
           function: t_fun
         updates:
-        - variable: alloc_m861095507_locked
+        - variable: ALLOC_VAR2_LOCKED
           value: "1"
           format: c_expression
       - location:
           file_name: 66-ghost-alloc-lock.c
-          file_hash: $FILE_HASH
           line: 17
           column: 3
           function: t_fun
         updates:
-        - variable: alloc_m861095507_locked
+        - variable: ALLOC_VAR2_LOCKED
           value: "0"
           format: c_expression
       - location:
           file_name: 66-ghost-alloc-lock.c
-          file_hash: $FILE_HASH
           line: 28
           column: 3
           function: main
@@ -91,52 +87,48 @@
           format: c_expression
       - location:
           file_name: 66-ghost-alloc-lock.c
-          file_hash: $FILE_HASH
           line: 30
           column: 3
           function: main
         updates:
-        - variable: alloc_m559918035_locked
+        - variable: ALLOC_VAR1_LOCKED
           value: "1"
           format: c_expression
       - location:
           file_name: 66-ghost-alloc-lock.c
-          file_hash: $FILE_HASH
           line: 32
           column: 3
           function: main
         updates:
-        - variable: alloc_m559918035_locked
+        - variable: ALLOC_VAR1_LOCKED
           value: "0"
           format: c_expression
       - location:
           file_name: 66-ghost-alloc-lock.c
-          file_hash: $FILE_HASH
           line: 33
           column: 3
           function: main
         updates:
-        - variable: alloc_m861095507_locked
+        - variable: ALLOC_VAR2_LOCKED
           value: "1"
           format: c_expression
       - location:
           file_name: 66-ghost-alloc-lock.c
-          file_hash: $FILE_HASH
           line: 35
           column: 3
           function: main
         updates:
-        - variable: alloc_m861095507_locked
+        - variable: ALLOC_VAR2_LOCKED
           value: "0"
           format: c_expression
   - entry_type: flow_insensitive_invariant
     flow_insensitive_invariant:
-      string: '! multithreaded || (alloc_m861095507_locked || g2 == 0)'
+      string: '! multithreaded || (ALLOC_VAR2_LOCKED || g2 == 0)'
       type: assertion
       format: C
   - entry_type: flow_insensitive_invariant
     flow_insensitive_invariant:
-      string: '! multithreaded || (alloc_m559918035_locked || g1 == 0)'
+      string: '! multithreaded || (ALLOC_VAR1_LOCKED || g1 == 0)'
       type: assertion
       format: C
   - entry_type: flow_insensitive_invariant

@@ -5,6 +5,7 @@
  * even when the subsystem is not activated. *)
 
 open Goblint_std
+open Goblint_parallel
 open GoblintCil
 open Pretty
 
@@ -38,9 +39,13 @@ let traceTag (sys : string) : Pretty.doc =
   let rec ind (i : int) : string = if (i <= 0) then "" else " " ^ (ind (i-1)) in
   (text ((ind !indent_level) ^ "%%% " ^ sys ^ ": "))
 
+let trace_mutex = GobMutex.create ()
+
 let printtrace sys d: unit =
+  GobMutex.lock trace_mutex;
   fprint stderr ~width:max_int ((traceTag sys) ++ d ++ line);
-  flush stderr
+  flush stderr;
+  GobMutex.unlock trace_mutex
 
 let gtrace always f sys var ?loc do_subsys fmt =
   let cond =

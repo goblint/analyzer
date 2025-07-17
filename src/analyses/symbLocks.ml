@@ -42,7 +42,8 @@ struct
   let assign man lval rval = invalidate_lval (Analyses.ask_of_man man) lval man.local
 
   let return man exp fundec =
-    List.fold_right D.remove_var (fundec.sformals@fundec.slocals) man.local
+    let rm list acc = List.fold_left (Fun.flip D.remove_var) acc list in
+    rm fundec.slocals (rm fundec.sformals man.local)
 
   let enter man lval f args = [(man.local,man.local)]
   let combine_env man lval fexp f args fc au f_ask = au
