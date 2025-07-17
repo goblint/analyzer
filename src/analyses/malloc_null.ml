@@ -79,7 +79,7 @@ struct
     | ad when not (Queries.AD.is_top ad) ->
       let one_addr_might = function
         | Queries.AD.Addr.Addr mval ->
-          D.exists (fun addr -> GobOption.exists (fun x -> is_prefix_of mval x) (Addr.to_mval addr)) st
+          D.exists (fun addr -> GobOption.exists (is_prefix_of mval) (Addr.to_mval addr)) st
         | _ -> false
       in
       Queries.AD.exists one_addr_might ad
