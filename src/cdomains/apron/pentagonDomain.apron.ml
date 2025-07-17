@@ -312,36 +312,36 @@ let simplified_monomials_from_texp env texp =
 
 (* let simplified_monomials_from_texp env texp = timing_wrap "simplified_monomials_from_texp" (simplified_monomials_from_texp env) texp *)
 
+let to_z_intv (z_ext_intv : Intv.t) =
+  match z_ext_intv with
+  | ZExt.Arb s1, ZExt.Arb s2 -> Some(s1), Some(s2)
+  | ZExt.Arb s1, _ -> Some(s1), None
+  | _, ZExt.Arb s2 -> None, Some(s2)
+  | _, _ -> None, None
+
 module ExpressionBounds: (SharedFunctions.ConvBounds with type t = VarManagement.t) =
 struct
   include VarManagement
 
   let bound_texpr t texpr =
     let texpr = Texpr1.to_expr texpr in
-    (* Without linearisation *)
     Printf.printf "%s\n" (StringUtils.string_of_texpr1 texpr);
+    (* Without linearization *)
     let intv = eval_texpr_to_intv t texpr in
     Printf.printf "%s\n" (Intv.to_string intv);
     if Intv.is_bot intv then failwith "BOT DETECTED!"
     else
-
       match t.d with
       | None -> None, None
       | Some d ->
         match simplified_monomials_from_texp t.env texpr with
-        | None ->
-          (match intv with
-           | ZExt.Arb s1, ZExt.Arb s2 -> Some(s1), Some(s2)
-           | ZExt.Arb s1, _ -> Some(s1), None
-           | _, ZExt.Arb s2 -> None, Some(s2)
-           | _, _ -> None, None)
+        | None -> to_z_intv intv
         | Some monoms ->
           let intv_lin = eval_monoms_to_intv d.boxes monoms in
-          match intv with
-          | ZExt.Arb s1, ZExt.Arb s2 -> Some(s1), Some(s2)
-          | ZExt.Arb s1, _ -> Some(s1), None
-          | _, ZExt.Arb s2 -> None, Some(s2)
-          | _, _ -> None, None
+          let intersected_intvs = Intv.inter intv intv_lin in
+          if Intv.is_bot intersected_intvs
+          then failwith "Conflict between linearized and non-linearized evaluation"
+          else to_z_intv intv_lin
 
 
   (* let bound_texpr d texpr1 = timing_wrap "bound_texpr" (bound_texpr d) texpr1 *)
