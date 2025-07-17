@@ -256,8 +256,9 @@ struct
             if M.tracing then M.traceli "relation" "assign inner %a = %a (%a)" CilType.Varinfo.pretty v d_exp e' d_plainexp e';
             if M.tracing then M.trace "relation" "st: %a" RD.pretty apr';
             let r = RD.assign_exp ask apr' (RV.local v) e' (no_overflow ask simplified_e) in
-            if M.tracing then M.traceu "relation" "-> %a" RD.pretty r;
-            r
+            let r' = assert_type_bounds ask r v in
+            if M.tracing then M.traceu "relation" "-> %a" RD.pretty r';
+            r'
           )
       )
     in
@@ -458,17 +459,15 @@ struct
 
   (* Give the set of reachables from argument. *)
   let reachables (ask: Queries.ask) es =
-    let reachable e st =
-      match st with
-      | None -> None
-      | Some st ->
+    let reachable acc e =
+      Option.bind acc (fun st ->
         let ad = ask.f (Queries.ReachableFrom e) in
         if Queries.AD.is_top ad then
           None
         else
-          Some (Queries.AD.join ad st)
+          Some (Queries.AD.join ad st))
     in
-    List.fold_right reachable es (Some (Queries.AD.empty ()))
+    List.fold_left reachable (Some (Queries.AD.empty ())) es
 
 
   let forget_reachable man st es =
@@ -477,9 +476,8 @@ struct
       match reachables ask es with
       | None ->
         (* top reachable, so try to invalidate everything *)
-        RD.vars st.rel
-        |> List.filter_map RV.to_cil_varinfo
-        |> List.map Cil.var
+        let to_cil_lval x = Option.map Cil.var @@ RV.to_cil_varinfo x in
+        RD.vars st.rel |> List.filter_map to_cil_lval
       | Some ad ->
         let to_cil addr rs =
           match addr with
@@ -514,14 +512,10 @@ struct
     match desc.special args, f.vname with
     | Assert { exp; refine; _ }, _ -> assert_fn man exp refine
     | ThreadJoin { thread = id; ret_var = retvar }, _ ->
-      (
-        (* Forget value that thread return is assigned to *)
-        let st' = forget_reachable man st [retvar] in
-        let st' = Priv.thread_join ask man.global id st' in
-        match r with
-        | Some lv -> invalidate_one ask man st' lv
-        | None -> st'
-      )
+      (* Forget value that thread return is assigned to *)
+      let st' = forget_reachable man st [retvar] in
+      let st' = Priv.thread_join ask man.global id st' in
+      Option.map_default (invalidate_one ask man st') st' r
     | ThreadExit _, _ ->
       begin match ThreadId.get_current ask with
         | `Lifted tid ->
@@ -536,11 +530,10 @@ struct
       let id = List.hd args in
       Priv.thread_join ~force:true ask man.global id st
     | Rand, _ ->
-      (match r with
-       | Some lv ->
+      Option.map_default (fun lv ->
          let st = invalidate_one ask man st lv in
          assert_fn {man with local = st} (BinOp (Ge, Lval lv, zero, intType)) true
-       | None -> st)
+        ) st r
     | _, _ ->
       let lvallist e =
         match ask.f (Queries.MayPointTo e) with
@@ -568,10 +561,7 @@ struct
       let shallow_lvals = List.concat_map lvallist shallow_addrs in
       let st' = List.fold_left (invalidate_one ask man) st' shallow_lvals in
       (* invalidate lval if present *)
-      match r with
-      | Some lv -> invalidate_one ask man st' lv
-      | None -> st'
-
+      Option.map_default (invalidate_one ask man st') st' r
 
   let query_invariant man context =
     let keep_local = GobConfig.get_bool "ana.relation.invariant.local" in
@@ -622,7 +612,7 @@ struct
     |> List.enum
     |> Enum.filter_map (fun (lincons1: Apron.Lincons1.t) ->
         (* filter one-vars and exact *)
-        (* TODO: exact filtering doesn't really work with octagon because it returns two SUPEQ constraints instead *)
+        (* RD.invariant simplifies two octagon SUPEQ constraints to one EQ, so exact works *)
         if (one_var || GobApron.Lincons1.num_vars lincons1 >= 2) && (exact || Apron.Lincons1.get_typ lincons1 <> EQ) then
           RD.cil_exp_of_lincons1 lincons1
           |> Option.map e_inv
@@ -743,7 +733,12 @@ struct
         in
         ({ f } : Queries.ask) in
       let rel = RD.assert_inv dummyask rel e false (no_overflow ask e_orig) in (* assume *)
-      let rel = RD.keep_vars rel (List.map RV.local vars) in (* restrict *)
+      let rel =
+        if GobConfig.get_bool "ana.apron.strengthening" then
+          RD.keep_vars rel (List.map RV.local vars) (* restrict *)
+        else
+          rel (* naive unassume: will be homogeneous join below *)
+      in
 
       (* TODO: parallel write_global? *)
       let st =
@@ -761,6 +756,8 @@ struct
       if M.tracing then M.traceu "apron" "unassume join";
       M.info ~category:Witness "relation unassumed invariant: %a" d_exp e_orig;
       st
+    | Events.Longjmped {lval} ->
+      Option.map_default (invalidate_one ask man st) st lval
     | _ ->
       st
 

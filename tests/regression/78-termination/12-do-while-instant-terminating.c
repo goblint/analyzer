@@ -3,7 +3,7 @@
 
 int main()
 {
-  int i = 0;
+  unsigned int i = 0;
 
   do
   {

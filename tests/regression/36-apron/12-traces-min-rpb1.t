@@ -27,34 +27,31 @@
   - entry_type: location_invariant
     location:
       file_name: 12-traces-min-rpb1.c
-      file_hash: $FILE_HASH
       line: 29
       column: 3
       function: main
     location_invariant:
-      string: (0LL - (long long )g) + (long long )h == 0LL
+      string: (long long )h == (long long )g
       type: assertion
       format: C
   - entry_type: location_invariant
     location:
       file_name: 12-traces-min-rpb1.c
-      file_hash: $FILE_HASH
       line: 19
       column: 3
       function: t_fun
     location_invariant:
-      string: (0LL - (long long )g) + (long long )h == 0LL
+      string: (long long )h == (long long )g
       type: assertion
       format: C
   - entry_type: location_invariant
     location:
       file_name: 12-traces-min-rpb1.c
-      file_hash: $FILE_HASH
       line: 14
       column: 3
       function: t_fun
     location_invariant:
-      string: (0LL - (long long )g) + (long long )h == 0LL
+      string: (long long )h == (long long )g
       type: assertion
       format: C
 
@@ -103,7 +100,6 @@
       ghost_updates:
       - location:
           file_name: 12-traces-min-rpb1.c
-          file_hash: $FILE_HASH
           line: 13
           column: 3
           function: t_fun
@@ -113,7 +109,6 @@
           format: c_expression
       - location:
           file_name: 12-traces-min-rpb1.c
-          file_hash: $FILE_HASH
           line: 17
           column: 3
           function: t_fun
@@ -123,7 +118,6 @@
           format: c_expression
       - location:
           file_name: 12-traces-min-rpb1.c
-          file_hash: $FILE_HASH
           line: 18
           column: 3
           function: t_fun
@@ -133,7 +127,6 @@
           format: c_expression
       - location:
           file_name: 12-traces-min-rpb1.c
-          file_hash: $FILE_HASH
           line: 19
           column: 3
           function: t_fun
@@ -143,7 +136,6 @@
           format: c_expression
       - location:
           file_name: 12-traces-min-rpb1.c
-          file_hash: $FILE_HASH
           line: 25
           column: 3
           function: main
@@ -153,7 +145,6 @@
           format: c_expression
       - location:
           file_name: 12-traces-min-rpb1.c
-          file_hash: $FILE_HASH
           line: 28
           column: 3
           function: main
@@ -163,7 +154,6 @@
           format: c_expression
       - location:
           file_name: 12-traces-min-rpb1.c
-          file_hash: $FILE_HASH
           line: 30
           column: 3
           function: main
@@ -173,7 +163,6 @@
           format: c_expression
   - entry_type: flow_insensitive_invariant
     flow_insensitive_invariant:
-      string: '! multithreaded || (A_locked || ((0LL - (long long )g) + (long long )h
-        >= 0LL && (long long )g - (long long )h >= 0LL))'
+      string: '! multithreaded || (A_locked || (long long )g == (long long )h)'
       type: assertion
       format: C

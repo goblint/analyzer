@@ -12,7 +12,6 @@ open GoblintCil
 open Pretty
 module M = Messages
 open GobApron
-open VectorMatrix
 
 module Mpqf = SharedFunctions.Mpqf
 
@@ -173,20 +172,18 @@ module EqualitiesConjunction = struct
   let dim_add (ch: Apron.Dim.change) m =
     modify_variables_in_domain m ch.dim (+)
 
-  let dim_add ch m = timing_wrap "dim add" (dim_add ch) m
+  let dim_add ch m = Timing.wrap "dim add" (dim_add ch) m
 
   let dim_remove (ch: Apron.Dim.change) m =
     if Array.length ch.dim = 0 || is_empty m then
       m
     else (
-      let cpy = Array.copy ch.dim in
-      Array.modifyi (+) cpy; (* this is a hack to restore the original https://antoinemine.github.io/Apron/doc/api/ocaml/Dim.html remove_dimensions semantics for dim_remove *)
-      let m' = Array.fold_lefti (fun y i x -> forget_variable y (x)) m cpy in  (* clear m' from relations concerning ch.dim *)
-      modify_variables_in_domain m' cpy (-))
+      let m' = Array.fold_lefti (fun y i x -> forget_variable y (x)) m ch.dim in  (* clear m' from relations concerning ch.dim *)
+      modify_variables_in_domain m' ch.dim (-))
 
-  let dim_remove ch m = VectorMatrix.timing_wrap "dim remove" (fun m -> dim_remove ch m) m
+  let dim_remove ch m = Timing.wrap "dim remove" (fun m -> dim_remove ch m) m
 
-  let dim_remove ch m ~del = let res = dim_remove ch m in if M.tracing then
+  let dim_remove ch m = let res = dim_remove ch m in if M.tracing then
       M.tracel "dim_remove" "dim remove at positions [%s] in { %s } -> { %s }"
         (Array.fold_right (fun i str -> (string_of_int i) ^ ", " ^ str)  ch.dim "")
         (show (snd m))
@@ -343,7 +340,7 @@ struct
           | [(coeff,var,divi)] -> Some (Rhs.canonicalize (Some (Z.mul divisor coeff,var), Z.mul constant divi,Z.mul divisor divi))
           |_ -> None))
 
-  let simplify_to_ref_and_offset t texp = timing_wrap "coeff_vec" (simplify_to_ref_and_offset t) texp
+  let simplify_to_ref_and_offset t texp = Timing.wrap "coeff_vec" (simplify_to_ref_and_offset t) texp
 
   let assign_const t var const divi = match t.d with
     | None -> t
@@ -365,13 +362,13 @@ struct
          Some res, Some res)
       | _ -> None, None
 
-  let bound_texpr d texpr1 = timing_wrap "bounds calculation" (bound_texpr d) texpr1
+  let bound_texpr d texpr1 = Timing.wrap "bounds calculation" (bound_texpr d) texpr1
 end
 
 module D =
 struct
   include Printable.Std
-  include ConvenienceOps (Mpqf)
+  include RatOps.ConvenienceOps (Mpqf)
   include VarManagement
 
   module Bounds = ExpressionBounds
@@ -398,6 +395,9 @@ struct
 
   (** is_top returns true for top_of array and empty array; precondition: t.env and t.d are of same size *)
   let is_top t = GobOption.exists EConj.is_top_con t.d
+
+  let is_top_env t = (not @@ Environment.equal empty_env t.env) && GobOption.exists EConj.is_top_con t.d
+
 
   let to_subscript i =
     let transl = [|"₀";"₁";"₂";"₃";"₄";"₅";"₆";"₇";"₈";"₉"|] in
@@ -444,8 +444,8 @@ struct
 
   let meet t1 t2 =
     let sup_env = Environment.lce t1.env t2.env in
-    let t1 = change_d t1 sup_env ~add:true ~del:false in
-    let t2 = change_d t2 sup_env ~add:true ~del:false in
+    let t1 = dimchange2_add t1 sup_env in
+    let t2 = dimchange2_add t2 sup_env in
     match t1.d, t2.d with
     | Some d1', Some d2' ->
       EConj.IntMap.fold (fun lhs rhs map -> meet_with_one_conj map lhs rhs) (snd d2') t1 (* even on sparse d2, this will chose the relevant conjs to meet with*)
@@ -456,7 +456,7 @@ struct
     if M.tracing then M.tracel "meet" "meet a: %s\n U  \n b: %s \n -> %s" (show t1) (show t2) (show res) ;
     res
 
-  let meet t1 t2 = timing_wrap "meet" (meet t1) t2
+  let meet t1 t2 = Timing.wrap "meet" (meet t1) t2
 
   let leq t1 t2 =
     let env_comp = Environment.cmp t1.env t2.env in (* Apron's Environment.cmp has defined return values. *)
@@ -469,13 +469,13 @@ struct
       | Some (coeffj,j) -> tuple_cmp (EConj.get_rhs ts i) @@ Rhs.subst (EConj.get_rhs ts j) j (var, offs, divi)
     in
     if env_comp = -2 || env_comp > 0 then false else
-    if is_bot_env t1 || is_top t2 then true
-    else if is_bot_env t2 || is_top t1 then false else
+    if is_bot_env t1 || is_top_env t2 then true
+    else if is_bot_env t2 || is_top_env t1 then false else
       let m1, m2 = Option.get t1.d, Option.get t2.d in
       let m1' = if env_comp = 0 then m1 else VarManagement.dim_add (Environment.dimchange t1.env t2.env) m1 in
       EConj.IntMap.for_all (implies m1') (snd m2) (* even on sparse m2, it suffices to check the non-trivial equalities, still present in sparse m2 *)
 
-  let leq a b = timing_wrap "leq" (leq a) b
+  let leq a b = Timing.wrap "leq" (leq a) b
 
   let leq t1 t2 =
     let res = leq t1 t2 in
@@ -537,21 +537,26 @@ struct
 
     in
     (*Normalize the two domains a and b such that both talk about the same variables*)
-    match a.d, b.d with
-    | None, _ -> b
-    | _, None -> a
-    | Some x, Some y when is_top a || is_top b ->
-      let new_env = Environment.lce a.env b.env in
-      top_of new_env
-    | Some x, Some y when (Environment.cmp a.env b.env <> 0) ->
-      let sup_env = Environment.lce a.env b.env in
-      let mod_x = dim_add (Environment.dimchange a.env sup_env) x in
-      let mod_y = dim_add (Environment.dimchange b.env sup_env) y in
-      {d = join_d mod_x mod_y; env = sup_env}
-    | Some x, Some y when EConj.equal x y -> {d = Some x; env = a.env}
-    | Some x, Some y  -> {d = join_d x y; env = a.env}
+    if is_bot a then
+      b
+    else if is_bot b then
+      a
+    else
+      match a.d, b.d with
+      | None, _ -> b
+      | _, None -> a
+      | Some x, Some y when is_top_env a || is_top_env b ->
+        let new_env = Environment.lce a.env b.env in
+        top_of new_env
+      | Some x, Some y when (Environment.cmp a.env b.env <> 0) ->
+        let sup_env = Environment.lce a.env b.env in
+        let mod_x = dim_add (Environment.dimchange a.env sup_env) x in
+        let mod_y = dim_add (Environment.dimchange b.env sup_env) y in
+        {d = join_d mod_x mod_y; env = sup_env}
+      | Some x, Some y when EConj.equal x y -> {d = Some x; env = a.env}
+      | Some x, Some y  -> {d = join_d x y; env = a.env}
 
-  let join a b = timing_wrap "join" (join a) b
+  let join a b = Timing.wrap "join" (join a) b
 
   let join a b =
     let res = join a b in
@@ -577,12 +582,12 @@ struct
     dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
 
   let forget_var t var =
-    if is_bot_env t || is_top t then t
+    if is_bot_env t || is_top_env t then t
     else
       {d = Some (EConj.forget_variable (Option.get t.d) (Environment.dim_of_var t.env var)); env = t.env}
 
   let forget_vars t vars =
-    if is_bot_env t || is_top t || List.is_empty vars then
+    if is_bot_env t || is_top_env t || List.is_empty vars then
       t
     else
       let newm = List.fold (fun map i -> EConj.forget_variable map (Environment.dim_of_var t.env i)) (Option.get t.d) vars in
@@ -593,7 +598,7 @@ struct
     if M.tracing then M.tracel "ops" "forget_vars %s -> %s" (show t) (show res);
     res
 
-  let forget_vars t vars = timing_wrap "forget_vars" (forget_vars t) vars
+  let forget_vars t vars = Timing.wrap "forget_vars" (forget_vars t) vars
 
   (** implemented as described on page 10 in the paper about Fast Interprocedural Linear Two-Variable Equalities in the Section "Abstract Effect of Statements"
       This makes a copy of the data structure, it doesn't change it in-place. *)
@@ -617,7 +622,7 @@ struct
       end
     | None -> bot_env
 
-  let assign_texpr t var texp = timing_wrap "assign_texpr" (assign_texpr t var) texp
+  let assign_texpr t var texp = Timing.wrap "assign_texpr" (assign_texpr t var) texp
 
   (* no_ov -> no overflow
      if it's true then there is no overflow
@@ -654,9 +659,9 @@ struct
     let t_primed = add_vars t primed_vars in
     let multi_t = List.fold_left2 (fun t' v_prime (_,v') -> assign_var t' v_prime v') t_primed primed_vars vv's in
     match multi_t.d with
-    | Some arr when not @@ is_top multi_t ->
+    | Some arr when not @@ is_top_env multi_t ->
       let switched_arr = List.fold_left2 (fun multi_t assigned_var primed_var-> assign_var multi_t assigned_var primed_var) multi_t assigned_vars primed_vars in
-      drop_vars switched_arr primed_vars ~del:true
+      remove_vars switched_arr primed_vars
     | _ -> t
 
   let assign_var_parallel t vv's =
@@ -664,7 +669,7 @@ struct
     if M.tracing then M.tracel "ops" "assign_var parallel: %s -> %s" (show t) (show res);
     res
 
-  let assign_var_parallel t vv's = timing_wrap "var_parallel" (assign_var_parallel t) vv's
+  let assign_var_parallel t vv's = Timing.wrap "var_parallel" (assign_var_parallel t) vv's
 
   let assign_var_parallel_with t vv's =
     (* TODO: If we are angling for more performance, this might be a good place ot try. `assign_var_parallel_with` is used whenever a function is entered (body),
@@ -696,7 +701,7 @@ struct
     if M.tracing then M.tracel "ops" "Substitute_expr t: \n %s \n var: %a \n exp: %a \n -> \n %s" (show t) Var.pretty var d_exp exp (show res);
     res
 
-  let substitute_exp ask t var exp no_ov = timing_wrap "substitution" (substitute_exp ask t var exp) no_ov
+  let substitute_exp ask t var exp no_ov = Timing.wrap "substitution" (substitute_exp ask t var exp) no_ov
 
 
   (** Assert a constraint expression.
@@ -751,7 +756,7 @@ struct
     if M.tracing then M.tracel "meet_tcons" "meet_tcons with expr: %a no_ov:%b" d_exp original_expr (Lazy.force no_ov);
     meet_tcons ask t tcons original_expr no_ov
 
-  let meet_tcons t tcons expr = timing_wrap "meet_tcons" (meet_tcons t tcons) expr
+  let meet_tcons t tcons expr = Timing.wrap "meet_tcons" (meet_tcons t tcons) expr
 
   let unify a b =
     meet a b
@@ -777,7 +782,7 @@ struct
     | tcons1 -> meet_tcons ask d tcons1 e no_ov
     | exception Convert.Unsupported_CilExp _ -> d
 
-  let assert_constraint ask d e negate no_ov = timing_wrap "assert_constraint" (assert_constraint ask d e negate) no_ov
+  let assert_constraint ask d e negate no_ov = Timing.wrap "assert_constraint" (assert_constraint ask d e negate) no_ov
 
   let relift t = t
 

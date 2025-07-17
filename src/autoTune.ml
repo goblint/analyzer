@@ -306,6 +306,7 @@ class addTypeAttributeVisitor = object
 
   (*Set arrays with important types for thread analysis to unroll*)
   method! vtype typ =
+    (* TODO: reuse predicates in Access module (also handles TNamed correctly) *)
     let is_important_type (t: typ): bool = match t with
       | TNamed (info, attr) -> List.mem info.tname ["pthread_mutex_t"; "spinlock_t"; "pthread_t"]
       | TInt (IInt, attr) -> hasAttribute "mutex" attr
@@ -370,7 +371,7 @@ class octagonVariableVisitor(varMap, globals) = object
 
   method! vexpr = function
     (*an expression of type +/- a +/- b where a,b are either variables or constants*)
-    | BinOp (op, e1,e2, (TInt _)) when isComparison op -> (
+    | BinOp (op, e1,e2, _) when isComparison op -> (
         List.iter (fun var -> addOrCreateVarMapping varMap var 5 globals) (extractOctagonVars e1);
         List.iter (fun var -> addOrCreateVarMapping varMap var 5 globals) (extractOctagonVars e2);
         DoChildren

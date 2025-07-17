@@ -34,7 +34,6 @@
       ghost_updates:
       - location:
           file_name: 67-ghost-no-unlock.c
-          file_hash: $FILE_HASH
           line: 9
           column: 3
           function: t_fun
@@ -44,7 +43,6 @@
           format: c_expression
       - location:
           file_name: 67-ghost-no-unlock.c
-          file_hash: $FILE_HASH
           line: 12
           column: 3
           function: t_fun
@@ -54,7 +52,6 @@
           format: c_expression
       - location:
           file_name: 67-ghost-no-unlock.c
-          file_hash: $FILE_HASH
           line: 21
           column: 3
           function: main
@@ -64,7 +61,6 @@
           format: c_expression
       - location:
           file_name: 67-ghost-no-unlock.c
-          file_hash: $FILE_HASH
           line: 23
           column: 3
           function: main

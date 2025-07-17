@@ -94,7 +94,7 @@ struct
   (* Remove null values from state that are unreachable from exp.*)
   let remove_unreachable (ask: Queries.ask) (args: exp list) (st: D.t) : D.t =
     let reachable =
-      let do_exp e a =
+      let do_exp a e =
         match ask.f (Queries.ReachableFrom e) with
         | ad when not (Queries.AD.is_top ad) ->
           ad
@@ -103,9 +103,9 @@ struct
               | _ -> false)
           |> Queries.AD.join a
         (* Ignore soundness warnings, as invalidation proper will raise them. *)
-        | _ -> AD.empty ()
+        | _ -> a
       in
-      List.fold_right do_exp args (AD.empty ())
+      List.fold_left do_exp (AD.empty ()) args
     in
     let vars =
       reachable
@@ -164,7 +164,7 @@ struct
   let return_addr () = !return_addr_
 
   let return man (exp:exp option) (f:fundec) : D.t =
-    let remove_var x v = List.fold_right D.remove (to_addrs v) x in
+    let remove_var x v = List.fold_left (Fun.flip D.remove) x (to_addrs v) in
     let nst = List.fold_left remove_var man.local (f.slocals @ f.sformals) in
     BatOption.map_default (fun ret ->
       warn_deref_exp (Analyses.ask_of_man man) man.local ret;
