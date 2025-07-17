@@ -9,7 +9,7 @@ open Analyses
 
 module Spec =
 struct
-  include Analyses.DefaultSpec
+  include Analyses.IdentitySpec
 
   module Addr = ValueDomain.Addr
   module D = ValueDomain.AddrSetDomain
@@ -95,12 +95,6 @@ struct
     | Some rv, Some mval when might_be_null (Analyses.ask_of_man man) rv man.global man.local ->
       D.add (Addr.of_mval mval) man.local
     | _ -> man.local
-
-  let branch man (exp:exp) (tv:bool) : D.t =
-    man.local
-
-  let body man (f:fundec) : D.t =
-    man.local
 
   let return_addr_ = ref Addr.NullPtr
   let return_addr () = !return_addr_
