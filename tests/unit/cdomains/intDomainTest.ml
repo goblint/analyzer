@@ -954,7 +954,7 @@ module IntDomTuple =
 struct
   let exists0 =
     let open Batteries in
-    let to_list x = Tuple4.enum x |> List.of_enum |> List.filter_map identity in
+    let to_list (a,b,c,d) = List.filter_map identity [a;b;c;d] in
     let f g = g identity % to_list in
     List.(f exists)
 
@@ -976,7 +976,7 @@ struct
 
   let for_all0 =
     let open Batteries in
-    let to_list x = Tuple4.enum x |> List.of_enum |> List.filter_map identity in
+    let to_list (a,b,c,d) = List.filter_map identity [a;b;c;d] in
     let f g = g identity % to_list in
     List.(f for_all)
 

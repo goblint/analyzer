@@ -1,6 +1,5 @@
 (** Relational value domain utilities. *)
 open GoblintCil
-open Batteries
 
 open GobApron
 
@@ -351,14 +350,14 @@ struct
       let linexpr1 = Lincons1.get_linexpr1 lincons1 in
       let common_denominator = lcm_den linexpr1 in
       let terms = cil_exp_of_linexpr1 ~scalewith:common_denominator linexpr1 in
-      let (nterms, pterms) = Tuple2.mapn (List.map snd) (List.partition fst terms) in (* partition terms into negative (nterms) and positive (pterms) *)
+      let (nterms, pterms) = BatTuple.Tuple2.mapn (List.map snd) (List.partition fst terms) in (* partition terms into negative (nterms) and positive (pterms) *)
       let fold_terms terms =
         List.fold_left (fun acc term ->
             match acc with
             | None -> Some term
             | Some exp -> Some (BinOp (PlusA, exp, term, longlong))
           ) None terms
-        |> Option.default zero
+        |> BatOption.default zero
       in
       let lhs = fold_terms pterms in
       let rhs = fold_terms nterms in (* negative terms are moved from Apron's lhs to our rhs, so they all become positive there *)
