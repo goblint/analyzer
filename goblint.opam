@@ -38,7 +38,7 @@ depends: [
   "dune" {>= "3.13"}
   "ocaml" {>= "4.14"}
   "goblint-cil" {>= "2.0.5"}
-  "batteries" {>= "3.5.1"}
+  "batteries" {>= "3.9.0"}
   "zarith" {>= "1.10"}
   "yojson" {>= "2.0.0" & < "3"}
   "qcheck-core" {>= "0.19"}

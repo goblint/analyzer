@@ -42,8 +42,8 @@ let dependencies: bool Fpath.Map.t FpathH.t = FpathH.create 3 (* bool is system_
 
 let dependencies_to_yojson () =
   dependencies
-  |> FpathH.enum
-  |> Enum.map (fun (p, deps) ->
+  |> FpathH.to_seq
+  |> Seq.map (fun (p, deps) ->
       let deps' =
         deps
         |> Fpath.Map.bindings
@@ -55,5 +55,5 @@ let dependencies_to_yojson () =
       in
       (Fpath.to_string p, deps')
     )
-  |> List.of_enum
+  |> List.of_seq
   |> (fun l -> `Assoc l)

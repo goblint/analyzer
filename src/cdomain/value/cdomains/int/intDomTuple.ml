@@ -92,7 +92,7 @@ module IntDomTupleImpl = struct
   let opt_map2 f ?no_ov =
     curry @@ function Some x, Some y -> Some (f ?no_ov x y) | _ -> None
 
-  let to_list x = GobTuple.Tuple6.enum x |> List.of_enum |> List.filter_map identity (* contains only the values of activated domains *)
+  let to_list (a,b,c,d,e,f) = List.filter_map identity [a;b;c;d;e;f] (* contains only the values of activated domains *)
   let to_list_some x = List.filter_map identity @@ to_list x (* contains only the Some-values of activated domains *)
 
   let exists = function
@@ -368,7 +368,7 @@ module IntDomTupleImpl = struct
 
   (* fp: projections *)
   let equal_to i x =
-    let xs = mapp2 { fp2 = fun (type a) (module I:SOverflow with type t = a and type int_t = int_t) -> I.equal_to i } x |> GobTuple.Tuple6.enum |> List.of_enum |> List.filter_map identity in
+    let xs = mapp2 { fp2 = fun (type a) (module I:SOverflow with type t = a and type int_t = int_t) -> I.equal_to i } x |> to_list in
     if List.mem `Eq xs then `Eq else
     if List.mem `Neq xs then `Neq else
       `Top

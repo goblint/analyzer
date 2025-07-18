@@ -2150,12 +2150,6 @@ struct
     (* TODO: make this is_private PrivParam dependent? PerMutexOplusPriv should keep *)
     let st' =
       if thread then (
-        (* TODO: HACK: Simulate enter_multithreaded for first entering thread to publish global inits before analyzing thread.
-           Otherwise thread is analyzed with no global inits, reading globals gives bot, which turns into top, which might get published...
-           sync `Thread doesn't help us here, it's not specific to entering multithreaded mode.
-           EnterMultithreaded events only execute after threadenter and threadspawn. *)
-        if not (ThreadFlag.has_ever_been_multi ask) then
-          ignore (Priv.enter_multithreaded ask (priv_getg man.global) (priv_sideg man.sideg) st);
         Priv.threadenter ask st
       ) else
         (* use is_global to account for values that became globals because they were saved into global variables *)
@@ -2967,6 +2961,13 @@ struct
     combine_one man.local after
 
   let threadenter man ~multiple (lval: lval option) (f: varinfo) (args: exp list): D.t list =
+    (* TODO: HACK: Simulate enter_multithreaded for first entering thread to publish global inits before analyzing thread.
+       Otherwise thread is analyzed with no global inits, reading globals gives bot, which turns into top, which might get published...
+       sync `Thread doesn't help us here, it's not specific to entering multithreaded mode.
+       EnterMultithreaded events only execute after threadenter and threadspawn. *)
+    let st = man.local in
+    if not (ThreadFlag.has_ever_been_multi (Analyses.ask_of_man man)) then
+      ignore (Priv.enter_multithreaded (Analyses.ask_of_man man) (priv_getg man.global) (priv_sideg man.sideg) st);
     match Cilfacade.find_varinfo_fundec f with
     | fd ->
       [make_entry ~thread:true man fd args]

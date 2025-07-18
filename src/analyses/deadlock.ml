@@ -76,8 +76,8 @@ struct
               ) (List.tl path_visited_lock_event_pairs)
           in
           let mhp =
-            Enum.cartesian_product (List.enum path_visited_lock_event_pairs) (List.enum path_visited_lock_event_pairs)
-            |> Enum.for_all (fun (((_, (_, _, access1)) as p1), ((_, (_, _, access2)) as p2)) ->
+            Seq.product (List.to_seq path_visited_lock_event_pairs) (List.to_seq path_visited_lock_event_pairs)
+            |> Seq.for_all (fun (((_, (_, _, access1)) as p1), ((_, (_, _, access2)) as p2)) ->
                 LockEventPair.equal p1 p2 || MCPAccess.A.may_race access1 access2
               )
           in
