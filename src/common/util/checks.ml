@@ -3,6 +3,7 @@ module Kind = struct
     | Error
     | Warning
     | Safe
+  [@@deriving hash, eq, show]
 
   let is_safe = function
     | Safe -> true
@@ -21,7 +22,7 @@ module Kind = struct
 end
 
 module Category = struct
-  type t = 
+  type t =
     | AssersionFaillure
     | InvalidMemoryAccess
     | DivisionByZero
@@ -31,6 +32,7 @@ module Category = struct
     | DoubleFree
     | NegativeArraySize
     | StubCondition
+  [@@deriving hash, eq, show]
 
   let to_yojson x = `String (match x with
       | AssersionFaillure -> "Assertion failure"
@@ -61,7 +63,7 @@ module Check = struct
     title: Category.t;
     range: CilType.Location.t option;
     messages: string;
-  } [@@deriving yojson, make]
+  } [@@deriving make, hash, eq]
 
   let to_yojson check =
     `Assoc [
@@ -84,34 +86,71 @@ module Check = struct
       ("messages", `String check.messages)
     ]
 
-  type key = (Category.t * CilType.Location.t option) 
-  let checks : (key, t list) Hashtbl.t = Hashtbl.create 113
+  let pp fmt check =
+    Format.fprintf fmt "Check: %a: %s at %a"
+      Kind.pp check.kind
+      check.messages
+      (Format.pp_print_option CilType.Location.pp) check.range
+
+  type check_t = t
+  let check_t_to_yojson = to_yojson
+  module CheckMap = Hashtbl.Make (struct
+      type t = check_t
+      let equal = equal
+      let hash = hash
+    end)
+
+
+  module CategoryLocationMap = Hashtbl.Make (struct
+      type t = Category.t * CilType.Location.t [@@deriving hash, eq]
+    end)
+
+  type key = Category.t * CilType.Location.t option [@@deriving yojson]
+
+  let checks_list : (bool ref * unit CheckMap.t) CategoryLocationMap.t = CategoryLocationMap.create 113
 
   let add_check check =
-    if !AnalysisState.should_warn then (
-      let check_key = (check.title, check.range) in
-      match Hashtbl.find_opt checks check_key with
-      | Some existing_checks ->
-        if Kind.is_safe check.kind then
-          ()
-        else if Kind.is_safe (List.hd existing_checks).kind then
-          Hashtbl.replace checks check_key [check]
-        else
-          Hashtbl.replace checks check_key (check :: existing_checks)
-      | None ->
-        Hashtbl.add checks check_key [check])
+    match check.range with
+    | Some range -> (
+        (* Mark all ranges as synthetic for hash purposes *)
+        let range = { range with synthetic = true } in
+        let check = { check with range = Some range } in
+        let check_key = (check.title, range) in
+        match CategoryLocationMap.find_opt checks_list check_key with
+        | Some (safe, existing_checks) ->
+          if !safe && Kind.is_safe check.kind then
+            CheckMap.replace existing_checks check ()
+          else if not @@ Kind.is_safe check.kind then (
+            if !safe then CheckMap.clear existing_checks;
+            safe := false;
+            CheckMap.replace existing_checks check ()
+          )
+        | None ->
+          let table = CheckMap.create 10 in
+          CheckMap.replace table check ();
+          CategoryLocationMap.replace checks_list check_key (ref (Kind.is_safe check.kind), table))
+    | None ->
+      ()
 
-  let check kind title =
-    let finish doc =
-      let loc = Option.map UpdateCil0.getLoc !Node0.current_node in
-      let messages = GobPretty.show doc in
-      let check = make ~kind ~title ?range:loc ~messages () in
-      add_check check
-    in GoblintCil.Pretty.gprintf finish  
+  let check kind title fmt =
+    if !AnalysisState.should_warn then (
+      let finish doc =
+        let loc = Option.map UpdateCil0.getLoc !Node0.current_node in
+        let messages = GobPretty.show doc in
+        let check = make ~kind ~title ?range:loc ~messages () in
+        add_check check in
+      GoblintCil.Pretty.gprintf finish fmt)
+    else
+      GobPretty.igprintf () fmt
 
 
   let export () =
-    `List (List.map to_yojson @@ Hashtbl.fold (fun _ checks acc -> List.rev_append checks acc) checks [])
+    `List (
+      List.map to_yojson @@ CategoryLocationMap.fold (
+        fun _ (checks: (bool ref * unit CheckMap.t)) acc ->
+          List.rev_append (CheckMap.to_seq_keys @@ snd checks |> List.of_seq) acc
+      ) checks_list []
+    )
 end
 
 let error category = Check.check Kind.Error category
