@@ -645,7 +645,7 @@ struct
            Join abstract values once per location and once per node. *)
         let joined_by_loc, joined_by_node =
           let open Enum in
-          let node_values = LHT.enum lh |> map (Tuple2.map1 fst) in (* drop context from key *)
+          let node_values = LHT.enum lh |> map (Tuple2.map1 fst) in (* drop context from key *) (* nosemgrep: batenum-enum *)
           let hashtbl_size = if fast_count node_values then count node_values else 123 in
           let by_loc, by_node = Hashtbl.create hashtbl_size, NodeH.create hashtbl_size in
           iter (fun (node, v) ->
