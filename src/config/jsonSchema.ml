@@ -29,7 +29,7 @@ let rec encoding_of_schema_element (top: unit Json_encoding.encoding) (schema_el
   match schema_element.kind with
   | Any -> unit
   | String string_specs ->
-    begin match schema_element.enum with (* nosemgrep: batenum-enum *)
+    begin match schema_element.enum with
       | None ->
         erase string
       | Some enum ->

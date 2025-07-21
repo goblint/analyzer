@@ -8,13 +8,21 @@ rules:
     severity: WARNING
 
   - id: batenum-of_enum
-    pattern: $M.of_enum
+    patterns:
+      - pattern: $M.of_enum
+      - metavariable-pattern:
+          metavariable: $M
+          pattern-regex: ^[A-Z].*
     message: use $M.of_seq instead
     languages: [ocaml]
     severity: WARNING
 
   - id: batenum-enum
-    pattern: $M.enum
+    patterns:
+      - pattern: $M.enum
+      - metavariable-pattern:
+          metavariable: $M
+          pattern-regex: ^[A-Z].*
     message: use $M.to_seq instead
     languages: [ocaml]
     severity: WARNING

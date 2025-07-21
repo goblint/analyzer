@@ -329,7 +329,7 @@ struct
   let drop_memo ()  =
     (* The explicit polymorphism is needed to make it compile *)
     let drop:'a. (string,'a) BatCache.manual_cache -> _ = fun m ->
-      let r = m.enum () in (* nosemgrep: batenum-enum *)
+      let r = m.enum () in
       BatEnum.force r; BatEnum.iter (fun (k,v) -> m.del k) r (* nosemgrep: batenum-module *)
     in
     drop memo_int; drop memo_bool; drop memo_string; drop memo_list
