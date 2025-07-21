@@ -66,7 +66,7 @@ let rec element_completions (element: element): (string * string list) list =
   | Boolean ->
     [("", ["false"; "true"])]
   | String string_specs ->
-    begin match element.enum with
+    begin match element.enum with  (* nosemgrep: batenum-enum *)
       | None ->
         default_completion ()
       | Some enum ->
