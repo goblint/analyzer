@@ -2751,7 +2751,6 @@ struct
         | _ -> st
       end
     | Calloc { count = n; size }, _ ->
-      let open Queries.AllocationLocation in
       begin match lv with
         | Some lv -> (* array length is set to one, as num*size is done when turning into `Calloc *)
           let (heap_var, addr) = alloc Queries.AllocationLocation.Heap size in
