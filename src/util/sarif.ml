@@ -127,7 +127,7 @@ let artifacts_of_messages (messages: Messages.Message.t list): Artifact.t list =
   messages
   |> List.enum (* nosemgrep: batenum-enum *)
   |> Enum.map files_of_message (* nosemgrep: batenum-module *)
-  |> Enum.map (* nosemgrep: batenum-module *) List.enum (* nosemgrep: batenum-enum *)
+  |> Enum.map List.enum (* nosemgrep: batenum-module, batenum-enum *)
   |> Enum.flatten (* nosemgrep: batenum-module *)
   |> Enum.uniq (* nosemgrep: batenum-module *) (* polymorphic equality fine on string *)
   |> Enum.map (fun file -> { (* nosemgrep: batenum-module *)
