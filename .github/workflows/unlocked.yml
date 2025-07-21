@@ -99,9 +99,6 @@ jobs:
 
     runs-on: ${{ matrix.os }}
 
-    env:
-      OPAMCONFIRMLEVEL: unsafe-yes # allow opam depext to yes package manager prompts
-
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
