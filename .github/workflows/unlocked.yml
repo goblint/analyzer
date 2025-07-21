@@ -129,8 +129,7 @@ jobs:
 
       - name: Downgrade dependencies
         run: |
-          opam install --solver=builtin-0install --criteria="+removed,+count[version-lag,solution]" . --deps-only --with-test
-          opam install --solver=builtin-0install --criteria="+count[version-lag,solution]" apron mlgmpidl.1.2.15
+          opam install --solver=builtin-0install --criteria="+count[version-lag,solution]" . --deps-only --with-test
 
       - name: Build
         run: ./make.sh nat
