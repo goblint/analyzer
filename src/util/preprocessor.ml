@@ -18,7 +18,7 @@ let compgen prefix =
   let bash_command = Filename.quote ("compgen -c " ^ prefix) in
   let compgen = Unix.open_process_in ("bash -c " ^ bash_command) in
   IO.lines_of compgen
-  |> List.of_enum
+  |> List.of_enum (* nosemgrep: batenum-of_enum *)
 
 let cpp =
   let is_good name = not (is_bad name) in
