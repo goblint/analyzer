@@ -156,7 +156,7 @@ struct
           | GFun (fd,loc) -> SH.add file2funs loc.file fd.svar.vname
           | _ -> ()
         );
-      let p_enum p f xs = BatEnum.print ~first:"[\n  " ~last:"\n]" ~sep:",\n  " p f xs in
+      let p_enum p f xs = BatEnum.print ~first:"[\n  " ~last:"\n]" ~sep:",\n  " p f xs in (* nosemgrep: batenum-module *)
       let p_list p f xs = BatList.print ~first:"[\n  " ~last:"\n]" ~sep:",\n  " p f xs in
       (*let p_kv f (k,p,v) = fprintf f "\"%s\": %a" k p v in*)
       (*let p_obj f xs = BatList.print ~first:"{\n  " ~last:"\n}" ~sep:",\n  " p_kv xs in*)
