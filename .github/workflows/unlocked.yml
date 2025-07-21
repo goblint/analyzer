@@ -57,7 +57,7 @@ jobs:
 
       - name: Install dependencies
         run: opam install . --deps-only --with-test
-      
+
       - name: Install os gem for operating system detection
         run: sudo gem install os
 
@@ -86,9 +86,6 @@ jobs:
         run: ruby scripts/update_suite.rb -m
 
   lower-bounds-downgrade:
-    # use external 0install solver to downgrade: https://github.com/ocaml-opam/opam-0install-solver
-    # TODO: will be built in in opam 2.2: https://github.com/ocaml/opam/pull/4909
-
     strategy:
       fail-fast: false
       matrix:
@@ -133,13 +130,10 @@ jobs:
         if: ${{ false }}
         run: ./make.sh nat
 
-      - name: Install opam-0install
-        run: opam install opam-0install
-
       - name: Downgrade dependencies
         # must specify ocaml-base-compiler again to prevent it from being downgraded
         # prevent num downgrade to avoid dune/jbuilder error: https://github.com/ocaml/dune/issues/5280
-        run: opam install $(opam exec -- opam-0install --prefer-oldest goblint ocaml-variants.4.14.2+options ocaml-option-flambda num.1.5)
+        run: opam install --solver=builtin-0install --criteria="+removed,+count[version-lag,solution]" goblint ocaml-variants.4.14.2+options ocaml-option-flambda num.1.5
 
       - name: Build
         run: ./make.sh nat
@@ -265,7 +259,7 @@ jobs:
         os:
           - ubuntu-22.04 # https://github.com/ocaml/setup-ocaml/issues/872
         ocaml-compiler:
-          - ocaml-variants.5.0.0+options,ocaml-option-flambda 
+          - ocaml-variants.5.0.0+options,ocaml-option-flambda
         node-version:
           - 14
 
