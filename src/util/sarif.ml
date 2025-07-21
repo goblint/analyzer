@@ -1,6 +1,6 @@
 (** SARIF output of {!Messages}. *)
 
-(** The Sarif format is a standardised output format for static analysis tools. https://docs.oasis-open.org/sarif/sarif/v2.1.0/sarif-v2.1.0.html *)
+(** The Sarif format is a standardized output format for static analysis tools. https://docs.oasis-open.org/sarif/sarif/v2.1.0/sarif-v2.1.0.html *)
 open Batteries
 
 open SarifType
@@ -125,16 +125,16 @@ let files_of_message (message: Messages.Message.t): string list =
 (* TODO: just get all files from AST? *)
 let artifacts_of_messages (messages: Messages.Message.t list): Artifact.t list =
   messages
-  |> List.enum
-  |> Enum.map files_of_message
-  |> Enum.map List.enum
-  |> Enum.flatten
-  |> Enum.uniq (* polymorphic equality fine on string *)
-  |> Enum.map (fun file -> {
+  |> List.enum (* nosemgrep: batenum-enum *)
+  |> Enum.map files_of_message (* nosemgrep: batenum-module *)
+  |> Enum.map (* nosemgrep: batenum-module *) List.enum (* nosemgrep: batenum-enum *)
+  |> Enum.flatten (* nosemgrep: batenum-module *)
+  |> Enum.uniq (* nosemgrep: batenum-module *) (* polymorphic equality fine on string *)
+  |> Enum.map (fun file -> { (* nosemgrep: batenum-module *)
         Artifact.location = { uri = file };
       }
     )
-  |> List.of_enum
+  |> List.of_enum (* nosemgrep: batenum-of_enum *)
 
 let to_yojson messages =
   SarifLog.to_yojson {
