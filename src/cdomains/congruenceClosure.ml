@@ -2,7 +2,6 @@
     It is used by the C-2PO Analysis and based on the UnionFind implementation.
 *)
 include UnionFind
-open Batteries
 open GoblintCil
 open DuplicateVars
 module M = Messages
@@ -25,7 +24,7 @@ module BlDis = struct
   let empty = TMap.empty
   let is_empty = TMap.is_empty
 
-  let to_conj bldiseq = List.fold
+  let to_conj bldiseq = List.fold_left
       (fun list (t1, tset) ->
          TSet.fold (fun t2 bldiseqs -> BlNequal(t1, t2)::bldiseqs) tset [] @ list
       ) [] (bindings bldiseq)
@@ -52,11 +51,11 @@ module BlDis = struct
     let add_block_diseq_t1 bldiseq t2 =
       add_block_diseq bldiseq (t1, t2)
     in
-    List.fold add_block_diseq_t1 bldiseq tlist
+    List.fold_left add_block_diseq_t1 bldiseq tlist
 
   (** For each block disequality bl(t1) != bl(t2) we add all disequalities
       that follow from equalities. I.e., if t1 = z1 + t1' and t2 = z2 + t2',
-      then we add the disequaity  bl(t1') != bl(t2').
+      then we add the disequality  bl(t1') != bl(t2').
   *)
   let element_closure bldis cmap =
     let comp_closure = function
@@ -65,7 +64,7 @@ module BlDis = struct
         let eq_class2 = LMap.comp_t_cmap_repr cmap r2 in
         let terms1 = List.map snd eq_class1 in
         let terms2 = List.map snd eq_class2 in
-        List.cartesian_product terms1 terms2
+        BatList.cartesian_product terms1 terms2
       | _ -> []
     in
     List.concat_map comp_closure bldis
@@ -90,7 +89,7 @@ module BlDis = struct
     TMap.map map_set diseq
 
   let term_set bldis =
-    TSet.of_enum (TMap.keys bldis)
+    bldis |> TMap.to_seq |> Seq.map fst |> TSet.of_seq
 
   let map_lhs =
     let add_change bldis (t1,t2) =
@@ -98,7 +97,7 @@ module BlDis = struct
       | None -> bldis
       | Some tset -> TMap.add t2 tset (TMap.remove t1 bldis)
     in
-    List.fold add_change
+    List.fold_left add_change
 
   let filter_map_lhs f (diseq:t) =
     let filter_map_lhs diseq t =
@@ -110,7 +109,8 @@ module BlDis = struct
         else
           diseq
     in
-    Enum.fold filter_map_lhs diseq (TMap.keys diseq)
+    let keys = diseq |> TMap.to_seq |> Seq.map fst in
+    Seq.fold_left filter_map_lhs diseq keys
 end
 
 module Disequalities = struct
@@ -127,15 +127,15 @@ module Disequalities = struct
   let is_empty = TMap.is_empty
   let remove = TMap.remove
   (** Returns a list of tuples, which each represent a disequality *)
-  let bindings =
-    List.flatten %
+  let bindings x =
+    List.flatten @@
     List.concat_map
       (fun (t, smap) ->
          List.map (fun (z, tset) ->
              List.map (fun term ->
                  (t,z,term)) (TSet.elements tset))
            (ZMap.bindings smap)
-      ) % TMap.bindings
+      ) @@ TMap.bindings x
 
   (** adds a mapping v -> r -> size -> { v' } to the map,
       or if there are already elements
@@ -155,9 +155,9 @@ module Disequalities = struct
 
   let map_set_mem (v,r) v' (map:t) =
     let mem_inner_map inner_map =
-      Option.map_default (TSet.mem v') false (ZMap.find_opt r inner_map)
+      BatOption.map_default (TSet.mem v') false (ZMap.find_opt r inner_map)
     in
-    Option.map_default mem_inner_map false (TMap.find_opt v map)
+    BatOption.map_default mem_inner_map false (TMap.find_opt v map)
 
   (** Map of partition, transform union find to a map
       of type V -> Z -> V set
@@ -223,16 +223,16 @@ module Disequalities = struct
 
   let map_find_opt (v,r) map =
     let inner_map = TMap.find_opt v map in
-    Option.map_default (ZMap.find_opt r) None inner_map
+    BatOption.map_default (ZMap.find_opt r) None inner_map
 
   let map_find_all t map =
     let inner_map = TMap.find_opt t map in
     let bindings = Option.map ZMap.bindings inner_map in
     let concat =
       (* TODO: Can one change returned order to xs@acc? *)
-      List.fold (fun acc (z, xs) -> acc@xs) []
+      List.fold_left (fun acc (z, xs) -> acc@xs) []
     in
-    Option.map_default concat [] (bindings)
+    BatOption.map_default concat [] (bindings)
 
   (* Helper function for check_neq and check_neq_bl, to add a disequality, if it adds information and is not impossible *)
   let add_diseq acc (v1, r1') (v2, r2') =
@@ -252,8 +252,8 @@ module Disequalities = struct
       if Z.equal r1 r2 then
         acc
       else (* r1 <> r2 *)
-        let l1 = Option.default [] (map_find_opt (v,r1) arg) in
-        let l2 = Option.default [] (map_find_opt (v,r2) arg) in
+        let l1 = BatOption.default [] (map_find_opt (v,r1) arg) in
+        let l2 = BatOption.default [] (map_find_opt (v,r2) arg) in
         fold_left2 add_diseq acc l1 l2
     in
     let zlist = ZMap.bindings zmap in
@@ -269,7 +269,7 @@ module Disequalities = struct
       let l2 = map_find_all t2 arg in
       fold_left2 add_diseq acc l1 l2
     in
-    List.fold f acc (TSet.to_list tset)
+    List.fold_left f acc (TSet.elements tset)
 
   (** Initialize the list of disequalities taking only implicit dis-equalities into account.
 
@@ -336,8 +336,8 @@ module Disequalities = struct
             match ZMap.find_opt Z.(r1+r) imap2 with
             | None -> rest
             | Some _ ->
-              let l1 = Option.default [] (map_find_opt (v1,r1) arg) in
-              let l2 = Option.default [] (map_find_opt (v2,Z.(r1+r)) arg) in
+              let l1 = BatOption.default [] (map_find_opt (v1,r1) arg) in
+              let l2 = BatOption.default [] (map_find_opt (v2,Z.(r1+r)) arg) in
               fold_left2 add_diseq rest l1 l2
           in
           let ilist1 = ZMap.bindings imap1 in
@@ -371,11 +371,11 @@ module Disequalities = struct
     in
     List.fold_left do_neq "" clist
 
-  let get_disequalities =
+  let get_disequalities x =
     let to_disequality (t1, z, t2) =
       Nequal (t1, t2, Z.(-z))
     in
-    List.map to_disequality % bindings
+    List.map to_disequality @@ bindings x
 
   (** For each disequality t1 != z + t2 we add all disequalities
       that follow from equalities. I.e., if t1 = z1 + t1' and t2 = z2 + t2',
@@ -388,7 +388,7 @@ module Disequalities = struct
       let to_diseq ((z1, nt1), (z2, nt2)) =
         (nt1, nt2, Z.(-z2+z+z1))
       in
-      List.map to_diseq (List.cartesian_product eq_class1 eq_class2)
+      List.map to_diseq (BatList.cartesian_product eq_class1 eq_class2)
     in
     List.concat_map comp_closure diseqs
 end
@@ -402,7 +402,7 @@ module SSet = struct
   let add = TSet.add
   let fold = TSet.fold
   let empty = TSet.empty
-  let to_list = TSet.to_list
+  let to_list = TSet.elements
   let inter = TSet.inter
   let find_opt = TSet.find_opt
   let union = TSet.union
@@ -553,7 +553,7 @@ module MRMap = struct
         compare_repr
     in
     let roots = List.filter (TUF.is_root uf) queue in
-    let sorted_roots = List.sort_unique compare roots in
+    let sorted_roots = BatList.sort_unique compare roots in
     update_min_repr (uf, set, map) min_representatives sorted_roots
 
   (**
@@ -637,7 +637,7 @@ let get_normal_conjunction cc get_normal_repr =
     Equal (t1, t2, z)
   in
   let conjunctions_of prop_of xs =
-    Seq.of_list xs
+    List.to_seq xs
     |> Seq.map prop_of
     |> Seq.filter is_non_trivial_equality
     |> Seq.map to_equality
@@ -919,7 +919,7 @@ let rec closure (uf, map, new_repr) = function
 let update_bldis new_repr bldis =
   let bldis = BlDis.map_lhs bldis (TMap.bindings new_repr) in
   (* update block disequalities with the new representatives *)
-  let find_new_root t1 = Option.default t1 (TMap.find_opt t1 new_repr) in
+  let find_new_root t1 = BatOption.default t1 (TMap.find_opt t1 new_repr) in
   BlDis.map find_new_root bldis
 
 (**
@@ -1089,7 +1089,7 @@ let remove_terms_from_eq predicate cc =
     let _, cc = insert cc t in
     cc
   in
-  let insert_terms cc = List.fold insert_term cc in
+  let insert_terms cc = List.fold_left insert_term cc in
   (* start from all initial states that are still valid and find new representatives if necessary *)
   (* new_reps maps each representative term to the new representative of the equivalence class *)
   (* but new_reps contains an element but not necessarily the representative *)
@@ -1151,7 +1151,7 @@ let remove_terms_from_eq predicate cc =
     let old_rep_zmap = TMap.find old_rep cmap in
     let old_rep_bindings = ZMap.bindings @@ old_rep_zmap in
 
-    match List.find_map_opt find_successor_in_set old_rep_bindings with
+    match BatList.find_map_opt find_successor_in_set old_rep_bindings with
     | Some successor_term ->
       if predicate successor_term && T.check_valid_pointer (T.to_cil successor_term) then
         (uf, new_reps, new_cc, reachable_old_reps)
@@ -1181,12 +1181,12 @@ let remove_terms_from_eq predicate cc =
     | (old_rep, new_rep, z)::rest ->
       let successors = LMap.successors old_rep cc.map in
       let uf, new_reps, new_cc, reachable_old_reps =
-        List.fold (add_transition (old_rep, new_rep,z)) (uf, new_reps, new_cc, []) successors
+        List.fold_left (add_transition (old_rep, new_rep,z)) (uf, new_reps, new_cc, []) successors
       in
       add_transitions uf new_reps new_cc (rest @ reachable_old_reps)
   in
   let cmp = Tuple3.compare ~cmp1:(T.compare) ~cmp2:(T.compare) ~cmp3:(Z.compare) in
-  let reachable_old_reps = List.unique_cmp ~cmp reachable_old_reps in
+  let reachable_old_reps = BatList.unique_cmp ~cmp reachable_old_reps in
   add_transitions uf new_reps new_cc reachable_old_reps
 
 
@@ -1216,7 +1216,7 @@ let remove_terms_from_diseq diseq new_reps cc =
       end
     | _-> uf, new_diseq
   in
-  let uf,new_diseq = List.fold add_disequality (cc.uf,[]) disequalities
+  let uf,new_diseq = List.fold_left add_disequality (cc.uf,[]) disequalities
   in congruence_neq {cc with uf} new_diseq
 
 let remove_terms_from_bldis bldis new_reps cc =
@@ -1253,9 +1253,9 @@ let join_eq cc1 cc2 =
     (r1, r2, Z.(off2 - off1)), (a, off1)
   in
   let add_term (pmap, cc, new_pairs) (new_element, (new_term, a_off)) =
-    match Map.find_opt new_element pmap with
+    match BatMap.find_opt new_element pmap with
     | None ->
-      let pmap = Map.add new_element (new_term, a_off) pmap in
+      let pmap = BatMap.add new_element (new_term, a_off) pmap in
       let new_pairs = new_element::new_pairs in
       pmap, cc, new_pairs
     | Some (c, c1_off) ->
@@ -1281,7 +1281,7 @@ let join_eq cc1 cc2 =
   let rec add_edges_to_map pmap cc = function
     | [] -> cc, pmap
     | (x, y, diff)::rest ->
-      let t, t1_off = Map.find (x, y, diff) pmap in
+      let t, t1_off = BatMap.find (x, y, diff) pmap in
       let add_edge = add_one_edge y t t1_off diff in
       let x_succs = LMap.successors x cc1.map in
       let pmap, cc, new_pairs = List.fold_left add_edge (pmap, cc, []) x_succs in
@@ -1290,7 +1290,7 @@ let join_eq cc1 cc2 =
   in
   let atoms = SSet.get_atoms (SSet.inter cc1.set cc2.set) in
   let mappings = List.map do_atom atoms in
-  let empty = (Map.empty, init_cc (), []) in
+  let empty = (BatMap.empty, init_cc (), []) in
   let pmap, cc, working_set = List.fold_left add_term empty mappings in
   add_edges_to_map pmap cc working_set
 
@@ -1305,15 +1305,15 @@ let product_no_automata_over_terms cc1 cc2 terms =
   in
   let mappings = List.map f (SSet.to_list terms) in
   let add_term (cc, pmap) (new_element, (new_term, a_off)) =
-    match Map.find_opt new_element pmap with
+    match BatMap.find_opt new_element pmap with
     | None ->
-      let pmap = Map.add new_element (new_term, a_off) pmap in
+      let pmap = BatMap.add new_element (new_term, a_off) pmap in
       cc, pmap
     | Some (c, c1_off) ->
       let cc = add_eq cc (new_term, c, Z.(-c1_off + a_off)) in
       cc, pmap
   in
-  let initial = (init_cc (), Map.empty) in
+  let initial = (init_cc (), BatMap.empty) in
   List.fold_left add_term initial mappings
 
 (** Here we do the join without using the automata.
@@ -1371,7 +1371,7 @@ let join_bldis bldiseq1 bldiseq2 cc1 cc2 cc cmap1 cmap2 =
 
   let cc = insert_set cc subterms in
   let diseqs_ref_terms = List.filter both_root bldiseq in
-  let bldis = List.fold BlDis.add_block_diseq BlDis.empty diseqs_ref_terms in
+  let bldis = List.fold_left BlDis.add_block_diseq BlDis.empty diseqs_ref_terms in
   (if M.tracing then M.trace "c2po-neq" "join_bldis: %s\n\n" (show_conj (BlDis.to_conj bldis)));
   {cc with bldis}
 
@@ -1520,9 +1520,9 @@ module MayBeEqual = struct
     in
 
     if M.tracing then M.trace "c2po-query" "may-point-to %a -> equal terms: %s"
-        d_exp exp (List.fold (fun s (t,z) -> s ^ "(" ^ T.show t ^","^ Z.to_string Z.(z + offset) ^")") "" equal_terms);
+        d_exp exp (List.fold_left (fun s (t,z) -> s ^ "(" ^ T.show t ^","^ Z.to_string Z.(z + offset) ^")") "" equal_terms);
 
-    List.fold intersect_query_result (AD.top ()) equal_terms
+    List.fold_left intersect_query_result (AD.top ()) equal_terms
 
   (** Find out if an addresse is possibly equal to one of the addresses in `addresses` by using the MayPointTo query. *)
   let may_point_to_address (ask:Queries.ask) addresses t2 off cc =

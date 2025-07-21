@@ -3,10 +3,11 @@
    This file contains the code for a quantitative union find and the quantitative finite automata.
    They will be necessary in order to construct the congruence closure of terms.
 *)
-open Batteries
 open GoblintCil
 open DuplicateVars
 module M = Messages
+module Tuple3 = Batteries.Tuple3
+module Tuple2 = Batteries.Tuple2
 
 exception Unsat
 
@@ -147,7 +148,7 @@ module T = struct
   (** Returns true if the second parameter contains one of the variables defined in the list "variables". *)
   let contains_variable variables term =
     let term_var = get_var term in
-    List.mem_cmp Var.compare term_var variables
+    BatList.mem_cmp Var.compare term_var variables
 
   (** Use query EvalInt for an expression. *)
   let eval_int (ask:Queries.ask) exp =
@@ -472,7 +473,7 @@ module T = struct
     if M.tracing then M.trace "c2po-deref" "deref result: %a" d_exp res;
     res
 
-  let get_size = get_size_in_bits % type_of_term
+  let get_size t =  get_size_in_bits @@ type_of_term t
 
   let of_offset ask t off typ exp =
     if off = NoOffset then
@@ -922,7 +923,7 @@ module UnionFind = struct
       compare_repr_v (find_no_pc uf el1) (find_no_pc uf el2)
     in
     let bindings = ValMap.bindings uf in
-    List.group compare bindings
+    BatList.group compare bindings
 
   (** Throws "Unknown value" if the data structure is invalid. *)
   let show_uf uf =
@@ -1055,8 +1056,8 @@ module LookupMap = struct
       [Z.zero, t]
     | Some zmap ->
       let offset_term_product (z, term_set) =
-        let terms = TSet.to_list term_set in
-        List.cartesian_product [z] terms
+        let terms = TSet.elements term_set in
+        BatList.cartesian_product [z] terms
       in
       let zmap_bindings = ZMap.bindings zmap in
       List.concat_map offset_term_product zmap_bindings
