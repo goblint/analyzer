@@ -261,12 +261,12 @@ module Disequalities = struct
   *)
   let check_neq_bl (uf,arg) acc (t1, tset) =
     let l1 = map_find_all t1 arg in
-    let f acc t2 =
+    let f t2 acc =
       (* We know that r1 <> r2, otherwise it would be Unsat. *)
       let l2 = map_find_all t2 arg in
       fold_left2 add_diseq acc l1 l2
     in
-    List.fold_left f acc (TSet.elements tset)
+    TSet.fold f tset acc
 
   (** Initialize the list of disequalities taking only implicit dis-equalities into account.
 
