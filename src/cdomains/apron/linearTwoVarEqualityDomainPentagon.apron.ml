@@ -696,7 +696,7 @@ struct
                * If c*b = 0 or it can be positive or negative, we need the full range for the remainder. *)
               let b_val = eval d b in
               if Value.to_int b_val = Some (Int Z.zero) then begin
-                M.error ~category:M.Category.Integer.div_by_zero ~tags:[CWE 369] "Must Undefined Behavior: Second argument of div or mod is 0";
+                if not !AnalysisState.executing_speculative_computations then M.error ~category:M.Category.Integer.div_by_zero ~tags:[CWE 369] "Must Undefined Behavior: Second argument of div or mod is 0";
                 d
               end else 
                 let a_val = eval d a in
@@ -717,7 +717,7 @@ struct
               let a_val = eval d a in
               let b_val = eval d b in
               if Value.to_int b_val = Some (Int Z.zero) then begin
-                M.error ~category:M.Category.Integer.div_by_zero ~tags:[CWE 369] "Must Undefined Behavior: Second argument of div or mod is 0";
+                if not !AnalysisState.executing_speculative_computations then M.error ~category:M.Category.Integer.div_by_zero ~tags:[CWE 369] "Must Undefined Behavior: Second argument of div or mod is 0";
                 d
               end else 
                 let a' = Value.add (Value.mul (Value.div a_val b_val) b_val) value in
