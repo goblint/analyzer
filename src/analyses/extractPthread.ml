@@ -711,16 +711,13 @@ module Codegen = struct
     let checkStatus =
       "("
       ^ ( String.concat " op2 "
-          @@ List.of_enum
-          @@ (0 --^ thread_count)
-             /@ fun i -> "status[" ^ string_of_int i ^ "] op1 v" )
+            (List.init thread_count (fun i -> "status[" ^ string_of_int i ^ "] op1 v")) )
       ^ ")"
     in
     let allTasks =
       "("
       ^ ( String.concat " && "
-          @@ List.of_enum
-          @@ ((0 --^ thread_count) /@ fun i -> "prop(" ^ string_of_int i ^ ")") )
+            (List.init thread_count (fun i -> "prop(" ^ string_of_int i ^ ")")) )
       ^ ")"
     in
 
