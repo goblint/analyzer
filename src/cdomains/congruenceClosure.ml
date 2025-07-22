@@ -126,16 +126,13 @@ module Disequalities = struct
   let empty = TMap.empty
   let is_empty = TMap.is_empty
   let remove = TMap.remove
+
   (** Returns a list of tuples, which each represent a disequality *)
   let bindings x =
-    List.flatten @@
-    List.concat_map
-      (fun (t, smap) ->
-         List.map (fun (z, tset) ->
-             List.map (fun term ->
-                 (t,z,term)) (TSet.elements tset))
-           (ZMap.bindings smap)
-      ) @@ TMap.bindings x
+    let bindings_from_smap (t, smap) =
+      smap |> ZMap.to_seq |> Seq.concat_map (fun (z, tset) -> TSet.to_seq tset |> Seq.map (fun term -> (t,z,term)))
+    in
+    x |> TMap.to_seq |> Seq.concat_map bindings_from_smap |> List.of_seq
 
   (** adds a mapping v -> r -> size -> { v' } to the map,
       or if there are already elements
