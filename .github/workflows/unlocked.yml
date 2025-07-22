@@ -63,15 +63,11 @@ jobs:
 
       - name: Install Apron dependencies
         if: ${{ matrix.apron }}
-        run: |
-          opam depext apron
-          opam install apron mlgmpidl.1.2.15
+        run: opam install apron mlgmpidl.1.2.15
 
       - name: Install Z3 dependencies
         if: ${{ matrix.z3 }}
-        run: |
-          opam depext z3
-          opam install z3
+        run: opam install z3
 
       - name: Build
         run: ./make.sh nat
@@ -125,9 +121,7 @@ jobs:
         run: sudo gem install os
 
       - name: Install Apron dependencies
-        run: |
-          opam depext apron
-          opam install apron mlgmpidl.1.2.15
+        run: opam install apron mlgmpidl.1.2.15
 
       - name: Build
         if: ${{ false }}
@@ -217,9 +211,7 @@ jobs:
         run: opam install goblint --with-test
 
       - name: Install Apron dependencies
-        run: |
-          opam depext apron
-          opam install apron mlgmpidl.1.2.15
+        run: opam install apron mlgmpidl.1.2.15
 
       - name: Symlink installed goblint to repository # because tests want to use locally built one
         run: ln -s $(opam exec -- which goblint) goblint
