@@ -1056,10 +1056,7 @@ module LookupMap = struct
       [Z.zero, t]
     | Some zmap ->
       let offset_term_product (z, term_set) =
-        let terms = TSet.elements term_set in
-        BatList.cartesian_product [z] terms
+        term_set |> TSet.to_seq |> Seq.map (fun term -> (z, term))
       in
-      let zmap_bindings = ZMap.bindings zmap in
-      List.concat_map offset_term_product zmap_bindings
-
+      ZMap.to_seq zmap |> Seq.concat_map offset_term_product |> List.of_seq
 end
