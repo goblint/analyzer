@@ -51,13 +51,13 @@ jobs:
         with:
           ocaml-compiler: ${{ matrix.ocaml-compiler }}
 
-      - name: Install graph-easy # TODO: remove if depext --with-test works
+      - name: Install graph-easy # TODO: remove if depext --with-test works (https://github.com/ocaml/opam/issues/5836)
         if: ${{ matrix.os == 'ubuntu-22.04' }}
         run: sudo apt install -y libgraph-easy-perl
 
       - name: Install dependencies
         run: opam install . --deps-only --with-test
-      
+
       - name: Install os gem for operating system detection
         run: sudo gem install os
 
@@ -114,7 +114,7 @@ jobs:
         with:
           ocaml-compiler: ${{ matrix.ocaml-compiler }}
 
-      - name: Install graph-easy # TODO: remove if depext --with-test works
+      - name: Install graph-easy # TODO: remove if depext --with-test works (https://github.com/ocaml/opam/issues/5836)
         if: ${{ matrix.os == 'ubuntu-22.04' }}
         run: sudo apt install -y libgraph-easy-perl
 
@@ -209,7 +209,7 @@ jobs:
         with:
           ocaml-compiler: ${{ matrix.ocaml-compiler }}
 
-      - name: Install graph-easy # TODO: remove if depext --with-test works
+      - name: Install graph-easy # TODO: remove if depext --with-test works (https://github.com/ocaml/opam/issues/5836)
         if: ${{ matrix.os == 'ubuntu-22.04' }}
         run: sudo apt install -y libgraph-easy-perl
 
@@ -265,7 +265,7 @@ jobs:
         os:
           - ubuntu-22.04 # https://github.com/ocaml/setup-ocaml/issues/872
         ocaml-compiler:
-          - ocaml-variants.5.0.0+options,ocaml-option-flambda 
+          - ocaml-variants.5.0.0+options,ocaml-option-flambda
         node-version:
           - 14
 
