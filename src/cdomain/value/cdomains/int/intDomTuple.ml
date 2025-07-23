@@ -38,7 +38,6 @@ module IntDomTupleImpl = struct
 
   (* only first-order polymorphism on functions -> use records to get around monomorphism restriction on arguments *)
   type 'b poly_in  = { fi  : 'a. 'a m -> 'b -> 'a } [@@unboxed] (* inject *)
-  type 'b poly_in_bitfield  = { fi_bitfield  : 'a. 'a m ->  ?bitfield:int -> 'b -> 'a } [@@unboxed] (* inject *)
   type 'b poly2_in  = { fi2  : 'a. 'a m2 -> 'b -> 'a } [@@unboxed] (* inject for functions that depend on int_t *)
   type 'b poly2_in_ovc  = { fi2_ovc  : 'a. 'a m2 -> 'b -> 'a * overflow_info} [@@unboxed] (* inject for functions that depend on int_t *)
 
