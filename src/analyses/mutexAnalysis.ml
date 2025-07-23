@@ -13,6 +13,8 @@ open Analyses
 
 module VarSet = SetDomain.Make (Basetype.Variables)
 
+type access_kind = Read | Write
+
 module Spec =
 struct
   module Arg =
@@ -72,23 +74,22 @@ struct
     (** Collects information about which variables are protected by which mutexes *)
     module GProtecting: sig
       include Lattice.S
-      val make: kind:Queries.ProtectionKind.t -> recovered:bool -> MustLockset.t -> t
+      val make: kind:access_kind -> recovered:bool -> MustLockset.t -> t
       val get: kind:Queries.ProtectionKind.t -> Queries.Protection.t -> t -> MustLockset.t
     end = struct
       include MakeP (MustLockset)
 
-      let make ~kind ~recovered locks =
-        (* If the access is not a write, set to T so intersection with current write-protecting is identity *)
-        let wlocks =
+      let make ~(kind: access_kind) ~recovered locks =
+        let locks =
           match kind with
-          | Queries.ProtectionKind.Write -> locks
-          | ReadWrite -> MustLockset.all ()
+          | Write -> (locks, locks)
+          | Read -> (locks, MustLockset.all ()) (* If the access is not a write, set to T so intersection with current write-protecting is identity *)
         in
         if recovered then
           (* If we are in single-threaded mode again, this does not need to be added to set of mutexes protecting in mt-mode only *)
-          ((locks, wlocks), (MustLockset.all (), MustLockset.all ()))
+          (locks, (MustLockset.all (), MustLockset.all ()))
         else
-          ((locks, wlocks), (locks, wlocks))
+          (locks, locks)
     end
 
 
@@ -299,24 +300,33 @@ struct
           if not (MustLocksetRW.is_all (fst oman.local)) then
             let locks = MustLocksetRW.to_must_lockset (MustLocksetRW.filter snd (fst oman.local)) in
             let kind = match kind with
-              | Write | Free -> Queries.ProtectionKind.Write
-              | Read -> ReadWrite
+              | Write | Free -> Write
+              | Read -> Read
               | Call
-              | Spawn -> ReadWrite (* TODO: nonsense? *)
+              | Spawn -> Read (* TODO: nonsense? *)
             in
             let s = GProtecting.make ~kind ~recovered:is_recovered_to_st locks in
             man.sideg (V.protecting v) (G.create_protecting s);
 
             if !AnalysisState.postsolving then (
-              let protecting mode = GProtecting.get ~kind mode (G.protecting (man.global (V.protecting v))) in
-              let held_strong = protecting Strong in
-              let held_weak = protecting Weak in
-              let vs = VarSet.singleton v in
-              let protected = G.create_protected @@ GProtected.make ~kind vs in
-              MustLockset.iter (fun ml -> man.sideg (V.protected ml) protected) held_strong;
-              (* If the mutex set here is top, it is actually not accessed *)
-              if is_recovered_to_st && not @@ MustLockset.is_all held_weak then
-                MustLockset.iter (fun ml -> man.sideg (V.protected ml) protected) held_weak;
+              let side_protected kind mode =
+                let protecting = GProtecting.get ~kind mode (G.protecting (man.global (V.protecting v))) in
+                (* If the mutex set here is top, it is actually not accessed *)
+                if not @@ MustLockset.is_all protecting then (
+                  let vs = VarSet.singleton v in
+                  let protected = G.create_protected @@ GProtected.make ~kind vs in
+                  MustLockset.iter (fun ml -> man.sideg (V.protected ml) protected) protecting
+                )
+              in
+              let side_protected kind =
+                side_protected kind Strong;
+                if is_recovered_to_st then
+                  side_protected kind Weak
+              in
+              side_protected Queries.ProtectionKind.ReadWrite;
+              match kind with
+              | Write -> side_protected Queries.ProtectionKind.Write
+              | Read -> ()
             )
         | None -> M.info ~category:Unsound "Write to unknown address: privatization is unsound."
       in
