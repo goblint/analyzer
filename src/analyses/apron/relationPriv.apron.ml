@@ -431,7 +431,7 @@ struct
 
   let iter_sys_vars getg vq vf = () (* TODO: or report singleton global for any Global query? *)
   let invariant_global ask getg g = Invariant.none
-  let invariant_vars ask getg st = protected_vars ask (* TODO: is this right? *)
+  let invariant_vars ask getg st = protected_vars ask ~kind:Write (* TODO: is this right? *)
 
   let finalize () = ()
 
