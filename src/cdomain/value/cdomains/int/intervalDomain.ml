@@ -1,5 +1,4 @@
 open IntDomain0
-open GoblintCil
 
 module IntervalFunctor (Ints_t : IntOps.IntOps): SOverflow with type int_t = Ints_t.t and type t = (Ints_t.t * Ints_t.t) option =
 struct
@@ -10,15 +9,16 @@ struct
 
   let range ik = BatTuple.Tuple2.mapn Ints_t.of_bigint (Size.range ik)
 
-  let top_of ?bitfield ik = match bitfield with
-    | Some b when b <= Ints_t.to_int (range ik |> snd) -> begin
-        let signed_lower_bound = Ints_t.neg @@ Ints_t.shift_left Ints_t.one (b-1) in
-        let unsigned_upper_bound = Ints_t.sub (Ints_t.shift_left Ints_t.one b) Ints_t.one in
-        match Cil.isSigned ik with
+  let top_of ?bitfield ik =
+    match bitfield with
+    | Some b when b <= Ints_t.to_int (range ik |> snd) ->
+      let signed_lower_bound = Ints_t.neg @@ Ints_t.shift_left Ints_t.one (b - 1) in
+      let unsigned_upper_bound = Ints_t.sub (Ints_t.shift_left Ints_t.one b) Ints_t.one in
+      if GoblintCil.isSigned ik then
         (* An "int" can also store unsigned int values in a bit-field. Goblint doesn't differentiate between implicit and explicit signed ints.*)
-        | true -> Some (signed_lower_bound, unsigned_upper_bound)
-        | false -> Some (Ints_t.zero, unsigned_upper_bound)
-      end
+        Some (signed_lower_bound, unsigned_upper_bound)
+      else
+        Some (Ints_t.zero, unsigned_upper_bound)
     | _ -> Some (range ik)
   let bot () = None
   let bot_of ik = bot () (* TODO: improve *)
@@ -231,70 +231,83 @@ struct
       Ints_t.neg @@ Ints_t.shift_left Ints_t.one (Z.numbits (Z.pred (Z.abs @@ Ints_t.to_bigint n)))
 
   let max_val_bit_constrained n =
-    let x = if Ints_t.compare n Ints_t.zero < 0 then Ints_t.sub (Ints_t.neg n) Ints_t.one else n in
+    let x =
+      if Ints_t.compare n Ints_t.zero < 0 then
+        Ints_t.sub (Ints_t.neg n) Ints_t.one
+      else
+        n
+    in
     Ints_t.sub (Ints_t.shift_left Ints_t.one (Z.numbits @@ Z.abs @@ Ints_t.to_bigint x)) Ints_t.one
 
   let logxor ik i1 i2 =
     match bit (fun _ik -> Ints_t.logxor) ik i1 i2 with
-    | result when result <> top_of ik && result <> bot_of ik -> result
+    | result when not (is_top_of ik result) && not (is_bot result) -> result
     | _ ->
       match i1, i2 with
       | Some (x1, x2), Some (y1, y2) -> 
         let is_nonneg x = Ints_t.compare x Ints_t.zero >= 0 in
-        (match is_nonneg x1, is_nonneg x2, is_nonneg y1, is_nonneg y2 with
-         | true, _, true, _ ->
-           of_interval ik (Ints_t.zero, max_val_bit_constrained @@ Ints_t.max x2 y2) |> fst
-         | _, false, _, false ->
-           let upper = max_val_bit_constrained @@ Ints_t.min x1 y1 in
-           of_interval ik (Ints_t.zero, upper) |> fst
-         | true, _, _, false | _, false, true, _ ->
-           let lower = List.fold_left Ints_t.min Ints_t.zero
-               (List.append (List.map min_val_bit_constrained [x1; y1])
-                  (List.map (fun i -> Ints_t.neg @@ Ints_t.add (max_val_bit_constrained i) Ints_t.one) [x2; y2])) in
-           of_interval ik (lower, Ints_t.zero) |> fst
-         | _ -> let lower = List.fold_left Ints_t.min Ints_t.zero
-                    (List.append (List.map min_val_bit_constrained [x1; y1])
-                       (List.map (fun i -> Ints_t.neg @@ Ints_t.add (max_val_bit_constrained i) Ints_t.one) [x2; y2])) in
-           let upper = List.fold_left Ints_t.max Ints_t.zero (List.map max_val_bit_constrained [x1;x2;y1;y2]) in
-           of_interval ik (lower, upper) |> fst)
+        begin match is_nonneg x1, is_nonneg x2, is_nonneg y1, is_nonneg y2 with
+          | true, _, true, _ ->
+            of_interval ik (Ints_t.zero, max_val_bit_constrained @@ Ints_t.max x2 y2) |> fst
+          | _, false, _, false ->
+            let upper = max_val_bit_constrained @@ Ints_t.min x1 y1 in
+            of_interval ik (Ints_t.zero, upper) |> fst
+          | true, _, _, false
+          | _, false, true, _ ->
+            let lower =
+              List.fold_left Ints_t.min Ints_t.zero
+                (List.map min_val_bit_constrained [x1; y1] @ List.map (fun i -> Ints_t.neg @@ Ints_t.add (max_val_bit_constrained i) Ints_t.one) [x2; y2])
+            in
+            of_interval ik (lower, Ints_t.zero) |> fst
+          | _, _, _, _ ->
+            let lower =
+              List.fold_left Ints_t.min Ints_t.zero
+                (List.map min_val_bit_constrained [x1; y1] @ List.map (fun i -> Ints_t.neg @@ Ints_t.add (max_val_bit_constrained i) Ints_t.one) [x2; y2])
+            in
+            let upper = List.fold_left Ints_t.max Ints_t.zero (List.map max_val_bit_constrained [x1; x2; y1; y2]) in
+            of_interval ik (lower, upper) |> fst
+        end
       | _ -> top_of ik
 
   let logand ik i1 i2 =
     match bit (fun _ik -> Ints_t.logand) ik i1 i2 with
-    | result when result <> top_of ik && result <> bot_of ik -> result
-    | _ -> 
+    | result when not (is_top_of ik result) && not (is_bot result) -> result
+    | _ ->
       match i1, i2 with
       | Some (x1, x2), Some (y1, y2) ->
         let is_nonneg x = Ints_t.compare x Ints_t.zero >= 0 in
-        (match is_nonneg x1, is_nonneg x2, is_nonneg y1, is_nonneg y2 with
-         | true, _, true, _ ->
-           of_interval ik (Ints_t.zero, Ints_t.min x2 y2) |> fst
-         | _, false, _, false ->
-           of_interval ik (min_val_bit_constrained @@ Ints_t.min x1 y1, Ints_t.zero) |> fst
-         | true, _, _, _ -> of_interval ik (Ints_t.zero, x2) |> fst
-         | _, _, true, _ -> of_interval ik (Ints_t.zero, y2) |> fst
-         | _ ->
-           let lower = min_val_bit_constrained @@ Ints_t.min x1 y1 in
-           let upper = Ints_t.max x2 y2 in
-           of_interval ik (lower, upper) |> fst)
+        begin match is_nonneg x1, is_nonneg x2, is_nonneg y1, is_nonneg y2 with
+          | true, _, true, _ ->
+            of_interval ik (Ints_t.zero, Ints_t.min x2 y2) |> fst
+          | _, false, _, false ->
+            of_interval ik (min_val_bit_constrained @@ Ints_t.min x1 y1, Ints_t.zero) |> fst
+          | true, _, _, _ -> of_interval ik (Ints_t.zero, x2) |> fst
+          | _, _, true, _ -> of_interval ik (Ints_t.zero, y2) |> fst
+          | _, _, _, _ ->
+            let lower = min_val_bit_constrained @@ Ints_t.min x1 y1 in
+            let upper = Ints_t.max x2 y2 in
+            of_interval ik (lower, upper) |> fst
+        end
       | _ -> top_of ik
 
   let logor ik i1 i2 = 
     match bit (fun _ik -> Ints_t.logor) ik i1 i2 with
-    | result when result <> top_of ik && result <> bot_of ik -> result
+    | result when not (is_top_of ik result) && not (is_bot result) -> result
     | _ ->
       match i1, i2 with 
       | Some (x1, x2), Some (y1, y2) ->
         let is_nonneg x = Ints_t.compare x Ints_t.zero >= 0 in
-        (match is_nonneg x1, is_nonneg x2, is_nonneg y1, is_nonneg y2 with
-         | true, _, true, _ -> of_interval ik (Ints_t.max x1 y1, max_val_bit_constrained (Ints_t.max x2 y2)) |> fst
-         | _, false, _, false -> of_interval ik (Ints_t.max x1 y1, Ints_t.zero) |> fst
-         | _, false, _, _ -> of_interval ik (x1, Ints_t.zero) |> fst
-         | _, _, _, false -> of_interval ik (y1, Ints_t.zero) |> fst
-         |_ ->
-           let lower = Ints_t.min x1 y1 in
-           let upper = max_val_bit_constrained @@ Ints_t.max x2 y2 in
-           of_interval ik (lower, upper) |> fst)
+        begin match is_nonneg x1, is_nonneg x2, is_nonneg y1, is_nonneg y2 with
+          | true, _, true, _ ->
+            of_interval ik (Ints_t.max x1 y1, max_val_bit_constrained (Ints_t.max x2 y2)) |> fst
+          | _, false, _, false -> of_interval ik (Ints_t.max x1 y1, Ints_t.zero) |> fst
+          | _, false, _, _ -> of_interval ik (x1, Ints_t.zero) |> fst
+          | _, _, _, false -> of_interval ik (y1, Ints_t.zero) |> fst
+          | _, _, _, _ ->
+            let lower = Ints_t.min x1 y1 in
+            let upper = max_val_bit_constrained @@ Ints_t.max x2 y2 in
+            of_interval ik (lower, upper) |> fst
+        end
       | _ -> top_of ik
         
   let bit1 f ik i1 f' =
@@ -309,22 +322,23 @@ struct
     bit1 (fun _ik -> Ints_t.lognot) ik i1 (fun () ->
         match i1 with
         | Some (x1, x2) -> of_interval ik (Ints_t.lognot x2, Ints_t.lognot x1) |> fst
-        | _ -> top_of ik)
+        | _ -> top_of ik
+      )
 
   let shift_right ik i1 i2 =
     match is_bot i1, is_bot i2 with
-    | true, true -> (bot_of ik,{underflow=false; overflow=false})
+    | true, true -> (bot_of ik, {underflow=false; overflow=false})
     | true, _
-    | _   , true -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show i1) (show i2)))
-    | _ ->
+    | _, true -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show i1) (show i2)))
+    | _, _ ->
       match to_int i1, to_int i2 with
-      | Some x, Some y -> (try of_int ik (Ints_t.shift_right x (Ints_t.to_int y)) with Division_by_zero | Invalid_argument _ -> (top_of ik,{underflow=false; overflow=false}))
-      | _              -> 
+      | Some x, Some y -> (try of_int ik (Ints_t.shift_right x (Ints_t.to_int y)) with Division_by_zero | Invalid_argument _ -> (top_of ik, {underflow=false; overflow=false}))
+      | _, _->
         let is_nonneg x = Ints_t.compare x Ints_t.zero >= 0 in
         match i1, i2 with 
         | Some (x1, x2), Some (y1,y2) when is_nonneg x1 && is_nonneg y1 ->
           of_interval ik (Ints_t.zero, Ints_t.div x2 (Ints_t.shift_left Ints_t.one (Ints_t.to_int y1)))
-        | _ -> (top_of ik,{underflow=false; overflow=false})
+        | _ -> (top_of ik, {underflow=false; overflow=false})
 
   let neg ?no_ov ik = function None -> (None,{underflow=false; overflow=false}) | Some x -> norm ik @@ Some (IArith.neg x)
 

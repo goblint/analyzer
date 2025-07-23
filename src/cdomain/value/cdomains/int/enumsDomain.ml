@@ -25,12 +25,16 @@ module Enums : S with type int_t = Z.t = struct
   let top_of ?bitfield ik =
     match ik with
     | IBool -> top_bool
-    | _ -> match bitfield with 
-      | Some b when b <= Z.numbits(Size.range ik |> snd) -> 
-        Exc (BISet.empty (), match Cil.isSigned ik with
-          | true -> R.of_interval range_ikind (Int64.of_int @@ -(b-1), Int64.of_int b)
-          | false -> R.of_interval range_ikind (Int64.of_int 0, Int64.of_int b)
-          )
+    | _ ->
+      match bitfield with
+      | Some b when b <= Z.numbits (Size.range ik |> snd) ->
+        let range =
+          if Cil.isSigned ik then
+            R.of_interval range_ikind (Int64.of_int @@ -(b - 1), Int64.of_int b)
+          else
+            R.of_interval range_ikind (Int64.of_int 0, Int64.of_int b)
+        in
+        Exc (BISet.empty (), range)
       | _ -> Exc (BISet.empty (), size ik)
 
   let range ik = Size.range ik
@@ -217,101 +221,113 @@ module Enums : S with type int_t = Z.t = struct
   let rem = lift2 Z.rem
 
   let apply_range f r = (* apply f to the min/max of the old range r to get a new range *)
-    (* If the Int64 might overflow on us during computation, we instead go to top_range *)
-    match R.minimal r, R.maximal r with
-    | _ ->
-      let rf m = (size % Size.min_for % f) (m r) in
-      let r1, r2 = rf Exclusion.min_of_range, rf Exclusion.max_of_range in
-      R.join r1 r2
+    let rf m = (size % Size.min_for % f) (m r) in
+    let r1, r2 = rf Exclusion.min_of_range, rf Exclusion.max_of_range in
+    R.join r1 r2
 
   let lognot ikind v = norm ikind @@ match v with
-    | Inc x when BISet.is_empty x -> v 
+    | Inc x when BISet.is_empty x -> v
     | Inc x when BISet.is_singleton x -> Inc (BISet.singleton (Z.lognot (BISet.choose x)))
-    | Inc x -> Inc (BISet.map Z.lognot x)
-    | Exc (s,r) -> 
+    | Inc x -> Inc (BISet.map Z.lognot x) (* TODO: don't operate on Inc? *)
+    | Exc (s, r) ->
       let s' = BISet.map Z.lognot s in
       let r' = match R.minimal r, R.maximal r with
-        | Some min, Some max -> R.of_interval range_ikind (Int64.neg max, Int64.neg min) 
-        | _ -> apply_range Z.lognot r
+        | Some min, Some max -> R.of_interval range_ikind (Int64.neg max, Int64.neg min) (* TODO: why missing conditions compared to DefExc lognot? *)
+        | _, _ -> apply_range Z.lognot r
       in
       Exc (s', r')
 
-  let logand ikind u v = 
-    handle_bot u v (fun () ->
-        norm ikind @@ match u, v with
-        | Inc x,Inc y when BISet.is_singleton x && BISet.is_singleton y -> Inc (BISet.singleton (Z.logand (BISet.choose x) (BISet.choose y)))
-        | Inc x, Exc (s,r)
-        | Exc (s,r), Inc x -> 
-          let f = fun i -> 
-            (match (R.minimal r, R.maximal r) with
-             | (None, _) | (_, None) -> R.top_of ikind
-             | (Some r1, Some r2) ->
-               match Z.compare i Z.zero >= 0, Int64.compare r1 Int64.zero >= 0 with
-               | true, true -> R.of_interval range_ikind (Int64.zero, Int64.min r2 (Int64.of_int @@ Z.numbits i))
-               | true, _ -> R.of_interval range_ikind (Int64.zero, Int64.of_int @@ Z.numbits i)
-               | _, true -> R.of_interval range_ikind (Int64.zero, r2)
-               | _, _ -> let b = Int64.max (Int64.of_int @@ Z.numbits i) (Int64.max (Int64.abs r1) (Int64.abs r2)) in
-                 R.of_interval range_ikind (Int64.neg b, b)             
-            ) in 
-          let r' = BISet.fold (fun i acc -> R.join (f i) acc) x (R.bot ()) in 
-          Exc (BISet.empty (), r')
-        | Exc (_, p), Exc (_, r) -> 
-          (match R.minimal p, R.maximal p, R.minimal r, R.maximal r with
-           | Some p1, Some p2, Some r1, Some r2 -> begin
-               match Int64.compare p1 Int64.zero >= 0, Int64.compare r1 Int64.zero >= 0 with
-               | true, true -> Exc (BISet.empty (), R.of_interval range_ikind (Int64.zero, Int64.min p2 r2))
-               | true, _ -> Exc (BISet.empty (), R.of_interval range_ikind (Int64.zero, p2))
-               | _, true -> Exc (BISet.empty (), R.of_interval range_ikind (Int64.zero, r2))
-               | _ -> Exc (BISet.empty (), R.join p r)            
-             end
-           | _ -> top_of ikind)
-        | _,_ -> top_of ikind)
-
-  let logor ikind u v = handle_bot u v (fun () -> 
+  let logand ikind u v = handle_bot u v (fun () ->
       norm ikind @@ match u, v with
-      | Inc x,Inc y when BISet.is_singleton x && BISet.is_singleton y -> Inc (BISet.singleton (Z.logor (BISet.choose x) (BISet.choose y)))
-      | Inc x, Exc (_,r)
-      | Exc (_,r), Inc x ->
-        let f = fun i -> 
+      | Inc x, Inc y when BISet.is_singleton x && BISet.is_singleton y ->
+        Inc (BISet.singleton (Z.logand (BISet.choose x) (BISet.choose y)))
+      | Inc x, Exc (s, r)
+      | Exc (s, r), Inc x ->
+        let f i =
+          match R.minimal r, R.maximal r with
+          | None, _
+          | _, None -> R.top_of ikind
+          | Some r1, Some r2 ->
+            match Z.compare i Z.zero >= 0, Int64.compare r1 Int64.zero >= 0 with
+            | true, true -> R.of_interval range_ikind (Int64.zero, Int64.min r2 (Int64.of_int @@ Z.numbits i))
+            | true, _ -> R.of_interval range_ikind (Int64.zero, Int64.of_int @@ Z.numbits i)
+            | _, true -> R.of_interval range_ikind (Int64.zero, r2)
+            | _, _ ->
+              let b = Int64.max (Int64.of_int @@ Z.numbits i) (Int64.max (Int64.abs r1) (Int64.abs r2)) in
+              R.of_interval range_ikind (Int64.neg b, b)
+        in
+        let r' = BISet.fold (fun i acc -> R.join (f i) acc) x (R.bot ()) in
+        Exc (BISet.empty (), r')
+      | Exc (_, p), Exc (_, r) ->
+        begin match R.minimal p, R.maximal p, R.minimal r, R.maximal r with
+          | Some p1, Some p2, Some r1, Some r2 ->
+            begin match Int64.compare p1 Int64.zero >= 0, Int64.compare r1 Int64.zero >= 0 with
+              | true, true -> Exc (BISet.empty (), R.of_interval range_ikind (Int64.zero, Int64.min p2 r2))
+              | true, _ -> Exc (BISet.empty (), R.of_interval range_ikind (Int64.zero, p2))
+              | _, true -> Exc (BISet.empty (), R.of_interval range_ikind (Int64.zero, r2))
+              | _, _ -> Exc (BISet.empty (), R.join p r)
+            end
+          | _ -> top_of ikind
+        end
+      | _, _ -> top_of ikind
+    )
+
+  let logor ikind u v = handle_bot u v (fun () ->
+      norm ikind @@ match u, v with
+      | Inc x, Inc y when BISet.is_singleton x && BISet.is_singleton y ->
+        Inc (BISet.singleton (Z.logor (BISet.choose x) (BISet.choose y)))
+      | Inc x, Exc (_, r)
+      | Exc (_, r), Inc x ->
+        let f i =
           if Z.compare i Z.zero >= 0 then
             R.join r (R.of_interval range_ikind (Int64.zero, Int64.of_int @@ Z.numbits i))
-          else
-            (match R.minimal r, R.maximal r with
-             | None, _ | _, None -> R.top_of ikind
-             | Some r1, Some r2 -> let b = Int64.max (Int64.of_int @@ Z.numbits i) (Int64.max (Int64.abs r1) (Int64.abs r2)) in
-               R.of_interval range_ikind (Int64.neg b, b)
-            ) in 
+          else (
+            match R.minimal r, R.maximal r with
+            | None, _
+            | _, None -> R.top_of ikind
+            | Some r1, Some r2 ->
+              let b = Int64.max (Int64.of_int @@ Z.numbits i) (Int64.max (Int64.abs r1) (Int64.abs r2)) in
+              R.of_interval range_ikind (Int64.neg b, b)
+          )
+        in
         let r' = BISet.fold (fun i acc -> R.join (f i) acc) x (R.bot ()) in
         Exc (BISet.empty (), r')
       | Exc (_, r1), Exc (_, r2) -> Exc (BISet.empty (), R.join r1 r2)
-      | _ -> top_of ikind)
+      | _ -> top_of ikind
+    )
 
   let logxor ikind u v = handle_bot u v (fun () ->
       norm ikind @@ match u, v with
-      | Inc x,Inc y when BISet.is_singleton x && BISet.is_singleton y -> Inc (BISet.singleton (Z.logxor (BISet.choose x) (BISet.choose y)))
-      | Inc x, Exc (_,r)
-      | Exc (_,r), Inc x -> 
-        let f = fun i -> 
+      | Inc x, Inc y when BISet.is_singleton x && BISet.is_singleton y ->
+        Inc (BISet.singleton (Z.logxor (BISet.choose x) (BISet.choose y)))
+      | Inc x, Exc (_, r)
+      | Exc (_, r), Inc x ->
+        let f i =
           match R.minimal r, R.maximal r with
-          | None, _ | _, None -> R.top_of ikind 
-          | Some r1, Some r2 -> let b = Int64.max (Int64.of_int @@ Z.numbits i) (Int64.max (Int64.abs r1) (Int64.abs r2)) in
+          | None, _
+          | _, None -> R.top_of ikind
+          | Some r1, Some r2 ->
+            let b = Int64.max (Int64.of_int @@ Z.numbits i) (Int64.max (Int64.abs r1) (Int64.abs r2)) in
             if Int64.compare r1 Int64.zero >= 0 && Z.compare i Z.zero >= 0 then
               R.of_interval range_ikind (Int64.zero, b)
-            else 
-              R.of_interval range_ikind (Int64.neg b, b)
-        in 
-        let r' = BISet.fold (fun i acc -> R.join (f i) acc) x (R.bot ()) in 
-        Exc (BISet.empty (), r')
-      | Exc (_, p), Exc (_, r) -> begin
-          match R.minimal p, R.maximal p, R.minimal r, R.maximal r with
-          | Some p1, Some p2, Some r1, Some r2 -> let b = List.fold_left Int64.max Int64.zero (List.map Int64.abs [p1;p2;r1;r2]) in
-            if Int64.compare p1 Int64.zero >= 0 && Int64.compare r1 Int64.zero >= 0 then 
-              Exc (BISet.empty (), R.of_interval range_ikind (Int64.zero, Int64.max p2 r2))
             else
+              R.of_interval range_ikind (Int64.neg b, b)
+        in
+        let r' = BISet.fold (fun i acc -> R.join (f i) acc) x (R.bot ()) in
+        Exc (BISet.empty (), r')
+      | Exc (_, p), Exc (_, r) ->
+        begin match R.minimal p, R.maximal p, R.minimal r, R.maximal r with
+          | Some p1, Some p2, Some r1, Some r2 ->
+            if Int64.compare p1 Int64.zero >= 0 && Int64.compare r1 Int64.zero >= 0 then
+              Exc (BISet.empty (), R.of_interval range_ikind (Int64.zero, Int64.max p2 r2))
+            else (
+              let b = List.fold_left Int64.max Int64.zero (List.map Int64.abs [p1; p2; r1; r2]) in
               Exc (BISet.empty (), R.of_interval range_ikind (Int64.neg b, b))
-          | _ -> top_of ikind
+            )
+          | _, _, _, _ -> top_of ikind
         end
-      | _ -> top_of ikind)
+      | _ -> top_of ikind
+    )
 
   let shift (shift_op: int_t -> int -> int_t) (ik: Cil.ikind) (x: t) (y: t) =
     handle_bot x y (fun () ->
