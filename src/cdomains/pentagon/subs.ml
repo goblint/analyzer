@@ -123,9 +123,6 @@ struct
 
   let widen (sub1: t) (sub2: t) = BatList.map2 (fun s1x s2x -> if subseteq s1x s2x then s2x else VarSet.empty) sub1 sub2
 
-  (** No narrowing mentioned in the paper. *)
-  let narrow sub1 sub2 = meet sub1 sub2
-
   let forget_vars (vars : int BatList.t) =
     BatList.mapi (fun x ys ->
         if BatList.mem x vars then

@@ -36,8 +36,6 @@ struct
       in
       ({boxes = intv; subs = subs}: t)
 
-
-
   let dim_add (dim_change: Apron.Dim.change) pntg = 
     let res = dim_add dim_change pntg in
     if M.tracing then M.trace "pntg_dim" "PNTG.dim_add:\ndim_change:\t%s\npntg:\t\t%s\nres:\t\t%s\n\n" 
@@ -46,6 +44,7 @@ struct
         (to_string res);
     res
 
+  let dim_add dim_change pntg = Timing.wrap "dim_add" (dim_add dim_change) pntg
 
   (** 
      See https://antoinemine.github.io/Apron/doc/api/ocaml/Dim.html
@@ -69,4 +68,7 @@ struct
         (to_string pntg)
         (to_string res);
     res
+
+
+  let dim_remove dim_change pntg = Timing.wrap "dim_remove" (dim_remove dim_change) pntg
 end
