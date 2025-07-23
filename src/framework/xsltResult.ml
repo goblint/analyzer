@@ -170,6 +170,13 @@ struct
         BatPrintf.fprintf f "</loc>";
       )
 
+  let write_warn i w =
+    BatFile.with_file_out (Printf.sprintf "result2/warn/warn%d.xml" (i + 1)) (fun f ->
+        BatPrintf.fprintf f {xml|<?xml version="1.0" ?>
+<?xml-stylesheet type="text/xsl" href="../warn.xsl"?>|xml};
+        printXmlWarning_one_w f w;
+      )
+
   let output table live gtable gtfxml (module FileCfg: MyCFG.FileCfg) =
     let file = FileCfg.file in
     match get_string "result" with
@@ -206,11 +213,7 @@ struct
         ) (Lazy.force table);
       let file2line2warns: int IH.t SH.t = SH.create 10 in
       List.iteri (fun i w ->
-          BatFile.with_file_out (Printf.sprintf "result2/warn/warn%d.xml" (i + 1)) (fun f ->
-              BatPrintf.fprintf f {xml|<?xml version="1.0" ?>
-<?xml-stylesheet type="text/xsl" href="../warn.xsl"?>|xml};
-              printXmlWarning_one_w f w;
-            );
+          write_warn i w;
           let locs =
             match w.multipiece with
             | Single piece -> [piece.loc]
