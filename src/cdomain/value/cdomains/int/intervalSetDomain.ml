@@ -313,13 +313,13 @@ struct
     | Some x, Some y -> (try of_int ik (f x y) with Division_by_zero | Invalid_argument _ -> (top_of ik,{overflow=false; underflow=false}))
     | _, _ -> (top_of ik,{overflow=false; underflow=false})
 
-  let min_val_bit_constrained n = 
-    if Ints_t.equal n Ints_t.zero then 
-      Ints_t.neg Ints_t.one 
-    else 
-      Ints_t.neg @@ Ints_t.shift_left Ints_t.one (Z.numbits (Z.sub (Z.abs @@ Ints_t.to_bigint n) Z.one)) 
+  let min_val_bit_constrained n =
+    if Ints_t.equal n Ints_t.zero then
+      Ints_t.neg Ints_t.one
+    else
+      Ints_t.neg @@ Ints_t.shift_left Ints_t.one (Z.numbits (Z.pred (Z.abs @@ Ints_t.to_bigint n)))
 
-  let max_val_bit_constrained n = 
+  let max_val_bit_constrained n =
     let x = if Ints_t.compare n Ints_t.zero < 0 then Ints_t.sub (Ints_t.neg n) Ints_t.one else n in
     Ints_t.sub (Ints_t.shift_left Ints_t.one (Z.numbits @@ Z.abs @@ Ints_t.to_bigint x)) Ints_t.one
 
@@ -374,13 +374,13 @@ struct
         let upper = max_val_bit_constrained @@ Ints_t.min x1 y1 in
         of_interval ik (Ints_t.zero, upper) |> fst
       | true, _, _, false | _, false, true, _ ->
-        let lower = List.fold_left Ints_t.min Ints_t.zero 
-            (List.append (List.map min_val_bit_constrained [x1; y1]) 
-               (List.map (fun i -> Ints_t.neg @@ Ints_t.add (max_val_bit_constrained i) Ints_t.one) [x2; y2])) in  
+        let lower = List.fold_left Ints_t.min Ints_t.zero
+            (List.append (List.map min_val_bit_constrained [x1; y1])
+               (List.map (fun i -> Ints_t.neg @@ Ints_t.add (max_val_bit_constrained i) Ints_t.one) [x2; y2])) in
         of_interval ik (lower, Ints_t.zero) |> fst
-      | _ -> let lower = List.fold_left Ints_t.min Ints_t.zero 
-                 (List.append (List.map min_val_bit_constrained [x1; y1]) 
-                    (List.map (fun i -> Ints_t.neg @@ Ints_t.add (max_val_bit_constrained i) Ints_t.one) [x2; y2])) in 
+      | _ -> let lower = List.fold_left Ints_t.min Ints_t.zero
+                 (List.append (List.map min_val_bit_constrained [x1; y1])
+                    (List.map (fun i -> Ints_t.neg @@ Ints_t.add (max_val_bit_constrained i) Ints_t.one) [x2; y2])) in
         let upper = List.fold_left Ints_t.max Ints_t.zero (List.map max_val_bit_constrained [x1;x2;y1;y2]) in
         of_interval ik (lower, upper) |> fst
 
