@@ -160,6 +160,16 @@ struct
         BatPrintf.fprintf f "</globs>";
       )
 
+  let write_node n v =
+    BatFile.with_file_out (Printf.sprintf "result2/nodes/%s.xml" (Node.show_id n)) (fun f ->
+        BatPrintf.fprintf f {xml|<?xml version="1.0" ?>
+<?xml-stylesheet type="text/xsl" href="../node.xsl"?>
+<loc>|xml};
+        (* TODO: need fun in <call>? *)
+        printXml_print_one f n v;
+        BatPrintf.fprintf f "</loc>";
+      )
+
   let output table live gtable gtfxml (module FileCfg: MyCFG.FileCfg) =
     let file = FileCfg.file in
     match get_string "result" with
@@ -182,14 +192,7 @@ struct
       write_globals ~gtfxml ~gtable;
       let file2line2nodes: Node.t IH.t SH.t = SH.create 10 in
       iter (fun n v ->
-          BatFile.with_file_out (Printf.sprintf "result2/nodes/%s.xml" (Node.show_id n)) (fun f ->
-              BatPrintf.fprintf f {xml|<?xml version="1.0" ?>
-<?xml-stylesheet type="text/xsl" href="../node.xsl"?>
-<loc>|xml};
-              (* TODO: need fun in <call>? *)
-              printXml_print_one f n v;
-              BatPrintf.fprintf f "</loc>";
-            );
+          write_node n v;
           let loc = UpdateCil.getLoc n in (* from printXml_print_one *)
           let line2nodes: Node.t IH.t =
             match SH.find_option file2line2nodes loc.file with
