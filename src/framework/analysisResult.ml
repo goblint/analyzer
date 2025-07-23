@@ -239,6 +239,8 @@ struct
               IH.add line2warns loc.line (i + 1)
             ) (List.filter_map Fun.id locs)
         ) !Messages.Table.messages_list;
+      let asd = BatSys.command {a|pygmentize -S default -f html -O nowrap,classprefix=pyg- > result2/pyg.css|a} in
+      assert (asd = 0);
       BatEnum.iter (fun b ->
           let c_file_name = Str.global_substitute (Str.regexp Filename.dir_sep) (fun _ -> "%2F") b in
           BatFile.with_file_out (Printf.sprintf "result2/files/%s.xml" c_file_name) (fun f ->
@@ -246,7 +248,9 @@ struct
 <?xml-stylesheet type="text/xsl" href="../file.xsl"?>
 <file>
 |xml};
-              let lines = BatFile.lines_of b in
+              let ic = BatUnix.open_process_args_in "pygmentize" [|"pygmentize"; "-f"; "html"; "-O"; "nowrap,classprefix=pyg-"; b|] in (* TODO: close *)
+              let ic' = BatIO.input_channel ic in
+              let lines = BatIO.lines_of ic' in
               BatEnum.iteri (fun line text ->
                   let nodes =
                     match SH.find_option file2line2nodes b with
@@ -266,7 +270,7 @@ struct
                   in
                   let dead = nodes <> [] && not (List.exists live nodes) in
                   BatPrintf.fprintf f {xml|<ln nr="%d" ns="[%a]" wrn="[%a]" ded="%B">%s</ln>
-|xml} (line + 1) (BatList.print ~first:"" ~sep:"," ~last:"" print_node) nodes (BatList.print ~first:"" ~sep:"," ~last:"" print_warn) warns dead (XmlUtil.escape text)
+|xml} (line + 1) (BatList.print ~first:"" ~sep:"," ~last:"" print_node) nodes (BatList.print ~first:"" ~sep:"," ~last:"" print_warn) warns dead text
                 ) lines;
               BatPrintf.fprintf f "</file>";
             )
