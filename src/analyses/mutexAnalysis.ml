@@ -10,7 +10,6 @@ module MustMultiplicity = LockDomain.MustMultiplicity
 module LF = LibraryFunctions
 open GoblintCil
 open Analyses
-open Batteries
 
 module VarSet = SetDomain.Make (Basetype.Variables)
 

@@ -439,7 +439,7 @@ struct
       let top_of ik = top_of ik |> List.hd in
       let is_zero v = v =. Ints_t.zero in
       match y1, y2 with
-      | l, u when is_zero l && is_zero u -> top_of ik (* TODO warn about undefined behavior *)
+      | l, u when is_zero l && is_zero u -> top_of ik
       | l, _ when is_zero l              -> interval_div x (Ints_t.one,y2)
       | _, u when is_zero u              -> interval_div x (y1, Ints_t.(neg one))
       | _ when leq (of_int ik (Ints_t.zero) |> fst) ([(y1,y2)]) -> top_of ik

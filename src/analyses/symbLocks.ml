@@ -10,7 +10,6 @@ module VarEq = VarEq.Spec
 
 module PS = SetDomain.ToppedSet (LP) (struct let topname = "All" end)
 
-open Batteries
 open GoblintCil
 open Pretty
 open Analyses

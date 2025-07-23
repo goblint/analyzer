@@ -37,7 +37,6 @@ zip goblint/scripts/sv-comp/goblint.zip \
     goblint/lib/libc/stub/include/assert.h \
     goblint/lib/goblint/runtime/include/goblint.h \
     goblint/lib/libc/stub/src/stdlib.c \
-    goblint/lib/libc/stub/src/pthread.c \
     goblint/lib/sv-comp/stub/src/sv-comp.c \
     goblint/README.md \
     goblint/LICENSE
