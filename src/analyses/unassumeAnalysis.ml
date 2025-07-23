@@ -261,7 +261,7 @@ struct
       let e = List.fold_left (fun a {exp = b; _} -> Cil.(BinOp (LAnd, a, b, intType))) x.exp xs in
       M.info ~category:Witness "unassume invariant: %a" CilType.Exp.pretty e;
       if not !AnalysisState.postsolving then (
-        if not (GobConfig.get_bool "ana.unassume.precheck" && Queries.ID.to_bool (man.ask (EvalInt e)) = Some false) then ( (* TODO: Queries.eval_bool? *)
+        if not (GobConfig.get_bool "ana.unassume.precheck" && Queries.eval_bool (Analyses.ask_of_man man) e = `Lifted false) then (
           let tokens = x.token :: List.map (fun {token; _} -> token) xs in
           man.emit (Unassume {exp = e; tokens});
           List.iter WideningTokenLifter.add tokens
@@ -280,9 +280,8 @@ struct
   let body man fd =
     let pres = FH.find_all fun_pres fd in
     let st = List.fold_left (fun acc pre ->
-        let v = man.ask (EvalInt pre) in (* TODO: Queries.eval_bool? *)
         (* M.debug ~category:Witness "%a precondition %a evaluated to %a" CilType.Fundec.pretty fd CilType.Exp.pretty pre Queries.ID.pretty v; *)
-        if Queries.ID.to_bool v = Some true then
+        if Queries.eval_bool (Analyses.ask_of_man man) pre = `Lifted true then
           D.add pre acc
         else
           acc

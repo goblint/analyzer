@@ -30,12 +30,10 @@ struct
     if man.local then
       match f.sformals with
       | [arg] when isIntegralType arg.vtype ->
-        (match man.ask (EvalInt (Lval (Var arg, NoOffset))) with (* TODO: Queries.eval_bool? *)
-         | v when Queries.ID.is_bot v -> false
-         | v ->
-           match Queries.ID.to_bool v with
-           | Some b -> b
-           | None -> false)
+        (match Queries.eval_bool (Analyses.ask_of_man man) (Lval (Var arg, NoOffset)) with
+         | `Bot -> false
+         | `Lifted b -> b
+         | `Top -> false)
       | _ ->
         (* should not happen, man.local should always be false in this case *)
         false

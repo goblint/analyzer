@@ -559,7 +559,7 @@ let may_be_less = eval_int_binop (module MayBool) Lt
 let eval_bool (ask: ask) e: BoolDomain.FlatBool.t =
   let e' = CastE (TInt (IBool, []), e) in
   match ask.f (EvalInt e') with
-  | v when ID.is_bot v -> `Bot
+  | v when ID.is_bot v || ID.is_bot_ikind v -> `Bot
   | v ->
     match ID.to_bool v with
     | Some b -> `Lifted b
