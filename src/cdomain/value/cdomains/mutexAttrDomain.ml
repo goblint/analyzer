@@ -1,4 +1,5 @@
 (** Mutex attribute type domain. *)
+open Goblint_parallel
 
 module MutexKind =
 struct
@@ -21,7 +22,7 @@ end
 include Lattice.FlatConf (struct include Printable.DefaultConf let bot_name = "Uninitialized" let top_name = "Top" end) (MutexKind)
 
 (* Needed because OS X is weird and assigns different constants than normal systems... :( *)
-let recursive_int = lazy (
+let recursive_int = DomainsafeLazy.from_fun (fun () ->
   let res = ref (Z.of_int 2) in (* Use OS X as the default, it doesn't have the enum *)
   GoblintCil.iterGlobals !Cilfacade.current_file (function
       | GEnumTag (einfo, _) ->
@@ -39,7 +40,7 @@ let of_int z =
   if Z.equal z Z.zero then
     `Lifted MutexKind.NonRec
   else
-    let recursive_int = Lazy.force recursive_int in
+    let recursive_int = DomainsafeLazy.force recursive_int in
     if Z.equal z recursive_int then
       `Lifted MutexKind.Recursive
     else

@@ -469,6 +469,7 @@ let pthread_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("pthread_create", special [__ "thread" [w]; drop "attr" [r]; __ "start_routine" [s]; __ "arg" []] @@ fun thread start_routine arg -> ThreadCreate { thread; start_routine; arg; multiple = false }); (* For precision purposes arg is not considered accessed here. Instead all accesses (if any) come from actually analyzing start_routine. *)
     ("pthread_exit", special [__ "retval" []] @@ fun retval -> ThreadExit { ret_val = retval }); (* Doesn't dereference the void* itself, but just passes to pthread_join. *)
     ("pthread_join", special [__ "thread" []; __ "retval" [w]] @@ fun thread retval -> ThreadJoin {thread; ret_var = retval});
+    ("pthread_once", special [__ "once_control" []; __ "init_routine" []] @@ fun once_control init_routine -> Once {once_control; init_routine});
     ("pthread_kill", unknown [drop "thread" []; drop "sig" []]);
     ("pthread_equal", unknown [drop "t1" []; drop "t2" []]);
     ("pthread_cond_init", unknown [drop "cond" [w]; drop "attr" [r]]);
@@ -525,6 +526,8 @@ let pthread_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("pthread_getspecific", unknown ~attrs:[InvalidateGlobals] [drop "key" []]);
     ("pthread_key_create", unknown [drop "key" [w]; drop "destructor" [s]]);
     ("pthread_key_delete", unknown [drop "key" [f]]);
+    ("pthread_barrier_init", special [__ "barrier" []; __ "attr" []; __ "count" []] @@ fun barrier attr count -> BarrierInit {barrier; attr; count});
+    ("pthread_barrier_wait", special [__ "barrier" []] @@ fun barrier -> BarrierWait barrier);
     ("pthread_cancel", unknown [drop "thread" []]);
     ("pthread_testcancel", unknown []);
     ("pthread_setcancelstate", unknown [drop "state" []; drop "oldstate" [w]]);
@@ -1293,7 +1296,7 @@ let reset_lazy () =
   ResettableLazy.reset activated_library_descs
 
 let lib_funs = ref (Set.String.of_list ["__raw_read_unlock"; "__raw_write_unlock"; "spin_trylock"])
-let add_lib_funs funs = lib_funs := List.fold_right Set.String.add funs !lib_funs
+let add_lib_funs funs = lib_funs := List.fold_left (Fun.flip Set.String.add) !lib_funs funs
 let use_special fn_name = Set.String.mem fn_name !lib_funs
 
 let kernel_safe_uncalled = Set.String.of_list ["__inittest"; "init_module"; "__exittest"; "cleanup_module"]
@@ -1303,7 +1306,7 @@ let is_safe_uncalled fn_name =
   List.exists (fun r -> Str.string_match r fn_name 0) kernel_safe_uncalled_regex
 
 
-let unknown_desc f : LibraryDesc.t =
+let unknown_desc f ~nowarn : LibraryDesc.t =
   let accs args : (LibraryDesc.Access.t * 'a list) list = [
     ({ kind = Read; deep = true; }, if GobConfig.get_bool "sem.unknown_function.read.args" then args else []);
     ({ kind = Write; deep = true; }, if GobConfig.get_bool "sem.unknown_function.invalidate.args" then args else []);
@@ -1319,7 +1322,7 @@ let unknown_desc f : LibraryDesc.t =
       []
   in
   (* TODO: remove hack when all classify are migrated *)
-  if not (CilType.Varinfo.equal f dummyFunDec.svar) && not (use_special f.vname) then (
+  if not nowarn && not (CilType.Varinfo.equal f dummyFunDec.svar) && not (use_special f.vname) then (
     M.msg_final Error ~category:Imprecise ~tags:[Category Unsound] "Function definition missing";
     M.error ~category:Imprecise ~tags:[Category Unsound] "Function definition missing for %s" f.vname
   );
@@ -1329,12 +1332,11 @@ let unknown_desc f : LibraryDesc.t =
     special = fun _ -> Unknown;
   }
 
-let find f =
+let find ?(nowarn=false) f =
   let name = f.vname in
   match Hashtbl.find_option (ResettableLazy.force activated_library_descs) name with
   | Some desc -> desc
-  | None -> unknown_desc f
-
+  | None -> unknown_desc ~nowarn f
 
 let is_special fv =
   if use_special fv.vname then

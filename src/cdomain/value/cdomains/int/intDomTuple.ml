@@ -64,7 +64,7 @@ module IntDomTupleImpl = struct
     | Some(_, {underflow; overflow}) -> not (underflow || overflow)
     | _ -> false
 
-  let check_ov ?(suppress_ovwarn = false) ~cast ik intv intv_set bf = 
+  let check_ov ?(suppress_ovwarn = false) ~cast ik intv intv_set bf =
     let no_ov = (no_overflow ik intv) || (no_overflow ik intv_set) || (no_overflow ik bf) in
     if not no_ov && not suppress_ovwarn && ( BatOption.is_some intv || BatOption.is_some intv_set || BatOption.is_some bf) then (
       let (_,{underflow=underflow_intv; overflow=overflow_intv}) = match intv with None -> (I2.bot (), {underflow= true; overflow = true}) | Some x -> x in
@@ -92,7 +92,7 @@ module IntDomTupleImpl = struct
   let opt_map2 f ?no_ov =
     curry @@ function Some x, Some y -> Some (f ?no_ov x y) | _ -> None
 
-  let to_list x = GobTuple.Tuple6.enum x |> List.of_enum |> List.filter_map identity (* contains only the values of activated domains *)
+  let to_list (a,b,c,d,e,f) = List.filter_map identity [a;b;c;d;e;f] (* contains only the values of activated domains *)
   let to_list_some x = List.filter_map identity @@ to_list x (* contains only the Some-values of activated domains *)
 
   let exists = function
@@ -100,8 +100,8 @@ module IntDomTupleImpl = struct
     | (_, Some true, _, _, _,_)
     | (_, _, Some true, _, _,_)
     | (_, _, _, Some true, _,_)
-    | (_, _, _, _, Some true,_) 
-    | (_, _, _, _, _, Some true) -> true 
+    | (_, _, _, _, Some true,_)
+    | (_, _, _, _, _, Some true) -> true
     | _ -> false
 
   let for_all = function
@@ -109,12 +109,11 @@ module IntDomTupleImpl = struct
     | (_, Some false, _, _, _,_)
     | (_, _, Some false, _, _,_)
     | (_, _, _, Some false, _,_)
-    | (_, _, _, _, Some false,_) 
+    | (_, _, _, _, Some false,_)
     | (_, _, _, _, _, Some false) -> false
     | _ -> true
 
   (* f0: constructors *)
-  let top () = create { fi = fun (type a) (module I:SOverflow with type t = a) -> I.top } ()
   let bot () = create { fi = fun (type a) (module I:SOverflow with type t = a) -> I.bot } ()
   let top_of = create { fi = fun (type a) (module I:SOverflow with type t = a) -> I.top_of }
   let bot_of = create { fi = fun (type a) (module I:SOverflow with type t = a) -> I.bot_of }
@@ -136,7 +135,7 @@ module IntDomTupleImpl = struct
     , opt I3.refine_with_congruence ik c cong
     , opt I4.refine_with_congruence ik d cong
     , opt I5.refine_with_congruence ik e cong
-    , opt I6.refine_with_congruence ik f cong 
+    , opt I6.refine_with_congruence ik f cong
     )
 
   let refine_with_interval ik (a, b, c, d, e,f) intv =
@@ -147,7 +146,7 @@ module IntDomTupleImpl = struct
     , opt I2.refine_with_interval ik b intv
     , opt I3.refine_with_interval ik c intv
     , opt I4.refine_with_interval ik d intv
-    , opt I5.refine_with_interval ik e intv 
+    , opt I5.refine_with_interval ik e intv
     , opt I6.refine_with_interval ik f intv )
 
   let refine_with_bitfield ik (a, b, c, d, e,f) bf =
@@ -158,7 +157,7 @@ module IntDomTupleImpl = struct
     , opt I2.refine_with_bitfield ik b bf
     , opt I3.refine_with_bitfield ik c bf
     , opt I4.refine_with_bitfield ik d bf
-    , opt I5.refine_with_bitfield ik e bf 
+    , opt I5.refine_with_bitfield ik e bf
     , opt I6.refine_with_bitfield ik f bf )
 
   let refine_with_excl_list ik (a, b, c, d, e,f) excl =
@@ -206,7 +205,6 @@ module IntDomTupleImpl = struct
 
   (* exists/for_all *)
   let is_bot = exists % mapp { fp = fun (type a) (module I:SOverflow with type t = a) -> I.is_bot }
-  let is_top = for_all % mapp { fp = fun (type a) (module I:SOverflow with type t = a) -> I.is_top }
   let is_top_of ik = for_all % mapp { fp = fun (type a) (module I:SOverflow with type t = a) -> I.is_top_of ik }
   let is_excl_list = exists % mapp { fp = fun (type a) (module I:SOverflow with type t = a) -> I.is_excl_list }
 
@@ -244,9 +242,9 @@ module IntDomTupleImpl = struct
     in
     mapp2 { fp2 = fun (type a) (module I:SOverflow with type t = a and type int_t = int_t) -> I.to_incl_list } x |> flat merge
 
-  let to_bitfield ik x = 
-    let bf_meet (z1,o1) (z2,o2) = (Z.logand z1 z2, Z.logand o1 o2) in 
-    let bf_top = (Z.lognot Z.zero, Z.lognot Z.zero) in 
+  let to_bitfield ik x =
+    let bf_meet (z1,o1) (z2,o2) = (Z.logand z1 z2, Z.logand o1 o2) in
+    let bf_top = (Z.lognot Z.zero, Z.lognot Z.zero) in
     let res_tup = mapp2 { fp2 = fun (type a) (module I:SOverflow with type t = a and type int_t = int_t) -> I.to_bitfield ik } x
     in List.fold bf_meet bf_top (to_list res_tup)
 
@@ -314,7 +312,7 @@ module IntDomTupleImpl = struct
       , BatOption.map fst intv
       , map (fun ?no_ov x -> r.f1_ovc ?no_ov (module I3) x |> fst) c
       , map (fun ?no_ov x -> r.f1_ovc ?no_ov (module I4) x |> fst) ~no_ov d
-      , BatOption.map fst intv_set 
+      , BatOption.map fst intv_set
       , BatOption.map fst bf)
 
   (* map2 with overflow check *)
@@ -329,7 +327,7 @@ module IntDomTupleImpl = struct
       , BatOption.map fst intv
       , opt_map2 (fun ?no_ov x y -> r.f2_ovc ?no_ov (module I3) x y |> fst) xc yc
       , opt_map2 (fun ?no_ov x y -> r.f2_ovc ?no_ov (module I4) x y |> fst) ~no_ov:no_ov xd yd
-      , BatOption.map fst intv_set 
+      , BatOption.map fst intv_set
       , BatOption.map fst bf)
 
   let map ik r (a, b, c, d, e, f) =
@@ -369,10 +367,10 @@ module IntDomTupleImpl = struct
 
   (* fp: projections *)
   let equal_to i x =
-    let xs = mapp2 { fp2 = fun (type a) (module I:SOverflow with type t = a and type int_t = int_t) -> I.equal_to i } x |> GobTuple.Tuple6.enum |> List.of_enum |> List.filter_map identity in
+    let xs = mapp2 { fp2 = fun (type a) (module I:SOverflow with type t = a and type int_t = int_t) -> I.equal_to i } x |> to_list in
     if List.mem `Eq xs then `Eq else
     if List.mem `Neq xs then `Neq else
-      `Top 
+      `Top
 
   let to_bool = same string_of_bool % mapp { fp = fun (type a) (module I:SOverflow with type t = a) -> I.to_bool }
   let minimal = flat (List.max ~cmp:Z.compare) % mapp2 { fp2 = fun (type a) (module I:SOverflow with type t = a and type int_t = int_t) -> I.minimal }

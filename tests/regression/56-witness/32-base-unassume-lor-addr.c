@@ -1,4 +1,4 @@
-// SKIP PARAM: --enable ana.int.interval --set ana.activated[+] unassume --set witness.yaml.unassume 32-base-unassume-lor-addr.yml
+// SKIP PARAM: --enable ana.int.interval --set witness.yaml.entry-types[*] location_invariant --set ana.activated[+] unassume --set witness.yaml.unassume 32-base-unassume-lor-addr.yml
 // TODO: AD refine in invariant
 #include <goblint.h>
 int main() {

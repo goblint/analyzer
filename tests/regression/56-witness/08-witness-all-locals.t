@@ -13,7 +13,6 @@
   - entry_type: location_invariant
     location:
       file_name: 08-witness-all-locals.c
-      file_hash: $FILE_HASH
       line: 9
       column: 3
       function: main
@@ -24,7 +23,6 @@
   - entry_type: location_invariant
     location:
       file_name: 08-witness-all-locals.c
-      file_hash: $FILE_HASH
       line: 9
       column: 3
       function: main
@@ -35,7 +33,6 @@
   - entry_type: location_invariant
     location:
       file_name: 08-witness-all-locals.c
-      file_hash: $FILE_HASH
       line: 7
       column: 5
       function: main
@@ -62,7 +59,6 @@ Fewer entries are emitted if locals from nested block scopes are excluded:
   - entry_type: location_invariant
     location:
       file_name: 08-witness-all-locals.c
-      file_hash: $FILE_HASH
       line: 9
       column: 3
       function: main
@@ -73,7 +69,6 @@ Fewer entries are emitted if locals from nested block scopes are excluded:
   - entry_type: location_invariant
     location:
       file_name: 08-witness-all-locals.c
-      file_hash: $FILE_HASH
       line: 7
       column: 5
       function: main

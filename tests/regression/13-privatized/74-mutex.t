@@ -37,7 +37,6 @@
       ghost_updates:
       - location:
           file_name: 74-mutex.c
-          file_hash: $FILE_HASH
           line: 20
           column: 5
           function: producer
@@ -47,7 +46,6 @@
           format: c_expression
       - location:
           file_name: 74-mutex.c
-          file_hash: $FILE_HASH
           line: 23
           column: 5
           function: producer
@@ -57,7 +55,6 @@
           format: c_expression
       - location:
           file_name: 74-mutex.c
-          file_hash: $FILE_HASH
           line: 34
           column: 3
           function: main
@@ -67,7 +64,6 @@
           format: c_expression
       - location:
           file_name: 74-mutex.c
-          file_hash: $FILE_HASH
           line: 36
           column: 3
           function: main
@@ -77,7 +73,6 @@
           format: c_expression
       - location:
           file_name: 74-mutex.c
-          file_hash: $FILE_HASH
           line: 38
           column: 3
           function: main
@@ -121,26 +116,24 @@ Flow-insensitive invariants as location invariants.
   $ yamlWitnessStrip < witness.yml > witness.location.yml
 
   $ diff witness.flow_insensitive.yml witness.location.yml
-  67,68c67,74
+  62,63c62,68
   < - entry_type: flow_insensitive_invariant
   <   flow_insensitive_invariant:
   ---
   > - entry_type: location_invariant
   >   location:
   >     file_name: 74-mutex.c
-  >     file_hash: $FILE_HASH
   >     line: 36
   >     column: 3
   >     function: main
   >   location_invariant:
-  72,73c78,85
+  67,68c72,78
   < - entry_type: flow_insensitive_invariant
   <   flow_insensitive_invariant:
   ---
   > - entry_type: location_invariant
   >   location:
   >     file_name: 74-mutex.c
-  >     file_hash: $FILE_HASH
   >     line: 36
   >     column: 3
   >     function: main
@@ -206,7 +199,6 @@ Same with ghost_instrumentation and invariant_set entries.
       ghost_updates:
       - location:
           file_name: 74-mutex.c
-          file_hash: $FILE_HASH
           line: 20
           column: 5
           function: producer
@@ -216,7 +208,6 @@ Same with ghost_instrumentation and invariant_set entries.
           format: c_expression
       - location:
           file_name: 74-mutex.c
-          file_hash: $FILE_HASH
           line: 23
           column: 5
           function: producer
@@ -226,7 +217,6 @@ Same with ghost_instrumentation and invariant_set entries.
           format: c_expression
       - location:
           file_name: 74-mutex.c
-          file_hash: $FILE_HASH
           line: 34
           column: 3
           function: main
@@ -236,7 +226,6 @@ Same with ghost_instrumentation and invariant_set entries.
           format: c_expression
       - location:
           file_name: 74-mutex.c
-          file_hash: $FILE_HASH
           line: 36
           column: 3
           function: main
@@ -246,7 +235,6 @@ Same with ghost_instrumentation and invariant_set entries.
           format: c_expression
       - location:
           file_name: 74-mutex.c
-          file_hash: $FILE_HASH
           line: 38
           column: 3
           function: main
@@ -260,7 +248,6 @@ Same with ghost_instrumentation and invariant_set entries.
         type: location_invariant
         location:
           file_name: 74-mutex.c
-          file_hash: $FILE_HASH
           line: 36
           column: 3
           function: main
@@ -270,7 +257,6 @@ Same with ghost_instrumentation and invariant_set entries.
         type: location_invariant
         location:
           file_name: 74-mutex.c
-          file_hash: $FILE_HASH
           line: 36
           column: 3
           function: main
@@ -318,7 +304,6 @@ Same protected invariant with vojdani but no unprotected invariant.
       ghost_updates:
       - location:
           file_name: 74-mutex.c
-          file_hash: $FILE_HASH
           line: 20
           column: 5
           function: producer
@@ -328,7 +313,6 @@ Same protected invariant with vojdani but no unprotected invariant.
           format: c_expression
       - location:
           file_name: 74-mutex.c
-          file_hash: $FILE_HASH
           line: 23
           column: 5
           function: producer
@@ -338,7 +322,6 @@ Same protected invariant with vojdani but no unprotected invariant.
           format: c_expression
       - location:
           file_name: 74-mutex.c
-          file_hash: $FILE_HASH
           line: 34
           column: 3
           function: main
@@ -348,7 +331,6 @@ Same protected invariant with vojdani but no unprotected invariant.
           format: c_expression
       - location:
           file_name: 74-mutex.c
-          file_hash: $FILE_HASH
           line: 36
           column: 3
           function: main
@@ -358,7 +340,6 @@ Same protected invariant with vojdani but no unprotected invariant.
           format: c_expression
       - location:
           file_name: 74-mutex.c
-          file_hash: $FILE_HASH
           line: 38
           column: 3
           function: main
@@ -413,7 +394,6 @@ Same as protection with mutex-meet.
       ghost_updates:
       - location:
           file_name: 74-mutex.c
-          file_hash: $FILE_HASH
           line: 20
           column: 5
           function: producer
@@ -423,7 +403,6 @@ Same as protection with mutex-meet.
           format: c_expression
       - location:
           file_name: 74-mutex.c
-          file_hash: $FILE_HASH
           line: 23
           column: 5
           function: producer
@@ -433,7 +412,6 @@ Same as protection with mutex-meet.
           format: c_expression
       - location:
           file_name: 74-mutex.c
-          file_hash: $FILE_HASH
           line: 34
           column: 3
           function: main
@@ -443,7 +421,6 @@ Same as protection with mutex-meet.
           format: c_expression
       - location:
           file_name: 74-mutex.c
-          file_hash: $FILE_HASH
           line: 36
           column: 3
           function: main
@@ -453,7 +430,6 @@ Same as protection with mutex-meet.
           format: c_expression
       - location:
           file_name: 74-mutex.c
-          file_hash: $FILE_HASH
           line: 38
           column: 3
           function: main

@@ -4,7 +4,7 @@
 
 int main()
 {
-  int short_run, i = 0;
+  unsigned int short_run, i = 0;
   // Currently not able to detect this as terminating due to multiple conditions
   while (i < 90 && short_run != 1)
   {

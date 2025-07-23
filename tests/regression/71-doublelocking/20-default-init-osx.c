@@ -1,4 +1,4 @@
-// PARAM: --set ana.activated[+] 'maylocks' --set ana.activated[+] 'pthreadMutexType' --set pre.cppflags[+] "-DGOBLINT_NO_PTHREAD_ONCE"
+// PARAM: --set ana.activated[+] 'maylocks' --set ana.activated[+] 'pthreadMutexType'
 // Here, we do not include pthread.h, to emulate the behavior of OS X.
 #define NULL ((void *)0)
 typedef signed char __int8_t;

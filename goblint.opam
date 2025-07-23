@@ -35,12 +35,12 @@ homepage: "https://goblint.in.tum.de"
 doc: "https://goblint.readthedocs.io/en/latest/"
 bug-reports: "https://github.com/goblint/analyzer/issues"
 depends: [
-  "dune" {>= "3.7"}
+  "dune" {>= "3.13"}
   "ocaml" {>= "4.14"}
   "goblint-cil" {>= "2.0.5"}
-  "batteries" {>= "3.5.1"}
+  "batteries" {>= "3.9.0"}
   "zarith" {>= "1.10"}
-  "yojson" {>= "2.0.0"}
+  "yojson" {>= "2.0.0" & < "3"}
   "qcheck-core" {>= "0.19"}
   "ppx_deriving" {>= "6.0.2"}
   "ppx_deriving_hash" {>= "0.1.2"}
@@ -67,10 +67,14 @@ depends: [
   "conf-ruby" {with-test}
   "benchmark" {with-test}
   "conf-gcc"
+  "domain-local-await"
+  "domain_shims"
 ]
 depopts: [
   "apron" {>= "v0.9.15"}
+  "camlidl" {>= "1.13"}
   "z3"
+  "domainslib"
 ]
 conflicts: [
   "result" {< "1.5"}
@@ -97,15 +101,13 @@ dev-repo: "git+https://github.com/goblint/analyzer.git"
 # also remember to generate/adjust goblint.opam.locked!
 available: os-family != "bsd" & os-distribution != "alpine" & (arch != "arm64" | os = "macos")
 pin-depends: [
-  # published goblint-cil 2.0.5 is currently up-to-date, but pinned for reproducibility
-  [ "goblint-cil.2.0.5" "git+https://github.com/goblint/cil.git#f5ee39bd344dc74e2a10e407d877e0ddf73c9c6f" ]
-  # pinned for stability (https://github.com/goblint/analyzer/issues/1520), remove after new camlidl release
-  [ "camlidl.1.12" "git+https://github.com/xavierleroy/camlidl.git#1c1e87e3f56c2c6b3226dd0af3510ef414b462d0" ]
+  # published goblint-cil 2.0.6 is currently up-to-date, but pinned for reproducibility
+  [ "goblint-cil.2.0.6" "git+https://github.com/goblint/cil.git#c0b10d1848223a67de45ef608f4e05c082977ac1" ]
   # pinned for stability (https://github.com/goblint/analyzer/issues/1520), remove after new apron release
   [ "apron.v0.9.15" "git+https://github.com/antoinemine/apron.git#418a217c7a70dae3f422678f3aaba38ae374d91a" ]
 ]
 depexts: [
-  ["libgraph-easy-perl"] {os-distribution = "ubuntu" & with-test}
+  ["libgraph-easy-perl"] {os-distribution = "ubuntu" & with-test} # doesn't work (https://github.com/ocaml/opam/issues/5836)
 ]
 post-messages: [
   "Do not benchmark Goblint on OCaml 5 (https://goblint.readthedocs.io/en/latest/user-guide/benchmarking/)." {ocaml:version >= "5.0.0"}

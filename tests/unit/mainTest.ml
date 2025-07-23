@@ -7,6 +7,7 @@ let all_tests =
     MapDomainTest.test ();
     SolverTest.test ();
     LvalTest.test ();
+    SparseMatrixImplementationTest.test () ;
     CompilationDatabaseTest.tests;
     LibraryDslTest.tests;
     CilfacadeTest.tests;

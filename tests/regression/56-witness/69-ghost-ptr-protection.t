@@ -46,7 +46,6 @@ Should not contain unsound flow-insensitive invariant m2_locked || (p == & g && 
       ghost_updates:
       - location:
           file_name: 69-ghost-ptr-protection.c
-          file_hash: $FILE_HASH
           line: 13
           column: 3
           function: t_fun
@@ -56,7 +55,6 @@ Should not contain unsound flow-insensitive invariant m2_locked || (p == & g && 
           format: c_expression
       - location:
           file_name: 69-ghost-ptr-protection.c
-          file_hash: $FILE_HASH
           line: 16
           column: 3
           function: t_fun
@@ -66,7 +64,6 @@ Should not contain unsound flow-insensitive invariant m2_locked || (p == & g && 
           format: c_expression
       - location:
           file_name: 69-ghost-ptr-protection.c
-          file_hash: $FILE_HASH
           line: 22
           column: 3
           function: main
@@ -76,7 +73,6 @@ Should not contain unsound flow-insensitive invariant m2_locked || (p == & g && 
           format: c_expression
       - location:
           file_name: 69-ghost-ptr-protection.c
-          file_hash: $FILE_HASH
           line: 23
           column: 3
           function: main
@@ -86,7 +82,6 @@ Should not contain unsound flow-insensitive invariant m2_locked || (p == & g && 
           format: c_expression
       - location:
           file_name: 69-ghost-ptr-protection.c
-          file_hash: $FILE_HASH
           line: 28
           column: 3
           function: main
@@ -165,7 +160,6 @@ Should not contain unsound flow-insensitive invariant m2_locked || (p == & g && 
       ghost_updates:
       - location:
           file_name: 69-ghost-ptr-protection.c
-          file_hash: $FILE_HASH
           line: 13
           column: 3
           function: t_fun
@@ -175,7 +169,6 @@ Should not contain unsound flow-insensitive invariant m2_locked || (p == & g && 
           format: c_expression
       - location:
           file_name: 69-ghost-ptr-protection.c
-          file_hash: $FILE_HASH
           line: 16
           column: 3
           function: t_fun
@@ -185,7 +178,6 @@ Should not contain unsound flow-insensitive invariant m2_locked || (p == & g && 
           format: c_expression
       - location:
           file_name: 69-ghost-ptr-protection.c
-          file_hash: $FILE_HASH
           line: 22
           column: 3
           function: main
@@ -195,7 +187,6 @@ Should not contain unsound flow-insensitive invariant m2_locked || (p == & g && 
           format: c_expression
       - location:
           file_name: 69-ghost-ptr-protection.c
-          file_hash: $FILE_HASH
           line: 23
           column: 3
           function: main
@@ -205,7 +196,6 @@ Should not contain unsound flow-insensitive invariant m2_locked || (p == & g && 
           format: c_expression
       - location:
           file_name: 69-ghost-ptr-protection.c
-          file_hash: $FILE_HASH
           line: 28
           column: 3
           function: main

@@ -18,7 +18,7 @@ struct
     let warn warn_fn ?annot msg = if check then
         if get_bool "dbg.regression" then ( (* This only prints unexpected results (with the difference) as indicated by the comment behind the assert (same as used by the regression test script). *)
           let loc = !M.current_loc in
-          let line = List.at (List.of_enum @@ File.lines_of loc.file) (loc.line-1) in
+          let line = List.at (List.of_enum @@ File.lines_of loc.file) (loc.line-1) in (* nosemgrep: batenum-of_enum *)
           let open Str in
           let expected = if string_match (regexp ".+//.*\\(FAIL\\|UNKNOWN\\).*") line 0 then Some (matched_group 1 line) else None in
           if expected <> annot then (

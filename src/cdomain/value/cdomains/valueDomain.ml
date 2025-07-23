@@ -133,7 +133,7 @@ struct
     | _ -> false
 
   let is_mutex_type (t: typ): bool = match t with
-    | TNamed (info, attr) -> info.tname = "pthread_mutex_t" || info.tname = "spinlock_t" || info.tname = "pthread_spinlock_t" || info.tname = "pthread_cond_t" || info.tname = "pthread_rwlock_t"
+    | TNamed (info, attr) -> info.tname = "pthread_mutex_t" || info.tname = "spinlock_t" || info.tname = "pthread_spinlock_t" || info.tname = "pthread_cond_t" || info.tname = "pthread_rwlock_t" || info.tname = "pthread_once_t"
     | TInt (IInt, attr) -> hasAttribute "mutex" attr
     | _ -> false
 
@@ -156,6 +156,7 @@ struct
     | _ when is_mutex_type t -> Mutex
     | t when is_jmp_buf_type t -> JmpBuf (JmpBufs.bot ())
     | TInt _ -> Bot (*Int (ID.bot ()) -- should be lower than any int or address*)
+    (* TODO: TEnum? *)
     | TFloat _ -> Bot
     | TPtr _ -> Address (AD.bot ())
     | TComp ({cstruct=true; _} as ci,_) -> Struct (Structs.create (fun fd -> bot_value ~varAttr:fd.fattr fd.ftype) ci)
@@ -181,7 +182,7 @@ struct
     | Blob x -> Blobs.is_bot x
     | Thread x -> Threads.is_bot x
     | JmpBuf x -> JmpBufs.is_bot x
-    | Mutex -> true
+    | Mutex -> false
     | MutexAttr x -> MutexAttr.is_bot x
     | Bot -> true
     | Top -> false
@@ -192,6 +193,7 @@ struct
     | t when is_jmp_buf_type t -> JmpBuf (JmpBufs.top ())
     | t when is_mutexattr_type t -> MutexAttr (MutexAttrDomain.top ())
     | TInt (ik,_) -> Int (ID.top_of ik)
+    (* TODO: TEnum? *)
     | TFloat (fkind, _) when not (Cilfacade.isComplexFKind fkind) -> Float (FD.top_of fkind)
     | TPtr _ -> Address AD.top_ptr
     | TComp ({cstruct=true; _} as ci,_) -> Struct (Structs.create (fun fd -> init_value ~varAttr:fd.fattr fd.ftype) ci)
@@ -211,6 +213,7 @@ struct
     | t when is_jmp_buf_type t -> JmpBuf (JmpBufs.top ())
     | t when is_mutexattr_type t -> MutexAttr (MutexAttrDomain.top ())
     | TInt (ik,_) -> Int (ID.(cast_to ik (top_of ik)))
+    (* TODO: TEnum? *)
     | TFloat (fkind, _) when not (Cilfacade.isComplexFKind fkind) -> Float (FD.top_of fkind)
     | TPtr _ -> Address AD.top_ptr
     | TComp ({cstruct=true; _} as ci,_) -> Struct (Structs.create (fun fd -> top_value ~varAttr:fd.fattr fd.ftype) ci)
@@ -244,6 +247,7 @@ struct
     | t when is_jmp_buf_type t -> JmpBuf (JmpBufs.top ())
     | t when is_mutexattr_type t -> MutexAttr (MutexAttrDomain.top ())
     | TInt (ikind, _) -> Int (ID.of_int ikind Z.zero)
+    (* TODO: TEnum? *)
     | TFloat (fkind, _) when not (Cilfacade.isComplexFKind fkind) -> Float (FD.of_const fkind 0.0)
     | TPtr _ -> Address AD.null_ptr
     | TComp ({cstruct=true; _} as ci,_) -> Struct (Structs.create (fun fd -> zero_init_value ~varAttr:fd.fattr fd.ftype) ci)
@@ -360,8 +364,8 @@ struct
     | TFloat (FFloat128, _), TFloat (FDouble,_) -> true
     | TFloat (FFloat128, _), TFloat (FLongDouble,_) -> true
     | _, TFloat _ -> false (* casting float to an integral type always looses the decimals *)
-    | TFloat (fk, _), TInt((IBool | IChar | IUChar | ISChar | IShort | IUShort), _) when not (Cilfacade.isComplexFKind fk)  -> true (* reasonably small integers can be stored in all fkinds *)
-    | TFloat ((FDouble | FLongDouble | FFloat128), _), TInt((IInt | IUInt | ILong | IULong), _) -> true (* values stored in between 16 and 32 bits can only be stored in at least doubles *)
+    | TFloat (fk, _), (TInt((IBool | IChar | IUChar | ISChar | IShort | IUShort), _) | TEnum ({ekind = IBool | IChar | IUChar | ISChar | IShort | IUShort; _}, _)) when not (Cilfacade.isComplexFKind fk)  -> true (* reasonably small integers can be stored in all fkinds *)
+    | TFloat ((FDouble | FLongDouble | FFloat128), _), (TInt((IInt | IUInt | ILong | IULong), _) | TEnum ({ekind = IInt | IUInt | ILong | IULong; _}, _)) -> true (* values stored in between 16 and 32 bits can only be stored in at least doubles *)
     | TFloat _, _ -> false (* all wider integers can not be completely put into a float, partially because our internal representation of long double is the same as for doubles *)
     | (TInt _ | TEnum _ | TPtr _) , (TInt _ | TEnum _ | TPtr _) ->
       IntDomain.Size.is_cast_injective ~from_type:t1 ~to_type:t2 && bitsSizeOf t2 >= bitsSizeOf t1
@@ -372,7 +376,7 @@ struct
     if is_statically_safe_cast t2 t1 then
       true
     else
-      match t2, t1, v with
+      match Cil.unrollType t2, Cil.unrollType t1, v with
       | (TInt (ik2,_) | TEnum ({ekind=ik2; _},_)) , (TInt (ik1,_) | TEnum ({ekind=ik1; _},_)), Int v ->
         let cl, cu = IntDomain.Size.range ik2 in
         let l, u = ID.minimal v, ID.maximal v in
@@ -392,7 +396,8 @@ struct
     | a, b -> a = b
 
   let cast_addr t a =
-    let rec stripVarLenArr = function
+    let rec stripVarLenArr t =
+      match Cil.unrollType t with
       | TPtr(t, args) -> TPtr(stripVarLenArr t, args)
       | TArray(t, None, args) -> TArray(stripVarLenArr t, None, args)
       | TArray(t, Some exp, args) when isConstant exp -> TArray(stripVarLenArr t, Some exp, args)
@@ -418,7 +423,7 @@ struct
       | _ -> (* cast to smaller/inner type *)
         if M.tracing then M.tracel "casta" "cast to smaller size";
         if d = Some true then err "Ptr-cast to type of incompatible size!" else
-          begin match ta, t with
+          begin match Cil.unrollType ta, Cil.unrollType t with
             (* struct to its first field *)
             | TComp ({cfields = fi::_; _}, _), _ ->
               if M.tracing then M.tracel "casta" "cast struct to its first field";
@@ -432,26 +437,31 @@ struct
             | _ -> err @@ Format.sprintf "Cast to neither array index nor struct field. is_zero_offset: %b" (Addr.Offs.cmp_zero_offset o = `MustZero)
           end
     in
-    let one_addr = let open Addr in function
-        (* only allow conversion of float pointers if source and target type are the same *)
-        | Addr ({ vtype = TFloat(fkind, _); _}, _) as x when (match t with TFloat (fkind', _) when fkind = fkind' -> true | _ -> false) -> x
-        (* do not allow conversion from/to float pointers*)
-        | Addr ({ vtype = TFloat(_); _}, _) -> UnknownPtr
-        | _ when (match t with TFloat _ -> true | _ -> false) -> UnknownPtr
-        | Addr ({ vtype = TVoid _; _} as v, offs) when not (Cilfacade.isCharType t) -> (* we had no information about the type (e.g. malloc), so we add it; ignore for casts to char* since they're special conversions (N1570 6.3.2.3.7) *)
-          Addr ({ v with vtype = t }, offs) (* HACK: equal varinfo with different type, causes inconsistencies down the line, when we again assume vtype being "right", but joining etc gives no consideration to which type version to keep *)
-        | Addr (v, o) as a ->
-          begin try Addr (v, (adjust_offs v o None)) (* cast of one address by adjusting the abstract offset *)
-            with
-            | CastError s -> (* don't know how to handle this cast :( *)
-              if M.tracing then M.tracel "caste" "%s" s;
-              a (* probably garbage, but this is deref's problem *)
-            (*raise (CastError s)*)
-            | SizeOfError (s,t) ->
-              M.warn "size of error: %s" s;
-              a
-          end
-        | x -> x (* TODO we should also keep track of the type here *)
+    let one_addr =
+      let open Addr in
+      function
+      | Addr.Addr ({ vtype; _} as v, o) as a ->
+        begin match Cil.unrollType vtype, Cil.unrollType t with
+          (* only allow conversion of float pointers if source and target type are the same *)
+          | TFloat (fkind, _), TFloat (fkind', _) when fkind = fkind' -> a
+          (* do not allow conversion from/to float pointers*)
+          | TFloat _, _
+          | _, TFloat _ -> UnknownPtr
+          | TVoid _, _ when not (Cilfacade.isCharType t) -> (* we had no information about the type (e.g. malloc), so we add it; ignore for casts to char* since they're special conversions (N1570 6.3.2.3.7) *)
+            Addr ({ v with vtype = t }, o) (* HACK: equal varinfo with different type, causes inconsistencies down the line, when we again assume vtype being "right", but joining etc gives no consideration to which type version to keep *)
+          | _, _ ->
+            begin try Addr (v, (adjust_offs v o None)) (* cast of one address by adjusting the abstract offset *)
+              with
+              | CastError s -> (* don't know how to handle this cast :( *)
+                if M.tracing then M.tracel "caste" "%s" s;
+                a (* probably garbage, but this is deref's problem *)
+              (*raise (CastError s)*)
+              | SizeOfError (s,t) ->
+                M.warn "size of error: %s" s;
+                a
+            end
+        end
+      | x -> x (* TODO we should also keep track of the type here *)
     in
     let a' = AD.map one_addr a in
     if M.tracing then M.tracel "cast" "cast_addr %a to %a is %a!" AD.pretty a d_type t AD.pretty a';
@@ -507,8 +517,8 @@ struct
           Address (match v with
               | Int x when ID.to_int x = Some Z.zero -> AD.null_ptr
               | Int x -> AD.top_ptr
-              (* we ignore casts to void*! TODO report UB! *)
-              | Address x -> (match t with TVoid _ -> x | _ -> cast_addr t x)
+              (* we ignore casts to void* (above)! TODO report UB! *)
+              | Address x -> cast_addr t x
               (*| Address x -> x*)
               | _ -> log_top __POS__; AD.top_ptr
             )
@@ -692,7 +702,7 @@ struct
     | (x, Top) -> x
     | (Int x, Int y) -> Int (ID.meet x y)
     | (Float x, Float y) -> Float (FD.meet x y)
-    | (Int _, Address _) -> meet x (cast (TInt(Cilfacade.ptr_ikind (),[])) y)
+    | (Int _, Address _) -> meet x (cast !GoblintCil.upointType y)
     | (Address x, Int y) -> Address (AD.meet x (AD.of_int y))
     | (Address x, Address y) -> Address (AD.meet x y)
     | (Struct x, Struct y) -> Struct (Structs.meet x y)
@@ -717,7 +727,7 @@ struct
     match (x,y) with
     | (Int x, Int y) -> Int (ID.narrow x y)
     | (Float x, Float y) -> Float (FD.narrow x y)
-    | (Int _, Address _) -> narrow x (cast IntDomain.Size.top_typ y)
+    | (Int _, Address _) -> narrow x (cast !GoblintCil.upointType y)
     | (Address x, Int y) -> Address (AD.narrow x (AD.of_int y))
     | (Address x, Address y) -> Address (AD.narrow x y)
     | (Struct x, Struct y) -> Struct (Structs.narrow x y)
@@ -931,7 +941,7 @@ struct
           | `Field (fld, offs) -> begin
               match x with
               | Union (`Lifted l_fld, value) ->
-                (match value, fld.ftype with
+                (match value, Cil.unrollType fld.ftype with
                  (* only return an actual value if we have a type and return actually the exact same type *)
                  | Float f_value, TFloat(fkind, _) when FD.get_fkind f_value = fkind -> Float f_value
                  | Float _, t -> top_value t
@@ -1100,10 +1110,9 @@ struct
                       | `NoOffset -> top (), offs
                       | `Index (idx, _) when Cil.isArrayType fld.ftype ->
                         begin
-                          match fld.ftype with
+                          match Cil.unrollType fld.ftype with
                           | TArray(_, l, _) ->
-                            let len = try Cil.lenOfArray l
-                              with Cil.LenOfArray -> 42 (* will not happen, VLA not allowed in union and struct *) in
+                            let len = Cil.lenOfArray l in (* LenOfArray exception will not happen, VLA not allowed in union and struct *)
                             Array(CArrays.make (IndexDomain.of_int (Cilfacade.ptrdiff_ikind ()) (Z.of_int len)) Top), offs
                           | _ -> top (), offs (* will not happen*)
                         end
@@ -1123,7 +1132,7 @@ struct
                 let l', o' = shift_one_over l o in
                 match x with
                 | Array x' ->
-                  let t = (match t with
+                  let t = (match Cil.unrollType t with
                       | TArray(t1 ,_,_) -> t1
                       | _ -> t) in (* This is necessary because t is not a TArray in case of calloc *)
                   let e = determine_offset ask l o exp (Some v) in
@@ -1131,7 +1140,7 @@ struct
                   let new_array_value = CArrays.set ask x' (e, idx) new_value_at_index in
                   Array new_array_value
                 | Bot ->
-                  let t,len = (match t with
+                  let t,len = (match Cil.unrollType t with
                       | TArray(t1 ,len,_) -> t1, len
                       | _ -> t, None) in (* This is necessary because t is not a TArray in case of calloc *)
                   let x' = CArrays.bot () in
@@ -1193,7 +1202,7 @@ struct
 
   (* Won't compile without the final :t annotation *)
   let rec update_array_lengths (eval_exp: exp -> t) (v:t) (typ:Cil.typ):t =
-    match v, typ with
+    match v, Cil.unrollType typ with
     | Array(n), TArray(ti, e, _) ->
       begin
         let update_fun x = update_array_lengths eval_exp x ti in

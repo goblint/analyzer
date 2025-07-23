@@ -66,12 +66,5 @@
     "int": {
       "signed_overflow": "assume_none"
     }
-  },
-  "witness": {
-    "graphml": {
-      "enabled": true,
-      "id": "enumerate",
-      "unknown": false
-    }
   }
 }
