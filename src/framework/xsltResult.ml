@@ -127,14 +127,10 @@ struct
   module SH = BatHashtbl.Make (Basetype.RawStrings)
   module IH = BatHashtbl.Make (struct type t = int [@@deriving hash, eq] end)
 
-  let write_index ~file2funs ~funs2node =
-    let p_node f n = BatPrintf.fprintf f "%s" (Node.show_id n) in
-    let p_nodes f xs =
-      List.iter (BatPrintf.fprintf f "<node name=\"%a\"/>\n" p_node) xs
-    in
+  let write_index ~file2funs =
     let p_funs f xs =
       let one_fun n =
-        BatPrintf.fprintf f "<function name=\"%s\">\n%a</function>\n" n p_nodes (SH.find_all funs2node n)
+        BatPrintf.fprintf f "<function name=\"%s\"/>\n" n
       in
       List.iter one_fun xs
     in
@@ -250,8 +246,6 @@ struct
     | "g2html" ->
       (* copied from above *)
       let file2funs = SH.create 100 in
-      let funs2node = SH.create 100 in
-      iter (fun n _ -> SH.add funs2node (Node.find_fundec n).svar.vname n) (Lazy.force table);
       iterGlobals file (function
           | GFun (fd,loc) -> SH.add file2funs loc.file fd.svar.vname
           | _ -> ()
@@ -260,7 +254,7 @@ struct
       GobSys.mkdir_or_exists Fpath.(v "result2" / "nodes");
       GobSys.mkdir_or_exists Fpath.(v "result2" / "warn");
       GobSys.mkdir_or_exists Fpath.(v "result2" / "files");
-      write_index ~file2funs ~funs2node;
+      write_index ~file2funs;
       write_globals ~gtfxml ~gtable;
       let file2line2nodes: Node.t IH.t SH.t = SH.create 10 in
       iter (fun n v ->
