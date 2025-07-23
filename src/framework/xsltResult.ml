@@ -117,6 +117,18 @@ struct
       else
         let f = BatIO.output_channel out in
         write_file f (get_string "outfile")
+    | s -> failwith @@ "Unsupported value for option `result`: "^s
+end
+
+module XsltResult2 (Range: Printable.S) (C: ResultConf) =
+struct
+  include XsltResult (Range) (C)
+
+  let output table live gtable gtfxml (module FileCfg: MyCFG.FileCfg) =
+    let file = FileCfg.file in
+    match get_string "result" with
+    | "fast_xml" ->
+      output table live gtable gtfxml (module FileCfg)
     | "g2html" ->
       (* copied from above *)
       let module SH = BatHashtbl.Make (Basetype.RawStrings) in

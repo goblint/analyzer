@@ -8,7 +8,7 @@ include XsltResult
 
 module Result (Range: Printable.S) (C: ResultConf) =
 struct
-  include XsltResult (Range) (C)
+  include XsltResult2 (Range) (C)
 
   let pretty () mapping =
     let f key st dok =
