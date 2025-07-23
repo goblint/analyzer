@@ -8,7 +8,12 @@ module Subs =
 struct
 
   module Idx = Int
-  module VarSet = BatSet.Make(Idx)
+  module VarSet = struct 
+    module IdxSet = BatSet.Make(Idx)
+    include IdxSet
+    let hash t = IdxSet.fold (fun idx acc -> acc lxor (19 * idx + 0x9e3779b9)) t 0
+  end
+
   module VarList = BatList
 
   module MoveMap = struct 
@@ -16,7 +21,7 @@ struct
     type t = Idx.t BatMap.Make(Idx).t
   end
 
-  type t = VarSet.t VarList.t [@@deriving eq, ord]
+  type t = VarSet.t list [@@deriving eq, ord, hash]
 
   let dim_add (dim_change: Apron.Dim.change) (subs: t) =
     if dim_change.realdim != 0 then 
@@ -77,8 +82,6 @@ struct
     in
     List.filteri_map move_or_delete_set subs
 
-  let equal (sub1: t) (sub2: t) = VarList.equal VarSet.equal sub1 sub2
-
   (**
         This isn't precise: we might return false even if there are transitive contradictions;
         Other possibility: compute transitive closure first (would be expensive)
@@ -119,9 +122,6 @@ struct
   let meet (sub1: t) (sub2: t) = BatList.map2 VarSet.union sub1 sub2
 
   let widen (sub1: t) (sub2: t) = BatList.map2 (fun s1x s2x -> if subseteq s1x s2x then s2x else VarSet.empty) sub1 sub2
-
-  (** No narrowing mentioned in the paper. *)
-  let narrow sub1 sub2 = meet sub1 sub2
 
   let forget_vars (vars : int BatList.t) =
     BatList.mapi (fun x ys ->

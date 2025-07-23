@@ -8,10 +8,8 @@ open Subs
 
 module Pntg =
 struct
-  type t = { boxes: Boxes.t; subs: Subs.t } [@@deriving eq, ord]
+  type t = { boxes: Boxes.t; subs: Subs.t } [@@deriving eq, ord, hash]
 
-  let hash : (t -> int)  = fun _ -> 1
-  let equal pntg1 pntg2  = Boxes.equal pntg1.boxes pntg2.boxes && Subs.equal pntg1.subs pntg2.subs;;
   let copy (x: t) = x
   let empty () = { boxes = []; subs = [] }
   let is_empty pntg =
@@ -38,8 +36,6 @@ struct
       in
       ({boxes = intv; subs = subs}: t)
 
-
-
   let dim_add (dim_change: Apron.Dim.change) pntg = 
     let res = dim_add dim_change pntg in
     if M.tracing then M.trace "pntg_dim" "PNTG.dim_add:\ndim_change:\t%s\npntg:\t\t%s\nres:\t\t%s\n\n" 
@@ -48,6 +44,7 @@ struct
         (to_string res);
     res
 
+  let dim_add dim_change pntg = Timing.wrap "dim_add" (dim_add dim_change) pntg
 
   (** 
      See https://antoinemine.github.io/Apron/doc/api/ocaml/Dim.html
@@ -71,4 +68,7 @@ struct
         (to_string pntg)
         (to_string res);
     res
+
+
+  let dim_remove dim_change pntg = Timing.wrap "dim_remove" (dim_remove dim_change) pntg
 end

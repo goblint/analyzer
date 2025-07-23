@@ -15,5 +15,5 @@
       "space_restore": true
     }
   },
-  "verify": false
+  "verify": true
 }

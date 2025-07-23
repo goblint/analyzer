@@ -9,8 +9,8 @@ struct
 
   let hash (z: t) = 
     match z with
-    | PosInfty -> failwith "ZExt.pow: TODO" 
-    | NegInfty -> failwith "ZExt.pow: TODO"
+    | PosInfty -> 0x186e81bd (* random constant *)
+    | NegInfty -> 0xc8590e8 (* random constant *)
     | Arb(z) -> Z.hash z;;
 
   let equal (z1: t) (z2: t) = 
@@ -88,14 +88,21 @@ struct
   (** Alias for add z1 (neg z2) *)
   let sub z1 z2 = add z1 (neg z2)
 
-  let rem (Arb z1) (Arb z2) = Arb (Z.rem z1 z2)
+  let rem zext1 zext2 = 
+    match zext1, zext2 with
+    | Arb(z1), Arb(z2) ->
+      Arb (Z.rem z1 z2)
+    | _ -> failwith "ZExt.rem: Only applicable for two Arb values."
 
-  let rem_add (Arb z1) (Arb z2) =
-    let rem = Z.rem z1 z2 in
-    if Z.sign rem < 0 then 
-      Arb (Z.add rem z2)
-    else
-      Arb(rem)
+  let rem_add zext1 zext2 =
+    match zext1, zext2 with
+    | Arb(z1), Arb(z2) ->
+      let rem = Z.rem z1 z2 in
+      if Z.sign rem < 0 then 
+        Arb (Z.add rem z2)
+      else
+        Arb(rem)
+    | _ -> failwith "ZExt.rem_add: Only applicable for two Arb values."
 
   let rec mul z1 z2 =
     match z1, z2 with

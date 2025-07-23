@@ -63,4 +63,22 @@ struct
       "+" ^ int32_str
     else
       ZExt.to_string z
+
+  let string_of_monoms env (sum_of_terms, (constant,divisor)) =
+    if divisor <> Z.one then
+      failwith "DIVISOR WAS NOT ONE"
+    else
+      let term_str_list = BatList.map (fun (coefficient, x', divisor) -> 
+          if divisor <> Z.one then
+            failwith "DIVISOR WAS NOT ONE"
+          else
+            let var_str = Var.to_string @@ Environment.var_of_dim env x' in 
+            let output_str = (Z.to_string coefficient) ^ "*" ^ var_str in
+            if Z.sign coefficient < 0 then 
+              "("^output_str^")" 
+            else
+              output_str
+        ) sum_of_terms
+      in
+      String.concat " + " term_str_list ^ " + " ^ (Z.to_string constant) 
 end
