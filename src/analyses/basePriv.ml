@@ -357,7 +357,7 @@ struct
     | `Thread ->
       st
 
-  let invariant_vars ask getg st = protected_vars ask
+  let invariant_vars ask getg st = protected_vars ask ~kind:Write
 end
 
 module PerMutexMeetPrivBase =
@@ -856,7 +856,7 @@ struct
         ) locks inv
     )
 
-  let invariant_vars ask getg st = protected_vars ask
+  let invariant_vars ask getg st = protected_vars ask ~kind:ReadWrite
 end
 
 
@@ -1102,7 +1102,7 @@ struct
           ) locks inv
       )
 
-  let invariant_vars ask getg st = protected_vars ask
+  let invariant_vars ask getg st = protected_vars ask ~kind:Write
 end
 
 module AbstractLockCenteredGBase (WeakRange: Lattice.S) (SyncRange: Lattice.S) =

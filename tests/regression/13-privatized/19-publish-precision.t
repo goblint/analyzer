@@ -150,7 +150,7 @@ Vojdani does not succeed on check in t_fun.
     dead: 0
     total lines: 20
   [Info][Witness] witness generation summary:
-    location invariants: 11
+    location invariants: 9
     loop invariants: 0
     flow-insensitive invariants: 0
     total generation entries: 1
@@ -160,7 +160,7 @@ Vojdani does not succeed on check in t_fun.
     unsafe: 0
     total memory locations: 1
 
-TODO: Vojdani should not have location_invariant-s on glob1 after locking mutex1 (line 11), only after mutex2.
+Vojdani should not have location_invariant-s on glob1 after locking mutex1 (line 11), only after mutex2.
 
   $ yamlWitnessStrip < witness.yml
   - entry_type: invariant_set
@@ -173,24 +173,6 @@ TODO: Vojdani should not have location_invariant-s on glob1 after locking mutex1
           column: 3
           function: t_fun
         value: (unsigned long )arg == 0UL
-        format: c_expression
-    - invariant:
-        type: location_invariant
-        location:
-          file_name: 19-publish-precision.c
-          line: 11
-          column: 3
-          function: t_fun
-        value: 0 <= glob1
-        format: c_expression
-    - invariant:
-        type: location_invariant
-        location:
-          file_name: 19-publish-precision.c
-          line: 11
-          column: 3
-          function: t_fun
-        value: glob1 <= 127
         format: c_expression
     - invariant:
         type: location_invariant
