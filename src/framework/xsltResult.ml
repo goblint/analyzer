@@ -124,6 +124,33 @@ module XsltResult2 (Range: Printable.S) (C: ResultConf) =
 struct
   include XsltResult (Range) (C)
 
+  module SH = BatHashtbl.Make (Basetype.RawStrings)
+  module IH = BatHashtbl.Make (struct type t = int [@@deriving hash, eq] end)
+
+  let write_index ~file2funs ~funs2node =
+    let p_node f n = BatPrintf.fprintf f "%s" (Node.show_id n) in
+    let p_nodes f xs =
+      List.iter (BatPrintf.fprintf f "<node name=\"%a\"/>\n" p_node) xs
+    in
+    let p_funs f xs =
+      let one_fun n =
+        BatPrintf.fprintf f "<function name=\"%s\">\n%a</function>\n" n p_nodes (SH.find_all funs2node n)
+      in
+      List.iter one_fun xs
+    in
+    BatFile.with_file_out "result2/index.xml" (fun f ->
+        BatPrintf.fprintf f {xml|<?xml version="1.0" ?>
+<?xml-stylesheet type="text/xsl" href="report.xsl"?>
+<report>|xml};
+        (* TODO: exclude <file> path? *)
+        (* TODO: exclude <node>s? *)
+        (* TODO: exclude dead files/functions? *)
+        (* BatEnum.iter (fun b -> BatPrintf.fprintf f "<file name=\"%s\" path=\"%s\">\n%a</file>\n" (Filename.basename b) b p_funs (SH.find_all file2funs b)) (BatEnum.uniq @@ SH.keys file2funs); *)
+        (* g2html has full path in name field *)
+        BatEnum.iter (fun b -> BatPrintf.fprintf f "<file name=\"%s\">\n%a</file>\n" b p_funs (SH.find_all file2funs b)) (BatEnum.uniq @@ SH.keys file2funs);
+        BatPrintf.fprintf f "</report>";
+      )
+
   let output table live gtable gtfxml (module FileCfg: MyCFG.FileCfg) =
     let file = FileCfg.file in
     match get_string "result" with
@@ -131,8 +158,6 @@ struct
       output table live gtable gtfxml (module FileCfg)
     | "g2html" ->
       (* copied from above *)
-      let module SH = BatHashtbl.Make (Basetype.RawStrings) in
-      let module IH = BatHashtbl.Make (struct type t = int [@@deriving hash, eq] end) in
       let file2funs = SH.create 100 in
       let funs2node = SH.create 100 in
       iter (fun n _ -> SH.add funs2node (Node.find_fundec n).svar.vname n) (Lazy.force table);
@@ -140,32 +165,11 @@ struct
           | GFun (fd,loc) -> SH.add file2funs loc.file fd.svar.vname
           | _ -> ()
         );
-      let p_node f n = BatPrintf.fprintf f "%s" (Node.show_id n) in
-      let p_nodes f xs =
-        List.iter (BatPrintf.fprintf f "<node name=\"%a\"/>\n" p_node) xs
-      in
-      let p_funs f xs =
-        let one_fun n =
-          BatPrintf.fprintf f "<function name=\"%s\">\n%a</function>\n" n p_nodes (SH.find_all funs2node n)
-        in
-        List.iter one_fun xs
-      in
       GobSys.mkdir_or_exists Fpath.(v "result2");
       GobSys.mkdir_or_exists Fpath.(v "result2" / "nodes");
       GobSys.mkdir_or_exists Fpath.(v "result2" / "warn");
       GobSys.mkdir_or_exists Fpath.(v "result2" / "files");
-      BatFile.with_file_out "result2/index.xml" (fun f ->
-          BatPrintf.fprintf f {xml|<?xml version="1.0" ?>
-<?xml-stylesheet type="text/xsl" href="report.xsl"?>
-<report>|xml};
-          (* TODO: exclude <file> path? *)
-          (* TODO: exclude <node>s? *)
-          (* TODO: exclude dead files/functions? *)
-          (* BatEnum.iter (fun b -> BatPrintf.fprintf f "<file name=\"%s\" path=\"%s\">\n%a</file>\n" (Filename.basename b) b p_funs (SH.find_all file2funs b)) (BatEnum.uniq @@ SH.keys file2funs); *)
-          (* g2html has full path in name field *)
-          BatEnum.iter (fun b -> BatPrintf.fprintf f "<file name=\"%s\">\n%a</file>\n" b p_funs (SH.find_all file2funs b)) (BatEnum.uniq @@ SH.keys file2funs);
-          BatPrintf.fprintf f "</report>";
-        );
+      write_index ~file2funs ~funs2node;
       BatFile.with_file_out "result2/nodes/globals.xml" (fun f ->
           BatPrintf.fprintf f {xml|<?xml version="1.0" ?>
 <?xml-stylesheet type="text/xsl" href="../globals.xsl"?>
