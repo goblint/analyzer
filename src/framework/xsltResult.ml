@@ -151,6 +151,15 @@ struct
         BatPrintf.fprintf f "</report>";
       )
 
+  let write_globals ~gtfxml ~gtable =
+    BatFile.with_file_out "result2/nodes/globals.xml" (fun f ->
+        BatPrintf.fprintf f {xml|<?xml version="1.0" ?>
+<?xml-stylesheet type="text/xsl" href="../globals.xsl"?>
+<globs>|xml};
+        gtfxml f gtable;
+        BatPrintf.fprintf f "</globs>";
+      )
+
   let output table live gtable gtfxml (module FileCfg: MyCFG.FileCfg) =
     let file = FileCfg.file in
     match get_string "result" with
@@ -170,13 +179,7 @@ struct
       GobSys.mkdir_or_exists Fpath.(v "result2" / "warn");
       GobSys.mkdir_or_exists Fpath.(v "result2" / "files");
       write_index ~file2funs ~funs2node;
-      BatFile.with_file_out "result2/nodes/globals.xml" (fun f ->
-          BatPrintf.fprintf f {xml|<?xml version="1.0" ?>
-<?xml-stylesheet type="text/xsl" href="../globals.xsl"?>
-<globs>|xml};
-          gtfxml f gtable;
-          BatPrintf.fprintf f "</globs>";
-        );
+      write_globals ~gtfxml ~gtable;
       let file2line2nodes: Node.t IH.t SH.t = SH.create 10 in
       iter (fun n v ->
           BatFile.with_file_out (Printf.sprintf "result2/nodes/%s.xml" (Node.show_id n)) (fun f ->
