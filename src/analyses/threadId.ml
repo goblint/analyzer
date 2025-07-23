@@ -170,9 +170,9 @@ struct
 
 
   let print_tid_info () =
-    let tids = Hashtbl.to_list !tids in
-    let uniques = List.filter_map (fun (a,b) -> if Thread.is_unique a then Some a else None) tids in
-    let non_uniques = List.filter_map (fun (a,b) -> if not (Thread.is_unique a) then Some a else None) tids in
+    let tids = Hashtbl.to_seq_keys !tids in
+    let uniques, non_uniques = Seq.partition Thread.is_unique tids in
+    let uniques, non_uniques = List.of_seq uniques, List.of_seq non_uniques in
     let uc = List.length uniques in
     let nc = List.length non_uniques in
     M.debug_noloc ~category:Analyzer "Encountered number of thread IDs (unique): %i (%i)" (uc+nc) uc;

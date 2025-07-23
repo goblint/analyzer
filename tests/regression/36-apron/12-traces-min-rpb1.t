@@ -31,7 +31,7 @@
       column: 3
       function: main
     location_invariant:
-      string: (0LL - (long long )g) + (long long )h == 0LL
+      string: (long long )h == (long long )g
       type: assertion
       format: C
   - entry_type: location_invariant
@@ -41,7 +41,7 @@
       column: 3
       function: t_fun
     location_invariant:
-      string: (0LL - (long long )g) + (long long )h == 0LL
+      string: (long long )h == (long long )g
       type: assertion
       format: C
   - entry_type: location_invariant
@@ -51,7 +51,7 @@
       column: 3
       function: t_fun
     location_invariant:
-      string: (0LL - (long long )g) + (long long )h == 0LL
+      string: (long long )h == (long long )g
       type: assertion
       format: C
 
@@ -163,7 +163,6 @@
           format: c_expression
   - entry_type: flow_insensitive_invariant
     flow_insensitive_invariant:
-      string: '! multithreaded || (A_locked || ((0LL - (long long )g) + (long long )h
-        >= 0LL && (long long )g - (long long )h >= 0LL))'
+      string: '! multithreaded || (A_locked || (long long )g == (long long )h)'
       type: assertion
       format: C

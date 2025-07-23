@@ -76,9 +76,9 @@ module SLR3 =
             HM.replace rho x tmp;
             let w = try HM.find infl x with Not_found -> VS.empty in
             let w = if wpx then VS.add x w else w in
-            q := Enum.fold (fun x y -> H.add y x) !q (VS.enum w);
+            q := VS.fold H.add w !q;
             HM.replace infl x VS.empty;
-            Enum.iter (HM.remove stable) (VS.enum w)
+            VS.iter (HM.remove stable) w
           end;
           while (H.size !q <> 0) && (min_key q <= get_key x) do
             solve (extract_min q)
@@ -107,7 +107,7 @@ module SLR3 =
         HM.find rho y
       and sides x =
         let w = try HM.find set x with Not_found -> VS.empty in
-        Enum.fold (fun d z -> try S.Dom.join d (HPM.find rho' (z,x)) with Not_found -> d) (S.Dom.bot ()) (VS.enum w)
+        VS.fold (fun z d -> try S.Dom.join d (HPM.find rho' (z,x)) with Not_found -> d) w (S.Dom.bot ())
       and side x y d =
         HM.add globals y ();
         if not (HM.mem rho y) then begin
@@ -250,7 +250,7 @@ module Make0 =
       end
 
       include Heap.Make (HeapCompare)
-      let from_list xs = List.enum xs |> of_enum
+      let from_list = of_list
       let is_empty x = size x = 0
       let get_root_key x = find_min x |> X.get_key
       let extract_min h = (find_min h, del_min h)

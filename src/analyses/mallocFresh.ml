@@ -39,16 +39,16 @@ struct
 
   let special man lval f args =
     let desc = LibraryFunctions.find f in
-    let alloc_var on_stack =
-      match man.ask (AllocVar {on_stack = on_stack}) with
+    let alloc_var location =
+      match man.ask (AllocVar location) with
       | `Lifted var -> D.add var man.local
       | _ -> man.local
     in
     match desc.special args with
     | Malloc _
     | Calloc _
-    | Realloc _ -> alloc_var false
-    | Alloca _ -> alloc_var true
+    | Realloc _ -> alloc_var Heap
+    | Alloca _ -> alloc_var Stack
     | _ ->
       match lval with
       | None -> man.local

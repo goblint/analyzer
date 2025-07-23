@@ -20,7 +20,6 @@ let spec_module: (module Spec) Lazy.t = lazy (
   GobConfig.building_spec := true;
   let arg_enabled = get_bool "exp.arg.enabled" in
   let termination_enabled = List.mem "termination" (get_string_list "ana.activated") in (* check if loop termination analysis is enabled*)
-  let open Batteries in
   (* apply functor F on module X if opt is true *)
   let lift opt (module F : S2S) (module X : Spec) = (module (val if opt then (module F (X)) else (module X) : Spec) : Spec) in
   let module S1 =
@@ -646,7 +645,7 @@ struct
            Join abstract values once per location and once per node. *)
         let joined_by_loc, joined_by_node =
           let open Enum in
-          let node_values = LHT.enum lh |> map (Tuple2.map1 fst) in (* drop context from key *)
+          let node_values = LHT.enum lh |> map (Tuple2.map1 fst) in (* drop context from key *) (* nosemgrep: batenum-enum *)
           let hashtbl_size = if fast_count node_values then count node_values else 123 in
           let by_loc, by_node = Hashtbl.create hashtbl_size, NodeH.create hashtbl_size in
           iter (fun (node, v) ->

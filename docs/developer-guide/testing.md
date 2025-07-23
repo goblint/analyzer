@@ -103,10 +103,8 @@ Cram tests can be run with various granularity:
 * Run a single cram test (e.g. `01-assert.t`) with:
 
     ```
-    dune build @tests/regression/00-sanity/01-assert
+    dune runtest tests/regression/00-sanity/01-assert.t
     ```.
-
-    Pass the file name without the `.t` extension and with a leading `@` to `dune build`.
 
 ### Writing
 Create new cram tests in a subdirectory of `tests/regression` with the extension `.t`. The basic syntax of a cram test is as follows:

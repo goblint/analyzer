@@ -15,6 +15,5 @@ module Tuple6 = struct
   let map5 fn (a, b, c, d, e, f) = (a, b, c, d, fn e, f)
   let map6 fn (a, b, c, d, e, f) = (a, b, c, d, e, fn f)
 
-  let enum (a,b,c,d,e,f) = BatList.enum [a;b;c;d;e;f] (* Make efficient? *)
 
 end
