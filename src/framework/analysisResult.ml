@@ -1,4 +1,4 @@
-(** Analysis result output. *)
+(** Analysis results. *)
 
 open GoblintCil
 open Pretty

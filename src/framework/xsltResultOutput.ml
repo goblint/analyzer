@@ -1,4 +1,4 @@
-(** Analysis result output. *)
+(** XSLT analysis result output. *)
 
 open GoblintCil
 open Pretty

@@ -1,3 +1,5 @@
+(** C code highlighting. *)
+
 type t = Fpath.t -> string BatEnum.t
 
 val none: t
