@@ -290,11 +290,23 @@ struct
     Timing.wrap "graphviz" (ProcessPool.run ~jobs:(GobConfig.jobs ())) tasks
 
   let copy_resources ~result_dir =
-    (* TODO: vendor resources *)
-    Sys.readdir "g2html/resources"
-    |> Array.to_list
-    |> List.map (fun f -> "g2html/resources/" ^ f)
-    |> Fun.flip FileUtil.cp (Fpath.to_string result_dir)
+    let xslt_dirs = Fpath.(parent (v Sys.executable_name) / "xslt") :: Goblint_sites.xslt in
+    let xslt_dir = List.find_opt (fun dir ->
+        let dir_str = Fpath.to_string dir in
+        Sys.file_exists dir_str && Sys.is_directory dir_str
+      ) xslt_dirs
+    in
+    match xslt_dir with
+    | Some xslt_dir ->
+      Sys.readdir (Fpath.to_string xslt_dir)
+      |> Array.to_seq
+      |> Seq.filter ((<>) "dune")
+      |> Seq.map (Fpath.add_seg xslt_dir)
+      |> Seq.map Fpath.to_string
+      |> List.of_seq
+      |> Fun.flip FileUtil.cp (Fpath.to_string result_dir)
+    | None ->
+      failwith "xslt/ not found"
 
   let output_g2html table live gtable gtfxml (module FileCfg: MyCFG.FileCfg) =
     let result_dir = Fpath.(v "result2") in
