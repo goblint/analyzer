@@ -128,14 +128,15 @@ struct
   module FundecSet = Set.Make (CilType.Fundec)
   module IH = BatHashtbl.Make (struct type t = int [@@deriving hash, eq] end)
 
-  let write_index ~file2funs =
+  let write_index ~result_dir ~file2funs =
     let p_funs f xs =
       let one_fun n =
         BatPrintf.fprintf f "<function name=\"%s\"/>\n" n.svar.vname
       in
       FundecSet.iter one_fun xs
     in
-    BatFile.with_file_out "result2/index.xml" (fun f ->
+    let index_file = Fpath.(result_dir / "index.xml") in
+    BatFile.with_file_out (Fpath.to_string index_file) (fun f ->
         BatPrintf.fprintf f {xml|<?xml version="1.0" ?>
 <?xml-stylesheet type="text/xsl" href="report.xsl"?>
 <report>|xml};
@@ -148,8 +149,11 @@ struct
         BatPrintf.fprintf f "</report>";
       )
 
-  let write_globals ~gtfxml ~gtable =
-    BatFile.with_file_out "result2/nodes/globals.xml" (fun f ->
+  let write_globals ~result_dir ~gtfxml ~gtable =
+    let nodes_dir = Fpath.(result_dir / "nodes") in
+    GobSys.mkdir_or_exists nodes_dir;
+    let globals_file = Fpath.(nodes_dir / "globals.xml") in
+    BatFile.with_file_out (Fpath.to_string globals_file) (fun f ->
         BatPrintf.fprintf f {xml|<?xml version="1.0" ?>
 <?xml-stylesheet type="text/xsl" href="../globals.xsl"?>
 <globs>|xml};
@@ -157,8 +161,9 @@ struct
         BatPrintf.fprintf f "</globs>";
       )
 
-  let write_node n v =
-    BatFile.with_file_out (Printf.sprintf "result2/nodes/%s.xml" (Node.show_id n)) (fun f ->
+  let write_node ~nodes_dir n v =
+    let node_file = Fpath.(nodes_dir / Node.show_id n + "xml") in
+    BatFile.with_file_out (Fpath.to_string node_file) (fun f ->
         BatPrintf.fprintf f {xml|<?xml version="1.0" ?>
 <?xml-stylesheet type="text/xsl" href="../node.xsl"?>
 <loc>|xml};
@@ -167,10 +172,12 @@ struct
         BatPrintf.fprintf f "</loc>";
       )
 
-  let write_nodes ~table =
+  let write_nodes ~result_dir ~table =
+    let nodes_dir = Fpath.(result_dir / "nodes") in
+    GobSys.mkdir_or_exists nodes_dir;
     let file2line2nodes: Node.t IH.t SH.t = SH.create 10 in
     iter (fun n v ->
-        write_node n v;
+        write_node ~nodes_dir n v;
         let loc = UpdateCil.getLoc n in (* from printXml_print_one *)
         let line2nodes: Node.t IH.t =
           match SH.find_option file2line2nodes loc.file with
@@ -184,17 +191,20 @@ struct
       ) (Lazy.force table);
     file2line2nodes
 
-  let write_warn i w =
-    BatFile.with_file_out (Printf.sprintf "result2/warn/warn%d.xml" (i + 1)) (fun f ->
+  let write_warn ~warn_dir i w =
+    let warn_file = Fpath.(warn_dir / Printf.sprintf "warn%d.xml" i) in
+    BatFile.with_file_out (Fpath.to_string warn_file) (fun f ->
         BatPrintf.fprintf f {xml|<?xml version="1.0" ?>
 <?xml-stylesheet type="text/xsl" href="../warn.xsl"?>|xml};
         printXmlWarning_one_w f w;
       )
 
-  let write_warns () =
+  let write_warns ~result_dir =
+    let warn_dir = Fpath.(result_dir / "warn") in
+    GobSys.mkdir_or_exists warn_dir;
     let file2line2warns: int IH.t SH.t = SH.create 10 in
     List.iteri (fun i w ->
-        write_warn i w;
+        write_warn ~warn_dir (i + 1) w;
         let locs =
           match w.multipiece with
           | Single piece -> [piece.loc]
@@ -215,9 +225,10 @@ struct
       ) !Messages.Table.messages_list;
     file2line2warns
 
-  let write_file ~file2line2nodes ~file2line2warns ~live b =
+  let write_file ~files_dir ~file2line2nodes ~file2line2warns ~live b =
     let c_file_name = Str.global_substitute (Str.regexp Filename.dir_sep) (fun _ -> "%2F") b in
-    BatFile.with_file_out (Printf.sprintf "result2/files/%s.xml" c_file_name) (fun f ->
+    let file_file = Fpath.(files_dir / c_file_name + "xml") in
+    BatFile.with_file_out (Fpath.to_string file_file) (fun f ->
         BatPrintf.fprintf f {xml|<?xml version="1.0" ?>
 <?xml-stylesheet type="text/xsl" href="../file.xsl"?>
 <file>
@@ -249,16 +260,18 @@ struct
         BatPrintf.fprintf f "</file>";
       )
 
-  let write_files ~file2funs ~file2line2nodes ~file2line2warns ~live =
-    let asd = BatSys.command {a|pygmentize -S default -f html -O nowrap,classprefix=pyg- > result2/pyg.css|a} in
+  let write_files ~result_dir ~file2funs ~file2line2nodes ~file2line2warns ~live =
+    let files_dir = Fpath.(result_dir / "files") in
+    GobSys.mkdir_or_exists files_dir;
+    let style_css_file = Fpath.(result_dir / "pyg.css") in
+    let asd = BatSys.command (GobFormat.asprintf {a|pygmentize -S default -f html -O nowrap,classprefix=pyg- > %a|a} Fpath.pp style_css_file) in
     assert (asd = 0);
-    BatEnum.iter (write_file ~file2line2nodes ~file2line2warns ~live) (SH.keys file2funs)
+    BatEnum.iter (write_file ~files_dir ~file2line2nodes ~file2line2warns ~live) (SH.keys file2funs)
 
-  let write_dot (module FileCfg: MyCFG.FileCfg) ~live fd file =
-    let base_dir = GobSys.mkdir_or_exists_absolute Fpath.(v "result2" / "dot") in (* TODO: move out *)
+  let write_dot ~dot_dir (module FileCfg: MyCFG.FileCfg) ~live fd file =
     let c_file_name = Str.global_substitute (Str.regexp Filename.dir_sep) (fun _ -> "%2F") file in
     let dot_file_name = fd.svar.vname^".dot" in
-    let file_dir = GobSys.mkdir_or_exists_absolute Fpath.(base_dir / c_file_name) in
+    let file_dir = GobSys.mkdir_or_exists_absolute Fpath.(dot_dir / c_file_name) in
     let fname = Fpath.(file_dir / dot_file_name) in
     let out = open_out (Fpath.to_string fname) in
     let ppf = Format.formatter_of_out_channel out in
@@ -267,52 +280,51 @@ struct
     close_out out;
     fname
 
-  let cfg_task fname fd file: ProcessPool.task =
-    let base_dir2 = GobSys.mkdir_or_exists_absolute Fpath.(v "result2" / "cfgs") in
+  let cfg_task ~cfgs_dir fname fd file: ProcessPool.task =
     let c_file_name = Str.global_substitute (Str.regexp Filename.dir_sep) (fun _ -> "%2F") file in
     let svg_file_name = fd.svar.vname^".svg" in
-    let file_dir2 = GobSys.mkdir_or_exists_absolute Fpath.(base_dir2 / c_file_name) in
+    let file_dir2 = GobSys.mkdir_or_exists_absolute Fpath.(cfgs_dir / c_file_name) in
     let fname2 = Fpath.(file_dir2 / svg_file_name) in
     {
       command = Filename.quote_command "dot" [Fpath.to_string fname; "-Tsvg"; "-o"; Fpath.to_string fname2];
       cwd = None;
     }
 
-  let write_dots_cfgs (module FileCfg: MyCFG.FileCfg) ~live ~file2funs =
+  let write_dots_cfgs ~result_dir (module FileCfg: MyCFG.FileCfg) ~live ~file2funs =
+    let dot_dir = GobSys.mkdir_or_exists_absolute Fpath.(result_dir / "dot") in
+    let cfgs_dir = GobSys.mkdir_or_exists_absolute Fpath.(result_dir / "cfgs") in
     let tasks = SH.fold (fun file funs acc ->
         FundecSet.fold (fun fd acc ->
-            let fname = write_dot (module FileCfg) ~live fd file in
-            cfg_task fname fd file :: acc
+            let fname = write_dot ~dot_dir (module FileCfg) ~live fd file in
+            cfg_task ~cfgs_dir fname fd file :: acc
           ) funs acc
       ) file2funs []
     in
     Timing.wrap "graphviz" (ProcessPool.run ~jobs:(GobConfig.jobs ())) tasks
 
-  let copy_resources () =
+  let copy_resources ~result_dir =
     (* TODO: vendor resources *)
     Sys.readdir "g2html/resources"
     |> Array.to_list
     |> List.map (fun f -> "g2html/resources/" ^ f)
-    |> (fun fs -> FileUtil.cp fs "result2")
+    |> Fun.flip FileUtil.cp (Fpath.to_string result_dir)
 
   let output_g2html table live gtable gtfxml (module FileCfg: MyCFG.FileCfg) =
+    let result_dir = Fpath.(v "result2") in
+    GobSys.mkdir_or_exists result_dir;
     let file = FileCfg.file in
     let file2funs = SH.create 100 in
     iterGlobals file (function
         | GFun (fd, loc) -> SH.modify_def FundecSet.empty loc.file (FundecSet.add fd) file2funs
         | _ -> ()
       );
-    GobSys.mkdir_or_exists Fpath.(v "result2");
-    GobSys.mkdir_or_exists Fpath.(v "result2" / "nodes");
-    GobSys.mkdir_or_exists Fpath.(v "result2" / "warn");
-    GobSys.mkdir_or_exists Fpath.(v "result2" / "files");
-    write_index ~file2funs;
-    write_globals ~gtfxml ~gtable;
-    let file2line2nodes: Node.t IH.t SH.t = write_nodes ~table in
-    let file2line2warns: int IH.t SH.t = write_warns () in
-    write_files ~file2funs ~file2line2nodes ~file2line2warns ~live;
-    write_dots_cfgs (module FileCfg) ~live ~file2funs;
-    copy_resources ();
+    write_index ~result_dir ~file2funs;
+    write_globals ~result_dir ~gtfxml ~gtable;
+    let file2line2nodes = write_nodes ~result_dir ~table in
+    let file2line2warns = write_warns ~result_dir in
+    write_files ~result_dir ~file2funs ~file2line2nodes ~file2line2warns ~live;
+    write_dots_cfgs  ~result_dir (module FileCfg) ~live ~file2funs;
+    copy_resources ~result_dir;
     assert false
 
   let output table live gtable gtfxml (module FileCfg: MyCFG.FileCfg) =
