@@ -278,6 +278,16 @@ struct
       cwd = None;
     }
 
+  let write_dots_cfgs (module FileCfg: MyCFG.FileCfg) ~live ~file2funs =
+    let tasks = SH.fold (fun file funs acc ->
+        FundecSet.fold (fun fd acc ->
+            let fname = write_dot (module FileCfg) ~live fd file in
+            cfg_task fname fd file :: acc
+          ) funs acc
+      ) file2funs []
+    in
+    Timing.wrap "graphviz" (ProcessPool.run ~jobs:(GobConfig.jobs ())) tasks
+
   let copy_resources () =
     (* TODO: vendor resources *)
     Sys.readdir "g2html/resources"
@@ -305,14 +315,7 @@ struct
       let file2line2nodes: Node.t IH.t SH.t = write_nodes ~table in
       let file2line2warns: int IH.t SH.t = write_warns () in
       write_files ~file2funs ~file2line2nodes ~file2line2warns ~live;
-      let tasks = SH.fold (fun file funs acc ->
-          FundecSet.fold (fun fd acc ->
-              let fname = write_dot (module FileCfg) ~live fd file in
-              cfg_task fname fd file :: acc
-            ) funs acc
-        ) file2funs []
-      in
-      Timing.wrap "graphviz" (ProcessPool.run ~jobs:(GobConfig.jobs ())) tasks;
+      write_dots_cfgs (module FileCfg) ~live ~file2funs;
       copy_resources ();
       assert false
     | s -> failwith @@ "Unsupported value for option `result`: "^s
