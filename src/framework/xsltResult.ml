@@ -191,6 +191,30 @@ struct
         printXmlWarning_one_w f w;
       )
 
+  let write_warns () =
+    let file2line2warns: int IH.t SH.t = SH.create 10 in
+    List.iteri (fun i w ->
+        write_warn i w;
+        let locs =
+          match w.multipiece with
+          | Single piece -> [piece.loc]
+          | Group {pieces; _} -> List.map (fun p -> p.Messages.Piece.loc) pieces (* TODO: add group_loc, old doesn't *)
+        in
+        List.iter (fun (loc: Messages.Location.t) ->
+            let loc = Messages.Location.to_cil loc in
+            let line2warns: int IH.t =
+              match SH.find_option file2line2warns loc.file with
+              | Some line2warns -> line2warns
+              | None ->
+                let line2warns = IH.create 100 in
+                SH.replace file2line2warns loc.file line2warns;
+                line2warns
+            in
+            IH.add line2warns loc.line (i + 1)
+          ) (List.filter_map Fun.id locs)
+      ) !Messages.Table.messages_list;
+    file2line2warns
+
   let write_file ~file2line2nodes ~file2line2warns ~live b =
     let c_file_name = Str.global_substitute (Str.regexp Filename.dir_sep) (fun _ -> "%2F") b in
     BatFile.with_file_out (Printf.sprintf "result2/files/%s.xml" c_file_name) (fun f ->
@@ -274,27 +298,7 @@ struct
       write_index ~file2funs;
       write_globals ~gtfxml ~gtable;
       let file2line2nodes: Node.t IH.t SH.t = write_nodes ~table in
-      let file2line2warns: int IH.t SH.t = SH.create 10 in
-      List.iteri (fun i w ->
-          write_warn i w;
-          let locs =
-            match w.multipiece with
-            | Single piece -> [piece.loc]
-            | Group {pieces; _} -> List.map (fun p -> p.Messages.Piece.loc) pieces (* TODO: add group_loc, old doesn't *)
-          in
-          List.iter (fun (loc: Messages.Location.t) ->
-              let loc = Messages.Location.to_cil loc in
-              let line2warns: int IH.t =
-                match SH.find_option file2line2warns loc.file with
-                | Some line2warns -> line2warns
-                | None ->
-                  let line2warns = IH.create 100 in
-                  SH.replace file2line2warns loc.file line2warns;
-                  line2warns
-              in
-              IH.add line2warns loc.line (i + 1)
-            ) (List.filter_map Fun.id locs)
-        ) !Messages.Table.messages_list;
+      let file2line2warns: int IH.t SH.t = write_warns () in
       let asd = BatSys.command {a|pygmentize -S default -f html -O nowrap,classprefix=pyg- > result2/pyg.css|a} in
       assert (asd = 0);
       BatEnum.iter (write_file ~file2line2nodes ~file2line2warns ~live) (SH.keys file2funs);
