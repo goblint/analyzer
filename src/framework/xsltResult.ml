@@ -43,8 +43,11 @@ struct
     (* Not using Node.location here to have updated locations in incremental analysis.
         See: https://github.com/goblint/analyzer/issues/290#issuecomment-881258091. *)
     let loc = UpdateCil.getLoc n in
-    BatPrintf.fprintf f "<call id=\"%s\" file=\"%s\" line=\"%d\" order=\"%d\" column=\"%d\" endLine=\"%d\" endColumn=\"%d\" synthetic=\"%B\">\n" (Node.show_id n) loc.file loc.line loc.byte loc.column loc.endLine loc.endColumn loc.synthetic;
-    BatPrintf.fprintf f "%a</call>\n" Range.printXml v
+    BatPrintf.fprintf f {xml|<call id="%s" file="%s" line="%d" order="%d" column="%d" endLine="%d" endColumn="%d" synthetic="%B">
+%a</call>
+|xml}
+      (Node.show_id n) loc.file loc.line loc.byte loc.column loc.endLine loc.endColumn loc.synthetic
+      Range.printXml v
 
   let printXml f xs =
     iter (printXml_print_one f) xs
@@ -53,7 +56,9 @@ struct
     match loc with
     | Some loc ->
       let l = Messages.Location.to_cil loc in
-      BatPrintf.fprintf f "\n<text file=\"%s\" line=\"%d\" column=\"%d\">%s</text>" l.file l.line l.column (XmlUtil.escape m)
+      BatPrintf.fprintf f {xml|
+<text file="%s" line="%d" column="%d">%s</text>|xml}
+        l.file l.line l.column (XmlUtil.escape m)
     | None ->
       () (* TODO: not outputting warning without location *)
 
@@ -64,9 +69,14 @@ struct
         | None -> ""
         | Some group_loc -> GobPretty.sprintf " (%a)" CilType.Location.pretty (Messages.Location.to_cil group_loc)
       in
-      BatPrintf.fprintf f "<group name=\"%s%s\">%a</group>\n" n group_loc_text (BatList.print ~first:"" ~last:"" ~sep:"" printXmlWarning_one_text) e
+      BatPrintf.fprintf f {xml|<group name="%s%s">%a</group>
+|xml}
+        n group_loc_text (BatList.print ~first:"" ~last:"" ~sep:"" printXmlWarning_one_text) e
 
-  let printXmlWarning_one_w f x = BatPrintf.fprintf f "\n<warning>%a</warning>" printXmlWarning_one_w x
+  let printXmlWarning_one_w f x =
+    BatPrintf.fprintf f {xml|
+<warning>%a</warning>|xml}
+      printXmlWarning_one_w x
 
   let printXmlWarning f () =
     List.iter (printXmlWarning_one_w f) !Messages.Table.messages_list
@@ -156,9 +166,7 @@ struct
     BatFile.with_file_out (Fpath.to_string globals_file) (fun f ->
         BatPrintf.fprintf f {xml|<?xml version="1.0" ?>
 <?xml-stylesheet type="text/xsl" href="../globals.xsl"?>
-<globs>|xml};
-        gtfxml f gtable;
-        BatPrintf.fprintf f "</globs>";
+<globs>%a</globs>|xml} gtfxml gtable
       )
 
   let write_node ~nodes_dir n v =
@@ -166,10 +174,8 @@ struct
     BatFile.with_file_out (Fpath.to_string node_file) (fun f ->
         BatPrintf.fprintf f {xml|<?xml version="1.0" ?>
 <?xml-stylesheet type="text/xsl" href="../node.xsl"?>
-<loc>|xml};
+<loc>%a</loc>|xml} (Fun.flip printXml_print_one n) v
         (* TODO: need fun in <call>? *)
-        printXml_print_one f n v;
-        BatPrintf.fprintf f "</loc>";
       )
 
   let write_nodes ~result_dir ~table =
@@ -195,8 +201,7 @@ struct
     let warn_file = Fpath.(warn_dir / Printf.sprintf "warn%d.xml" i) in
     BatFile.with_file_out (Fpath.to_string warn_file) (fun f ->
         BatPrintf.fprintf f {xml|<?xml version="1.0" ?>
-<?xml-stylesheet type="text/xsl" href="../warn.xsl"?>|xml};
-        printXmlWarning_one_w f w;
+<?xml-stylesheet type="text/xsl" href="../warn.xsl"?>%a|xml} printXmlWarning_one_w w
       )
 
   let write_warns ~result_dir =
