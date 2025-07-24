@@ -167,6 +167,23 @@ struct
         BatPrintf.fprintf f "</loc>";
       )
 
+  let write_nodes ~table =
+    let file2line2nodes: Node.t IH.t SH.t = SH.create 10 in
+    iter (fun n v ->
+        write_node n v;
+        let loc = UpdateCil.getLoc n in (* from printXml_print_one *)
+        let line2nodes: Node.t IH.t =
+          match SH.find_option file2line2nodes loc.file with
+          | Some line2nodes -> line2nodes
+          | None ->
+            let line2nodes = IH.create 100 in
+            SH.replace file2line2nodes loc.file line2nodes;
+            line2nodes
+        in
+        IH.add line2nodes loc.line n
+      ) (Lazy.force table);
+    file2line2nodes
+
   let write_warn i w =
     BatFile.with_file_out (Printf.sprintf "result2/warn/warn%d.xml" (i + 1)) (fun f ->
         BatPrintf.fprintf f {xml|<?xml version="1.0" ?>
@@ -256,20 +273,7 @@ struct
       GobSys.mkdir_or_exists Fpath.(v "result2" / "files");
       write_index ~file2funs;
       write_globals ~gtfxml ~gtable;
-      let file2line2nodes: Node.t IH.t SH.t = SH.create 10 in
-      iter (fun n v ->
-          write_node n v;
-          let loc = UpdateCil.getLoc n in (* from printXml_print_one *)
-          let line2nodes: Node.t IH.t =
-            match SH.find_option file2line2nodes loc.file with
-            | Some line2nodes -> line2nodes
-            | None ->
-              let line2nodes = IH.create 100 in
-              SH.replace file2line2nodes loc.file line2nodes;
-              line2nodes
-          in
-          IH.add line2nodes loc.line n
-        ) (Lazy.force table);
+      let file2line2nodes: Node.t IH.t SH.t = write_nodes ~table in
       let file2line2warns: int IH.t SH.t = SH.create 10 in
       List.iteri (fun i w ->
           write_warn i w;
