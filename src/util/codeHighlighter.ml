@@ -2,7 +2,7 @@ type t = Fpath.t -> string BatEnum.t
 
 let none: t = fun file ->
   BatFile.lines_of (Fpath.to_string file)
-  |> BatEnum.map XmlUtil.escape
+  |> BatEnum.map XmlUtil.escape  (* nosemgrep: batenum-module *)
 
 let pygments_command = "pygmentize"
 let pygments_style = "default"

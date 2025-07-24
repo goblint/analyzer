@@ -216,7 +216,7 @@ struct
 <file>
 |xml};
         let lines = code_highlighter (Fpath.v file) in
-        BatEnum.iteri (printXml_line f) lines;
+        BatEnum.iteri (printXml_line f) lines; (* nosemgrep: batenum-module *)
         BatPrintf.fprintf f "</file>";
       )
 
@@ -225,7 +225,7 @@ struct
     GobSys.mkdir_or_exists files_dir;
     let style_css_file = Fpath.(result_dir / "pyg.css") in
     let code_highlighter = CodeHighlighter.make ~style_css_file in
-    BatEnum.iter (write_file ~files_dir ~file2line2nodes ~file2line2warns ~live ~code_highlighter) (SH.keys file2funs)
+    Seq.iter (write_file ~files_dir ~file2line2nodes ~file2line2warns ~live ~code_highlighter) (SH.to_seq_keys file2funs)
 
   let write_dot ~dot_dir (module FileCfg: MyCFG.FileCfg) ~live fd file =
     let dot_file_dir = GobSys.mkdir_or_exists_absolute Fpath.(dot_dir / xmlify_file_name file) in
