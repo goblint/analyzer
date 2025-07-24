@@ -125,6 +125,7 @@ struct
   include XsltResult (Range) (C)
 
   module SH = BatHashtbl.Make (Basetype.RawStrings)
+  module SS = Set.Make (Basetype.RawStrings)
   module IH = BatHashtbl.Make (struct type t = int [@@deriving hash, eq] end)
 
   let write_index ~file2funs =
@@ -132,7 +133,7 @@ struct
       let one_fun n =
         BatPrintf.fprintf f "<function name=\"%s\"/>\n" n
       in
-      List.iter one_fun xs
+      SS.iter one_fun xs
     in
     BatFile.with_file_out "result2/index.xml" (fun f ->
         BatPrintf.fprintf f {xml|<?xml version="1.0" ?>
@@ -143,7 +144,7 @@ struct
         (* TODO: exclude dead files/functions? *)
         (* BatEnum.iter (fun b -> BatPrintf.fprintf f "<file name=\"%s\" path=\"%s\">\n%a</file>\n" (Filename.basename b) b p_funs (SH.find_all file2funs b)) (BatEnum.uniq @@ SH.keys file2funs); *)
         (* g2html has full path in name field *)
-        BatEnum.iter (fun b -> BatPrintf.fprintf f "<file name=\"%s\">\n%a</file>\n" b p_funs (SH.find_all file2funs b)) (BatEnum.uniq @@ SH.keys file2funs);
+        SH.iter (fun b funs -> BatPrintf.fprintf f "<file name=\"%s\">\n%a</file>\n" b p_funs funs) file2funs;
         BatPrintf.fprintf f "</report>";
       )
 
@@ -244,10 +245,9 @@ struct
     | "fast_xml" ->
       output table live gtable gtfxml (module FileCfg)
     | "g2html" ->
-      (* copied from above *)
       let file2funs = SH.create 100 in
       iterGlobals file (function
-          | GFun (fd,loc) -> SH.add file2funs loc.file fd.svar.vname
+          | GFun (fd,loc) -> SH.modify_def SS.empty loc.file (SS.add fd.svar.vname) file2funs
           | _ -> ()
         );
       GobSys.mkdir_or_exists Fpath.(v "result2");
@@ -293,7 +293,7 @@ struct
         ) !Messages.Table.messages_list;
       let asd = BatSys.command {a|pygmentize -S default -f html -O nowrap,classprefix=pyg- > result2/pyg.css|a} in
       assert (asd = 0);
-      BatEnum.iter (write_file ~file2line2nodes ~file2line2warns ~live) (BatEnum.uniq @@ SH.keys file2funs);
+      BatEnum.iter (write_file ~file2line2nodes ~file2line2warns ~live) (SH.keys file2funs);
       (* CfgTools.dead_code_cfg ~path:Fpath.(v "result2" / "dot") (module FileCfg) live; *)
       (* TODO: copied and modified... *)
       let tasks = foldGlobals FileCfg.file (fun acc glob ->
