@@ -32,6 +32,24 @@ sig
   val result_name: string
 end
 
+module type Result =
+sig
+  include ResultConf
+  module Range: Printable.S
+  module H: BatHashtbl.S with type key := ResultNode.t
+  include BatHashtbl.S with type 'a t := 'a H.t and type key := ResultNode.t
+  type t = Range.t H.t
+end
+
+module Result (Range: Printable.S) (C: ResultConf): Result with module Range = Range =
+struct
+  include C
+  module Range = Range
+  module H = BatHashtbl.Make (ResultNode)
+  include H
+  type t = Range.t H.t
+end
+
 module ResultType2 (S: Analyses.Spec) =
 struct
   open S

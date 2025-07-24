@@ -103,6 +103,7 @@ struct
   module LT = SetDomain.HeadlessSet (RT)
   (* Analysis result structure---a hashtable from program points to [LT] *)
   module Result = AnalysisResult.Result (LT) (struct let result_name = "analysis" end)
+  module ResultOutput = AnalysisResult.Output (Result)
 
   module Query = ResultQuery.Query (SpecSys)
 
@@ -830,7 +831,7 @@ struct
     if get_string "result" <> "none" then Logs.debug "Generating output: %s" (get_string "result");
 
     Messages.finalize ();
-    Timing.wrap "result output" (Result.output (lazy local_xml) liveness gh make_global_fast_xml) (module FileCfg)
+    Timing.wrap "result output" (ResultOutput.output (lazy local_xml) liveness gh make_global_fast_xml) (module FileCfg)
 end
 
 (* This function was originally a part of the [AnalyzeCFG] module, but

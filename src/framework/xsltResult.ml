@@ -5,12 +5,9 @@ open Pretty
 open GobConfig
 open AnalysisResult0
 
-module XsltResult (Range: Printable.S) (C: ResultConf) =
+module XsltOutput (Result: Result) =
 struct
-  include BatHashtbl.Make (ResultNode)
-  type nonrec t = Range.t t (* specialize polymorphic type for Range values *)
-
-  include C
+  open Result
 
   let printXml_node f n v =
     (* Not using Node.location here to have updated locations in incremental analysis.
@@ -57,55 +54,53 @@ struct
   let output table live gtable gtfxml (module FileCfg: MyCFG.FileCfg) =
     let file = FileCfg.file in
     let out = Messages.get_out result_name !Messages.out in
-    match get_string "result" with
-    | "fast_xml" ->
-      let module SH = BatHashtbl.Make (Basetype.RawStrings) in
-      let file2funs = SH.create 100 in
-      let funs2node = SH.create 100 in
-      iter (fun n _ -> SH.add funs2node (Node.find_fundec n).svar.vname n) (Lazy.force table);
-      iterGlobals file (function
-          | GFun (fd,loc) -> SH.add file2funs loc.file fd.svar.vname
-          | _ -> ()
-        );
-      let p_node f n = BatPrintf.fprintf f "%s" (Node.show_id n) in
-      let p_nodes f xs =
-        List.iter (BatPrintf.fprintf f "<node name=\"%a\"/>\n" p_node) xs
+    let module SH = BatHashtbl.Make (Basetype.RawStrings) in
+    let file2funs = SH.create 100 in
+    let funs2node = SH.create 100 in
+    iter (fun n _ -> SH.add funs2node (Node.find_fundec n).svar.vname n) (Lazy.force table);
+    iterGlobals file (function
+        | GFun (fd,loc) -> SH.add file2funs loc.file fd.svar.vname
+        | _ -> ()
+      );
+    let p_node f n = BatPrintf.fprintf f "%s" (Node.show_id n) in
+    let p_nodes f xs =
+      List.iter (BatPrintf.fprintf f "<node name=\"%a\"/>\n" p_node) xs
+    in
+    let p_funs f xs =
+      let one_fun n =
+        BatPrintf.fprintf f "<function name=\"%s\">\n%a</function>\n" n p_nodes (SH.find_all funs2node n)
       in
-      let p_funs f xs =
-        let one_fun n =
-          BatPrintf.fprintf f "<function name=\"%s\">\n%a</function>\n" n p_nodes (SH.find_all funs2node n)
-        in
-        List.iter one_fun xs
-      in
-      let write_file f fn =
-        Messages.xml_file_name := fn;
-        Logs.info "Writing xml to temp. file: %s" fn;
-        BatPrintf.fprintf f "<run>";
-        BatPrintf.fprintf f "<parameters>%s</parameters>" GobSys.command_line;
-        BatPrintf.fprintf f "<statistics>";
-        let timing_ppf = BatFormat.formatter_of_out_channel f in
-        Timing.Default.print timing_ppf;
-        Format.pp_print_flush timing_ppf ();
-        BatPrintf.fprintf f "</statistics>";
-        BatPrintf.fprintf f "<result>\n";
-        BatEnum.iter (fun b -> BatPrintf.fprintf f "<file name=\"%s\" path=\"%s\">\n%a</file>\n" (Filename.basename b) b p_funs (SH.find_all file2funs b)) (BatEnum.uniq @@ SH.keys file2funs);
-        BatPrintf.fprintf f "%a" printXml (Lazy.force table);
-        gtfxml f gtable;
-        printXmlWarning f ();
-        BatPrintf.fprintf f "</result></run>\n";
-        BatPrintf.fprintf f "%!"
-      in
-      if get_bool "g2html" then
-        BatFile.with_temporary_out ~mode:[`create;`text;`delete_on_exit] write_file
-      else
-        let f = BatIO.output_channel out in
-        write_file f (get_string "outfile")
-    | s -> failwith @@ "Unsupported value for option `result`: "^s
+      List.iter one_fun xs
+    in
+    let write_file f fn =
+      Messages.xml_file_name := fn;
+      Logs.info "Writing xml to temp. file: %s" fn;
+      BatPrintf.fprintf f "<run>";
+      BatPrintf.fprintf f "<parameters>%s</parameters>" GobSys.command_line;
+      BatPrintf.fprintf f "<statistics>";
+      let timing_ppf = BatFormat.formatter_of_out_channel f in
+      Timing.Default.print timing_ppf;
+      Format.pp_print_flush timing_ppf ();
+      BatPrintf.fprintf f "</statistics>";
+      BatPrintf.fprintf f "<result>\n";
+      BatEnum.iter (fun b -> BatPrintf.fprintf f "<file name=\"%s\" path=\"%s\">\n%a</file>\n" (Filename.basename b) b p_funs (SH.find_all file2funs b)) (BatEnum.uniq @@ SH.keys file2funs);
+      BatPrintf.fprintf f "%a" printXml (Lazy.force table);
+      gtfxml f gtable;
+      printXmlWarning f ();
+      BatPrintf.fprintf f "</result></run>\n";
+      BatPrintf.fprintf f "%!"
+    in
+    if get_bool "g2html" then
+      BatFile.with_temporary_out ~mode:[`create;`text;`delete_on_exit] write_file
+    else
+      let f = BatIO.output_channel out in
+      write_file f (get_string "outfile")
 end
 
-module XsltResult2 (Range: Printable.S) (C: ResultConf) =
+module XsltOutput2 (Result: Result) =
 struct
-  include XsltResult (Range) (C)
+  open Result
+  open XsltOutput (Result)
 
   module SH = GobHashtbl.Make (Basetype.RawStrings)
   module FundecSet = BatSet.Make (CilType.Fundec)
@@ -281,7 +276,7 @@ struct
     | None ->
       failwith "xslt/ not found"
 
-  let output_g2html table live gtable gtfxml (module FileCfg: MyCFG.FileCfg) =
+  let output table live gtable gtfxml (module FileCfg: MyCFG.FileCfg) =
     let result_dir = Fpath.(v "result2") in
     GobSys.mkdir_or_exists result_dir;
     let file = FileCfg.file in
@@ -298,12 +293,4 @@ struct
     write_dots_cfgs  ~result_dir (module FileCfg) ~live ~file2funs;
     copy_resources ~result_dir;
     assert false
-
-  let output table live gtable gtfxml (module FileCfg: MyCFG.FileCfg) =
-    match get_string "result" with
-    | "fast_xml" ->
-      output table live gtable gtfxml (module FileCfg)
-    | "g2html" ->
-      output_g2html table live gtable gtfxml (module FileCfg: MyCFG.FileCfg)
-    | s -> failwith @@ "Unsupported value for option `result`: "^s
 end

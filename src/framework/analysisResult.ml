@@ -7,9 +7,9 @@ open GobConfig
 include AnalysisResult0
 include XsltResult
 
-module Result (Range: Printable.S) (C: ResultConf) =
+module Output (Result: Result) =
 struct
-  include XsltResult2 (Range) (C)
+  open Result
 
   let pretty () mapping =
     let f key st dok =
@@ -48,8 +48,12 @@ struct
     match get_string "result" with
     | "pretty" -> ignore (fprintf out "%a\n" pretty (Lazy.force table))
     | "pretty-deterministic" -> ignore (fprintf out "%a\n" pretty_deterministic (Lazy.force table))
-    | "fast_xml"
-    | "g2html" -> output table live gtable gtfxml (module FileCfg)
+    | "fast_xml" ->
+      let module Output = XsltOutput (Result) in
+      Output.output table live gtable gtfxml (module FileCfg)
+    | "g2html" ->
+      let module Output = XsltOutput2 (Result) in
+      Output.output table live gtable gtfxml (module FileCfg)
     | "json" ->
       let open BatPrintf in
       let module SH = BatHashtbl.Make (Basetype.RawStrings) in
