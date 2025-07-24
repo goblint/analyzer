@@ -134,7 +134,7 @@ module XsltResult2 (Range: Printable.S) (C: ResultConf) =
 struct
   include XsltResult (Range) (C)
 
-  module SH = BatHashtbl.Make (Basetype.RawStrings)
+  module SH = GobHashtbl.Make (Basetype.RawStrings)
   module FundecSet = Set.Make (CilType.Fundec)
   module IH = BatHashtbl.Make (struct type t = int [@@deriving hash, eq] end)
 
@@ -185,14 +185,7 @@ struct
     iter (fun n v ->
         write_node ~nodes_dir n v;
         let loc = UpdateCil.getLoc n in (* from printXml_print_one *)
-        let line2nodes: Node.t IH.t =
-          match SH.find_option file2line2nodes loc.file with
-          | Some line2nodes -> line2nodes
-          | None ->
-            let line2nodes = IH.create 100 in
-            SH.replace file2line2nodes loc.file line2nodes;
-            line2nodes
-        in
+        let line2nodes = SH.find_or_add_default_delayed file2line2nodes loc.file ~default:(fun () -> IH.create 100) in
         IH.add line2nodes loc.line n
       ) (Lazy.force table);
     file2line2nodes
@@ -217,14 +210,7 @@ struct
         in
         List.iter (fun (loc: Messages.Location.t) ->
             let loc = Messages.Location.to_cil loc in
-            let line2warns: int IH.t =
-              match SH.find_option file2line2warns loc.file with
-              | Some line2warns -> line2warns
-              | None ->
-                let line2warns = IH.create 100 in
-                SH.replace file2line2warns loc.file line2warns;
-                line2warns
-            in
+            let line2warns = SH.find_or_add_default_delayed file2line2warns loc.file ~default:(fun () -> IH.create 100) in
             IH.add line2warns loc.line (i + 1)
           ) (List.filter_map Fun.id locs)
       ) !Messages.Table.messages_list;
