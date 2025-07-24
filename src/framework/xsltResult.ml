@@ -225,7 +225,7 @@ struct
       ) !Messages.Table.messages_list;
     file2line2warns
 
-  let write_file ~files_dir ~file2line2nodes ~file2line2warns ~live b =
+  let write_file ~files_dir ~file2line2nodes ~file2line2warns ~live ~code_highlighter b =
     let c_file_name = Str.global_substitute (Str.regexp Filename.dir_sep) (fun _ -> "%2F") b in
     let file_file = Fpath.(files_dir / c_file_name + "xml") in
     BatFile.with_file_out (Fpath.to_string file_file) (fun f ->
@@ -233,9 +233,7 @@ struct
 <?xml-stylesheet type="text/xsl" href="../file.xsl"?>
 <file>
 |xml};
-        let ic = BatUnix.open_process_args_in "pygmentize" [|"pygmentize"; "-f"; "html"; "-O"; "nowrap,classprefix=pyg-"; b|] in (* TODO: close *)
-        let ic' = BatIO.input_channel ic in
-        let lines = BatIO.lines_of ic' in
+        let lines = code_highlighter (Fpath.v b) in
         BatEnum.iteri (fun line text ->
             let nodes =
               match SH.find_option file2line2nodes b with
@@ -264,9 +262,8 @@ struct
     let files_dir = Fpath.(result_dir / "files") in
     GobSys.mkdir_or_exists files_dir;
     let style_css_file = Fpath.(result_dir / "pyg.css") in
-    let asd = BatSys.command (GobFormat.asprintf {a|pygmentize -S default -f html -O nowrap,classprefix=pyg- > %a|a} Fpath.pp style_css_file) in
-    assert (asd = 0);
-    BatEnum.iter (write_file ~files_dir ~file2line2nodes ~file2line2warns ~live) (SH.keys file2funs)
+    let code_highlighter = CodeHighlighter.make ~style_css_file in
+    BatEnum.iter (write_file ~files_dir ~file2line2nodes ~file2line2warns ~live ~code_highlighter) (SH.keys file2funs)
 
   let write_dot ~dot_dir (module FileCfg: MyCFG.FileCfg) ~live fd file =
     let c_file_name = Str.global_substitute (Str.regexp Filename.dir_sep) (fun _ -> "%2F") file in
