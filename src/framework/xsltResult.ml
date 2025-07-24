@@ -125,15 +125,15 @@ struct
   include XsltResult (Range) (C)
 
   module SH = BatHashtbl.Make (Basetype.RawStrings)
-  module SS = Set.Make (Basetype.RawStrings)
+  module FundecSet = Set.Make (CilType.Fundec)
   module IH = BatHashtbl.Make (struct type t = int [@@deriving hash, eq] end)
 
   let write_index ~file2funs =
     let p_funs f xs =
       let one_fun n =
-        BatPrintf.fprintf f "<function name=\"%s\"/>\n" n
+        BatPrintf.fprintf f "<function name=\"%s\"/>\n" n.svar.vname
       in
-      SS.iter one_fun xs
+      FundecSet.iter one_fun xs
     in
     BatFile.with_file_out "result2/index.xml" (fun f ->
         BatPrintf.fprintf f {xml|<?xml version="1.0" ?>
@@ -208,9 +208,9 @@ struct
         BatPrintf.fprintf f "</file>";
       )
 
-  let write_dot (module FileCfg: MyCFG.FileCfg) ~live fd loc =
+  let write_dot (module FileCfg: MyCFG.FileCfg) ~live fd file =
     let base_dir = GobSys.mkdir_or_exists_absolute Fpath.(v "result2" / "dot") in (* TODO: move out *)
-    let c_file_name = Str.global_substitute (Str.regexp Filename.dir_sep) (fun _ -> "%2F") loc.file in
+    let c_file_name = Str.global_substitute (Str.regexp Filename.dir_sep) (fun _ -> "%2F") file in
     let dot_file_name = fd.svar.vname^".dot" in
     let file_dir = GobSys.mkdir_or_exists_absolute Fpath.(base_dir / c_file_name) in
     let fname = Fpath.(file_dir / dot_file_name) in
@@ -221,9 +221,9 @@ struct
     close_out out;
     fname
 
-  let cfg_task fname fd loc: ProcessPool.task =
+  let cfg_task fname fd file: ProcessPool.task =
     let base_dir2 = GobSys.mkdir_or_exists_absolute Fpath.(v "result2" / "cfgs") in
-    let c_file_name = Str.global_substitute (Str.regexp Filename.dir_sep) (fun _ -> "%2F") loc.file in
+    let c_file_name = Str.global_substitute (Str.regexp Filename.dir_sep) (fun _ -> "%2F") file in
     let svg_file_name = fd.svar.vname^".svg" in
     let file_dir2 = GobSys.mkdir_or_exists_absolute Fpath.(base_dir2 / c_file_name) in
     let fname2 = Fpath.(file_dir2 / svg_file_name) in
@@ -247,7 +247,7 @@ struct
     | "g2html" ->
       let file2funs = SH.create 100 in
       iterGlobals file (function
-          | GFun (fd,loc) -> SH.modify_def SS.empty loc.file (SS.add fd.svar.vname) file2funs
+          | GFun (fd, loc) -> SH.modify_def FundecSet.empty loc.file (FundecSet.add fd) file2funs
           | _ -> ()
         );
       GobSys.mkdir_or_exists Fpath.(v "result2");
@@ -294,16 +294,12 @@ struct
       let asd = BatSys.command {a|pygmentize -S default -f html -O nowrap,classprefix=pyg- > result2/pyg.css|a} in
       assert (asd = 0);
       BatEnum.iter (write_file ~file2line2nodes ~file2line2warns ~live) (SH.keys file2funs);
-      (* CfgTools.dead_code_cfg ~path:Fpath.(v "result2" / "dot") (module FileCfg) live; *)
-      (* TODO: copied and modified... *)
-      let tasks = foldGlobals FileCfg.file (fun acc glob ->
-          match glob with
-          | GFun (fd,loc) ->
-            (* ignore (Printf.printf "fun: %s\n" fd.svar.vname); *)
-            let fname = write_dot (module FileCfg) ~live fd loc in
-            cfg_task fname fd loc :: acc
-          | _ -> acc
-        ) []
+      let tasks = SH.fold (fun file funs acc ->
+          FundecSet.fold (fun fd acc ->
+              let fname = write_dot (module FileCfg) ~live fd file in
+              cfg_task fname fd file :: acc
+            ) funs acc
+        ) file2funs []
       in
       Timing.wrap "graphviz" (ProcessPool.run ~jobs:(GobConfig.jobs ())) tasks;
       copy_resources ();
