@@ -39,7 +39,7 @@ struct
 
   include C
 
-  let printXml_print_one f n v =
+  let printXml_node f n v =
     (* Not using Node.location here to have updated locations in incremental analysis.
         See: https://github.com/goblint/analyzer/issues/290#issuecomment-881258091. *)
     let loc = UpdateCil.getLoc n in
@@ -50,7 +50,7 @@ struct
       Range.printXml v
 
   let printXml f xs =
-    iter (printXml_print_one f) xs
+    iter (printXml_node f) xs
 
   let printXmlWarning_one_text f Messages.Piece.{loc; text = m; _} =
     match loc with
@@ -62,7 +62,7 @@ struct
     | None ->
       () (* TODO: not outputting warning without location *)
 
-  let printXmlWarning_one_w f (m: Messages.Message.t) = match m.multipiece with
+  let printXml_warn f (m: Messages.Message.t) = match m.multipiece with
     | Single piece  -> printXmlWarning_one_text f piece
     | Group {group_text = n; pieces = e; group_loc} ->
       let group_loc_text = match group_loc with
@@ -73,13 +73,13 @@ struct
 |xml}
         n group_loc_text (BatList.print ~first:"" ~last:"" ~sep:"" printXmlWarning_one_text) e
 
-  let printXmlWarning_one_w f x =
+  let printXml_warn f x =
     BatPrintf.fprintf f {xml|
 <warning>%a</warning>|xml}
-      printXmlWarning_one_w x
+      printXml_warn x
 
   let printXmlWarning f () =
-    List.iter (printXmlWarning_one_w f) !Messages.Table.messages_list
+    List.iter (printXml_warn f) !Messages.Table.messages_list
 
   let output table live gtable gtfxml (module FileCfg: MyCFG.FileCfg) =
     let file = FileCfg.file in
@@ -135,16 +135,18 @@ struct
   include XsltResult (Range) (C)
 
   module SH = GobHashtbl.Make (Basetype.RawStrings)
-  module FundecSet = Set.Make (CilType.Fundec)
+  module FundecSet = BatSet.Make (CilType.Fundec)
   module IH = BatHashtbl.Make (struct type t = int [@@deriving hash, eq] end)
 
   let write_index ~result_dir ~file2funs =
-    let p_funs f xs =
-      let one_fun n =
-        BatPrintf.fprintf f "<function name=\"%s\"/>\n" n.svar.vname
-      in
-      FundecSet.iter one_fun xs
+    let printXml_fun f fd = BatPrintf.fprintf f {xml|<function name="%s"/>|xml} fd.svar.vname in
+    let printXml_file f file funs =
+      BatPrintf.fprintf f {xml|<file name="%s">
+%a</file>
+|xml}
+        file (FundecSet.print ~first:"" ~sep:"\n" ~last:"\n" printXml_fun) funs
     in
+
     let index_file = Fpath.(result_dir / "index.xml") in
     BatFile.with_file_out (Fpath.to_string index_file) (fun f ->
         BatPrintf.fprintf f {xml|<?xml version="1.0" ?>
@@ -155,7 +157,7 @@ struct
         (* TODO: exclude dead files/functions? *)
         (* BatEnum.iter (fun b -> BatPrintf.fprintf f "<file name=\"%s\" path=\"%s\">\n%a</file>\n" (Filename.basename b) b p_funs (SH.find_all file2funs b)) (BatEnum.uniq @@ SH.keys file2funs); *)
         (* g2html has full path in name field *)
-        SH.iter (fun b funs -> BatPrintf.fprintf f "<file name=\"%s\">\n%a</file>\n" b p_funs funs) file2funs;
+        SH.iter (printXml_file f) file2funs;
         BatPrintf.fprintf f "</report>";
       )
 
@@ -174,7 +176,7 @@ struct
     BatFile.with_file_out (Fpath.to_string node_file) (fun f ->
         BatPrintf.fprintf f {xml|<?xml version="1.0" ?>
 <?xml-stylesheet type="text/xsl" href="../node.xsl"?>
-<loc>%a</loc>|xml} (Fun.flip printXml_print_one n) v
+<loc>%a</loc>|xml} (Fun.flip printXml_node n) v
         (* TODO: need fun in <call>? *)
       )
 
@@ -184,7 +186,7 @@ struct
     let file2line2nodes: Node.t IH.t SH.t = SH.create 10 in
     iter (fun n v ->
         write_node ~nodes_dir n v;
-        let loc = UpdateCil.getLoc n in (* from printXml_print_one *)
+        let loc = UpdateCil.getLoc n in (* from printXml_node *)
         let line2nodes = SH.find_or_add_default_delayed file2line2nodes loc.file ~default:(fun () -> IH.create 100) in
         IH.add line2nodes loc.line n
       ) (Lazy.force table);
@@ -194,7 +196,7 @@ struct
     let warn_file = Fpath.(warn_dir / Printf.sprintf "warn%d.xml" i) in
     BatFile.with_file_out (Fpath.to_string warn_file) (fun f ->
         BatPrintf.fprintf f {xml|<?xml version="1.0" ?>
-<?xml-stylesheet type="text/xsl" href="../warn.xsl"?>%a|xml} printXmlWarning_one_w w
+<?xml-stylesheet type="text/xsl" href="../warn.xsl"?>%a|xml} printXml_warn w
       )
 
   let write_warns ~result_dir =
@@ -219,30 +221,33 @@ struct
   let empty_line2nodes = IH.create 0
   let empty_line2warns = IH.create 0
 
-  let write_file ~files_dir ~file2line2nodes ~file2line2warns ~live ~code_highlighter b =
-    let c_file_name = Str.global_substitute (Str.regexp Filename.dir_sep) (fun _ -> "%2F") b in
+  let write_file ~files_dir ~file2line2nodes ~file2line2warns ~live ~code_highlighter file =
+    let line2nodes = SH.find_default file2line2nodes file empty_line2nodes in
+    let line2warns = SH.find_default file2line2warns file empty_line2warns in
+
+    let printXml_node f node = BatPrintf.fprintf f "&quot;%s&quot;" (Node.show_id node) in
+    let printXml_warn f w = BatPrintf.fprintf f "&quot;warn%d&quot;" w in
+    let printXml_line f line text =
+      let nodes = IH.find_all line2nodes (line + 1) |> BatList.unique ~eq:Node.equal in
+      let warns = IH.find_all line2warns (line + 1) |> BatList.unique in
+      let dead = nodes <> [] && not (List.exists live nodes) in
+      BatPrintf.fprintf f {xml|<ln nr="%d" ns="%a" wrn="%a" ded="%B">%s</ln>
+|xml}
+        (line + 1)
+        (BatList.print ~first:"[" ~sep:"," ~last:"]" printXml_node) nodes
+        (BatList.print ~first:"[" ~sep:"," ~last:"]" printXml_warn) warns
+        dead text
+    in
+
+    let c_file_name = Str.global_substitute (Str.regexp Filename.dir_sep) (fun _ -> "%2F") file in
     let file_file = Fpath.(files_dir / c_file_name + "xml") in
     BatFile.with_file_out (Fpath.to_string file_file) (fun f ->
         BatPrintf.fprintf f {xml|<?xml version="1.0" ?>
 <?xml-stylesheet type="text/xsl" href="../file.xsl"?>
 <file>
 |xml};
-        let lines = code_highlighter (Fpath.v b) in
-        let line2nodes = SH.find_default file2line2nodes b empty_line2nodes in
-        let line2warns = SH.find_default file2line2warns b empty_line2warns in
-        BatEnum.iteri (fun line text ->
-            let nodes = IH.find_all line2nodes (line + 1) |> BatList.unique ~eq:Node.equal in
-            let print_node f w =
-              BatPrintf.fprintf f "&quot;%s&quot;" (Node.show_id w)
-            in
-            let warns = IH.find_all line2warns (line + 1) |> BatList.unique in
-            let print_warn f w =
-              BatPrintf.fprintf f "&quot;warn%d&quot;" w
-            in
-            let dead = nodes <> [] && not (List.exists live nodes) in
-            BatPrintf.fprintf f {xml|<ln nr="%d" ns="[%a]" wrn="[%a]" ded="%B">%s</ln>
-|xml} (line + 1) (BatList.print ~first:"" ~sep:"," ~last:"" print_node) nodes (BatList.print ~first:"" ~sep:"," ~last:"" print_warn) warns dead text
-          ) lines;
+        let lines = code_highlighter (Fpath.v file) in
+        BatEnum.iteri (printXml_line f) lines;
         BatPrintf.fprintf f "</file>";
       )
 
