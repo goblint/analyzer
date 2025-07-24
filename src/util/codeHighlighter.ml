@@ -4,16 +4,23 @@ let none: t = fun file ->
   BatFile.lines_of (Fpath.to_string file)
   |> BatEnum.map XmlUtil.escape
 
-let make_pygments ~(style_css_file): t option =
-  let asd = BatSys.command (GobFormat.asprintf {a|pygmentize -S default -f html -O nowrap,classprefix=pyg- > %a|a} Fpath.pp style_css_file) in
-  assert (asd = 0);
+let pygments_command = "pygmentize"
+let pygments_style = "default"
+let pygments_arguments = ["-f"; "html"; "-O"; "nowrap,classprefix=pyg-"]
 
-  let pygments file =
-    let ic = BatUnix.open_process_args_in "pygmentize" [|"pygmentize"; "-f"; "html"; "-O"; "nowrap,classprefix=pyg-"; Fpath.to_string file|] in (* TODO: close *)
-    let ic' = BatIO.input_channel ic in
-    BatIO.lines_of ic'
-  in
-  Some pygments
+let make_pygments ~(style_css_file): t option =
+  let command = Filename.quote_command pygments_command ("-S" :: pygments_style :: pygments_arguments) ~stdout:(Fpath.to_string style_css_file) in
+  match Sys.command command with
+  | 0 ->
+    let pygments file =
+      let command = Filename.quote_command pygments_command (Fpath.to_string file :: pygments_arguments) in
+      let ic = Unix.open_process_in command in
+      let ic' = BatIO.input_channel ic in
+      BatIO.lines_of ic'
+    in
+    Some pygments
+  | _ ->
+    None
 
 let make ~(style_css_file): t =
   Option.value (make_pygments ~style_css_file) ~default:none
