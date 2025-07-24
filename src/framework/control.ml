@@ -98,11 +98,11 @@ struct
   module CompareGlobSys = CompareConstraints.CompareGlobSys (SpecSys)
 
   (* Triple of the function, context, and the local value. *)
-  module RT = AnalysisResult0.ResultType2 (Spec)
+  module RT = AnalysisResult.ResultType2 (Spec)
   (* Set of triples [RT] *)
   module LT = SetDomain.HeadlessSet (RT)
   (* Analysis result structure---a hashtable from program points to [LT] *)
-  module Result = AnalysisResult0.Result (LT) (struct let result_name = "analysis" end)
+  module Result = AnalysisResult.Result (LT) (struct let result_name = "analysis" end)
   module ResultOutput = AnalysisResultOutput.Make (Result)
 
   module Query = ResultQuery.Query (SpecSys)

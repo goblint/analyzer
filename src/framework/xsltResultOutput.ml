@@ -3,7 +3,7 @@
 open GoblintCil
 open Pretty
 open GobConfig
-open AnalysisResult0
+open AnalysisResult
 
 module Make (Result: Result) =
 struct
