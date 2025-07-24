@@ -295,28 +295,31 @@ struct
     |> List.map (fun f -> "g2html/resources/" ^ f)
     |> (fun fs -> FileUtil.cp fs "result2")
 
-  let output table live gtable gtfxml (module FileCfg: MyCFG.FileCfg) =
+  let output_g2html table live gtable gtfxml (module FileCfg: MyCFG.FileCfg) =
     let file = FileCfg.file in
+    let file2funs = SH.create 100 in
+    iterGlobals file (function
+        | GFun (fd, loc) -> SH.modify_def FundecSet.empty loc.file (FundecSet.add fd) file2funs
+        | _ -> ()
+      );
+    GobSys.mkdir_or_exists Fpath.(v "result2");
+    GobSys.mkdir_or_exists Fpath.(v "result2" / "nodes");
+    GobSys.mkdir_or_exists Fpath.(v "result2" / "warn");
+    GobSys.mkdir_or_exists Fpath.(v "result2" / "files");
+    write_index ~file2funs;
+    write_globals ~gtfxml ~gtable;
+    let file2line2nodes: Node.t IH.t SH.t = write_nodes ~table in
+    let file2line2warns: int IH.t SH.t = write_warns () in
+    write_files ~file2funs ~file2line2nodes ~file2line2warns ~live;
+    write_dots_cfgs (module FileCfg) ~live ~file2funs;
+    copy_resources ();
+    assert false
+
+  let output table live gtable gtfxml (module FileCfg: MyCFG.FileCfg) =
     match get_string "result" with
     | "fast_xml" ->
       output table live gtable gtfxml (module FileCfg)
     | "g2html" ->
-      let file2funs = SH.create 100 in
-      iterGlobals file (function
-          | GFun (fd, loc) -> SH.modify_def FundecSet.empty loc.file (FundecSet.add fd) file2funs
-          | _ -> ()
-        );
-      GobSys.mkdir_or_exists Fpath.(v "result2");
-      GobSys.mkdir_or_exists Fpath.(v "result2" / "nodes");
-      GobSys.mkdir_or_exists Fpath.(v "result2" / "warn");
-      GobSys.mkdir_or_exists Fpath.(v "result2" / "files");
-      write_index ~file2funs;
-      write_globals ~gtfxml ~gtable;
-      let file2line2nodes: Node.t IH.t SH.t = write_nodes ~table in
-      let file2line2warns: int IH.t SH.t = write_warns () in
-      write_files ~file2funs ~file2line2nodes ~file2line2warns ~live;
-      write_dots_cfgs (module FileCfg) ~live ~file2funs;
-      copy_resources ();
-      assert false
+      output_g2html table live gtable gtfxml (module FileCfg: MyCFG.FileCfg)
     | s -> failwith @@ "Unsupported value for option `result`: "^s
 end
