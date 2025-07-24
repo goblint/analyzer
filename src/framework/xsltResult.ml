@@ -249,6 +249,11 @@ struct
         BatPrintf.fprintf f "</file>";
       )
 
+  let write_files ~file2funs ~file2line2nodes ~file2line2warns ~live =
+    let asd = BatSys.command {a|pygmentize -S default -f html -O nowrap,classprefix=pyg- > result2/pyg.css|a} in
+    assert (asd = 0);
+    BatEnum.iter (write_file ~file2line2nodes ~file2line2warns ~live) (SH.keys file2funs)
+
   let write_dot (module FileCfg: MyCFG.FileCfg) ~live fd file =
     let base_dir = GobSys.mkdir_or_exists_absolute Fpath.(v "result2" / "dot") in (* TODO: move out *)
     let c_file_name = Str.global_substitute (Str.regexp Filename.dir_sep) (fun _ -> "%2F") file in
@@ -299,9 +304,7 @@ struct
       write_globals ~gtfxml ~gtable;
       let file2line2nodes: Node.t IH.t SH.t = write_nodes ~table in
       let file2line2warns: int IH.t SH.t = write_warns () in
-      let asd = BatSys.command {a|pygmentize -S default -f html -O nowrap,classprefix=pyg- > result2/pyg.css|a} in
-      assert (asd = 0);
-      BatEnum.iter (write_file ~file2line2nodes ~file2line2warns ~live) (SH.keys file2funs);
+      write_files ~file2funs ~file2line2nodes ~file2line2warns ~live;
       let tasks = SH.fold (fun file funs acc ->
           FundecSet.fold (fun fd acc ->
               let fname = write_dot (module FileCfg) ~live fd file in
