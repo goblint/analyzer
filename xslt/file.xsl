@@ -12,7 +12,7 @@
 
 
   <xsl:template match="file">
-    <xsl:for-each select="ln" > 
+    <xsl:for-each select="ln" >
       <div class="sl">
 
         <xsl:choose>
@@ -22,7 +22,7 @@
             <xsl:attribute name="onclick">select_line(<xsl:value-of select="@nr"/>,<xsl:value-of select="@ns"/>,<xsl:value-of select="@wrn"/>)</xsl:attribute>
           </xsl:otherwise>
         </xsl:choose>
-        
+
         <xsl:attribute name="id">ln<xsl:value-of select="@nr" /></xsl:attribute>
         <span>
           <xsl:choose>
@@ -49,7 +49,7 @@
           </xsl:choose>
         </span>
         <span class="sl-data">
-          <xsl:apply-templates />
+          <xsl:copy-of select="." />
         </span>
       </div>
     </xsl:for-each>
@@ -60,6 +60,7 @@
       <head>
         <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
         <link rel="stylesheet" href="../style.css" type="text/css"/>
+        <link rel="stylesheet" href="../pyg.css" type="text/css"/>
         <script type="text/javascript" src="../jquery-2.1.0.min.js"/>
         <script type="text/javascript" src="../jquery.iframeResizer.min.js"></script>
         <!--<script type="text/javascript" src="../iframeResizer.contentWindow.min.js"/>-->
