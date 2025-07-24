@@ -216,6 +216,9 @@ struct
       ) !Messages.Table.messages_list;
     file2line2warns
 
+  let empty_line2nodes = IH.create 0
+  let empty_line2warns = IH.create 0
+
   let write_file ~files_dir ~file2line2nodes ~file2line2warns ~live ~code_highlighter b =
     let c_file_name = Str.global_substitute (Str.regexp Filename.dir_sep) (fun _ -> "%2F") b in
     let file_file = Fpath.(files_dir / c_file_name + "xml") in
@@ -225,20 +228,14 @@ struct
 <file>
 |xml};
         let lines = code_highlighter (Fpath.v b) in
+        let line2nodes = SH.find_default file2line2nodes b empty_line2nodes in
+        let line2warns = SH.find_default file2line2warns b empty_line2warns in
         BatEnum.iteri (fun line text ->
-            let nodes =
-              match SH.find_option file2line2nodes b with
-              | Some line2nodes -> IH.find_all line2nodes (line + 1) |> BatList.unique ~eq:Node.equal
-              | None -> []
-            in
+            let nodes = IH.find_all line2nodes (line + 1) |> BatList.unique ~eq:Node.equal in
             let print_node f w =
               BatPrintf.fprintf f "&quot;%s&quot;" (Node.show_id w)
             in
-            let warns =
-              match SH.find_option file2line2warns b with
-              | Some line2warns -> IH.find_all line2warns (line + 1) |> BatList.unique
-              | None -> []
-            in
+            let warns = IH.find_all line2warns (line + 1) |> BatList.unique in
             let print_warn f w =
               BatPrintf.fprintf f "&quot;warn%d&quot;" w
             in
