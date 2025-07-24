@@ -221,6 +221,8 @@ struct
   let empty_line2nodes = IH.create 0
   let empty_line2warns = IH.create 0
 
+  let xmlify_file_name = Str.global_substitute (Str.regexp Filename.dir_sep) (fun _ -> "%2F")
+
   let write_file ~files_dir ~file2line2nodes ~file2line2warns ~live ~code_highlighter file =
     let line2nodes = SH.find_default file2line2nodes file empty_line2nodes in
     let line2warns = SH.find_default file2line2warns file empty_line2warns in
@@ -239,8 +241,7 @@ struct
         dead text
     in
 
-    let c_file_name = Str.global_substitute (Str.regexp Filename.dir_sep) (fun _ -> "%2F") file in
-    let file_file = Fpath.(files_dir / c_file_name + "xml") in
+    let file_file = Fpath.(files_dir / xmlify_file_name file + "xml") in
     BatFile.with_file_out (Fpath.to_string file_file) (fun f ->
         BatPrintf.fprintf f {xml|<?xml version="1.0" ?>
 <?xml-stylesheet type="text/xsl" href="../file.xsl"?>
@@ -259,24 +260,20 @@ struct
     BatEnum.iter (write_file ~files_dir ~file2line2nodes ~file2line2warns ~live ~code_highlighter) (SH.keys file2funs)
 
   let write_dot ~dot_dir (module FileCfg: MyCFG.FileCfg) ~live fd file =
-    let c_file_name = Str.global_substitute (Str.regexp Filename.dir_sep) (fun _ -> "%2F") file in
-    let dot_file_name = fd.svar.vname^".dot" in
-    let file_dir = GobSys.mkdir_or_exists_absolute Fpath.(dot_dir / c_file_name) in
-    let fname = Fpath.(file_dir / dot_file_name) in
-    let out = open_out (Fpath.to_string fname) in
-    let ppf = Format.formatter_of_out_channel out in
-    CfgTools.fprint_fundec_html_dot (module FileCfg.Cfg) live fd ppf;
-    Format.pp_print_flush ppf ();
-    close_out out;
-    fname
+    let dot_file_dir = GobSys.mkdir_or_exists_absolute Fpath.(dot_dir / xmlify_file_name file) in
+    let dot_file = Fpath.(dot_file_dir / fd.svar.vname + "dot") in
+    BatFile.with_file_out (Fpath.to_string dot_file) (fun f ->
+        let ppf = BatFormat.formatter_of_output f in
+        CfgTools.fprint_fundec_html_dot (module FileCfg.Cfg) live fd ppf;
+        Format.pp_print_flush ppf ();
+      );
+    dot_file
 
-  let cfg_task ~cfgs_dir fname fd file: ProcessPool.task =
-    let c_file_name = Str.global_substitute (Str.regexp Filename.dir_sep) (fun _ -> "%2F") file in
-    let svg_file_name = fd.svar.vname^".svg" in
-    let file_dir2 = GobSys.mkdir_or_exists_absolute Fpath.(cfgs_dir / c_file_name) in
-    let fname2 = Fpath.(file_dir2 / svg_file_name) in
+  let cfg_task ~cfgs_dir ~dot_file fd file: ProcessPool.task =
+    let cfgs_file_dir = GobSys.mkdir_or_exists_absolute Fpath.(cfgs_dir / xmlify_file_name file) in
+    let svg_file = Fpath.(cfgs_file_dir / fd.svar.vname + "svg") in
     {
-      command = Filename.quote_command "dot" [Fpath.to_string fname; "-Tsvg"; "-o"; Fpath.to_string fname2];
+      command = Filename.quote_command "dot" [Fpath.to_string dot_file; "-Tsvg"; "-o"; Fpath.to_string svg_file];
       cwd = None;
     }
 
@@ -285,8 +282,8 @@ struct
     let cfgs_dir = GobSys.mkdir_or_exists_absolute Fpath.(result_dir / "cfgs") in
     let tasks = SH.fold (fun file funs acc ->
         FundecSet.fold (fun fd acc ->
-            let fname = write_dot ~dot_dir (module FileCfg) ~live fd file in
-            cfg_task ~cfgs_dir fname fd file :: acc
+            let dot_file = write_dot ~dot_dir (module FileCfg) ~live fd file in
+            cfg_task ~cfgs_dir ~dot_file fd file :: acc
           ) funs acc
       ) file2funs []
     in
