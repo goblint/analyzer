@@ -3,11 +3,9 @@
 open GoblintCil
 open Pretty
 open GobConfig
+open AnalysisResult0
 
-include AnalysisResult0
-include XsltResult
-
-module Output (Result: Result) =
+module Make (Result: Result) =
 struct
   open Result
 
@@ -49,10 +47,10 @@ struct
     | "pretty" -> ignore (fprintf out "%a\n" pretty (Lazy.force table))
     | "pretty-deterministic" -> ignore (fprintf out "%a\n" pretty_deterministic (Lazy.force table))
     | "fast_xml" ->
-      let module Output = XsltOutput (Result) in
+      let module Output = XsltResultOutput.Make (Result) in
       Output.output table live gtable gtfxml (module FileCfg)
     | "g2html" ->
-      let module Output = XsltOutput2 (Result) in
+      let module Output = XsltResultOutput.Make2 (Result) in
       Output.output table live gtable gtfxml (module FileCfg)
     | "json" ->
       let open BatPrintf in

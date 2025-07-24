@@ -5,7 +5,7 @@ open Pretty
 open GobConfig
 open AnalysisResult0
 
-module XsltOutput (Result: Result) =
+module Make (Result: Result) =
 struct
   open Result
 
@@ -97,10 +97,10 @@ struct
       write_file f (get_string "outfile")
 end
 
-module XsltOutput2 (Result: Result) =
+module Make2 (Result: Result) =
 struct
   open Result
-  open XsltOutput (Result)
+  open Make (Result)
 
   module SH = GobHashtbl.Make (Basetype.RawStrings)
   module FundecSet = BatSet.Make (CilType.Fundec)
