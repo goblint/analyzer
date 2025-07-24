@@ -4,6 +4,7 @@ open GoblintCil
 open Pretty
 open GobConfig
 
+include AnalysisResult0
 include XsltResult
 
 module Result (Range: Printable.S) (C: ResultConf) =
@@ -93,14 +94,4 @@ struct
       Yojson.Safe.to_channel ~std:true out json
     | "none" -> ()
     | s -> failwith @@ "Unsupported value for option `result`: "^s
-end
-
-module ResultType2 (S: Analyses.Spec) =
-struct
-  open S
-  include Printable.Prod3 (C) (D) (CilType.Fundec)
-  let show (es,x,f:t) = D.show x
-  let pretty () (_,x,_) = D.pretty () x
-  let printXml f (c,d,fd) =
-    BatPrintf.fprintf f "<context>\n%a</context>\n%a" C.printXml c D.printXml d
 end
