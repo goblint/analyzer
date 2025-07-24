@@ -46,7 +46,8 @@ struct
       else Map.add i b m
   end
 
-  let elements m = Map.values m |> List.of_enum |> List.flatten
+  let elements m =
+    m |> Map.to_seq |> Seq.map snd |> List.of_seq |> List.flatten
 
   (* merge elements in x and y by f *)
   (* TODO: unused, remove? *)
