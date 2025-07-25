@@ -336,6 +336,11 @@ module CompilationDatabase = CompilationDatabase
 module MakefileUtil = MakefileUtil
 module TerminationPreprocessing = TerminationPreprocessing
 
+(** {2 Results} *)
+
+module AnalysisResultOutput = AnalysisResultOutput
+module XsltResultOutput = XsltResultOutput
+
 (** {2 Witnesses}
 
     Witnesses are an exchangeable format for analysis results. *)
@@ -411,6 +416,7 @@ module Timeout = Timeout
 module TimeUtil = TimeUtil
 module MessageUtil = MessageUtil
 module AnsiColors = AnsiColors
+module CodeHighlighter = CodeHighlighter
 module XmlUtil = XmlUtil
 
 module GobExn = GobExn
