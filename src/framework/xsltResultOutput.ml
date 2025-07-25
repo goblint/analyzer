@@ -306,7 +306,7 @@ struct
       failwith "xslt/ not found"
 
   let output table live gtable gtfxml (module FileCfg: MyCFG.FileCfg) =
-    let result_dir = Fpath.(v "result2") in
+    let result_dir = Fpath.(v "result") in
     GobSys.mkdir_or_exists result_dir;
     let file = FileCfg.file in
     let file2funs = SH.create 100 in

@@ -59,7 +59,7 @@ let rec option_spec_list: Arg_complete.speclist Lazy.t = lazy (
     else (Logs.error "Goblint has been compiled without tracing, recompile in trace profile (./scripts/trace_on.sh)"; raise Stdlib.Exit)
   in
   let configure_html () =
-    set_string "result" "g2html"
+    set_string "result" "xslt"
   in
   let configure_sarif () =
     if (get_string "outfile" = "") then
