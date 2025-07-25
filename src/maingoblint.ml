@@ -61,7 +61,6 @@ let rec option_spec_list: Arg_complete.speclist Lazy.t = lazy (
   let configure_html () =
     if (get_string "outfile" = "") then
       set_string "outfile" "result";
-    set_bool "exp.cfgdot" true;
     set_string "result" "g2html"
   in
   let configure_sarif () =

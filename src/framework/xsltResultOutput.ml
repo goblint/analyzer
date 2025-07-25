@@ -118,6 +118,7 @@ struct
     in
     if get_string "result" = "g2html" then (
       BatFile.with_temporary_out ~mode:[`create;`text;`delete_on_exit] write_file;
+      CfgTools.dead_code_cfg ~path:(Fpath.v "cfgs") (module FileCfg) live;
       do_html_output ()
     )
     else
