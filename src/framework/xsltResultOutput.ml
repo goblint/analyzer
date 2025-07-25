@@ -52,7 +52,14 @@ struct
     List.iter (printXml_warn f) !Messages.Table.messages_list
 
   let do_html_output () =
-    let jar = Fpath.(v (get_string "exp.g2html_path") / "g2html.jar") in
+    let g2html_path = get_string "exp.g2html_path" in
+    let g2html_path =
+      if g2html_path = "" then
+        GobSys.exe_dir
+      else
+        Fpath.v g2html_path
+    in
+    let jar = Fpath.(g2html_path / "g2html.jar") in
     if Sys.file_exists (Fpath.to_string jar) then (
       let command = Filename.quote_command "java" [
           "-jar"; Fpath.to_string jar;

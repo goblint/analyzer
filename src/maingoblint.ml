@@ -61,8 +61,6 @@ let rec option_spec_list: Arg_complete.speclist Lazy.t = lazy (
   let configure_html () =
     if (get_string "outfile" = "") then
       set_string "outfile" "result";
-    if get_string "exp.g2html_path" = "" then
-      set_string "exp.g2html_path" (Fpath.to_string GobSys.exe_dir);
     set_bool "exp.cfgdot" true;
     set_string "result" "g2html"
   in
