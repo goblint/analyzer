@@ -51,6 +51,25 @@ struct
   let printXmlWarning f () =
     List.iter (printXml_warn f) !Messages.Table.messages_list
 
+  let do_html_output () =
+    let jar = Fpath.(v (get_string "exp.g2html_path") / "g2html.jar") in
+    if Sys.file_exists (Fpath.to_string jar) then (
+      let command = Filename.quote_command "java" [
+          "-jar"; Fpath.to_string jar;
+          "--num-threads"; string_of_int (jobs ());
+          "--dot-timeout"; "0";
+          "--result-dir"; get_string "outfile";
+          !Messages.xml_file_name
+        ]
+      in
+      match Timing.wrap "g2html" Unix.system command with
+      | Unix.WEXITED 0 -> ()
+      | _ -> Logs.error "HTML generation failed! Command: %s" command
+      | exception Unix.Unix_error (e, f, a) ->
+        Logs.error "%s at syscall %s with argument \"%s\"." (Unix.error_message e) f a
+    ) else
+      Logs.Format.error "Warning: jar file %a not found." Fpath.pp jar
+
   let output table live gtable gtfxml (module FileCfg: MyCFG.FileCfg) =
     let file = FileCfg.file in
     let out = Messages.get_out result_name !Messages.out in
@@ -90,8 +109,10 @@ struct
       BatPrintf.fprintf f "</result></run>\n";
       BatPrintf.fprintf f "%!"
     in
-    if get_string "result" = "g2html" then
-      BatFile.with_temporary_out ~mode:[`create;`text;`delete_on_exit] write_file
+    if get_string "result" = "g2html" then (
+      BatFile.with_temporary_out ~mode:[`create;`text;`delete_on_exit] write_file;
+      do_html_output ()
+    )
     else
       let f = BatIO.output_channel out in
       write_file f (get_string "outfile")
