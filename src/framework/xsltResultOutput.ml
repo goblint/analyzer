@@ -320,6 +320,5 @@ struct
     let file2line2warns = write_warns ~result_dir in
     write_files ~result_dir ~file2funs ~file2line2nodes ~file2line2warns ~live;
     write_dots_cfgs  ~result_dir (module FileCfg) ~live ~file2funs;
-    copy_resources ~result_dir;
-    assert false
+    copy_resources ~result_dir
 end
