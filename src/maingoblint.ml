@@ -64,8 +64,7 @@ let rec option_spec_list: Arg_complete.speclist Lazy.t = lazy (
     if get_string "exp.g2html_path" = "" then
       set_string "exp.g2html_path" (Fpath.to_string GobSys.exe_dir);
     set_bool "exp.cfgdot" true;
-    set_bool "g2html" true;
-    set_string "result" "fast_xml"
+    set_string "result" "g2html"
   in
   let configure_sarif () =
     if (get_string "outfile" = "") then
@@ -533,7 +532,7 @@ let reset_stats () =
 (** Perform the analysis over the merged AST.  *)
 let do_analyze change_info merged_AST =
   (* direct the output to file if requested  *)
-  if not (get_bool "g2html" || get_string "outfile" = "") then (
+  if not (get_string "result" = "g2html" || get_string "outfile" = "") then (
     if !Messages.out <> Legacy.stdout then
       Legacy.close_out !Messages.out;
     Messages.out := Legacy.open_out (get_string "outfile"));
@@ -576,7 +575,7 @@ let do_analyze change_info merged_AST =
   )
 
 let do_html_output () =
-  if get_bool "g2html" then (
+  if get_string "result" = "g2html" then (
     let jar = Fpath.(v (get_string "exp.g2html_path") / "g2html.jar") in
     if Sys.file_exists (Fpath.to_string jar) then (
       let command = Filename.quote_command "java" [

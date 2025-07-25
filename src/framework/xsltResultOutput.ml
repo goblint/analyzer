@@ -90,7 +90,7 @@ struct
       BatPrintf.fprintf f "</result></run>\n";
       BatPrintf.fprintf f "%!"
     in
-    if get_bool "g2html" then
+    if get_string "result" = "g2html" then
       BatFile.with_temporary_out ~mode:[`create;`text;`delete_on_exit] write_file
     else
       let f = BatIO.output_channel out in

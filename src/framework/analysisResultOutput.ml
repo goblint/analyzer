@@ -46,7 +46,8 @@ struct
     match get_string "result" with
     | "pretty" -> ignore (fprintf out "%a\n" pretty (Lazy.force table))
     | "pretty-deterministic" -> ignore (fprintf out "%a\n" pretty_deterministic (Lazy.force table))
-    | "fast_xml" ->
+    | "fast_xml"
+    | "g2html" ->
       let module Output = XsltResultOutput.Make (Result) in
       Output.output table live gtable gtfxml (module FileCfg)
     | "xslt" ->
@@ -79,11 +80,8 @@ struct
         (*printXmlWarning f ();*)
         fprintf f "}\n";
       in
-      if get_bool "g2html" then
-        BatFile.with_temporary_out ~mode:[`create;`text;`delete_on_exit] write_file
-      else
-        let f = BatIO.output_channel out in
-        write_file f (get_string "outfile")
+      let f = BatIO.output_channel out in
+      write_file f (get_string "outfile")
     | "sarif" ->
       Logs.result "Writing Sarif to file: %s" (get_string "outfile");
       Yojson.Safe.to_channel ~std:true out (Sarif.to_yojson (List.rev !Messages.Table.messages_list));
