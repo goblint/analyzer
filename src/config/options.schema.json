@@ -81,7 +81,7 @@
       "description":
         "Result style: none, fast_xml, json, pretty, pretty-deterministic, json-messages, sarif.",
       "type": "string",
-      "enum": ["none", "fast_xml", "g2html", "json", "pretty", "pretty-deterministic", "json-messages", "sarif"],
+      "enum": ["none", "fast_xml", "xslt", "json", "pretty", "pretty-deterministic", "json-messages", "sarif"],
       "default": "none"
     },
     "solver": {

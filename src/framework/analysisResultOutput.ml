@@ -49,7 +49,7 @@ struct
     | "fast_xml" ->
       let module Output = XsltResultOutput.Make (Result) in
       Output.output table live gtable gtfxml (module FileCfg)
-    | "g2html" ->
+    | "xslt" ->
       let module Output = XsltResultOutput.Make2 (Result) in
       Output.output table live gtable gtfxml (module FileCfg)
     | "json" ->
