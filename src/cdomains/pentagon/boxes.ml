@@ -60,7 +60,6 @@ struct
           insert_dimensions (left @ [Intv.top ()] @ right) new_array
       in
       insert_dimensions intervals change_arr
-  ;;
 
   (* precondition: dim_change is sorted and has unique elements *)
   let dim_remove (dim_change: Apron.Dim.change) (intervals : t) =

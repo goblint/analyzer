@@ -11,14 +11,14 @@ struct
     match z with
     | PosInfty -> 0x186e81bd (* random constant *)
     | NegInfty -> 0xc8590e8 (* random constant *)
-    | Arb(z) -> Z.hash z;;
+    | Arb(z) -> Z.hash z
 
   let equal (z1: t) (z2: t) = 
     match z1, z2 with
     | PosInfty, PosInfty -> true
     | NegInfty, NegInfty -> true
     | Arb(z1), Arb(z2) -> Z.equal z1 z2
-    | _ -> false ;;
+    | _ -> false 
 
   let compare (z1: t) (z2: t) = 
     match z1, z2 with
@@ -28,14 +28,14 @@ struct
     | _, NegInfty -> 1
     | PosInfty, _ -> 1
     | _, PosInfty -> -1
-    | Arb(z1), Arb(z2) -> Z.compare z1 z2;;
+    | Arb(z1), Arb(z2) -> Z.compare z1 z2
 
-  let (<*) z1 z2 = compare z1 z2 < 0;;
-  let (>*) z1 z2 = compare z1 z2 > 0;;
-  let (=*) z1 z2 = compare z1 z2 = 0;;
-  let (<=*) z1 z2 = compare z1 z2 <= 0;;
-  let (>=*) z1 z2 = compare z1 z2 >= 0;;
-  let (<>*) z1 z2 = compare z1 z2 <> 0;;
+  let (<*) z1 z2 = compare z1 z2 < 0
+  let (>*) z1 z2 = compare z1 z2 > 0
+  let (=*) z1 z2 = compare z1 z2 = 0
+  let (<=*) z1 z2 = compare z1 z2 <= 0
+  let (>=*) z1 z2 = compare z1 z2 >= 0
+  let (<>*) z1 z2 = compare z1 z2 <> 0
 
 
   let of_int i = Arb(Z.of_int i)
@@ -147,11 +147,11 @@ struct
       | NegInfty, Arb z -> if Z.is_even z then PosInfty else NegInfty
       | _, NegInfty -> failwith "This shouldn't happen (caught in second line of ZExt.pow)"
 
-  let abs z1 = if z1 <* zero then neg z1 else z1;;
+  let abs z1 = if z1 <* zero then neg z1 else z1
 
-  let max z1 z2 = if z1 >* z2 then z1 else z2;;
+  let max z1 z2 = if z1 >* z2 then z1 else z2
 
-  let min z1 z2 = if z1 <* z2 then z1 else z2;;
+  let min z1 z2 = if z1 <* z2 then z1 else z2
 
   (** Taken from module IArith *)
   let min4 a b c d = min (min a b) (min c d)
@@ -164,11 +164,11 @@ end
 module ZExtOps =
 struct 
 
-  let (<*) = ZExt.(<*);;
-  let (>*) = ZExt.(>*);;
-  let (=*) = ZExt.(=*);;
-  let (<=*) = ZExt.(<=*);;
-  let (>=*) = ZExt.(>=*);;
-  let (<>*) = ZExt.(<>*);;
+  let (<*) = ZExt.(<*)
+  let (>*) = ZExt.(>*)
+  let (=*) = ZExt.(=*)
+  let (<=*) = ZExt.(<=*)
+  let (>=*) = ZExt.(>=*)
+  let (<>*) = ZExt.(<>*)
 
 end

@@ -67,8 +67,6 @@ struct
           ) subs 
       in
       aux dim_change 0 subs MoveMap.empty []
-  ;;
-
 
   let dim_remove (dim_change: Apron.Dim.change) (subs: t) =
     (* This implementation assumes, that dim_change.dim is well-formed, i.e., does not contain duplicates. *)

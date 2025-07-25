@@ -5,13 +5,13 @@ module StringUtils =
 struct
 
   (* Symbol for top.  *)
-  let top_str = "⊤";;
+  let top_str = "⊤"
 
   (* Symbol for bot. *)
-  let bot_str = "⊥";;
+  let bot_str = "⊥"
 
   (* Symbol for a 32 bit integer. *)
-  let int32_str = "I32";;
+  let int32_str = "I32"
 
   let string_of_dim_change (dim_change:Apron.Dim.change) = 
     let dim = dim_change.dim in
@@ -50,7 +50,7 @@ struct
     aux texpr
 
   let string_of_tcons1 tcons1 =
-    (string_of_texpr1 @@ Texpr1.to_expr @@ Tcons1.get_texpr1 @@ tcons1) ^ " " ^  Tcons1.string_of_typ (Tcons1.get_typ tcons1) ^ " 0";;
+    (string_of_texpr1 @@ Texpr1.to_expr @@ Tcons1.get_texpr1 @@ tcons1) ^ " " ^  Tcons1.string_of_typ (Tcons1.get_typ tcons1) ^ " 0"
 
   (** Returns "-I32" or "+I32" if z is bound, else just the string of z. *)
   let int32_bound_str z =

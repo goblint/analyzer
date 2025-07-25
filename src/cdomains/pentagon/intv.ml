@@ -25,10 +25,10 @@ struct
   let mem a (l, u) = l <=* a && u >=* a
 
   (** Checks for bot interval. *)
-  let sup (i: t) = if is_bot i then ZExt.NegInfty else snd i;;
+  let sup (i: t) = if is_bot i then ZExt.NegInfty else snd i
 
   (** Checks for bot interval. *)
-  let inf (i: t) = if is_bot i then ZExt.PosInfty else fst i;;
+  let inf (i: t) = if is_bot i then ZExt.PosInfty else fst i
 
   (** Intv intersection *)
   let inter ((l1, u1): t) ((l2, u2): t) =
