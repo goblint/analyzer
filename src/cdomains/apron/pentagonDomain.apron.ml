@@ -938,25 +938,21 @@ struct
 
 
   let assert_constraint ask t e negate no_ov ~trace =
-    let (str, res) = 
+    let (res, tcons_opt, exn_opt) = 
       match Convert.tcons1_of_cil_exp ask t t.env e negate no_ov with 
-      | exception Convert.Unsupported_CilExp exn -> (
-          (
-            Printf.sprintf 
-              "Failed to convert cil expression: exception %s"
-              (SharedFunctions.show_unsupported_cilExp exn),
-            t
-          )
-        )
-      | tcons -> (
-          (
-            StringUtils.string_of_tcons1 tcons,
-            assert_constraint ask t tcons negate no_ov
-          )
-        )
+      | exception Convert.Unsupported_CilExp exn -> (t, None, Some exn)
+      | tcons -> (assert_constraint ask t tcons negate no_ov, Some tcons, None)
     in
     if M.tracing && trace then (
-      M.trace "pntg" "D.assert_constraint:\ntcons:\t%s\nt:\t%s\nres:\t%s\n\n" str (show t) (show res));
+      let tcons_str = 
+        match exn_opt, tcons_opt with
+        | Some exn, None -> Printf.sprintf 
+                              "Failed to convert cil expression: exception %s"
+                              (SharedFunctions.show_unsupported_cilExp exn) (* Might cause memory problems. *) 
+        | None, Some tcons-> StringUtils.string_of_tcons1 tcons
+        | _ -> "" (* Should never be hit. *)
+      in
+      M.trace "pntg" "D.assert_constraint:\ntcons:\t%s\nt:\t%s\nres:\t%s\n\n" tcons_str (show t) (show res));
     res
 
   let assert_constraint ask t e negate no_ov =
