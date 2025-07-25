@@ -220,7 +220,9 @@ module FloatIntervalImpl(Float_t : CFloatType) = struct
     | _ -> Top
 
   (**for QCheck: should describe how to generate random values and shrink possible counter examples *)
-  let arbitrary () = QCheck.map convert_arb (QCheck.option (QCheck.pair QCheck.float QCheck.float))
+  let arbitrary () =
+    let gen = QCheck.map convert_arb (QCheck.option (QCheck.pair QCheck.float QCheck.float)) in
+    QCheck.set_print show gen
 
   let of_interval' interval =
     let x = norm @@ Interval interval
