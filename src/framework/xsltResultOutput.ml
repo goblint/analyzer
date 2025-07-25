@@ -65,7 +65,7 @@ struct
           "-jar"; Fpath.to_string jar;
           "--num-threads"; string_of_int (jobs ());
           "--dot-timeout"; "0";
-          "--result-dir"; get_string "outfile";
+          "--result-dir"; "result";
           !Messages.xml_file_name
         ]
       in

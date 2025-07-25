@@ -59,8 +59,6 @@ let rec option_spec_list: Arg_complete.speclist Lazy.t = lazy (
     else (Logs.error "Goblint has been compiled without tracing, recompile in trace profile (./scripts/trace_on.sh)"; raise Stdlib.Exit)
   in
   let configure_html () =
-    if (get_string "outfile" = "") then
-      set_string "outfile" "result";
     set_string "result" "g2html"
   in
   let configure_sarif () =
@@ -529,7 +527,7 @@ let reset_stats () =
 (** Perform the analysis over the merged AST.  *)
 let do_analyze change_info merged_AST =
   (* direct the output to file if requested  *)
-  if not (get_string "result" = "g2html" || get_string "outfile" = "") then (
+  if get_string "outfile" <> "" then (
     if !Messages.out <> Legacy.stdout then
       Legacy.close_out !Messages.out;
     Messages.out := Legacy.open_out (get_string "outfile"));
