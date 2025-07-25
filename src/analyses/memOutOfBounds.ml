@@ -90,7 +90,8 @@ struct
             | Addr (v, _) ->
               if hasAttribute "goblint_cil_nested" v.vattr then (
                 set_mem_safety_flag InvalidDeref;
-                M.warn "Var %a is potentially accessed out-of-scope. Invalid memory access may occur" CilType.Varinfo.pretty v
+                M.warn "Var %a is potentially accessed out-of-scope. Invalid memory access may occur" CilType.Varinfo.pretty v;
+                Checks.warn Checks.Category.InvalidMemoryAccess "Var %a is potentially accessed out-of-scope. Invalid memory access may occur" CilType.Varinfo.pretty v
               );
               begin match Cil.unrollType v.vtype with
                 | TArray (item_typ, _, _) ->
