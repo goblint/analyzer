@@ -337,11 +337,11 @@ struct
         let constant, _ = snd monoms in
         let numeric_intv = eval_monoms_to_intv d.boxes monoms in
         match fst monoms with
-        | [(a1, x1, _); (a2, x2, _)] when a1 = Z.one && Z.abs a2 = Z.of_int (-1) ->
+        | [(a1, x1, _); (a2, x2, _)] when a1 = Z.one && a2 = Z.of_int (-1) ->
           let symbolic_intv =
             if Subs.gt x1 x2 d.subs then (ZExt.add (Arb constant) (ZExt.of_int 1), ZExt.PosInfty) else (ZExt.NegInfty, ZExt.add (Arb constant) (ZExt.of_int (-1)))
           in Intv.to_z_opt_intv (Intv.inter symbolic_intv numeric_intv)
-        | [(a1, x1, _); (a2, x2, _)] when a1 = Z.of_int (-1) && Z.abs a2 = Z.one ->
+        | [(a1, x1, _); (a2, x2, _)] when a1 = Z.of_int (-1) && a2 = Z.one ->
           let symbolic_intv =
             if Subs.gt x2 x1 d.subs then (ZExt.add (Arb constant) (ZExt.of_int 1), ZExt.PosInfty) else (ZExt.NegInfty, ZExt.add (Arb constant) (ZExt.of_int (-1)))
           in Intv.to_z_opt_intv (Intv.inter symbolic_intv numeric_intv)
@@ -614,13 +614,13 @@ struct
           let x_intv = Boxes.get_value x d.boxes in
 
           match sum_of_terms with
-          | [(a1, x1, _); (a2, x2, _)] when a1 = Z.one && Z.abs a2 = Z.of_int (-1) ->
+          | [(a1, x1, _); (a2, x2, _)] when a1 = Z.one && a2 = Z.of_int (-1) ->
             let symbolic_intv =
               if Subs.gt x1 x2 d.subs then (ZExt.add (Arb constant) (ZExt.of_int 1), ZExt.PosInfty) else (ZExt.NegInfty, ZExt.add (Arb constant) (ZExt.of_int (-1)))
             in
             let boxes = Boxes.set_value x (Intv.inter symbolic_intv expr_intv) d.boxes
             in wrap boxes d.subs
-          | [(a1, x1, _); (a2, x2, _)] when a1 = Z.of_int (-1) && Z.abs a2 = Z.one ->
+          | [(a1, x1, _); (a2, x2, _)] when a1 = Z.of_int (-1) && a2 = Z.one ->
             let symbolic_intv =
               if Subs.gt x2 x1 d.subs then (ZExt.add (Arb constant) (ZExt.of_int 1), ZExt.PosInfty) else (ZExt.NegInfty, ZExt.add (Arb constant) (ZExt.of_int (-1)))
             in
