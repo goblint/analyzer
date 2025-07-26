@@ -1569,7 +1569,7 @@ module InequalityFunctor (Coeffs : Coeffs): TwoVarInequalities = struct
         match IntMap.find v_new (snd econj_old) with 
         | None,_,_ -> t_acc (*skip constants*)
         | (Some (c,old_rep), o, d) ->
-          let allowed_slopes = Hashtbl.keys @@ slopes_from_coeffs coeffs (min v_new other_var, max v_new other_var) in
+          let allowed_slopes = Hashtbl.to_seq_keys @@ slopes_from_coeffs coeffs (min v_new other_var, max v_new other_var) in
           (*inverse rhs so that we can translate the inequalities of the old representant to slopes corresponding to the new representant*)
           let (_, (mi,oi,di)) = EConj.inverse v_new (c,old_rep,o,d) in
           let ci,_ = BatOption.get mi in 
@@ -1604,7 +1604,7 @@ module InequalityFunctor (Coeffs : Coeffs): TwoVarInequalities = struct
                      let k_neq, o_new = convert_to_new (k_old, o) in
                      TVIS.add_inequality k_neq o_new c_acc
               in List.fold copy_single_ineq c_acc ineqs 
-            in let coeffs_new = Enum.fold add_single_slope TVIS.empty allowed_slopes
+            in let coeffs_new = Seq.fold_left add_single_slope TVIS.empty allowed_slopes
             in let x, y = min v_new other_var , max v_new other_var
             in match Coeffs.of_set (get_value x) (get_value y) coeffs_new with 
             | Some coeffs_new ->  set_coeff x y coeffs_new t_acc
