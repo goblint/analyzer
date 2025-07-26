@@ -130,13 +130,12 @@ type ext_intv = intv_infty_list * intv_infty_list
 (* We assume that the divisor is always 1, so we omit it and that t is not bottom. *)
 (*
 TODO: Remove duplicate code.
-TODO: Rename to eval_monoms_to_ext_intv
 *)
-let rec eval_monoms_to_intv_infty_list boxes (terms, (constant, _)) : ext_intv =
+let rec eval_monoms_to_ext_intv boxes (terms, (constant, _)) : ext_intv =
   match terms with
   | [] -> ((ZExt.Arb constant, []), (ZExt.Arb constant, []))
   | (coeff, x, _)::terms -> (
-      let terms_intv_infty_list = eval_monoms_to_intv_infty_list boxes (terms, (constant, Z.one)) in
+      let terms_intv_infty_list = eval_monoms_to_ext_intv boxes (terms, (constant, Z.one)) in
       let x_intv = Boxes.get_value x boxes in
 
       let ub = match snd terms_intv_infty_list with
@@ -196,7 +195,7 @@ let rec eval_monoms_to_intv_infty_list boxes (terms, (constant, _)) : ext_intv =
 
     )
 
-(* let eval_monoms_to_intv_infty_list boxes monoms = timing_wrap "eval_monoms_to_intv_infty_list" (eval_monoms_to_intv_infty_list boxes) monoms *)
+(* let eval_monoms_to_ext_intv boxes monoms = timing_wrap "eval_monoms_to_intv_infty_list" (eval_monoms_to_intv_infty_list boxes) monoms *)
 
 let ext_intv_to_intv (((c_lb, infty_list_lb), (c_ub, infty_list_ub)) : ext_intv) : Intv.t =
   let lb = ZExt.add c_lb (if infty_list_lb = [] then ZExt.zero else NegInfty) in
@@ -609,7 +608,7 @@ struct
         if divisor <> Z.one then failwith "assign_texpr: DIVISOR WAS NOT ONE"
         else
           let monoms = Option.get monoms in
-          let expr_ext_intv = eval_monoms_to_intv_infty_list d.boxes monoms in
+          let expr_ext_intv = eval_monoms_to_ext_intv d.boxes monoms in
           let expr_intv = ext_intv_to_intv expr_ext_intv in
 
           let x_intv = Boxes.get_value x d.boxes in
@@ -841,7 +840,7 @@ struct
           | Some (sum_of_terms, (constant,_)) -> (
               let monoms = Option.get monoms in 
 
-              let expr_ext_intv = eval_monoms_to_intv_infty_list d.boxes monoms in
+              let expr_ext_intv = eval_monoms_to_ext_intv d.boxes monoms in
               let neg_expr_ext_intv = neg_ext_intv expr_ext_intv in
 
               let expr_intv = ext_intv_to_intv expr_ext_intv in
