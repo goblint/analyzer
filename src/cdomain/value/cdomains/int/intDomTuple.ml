@@ -124,6 +124,7 @@ module IntDomTupleImpl = struct
   let ending ?(suppress_ovwarn=false) ik = create2_ovc ik { fi2_ovc = fun (type a) (module I:SOverflow with type t = a and type int_t = int_t) -> I.ending ~suppress_ovwarn ik }
   let of_interval ?(suppress_ovwarn=false) ik = create2_ovc ik { fi2_ovc = fun (type a) (module I:SOverflow with type t = a and type int_t = int_t) -> I.of_interval ~suppress_ovwarn ik }
   let of_congruence ik = create2 { fi2 = fun (type a) (module I:SOverflow with type t = a and type int_t = int_t) -> I.of_congruence ik }
+  let to_congruence (_,_,_,c,_,_) = match c with Some c -> c | None -> I4.top_of IChar (*ikind is ignored, so choose an arbitrary one *) 
   let of_bitfield ik = create2 { fi2 = fun (type a) (module I:SOverflow with type t = a and type int_t = int_t) -> I.of_bitfield ik }
 
   let refine_with_congruence ik ((a, b, c, d, e, f) : t) (cong : (int_t * int_t) option) : t=
@@ -556,6 +557,8 @@ struct
   let no_intervalSet (x: I.t) = {x with v = IntDomTupleImpl.no_intervalSet x.v}
 
   let no_bitfield (x: I.t) = {x with v = IntDomTupleImpl.no_bitfield x.v}
+
+  let to_congruence (x: I.t) = IntDomTupleImpl.to_congruence x.v
 end
 
 let of_const (i, ik, str) = IntDomTuple.of_int ik i
