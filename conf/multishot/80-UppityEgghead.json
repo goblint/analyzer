@@ -58,10 +58,10 @@
       "arrays": {
         "domain": "unroll",
         "unrolling-factor": 16
+      },
+      "structs": {
+        "domain": "sets"
       }
-    },
-    "structs": {
-      "domain": "sets"
     },
     "race": {
       "free": false,

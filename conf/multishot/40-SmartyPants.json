@@ -54,10 +54,10 @@
     "base": {
       "arrays": {
         "domain": "partitioned"
+      },
+      "structs": {
+        "domain": "sets"
       }
-    },
-    "structs": {
-      "domain": "sets"
     },
     "race": {
       "free": false,

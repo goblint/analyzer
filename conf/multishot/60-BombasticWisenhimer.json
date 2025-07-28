@@ -56,6 +56,9 @@
       "arrays": {
         "domain": "unroll",
         "unrolling-factor": 2
+      },
+      "structs": {
+        "domain": "sets"
       }
     },
     "structs": {
