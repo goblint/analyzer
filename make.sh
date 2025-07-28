@@ -20,17 +20,17 @@ rule() {
     ;; nat*)
       eval $(opam config env)
       dune build $TARGET.exe &&
-      rm -f goblint &&
+      rm -f goblint_bin &&
       cp _build/default/$TARGET.exe goblint_bin
     ;; coverage)
       eval $(opam config env)
       dune build --instrument-with bisect_ppx $TARGET.exe &&
-      rm -f goblint &&
+      rm -f goblint_bin &&
       cp _build/default/$TARGET.exe goblint_bin
     ;; release)
       eval $(opam config env)
       dune build --profile=release $TARGET.exe &&
-      rm -f goblint &&
+      rm -f goblint_bin &&
       cp _build/default/$TARGET.exe goblint_bin
     ;; view)
       eval $(opam config env)
