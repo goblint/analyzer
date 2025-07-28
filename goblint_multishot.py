@@ -46,7 +46,7 @@ class GoblintMultishotRunner:
 
     @staticmethod
     def has_verdict(output):
-        return any("SV-COMP result: true" in line for line in output)
+        return any("SV-COMP result: true" in line for line in output.splitlines())
 
     def run(self):
         if not self.configs:
@@ -55,6 +55,7 @@ class GoblintMultishotRunner:
 
         result = None
         for config in self.configs:
+            print(f"Running with config: {config}")
             result = self.run_with_config(config)
             if result.has_verdict:
                 break
