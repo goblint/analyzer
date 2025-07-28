@@ -27,9 +27,7 @@
       "expRelation",
       "mhp",
       "assert",
-      "var_eq",
       "symb_locks",
-      "region",
       "thread",
       "threadJoins",
       "abortUnless"
@@ -44,13 +42,13 @@
       "threadflag"
     ],
     "context": {
-      "widen": true,
+      "widen": false,
       "gas_scope": "global",
       "gas_value": 30
     },
     "base": {
       "arrays": {
-        "domain": "trivial"
+        "domain": "partitioned"
       }
     },
     "race": {
@@ -62,10 +60,7 @@
       "activated": [
         "reduceAnalyses",
         "mallocWrappers",
-        "noRecursiveIntervals",
         "enums",
-        "congruence",
-        "octagon",
         "wideningThresholds",
         "loopUnrollHeuristic",
         "memsafetySpecification",

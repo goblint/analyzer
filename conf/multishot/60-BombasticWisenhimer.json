@@ -55,14 +55,11 @@
     "base": {
       "arrays": {
         "domain": "unroll",
-        "unrolling-factor": 2
+        "unrolling-factor": 4
       },
       "structs": {
         "domain": "sets"
       }
-    },
-    "structs": {
-      "domain": "sets"
     },
     "race": {
       "free": false,
@@ -74,9 +71,6 @@
         "reduceAnalyses",
         "mallocWrappers",
         "noRecursiveIntervals",
-        "enums",
-        "congruence",
-        "octagon",
         "wideningThresholds",
         "loopUnrollHeuristic",
         "memsafetySpecification",

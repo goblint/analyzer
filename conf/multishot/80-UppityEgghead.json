@@ -52,7 +52,7 @@
     ],
     "context": {
       "widen": false,
-      "callstring_length": 3
+      "callString_length": 3
     },
     "base": {
       "arrays": {
