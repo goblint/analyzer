@@ -1,2 +1,5 @@
-examples/large-program.json
-svcomp25.json
+multishot/10-BasicBuffoon.json
+multishot/20-svcomp25.json
+multishot/40-SmartyPants.json
+multishot/60-BombasticWisenheimer.json
+multishot/80-UppityEgghead.json
