@@ -157,8 +157,8 @@ let error category = Check.check Kind.Error category
 
 let warn category = Check.check Kind.Warning category
 
-let safe category = 
+let safe ?(message = "") category = 
   match !Node0.current_node with
   | Some (Statement _) ->
-    Check.check Kind.Safe category ""
+    Check.check Kind.Safe category "%s" message
   | _ -> ()
