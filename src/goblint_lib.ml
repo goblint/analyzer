@@ -267,6 +267,14 @@ module AffineEqualityDenseDomain = AffineEqualityDenseDomain
 module LinearTwoVarEqualityDomain = LinearTwoVarEqualityDomain
 module PentagonDomain = PentagonDomain
 
+(** Domain specific *)
+module StringUtils = StringUtils
+module Boxes = Boxes
+module ZExt = ZExt
+module Intv = Intv
+module Pntg = Pntg
+module Subs = Subs
+
 (** {5 2-Pointer Logic}
 
     Domains for {!C2poAnalysis}. *)
