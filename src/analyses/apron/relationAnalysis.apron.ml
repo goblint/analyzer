@@ -298,7 +298,7 @@ struct
     (* See, e.g, Beckschulze E, Kowalewski S, Brauer J (2012) Access-based localization for octagons. Electron Notes Theor Comput Sci 287:29–40 *)
     (* Also, a local *)
     let vname = GobApron.Var.show var in
-    let equiv v = VM.var_name (Local v) = vname in
+    let equiv v = VM.var_name (Local v) = vname in (* TODO: optimize *)
     (not @@ List.exists equiv fundec.sformals) && (not @@ List.exists equiv fundec.slocals)
 
   let make_callee_rel ~thread man f args =
