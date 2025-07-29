@@ -19,11 +19,11 @@ void *no_malloc(size_t x){
 int main(void) {
         int *v;
 
-        v = (int*)smalloc(sizeof(*v));
+        v = (int*)smalloc(sizeof(*v)); // NOWARN (v may be NULL, but sizeof does not evaluate)
         *v = 10; // NOWARN
 
 
-        v = (int*)malloc(sizeof(*v));
+        v = (int*)malloc(sizeof(*v)); // NOWARN (v is not NULL and sizeof does not evaluate anyway)
         if (v == 0){
                 __goblint_check(0); // FAIL
   } else {
@@ -31,7 +31,7 @@ int main(void) {
                 *v != 0; // NOWARN
         }
 
-        v = (int*)no_malloc(sizeof(*v));
+        v = (int*)no_malloc(sizeof(*v)); // NOWARN (v may be NULL, but sizeof does not evaluate)
         *v = 10; //WARN
 
         if (v == 0)
