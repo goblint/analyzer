@@ -2832,6 +2832,7 @@ struct
               let new_val = get ~man fun_st address None in
               if M.tracing then M.trace "taintPC" "update val: %a" VD.pretty new_val;
               let st' = set_savetop ~man st address lval_type new_val in
+              (* if a var partitions an array, all cpa-info for arrays it may partition are added from callee to caller *)
               Option.map_default (fun deps ->
                   {st' with cpa = (Dep.VarSet.fold
                                      (fun v accCPA ->
