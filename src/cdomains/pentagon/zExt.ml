@@ -50,7 +50,9 @@ struct
     else 
       PosInfty
 
-  let zero = of_int 0
+  let zero = Arb(Z.zero) 
+
+  let one = Arb(Z.one) 
 
   let to_string = function
     | NegInfty -> "-∞"
@@ -138,9 +140,9 @@ struct
       | Arb z1, Arb z2 when Z.sign z1 < 0 && not (Z.fits_nativeint z2) -> 
         if Z.is_even z2 then PosInfty else NegInfty
       | Arb z1, Arb z2 when Z.sign z1 > 0 && not (Z.fits_nativeint z2) -> PosInfty
-      | _, Arb z when Z.zero = z -> (of_int 1)
+      | _, Arb z when Z.zero = z -> one 
       | Arb z, _ when Z.zero = z -> zero 
-      | Arb z, _ when Z.one = z -> (of_int 1)
+      | Arb z, _ when Z.one = z -> one 
       | Arb z1, Arb z2 -> (Arb(Z.pow z1 (Z.to_int z2)))
       | z1, PosInfty when sign z1 < 0 -> failwith "ZExt.pow: Cannot determine whether result is NegInfty or PosInfty (or -1 or 1 for z1 = -1) -> depends on the side of the interval"
       | PosInfty, _ | _, PosInfty -> PosInfty

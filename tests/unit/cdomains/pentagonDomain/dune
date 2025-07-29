@@ -1,3 +1,0 @@
-; Workaround for workaround for alternative dependencies with unqualified subdirs.
-; copy_files causes "dependency cycle that does not involve any files" otherwise
-(include_subdirs no)

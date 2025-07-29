@@ -12,7 +12,7 @@ struct
 
   type t = (ZExt.t * ZExt.t) [@@deriving eq, hash, ord]
 
-  let to_string ((lb, ub): t) = Printf.sprintf "[%s,%s]" (StringUtils.int32_bound_str lb) (StringUtils.int32_bound_str ub)
+  let to_string ((lb, ub): t) = Printf.sprintf "[%s,%s]" (StringUtils.string_of_zext lb) (StringUtils.string_of_zext ub)
 
   let top () = ((ZExt.NegInfty, ZExt.PosInfty): t)
 

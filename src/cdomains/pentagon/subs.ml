@@ -62,7 +62,7 @@ struct
           VarList.map (
             fun set ->
               VarSet.map (
-                fun v -> match MoveMap.find_opt v moved with | None -> v | Some(v') -> v'
+                fun v -> MoveMap.find_default v v moved
               ) set
           ) subs 
       in
@@ -105,21 +105,19 @@ struct
 
   let is_top (sub: t) = VarList.for_all VarSet.is_empty sub
 
-  let subseteq set1 set2 = VarSet.subset set1 set2 || VarSet.equal set1 set2 (** helper, missing in batteries *)
-
   (**
      The inequalities map s1 is less than or equal to s2 iff
       forall x in s2.
-      s2(x) subseteq s1(x)
+      s2(x) VarSet.subset s1(x)
   *)
   let leq (sub1: t) (sub2: t) = 
-    BatList.for_all2 subseteq sub2 sub1
+    BatList.for_all2 VarSet.subset sub2 sub1
 
   let join (sub1: t) (sub2: t) = BatList.map2 VarSet.inter sub1 sub2
 
   let meet (sub1: t) (sub2: t) = BatList.map2 VarSet.union sub1 sub2
 
-  let widen (sub1: t) (sub2: t) = BatList.map2 (fun s1x s2x -> if subseteq s1x s2x then s2x else VarSet.empty) sub1 sub2
+  let widen (sub1: t) (sub2: t) = BatList.map2 (fun s1x s2x -> if VarSet.subset s1x s2x then s2x else VarSet.empty) sub1 sub2
 
   let forget_vars (vars : int BatList.t) =
     BatList.mapi (fun x ys ->

@@ -53,7 +53,7 @@ struct
     (string_of_texpr1 @@ Texpr1.to_expr @@ Tcons1.get_texpr1 @@ tcons1) ^ " " ^  Tcons1.string_of_typ (Tcons1.get_typ tcons1) ^ " 0"
 
   (** Returns "-I32" or "+I32" if z is bound, else just the string of z. *)
-  let int32_bound_str z =
+  let string_of_zext z =
     let (=*) = ZExtOps.(=*) in
     let min_int = Int32.to_int Int32.min_int in
     let max_int = Int32.to_int Int32.max_int in

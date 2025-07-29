@@ -155,7 +155,7 @@ let rec eval_monoms_to_ext_intv boxes (terms, (constant, _)) : ext_intv =
           | ZExt.NegInfty -> failwith "This should not happen :)"
           | ZExt.PosInfty -> (
               if Z.abs coeff = Z.one then
-                if List.length l >= 2 then
+                if List.compare_length_with l 2 >= 0 then
                   (ZExt.PosInfty, [])
                 else
                   c, (x :: l)
@@ -170,7 +170,6 @@ let rec eval_monoms_to_ext_intv boxes (terms, (constant, _)) : ext_intv =
         | (NegInfty, l ) -> (ZExt.NegInfty, l)
         | (c, l) -> 
 
-
           let coeff_x_lb = 
             if Z.sign coeff > 0 then
               ZExt.mul (Arb coeff) (Intv.inf x_intv)
@@ -182,7 +181,7 @@ let rec eval_monoms_to_ext_intv boxes (terms, (constant, _)) : ext_intv =
           | ZExt.PosInfty -> failwith "This should not happen :)"
           | ZExt.NegInfty -> (
               if Z.abs coeff = Z.one then
-                if List.length l >= 2 then
+                if List.compare_length_with l 2 >= 0 then
                   (ZExt.NegInfty, [])
                 else
                   c, (x :: l)
