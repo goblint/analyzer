@@ -617,14 +617,18 @@ struct
             let symbolic_intv =
               if Subs.gt x1 x2 d.subs then (ZExt.add (Arb constant) (ZExt.of_int 1), ZExt.PosInfty) else (ZExt.NegInfty, ZExt.add (Arb constant) (ZExt.of_int (-1)))
             in
-            let boxes = Boxes.set_value x (Intv.inter symbolic_intv expr_intv) d.boxes
-            in wrap boxes d.subs
+            let intersected = (Intv.inter symbolic_intv expr_intv) in
+            if Intv.is_bot intersected then bot_of_env t.env else
+              let boxes = Boxes.set_value x intersected d.boxes
+              in wrap boxes d.subs
           | [(a1, x1, _); (a2, x2, _)] when a1 = Z.of_int (-1) && a2 = Z.one ->
             let symbolic_intv =
               if Subs.gt x2 x1 d.subs then (ZExt.add (Arb constant) (ZExt.of_int 1), ZExt.PosInfty) else (ZExt.NegInfty, ZExt.add (Arb constant) (ZExt.of_int (-1)))
             in
-            let boxes = Boxes.set_value x (Intv.inter symbolic_intv expr_intv) d.boxes
-            in wrap boxes d.subs
+            let intersected = (Intv.inter symbolic_intv expr_intv) in
+            if Intv.is_bot intersected then bot_of_env t.env else
+              let boxes = Boxes.set_value x intersected d.boxes
+              in wrap boxes d.subs
 
           | _ ->
 
