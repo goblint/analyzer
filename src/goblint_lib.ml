@@ -131,6 +131,7 @@ module PthreadSignals = PthreadSignals
 module PthreadBarriers = PthreadBarriers
 module ExtractPthread = ExtractPthread
 module PthreadOnce = PthreadOnce
+module BranchSet = BranchSet
 
 (** {2 Longjmp}
 
