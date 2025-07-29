@@ -1,5 +1,4 @@
-// Current running command:
-// ./goblint tests/regression/86-pentagon/01-pentagon-simple.c --conf ./conf/pentagon.json
+// SKIP PARAM: --conf ./conf/pentagon.json
 
 #include <goblint.h>
 
