@@ -106,7 +106,7 @@ let computeSCCs (module Cfg: CfgBidir) nodes =
 
   if Messages.tracing then (
     List.iter (fun scc ->
-        let nodes = scc.nodes |> NH.keys |> BatList.of_enum in
+        let nodes = scc.nodes |> NH.to_seq_keys |> List.of_seq in
         Messages.trace "cfg" "SCC: %a" (d_list " " (fun () node -> text (Node.show_id node))) nodes;
         NH.iter (fun node _ ->
             Messages.trace "cfg" "SCC entry: %s" (Node.show_id node)
@@ -390,7 +390,7 @@ let createCFG (file: file) =
         in
 
         let rec iter_connect () =
-          let (sccs, node_scc) = computeSCCs (module TmpCfg) (NH.keys fd_nodes |> BatList.of_enum) in
+          let (sccs, node_scc) = computeSCCs (module TmpCfg) (NH.to_seq_keys fd_nodes |> List.of_seq) in
 
           let added_connect = ref false in
 
@@ -405,24 +405,24 @@ let createCFG (file: file) =
                   (* scc has no successors but also doesn't contain return node, requires additional connections *)
                   (* find connection candidates from loops *)
                   let targets =
-                    NH.keys scc.nodes
-                    |> BatEnum.concat_map (fun fromNode ->
+                    NH.to_seq_keys scc.nodes
+                    |> Seq.concat_map (fun fromNode ->
                         NH.find_all loop_head_neg1 fromNode
-                        |> BatList.enum
-                        |> BatEnum.filter (fun toNode ->
+                        |> List.to_seq
+                        |> Seq.filter (fun toNode ->
                             not (NH.mem scc.nodes toNode) (* exclude candidates into the same scc, those wouldn't help *)
                           )
-                        |> BatEnum.map (fun toNode ->
+                        |> Seq.map (fun toNode ->
                             (fromNode, toNode)
                           )
                       )
-                    |> BatList.of_enum
+                    |> List.of_seq
                   in
                   let targets = match targets with
                     | [] ->
                       let scc_node =
-                        NH.keys scc.nodes
-                        |> BatList.of_enum
+                        NH.to_seq_keys scc.nodes
+                        |> BatList.of_seq (* TODO: do not convert to list to find min *)
                         |> BatList.min ~cmp:Node.compare (* use min for consistency for incremental CFG comparison *)
                       in
                       (* default to pseudo return if no suitable candidates *)
@@ -456,7 +456,7 @@ let createCFG (file: file) =
         Timing.wrap ~args:[("function", `String fd.svar.vname)] "iter_connect" iter_connect ();
 
         (* Verify that function is now connected *)
-        let reachable_return' = find_backwards_reachable ~initial_size:(NH.keys fd_nodes |> BatEnum.hard_count) (module TmpCfg) (Function fd) in
+        let reachable_return' = find_backwards_reachable ~initial_size:(NH.length fd_nodes) (module TmpCfg) (Function fd) in
         (* TODO: doesn't check that all branches are connected, but only that there exists one which is *)
         if not (NH.mem reachable_return' (FunctionEntry fd)) then
           raise (Not_connect fd)
@@ -701,7 +701,7 @@ let getGlobalInits (file: file) : edges  =
       else if not (Hashtbl.mem inits (assign (any_index lval))) then
         Hashtbl.add inits (assign (any_index lval)) ()
     | CompoundInit (typ, lst) ->
-      let ntyp = match typ, lst with
+      let ntyp = match Cil.unrollType typ, lst with
         | TArray(t, None, attr), [] -> TArray(t, Some zero, attr) (* set initializer type to t[0] for flexible array members of structs that are intialized with {} *)
         | _, _ -> typ
       in
@@ -721,7 +721,7 @@ let getGlobalInits (file: file) : edges  =
   iterGlobals file f;
   let initfun = emptyFunction "__goblint_dummy_init" in
   (* order is not important since only compile-time constants can be assigned *)
-  ({line = 0; file="initfun"; byte= 0; column = 0; endLine = -1; endByte = -1; endColumn = -1; synthetic = true}, Entry initfun) :: (BatHashtbl.keys inits |> BatList.of_enum)
+  ({line = 0; file="initfun"; byte= 0; column = 0; endLine = -1; endByte = -1; endColumn = -1; synthetic = true}, Entry initfun) :: (Hashtbl.to_seq_keys inits |> List.of_seq)
 
 
 let numGlobals file =

@@ -1,4 +1,4 @@
-// PARAM: --set ana.activated[+] unassume --set witness.yaml.unassume 44-base-unassume-array.yml --enable ana.int.interval
+// PARAM: --set witness.yaml.entry-types[*] loop_invariant --set ana.activated[+] unassume --set witness.yaml.unassume 44-base-unassume-array.yml --enable ana.int.interval
 #include <goblint.h>
 
 int main() {

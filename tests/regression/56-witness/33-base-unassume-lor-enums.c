@@ -1,4 +1,4 @@
-// PARAM: --enable ana.int.enums --set ana.activated[+] unassume --set witness.yaml.unassume 33-base-unassume-lor-enums.yml
+// PARAM: --enable ana.int.enums --set witness.yaml.entry-types[*] location_invariant --set ana.activated[+] unassume --set witness.yaml.unassume 33-base-unassume-lor-enums.yml
 #include <goblint.h>
 int main() {
   int i;

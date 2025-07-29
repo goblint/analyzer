@@ -24,7 +24,6 @@
   - entry_type: location_invariant
     location:
       file_name: 01-priv_nr.c
-      file_hash: $FILE_HASH
       line: 25
       column: 3
       function: main
@@ -35,7 +34,6 @@
   - entry_type: location_invariant
     location:
       file_name: 01-priv_nr.c
-      file_hash: $FILE_HASH
       line: 11
       column: 3
       function: t_fun
@@ -46,7 +44,6 @@
   - entry_type: location_invariant
     location:
       file_name: 01-priv_nr.c
-      file_hash: $FILE_HASH
       line: 11
       column: 3
       function: t_fun
@@ -81,7 +78,6 @@
   - entry_type: location_invariant
     location:
       file_name: 01-priv_nr.c
-      file_hash: $FILE_HASH
       line: 25
       column: 3
       function: main
@@ -92,7 +88,6 @@
   - entry_type: location_invariant
     location:
       file_name: 01-priv_nr.c
-      file_hash: $FILE_HASH
       line: 11
       column: 3
       function: t_fun
@@ -103,7 +98,6 @@
   - entry_type: location_invariant
     location:
       file_name: 01-priv_nr.c
-      file_hash: $FILE_HASH
       line: 11
       column: 3
       function: t_fun
@@ -138,7 +132,6 @@
   - entry_type: location_invariant
     location:
       file_name: 01-priv_nr.c
-      file_hash: $FILE_HASH
       line: 25
       column: 3
       function: main
@@ -149,7 +142,6 @@
   - entry_type: location_invariant
     location:
       file_name: 01-priv_nr.c
-      file_hash: $FILE_HASH
       line: 11
       column: 3
       function: t_fun
@@ -160,7 +152,6 @@
   - entry_type: location_invariant
     location:
       file_name: 01-priv_nr.c
-      file_hash: $FILE_HASH
       line: 11
       column: 3
       function: t_fun
@@ -195,7 +186,6 @@
   - entry_type: location_invariant
     location:
       file_name: 01-priv_nr.c
-      file_hash: $FILE_HASH
       line: 25
       column: 3
       function: main
@@ -206,7 +196,6 @@
   - entry_type: location_invariant
     location:
       file_name: 01-priv_nr.c
-      file_hash: $FILE_HASH
       line: 11
       column: 3
       function: t_fun
@@ -217,7 +206,6 @@
   - entry_type: location_invariant
     location:
       file_name: 01-priv_nr.c
-      file_hash: $FILE_HASH
       line: 11
       column: 3
       function: t_fun

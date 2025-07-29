@@ -1,4 +1,3 @@
-open Batteries
 open Printf
 
 let n_hash = ref 0
