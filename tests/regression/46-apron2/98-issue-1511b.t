@@ -41,3 +41,20 @@
   [Success][Witness] invariant confirmed: 2147483647LL >= (long long )j + (long long )d (98-issue-1511b.c:27:5)
   [Success][Witness] invariant confirmed: 2147483648LL >= (long long )k + (long long )d (98-issue-1511b.c:27:5)
   [Success][Witness] invariant confirmed: j == 0 (98-issue-1511b.c:27:5)
+
+
+# Issue #1712
+
+  $ goblint --enable warn.deterministic --enable dbg.print_protection --disable ana.dead-code.lines 98-issue-1511b.c 
+  [Info][Race] Mutex f read-write protects 2 variable(s): {j, nothing2}
+  [Info][Race] Variable j read-write protected by 1 mutex(es): {f}
+  [Info][Race] Variable nothing2 read-write protected by 1 mutex(es): {f}
+  [Info][Race] Memory locations race summary:
+    safe: 1
+    vulnerable: 0
+    unsafe: 0
+    total memory locations: 1
+  [Info][Race] Mutex read-write protection summary:
+    Number of mutexes: 1
+    Max number variables of protected by a mutex: 2
+    Total number of protected variables (including duplicates): 2

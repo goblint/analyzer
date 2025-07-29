@@ -51,27 +51,23 @@ jobs:
         with:
           ocaml-compiler: ${{ matrix.ocaml-compiler }}
 
-      - name: Install graph-easy # TODO: remove if depext --with-test works
+      - name: Install graph-easy # TODO: remove if depext --with-test works (https://github.com/ocaml/opam/issues/5836)
         if: ${{ matrix.os == 'ubuntu-22.04' }}
         run: sudo apt install -y libgraph-easy-perl
 
       - name: Install dependencies
         run: opam install . --deps-only --with-test
-      
+
       - name: Install os gem for operating system detection
         run: sudo gem install os
 
       - name: Install Apron dependencies
         if: ${{ matrix.apron }}
-        run: |
-          opam depext apron
-          opam install apron mlgmpidl.1.2.15
+        run: opam install apron mlgmpidl.1.2.15
 
       - name: Install Z3 dependencies
         if: ${{ matrix.z3 }}
-        run: |
-          opam depext z3
-          opam install z3
+        run: opam install z3
 
       - name: Build
         run: ./make.sh nat
@@ -86,9 +82,6 @@ jobs:
         run: ruby scripts/update_suite.rb -m
 
   lower-bounds-downgrade:
-    # use external 0install solver to downgrade: https://github.com/ocaml-opam/opam-0install-solver
-    # TODO: will be built in in opam 2.2: https://github.com/ocaml/opam/pull/4909
-
     strategy:
       fail-fast: false
       matrix:
@@ -96,25 +89,22 @@ jobs:
           - ubuntu-22.04 # https://github.com/ocaml/setup-ocaml/issues/872
           - macos-13
         ocaml-compiler:
-          - ocaml-variants.4.14.2+options,ocaml-option-flambda # matches opam lock file, downgrade deps step
+          - ocaml-variants.4.14.2+options,ocaml-option-flambda # matches opam lock file
 
     name: lower-bounds (${{ matrix.os }}, ${{ matrix.ocaml-compiler }}, downgrade)
 
     runs-on: ${{ matrix.os }}
-
-    env:
-      OPAMCONFIRMLEVEL: unsafe-yes # allow opam depext to yes package manager prompts
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
       - name: Set up OCaml ${{ matrix.ocaml-compiler }}
-        uses: ocaml/setup-ocaml@v2
+        uses: ocaml/setup-ocaml@v3
         with:
           ocaml-compiler: ${{ matrix.ocaml-compiler }}
 
-      - name: Install graph-easy # TODO: remove if depext --with-test works
+      - name: Install graph-easy # TODO: remove if depext --with-test works (https://github.com/ocaml/opam/issues/5836)
         if: ${{ matrix.os == 'ubuntu-22.04' }}
         run: sudo apt install -y libgraph-easy-perl
 
@@ -125,21 +115,11 @@ jobs:
         run: sudo gem install os
 
       - name: Install Apron dependencies
-        run: |
-          opam depext apron
-          opam install apron mlgmpidl.1.2.15
-
-      - name: Build
-        if: ${{ false }}
-        run: ./make.sh nat
-
-      - name: Install opam-0install
-        run: opam install opam-0install
+        run: opam install apron mlgmpidl.1.2.15
 
       - name: Downgrade dependencies
-        # must specify ocaml-base-compiler again to prevent it from being downgraded
-        # prevent num downgrade to avoid dune/jbuilder error: https://github.com/ocaml/dune/issues/5280
-        run: opam install $(opam exec -- opam-0install --prefer-oldest goblint ocaml-variants.4.14.2+options ocaml-option-flambda num.1.5)
+        # without "+removed" in criteria, because it also removes optional apron
+        run: opam install --solver=builtin-0install --criteria="+count[version-lag,solution]" . --deps-only --with-test
 
       - name: Build
         run: ./make.sh nat
@@ -152,41 +132,6 @@ jobs:
 
       - name: Test marshal regression # not part of @runtest due to time
         run: ruby scripts/update_suite.rb -m
-
-  lower-bounds-docker:
-    # use builtin-0install solver to remove and downgrade, opam normally compiled without, Docker images have it compiled
-
-    if: ${{ false }}
-
-    name: lower-bounds (docker)
-
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3 # needed for GitHub Actions Cache in build-push-action
-
-      - name: Build dev Docker image
-        id: build
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          target: dev
-          load: true # load into docker instead of immediately pushing
-          tags: dev
-          cache-from: type=gha
-          cache-to: type=gha,mode=max # max mode caches all layers for multi-stage image
-
-      - name: Run opam downgrade and tests in dev Docker image
-        uses: addnab/docker-run-action@v3
-        with:
-          image: dev
-          run: |
-            OPAMCRITERIA=+removed,+count[version-lag,solution] OPAMEXTERNALSOLVER=builtin-0install opam-2.1 install . --deps-only --with-test --confirm-level=unsafe-yes
-            opam exec -- dune runtest
 
   opam-install:
     strategy:
@@ -209,7 +154,7 @@ jobs:
         with:
           ocaml-compiler: ${{ matrix.ocaml-compiler }}
 
-      - name: Install graph-easy # TODO: remove if depext --with-test works
+      - name: Install graph-easy # TODO: remove if depext --with-test works (https://github.com/ocaml/opam/issues/5836)
         if: ${{ matrix.os == 'ubuntu-22.04' }}
         run: sudo apt install -y libgraph-easy-perl
 
@@ -217,9 +162,7 @@ jobs:
         run: opam install goblint --with-test
 
       - name: Install Apron dependencies
-        run: |
-          opam depext apron
-          opam install apron mlgmpidl.1.2.15
+        run: opam install apron mlgmpidl.1.2.15
 
       - name: Symlink installed goblint to repository # because tests want to use locally built one
         run: ln -s $(opam exec -- which goblint) goblint
@@ -265,7 +208,7 @@ jobs:
         os:
           - ubuntu-22.04 # https://github.com/ocaml/setup-ocaml/issues/872
         ocaml-compiler:
-          - ocaml-variants.5.0.0+options,ocaml-option-flambda 
+          - ocaml-variants.5.0.0+options,ocaml-option-flambda
         node-version:
           - 14
 
