@@ -228,19 +228,16 @@ struct
       warn_for_multi_threaded_due_to_abort man;
       state
     | Assert { exp; refine = true; _ } ->
-      begin match man.ask (Queries.EvalInt exp) with
-        | a when Queries.ID.is_bot a -> M.warn ~category:Assert "assert expression %a is bottom" d_exp exp
-        | a ->
-          begin match Queries.ID.to_bool a with
-            | Some true -> ()
-            | Some false ->
-              (* If we know for sure that the expression in "assert" is false => need to check for memory leaks *)
-              warn_for_multi_threaded_due_to_abort man;
-              check_for_mem_leak man
-            | None ->
-              warn_for_multi_threaded_due_to_abort man;
-              check_for_mem_leak man ~assert_exp_imprecise:true ~exp:(Some exp)
-          end
+      begin match Queries.eval_bool (Analyses.ask_of_man man) exp with
+        | `Bot -> M.warn ~category:Assert "assert expression %a is bottom" d_exp exp
+        | `Lifted true -> ()
+        | `Lifted false ->
+          (* If we know for sure that the expression in "assert" is false => need to check for memory leaks *)
+          warn_for_multi_threaded_due_to_abort man;
+          check_for_mem_leak man
+        | `Top ->
+          warn_for_multi_threaded_due_to_abort man;
+          check_for_mem_leak man ~assert_exp_imprecise:true ~exp:(Some exp)
       end;
       state
     | ThreadExit _ ->

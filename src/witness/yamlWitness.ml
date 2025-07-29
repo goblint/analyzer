@@ -454,14 +454,15 @@ struct
                   | `Lifted c_inv ->
                     (* Collect all start states that may satisfy the invariant of current_c *)
                     List.iter (fun c ->
-                        let x = R.ask_local (c.node, c.context) ~local:c.state (Queries.EvalInt c_inv) in
-                        if Queries.ID.is_bot x || Queries.ID.is_bot_ikind x then (* dead code *)
+                        match Queries.eval_bool {f = (fun (type a) (q: a Queries.t) -> R.ask_local (c.node, c.context) ~local:c.state q)} c_inv with
+                        | `Bot -> (* dead code *)
                           failwith "Bottom not expected when querying context state" (* Maybe this is reachable, failwith for now so we see when this happens *)
-                        else if Queries.ID.to_bool x = Some false then () (* Nothing to do, the c does definitely not satisfy the predicate of current_c *)
-                        else begin
+                        | `Lifted false ->
+                          () (* Nothing to do, the c does definitely not satisfy the predicate of current_c *)
+                        | `Lifted true
+                        | `Top ->
                           (* Insert c into the list of weaker contexts of f *)
-                          FCMap.modify_def [] (f, current_c.context) (fun cs -> c::cs) fc_map;
-                        end
+                          FCMap.modify_def [] (f, current_c.context) (fun cs -> c::cs) fc_map
                       ) con_invs;
                   | `Bot | `Top ->
                     (* If the context invariant is None, we will not generate a precondition invariant. Nothing to do here. *)
@@ -747,15 +748,12 @@ struct
 
               let result: VR.result = match InvariantParser.parse_cil inv_parser ~fundec ~loc inv_cabs with
                 | Ok inv_exp ->
-                  let x = ask_local lvar (Queries.EvalInt inv_exp) in
-                  if Queries.ID.is_bot x || Queries.ID.is_bot_ikind x then (* dead code *)
-                    Option.get (VR.result_of_enum (VR.bot ()))
-                  else (
-                    match Queries.ID.to_bool x with
-                    | Some true -> Confirmed
-                    | Some false -> Refuted
-                    | None -> Unconfirmed
-                  )
+                  begin match Queries.eval_bool {f = (fun (type a) (q: a Queries.t) -> ask_local lvar q)} inv_exp with
+                    | `Bot -> Option.get (VR.result_of_enum (VR.bot ())) (* dead code *)
+                    | `Lifted true -> Confirmed
+                    | `Lifted false -> Refuted
+                    | `Top -> Unconfirmed
+                  end
                 | Error e ->
                   ParseError
               in
@@ -859,14 +857,11 @@ struct
 
                 match InvariantParser.parse_cil inv_parser ~fundec ~loc pre_cabs with
                 | Ok pre_exp ->
-                  let x = ask_local pre_lvar (Queries.EvalInt pre_exp) in
-                  if Queries.ID.is_bot x || Queries.ID.is_bot_ikind x then (* dead code *)
-                    true
-                  else (
-                    match Queries.ID.to_bool x with
-                    | Some b -> b
-                    | None -> false
-                  )
+                  begin match Queries.eval_bool {f = (fun (type a) (q: a Queries.t) -> ask_local pre_lvar q)} pre_exp with
+                    | `Bot -> true (* dead code *)
+                    | `Lifted b -> b
+                    | `Top -> false
+                  end
                 | Error e ->
                   M.error ~category:Witness ~loc:msgLoc "CIL couldn't parse precondition: %s" pre;
                   M.info ~category:Witness ~loc:msgLoc "precondition has undefined variables or side effects: %s" pre;
