@@ -38,6 +38,7 @@ struct
   type t = Dom.t
   module D      = Dom
   include Analyses.ValueContexts(D)
+  module P = IdentityP(Dom)
 
   (* Two global invariants:
      1. Priv.V -> Priv.G  --  used for Priv
