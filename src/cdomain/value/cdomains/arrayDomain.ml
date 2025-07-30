@@ -1029,8 +1029,8 @@ struct
 
   module ArrayOobMessage = M.Category.Behavior.Undefined.ArrayOutOfBounds
   let warn_past_end ?loc ?tags fmt = 
-    let () = M.error ~category:ArrayOobMessage.past_end ?loc ?tags fmt |> ignore in
-    Checks.error Checks.Category.InvalidMemoryAccess fmt
+    let () = Checks.error Checks.Category.InvalidMemoryAccess fmt |> ignore in
+    M.error ~category:ArrayOobMessage.past_end ?loc ?tags fmt
 
   let min_nat_of_idx i = Z.max Z.zero (BatOption.default Z.zero (Idx.minimal i))
 
