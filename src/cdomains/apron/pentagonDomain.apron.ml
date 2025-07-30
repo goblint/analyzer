@@ -128,9 +128,6 @@ type intv_infty_list = ZExt.t * Int.t list
 type ext_intv = intv_infty_list * intv_infty_list
 
 (* We assume that the divisor is always 1, so we omit it and that t is not bottom. *)
-(*
-TODO: Remove duplicate code.
-*)
 let rec eval_monoms_to_ext_intv boxes (terms, (constant, _)) : ext_intv =
   match terms with
   | [] -> ((ZExt.Arb constant, []), (ZExt.Arb constant, []))
@@ -556,10 +553,6 @@ struct
   (* let forget_vars t vars = timing_wrap "forget_vars" (forget_vars t) vars *)
 
 
-  (* 
-  TODO: discuss whether to implement the subtraction like the pentagon paper
-     (special case? different eval_monoms_to_intv that also uses relational information?)
-  *)
   let assign_texpr (t: t) x (texp: Texpr1.expr) : t =
     let wrap b s = {d=Some({boxes = b; subs = s}); env=t.env} in
     let x = Environment.dim_of_var t.env x in 
@@ -576,8 +569,10 @@ struct
               let boxes = Boxes.set_value x rem_intv d.boxes in
 
               let subs: Subs.t =
-                (* We remove any subs of x.
-                   TODO: We could add a special case for x' := x % d, x >= 0 ==> x' <= x ==> SUBs(x) can stay *)
+                (* 
+                We remove any subs of x. 
+                We could add a special case for x' := x % d, x >= 0 ==> x' <= x ==> SUBs(x) can stay.
+                *)
                 Subs.forget_vars [x] d.subs |>
                 let dim_d = Environment.dim_of_var t.env d' in
                 let d_intv = Boxes.get_value dim_d d.boxes in
