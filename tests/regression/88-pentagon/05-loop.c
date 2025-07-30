@@ -1,3 +1,5 @@
+// SKIP PARAM: --conf ./conf/pentagon.json
+
 #include <goblint.h>
 
 int main() {
