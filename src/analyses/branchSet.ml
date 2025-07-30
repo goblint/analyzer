@@ -7,7 +7,7 @@ module Spec =
 struct
   include Analyses.IdentitySpec
 
-  module Branch = Printable.ProdSimple(BoolDomain.Bool)(CilType.Location)
+  module Branch = Printable.ProdSimple(BoolDomain.Bool)(Node)
   module BranchSet = SetDomain.Make(Branch)
 
   module D = BranchSet
@@ -26,8 +26,7 @@ struct
 
 
   let branch man (exp:exp) (tv:bool) : D.t =
-    let loc = Node.location man.node in
-    BranchSet.add (tv, loc) man.local
+    BranchSet.add (tv, man.node) man.local
 
 
   let name () = "branchSet"
