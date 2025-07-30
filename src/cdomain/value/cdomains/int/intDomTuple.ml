@@ -64,9 +64,9 @@ module IntDomTupleImpl = struct
     | Some(_, {underflow; overflow}) -> not (underflow || overflow)
     | _ -> false
 
-  let check_ov ?(suppress_ovwarn = false) ~cast ik intv intv_set bf =
+  let check_ov ?(suppress_ovwarn = false) ?(no_safe = false) ~cast ik intv intv_set bf =
     let no_ov = (no_overflow ik intv) || (no_overflow ik intv_set) || (no_overflow ik bf) in
-    if not suppress_ovwarn && (BatOption.is_some intv || BatOption.is_some intv_set || BatOption.is_some bf) then
+    if not suppress_ovwarn && (BatOption.is_some intv || BatOption.is_some intv_set || BatOption.is_some bf) then (
       if not no_ov then (
         let (_,{underflow=underflow_intv; overflow=overflow_intv}) = match intv with None -> (I2.bot (), {underflow= true; overflow = true}) | Some x -> x in
         let (_,{underflow=underflow_intv_set; overflow=overflow_intv_set}) = match intv_set with None -> (I5.bot (), {underflow= true; overflow = true}) | Some x -> x in
@@ -74,9 +74,10 @@ module IntDomTupleImpl = struct
         let underflow = underflow_intv && underflow_intv_set && underflow_bf in
         let overflow = overflow_intv && overflow_intv_set && overflow_bf in
         set_overflow_flag ~cast ~underflow ~overflow ik;
-      ) else if not !AnalysisState.executing_speculative_computations then (
-        Checks.safe Checks.Category.IntegerOverflow
-      );
+      ) else if not !AnalysisState.executing_speculative_computations && not no_safe then (
+        Checks.safe Checks.Category.IntegerOverflow ~message:("Cast: " ^ string_of_bool cast)
+      )
+    );
     no_ov
 
   let create2_ovc ik r x ((p1, p2, p3, p4, p5, p6): int_precision) =
@@ -85,7 +86,7 @@ module IntDomTupleImpl = struct
     let intv =  f p2 @@ r.fi2_ovc (module I2) in
     let intv_set = f p5 @@ r.fi2_ovc (module I5) in
     let bf = f p6 @@ r.fi2_ovc (module I6) in
-    ignore (check_ov ~cast:false ik intv intv_set bf);
+    ignore (check_ov ~no_safe:true ~cast:false ik intv intv_set bf);
     map @@ f p1 @@ r.fi2_ovc (module I1), map @@ f p2 @@ r.fi2_ovc (module I2), map @@ f p3 @@ r.fi2_ovc (module I3), map @@ f p4 @@ r.fi2_ovc (module I4), map @@ f p5 @@ r.fi2_ovc (module I5) , map @@ f p6 @@ r.fi2_ovc (module I6)
 
   let create2_ovc ik r x = (* use where values are introduced *)
