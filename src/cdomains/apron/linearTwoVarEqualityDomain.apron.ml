@@ -453,7 +453,7 @@ struct
 
   let meet t1 t2 =
     let res = meet t1 t2 in
-    if M.tracing then M.tracel "meet" "meet a: %s\n U  \n b: %s \n -> %s" (show t1) (show t2) (show res) ;
+    if M.tracing then M.tracel "meet" "meet a: %a\n U  \n b: %a \n -> %a" pretty t1 pretty t2 pretty res;
     res
 
   let meet t1 t2 = Timing.wrap "meet" (meet t1) t2
@@ -479,7 +479,7 @@ struct
 
   let leq t1 t2 =
     let res = leq t1 t2 in
-    if M.tracing then M.tracel "leq" "leq a: %s b: %s -> %b" (show t1) (show t2) res ;
+    if M.tracing then M.tracel "leq" "leq a: %a b: %a -> %b" pretty t1 pretty t2 res;
     res
 
   let join a b =
@@ -561,7 +561,7 @@ struct
 
   let join a b =
     let res = join a b in
-    if M.tracing then M.tracel "join" "join a: %s b: %s -> %s" (show a) (show b) (show res) ;
+    if M.tracing then M.tracel "join" "join a: %a b: %a -> %a" pretty a pretty b pretty res;
     res
 
   let widen a b =
@@ -569,14 +569,14 @@ struct
 
   let widen a b =
     let res = widen a b in
-    if M.tracing then M.tracel "widen" "widen a: %s b: %s -> %s" (show a) (show b) (show res) ;
+    if M.tracing then M.tracel "widen" "widen a: %a b: %a -> %a" pretty a pretty b pretty res;
     res
 
   let narrow a b = meet a b
 
   let narrow a b =
     let res = narrow a b in
-    if M.tracing then M.tracel "narrow" "narrow a: %s b: %s -> %s" (show a) (show b) (show res) ;
+    if M.tracing then M.tracel "narrow" "narrow a: %a b: %a -> %a" pretty a pretty b pretty res;
     res
 
   let pretty_diff () (x, y) =
@@ -596,7 +596,7 @@ struct
 
   let forget_vars t vars =
     let res = forget_vars t vars in
-    if M.tracing then M.tracel "ops" "forget_vars %s -> %s" (show t) (show res);
+    if M.tracing then M.tracel "ops" "forget_vars %a -> %a" pretty t pretty res;
     res
 
   let forget_vars t vars = Timing.wrap "forget_vars" (forget_vars t) vars
@@ -646,7 +646,7 @@ struct
 
   let assign_var t v v' =
     let res = assign_var t v v' in
-    if M.tracing then M.tracel "ops" "assign_var t:\n %s \n v: %a \n v': %a\n -> %s" (show t) Var.pretty v Var.pretty v' (show res);
+    if M.tracing then M.tracel "ops" "assign_var t:\n %a \n v: %a \n v': %a\n -> %a" pretty t Var.pretty v Var.pretty v' pretty res;
     res
 
   (** Parallel assignment of variables.
@@ -667,7 +667,7 @@ struct
 
   let assign_var_parallel t vv's =
     let res = assign_var_parallel t vv's in
-    if M.tracing then M.tracel "ops" "assign_var parallel: %s -> %s" (show t) (show res);
+    if M.tracing then M.tracel "ops" "assign_var parallel: %a -> %a" pretty t pretty res;
     res
 
   let assign_var_parallel t vv's = Timing.wrap "var_parallel" (assign_var_parallel t) vv's
@@ -699,7 +699,7 @@ struct
 
   let substitute_exp ask t var exp no_ov =
     let res = substitute_exp ask t var exp no_ov in
-    if M.tracing then M.tracel "ops" "Substitute_expr t: \n %s \n var: %a \n exp: %a \n -> \n %s" (show t) Var.pretty var d_exp exp (show res);
+    if M.tracing then M.tracel "ops" "Substitute_expr t: \n %a \n var: %a \n exp: %a \n -> \n %a" pretty t Var.pretty var d_exp exp pretty res;
     res
 
   let substitute_exp ask t var exp no_ov = Timing.wrap "substitution" (substitute_exp ask t var exp) no_ov
@@ -764,7 +764,7 @@ struct
 
   let unify a b =
     let res = unify a b in
-    if M.tracing then M.tracel "ops" "unify: %s\n    U\n %s -> %s" (show a) (show b) (show res);
+    if M.tracing then M.tracel "ops" "unify: %a\n    U\n %a -> %a" pretty a pretty b pretty res;
     res
 
   (** Assert a constraint expression. Defined in apronDomain.apron.ml

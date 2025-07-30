@@ -138,7 +138,7 @@ module C2PODomain = struct
   let meet x y  =
     let cc1 = x.data in
     let cc2 = y.data in
-    if M.tracing then M.trace "c2po-meet" "Meet x= %s; y=%s" (show x) (show y);
+    if M.tracing then M.trace "c2po-meet" "Meet x= %a; y=%a" pretty x pretty y;
     let res =
       if exactly_equal cc1 cc2 then
         cc1
@@ -150,7 +150,7 @@ module C2PODomain = struct
           meet_conjs_opt a_conj cc2
     in
     let res = data_to_t res in
-    if M.tracing then M.trace "c2po-meet" "Meet result = %s" (show res);
+    if M.tracing then M.trace "c2po-meet" "Meet result = %a" pretty res;
     res
 
   let narrow x y =
@@ -172,7 +172,7 @@ module C2PODomain = struct
         meet
     in
     let res = data_to_t res in
-    if M.tracing then M.trace "c2po-meet" "NARROW RESULT = %s" (show res);
+    if M.tracing then M.trace "c2po-meet" "NARROW RESULT = %a" pretty res;
     res
 
   let leq x y =
