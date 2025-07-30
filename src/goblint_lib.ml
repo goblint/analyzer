@@ -131,7 +131,6 @@ module PthreadSignals = PthreadSignals
 module PthreadBarriers = PthreadBarriers
 module ExtractPthread = ExtractPthread
 module PthreadOnce = PthreadOnce
-module BranchSet = BranchSet
 
 (** {2 Longjmp}
 
@@ -160,6 +159,7 @@ module Callstring = Callstring
 module LoopfreeCallstring = LoopfreeCallstring
 module Uninit = Uninit
 module Expsplit = Expsplit
+module BranchSet = BranchSet
 module StackTrace = StackTrace
 
 (** {2 Helper}
