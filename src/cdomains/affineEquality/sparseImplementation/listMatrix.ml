@@ -42,8 +42,8 @@ module ListMatrix: SparseMatrixFunctor =
     type t = V.t list (* List of rows *)
     [@@deriving eq, ord, hash]
 
-    let show x =
-      List.fold_left (^) "" (List.map (fun x -> (V.show x)) x)
+    let pretty =
+      GoblintCil.Pretty.(docList ~sep:nil (V.pretty ()))
 
     let copy m = m
 
@@ -328,7 +328,7 @@ module ListMatrix: SparseMatrixFunctor =
               let normalized_v = V.map_f_preserves_zero (fun x -> x /: value) v_after_elim in
               Some (insert_v_according_to_piv m normalized_v idx pivot_positions)
       in
-      if M.tracing then M.trace "rref_vec" "rref_vec: m:\n%s, v: %s => res:\n%s" (show m) (V.show v) (match res with None -> "None" | Some r -> show r);
+      if M.tracing then M.trace "rref_vec" "rref_vec: m:\n%a, v: %a => res:\n%a" pretty m V.pretty v (GoblintCil.Pretty.docOpt (pretty ())) res;
       res
 
     let rref_vec m v = timing_wrap "rref_vec" (rref_vec m) v
@@ -422,7 +422,7 @@ module ListMatrix: SparseMatrixFunctor =
         let res = map2i (fun i x y -> if i < r then
                             V.map2_f_preserves_zero (fun u j -> u +: y *: j) x a_r
                           else x) a col_b in
-        if M.tracing then M.trace "linear_disjunct_cases" "case_two: \na:\n%s, r:%d,\n col_b: %s, a_r: %s, => res:\n%s" (show a) r (V.show col_b) (V.show a_r) (show res);
+        if M.tracing then M.trace "linear_disjunct_cases" "case_two: \na:\n%a, r:%d,\n col_b: %a, a_r: %a, => res:\n%a" pretty a r V.pretty col_b V.pretty a_r pretty res;
         res
       in
 
@@ -445,14 +445,14 @@ module ListMatrix: SparseMatrixFunctor =
             | [], [] -> (acclist,acc)
           in
           let resl,rest = sub_and_last_aux ([],None) c1 c2 in
-          if M.tracing then M.trace "linear_disjunct_cases" "sub_and_last: ridx: %d c1: %s, c2: %s, resultlist: %s, result_pivot: %s" ridx (V.show col1) (V.show col2) (String.concat "," (List.map (fun (i,v) -> Printf.sprintf "(%d,%s)" i (A.to_string v)) resl)) (match rest with None -> "None" | Some (i,v1,v2) -> Printf.sprintf "(%d,%s,%s)" i (A.to_string v1) (A.to_string v2));
+          if M.tracing then M.trace "linear_disjunct_cases" "sub_and_last: ridx: %d c1: %a, c2: %a, resultlist: %s, result_pivot: %s" ridx V.pretty col1 V.pretty col2 (String.concat "," (List.map (fun (i,v) -> Printf.sprintf "(%d,%s)" i (A.to_string v)) resl)) (match rest with None -> "None" | Some (i,v1,v2) -> Printf.sprintf "(%d,%s,%s)" i (A.to_string v1) (A.to_string v2)); (* TODO: avoid eager arguments *)
           V.of_sparse_list len (List.rev resl), rest
         in
         let coldiff,lastdiff = sub_and_lastterm col1 col2 in
         match lastdiff with
         | None ->
           let sameinboth=get_col_upper_triangular m1 cidx in
-          if M.tracing then M.trace "linear_disjunct_cases" "case_three: no difference found, cidx: %d, ridx: %d, coldiff: %s, sameinboth: %s" cidx ridx (V.show coldiff) (V.show sameinboth);
+          if M.tracing then M.trace "linear_disjunct_cases" "case_three: no difference found, cidx: %d, ridx: %d, coldiff: %a, sameinboth: %a" cidx ridx V.pretty coldiff V.pretty sameinboth;
           (del_col m1 cidx,  del_col m2 cidx, push_col result cidx sameinboth, ridx) (* No difference found -> (del_col m1 cidx, del_col m2 cidx, push hd to result, ridx)*)
         | Some (idx,x,y) ->
           let r1 = safe_get_row m1 idx in
@@ -469,14 +469,14 @@ module ListMatrix: SparseMatrixFunctor =
           let transformed_a = multiply_by_t (-) m1 r1 in
           let alpha = get_col_upper_triangular transformed_a cidx in
           let res = push_col transformed_res cidx alpha in
-          if M.tracing then M.trace "linear_disjunct_cases" "case_three: found difference at ridx: %d idx: %d, x: %s, y: %s, diff: %s, m1: \n%s, m2:\n%s, res:\n%s"
-              ridx idx (A.to_string x) (A.to_string y) (A.to_string diff) (show m1) (show m2) (show @@ rev_matrix res);
+          if M.tracing then M.trace "linear_disjunct_cases" "case_three: found difference at ridx: %d idx: %d, x: %s, y: %s, diff: %s, m1: \n%a, m2:\n%a, res:\n%a"
+              ridx idx (A.to_string x) (A.to_string y) (A.to_string diff) pretty m1 pretty m2 pretty (rev_matrix res); (* TODO: avoid eager A.to_string, rev_matrix *)
           safe_remove_row (transformed_a) idx, safe_remove_row (multiply_by_t (-) m2 r2) idx, safe_remove_row (res) idx, ridx - 1
       in
 
       let rec lindisjunc_aux currentrowindex currentcolindex m1 m2 result =
-        if M.tracing then M.trace "linear_disjunct" "result so far: \n%s, currentrowindex: %d, currentcolindex: %d, m1: \n%s, m2:\n%s "
-            (show @@ rev_matrix result) currentrowindex currentcolindex  (show m1) (show m2);
+        if M.tracing then M.trace "linear_disjunct" "result so far: \n%a, currentrowindex: %d, currentcolindex: %d, m1: \n%a, m2:\n%a"
+            pretty (rev_matrix result) currentrowindex currentcolindex pretty m1 pretty m2; (* TODO: avoid eager rev_matrix *)
         if currentcolindex >= maxcols then result
         else
           let col1, rc1 = col_and_rc m1 currentcolindex currentrowindex in
@@ -487,25 +487,25 @@ module ListMatrix: SparseMatrixFunctor =
                       (del_col m1 currentrowindex) (del_col m2 currentrowindex)
                       (List.mapi (fun idx row -> if idx = currentrowindex then V.push_first row currentcolindex A.one else row) result)
           | 1, 0 -> let beta = get_col_upper_triangular m2 currentcolindex in
-            if M.tracing then M.trace "linear_disjunct_cases" "case 1,0: currentrowindex: %d, currentcolindex: %d, m1: \n%s, m2:\n%s , beta %s" currentrowindex currentcolindex (show m1) (show m2) (V.show beta);
+            if M.tracing then M.trace "linear_disjunct_cases" "case 1,0: currentrowindex: %d, currentcolindex: %d, m1: \n%a, m2:\n%a , beta %a" currentrowindex currentcolindex pretty m1 pretty m2 V.pretty beta;
             lindisjunc_aux
               (currentrowindex) (currentcolindex+1)
               (safe_remove_row (case_two m1 currentrowindex col2) currentrowindex) (safe_remove_row m2 currentrowindex)
               (safe_remove_row (push_col result currentcolindex beta) currentrowindex)
           | 0, 1 -> let beta = get_col_upper_triangular m1 currentcolindex in
-            if M.tracing then M.trace "linear_disjunct_cases" "case 0,1: currentrowindex: %d, currentcolindex: %d, m1: \n%s, m2:\n%s , beta %s" currentrowindex currentcolindex (show m1) (show m2) (V.show beta);
+            if M.tracing then M.trace "linear_disjunct_cases" "case 0,1: currentrowindex: %d, currentcolindex: %d, m1: \n%a, m2:\n%a , beta %a" currentrowindex currentcolindex pretty m1 pretty m2 V.pretty beta;
             lindisjunc_aux
               (currentrowindex) (currentcolindex+1)
               (safe_remove_row m1 currentrowindex) (safe_remove_row (case_two m2 currentrowindex col1) currentrowindex)
               (safe_remove_row (push_col result currentcolindex beta) currentrowindex)
           | 0, 0 -> let m1 , m2, result, currentrowindex = case_three col1 col2 m1 m2 result currentrowindex currentcolindex in
             lindisjunc_aux currentrowindex (currentcolindex+1) m1 m2 result  (* we need to process m1, m2 and result *)
-          | a,b -> failwith ("matrix not in rref m1: " ^ (string_of_int a) ^ (string_of_int b)^(show m1) ^ " m2: " ^ (show m2))
+          | a,b -> failwith (GobPretty.sprintf "matrix not in rref m1: %d%d%a m2: %a" a b pretty m1 pretty m2)
       in
       (* create a totally empty intial result, with dimensions rows x cols *)
       let pseudoempty = BatList.make (max (num_rows m1) (num_rows m1)) (V.zero_vec (num_cols m1)) in
       let res = rev_matrix @@ lindisjunc_aux 0 0 m1 m2 pseudoempty in
-      if M.tracing then M.tracel "linear_disjunct" "linear_disjunct between \n%s and \n%s =>\n%s" (show m1)  (show m2) (show res);
+      if M.tracing then M.tracel "linear_disjunct" "linear_disjunct between \n%a and \n%a =>\n%a" pretty m1 pretty m2 pretty res;
       res
 
   end
