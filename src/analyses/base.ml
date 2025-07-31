@@ -2043,16 +2043,16 @@ struct
       Option.map_default (fun exp ->
           let t_override = Cilfacade.fundec_return_type fundec in
           assert (not (Cil.isVoidType t_override)); (* Returning a value from a void function, CIL removes the Return expression for us anyway. *)
-        let rv = eval_rv ~man man.local exp in
-        let st' = set ~man ~t_override nst (return_var ()) t_override rv in
-        match ThreadId.get_current ask with
-        | `Lifted tid when ThreadReturn.is_current ask ->
-          (* Evaluate exp and cast the resulting value to the void-pointer-type.
-              Casting to the right type here avoids precision loss on joins. *)
-          let rv = VD.cast ~torg:(Cilfacade.typeOf exp) Cil.voidPtrType rv in
-          man.sideg (V.thread tid) (G.create_thread rv);
-          Priv.thread_return ask (priv_getg man.global) (priv_sideg man.sideg) tid st'
-        | _ -> st'
+          let rv = eval_rv ~man man.local exp in
+          let st' = set ~man ~t_override nst (return_var ()) t_override rv in
+          match ThreadId.get_current ask with
+          | `Lifted tid when ThreadReturn.is_current ask ->
+            (* Evaluate exp and cast the resulting value to the void-pointer-type.
+                Casting to the right type here avoids precision loss on joins. *)
+            let rv = VD.cast ~torg:(Cilfacade.typeOf exp) Cil.voidPtrType rv in
+            man.sideg (V.thread tid) (G.create_thread rv);
+            Priv.thread_return ask (priv_getg man.global) (priv_sideg man.sideg) tid st'
+          | _ -> st'
         ) nst exp
 
   let vdecl man (v:varinfo) =
