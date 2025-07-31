@@ -505,7 +505,8 @@ struct
             | (None,       o1,d1), (None       ,o2,d2)-> lhs, (if Z.(zero = ((o1*d2)-(o2*d1))) then Q.one else Q.zero), Q.zero,                     r1, r2 (* only two equivalence classes: constants with matching values or constants with different values *)
           )
       in
-      let table = List.of_enum @@ EConj.IntMap.values @@ EConj.IntMap.merge joinfunction (snd ad) (snd bd) in
+      let joined = EConj.IntMap.merge joinfunction (snd ad) (snd bd) in
+      let table = joined |> EConj.IntMap.to_seq |> Seq.map snd |> List.of_seq in
       (* compare two variables for grouping depending on affine function parameters a, b and reference variable indices  *)
       let cmp_z (_, ai, bi, t1i, t2i) (_, aj, bj, t1j, t2j) =
         let cmp_ref = Option.compare ~cmp:(fun x y -> Int.compare (snd x) (snd y)) in

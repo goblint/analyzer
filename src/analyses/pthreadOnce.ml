@@ -1,6 +1,5 @@
 (** Must active and have passed pthreadOnce calls ([pthreadOnce]). *)
 
-open GoblintCil
 open Analyses
 module LF = LibraryFunctions
 module Mval = PreValueDomain.Mval

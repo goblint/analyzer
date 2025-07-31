@@ -524,8 +524,8 @@ struct
           mark_node obsolete_ret f (Function f)
       ) part_changed_funs;
 
-    let obsolete = Enum.append (HM.keys obsolete_entry) (HM.keys obsolete_prim) |> List.of_enum in
-    let reluctant = HM.keys obsolete_ret |> List.of_enum in
+    let obsolete = Seq.append (HM.to_seq_keys obsolete_entry) (HM.to_seq_keys obsolete_prim) |> List.of_seq in
+    let reluctant = HM.to_seq_keys obsolete_ret |> List.of_seq in
 
     let marked_for_deletion = HM.create 103 in
 
@@ -561,7 +561,7 @@ struct
         add_pseudo_return f un
       ) part_changed_funs;
 
-    let delete = HM.keys marked_for_deletion |> List.of_enum in
+    let delete = HM.to_seq_keys marked_for_deletion |> List.of_seq in
 
     let restart = match I.increment with
       | Some data ->
