@@ -3,3 +3,5 @@ multishot/20-svcomp25.json
 multishot/40-SmartyPants.json
 multishot/60-BombasticWisenheimer.json
 multishot/80-UppityEgghead.json
+multishot/90-SensitiveSybil.json
+multishot/95-FragileFanny.json
