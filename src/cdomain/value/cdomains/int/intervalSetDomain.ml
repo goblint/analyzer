@@ -167,7 +167,7 @@ struct
     let res = List.map (norm_interval ~suppress_ovwarn ~cast ik) xs in
     let intvs = List.concat_map fst res in
     let underflow = List.exists (fun (_,{underflow; _}) -> underflow) res in
-    let overflow = List.exists (fun (_,{overflow; _}) -> underflow) res in
+    let overflow = List.exists (fun (_,{overflow; _}) -> overflow) res in
     (canonize intvs,{underflow; overflow})
 
   let binary_op_with_norm op (ik:ikind) (x: t) (y: t) : t*overflow_info = match x, y with
