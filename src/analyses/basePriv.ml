@@ -370,7 +370,7 @@ struct
       if atomic || ask.f (GhostVarAvailable (Locked m')) then (
         let cpa = get_m_with_mutex_inits ask getg m' in (* Could be more precise if mutex_inits invariant is added by disjunction instead of joining abstract values. *)
         let inv = CPA.fold (fun v _ acc ->
-            if ask.f (MustBeProtectedBy {mutex = m'; global = v; write = true; protection = Strong}) then
+            if ask.f (MustBeProtectedBy {mutex = m'; global = v; kind = Write; protection = Strong}) then
               let inv = ValueDomain.invariant_global (fun g -> CPA.find g cpa) v in
               Invariant.(acc && inv)
             else
@@ -706,7 +706,7 @@ struct
 
   let threadspawn (ask:Queries.ask) get set (st: BaseComponents (D).t) =
     let is_recovered_st = ask.f (Queries.MustBeSingleThreaded {since_start = false}) && not @@ ask.f (Queries.MustBeSingleThreaded {since_start = true}) in
-    let unprotected_after x = ask.f (Q.MayBePublic {global=x; write=true; protection=Weak}) in
+    let unprotected_after x = ask.f (Q.MayBePublic {global=x; kind=Write; protection=Weak}) in
     if is_recovered_st then
       (* Remove all things that are now unprotected *)
       let cpa' = CPA.fold (fun x v cpa ->
@@ -750,14 +750,14 @@ struct
   let startstate () = ()
 
   let read_global (ask: Queries.ask) getg (st: BaseComponents (D).t) x =
-    if is_unprotected ask ~write:false x then
+    if is_unprotected ask ~kind:ReadWrite x then
       VD.join (CPA.find x st.cpa) (getg x)
     else
       CPA.find x st.cpa
 
   let write_global ?(invariant=false) (ask: Queries.ask) getg sideg (st: BaseComponents (D).t) x v =
     if not invariant then (
-      if is_unprotected ask ~write:false x then
+      if is_unprotected ask ~kind:ReadWrite x then
         sideg x v;
       if !earlyglobs then (* earlyglobs workaround for 13/60 *)
         sideg x v (* TODO: is this needed for anything? 13/60 doesn't work for other reasons *)
@@ -766,7 +766,7 @@ struct
 
   let lock ask getg (st: BaseComponents (D).t) m =
     let cpa' = CPA.mapi (fun x v ->
-        if is_protected_by ask ~write:false m x && is_unprotected ask ~write:false x then (* is_in_Gm *)
+        if is_protected_by ask ~kind:ReadWrite m x && is_unprotected ask ~kind:ReadWrite x then (* is_in_Gm *)
           VD.join (CPA.find x st.cpa) (getg x)
         else
           v
@@ -776,8 +776,8 @@ struct
 
   let unlock ask getg sideg (st: BaseComponents (D).t) m =
     CPA.iter (fun x v  ->
-        if is_protected_by ask ~write:false m x then ( (* is_in_Gm *)
-          if is_unprotected_without ask ~write:false x m then (* is_in_V' *)
+        if is_protected_by ask ~kind:ReadWrite m x then ( (* is_in_Gm *)
+          if is_unprotected_without ask ~kind:ReadWrite x m then (* is_in_V' *)
             sideg x v
         )
       ) st.cpa;
@@ -787,7 +787,7 @@ struct
     let branched_sync () =
       (* required for branched thread creation *)
       CPA.iter (fun x v ->
-          if is_global ask x && is_unprotected ask ~write:false x then
+          if is_global ask x && is_unprotected ask ~kind:ReadWrite x then
             sideg x v
         ) st.cpa;
       st
@@ -832,7 +832,7 @@ struct
     | _ -> ()
 
   let invariant_global (ask: Q.ask) getg g =
-    let locks = ask.f (Q.MustProtectingLocks {global = g; write = false}) in
+    let locks = ask.f (Q.MustProtectingLocks {global = g; kind = ReadWrite}) in
     if LockDomain.MustLockset.is_all locks then
       Invariant.none
     else (
@@ -988,7 +988,7 @@ struct
                 (* Extra precision in implementation to pass tests:
                    If global is read-protected by multiple locks,
                    then inner unlock shouldn't yet publish. *)
-                if not Param.check_read_unprotected || is_unprotected_without ask ~write:false x m then
+                if not Param.check_read_unprotected || is_unprotected_without ask ~kind:ReadWrite x m then
                   sideg (V.protected x) v;
                 if atomic then
                   sideg (V.unprotected x) v; (* Publish delayed unprotected write as if it were protected by the atomic section. *)
@@ -1076,7 +1076,7 @@ struct
     | `Left g' -> (* unprotected *)
       ValueDomain.invariant_global (fun g -> getg (V.unprotected g)) g'
     | `Right g' -> (* protected *)
-      let locks = ask.f (Q.MustProtectingLocks {global = g'; write = true}) in
+      let locks = ask.f (Q.MustProtectingLocks {global = g'; kind = Write}) in
       if LockDomain.MustLockset.is_all locks || LockDomain.MustLockset.is_empty locks then
         Invariant.none
       else if VD.equal (getg (V.protected g')) (getg (V.unprotected g')) then

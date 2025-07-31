@@ -6,7 +6,7 @@ open Batteries
 
 let timing_wrap = Vector.timing_wrap
 
-module type ArrayMatrix = 
+module type ArrayMatrix =
 sig
   include Matrix
   val get_col: t -> int -> vec
@@ -61,7 +61,7 @@ module ArrayMatrix: ArrayMatrixFunctor =
       Array.length m
 
     let compare_num_rows m1 m2 =
-      Int.compare (Array.length m1) (Array.length m2) 
+      Int.compare (Array.length m1) (Array.length m2)
 
     let is_empty m =
       (num_rows m = 0)

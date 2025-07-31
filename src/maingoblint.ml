@@ -213,12 +213,7 @@ let parse_arguments () =
   let anon_arg = set_string "files[+]" in
   let arg_speclist = Arg_complete.arg_speclist (Lazy.force option_spec_list) in
   Arg.parse arg_speclist anon_arg "Look up options using 'goblint --help'.";
-  begin match !writeconffile with
-    | Some writeconffile ->
-      GobConfig.write_file writeconffile;
-      raise Stdlib.Exit
-    | None -> ()
-  end;
+  GobOption.iter (fun writeconffile -> GobConfig.write_file writeconffile; raise Stdlib.Exit) !writeconffile;
   handle_options ();
   if not (get_bool "server.enabled") && get_string_list "files" = [] then (
     Logs.error "No files for Goblint?";
@@ -414,9 +409,6 @@ let preprocess_files () =
 
   if List.mem "c" (get_string_list "lib.activated") then
     extra_files := find_custom_include (Fpath.v "stdlib.c") :: !extra_files;
-
-  if List.mem "pthread" (get_string_list "lib.activated") then
-    extra_files := find_custom_include (Fpath.v "pthread.c") :: !extra_files;
 
   if List.mem "sv-comp" (get_string_list "lib.activated") then
     extra_files := find_custom_include (Fpath.v "sv-comp.c") :: !extra_files;

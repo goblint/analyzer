@@ -128,7 +128,9 @@ module BasePriv = BasePriv
 module RelationPriv = RelationPriv
 module ThreadEscape = ThreadEscape
 module PthreadSignals = PthreadSignals
+module PthreadBarriers = PthreadBarriers
 module ExtractPthread = ExtractPthread
+module PthreadOnce = PthreadOnce
 
 (** {2 Longjmp}
 
@@ -157,6 +159,7 @@ module Callstring = Callstring
 module LoopfreeCallstring = LoopfreeCallstring
 module Uninit = Uninit
 module Expsplit = Expsplit
+module BranchSet = BranchSet
 module StackTrace = StackTrace
 
 (** {2 Helper}

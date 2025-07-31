@@ -450,8 +450,8 @@ struct
     let assigned_vars = List.map fst vv's in
     let t = add_vars t assigned_vars in                           (* introduce all lhs-variables to the relation data structure *)
     let primed_vars = List.init                                   (* create a list with primed variables "i'" for each lhs-variable *)
-        (List.length assigned_vars) 
-        (fun i -> Var.of_string (Int.to_string i  ^"'")) 
+        (List.length assigned_vars)
+        (fun i -> Var.of_string (Int.to_string i  ^"'"))
     in (* TODO: we use primed integers as var names, conflict? *)
     let t_primed = add_vars t primed_vars in                      (* introduce primed variables to the relation data structure *)
     (* sequence of assignments: i' = snd vv_i : *)
