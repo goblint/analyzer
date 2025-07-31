@@ -79,10 +79,10 @@ module IntDomTupleImpl = struct
   let create2_ovc ik r x ((p1, p2, p3, p4, p5, p6): int_precision) =
     let f b g = if b then Some (g x) else None in
     let map x = Option.map fst x in
-    let intv =  f p2 @@ r.fi2_ovc (module I2) in
+    (* let intv =  f p2 @@ r.fi2_ovc (module I2) in
     let intv_set = f p5 @@ r.fi2_ovc (module I5) in
     let bf = f p6 @@ r.fi2_ovc (module I6) in
-    ignore (check_ov ~cast:false ik intv intv_set bf);
+    ignore (check_ov ~cast:false ik intv intv_set bf); *)
     map @@ f p1 @@ r.fi2_ovc (module I1), map @@ f p2 @@ r.fi2_ovc (module I2), map @@ f p3 @@ r.fi2_ovc (module I3), map @@ f p4 @@ r.fi2_ovc (module I4), map @@ f p5 @@ r.fi2_ovc (module I5) , map @@ f p6 @@ r.fi2_ovc (module I6)
 
   let create2_ovc ik r x = (* use where values are introduced *)
