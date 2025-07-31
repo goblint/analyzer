@@ -32,10 +32,7 @@ struct
       | [arg] when isIntegralType arg.vtype ->
         (match man.ask (EvalInt (Lval (Var arg, NoOffset))) with
          | v when Queries.ID.is_bot v -> false
-         | v ->
-           match Queries.ID.to_bool v with
-           | Some b -> b
-           | None -> false)
+         | v -> BatOption.default false (Queries.ID.to_bool v))
       | _ ->
         (* should not happen, man.local should always be false in this case *)
         false

@@ -20,7 +20,7 @@ module type S =
     *)
     val create_data: (S.v -> bool) -> (S.v -> S.v -> unit) -> data
 
-    (** Notifies this strategy that a side-effect has occured.
+    (** Notifies this strategy that a side-effect has occurred.
         This allows the strategy to adapt its internal data structure.
         @param data The internal state of this strategy
         @param x    The optional source of the side-effect

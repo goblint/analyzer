@@ -18,10 +18,7 @@ struct
     let check_assert e st =
       match man.ask (Queries.EvalInt e) with
       | v when Queries.ID.is_bot v -> `Bot
-      | v ->
-        match Queries.ID.to_bool v with
-        | Some b -> `Lifted b
-        | None -> `Top
+      | v -> Option.map_default (fun b -> `Lifted b) `Top (Queries.ID.to_bool v)
     in
     let expr = CilType.Exp.show e in
     let warn warn_fn ?annot msg = if check then
