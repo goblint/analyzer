@@ -47,14 +47,8 @@ module ArrayVector: ArrayVectorFunctor =
     include Array
     type t = A.t array [@@deriving eq, ord, hash]
 
-    let show t =
-      let t = Array.to_list t in
-      let rec list_str l =
-        match l with
-        | [] -> "]"
-        | x :: xs -> (A.to_string x) ^" "^(list_str xs)
-      in
-      "["^list_str t^"\n"
+    let pretty () t =
+      GoblintCil.Pretty.(dprintf "[%a]" (docArray ~sep:(text " ") (fun _ x -> text (A.to_string x))) t)
 
     let keep_vals v n =
       if n >= Array.length v then v else
