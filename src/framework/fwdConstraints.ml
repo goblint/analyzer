@@ -408,30 +408,5 @@ struct
       in
       Some tf
 
-  (* let tf getl sidel demandl getg sideg =
-     let tf' eu = tf (v,c) eu getl sidel demandl getg sideg in
-
-     match NodeH.find_option CfgTools.node_scc_global v with
-     | Some scc when NodeH.mem scc.prev v && NodeH.length scc.prev = 1 ->
-      (* Limited to loops with only one entry node. Otherwise unsound as is. *)
-      (* TODO: Is it possible to do soundly for multi-entry loops? *)
-      let stricts = NodeH.find_default scc.prev v [] in
-      let xs_stricts = List.map tf' stricts in
-      (* Evaluate non-strict for dead code warnings. See 00-sanity/36-strict-loop-dead. *)
-      let equal = [%eq: (CilType.Location.t * Edge.t) list * Node.t] in
-      let is_strict eu = List.exists (equal eu) stricts in
-      let non_stricts = List.filter (neg is_strict) (Cfga.prev v) in
-      let xs_non_stricts = List.map tf' non_stricts in
-      if List.for_all S.D.is_bot xs_stricts then
-        S.D.bot ()
-      else (
-        let xs_strict = List.fold_left S.D.join (S.D.bot ()) xs_stricts in
-        List.fold_left S.D.join xs_strict xs_non_stricts
-      )
-     | _ ->
-      let xs = List.map tf' (Cfga.prev v) in
-      List.fold_left S.D.join (S.D.bot ()) xs
-     in
-     Some tf *)
 
 end
