@@ -107,6 +107,18 @@ sig
   val postmortem: LVar.t -> LVar.t list
 end
 
+(** A side-effecting system with globals. *)
+module type FwdGlobConstrSys =
+sig
+  module LVar : VarType
+  module GVar : VarType
+
+  module D : Lattice.S
+  module G : Lattice.S
+  val system : LVar.t -> ((LVar.t -> D.t) -> (LVar.t -> D.t -> unit) -> (GVar.t -> G.t) -> (GVar.t -> G.t -> unit) -> unit) option
+end
+
+
 (** A side-effecting system with globals that supports [demand] calls *)
 module type DemandGlobConstrSys =
 sig

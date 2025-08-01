@@ -22,6 +22,7 @@ module CfgTools = CfgTools
 
 module Analyses = Analyses
 module Constraints = Constraints
+module FwdConstraints = FwdConstraints
 module CompareConstraints = CompareConstraints
 module AnalysisState = AnalysisState
 module AnalysisStateUtil = AnalysisStateUtil
