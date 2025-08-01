@@ -16,7 +16,7 @@ sig
 end
 
 
-(** The main point of this file---generating a [DemandGlobConstrSys] from a [Spec]. *)
+(** The main point of this file---generating a [FwdGlobConstrSys] from a [Spec]. *)
 module FromSpec (S:Spec) (Cfg:CfgForward) (I: Increment)
   : sig
     include FwdGlobConstrSys with module LVar = VarF (S.C)
