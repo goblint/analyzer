@@ -103,10 +103,10 @@ struct
     let remove_var x v = List.fold_left (Fun.flip D.remove) x (to_addrs v) in
     let nst = List.fold_left remove_var man.local (f.slocals @ f.sformals) in
     BatOption.map_default (fun ret ->
-      match get_concrete_exp ret man.global man.local with
-      | Some ev when might_be_null (Analyses.ask_of_man man) ev man.global man.local ->
-        D.add (return_addr ()) nst
-      | _ -> nst
+        match get_concrete_exp ret man.global man.local with
+        | Some ev when might_be_null (Analyses.ask_of_man man) ev man.global man.local ->
+          D.add (return_addr ()) nst
+        | _ -> nst
       ) nst exp
 
   (* Function calls *)
