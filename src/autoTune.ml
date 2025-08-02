@@ -243,12 +243,12 @@ let focusOnMemSafetySpecification () =
 let focusOnTermination (spec: Svcomp.Specification.t) =
   match spec with
   | Termination ->
-    let terminationAnas = ["threadflag"; "apron"] in
+    let terminationAnas = ["threadflag"; get_string "ana.autotune.extraTerminationDomain"] in
     enableAnalyses "Specification: Termination" "termination analyses" terminationAnas;
     set_string "sem.int.signed_overflow" "assume_none";
     set_bool "ana.int.interval" true;
-    set_string "ana.apron.domain" "polyhedra"; (* TODO: Needed? *)
-    ()
+    if get_string "ana.autotune.extraTerminationDomain" = "apron" then 
+      set_string "ana.apron.domain" "polyhedra"; (* TODO: Needed? *)
   | _ -> ()
 
 let focusOnTermination () =
