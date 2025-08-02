@@ -115,7 +115,7 @@ sig
 
   module D : Lattice.S
   module G : Lattice.S
-  val system : LVar.t -> ((LVar.t -> D.t) -> (LVar.t -> D.t -> unit) -> (GVar.t -> G.t) -> (GVar.t -> G.t -> unit) -> unit) option
+  val system : LVar.t -> (D.t -> (LVar.t -> D.t) -> (LVar.t -> D.t -> unit) -> (GVar.t -> G.t) -> (GVar.t -> G.t -> unit) -> unit) option
 end
 
 

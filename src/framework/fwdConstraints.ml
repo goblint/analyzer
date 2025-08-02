@@ -372,13 +372,13 @@ struct
         tf var getl sidel getg sideg target_node edge d
       )
 
-  let tf_fwd (v,c) (edges, u) getl sidel getg sideg:unit =
-    let pval = getl (v,c) in
+  let tf_fwd value (v,c) (edges, u) getl sidel getg sideg:unit =
+    let pval = value in
     let _, locs = List.fold_right (fun (f,e) (t,xs) -> f, (f,t)::xs) edges (Node.location v,[]) in
     let es = List.map (tf (v,Obj.repr (fun () -> c)) getl sidel getg sideg u) edges in
     List.iter2 (fun e l -> e pval l) es locs
 
-  let tf (v,c) (e,u) getl sidel getg sideg =
+  let tf value (v,c) (e,u) getl sidel getg sideg =
     let old_node = !current_node in
     let old_fd = Option.map Node.find_fundec old_node |? Cil.dummyFunDec in
     let new_fd = Node.find_fundec v in
@@ -393,7 +393,7 @@ struct
         if not (CilType.Fundec.equal old_fd new_fd) then
           Timing.Program.exit new_fd.svar.vname
       ) (fun () ->
-        tf_fwd (v,c) (e,u) getl sidel getg sideg
+        tf_fwd value (v,c) (e,u) getl sidel getg sideg
       )
 
   let system (v,c) =
@@ -401,8 +401,8 @@ struct
     | FunctionEntry _ ->
       None
     | _ ->
-      let tf getl sidel getg sideg =
-        let tf' eu = tf (v,c) eu getl sidel getg sideg in
+      let tf value getl sidel getg sideg =
+        let tf' eu = tf value (v,c) eu getl sidel getg sideg in
         let xs = Cfg.next v in
         List.iter (fun eu -> tf' eu) xs
       in
