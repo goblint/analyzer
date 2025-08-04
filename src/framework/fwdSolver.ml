@@ -39,13 +39,13 @@ module FwdSolver (System: FwdGlobConstrSys) = struct
   let get_global_ref g =
     try GM.find glob g
     with _ ->
-      (let rglob = {value = G.bot (); init = G.bot; infl = []; from = LM.create 10} in
+      (let rglob = {value = G.bot (); init = G.bot (); infl = []; from = LM.create 10} in
        GM.add glob g rglob;
        rglob
       )
 
-  let init_global g d =
-    GM.add glob x {
+  let init_global (g, d) =
+    GM.add glob g {
       value = d;
       init = d;
       infl = [];
@@ -104,7 +104,7 @@ module FwdSolver (System: FwdGlobConstrSys) = struct
        LM.add loc x rloc;
        rloc)
 
-  let init_local x d =
+  let init_local (x, d) =
     LM.add loc x {
       loc_value = d;
       loc_init = d;
@@ -137,7 +137,7 @@ module FwdSolver (System: FwdGlobConstrSys) = struct
     let rold = get_old_local_value x loc_from in
     let new_value = lwarrow rold d in
     LM.replace loc_from x new_value;
-    let new_y = get_local_value loc_loc_init loc_from in
+    let new_y = get_local_value loc_init loc_from in
     if D.equal loc_value new_y then
       ()
     else let _ = add_work y in
@@ -166,8 +166,8 @@ module FwdSolver (System: FwdGlobConstrSys) = struct
 
   (* ... now the main solver loop ... *)
 
-  let solve x =
-    let _ = add_work x in
+  let solve xs =
+    let _ = List.iter add_work xs in
     let rec doit () = match rem_work () with
       | None -> ()
       | Some x -> (
@@ -187,7 +187,7 @@ module FwdSolver (System: FwdGlobConstrSys) = struct
   let solve localinit globalinit startvars =
     let _ = List.iter init_local localinit in
     let _ = List.iter init_global globalinit in
-    solve x
+    solve startvars
 
    (* ... now the checker! *)
 
@@ -257,7 +257,7 @@ module FwdSolver (System: FwdGlobConstrSys) = struct
                 if D.leq d (get_local_ref x).loc_value then ()
                 else Logs.error "initialization not subsumed for local %a" System.LVar.pretty_trace x in
         let check_global (g,d) =
-                if G.leq d (get_global_ref g).loc_value then ()
+                if G.leq d (get_global_ref g).value then ()
                 else Logs.error "initialization not subsumed for global %a" System.GVar.pretty_trace g in
 
         let _ = List.iter check_local  localinit in
