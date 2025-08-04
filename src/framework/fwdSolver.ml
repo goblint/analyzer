@@ -27,7 +27,7 @@ module FwdSolver (System: FwdGlobConstrSys) = struct
       let _ = work := (xs,s) in
       Some x
 
-  type glob = {value : G.t; infl : System.LVar.t list; from : G.t LM.t}
+  type glob = {value : G.t; init : G.t;  infl : System.LVar.t list; from : G.t LM.t}
        (*
           one might additionally maintain in table from some widening delay?
        *)
@@ -39,12 +39,20 @@ module FwdSolver (System: FwdGlobConstrSys) = struct
   let get_global_ref g =
     try GM.find glob g
     with _ ->
-      (let rglob = {value = G.bot (); infl = []; from = LM.create 10} in
+      (let rglob = {value = G.bot (); init = G.bot; infl = []; from = LM.create 10} in
        GM.add glob g rglob;
        rglob
       )
 
-  let get_global_value from = LM.fold (fun _ -> G.join) from (G.bot ())
+  let init_global g d =
+    GM.add glob x {
+      value = d;
+      init = d;
+      infl = [];
+      from = LM.create 10
+    }
+
+  let get_global_value init from = LM.fold (fun _ -> G.join) from init
 
   let get_old_global_value x from =
     try LM.find from x
@@ -65,18 +73,18 @@ module FwdSolver (System: FwdGlobConstrSys) = struct
       reconstructs value of g from contributions;
       propagates infl and updates value - if value has changed
     *)
-    let {value;infl;from} = get_global_ref g in
+    let {value;init;infl;from} = get_global_ref g in
     let old_value = get_old_global_value x from in
     let new_value = gwarrow old_value d in
     let _ = LM.replace from x new_value in
-    let new_g = get_global_value from in
+    let new_g = get_global_value init from in
     if G.equal value new_g then
       ()
     else
       let _ = List.iter add_work infl in
-      GM.replace glob g {value = new_g; infl = []; from}
+      GM.replace glob g {value = new_g; init = init; infl = []; from}
 
-  type loc = {loc_value : D.t; init : D.t; loc_infl: System.LVar.t list; loc_from : D.t LM.t}
+  type loc = {loc_value : D.t; loc_init : D.t; loc_infl: System.LVar.t list; loc_from : D.t LM.t}
   (*
     init may contain some initial value not provided by separate origin;
     perhaps, dynamic tracking of dependencies required for certain locals?
@@ -92,14 +100,14 @@ module FwdSolver (System: FwdGlobConstrSys) = struct
   let get_local_ref x =
     try LM.find loc x
     with _ ->
-      (let rloc = {loc_value = D.bot (); init = D.bot (); loc_infl = []; loc_from = LM.create 10} in
+      (let rloc = {loc_value = D.bot (); loc_init = D.bot (); loc_infl = []; loc_from = LM.create 10} in
        LM.add loc x rloc;
        rloc)
 
   let init_local x d =
     LM.add loc x {
       loc_value = d;
-      init = d;
+      loc_init = d;
       loc_infl = [];
       loc_from = LM.create 10
     }
@@ -125,16 +133,16 @@ module FwdSolver (System: FwdGlobConstrSys) = struct
       reconstructs value of y from contributions;
       propagates infl together with y and updates value - if value has changed
     *)
-    let {loc_value;init;loc_infl;loc_from} = get_local_ref y in
+    let {loc_value;loc_init;loc_infl;loc_from} = get_local_ref y in
     let rold = get_old_local_value x loc_from in
     let new_value = lwarrow rold d in
     LM.replace loc_from x new_value;
-    let new_y = get_local_value init loc_from in
+    let new_y = get_local_value loc_loc_init loc_from in
     if D.equal loc_value new_y then
       ()
     else let _ = add_work y in
       let _ = List.iter add_work loc_infl in
-      LM.replace loc y {loc_value = new_y; init; loc_infl = []; loc_from}
+      LM.replace loc y {loc_value = new_y; loc_init; loc_infl = []; loc_from}
 
 (*
         wrapper around propagation function to collect multiple contributions to same unknowns;
@@ -158,8 +166,7 @@ module FwdSolver (System: FwdGlobConstrSys) = struct
 
   (* ... now the main solver loop ... *)
 
-  let solve x d =
-    let _ = init_local x d in
+  let solve x =
     let _ = add_work x in
     let rec doit () = match rem_work () with
       | None -> ()
@@ -178,19 +185,21 @@ module FwdSolver (System: FwdGlobConstrSys) = struct
 
 
   let solve localinit globalinit startvars =
-    let (x,d) = List.hd localinit in
-    solve x d
+    let _ = List.iter init_local localinit in
+    let _ = List.iter init_global globalinit in
+    solve x
 
    (* ... now the checker! *)
 
-   let check x d =
+   let check x =
+
         let sigma_out = LM.create 100 in
         let tau_out   = GM.create 100 in
 
         let get_local x = (get_local_ref x).loc_value in
 
         let check_local x d =
-                let {loc_value:D.t;init;loc_infl;loc_from} = get_local_ref x in
+                let {loc_value:D.t;loc_init;loc_infl;loc_from} = get_local_ref x in
                 if D.leq d loc_value then
                         if LM.mem sigma_out x then ()
                         else (
@@ -240,16 +249,19 @@ module FwdSolver (System: FwdGlobConstrSys) = struct
                                 )
                         ) in
 
-        let loc_value = get_local x in
+        add_work x;
+        doit ()
 
-        if D.leq d loc_value then (
-                LM.add sigma_out x loc_value;
-                add_work x;
-                doit ()
-                )
-        else    (
-                Logs.error "initial constraint violated for %a" System.LVar.pretty_trace x;
-                doit ()
-        )
+   let check localinit globalinit x =
+        let check_local (x,d) =
+                if D.leq d (get_local_ref x).loc_value then ()
+                else Logs.error "initialization not subsumed for local %a" System.LVar.pretty_trace x in
+        let check_global (g,d) =
+                if G.leq d (get_global_ref g).loc_value then ()
+                else Logs.error "initialization not subsumed for global %a" System.GVar.pretty_trace g in
 
+        let _ = List.iter check_local  localinit in
+        let _ = List.iter check_global globalinit in
+        
+        check x
 end
