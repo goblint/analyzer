@@ -176,6 +176,11 @@ module FwdSolver (System: FwdGlobConstrSys) = struct
     let tau = GM.to_seq glob |> Seq.map (fun (k,l) -> (k,l.value)) in
     (sigma, tau)
 
+
+  let solve localinit globalinit startvars =
+    let (x,d) = List.hd localinit in
+    solve x d
+
    (* ... now the checker! *)
 
    let check x d =
