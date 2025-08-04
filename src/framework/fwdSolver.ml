@@ -1,6 +1,6 @@
 open Goblint_constraint.ConstrSys
 
-module Solver (System: FwdGlobConstrSys) = struct
+module FwdSolver (System: FwdGlobConstrSys) = struct
 
   module D = System.D
   module G = System.G
@@ -20,9 +20,9 @@ module Solver (System: FwdGlobConstrSys) = struct
     else work := (x::l, LS.add x s)
 
   let rem_work () = let (l,s) = !work in
-    match l with 
+    match l with
     | [] -> None
-    | x::xs -> 
+    | x::xs ->
       let s = LS.remove x s in
       let _ = work := (xs,s) in
       Some x
@@ -36,9 +36,9 @@ module Solver (System: FwdGlobConstrSys) = struct
 
   (* auxiliary functions for globals *)
 
-  let get_global_ref g = 
-    try GM.find glob g        
-    with _ -> 
+  let get_global_ref g =
+    try GM.find glob g
+    with _ ->
       (let rglob = {value = G.bot (); infl = []; from = LM.create 10} in
        GM.add glob g rglob;
        rglob
@@ -46,22 +46,22 @@ module Solver (System: FwdGlobConstrSys) = struct
 
   let get_global_value from = LM.fold (fun _ -> G.join) from (G.bot ())
 
-  let get_old_global_value x from = 
-    try LM.find from x 
+  let get_old_global_value x from =
+    try LM.find from x
     with _ ->
       LM.add from x (G.bot ());
       (G. bot ())
 
   (* now the getters and setters for globals, setters with warrowing per origin *)
 
-  let get_global x g = 
+  let get_global x g =
     let rglob = get_global_ref g in
     GM.replace glob g { rglob with infl = x::rglob.infl }; (* ensure the global is in the hashtable *)
     rglob.value
 
-  let set_global x g d = 
-    (*  
-      replaces old contribution with the new one; 
+  let set_global x g d =
+    (*
+      replaces old contribution with the new one;
       reconstructs value of g from contributions;
       propagates infl and updates value - if value has changed
     *)
@@ -70,9 +70,9 @@ module Solver (System: FwdGlobConstrSys) = struct
     let new_value = gwarrow old_value d in
     let _ = LM.replace from x new_value in
     let new_g = get_global_value from in
-    if G.equal value new_g then 
+    if G.equal value new_g then
       ()
-    else 
+    else
       let _ = List.iter add_work infl in
       GM.replace glob g {value = new_g; infl = []; from}
 
@@ -80,7 +80,7 @@ module Solver (System: FwdGlobConstrSys) = struct
   (*
     init may contain some initial value not provided by separate origin;
     perhaps, dynamic tracking of dependencies required for certain locals?
-    
+
     One might additionally maintain in table loc_from some widening delay?
   *)
 
@@ -114,14 +114,14 @@ module Solver (System: FwdGlobConstrSys) = struct
 
   (* now the getters and setters for locals, setters with warrowing per origin *)
 
-  let get_local x y = 
+  let get_local x y =
     let rloc = get_local_ref y in
     LM.replace loc y {rloc with loc_infl = x :: rloc.loc_infl};
     rloc.loc_value
 
   let set_local x y d =
-    (*  
-      replaces old contribution with the new one; 
+    (*
+      replaces old contribution with the new one;
       reconstructs value of y from contributions;
       propagates infl together with y and updates value - if value has changed
     *)
@@ -135,10 +135,10 @@ module Solver (System: FwdGlobConstrSys) = struct
     else let _ = add_work y in
       let _ = List.iter add_work loc_infl in
       LM.replace loc y {loc_value = new_y; init; loc_infl = []; loc_from}
- 
-(*      
+
+(*
         wrapper around propagation function to collect multiple contributions to same unknowns;
-        contributions are delayed until the very end 
+        contributions are delayed until the very end
 *)
 
    let wrap (x,f) d =
@@ -158,7 +158,7 @@ module Solver (System: FwdGlobConstrSys) = struct
 
   (* ... now the main solver loop ... *)
 
-  let solve x d = 
+  let solve x d =
     let _ = init_local x d in
     let _ = add_work x in
     let rec doit () = match rem_work () with
@@ -166,7 +166,7 @@ module Solver (System: FwdGlobConstrSys) = struct
       | Some x -> (
           match System.system x with
           | None -> doit ()
-          | Some f -> 
+          | Some f ->
             (let rloc = get_local_ref x in
              wrap (x,f) rloc.loc_value;
              doit ())
@@ -178,18 +178,18 @@ module Solver (System: FwdGlobConstrSys) = struct
 
    (* ... now the checker! *)
 
-   let check x d = 
+   let check x d =
         let sigma_out = LM.create 100 in
         let tau_out   = GM.create 100 in
 
         let get_local x = (get_local_ref x).loc_value in
-                          
-        let check_local x d = 
+
+        let check_local x d =
                 let {loc_value:D.t;init;loc_infl;loc_from} = get_local_ref x in
-                if D.leq d loc_value then 
+                if D.leq d loc_value then
                         if LM.mem sigma_out x then ()
                         else (
-                                LM.add sigma_out x loc_value; 
+                                LM.add sigma_out x loc_value;
                                 add_work x;
                                 List.iter add_work loc_infl
                         )
@@ -197,54 +197,54 @@ module Solver (System: FwdGlobConstrSys) = struct
                         Logs.error "Fixpoint not reached for local %a" System.LVar.pretty_trace x;
                         if LM.mem sigma_out x then ()
                         else (
-                                LM.add sigma_out x loc_value; 
+                                LM.add sigma_out x loc_value;
                                 add_work x;
                                 List.iter add_work loc_infl
-                        )   
+                        )
                 ) in
 
         let get_global g = (get_global_ref g).value in
-                          
-        let check_global g d = 
+
+        let check_global g d =
                 let {value;infl;from} = get_global_ref g in
-                if G.leq d value then 
+                if G.leq d value then
                         if GM.mem tau_out g then ()
                         else (
-                                GM.add tau_out g value; 
+                                GM.add tau_out g value;
                                 List.iter add_work infl
                         )
                 else (
                         Logs.error "Fixpoint not reached for global %a" System.GVar.pretty_trace g;
                         if GM.mem tau_out g then ()
                         else (
-                                GM.add tau_out g value; 
+                                GM.add tau_out g value;
                                 List.iter add_work infl
                         )
                 ) in
 
-        let rec doit () = 
+        let rec doit () =
                 match rem_work () with
                 | None -> (sigma_out,tau_out)
                 | Some x -> (match System.system x with
                         | None -> doit ()
                         | Some f -> (
                                 f (get_local x)
-                                   get_local check_local 
+                                   get_local check_local
                                    get_global check_global;
                                 doit ()
-                                )   
+                                )
                         ) in
 
         let loc_value = get_local x in
 
         if D.leq d loc_value then (
                 LM.add sigma_out x loc_value;
-                add_work x; 
+                add_work x;
                 doit ()
                 )
         else    (
-                Logs.error "initial constraint violated for %a" System.LVar.pretty_trace x; 
+                Logs.error "initial constraint violated for %a" System.LVar.pretty_trace x;
                 doit ()
         )
-                 
+
 end
