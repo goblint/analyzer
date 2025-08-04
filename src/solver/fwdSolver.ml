@@ -130,6 +130,25 @@ module Solver (System: FwdGlobConstrSys) = struct
     else let _ = add_work y in
       let _ = List.iter add_work loc_infl in
       LM.replace loc y {loc_value = new_y; init; loc_infl = []; loc_from}
+ 
+(*      
+        wrapper around propagation function to collect multiple contributions to same unknowns;
+        contributions are delayed until the very end 
+*)
+
+   let wrap (x,f) d =
+        let sigma = LM.create 10 in
+        let tau = GM.create 10 in
+        let add_sigma x d =
+                let d = try D.join d (LM.find sigma x) with _ -> d in
+                LM.add sigma x d in
+        let add_tau g d =
+                let d = try G.join d (GM.find tau x) with _ -> d in
+                GM.add tau x d in
+        let _ = f d (get_local x) add_sigma (get_global x) add_tau in
+        let _ = GM.iter (set_global x) tau in
+        let _ = LM.iter (set_local x) sigma in
+        ()
 
 
   (* ... now the main solver loop ... *)
@@ -144,11 +163,63 @@ module Solver (System: FwdGlobConstrSys) = struct
           | None -> doit ()
           | Some f -> 
             (let rloc = get_local_ref x in
-             f (rloc.loc_value) (get_local x) (set_local x) (get_global x) (set_global x); 
+             wrap (x,f) rloc.loc_value;
              doit ())
         ) in
     let _ = doit () in
     let sigma = LM.to_seq loc |> Seq.map (fun (k,l) -> (k,l.loc_value)) in
     let tau = GM.to_seq glob |> Seq.map (fun (k,l) -> (k,l.value)) in
     (sigma, tau)
+
+   (* ... now the checker! *)
+
+   let check x d = 
+        let sigma_out = LM.create 100 in
+        let tau_out   = GM.create 100 in
+
+        let get_local x = (get_local_ref x).loc_value in
+                          
+        let check_local x d = 
+                let {loc_value;init;loc_infl;loc_from} = get_local_ref x in
+                if D.leq d loc_value then 
+                        try LM.find sigma_out x; ()
+                        with _ -> (LM.add sigma_out x loc_value; 
+                                   add_work x;
+                                   List.iter add_work loc_infl)
+                else 
+                        raise (Failure "Fixpoint not reachedi for local") in
+
+        let get_global g = (get_global_ref g).value in
+                          
+        let check_global g d = 
+                let {value;infl;from} = get_global_ref g in
+                if G.leq d value then 
+                        try GM.find tau_out g; ()
+                        with _ -> (GM.add tau_out g value; 
+                                   List.iter add_work infl)
+                else 
+                        raise (Failure "Fixpoint not reachedi for global") in
+
+        let doit () = 
+                match rem_work () with
+                | None -> (sigma_out,tau_out)
+                | Some x -> (match system x with
+                        | None -> doit ()
+                        | Some f -> (
+                                f (get_local x).loc_value 
+                                   get_local check_local 
+                                   get_global check_global;
+                                doit ()
+                                )   
+                        ) in
+
+        let loc_value = get_local x in
+
+        if D.leq d loc_value then (
+                LM.add sigma_out x loc_value;
+                add_work x; 
+                doit ()
+                )
+        else raise (Failure "initial constraint violated!")
+                 
 end
