@@ -3,6 +3,10 @@
 open GoblintCil
 open Pretty
 
+type unassume =
+  | Exp of CilType.Exp.t
+  | ProtectedBy of {global: CilType.Varinfo.t; mutexes: LockDomain.MustLockset.t}
+
 type t =
   | Lock of LockDomain.AddrRW.t
   | Unlock of LockDomain.Addr.t
@@ -14,7 +18,7 @@ type t =
   | Assign of {lval: CilType.Lval.t; exp: CilType.Exp.t} (** Used to simulate old [man.assign]. *) (* TODO: unused *)
   | UpdateExpSplit of exp (** Used by expsplit analysis to evaluate [exp] on post-state. *)
   | Assert of exp
-  | Unassume of {exp: CilType.Exp.t; tokens: WideningToken.t list}
+  | Unassume of {value: unassume; tokens: WideningToken.t list}
   | Longjmped of {lval: CilType.Lval.t option}
   | EnterOnce of {once_control: CilType.Exp.t; ran:bool} (** Once is transformed into a sequence of: enter_once(o) if(!ran(o)) f() leave_once(o) *)
   | LeaveOnce of {once_control: CilType.Exp.t}
@@ -49,7 +53,8 @@ let pretty () = function
   | Assign {lval; exp} -> dprintf "Assign {lval=%a, exp=%a}" CilType.Lval.pretty lval CilType.Exp.pretty exp
   | UpdateExpSplit exp -> dprintf "UpdateExpSplit %a" d_exp exp
   | Assert exp -> dprintf "Assert %a" d_exp exp
-  | Unassume {exp; tokens} -> dprintf "Unassume {exp=%a; tokens=%a}" d_exp exp (d_list ", " WideningToken.pretty) tokens
+  | Unassume {value = Exp exp; tokens} -> dprintf "Unassume {value=Exp %a; tokens=%a}" CilType.Exp.pretty exp (d_list ", " WideningToken.pretty) tokens
+  | Unassume {value = ProtectedBy {global; mutexes}; tokens} -> dprintf "Unassume {value=ProtectedBy {global=%a; mutexes=%a}; tokens=%a}" CilType.Varinfo.pretty global LockDomain.MustLockset.pretty mutexes (d_list ", " WideningToken.pretty) tokens
   | Longjmped {lval} -> dprintf "Longjmped {lval=%a}" (docOpt (CilType.Lval.pretty ())) lval
   | EnterOnce {once_control; ran} -> dprintf "EnterOnce {once_control=%a; ran=%B}" CilType.Exp.pretty once_control ran
   | LeaveOnce {once_control} -> dprintf "LeaveOnce {once_control=%a}" CilType.Exp.pretty once_control
