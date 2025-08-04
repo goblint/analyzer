@@ -397,16 +397,12 @@ struct
       )
 
   let system (v,c) =
-    match v with
-    | FunctionEntry _ ->
-      None
-    | _ ->
-      let tf value getl sidel getg sideg =
-        let tf' eu = tf value (v,c) eu getl sidel getg sideg in
-        let xs = Cfg.next v in
-        List.iter (fun eu -> tf' eu) xs
-      in
-      Some tf
+    let tf value getl sidel getg sideg =
+      let tf' eu = tf value (v,c) eu getl sidel getg sideg in
+      let xs = Cfg.next v in
+      List.iter (fun eu -> tf' eu) xs
+    in
+    Some tf
 
 
 end
