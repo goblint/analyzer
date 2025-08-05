@@ -199,10 +199,10 @@ module FwdSolver (System: FwdGlobConstrSys) = struct
     let sigma_out = LM.create 100 in
     let tau_out   = GM.create 100 in
 
-    let get_local x = (get_local_ref x).loc_value in
+    let get_local x = try (find loc x).loc_value with _ -> D.bot () in
 
-    let check_local x d =
-      let {loc_value:D.t;loc_init;loc_infl;loc_from} = get_local_ref x in
+    let check_local x d = if D.leq d (D.bot ()) then ()
+      else let {loc_value:D.t;loc_init;loc_infl;loc_from} = get_local_ref x in
       if D.leq d loc_value then
         if LM.mem sigma_out x then ()
         else (
@@ -220,10 +220,10 @@ module FwdSolver (System: FwdGlobConstrSys) = struct
         )
       ) in
 
-    let get_global g = (get_global_ref g).value in
+    let get_global g = try (find glob g).value with G.bot () in
 
-    let check_global g d =
-      let {value;infl;_} = get_global_ref g in
+    let check_global g d = if G.leq d (G.bot ()) then ()
+      else let {value;infl;_} = get_global_ref g in
       if G.leq d value then
         if GM.mem tau_out g then ()
         else (
