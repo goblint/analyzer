@@ -1,4 +1,4 @@
-(** Construction of a {{!Goblint_constraint} constraint system} from an {{!Analyses.Spec} analysis specification} and 
+(** Construction of a {{!Goblint_constraint} constraint system} from an {{!Analyses.Spec} analysis specification} and
     {{!MyCFG.CfgForward} CFGs}.
     Transformations of analysis specifications as functors. *)
 
@@ -54,8 +54,8 @@ struct
       ; emit    = (fun _ -> failwith "emit outside MCP")
       ; node    = target_node
       ; prev_node = fst var
-      ; control_context = snd var |> Obj.obj
-      ; context = snd var |> Obj.obj
+      ; control_context = (fun () -> snd var |> Obj.obj)
+      ; context = (fun () -> snd var |> Obj.obj)
       ; edge    = edge
       ; local   = pval
       ; global  = (fun g -> G.spec (getg (GVar.spec g)))
@@ -223,7 +223,7 @@ struct
     let paths = S.enter man lv f args in
     let paths = List.map (fun (c,v) -> (c, S.context man f v, v)) paths in
     List.iter (fun (c,fc,v) -> if not (S.D.is_bot v) then sidel (FunctionEntry f, fc) v) paths;
-    let paths = List.map (fun (c,fc,v) -> 
+    let paths = List.map (fun (c,fc,v) ->
         let endvar = (GVar.return (f,fc)) in
         (c, fc, if S.D.is_bot v then v else G.return @@ getg endvar)) paths in
     (* Don't filter bot paths, otherwise LongjmpLifter is not called. *)
@@ -328,26 +328,26 @@ struct
       | Assign (lv,rv) ->
         let r = tf_assign var edge target_node lv rv getl sidel getg sideg d in
         sidel (target_node, Obj.obj c) r
-      | VDecl (v)      -> 
+      | VDecl (v)      ->
         let r = tf_vdecl var edge target_node v getl sidel getg sideg d in
         sidel (target_node, Obj.obj c) r
       | Proc (r,f,ars) ->
         let r = tf_proc var edge target_node r f ars getl sidel getg sideg d in
         sidel (target_node, Obj.obj c) r
-      | Entry f        -> 
+      | Entry f        ->
         let r = tf_entry var edge target_node f getl sidel getg sideg d in
         sidel (target_node, Obj.obj c) r
       | Ret (r,fd)     ->
         let r = tf_ret var edge target_node r fd getl sidel getg sideg d in
         sidel (target_node, Obj.obj c) r;
         sideg (GVar.return (fd,Obj.obj c)) (G.create_return r)
-      | Test (p,b)     -> 
+      | Test (p,b)     ->
         let r = tf_test var edge target_node p b getl sidel getg sideg d in
         sidel (target_node, Obj.obj c) r
       | ASM (_, _, _)  ->
         let r = tf_asm var edge target_node getl sidel getg sideg d in
         sidel (target_node, Obj.obj c) r
-      | Skip           -> 
+      | Skip           ->
         let r = tf_skip var edge target_node getl sidel getg sideg d in
         sidel (target_node, Obj.obj c) r
     end
@@ -375,7 +375,7 @@ struct
   let tf_fwd value (v,c) (edges, u) getl sidel getg sideg:unit =
     let pval = value in
     let _, locs = List.fold_right (fun (f,e) (t,xs) -> f, (f,t)::xs) edges (Node.location v,[]) in
-    let es = List.map (tf (v,Obj.repr (fun () -> c)) getl sidel getg sideg u) edges in
+    let es = List.map (tf (v,Obj.repr c) getl sidel getg sideg u) edges in
     List.iter2 (fun e l -> e pval l) es locs
 
   let tf value (v,c) (e,u) getl sidel getg sideg =
