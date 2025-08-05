@@ -10,8 +10,9 @@ module FwdSolver (System: FwdGlobConstrSys) = struct
   module GM = Hashtbl.Make(System.GVar)
   module LM = Hashtbl.Make(System.LVar)
 
-  let gwarrow a b = if G.leq b a then G.narrow a b else G.widen a b
-  let lwarrow a b = if D.leq b a then D.narrow a b else D.widen a b
+  let gwarrow a b = if G.leq b a then G.narrow a b else G.widen a (G.join a b)
+  let lwarrow a b = if D.leq b a then D.narrow a b else D.widen a (D.join a b)
+
 
   let work = ref (([] : System.LVar.t list), LS.empty)
 
@@ -212,6 +213,7 @@ module FwdSolver (System: FwdGlobConstrSys) = struct
           )
         else (
           Logs.error "Fixpoint not reached for local %a" System.LVar.pretty_trace x;
+          AnalysisState.verified := Some false;
           if LM.mem sigma_out x then ()
           else (
             LM.add sigma_out x loc_value;
@@ -233,6 +235,7 @@ module FwdSolver (System: FwdGlobConstrSys) = struct
           )
         else (
           Logs.error "Fixpoint not reached for global %a\n Side from %a is %a \n Solver Computed %a\n Diff is %a" System.GVar.pretty_trace g System.LVar.pretty_trace x G.pretty d G.pretty value G.pretty_diff (d,value);
+          AnalysisState.verified := Some false;
           if GM.mem tau_out g then ()
           else (
             GM.add tau_out g value;
@@ -259,10 +262,16 @@ module FwdSolver (System: FwdGlobConstrSys) = struct
   let check localinit globalinit xs =
     let check_local (x,d) =
       if D.leq d (get_local_ref x).loc_value then ()
-      else Logs.error "initialization not subsumed for local %a" System.LVar.pretty_trace x in
+      else (
+        Logs.error "initialization not subsumed for local %a" System.LVar.pretty_trace x;
+        AnalysisState.verified := Some false)
+    in
     let check_global (g,d) =
       if G.leq d (get_global_ref g).value then ()
-      else Logs.error "initialization not subsumed for global %a" System.GVar.pretty_trace g in
+      else (
+        Logs.error "initialization not subsumed for global %a" System.GVar.pretty_trace g;
+        AnalysisState.verified := Some false;
+      ) in
 
     let _ = List.iter check_local  localinit in
     let _ = List.iter check_global globalinit in
