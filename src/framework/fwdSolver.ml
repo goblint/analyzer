@@ -199,45 +199,46 @@ module FwdSolver (System: FwdGlobConstrSys) = struct
     let sigma_out = LM.create 100 in
     let tau_out   = GM.create 100 in
 
-    let get_local x = try (find loc x).loc_value with _ -> D.bot () in
+    let get_local x = try (LM.find loc x).loc_value with _ -> D.bot () in
 
     let check_local x d = if D.leq d (D.bot ()) then ()
       else let {loc_value:D.t;loc_init;loc_infl;loc_from} = get_local_ref x in
-      if D.leq d loc_value then
-        if LM.mem sigma_out x then ()
+        if D.leq d loc_value then
+          if LM.mem sigma_out x then ()
+          else (
+            LM.add sigma_out x loc_value;
+            add_work x;
+            List.iter add_work loc_infl
+          )
         else (
-          LM.add sigma_out x loc_value;
-          add_work x;
-          List.iter add_work loc_infl
-        )
-      else (
-        Logs.error "Fixpoint not reached for local %a" System.LVar.pretty_trace x;
-        if LM.mem sigma_out x then ()
-        else (
-          LM.add sigma_out x loc_value;
-          add_work x;
-          List.iter add_work loc_infl
-        )
-      ) in
+          Logs.error "Fixpoint not reached for local %a" System.LVar.pretty_trace x;
+          if LM.mem sigma_out x then ()
+          else (
+            LM.add sigma_out x loc_value;
+            add_work x;
+            List.iter add_work loc_infl
+          )
+        ) in
 
-    let get_global g = try (find glob g).value with G.bot () in
+    let get_global g = try (GM.find glob g).value with _ -> G.bot () in
 
-    let check_global g d = if G.leq d (G.bot ()) then ()
-      else let {value;infl;_} = get_global_ref g in
-      if G.leq d value then
-        if GM.mem tau_out g then ()
+    let check_global x g d = if G.leq d (G.bot ()) then ()
+      else
+        let {value;infl;_} = get_global_ref g in
+        if G.leq d value then
+          if GM.mem tau_out g then ()
+          else (
+            GM.add tau_out g value;
+            List.iter add_work infl
+          )
         else (
-          GM.add tau_out g value;
-          List.iter add_work infl
-        )
-      else (
-        Logs.error "Fixpoint not reached for global %a" System.GVar.pretty_trace g;
-        if GM.mem tau_out g then ()
-        else (
-          GM.add tau_out g value;
-          List.iter add_work infl
-        )
-      ) in
+          Logs.error "Fixpoint not reached for global %a\n Side from %a is %a \n Solver Computed %a\n Diff is %a" System.GVar.pretty_trace g System.LVar.pretty_trace x G.pretty d G.pretty value G.pretty_diff (d,value);
+          if GM.mem tau_out g then ()
+          else (
+            GM.add tau_out g value;
+            List.iter add_work infl
+          )
+        ) in
 
     let rec doit () =
       match rem_work () with
@@ -247,7 +248,7 @@ module FwdSolver (System: FwdGlobConstrSys) = struct
           | Some f -> (
               f (get_local x)
                 get_local check_local
-                get_global check_global;
+                get_global (check_global x);
               doit ()
             )
         ) in
