@@ -487,8 +487,7 @@ struct
       AnalysisState.should_warn := PostSolverArg.should_warn;
 
       let insrt k _ s = match k with
-        | (MyCFG.Function fn,_) -> if not (get_bool "exp.forward") then Set.Int.add fn.svar.vid s else s
-        | (MyCFG.FunctionEntry fn,_) -> if (get_bool "exp.forward") then Set.Int.add fn.svar.vid s else s
+        | (MyCFG.FunctionEntry fn,_) -> Set.Int.add fn.svar.vid s
         | _ -> s
       in
       (* set of ids of called functions *)
