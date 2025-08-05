@@ -187,11 +187,11 @@ module FwdSolver (System: FwdGlobConstrSys) = struct
   let solve localinit globalinit startvars =
     let _ = List.iter init_local localinit in
     let _ = List.iter init_global globalinit in
-    solve startvars
+    solve startvars; solve startvars
 
    (* ... now the checker! *)
 
-   let check x =
+   let check xs =
 
         let sigma_out = LM.create 100 in
         let tau_out   = GM.create 100 in
@@ -249,7 +249,7 @@ module FwdSolver (System: FwdGlobConstrSys) = struct
                                 )
                         ) in
 
-        add_work x;
+        List.iter add_work xs;
         doit ()
 
    let check localinit globalinit x =
