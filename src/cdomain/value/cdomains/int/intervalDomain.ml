@@ -294,13 +294,23 @@ struct
     | None, _ | _, None -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y)))
     | (Some (x1,x2) as x), (Some (y1,y2) as y) ->
       begin
-        let is_zero v = Ints_t.compare v Ints_t.zero = 0 in
+        let (r, ov) =
+          try
+            binary_op_with_norm IArith.div ik x y
+          with Division_by_zero ->
+            (top_of ik, {underflow=false; overflow=false})
+        in
+        if leq (of_int ik (Ints_t.zero) |> fst) (Some (y1,y2)) then
+          (top_of ik, ov)
+        else
+          (r, ov)
+        (* let is_zero v = Ints_t.compare v Ints_t.zero = 0 in
         match y1, y2 with
         | l, u when is_zero l && is_zero u -> (top_of ik,{underflow=false; overflow=false})
         | l, _ when is_zero l              -> div ik (Some (x1,x2)) (Some (Ints_t.one,y2))
         | _, u when is_zero u              -> div ik (Some (x1,x2)) (Some (y1, Ints_t.(neg one)))
-        | _ when leq (of_int ik (Ints_t.zero) |> fst) (Some (y1,y2)) -> (top_of ik,{underflow=false; overflow=false})
-        | _ -> binary_op_with_norm IArith.div ik x y
+        (* | _ when leq (of_int ik (Ints_t.zero) |> fst) (Some (y1,y2)) -> (top_of ik,{underflow=false; overflow=false}) *)
+        | _ -> binary_op_with_norm IArith.div ik x y *)
       end
 
   let ne ik x y =

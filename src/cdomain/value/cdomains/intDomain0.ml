@@ -372,6 +372,36 @@ module IntervalArith (Ints_t : IntOps.IntOps) = struct
     let x2y2p = (Ints_t.div x2 y2) in
     (min4 x1y1n x1y2n x2y1n x2y2n, max4 x1y1p x1y2p x2y1p x2y2p)
 
+  let rec div (a, b) (c, d) =
+    (* let open Ints_t in *)
+    assert Ints_t.(compare c d <= 0);
+    if Ints_t.(compare one c) <= 0 then
+      Ints_t.(min (div a c) (div a d), max (div b c) (div b d))
+    else if Ints_t.(compare d zero) < 0 then
+      Ints_t.(min (div b c) (div b d), max (div a c) (div a d))
+    else (
+      let p =
+        if Ints_t.(compare one d) <= 0 then
+          Some (div (a, b) (Ints_t.one, d))
+        else
+          None
+      in
+      let n =
+        if Ints_t.(compare c zero) < 0 then
+          Some (div (a, b) (c, Ints_t.(neg one)))
+        else
+          None
+      in
+      match p, n with
+      | Some (p1, p2), Some (n1, n2) -> Ints_t.(min p1 n1, max p2 n2)
+      | Some x, None
+      | None, Some x -> x
+      | None, None -> raise Division_by_zero
+      (* let (p1, p2) = div (a, b) (Ints_t.one, d) in
+      let (n1, n2) = div (a, b) (c, Ints_t.(neg one)) in
+      Ints_t.(min p1 n1, max p2 n2) *)
+    )
+
   let add (x1, x2) (y1, y2) = (Ints_t.add x1 y1, Ints_t.add x2 y2)
   let sub (x1, x2) (y1, y2) = (Ints_t.sub x1 y2, Ints_t.sub x2 y1)
 
