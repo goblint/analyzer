@@ -224,7 +224,12 @@ module FwdSolver (System: FwdGlobConstrSys) = struct
 
     let get_global g = try (GM.find glob g).value with _ -> G.bot () in
 
-    let check_global x g d = if G.leq d (G.bot ()) then ()
+    let check_global x g d =
+      if G.leq d (G.bot ()) then
+        ()
+      else if System.GVar.is_write_only g then
+        (* TODO: Actually use tau_out and sigma_out later instead of lh and gh *)
+        GM.add tau_out g (G.join (GM.find_opt tau_out g |> BatOption.default (G.bot ())) d)
       else
         let {value;infl;_} = get_global_ref g in
         if G.leq d value then
