@@ -477,6 +477,12 @@ struct
         LHT.of_seq rho, GHT.of_seq tau
       in
 
+      AnalysisState.should_warn := true; (* reset for postsolver *)
+      (* postsolver *)
+
+      let _ = Slvr2.check entrystates entrystates_global startvars' in
+
+
       (* Most warnings happen before during postsolver, but some happen later (e.g. in finalize), so enable this for the rest (if required by option). *)
       AnalysisState.should_warn := PostSolverArg.should_warn;
 
