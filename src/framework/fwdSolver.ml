@@ -187,7 +187,10 @@ module FwdSolver (System: FwdGlobConstrSys) = struct
   let solve localinit globalinit startvars =
     let _ = List.iter init_local localinit in
     let _ = List.iter init_global globalinit in
-    solve startvars; solve startvars
+(*
+    ignore (solve startvars); 
+*)
+    solve startvars
 
    (* ... now the checker! *)
 
@@ -252,7 +255,7 @@ module FwdSolver (System: FwdGlobConstrSys) = struct
         List.iter add_work xs;
         doit ()
 
-   let check localinit globalinit x =
+   let check localinit globalinit xs =
         let check_local (x,d) =
                 if D.leq d (get_local_ref x).loc_value then ()
                 else Logs.error "initialization not subsumed for local %a" System.LVar.pretty_trace x in
@@ -263,5 +266,5 @@ module FwdSolver (System: FwdGlobConstrSys) = struct
         let _ = List.iter check_local  localinit in
         let _ = List.iter check_global globalinit in
         
-        check x
+        check xs
 end
