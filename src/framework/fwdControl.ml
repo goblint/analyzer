@@ -481,7 +481,7 @@ struct
 
       (* Most warnings happen before during postsolver, but some happen later (e.g. in finalize), so enable this for the rest (if required by option). *)
       AnalysisState.should_warn := PostSolverArg.should_warn;
-
+      AnalysisState.postsolving := true;
       let insrt k _ s = match k with
         | (MyCFG.FunctionEntry fn,_) -> Set.Int.add fn.svar.vid s
         | _ -> s
@@ -526,6 +526,28 @@ struct
     in
     let timeout = get_string "dbg.timeout" |> TimeUtil.seconds_of_duration_string in
     let lh, gh = Timeout.wrap solve_and_postprocess () (float_of_int timeout) timeout_reached in
+    let module Query = struct
+      let ask_global (gh: EQSys.G.t GHT.t) =
+        (* copied from Control for WarnGlobal *)
+        (* build a man for using the query system *)
+        let rec man =
+          { ask    = (fun (type a) (q: a Queries.t) -> Spec.query man q)
+          ; emit   = (fun _ -> failwith "Cannot \"emit\" in query context.")
+          ; node   = MyCFG.dummy_node (* TODO maybe ask should take a node (which could be used here) instead of a location *)
+          ; prev_node = MyCFG.dummy_node
+          ; control_context = (fun () -> man_failwith "No context in query context.")
+          ; context = (fun () -> man_failwith "No context in query context.")
+          ; edge    = MyCFG.Skip
+          ; local  = Spec.startstate GoblintCil.dummyFunDec.svar (* bot and top both silently raise and catch Deadcode in DeadcodeLifter *) (* TODO: is this startstate bad? *)
+          ; global = (fun v -> EQSys.G.spec (try GHT.find gh (EQSys.GVar.spec v) with Not_found -> EQSys.G.bot ())) (* TODO: how can be missing? *)
+          ; spawn  = (fun ?(multiple=false) v d   -> failwith "Cannot \"spawn\" in query context.")
+          ; split  = (fun d es   -> failwith "Cannot \"split\" in query context.")
+          ; sideg  = (fun v g    -> failwith "Cannot \"split\" in query context.")
+          }
+        in
+        Spec.query man
+    end
+    in
 
     let local_xml = solver2source_result lh in
     current_node_state_json := (fun node -> Option.map LT.to_yojson (Result.find_option local_xml node));
@@ -546,7 +568,7 @@ struct
       (* Logs.debug "warn_global %a %a" EQSys.GVar.pretty_trace g EQSys.G.pretty v; *)
       match g with
       | `Left g -> (* Spec global *)
-        () (* R.ask_global (WarnGlobal (Obj.repr g)) *)
+        Query.ask_global gh (WarnGlobal (Obj.repr g))
       | `Right _ -> (* contexts global *)
         ()
     in
