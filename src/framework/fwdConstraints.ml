@@ -385,7 +385,7 @@ struct
     if not (CilType.Fundec.equal old_fd new_fd) then
       Timing.Program.enter new_fd.svar.vname;
     let old_context = !M.current_context in
-    current_node := Some u;
+    current_node := Some v;
     M.current_context := Some (Obj.magic c); (* magic is fine because Spec is top-level Control Spec *)
     Fun.protect ~finally:(fun () ->
         current_node := old_node;
