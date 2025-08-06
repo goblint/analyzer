@@ -474,6 +474,7 @@ struct
       let _ = Slvr2.solve entrystates entrystates_global startvars' in
 
       AnalysisState.should_warn := true; (* reset for postsolver *)
+      AnalysisState.postsolving := true;
       (* postsolver *)
 
       let rho,tau = Slvr2.check entrystates entrystates_global startvars' in
@@ -481,7 +482,6 @@ struct
 
       (* Most warnings happen before during postsolver, but some happen later (e.g. in finalize), so enable this for the rest (if required by option). *)
       AnalysisState.should_warn := PostSolverArg.should_warn;
-      AnalysisState.postsolving := true;
       let insrt k _ s = match k with
         | (MyCFG.FunctionEntry fn,_) -> Set.Int.add fn.svar.vid s
         | _ -> s
