@@ -58,7 +58,7 @@ module FwdSolver (System: FwdGlobConstrSys) = struct
   let get_global_value init from = LM.fold (fun _ (b,_,_) a -> G.join a b) from init
 
   let get_old_global_value x from =
-    try LM.find from x in d
+    try LM.find from x
     with _ ->
       let (delay,gas) = !gas in
       LM.add from x (G.bot (),delay,gas);
@@ -120,7 +120,7 @@ module FwdSolver (System: FwdGlobConstrSys) = struct
       loc_from = LM.create 10
     }
 
-  let get_local_value init from = LM.fold (fun _ a (b,_,_) -> D.join a b) from init
+  let get_local_value init from = LM.fold (fun _ (b,_,_) a -> D.join a b) from init
 
   let get_old_local_value x from =
     try LM.find from x
