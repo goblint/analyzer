@@ -471,17 +471,13 @@ struct
       let compare_runs = get_string_list "compare_runs" in
       let gobview = get_bool "gobview" in
       let save_run_str = let o = get_string "save_run" in if o = "" then (if gobview then "run" else "") else o in
-
-      let lh, gh =
-        let rho, tau = Slvr2.solve entrystates entrystates_global startvars' in
-        LHT.of_seq rho, GHT.of_seq tau
-      in
+      let _ = Slvr2.solve entrystates entrystates_global startvars' in
 
       AnalysisState.should_warn := true; (* reset for postsolver *)
       (* postsolver *)
 
-      let _ = Slvr2.check entrystates entrystates_global startvars' in
-
+      let rho,tau = Slvr2.check entrystates entrystates_global startvars' in
+      let lh, gh = LHT.of_seq rho, GHT.of_seq tau in
 
       (* Most warnings happen before during postsolver, but some happen later (e.g. in finalize), so enable this for the rest (if required by option). *)
       AnalysisState.should_warn := PostSolverArg.should_warn;
@@ -545,6 +541,16 @@ struct
     if get_bool "exp.cfgdot" then
       CfgTools.dead_code_cfg (module FileCfg) liveness;
 
+
+    let warn_global g v =
+      (* Logs.debug "warn_global %a %a" EQSys.GVar.pretty_trace g EQSys.G.pretty v; *)
+      match g with
+      | `Left g -> (* Spec global *)
+        () (* R.ask_global (WarnGlobal (Obj.repr g)) *)
+      | `Right _ -> (* contexts global *)
+        ()
+    in
+    Timing.wrap "warn_global" (GHT.iter warn_global) gh;
 
 
     if get_bool "exp.arg.enabled" then ( failwith "no_arg" );

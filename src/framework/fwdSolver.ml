@@ -80,10 +80,10 @@ module FwdSolver (System: FwdGlobConstrSys) = struct
     let {value;init;infl;from} = get_global_ref g in
     let (old_value,delay,gas) = get_old_global_value x from in
     let (new_value,delay,gas) = if G.leq d old_value then
-                                if gas > 0 then (G.narrow old_value d,delay,gas-1)
-                                else (old_value,delay,0)
-                                else if delay > 0 then (G.join old_value d,delay-1,gas)
-                                else (G.widen old_value d, 0, gas) in
+        if gas > 0 then (G.narrow old_value d,delay,gas-1)
+        else (old_value,delay,0)
+      else if delay > 0 then (G.join old_value d,delay-1,gas)
+      else (G.widen old_value d, 0, gas) in
     let _ = LM.replace from x (new_value,delay,gas) in
     let new_g = get_global_value init from in
     if G.equal value new_g then
@@ -144,10 +144,10 @@ module FwdSolver (System: FwdGlobConstrSys) = struct
     let {loc_value;loc_init;loc_infl;loc_from} = get_local_ref y in
     let (old_value,delay,gas) = get_old_local_value x loc_from in
     let (new_value,delay,gas) = if D.leq d old_value then
-                                if gas > 0 then (D.narrow old_value d,delay,gas-1)
-                                else (old_value,delay,0)
-                                else if delay > 0 then (D.join old_value d,delay-1,gas)
-                                else (D.widen old_value d, 0, gas) in
+        if gas > 0 then (D.narrow old_value d,delay,gas-1)
+        else (old_value,delay,0)
+      else if delay > 0 then (D.join old_value d,delay-1,gas)
+      else (D.widen old_value d, 0, gas) in
     let _ = LM.replace loc_from x (new_value,delay,gas) in
     let new_y = get_local_value loc_init loc_from in
     if D.equal loc_value new_y then
@@ -261,7 +261,7 @@ module FwdSolver (System: FwdGlobConstrSys) = struct
 
     let rec doit () =
       match rem_work () with
-      | None -> (sigma_out,tau_out)
+      | None -> (LM.to_seq sigma_out, GM.to_seq tau_out)
       | Some x -> (match System.system x with
           | None -> doit ()
           | Some f -> (
