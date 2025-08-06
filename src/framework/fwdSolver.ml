@@ -27,9 +27,11 @@ module FwdSolver (System: FwdGlobConstrSys) = struct
       let _ = work := (xs,s) in
       Some x
 
-  type glob = {value : G.t; init : G.t;  infl : System.LVar.t list; from : G.t LM.t}
+  let gas = ref (10,3)
+
+  type glob = {value : G.t; init : G.t;  infl : System.LVar.t list; from : (G.t * int * int) LM.t}
        (*
-          one might additionally maintain in table from some widening delay?
+          now table from with widening delay and narrowing gas to ensure termination
        *)
 
   let glob: glob GM.t = GM.create 100
@@ -52,13 +54,14 @@ module FwdSolver (System: FwdGlobConstrSys) = struct
       from = LM.create 10
     }
 
-  let get_global_value init from = LM.fold (fun _ -> G.join) from init
+  let get_global_value init from = LM.fold (fun _ (b,_,_) a -> G.join a b) from init
 
   let get_old_global_value x from =
-    try LM.find from x
+    try LM.find from x in d
     with _ ->
-      LM.add from x (G.bot ());
-      (G. bot ())
+      let (delay,gas) = !gas in
+      LM.add from x (G.bot (),delay,gas);
+      (G. bot (),delay,gas)
 
   (* now the getters and setters for globals, setters with warrowing per origin *)
 
@@ -74,9 +77,13 @@ module FwdSolver (System: FwdGlobConstrSys) = struct
       propagates infl and updates value - if value has changed
     *)
     let {value;init;infl;from} = get_global_ref g in
-    let old_value = get_old_global_value x from in
-    let new_value = gwarrow old_value d in
-    let _ = LM.replace from x new_value in
+    let (old_value,delay,gas) = get_old_global_value x from in
+    let (new_value,delay,gas) = if G.leq d old_value then
+                                if gas > 0 then (G.narrow old_value d,delay,gas-1)
+                                else (old_value,delay,0)
+                                else if delay > 0 then (G.join old_value d,delay-1,gas)
+                                else (G.widen old_value d, 0, gas) in
+    let _ = LM.replace from x (new_value,delay,gas) in
     let new_g = get_global_value init from in
     if G.equal value new_g then
       ()
@@ -84,7 +91,7 @@ module FwdSolver (System: FwdGlobConstrSys) = struct
       let _ = List.iter add_work infl in
       GM.replace glob g {value = new_g; init = init; infl = []; from}
 
-  type loc = {loc_value : D.t; loc_init : D.t; loc_infl: System.LVar.t list; loc_from : D.t LM.t}
+  type loc = {loc_value : D.t; loc_init : D.t; loc_infl: System.LVar.t list; loc_from : (D.t * int * int) LM.t}
   (*
     init may contain some initial value not provided by separate origin;
     perhaps, dynamic tracking of dependencies required for certain locals?
@@ -112,13 +119,13 @@ module FwdSolver (System: FwdGlobConstrSys) = struct
       loc_from = LM.create 10
     }
 
-  let get_local_value init from = LM.fold (fun _ a rb -> D.join a rb) from init
+  let get_local_value init from = LM.fold (fun _ a (b,_,_) -> D.join a b) from init
 
   let get_old_local_value x from =
     try LM.find from x
-    with _ ->
-      LM.add from x (D.bot ());
-      (D.bot ())
+    with _ -> let (delay,gas) = !gas in
+      LM.add from x (D.bot (),delay,gas);
+      (D.bot (),delay,gas)
 
   (* now the getters and setters for locals, setters with warrowing per origin *)
 
@@ -134,9 +141,13 @@ module FwdSolver (System: FwdGlobConstrSys) = struct
       propagates infl together with y and updates value - if value has changed
     *)
     let {loc_value;loc_init;loc_infl;loc_from} = get_local_ref y in
-    let rold = get_old_local_value x loc_from in
-    let new_value = lwarrow rold d in
-    LM.replace loc_from x new_value;
+    let (old_value,delay,gas) = get_old_local_value x loc_from in
+    let (new_value,delay,gas) = if D.leq d old_value then
+                                if gas > 0 then (D.narrow old_value d,delay,gas-1)
+                                else (old_value,delay,0)
+                                else if delay > 0 then (D.join old_value d,delay-1,gas)
+                                else (D.widen old_value d, 0, gas) in
+    let _ = LM.replace loc_from x (new_value,delay,gas) in
     let new_y = get_local_value loc_init loc_from in
     if D.equal loc_value new_y then
       ()
