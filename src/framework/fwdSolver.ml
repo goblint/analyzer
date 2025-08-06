@@ -10,8 +10,9 @@ module FwdSolver (System: FwdGlobConstrSys) = struct
   module GM = Hashtbl.Make(System.GVar)
   module LM = Hashtbl.Make(System.LVar)
 
-  let gwarrow a b = if G.leq b a then G.narrow a b else G.widen a b
-  let lwarrow a b = if D.leq b a then D.narrow a b else D.widen a b
+  let gwarrow a b = if G.leq b a then G.narrow a b else G.widen a (G.join a b)
+  let lwarrow a b = if D.leq b a then D.narrow a b else D.widen a (D.join a b)
+
 
   let work = ref (([] : System.LVar.t list), LS.empty)
 
@@ -210,45 +211,53 @@ module FwdSolver (System: FwdGlobConstrSys) = struct
     let sigma_out = LM.create 100 in
     let tau_out   = GM.create 100 in
 
-    let get_local x = try (find loc x).loc_value with _ -> D.bot () in
+    let get_local x = try (LM.find loc x).loc_value with _ -> D.bot () in
 
     let check_local x d = if D.leq d (D.bot ()) then ()
       else let {loc_value:D.t;loc_init;loc_infl;loc_from} = get_local_ref x in
-      if D.leq d loc_value then
-        if LM.mem sigma_out x then ()
+        if D.leq d loc_value then
+          if LM.mem sigma_out x then ()
+          else (
+            LM.add sigma_out x loc_value;
+            add_work x;
+            List.iter add_work loc_infl
+          )
         else (
-          LM.add sigma_out x loc_value;
-          add_work x;
-          List.iter add_work loc_infl
-        )
-      else (
-        Logs.error "Fixpoint not reached for local %a" System.LVar.pretty_trace x;
-        if LM.mem sigma_out x then ()
-        else (
-          LM.add sigma_out x loc_value;
-          add_work x;
-          List.iter add_work loc_infl
-        )
-      ) in
+          Logs.error "Fixpoint not reached for local %a" System.LVar.pretty_trace x;
+          AnalysisState.verified := Some false;
+          if LM.mem sigma_out x then ()
+          else (
+            LM.add sigma_out x loc_value;
+            add_work x;
+            List.iter add_work loc_infl
+          )
+        ) in
 
-    let get_global g = try (find glob g).value with G.bot () in
+    let get_global g = try (GM.find glob g).value with _ -> G.bot () in
 
-    let check_global g d = if G.leq d (G.bot ()) then ()
-      else let {value;infl;_} = get_global_ref g in
-      if G.leq d value then
-        if GM.mem tau_out g then ()
+    let check_global x g d =
+      if G.leq d (G.bot ()) then
+        ()
+      else if System.GVar.is_write_only g then
+        (* TODO: Actually use tau_out and sigma_out later instead of lh and gh *)
+        GM.add tau_out g (G.join (GM.find_opt tau_out g |> BatOption.default (G.bot ())) d)
+      else
+        let {value;infl;_} = get_global_ref g in
+        if G.leq d value then
+          if GM.mem tau_out g then ()
+          else (
+            GM.add tau_out g value;
+            List.iter add_work infl
+          )
         else (
-          GM.add tau_out g value;
-          List.iter add_work infl
-        )
-      else (
-        Logs.error "Fixpoint not reached for global %a" System.GVar.pretty_trace g;
-        if GM.mem tau_out g then ()
-        else (
-          GM.add tau_out g value;
-          List.iter add_work infl
-        )
-      ) in
+          Logs.error "Fixpoint not reached for global %a\n Side from %a is %a \n Solver Computed %a\n Diff is %a" System.GVar.pretty_trace g System.LVar.pretty_trace x G.pretty d G.pretty value G.pretty_diff (d,value);
+          AnalysisState.verified := Some false;
+          if GM.mem tau_out g then ()
+          else (
+            GM.add tau_out g value;
+            List.iter add_work infl
+          )
+        ) in
 
     let rec doit () =
       match rem_work () with
@@ -258,7 +267,7 @@ module FwdSolver (System: FwdGlobConstrSys) = struct
           | Some f -> (
               f (get_local x)
                 get_local check_local
-                get_global check_global;
+                get_global (check_global x);
               doit ()
             )
         ) in
@@ -269,10 +278,16 @@ module FwdSolver (System: FwdGlobConstrSys) = struct
   let check localinit globalinit xs =
     let check_local (x,d) =
       if D.leq d (get_local_ref x).loc_value then ()
-      else Logs.error "initialization not subsumed for local %a" System.LVar.pretty_trace x in
+      else (
+        Logs.error "initialization not subsumed for local %a" System.LVar.pretty_trace x;
+        AnalysisState.verified := Some false)
+    in
     let check_global (g,d) =
       if G.leq d (get_global_ref g).value then ()
-      else Logs.error "initialization not subsumed for global %a" System.GVar.pretty_trace g in
+      else (
+        Logs.error "initialization not subsumed for global %a" System.GVar.pretty_trace g;
+        AnalysisState.verified := Some false;
+      ) in
 
     let _ = List.iter check_local  localinit in
     let _ = List.iter check_global globalinit in
