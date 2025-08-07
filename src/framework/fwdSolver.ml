@@ -77,9 +77,11 @@ module FwdSolver (System: FwdGlobConstrSys) = struct
       reconstructs value of g from contributions;
       propagates infl and updates value - if value has changed
     *)
-    let {value;init;infl;from} = get_global_ref g in
+    if G.leq d (G.bot ()) then ()
+    else let {value;init;infl;from} = get_global_ref g in
     let (old_value,delay,gas) = get_old_global_value x from in
-    let (new_value,delay,gas) = if G.leq d old_value then
+    if G.equal d old_value then () 
+    else let (new_value,delay,gas) = if G.leq d old_value then
         if gas > 0 then (G.narrow old_value d,delay,gas-1)
         else (old_value,delay,0)
       else if delay > 0 then (G.join old_value d,delay-1,gas)
@@ -141,9 +143,11 @@ module FwdSolver (System: FwdGlobConstrSys) = struct
       reconstructs value of y from contributions;
       propagates infl together with y and updates value - if value has changed
     *)
-    let {loc_value;loc_init;loc_infl;loc_from} = get_local_ref y in
+    if D.leq d (D.bot ()) then ()
+    else let {loc_value;loc_init;loc_infl;loc_from} = get_local_ref y in
     let (old_value,delay,gas) = get_old_local_value x loc_from in
-    let (new_value,delay,gas) = if D.leq d old_value then
+    if D.equal d old_value then ()
+    else let (new_value,delay,gas) = if D.leq d old_value then
         if gas > 0 then (D.narrow old_value d,delay,gas-1)
         else (old_value,delay,0)
       else if delay > 0 then (D.join old_value d,delay-1,gas)
