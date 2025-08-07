@@ -1,4 +1,4 @@
-// Should not crash (issue 1421)
+// NOCRASH Should not crash (issue 1421)
 #include<pthread.h>
 struct a {
   pthread_mutex_t b;
