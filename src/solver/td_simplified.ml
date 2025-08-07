@@ -17,6 +17,8 @@ module Base : GenericEqSolver =
     include Generic.SolverStats (S) (HM)
     module VS = Set.Make (S.Var)
 
+    exception Abort1
+
     let solve st vs =
       let called = HM.create 10 in
       let infl = HM.create 10 in
@@ -50,7 +52,7 @@ module Base : GenericEqSolver =
         if tracing then trace "eq" "eq %a" S.Var.pretty_trace x;
         match S.system x with
         | None -> S.Dom.bot ()
-        | Some f -> f get set
+        | Some f -> try f get set with Abort1 -> HM.find rho x
       in
 
       let rec destabilize x =
@@ -60,11 +62,14 @@ module Base : GenericEqSolver =
         VS.iter (fun y ->
             if tracing then trace "destab" "stable remove %a" S.Var.pretty_trace y;
             HM.remove stable y;
-            destabilize y
+            if not (GobConfig.get_bool "solvers.td_simplified.destab_less" && HM.mem called y) then (
+              destabilize y
+            )
           ) w
       in
 
       let rec query x y = (* ~eval in td3 *)
+        if GobConfig.get_bool "solvers.td_simplified.abort1" && not (HM.mem stable x) then raise Abort1;
         if tracing then trace "solver_query" "entering query for %a; stable %b; called %b" S.Var.pretty_trace y (HM.mem stable y) (HM.mem called y);
         get_var_event y;
         if not (HM.mem called y) then (
@@ -86,6 +91,7 @@ module Base : GenericEqSolver =
         tmp
 
       and side x y d = (* side from x to y; only to variables y w/o rhs; x only used for trace *)
+        if GobConfig.get_bool "solvers.td_simplified.abort1" && not (HM.mem stable x) then raise Abort1;
         if tracing then trace "side" "side to %a (wpx: %b) from %a; value: %a" S.Var.pretty_trace y (HM.mem wpoint y) S.Var.pretty_trace x S.Dom.pretty d;
         assert (S.system y = None);
         init y;
@@ -122,7 +128,7 @@ module Base : GenericEqSolver =
               if M.tracing then M.trace "wpoint" "widen %a" S.Var.pretty_trace x;
               box old eqd)
           in
-          if not (Timing.wrap "S.Dom.equal" (fun () -> S.Dom.equal old wpd) ()) then ( 
+          if not (Timing.wrap "S.Dom.equal" (fun () -> S.Dom.equal old wpd) ()) then (
             (* old != wpd *)
             if tracing && not (S.Dom.is_bot old) then trace "update" "%a (wpx: %b): %a" S.Var.pretty_trace x (HM.mem wpoint x) S.Dom.pretty_diff (wpd, old);
             update_var_event x old wpd;
@@ -132,7 +138,7 @@ module Base : GenericEqSolver =
             (iterate[@tailcall]) x
           ) else (
             (* old == wpd *)
-            if not (HM.mem stable x) then ( 
+            if not (HM.mem stable x) then (
               (* value unchanged, but not stable, i.e. destabilized itself during rhs *)
               if tracing then trace "iter" "iterate still unstable %a" S.Var.pretty_trace x;
               (iterate[@tailcall]) x
@@ -172,7 +178,7 @@ module Base : GenericEqSolver =
           );
           List.iter (fun x -> HM.replace called x ();
                       if tracing then trace "multivar" "solving for %a" S.Var.pretty_trace x;
-                      iterate x; 
+                      iterate x;
                       HM.remove called x
                     ) unstable_vs;
           solver ();

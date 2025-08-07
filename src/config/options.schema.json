@@ -2663,6 +2663,25 @@
             }
           },
           "additionalProperties": false
+        },
+        "td_simplified": {
+          "title": "solvers.td_simplified",
+          "type": "object",
+          "properties": {
+            "abort1": {
+              "title": "solvers.td_simplified.abort1",
+              "description": "Abort evaluation of rhs early when lhs is unstable?",
+              "type": "boolean",
+              "default": false
+            },
+            "destab_less": {
+              "title": "solvers.td_simplified.destab_less",
+              "description": "Stop destabilization at called unknowns?",
+              "type": "boolean",
+              "default": false
+            }
+          },
+          "additionalProperties": false
         }
       },
       "additionalProperties": false
