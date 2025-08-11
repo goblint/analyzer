@@ -244,8 +244,10 @@ struct
 <?xml-stylesheet type="text/xsl" href="../file.xsl"?>
 <file>
 |xml};
-        let lines = code_highlighter (Fpath.v file) in
-        BatEnum.iteri (printXml_line f) lines; (* nosemgrep: batenum-module *)
+        Timing.wrap "highlighter" (fun () ->
+            let lines = code_highlighter (Fpath.v file) in
+            BatEnum.iteri (printXml_line f) lines (* nosemgrep: batenum-module *)
+          ) ();
         BatPrintf.fprintf f "</file>";
       )
 
