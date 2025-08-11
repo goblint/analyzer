@@ -270,9 +270,7 @@ struct
     let needle' = List.map Addr.to_c_string (elements needle) in
 
     (* helper functions *)
-    let extract_lval_string = function
-      | Some s -> of_string s
-      | None -> null_ptr in
+    let extract_lval_string = BatOption.map_default of_string null_ptr in
     let compute_substring s1 s2 =
       try
         let i = Str.search_forward (Str.regexp_string s2) s1 0 in

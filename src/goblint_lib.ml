@@ -159,6 +159,7 @@ module Callstring = Callstring
 module LoopfreeCallstring = LoopfreeCallstring
 module Uninit = Uninit
 module Expsplit = Expsplit
+module BranchSet = BranchSet
 module StackTrace = StackTrace
 
 (** {2 Helper}
