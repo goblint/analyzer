@@ -372,28 +372,22 @@ module IntervalArith (Ints_t : IntOps.IntOps) = struct
     let x2y2p = (Ints_t.div x2 y2) in
     (min4 x1y1n x1y2n x2y1n x2y2n, max4 x1y1p x1y2p x2y1p x2y2p)
 
-  let rec div (a, b) (c, d) =
-    (* let open Ints_t in *)
-    assert Ints_t.(compare c d <= 0);
-    if Ints_t.(compare one c) <= 0 then
-      (None, Some (Ints_t.(min (div a c) (div a d), max (div b c) (div b d))))
-    else if Ints_t.(compare d zero) < 0 then
-      (Some (Ints_t.(min (div b c) (div b d), max (div a c) (div a d))), None)
-    else (
-      let p =
-        if Ints_t.(compare one d) <= 0 then
-          snd (div (a, b) (Ints_t.one, d))
-        else
-          None
-      in
-      let n =
-        if Ints_t.(compare c zero) < 0 then
-          fst (div (a, b) (c, Ints_t.(neg one)))
-        else
-          None
-      in
-      (n, p)
-    )
+  let div (a, b) (c, d) =
+    let pos =
+      if Ints_t.(compare one d) <= 0 then
+        let c = Ints_t.(max one c) in
+        Some (Ints_t.(min (div a c) (div a d), max (div b c) (div b d)))
+      else
+        None
+    in
+    let neg =
+      if Ints_t.(compare c zero) < 0 then
+        let d = Ints_t.(min d (neg one)) in
+        Some (Ints_t.(min (div b c) (div b d), max (div a c) (div a d)))
+      else
+        None
+    in
+    (neg, pos)
 
   let add (x1, x2) (y1, y2) = (Ints_t.add x1 y1, Ints_t.add x2 y2)
   let sub (x1, x2) (y1, y2) = (Ints_t.sub x1 y2, Ints_t.sub x2 y1)
