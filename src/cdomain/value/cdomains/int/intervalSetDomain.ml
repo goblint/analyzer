@@ -173,7 +173,7 @@ struct
   let binary_op_with_norm op (ik:ikind) (x: t) (y: t) : t*overflow_info = match x, y with
     | [], _ -> ([],{overflow=false; underflow=false})
     | _, [] -> ([],{overflow=false; underflow=false})
-    | _, _ -> norm_intvs ik @@ List.concat_map (fun (x,y) -> [op x y]) (BatList.cartesian_product x y)
+    | _, _ -> norm_intvs ik @@ List.map (fun (x,y) -> op x y) (BatList.cartesian_product x y)
 
   let binary_op_concat_with_norm op (ik:ikind) (x: t) (y: t) : t*overflow_info = match x, y with
     | [], _ -> ([],{overflow=false; underflow=false})
@@ -192,7 +192,7 @@ struct
 
   let unary_op_with_norm op (ik:ikind) (x: t) = match x with
     | [] -> ([],{overflow=false; underflow=false})
-    | _ -> norm_intvs ik @@ List.concat_map (fun x -> [op x]) x
+    | _ -> norm_intvs ik @@ List.map op x
 
   let rec leq (xs: t) (ys: t) =
     let leq_interval (al, au) (bl, bu) = al >=. bl && au <=. bu in
