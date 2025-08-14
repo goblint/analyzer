@@ -280,7 +280,7 @@
           "title": "cil.cstd",
           "type": "string",
           "description": "Specify the c standard used for preprocessing and parsing.",
-          "default": "c99",
+          "default": "gnu11",
           "enum": [
             "c89", "c90",
             "gnu89", "gnu90",
