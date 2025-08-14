@@ -364,12 +364,12 @@ struct
 
   let div ?no_ov ik x y =
     let rec interval_div x y =
+      let (neg, pos) = IArith.div x y in
+      let r = List.filter_map Fun.id [neg; pos] in
       if leq (of_int ik Ints_t.zero |> fst) [y] then
-        top_of ik (* TODO: should somehow handle overflow like normal intervals? *)
-      else (
-        let (neg, pos) = IArith.div x y in
-        List.filter_map Fun.id [neg; pos] (* should always be singleton, because if there's a negative and a positive side, then it must've included zero, which is already handled by previous case *)
-      )
+        top_of ik @ r (* keep r because they might overflow, but top doesn't *)
+      else
+        r (* should always be singleton, because if there's a negative and a positive side, then it must've included zero, which is already handled by previous case *)
     in
     binary_op_concat_with_norm interval_div ik x y
 
