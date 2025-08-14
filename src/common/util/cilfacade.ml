@@ -56,7 +56,7 @@ let is_first_field x = match x.fcomp.cfields with
 let init_options () =
   Mergecil.merge_inlines := get_bool "cil.merge.inlines";
   Cil.cstd := (
-    match get_string "cil.cstd" with
+    match get_string "std" with
     | "c89" | "c90"
     | "gnu89" | "gnu90" -> C90
     | "c99" | "c9x"

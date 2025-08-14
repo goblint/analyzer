@@ -267,7 +267,7 @@ let preprocess_files () =
   (* Preprocessor flags *)
   let cppflags = ref (get_string_list "pre.cppflags") in
 
-  cppflags := ("--std=" ^ get_string "cil.cstd") :: !cppflags;
+  cppflags := ("--std=" ^ get_string "std") :: !cppflags;
 
   if get_bool "ana.sv-comp.enabled" then (
     let architecture_flag = match get_string "exp.architecture" with
