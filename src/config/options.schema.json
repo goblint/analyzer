@@ -279,7 +279,7 @@
         "cstd": {
           "title": "cil.cstd",
           "type": "string",
-          "description": "Specify the c standard used for parsing.",
+          "description": "Specify the c standard used for preprocessing and parsing.",
           "default": "c99",
           "enum": [
             "c89", "c90",
