@@ -363,25 +363,15 @@ struct
   let neg ?no_ov = unary_op_with_norm IArith.neg
 
   let div ?no_ov ik x y =
-    let rec interval_div x ((y1, y2) as y) = begin
-      let top_of ik = top_of ik |> List.hd in
-      let r =
-        let (n, p) = IArith.div x y in
-        List.filter_map Fun.id [n; p]
-      in
-      if leq (of_int ik (Ints_t.zero) |> fst) ([(y1,y2)]) then
-        [top_of ik]
-      else
-        r (* should always be singleton, because if there's a negative and a positive side, then it must've included zero, which is already handled by previous case *)
-      (* let is_zero v = v =. Ints_t.zero in
-      match y1, y2 with
-      | l, u when is_zero l && is_zero u -> top_of ik
-      | l, _ when is_zero l              -> interval_div x (Ints_t.one,y2)
-      | _, u when is_zero u              -> interval_div x (y1, Ints_t.(neg one))
-      | _ when leq (of_int ik (Ints_t.zero) |> fst) ([(y1,y2)]) -> top_of ik
-      | _ -> IArith.div x (y1, y2) *)
-    end
-    in binary_op_concat_with_norm interval_div ik x y
+    let rec interval_div x y =
+      if leq (of_int ik Ints_t.zero |> fst) [y] then
+        top_of ik (* TODO: should somehow handle overflow like normal intervals? *)
+      else (
+        let (neg, pos) = IArith.div x y in
+        List.filter_map Fun.id [neg; pos] (* should always be singleton, because if there's a negative and a positive side, then it must've included zero, which is already handled by previous case *)
+      )
+    in
+    binary_op_concat_with_norm interval_div ik x y
 
   let rem ik x y =
     let interval_rem (x, y) =
