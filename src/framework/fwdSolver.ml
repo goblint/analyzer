@@ -84,7 +84,7 @@ module FwdSolver (System: FwdGlobConstrSys) = struct
         if gas > 0 then (G.narrow old_value d,delay,gas-1)
         else (old_value,delay,0)
       else if delay > 0 then (G.join old_value d,delay-1,gas)
-      else (G.widen old_value d, 0, gas) in
+      else (G.widen old_value (G.join old_value d), 0, gas) in
     let _ = LM.replace from x (new_value,delay,gas) in
     let new_g = get_global_value init from in
     if G.equal value new_g then
@@ -149,7 +149,7 @@ module FwdSolver (System: FwdGlobConstrSys) = struct
         if gas > 0 then (D.narrow old_value d,delay,gas-1)
         else (old_value,delay,0)
       else if delay > 0 then (D.join old_value d,delay-1,gas)
-      else (D.widen old_value d, 0, gas) in
+      else (D.widen old_value (D.join old_value d), 0, gas) in
     let _ = LM.replace loc_from x (new_value,delay,gas) in
     let new_y = get_local_value loc_init loc_from in
     if D.equal loc_value new_y then
@@ -168,10 +168,10 @@ module FwdSolver (System: FwdGlobConstrSys) = struct
     let tau = GM.create 10 in
     let add_sigma x d =
       let d = try D.join d (LM.find sigma x) with _ -> d in
-      LM.add sigma x d in
+      LM.replace sigma x d in
     let add_tau g d =
       let d = try G.join d (GM.find tau g) with _ -> d in
-      GM.add tau g d in
+      GM.replace tau g d in
     let _ = f d (get_local x) add_sigma (get_global x) add_tau in
     let _ = GM.iter (set_global x) tau in
     let _ = LM.iter (set_local x) sigma in
@@ -208,7 +208,7 @@ module FwdSolver (System: FwdGlobConstrSys) = struct
 
   (* ... now the checker! *)
 
-  let check xs =
+  let check localinit globalinit xs =
 
     let sigma_out = LM.create 100 in
     let tau_out   = GM.create 100 in
@@ -241,8 +241,7 @@ module FwdSolver (System: FwdGlobConstrSys) = struct
       if G.leq d (G.bot ()) then
         ()
       else if System.GVar.is_write_only g then
-        (* TODO: Actually use tau_out and sigma_out later instead of lh and gh *)
-        GM.add tau_out g (G.join (GM.find_opt tau_out g |> BatOption.default (G.bot ())) d)
+        GM.replace tau_out g (G.join (GM.find_opt tau_out g |> BatOption.default (G.bot ())) d)
       else
         let {value;infl;_} = get_global_ref g in
         if G.leq d value then
@@ -274,6 +273,8 @@ module FwdSolver (System: FwdGlobConstrSys) = struct
             )
         ) in
 
+    List.iter (fun (x,_) -> let value = get_local x in LM.add sigma_out x value) localinit;
+    List.iter (fun (g, _) -> let value = get_global g in GM.add tau_out g value) globalinit;
     List.iter add_work xs;
     doit ()
 
@@ -294,5 +295,5 @@ module FwdSolver (System: FwdGlobConstrSys) = struct
     let _ = List.iter check_local  localinit in
     let _ = List.iter check_global globalinit in
 
-    check xs
+    check localinit globalinit xs
 end
