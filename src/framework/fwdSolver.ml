@@ -77,8 +77,7 @@ module FwdSolver (System: FwdGlobConstrSys) = struct
       reconstructs value of g from contributions;
       propagates infl and updates value - if value has changed
     *)
-    if G.leq d (G.bot ()) then ()
-    else let {value;init;infl;from} = get_global_ref g in
+    let {value;init;infl;from} = get_global_ref g in
     let (old_value,delay,gas) = get_old_global_value x from in
     if G.equal d old_value then () 
     else let (new_value,delay,gas) = if G.leq d old_value then
@@ -143,8 +142,7 @@ module FwdSolver (System: FwdGlobConstrSys) = struct
       reconstructs value of y from contributions;
       propagates infl together with y and updates value - if value has changed
     *)
-    if D.leq d (D.bot ()) then ()
-    else let {loc_value;loc_init;loc_infl;loc_from} = get_local_ref y in
+    let {loc_value;loc_init;loc_infl;loc_from} = get_local_ref y in
     let (old_value,delay,gas) = get_old_local_value x loc_from in
     if D.equal d old_value then ()
     else let (new_value,delay,gas) = if D.leq d old_value then
