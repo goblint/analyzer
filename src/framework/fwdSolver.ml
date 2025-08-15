@@ -170,10 +170,10 @@ module FwdSolver (System: FwdGlobConstrSys) = struct
     let tau = GM.create 10 in
     let add_sigma x d =
       let d = try D.join d (LM.find sigma x) with _ -> d in
-      LM.add sigma x d in
+      LM.replace sigma x d in
     let add_tau g d =
       let d = try G.join d (GM.find tau g) with _ -> d in
-      GM.add tau g d in
+      GM.replace tau g d in
     let _ = f d (get_local x) add_sigma (get_global x) add_tau in
     let _ = GM.iter (set_global x) tau in
     let _ = LM.iter (set_local x) sigma in
@@ -243,8 +243,7 @@ module FwdSolver (System: FwdGlobConstrSys) = struct
       if G.leq d (G.bot ()) then
         ()
       else if System.GVar.is_write_only g then
-        (* TODO: Actually use tau_out and sigma_out later instead of lh and gh *)
-        GM.add tau_out g (G.join (GM.find_opt tau_out g |> BatOption.default (G.bot ())) d)
+        GM.replace tau_out g (G.join (GM.find_opt tau_out g |> BatOption.default (G.bot ())) d)
       else
         let {value;infl;_} = get_global_ref g in
         if G.leq d value then
