@@ -550,7 +550,8 @@ let do_analyze change_info merged_AST =
       let at = String.concat ", " @@ get_string_list "trans.activated" in
       Logs.debug "Activated analyses: %s" aa;
       Logs.debug "Activated transformations: %s" at;
-      try Control.analyze change_info ast funs
+      let analyze = if get_string "solver" = "fwd" then FwdControl.analyze else Control.analyze in
+      try analyze change_info ast funs
       with e ->
         let backtrace = Printexc.get_raw_backtrace () in (* capture backtrace immediately, otherwise the following loses it (internal exception usage without raise_notrace?) *)
         AnalysisState.should_warn := true; (* such that the `about to crash` message gets printed *)
