@@ -151,7 +151,7 @@ module FwdSolver (System: FwdGlobConstrSys) = struct
         if gas > 0 then (D.narrow old_value d,delay,gas-1)
         else (old_value,delay,0)
       else if delay > 0 then (D.join old_value d,delay-1,gas)
-      else (D.widen old_value d, 0, gas) in
+      else (D.widen old_value (D.join old_value d), 0, gas) in
     let _ = LM.replace loc_from x (new_value,delay,gas) in
     let new_y = get_local_value loc_init loc_from in
     if D.equal loc_value new_y then
