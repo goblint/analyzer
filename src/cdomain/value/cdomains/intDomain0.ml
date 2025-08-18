@@ -361,16 +361,28 @@ module IntervalArith (Ints_t : IntOps.IntOps) = struct
     let y2p = Ints_t.shift_left Ints_t.one y2 in
     mul (x1, x2) (y1p, y2p)
 
-  let div (x1, x2) (y1, y2) =
-    let x1y1n = (Ints_t.div x1 y1) in
-    let x1y2n = (Ints_t.div x1 y2) in
-    let x2y1n = (Ints_t.div x2 y1) in
-    let x2y2n = (Ints_t.div x2 y2) in
-    let x1y1p = (Ints_t.div x1 y1) in
-    let x1y2p = (Ints_t.div x1 y2) in
-    let x2y1p = (Ints_t.div x2 y1) in
-    let x2y2p = (Ints_t.div x2 y2) in
-    (min4 x1y1n x1y2n x2y1n x2y2n, max4 x1y1p x1y2p x2y1p x2y2p)
+  (** Divide mathematical intervals.
+      Excludes 0 from denominator - must be handled as desired by caller.
+
+      @return negative and positive denominator cases separately, if they exist.
+
+      @see <https://mine.perso.lip6.fr/publi/article-mine-FTiPL17.pdf> Miné, A. Tutorial on Static Inference of Numeric Invariants by Abstract Interpretation. Figure 4.6. *)
+  let div (a, b) (c, d) =
+    let pos =
+      if Ints_t.(compare one d) <= 0 then
+        let c = Ints_t.(max one c) in
+        Some (Ints_t.(min (div a c) (div a d), max (div b c) (div b d)))
+      else
+        None
+    in
+    let neg =
+      if Ints_t.(compare c zero) < 0 then
+        let d = Ints_t.(min d (neg one)) in
+        Some (Ints_t.(min (div b c) (div b d), max (div a c) (div a d)))
+      else
+        None
+    in
+    (neg, pos)
 
   let add (x1, x2) (y1, y2) = (Ints_t.add x1 y1, Ints_t.add x2 y2)
   let sub (x1, x2) (y1, y2) = (Ints_t.sub x1 y2, Ints_t.sub x2 y1)
