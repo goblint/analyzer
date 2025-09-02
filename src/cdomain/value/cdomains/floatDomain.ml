@@ -1002,10 +1002,15 @@ module FloatIntervalImplLifted = struct
     | FDouble -> F64 (op64 ())
     | FLongDouble -> FLong (op64 ())
     | FFloat128 -> FFloat128 (op64 ())
-    | _ ->
+    | FFloat16 -> failwith "fkind FFloat16 not supported"
+    | FComplexFloat
+    | FComplexDouble
+    | FComplexLongDouble
+    | FComplexFloat128
+    | FComplexFloat16 ->
       (* this should never be reached, as we have to check for invalid fkind elsewhere,
          however we could instead of crashing also return top_of some fkind to avoid this and nonetheless have no actual information about anything*)
-      failwith "unsupported fkind"
+      failwith "complex fkind not supported"
 
   let neg = lift (F1.neg, F2.neg)
   let fabs = lift (F1.fabs, F2.fabs)
