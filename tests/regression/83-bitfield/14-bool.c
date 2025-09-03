@@ -12,12 +12,12 @@ int main() {
 
   // assigning constant from other variable instead of integer constant, because integer constant swallows implicit cast to _Bool
   _Bool b1 = i1;
-  _Bool b123 = i123; // TODO NOWARN (overflow)
-  _Bool bm123 = im123; // TODO NOWARN (underflow)
-  _Bool b128 = i128; // TODO NOWARN (overflow)
-  _Bool bm128 = im128; // TODO NOWARN (underflow)
+  _Bool b123 = i123; // NOWARN (overflow)
+  _Bool bm123 = im123; // NOWARN (underflow)
+  _Bool b128 = i128; // NOWARN (overflow)
+  _Bool bm128 = im128; // NOWARN (underflow)
   _Bool bf = i0;
-  _Bool brand = irand; // TODO NOWARN (underflow, overflow)
+  _Bool brand = irand; // NOWARN (underflow, overflow)
 
   __goblint_check(b1);
   __goblint_check(b1 == 1);
@@ -25,10 +25,10 @@ int main() {
   __goblint_check(b123 == 1);
   __goblint_check(bm123);
   __goblint_check(bm123 == 1);
-  __goblint_check(b128); // TODO
-  __goblint_check(b128 == 1); // TODO
-  __goblint_check(bm128); // TODO
-  __goblint_check(bm128 == 1); // TODO
+  __goblint_check(b128);
+  __goblint_check(b128 == 1);
+  __goblint_check(bm128);
+  __goblint_check(bm128 == 1);
   __goblint_check(!bf);
   __goblint_check(bf == 0);
   __goblint_check(brand); // UNKNOWN!
