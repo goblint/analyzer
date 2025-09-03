@@ -110,7 +110,7 @@ sig
 end
 
 
-module IntDomLifter (I : S) =
+module IntDomLifter (I : S2) =
 struct
   open Cil
   type int_t = I.int_t
@@ -465,7 +465,7 @@ struct
       ) (Invariant.top ()) ns
 end
 
-module SOverflowUnlifter (D : SOverflow) : S with type int_t = D.int_t and type t = D.t = struct
+module SOverflowUnlifter (D : SOverflow) : S2 with type int_t = D.int_t and type t = D.t = struct
   include D
 
   let add ?no_ov ik x y = fst @@ D.add ?no_ov ik x y

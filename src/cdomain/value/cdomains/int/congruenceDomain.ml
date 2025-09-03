@@ -133,9 +133,10 @@ struct
     | x when equal zero x -> Some false
     | x -> if leq zero x then None else Some true
 
-  let starting ?(suppress_ovwarn=false) ik n = top()
+  let starting ik n = top()
 
   let ending = starting
+  let of_interval ik x = of_interval ik x (* cast away optional suppress_ovwarn argument *)
 
   let of_congruence ik (c,m) = normalize ik @@ Some(c,m)
 
