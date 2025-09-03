@@ -383,7 +383,7 @@ struct
     in
     binop x y interval_rem
 
-  let cast_to ?(suppress_ovwarn=false) ?torg ?no_ov ik x = norm_intvs ~cast:true ik x
+  let cast_to ?torg ?no_ov ik x = norm_intvs ~cast:true ik x
 
   (*
       narrows down the extremeties of xs if they are equal to boundary values of the ikind with (possibly) narrower values from ys

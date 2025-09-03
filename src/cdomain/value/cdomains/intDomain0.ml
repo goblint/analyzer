@@ -478,7 +478,7 @@ module SOverflowUnlifter (D : SOverflow) : S with type int_t = D.int_t and type 
 
   let neg ?no_ov ik x = fst @@ D.neg ?no_ov ik x
 
-  let cast_to ?suppress_ovwarn ?torg ?no_ov ik x = fst @@ D.cast_to ?suppress_ovwarn ?torg ?no_ov ik x
+  let cast_to ?suppress_ovwarn ?torg ?no_ov ik x = fst @@ D.cast_to ?torg ?no_ov ik x
 
   let of_int ik x = fst @@ D.of_int ik x
 
@@ -730,7 +730,7 @@ module SOverflowLifter (D : S) : SOverflow with type int_t = D.int_t and type t 
 
   let neg ?no_ov ik x = lift @@ D.neg ?no_ov ik x
 
-  let cast_to ?suppress_ovwarn ?torg ?no_ov ik x = lift @@ D.cast_to ?suppress_ovwarn ?torg ?no_ov ik x
+  let cast_to ?torg ?no_ov ik x = lift @@ D.cast_to ?torg ?no_ov ik x
 
   let of_int ik x = lift @@ D.of_int ik x
 

@@ -263,7 +263,7 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): Bitfield_SOverflow with type in
       else
         top_of ik
 
-  let cast_to ?(suppress_ovwarn=false) ?torg ?(no_ov=false) ik (z,o) =
+  let cast_to ?torg ?(no_ov=false) ik (z,o) =
     let (min_ik, max_ik) = Size.range ik in
     let (underflow, overflow) = match torg with
       | None -> (false, false) (* ik does not change *)

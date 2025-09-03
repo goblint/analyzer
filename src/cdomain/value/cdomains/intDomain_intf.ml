@@ -290,7 +290,7 @@ sig
 
   val neg : ?no_ov:bool -> Cil.ikind ->  t -> t * overflow_info
 
-  val cast_to : ?suppress_ovwarn:bool -> ?torg:Cil.typ -> ?no_ov:bool -> Cil.ikind -> t -> t * overflow_info
+  val cast_to : ?torg:Cil.typ -> ?no_ov:bool -> Cil.ikind -> t -> t * overflow_info
 
   val of_int : Cil.ikind -> int_t -> t * overflow_info
 
