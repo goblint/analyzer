@@ -413,7 +413,7 @@ struct
 
   let refine_with_interval ik a b = meet ik a b
 
-  let refine_with_excl_list ik (intv : t) (excl : (int_t list * (int64 * int64)) option) : t =
+  let refine_with_excl_list ik (intv : t) (excl : (int_t list * (int * int)) option) : t =
     match intv, excl with
     | None, _ | _, None -> intv
     | Some(l, u), Some(ls, (rl, rh)) ->

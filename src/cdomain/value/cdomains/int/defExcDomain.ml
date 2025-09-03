@@ -11,7 +11,7 @@ end
 (* The module [Exclusion] constains common functionality about handling of exclusion sets between [DefExc] and [Enums] *)
 module Exclusion =
 struct
-  module R = IntervalArith (IntOps.Int64Ops)
+  module R = IntervalArith (IntOps.NIntOps)
   (* We use these types for the functions in this module to make the intended meaning more explicit *)
   type t = Exc of BISet.t * R.t
   type inc = Inc of BISet.t [@@unboxed]
@@ -69,7 +69,7 @@ struct
 
   (* Ikind used for intervals representing the domain *)
   let range_ikind = Cil.IInt
-  let size t = let a,b = Size.bits_i64 t in Int64.neg a,b
+  let size t = let a,b = Size.bits t in -a,b
 
 
   type t = [
@@ -81,7 +81,7 @@ struct
   let name () = "def_exc"
 
 
-  let overflow_range = (-999L, 999L) (* Since there is no top ikind we use a range that includes both IInt128 [-127,127] and IUInt128 [0,128]. Only needed for intermediate range computation on longs. Correct range is set by cast. *)
+  let overflow_range = (-999, 999) (* Since there is no top ikind we use a range that includes both IInt128 [-127,127] and IUInt128 [0,128]. Only needed for intermediate range computation on longs. Correct range is set by cast. *)
   let top_overflow () = `Excluded (S.empty (), overflow_range)
   let bot () = `Bot
   let top_of ik = `Excluded (S.empty (), size ik)
@@ -288,7 +288,7 @@ struct
     | `Definite x -> Some (IntOps.BigIntOps.to_bool x)
     | `Excluded (s,r) when S.mem Z.zero s -> Some true
     | _ -> None
-  let top_bool = `Excluded (S.empty (), (0L, 1L))
+  let top_bool = `Excluded (S.empty (), (0, 1))
 
   let of_interval ik (x,y) =
     if Z.compare x y = 0 then

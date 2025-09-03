@@ -9,7 +9,7 @@ module Enums : S with type int_t = Z.t = struct
   module R = Exclusion.R (* range for exclusion *)
 
   let range_ikind = Cil.IInt
-  let size t = let a,b = Size.bits_i64 t in Int64.neg a,b
+  let size t = let a,b = Size.bits t in -a,b
 
   type t =
     | Inc of BISet.t (* Inclusion set. *)
