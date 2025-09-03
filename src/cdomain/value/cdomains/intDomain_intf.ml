@@ -440,8 +440,6 @@ sig
 
   module IntervalSetFunctor(Ints_t : IntOps.IntOps): SOverflow with type int_t = Ints_t.t and type t = (Ints_t.t * Ints_t.t) list
 
-  module Interval32 :Y with (* type t = (IntOps.Int64Ops.t * IntOps.Int64Ops.t) option and *) type int_t = IntOps.Int64Ops.t
-
   module Interval : SOverflow with type int_t = Z.t
 
   module Bitfield : SOverflow with type int_t = Z.t

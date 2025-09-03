@@ -346,6 +346,11 @@ end
 
 (* Textbook interval arithmetic, without any overflow handling etc. *)
 module IntervalArith (Ints_t : IntOps.IntOps) = struct
+  type t = Ints_t.t * Ints_t.t [@@deriving eq, ord, hash]
+
+  (* TODO: use this for Interval and IntervalSet *)
+  let show (x,y) = "["^Ints_t.to_string x^","^Ints_t.to_string y^"]"
+
   let min4 a b c d = Ints_t.min (Ints_t.min a b) (Ints_t.min c d)
   let max4 a b c d = Ints_t.max (Ints_t.max a b) (Ints_t.max c d)
 
@@ -380,6 +385,20 @@ module IntervalArith (Ints_t : IntOps.IntOps) = struct
   let one = (Ints_t.one, Ints_t.one)
   let zero = (Ints_t.zero, Ints_t.zero)
   let top_bool = (Ints_t.zero, Ints_t.one)
+
+  (* TODO: use these for Interval and IntervalSet *)
+  let maximal = snd
+  let minimal = fst
+
+  (* TODO: use these for Interval and IntervalSet *)
+  let leq (x1,x2) (y1,y2) = Ints_t.compare x1 y1 >= 0 && Ints_t.compare x2 y2 <= 0
+  let join (x1,x2) (y1,y2) = (Ints_t.min x1 y1, Ints_t.max x2 y2)
+  let meet (x1,x2) (y1,y2) =
+    let (r1, r2) as r = (Ints_t.max x1 y1, Ints_t.min x2 y2) in
+    if Ints_t.compare r1 r2 > 0 then
+      None
+    else
+      Some r
 
   let to_int (x1, x2) =
     if Ints_t.equal x1 x2 then Some x1 else None

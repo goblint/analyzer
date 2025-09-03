@@ -6,10 +6,10 @@ open GoblintCil
 
 (* Inclusion/Exclusion sets. Go to top on arithmetic operations (except for some easy cases, e.g. multiplication with 0). Joins on widen, i.e. precise integers as long as not derived from arithmetic expressions. *)
 module Enums : S with type int_t = Z.t = struct
-  module R = Interval32 (* range for exclusion *)
+  module R = Exclusion.R (* range for exclusion *)
 
   let range_ikind = Cil.IInt
-  let size t = R.of_interval range_ikind (let a,b = Size.bits_i64 t in Int64.neg a,b)
+  let size t = let a,b = Size.bits_i64 t in Int64.neg a,b
 
   type t =
     | Inc of BISet.t (* Inclusion set. *)
@@ -18,8 +18,8 @@ module Enums : S with type int_t = Z.t = struct
 
   type int_t = Z.t
   let name () = "enums"
-  let bot () = failwith "bot () not implemented for Enums"
-  let bot_of ik = Inc (BISet.empty ())
+  let bot () = Inc (BISet.empty ())
+  let bot_of ik = bot ()
   let top_bool = Inc (BISet.of_list [Z.zero; Z.one])
   let top_of ik =
     match ik with
@@ -113,7 +113,7 @@ module Enums : S with type int_t = Z.t = struct
       of_int ik x
     else
       let a, b = Size.min_range_sign_agnostic x, Size.min_range_sign_agnostic y in
-      let r = R.join (R.of_interval range_ikind a) (R.of_interval range_ikind b) in
+      let r = R.join a b in
       let ex = if Z.gt x Z.zero || Z.lt y Z.zero then BISet.singleton Z.zero else BISet.empty () in
       norm ik @@ (Exc (ex, r))
 
@@ -126,22 +126,25 @@ module Enums : S with type int_t = Z.t = struct
       let r = if BISet.is_empty y
         then r
         else
-          let (min_el_range, max_el_range) = Batteries.Tuple2.mapn (fun x -> R.of_interval range_ikind (Size.min_range_sign_agnostic x)) (BISet.min_elt y, BISet.max_elt y) in
+          let (min_el_range, max_el_range) = Batteries.Tuple2.mapn Size.min_range_sign_agnostic (BISet.min_elt y, BISet.max_elt y) in
           let range = R.join min_el_range max_el_range in
           R.join r range
       in
       Exc (BISet.diff x y, r)
 
-  let meet _ x y =
+  let meet ik x y =
     match x, y with
     | Inc x, Inc y -> Inc (BISet.inter x y)
     | Exc (x,r1), Exc (y,r2) ->
-      let r = R.meet r1 r2 in
-      let r_min, r_max = Exclusion.min_of_range r, Exclusion.max_of_range r in
-      let filter_by_range = BISet.filter (value_in_range (r_min, r_max)) in
-      (* We remove those elements from the exclusion set that do not fit in the range anyway *)
-      let excl = BISet.union (filter_by_range x) (filter_by_range y) in
-      Exc (excl, r)
+      begin match R.meet r1 r2 with
+        | None -> bot ()
+        | Some r ->
+          let r_min, r_max = Exclusion.min_of_range r, Exclusion.max_of_range r in
+          let filter_by_range = BISet.filter (value_in_range (r_min, r_max)) in
+          (* We remove those elements from the exclusion set that do not fit in the range anyway *)
+          let excl = BISet.union (filter_by_range x) (filter_by_range y) in
+          Exc (excl, r)
+      end
     | Inc x, Exc (y,r)
     | Exc (y,r), Inc x -> Inc (BISet.diff x y)
 
@@ -244,7 +247,7 @@ module Enums : S with type int_t = Z.t = struct
     | _ -> None
   let to_int = function Inc x when BISet.is_singleton x -> Some (BISet.choose x) | _ -> None
 
-  let to_excl_list = function Exc (x,r) when not (BISet.is_empty x) -> Some (BISet.elements x, (Option.get (R.minimal r), Option.get (R.maximal r))) | _ -> None
+  let to_excl_list = function Exc (x,r) when not (BISet.is_empty x) -> Some (BISet.elements x, r) | _ -> None
   let of_excl_list ik xs =
     let min_ik, max_ik = Size.range ik in
     let exc = BISet.of_list @@ List.filter (value_in_range (min_ik, max_ik)) xs in

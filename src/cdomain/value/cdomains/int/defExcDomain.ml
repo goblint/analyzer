@@ -11,12 +11,12 @@ end
 (* The module [Exclusion] constains common functionality about handling of exclusion sets between [DefExc] and [Enums] *)
 module Exclusion =
 struct
-  module R = Interval32
+  module R = IntervalArith (IntOps.Int64Ops)
   (* We use these types for the functions in this module to make the intended meaning more explicit *)
-  type t = Exc of BISet.t * Interval32.t
+  type t = Exc of BISet.t * R.t
   type inc = Inc of BISet.t [@@unboxed]
-  let max_of_range r = Size.max_from_bit_range (Option.get (R.maximal r))
-  let min_of_range r = Size.min_from_bit_range (Option.get (R.minimal r))
+  let max_of_range r = Size.max_from_bit_range (R.maximal r)
+  let min_of_range r = Size.min_from_bit_range (R.minimal r)
   let cardinality_of_range r = Z.succ (Z.add (Z.neg (min_of_range r)) (max_of_range r))
 
   let cardinality_BISet s =
@@ -65,11 +65,11 @@ end
 module DefExc : S with type int_t = Z.t = (* definite or set of excluded values *)
 struct
   module S = BISet
-  module R = Interval32 (* range for exclusion *)
+  module R = Exclusion.R (* range for exclusion *)
 
   (* Ikind used for intervals representing the domain *)
   let range_ikind = Cil.IInt
-  let size t = R.of_interval range_ikind (let a,b = Size.bits_i64 t in Int64.neg a,b)
+  let size t = let a,b = Size.bits_i64 t in Int64.neg a,b
 
 
   type t = [
@@ -81,7 +81,7 @@ struct
   let name () = "def_exc"
 
 
-  let overflow_range = R.of_interval range_ikind (-999L, 999L) (* Since there is no top ikind we use a range that includes both IInt128 [-127,127] and IUInt128 [0,128]. Only needed for intermediate range computation on longs. Correct range is set by cast. *)
+  let overflow_range = (-999L, 999L) (* Since there is no top ikind we use a range that includes both IInt128 [-127,127] and IUInt128 [0,128]. Only needed for intermediate range computation on longs. Correct range is set by cast. *)
   let top_overflow () = `Excluded (S.empty (), overflow_range)
   let bot () = `Bot
   let top_of ik = `Excluded (S.empty (), size ik)
@@ -226,14 +226,14 @@ struct
       (* Unless one of them is zero, we can exclude it: *)
       else
         let a,b = Size.min_range_sign_agnostic x, Size.min_range_sign_agnostic y in
-        let r = R.join (R.of_interval range_ikind a) (R.of_interval range_ikind b) in
+        let r = R.join a b in
         `Excluded ((if Z.equal x Z.zero || Z.equal y Z.zero then S.empty () else S.singleton Z.zero), r)
     (* A known value and an exclusion set... the definite value should no
      * longer be excluded: *)
     | `Excluded (s,r), `Definite x
     | `Definite x, `Excluded (s,r) ->
       if not (in_range r x) then
-        let a = R.of_interval range_ikind (Size.min_range_sign_agnostic x) in
+        let a = Size.min_range_sign_agnostic x in
         `Excluded (S.remove x s, R.join a r)
       else
         `Excluded (S.remove x s, r)
@@ -266,9 +266,11 @@ struct
     (* The greatest lower bound of two exclusion sets is their union, this is
      * just DeMorgans Law *)
     | `Excluded (x,r1), `Excluded (y,r2) ->
-      let r' = R.meet r1 r2 in
-      let s' = S.union x y |> S.filter (in_range r') in
-      `Excluded (s', r')
+      match R.meet r1 r2 with
+      | None -> `Bot
+      | Some r' ->
+        let s' = S.union x y |> S.filter (in_range r') in
+        `Excluded (s', r')
 
   let narrow ik x y = x
 
@@ -286,14 +288,14 @@ struct
     | `Definite x -> Some (IntOps.BigIntOps.to_bool x)
     | `Excluded (s,r) when S.mem Z.zero s -> Some true
     | _ -> None
-  let top_bool = `Excluded (S.empty (), R.of_interval range_ikind (0L, 1L))
+  let top_bool = `Excluded (S.empty (), (0L, 1L))
 
   let of_interval ik (x,y) =
     if Z.compare x y = 0 then
       of_int ik x
     else
       let a, b = Size.min_range_sign_agnostic x, Size.min_range_sign_agnostic y in
-      let r = R.join (R.of_interval range_ikind a) (R.of_interval range_ikind b) in
+      let r = R.join a b in
       let ex = if Z.gt x Z.zero || Z.lt y Z.zero then S.singleton Z.zero else  S.empty () in
       norm ik @@ (`Excluded (ex, r))
 
@@ -323,7 +325,7 @@ struct
   let is_excl_list l = match l with `Excluded _ -> true | _ -> false
   let to_excl_list (x:t) = match x with
     | `Definite _ -> None
-    | `Excluded (s,r) -> Some (S.elements s, (Option.get (R.minimal r), Option.get (R.maximal r)))
+    | `Excluded (s,r) -> Some (S.elements s, r)
     | `Bot -> None
 
   let to_incl_list x = match x with

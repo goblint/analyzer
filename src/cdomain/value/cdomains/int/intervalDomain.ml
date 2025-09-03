@@ -123,7 +123,6 @@ struct
   let ending ik n =
     norm ik @@ Some (fst (range ik), n)
 
-  (* TODO: change signature of maximal, minimal to return big_int*)
   let maximal = function None -> None | Some (x,y) -> Some y
   let minimal = function None -> None | Some (x,y) -> Some x
 
@@ -445,4 +444,3 @@ struct
 end
 
 module Interval = IntervalFunctor (IntOps.BigIntOps)
-module Interval32 = IntDomWithDefaultIkind (IntDomLifter (SOverflowUnlifter (IntervalFunctor (IntOps.Int64Ops)))) (IntIkind)
