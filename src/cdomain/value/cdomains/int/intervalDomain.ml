@@ -76,7 +76,7 @@ struct
 
   (* TODO: change to_int signature so it returns a big_int *)
   let to_int x = Option.bind x (IArith.to_int)
-  let of_interval ?(suppress_ovwarn=false) ik (x,y) = norm ik @@ Some (x,y)
+  let of_interval ik (x,y) = norm ik @@ Some (x,y)
 
   let of_bitfield ik x =
     let min ik (z,o) =
@@ -117,10 +117,10 @@ struct
     | Some (l, u) when Ints_t.compare l Ints_t.zero = 0 && Ints_t.compare u Ints_t.zero = 0 -> Some false
     | x -> if leq zero x then None else Some true
 
-  let starting ?(suppress_ovwarn=false) ik n =
+  let starting ik n =
     norm ik @@ Some (n, snd (range ik))
 
-  let ending ?(suppress_ovwarn=false) ik n =
+  let ending ik n =
     norm ik @@ Some (fst (range ik), n)
 
   (* TODO: change signature of maximal, minimal to return big_int*)

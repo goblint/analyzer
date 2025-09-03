@@ -120,9 +120,9 @@ module IntDomTupleImpl = struct
   let of_bool ik = create { fi = fun (type a) (module I:SOverflow with type t = a) -> I.of_bool ik }
   let of_excl_list ik = create2 { fi2 = fun (type a) (module I:SOverflow with type t = a and type int_t = int_t) -> I.of_excl_list ik}
   let of_int ik = create2_ovc ik { fi2_ovc = fun (type a) (module I:SOverflow with type t = a and type int_t = int_t) -> I.of_int ik }
-  let starting ?(suppress_ovwarn=false) ik = create2_ovc ~suppress_ovwarn ik { fi2_ovc = fun (type a) (module I:SOverflow with type t = a and type int_t = int_t) -> I.starting ~suppress_ovwarn ik }
-  let ending ?(suppress_ovwarn=false) ik = create2_ovc ~suppress_ovwarn ik { fi2_ovc = fun (type a) (module I:SOverflow with type t = a and type int_t = int_t) -> I.ending ~suppress_ovwarn ik }
-  let of_interval ?(suppress_ovwarn=false) ik = create2_ovc ~suppress_ovwarn ik { fi2_ovc = fun (type a) (module I:SOverflow with type t = a and type int_t = int_t) -> I.of_interval ~suppress_ovwarn ik }
+  let starting ?(suppress_ovwarn=false) ik = create2_ovc ~suppress_ovwarn ik { fi2_ovc = fun (type a) (module I:SOverflow with type t = a and type int_t = int_t) -> I.starting ik }
+  let ending ?(suppress_ovwarn=false) ik = create2_ovc ~suppress_ovwarn ik { fi2_ovc = fun (type a) (module I:SOverflow with type t = a and type int_t = int_t) -> I.ending ik }
+  let of_interval ?(suppress_ovwarn=false) ik = create2_ovc ~suppress_ovwarn ik { fi2_ovc = fun (type a) (module I:SOverflow with type t = a and type int_t = int_t) -> I.of_interval ik }
   let of_congruence ik = create2 { fi2 = fun (type a) (module I:SOverflow with type t = a and type int_t = int_t) -> I.of_congruence ik }
   let of_bitfield ik = create2 { fi2 = fun (type a) (module I:SOverflow with type t = a and type int_t = int_t) -> I.of_bitfield ik }
 

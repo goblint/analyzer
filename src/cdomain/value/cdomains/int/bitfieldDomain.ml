@@ -316,7 +316,7 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): Bitfield_SOverflow with type in
 
   type bit_status = Zero | One | Top
 
-  let of_interval ?(suppress_ovwarn=false) ik (x,y) =
+  let of_interval ik (x,y) =
     let (min_ik, max_ik) = Size.range ik in
     let startv = Ints_t.max x (Ints_t.of_bigint min_ik) in
     let endv= Ints_t.min y (Ints_t.of_bigint max_ik) in
@@ -619,13 +619,13 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): Bitfield_SOverflow with type in
       let exp1 = Invariant.of_exp (BinOp (Eq, (BinOp (BAnd, e, def1, TInt(ik,[]))), def1, intType)) in
       Invariant.meet exp0 exp1
 
-  let starting ?(suppress_ovwarn=false) ik n =
+  let starting ik n =
     let (min_ik, max_ik) = Size.range ik in
-    of_interval ~suppress_ovwarn ik (n, Ints_t.of_bigint max_ik)
+    of_interval ik (n, Ints_t.of_bigint max_ik)
 
-  let ending ?(suppress_ovwarn=false) ik n =
+  let ending ik n =
     let (min_ik, max_ik) = Size.range ik in
-    of_interval ~suppress_ovwarn ik (Ints_t.of_bigint min_ik, n)
+    of_interval ik (Ints_t.of_bigint min_ik, n)
 
   (* Refinements *)
 

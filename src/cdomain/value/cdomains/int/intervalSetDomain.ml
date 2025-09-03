@@ -232,7 +232,7 @@ struct
 
   let of_bool _ = function true -> one | false -> zero
 
-  let of_interval ?(suppress_ovwarn=false) ik (x,y) =  norm_interval ~cast:false ik (x,y)
+  let of_interval ik (x,y) =  norm_interval ~cast:false ik (x,y)
 
   let of_bitfield ik x =
     match Interval.of_bitfield ik x with
@@ -471,9 +471,9 @@ struct
     in
     interval_sets_to_partitions ik xs ys |> merge_list ik |> widen_left |> widen_right |> List.map snd
 
-  let starting ?(suppress_ovwarn=false) ik n = norm_interval ik (n, snd (range ik))
+  let starting ik n = norm_interval ik (n, snd (range ik))
 
-  let ending ?(suppress_ovwarn=false) ik n = norm_interval ik (fst (range ik), n)
+  let ending ik n = norm_interval ik (fst (range ik), n)
 
   let invariant_ikind e ik xs =
     List.map (fun x -> Interval.invariant_ikind e ik (Some x)) xs |>

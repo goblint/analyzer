@@ -294,10 +294,10 @@ sig
 
   val of_int : Cil.ikind -> int_t -> t * overflow_info
 
-  val of_interval: ?suppress_ovwarn:bool -> Cil.ikind -> int_t * int_t -> t * overflow_info
+  val of_interval: Cil.ikind -> int_t * int_t -> t * overflow_info
 
-  val starting : ?suppress_ovwarn:bool -> Cil.ikind -> int_t -> t * overflow_info
-  val ending : ?suppress_ovwarn:bool -> Cil.ikind -> int_t -> t * overflow_info
+  val starting : Cil.ikind -> int_t -> t * overflow_info
+  val ending : Cil.ikind -> int_t -> t * overflow_info
 
   val shift_left : Cil.ikind -> t -> t -> t * overflow_info
 
