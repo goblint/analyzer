@@ -253,7 +253,7 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): Bitfield_SOverflow with type in
       let newo = o &: (Ints_t.of_bigint max_ik) in
       (newz,newo)
 
-  let norm ?(suppress_ovwarn=false) ?(ov=false) ik (z,o) =
+  let norm ?(ov=false) ik (z,o) =
     if BArith.is_invalid (z,o) then
       bot ()
     else
@@ -278,8 +278,8 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): Bitfield_SOverflow with type in
         let overflow = (((!:(Ints_t.of_bigint max_ik)) &: o) <>: Ints_t.zero) && isPos in
         (underflow, overflow)
     in
-    let overflow_info = if suppress_ovwarn then {underflow=false; overflow=false} else {underflow=underflow; overflow=overflow} in
-    (norm ~suppress_ovwarn:(suppress_ovwarn) ~ov:(underflow || overflow) ik (z,o), overflow_info)
+    let overflow_info = {underflow; overflow} in
+    (norm ~ov:(underflow || overflow) ik (z,o), overflow_info)
 
   let join ik b1 b2 = norm ik @@ (BArith.join b1 b2)
 
