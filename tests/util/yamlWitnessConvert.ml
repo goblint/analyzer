@@ -25,7 +25,7 @@ let main () =
       let entry = Entry.of_yaml yaml_entry |> Result.get_ok in
       begin match !metadata' with
         | None ->
-          metadata' := Some {entry.metadata with format_version = "2.0"}
+          metadata' := Some entry.metadata
         | Some metadata ->
           (* all existing metadata should be the same *)
           (* they (should) have different UUIDs, so change UUID to match to compare the rest *)
@@ -46,7 +46,7 @@ let main () =
 
   let invariant_set: InvariantSet.t = {content = invariants} in
   let entry': Entry.t = {
-      metadata = Option.get !metadata';
+      metadata = {(Option.get !metadata') with format_version = "2.0"};
       entry_type = InvariantSet invariant_set
     }
   in
