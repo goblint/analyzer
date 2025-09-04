@@ -251,7 +251,7 @@ module D = struct
       It removes all terms which contain one of the "vars",
       while maintaining all equalities about variables that are not being removed.*)
   let remove_terms_containing_variables vars cc =
-    if M.tracing then M.trace "c2po" "remove_terms_containing_variables: %s\n" (List.fold_left (fun s v -> s ^"; " ^Var.show v) "" vars);
+    if M.tracing then M.trace "c2po" "remove_terms_containing_variables: %a" (Pretty.d_list "; " Var.pretty) vars;
     remove_terms (T.contains_variable vars) cc
 
   (** Remove terms from the data structure.
@@ -259,7 +259,7 @@ module D = struct
       except the global vars are also kept (when vglob = true),
       while maintaining all equalities about variables that are not being removed.*)
   let remove_terms_not_containing_variables vars cc =
-    if M.tracing then M.trace "c2po" "remove_terms_not_containing_variables: %s\n" (List.fold_left (fun s v -> s ^"; " ^Var.show v) "" vars);
+    if M.tracing then M.trace "c2po" "remove_terms_not_containing_variables: %a" (Pretty.d_list "; " Var.pretty) vars;
     let not_global_and_not_contains_variable t =
       let var = T.get_var t in
       not (DuplicateVars.VarType.vglob var) && not (T.contains_variable vars t)

@@ -138,7 +138,7 @@ struct
       let cc = assign_lval d ask lval (T.of_cil ask expr) in
       let cc = reset_normal_form cc in
       let res = `Lifted cc in
-      if M.tracing then M.trace "c2po-assign" "assign: var: %a; expr: %a; result: %s.\n" d_lval lval d_plainexp expr (D.show res);
+      if M.tracing then M.trace "c2po-assign" "assign: var: %a; expr: %a; result: %a." d_lval lval d_plainexp expr D.pretty res;
       res
 
   let branch ctx e pos =
@@ -188,7 +188,7 @@ struct
         end
       | None -> ctx.local
     in
-    if M.tracing then M.trace "c2po-function" "return: exp_opt: %a; state: %s; result: %s\n" d_exp (BatOption.default (MayBeEqual.dummy_lval_print (TVoid [])) exp_opt) (D.show ctx.local) (D.show res);
+    if M.tracing then M.trace "c2po-function" "return: exp_opt: %a; state: %a; result: %a" d_exp (BatOption.default (MayBeEqual.dummy_lval_print (TVoid [])) exp_opt) D.pretty ctx.local D.pretty res;
     res
 
   (** var_opt is the variable we assign to. It has type lval. v=malloc.*)
@@ -249,7 +249,7 @@ struct
       if M.tracing then begin
         let dummy_lval = Var (Var.dummy_varinfo (TVoid [])), NoOffset in
         let lval = BatOption.default dummy_lval var_opt in
-        M.trace "c2po-function" "enter1: var_opt: %a; state: %s; state_with_ghosts: %s\n" d_lval lval (D.show ctx.local) (C2PODomain.show state_with_ghosts);
+        M.trace "c2po-function" "enter1: var_opt: %a; state: %a; state_with_ghosts: %a" d_lval lval D.pretty ctx.local C2PODomain.pretty state_with_ghosts;
       end;
       (* remove callee vars that are not reachable and not global *)
       let reachable_variables =
@@ -258,7 +258,7 @@ struct
       in
       let new_state = D.remove_terms_not_containing_variables reachable_variables state_with_ghosts.data in
       let new_state = data_to_t new_state in
-      if M.tracing then M.trace "c2po-function" "enter2: result: %s\n" (C2PODomain.show new_state);
+      if M.tracing then M.trace "c2po-function" "enter2: result: %a" C2PODomain.pretty new_state;
       let new_state = reset_normal_form new_state in
       [ctx.local, `Lifted new_state]
 
@@ -282,7 +282,7 @@ struct
       in
       let state_with_assignments = List.fold_left assign_term d arg_assigns in
 
-      if M.tracing then M.trace "c2po-function" "combine_env0: state_with_assignments: %s\n" (C2PODomain.show state_with_assignments);
+      if M.tracing then M.trace "c2po-function" "combine_env0: state_with_assignments: %a" C2PODomain.pretty state_with_assignments;
 
       (*remove all variables that were tainted by the function*)
       let tainted = f_ask.f (MayBeTainted) in
@@ -298,7 +298,7 @@ struct
         if M.tracing then begin
           let dummy_lval = Var (Var.dummy_varinfo (TVoid[])), NoOffset in
           let lval = BatOption.default dummy_lval lval_opt in
-          M.trace "c2po-function" "combine_env2: var_opt: %a; local_state: %s; f_state: %s; meeting everything: %s\n" d_lval lval (D.show ctx.local) (D.show f_d) (C2PODomain.show d)
+          M.trace "c2po-function" "combine_env2: var_opt: %a; local_state: %a; f_state: %a; meeting everything: %a" d_lval lval D.pretty ctx.local D.pretty f_d C2PODomain.pretty d
         end;
         `Lifted d
 
@@ -327,10 +327,10 @@ struct
             let return_var = (Some return_var, Some Z.zero) in
             assign_lval d f_ask lval return_var
         in
-        if M.tracing then M.trace "c2po-function" "combine_assign1: assigning return value: %s\n" (C2PODomain.show d);
+        if M.tracing then M.trace "c2po-function" "combine_assign1: assigning return value: %a" C2PODomain.pretty d;
         let d = remove_out_of_scope_vars d.data f in
         let d = data_to_t d in
-        if M.tracing then M.trace "c2po-function" "combine_assign2: result: %s\n" (C2PODomain.show d);
+        if M.tracing then M.trace "c2po-function" "combine_assign2: result: %a" C2PODomain.pretty d;
         `Lifted d
 
   let startstate v =
