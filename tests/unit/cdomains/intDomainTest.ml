@@ -115,11 +115,11 @@ end
 module Ikind = struct let ikind () = Cil.ILong end
 module A = IntTest (IntDomain.Integers (IntOps.BigIntOps))
 module B = IntTest (IntDomain.Flat (IntDomain.Integers (IntOps.BigIntOps)))
-module C = IntTest (IntDomainProperties.WithIkind (IntDomain.DefExc) (Ikind))
+module C = IntTest (IntDomainProperties.WithIkind (IntDomainProperties.MakeS2 (IntDomain.DefExc)) (Ikind))
 
 module D = struct
   module T = struct
-    include IntDomainProperties.WithIkind (IntDomain.DefExc) (Ikind)
+    include IntDomainProperties.WithIkind (IntDomainProperties.MakeS2 (IntDomain.DefExc)) (Ikind)
     let of_excl_list xs = of_excl_list Cil.ILong xs
   end
 
