@@ -121,34 +121,6 @@ struct
     metadata = metadata ~task ();
   }
 
-  let target ~uuid ~type_ ~(file_name): Target.t = {
-    uuid;
-    type_;
-    file_hash = sha256_file file_name;
-  }
-
-  let certification verdict: Certification.t = {
-    string = if verdict then "confirmed" else "rejected";
-    type_ = "verdict";
-    format = "confirmed | rejected";
-  }
-
-  let loop_invariant_certificate ~target ~(certification): Entry.t = {
-    entry_type = LoopInvariantCertificate {
-        target;
-        certification;
-      };
-    metadata = metadata ();
-  }
-
-  let precondition_loop_invariant_certificate ~target ~(certification): Entry.t = {
-    entry_type = PreconditionLoopInvariantCertificate {
-        target;
-        certification;
-      };
-    metadata = metadata ();
-  }
-
   let ghost_variable' ~variable ~type_ ~(initial): GhostInstrumentation.Variable.t = {
     name = variable;
     scope = "global";
@@ -733,11 +705,10 @@ struct
     cnt_error := 0;
     cnt_disabled := 0;
 
-    let validate_entry (entry: YamlWitnessType.Entry.t): YamlWitnessType.Entry.t option =
-      let uuid = entry.metadata.uuid in
+    let validate_entry (entry: YamlWitnessType.Entry.t): unit =
       let target_type = YamlWitnessType.EntryType.entry_type entry.entry_type in
 
-      let validate_lvars_invariant ~entry_certificate ~loc ~lvars inv =
+      let validate_lvars_invariant ~loc ~lvars inv =
         let msgLoc: M.Location.t = CilLocation loc in
         match InvariantParser.parse_cabs inv with
         | Ok inv_cabs ->
@@ -766,86 +737,52 @@ struct
           begin match Option.get (VR.result_of_enum result) with
             | Confirmed ->
               incr cnt_confirmed;
-              M.success ~category:Witness ~loc:msgLoc "invariant confirmed: %s" inv;
-              Option.map (fun entry_certificate ->
-                  let target = Entry.target ~uuid ~type_:target_type ~file_name:loc.file in
-                  let certification = Entry.certification true in
-                  let certificate_entry = entry_certificate ~target ~certification in
-                  certificate_entry
-                ) entry_certificate
+              M.success ~category:Witness ~loc:msgLoc "invariant confirmed: %s" inv
             | Unconfirmed ->
               incr cnt_unconfirmed;
-              M.warn ~category:Witness ~loc:msgLoc "invariant unconfirmed: %s" inv;None
+              M.warn ~category:Witness ~loc:msgLoc "invariant unconfirmed: %s" inv
             | Refuted ->
               incr cnt_refuted;
-              M.error ~category:Witness ~loc:msgLoc "invariant refuted: %s" inv;
-              Option.map (fun entry_certificate ->
-                  let target = Entry.target ~uuid ~type_:target_type ~file_name:loc.file in
-                  let certification = Entry.certification false in
-                  let certificate_entry = entry_certificate ~target ~certification in
-                  certificate_entry
-                ) entry_certificate
+              M.error ~category:Witness ~loc:msgLoc "invariant refuted: %s" inv
             | ParseError ->
               incr cnt_error;
               M.error ~category:Witness ~loc:msgLoc "CIL couldn't parse invariant: %s" inv;
-              M.info ~category:Witness ~loc:msgLoc "invariant has undefined variables or side effects: %s" inv;
-              None
+              M.info ~category:Witness ~loc:msgLoc "invariant has undefined variables or side effects: %s" inv
           end
         | Error e ->
           incr cnt_error;
           M.error ~category:Witness ~loc:msgLoc "Frontc couldn't parse invariant: %s" inv;
-          M.info ~category:Witness ~loc:msgLoc "invariant has invalid syntax: %s" inv;
-          None
+          M.info ~category:Witness ~loc:msgLoc "invariant has invalid syntax: %s" inv
       in
 
       let validate_location_invariant (location_invariant: YamlWitnessType.LocationInvariant.t) =
         let loc = loc_of_location location_invariant.location in
         let inv = location_invariant.location_invariant.string in
-        let entry_certificate = (* TODO: Wrong, because there's no location_invariant_certificate, but this is the closest thing for now. *)
-          if entry_type_enabled YamlWitnessType.LoopInvariantCertificate.entry_type then
-            Some Entry.loop_invariant_certificate
-          else
-            None
-        in
 
         match Locator.find_opt location_locator loc with
         | Some lvars ->
-          validate_lvars_invariant ~entry_certificate ~loc ~lvars inv
+          validate_lvars_invariant ~loc ~lvars inv
         | None ->
           incr cnt_error;
-          M.warn ~category:Witness ~loc:(CilLocation loc) "couldn't locate invariant: %s" inv;
-          None
+          M.warn ~category:Witness ~loc:(CilLocation loc) "couldn't locate invariant: %s" inv
       in
 
       let validate_loop_invariant (loop_invariant: YamlWitnessType.LoopInvariant.t) =
         let loc = loc_of_location loop_invariant.location in
         let inv = loop_invariant.loop_invariant.string in
-        let entry_certificate =
-          if entry_type_enabled YamlWitnessType.LoopInvariantCertificate.entry_type then
-            Some Entry.loop_invariant_certificate
-          else
-            None
-        in
 
         match Locator.find_opt loop_locator loc with
         | Some lvars ->
-          validate_lvars_invariant ~entry_certificate ~loc ~lvars inv
+          validate_lvars_invariant ~loc ~lvars inv
         | None ->
           incr cnt_error;
-          M.warn ~category:Witness ~loc:(CilLocation loc) "couldn't locate invariant: %s" inv;
-          None
+          M.warn ~category:Witness ~loc:(CilLocation loc) "couldn't locate invariant: %s" inv
       in
 
       let validate_precondition_loop_invariant (precondition_loop_invariant: YamlWitnessType.PreconditionLoopInvariant.t) =
         let loc = loc_of_location precondition_loop_invariant.location in
         let pre = precondition_loop_invariant.precondition.string in
         let inv = precondition_loop_invariant.loop_invariant.string in
-        let entry_certificate =
-          if entry_type_enabled YamlWitnessType.PreconditionLoopInvariantCertificate.entry_type then
-            Some Entry.precondition_loop_invariant_certificate
-          else
-            None
-        in
         let msgLoc: M.Location.t = CilLocation loc in
 
         match Locator.find_opt loop_locator loc with
@@ -876,21 +813,18 @@ struct
               let lvars = LvarS.filter precondition_holds lvars in
               if LvarS.is_empty lvars then (
                 incr cnt_unchecked;
-                M.warn ~category:Witness ~loc:msgLoc "precondition never definitely holds: %s" pre;
-                None
+                M.warn ~category:Witness ~loc:msgLoc "precondition never definitely holds: %s" pre
               )
               else
-                validate_lvars_invariant ~entry_certificate ~loc ~lvars inv
+                validate_lvars_invariant ~loc ~lvars inv
             | Error e ->
               incr cnt_error;
               M.error ~category:Witness ~loc:msgLoc "Frontc couldn't parse precondition: %s" pre;
-              M.info ~category:Witness ~loc:msgLoc "precondition has invalid syntax: %s" pre;
-              None
+              M.info ~category:Witness ~loc:msgLoc "precondition has invalid syntax: %s" pre
           end
         | None ->
           incr cnt_error;
-          M.warn ~category:Witness ~loc:msgLoc "couldn't locate invariant: %s" inv;
-          None
+          M.warn ~category:Witness ~loc:msgLoc "couldn't locate invariant: %s" inv
       in
 
       let validate_invariant_set (invariant_set: YamlWitnessType.InvariantSet.t) =
@@ -901,7 +835,7 @@ struct
 
           match Locator.find_opt location_locator loc with
           | Some lvars ->
-            ignore (validate_lvars_invariant ~entry_certificate:None ~loc ~lvars inv)
+            validate_lvars_invariant ~loc ~lvars inv
           | None ->
             incr cnt_error;
             M.warn ~category:Witness ~loc:(CilLocation loc) "couldn't locate invariant: %s" inv;
@@ -913,7 +847,7 @@ struct
 
           match Locator.find_opt loop_locator loc with
           | Some lvars ->
-            ignore (validate_lvars_invariant ~entry_certificate:None ~loc ~lvars inv)
+            validate_lvars_invariant ~loc ~lvars inv
           | None ->
             incr cnt_error;
             M.warn ~category:Witness ~loc:(CilLocation loc) "couldn't locate invariant: %s" inv;
@@ -931,8 +865,7 @@ struct
             M.info_noloc ~category:Witness "disabled invariant of type %s" target_type;
         in
 
-        List.iter validate_invariant invariant_set.content;
-        None
+        List.iter validate_invariant invariant_set.content
       in
 
       let validate_violation_sequence (violation_sequence: YamlWitnessType.ViolationSequence.t) =
@@ -941,7 +874,7 @@ struct
            If program is correct and we can prove it, we output true, which counts as refutation of violation witness.
            If program is correct and we cannot prove it, we output unknown.
            If program is incorrect, we output unknown. *)
-        None
+        ()
       in
 
       match entry_type_enabled target_type, entry.entry_type with
@@ -957,26 +890,20 @@ struct
         validate_violation_sequence x
       | false, (LocationInvariant _ | LoopInvariant _ | PreconditionLoopInvariant _ | InvariantSet _ | ViolationSequence _) ->
         incr cnt_disabled;
-        M.info_noloc ~category:Witness "disabled entry of type %s" target_type;
-        None
+        M.info_noloc ~category:Witness "disabled entry of type %s" target_type
       | _ ->
         incr cnt_unsupported;
-        M.warn_noloc ~category:Witness "cannot validate entry of type %s" target_type;
-        None
+        M.warn_noloc ~category:Witness "cannot validate entry of type %s" target_type
     in
 
-    let yaml_entries' = List.fold_left (fun yaml_entries' yaml_entry ->
+    List.iter (fun yaml_entry ->
         match YamlWitnessType.Entry.of_yaml yaml_entry with
         | Ok entry ->
-          let certificate_entry = validate_entry entry in
-          let yaml_certificate_entry = Option.map YamlWitnessType.Entry.to_yaml certificate_entry in
-          Option.to_list yaml_certificate_entry @ yaml_entry :: yaml_entries'
+          validate_entry entry
         | Error (`Msg e) ->
           incr cnt_error;
-          M.error_noloc ~category:Witness "couldn't parse entry: %s" e;
-          yaml_entry :: yaml_entries'
-      ) [] yaml_entries
-    in
+          M.error_noloc ~category:Witness "couldn't parse entry: %s" e
+      ) yaml_entries;
 
     M.msg_group Info ~category:Witness "witness validation summary" [
       (Pretty.dprintf "confirmed: %d" !cnt_confirmed, None);
@@ -988,10 +915,6 @@ struct
       (Pretty.dprintf "disabled: %d" !cnt_disabled, None);
       (Pretty.dprintf "total validation entries: %d" (!cnt_confirmed + !cnt_unconfirmed + !cnt_refuted + !cnt_unchecked + !cnt_unsupported + !cnt_error + !cnt_disabled), None);
     ];
-
-    let certificate_path = GobConfig.get_string "witness.yaml.certificate" in
-    if certificate_path <> "" then
-      yaml_entries_to_file (List.rev yaml_entries') (Fpath.v certificate_path);
 
     match GobConfig.get_bool "witness.yaml.strict" with
     | true when !cnt_error > 0 ->
