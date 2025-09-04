@@ -1,4 +1,4 @@
-// PARAM: --enable ana.int.enums --set witness.yaml.entry-types[*] location_invariant --set witness.yaml.validate 01-base-lor-enums.yml
+// PARAM: --enable ana.int.enums --set witness.yaml.validate 01-base-lor-enums.yml
 
 int main() {
   int r; // rand
