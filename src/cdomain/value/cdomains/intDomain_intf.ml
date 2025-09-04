@@ -182,7 +182,7 @@ sig
   (** Give a boolean interpretation of an abstract value if possible, otherwise
     * don't return anything.*)
 
-  val to_excl_list: t -> (int_t list * (int64 * int64)) option
+  val to_excl_list: t -> (int_t list * (int * int)) option
   (** Gives a list representation of the excluded values from included range of bits if possible. *)
 
   val of_excl_list: Cil.ikind -> int_t list -> t
@@ -267,7 +267,7 @@ sig
   val refine_with_congruence: Cil.ikind -> t -> (int_t * int_t) option -> t
   val refine_with_bitfield: Cil.ikind -> t -> (int_t * int_t) -> t
   val refine_with_interval: Cil.ikind -> t -> (int_t * int_t) option -> t
-  val refine_with_excl_list: Cil.ikind -> t -> (int_t list * (int64 * int64)) option -> t
+  val refine_with_excl_list: Cil.ikind -> t -> (int_t list * (int * int)) option -> t
   val refine_with_incl_list: Cil.ikind -> t -> int_t list option -> t
 
   val project: Cil.ikind -> PrecisionUtil.int_precision -> t -> t
@@ -439,8 +439,6 @@ sig
   module BitfieldFunctor(Ints_t : IntOps.IntOps): SOverflow with type int_t = Ints_t.t and type t = (Ints_t.t * Ints_t.t)
 
   module IntervalSetFunctor(Ints_t : IntOps.IntOps): SOverflow with type int_t = Ints_t.t and type t = (Ints_t.t * Ints_t.t) list
-
-  module Interval32 :Y with (* type t = (IntOps.Int64Ops.t * IntOps.Int64Ops.t) option and *) type int_t = IntOps.Int64Ops.t
 
   module Interval : SOverflow with type int_t = Z.t
 

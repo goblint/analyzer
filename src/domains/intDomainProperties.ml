@@ -13,7 +13,7 @@ sig
   val to_bool: t -> bool option
   val of_excl_list: Cil.ikind -> Z.t list -> t
   val is_excl_list: t -> bool
-  val to_excl_list: t -> (Z.t list * (int64 * int64)) option
+  val to_excl_list: t -> (Z.t list * (int * int)) option
 end
 
 module type OldSWithIkind =

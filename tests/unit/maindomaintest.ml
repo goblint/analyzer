@@ -48,7 +48,6 @@ let intDomains: (module IntDomainProperties.S2) list = [
   (module IntDomain.SOverflowUnlifter(IntDomain.IntervalSet));
   (module IntDomain.SOverflowUnlifter(IntDomain.Bitfield));
   (* (module IntDomain.Flattened); *)
-  (* (module IntDomain.Interval32); *)
   (* (module IntDomain.Booleans); *)
   (* (module IntDomain.IntDomTuple); *)
 ]
