@@ -29,6 +29,7 @@ module MakeS2 (I: S): S2 =
 struct
   include I
 
+  let of_int ?suppress_ovwarn ik x = of_int ik x
   let starting ?suppress_ovwarn ik x = starting ik x
   let ending ?suppress_ovwarn ik x = ending ik x
   let of_interval ?suppress_ovwarn ik x = of_interval ik x
