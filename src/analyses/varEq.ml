@@ -17,6 +17,10 @@ struct
   struct
     include PartitionDomain.ExpPartitions
 
+    let is_str_constant = function
+      | Const (CStr _ | CWStr _) -> true
+      | _ -> false
+
     let invariant ~scope ss =
       fold (fun s a ->
           if B.mem MyCFG.unknown_exp s then
@@ -25,7 +29,7 @@ struct
             let module B_prod = BatSet.Make2 (Exp) (Exp) in
             let s_prod = B_prod.cartesian_product s s in
             let i = B_prod.Product.fold (fun (x, y) a ->
-                if Exp.compare x y < 0 && not (InvariantCil.exp_contains_tmp x) && not (InvariantCil.exp_contains_tmp y) && InvariantCil.exp_is_in_scope scope x && InvariantCil.exp_is_in_scope scope y then (* each equality only one way, no self-equalities *)
+                if Exp.compare x y < 0 && not (InvariantCil.exp_contains_tmp x) && not (InvariantCil.exp_contains_tmp y) && InvariantCil.exp_is_in_scope scope x && InvariantCil.exp_is_in_scope scope y && not (is_str_constant x) && not (is_str_constant y) then (* each equality only one way, no self-equalities *)
                   let eq = BinOp (Eq, x, y, intType) in
                   Invariant.(a && of_exp eq)
                 else
