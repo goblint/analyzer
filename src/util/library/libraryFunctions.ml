@@ -642,6 +642,7 @@ let glibc_desc_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("ferror_unlocked", unknown [drop "stream" [r_deep; w_deep]]);
     ("fwrite_unlocked", unknown [drop "buffer" [r]; drop "size" []; drop "count" []; drop "stream" [r_deep; w_deep]]);
     ("clearerr_unlocked", unknown [drop "stream" [w]]); (* TODO: why only w? *)
+    ("__fpending", unknown [drop "stream" [r_deep]]);
     ("futimesat", unknown [drop "dirfd" []; drop "pathname" [r]; drop "times" [r]]);
     ("error", unknown ((drop "status" []) :: (drop "errnum" []) :: (drop "format" [r]) :: (VarArgs (drop' [r]))));
     ("warn", unknown (drop "format" [r] :: VarArgs (drop' [r])));
