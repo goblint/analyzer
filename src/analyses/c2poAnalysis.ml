@@ -100,7 +100,7 @@ struct
     | lval_size, (Some rterm, Some roffset) ->
       let dummy_var = MayBeEqual.dummy_var lval_t in
 
-      if M.tracing then M.trace "c2po-assign" "assigning: var: %s; expr: %s + %s. \nTo_cil: lval: %a; expr: %a\n" (T.show lterm) (T.show rterm) (Z.to_string roffset) d_exp (T.to_cil lterm) d_exp (T.to_cil rterm);
+      if M.tracing then M.trace "c2po-assign" "assigning: var: %a; expr: %a + %a. \nTo_cil: lval: %a; expr: %a\n" T.pretty lterm T.pretty rterm GobZ.pretty roffset d_exp (T.to_cil lterm) d_exp (T.to_cil rterm);
 
       let equal_dummy_rterm = [Equal (dummy_var, rterm, roffset)] in
       let equal_dummy_lterm = [Equal (lterm, dummy_var, Z.zero)] in
@@ -158,7 +158,7 @@ struct
           with Unsat ->
             `Bot
     in
-    if M.tracing then M.trace "c2po" "branch:\n Actual equality: %a; pos: %b; valid_prop_list: %s; is_bot: %b\n" d_exp e pos (show_conj valid_props) (D.is_bot res);
+    if M.tracing then M.trace "c2po" "branch:\n Actual equality: %a; pos: %b; valid_prop_list: %a; is_bot: %b" d_exp e pos pretty_conj valid_props (D.is_bot res);
     if D.is_bot res then raise Deadcode;
     res
 
