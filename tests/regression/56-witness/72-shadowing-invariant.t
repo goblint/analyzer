@@ -4,7 +4,7 @@
     dead: 0
     total lines: 5
   [Info][Witness] witness generation summary:
-    location invariants: 16
+    location invariants: 6
     loop invariants: 0
     flow-insensitive invariants: 0
     total generation entries: 1
@@ -19,28 +19,10 @@ They can be wrong and contradicting.
         type: location_invariant
         location:
           file_name: 72-shadowing-invariant.c
-          line: 6
-          column: 3
-          function: main
-        value: foo == 1
-        format: c_expression
-    - invariant:
-        type: location_invariant
-        location:
-          file_name: 72-shadowing-invariant.c
           line: 8
           column: 3
           function: main
         value: 2 == foo
-        format: c_expression
-    - invariant:
-        type: location_invariant
-        location:
-          file_name: 72-shadowing-invariant.c
-          line: 8
-          column: 3
-          function: main
-        value: foo == 1
         format: c_expression
     - invariant:
         type: location_invariant
@@ -67,33 +49,6 @@ They can be wrong and contradicting.
           line: 10
           column: 5
           function: main
-        value: 3 == bar
-        format: c_expression
-    - invariant:
-        type: location_invariant
-        location:
-          file_name: 72-shadowing-invariant.c
-          line: 10
-          column: 5
-          function: main
-        value: bar == 3
-        format: c_expression
-    - invariant:
-        type: location_invariant
-        location:
-          file_name: 72-shadowing-invariant.c
-          line: 10
-          column: 5
-          function: main
-        value: foo == 1
-        format: c_expression
-    - invariant:
-        type: location_invariant
-        location:
-          file_name: 72-shadowing-invariant.c
-          line: 10
-          column: 5
-          function: main
         value: foo == 2
         format: c_expression
     - invariant:
@@ -104,51 +59,6 @@ They can be wrong and contradicting.
           column: 5
           function: main
         value: 2 == foo
-        format: c_expression
-    - invariant:
-        type: location_invariant
-        location:
-          file_name: 72-shadowing-invariant.c
-          line: 11
-          column: 5
-          function: main
-        value: 3 == bar
-        format: c_expression
-    - invariant:
-        type: location_invariant
-        location:
-          file_name: 72-shadowing-invariant.c
-          line: 11
-          column: 5
-          function: main
-        value: 4 == bar
-        format: c_expression
-    - invariant:
-        type: location_invariant
-        location:
-          file_name: 72-shadowing-invariant.c
-          line: 11
-          column: 5
-          function: main
-        value: bar == 3
-        format: c_expression
-    - invariant:
-        type: location_invariant
-        location:
-          file_name: 72-shadowing-invariant.c
-          line: 11
-          column: 5
-          function: main
-        value: bar == 4
-        format: c_expression
-    - invariant:
-        type: location_invariant
-        location:
-          file_name: 72-shadowing-invariant.c
-          line: 11
-          column: 5
-          function: main
-        value: foo == 1
         format: c_expression
     - invariant:
         type: location_invariant
