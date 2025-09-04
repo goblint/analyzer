@@ -166,7 +166,7 @@ struct
   let tag x = I.tag x.v
   let arbitrary ik = failwith @@ "Arbitrary not implement for " ^ (name ()) ^ "."
   let to_int x = I.to_int x.v
-  let of_int ikind x = { v = I.of_int ikind x; ikind}
+  let of_int ?(suppress_ovwarn=false) ikind x = { v = I.of_int ~suppress_ovwarn ikind x; ikind}
   let equal_to i x = I.equal_to i x.v
   let to_bool x = I.to_bool x.v
   let of_bool ikind b = { v = I.of_bool ikind b; ikind}
@@ -480,7 +480,7 @@ module SOverflowUnlifter (D : SOverflow) : S2 with type int_t = D.int_t and type
 
   let cast_to ?suppress_ovwarn ?torg ?no_ov ik x = fst @@ D.cast_to ?torg ?no_ov ik x
 
-  let of_int ik x = fst @@ D.of_int ik x
+  let of_int ?suppress_ovwarn ik x = fst @@ D.of_int ik x
 
   let of_interval ?suppress_ovwarn ik x = fst @@ D.of_interval ik x
 
