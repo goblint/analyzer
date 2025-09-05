@@ -23,7 +23,7 @@ end
 
 (* domain is (reversed) integers *)
 module Ikind = struct let ikind () = Cil.ILong end
-module Int  = IntDomainProperties.WithIkind (IntDomain.DefExc) (Ikind)
+module Int  = IntDomainProperties.WithIkind (IntDomainProperties.MakeS2 (IntDomain.DefExc)) (Ikind)
 module IntR = Lattice.Reverse(Int)
 
 module ConstrSys = struct

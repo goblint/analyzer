@@ -76,17 +76,17 @@ module IntDomTupleImpl = struct
     );
     no_ov
 
-  let create2_ovc ik r x ((p1, p2, p3, p4, p5, p6): int_precision) =
+  let create2_ovc ?(suppress_ovwarn = false) ik r x ((p1, p2, p3, p4, p5, p6): int_precision) =
     let f b g = if b then Some (g x) else None in
     let map x = Option.map fst x in
     let intv =  f p2 @@ r.fi2_ovc (module I2) in
     let intv_set = f p5 @@ r.fi2_ovc (module I5) in
     let bf = f p6 @@ r.fi2_ovc (module I6) in
-    ignore (check_ov ~cast:false ik intv intv_set bf);
+    ignore (check_ov ~suppress_ovwarn ~cast:false ik intv intv_set bf);
     map @@ f p1 @@ r.fi2_ovc (module I1), map @@ f p2 @@ r.fi2_ovc (module I2), map @@ f p3 @@ r.fi2_ovc (module I3), map @@ f p4 @@ r.fi2_ovc (module I4), map @@ f p5 @@ r.fi2_ovc (module I5) , map @@ f p6 @@ r.fi2_ovc (module I6)
 
-  let create2_ovc ik r x = (* use where values are introduced *)
-    create2_ovc ik r x (int_precision_from_node_or_config ())
+  let create2_ovc ?(suppress_ovwarn = false) ik r x = (* use where values are introduced *)
+    create2_ovc ~suppress_ovwarn ik r x (int_precision_from_node_or_config ())
 
 
   let opt_map2 f ?no_ov =
@@ -120,9 +120,9 @@ module IntDomTupleImpl = struct
   let of_bool ik = create { fi = fun (type a) (module I:SOverflow with type t = a) -> I.of_bool ik }
   let of_excl_list ik = create2 { fi2 = fun (type a) (module I:SOverflow with type t = a and type int_t = int_t) -> I.of_excl_list ik}
   let of_int ik = create2_ovc ik { fi2_ovc = fun (type a) (module I:SOverflow with type t = a and type int_t = int_t) -> I.of_int ik }
-  let starting ?(suppress_ovwarn=false) ik = create2_ovc ik { fi2_ovc = fun (type a) (module I:SOverflow with type t = a and type int_t = int_t) -> I.starting ~suppress_ovwarn ik }
-  let ending ?(suppress_ovwarn=false) ik = create2_ovc ik { fi2_ovc = fun (type a) (module I:SOverflow with type t = a and type int_t = int_t) -> I.ending ~suppress_ovwarn ik }
-  let of_interval ?(suppress_ovwarn=false) ik = create2_ovc ik { fi2_ovc = fun (type a) (module I:SOverflow with type t = a and type int_t = int_t) -> I.of_interval ~suppress_ovwarn ik }
+  let starting ?(suppress_ovwarn=false) ik = create2_ovc ~suppress_ovwarn ik { fi2_ovc = fun (type a) (module I:SOverflow with type t = a and type int_t = int_t) -> I.starting ik }
+  let ending ?(suppress_ovwarn=false) ik = create2_ovc ~suppress_ovwarn ik { fi2_ovc = fun (type a) (module I:SOverflow with type t = a and type int_t = int_t) -> I.ending ik }
+  let of_interval ?(suppress_ovwarn=false) ik = create2_ovc ~suppress_ovwarn ik { fi2_ovc = fun (type a) (module I:SOverflow with type t = a and type int_t = int_t) -> I.of_interval ik }
   let of_congruence ik = create2 { fi2 = fun (type a) (module I:SOverflow with type t = a and type int_t = int_t) -> I.of_congruence ik }
   let of_bitfield ik = create2 { fi2 = fun (type a) (module I:SOverflow with type t = a and type int_t = int_t) -> I.of_bitfield ik }
 
