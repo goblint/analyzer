@@ -37,7 +37,7 @@ bug-reports: "https://github.com/goblint/analyzer/issues"
 depends: [
   "dune" {>= "3.13"}
   "ocaml" {>= "4.14"}
-  "goblint-cil" {>= "2.0.5"}
+  "goblint-cil" {>= "2.0.7"}
   "batteries" {>= "3.9.0"}
   "zarith" {>= "1.10"}
   "yojson" {>= "2.0.0" & < "3"}
@@ -101,7 +101,8 @@ dev-repo: "git+https://github.com/goblint/analyzer.git"
 # also remember to generate/adjust goblint.opam.locked!
 available: os-family != "bsd" & os-distribution != "alpine" & (arch != "arm64" | os = "macos")
 pin-depends: [
-  [ "goblint-cil.2.0.7" "git+https://github.com/goblint/cil.git#8e2212316ceda6911de2db716933bfb8c64a8585" ]
+  # published goblint-cil 2.0.7 is currently up-to-date, so no pin needed
+  # [ "goblint-cil.2.0.7" "git+https://github.com/goblint/cil.git#8e2212316ceda6911de2db716933bfb8c64a8585" ]
   # pinned for stability (https://github.com/goblint/analyzer/issues/1520), remove after new apron release
   [ "apron.v0.9.15" "git+https://github.com/antoinemine/apron.git#418a217c7a70dae3f422678f3aaba38ae374d91a" ]
 ]
