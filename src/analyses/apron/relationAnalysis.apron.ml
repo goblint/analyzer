@@ -696,7 +696,7 @@ struct
       Priv.escape man.node (Analyses.ask_of_man man) man.global man.sideg st escaped
     | Assert exp ->
       assert_fn man exp true
-    | Events.Unassume {exp = e; tokens} ->
+    | Events.Unassume {value = Exp e; tokens} ->
       let e_orig = e in
       let ask = Analyses.ask_of_man man in
       let e = replace_deref_exps man.ask e in
