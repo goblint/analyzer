@@ -66,7 +66,7 @@ depends: [
   "fileutils" {= "0.6.4"}
   "fmt" {= "0.9.0"}
   "fpath" {= "0.7.3"}
-  "goblint-cil" {= "2.0.6"}
+  "goblint-cil" {= "2.0.7"}
   "hex" {= "1.5.0"}
   "integers" {= "0.7.0"}
   "json-data-encoding" {= "1.0.1"}
@@ -142,8 +142,8 @@ post-messages: [
 ]
 pin-depends: [
   [
-    "goblint-cil.2.0.6"
-    "git+https://github.com/goblint/cil.git#4b8b06eb39801a87d195f81d830a686578bd8b8b"
+    "goblint-cil.2.0.7"
+    "git+https://github.com/goblint/cil.git#8e2212316ceda6911de2db716933bfb8c64a8585"
   ]
   [
     "apron.v0.9.15"

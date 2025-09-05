@@ -297,10 +297,12 @@ let typeOfRealAndImagComponents t =
       | FDouble -> FDouble     (* [double] *)
       | FLongDouble -> FLongDouble (* [long double] *)
       | FFloat128 -> FFloat128 (* [float128] *)
+      | FFloat16 -> FFloat16 (* [_Float16] *)
       | FComplexFloat -> FFloat
       | FComplexDouble -> FDouble
       | FComplexLongDouble -> FLongDouble
       | FComplexFloat128 -> FComplexFloat128
+      | FComplexFloat16 -> FComplexFloat16
     in
     TFloat (newfkind fkind, attrs)
   | _ -> raise (TypeOfError RealImag_NonNumerical)
@@ -309,11 +311,13 @@ let isComplexFKind = function
   | FFloat
   | FDouble
   | FLongDouble
-  | FFloat128 -> false
+  | FFloat128
+  | FFloat16 -> false
   | FComplexFloat
   | FComplexDouble
   | FComplexLongDouble
-  | FComplexFloat128 -> true
+  | FComplexFloat128
+  | FComplexFloat16 -> true
 
 (** @raise TypeOfError *)
 let rec typeOf (e: exp) : typ =
