@@ -70,14 +70,11 @@ depends: [
   "domain-local-await"
   "domain_shims"
 ]
-depopts: [
-  "apron" {>= "v0.9.15"}
-  "camlidl" {>= "1.13"}
-  "z3"
-  "domainslib"
-]
+depopts: ["apron" "z3" "domainslib"]
 conflicts: [
   "result" {< "1.5"}
+  "apron" {< "v0.9.15"}
+  "camlidl" {< "1.13"}
   "ez-conf-lib" {= "1"}
 ]
 build: [

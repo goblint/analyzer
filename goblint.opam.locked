@@ -135,6 +135,8 @@ dev-repo: "git+https://github.com/goblint/analyzer.git"
 available: os-family != "bsd" & os-distribution != "alpine" & (arch != "arm64" | os = "macos")
 conflicts: [
   "result" {< "1.5"}
+  "apron" {< "v0.9.15"}
+  "camlidl" {< "1.13"}
   "ez-conf-lib" {= "1"}
 ]
 post-messages: [
