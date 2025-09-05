@@ -12,6 +12,6 @@ int main() {
   assume_abort_if_not(n_update >= 0);
   assume_abort_if_not(n_update <= ( 4294967295UL /  sizeof (char)));
 
-  __goblint_check(1); // TODO reachable
+  __goblint_check(1); // reachable
   return 0;
 }
