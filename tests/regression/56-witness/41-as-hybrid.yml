@@ -1,6 +1,6 @@
-- entry_type: loop_invariant
+- entry_type: invariant_set
   metadata:
-    format_version: "0.1"
+    format_version: "2.0"
     uuid: 71b761c6-4f85-405e-8ee6-9a3a8f743513
     creation_time: 2022-10-12T11:50:43Z
     producer:
@@ -13,13 +13,13 @@
         41-as-hybrid.c: 74adb6d33dd35bafe5415bc407a94fa277812ad9921726a7c1f5ee00d3a39af6
       data_model: LP64
       language: C
-  location:
-    file_name: 41-as-hybrid.c
-    file_hash: 74adb6d33dd35bafe5415bc407a94fa277812ad9921726a7c1f5ee00d3a39af6
-    line: 5
-    column: 3
-    function: main
-  loop_invariant:
-    string: 0 <= i && i <= 9
-    type: assertion
-    format: C
+  content:
+  - invariant:
+      type: loop_invariant
+      location:
+        file_name: 41-as-hybrid.c
+        line: 5
+        column: 3
+        function: main
+      value: 0 <= i && i <= 9
+      format: c_expression

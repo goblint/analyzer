@@ -1,4 +1,4 @@
-// SKIP PARAM: --set ana.base.privatization write+lock --enable ana.int.interval --set witness.yaml.entry-types[*] location_invariant --set witness.yaml.validate 04-base-priv-sync-prune.yml
+// SKIP PARAM: --set ana.base.privatization write+lock --enable ana.int.interval --set witness.yaml.validate 04-base-priv-sync-prune.yml
 // TODO: fix unsoundness in base priv syncs
 #include <pthread.h>
 

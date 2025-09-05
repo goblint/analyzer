@@ -1,4 +1,4 @@
-// SKIP PARAM: --set ana.activated[+] apron --set ana.apron.domain polyhedra --set witness.yaml.entry-types[*] loop_invariant --set ana.activated[+] unassume --set witness.yaml.unassume 29-mine-tutorial-ex4.10.yml
+// SKIP PARAM: --set ana.activated[+] apron --set ana.apron.domain polyhedra --set ana.activated[+] unassume --set witness.yaml.unassume 29-mine-tutorial-ex4.10.yml
 // Using Apron polyhedra to have no narrowing.
 #include <goblint.h>
 int main() {
