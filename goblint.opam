@@ -40,7 +40,7 @@ depends: [
   "goblint-cil" {>= "2.0.7"}
   "batteries" {>= "3.9.0"}
   "zarith" {>= "1.10"}
-  "yojson" {>= "2.0.0" & < "3"}
+  "yojson" {>= "2.0.0"}
   "qcheck-core" {>= "0.19"}
   "ppx_deriving" {>= "6.0.2"}
   "ppx_deriving_hash" {>= "0.1.2"}
