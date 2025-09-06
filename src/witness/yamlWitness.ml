@@ -14,7 +14,7 @@ struct
   open YamlWitnessType
 
   (* yaml_conf is too verbose *)
-  (* let yaml_conf: Yaml.value = Json_repr.convert (module Json_repr.Yojson) (module Json_repr.Ezjsonm) (!GobConfig.json_conf) in *)
+  (* let yaml_conf: Yaml.value = Json_repr.convert (module Json_repr_compat.Yojson) (module Json_repr.Ezjsonm) (!GobConfig.json_conf) in *)
   let producer: Producer.t = {
     name = "Goblint";
     version = Goblint_build_info.version;

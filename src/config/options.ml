@@ -46,7 +46,7 @@ let rec element_completions (element: element): (string * string list) list =
   let default_completion () =
     match element.default with
     | Some default ->
-      [("", [Yojson.Safe.to_string (Json_repr.any_to_repr (module Json_repr.Yojson) default)])]
+      [("", [Yojson.Safe.to_string (Json_repr.any_to_repr (module Json_repr_compat.Yojson) default)])]
     | None ->
       [("", [])]
   in
@@ -71,7 +71,7 @@ let rec element_completions (element: element): (string * string list) list =
         default_completion ()
       | Some enum ->
         let cs = List.map (fun value ->
-            match Json_repr.any_to_repr (module Json_repr.Yojson) value with
+            match Json_repr.any_to_repr (module Json_repr_compat.Yojson) value with
             | `String value -> value
             | _ -> failwith "element_completions: string_enum"
           ) enum
@@ -99,9 +99,9 @@ let rec pp_options ~levels ppf (element: element) =
   | Integer _
   | Number _
   | Monomorphic_array _ ->
-    (* Format.fprintf ppf "%s: %s (%a)" (Option.get element.title) (Option.get element.description) (Yojson.Safe.pretty_print ~std:false) (Json_repr.any_to_repr (module Json_repr.Yojson) (Option.get element.default)) *)
+    (* Format.fprintf ppf "%s: %s (%a)" (Option.get element.title) (Option.get element.description) (Yojson.Safe.pretty_print ~std:false) (Json_repr.any_to_repr (module Json_repr_compat.Yojson) (Option.get element.default)) *)
     (* Yojson screws up box indentation somehow... *)
-    Format.fprintf ppf "%s: %s (%s)" (Option.get element.title) (Option.get element.description) (Yojson.Safe.to_string (Json_repr.any_to_repr (module Json_repr.Yojson) (Option.get element.default)))
+    Format.fprintf ppf "%s: %s (%s)" (Option.get element.title) (Option.get element.description) (Yojson.Safe.to_string (Json_repr.any_to_repr (module Json_repr_compat.Yojson) (Option.get element.default)))
   | Object object_specs when levels > 0 ->
     let properties = List.filter (fun (name, field_element, _, _) ->
         match field_element.kind with

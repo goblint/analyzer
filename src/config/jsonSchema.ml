@@ -1,8 +1,8 @@
 (** JSON schema validation. *)
 
-module JS = Json_schema.Make (Json_repr.Yojson)
-module JE = Json_encoding.Make (Json_repr.Yojson)
-module JQ = Json_query.Make (Json_repr.Yojson)
+module JS = Json_schema.Make (Json_repr_compat.Yojson)
+module JE = Json_encoding.Make (Json_repr_compat.Yojson)
+module JQ = Json_query.Make (Json_repr_compat.Yojson)
 
 (* copied & modified from json_encoding.ml *)
 let unexpected kind expected =
@@ -35,7 +35,7 @@ let rec encoding_of_schema_element (top: unit Json_encoding.encoding) (schema_el
       | Some enum ->
         enum
         |> List.map (fun value ->
-            match Json_repr.any_to_repr (module Json_repr.Yojson) value with
+            match Json_repr.any_to_repr (module Json_repr_compat.Yojson) value with
             | `String value -> (value, ())
             | _ -> failwith "encoding_of_schema_element: string_enum"
           )
@@ -89,7 +89,7 @@ open Json_schema
 let rec element_defaults ?additional_field (element: element): Yojson.Safe.t =
   match element.default with
   | Some default ->
-    Json_repr.any_to_repr (module Json_repr.Yojson) default
+    Json_repr.any_to_repr (module Json_repr_compat.Yojson) default
   | None ->
     begin match element.kind with
       | Object object_specs ->

@@ -12,6 +12,7 @@
    fpath
    yojson
    json-data-encoding
+   json_data_encoding_compat
    cpu
    goblint.sites
    qcheck-core.runner)

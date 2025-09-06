@@ -1,0 +1,5 @@
+(library
+ (name json_data_encoding_compat)
+ (public_name goblint.json-data-encoding.compat)
+ (wrapped false)
+ (libraries json-data-encoding yojson))
