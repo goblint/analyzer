@@ -11,11 +11,11 @@ module C2PODomain = struct
 
   type t = CongruenceClosure.t[@@deriving ord, hash]
 
-  let show x = show_conj (get_conjunction x)
+  let pretty () x = pretty_conj () (get_conjunction x)
   let name () = "c2po"
 
   type domain = t
-  include Printable.SimpleShow (struct type t = domain let show = show end)
+  include Printable.SimplePretty (struct type t = domain let pretty = pretty end)
 
   let equal_standard x y  =
     let cc1 = x.data in
@@ -36,7 +36,7 @@ module C2PODomain = struct
         && equal_diseqs cc1 cc2
         && equal_bldis cc1 cc2
     in
-    if M.tracing then M.trace "c2po-equal" "equal eq classes. %b\nx=\n%s\ny=\n%s" res (show_all x) (show_all y);
+    if M.tracing then M.trace "c2po-equal" "equal eq classes. %b\nx=\n%a\ny=\n%a" res pretty_all x pretty_all y;
     res
 
   let equal_normal_form x y =
@@ -48,10 +48,10 @@ module C2PODomain = struct
       else
         let nf1 = get_normal_form x in
         let nf2 = get_normal_form y in
-        if M.tracing then M.trace "c2po-min-repr" "Normal form of x = %s; Normal form of y = %s" (show_conj nf1) (show_conj nf2);
+        if M.tracing then M.trace "c2po-min-repr" "Normal form of x = %a; Normal form of y = %a" pretty_conj nf1 pretty_conj nf2;
         T.props_equal nf1 nf2
     in
-    if M.tracing then M.trace "c2po-equal" "equal min repr. %b\nx=\n%s\ny=\n%s" res (show_all x) (show_all y);
+    if M.tracing then M.trace "c2po-equal" "equal min repr. %b\nx=\n%a\ny=\n%a" res pretty_all x pretty_all y;
     res
 
   let equal a b =
@@ -85,8 +85,7 @@ module C2PODomain = struct
       if exactly_equal cc1 cc2 then
         cc1
       else begin
-        if M.tracing then M.tracel "c2po-join" "JOIN AUTOMATON. FIRST ELEMENT: %s\nSECOND ELEMENT: %s\n"
-            (show_all x) (show_all y);
+        if M.tracing then M.tracel "c2po-join" "JOIN AUTOMATON. FIRST ELEMENT: %a\nSECOND ELEMENT: %a" pretty_all x pretty_all y;
         let a = cc1 in
         let b = cc2 in
         let cc, _ = join_cc_function a b in
@@ -98,8 +97,7 @@ module C2PODomain = struct
       end
     in
     let res = CongruenceClosure.data_to_t res in
-    if M.tracing then M.tracel "c2po-join" "JOIN. JOIN: %s\n"
-        (show_all res);
+    if M.tracing then M.tracel "c2po-join" "JOIN. JOIN: %a" pretty_all res;
     res
 
   let join (a: t) (b :t) =
@@ -138,7 +136,7 @@ module C2PODomain = struct
   let meet x y  =
     let cc1 = x.data in
     let cc2 = y.data in
-    if M.tracing then M.trace "c2po-meet" "Meet x= %s; y=%s" (show x) (show y);
+    if M.tracing then M.trace "c2po-meet" "Meet x= %a; y=%a" pretty x pretty y;
     let res =
       if exactly_equal cc1 cc2 then
         cc1
@@ -150,7 +148,7 @@ module C2PODomain = struct
           meet_conjs_opt a_conj cc2
     in
     let res = data_to_t res in
-    if M.tracing then M.trace "c2po-meet" "Meet result = %s" (show res);
+    if M.tracing then M.trace "c2po-meet" "Meet result = %a" pretty res;
     res
 
   let narrow x y =
@@ -172,7 +170,7 @@ module C2PODomain = struct
         meet
     in
     let res = data_to_t res in
-    if M.tracing then M.trace "c2po-meet" "NARROW RESULT = %s" (show res);
+    if M.tracing then M.trace "c2po-meet" "NARROW RESULT = %a" pretty res;
     res
 
   let leq x y =
@@ -189,7 +187,7 @@ module C2PODomain = struct
     in
     let x_diff = List.filter (not_in y_conj) x_conj in
     let y_diff = List.filter (not_in x_conj) y_conj in
-    Pretty.dprintf ("Additional propositions of first element:\n%s\nAdditional propositions of second element:\n%s\n") (show_conj x_diff) (show_conj y_diff)
+    Pretty.dprintf ("Additional propositions of first element:\n%a\nAdditional propositions of second element:\n%a\n") pretty_conj x_diff pretty_conj y_diff
 
 end
 
@@ -197,11 +195,11 @@ end
 module D = struct
   include Lattice.LiftBot (C2PODomain)
 
-  let show_all = function
+  let pretty_all () = function
     | `Bot ->
-      show `Bot
+      pretty () `Bot
     | `Lifted x ->
-      show_all x
+      pretty_all () x
 
   let meet a b =
     try
@@ -218,12 +216,12 @@ module D = struct
   let printXml f x = match x with
     | `Lifted x ->
       BatPrintf.fprintf f "<value>\n<map>\n<key>\nnormal form\n</key>\n<value>\n%s</value>\n<key>\nuf\n</key>\n<value>\n%s</value>\n<key>\nsubterm set\n</key>\n<value>\n%s</value>\n<key>\nmap\n</key>\n<value>\n%s</value>\n<key>\nmin. repr\n</key>\n<value>\n%s</value>\n<key>\ndiseq\n</key>\n<value>\n%s</value>\n</map>\n</value>\n"
-        (XmlUtil.escape (Format.asprintf "%s" (show (`Lifted x))))
-        (XmlUtil.escape (Format.asprintf "%s" (TUF.show_uf x.data.uf)))
-        (XmlUtil.escape (Format.asprintf "%s" (SSet.show_set x.data.set)))
-        (XmlUtil.escape (Format.asprintf "%s" (LMap.show_map x.data.map)))
-        (XmlUtil.escape (Format.asprintf "%s" (show_normal_form x.normal_form)))
-        (XmlUtil.escape (Format.asprintf "%s" (Disequalities.show_neq x.data.diseq)))
+        (XmlUtil.escape (GobPretty.sprint pretty (`Lifted x)))
+        (XmlUtil.escape (GobPretty.sprint TUF.pretty_uf x.data.uf))
+        (XmlUtil.escape (GobPretty.sprint SSet.pretty_set x.data.set))
+        (XmlUtil.escape (GobPretty.sprint LMap.pretty_map x.data.map))
+        (XmlUtil.escape (GobPretty.sprint pretty_normal_form x.normal_form))
+        (XmlUtil.escape (GobPretty.sprint Disequalities.pretty_neq x.data.diseq))
     | `Bot ->
       BatPrintf.fprintf f "<value>\nbottom\n</value>\n"
 
@@ -253,7 +251,7 @@ module D = struct
       It removes all terms which contain one of the "vars",
       while maintaining all equalities about variables that are not being removed.*)
   let remove_terms_containing_variables vars cc =
-    if M.tracing then M.trace "c2po" "remove_terms_containing_variables: %s\n" (List.fold_left (fun s v -> s ^"; " ^Var.show v) "" vars);
+    if M.tracing then M.trace "c2po" "remove_terms_containing_variables: %a" (Pretty.d_list "; " Var.pretty) vars;
     remove_terms (T.contains_variable vars) cc
 
   (** Remove terms from the data structure.
@@ -261,7 +259,7 @@ module D = struct
       except the global vars are also kept (when vglob = true),
       while maintaining all equalities about variables that are not being removed.*)
   let remove_terms_not_containing_variables vars cc =
-    if M.tracing then M.trace "c2po" "remove_terms_not_containing_variables: %s\n" (List.fold_left (fun s v -> s ^"; " ^Var.show v) "" vars);
+    if M.tracing then M.trace "c2po" "remove_terms_not_containing_variables: %a" (Pretty.d_list "; " Var.pretty) vars;
     let not_global_and_not_contains_variable t =
       let var = T.get_var t in
       not (DuplicateVars.VarType.vglob var) && not (T.contains_variable vars t)
@@ -271,7 +269,7 @@ module D = struct
   (** Remove terms from the data structure.
       It removes all terms that may be changed after an assignment to "term".*)
   let remove_may_equal_terms ask size term cc =
-    if M.tracing then M.trace "c2po" "remove_may_equal_terms: %s\n" (T.show term);
+    if M.tracing then M.trace "c2po" "remove_may_equal_terms: %a" T.pretty term;
     let _, cc = insert cc term in
     let may_equal_term =
       MayBeEqual.may_be_equal ask cc size term

@@ -22,18 +22,19 @@ module Rhs = struct
      (None                 , offset, divisor ) *)
   type t = ((GobZ.t * int) option *  GobZ.t * GobZ.t) [@@deriving eq, ord, hash]
   let var_zero i = (Some (Z.one,i), Z.zero, Z.one)
-  let show_coeff c =
-    if Z.equal c Z.one then ""
-    else if Z.equal c Z.minus_one then "-"
-    else (Z.to_string c) ^"·"
-  let show_rhs_formatted formatter = let ztostring n = (if Z.(geq n zero) then "+" else "") ^ Z.to_string n in
+  let pretty_coeff () c =
+    if Z.equal c Z.one then Pretty.nil
+    else if Z.equal c Z.minus_one then Pretty.text "-"
+    else Pretty.dprintf "%a·" GobZ.pretty c
+  let pretty_rhs_formatted formatter () =
+    let zpretty () n = Pretty.dprintf "%s%a" (if Z.(geq n zero) then "+" else "") GobZ.pretty n in
     function
-    | (Some (coeff,v), o,_) when Z.equal o Z.zero -> Printf.sprintf "%s%s" (show_coeff coeff) (formatter v)
-    | (Some (coeff,v), o,_) -> Printf.sprintf "%s%s %s" (show_coeff coeff) (formatter v) (ztostring o)
-    | (None,   o,_) -> Printf.sprintf "%s" (Z.to_string o)
-  let show (v,o,d) =
-    let rhs=show_rhs_formatted (Printf.sprintf "var_%d") (v,o,d) in
-    if not (Z.equal d Z.one) then "(" ^ rhs ^ ")/" ^ (Z.to_string d) else rhs
+    | (Some (coeff,v), o,_) when Z.equal o Z.zero -> Pretty.dprintf "%a%a" pretty_coeff coeff formatter v
+    | (Some (coeff,v), o,_) -> Pretty.dprintf "%a%a %a" pretty_coeff coeff formatter v zpretty o
+    | (None,   o,_) -> GobZ.pretty () o
+  let pretty () (v,o,d) =
+    let rhs () = pretty_rhs_formatted (fun () -> Pretty.dprintf "var_%d") () (v,o,d) in
+    if not (Z.equal d Z.one) then Pretty.dprintf "(%t)/%a" rhs GobZ.pretty d else rhs ()
 
   (** factor out gcd from all terms, i.e. ax=by+c with a positive is the canonical form for adx+bdy+cd *)
   let canonicalize (v,o,d) =
@@ -55,13 +56,12 @@ module EqualitiesConjunction = struct
 
   type t = int * ( Rhs.t IntMap.t ) [@@deriving eq, ord]
 
-  let show_formatted formatter econ =
-    if IntMap.is_empty econ then "{}"
+  let pretty_formatted formatter () econ =
+    if IntMap.is_empty econ then Pretty.text "{}"
     else
-      let str = IntMap.fold (fun i (refmonom,off,divi) acc -> Printf.sprintf "%s%s=%s ∧ %s" (Rhs.show_coeff divi) (formatter i) (Rhs.show_rhs_formatted formatter (refmonom,off,divi)) acc) econ "" in
-      "{" ^ String.sub str 0 (String.length str - 4) ^ "}"
+      Pretty.dprintf "{%a}" (Pretty.d_list " ∧ " (fun () (i, (refmonom,off,divi)) -> Pretty.dprintf "%a%a=%a" Rhs.pretty_coeff divi formatter i (Rhs.pretty_rhs_formatted formatter) (refmonom,off,divi))) (IntMap.bindings econ)
 
-  let show econ = show_formatted (Printf.sprintf "var_%d") econ
+  let pretty = pretty_formatted (fun () -> Pretty.dprintf "var_%d")
 
   let hash (dim,x) = dim + 13* IntMap.fold (fun k value acc -> 13 * 13 * acc + 31 * k + Rhs.hash value) x 0 (* TODO: derive *)
 
@@ -124,11 +124,11 @@ module EqualitiesConjunction = struct
       (op dim (Array.length indexes), a)
 
   let modify_variables_in_domain m cols op = let res = modify_variables_in_domain m cols op in if M.tracing then
-      M.tracel "modify_dims" "dimarray bumping with (fun x -> x + %d) at positions [%s] in { %s } -> { %s }"
+      M.tracel "modify_dims" "dimarray bumping with (fun x -> x + %d) at positions [%s] in { %a } -> { %a }"
         (op 0 1)
         (Array.fold_right (fun i str -> (string_of_int i) ^ ", " ^ str) cols "")
-        (show (snd m))
-        (show (snd res));
+        pretty (snd m)
+        pretty (snd res);
     res
 
   (** required by  AbstractRelationalDomainRepresentation, true if dimension is zero *)
@@ -166,7 +166,7 @@ module EqualitiesConjunction = struct
           | [] -> d) (* empty cluster means no work for us *)
        | _ -> d) (* variable is either a constant or expressed by another refvar *) in
     let res = (fst res, IntMap.remove var (snd res)) in (* set d(var) to unknown, finally *)
-    if M.tracing then M.tracel "forget" "forget var_%d in { %s } -> { %s }" var (show (snd d)) (show (snd res));
+    if M.tracing then M.tracel "forget" "forget var_%d in { %a } -> { %a }" var pretty (snd d) pretty (snd res);
     res
 
   let dim_add (ch: Apron.Dim.change) m =
@@ -184,10 +184,10 @@ module EqualitiesConjunction = struct
   let dim_remove ch m = Timing.wrap "dim remove" (fun m -> dim_remove ch m) m
 
   let dim_remove ch m = let res = dim_remove ch m in if M.tracing then
-      M.tracel "dim_remove" "dim remove at positions [%s] in { %s } -> { %s }"
+      M.tracel "dim_remove" "dim remove at positions [%s] in { %a } -> { %a }"
         (Array.fold_right (fun i str -> (string_of_int i) ^ ", " ^ str)  ch.dim "")
-        (show (snd m))
-        (show (snd res));
+        pretty (snd m)
+        pretty (snd res);
     res
 
   exception Contradiction
@@ -238,7 +238,7 @@ module EqualitiesConjunction = struct
               let (_,newh1)= inverse i (coeff1,h1,o1,divi1) in
               let newh1 = Rhs.subst normalizedj j (Rhs.subst (Some(coeff,j),offs,divi) i newh1) in
               subst_var ts h1 newh1)) in
-    if M.tracing then M.tracel "meet_with_one_conj" "meet_with_one_conj conj: %s eq: var_%d=%s  ->  %s " (show (snd ts)) i (Rhs.show (var,offs,divi)) (show (snd res))
+    if M.tracing then M.tracel "meet_with_one_conj" "meet_with_one_conj conj: %a eq: var_%d=%a  ->  %a" pretty (snd ts) i Rhs.pretty (var,offs,divi) pretty (snd res)
   ; res
 
   (** affine transform variable i allover conj with transformer (Some (coeff,i)+offs)/divi *)
@@ -328,7 +328,7 @@ struct
 
   let simplified_monomials_from_texp (t: t) texp =
     let res = simplified_monomials_from_texp t texp in
-    if M.tracing then M.tracel "from_texp" "%s %a -> %s" (EConj.show @@ snd @@ BatOption.get t.d) Texpr1.Expr.pretty texp
+    if M.tracing then M.tracel "from_texp" "%a %a -> %s" EConj.pretty (snd @@ BatOption.get t.d) Texpr1.Expr.pretty texp
         (BatOption.map_default (fun (l,(o,d)) -> List.fold_right (fun (a,x,b) acc -> Printf.sprintf "%s*var_%d/%s + %s" (Z.to_string a) x (Z.to_string b) acc) l ((Z.to_string o)^"/"^(Z.to_string d))) "" res);
     res
 
@@ -406,24 +406,29 @@ struct
       else (subscr (i/10)) ^ transl.(i mod 10) in
     subscr i
 
-  let show_var env i =
-    let res = Var.to_string (Environment.var_of_dim env i) in
+  let pretty_var env () i =
+    let res = Var.show (Environment.var_of_dim env i) in
     match String.split_on_char '#' res with
-    | varname::rest::[] -> varname ^ (try to_subscript @@ int_of_string rest with _ -> "#" ^ rest)
-    | _ -> res
+    | varname::rest::[] -> Pretty.dprintf "%s%s" varname (try to_subscript @@ int_of_string rest with _ -> "#" ^ res)
+    | _ -> Pretty.text res
 
   (** prints the current variable equalities with resolved variable names *)
-  let show varM =
+  let pretty () varM =
     match varM.d with
-    | None -> "⊥\n"
-    | Some arr when EConj.is_top_con arr -> "⊤\n"
+    | None -> Pretty.text "⊥"
+    | Some arr when EConj.is_top_con arr -> Pretty.text "⊤"
     | Some arr ->
       if is_bot varM then
-        "Bot \n"
+        Pretty.text "Bot"
       else
-        EConj.show_formatted (show_var varM.env) (snd arr) ^ (to_subscript @@ fst arr)
+        Pretty.dprintf "%a%s" (EConj.pretty_formatted (pretty_var varM.env)) (snd arr) (to_subscript @@ fst arr)
 
-  let pretty () (x:t) = text (show x)
+  include Printable.SimplePretty (
+    struct
+      type nonrec t = t
+      let pretty = pretty
+    end
+    )
   let printXml f x = BatPrintf.fprintf f "<value>\n<map>\n<key>\nequalities\n</key>\n<value>\n%s</value>\n<key>\nenv\n</key>\n<value>\n%a</value>\n</map>\n</value>\n" (XmlUtil.escape (show x)) Environment.printXml x.env
   let eval_interval ask = Bounds.bound_texpr
 
@@ -439,7 +444,7 @@ struct
 
   let meet_with_one_conj t i e =
     let res = meet_with_one_conj t i e in
-    if M.tracing then M.tracel "meet" "%s with single eq %s=%s -> %s" (show t) (Z.(to_string @@ Tuple3.third e)^ show_var t.env i) (Rhs.show_rhs_formatted (show_var t.env) e) (show res);
+    if M.tracing then M.tracel "meet" "%a with single eq %a%a=%a -> %a" pretty t GobZ.pretty (Tuple3.third e) (pretty_var t.env) i (Rhs.pretty_rhs_formatted (pretty_var t.env)) e pretty res;
     res
 
   let meet t1 t2 =
@@ -453,7 +458,7 @@ struct
 
   let meet t1 t2 =
     let res = meet t1 t2 in
-    if M.tracing then M.tracel "meet" "meet a: %s\n U  \n b: %s \n -> %s" (show t1) (show t2) (show res) ;
+    if M.tracing then M.tracel "meet" "meet a: %a\n U  \n b: %a \n -> %a" pretty t1 pretty t2 pretty res;
     res
 
   let meet t1 t2 = Timing.wrap "meet" (meet t1) t2
@@ -479,7 +484,7 @@ struct
 
   let leq t1 t2 =
     let res = leq t1 t2 in
-    if M.tracing then M.tracel "leq" "leq a: %s b: %s -> %b" (show t1) (show t2) res ;
+    if M.tracing then M.tracel "leq" "leq a: %a b: %a -> %b" pretty t1 pretty t2 res;
     res
 
   let join a b =
@@ -561,7 +566,7 @@ struct
 
   let join a b =
     let res = join a b in
-    if M.tracing then M.tracel "join" "join a: %s b: %s -> %s" (show a) (show b) (show res) ;
+    if M.tracing then M.tracel "join" "join a: %a b: %a -> %a" pretty a pretty b pretty res;
     res
 
   let widen a b =
@@ -569,14 +574,14 @@ struct
 
   let widen a b =
     let res = widen a b in
-    if M.tracing then M.tracel "widen" "widen a: %s b: %s -> %s" (show a) (show b) (show res) ;
+    if M.tracing then M.tracel "widen" "widen a: %a b: %a -> %a" pretty a pretty b pretty res;
     res
 
   let narrow a b = meet a b
 
   let narrow a b =
     let res = narrow a b in
-    if M.tracing then M.tracel "narrow" "narrow a: %s b: %s -> %s" (show a) (show b) (show res) ;
+    if M.tracing then M.tracel "narrow" "narrow a: %a b: %a -> %a" pretty a pretty b pretty res;
     res
 
   let pretty_diff () (x, y) =
@@ -596,7 +601,7 @@ struct
 
   let forget_vars t vars =
     let res = forget_vars t vars in
-    if M.tracing then M.tracel "ops" "forget_vars %s -> %s" (show t) (show res);
+    if M.tracing then M.tracel "ops" "forget_vars %a -> %a" pretty t pretty res;
     res
 
   let forget_vars t vars = Timing.wrap "forget_vars" (forget_vars t) vars
@@ -646,7 +651,7 @@ struct
 
   let assign_var t v v' =
     let res = assign_var t v v' in
-    if M.tracing then M.tracel "ops" "assign_var t:\n %s \n v: %a \n v': %a\n -> %s" (show t) Var.pretty v Var.pretty v' (show res);
+    if M.tracing then M.tracel "ops" "assign_var t:\n %a \n v: %a \n v': %a\n -> %a" pretty t Var.pretty v Var.pretty v' pretty res;
     res
 
   (** Parallel assignment of variables.
@@ -667,7 +672,7 @@ struct
 
   let assign_var_parallel t vv's =
     let res = assign_var_parallel t vv's in
-    if M.tracing then M.tracel "ops" "assign_var parallel: %s -> %s" (show t) (show res);
+    if M.tracing then M.tracel "ops" "assign_var parallel: %a -> %a" pretty t pretty res;
     res
 
   let assign_var_parallel t vv's = Timing.wrap "var_parallel" (assign_var_parallel t) vv's
@@ -699,7 +704,7 @@ struct
 
   let substitute_exp ask t var exp no_ov =
     let res = substitute_exp ask t var exp no_ov in
-    if M.tracing then M.tracel "ops" "Substitute_expr t: \n %s \n var: %a \n exp: %a \n -> \n %s" (show t) Var.pretty var d_exp exp (show res);
+    if M.tracing then M.tracel "ops" "Substitute_expr t: \n %a \n var: %a \n exp: %a \n -> \n %a" pretty t Var.pretty var d_exp exp pretty res;
     res
 
   let substitute_exp ask t var exp no_ov = Timing.wrap "substitution" (substitute_exp ask t var exp) no_ov
@@ -764,7 +769,7 @@ struct
 
   let unify a b =
     let res = unify a b in
-    if M.tracing then M.tracel "ops" "unify: %s\n    U\n %s -> %s" (show a) (show b) (show res);
+    if M.tracing then M.tracel "ops" "unify: %a\n    U\n %a -> %a" pretty a pretty b pretty res;
     res
 
   (** Assert a constraint expression. Defined in apronDomain.apron.ml
