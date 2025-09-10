@@ -569,7 +569,7 @@ struct
 
   let event man e oman =
     match e with
-    | Events.Unassume {exp; _} ->
+    | Events.Unassume {value = Exp exp; _} ->
       (* Unassume must forget equalities,
          otherwise var_eq may still have a numeric first iteration equality
          while base has unassumed, causing unnecessary extra evals. *)

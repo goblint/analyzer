@@ -265,6 +265,20 @@ struct
             M.info_noloc ~category:Race "Mutex %a read-write protects %d variable(s): %a" LockDomain.MustLock.pretty m s VarSet.pretty protected
           )
       end
+    | YamlEntryGlobal (g, task) ->
+      let g: V.t = Obj.obj g in
+      begin match g with
+        | `Left g' when YamlWitness.entry_type_enabled YamlWitnessType.ProtectedBy.entry_type -> (* protecting *)
+          let protecting = GProtecting.get ~write:false Strong (G.protecting (man.global g)) in (* readwrite protecting *)
+          MustLockset.fold (fun mutex acc ->
+              let variable = g'.vname in
+              let mutex = LockDomain.MustLock.show mutex in
+              let entry = YamlWitness.Entry.protected_by ~task ~variable ~mutex in
+              Queries.YS.add entry acc
+            ) protecting (Queries.YS.empty ())
+        | _ -> (* protected *)
+          Queries.Result.top q
+      end
     | _ -> Queries.Result.top q
 
   module A =
@@ -358,6 +372,13 @@ struct
           (* | _ ->
              old_access None None *) (* TODO: what about this case? *)
       end;
+      man.local
+    | Unassume {value = ProtectedBy {global; mutexes}; tokens} ->
+      let s = GProtecting.make ~write:true ~recovered:false mutexes in
+      WideningTokenLifter.with_side_tokens (WideningTokenLifter.TS.of_list tokens) (fun () ->
+          man.sideg (V.protecting global) (G.create_protecting s);
+        );
+      M.info ~category:Witness "mutex unassumed %a protected_by: %a" CilType.Varinfo.pretty global MustLockset.pretty mutexes;
       man.local
     | _ ->
       event man e oman (* delegate to must lockset analysis *)
