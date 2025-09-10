@@ -368,83 +368,6 @@ struct
     {content}
 end
 
-module Target =
-struct
-  type t = {
-    uuid: string;
-    type_: string;
-    file_hash: string;
-  }
-  [@@deriving eq, ord, hash]
-
-  let to_yaml {uuid; type_; file_hash} =
-    `O [
-      ("uuid", `String uuid);
-      ("type", `String type_);
-      ("file_hash", `String file_hash);
-    ]
-
-  let of_yaml y =
-    let open GobYaml in
-    let+ uuid = y |> find "uuid" >>= to_string
-    and+ type_ = y |> find "type" >>= to_string
-    and+ file_hash = y |> find "file_hash" >>= to_string in
-    {uuid; type_; file_hash}
-end
-
-module Certification =
-struct
-  type t = {
-    string: string;
-    type_: string;
-    format: string;
-  }
-  [@@deriving eq, ord, hash]
-
-  let to_yaml {string; type_; format} =
-    `O [
-      ("string", `String string);
-      ("type", `String type_);
-      ("format", `String format);
-    ]
-
-  let of_yaml y =
-    let open GobYaml in
-    let+ string = y |> find "string" >>= to_string
-    and+ type_ = y |> find "type" >>= to_string
-    and+ format = y |> find "format" >>= to_string in
-    {string; type_; format}
-end
-
-module LoopInvariantCertificate =
-struct
-  type t = {
-    target: Target.t;
-    certification: Certification.t;
-  }
-  [@@deriving eq, ord, hash]
-
-  let entry_type = "loop_invariant_certificate"
-
-  let to_yaml' {target; certification} =
-    [
-      ("target", Target.to_yaml target);
-      ("certification", Certification.to_yaml certification);
-    ]
-
-  let of_yaml y =
-    let open GobYaml in
-    let+ target = y |> find "target" >>= Target.of_yaml
-    and+ certification = y |> find "certification" >>= Certification.of_yaml in
-    {target; certification}
-end
-
-module PreconditionLoopInvariantCertificate =
-struct
-  include LoopInvariantCertificate
-  let entry_type = "precondition_loop_invariant_certificate"
-end
-
 module ViolationSequence =
 struct
 
@@ -791,8 +714,6 @@ struct
     | LoopInvariant of LoopInvariant.t
     | FlowInsensitiveInvariant of FlowInsensitiveInvariant.t
     | PreconditionLoopInvariant of PreconditionLoopInvariant.t
-    | LoopInvariantCertificate of LoopInvariantCertificate.t
-    | PreconditionLoopInvariantCertificate of PreconditionLoopInvariantCertificate.t
     | InvariantSet of InvariantSet.t
     | ViolationSequence of ViolationSequence.t
     | GhostInstrumentation of GhostInstrumentation.t
@@ -803,8 +724,6 @@ struct
     | LoopInvariant _ -> LoopInvariant.entry_type
     | FlowInsensitiveInvariant _ -> FlowInsensitiveInvariant.entry_type
     | PreconditionLoopInvariant _ -> PreconditionLoopInvariant.entry_type
-    | LoopInvariantCertificate _ -> LoopInvariantCertificate.entry_type
-    | PreconditionLoopInvariantCertificate _ -> PreconditionLoopInvariantCertificate.entry_type
     | InvariantSet _ -> InvariantSet.entry_type
     | ViolationSequence _ -> ViolationSequence.entry_type
     | GhostInstrumentation _ -> GhostInstrumentation.entry_type
@@ -814,8 +733,6 @@ struct
     | LoopInvariant x -> LoopInvariant.to_yaml' x
     | FlowInsensitiveInvariant x -> FlowInsensitiveInvariant.to_yaml' x
     | PreconditionLoopInvariant x -> PreconditionLoopInvariant.to_yaml' x
-    | LoopInvariantCertificate x -> LoopInvariantCertificate.to_yaml' x
-    | PreconditionLoopInvariantCertificate x -> PreconditionLoopInvariantCertificate.to_yaml' x
     | InvariantSet x -> InvariantSet.to_yaml' x
     | ViolationSequence x -> ViolationSequence.to_yaml' x
     | GhostInstrumentation x -> GhostInstrumentation.to_yaml' x
@@ -835,12 +752,6 @@ struct
     else if entry_type = PreconditionLoopInvariant.entry_type then
       let+ x = y |> PreconditionLoopInvariant.of_yaml in
       PreconditionLoopInvariant x
-    else if entry_type = LoopInvariantCertificate.entry_type then
-      let+ x = y |> LoopInvariantCertificate.of_yaml in
-      LoopInvariantCertificate x
-    else if entry_type = PreconditionLoopInvariantCertificate.entry_type then
-      let+ x = y |> PreconditionLoopInvariantCertificate.of_yaml in
-      PreconditionLoopInvariantCertificate x
     else if entry_type = InvariantSet.entry_type then
       let+ x = y |> InvariantSet.of_yaml in
       InvariantSet x
