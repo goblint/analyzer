@@ -1,3 +1,5 @@
+**This is the README for the entire Goblint system, when getting started with the artifact, it is best to look at README.md**
+
 # Goblint
 [![GitHub release status](https://img.shields.io/github/v/release/goblint/analyzer)](https://github.com/goblint/analyzer/releases)
 [![opam package status](https://badgen.net/opam/v/goblint)](https://opam.ocaml.org/packages/goblint)
