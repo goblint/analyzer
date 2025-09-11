@@ -8,7 +8,7 @@ opam_setup() {
   set -x
   opam init -y -a --bare $SANDBOXING # sandboxing is disabled in travis and docker
   opam update
-  opam switch -y create . --deps-only --packages=ocaml-variants.4.14.2+options,ocaml-option-flambda --locked
+  opam switch -y create . --deps-only --packages=ocaml-variants.4.14.2+options,ocaml-option-flambda 
 }
 
 rule() {
@@ -81,7 +81,7 @@ rule() {
     ;; dev)
       eval $(opam env)
       echo "Installing opam packages for test and doc..."
-      opam install -y . --deps-only --locked --with-test --with-doc
+      opam install -y . --deps-only  --with-test --with-doc
       echo "Installing opam packages for development..."
       opam install -y ocaml-lsp-server ocp-indent
       # ocaml-lsp-server is needed for https://github.com/ocamllabs/vscode-ocaml-platform
