@@ -268,18 +268,43 @@ struct
   let next_opt _ = None
 end
 
-let partition_if_next if_next_n =
+type path = (edge * node) list
+let cartesian_concat_paths (ps : path list) (qs : path list) : path list = List.concat (List.map (fun p -> List.map (fun q -> p @ q) qs) ps)
+let mk_edges (e : edge) (n : node) (paths : path list) : (edge * node * path) list = List.map (fun p -> (e, n, p)) paths
+let combine_and_make (e : edge) (n : node) (lhs : path list) (rhs : path list) : (edge * node * path) list = mk_edges e n (cartesian_concat_paths lhs rhs)
+
+let partition_if_next (if_next_n : (edge * node * (edge * node) list) list): exp * (node * path list) * (node * path list) =
   (* TODO: refactor, check extra edges for error *)
-  let test_next b = List.find (function
-      | (Test (_, b'), _, _) when b = b' -> true
-      | (_, _, _) -> false
-    ) if_next_n
+  let exp =
+    match if_next_n with
+    | [] -> failwith "partition_if_next: empty"
+    | (Test (exp, _), _, _) :: xs ->
+      let all_tests_same_cond =
+        List.for_all
+          (function
+            | (Test (exp', _), _, _) -> Basetype.CilExp.equal exp exp'
+            | _ -> false)
+          xs
+      in
+      if all_tests_same_cond then exp
+      else failwith "partition_if_next: bad branches"
+    | _ -> failwith "partition_if_next: not Test edge"
   in
-  (* assert (List.length if_next <= 2); *)
-  match test_next true, test_next false with
-  | (Test (e_true, true), if_true_next_n, if_true_next_p), (Test (e_false, false), if_false_next_n, if_false_next_p) when Basetype.CilExp.equal e_true e_false ->
-    (e_true, (if_true_next_n, if_true_next_p), (if_false_next_n, if_false_next_p))
-  | _, _ -> failwith "partition_if_next: bad branches"
+  let collapse_branch b =
+    let paths_for_b = List.filter (function
+        | (Test (_, b'), _, _) when b = b' -> true
+        | _ -> false)
+        if_next_n
+    in
+    match paths_for_b with
+    | [] -> failwith (if b then "partition_if_next: missing true-branch" else "partition_if_next: missing false-branch")
+    | (e, n, p) :: rest ->
+      let all_same_en = List.for_all (fun (e', n', _) -> Edge.equal e e' && Node.equal n n') paths_for_b in
+      if not all_same_en then failwith "partition_if_next: branch has differing (edge,node) pairs";
+      let paths = List.map (fun (_,_,p) -> p) paths_for_b in
+      (n, paths)
+  in
+  (exp, collapse_branch true, collapse_branch false)
 
 module UnCilLogicIntra (Arg: SIntraOpt): SIntraOpt =
 struct
@@ -323,11 +348,10 @@ struct
           let (e2, (if_true_next_true_next_n, if_true_next_true_next_p), (if_true_next_false_next_n, if_true_next_false_next_p)) = partition_if_next (next if_true_next_n) in
           if is_equiv_chain if_false_next_n if_true_next_false_next_n then
             let exp = BinOp (LAnd, e, e2, intType) in
-            Some [
-              (Test (exp, true), if_true_next_true_next_n, if_true_next_p @ if_true_next_true_next_p);
-              (Test (exp, false), if_true_next_false_next_n, if_true_next_p @ if_true_next_false_next_p);
-              (Test (exp, false), if_false_next_n, if_false_next_p)
-            ]
+            let true_items = combine_and_make (Test (exp, true)) if_true_next_true_next_n if_true_next_p if_true_next_true_next_p in
+            let false_from_true_items = combine_and_make (Test (exp, false)) if_true_next_false_next_n if_true_next_p if_true_next_false_next_p in
+            let false_from_false_items = mk_edges (Test (exp, false)) if_false_next_n if_false_next_p in
+            Some (true_items @ false_from_true_items @ false_from_false_items)
           else
             None
         (* || *)
@@ -336,11 +360,10 @@ struct
           let (e2, (if_false_next_true_next_n, if_false_next_true_next_p), (if_false_next_false_next_n, if_false_next_false_next_p)) = partition_if_next (next if_false_next_n) in
           if is_equiv_chain if_true_next_n if_false_next_true_next_n then
             let exp = BinOp (LOr, e, e2, intType) in
-            Some [
-              (Test (exp, true), if_true_next_n, if_true_next_p);
-              (Test (exp, true), if_false_next_true_next_n, if_false_next_p @ if_false_next_true_next_p);
-              (Test (exp, false), if_false_next_false_next_n, if_false_next_p @ if_false_next_false_next_p)
-            ]
+            let true_from_true_items = mk_edges (Test (exp, true)) if_true_next_n if_true_next_p in
+            let true_from_false_items = combine_and_make (Test (exp, true)) if_false_next_true_next_n if_false_next_p if_false_next_true_next_p in
+            let false_from_false_items = combine_and_make (Test (exp, false)) if_false_next_false_next_n if_false_next_p if_false_next_false_next_p in
+            Some (true_from_true_items @ true_from_false_items @ false_from_false_items)
           else
             None
         | _, _ -> None
@@ -373,10 +396,9 @@ struct
         match Arg.next if_true_next_n, Arg.next if_false_next_n with
         | [(Assign (v_true, e_true), if_true_next_next_n, if_true_next_next_p)], [(Assign (v_false, e_false), if_false_next_next_n, if_false_next_next_p)] when v_true = v_false && Node.equal if_true_next_next_n if_false_next_next_n ->
           let exp = ternary e_cond e_true e_false in
-          Some [
-            (Assign (v_true, exp), if_true_next_next_n, if_true_next_p @ if_true_next_next_p);
-            (Assign (v_false, exp), if_false_next_next_n, if_false_next_p @ if_false_next_next_p)
-          ]
+          let assigns_true = combine_and_make (Assign (v_true, exp)) if_true_next_next_n if_true_next_p [if_true_next_next_p] in
+          let assigns_false = combine_and_make (Assign (v_false, exp)) if_false_next_next_n if_false_next_p [if_false_next_next_p] in
+          Some (assigns_true @ assigns_false)
         | _, _ -> None
       else
         None
