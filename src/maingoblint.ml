@@ -213,12 +213,7 @@ let parse_arguments () =
   let anon_arg = set_string "files[+]" in
   let arg_speclist = Arg_complete.arg_speclist (Lazy.force option_spec_list) in
   Arg.parse arg_speclist anon_arg "Look up options using 'goblint --help'.";
-  begin match !writeconffile with
-    | Some writeconffile ->
-      GobConfig.write_file writeconffile;
-      raise Stdlib.Exit
-    | None -> ()
-  end;
+  GobOption.iter (fun writeconffile -> GobConfig.write_file writeconffile; raise Stdlib.Exit) !writeconffile;
   handle_options ();
   if not (get_bool "server.enabled") && get_string_list "files" = [] then (
     Logs.error "No files for Goblint?";
@@ -271,6 +266,8 @@ let preprocess_files () =
 
   (* Preprocessor flags *)
   let cppflags = ref (get_string_list "pre.cppflags") in
+
+  cppflags := ("--std=" ^ get_string "std") :: !cppflags;
 
   if get_bool "ana.sv-comp.enabled" then (
     let architecture_flag = match get_string "exp.architecture" with

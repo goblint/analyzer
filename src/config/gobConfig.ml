@@ -419,7 +419,7 @@ struct
       let v = Yojson.Safe.from_channel % BatIO.to_input_channel |> File.with_file_in (Fpath.to_string fn) in
       merge v;
       if Goblint_tracing.tracing then Goblint_tracing.trace "conf" "Merging with '%a', resulting\n%a." GobFpath.pretty fn GobYojson.pretty !json_conf
-    | None -> raise (Sys_error (Printf.sprintf "%s: No such file or diretory" (Fpath.to_string fn)))
+    | None -> raise (Sys_error (Printf.sprintf "%s: No such file or directory" (Fpath.to_string fn)))
 end
 
 include Impl

@@ -75,9 +75,7 @@ struct
     | Queries.MustTermLoop loop_statement ->
       let multithreaded = man.ask Queries.IsEverMultiThreaded in
       (not multithreaded)
-      && (match G.find_opt (`Lifted loop_statement) (man.global ()) with
-            Some b -> b
-          | None -> false)
+      && (BatOption.default false (G.find_opt (`Lifted loop_statement) (man.global ())))
     | Queries.MustTermAllLoops ->
       let multithreaded = man.ask Queries.IsEverMultiThreaded in
       if multithreaded then (

@@ -66,7 +66,7 @@ depends: [
   "fileutils" {= "0.6.4"}
   "fmt" {= "0.9.0"}
   "fpath" {= "0.7.3"}
-  "goblint-cil" {= "2.0.6"}
+  "goblint-cil" {= "2.0.7"}
   "hex" {= "1.5.0"}
   "integers" {= "0.7.0"}
   "json-data-encoding" {= "1.0.1"}
@@ -135,6 +135,8 @@ dev-repo: "git+https://github.com/goblint/analyzer.git"
 available: os-family != "bsd" & os-distribution != "alpine" & (arch != "arm64" | os = "macos")
 conflicts: [
   "result" {< "1.5"}
+  "apron" {< "v0.9.15"}
+  "camlidl" {< "1.13"}
   "ez-conf-lib" {= "1"}
 ]
 post-messages: [
@@ -142,8 +144,8 @@ post-messages: [
 ]
 pin-depends: [
   [
-    "goblint-cil.2.0.6"
-    "git+https://github.com/goblint/cil.git#c0b10d1848223a67de45ef608f4e05c082977ac1"
+    "goblint-cil.2.0.7"
+    "git+https://github.com/goblint/cil.git#e5b6287c0c85864c6d44f7fa30d0084a3ae11d6c"
   ]
   [
     "apron.v0.9.15"

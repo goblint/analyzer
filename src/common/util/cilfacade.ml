@@ -55,7 +55,16 @@ let is_first_field x = match x.fcomp.cfields with
 
 let init_options () =
   Mergecil.merge_inlines := get_bool "cil.merge.inlines";
-  Cil.cstd := Cil.cstd_of_string (get_string "cil.cstd");
+  Cil.cstd := (
+    match get_string "std" with
+    | "c89" | "c90"
+    | "gnu89" | "gnu90" -> C90
+    | "c99" | "c9x"
+    | "gnu99" | "gnu9x" -> C99
+    | "c11" | "c1x"
+    | "gnu11" | "gnu1x" -> C11
+    | _ -> assert false
+  );
   Cil.gnu89inline := get_bool "cil.gnu89inline";
   Cabs2cil.addNestedScopeAttr := get_bool "cil.addNestedScopeAttr";
 
@@ -288,10 +297,12 @@ let typeOfRealAndImagComponents t =
       | FDouble -> FDouble     (* [double] *)
       | FLongDouble -> FLongDouble (* [long double] *)
       | FFloat128 -> FFloat128 (* [float128] *)
+      | FFloat16 -> FFloat16 (* [_Float16] *)
       | FComplexFloat -> FFloat
       | FComplexDouble -> FDouble
       | FComplexLongDouble -> FLongDouble
       | FComplexFloat128 -> FComplexFloat128
+      | FComplexFloat16 -> FComplexFloat16
     in
     TFloat (newfkind fkind, attrs)
   | _ -> raise (TypeOfError RealImag_NonNumerical)
@@ -300,11 +311,13 @@ let isComplexFKind = function
   | FFloat
   | FDouble
   | FLongDouble
-  | FFloat128 -> false
+  | FFloat128
+  | FFloat16 -> false
   | FComplexFloat
   | FComplexDouble
   | FComplexLongDouble
-  | FComplexFloat128 -> true
+  | FComplexFloat128
+  | FComplexFloat16 -> true
 
 (** @raise TypeOfError *)
 let rec typeOf (e: exp) : typ =
