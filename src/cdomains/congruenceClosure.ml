@@ -352,21 +352,20 @@ module Disequalities = struct
         *)
 
   (** Produces a string for the number used as offset; helper function for show* functions below.*)
-  let show_number r =
+  let pretty_number () r =
     if Z.equal r Z.zero then
-      ""
+      Pretty.nil
     else if Z.leq r Z.zero then
-      Z.to_string r
+      GobZ.pretty () r
     else
-      " + " ^ Z.to_string r
+      Pretty.dprintf " + %a" GobZ.pretty r
 
-  let show_neq neq =
+  let pretty_neq () neq =
     let clist = bindings neq in
-    let do_neq =
-      (fun s (v,r,v') ->
-         s ^ "\t" ^ T.show v ^ show_number r ^ " != " ^ T.show v' ^  "\n")
+    let do_neq () (v,r,v') =
+      Pretty.dprintf "\t%a%a != %a\n" T.pretty v pretty_number r T.pretty v'
     in
-    List.fold_left do_neq "" clist
+    Pretty.docList ~sep:Pretty.nil (do_neq ()) () clist
 
   let get_disequalities x =
     let to_disequality (t1, z, t2) =
@@ -404,11 +403,11 @@ module SSet = struct
   let find_opt = TSet.find_opt
   let union = TSet.union
 
-  let show_set set =
-    let show_element v s =
-      s ^ "\t" ^ T.show v ^ ";\n"
+  let pretty_set () set =
+    let pretty_element () v =
+      Pretty.dprintf "\t%a;\n" T.pretty v
     in
-    TSet.fold show_element set "" ^ "\n"
+    Pretty.docList ~sep:Pretty.nil (pretty_element ()) () (TSet.elements set)
 
   (** Adds all subterms of t to the SSet and the LookupMap*)
   let rec subterms_of_term (set,map) t =
@@ -495,12 +494,11 @@ module MRMap = struct
   let mem = TMap.mem
   let empty = TMap.empty
 
-  let show_min_rep min_representatives =
-    let show_one_rep s (state, (rep, z)) =
-      s ^ "\tState: " ^ T.show state ^
-      "\n\tMin: (" ^ T.show rep ^ ", " ^ Z.to_string z ^ ")--\n\n"
+  let pretty_min_rep () min_representatives =
+    let pretty_one_rep () (state, (rep, z)) =
+      Pretty.dprintf "\tState: %a\n\tMin: (%a, %a)--\n\n" T.pretty state T.pretty rep GobZ.pretty z
     in
-    List.fold_left show_one_rep "" (bindings min_representatives)
+    Pretty.docList ~sep:Pretty.nil (pretty_one_rep ()) () (bindings min_representatives)
 
   let rec update_min_repr (uf, set, map) min_representatives = function
     | [] -> min_representatives
@@ -607,14 +605,12 @@ let get_transitions (uf, map) =
   in
   List.concat_map do_bindings (LMap.bindings map)
 
-let show_conj list =
+let pretty_conj () list =
   match list with
-  | [] -> "top"
+  | [] -> Pretty.text "top"
   | list ->
-    let show_prop s d =
-      s ^ "\t" ^ T.show_prop d ^ ";\n"
-    in
-    List.fold_left show_prop "" list
+    let pretty_prop () d = Pretty.dprintf "\t%a;\n" T.pretty_prop d in
+    Pretty.docList ~sep:Pretty.nil (pretty_prop ()) () list
 
 type data = {
   uf: TUF.t;
@@ -675,7 +671,7 @@ let get_normal_conjunction cc get_normal_repr =
     | Equal (t1,t2,z) -> failwith "No equality expected."
     | BlNequal (t1,t2) -> failwith "No block disequality expected."
   in
-  if M.tracing then M.trace "c2po-diseq" "DISEQUALITIES: %s;\nUnion find: %s\nMap: %s\n" (show_conj disequalities) (TUF.show_uf cc.uf) (LMap.show_map cc.map);
+  if M.tracing then M.trace "c2po-diseq" "DISEQUALITIES: %a;\nUnion find: %a\nMap: %a\n" pretty_conj disequalities TUF.pretty_uf cc.uf LMap.pretty_map cc.map;
   let disequalities = List.map normalize_disequality disequalities in
   (* block disequalities *)
   let normalize_bldis t = match t with
@@ -753,11 +749,11 @@ let get_normal_form cc =
   LazyNormalFormEval.force cc.normal_form
 
 (** Converts the normal form to string, but only if it was already computed. *)
-let show_normal_form normal_form =
+let pretty_normal_form () normal_form =
   if LazyNormalFormEval.is_val normal_form then
-    show_conj (LazyNormalFormEval.force normal_form)
+    pretty_conj () (LazyNormalFormEval.force normal_form)
   else
-    "not computed"
+    Pretty.text "not computed"
 
 
 let get_conjunction_from_data data =
@@ -778,21 +774,15 @@ let data_to_t (cc : data) : t =
   {data = cc;
    normal_form = LazyNormalFormEval.make cc}
 
-let show_all (x: t) =
-  "Normal form:\n" ^
-  show_conj((get_conjunction x)) ^
-  "Union Find partition:\n" ^
-  TUF.show_uf x.data.uf
-  ^ "\nSubterm set:\n"
-  ^ SSet.show_set x.data.set
-  ^ "\nLookup map/transitions:\n"
-  ^ LMap.show_map x.data.map
-  ^ "\nNeq:\n"
-  ^ Disequalities.show_neq x.data.diseq
-  ^ "\nBlock diseqs:\n"
-  ^ show_conj (BlDis.to_conj x.data.bldis)
-  ^ "\nMin repr:\n"
-  ^ show_normal_form x.normal_form
+let pretty_all () (x: t) =
+  Pretty.dprintf "Normal form:\n%a\nUnion Find partition:\n%a\nSubterm set:\n%a\nLookup map/transitions:\n%a\nNeq:\n%a\nBlock diseqs:\n%a\nMin repr:\n%a"
+    pretty_conj (get_conjunction x)
+    TUF.pretty_uf x.data.uf
+    SSet.pretty_set x.data.set
+    LMap.pretty_map x.data.map
+    Disequalities.pretty_neq x.data.diseq
+    pretty_conj (BlDis.to_conj x.data.bldis)
+    pretty_normal_form x.normal_form
 
 (** Splits the conjunction into three groups: the first one contains all equality propositions,
     the second one contains all inequality propositions
@@ -832,7 +822,7 @@ let congruence_neq cc neg' =
   (* take explicit dis-equalities into account *)
   let uf, neq_list = Disequalities.init_list_neq uf neg in
   let neq = Disequalities.propagate_neq (uf, cmap, arg, neq) cc.bldis neq_list in
-  if M.tracing then M.trace "c2po-neq" "congruence_neq: %s\nUnion find: %s\n" (Disequalities.show_neq neq) (TUF.show_uf uf);
+  if M.tracing then M.trace "c2po-neq" "congruence_neq: %a\nUnion find: %a\n" Disequalities.pretty_neq neq TUF.pretty_uf uf;
   {cc with uf; diseq = neq}
 
 (**
@@ -856,7 +846,7 @@ let rec closure (uf, map, new_repr) = function
     let v2, r2, uf = TUF.find uf t2 in
     let sizet1, sizet2 = T.get_size t1, T.get_size t2 in
     if not (Z.equal sizet1 sizet2) then (
-      if M.tracing then M.trace "c2po" "ignoring equality because the sizes are not the same: %s = %s + %s" (T.show t1) (Z.to_string r) (T.show t2);
+      if M.tracing then M.trace "c2po" "ignoring equality because the sizes are not the same: %a = %a + %a" T.pretty t1 GobZ.pretty r T.pretty t2;
       closure (uf, map, new_repr) rest
     )
     else if T.equal v1 v2 then
@@ -1046,7 +1036,7 @@ let meet_pos_conjs cc pos_conjs =
     let cc = insert_set cc subterms in
     closure cc pos_conjs
   in
-  if M.tracing then M.trace "c2po-meet" "meet_pos_conjs result: %s\n" (show_conj (get_conjunction_from_data res));
+  if M.tracing then M.trace "c2po-meet" "meet_pos_conjs result: %a\n" pretty_conj (get_conjunction_from_data res); (* TODO: avoid eager computation in argument *)
   res
 
 (** Adds propositions to the data structure.
@@ -1342,7 +1332,7 @@ let join_neq diseq1 diseq2 cc1 cc2 cc cmap1 cmap2 =
   let subterms, _ = SSet.subterms_of_conj diseq  in
   let cc = insert_set cc subterms in
   let res = congruence_neq cc diseq in
-  (if M.tracing then M.trace "c2po-neq" "join_neq: %s\n\n" (Disequalities.show_neq res.diseq));
+  (if M.tracing then M.trace "c2po-neq" "join_neq: %a" Disequalities.pretty_neq res.diseq);
   res
 
 (** Joins the block disequalities bldiseq1 and bldiseq2, given a congruence closure data structure.
@@ -1369,7 +1359,7 @@ let join_bldis bldiseq1 bldiseq2 cc1 cc2 cc cmap1 cmap2 =
   let cc = insert_set cc subterms in
   let diseqs_ref_terms = List.filter both_root bldiseq in
   let bldis = List.fold_left BlDis.add_block_diseq BlDis.empty diseqs_ref_terms in
-  (if M.tracing then M.trace "c2po-neq" "join_bldis: %s\n\n" (show_conj (BlDis.to_conj bldis)));
+  (if M.tracing then M.trace "c2po-neq" "join_bldis: %a" pretty_conj (BlDis.to_conj bldis));
   {cc with bldis}
 
 (** Check for equality of two congruence closures,
@@ -1516,8 +1506,8 @@ module MayBeEqual = struct
         res
     in
 
-    if M.tracing then M.trace "c2po-query" "may-point-to %a -> equal terms: %s"
-        d_exp exp (List.fold_left (fun s (t,z) -> s ^ "(" ^ T.show t ^","^ Z.to_string Z.(z + offset) ^")") "" equal_terms);
+    if M.tracing then M.trace "c2po-query" "may-point-to %a -> equal terms: %a"
+        d_exp exp (Pretty.docList ~sep:Pretty.nil (fun (t,z) -> Pretty.dprintf "(%a,%a)" T.pretty t GobZ.pretty Z.(z + offset))) equal_terms;
 
     List.fold_left intersect_query_result (AD.top ()) equal_terms
 
@@ -1542,8 +1532,8 @@ module MayBeEqual = struct
           with IntDomain.ArithmeticOnIntegerBot _ ->
             AD.bot ()
         in
-        M.tracel "c2po-maypointto2" "QUERY MayPointTo. \nres: %a;\nt2: %s; exp2: %a; res: %a; \nmeet: %a; result: %s\n"
-          AD.pretty mpt1 (T.show t2) d_plainexp exp2 AD.pretty mpt2 AD.pretty meet (string_of_bool res);
+        M.tracel "c2po-maypointto2" "QUERY MayPointTo. \nres: %a;\nt2: %a; exp2: %a; res: %a; \nmeet: %a; result: %B"
+          AD.pretty mpt1 T.pretty t2 d_plainexp exp2 AD.pretty mpt2 AD.pretty meet res;
       end;
       res
 
@@ -1555,8 +1545,8 @@ module MayBeEqual = struct
       let exp1 = T.to_cil t1 in
       let mpt1 = may_point_to_all_equal_terms ask exp1 cc t1 Z.zero in
       let res = may_point_to_address ask mpt1 t2 off cc in
-      if M.tracing && res then M.tracel "c2po-maypointto2" "QUERY MayPointTo. \nres: %a;\nt1: %s; exp1: %a;\n"
-          AD.pretty mpt1 (T.show t1) d_plainexp exp1;
+      if M.tracing && res then M.tracel "c2po-maypointto2" "QUERY MayPointTo. \nres: %a;\nt1: %a; exp1: %a;"
+          AD.pretty mpt1 T.pretty t1 d_plainexp exp1;
       res
 
   (** Returns true if `t1` and `t2` may possibly be equal or may possibly overlap. *)
@@ -1597,7 +1587,7 @@ module MayBeEqual = struct
      The parameter s is the size in bits of the variable t1 we are assigning to. *)
   let may_be_equal ask cc size t1 t2 =
     let res = may_be_equal ask cc size t1 t2 in
-    if M.tracing then M.tracel "c2po-maypointto" "May be equal: %s %s: %b\n" (T.show t1) (T.show t2) res;
+    if M.tracing then M.tracel "c2po-maypointto" "May be equal: %a %a: %b" T.pretty t1 T.pretty t2 res;
     res
 
   (**Returns true if `t2` or any subterm of `t2` may possibly point to one of the addresses in `addresses`.*)
