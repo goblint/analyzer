@@ -552,8 +552,8 @@ struct
       Priv.thread_join ~force:true ask man.global id st
     | Rand, _ ->
       Option.map_default (fun lv ->
-         let st = invalidate_one ask man st lv in
-         assert_fn {man with local = st} (BinOp (Ge, Lval lv, zero, intType)) true
+          let st = invalidate_one ask man st lv in
+          assert_fn {man with local = st} (BinOp (Ge, Lval lv, zero, intType)) true
         ) st r
     | _, _ ->
       let st' = special_unknown_invalidate man f args in
