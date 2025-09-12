@@ -58,33 +58,6 @@ You can also run the analysis for a subset of tasks and configurations by execut
 
 ### 4. Running the Full Experiments
 
-To re-run the full experiments, execute
-
-    ~/scripts/full-run.sh
-
-This script behaves similarly to the smaller variants in the previous sections.
-Note however:
-
-- By default the experiments require 16 GB of memory per benchmark (this configuration was used for the experiments in the paper).
-    To reproduce this, you will have to modify the VM's settings in VirtualBox and increase the available memory (shutdown the machine while doing so).
-
-    Alternatively, you can run the experiments with a reduced memory limit.
-    To do so, modify the environment variable `BENCHMARK_PARAMS`.
-    For instance, the following allows only 4GB of memory per benchmark:
-
-        BENCHMARK_PARAMS="-M 4GB" ~/scripts/full-run.sh
-
-- The full evaluation for the paper required around 3 days.
-    In this evaluation, we used the benchexec tool to run 14 validation tasks in parallel (occupying up to 28 cores at a time).
-
-    By default, the provided script only runs one benchmark at a time.
-    If you have sufficient cores and memory available (adjust the VM settings accordingly), you can run multiple benchmarks in parallel by setting the environment variable `BENCHEXEC_THREADS`. You may also execute the experiments with a reduced timeout.
-    For instance, the following command runs 4 benchmarks in parallel at a time (occupying up to 8 cores), and gives each benchmark a 300s timeout and 4GB memory limit:
-
-        BENCHEXEC_THREADS=4 BENCHMARK_PARAMS="-T 300s -M 4GB" ~/scripts/full-run.sh
-
-Naturally, changes to the timeout or memory are expected to affect the evaluation numbers.
-
 
 ## Evaluation Results
 
@@ -120,22 +93,25 @@ Can be verified by checking that the `incorrect true` number for all configurati
 Refers only to numbers in Fig. 8.
 
 
+> With these settings, the system ran out of memory for 4 tasks, 3 tasks timed out, and the analyzer crashed for 7 tasks.
+
+The numbers in the VM are essentially the same as those on the server as Goblint is inherently single-threaded, and each of the cores of the server is not too powerful. Our run inside the VM matched exactly these numbers, however, some wiggle between machines is to be expected.
 
 
-The *Table* tab gives access to detailed evaluation results for each file.
-Clicking on a status shows the complete GemCutter log for the benchmark run.
+
+> Where execution terminated, it did so within at most 20s, where for all but 6 tasks the runtime was below 10s.
+
+The same caveat as above applies here too.
+
+
+The *Table* tab gives access to detailed evaluation results for each file.Clicking on a status shows the complete log for the benchmark run.
 
 > **Note:** If you are trying to view logs for individual runs through the HTML table (by clicking on the evaluation result `true` or `false`), you may encounter a warning because browsers block access to local files. Follow the instructions in the message to enable log viewing.
-
-As described above (in [section _2. Inspect the evaluation results_](#2-inspect-the-evaluation-results)), the artifact provides python scripts to directly extract the data shown in the paper from the benchmark results.
 
 
 ## Source Code
 
-
-### Goblint
-
-The Goblint analyzer (<https://goblint.in.tum.de>) is developed by TU Munich and University of Tartu. The source code for Goblint at the time of evaluation can be found in this artifact in the `~/analyzer` directory.
+The Goblint analyzer (<https://goblint.in.tum.de>) is developed by Technical University of Munich and University of Tartu with one of the authors recently having moved from TUM to National University of Singapore. The source code for Goblint at the time of evaluation can be found in this artifact in the `~/analyzer` directory.
 
 The code for this paper is the following:
 
@@ -161,7 +137,7 @@ The benchmarks are written in C and use POSIX threads (`pthreads`) to model conc
 
 ## Extending & Reusing This Artifact
 
-* **Adding benchmarks:** You can easily add your own benchmarks programs written in C.
+* **Adding benchmarks:** You can easily add your own benchmarks programs written in C. **TODO!!!**
     C programs should contain an empty function called `reach_error()`. Goblint and GemCutter then check that this function is never invoked. Certain (gcc) preprocessing steps may be necessary, e.g. to resolve `#include`s. See the SV-COMP benchmarks for examples (the preprocessed files typically have the extension `.i`).
 
     To run the evaluation on your own programs, you must edit the benchmark definition files `~/witness-generation/goblint.xml.template` resp. `~/witness-validation/gemcutter.xml.template`.
@@ -170,4 +146,4 @@ The benchmarks are written in C and use POSIX threads (`pthreads`) to model conc
 
 ## Acknowledgment
 
-This description is based, in part, on earlier artifact descriptions for the Goblint system, in particular of our VMCAI'24, VMCAI'25 and ESOP'23 papers.
+This description is based, in part, on earlier artifact descriptions involving the Goblint system, in particular of our VMCAI'24, VMCAI'25 and ESOP'23 papers.
