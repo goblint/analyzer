@@ -5,7 +5,6 @@ This is the artifact description for our manuscript **Data Race Detection by Dig
 
 The artifact contains [Goblint at `race_digest_staging` branch](https://github.com/goblint/analyzer/tree/race_digest_staging).
 
-
 ## Overview
 
 This artifact contains the following components:
@@ -104,7 +103,7 @@ The numbers in the VM are essentially the same as those on the server as Goblint
 The same caveat as above applies here too.
 
 
-The *Table* tab gives access to detailed evaluation results for each file.Clicking on a status shows the complete log for the benchmark run.
+The *Table* tab gives access to detailed evaluation results for each file. Clicking on a status shows the complete log for the benchmark run.
 
 > **Note:** If you are trying to view logs for individual runs through the HTML table (by clicking on the evaluation result `true` or `false`), you may encounter a warning because browsers block access to local files. Follow the instructions in the message to enable log viewing.
 
@@ -113,9 +112,33 @@ The *Table* tab gives access to detailed evaluation results for each file.Clicki
 
 The Goblint analyzer (<https://goblint.in.tum.de>) is developed by Technical University of Munich and University of Tartu with one of the authors recently having moved from TUM to National University of Singapore. The source code for Goblint at the time of evaluation can be found in this artifact in the `~/analyzer` directory.
 
-The code for this paper is the following:
+For an explanation of the general structure of the system, please refer to the online documentation of the system: https://goblint.readthedocs.io/en/latest/
 
-**TODO**
+The type of code particularly relevant for this paper is best illustrated along an example:
+  - A digest (lightweight thread ids in Fig. 4)
+    - Consider the file `~/analyzer/src/analyses/threadFlag.ml` which implements a slightly more powerful version of the lightweight thread ids in Fig. 4
+    - $\cal A$ is defined in `~/analyzer/src/cdomains/threadFlagDomain.ml` (Simple)
+    - The functions `threadenter` and `threadspawn` take care of computing appropriate successors
+    - ||^? is implemented in the function `may_race`
+      ~~~ocaml
+        let may_race (m1,b1) (m2,b2) =
+          let use_threadflag = GobConfig.get_bool "ana.race.digests.threadflag" in
+          let both_mt = Flag.is_multi m1 && Flag.is_multi m2 in
+          let one_not_main = Flag.is_not_main m1 || Flag.is_not_main m2 in
+          ((not use_threadflag) || (both_mt && one_not_main)) && b1 && b2
+      ~~~
+      - The `b` components concern interaction with other analysis and can be ignored for now
+      - After checking whether the digest should be used to exclude races `GobConfig.get_bool "ana.race.digests.threadflag"`, the predicate returns $\top$ (mapped to `true` here) if both accesses happen in multi-threaded mode, and at least one of the threads is not the unique main thread.
+    - The code in all the other digests is conceptually similar to the code provided here.
+  - Product of ||^?
+    - Consider `~/analyzer/src/analyses/mCPAccess.ml`, here the product construction happens
+      ~~~ocaml
+      let may_race x y = binop_for_all (fun n (module S: Analyses.MCPA) x y ->
+          S.may_race (Obj.obj x) (Obj.obj y)
+        ) x y
+      ~~~
+    - Here a fold over two lists of digests (each corresponding to one activated digest) is performed to get the effect of the definition in Section 5.3)
+
 
 More recent versions of Goblint can be found at <https://github.com/goblint>.
 
@@ -131,7 +154,7 @@ To build Goblint from scratch, run `make release`.
 
 This artifact includes the benchmark programs on which we evaluated the verifiers.
 These benchmarks are taken from the publicly available sv-benchmarks set (<https://gitlab.com/sosy-lab/benchmarking/sv-benchmarks>)
-and correspond to the _ConcurrencySafety-Main_ category of SV-COMP'24 (<https://sv-comp.sosy-lab.org/2024/>).
+and correspond to the _NoData-Race_ category of SV-COMP'25 (<https://sv-comp.sosy-lab.org/2025/>).
 The benchmarks are written in C and use POSIX threads (`pthreads`) to model concurrency.
 
 
