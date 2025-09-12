@@ -83,7 +83,8 @@ Goblint includes analyses for assertions, overflows, deadlocks, etc and can be e
   )
   (sites
     (share lib)
-    (share conf))
+    (share conf)
+    (share xslt))
 )
 
 ; (map_workspace_root false) ;uncomment to enable breakpoints
