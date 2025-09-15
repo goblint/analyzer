@@ -160,12 +160,18 @@ The benchmarks are written in C and use POSIX threads (`pthreads`) to model conc
 
 ## Extending & Reusing This Artifact
 
-* **Adding benchmarks:** You can easily add your own benchmarks programs written in C. **TODO!!!**
-    C programs should contain an empty function called `reach_error()`. Goblint and GemCutter then check that this function is never invoked. Certain (gcc) preprocessing steps may be necessary, e.g. to resolve `#include`s. See the SV-COMP benchmarks for examples (the preprocessed files typically have the extension `.i`).
+* **Adding benchmarks:** You can easily add your own benchmarks programs written in C by following
+ the SV-COMP format and adding a task and corresponding *.yml file, e.g., to the folder `~/sv-benchmarks/c/pthread`. The easiest way to go about this is to copy the files `bigshot_p.*` and rename them to `yourtest.*`.
+  - The `*.c` file is provided for convenience only and contains the unpreprocessed program
+  - The `*.i` file contains the preprocessed (by GCC) program
+  - the `*.yml` file specifies:
+    - The input file (change to `yourtest.i`)
+    - The properties (of relevance here is only the `no-data-race.prp` property, change expected verdict according to your program)
+    - The memory model (change if you preprocessed for a 64bit machine)
 
-    To run the evaluation on your own programs, you must edit the benchmark definition files `~/witness-generation/goblint.xml.template` resp. `~/witness-validation/gemcutter.xml.template`.
-    Replace the `<include>` path specified in the task set `minimal` with your own path.
-    You can then simply run `~/scripts/quick-run.sh`.
+  The framework automatically picks up new tasks placed in an existing directory.
+
+* **Adding your own analysis:** The easiest way to do this is to start with a simple analysis such as the thread-flag analysis described above and then gradually modifying it to obtain the desired analysis.
 
 ## Acknowledgment
 
