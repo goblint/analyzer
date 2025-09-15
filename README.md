@@ -51,11 +51,22 @@ The run should take no longer than 2 minutes, the expected output is
     Excellent: ignored check on tests/regression/03-practical/21-pfscan_combine_minimal.c:29 is now passing!
     No errors :)
 
-You can also run the analysis for a subset of tasks and configurations by executing:
+You can also run the analysis for a subset of tasks and configurations by executing from the analyzer directory:
+
+    benchexec ../benchexec/minimal.xml -o minimal_results
+
+- This runs three configurations on 62 tasks and should run for no more than 2 minutes.
+- Then, run the command output at the end (will look like `table-generator minimal_results/....`).
+- Navigate to `minimal_results/results.*.table.html` (where `*` will be the timestamp when the command was run) and open the HTML file.
+- The table will show `none` succeeding (`correct true`) for `1` task, `mute-only` for `14`, and
+`full` for `41`.
 
 
 
-### 4. Running the Full Experiments
+
+
+
+### 3. Running the Full Experiments
 
 
 ## Evaluation Results
