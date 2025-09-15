@@ -96,14 +96,23 @@ Refers only to numbers in Fig. 8.
 
 The numbers in the VM are essentially the same as those on the server as Goblint is inherently single-threaded, and each of the cores of the server is not too powerful. Our run inside the VM matched exactly these numbers, however, some wiggle between machines is to be expected.
 
+The numbers can be inspected by clicking on the `Table` tab on top of the document.
+Then, change the dropdown for one of the configs from `Show all` to:
 
+- Select `OUT OF MEMORY` to see how often Goblint ran out of memory
+- Select `TIMEOUT` to see how often Goblint ran into a timeout
+- Select `EXCEPTION(*)` to see the cases where Goblint crashed.
 
 > Where execution terminated, it did so within at most 20s, where for all but 6 tasks the runtime was below 10s.
 
 The same caveat as above applies here too.
+The numbers can be inspected by clicking on the `Table` tab on top of the document.
+Then, sort the runtime in a column by wall time by clicking on `walltime` twice.
+In our run inside the artifact, there in fact were no tasks which ran more than `9s`, as each core in our machine for the VM is a bit more powerful than the cores in the server. Your run likely will not yield identical numbers, but they will be in the same ballpark.
 
 
-The *Table* tab gives access to detailed evaluation results for each file. Clicking on a status shows the complete log for the benchmark run.
+
+The *Table* tab also gives access to detailed evaluation results for each file. Clicking on a status shows the complete log for the benchmark run.
 
 > **Note:** If you are trying to view logs for individual runs through the HTML table (by clicking on the evaluation result `true` or `false`), you may encounter a warning because browsers block access to local files. Follow the instructions in the message to enable log viewing.
 
