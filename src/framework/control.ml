@@ -803,11 +803,15 @@ struct
         None
     in
 
-    if get_bool "ana.sv-comp.enabled" then (
-      (* SV-COMP and witness generation *)
-      let module WResult = Witness.Result (R) in
-      WResult.write yaml_validate_result entrystates
-    );
+    let _svcomp_result =
+      if get_bool "ana.sv-comp.enabled" then (
+        (* SV-COMP and witness generation *)
+        let module WResult = Witness.Result (R) in
+        Some (WResult.write yaml_validate_result entrystates)
+      )
+      else
+        None
+    in
 
     if get_bool "witness.yaml.enabled" then (
       let module YWitness = YamlWitness.Make (R) in
