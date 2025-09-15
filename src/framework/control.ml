@@ -803,7 +803,7 @@ struct
         None
     in
 
-    let _svcomp_result =
+    let svcomp_result =
       if get_bool "ana.sv-comp.enabled" then (
         (* SV-COMP and witness generation *)
         let module WResult = Witness.Result (R) in
@@ -815,7 +815,7 @@ struct
 
     if get_bool "witness.yaml.enabled" then (
       let module YWitness = YamlWitness.Make (R) in
-      YWitness.write ()
+      YWitness.write ~svcomp_result
     );
 
     let marshal = Spec.finalize () in
