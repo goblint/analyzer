@@ -60,14 +60,14 @@ You can also run the analysis for a subset of tasks and configurations by execut
 - This runs three configurations on 62 tasks and should run for anywhere between 2 and 7 minutes (depending on your hardware).
 - Then, run the command output at the end (will look like `table-generator minimal_results/....`).
 - Navigate to `minimal_results/results.*.table.html` (where `*` will be the timestamp when the command was run) and open the HTML file.
-- The table will show `none` succeeding (`correct true`) for `1` task, `mute-only` for `14`, and
+- The table will show `none` succeeding (`correct true`) for `1` task, `mutex-only` for `14`, and
 `full` for `41`.
 
 
 ### 3. Running the Full Experiments
 
-The full run of the experiments takes somewhere between 5 and 8 hours. If desired, this can be reduced by not evaluating all of the configurations, but only some of them (runtime is proportional to number of configurations). To disable configurations, comment them out in
-`~/benchexec/races.xml`.
+The full run of the experiments takes somewhere between 5 and 10 hours. If desired, this can be reduced by not evaluating all of the configurations, but only some of them (runtime is proportional to number of configurations). To disable configurations, you can remove them from
+`~/benchexec/races.xml`, ideally after making a backup copy in case you decide to run some configuration after all.
 
 To run the experiments, from `~/analyzer` run
 
