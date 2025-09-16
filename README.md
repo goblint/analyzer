@@ -47,7 +47,7 @@ To check Goblint is properly installed, run
     make sanitytest
 
 on a console in the VM.
-The run should take no longer than 2 minutes, the expected output is
+The run should take no longer than 2-4 minutes, the expected output is
 
     Excellent: ignored check on tests/regression/03-practical/21-pfscan_combine_minimal.c:21 is now passing!
     Excellent: ignored check on tests/regression/03-practical/21-pfscan_combine_minimal.c:29 is now passing!
@@ -57,7 +57,7 @@ You can also run the analysis for a subset of tasks and configurations by execut
 
     benchexec ../benchexec/minimal.xml -o minimal_results
 
-- This runs three configurations on 62 tasks and should run for no more than 2 minutes.
+- This runs three configurations on 62 tasks and should run for anywhere between 2 and 7 minutes (depending on your hardware).
 - Then, run the command output at the end (will look like `table-generator minimal_results/....`).
 - Navigate to `minimal_results/results.*.table.html` (where `*` will be the timestamp when the command was run) and open the HTML file.
 - The table will show `none` succeeding (`correct true`) for `1` task, `mute-only` for `14`, and
