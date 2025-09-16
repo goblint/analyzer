@@ -37,6 +37,8 @@ Follow these steps to set it up:
 You can then start the VM from the VirtualBox UI.
 Login with user `goblint` and password `goblint`.
 
+The machine is configured for `QWERTY` keyboards by default. If you use a different layout, you can click the small `en` button on the top right of the screen to select you keyboard layout.
+
 ### 2. Quick Test of the Benchmark Setup
 
 To check Goblint is properly installed, run
