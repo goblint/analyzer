@@ -71,7 +71,7 @@ The full run of the experiments takes somewhere between 5 and 10 hours. If desir
 
 To run the experiments, from `~/analyzer` run
 
-    benechexec ../benchexec/races.xml
+    benchexec ../benchexec/races.xml
 
 - Then, run the command output at the end (will look like `table-generator results/....`).
 
