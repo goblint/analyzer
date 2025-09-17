@@ -47,6 +47,18 @@
       (apron -> linearTwoVarEqualityDomain.apron.ml)
       (-> linearTwoVarEqualityDomain.no-apron.ml)
     )
+    (select linearTwoVarEqualityAnalysisPentagon.ml from
+      (apron -> linearTwoVarEqualityAnalysisPentagon.apron.ml)
+      (-> linearTwoVarEqualityAnalysisPentagon.no-apron.ml)
+    )
+    (select representantDomains.ml from
+      (apron -> representantDomains.apron.ml)
+      (-> representantDomains.no-apron.ml)
+    )
+    (select linearTwoVarEqualityDomainPentagon.ml from
+      (apron -> linearTwoVarEqualityDomainPentagon.apron.ml)
+      (-> linearTwoVarEqualityDomainPentagon.no-apron.ml)
+    )
     (select relationAnalysis.ml from
       (apron -> relationAnalysis.apron.ml)
       (-> relationAnalysis.no-apron.ml)

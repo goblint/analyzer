@@ -381,6 +381,7 @@ sig
     val no_intervalSet: t -> t
     val no_bitfield: t -> t
     val ikind: t -> ikind
+    val to_congruence : t -> (Z.t * Z.t) option
   end
 
   val of_const: Z.t * Cil.ikind * string option -> IntDomTuple.t

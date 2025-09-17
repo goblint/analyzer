@@ -227,6 +227,12 @@ struct
 
   let tcons1_of_cil_exp ask d env e negate no_ov =
     let e = Cil.constFold false e in
+    let rec unwrap_inversion e negate = 
+      match e with 
+      | UnOp (LNot,e',_) -> unwrap_inversion e' (not negate)
+      | _ -> e, negate
+    in
+    let e, negate = unwrap_inversion e negate in
     let (texpr1_plus, texpr1_minus, typ) =
       match e with
       | BinOp (r, e1, e2, _) ->
