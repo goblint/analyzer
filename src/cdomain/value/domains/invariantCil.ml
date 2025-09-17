@@ -26,15 +26,23 @@ let exp_deep_unroll_types =
   let visitor = new exp_deep_unroll_types_visitor in
   visitCilExpr visitor
 
+let var_may_be_shadowed scope vi =
+  let vi_original_name = Cilfacade.find_original_name vi in
+  let local_may_shadow local =
+    not (CilType.Varinfo.equal vi local) && (* exclude self-equality by vid because the original names would always equal *)
+      vi_original_name = Cilfacade.find_original_name local
+  in
+  List.exists local_may_shadow scope.sformals || List.exists local_may_shadow scope.slocals
 
 let var_is_in_scope scope vi =
   match Cilfacade.find_scope_fundec vi with
-  | None -> vi.vstorage <> Static (* CIL pulls static locals into globals, but they aren't syntactically in global scope *)
+  | None ->
+    vi.vstorage <> Static && (* CIL pulls static locals into globals, but they aren't syntactically in global scope *)
+      not (var_may_be_shadowed scope vi)
   | Some fd ->
-    if CilType.Fundec.equal fd scope then
-      GobConfig.get_bool "witness.invariant.all-locals" || (not @@ hasAttribute "goblint_cil_nested" vi.vattr)
-    else
-      false
+    CilType.Fundec.equal fd scope &&
+      (GobConfig.get_bool "witness.invariant.all-locals" || (not @@ hasAttribute "goblint_cil_nested" vi.vattr)) &&
+      not (var_may_be_shadowed scope vi) (* TODO: could distinguish non-nested and nested? *)
 
 class exp_is_in_scope_visitor (scope: fundec) (acc: bool ref) = object
   inherit nopCilVisitor
