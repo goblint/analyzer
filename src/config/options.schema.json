@@ -2785,6 +2785,12 @@
               "type": "boolean",
               "default": false
             },
+            "sv-comp-true-only": {
+              "title": "witness.yaml.sv-comp-true-only",
+              "description": "Only output YAML witness when SV-COMP result is \"true\".",
+              "type": "boolean",
+              "default": false
+            },
             "format-version": {
               "title": "witness.yaml.format-version",
               "description": "YAML witness format version",
