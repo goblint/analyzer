@@ -44,7 +44,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Set up OCaml ${{ matrix.ocaml-compiler }}
         uses: ocaml/setup-ocaml@v3
@@ -97,7 +97,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Set up OCaml ${{ matrix.ocaml-compiler }}
         uses: ocaml/setup-ocaml@v3
@@ -147,7 +147,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Set up OCaml ${{ matrix.ocaml-compiler }}
         uses: ocaml/setup-ocaml@v3
@@ -216,7 +216,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Set up OCaml ${{ matrix.ocaml-compiler }}
         uses: ocaml/setup-ocaml@v3
@@ -224,7 +224,7 @@ jobs:
           ocaml-compiler: ${{ matrix.ocaml-compiler }}
 
       - name: Set up Node.js ${{ matrix.node-version }}
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: ${{ matrix.node-version }}
 

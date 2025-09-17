@@ -128,8 +128,6 @@ struct
       let top_name = "Totally unknown and messed up"
     end) (LD)
 
-  let lift (x:LD.t) : t = `Lifted x
-
   let unlift x =
     match x with
     | `Lifted x -> x
@@ -322,6 +320,12 @@ struct
   let should_print _ = false
 end
 
+module EmptyP =
+struct
+  include Printable.Empty
+  let of_elt _ = failwith "EmptyP.of_elt: analysis cannot be path-sensitive"
+end
+
 module UnitP =
 struct
   include Printable.Unit
@@ -339,7 +343,7 @@ module DefaultSpec =
 struct
   module G = Lattice.Unit
   module V = EmptyV
-  module P = UnitP
+  module P = EmptyP
 
   type marshal = unit
   let init _ = ()

@@ -97,15 +97,10 @@ let functionArgs fd = (ResettableLazy.force functionCallMaps).argLists |> Functi
 let findMallocWrappers () =
   let isMalloc f =
     Goblint_backtrace.wrap_val ~mark:(Cilfacade.FunVarinfo f) @@ fun () ->
-    if LibraryFunctions.is_special f then (
+    if LibraryFunctions.is_special f then
       let desc = LibraryFunctions.find f in
-      match functionArgs f with
-      | None -> false
-      | Some args ->
-        match desc.special args with
-        | Malloc _ -> true
-        | _ -> false
-    )
+      let args = functionArgs f in
+      GobOption.exists (fun args -> match desc.special args with Malloc _ -> true | _ -> false) args
     else
       false
   in

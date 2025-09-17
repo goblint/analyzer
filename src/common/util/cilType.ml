@@ -144,10 +144,12 @@ struct
     | FDouble
     | FLongDouble
     | FFloat128
+    | FFloat16
     | FComplexFloat
     | FComplexDouble
     | FComplexLongDouble
     | FComplexFloat128
+    | FComplexFloat16
   [@@deriving hash]
   (* Hashtbl.hash doesn't monomorphize, so derive instead. *)
 

@@ -64,10 +64,12 @@ struct
     | Some _, None -> false
     | Some (x1,x2), Some (y1,y2) -> Ints_t.compare x1 y1 >= 0 && Ints_t.compare x2 y2 <= 0
 
-  let join ik (x:t) y =
+  let join_no_norm ik (x:t) y =
     match x, y with
     | None, z | z, None -> z
-    | Some (x1,x2), Some (y1,y2) -> norm ik @@ Some (Ints_t.min x1 y1, Ints_t.max x2 y2) |> fst
+    | Some (x1,x2), Some (y1,y2) -> Some (Ints_t.min x1 y1, Ints_t.max x2 y2)
+
+  let join ik (x:t) y = norm ik @@ join_no_norm ik x y |> fst
 
   let meet ik (x:t) y =
     match x, y with
@@ -292,16 +294,13 @@ struct
     match x, y with
     | None, None -> (bot (),{underflow=false; overflow=false})
     | None, _ | _, None -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y)))
-    | (Some (x1,x2) as x), (Some (y1,y2) as y) ->
-      begin
-        let is_zero v = Ints_t.compare v Ints_t.zero = 0 in
-        match y1, y2 with
-        | l, u when is_zero l && is_zero u -> (top_of ik,{underflow=false; overflow=false})
-        | l, _ when is_zero l              -> div ik (Some (x1,x2)) (Some (Ints_t.one,y2))
-        | _, u when is_zero u              -> div ik (Some (x1,x2)) (Some (y1, Ints_t.(neg one)))
-        | _ when leq (of_int ik (Ints_t.zero) |> fst) (Some (y1,y2)) -> (top_of ik,{underflow=false; overflow=false})
-        | _ -> binary_op_with_norm IArith.div ik x y
-      end
+    | Some x, Some y ->
+      let (neg, pos) = IArith.div x y in
+      let (r, ov) = norm ik (join_no_norm ik neg pos) in (* normal join drops overflow info *)
+      if leq (of_int ik Ints_t.zero |> fst) (Some y) then
+        (top_of ik, ov)
+      else
+        (r, ov)
 
   let ne ik x y =
     match x, y with

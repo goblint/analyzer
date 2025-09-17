@@ -292,16 +292,14 @@ struct
     in
     List.fold (fun vs e -> VS.join vs (to_vs e)) (VS.empty ()) args
 
-  let pass_to_callee fundec any_local_reachable var =
-    (* TODO: currently, we pass all locals of the caller to the callee, provided one of them is reachbale to preserve relationality *)
+  let belongs_to_fundec fundec var =
+    (* TODO: currently, we pass all locals of the caller to the callee, provided one of them is reachable to preserve relationality *)
     (* there should be smarter ways to do this, e.g. by keeping track of which values are written etc. ... *)
     (* See, e.g, Beckschulze E, Kowalewski S, Brauer J (2012) Access-based localization for octagons. Electron Notes Theor Comput Sci 287:29–40 *)
     (* Also, a local *)
     let vname = GobApron.Var.show var in
-    let locals = fundec.sformals @ fundec.slocals in
-    match List.find_opt (fun v -> VM.var_name (Local v) = vname) locals with (* TODO: optimize *)
-    | None -> true
-    | Some v -> any_local_reachable
+    let equiv v = VM.var_name (Local v) = vname in (* TODO: optimize *)
+    (not @@ List.exists equiv fundec.sformals) && (not @@ List.exists equiv fundec.slocals)
 
   let make_callee_rel ~thread man f args =
     let fundec = Node.find_fundec man.node in
@@ -329,7 +327,7 @@ struct
     let any_local_reachable = any_local_reachable fundec reachable_from_args in
     RD.remove_filter_with new_rel (fun var ->
         match RV.find_metadata var with
-        | Some (Local _) when not (pass_to_callee fundec any_local_reachable var) -> true (* remove caller locals provided they are unreachable *)
+        | Some (Local _) when not (belongs_to_fundec fundec var || any_local_reachable) -> true (* remove caller locals provided they are unreachable *)
         | Some (Arg _) when not (List.mem_cmp Apron.Var.compare var arg_vars) -> true (* remove caller args, but keep just added args *)
         | _ -> false (* keep everything else (just added args, globals, global privs) *)
       );
@@ -359,16 +357,14 @@ struct
     let st = man.local in
     let ask = Analyses.ask_of_man man in
     let new_rel =
-      if RD.Tracked.type_tracked (Cilfacade.fundec_return_type f) then (
+      if RD.Tracked.type_tracked (Cilfacade.fundec_return_type f) then
         let rel' = RD.add_vars st.rel [RV.return] in
-        match e with
-        | Some e ->
+        Option.map_default (fun e ->
           assign_from_globals_wrapper ask man.global {st with rel = rel'} e (fun rel' e' ->
               RD.assign_exp ask rel' RV.return e' (no_overflow ask e)
-            )
-        | None ->
-          rel' (* leaves V.return unconstrained *)
-      )
+              )
+          ) rel' e
+        (* default value rel' leaves V.return unconstrained *)
       else
         RD.copy st.rel
     in
@@ -426,7 +422,7 @@ struct
     let tainted_vars = TaintPartialContexts.conv_varset tainted in
     let new_rel = RD.keep_filter st.rel (fun var ->
         match RV.find_metadata var with
-        | Some (Local _) when not (pass_to_callee fundec any_local_reachable var) -> true (* keep caller locals, provided they were not passed to the function *)
+        | Some (Local _) when not (belongs_to_fundec fundec var || any_local_reachable) -> true (* keep caller locals, provided they were not passed to the function *)
         | Some (Arg _) -> true (* keep caller args *)
         | Some ((Local _ | Global _)) when not (RD.mem_var new_fun_rel var) -> false (* remove locals and globals, for which no record exists in the new_fun_apr *)
         | Some ((Local v | Global v)) when not (TaintPartialContexts.VS.mem v tainted_vars) -> true (* keep locals and globals, which have not been touched by the call *)
@@ -439,20 +435,17 @@ struct
 
   let combine_assign man r fe f args fc fun_st (f_ask : Queries.ask) =
     let unify_st = man.local in
-    if RD.Tracked.type_tracked (Cilfacade.fundec_return_type f) then (
-      let unify_st' = match r with
-        | Some lv ->
+    if RD.Tracked.type_tracked (Cilfacade.fundec_return_type f) then
+      let unify_st' = Option.map_default (fun lv ->
           let ask = Analyses.ask_of_man man in
           assign_to_global_wrapper ask man.global man.sideg unify_st lv (fun st v ->
               let rel = RD.assign_var st.rel (RV.local v) RV.return in
               assert_type_bounds ask rel v (* TODO: should be done in return instead *)
             )
-        | None ->
-          unify_st
+        ) unify_st r
       in
       RD.remove_vars_with unify_st'.rel [RV.return]; (* mutates! *)
       unify_st'
-    )
     else
       unify_st
 

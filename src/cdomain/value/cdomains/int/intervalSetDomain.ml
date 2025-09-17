@@ -167,13 +167,18 @@ struct
     let res = List.map (norm_interval ~suppress_ovwarn ~cast ik) xs in
     let intvs = List.concat_map fst res in
     let underflow = List.exists (fun (_,{underflow; _}) -> underflow) res in
-    let overflow = List.exists (fun (_,{overflow; _}) -> underflow) res in
+    let overflow = List.exists (fun (_,{overflow; _}) -> overflow) res in
     (canonize intvs,{underflow; overflow})
 
   let binary_op_with_norm op (ik:ikind) (x: t) (y: t) : t*overflow_info = match x, y with
     | [], _ -> ([],{overflow=false; underflow=false})
     | _, [] -> ([],{overflow=false; underflow=false})
-    | _, _ -> norm_intvs ik @@ List.concat_map (fun (x,y) -> [op x y]) (BatList.cartesian_product x y)
+    | _, _ -> norm_intvs ik @@ List.map (fun (x,y) -> op x y) (BatList.cartesian_product x y)
+
+  let binary_op_concat_with_norm op (ik:ikind) (x: t) (y: t) : t*overflow_info = match x, y with
+    | [], _ -> ([],{overflow=false; underflow=false})
+    | _, [] -> ([],{overflow=false; underflow=false})
+    | _, _ -> norm_intvs ik @@ List.concat_map (fun (x,y) -> op x y) (BatList.cartesian_product x y)
 
   let binary_op_with_ovc (x: t) (y: t) op : t*overflow_info = match x, y with
     | [], _ -> ([],{overflow=false; underflow=false})
@@ -187,7 +192,7 @@ struct
 
   let unary_op_with_norm op (ik:ikind) (x: t) = match x with
     | [] -> ([],{overflow=false; underflow=false})
-    | _ -> norm_intvs ik @@ List.concat_map (fun x -> [op x]) x
+    | _ -> norm_intvs ik @@ List.map op x
 
   let rec leq (xs: t) (ys: t) =
     let leq_interval (al, au) (bl, bu) = al >=. bl && au <=. bu in
@@ -358,17 +363,15 @@ struct
   let neg ?no_ov = unary_op_with_norm IArith.neg
 
   let div ?no_ov ik x y =
-    let rec interval_div x (y1, y2) = begin
-      let top_of ik = top_of ik |> List.hd in
-      let is_zero v = v =. Ints_t.zero in
-      match y1, y2 with
-      | l, u when is_zero l && is_zero u -> top_of ik
-      | l, _ when is_zero l              -> interval_div x (Ints_t.one,y2)
-      | _, u when is_zero u              -> interval_div x (y1, Ints_t.(neg one))
-      | _ when leq (of_int ik (Ints_t.zero) |> fst) ([(y1,y2)]) -> top_of ik
-      | _ -> IArith.div x (y1, y2)
-    end
-    in binary_op_with_norm interval_div ik x y
+    let rec interval_div x y =
+      let (neg, pos) = IArith.div x y in
+      let r = List.filter_map Fun.id [neg; pos] in
+      if leq (of_int ik Ints_t.zero |> fst) [y] then
+        top_of ik @ r (* keep r because they might overflow, but top doesn't *)
+      else
+        r (* should always be singleton, because if there's a negative and a positive side, then it must've included zero, which is already handled by previous case *)
+    in
+    binary_op_concat_with_norm interval_div ik x y
 
   let rem ik x y =
     let interval_rem (x, y) =

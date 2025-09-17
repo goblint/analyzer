@@ -432,9 +432,8 @@ let createCFG (file: file) =
                   List.iter (fun (fromNode, toNode) ->
                       addEdge_fromLoc fromNode (Test (one, false)) toNode;
                       added_connect := true;
-                      match NH.find_option node_scc toNode with
-                      | Some toNode_scc -> iter_scc toNode_scc (* continue to target scc as normally, to ensure they are also connected *)
-                      | None -> () (* pseudo return, wasn't in scc, but is fine *)
+                      Option.iter iter_scc (NH.find_option node_scc toNode) (* continue to target scc as normally, to ensure they are also connected *)
+                      (* otherwise pseudo return, wasn't in scc, but is fine *)
                     ) targets
                 )
               )
@@ -556,12 +555,10 @@ struct
     Format.fprintf out ("\t%a [%s];\n") p_node n styles;
     match n with
     | Statement s when get_bool "dbg.cfg.loop-unrolling" ->
-      begin match LoopUnrolling0.find_copyof s with
-        | Some s' ->
+      Option.iter (fun s' ->
           let n' = Statement s' in
           Format.fprintf out "\t%a -> %a [style=dotted];\n" p_node n p_node n'
-        | None -> ()
-      end
+        ) (LoopUnrolling0.find_copyof s)
     | _ -> ()
 end
 

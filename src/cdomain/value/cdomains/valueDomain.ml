@@ -357,13 +357,18 @@ struct
     (*| TPtr _, t -> bitsSizeOf t <= bitsSizeOf !upointType
       | t, TPtr _ -> bitsSizeOf t >= bitsSizeOf !upointType*)
     | TFloat (fk1,_), TFloat (fk2,_) when fk1 = fk2 -> true
+    | TFloat (FFloat,_), TFloat (FFloat16,_) -> true
     | TFloat (FDouble,_), TFloat (FFloat,_) -> true
+    | TFloat (FDouble,_), TFloat (FFloat16,_) -> true
     | TFloat (FLongDouble,_), TFloat (FFloat,_) -> true
     | TFloat (FLongDouble,_), TFloat (FDouble,_) -> true
+    | TFloat (FLongDouble,_), TFloat (FFloat16,_) -> true
     | TFloat (FFloat128, _), TFloat (FFloat,_) -> true
     | TFloat (FFloat128, _), TFloat (FDouble,_) -> true
     | TFloat (FFloat128, _), TFloat (FLongDouble,_) -> true
+    | TFloat (FFloat128, _), TFloat (FFloat16,_) -> true
     | _, TFloat _ -> false (* casting float to an integral type always looses the decimals *)
+    | TFloat (FFloat16, _), (TInt((IBool | IChar | IUChar | ISChar), _) | TEnum ({ekind = IBool | IChar | IUChar | ISChar; _}, _)) -> true (* reasonably small integers can be stored in _Float16 *)
     | TFloat (fk, _), (TInt((IBool | IChar | IUChar | ISChar | IShort | IUShort), _) | TEnum ({ekind = IBool | IChar | IUChar | ISChar | IShort | IUShort; _}, _)) when not (Cilfacade.isComplexFKind fk)  -> true (* reasonably small integers can be stored in all fkinds *)
     | TFloat ((FDouble | FLongDouble | FFloat128), _), (TInt((IInt | IUInt | ILong | IULong), _) | TEnum ({ekind = IInt | IUInt | ILong | IULong; _}, _)) -> true (* values stored in between 16 and 32 bits can only be stored in at least doubles *)
     | TFloat _, _ -> false (* all wider integers can not be completely put into a float, partially because our internal representation of long double is the same as for doubles *)
