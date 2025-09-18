@@ -115,7 +115,7 @@ module IntDomTupleImpl = struct
 
   (* f0: constructors *)
   let bot () = create { fi = fun (type a) (module I:SOverflow with type t = a) -> I.bot } ()
-  let top_of = create { fi = fun (type a) (module I:SOverflow with type t = a) -> I.top_of }
+  let top_of ?bitfield = create { fi = fun (type a) (module I:SOverflow with type t = a) -> I.top_of ?bitfield }
   let bot_of = create { fi = fun (type a) (module I:SOverflow with type t = a) -> I.bot_of }
   let of_bool ik = create { fi = fun (type a) (module I:SOverflow with type t = a) -> I.of_bool ik }
   let of_excl_list ik = create2 { fi2 = fun (type a) (module I:SOverflow with type t = a and type int_t = int_t) -> I.of_excl_list ik}

@@ -129,7 +129,7 @@ struct
   let bot_of ikind = { v = I.bot_of ikind; ikind}
   let bot () = failwith "bot () is not implemented for IntDomLifter."
   let is_bot x = I.is_bot x.v
-  let top_of ikind = { v = I.top_of ikind; ikind}
+  let top_of ?bitfield ikind = { v = I.top_of ?bitfield ikind; ikind}
   let top () = failwith "top () is not implemented for IntDomLifter."
   let is_top _ = failwith "is_top is not implemented for IntDomLifter."
 
@@ -301,7 +301,7 @@ module Size = struct (* size in bits as int, range as int64 *)
 end
 
 
-module StdTop (B: sig type t val top_of: Cil.ikind -> t end) = struct
+module StdTop (B: sig type t val top_of: ?bitfield:int -> Cil.ikind -> t end) = struct
   open B
   (* these should be overwritten for better precision if possible: *)
   let to_excl_list    x = None
@@ -320,7 +320,7 @@ end
 module Std (B: sig
     type t
     val name: unit -> string
-    val top_of: Cil.ikind -> t
+    val top_of: ?bitfield:int -> Cil.ikind -> t
     val bot_of: Cil.ikind -> t
     val show: t -> string
     val equal: t -> t -> bool
@@ -515,7 +515,7 @@ struct
   type int_t = Ints_t.t
   let top () = raise Unknown
   let bot () = raise Error
-  let top_of ik = top ()
+  let top_of ?bitfield ik = top ()
   let bot_of ik = bot ()
   let show (x: Ints_t.t) = Ints_t.to_string x
 
@@ -583,7 +583,7 @@ struct
       let bot_name = "Error int"
     end) (Base)
 
-  let top_of ik = top ()
+  let top_of ?bitfield ik = top ()
   let bot_of ik = bot ()
 
 
@@ -664,7 +664,7 @@ struct
       let bot_name = "MinInt"
     end) (Base)
   type int_t = Base.int_t
-  let top_of ik = top ()
+  let top_of ?bitfield ik = top ()
   let bot_of ik = bot ()
   include StdTop (struct type nonrec t = t let top_of = top_of end)
 

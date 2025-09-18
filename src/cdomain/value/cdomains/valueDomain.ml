@@ -34,7 +34,7 @@ sig
   val is_mutex_type: typ -> bool
   val bot_value: ?varAttr:attributes -> typ -> t
   val is_bot_value: t -> bool
-  val init_value: ?varAttr:attributes -> typ -> t
+  val init_value: ?bitfield:(int option) -> ?varAttr:attributes -> typ -> t
   val top_value: ?varAttr:attributes -> typ -> t
   val is_top_value: t -> typ -> bool
   val zero_init_value: ?varAttr:attributes -> typ -> t
@@ -187,16 +187,16 @@ struct
     | Bot -> true
     | Top -> false
 
-  let rec init_value ?(varAttr=[]) (t: typ): t = (* top_value is not used here because structs, blob etc will not contain the right members *)
+  let rec init_value ?(bitfield:int option=None) ?(varAttr=[]) (t: typ): t = (* top_value is not used here because structs, blob etc will not contain the right members *)
     match t with
     | t when is_mutex_type t -> Mutex
     | t when is_jmp_buf_type t -> JmpBuf (JmpBufs.top ())
     | t when is_mutexattr_type t -> MutexAttr (MutexAttrDomain.top ())
-    | TInt (ik,_) -> Int (ID.top_of ik)
+    | TInt (ik,_) -> Int (ID.top_of ?bitfield ik)
     (* TODO: TEnum? *)
     | TFloat (fkind, _) when not (Cilfacade.isComplexFKind fkind) -> Float (FD.top_of fkind)
     | TPtr _ -> Address AD.top_ptr
-    | TComp ({cstruct=true; _} as ci,_) -> Struct (Structs.create (fun fd -> init_value ~varAttr:fd.fattr fd.ftype) ci)
+    | TComp ({cstruct=true; _} as ci,_) -> Struct (Structs.create (fun fd -> init_value ~bitfield:fd.fbitfield ~varAttr:fd.fattr fd.ftype) ci)
     | TComp ({cstruct=false; _},_) -> Union (Unions.top ())
     | TArray (ai, length, _) ->
       let typAttr = typeAttrs ai in
@@ -984,7 +984,7 @@ struct
     do_eval_offset ask f x offs exp l o v t
 
   let update_offset ?(blob_destructive=false) (ask: VDQ.t) (x:t) (offs:offs) (value:t) (exp:exp option) (v:lval) (t:typ): t =
-    let rec do_update_offset (ask:VDQ.t) (x:t) (offs:offs) (value:t) (exp:exp option) (l:lval option) (o:offset option) (v:lval) (t:typ):t =
+    let rec do_update_offset ?(bitfield:int option=None) (ask:VDQ.t) (x:t) (offs:offs) (value:t) (exp:exp option) (l:lval option) (o:offset option) (v:lval) (t:typ):t =
       if M.tracing then M.traceli "update_offset" "do_update_offset %a %a (%a) %a" pretty x Offs.pretty offs (Pretty.docOpt (CilType.Exp.pretty ())) exp pretty value;
       let mu = function Blob (Blob (y, s', zeroinit), s, _) -> Blob (y, ID.join s s', zeroinit) | x -> x in
       let r =
@@ -1075,7 +1075,12 @@ struct
             | `NoOffset -> begin
                 match value with
                 | Blob (y, s, zeroinit) -> mu (Blob (join x y, s, zeroinit))
-                | Int _ -> cast t value
+                | Int i -> begin
+                  match bitfield with
+                  | Some b when not @@ ID.leq i (ID.top_of ~bitfield:b (ID.ikind i)) ->
+                    Messages.warn ~category:Analyzer "Assigned value %a exceeds the representable range of a %d-bit bit-field." pretty value b; Top
+                  | _ -> cast t value
+                end
                 | _ -> value
               end
             | `Field (fld, offs) when fld.fcomp.cstruct -> begin
@@ -1084,7 +1089,7 @@ struct
                 | Struct str ->
                   begin
                     let l', o' = shift_one_over l o in
-                    let value' = do_update_offset ask (Structs.get str fld) offs value exp l' o' v t in
+                    let value' = do_update_offset ~bitfield:fld.fbitfield ask (Structs.get str fld) offs value exp l' o' v t in
                     Struct (Structs.replace str fld value')
                   end
                 | Bot ->

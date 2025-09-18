@@ -193,7 +193,7 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): Bitfield_SOverflow with type in
   (* bot = all bits are invalid *)
   let bot () = (BArith.zero_mask, BArith.zero_mask)
 
-  let top_of ik =
+  let top_of ?bitfield ik = (* TODO: use bitfield *)
     if GoblintCil.isSigned ik then top ()
     else (BArith.one_mask, Ints_t.of_bigint (snd (Size.range ik)))
 
