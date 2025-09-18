@@ -244,7 +244,7 @@ struct
     | result when not (is_top_of ik result) && not (is_bot result) -> result
     | _ ->
       match i1, i2 with
-      | Some (x1, x2), Some (y1, y2) -> 
+      | Some (x1, x2), Some (y1, y2) ->
         let is_nonneg x = Ints_t.compare x Ints_t.zero >= 0 in
         begin match is_nonneg x1, is_nonneg x2, is_nonneg y1, is_nonneg y2 with
           | true, _, true, _ ->
@@ -290,11 +290,11 @@ struct
         end
       | _ -> top_of ik
 
-  let logor ik i1 i2 = 
+  let logor ik i1 i2 =
     match bit (fun _ik -> Ints_t.logor) ik i1 i2 with
     | result when not (is_top_of ik result) && not (is_bot result) -> result
     | _ ->
-      match i1, i2 with 
+      match i1, i2 with
       | Some (x1, x2), Some (y1, y2) ->
         let is_nonneg x = Ints_t.compare x Ints_t.zero >= 0 in
         begin match is_nonneg x1, is_nonneg x2, is_nonneg y1, is_nonneg y2 with
@@ -309,7 +309,7 @@ struct
             of_interval ik (lower, upper) |> fst
         end
       | _ -> top_of ik
-        
+
   let bit1 f ik i1 f' =
     if is_bot i1 then
       bot_of ik
@@ -335,7 +335,7 @@ struct
       | Some x, Some y -> (try of_int ik (Ints_t.shift_right x (Ints_t.to_int y)) with Division_by_zero | Invalid_argument _ -> (top_of ik, {underflow=false; overflow=false}))
       | _, _->
         let is_nonneg x = Ints_t.compare x Ints_t.zero >= 0 in
-        match i1, i2 with 
+        match i1, i2 with
         | Some (x1, x2), Some (y1,y2) when is_nonneg x1 && is_nonneg y1 ->
           of_interval ik (Ints_t.zero, Ints_t.div x2 (Ints_t.shift_left Ints_t.one (Ints_t.to_int y1)))
         | _ -> (top_of ik, {underflow=false; overflow=false})

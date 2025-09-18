@@ -470,7 +470,7 @@ struct
     | `Bot -> `Bot
 
   let logand ik x y = norm ik (match x,y with
-      | `Excluded (_, r), `Definite i 
+      | `Excluded (_, r), `Definite i
       | `Definite i, `Excluded (_, r) ->
         if Z.equal i Z.zero then
           `Definite Z.zero

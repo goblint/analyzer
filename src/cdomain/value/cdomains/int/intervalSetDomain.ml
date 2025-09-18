@@ -342,7 +342,7 @@ struct
       let (x1, x2), (y1, y2) = i1, i2 in
       let is_nonneg x = Ints_t.compare x Ints_t.zero >= 0 in
       match is_nonneg x1, is_nonneg x2, is_nonneg y1, is_nonneg y2 with
-      | true, _, true, _ -> 
+      | true, _, true, _ ->
         of_interval ik (Ints_t.zero, Ints_t.min x2 y2) |> fst
       | _, false, _, false ->
         of_interval ik (min_val_bit_constrained @@ Ints_t.min x1 y1, Ints_t.zero) |> fst
