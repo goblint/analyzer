@@ -11,7 +11,7 @@ struct
 
   let top_of ?bitfield ik =
     match bitfield with
-    | Some b when b <= Ints_t.to_int (range ik |> snd) ->
+    | Some b when b <= Z.numbits (Size.range ik |> snd) ->
       let signed_lower_bound = Ints_t.neg @@ Ints_t.shift_left Ints_t.one (b - 1) in
       let unsigned_upper_bound = Ints_t.sub (Ints_t.shift_left Ints_t.one b) Ints_t.one in
       if GoblintCil.isSigned ik then
