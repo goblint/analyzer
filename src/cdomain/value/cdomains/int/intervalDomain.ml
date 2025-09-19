@@ -32,14 +32,14 @@ struct
     | Some (a, b) ->
       if a = b && b = i then `Eq else if Ints_t.compare a i <= 0 && Ints_t.compare i b <=0 then `Top else `Neq
 
-  let norm ?(suppress_ovwarn=false) ?(cast=false) ik : (t -> t * overflow_info) = function None -> (None, {underflow=false; overflow=false}) | Some (x,y) ->
+  let norm ?(cast=false) ik : (t -> t * overflow_info) = function None -> (None, {underflow=false; overflow=false}) | Some (x,y) ->
     if Ints_t.compare x y > 0 then
       (None,{underflow=false; overflow=false})
     else (
       let (min_ik, max_ik) = range ik in
       let underflow = Ints_t.compare min_ik x > 0 in
       let overflow = Ints_t.compare max_ik y < 0 in
-      let ov_info = { underflow = underflow && not suppress_ovwarn; overflow = overflow && not suppress_ovwarn } in
+      let ov_info = { underflow; overflow } in
       let v =
         if underflow || overflow then
           if should_wrap ik then (* could add [|| cast], but that's GCC implementation-defined behavior: https://gcc.gnu.org/onlinedocs/gcc/Integers-implementation.html#Integers-implementation *)
@@ -88,7 +88,7 @@ struct
 
   (* TODO: change to_int signature so it returns a big_int *)
   let to_int x = Option.bind x (IArith.to_int)
-  let of_interval ?(suppress_ovwarn=false) ik (x,y) = norm ~suppress_ovwarn ik @@ Some (x,y)
+  let of_interval ik (x,y) = norm ik @@ Some (x,y)
 
   let of_bitfield ik x =
     let min ik (z,o) =
@@ -129,17 +129,17 @@ struct
     | Some (l, u) when Ints_t.compare l Ints_t.zero = 0 && Ints_t.compare u Ints_t.zero = 0 -> Some false
     | x -> if leq zero x then None else Some true
 
-  let starting ?(suppress_ovwarn=false) ik n =
-    norm ~suppress_ovwarn ik @@ Some (n, snd (range ik))
+  let starting ik n =
+    norm ik @@ Some (n, snd (range ik))
 
-  let ending ?(suppress_ovwarn=false) ik n =
-    norm ~suppress_ovwarn ik @@ Some (fst (range ik), n)
+  let ending ik n =
+    norm ik @@ Some (fst (range ik), n)
 
   (* TODO: change signature of maximal, minimal to return big_int*)
   let maximal = function None -> None | Some (x,y) -> Some y
   let minimal = function None -> None | Some (x,y) -> Some x
 
-  let cast_to ?(suppress_ovwarn=false) ?torg ?no_ov t = norm ~cast:true t (* norm does all overflow handling *)
+  let cast_to ?torg ?no_ov t = norm ~cast:true t (* norm does all overflow handling *)
 
   let widen ik x y =
     match x, y with
@@ -524,7 +524,7 @@ struct
       let l' = if Ints_t.equal l min_ik then l else shrink Ints_t.add l in
       let u' = if Ints_t.equal u max_ik then u else shrink Ints_t.sub u in
       let intv' = norm ik @@ Some (l', u') |> fst in
-      let range = norm ~suppress_ovwarn:true ik (Some (Ints_t.of_bigint (Size.min_from_bit_range rl), Ints_t.of_bigint (Size.max_from_bit_range rh))) |> fst in
+      let range = norm ik (Some (Ints_t.of_bigint (Size.min_from_bit_range rl), Ints_t.of_bigint (Size.max_from_bit_range rh))) |> fst in
       meet ik intv' range
 
   let refine_with_incl_list ik (intv: t) (incl : (int_t list) option) : t =

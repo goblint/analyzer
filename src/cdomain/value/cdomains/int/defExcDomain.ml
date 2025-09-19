@@ -298,12 +298,12 @@ struct
     | _ -> None
   let top_bool = `Excluded (S.empty (), R.of_interval range_ikind (0L, 1L))
 
-  let of_interval ?(suppress_ovwarn=false) ik (x,y) =
+  let of_interval ik (x,y) =
     if Z.compare x y = 0 then
       of_int ik x
     else
       let a, b = Size.min_range_sign_agnostic x, Size.min_range_sign_agnostic y in
-      let r = R.join (R.of_interval ~suppress_ovwarn range_ikind a) (R.of_interval ~suppress_ovwarn range_ikind b) in
+      let r = R.join (R.of_interval range_ikind a) (R.of_interval range_ikind b) in
       let ex = if Z.gt x Z.zero || Z.lt y Z.zero then S.singleton Z.zero else  S.empty () in
       norm ik @@ (`Excluded (ex, r))
 
@@ -318,13 +318,13 @@ struct
       let ik_mask = snd (Size.range ik) in
       (one_mask, ik_mask)
 
-  let starting ?(suppress_ovwarn=false) ikind x =
+  let starting ikind x =
     let _,u_ik = Size.range ikind in
-    of_interval ~suppress_ovwarn ikind (x, u_ik)
+    of_interval ikind (x, u_ik)
 
-  let ending ?(suppress_ovwarn=false) ikind x =
+  let ending ikind x =
     let l_ik,_ = Size.range ikind in
-    of_interval ~suppress_ovwarn ikind (l_ik, x)
+    of_interval ikind (l_ik, x)
 
   let of_excl_list t l =
     let r = size t in (* elements in l are excluded from the full range of t! *)
