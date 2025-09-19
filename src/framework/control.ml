@@ -341,6 +341,13 @@ struct
           res'
         | _                       -> failwith "Unsupported global initializer edge"
       in
+      let transfer_func st (loc, edge) =
+        Goblint_backtrace.protect ~mark:(fun () -> Constraints.TfLocation loc) ~finally:(fun () ->
+            ()
+          ) (fun () ->
+            transfer_func st (loc, edge)
+          )
+      in
       let with_externs = do_extern_inits man file in
       (*if (get_bool "dbg.verbose") then Printf.printf "Number of init. edges : %d\nWorking:" (List.length edges);    *)
       let old_loc = !Goblint_tracing.current_loc in
