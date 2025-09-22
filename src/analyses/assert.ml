@@ -14,12 +14,6 @@ struct
   (* transfer functions *)
 
   let assert_fn man e check refine =
-
-    let check_assert e st =
-      match man.ask (Queries.EvalInt e) with
-      | v when Queries.ID.is_bot v -> `Bot
-      | v -> Option.map_default (fun b -> `Lifted b) `Top (Queries.ID.to_bool v)
-    in
     let expr = CilType.Exp.show e in
     let warn warn_fn ?annot msg = if check then
         if get_bool "dbg.regression" then ( (* This only prints unexpected results (with the difference) as indicated by the comment behind the assert (same as used by the regression test script). *)
@@ -38,7 +32,7 @@ struct
           warn_fn msg
     in
     (* TODO: use format instead of %s for the following messages *)
-    match check_assert e man.local with
+    match Queries.eval_bool (Analyses.ask_of_man man) e with
     | `Lifted false ->
       warn (M.error ~category:Assert "%s") ~annot:"FAIL" ("Assertion \"" ^ expr ^ "\" will fail.");
       if refine then raise Analyses.Deadcode else man.local

@@ -84,7 +84,17 @@ struct
   let overflow_range = R.of_interval range_ikind (-999L, 999L) (* Since there is no top ikind we use a range that includes both IInt128 [-127,127] and IUInt128 [0,128]. Only needed for intermediate range computation on longs. Correct range is set by cast. *)
   let top_overflow () = `Excluded (S.empty (), overflow_range)
   let bot () = `Bot
-  let top_of ik = `Excluded (S.empty (), size ik)
+  let top_of ?bitfield ik =
+    match bitfield with
+    | Some b when b <= Z.numbits (Size.range ik |> snd) ->
+      let range =
+        if Cil.isSigned ik then
+          R.of_interval range_ikind (Int64.of_int @@ -(b - 1), Int64.of_int b)
+        else
+          R.of_interval range_ikind (Int64.zero, Int64.of_int b)
+      in
+      `Excluded (S.empty (), range)
+    | _ -> `Excluded (S.empty (), size ik)
   let bot_of ik = bot ()
 
   let show x =
@@ -447,20 +457,49 @@ struct
 
   let ge ik x y = le ik y x
 
-  let lognot = lift1 Z.lognot
+  let lognot ik x = norm ik @@ match x with
+    | `Excluded (s, r) ->
+      let s' = S.map Z.lognot s in
+      let r' = match R.minimal r, R.maximal r with
+        | Some min, Some max when Int64.compare (Int64.neg max) Int64.zero <= 0 && Int64.compare (Int64.neg min) Int64.zero > 0 ->
+          R.of_interval range_ikind (Int64.neg max, Int64.neg min)
+        | _, _ -> apply_range Z.lognot r
+      in
+      `Excluded (s', r')
+    | `Definite x -> `Definite (Z.lognot x)
+    | `Bot -> `Bot
 
   let logand ik x y = norm ik (match x,y with
-      (* We don't bother with exclusion sets: *)
-      | `Excluded _, `Definite i ->
-        (* Except in two special cases *)
+      | `Excluded (_, r), `Definite i
+      | `Definite i, `Excluded (_, r) ->
         if Z.equal i Z.zero then
           `Definite Z.zero
         else if Z.equal i Z.one then
           of_interval IBool (Z.zero, Z.one)
-        else
-          top_of ik
-      | `Definite _, `Excluded _
-      | `Excluded _, `Excluded _ -> top_of ik
+        else (
+          match R.minimal r, R.maximal r with
+          | None, _
+          | _, None -> top_of ik
+          | Some r1, Some r2 ->
+            match Z.compare i Z.zero >= 0, Int64.compare r1 Int64.zero >= 0 with
+            | true, true -> `Excluded (S.empty (), R.of_interval range_ikind (Int64.zero, Int64.min r2 (Int64.of_int @@ Z.numbits i)))
+            | true, _ -> `Excluded (S.empty (), R.of_interval range_ikind (Int64.zero, Int64.of_int @@ Z.numbits i))
+            | _, true -> `Excluded (S.empty (), R.of_interval range_ikind (Int64.zero, r2))
+            | _, _ ->
+              let b = Int64.max (Int64.of_int @@ Z.numbits i) (Int64.max (Int64.abs r1) (Int64.abs r2)) in
+              `Excluded (S.empty (), R.of_interval range_ikind (Int64.neg b, b))
+        )
+      | `Excluded (_, p), `Excluded (_, r) ->
+        begin match R.minimal p, R.maximal p, R.minimal r, R.maximal r with
+          | Some p1, Some p2, Some r1, Some r2 ->
+            begin match Int64.compare p1 Int64.zero >= 0, Int64.compare r1 Int64.zero >= 0 with
+              | true, true -> `Excluded (S.empty (), R.of_interval range_ikind (Int64.zero, Int64.min p2 r2))
+              | true, _ -> `Excluded (S.empty (), R.of_interval range_ikind (Int64.zero, p2))
+              | _, true -> `Excluded (S.empty (), R.of_interval range_ikind (Int64.zero, r2))
+              | _, _ -> `Excluded (S.empty (), R.join p r)
+            end
+          | _ -> top_of ik
+        end
       (* The good case: *)
       | `Definite x, `Definite y ->
         (try `Definite (Z.logand x y) with | Division_by_zero -> top_of ik)
@@ -469,9 +508,58 @@ struct
         (* If only one of them is bottom, we raise an exception that eval_rv will catch *)
         raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y))))
 
+  let logor ik x y = norm ik (match x,y with
+      | `Excluded (_, r), `Definite i
+      | `Definite i, `Excluded (_, r) ->
+        if Z.compare i Z.zero >= 0 then
+          `Excluded (S.empty (), R.join r (R.of_interval range_ikind (Int64.zero, Int64.of_int @@ Z.numbits i)))
+        else (
+          match R.minimal r, R.maximal r with
+          | None, _
+          | _, None -> top_of ik
+          | Some r1, Some r2 ->
+            let b = Int64.max (Int64.of_int @@ Z.numbits i) (Int64.max (Int64.abs r1) (Int64.abs r2)) in
+            `Excluded (S.empty (), R.of_interval range_ikind (Int64.neg b, b))
+        )
+      | `Excluded (_, r1), `Excluded (_, r2) -> `Excluded (S.empty (), R.join r1 r2)
+      | `Definite x, `Definite y ->
+        (try `Definite (Z.logor x y) with | Division_by_zero -> top_of ik)
+      | `Bot, `Bot -> `Bot
+      | _ ->
+        (* If only one of them is bottom, we raise an exception that eval_rv will catch *)
+        raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y))))
 
-  let logor  = lift2 Z.logor
-  let logxor = lift2 Z.logxor
+  let logxor ik x y = norm ik (match x,y with
+      | `Definite i, `Excluded (_, r)
+      | `Excluded (_, r), `Definite i ->
+        begin match R.minimal r, R.maximal r with
+          | None, _
+          | _, None -> top_of ik
+          | Some r1, Some r2 ->
+            let b = Int64.max (Int64.of_int @@ Z.numbits i) (Int64.max (Int64.abs r1) (Int64.abs r2)) in
+            if Int64.compare r1 Int64.zero >= 0 && Z.compare i Z.zero >= 0 then
+              `Excluded (S.empty (), R.of_interval range_ikind (Int64.zero, b))
+            else
+              `Excluded (S.empty (), R.of_interval range_ikind (Int64.neg b, b))
+        end
+      | `Excluded (_, p), `Excluded (_, r) ->
+        begin match R.minimal p, R.maximal p, R.minimal r, R.maximal r with
+          | Some p1, Some p2, Some r1, Some r2 ->
+            if Int64.compare p1 Int64.zero >= 0 && Int64.compare r1 Int64.zero >= 0 then
+              `Excluded (S.empty (), R.of_interval range_ikind (Int64.zero, Int64.max p2 r2))
+            else (
+              let b = List.fold_left Int64.max Int64.zero (List.map Int64.abs [p1; p2; r1; r2]) in
+              `Excluded (S.empty (), R.of_interval range_ikind (Int64.neg b, b))
+            )
+          | _, _, _, _ -> top_of ik
+        end
+      (* The good case: *)
+      | `Definite x, `Definite y ->
+        (try `Definite (Z.logxor x y) with | Division_by_zero -> top_of ik)
+      | `Bot, `Bot -> `Bot
+      | _ ->
+        (* If only one of them is bottom, we raise an exception that eval_rv will catch *)
+        raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y))))
 
   let shift (shift_op: int_t -> int -> int_t) (ik: Cil.ikind) (x: t) (y: t) =
     (* BigInt only accepts int as second argument for shifts; perform conversion here *)

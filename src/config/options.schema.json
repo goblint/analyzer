@@ -171,6 +171,20 @@
       "type": "string",
       "default": ".goblint"
     },
+    "std": {
+      "title": "std",
+      "type": "string",
+      "description": "Specify the c standard used for preprocessing and parsing.",
+      "default": "gnu11",
+      "enum": [
+        "c89", "c90",
+        "gnu89", "gnu90",
+        "c99", "c9x",
+        "gnu99", "gnu9x",
+        "c11", "c1x",
+        "gnu11", "gnu1x"
+      ]
+    },
     "pre": {
       "title": "Preprocessing",
       "description": "Preprocessing options",
@@ -275,13 +289,6 @@
             }
           },
           "additionalProperties": false
-        },
-        "cstd": {
-          "title": "cil.cstd",
-          "type": "string",
-          "description": "Specify the c standard used for parsing.",
-          "default": "c99",
-          "enum": ["c90", "c99", "c11"]
         },
         "gnu89inline": {
           "title": "cil.gnu89inline",

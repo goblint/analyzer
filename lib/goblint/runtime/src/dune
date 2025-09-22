@@ -2,4 +2,5 @@
  (archive_name goblint)
  (language c)
  (names goblint)
+ (flags :standard -std=c11) ; workaround for https://github.com/goblint/analyzer/issues/1779
  (include_dirs ../include))

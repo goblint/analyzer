@@ -101,9 +101,9 @@ struct
     not (VD.is_immediate_type x.vtype) &&
     ask.f (Q.MustBeProtectedBy {mutex=m; global=x; kind; protection})
 
-  let protected_vars (ask: Q.ask): varinfo list =
+  let protected_vars (ask: Q.ask) ~(kind): varinfo list =
     LockDomain.MustLockset.fold (fun ml acc ->
-        Q.VS.join (ask.f (Q.MustProtectedVars {mutex = ml; kind = Write})) acc
+        Q.VS.join (ask.f (Q.MustProtectedVars {mutex = ml; kind})) acc
       ) (ask.f Q.MustLockset) (Q.VS.empty ())
     |> Q.VS.elements
 end
