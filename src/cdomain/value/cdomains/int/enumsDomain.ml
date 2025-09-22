@@ -244,7 +244,7 @@ module Enums : S with type int_t = Z.t = struct
       | Inc x, Exc (s, (r1, r2))
       | Exc (s, (r1, r2)), Inc x ->
         let f i =
-          match Z.compare i Z.zero >= 0, Int.compare r1 0 >= 0 with
+          match Z.compare i Z.zero >= 0, r1 >= 0 with
           | true, true -> (0, Int.min r2 (Z.numbits i))
           | true, _ -> (0, Z.numbits i)
           | _, true -> (0, r2)
@@ -255,7 +255,7 @@ module Enums : S with type int_t = Z.t = struct
         let r' = BISet.reduce (fun i acc -> R.join (f i) acc) x in (* reduce is safe because arguments are not bot here *)
         Exc (BISet.empty (), r')
       | Exc (_, ((p1, p2) as p)), Exc (_, ((r1, r2) as r)) ->
-        begin match Int.compare p1 0 >= 0, Int.compare r1 0 >= 0 with
+        begin match p1 >= 0, r1 >= 0 with
           | true, true -> Exc (BISet.empty (), (0, Int.min p2 r2))
           | true, _ -> Exc (BISet.empty (), (0, p2))
           | _, true -> Exc (BISet.empty (), (0, r2))
@@ -292,7 +292,7 @@ module Enums : S with type int_t = Z.t = struct
       | Exc (_, (r1, r2)), Inc x ->
         let f i =
           let b = Int.max (Z.numbits i) (Int.max (Int.abs r1) (Int.abs r2)) in
-          if Int.compare r1 0 >= 0 && Z.compare i Z.zero >= 0 then
+          if r1 >= 0 && Z.compare i Z.zero >= 0 then
             (0, b)
           else
             (-b, b)
@@ -300,7 +300,7 @@ module Enums : S with type int_t = Z.t = struct
         let r' = BISet.reduce (fun i acc -> R.join (f i) acc) x in (* reduce is safe because arguments are not bot here *)
         Exc (BISet.empty (), r')
       | Exc (_, (p1, p2)), Exc (_, (r1, r2)) ->
-        if Int.compare p1 0 >= 0 && Int.compare r1 0 >= 0 then
+        if p1 >= 0 && r1 >= 0 then
           Exc (BISet.empty (), (0, Int.max p2 r2))
         else (
           let b = List.fold_left Int.max 0 (List.map Int.abs [p1; p2; r1; r2]) in

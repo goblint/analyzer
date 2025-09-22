@@ -466,7 +466,7 @@ struct
     | `Excluded (s, ((min, max) as r)) ->
       let s' = S.map Z.lognot s in
       let r' =
-        if Int.compare (-max) 0 <= 0 && Int.compare (-min) 0 > 0 then
+        if -max <= 0 && -min > 0 then
           (-max, -min)
         else
           apply_range Z.lognot r
@@ -483,7 +483,7 @@ struct
         else if Z.equal i Z.one then
           of_interval IBool (Z.zero, Z.one)
         else (
-          match Z.compare i Z.zero >= 0, Int.compare r1 0 >= 0 with
+          match Z.compare i Z.zero >= 0, r1 >= 0 with
           | true, true -> `Excluded (S.empty (), (0, Int.min r2 (Z.numbits i)))
           | true, _ -> `Excluded (S.empty (), (0, Z.numbits i))
           | _, true -> `Excluded (S.empty (), (0, r2))
@@ -492,7 +492,7 @@ struct
             `Excluded (S.empty (), (-b, b))
         )
       | `Excluded (_, ((p1, p2) as p)), `Excluded (_, ((r1, r2) as r)) ->
-        begin match Int.compare p1 0 >= 0, Int.compare r1 0 >= 0 with
+        begin match p1 >= 0, r1 >= 0 with
           | true, true -> `Excluded (S.empty (), (0, Int.min p2 r2))
           | true, _ -> `Excluded (S.empty (), (0, p2))
           | _, true -> `Excluded (S.empty (), (0, r2))
@@ -527,12 +527,12 @@ struct
       | `Definite i, `Excluded (_, (r1, r2))
       | `Excluded (_, (r1, r2)), `Definite i ->
         let b = Int.max (Z.numbits i) (Int.max (Int.abs r1) (Int.abs r2)) in
-        if Int.compare r1 0 >= 0 && Z.compare i Z.zero >= 0 then
+        if r1 >= 0 && Z.compare i Z.zero >= 0 then
           `Excluded (S.empty (), (0, b))
         else
           `Excluded (S.empty (), (-b, b))
       | `Excluded (_, (p1, p2)), `Excluded (_, (r1, r2)) ->
-        if Int.compare p1 0 >= 0 && Int.compare r1 0 >= 0 then
+        if p1 >= 0 && r1 >= 0 then
           `Excluded (S.empty (), (0, Int.max p2 r2))
         else (
           let b = List.fold_left Int.max 0 (List.map Int.abs [p1; p2; r1; r2]) in
