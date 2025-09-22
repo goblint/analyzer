@@ -119,12 +119,12 @@ module Enums : S with type int_t = Z.t = struct
 
   let of_int ikind x = cast_to ikind (Inc (BISet.singleton x))
 
-  let of_interval ?(suppress_ovwarn=false) ik (x, y) =
+  let of_interval ik (x, y) =
     if Z.compare x y = 0 then
       of_int ik x
     else
       let a, b = Size.min_range_sign_agnostic x, Size.min_range_sign_agnostic y in
-      let r = R.join (R.of_interval ~suppress_ovwarn range_ikind a) (R.of_interval ~suppress_ovwarn range_ikind b) in
+      let r = R.join (R.of_interval range_ikind a) (R.of_interval range_ikind b) in
       let ex = if Z.gt x Z.zero || Z.lt y Z.zero then BISet.singleton Z.zero else BISet.empty () in
       norm ik @@ (Exc (ex, r))
 
@@ -380,13 +380,13 @@ module Enums : S with type int_t = Z.t = struct
     | _ when Cil.isSigned ik -> (one_mask, one_mask)
     | _ -> (one_mask, ik_mask)
 
-  let starting ?(suppress_ovwarn=false) ikind x =
+  let starting ikind x =
     let _,u_ik = Size.range ikind in
-    of_interval ~suppress_ovwarn ikind (x, u_ik)
+    of_interval ikind (x, u_ik)
 
-  let ending ?(suppress_ovwarn=false) ikind x =
+  let ending ikind x =
     let l_ik,_ = Size.range ikind in
-    of_interval ~suppress_ovwarn ikind (l_ik, x)
+    of_interval ikind (l_ik, x)
 
   let c_lognot ik x =
     if is_bot x

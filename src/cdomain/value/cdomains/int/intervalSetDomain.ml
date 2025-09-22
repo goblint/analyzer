@@ -141,7 +141,7 @@ struct
     | ys when List.for_all ((=) `Neq) ys -> `Neq
     | _ -> `Top
 
-  let norm_interval ?(suppress_ovwarn=false) ?(cast=false) ik (x,y) : t*overflow_info =
+  let norm_interval ?(cast=false) ik (x,y) : t*overflow_info =
     if x >. y then
       ([],{underflow=false; overflow=false})
     else
@@ -173,10 +173,10 @@ struct
         else
           [(x,y)]
       in
-      if suppress_ovwarn then (v, {underflow=false; overflow=false}) else (v, {underflow; overflow})
+      (v, {underflow; overflow})
 
-  let norm_intvs ?(suppress_ovwarn=false) ?(cast=false) (ik:ikind) (xs: t) : t*overflow_info =
-    let res = List.map (norm_interval ~suppress_ovwarn ~cast ik) xs in
+  let norm_intvs ?(cast=false) (ik:ikind) (xs: t) : t*overflow_info =
+    let res = List.map (norm_interval ~cast ik) xs in
     let intvs = List.concat_map fst res in
     let underflow = List.exists (fun (_,{underflow; _}) -> underflow) res in
     let overflow = List.exists (fun (_,{overflow; _}) -> overflow) res in
@@ -249,7 +249,7 @@ struct
 
   let of_bool _ = function true -> one | false -> zero
 
-  let of_interval ?(suppress_ovwarn=false) ik (x,y) =  norm_interval  ~suppress_ovwarn ~cast:false ik (x,y)
+  let of_interval ik (x,y) =  norm_interval ~cast:false ik (x,y)
 
   let of_bitfield ik x =
     match Interval.of_bitfield ik x with
@@ -484,7 +484,7 @@ struct
     in
     binop x y interval_rem
 
-  let cast_to ?(suppress_ovwarn=false) ?torg ?no_ov ik x = norm_intvs ~cast:true ik x
+  let cast_to ?torg ?no_ov ik x = norm_intvs ~cast:true ik x
 
   (*
       narrows down the extremeties of xs if they are equal to boundary values of the ikind with (possibly) narrower values from ys
@@ -572,9 +572,9 @@ struct
     in
     interval_sets_to_partitions ik xs ys |> merge_list ik |> widen_left |> widen_right |> List.map snd
 
-  let starting ?(suppress_ovwarn=false) ik n = norm_interval ik ~suppress_ovwarn (n, snd (range ik))
+  let starting ik n = norm_interval ik (n, snd (range ik))
 
-  let ending ?(suppress_ovwarn=false) ik n = norm_interval ik ~suppress_ovwarn (fst (range ik), n)
+  let ending ik n = norm_interval ik (fst (range ik), n)
 
   let invariant_ikind e ik xs =
     List.map (fun x -> Interval.invariant_ikind e ik (Some x)) xs |>
@@ -620,7 +620,7 @@ struct
   let excl_range_to_intervalset (ik: ikind) ((min, max): int_t * int_t) (excl: int_t): t =
     let intv1 = (min, excl -. Ints_t.one) in
     let intv2 = (excl +. Ints_t.one, max) in
-    norm_intvs ik ~suppress_ovwarn:true [intv1 ; intv2] |> fst
+    norm_intvs ik [intv1 ; intv2] |> fst
 
   let of_excl_list ik (excls: int_t list) =
     let excl_list = List.map (excl_range_to_intervalset ik (range ik)) excls in

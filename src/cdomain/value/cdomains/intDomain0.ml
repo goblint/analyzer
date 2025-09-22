@@ -110,7 +110,7 @@ sig
 end
 
 
-module IntDomLifter (I : S) =
+module IntDomLifter (I : S2) =
 struct
   open Cil
   type int_t = I.int_t
@@ -477,7 +477,7 @@ struct
       ) (Invariant.top ()) ns
 end
 
-module SOverflowUnlifter (D : SOverflow) : S with type int_t = D.int_t and type t = D.t = struct
+module SOverflowUnlifter (D : SOverflow) : S2 with type int_t = D.int_t and type t = D.t = struct
   include D
 
   let add ?no_ov ik x y = fst @@ D.add ?no_ov ik x y
@@ -490,15 +490,15 @@ module SOverflowUnlifter (D : SOverflow) : S with type int_t = D.int_t and type 
 
   let neg ?no_ov ik x = fst @@ D.neg ?no_ov ik x
 
-  let cast_to ?suppress_ovwarn ?torg ?no_ov ik x = fst @@ D.cast_to ?suppress_ovwarn ?torg ?no_ov ik x
+  let cast_to ?suppress_ovwarn ?torg ?no_ov ik x = fst @@ D.cast_to ?torg ?no_ov ik x
 
   let of_int ik x = fst @@ D.of_int ik x
 
-  let of_interval ?suppress_ovwarn ik x = fst @@ D.of_interval ?suppress_ovwarn ik x
+  let of_interval ?suppress_ovwarn ik x = fst @@ D.of_interval ik x
 
-  let starting ?suppress_ovwarn ik x = fst @@ D.starting ?suppress_ovwarn ik x
+  let starting ?suppress_ovwarn ik x = fst @@ D.starting ik x
 
-  let ending ?suppress_ovwarn ik x = fst @@ D.ending ?suppress_ovwarn ik x
+  let ending ?suppress_ovwarn ik x = fst @@ D.ending ik x
 
   let shift_left ik x y = fst @@ D.shift_left ik x y
 
@@ -742,15 +742,15 @@ module SOverflowLifter (D : S) : SOverflow with type int_t = D.int_t and type t 
 
   let neg ?no_ov ik x = lift @@ D.neg ?no_ov ik x
 
-  let cast_to ?suppress_ovwarn ?torg ?no_ov ik x = lift @@ D.cast_to ?suppress_ovwarn ?torg ?no_ov ik x
+  let cast_to ?torg ?no_ov ik x = lift @@ D.cast_to ?torg ?no_ov ik x
 
   let of_int ik x = lift @@ D.of_int ik x
 
-  let of_interval ?suppress_ovwarn ik x = lift @@ D.of_interval ?suppress_ovwarn ik x
+  let of_interval ik x = lift @@ D.of_interval ik x
 
-  let starting ?suppress_ovwarn ik x = lift @@ D.starting ?suppress_ovwarn ik x
+  let starting ik x = lift @@ D.starting ik x
 
-  let ending ?suppress_ovwarn ik x = lift @@ D.ending ?suppress_ovwarn ik x
+  let ending ik x = lift @@ D.ending ik x
 
   let shift_left ik x y = lift @@ D.shift_left ik x y
 
