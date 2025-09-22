@@ -463,44 +463,40 @@ struct
   let ge ik x y = le ik y x
 
   let lognot ik x = norm ik @@ match x with
-    | `Excluded (s, r) ->
+    | `Excluded (s, ((min, max) as r)) ->
       let s' = S.map Z.lognot s in
-      let r' = match R.minimal r, R.maximal r with (* TODO: remove match *)
-        | min, max when Int.compare (-max) 0 <= 0 && Int.compare (-min) 0 > 0 ->
+      let r' =
+        if Int.compare (-max) 0 <= 0 && Int.compare (-min) 0 > 0 then
           (-max, -min)
-        | _, _ -> apply_range Z.lognot r
+        else
+          apply_range Z.lognot r
       in
       `Excluded (s', r')
     | `Definite x -> `Definite (Z.lognot x)
     | `Bot -> `Bot
 
   let logand ik x y = norm ik (match x,y with
-      | `Excluded (_, r), `Definite i
-      | `Definite i, `Excluded (_, r) ->
+      | `Excluded (_, (r1, r2)), `Definite i
+      | `Definite i, `Excluded (_, (r1, r2)) ->
         if Z.equal i Z.zero then
           `Definite Z.zero
         else if Z.equal i Z.one then
           of_interval IBool (Z.zero, Z.one)
         else (
-          match R.minimal r, R.maximal r with (* TODO: remove match *)
-          | r1, r2 ->
-            match Z.compare i Z.zero >= 0, Int.compare r1 0 >= 0 with
-            | true, true -> `Excluded (S.empty (), (0, Int.min r2 (Z.numbits i)))
-            | true, _ -> `Excluded (S.empty (), (0, Z.numbits i))
-            | _, true -> `Excluded (S.empty (), (0, r2))
-            | _, _ ->
-              let b = Int.max (Z.numbits i) (Int.max (Int.abs r1) (Int.abs r2)) in
-              `Excluded (S.empty (), (-b, b))
+          match Z.compare i Z.zero >= 0, Int.compare r1 0 >= 0 with
+          | true, true -> `Excluded (S.empty (), (0, Int.min r2 (Z.numbits i)))
+          | true, _ -> `Excluded (S.empty (), (0, Z.numbits i))
+          | _, true -> `Excluded (S.empty (), (0, r2))
+          | _, _ ->
+            let b = Int.max (Z.numbits i) (Int.max (Int.abs r1) (Int.abs r2)) in
+            `Excluded (S.empty (), (-b, b))
         )
-      | `Excluded (_, p), `Excluded (_, r) ->
-        begin match R.minimal p, R.maximal p, R.minimal r, R.maximal r with (* TODO: remove match *)
-          | p1, p2, r1, r2 ->
-            begin match Int.compare p1 0 >= 0, Int.compare r1 0 >= 0 with
-              | true, true -> `Excluded (S.empty (), (0, Int.min p2 r2))
-              | true, _ -> `Excluded (S.empty (), (0, p2))
-              | _, true -> `Excluded (S.empty (), (0, r2))
-              | _, _ -> `Excluded (S.empty (), R.join p r)
-            end
+      | `Excluded (_, ((p1, p2) as p)), `Excluded (_, ((r1, r2) as r)) ->
+        begin match Int.compare p1 0 >= 0, Int.compare r1 0 >= 0 with
+          | true, true -> `Excluded (S.empty (), (0, Int.min p2 r2))
+          | true, _ -> `Excluded (S.empty (), (0, p2))
+          | _, true -> `Excluded (S.empty (), (0, r2))
+          | _, _ -> `Excluded (S.empty (), R.join p r)
         end
       (* The good case: *)
       | `Definite x, `Definite y ->
@@ -511,15 +507,13 @@ struct
         raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y))))
 
   let logor ik x y = norm ik (match x,y with
-      | `Excluded (_, r), `Definite i
-      | `Definite i, `Excluded (_, r) ->
+      | `Excluded (_, ((r1, r2) as r)), `Definite i
+      | `Definite i, `Excluded (_, ((r1, r2) as r)) ->
         if Z.compare i Z.zero >= 0 then
           `Excluded (S.empty (), R.join r (0, Z.numbits i))
         else (
-          match R.minimal r, R.maximal r with (* TODO: remove match *)
-          | r1, r2 ->
-            let b = Int.max (Z.numbits i) (Int.max (Int.abs r1) (Int.abs r2)) in
-            `Excluded (S.empty (), (-b, b))
+          let b = Int.max (Z.numbits i) (Int.max (Int.abs r1) (Int.abs r2)) in
+          `Excluded (S.empty (), (-b, b))
         )
       | `Excluded (_, r1), `Excluded (_, r2) -> `Excluded (S.empty (), R.join r1 r2)
       | `Definite x, `Definite y ->
@@ -530,26 +524,20 @@ struct
         raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y))))
 
   let logxor ik x y = norm ik (match x,y with
-      | `Definite i, `Excluded (_, r)
-      | `Excluded (_, r), `Definite i ->
-        begin match R.minimal r, R.maximal r with (* TODO: remove match *)
-          | r1, r2 ->
-            let b = Int.max (Z.numbits i) (Int.max (Int.abs r1) (Int.abs r2)) in
-            if Int.compare r1 0 >= 0 && Z.compare i Z.zero >= 0 then
-              `Excluded (S.empty (), (0, b))
-            else
-              `Excluded (S.empty (), (-b, b))
-        end
-      | `Excluded (_, p), `Excluded (_, r) ->
-        begin match R.minimal p, R.maximal p, R.minimal r, R.maximal r with (* TODO: remove match *)
-          | p1, p2, r1, r2 ->
-            if Int.compare p1 0 >= 0 && Int.compare r1 0 >= 0 then
-              `Excluded (S.empty (), (0, Int.max p2 r2))
-            else (
-              let b = List.fold_left Int.max 0 (List.map Int.abs [p1; p2; r1; r2]) in
-              `Excluded (S.empty (), (-b, b))
-            )
-        end
+      | `Definite i, `Excluded (_, (r1, r2))
+      | `Excluded (_, (r1, r2)), `Definite i ->
+        let b = Int.max (Z.numbits i) (Int.max (Int.abs r1) (Int.abs r2)) in
+        if Int.compare r1 0 >= 0 && Z.compare i Z.zero >= 0 then
+          `Excluded (S.empty (), (0, b))
+        else
+          `Excluded (S.empty (), (-b, b))
+      | `Excluded (_, (p1, p2)), `Excluded (_, (r1, r2)) ->
+        if Int.compare p1 0 >= 0 && Int.compare r1 0 >= 0 then
+          `Excluded (S.empty (), (0, Int.max p2 r2))
+        else (
+          let b = List.fold_left Int.max 0 (List.map Int.abs [p1; p2; r1; r2]) in
+          `Excluded (S.empty (), (-b, b))
+        )
       (* The good case: *)
       | `Definite x, `Definite y ->
         (try `Definite (Z.logxor x y) with | Division_by_zero -> top_of ik)
