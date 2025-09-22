@@ -193,7 +193,7 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): Bitfield_SOverflow with type in
   (* bot = all bits are invalid *)
   let bot () = (BArith.zero_mask, BArith.zero_mask)
 
-  let top_of ik =
+  let top_of ?bitfield ik = (* TODO: use bitfield *)
     if GoblintCil.isSigned ik then top ()
     else (BArith.one_mask, Ints_t.of_bigint (snd (Size.range ik)))
 
@@ -280,6 +280,25 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): Bitfield_SOverflow with type in
     in
     let overflow_info = {underflow; overflow} in
     (norm ~ov:(underflow || overflow) ik (z,o), overflow_info)
+
+  let cast_to ?torg ?(no_ov=false) ik (z,o) =
+    if ik = GoblintCil.IBool then (
+      let may_zero =
+        if Ints_t.equal z BArith.one_mask then (* zero bit may be in every position (one_mask) *)
+          BArith.zero
+        else
+          bot () (* must be non-zero, so may not be zero *)
+      in
+      let may_one =
+        if Ints_t.equal o BArith.zero_mask then (* one bit may be in no position (zero_mask) *)
+          bot () (* must be zero, so may not be one *)
+        else
+          BArith.one
+      in
+      (BArith.join may_zero may_one, {underflow=false; overflow=false})
+    )
+    else
+      cast_to ?torg ~no_ov ik (z,o)
 
   let join ik b1 b2 = norm ik @@ (BArith.join b1 b2)
 

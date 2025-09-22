@@ -561,6 +561,12 @@ let may_be_equal = eval_int_binop (module MayBool) Eq
 (** Backwards-compatibility for former [MayBeLess] query. *)
 let may_be_less = eval_int_binop (module MayBool) Lt
 
+let eval_bool (ask: ask) e: BoolDomain.FlatBool.t =
+  let e' = CastE (TInt (IBool, []), e) in
+  match ask.f (EvalInt e') with
+  | v when ID.is_bot v || ID.is_bot_ikind v -> `Bot
+  | v -> BatOption.map_default (fun b -> `Lifted b) `Top (ID.to_bool v)
+
 
 module Set = BatSet.Make (Any)
 module Hashtbl = BatHashtbl.Make (Any)

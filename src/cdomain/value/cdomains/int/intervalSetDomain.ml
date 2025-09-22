@@ -31,7 +31,19 @@ struct
 
   let range ik = BatTuple.Tuple2.mapn Ints_t.of_bigint (Size.range ik)
 
-  let top_of ik = [range ik]
+  let top_of ?bitfield ik =
+    let top_interval =
+      match bitfield with
+      | None -> range ik
+      | Some b -> (* TODO: why no bound check like in IntervalDomain? *)
+        let signed_lower_bound = Ints_t.neg @@ Ints_t.shift_left Ints_t.one (b - 1) in
+        let unsigned_upper_bound = Ints_t.sub (Ints_t.shift_left Ints_t.one b) Ints_t.one in
+        if GoblintCil.isSigned ik then
+          (signed_lower_bound, unsigned_upper_bound)
+        else
+          (Ints_t.zero, unsigned_upper_bound)
+    in
+    [top_interval]
 
   let bot () = []
 
@@ -173,7 +185,12 @@ struct
   let binary_op_with_norm op (ik:ikind) (x: t) (y: t) : t*overflow_info = match x, y with
     | [], _ -> ([],{overflow=false; underflow=false})
     | _, [] -> ([],{overflow=false; underflow=false})
-    | _, _ -> norm_intvs ik @@ List.concat_map (fun (x,y) -> [op x y]) (BatList.cartesian_product x y)
+    | _, _ -> norm_intvs ik @@ List.map (fun (x,y) -> op x y) (BatList.cartesian_product x y)
+
+  let binary_op_concat_with_norm op (ik:ikind) (x: t) (y: t) : t*overflow_info = match x, y with
+    | [], _ -> ([],{overflow=false; underflow=false})
+    | _, [] -> ([],{overflow=false; underflow=false})
+    | _, _ -> norm_intvs ik @@ List.concat_map (fun (x,y) -> op x y) (BatList.cartesian_product x y)
 
   let binary_op_with_ovc (x: t) (y: t) op : t*overflow_info = match x, y with
     | [], _ -> ([],{overflow=false; underflow=false})
@@ -187,7 +204,7 @@ struct
 
   let unary_op_with_norm op (ik:ikind) (x: t) = match x with
     | [] -> ([],{overflow=false; underflow=false})
-    | _ -> norm_intvs ik @@ List.concat_map (fun x -> [op x]) x
+    | _ -> norm_intvs ik @@ List.map op x
 
   let rec leq (xs: t) (ys: t) =
     let leq_interval (al, au) (bl, bu) = al >=. bl && au <=. bu in
@@ -307,23 +324,100 @@ struct
     | Some x, Some y -> (try of_int ik (f x y) with Division_by_zero | Invalid_argument _ -> (top_of ik,{overflow=false; underflow=false}))
     | _, _ -> (top_of ik,{overflow=false; underflow=false})
 
-  let logand ik x y =
-    let interval_logand = bit Ints_t.logand ik in
-    binop x y interval_logand
+  let min_val_bit_constrained n =
+    if Ints_t.equal n Ints_t.zero then
+      Ints_t.neg Ints_t.one
+    else
+      Ints_t.neg @@ Ints_t.shift_left Ints_t.one (Z.numbits (Z.pred (Z.abs @@ Ints_t.to_bigint n)))
 
-  let logor ik x y =
-    let interval_logor = bit Ints_t.logor ik in
-    binop x y interval_logor
+  let max_val_bit_constrained n =
+    let x =
+      if Ints_t.compare n Ints_t.zero < 0 then
+        Ints_t.sub (Ints_t.neg n) Ints_t.one
+      else
+        n
+    in
+    Ints_t.sub (Ints_t.shift_left Ints_t.one (Z.numbits @@ Z.abs @@ Ints_t.to_bigint x)) Ints_t.one
 
-  let logxor ik x y =
-    let interval_logxor = bit Ints_t.logxor ik in
-    binop x y interval_logxor
+  (* TODO: deduplicate with IntervalDomain? *)
+  let interval_logand ik (i1, i2) =
+    match bit Ints_t.logand ik (i1, i2) with
+    | result when not (is_top_of ik result) -> result
+    | _ ->
+      let (x1, x2), (y1, y2) = i1, i2 in
+      let is_nonneg x = Ints_t.compare x Ints_t.zero >= 0 in
+      match is_nonneg x1, is_nonneg x2, is_nonneg y1, is_nonneg y2 with
+      | true, _, true, _ ->
+        of_interval ik (Ints_t.zero, Ints_t.min x2 y2) |> fst
+      | _, false, _, false ->
+        of_interval ik (min_val_bit_constrained @@ Ints_t.min x1 y1, Ints_t.zero) |> fst
+      | true, _, _, _ -> of_interval ik (Ints_t.zero, x2) |> fst
+      | _, _, true, _ -> of_interval ik (Ints_t.zero, y2) |> fst
+      | _, _, _, _ ->
+        let lower = min_val_bit_constrained @@ Ints_t.min x1 y1 in
+        let upper = Ints_t.max x2 y2 in
+        of_interval ik (lower, upper) |> fst
+
+  let logand ik x y = binop x y (interval_logand ik)
+
+  (* TODO: deduplicate with IntervalDomain? *)
+  let interval_logor ik (i1, i2) =
+    match bit Ints_t.logor ik (i1, i2) with
+    | result when not (is_top_of ik result) -> result
+    | _ ->
+      let (x1, x2), (y1, y2) = i1, i2 in
+      let is_nonneg x = Ints_t.compare x Ints_t.zero >= 0 in
+      match is_nonneg x1, is_nonneg x2, is_nonneg y1, is_nonneg y2 with
+      | true, _, true, _ ->
+        of_interval ik (Ints_t.max x1 y1, max_val_bit_constrained (Ints_t.max x2 y2)) |> fst
+      | _, false, _, false -> of_interval ik (Ints_t.max x1 y1, Ints_t.zero) |> fst
+      | _, false, _, _ -> of_interval ik (x1, Ints_t.zero) |> fst
+      | _, _, _, false -> of_interval ik (y1, Ints_t.zero) |> fst
+      | _, _, _, _ ->
+        let lower = Ints_t.min x1 y1 in
+        let upper = max_val_bit_constrained @@ Ints_t.max x2 y2 in
+        of_interval ik (lower, upper) |> fst
+
+  let logor ik x y = binop x y (interval_logor ik)
+
+  (* TODO: deduplicate with IntervalDomain? *)
+  let interval_logxor ik (i1, i2) =
+    match bit Ints_t.logxor ik (i1, i2) with
+    | result when not (is_top_of ik result) && not (is_bot result) -> result (* TODO: why bot check here, but not elsewhere? *)
+    | _ ->
+      let (x1, x2), (y1, y2) = i1, i2 in
+      let is_nonneg x = Ints_t.compare x Ints_t.zero >= 0 in
+      match is_nonneg x1, is_nonneg x2, is_nonneg y1, is_nonneg y2 with
+      | true, _, true, _ ->
+        of_interval ik (Ints_t.zero, max_val_bit_constrained @@ Ints_t.max x2 y2) |> fst
+      | _, false, _, false ->
+        let upper = max_val_bit_constrained @@ Ints_t.min x1 y1 in
+        of_interval ik (Ints_t.zero, upper) |> fst
+      | true, _, _, false
+      | _, false, true, _ ->
+        let lower =
+          List.fold_left Ints_t.min Ints_t.zero
+            (List.map min_val_bit_constrained [x1; y1] @ List.map (fun i -> Ints_t.neg @@ Ints_t.add (max_val_bit_constrained i) Ints_t.one) [x2; y2])
+        in
+        of_interval ik (lower, Ints_t.zero) |> fst
+      | _, _, _, _ ->
+        let lower =
+          List.fold_left Ints_t.min Ints_t.zero
+            (List.map min_val_bit_constrained [x1; y1] @ List.map (fun i -> Ints_t.neg @@ Ints_t.add (max_val_bit_constrained i) Ints_t.one) [x2; y2])
+        in
+        let upper = List.fold_left Ints_t.max Ints_t.zero (List.map max_val_bit_constrained [x1; x2; y1; y2]) in
+        of_interval ik (lower, upper) |> fst
+
+  let logxor ik x y = binop x y (interval_logxor ik)
 
   let lognot ik x =
+    (* TODO: deduplicate with IntervalDomain? *)
     let interval_lognot i =
       match interval_to_int i with
       | Some x -> of_int ik (Ints_t.lognot x) |> fst
-      | _ -> top_of ik
+      | _ ->
+        let (x1, x2) = i in
+        of_interval ik (Ints_t.lognot x2, Ints_t.lognot x1) |> fst
     in
     unop x interval_lognot
 
@@ -331,9 +425,18 @@ struct
     let interval_shiftleft = bitcomp (fun x y -> Ints_t.shift_left x (Ints_t.to_int y)) ik in
     binary_op_with_ovc x y interval_shiftleft
 
-  let shift_right ik x y =
-    let interval_shiftright = bitcomp (fun x y -> Ints_t.shift_right x (Ints_t.to_int y)) ik in
-    binary_op_with_ovc x y interval_shiftright
+  (* TODO: deduplicate with IntervalDomain? *)
+  let interval_shiftright ik (i1, i2) =
+    match interval_to_int i1, interval_to_int i2 with
+    | Some x, Some y -> (try of_int ik (Ints_t.shift_right x (Ints_t.to_int y)) with Division_by_zero | Invalid_argument _ -> (top_of ik, {overflow=false; underflow=false}))
+    | _, _ ->
+      let is_nonneg x = Ints_t.compare x Ints_t.zero >= 0 in
+      match i1, i2 with
+      | (x1, x2), (y1,y2) when is_nonneg x1 && is_nonneg y1 ->
+        of_interval ik (Ints_t.zero, Ints_t.div x2 (Ints_t.shift_left Ints_t.one (Ints_t.to_int y1)))
+      | _, _ -> (top_of ik, {underflow=false; overflow=false})
+
+  let shift_right ik x y = binary_op_with_ovc x y (interval_shiftright ik)
 
   let c_lognot ik x =
     let log1 f ik i1 =
@@ -358,17 +461,15 @@ struct
   let neg ?no_ov = unary_op_with_norm IArith.neg
 
   let div ?no_ov ik x y =
-    let rec interval_div x (y1, y2) = begin
-      let top_of ik = top_of ik |> List.hd in
-      let is_zero v = v =. Ints_t.zero in
-      match y1, y2 with
-      | l, u when is_zero l && is_zero u -> top_of ik
-      | l, _ when is_zero l              -> interval_div x (Ints_t.one,y2)
-      | _, u when is_zero u              -> interval_div x (y1, Ints_t.(neg one))
-      | _ when leq (of_int ik (Ints_t.zero) |> fst) ([(y1,y2)]) -> top_of ik
-      | _ -> IArith.div x (y1, y2)
-    end
-    in binary_op_with_norm interval_div ik x y
+    let rec interval_div x y =
+      let (neg, pos) = IArith.div x y in
+      let r = List.filter_map Fun.id [neg; pos] in
+      if leq (of_int ik Ints_t.zero |> fst) [y] then
+        top_of ik @ r (* keep r because they might overflow, but top doesn't *)
+      else
+        r (* should always be singleton, because if there's a negative and a positive side, then it must've included zero, which is already handled by previous case *)
+    in
+    binary_op_concat_with_norm interval_div ik x y
 
   let rem ik x y =
     let interval_rem (x, y) =

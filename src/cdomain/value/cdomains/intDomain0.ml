@@ -129,7 +129,7 @@ struct
   let bot_of ikind = { v = I.bot_of ikind; ikind}
   let bot () = failwith "bot () is not implemented for IntDomLifter."
   let is_bot x = I.is_bot x.v
-  let top_of ikind = { v = I.top_of ikind; ikind}
+  let top_of ?bitfield ikind = { v = I.top_of ?bitfield ikind; ikind}
   let top () = failwith "top () is not implemented for IntDomLifter."
   let is_top _ = failwith "is_top is not implemented for IntDomLifter."
 
@@ -301,7 +301,7 @@ module Size = struct (* size in bits as int, range as int64 *)
 end
 
 
-module StdTop (B: sig type t val top_of: Cil.ikind -> t end) = struct
+module StdTop (B: sig type t val top_of: ?bitfield:int -> Cil.ikind -> t end) = struct
   open B
   (* these should be overwritten for better precision if possible: *)
   let to_excl_list    x = None
@@ -320,7 +320,7 @@ end
 module Std (B: sig
     type t
     val name: unit -> string
-    val top_of: Cil.ikind -> t
+    val top_of: ?bitfield:int -> Cil.ikind -> t
     val bot_of: Cil.ikind -> t
     val show: t -> string
     val equal: t -> t -> bool
@@ -366,16 +366,28 @@ module IntervalArith (Ints_t : IntOps.IntOps) = struct
     let y2p = Ints_t.shift_left Ints_t.one y2 in
     mul (x1, x2) (y1p, y2p)
 
-  let div (x1, x2) (y1, y2) =
-    let x1y1n = (Ints_t.div x1 y1) in
-    let x1y2n = (Ints_t.div x1 y2) in
-    let x2y1n = (Ints_t.div x2 y1) in
-    let x2y2n = (Ints_t.div x2 y2) in
-    let x1y1p = (Ints_t.div x1 y1) in
-    let x1y2p = (Ints_t.div x1 y2) in
-    let x2y1p = (Ints_t.div x2 y1) in
-    let x2y2p = (Ints_t.div x2 y2) in
-    (min4 x1y1n x1y2n x2y1n x2y2n, max4 x1y1p x1y2p x2y1p x2y2p)
+  (** Divide mathematical intervals.
+      Excludes 0 from denominator - must be handled as desired by caller.
+
+      @return negative and positive denominator cases separately, if they exist.
+
+      @see <https://mine.perso.lip6.fr/publi/article-mine-FTiPL17.pdf> Miné, A. Tutorial on Static Inference of Numeric Invariants by Abstract Interpretation. Figure 4.6. *)
+  let div (a, b) (c, d) =
+    let pos =
+      if Ints_t.(compare one d) <= 0 then
+        let c = Ints_t.(max one c) in
+        Some (Ints_t.(min (div a c) (div a d), max (div b c) (div b d)))
+      else
+        None
+    in
+    let neg =
+      if Ints_t.(compare c zero) < 0 then
+        let d = Ints_t.(min d (neg one)) in
+        Some (Ints_t.(min (div b c) (div b d), max (div a c) (div a d)))
+      else
+        None
+    in
+    (neg, pos)
 
   let add (x1, x2) (y1, y2) = (Ints_t.add x1 y1, Ints_t.add x2 y2)
   let sub (x1, x2) (y1, y2) = (Ints_t.sub x1 y2, Ints_t.sub x2 y1)
@@ -522,7 +534,7 @@ struct
   type int_t = Ints_t.t
   let top () = raise Unknown
   let bot () = raise Error
-  let top_of ik = top ()
+  let top_of ?bitfield ik = top ()
   let bot_of ik = bot ()
   let show (x: Ints_t.t) = Ints_t.to_string x
 
@@ -590,7 +602,7 @@ struct
       let bot_name = "Error int"
     end) (Base)
 
-  let top_of ik = top ()
+  let top_of ?bitfield ik = top ()
   let bot_of ik = bot ()
 
 
@@ -671,7 +683,7 @@ struct
       let bot_name = "MinInt"
     end) (Base)
   type int_t = Base.int_t
-  let top_of ik = top ()
+  let top_of ?bitfield ik = top ()
   let bot_of ik = bot ()
   include StdTop (struct type nonrec t = t let top_of = top_of end)
 

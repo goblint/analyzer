@@ -21,10 +21,21 @@ module Enums : S with type int_t = Z.t = struct
   let bot () = Inc (BISet.empty ())
   let bot_of ik = bot ()
   let top_bool = Inc (BISet.of_list [Z.zero; Z.one])
-  let top_of ik =
+
+  let top_of ?bitfield ik =
     match ik with
     | IBool -> top_bool
-    | _ -> Exc (BISet.empty (), size ik)
+    | _ ->
+      match bitfield with
+      | Some b when b <= Z.numbits (Size.range ik |> snd) ->
+        let range =
+          if Cil.isSigned ik then
+            (-(b - 1), b)
+          else
+            (0, b)
+        in
+        Exc (BISet.empty (), range)
+      | _ -> Exc (BISet.empty (), size ik)
 
   let range ik = Size.range ik
 
@@ -212,10 +223,106 @@ module Enums : S with type int_t = Z.t = struct
 
   let rem = lift2 Z.rem
 
-  let lognot = lift1 Z.lognot
-  let logand = lift2 Z.logand
-  let logor  = lift2 Z.logor
-  let logxor = lift2 Z.logxor
+  let apply_range f r = (* apply f to the min/max of the old range r to get a new range *)
+    let rf m = (size % Size.min_for % f) (m r) in
+    let r1, r2 = rf Exclusion.min_of_range, rf Exclusion.max_of_range in
+    R.join r1 r2
+
+  let lognot ikind v = norm ikind @@ match v with
+    | Inc x when BISet.is_empty x -> v
+    | Inc x when BISet.is_singleton x -> Inc (BISet.singleton (Z.lognot (BISet.choose x)))
+    | Inc x -> Inc (BISet.map Z.lognot x) (* TODO: don't operate on Inc? *)
+    | Exc (s, r) ->
+      let s' = BISet.map Z.lognot s in
+      let r' = match R.minimal r, R.maximal r with (* TODO: remove match? *)
+        | min, max -> (-max, -min) (* TODO: why missing conditions compared to DefExc lognot? *)
+        (* | _, _ -> apply_range Z.lognot r *)
+      in
+      Exc (s', r')
+
+  let logand ikind u v = handle_bot u v (fun () ->
+      norm ikind @@ match u, v with
+      | Inc x, Inc y when BISet.is_singleton x && BISet.is_singleton y ->
+        Inc (BISet.singleton (Z.logand (BISet.choose x) (BISet.choose y)))
+      | Inc x, Exc (s, r)
+      | Exc (s, r), Inc x ->
+        let f i =
+          match R.minimal r, R.maximal r with (* TODO: remove match *)
+          | r1, r2 ->
+            match Z.compare i Z.zero >= 0, Int.compare r1 0 >= 0 with
+            | true, true -> (0, Int.min r2 (Z.numbits i))
+            | true, _ -> (0, Z.numbits i)
+            | _, true -> (0, r2)
+            | _, _ ->
+              let b = Int.max (Z.numbits i) (Int.max (Int.abs r1) (Int.abs r2)) in
+              (-b, b)
+        in
+        let r' = BISet.reduce (fun i acc -> R.join (f i) acc) x in (* reduce is safe because arguments are not bot here *)
+        Exc (BISet.empty (), r')
+      | Exc (_, p), Exc (_, r) ->
+        begin match R.minimal p, R.maximal p, R.minimal r, R.maximal r with (* TODO: remove match *)
+          | p1, p2, r1, r2 ->
+            begin match Int.compare p1 0 >= 0, Int.compare r1 0 >= 0 with
+              | true, true -> Exc (BISet.empty (), (0, Int.min p2 r2))
+              | true, _ -> Exc (BISet.empty (), (0, p2))
+              | _, true -> Exc (BISet.empty (), (0, r2))
+              | _, _ -> Exc (BISet.empty (), R.join p r)
+            end
+        end
+      | _, _ -> top_of ikind
+    )
+
+  let logor ikind u v = handle_bot u v (fun () ->
+      norm ikind @@ match u, v with
+      | Inc x, Inc y when BISet.is_singleton x && BISet.is_singleton y ->
+        Inc (BISet.singleton (Z.logor (BISet.choose x) (BISet.choose y)))
+      | Inc x, Exc (_, r)
+      | Exc (_, r), Inc x ->
+        let f i =
+          if Z.compare i Z.zero >= 0 then
+            R.join r (0, Z.numbits i)
+          else (
+            match R.minimal r, R.maximal r with (* TODO: remove match *)
+            | r1, r2 ->
+              let b = Int.max (Z.numbits i) (Int.max (Int.abs r1) (Int.abs r2)) in
+              (-b, b)
+          )
+        in
+        let r' = BISet.reduce (fun i acc -> R.join (f i) acc) x in (* reduce is safe because arguments are not bot here *)
+        Exc (BISet.empty (), r')
+      | Exc (_, r1), Exc (_, r2) -> Exc (BISet.empty (), R.join r1 r2)
+      | _ -> top_of ikind
+    )
+
+  let logxor ikind u v = handle_bot u v (fun () ->
+      norm ikind @@ match u, v with
+      | Inc x, Inc y when BISet.is_singleton x && BISet.is_singleton y ->
+        Inc (BISet.singleton (Z.logxor (BISet.choose x) (BISet.choose y)))
+      | Inc x, Exc (_, r)
+      | Exc (_, r), Inc x ->
+        let f i =
+          match R.minimal r, R.maximal r with (* TODO: remove match *)
+          | r1, r2 ->
+            let b = Int.max (Z.numbits i) (Int.max (Int.abs r1) (Int.abs r2)) in
+            if Int.compare r1 0 >= 0 && Z.compare i Z.zero >= 0 then
+              (0, b)
+            else
+              (-b, b)
+        in
+        let r' = BISet.reduce (fun i acc -> R.join (f i) acc) x in (* reduce is safe because arguments are not bot here *)
+        Exc (BISet.empty (), r')
+      | Exc (_, p), Exc (_, r) ->
+        begin match R.minimal p, R.maximal p, R.minimal r, R.maximal r with (* TODO: remove match *)
+          | p1, p2, r1, r2 ->
+            if Int.compare p1 0 >= 0 && Int.compare r1 0 >= 0 then
+              Exc (BISet.empty (), (0, Int.max p2 r2))
+            else (
+              let b = List.fold_left Int.max 0 (List.map Int.abs [p1; p2; r1; r2]) in
+              Exc (BISet.empty (), (-b, b))
+            )
+        end
+      | _ -> top_of ikind
+    )
 
   let shift (shift_op: int_t -> int -> int_t) (ik: Cil.ikind) (x: t) (y: t) =
     handle_bot x y (fun () ->
