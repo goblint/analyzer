@@ -216,16 +216,6 @@ struct
       | Some x, Some y -> (try of_int ik (f ik x y) |> fst with Division_by_zero -> top_of ik)
       | _              -> top_of ik
 
-  let bitcomp f ik i1 i2 =
-    match is_bot i1, is_bot i2 with
-    | true, true -> (bot_of ik,{underflow=false; overflow=false})
-    | true, _
-    | _   , true -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show i1) (show i2)))
-    | _ ->
-      match to_int i1, to_int i2 with
-      | Some x, Some y -> (try of_int ik (f ik x y) with Division_by_zero | Invalid_argument _ -> (top_of ik,{underflow=false; overflow=false}))
-      | _              -> (top_of ik,{underflow=true; overflow=true})
-
   let min_val_bit_constrained n =
     if Ints_t.equal n Ints_t.zero then
       Ints_t.neg Ints_t.one
@@ -389,7 +379,7 @@ struct
         let range = if Ints_t.compare xl Ints_t.zero>= 0 then Some (Ints_t.zero, Ints_t.min xu b) else Some (Ints_t.max xl (Ints_t.neg b), Ints_t.min (Ints_t.max (pos xl) (pos xu)) b) in
         meet ik (bit (fun _ik -> Ints_t.rem) ik x y) range
 
-  let rec div ?no_ov ik x y =
+  let div ?no_ov ik x y =
     match x, y with
     | None, None -> (bot (),{underflow=false; overflow=false})
     | None, _ | _, None -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y)))

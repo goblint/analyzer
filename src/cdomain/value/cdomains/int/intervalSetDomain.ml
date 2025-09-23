@@ -461,7 +461,7 @@ struct
   let neg ?no_ov = unary_op_with_norm IArith.neg
 
   let div ?no_ov ik x y =
-    let rec interval_div x y =
+    let interval_div x y =
       let (neg, pos) = IArith.div x y in
       let r = List.filter_map Fun.id [neg; pos] in
       if leq (of_int ik Ints_t.zero |> fst) [y] then
