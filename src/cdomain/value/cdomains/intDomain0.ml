@@ -244,7 +244,7 @@ module Size = struct (* size in bits as int, range as int64 *)
   let bits ik = (* highest bits for neg/pos values *)
     let s = bit ik in
     if isSigned ik then s-1, s-1 else 0, s
-  let bits_i64 ik = BatTuple.Tuple2.mapn Int64.of_int (bits ik)
+  (* let bits_i64 ik = BatTuple.Tuple2.mapn Int64.of_int (bits ik) *)
   let range ik =
     let a,b = bits ik in
     let x = if isSigned ik then Z.neg (Z.shift_left Z.one a) (* -2^a *) else Z.zero in
@@ -275,16 +275,16 @@ module Size = struct (* size in bits as int, range as int64 *)
   (** @return Bit range always includes 0. *)
   let min_range_sign_agnostic x =
     let size ik =
-      let a,b = bits_i64 ik in
-      Int64.neg a,b
+      let a,b = bits ik in
+      -a,b
     in
     if sign x = `Signed then
       size (min_for x)
     else
       let a, b = size (min_for x) in
-      if b <= 64L then
-        let upper_bound_less = Int64.sub b 1L in
-        let max_one_less = Z.(pred @@ shift_left Z.one (Int64.to_int upper_bound_less)) in
+      if b <= 64 then
+        let upper_bound_less = b - 1 in
+        let max_one_less = Z.(pred @@ shift_left Z.one upper_bound_less) in
         if x <= max_one_less then
           a, upper_bound_less
         else
@@ -293,10 +293,10 @@ module Size = struct (* size in bits as int, range as int64 *)
         a, b
 
   (* From the number of bits used to represent a positive value, determines the maximal representable value *)
-  let max_from_bit_range pos_bits = Z.(pred @@ shift_left Z.one (to_int (Z.of_int64 pos_bits)))
+  let max_from_bit_range pos_bits = Z.(pred @@ shift_left Z.one (to_int (Z.of_int pos_bits)))
 
   (* From the number of bits used to represent a non-positive value, determines the minimal representable value *)
-  let min_from_bit_range neg_bits = Z.(if neg_bits = 0L then Z.zero else neg @@ shift_left Z.one (to_int (neg (Z.of_int64 neg_bits))))
+  let min_from_bit_range neg_bits = Z.(if neg_bits = 0 then Z.zero else neg @@ shift_left Z.one (to_int (neg (Z.of_int neg_bits))))
 
 end
 
@@ -346,6 +346,11 @@ end
 
 (* Textbook interval arithmetic, without any overflow handling etc. *)
 module IntervalArith (Ints_t : IntOps.IntOps) = struct
+  type t = Ints_t.t * Ints_t.t [@@deriving eq, ord, hash]
+
+  (* TODO: use this for Interval and IntervalSet *)
+  let show (x,y) = "["^Ints_t.to_string x^","^Ints_t.to_string y^"]"
+
   let min4 a b c d = Ints_t.min (Ints_t.min a b) (Ints_t.min c d)
   let max4 a b c d = Ints_t.max (Ints_t.max a b) (Ints_t.max c d)
 
@@ -392,6 +397,20 @@ module IntervalArith (Ints_t : IntOps.IntOps) = struct
   let one = (Ints_t.one, Ints_t.one)
   let zero = (Ints_t.zero, Ints_t.zero)
   let top_bool = (Ints_t.zero, Ints_t.one)
+
+  (* TODO: use these for Interval and IntervalSet *)
+  let maximal = snd
+  let minimal = fst
+
+  (* TODO: use these for Interval and IntervalSet *)
+  let leq (x1,x2) (y1,y2) = Ints_t.compare x1 y1 >= 0 && Ints_t.compare x2 y2 <= 0
+  let join (x1,x2) (y1,y2) = (Ints_t.min x1 y1, Ints_t.max x2 y2)
+  let meet (x1,x2) (y1,y2) =
+    let (r1, r2) as r = (Ints_t.max x1 y1, Ints_t.min x2 y2) in
+    if Ints_t.compare r1 r2 > 0 then
+      None
+    else
+      Some r
 
   let to_int (x1, x2) =
     if Ints_t.equal x1 x2 then Some x1 else None
