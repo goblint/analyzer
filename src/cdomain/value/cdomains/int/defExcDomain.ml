@@ -7,8 +7,8 @@ module BISet = struct
   include SetDomain.Make (IntOps.BigIntOps)
   let is_singleton s = cardinal s = 1
 
-  let reduce f s =
-    BatOption.get_exn (fold (fun x acc -> Option.map (f x) acc) s None) (Invalid_argument "BISet.reduce: empty set")
+  let map_reduce f g s =
+    s |> to_seq |> Seq.map f |> BatSeq.reduce g
 end
 
 (* The module [Exclusion] constains common functionality about handling of exclusion sets between [DefExc] and [Enums] *)
