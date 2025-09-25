@@ -2,6 +2,6 @@
 
 int main() {
   int r; // rand
-  int x = r & 1; // TODO NOCRASH
+  int x = r & 1; // NOCRASH
   return 0;
 }

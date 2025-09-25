@@ -252,7 +252,7 @@ module Enums : S with type int_t = Z.t = struct
             let b = Int.max (Z.numbits i) (Int.max (Int.abs r1) (Int.abs r2)) in
             (-b, b)
         in
-        let r' = BISet.reduce (fun i acc -> R.join (f i) acc) x in (* reduce is safe because arguments are not bot here *)
+        let r' = BISet.map_reduce f R.join x in (* reduce is safe because arguments are not bot here *)
         Exc (BISet.empty (), r')
       | Exc (_, ((p1, p2) as p)), Exc (_, ((r1, r2) as r)) ->
         begin match p1 >= 0, r1 >= 0 with
@@ -278,7 +278,7 @@ module Enums : S with type int_t = Z.t = struct
             (-b, b)
           )
         in
-        let r' = BISet.reduce (fun i acc -> R.join (f i) acc) x in (* reduce is safe because arguments are not bot here *)
+        let r' = BISet.map_reduce f R.join x in (* reduce is safe because arguments are not bot here *)
         Exc (BISet.empty (), r')
       | Exc (_, r1), Exc (_, r2) -> Exc (BISet.empty (), R.join r1 r2)
       | _ -> top_of ikind
@@ -297,7 +297,7 @@ module Enums : S with type int_t = Z.t = struct
           else
             (-b, b)
         in
-        let r' = BISet.reduce (fun i acc -> R.join (f i) acc) x in (* reduce is safe because arguments are not bot here *)
+        let r' = BISet.map_reduce f R.join x in (* reduce is safe because arguments are not bot here *)
         Exc (BISet.empty (), r')
       | Exc (_, (p1, p2)), Exc (_, (r1, r2)) ->
         if p1 >= 0 && r1 >= 0 then
