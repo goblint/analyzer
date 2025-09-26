@@ -4,7 +4,7 @@
     dead: 0
     total lines: 3
   [Info][Witness] witness generation summary:
-    location invariants: 6
+    location invariants: 3
     loop invariants: 0
     flow-insensitive invariants: 0
     total generation entries: 1
@@ -40,31 +40,4 @@ With 4 equal variables, there should be just 3 var_eq invariants, not 6.
           column: 3
           function: main
         value: a == d
-        format: c_expression
-    - invariant:
-        type: location_invariant
-        location:
-          file_name: 71-var_eq-invariants.c
-          line: 6
-          column: 3
-          function: main
-        value: b == c
-        format: c_expression
-    - invariant:
-        type: location_invariant
-        location:
-          file_name: 71-var_eq-invariants.c
-          line: 6
-          column: 3
-          function: main
-        value: b == d
-        format: c_expression
-    - invariant:
-        type: location_invariant
-        location:
-          file_name: 71-var_eq-invariants.c
-          line: 6
-          column: 3
-          function: main
-        value: c == d
         format: c_expression
