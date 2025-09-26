@@ -226,7 +226,7 @@ module T = struct
   let offset_to_index ?typ offset =
     let ptr_diff_ikind = Cilfacade.ptrdiff_ikind () in
     let offset_in_bytes = PreValueDomain.Offs.to_index ?typ offset in
-    let bytes_to_bits = IntDomain.of_const (Z.of_int 8, ptr_diff_ikind, None) in
+    let bytes_to_bits = IntDomain.IntDomTuple.of_int  ptr_diff_ikind (Z.of_int 8) in
     IntDomain.IntDomTuple.mul bytes_to_bits offset_in_bytes
 
   (** Convert a Cil offset to an integer offset. *)

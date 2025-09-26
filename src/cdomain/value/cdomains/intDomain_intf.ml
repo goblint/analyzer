@@ -279,6 +279,7 @@ module type S2 =
 sig
   include S
 
+  val of_int: ?suppress_ovwarn:bool -> Cil.ikind -> int_t -> t
   val starting : ?suppress_ovwarn:bool -> Cil.ikind -> int_t -> t
   val ending : ?suppress_ovwarn:bool -> Cil.ikind -> int_t -> t
   val of_interval: ?suppress_ovwarn:bool -> Cil.ikind -> int_t * int_t -> t
@@ -321,7 +322,7 @@ sig
   include Lattice.Top with type t := t
   include Arith with type t:=t
 
-  val of_int: Cil.ikind -> int_t -> t
+  val of_int: ?suppress_ovwarn:bool -> Cil.ikind -> int_t -> t
   (** Transform an integer literal to your internal domain representation with the specified ikind. *)
 
   val of_bool: Cil.ikind -> bool -> t
