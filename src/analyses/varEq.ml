@@ -404,6 +404,8 @@ struct
       add_eq ask lval exp st
     | BinOp (LAnd, e1, e2, _) ->
       assume ask e2 (assume ask e1 st)
+    | BinOp (LOr, e1, e2, _) ->
+      D.join (assume ask e1 st) (assume ask e2 st)
     | _ -> st
 
   (* Branch could be improved to set invariants like base tries to do. *)
