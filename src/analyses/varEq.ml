@@ -397,8 +397,21 @@ struct
   (* Probably ok as is. *)
   let body man f = man.local
 
+  let rec assume ask exp st =
+    match exp with
+    | BinOp (Eq, Lval lval, exp, t)
+    | BinOp (Eq, exp, Lval lval, t) ->
+      add_eq ask lval exp st
+    | BinOp (LAnd, e1, e2, _) ->
+      assume ask e2 (assume ask e1 st)
+    | _ -> st
+
   (* Branch could be improved to set invariants like base tries to do. *)
-  let branch man exp tv = man.local
+  let branch man exp tv =
+    if tv then
+      assume (Analyses.ask_of_man man) exp man.local
+    else
+      man.local
 
   (* Just remove things that go out of scope. *)
   let return man exp fundec  =
@@ -578,6 +591,8 @@ struct
       |> List.fold_left (fun st lv ->
           remove (Analyses.ask_of_man man) lv st
         ) man.local
+      |> assume (Analyses.ask_of_man man) exp
+      |> D.join man.local
     | Events.Escape vars ->
       if EscapeDomain.EscapedVars.is_top vars then
         D.top ()
