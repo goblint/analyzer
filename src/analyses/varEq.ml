@@ -399,9 +399,14 @@ struct
 
   let rec assume ask exp st =
     match exp with
-    | BinOp (Eq, Lval lval, exp, t)
-    | BinOp (Eq, exp, Lval lval, t) ->
-      add_eq ask lval exp st
+    | BinOp (Eq, e1, e2, t) ->
+      begin match stripCasts e1, stripCasts e2 with
+        | Lval lval, exp
+        | exp, Lval lval ->
+          add_eq ask lval exp st
+        | _, _ ->
+          st
+      end
     | BinOp (LAnd, e1, e2, _) ->
       assume ask e2 (assume ask e1 st)
     | BinOp (LOr, e1, e2, _) ->
