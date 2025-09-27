@@ -171,14 +171,27 @@ struct
                   | _ -> None
                 )
             in
+            let entry_lval_args =
+              Arg.next call_n
+              (* filter because infinite loops starting with function call
+                 will have another Neg(1) edge from the head *)
+              |> List.filter_map (fun (edge, to_n) ->
+                  match edge with
+                  | InlineEntry (lval, _, args) -> Some (lval, args)
+                  | _ -> None
+                )
+            in
             Arg.next n
             |> List.filter_map (fun (edge, to_n) ->
-                if BatList.mem_cmp Arg.Node.compare to_n call_next then (
-                  let to_n' = to_n :: call_stack in
-                  Some (edge, to_n')
-                )
-                else
-                  None
+                match edge with
+                | InlineReturn (lval, _, args) -> (* TODO: should also check fundec component equality? might be different for ambiguous calls via function pointer *)
+                  if BatList.mem_cmp Arg.Node.compare to_n call_next && BatList.mem_cmp [%ord: CilType.Lval.t option * CilType.Exp.t list] (lval, args) entry_lval_args then (
+                    let to_n' = to_n :: call_stack in
+                    Some (edge, to_n')
+                  )
+                  else
+                    None
+                | _ -> assert false
               )
         end
       | _ ->
