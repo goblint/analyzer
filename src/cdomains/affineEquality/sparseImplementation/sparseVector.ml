@@ -91,17 +91,19 @@ module SparseVector: SparseVectorFunctor =
     let to_sparse_list v =
       v.entries
 
-    let show v =
-      let rec sparse_list_str i l =
-        if i >= v.len then "]"
+    let pretty () v =
+      let open GoblintCil.Pretty in
+      let pretty_a () a = text (A.to_string a) in
+      let rec sparse_list_str i () l: doc =
+        if i >= v.len then nil
         else
           match l with
-          | [] -> (A.to_string A.zero) ^" "^ (sparse_list_str (i + 1) l)
+          | [] -> dprintf "%a %a" pretty_a A.zero (sparse_list_str (i + 1)) l
           | (idx, value) :: xs ->
-            if i = idx then (A.to_string value) ^" "^ sparse_list_str (i + 1) xs
-            else (A.to_string A.zero) ^" "^ sparse_list_str (i + 1) l
+            if i = idx then dprintf "%a %a" pretty_a value (sparse_list_str (i + 1)) xs
+            else dprintf "%a %a" pretty_a A.zero (sparse_list_str (i + 1)) l
       in
-      "["^(sparse_list_str 0 v.entries)^"\n"
+      dprintf "[%a]" (sparse_list_str 0) v.entries
 
     let length v =
       v.len
