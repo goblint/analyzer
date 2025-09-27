@@ -1,4 +1,4 @@
-// PARAM: --enable ana.int.interval --set witness.yaml.entry-types[*] loop_invariant --set ana.activated[+] unassume --set witness.yaml.unassume 26-mine-tutorial-ex4.6.yml
+// PARAM: --enable ana.int.interval --set ana.activated[+] unassume --set witness.yaml.unassume 26-mine-tutorial-ex4.6.yml
 #include <goblint.h>
 int main() {
   int x = 40;

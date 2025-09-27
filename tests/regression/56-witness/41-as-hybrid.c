@@ -1,4 +1,4 @@
-// PARAM: --enable ana.int.interval --set witness.yaml.entry-types[*] loop_invariant --set ana.activated[+] unassume --set witness.yaml.unassume 41-as-hybrid.yml
+// PARAM: --enable ana.int.interval --set ana.activated[+] unassume --set witness.yaml.unassume 41-as-hybrid.yml
 #include <goblint.h>
 int main() {
   int i = 0;
