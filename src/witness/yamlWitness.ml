@@ -642,6 +642,15 @@ struct
 
   let write () =
     Timing.wrap "yaml witness" write ()
+
+  let write ~svcomp_result =
+    if GobConfig.get_bool "witness.yaml.sv-comp-true-only" then (
+      match svcomp_result with
+      | Some (Ok Svcomp.Result.True) -> write ()
+      | _ -> ()
+    )
+    else
+      write ()
 end
 
 let init () =
