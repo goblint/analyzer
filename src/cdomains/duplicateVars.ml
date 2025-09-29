@@ -71,6 +71,8 @@ module VarType = struct
     | DuplicVar v ->
       duplic_var_prefix ^ v.vname ^ duplic_var_postfix
 
+  let pretty () v = Pretty.text (show v)
+
   let get_type v = match v with
     | AssignAux t
     | ReturnAux t -> t

@@ -83,7 +83,7 @@ module T = struct
       | SizeOfError (msg, _) ->
         raise (UnsupportedCilExpression msg)
 
-  let show_type exp =
+  let pretty_type () exp =
     try
       let typ = typeOf exp in
       let typ_abbreviation = match Cil.unrollType typ with
@@ -99,35 +99,38 @@ module T = struct
         | TBuiltin_va_list _ -> "?"
       in
       let bit_size = get_size_in_bits typ in
-      let bit_size = Z.to_string bit_size in
-      "[" ^ typ_abbreviation ^ bit_size ^ "]"
+      Pretty.dprintf "[%s%a]" typ_abbreviation GobZ.pretty bit_size
 
     with UnsupportedCilExpression _ ->
-      "[?]"
+      Pretty.text "[?]"
 
-  let rec show : t -> string = function
+  let rec pretty (): t -> Pretty.doc =
+    let open Pretty in
+    function
     | Addr v ->
-      "&" ^ Var.show v
+      dprintf "&%a" Var.pretty v
     | Aux (v,exp) ->
-      "~" ^ Var.show v ^ show_type exp
+      dprintf "~%a%a" Var.pretty v pretty_type exp
     | Deref (Addr v, z, exp) when Z.equal z Z.zero ->
-      Var.show v ^ show_type exp
+      dprintf "%a%a" Var.pretty v pretty_type exp
     | Deref (t, z, exp) when Z.equal z Z.zero ->
-      "*" ^ show t^ show_type exp
+      dprintf "*%a%a" pretty t pretty_type exp
     | Deref (t, z, exp) ->
-      "*(" ^ Z.to_string z ^ "+" ^ show t ^ ")"^ show_type exp
+      dprintf "*(%a+%a)%a" GobZ.pretty z pretty t pretty_type exp
 
-  let show_prop = function
+  let pretty_prop (): v_prop -> Pretty.doc =
+    let open Pretty in
+    function
     | Equal (t1,t2,r) when Z.equal r Z.zero ->
-      show t1 ^ " = " ^ show t2
+      dprintf "%a = %a" pretty t1 pretty t2
     | Equal (t1,t2,r) ->
-      show t1 ^ " = " ^ Z.to_string r ^ "+" ^ show t2
+      dprintf "%a = %a+%a" pretty t1 GobZ.pretty r pretty t2
     | Nequal (t1,t2,r) when Z.equal r Z.zero ->
-      show t1 ^ " != " ^ show t2
+      dprintf "%a != %a" pretty t1 pretty t2
     | Nequal (t1,t2,r) ->
-      show t1 ^ " != " ^ Z.to_string r ^ "+" ^ show t2
+      dprintf "%a != %a+%a" pretty t1 GobZ.pretty r pretty t2
     | BlNequal (t1,t2) ->
-      "bl(" ^ show t1 ^ ") != bl(" ^ show t2 ^ ")"
+      dprintf "bl(%a) != bl(%a)" pretty t1 pretty t2
 
   (** Returns true if the first parameter is a subterm of the second one. *)
   let rec is_subterm needle haystack =
@@ -582,7 +585,7 @@ module T = struct
        | exception (UnsupportedCilExpression s) ->
          M.trace "c2po-cil-conversion" "unsupported exp: %a\n%s\n" d_plainlval lval s
        | t ->
-         M.trace "c2po-cil-conversion" "lval: %a --> %s\n" d_plainlval lval (show t));
+         M.trace "c2po-cil-conversion" "lval: %a --> %a\n" d_plainlval lval pretty t);
     res
 
   let rec of_cil_neg ask neg e = match e with
@@ -618,8 +621,8 @@ module T = struct
       in
       (if M.tracing && not neg then
          match res with
-         | None, Some z ->  M.trace "c2po-cil-conversion" "constant exp: %a --> %s\n" d_plainexp e (Z.to_string z)
-         | Some t, Some z -> M.trace "c2po-cil-conversion" "exp: %a --> %s + %s\n" d_plainexp e (show t) (Z.to_string z);
+         | None, Some z ->  M.trace "c2po-cil-conversion" "constant exp: %a --> %a\n" d_plainexp e GobZ.pretty z
+         | Some t, Some z -> M.trace "c2po-cil-conversion" "exp: %a --> %a + %a\n" d_plainexp e pretty t GobZ.pretty z;
          | _ -> ());
       res
 
@@ -634,7 +637,7 @@ module T = struct
       if check_valid_pointer exp then
         Some t, Some z
       else begin
-        if M.tracing then M.trace "c2po-cil-conversion" "invalid exp: %a --> %s + %s\n" d_plainexp e (show t) (Z.to_string z);
+        if M.tracing then M.trace "c2po-cil-conversion" "invalid exp: %a --> %a + %a\n" d_plainexp e pretty t GobZ.pretty z;
         None, None
       end
     | t, z -> t, z
@@ -926,27 +929,17 @@ module UnionFind = struct
     BatList.group compare bindings
 
   (** Throws "Unknown value" if the data structure is invalid. *)
-  let show_uf uf =
-    let show_element acc (v, (t, size)) =
-      acc ^
-      "\t" ^
-      (if is_root uf v then "R: " else "") ^
-      "(" ^
-      T.show v ^
-      "; P: " ^
-      T.show (fst t) ^
-      "; o: " ^
-      Z.to_string (snd t) ^
-      "; s: " ^
-      string_of_int size ^
-      ")\n"
+  let pretty_uf () uf =
+    let pretty_element () (v, (t, size)) =
+      Pretty.dprintf "\t%s(%a; P:%a; o:%a; s: %d)\n"
+        (if is_root uf v then "R: " else "")
+        T.pretty v
+        T.pretty (fst t)
+        GobZ.pretty (snd t)
+        size
     in
-    let show_eq_class acc eq_class =
-      acc ^
-      List.fold_left show_element "" eq_class ^
-      "----\n"
-    in
-    List.fold_left show_eq_class "" (get_eq_classes uf) ^ "\n"
+    let pretty_eq_class () eq_class = Pretty.d_list "\n" pretty_element () eq_class in
+    Pretty.d_list "----\n" pretty_eq_class () (get_eq_classes uf)
 
   (** Returns a list of representative elements.*)
   let get_representatives uf =
@@ -1004,27 +997,19 @@ module LookupMap = struct
     in
     add v zmap map
 
-  let show_map (map:t) =
-    let show_inner_binding acc (r, v) =
-      acc ^
-      "\t" ^
-      Z.to_string r ^
-      ": " ^
-      T.show v ^
-      "; "
+  let pretty_map () (map:t) =
+    let pretty_inner_binding () (r, v) =
+      Pretty.dprintf "\t%a: %a; " GobZ.pretty r T.pretty v
     in
-    let show_inner_map zmap =
+    let pretty_inner_map () zmap =
       let inner_bindings = zmap_bindings zmap in
-      List.fold_left show_inner_binding "" inner_bindings
+      Pretty.docList ~sep:Pretty.nil (pretty_inner_binding ()) () inner_bindings
     in
-    let show_binding s (v, zmap) =
-      s ^
-      T.show v ^
-      "\t:\n" ^
-      show_inner_map zmap ^ "\n"
+    let pretty_binding () (v, zmap) =
+      Pretty.dprintf "%a\t:\n%a" T.pretty v pretty_inner_map zmap
     in
     let bindings = bindings map in
-    List.fold_left show_binding "" bindings
+    Pretty.docList ~sep:Pretty.line (pretty_binding ()) () bindings
 
   (** The value at v' is shifted by r and then added for v.
       The old entry for v' is removed. *)
