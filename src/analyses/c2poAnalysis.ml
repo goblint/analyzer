@@ -265,7 +265,6 @@ struct
   let remove_out_of_scope_vars cc f =
     let local_vars = f.sformals @ f.slocals in
     let duplicated_vars = f.sformals in
-    let cc = D.remove_terms_containing_return_variable cc in
     D.remove_terms_containing_variables (Var.from_varinfo local_vars duplicated_vars) cc
 
   let combine_env ctx lval_opt expr f args t_context_opt f_d (f_ask: Queries.ask) =
@@ -306,32 +305,21 @@ struct
     match ctx.local with
     | `Bot -> `Bot
     | `Lifted d ->
-      let caller_ask = ask_of_man ctx in
-      (* assign function parameters to duplicated values *)
-      let arg_assigns = GobList.combine_short f.sformals args in
-      let assign_term st (var, arg) =
-        let ghost_var = T.term_of_varinfo (DuplicVar var) in
-        let arg = T.of_cil f_ask arg in
-        assign_term st caller_ask ghost_var arg var.vtype
+      let d =
+        match var_opt with
+        | None ->
+          d
+        | Some lval ->
+          let return_type = typeOfLval lval in
+          let return_var = MayBeEqual.return_var return_type  in
+          let return_var = (Some return_var, Some Z.zero) in
+          assign_lval d f_ask lval return_var
       in
-      let state_with_assignments = List.fold_left assign_term d arg_assigns in
-      match D.meet (`Lifted state_with_assignments) f_d with
-      | `Bot -> `Bot
-      | `Lifted d ->
-        let d = match var_opt with
-          | None ->
-            d
-          | Some lval ->
-            let return_type = typeOfLval lval in
-            let return_var = MayBeEqual.return_var return_type  in
-            let return_var = (Some return_var, Some Z.zero) in
-            assign_lval d f_ask lval return_var
-        in
-        if M.tracing then M.trace "c2po-function" "combine_assign1: assigning return value: %s\n" (C2PODomain.show d);
-        let d = remove_out_of_scope_vars d.data f in
-        let d = data_to_t d in
-        if M.tracing then M.trace "c2po-function" "combine_assign2: result: %s\n" (C2PODomain.show d);
-        `Lifted d
+      if M.tracing then M.trace "c2po-function" "combine_assign1: assigning return value: %s\n" (C2PODomain.show d);
+      let d = D.remove_terms_containing_return_variable d.data in
+      let d = data_to_t d in
+      if M.tracing then M.trace "c2po-function" "combine_assign2: result: %s\n" (C2PODomain.show d);
+      `Lifted d
 
   let startstate v =
     D.top ()
