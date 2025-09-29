@@ -46,9 +46,9 @@ let main () =
 
   let invariant_set: InvariantSet.t = {content = invariants} in
   let entry': Entry.t = {
-      metadata = {(Option.get !metadata') with format_version = "2.0"};
-      entry_type = InvariantSet invariant_set
-    }
+    metadata = {(Option.get !metadata') with format_version = "2.0"};
+    entry_type = InvariantSet invariant_set
+  }
   in
 
   let yaml' = `A [Entry.to_yaml entry'] in
