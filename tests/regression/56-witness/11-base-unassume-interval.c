@@ -1,4 +1,4 @@
-// SKIP PARAM: --enable ana.int.interval --set witness.yaml.entry-types[*] loop_invariant --set ana.activated[+] unassume --set witness.yaml.unassume 11-base-unassume-interval.yml
+// SKIP PARAM: --enable ana.int.interval --set ana.activated[+] unassume --set witness.yaml.unassume 11-base-unassume-interval.yml
 #include <assert.h>
 
 int main() {

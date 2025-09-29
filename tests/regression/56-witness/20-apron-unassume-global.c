@@ -1,4 +1,4 @@
-// SKIP PARAM: --set witness.yaml.entry-types[*] loop_invariant --set ana.activated[+] apron --set ana.activated[+] unassume --set witness.yaml.unassume 20-apron-unassume-global.yml
+// SKIP PARAM: --set ana.activated[+] apron --set ana.activated[+] unassume --set witness.yaml.unassume 20-apron-unassume-global.yml
 #include <assert.h>
 
 int i = 0;
