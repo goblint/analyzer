@@ -2813,8 +2813,6 @@
                   "loop_invariant",
                   "flow_insensitive_invariant",
                   "precondition_loop_invariant",
-                  "loop_invariant_certificate",
-                  "precondition_loop_invariant_certificate",
                   "invariant_set",
                   "violation_sequence",
                   "ghost_instrumentation"
@@ -2861,12 +2859,6 @@
             "unassume": {
               "title": "witness.yaml.unassume",
               "description": "YAML witness input path",
-              "type": "string",
-              "default": ""
-            },
-            "certificate": {
-              "title": "witness.yaml.certificate",
-              "description": "YAML witness certificate output path",
               "type": "string",
               "default": ""
             }
