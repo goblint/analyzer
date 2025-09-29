@@ -413,6 +413,7 @@ struct
   (* First assign arguments to parameters. Then join it with reachables, to get
      rid of equalities that are not reachable. *)
   let enter man lval f args =
+    let reach = reachables ~deep:true (Analyses.ask_of_man man) args in
     let rec fold_left2 f r xs ys =
       match xs, ys with
       | x::xs, y::ys -> fold_left2 f (f r x y) xs ys
@@ -425,6 +426,12 @@ struct
     let nst =
       try fold_left2 assign_one_param man.local f.sformals args
       with SetDomain.Unsupported _ -> (* ignore varargs fr now *) D.top ()
+    in
+    let nst =
+      D.filter (fun e ->
+          Basetype.CilExp.get_vars e
+          |> List.for_all (fun v -> Queries.AD.mem (Addr.of_var v) reach)
+        ) nst
     in
     match D.is_bot man.local with
     | true -> raise Analyses.Deadcode

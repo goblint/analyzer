@@ -1,4 +1,4 @@
-// PARAM: --set ana.activated[*] var_eq
+// PARAM:
 // CRAM
 
 void foo() {
