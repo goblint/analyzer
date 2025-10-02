@@ -1,3 +1,5 @@
+(** CIL utilities for relational analyses. *)
+
 open GoblintCil
 
 module type Tracked =
