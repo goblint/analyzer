@@ -26,7 +26,7 @@ struct
   let varinfo_tracked vi =
     (* no vglob check here, because globals are allowed in relation, but just have to be handled separately *)
     let hasTrackAttribute = List.exists (fun (Attr(s,_)) -> s = "goblint_relation_track") in
-    type_tracked vi.vtype && (not @@ GobConfig.get_bool "annotation.goblint_relation_track" || hasTrackAttribute vi.vattr)
+    type_tracked vi.vtype && (not (GobConfig.get_bool "annotation.goblint_relation_track") || hasTrackAttribute vi.vattr)
 end
 
 (** To be used in autotuner. *)
