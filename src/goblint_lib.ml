@@ -455,6 +455,7 @@ module SparseVector = SparseVector
 module ListMatrix = ListMatrix
 module RatOps = RatOps
 
+module RelationCil = RelationCil
 module SharedFunctions = SharedFunctions
 module GobApron = GobApron
 

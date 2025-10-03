@@ -81,11 +81,7 @@ struct
     | _ -> None
 end
 
-module type Tracked =
-sig
-  val type_tracked: typ -> bool
-  val varinfo_tracked: varinfo -> bool
-end
+module type Tracked = RelationCil.Tracked
 
 module type S2 =
 sig
