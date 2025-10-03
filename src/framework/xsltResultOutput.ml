@@ -149,11 +149,10 @@ struct
         BatPrintf.fprintf f {xml|<?xml version="1.0" ?>
 <?xml-stylesheet type="text/xsl" href="report.xsl"?>
 <report>|xml};
-        (* TODO: exclude <file> path? *)
-        (* TODO: exclude <node>s? *)
         (* TODO: exclude dead files/functions? *)
-        (* BatEnum.iter (fun b -> BatPrintf.fprintf f "<file name=\"%s\" path=\"%s\">\n%a</file>\n" (Filename.basename b) b p_funs (SH.find_all file2funs b)) (BatEnum.uniq @@ SH.keys file2funs); *)
         (* g2html has full path in name field *)
+        (* for g2html we have path field for <file>, but this doesn't seem necessary *)
+        (* for g2html we add <node>s into each <function>, but these aren't necessary because they aren't shown *)
         SH.iter (printXml_file f) file2funs;
         BatPrintf.fprintf f "</report>";
       )
@@ -174,7 +173,7 @@ struct
         BatPrintf.fprintf f {xml|<?xml version="1.0" ?>
 <?xml-stylesheet type="text/xsl" href="../node.xsl"?>
 <loc>%a</loc>|xml} (Fun.flip printXml_node n) v
-        (* TODO: need fun in <call>? *)
+        (* g2html adds fun attribute to <call> (inside printXml_node), but this doesn't seem to be necessary *)
       )
 
   let write_nodes ~result_dir ~table =
