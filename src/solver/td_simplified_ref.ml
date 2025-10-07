@@ -25,6 +25,8 @@ module Base : GenericEqSolver =
       called: bool;
     }
 
+    let nr_iterations = ref 0
+
     let solve st vs =
       let (data : var_data ref HM.t) = HM.create 10 in
 
@@ -124,6 +126,7 @@ module Base : GenericEqSolver =
       and iterate x = (* ~(inner) solve in td3*)
 
         (* begining of iterate*)
+        incr nr_iterations;
         let x_ref = init x in
         if tracing then trace "iter" "iterate %a, called: %b, stable: %b, wpoint: %b" S.Var.pretty_trace x (!x_ref.called) (!x_ref.stable) (!x_ref.wpoint);
         assert (S.system x <> None);
@@ -202,6 +205,8 @@ module Base : GenericEqSolver =
 
       stop_event ();
       report_duration ();
+      Logs.info "|data|=%d" (HM.length data);
+      Logs.info "Iterations: %d" !nr_iterations;
       if Logs.Level.should_log Debug then (
         Logs.debug "Data after iterate completed";
         Logs.debug "|data|=%d" (HM.length data);
