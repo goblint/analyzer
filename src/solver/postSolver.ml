@@ -114,11 +114,11 @@ module Warn: F =
     let old_should_warn = ref None
 
     let init () =
-      old_should_warn := Some !AnalysisState.should_warn;
-      AnalysisState.should_warn := true
+      old_should_warn := Some (Domain.DLS.get AnalysisState.should_warn);
+      Domain.DLS.set AnalysisState.should_warn true
 
     let finalize ~vh ~reachable =
-      AnalysisState.should_warn := Option.get !old_should_warn
+      Domain.DLS.set AnalysisState.should_warn @@ Option.get !old_should_warn
   end
 
 (** Postsolver for save_run option. *)

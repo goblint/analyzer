@@ -245,7 +245,7 @@ struct
     end
     in
 
-    AnalysisState.should_warn := false; (* reset for server mode *)
+    Domain.DLS.set AnalysisState.should_warn false; (* reset for server mode *)
 
     (* exctract global xml from result *)
     let make_global_fast_xml f g =
@@ -375,10 +375,10 @@ struct
     in
 
     (* Some happen in init, so enable this temporarily (if required by option). *)
-    AnalysisState.should_warn := PostSolverArg.should_warn;
+    Domain.DLS.set AnalysisState.should_warn PostSolverArg.should_warn;
     Spec.init marshal;
     Access.init file;
-    AnalysisState.should_warn := false;
+    Domain.DLS.set AnalysisState.should_warn false;
 
     let test_domain (module D: Lattice.S): unit =
       let module DP = DomainProperties.All (D) in
@@ -552,7 +552,7 @@ struct
             | None -> None
           in
           Logs.debug "%s" ("Solving the constraint system with " ^ get_string "solver" ^ ". Solver statistics are shown every " ^ string_of_int (get_int "dbg.solver-stats-interval") ^ "s or by signal " ^ get_string "dbg.solver-signal" ^ ".");
-          AnalysisState.should_warn := get_string "warn_at" = "early" || gobview;
+          Domain.DLS.set AnalysisState.should_warn (get_string "warn_at" = "early" || gobview);
           let (lh, gh), solver_data = Timing.wrap "solving" (Slvr.solve entrystates entrystates_global startvars') solver_data in
           if GobConfig.get_bool "incremental.save" then
             Serialize.Cache.(update_data SolverData solver_data);
@@ -604,7 +604,7 @@ struct
       );
 
       (* Most warnings happen before during postsolver, but some happen later (e.g. in finalize), so enable this for the rest (if required by option). *)
-      AnalysisState.should_warn := PostSolverArg.should_warn;
+      Domain.DLS.set AnalysisState.should_warn PostSolverArg.should_warn;
 
       let insrt k _ s = match k with
         | (MyCFG.Function fn,_) -> if not (get_bool "exp.forward") then Set.Int.add fn.svar.vid s else s

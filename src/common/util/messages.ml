@@ -284,7 +284,7 @@ let msg_context () =
     None (* avoid identical messages from multiple contexts without any mention of context *)
 
 let msg severity ?loc ?(tags=[]) ?(category=Category.Unknown) fmt =
-  if !AnalysisState.should_warn && Severity.should_warn severity && (Category.should_warn category || Tags.should_warn tags) then (
+  if Domain.DLS.get AnalysisState.should_warn && Severity.should_warn severity && (Category.should_warn category || Tags.should_warn tags) then (
     let finish doc =
       let text = GobPretty.show doc in
       let loc = match loc with
@@ -299,7 +299,7 @@ let msg severity ?loc ?(tags=[]) ?(category=Category.Unknown) fmt =
     GobPretty.igprintf () fmt
 
 let msg_noloc severity ?(tags=[]) ?(category=Category.Unknown) fmt =
-  if !AnalysisState.should_warn && Severity.should_warn severity && (Category.should_warn category || Tags.should_warn tags) then (
+  if Domain.DLS.get AnalysisState.should_warn && Severity.should_warn severity && (Category.should_warn category || Tags.should_warn tags) then (
     let finish doc =
       let text = GobPretty.show doc in
       add {tags = Category category :: tags; severity; multipiece = Single {loc = None; text; context = None}}
@@ -310,7 +310,7 @@ let msg_noloc severity ?(tags=[]) ?(category=Category.Unknown) fmt =
     GobPretty.igprintf () fmt
 
 let msg_group severity ?loc ?(tags=[]) ?(category=Category.Unknown) fmt =
-  if !AnalysisState.should_warn && Severity.should_warn severity && (Category.should_warn category || Tags.should_warn tags) then (
+  if Domain.DLS.get AnalysisState.should_warn && Severity.should_warn severity && (Category.should_warn category || Tags.should_warn tags) then (
     let finish doc msgs =
       let group_text = GobPretty.show doc in
       let piece_of_msg (doc, loc) =
@@ -337,7 +337,7 @@ let success ?loc = msg Success ?loc
 let success_noloc ?tags = msg_noloc Success ?tags
 
 let msg_final severity ?(tags=[]) ?(category=Category.Unknown) fmt =
-  if !AnalysisState.should_warn then (
+  if Domain.DLS.get AnalysisState.should_warn then (
     let finish doc =
       let text = GobPretty.show doc in
       add_final {tags = Category category :: tags; severity; multipiece = Single {loc = None; text; context = None}}

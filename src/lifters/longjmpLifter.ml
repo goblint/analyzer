@@ -240,7 +240,7 @@ struct
       )
       in
       List.iter handle_path (S.paths_as_set conv_man);
-      if !AnalysisState.should_warn && List.mem "termination" @@ get_string_list "ana.activated" then (
+      if Domain.DLS.get AnalysisState.should_warn && List.mem "termination" @@ get_string_list "ana.activated" then (
         AnalysisState.svcomp_may_not_terminate := true;
         M.warn ~category:Termination "The program might not terminate! (Longjmp)"
       );

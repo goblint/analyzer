@@ -220,19 +220,19 @@ struct
   let side_vars man memo =
     match memo with
     | (`Var v, _) ->
-      if !AnalysisState.should_warn then
+      if Domain.DLS.get AnalysisState.should_warn then
         man.sideg (V.vars v) (G.create_vars (MemoSet.singleton memo))
     | _ ->
       ()
 
   let side_access man acc ((memoroot, offset) as memo) =
-    if !AnalysisState.should_warn then
+    if Domain.DLS.get AnalysisState.should_warn then
       man.sideg (V.access memoroot) (G.create_access (OffsetTrie.singleton offset (`Lifted (Access.AS.singleton acc))));
     side_vars man memo
 
   (** Side-effect empty access set for prefix-type_suffix race checking. *)
   let side_access_empty man ((memoroot, offset) as memo) =
-    if !AnalysisState.should_warn then
+    if Domain.DLS.get AnalysisState.should_warn then
       man.sideg (V.access memoroot) (G.create_access (OffsetTrie.singleton offset (`Lifted (Access.AS.empty ()))));
     side_vars man memo
 
