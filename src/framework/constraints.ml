@@ -233,7 +233,9 @@ struct
     let paths = S.enter man lv f args in
     let paths = List.map (fun (c,v) -> (c, S.context man f v, v)) paths in
     List.iter (fun (c,fc,v) -> if not (S.D.is_bot v) then sidel (FunctionEntry f, fc) v) paths;
-    let paths = List.map (fun (c,fc,v) -> (c, fc, if S.D.is_bot v then v else getl (Function f, fc))) paths in
+    let demandl_and_getl f = demandl f; getl f in
+    let todo = if GobConfig.get_bool "ana.demand-function" then demandl_and_getl else getl in
+    let paths = List.map (fun (c,fc,v) -> (c, fc, if S.D.is_bot v then v else todo (Function f, fc))) paths in
     (* Don't filter bot paths, otherwise LongjmpLifter is not called. *)
     (* let paths = List.filter (fun (c,fc,v) -> not (D.is_bot v)) paths in *)
     let paths = List.map (Tuple3.map2 Option.some) paths in

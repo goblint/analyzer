@@ -1304,6 +1304,12 @@
             }
           },
           "additionalProperties": false
+        },
+        "demand-function": {
+          "title": "ana.demand-function",
+          "description": "If demand calls should be added for every function",
+          "type": "boolean",
+          "default": false
         }
       },
       "additionalProperties": false
