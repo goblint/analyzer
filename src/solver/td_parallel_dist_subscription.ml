@@ -335,7 +335,7 @@ module Base : DemandEqSolver =
                 (* init rho y; *) (* Should not be necessary, since it is searched/created at the beginning of the method *)
                 y_ref := {!y_ref with stable = true};
                 if not (Htbl.mem subs y) then (
-                  Htbl.try_add subs y ();
+                  ignore @@ Htbl.try_add subs y ();
                   if tracing then trace "sub" "%a subscribed to %a" S.Var.pretty_trace x_poi S.Var.pretty_trace y;
                   Sides.subscribe y x_poi);
                 (* Normally, we process updates in iterate *)
