@@ -170,7 +170,7 @@ sig
   (** {b Accessing values of the ADT} *)
 
   val bot_of: Cil.ikind -> t
-  val top_of: Cil.ikind -> t
+  val top_of: ?bitfield:int -> Cil.ikind -> t
 
   val to_int: t -> int_t option
   (** Return a single integer value if the value is a known constant, otherwise
@@ -182,7 +182,7 @@ sig
   (** Give a boolean interpretation of an abstract value if possible, otherwise
     * don't return anything.*)
 
-  val to_excl_list: t -> (int_t list * (int64 * int64)) option
+  val to_excl_list: t -> (int_t list * (int * int)) option
   (** Gives a list representation of the excluded values from included range of bits if possible. *)
 
   val of_excl_list: Cil.ikind -> int_t list -> t
@@ -248,8 +248,8 @@ sig
   val meet: Cil.ikind -> t -> t -> t
   val narrow: Cil.ikind -> t -> t -> t
   val widen: Cil.ikind -> t -> t -> t
-  val starting : ?suppress_ovwarn:bool -> Cil.ikind -> int_t -> t
-  val ending : ?suppress_ovwarn:bool -> Cil.ikind -> int_t -> t
+  val starting : Cil.ikind -> int_t -> t
+  val ending : Cil.ikind -> int_t -> t
   val of_int: Cil.ikind -> int_t -> t
   (** Transform an integer literal to your internal domain representation. *)
 
@@ -257,7 +257,7 @@ sig
   (** Transform a known boolean value to the default internal representation. It
     * should follow C: [of_bool true = of_int 1] and [of_bool false = of_int 0]. *)
 
-  val of_interval: ?suppress_ovwarn:bool -> Cil.ikind -> int_t * int_t -> t
+  val of_interval: Cil.ikind -> int_t * int_t -> t
   val of_congruence: Cil.ikind -> int_t * int_t -> t
   val of_bitfield: Cil.ikind -> int_t * int_t -> t
   val to_bitfield: Cil.ikind -> t -> int_t * int_t
@@ -267,13 +267,23 @@ sig
   val refine_with_congruence: Cil.ikind -> t -> (int_t * int_t) option -> t
   val refine_with_bitfield: Cil.ikind -> t -> (int_t * int_t) -> t
   val refine_with_interval: Cil.ikind -> t -> (int_t * int_t) option -> t
-  val refine_with_excl_list: Cil.ikind -> t -> (int_t list * (int64 * int64)) option -> t
+  val refine_with_excl_list: Cil.ikind -> t -> (int_t list * (int * int)) option -> t
   val refine_with_incl_list: Cil.ikind -> t -> int_t list option -> t
 
   val project: Cil.ikind -> PrecisionUtil.int_precision -> t -> t
   val arbitrary: Cil.ikind -> t QCheck.arbitrary
 end
 (** Interface of IntDomain implementations taking an ikind for arithmetic operations *)
+
+module type S2 =
+sig
+  include S
+
+  val of_int: ?suppress_ovwarn:bool -> Cil.ikind -> int_t -> t
+  val starting : ?suppress_ovwarn:bool -> Cil.ikind -> int_t -> t
+  val ending : ?suppress_ovwarn:bool -> Cil.ikind -> int_t -> t
+  val of_interval: ?suppress_ovwarn:bool -> Cil.ikind -> int_t * int_t -> t
+end
 
 module type SOverflow =
 sig
@@ -290,14 +300,14 @@ sig
 
   val neg : ?no_ov:bool -> Cil.ikind ->  t -> t * overflow_info
 
-  val cast_to : ?suppress_ovwarn:bool -> ?torg:Cil.typ -> ?no_ov:bool -> Cil.ikind -> t -> t * overflow_info
+  val cast_to : ?torg:Cil.typ -> ?no_ov:bool -> Cil.ikind -> t -> t * overflow_info
 
   val of_int : Cil.ikind -> int_t -> t * overflow_info
 
-  val of_interval: ?suppress_ovwarn:bool -> Cil.ikind -> int_t * int_t -> t * overflow_info
+  val of_interval: Cil.ikind -> int_t * int_t -> t * overflow_info
 
-  val starting : ?suppress_ovwarn:bool -> Cil.ikind -> int_t -> t * overflow_info
-  val ending : ?suppress_ovwarn:bool -> Cil.ikind -> int_t -> t * overflow_info
+  val starting : Cil.ikind -> int_t -> t * overflow_info
+  val ending : Cil.ikind -> int_t -> t * overflow_info
 
   val shift_left : Cil.ikind -> t -> t -> t * overflow_info
 
@@ -312,7 +322,7 @@ sig
   include Lattice.Top with type t := t
   include Arith with type t:=t
 
-  val of_int: Cil.ikind -> int_t -> t
+  val of_int: ?suppress_ovwarn:bool -> Cil.ikind -> int_t -> t
   (** Transform an integer literal to your internal domain representation with the specified ikind. *)
 
   val of_bool: Cil.ikind -> bool -> t
@@ -358,14 +368,15 @@ sig
   module type B = B
   module type IkindUnawareS = IkindUnawareS
   module type S = S
+  module type S2 = S2
   module type SOverflow = SOverflow
 
-  module SOverflowUnlifter (D : SOverflow) : S with type int_t = D.int_t and type t = D.t
+  module SOverflowUnlifter (D : SOverflow) : S2 with type int_t = D.int_t and type t = D.t
 
   module type Y = Y
   module type Z = Z
 
-  module IntDomLifter (I: S): Y with type int_t = I.int_t
+  module IntDomLifter (I: S2): Y with type int_t = I.int_t
 
   module type Ikind = Ikind
 
@@ -429,8 +440,6 @@ sig
   module BitfieldFunctor(Ints_t : IntOps.IntOps): SOverflow with type int_t = Ints_t.t and type t = (Ints_t.t * Ints_t.t)
 
   module IntervalSetFunctor(Ints_t : IntOps.IntOps): SOverflow with type int_t = Ints_t.t and type t = (Ints_t.t * Ints_t.t) list
-
-  module Interval32 :Y with (* type t = (IntOps.Int64Ops.t * IntOps.Int64Ops.t) option and *) type int_t = IntOps.Int64Ops.t
 
   module Interval : SOverflow with type int_t = Z.t
 

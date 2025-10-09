@@ -1,4 +1,4 @@
-  $ goblint --set ana.activated[+] var_eq --enable witness.yaml.enabled --enable witness.invariant.other 71-var_eq-str-invariant.c
+  $ goblint --set ana.activated[+] var_eq --enable witness.yaml.enabled --enable witness.invariant.other 72-var_eq-str-invariant.c
   [Info][Deadcode] Logical lines of code (LLoC) summary:
     live: 3
     dead: 0

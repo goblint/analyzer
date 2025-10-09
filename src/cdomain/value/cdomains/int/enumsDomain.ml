@@ -6,10 +6,10 @@ open GoblintCil
 
 (* Inclusion/Exclusion sets. Go to top on arithmetic operations (except for some easy cases, e.g. multiplication with 0). Joins on widen, i.e. precise integers as long as not derived from arithmetic expressions. *)
 module Enums : S with type int_t = Z.t = struct
-  module R = Interval32 (* range for exclusion *)
+  module R = Exclusion.R (* range for exclusion *)
 
   let range_ikind = Cil.IInt
-  let size t = R.of_interval range_ikind (let a,b = Size.bits_i64 t in Int64.neg a,b)
+  let size t = let a,b = Size.bits t in -a,b
 
   type t =
     | Inc of BISet.t (* Inclusion set. *)
@@ -18,13 +18,24 @@ module Enums : S with type int_t = Z.t = struct
 
   type int_t = Z.t
   let name () = "enums"
-  let bot () = failwith "bot () not implemented for Enums"
-  let bot_of ik = Inc (BISet.empty ())
+  let bot () = Inc (BISet.empty ())
+  let bot_of ik = bot ()
   let top_bool = Inc (BISet.of_list [Z.zero; Z.one])
-  let top_of ik =
+
+  let top_of ?bitfield ik =
     match ik with
     | IBool -> top_bool
-    | _ -> Exc (BISet.empty (), size ik)
+    | _ ->
+      match bitfield with
+      | Some b when b <= Z.numbits (Size.range ik |> snd) ->
+        let range =
+          if Cil.isSigned ik then
+            (-(b - 1), b)
+          else
+            (0, b)
+        in
+        Exc (BISet.empty (), range)
+      | _ -> Exc (BISet.empty (), size ik)
 
   let range ik = Size.range ik
 
@@ -108,12 +119,12 @@ module Enums : S with type int_t = Z.t = struct
 
   let of_int ikind x = cast_to ikind (Inc (BISet.singleton x))
 
-  let of_interval ?(suppress_ovwarn=false) ik (x, y) =
+  let of_interval ik (x, y) =
     if Z.compare x y = 0 then
       of_int ik x
     else
       let a, b = Size.min_range_sign_agnostic x, Size.min_range_sign_agnostic y in
-      let r = R.join (R.of_interval ~suppress_ovwarn range_ikind a) (R.of_interval ~suppress_ovwarn range_ikind b) in
+      let r = R.join a b in
       let ex = if Z.gt x Z.zero || Z.lt y Z.zero then BISet.singleton Z.zero else BISet.empty () in
       norm ik @@ (Exc (ex, r))
 
@@ -126,22 +137,25 @@ module Enums : S with type int_t = Z.t = struct
       let r = if BISet.is_empty y
         then r
         else
-          let (min_el_range, max_el_range) = Batteries.Tuple2.mapn (fun x -> R.of_interval range_ikind (Size.min_range_sign_agnostic x)) (BISet.min_elt y, BISet.max_elt y) in
+          let (min_el_range, max_el_range) = Batteries.Tuple2.mapn Size.min_range_sign_agnostic (BISet.min_elt y, BISet.max_elt y) in
           let range = R.join min_el_range max_el_range in
           R.join r range
       in
       Exc (BISet.diff x y, r)
 
-  let meet _ x y =
+  let meet ik x y =
     match x, y with
     | Inc x, Inc y -> Inc (BISet.inter x y)
     | Exc (x,r1), Exc (y,r2) ->
-      let r = R.meet r1 r2 in
-      let r_min, r_max = Exclusion.min_of_range r, Exclusion.max_of_range r in
-      let filter_by_range = BISet.filter (value_in_range (r_min, r_max)) in
-      (* We remove those elements from the exclusion set that do not fit in the range anyway *)
-      let excl = BISet.union (filter_by_range x) (filter_by_range y) in
-      Exc (excl, r)
+      begin match R.meet r1 r2 with
+        | None -> bot ()
+        | Some r ->
+          let r_min, r_max = Exclusion.min_of_range r, Exclusion.max_of_range r in
+          let filter_by_range = BISet.filter (value_in_range (r_min, r_max)) in
+          (* We remove those elements from the exclusion set that do not fit in the range anyway *)
+          let excl = BISet.union (filter_by_range x) (filter_by_range y) in
+          Exc (excl, r)
+      end
     | Inc x, Exc (y,r)
     | Exc (y,r), Inc x -> Inc (BISet.diff x y)
 
@@ -209,10 +223,91 @@ module Enums : S with type int_t = Z.t = struct
 
   let rem = lift2 Z.rem
 
-  let lognot = lift1 Z.lognot
-  let logand = lift2 Z.logand
-  let logor  = lift2 Z.logor
-  let logxor = lift2 Z.logxor
+  let apply_range f r = (* apply f to the min/max of the old range r to get a new range *)
+    let rf m = (size % Size.min_for % f) (m r) in
+    let r1, r2 = rf Exclusion.min_of_range, rf Exclusion.max_of_range in
+    R.join r1 r2
+
+  let lognot ikind v = norm ikind @@ match v with
+    | Inc x when BISet.is_empty x -> v
+    | Inc x when BISet.is_singleton x -> Inc (BISet.singleton (Z.lognot (BISet.choose x)))
+    | Inc x -> Inc (BISet.map Z.lognot x) (* TODO: don't operate on Inc? *)
+    | Exc (s, (min, max)) ->
+      let s' = BISet.map Z.lognot s in
+      let r' = (-max, -min) in (* TODO: why missing conditions and [apply_range Z.lognot r] compared to DefExc lognot? *)
+      Exc (s', r')
+
+  let logand ikind u v = handle_bot u v (fun () ->
+      norm ikind @@ match u, v with
+      | Inc x, Inc y when BISet.is_singleton x && BISet.is_singleton y ->
+        Inc (BISet.singleton (Z.logand (BISet.choose x) (BISet.choose y)))
+      | Inc x, Exc (s, (r1, r2))
+      | Exc (s, (r1, r2)), Inc x ->
+        let f i =
+          match Z.compare i Z.zero >= 0, r1 >= 0 with
+          | true, true -> (0, Int.min r2 (Z.numbits i))
+          | true, _ -> (0, Z.numbits i)
+          | _, true -> (0, r2)
+          | _, _ ->
+            let b = Int.max (Z.numbits i) (Int.max (Int.abs r1) (Int.abs r2)) in
+            (-b, b)
+        in
+        let r' = BISet.map_reduce f R.join x in (* reduce is safe because arguments are not bot here *)
+        Exc (BISet.empty (), r')
+      | Exc (_, ((p1, p2) as p)), Exc (_, ((r1, r2) as r)) ->
+        begin match p1 >= 0, r1 >= 0 with
+          | true, true -> Exc (BISet.empty (), (0, Int.min p2 r2))
+          | true, _ -> Exc (BISet.empty (), (0, p2))
+          | _, true -> Exc (BISet.empty (), (0, r2))
+          | _, _ -> Exc (BISet.empty (), R.join p r)
+        end
+      | _, _ -> top_of ikind
+    )
+
+  let logor ikind u v = handle_bot u v (fun () ->
+      norm ikind @@ match u, v with
+      | Inc x, Inc y when BISet.is_singleton x && BISet.is_singleton y ->
+        Inc (BISet.singleton (Z.logor (BISet.choose x) (BISet.choose y)))
+      | Inc x, Exc (_, ((r1, r2) as r))
+      | Exc (_, ((r1, r2) as r)), Inc x ->
+        let f i =
+          if Z.compare i Z.zero >= 0 then
+            R.join r (0, Z.numbits i)
+          else (
+            let b = Int.max (Z.numbits i) (Int.max (Int.abs r1) (Int.abs r2)) in
+            (-b, b)
+          )
+        in
+        let r' = BISet.map_reduce f R.join x in (* reduce is safe because arguments are not bot here *)
+        Exc (BISet.empty (), r')
+      | Exc (_, r1), Exc (_, r2) -> Exc (BISet.empty (), R.join r1 r2)
+      | _ -> top_of ikind
+    )
+
+  let logxor ikind u v = handle_bot u v (fun () ->
+      norm ikind @@ match u, v with
+      | Inc x, Inc y when BISet.is_singleton x && BISet.is_singleton y ->
+        Inc (BISet.singleton (Z.logxor (BISet.choose x) (BISet.choose y)))
+      | Inc x, Exc (_, (r1, r2))
+      | Exc (_, (r1, r2)), Inc x ->
+        let f i =
+          let b = Int.max (Z.numbits i) (Int.max (Int.abs r1) (Int.abs r2)) in
+          if r1 >= 0 && Z.compare i Z.zero >= 0 then
+            (0, b)
+          else
+            (-b, b)
+        in
+        let r' = BISet.map_reduce f R.join x in (* reduce is safe because arguments are not bot here *)
+        Exc (BISet.empty (), r')
+      | Exc (_, (p1, p2)), Exc (_, (r1, r2)) ->
+        if p1 >= 0 && r1 >= 0 then
+          Exc (BISet.empty (), (0, Int.max p2 r2))
+        else (
+          let b = List.fold_left Int.max 0 (List.map Int.abs [p1; p2; r1; r2]) in
+          Exc (BISet.empty (), (-b, b))
+        )
+      | _ -> top_of ikind
+    )
 
   let shift (shift_op: int_t -> int -> int_t) (ik: Cil.ikind) (x: t) (y: t) =
     handle_bot x y (fun () ->
@@ -244,7 +339,7 @@ module Enums : S with type int_t = Z.t = struct
     | _ -> None
   let to_int = function Inc x when BISet.is_singleton x -> Some (BISet.choose x) | _ -> None
 
-  let to_excl_list = function Exc (x,r) when not (BISet.is_empty x) -> Some (BISet.elements x, (Option.get (R.minimal r), Option.get (R.maximal r))) | _ -> None
+  let to_excl_list = function Exc (x,r) when not (BISet.is_empty x) -> Some (BISet.elements x, r) | _ -> None
   let of_excl_list ik xs =
     let min_ik, max_ik = Size.range ik in
     let exc = BISet.of_list @@ List.filter (value_in_range (min_ik, max_ik)) xs in
@@ -265,13 +360,13 @@ module Enums : S with type int_t = Z.t = struct
     | _ when Cil.isSigned ik -> (one_mask, one_mask)
     | _ -> (one_mask, ik_mask)
 
-  let starting ?(suppress_ovwarn=false) ikind x =
+  let starting ikind x =
     let _,u_ik = Size.range ikind in
-    of_interval ~suppress_ovwarn ikind (x, u_ik)
+    of_interval ikind (x, u_ik)
 
-  let ending ?(suppress_ovwarn=false) ikind x =
+  let ending ikind x =
     let l_ik,_ = Size.range ikind in
-    of_interval ~suppress_ovwarn ikind (l_ik, x)
+    of_interval ikind (l_ik, x)
 
   let c_lognot ik x =
     if is_bot x

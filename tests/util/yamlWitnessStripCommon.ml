@@ -18,9 +18,6 @@ struct
       in
       {location with file_hash}
     in
-    let target_strip_file_hash target: Target.t =
-      {target with file_hash = stripped_file_hash}
-    in
     let invariant_strip_file_hash ({invariant_type}: InvariantSet.Invariant.t): InvariantSet.Invariant.t =
       let invariant_type: InvariantSet.InvariantType.t =
         match invariant_type with
@@ -66,10 +63,6 @@ struct
         FlowInsensitiveInvariant x (* no location to strip *)
       | PreconditionLoopInvariant x ->
         PreconditionLoopInvariant {x with location = location_strip_file_hash x.location}
-      | LoopInvariantCertificate x ->
-        LoopInvariantCertificate {x with target = target_strip_file_hash x.target}
-      | PreconditionLoopInvariantCertificate x ->
-        PreconditionLoopInvariantCertificate {x with target = target_strip_file_hash x.target}
       | InvariantSet x ->
         InvariantSet {content = List.sort InvariantSet.Invariant.compare (List.map invariant_strip_file_hash x.content)} (* Sort, so order is deterministic regardless of Goblint. *)
       | ViolationSequence x ->

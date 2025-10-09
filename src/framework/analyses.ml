@@ -128,8 +128,6 @@ struct
       let top_name = "Totally unknown and messed up"
     end) (LD)
 
-  let lift (x:LD.t) : t = `Lifted x
-
   let unlift x =
     match x with
     | `Lifted x -> x

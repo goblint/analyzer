@@ -1,4 +1,4 @@
-  $ goblint --set ana.activated[+] var_eq --enable witness.yaml.enabled --enable witness.invariant.other 72-shadowing-invariant.c
+  $ goblint --set ana.activated[+] var_eq --enable witness.yaml.enabled --enable witness.invariant.other 73-shadowing-invariant.c
   [Info][Deadcode] Logical lines of code (LLoC) summary:
     live: 5
     dead: 0
@@ -18,7 +18,7 @@ They can be wrong and contradicting.
     - invariant:
         type: location_invariant
         location:
-          file_name: 72-shadowing-invariant.c
+          file_name: 73-shadowing-invariant.c
           line: 8
           column: 3
           function: main
@@ -27,7 +27,7 @@ They can be wrong and contradicting.
     - invariant:
         type: location_invariant
         location:
-          file_name: 72-shadowing-invariant.c
+          file_name: 73-shadowing-invariant.c
           line: 8
           column: 3
           function: main
@@ -36,7 +36,7 @@ They can be wrong and contradicting.
     - invariant:
         type: location_invariant
         location:
-          file_name: 72-shadowing-invariant.c
+          file_name: 73-shadowing-invariant.c
           line: 10
           column: 5
           function: main
@@ -45,7 +45,7 @@ They can be wrong and contradicting.
     - invariant:
         type: location_invariant
         location:
-          file_name: 72-shadowing-invariant.c
+          file_name: 73-shadowing-invariant.c
           line: 10
           column: 5
           function: main
@@ -54,7 +54,7 @@ They can be wrong and contradicting.
     - invariant:
         type: location_invariant
         location:
-          file_name: 72-shadowing-invariant.c
+          file_name: 73-shadowing-invariant.c
           line: 11
           column: 5
           function: main
@@ -63,7 +63,7 @@ They can be wrong and contradicting.
     - invariant:
         type: location_invariant
         location:
-          file_name: 72-shadowing-invariant.c
+          file_name: 73-shadowing-invariant.c
           line: 11
           column: 5
           function: main

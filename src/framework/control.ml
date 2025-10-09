@@ -321,7 +321,6 @@ struct
         if M.tracing then M.trace "con" "Initializer %a" CilType.Location.pretty loc;
         (*incr count;
           if (get_bool "dbg.verbose")&& (!count mod 1000 = 0)  then Printf.printf "%d %!" !count;    *)
-        Goblint_tracing.current_loc := loc;
         match edge with
         | MyCFG.Entry func        ->
           if M.tracing then M.trace "global_inits" "Entry %a" d_lval (var func.svar);
@@ -341,11 +340,19 @@ struct
           res'
         | _                       -> failwith "Unsupported global initializer edge"
       in
+      let transfer_func st (loc, edge) =
+        let old_loc = !Goblint_tracing.current_loc in
+        Goblint_tracing.current_loc := loc;
+        (* TODO: next_loc? *)
+        Goblint_backtrace.protect ~mark:(fun () -> Constraints.TfLocation loc) ~finally:(fun () ->
+            Goblint_tracing.current_loc := old_loc;
+          ) (fun () ->
+            transfer_func st (loc, edge)
+          )
+      in
       let with_externs = do_extern_inits man file in
       (*if (get_bool "dbg.verbose") then Printf.printf "Number of init. edges : %d\nWorking:" (List.length edges);    *)
-      let old_loc = !Goblint_tracing.current_loc in
       let result : Spec.D.t = List.fold_left transfer_func with_externs edges in
-      Goblint_tracing.current_loc := old_loc;
       if M.tracing then M.trace "global_inits" "startstate: %a" Spec.D.pretty result;
       result, !funs
     in
@@ -803,15 +810,19 @@ struct
         None
     in
 
-    if get_bool "ana.sv-comp.enabled" then (
-      (* SV-COMP and witness generation *)
-      let module WResult = Witness.Result (R) in
-      WResult.write yaml_validate_result entrystates
-    );
+    let svcomp_result =
+      if get_bool "ana.sv-comp.enabled" then (
+        (* SV-COMP and witness generation *)
+        let module WResult = Witness.Result (R) in
+        Some (WResult.write yaml_validate_result entrystates)
+      )
+      else
+        None
+    in
 
     if get_bool "witness.yaml.enabled" then (
       let module YWitness = YamlWitness.Make (R) in
-      YWitness.write ()
+      YWitness.write ~svcomp_result
     );
 
     let marshal = Spec.finalize () in
