@@ -1,0 +1,9 @@
+(install
+ (section (site (goblint xslt)))
+  (files
+   (glob_files *.xsl)
+   (glob_files *.html)
+   (glob_files *.js)
+   (glob_files *.css)
+   (glob_files *.svg)
+   (glob_files *.woff)))
