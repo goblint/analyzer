@@ -361,7 +361,6 @@ struct
     | StartOf (Var v,_) ->  Some (ask.f (Queries.IsMultiple v)) (* Taking an address of a global is fine*)
     | StartOf lv -> Some false (* TODO: sound?! *)
 
-  (* Set given lval equal to the result of given expression. On doubt do nothing. *)
   let add_eq ask (lv:lval) (rv:Exp.t) st =
     let lvt = unrollType @@ Cilfacade.typeOfLval lv in
     if M.tracing then (
@@ -374,8 +373,8 @@ struct
     && interesting rv
     && is_global_var ask rv = Some false
     && (isIntegralType lvt || isPointerType lvt)
-    then D.add_eq (rv,Lval lv) (remove ask lv st)
-    else remove ask lv st
+    then D.add_eq (rv,Lval lv) st
+    else st
   (*    in
         match rv with
         | Lval rlval -> begin
@@ -389,6 +388,11 @@ struct
             end
         | _ -> st
   *)
+
+  (* Set given lval equal to the result of given expression. On doubt do nothing. *)
+  let assign_eq ask lv rv st =
+    add_eq ask lv rv (remove ask lv st)
+
   (* Give the set of reachables from argument. *)
   let reachables ~deep (ask: Queries.ask) es =
     let reachable acc e =
@@ -402,8 +406,28 @@ struct
   (* Probably ok as is. *)
   let body man f = man.local
 
+  let rec assume ask exp st =
+    match exp with
+    | BinOp (Eq, e1, e2, t) ->
+      begin match stripCasts e1, stripCasts e2 with
+        | Lval lval, exp
+        | exp, Lval lval ->
+          add_eq ask lval exp st
+        | _, _ ->
+          st
+      end
+    | BinOp (LAnd, e1, e2, _) ->
+      assume ask e2 (assume ask e1 st)
+    | BinOp (LOr, e1, e2, _) ->
+      D.join (assume ask e1 st) (assume ask e2 st)
+    | _ -> st
+
   (* Branch could be improved to set invariants like base tries to do. *)
-  let branch man exp tv = man.local
+  let branch man exp tv =
+    if tv then
+      assume (Analyses.ask_of_man man) exp man.local
+    else
+      man.local
 
   (* Just remove things that go out of scope. *)
   let return man exp fundec  =
@@ -413,7 +437,7 @@ struct
   (* removes all equalities with lval and then tries to make a new one: lval=rval *)
   let assign man (lval:lval) (rval:exp) : D.t  =
     let rval = constFold true (stripCasts rval) in
-    add_eq (Analyses.ask_of_man man) lval rval man.local
+    assign_eq (Analyses.ask_of_man man) lval rval man.local
 
   (* First assign arguments to parameters. Then join it with reachables, to get
      rid of equalities that are not reachable. *)
@@ -425,7 +449,7 @@ struct
     in
     let assign_one_param st lv exp =
       let rm = remove (Analyses.ask_of_man man) (Var lv, NoOffset) st in
-      add_eq (Analyses.ask_of_man man) (Var lv, NoOffset) exp rm
+      assign_eq (Analyses.ask_of_man man) (Var lv, NoOffset) exp rm
     in
     let nst =
       try fold_left2 assign_one_param man.local f.sformals args
@@ -583,6 +607,8 @@ struct
       |> List.fold_left (fun st lv ->
           remove (Analyses.ask_of_man man) lv st
         ) man.local
+      |> assume (Analyses.ask_of_man man) exp
+      |> D.join man.local
     | Events.Escape vars ->
       if EscapeDomain.EscapedVars.is_top vars then
         D.top ()
