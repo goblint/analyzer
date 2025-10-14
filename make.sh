@@ -15,6 +15,7 @@ rule() {
   case $1 in
     # new rules using dune
     clean)
+      eval $(opam env)
       git clean -X -f
       dune clean
     ;; nat*)
