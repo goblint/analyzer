@@ -22,7 +22,7 @@ RUN sudo apt-get install -y wget zip
 COPY --chown=opam . /home/opam/goblint
 RUN ./scripts/sv-comp/archive.sh
 
-FROM ubuntu:24.04 AS smoke-test
+FROM ubuntu:24.04 AS smoketest
 
 # cannot use opam depext because no opam here, also additional preprocessing/header dependencies
 # libgmp for zarith, libmpfr for apron, cpp for preprocessing, libc6 for pthread.h, libgcc for stddef.h
@@ -35,4 +35,4 @@ COPY --from=build /home/opam/goblint/scripts/sv-comp/goblint.zip .
 RUN unzip goblint.zip
 
 WORKDIR /root/goblint
-RUN ./smoke-test.sh
+RUN ./smoketest.sh

@@ -22,7 +22,7 @@ cp _opam/share/apron/lib/liboctD.so lib/
 cp _opam/share/apron/lib/libboxD.so lib/
 cp _opam/share/apron/lib/libpolkaMPQ.so lib/
 wget -O lib/LICENSE.APRON https://raw.githubusercontent.com/antoinemine/apron/master/COPYING
-cp scripts/sv-comp/smoke-test.sh .
+cp scripts/sv-comp/smoketest.sh .
 
 # done outside to ensure archive contains goblint/ directory
 cd ..
@@ -44,4 +44,4 @@ zip goblint/scripts/sv-comp/goblint.zip \
     goblint/lib/sv-comp/stub/src/sv-comp.c \
     goblint/README.md \
     goblint/LICENSE \
-    goblint/smoke-test.sh
+    goblint/smoketest.sh
