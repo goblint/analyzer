@@ -1,6 +1,6 @@
-- entry_type: location_invariant
+- entry_type: invariant_set
   metadata:
-    format_version: "0.1"
+    format_version: "2.0"
     uuid: 8c07adbd-908d-45be-af99-943634ad66b4
     creation_time: 2022-10-07T13:43:40Z
     producer:
@@ -13,13 +13,13 @@
         33-base-unassume-lor-enums.c: 5014d96b45984600f1ce8a4f6f208ab856539c33e7124a71e41836a1a2cbdd40
       data_model: LP64
       language: C
-  location:
-    file_name: 33-base-unassume-lor-enums.c
-    file_hash: 5014d96b45984600f1ce8a4f6f208ab856539c33e7124a71e41836a1a2cbdd40
-    line: 7
-    column: 3
-    function: main
-  location_invariant:
-    string: i == 0 || i == 1 || i == 2
-    type: assertion
-    format: C
+  content:
+  - invariant:
+      type: location_invariant
+      location:
+        file_name: 33-base-unassume-lor-enums.c
+        line: 7
+        column: 3
+        function: main
+      value: i == 0 || i == 1 || i == 2
+      format: c_expression

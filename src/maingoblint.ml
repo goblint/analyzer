@@ -59,13 +59,7 @@ let rec option_spec_list: Arg_complete.speclist Lazy.t = lazy (
     else (Logs.error "Goblint has been compiled without tracing, recompile in trace profile (./scripts/trace_on.sh)"; raise Stdlib.Exit)
   in
   let configure_html () =
-    if (get_string "outfile" = "") then
-      set_string "outfile" "result";
-    if get_string "exp.g2html_path" = "" then
-      set_string "exp.g2html_path" (Fpath.to_string GobSys.exe_dir);
-    set_bool "exp.cfgdot" true;
-    set_bool "g2html" true;
-    set_string "result" "fast_xml"
+    set_string "result" "xslt"
   in
   let configure_sarif () =
     if (get_string "outfile" = "") then
@@ -266,6 +260,8 @@ let preprocess_files () =
 
   (* Preprocessor flags *)
   let cppflags = ref (get_string_list "pre.cppflags") in
+
+  cppflags := ("--std=" ^ get_string "std") :: !cppflags;
 
   if get_bool "ana.sv-comp.enabled" then (
     let architecture_flag = match get_string "exp.architecture" with
@@ -528,7 +524,7 @@ let reset_stats () =
 (** Perform the analysis over the merged AST.  *)
 let do_analyze change_info merged_AST =
   (* direct the output to file if requested  *)
-  if not (get_bool "g2html" || get_string "outfile" = "") then (
+  if get_string "outfile" <> "" then (
     if !Messages.out <> Legacy.stdout then
       Legacy.close_out !Messages.out;
     Messages.out := Legacy.open_out (get_string "outfile"));
@@ -568,27 +564,6 @@ let do_analyze change_info merged_AST =
     in
 
     Timing.wrap "analysis" (control_analyze merged_AST) funs
-  )
-
-let do_html_output () =
-  if get_bool "g2html" then (
-    let jar = Fpath.(v (get_string "exp.g2html_path") / "g2html.jar") in
-    if Sys.file_exists (Fpath.to_string jar) then (
-      let command = Filename.quote_command "java" [
-          "-jar"; Fpath.to_string jar;
-          "--num-threads"; string_of_int (jobs ());
-          "--dot-timeout"; "0";
-          "--result-dir"; get_string "outfile";
-          !Messages.xml_file_name
-        ]
-      in
-      match Timing.wrap "g2html" Unix.system command with
-      | Unix.WEXITED 0 -> ()
-      | _ -> Logs.error "HTML generation failed! Command: %s" command
-      | exception Unix.Unix_error (e, f, a) ->
-        Logs.error "%s at syscall %s with argument \"%s\"." (Unix.error_message e) f a
-    ) else
-      Logs.Format.error "Warning: jar file %a not found." Fpath.pp jar
   )
 
 let do_gobview cilfile =

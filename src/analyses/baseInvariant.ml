@@ -237,7 +237,13 @@ struct
       let switchedOp = function Lt -> Gt | Gt -> Lt | Le -> Ge | Ge -> Le | x -> x in (* a op b <=> b (switchedOp op) b *)
       match exp with
       (* Since we handle not only equalities, the order is important *)
-      | BinOp(op, Lval x, rval, typ) -> helper op x (VD.cast (Cilfacade.typeOfLval x) (eval_rv ~man st rval)) tv
+      | BinOp(op, Lval x, rval, typ) ->
+        let v = eval_rv ~man st rval in
+        let x_type = Cilfacade.typeOfLval x in
+        if VD.is_dynamically_safe_cast x_type (Cilfacade.typeOf rval) v then
+          helper op x (VD.cast x_type v) tv
+        else
+          `NotUnderstood
       | BinOp(op, rval, Lval x, typ) -> derived_invariant (BinOp(switchedOp op, Lval x, rval, typ)) tv
       | BinOp(op, CastE (t1, c1), CastE (t2, c2), t) when (op = Eq || op = Ne) && typeSig t1 = typeSig t2 && VD.is_statically_safe_cast t1 (Cilfacade.typeOf c1) && VD.is_statically_safe_cast t2 (Cilfacade.typeOf c2)
         -> derived_invariant (BinOp (op, c1, c2, t)) tv

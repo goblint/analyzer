@@ -113,7 +113,7 @@ sig
 end
 
 
-module IntDomLifter (I : S) =
+module IntDomLifter (I : S2) =
 struct
   open Cil
   type int_t = I.int_t
@@ -132,7 +132,7 @@ struct
   let bot_of ikind = { v = I.bot_of ikind; ikind}
   let bot () = failwith "bot () is not implemented for IntDomLifter."
   let is_bot x = I.is_bot x.v
-  let top_of ikind = { v = I.top_of ikind; ikind}
+  let top_of ?bitfield ikind = { v = I.top_of ?bitfield ikind; ikind}
   let top () = failwith "top () is not implemented for IntDomLifter."
   let is_top _ = failwith "is_top is not implemented for IntDomLifter."
 
@@ -169,7 +169,7 @@ struct
   let tag x = I.tag x.v
   let arbitrary ik = failwith @@ "Arbitrary not implement for " ^ (name ()) ^ "."
   let to_int x = I.to_int x.v
-  let of_int ikind x = { v = I.of_int ikind x; ikind}
+  let of_int ?(suppress_ovwarn=false) ikind x = { v = I.of_int ~suppress_ovwarn ikind x; ikind}
   let equal_to i x = I.equal_to i x.v
   let to_bool x = I.to_bool x.v
   let of_bool ikind b = { v = I.of_bool ikind b; ikind}
@@ -247,7 +247,7 @@ module Size = struct (* size in bits as int, range as int64 *)
   let bits ik = (* highest bits for neg/pos values *)
     let s = bit ik in
     if isSigned ik then s-1, s-1 else 0, s
-  let bits_i64 ik = BatTuple.Tuple2.mapn Int64.of_int (bits ik)
+  (* let bits_i64 ik = BatTuple.Tuple2.mapn Int64.of_int (bits ik) *)
   let range ik =
     let a,b = bits ik in
     let x = if isSigned ik then Z.neg (Z.shift_left Z.one a) (* -2^a *) else Z.zero in
@@ -278,16 +278,16 @@ module Size = struct (* size in bits as int, range as int64 *)
   (** @return Bit range always includes 0. *)
   let min_range_sign_agnostic x =
     let size ik =
-      let a,b = bits_i64 ik in
-      Int64.neg a,b
+      let a,b = bits ik in
+      -a,b
     in
     if sign x = `Signed then
       size (min_for x)
     else
       let a, b = size (min_for x) in
-      if b <= 64L then
-        let upper_bound_less = Int64.sub b 1L in
-        let max_one_less = Z.(pred @@ shift_left Z.one (Int64.to_int upper_bound_less)) in
+      if b <= 64 then
+        let upper_bound_less = b - 1 in
+        let max_one_less = Z.(pred @@ shift_left Z.one upper_bound_less) in
         if x <= max_one_less then
           a, upper_bound_less
         else
@@ -296,15 +296,15 @@ module Size = struct (* size in bits as int, range as int64 *)
         a, b
 
   (* From the number of bits used to represent a positive value, determines the maximal representable value *)
-  let max_from_bit_range pos_bits = Z.(pred @@ shift_left Z.one (to_int (Z.of_int64 pos_bits)))
+  let max_from_bit_range pos_bits = Z.(pred @@ shift_left Z.one (to_int (Z.of_int pos_bits)))
 
   (* From the number of bits used to represent a non-positive value, determines the minimal representable value *)
-  let min_from_bit_range neg_bits = Z.(if neg_bits = 0L then Z.zero else neg @@ shift_left Z.one (to_int (neg (Z.of_int64 neg_bits))))
+  let min_from_bit_range neg_bits = Z.(if neg_bits = 0 then Z.zero else neg @@ shift_left Z.one (to_int (neg (Z.of_int neg_bits))))
 
 end
 
 
-module StdTop (B: sig type t val top_of: Cil.ikind -> t end) = struct
+module StdTop (B: sig type t val top_of: ?bitfield:int -> Cil.ikind -> t end) = struct
   open B
   (* these should be overwritten for better precision if possible: *)
   let to_excl_list    x = None
@@ -323,7 +323,7 @@ end
 module Std (B: sig
     type t
     val name: unit -> string
-    val top_of: Cil.ikind -> t
+    val top_of: ?bitfield:int -> Cil.ikind -> t
     val bot_of: Cil.ikind -> t
     val show: t -> string
     val equal: t -> t -> bool
@@ -349,6 +349,11 @@ end
 
 (* Textbook interval arithmetic, without any overflow handling etc. *)
 module IntervalArith (Ints_t : IntOps.IntOps) = struct
+  type t = Ints_t.t * Ints_t.t [@@deriving eq, ord, hash]
+
+  (* TODO: use this for Interval and IntervalSet *)
+  let show (x,y) = "["^Ints_t.to_string x^","^Ints_t.to_string y^"]"
+
   let min4 a b c d = Ints_t.min (Ints_t.min a b) (Ints_t.min c d)
   let max4 a b c d = Ints_t.max (Ints_t.max a b) (Ints_t.max c d)
 
@@ -364,16 +369,28 @@ module IntervalArith (Ints_t : IntOps.IntOps) = struct
     let y2p = Ints_t.shift_left Ints_t.one y2 in
     mul (x1, x2) (y1p, y2p)
 
-  let div (x1, x2) (y1, y2) =
-    let x1y1n = (Ints_t.div x1 y1) in
-    let x1y2n = (Ints_t.div x1 y2) in
-    let x2y1n = (Ints_t.div x2 y1) in
-    let x2y2n = (Ints_t.div x2 y2) in
-    let x1y1p = (Ints_t.div x1 y1) in
-    let x1y2p = (Ints_t.div x1 y2) in
-    let x2y1p = (Ints_t.div x2 y1) in
-    let x2y2p = (Ints_t.div x2 y2) in
-    (min4 x1y1n x1y2n x2y1n x2y2n, max4 x1y1p x1y2p x2y1p x2y2p)
+  (** Divide mathematical intervals.
+      Excludes 0 from denominator - must be handled as desired by caller.
+
+      @return negative and positive denominator cases separately, if they exist.
+
+      @see <https://mine.perso.lip6.fr/publi/article-mine-FTiPL17.pdf> Miné, A. Tutorial on Static Inference of Numeric Invariants by Abstract Interpretation. Figure 4.6. *)
+  let div (a, b) (c, d) =
+    let pos =
+      if Ints_t.(compare one d) <= 0 then
+        let c = Ints_t.(max one c) in
+        Some (Ints_t.(min (div a c) (div a d), max (div b c) (div b d)))
+      else
+        None
+    in
+    let neg =
+      if Ints_t.(compare c zero) < 0 then
+        let d = Ints_t.(min d (neg one)) in
+        Some (Ints_t.(min (div b c) (div b d), max (div a c) (div a d)))
+      else
+        None
+    in
+    (neg, pos)
 
   let add (x1, x2) (y1, y2) = (Ints_t.add x1 y1, Ints_t.add x2 y2)
   let sub (x1, x2) (y1, y2) = (Ints_t.sub x1 y2, Ints_t.sub x2 y1)
@@ -383,6 +400,20 @@ module IntervalArith (Ints_t : IntOps.IntOps) = struct
   let one = (Ints_t.one, Ints_t.one)
   let zero = (Ints_t.zero, Ints_t.zero)
   let top_bool = (Ints_t.zero, Ints_t.one)
+
+  (* TODO: use these for Interval and IntervalSet *)
+  let maximal = snd
+  let minimal = fst
+
+  (* TODO: use these for Interval and IntervalSet *)
+  let leq (x1,x2) (y1,y2) = Ints_t.compare x1 y1 >= 0 && Ints_t.compare x2 y2 <= 0
+  let join (x1,x2) (y1,y2) = (Ints_t.min x1 y1, Ints_t.max x2 y2)
+  let meet (x1,x2) (y1,y2) =
+    let (r1, r2) as r = (Ints_t.max x1 y1, Ints_t.min x2 y2) in
+    if Ints_t.compare r1 r2 > 0 then
+      None
+    else
+      Some r
 
   let to_int (x1, x2) =
     if Ints_t.equal x1 x2 then Some x1 else None
@@ -468,7 +499,7 @@ struct
       ) (Invariant.top ()) ns
 end
 
-module SOverflowUnlifter (D : SOverflow) : S with type int_t = D.int_t and type t = D.t = struct
+module SOverflowUnlifter (D : SOverflow) : S2 with type int_t = D.int_t and type t = D.t = struct
   include D
 
   let add ?no_ov ik x y = fst @@ D.add ?no_ov ik x y
@@ -481,15 +512,15 @@ module SOverflowUnlifter (D : SOverflow) : S with type int_t = D.int_t and type 
 
   let neg ?no_ov ik x = fst @@ D.neg ?no_ov ik x
 
-  let cast_to ?suppress_ovwarn ?torg ?no_ov ik x = fst @@ D.cast_to ?suppress_ovwarn ?torg ?no_ov ik x
+  let cast_to ?suppress_ovwarn ?torg ?no_ov ik x = fst @@ D.cast_to ?torg ?no_ov ik x
 
-  let of_int ik x = fst @@ D.of_int ik x
+  let of_int ?suppress_ovwarn ik x = fst @@ D.of_int ik x
 
-  let of_interval ?suppress_ovwarn ik x = fst @@ D.of_interval ?suppress_ovwarn ik x
+  let of_interval ?suppress_ovwarn ik x = fst @@ D.of_interval ik x
 
-  let starting ?suppress_ovwarn ik x = fst @@ D.starting ?suppress_ovwarn ik x
+  let starting ?suppress_ovwarn ik x = fst @@ D.starting ik x
 
-  let ending ?suppress_ovwarn ik x = fst @@ D.ending ?suppress_ovwarn ik x
+  let ending ?suppress_ovwarn ik x = fst @@ D.ending ik x
 
   let shift_left ik x y = fst @@ D.shift_left ik x y
 
@@ -506,7 +537,7 @@ struct
   type int_t = Ints_t.t
   let top () = raise Unknown
   let bot () = raise Error
-  let top_of ik = top ()
+  let top_of ?bitfield ik = top ()
   let bot_of ik = bot ()
   let show (x: Ints_t.t) = Ints_t.to_string x
 
@@ -574,7 +605,7 @@ struct
       let bot_name = "Error int"
     end) (Base)
 
-  let top_of ik = top ()
+  let top_of ?bitfield ik = top ()
   let bot_of ik = bot ()
 
 
@@ -655,7 +686,7 @@ struct
       let bot_name = "MinInt"
     end) (Base)
   type int_t = Base.int_t
-  let top_of ik = top ()
+  let top_of ?bitfield ik = top ()
   let bot_of ik = bot ()
   include StdTop (struct type nonrec t = t let top_of = top_of end)
 
@@ -733,15 +764,15 @@ module SOverflowLifter (D : S) : SOverflow with type int_t = D.int_t and type t 
 
   let neg ?no_ov ik x = lift @@ D.neg ?no_ov ik x
 
-  let cast_to ?suppress_ovwarn ?torg ?no_ov ik x = lift @@ D.cast_to ?suppress_ovwarn ?torg ?no_ov ik x
+  let cast_to ?torg ?no_ov ik x = lift @@ D.cast_to ?torg ?no_ov ik x
 
   let of_int ik x = lift @@ D.of_int ik x
 
-  let of_interval ?suppress_ovwarn ik x = lift @@ D.of_interval ?suppress_ovwarn ik x
+  let of_interval ik x = lift @@ D.of_interval ik x
 
-  let starting ?suppress_ovwarn ik x = lift @@ D.starting ?suppress_ovwarn ik x
+  let starting ik x = lift @@ D.starting ik x
 
-  let ending ?suppress_ovwarn ik x = lift @@ D.ending ?suppress_ovwarn ik x
+  let ending ik x = lift @@ D.ending ik x
 
   let shift_left ik x y = lift @@ D.shift_left ik x y
 
