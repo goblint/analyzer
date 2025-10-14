@@ -1,5 +1,5 @@
 # just -opam tag because make setup will install ocaml compiler
-FROM ocaml/opam:ubuntu-24.04-opam
+FROM ocaml/opam:ubuntu-24.04-opam AS build
 # make opam 2.4 default for make setup
 RUN sudo ln -sf /usr/bin/opam-2.4 /usr/bin/opam
 
@@ -16,8 +16,23 @@ WORKDIR /home/opam/goblint/
 # unsafe-yes to allow opam to install depexts via apt unattended
 RUN OPAMCONFIRMLEVEL=unsafe-yes make setup
 
-# copy the rest
-COPY --chown=opam . /home/opam/goblint
 # TODO: move up
 RUN sudo apt-get install -y wget zip
+# copy the rest
+COPY --chown=opam . /home/opam/goblint
 RUN ./scripts/sv-comp/archive.sh
+
+FROM ubuntu:24.04 AS smoke-test
+
+# cannot use opam depext because no opam here, also additional preprocessing/header dependencies
+# libgmp for zarith, libmpfr for apron, cpp for preprocessing, libc6 for pthread.h, libgcc for stddef.h
+RUN apt-get update \
+    && apt-get install -y unzip libgmp-dev libmpfr-dev cpp libc6-dev libc6-dev-i386 libgcc-11-dev lib32gcc-11-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /root
+COPY --from=build /home/opam/goblint/scripts/sv-comp/goblint.zip .
+RUN unzip goblint.zip
+
+WORKDIR /root/goblint
+RUN ./smoke-test.sh
