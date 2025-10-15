@@ -1,0 +1,6 @@
+rules:
+  - id: let-unit-in
+    pattern: let () = $E in ...
+    message: use ; instead
+    languages: [ocaml]
+    severity: WARNING
