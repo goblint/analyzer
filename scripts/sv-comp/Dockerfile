@@ -22,12 +22,25 @@ RUN sudo apt-get install -y wget zip
 COPY --chown=opam . /home/opam/goblint
 RUN ./scripts/sv-comp/archive.sh
 
-FROM ubuntu:24.04 AS smoketest
+FROM ubuntu:24.04 AS smoketest-ubuntu
 
 # cannot use opam depext because no opam here, also additional preprocessing/header dependencies
 # libgmp for zarith, libmpfr for apron, cpp for preprocessing, libc6 for pthread.h, libgcc for stddef.h
 RUN apt-get update \
     && apt-get install -y unzip libgmp-dev libmpfr-dev cpp libc6-dev libc6-dev-i386 libgcc-11-dev lib32gcc-11-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /root
+COPY --from=build /home/opam/goblint/scripts/sv-comp/goblint.zip .
+RUN unzip goblint.zip
+
+WORKDIR /root/goblint
+RUN ./smoketest.sh
+
+FROM registry.gitlab.com/sosy-lab/benchmarking/competition-scripts/user:2025 AS smoketest-competition
+
+RUN apt-get update \
+    && apt-get install -y unzip \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /root
