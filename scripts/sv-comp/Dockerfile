@@ -11,10 +11,10 @@ RUN cd /home/opam/opam-repository \
     && opam update -y
 
 # copy only files for make setup to cache docker layers without code changes
-COPY --chown=opam Makefile make.sh goblint.opam goblint.opam.locked /home/opam/goblint/
+COPY --chown=opam make.sh goblint.opam goblint.opam.locked /home/opam/goblint/
 WORKDIR /home/opam/goblint/
 # unsafe-yes to allow opam to install depexts via apt unattended
-RUN OPAMCONFIRMLEVEL=unsafe-yes make setup
+RUN OPAMCONFIRMLEVEL=unsafe-yes ./make.sh setup
 
 # TODO: move up
 RUN sudo apt-get install -y wget zip
@@ -36,3 +36,6 @@ RUN unzip goblint.zip
 
 WORKDIR /root/goblint
 RUN ./smoketest.sh
+
+FROM scratch
+COPY --from=build /home/opam/goblint/scripts/sv-comp/goblint.zip .
