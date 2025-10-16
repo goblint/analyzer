@@ -18,11 +18,10 @@ GOBLINT="../goblint --conf conf/svcomp26.json"
 # Check if architectures are supported (CIL Machdeps, C standard headers available for both) and return correct results.
 # This is based on the cram test tests/regression/29-svcomp/36-svcomp-arch.t.
 # There should be overflow on ILP32:
-$GOBLINT --set ana.specification no-overflow.prp --set exp.architecture 32bit 36-svcomp-arch.c --enable pre.enabled | grep "SV-COMP result: unknown"
-# TODO: move --enable pre.enabled to conf
+$GOBLINT --set ana.specification no-overflow.prp --set exp.architecture 32bit 36-svcomp-arch.c | grep "SV-COMP result: unknown"
 
 # There shouldn't be an overflow on LP64:
-$GOBLINT --set ana.specification no-overflow.prp --set exp.architecture 64bit 36-svcomp-arch.c --enable pre.enabled | grep "SV-COMP result: true"
+$GOBLINT --set ana.specification no-overflow.prp --set exp.architecture 64bit 36-svcomp-arch.c | grep "SV-COMP result: true"
 
 
 # Check if basic data race analysis returns correct results.
