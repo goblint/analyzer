@@ -1,8 +1,8 @@
   $ goblint --set lib.activated '["goblint"]' --set exp.unrolling-factor 5 --enable justcil --set dbg.justcil-printer clean 05-continue.c
   [Info] unrolling loop at 05-continue.c:9:5-17:5 with factor 5
-  extern void __goblint_check(int exp ) ;
-  extern void __goblint_assume(int exp ) ;
-  extern void __goblint_assert(int exp ) ;
+  extern void __goblint_check(_Bool exp ) ;
+  extern void __goblint_assume(_Bool exp ) ;
+  extern void __goblint_assert(_Bool exp ) ;
   extern void __goblint_assume_join() ;
   extern void __goblint_globalize(void *ptr ) ;
   extern void __goblint_split_begin(int exp ) ;
@@ -102,7 +102,7 @@
     }
     loop_end: /* CIL Label */ ;
     }
-    __goblint_check(j == 3);
+    __goblint_check((_Bool )(j == 3));
     return;
   }
   }

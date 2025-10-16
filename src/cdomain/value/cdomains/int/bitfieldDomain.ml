@@ -193,7 +193,7 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): Bitfield_SOverflow with type in
   (* bot = all bits are invalid *)
   let bot () = (BArith.zero_mask, BArith.zero_mask)
 
-  let top_of ik =
+  let top_of ?bitfield ik = (* TODO: use bitfield *)
     if GoblintCil.isSigned ik then top ()
     else (BArith.one_mask, Ints_t.of_bigint (snd (Size.range ik)))
 
@@ -253,7 +253,7 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): Bitfield_SOverflow with type in
       let newo = o &: (Ints_t.of_bigint max_ik) in
       (newz,newo)
 
-  let norm ?(suppress_ovwarn=false) ?(ov=false) ik (z,o) =
+  let norm ?(ov=false) ik (z,o) =
     if BArith.is_invalid (z,o) then
       bot ()
     else
@@ -263,7 +263,7 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): Bitfield_SOverflow with type in
       else
         top_of ik
 
-  let cast_to ?(suppress_ovwarn=false) ?torg ?(no_ov=false) ik (z,o) =
+  let cast_to ?torg ?(no_ov=false) ik (z,o) =
     let (min_ik, max_ik) = Size.range ik in
     let (underflow, overflow) = match torg with
       | None -> (false, false) (* ik does not change *)
@@ -278,8 +278,27 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): Bitfield_SOverflow with type in
         let overflow = (((!:(Ints_t.of_bigint max_ik)) &: o) <>: Ints_t.zero) && isPos in
         (underflow, overflow)
     in
-    let overflow_info = if suppress_ovwarn then {underflow=false; overflow=false} else {underflow=underflow; overflow=overflow} in
-    (norm ~suppress_ovwarn:(suppress_ovwarn) ~ov:(underflow || overflow) ik (z,o), overflow_info)
+    let overflow_info = {underflow; overflow} in
+    (norm ~ov:(underflow || overflow) ik (z,o), overflow_info)
+
+  let cast_to ?torg ?(no_ov=false) ik (z,o) =
+    if ik = GoblintCil.IBool then (
+      let may_zero =
+        if Ints_t.equal z BArith.one_mask then (* zero bit may be in every position (one_mask) *)
+          BArith.zero
+        else
+          bot () (* must be non-zero, so may not be zero *)
+      in
+      let may_one =
+        if Ints_t.equal o BArith.zero_mask then (* one bit may be in no position (zero_mask) *)
+          bot () (* must be zero, so may not be one *)
+        else
+          BArith.one
+      in
+      (BArith.join may_zero may_one, {underflow=false; overflow=false})
+    )
+    else
+      cast_to ?torg ~no_ov ik (z,o)
 
   let join ik b1 b2 = norm ik @@ (BArith.join b1 b2)
 
@@ -316,7 +335,7 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): Bitfield_SOverflow with type in
 
   type bit_status = Zero | One | Top
 
-  let of_interval ?(suppress_ovwarn=false) ik (x,y) =
+  let of_interval ik (x,y) =
     let (min_ik, max_ik) = Size.range ik in
     let startv = Ints_t.max x (Ints_t.of_bigint min_ik) in
     let endv= Ints_t.min y (Ints_t.of_bigint max_ik) in
@@ -619,13 +638,13 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): Bitfield_SOverflow with type in
       let exp1 = Invariant.of_exp (BinOp (Eq, (BinOp (BAnd, e, def1, TInt(ik,[]))), def1, intType)) in
       Invariant.meet exp0 exp1
 
-  let starting ?(suppress_ovwarn=false) ik n =
+  let starting ik n =
     let (min_ik, max_ik) = Size.range ik in
-    of_interval ~suppress_ovwarn ik (n, Ints_t.of_bigint max_ik)
+    of_interval ik (n, Ints_t.of_bigint max_ik)
 
-  let ending ?(suppress_ovwarn=false) ik n =
+  let ending ik n =
     let (min_ik, max_ik) = Size.range ik in
-    of_interval ~suppress_ovwarn ik (Ints_t.of_bigint min_ik, n)
+    of_interval ik (Ints_t.of_bigint min_ik, n)
 
   (* Refinements *)
 
@@ -641,7 +660,7 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): Bitfield_SOverflow with type in
 
   let refine_with_bitfield ik x y = meet ik x y
 
-  let refine_with_excl_list ik t (excl : (int_t list * (int64 * int64)) option) : t = norm ik t
+  let refine_with_excl_list ik t (excl : (int_t list * (int * int)) option) : t = norm ik t
 
   let refine_with_incl_list ik t (incl : (int_t list) option) : t =
     let joined =match incl with

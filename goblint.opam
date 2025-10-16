@@ -37,8 +37,8 @@ bug-reports: "https://github.com/goblint/analyzer/issues"
 depends: [
   "dune" {>= "3.13"}
   "ocaml" {>= "4.14"}
-  "goblint-cil" {>= "2.0.5"}
-  "batteries" {>= "3.5.1"}
+  "goblint-cil" {>= "2.0.7"}
+  "batteries" {>= "3.9.0"}
   "zarith" {>= "1.10"}
   "yojson" {>= "2.0.0" & < "3"}
   "qcheck-core" {>= "0.19"}
@@ -70,14 +70,11 @@ depends: [
   "domain-local-await"
   "domain_shims"
 ]
-depopts: [
-  "apron" {>= "v0.9.15"}
-  "camlidl" {>= "1.13"}
-  "z3"
-  "domainslib"
-]
+depopts: ["apron" "z3" "domainslib"]
 conflicts: [
   "result" {< "1.5"}
+  "apron" {< "v0.9.15"}
+  "camlidl" {< "1.13"}
   "ez-conf-lib" {= "1"}
 ]
 build: [
@@ -101,13 +98,12 @@ dev-repo: "git+https://github.com/goblint/analyzer.git"
 # also remember to generate/adjust goblint.opam.locked!
 available: os-family != "bsd" & os-distribution != "alpine" & (arch != "arm64" | os = "macos")
 pin-depends: [
-  # published goblint-cil 2.0.6 is currently up-to-date, but pinned for reproducibility
-  [ "goblint-cil.2.0.6" "git+https://github.com/goblint/cil.git#8385ab315bc7461f6801af57673c64731bfa036a" ]
+  [ "goblint-cil.2.0.7" "git+https://github.com/goblint/cil.git#e5b6287c0c85864c6d44f7fa30d0084a3ae11d6c" ]
   # pinned for stability (https://github.com/goblint/analyzer/issues/1520), remove after new apron release
   [ "apron.v0.9.15" "git+https://github.com/antoinemine/apron.git#418a217c7a70dae3f422678f3aaba38ae374d91a" ]
 ]
 depexts: [
-  ["libgraph-easy-perl"] {os-distribution = "ubuntu" & with-test}
+  ["libgraph-easy-perl"] {os-distribution = "ubuntu" & with-test} # doesn't work (https://github.com/ocaml/opam/issues/5836)
 ]
 post-messages: [
   "Do not benchmark Goblint on OCaml 5 (https://goblint.readthedocs.io/en/latest/user-guide/benchmarking/)." {ocaml:version >= "5.0.0"}

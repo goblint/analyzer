@@ -106,7 +106,7 @@ let computeSCCs (module Cfg: CfgBidir) nodes =
 
   if Messages.tracing then (
     List.iter (fun scc ->
-        let nodes = scc.nodes |> NH.keys |> BatList.of_enum in
+        let nodes = scc.nodes |> NH.to_seq_keys |> List.of_seq in
         Messages.trace "cfg" "SCC: %a" (d_list " " (fun () node -> text (Node.show_id node))) nodes;
         NH.iter (fun node _ ->
             Messages.trace "cfg" "SCC entry: %s" (Node.show_id node)
@@ -390,7 +390,7 @@ let createCFG (file: file) =
         in
 
         let rec iter_connect () =
-          let (sccs, node_scc) = computeSCCs (module TmpCfg) (NH.keys fd_nodes |> BatList.of_enum) in
+          let (sccs, node_scc) = computeSCCs (module TmpCfg) (NH.to_seq_keys fd_nodes |> List.of_seq) in
 
           let added_connect = ref false in
 
@@ -405,24 +405,24 @@ let createCFG (file: file) =
                   (* scc has no successors but also doesn't contain return node, requires additional connections *)
                   (* find connection candidates from loops *)
                   let targets =
-                    NH.keys scc.nodes
-                    |> BatEnum.concat_map (fun fromNode ->
+                    NH.to_seq_keys scc.nodes
+                    |> Seq.concat_map (fun fromNode ->
                         NH.find_all loop_head_neg1 fromNode
-                        |> BatList.enum
-                        |> BatEnum.filter (fun toNode ->
+                        |> List.to_seq
+                        |> Seq.filter (fun toNode ->
                             not (NH.mem scc.nodes toNode) (* exclude candidates into the same scc, those wouldn't help *)
                           )
-                        |> BatEnum.map (fun toNode ->
+                        |> Seq.map (fun toNode ->
                             (fromNode, toNode)
                           )
                       )
-                    |> BatList.of_enum
+                    |> List.of_seq
                   in
                   let targets = match targets with
                     | [] ->
                       let scc_node =
-                        NH.keys scc.nodes
-                        |> BatList.of_enum
+                        NH.to_seq_keys scc.nodes
+                        |> BatList.of_seq (* TODO: do not convert to list to find min *)
                         |> BatList.min ~cmp:Node.compare (* use min for consistency for incremental CFG comparison *)
                       in
                       (* default to pseudo return if no suitable candidates *)
@@ -432,9 +432,8 @@ let createCFG (file: file) =
                   List.iter (fun (fromNode, toNode) ->
                       addEdge_fromLoc fromNode (Test (one, false)) toNode;
                       added_connect := true;
-                      match NH.find_option node_scc toNode with
-                      | Some toNode_scc -> iter_scc toNode_scc (* continue to target scc as normally, to ensure they are also connected *)
-                      | None -> () (* pseudo return, wasn't in scc, but is fine *)
+                      Option.iter iter_scc (NH.find_option node_scc toNode) (* continue to target scc as normally, to ensure they are also connected *)
+                      (* otherwise pseudo return, wasn't in scc, but is fine *)
                     ) targets
                 )
               )
@@ -456,7 +455,7 @@ let createCFG (file: file) =
         Timing.wrap ~args:[("function", `String fd.svar.vname)] "iter_connect" iter_connect ();
 
         (* Verify that function is now connected *)
-        let reachable_return' = find_backwards_reachable ~initial_size:(NH.keys fd_nodes |> BatEnum.hard_count) (module TmpCfg) (Function fd) in
+        let reachable_return' = find_backwards_reachable ~initial_size:(NH.length fd_nodes) (module TmpCfg) (Function fd) in
         (* TODO: doesn't check that all branches are connected, but only that there exists one which is *)
         if not (NH.mem reachable_return' (FunctionEntry fd)) then
           raise (Not_connect fd)
@@ -556,12 +555,10 @@ struct
     Format.fprintf out ("\t%a [%s];\n") p_node n styles;
     match n with
     | Statement s when get_bool "dbg.cfg.loop-unrolling" ->
-      begin match LoopUnrolling0.find_copyof s with
-        | Some s' ->
+      Option.iter (fun s' ->
           let n' = Statement s' in
           Format.fprintf out "\t%a -> %a [style=dotted];\n" p_node n p_node n'
-        | None -> ()
-      end
+        ) (LoopUnrolling0.find_copyof s)
     | _ -> ()
 end
 
@@ -657,12 +654,12 @@ let sprint_fundec_html_dot (module Cfg : CfgBidir) live fd =
   fprint_fundec_html_dot (module Cfg) live fd Format.str_formatter;
   Format.flush_str_formatter ()
 
-let dead_code_cfg (module FileCfg: MyCFG.FileCfg) live =
+let dead_code_cfg ~path (module FileCfg: MyCFG.FileCfg) live =
   iterGlobals FileCfg.file (fun glob ->
       match glob with
       | GFun (fd,loc) ->
         (* ignore (Printf.printf "fun: %s\n" fd.svar.vname); *)
-        let base_dir = GobSys.mkdir_or_exists_absolute (Fpath.v "cfgs") in
+        let base_dir = GobSys.mkdir_or_exists_absolute path in
         let c_file_name = Str.global_substitute (Str.regexp Filename.dir_sep) (fun _ -> "%2F") loc.file in
         let dot_file_name = fd.svar.vname^".dot" in
         let file_dir = GobSys.mkdir_or_exists_absolute Fpath.(base_dir / c_file_name) in
@@ -721,7 +718,7 @@ let getGlobalInits (file: file) : edges  =
   iterGlobals file f;
   let initfun = emptyFunction "__goblint_dummy_init" in
   (* order is not important since only compile-time constants can be assigned *)
-  ({line = 0; file="initfun"; byte= 0; column = 0; endLine = -1; endByte = -1; endColumn = -1; synthetic = true}, Entry initfun) :: (BatHashtbl.keys inits |> BatList.of_enum)
+  ({line = 0; file="initfun"; byte= 0; column = 0; endLine = -1; endByte = -1; endColumn = -1; synthetic = true}, Entry initfun) :: (Hashtbl.to_seq_keys inits |> List.of_seq)
 
 
 let numGlobals file =

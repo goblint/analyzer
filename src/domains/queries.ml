@@ -39,6 +39,11 @@ module MustBool = BoolDomain.MustBool
 
 module Unit = Lattice.Unit
 
+module ProtectionKind =
+struct
+  type t = ReadWrite | Write [@@deriving ord, hash]
+end
+
 (** Different notions of protection for a global variables g by a mutex m
     m protects g strongly if:
     - whenever g is accessed after the program went multi-threaded for the first time, m is held
@@ -55,11 +60,11 @@ module AllocationLocation = struct
 end
 
 (* Helper definitions for deriving complex parts of Any.compare below. *)
-type maybepublic = {global: CilType.Varinfo.t; write: bool; protection: Protection.t} [@@deriving ord, hash]
-type maybepublicwithout = {global: CilType.Varinfo.t; write: bool; without_mutex: LockDomain.MustLock.t; protection: Protection.t} [@@deriving ord, hash]
-type mustbeprotectedby = {mutex: LockDomain.MustLock.t; global: CilType.Varinfo.t; write: bool; protection: Protection.t} [@@deriving ord, hash]
-type mustprotectedvars = {mutex: LockDomain.MustLock.t; write: bool} [@@deriving ord, hash]
-type mustprotectinglocks = {global: CilType.Varinfo.t; write: bool} [@@deriving ord, hash]
+type maybepublic = {global: CilType.Varinfo.t; kind: ProtectionKind.t; protection: Protection.t} [@@deriving ord, hash]
+type maybepublicwithout = {global: CilType.Varinfo.t; kind: ProtectionKind.t; without_mutex: LockDomain.MustLock.t; protection: Protection.t} [@@deriving ord, hash]
+type mustbeprotectedby = {mutex: LockDomain.MustLock.t; global: CilType.Varinfo.t; kind: ProtectionKind.t; protection: Protection.t} [@@deriving ord, hash]
+type mustprotectedvars = {mutex: LockDomain.MustLock.t; kind: ProtectionKind.t} [@@deriving ord, hash]
+type mustprotectinglocks = {global: CilType.Varinfo.t; kind: ProtectionKind.t} [@@deriving ord, hash]
 type access =
   | Memory of {exp: CilType.Exp.t; var_opt: CilType.Varinfo.t option; kind: AccessKind.t} (** Memory location access (race). *)
   | Point (** Program point and state access (MHP), independent of memory location. *)
@@ -555,6 +560,12 @@ let may_be_equal = eval_int_binop (module MayBool) Eq
 
 (** Backwards-compatibility for former [MayBeLess] query. *)
 let may_be_less = eval_int_binop (module MayBool) Lt
+
+let eval_bool (ask: ask) e: BoolDomain.FlatBool.t =
+  let e' = CastE (TInt (IBool, []), e) in
+  match ask.f (EvalInt e') with
+  | v when ID.is_bot v || ID.is_bot_ikind v -> `Bot
+  | v -> BatOption.map_default (fun b -> `Lifted b) `Top (ID.to_bool v)
 
 
 module Set = BatSet.Make (Any)

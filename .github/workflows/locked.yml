@@ -30,7 +30,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Set up OCaml ${{ matrix.ocaml-compiler }}
         env:
@@ -41,7 +41,7 @@ jobs:
         with:
           ocaml-compiler: ${{ matrix.ocaml-compiler }}
 
-      - name: Install graph-easy # TODO: remove if depext --with-test works
+      - name: Install graph-easy # TODO: remove if depext --with-test works (https://github.com/ocaml/opam/issues/5836)
         if: ${{ matrix.os == 'ubuntu-22.04' }}
         run: sudo apt install -y libgraph-easy-perl
 
@@ -82,7 +82,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Set up OCaml ${{ matrix.ocaml-compiler }}
         env:
@@ -93,7 +93,7 @@ jobs:
         with:
           ocaml-compiler: ${{ matrix.ocaml-compiler }}
 
-      - name: Install graph-easy # TODO: remove if depext --with-test works
+      - name: Install graph-easy # TODO: remove if depext --with-test works (https://github.com/ocaml/opam/issues/5836)
         if: ${{ matrix.os == 'ubuntu-22.04' }}
         run: sudo apt install -y libgraph-easy-perl
 

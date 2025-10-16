@@ -97,15 +97,10 @@ let functionArgs fd = (ResettableLazy.force functionCallMaps).argLists |> Functi
 let findMallocWrappers () =
   let isMalloc f =
     Goblint_backtrace.wrap_val ~mark:(Cilfacade.FunVarinfo f) @@ fun () ->
-    if LibraryFunctions.is_special f then (
+    if LibraryFunctions.is_special f then
       let desc = LibraryFunctions.find f in
-      match functionArgs f with
-      | None -> false
-      | Some args ->
-        match desc.special args with
-        | Malloc _ -> true
-        | _ -> false
-    )
+      let args = functionArgs f in
+      GobOption.exists (fun args -> match desc.special args with Malloc _ -> true | _ -> false) args
     else
       false
   in
@@ -339,17 +334,16 @@ type option = {
 (*Option for activating the octagon apron domain on selected vars*)
 module VariableMap = Map.Make(CilType.Varinfo)
 module VariableSet = Set.Make(CilType.Varinfo)
+module OctagonTracked = RelationCil.AutotuneTracked
 
 let isComparison = function
   | Lt | Gt |	Le | Ge | Ne | Eq -> true
   | _ -> false
 
-let isGoblintStub v = List.exists (fun (Attr(s,_)) -> s = "goblint_stub") v.vattr
-
 let rec extractVar = function
   | UnOp (Neg, e, _)
   | CastE (_, e) -> extractVar e
-  | Lval ((Var info),_) when not (isGoblintStub info) -> Some info
+  | Lval ((Var info),_) when OctagonTracked.varinfo_tracked info -> Some info
   | _ -> None
 
 let extractBinOpVars e1 e2 =
@@ -381,7 +375,7 @@ class octagonVariableVisitor(varMap, globals) = object
         List.iter (fun var -> addOrCreateVarMapping varMap var 5 globals) (extractOctagonVars e2);
         DoChildren
       )
-    | Lval ((Var info),_) when not (isGoblintStub info) -> addOrCreateVarMapping varMap info 1 globals; SkipChildren
+    | Lval ((Var info),_) when OctagonTracked.varinfo_tracked info -> addOrCreateVarMapping varMap info 1 globals; SkipChildren
     (*Traverse down only operations fitting for linear equations*)
     | UnOp (LNot, _,_)
     | UnOp (Neg, _,_)

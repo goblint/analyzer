@@ -87,7 +87,7 @@ struct
     end
     in
     let e' = visitCilExpr visitor e in
-    let rel = RD.add_vars st.rel (List.map RV.local (VH.values v_ins |> List.of_enum)) in (* add temporary g#in-s *)
+    let rel = RD.add_vars st.rel (List.map RV.local (VH.to_seq_values v_ins |> List.of_seq)) in (* add temporary g#in-s *)
     let rel' = VH.fold (fun v v_in rel ->
         if M.tracing then M.trace "relation" "read_global %a %a" CilType.Varinfo.pretty v CilType.Varinfo.pretty v_in;
         read_global ask getg {st with rel} v v_in (* g#in = g; *)
@@ -102,7 +102,7 @@ struct
         v_in.vattr <- v.vattr; (* preserve goblint_relation_track attribute *)
         VH.replace v_ins_inv v_in v;
       ) vs;
-    let rel = RD.add_vars st.rel (List.map RV.local (VH.keys v_ins_inv |> List.of_enum)) in (* add temporary g#in-s *)
+    let rel = RD.add_vars st.rel (List.map RV.local (VH.to_seq_keys v_ins_inv |> List.of_seq)) in (* add temporary g#in-s *)
     let rel' = VH.fold (fun v_in v rel ->
         read_global ask getg {st with rel} v v_in (* g#in = g; *)
       ) v_ins_inv rel
@@ -126,7 +126,7 @@ struct
     let (rel', e', v_ins) = read_globals_to_locals ask getg st e in
     if M.tracing then M.trace "relation" "assign_from_globals_wrapper %a" d_exp e';
     let rel' = f rel' e' in (* x = e; *)
-    let rel'' = RD.remove_vars rel' (List.map RV.local (VH.values v_ins |> List.of_enum)) in (* remove temporary g#in-s *)
+    let rel'' = RD.remove_vars rel' (List.map RV.local (VH.to_seq_values v_ins |> List.of_seq)) in (* remove temporary g#in-s *)
     rel''
 
   let write_global ask getg sideg st g x =
@@ -292,16 +292,14 @@ struct
     in
     List.fold (fun vs e -> VS.join vs (to_vs e)) (VS.empty ()) args
 
-  let pass_to_callee fundec any_local_reachable var =
-    (* TODO: currently, we pass all locals of the caller to the callee, provided one of them is reachbale to preserve relationality *)
+  let belongs_to_fundec fundec var =
+    (* TODO: currently, we pass all locals of the caller to the callee, provided one of them is reachable to preserve relationality *)
     (* there should be smarter ways to do this, e.g. by keeping track of which values are written etc. ... *)
     (* See, e.g, Beckschulze E, Kowalewski S, Brauer J (2012) Access-based localization for octagons. Electron Notes Theor Comput Sci 287:29–40 *)
     (* Also, a local *)
     let vname = GobApron.Var.show var in
-    let locals = fundec.sformals @ fundec.slocals in
-    match List.find_opt (fun v -> VM.var_name (Local v) = vname) locals with (* TODO: optimize *)
-    | None -> true
-    | Some v -> any_local_reachable
+    let equiv v = VM.var_name (Local v) = vname in (* TODO: optimize *)
+    (not @@ List.exists equiv fundec.sformals) && (not @@ List.exists equiv fundec.slocals)
 
   let make_callee_rel ~thread man f args =
     let fundec = Node.find_fundec man.node in
@@ -329,7 +327,7 @@ struct
     let any_local_reachable = any_local_reachable fundec reachable_from_args in
     RD.remove_filter_with new_rel (fun var ->
         match RV.find_metadata var with
-        | Some (Local _) when not (pass_to_callee fundec any_local_reachable var) -> true (* remove caller locals provided they are unreachable *)
+        | Some (Local _) when not (belongs_to_fundec fundec var || any_local_reachable) -> true (* remove caller locals provided they are unreachable *)
         | Some (Arg _) when not (List.mem_cmp Apron.Var.compare var arg_vars) -> true (* remove caller args, but keep just added args *)
         | _ -> false (* keep everything else (just added args, globals, global privs) *)
       );
@@ -359,16 +357,14 @@ struct
     let st = man.local in
     let ask = Analyses.ask_of_man man in
     let new_rel =
-      if RD.Tracked.type_tracked (Cilfacade.fundec_return_type f) then (
+      if RD.Tracked.type_tracked (Cilfacade.fundec_return_type f) then
         let rel' = RD.add_vars st.rel [RV.return] in
-        match e with
-        | Some e ->
+        Option.map_default (fun e ->
           assign_from_globals_wrapper ask man.global {st with rel = rel'} e (fun rel' e' ->
               RD.assign_exp ask rel' RV.return e' (no_overflow ask e)
-            )
-        | None ->
-          rel' (* leaves V.return unconstrained *)
-      )
+              )
+          ) rel' e
+        (* default value rel' leaves V.return unconstrained *)
       else
         RD.copy st.rel
     in
@@ -426,7 +422,7 @@ struct
     let tainted_vars = TaintPartialContexts.conv_varset tainted in
     let new_rel = RD.keep_filter st.rel (fun var ->
         match RV.find_metadata var with
-        | Some (Local _) when not (pass_to_callee fundec any_local_reachable var) -> true (* keep caller locals, provided they were not passed to the function *)
+        | Some (Local _) when not (belongs_to_fundec fundec var || any_local_reachable) -> true (* keep caller locals, provided they were not passed to the function *)
         | Some (Arg _) -> true (* keep caller args *)
         | Some ((Local _ | Global _)) when not (RD.mem_var new_fun_rel var) -> false (* remove locals and globals, for which no record exists in the new_fun_apr *)
         | Some ((Local v | Global v)) when not (TaintPartialContexts.VS.mem v tainted_vars) -> true (* keep locals and globals, which have not been touched by the call *)
@@ -439,20 +435,17 @@ struct
 
   let combine_assign man r fe f args fc fun_st (f_ask : Queries.ask) =
     let unify_st = man.local in
-    if RD.Tracked.type_tracked (Cilfacade.fundec_return_type f) then (
-      let unify_st' = match r with
-        | Some lv ->
+    if RD.Tracked.type_tracked (Cilfacade.fundec_return_type f) then
+      let unify_st' = Option.map_default (fun lv ->
           let ask = Analyses.ask_of_man man in
           assign_to_global_wrapper ask man.global man.sideg unify_st lv (fun st v ->
               let rel = RD.assign_var st.rel (RV.local v) RV.return in
               assert_type_bounds ask rel v (* TODO: should be done in return instead *)
             )
-        | None ->
-          unify_st
+        ) unify_st r
       in
       RD.remove_vars_with unify_st'.rel [RV.return]; (* mutates! *)
       unify_st'
-    )
     else
       unify_st
 
@@ -466,32 +459,23 @@ struct
 
   (* Give the set of reachables from argument. *)
   let reachables (ask: Queries.ask) es =
-    let reachable acc e =
-      Option.bind acc (fun st ->
-        let ad = ask.f (Queries.ReachableFrom e) in
-        if Queries.AD.is_top ad then
-          None
-        else
-          Some (Queries.AD.join ad st))
+    let reachable st e =
+      let ad = ask.f (Queries.ReachableFrom e) in
+      Queries.AD.join ad st
     in
-    List.fold_left reachable (Some (Queries.AD.empty ())) es
+    List.fold_left reachable (Queries.AD.empty ()) es
 
 
   let forget_reachable man st es =
     let ask = Analyses.ask_of_man man in
     let rs =
-      match reachables ask es with
-      | None ->
-        (* top reachable, so try to invalidate everything *)
-        let to_cil_lval x = Option.map Cil.var @@ RV.to_cil_varinfo x in
-        RD.vars st.rel |> List.filter_map to_cil_lval
-      | Some ad ->
-        let to_cil addr rs =
-          match addr with
-          | Queries.AD.Addr.Addr mval -> (ValueDomain.Addr.Mval.to_cil mval) :: rs
-          | _ -> rs
-        in
-        Queries.AD.fold to_cil ad []
+      let ad = reachables ask es in
+      let to_cil addr rs =
+        match addr with
+        | Queries.AD.Addr.Addr mval -> (ValueDomain.Addr.Mval.to_cil mval) :: rs
+        | _ -> rs
+      in
+      Queries.AD.fold to_cil ad []
     in
     List.fold_left (fun st lval ->
         invalidate_one ask man st lval
@@ -511,6 +495,36 @@ struct
       in
       if RD.is_bot_env res then raise Deadcode;
       {st with rel = res}
+
+  let special_unknown_invalidate man f args =
+    (* No warning here, base already produces the appropriate warnings *)
+    let desc = LibraryFunctions.find f in
+    let shallow_addrs = LibraryDesc.Accesses.find desc.accs { kind = Write; deep = false } args in
+    let deep_addrs = LibraryDesc.Accesses.find desc.accs { kind = Write; deep = true } args in
+    let deep_addrs =
+      if List.mem LibraryDesc.InvalidateGlobals desc.attrs then (
+        foldGlobals !Cilfacade.current_file (fun acc global ->
+            match global with
+            | GVar (vi, _, _) when not (BaseUtil.is_static vi) ->
+              mkAddrOf (Var vi, NoOffset) :: acc
+            (* TODO: what about GVarDecl? *)
+            | _ -> acc
+          ) deep_addrs
+      )
+      else
+        deep_addrs
+    in
+    let lvallist e =
+      match man.ask (Queries.MayPointTo e) with
+      | ad when Queries.AD.is_top ad -> []
+      | ad ->
+        Queries.AD.to_mval ad
+        |> List.map ValueDomain.Addr.Mval.to_cil
+    in
+    let st' = forget_reachable man man.local deep_addrs in
+    let shallow_lvals = List.concat_map lvallist shallow_addrs in
+    List.fold_left (invalidate_one (Analyses.ask_of_man man) man) st' shallow_lvals
+
 
   let special man r f args =
     let ask = Analyses.ask_of_man man in
@@ -542,31 +556,7 @@ struct
          assert_fn {man with local = st} (BinOp (Ge, Lval lv, zero, intType)) true
         ) st r
     | _, _ ->
-      let lvallist e =
-        match ask.f (Queries.MayPointTo e) with
-        | ad when Queries.AD.is_top ad -> []
-        | ad ->
-          Queries.AD.to_mval ad
-          |> List.map ValueDomain.Addr.Mval.to_cil
-      in
-      let shallow_addrs = LibraryDesc.Accesses.find desc.accs { kind = Write; deep = false } args in
-      let deep_addrs = LibraryDesc.Accesses.find desc.accs { kind = Write; deep = true } args in
-      let deep_addrs =
-        if List.mem LibraryDesc.InvalidateGlobals desc.attrs then (
-          foldGlobals !Cilfacade.current_file (fun acc global ->
-              match global with
-              | GVar (vi, _, _) when not (BaseUtil.is_static vi) ->
-                mkAddrOf (Var vi, NoOffset) :: acc
-              (* TODO: what about GVarDecl? *)
-              | _ -> acc
-            ) deep_addrs
-        )
-        else
-          deep_addrs
-      in
-      let st' = forget_reachable man st deep_addrs in
-      let shallow_lvals = List.concat_map lvallist shallow_addrs in
-      let st' = List.fold_left (invalidate_one ask man) st' shallow_lvals in
+      let st' = special_unknown_invalidate man f args in
       (* invalidate lval if present *)
       Option.map_default (invalidate_one ask man st') st' r
 
@@ -616,10 +606,10 @@ struct
       )
     in
     RD.invariant apr
-    |> List.enum
-    |> Enum.filter_map (fun (lincons1: Apron.Lincons1.t) ->
+    |> List.to_seq
+    |> Seq.filter_map (fun (lincons1: Apron.Lincons1.t) ->
         (* filter one-vars and exact *)
-        (* TODO: exact filtering doesn't really work with octagon because it returns two SUPEQ constraints instead *)
+        (* RD.invariant simplifies two octagon SUPEQ constraints to one EQ, so exact works *)
         if (one_var || GobApron.Lincons1.num_vars lincons1 >= 2) && (exact || Apron.Lincons1.get_typ lincons1 <> EQ) then
           RD.cil_exp_of_lincons1 lincons1
           |> Option.map e_inv
@@ -627,7 +617,7 @@ struct
         else
           None
       )
-    |> Enum.fold (fun acc x -> Invariant.(acc && of_exp x)) Invariant.none
+    |> Seq.fold_left (fun acc x -> Invariant.(acc && of_exp x)) Invariant.none
 
   let query_invariant_global man g =
     if GobConfig.get_bool "ana.relation.invariant.global" && man.ask (GhostVarAvailable Multithreaded) then (
@@ -669,21 +659,19 @@ struct
 
   let threadenter man ~multiple lval f args =
     let st = man.local in
+    (* TODO: HACK: Simulate enter_multithreaded for first entering thread to publish global inits before analyzing thread.
+       Otherwise thread is analyzed with no global inits, reading globals gives bot, which turns into top, which might get published...
+       sync `Thread doesn't help us here, it's not specific to entering multithreaded mode.
+       EnterMultithreaded events only execute after threadenter and threadspawn. *)
+    if not (ThreadFlag.has_ever_been_multi (Analyses.ask_of_man man)) then
+      ignore (Priv.enter_multithreaded (Analyses.ask_of_man man) man.global man.sideg st);
     match Cilfacade.find_varinfo_fundec f with
     | fd ->
-      (* TODO: HACK: Simulate enter_multithreaded for first entering thread to publish global inits before analyzing thread.
-         Otherwise thread is analyzed with no global inits, reading globals gives bot, which turns into top, which might get published...
-         sync `Thread doesn't help us here, it's not specific to entering multithreaded mode.
-         EnterMultithreaded events only execute after threadenter and threadspawn. *)
-      if not (ThreadFlag.has_ever_been_multi (Analyses.ask_of_man man)) then
-        ignore (Priv.enter_multithreaded (Analyses.ask_of_man man) man.global man.sideg st);
       let st' = Priv.threadenter (Analyses.ask_of_man man) man.global st in
       let new_rel = make_callee_rel ~thread:true man fd args in
       [{st' with rel = new_rel}]
     | exception Not_found ->
-      (* Unknown functions *)
-      (* TODO: do something like base? *)
-      failwith "relation.threadenter: unknown function"
+      [special_unknown_invalidate man f args]
 
   let threadspawn man ~multiple lval f args fman =
     man.local
@@ -756,7 +744,7 @@ struct
               ) v_ins {man.local with rel}
           )
       in
-      let rel = RD.remove_vars st.rel (List.map RV.local (VH.values v_ins |> List.of_enum)) in (* remove temporary g#in-s *)
+      let rel = RD.remove_vars st.rel (List.map RV.local (VH.to_seq_values v_ins |> List.of_seq)) in (* remove temporary g#in-s *)
 
       if M.tracing then M.traceli "apron" "unassume join";
       let st = D.join man.local {st with rel} in (* (strengthening) join *)

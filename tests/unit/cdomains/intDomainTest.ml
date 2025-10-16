@@ -115,11 +115,11 @@ end
 module Ikind = struct let ikind () = Cil.ILong end
 module A = IntTest (IntDomain.Integers (IntOps.BigIntOps))
 module B = IntTest (IntDomain.Flat (IntDomain.Integers (IntOps.BigIntOps)))
-module C = IntTest (IntDomainProperties.WithIkind (IntDomain.DefExc) (Ikind))
+module C = IntTest (IntDomainProperties.WithIkind (IntDomainProperties.MakeS2 (IntDomain.DefExc)) (Ikind))
 
 module D = struct
   module T = struct
-    include IntDomainProperties.WithIkind (IntDomain.DefExc) (Ikind)
+    include IntDomainProperties.WithIkind (IntDomainProperties.MakeS2 (IntDomain.DefExc)) (Ikind)
     let of_excl_list xs = of_excl_list Cil.ILong xs
   end
 
@@ -253,10 +253,14 @@ struct
     assert_equal i_minus_one_zero narrowed;
     assert_equal widened narrowed2
 
+  let test_interval_logand _ =
+    assert_equal (I.of_interval ik (Z.zero, Z.of_int 4)) (I.logand ik (I.of_interval ik (Z.of_int (-4), Z.of_int (-2))) (I.of_int ik (Z.of_int 4)))
+
   let test () = [
     "test_interval_rem" >:: test_interval_rem;
     "test_interval_widen" >:: test_interval_widen;
     "test_interval_narrow" >:: test_interval_narrow;
+    "test_interval_logand" >:: test_interval_logand;
   ]
 end
 
@@ -954,7 +958,7 @@ module IntDomTuple =
 struct
   let exists0 =
     let open Batteries in
-    let to_list x = Tuple4.enum x |> List.of_enum |> List.filter_map identity in
+    let to_list (a,b,c,d) = List.filter_map identity [a;b;c;d] in
     let f g = g identity % to_list in
     List.(f exists)
 
@@ -976,7 +980,7 @@ struct
 
   let for_all0 =
     let open Batteries in
-    let to_list x = Tuple4.enum x |> List.of_enum |> List.filter_map identity in
+    let to_list (a,b,c,d) = List.filter_map identity [a;b;c;d] in
     let f g = g identity % to_list in
     List.(f for_all)
 

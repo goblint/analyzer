@@ -94,6 +94,7 @@
   "witness": {
     "yaml": {
       "enabled": false,
+      "sv-comp-true-only": false,
       "format-version": "2.0",
       "entry-types": [
         "invariant_set",

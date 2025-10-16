@@ -44,7 +44,7 @@ struct
   let range ik = Size.range ik
 
   let top () = Some (Z.zero, Z.one)
-  let top_of ik = Some (Z.zero, Z.one)
+  let top_of ?bitfield ik = Some (Z.zero, Z.one)
   let bot () = None
   let bot_of ik = bot ()
 
@@ -133,9 +133,10 @@ struct
     | x when equal zero x -> Some false
     | x -> if leq zero x then None else Some true
 
-  let starting ?(suppress_ovwarn=false) ik n = top()
+  let starting ik n = top()
 
   let ending = starting
+  let of_interval ik x = of_interval ik x (* cast away optional suppress_ovwarn argument *)
 
   let of_congruence ik (c,m) = normalize ik @@ Some(c,m)
 

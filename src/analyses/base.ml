@@ -38,6 +38,7 @@ struct
   type t = Dom.t
   module D      = Dom
   include Analyses.ValueContexts(D)
+  module P = IdentityP(Dom)
 
   (* Two global invariants:
      1. Priv.V -> Priv.G  --  used for Priv
@@ -153,10 +154,7 @@ struct
   let char_array : (lval, bytes) Hashtbl.t = Hashtbl.create 500
 
   let init marshal =
-    begin match marshal with
-      | Some marshal -> array_map := marshal
-      | None -> ()
-    end;
+    GobOption.iter ((:=) array_map) marshal;
     return_varstore := Cilfacade.create_var @@ makeVarinfo false "RETURN" voidType;
     longjmp_return := Cilfacade.create_var @@ makeVarinfo false "LONGJMP_RETURN" intType;
     Priv.init ()
@@ -805,9 +803,7 @@ struct
       (* Integer literals *)
       (* seems like constFold already converts CChr to CInt *)
       | Const (CChr x) -> eval_rv ~man st (Const (charConstToInt x)) (* char becomes int, see Cil doc/ISO C 6.4.4.4.10 *)
-      | Const (CInt (num,ikind,str)) ->
-        (match str with Some x -> if M.tracing then M.tracel "casto" "CInt (%s, %a, %s)" (Z.to_string num) d_ikind ikind x | None -> ());
-        Int (ID.cast_to ikind (IntDomain.of_const (num,ikind,str)))
+      | Const (CInt (num,ikind,str)) -> Int (IntDomain.of_const (num,ikind,str)) (* no cast to ikind needed: CIL ensures that the literal fits ikind, either by silently truncating it (!) or having an explicit CastE around this *)
       | Const (CReal (_,fkind, Some str)) when not (Cilfacade.isComplexFKind fkind) -> Float (FD.of_string fkind str) (* prefer parsing from string due to higher precision *)
       | Const (CReal (num, fkind, None)) when not (Cilfacade.isComplexFKind fkind) && num = 0.0 -> Float (FD.of_const fkind num) (* constant 0 is ok, CIL creates these for zero-initializers; it is safe across float types *)
       | Const (CReal (_, fkind, None)) when not (Cilfacade.isComplexFKind fkind) ->  assert false (* Cil does not create other CReal without string representation *)
@@ -908,10 +904,9 @@ struct
           | _ ->
             None
         in
-        begin match eqs_value with
-          | Some x -> x
-          | None -> evalbinop ~man st LOr ~e1 ~e2 typ (* fallback to general case *)
-        end
+        (* fallback to general case *)
+        let fallback () = evalbinop ~man st LOr ~e1 ~e2 typ in
+        Option.default_delayed fallback eqs_value
       | BinOp (op,e1,e2,typ) ->
         evalbinop ~man st op ~e1 ~e2 typ
       (* Unary operators *)
@@ -1791,9 +1786,7 @@ struct
       end
     in
     let update_one x store =
-      match Addr.to_mval x with
-      | Some x -> update_one_addr x store
-      | None -> store
+      Option.map_default (fun x -> update_one_addr x store) store (Addr.to_mval x)
     in try
       (* We start from the current state and an empty list of global deltas,
        * and we assign to all the the different possible places: *)
@@ -1944,14 +1937,10 @@ struct
       AD.is_top xs || AD.exists not_local xs
     in
     (match rval_val, lval_val with
-     | Address adrs, lval
-       when (not !AnalysisState.global_initialization) && get_bool "kernel" && not_local lval && not (AD.is_top adrs) ->
-       let find_fps e xs = match Addr.to_var_must e with
-         | Some x -> x :: xs
-         | None -> xs
-       in
+     | Address adrs, lval when (not !AnalysisState.global_initialization) && get_bool "kernel" && not_local lval && not (AD.is_top adrs) ->
+       let find_fps e xs = Option.map_default (fun x -> x :: xs) xs (Addr.to_var_must e) in
        let vars = AD.fold find_fps adrs [] in (* filter_map from AD to list *)
-       let funs = Seq.filter (fun x -> isFunctionType x.vtype)@@ List.to_seq vars in
+       let funs = Seq.filter (fun x -> isFunctionType x.vtype) @@ List.to_seq vars in
        Seq.iter (fun x -> man.spawn None x []) funs
      | _ -> ()
     );
@@ -2004,8 +1993,7 @@ struct
     (* For a boolean value: *)
     | Int value ->
       if M.tracing then M.traceu "branch" "Expression %a evaluated to %a" d_exp exp ID.pretty value;
-      begin match ID.to_bool value with
-        | Some v ->
+      Option.map_default_delayed (fun v ->
           (* Eliminate the dead branch and just propagate to the true branch *)
           if v = tv then
             refine ()
@@ -2013,9 +2001,7 @@ struct
             if M.tracing then M.tracel "branch" "A The branch %B is dead!" tv;
             raise Deadcode
           )
-        | None ->
-          refine () (* like fallback below *)
-      end
+        ) refine (ID.to_bool value)
     (* for some reason refine () can refine these, but not raise Deadcode in struct *)
     | Address ad when tv && AD.is_null ad ->
       raise Deadcode
@@ -2053,21 +2039,20 @@ struct
       let locals = List.filter (fun v -> not (WeakUpdates.mem v st.weak)) (fundec.sformals @ fundec.slocals) in
       let nst_part = rem_many_partitioning (Queries.to_value_domain_ask ask) man.local locals in
       let nst: store = rem_many ask nst_part locals in
-      match exp with
-      | None -> nst
-      | Some exp ->
-        let t_override = Cilfacade.fundec_return_type fundec in
-        assert (not (Cil.isVoidType t_override)); (* Returning a value from a void function, CIL removes the Return expression for us anyway. *)
-        let rv = eval_rv ~man man.local exp in
-        let st' = set ~man ~t_override nst (return_var ()) t_override rv in
-        match ThreadId.get_current ask with
-        | `Lifted tid when ThreadReturn.is_current ask ->
-          (* Evaluate exp and cast the resulting value to the void-pointer-type.
-              Casting to the right type here avoids precision loss on joins. *)
-          let rv = VD.cast ~torg:(Cilfacade.typeOf exp) Cil.voidPtrType rv in
-          man.sideg (V.thread tid) (G.create_thread rv);
-          Priv.thread_return ask (priv_getg man.global) (priv_sideg man.sideg) tid st'
-        | _ -> st'
+      Option.map_default (fun exp ->
+          let t_override = Cilfacade.fundec_return_type fundec in
+          assert (not (Cil.isVoidType t_override)); (* Returning a value from a void function, CIL removes the Return expression for us anyway. *)
+          let rv = eval_rv ~man man.local exp in
+          let st' = set ~man ~t_override nst (return_var ()) t_override rv in
+          match ThreadId.get_current ask with
+          | `Lifted tid when ThreadReturn.is_current ask ->
+            (* Evaluate exp and cast the resulting value to the void-pointer-type.
+                Casting to the right type here avoids precision loss on joins. *)
+            let rv = VD.cast ~torg:(Cilfacade.typeOf exp) Cil.voidPtrType rv in
+            man.sideg (V.thread tid) (G.create_thread rv);
+            Priv.thread_return ask (priv_getg man.global) (priv_sideg man.sideg) tid st'
+          | _ -> st'
+        ) nst exp
 
   let vdecl man (v:varinfo) =
     if not (Cil.isArrayType v.vtype) then
@@ -2150,12 +2135,6 @@ struct
     (* TODO: make this is_private PrivParam dependent? PerMutexOplusPriv should keep *)
     let st' =
       if thread then (
-        (* TODO: HACK: Simulate enter_multithreaded for first entering thread to publish global inits before analyzing thread.
-           Otherwise thread is analyzed with no global inits, reading globals gives bot, which turns into top, which might get published...
-           sync `Thread doesn't help us here, it's not specific to entering multithreaded mode.
-           EnterMultithreaded events only execute after threadenter and threadspawn. *)
-        if not (ThreadFlag.has_ever_been_multi ask) then
-          ignore (Priv.enter_multithreaded ask (priv_getg man.global) (priv_sideg man.sideg) st);
         Priv.threadenter ask st
       ) else
         (* use is_global to account for values that became globals because they were saved into global variables *)
@@ -2178,7 +2157,7 @@ struct
     let new_cpa = project (Queries.to_value_domain_ask ask) (Some p) new_cpa fundec in
 
     (* Identify locals of this fundec for which an outer copy (from a call down the callstack) is reachable *)
-    let reachable_other_copies = List.filter (fun v -> match Cilfacade.find_scope_fundec v with Some scope -> CilType.Fundec.equal scope fundec | None -> false) reachable in
+    let reachable_other_copies = List.filter (fun v -> GobOption.exists (CilType.Fundec.equal fundec) @@ Cilfacade.find_scope_fundec v) reachable in
     (* Add to the set of weakly updated variables *)
     let new_weak = WeakUpdates.join st.weak (WeakUpdates.of_list reachable_other_copies) in
     {st' with cpa = new_cpa; weak = new_weak}
@@ -2193,21 +2172,14 @@ struct
       try
         (* try to get function declaration *)
         let fd = Cilfacade.find_varinfo_fundec v in
-        let args =
-          match arg with
-          | Some x -> [x]
-          | None -> List.map (fun x -> MyCFG.unknown_exp) fd.sformals
-        in
+        let args = Option.map_default_delayed (List.singleton) (fun () -> List.map (fun x -> MyCFG.unknown_exp) fd.sformals) arg in
         Some (lval, v, args, multiple)
       with Not_found ->
         if LF.use_special f.vname then None (* we handle this function *)
         else if isFunctionType v.vtype then
           (* FromSpec warns about unknown thread creation, so we don't do it here any more *)
           let (_, v_args, _, _) = Cil.splitFunctionTypeVI v in
-          let args = match arg with
-            | Some x -> [x]
-            | None -> List.map (fun x -> MyCFG.unknown_exp) (Cil.argsToList v_args)
-          in
+          let args = Option.map_default_delayed (List.singleton) (fun () -> List.map (fun x -> MyCFG.unknown_exp) (Cil.argsToList v_args)) arg in
           Some (lval, v, args, multiple)
         else (
           M.debug ~category:Analyzer "Not creating a thread from %s because its type is %a" v.vname d_type v.vtype;
@@ -2358,11 +2330,11 @@ struct
          `Top)
 
   let special man (lv:lval option) (f: varinfo) (args: exp list) =
-    let invalidate_ret_lv st = match lv with
-      | Some lv ->
+    let invalidate_ret_lv st =
+      Option.map_default (fun lv ->
         if M.tracing then M.tracel "invalidate" "Invalidating lhs %a for function call %s" d_plainlval lv f.vname;
         invalidate ~must:true ~deep:false ~man st [Cil.mkAddrOrStartOf lv]
-      | None -> st
+        ) st lv
     in
     let addr_type_of_exp exp =
       let lval = mkMem ~addr:(Cil.stripCasts exp) ~off:NoOffset in
@@ -2459,48 +2431,47 @@ struct
         end
         (* else compute value in array domain *)
       else
-        let lv_a, lv_typ = match lv with
-          | Some lv_val -> eval_lv ~man st lv_val, Cilfacade.typeOfLval lv_val
-          | None -> s1_a, s1_typ in
-        begin match (get ~man st s1_a None), get ~man st s2_a None with
-          | Array array_s1, Array array_s2 -> set ~man ~blob_destructive:true st lv_a lv_typ (op_array array_s1 array_s2)
-          | Array array_s1, _ when CilType.Typ.equal s2_typ charPtrType ->
-            let s2_null_bytes = List.map CArrays.to_null_byte_domain (AD.to_string s2_a) in
-            let array_s2 = List.fold_left CArrays.join (CArrays.bot ()) s2_null_bytes in
-            set ~man ~blob_destructive:true st lv_a lv_typ (op_array array_s1 array_s2)
-          | Bot, Array array_s2 ->
-            (* If we have bot inside here, we assume the blob is used as a char array and create one inside *)
-            let ptrdiff_ik = Cilfacade.ptrdiff_ikind () in
-            let size = man.ask (Q.BlobSize {exp = s1; base_address = false}) in
-            let s_id =
-              try ValueDomainQueries.ID.unlift (ID.cast_to ptrdiff_ik) size
-              with Failure _ -> ID.top_of ptrdiff_ik in
-            let empty_array = CArrays.make s_id (Int (ID.top_of IChar)) in
-            set ~man st lv_a lv_typ (op_array empty_array array_s2)
-          | Bot , _ when CilType.Typ.equal s2_typ charPtrType ->
-            (* If we have bot inside here, we assume the blob is used as a char array and create one inside *)
-            let ptrdiff_ik = Cilfacade.ptrdiff_ikind () in
-            let size = man.ask (Q.BlobSize {exp = s1; base_address = false}) in
-            let s_id =
-              try ValueDomainQueries.ID.unlift (ID.cast_to ptrdiff_ik) size
-              with Failure _ -> ID.top_of ptrdiff_ik in
-            let empty_array = CArrays.make s_id (Int (ID.top_of IChar)) in
-            let s2_null_bytes = List.map CArrays.to_null_byte_domain (AD.to_string s2_a) in
-            let array_s2 = List.fold_left CArrays.join (CArrays.bot ()) s2_null_bytes in
-            set ~man st lv_a lv_typ (op_array empty_array array_s2)
-          | _, Array array_s2 when CilType.Typ.equal s1_typ charPtrType ->
-            (* if s1 is string literal, str(n)cpy and str(n)cat are undefined *)
-            if op_addr = None then
-              (* triggers warning, function only evaluated for side-effects *)
-              let _ = AD.string_writing_defined s1_a in
-              set ~man st s1_a s1_typ (VD.top_value (unrollType s1_typ))
-            else
-              let s1_null_bytes = List.map CArrays.to_null_byte_domain (AD.to_string s1_a) in
-              let array_s1 = List.fold_left CArrays.join (CArrays.bot ()) s1_null_bytes in
-              set ~man st lv_a lv_typ (op_array array_s1 array_s2)
-          | _ ->
-            set ~man st lv_a lv_typ (VD.top_value (unrollType lv_typ))
-        end
+        let lv_a, lv_typ =
+          Option.map_default (fun lv -> eval_lv ~man st lv, Cilfacade.typeOfLval lv) (s1_a, s1_typ) lv
+        in
+        match (get ~man st s1_a None), get ~man st s2_a None with
+        | Array array_s1, Array array_s2 -> set ~man ~blob_destructive:true st lv_a lv_typ (op_array array_s1 array_s2)
+        | Array array_s1, _ when CilType.Typ.equal s2_typ charPtrType ->
+          let s2_null_bytes = List.map CArrays.to_null_byte_domain (AD.to_string s2_a) in
+          let array_s2 = List.fold_left CArrays.join (CArrays.bot ()) s2_null_bytes in
+          set ~man ~blob_destructive:true st lv_a lv_typ (op_array array_s1 array_s2)
+        | Bot, Array array_s2 ->
+          (* If we have bot inside here, we assume the blob is used as a char array and create one inside *)
+          let ptrdiff_ik = Cilfacade.ptrdiff_ikind () in
+          let size = man.ask (Q.BlobSize {exp = s1; base_address = false}) in
+          let s_id =
+            try ValueDomainQueries.ID.unlift (ID.cast_to ptrdiff_ik) size
+            with Failure _ -> ID.top_of ptrdiff_ik in
+          let empty_array = CArrays.make s_id (Int (ID.top_of IChar)) in
+          set ~man st lv_a lv_typ (op_array empty_array array_s2)
+        | Bot , _ when CilType.Typ.equal s2_typ charPtrType ->
+          (* If we have bot inside here, we assume the blob is used as a char array and create one inside *)
+          let ptrdiff_ik = Cilfacade.ptrdiff_ikind () in
+          let size = man.ask (Q.BlobSize {exp = s1; base_address = false}) in
+          let s_id =
+            try ValueDomainQueries.ID.unlift (ID.cast_to ptrdiff_ik) size
+            with Failure _ -> ID.top_of ptrdiff_ik in
+          let empty_array = CArrays.make s_id (Int (ID.top_of IChar)) in
+          let s2_null_bytes = List.map CArrays.to_null_byte_domain (AD.to_string s2_a) in
+          let array_s2 = List.fold_left CArrays.join (CArrays.bot ()) s2_null_bytes in
+          set ~man st lv_a lv_typ (op_array empty_array array_s2)
+        | _, Array array_s2 when CilType.Typ.equal s1_typ charPtrType ->
+          (* if s1 is string literal, str(n)cpy and str(n)cat are undefined *)
+          if op_addr = None then
+            (* triggers warning, function only evaluated for side-effects *)
+            let _ = AD.string_writing_defined s1_a in
+            set ~man st s1_a s1_typ (VD.top_value (unrollType s1_typ))
+          else
+            let s1_null_bytes = List.map CArrays.to_null_byte_domain (AD.to_string s1_a) in
+            let array_s1 = List.fold_left CArrays.join (CArrays.bot ()) s1_null_bytes in
+            set ~man st lv_a lv_typ (op_array array_s1 array_s2)
+        | _ ->
+          set ~man st lv_a lv_typ (VD.top_value (unrollType lv_typ))
     in
     (* Returns a tuple, the first is the address of the blob if one was allocated, the second is the returned address (may contain null pointer or be only null-pointer) *)
     let alloc loc size =
@@ -2550,10 +2521,9 @@ struct
     | Strcpy { dest = dst; src; n }, _ -> string_manipulation dst src None false None (fun ar1 ar2 -> Array (CArrays.string_copy ar1 ar2 (eval_n n)))
     | Strcat { dest = dst; src; n }, _ -> string_manipulation dst src None false None (fun ar1 ar2 -> Array (CArrays.string_concat ar1 ar2 (eval_n n)))
     | Strlen s, _ ->
-      begin match lv with
-        | Some lv_val ->
-          let dest_a = eval_lv ~man st lv_val in
-          let dest_typ = Cilfacade.typeOfLval lv_val in
+      Option.map_default (fun lv ->
+          let dest_a = eval_lv ~man st lv in
+          let dest_typ = Cilfacade.typeOfLval lv in
           let v = eval_rv ~man st s in
           let a = address_from_value v in
           let value:value =
@@ -2563,37 +2533,32 @@ struct
               Int (AD.to_string_length a)
               (* else compute strlen in array domain *)
             else
-              begin match get ~man st a None with
-                | Array array_s -> Int (CArrays.to_string_length array_s)
-                | _ -> VD.top_value (unrollType dest_typ)
-              end in
+              match get ~man st a None with
+              | Array array_s -> Int (CArrays.to_string_length array_s)
+              | _ -> VD.top_value (unrollType dest_typ)
+          in
           set ~man st dest_a dest_typ value
-        | None -> st
-      end
+        ) st lv
     | Strstr { haystack; needle }, _ ->
-      begin match lv with
-        | Some lv_val ->
+      Option.map_default (fun lv_val ->
           (* check if needle is a substring of haystack in string literals domain if haystack and needle are string literals,
-             else check in null bytes domain if both haystack and needle are / can be transformed to an array domain representation;
-             if needle is substring, assign the substring of haystack starting at the first occurrence of needle to dest,
-             if it surely isn't, assign a null_ptr *)
+              else check in null bytes domain if both haystack and needle are / can be transformed to an array domain representation;
+              if needle is substring, assign the substring of haystack starting at the first occurrence of needle to dest,
+              if it surely isn't, assign a null_ptr *)
           string_manipulation haystack needle lv true (Some (fun h_a n_a -> Address (AD.substring_extraction h_a n_a)))
             (fun h_ar n_ar -> match CArrays.substring_extraction h_ar n_ar with
                | CArrays.IsNotSubstr -> Address (AD.null_ptr)
                | CArrays.IsSubstrAtIndex0 -> Address (eval_lv ~man st (mkMem ~addr:(Cil.stripCasts haystack) ~off:NoOffset))
                | CArrays.IsMaybeSubstr -> Address (AD.join (eval_lv ~man st
                                                               (mkMem ~addr:(Cil.stripCasts haystack) ~off:(Index (Lazy.force Offset.Index.Exp.any, NoOffset)))) (AD.null_ptr)))
-        | None -> st
-      end
+        ) st lv
     | Strcmp { s1; s2; n }, _ ->
-      begin match lv with
-        | Some _ ->
+      Option.map_default (fun _ ->
           (* when s1 and s2 are string literals, compare both completely or their first n characters in the string literals domain;
              else compare them in the null bytes array domain if they are / can be transformed to an array domain representation *)
           string_manipulation s1 s2 lv false (Some (fun s1_a s2_a -> Int (AD.string_comparison s1_a s2_a (eval_n n))))
             (fun s1_ar s2_ar -> Int (CArrays.string_comparison s1_ar s2_ar (eval_n n)))
-        | None -> st
-      end
+        ) st lv
     | Abort, _ -> raise Deadcode
     | ThreadExit { ret_val = exp }, _ ->
       begin match ThreadId.get_current (Analyses.ask_of_man man) with
@@ -2621,22 +2586,17 @@ struct
         let dst_lval = mkMem ~addr:(Cil.stripCasts attr) ~off:NoOffset in
         let dest_typ = get_type dst_lval in
         let dest_a = eval_lv ~man st dst_lval in
+        let fallback () = set ~man st dest_a dest_typ (MutexAttr (ValueDomain.MutexAttr.top ())) in
         match eval_rv ~man st mtyp with
         | Int x ->
-          begin
-            match ID.to_int x with
-            | Some z ->
+          Option.map_default_delayed (fun z ->
               if M.tracing then M.tracel "attr" "setting";
               set ~man st dest_a dest_typ (MutexAttr (ValueDomain.MutexAttr.of_int z))
-            | None -> set ~man st dest_a dest_typ (MutexAttr (ValueDomain.MutexAttr.top ()))
-          end
-        | _ -> set ~man st dest_a dest_typ (MutexAttr (ValueDomain.MutexAttr.top ()))
+            ) fallback (ID.to_int x)
+        | _ -> fallback ()
       end
     | Identity e, _ ->
-      begin match lv with
-        | Some x -> assign man x e
-        | None -> man.local
-      end
+      Option.map_default (fun lv -> assign man lv e) man.local lv
     (**Floating point classification and trigonometric functions defined in c99*)
     | Math { fun_args; }, _ ->
       let apply_unary fk float_fun x =
@@ -2704,10 +2664,7 @@ struct
           | Abs (ik, x) -> Int (ID.cast_to ik (apply_abs ik x))
         end
       in
-      begin match lv with
-        | Some lv_val -> set ~man st (eval_lv ~man st lv_val) (Cilfacade.typeOfLval lv_val) result
-        | None -> st
-      end
+      Option.map_default (fun lv -> set ~man st (eval_lv ~man st lv) (Cilfacade.typeOfLval lv) result) st lv
     (* handling thread creations *)
     | ThreadCreate _, _ ->
       invalidate_ret_lv man.local (* actual results joined via threadspawn *)
@@ -2757,7 +2714,6 @@ struct
         | _ -> st
       end
     | Calloc { count = n; size }, _ ->
-      let open Queries.AllocationLocation in
       begin match lv with
         | Some lv -> (* array length is set to one, as num*size is done when turning into `Calloc *)
           let (heap_var, addr) = alloc Queries.AllocationLocation.Heap size in
@@ -2780,8 +2736,7 @@ struct
     | Realloc { ptr = p; size }, _ ->
       (* Realloc shouldn't be passed non-dynamically allocated memory *)
       check_invalid_mem_dealloc man f p;
-      begin match lv with
-        | Some lv ->
+      Option.map_default (fun lv ->
           let p_rv = eval_rv ~man st p in
           let p_addr =
             match p_rv with
@@ -2800,9 +2755,7 @@ struct
           let blob_set = Option.map_default (fun heap_addr -> [heap_addr, TVoid [], heap_val]) [] heap_var in
           (* TODO: free (i.e. invalidate) old blob if successful? *)
           set_many ~man st ((lv_addr, Cilfacade.typeOfLval lv, Address addr) :: blob_set)
-        | None ->
-          st
-      end
+        ) st lv
     | Free ptr, _ ->
       (* Free shouldn't be passed non-dynamically allocated memory *)
       check_invalid_mem_dealloc man f ptr;
@@ -2817,11 +2770,9 @@ struct
           r
         | _ -> failwith "problem?!"
       in
-      begin match lv with
-        | Some lv ->
+      Option.map_default (fun lv ->
           set ~man st' (eval_lv ~man st lv) (Cilfacade.typeOfLval lv) (Int (ID.of_int IInt Z.zero))
-        | None -> st'
-      end
+        ) st' lv
     | Longjmp {env; value}, _ ->
       let ensure_not_zero (rv:value) = match rv with
         | Int i ->
@@ -2843,12 +2794,10 @@ struct
       let t = Cilfacade.typeOf value in
       set ~man ~t_override:t man.local (AD.of_var !longjmp_return) t rv (* Not raising Deadcode here, deadcode is raised at a higher level! *)
     | Rand, _ ->
-      begin match lv with
-        | Some x ->
+      Option.map_default (fun x ->
           let result:value = (Int (ID.starting IInt Z.zero)) in
           set ~man st (eval_lv ~man st x) (Cilfacade.typeOfLval x) result
-        | None -> st
-      end
+        ) st lv
     | _, _ ->
       let st =
         special_unknown_invalidate man f args
@@ -2878,19 +2827,18 @@ struct
             (* "get" returned "unknown" when applied to a void type, so special case void types. This caused problems with some sv-comps (e.g. regtest 64 11) *)
             | Some voidVal when Addr.type_of addr = voidType -> {st with cpa = CPA.add v voidVal st.cpa}
             | _ ->
-              begin
-                let address = AD.singleton addr in
-                let new_val = get ~man fun_st address None in
-                if M.tracing then M.trace "taintPC" "update val: %a" VD.pretty new_val;
-                let st' = set_savetop ~man st address lval_type new_val in
-                match Dep.find_opt v fun_st.deps with
-                | None -> st'
-                (* if a var partitions an array, all cpa-info for arrays it may partition are added from callee to caller *)
-                | Some deps -> {st' with cpa = (Dep.VarSet.fold (fun v accCPA -> let val_opt = CPA.find_opt v fun_st.cpa in
-                                                                  match val_opt with
-                                                                  | None -> accCPA
-                                                                  | Some new_val -> CPA.add v new_val accCPA ) deps st'.cpa)}
-              end
+              let address = AD.singleton addr in
+              let new_val = get ~man fun_st address None in
+              if M.tracing then M.trace "taintPC" "update val: %a" VD.pretty new_val;
+              let st' = set_savetop ~man st address lval_type new_val in
+              (* if a var partitions an array, all cpa-info for arrays it may partition are added from callee to caller *)
+              Option.map_default (fun deps ->
+                  {st' with cpa = (Dep.VarSet.fold
+                                     (fun v accCPA ->
+                                        let val_opt = CPA.find_opt v fun_st.cpa in
+                                        Option.map_default (fun new_val -> CPA.add v new_val accCPA) accCPA val_opt
+                                     ) deps st'.cpa)}
+                ) st' (Dep.find_opt v fun_st.deps)
           end
         | _ -> st
       ) tainted_lvs local_st
@@ -2960,13 +2908,18 @@ struct
       let p = PrecisionUtil.int_precision_from_fundec callerFundec in (* Since f is the fundec of the Callee we have to get the fundec of the current Node instead *)
       let return_val = project_val (Queries.to_value_domain_ask (Analyses.ask_of_man man)) (attributes_varinfo (return_varinfo ()) callerFundec) (Some p) return_val (is_privglob (return_varinfo ())) in
 
-      match lval with
-      | None      -> st
-      | Some lval -> set_savetop ~man st (eval_lv ~man st lval) (Cilfacade.typeOfLval lval) return_val
+      Option.map_default (fun lval -> set_savetop ~man st (eval_lv ~man st lval) (Cilfacade.typeOfLval lval) return_val) st lval
     in
     combine_one man.local after
 
   let threadenter man ~multiple (lval: lval option) (f: varinfo) (args: exp list): D.t list =
+    (* TODO: HACK: Simulate enter_multithreaded for first entering thread to publish global inits before analyzing thread.
+       Otherwise thread is analyzed with no global inits, reading globals gives bot, which turns into top, which might get published...
+       sync `Thread doesn't help us here, it's not specific to entering multithreaded mode.
+       EnterMultithreaded events only execute after threadenter and threadspawn. *)
+    let st = man.local in
+    if not (ThreadFlag.has_ever_been_multi (Analyses.ask_of_man man)) then
+      ignore (Priv.enter_multithreaded (Analyses.ask_of_man man) (priv_getg man.global) (priv_sideg man.sideg) st);
     match Cilfacade.find_varinfo_fundec f with
     | fd ->
       [make_entry ~thread:true man fd args]
@@ -2976,16 +2929,13 @@ struct
       [st]
 
   let threadspawn man ~multiple (lval: lval option) (f: varinfo) (args: exp list) fman: D.t =
-    begin match lval with
-      | Some lval ->
-        begin match ThreadId.get_current (Analyses.ask_of_man fman) with
-          | `Lifted tid ->
-            (* Cannot set here, because man isn't in multithreaded mode and set wouldn't side-effect if lval is global. *)
-            man.emit (Events.AssignSpawnedThread (lval, tid))
-          | _ -> ()
-        end
-      | None -> ()
-    end;
+    GobOption.iter (fun lval ->
+        match ThreadId.get_current (Analyses.ask_of_man fman) with
+        | `Lifted tid ->
+          (* Cannot set here, because man isn't in multithreaded mode and set wouldn't side-effect if lval is global. *)
+          man.emit (Events.AssignSpawnedThread (lval, tid))
+        | _ -> ()
+      ) lval;
     (* D.join man.local @@ *)
     Priv.threadspawn (Analyses.ask_of_man man) (priv_getg man.global) (priv_sideg man.sideg) man.local
 
@@ -3151,12 +3101,10 @@ struct
     | Events.Unassume {exp; tokens} ->
       Timing.wrap "base unassume" (unassume man exp) tokens
     | Events.Longjmped {lval} ->
-      begin match lval with
-        | Some lval ->
+      Option.map_default (fun lval ->
           let st' = assign man lval (Lval (Cil.var !longjmp_return)) in
           {st' with cpa = CPA.remove !longjmp_return st'.cpa}
-        | None -> man.local
-      end
+        ) man.local lval
     | _ ->
       man.local
 end

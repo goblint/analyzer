@@ -237,7 +237,13 @@ struct
       let switchedOp = function Lt -> Gt | Gt -> Lt | Le -> Ge | Ge -> Le | x -> x in (* a op b <=> b (switchedOp op) b *)
       match exp with
       (* Since we handle not only equalities, the order is important *)
-      | BinOp(op, Lval x, rval, typ) -> helper op x (VD.cast (Cilfacade.typeOfLval x) (eval_rv ~man st rval)) tv
+      | BinOp(op, Lval x, rval, typ) ->
+        let v = eval_rv ~man st rval in
+        let x_type = Cilfacade.typeOfLval x in
+        if VD.is_dynamically_safe_cast x_type (Cilfacade.typeOf rval) v then
+          helper op x (VD.cast x_type v) tv
+        else
+          `NotUnderstood
       | BinOp(op, rval, Lval x, typ) -> derived_invariant (BinOp(switchedOp op, Lval x, rval, typ)) tv
       | BinOp(op, CastE (t1, c1), CastE (t2, c2), t) when (op = Eq || op = Ne) && typeSig t1 = typeSig t2 && VD.is_statically_safe_cast t1 (Cilfacade.typeOf c1) && VD.is_statically_safe_cast t2 (Cilfacade.typeOf c2)
         -> derived_invariant (BinOp (op, c1, c2, t)) tv
@@ -339,9 +345,7 @@ struct
          * If the upper bound of a is divisible by b, we can also meet with the result of a/b*b - c to get the precise [3,3].
          * If b is negative we have to look at the lower bound. *)
         let is_divisible bound =
-          match bound a with
-          | Some ba -> ID.rem (ID.of_int ikind ba) b |> ID.to_int = Some Z.zero
-          | None -> false
+          GobOption.exists (fun ba -> ID.rem (ID.of_int ikind ba) b |> ID.to_int = Some Z.zero) (bound a)
         in
         let max_pos = match ID.maximal b with None -> true | Some x -> Z.compare x Z.zero >= 0 in
         let min_neg = match ID.minimal b with None -> true | Some x -> Z.compare x Z.zero < 0 in
@@ -770,6 +774,7 @@ struct
                 | _ -> Int c
               in
               (* handle special calls *)
+              let default () = update_lval c x c' ID.pretty in
               begin match x, t with
                 | (Var v, offs), TInt (ik, _) ->
                   let tmpSpecial = man.ask (Queries.TmpSpecial (v, Offset.Exp.of_cil offs)) in
@@ -779,24 +784,21 @@ struct
                       let c' = ID.cast_to ik c in (* different ik! *)
                       inv_exp (Int (ID.join c' (ID.neg c'))) xInt st
                     | tmpSpecial ->
-                      begin match ID.to_bool c with
-                        | Some tv ->
-                          begin match tmpSpecial with
-                            | `Lifted (Isfinite xFloat) when tv -> inv_exp (Float (FD.finite (unroll_fk_of_exp xFloat))) xFloat st
-                            | `Lifted (Isnan xFloat) when tv -> inv_exp (Float (FD.nan_of (unroll_fk_of_exp xFloat))) xFloat st
-                            (* should be correct according to C99 standard*)
-                            (* The following do to_bool and of_bool to convert Not{0} into 1 for downstream float inversions *)
-                            | `Lifted (Isgreater (xFloat, yFloat)) -> inv_exp (Int (ID.of_bool ik tv)) (BinOp (Gt, xFloat, yFloat, (typeOf xFloat))) st
-                            | `Lifted (Isgreaterequal (xFloat, yFloat)) -> inv_exp (Int (ID.of_bool ik tv)) (BinOp (Ge, xFloat, yFloat, (typeOf xFloat))) st
-                            | `Lifted (Isless (xFloat, yFloat)) -> inv_exp (Int (ID.of_bool ik tv)) (BinOp (Lt, xFloat, yFloat, (typeOf xFloat))) st
-                            | `Lifted (Islessequal (xFloat, yFloat)) -> inv_exp (Int (ID.of_bool ik tv)) (BinOp (Le, xFloat, yFloat, (typeOf xFloat))) st
-                            | `Lifted (Islessgreater (xFloat, yFloat)) -> inv_exp (Int (ID.of_bool ik tv)) (BinOp (LOr, (BinOp (Lt, xFloat, yFloat, (typeOf xFloat))), (BinOp (Gt, xFloat, yFloat, (typeOf xFloat))), (TInt (IBool, [])))) st
-                            | _ -> update_lval c x c' ID.pretty
-                          end
-                        | None -> update_lval c x c' ID.pretty
-                      end
+                      BatOption.map_default_delayed (fun tv ->
+                          match tmpSpecial with
+                          | `Lifted (Isfinite xFloat) when tv -> inv_exp (Float (FD.finite (unroll_fk_of_exp xFloat))) xFloat st
+                          | `Lifted (Isnan xFloat) when tv -> inv_exp (Float (FD.nan_of (unroll_fk_of_exp xFloat))) xFloat st
+                          (* should be correct according to C99 standard*)
+                          (* The following do to_bool and of_bool to convert Not{0} into 1 for downstream float inversions *)
+                          | `Lifted (Isgreater (xFloat, yFloat)) -> inv_exp (Int (ID.of_bool ik tv)) (BinOp (Gt, xFloat, yFloat, (typeOf xFloat))) st
+                          | `Lifted (Isgreaterequal (xFloat, yFloat)) -> inv_exp (Int (ID.of_bool ik tv)) (BinOp (Ge, xFloat, yFloat, (typeOf xFloat))) st
+                          | `Lifted (Isless (xFloat, yFloat)) -> inv_exp (Int (ID.of_bool ik tv)) (BinOp (Lt, xFloat, yFloat, (typeOf xFloat))) st
+                          | `Lifted (Islessequal (xFloat, yFloat)) -> inv_exp (Int (ID.of_bool ik tv)) (BinOp (Le, xFloat, yFloat, (typeOf xFloat))) st
+                          | `Lifted (Islessgreater (xFloat, yFloat)) -> inv_exp (Int (ID.of_bool ik tv)) (BinOp (LOr, (BinOp (Lt, xFloat, yFloat, (typeOf xFloat))), (BinOp (Gt, xFloat, yFloat, (typeOf xFloat))), (TInt (IBool, [])))) st
+                          | _ -> default ()
+                        ) default (ID.to_bool c)
                   end
-                | _, _ -> update_lval c x c' ID.pretty
+                | _, _ -> default ()
               end
             | Float c ->
               let c' = match t with

@@ -23,7 +23,7 @@ module Make =
     let solve st vs =
       let infl = HM.create 10 in
       let rho  = HM.create 10 in
-      let vs   = ref (VS.of_enum (List.enum vs)) in
+      let vs   = ref (VS.of_list vs) in
       let init x =
         new_var_event x;
         HM.replace rho x (bot ());
