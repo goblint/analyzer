@@ -25,8 +25,8 @@ $GOBLINT --set ana.specification no-overflow.prp --set exp.architecture 64bit 36
 
 
 # Check if basic data race analysis returns correct results.
-$GOBLINT --set ana.specification no-data-race.prp --set exp.architecture 32bit 04-mutex_01-simple_rc.i | grep "SV-COMP result: unknown"
-$GOBLINT --set ana.specification no-data-race.prp --set exp.architecture 32bit 04-mutex_02-simple_nr.i | grep "SV-COMP result: true"
+$GOBLINT --set ana.specification no-data-race.prp --set exp.architecture 32bit 04-mutex_01-simple_rc.c | grep "SV-COMP result: unknown"
+$GOBLINT --set ana.specification no-data-race.prp --set exp.architecture 32bit 04-mutex_02-simple_nr.c | grep "SV-COMP result: true"
 
 
 # TODO: test validator
