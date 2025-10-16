@@ -77,7 +77,7 @@
 
     This is required such that the created archive would have everything in a single directory called `goblint`.
 
-4. Update SV-COMP year in `scripts/sv-comp/archive.sh`.
+4. Update SV-COMP year in `scripts/sv-comp/archive.sh`, `scripts/sv-comp/smoketest.sh` and `scripts/sv-comp/Dockerfile`.
 
     This includes: git tag name, git tag message and zipped conf file.
 

@@ -5,7 +5,7 @@
 make clean
 
 # TODO: add back
-# git tag -m "SV-COMP 2025" svcomp25
+# git tag -m "SV-COMP 2026" svcomp26
 
 eval $(opam env)
 
@@ -37,8 +37,8 @@ zip -r goblint/scripts/sv-comp/goblint.zip \
     goblint/lib/libboxD.so \
     goblint/lib/libpolkaMPQ.so \
     goblint/lib/LICENSE.APRON \
-    goblint/conf/svcomp25.json \
-    goblint/conf/svcomp25-validate.json \
+    goblint/conf/svcomp26.json \
+    goblint/conf/svcomp26-validate.json \
     goblint/lib/libc/stub/include/assert.h \
     goblint/lib/goblint/runtime/include/goblint.h \
     goblint/lib/libc/stub/src/stdlib.c \

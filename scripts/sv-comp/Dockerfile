@@ -35,7 +35,7 @@ RUN unzip goblint.zip
 WORKDIR /root/goblint
 RUN ./smoketest.sh
 
-FROM registry.gitlab.com/sosy-lab/benchmarking/competition-scripts/user:2025 AS smoketest-competition
+FROM registry.gitlab.com/sosy-lab/benchmarking/competition-scripts/user:2026 AS smoketest-competition
 
 RUN apt-get update \
     && apt-get install -y unzip \
