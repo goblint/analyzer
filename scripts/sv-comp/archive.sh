@@ -4,9 +4,6 @@
 
 make clean
 
-# TODO: add back
-# git tag -m "SV-COMP 2026" svcomp26
-
 eval $(opam env)
 
 dune build --profile=release src/goblint.exe
