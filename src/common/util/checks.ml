@@ -1,3 +1,11 @@
+(**
+    Implements a method described in this paper from Raphaël Monat, 
+    Abdelraouf Ouadjaout and Antoine Miné : https://inria.hal.science/hal-04652657v2
+
+    This allows to track checks performed during the analysis, and to mark whether they are safe, 
+    unsafe or unknown (resp. Safe, Error, Warning).
+*)
+
 module Kind = struct
   type t =
     | Error
