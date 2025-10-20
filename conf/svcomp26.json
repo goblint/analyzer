@@ -65,16 +65,19 @@
         "congruence",
         "octagon",
         "wideningThresholds",
-        "loopUnrollHeuristic",
         "memsafetySpecification",
         "noOverflows",
         "termination",
         "tmpSpecialAnalysis"
       ]
-    }
+    },
+    "wp": true
   },
   "exp": {
-    "region-offsets": true
+    "region-offsets": true,
+    "arg": {
+      "enabled": true
+    }
   },
   "solver": "td3",
   "sem": {
@@ -94,7 +97,8 @@
       "sv-comp-true-only": false,
       "format-version": "2.0",
       "entry-types": [
-        "invariant_set"
+        "invariant_set",
+        "violation_sequence"
       ],
       "invariant-types": [
         "loop_invariant"
@@ -103,7 +107,7 @@
     "invariant": {
       "loop-head": true,
       "after-lock": false,
-      "other": false,
+      "other": true,
       "accessed": false,
       "exact": true
     }
