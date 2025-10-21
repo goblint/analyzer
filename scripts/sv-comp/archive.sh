@@ -35,7 +35,6 @@ zip -r goblint/scripts/sv-comp/goblint.zip \
     goblint/lib/libpolkaMPQ.so \
     goblint/lib/LICENSE.APRON \
     goblint/conf/svcomp26.json \
-    goblint/conf/svcomp26-validate.json \
     goblint/lib/libc/stub/include/assert.h \
     goblint/lib/goblint/runtime/include/goblint.h \
     goblint/lib/libc/stub/src/stdlib.c \
@@ -43,4 +42,5 @@ zip -r goblint/scripts/sv-comp/goblint.zip \
     goblint/README.md \
     goblint/LICENSE \
     goblint/smoketest.sh \
-    goblint/smoketests/
+    goblint/smoketests/ \
+    goblint/witch/

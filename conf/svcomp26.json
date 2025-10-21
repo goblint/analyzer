@@ -77,7 +77,8 @@
     "region-offsets": true,
     "arg": {
       "enabled": true
-    }
+    },
+    "witch": "witch/bin/symbiotic"
   },
   "solver": "td3",
   "sem": {

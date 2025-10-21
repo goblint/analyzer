@@ -1,3 +1,15 @@
+# stage: build Witch
+FROM ocaml/opam:ubuntu-24.04-opam AS witch-build
+
+# install dependencies for Witch
+RUN sudo apt-get update \
+    && sudo apt-get install -y gcc-multilib cmake python3 llvm-14 z3 clang-14 libsqlite3-dev zlib1g-dev python3-pip unzip
+# clone only the 'goblint-coop' branch of Witch
+RUN git clone -b gobitch --single-branch https://github.com/karoliineh/witch.git /home/opam/witch
+WORKDIR /home/opam/witch
+# build Witch
+RUN ./system-build.sh witch-klee llvm-version=14.0.6 full-archive -j4
+
 # just -opam tag because make setup will install ocaml compiler
 FROM ocaml/opam:ubuntu-24.04-opam AS build
 # make opam 2.4 default for make setup
@@ -18,6 +30,7 @@ RUN OPAMCONFIRMLEVEL=unsafe-yes ./make.sh setup
 
 # copy the rest
 COPY --chown=opam . /home/opam/goblint
+COPY --from=witch-build /home/opam/witch/install witch/
 RUN ./scripts/sv-comp/archive.sh
 
 FROM ubuntu:24.04 AS smoketest-ubuntu
@@ -25,7 +38,7 @@ FROM ubuntu:24.04 AS smoketest-ubuntu
 # cannot use opam depext because no opam here, also additional preprocessing/header dependencies
 # libgmp for zarith, libmpfr for apron, cpp for preprocessing, libc6 for pthread.h, libgcc for stddef.h
 RUN apt-get update \
-    && apt-get install -y unzip libgmp-dev libmpfr-dev cpp libc6-dev libc6-dev-i386 libgcc-11-dev lib32gcc-11-dev \
+    && apt-get install -y unzip libgmp-dev libmpfr-dev cpp libc6-dev libc6-dev-i386 libgcc-11-dev lib32gcc-11-dev python3 python3-yaml llvm-14 clang-14 \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /root
