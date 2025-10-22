@@ -24,31 +24,30 @@ class GoblintMultishotRunner:
             exit(1)
 
         parser = argparse.ArgumentParser(
-            description="""A facade in front of goblint enabling multishot runs for SV-COMP.
-            All args apart from --multishot/-m are passed on to the actual goblint calls.
-            The Multishotlist file is a plaintext file whose lines each consist of a path to a 
+            description="""A facade in front of goblint to enable running a portfolio of configurations for SV-COMP.
+            All args apart from --portfolio-conf/-p are passed on to the actual goblint calls.
+            The portfolio config file is a plaintext file whose lines each consist of a path to a
             goblint config file (relative to the goblint conf dir). 
             Goblint is run with each config in order until one produces a verdict true or reaches the end of the list.
-            You may add comments to the multishotlist file by starting a line with #.
+            You may add comments to the portfolio config file by starting a line with #.
             """
         )
-        parser.add_argument("-m","--multishotlist", type=str, metavar="FILE",dest="multishot",
-                            help="a path to a multishotlist (relative to goblint_multishot.py)")
+        parser.add_argument("-p","--portfolio-conf", type=str, metavar="FILE",dest="portfolio",
+                            help="a path to a portfolio configuration file (relative to goblint_multishot.py)")
         conf_args, self.other_args = parser.parse_known_args()
-        logger.debug(f"Multishot conf file: {conf_args.multishot}")
+        logger.debug(f"Portfolio-conf file: {conf_args.portfolio}")
         logger.debug(f"Arguments passed on to goblint: {" ".join(self.other_args)}")
 
         self.configs = []
-        if not conf_args.multishot:
-            logger.warn("Multishot goblint called without multishotlist")
-        if conf_args.multishot:
-            if not path.exists(conf_args.multishot):
-                logger.error(f" Could not find conf file at {conf_args.multishot}")
+        if conf_args.portfolio:
+            if not path.exists(conf_args.portfolio):
+                logger.error(f" Could not find portfolio conf file at {conf_args.portfolio}")
                 exit(1)
-            with open(conf_args.multishot, "r") as conflist_file:
+            with open(conf_args.portfolio, "r") as conflist_file:
                 self.configs = [path.join(self.current_path, "conf", c.strip())
                                 for c in conflist_file.readlines() if not c.strip().startswith("#")]
-            logger.info(f"Loaded configs: {", ".join(self.configs)}")
+            logger.info(f"Loaded goblint configs: {", ".join(self.configs)}")
+            
     def run_with_config(self, config_path):
         args = ["--conf", config_path] + self.other_args
         self.logger.info(f"Running next shot: ./goblint {" ".join(args)}")
