@@ -293,9 +293,11 @@ struct
       let warn_and_top_on_zero x =
         if GobOption.exists (Z.equal Z.zero) (ID.to_int x) then
           (M.error ~category:M.Category.Integer.div_by_zero ~tags:[CWE 369] "Must Undefined Behavior: Second argument of div or mod is 0, continuing with top";
+           Checks.error Checks.Category.DivisionByZero "Must Undefined Behavior: Second argument of div or mod is 0, continuing with top";
            ID.top_of ikind)
-        else
-          x
+        else (
+          Checks.safe Checks.Category.DivisionByZero;
+          x)
       in
       let meet_bin a' b'  = id_meet_down ~old:a ~c:a', id_meet_down ~old:b ~c:b' in
       let meet_com oi = (* commutative *)
