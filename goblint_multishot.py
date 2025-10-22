@@ -39,6 +39,8 @@ class GoblintMultishotRunner:
         logger.debug(f"Arguments passed on to goblint: {" ".join(self.other_args)}")
 
         self.configs = []
+        if not conf_args.multishot:
+            logger.warn("Multishot goblint called without multishotlist")
         if conf_args.multishot:
             if not path.exists(conf_args.multishot):
                 logger.error(f" Could not find conf file at {conf_args.multishot}")
