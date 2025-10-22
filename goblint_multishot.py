@@ -80,11 +80,24 @@ class GoblintMultishotRunner:
                 break
         print(result.output)
 
+class GoblintLikeFormatter(logging.Formatter):
+    LEVEL_NAMES = {
+        'DEBUG': 'Debug',
+        'INFO': 'Info',
+        'WARNING': 'Warning',
+        'ERROR': 'Error',
+        'CRITICAL': 'Critical',
+    }
+
+    def format(self, record):
+        levelname = self.LEVEL_NAMES.get(record.levelname, record.levelname)
+        record.levelname = levelname
+        return super().format(record)
 
 if __name__ == "__main__":
     logger=logging.getLogger("multishot")
     logging.basicConfig(level=logging.INFO)
-    formatter=logging.Formatter('[%(levelname)s][%(name)s] %(message)s')
+    formatter=GoblintLikeFormatter('[%(levelname)s][%(name)s] %(message)s')
     sh=logging.StreamHandler()
     sh.setFormatter(formatter)
     logger.addHandler(sh)
