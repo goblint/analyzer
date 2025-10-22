@@ -35,7 +35,7 @@ class GoblintMultishotRunner:
         parser.add_argument("-m","--multishotlist", type=str, metavar="FILE",dest="multishot",
                             help="a path to a multishotlist (relative to goblint_multishot.py)")
         conf_args, self.other_args = parser.parse_known_args()
-        logger.info(f"Multishot conf file: {conf_args.multishot}")
+        logger.debug(f"Multishot conf file: {conf_args.multishot}")
         logger.debug(f"Arguments passed on to goblint: {" ".join(self.other_args)}")
 
         self.configs = []
@@ -46,7 +46,7 @@ class GoblintMultishotRunner:
             with open(conf_args.multishot, "r") as conflist_file:
                 self.configs = [path.join(self.current_path, "conf", c.strip())
                                 for c in conflist_file.readlines() if not c.strip().startswith("#")]
-
+            logger.info(f"Loaded configs: {", ".join(self.configs)}")
     def run_with_config(self, config_path):
         args = ["--conf", config_path] + self.other_args
         self.logger.info(f"Running next shot: ./goblint {" ".join(args)}")
