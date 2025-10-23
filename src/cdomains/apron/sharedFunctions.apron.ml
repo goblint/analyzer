@@ -210,12 +210,12 @@ struct
       texpr1_expr_of_cil_exp exp
     in
     let exp = Cil.constFold false exp in
-    if M.tracing then 
+    if M.tracing then
       match conv exp with
-      | exception Unsupported_CilExp ex -> 
+      | exception Unsupported_CilExp ex ->
         M.tracel "rel-texpr-cil-conv" "unsuccessfull: %s" (show_unsupported_cilExp ex);
         raise (Unsupported_CilExp ex)
-      | res -> 
+      | res ->
         M.trace "relation" "texpr1_expr_of_cil_exp: %a -> %a (%b)" d_plainexp exp Texpr1.Expr.pretty res (Lazy.force no_ov);
         M.tracel "rel-texpr-cil-conv" "successfull: Good";
         res
@@ -296,6 +296,14 @@ struct
   let cil_exp_of_linexpr1_term ~scalewith (c: Coeff.t) v =
     match V.to_cil_varinfo v with
     | Some vinfo when IntDomain.Size.is_cast_injective ~from_type:vinfo.vtype ~to_type:(TInt(ILongLong,[]))   ->
+      let vinfo =
+        match V.find_metadata v with
+        | Some (Arg v') ->
+          (* {v' with vname = ("\\at(" ^ v'.vname ^ ", AnyPrev)")} (* with i - i' > 0*) *)
+          {v' with vname = ("\\at(" ^ v'.vname ^ ", LastPrev)")} (* with i - i' - 1 = 0 *)
+        | _ ->
+          vinfo
+      in
       let var = Cilfacade.mkCast ~e:(Lval(Var vinfo,NoOffset)) ~newt:longlong in
       let flip, coeff = coeff_to_const ~scalewith c in
       let prod = BinOp(Mult, coeff, var, longlong) in
@@ -461,7 +469,7 @@ struct
   let add_vars t vars = Vector.timing_wrap "add_vars" (add_vars t) vars
 
   let remove_vars t vars =
-    let t = copy t in 
+    let t = copy t in
     let env' = Environment.remove_vars t.env vars in
     dimchange2_remove t env'
 
@@ -514,6 +522,7 @@ sig
 
   val env: t -> Environment.t
 
+  val meet_tcons: Queries.ask -> t -> Tcons1.t -> exp -> bool Lazy.t -> t
   val assert_constraint: Queries.ask -> t -> exp -> bool -> bool Lazy.t -> t
   val eval_interval : Queries.ask -> t -> Texpr1.t -> Z.t option * Z.t option
 end
