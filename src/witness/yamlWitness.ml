@@ -103,6 +103,7 @@ struct
         location;
         value = invariant;
         format = "c_expression";
+        labels = [];
       };
   }
 
@@ -111,6 +112,7 @@ struct
         location;
         value = invariant;
         format = "c_expression";
+        labels = [];
       };
   }
 
@@ -860,9 +862,9 @@ struct
         let validate_invariant (invariant: YamlWitnessType.InvariantSet.Invariant.t) =
           let target_type = YamlWitnessType.InvariantSet.InvariantType.invariant_type invariant.invariant_type in
           match invariant_type_enabled target_type, invariant.invariant_type with
-          | true, LocationInvariant x ->
+          | true, LocationInvariant ({labels = []; _} as x) ->
             validate_location_invariant x
-          | true, LoopInvariant x ->
+          | true, LoopInvariant ({labels = []; _} as x) ->
             validate_loop_invariant x
           | false, (LocationInvariant _ | LoopInvariant _) ->
             incr cnt_disabled;

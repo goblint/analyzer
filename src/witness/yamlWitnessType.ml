@@ -275,24 +275,27 @@ struct
       location: Location.t;
       value: string;
       format: string;
+      labels: string list;
     }
     [@@deriving eq, ord, hash]
 
     let invariant_type = "loop_invariant"
 
-    let to_yaml' {location; value; format} =
+    let to_yaml' {location; value; format; labels} =
       [
         ("location", Location.to_yaml location);
         ("value", `String value);
         ("format", `String format);
+        ("labels", `A (List.map (fun label -> `String label) labels));
       ]
 
     let of_yaml y =
       let open GobYaml in
       let+ location = y |> find "location" >>= Location.of_yaml
       and+ value = y |> find "value" >>= to_string
-      and+ format = y |> find "format" >>= to_string in
-      {location; value; format}
+      and+ format = y |> find "format" >>= to_string
+      and+ labels = y |> find "labels" >>= list >>= list_map to_string in
+      {location; value; format; labels}
   end
 
   module LocationInvariant =
