@@ -94,6 +94,15 @@ struct
             ) stmts
         ) prevs
     | FunctionEntry _ | Function _ -> None
+
+  let find_syntactic_loop_condition = function
+    | Statement s ->
+      (* No need to LoopUnrolling.find_original because loop unrolling duplicates __loop_condition labels (with new suffixes). *)
+      List.find_map (function
+          | Label (name, loc, false) when String.starts_with ~prefix:"__loop_condition" name -> Some loc
+          | _ -> None
+        ) s.labels
+    | FunctionEntry _ | Function _ -> None
 end
 
 module YamlInvariant (FileCfg: MyCFG.FileCfg) =
@@ -119,7 +128,7 @@ struct
   let is_invariant_node n = Option.is_some (location_location n)
 
   let loop_location n =
-    find_syntactic_loop_head n
+    find_syntactic_loop_condition n
     |> BatOption.filter (fun _loc -> not (is_stub_node n))
 
   let is_loop_head_node n = Option.is_some (loop_location n)
