@@ -216,9 +216,9 @@ struct
         let validate_invariant i (invariant: YamlWitnessType.InvariantSet.Invariant.t) =
           let target_type = YamlWitnessType.InvariantSet.InvariantType.invariant_type invariant.invariant_type in
           match YamlWitness.invariant_type_enabled target_type, invariant.invariant_type with
-          | true, LocationInvariant ({labels = []; _} as x) ->
+          | true, LocationInvariant ({labels = (None | Some []); _} as x) ->
             unassume_location_invariant ~i x
-          | true, LoopInvariant ({labels = []; _} as x) ->
+          | true, LoopInvariant ({labels = (None | Some []); _} as x) ->
             unassume_loop_invariant ~i x
           | false, (LocationInvariant _ | LoopInvariant _) ->
             M.info_noloc ~category:Witness "disabled invariant of type %s" target_type

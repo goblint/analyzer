@@ -275,7 +275,7 @@ struct
       location: Location.t;
       value: string;
       format: string;
-      labels: string list;
+      labels: string list option;
     }
     [@@deriving eq, ord, hash]
 
@@ -286,15 +286,18 @@ struct
         ("location", Location.to_yaml location);
         ("value", `String value);
         ("format", `String format);
-        ("labels", `A (List.map (fun label -> `String label) labels));
-      ]
+      ] @ match labels with
+      | Some labels -> [
+          ("labels", `A (List.map (fun label -> `String label) labels));
+        ]
+      | None -> []
 
     let of_yaml y =
       let open GobYaml in
       let+ location = y |> find "location" >>= Location.of_yaml
       and+ value = y |> find "value" >>= to_string
       and+ format = y |> find "format" >>= to_string
-      and+ labels = y |> find "labels" >>= list >>= list_map to_string in
+      and+ labels = y |> Yaml.Util.find "labels" >>= option_map (fun y -> y |> list >>= list_map to_string) in
       {location; value; format; labels}
   end
 
@@ -390,7 +393,7 @@ struct
       requires: string;
       ensures: string;
       format: string;
-      labels: string list;
+      labels: string list option;
     }
     [@@deriving eq, ord, hash]
 
@@ -402,8 +405,11 @@ struct
         ("requires", `String requires);
         ("ensures", `String ensures);
         ("format", `String format);
-        ("labels", `A (List.map (fun label -> `String label) labels));
-      ]
+      ] @ match labels with
+      | Some labels -> [
+          ("labels", `A (List.map (fun label -> `String label) labels));
+        ]
+      | None -> []
 
     let of_yaml y =
       let open GobYaml in
@@ -411,7 +417,7 @@ struct
       and+ requires = y |> find "requires" >>= to_string
       and+ ensures = y |> find "ensures" >>= to_string
       and+ format = y |> find "format" >>= to_string
-      and+ labels = y |> find "labels" >>= list >>= list_map to_string in
+      and+ labels = y |> Yaml.Util.find "labels" >>= option_map (fun y -> y |> list >>= list_map to_string) in
       {location; requires; ensures; format; labels}
   end
 
