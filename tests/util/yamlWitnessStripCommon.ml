@@ -25,6 +25,10 @@ struct
           LocationInvariant {x with location = location_strip_file_hash x.location}
         | LoopInvariant x ->
           LoopInvariant {x with location = location_strip_file_hash x.location}
+        | LoopTransitionInvariant x ->
+          LoopTransitionInvariant {x with location = location_strip_file_hash x.location}
+        | LocationTransitionInvariant x ->
+          LocationTransitionInvariant {x with location = location_strip_file_hash x.location}
       in
       {invariant_type}
     in

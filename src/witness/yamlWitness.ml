@@ -866,7 +866,10 @@ struct
             validate_loop_invariant x
           | false, (LocationInvariant _ | LoopInvariant _) ->
             incr cnt_disabled;
-            M.info_noloc ~category:Witness "disabled invariant of type %s" target_type;
+            M.info_noloc ~category:Witness "disabled invariant of type %s" target_type
+          | _ ->
+            incr cnt_unsupported;
+            M.warn_noloc ~category:Witness "cannot validate invariant of type %s" target_type
         in
 
         List.iter validate_invariant invariant_set.content

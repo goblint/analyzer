@@ -222,6 +222,8 @@ struct
             unassume_loop_invariant ~i x
           | false, (LocationInvariant _ | LoopInvariant _) ->
             M.info_noloc ~category:Witness "disabled invariant of type %s" target_type
+          | _ ->
+            M.warn_noloc ~category:Witness "cannot unassume invariant of type %s" target_type
         in
 
         List.iteri validate_invariant invariant_set.content

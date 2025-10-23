@@ -302,21 +302,41 @@ struct
     let invariant_type = "location_invariant"
   end
 
+  module LoopTransitionInvariant =
+  struct
+    include LoopInvariant
+
+    let invariant_type = "loop_transition_invariant"
+  end
+
+  module LocationTransitionInvariant =
+  struct
+    include LoopTransitionInvariant
+
+    let invariant_type = "location_transition_invariant"
+  end
+
   (* TODO: could maybe use GADT, but adds ugly existential layer to entry type pattern matching *)
   module InvariantType =
   struct
     type t =
       | LocationInvariant of LocationInvariant.t
       | LoopInvariant of LoopInvariant.t
+      | LoopTransitionInvariant of LoopTransitionInvariant.t
+      | LocationTransitionInvariant of LocationTransitionInvariant.t
     [@@deriving eq, ord, hash]
 
     let invariant_type = function
       | LocationInvariant _ -> LocationInvariant.invariant_type
       | LoopInvariant _ -> LoopInvariant.invariant_type
+      | LoopTransitionInvariant _ -> LoopTransitionInvariant.invariant_type
+      | LocationTransitionInvariant _ -> LocationTransitionInvariant.invariant_type
 
     let to_yaml' = function
       | LocationInvariant x -> LocationInvariant.to_yaml' x
       | LoopInvariant x -> LoopInvariant.to_yaml' x
+      | LoopTransitionInvariant x -> LoopTransitionInvariant.to_yaml' x
+      | LocationTransitionInvariant x -> LocationTransitionInvariant.to_yaml' x
 
     let of_yaml y =
       let open GobYaml in
@@ -327,6 +347,12 @@ struct
       else if invariant_type = LoopInvariant.invariant_type then
         let+ x = y |> LoopInvariant.of_yaml in
         LoopInvariant x
+      else if invariant_type = LoopTransitionInvariant.invariant_type then
+        let+ x = y |> LoopTransitionInvariant.of_yaml in
+        LoopTransitionInvariant x
+      else if invariant_type = LocationTransitionInvariant.invariant_type then
+        let+ x = y |> LocationTransitionInvariant.of_yaml in
+        LocationTransitionInvariant x
       else
         Error (`Msg "type")
   end
