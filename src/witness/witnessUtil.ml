@@ -95,13 +95,25 @@ struct
         ) prevs
     | FunctionEntry _ | Function _ -> None
 
+  let find_syntactic_loop_condition_label s =
+    List.find_map (function
+        | Label (name, loc, false) when String.starts_with ~prefix:"__loop_condition" name -> Some loc
+        | _ -> None
+      ) s.labels
+
   let find_syntactic_loop_condition = function
-    | Statement s ->
+    | Statement s as n ->
       (* No need to LoopUnrolling.find_original because loop unrolling duplicates __loop_condition labels (with new suffixes). *)
-      List.find_map (function
-          | Label (name, loc, false) when String.starts_with ~prefix:"__loop_condition" name -> Some loc
-          | _ -> None
-        ) s.labels
+      begin match find_syntactic_loop_condition_label s with
+        | Some _ as r -> r
+        | None ->
+          (* The __loop_condition label may not be on s itself, but still on the surrounding Block (skipped in CFG) due to basic blocks transformation. *)
+          let prevs = Cfg.prev n in
+          List.find_map (fun (edges, prev) ->
+              let stmts = Cfg.skippedByEdge prev edges n in
+              List.find_map find_syntactic_loop_condition_label stmts
+            ) prevs
+      end
     | FunctionEntry _ | Function _ -> None
 end
 
