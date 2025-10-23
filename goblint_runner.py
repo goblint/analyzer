@@ -10,7 +10,7 @@ import logging
 @dataclass
 class ExecutionResult:
     output: str
-    has_verdict: bool
+    verdict_true_or_error: bool
 
 
 class GoblintMultishotRunner:
@@ -51,17 +51,20 @@ class GoblintMultishotRunner:
     def run_with_config(self, config_path):
         args = ["--conf", config_path] + self.other_args
         self.logger.info(f"Running next shot: ./goblint {" ".join(args)}")
-        output = subprocess.check_output([self.goblint_executable_path, *args]
-                                        ).decode("utf-8")        
+        try:
+            output = subprocess.check_output([self.goblint_executable_path, *args]
+                                            ,stderr=subprocess.STDOUT).decode("utf-8")
+        except subprocess.CalledProcessError as e:
+            output = e.output.decode("utf-8")
 
-        return ExecutionResult(output, self.has_verdict(output))
+        return ExecutionResult(output, self.verdict_true_or_error(output))
 
     def run_without_config(self):
         subprocess.run([self.goblint_executable_path, *self.other_args])
 
     @staticmethod
-    def has_verdict(output):
-        return any("SV-COMP result: true" in line for line in output.splitlines())
+    def verdict_true_or_error(output):
+        return not any("SV-COMP result: unknown" in line for line in output.splitlines())
 
     def run(self):
         if not self.configs:
@@ -70,14 +73,8 @@ class GoblintMultishotRunner:
 
         result = None
         for config in self.configs:
-            if not path.exists(config):
-                logger.warning(f"Config file {config} not found, skipping.")
-                continue
-            if not path.isfile(config):
-                logger.warning(f"Config file {config} is not a file, skipping.")
-                continue
             result = self.run_with_config(config)
-            if result.has_verdict:
+            if result.verdict_true_or_error:
                 break
         print(result.output)
 
