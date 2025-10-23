@@ -367,6 +367,8 @@ struct
     }
     [@@deriving eq, ord, hash]
 
+    let invariant_kind = "invariant"
+
     let to_yaml {invariant_type} =
       `O [
         ("invariant", `O ([
@@ -381,19 +383,129 @@ struct
       {invariant_type}
   end
 
+  module FunctionContract =
+  struct
+    type t = {
+      location: Location.t;
+      requires: string;
+      ensures: string;
+      format: string;
+      labels: string list;
+    }
+    [@@deriving eq, ord, hash]
+
+    let contract_type = "function_contract"
+
+    let to_yaml' {location; requires; ensures; format; labels} =
+      [
+        ("location", Location.to_yaml location);
+        ("requires", `String requires);
+        ("ensures", `String ensures);
+        ("format", `String format);
+        ("labels", `A (List.map (fun label -> `String label) labels));
+      ]
+
+    let of_yaml y =
+      let open GobYaml in
+      let+ location = y |> find "location" >>= Location.of_yaml
+      and+ requires = y |> find "requires" >>= to_string
+      and+ ensures = y |> find "ensures" >>= to_string
+      and+ format = y |> find "format" >>= to_string
+      and+ labels = y |> find "labels" >>= list >>= list_map to_string in
+      {location; requires; ensures; format; labels}
+  end
+
+  (* TODO: could maybe use GADT, but adds ugly existential layer to entry type pattern matching *)
+  module ContractType =
+  struct
+    type t =
+      | FunctionContract of FunctionContract.t
+    [@@deriving eq, ord, hash]
+
+    let contract_type = function
+      | FunctionContract _ -> FunctionContract.contract_type
+
+    let to_yaml' = function
+      | FunctionContract x -> FunctionContract.to_yaml' x
+
+    let of_yaml y =
+      let open GobYaml in
+      let* contract_type = y |> find "type" >>= to_string in
+      if contract_type = FunctionContract.contract_type then
+        let+ x = y |> FunctionContract.of_yaml in
+        FunctionContract x
+      else
+        Error (`Msg "type")
+  end
+
+  module Contract =
+  struct
+    type t = {
+      contract_type: ContractType.t;
+    }
+    [@@deriving eq, ord, hash]
+
+    let invariant_kind = "contract"
+
+    let to_yaml {contract_type} =
+      `O [
+        ("contract", `O ([
+             ("type", `String (ContractType.contract_type contract_type));
+           ] @ ContractType.to_yaml' contract_type)
+        )
+      ]
+
+    let of_yaml y =
+      let open GobYaml in
+      let+ contract_type = y |> find "contract" >>= ContractType.of_yaml in
+      {contract_type}
+  end
+
+  module InvariantKind =
+  struct
+    type t =
+      | Invariant of Invariant.t
+      | Contract of Contract.t
+    [@@deriving eq, ord, hash]
+
+    let invariant_kind = function
+      | Invariant _ -> Invariant.invariant_kind
+      | Contract _ -> Contract.invariant_kind
+
+    let to_yaml = function
+      | Invariant x -> Invariant.to_yaml x
+      | Contract x -> Contract.to_yaml x
+
+    let of_yaml y =
+      let open GobYaml in
+      let* entries = y |> entries in
+      match entries with
+      | [(invariant_kind, _)] ->
+        if invariant_kind = Invariant.invariant_kind then
+          let+ x = y |> Invariant.of_yaml in
+          Invariant x
+        else if invariant_kind = Contract.invariant_kind then
+          let+ x = y |> Contract.of_yaml in
+          Contract x
+        else
+          Error (`Msg "kind")
+      | _ ->
+        Error (`Msg "kind")
+  end
+
   type t = {
-    content: Invariant.t list;
+    content: InvariantKind.t list;
   }
   [@@deriving eq, ord, hash]
 
   let entry_type = "invariant_set"
 
   let to_yaml' {content} =
-    [("content", `A (List.map Invariant.to_yaml content))]
+    [("content", `A (List.map InvariantKind.to_yaml content))]
 
   let of_yaml y =
     let open GobYaml in
-    let+ content = y |> find "content" >>= list >>= list_map Invariant.of_yaml in
+    let+ content = y |> find "content" >>= list >>= list_map InvariantKind.of_yaml in
     {content}
 end
 

@@ -32,6 +32,21 @@ struct
       in
       {invariant_type}
     in
+    let contract_strip_file_hash ({contract_type}: InvariantSet.Contract.t): InvariantSet.Contract.t =
+      let contract_type: InvariantSet.ContractType.t =
+        match contract_type with
+        | FunctionContract x ->
+          FunctionContract {x with location = location_strip_file_hash x.location}
+      in
+      {contract_type}
+    in
+    let invariant_kind_strip_file_hash (invariant_kind: InvariantSet.InvariantKind.t): InvariantSet.InvariantKind.t =
+      match invariant_kind with
+      | Invariant x ->
+        Invariant (invariant_strip_file_hash x)
+      | Contract x ->
+        Contract (contract_strip_file_hash x)
+    in
     let waypoint_strip_file_hash ({waypoint_type}: ViolationSequence.Waypoint.t): ViolationSequence.Waypoint.t =
       let waypoint_type: ViolationSequence.WaypointType.t =
         match waypoint_type with
@@ -68,7 +83,7 @@ struct
       | PreconditionLoopInvariant x ->
         PreconditionLoopInvariant {x with location = location_strip_file_hash x.location}
       | InvariantSet x ->
-        InvariantSet {content = List.sort InvariantSet.Invariant.compare (List.map invariant_strip_file_hash x.content)} (* Sort, so order is deterministic regardless of Goblint. *)
+        InvariantSet {content = List.sort InvariantSet.InvariantKind.compare (List.map invariant_kind_strip_file_hash x.content)} (* Sort, so order is deterministic regardless of Goblint. *)
       | ViolationSequence x ->
         ViolationSequence {content = List.map segment_strip_file_hash x.content}
       | GhostInstrumentation x ->

@@ -98,23 +98,25 @@ struct
     metadata = metadata ~task ();
   }
 
-  let location_invariant' ~location ~(invariant): InvariantSet.Invariant.t = {
-    invariant_type = LocationInvariant {
-        location;
-        value = invariant;
-        format = "c_expression";
-        labels = [];
-      };
-  }
+  let location_invariant' ~location ~(invariant): InvariantSet.InvariantKind.t =
+    Invariant {
+      invariant_type = LocationInvariant {
+          location;
+          value = invariant;
+          format = "c_expression";
+          labels = [];
+        };
+    }
 
-  let loop_invariant' ~location ~(invariant): InvariantSet.Invariant.t = {
-    invariant_type = LoopInvariant {
-        location;
-        value = invariant;
-        format = "c_expression";
-        labels = [];
-      };
-  }
+  let loop_invariant' ~location ~(invariant): InvariantSet.InvariantKind.t =
+    Invariant {
+      invariant_type = LoopInvariant {
+          location;
+          value = invariant;
+          format = "c_expression";
+          labels = [];
+        };
+    }
 
   let invariant_set ~task ~(invariants): Entry.t = {
     entry_type = InvariantSet {
@@ -874,7 +876,17 @@ struct
             M.warn_noloc ~category:Witness "cannot validate invariant of type %s" target_type
         in
 
-        List.iter validate_invariant invariant_set.content
+        let validate_invariant_kind (invariant_kind: YamlWitnessType.InvariantSet.InvariantKind.t) =
+          let target_type = YamlWitnessType.InvariantSet.InvariantKind.invariant_kind invariant_kind in
+          match invariant_kind with
+          | Invariant x ->
+            validate_invariant x
+          | _ ->
+            incr cnt_unsupported;
+            M.warn_noloc ~category:Witness "cannot validate invariant of kind %s" target_type
+        in
+
+        List.iter validate_invariant_kind invariant_set.content
       in
 
       let validate_violation_sequence (violation_sequence: YamlWitnessType.ViolationSequence.t) =

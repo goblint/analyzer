@@ -226,7 +226,16 @@ struct
             M.warn_noloc ~category:Witness "cannot unassume invariant of type %s" target_type
         in
 
-        List.iteri validate_invariant invariant_set.content
+        let validate_invariant_kind i (invariant_kind: YamlWitnessType.InvariantSet.InvariantKind.t) =
+          let target_type = YamlWitnessType.InvariantSet.InvariantKind.invariant_kind invariant_kind in
+          match invariant_kind with
+          | Invariant x ->
+            validate_invariant i x
+          | _ ->
+            M.warn_noloc ~category:Witness "cannot validate invariant of kind %s" target_type
+        in
+
+        List.iteri validate_invariant_kind invariant_set.content
       in
 
       match YamlWitness.entry_type_enabled target_type, entry.entry_type with
