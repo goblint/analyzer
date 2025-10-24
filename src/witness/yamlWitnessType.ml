@@ -221,26 +221,6 @@ struct
     {location; location_invariant}
 end
 
-module FlowInsensitiveInvariant =
-struct
-  type t = {
-    flow_insensitive_invariant: Invariant.t;
-  }
-  [@@deriving eq, ord, hash]
-
-  let entry_type = "flow_insensitive_invariant"
-
-  let to_yaml' {flow_insensitive_invariant} =
-    [
-      ("flow_insensitive_invariant", Invariant.to_yaml flow_insensitive_invariant);
-    ]
-
-  let of_yaml y =
-    let open GobYaml in
-    let+ flow_insensitive_invariant = y |> find "flow_insensitive_invariant" >>= Invariant.of_yaml in
-    {flow_insensitive_invariant}
-end
-
 module PreconditionLoopInvariant =
 struct
   type t = {
@@ -302,21 +282,47 @@ struct
     let invariant_type = "location_invariant"
   end
 
+  module FlowInsensitiveInvariant =
+  struct
+    type t = {
+      value: string;
+      format: string;
+    }
+    [@@deriving eq, ord, hash]
+
+    let invariant_type = "flow_insensitive_invariant"
+
+    let to_yaml' {value; format} =
+      [
+        ("value", `String value);
+        ("format", `String format);
+      ]
+
+    let of_yaml y =
+      let open GobYaml in
+      let+ value = y |> find "value" >>= to_string
+      and+ format = y |> find "format" >>= to_string in
+      {value; format}
+  end
+
   (* TODO: could maybe use GADT, but adds ugly existential layer to entry type pattern matching *)
   module InvariantType =
   struct
     type t =
       | LocationInvariant of LocationInvariant.t
       | LoopInvariant of LoopInvariant.t
+      | FlowInsensitiveInvariant of FlowInsensitiveInvariant.t
     [@@deriving eq, ord, hash]
 
     let invariant_type = function
       | LocationInvariant _ -> LocationInvariant.invariant_type
       | LoopInvariant _ -> LoopInvariant.invariant_type
+      | FlowInsensitiveInvariant _ -> FlowInsensitiveInvariant.invariant_type
 
     let to_yaml' = function
       | LocationInvariant x -> LocationInvariant.to_yaml' x
       | LoopInvariant x -> LoopInvariant.to_yaml' x
+      | FlowInsensitiveInvariant x -> FlowInsensitiveInvariant.to_yaml' x
 
     let of_yaml y =
       let open GobYaml in
@@ -327,6 +333,9 @@ struct
       else if invariant_type = LoopInvariant.invariant_type then
         let+ x = y |> LoopInvariant.of_yaml in
         LoopInvariant x
+      else if invariant_type = FlowInsensitiveInvariant.invariant_type then
+        let+ x = y |> FlowInsensitiveInvariant.of_yaml in
+        FlowInsensitiveInvariant x
       else
         Error (`Msg "type")
   end
@@ -712,7 +721,6 @@ struct
   type t =
     | LocationInvariant of LocationInvariant.t
     | LoopInvariant of LoopInvariant.t
-    | FlowInsensitiveInvariant of FlowInsensitiveInvariant.t
     | PreconditionLoopInvariant of PreconditionLoopInvariant.t
     | InvariantSet of InvariantSet.t
     | ViolationSequence of ViolationSequence.t
@@ -722,7 +730,6 @@ struct
   let entry_type = function
     | LocationInvariant _ -> LocationInvariant.entry_type
     | LoopInvariant _ -> LoopInvariant.entry_type
-    | FlowInsensitiveInvariant _ -> FlowInsensitiveInvariant.entry_type
     | PreconditionLoopInvariant _ -> PreconditionLoopInvariant.entry_type
     | InvariantSet _ -> InvariantSet.entry_type
     | ViolationSequence _ -> ViolationSequence.entry_type
@@ -731,7 +738,6 @@ struct
   let to_yaml' = function
     | LocationInvariant x -> LocationInvariant.to_yaml' x
     | LoopInvariant x -> LoopInvariant.to_yaml' x
-    | FlowInsensitiveInvariant x -> FlowInsensitiveInvariant.to_yaml' x
     | PreconditionLoopInvariant x -> PreconditionLoopInvariant.to_yaml' x
     | InvariantSet x -> InvariantSet.to_yaml' x
     | ViolationSequence x -> ViolationSequence.to_yaml' x
@@ -746,9 +752,6 @@ struct
     else if entry_type = LoopInvariant.entry_type then
       let+ x = y |> LoopInvariant.of_yaml in
       LoopInvariant x
-    else if entry_type = FlowInsensitiveInvariant.entry_type then
-      let+ x = y |> FlowInsensitiveInvariant.of_yaml in
-      FlowInsensitiveInvariant x
     else if entry_type = PreconditionLoopInvariant.entry_type then
       let+ x = y |> PreconditionLoopInvariant.of_yaml in
       PreconditionLoopInvariant x
