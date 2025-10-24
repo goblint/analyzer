@@ -1,4 +1,4 @@
-  $ goblint --enable witness.yaml.enabled --enable warn.deterministic  --set witness.yaml.entry-types '["location_invariant"]' --disable witness.invariant.other --disable ana.base.invariant.enabled --set ana.relation.privatization mutex-meet --set ana.activated[+] apron --enable ana.sv-comp.functions --set ana.apron.domain polyhedra 12-traces-min-rpb1.c
+  $ goblint --enable witness.yaml.enabled --enable warn.deterministic --set witness.yaml.invariant-types '["location_invariant"]' --disable witness.invariant.other --disable ana.base.invariant.enabled --set ana.relation.privatization mutex-meet --set ana.activated[+] apron --enable ana.sv-comp.functions --set ana.apron.domain polyhedra 12-traces-min-rpb1.c
   [Warning][Assert] Assertion "g == h" is unknown. (12-traces-min-rpb1.c:27:3-27:26)
   [Success][Assert] Assertion "g == h" will succeed (12-traces-min-rpb1.c:16:3-16:26)
   [Success][Assert] Assertion "g == h" will succeed (12-traces-min-rpb1.c:29:3-29:26)
@@ -21,39 +21,38 @@
     location invariants: 3
     loop invariants: 0
     flow-insensitive invariants: 0
-    total generation entries: 3
+    total generation entries: 1
 
   $ yamlWitnessStrip < witness.yml
-  - entry_type: location_invariant
-    location:
-      file_name: 12-traces-min-rpb1.c
-      line: 29
-      column: 3
-      function: main
-    location_invariant:
-      string: (long long )h == (long long )g
-      type: assertion
-      format: C
-  - entry_type: location_invariant
-    location:
-      file_name: 12-traces-min-rpb1.c
-      line: 19
-      column: 3
-      function: t_fun
-    location_invariant:
-      string: (long long )h == (long long )g
-      type: assertion
-      format: C
-  - entry_type: location_invariant
-    location:
-      file_name: 12-traces-min-rpb1.c
-      line: 14
-      column: 3
-      function: t_fun
-    location_invariant:
-      string: (long long )h == (long long )g
-      type: assertion
-      format: C
+  - entry_type: invariant_set
+    content:
+    - invariant:
+        type: location_invariant
+        location:
+          file_name: 12-traces-min-rpb1.c
+          line: 14
+          column: 3
+          function: t_fun
+        value: (long long )h == (long long )g
+        format: c_expression
+    - invariant:
+        type: location_invariant
+        location:
+          file_name: 12-traces-min-rpb1.c
+          line: 19
+          column: 3
+          function: t_fun
+        value: (long long )h == (long long )g
+        format: c_expression
+    - invariant:
+        type: location_invariant
+        location:
+          file_name: 12-traces-min-rpb1.c
+          line: 29
+          column: 3
+          function: main
+        value: (long long )h == (long long )g
+        format: c_expression
 
 
   $ goblint --enable warn.deterministic --set ana.activated[+] apron --set ana.path_sens[+] threadflag --enable ana.sv-comp.functions --enable witness.yaml.enabled --set ana.activated[+] mutexGhosts --set witness.yaml.entry-types '["flow_insensitive_invariant", "ghost_instrumentation"]' 12-traces-min-rpb1.c --enable ana.apron.invariant.diff-box
