@@ -2763,8 +2763,8 @@
               "title": "witness.invariant.flow_insensitive-as",
               "description": "Emit flow-insensitive invariants as location invariants at certain locations.",
               "type": "string",
-              "enum": ["flow_insensitive_invariant", "location_invariant", "invariant_set-location_invariant"],
-              "default": "flow_insensitive_invariant"
+              "enum": ["invariant_set-flow_insensitive_invariant", "invariant_set-location_invariant"],
+              "default": "invariant_set-flow_insensitive_invariant"
             }
           },
           "additionalProperties": false
@@ -2805,7 +2805,6 @@
                 "enum": [
                   "location_invariant",
                   "loop_invariant",
-                  "flow_insensitive_invariant",
                   "precondition_loop_invariant",
                   "invariant_set",
                   "violation_sequence",
@@ -2824,7 +2823,8 @@
                 "type": "string",
                 "enum": [
                   "location_invariant",
-                  "loop_invariant"
+                  "loop_invariant",
+                  "flow_insensitive_invariant"
                 ]
               },
               "default": [
