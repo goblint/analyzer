@@ -29,7 +29,7 @@ Easiest to run again to get evals.
 ## Unassume after lock
 
 Assertions proven.
-  $ goblint --enable ana.int.interval --set solvers.td3.side_widen always --set ana.base.privatization vojdani --set witness.yaml.entry-types[*] location_invariant --set ana.activated[+] unassume --set witness.yaml.unassume 30-base-unassume-inc-dec.yml --enable ana.widen.tokens 30-base-unassume-inc-dec.c
+  $ goblint --enable ana.int.interval --set solvers.td3.side_widen always --set ana.base.privatization vojdani --set ana.activated[+] unassume --set witness.yaml.unassume 30-base-unassume-inc-dec.yml --enable ana.widen.tokens 30-base-unassume-inc-dec.c
   [Info][Witness] unassume invariant: -10 <= g && g <= 10 (30-base-unassume-inc-dec.c:9:5-9:27)
   [Info][Witness] unassume invariant: -10 <= g && g <= 10 (30-base-unassume-inc-dec.c:19:5-19:27)
   [Success][Assert] Assertion "-10 <= g" will succeed (30-base-unassume-inc-dec.c:33:3-33:28)
@@ -52,13 +52,13 @@ Assertions proven.
 
 Evals less than from scratch.
 TODO: Should not be according to Simmo's PhD thesis?
-  $ goblint --enable ana.int.interval --set solvers.td3.side_widen always --set ana.base.privatization vojdani --set witness.yaml.entry-types[*] location_invariant --set ana.activated[+] unassume --set witness.yaml.unassume 30-base-unassume-inc-dec.yml --enable ana.widen.tokens 30-base-unassume-inc-dec.c -v 2>&1 | grep 'evals'
+  $ goblint --enable ana.int.interval --set solvers.td3.side_widen always --set ana.base.privatization vojdani --set ana.activated[+] unassume --set witness.yaml.unassume 30-base-unassume-inc-dec.yml --enable ana.widen.tokens 30-base-unassume-inc-dec.c -v 2>&1 | grep 'evals'
   [Info] vars = 39    evals = 58    narrow_reuses = 3
 
 ## Unassume after lock and before unlock
 
 Assertions proven.
-  $ goblint --enable ana.int.interval --set solvers.td3.side_widen always --set ana.base.privatization vojdani --set witness.yaml.entry-types[*] location_invariant --set ana.activated[+] unassume --set witness.yaml.unassume 30-base-unassume-inc-dec2.yml --enable ana.widen.tokens 30-base-unassume-inc-dec.c
+  $ goblint --enable ana.int.interval --set solvers.td3.side_widen always --set ana.base.privatization vojdani --set ana.activated[+] unassume --set witness.yaml.unassume 30-base-unassume-inc-dec2.yml --enable ana.widen.tokens 30-base-unassume-inc-dec.c
   [Info][Witness] unassume invariant: -10 <= g && g <= 10 (30-base-unassume-inc-dec.c:9:5-9:27)
   [Info][Witness] unassume invariant: -10 <= g && g <= 10 (30-base-unassume-inc-dec.c:11:7-11:10)
   [Info][Witness] unassume invariant: -10 <= g && g <= 10 (30-base-unassume-inc-dec.c:10:9-10:15)
@@ -84,13 +84,13 @@ Assertions proven.
     total memory locations: 1
 
 Evals less than from scratch.
-  $ goblint --enable ana.int.interval --set solvers.td3.side_widen always --set ana.base.privatization vojdani --set witness.yaml.entry-types[*] location_invariant --set ana.activated[+] unassume --set witness.yaml.unassume 30-base-unassume-inc-dec2.yml --enable ana.widen.tokens 30-base-unassume-inc-dec.c -v 2>&1 | grep 'evals'
+  $ goblint --enable ana.int.interval --set solvers.td3.side_widen always --set ana.base.privatization vojdani --set ana.activated[+] unassume --set witness.yaml.unassume 30-base-unassume-inc-dec2.yml --enable ana.widen.tokens 30-base-unassume-inc-dec.c -v 2>&1 | grep 'evals'
   [Info] vars = 39    evals = 49    narrow_reuses = 2
 
 ## Unassume before unlock
 
 Assertions proven.
-  $ goblint --enable ana.int.interval --set solvers.td3.side_widen always --set ana.base.privatization vojdani --set witness.yaml.entry-types[*] location_invariant --set ana.activated[+] unassume --set witness.yaml.unassume 30-base-unassume-inc-dec3.yml --enable ana.widen.tokens 30-base-unassume-inc-dec.c
+  $ goblint --enable ana.int.interval --set solvers.td3.side_widen always --set ana.base.privatization vojdani --set ana.activated[+] unassume --set witness.yaml.unassume 30-base-unassume-inc-dec3.yml --enable ana.widen.tokens 30-base-unassume-inc-dec.c
   [Info][Witness] unassume invariant: -10 <= g && g <= 10 (30-base-unassume-inc-dec.c:11:7-11:10)
   [Info][Witness] unassume invariant: -10 <= g && g <= 10 (30-base-unassume-inc-dec.c:10:9-10:15)
   [Info][Witness] unassume invariant: -10 <= g && g <= 10 (30-base-unassume-inc-dec.c:21:7-21:10)
@@ -115,7 +115,7 @@ Assertions proven.
 
 Evals less than from scratch.
 TODO: Why more than unassume after lock and before unlock?
-  $ goblint --enable ana.int.interval --set solvers.td3.side_widen always --set ana.base.privatization vojdani --set witness.yaml.entry-types[*] location_invariant --set ana.activated[+] unassume --set witness.yaml.unassume 30-base-unassume-inc-dec3.yml --enable ana.widen.tokens 30-base-unassume-inc-dec.c -v 2>&1 | grep 'evals'
+  $ goblint --enable ana.int.interval --set solvers.td3.side_widen always --set ana.base.privatization vojdani --set ana.activated[+] unassume --set witness.yaml.unassume 30-base-unassume-inc-dec3.yml --enable ana.widen.tokens 30-base-unassume-inc-dec.c -v 2>&1 | grep 'evals'
   [Info] vars = 39    evals = 54    narrow_reuses = 2
 
 
@@ -149,7 +149,7 @@ Assertions not proven.
 ## Unassume after lock
 
 Assertions proven.
-  $ goblint --enable ana.int.interval --set solvers.td3.side_widen always --set ana.base.privatization protection --set witness.yaml.entry-types[*] location_invariant --set ana.activated[+] unassume --set witness.yaml.unassume 30-base-unassume-inc-dec.yml --enable ana.widen.tokens 30-base-unassume-inc-dec.c
+  $ goblint --enable ana.int.interval --set solvers.td3.side_widen always --set ana.base.privatization protection --set ana.activated[+] unassume --set witness.yaml.unassume 30-base-unassume-inc-dec.yml --enable ana.widen.tokens 30-base-unassume-inc-dec.c
   [Info][Witness] unassume invariant: -10 <= g && g <= 10 (30-base-unassume-inc-dec.c:9:5-9:27)
   [Info][Witness] unassume invariant: -10 <= g && g <= 10 (30-base-unassume-inc-dec.c:19:5-19:27)
   [Success][Assert] Assertion "-10 <= g" will succeed (30-base-unassume-inc-dec.c:33:3-33:28)
@@ -172,13 +172,13 @@ Assertions proven.
 
 Evals not less than from scratch.
 Fits old TODO from Simmo's PhD thesis: "No improvement in number of steps using W set. Without it the improvement was 44 → 26."
-  $ goblint --enable ana.int.interval --set solvers.td3.side_widen always --set ana.base.privatization protection --set witness.yaml.entry-types[*] location_invariant --set ana.activated[+] unassume --set witness.yaml.unassume 30-base-unassume-inc-dec.yml --enable ana.widen.tokens 30-base-unassume-inc-dec.c -v 2>&1 | grep 'evals'
+  $ goblint --enable ana.int.interval --set solvers.td3.side_widen always --set ana.base.privatization protection --set ana.activated[+] unassume --set witness.yaml.unassume 30-base-unassume-inc-dec.yml --enable ana.widen.tokens 30-base-unassume-inc-dec.c -v 2>&1 | grep 'evals'
   [Info] vars = 40    evals = 54    narrow_reuses = 3
 
 ## Unassume after lock and before unlock
 
 Assertions proven.
-  $ goblint --enable ana.int.interval --set solvers.td3.side_widen always --set ana.base.privatization protection --set witness.yaml.entry-types[*] location_invariant --set ana.activated[+] unassume --set witness.yaml.unassume 30-base-unassume-inc-dec2.yml --enable ana.widen.tokens 30-base-unassume-inc-dec.c
+  $ goblint --enable ana.int.interval --set solvers.td3.side_widen always --set ana.base.privatization protection --set ana.activated[+] unassume --set witness.yaml.unassume 30-base-unassume-inc-dec2.yml --enable ana.widen.tokens 30-base-unassume-inc-dec.c
   [Info][Witness] unassume invariant: -10 <= g && g <= 10 (30-base-unassume-inc-dec.c:9:5-9:27)
   [Info][Witness] unassume invariant: -10 <= g && g <= 10 (30-base-unassume-inc-dec.c:11:7-11:10)
   [Info][Witness] unassume invariant: -10 <= g && g <= 10 (30-base-unassume-inc-dec.c:10:9-10:15)
@@ -204,13 +204,13 @@ Assertions proven.
     total memory locations: 1
 
 Evals less than from scratch.
-  $ goblint --enable ana.int.interval --set solvers.td3.side_widen always --set ana.base.privatization protection --set witness.yaml.entry-types[*] location_invariant --set ana.activated[+] unassume --set witness.yaml.unassume 30-base-unassume-inc-dec2.yml --enable ana.widen.tokens 30-base-unassume-inc-dec.c -v 2>&1 | grep 'evals'
+  $ goblint --enable ana.int.interval --set solvers.td3.side_widen always --set ana.base.privatization protection --set ana.activated[+] unassume --set witness.yaml.unassume 30-base-unassume-inc-dec2.yml --enable ana.widen.tokens 30-base-unassume-inc-dec.c -v 2>&1 | grep 'evals'
   [Info] vars = 40    evals = 41    narrow_reuses = 2
 
 ## Unassume before unlock
 
 Assertions proven.
-  $ goblint --enable ana.int.interval --set solvers.td3.side_widen always --set ana.base.privatization protection --set witness.yaml.entry-types[*] location_invariant --set ana.activated[+] unassume --set witness.yaml.unassume 30-base-unassume-inc-dec3.yml --enable ana.widen.tokens 30-base-unassume-inc-dec.c
+  $ goblint --enable ana.int.interval --set solvers.td3.side_widen always --set ana.base.privatization protection --set ana.activated[+] unassume --set witness.yaml.unassume 30-base-unassume-inc-dec3.yml --enable ana.widen.tokens 30-base-unassume-inc-dec.c
   [Info][Witness] unassume invariant: -10 <= g && g <= 10 (30-base-unassume-inc-dec.c:11:7-11:10)
   [Info][Witness] unassume invariant: -10 <= g && g <= 10 (30-base-unassume-inc-dec.c:10:9-10:15)
   [Info][Witness] unassume invariant: -10 <= g && g <= 10 (30-base-unassume-inc-dec.c:21:7-21:10)
@@ -235,5 +235,5 @@ Assertions proven.
 
 Evals less than from scratch.
 Evals same as unassume after lock and before unlock, matches Simmo's PhD thesis.
-  $ goblint --enable ana.int.interval --set solvers.td3.side_widen always --set ana.base.privatization protection --set witness.yaml.entry-types[*] location_invariant --set ana.activated[+] unassume --set witness.yaml.unassume 30-base-unassume-inc-dec3.yml --enable ana.widen.tokens 30-base-unassume-inc-dec.c -v 2>&1 | grep 'evals'
+  $ goblint --enable ana.int.interval --set solvers.td3.side_widen always --set ana.base.privatization protection --set ana.activated[+] unassume --set witness.yaml.unassume 30-base-unassume-inc-dec3.yml --enable ana.widen.tokens 30-base-unassume-inc-dec.c -v 2>&1 | grep 'evals'
   [Info] vars = 40    evals = 41    narrow_reuses = 2

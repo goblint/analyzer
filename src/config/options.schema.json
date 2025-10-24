@@ -81,7 +81,7 @@
       "description":
         "Result style: none, fast_xml, json, pretty, pretty-deterministic, json-messages, sarif.",
       "type": "string",
-      "enum": ["none", "fast_xml", "json", "pretty", "pretty-deterministic", "json-messages", "sarif"],
+      "enum": ["none", "fast_xml", "g2html", "xslt", "json", "pretty", "pretty-deterministic", "json-messages", "sarif"],
       "default": "none"
     },
     "solver": {
@@ -116,12 +116,6 @@
       "type": "string",
       "enum": ["auto", "always", "never"],
       "default": "auto"
-    },
-    "g2html": {
-      "title": "g2html",
-      "description": "Run g2html.jar on the generated xml.",
-      "type": "boolean",
-      "default": false
     },
     "save_run": {
       "title": "save_run",
@@ -2785,6 +2779,12 @@
               "type": "boolean",
               "default": false
             },
+            "sv-comp-true-only": {
+              "title": "witness.yaml.sv-comp-true-only",
+              "description": "Only output YAML witness when SV-COMP result is \"true\".",
+              "type": "boolean",
+              "default": false
+            },
             "format-version": {
               "title": "witness.yaml.format-version",
               "description": "YAML witness format version",
@@ -2807,8 +2807,6 @@
                   "loop_invariant",
                   "flow_insensitive_invariant",
                   "precondition_loop_invariant",
-                  "loop_invariant_certificate",
-                  "precondition_loop_invariant_certificate",
                   "invariant_set",
                   "violation_sequence",
                   "ghost_instrumentation"
@@ -2855,12 +2853,6 @@
             "unassume": {
               "title": "witness.yaml.unassume",
               "description": "YAML witness input path",
-              "type": "string",
-              "default": ""
-            },
-            "certificate": {
-              "title": "witness.yaml.certificate",
-              "description": "YAML witness certificate output path",
               "type": "string",
               "default": ""
             }

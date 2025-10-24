@@ -242,19 +242,29 @@ struct
   let write entrystates =
     let module Task = (val (BatOption.get !task)) in
     let result = Timing.wrap "sv-comp result" (determine_result entrystates) (module Task) in
-    print_task_result result
+    Ok result
 
-  let write yaml_validate_result entrystates =
+  let determine_result yaml_validate_result entrystates =
     match !AnalysisState.verified, !AnalysisState.unsound_both_branches_dead with
-    | _, Some true -> print_svcomp_result "ERROR (both branches dead)"
-    | Some false, _ -> print_svcomp_result "ERROR (verify)"
+    | _, Some true -> Stdlib.Error "both branches dead"
+    | Some false, _ -> Error "verify"
     | _, _ ->
       match yaml_validate_result with
-      | Some (Stdlib.Error msg) ->
-        print_svcomp_result ("ERROR (" ^ msg ^ ")")
-      | Some (Ok (Svcomp.Result.False _ | Unknown as result)) ->
-        print_svcomp_result (Result.to_string result)
+      | Some (Stdlib.Error _ as result)
+      | Some (Ok (Svcomp.Result.False _ | Unknown) as result) ->
+        result
       | Some (Ok True)
       | None ->
         write entrystates
+
+  let print_result = function
+    | Stdlib.Error msg ->
+      print_svcomp_result ("ERROR (" ^ msg ^ ")")
+    | Ok result ->
+      print_task_result result
+
+  let write yaml_validate_result entrystates =
+    let result = determine_result yaml_validate_result entrystates in
+    print_result result;
+    result
 end

@@ -114,6 +114,7 @@
   "witness": {
     "yaml": {
       "enabled": true,
+      "sv-comp-true-only": false,
       "format-version": "2.1",
       "entry-types": [
         "flow_insensitive_invariant",
