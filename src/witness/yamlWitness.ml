@@ -98,21 +98,25 @@ struct
     metadata = metadata ~task ();
   }
 
-  let location_invariant' ~location ~(invariant): InvariantSet.Invariant.t = {
-    invariant_type = LocationInvariant {
-        location;
-        value = invariant;
-        format = "c_expression";
-      };
-  }
+  let location_invariant' ~location ~(invariant): InvariantSet.InvariantKind.t =
+    Invariant {
+      invariant_type = LocationInvariant {
+          location;
+          value = invariant;
+          format = "c_expression";
+          labels = None;
+        };
+    }
 
-  let loop_invariant' ~location ~(invariant): InvariantSet.Invariant.t = {
-    invariant_type = LoopInvariant {
-        location;
-        value = invariant;
-        format = "c_expression";
-      };
-  }
+  let loop_invariant' ~location ~(invariant): InvariantSet.InvariantKind.t =
+    Invariant {
+      invariant_type = LoopInvariant {
+          location;
+          value = invariant;
+          format = "c_expression";
+          labels = None;
+        };
+    }
 
   let invariant_set ~task ~(invariants): Entry.t = {
     entry_type = InvariantSet {
@@ -860,16 +864,29 @@ struct
         let validate_invariant (invariant: YamlWitnessType.InvariantSet.Invariant.t) =
           let target_type = YamlWitnessType.InvariantSet.InvariantType.invariant_type invariant.invariant_type in
           match invariant_type_enabled target_type, invariant.invariant_type with
-          | true, LocationInvariant x ->
+          | true, LocationInvariant ({labels = (None | Some []); _} as x) ->
             validate_location_invariant x
-          | true, LoopInvariant x ->
+          | true, LoopInvariant ({labels = (None | Some []); _} as x) ->
             validate_loop_invariant x
           | false, (LocationInvariant _ | LoopInvariant _) ->
             incr cnt_disabled;
-            M.info_noloc ~category:Witness "disabled invariant of type %s" target_type;
+            M.info_noloc ~category:Witness "disabled invariant of type %s" target_type
+          | _ ->
+            incr cnt_unsupported;
+            M.warn_noloc ~category:Witness "cannot validate invariant of type %s" target_type
         in
 
-        List.iter validate_invariant invariant_set.content
+        let validate_invariant_kind (invariant_kind: YamlWitnessType.InvariantSet.InvariantKind.t) =
+          let target_type = YamlWitnessType.InvariantSet.InvariantKind.invariant_kind invariant_kind in
+          match invariant_kind with
+          | Invariant x ->
+            validate_invariant x
+          | _ ->
+            incr cnt_unsupported;
+            M.warn_noloc ~category:Witness "cannot validate invariant of kind %s" target_type
+        in
+
+        List.iter validate_invariant_kind invariant_set.content
       in
 
       let validate_violation_sequence (violation_sequence: YamlWitnessType.ViolationSequence.t) =
