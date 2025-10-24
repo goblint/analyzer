@@ -68,7 +68,7 @@ struct
         foldGlobals !Cilfacade.current_file (fun acc global ->
             match global with
             | GVar (vi, _, _) when not (BaseUtil.is_static vi) ->
-              mkAddrOf (Var vi, NoOffset) :: acc
+              mkAddrOf (Cil.var vi) :: acc
             (* TODO: what about GVarDecl? (see "base.ml -> special_unknown_invalidate")*)
             | _ -> acc
           ) deep_addrs

@@ -320,7 +320,7 @@ module T = struct
     function
     | Addr v ->
       let varinfo = Var.to_varinfo v in
-      let lval = (Var varinfo, NoOffset) in
+      let lval = Cil.var varinfo in
       AddrOf lval
     | Aux (_, exp)
     | (Deref (_, _, exp)) -> exp

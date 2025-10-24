@@ -2058,7 +2058,7 @@ struct
     if not (Cil.isArrayType v.vtype) then
       man.local
     else
-      let lval = eval_lv ~man man.local (Var v, NoOffset) in
+      let lval = eval_lv ~man man.local (Cil.var v) in
       let current_value = eval_rv ~man man.local (Lval (Var v, NoOffset)) in
       let new_value = VD.update_array_lengths (eval_rv ~man man.local) current_value v.vtype in
       set ~man man.local lval v.vtype new_value
@@ -2233,7 +2233,7 @@ struct
         foldGlobals !Cilfacade.current_file (fun acc global ->
             match global with
             | GVar (vi, _, _) when not (is_static vi) ->
-              mkAddrOf (Var vi, NoOffset) :: acc
+              mkAddrOf (Cil.var vi) :: acc
             (* TODO: what about GVarDecl? *)
             | _ -> acc
           ) deep_addrs
