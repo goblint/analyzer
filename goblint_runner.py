@@ -51,12 +51,14 @@ class GoblintMultishotRunner:
     def run_with_config(self, config_path):
         args = ["--conf", config_path] + self.other_args
         self.logger.info(f"Running next shot: ./goblint {" ".join(args)}")
-        try:
-            output = subprocess.check_output([self.goblint_executable_path, *args]
-                                            ,stderr=subprocess.STDOUT).decode("utf-8")
-        except subprocess.CalledProcessError as e:
-            output = e.output.decode("utf-8")
-
+        process = subprocess.Popen([self.goblint_executable_path, *args],stdout=subprocess.PIPE,stderr=subprocess.STDOUT)
+        output = []
+        for line in process.stdout:
+            decoded_line = line.decode("utf-8")
+            print(decoded_line, end="")
+            output.append(decoded_line)
+        process.wait()
+        output = "".join(output)            
         return ExecutionResult(output, self.verdict_true_or_error(output))
 
     def run_without_config(self):
@@ -76,7 +78,6 @@ class GoblintMultishotRunner:
             result = self.run_with_config(config)
             if result.verdict_true_or_error:
                 break
-        print(result.output)
 
 class GoblintLikeFormatter(logging.Formatter):
     LEVEL_NAMES = {
