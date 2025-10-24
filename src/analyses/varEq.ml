@@ -454,8 +454,7 @@ struct
       | _ -> r
     in
     let assign_one_param st lv exp =
-      let rm = remove (Analyses.ask_of_man man) (Var lv, NoOffset) st in
-      assign_eq (Analyses.ask_of_man man) (Var lv, NoOffset) exp rm
+      assign_eq (Analyses.ask_of_man man) (Var lv, NoOffset) exp st
     in
     let nst =
       try fold_left2 assign_one_param man.local f.sformals args
