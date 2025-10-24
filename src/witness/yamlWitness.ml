@@ -21,16 +21,21 @@ struct
     command_line = Some GobSys.command_line;
   }
 
-  let metadata ?task (): Metadata.t =
+  let metadata ?(format_version = YamlWitnessVersion.of_option ()) ?task (): Metadata.t =
     let uuid = Uuidm.v4_gen uuid_random_state () in
     let creation_time = TimeUtil.iso8601_now () in
     {
-      format_version = GobConfig.get_string "witness.yaml.format-version";
+      format_version = YamlWitnessVersion.show format_version;
       uuid = Uuidm.to_string uuid;
       creation_time;
       producer;
       task
     }
+
+  let with_metadata ~task entry_type: Entry.t = {
+    entry_type;
+    metadata = metadata ~format_version:(EntryType.min_version entry_type) ~task ();
+  }
 
   let task ~input_files ~data_model ~(specification): Task.t =
     {
@@ -64,39 +69,31 @@ struct
     format = "C";
   }
 
-  let location_invariant ~task ~location ~(invariant): Entry.t = {
-    entry_type = LocationInvariant {
-        location;
-        location_invariant = invariant;
-      };
-    metadata = metadata ~task ();
-  }
+  let location_invariant ~task ~location ~(invariant): Entry.t =
+    with_metadata ~task @@ LocationInvariant {
+      location;
+      location_invariant = invariant;
+    }
 
-  let loop_invariant ~task ~location ~(invariant): Entry.t = {
-    entry_type = LoopInvariant {
-        location;
-        loop_invariant = invariant;
-      };
-    metadata = metadata ~task ();
-  }
+  let loop_invariant ~task ~location ~(invariant): Entry.t =
+    with_metadata ~task @@  LoopInvariant {
+      location;
+      loop_invariant = invariant;
+    }
 
   (* non-standard extension *)
-  let flow_insensitive_invariant ~task ~(invariant): Entry.t = {
-    entry_type = FlowInsensitiveInvariant {
-        flow_insensitive_invariant = invariant;
-      };
-    metadata = metadata ~task ();
-  }
+  let flow_insensitive_invariant ~task ~(invariant): Entry.t =
+    with_metadata ~task @@ FlowInsensitiveInvariant {
+      flow_insensitive_invariant = invariant;
+    }
 
   (* non-standard extension *)
-  let precondition_loop_invariant ~task ~location ~precondition ~(invariant): Entry.t = {
-    entry_type = PreconditionLoopInvariant {
-        location;
-        loop_invariant = invariant;
-        precondition;
-      };
-    metadata = metadata ~task ();
-  }
+  let precondition_loop_invariant ~task ~location ~precondition ~(invariant): Entry.t =
+    with_metadata ~task @@ PreconditionLoopInvariant {
+      location;
+      loop_invariant = invariant;
+      precondition;
+    }
 
   let location_invariant' ~location ~(invariant): InvariantSet.InvariantKind.t =
     Invariant {
@@ -118,12 +115,10 @@ struct
         };
     }
 
-  let invariant_set ~task ~(invariants): Entry.t = {
-    entry_type = InvariantSet {
-        content = invariants;
-      };
-    metadata = metadata ~task ();
-  }
+  let invariant_set ~task ~(invariants): Entry.t =
+    with_metadata ~task @@ InvariantSet {
+      content = invariants;
+    }
 
   let ghost_variable' ~variable ~type_ ~(initial): GhostInstrumentation.Variable.t = {
     name = variable;
@@ -146,13 +141,11 @@ struct
     updates;
   }
 
-  let ghost_instrumentation ~task ~variables ~(location_updates): Entry.t = {
-    entry_type = GhostInstrumentation {
-        ghost_variables = variables;
-        ghost_updates = location_updates;
-      };
-    metadata = metadata ~task ();
-  }
+  let ghost_instrumentation ~task ~variables ~(location_updates): Entry.t =
+    with_metadata ~task @@ GhostInstrumentation {
+      ghost_variables = variables;
+      ghost_updates = location_updates;
+    }
 end
 
 let yaml_entries_to_file yaml_entries file =
