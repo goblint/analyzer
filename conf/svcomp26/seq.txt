@@ -1,0 +1,4 @@
+# standard run based on svcomp 25 settings
+svcomp26/level00.json
+# next level proof of concept
+svcomp26/level01.json
