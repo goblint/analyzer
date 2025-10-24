@@ -10,6 +10,7 @@
     {
     while (1) {
       while_continue: /* CIL Label */ ;
+      __loop_condition: /* CIL Label */ 
       if (! 0) {
         goto while_break;
       }
@@ -23,6 +24,7 @@
     {
     while (1) {
       while_continue___0: /* CIL Label */ ;
+      __loop_condition___0: /* CIL Label */ 
       if (! 0) {
         goto while_break___0;
       }
