@@ -81,14 +81,6 @@ struct
   }
 
   (* non-standard extension *)
-  let flow_insensitive_invariant ~task ~(invariant): Entry.t = {
-    entry_type = FlowInsensitiveInvariant {
-        flow_insensitive_invariant = invariant;
-      };
-    metadata = metadata ~task ();
-  }
-
-  (* non-standard extension *)
   let precondition_loop_invariant ~task ~location ~precondition ~(invariant): Entry.t = {
     entry_type = PreconditionLoopInvariant {
         location;
@@ -109,6 +101,14 @@ struct
   let loop_invariant' ~location ~(invariant): InvariantSet.Invariant.t = {
     invariant_type = LoopInvariant {
         location;
+        value = invariant;
+        format = "c_expression";
+      };
+  }
+
+  (* non-standard extension *)
+  let flow_insensitive_invariant' ~(invariant): InvariantSet.Invariant.t = {
+    invariant_type = FlowInsensitiveInvariant {
         value = invariant;
         format = "c_expression";
       };
@@ -338,40 +338,6 @@ struct
         ) (Lazy.force invariant_global_nodes) acc
     in
 
-    (* Generate flow-insensitive invariants *)
-    let entries =
-      if entry_type_enabled YamlWitnessType.FlowInsensitiveInvariant.entry_type then (
-        GHT.fold (fun g v acc ->
-            match g with
-            | `Left g -> (* global unknown from analysis Spec *)
-              begin match R.ask_global (InvariantGlobal (Obj.repr g)), GobConfig.get_string "witness.invariant.flow_insensitive-as" with
-                | `Lifted inv, "flow_insensitive_invariant" ->
-                  let invs = WitnessUtil.InvariantExp.process_exp inv in
-                  List.fold_left (fun acc inv ->
-                      let invariant = Entry.invariant (CilType.Exp.show inv) in
-                      let entry = Entry.flow_insensitive_invariant ~task ~invariant in
-                      incr cnt_flow_insensitive_invariant;
-                      entry :: acc
-                    ) acc invs
-                | `Lifted inv, "location_invariant" ->
-                  fold_flow_insensitive_as_location ~inv (fun ~location ~inv acc ->
-                      let invariant = Entry.invariant (CilType.Exp.show inv) in
-                      let entry = Entry.location_invariant ~task ~location ~invariant in
-                      incr cnt_location_invariant;
-                      entry :: acc
-                    ) acc
-                | `Lifted _, _
-                | `Bot, _ | `Top, _ -> (* global bot might only be possible for alloc variables, if at all, so emit nothing *)
-                  acc
-              end
-            | `Right _ -> (* global unknown for FromSpec contexts *)
-              acc
-          ) gh entries
-      )
-      else
-        entries
-    in
-
     (* Generate flow-insensitive entries (ghost instrumentation) *)
     let entries =
       if entry_type_enabled YamlWitnessType.GhostInstrumentation.entry_type then (
@@ -502,12 +468,12 @@ struct
 
     (* Generate invariant set *)
     let entries =
-      if entry_type_enabled YamlWitnessType.InvariantSet.entry_type || entry_type_enabled YamlWitnessType.FlowInsensitiveInvariant.entry_type && GobConfig.get_string "witness.invariant.flow_insensitive-as" = "invariant_set-location_invariant" then (
+      if entry_type_enabled YamlWitnessType.InvariantSet.entry_type then (
         let invariants = [] in
 
         (* Generate location invariants *)
         let invariants =
-          if entry_type_enabled YamlWitnessType.InvariantSet.entry_type && invariant_type_enabled YamlWitnessType.InvariantSet.LocationInvariant.invariant_type then (
+          if invariant_type_enabled YamlWitnessType.InvariantSet.LocationInvariant.invariant_type then (
             LH.fold (fun loc ns acc ->
                 let inv = List.fold_left (fun acc n ->
                     let local = try NH.find (Lazy.force nh) n with Not_found -> Spec.D.bot () in
@@ -537,7 +503,7 @@ struct
 
         (* Generate loop invariants *)
         let invariants =
-          if entry_type_enabled YamlWitnessType.InvariantSet.entry_type && invariant_type_enabled YamlWitnessType.InvariantSet.LoopInvariant.invariant_type then (
+          if invariant_type_enabled YamlWitnessType.InvariantSet.LoopInvariant.invariant_type then (
             LH.fold (fun loc ns acc ->
                 if WitnessInvariant.emit_loop_head then ( (* TODO: remove double condition? *)
                   let inv = List.fold_left (fun acc n ->
@@ -568,21 +534,31 @@ struct
             invariants
         in
 
-        (* Generate flow-insensitive invariants as location invariants *)
+        (* Generate flow-insensitive invariants *)
         let invariants =
-          if entry_type_enabled YamlWitnessType.FlowInsensitiveInvariant.entry_type && GobConfig.get_string "witness.invariant.flow_insensitive-as" = "invariant_set-location_invariant" then (
+          if invariant_type_enabled YamlWitnessType.InvariantSet.FlowInsensitiveInvariant.invariant_type then (
             GHT.fold (fun g v acc ->
                 match g with
                 | `Left g -> (* global unknown from analysis Spec *)
-                  begin match R.ask_global (InvariantGlobal (Obj.repr g)) with
-                    | `Lifted inv ->
+                  begin match R.ask_global (InvariantGlobal (Obj.repr g)), GobConfig.get_string "witness.invariant.flow_insensitive-as" with
+                    | `Lifted inv, "invariant_set-flow_insensitive_invariant" ->
+                      let invs = WitnessUtil.InvariantExp.process_exp inv in
+                      List.fold_left (fun acc inv ->
+                          let invariant = CilType.Exp.show inv in
+                          let invariant = Entry.flow_insensitive_invariant' ~invariant in
+                          incr cnt_flow_insensitive_invariant;
+                          invariant :: acc
+                        ) acc invs
+                    | `Lifted inv, "invariant_set-location_invariant" ->
+                      (* TODO: fold_flow_insensitive_as_location is now only used here, inline/move? *)
                       fold_flow_insensitive_as_location ~inv (fun ~location ~inv acc ->
                           let invariant = CilType.Exp.show inv in
                           let invariant = Entry.location_invariant' ~location ~invariant in
                           incr cnt_location_invariant;
                           invariant :: acc
                         ) acc
-                    | `Bot | `Top -> (* global bot might only be possible for alloc variables, if at all, so emit nothing *)
+                    | `Lifted _, _
+                    | `Bot, _ | `Top, _ -> (* global bot might only be possible for alloc variables, if at all, so emit nothing *)
                       acc
                   end
                 | `Right _ -> (* global unknown for FromSpec contexts *)
@@ -866,7 +842,10 @@ struct
             validate_loop_invariant x
           | false, (LocationInvariant _ | LoopInvariant _) ->
             incr cnt_disabled;
-            M.info_noloc ~category:Witness "disabled invariant of type %s" target_type;
+            M.info_noloc ~category:Witness "disabled invariant of type %s" target_type
+          | _ ->
+            incr cnt_unsupported;
+            M.warn_noloc ~category:Witness "cannot validate invariant of type %s" target_type
         in
 
         List.iter validate_invariant invariant_set.content
