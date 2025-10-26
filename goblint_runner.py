@@ -6,14 +6,7 @@ import subprocess
 from os import path
 import logging
 
-
-@dataclass
-class ExecutionResult:
-    output: str
-    verdict_true_or_error: bool
-
-
-class GoblintMultishotRunner:
+class GoblintRunner:
 
     def __init__(self, logger):
         self.logger = logger
@@ -33,7 +26,7 @@ class GoblintMultishotRunner:
             """
         )
         parser.add_argument("-p","--portfolio-conf", type=str, metavar="FILE",dest="portfolio",
-                            help="a path to a portfolio configuration file (relative to goblint_multishot.py)")
+                            help="a path to a portfolio configuration file (relative to goblint_runner.py)")
         conf_args, self.other_args = parser.parse_known_args()
         logger.debug(f"Portfolio-conf file: {conf_args.portfolio}")
         logger.debug(f"Arguments passed on to goblint: {" ".join(self.other_args)}")
@@ -52,32 +45,25 @@ class GoblintMultishotRunner:
         args = ["--conf", config_path] + self.other_args
         self.logger.info(f"Running next shot: ./goblint {" ".join(args)}")
         process = subprocess.Popen([self.goblint_executable_path, *args],stdout=subprocess.PIPE,stderr=subprocess.STDOUT)
-        output = []
+        continue_portfolio = False
         for line in process.stdout:
             decoded_line = line.decode("utf-8")
             print(decoded_line, end="")
-            output.append(decoded_line)
+            continue_portfolio = continue_portfolio or decoded_line.startswith("SV-COMP result: unknown")
         process.wait()
-        output = "".join(output)            
-        return ExecutionResult(output, self.verdict_true_or_error(output))
+        return continue_portfolio
 
     def run_without_config(self):
         subprocess.run([self.goblint_executable_path, *self.other_args])
-
-    @staticmethod
-    def verdict_true_or_error(output):
-        return not any("SV-COMP result: unknown" in line for line in output.splitlines())
 
     def run(self):
         if not self.configs:
             self.run_without_config()
             return
 
-        result = None
         for config in self.configs:
-            result = self.run_with_config(config)
-            if result.verdict_true_or_error:
-                break
+            go_on = self.run_with_config(config)
+            if not go_on: break
 
 class GoblintLikeFormatter(logging.Formatter):
     LEVEL_NAMES = {
@@ -94,12 +80,12 @@ class GoblintLikeFormatter(logging.Formatter):
         return super().format(record)
 
 if __name__ == "__main__":
-    logger=logging.getLogger("multishot")
+    logger=logging.getLogger("goblintrunner")
     logging.basicConfig(level=logging.INFO)
     formatter=GoblintLikeFormatter('[%(levelname)s][%(name)s] %(message)s')
     sh=logging.StreamHandler()
     sh.setFormatter(formatter)
     logger.addHandler(sh)
     logger.propagate=False
-    multishot_runner = GoblintMultishotRunner(logger)
-    multishot_runner.run()
+    goblint_runner = GoblintRunner(logger)
+    goblint_runner.run()
