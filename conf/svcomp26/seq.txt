@@ -1,4 +1,7 @@
+# Portfolio Configuration Sequence
+# paths are relative to analyzer base directory
+#
 # standard run based on svcomp 25 settings
-svcomp26/level00.json
+--conf conf/svcomp26/level00.json -v
 # next level proof of concept
-svcomp26/level01.json
+--conf conf/svcomp26/level01.json

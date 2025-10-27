@@ -78,7 +78,6 @@
         "enums",
         "congruence",
         "wideningThresholds",
-        "loopUnrollHeuristic",
         "memsafetySpecification",
         "noOverflows",
         "termination",

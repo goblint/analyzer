@@ -19,9 +19,9 @@ class GoblintRunner:
         parser = argparse.ArgumentParser(
             description="""A facade in front of goblint to enable running a portfolio of configurations for SV-COMP.
             All args apart from --portfolio-conf/-p are passed on to the actual goblint calls.
-            The portfolio config file is a plaintext file whose lines each consist of a path to a
-            goblint config file (relative to the goblint conf dir). 
-            Goblint is run with each config in order until one produces a verdict true or reaches the end of the list.
+            The portfolio config file is a plaintext file whose lines each consist of goblint parameters, in particular including 
+            --conf followed by a path to a goblint config file (relative to the goblint base dir, or absolute). 
+            Goblint is run with each parameterset in order of specification as long as goblint produces an unknown verdict or reaches the end of the list.
             You may add comments to the portfolio config file by starting a line with #.
             """
         )
@@ -37,12 +37,21 @@ class GoblintRunner:
                 logger.error(f" Could not find portfolio conf file at {conf_args.portfolio}")
                 exit(1)
             with open(conf_args.portfolio, "r") as conflist_file:
-                self.configs = [path.join(self.current_path, "conf", c.strip())
-                                for c in conflist_file.readlines() if not c.strip().startswith("#")]
+                self.configs = [c.strip() for c in conflist_file.readlines() if not c.strip().startswith("#")]
             logger.info(f"Loaded goblint configs: {", ".join(self.configs)}")
             
-    def run_with_config(self, config_path):
-        args = ["--conf", config_path] + self.other_args
+    def run_with_config(self, config_str):
+        config_args = config_str.split(" ")
+        # in config_args, replace any relative paths with absolute paths
+        pathparameters=["--conf"] # add more if needed
+        for i in range(len(config_args)):
+            if config_args[i] in pathparameters and i + 1 < len(config_args):
+                conf_path = config_args[i + 1]
+                if not path.isabs(conf_path):
+                    abs_conf_path = path.join(self.current_path, conf_path)
+                    config_args[i + 1] = abs_conf_path
+
+        args = [*config_args] + self.other_args
         self.logger.info(f"Running next shot: ./goblint {" ".join(args)}")
         process = subprocess.Popen([self.goblint_executable_path, *args],stdout=subprocess.PIPE,stderr=subprocess.STDOUT)
         continue_portfolio = False
