@@ -7,20 +7,11 @@ open Analyses
 module Cil = GoblintCil.Cil
 
 module NH = CfgTools.NH
-module FH = Hashtbl.Make (CilType.Fundec)
-module EH = Hashtbl.Make (CilType.Exp)
 
 module Spec =
 struct
-  (* TODO: Should be context-sensitive? Some spurious widening in knot_comb fails self-validation after self-unassume. *)
-  include Analyses.IdentityUnitContextsSpec
+  include UnitAnalysis.Spec
   let name () = "unassume"
-
-  module D = SetDomain.Make (CilType.Exp)
-
-  let startstate _ = D.empty ()
-  let morphstate _ _ = D.empty ()
-  let exitstate _ = D.empty ()
 
   module Locator = WitnessUtil.Locator (Node)
 
@@ -33,10 +24,6 @@ struct
   }
 
   let invs: inv NH.t = NH.create 100
-
-  (* TODO: remove unused precondition_loop_invariant code *)
-  let fun_pres: Cil.exp FH.t = FH.create 100
-  let pre_invs: inv EH.t NH.t = NH.create 100
 
   let init _ =
     Locator.clear location_locator;
@@ -84,8 +71,6 @@ struct
     let inv_parser = InvariantParser.create !Cilfacade.current_file in
 
     NH.clear invs;
-    FH.clear fun_pres;
-    NH.clear pre_invs;
 
     let unassume_entry (entry: YamlWitnessType.Entry.t) =
       let uuid = entry.metadata.uuid in
@@ -172,12 +157,6 @@ struct
 
   let emit_unassume man =
     let es = NH.find_all invs man.node in
-    let es = D.fold (fun pre acc ->
-        match NH.find_option pre_invs man.node with
-        | Some eh -> EH.find_all eh pre @ acc
-        | None -> acc
-      ) man.local es
-    in
     match es with
     | x :: xs ->
       let e = List.fold_left (fun a {exp = b; _} -> Cil.(BinOp (LAnd, a, b, intType))) x.exp xs in
@@ -188,10 +167,9 @@ struct
           man.emit (Unassume {exp = e; tokens});
           List.iter WideningTokenLifter.add tokens
         )
-      );
-      man.local
+      )
     | [] ->
-      man.local
+      ()
 
   let assign man lv e =
     emit_unassume man
@@ -200,17 +178,7 @@ struct
     emit_unassume man
 
   let body man fd =
-    let pres = FH.find_all fun_pres fd in
-    let st = List.fold_left (fun acc pre ->
-        (* M.debug ~category:Witness "%a precondition %a evaluated to %a" CilType.Fundec.pretty fd CilType.Exp.pretty pre Queries.ID.pretty v; *)
-        if Queries.eval_bool (Analyses.ask_of_man man) pre = `Lifted true then
-          D.add pre acc
-        else
-          acc
-      ) (D.empty ()) pres
-    in
-
-    emit_unassume {man with local = st} (* doesn't query, so no need to redefine ask *)
+    emit_unassume man
 
   let asm man =
     emit_unassume man
@@ -220,9 +188,6 @@ struct
 
   let special man lv f args =
     emit_unassume man
-
-  let enter man lv f args =
-    [(man.local, D.empty ())]
 
   let combine_env man lval fexp f args fc au f_ask =
     man.local (* not here because isn't final transfer function on edge *)
