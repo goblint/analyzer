@@ -58,8 +58,7 @@ struct
       function_ = Some location_function;
     }
 
-  (* TODO: remove primes from name *)
-  let location_invariant' ~location ~(invariant): InvariantSet.Invariant.t = {
+  let location_invariant ~location ~(invariant): InvariantSet.Invariant.t = {
     invariant_type = LocationInvariant {
         location;
         value = invariant;
@@ -67,7 +66,7 @@ struct
       };
   }
 
-  let loop_invariant' ~location ~(invariant): InvariantSet.Invariant.t = {
+  let loop_invariant ~location ~(invariant): InvariantSet.Invariant.t = {
     invariant_type = LoopInvariant {
         location;
         value = invariant;
@@ -76,7 +75,7 @@ struct
   }
 
   (* non-standard extension *)
-  let flow_insensitive_invariant' ~(invariant): InvariantSet.Invariant.t = {
+  let flow_insensitive_invariant ~(invariant): InvariantSet.Invariant.t = {
     invariant_type = FlowInsensitiveInvariant {
         value = invariant;
         format = "c_expression";
@@ -293,7 +292,7 @@ struct
                   let invs = WitnessUtil.InvariantExp.process_exp inv in
                   List.fold_left (fun acc inv ->
                       let invariant = CilType.Exp.show inv in
-                      let invariant = Entry.location_invariant' ~location ~invariant in
+                      let invariant = Entry.location_invariant ~location ~invariant in
                       incr cnt_location_invariant;
                       invariant :: acc
                     ) acc invs
@@ -323,7 +322,7 @@ struct
                     let invs = WitnessUtil.InvariantExp.process_exp inv in
                     List.fold_left (fun acc inv ->
                         let invariant = CilType.Exp.show inv in
-                        let invariant = Entry.loop_invariant' ~location ~invariant in
+                        let invariant = Entry.loop_invariant ~location ~invariant in
                         incr cnt_loop_invariant;
                         invariant :: acc
                       ) acc invs
@@ -349,7 +348,7 @@ struct
                       let invs = WitnessUtil.InvariantExp.process_exp inv in
                       List.fold_left (fun acc inv ->
                           let invariant = CilType.Exp.show inv in
-                          let invariant = Entry.flow_insensitive_invariant' ~invariant in
+                          let invariant = Entry.flow_insensitive_invariant ~invariant in
                           incr cnt_flow_insensitive_invariant;
                           invariant :: acc
                         ) acc invs
@@ -357,7 +356,7 @@ struct
                       (* TODO: fold_flow_insensitive_as_location is now only used here, inline/move? *)
                       fold_flow_insensitive_as_location ~inv (fun ~location ~inv acc ->
                           let invariant = CilType.Exp.show inv in
-                          let invariant = Entry.location_invariant' ~location ~invariant in
+                          let invariant = Entry.location_invariant ~location ~invariant in
                           incr cnt_location_invariant;
                           invariant :: acc
                         ) acc
