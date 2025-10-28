@@ -151,31 +151,6 @@ struct
     {file_name; file_hash; line; column; function_}
 end
 
-module Invariant =
-struct
-  type t = {
-    string: string;
-    type_: string;
-    format: string;
-  }
-  [@@deriving eq, ord, hash]
-
-  let to_yaml {string; type_; format} =
-    `O [
-      ("string", `String string);
-      ("type", `String type_);
-      ("format", `String format);
-    ]
-
-  let of_yaml y =
-    let open GobYaml in
-    let+ string = y |> find "string" >>= to_string
-    and+ type_ = y |> find "type" >>= to_string
-    and+ format = y |> find "format" >>= to_string in
-    {string; type_; format}
-end
-(* TODO: remove above things? *)
-
 module InvariantSet =
 struct
   module LoopInvariant =

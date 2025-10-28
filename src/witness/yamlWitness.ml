@@ -58,13 +58,6 @@ struct
       function_ = Some location_function;
     }
 
-  let invariant invariant: Invariant.t = {
-    string = invariant;
-    type_ = "assertion";
-    format = "C";
-  }
-  (* TODO: remove above? *)
-
   (* TODO: remove primes from name *)
   let location_invariant' ~location ~(invariant): InvariantSet.Invariant.t = {
     invariant_type = LocationInvariant {
@@ -229,7 +222,6 @@ struct
     let cnt_loop_invariant = ref 0 in
     let cnt_location_invariant = ref 0 in
     let cnt_flow_insensitive_invariant = ref 0 in
-    (* TODO: precondition invariants? *)
 
     let invariant_global_nodes = lazy (R.ask_global InvariantGlobalNodes) in
 
