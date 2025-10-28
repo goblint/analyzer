@@ -46,8 +46,7 @@ struct
   let location ~location:(loc: Cil.location) ~(location_function): Location.t =
     let file_hash =
       match GobConfig.get_string "witness.yaml.format-version" with
-      | "0.1" -> Some (sha256_file loc.file)
-      | "2.0" -> None
+      | "2.0" -> None (* TODO: 2.1? *)
       | _ -> assert false
     in
     {

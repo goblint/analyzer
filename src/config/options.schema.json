@@ -2790,7 +2790,6 @@
               "description": "YAML witness format version",
               "type": "string",
               "enum": [
-                "0.1",
                 "2.0",
                 "2.1"
               ],
