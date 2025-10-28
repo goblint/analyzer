@@ -80,16 +80,6 @@ struct
     metadata = metadata ~task ();
   }
 
-  (* non-standard extension *)
-  let precondition_loop_invariant ~task ~location ~precondition ~(invariant): Entry.t = {
-    entry_type = PreconditionLoopInvariant {
-        location;
-        loop_invariant = invariant;
-        precondition;
-      };
-    metadata = metadata ~task ();
-  }
-
   let location_invariant' ~location ~(invariant): InvariantSet.Invariant.t = {
     invariant_type = LocationInvariant {
         location;
@@ -360,107 +350,6 @@ struct
             | `Right _ -> (* global unknown for FromSpec contexts *)
               accs
           ) gh (entries, EntrySet.empty ())
-      )
-      else
-        entries
-    in
-
-    (* Generate precondition loop invariants.
-       We do this in three steps:
-       1. Collect contexts for each function
-       2. For each function context, find "matching"/"weaker" contexts that may satisfy its invariant
-       3. Generate precondition loop invariants. The postcondition is a disjunction over the invariants for matching states. *)
-    let entries =
-      if entry_type_enabled YamlWitnessType.PreconditionLoopInvariant.entry_type then (
-        (* 1. Collect contexts for each function *)
-        (* TODO: Use [IterSysVars] for this when #391 is merged. *)
-        let fun_contexts : con_inv list FMap.t = FMap.create 103 in
-        LHT.iter (fun ((n, c) as lvar) local ->
-            begin match n with
-              | FunctionEntry f ->
-                let invariant = R.ask_local lvar ~local (Invariant Invariant.default_context) in
-                FMap.modify_def [] f (fun acc -> {context = c; invariant; node = n; state = local}::acc) fun_contexts
-              | _ -> ()
-            end
-          ) lh;
-
-        (* 2. For all contexts and their invariants, find all contexts such that their start state may satisfy the invariant. *)
-        let fc_map : con_inv list FCMap.t = FCMap.create 103 in
-        FMap.iter (fun f con_invs ->
-            List.iter (fun current_c ->
-                begin match current_c.invariant with
-                  | `Lifted c_inv ->
-                    (* Collect all start states that may satisfy the invariant of current_c *)
-                    List.iter (fun c ->
-                        match Queries.eval_bool {f = (fun (type a) (q: a Queries.t) -> R.ask_local (c.node, c.context) ~local:c.state q)} c_inv with
-                        | `Bot -> (* dead code *)
-                          failwith "Bottom not expected when querying context state" (* Maybe this is reachable, failwith for now so we see when this happens *)
-                        | `Lifted false ->
-                          () (* Nothing to do, the c does definitely not satisfy the predicate of current_c *)
-                        | `Lifted true
-                        | `Top ->
-                          (* Insert c into the list of weaker contexts of f *)
-                          FCMap.modify_def [] (f, current_c.context) (fun cs -> c::cs) fc_map
-                      ) con_invs;
-                  | `Bot | `Top ->
-                    (* If the context invariant is None, we will not generate a precondition invariant. Nothing to do here. *)
-                    ()
-                end
-              ) con_invs;
-          ) fun_contexts;
-
-        (** Given [(n,c)] retrieves all [(n,c')], with [c'] such that [(f, c')] may satisfy the precondition generated for [c].*)
-        let find_matching_states ((n, c) : LHT.key) =
-          let f = Node.find_fundec n in
-          let contexts =  FCMap.find fc_map (f, c) in
-          List.filter_map (fun c -> LHT.find_option lh (n, c.context)) contexts
-        in
-
-        (* 3. Generate precondition invariants *)
-        LHT.fold (fun ((n, c) as lvar) local acc ->
-            match WitnessInvariant.loop_location n with
-            | Some loc ->
-              let fundec = Node.find_fundec n in
-              let pre_lvar = (Node.FunctionEntry fundec, c) in
-              let query = Queries.Invariant Invariant.default_context in
-              begin match R.ask_local pre_lvar query with
-                | `Lifted c_inv ->
-                  (* Find unknowns for which the preceding start state satisfies the precondtion *)
-                  let xs = find_matching_states lvar in
-
-                  (* Generate invariants. Give up in case one invariant could not be generated. *)
-                  let invs = GobList.fold_while_some (fun acc local ->
-                      let lvals = local_lvals n local in
-                      match R.ask_local_node n ~local (Invariant {Invariant.default_context with lvals}) with
-                      | `Lifted c -> Some ((`Lifted c)::acc)
-                      | `Bot | `Top -> None
-                    ) [] xs
-                  in
-                  begin match invs with
-                    | None
-                    | Some [] -> acc
-                    | Some (x::xs) ->
-                      begin match List.fold_left (fun acc inv -> Invariant.(acc || inv) [@coverage off]) x xs with (* bisect_ppx cannot handle redefined (||) *)
-                        | `Lifted inv ->
-                          let invs = WitnessUtil.InvariantExp.process_exp inv in
-                          let c_inv = InvariantCil.exp_replace_original_name c_inv in (* cannot be split *)
-                          List.fold_left (fun acc inv ->
-                              let location_function = (Node.find_fundec n).svar.vname in
-                              let location = Entry.location ~location:loc ~location_function in
-                              let precondition = Entry.invariant (CilType.Exp.show c_inv) in
-                              let invariant = Entry.invariant (CilType.Exp.show inv) in
-                              let entry = Entry.precondition_loop_invariant ~task ~location ~precondition ~invariant in
-                              entry :: acc
-                            ) acc invs
-                        | `Bot | `Top -> acc
-                      end
-                  end
-                | _ -> (* Do not construct precondition invariants if we cannot express precondition *)
-                  acc
-              end
-            | None ->
-              acc
-          ) lh entries
       )
       else
         entries
@@ -762,51 +651,6 @@ struct
           M.warn ~category:Witness ~loc:(CilLocation loc) "couldn't locate invariant: %s" inv
       in
 
-      let validate_precondition_loop_invariant (precondition_loop_invariant: YamlWitnessType.PreconditionLoopInvariant.t) =
-        let loc = loc_of_location precondition_loop_invariant.location in
-        let pre = precondition_loop_invariant.precondition.string in
-        let inv = precondition_loop_invariant.loop_invariant.string in
-        let msgLoc: M.Location.t = CilLocation loc in
-
-        match Locator.find_opt loop_locator loc with
-        | Some lvars ->
-          begin match InvariantParser.parse_cabs pre with
-            | Ok pre_cabs ->
-
-              let precondition_holds (n, c) =
-                let fundec = Node.find_fundec n in
-                let pre_lvar = (Node.FunctionEntry fundec, c) in
-
-                match InvariantParser.parse_cil inv_parser ~fundec ~loc pre_cabs with
-                | Ok pre_exp ->
-                  begin match Queries.eval_bool {f = (fun (type a) (q: a Queries.t) -> ask_local pre_lvar q)} pre_exp with
-                    | `Bot -> true (* dead code *)
-                    | `Lifted b -> b
-                    | `Top -> false
-                  end
-                | Error e ->
-                  M.error ~category:Witness ~loc:msgLoc "CIL couldn't parse precondition: %s" pre;
-                  M.info ~category:Witness ~loc:msgLoc "precondition has undefined variables or side effects: %s" pre;
-                  false
-              in
-
-              let lvars = LvarS.filter precondition_holds lvars in
-              if LvarS.is_empty lvars then (
-                incr cnt_unchecked;
-                M.warn ~category:Witness ~loc:msgLoc "precondition never definitely holds: %s" pre
-              )
-              else
-                validate_lvars_invariant ~loc ~lvars inv
-            | Error e ->
-              incr cnt_error;
-              M.error ~category:Witness ~loc:msgLoc "Frontc couldn't parse precondition: %s" pre;
-              M.info ~category:Witness ~loc:msgLoc "precondition has invalid syntax: %s" pre
-          end
-        | None ->
-          incr cnt_error;
-          M.warn ~category:Witness ~loc:msgLoc "couldn't locate invariant: %s" inv
-      in
-
       let validate_invariant_set (invariant_set: YamlWitnessType.InvariantSet.t) =
 
         let validate_location_invariant (location_invariant: YamlWitnessType.InvariantSet.LocationInvariant.t) =
@@ -865,13 +709,11 @@ struct
         validate_location_invariant x
       | true, LoopInvariant x ->
         validate_loop_invariant x
-      | true, PreconditionLoopInvariant x ->
-        validate_precondition_loop_invariant x
       | true, InvariantSet x ->
         validate_invariant_set x
       | true, ViolationSequence x ->
         validate_violation_sequence x
-      | false, (LocationInvariant _ | LoopInvariant _ | PreconditionLoopInvariant _ | InvariantSet _ | ViolationSequence _) ->
+      | false, (LocationInvariant _ | LoopInvariant _ | InvariantSet _ | ViolationSequence _) ->
         incr cnt_disabled;
         M.info_noloc ~category:Witness "disabled entry of type %s" target_type
       | _ ->

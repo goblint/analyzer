@@ -2805,7 +2805,6 @@
                 "enum": [
                   "location_invariant",
                   "loop_invariant",
-                  "precondition_loop_invariant",
                   "invariant_set",
                   "violation_sequence",
                   "ghost_instrumentation"

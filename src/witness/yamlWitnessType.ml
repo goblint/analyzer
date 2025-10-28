@@ -221,32 +221,6 @@ struct
     {location; location_invariant}
 end
 
-module PreconditionLoopInvariant =
-struct
-  type t = {
-    location: Location.t;
-    loop_invariant: Invariant.t;
-    precondition: Invariant.t;
-  }
-  [@@deriving eq, ord, hash]
-
-  let entry_type = "precondition_loop_invariant"
-
-  let to_yaml' {location; loop_invariant; precondition} =
-    [
-      ("location", Location.to_yaml location);
-      ("loop_invariant", Invariant.to_yaml loop_invariant);
-      ("precondition", Invariant.to_yaml precondition);
-    ]
-
-  let of_yaml y =
-    let open GobYaml in
-    let+ location = y |> find "location" >>= Location.of_yaml
-    and+ loop_invariant = y |> find "loop_invariant" >>= Invariant.of_yaml
-    and+ precondition = y |> find "precondition" >>= Invariant.of_yaml in
-    {location; loop_invariant; precondition}
-end
-
 module InvariantSet =
 struct
   module LoopInvariant =
@@ -721,7 +695,6 @@ struct
   type t =
     | LocationInvariant of LocationInvariant.t
     | LoopInvariant of LoopInvariant.t
-    | PreconditionLoopInvariant of PreconditionLoopInvariant.t
     | InvariantSet of InvariantSet.t
     | ViolationSequence of ViolationSequence.t
     | GhostInstrumentation of GhostInstrumentation.t
@@ -730,7 +703,6 @@ struct
   let entry_type = function
     | LocationInvariant _ -> LocationInvariant.entry_type
     | LoopInvariant _ -> LoopInvariant.entry_type
-    | PreconditionLoopInvariant _ -> PreconditionLoopInvariant.entry_type
     | InvariantSet _ -> InvariantSet.entry_type
     | ViolationSequence _ -> ViolationSequence.entry_type
     | GhostInstrumentation _ -> GhostInstrumentation.entry_type
@@ -738,7 +710,6 @@ struct
   let to_yaml' = function
     | LocationInvariant x -> LocationInvariant.to_yaml' x
     | LoopInvariant x -> LoopInvariant.to_yaml' x
-    | PreconditionLoopInvariant x -> PreconditionLoopInvariant.to_yaml' x
     | InvariantSet x -> InvariantSet.to_yaml' x
     | ViolationSequence x -> ViolationSequence.to_yaml' x
     | GhostInstrumentation x -> GhostInstrumentation.to_yaml' x
@@ -752,9 +723,6 @@ struct
     else if entry_type = LoopInvariant.entry_type then
       let+ x = y |> LoopInvariant.of_yaml in
       LoopInvariant x
-    else if entry_type = PreconditionLoopInvariant.entry_type then
-      let+ x = y |> PreconditionLoopInvariant.of_yaml in
-      PreconditionLoopInvariant x
     else if entry_type = InvariantSet.entry_type then
       let+ x = y |> InvariantSet.of_yaml in
       InvariantSet x
