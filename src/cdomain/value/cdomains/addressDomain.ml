@@ -320,9 +320,12 @@ struct
     (* if the destination address set contains a StrPtr, writing to such a string literal is undefined behavior *)
     if exists (fun a -> Option.is_some (Addr.to_c_string a)) dest then
       (M.warn ~category:M.Category.Behavior.Undefined.other "May write to a string literal, which leads to a segmentation fault in most cases";
+       Checks.warn Checks.Category.InvalidMemoryAccess "May write to a string literal, which leads to a segmentation fault in most cases";
        false)
-    else
+    else (
+      Checks.safe Checks.Category.InvalidMemoryAccess;
       true
+    )
 
   (* add an & in front of real addresses *)
   module ShortAddr =
