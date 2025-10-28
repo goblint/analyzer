@@ -113,30 +113,6 @@ struct
           M.info ~category:Witness ~loc:msgLoc "invariant has invalid syntax: %s" inv
       in
 
-      let unassume_location_invariant (location_invariant: YamlWitnessType.LocationInvariant.t) =
-        let loc = YamlWitness.loc_of_location location_invariant.location in
-        let inv = location_invariant.location_invariant.string in
-        let msgLoc: M.Location.t = CilLocation loc in
-
-        match Locator.find_opt location_locator loc with
-        | Some nodes ->
-          unassume_nodes_invariant ~loc ~nodes inv
-        | None ->
-          M.warn ~category:Witness ~loc:msgLoc "couldn't locate invariant: %s" inv
-      in
-
-      let unassume_loop_invariant (loop_invariant: YamlWitnessType.LoopInvariant.t) =
-        let loc = YamlWitness.loc_of_location loop_invariant.location in
-        let inv = loop_invariant.loop_invariant.string in
-        let msgLoc: M.Location.t = CilLocation loc in
-
-        match Locator.find_opt loop_locator loc with
-        | Some nodes ->
-          unassume_nodes_invariant ~loc ~nodes inv
-        | None ->
-          M.warn ~category:Witness ~loc:msgLoc "couldn't locate invariant: %s" inv
-      in
-
       let unassume_invariant_set (invariant_set: YamlWitnessType.InvariantSet.t) =
 
         let unassume_location_invariant ~i (location_invariant: YamlWitnessType.InvariantSet.LocationInvariant.t) =
@@ -180,13 +156,9 @@ struct
       in
 
       match YamlWitness.entry_type_enabled target_type, entry.entry_type with
-      | true, LocationInvariant x ->
-        unassume_location_invariant x
-      | true, LoopInvariant x ->
-        unassume_loop_invariant x
       | true, InvariantSet x ->
         unassume_invariant_set x
-      | false, (LocationInvariant _ | LoopInvariant _ | InvariantSet _) ->
+      | false, InvariantSet _ ->
         M.info_noloc ~category:Witness "disabled entry of type %s" target_type
       | _ ->
         M.warn_noloc ~category:Witness "cannot unassume entry of type %s" target_type

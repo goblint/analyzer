@@ -174,52 +174,7 @@ struct
     and+ format = y |> find "format" >>= to_string in
     {string; type_; format}
 end
-
-module LoopInvariant =
-struct
-  type t = {
-    location: Location.t;
-    loop_invariant: Invariant.t;
-  }
-  [@@deriving eq, ord, hash]
-
-  let entry_type = "loop_invariant"
-
-  let to_yaml' {location; loop_invariant} =
-    [
-      ("location", Location.to_yaml location);
-      ("loop_invariant", Invariant.to_yaml loop_invariant);
-    ]
-
-  let of_yaml y =
-    let open GobYaml in
-    let+ location = y |> find "location" >>= Location.of_yaml
-    and+ loop_invariant = y |> find "loop_invariant" >>= Invariant.of_yaml in
-    {location; loop_invariant}
-end
-
-module LocationInvariant =
-struct
-  type t = {
-    location: Location.t;
-    location_invariant: Invariant.t;
-  }
-  [@@deriving eq, ord, hash]
-
-  let entry_type = "location_invariant"
-
-  let to_yaml' {location; location_invariant} =
-    [
-      ("location", Location.to_yaml location);
-      ("location_invariant", Invariant.to_yaml location_invariant);
-    ]
-
-  let of_yaml y =
-    let open GobYaml in
-    let+ location = y |> find "location" >>= Location.of_yaml
-    and+ location_invariant = y |> find "location_invariant" >>= Invariant.of_yaml in
-    {location; location_invariant}
-end
+(* TODO: remove above things? *)
 
 module InvariantSet =
 struct
@@ -693,23 +648,17 @@ end
 module EntryType =
 struct
   type t =
-    | LocationInvariant of LocationInvariant.t
-    | LoopInvariant of LoopInvariant.t
     | InvariantSet of InvariantSet.t
     | ViolationSequence of ViolationSequence.t
     | GhostInstrumentation of GhostInstrumentation.t
   [@@deriving eq, ord, hash]
 
   let entry_type = function
-    | LocationInvariant _ -> LocationInvariant.entry_type
-    | LoopInvariant _ -> LoopInvariant.entry_type
     | InvariantSet _ -> InvariantSet.entry_type
     | ViolationSequence _ -> ViolationSequence.entry_type
     | GhostInstrumentation _ -> GhostInstrumentation.entry_type
 
   let to_yaml' = function
-    | LocationInvariant x -> LocationInvariant.to_yaml' x
-    | LoopInvariant x -> LoopInvariant.to_yaml' x
     | InvariantSet x -> InvariantSet.to_yaml' x
     | ViolationSequence x -> ViolationSequence.to_yaml' x
     | GhostInstrumentation x -> GhostInstrumentation.to_yaml' x
@@ -717,13 +666,7 @@ struct
   let of_yaml y =
     let open GobYaml in
     let* entry_type = y |> find "entry_type" >>= to_string in
-    if entry_type = LocationInvariant.entry_type then
-      let+ x = y |> LocationInvariant.of_yaml in
-      LocationInvariant x
-    else if entry_type = LoopInvariant.entry_type then
-      let+ x = y |> LoopInvariant.of_yaml in
-      LoopInvariant x
-    else if entry_type = InvariantSet.entry_type then
+    if entry_type = InvariantSet.entry_type then
       let+ x = y |> InvariantSet.of_yaml in
       InvariantSet x
     else if entry_type = ViolationSequence.entry_type then

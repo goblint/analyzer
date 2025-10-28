@@ -63,23 +63,9 @@ struct
     type_ = "assertion";
     format = "C";
   }
+  (* TODO: remove above? *)
 
-  let location_invariant ~task ~location ~(invariant): Entry.t = {
-    entry_type = LocationInvariant {
-        location;
-        location_invariant = invariant;
-      };
-    metadata = metadata ~task ();
-  }
-
-  let loop_invariant ~task ~location ~(invariant): Entry.t = {
-    entry_type = LoopInvariant {
-        location;
-        loop_invariant = invariant;
-      };
-    metadata = metadata ~task ();
-  }
-
+  (* TODO: remove primes from name *)
   let location_invariant' ~location ~(invariant): InvariantSet.Invariant.t = {
     invariant_type = LocationInvariant {
         location;
@@ -244,69 +230,6 @@ struct
     let cnt_location_invariant = ref 0 in
     let cnt_flow_insensitive_invariant = ref 0 in
     (* TODO: precondition invariants? *)
-
-    (* Generate location invariants (without precondition) *)
-    let entries =
-      if entry_type_enabled YamlWitnessType.LocationInvariant.entry_type then (
-        LH.fold (fun loc ns acc ->
-            let inv = List.fold_left (fun acc n ->
-                let local = try NH.find (Lazy.force nh) n with Not_found -> Spec.D.bot () in
-                let lvals = local_lvals n local in
-                Invariant.(acc || R.ask_local_node n ~local (Invariant {Invariant.default_context with lvals})) [@coverage off] (* bisect_ppx cannot handle redefined (||) *)
-              ) (Invariant.bot ()) ns
-            in
-            match inv with
-            | `Lifted inv ->
-              let fundec = Node.find_fundec (List.hd ns) in (* TODO: fix location hack *)
-              let location_function = fundec.svar.vname in
-              let location = Entry.location ~location:loc ~location_function in
-              let invs = WitnessUtil.InvariantExp.process_exp inv in
-              List.fold_left (fun acc inv ->
-                  let invariant = Entry.invariant (CilType.Exp.show inv) in
-                  let entry = Entry.location_invariant ~task ~location ~invariant in
-                  incr cnt_location_invariant;
-                  entry :: acc
-                ) acc invs
-            | `Bot | `Top -> (* TODO: 0 for bot (dead code)? *)
-              acc
-          ) (Lazy.force location_nodes) entries
-      )
-      else
-        entries
-    in
-
-    (* Generate loop invariants (without precondition) *)
-    let entries =
-      if entry_type_enabled YamlWitnessType.LoopInvariant.entry_type then (
-        LH.fold (fun loc ns acc ->
-            if WitnessInvariant.emit_loop_head then ( (* TODO: remove double condition? needs both loop_invariant entry enabled and witness.invariant.loop-head option enabled *)
-              let inv = List.fold_left (fun acc n ->
-                  let local = try NH.find (Lazy.force nh) n with Not_found -> Spec.D.bot () in
-                  Invariant.(acc || R.ask_local_node n ~local (Invariant Invariant.default_context)) [@coverage off] (* bisect_ppx cannot handle redefined (||) *)
-                ) (Invariant.bot ()) ns
-              in
-              match inv with
-              | `Lifted inv ->
-                let fundec = Node.find_fundec (List.hd ns) in (* TODO: fix location hack *)
-                let location_function = fundec.svar.vname in
-                let location = Entry.location ~location:loc ~location_function in
-                let invs = WitnessUtil.InvariantExp.process_exp inv in
-                List.fold_left (fun acc inv ->
-                    let invariant = Entry.invariant (CilType.Exp.show inv) in
-                    let entry = Entry.loop_invariant ~task ~location ~invariant in
-                    incr cnt_loop_invariant;
-                    entry :: acc
-                  ) acc invs
-              | `Bot | `Top -> (* TODO: 0 for bot (dead code)? *)
-                acc
-            )
-            else
-              acc
-          ) (Lazy.force loop_nodes) entries
-      )
-      else
-        entries
-    in
 
     let invariant_global_nodes = lazy (R.ask_global InvariantGlobalNodes) in
 
@@ -627,30 +550,6 @@ struct
           M.info ~category:Witness ~loc:msgLoc "invariant has invalid syntax: %s" inv
       in
 
-      let validate_location_invariant (location_invariant: YamlWitnessType.LocationInvariant.t) =
-        let loc = loc_of_location location_invariant.location in
-        let inv = location_invariant.location_invariant.string in
-
-        match Locator.find_opt location_locator loc with
-        | Some lvars ->
-          validate_lvars_invariant ~loc ~lvars inv
-        | None ->
-          incr cnt_error;
-          M.warn ~category:Witness ~loc:(CilLocation loc) "couldn't locate invariant: %s" inv
-      in
-
-      let validate_loop_invariant (loop_invariant: YamlWitnessType.LoopInvariant.t) =
-        let loc = loc_of_location loop_invariant.location in
-        let inv = loop_invariant.loop_invariant.string in
-
-        match Locator.find_opt loop_locator loc with
-        | Some lvars ->
-          validate_lvars_invariant ~loc ~lvars inv
-        | None ->
-          incr cnt_error;
-          M.warn ~category:Witness ~loc:(CilLocation loc) "couldn't locate invariant: %s" inv
-      in
-
       let validate_invariant_set (invariant_set: YamlWitnessType.InvariantSet.t) =
 
         let validate_location_invariant (location_invariant: YamlWitnessType.InvariantSet.LocationInvariant.t) =
@@ -705,15 +604,11 @@ struct
       in
 
       match entry_type_enabled target_type, entry.entry_type with
-      | true, LocationInvariant x ->
-        validate_location_invariant x
-      | true, LoopInvariant x ->
-        validate_loop_invariant x
       | true, InvariantSet x ->
         validate_invariant_set x
       | true, ViolationSequence x ->
         validate_violation_sequence x
-      | false, (LocationInvariant _ | LoopInvariant _ | InvariantSet _ | ViolationSequence _) ->
+      | false, (InvariantSet _ | ViolationSequence _) ->
         incr cnt_disabled;
         M.info_noloc ~category:Witness "disabled entry of type %s" target_type
       | _ ->
