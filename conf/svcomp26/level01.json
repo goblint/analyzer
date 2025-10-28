@@ -6,11 +6,8 @@
     },
     "int": {
       "def_exc": true,
-      "enums": true,
-      "congruence": true,
-      "interval": true,
-      "bitfield":true,
-      "interval_threshold_widening": true
+      "enums": false,
+      "interval": true
     },
     "float": {
       "interval": true,
@@ -35,12 +32,8 @@
       "region",
       "thread",
       "threadJoins",
-      "abortUnless",
-      "apron"
+      "abortUnless"
     ],
-    "apron":{
-      "domain":"polyhedra"
-    },
     "path_sens": [
       "mutex",
       "malloc_null",
@@ -51,18 +44,11 @@
       "threadflag"
     ],
     "context": {
-      "widen": false,
-      "callString_length":3,
-      "gas_scope": "function",
-      "gas_value":60
+      "widen": false
     },
     "base": {
       "arrays": {
-        "domain": "unroll",
-        "unrolling-factor": 128
-      },
-      "structs":{
-        "domain": "sets"        
+        "domain": "partitioned"
       }
     },
     "race": {
@@ -77,7 +63,9 @@
         "noRecursiveIntervals",
         "enums",
         "congruence",
+        "octagon",
         "wideningThresholds",
+        "loopUnrollHeuristic",
         "memsafetySpecification",
         "noOverflows",
         "termination",
@@ -86,16 +74,9 @@
     }
   },
   "exp": {
-    "region-offsets": true,
-    "unrolling-factor": 128
+    "region-offsets": true
   },
   "solver": "td3",
-  "solvers":{
-    "td3":{
-        "side_widen_gas":60,
-        "widen_gas":60
-    }
-  },
   "sem": {
     "unknown_function": {
       "spawn": false
@@ -110,6 +91,7 @@
   "witness": {
     "yaml": {
       "enabled": true,
+      "sv-comp-true-only": false,
       "format-version": "2.0",
       "entry-types": [
         "invariant_set"

@@ -52,15 +52,19 @@ class GoblintRunner:
                     config_args[i + 1] = abs_conf_path
 
         args = [*config_args] + self.other_args
-        self.logger.info(f"Running next shot: ./goblint {" ".join(args)}")
+        self.logger.info(f"Config details: ./goblint {" ".join(args)}")
         process = subprocess.Popen([self.goblint_executable_path, *args],stdout=subprocess.PIPE,stderr=subprocess.STDOUT)
         continue_portfolio = False
         for line in process.stdout:
             decoded_line = line.decode("utf-8")
             print(decoded_line, end="")
-            continue_portfolio = continue_portfolio or decoded_line.startswith("SV-COMP result: unknown")
+            if decoded_line.startswith("SV-COMP result: "):
+                # remove "SV-COMP result: " prefix and any trailing whitespace
+                verdict = decoded_line[len("SV-COMP result: "):].strip()
+                if verdict == "unknown":
+                    continue_portfolio = continue_portfolio or decoded_line.startswith("SV-COMP result: unknown")
         process.wait()
-        return continue_portfolio
+        return verdict,continue_portfolio
 
     def run_without_config(self):
         subprocess.run([self.goblint_executable_path, *self.other_args])
@@ -70,9 +74,14 @@ class GoblintRunner:
             self.run_without_config()
             return
 
-        for config in self.configs:
-            go_on = self.run_with_config(config)
-            if not go_on: break
+        for i, config in enumerate(self.configs):
+            logger.info(f"Starting config [{i}]")
+            verdict, go_on = self.run_with_config(config)
+            if not go_on: 
+                logger.info(f"Stopping portfolio sequence with verdict [{verdict}] after config [{i}]")
+                break
+        if go_on:
+            logger.info("Reached end of portfolio sequence without definitive verdict.")
 
 class GoblintLikeFormatter(logging.Formatter):
     LEVEL_NAMES = {

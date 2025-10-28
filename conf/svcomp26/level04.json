@@ -6,11 +6,16 @@
     },
     "int": {
       "def_exc": true,
-        "enums": false
+      "congruence": true,
+      "bitfield":true,
+      "enums": true,
+        "interval": true,
+        "interval_threshold_widening": true
+
     },
     "float": {
-      "interval": false,
-      "evaluate_math_functions": false
+      "interval": true,
+      "evaluate_math_functions": true
     },
     "activated": [
       "base",
@@ -26,6 +31,7 @@
       "expRelation",
       "mhp",
       "assert",
+      "var_eq",
       "symb_locks",
       "region",
       "thread",
@@ -39,14 +45,19 @@
       "expsplit",
       "activeSetjmp",
       "memLeak",
-        "threadflag"
+        "threadflag",
+        "base"
     ],
     "context": {
       "widen": false
     },
     "base": {
       "arrays": {
-        "domain": "partitioned"
+        "domain": "unroll",
+        "unrolling-factor": 16
+      },
+      "structs": {
+        "domain": "sets"
       }
     },
     "race": {
@@ -59,6 +70,9 @@
         "reduceAnalyses",
         "mallocWrappers",
         "noRecursiveIntervals",
+        "enums",
+        "congruence",
+        "octagon",
         "wideningThresholds",
         "loopUnrollHeuristic",
         "memsafetySpecification",
@@ -69,7 +83,8 @@
     }
   },
   "exp": {
-    "region-offsets": true
+    "region-offsets": true,
+    "unrolling-factor": 4
   },
   "solver": "td3",
   "sem": {
