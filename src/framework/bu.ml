@@ -40,7 +40,7 @@ module FwdBuSolver (System: FwdGlobConstrSys) = struct
 
   let glob: glob GM.t = GM.create 100
 
-(* auxiliary functions for globals *)
+  (* auxiliary functions for globals *)
 
   let get_global_ref g =
     try GM.find glob g
@@ -84,7 +84,7 @@ module FwdBuSolver (System: FwdGlobConstrSys) = struct
 
   let loc: loc LM.t = LM.create 100
 
-(* auxiliary functions for locals *)
+  (* auxiliary functions for locals *)
 
 
   let get_local_ref x =
@@ -113,7 +113,7 @@ module FwdBuSolver (System: FwdGlobConstrSys) = struct
       LM.add from x (D.bot (),delay,gas);
       (D.bot (),delay,gas)
 
-(* 
+  (* 
         Now the main solving consisting of the mutual recursive functions
         set_globals, set_locals, and iterate
 *)
@@ -128,22 +128,22 @@ module FwdBuSolver (System: FwdGlobConstrSys) = struct
     let (old_value,delay,gas) = get_old_global_value x from in
     if G.equal d old_value then () 
     else let (new_value,delay,gas) = if G.leq d old_value then
-        if gas > 0 then (G.narrow old_value d,delay,gas-1)
-        else (old_value,delay,0)
-      else if delay > 0 then (G.join old_value d,delay-1,gas)
-      else (G.widen old_value (G.join old_value d), 0, gas) in
-    let _ = LM.replace from x (new_value,delay,gas) in
-    let new_g = get_global_value init from in
-    if G.equal value new_g then
-      ()
-    else
-      let work = infl in
-      let _ = GM.replace glob g {value = new_g; init = init; infl = []; from} in
-      let doit x = 
-        let r = get_local_ref x in
+             if gas > 0 then (G.narrow old_value d,delay,gas-1)
+             else (old_value,delay,0)
+           else if delay > 0 then (G.join old_value d,delay-1,gas)
+           else (G.widen old_value (G.join old_value d), 0, gas) in
+      let _ = LM.replace from x (new_value,delay,gas) in
+      let new_g = get_global_value init from in
+      if G.equal value new_g then
+        ()
+      else
+        let work = infl in
+        let _ = GM.replace glob g {value = new_g; init = init; infl = []; from} in
+        let doit x = 
+          let r = get_local_ref x in
           if !(r.called) then r.aborted := true
           else iterate x in
-      List.iter doit work 
+        List.iter doit work 
 
   and set_local x y d =
     (*
@@ -155,25 +155,25 @@ module FwdBuSolver (System: FwdGlobConstrSys) = struct
     let (old_value,delay,gas) = get_old_local_value x loc_from in
     if D.equal d old_value then ()
     else let (new_value,delay,gas) = 
-        if !called then 
-           if D.leq d old_value then
-              if gas > 0 then (D.narrow old_value d,delay,gas-1)
-              else (old_value,delay,0)
-           else if delay > 0 then (D.join old_value d,delay-1,gas)
-           else (D.widen old_value (D.join old_value d), 0, gas) 
-        else (d,delay,gas) in
-    let _ = LM.replace loc_from x (new_value,delay,gas) in
-    let new_y = get_local_value loc_init loc_from in
-    if D.equal loc_value new_y then ()
-    else if !called then aborted := true
-    else iterate y 
+           if !called then 
+             if D.leq d old_value then
+               if gas > 0 then (D.narrow old_value d,delay,gas-1)
+               else (old_value,delay,0)
+             else if delay > 0 then (D.join old_value d,delay-1,gas)
+             else (D.widen old_value (D.join old_value d), 0, gas) 
+           else (d,delay,gas) in
+      let _ = LM.replace loc_from x (new_value,delay,gas) in
+      let new_y = get_local_value loc_init loc_from in
+      if D.equal loc_value new_y then ()
+      else if !called then aborted := true
+      else iterate y 
 
 (*
         wrapper around propagation function to collect multiple contributions to same unknowns;
         contributions are delayed until the very end
 *)
 
- and wrap (x,f) d =
+  and wrap (x,f) d =
     let sigma = LM.create 10 in
     let tau = GM.create 10 in
     let add_sigma x d =
@@ -183,7 +183,7 @@ module FwdBuSolver (System: FwdGlobConstrSys) = struct
       let d = try G.join d (GM.find tau g) with _ -> d in
       GM.replace tau g d in
     let _ = f d (fun _ -> raise (Failure "Locals queried in rhs??")) 
-                add_sigma (get_global x) add_tau in
+        add_sigma (get_global x) add_tau in
     let _ = GM.iter (set_global x) tau in
     let _ = LM.iter (set_local x) sigma in
     ()
@@ -197,12 +197,12 @@ module FwdBuSolver (System: FwdGlobConstrSys) = struct
     let _ = rloc.called := true in
     let _ = rloc.aborted := false in
     match System.system x with
-          | None -> ()
-          | Some f ->
-             let _ = wrap (x,f) rloc.loc_value in
-             let _ = rloc.called := false in
-             if !(rloc.aborted) then iterate x
-             else ()
+    | None -> ()
+    | Some f ->
+      let _ = wrap (x,f) rloc.loc_value in
+      let _ = rloc.called := false in
+      if !(rloc.aborted) then iterate x
+      else ()
 
 
   (* ... now the main solver loop ... *)
