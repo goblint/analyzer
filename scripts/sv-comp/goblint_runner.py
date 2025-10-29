@@ -13,8 +13,10 @@ class GoblintRunner:
         self.current_path = path.dirname(__file__)
         self.goblint_executable_path = path.join(self.current_path, "goblint")
         if not path.exists(self.goblint_executable_path):
-            logger.error(f" Could not find goblint executable at {self.goblint_executable_path}; did you build goblint with make?")
-            exit(1)
+            self.goblint_executable_path=path.join(self.current_path, "..", "..", "goblint")
+            if not path.exists(self.goblint_executable_path):
+                logger.error(f" Could not find goblint executable neither at {self.current_path} nor at {path.dirname(self.goblint_executable_path)}; did you build goblint with make?")
+                exit(1)
 
         parser = argparse.ArgumentParser(
             description="""A facade in front of goblint to enable running a portfolio of configurations for SV-COMP.
