@@ -154,7 +154,7 @@ module FwdBuSolver (System: FwdGlobConstrSys) = struct
       propagates infl together with y and updates value - if value has changed
     *)
     if tracing then trace "set_local" "set_local %a %a" System.LVar.pretty_trace y D.pretty d;
-    let {loc_value;loc_init;called;aborted;loc_from} = get_local_ref y in
+    let {loc_value;loc_init;called;aborted;loc_from} as y_record = get_local_ref y in
     let (old_value,delay,gas) = get_old_local_value x loc_from in
     if D.equal d old_value then ()
     else let (new_value,delay,gas) = 
@@ -168,7 +168,11 @@ module FwdBuSolver (System: FwdGlobConstrSys) = struct
       let _ = LM.replace loc_from x (new_value,delay,gas) in
       let new_y = get_local_value loc_init loc_from in
       if D.equal loc_value new_y then ()
-      else if !called then aborted := true
+      else (
+         let y_record = y_record with {loc_value = new_y} in
+         LM.replace loc y y_record;
+         if !called then aborted := true
+      )      
       else iterate y 
 
 (*
