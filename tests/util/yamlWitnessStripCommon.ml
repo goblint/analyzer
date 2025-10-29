@@ -25,6 +25,8 @@ struct
           LocationInvariant {x with location = location_strip_file_hash x.location}
         | LoopInvariant x ->
           LoopInvariant {x with location = location_strip_file_hash x.location}
+        | FlowInsensitiveInvariant x ->
+          FlowInsensitiveInvariant x (* no location to strip *)
       in
       {invariant_type}
     in
@@ -59,8 +61,6 @@ struct
         LocationInvariant {x with location = location_strip_file_hash x.location}
       | LoopInvariant x ->
         LoopInvariant {x with location = location_strip_file_hash x.location}
-      | FlowInsensitiveInvariant x ->
-        FlowInsensitiveInvariant x (* no location to strip *)
       | PreconditionLoopInvariant x ->
         PreconditionLoopInvariant {x with location = location_strip_file_hash x.location}
       | InvariantSet x ->
