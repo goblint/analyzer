@@ -2,6 +2,7 @@ open Goblint_constraint.ConstrSys
 (*
         rhs should not query locals!
 *)
+open Messages
 
 module FwdBuSolver (System: FwdGlobConstrSys) = struct
 
@@ -124,6 +125,7 @@ module FwdBuSolver (System: FwdGlobConstrSys) = struct
         reconstructs value of g from contributions;
         propagates infl and updates value - if value has changed
 *)
+    if tracing then trace "set_global" "set_global %a %a" System.GVar.pretty_trace g G.pretty d;
     let {value;init;infl;from} = get_global_ref g in
     let (old_value,delay,gas) = get_old_global_value x from in
     if G.equal d old_value then () 
@@ -151,6 +153,7 @@ module FwdBuSolver (System: FwdGlobConstrSys) = struct
       reconstructs value of y from contributions;
       propagates infl together with y and updates value - if value has changed
     *)
+    if tracing then trace "set_local" "set_local %a %a" System.LVar.pretty_trace y D.pretty d;
     let {loc_value;loc_init;called;aborted;loc_from} = get_local_ref y in
     let (old_value,delay,gas) = get_old_local_value x loc_from in
     if D.equal d old_value then ()
@@ -193,6 +196,7 @@ module FwdBuSolver (System: FwdGlobConstrSys) = struct
 *)
 
   and iterate x = 
+    if tracing then trace "iter" "iterate %a" System.LVar.pretty_trace x;
     let rloc = get_local_ref x in
     let _ = rloc.called := true in
     let _ = rloc.aborted := false in
@@ -210,9 +214,10 @@ module FwdBuSolver (System: FwdGlobConstrSys) = struct
 
 
   let solve localinit globalinit xs =
-    let _ = List.iter init_local localinit in
-    let _ = List.iter init_global globalinit in
-    let _ = List.iter iterate xs in
+    if tracing then trace "solver" "Starting bottom-up fixpoint iteration";
+    List.iter init_local localinit;
+    List.iter init_global globalinit;
+    List.iter iterate xs;
     let sigma = LM.to_seq loc |> Seq.map (fun (k,l) -> (k,l.loc_value)) in
     let tau = GM.to_seq glob |> Seq.map (fun (k,l) -> (k,l.value)) in
     (sigma,tau)
