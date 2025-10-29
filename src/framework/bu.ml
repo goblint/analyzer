@@ -149,15 +149,21 @@ module FwdBuSolver (System: FwdGlobConstrSys) = struct
 
   and set_local x y d =
     (*
+      Contribution from x to y with d
       replaces old contribution with the new one;
       reconstructs value of y from contributions;
       propagates infl together with y and updates value - if value has changed
     *)
-    if tracing then trace "set_local" "set_local %a %a" System.LVar.pretty_trace y D.pretty d;
+    if tracing then trace "set_local" "set_local %a from %a" System.LVar.pretty_trace y System.LVar.pretty_trace x;
+    if tracing then trace "set_local" "value: %a" D.pretty d;
     let {loc_value;loc_init;called;aborted;loc_from} as y_record = get_local_ref y in
     let (old_value,delay,gas) = get_old_local_value x loc_from in
-    if D.equal d old_value then ()
+    if D.equal d old_value then (
+      (* If value of x has not changed, nothing to do *)
+      if tracing then trace "set_local" "no change in set_local from %a" System.LVar.pretty_trace x;
+    )
     else let (new_value,delay,gas) = 
+           (* First attempt, without widening and narrowing *)
            if !called then 
              if D.leq d old_value then
                if gas > 0 then (D.narrow old_value d,delay,gas-1)
@@ -165,15 +171,25 @@ module FwdBuSolver (System: FwdGlobConstrSys) = struct
              else if delay > 0 then (D.join old_value d,delay-1,gas)
              else (D.widen old_value (D.join old_value d), 0, gas) 
            else (d,delay,gas) in
-      let _ = LM.replace loc_from x (new_value,delay,gas) in
+      (* if tracing then trace "set_local" "new contribution %a" D.pretty new_value; *)
+      LM.replace loc_from x (new_value,delay,gas);
       let new_y = get_local_value loc_init loc_from in
-      if D.equal loc_value new_y then ()
+      if tracing then trace "set_local" "new value for %a is %a" System.LVar.pretty_trace y D.pretty new_y;
+      if D.equal loc_value new_y then (
+        if tracing then trace "set_local" "no change in local %a after updating from %a" System.LVar.pretty_trace y System.LVar.pretty_trace x;
+      )
       else (
-         let y_record = y_record with {loc_value = new_y} in
-         LM.replace loc y y_record;
-         if !called then aborted := true
-      )      
-      else iterate y 
+        let y_record = {y_record with loc_value = new_y} in
+        LM.replace loc y y_record;
+        if !called then (
+          aborted := true;
+          if tracing then trace "set_local" "aborting local %a update from %a" System.LVar.pretty_trace y System.LVar.pretty_trace x;
+        )
+        else (
+          if tracing then trace "set_local" "starting iteration on %a" System.LVar.pretty_trace y;
+          iterate y 
+        )
+      )
 
 (*
         wrapper around propagation function to collect multiple contributions to same unknowns;
@@ -202,6 +218,7 @@ module FwdBuSolver (System: FwdGlobConstrSys) = struct
   and iterate x = 
     if tracing then trace "iter" "iterate %a" System.LVar.pretty_trace x;
     let rloc = get_local_ref x in
+    if tracing then trace "iter" "current value: %a" D.pretty rloc.loc_value;
     let _ = rloc.called := true in
     let _ = rloc.aborted := false in
     match System.system x with
