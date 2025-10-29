@@ -57,12 +57,6 @@ struct
     in
     let entry_type: EntryType.t =
       match entry_type with
-      | LocationInvariant x ->
-        LocationInvariant {x with location = location_strip_file_hash x.location}
-      | LoopInvariant x ->
-        LoopInvariant {x with location = location_strip_file_hash x.location}
-      | PreconditionLoopInvariant x ->
-        PreconditionLoopInvariant {x with location = location_strip_file_hash x.location}
       | InvariantSet x ->
         InvariantSet {content = List.sort InvariantSet.Invariant.compare (List.map invariant_strip_file_hash x.content)} (* Sort, so order is deterministic regardless of Goblint. *)
       | ViolationSequence x ->
