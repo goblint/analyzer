@@ -1,5 +1,5 @@
 (executables
- (names yamlWitnessStrip yamlWitnessStripDiff yamlWitnessConvert multilibConfigure)
+ (names yamlWitnessStrip yamlWitnessStripDiff multilibConfigure)
  (libraries
    batteries.unthreaded
    goblint-cil
