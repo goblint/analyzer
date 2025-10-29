@@ -42,15 +42,6 @@ class GoblintRunner:
             
     def run_with_config(self, config_str):
         config_args = config_str.split(" ")
-        # in config_args, replace any relative paths with absolute paths
-        pathparameters=["--conf"] # add more if needed
-        for i in range(len(config_args)):
-            if config_args[i] in pathparameters and i + 1 < len(config_args):
-                conf_path = config_args[i + 1]
-                if not path.isabs(conf_path):
-                    abs_conf_path = path.join(self.current_path, conf_path)
-                    config_args[i + 1] = abs_conf_path
-
         args = [*config_args] + self.other_args
         self.logger.info(f"Config details: ./goblint {" ".join(args)}")
         process = subprocess.Popen([self.goblint_executable_path, *args],stdout=subprocess.PIPE,stderr=subprocess.STDOUT)
