@@ -151,122 +151,6 @@ struct
     {file_name; file_hash; line; column; function_}
 end
 
-module Invariant =
-struct
-  type t = {
-    string: string;
-    type_: string;
-    format: string;
-  }
-  [@@deriving eq, ord, hash]
-
-  let to_yaml {string; type_; format} =
-    `O [
-      ("string", `String string);
-      ("type", `String type_);
-      ("format", `String format);
-    ]
-
-  let of_yaml y =
-    let open GobYaml in
-    let+ string = y |> find "string" >>= to_string
-    and+ type_ = y |> find "type" >>= to_string
-    and+ format = y |> find "format" >>= to_string in
-    {string; type_; format}
-end
-
-module LoopInvariant =
-struct
-  type t = {
-    location: Location.t;
-    loop_invariant: Invariant.t;
-  }
-  [@@deriving eq, ord, hash]
-
-  let entry_type = "loop_invariant"
-
-  let to_yaml' {location; loop_invariant} =
-    [
-      ("location", Location.to_yaml location);
-      ("loop_invariant", Invariant.to_yaml loop_invariant);
-    ]
-
-  let of_yaml y =
-    let open GobYaml in
-    let+ location = y |> find "location" >>= Location.of_yaml
-    and+ loop_invariant = y |> find "loop_invariant" >>= Invariant.of_yaml in
-    {location; loop_invariant}
-end
-
-module LocationInvariant =
-struct
-  type t = {
-    location: Location.t;
-    location_invariant: Invariant.t;
-  }
-  [@@deriving eq, ord, hash]
-
-  let entry_type = "location_invariant"
-
-  let to_yaml' {location; location_invariant} =
-    [
-      ("location", Location.to_yaml location);
-      ("location_invariant", Invariant.to_yaml location_invariant);
-    ]
-
-  let of_yaml y =
-    let open GobYaml in
-    let+ location = y |> find "location" >>= Location.of_yaml
-    and+ location_invariant = y |> find "location_invariant" >>= Invariant.of_yaml in
-    {location; location_invariant}
-end
-
-module FlowInsensitiveInvariant =
-struct
-  type t = {
-    flow_insensitive_invariant: Invariant.t;
-  }
-  [@@deriving eq, ord, hash]
-
-  let entry_type = "flow_insensitive_invariant"
-
-  let to_yaml' {flow_insensitive_invariant} =
-    [
-      ("flow_insensitive_invariant", Invariant.to_yaml flow_insensitive_invariant);
-    ]
-
-  let of_yaml y =
-    let open GobYaml in
-    let+ flow_insensitive_invariant = y |> find "flow_insensitive_invariant" >>= Invariant.of_yaml in
-    {flow_insensitive_invariant}
-end
-
-module PreconditionLoopInvariant =
-struct
-  type t = {
-    location: Location.t;
-    loop_invariant: Invariant.t;
-    precondition: Invariant.t;
-  }
-  [@@deriving eq, ord, hash]
-
-  let entry_type = "precondition_loop_invariant"
-
-  let to_yaml' {location; loop_invariant; precondition} =
-    [
-      ("location", Location.to_yaml location);
-      ("loop_invariant", Invariant.to_yaml loop_invariant);
-      ("precondition", Invariant.to_yaml precondition);
-    ]
-
-  let of_yaml y =
-    let open GobYaml in
-    let+ location = y |> find "location" >>= Location.of_yaml
-    and+ loop_invariant = y |> find "loop_invariant" >>= Invariant.of_yaml
-    and+ precondition = y |> find "precondition" >>= Invariant.of_yaml in
-    {location; loop_invariant; precondition}
-end
-
 module InvariantSet =
 struct
   module LoopInvariant =
@@ -302,21 +186,47 @@ struct
     let invariant_type = "location_invariant"
   end
 
+  module FlowInsensitiveInvariant =
+  struct
+    type t = {
+      value: string;
+      format: string;
+    }
+    [@@deriving eq, ord, hash]
+
+    let invariant_type = "flow_insensitive_invariant"
+
+    let to_yaml' {value; format} =
+      [
+        ("value", `String value);
+        ("format", `String format);
+      ]
+
+    let of_yaml y =
+      let open GobYaml in
+      let+ value = y |> find "value" >>= to_string
+      and+ format = y |> find "format" >>= to_string in
+      {value; format}
+  end
+
   (* TODO: could maybe use GADT, but adds ugly existential layer to entry type pattern matching *)
   module InvariantType =
   struct
     type t =
       | LocationInvariant of LocationInvariant.t
       | LoopInvariant of LoopInvariant.t
+      | FlowInsensitiveInvariant of FlowInsensitiveInvariant.t
     [@@deriving eq, ord, hash]
 
     let invariant_type = function
       | LocationInvariant _ -> LocationInvariant.invariant_type
       | LoopInvariant _ -> LoopInvariant.invariant_type
+      | FlowInsensitiveInvariant _ -> FlowInsensitiveInvariant.invariant_type
 
     let to_yaml' = function
       | LocationInvariant x -> LocationInvariant.to_yaml' x
       | LoopInvariant x -> LoopInvariant.to_yaml' x
+      | FlowInsensitiveInvariant x -> FlowInsensitiveInvariant.to_yaml' x
 
     let of_yaml y =
       let open GobYaml in
@@ -327,6 +237,9 @@ struct
       else if invariant_type = LoopInvariant.invariant_type then
         let+ x = y |> LoopInvariant.of_yaml in
         LoopInvariant x
+      else if invariant_type = FlowInsensitiveInvariant.invariant_type then
+        let+ x = y |> FlowInsensitiveInvariant.of_yaml in
+        FlowInsensitiveInvariant x
       else
         Error (`Msg "type")
   end
@@ -710,29 +623,17 @@ end
 module EntryType =
 struct
   type t =
-    | LocationInvariant of LocationInvariant.t
-    | LoopInvariant of LoopInvariant.t
-    | FlowInsensitiveInvariant of FlowInsensitiveInvariant.t
-    | PreconditionLoopInvariant of PreconditionLoopInvariant.t
     | InvariantSet of InvariantSet.t
     | ViolationSequence of ViolationSequence.t
     | GhostInstrumentation of GhostInstrumentation.t
   [@@deriving eq, ord, hash]
 
   let entry_type = function
-    | LocationInvariant _ -> LocationInvariant.entry_type
-    | LoopInvariant _ -> LoopInvariant.entry_type
-    | FlowInsensitiveInvariant _ -> FlowInsensitiveInvariant.entry_type
-    | PreconditionLoopInvariant _ -> PreconditionLoopInvariant.entry_type
     | InvariantSet _ -> InvariantSet.entry_type
     | ViolationSequence _ -> ViolationSequence.entry_type
     | GhostInstrumentation _ -> GhostInstrumentation.entry_type
 
   let to_yaml' = function
-    | LocationInvariant x -> LocationInvariant.to_yaml' x
-    | LoopInvariant x -> LoopInvariant.to_yaml' x
-    | FlowInsensitiveInvariant x -> FlowInsensitiveInvariant.to_yaml' x
-    | PreconditionLoopInvariant x -> PreconditionLoopInvariant.to_yaml' x
     | InvariantSet x -> InvariantSet.to_yaml' x
     | ViolationSequence x -> ViolationSequence.to_yaml' x
     | GhostInstrumentation x -> GhostInstrumentation.to_yaml' x
@@ -740,19 +641,7 @@ struct
   let of_yaml y =
     let open GobYaml in
     let* entry_type = y |> find "entry_type" >>= to_string in
-    if entry_type = LocationInvariant.entry_type then
-      let+ x = y |> LocationInvariant.of_yaml in
-      LocationInvariant x
-    else if entry_type = LoopInvariant.entry_type then
-      let+ x = y |> LoopInvariant.of_yaml in
-      LoopInvariant x
-    else if entry_type = FlowInsensitiveInvariant.entry_type then
-      let+ x = y |> FlowInsensitiveInvariant.of_yaml in
-      FlowInsensitiveInvariant x
-    else if entry_type = PreconditionLoopInvariant.entry_type then
-      let+ x = y |> PreconditionLoopInvariant.of_yaml in
-      PreconditionLoopInvariant x
-    else if entry_type = InvariantSet.entry_type then
+    if entry_type = InvariantSet.entry_type then
       let+ x = y |> InvariantSet.of_yaml in
       InvariantSet x
     else if entry_type = ViolationSequence.entry_type then

@@ -438,7 +438,7 @@ struct
 
   (* Just remove things that go out of scope. *)
   let return man exp fundec  =
-    let rm acc v = remove (Analyses.ask_of_man man) (Var v, NoOffset) acc in
+    let rm acc v = remove (Analyses.ask_of_man man) (Cil.var v) acc in
     List.fold_left rm man.local (fundec.sformals@fundec.slocals)
 
   let assign man (lval:lval) (rval:exp) : D.t  =
@@ -453,8 +453,8 @@ struct
       | x::xs, y::ys -> fold_left2 f (f r x y) xs ys
       | _ -> r
     in
-    let assign_one_param st lv exp =
-      assign_eq (Analyses.ask_of_man man) (Var lv, NoOffset) exp st
+    let assign_one_param st v exp =
+      assign_eq (Analyses.ask_of_man man) (Cil.var v) exp st
     in
     let nst =
       try fold_left2 assign_one_param man.local f.sformals args

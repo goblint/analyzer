@@ -15,3 +15,11 @@ rules:
     message: use Cilfacade instead
     languages: [ocaml]
     severity: WARNING
+
+  - id: cil-var
+    pattern: (Var $X, NoOffset)
+    # Autofix is broken: https://github.com/semgrep/semgrep/issues/11278
+    # fix: GoblintCil.var $X
+    message: use GoblintCil.var instead
+    languages: [ocaml]
+    severity: WARNING
