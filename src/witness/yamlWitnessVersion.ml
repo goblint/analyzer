@@ -1,18 +1,15 @@
 (** YAML witness format version. *)
 
 type t =
-  | V0_1
   | V2_0
   | V2_1
 [@@deriving ord, enum]
 
 let show = function
-  | V0_1 -> "0.1"
   | V2_0 -> "2.0"
   | V2_1 -> "2.1"
 
 let of_string = function
-  | "0.1" -> V0_1
   | "2.0" -> V2_0
   | "2.1" -> V2_1
   | _ -> invalid_arg "YamlWitnessVersion.of_string"

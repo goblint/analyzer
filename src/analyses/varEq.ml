@@ -411,7 +411,7 @@ struct
 
   (* Just remove things that go out of scope. *)
   let return man exp fundec  =
-    let rm acc v = remove (Analyses.ask_of_man man) (Var v, NoOffset) acc in
+    let rm acc v = remove (Analyses.ask_of_man man) (Cil.var v) acc in
     List.fold_left rm man.local (fundec.sformals@fundec.slocals)
 
   (* removes all equalities with lval and then tries to make a new one: lval=rval *)
@@ -427,9 +427,9 @@ struct
       | x::xs, y::ys -> fold_left2 f (f r x y) xs ys
       | _ -> r
     in
-    let assign_one_param st lv exp =
-      let rm = remove (Analyses.ask_of_man man) (Var lv, NoOffset) st in
-      add_eq (Analyses.ask_of_man man) (Var lv, NoOffset) exp rm
+    let assign_one_param st v exp =
+      let rm = remove (Analyses.ask_of_man man) (Cil.var v) st in
+      add_eq (Analyses.ask_of_man man) (Cil.var v) exp rm
     in
     let nst =
       try fold_left2 assign_one_param man.local f.sformals args
