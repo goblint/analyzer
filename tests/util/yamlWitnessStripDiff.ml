@@ -3,12 +3,12 @@ open YamlWitnessType
 open YamlWitnessStripCommon
 
 
-module InvariantSet = Set.Make (InvariantSet.Invariant)
+module InvariantKindSet = Set.Make (InvariantSet.InvariantKind)
 
 let print_invariants invariants =
   let yaml_invariants =
-    InvariantSet.elements invariants
-    |> List.rev_map YamlWitnessType.InvariantSet.Invariant.to_yaml
+    InvariantKindSet.elements invariants
+    |> List.rev_map YamlWitnessType.InvariantSet.InvariantKind.to_yaml
   in
 
   let stripped_yaml = `A yaml_invariants in
@@ -53,14 +53,14 @@ let main () =
       match StrippedEntrySet.choose left_invariant_sets, StrippedEntrySet.choose right_invariant_sets with
       | ({entry_type = InvariantSet {content = left_content}} as left_entry), ({entry_type = InvariantSet {content = right_content}} as right_entry) ->
         let left_stripped_entries = StrippedEntrySet.remove left_entry left_stripped_entries in
-        let left_invariants = InvariantSet.of_list left_content in
+        let left_invariants = InvariantKindSet.of_list left_content in
         let right_stripped_entries = StrippedEntrySet.remove right_entry right_stripped_entries in
-        let right_invariants = InvariantSet.of_list right_content in
+        let right_invariants = InvariantKindSet.of_list right_content in
         (left_stripped_entries, left_invariants, right_stripped_entries, right_invariants)
       | _, _ -> assert false
     )
     else
-      (left_stripped_entries, InvariantSet.empty, right_stripped_entries, InvariantSet.empty)
+      (left_stripped_entries, InvariantKindSet.empty, right_stripped_entries, InvariantKindSet.empty)
   in
 
   let left_only_stripped_entries = StrippedEntrySet.diff left_stripped_entries right_stripped_entries in
@@ -70,8 +70,8 @@ let main () =
     print_endline "---";
   );
 
-  let left_only_invariants = InvariantSet.diff left_invariants right_invariants in
-  if not (InvariantSet.is_empty left_only_invariants) then (
+  let left_only_invariants = InvariantKindSet.diff left_invariants right_invariants in
+  if not (InvariantKindSet.is_empty left_only_invariants) then (
     print_endline "# Left-only invariants:";
     print_invariants left_only_invariants;
     print_endline "---";
@@ -84,8 +84,8 @@ let main () =
     print_endline "---";
   );
 
-  let right_only_invariants = InvariantSet.diff right_invariants left_invariants in
-  if not (InvariantSet.is_empty right_only_invariants) then (
+  let right_only_invariants = InvariantKindSet.diff right_invariants left_invariants in
+  if not (InvariantKindSet.is_empty right_only_invariants) then (
     print_endline "# Right-only invariants:";
     print_invariants right_only_invariants;
     print_endline "---";
