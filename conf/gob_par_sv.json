@@ -1,0 +1,85 @@
+{
+  "ana": {
+    "sv-comp": {
+      "functions": true
+    },
+    "int": {
+      "def_exc": true,
+      "enums": false,
+      "interval": true
+    },
+    "float": {
+      "interval": true,
+      "evaluate_math_functions": true
+    },
+    "activated": [
+      "base",
+      "threadid",
+      "threadflag",
+      "threadreturn",
+      "mallocWrapper",
+      "mutexEvents",
+      "mutex",
+      "access",
+      "race",
+      "escape",
+      "expRelation",
+      "mhp",
+      "assert",
+
+      "symb_locks",
+      "region",
+      "thread",
+      "threadJoins",
+      "abortUnless"
+    ],
+    "path_sens": [
+      "mutex",
+      "malloc_null",
+      "uninit",
+      "expsplit",
+      "activeSetjmp",
+      "memLeak",
+      "threadflag"
+    ],
+    "base": {
+      "arrays": {
+        "domain": "partitioned"
+      }
+    },
+    "race": {
+      "free": false,
+      "call": false
+    },
+    "opt": {
+      "hashcons": false
+    },
+    "autotune": {
+      "enabled": true,
+      "activated": [
+        "loopUnrollHeuristic"
+      ]
+    },
+    "demand-function": true
+  },
+  "exp": {
+    "region-offsets": true
+  },
+  "solver": "td_parallel_base",
+  "solvers": {
+    "td3": {
+      "parallel_domains": 2
+    }
+  },
+  "sem": {
+    "unknown_function": {
+      "spawn": false
+    },
+    "int": {
+      "signed_overflow": "assume_none"
+    },
+    "null-pointer": {
+      "dereference": "assume_none"
+    }
+  }
+}
