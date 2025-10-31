@@ -81,7 +81,7 @@ struct
     caller_state
 
   (** Handles going from start node of function [f] into the function body of [f].
-      Meant to handle e.g. initializiation of local variables. *)
+      Meant to handle e.g. initialization of local variables. *)
   let body man (f:fundec) : D.t =
     (* Nothing needs to be done here, as the (non-formals) locals are initally untainted *)
     man.local
