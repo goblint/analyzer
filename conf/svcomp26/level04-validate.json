@@ -35,7 +35,8 @@
       "region",
       "thread",
       "threadJoins",
-      "abortUnless"
+      "abortUnless",
+      "unassume"
     ],
     "path_sens": [
       "mutex",
@@ -79,6 +80,9 @@
         "termination",
         "tmpSpecialAnalysis"
       ]
+    },
+    "widen": {
+      "tokens": true
     }
   },
   "exp": {
@@ -99,22 +103,22 @@
   },
   "witness": {
     "yaml": {
-      "enabled": true,
-      "sv-comp-true-only": false,
+      "enabled": false,
+      "strict": true,
       "format-version": "2.0",
       "entry-types": [
-        "invariant_set"
+        "invariant_set",
+        "violation_sequence"
       ],
       "invariant-types": [
+        "location_invariant",
         "loop_invariant"
       ]
     },
     "invariant": {
       "loop-head": true,
-      "after-lock": false,
-      "other": false,
-      "accessed": false,
-      "exact": true
+      "after-lock": true,
+      "other": true
     }
   }
 }
