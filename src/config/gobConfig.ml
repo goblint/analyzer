@@ -407,8 +407,7 @@ struct
 
   (** Merge configurations form a file with current. *)
   let merge_file fn =
-    let cwd = Fpath.v (Sys.getcwd ()) in
-    let config_dirs = cwd :: Fpath.(parent (v Sys.executable_name)) :: Goblint_sites.conf in
+    let config_dirs = GobFpath.cwd () :: GobSys.exe_dir :: Goblint_sites.conf in
     let file = List.find_map_opt (fun custom_include_dir ->
         let path = Fpath.append custom_include_dir fn in
         if Sys.file_exists (Fpath.to_string path) then

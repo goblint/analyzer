@@ -287,11 +287,11 @@ module Base =
         include WPS (EqS) (HM) (VS)
       end in
 
-      let () = print_solver_stats := fun () ->
+      print_solver_stats := (fun () ->
           print_data data;
           Logs.info "|called|=%d" (HM.length called);
           print_context_stats rho
-      in
+        );
 
       if GobConfig.get_bool "incremental.load" then (
         print_data_verbose data "Loaded data for incremental analysis";

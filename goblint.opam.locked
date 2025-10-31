@@ -43,7 +43,7 @@ depends: [
   "conf-autoconf" {= "0.2"}
   "conf-findutils" {= "1"}
   "conf-gcc" {= "1.0"}
-  "conf-gmp" {= "4"}
+  "conf-gmp" {= "5"}
   "conf-gmp-paths" {= "1"}
   "conf-mpfr-paths" {= "1"}
   "conf-perl" {= "2"}
