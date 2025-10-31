@@ -6,7 +6,9 @@
     },
     "int": {
       "def_exc": true,
-      "enums": false,
+      "enums": true,
+      "congruence": true,
+      "bitfield":true,
       "interval": true
     },
     "float": {
@@ -33,8 +35,13 @@
       "thread",
       "threadJoins",
       "abortUnless",
+      "affeq",
+      "apron",
       "unassume"
     ],
+    "apron": {
+      "domain": "octagon"
+    },
     "path_sens": [
       "mutex",
       "malloc_null",
@@ -50,6 +57,9 @@
     "base": {
       "arrays": {
         "domain": "partitioned"
+      },
+      "structs": {
+        "domain": "sets"
       }
     },
     "race": {
@@ -81,6 +91,12 @@
     "region-offsets": true
   },
   "solver": "td3",
+  "solvers": {
+    "td3": {
+      "widen_gas": 30,
+      "side_widen_gas": 30
+    }
+  },
   "sem": {
     "unknown_function": {
       "spawn": false
@@ -111,8 +127,5 @@
       "after-lock": true,
       "other": true
     }
-  },
-  "pre": {
-    "enabled": false
   }
 }

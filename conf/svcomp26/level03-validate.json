@@ -6,7 +6,9 @@
     },
     "int": {
       "def_exc": true,
-      "enums": false,
+      "enums": true,
+      "congruence": true,
+      "bitfield":true,
       "interval": true
     },
     "float": {
@@ -32,7 +34,9 @@
       "region",
       "thread",
       "threadJoins",
-      "abortUnless"
+      "abortUnless",
+      "branchSet",
+      "unassume"
     ],
     "path_sens": [
       "mutex",
@@ -41,7 +45,8 @@
       "expsplit",
       "activeSetjmp",
       "memLeak",
-      "threadflag"
+      "threadflag",
+      "branchSet"
     ],
     "context": {
       "widen": false
@@ -49,6 +54,9 @@
     "base": {
       "arrays": {
         "domain": "partitioned"
+      },
+      "structs": {
+        "domain": "sets"
       }
     },
     "race": {
@@ -71,12 +79,22 @@
         "termination",
         "tmpSpecialAnalysis"
       ]
+    },
+    "widen": {
+      "tokens": true
     }
   },
   "exp": {
     "region-offsets": true
   },
   "solver": "td3",
+  "solvers": {
+    "td3": {
+      "narrow-globs": {
+        "enabled": true
+      }
+    }
+  },
   "sem": {
     "unknown_function": {
       "spawn": false
@@ -90,25 +108,22 @@
   },
   "witness": {
     "yaml": {
-      "enabled": true,
-      "sv-comp-true-only": false,
+      "enabled": false,
+      "strict": true,
       "format-version": "2.0",
       "entry-types": [
-        "invariant_set"
+        "invariant_set",
+        "violation_sequence"
       ],
       "invariant-types": [
+        "location_invariant",
         "loop_invariant"
       ]
     },
     "invariant": {
       "loop-head": true,
-      "after-lock": false,
-      "other": false,
-      "accessed": false,
-      "exact": true
+      "after-lock": true,
+      "other": true
     }
-  },
-  "pre": {
-    "enabled": false
   }
 }

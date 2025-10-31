@@ -6,14 +6,11 @@
     },
     "int": {
       "def_exc": true,
-      "enums": true,
-      "congruence": true,
-      "bitfield":true,
-      "interval": true
+      "enums": false
     },
     "float": {
-      "interval": true,
-      "evaluate_math_functions": true
+      "interval": false,
+      "evaluate_math_functions": false
     },
     "activated": [
       "base",
@@ -29,18 +26,13 @@
       "expRelation",
       "mhp",
       "assert",
-      "var_eq",
       "symb_locks",
       "region",
       "thread",
       "threadJoins",
       "abortUnless",
-      "affeq",
-      "apron"
+      "unassume"
     ],
-    "apron": {
-      "domain": "octagon"
-    },
     "path_sens": [
       "mutex",
       "malloc_null",
@@ -56,9 +48,6 @@
     "base": {
       "arrays": {
         "domain": "partitioned"
-      },
-      "structs": {
-        "domain": "sets"
       }
     },
     "race": {
@@ -71,9 +60,6 @@
         "reduceAnalyses",
         "mallocWrappers",
         "noRecursiveIntervals",
-        "enums",
-        "congruence",
-        "octagon",
         "wideningThresholds",
         "loopUnrollHeuristic",
         "memsafetySpecification",
@@ -81,18 +67,15 @@
         "termination",
         "tmpSpecialAnalysis"
       ]
+    },
+    "widen": {
+      "tokens": true
     }
   },
   "exp": {
     "region-offsets": true
   },
   "solver": "td3",
-  "solvers": {
-    "td3": {
-      "widen_gas": 30,
-      "side_widen_gas": 30
-    }
-  },
   "sem": {
     "unknown_function": {
       "spawn": false
@@ -106,22 +89,22 @@
   },
   "witness": {
     "yaml": {
-      "enabled": true,
-      "sv-comp-true-only": false,
+      "enabled": false,
+      "strict": true,
       "format-version": "2.0",
       "entry-types": [
-        "invariant_set"
+        "invariant_set",
+        "violation_sequence"
       ],
       "invariant-types": [
+        "location_invariant",
         "loop_invariant"
       ]
     },
     "invariant": {
       "loop-head": true,
-      "after-lock": false,
-      "other": false,
-      "accessed": false,
-      "exact": true
+      "after-lock": true,
+      "other": true
     }
   }
 }

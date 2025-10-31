@@ -107,8 +107,5 @@
       "accessed": false,
       "exact": true
     }
-  },
-  "pre": {
-    "enabled": false
   }
 }
