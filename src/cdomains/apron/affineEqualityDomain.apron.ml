@@ -477,7 +477,7 @@ struct
       In case of a potential overflow, "no_ov" is set to false
       and Convert.tcons1_of_cil_exp will raise the exception Unsupported_CilExp Overflow *)
 
-  let meet_tcons ask t tcons expr =
+  let meet_tcons ask t tcons expr _ =
     let check_const cmp c = if cmp c Mpqf.zero then bot_env else t in
     let meet_vec e =
       (* Flip the sign of the const. val in coeff vec *)
@@ -526,7 +526,7 @@ struct
   let assert_constraint ask d e negate no_ov =
     if M.tracing then M.tracel "assert_constraint" "assert_constraint with expr: %a %b" d_exp e (Lazy.force no_ov);
     match Convert.tcons1_of_cil_exp ask d d.env e negate no_ov with
-    | tcons1 -> meet_tcons ask d tcons1 e
+    | tcons1 -> meet_tcons ask d tcons1 e ()
     | exception Convert.Unsupported_CilExp _ -> d
 
   let assert_constraint ask d e negate no_ov = timing_wrap "assert_constraint" (assert_constraint ask d e negate) no_ov
