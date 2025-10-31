@@ -6,7 +6,7 @@
     },
     "int": {
       "def_exc": true,
-        "enums": false
+      "enums": false
     },
     "float": {
       "interval": false,
@@ -30,7 +30,7 @@
       "region",
       "thread",
       "threadJoins",
-        "abortUnless"
+      "abortUnless"
     ],
     "path_sens": [
       "mutex",
@@ -39,7 +39,7 @@
       "expsplit",
       "activeSetjmp",
       "memLeak",
-        "threadflag"
+      "threadflag"
     ],
     "context": {
       "widen": false
@@ -86,6 +86,7 @@
   "witness": {
     "yaml": {
       "enabled": true,
+      "sv-comp-true-only": false,
       "format-version": "2.0",
       "entry-types": [
         "invariant_set"
@@ -101,8 +102,5 @@
       "accessed": false,
       "exact": true
     }
-  },
-  "pre": {
-    "enabled": false
   }
 }

@@ -9,9 +9,8 @@
       "congruence": true,
       "bitfield":true,
       "enums": true,
-        "interval": true,
-        "interval_threshold_widening": true
-
+      "interval": true,
+      "interval_threshold_widening": true
     },
     "float": {
       "interval": true,
@@ -36,7 +35,7 @@
       "region",
       "thread",
       "threadJoins",
-        "abortUnless"
+      "abortUnless"
     ],
     "path_sens": [
       "mutex",
@@ -45,8 +44,8 @@
       "expsplit",
       "activeSetjmp",
       "memLeak",
-        "threadflag",
-        "base"
+      "threadflag",
+      "base"
     ],
     "context": {
       "widen": false
@@ -101,6 +100,7 @@
   "witness": {
     "yaml": {
       "enabled": true,
+      "sv-comp-true-only": false,
       "format-version": "2.0",
       "entry-types": [
         "invariant_set"
@@ -116,8 +116,5 @@
       "accessed": false,
       "exact": true
     }
-  },
-  "pre": {
-    "enabled": false
   }
 }

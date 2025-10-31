@@ -34,8 +34,8 @@
       "region",
       "thread",
       "threadJoins",
-        "abortUnless",
-        "branchSet"
+      "abortUnless",
+      "branchSet"
     ],
     "path_sens": [
       "mutex",
@@ -44,8 +44,8 @@
       "expsplit",
       "activeSetjmp",
       "memLeak",
-        "threadflag",
-        "branchSet"
+      "threadflag",
+      "branchSet"
     ],
     "context": {
       "widen": false
@@ -57,7 +57,6 @@
       "structs": {
         "domain": "sets"
       }
-
     },
     "race": {
       "free": false,
@@ -106,6 +105,7 @@
   "witness": {
     "yaml": {
       "enabled": true,
+      "sv-comp-true-only": false,
       "format-version": "2.0",
       "entry-types": [
         "invariant_set"
@@ -121,8 +121,5 @@
       "accessed": false,
       "exact": true
     }
-  },
-  "pre": {
-    "enabled": false
   }
 }
