@@ -17,12 +17,16 @@ struct
   struct
     include PartitionDomain.ExpPartitions
 
+    let is_str_constant = function
+      | Const (CStr _ | CWStr _) -> true
+      | _ -> false
+
     let invariant ~scope ss =
       fold (fun s a ->
           if B.mem MyCFG.unknown_exp s then
             a
           else (
-            let s' = B.filter (fun x -> not (InvariantCil.exp_contains_tmp x) && InvariantCil.exp_is_in_scope scope x) s in
+            let s' = B.filter (fun x -> not (InvariantCil.exp_contains_tmp x) && InvariantCil.exp_is_in_scope scope x && not (is_str_constant x)) s in
             if B.cardinal s' >= 2 then (
               (* instead of returning quadratically many pairwise equalities from a cluster,
                  output linear number of equalities with just one expression *)
@@ -407,7 +411,7 @@ struct
 
   (* Just remove things that go out of scope. *)
   let return man exp fundec  =
-    let rm acc v = remove (Analyses.ask_of_man man) (Var v, NoOffset) acc in
+    let rm acc v = remove (Analyses.ask_of_man man) (Cil.var v) acc in
     List.fold_left rm man.local (fundec.sformals@fundec.slocals)
 
   (* removes all equalities with lval and then tries to make a new one: lval=rval *)
@@ -423,9 +427,9 @@ struct
       | x::xs, y::ys -> fold_left2 f (f r x y) xs ys
       | _ -> r
     in
-    let assign_one_param st lv exp =
-      let rm = remove (Analyses.ask_of_man man) (Var lv, NoOffset) st in
-      add_eq (Analyses.ask_of_man man) (Var lv, NoOffset) exp rm
+    let assign_one_param st v exp =
+      let rm = remove (Analyses.ask_of_man man) (Cil.var v) st in
+      add_eq (Analyses.ask_of_man man) (Cil.var v) exp rm
     in
     let nst =
       try fold_left2 assign_one_param man.local f.sformals args

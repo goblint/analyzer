@@ -555,6 +555,50 @@
   (deps
    (sandbox always) ; must sandbox to prevent arg.dot-s from parallel runs from interfering
    (package goblint) ; depend on entire goblint package for svcomp21 conf
+   (:c nondetcall_same_true-unreach-call.c)
+   (:prop %{project_root}/tests/sv-comp/unreach-call-__VERIFIER_error.prp))
+  (target nondetcall_same_true-unreach-call.output)
+  (enabled_if %{bin-available:graph-easy})
+  (action
+   (progn
+    (ignore-outputs
+     (run goblint --conf svcomp.json --disable ana.autotune.enabled --set ana.specification %{prop} %{c} --enable exp.arg.uncil --enable exp.arg.stack --enable exp.arg.enabled --set exp.arg.dot.path arg.dot --set exp.arg.dot.node-label empty))
+    (with-outputs-to %{target}
+     (run graph-easy --as=boxart arg.dot)))))
+
+ (rule
+  (alias runtest)
+  (enabled_if %{bin-available:graph-easy})
+  (action
+   (diff nondetcall_same_true-unreach-call.expected nondetcall_same_true-unreach-call.output))))
+
+(subdir cfg
+ (rule
+  (deps
+   (sandbox always) ; must sandbox to prevent arg.dot-s from parallel runs from interfering
+   (package goblint) ; depend on entire goblint package for svcomp21 conf
+   (:c nondetcall_true-unreach-call.c)
+   (:prop %{project_root}/tests/sv-comp/unreach-call-__VERIFIER_error.prp))
+  (target nondetcall_true-unreach-call.output)
+  (enabled_if %{bin-available:graph-easy})
+  (action
+   (progn
+    (ignore-outputs
+     (run goblint --conf svcomp.json --disable ana.autotune.enabled --set ana.specification %{prop} %{c} --enable exp.arg.uncil --enable exp.arg.stack --enable exp.arg.enabled --set exp.arg.dot.path arg.dot --set exp.arg.dot.node-label empty))
+    (with-outputs-to %{target}
+     (run graph-easy --as=boxart arg.dot)))))
+
+ (rule
+  (alias runtest)
+  (enabled_if %{bin-available:graph-easy})
+  (action
+   (diff nondetcall_true-unreach-call.expected nondetcall_true-unreach-call.output))))
+
+(subdir cfg
+ (rule
+  (deps
+   (sandbox always) ; must sandbox to prevent arg.dot-s from parallel runs from interfering
+   (package goblint) ; depend on entire goblint package for svcomp21 conf
    (:c join_true-unreach-call.c)
    (:prop %{project_root}/tests/sv-comp/unreach-call-__VERIFIER_error.prp))
   (target join_true-unreach-call.output)
