@@ -21,16 +21,21 @@ struct
     command_line = Some GobSys.command_line;
   }
 
-  let metadata ?task (): Metadata.t =
+  let metadata ?(format_version = YamlWitnessVersion.of_option ()) ?task (): Metadata.t =
     let uuid = Uuidm.v4_gen uuid_random_state () in
     let creation_time = TimeUtil.iso8601_now () in
     {
-      format_version = GobConfig.get_string "witness.yaml.format-version";
+      format_version = YamlWitnessVersion.show format_version;
       uuid = Uuidm.to_string uuid;
       creation_time;
       producer;
       task
     }
+
+  let with_metadata ~task entry_type: Entry.t = {
+    entry_type;
+    metadata = metadata ~format_version:(EntryType.min_version entry_type) ~task ();
+  }
 
   let task ~input_files ~data_model ~(specification): Task.t =
     {
@@ -44,14 +49,9 @@ struct
     }
 
   let location ~location:(loc: Cil.location) ~(location_function): Location.t =
-    let file_hash =
-      match GobConfig.get_string "witness.yaml.format-version" with
-      | "2.0" -> None (* TODO: 2.1? *)
-      | _ -> assert false
-    in
     {
       file_name = loc.file;
-      file_hash;
+      file_hash = None;
       line = loc.line;
       column = Some loc.column;
       function_ = Some location_function;
@@ -86,12 +86,10 @@ struct
         };
     }
 
-  let invariant_set ~task ~(invariants): Entry.t = {
-    entry_type = InvariantSet {
-        content = invariants;
-      };
-    metadata = metadata ~task ();
-  }
+  let invariant_set ~task ~(invariants): Entry.t =
+    with_metadata ~task @@ InvariantSet {
+      content = invariants;
+    }
 
   let ghost_variable' ~variable ~type_ ~(initial): GhostInstrumentation.Variable.t = {
     name = variable;
@@ -114,13 +112,11 @@ struct
     updates;
   }
 
-  let ghost_instrumentation ~task ~variables ~(location_updates): Entry.t = {
-    entry_type = GhostInstrumentation {
-        ghost_variables = variables;
-        ghost_updates = location_updates;
-      };
-    metadata = metadata ~task ();
-  }
+  let ghost_instrumentation ~task ~variables ~(location_updates): Entry.t =
+    with_metadata ~task @@ GhostInstrumentation {
+      ghost_variables = variables;
+      ghost_updates = location_updates;
+    }
 end
 
 let yaml_entries_to_file yaml_entries file =
