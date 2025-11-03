@@ -11,5 +11,8 @@ int main()
 {
     int a, b, c, d;
     __VERIFIER_assert((a || b) && (c || d));
+
+    int e, f, g, h, i, j, k, l, m;
+    __VERIFIER_assert((e || f || g) && (h || i || j) && (k || l || m));
     return 0;
 }

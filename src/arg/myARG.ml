@@ -345,7 +345,6 @@ struct
           if is_equiv_chain if_true_next_true_next_n if_false_next_true_next_n && is_equiv_chain if_true_next_false_next_n if_false_next_false_next_n then (
             (* TODO: non-exp based way to detect which way if-s nest *)
             (* TODO: what if alternating nesting depth more than 2? *)
-            (* TODO: what if more than two and-s or or-s on one level? *)
             match e2, e3 with
             | BinOp (LOr, e21, e22, _), e3 when CilType.Exp.equal e22 e3 ->
               let exp = BinOp (LOr, BinOp (LAnd, e, e21, intType), e3, intType) in
