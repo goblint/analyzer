@@ -333,6 +333,31 @@ struct
       (* TODO: need to handle longer loops? *)
       let loc = Node.location n in
       begin match if_true_next_n, if_false_next_n with
+        | Statement {sid=sid2; skind=If _; _}, Statement {sid=sid3; skind=If _; _} when sid <> sid2 && sid <> sid3 && CilType.Location.equal loc (Node.location if_true_next_n) && CilType.Location.equal loc (Node.location if_false_next_n) ->
+          (* get e2 from edge because recursive next returns it there *)
+          let (e2, if_true_next_true_next_n, if_true_next_false_next_n) = partition_if_next (next if_true_next_n) in
+          (* get e3 from edge because recursive next returns it there *)
+          let (e3, if_false_next_true_next_n, if_false_next_false_next_n) = partition_if_next (next if_false_next_n) in
+          Logs.debug "e2 = %a" d_exp e2;
+          Logs.debug "tt -> %a; tf -> %a" Node.pretty if_true_next_true_next_n Node.pretty if_true_next_false_next_n;
+          Logs.debug "e3 = %a" d_exp e3;
+          Logs.debug "ft -> %a; ff -> %a" Node.pretty if_false_next_true_next_n Node.pretty if_false_next_false_next_n;
+          if is_equiv_chain if_true_next_true_next_n if_false_next_true_next_n && is_equiv_chain if_true_next_false_next_n if_false_next_false_next_n then (
+            (* TODO: non-exp based way to detect which way if-s nest *)
+            (* TODO: what if nested other way? *)
+            (* TODO: what if alternating nesting depth more than 2? *)
+            (* TODO: what if more than two and-s or or-s on one level? *)
+            match e2, e3 with
+            | BinOp (LOr, e21, e22, _), e3 when CilType.Exp.equal e22 e3 ->
+              let exp = BinOp (LOr, BinOp (LAnd, e, e21, intType), e3, intType) in
+              Some [
+                (Test (exp, true), if_true_next_true_next_n);
+                (Test (exp, false), if_true_next_false_next_n)
+              ]
+            | _, _ -> assert false
+          )
+          else
+            assert false
         (* && *)
         | Statement {sid=sid2; skind=If _; _}, _ when sid <> sid2 && CilType.Location.equal loc (Node.location if_true_next_n) ->
           (* get e2 from edge because recursive next returns it there *)
