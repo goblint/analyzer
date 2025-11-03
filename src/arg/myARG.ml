@@ -338,6 +338,7 @@ struct
           let (e2, if_true_next_true_next_n, if_true_next_false_next_n) = partition_if_next (next if_true_next_n) in
           (* get e3 from edge because recursive next returns it there *)
           let (e3, if_false_next_true_next_n, if_false_next_false_next_n) = partition_if_next (next if_false_next_n) in
+          Logs.debug "e = %a" d_exp e;
           Logs.debug "e2 = %a" d_exp e2;
           Logs.debug "tt -> %a; tf -> %a" Node.pretty if_true_next_true_next_n Node.pretty if_true_next_false_next_n;
           Logs.debug "e3 = %a" d_exp e3;
