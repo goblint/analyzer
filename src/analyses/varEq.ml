@@ -17,8 +17,10 @@ struct
   struct
     include PartitionDomain.ExpPartitions
 
-    let is_str_constant = function
+    (* TODO: Should string constants not be added to D in the first place, rather than filtering them for witness invariants? *)
+    let rec is_str_constant = function
       | Const (CStr _ | CWStr _) -> true
+      | CastE (_, e) -> is_str_constant e
       | _ -> false
 
     let invariant ~scope ss =
