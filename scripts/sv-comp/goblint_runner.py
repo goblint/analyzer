@@ -21,8 +21,8 @@ class GoblintRunner:
         parser = argparse.ArgumentParser(
             description="""A facade in front of goblint to enable running a portfolio of configurations for SV-COMP.
             All args apart from --portfolio-conf/-p are passed on to the actual goblint calls.
-            The portfolio config file is a plaintext file whose lines each consist of goblint parameters, in particular including 
-            --conf followed by a path to a goblint config file (relative to the goblint base dir, or absolute). 
+            The portfolio config file is a plaintext file whose lines each consist of goblint parameters, in particular including
+            --conf followed by a path to a goblint config file (relative to the goblint base dir, or absolute).
             Goblint is run with each parameterset in order of specification as long as goblint produces an unknown verdict or reaches the end of the list.
             You may add comments to the portfolio config file by starting a line with #.
             """
@@ -41,7 +41,7 @@ class GoblintRunner:
             with open(conf_args.portfolio, "r") as conflist_file:
                 self.configs = [c.strip() for c in conflist_file.readlines() if not c.strip().startswith("#")]
             logger.info(f"Loaded goblint configs: {", ".join(self.configs)}")
-            
+
     def run_with_config(self, config_str):
         config_args = config_str.split(" ")
         args = [*config_args] + self.other_args
@@ -70,7 +70,7 @@ class GoblintRunner:
         for i, config in enumerate(self.configs):
             logger.info(f"Starting config [{i}]")
             verdict, go_on = self.run_with_config(config)
-            if not go_on: 
+            if not go_on:
                 logger.info(f"Stopping portfolio sequence with verdict [{verdict}] after config [{i}]")
                 break
         if go_on:
