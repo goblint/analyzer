@@ -35,6 +35,7 @@ class GoblintRunner:
 
         self.configs = []
         if conf_args.portfolio:
+            conf_args.portfolio = path.join(path.dirname(self.goblint_executable_path), conf_args.portfolio)
             if not path.exists(conf_args.portfolio):
                 logger.error(f" Could not find portfolio conf file at {conf_args.portfolio}")
                 exit(1)
