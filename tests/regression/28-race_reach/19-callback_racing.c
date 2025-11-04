@@ -1,9 +1,10 @@
+// PARAM:  --set lib.activated[+] sv-comp
 extern int __VERIFIER_nondet_int();
 
 #include<pthread.h>
 #include "racemacros.h"
 
-void foo(int (*callback)()) {
+void foo(int (*callback)(void)) {
   for (int i = 0; i < 10; i++) {
     if (__VERIFIER_nondet_int())
       callback();

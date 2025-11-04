@@ -1,6 +1,7 @@
-(** Deadlock analysis. *)
+(** Deadlock analysis ([deadlock]). *)
 
-open Prelude.Ana
+open Batteries
+open GoblintCil
 open Analyses
 open DeadlockDomain
 
@@ -14,36 +15,31 @@ struct
   module Arg =
   struct
     module D = MayLockEvents
-    module V = Lock
-
-    module G =
+    module V =
     struct
-      include MapDomain.MapBot (Lock) (MayLockEventPairs)
-      let leq x y = !GU.postsolving || leq x y (* HACK: to pass verify*)
+      include Lock
+      let is_write_only _ = true
     end
 
-    let side_lock_event_pair ctx before after =
-      let d =
-        if !GU.should_warn then
-          G.singleton (Tuple3.first after) (MayLockEventPairs.singleton (before, after))
-        else
-          G.bot () (* HACK: just to pass validation with MCP DomVariantLattice *)
-      in
-      ctx.sideg (Tuple3.first before) d
+    module G = MapDomain.MapBot (Lock) (MayLockEventPairs)
 
-    let part_access ctx: MCPAccess.A.t =
-      Obj.obj (ctx.ask (PartAccess Point))
+    let side_lock_event_pair man ((before_node, _, _) as before) ((after_node, _, _) as after) =
+      if !AnalysisState.should_warn then
+        man.sideg before_node (G.singleton after_node (MayLockEventPairs.singleton (before, after)))
 
-    let add ctx ((l, _): LockDomain.Lockset.Lock.t) =
-      let after: LockEvent.t = (l, ctx.prev_node, part_access ctx) in (* use octx for access to use locksets before event *)
+    let part_access man: MCPAccess.A.t =
+      Obj.obj (man.ask (PartAccess Point))
+
+    let add man ((l, _): LockDomain.AddrRW.t) =
+      let after: LockEvent.t = (l, man.prev_node, part_access man) in (* use oman for access to use locksets before event *)
       D.iter (fun before ->
-          side_lock_event_pair ctx before after
-        ) ctx.local;
-      D.add after ctx.local
+          side_lock_event_pair man before after
+        ) man.local;
+      D.add after man.local
 
-    let remove ctx l =
+    let remove man l =
       let inLockAddrs (e, _, _) = Lock.equal l e in
-      D.filter (neg inLockAddrs) ctx.local
+      D.filter (neg inLockAddrs) man.local
   end
 
   include LocksetAnalysis.MakeMay (Arg)
@@ -51,7 +47,7 @@ struct
 
   module G = Arg.G (* help type checker using explicit constraint *)
 
-  let query ctx (type a) (q: a Queries.t): a Queries.result =
+  let query man (type a) (q: a Queries.t): a Queries.result =
     match q with
     | WarnGlobal g ->
       let g: V.t = Obj.obj g in
@@ -80,8 +76,8 @@ struct
               ) (List.tl path_visited_lock_event_pairs)
           in
           let mhp =
-            Enum.cartesian_product (List.enum path_visited_lock_event_pairs) (List.enum path_visited_lock_event_pairs)
-            |> Enum.for_all (fun (((_, (_, _, access1)) as p1), ((_, (_, _, access2)) as p2)) ->
+            Seq.product (List.to_seq path_visited_lock_event_pairs) (List.to_seq path_visited_lock_event_pairs)
+            |> Seq.for_all (fun (((_, (_, _, access1)) as p1), ((_, (_, _, access2)) as p2)) ->
                 LockEventPair.equal p1 p2 || MCPAccess.A.may_race access1 access2
               )
           in
@@ -93,8 +89,8 @@ struct
             let normalized = List.rev_append init (List.rev tail) in (* backwards to get correct printout order *)
             let msgs = List.concat_map (fun ((before_lock, before_node, before_access), (after_lock, after_node, after_access)) ->
                 [
-                  (Pretty.dprintf "lock before: %a with %a" Lock.pretty before_lock MCPAccess.A.pretty before_access, Some (UpdateCil.getLoc before_node));
-                  (Pretty.dprintf "lock after: %a with %a" Lock.pretty after_lock MCPAccess.A.pretty after_access, Some (UpdateCil.getLoc after_node));
+                  (Pretty.dprintf "lock before: %a with %a" Lock.pretty before_lock MCPAccess.A.pretty before_access, Some (M.Location.Node before_node));
+                  (Pretty.dprintf "lock after: %a with %a" Lock.pretty after_lock MCPAccess.A.pretty after_access, Some (M.Location.Node after_node));
                 ]
               ) normalized
             in
@@ -109,11 +105,11 @@ struct
                   let new_path_visited_lock_event_pairs' = lock_event_pair :: path_visited_lock_event_pairs in
                   iter_lock new_path_visited_locks new_path_visited_lock_event_pairs' to_lock
                 ) lock_event_pairs
-            ) (ctx.global lock)
+            ) (man.global lock)
         end
       in
 
-      Stats.time "deadlock" (iter_lock LS.empty []) g
+      Timing.wrap ~args:[("lock", `String (Lock.show g))] "deadlock" (iter_lock LS.empty []) g
     | _ -> Queries.Result.top q
 end
 

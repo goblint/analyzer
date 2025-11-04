@@ -1,0 +1,34 @@
+- entry_type: invariant_set
+  metadata:
+    format_version: "2.0"
+    uuid: b000a41c-b7eb-4187-92ea-40530a44479c
+    creation_time: 2023-01-24T09:33:20Z
+    producer:
+      name: Simmo Saan
+      version: n/a
+    task:
+      input_files:
+      - 07-base-lor-interval.c
+      input_file_hashes:
+        07-base-lor-interval.c: 6aaf25a17ef6c1a6b16300f34c4ef196baeb5a505a0e863ca0340e6060ef84e4
+      data_model: LP64
+      language: C
+  content:
+  - invariant:
+      type: location_invariant
+      location:
+        file_name: 07-base-lor-interval.c
+        line: 8
+        column: 3
+        function: main
+      value: r || 2 <= x
+      format: c_expression
+  - invariant:
+      type: location_invariant
+      location:
+        file_name: 07-base-lor-interval.c
+        line: 9
+        column: 3
+        function: main
+      value: 2 <= x || r
+      format: c_expression

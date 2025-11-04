@@ -1,4 +1,6 @@
-open Prelude
+(** Detection of suitable C preprocessor. *)
+
+open Batteries
 
 let bad_cpp_version_regexp = Str.regexp_case_fold "clang\\|apple\\|darwin"
 
@@ -9,15 +11,14 @@ let is_bad name =
     | exception Not_found -> false
     | _ -> true
   in
-  if GobConfig.get_bool "dbg.verbose" then
-    Printf.printf "Preprocessor %s: is_bad=%B\n" name r;
+  Logs.debug "Preprocessor %s: is_bad=%B" name r;
   r
 
 let compgen prefix =
   let bash_command = Filename.quote ("compgen -c " ^ prefix) in
   let compgen = Unix.open_process_in ("bash -c " ^ bash_command) in
   IO.lines_of compgen
-  |> List.of_enum
+  |> List.of_enum (* nosemgrep: batenum-of_enum *)
 
 let cpp =
   let is_good name = not (is_bad name) in
@@ -41,8 +42,8 @@ let dependencies: bool Fpath.Map.t FpathH.t = FpathH.create 3 (* bool is system_
 
 let dependencies_to_yojson () =
   dependencies
-  |> FpathH.enum
-  |> Enum.map (fun (p, deps) ->
+  |> FpathH.to_seq
+  |> Seq.map (fun (p, deps) ->
       let deps' =
         deps
         |> Fpath.Map.bindings
@@ -54,5 +55,5 @@ let dependencies_to_yojson () =
       in
       (Fpath.to_string p, deps')
     )
-  |> List.of_enum
+  |> List.of_seq
   |> (fun l -> `Assoc l)

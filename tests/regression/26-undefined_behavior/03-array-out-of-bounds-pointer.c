@@ -1,4 +1,4 @@
-// PARAM:  --set dbg.debug true --enable ana.arrayoob --enable ana.int.interval
+// PARAM: --enable ana.arrayoob --enable ana.int.interval
 //Pointer to arrays: out of bounds access
 #include <stdio.h>
 int main( )

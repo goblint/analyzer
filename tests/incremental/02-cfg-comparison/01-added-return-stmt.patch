@@ -1,0 +1,8 @@
+--- tests/incremental/02-cfg-comparison/01-added-return-stmt.c
++++ tests/incremental/02-cfg-comparison/01-added-return-stmt.c
+@@ -4,4 +4,5 @@ void main() {
+   __goblint_check(y==0);
+   goto label;
+   y++;
++  return;
+ }

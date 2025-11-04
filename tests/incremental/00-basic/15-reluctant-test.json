@@ -1,0 +1,15 @@
+{
+	"ana": {
+		"int": {
+			"enums": true
+		}
+	},
+	"incremental": {
+		"reluctant": {
+			"enabled": true
+		}
+	},
+	"exp": {
+		"earlyglobs": true
+	}
+}

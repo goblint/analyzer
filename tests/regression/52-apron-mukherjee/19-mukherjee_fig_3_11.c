@@ -1,7 +1,6 @@
 // SKIP PARAM: --set ana.activated[+] apron --set ana.path_sens[+] threadflag --set ana.activated[+] threadJoins
-
 #include <pthread.h>
-#include <assert.h>
+#include <goblint.h>
 
 int x;
 int y;
@@ -11,6 +10,7 @@ pthread_mutex_t m = PTHREAD_MUTEX_INITIALIZER;
 void* T1(void* arg) {
     while(0 == 0) {
         pthread_mutex_lock(&m);
+        __goblint_check(x == y);
         if (x > 0) {
             x = x - 1;
             y = y - 1;
@@ -23,6 +23,7 @@ void* T1(void* arg) {
 void* T2(void* arg) {
     while(0 == 0) {
         pthread_mutex_lock(&m);
+        __goblint_check(x == y);
         if (x < 10) {
             x = x + 1;
             y = y + 1;

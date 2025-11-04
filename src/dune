@@ -6,12 +6,15 @@
 (library
   (name goblint_lib)
   (public_name goblint.lib)
-  (wrapped false)
-  (modules :standard \ goblint mainarinc mainspec privPrecCompare apronPrecCompare messagesCompare)
-  (libraries goblint.sites goblint-cil.all-features batteries.unthreaded qcheck-core.runner sha json-data-encoding jsonrpc cpu arg-complete fpath
+  (modules :standard \ goblint privPrecCompare apronPrecCompare messagesCompare)
+  (libraries goblint.sites goblint.build-info goblint-cil goblint-cil.pta goblint-cil.syntacticsearch batteries.unthreaded qcheck-core.runner sha json-data-encoding jsonrpc cpu arg-complete fpath yaml yaml.unix uuidm goblint_timing catapult goblint_backtrace fileutils goblint_std goblint_config goblint_common goblint_domain goblint_constraint goblint_solver goblint_library goblint_cdomain_value goblint_incremental goblint_tracing goblint_logs domain_shims
     ; Conditionally compile based on whether apron optional dependency is installed or not.
     ; Alternative dependencies seem like the only way to optionally depend on optional dependencies.
-    ; See: https://dune.readthedocs.io/en/stable/concepts.html#alternative-dependencies.
+    ; See: https://dune.readthedocs.io/en/stable/reference/library-dependencies.html#alternative-dependencies
+    (select gobApron.ml from
+      (apron -> gobApron.apron.ml)
+      (-> gobApron.no-apron.ml)
+    )
     (select apronDomain.ml from
       (apron apron.octD apron.boxD apron.polkaMPQ zarith_mlgmpidl -> apronDomain.apron.ml)
       (-> apronDomain.no-apron.ml)
@@ -24,19 +27,56 @@
       (apron -> apronAnalysis.apron.ml)
       (-> apronAnalysis.no-apron.ml)
     )
-    (select apronPriv.ml from
-      (apron -> apronPriv.apron.ml)
-      (-> apronPriv.no-apron.ml)
+    (select affineEqualityAnalysis.ml from
+      (apron -> affineEqualityAnalysis.apron.ml)
+      (-> affineEqualityAnalysis.no-apron.ml)
+    )
+    (select affineEqualityDomain.ml from
+      (apron -> affineEqualityDomain.apron.ml)
+      (-> affineEqualityDomain.no-apron.ml)
+    )
+    (select affineEqualityDenseDomain.ml from
+      (apron -> affineEqualityDenseDomain.apron.ml)
+      (-> affineEqualityDenseDomain.no-apron.ml)
+    )
+    (select linearTwoVarEqualityAnalysis.ml from
+      (apron -> linearTwoVarEqualityAnalysis.apron.ml)
+      (-> linearTwoVarEqualityAnalysis.no-apron.ml)
+    )
+    (select linearTwoVarEqualityDomain.ml from
+      (apron -> linearTwoVarEqualityDomain.apron.ml)
+      (-> linearTwoVarEqualityDomain.no-apron.ml)
+    )
+    (select relationAnalysis.ml from
+      (apron -> relationAnalysis.apron.ml)
+      (-> relationAnalysis.no-apron.ml)
+    )
+    (select relationPriv.ml from
+      (apron -> relationPriv.apron.ml)
+      (-> relationPriv.no-apron.ml)
+    )
+    (select relationDomain.ml from
+      (apron -> relationDomain.apron.ml)
+      (-> relationDomain.no-apron.ml)
+    )
+    (select relationPrecCompareUtil.ml from
+      (apron -> relationPrecCompareUtil.apron.ml)
+      (-> relationPrecCompareUtil.no-apron.ml)
+    )
+    (select sharedFunctions.ml from
+      (apron -> sharedFunctions.apron.ml)
+      (-> sharedFunctions.no-apron.ml)
     )
     (select violationZ3.ml from
       (z3 !js_of_ocaml -> violationZ3.z3.ml) ; disable in js because no z3 js stubs
       (-> violationZ3.no-z3.ml)
     )
   )
+  (flags :standard -open Goblint_std -open Goblint_logs)
+  (ocamlopt_flags :standard -no-float-const-prop)
   (preprocess
-    (pps ppx_deriving.std ppx_deriving_hash ppx_deriving_yojson
-      ppx_distr_guards ocaml-monadic ppx_blob))
-  (preprocessor_deps (file util/options.schema.json))
+    (pps ppx_deriving.std ppx_deriving_hash ppx_deriving_yojson ppx_blob ppx_deriving_printable ppx_deriving_lattice))
+  (instrumentation (backend bisect_ppx))
 )
 
 ; Workaround for alternative dependencies with unqualified subdirs.
@@ -45,64 +85,54 @@
 (copy_files# cdomains/apron/*.ml)
 (copy_files# analyses/apron/*.ml)
 (copy_files# util/apron/*.ml)
-(copy_files# witness/z3/*.ml)
+(copy_files# arg/z3/*.ml)
 
 (executables
-  (names goblint mainarinc mainspec)
-  (public_names goblint - -)
+  (names goblint)
+  (public_names goblint)
   (modes byte native) ; https://dune.readthedocs.io/en/stable/dune-files.html#linking-modes
-  (modules goblint mainarinc mainspec)
-  (libraries goblint.lib goblint.sites.dune)
-  (preprocess (pps ppx_deriving.std ppx_deriving_hash ppx_deriving_yojson ppx_distr_guards ocaml-monadic))
-  (flags :standard -linkall)
+  (modules goblint)
+  (libraries goblint.lib goblint_std)
+  (preprocess (pps ppx_deriving.std ppx_deriving_hash ppx_deriving_yojson))
+  (flags :standard -linkall -open Goblint_std)
 )
 
 (executable
   (name privPrecCompare)
   (modules privPrecCompare)
-  (libraries goblint.lib goblint.sites.dune)
-  (preprocess (pps ppx_deriving.std ppx_deriving_hash ppx_deriving_yojson ppx_distr_guards ocaml-monadic))
-  (flags :standard -linkall)
+  (libraries goblint.lib goblint_std)
+  (preprocess (pps ppx_deriving.std ppx_deriving_hash ppx_deriving_yojson))
+  (flags :standard -linkall -open Goblint_std)
 )
 
 (executable
   (name apronPrecCompare)
   (modules apronPrecCompare)
-  (libraries goblint.lib goblint.sites.dune)
-  (preprocess (pps ppx_deriving.std ppx_deriving_hash ppx_deriving_yojson ppx_distr_guards ocaml-monadic))
-  (flags :standard -linkall)
+  (libraries goblint.lib goblint_std)
+  (preprocess (pps ppx_deriving.std ppx_deriving_hash ppx_deriving_yojson))
+  (flags :standard -linkall -open Goblint_std)
 )
 
 (executable
   (name messagesCompare)
   (modules messagesCompare)
-  (libraries goblint.lib goblint.sites.dune)
-  (preprocess (pps ppx_deriving.std ppx_deriving_hash ppx_deriving_yojson ppx_distr_guards ocaml-monadic))
-  (flags :standard -linkall)
-)
-
-(rule
-  (target configVersion.ml)
-  (mode (promote (until-clean) (only configVersion.ml))) ; replace existing file in source tree, even if releasing (only overrides)
-  (deps (universe)) ; do not cache, always regenerate
-  (action (pipe-stdout (run git describe --all --long --dirty) (with-stdout-to %{target} (bash "xargs printf '(* Automatically regenerated, changes do not persist! *)\nlet version = \"%s\"'")))))
-
-(rule
-  (target configProfile.ml)
-  (mode (promote (until-clean) (only configProfile.ml))) ; replace existing file in source tree, even if releasing (only overrides)
-  (action (write-file %{target} "(* Automatically regenerated, changes do not persist! *)\nlet profile = \"%{profile}\"")))
-
-(rule
-  (alias runtest)
-  (deps ../goblint ../scripts/update_suite.rb ../Makefile ../make.sh (source_tree ../tests/regression) (source_tree ../includes) (source_tree ../linux-headers))
-  (action (chdir .. (run ./make.sh test)))
+  (libraries goblint.lib goblint_std)
+  (preprocess (pps ppx_deriving.std ppx_deriving_hash ppx_deriving_yojson))
+  (flags :standard -linkall -open Goblint_std)
 )
 
 (env
+  (release
+    (flags (:standard -warn-error -A -w -unused-var-strict -w -unused-functor-parameter -w +9)) ; https://dune.readthedocs.io/en/stable/faq.html#how-to-make-warnings-non-fatal
+  (ocamlopt_flags
+    (:standard -O3))
+  )
   (dev
-    (flags (:standard -warn-error -A -w -unused-var-strict)) ; https://dune.readthedocs.io/en/stable/faq.html#how-to-make-warnings-non-fatal
+    (flags (:standard -warn-error -A -w -unused-var-strict -w -unused-functor-parameter -w +9)) ; https://dune.readthedocs.io/en/stable/faq.html#how-to-make-warnings-non-fatal
   )
   (trace
-    (flags (:standard -warn-error -A -w -unused-var-strict)) ; https://dune.readthedocs.io/en/stable/faq.html#how-to-make-warnings-non-fatal
+    (flags (:standard -opaque -warn-error -A -w -unused-var-strict -w -unused-functor-parameter -w +9)) ; https://dune.readthedocs.io/en/stable/faq.html#how-to-make-warnings-non-fatal
   )
 )
+
+(documentation)

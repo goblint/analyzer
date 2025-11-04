@@ -1,0 +1,25 @@
+- entry_type: invariant_set
+  metadata:
+    format_version: "2.0"
+    uuid: 8c07adbd-908d-45be-af99-943634ad66b4
+    creation_time: 2022-10-07T13:43:40Z
+    producer:
+      name: Simmo Saan
+      version: n/a
+    task:
+      input_files:
+      - 33-base-unassume-lor-enums.c
+      input_file_hashes:
+        33-base-unassume-lor-enums.c: 5014d96b45984600f1ce8a4f6f208ab856539c33e7124a71e41836a1a2cbdd40
+      data_model: LP64
+      language: C
+  content:
+  - invariant:
+      type: location_invariant
+      location:
+        file_name: 33-base-unassume-lor-enums.c
+        line: 7
+        column: 3
+        function: main
+      value: i == 0 || i == 1 || i == 2
+      format: c_expression

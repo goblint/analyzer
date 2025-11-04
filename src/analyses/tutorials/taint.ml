@@ -1,10 +1,15 @@
-(** An analysis specification for didactic purposes. *)
-(* Helpful link on CIL: https://goblint.in.tum.de/assets/goblint-cil/ *)
-(* Goblint documentation: https://goblint.readthedocs.io/en/latest/ *)
-(* You may test your analysis on our toy examples by running `ruby scripts/update_suite.rb group tutorials` *)
+(** Simple interprocedural taint analysis template ([taint]). *)
 
-open Prelude.Ana
+(** An analysis specification for didactic purposes. *)
+(* Goblint documentation: https://goblint.readthedocs.io/en/latest/ *)
+(* Helpful link on CIL: https://goblint.github.io/cil/ *)
+(* You may test your analysis on our toy examples by running `ruby scripts/update_suite.rb group tutorials` *)
+(* after removing the `SKIP` from the beginning of the tests in tests/regression/99-tutorials/{03-taint_simple.c,04-taint_inter.c} *)
+
+open GoblintCil
 open Analyses
+
+module VarinfoSet = SetDomain.Make(CilType.Varinfo)
 
 (* Use to check if a specific function is a sink / source *)
 let is_sink varinfo = Cil.hasAttribute "taint_sink" varinfo.vattr
@@ -14,7 +19,7 @@ let is_source varinfo = Cil.hasAttribute "taint_source" varinfo.vattr
 (** "Fake" variable to handle returning from a function *)
 let return_varinfo = dummyFunDec.svar
 
-module Spec : Analyses.MCPSpec with module D = SetDomain.Make(CilType.Varinfo) and module C = Lattice.Unit =
+module Spec : Analyses.MCPSpec =
 struct
   include Analyses.DefaultSpec
 
@@ -23,7 +28,8 @@ struct
   module C = Lattice.Unit
 
   (* We are context insensitive in this analysis *)
-  let context _ _ = ()
+  let context man _ _ = ()
+  let startcontext () = ()
 
   (** Determines whether an expression [e] is tainted, given a [state]. *)
   let rec is_exp_tainted (state:D.t) (e:Cil.exp) = match e with
@@ -39,7 +45,7 @@ struct
     | CastE (_,e)
     | UnOp (_,e,_) -> is_exp_tainted state e
     | SizeOf _ | SizeOfStr _ | Const _  | AlignOf _ | AddrOfLabel _ -> false
-    | Question _ -> failwith "should be optimized away by CIL"
+    | Question (b, t, f, _) -> is_exp_tainted state b || is_exp_tainted state t || is_exp_tainted state f
   and is_lval_tainted state = function
     | (Var v, _) -> D.mem v state
     | _ ->
@@ -64,7 +70,7 @@ struct
     ctx.local
 
   (** Handles going from start node of function [f] into the function body of [f].
-      Meant to handle e.g. initializiation of local variables. *)
+      Meant to handle e.g. initialization of local variables. *)
   let body ctx (f:fundec) : D.t =
     (* Nothing needs to be done here, as the (non-formals) locals are initally untainted *)
     ctx.local
@@ -88,14 +94,25 @@ struct
     (* first component is state of caller, second component is state of callee *)
     [caller_local, callee_state]
 
+
   (** For a function call "lval = f(args)" or "f(args)",
-      computes the state of the caller after the call.
-      Argument [callee_local] is the state at the return node of [f]. *)
-  let combine ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (callee_local:D.t) : D.t =
-    let caller_local = ctx.local in
-    match lval with
-    | Some (Var v,_) when D.mem return_varinfo callee_local -> D.add v caller_local
-    | _ -> caller_local
+      computes the global environment state of the caller after the call.
+      Argument [callee_local] is the state of [f] at its return node. *)
+  let combine_env man (lval:lval option) fexp (f:fundec) (args:exp list) fc (callee_local:D.t) (f_ask: Queries.ask): D.t =
+    (* Nothing needs to be done *)
+    man.local
+
+  (** For a function call "lval = f(args)" or "f(args)",
+      computes the state of the caller after assigning the return value from the call.
+      Argument [callee_local] is the state of [f] at its return node. *)
+  let combine_assign man (lval:lval option) fexp (f:fundec) (args:exp list) fc (callee_local:D.t) (f_ask: Queries.ask): D.t =
+    let caller_state = man.local in
+    (* TODO: Record whether lval was tainted. *)
+     match lval with
+    | Some (Var v,_) when D.mem return_varinfo callee_local -> D.add v caller_state
+    | _ -> caller_state
+
+
 
   (** For a call to a _special_ function f "lval = f(args)" or "f(args)",
       computes the caller state after the function call.
@@ -124,8 +141,8 @@ struct
 
   (* You may leave these alone *)
   let startstate v = D.bot ()
-  let threadenter ctx lval f args = [D.top ()]
-  let threadspawn ctx lval f args fctx = ctx.local
+  let threadenter man ~multiple lval f args = [D.top ()]
+  let threadspawn man ~multiple lval f args fman = man.local
   let exitstate  v = D.top ()
 end
 

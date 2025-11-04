@@ -1,0 +1,61 @@
+- entry_type: invariant_set
+  metadata:
+    format_version: "2.0"
+    uuid: e5802c77-d0ac-4f91-a0ac-c97ba97697d5
+    creation_time: 2022-06-16T06:37:52Z
+    producer:
+      name: Simmo Saan
+      version: n/a
+    task:
+      input_files:
+      - 01-base-lor-enums.c
+      input_file_hashes:
+        01-base-lor-enums.c: 5f686f726d140fbb7f3052f778e99aa09e3807cc6972a4d4905df2f6ed0c3e01
+      data_model: LP64
+      language: C
+  content:
+  - invariant:
+      type: location_invariant
+      location:
+        file_name: 01-base-lor-enums.c
+        line: 17
+        column: 3
+        function: main
+      value: (x == 1 || x == 3) || x == 6
+      format: c_expression
+  - invariant:
+      type: location_invariant
+      location:
+        file_name: 01-base-lor-enums.c
+        line: 18
+        column: 3
+        function: main
+      value: (x == 1 || x == 3) || x == 7
+      format: c_expression
+  - invariant:
+      type: location_invariant
+      location:
+        file_name: 01-base-lor-enums.c
+        line: 29
+        column: 3
+        function: main
+      value: y == 11 || y == x
+      format: c_expression
+  - invariant:
+      type: location_invariant
+      location:
+        file_name: 01-base-lor-enums.c
+        line: 30
+        column: 3
+        function: main
+      value: (y == 1 || y == 3) || y == 6 || y == 11
+      format: c_expression
+  - invariant:
+      type: location_invariant
+      location:
+        file_name: 01-base-lor-enums.c
+        line: 31
+        column: 3
+        function: main
+      value: y == 42 || y == x
+      format: c_expression

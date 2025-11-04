@@ -1,4 +1,4 @@
-#include<assert.h>
+#include <goblint.h>
 int main(){
   signed char x;
   unsigned char y;
@@ -10,5 +10,5 @@ int main(){
     // Unreachable
     x = 12;
   }
-  assert(x== -32);
+  __goblint_check(x== -32);
 }

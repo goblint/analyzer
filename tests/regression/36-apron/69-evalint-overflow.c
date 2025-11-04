@@ -1,4 +1,6 @@
 // SKIP PARAM: --set ana.activated[+] apron --set ana.path_sens[+] threadflag --enable ana.int.interval
+#include <goblint.h>
+
 int main(void) {
   unsigned int x = 10;
 
@@ -6,5 +8,5 @@ int main(void) {
     x += 2;
   }
 
-  assert(1);
+  __goblint_check(1);
 }

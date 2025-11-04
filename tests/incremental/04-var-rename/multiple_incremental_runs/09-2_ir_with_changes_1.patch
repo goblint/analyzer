@@ -1,0 +1,23 @@
+--- tests/incremental/04-var-rename/09-2_ir_with_changes_1.c
++++ tests/incremental/04-var-rename/09-2_ir_with_changes_1.c
+@@ -1,13 +1,14 @@
+ void foo() {
+-    int fooOne = 1;
+-    fooOne++;
+-    __goblint_check(fooOne == 2);
++    int fooTwo = 1;
++    fooTwo++;
++    __goblint_check(fooTwo == 2);
+ }
+
+ void bar() {
+-    int barOne = 10;
+-    if (barOne < 11) barOne = 20;
+-    __goblint_check(barOne == 20);
++    int barTwo = 10;
++    int x = 3;
++    if (x < 11) barTwo = 13;
++    __goblint_check(x > 1);
+ }
+
+ int main() {

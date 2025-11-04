@@ -1,3 +1,5 @@
+#include <goblint.h>
+
 extern int printf(char *, ...);
 extern int scanf(char *, ...);
 
@@ -9,6 +11,6 @@ void proc () {
 
 main () {
   proc();
-  assert(i == 11);
+  __goblint_check(i == 11);
   printf("The square is  %d .\n", i * i);
 }

@@ -1,7 +1,8 @@
 #include <errno.h>
+#include <goblint.h>
 
 int main(){
 	errno = 1;
-  assert(errno); // UNKNOWN!
+  __goblint_check(errno); // UNKNOWN!
 	return 0;
 }

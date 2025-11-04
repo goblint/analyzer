@@ -21,6 +21,6 @@ main () {
   init(&d, 2, 2);
   c = d;
   d.im = -3;
-  assert(d.re == 1); // TODO (float)
+  __goblint_check(d.re == 1); // TODO (float)
   print(&c);
 }

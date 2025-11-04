@@ -1,4 +1,4 @@
-#include<assert.h>
+#include <goblint.h>
 #include<stdlib.h>
 int main(){
     int *ptr = NULL;
@@ -7,6 +7,6 @@ int main(){
     if((unsigned long )null == (unsigned long ) ptr){
         a++;
     }
-    assert(a == 1);
+    __goblint_check(a == 1);
     return 0;
 }

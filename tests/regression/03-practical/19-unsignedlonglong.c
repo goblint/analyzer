@@ -1,4 +1,4 @@
-#include<assert.h>
+#include <goblint.h>
 
 int main() {
   int i;
@@ -8,5 +8,5 @@ int main() {
   j = 100;
 
   j = (unsigned long long) i;
-  assert(j == 10);
+  __goblint_check(j == 10);
 }

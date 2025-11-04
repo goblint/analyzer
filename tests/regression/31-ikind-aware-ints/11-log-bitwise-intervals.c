@@ -1,6 +1,6 @@
 //PARAM: --disable ana.int.def_exc --disable ana.int.enums --enable ana.int.interval
 
-#include<assert.h>
+#include <goblint.h>
 #include<stdio.h>
 
 int main(){
@@ -11,36 +11,36 @@ int main(){
     int z;
 
     // logical and
-    assert((x && y) == 1);
+    __goblint_check((x && y) == 1);
 
     z = x & y; // bitwise and
-    assert(z == 2);
+    __goblint_check(z == 2);
 
     // logical or
-    assert((x || y) == 1);
+    __goblint_check((x || y) == 1);
 
-    assert((x || 1) == 1);
+    __goblint_check((x || 1) == 1);
 
     z = x | y; // bitwise or
-    assert(z == 3);
+    __goblint_check(z == 3);
 
     z = x ^ y; // bitwise xor
-    assert(z == 1);
+    __goblint_check(z == 1);
 
     // logical negation
-    assert(!x == 0);
+    __goblint_check(!x == 0);
 
     z = !n;
-    assert(z == 1);
+    __goblint_check(z == 1);
 
     z = ~x; // bitwise negation
-    assert(z == -3);
+    __goblint_check(z == -3);
 
     z = x << y; // shift left
-    assert(z == 16);
+    __goblint_check(z == 16);
 
     z = m >> x; // shift right
-    assert(z == 6);
+    __goblint_check(z == 6);
 
     return 0;
 }

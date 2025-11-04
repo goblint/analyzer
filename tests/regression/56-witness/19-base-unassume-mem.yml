@@ -1,0 +1,34 @@
+- entry_type: invariant_set
+  metadata:
+    format_version: "2.0"
+    uuid: ddb9942d-998c-425d-a74f-228044bc38fb
+    creation_time: 2022-09-01T10:15:07Z
+    producer:
+      name: Simmo Saan
+      version: n/a
+    task:
+      input_files:
+      - 19-base-unassume-mem.c
+      input_file_hashes:
+        19-base-unassume-mem.c: d71d7065e36b8e0a2c42c96e5f6ea057d28065adae2d85b516989b8d43e77c91
+      data_model: LP64
+      language: C
+  content:
+  - invariant:
+      type: location_invariant
+      location:
+        file_name: 19-base-unassume-mem.c
+        line: 14
+        column: 3
+        function: main
+      value: '*p >= 0'
+      format: c_expression
+  - invariant:
+      type: location_invariant
+      location:
+        file_name: 19-base-unassume-mem.c
+        line: 14
+        column: 3
+        function: main
+      value: '*p <= 10'
+      format: c_expression

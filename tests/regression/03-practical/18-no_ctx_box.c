@@ -1,4 +1,4 @@
-// SKIP PARAM: --set ana.activated[-] mutex --set solver "'new'" --set ana.ctx_insens[+] base --set ana.ctx_insens[+] escape --set ana.base.privatization none
+// SKIP PARAM: --set ana.activated[-] mutex --set solver "'new'" --set ana.ctx_insens[+] base --set ana.ctx_insens[+] escape
 void write(int **p){
   *p=1;
 }

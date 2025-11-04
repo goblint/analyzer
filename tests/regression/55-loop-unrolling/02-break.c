@@ -1,4 +1,6 @@
-// PARAM: --set exp.unrolling-factor 5
+// PARAM: --set exp.unrolling-factor 5  --enable dbg.run_cil_check
+#include <goblint.h>
+
 int main(void) {
 	int r=5;
     for (int i = 0; i < 2; ++i) {
@@ -12,6 +14,6 @@ int main(void) {
 		break;
 	}
 
-	assert(r==17);
+	__goblint_check(r==17);
 	return 0;
 }

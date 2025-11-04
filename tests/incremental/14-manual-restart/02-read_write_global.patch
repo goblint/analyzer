@@ -1,0 +1,34 @@
+diff --git tests/incremental/14-manual-restart/02-read_write_global.c tests/incremental/14-manual-restart/02-read_write_global.c
+index 8a93caabe..521322dd0 100644
+--- tests/incremental/14-manual-restart/02-read_write_global.c
++++ tests/incremental/14-manual-restart/02-read_write_global.c
+@@ -1,12 +1,12 @@
+ int g = 0;
+
+ void foo(){
+-    g = 1;
++    g = 2;
+ }
+
+ void bar(){
+     int x = g;
+-    __goblint_check(x % 2 == 0); // UNKNOWN (imprecision caused by earlyglobs)
++    __goblint_check(x % 2 == 0);
+ }
+
+ int main(){
+diff --git tests/incremental/14-manual-restart/02-read_write_global.json tests/incremental/14-manual-restart/02-read_write_global.json
+index 33dd19da4..0820029df 100644
+--- tests/incremental/14-manual-restart/02-read_write_global.json
++++ tests/incremental/14-manual-restart/02-read_write_global.json
+@@ -13,7 +13,9 @@
+             "sided": {
+                 "enabled": false
+             },
+-            "list": []
++            "list": [
++                "g"
++            ]
+         }
+     }
+ }

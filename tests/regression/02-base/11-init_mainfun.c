@@ -1,10 +1,11 @@
 // PARAM: --set otherfun "['f']" --enable exp.earlyglobs
+#include <goblint.h>
 
 int glob;
 
 void f() {
   int i = glob;
-  assert(i == 0);
+  __goblint_check(i == 0);
 }
 
 int main(void *arg) {

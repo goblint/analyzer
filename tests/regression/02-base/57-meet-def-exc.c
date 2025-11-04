@@ -1,4 +1,4 @@
-// PARAM: --set solver td3
+// NOCHECK
 void main(void) {
     int x;
     int i = 41;

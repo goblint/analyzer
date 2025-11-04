@@ -1,5 +1,5 @@
 #include<stdio.h>
-#include<assert.h>
+#include <goblint.h>
 
 int t;
 
@@ -35,14 +35,14 @@ int main () {
   int a = 1;
 
   rec1(0);
-  assert(t == 5);
+  __goblint_check(t == 5);
 
   rec2(&a, 0);
   printf("a = %d\n", a);
-  assert(a == 0);
+  __goblint_check(a == 0);
 
   a = fact(6);
-  assert(a == 720);
+  __goblint_check(a == 720);
 
   return 0;
 }

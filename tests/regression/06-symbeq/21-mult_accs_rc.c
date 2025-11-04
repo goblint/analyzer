@@ -1,4 +1,4 @@
-// PARAM: --disable ana.mutex.disjoint_types --set ana.activated[+] "'var_eq'"  --set ana.activated[+] "'symb_locks'"
+// PARAM: --enable ana.race.direct-arithmetic --set ana.activated[+] "'var_eq'"  --set ana.activated[+] "'symb_locks'"
 #include<pthread.h>
 
 struct s {
@@ -14,7 +14,7 @@ void *t_fun(void *arg) {
   pthread_mutex_lock(&s->mutex);
   s = get_s();
   s->data = 5; // RACE!
-  pthread_mutex_lock(&s->mutex);
+  pthread_mutex_unlock(&s->mutex);
   return NULL;
 }
 

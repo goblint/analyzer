@@ -1,3 +1,4 @@
+// PARAM:  --set lib.activated[+] sv-comp
 #include <pthread.h>
 #include <stdio.h>
 #include "racemacros.h"
@@ -5,20 +6,20 @@
 int global = 0;
 pthread_mutex_t gm = PTHREAD_MUTEX_INITIALIZER;
 
-void bad() { 
+void bad() {
   access(global);
-} 
-void good() { 
+}
+void good() {
   pthread_mutex_lock(&gm);
   access(global);
   pthread_mutex_unlock(&gm);
 }
 
-void (*f)() = good;
+void (*f)(void) = good;
 pthread_mutex_t fm = PTHREAD_MUTEX_INITIALIZER;
 
 void *t_fun(void *arg) {
-  void (*g)();
+  void (*g)(void);
 
   pthread_mutex_lock(&fm);
   g = f;

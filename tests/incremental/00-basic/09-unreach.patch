@@ -1,0 +1,17 @@
+--- tests/incremental/00-basic/09-unreach.c
++++ tests/incremental/00-basic/09-unreach.c
+@@ -2,13 +2,12 @@
+
+ void foo() {
+   int x = 2;
+-  __goblint_check(x == 3); //FAIL
++  __goblint_check(x == 3); //NOWARN
+ }
+
+ int main() {
+   int a = 1;
+
+-  foo();
+
+   return 0;
+ }

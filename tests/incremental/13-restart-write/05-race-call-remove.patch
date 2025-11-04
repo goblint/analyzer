@@ -1,0 +1,25 @@
+diff --git tests/incremental/13-restart-write/05-race-call-remove.c tests/incremental/13-restart-write/05-race-call-remove.c
+index cf9f5c713..20e09db1a 100644
+--- tests/incremental/13-restart-write/05-race-call-remove.c
++++ tests/incremental/13-restart-write/05-race-call-remove.c
+@@ -4,17 +4,16 @@
+ int g;
+ 
+ void *t_fun(void *arg) {
+-  g++; // RACE!
++  g++; // NORACE (unique thread)
+   return NULL;
+ }
+ 
+ void foo() {
+-  g++; // RACE!
++  g++; // NORACE
+ }
+ 
+ int main() {
+   pthread_t id;
+   pthread_create(&id, NULL, t_fun, NULL);
+-  foo();
+   return 0;
+ }
+\ No newline at end of file

@@ -1,6 +1,6 @@
 #include<stdlib.h>
 #include<stdio.h>
-#include<assert.h>
+#include <goblint.h>
 
 main () {
   int x;
@@ -10,6 +10,6 @@ main () {
     exit(0);
   }
   printf("The number was not zero.\n");
-  assert(x == 7);
+  __goblint_check(x == 7);
   return 0;
 }

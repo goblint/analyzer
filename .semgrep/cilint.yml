@@ -1,0 +1,62 @@
+rules:
+  - id: cilint-to_string
+    pattern: Cilint.string_of_cilint
+    fix: Z.to_string
+    message: use Z instead
+    languages: [ocaml]
+    severity: WARNING
+
+  - id: cilint-compare
+    pattern: Cilint.compare_cilint
+    fix: Z.compare
+    message: use Z instead
+    languages: [ocaml]
+    severity: WARNING
+
+  - id: cilint-zero
+    pattern: Cilint.zero_cilint
+    fix: Z.zero
+    message: use Z instead
+    languages: [ocaml]
+    severity: WARNING
+
+  - id: cilint-is-zero
+    pattern: Cilint.is_zero_cilint $X
+    fix: Z.equal $X Z.zero
+    message: use Z instead
+    languages: [ocaml]
+    severity: WARNING
+
+  - id: cilint-to_int
+    pattern: Cilint.int_of_cilint
+    fix: Z.to_int
+    message: use Z instead
+    languages: [ocaml]
+    severity: WARNING
+
+  - id: cilint-of_big_int
+    pattern: Cilint.cilint_of_big_int $X
+    fix: $X
+    message: Cilint is Z
+    languages: [ocaml]
+    severity: WARNING
+
+  - id: cilint-to_big_int
+    pattern: Cilint.big_int_of_cilint $X
+    fix: $X
+    message: Cilint is Z
+    languages: [ocaml]
+    severity: WARNING
+
+  - id: cilint-t
+    pattern: Cilint.cilint
+    fix: Z.t
+    message: use Z instead
+    languages: [ocaml]
+    severity: WARNING
+
+  - id: cilint-open
+    pattern: open Cilint
+    message: use Z instead
+    languages: [ocaml]
+    severity: WARNING

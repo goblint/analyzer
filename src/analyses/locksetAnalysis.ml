@@ -15,10 +15,10 @@ struct
   let name () = "lockset"
 
   module D = D
-  module C = D
+  include Analyses.ValueContexts(D)
 
   let startstate v = D.empty ()
-  let threadenter ctx lval f args = [D.empty ()]
+  let threadenter man ~multiple lval f args = [D.empty ()]
   let exitstate  v = D.empty ()
 end
 
@@ -27,10 +27,10 @@ module type MayArg =
 sig
   module D: DS
   module G: Lattice.S
-  module V: Printable.S
+  module V: SpecSysVar
 
-  val add: (D.t, G.t, D.t, V.t) ctx -> LockDomain.Lockset.Lock.t -> D.t
-  val remove: (D.t, G.t, D.t, V.t) ctx -> ValueDomain.Addr.t -> D.t
+  val add: (D.t, G.t, D.t, V.t) man -> LockDomain.AddrRW.t -> D.t
+  val remove: (D.t, G.t, D.t, V.t) man -> ValueDomain.Addr.t -> D.t
 end
 
 module MakeMay (Arg: MayArg) =
@@ -41,25 +41,25 @@ struct
   module G = Arg.G
   module V = Arg.V
 
-  let event ctx e octx =
+  let event man e oman =
     match e with
     | Events.Lock l ->
-      Arg.add ctx l (* add all locks, including blob and unknown *)
+      Arg.add man l (* add all locks, including blob and unknown *)
     | Events.Unlock UnknownPtr ->
-      ctx.local (* don't remove any locks, including unknown itself *)
-    | Events.Unlock Addr (v, _) when ctx.ask (IsMultiple v) ->
-      ctx.local (* don't remove non-unique lock *)
+      man.local (* don't remove any locks, including unknown itself *)
+    | Events.Unlock Addr (v, _) when man.ask (IsMultiple v) ->
+      man.local (* don't remove non-unique lock *)
     | Events.Unlock l ->
-      Arg.remove ctx l (* remove definite lock or none in parallel if ambiguous *)
+      Arg.remove man l (* remove definite lock or none in parallel if ambiguous *)
     | _ ->
-      ctx.local
+      man.local
 end
 
 
 module type MustArg =
 sig
   include MayArg
-  val remove_all: (D.t, _, D.t, _) ctx -> D.t
+  val remove_all: (D.t, _, D.t, _) man -> D.t
 end
 
 module MakeMust (Arg: MustArg) =
@@ -70,18 +70,18 @@ struct
   module G = Arg.G
   module V = Arg.V
 
-  let event ctx e octx =
+  let event man e oman =
     match e with
     | Events.Lock (UnknownPtr, _) ->
-      ctx.local (* don't add unknown lock *)
-    | Events.Lock (Addr (v, _), _) when ctx.ask (IsMultiple v) ->
-      ctx.local (* don't add non-unique lock *)
+      man.local (* don't add unknown lock *)
+    | Events.Lock (Addr (v, _), _) when man.ask (IsMultiple v) ->
+      man.local (* don't add non-unique lock *)
     | Events.Lock l ->
-      Arg.add ctx l (* add definite lock or none in parallel if ambiguous *)
+      Arg.add man l (* add definite lock or none in parallel if ambiguous *)
     | Events.Unlock UnknownPtr ->
-      Arg.remove_all ctx (* remove all locks *)
+      Arg.remove_all man (* remove all locks *)
     | Events.Unlock l ->
-      Arg.remove ctx l (* remove definite lock or all in parallel if ambiguous (blob lock is never added) *)
+      Arg.remove man l (* remove definite lock or all in parallel if ambiguous (blob lock is never added) *)
     | _ ->
-      ctx.local
+      man.local
 end

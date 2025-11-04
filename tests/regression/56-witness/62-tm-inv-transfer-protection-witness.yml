@@ -1,0 +1,66 @@
+- entry_type: invariant_set
+  metadata:
+    format_version: "2.0"
+    uuid: 616f1f47-6b4f-42b4-a6d0-5b0e96c46d04
+    creation_time: 2025-03-10T08:52:01Z
+    producer:
+      name: Goblint
+      version: heads/tm-inv-transfer-0-g2297ee03e-dirty
+      command_line: '''../../../goblint'' ''--set'' ''solvers.td3.side_widen'' ''never''
+        ''--enable'' ''ana.int.interval'' ''--set'' ''ana.base.privatization'' ''mine''
+        ''--enable'' ''witness.yaml.enabled'' ''--disable'' ''witness.invariant.other''
+        ''--set'' ''witness.yaml.entry-types[*]'' ''invariant_set'' ''--set'' ''witness.yaml.format-version''
+        ''2.0'' ''62-tm-inv-transfer-protection-witness.c'''
+    task:
+      input_files:
+      - 62-tm-inv-transfer-protection-witness.c
+      input_file_hashes:
+        62-tm-inv-transfer-protection-witness.c: 092126836eb79039199015ac90bff562d5e53fcd1c9d793373dec577edd4c71b
+      data_model: LP64
+      language: C
+  content:
+  - invariant:
+      type: location_invariant
+      location:
+        file_name: 62-tm-inv-transfer-protection-witness.c
+        line: 27
+        column: 3
+        function: main
+      value: 40 <= g
+      format: c_expression
+  - invariant:
+      type: location_invariant
+      location:
+        file_name: 62-tm-inv-transfer-protection-witness.c
+        line: 27
+        column: 3
+        function: main
+      value: g <= 41
+      format: c_expression
+  - invariant:
+      type: location_invariant
+      location:
+        file_name: 62-tm-inv-transfer-protection-witness.c
+        line: 10
+        column: 3
+        function: t_fun
+      value: 40 <= g
+      format: c_expression
+  - invariant:
+      type: location_invariant
+      location:
+        file_name: 62-tm-inv-transfer-protection-witness.c
+        line: 10
+        column: 3
+        function: t_fun
+      value: g <= 41
+      format: c_expression
+  - invariant:
+      type: location_invariant
+      location:
+        file_name: 62-tm-inv-transfer-protection-witness.c
+        line: 10
+        column: 3
+        function: t_fun
+      value: (unsigned long )arg == 0UL
+      format: c_expression

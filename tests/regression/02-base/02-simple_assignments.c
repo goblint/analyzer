@@ -1,5 +1,5 @@
 #include<pthread.h>
-#include<assert.h>
+#include <goblint.h>
 
 void *t_fun(void *arg) {
   return NULL;
@@ -16,15 +16,15 @@ int main() {
   pthread_create(&id, NULL, t_fun, NULL);
 
   // Simple assignments to only locals
-  assert(i == 3);
+  __goblint_check(i == 3);
   i = 9;
-  assert(i == 9);
+  __goblint_check(i == 9);
 
   // simple assignments to globals
   glob1 = 5;
-  assert(glob1 == 5);
+  __goblint_check(glob1 == 5);
   glob2 = 5;
-  assert(glob2 == 5); // TODO
+  __goblint_check(glob2 == 5); // TODO
 
   return 0;
 }

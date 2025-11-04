@@ -1,13 +1,12 @@
-(** Access and data race analysis. *)
+(** Analysis of memory accesses ([access]). *)
 
-module M = Messages
 module LF = LibraryFunctions
-open Prelude.Ana
+open GoblintCil
 open Analyses
 open GobConfig
 
 
-(** Access and data race analyzer without base --- this is the new standard *)
+(** Access analyzer without base --- this is the new standard *)
 module Spec =
 struct
   include Analyses.DefaultSpec
@@ -15,210 +14,137 @@ struct
   let name () = "access"
 
   module D = Lattice.Unit
-  module C = Lattice.Unit
+  include Analyses.ValueContexts(D)
 
-  module G =
+  module V =
   struct
-    include Access.AS
-
-    let leq x y = !GU.postsolving || leq x y (* HACK: to pass verify*)
+    include Node
+    let is_write_only _ = true
   end
-  module V = Printable.Prod (Access.LVOpt) (Access.T)
+  module G = AccessDomain.EventSet
 
-  let safe       = ref 0
-  let vulnerable = ref 0
-  let unsafe     = ref 0
+  let collect_local = ref false
+  let emit_single_threaded = ref false
 
-  let init marshal =
-    safe := 0;
-    vulnerable := 0;
-    unsafe := 0
+  let init _ =
+    collect_local := get_bool "witness.yaml.enabled" && get_bool "witness.invariant.accessed";
+    let activated = get_string_list "ana.activated" in
+    emit_single_threaded := List.mem (ModifiedSinceSetjmp.Spec.name ()) activated || List.mem (PoisonVariables.Spec.name ()) activated
 
-  let side_access ctx ty lv_opt (conf, w, loc, e, a) =
-    let d =
-      if !GU.should_warn then
-        Access.AS.singleton (conf, w, loc, e, a)
-      else
-        G.bot () (* HACK: just to pass validation with MCP DomVariantLattice *)
-    in
-    ctx.sideg (lv_opt, ty) d
+  let do_access (man: (D.t, G.t, C.t, V.t) man) (kind:AccessKind.t) (reach:bool) (e:exp) =
+    if M.tracing then M.trace "access" "do_access %a %a %B" d_exp e AccessKind.pretty kind reach;
+    let reach_or_mpt: _ Queries.t = if reach then ReachableFrom e else MayPointTo e in
+    let ad = man.ask reach_or_mpt in
+    man.emit (Access {exp=e; ad; kind; reach})
 
-  let do_access (ctx: (D.t, G.t, C.t, V.t) ctx) (w:bool) (reach:bool) (conf:int) (e:exp) =
-    let open Queries in
-    let part_access ctx (e:exp) (vo:varinfo option) (w: bool): MCPAccess.A.t =
-      ctx.emit (Access {var_opt=vo; write=w});
-      (*partitions & locks*)
-      Obj.obj (ctx.ask (PartAccess (Memory {exp=e; var_opt=vo; write=w})))
-    in
-    let add_access conf vo oo =
-      let a = part_access ctx e vo w in
-      Access.add (side_access ctx) e w conf vo oo a;
-    in
-    let add_access_struct conf ci =
-      let a = part_access ctx e None w in
-      Access.add_struct (side_access ctx) e w conf (`Struct (ci,`NoOffset)) None a
-    in
-    let has_escaped g = ctx.ask (Queries.MayEscape g) in
-    (* The following function adds accesses to the lval-set ls
-       -- this is the common case if we have a sound points-to set. *)
-    let on_lvals ls includes_uk =
-      let ls = LS.filter (fun (g,_) -> g.vglob || has_escaped g) ls in
-      let conf = if reach then conf - 20 else conf in
-      let conf = if includes_uk then conf - 10 else conf in
-      let f (var, offs) =
-        let coffs = Lval.CilLval.to_ciloffs offs in
-        if CilType.Varinfo.equal var dummyFunDec.svar then
-          add_access conf None (Some coffs)
-        else
-          add_access conf (Some var) (Some coffs)
-      in
-      LS.iter f ls
-    in
-    let reach_or_mpt = if reach then ReachableFrom e else MayPointTo e in
-    match ctx.ask reach_or_mpt with
-    | ls when not (LS.is_top ls) && not (Queries.LS.mem (dummyFunDec.svar,`NoOffset) ls) ->
-      (* the case where the points-to set is non top and does not contain unknown values *)
-      on_lvals ls false
-    | ls when not (LS.is_top ls) ->
-      (* the case where the points-to set is non top and contains unknown values *)
-      let includes_uk = ref false in
-      (* now we need to access all fields that might be pointed to: is this correct? *)
-      begin match ctx.ask (ReachableUkTypes e) with
-        | ts when Queries.TS.is_top ts ->
-          includes_uk := true
-        | ts ->
-          if Queries.TS.is_empty ts = false then
-            includes_uk := true;
-          let f = function
-            | TComp (ci, _) ->
-              add_access_struct (conf - 50) ci
-            | _ -> ()
-          in
-          Queries.TS.iter f ts
-      end;
-      on_lvals ls !includes_uk
-    | _ ->
-      add_access (conf - 60) None None
+  (** Three access levels:
+      + [deref=false], [reach=false] - Access [exp] without dereferencing, used for all normal reads and all function call arguments.
+      + [deref=true], [reach=false] - Access [exp] by dereferencing once (may-point-to), used for lval writes and shallow special accesses.
+      + [deref=true], [reach=true] - Access [exp] by dereferencing transitively (reachable), used for deep special accesses. *)
+  let access_one_top ?(force=false) ?(deref=false) man (kind: AccessKind.t) reach exp =
+    if M.tracing then M.traceli "access" "access_one_top %a (kind = %a, reach = %B, deref = %B)" CilType.Exp.pretty exp AccessKind.pretty kind reach deref;
+    if force || !collect_local || !emit_single_threaded || ThreadFlag.has_ever_been_multi (Analyses.ask_of_man man) then (
+      if deref && Cil.isPointerType (Cilfacade.typeOf exp) then (* avoid dereferencing integers to unknown pointers, which cause many spurious type-based accesses *)
+        do_access man kind reach exp;
+      if M.tracing then M.tracei "access" "distribute_access_exp";
+      Access.distribute_access_exp (do_access man Read false) exp;
+      if M.tracing then M.traceu "access" "distribute_access_exp";
+    );
+    if M.tracing then M.traceu "access" "access_one_top"
 
-  let access_one_top ?(force=false) ctx write reach exp =
-    (* ignore (Pretty.printf "access_one_top %b %b %a:\n" write reach d_exp exp); *)
-    if force || ThreadFlag.is_multi (Analyses.ask_of_ctx ctx) then (
-      let conf = 110 in
-      if reach || write then do_access ctx write reach conf exp;
-      Access.distribute_access_exp (do_access ctx) false false conf exp;
-    )
 
   (** We just lift start state, global and dependency functions: *)
   let startstate v = ()
-  let threadenter ctx lval f args = [()]
+  let threadenter man ~multiple lval f args = [()]
   let exitstate  v = ()
+  let context man fd d = ()
 
 
   (** Transfer functions: *)
 
-  let assign ctx lval rval : D.t =
+  let vdecl man v =
+    access_one_top man Read false (SizeOf v.vtype);
+    man.local
+
+  let assign man lval rval : D.t =
     (* ignore global inits *)
-    if !GU.global_initialization then ctx.local else begin
-      access_one_top ctx true  false (AddrOf lval);
-      access_one_top ctx false false rval;
-      ctx.local
+    if !AnalysisState.global_initialization then man.local else begin
+      access_one_top ~deref:true man Write false (AddrOf lval);
+      access_one_top man Read false rval;
+      man.local
     end
 
-  let branch ctx exp tv : D.t =
-    access_one_top ctx false false exp;
-    ctx.local
+  let branch man exp tv : D.t =
+    access_one_top man Read false exp;
+    man.local
 
-  let return ctx exp fundec : D.t =
-    begin match exp with
-      | Some exp -> access_one_top ctx false false exp
-      | None -> ()
-    end;
-    ctx.local
+  let return man exp fundec : D.t =
+    Option.iter (access_one_top man Read false) exp;
+    man.local
 
-  let body ctx f : D.t =
-    ctx.local
+  let body man f : D.t =
+    man.local
 
-  let special ctx lv f arglist : D.t =
-    match (LF.classify f.vname arglist, f.vname) with
-    (* TODO: remove cases *)
-    | _, "_lock_kernel" ->
-      ctx.local
-    | _, "_unlock_kernel" ->
-      ctx.local
-    | `Lock (failing, rw, nonzero_return_when_aquired), _
-      -> ctx.local
-    | `Unlock, "__raw_read_unlock"
-    | `Unlock, "__raw_write_unlock"  ->
-      ctx.local
-    | `Unlock, _ ->
-      ctx.local
-    | _, "spinlock_check" -> ctx.local
-    | _, "acquire_console_sem" when get_bool "kernel" ->
-      ctx.local
-    | _, "release_console_sem" when get_bool "kernel" ->
-      ctx.local
-    | _, "__builtin_prefetch" | _, "misc_deregister" ->
-      ctx.local
-    | _, "__VERIFIER_atomic_begin" when get_bool "ana.sv-comp.functions" ->
-      ctx.local
-    | _, "__VERIFIER_atomic_end" when get_bool "ana.sv-comp.functions" ->
-      ctx.local
-    | _, "pthread_cond_wait"
-    | _, "pthread_cond_timedwait" ->
-      ctx.local
-    | _, x ->
-      let arg_acc act =
-        match LF.get_threadsafe_inv_ac x with
-        | Some fnc -> (fnc act arglist)
-        | _ -> arglist
-      in
-      List.iter (access_one_top ctx false true) (arg_acc `Read);
-      List.iter (access_one_top ctx true  true ) (arg_acc `Write);
-      (match lv with
-       | Some x -> access_one_top ctx true false (AddrOf x)
-       | None -> ());
-      ctx.local
+  let special man lv f arglist : D.t =
+    let desc = LF.find f in
+    match desc.special arglist with
+    (* TODO: remove Lock/Unlock cases when all those libraryfunctions use librarydescs and don't read mutex contents *)
+    | Lock _
+    | Unlock _ ->
+      man.local
+    | _ ->
+      LibraryDesc.Accesses.iter desc.accs (fun {kind; deep = reach} exp ->
+          access_one_top ~deref:true man kind reach exp (* access dereferenced using special accesses *)
+        ) arglist;
+      Option.iter (fun x -> access_one_top ~deref:true man Write false (AddrOf x)) lv;
+      List.iter (access_one_top man Read false) arglist; (* always read all argument expressions without dereferencing *)
+      man.local
 
-  let enter ctx lv f args : (D.t * D.t) list =
-    [(ctx.local,ctx.local)]
+  let enter man lv f args : (D.t * D.t) list =
+    [(man.local,man.local)]
 
-  let combine ctx lv fexp f args fc al =
-    access_one_top ctx false false fexp;
-    begin match lv with
-      | None      -> ()
-      | Some lval -> access_one_top ctx true false (AddrOf lval)
-    end;
-    List.iter (access_one_top ctx false false) args;
-    al
+  let combine_env man lval fexp f args fc au f_ask =
+    (* These should be in enter, but enter cannot emit events, nor has fexp argument *)
+    access_one_top man Read false fexp;
+    List.iter (access_one_top man Read false) args;
+    au
+
+  let combine_assign man lv fexp f args fc al f_ask =
+    Option.iter (fun lval -> access_one_top ~deref:true man Write false (AddrOf lval)) lv;
+    man.local
 
 
-  let threadspawn ctx lval f args fctx =
+  let threadspawn man  ~multiple lval f args fman =
     (* must explicitly access thread ID lval because special to pthread_create doesn't if singlethreaded before *)
-    begin match lval with
-      | None -> ()
-      | Some lval -> access_one_top ~force:true ctx true false (AddrOf lval) (* must force because otherwise doesn't if singlethreaded before *)
-    end;
-    ctx.local
+    Option.iter (fun lval ->
+        access_one_top ~force:true ~deref:true man Write false (AddrOf lval) (* must force because otherwise doesn't if singlethreaded before *)
+      ) lval;
+    man.local
 
-  let query ctx (type a) (q: a Queries.t): a Queries.result =
+  let query man (type a) (q: a Queries.t): a Queries.result =
     match q with
-    | WarnGlobal g ->
-      let g: V.t = Obj.obj g in
-      (* ignore (Pretty.printf "WarnGlobal %a\n" CilType.Varinfo.pretty g); *)
-      let accs = ctx.global g in
-      Stats.time "access" (Access.warn_global safe vulnerable unsafe g) accs
+    | MayAccessed ->
+      (man.global man.node: G.t)
     | _ -> Queries.Result.top q
 
-  let finalize () =
-    let total = !safe + !unsafe + !vulnerable in
-    if total > 0 then (
-      ignore (Pretty.printf "\nSummary for all memory locations:\n");
-      ignore (Pretty.printf "\tsafe:        %5d\n" !safe);
-      ignore (Pretty.printf "\tvulnerable:  %5d\n" !vulnerable);
-      ignore (Pretty.printf "\tunsafe:      %5d\n" !unsafe);
-      ignore (Pretty.printf "\t-------------------\n");
-      ignore (Pretty.printf "\ttotal:       %5d\n" total)
-    )
+  let event man e oman =
+    match e with
+    | Events.Access {ad; kind; _} when !collect_local && !AnalysisState.postsolving ->
+      let events = Queries.AD.fold (fun addr es ->
+          match addr with
+          | Queries.AD.Addr.Addr (var, offs) ->
+            let coffs = ValueDomain.Offs.to_cil offs in
+            let access: AccessDomain.Event.t = {var_opt = (Some var); offs_opt = (Some coffs); kind} in
+            G.add access es
+          | UnknownPtr ->
+            let access: AccessDomain.Event.t = {var_opt = None; offs_opt = None; kind} in
+            G.add access es
+          | _ -> es
+        ) ad (G.empty ())
+      in
+      man.sideg man.node events
+    | _ ->
+      man.local
 end
 
 let _ =

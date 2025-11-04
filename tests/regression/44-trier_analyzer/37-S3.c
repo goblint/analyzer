@@ -1,5 +1,5 @@
 #include<stdio.h>
-#include<assert.h>
+#include <goblint.h>
 
 typedef struct {
   int re;
@@ -16,7 +16,7 @@ main () {
   d = c;
   x = d.im;
   printf("%d\n",x);
-  assert(x); //UNKNOWN!
-  assert(d.re == 1);
+  __goblint_check(x); //UNKNOWN!
+  __goblint_check(d.re == 1);
   return 0;
 }

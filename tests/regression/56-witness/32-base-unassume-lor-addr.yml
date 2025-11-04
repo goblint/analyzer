@@ -1,0 +1,25 @@
+- entry_type: invariant_set
+  metadata:
+    format_version: "2.0"
+    uuid: d2a65147-2d04-49f8-8f27-fe3a7c8553b7
+    creation_time: 2022-10-07T12:50:05Z
+    producer:
+      name: Simmo Saan
+      version: n/a
+    task:
+      input_files:
+      - 32-base-unassume-lor-addr.c
+      input_file_hashes:
+        32-base-unassume-lor-addr.c: 36ab59c15763945f1d20bc6bc4240e220286b6c8e4cef83742733bf75bc397b0
+      data_model: LP64
+      language: C
+  content:
+  - invariant:
+      type: location_invariant
+      location:
+        file_name: 32-base-unassume-lor-addr.c
+        line: 8
+        column: 3
+        function: main
+      value: p == &i || p == &j
+      format: c_expression

@@ -4,97 +4,110 @@ on:
   push:
   pull_request:
 
+  workflow_dispatch:
+
+  schedule:
+    # nightly
+    - cron: '31 1 * * *' # 01:31 UTC, 02:31/03:31 Munich, 03:31/04:31 Tartu
+    # GitHub Actions load is high at minute 0, so avoid that
+
 jobs:
   regression:
     strategy:
       fail-fast: false
       matrix:
         os:
-          - ubuntu-latest
-          - macos-latest
+          - ubuntu-22.04 # https://github.com/ocaml/setup-ocaml/issues/872
+          - macos-13
         ocaml-compiler:
-          - 4.14.0 # matches opam lock file
+          - ocaml-variants.4.14.2+options,ocaml-option-flambda # matches opam lock file
           # don't add any other because they won't be used
 
     runs-on: ${{ matrix.os }}
 
+    env:
+      OCAMLRUNPARAM: b
+
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v5
 
       - name: Set up OCaml ${{ matrix.ocaml-compiler }}
         env:
           # otherwise setup-ocaml pins non-locked dependencies
           # https://github.com/ocaml/setup-ocaml/issues/166
           OPAMLOCKED: locked
-        uses: ocaml/setup-ocaml@v2
+        uses: ocaml/setup-ocaml@v3
         with:
           ocaml-compiler: ${{ matrix.ocaml-compiler }}
+
+      - name: Install graph-easy # TODO: remove if depext --with-test works (https://github.com/ocaml/opam/issues/5836)
+        if: ${{ matrix.os == 'ubuntu-22.04' }}
+        run: sudo apt install -y libgraph-easy-perl
 
       - name: Install dependencies
         run: opam install . --deps-only --locked --with-test
 
+      - name: Install os gem for operating system detection
+        run: sudo gem install os
+
       - name: Build
         run: ./make.sh nat
 
-      - name: Test regression
-        run: ./make.sh headers testci
+      - name: Download Linux headers
+        run: ./make.sh headers
 
-      - name: Test apron regression # skipped by default but CI has apron, so explicitly test group (which ignores skipping -- it's now a feature!)
-        run:  ruby scripts/update_suite.rb group apron -s;
+      - name: Test
+        run: opam exec -- dune runtest
 
-      - name: Test apron octagon regression # skipped by default but CI has apron, so explicitly test group (which ignores skipping -- it's now a feature!)
-        run:  ruby scripts/update_suite.rb group octagon -s
+      - uses: actions/upload-artifact@v5
+        if: always()
+        with:
+          name: suite_result-${{ matrix.os }}
+          path: _build/default/tests/suite_result/
 
-      - name: Test apron regression (Mukherjee et. al  SAS '17 paper') # skipped by default but CI has apron, so explicitly test group (which ignores skipping -- it's now a feature!)
-        run: ruby scripts/update_suite.rb group apron-mukherjee -s
+  extraction:
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event_name == 'schedule' }}
 
-      - name: Test unit
-        run: opam exec -- dune runtest unittest
-
-      - name: Test incremental regression
-        run: ruby scripts/update_suite.rb -i
-
-  gobview:
     strategy:
       fail-fast: false
       matrix:
         os:
-          - ubuntu-latest
+          - ubuntu-22.04 # https://github.com/ocaml/setup-ocaml/issues/872
         ocaml-compiler:
-          - 4.14.0 # matches opam lock file
+          - ocaml-variants.4.14.2+options,ocaml-option-flambda # matches opam lock file
           # don't add any other because they won't be used
-        node-version:
-          - 14
 
     runs-on: ${{ matrix.os }}
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v5
 
       - name: Set up OCaml ${{ matrix.ocaml-compiler }}
         env:
           # otherwise setup-ocaml pins non-locked dependencies
           # https://github.com/ocaml/setup-ocaml/issues/166
           OPAMLOCKED: locked
-        uses: ocaml/setup-ocaml@v2
+        uses: ocaml/setup-ocaml@v3
         with:
           ocaml-compiler: ${{ matrix.ocaml-compiler }}
 
-      - name: Set up Node.js ${{ matrix.node-version }}
-        uses: actions/setup-node@v3
-        with:
-          node-version: ${{ matrix.node-version }}
+      - name: Install graph-easy # TODO: remove if depext --with-test works (https://github.com/ocaml/opam/issues/5836)
+        if: ${{ matrix.os == 'ubuntu-22.04' }}
+        run: sudo apt install -y libgraph-easy-perl
+
+      - name: Install spin
+        run: sudo apt-get -y install spin
 
       - name: Install dependencies
-        run: opam install . --deps-only --locked
+        run: opam install . --deps-only --locked --with-test
 
-      - name: Setup Gobview
-        run: ./make.sh setup_gobview
+      - name: Install os gem for operating system detection
+        run: sudo gem install os
 
       - name: Build
         run: ./make.sh nat
 
-      - name: Build Gobview
-        run: opam exec -- dune build gobview
+      - name: Test extraction
+        run: opam exec -- dune runtest tests/extraction

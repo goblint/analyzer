@@ -1,4 +1,4 @@
-// PARAM: --set ana.activated "['base','threadid','threadflag','escape','uninit','mallocWrapper']"  --set ana.base.privatization none
+// PARAM: --set ana.activated[+] uninit
 int* some_function(int * x){
 	return x; //NOWARN
 }

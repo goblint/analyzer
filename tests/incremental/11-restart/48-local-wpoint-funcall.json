@@ -1,0 +1,17 @@
+{
+    "ana": {
+        "int": {
+            "interval": true
+        }
+    },
+	"solvers": {
+		"td3": {
+			"restart": {
+				"wpoint": {
+					"enabled": true,
+					"once": true
+				}
+			}
+		}
+	}
+}

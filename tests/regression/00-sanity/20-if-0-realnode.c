@@ -1,4 +1,4 @@
-#include <assert.h>
+// CRAM
 
 void stuff() {
 

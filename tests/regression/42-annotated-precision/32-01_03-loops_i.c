@@ -1,6 +1,6 @@
 // PARAM: --enable annotation.int.enabled --set ana.int.refinement fixpoint
 #include<stdio.h>
-#include<assert.h>
+#include <goblint.h>
 int main () __attribute__((goblint_precision("no-def_exc","interval")));
 
 int main () {
@@ -12,9 +12,9 @@ int main () {
     j = 7;
     k = 5;
   }
-  assert(i == 10);
-  assert(k); //UNKNOWN
+  __goblint_check(i == 10);
+  __goblint_check(k); //UNKNOWN
   // k is currenlty 0 \sqcup 5, if we unfolded the loops it would be 5
-  assert(j==7);
+  __goblint_check(j==7);
   return 0;
 }

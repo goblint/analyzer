@@ -1,0 +1,70 @@
+{0 Library goblint.common}
+This library is unwrapped and provides the following top-level modules.
+For better context, see {!Goblint_lib} which also documents these modules.
+
+
+{1 Framework}
+
+{2 CFG}
+{!modules:
+Node
+Edge
+MyCFG
+CfgTools
+}
+
+{2 Specification}
+{!modules:
+AnalysisState
+AnalysisStateUtil
+ControlSpecC
+}
+
+
+{1 Domains}
+{!modules:
+Printable
+}
+
+{2 Analysis-specific}
+
+{3 Other}
+{!modules:Basetype}
+
+
+{1 I/O}
+{!modules:
+Messages
+}
+
+
+{1 Utilities}
+{!modules:Timing}
+
+{2 General}
+{!modules:
+IntOps
+LazyEval
+ResettableLazy
+MessageUtil
+XmlUtil
+}
+
+{2 CIL}
+{!modules:
+CilType
+Cilfacade
+CilLocation
+RichVarinfo
+}
+
+{2 Analysis-specific}
+{!modules:
+ContextUtil
+}
+
+
+{1 Library extensions}
+
+{2 Standard library}
+{!modules:GobFormat}

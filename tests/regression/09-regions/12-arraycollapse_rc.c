@@ -65,7 +65,8 @@ int main () {
   pthread_create(&t1, NULL, t_fun, NULL);
 
   pthread_mutex_lock(&mutex[j]);
-  p = slot[j]->next; // RACE!
+  // Not actual race: https://gitlab.com/sosy-lab/benchmarking/sv-benchmarks/-/issues/1354
+  p = slot[j]->next; // RACE
   printf("%d\n", p->datum);
   pthread_mutex_unlock(&mutex[j]);
   return 0;

@@ -3,7 +3,7 @@
 // PARAM: --set ana.int.interval true --set ana.base.arrays.domain partitioned
 
 #include <stdlib.h>
-#include <assert.h>
+#include <goblint.h>
 
 int *x;
 int *y;
@@ -16,12 +16,12 @@ int main() {
   *x = 0;
   *y = 1;
 
-  assert(*x == 0);
-  assert(*y == 1); //UNKNOWN
+  __goblint_check(*x == 0);
+  __goblint_check(*y == 1); //UNKNOWN
 
   p = x; x = y; y = p;
-  assert(*x == 1); //UNKNOWN
-  assert(*y == 0);
+  __goblint_check(*x == 1); //UNKNOWN
+  __goblint_check(*y == 0);
 
   return 0;
 }

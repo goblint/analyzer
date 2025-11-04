@@ -1,4 +1,6 @@
-open Prelude
+(** {!BasePriv} precision comparison. *)
+
+open GoblintCil
 open PrecCompareUtil
 
 module LV =

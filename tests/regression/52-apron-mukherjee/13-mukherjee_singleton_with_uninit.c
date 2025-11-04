@@ -1,7 +1,7 @@
 // SKIP PARAM: --set ana.activated[+] apron --set ana.path_sens[+] threadflag --set ana.activated[+] threadJoins
 
 #include <pthread.h>
-#include <assert.h>
+#include <goblint.h>
 
 int x = 0;
 
@@ -29,6 +29,6 @@ int main() {
     pthread_join(t1, 0);
     pthread_join(t2, 0);
 
-	assert(x <= 5);
+	__goblint_check(x <= 5);
 	return 0;
 }

@@ -1,5 +1,5 @@
 // modified from 27/09
-#include <assert.h>
+#include <goblint.h>
 
 int main() {
   int a = 1;
@@ -12,13 +12,13 @@ int main() {
   else
     x = &b;
 
-  assert(*x == 1);
+  __goblint_check(*x == 1);
   b = 2;
 
-  assert(a == 1);
+  __goblint_check(a == 1);
   if (*x > 1) { // invariant rules out x == &a
-    assert(x == &b); // TODO
-    assert(*x == 2); // TODO
+    __goblint_check(x == &b); // TODO
+    __goblint_check(*x == 2); // TODO
   }
   return 0;
 }

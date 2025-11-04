@@ -1,0 +1,43 @@
+- entry_type: invariant_set
+  metadata:
+    format_version: "2.0"
+    uuid: 349896cf-62cc-42e7-b9a3-f5f422ff4071
+    creation_time: 2022-08-30T14:46:04Z
+    producer:
+      name: Simmo Saan
+      version: n/a
+    task:
+      input_files:
+      - 16-base-unassume-dependent.c
+      input_file_hashes:
+        16-base-unassume-dependent.c: 82334866168bcd385cfdd9f7e9b4431c30259b8cbae87905462829efa85de98c
+      data_model: LP64
+      language: C
+  content:
+  - invariant:
+      type: location_invariant
+      location:
+        file_name: 16-base-unassume-dependent.c
+        line: 8
+        column: 3
+        function: main
+      value: 0 <= i
+      format: c_expression
+  - invariant:
+      type: location_invariant
+      location:
+        file_name: 16-base-unassume-dependent.c
+        line: 8
+        column: 3
+        function: main
+      value: i <= j
+      format: c_expression
+  - invariant:
+      type: location_invariant
+      location:
+        file_name: 16-base-unassume-dependent.c
+        line: 8
+        column: 3
+        function: main
+      value: j <= 42
+      format: c_expression

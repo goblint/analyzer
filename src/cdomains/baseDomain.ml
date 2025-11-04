@@ -1,60 +1,18 @@
-(** domain of the base analysis *)
+(** Full domain of {!Base} analysis. *)
 
-open Cil
+open GoblintCil
 module VD = ValueDomain.Compound
-module BI = IntOps.BigIntOps
 
 module CPA =
 struct
+  module M0 = MapDomain.MapBot (Basetype.Variables) (VD)
   module M =
   struct
-    include MapDomain.LiftTop (VD) (MapDomain.HashCached (MapDomain.MapBot (Basetype.Variables) (VD)))
-    let name () = "value domain"
+    include M0
+    include MapDomain.PrintGroupable (Basetype.Variables) (VD) (M0)
   end
-
-  include M
-
-  let invariant (c:Invariant.context) (m:t) =
-    (* VS is used to detect and break cycles in deref_invariant calls *)
-    let module VS = Set.Make (Basetype.Variables) in
-    let rec context vs = {c with
-        deref_invariant=(fun vi offset lval ->
-                          let v = find vi m in
-                          key_invariant_lval vi offset lval v vs
-        )
-      }
-    and key_invariant_lval k offset lval v vs =
-      if not (InvariantCil.var_is_tmp k) && InvariantCil.var_is_in_scope c.scope k && not (VS.mem k vs) then
-        let vs' = VS.add k vs in
-        let key_context = {(context vs') with offset; lval=Some lval} in
-        VD.invariant key_context v
-      else
-        Invariant.none
-    in
-
-    let key_invariant k v = key_invariant_lval k NoOffset (var k) v VS.empty in
-    match c.lval with
-    | None ->
-      fold (fun k v a ->
-        let i =
-          if not (InvariantCil.var_is_heap k) then
-            key_invariant k v
-          else
-            Invariant.none
-        in
-        Invariant.(a && i)
-      ) m Invariant.none
-    | Some (Var k, _) when not (InvariantCil.var_is_heap k) ->
-      (try key_invariant k (find k m) with Not_found -> Invariant.none)
-    | _ -> Invariant.none
-
-end
-
-
-module Glob =
-struct
-  module Var = Basetype.Variables
-  module Val = VD
+  include MapDomain.LiftTop (VD) (MapDomain.HashCached (M))
+  let name () = "value domain"
 end
 
 (* Keeps track of which arrays are potentially partitioned according to an expression containing a specific variable *)
@@ -66,7 +24,7 @@ struct
   let name () = "array partitioning deps"
 end
 
-(** Maintains a set of local variables that need to be weakly updated, because multiple reachbale copies of them may *)
+(** Maintains a set of local variables that need to be weakly updated, because multiple reachable copies of them may *)
 (* exist on the call stack *)
 module WeakUpdates =
 struct
@@ -80,7 +38,7 @@ type 'a basecomponents_t = {
   deps: PartDeps.t;
   weak: WeakUpdates.t;
   priv: 'a;
-} [@@deriving eq, ord, hash]
+} [@@deriving eq, ord, hash, relift, lattice]
 
 
 module BaseComponents (PrivD: Lattice.S):
@@ -89,7 +47,7 @@ sig
   val op_scheme: (CPA.t -> CPA.t -> CPA.t) -> (PartDeps.t -> PartDeps.t -> PartDeps.t) -> (WeakUpdates.t -> WeakUpdates.t -> WeakUpdates.t) -> (PrivD.t -> PrivD.t -> PrivD.t) -> t -> t -> t
 end =
 struct
-  type t = PrivD.t basecomponents_t [@@deriving eq, ord, hash]
+  type t = PrivD.t basecomponents_t [@@deriving eq, ord, hash, relift, lattice]
 
   include Printable.Std
   open Pretty
@@ -125,23 +83,12 @@ struct
 
   let name () = CPA.name () ^ " * " ^ PartDeps.name () ^ " * " ^ WeakUpdates.name ()  ^ " * " ^ PrivD.name ()
 
-  let invariant c {cpa; deps; weak; priv} =
-    Invariant.(CPA.invariant c cpa && PartDeps.invariant c deps && WeakUpdates.invariant c weak && PrivD.invariant c priv)
-
   let of_tuple(cpa, deps, weak, priv):t = {cpa; deps; weak; priv}
   let to_tuple r = (r.cpa, r.deps, r.weak, r.priv)
 
   let arbitrary () =
     let tr = QCheck.quad (CPA.arbitrary ()) (PartDeps.arbitrary ()) (WeakUpdates.arbitrary ()) (PrivD.arbitrary ()) in
     QCheck.map ~rev:to_tuple of_tuple tr
-
-  let bot () = { cpa = CPA.bot (); deps = PartDeps.bot (); weak = WeakUpdates.bot (); priv = PrivD.bot ()}
-  let is_bot {cpa; deps; weak; priv} = CPA.is_bot cpa && PartDeps.is_bot deps && WeakUpdates.is_bot weak && PrivD.is_bot priv
-  let top () = {cpa = CPA.top (); deps = PartDeps.top ();  weak = WeakUpdates.top () ; priv = PrivD.bot ()}
-  let is_top {cpa; deps; weak; priv} = CPA.is_top cpa && PartDeps.is_top deps && WeakUpdates.is_top weak && PrivD.is_top priv
-
-  let leq {cpa=x1; deps=x2; weak=x3; priv=x4 } {cpa=y1; deps=y2; weak=y3; priv=y4} =
-    CPA.leq x1 y1 && PartDeps.leq x2 y2 && WeakUpdates.leq x3 y3 && PrivD.leq x4 y4
 
   let pretty_diff () (({cpa=x1; deps=x2; weak=x3; priv=x4}:t),({cpa=y1; deps=y2; weak=y3; priv=y4}:t)): Pretty.doc =
     if not (CPA.leq x1 y1) then
@@ -155,16 +102,12 @@ struct
 
   let op_scheme op1 op2 op3 op4 {cpa=x1; deps=x2; weak=x3; priv=x4} {cpa=y1; deps=y2; weak=y3; priv=y4}: t =
     {cpa = op1 x1 y1; deps = op2 x2 y2; weak = op3 x3 y3; priv = op4 x4 y4 }
-  let join = op_scheme CPA.join PartDeps.join WeakUpdates.join PrivD.join
-  let meet = op_scheme CPA.meet PartDeps.meet WeakUpdates.meet PrivD.meet
-  let widen = op_scheme CPA.widen PartDeps.widen WeakUpdates.widen PrivD.widen
-  let narrow = op_scheme CPA.narrow PartDeps.narrow WeakUpdates.narrow PrivD.narrow
 end
 
 module type ExpEvaluator =
 sig
   type t
-  val eval_exp: t  ->  Cil.exp -> IntOps.BigIntOps.t option
+  val eval_exp: t  ->  Cil.exp -> Z.t option
 end
 
 (* Takes a module for privatization component and a module specifying how expressions can be evaluated inside the domain and returns the domain *)
@@ -195,7 +138,7 @@ module DomWithTrivialExpEval (PrivD: Lattice.S) = DomFunctor (PrivD) (struct
     | Lval (Var v, NoOffset) ->
       begin
         match CPA.find v r.cpa with
-        | `Int i -> ValueDomain.ID.to_int i
+        | Int i -> ValueDomain.ID.to_int i
         | _ -> None
       end
     | _ -> None

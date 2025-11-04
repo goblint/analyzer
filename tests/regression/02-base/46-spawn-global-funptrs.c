@@ -1,21 +1,21 @@
 #include <pthread.h>
-#include <assert.h>
+#include <goblint.h>
 
 void foo() {
-  assert(1); // assert reachable
+  __goblint_check(1); // assert reachable
 }
 
 void bar() {
-  assert(1); // assert reachable
+  __goblint_check(1); // assert reachable
 }
 
-void (*funs[2])() = {
+void (*funs[2])(void) = {
   &foo,
   &bar
 };
 
 extern void magic1();
-extern void magic2(void (*funs[])());
+extern void magic2(void (*funs[])(void));
 
 int main() {
   magic1(); // invalidate funs a bit

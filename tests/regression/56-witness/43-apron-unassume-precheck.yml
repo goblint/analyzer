@@ -1,0 +1,34 @@
+- entry_type: invariant_set
+  metadata:
+    format_version: "2.0"
+    uuid: e9cde5db-0c69-4413-ad46-7a15b93f1834
+    creation_time: 2022-08-30T15:00:25Z
+    producer:
+      name: Simmo Saan
+      version: n/a
+    task:
+      input_files:
+      - 43-apron-unassume-precheck.c
+      input_file_hashes:
+        43-apron-unassume-precheck.c: e173c414639b0c08d00854dc6974f87ccf2ae29829c2e5542f984eb8a52929ce
+      data_model: LP64
+      language: C
+  content:
+  - invariant:
+      type: location_invariant
+      location:
+        file_name: 43-apron-unassume-precheck.c
+        line: 7
+        column: 3
+        function: main
+      value: 0 <= i && i < 9
+      format: c_expression
+  - invariant:
+      type: location_invariant
+      location:
+        file_name: 43-apron-unassume-precheck.c
+        line: 8
+        column: 3
+        function: main
+      value: 100 <= i && i < 999
+      format: c_expression

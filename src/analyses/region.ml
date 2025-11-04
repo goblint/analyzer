@@ -1,6 +1,9 @@
-(** Assigning static regions to dynamic memory. *)
+(** Analysis of disjoint heap regions for dynamically allocated memory ([region]).
 
-open Prelude.Ana
+    @see <https://doi.org/10.1007/978-3-642-03237-0_13> Seidl, H., Vojdani, V. Region Analysis for Race Detection. *)
+
+open Batteries
+open GoblintCil
 open Analyses
 
 module RegMap = RegionDomain.RegMap
@@ -13,16 +16,20 @@ struct
 
   module D = RegionDomain.RegionDom
   module G = RegPart
-  module C = D
-  module V = Printable.UnitConf (struct let name = "partitions" end)
+  include Analyses.ValueContexts(D)
 
-  let regions exp part st : Lval.CilLval.t list =
+  module V =
+  struct
+    include Printable.UnitConf (struct let name = "partitions" end)
+    include StdV
+  end
+
+  let regions exp part st : Mval.Exp.t list =
     match st with
     | `Lifted reg ->
       let ev = Reg.eval_exp exp in
-      let to_exp (v,f) = (v,Lval.Fields.to_offs' f) in
-      List.map to_exp (Reg.related_globals ev (part,reg))
-    | `Top -> Messages.warn "Region state is broken :("; []
+      Reg.related_globals ev (part,reg)
+    | `Top -> Messages.info ~category:Unsound "Region state is broken :("; []
     | `Bot -> []
 
   let is_bullet exp part st : bool =
@@ -35,24 +42,24 @@ struct
     | `Top -> false
     | `Bot -> true
 
-  let get_region ctx e =
-    let regpart = ctx.global () in
-    if is_bullet e regpart ctx.local then
+  let get_region man e =
+    let regpart = man.global () in
+    if is_bullet e regpart man.local then
       None
     else
-      Some (regions e regpart ctx.local)
+      Some (regions e regpart man.local)
 
   (* queries *)
-  let query ctx (type a) (q: a Queries.t): a Queries.result =
+  let query man (type a) (q: a Queries.t): a Queries.result =
     match q with
     | Queries.Regions e ->
-      let regpart = ctx.global () in
-      if is_bullet e regpart ctx.local then Queries.Result.bot q (* TODO: remove bot *) else
-        let ls = List.fold_right Queries.LS.add (regions e regpart ctx.local) (Queries.LS.empty ()) in
+      let regpart = man.global () in
+      if is_bullet e regpart man.local then Queries.Result.bot q (* TODO: remove bot *) else
+        let ls = List.fold_left (Fun.flip Queries.LS.add) (Queries.LS.empty ()) (regions e regpart man.local) in
         ls
     | _ -> Queries.Result.top q
 
-  module Lvals = SetDomain.Make (Lval.CilLval)
+  module Lvals = SetDomain.Make (Mval.Exp)
   module A =
   struct
     include Printable.Option (Lvals) (struct let name = "no region" end)
@@ -63,120 +70,121 @@ struct
       (* TODO: Should it happen in the first place that RegMap has empty value? Happens in 09-regions/34-escape_rc *)
       | Some r1, _ when Lvals.is_empty r1 -> true
       | _, Some r2 when Lvals.is_empty r2 -> true
-      | Some r1, Some r2 when Lvals.is_empty (Lvals.inter r1 r2) -> false
+      | Some r1, Some r2 when Lvals.disjoint r1 r2 -> false
       | _, _ -> true
     let should_print r = match r with
       | Some r when Lvals.is_empty r -> false
       | _ -> true
   end
-  let access ctx (a: Queries.access) =
+  let access man (a: Queries.access) =
     match a with
     | Point ->
       Some (Lvals.empty ())
     | Memory {exp = e; _} ->
       (* TODO: remove regions that cannot be reached from the var*)
-      let rec unknown_index = function
-        | `NoOffset -> `NoOffset
-        | `Field (f, os) -> `Field (f, unknown_index os)
-        | `Index (i, os) -> `Index (MyCFG.unknown_exp, unknown_index os) (* forget specific indices *)
-      in
-      Option.map (Lvals.of_list % List.map (Tuple2.map2 unknown_index)) (get_region ctx e)
+      (* forget specific indices *)
+      (* TODO: If indices are topped, could they not be collected in the first place? *)
+      Option.map (Lvals.of_list % List.map (Tuple2.map2 Offset.Exp.top_indices)) (get_region man e)
 
   (* transfer functions *)
-  let assign ctx (lval:lval) (rval:exp) : D.t =
-    match ctx.local with
+  let assign man (lval:lval) (rval:exp) : D.t =
+    match man.local with
     | `Lifted reg ->
-      let old_regpart = ctx.global () in
+      let old_regpart = man.global () in
       let regpart, reg = Reg.assign lval rval (old_regpart, reg) in
       if not (RegPart.leq regpart old_regpart) then
-        ctx.sideg () regpart;
+        man.sideg () regpart;
       `Lifted reg
     | x -> x
 
-  let branch ctx (exp:exp) (tv:bool) : D.t =
-    ctx.local
+  let branch man (exp:exp) (tv:bool) : D.t =
+    man.local
 
-  let body ctx (f:fundec) : D.t =
-    ctx.local
+  let body man (f:fundec) : D.t =
+    man.local
 
-  let return ctx (exp:exp option) (f:fundec) : D.t =
+  let return man (exp:exp option) (f:fundec) : D.t =
     let locals = f.sformals @ f.slocals in
-    match ctx.local with
+    match man.local with
     | `Lifted reg ->
-      let old_regpart = ctx.global () in
+      let old_regpart = man.global () in
       let regpart, reg = match exp with
         | Some exp ->
-          let module BS = (val Base.get_main ()) in
-          Reg.assign (BS.return_lval ()) exp (old_regpart, reg)
+          Reg.assign (ReturnUtil.return_lval ()) exp (old_regpart, reg)
         | None -> (old_regpart, reg)
       in
       let regpart, reg = Reg.kill_vars locals (Reg.remove_vars locals (regpart, reg)) in
       if not (RegPart.leq regpart old_regpart) then
-        ctx.sideg () regpart;
+        man.sideg () regpart;
       `Lifted reg
     | x -> x
 
 
-  let enter ctx (lval: lval option) (fundec:fundec) (args:exp list) : (D.t * D.t) list =
+  let enter man (lval: lval option) (fundec:fundec) (args:exp list) : (D.t * D.t) list =
     let rec fold_right2 f xs ys r =
       match xs, ys with
       | x::xs, y::ys -> f x y (fold_right2 f xs ys r)
       | _ -> r
     in
-    match ctx.local with
+    match man.local with
     | `Lifted reg ->
       let f x r reg = Reg.assign (var x) r reg in
-      let old_regpart = ctx.global () in
+      let old_regpart = man.global () in
       let regpart, reg = fold_right2 f fundec.sformals args (old_regpart,reg) in
       if not (RegPart.leq regpart old_regpart) then
-        ctx.sideg () regpart;
-      [ctx.local, `Lifted reg]
+        man.sideg () regpart;
+      [man.local, `Lifted reg]
     | x -> [x,x]
 
-  let combine ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) : D.t =
+  let combine_env man lval fexp f args fc au f_ask =
+    man.local
+
+  let combine_assign man (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) (f_ask: Queries.ask) : D.t =
     match au with
     | `Lifted reg -> begin
-      let old_regpart = ctx.global () in
-      let module BS = (val Base.get_main ()) in
-      let regpart, reg = match lval with
-        | None -> (old_regpart, reg)
-        | Some lval -> Reg.assign lval (AddrOf (BS.return_lval ())) (old_regpart, reg)
-      in
-      let regpart, reg = Reg.remove_vars [BS.return_varinfo ()] (regpart, reg) in
-      if not (RegPart.leq regpart old_regpart) then
-        ctx.sideg () regpart;
-      `Lifted reg
+        let old_regpart = man.global () in
+        let regpart, reg = match lval with
+          | None -> (old_regpart, reg)
+          | Some lval -> Reg.assign lval (AddrOf (ReturnUtil.return_lval ())) (old_regpart, reg)
+        in
+        let regpart, reg = Reg.remove_vars [ReturnUtil.return_varinfo ()] (regpart, reg) in
+        if not (RegPart.leq regpart old_regpart) then
+          man.sideg () regpart;
+        `Lifted reg
       end
     | _ -> au
 
-  let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
-    match LibraryFunctions.classify f.vname arglist with
-    | `Malloc _ | `Calloc _ -> begin
-        match ctx.local, lval with
+  let special man (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
+    let desc = LibraryFunctions.find f in
+    match desc.special arglist with
+    | Malloc _ | Calloc _ | Realloc _ | Alloca _ -> begin
+        match man.local, lval with
         | `Lifted reg, Some lv ->
-          let old_regpart = ctx.global () in
+          let old_regpart = man.global () in
+          (* TODO: should realloc use arg region if failed/in-place? *)
           let regpart, reg = Reg.assign_bullet lv (old_regpart, reg) in
           if not (RegPart.leq regpart old_regpart) then
-            ctx.sideg () regpart;
+            man.sideg () regpart;
           `Lifted reg
-        | _ -> ctx.local
+        | _ -> man.local
       end
     | _ ->
-      let t, _, _, _ = splitFunctionTypeVI  f in
-      match unrollType t with
-      | TPtr (t,_) ->
-        begin match Goblintutil.is_blessed t, lval with
-          | Some rv, Some lv -> assign ctx lv (AddrOf (Var rv, NoOffset))
-          | _ -> ctx.local
-        end
-      | _ -> ctx.local
+      man.local
 
   let startstate v =
     `Lifted (RegMap.bot ())
 
-  let threadenter ctx lval f args =
+  let threadenter man ~multiple lval f args =
     [`Lifted (RegMap.bot ())]
-  let threadspawn ctx lval f args fctx = ctx.local
+  let threadspawn man ~multiple lval f args fman =
+    match man.local with
+    | `Lifted reg ->
+      let old_regpart = man.global () in
+      let regpart, reg = List.fold_right Reg.assign_escape args (old_regpart, reg) in
+      if not (RegPart.leq regpart old_regpart) then
+        man.sideg () regpart;
+      `Lifted reg
+    | x -> x
 
   let exitstate v = `Lifted (RegMap.bot ())
 

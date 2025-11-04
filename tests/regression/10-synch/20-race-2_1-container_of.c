@@ -1,4 +1,4 @@
-// PARAM: --set ana.activated[+] thread --set ana.path_sens[+] threadflag
+// PARAM: --set ana.activated[+] thread --set ana.path_sens[+] threadflag --enable ana.sv-comp.functions
 #include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -15,8 +15,8 @@
 #endif
 
 extern void abort(void);
-#include <assert.h>
-void reach_error() { assert(0); } // FAIL
+#include <goblint.h>
+void reach_error() { __goblint_check(0); } // FAIL
 int __VERIFIER_nondet_int(void);
 void ldv_assert(int expression) { if (!expression) { ERROR: {reach_error();abort();}}; return; } // NOWARN
 

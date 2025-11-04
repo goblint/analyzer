@@ -1,7 +1,6 @@
 {
   "pre": {
     "cppflags": [
-      "-DGOBLINT_NO_PTHREAD_ONCE",
       "-DGOBLINT_NO_QSORT",
       "-DGOBLINT_NO_BSEARCH"
     ]
@@ -25,9 +24,13 @@
       "mutexEvents",
       "mutex",
       "access",
+      "race",
       "escape",
       "expRelation",
-      "mhp"
+      "mhp",
+      "assert",
+      "var_eq",
+      "symb_locks"
     ],
     "malloc": {
       "wrappers": [
@@ -50,9 +53,18 @@
       ]
     }
   },
-  "witness": {
-    "id": "enumerate",
-    "unknown": false
+  "lib": {
+    "activated": [
+      "c",
+      "posix",
+      "pthread",
+      "gcc",
+      "glibc",
+      "linux-userspace",
+      "goblint",
+      "ncurses",
+      "klever"
+    ]
   },
   "solver": "td3",
   "sem": {

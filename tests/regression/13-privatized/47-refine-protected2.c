@@ -1,5 +1,5 @@
 #include <pthread.h>
-#include <assert.h>
+#include <goblint.h>
 
 int g = 0;
 
@@ -18,9 +18,9 @@ int main() {
 
   pthread_mutex_lock(&A);
   if (g) // protected globals should be refined
-    assert(g);
+    __goblint_check(g);
   else
-    assert(!g);
+    __goblint_check(!g);
   pthread_mutex_unlock(&A);
   return 0;
 }

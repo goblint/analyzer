@@ -1,6 +1,6 @@
 // SKIP PARAM: --set ana.activated[+] apron --set ana.path_sens[+] threadflag
 #include <pthread.h>
-#include <assert.h>
+#include <goblint.h>
 
 int g = 1;
 pthread_mutex_t A = PTHREAD_MUTEX_INITIALIZER;
@@ -8,7 +8,7 @@ pthread_mutex_t A = PTHREAD_MUTEX_INITIALIZER;
 void *t_fun(void *arg) {
   pthread_mutex_lock(&A);
   g = 2; // write something non-initial so base wouldn't find success
-  assert(g == 2);
+  __goblint_check(g == 2);
   pthread_mutex_unlock(&A);
   return NULL;
 }
@@ -22,7 +22,7 @@ int main(void) {
   pthread_mutex_lock(&A);
   x = g;
   y = g;
-  assert(x == y);
+  __goblint_check(x == y);
   pthread_mutex_unlock(&A);
 
   // g = g - g - x;

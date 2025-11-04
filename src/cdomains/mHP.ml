@@ -1,15 +1,32 @@
+(** May-happen-in-parallel (MHP) domain. *)
+
 include Printable.Std
 
-module TID = ThreadIdDomain.FlagConfiguredTID
+let name () = "mhp"
+
+module TID = ThreadIdDomain.Thread
+module Pretty = GoblintCil.Pretty
 
 type t = {
   tid: ThreadIdDomain.ThreadLifted.t;
   created: ConcDomain.ThreadSet.t;
   must_joined: ConcDomain.ThreadSet.t;
-} [@@deriving eq, ord, hash]
+} [@@deriving eq, ord, hash, relift]
+
+let current (ask:Queries.ask) =
+  {
+    tid = ask.f Queries.CurrentThreadId;
+    created = ask.f Queries.CreatedThreads;
+    must_joined = ask.f Queries.MustJoinedThreads
+  }
 
 let pretty () {tid; created; must_joined} =
-  let tid_doc = Some (Pretty.dprintf "tid=%a" ThreadIdDomain.ThreadLifted.pretty tid) in
+  let tid_doc =
+    if GobConfig.get_bool "dbg.full-output" then
+      Some (Pretty.dprintf "tid=%a" ThreadIdDomain.ThreadLifted.pretty tid)
+    else
+      None
+  in
   (* avoid useless empty sets in race output *)
   let created_doc =
     if ConcDomain.ThreadSet.is_empty created then
@@ -36,10 +53,10 @@ include Printable.SimplePretty (
 (** Can it be excluded that the thread tid2 is running at a program point where  *)
 (*  thread tid1 has created the threads in created1 *)
 let definitely_not_started (current, created) other =
-  if (not (TID.is_must_parent current other)) then
+  if (not (TID.must_be_ancestor current other)) then
     false
   else
-    let ident_or_may_be_created creator = TID.equal creator other || TID.may_create creator other in
+    let ident_or_may_be_created creator = TID.equal creator other || TID.may_be_ancestor creator other in
     if ConcDomain.ThreadSet.is_top created then
       false
     else
@@ -54,9 +71,9 @@ let exists_definitely_not_started_in_joined (current,created) other_joined =
 (** Must the thread with thread id other be already joined  *)
 let must_be_joined other joined =
   if ConcDomain.ThreadSet.is_top joined then
-    false
+    true (* top means all threads are joined, so [other] must be as well *)
   else
-    List.mem other (ConcDomain.ThreadSet.elements joined)
+    ConcDomain.ThreadSet.mem other joined
 
 (** May two program points with respective MHP information happen in parallel *)
 let may_happen_in_parallel one two =
@@ -75,3 +92,8 @@ let may_happen_in_parallel one two =
     else
       true
   | _ -> true
+
+let is_unique_thread mhp =
+  match mhp.tid with
+  | `Lifted tid -> TID.is_unique tid
+  | _ -> false

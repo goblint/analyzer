@@ -1,0 +1,19 @@
+{
+    "exp": {
+        "earlyglobs": true
+    },
+    "ana": {
+        "int": {
+            "interval": true,
+            "congruence": true
+        }
+    },
+    "incremental": {
+        "restart": {
+            "sided": {
+                "enabled": false
+            },
+            "list": []
+        }
+    }
+}

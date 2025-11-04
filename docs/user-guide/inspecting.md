@@ -1,19 +1,37 @@
 # Inspecting results
 
-## g2html
+## HTML
+1. Run Goblint with additional `--html` argument.
+2. Run `python3 -m http.server --directory result 8080`
+   or `npx http-server -c-1 result`.
+3. Inspect results at <http://localhost:8080/index.xml>.
+
+Modern browsers' security settings forbid some file access which is necessary for the HTML output to work, hence the need for serving the results via Python's `http.server` (or similar).
+
+## g2html (legacy)
+If there are problems with the above HTML output, the legacy g2html output (using an external Java component) is still possible.
+The frontend of the above HTML output is reused from g2html, so the two look the same (except for code highlighting).
+
 1. First time run: `make jar`.
-2. Run Goblint with additional `--html` argument.
+2. Run Goblint with additional `--set result g2html` arguments.
 3. Run `python3 -m http.server --directory result 8080`
-   or  `npx http-server -c-1 result`.
+   or `npx http-server -c-1 result`.
 4. Inspect results at <http://localhost:8080/index.xml>.
 
 Modern browsers' security settings forbid some file access which is necessary for g2html to work, hence the need for serving the results via Python's `http.server` (or similar).
 
-## Gobview
+## GobView
+
+**Note:** GobView is not compatible with OCaml 4 any more. Use OCaml 5.0.0 or newer.
+
+For the initial setup:
 
 1. Install Node.js (preferably ≥ 12.0.0) and npm (≥ 5.2.0)
-2. For the initial setup: `make setup_gobview`
-3. Run `dune build gobview` to build the web UI
-4. Run Goblint with these flags: `--enable gobview --set save_run DIR` (where `DIR` is the name of the result directory that Goblint will create and populate)
-5. `cd` into `DIR` and run `python3 -m http.server`
-6. Visit http://localhost:8000
+2. Run `make setup_gobview` in the analyzer directory
+
+To build GobView (also for development):
+
+1. Run `make view` in the analyzer directory to build the web UI
+2. The executable `goblint_http.exe` takes the analyzer directory and additional Goblint configurations such as the files to be analyzed as parameters. Run it e.g. with the following command:\
+`./goblint_http.exe tests/regression/00-sanity/01-assert.c`
+3. Visit <http://localhost:8080>

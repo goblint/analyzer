@@ -1,7 +1,7 @@
 // SKIP PARAM: --set ana.activated[+] apron --set ana.path_sens[+] threadflag --set ana.activated[+] threadJoins --enable ana.apron.threshold_widening
 
 #include <pthread.h>
-#include <assert.h>
+#include <goblint.h>
 
 int SIZE = 800;
 int top = 0;
@@ -13,7 +13,7 @@ void* T1_Stack_Longest(void* arg) {
     int i;
     for(i=0; i<SIZE; i++) {
         pthread_mutex_lock(&m);
-        assert(top != SIZE); //TODO
+        __goblint_check(top != SIZE); //TODO
 
         if (top != SIZE) {
             top++;
@@ -29,7 +29,7 @@ void* T2_Stack_Longest(void* arg) {
     for(i=0; i<SIZE; i++) {
         pthread_mutex_lock(&m);
         if (flag == 1) {
-            assert(top != 0); //TODO
+            __goblint_check(top != 0); //TODO
             if (top != 0)
                 top--;
         }

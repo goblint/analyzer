@@ -1,0 +1,34 @@
+- entry_type: invariant_set
+  metadata:
+    format_version: "2.0"
+    uuid: a3819e93-2ad6-42fd-aee8-f25aac0eb212
+    creation_time: 2025-03-07T15:04:22Z
+    producer:
+      name: Vesal Vojdani
+      version: n/a
+    task:
+      input_files:
+      - 62-tm-inv-transfer-protection-witness.c
+      input_file_hashes:
+        62-tm-inv-transfer-protection-witness.c: 139627d4167e48c2399f0a6359e533d8ac7597e9b4155c58ddcb2b7bfe780088
+      data_model: LP64
+      language: C
+  content:
+  - invariant:
+      type: location_invariant
+      location:
+        file_name: 62-tm-inv-transfer-protection-witness.c
+        line: 27
+        column: 3
+        function: main
+      value: 40 <= g && g <= 41
+      format: c_expression
+  - invariant:
+      type: location_invariant
+      location:
+        file_name: 62-tm-inv-transfer-protection-witness.c
+        line: 31
+        column: 3
+        function: main
+      value: 40 <= g && g <= 42
+      format: c_expression

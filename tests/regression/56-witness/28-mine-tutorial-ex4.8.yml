@@ -1,0 +1,25 @@
+- entry_type: invariant_set
+  metadata:
+    format_version: "2.0"
+    uuid: 299c2080-fb13-4879-be2b-5d2758465577
+    creation_time: 2022-10-07T10:36:41Z
+    producer:
+      name: Simmo Saan
+      version: n/a
+    task:
+      input_files:
+      - 28-mine-tutorial-ex4.8.c
+      input_file_hashes:
+        28-mine-tutorial-ex4.8.c: bd5b719b0d268dd7669edc1dd21b55a2bacab3187f26f112839093b910c91347
+      data_model: LP64
+      language: C
+  content:
+  - invariant:
+      type: loop_invariant
+      location:
+        file_name: 28-mine-tutorial-ex4.8.c
+        line: 6
+        column: 3
+        function: main
+      value: 0 <= v && v <= 1
+      format: c_expression

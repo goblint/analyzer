@@ -1,5 +1,5 @@
 // PARAM: --enable dbg.cfg.loop-clusters
-#include <assert.h>
+#include <goblint.h>
 
 int cycle2_1() {
   int r = 1; // variable to prevent CIL simplification
@@ -9,9 +9,9 @@ int cycle2_1() {
     goto cycle2_1_entry2;
 
 cycle2_1_entry1:
-  assert(1); // reachable
+  __goblint_check(1); // reachable
 cycle2_1_entry2:
-  assert(1); // reachable
+  __goblint_check(1); // reachable
   goto cycle2_1_entry1;
 
   return 0;
@@ -26,9 +26,9 @@ int cycle2_0() {
     goto cycle2_0_entry2;
 
 cycle2_0_entry1:
-  assert(1); // reachable
+  __goblint_check(1); // reachable
 cycle2_0_entry2:
-  assert(1); // reachable
+  __goblint_check(1); // reachable
   goto cycle2_0_entry1;
 
   return 0;
@@ -43,7 +43,7 @@ void loops_s3_min() {
         goto switch_1_default;
         if (0) {
           switch_1_12292:
-          assert(1); // reachable
+          __goblint_check(1); // reachable
 
           goto switch_1_break;
 
@@ -68,11 +68,11 @@ int loop2() {
     goto loop2_entry2;
 
 loop2_entry1:
-  assert(1); // reachable
-  assert(1); // reachable
+  __goblint_check(1); // reachable
+  __goblint_check(1); // reachable
 loop2_entry2:
-  assert(1); // reachable
-  assert(1); // reachable
+  __goblint_check(1); // reachable
+  __goblint_check(1); // reachable
   goto loop2_entry1;
 
   return 0;

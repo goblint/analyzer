@@ -1,7 +1,7 @@
 // SKIP PARAM: --set ana.activated[+] apron --set ana.path_sens[+] threadflag
 extern int __VERIFIER_nondet_int();
 
-#include <assert.h>
+#include <goblint.h>
 
 void main() {
   int x = __VERIFIER_nondet_int();
@@ -10,6 +10,6 @@ void main() {
     if (2 * x == 3) { // apron excludes true branch
       a = 1;
     }
-    assert(a == 0);
+    __goblint_check(a == 0);
   }
 }

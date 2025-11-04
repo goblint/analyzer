@@ -5,10 +5,21 @@ rules:
       - pattern: Cil.typeOfLval
       - pattern: Cil.typeOfInit
       - pattern: Cil.typeOffset
+      - pattern: Cil.mkCast
       - pattern: Cil.get_stmtLoc
+      - pattern: Cil.get_instrLoc
     paths:
       exclude:
+        - cilfacade0.ml
         - cilfacade.ml
     message: use Cilfacade instead
+    languages: [ocaml]
+    severity: WARNING
+
+  - id: cil-var
+    pattern: (Var $X, NoOffset)
+    # Autofix is broken: https://github.com/semgrep/semgrep/issues/11278
+    # fix: GoblintCil.var $X
+    message: use GoblintCil.var instead
     languages: [ocaml]
     severity: WARNING

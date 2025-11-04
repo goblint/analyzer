@@ -1,0 +1,25 @@
+- entry_type: invariant_set
+  metadata:
+    format_version: "2.0"
+    uuid: 640889a9-5b82-4fc0-9365-7d4a21f11a45
+    creation_time: 2022-07-01T11:30:04Z
+    producer:
+      name: Simmo Saan
+      version: n/a
+    task:
+      input_files:
+      - 04-base-priv-sync-prune.c
+      input_file_hashes:
+        04-base-priv-sync-prune.c: 20f9b103c97d1a16c6c4e39478f949ffbf1bb4c7ed7b17af7d7399aa57c8f158
+      data_model: LP64
+      language: C
+  content:
+  - invariant:
+      type: location_invariant
+      location:
+        file_name: 04-base-priv-sync-prune.c
+        line: 8
+        column: 3
+        function: main
+      value: g == 2
+      format: c_expression

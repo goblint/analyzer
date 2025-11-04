@@ -1,5 +1,5 @@
 #include<stdio.h>
-#include<assert.h>
+#include <goblint.h>
 
 int statinc() {
   int static x;
@@ -14,11 +14,11 @@ int main () {
   i = 0;
   // static variable (thanks to CIL)
   i = statinc();
-  assert(i == 1);
-  assert(x == 0);
+  __goblint_check(i == 1);
+  __goblint_check(x == 0);
   i = statinc();
-  assert(i == 2);
-  assert(x == 0);
+  __goblint_check(i == 2);
+  __goblint_check(x == 0);
 
   return 0;
 }

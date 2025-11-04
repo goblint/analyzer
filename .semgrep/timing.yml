@@ -1,0 +1,16 @@
+rules:
+  - id: cil-stats
+    pattern-either:
+      - pattern: Stats.$FUN
+      - pattern: GoblintCil.Stats.$FUN
+    fix: Timing.$FUN
+    message: use Timing instead
+    languages: [ocaml]
+    severity: ERROR
+
+  - id: timing-time-partial
+    patterns:
+      - pattern: Timing.time $NAME $FUNC $ARG $BADARG ...
+    message: Timing.time measuring only partial, not complete function application (see https://goblint.readthedocs.io/en/latest/developer-guide/profiling/#timing)
+    languages: [ocaml]
+    severity: ERROR

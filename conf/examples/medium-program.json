@@ -1,0 +1,34 @@
+{
+  "ana": {
+    "int": {
+      "def_exc": true,
+      "enums": false,
+      "interval": true
+    },
+    "activated": [
+      "base",
+      "threadid",
+      "threadflag",
+      "threadreturn",
+      "mallocWrapper",
+      "mutexEvents",
+      "mutex",
+      "access",
+      "race",
+      "escape",
+      "expRelation",
+      "mhp",
+      "assert",
+      "pthreadMutexType",
+      "var_eq",
+      "symb_locks",
+      "region",
+      "thread"
+    ],
+    "base": {
+      "arrays": {
+        "domain": "partitioned"
+      }
+    }
+  }
+}

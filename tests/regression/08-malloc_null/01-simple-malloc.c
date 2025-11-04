@@ -1,5 +1,6 @@
-// PARAM: --set ana.activated "['base','threadid','threadflag','escape','malloc_null','mallocWrapper']" --set ana.base.privatization none
+// PARAM: --set ana.activated[+] malloc_null
 #include <stdlib.h>
+#include <goblint.h>
 
 void *smalloc(size_t x){
         void * p = malloc(x);
@@ -18,25 +19,25 @@ void *no_malloc(size_t x){
 int main(void) {
         int *v;
 
-        v = (int*)smalloc(sizeof(*v));
+        v = (int*)smalloc(sizeof(*v)); // NOWARN (v may be NULL, but sizeof does not evaluate)
         *v = 10; // NOWARN
 
 
-        v = (int*)malloc(sizeof(*v));
+        v = (int*)malloc(sizeof(*v)); // NOWARN (v is not NULL and sizeof does not evaluate anyway)
         if (v == 0){
-                assert(0); // FAIL
+                __goblint_check(0); // FAIL
   } else {
-                assert(0); // FAIL
+                __goblint_check(0); // FAIL
                 *v != 0; // NOWARN
         }
 
-        v = (int*)no_malloc(sizeof(*v));
+        v = (int*)no_malloc(sizeof(*v)); // NOWARN (v may be NULL, but sizeof does not evaluate)
         *v = 10; //WARN
 
         if (v == 0)
                 exit(0);
 
-        assert(0); // NOWARN
+        __goblint_check(0); // NOWARN
 
   return 0;
 }

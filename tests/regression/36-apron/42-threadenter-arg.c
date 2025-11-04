@@ -1,9 +1,9 @@
 // SKIP PARAM: --set ana.activated[+] apron --set ana.path_sens[+] threadflag
 #include <pthread.h>
-#include <assert.h>
+#include <goblint.h>
 
-void *t_fun(int arg) {
-  assert(arg == 3); // TODO (cast through void*)
+void *t_fun(int arg) { // check that apron doesn't crash with tracked thread argument
+  __goblint_check(arg == 3); // cast through void*, passes by base
   return NULL;
 }
 

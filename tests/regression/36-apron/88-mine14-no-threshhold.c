@@ -27,7 +27,7 @@ int main(void) {
   pthread_create(&id, NULL, t_fun, NULL);
   pthread_create(&id2, NULL, t_fun, NULL);
   pthread_mutex_lock(&mutex);
-  assert(x <= 100); // TODO
+  __goblint_check(x <= 100); // TODO
   pthread_mutex_unlock(&mutex);
   return 0;
 }

@@ -1,5 +1,5 @@
 // PARAM: --enable ana.int.interval --disable ana.int.def_exc --disable ana.int.enums
-#include <assert.h>
+#include <goblint.h>
 #include <stdio.h>
 
 int main(){
@@ -10,8 +10,8 @@ int main(){
     // We thus get i -> Bottom, and the code after the condition is considered unreachable
     if(i *  1073741824u == 3221225472u){
         printf("%u\n", i);
-        assert(i == 3); // SUCCESS
+        __goblint_check(i == 3); // SUCCESS
     }
-    assert(i == 3); // SUCCESS
+    __goblint_check(i == 3); // SUCCESS
     return 0;
 }

@@ -14,7 +14,7 @@ void rec (int **u, int i) {
     u = (int **)malloc(sizeof(int *));
     int** v = u;
     rec(u, i);
-    assert(v == u); //TODO
+    __goblint_check(v == u); //TODO
     return;
   }
 }

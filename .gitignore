@@ -10,6 +10,7 @@ goblint
 goblint.byte
 goblint.json
 goblint.domaintest
+goblint_http.exe
 src/config*.ml
 tests/bench.txt
 .DS_Store
@@ -22,16 +23,13 @@ doclist.odocl
 autom4te.cache
 mytests
 result/*
-tests/regression/14-osek/osek_goblint.h
-tests/regression/16-relinv/osek_goblint.h
-tests/regression/16-relinv/flags.json
+pml-result/*
 tests/regression/*/goblint_temp
 linux-headers
 
 .goblint*/
 goblint_temp_*/
 
-src/spec/graph
 .vagrant
 
 g2html.jar
@@ -46,6 +44,7 @@ _opam/
 cfgs/
 cfg.dot
 cilcfg.*.dot
+arg.dot
 
 *.graphml
 goblint.bc.js
@@ -56,10 +55,13 @@ goblint.bc.js
 
 sv-comp/goblint.zip
 
-privPrecCompare*
+privPrecCompare
+privPrecCompare-creduce
+privPrecCompareRes
 apronPrecCompare
 messagesCompare
 tests/regression/*/run
+tests/suite_result
 
 # csmith
 runtime/*
@@ -82,3 +84,21 @@ dune-workspace
 
 # gobview
 run/
+gobview_out/*
+
+# witnesses
+witness.yml
+witness.certificate.yml
+
+# transformations
+transformed.c
+
+# docs
+site/
+
+# coverage
+
+# bisect_ppx
+*.coverage
+# bisect-ppx-report
+_coverage/*

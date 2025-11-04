@@ -1,7 +1,9 @@
+#include <goblint.h>
+
 void proc(int *x, int *y) {}
 
 main () {
   int z = 1;
   proc(&z, &z);
-  assert(z == 1);
+  __goblint_check(z == 1);
 }

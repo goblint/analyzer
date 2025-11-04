@@ -1,0 +1,28 @@
+diff --git tests/incremental/14-manual-restart/04-restarting_and_aborting.c tests/incremental/14-manual-restart/04-restarting_and_aborting.c
+index 21087e88c..f5c13bdb0 100644
+--- tests/incremental/14-manual-restart/04-restarting_and_aborting.c
++++ tests/incremental/14-manual-restart/04-restarting_and_aborting.c
+@@ -6,7 +6,7 @@ void foo(){
+
+ void bar(){
+     int x = g;
+-    __goblint_check(x != 0); // UNKNOWN (imprecision caused by earlyglobs)
++    __goblint_check(x != 0); // UNKNOWN (imprecision caused by earlyglobs, should not be fail which could occur when missing the side-effect to g)
+ }
+
+ int main(){
+diff --git tests/incremental/14-manual-restart/04-restarting_and_aborting.json tests/incremental/14-manual-restart/04-restarting_and_aborting.json
+index 28890d55e..b1e065133 100644
+--- tests/incremental/14-manual-restart/04-restarting_and_aborting.json
++++ tests/incremental/14-manual-restart/04-restarting_and_aborting.json
+@@ -19,7 +19,9 @@
+             "sided": {
+                 "enabled": false
+             },
+-            "list": []
++            "list": [
++              "g"
++            ]
+         }
+     }
+ }

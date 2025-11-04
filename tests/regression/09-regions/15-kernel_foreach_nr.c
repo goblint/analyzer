@@ -2,11 +2,12 @@
 #include<linux/module.h>
 #include<linux/list.h>
 #include<linux/mutex.h>
+#include <linux/slab.h>
 
 struct s {
   int datum;
   struct list_head list;
-}; 
+};
 
 struct list_head slot[10];
 struct mutex slots_mutex[10];
@@ -19,20 +20,20 @@ struct s *new(int x) {
 }
 
 void t1(int i) {
-  struct s *p; 
-  
+  struct s *p;
+
   p = new(1);
   mutex_lock(&slots_mutex[i]);
-  list_add(&p->list, &slot[i]); 
+  list_add(&p->list, &slot[i]);
   p = new(2);
-  list_add(&p->list, &slot[i]); 
+  list_add(&p->list, &slot[i]);
   mutex_unlock(&slots_mutex[i]);
 }
 
 void t2 (int j) {
   struct s *pos;
   int j;
-  
+
   mutex_lock(&slots_mutex[j]);
   list_for_each_entry(pos, &slot[j], list) {
     pos->datum++; // NORACE!

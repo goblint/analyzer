@@ -4,14 +4,15 @@
 
 void main()
 {
-    char data;
+    // no char because char has unknown signedness (particularly, unsigned on arm64)
+    signed char data;
     for (int i = 0; i < 100; i++)
     {
         // value of data is pseudo-random
         data = rand();
         if(data < 0) // avoid potential overflow
         {
-            char result = data * 2; // WARN: potential underflow
+            signed char result = data * 2; // WARN: potential underflow
             printf("%hhd\n", result);
         }
     }

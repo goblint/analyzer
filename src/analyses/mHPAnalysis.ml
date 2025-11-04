@@ -1,4 +1,5 @@
-(** MHP access analysis. *)
+(** May-happen-in-parallel (MHP) analysis for memory accesses ([mhp]). *)
+
 open Analyses
 
 module Spec =
@@ -11,15 +12,13 @@ struct
     include MHP
     let name () = "mhp"
     let may_race = MHP.may_happen_in_parallel
-    let should_print _ = true
+    let should_print {tid; created; must_joined} =
+      GobConfig.get_bool "dbg.full-output" ||
+      (not (ConcDomain.ThreadSet.is_empty created) ||
+       not (ConcDomain.ThreadSet.is_empty must_joined))
   end
 
-  let access ctx _: MHP.t =
-    {
-      tid = ctx.ask CurrentThreadId;
-      created = ctx.ask CreatedThreads;
-      must_joined = ctx.ask MustJoinedThreads
-    }
+  let access man _: MHP.t = MHP.current (Analyses.ask_of_man man)
 end
 
 let _ =

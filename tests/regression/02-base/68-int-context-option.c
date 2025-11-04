@@ -1,5 +1,5 @@
 // PARAM: --enable ana.int.interval --disable ana.context.widen --disable ana.base.context.int --set annotation.goblint_context.f[+] base.int
-#include <assert.h>
+#include <goblint.h>
 
 int f(int x) {
   if (x)
@@ -10,6 +10,6 @@ int f(int x) {
 
 int main () {
   int a = f(10);
-  assert(a == 3628800);
+  __goblint_check(a == 3628800);
   return 0;
 }

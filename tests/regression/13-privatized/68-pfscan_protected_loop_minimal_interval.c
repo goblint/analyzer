@@ -1,6 +1,6 @@
 // PARAM: --enable ana.int.interval
 #include <pthread.h>
-#include <assert.h>
+#include <goblint.h>
 
 struct __anonstruct_PQUEUE_63 {
    int occupied ;
@@ -31,9 +31,9 @@ int pqueue_get(PQUEUE *qp)
   int got = 0;
   pthread_mutex_lock(& qp->mtx);
   while (qp->occupied <= 0) {
-    assert(qp->occupied == 0);
+    __goblint_check(qp->occupied == 0);
   }
-  assert(qp->occupied != 0);
+  __goblint_check(qp->occupied != 0);
   if (qp->occupied > 0) {
     (qp->occupied) --;
     got = 1;

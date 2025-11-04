@@ -1,4 +1,7 @@
-open Prelude
+(** Precision comparison. *)
+
+open Batteries
+module Pretty = GoblintCil.Pretty
 open Pretty
 
 module Comparison =
@@ -78,7 +81,7 @@ struct
         match c with
         | {Comparison.more_precise = 0; less_precise = 0; incomparable = 0; _} -> ()
         | _ ->
-          if verbose then ignore (Pretty.printf "%a: %t\n" K.pretty k (fun () -> msg))
+          if verbose then Logs.debug "%a: %t" K.pretty k (fun () -> msg)
       ) compared;
     let c = KH.fold (fun _ (c, _) acc -> Comparison.aggregate_same c acc) compared Comparison.empty in
     let msg = Pretty.dprintf "%s %s %s    (%s)" name1 (Comparison.to_string_infix c) name2 (Comparison.to_string_counts c) in
@@ -100,8 +103,12 @@ struct
 
   module CompareDump = MakeHashtbl (Key) (Dom) (RH)
 
+  let comparisons = ref []
+
   let compare_dumps ({name = name1; results = lvh1}: result) ({name = name2; results = lvh2}: result) =
-    CompareDump.compare ~name1 lvh1 ~name2 lvh2
+    let (c, d) = CompareDump.compare ~verbose:true ~name1 lvh1 ~name2 lvh2 in
+    comparisons := (name1, name2, c, d) :: !comparisons;
+    (c, d)
 
   let count_locations (dumps: result list) =
     let module LH = Hashtbl.Make (CilType.Location) in
@@ -115,6 +122,45 @@ struct
       ) dumps;
     (LH.length locations, RH.length location_vars)
 
+  let group () =
+    let new_bucket_id = ref 0 in
+    let equality_buckets = Hashtbl.create 113 in
+    let sorted = List.sort (fun (n1, _, _, _) (n2, _, _, _) -> String.compare n1 n2) !comparisons in
+    List.iter (fun (name1, name2, (c:Comparison.t), _) ->
+        (if not (Hashtbl.mem equality_buckets name1) then
+           (* Make its own bucket if it does not appear yet *)
+           (let bucket_id = !new_bucket_id in
+            incr new_bucket_id;
+            Hashtbl.add equality_buckets name1 bucket_id));
+        if c.more_precise = 0 && c.less_precise = 0 && c.incomparable = 0 then
+          Hashtbl.replace equality_buckets name2 (Hashtbl.find equality_buckets name1)
+        else
+          ()
+      ) sorted;
+    let bindings = Hashtbl.bindings equality_buckets in
+    let buckets = List.group (fun (_, b) (_, b') -> compare b b') bindings in
+    List.iter (fun bucket ->
+        Logs.result "Bucket %d:" (snd (List.hd bucket));
+        List.iter (fun (name, _) -> Logs.result "  %s" name) bucket
+      ) buckets;
+    let comparison_produced = Hashtbl.create 113 in
+    List.iter (fun (name1, name2, c,d) ->
+        let bucket1 = Hashtbl.find equality_buckets name1 in
+        let bucket2 = Hashtbl.find equality_buckets name2 in
+        if bucket1 = bucket2 then
+          ()
+        else
+          begin
+            let comp_tumple = (min bucket1 bucket2, max bucket1 bucket2) in
+            if not @@ Hashtbl.mem comparison_produced comp_tumple then
+              begin
+                Hashtbl.add comparison_produced comp_tumple ();
+                Logs.result "Comparison between bucket %d and %d: %t" (fst comp_tumple) (snd comp_tumple) (fun () -> d);
+              end
+          end
+      ) sorted;
+    ()
+
   let main () =
     Util.init ();
     let filenames = List.tl (Array.to_list Sys.argv) in
@@ -126,6 +172,8 @@ struct
     |> List.filter (fun ((i1, _), (i2, _)) -> i1 <> i2)
     |> List.map (Tuple2.map snd snd)
     |> List.map (uncurry compare_dumps)
-    |> List.iter (fun (_, msg) -> ignore (Pretty.printf "%t\n" (fun () -> msg)));
-    ignore (Pretty.printf "\nTotal locations: %d\nTotal %s: %d\n" locations_count (Key.name ()) location_vars_count)
+    |> List.iter (fun (_, msg) -> Logs.result "%t" (fun () -> msg));
+    Logs.newline ();
+    Logs.result "Total locations: %d\nTotal %s: %d" locations_count (Key.name ()) location_vars_count;
+    group ()
 end

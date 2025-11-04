@@ -1,11 +1,12 @@
 #include <errno.h>
+#include <goblint.h>
 
 int main(){
   int x = 5;
   if (errno == ENOENT) {
     x = 9;
-  } 
-  assert(x == 5); // UNKNOWN
+  }
+  __goblint_check(x == 5); // UNKNOWN
   return 0;
 }
 

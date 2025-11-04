@@ -1,3 +1,5 @@
+#include <goblint.h>
+
 extern int scanf(char *, ...);
 
 /* pointer backward along the stack to a local variable */
@@ -11,7 +13,7 @@ void rec (int *p) {
     i = (*p);
     p = &i;
     rec(p);
-    assert(p == &i); //UNKNOWN!
+    __goblint_check(p == &i); //UNKNOWN!
     return;
   }
 }

@@ -1,3 +1,4 @@
+(** SARIF rule definitions for Goblint. *)
 
 type categoryInformation = {
   name:string;
@@ -52,10 +53,10 @@ let rules = [
   {
     name="Race";
     ruleId="GO0005";
-    helpText="A race condition";
-    shortDescription="The program contains a code sequence that can run concurrently with other code, and the code sequence requires temporary, exclusive access to a shared resource, but a timing window exists in which the shared resource can be modified by another code sequence that is operating concurrently. ";
+    helpText="Concurrent Execution using Shared Resource with Improper Synchronization";
+    shortDescription="Race Condition";
     helpUri="https://goblint.in.tum.de/home";
-    longDescription="";
+    longDescription="The program contains a code sequence that can run concurrently with other code, and the code sequence requires temporary, exclusive access to a shared resource, but a timing window exists in which the shared resource can be modified by another code sequence that is operating concurrently.";
   };
   {
     name="Overflow";
@@ -185,6 +186,14 @@ let rules = [
     shortDescription="The software reads or writes to a buffer using an index or pointer that references a memory location after the end of the buffer. ";
     helpUri="https://cwe.mitre.org/data/definitions/788.html";
     longDescription="";
+  };
+  {
+    name="415";
+    ruleId="GO0022";
+    helpText="Double Free";
+    shortDescription="The product calls free() twice on the same memory address, potentially leading to modification of unexpected memory locations.";
+    helpUri="https://cwe.mitre.org/data/definitions/415.html";
+    longDescription=""
   }
 ]
 

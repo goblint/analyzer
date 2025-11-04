@@ -1,4 +1,4 @@
-module GU = Goblintutil
+(** Call stack domains. *)
 
 module type S =
 sig
@@ -13,14 +13,14 @@ struct
   let n = 3
   let rec times x = function 0 -> [] | n -> x::times x (n-1)
   let rec map2 f xs ys =
-    match xs, ys with x::xs, y::ys -> (try f x y :: map2 f xs ys with Lattice.Unsupported _ -> []) | _ -> []
+    match xs, ys with x::xs, y::ys -> (try f x y :: map2 f xs ys with Lattice.BotValue | Lattice.TopValue -> []) | _ -> []
 
   let rec fold_left2 f a b xs ys =
     match xs, ys with
     | [], _ | _, [] -> a
     | x::xs, y::ys ->
       try fold_left2 f (f a x y) b xs ys with
-      | Lattice.Unsupported _ -> b
+      | Lattice.BotValue | Lattice.TopValue -> b
 
   let rec take n xs =
     match n, xs with
@@ -30,7 +30,7 @@ struct
 
   module VarLat = Lattice.Fake (Basetype.Variables)
 
-  module Var = Lattice.Lift (VarLat) (struct let top_name="top" let bot_name="⊥" end)
+  module Var = Lattice.LiftConf (struct include Printable.DefaultConf let top_name="top" let bot_name="⊥" end) (VarLat)
   include Lattice.Liszt (Var)
 
   let top () : t = []
@@ -62,7 +62,4 @@ end
 module Dom3 = struct
   include Lattice.FakeSingleton (Loc)
   let push x (xs:t): t = x :: xs
-  let pop = function
-    | (x::xs) -> xs
-    | [] -> failwith "Popping empty stack."
 end
