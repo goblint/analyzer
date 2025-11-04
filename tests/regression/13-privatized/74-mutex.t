@@ -18,6 +18,10 @@
     unsafe: 0
     total memory locations: 1
 
+  $ grep format_version witness.yml
+      format_version: "2.1"
+      format_version: "2.1"
+
   $ yamlWitnessStrip < witness.yml | tee witness.flow_insensitive.yml
   - entry_type: ghost_instrumentation
     content:
@@ -112,6 +116,11 @@ Flow-insensitive invariants as location invariants.
     vulnerable: 0
     unsafe: 0
     total memory locations: 1
+
+TODO: should invariant_set-s which use ghosts also be 2.1?
+  $ grep format_version witness.yml
+      format_version: "2.1"
+      format_version: "2.0"
 
   $ yamlWitnessStrip < witness.yml > witness.location.yml
 
