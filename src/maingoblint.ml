@@ -550,7 +550,9 @@ let do_analyze change_info merged_AST =
       let at = String.concat ", " @@ get_string_list "trans.activated" in
       Logs.debug "Activated analyses: %s" aa;
       Logs.debug "Activated transformations: %s" at;
-      let analyze = if get_string "solver" = "fwd" then FwdControl.analyze else Control.analyze in
+      let analyze = if (get_string "solver" = "fwd" || 
+                        get_string "solver" = "bu")
+        then FwdControl.analyze else Control.analyze in
       try analyze change_info ast funs
       with e ->
         let backtrace = Printexc.get_raw_backtrace () in (* capture backtrace immediately, otherwise the following loses it (internal exception usage without raise_notrace?) *)
@@ -595,30 +597,30 @@ let do_html_output () =
 let do_gobview cilfile =
   let gobview = GobConfig.get_bool "gobview" in
   if gobview then (
-      let save_run = GobConfig.get_string "save_run" in
-      let run_dir = Fpath.v(if save_run <> "" then save_run else "run") in
-      (* copy relevant c files to gobview directory *)
-      let file_dir = Fpath.(run_dir / "files") in
-      GobSys.mkdir_or_exists file_dir;
-      let file_loc = Hashtbl.create 113 in
-      let copy (path, i) =
-        let name, ext = Fpath.split_ext (Fpath.base path) in
-        let unique_name = Fpath.add_ext ext (Fpath.add_ext (string_of_int i) name) in
-        let dest = Fpath.(file_dir // unique_name) in
-        let gobview_path = match Fpath.relativize ~root:run_dir dest with
-          | Some p -> Fpath.to_string p
-          | None -> failwith "The gobview directory should be a prefix of the paths of c files copied to the gobview directory" in
-        Hashtbl.add file_loc (Fpath.to_string path) gobview_path;
-        FileUtil.cp [Fpath.to_string path] (Fpath.to_string dest)
-      in
-      let source_paths = Preprocessor.FpathH.to_list Preprocessor.dependencies |> List.concat_map (fun (_, m) -> Fpath.Map.fold (fun p _ acc -> p::acc) m []) in
-      let source_file_paths = List.filteri_map (fun i e -> if Fpath.is_file_path e then Some (e, i) else None) source_paths in
-      List.iter copy source_file_paths;
-      Serialize.marshal file_loc (Fpath.(run_dir / "file_loc.marshalled"));
-      (* marshal timing statistics *)
-      let stats = Fpath.(run_dir / "stats.marshalled") in
-      Serialize.marshal (Timing.Default.root, Gc.quick_stat ()) stats;
-    )
+    let save_run = GobConfig.get_string "save_run" in
+    let run_dir = Fpath.v(if save_run <> "" then save_run else "run") in
+    (* copy relevant c files to gobview directory *)
+    let file_dir = Fpath.(run_dir / "files") in
+    GobSys.mkdir_or_exists file_dir;
+    let file_loc = Hashtbl.create 113 in
+    let copy (path, i) =
+      let name, ext = Fpath.split_ext (Fpath.base path) in
+      let unique_name = Fpath.add_ext ext (Fpath.add_ext (string_of_int i) name) in
+      let dest = Fpath.(file_dir // unique_name) in
+      let gobview_path = match Fpath.relativize ~root:run_dir dest with
+        | Some p -> Fpath.to_string p
+        | None -> failwith "The gobview directory should be a prefix of the paths of c files copied to the gobview directory" in
+      Hashtbl.add file_loc (Fpath.to_string path) gobview_path;
+      FileUtil.cp [Fpath.to_string path] (Fpath.to_string dest)
+    in
+    let source_paths = Preprocessor.FpathH.to_list Preprocessor.dependencies |> List.concat_map (fun (_, m) -> Fpath.Map.fold (fun p _ acc -> p::acc) m []) in
+    let source_file_paths = List.filteri_map (fun i e -> if Fpath.is_file_path e then Some (e, i) else None) source_paths in
+    List.iter copy source_file_paths;
+    Serialize.marshal file_loc (Fpath.(run_dir / "file_loc.marshalled"));
+    (* marshal timing statistics *)
+    let stats = Fpath.(run_dir / "stats.marshalled") in
+    Serialize.marshal (Timing.Default.root, Gc.quick_stat ()) stats;
+  )
 
 let handle_extraspecials () =
   let funs = get_string_list "exp.extraspecials" in

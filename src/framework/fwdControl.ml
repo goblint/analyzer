@@ -94,7 +94,9 @@ struct
   end
 
   module Sys = FwdConstraints.FromSpec (Spec) (Cfg) (Inc)
-  module Slvr2 = FwdSolver.FwdSolver (Sys)
+  module FwdSlvr = FwdSolver.FwdSolver (Sys)
+  module BuSolver = Bu.FwdBuSolver (Sys)
+  (* module Slvr2 = BuSlvr *)
   module GHT = BatHashtbl.Make (Sys.GVar)
 
 
@@ -471,13 +473,15 @@ struct
       let compare_runs = get_string_list "compare_runs" in
       let gobview = get_bool "gobview" in
       let save_run_str = let o = get_string "save_run" in if o = "" then (if gobview then "run" else "") else o in
-      let _ = Slvr2.solve entrystates entrystates_global startvars' in
+      let solve = if (get_string "solver" = "bu") then BuSolver.solve else FwdSlvr.solve in 
+      let check = if (get_string "solver" = "bu") then BuSolver.check else FwdSlvr.check in 
+      let _ = solve entrystates entrystates_global startvars' in
 
       AnalysisState.should_warn := true; (* reset for postsolver *)
       AnalysisState.postsolving := true;
       (* postsolver *)
 
-      let rho,tau = Slvr2.check entrystates entrystates_global startvars' in
+      let rho,tau = check entrystates entrystates_global startvars' in
       let lh, gh = LHT.of_seq rho, GHT.of_seq tau in
 
       (* Most warnings happen before during postsolver, but some happen later (e.g. in finalize), so enable this for the rest (if required by option). *)
