@@ -9,6 +9,7 @@ RUN git clone -b gobitch --single-branch https://github.com/karoliineh/witch.git
 WORKDIR /home/opam/witch
 # build Witch
 RUN ./system-build.sh witch-klee llvm-version=14.0.6 full-archive -j4
+RUN rm -rf install/.git
 
 # just -opam tag because make setup will install ocaml compiler
 FROM ocaml/opam:ubuntu-24.04-opam AS build
