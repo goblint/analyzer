@@ -243,9 +243,11 @@ struct
       | "32bit" -> "--32"
       | _ -> failwith "invalid architecture"
     in
+    let property = GobConfig.get_string "ana.specification" in
     let witness_file_path = GobConfig.get_string "witness.yaml.path" in
     (*  ../witch/scripts/symbiotic --witness-check ../analyzer/witness.yml --32 ../analyzer/violation-witness.c *)
-    let command = Printf.sprintf "%s --witness-check %s %s --guide-only %s" witch witness_file_path data_model files in
+    let witch_path_s = Fpath.to_string (Fpath.append GobSys.exe_dir (Fpath.v witch)) in
+    let command = Printf.sprintf "%s --witness-check %s --witness %s --prp %s %s --guide-only %s" witch_path_s witness_file_path witness_file_path property data_model files in
     read_command_output command
 
   let get_unreachable_path lines (path: (Node.t * inline_edge * Node.t) list) (segToPathMap, segments) =
