@@ -20,7 +20,7 @@
 
   $ grep format_version witness.yml
       format_version: "2.1"
-      format_version: "2.1"
+      format_version: 2.1-goblint
 
   $ yamlWitnessStrip < witness.yml | tee witness.flow_insensitive.yml
   - entry_type: ghost_instrumentation

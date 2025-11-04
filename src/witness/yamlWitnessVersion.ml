@@ -3,15 +3,18 @@
 type t =
   | V2_0
   | V2_1
+  | V2_1_Goblint
 [@@deriving ord, enum]
 
 let show = function
   | V2_0 -> "2.0"
   | V2_1 -> "2.1"
+  | V2_1_Goblint -> "2.1-goblint"
 
 let of_string = function
   | "2.0" -> V2_0
   | "2.1" -> V2_1
+  | "2.1-goblint" -> V2_1_Goblint
   | _ -> invalid_arg "YamlWitnessVersion.of_string"
 
 let of_option () =

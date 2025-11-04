@@ -221,7 +221,7 @@ struct
     [@@deriving eq, ord, hash]
 
     let invariant_type = "flow_insensitive_invariant"
-    let min_version _ = YamlWitnessVersion.V2_1 (* TODO: add goblint-specific version? *)
+    let min_version _ = YamlWitnessVersion.V2_1_Goblint
 
     let to_yaml' {value; format} =
       [
