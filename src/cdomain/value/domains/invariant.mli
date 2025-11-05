@@ -2,6 +2,8 @@
 
 include Lattice.S with type t = [ `Bot | `Lifted of GoblintCil.exp | `Top ]
 
+val process_exp: GoblintCil.exp -> GoblintCil.exp list
+
 val none: t
 val of_exp: GoblintCil.exp -> t
 
