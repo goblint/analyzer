@@ -1,7 +1,7 @@
 (** ([effectWConEq]). *)
 
 open Batteries
-open ConstrSys
+open Goblint_constraint.ConstrSys
 
 module Make =
   functor (S:EqConstrSys) ->
@@ -65,8 +65,8 @@ module Make =
           HM.replace rho x tmp;
           let w = try HM.find infl x with Not_found -> VS.empty in
           HM.replace infl x VS.empty;
-          BatEnum.iter (HM.remove stable) (VS.enum w);
-          BatEnum.iter solve (VS.enum w)
+          VS.iter (HM.remove stable) w;
+          VS.iter solve w
         end
       in
 
@@ -87,4 +87,4 @@ module Make =
   end
 
 let _ =
-  Selector.add_solver ("effectWConEq", (module PostSolver.EqIncrSolverFromEqSolver (Make)));
+  Selector.add_solver ("effectWConEq", (module PostSolver.DemandEqIncrSolverFromEqSolver (Make)));

@@ -1,7 +1,8 @@
 open GobConfig
 open GoblintCil
 open Pretty
-open PrecisionUtil
+
+include IntDomain_intf
 
 module M = Messages
 
@@ -69,7 +70,7 @@ let should_wrap ik = not (Cil.isSigned ik) || get_string "sem.int.signed_overflo
   * Always false for unsigned types, true for signed types if 'sem.int.signed_overflow' is 'assume_none'  *)
 let should_ignore_overflow ik = Cil.isSigned ik && get_string "sem.int.signed_overflow" = "assume_none"
 
-type overflow_info = { overflow: bool; underflow: bool;}
+type overflow_info = IntDomain_intf.overflow_info = { overflow: bool; underflow: bool;}
 
 let set_overflow_flag ~cast ~underflow ~overflow ik =
   if !AnalysisState.executing_speculative_computations then
@@ -96,192 +97,20 @@ let reset_lazy () =
   ana_int_config.interval_threshold_widening_constants <- None;
   ana_int_config.refinement <- None
 
-module type Arith =
+
+module type Bitfield_SOverflow =
 sig
-  type t
-  val neg: t -> t
-  val add: t -> t -> t
-  val sub: t -> t -> t
-  val mul: t -> t -> t
-  val div: t -> t -> t
-  val rem: t -> t -> t
 
-  val lt: t -> t -> t
-  val gt: t -> t -> t
-  val le: t -> t -> t
-  val ge: t -> t -> t
-  val eq: t -> t -> t
-  val ne: t -> t -> t
+  include SOverflow
 
-  val lognot: t -> t
-  val logand: t -> t -> t
-  val logor : t -> t -> t
-  val logxor: t -> t -> t
-
-  val shift_left : t -> t -> t
-  val shift_right: t -> t -> t
-
-  val c_lognot: t -> t
-  val c_logand: t -> t -> t
-  val c_logor : t -> t -> t
+  (* necessary for baseInvariant *)
+  val refine_bor : t -> t -> t -> t * t
+  val refine_band : t -> t -> t -> t * t
 
 end
 
-module type ArithIkind =
-sig
-  type t
-  val neg: Cil.ikind -> t -> t
-  val add: Cil.ikind -> t -> t -> t
-  val sub: Cil.ikind -> t -> t -> t
-  val mul: Cil.ikind -> t -> t -> t
-  val div: Cil.ikind -> t -> t -> t
-  val rem: Cil.ikind -> t -> t -> t
 
-  val lt: Cil.ikind -> t -> t -> t
-  val gt: Cil.ikind -> t -> t -> t
-  val le: Cil.ikind -> t -> t -> t
-  val ge: Cil.ikind -> t -> t -> t
-  val eq: Cil.ikind -> t -> t -> t
-  val ne: Cil.ikind -> t -> t -> t
-
-  val lognot: Cil.ikind -> t -> t
-  val logand: Cil.ikind -> t -> t -> t
-  val logor : Cil.ikind -> t -> t -> t
-  val logxor: Cil.ikind -> t -> t -> t
-
-  val shift_left : Cil.ikind -> t -> t -> t
-  val shift_right: Cil.ikind -> t -> t -> t
-
-  val c_lognot: Cil.ikind -> t -> t
-  val c_logand: Cil.ikind -> t -> t -> t
-  val c_logor : Cil.ikind -> t -> t -> t
-
-end
-
-(* Shared functions between S and Z *)
-module type B =
-sig
-  include Lattice.S
-  type int_t
-  val bot_of: Cil.ikind -> t
-  val top_of: Cil.ikind -> t
-  val to_int: t -> int_t option
-  val equal_to: int_t -> t -> [`Eq | `Neq | `Top]
-
-  val to_bool: t -> bool option
-  val to_excl_list: t -> (int_t list * (int64 * int64)) option
-  val of_excl_list: Cil.ikind -> int_t list -> t
-  val is_excl_list: t -> bool
-
-  val to_incl_list: t -> int_t list option
-
-  val maximal    : t -> int_t option
-  val minimal    : t -> int_t option
-
-  val cast_to: ?suppress_ovwarn:bool -> ?torg:Cil.typ -> Cil.ikind -> t -> t
-end
-
-(** Interface of IntDomain implementations that do not take ikinds for arithmetic operations yet. TODO: Should be ported to S in the future. *)
-module type IkindUnawareS =
-sig
-  include B
-  include Arith with type t := t
-  val starting   : ?suppress_ovwarn:bool -> Cil.ikind -> int_t -> t
-  val ending     : ?suppress_ovwarn:bool -> Cil.ikind -> int_t -> t
-  val of_int: int_t -> t
-  val of_bool: bool -> t
-  val of_interval: ?suppress_ovwarn:bool -> Cil.ikind -> int_t * int_t -> t
-  val of_congruence: Cil.ikind -> int_t * int_t -> t
-  val arbitrary: unit -> t QCheck.arbitrary
-  val invariant: Cil.exp -> t -> Invariant.t
-end
-
-(** Interface of IntDomain implementations taking an ikind for arithmetic operations *)
-module type S =
-sig
-  include B
-  include ArithIkind with type t:= t
-
-  val add : ?no_ov:bool -> Cil.ikind ->  t -> t -> t
-  val sub : ?no_ov:bool -> Cil.ikind ->  t -> t -> t
-  val mul : ?no_ov:bool -> Cil.ikind ->  t -> t -> t
-  val div : ?no_ov:bool -> Cil.ikind ->  t -> t -> t
-  val neg : ?no_ov:bool -> Cil.ikind ->  t -> t
-  val cast_to : ?suppress_ovwarn:bool -> ?torg:Cil.typ -> ?no_ov:bool -> Cil.ikind -> t -> t
-
-  val join: Cil.ikind -> t -> t -> t
-  val meet: Cil.ikind -> t -> t -> t
-  val narrow: Cil.ikind -> t -> t -> t
-  val widen: Cil.ikind -> t -> t -> t
-  val starting : ?suppress_ovwarn:bool -> Cil.ikind -> int_t -> t
-  val ending : ?suppress_ovwarn:bool -> Cil.ikind -> int_t -> t
-  val of_int: Cil.ikind -> int_t -> t
-  val of_bool: Cil.ikind -> bool -> t
-  val of_interval: ?suppress_ovwarn:bool -> Cil.ikind -> int_t * int_t -> t
-  val of_congruence: Cil.ikind -> int_t * int_t -> t
-  val is_top_of: Cil.ikind -> t -> bool
-  val invariant_ikind : Cil.exp -> Cil.ikind -> t -> Invariant.t
-
-  val refine_with_congruence: Cil.ikind -> t -> (int_t * int_t) option -> t
-  val refine_with_interval: Cil.ikind -> t -> (int_t * int_t) option -> t
-  val refine_with_excl_list: Cil.ikind -> t -> (int_t list * (int64 * int64)) option -> t
-  val refine_with_incl_list: Cil.ikind -> t -> int_t list option -> t
-
-  val project: Cil.ikind -> int_precision -> t -> t
-  val arbitrary: Cil.ikind -> t QCheck.arbitrary
-end
-
-module type SOverflow =
-sig
-
-  include S
-
-  val add : ?no_ov:bool -> Cil.ikind ->  t -> t -> t * overflow_info
-
-  val sub : ?no_ov:bool -> Cil.ikind ->  t -> t -> t * overflow_info
-
-  val mul : ?no_ov:bool -> Cil.ikind ->  t -> t -> t * overflow_info
-
-  val div : ?no_ov:bool -> Cil.ikind ->  t -> t -> t * overflow_info
-
-  val neg : ?no_ov:bool -> Cil.ikind ->  t -> t * overflow_info
-
-  val cast_to : ?suppress_ovwarn:bool -> ?torg:Cil.typ -> ?no_ov:bool -> Cil.ikind -> t -> t * overflow_info
-
-  val of_int : Cil.ikind -> int_t -> t * overflow_info
-
-  val of_interval: ?suppress_ovwarn:bool -> Cil.ikind -> int_t * int_t -> t * overflow_info
-
-  val starting : ?suppress_ovwarn:bool -> Cil.ikind -> int_t -> t * overflow_info
-  val ending : ?suppress_ovwarn:bool -> Cil.ikind -> int_t -> t * overflow_info
-
-  val shift_left : Cil.ikind -> t -> t -> t * overflow_info
-
-  val shift_right : Cil.ikind -> t -> t -> t * overflow_info
-end
-
-module type Y =
-sig
-  (* include B *)
-  include B
-  include Arith with type t:= t
-  val of_int: Cil.ikind -> int_t -> t
-  val of_bool: Cil.ikind -> bool -> t
-  val of_interval: ?suppress_ovwarn:bool -> Cil.ikind -> int_t * int_t -> t
-  val of_congruence: Cil.ikind -> int_t * int_t -> t
-
-  val starting   : ?suppress_ovwarn:bool -> Cil.ikind -> int_t -> t
-  val ending     : ?suppress_ovwarn:bool -> Cil.ikind -> int_t -> t
-  val is_top_of: Cil.ikind -> t -> bool
-
-  val project: int_precision -> t -> t
-  val invariant: Cil.exp -> t -> Invariant.t
-end
-
-module type Z = Y with type int_t = Z.t
-
-
-module IntDomLifter (I : S) =
+module IntDomLifter (I : S2) =
 struct
   open Cil
   type int_t = I.int_t
@@ -300,9 +129,9 @@ struct
   let bot_of ikind = { v = I.bot_of ikind; ikind}
   let bot () = failwith "bot () is not implemented for IntDomLifter."
   let is_bot x = I.is_bot x.v
-  let top_of ikind = { v = I.top_of ikind; ikind}
+  let top_of ?bitfield ikind = { v = I.top_of ?bitfield ikind; ikind}
   let top () = failwith "top () is not implemented for IntDomLifter."
-  let is_top x = I.is_top x.v
+  let is_top _ = failwith "is_top is not implemented for IntDomLifter."
 
   (* Leq does not check for ikind, because it is used in invariant with arguments of different type.
      TODO: check ikinds here and fix invariant to work with right ikinds *)
@@ -337,7 +166,7 @@ struct
   let tag x = I.tag x.v
   let arbitrary ik = failwith @@ "Arbitrary not implement for " ^ (name ()) ^ "."
   let to_int x = I.to_int x.v
-  let of_int ikind x = { v = I.of_int ikind x; ikind}
+  let of_int ?(suppress_ovwarn=false) ikind x = { v = I.of_int ~suppress_ovwarn ikind x; ikind}
   let equal_to i x = I.equal_to i x.v
   let to_bool x = I.to_bool x.v
   let of_bool ikind b = { v = I.of_bool ikind b; ikind}
@@ -347,6 +176,9 @@ struct
   let to_incl_list x = I.to_incl_list x.v
   let of_interval ?(suppress_ovwarn=false) ikind (lb,ub) = {v = I.of_interval ~suppress_ovwarn ikind (lb,ub); ikind}
   let of_congruence ikind (c,m) = {v = I.of_congruence ikind (c,m); ikind}
+  let of_bitfield ikind (z,o) = {v = I.of_bitfield ikind (z,o); ikind}
+  let to_bitfield ikind x = I.to_bitfield ikind x.v
+
   let starting ?(suppress_ovwarn=false) ikind i = {v = I.starting ~suppress_ovwarn  ikind i; ikind}
   let ending ?(suppress_ovwarn=false) ikind i = {v = I.ending ~suppress_ovwarn ikind i; ikind}
   let maximal x = I.maximal x.v
@@ -383,10 +215,6 @@ struct
   let project p v =  { v = I.project v.ikind p v.v; ikind = v.ikind }
 end
 
-module type Ikind =
-sig
-  val ikind: unit -> Cil.ikind
-end
 
 module PtrDiffIkind : Ikind =
 struct
@@ -397,6 +225,7 @@ module IntDomWithDefaultIkind (I: Y) (Ik: Ikind) : Y with type t = I.t and type 
 struct
   include I
   let top () = I.top_of (Ik.ikind ())
+  let is_top x = I.is_top_of (Ik.ikind ()) x
   let bot () = I.bot_of (Ik.ikind ())
 end
 
@@ -404,7 +233,6 @@ module Size = struct (* size in bits as int, range as int64 *)
   open Cil
   let sign x = if Z.compare x Z.zero < 0 then `Signed else `Unsigned
 
-  let top_typ = TInt (ILongLong, [])
   let min_for x = intKindForValue x (sign x = `Unsigned)
   let bit = function (* bits needed for representation *)
     | IBool -> 1
@@ -416,7 +244,7 @@ module Size = struct (* size in bits as int, range as int64 *)
   let bits ik = (* highest bits for neg/pos values *)
     let s = bit ik in
     if isSigned ik then s-1, s-1 else 0, s
-  let bits_i64 ik = BatTuple.Tuple2.mapn Int64.of_int (bits ik)
+  (* let bits_i64 ik = BatTuple.Tuple2.mapn Int64.of_int (bits ik) *)
   let range ik =
     let a,b = bits ik in
     let x = if isSigned ik then Z.neg (Z.shift_left Z.one a) (* -2^a *) else Z.zero in
@@ -444,18 +272,19 @@ module Size = struct (* size in bits as int, range as int64 *)
       if M.tracing then M.tracel "cast" "Cast %a to range [%a, %a] (%a) = %a (%s in int64)" GobZ.pretty x GobZ.pretty a GobZ.pretty b GobZ.pretty c GobZ.pretty y (if is_int64_big_int y then "fits" else "does not fit");
       y
 
+  (** @return Bit range always includes 0. *)
   let min_range_sign_agnostic x =
     let size ik =
-      let a,b = bits_i64 ik in
-      Int64.neg a,b
+      let a,b = bits ik in
+      -a,b
     in
     if sign x = `Signed then
       size (min_for x)
     else
       let a, b = size (min_for x) in
-      if b <= 64L then
-        let upper_bound_less = Int64.sub b 1L in
-        let max_one_less = Z.(pred @@ shift_left Z.one (Int64.to_int upper_bound_less)) in
+      if b <= 64 then
+        let upper_bound_less = b - 1 in
+        let max_one_less = Z.(pred @@ shift_left Z.one upper_bound_less) in
         if x <= max_one_less then
           a, upper_bound_less
         else
@@ -464,15 +293,15 @@ module Size = struct (* size in bits as int, range as int64 *)
         a, b
 
   (* From the number of bits used to represent a positive value, determines the maximal representable value *)
-  let max_from_bit_range pos_bits = Z.(pred @@ shift_left Z.one (to_int (Z.of_int64 pos_bits)))
+  let max_from_bit_range pos_bits = Z.(pred @@ shift_left Z.one (to_int (Z.of_int pos_bits)))
 
   (* From the number of bits used to represent a non-positive value, determines the minimal representable value *)
-  let min_from_bit_range neg_bits = Z.(if neg_bits = 0L then Z.zero else neg @@ shift_left Z.one (to_int (neg (Z.of_int64 neg_bits))))
+  let min_from_bit_range neg_bits = Z.(if neg_bits = 0 then Z.zero else neg @@ shift_left Z.one (to_int (neg (Z.of_int neg_bits))))
 
 end
 
 
-module StdTop (B: sig type t val top_of: Cil.ikind -> t end) = struct
+module StdTop (B: sig type t val top_of: ?bitfield:int -> Cil.ikind -> t end) = struct
   open B
   (* these should be overwritten for better precision if possible: *)
   let to_excl_list    x = None
@@ -481,6 +310,7 @@ module StdTop (B: sig type t val top_of: Cil.ikind -> t end) = struct
   let to_incl_list    x = None
   let of_interval ?(suppress_ovwarn=false) ik x = top_of ik
   let of_congruence ik x = top_of ik
+  let of_bitfield ik x = top_of ik
   let starting ?(suppress_ovwarn=false) ik x = top_of ik
   let ending ?(suppress_ovwarn=false)   ik x = top_of ik
   let maximal         x = None
@@ -490,7 +320,7 @@ end
 module Std (B: sig
     type t
     val name: unit -> string
-    val top_of: Cil.ikind -> t
+    val top_of: ?bitfield:int -> Cil.ikind -> t
     val bot_of: Cil.ikind -> t
     val show: t -> string
     val equal: t -> t -> bool
@@ -498,7 +328,6 @@ module Std (B: sig
   include Printable.StdLeaf
   let name = B.name (* overwrite the one from Printable.Std *)
   open B
-  let is_top x = failwith "is_top not implemented for IntDomain.Std"
   let is_bot x = B.equal x (bot_of Cil.IInt) (* Here we assume that the representation of bottom is independent of the ikind
                                                 This may be true for intdomain implementations, but not e.g. for IntDomLifter. *)
   let is_top_of ik x = B.equal x (top_of ik)
@@ -517,6 +346,11 @@ end
 
 (* Textbook interval arithmetic, without any overflow handling etc. *)
 module IntervalArith (Ints_t : IntOps.IntOps) = struct
+  type t = Ints_t.t * Ints_t.t [@@deriving eq, ord, hash]
+
+  (* TODO: use this for Interval and IntervalSet *)
+  let show (x,y) = "["^Ints_t.to_string x^","^Ints_t.to_string y^"]"
+
   let min4 a b c d = Ints_t.min (Ints_t.min a b) (Ints_t.min c d)
   let max4 a b c d = Ints_t.max (Ints_t.max a b) (Ints_t.max c d)
 
@@ -532,16 +366,28 @@ module IntervalArith (Ints_t : IntOps.IntOps) = struct
     let y2p = Ints_t.shift_left Ints_t.one y2 in
     mul (x1, x2) (y1p, y2p)
 
-  let div (x1, x2) (y1, y2) =
-    let x1y1n = (Ints_t.div x1 y1) in
-    let x1y2n = (Ints_t.div x1 y2) in
-    let x2y1n = (Ints_t.div x2 y1) in
-    let x2y2n = (Ints_t.div x2 y2) in
-    let x1y1p = (Ints_t.div x1 y1) in
-    let x1y2p = (Ints_t.div x1 y2) in
-    let x2y1p = (Ints_t.div x2 y1) in
-    let x2y2p = (Ints_t.div x2 y2) in
-    (min4 x1y1n x1y2n x2y1n x2y2n, max4 x1y1p x1y2p x2y1p x2y2p)
+  (** Divide mathematical intervals.
+      Excludes 0 from denominator - must be handled as desired by caller.
+
+      @return negative and positive denominator cases separately, if they exist.
+
+      @see <https://mine.perso.lip6.fr/publi/article-mine-FTiPL17.pdf> Miné, A. Tutorial on Static Inference of Numeric Invariants by Abstract Interpretation. Figure 4.6. *)
+  let div (a, b) (c, d) =
+    let pos =
+      if Ints_t.(compare one d) <= 0 then
+        let c = Ints_t.(max one c) in
+        Some (Ints_t.(min (div a c) (div a d), max (div b c) (div b d)))
+      else
+        None
+    in
+    let neg =
+      if Ints_t.(compare c zero) < 0 then
+        let d = Ints_t.(min d (neg one)) in
+        Some (Ints_t.(min (div b c) (div b d), max (div a c) (div a d)))
+      else
+        None
+    in
+    (neg, pos)
 
   let add (x1, x2) (y1, y2) = (Ints_t.add x1 y1, Ints_t.add x2 y2)
   let sub (x1, x2) (y1, y2) = (Ints_t.sub x1 y2, Ints_t.sub x2 y1)
@@ -551,6 +397,20 @@ module IntervalArith (Ints_t : IntOps.IntOps) = struct
   let one = (Ints_t.one, Ints_t.one)
   let zero = (Ints_t.zero, Ints_t.zero)
   let top_bool = (Ints_t.zero, Ints_t.one)
+
+  (* TODO: use these for Interval and IntervalSet *)
+  let maximal = snd
+  let minimal = fst
+
+  (* TODO: use these for Interval and IntervalSet *)
+  let leq (x1,x2) (y1,y2) = Ints_t.compare x1 y1 >= 0 && Ints_t.compare x2 y2 <= 0
+  let join (x1,x2) (y1,y2) = (Ints_t.min x1 y1, Ints_t.max x2 y2)
+  let meet (x1,x2) (y1,y2) =
+    let (r1, r2) as r = (Ints_t.max x1 y1, Ints_t.min x2 y2) in
+    if Ints_t.compare r1 r2 > 0 then
+      None
+    else
+      Some r
 
   let to_int (x1, x2) =
     if Ints_t.equal x1 x2 then Some x1 else None
@@ -636,7 +496,7 @@ struct
       ) (Invariant.top ()) ns
 end
 
-module SOverflowUnlifter (D : SOverflow) : S with type int_t = D.int_t and type t = D.t = struct
+module SOverflowUnlifter (D : SOverflow) : S2 with type int_t = D.int_t and type t = D.t = struct
   include D
 
   let add ?no_ov ik x y = fst @@ D.add ?no_ov ik x y
@@ -649,15 +509,15 @@ module SOverflowUnlifter (D : SOverflow) : S with type int_t = D.int_t and type 
 
   let neg ?no_ov ik x = fst @@ D.neg ?no_ov ik x
 
-  let cast_to ?suppress_ovwarn ?torg ?no_ov ik x = fst @@ D.cast_to ?suppress_ovwarn ?torg ?no_ov ik x
+  let cast_to ?suppress_ovwarn ?torg ?no_ov ik x = fst @@ D.cast_to ?torg ?no_ov ik x
 
-  let of_int ik x = fst @@ D.of_int ik x
+  let of_int ?suppress_ovwarn ik x = fst @@ D.of_int ik x
 
-  let of_interval ?suppress_ovwarn ik x = fst @@ D.of_interval ?suppress_ovwarn ik x
+  let of_interval ?suppress_ovwarn ik x = fst @@ D.of_interval ik x
 
-  let starting ?suppress_ovwarn ik x = fst @@ D.starting ?suppress_ovwarn ik x
+  let starting ?suppress_ovwarn ik x = fst @@ D.starting ik x
 
-  let ending ?suppress_ovwarn ik x = fst @@ D.ending ?suppress_ovwarn ik x
+  let ending ?suppress_ovwarn ik x = fst @@ D.ending ik x
 
   let shift_left ik x y = fst @@ D.shift_left ik x y
 
@@ -674,7 +534,7 @@ struct
   type int_t = Ints_t.t
   let top () = raise Unknown
   let bot () = raise Error
-  let top_of ik = top ()
+  let top_of ?bitfield ik = top ()
   let bot_of ik = bot ()
   let show (x: Ints_t.t) = Ints_t.to_string x
 
@@ -742,7 +602,7 @@ struct
       let bot_name = "Error int"
     end) (Base)
 
-  let top_of ik = top ()
+  let top_of ?bitfield ik = top ()
   let bot_of ik = bot ()
 
 
@@ -772,6 +632,7 @@ struct
   let to_incl_list x = None
   let of_interval ?(suppress_ovwarn=false) ik x = top_of ik
   let of_congruence ik x = top_of ik
+  let of_bitfield ik x = top_of ik
   let starting ?(suppress_ovwarn=false) ikind x = top_of ikind
   let ending ?(suppress_ovwarn=false)   ikind x = top_of ikind
   let maximal      x = None
@@ -816,13 +677,13 @@ end
 
 module Lift (Base: IkindUnawareS): IkindUnawareS with type t = [ `Bot | `Lifted of Base.t | `Top ] and type int_t = Base.int_t = (* identical to Flat, but does not go to `Top/Bot` if Base raises Unknown/Error *)
 struct
-  include Lattice.LiftPO (struct
+  include Lattice.LiftConf (struct
       include Printable.DefaultConf
       let top_name = "MaxInt"
       let bot_name = "MinInt"
     end) (Base)
   type int_t = Base.int_t
-  let top_of ik = top ()
+  let top_of ?bitfield ik = top ()
   let bot_of ik = bot ()
   include StdTop (struct type nonrec t = t let top_of = top_of end)
 
@@ -884,12 +745,6 @@ end
 module Flattened = Flat (Integers (IntOps.Int64Ops))
 module Lifted = Lift (Integers (IntOps.Int64Ops))
 
-module Reverse (Base: IkindUnawareS) =
-struct
-  include Base
-  include (Lattice.Reverse (Base) : Lattice.S with type t := Base.t)
-end
-
 module SOverflowLifter (D : S) : SOverflow with type int_t = D.int_t and type t = D.t = struct
 
   include D
@@ -906,15 +761,15 @@ module SOverflowLifter (D : S) : SOverflow with type int_t = D.int_t and type t 
 
   let neg ?no_ov ik x = lift @@ D.neg ?no_ov ik x
 
-  let cast_to ?suppress_ovwarn ?torg ?no_ov ik x = lift @@ D.cast_to ?suppress_ovwarn ?torg ?no_ov ik x
+  let cast_to ?torg ?no_ov ik x = lift @@ D.cast_to ?torg ?no_ov ik x
 
   let of_int ik x = lift @@ D.of_int ik x
 
-  let of_interval ?suppress_ovwarn ik x = lift @@ D.of_interval ?suppress_ovwarn ik x
+  let of_interval ik x = lift @@ D.of_interval ik x
 
-  let starting ?suppress_ovwarn ik x = lift @@ D.starting ?suppress_ovwarn ik x
+  let starting ik x = lift @@ D.starting ik x
 
-  let ending ?suppress_ovwarn ik x = lift @@ D.ending ?suppress_ovwarn ik x
+  let ending ik x = lift @@ D.ending ik x
 
   let shift_left ik x y = lift @@ D.shift_left ik x y
 

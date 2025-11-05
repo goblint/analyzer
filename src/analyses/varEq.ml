@@ -17,22 +17,33 @@ struct
   struct
     include PartitionDomain.ExpPartitions
 
+    (* TODO: Should string constants not be added to D in the first place, rather than filtering them for witness invariants? *)
+    let rec is_str_constant = function
+      | Const (CStr _ | CWStr _) -> true
+      | CastE (_, e) -> is_str_constant e
+      | _ -> false
+
     let invariant ~scope ss =
       fold (fun s a ->
           if B.mem MyCFG.unknown_exp s then
             a
-          else
-            let module B_prod = BatSet.Make2 (Exp) (Exp) in
-            let s_prod = B_prod.cartesian_product s s in
-            let i = B_prod.Product.fold (fun (x, y) a ->
-                if Exp.compare x y < 0 && not (InvariantCil.exp_contains_tmp x) && not (InvariantCil.exp_contains_tmp y) && InvariantCil.exp_is_in_scope scope x && InvariantCil.exp_is_in_scope scope y then (* each equality only one way, no self-equalities *)
-                  let eq = BinOp (Eq, x, y, intType) in
+          else (
+            let s' = B.filter (fun x -> not (InvariantCil.exp_contains_tmp x) && InvariantCil.exp_is_in_scope scope x && not (is_str_constant x)) s in
+            if B.cardinal s' >= 2 then (
+              (* instead of returning quadratically many pairwise equalities from a cluster,
+                 output linear number of equalities with just one expression *)
+              let lhs = B.choose s' in (* choose arbitrary expression for lhs *)
+              let rhss = B.remove lhs s' in (* and exclude it from rhs-s (no point in reflexive equality) *)
+              let i = B.fold (fun rhs a ->
+                  let eq = BinOp (Eq, lhs, rhs, intType) in
                   Invariant.(a && of_exp eq)
-                else
-                  a
-              ) s_prod (Invariant.top ())
-            in
-            Invariant.(a && i)
+                ) rhss (Invariant.top ())
+              in
+              Invariant.(a && i)
+            )
+            else (* cannot output any equalities between just 0 or 1 usable expressions *)
+              a
+          )
         ) ss (Invariant.top ())
   end
 
@@ -386,12 +397,12 @@ struct
   *)
   (* Give the set of reachables from argument. *)
   let reachables ~deep (ask: Queries.ask) es =
-    let reachable e st =
+    let reachable acc e =
       let q = if deep then Queries.ReachableFrom e else Queries.MayPointTo e in
       let ad = ask.f q in
-      Queries.AD.join ad st
+      Queries.AD.join ad acc
     in
-    List.fold_right reachable es (Queries.AD.empty ())
+    List.fold_left reachable (Queries.AD.empty ()) es
 
 
   (* Probably ok as is. *)
@@ -402,8 +413,8 @@ struct
 
   (* Just remove things that go out of scope. *)
   let return man exp fundec  =
-    let rm v = remove (Analyses.ask_of_man man) (Var v,NoOffset) in
-    List.fold_right rm (fundec.sformals@fundec.slocals) man.local
+    let rm acc v = remove (Analyses.ask_of_man man) (Cil.var v) acc in
+    List.fold_left rm man.local (fundec.sformals@fundec.slocals)
 
   (* removes all equalities with lval and then tries to make a new one: lval=rval *)
   let assign man (lval:lval) (rval:exp) : D.t  =
@@ -418,9 +429,9 @@ struct
       | x::xs, y::ys -> fold_left2 f (f r x y) xs ys
       | _ -> r
     in
-    let assign_one_param st lv exp =
-      let rm = remove (Analyses.ask_of_man man) (Var lv, NoOffset) st in
-      add_eq (Analyses.ask_of_man man) (Var lv, NoOffset) exp rm
+    let assign_one_param st v exp =
+      let rm = remove (Analyses.ask_of_man man) (Cil.var v) st in
+      add_eq (Analyses.ask_of_man man) (Cil.var v) exp rm
     in
     let nst =
       try fold_left2 assign_one_param man.local f.sformals args
@@ -587,6 +598,11 @@ struct
           remove ask (Cil.var v) st
         in
         List.fold_left remove_var man.local (EscapeDomain.EscapedVars.elements vars)
+    | Events.Longjmped {lval} ->
+      BatOption.map_default (fun lv ->
+          let ask = Analyses.ask_of_man man in
+          remove ask lv man.local)
+        man.local lval
     | _ ->
       man.local
 end

@@ -1,0 +1,18 @@
+(include_subdirs no)
+
+(library
+ (name goblint_parallel)
+ (public_name goblint.parallel)
+ (libraries
+   batteries.unthreaded
+   (select gobMutex.ml from
+      (domainslib -> gobMutex.domainslib.ml)
+      ( -> gobMutex.no-domainslib.ml)
+   )
+   (select threadpool.ml from
+      (domainslib -> threadpool.domainslib.ml)
+      (-> threadpool.no-domainslib.ml)
+   )
+   domain_shims
+   domain-local-await)
+ )

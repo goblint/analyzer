@@ -12,6 +12,8 @@ module Q = Queries
 
 module RelationComponents = RelationDomain.RelComponents
 
+module VarQuery = Goblint_constraint.VarQuery
+
 open CommonPriv
 
 
@@ -356,14 +358,14 @@ struct
         let rel = st.rel in
         let (g_vars, gs) =
           RD.vars rel
-          |> List.enum
-          |> Enum.filter_map (fun var ->
+          |> List.to_seq
+          |> Seq.filter_map (fun var ->
               match RD.V.find_metadata var with
               | Some (Global g) -> Some (var, g)
               | _ -> None
             )
-          |> Enum.uncombine
-          |> Tuple2.map List.of_enum List.of_enum
+          |> Seq.unzip
+          |> Tuple2.map List.of_seq List.of_seq
         in
         let g_unprot_vars = List.map AV.unprot gs in
         let g_prot_vars = List.map AV.prot gs in
@@ -404,14 +406,14 @@ struct
     let rel = st.rel in
     let (g_vars, gs) =
       RD.vars rel
-      |> List.enum
-      |> Enum.filter_map (fun var ->
+      |> List.to_seq
+      |> Seq.filter_map (fun var ->
           match RD.V.find_metadata var with
           | Some (Global g) -> Some (var, g)
           | _ -> None
         )
-      |> Enum.uncombine
-      |> Tuple2.map List.of_enum List.of_enum
+      |> Seq.unzip
+      |> Tuple2.map List.of_seq List.of_seq
     in
     let g_unprot_vars = List.map AV.unprot gs in
     let g_prot_vars = List.map AV.prot gs in
@@ -429,7 +431,7 @@ struct
 
   let iter_sys_vars getg vq vf = () (* TODO: or report singleton global for any Global query? *)
   let invariant_global ask getg g = Invariant.none
-  let invariant_vars ask getg st = protected_vars ask (* TODO: is this right? *)
+  let invariant_vars ask getg st = protected_vars ask ~kind:Write (* TODO: is this right? *)
 
   let finalize () = ()
 
@@ -725,17 +727,17 @@ struct
         let rel = keep_only_protected_globals ask m' (get_m_with_mutex_inits ask getg m') in (* Could be more precise if mutex_inits invariant is added by disjunction instead of joining abstract values. *)
         let inv =
           RD.invariant rel
-          |> List.enum
-          |> Enum.filter_map (fun (lincons1: Apron.Lincons1.t) ->
+          |> List.to_seq
+          |> Seq.filter_map (fun (lincons1: Apron.Lincons1.t) ->
               (* filter one-vars and exact *)
-              (* TODO: exact filtering doesn't really work with octagon because it returns two SUPEQ constraints instead *)
+              (* RD.invariant simplifies two octagon SUPEQ constraints to one EQ, so exact works *)
               if (one_var || GobApron.Lincons1.num_vars lincons1 >= 2) && (exact || Apron.Lincons1.get_typ lincons1 <> EQ) then
                 RD.cil_exp_of_lincons1 lincons1
                 |> Option.filter (fun exp -> not (InvariantCil.exp_contains_tmp exp))
               else
                 None
             )
-          |> Enum.fold (fun acc x -> Invariant.(acc && of_exp x)) Invariant.none
+          |> Seq.fold_left (fun acc x -> Invariant.(acc && of_exp x)) Invariant.none
         in
         if atomic then
           inv

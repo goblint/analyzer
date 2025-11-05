@@ -3,7 +3,7 @@
     @see <http://www2.in.tum.de/bib/files/apinis14diss.pdf> Apinis, K. Frameworks for analyzing multi-threaded C. *)
 
 open Batteries
-open ConstrSys
+open Goblint_constraint.ConstrSys
 open Messages
 
 let narrow f = if GobConfig.get_bool "exp.no-narrow" then (fun a b -> a) else f
@@ -76,9 +76,9 @@ module SLR3 =
             HM.replace rho x tmp;
             let w = try HM.find infl x with Not_found -> VS.empty in
             let w = if wpx then VS.add x w else w in
-            q := Enum.fold (fun x y -> H.add y x) !q (VS.enum w);
+            q := VS.fold H.add w !q;
             HM.replace infl x VS.empty;
-            Enum.iter (HM.remove stable) (VS.enum w)
+            VS.iter (HM.remove stable) w
           end;
           while (H.size !q <> 0) && (min_key q <= get_key x) do
             solve (extract_min q)
@@ -107,7 +107,7 @@ module SLR3 =
         HM.find rho y
       and sides x =
         let w = try HM.find set x with Not_found -> VS.empty in
-        Enum.fold (fun d z -> try S.Dom.join d (HPM.find rho' (z,x)) with Not_found -> d) (S.Dom.bot ()) (VS.enum w)
+        VS.fold (fun z d -> try S.Dom.join d (HPM.find rho' (z,x)) with Not_found -> d) w (S.Dom.bot ())
       and side x y d =
         HM.add globals y ();
         if not (HM.mem rho y) then begin
@@ -250,7 +250,7 @@ module Make0 =
       end
 
       include Heap.Make (HeapCompare)
-      let from_list xs = List.enum xs |> of_enum
+      let from_list = of_list
       let is_empty x = size x = 0
       let get_root_key x = find_min x |> X.get_key
       let extract_min h = (find_min h, del_min h)
@@ -523,29 +523,29 @@ let _ =
   let module W1 = JustWiden (struct let ver = 1 end) in
   let module W2 = JustWiden (struct let ver = 2 end) in
   let module W3 = JustWiden (struct let ver = 3 end) in
-  Selector.add_solver ("widen1",  (module PostSolver.EqIncrSolverFromEqSolver (W1)));
-  Selector.add_solver ("widen2",  (module PostSolver.EqIncrSolverFromEqSolver (W2)));
-  Selector.add_solver ("widen3",  (module PostSolver.EqIncrSolverFromEqSolver (W3)));
+  Selector.add_solver ("widen1",  (module PostSolver.DemandEqIncrSolverFromEqSolver (W1)));
+  Selector.add_solver ("widen2",  (module PostSolver.DemandEqIncrSolverFromEqSolver (W2)));
+  Selector.add_solver ("widen3",  (module PostSolver.DemandEqIncrSolverFromEqSolver (W3)));
   let module S2 = TwoPhased (struct let ver = 1 end) in
   (* Selector.add_solver ("two",  (module PostSolver.EqIncrSolverFromEqSolver (S2))); (* TODO: broken even on 00-sanity/01-assert *) *)
   let module S1 = Make (struct let ver = 1 end) in
-  Selector.add_solver ("new",  (module PostSolver.EqIncrSolverFromEqSolver (S1)));
-  Selector.add_solver ("slr+", (module PostSolver.EqIncrSolverFromEqSolver (S1)))
+  Selector.add_solver ("new",  (module PostSolver.DemandEqIncrSolverFromEqSolver (S1)));
+  Selector.add_solver ("slr+", (module PostSolver.DemandEqIncrSolverFromEqSolver (S1)))
 
 let _ =
   let module S1 = Make (struct let ver = 1 end) in
   let module S2 = Make (struct let ver = 2 end) in
   let module S3 = SLR3 in
   let module S4 = Make (struct let ver = 4 end) in
-  Selector.add_solver ("slr1", (module PostSolver.EqIncrSolverFromEqSolver (S1))); (* W&N at every program point *)
-  Selector.add_solver ("slr2", (module PostSolver.EqIncrSolverFromEqSolver (S2))); (* W&N dynamic at certain points, growing number of W-points *)
-  Selector.add_solver ("slr3", (module PostSolver.EqIncrSolverFromEqSolver (S3))); (* same as S2 but number of W-points may also shrink *)
-  Selector.add_solver ("slr4", (module PostSolver.EqIncrSolverFromEqSolver (S4))); (* restarting: set influenced variables to bot and start up-iteration instead of narrowing *)
+  Selector.add_solver ("slr1", (module PostSolver.DemandEqIncrSolverFromEqSolver (S1))); (* W&N at every program point *)
+  Selector.add_solver ("slr2", (module PostSolver.DemandEqIncrSolverFromEqSolver (S2))); (* W&N dynamic at certain points, growing number of W-points *)
+  Selector.add_solver ("slr3", (module PostSolver.DemandEqIncrSolverFromEqSolver (S3))); (* same as S2 but number of W-points may also shrink *)
+  Selector.add_solver ("slr4", (module PostSolver.DemandEqIncrSolverFromEqSolver (S4))); (* restarting: set influenced variables to bot and start up-iteration instead of narrowing *)
   let module S1p = PrintInfluence (Make (struct let ver = 1 end)) in
   let module S2p = PrintInfluence (Make (struct let ver = 2 end)) in
   let module S3p = PrintInfluence (Make (struct let ver = 3 end)) in
   let module S4p = PrintInfluence (Make (struct let ver = 4 end)) in
-  Selector.add_solver ("slr1p", (module PostSolver.EqIncrSolverFromEqSolver (S1p))); (* same as S1-4 above but with side-effects *)
-  Selector.add_solver ("slr2p", (module PostSolver.EqIncrSolverFromEqSolver (S2p)));
-  Selector.add_solver ("slr3p", (module PostSolver.EqIncrSolverFromEqSolver (S3p)));
-  Selector.add_solver ("slr4p", (module PostSolver.EqIncrSolverFromEqSolver (S4p)));
+  Selector.add_solver ("slr1p", (module PostSolver.DemandEqIncrSolverFromEqSolver (S1p))); (* same as S1-4 above but with side-effects *)
+  Selector.add_solver ("slr2p", (module PostSolver.DemandEqIncrSolverFromEqSolver (S2p)));
+  Selector.add_solver ("slr3p", (module PostSolver.DemandEqIncrSolverFromEqSolver (S3p)));
+  Selector.add_solver ("slr4p", (module PostSolver.DemandEqIncrSolverFromEqSolver (S4p)));

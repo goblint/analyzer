@@ -330,7 +330,7 @@ struct
     (* The explicit polymorphism is needed to make it compile *)
     let drop:'a. (string,'a) BatCache.manual_cache -> _ = fun m ->
       let r = m.enum () in
-      BatEnum.force r; BatEnum.iter (fun (k,v) -> m.del k) r
+      BatEnum.force r; BatEnum.iter (fun (k,v) -> m.del k) r (* nosemgrep: batenum-module *)
     in
     drop memo_int; drop memo_bool; drop memo_string; drop memo_list
 
@@ -404,8 +404,7 @@ struct
 
   (** Merge configurations form a file with current. *)
   let merge_file fn =
-    let cwd = Fpath.v (Sys.getcwd ()) in
-    let config_dirs = cwd :: Fpath.(parent (v Sys.executable_name)) :: Goblint_sites.conf in
+    let config_dirs = GobFpath.cwd () :: GobSys.exe_dir :: Goblint_sites.conf in
     let file = List.find_map_opt (fun custom_include_dir ->
         let path = Fpath.append custom_include_dir fn in
         if Sys.file_exists (Fpath.to_string path) then
@@ -419,7 +418,7 @@ struct
       let v = Yojson.Safe.from_channel % BatIO.to_input_channel |> File.with_file_in (Fpath.to_string fn) in
       merge v;
       if Goblint_tracing.tracing then Goblint_tracing.trace "conf" "Merging with '%a', resulting\n%a." GobFpath.pretty fn GobYojson.pretty !json_conf
-    | None -> raise (Sys_error (Printf.sprintf "%s: No such file or diretory" (Fpath.to_string fn)))
+    | None -> raise (Sys_error (Printf.sprintf "%s: No such file or directory" (Fpath.to_string fn)))
 end
 
 include Impl

@@ -1,4 +1,4 @@
-  $ goblint --set ana.base.privatization protection --enable witness.yaml.enabled --set ana.activated[+] mutexGhosts --set witness.yaml.entry-types '["flow_insensitive_invariant", "ghost_instrumentation"]' 64-ghost-multiple-protecting.c
+  $ goblint --set ana.base.privatization protection --enable witness.yaml.enabled --set ana.activated[+] mutexGhosts --set witness.yaml.entry-types[+] ghost_instrumentation --set witness.yaml.invariant-types[*] flow_insensitive_invariant 64-ghost-multiple-protecting.c
   [Info][Deadcode] Logical lines of code (LLoC) summary:
     live: 19
     dead: 0
@@ -7,7 +7,7 @@
     location invariants: 0
     loop invariants: 0
     flow-insensitive invariants: 3
-    total generation entries: 4
+    total generation entries: 2
   [Info][Race] Memory locations race summary:
     safe: 2
     vulnerable: 0
@@ -41,7 +41,6 @@ protection doesn't have precise protected invariant for g2.
       ghost_updates:
       - location:
           file_name: 64-ghost-multiple-protecting.c
-          file_hash: $FILE_HASH
           line: 9
           column: 3
           function: t_fun
@@ -51,7 +50,6 @@ protection doesn't have precise protected invariant for g2.
           format: c_expression
       - location:
           file_name: 64-ghost-multiple-protecting.c
-          file_hash: $FILE_HASH
           line: 10
           column: 3
           function: t_fun
@@ -61,7 +59,6 @@ protection doesn't have precise protected invariant for g2.
           format: c_expression
       - location:
           file_name: 64-ghost-multiple-protecting.c
-          file_hash: $FILE_HASH
           line: 13
           column: 3
           function: t_fun
@@ -71,7 +68,6 @@ protection doesn't have precise protected invariant for g2.
           format: c_expression
       - location:
           file_name: 64-ghost-multiple-protecting.c
-          file_hash: $FILE_HASH
           line: 14
           column: 3
           function: t_fun
@@ -81,7 +77,6 @@ protection doesn't have precise protected invariant for g2.
           format: c_expression
       - location:
           file_name: 64-ghost-multiple-protecting.c
-          file_hash: $FILE_HASH
           line: 16
           column: 3
           function: t_fun
@@ -91,7 +86,6 @@ protection doesn't have precise protected invariant for g2.
           format: c_expression
       - location:
           file_name: 64-ghost-multiple-protecting.c
-          file_hash: $FILE_HASH
           line: 17
           column: 3
           function: t_fun
@@ -101,7 +95,6 @@ protection doesn't have precise protected invariant for g2.
           format: c_expression
       - location:
           file_name: 64-ghost-multiple-protecting.c
-          file_hash: $FILE_HASH
           line: 19
           column: 3
           function: t_fun
@@ -111,7 +104,6 @@ protection doesn't have precise protected invariant for g2.
           format: c_expression
       - location:
           file_name: 64-ghost-multiple-protecting.c
-          file_hash: $FILE_HASH
           line: 20
           column: 3
           function: t_fun
@@ -121,7 +113,6 @@ protection doesn't have precise protected invariant for g2.
           format: c_expression
       - location:
           file_name: 64-ghost-multiple-protecting.c
-          file_hash: $FILE_HASH
           line: 22
           column: 3
           function: t_fun
@@ -131,7 +122,6 @@ protection doesn't have precise protected invariant for g2.
           format: c_expression
       - location:
           file_name: 64-ghost-multiple-protecting.c
-          file_hash: $FILE_HASH
           line: 23
           column: 3
           function: t_fun
@@ -141,7 +131,6 @@ protection doesn't have precise protected invariant for g2.
           format: c_expression
       - location:
           file_name: 64-ghost-multiple-protecting.c
-          file_hash: $FILE_HASH
           line: 29
           column: 3
           function: main
@@ -149,23 +138,22 @@ protection doesn't have precise protected invariant for g2.
         - variable: multithreaded
           value: "1"
           format: c_expression
-  - entry_type: flow_insensitive_invariant
-    flow_insensitive_invariant:
-      string: '! multithreaded || (m2_locked || (m1_locked || g1 == 0))'
-      type: assertion
-      format: C
-  - entry_type: flow_insensitive_invariant
-    flow_insensitive_invariant:
-      string: '! multithreaded || (0 <= g2 && g2 <= 1)'
-      type: assertion
-      format: C
-  - entry_type: flow_insensitive_invariant
-    flow_insensitive_invariant:
-      string: '! multithreaded || (0 <= g1 && g1 <= 1)'
-      type: assertion
-      format: C
+  - entry_type: invariant_set
+    content:
+    - invariant:
+        type: flow_insensitive_invariant
+        value: '! multithreaded || (0 <= g1 && g1 <= 1)'
+        format: c_expression
+    - invariant:
+        type: flow_insensitive_invariant
+        value: '! multithreaded || (0 <= g2 && g2 <= 1)'
+        format: c_expression
+    - invariant:
+        type: flow_insensitive_invariant
+        value: '! multithreaded || (m2_locked || (m1_locked || g1 == 0))'
+        format: c_expression
 
-  $ goblint --set ana.base.privatization protection-read --enable witness.yaml.enabled --set ana.activated[+] mutexGhosts --set witness.yaml.entry-types '["flow_insensitive_invariant", "ghost_instrumentation"]' 64-ghost-multiple-protecting.c
+  $ goblint --set ana.base.privatization protection-read --enable witness.yaml.enabled --set ana.activated[+] mutexGhosts --set witness.yaml.entry-types[+] ghost_instrumentation --set witness.yaml.invariant-types[*] flow_insensitive_invariant 64-ghost-multiple-protecting.c
   [Info][Deadcode] Logical lines of code (LLoC) summary:
     live: 19
     dead: 0
@@ -174,7 +162,7 @@ protection doesn't have precise protected invariant for g2.
     location invariants: 0
     loop invariants: 0
     flow-insensitive invariants: 4
-    total generation entries: 5
+    total generation entries: 2
   [Info][Race] Memory locations race summary:
     safe: 2
     vulnerable: 0
@@ -208,7 +196,6 @@ protection-read has precise protected invariant for g2.
       ghost_updates:
       - location:
           file_name: 64-ghost-multiple-protecting.c
-          file_hash: $FILE_HASH
           line: 9
           column: 3
           function: t_fun
@@ -218,7 +205,6 @@ protection-read has precise protected invariant for g2.
           format: c_expression
       - location:
           file_name: 64-ghost-multiple-protecting.c
-          file_hash: $FILE_HASH
           line: 10
           column: 3
           function: t_fun
@@ -228,7 +214,6 @@ protection-read has precise protected invariant for g2.
           format: c_expression
       - location:
           file_name: 64-ghost-multiple-protecting.c
-          file_hash: $FILE_HASH
           line: 13
           column: 3
           function: t_fun
@@ -238,7 +223,6 @@ protection-read has precise protected invariant for g2.
           format: c_expression
       - location:
           file_name: 64-ghost-multiple-protecting.c
-          file_hash: $FILE_HASH
           line: 14
           column: 3
           function: t_fun
@@ -248,7 +232,6 @@ protection-read has precise protected invariant for g2.
           format: c_expression
       - location:
           file_name: 64-ghost-multiple-protecting.c
-          file_hash: $FILE_HASH
           line: 16
           column: 3
           function: t_fun
@@ -258,7 +241,6 @@ protection-read has precise protected invariant for g2.
           format: c_expression
       - location:
           file_name: 64-ghost-multiple-protecting.c
-          file_hash: $FILE_HASH
           line: 17
           column: 3
           function: t_fun
@@ -268,7 +250,6 @@ protection-read has precise protected invariant for g2.
           format: c_expression
       - location:
           file_name: 64-ghost-multiple-protecting.c
-          file_hash: $FILE_HASH
           line: 19
           column: 3
           function: t_fun
@@ -278,7 +259,6 @@ protection-read has precise protected invariant for g2.
           format: c_expression
       - location:
           file_name: 64-ghost-multiple-protecting.c
-          file_hash: $FILE_HASH
           line: 20
           column: 3
           function: t_fun
@@ -288,7 +268,6 @@ protection-read has precise protected invariant for g2.
           format: c_expression
       - location:
           file_name: 64-ghost-multiple-protecting.c
-          file_hash: $FILE_HASH
           line: 22
           column: 3
           function: t_fun
@@ -298,7 +277,6 @@ protection-read has precise protected invariant for g2.
           format: c_expression
       - location:
           file_name: 64-ghost-multiple-protecting.c
-          file_hash: $FILE_HASH
           line: 23
           column: 3
           function: t_fun
@@ -308,7 +286,6 @@ protection-read has precise protected invariant for g2.
           format: c_expression
       - location:
           file_name: 64-ghost-multiple-protecting.c
-          file_hash: $FILE_HASH
           line: 29
           column: 3
           function: main
@@ -316,28 +293,26 @@ protection-read has precise protected invariant for g2.
         - variable: multithreaded
           value: "1"
           format: c_expression
-  - entry_type: flow_insensitive_invariant
-    flow_insensitive_invariant:
-      string: '! multithreaded || (m2_locked || (m1_locked || g2 == 0))'
-      type: assertion
-      format: C
-  - entry_type: flow_insensitive_invariant
-    flow_insensitive_invariant:
-      string: '! multithreaded || (m2_locked || (m1_locked || g1 == 0))'
-      type: assertion
-      format: C
-  - entry_type: flow_insensitive_invariant
-    flow_insensitive_invariant:
-      string: '! multithreaded || (0 <= g2 && g2 <= 1)'
-      type: assertion
-      format: C
-  - entry_type: flow_insensitive_invariant
-    flow_insensitive_invariant:
-      string: '! multithreaded || (0 <= g1 && g1 <= 1)'
-      type: assertion
-      format: C
+  - entry_type: invariant_set
+    content:
+    - invariant:
+        type: flow_insensitive_invariant
+        value: '! multithreaded || (0 <= g1 && g1 <= 1)'
+        format: c_expression
+    - invariant:
+        type: flow_insensitive_invariant
+        value: '! multithreaded || (0 <= g2 && g2 <= 1)'
+        format: c_expression
+    - invariant:
+        type: flow_insensitive_invariant
+        value: '! multithreaded || (m2_locked || (m1_locked || g1 == 0))'
+        format: c_expression
+    - invariant:
+        type: flow_insensitive_invariant
+        value: '! multithreaded || (m2_locked || (m1_locked || g2 == 0))'
+        format: c_expression
 
-  $ goblint --set ana.base.privatization vojdani --enable witness.yaml.enabled --set ana.activated[+] mutexGhosts --set witness.yaml.entry-types '["flow_insensitive_invariant", "ghost_instrumentation"]' 64-ghost-multiple-protecting.c
+  $ goblint --set ana.base.privatization vojdani --enable witness.yaml.enabled --set ana.activated[+] mutexGhosts --set witness.yaml.entry-types[+] ghost_instrumentation --set witness.yaml.invariant-types[*] flow_insensitive_invariant 64-ghost-multiple-protecting.c
   [Info][Deadcode] Logical lines of code (LLoC) summary:
     live: 19
     dead: 0
@@ -346,7 +321,7 @@ protection-read has precise protected invariant for g2.
     location invariants: 0
     loop invariants: 0
     flow-insensitive invariants: 2
-    total generation entries: 3
+    total generation entries: 2
   [Info][Race] Memory locations race summary:
     safe: 2
     vulnerable: 0
@@ -380,7 +355,6 @@ vojdani has precise protected invariant for g2, but no unprotected invariants.
       ghost_updates:
       - location:
           file_name: 64-ghost-multiple-protecting.c
-          file_hash: $FILE_HASH
           line: 9
           column: 3
           function: t_fun
@@ -390,7 +364,6 @@ vojdani has precise protected invariant for g2, but no unprotected invariants.
           format: c_expression
       - location:
           file_name: 64-ghost-multiple-protecting.c
-          file_hash: $FILE_HASH
           line: 10
           column: 3
           function: t_fun
@@ -400,7 +373,6 @@ vojdani has precise protected invariant for g2, but no unprotected invariants.
           format: c_expression
       - location:
           file_name: 64-ghost-multiple-protecting.c
-          file_hash: $FILE_HASH
           line: 13
           column: 3
           function: t_fun
@@ -410,7 +382,6 @@ vojdani has precise protected invariant for g2, but no unprotected invariants.
           format: c_expression
       - location:
           file_name: 64-ghost-multiple-protecting.c
-          file_hash: $FILE_HASH
           line: 14
           column: 3
           function: t_fun
@@ -420,7 +391,6 @@ vojdani has precise protected invariant for g2, but no unprotected invariants.
           format: c_expression
       - location:
           file_name: 64-ghost-multiple-protecting.c
-          file_hash: $FILE_HASH
           line: 16
           column: 3
           function: t_fun
@@ -430,7 +400,6 @@ vojdani has precise protected invariant for g2, but no unprotected invariants.
           format: c_expression
       - location:
           file_name: 64-ghost-multiple-protecting.c
-          file_hash: $FILE_HASH
           line: 17
           column: 3
           function: t_fun
@@ -440,7 +409,6 @@ vojdani has precise protected invariant for g2, but no unprotected invariants.
           format: c_expression
       - location:
           file_name: 64-ghost-multiple-protecting.c
-          file_hash: $FILE_HASH
           line: 19
           column: 3
           function: t_fun
@@ -450,7 +418,6 @@ vojdani has precise protected invariant for g2, but no unprotected invariants.
           format: c_expression
       - location:
           file_name: 64-ghost-multiple-protecting.c
-          file_hash: $FILE_HASH
           line: 20
           column: 3
           function: t_fun
@@ -460,7 +427,6 @@ vojdani has precise protected invariant for g2, but no unprotected invariants.
           format: c_expression
       - location:
           file_name: 64-ghost-multiple-protecting.c
-          file_hash: $FILE_HASH
           line: 22
           column: 3
           function: t_fun
@@ -470,7 +436,6 @@ vojdani has precise protected invariant for g2, but no unprotected invariants.
           format: c_expression
       - location:
           file_name: 64-ghost-multiple-protecting.c
-          file_hash: $FILE_HASH
           line: 23
           column: 3
           function: t_fun
@@ -480,7 +445,6 @@ vojdani has precise protected invariant for g2, but no unprotected invariants.
           format: c_expression
       - location:
           file_name: 64-ghost-multiple-protecting.c
-          file_hash: $FILE_HASH
           line: 29
           column: 3
           function: main
@@ -488,18 +452,18 @@ vojdani has precise protected invariant for g2, but no unprotected invariants.
         - variable: multithreaded
           value: "1"
           format: c_expression
-  - entry_type: flow_insensitive_invariant
-    flow_insensitive_invariant:
-      string: '! multithreaded || (m2_locked || (m1_locked || g2 == 0))'
-      type: assertion
-      format: C
-  - entry_type: flow_insensitive_invariant
-    flow_insensitive_invariant:
-      string: '! multithreaded || (m2_locked || (m1_locked || g1 == 0))'
-      type: assertion
-      format: C
+  - entry_type: invariant_set
+    content:
+    - invariant:
+        type: flow_insensitive_invariant
+        value: '! multithreaded || (m2_locked || (m1_locked || g1 == 0))'
+        format: c_expression
+    - invariant:
+        type: flow_insensitive_invariant
+        value: '! multithreaded || (m2_locked || (m1_locked || g2 == 0))'
+        format: c_expression
 
-  $ goblint --set ana.base.privatization mutex-meet --enable witness.yaml.enabled --set ana.activated[+] mutexGhosts --set witness.yaml.entry-types '["flow_insensitive_invariant", "ghost_instrumentation"]' 64-ghost-multiple-protecting.c
+  $ goblint --set ana.base.privatization mutex-meet --enable witness.yaml.enabled --set ana.activated[+] mutexGhosts --set witness.yaml.entry-types[+] ghost_instrumentation --set witness.yaml.invariant-types[*] flow_insensitive_invariant 64-ghost-multiple-protecting.c
   [Info][Deadcode] Logical lines of code (LLoC) summary:
     live: 19
     dead: 0
@@ -508,7 +472,7 @@ vojdani has precise protected invariant for g2, but no unprotected invariants.
     location invariants: 0
     loop invariants: 0
     flow-insensitive invariants: 4
-    total generation entries: 5
+    total generation entries: 2
   [Info][Race] Memory locations race summary:
     safe: 2
     vulnerable: 0
@@ -540,7 +504,6 @@ vojdani has precise protected invariant for g2, but no unprotected invariants.
       ghost_updates:
       - location:
           file_name: 64-ghost-multiple-protecting.c
-          file_hash: $FILE_HASH
           line: 9
           column: 3
           function: t_fun
@@ -550,7 +513,6 @@ vojdani has precise protected invariant for g2, but no unprotected invariants.
           format: c_expression
       - location:
           file_name: 64-ghost-multiple-protecting.c
-          file_hash: $FILE_HASH
           line: 10
           column: 3
           function: t_fun
@@ -560,7 +522,6 @@ vojdani has precise protected invariant for g2, but no unprotected invariants.
           format: c_expression
       - location:
           file_name: 64-ghost-multiple-protecting.c
-          file_hash: $FILE_HASH
           line: 13
           column: 3
           function: t_fun
@@ -570,7 +531,6 @@ vojdani has precise protected invariant for g2, but no unprotected invariants.
           format: c_expression
       - location:
           file_name: 64-ghost-multiple-protecting.c
-          file_hash: $FILE_HASH
           line: 14
           column: 3
           function: t_fun
@@ -580,7 +540,6 @@ vojdani has precise protected invariant for g2, but no unprotected invariants.
           format: c_expression
       - location:
           file_name: 64-ghost-multiple-protecting.c
-          file_hash: $FILE_HASH
           line: 16
           column: 3
           function: t_fun
@@ -590,7 +549,6 @@ vojdani has precise protected invariant for g2, but no unprotected invariants.
           format: c_expression
       - location:
           file_name: 64-ghost-multiple-protecting.c
-          file_hash: $FILE_HASH
           line: 17
           column: 3
           function: t_fun
@@ -600,7 +558,6 @@ vojdani has precise protected invariant for g2, but no unprotected invariants.
           format: c_expression
       - location:
           file_name: 64-ghost-multiple-protecting.c
-          file_hash: $FILE_HASH
           line: 19
           column: 3
           function: t_fun
@@ -610,7 +567,6 @@ vojdani has precise protected invariant for g2, but no unprotected invariants.
           format: c_expression
       - location:
           file_name: 64-ghost-multiple-protecting.c
-          file_hash: $FILE_HASH
           line: 20
           column: 3
           function: t_fun
@@ -620,7 +576,6 @@ vojdani has precise protected invariant for g2, but no unprotected invariants.
           format: c_expression
       - location:
           file_name: 64-ghost-multiple-protecting.c
-          file_hash: $FILE_HASH
           line: 22
           column: 3
           function: t_fun
@@ -630,7 +585,6 @@ vojdani has precise protected invariant for g2, but no unprotected invariants.
           format: c_expression
       - location:
           file_name: 64-ghost-multiple-protecting.c
-          file_hash: $FILE_HASH
           line: 23
           column: 3
           function: t_fun
@@ -640,7 +594,6 @@ vojdani has precise protected invariant for g2, but no unprotected invariants.
           format: c_expression
       - location:
           file_name: 64-ghost-multiple-protecting.c
-          file_hash: $FILE_HASH
           line: 29
           column: 3
           function: main
@@ -648,23 +601,21 @@ vojdani has precise protected invariant for g2, but no unprotected invariants.
         - variable: multithreaded
           value: "1"
           format: c_expression
-  - entry_type: flow_insensitive_invariant
-    flow_insensitive_invariant:
-      string: '! multithreaded || (m2_locked || ((0 <= g2 && g2 <= 1) && g1 == 0))'
-      type: assertion
-      format: C
-  - entry_type: flow_insensitive_invariant
-    flow_insensitive_invariant:
-      string: '! multithreaded || (m1_locked || (g1 == 0 && g2 == 0))'
-      type: assertion
-      format: C
-  - entry_type: flow_insensitive_invariant
-    flow_insensitive_invariant:
-      string: '! multithreaded || (0 <= g2 && g2 <= 1)'
-      type: assertion
-      format: C
-  - entry_type: flow_insensitive_invariant
-    flow_insensitive_invariant:
-      string: '! multithreaded || (0 <= g1 && g1 <= 1)'
-      type: assertion
-      format: C
+  - entry_type: invariant_set
+    content:
+    - invariant:
+        type: flow_insensitive_invariant
+        value: '! multithreaded || (0 <= g1 && g1 <= 1)'
+        format: c_expression
+    - invariant:
+        type: flow_insensitive_invariant
+        value: '! multithreaded || (0 <= g2 && g2 <= 1)'
+        format: c_expression
+    - invariant:
+        type: flow_insensitive_invariant
+        value: '! multithreaded || (m1_locked || (g1 == 0 && g2 == 0))'
+        format: c_expression
+    - invariant:
+        type: flow_insensitive_invariant
+        value: '! multithreaded || (m2_locked || ((0 <= g2 && g2 <= 1) && g1 == 0))'
+        format: c_expression

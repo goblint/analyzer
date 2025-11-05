@@ -30,6 +30,8 @@ struct
     | [] -> fail "^::"
 end
 
+exception Expected = Pattern.Expected
+
 type access =
   | Access of LibraryDesc.Access.t
   | If of (unit -> bool) * access

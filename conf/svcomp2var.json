@@ -78,7 +78,7 @@
     "autotune": {
       "enabled": true,
       "activated": [
-        "singleThreaded",
+        "reduceAnalyses",
         "mallocWrappers",
         "noRecursiveIntervals",
         "enums",
@@ -107,13 +107,9 @@
     }
   },
   "witness": {
-    "graphml": {
-      "enabled": true,
-      "id": "enumerate",
-      "unknown": false
-    },
     "yaml": {
       "enabled": true,
+      "sv-comp-true-only": false,
       "format-version": "2.0",
       "entry-types": [
         "invariant_set"
