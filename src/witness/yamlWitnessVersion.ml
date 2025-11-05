@@ -11,6 +11,13 @@ let show = function
   | V2_1 -> "2.1"
   | V2_1_Goblint -> "2.1-goblint"
 
+include Printable.SimpleShow (
+  struct
+    type nonrec t = t
+    let show = show
+  end
+  )
+
 let of_string = function
   | "2.0" -> V2_0
   | "2.1" -> V2_1

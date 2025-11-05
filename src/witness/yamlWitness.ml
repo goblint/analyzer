@@ -23,6 +23,9 @@ struct
 
   let metadata ~format_version ?task (): Metadata.t =
     let uuid = Uuidm.v4_gen uuid_random_state () in
+    let conf_format_version = YamlWitnessVersion.of_option () in
+    if YamlWitnessVersion.compare format_version conf_format_version > 0 then
+      M.warn_noloc ~category:Witness "witness entry version (%a) exceeds configured witness.yaml.format-version (%a)" YamlWitnessVersion.pretty format_version YamlWitnessVersion.pretty conf_format_version;
     let creation_time = TimeUtil.iso8601_now () in
     {
       format_version = YamlWitnessVersion.show format_version;
