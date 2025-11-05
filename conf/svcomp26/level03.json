@@ -121,5 +121,8 @@
       "accessed": false,
       "exact": true
     }
+  },
+  "pre": {
+    "transform-paths": false
   }
 }

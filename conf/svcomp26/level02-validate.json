@@ -127,5 +127,8 @@
       "after-lock": true,
       "other": true
     }
+  },
+  "pre": {
+    "transform-paths": false
   }
 }
