@@ -24,6 +24,10 @@ struct
   let narrow = meet
 end
 
+type exp = GoblintCil.exp (* This is abstract in the interface because invariant expressions may be optimized for readability but lack implicit casts, etc, which are required to normally use CIL exp-s in Goblint. *)
+let show_exp = ExpLat.show
+let exp_to_cil = Fun.id
+
 module ES = SetDomain.Make (ExpLat)
 
 (* Turns an expression into alist of conjuncts, pulling out common conjuncts from top-level disjunctions *)

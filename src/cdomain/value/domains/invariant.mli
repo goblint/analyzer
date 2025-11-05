@@ -1,8 +1,13 @@
 (** Invariants for witnesses. *)
 
-include Lattice.S with type t = [ `Bot | `Lifted of GoblintCil.exp | `Top ]
+type exp
+val show_exp: exp -> string
+val exp_to_cil: exp -> GoblintCil.exp
+(** Breaks abstraction, only for use in {!EvalAssert}! *)
 
-val process_exp: GoblintCil.exp -> GoblintCil.exp list
+include Lattice.S with type t = [ `Bot | `Lifted of exp | `Top ]
+
+val process_exp: exp -> exp list
 
 val none: t
 val of_exp: GoblintCil.exp -> t

@@ -61,7 +61,7 @@ struct
         match (ask ~node loc).f (Queries.Invariant context) with
         | `Lifted e ->
           let es = Invariant.process_exp e in
-          let asserts = List.map (fun e -> cInstr ("%v:assert (%e:exp);") loc [("assert", Fv assert_function); ("exp", Fe e)]) es in
+          let asserts = List.map (fun e -> cInstr ("%v:assert (%e:exp);") loc [("assert", Fv assert_function); ("exp", Fe (Invariant.exp_to_cil e))]) es in
           if surroundByAtomic then
             let abegin = (cInstr ("%v:__VERIFIER_atomic_begin();") loc [("__VERIFIER_atomic_begin", Fv atomicBegin)]) in
             let aend = (cInstr ("%v:__VERIFIER_atomic_end();") loc [("__VERIFIER_atomic_end", Fv atomicEnd)]) in

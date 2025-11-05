@@ -295,7 +295,7 @@ struct
                   let location = Entry.location ~location:loc ~location_function in
                   let invs = Invariant.process_exp inv in
                   List.fold_left (fun acc inv ->
-                      let invariant = CilType.Exp.show inv in
+                      let invariant = Invariant.show_exp inv in
                       let invariant = Entry.location_invariant ~location ~invariant in
                       incr cnt_location_invariant;
                       invariant :: acc
@@ -325,7 +325,7 @@ struct
                     let location = Entry.location ~location:loc ~location_function in
                     let invs = Invariant.process_exp inv in
                     List.fold_left (fun acc inv ->
-                        let invariant = CilType.Exp.show inv in
+                        let invariant = Invariant.show_exp inv in
                         let invariant = Entry.loop_invariant ~location ~invariant in
                         incr cnt_loop_invariant;
                         invariant :: acc
@@ -351,7 +351,7 @@ struct
                     | `Lifted inv, "invariant_set-flow_insensitive_invariant" ->
                       let invs = Invariant.process_exp inv in
                       List.fold_left (fun acc inv ->
-                          let invariant = CilType.Exp.show inv in
+                          let invariant = Invariant.show_exp inv in
                           let invariant = Entry.flow_insensitive_invariant ~invariant in
                           incr cnt_flow_insensitive_invariant;
                           invariant :: acc
@@ -359,7 +359,7 @@ struct
                     | `Lifted inv, "invariant_set-location_invariant" ->
                       (* TODO: fold_flow_insensitive_as_location is now only used here, inline/move? *)
                       fold_flow_insensitive_as_location ~inv (fun ~location ~inv acc ->
-                          let invariant = CilType.Exp.show inv in
+                          let invariant = Invariant.show_exp inv in
                           let invariant = Entry.location_invariant ~location ~invariant in
                           incr cnt_location_invariant;
                           invariant :: acc
