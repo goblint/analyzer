@@ -21,7 +21,7 @@ struct
     command_line = Some GobSys.command_line;
   }
 
-  let metadata ?(format_version = YamlWitnessVersion.of_option ()) ?task (): Metadata.t =
+  let metadata ~format_version ?task (): Metadata.t =
     let uuid = Uuidm.v4_gen uuid_random_state () in
     let creation_time = TimeUtil.iso8601_now () in
     {
