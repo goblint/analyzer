@@ -1,4 +1,4 @@
-  $ goblint --set ana.base.privatization protection --enable witness.yaml.enabled --set ana.activated[+] mutexGhosts --set witness.yaml.entry-types[+] ghost_instrumentation --set witness.yaml.invariant-types[*] flow_insensitive_invariant 25-struct_nr.c
+  $ goblint --set ana.base.privatization protection --enable witness.yaml.enabled --set ana.activated[+] mutexGhosts --set witness.yaml.entry-types[+] ghost_instrumentation --set witness.yaml.invariant-types[*] flow_insensitive_invariant --set witness.yaml.format-version 2.1-goblint 25-struct_nr.c
   [Success][Assert] Assertion "glob1 == 5" will succeed (25-struct_nr.c:26:3-26:30)
   [Success][Assert] Assertion "t == 5" will succeed (25-struct_nr.c:16:3-16:26)
   [Success][Assert] Assertion "glob1 == -10" will succeed (25-struct_nr.c:18:3-18:32)
