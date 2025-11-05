@@ -232,7 +232,7 @@ struct
       (* Currently same invariants (from InvariantGlobal query) for all nodes (from InvariantGlobalNodes query).
          The alternative would be querying InvariantGlobal per local unknown when looping over them to generate location invariants.
          See: https://github.com/goblint/analyzer/pull/1394#discussion_r1698149514. *)
-      let invs = WitnessUtil.InvariantExp.process_exp inv in
+      let invs = Invariant.Exp.process inv in
       Queries.NS.fold (fun n acc ->
           let fundec = Node.find_fundec n in
           match WitnessInvariant.location_location n with (* Not just using Node.location because it returns expression location which may be invalid for location invariant (e.g. inside conditional). *)
@@ -293,9 +293,9 @@ struct
                   let fundec = Node.find_fundec (List.hd ns) in (* TODO: fix location hack *)
                   let location_function = fundec.svar.vname in
                   let location = Entry.location ~location:loc ~location_function in
-                  let invs = WitnessUtil.InvariantExp.process_exp inv in
+                  let invs = Invariant.Exp.process inv in
                   List.fold_left (fun acc inv ->
-                      let invariant = CilType.Exp.show inv in
+                      let invariant = Invariant.Exp.show inv in
                       let invariant = Entry.location_invariant ~location ~invariant in
                       incr cnt_location_invariant;
                       invariant :: acc
@@ -323,9 +323,9 @@ struct
                     let fundec = Node.find_fundec (List.hd ns) in (* TODO: fix location hack *)
                     let location_function = fundec.svar.vname in
                     let location = Entry.location ~location:loc ~location_function in
-                    let invs = WitnessUtil.InvariantExp.process_exp inv in
+                    let invs = Invariant.Exp.process inv in
                     List.fold_left (fun acc inv ->
-                        let invariant = CilType.Exp.show inv in
+                        let invariant = Invariant.Exp.show inv in
                         let invariant = Entry.loop_invariant ~location ~invariant in
                         incr cnt_loop_invariant;
                         invariant :: acc
@@ -349,9 +349,9 @@ struct
                 | `Left g -> (* global unknown from analysis Spec *)
                   begin match R.ask_global (InvariantGlobal (Obj.repr g)), GobConfig.get_string "witness.invariant.flow_insensitive-as" with
                     | `Lifted inv, "invariant_set-flow_insensitive_invariant" ->
-                      let invs = WitnessUtil.InvariantExp.process_exp inv in
+                      let invs = Invariant.Exp.process inv in
                       List.fold_left (fun acc inv ->
-                          let invariant = CilType.Exp.show inv in
+                          let invariant = Invariant.Exp.show inv in
                           let invariant = Entry.flow_insensitive_invariant ~invariant in
                           incr cnt_flow_insensitive_invariant;
                           invariant :: acc
@@ -359,7 +359,7 @@ struct
                     | `Lifted inv, "invariant_set-location_invariant" ->
                       (* TODO: fold_flow_insensitive_as_location is now only used here, inline/move? *)
                       fold_flow_insensitive_as_location ~inv (fun ~location ~inv acc ->
-                          let invariant = CilType.Exp.show inv in
+                          let invariant = Invariant.Exp.show inv in
                           let invariant = Entry.location_invariant ~location ~invariant in
                           incr cnt_location_invariant;
                           invariant :: acc
