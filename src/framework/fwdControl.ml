@@ -94,7 +94,7 @@ struct
   end
 
   module Sys = FwdConstraints.FromSpec (Spec) (Cfg) (Inc)
-  module Slvr2 = FwdSolver.FwdSolver (Sys)
+  module Slvr2 = Bu.FwdBuSolver (Sys)
   module GHT = BatHashtbl.Make (Sys.GVar)
 
 
