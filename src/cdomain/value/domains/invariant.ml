@@ -1,12 +1,10 @@
-
-
 open GoblintCil
 
 (** Symbolic (and fully syntactic) expression "lattice". *)
 module Exp =
 struct
   include CilType.Exp
-   (* This type is abstract in the interface because invariant expressions may be optimized for readability but lack implicit casts, etc, which are required to normally use CIL exp-s in Goblint. *)
+  (* This type is abstract in the interface because invariant expressions may be optimized for readability but lack implicit casts, etc, which are required to normally use CIL exp-s in Goblint. *)
 
   let bot () = zero (* false *)
   let top () = one (* true *)
@@ -44,8 +42,8 @@ struct
       let e1s' = ES.diff e1s e2s in
       let e2s' = ES.diff e2s e1s in
       (match combine_conjuncts e1s', combine_conjuncts e2s' with
-      | Some e1e, Some e2e -> ES.add (BinOp(LOr,e1e,e2e,Cil.intType)) common
-      | _ -> common (* if one of the disjuncts is empty, it is equivalent to true here *)
+       | Some e1e, Some e2e -> ES.add (BinOp(LOr,e1e,e2e,Cil.intType)) common
+       | _ -> common (* if one of the disjuncts is empty, it is equivalent to true here *)
       )
     | e -> to_conjunct_set e
 
