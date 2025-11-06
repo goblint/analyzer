@@ -1,4 +1,4 @@
-  $ goblint --enable ana.sv-comp.functions --set ana.base.privatization protection --enable witness.yaml.enabled --set ana.activated[+] mutexGhosts --set witness.yaml.entry-types[+] ghost_instrumentation --set witness.yaml.invariant-types[*] flow_insensitive_invariant 74-mutex.c
+  $ goblint --enable ana.sv-comp.functions --set ana.base.privatization protection --enable witness.yaml.enabled --set ana.activated[+] mutexGhosts --set witness.yaml.entry-types[+] ghost_instrumentation --set witness.yaml.invariant-types[*] flow_insensitive_invariant --set witness.yaml.format-version 2.1-goblint 74-mutex.c
   [Success][Assert] Assertion "used == 0" will succeed (74-mutex.c:37:3-37:29)
   [Warning][Deadcode] Function 'producer' has dead code:
     on line 26 (74-mutex.c:26-26)
@@ -17,6 +17,10 @@
     vulnerable: 0
     unsafe: 0
     total memory locations: 1
+
+  $ grep format_version witness.yml
+      format_version: "2.1"
+      format_version: 2.1-goblint
 
   $ yamlWitnessStrip < witness.yml | tee witness.flow_insensitive.yml
   - entry_type: ghost_instrumentation
@@ -112,6 +116,11 @@ Flow-insensitive invariants as location invariants.
     vulnerable: 0
     unsafe: 0
     total memory locations: 1
+
+TODO: should invariant_set-s which use ghosts also be 2.1?
+  $ grep format_version witness.yml
+      format_version: "2.1"
+      format_version: "2.0"
 
   $ yamlWitnessStrip < witness.yml > witness.location.yml
 
@@ -261,7 +270,7 @@ Same with ghost_instrumentation and invariant_set entries.
 
 Same protected invariant with vojdani but no unprotected invariant.
 
-  $ goblint --enable ana.sv-comp.functions --set ana.base.privatization vojdani --enable witness.yaml.enabled --set ana.activated[+] mutexGhosts --set witness.yaml.entry-types[+] ghost_instrumentation --set witness.yaml.invariant-types[*] flow_insensitive_invariant 74-mutex.c
+  $ goblint --enable ana.sv-comp.functions --set ana.base.privatization vojdani --enable witness.yaml.enabled --set ana.activated[+] mutexGhosts --set witness.yaml.entry-types[+] ghost_instrumentation --set witness.yaml.invariant-types[*] flow_insensitive_invariant --set witness.yaml.format-version 2.1-goblint 74-mutex.c
   [Success][Assert] Assertion "used == 0" will succeed (74-mutex.c:37:3-37:29)
   [Warning][Deadcode] Function 'producer' has dead code:
     on line 26 (74-mutex.c:26-26)
@@ -352,7 +361,7 @@ Same protected invariant with vojdani but no unprotected invariant.
 
 Same as protection with mutex-meet.
 
-  $ goblint --enable ana.sv-comp.functions --set ana.base.privatization mutex-meet --enable witness.yaml.enabled --set ana.activated[+] mutexGhosts --set witness.yaml.entry-types[+] ghost_instrumentation --set witness.yaml.invariant-types[*] flow_insensitive_invariant 74-mutex.c
+  $ goblint --enable ana.sv-comp.functions --set ana.base.privatization mutex-meet --enable witness.yaml.enabled --set ana.activated[+] mutexGhosts --set witness.yaml.entry-types[+] ghost_instrumentation --set witness.yaml.invariant-types[*] flow_insensitive_invariant --set witness.yaml.format-version 2.1-goblint 74-mutex.c
   [Success][Assert] Assertion "used == 0" will succeed (74-mutex.c:37:3-37:29)
   [Warning][Deadcode] Function 'producer' has dead code:
     on line 26 (74-mutex.c:26-26)

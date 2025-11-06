@@ -1,4 +1,4 @@
-  $ goblint --set ana.base.privatization protection --enable witness.yaml.enabled --set ana.activated[+] mutexGhosts --set witness.yaml.entry-types[+] ghost_instrumentation --set witness.yaml.invariant-types[*] flow_insensitive_invariant 04-priv_multi.c
+  $ goblint --set ana.base.privatization protection --enable witness.yaml.enabled --set ana.activated[+] mutexGhosts --set witness.yaml.entry-types[+] ghost_instrumentation --set witness.yaml.invariant-types[*] flow_insensitive_invariant --set witness.yaml.format-version 2.1-goblint 04-priv_multi.c
   [Success][Assert] Assertion "p == 5" will succeed (04-priv_multi.c:50:7-50:30)
   [Success][Assert] Assertion "A == B" will succeed (04-priv_multi.c:71:5-71:28)
   [Warning][Deadcode] Function 'dispose' has dead code:
