@@ -1,4 +1,6 @@
-(** Termination analysis for loops and [goto] statements ([termination]). *)
+(** Termination analysis for loops and [goto] statements ([termination]).
+
+    @see <https://theses.hal.science/tel-00288805> Halbwachs, N. Détermination automatique de relations linéaires vérifiées par les variables d’un programme. PhD thesis. Section 8.3. *)
 
 open Analyses
 open GoblintCil
@@ -17,11 +19,6 @@ let ask_bound man varinfo =
   | `Lifted v -> `Lifted v
   | `Bot -> failwith "Loop counter variable is Bot."
 
-(** We want to record termination information of loops and use the loop
- * statements for that. We use this lifting because we need to have a
- * lattice. *)
-module Statements = Lattice.Flat (CilType.Stmt)
-
 (** The termination analysis considering loops and gotos *)
 module Spec : Analyses.MCPSpec =
 struct
@@ -37,7 +34,9 @@ struct
     include UnitV
     let is_write_only _ = true
   end
-  module G = MapDomain.MapBot (Statements) (BoolDomain.MustBool)
+
+  (** We want to record termination information of loops and use the loop statements for that. *)
+  module G = MapDomain.MapBot (CilType.Stmt) (BoolDomain.MustBool)
 
   let startstate _ = ()
   let exitstate = startstate
@@ -52,7 +51,7 @@ struct
           | Some loop_statement ->
             let bound = ask_bound man loop_counter in
             let is_bounded = bound <> `Top in
-            man.sideg () (G.add (`Lifted loop_statement) is_bounded (man.global ()));
+            man.sideg () (G.add loop_statement is_bounded (man.global ()));
             let loc = M.Location.CilLocation (Cilfacade.get_stmtLoc loop_statement) in
             begin match bound with
               | `Top ->
@@ -75,9 +74,7 @@ struct
     | Queries.MustTermLoop loop_statement ->
       let multithreaded = man.ask Queries.IsEverMultiThreaded in
       (not multithreaded)
-      && (match G.find_opt (`Lifted loop_statement) (man.global ()) with
-            Some b -> b
-          | None -> false)
+      && (BatOption.default false (G.find_opt loop_statement (man.global ())))
     | Queries.MustTermAllLoops ->
       let multithreaded = man.ask Queries.IsEverMultiThreaded in
       if multithreaded then (

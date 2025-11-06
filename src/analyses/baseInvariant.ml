@@ -85,6 +85,17 @@ struct
 
   let refine_lv man st c x c' pretty exp =
     let set' lval v st = set st (eval_lv ~man st lval) (Cilfacade.typeOfLval lval) ~lval_raw:lval v ~man in
+    let default () =
+      (* For accesses via pointers in complicated case, no refinement yet *)
+      let old_val = eval_rv_lval_refine ~man st exp x in
+      let old_val = map_oldval old_val (Cilfacade.typeOfLval x) in
+      let v = apply_invariant ~old_val ~new_val:c' in
+      if is_some_bot v then contra st
+      else (
+        if M.tracing then M.tracel "inv" "improve lval %a from %a to %a (c = %a, c' = %a)" d_lval x VD.pretty old_val VD.pretty v pretty c VD.pretty c';
+        set' x v st
+      )
+    in
     match x with
     | Var var, o when refine_entire_var ->
       (* For variables, this is done at to the level of entire variables to benefit e.g. from disjunctive struct domains *)
@@ -96,21 +107,44 @@ struct
       if is_some_bot v then contra st
       else (
         if M.tracing then M.tracel "inv" "improve variable %a from %a to %a (c = %a, c' = %a)" CilType.Varinfo.pretty var VD.pretty old_val VD.pretty v pretty c VD.pretty c';
-        let r = set' (Var var,NoOffset) v st in
+        let r = set' (Cil.var var) v st in
         if M.tracing then M.tracel "inv" "st from %a to %a" D.pretty st D.pretty r;
         r
       )
+    | Mem (Lval lv), off ->
+      (* Underlying lvals (may have offsets themselves), e.g., for struct members NOT including any offset appended to outer Mem *)
+      let lvals = eval_lv ~man st (Mem (Lval lv), NoOffset) in
+      (* Additional offset of value being refined in Addr Offset type *)
+      let original_offset = convert_offset ~man st off in
+      let res = AD.fold (fun base_a acc ->
+          Option.bind acc (fun acc ->
+              match base_a with
+              | Addr _ ->
+                let (lval_a:VD.t) = Address (AD.singleton base_a) in
+                if M.tracing then M.tracel "inv" "Consider case of lval %a = %a" d_lval lv VD.pretty lval_a;
+                let st = set' lv lval_a st in
+                let orig = AD.Addr.add_offset base_a original_offset in
+                let old_val = get ~man st (AD.singleton orig) None in
+                let old_val = VD.cast (Cilfacade.typeOfLval x) old_val in (* needed as the type of this pointer may be different *)
+                (* this what I would originally have liked to do, but eval_rv_lval_refine uses queries and thus stale values *)
+                (* let old_val = eval_rv_lval_refine ~man st exp x in *)
+                let old_val = map_oldval old_val (Cilfacade.typeOfLval x) in
+                let v = apply_invariant ~old_val ~new_val:c' in
+                if is_some_bot v then
+                  Some (D.join acc (try contra st with Analyses.Deadcode -> D.bot ()))
+                else (
+                  if M.tracing then M.tracel "inv" "improve lval %a from %a to %a (c = %a, c' = %a)" d_lval x VD.pretty old_val VD.pretty v pretty c VD.pretty c';
+                  Some (D.join acc (set' x v st))
+                )
+              | _ -> None
+            )
+        ) lvals (Some (D.bot ()))
+      in
+      BatOption.map_default_delayed (fun d -> if D.is_bot d then raise Analyses.Deadcode else d) default res
     | Var _, _
     | Mem _, _ ->
-      (* For accesses via pointers, not yet *)
-      let old_val = eval_rv_lval_refine ~man st exp x in
-      let old_val = map_oldval old_val (Cilfacade.typeOfLval x) in
-      let v = apply_invariant ~old_val ~new_val:c' in
-      if is_some_bot v then contra st
-      else (
-        if M.tracing then M.tracel "inv" "improve lval %a from %a to %a (c = %a, c' = %a)" d_lval x VD.pretty old_val VD.pretty v pretty c VD.pretty c';
-        set' x v st
-      )
+      default ()
+
 
   let invariant_fallback man st exp tv =
     (* We use a recursive helper function so that x != 0 is false can be handled
@@ -203,11 +237,17 @@ struct
       let switchedOp = function Lt -> Gt | Gt -> Lt | Le -> Ge | Ge -> Le | x -> x in (* a op b <=> b (switchedOp op) b *)
       match exp with
       (* Since we handle not only equalities, the order is important *)
-      | BinOp(op, Lval x, rval, typ) -> helper op x (VD.cast (Cilfacade.typeOfLval x) (eval_rv ~man st rval)) tv
+      | BinOp(op, Lval x, rval, typ) ->
+        let v = eval_rv ~man st rval in
+        let x_type = Cilfacade.typeOfLval x in
+        if VD.is_dynamically_safe_cast x_type (Cilfacade.typeOf rval) v then
+          helper op x (VD.cast x_type v) tv
+        else
+          `NotUnderstood
       | BinOp(op, rval, Lval x, typ) -> derived_invariant (BinOp(switchedOp op, Lval x, rval, typ)) tv
       | BinOp(op, CastE (t1, c1), CastE (t2, c2), t) when (op = Eq || op = Ne) && typeSig t1 = typeSig t2 && VD.is_statically_safe_cast t1 (Cilfacade.typeOf c1) && VD.is_statically_safe_cast t2 (Cilfacade.typeOf c2)
         -> derived_invariant (BinOp (op, c1, c2, t)) tv
-      | BinOp(op, CastE (TInt (ik, _) as t1, Lval x), rval, typ) ->
+      | BinOp(op, CastE (t1, Lval x), rval, typ) when Cil.isIntegralType t1 ->
         begin match eval_rv ~man st (Lval x) with
           | Int v ->
             if VD.is_dynamically_safe_cast t1 (Cilfacade.typeOfLval x) (Int v) then
@@ -216,7 +256,7 @@ struct
               `NotUnderstood
           | _ -> `NotUnderstood
         end
-      | BinOp(op, rval, CastE (TInt (_, _) as ti, Lval x), typ) ->
+      | BinOp(op, rval, CastE (ti, Lval x), typ) when Cil.isIntegralType ti ->
         derived_invariant (BinOp (switchedOp op, CastE(ti, Lval x), rval, typ)) tv
       | BinOp(op, (Const _ | AddrOf _), rval, typ) ->
         (* This is last such that we never reach here with rval being Lval (it is swapped around). *)
@@ -305,9 +345,7 @@ struct
          * If the upper bound of a is divisible by b, we can also meet with the result of a/b*b - c to get the precise [3,3].
          * If b is negative we have to look at the lower bound. *)
         let is_divisible bound =
-          match bound a with
-          | Some ba -> ID.rem (ID.of_int ikind ba) b |> ID.to_int = Some Z.zero
-          | None -> false
+          GobOption.exists (fun ba -> ID.rem (ID.of_int ikind ba) b |> ID.to_int = Some Z.zero) (bound a)
         in
         let max_pos = match ID.maximal b with None -> true | Some x -> Z.compare x Z.zero >= 0 in
         let min_neg = match ID.minimal b with None -> true | Some x -> Z.compare x Z.zero < 0 in
@@ -328,7 +366,8 @@ struct
         in
         let a,b = meet_bin a''' b' in
         (* Special handling for case a % 2 != c *)
-        let a = if PrecisionUtil.(is_congruence_active (int_precision_from_node_or_config ())) then
+        let callerFundec = Node.find_fundec man.node in
+        let a = if PrecisionUtil.(is_congruence_active (int_precision_from_fundec_or_config callerFundec)) then
             let two = Z.of_int 2 in
             match ID.to_int b, ID.to_excl_list c with
             | Some b, Some ([v], _) when Z.equal b two ->
@@ -395,27 +434,46 @@ struct
             | Le, Some false -> meet_bin (ID.starting ikind (Z.succ l2)) (ID.ending ikind (Z.pred u1))
             | _, _ -> a, b)
          | _ -> a, b)
-      | BOr | BXor as op->
-        if M.tracing then M.tracel "inv" "Unhandled operator %a" d_binop op;
+      | BOr ->
         (* Be careful: inv_exp performs a meet on both arguments of the BOr / BXor. *)
-        a, b
+        if PrecisionUtil.get_bitfield () then
+          (* refinement based on the following idea: bit set to one in c and set to zero in b must be one in a and bit set to zero in c must be zero in a too (analogously for b) *)
+          let ((az, ao), (bz, bo)) = BitfieldDomain.Bitfield.refine_bor (ID.to_bitfield ikind a) (ID.to_bitfield ikind b) (ID.to_bitfield ikind c) in
+          ID.meet a (ID.of_bitfield ikind (az, ao)), ID.meet b (ID.of_bitfield ikind (bz, bo))
+        else
+          (if M.tracing then M.tracel "inv" "Unhandled operator %a" d_binop op;
+           (* Be careful: inv_exp performs a meet on both arguments of the BOr / BXor. *)
+           (a, b)
+          )
+      | BXor ->
+        (* Be careful: inv_exp performs a meet on both arguments of the BOr / BXor. *)
+        meet_com ID.logxor
       | LAnd ->
         if ID.to_bool c = Some true then
           meet_bin c c
         else
           a, b
-      | BAnd as op ->
+      | BAnd ->
         (* we only attempt to refine a here *)
+        let b_int = ID.to_int b in
         let a =
-          match ID.to_int b with
+          match b_int with
           | Some x when Z.equal x Z.one ->
             (match ID.to_bool c with
              | Some true -> ID.meet a (ID.of_congruence ikind (Z.one, Z.of_int 2))
              | Some false -> ID.meet a (ID.of_congruence ikind (Z.zero, Z.of_int 2))
-             | None -> if M.tracing then M.tracel "inv" "Unhandled case for operator x %a 1 = %a" d_binop op ID.pretty c; a)
-          | _ -> if M.tracing then M.tracel "inv" "Unhandled case for operator x %a %a = %a" d_binop op ID.pretty b ID.pretty c; a
+             | None -> a)
+          | _ -> a
         in
-        a, b
+        if PrecisionUtil.get_bitfield () then
+          (* refinement based on the following idea: bit set to zero in c and set to one in b must be zero in a and bit set to one in c must be one in a too (analogously for b) *)
+          let ((az, ao), (bz, bo)) = BitfieldDomain.Bitfield.refine_band (ID.to_bitfield ikind a) (ID.to_bitfield ikind b) (ID.to_bitfield ikind c) in
+          ID.meet a (ID.of_bitfield ikind (az, ao)), ID.meet b (ID.of_bitfield ikind (bz, bo))
+        else if b_int = None then
+          (if M.tracing then M.tracel "inv" "Unhandled operator %a" d_binop op;
+           (a, b)
+          )
+        else a, b
       | op ->
         if M.tracing then M.tracel "inv" "Unhandled operator %a" d_binop op;
         a, b
@@ -562,8 +620,8 @@ struct
       else
         match exp, c_typed with
         | UnOp (LNot, e, _), Int c ->
-          (match Cilfacade.typeOf e with
-           | TInt  _ | TPtr _ ->
+          (match Cil.unrollType (Cilfacade.typeOf e) with
+           | TInt  _ | TEnum _ | TPtr _ ->
              let ikind = Cilfacade.get_ikind_exp e in
              let c' =
                match ID.to_bool (unop_ID LNot c) with
@@ -716,6 +774,7 @@ struct
                 | _ -> Int c
               in
               (* handle special calls *)
+              let default () = update_lval c x c' ID.pretty in
               begin match x, t with
                 | (Var v, offs), TInt (ik, _) ->
                   let tmpSpecial = man.ask (Queries.TmpSpecial (v, Offset.Exp.of_cil offs)) in
@@ -725,24 +784,21 @@ struct
                       let c' = ID.cast_to ik c in (* different ik! *)
                       inv_exp (Int (ID.join c' (ID.neg c'))) xInt st
                     | tmpSpecial ->
-                      begin match ID.to_bool c with
-                        | Some tv ->
-                          begin match tmpSpecial with
-                            | `Lifted (Isfinite xFloat) when tv -> inv_exp (Float (FD.finite (unroll_fk_of_exp xFloat))) xFloat st
-                            | `Lifted (Isnan xFloat) when tv -> inv_exp (Float (FD.nan_of (unroll_fk_of_exp xFloat))) xFloat st
-                            (* should be correct according to C99 standard*)
-                            (* The following do to_bool and of_bool to convert Not{0} into 1 for downstream float inversions *)
-                            | `Lifted (Isgreater (xFloat, yFloat)) -> inv_exp (Int (ID.of_bool ik tv)) (BinOp (Gt, xFloat, yFloat, (typeOf xFloat))) st
-                            | `Lifted (Isgreaterequal (xFloat, yFloat)) -> inv_exp (Int (ID.of_bool ik tv)) (BinOp (Ge, xFloat, yFloat, (typeOf xFloat))) st
-                            | `Lifted (Isless (xFloat, yFloat)) -> inv_exp (Int (ID.of_bool ik tv)) (BinOp (Lt, xFloat, yFloat, (typeOf xFloat))) st
-                            | `Lifted (Islessequal (xFloat, yFloat)) -> inv_exp (Int (ID.of_bool ik tv)) (BinOp (Le, xFloat, yFloat, (typeOf xFloat))) st
-                            | `Lifted (Islessgreater (xFloat, yFloat)) -> inv_exp (Int (ID.of_bool ik tv)) (BinOp (LOr, (BinOp (Lt, xFloat, yFloat, (typeOf xFloat))), (BinOp (Gt, xFloat, yFloat, (typeOf xFloat))), (TInt (IBool, [])))) st
-                            | _ -> update_lval c x c' ID.pretty
-                          end
-                        | None -> update_lval c x c' ID.pretty
-                      end
+                      BatOption.map_default_delayed (fun tv ->
+                          match tmpSpecial with
+                          | `Lifted (Isfinite xFloat) when tv -> inv_exp (Float (FD.finite (unroll_fk_of_exp xFloat))) xFloat st
+                          | `Lifted (Isnan xFloat) when tv -> inv_exp (Float (FD.nan_of (unroll_fk_of_exp xFloat))) xFloat st
+                          (* should be correct according to C99 standard*)
+                          (* The following do to_bool and of_bool to convert Not{0} into 1 for downstream float inversions *)
+                          | `Lifted (Isgreater (xFloat, yFloat)) -> inv_exp (Int (ID.of_bool ik tv)) (BinOp (Gt, xFloat, yFloat, (typeOf xFloat))) st
+                          | `Lifted (Isgreaterequal (xFloat, yFloat)) -> inv_exp (Int (ID.of_bool ik tv)) (BinOp (Ge, xFloat, yFloat, (typeOf xFloat))) st
+                          | `Lifted (Isless (xFloat, yFloat)) -> inv_exp (Int (ID.of_bool ik tv)) (BinOp (Lt, xFloat, yFloat, (typeOf xFloat))) st
+                          | `Lifted (Islessequal (xFloat, yFloat)) -> inv_exp (Int (ID.of_bool ik tv)) (BinOp (Le, xFloat, yFloat, (typeOf xFloat))) st
+                          | `Lifted (Islessgreater (xFloat, yFloat)) -> inv_exp (Int (ID.of_bool ik tv)) (BinOp (LOr, (BinOp (Lt, xFloat, yFloat, (typeOf xFloat))), (BinOp (Gt, xFloat, yFloat, (typeOf xFloat))), (TInt (IBool, [])))) st
+                          | _ -> default ()
+                        ) default (ID.to_bool c)
                   end
-                | _, _ -> update_lval c x c' ID.pretty
+                | _, _ -> default ()
               end
             | Float c ->
               let c' = match t with

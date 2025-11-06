@@ -3,7 +3,7 @@
 #include<stdlib.h>
 #include<stdio.h>
 struct a {
-  void (*b)();
+  void (*b)(void);
 };
 
 int g = 0;

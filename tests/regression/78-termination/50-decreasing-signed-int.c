@@ -1,9 +1,9 @@
 // SKIP TERM PARAM: --set "ana.activated[+]" termination --set ana.activated[+] apron --enable ana.int.interval --set ana.apron.domain octagon
 int main()
 {
-	int x;
+	unsigned int x;
 
-	if(x <= 0){
+	if(x == 0){
 		return 0;
 	}
 	while (x > 0) {

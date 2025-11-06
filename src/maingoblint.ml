@@ -59,13 +59,7 @@ let rec option_spec_list: Arg_complete.speclist Lazy.t = lazy (
     else (Logs.error "Goblint has been compiled without tracing, recompile in trace profile (./scripts/trace_on.sh)"; raise Stdlib.Exit)
   in
   let configure_html () =
-    if (get_string "outfile" = "") then
-      set_string "outfile" "result";
-    if get_string "exp.g2html_path" = "" then
-      set_string "exp.g2html_path" (Fpath.to_string GobSys.exe_dir);
-    set_bool "exp.cfgdot" true;
-    set_bool "g2html" true;
-    set_string "result" "fast_xml"
+    set_string "result" "xslt"
   in
   let configure_sarif () =
     if (get_string "outfile" = "") then
@@ -88,13 +82,7 @@ let rec option_spec_list: Arg_complete.speclist Lazy.t = lazy (
     Arg_complete.strings Options.paths s
   in
   let complete_bool_option s =
-    let cs = complete_option s in
-    let is_bool c =
-      match GobConfig.get_json c with
-      | `Bool _ -> true
-      | _ -> false
-    in
-    List.filter is_bool cs
+    Arg_complete.strings Options.bool_paths s
   in
   let complete_last_option_value s =
     complete_option_value !last_complete_option s
@@ -120,10 +108,9 @@ let rec option_spec_list: Arg_complete.speclist Lazy.t = lazy (
   ; "--html"               , Arg_complete.Unit (fun _ -> configure_html ()),""
   ; "--sarif"               , Arg_complete.Unit (fun _ -> configure_sarif ()),""
   ; "--compare_runs"       , Arg_complete.Tuple [Arg_complete.Set_string (tmp_arg, Arg_complete.empty); Arg_complete.String ((fun x -> set_auto "compare_runs" (sprintf "['%s','%s']" !tmp_arg x)), Arg_complete.empty)], ""
-  ; "--complete"           , Arg_complete.Rest_all_compat.spec (Lazy.force rest_all_complete), ""
+  ; "--complete"           , Arg_complete.Rest_all (complete, Arg_complete.empty_all), ""
   ] @ defaults_spec_list (* lowest priority *)
 )
-and rest_all_complete = lazy (Arg_complete.Rest_all_compat.create complete Arg_complete.empty_all)
 and complete args =
   Arg_complete.complete_argv args (Lazy.force option_spec_list) Arg_complete.empty
   |> List.iter print_endline; (* nosemgrep: print-not-logging *)
@@ -142,6 +129,8 @@ let check_arguments () =
   if get_bool "ana.base.context.int" && not (get_bool "ana.base.context.non-ptr") then (set_bool "ana.base.context.int" false; warn "ana.base.context.int implicitly disabled by ana.base.context.non-ptr");
   (* order matters: non-ptr=false, int=true -> int=false cascades to interval=false with warning *)
   if get_bool "ana.base.context.interval" && not (get_bool "ana.base.context.int") then (set_bool "ana.base.context.interval" false; warn "ana.base.context.interval implicitly disabled by ana.base.context.int");
+  if get_bool "ana.base.priv.protection.changes-only" && not @@ List.mem (get_string "ana.base.privatization") ["protection"; "protection-tid"; "protection-atomic"; "protection-read"; "protection-read-tid"; "protection-read-atomic"] then
+    warn "ana.base.priv.protection.changes-only requires ana.base.privatization to be protection based";
   if get_bool "incremental.only-rename" then (set_bool "incremental.load" true; warn "incremental.only-rename implicitly activates incremental.load. Previous AST is loaded for diff and rename, but analyis results are not reused.");
   if get_bool "incremental.restart.sided.enabled" && get_string_list "incremental.restart.list" <> [] then warn "Passing a non-empty list to incremental.restart.list (manual restarting) while incremental.restart.sided.enabled (automatic restarting) is activated.";
   if get_bool "ana.autotune.enabled" && get_bool "incremental.load" then (set_bool "ana.autotune.enabled" false; warn "ana.autotune.enabled implicitly disabled by incremental.load");
@@ -165,13 +154,16 @@ let check_arguments () =
   );
   if get_bool "solvers.td3.space" && get_bool "solvers.td3.remove-wpoint" then fail "solvers.td3.space is incompatible with solvers.td3.remove-wpoint";
   if get_bool "solvers.td3.space" && get_string "solvers.td3.side_widen" = "sides-local" then fail "solvers.td3.space is incompatible with solvers.td3.side_widen = 'sides-local'";
+  if get_bool "solvers.td3.space" && get_bool "solvers.td3.narrow-globs.enabled" then fail "solvers.td3.space is incompatible with solvers.td3.narrow-globs.enabled";
+  if (get_bool "incremental.load" || get_bool "incremental.save") && get_bool "solvers.td3.narrow-globs.enabled" then (
+    fail "solvers.td3.space is incompatible with incremental analsyis.";
+  );
   if List.mem "termination" @@ get_string_list "ana.activated" then (
     if GobConfig.get_bool "incremental.load" || GobConfig.get_bool "incremental.save" then fail "termination analysis is not compatible with incremental analysis";
     set_list "ana.activated" (GobConfig.get_list "ana.activated" @ [`String ("threadflag")]);
     set_string "sem.int.signed_overflow" "assume_none";
     warn "termination analysis implicitly activates threadflag analysis and set sem.int.signed_overflow to assume_none";
   );
-  if not (get_bool "ana.sv-comp.enabled") && get_bool "witness.graphml.enabled" then fail "witness.graphml.enabled: cannot generate GraphML witness without SV-COMP mode (ana.sv-comp.enabled)";
   if get_bool "dbg.print_wpoints" && not (Logs.Level.should_log Debug) then
     warn "dbg.print_wpoints requires dbg.level debug";
   if get_bool "dbg.print_tids" && not (Logs.Level.should_log Debug) then
@@ -215,13 +207,7 @@ let parse_arguments () =
   let anon_arg = set_string "files[+]" in
   let arg_speclist = Arg_complete.arg_speclist (Lazy.force option_spec_list) in
   Arg.parse arg_speclist anon_arg "Look up options using 'goblint --help'.";
-  Arg_complete.Rest_all_compat.finish (Lazy.force rest_all_complete);
-  begin match !writeconffile with
-    | Some writeconffile ->
-      GobConfig.write_file writeconffile;
-      raise Stdlib.Exit
-    | None -> ()
-  end;
+  GobOption.iter (fun writeconffile -> GobConfig.write_file writeconffile; raise Stdlib.Exit) !writeconffile;
   handle_options ();
   if not (get_bool "server.enabled") && get_string_list "files" = [] then (
     Logs.error "No files for Goblint?";
@@ -274,6 +260,8 @@ let preprocess_files () =
 
   (* Preprocessor flags *)
   let cppflags = ref (get_string_list "pre.cppflags") in
+
+  cppflags := ("--std=" ^ get_string "std") :: !cppflags;
 
   if get_bool "ana.sv-comp.enabled" then (
     let architecture_flag = match get_string "exp.architecture" with
@@ -418,9 +406,6 @@ let preprocess_files () =
   if List.mem "c" (get_string_list "lib.activated") then
     extra_files := find_custom_include (Fpath.v "stdlib.c") :: !extra_files;
 
-  if List.mem "pthread" (get_string_list "lib.activated") then
-    extra_files := find_custom_include (Fpath.v "pthread.c") :: !extra_files;
-
   if List.mem "sv-comp" (get_string_list "lib.activated") then
     extra_files := find_custom_include (Fpath.v "sv-comp.c") :: !extra_files;
 
@@ -539,7 +524,7 @@ let reset_stats () =
 (** Perform the analysis over the merged AST.  *)
 let do_analyze change_info merged_AST =
   (* direct the output to file if requested  *)
-  if not (get_bool "g2html" || get_string "outfile" = "") then (
+  if get_string "outfile" <> "" then (
     if !Messages.out <> Legacy.stdout then
       Legacy.close_out !Messages.out;
     Messages.out := Legacy.open_out (get_string "outfile"));
@@ -579,27 +564,6 @@ let do_analyze change_info merged_AST =
     in
 
     Timing.wrap "analysis" (control_analyze merged_AST) funs
-  )
-
-let do_html_output () =
-  if get_bool "g2html" then (
-    let jar = Fpath.(v (get_string "exp.g2html_path") / "g2html.jar") in
-    if Sys.file_exists (Fpath.to_string jar) then (
-      let command = Filename.quote_command "java" [
-          "-jar"; Fpath.to_string jar;
-          "--num-threads"; string_of_int (jobs ());
-          "--dot-timeout"; "0";
-          "--result-dir"; get_string "outfile";
-          !Messages.xml_file_name
-        ]
-      in
-      match Timing.wrap "g2html" Unix.system command with
-      | Unix.WEXITED 0 -> ()
-      | _ -> Logs.error "HTML generation failed! Command: %s" command
-      | exception Unix.Unix_error (e, f, a) ->
-        Logs.error "%s at syscall %s with argument \"%s\"." (Unix.error_message e) f a
-    ) else
-      Logs.Format.error "Warning: jar file %a not found." Fpath.pp jar
   )
 
 let do_gobview cilfile =
@@ -651,7 +615,7 @@ let diff_and_rename current_file =
         let max_ids = UpdateCil.update_ids old_file max_ids current_file changes in
 
         let restarting = GobConfig.get_string_list "incremental.restart.list" in
-        let restarting, not_found = VarQuery.varqueries_from_names current_file restarting in
+        let restarting, not_found = Goblint_constraint.VarQuery.varqueries_from_names current_file restarting in
         if not (List.is_empty not_found) then begin
           List.iter
             (fun s ->
