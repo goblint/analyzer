@@ -430,8 +430,7 @@ struct
     | None -> Arg.next n
 end
 
-module Intra (ArgIntra: SIntraOpt) (Arg: S):
-  S with module Node = Arg.Node and module Edge = Arg.Edge =
+module Intra (ArgIntra: SIntraOpt) (Arg: S) =
 struct
   include Arg
 
@@ -447,6 +446,18 @@ struct
       in
       follow node' to_n p'
 
+  let rec follow' (node : Node.t) to_n p : (Node.t * (Edge.t * Node.t) list) list =
+    let open GobList.Syntax in
+    match p with
+    | [] -> [node, []]
+    | (e, to_n) :: p' ->
+      let* (_, node') = List.filter (fun (e', to_node) ->
+          Edge.equal (Edge.embed e) e' && Node0.equal to_n (Node.cfgnode to_node)
+        ) (Arg.next node)
+      in
+      let+ (n, l) = follow' node' to_n p' in
+      (n, (Edge.embed e, node') :: l)
+
   let next node =
     let open GobList.Syntax in
     match ArgIntra.next_opt (Node.cfgnode node) with
@@ -458,4 +469,17 @@ struct
           (Edge.embed e, to_node)
         )
       |> BatList.unique_cmp ~cmp:[%ord: Edge.t * Node.t] (* TODO: avoid generating duplicates in the first place? *)
+
+  let next' node =
+    let open GobList.Syntax in
+    match ArgIntra.next_opt (Node.cfgnode node) with
+    | None ->
+      Arg.next node
+      |> List.map (fun (e,n) -> (e,n, [e, n]))
+    | Some next ->
+      next
+      |> BatList.concat_map (fun (e, to_n, p) ->
+          let+ (to_node, path) = follow' node to_n p in
+          (Edge.embed e, to_node, path)
+        )
 end
