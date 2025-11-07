@@ -55,7 +55,7 @@
         format: c_expression
 
 
-  $ goblint --enable warn.deterministic --set ana.activated[+] apron --set ana.path_sens[+] threadflag --enable ana.sv-comp.functions --enable witness.yaml.enabled --set ana.activated[+] mutexGhosts --set witness.yaml.entry-types[+] ghost_instrumentation --set witness.yaml.invariant-types[*] flow_insensitive_invariant 12-traces-min-rpb1.c --enable ana.apron.invariant.diff-box
+  $ goblint --enable warn.deterministic --set ana.activated[+] apron --set ana.path_sens[+] threadflag --enable ana.sv-comp.functions --enable witness.yaml.enabled --set ana.activated[+] mutexGhosts --set witness.yaml.entry-types[+] ghost_instrumentation --set witness.yaml.invariant-types[*] flow_insensitive_invariant --set witness.yaml.format-version 2.1-goblint 12-traces-min-rpb1.c --enable ana.apron.invariant.diff-box
   [Warning][Assert] Assertion "g == h" is unknown. (12-traces-min-rpb1.c:27:3-27:26)
   [Success][Assert] Assertion "g == h" will succeed (12-traces-min-rpb1.c:16:3-16:26)
   [Success][Assert] Assertion "g == h" will succeed (12-traces-min-rpb1.c:29:3-29:26)

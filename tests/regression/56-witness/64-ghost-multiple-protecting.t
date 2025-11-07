@@ -1,4 +1,4 @@
-  $ goblint --set ana.base.privatization protection --enable witness.yaml.enabled --set ana.activated[+] mutexGhosts --set witness.yaml.entry-types[+] ghost_instrumentation --set witness.yaml.invariant-types[*] flow_insensitive_invariant 64-ghost-multiple-protecting.c
+  $ goblint --set ana.base.privatization protection --enable witness.yaml.enabled --set ana.activated[+] mutexGhosts --set witness.yaml.entry-types[+] ghost_instrumentation --set witness.yaml.invariant-types[*] flow_insensitive_invariant --set witness.yaml.format-version 2.1-goblint 64-ghost-multiple-protecting.c
   [Info][Deadcode] Logical lines of code (LLoC) summary:
     live: 19
     dead: 0
@@ -153,7 +153,7 @@ protection doesn't have precise protected invariant for g2.
         value: '! multithreaded || (m2_locked || (m1_locked || g1 == 0))'
         format: c_expression
 
-  $ goblint --set ana.base.privatization protection-read --enable witness.yaml.enabled --set ana.activated[+] mutexGhosts --set witness.yaml.entry-types[+] ghost_instrumentation --set witness.yaml.invariant-types[*] flow_insensitive_invariant 64-ghost-multiple-protecting.c
+  $ goblint --set ana.base.privatization protection-read --enable witness.yaml.enabled --set ana.activated[+] mutexGhosts --set witness.yaml.entry-types[+] ghost_instrumentation --set witness.yaml.invariant-types[*] flow_insensitive_invariant --set witness.yaml.format-version 2.1-goblint 64-ghost-multiple-protecting.c
   [Info][Deadcode] Logical lines of code (LLoC) summary:
     live: 19
     dead: 0
@@ -312,7 +312,7 @@ protection-read has precise protected invariant for g2.
         value: '! multithreaded || (m2_locked || (m1_locked || g2 == 0))'
         format: c_expression
 
-  $ goblint --set ana.base.privatization vojdani --enable witness.yaml.enabled --set ana.activated[+] mutexGhosts --set witness.yaml.entry-types[+] ghost_instrumentation --set witness.yaml.invariant-types[*] flow_insensitive_invariant 64-ghost-multiple-protecting.c
+  $ goblint --set ana.base.privatization vojdani --enable witness.yaml.enabled --set ana.activated[+] mutexGhosts --set witness.yaml.entry-types[+] ghost_instrumentation --set witness.yaml.invariant-types[*] flow_insensitive_invariant --set witness.yaml.format-version 2.1-goblint 64-ghost-multiple-protecting.c
   [Info][Deadcode] Logical lines of code (LLoC) summary:
     live: 19
     dead: 0
@@ -463,7 +463,7 @@ vojdani has precise protected invariant for g2, but no unprotected invariants.
         value: '! multithreaded || (m2_locked || (m1_locked || g2 == 0))'
         format: c_expression
 
-  $ goblint --set ana.base.privatization mutex-meet --enable witness.yaml.enabled --set ana.activated[+] mutexGhosts --set witness.yaml.entry-types[+] ghost_instrumentation --set witness.yaml.invariant-types[*] flow_insensitive_invariant 64-ghost-multiple-protecting.c
+  $ goblint --set ana.base.privatization mutex-meet --enable witness.yaml.enabled --set ana.activated[+] mutexGhosts --set witness.yaml.entry-types[+] ghost_instrumentation --set witness.yaml.invariant-types[*] flow_insensitive_invariant --set witness.yaml.format-version 2.1-goblint 64-ghost-multiple-protecting.c
   [Info][Deadcode] Logical lines of code (LLoC) summary:
     live: 19
     dead: 0

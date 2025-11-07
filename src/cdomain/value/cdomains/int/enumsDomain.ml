@@ -1,5 +1,4 @@
 open IntDomain0
-open IntervalDomain
 open DefExcDomain
 open GoblintCil
 
@@ -8,7 +7,6 @@ open GoblintCil
 module Enums : S with type int_t = Z.t = struct
   module R = Exclusion.R (* range for exclusion *)
 
-  let range_ikind = Cil.IInt
   let size t = let a,b = Size.bits t in -a,b
 
   type t =
@@ -223,6 +221,7 @@ module Enums : S with type int_t = Z.t = struct
 
   let rem = lift2 Z.rem
 
+  (* TODO: should be used by lognot? *)
   let apply_range f r = (* apply f to the min/max of the old range r to get a new range *)
     let rf m = (size % Size.min_for % f) (m r) in
     let r1, r2 = rf Exclusion.min_of_range, rf Exclusion.max_of_range in
