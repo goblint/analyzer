@@ -2,28 +2,33 @@ open Analyses
 module TID = ThreadIdDomain.ThreadLifted
 module LID = LockDomain.MustLock
 
-(** 
-    collects for each thread t_n pairs of must-ancestors and locks (t_0,l):
-    when t_n or a must-ancestor t_1 of t_n was created, the parent t_0 must have held l.
-    TODO: check if this requirement can be loosened
-*)
-module Spec = struct
+module AncestorLocksetSpec = struct
   include IdentityUnitContextsSpec (* no context necessary(?) *)
-  module D = Lattice.Unit (* flow-insensitive analysis *)
+  module D = Lattice.Unit
 
   module V = struct
     include TID
     include StdV
   end
 
-  module G = SetDomain.Make (Printable.ProdSimple (TID) (LID))
+  module G = SetDomain.Make (Printable.Prod (TID) (LID))
   (* 2^{T\times L}. TODO: Prod or ProdSimple? *)
 
-  let name () = "creationLockset"
   let startstate _ = D.bot ()
   let exitstate _ = D.bot ()
+end
 
-  (* create(t_1) in t_0 with lockset L *)
+(** 
+    collects for each thread t_n pairs of must-ancestors and locks (t_0,l):
+    when t_n or a must-ancestor t_1 of t_n was created, the parent t_0 must have held l.
+    TODO: check if this requirement can be loosened
+*)
+module CreationLocksetSpec = struct
+  include AncestorLocksetSpec
+
+  let name () = "creationLockset"
+
+  (** create(t_1) in t_0 with lockset L *)
   let threadspawn man ~multiple lval f args fman =
     let ask = Analyses.ask_of_man man in
     let tid = ask.f Queries.CurrentThreadId in
@@ -41,4 +46,8 @@ module Spec = struct
      - more? *)
 end
 
-let _ = MCP.register_analysis ~dep:[ "threadid"; "mutex" ] (module Spec : MCPSpec)
+let _ =
+  MCP.register_analysis
+    ~dep:[ "threadid"; "mutex" ]
+    (module CreationLocksetSpec : MCPSpec)
+;;
