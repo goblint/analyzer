@@ -48,6 +48,7 @@ class GoblintRunner:
         self.logger.info(f"Config details: ./goblint {" ".join(args)}")
         process = subprocess.Popen([self.goblint_executable_path, *args],stdout=subprocess.PIPE,stderr=subprocess.STDOUT)
         continue_portfolio = False
+        verdict = None
         for line in process.stdout:
             decoded_line = line.decode("utf-8")
             print(decoded_line, end="")
@@ -57,6 +58,12 @@ class GoblintRunner:
                 if verdict == "unknown":
                     continue_portfolio = continue_portfolio or decoded_line.startswith("SV-COMP result: unknown")
         process.wait()
+        # handle the returncode:
+        if process.returncode != 0 and not continue_portfolio:
+            if process.returncode== -11: 
+                print("Segmentation fault (core dumped)")
+                continue_portfolio = True
+            self.logger.error(f"goblint exited with code {process.returncode}")
         return verdict,continue_portfolio
 
     def run_without_config(self):
@@ -70,6 +77,8 @@ class GoblintRunner:
         for i, config in enumerate(self.configs):
             logger.info(f"Starting config [{i}]")
             verdict, go_on = self.run_with_config(config)
+            if not verdict:
+                logger.error(f"No SV-COMP verdict produced by goblint for config [{i}]")
             if not go_on: 
                 logger.info(f"Stopping portfolio sequence with verdict [{verdict}] after config [{i}]")
                 break
