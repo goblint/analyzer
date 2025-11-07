@@ -1,7 +1,6 @@
 (** XSLT analysis result output. *)
 
 open GoblintCil
-open Pretty
 open GobConfig
 open AnalysisResult
 
