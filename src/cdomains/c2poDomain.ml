@@ -292,8 +292,12 @@ module D = struct
   let remove_vars_not_in_scope scope cc =
     let not_in_scope t =
       let var = T.get_var t in
-      let var = Var.to_varinfo var in
-      InvariantCil.var_is_tmp var || not (InvariantCil.var_is_in_scope scope  var)
+      (* let var = Var.to_varinfo var in *)
+      (* TODO: why Var.to_varinfo doesn't work? *)
+      match var with
+      | NormalVar var ->
+        InvariantCil.var_is_tmp var || not (InvariantCil.var_is_in_scope scope  var)
+      | _ -> true
     in
     remove_terms not_in_scope cc
 end
