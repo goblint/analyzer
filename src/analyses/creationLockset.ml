@@ -1,4 +1,6 @@
 open Analyses
+open GoblintCil
+module LF = LibraryFunctions
 module TID = ThreadIdDomain.ThreadLifted
 module LID = LockDomain.MustLock
 
@@ -46,8 +48,52 @@ module CreationLocksetSpec = struct
      - more? *)
 end
 
+module TaintedCreationLocksetSpec = struct
+  include AncestorLocksetSpec
+
+  let name () = "taintedCreationLockset"
+  let eval_exp_addr (a : Queries.ask) exp = a.f (Queries.MayPointTo exp)
+
+  (** stolen from mutexGhost.ml. TODO Maybe add to library? *)
+  let mustlock_of_addr (addr : LockDomain.Addr.t) : LockDomain.MustLock.t option =
+    match addr with
+    | Addr mv when LockDomain.Mval.is_definite mv -> Some (LockDomain.MustLock.of_mval mv)
+    | _ -> None
+  ;;
+
+  let event man (e : Events.t) _ =
+    match e with
+    | Unlock addr ->
+      let ask = Analyses.ask_of_man man in
+      let tid = ask.f Queries.CurrentThreadId in
+      let may_created_tids = ask.f Queries.CreatedThreads in
+      let must_joined_tids = ask.f Queries.MustJoinedThreads in
+      let possibly_running_tids =
+        ConcDomain.ThreadSet.diff may_created_tids must_joined_tids
+      in
+      let contribute_tainted_lock lock child_tid =
+        man.sideg child_tid (G.singleton (tid, lock))
+      in
+      let lock_opt = mustlock_of_addr addr in
+      (match lock_opt with
+       | Some lock ->
+         (* contribute possibly_running_tids \times \{lock\} *)
+         ConcDomain.ThreadSet.iter (contribute_tainted_lock lock) possibly_running_tids
+       | None ->
+         (* TODO any lock could have been unlocked. Contribute for all possibly_running_tids their full CreationLocksets to invalidate them!! *)
+         ())
+    | _ -> ()
+  ;;
+end
+
 let _ =
   MCP.register_analysis
     ~dep:[ "threadid"; "mutex" ]
     (module CreationLocksetSpec : MCPSpec)
+;;
+
+let _ =
+  MCP.register_analysis
+    ~dep:[ "threadid"; "mutex" ]
+    (module TaintedCreationLocksetSpec : MCPSpec)
 ;;
