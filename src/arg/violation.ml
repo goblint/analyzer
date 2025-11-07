@@ -152,7 +152,7 @@ struct
               segment ~waypoints
         in
 
-        let find_next_segment prev edge node segmap (sub_path : (Node.t * inline_edge * Node.t) list) =
+        let uncil prev (sub_path : (Node.t * inline_edge * Node.t) list) =
           let rec is_prefix prefix full =
             match prefix, full with
             | [], _ -> true
@@ -160,15 +160,14 @@ struct
             | (e,n)::xs, (_, e1, n1)::ys -> Node.equal n n1 && Arg.Edge.equal e e1 && is_prefix xs ys
           in
           let nexts = UnCilArg.next' prev in
-          let (new_edge, new_node, p) as res = List.find (fun (_, _, p) -> is_prefix p sub_path) nexts in
-          let res = SegMap.find_opt new_node segmap in
-          (new_edge, Option.get res, new_node)
+          let (new_edge, new_node, p) = List.find (fun (_, _, p) -> is_prefix p sub_path) nexts in
+          (new_edge, new_node)
         in
 
         let rec build_segments path segToPathMap segNr ~prev_path_elem =
           match path with
           | [] -> SegMap.empty, segToPathMap, 0
-          | [(prev, edge, node) as path_elem] as sub_path ->
+          | [(prev, _, node) as path_elem] as sub_path ->
             let cfgNode = Node.cfgnode node in
             let l = Option.get (WitnessInvariant.location_location cfgNode) in
             let target = segment ~waypoints:[waypoint ~waypoint_type:(Target (violation_target ~location:(loc node l)))] in
@@ -182,12 +181,13 @@ struct
             in
             let segmap = SegMap.singleton node [target] in
             SegMap.add prev this_seg segmap, segToPathMap, segNr
-          | (prev, edge, node) as path_elem :: rest as sub_path ->
+          | (prev, _, _) as path_elem :: rest as sub_path ->
             let segmap, segToPathMap, segNr = build_segments rest segToPathMap segNr ~prev_path_elem:(Some path_elem) in
-            let new_edge, uncilled, new_node = find_next_segment prev edge node segmap sub_path in
+            let new_edge, new_node = uncil prev sub_path in
+            let segments = Option.get (SegMap.find_opt new_node segmap) in
             let this_seg, segToPathMap, segNr = match segment_for_edge (prev, new_edge, new_node) prev_path_elem with
-              | Some seg -> seg :: uncilled, SegNrToPathMap.add segNr sub_path segToPathMap, segNr + 1
-              | None -> uncilled, segToPathMap, segNr
+              | Some seg -> seg :: segments, SegNrToPathMap.add segNr sub_path segToPathMap, segNr + 1
+              | None -> segments, segToPathMap, segNr
             in
             SegMap.add prev this_seg segmap, segToPathMap, segNr
         in
