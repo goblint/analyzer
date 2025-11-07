@@ -6,11 +6,6 @@ struct
   include CilType.Exp
   (* This type is abstract in the interface because invariant expressions may be optimized for readability but lack implicit casts, etc, which are required to normally use CIL exp-s in Goblint. *)
 
-  let bot () = zero (* false *)
-  let top () = one (* true *)
-  let is_bot _ = failwith "ExpLat: is_bot" (* cannot say for sure, many contradictions exist *)
-  let is_top _ = failwith "ExpLat: is_top" (* cannot say for sure, many tautologies exist *)
-
   let leq _ _ = failwith "ExpLat: leq" (* cannot say for sure, requires general entailment check *)
   let pretty_diff () _ = failwith "ExpLat: pretty_diff" (* irrelevant, no leq *)
 
