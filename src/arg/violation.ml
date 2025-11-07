@@ -152,17 +152,17 @@ struct
               segment ~waypoints
         in
 
-        let find_next_segment prev edge node segmap =
-          let nexts = UnCilArg.next prev in
-          let potential_nodes = List.filter_map (fun (new_edge, new_node) ->
-              match new_edge with
-              | MyARG.InlinedEdge _ -> None
-              | _ ->
-                let+ res : YamlWitnessType.ViolationSequence.Segment.t list = SegMap.find_opt new_node segmap in
-                (new_edge, res, new_node)
-            ) nexts in
-          assert (List.length potential_nodes = 1); (* TODO: there might be more than one node *)
-          List.hd potential_nodes
+        let find_next_segment prev edge node segmap (sub_path : (Node.t * inline_edge * Node.t) list) =
+          let rec is_prefix prefix full =
+            match prefix, full with
+            | [], _ -> true
+            | _, [] -> false
+            | (e,n)::xs, (_, e1, n1)::ys -> Node.equal n n1 && Arg.Edge.equal e e1 && is_prefix xs ys
+          in
+          let nexts = UnCilArg.next' prev in
+          let (new_edge, new_node, p) as res = List.find (fun (_, _, p) -> is_prefix p sub_path) nexts in
+          let res = SegMap.find_opt new_node segmap in
+          (new_edge, Option.get res, new_node)
         in
 
         let rec build_segments path segToPathMap segNr ~prev_path_elem =
@@ -184,7 +184,7 @@ struct
             SegMap.add prev this_seg segmap, segToPathMap, segNr
           | (prev, edge, node) as path_elem :: rest as sub_path ->
             let segmap, segToPathMap, segNr = build_segments rest segToPathMap segNr ~prev_path_elem:(Some path_elem) in
-            let new_edge, uncilled, new_node = find_next_segment prev edge node segmap in
+            let new_edge, uncilled, new_node = find_next_segment prev edge node segmap sub_path in
             let this_seg, segToPathMap, segNr = match segment_for_edge (prev, new_edge, new_node) prev_path_elem with
               | Some seg -> seg :: uncilled, SegNrToPathMap.add segNr sub_path segToPathMap, segNr + 1
               | None -> uncilled, segToPathMap, segNr
