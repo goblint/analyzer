@@ -1,7 +1,8 @@
 open Analyses
-open GoblintCil
 module LF = LibraryFunctions
-module TID = ThreadIdDomain.ThreadLifted
+
+(* TODO use ThreadLifted instead? Are Top or Bot relevant *)
+module TID = ThreadIdDomain.Thread
 module LID = LockDomain.MustLock
 
 module AncestorLocksetSpec = struct
@@ -18,6 +19,10 @@ module AncestorLocksetSpec = struct
 
   let startstate _ = D.bot ()
   let exitstate _ = D.bot ()
+
+  let contribute_lock man tid lock child_tid =
+    man.sideg child_tid (G.singleton (tid, lock))
+  ;;
 end
 
 (** 
@@ -33,14 +38,22 @@ module CreationLocksetSpec = struct
   (** create(t_1) in t_0 with lockset L *)
   let threadspawn man ~multiple lval f args fman =
     let ask = Analyses.ask_of_man man in
-    let tid = ask.f Queries.CurrentThreadId in
-    let child_ask = Analyses.ask_of_man fman in
-    let child_tid = child_ask.f Queries.CurrentThreadId in
-    let lockset = ask.f Queries.MustLockset in
-    (* contribution (t_1, l) to global of t_0 for all l in L: *)
-    (* TODO also register for transitive descendants of t_1! *)
-    let contribute_lock lock = man.sideg child_tid (G.singleton (tid, lock)) in
-    LockDomain.MustLockset.iter contribute_lock lockset
+    let tid_lifted = ask.f Queries.CurrentThreadId in
+    match tid_lifted with
+    | `Top | `Bot -> ()
+    | `Lifted tid ->
+      let child_ask = Analyses.ask_of_man fman in
+      let child_tid_lifted = child_ask.f Queries.CurrentThreadId in
+      (match child_tid_lifted with
+       | `Top | `Bot -> ()
+       | `Lifted child_tid ->
+         let lockset = ask.f Queries.MustLockset in
+         (* contribution (t_1, l) to global of t_0 for all l in L: *)
+         (* TODO also register for transitive descendants of t_1! *)
+         (* let contribute_lock lock = man.sideg child_tid (G.singleton (tid, lock)) in *)
+         LockDomain.MustLockset.iter
+           (fun l -> contribute_lock man tid l child_tid)
+           lockset)
   ;;
   (* TODO: consider edge cases (most likely in creation lockset analysis)!
      - `ana.threads.include-node` is false. Two threads created with different locksets may have the same id that way!
@@ -61,27 +74,27 @@ module TaintedCreationLocksetSpec = struct
     | _ -> None
   ;;
 
-  let event man (e : Events.t) _ =
+  let event man e _ =
     match e with
-    | Unlock addr ->
+    | Events.Unlock addr ->
       let ask = Analyses.ask_of_man man in
-      let tid = ask.f Queries.CurrentThreadId in
-      let may_created_tids = ask.f Queries.CreatedThreads in
-      let must_joined_tids = ask.f Queries.MustJoinedThreads in
-      let possibly_running_tids =
-        ConcDomain.ThreadSet.diff may_created_tids must_joined_tids
-      in
-      let contribute_tainted_lock lock child_tid =
-        man.sideg child_tid (G.singleton (tid, lock))
-      in
-      let lock_opt = mustlock_of_addr addr in
-      (match lock_opt with
-       | Some lock ->
-         (* contribute possibly_running_tids \times \{lock\} *)
-         ConcDomain.ThreadSet.iter (contribute_tainted_lock lock) possibly_running_tids
-       | None ->
-         (* TODO any lock could have been unlocked. Contribute for all possibly_running_tids their full CreationLocksets to invalidate them!! *)
-         ())
+      let tid_lifted = ask.f Queries.CurrentThreadId in
+      (match tid_lifted with
+       | `Top | `Bot -> ()
+       | `Lifted tid ->
+         let may_created_tids = ask.f Queries.CreatedThreads in
+         let must_joined_tids = ask.f Queries.MustJoinedThreads in
+         let possibly_running_tids =
+           ConcDomain.ThreadSet.diff may_created_tids must_joined_tids
+         in
+         let lock_opt = mustlock_of_addr addr in
+         (match lock_opt with
+          | Some lock ->
+            (* contribute possibly_running_tids \times \{lock\} *)
+            ConcDomain.ThreadSet.iter (contribute_lock man tid lock) possibly_running_tids
+          | None ->
+            (* TODO any lock could have been unlocked. Contribute for all possibly_running_tids their full CreationLocksets to invalidate them!! *)
+            ()))
     | _ -> ()
   ;;
 end
