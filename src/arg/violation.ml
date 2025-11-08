@@ -59,6 +59,18 @@ struct
     | Infeasible of (Node.t * MyARG.inline_edge * Node.t) list
     | Unknown
 
+  open YamlWitness.Entry
+  (* TODO: duplicate code copied from YamlWitness.write *)
+  let input_files = GobConfig.get_string_list "files"
+  let data_model = match GobConfig.get_string "exp.architecture" with
+    | "64bit" -> "LP64"
+    | "32bit" -> "ILP32"
+    | _ -> failwith "invalid architecture"
+  let specification = Option.map (fun (module Task: Svcomp.Task) ->
+      Svcomp.Specification.to_string Task.specification
+    ) !Svcomp.task
+  let task = task ~input_files ~data_model ~specification
+
   let write (path : (Node.t * MyARG.inline_edge * Node.t) list) =
     let module FileCfg =
     struct
@@ -68,25 +80,11 @@ struct
     let module WitnessInvariant = WitnessUtil.YamlInvariant (FileCfg) in
     let module UnCilArg = Intra (UnCilTernaryIntra (UnCilLogicIntra (CfgIntra (FileCfg.Cfg)))) (Arg) in
 
-    let open YamlWitness.Entry in
-    (* TODO: duplicate code copied from YamlWitness.write *)
-    let input_files = GobConfig.get_string_list "files" in
-    let data_model = match GobConfig.get_string "exp.architecture" with
-      | "64bit" -> "LP64"
-      | "32bit" -> "ILP32"
-      | _ -> failwith "invalid architecture"
-    in
-    let specification = Option.map (fun (module Task: Svcomp.Task) ->
-        Svcomp.Specification.to_string Task.specification
-      ) !Svcomp.task
-    in
-    let task = task ~input_files ~data_model ~specification in
-
-    let entries = [] in
-
-    let entries, segToPathMap, segments =
+    let entries, segToPathMap, segments, has_branching =
       if YamlWitness.entry_type_enabled YamlWitnessType.ViolationSequence.entry_type then (
         let open GobOption.Syntax in
+
+        let has_branching = ref false in
 
         let loc prev location =
           let cfgNode = Node.cfgnode prev in
@@ -141,6 +139,7 @@ struct
               let constraint_ = constraint_ ~value:(String (Bool.to_string b)) in
               let branching = branching ~location ~action:"follow" ~constraint_ in
               let waypoints = [waypoint ~waypoint_type:(Branching branching)] in
+              has_branching := true;
               segment ~waypoints
             | _ ->
               let cfgNode = Node.cfgnode prev in
@@ -200,16 +199,16 @@ struct
         in
 
         let entry = YamlWitness.Entry.violation_sequence ~task ~violation:segments in
-        [entry], segToPathMap, segments
+        [entry], segToPathMap, segments, !has_branching
       )
       else
-        entries, SegNrToPathMap.empty, []
+        [], SegNrToPathMap.empty, [], false
     in
 
     let yaml_entries = List.rev_map YamlWitnessType.Entry.to_yaml entries in
     (* TODO: "witness generation summary" message *)
     YamlWitness.yaml_entries_to_file yaml_entries (Fpath.v (GobConfig.get_string "witness.yaml.path"));
-    segToPathMap, segments
+    (segToPathMap, segments), has_branching
 
   let read_command_output command =
     let (ic, _) as process = Unix.open_process command in
@@ -228,6 +227,19 @@ struct
     let re = Str.regexp "^RESULT: \\(.*\\)$" in
     List.find_map (fun line -> if Str.string_match re line 0 then Some (Str.matched_group 1 line) else None) lines
 
+  let extract_invalid_locations lines =
+  let re = Str.regexp "^INFO: Found invalid locations in segments \\[\\(.*\\)\\]$" in
+  List.find_map
+    (fun line ->
+       if Str.string_match re line 0 then
+         let inside = Str.matched_group 1 line in
+         let parts = Str.split (Str.regexp "[ ,]+") inside in
+         let nums = parts |> List.filter (fun s -> s <> "") |> List.map int_of_string in
+         Some nums
+       else
+         None)
+    lines
+
   (* TODO: find both (result and seg nr) with one traversal *)
   let extract_unreach_seg_nr lines =
     let re = Str.regexp "segment \\([0-9]+\\) cannot be passed" in
@@ -236,7 +248,7 @@ struct
         with Not_found -> None
       ) lines
 
-  let run_witch witch =
+  let run_witch check_locs =
     let files = String.concat " " (GobConfig.get_string_list "files") in
     let data_model = match GobConfig.get_string "exp.architecture" with
       | "64bit" -> "--64"
@@ -245,9 +257,10 @@ struct
     in
     let property = GobConfig.get_string "ana.specification" in
     let witness_file_path = GobConfig.get_string "witness.yaml.path" in
+    let check_locs_flag = if check_locs then "--check-all-locations" else "" in
     (*  ../witch/scripts/symbiotic --witness-check ../analyzer/witness.yml --32 ../analyzer/violation-witness.c *)
-    let witch_path_s = Fpath.to_string (Fpath.append GobSys.exe_dir (Fpath.v witch)) in
-    let command = Printf.sprintf "%s --witness-check %s --witness %s --prp %s %s --guide-only %s" witch_path_s witness_file_path witness_file_path property data_model files in
+    let witch_path_s = Fpath.to_string (Fpath.append GobSys.exe_dir (Fpath.v (GobConfig.get_string "exp.witch"))) in
+    let command = Printf.sprintf "%s --witness-check %s --witness %s --prp %s %s %s --guide-only %s" witch_path_s witness_file_path witness_file_path property data_model check_locs_flag files in
     read_command_output command
 
   let get_unreachable_path lines (path: (Node.t * inline_edge * Node.t) list) (segToPathMap, segments) =
@@ -307,6 +320,19 @@ struct
       else path
     | _ -> path
 
+  let check_and_remove_invalid_locs (segToPathMap, segments) =
+    let lines = run_witch true in
+    match extract_invalid_locations lines with
+    | Some seg_nrs ->
+      let segments' = List.filteri (fun i _ -> not @@ List.mem i seg_nrs) segments in
+      let entries = [YamlWitness.Entry.violation_sequence ~task ~violation:segments'] in
+      let yaml_entries = List.rev_map YamlWitnessType.Entry.to_yaml entries in
+      (* TODO: "witness generation summary" message *)
+      YamlWitness.yaml_entries_to_file yaml_entries (Fpath.v (GobConfig.get_string "witness.yaml.path"));
+      segToPathMap, segments'
+    | _ ->
+      segToPathMap, segments
+
   let check_feasability_with_witch lines path =
     incr witch_runs;
     match extract_result_line lines with
@@ -316,12 +342,13 @@ struct
     | None -> Unknown
 
   let check_path path =
-    let seg = write path in
+    let seg, has_branching = write path in
     let witch = GobConfig.get_string "exp.witch" in
     match witch with
     | "" -> Unknown
     | _ ->
-      let lines = run_witch witch in
+      let seg = if has_branching then check_and_remove_invalid_locs seg else seg in
+      let lines = run_witch false in
       let path = get_unreachable_path lines path seg in
       check_feasability_with_witch lines path
 end
