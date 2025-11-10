@@ -13,6 +13,9 @@ module FwdBuSolver (System: FwdGlobConstrSys) = struct
 
   module GM = Hashtbl.Make(System.GVar)
   module LM = Hashtbl.Make(System.LVar)
+  module OM = Hashtbl.Make(Node)
+
+  let source = System.LVar.node
 
   let gwarrow a b = if G.leq b a then G.narrow a b else G.widen a (G.join a b)
   let lwarrow a b = if D.leq b a then D.narrow a b else D.widen a (D.join a b)
@@ -37,7 +40,7 @@ module FwdBuSolver (System: FwdGlobConstrSys) = struct
 
   let gas = ref (10,3)
 
-  type glob = {value : G.t; init : G.t;  infl : System.LVar.t list; from : (G.t * int * int) LM.t}
+  type glob = {value : G.t; init : G.t;  infl : System.LVar.t list; from : (G.t * int * int) OM.t}
 
   let glob: glob GM.t = GM.create 100
 
@@ -46,7 +49,7 @@ module FwdBuSolver (System: FwdGlobConstrSys) = struct
   let get_global_ref g =
     try GM.find glob g
     with _ ->
-      (let rglob = {value = G.bot (); init = G.bot (); infl = []; from = LM.create 10} in
+      (let rglob = {value = G.bot (); init = G.bot (); infl = []; from = OM.create 10} in
        GM.add glob g rglob;
        rglob
       )
@@ -56,16 +59,16 @@ module FwdBuSolver (System: FwdGlobConstrSys) = struct
       value = d;
       init = d;
       infl = [];
-      from = LM.create 10
+      from = OM.create 10
     }
 
-  let get_global_value init from = LM.fold (fun _ (b,_,_) a -> G.join a b) from init
+  let get_global_value init from = OM.fold (fun _ (b,_,_) a -> G.join a b) from init
 
   let get_old_global_value x from =
-    try LM.find from x
+    try OM.find from x
     with _ ->
       let (delay,gas) = !gas in
-      LM.add from x (G.bot (),delay,gas);
+      OM.add from x (G.bot (),delay,gas);
       (G. bot (),delay,gas)
 
   (* now the getters for globals *)
@@ -120,21 +123,22 @@ module FwdBuSolver (System: FwdGlobConstrSys) = struct
 *)
 
   let rec set_global x g d =
+    let sx = source x 
 (*
         replaces old contribution with the new one;
         reconstructs value of g from contributions;
         propagates infl and updates value - if value has changed
 *)
-    if tracing then trace "set_global" "set_global %a %a" System.GVar.pretty_trace g G.pretty d;
+    in if tracing then trace "set_global" "set_global %a %a" System.GVar.pretty_trace g G.pretty d;
     let {value;init;infl;from} = get_global_ref g in
-    let (old_value,delay,gas) = get_old_global_value x from in
+    let (old_value,delay,gas) = get_old_global_value sx from in
     if G.equal d old_value then () 
     else let (new_value,delay,gas) = if G.leq d old_value then
              if gas > 0 then (G.narrow old_value d,delay,gas-1)
              else (old_value,delay,0)
            else if delay > 0 then (G.join old_value d,delay-1,gas)
            else (G.widen old_value (G.join old_value d), 0, gas) in
-      let _ = LM.replace from x (new_value,delay,gas) in
+      let _ = OM.replace from sx (new_value,delay,gas) in
       let new_g = get_global_value init from in
       if G.equal value new_g then
         ()
