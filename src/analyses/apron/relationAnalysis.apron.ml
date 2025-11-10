@@ -268,6 +268,58 @@ struct
   let branch man e b =
     let st = man.local in
     let ask = Analyses.ask_of_man man in
+    let () =
+      let r1 = RD.keep_filter st.rel (fun var ->
+          match RV.find_metadata var with
+          | Some (Local _) -> true
+          | _ -> false
+        )
+      in
+      Logs.debug "r1: %a" RD.pretty r1;
+      let r1vars = RD.vars r1 in
+      let r1vars' = List.map (fun var ->
+          match RV.find_metadata var with
+          | Some (Local x) -> RV.arg x
+          | _ -> assert false
+        ) r1vars
+      in
+      let r2 = RD.add_vars r1 r1vars' in
+      let r2' = RD.assign_var_parallel' r2 r1vars' r1vars in
+      let r3 = RD.keep_vars r2' r1vars' in
+      Logs.debug "r3: %a" RD.pretty r3;
+      (* let r3' = RD.assr3 in *)
+      (* Logs.debug "r3': %a" RD.pretty r3'; *)
+      let r4 = RD.unify r1 r3 in
+      let r5 =
+        List.fold_left (fun acc var ->
+            match RV.to_cil_varinfo var with
+            | Some vi when TerminationPreprocessing.VarToStmt.mem vi !LoopTermination.loop_counters ->
+              let open Apron in
+              let env = RD.env acc in
+              (* let tcons1 = Tcons1.make Texpr1.(binop Sub (var env (RV.local vi)) (var env (RV.arg vi)) Int Zero) Lincons1.SUP in (* with AnyPrev *) *)
+              let tcons1 = Tcons1.make Texpr1.(binop Sub (binop Sub (var env (RV.local vi)) (var env (RV.arg vi)) Int Zero) (cst env (Coeff.s_of_int 1)) Int Zero) Lincons1.EQ in (* with LastPrev *)
+              let acc' = RD.meet_tcons ask acc tcons1 MyCFG.unknown_exp (lazy false) in
+              RD.remove_vars acc' [RV.local vi; RV.arg vi]
+            | _ ->
+              acc
+          ) r4 r1vars
+      in
+      Logs.debug "r5: %a" RD.pretty r5;
+      let scope = Node.find_fundec man.node in
+      let e_inv = Fun.id in (* TODO: handle globals? *)
+      let inv =
+        RD.invariant r5
+        |> List.to_seq
+        |> Seq.filter_map (fun (lincons1: Apron.Lincons1.t) ->
+            RD.cil_exp_of_lincons1 lincons1
+            |> Option.map e_inv
+            |> Option.filter (fun exp -> not (InvariantCil.exp_contains_tmp exp) && InvariantCil.exp_is_in_scope scope exp)
+          )
+        |> Seq.fold_left (fun acc x -> Invariant.(acc && of_exp x)) Invariant.none
+      in
+      Logs.debug "inv: %a" Invariant.pretty inv;
+      ()
+    in
     let res = assign_from_globals_wrapper ask man.global st e (fun rel' e' ->
         (* not an assign, but must remove g#in-s still *)
         RD.assert_inv ask rel' e' (not b) (no_overflow ask e)
