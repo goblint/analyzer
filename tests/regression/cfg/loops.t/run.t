@@ -29,10 +29,12 @@
     │    │    │    │                                                    │ i = 0                              │               │    │    │
     │    │    │    │                                                    ▼                                    │               │    │    │
     │    │    │  ┌───────────────────────────────────┐                ┌───────────────────────────────────┐  │               │    │    │
-    │    │    │  │ loops.c:9:5-9:8                   │                │ loops.c:8:3-10:3 (synthetic)      │  │               │    │    │
-    │    │    │  │ (loops.c:9:5-9:8)                 │                │ (loops.c:8:10-8:16 (synthetic))   │  │               │    │    │
-    │    │    │  │ YAML loc: loops.c:9:5-9:8         │  Pos(i < 10)   │ YAML loop: loops.c:8:3-10:3       │  │               │    │    │
-    │    │    │  │ server: true                      │ ◀───────────── │ server: false                     │ ◀┼───────────────┼────┼────┘
+    │    │    │  │                                   │                │ loops.c:8:3-10:3 (synthetic)      │  │               │    │    │
+    │    │    │  │ loops.c:9:5-9:8                   │                │ (loops.c:8:10-8:16 (synthetic))   │  │               │    │    │
+    │    │    │  │ (loops.c:9:5-9:8)                 │                │ [loops.c:8:3-10:3 (synthetic)     │  │               │    │    │
+    │    │    │  │ YAML loc: loops.c:9:5-9:8         │                │ (unknown)]                        │  │               │    │    │
+    │    │    │  │ server: true                      │  Pos(i < 10)   │ YAML loop: loops.c:8:3-10:3       │  │               │    │    │
+    │    │    │  │                                   │ ◀───────────── │ server: false                     │ ◀┼───────────────┼────┼────┘
     │    │    │  └───────────────────────────────────┘                └───────────────────────────────────┘  │               │    │
     │    │    │                                                         │                                    │               │    │
     │    │    │                                                         │ Neg(i < 10)                        │               │    │
@@ -47,10 +49,12 @@
     │    │    │                                                         │ i = 0                              │               │    │
     │    │    │                                                         ▼                                    │               │    │
     │    │    │  ┌───────────────────────────────────┐                ┌───────────────────────────────────┐  │               │    │
-    │    │    │  │ loops.c:14:5-14:23                │                │ loops.c:13:3-15:3 (synthetic)     │  │               │    │
-    │    │    │  │ (loops.c:14:5-14:23)              │                │ (loops.c:13:7-13:26 (synthetic))  │  │               │    │
-    │    │    │  │ YAML loc: loops.c:14:5-14:23      │  Pos(i < 10)   │ YAML loop: loops.c:13:3-15:3      │  │               │    │
-    │    │    │  │ server: true                      │ ◀───────────── │ server: false                     │ ◀┘               │    │
+    │    │    │  │                                   │                │ loops.c:13:3-15:3 (synthetic)     │  │               │    │
+    │    │    │  │ loops.c:14:5-14:23                │                │ (loops.c:13:7-13:26 (synthetic))  │  │               │    │
+    │    │    │  │ (loops.c:14:5-14:23)              │                │ [loops.c:13:3-15:3 (synthetic)    │  │               │    │
+    │    │    │  │ YAML loc: loops.c:14:5-14:23      │                │ (unknown)]                        │  │               │    │
+    │    │    │  │ server: true                      │  Pos(i < 10)   │ YAML loop: loops.c:13:3-15:3      │  │               │    │
+    │    │    │  │                                   │ ◀───────────── │ server: false                     │ ◀┘               │    │
     │    │    │  └───────────────────────────────────┘                └───────────────────────────────────┘                  │    │
     │    │    │    │                                                    │                                                    │    │
     │    │    │    │ __goblint_check(1)                                 │ Neg(i < 10)                                        │    │
@@ -65,9 +69,11 @@
     │    │                                                              │ i = 0                                              │    │
     │    │                                                              ▼                                                    │    │
     │    │       ┌───────────────────────────────────┐                ┌───────────────────────────────────┐                  │    │
-    │    │       │ loops.c:18:3-20:3 (synthetic)     │                │ loops.c:18:3-20:3 (synthetic)     │                  │    │
-    │    │       │ (loops.c:18:7-18:26 (synthetic))  │                │ (loops.c:18:7-18:26 (synthetic))  │                  │    │
-    │    │       │ server: false                     │  Pos(i < 10)   │ YAML loop: loops.c:18:3-20:3      │  i = i + 1       │    │
+    │    │       │                                   │                │ loops.c:18:3-20:3 (synthetic)     │                  │    │
+    │    │       │ loops.c:18:3-20:3 (synthetic)     │                │ (loops.c:18:7-18:26 (synthetic))  │                  │    │
+    │    │       │ (loops.c:18:7-18:26 (synthetic))  │                │ [loops.c:18:3-20:3 (synthetic)    │                  │    │
+    │    │       │ server: false                     │                │ (unknown)]                        │                  │    │
+    │    │       │                                   │  Pos(i < 10)   │ YAML loop: loops.c:18:3-20:3      │  i = i + 1       │    │
     │    └────── │                                   │ ◀───────────── │ server: false                     │ ◀────────────────┘    │
     │            └───────────────────────────────────┘                └───────────────────────────────────┘                       │
     │                                                                   │                                                         │
@@ -83,10 +89,12 @@
     │                                                                   │ i = 0                                                   │
     │                                                                   ▼                                                         │
     │            ┌───────────────────────────────────┐                ┌───────────────────────────────────┐                       │
-    │            │ loops.c:24:5-24:8                 │                │ loops.c:23:3-25:3 (synthetic)     │                       │
-    │            │ (loops.c:24:5-24:8)               │                │ (loops.c:23:7-23:22 (synthetic))  │                       │
-    │            │ YAML loc: loops.c:24:5-24:8       │  Pos(i < 10)   │ YAML loop: loops.c:23:3-25:3      │  i = i + 1            │
-    └─────────── │ server: true                      │ ◀───────────── │ server: false                     │ ◀─────────────────────┘
+    │            │                                   │                │ loops.c:23:3-25:3 (synthetic)     │                       │
+    │            │ loops.c:24:5-24:8                 │                │ (loops.c:23:7-23:22 (synthetic))  │                       │
+    │            │ (loops.c:24:5-24:8)               │                │ [loops.c:23:3-25:3 (synthetic)    │                       │
+    │            │ YAML loc: loops.c:24:5-24:8       │                │ (unknown)]                        │                       │
+    │            │ server: true                      │  Pos(i < 10)   │ YAML loop: loops.c:23:3-25:3      │  i = i + 1            │
+    └─────────── │                                   │ ◀───────────── │ server: false                     │ ◀─────────────────────┘
                  └───────────────────────────────────┘                └───────────────────────────────────┘
                                                                         │
                                                                         │ Neg(i < 10)
@@ -101,10 +109,12 @@
                                                                         │ i = 0
                                                                         ▼
                  ┌───────────────────────────────────┐                ┌───────────────────────────────────┐
-                 │ loops.c:30:5-30:23                │                │ loops.c:29:3-31:3 (synthetic)     │
-                 │ (loops.c:30:5-30:23)              │                │ (loops.c:29:7-29:21 (synthetic))  │
-                 │ YAML loc: loops.c:30:5-30:23      │  Pos(i < 10)   │ YAML loop: loops.c:29:3-31:3      │  i = i + 1
-                 │ server: true                      │ ◀───────────── │ server: false                     │ ◀─────────────────────┐
+                 │                                   │                │ loops.c:29:3-31:3 (synthetic)     │
+                 │ loops.c:30:5-30:23                │                │ (loops.c:29:7-29:21 (synthetic))  │
+                 │ (loops.c:30:5-30:23)              │                │ [loops.c:29:3-31:3 (synthetic)    │
+                 │ YAML loc: loops.c:30:5-30:23      │                │ (unknown)]                        │
+                 │ server: true                      │  Pos(i < 10)   │ YAML loop: loops.c:29:3-31:3      │  i = i + 1
+                 │                                   │ ◀───────────── │ server: false                     │ ◀─────────────────────┐
                  └───────────────────────────────────┘                └───────────────────────────────────┘                       │
                    │                                                    │                                                         │
                    │ __goblint_check(1)                                 │ Neg(i < 10)                                             │
@@ -119,10 +129,12 @@
          │                                                              │ j = 0                                                   │
          │                                                              ▼                                                         │
          │       ┌───────────────────────────────────┐                ┌───────────────────────────────────┐                       │
-         │       │ loops.c:35:5-35:23                │                │ loops.c:34:3-36:3 (synthetic)     │                       │
-         │       │ (loops.c:35:5-35:23)              │                │ (loops.c:34:7-34:30 (synthetic))  │                       │
-         │       │ YAML loc: loops.c:35:5-35:23      │  Pos(j < 10)   │ YAML loop: loops.c:34:3-36:3      │  j = j + 1            │
-         │       │ server: true                      │ ◀───────────── │ server: false                     │ ◀─────────────────────┼────┐
+         │       │                                   │                │ loops.c:34:3-36:3 (synthetic)     │                       │
+         │       │ loops.c:35:5-35:23                │                │ (loops.c:34:7-34:30 (synthetic))  │                       │
+         │       │ (loops.c:35:5-35:23)              │                │ [loops.c:34:3-36:3 (synthetic)    │                       │
+         │       │ YAML loc: loops.c:35:5-35:23      │                │ (unknown)]                        │                       │
+         │       │ server: true                      │  Pos(j < 10)   │ YAML loop: loops.c:34:3-36:3      │  j = j + 1            │
+         │       │                                   │ ◀───────────── │ server: false                     │ ◀─────────────────────┼────┐
          │       └───────────────────────────────────┘                └───────────────────────────────────┘                       │    │
          │         │                                                    │                                                         │    │
          │         │ __goblint_check(1)                                 │ Neg(j < 10)                                             │    │
@@ -145,10 +157,12 @@
          │    ┌────┘                                                    │ k = i                                                   │    │
          │    │                                                         ▼                                                         │    │
          │    │  ┌───────────────────────────────────┐                ┌───────────────────────────────────┐                       │    │
-         │    │  │ loops.c:40:5-40:23                │                │ loops.c:39:3-41:3 (synthetic)     │                       │    │
-         │    │  │ (loops.c:40:5-40:23)              │                │ (loops.c:39:7-39:36 (synthetic))  │                       │    │
-         │    │  │ YAML loc: loops.c:40:5-40:23      │  Pos(i < 10)   │ YAML loop: loops.c:39:3-41:3      │  i = i + 1            │    │
-         │    │  │ server: true                      │ ◀───────────── │ server: false                     │ ◀─────────────────────┼────┼─────────────┐
+         │    │  │                                   │                │ loops.c:39:3-41:3 (synthetic)     │                       │    │
+         │    │  │ loops.c:40:5-40:23                │                │ (loops.c:39:7-39:36 (synthetic))  │                       │    │
+         │    │  │ (loops.c:40:5-40:23)              │                │ [loops.c:39:3-41:3 (synthetic)    │                       │    │
+         │    │  │ YAML loc: loops.c:40:5-40:23      │                │ (unknown)]                        │                       │    │
+         │    │  │ server: true                      │  Pos(i < 10)   │ YAML loop: loops.c:39:3-41:3      │  i = i + 1            │    │
+         │    │  │                                   │ ◀───────────── │ server: false                     │ ◀─────────────────────┼────┼─────────────┐
          │    │  └───────────────────────────────────┘                └───────────────────────────────────┘                       │    │             │
          │    │    │                                                    │                                                         │    │             │
          │    │    │ __goblint_check(1)                                 │ Neg(i < 10)                                             │    │             │
@@ -166,7 +180,6 @@
          │    │    │                                                  │ loops.c:46:5-46:8                 │                       │    │             │
          │    │    │                                                  │ (loops.c:46:5-46:8)               │                       │    │             │
          │    │    │                                                  │ YAML loc: loops.c:46:5-46:8       │                       │    │             │
-         │    │    │                                                  │ YAML loop: loops.c:45:3-47:19     │                       │    │             │
          │    │    │                                                  │ server: true                      │ ◀┐                    │    │             │
          │    │    │                                                  └───────────────────────────────────┘  │                    │    │             │
          │    │    │                                                    │                                    │                    │    │             │
@@ -175,6 +188,9 @@
          │    │    │                                                  ┌───────────────────────────────────┐  │                    │    │             │
          │    │    │                                                  │ loops.c:45:3-47:19 (synthetic)    │  │                    │    │             │
          │    │    │                                                  │ (loops.c:47:12-47:19 (synthetic)) │  │                    │    │             │
+         │    │    │                                                  │ [loops.c:45:3-47:19 (synthetic)   │  │                    │    │             │
+         │    │    │                                                  │ (unknown)]                        │  │                    │    │             │
+         │    │    │                                                  │ YAML loop: loops.c:45:3-47:19     │  │                    │    │             │
          │    │    │                                                  │ server: false                     │ ─┘                    │    │             │
          │    │    │                                                  └───────────────────────────────────┘                       │    │             │
          │    │    │                                                    │                                                         │    │             │
@@ -667,7 +683,7 @@
           line: 45
           column: 3
           function: main
-        value: 0 <= i
+        value: 1 <= i
         format: c_expression
     - invariant:
         type: loop_invariant
@@ -676,7 +692,7 @@
           line: 45
           column: 3
           function: main
-        value: i <= 9
+        value: i <= 10
         format: c_expression
     - invariant:
         type: loop_invariant

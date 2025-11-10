@@ -210,12 +210,12 @@ struct
       texpr1_expr_of_cil_exp exp
     in
     let exp = Cil.constFold false exp in
-    if M.tracing then 
+    if M.tracing then
       match conv exp with
-      | exception Unsupported_CilExp ex -> 
+      | exception Unsupported_CilExp ex ->
         M.tracel "rel-texpr-cil-conv" "unsuccessfull: %s" (show_unsupported_cilExp ex);
         raise (Unsupported_CilExp ex)
-      | res -> 
+      | res ->
         M.trace "relation" "texpr1_expr_of_cil_exp: %a -> %a (%b)" d_plainexp exp Texpr1.Expr.pretty res (Lazy.force no_ov);
         M.tracel "rel-texpr-cil-conv" "successfull: Good";
         res
@@ -461,7 +461,7 @@ struct
   let add_vars t vars = Vector.timing_wrap "add_vars" (add_vars t) vars
 
   let remove_vars t vars =
-    let t = copy t in 
+    let t = copy t in
     let env' = Environment.remove_vars t.env vars in
     dimchange2_remove t env'
 

@@ -91,7 +91,8 @@ let init () =
   RmUnused.keepUnused := true;
   print_CIL_Input := true;
   Cabs2cil.allowDuplication := false;
-  Cabs2cil.silenceLongDoubleWarning := true
+  Cabs2cil.silenceLongDoubleWarning := true;
+  Cabs2cil.addLoopConditionLabels := true
 
 let current_file = ref dummyFile
 
