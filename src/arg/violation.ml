@@ -320,7 +320,15 @@ struct
       else path
     | _ -> path
 
-  let check_and_remove_invalid_locs (segToPathMap, segments) =
+  let check_feasability_with_witch lines path =
+    match extract_result_line lines with
+    | Some result when String.starts_with ~prefix:"true" result -> Printf.printf "Verification result: %s\n" result; Infeasible path
+    | Some result when String.starts_with ~prefix:"false" result -> Printf.printf "Verification result: %s\n" result; Feasible
+    | Some _ -> Unknown
+    | None -> Unknown
+
+  let check_and_remove_invalid_locs (segToPathMap, segments) path =
+    incr witch_runs;
     let lines = run_witch true in
     match extract_invalid_locations lines with
     | Some seg_nrs ->
@@ -329,17 +337,11 @@ struct
       let yaml_entries = List.rev_map YamlWitnessType.Entry.to_yaml entries in
       (* TODO: "witness generation summary" message *)
       YamlWitness.yaml_entries_to_file yaml_entries (Fpath.v (GobConfig.get_string "witness.yaml.path"));
-      segToPathMap, segments'
-    | _ ->
-      segToPathMap, segments
-
-  let check_feasability_with_witch lines path =
-    incr witch_runs;
-    match extract_result_line lines with
-    | Some result when String.starts_with ~prefix:"true" result -> Printf.printf "Verification result: %s\n" result; Infeasible path
-    | Some result when String.starts_with ~prefix:"false" result -> Printf.printf "Verification result: %s\n" result; Feasible
-    | Some _ -> Unknown
-    | None -> Unknown
+      let seg = segToPathMap, segments' in
+      let lines = run_witch false in
+      let path = get_unreachable_path lines path seg in
+      check_feasability_with_witch lines path
+    | _ -> check_feasability_with_witch lines path
 
   let check_path path =
     let seg, has_branching = write path in
@@ -347,10 +349,14 @@ struct
     match witch with
     | "" -> Unknown
     | _ ->
-      let seg = if has_branching then check_and_remove_invalid_locs seg else seg in
-      let lines = run_witch false in
-      let path = get_unreachable_path lines path seg in
-      check_feasability_with_witch lines path
+      if has_branching then
+        check_and_remove_invalid_locs seg path
+      else (
+        incr witch_runs;
+        let lines = run_witch false in
+        let path = get_unreachable_path lines path seg in
+        check_feasability_with_witch lines path
+      )
 end
 
 
