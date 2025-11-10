@@ -321,9 +321,9 @@ struct
       else path
     | _ -> path
 
-  let check_feasability_with_witch lines path =
+  let check_feasability_with_witch lines path seg =
     match extract_result_line lines with
-    | Some result when String.starts_with ~prefix:"true" result -> Printf.printf "Verification result: %s\n" result; Infeasible path
+    | Some result when String.starts_with ~prefix:"true" result -> Printf.printf "Verification result: %s\n" result; Infeasible (get_unreachable_path lines path seg)
     | Some result when String.starts_with ~prefix:"false" result -> Printf.printf "Verification result: %s\n" result; Feasible
     | Some _ -> Unknown
     | None -> Unknown
@@ -341,10 +341,6 @@ struct
       lines', seg'
     | _ -> lines, seg
 
-  let process_witch_output lines path seg =
-    let unreachable_path = get_unreachable_path lines path seg in
-    check_feasability_with_witch lines unreachable_path
-
   let check_path path =
     let seg, has_branching = write path in
     let witch = GobConfig.get_string "exp.witch" in
@@ -354,10 +350,10 @@ struct
       if has_branching then
         let lines = run_witch ~check_locs:true in
         let lines', seg' = check_and_remove_invalid_locs lines path seg in
-        process_witch_output lines' path seg'
+        check_feasability_with_witch lines' path seg'
       else
         let lines = run_witch ~check_locs:false in
-        process_witch_output lines path seg
+        check_feasability_with_witch lines path seg
 end
 
 
