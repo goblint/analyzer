@@ -248,7 +248,8 @@ struct
         with Not_found -> None
       ) lines
 
-  let run_witch check_locs =
+  let run_witch ~check_locs =
+    incr witch_runs;
     let files = String.concat " " (GobConfig.get_string_list "files") in
     let data_model = match GobConfig.get_string "exp.architecture" with
       | "64bit" -> "--64"
@@ -327,9 +328,7 @@ struct
     | Some _ -> Unknown
     | None -> Unknown
 
-  let check_and_remove_invalid_locs (segToPathMap, segments) path =
-    incr witch_runs;
-    let lines = run_witch true in
+  let check_and_remove_invalid_locs lines path (segToPathMap, segments as seg) =
     match extract_invalid_locations lines with
     | Some seg_nrs ->
       let segments' = List.filteri (fun i _ -> not @@ List.mem i seg_nrs) segments in
@@ -337,11 +336,14 @@ struct
       let yaml_entries = List.rev_map YamlWitnessType.Entry.to_yaml entries in
       (* TODO: "witness generation summary" message *)
       YamlWitness.yaml_entries_to_file yaml_entries (Fpath.v (GobConfig.get_string "witness.yaml.path"));
-      let seg = segToPathMap, segments' in
-      let lines = run_witch false in
-      let path = get_unreachable_path lines path seg in
-      check_feasability_with_witch lines path
-    | _ -> check_feasability_with_witch lines path
+      let seg' = (segToPathMap, segments') in
+      let lines' = run_witch ~check_locs:false in
+      lines', seg'
+    | _ -> lines, seg
+
+  let process_witch_output lines path seg =
+    let unreachable_path = get_unreachable_path lines path seg in
+    check_feasability_with_witch lines unreachable_path
 
   let check_path path =
     let seg, has_branching = write path in
@@ -350,13 +352,12 @@ struct
     | "" -> Unknown
     | _ ->
       if has_branching then
-        check_and_remove_invalid_locs seg path
-      else (
-        incr witch_runs;
-        let lines = run_witch false in
-        let path = get_unreachable_path lines path seg in
-        check_feasability_with_witch lines path
-      )
+        let lines = run_witch ~check_locs:true in
+        let lines', seg' = check_and_remove_invalid_locs lines path seg in
+        process_witch_output lines' path seg'
+      else
+        let lines = run_witch ~check_locs:false in
+        process_witch_output lines path seg
 end
 
 
