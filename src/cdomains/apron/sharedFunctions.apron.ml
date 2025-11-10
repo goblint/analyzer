@@ -298,8 +298,11 @@ struct
     | Some vinfo when IntDomain.Size.is_cast_injective ~from_type:vinfo.vtype ~to_type:(TInt(ILongLong,[]))   ->
       let var = Cilfacade.mkCast ~e:(Lval(Var vinfo,NoOffset)) ~newt:longlong in
       let flip, coeff = coeff_to_const ~scalewith c in
-      let prod = BinOp(Mult, coeff, var, longlong) in
-      flip, prod
+      if Z.equal (Option.get (Cil.getInteger coeff)) Z.one then (* Option.get should succeed by construction *) (* TODO: check (scaled!) coeff directly instead of extracting from exp *)
+        flip, var
+      else
+        let prod = BinOp(Mult, coeff, var, longlong) in
+        flip, prod
     | None ->
       M.warn ~category:Analyzer "Invariant Apron: cannot convert to cil var: %a" Var.pretty v;
       raise Unsupported_Linexpr1
@@ -309,7 +312,13 @@ struct
 
   (** Returned booleans indicates whether returned expressions should be negated. *)
   let cil_exp_of_linexpr1 ?scalewith (linexpr1:Linexpr1.t) =
-    let terms = ref [coeff_to_const ~scalewith (Linexpr1.get_cst linexpr1)] in
+    let terms =
+      let c = Linexpr1.get_cst linexpr1 in
+      if Coeff.is_zero c then
+        ref []
+      else
+        ref [coeff_to_const ~scalewith c]
+    in
     let append_summand (c:Coeff.union_5) v =
       if not (Coeff.is_zero c) then
         terms := cil_exp_of_linexpr1_term ~scalewith c v :: !terms
@@ -369,7 +378,7 @@ struct
         | DISEQ -> Ne
         | EQMOD _ -> raise Unsupported_Linexpr1
       in
-      Some (Cil.constFold false @@ BinOp(binop, lhs, rhs, TInt(IInt,[]))) (* constFold removes multiplication by factor 1 *)
+      Some (BinOp(binop, lhs, rhs, TInt(IInt,[])))
     with
       Unsupported_Linexpr1 -> None
 end
