@@ -131,6 +131,7 @@ type _ t =
   | MustProtectedVars: mustprotectedvars -> VS.t t
   | MustProtectingLocks: mustprotectinglocks -> LockDomain.MustLockset.t t
   | Invariant: invariant_context -> Invariant.t t
+  | InvariantTransition: invariant_context -> Invariant.t t
   | InvariantGlobal: Obj.t -> Invariant.t t (** Argument must be of corresponding [Spec.V.t]. *)
   | WarnGlobal: Obj.t -> Unit.t t (** Argument must be of corresponding [Spec.V.t]. *)
   | IterSysVars: VarQuery.t * Obj.t VarQuery.f -> Unit.t t (** [iter_vars] for [Constraints.FromSpec]. [Obj.t] represents [Spec.V.t]. *)
@@ -206,6 +207,7 @@ struct
     | MustProtectedVars _ -> (module VS)
     | MustProtectingLocks _ -> (module LockDomain.MustLockset)
     | Invariant _ -> (module Invariant)
+    | InvariantTransition _ -> (module Invariant)
     | InvariantGlobal _ -> (module Invariant)
     | WarnGlobal _ -> (module Unit)
     | IterSysVars _ -> (module Unit)
@@ -280,6 +282,7 @@ struct
     | MustProtectedVars _ -> VS.top ()
     | MustProtectingLocks _ -> LockDomain.MustLockset.top ()
     | Invariant _ -> Invariant.top ()
+    | InvariantTransition _ -> Invariant.top ()
     | InvariantGlobal _ -> Invariant.top ()
     | WarnGlobal _ -> Unit.top ()
     | IterSysVars _ -> Unit.top ()
@@ -366,6 +369,7 @@ struct
     | Any (MustProtectingLocks _) -> 61
     | Any (GhostVarAvailable _) -> 62
     | Any InvariantGlobalNodes -> 63
+    | Any (InvariantTransition _) -> 64
 
   let rec compare a b =
     let r = Stdlib.compare (order a) (order b) in
@@ -413,6 +417,7 @@ struct
       | Any (EvalJumpBuf e1), Any (EvalJumpBuf e2) -> CilType.Exp.compare e1 e2
       | Any (WarnGlobal vi1), Any (WarnGlobal vi2) -> Stdlib.compare (Hashtbl.hash vi1) (Hashtbl.hash vi2)
       | Any (Invariant i1), Any (Invariant i2) -> compare_invariant_context i1 i2
+      | Any (InvariantTransition i1), Any (InvariantTransition i2) -> compare_invariant_context i1 i2
       | Any (InvariantGlobal vi1), Any (InvariantGlobal vi2) -> Stdlib.compare (Hashtbl.hash vi1) (Hashtbl.hash vi2)
       | Any (YamlEntryGlobal (vi1, task1)), Any (YamlEntryGlobal (vi2, task2)) -> Stdlib.compare (Hashtbl.hash vi1) (Hashtbl.hash vi2) (* TODO: compare task *)
       | Any (IterSysVars (vq1, vf1)), Any (IterSysVars (vq2, vf2)) -> VarQuery.compare vq1 vq2 (* not comparing fs *)
@@ -461,6 +466,7 @@ struct
     | Any (EvalJumpBuf e) -> CilType.Exp.hash e
     | Any (WarnGlobal vi) -> Hashtbl.hash vi
     | Any (Invariant i) -> hash_invariant_context i
+    | Any (InvariantTransition i) -> hash_invariant_context i
     | Any (MutexType m) -> Mval.Unit.hash m
     | Any (InvariantGlobal vi) -> Hashtbl.hash vi
     | Any (YamlEntryGlobal (vi, task)) -> Hashtbl.hash vi (* TODO: hash task *)
@@ -522,6 +528,7 @@ struct
     | Any (MustProtectedVars m) -> Pretty.dprintf "MustProtectedVars _"
     | Any (MustProtectingLocks g) -> Pretty.dprintf "MustProtectingLocks _"
     | Any (Invariant i) -> Pretty.dprintf "Invariant _"
+    | Any (InvariantTransition i) -> Pretty.dprintf "InvariantTransition _"
     | Any (WarnGlobal vi) -> Pretty.dprintf "WarnGlobal _"
     | Any (IterSysVars _) -> Pretty.dprintf "IterSysVars _"
     | Any (InvariantGlobal i) -> Pretty.dprintf "InvariantGlobal _"

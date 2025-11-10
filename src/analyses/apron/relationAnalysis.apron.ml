@@ -317,12 +317,11 @@ struct
       |> Seq.fold_left (fun acc x -> Invariant.(acc && of_exp x)) Invariant.none
     in
     Logs.debug "inv: %a" Invariant.pretty inv;
-    ()
+    inv
 
   let branch man e b =
     let st = man.local in
     let ask = Analyses.ask_of_man man in
-    query_invariant_transition man;
     let res = assign_from_globals_wrapper ask man.global st e (fun rel' e' ->
         (* not an assign, but must remove g#in-s still *)
         RD.assert_inv ask rel' e' (not b) (no_overflow ask e)
@@ -704,6 +703,7 @@ struct
       let vf' x = vf (Obj.repr x) in
       Priv.iter_sys_vars man.global vq vf'
     | Queries.Invariant context -> query_invariant man context
+    | Queries.InvariantTransition _context -> query_invariant_transition man
     | Queries.InvariantGlobal g ->
       let g: V.t = Obj.obj g in
       query_invariant_global man g

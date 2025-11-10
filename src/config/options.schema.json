@@ -2824,7 +2824,8 @@
                 "type": "string",
                 "enum": [
                   "location_invariant",
-                  "loop_invariant"
+                  "loop_invariant",
+                  "loop_transition_invariant"
                 ]
               },
               "default": [

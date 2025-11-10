@@ -118,6 +118,16 @@ struct
         };
     }
 
+  let loop_transition_invariant' ~location ~(invariant): InvariantSet.InvariantKind.t =
+    Invariant {
+      invariant_type = LoopTransitionInvariant {
+          location;
+          value = invariant;
+          format = "ext_c_expression";
+          labels = None;
+        };
+    }
+
   let invariant_set ~task ~(invariants): Entry.t = {
     entry_type = InvariantSet {
         content = invariants;
@@ -559,6 +569,40 @@ struct
                         let invariant = CilType.Exp.show inv in
                         let invariant = Entry.loop_invariant' ~location ~invariant in
                         incr cnt_loop_invariant;
+                        invariant :: acc
+                      ) acc invs
+                  | `Bot | `Top -> (* TODO: 0 for bot (dead code)? *)
+                    acc
+                )
+                else
+                  acc
+              ) (Lazy.force loop_nodes) invariants
+          )
+          else
+            invariants
+        in
+
+        (* Generate loop transition invariants *)
+        let invariants =
+          if entry_type_enabled YamlWitnessType.InvariantSet.entry_type && invariant_type_enabled YamlWitnessType.InvariantSet.LoopTransitionInvariant.invariant_type then (
+            LH.fold (fun loc ns acc ->
+                if WitnessInvariant.emit_loop_head then ( (* TODO: remove double condition? *)
+                  let inv = List.fold_left (fun acc n ->
+                      let local = try NH.find (Lazy.force nh) n with Not_found -> Spec.D.bot () in
+                      Invariant.(acc || R.ask_local_node n ~local (InvariantTransition Invariant.default_context)) [@coverage off] (* bisect_ppx cannot handle redefined (||) *)
+                    ) (Invariant.bot ()) ns
+                  in
+                  match inv with
+                  | `Lifted inv ->
+                    let fundec = Node.find_fundec (List.hd ns) in (* TODO: fix location hack *)
+                    let location_function = fundec.svar.vname in
+                    let location = Entry.location ~location:loc ~location_function in
+                    (* let invs = WitnessUtil.InvariantExp.process_exp inv in *)
+                    let invs = [inv] in (* TODO: not processing because original_name replacement removes \at names *)
+                    List.fold_left (fun acc inv ->
+                        let invariant = CilType.Exp.show inv in
+                        let invariant = Entry.loop_transition_invariant' ~location ~invariant in
+                        incr cnt_loop_invariant; (* TODO: separate counter? *)
                         invariant :: acc
                       ) acc invs
                   | `Bot | `Top -> (* TODO: 0 for bot (dead code)? *)
