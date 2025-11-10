@@ -47,14 +47,8 @@ __VERIFIER_nondet2(unsigned short, ushort)
 // void* __VERIFIER_nondet_pointer() { void* val; return val; }
 __VERIFIER_nondet2(void*, pointer)
 
-void __VERIFIER_nondet_memory(void *mem, __SIZE_TYPE__ size) __attribute__((goblint_stub));
-// Copied from SV-COMP 2026 rules (size_t replaced with __SIZE_TYPE__):
-void __VERIFIER_nondet_memory(void *mem, __SIZE_TYPE__ size) {
-    unsigned char *p = mem;
-    for (__SIZE_TYPE__ i = 0; i < size; i++) {
-        p[i] = __VERIFIER_nondet_uchar();
-    }
-}
+// Instead of using reference implementation from SV-COMP rules,
+// __VERIFIER_nondet_memory is in LibraryFunctions to avoid supertop warnings.
 
 // atomics are now special in Goblint
 // void __VERIFIER_atomic_begin() { }
