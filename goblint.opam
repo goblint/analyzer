@@ -98,7 +98,7 @@ dev-repo: "git+https://github.com/goblint/analyzer.git"
 # also remember to generate/adjust goblint.opam.locked!
 available: os-family != "bsd" & os-distribution != "alpine" & (arch != "arm64" | os = "macos")
 pin-depends: [
-  [ "goblint-cil.2.0.7" "git+https://github.com/goblint/cil.git#e5b6287c0c85864c6d44f7fa30d0084a3ae11d6c" ]
+  [ "goblint-cil.2.0.8" "git+https://github.com/goblint/cil.git#2e076120a039b52f174fa799e65773f3a78d383c" ]
   # pinned for stability (https://github.com/goblint/analyzer/issues/1520), remove after new apron release
   [ "apron.v0.9.15" "git+https://github.com/antoinemine/apron.git#418a217c7a70dae3f422678f3aaba38ae374d91a" ]
 ]
