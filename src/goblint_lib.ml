@@ -360,6 +360,7 @@ module WitnessUtil = WitnessUtil
 
 module YamlWitness = YamlWitness
 module YamlWitnessType = YamlWitnessType
+module YamlWitnessVersion = YamlWitnessVersion
 module WitnessGhost = WitnessGhost
 
 (** {2 SARIF} *)

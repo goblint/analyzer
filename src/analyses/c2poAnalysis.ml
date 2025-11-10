@@ -247,7 +247,7 @@ struct
       let state_with_ghosts = meet_conjs_opt equalities_to_add d.data in
       let state_with_ghosts = data_to_t state_with_ghosts in
       if M.tracing then begin
-        let dummy_lval = Var (Var.dummy_varinfo (TVoid [])), NoOffset in
+        let dummy_lval = Cil.var (Var.dummy_varinfo (TVoid [])) in
         let lval = BatOption.default dummy_lval var_opt in
         M.trace "c2po-function" "enter1: var_opt: %a; state: %s; state_with_ghosts: %s\n" d_lval lval (D.show ctx.local) (C2PODomain.show state_with_ghosts);
       end;
@@ -295,7 +295,7 @@ struct
         let cc = remove_out_of_scope_vars d.data f in
         let d = data_to_t cc in
         if M.tracing then begin
-          let dummy_lval = Var (Var.dummy_varinfo (TVoid[])), NoOffset in
+          let dummy_lval = Cil.var (Var.dummy_varinfo (TVoid[])) in
           let lval = BatOption.default dummy_lval lval_opt in
           M.trace "c2po-function" "combine_env2: var_opt: %a; local_state: %s; f_state: %s; meeting everything: %s\n" d_lval lval (D.show ctx.local) (D.show f_d) (C2PODomain.show d)
         end;
