@@ -16,9 +16,34 @@ module FwdBuSolver (System: FwdGlobConstrSys) = struct
   module OM = Hashtbl.Make(Node)
 
   let source = System.LVar.node
-
+(*
   let gwarrow a b = if G.leq b a then G.narrow a b else G.widen a (G.join a b)
   let lwarrow a b = if D.leq b a then D.narrow a b else D.widen a (D.join a b)
+*) 
+  let gas_default = ref (10,3)
+
+  let lwarrow (a,delay,gas,narrow) b =
+    let (delay0,_) = !gas_default in
+    if D.equal a b then (a,delay,gas,narrow)
+    else if D.leq a b then
+      if narrow then (D.narrow a b,delay,gas,true)
+      else if gas<=0 then (a,delay,gas,false)
+      else (D.narrow a b, delay,gas-1,true)
+    else if narrow then (D.join a b,delay0,gas,false)
+    else if delay <= 0 then (D.widen a (D.join a b),0,gas,false)
+    else (D.join a b, delay-1,gas,false)
+
+  let gwarrow (a,delay,gas,narrow) b =
+    let (delay0,_) = !gas_default in
+    if G.equal a b then (a,delay,gas,narrow)
+    else if G.leq a b then
+      if narrow then (G.narrow a b,delay,gas,true)
+      else if gas<=0 then (a,delay,gas,false)
+      else (G.narrow a b, delay,gas-1,true)
+    else if narrow then (G.join a b,delay0,gas,false)
+    else if delay <= 0 then (G.widen a (G.join a b),0,gas,false)
+    else (G.join a b, delay-1,gas,false)
+
 
 (*
        work list just for checking ...
@@ -38,9 +63,7 @@ module FwdBuSolver (System: FwdGlobConstrSys) = struct
       let _ = work := (xs,s) in
       Some x
 
-  let gas = ref (10,3)
-
-  type glob = {value : G.t; init : G.t;  infl : System.LVar.t list; from : (G.t * int * int) OM.t}
+  type glob = {value : G.t; init : G.t;  infl : System.LVar.t list; from : (G.t * int * int * bool) OM.t}
 
   let glob: glob GM.t = GM.create 100
 
@@ -62,14 +85,14 @@ module FwdBuSolver (System: FwdGlobConstrSys) = struct
       from = OM.create 10
     }
 
-  let get_global_value init from = OM.fold (fun _ (b,_,_) a -> G.join a b) from init
+  let get_global_value init from = OM.fold (fun _ (b,_,_,_) a -> G.join a b) from init
 
   let get_old_global_value x from =
     try OM.find from x
     with _ ->
-      let (delay,gas) = !gas in
-      OM.add from x (G.bot (),delay,gas);
-      (G. bot (),delay,gas)
+      let (delay,gas) = !gas_default in
+      OM.add from x (G.bot (),delay,gas,false);
+      (G. bot (),delay,gas,false)
 
   (* now the getters for globals *)
 
@@ -80,7 +103,7 @@ module FwdBuSolver (System: FwdGlobConstrSys) = struct
 
   type loc = {loc_value : D.t; loc_init : D.t; 
               called: bool ref; aborted: bool ref;
-              loc_from : (D.t * int * int) LM.t}
+              loc_from : (D.t * int * int * bool) LM.t}
 (*
     init may contain some initial value not provided by separate origin;
     perhaps, dynamic tracking of dependencies required for certain locals?
@@ -109,13 +132,13 @@ module FwdBuSolver (System: FwdGlobConstrSys) = struct
       loc_from = LM.create 10
     }
 
-  let get_local_value init from = LM.fold (fun _ (b,_,_) a -> D.join a b) from init
+  let get_local_value init from = LM.fold (fun _ (b,_,_,_) a -> D.join a b) from init
 
   let get_old_local_value x from =
     try LM.find from x
-    with _ -> let (delay,gas) = !gas in
-      LM.add from x (D.bot (),delay,gas);
-      (D.bot (),delay,gas)
+    with _ -> let (delay,gas) = !gas_default in
+      LM.add from x (D.bot (),delay,gas,false);
+      (D.bot (),delay,gas,false)
 
   (* 
         Now the main solving consisting of the mutual recursive functions
@@ -131,14 +154,18 @@ module FwdBuSolver (System: FwdGlobConstrSys) = struct
 *)
     in if tracing then trace "set_global" "set_global %a %a" System.GVar.pretty_trace g G.pretty d;
     let {value;init;infl;from} = get_global_ref g in
-    let (old_value,delay,gas) = get_old_global_value sx from in
-    if G.equal d old_value then () 
-    else let (new_value,delay,gas) = if G.leq d old_value then
+    let (old_xg,delay,gas,narrow) = get_old_global_value sx from in
+    let (new_xg,delay,gas,narrow) = gwarrow (old_xg,delay,gas,narrow) d in
+    if G.equal new_xg old_xg then () 
+    else 
+(*
+        let (new_value,delay,gas) = if G.leq d old_value then
              if gas > 0 then (G.narrow old_value d,delay,gas-1)
              else (old_value,delay,0)
            else if delay > 0 then (G.join old_value d,delay-1,gas)
            else (G.widen old_value (G.join old_value d), 0, gas) in
-      let _ = OM.replace from sx (new_value,delay,gas) in
+*)
+      let _ = OM.replace from sx (new_xg,delay,gas,narrow) in
       let new_g = get_global_value init from in
       if G.equal value new_g then
         ()
@@ -161,12 +188,15 @@ module FwdBuSolver (System: FwdGlobConstrSys) = struct
     if tracing then trace "set_local" "set_local %a from %a" System.LVar.pretty_trace y System.LVar.pretty_trace x;
     if tracing then trace "set_local" "value: %a" D.pretty d;
     let {loc_value;loc_init;called;aborted;loc_from} as y_record = get_local_ref y in
-    let (old_value,delay,gas) = get_old_local_value x loc_from in
-    if D.equal d old_value then (
+    let (old_xy,delay,gas,narrow) = get_old_local_value x loc_from in
+    let (new_xy,delay,gas,narrow) = lwarrow (old_xy,delay,gas,narrow) d in
+    if D.equal new_xy old_xy then (
       (* If value of x has not changed, nothing to do *)
       if tracing then trace "set_local" "no change in set_local from %a" System.LVar.pretty_trace x;
     )
-    else let (new_value,delay,gas) = 
+    else 
+(*
+        let (new_value,delay,gas) = 
            (* First attempt, without widening and narrowing *)
            if !called then 
              if D.leq d old_value then
@@ -175,25 +205,26 @@ module FwdBuSolver (System: FwdGlobConstrSys) = struct
              else if delay > 0 then (D.join old_value d,delay-1,gas)
              else (D.widen old_value (D.join old_value d), 0, gas) 
            else (d,delay,gas) in
+*)
       (* if tracing then trace "set_local" "new contribution %a" D.pretty new_value; *)
-      LM.replace loc_from x (new_value,delay,gas);
-      let new_y = get_local_value loc_init loc_from in
-      if tracing then trace "set_local" "new value for %a is %a" System.LVar.pretty_trace y D.pretty new_y;
-      if D.equal loc_value new_y then (
-        if tracing then trace "set_local" "no change in local %a after updating from %a" System.LVar.pretty_trace y System.LVar.pretty_trace x;
+      LM.replace loc_from x (new_xy,delay,gas,narrow);
+    let new_y = get_local_value loc_init loc_from in
+    if tracing then trace "set_local" "new value for %a is %a" System.LVar.pretty_trace y D.pretty new_y;
+    if D.equal loc_value new_y then (
+      if tracing then trace "set_local" "no change in local %a after updating from %a" System.LVar.pretty_trace y System.LVar.pretty_trace x;
+    )
+    else (
+      let y_record = {y_record with loc_value = new_y} in
+      LM.replace loc y y_record;
+      if !called then (
+        aborted := true;
+        if tracing then trace "set_local" "aborting local %a update from %a" System.LVar.pretty_trace y System.LVar.pretty_trace x;
       )
       else (
-        let y_record = {y_record with loc_value = new_y} in
-        LM.replace loc y y_record;
-        if !called then (
-          aborted := true;
-          if tracing then trace "set_local" "aborting local %a update from %a" System.LVar.pretty_trace y System.LVar.pretty_trace x;
-        )
-        else (
-          if tracing then trace "set_local" "starting iteration on %a" System.LVar.pretty_trace y;
-          iterate y 
-        )
+        if tracing then trace "set_local" "starting iteration on %a" System.LVar.pretty_trace y;
+        iterate y 
       )
+    )
 
 (*
         wrapper around propagation function to collect multiple contributions to same unknowns;

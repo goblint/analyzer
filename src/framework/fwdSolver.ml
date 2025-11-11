@@ -13,8 +13,33 @@ module FwdSolver (System: FwdGlobConstrSys) = struct
 
   let source = System.LVar.node
 
+  let gas_default = ref (10,3)
+
+(*
   let gwarrow a b = if G.leq b a then G.narrow a b else G.widen a (G.join a b)
   let lwarrow a b = if D.leq b a then D.narrow a b else D.widen a (D.join a b)
+*)
+  let lwarrow (a,delay,gas,narrow) b =
+    let (delay0,_) = !gas_default in
+    if D.equal a b then (a,delay,gas,narrow)
+    else if D.leq a b then
+      if narrow then (D.narrow a b,delay,gas,true)
+      else if gas<=0 then (a,delay,gas,false)
+      else (D.narrow a b, delay,gas-1,true)
+    else if narrow then (D.join a b,delay0,gas,false)
+    else if delay <= 0 then (D.widen a (D.join a b),0,gas,false)
+    else (D.join a b, delay-1,gas,false)
+
+  let gwarrow (a,delay,gas,narrow) b =
+    let (delay0,_) = !gas_default in
+    if G.equal a b then (a,delay,gas,narrow)
+    else if G.leq a b then
+      if narrow then (G.narrow a b,delay,gas,true)
+      else if gas<=0 then (a,delay,gas,false)
+      else (G.narrow a b, delay,gas-1,true)
+    else if narrow then (G.join a b,delay0,gas,false)
+    else if delay <= 0 then (G.widen a (G.join a b),0,gas,false)
+    else (G.join a b, delay-1,gas,false)
 
   let work = ref (([] : System.LVar.t list), LS.empty)
 
@@ -30,9 +55,7 @@ module FwdSolver (System: FwdGlobConstrSys) = struct
       let _ = work := (xs,s) in
       Some x
 
-  let gas = ref (10,3)
-
-  type glob = {value : G.t; init : G.t;  infl : System.LVar.t list; from : (G.t * int * int) OM.t}
+  type glob = {value : G.t; init : G.t;  infl : System.LVar.t list; from : (G.t * int * int * bool) OM.t}
        (*
           now table from with widening delay and narrowing gas to ensure termination
        *)
@@ -57,15 +80,15 @@ module FwdSolver (System: FwdGlobConstrSys) = struct
       from = OM.create 10
     }
 
-  let get_global_value init from = OM.fold (fun _ (b,_,_) a -> G.join a b) from init
+  let get_global_value init from = OM.fold (fun _ (b,_,_,_) a -> G.join a b) from init
 
   let get_old_global_value x from =
     let sx = source x in
     try OM.find from sx
     with _ ->
-      let (delay,gas) = !gas in
-      OM.add from sx (G.bot (),delay,gas);
-      (G. bot (),delay,gas)
+      let (delay,gas) = !gas_default in
+      OM.add from sx (G.bot (),delay,gas,false);
+      (G. bot (),delay,gas,false)
 
   (* now the getters and setters for globals, setters with warrowing per origin *)
 
@@ -82,14 +105,18 @@ module FwdSolver (System: FwdGlobConstrSys) = struct
       propagates infl and updates value - if value has changed
     *)
     let {value;init;infl;from} = get_global_ref g in
-    let (old_value,delay,gas) = get_old_global_value x from in
-    if G.equal d old_value then () 
+    let (old_xg,delay,gas,narrow) = get_old_global_value x from in
+    let (new_xg,delay,gas,narrow) = gwarrow (old_xg,delay,gas,narrow) d in
+    if G.equal new_xg old_xg then () 
+(*
     else let (new_value,delay,gas) = if G.leq d old_value then
              if gas > 0 then (G.narrow old_value d,delay,gas-1)
              else (old_value,delay,0)
            else if delay > 0 then (G.join old_value d,delay-1,gas)
            else (G.widen old_value (G.join old_value d), 0, gas) in
-      let _ = OM.replace from sx (new_value,delay,gas) in
+ *)  
+    else
+      let _ = OM.replace from sx (new_xg,delay,gas,narrow) in
       let new_g = get_global_value init from in
       if G.equal value new_g then
         ()
@@ -97,7 +124,7 @@ module FwdSolver (System: FwdGlobConstrSys) = struct
         let _ = List.iter add_work infl in
         GM.replace glob g {value = new_g; init = init; infl = []; from}
 
-  type loc = {loc_value : D.t; loc_init : D.t; loc_infl: System.LVar.t list; loc_from : (D.t * int * int) LM.t}
+  type loc = {loc_value : D.t; loc_init : D.t; loc_infl: System.LVar.t list; loc_from : (D.t * int * int * bool) LM.t}
   (*
     init may contain some initial value not provided by separate origin;
     perhaps, dynamic tracking of dependencies required for certain locals?
@@ -128,13 +155,13 @@ module FwdSolver (System: FwdGlobConstrSys) = struct
       loc_from = LM.create 10
     }
 
-  let get_local_value init from = LM.fold (fun _ (b,_,_) a -> D.join a b) from init
+  let get_local_value init from = LM.fold (fun _ (b,_,_,_) a -> D.join a b) from init
 
   let get_old_local_value x from =
     try LM.find from x
-    with _ -> let (delay,gas) = !gas in
-      LM.add from x (D.bot (),delay,gas);
-      (D.bot (),delay,gas)
+    with _ -> let (delay,gas) = !gas_default in
+      LM.add from x (D.bot (),delay,gas,false);
+      (D.bot (),delay,gas,false)
 
   (* now the getters and setters for locals, setters with warrowing per origin *)
 
@@ -150,14 +177,18 @@ module FwdSolver (System: FwdGlobConstrSys) = struct
       propagates infl together with y and updates value - if value has changed
     *)
     let {loc_value;loc_init;loc_infl;loc_from} = get_local_ref y in
-    let (old_value,delay,gas) = get_old_local_value x loc_from in
-    if D.equal d old_value then ()
+    let (old_xy,delay,gas,narrow) = get_old_local_value x loc_from in
+    let (new_xy,delay,gas,narrow) = lwarrow (old_xy,delay,gas,narrow) d in
+    if D.equal new_xy old_xy then ()
+    (*
     else let (new_value,delay,gas) = if D.leq d old_value then
              if gas > 0 then (D.narrow old_value d,delay,gas-1)
              else (old_value,delay,0)
            else if delay > 0 then (D.join old_value d,delay-1,gas)
            else (D.widen old_value (D.join old_value d), 0, gas) in
-      let _ = LM.replace loc_from x (new_value,delay,gas) in
+    *)
+    else
+      let _ = LM.replace loc_from x (new_xy,delay,gas,narrow) in
       let new_y = get_local_value loc_init loc_from in
       if D.equal loc_value new_y then
         ()
