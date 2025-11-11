@@ -1,5 +1,6 @@
 (** Top-down solver with side effects. Baseline for comparisons with td_parallel solvers     ([td_simplified_ref]).
     This is the same as ([td_simplified]), but it uses records for solver that instead of multiple hashmaps.
+    Additionally, an origin hashmap is maintained to allow for narrowing on globals ...
 *)
 
 open Batteries
@@ -48,6 +49,8 @@ module Base : GenericEqSolver =
 
     let get_global_value init from = OM.fold (fun _ (b,_,_,_) a -> S.Dom.join a b) from init
 
+    let is_global y = (S.system y = None)
+
     let solve st vs =
       let (data : var_data ref HM.t) = HM.create 10 in
       let (origin : origin HM.t)  = HM.create 10 in
@@ -78,14 +81,12 @@ module Base : GenericEqSolver =
                 called = false 
               } in
             HM.replace data x data_x;
-(*
-only if x is global
-*)
-            let orig_x = {
-              init = S.Dom.bot();
-              from = OM.create 10;
-            } in
-            HM.replace origin x orig_x;
+            (if is_global x then
+               let orig_x = {
+                 init = S.Dom.bot();
+                 from = OM.create 10;
+               } in
+               HM.add origin x orig_x);
             data_x
           end
       in
@@ -106,7 +107,8 @@ only if x is global
             if tracing then trace "destab" "stable remove %a" S.Var.pretty_trace y;
             let y_ref = HM.find data y in
             y_ref := { !y_ref with stable = false };
-            destabilize y
+            if !y_ref.called then () 
+            else destabilize y
           ) w
       in
 
