@@ -38,7 +38,7 @@ module Base : GenericEqSolver =
     let warrow (a,delay,gas,narrow) b = 
       let (delay0,_) = !gas_default in
       if S.Dom.equal a b then (a,delay,gas,narrow)
-      else if S.Dom.leq a b then 
+      else if S.Dom.leq b a then 
         if narrow then (S.Dom.narrow a b,delay,gas,true)
         else if gas<=0 then (a,delay,gas,false) 
         else (S.Dom.narrow a b, delay,gas-1,true)
@@ -265,4 +265,4 @@ only if x is global
   end
 
 let () =
-  Selector.add_solver ("td_simplified_ref", (module PostSolver.DemandEqIncrSolverFromEqSolver (Base)));
+  Selector.add_solver ("td_simplified_ref_improved", (module PostSolver.DemandEqIncrSolverFromEqSolver (Base)));
