@@ -25,7 +25,7 @@ module FwdBuSolver (System: FwdGlobConstrSys) = struct
   let lwarrow (a,delay,gas,narrow) b =
     let (delay0,_) = !gas_default in
     if D.equal a b then (a,delay,gas,narrow)
-    else if D.leq a b then
+    else if D.leq b a then
       if narrow then (D.narrow a b,delay,gas,true)
       else if gas<=0 then (a,delay,gas,false)
       else (D.narrow a b, delay,gas-1,true)
@@ -36,7 +36,7 @@ module FwdBuSolver (System: FwdGlobConstrSys) = struct
   let gwarrow (a,delay,gas,narrow) b =
     let (delay0,_) = !gas_default in
     if G.equal a b then (a,delay,gas,narrow)
-    else if G.leq a b then
+    else if G.leq b a then
       if narrow then (G.narrow a b,delay,gas,true)
       else if gas<=0 then (a,delay,gas,false)
       else (G.narrow a b, delay,gas-1,true)
