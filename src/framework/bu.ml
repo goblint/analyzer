@@ -191,7 +191,7 @@ module FwdBuSolver (System: FwdGlobConstrSys) = struct
     let (old_xy,delay,gas,narrow) = get_old_local_value x loc_from in
     let (new_xy,delay,gas,narrow) = 
       if !called then lwarrow (old_xy,delay,gas,narrow) d 
-      else (D.join old_xy d,delay,gas,narrow) in
+      else (d,delay,gas,narrow) in
     if D.equal new_xy old_xy then (
       (* If value of x has not changed, nothing to do *)
       if tracing then trace "set_local" "no change in set_local from %a" System.LVar.pretty_trace x;
