@@ -210,7 +210,7 @@ module FwdBuSolver (System: FwdGlobConstrSys) = struct
           (* if tracing then trace "set_local" "new contribution %a" D.pretty new_value; *)
           LM.replace loc_from x (new_xy,delay,gas,narrow);
         get_local_value loc_init loc_from
-      else d in
+      else D.join loc_value d in
     if tracing then trace "set_local" "new value for %a is %a" System.LVar.pretty_trace y D.pretty new_y;
     if D.equal loc_value new_y then (
       if tracing then trace "set_local" "no change in local %a after updating from %a" System.LVar.pretty_trace y System.LVar.pretty_trace x;
