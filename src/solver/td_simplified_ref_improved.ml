@@ -137,7 +137,12 @@ only if x is global
         let y_ref = init y in
         if tracing then trace "side" "side to %a (wpx: %b) from %a ## value: %a" S.Var.pretty_trace y (!y_ref.wpoint) S.Var.pretty_trace x S.Dom.pretty d;
         let {init;from} = HM.find origin y in
-        let (old_xy,delay,gas,narrow) = OM.find from sx in
+        let (old_xy,delay,gas,narrow) = try OM.find from sx 
+          with _ -> 
+            let (delay,gas) = !gas_default in
+            let tuple = (S.Dom.bot (),delay,gas,false) in
+            let () = OM.add from sx tuple in
+            tuple in
         let (new_xy,delay,gas,narrow) = warrow (old_xy,delay,gas,narrow) d in
 (*
         let widen a b =
