@@ -87,6 +87,7 @@
   "solver": "td3",
   "solvers": {
     "td3": {
+      "weak-deps": "lazy",
       "narrow-globs": {
         "enabled": true
       },

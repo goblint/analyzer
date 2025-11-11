@@ -73,6 +73,11 @@
     "region-offsets": true
   },
   "solver": "td3",
+  "solvers": {
+    "td3": {
+      "weak-deps": "lazy"
+    }
+  },
   "sem": {
     "unknown_function": {
       "spawn": false
