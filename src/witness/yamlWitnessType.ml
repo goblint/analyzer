@@ -165,6 +165,10 @@ struct
 
     let invariant_type = "loop_invariant"
 
+    let min_version = function
+      | {labels = Some _; _} -> YamlWitnessVersion.V2_1
+      | _ -> YamlWitnessVersion.V2_0
+
     let to_yaml' {location; value; format; labels} =
       [
         ("location", Location.to_yaml location);
@@ -197,6 +201,7 @@ struct
     include LoopInvariant
 
     let invariant_type = "loop_transition_invariant"
+    let min_version _ = YamlWitnessVersion.V2_1
   end
 
   module LocationTransitionInvariant =
@@ -204,6 +209,7 @@ struct
     include LoopTransitionInvariant
 
     let invariant_type = "location_transition_invariant"
+    let min_version _ = YamlWitnessVersion.V2_1
   end
 
   module FlowInsensitiveInvariant =
@@ -215,6 +221,7 @@ struct
     [@@deriving eq, ord, hash]
 
     let invariant_type = "flow_insensitive_invariant"
+    let min_version _ = YamlWitnessVersion.V2_1_Goblint
 
     let to_yaml' {value; format} =
       [
@@ -246,6 +253,13 @@ struct
       | LoopTransitionInvariant _ -> LoopTransitionInvariant.invariant_type
       | LocationTransitionInvariant _ -> LocationTransitionInvariant.invariant_type
       | FlowInsensitiveInvariant _ -> FlowInsensitiveInvariant.invariant_type
+
+    let min_version = function
+      | LocationInvariant x -> LocationInvariant.min_version x
+      | LoopInvariant x -> LoopInvariant.min_version x
+      | LoopTransitionInvariant x -> LoopTransitionInvariant.min_version x
+      | LocationTransitionInvariant x -> LocationTransitionInvariant.min_version x
+      | FlowInsensitiveInvariant x -> FlowInsensitiveInvariant.min_version x
 
     let to_yaml' = function
       | LocationInvariant x -> LocationInvariant.to_yaml' x
@@ -285,6 +299,8 @@ struct
 
     let invariant_kind = "invariant"
 
+    let min_version {invariant_type} = InvariantType.min_version invariant_type
+
     let to_yaml {invariant_type} =
       `O [
         ("invariant", `O ([
@@ -311,6 +327,7 @@ struct
     [@@deriving eq, ord, hash]
 
     let contract_type = "function_contract"
+    let min_version _ = YamlWitnessVersion.V2_1
 
     let to_yaml' {location; requires; ensures; format; labels} =
       [
@@ -344,6 +361,9 @@ struct
     let contract_type = function
       | FunctionContract _ -> FunctionContract.contract_type
 
+    let min_version = function
+      | FunctionContract x -> FunctionContract.min_version x
+
     let to_yaml' = function
       | FunctionContract x -> FunctionContract.to_yaml' x
 
@@ -365,6 +385,8 @@ struct
     [@@deriving eq, ord, hash]
 
     let invariant_kind = "contract"
+
+    let min_version {contract_type} = ContractType.min_version contract_type
 
     let to_yaml {contract_type} =
       `O [
@@ -390,6 +412,10 @@ struct
     let invariant_kind = function
       | Invariant _ -> Invariant.invariant_kind
       | Contract _ -> Contract.invariant_kind
+
+    let min_version = function
+      | Invariant x -> Invariant.min_version x
+      | Contract x -> Contract.min_version x
 
     let to_yaml = function
       | Invariant x -> Invariant.to_yaml x
@@ -418,6 +444,11 @@ struct
   [@@deriving eq, ord, hash]
 
   let entry_type = "invariant_set"
+
+  let min_version {content} =
+    List.to_seq content
+    |> Seq.map InvariantKind.min_version
+    |> Seq.fold_left YamlWitnessVersion.max YamlWitnessVersion.V2_0
 
   let to_yaml' {content} =
     [("content", `A (List.map InvariantKind.to_yaml content))]
@@ -636,6 +667,7 @@ struct
   [@@deriving eq, ord, hash]
 
   let entry_type = "violation_sequence"
+  let min_version _ = YamlWitnessVersion.V2_0
 
   let to_yaml' {content} =
     [("content", `A (List.map Segment.to_yaml content))]
@@ -749,6 +781,7 @@ struct
   [@@deriving eq, ord, hash]
 
   let entry_type = "ghost_instrumentation"
+  let min_version _ = YamlWitnessVersion.V2_1
 
   let to_yaml' {ghost_variables; ghost_updates} =
     [("content",
@@ -779,6 +812,11 @@ struct
     | InvariantSet _ -> InvariantSet.entry_type
     | ViolationSequence _ -> ViolationSequence.entry_type
     | GhostInstrumentation _ -> GhostInstrumentation.entry_type
+
+  let min_version = function
+    | InvariantSet x -> InvariantSet.min_version x
+    | ViolationSequence x -> ViolationSequence.min_version x
+    | GhostInstrumentation x -> GhostInstrumentation.min_version x
 
   let to_yaml' = function
     | InvariantSet x -> InvariantSet.to_yaml' x

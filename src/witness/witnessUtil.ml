@@ -94,6 +94,27 @@ struct
             ) stmts
         ) prevs
     | FunctionEntry _ | Function _ -> None
+
+  let find_syntactic_loop_condition_label s =
+    List.find_map (function
+        | Label (name, loc, false) when String.starts_with ~prefix:"__loop_condition" name -> Some loc
+        | _ -> None
+      ) s.labels
+
+  let find_syntactic_loop_condition = function
+    | Statement s as n ->
+      (* No need to LoopUnrolling.find_original because loop unrolling duplicates __loop_condition labels (with new suffixes). *)
+      begin match find_syntactic_loop_condition_label s with
+        | Some _ as r -> r
+        | None ->
+          (* The __loop_condition label may not be on s itself, but still on the surrounding Block (skipped in CFG) due to basic blocks transformation. *)
+          let prevs = Cfg.prev n in
+          List.find_map (fun (edges, prev) ->
+              let stmts = Cfg.skippedByEdge prev edges n in
+              List.find_map find_syntactic_loop_condition_label stmts
+            ) prevs
+      end
+    | FunctionEntry _ | Function _ -> None
 end
 
 module YamlInvariant (FileCfg: MyCFG.FileCfg) =
@@ -119,7 +140,7 @@ struct
   let is_invariant_node n = Option.is_some (location_location n)
 
   let loop_location n =
-    find_syntactic_loop_head n
+    find_syntactic_loop_condition n
     |> BatOption.filter (fun _loc -> not (is_stub_node n))
 
   let is_loop_head_node n = Option.is_some (loop_location n)
@@ -139,48 +160,6 @@ struct
 end
 [@@deprecated]
 
-module InvariantExp =
-struct
-  module ES = SetDomain.Make (CilType.Exp)
-
-  (* Turns an expression into alist of conjuncts, pulling out common conjuncts from top-level disjunctions *)
-  let rec pullOutCommonConjuncts e =
-    let rec to_conjunct_set = function
-      | Cil.BinOp(LAnd,e1,e2,_) -> ES.join (to_conjunct_set e1) (to_conjunct_set e2)
-      | e -> ES.singleton e
-    in
-    let combine_conjuncts es = ES.fold (fun e acc -> match acc with | None -> Some e | Some acce -> Some (BinOp(LAnd,acce,e,Cil.intType))) es None in
-    match e with
-    | Cil.BinOp(LOr, e1, e2,t) ->
-      let e1s = pullOutCommonConjuncts e1 in
-      let e2s = pullOutCommonConjuncts e2 in
-      let common = ES.inter e1s e2s in
-      let e1s' = ES.diff e1s e2s in
-      let e2s' = ES.diff e2s e1s in
-      (match combine_conjuncts e1s', combine_conjuncts e2s' with
-       | Some e1e, Some e2e -> ES.add (BinOp(LOr,e1e,e2e,Cil.intType)) common
-       | _ -> common (* if one of the disjuncts is empty, it is equivalent to true here *)
-      )
-    | e -> to_conjunct_set e
-
-  let process_exp inv =
-    let exp_deep_unroll_types =
-      if GobConfig.get_bool "witness.invariant.typedefs" then
-        Fun.id
-      else
-        InvariantCil.exp_deep_unroll_types
-    in
-    let inv' =
-      inv
-      |> exp_deep_unroll_types
-      |> InvariantCil.exp_replace_original_name
-    in
-    if GobConfig.get_bool "witness.invariant.split-conjunction" then
-      ES.elements (pullOutCommonConjuncts inv')
-      |> List.filter (Fun.negate InvariantCil.exp_contains_anon_type)
-    else
-      [inv']
-end
 
 module InvariantParser =
 struct

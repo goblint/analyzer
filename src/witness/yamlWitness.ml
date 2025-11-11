@@ -21,16 +21,24 @@ struct
     command_line = Some GobSys.command_line;
   }
 
-  let metadata ?task (): Metadata.t =
+  let metadata ~format_version ?task (): Metadata.t =
     let uuid = Uuidm.v4_gen uuid_random_state () in
+    let conf_format_version = YamlWitnessVersion.of_option () in
+    if YamlWitnessVersion.compare format_version conf_format_version > 0 then
+      M.warn_noloc ~category:Witness "witness entry version (%a) exceeds configured witness.yaml.format-version (%a)" YamlWitnessVersion.pretty format_version YamlWitnessVersion.pretty conf_format_version;
     let creation_time = TimeUtil.iso8601_now () in
     {
-      format_version = GobConfig.get_string "witness.yaml.format-version";
+      format_version = YamlWitnessVersion.show format_version;
       uuid = Uuidm.to_string uuid;
       creation_time;
       producer;
       task
     }
+
+  let with_metadata ~task entry_type: Entry.t = {
+    entry_type;
+    metadata = metadata ~format_version:(EntryType.min_version entry_type) ~task ();
+  }
 
   let task ~input_files ~data_model ~(specification): Task.t =
     {
@@ -44,14 +52,9 @@ struct
     }
 
   let location ~location:(loc: Cil.location) ~(location_function): Location.t =
-    let file_hash =
-      match GobConfig.get_string "witness.yaml.format-version" with
-      | "2.0" -> None (* TODO: 2.1? *)
-      | _ -> assert false
-    in
     {
       file_name = loc.file;
-      file_hash;
+      file_hash = None;
       line = loc.line;
       column = Some loc.column;
       function_ = Some location_function;
@@ -86,12 +89,10 @@ struct
         };
     }
 
-  let invariant_set ~task ~(invariants): Entry.t = {
-    entry_type = InvariantSet {
-        content = invariants;
-      };
-    metadata = metadata ~task ();
-  }
+  let invariant_set ~task ~(invariants): Entry.t =
+    with_metadata ~task @@ InvariantSet {
+      content = invariants;
+    }
 
   let ghost_variable' ~variable ~type_ ~(initial): GhostInstrumentation.Variable.t = {
     name = variable;
@@ -114,13 +115,11 @@ struct
     updates;
   }
 
-  let ghost_instrumentation ~task ~variables ~(location_updates): Entry.t = {
-    entry_type = GhostInstrumentation {
-        ghost_variables = variables;
-        ghost_updates = location_updates;
-      };
-    metadata = metadata ~task ();
-  }
+  let ghost_instrumentation ~task ~variables ~(location_updates): Entry.t =
+    with_metadata ~task @@ GhostInstrumentation {
+      ghost_variables = variables;
+      ghost_updates = location_updates;
+    }
 end
 
 let yaml_entries_to_file yaml_entries file =
@@ -232,7 +231,7 @@ struct
       (* Currently same invariants (from InvariantGlobal query) for all nodes (from InvariantGlobalNodes query).
          The alternative would be querying InvariantGlobal per local unknown when looping over them to generate location invariants.
          See: https://github.com/goblint/analyzer/pull/1394#discussion_r1698149514. *)
-      let invs = WitnessUtil.InvariantExp.process_exp inv in
+      let invs = Invariant.Exp.process inv in
       Queries.NS.fold (fun n acc ->
           let fundec = Node.find_fundec n in
           match WitnessInvariant.location_location n with (* Not just using Node.location because it returns expression location which may be invalid for location invariant (e.g. inside conditional). *)
@@ -293,9 +292,9 @@ struct
                   let fundec = Node.find_fundec (List.hd ns) in (* TODO: fix location hack *)
                   let location_function = fundec.svar.vname in
                   let location = Entry.location ~location:loc ~location_function in
-                  let invs = WitnessUtil.InvariantExp.process_exp inv in
+                  let invs = Invariant.Exp.process inv in
                   List.fold_left (fun acc inv ->
-                      let invariant = CilType.Exp.show inv in
+                      let invariant = Invariant.Exp.show inv in
                       let invariant = Entry.location_invariant ~location ~invariant in
                       incr cnt_location_invariant;
                       invariant :: acc
@@ -323,9 +322,9 @@ struct
                     let fundec = Node.find_fundec (List.hd ns) in (* TODO: fix location hack *)
                     let location_function = fundec.svar.vname in
                     let location = Entry.location ~location:loc ~location_function in
-                    let invs = WitnessUtil.InvariantExp.process_exp inv in
+                    let invs = Invariant.Exp.process inv in
                     List.fold_left (fun acc inv ->
-                        let invariant = CilType.Exp.show inv in
+                        let invariant = Invariant.Exp.show inv in
                         let invariant = Entry.loop_invariant ~location ~invariant in
                         incr cnt_loop_invariant;
                         invariant :: acc
@@ -349,9 +348,9 @@ struct
                 | `Left g -> (* global unknown from analysis Spec *)
                   begin match R.ask_global (InvariantGlobal (Obj.repr g)), GobConfig.get_string "witness.invariant.flow_insensitive-as" with
                     | `Lifted inv, "invariant_set-flow_insensitive_invariant" ->
-                      let invs = WitnessUtil.InvariantExp.process_exp inv in
+                      let invs = Invariant.Exp.process inv in
                       List.fold_left (fun acc inv ->
-                          let invariant = CilType.Exp.show inv in
+                          let invariant = Invariant.Exp.show inv in
                           let invariant = Entry.flow_insensitive_invariant ~invariant in
                           incr cnt_flow_insensitive_invariant;
                           invariant :: acc
@@ -359,7 +358,7 @@ struct
                     | `Lifted inv, "invariant_set-location_invariant" ->
                       (* TODO: fold_flow_insensitive_as_location is now only used here, inline/move? *)
                       fold_flow_insensitive_as_location ~inv (fun ~location ~inv acc ->
-                          let invariant = CilType.Exp.show inv in
+                          let invariant = Invariant.Exp.show inv in
                           let invariant = Entry.location_invariant ~location ~invariant in
                           incr cnt_location_invariant;
                           invariant :: acc

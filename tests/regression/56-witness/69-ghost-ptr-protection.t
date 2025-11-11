@@ -1,4 +1,4 @@
-  $ goblint --set ana.base.privatization protection --enable witness.yaml.enabled --set ana.activated[+] mutexGhosts --set witness.yaml.entry-types[+] ghost_instrumentation --set witness.yaml.invariant-types[*] flow_insensitive_invariant 69-ghost-ptr-protection.c
+  $ goblint --set ana.base.privatization protection --enable witness.yaml.enabled --set ana.activated[+] mutexGhosts --set witness.yaml.entry-types[+] ghost_instrumentation --set witness.yaml.invariant-types[*] flow_insensitive_invariant --set witness.yaml.format-version 2.1-goblint 69-ghost-ptr-protection.c
   [Success][Assert] Assertion "*p != 0" will succeed (69-ghost-ptr-protection.c:26:3-26:27)
   [Info][Deadcode] Logical lines of code (LLoC) summary:
     live: 15
@@ -110,7 +110,7 @@ Should not contain unsound flow-insensitive invariant m2_locked || (p == & g && 
 
 Same with vojdani.
 
-  $ goblint --set ana.base.privatization vojdani --enable witness.yaml.enabled --set ana.activated[+] mutexGhosts --set witness.yaml.entry-types[+] ghost_instrumentation --set witness.yaml.invariant-types[*] flow_insensitive_invariant 69-ghost-ptr-protection.c
+  $ goblint --set ana.base.privatization vojdani --enable witness.yaml.enabled --set ana.activated[+] mutexGhosts --set witness.yaml.entry-types[+] ghost_instrumentation --set witness.yaml.invariant-types[*] flow_insensitive_invariant --set witness.yaml.format-version 2.1-goblint 69-ghost-ptr-protection.c
   [Success][Assert] Assertion "*p != 0" will succeed (69-ghost-ptr-protection.c:26:3-26:27)
   [Info][Deadcode] Logical lines of code (LLoC) summary:
     live: 15

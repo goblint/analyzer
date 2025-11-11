@@ -43,7 +43,8 @@
       "threadflag"
     ],
     "context": {
-      "widen": false
+      "widen": false,
+      "gas_value": 30
     },
     "base": {
       "arrays": {

@@ -20,6 +20,9 @@
     unsafe: 0
     total memory locations: 1
 
+  $ grep format_version witness.yml
+      format_version: "2.0"
+
   $ yamlWitnessStrip < witness.yml
   - entry_type: invariant_set
     content:

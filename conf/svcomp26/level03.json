@@ -35,8 +35,12 @@
       "thread",
       "threadJoins",
       "abortUnless",
-      "branchSet"
+      "affeq",
+      "apron"
     ],
+    "apron": {
+      "domain": "octagon"
+    },
     "path_sens": [
       "mutex",
       "malloc_null",
@@ -44,8 +48,7 @@
       "expsplit",
       "activeSetjmp",
       "memLeak",
-      "threadflag",
-      "branchSet"
+      "threadflag"
     ],
     "context": {
       "widen": false
@@ -70,7 +73,6 @@
         "noRecursiveIntervals",
         "enums",
         "congruence",
-        "octagon",
         "wideningThresholds",
         "loopUnrollHeuristic",
         "memsafetySpecification",
@@ -86,9 +88,8 @@
   "solver": "td3",
   "solvers": {
     "td3": {
-      "narrow-globs": {
-        "enabled": true
-      }
+      "widen_gas": 30,
+      "side_widen_gas": 30
     }
   },
   "sem": {

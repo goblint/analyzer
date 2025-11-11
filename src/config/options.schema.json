@@ -2791,9 +2791,10 @@
               "type": "string",
               "enum": [
                 "2.0",
-                "2.1"
+                "2.1",
+                "2.1-goblint"
               ],
-              "default": "2.0"
+              "default": "2.1"
             },
             "entry-types": {
               "title": "witness.yaml.entry-types",

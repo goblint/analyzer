@@ -6,11 +6,14 @@
     },
     "int": {
       "def_exc": true,
-      "enums": false
+      "enums": true,
+      "congruence": true,
+      "bitfield":true,
+      "interval": true
     },
     "float": {
-      "interval": false,
-      "evaluate_math_functions": false
+      "interval": true,
+      "evaluate_math_functions": true
     },
     "activated": [
       "base",
@@ -26,12 +29,17 @@
       "expRelation",
       "mhp",
       "assert",
+      "var_eq",
       "symb_locks",
       "region",
       "thread",
       "threadJoins",
-      "abortUnless"
+      "abortUnless",
+      "apron"
     ],
+    "apron": {
+      "domain": "polyhedra"
+    },
     "path_sens": [
       "mutex",
       "malloc_null",
@@ -42,12 +50,15 @@
       "threadflag"
     ],
     "context": {
-      "widen": false,
-      "gas_value": 30
+      "widen": false
     },
     "base": {
       "arrays": {
-        "domain": "partitioned"
+        "domain": "unroll",
+        "unrolling-factor": 4
+      },
+      "structs": {
+        "domain": "sets"
       }
     },
     "race": {
@@ -70,9 +81,19 @@
     }
   },
   "exp": {
-    "region-offsets": true
+    "region-offsets": true,
+    "unrolling-factor": 4
   },
   "solver": "td3",
+  "solvers": {
+    "td3": {
+      "narrow-globs": {
+        "enabled": true
+      },
+      "widen_gas": 60,
+      "side_widen_gas": 60
+    }
+  },
   "sem": {
     "unknown_function": {
       "spawn": false

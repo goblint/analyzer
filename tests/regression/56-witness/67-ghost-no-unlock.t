@@ -1,4 +1,4 @@
-  $ goblint --set ana.base.privatization protection --enable witness.yaml.enabled --set ana.activated[+] mutexGhosts --set witness.yaml.entry-types[+] ghost_instrumentation --set witness.yaml.invariant-types[*] flow_insensitive_invariant 67-ghost-no-unlock.c
+  $ goblint --set ana.base.privatization protection --enable witness.yaml.enabled --set ana.activated[+] mutexGhosts --set witness.yaml.entry-types[+] ghost_instrumentation --set witness.yaml.invariant-types[*] flow_insensitive_invariant --set witness.yaml.format-version 2.1-goblint 67-ghost-no-unlock.c
   [Success][Assert] Assertion "g1 == 0" will succeed (67-ghost-no-unlock.c:24:3-24:27)
   [Info][Deadcode] Logical lines of code (LLoC) summary:
     live: 11
