@@ -8,11 +8,10 @@ Without diff-box:
   [Warning][Deadcode][CWE-570] condition 'N < 0' is always false (03-octagon_simplest.c:9:6-9:11)
   [Info][Witness] witness generation summary:
     location invariants: 0
-    loop invariants: 15
+    loop invariants: 17
     flow-insensitive invariants: 0
     total generation entries: 1
 
-TODO: Should have Y == 0
   $ yamlWitnessStrip < witness.yml | tee witness-disable-diff-box.yml
   - entry_type: invariant_set
     content:
@@ -77,6 +76,15 @@ TODO: Should have Y == 0
           line: 11
           column: 3
           function: main
+        value: (long long )X >= 0LL
+        format: c_expression
+    - invariant:
+        type: loop_invariant
+        location:
+          file_name: 03-octagon_simplest.c
+          line: 11
+          column: 3
+          function: main
         value: (long long )Y + (long long )N >= 0LL
         format: c_expression
     - invariant:
@@ -105,6 +113,15 @@ TODO: Should have Y == 0
           column: 3
           function: main
         value: (long long )Y + 2147483647LL >= (long long )X
+        format: c_expression
+    - invariant:
+        type: loop_invariant
+        location:
+          file_name: 03-octagon_simplest.c
+          line: 11
+          column: 3
+          function: main
+        value: (long long )Y == 0LL
         format: c_expression
     - invariant:
         type: loop_invariant
@@ -245,6 +262,15 @@ Compare witnesses:
         line: 11
         column: 3
         function: main
+      value: (long long )Y == 0LL
+      format: c_expression
+  - invariant:
+      type: loop_invariant
+      location:
+        file_name: 03-octagon_simplest.c
+        line: 11
+        column: 3
+        function: main
       value: (long long )Y + 2147483647LL >= (long long )N
       format: c_expression
   - invariant:
@@ -264,6 +290,15 @@ Compare witnesses:
         column: 3
         function: main
       value: (long long )Y + (long long )N >= 0LL
+      format: c_expression
+  - invariant:
+      type: loop_invariant
+      location:
+        file_name: 03-octagon_simplest.c
+        line: 11
+        column: 3
+        function: main
+      value: (long long )X >= 0LL
       format: c_expression
   - invariant:
       type: loop_invariant

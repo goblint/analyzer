@@ -21,7 +21,7 @@ Without diff-box:
   [Warning][Deadcode][CWE-571] condition '1' (possibly inserted by CIL) is always true (01-octagon_simple.c:44:10-44:11)
   [Info][Witness] witness generation summary:
     location invariants: 0
-    loop invariants: 14
+    loop invariants: 16
     flow-insensitive invariants: 0
     total generation entries: 1
 
@@ -63,6 +63,15 @@ Without diff-box:
           column: 3
           function: main
         value: (long long )X + 2147483647LL >= (long long )N
+        format: c_expression
+    - invariant:
+        type: loop_invariant
+        location:
+          file_name: 01-octagon_simple.c
+          line: 10
+          column: 3
+          function: main
+        value: (long long )X >= 0LL
         format: c_expression
     - invariant:
         type: loop_invariant
@@ -126,6 +135,15 @@ Without diff-box:
           column: 3
           function: two
         value: (long long )X + 2147483647LL >= (long long )N
+        format: c_expression
+    - invariant:
+        type: loop_invariant
+        location:
+          file_name: 01-octagon_simple.c
+          line: 44
+          column: 3
+          function: two
+        value: (long long )X >= 0LL
         format: c_expression
     - invariant:
         type: loop_invariant
@@ -260,6 +278,15 @@ Compare witnesses:
         line: 44
         column: 3
         function: two
+      value: (long long )X >= 0LL
+      format: c_expression
+  - invariant:
+      type: loop_invariant
+      location:
+        file_name: 01-octagon_simple.c
+        line: 44
+        column: 3
+        function: two
       value: (long long )X + 2147483647LL >= (long long )N
       format: c_expression
   - invariant:
@@ -288,6 +315,15 @@ Compare witnesses:
         column: 3
         function: main
       value: 2147483647LL >= (long long )N
+      format: c_expression
+  - invariant:
+      type: loop_invariant
+      location:
+        file_name: 01-octagon_simple.c
+        line: 10
+        column: 3
+        function: main
+      value: (long long )X >= 0LL
       format: c_expression
   - invariant:
       type: loop_invariant
