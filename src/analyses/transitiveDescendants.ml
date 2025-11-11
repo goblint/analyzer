@@ -11,11 +11,17 @@ module TransitiveDescendants = struct
     include StdV
   end
 
-  module G = SetDomain.Make (TID)
+  module G = ConcDomain.ThreadSet
 
   let name () = "transitiveDescendants"
   let startstate _ = D.bot ()
   let exitstate _ = D.bot ()
+
+  let query man (type a) (x : a Queries.t) : a Queries.result =
+    match x with
+    | Queries.DescendantThreads t -> (man.global t : G.t)
+    | _ -> Queries.Result.top x
+  ;;
 
   let threadspawn man ~multiple lval f args fman =
     let ask = Analyses.ask_of_man man in
