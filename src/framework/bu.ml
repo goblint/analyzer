@@ -189,12 +189,13 @@ module FwdBuSolver (System: FwdGlobConstrSys) = struct
     if tracing then trace "set_local" "value: %a" D.pretty d;
     let {loc_value;loc_init;called;aborted;loc_from} as y_record = get_local_ref y in
     let (old_xy,delay,gas,narrow) = get_old_local_value x loc_from in
-    let (new_xy,delay,gas,narrow) = lwarrow (old_xy,delay,gas,narrow) d in
-    if D.equal new_xy old_xy then (
-      (* If value of x has not changed, nothing to do *)
-      if tracing then trace "set_local" "no change in set_local from %a" System.LVar.pretty_trace x;
-    )
-    else 
+    let new_y =if !called then
+        let (new_xy,delay,gas,narrow) = lwarrow (old_xy,delay,gas,narrow) d in
+        if D.equal new_xy old_xy then (
+          (* If value of x has not changed, nothing to do *)
+          if tracing then trace "set_local" "no change in set_local from %a" System.LVar.pretty_trace x;
+        )
+        else 
 (*
         let (new_value,delay,gas) = 
            (* First attempt, without widening and narrowing *)
@@ -206,9 +207,10 @@ module FwdBuSolver (System: FwdGlobConstrSys) = struct
              else (D.widen old_value (D.join old_value d), 0, gas) 
            else (d,delay,gas) in
 *)
-      (* if tracing then trace "set_local" "new contribution %a" D.pretty new_value; *)
-      LM.replace loc_from x (new_xy,delay,gas,narrow);
-    let new_y = get_local_value loc_init loc_from in
+          (* if tracing then trace "set_local" "new contribution %a" D.pretty new_value; *)
+          LM.replace loc_from x (new_xy,delay,gas,narrow);
+        get_local_value loc_init loc_from
+      else d in
     if tracing then trace "set_local" "new value for %a is %a" System.LVar.pretty_trace y D.pretty new_y;
     if D.equal loc_value new_y then (
       if tracing then trace "set_local" "no change in local %a after updating from %a" System.LVar.pretty_trace y System.LVar.pretty_trace x;
