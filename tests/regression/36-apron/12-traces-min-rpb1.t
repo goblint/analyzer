@@ -33,7 +33,7 @@
           line: 14
           column: 3
           function: t_fun
-        value: (long long )h == (long long )g
+        value: h == g
         format: c_expression
     - invariant:
         type: location_invariant
@@ -42,7 +42,7 @@
           line: 19
           column: 3
           function: t_fun
-        value: (long long )h == (long long )g
+        value: h == g
         format: c_expression
     - invariant:
         type: location_invariant
@@ -51,7 +51,7 @@
           line: 29
           column: 3
           function: main
-        value: (long long )h == (long long )g
+        value: h == g
         format: c_expression
 
 
@@ -164,5 +164,5 @@
     content:
     - invariant:
         type: flow_insensitive_invariant
-        value: '! multithreaded || (A_locked || (long long )g == (long long )h)'
+        value: '! multithreaded || (A_locked || g == h)'
         format: c_expression

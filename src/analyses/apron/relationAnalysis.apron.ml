@@ -173,25 +173,8 @@ struct
     | _ ->
       st
 
-
-  (** An extended overflow handling inside relationAnalysis for expression assignments when overflows are assumed to occur.
-      Since affine equalities can only keep track of integer bounds of expressions evaluating to definite constants, we now query the integer bounds information for expressions from other analysis.
-      If an analysis returns bounds that are unequal to min and max of ikind , we can exclude the possibility that an overflow occurs and the abstract effect of the expression assignment can be used, i.e. we do not have to set the variable's value to top. *)
-
-  let no_overflow (ask: Queries.ask) exp =
-    match Cilfacade.get_ikind_exp exp with
-    | exception Invalid_argument _ -> false (* is thrown by get_ikind_exp when the type of the expression is not an integer type *)
-    | exception Cilfacade.TypeOfError _ -> false
-    | ik ->
-      if IntDomain.should_wrap ik then
-        false
-      else if IntDomain.should_ignore_overflow ik then
-        true
-      else
-        not (ask.f (MaySignedOverflow exp))
-
   let no_overflow man exp = lazy (
-    let res = no_overflow man exp in
+    let res = SharedFunctions.no_overflow man exp in
     if M.tracing then M.tracel "no_ov" "no_ov %b exp: %a" res d_exp exp;
     res
   )
@@ -611,7 +594,7 @@ struct
         (* filter one-vars and exact *)
         (* RD.invariant simplifies two octagon SUPEQ constraints to one EQ, so exact works *)
         if (one_var || GobApron.Lincons1.num_vars lincons1 >= 2) && (exact || Apron.Lincons1.get_typ lincons1 <> EQ) then
-          RD.cil_exp_of_lincons1 lincons1
+          RD.cil_exp_of_lincons1 ask e_inv lincons1
           |> Option.map e_inv
           |> Option.filter (fun exp -> not (InvariantCil.exp_contains_tmp exp) && InvariantCil.exp_is_in_scope scope exp)
         else

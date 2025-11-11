@@ -57,7 +57,7 @@ Without diff-box:
           line: 15
           column: 3
           function: pop
-        value: (long long )capacity >= (long long )free
+        value: (long long )used + free == capacity
         format: c_expression
     - invariant:
         type: location_invariant
@@ -66,7 +66,7 @@ Without diff-box:
           line: 15
           column: 3
           function: pop
-        value: (long long )free >= 0LL
+        value: 2147483647 >= capacity
         format: c_expression
     - invariant:
         type: location_invariant
@@ -75,7 +75,7 @@ Without diff-box:
           line: 15
           column: 3
           function: pop
-        value: (long long )used + (long long )free == (long long )capacity
+        value: capacity >= free
         format: c_expression
     - invariant:
         type: location_invariant
@@ -84,7 +84,7 @@ Without diff-box:
           line: 15
           column: 3
           function: pop
-        value: 2147483647LL >= (long long )capacity
+        value: free >= 0
         format: c_expression
     - invariant:
         type: location_invariant
@@ -93,7 +93,7 @@ Without diff-box:
           line: 36
           column: 3
           function: push
-        value: (long long )capacity >= (long long )free
+        value: (long long )used + free == capacity
         format: c_expression
     - invariant:
         type: location_invariant
@@ -102,7 +102,7 @@ Without diff-box:
           line: 36
           column: 3
           function: push
-        value: (long long )free >= 0LL
+        value: 2147483647 >= capacity
         format: c_expression
     - invariant:
         type: location_invariant
@@ -111,7 +111,7 @@ Without diff-box:
           line: 36
           column: 3
           function: push
-        value: (long long )used + (long long )free == (long long )capacity
+        value: capacity >= free
         format: c_expression
     - invariant:
         type: location_invariant
@@ -120,7 +120,7 @@ Without diff-box:
           line: 36
           column: 3
           function: push
-        value: 2147483647LL >= (long long )capacity
+        value: free >= 0
         format: c_expression
 
 With diff-box:
@@ -180,7 +180,7 @@ With diff-box:
           line: 15
           column: 3
           function: pop
-        value: (long long )capacity >= (long long )free
+        value: (long long )used + free == capacity
         format: c_expression
     - invariant:
         type: location_invariant
@@ -189,7 +189,7 @@ With diff-box:
           line: 15
           column: 3
           function: pop
-        value: (long long )free >= 0LL
+        value: capacity >= free
         format: c_expression
     - invariant:
         type: location_invariant
@@ -198,7 +198,7 @@ With diff-box:
           line: 15
           column: 3
           function: pop
-        value: (long long )used + (long long )free == (long long )capacity
+        value: free >= 0
         format: c_expression
     - invariant:
         type: location_invariant
@@ -207,7 +207,7 @@ With diff-box:
           line: 36
           column: 3
           function: push
-        value: (long long )capacity >= (long long )free
+        value: (long long )used + free == capacity
         format: c_expression
     - invariant:
         type: location_invariant
@@ -216,7 +216,7 @@ With diff-box:
           line: 36
           column: 3
           function: push
-        value: (long long )free >= 0LL
+        value: capacity >= free
         format: c_expression
     - invariant:
         type: location_invariant
@@ -225,7 +225,7 @@ With diff-box:
           line: 36
           column: 3
           function: push
-        value: (long long )used + (long long )free == (long long )capacity
+        value: free >= 0
         format: c_expression
 
 Compare witnesses:
@@ -239,7 +239,7 @@ Compare witnesses:
         line: 36
         column: 3
         function: push
-      value: 2147483647LL >= (long long )capacity
+      value: 2147483647 >= capacity
       format: c_expression
   - invariant:
       type: location_invariant
@@ -248,6 +248,6 @@ Compare witnesses:
         line: 15
         column: 3
         function: pop
-      value: 2147483647LL >= (long long )capacity
+      value: 2147483647 >= capacity
       format: c_expression
   ---

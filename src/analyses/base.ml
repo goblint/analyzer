@@ -1321,7 +1321,7 @@ struct
       For now we return true if the expression contains a shift left.
   *)
   (* TODO: deduplicate https://github.com/goblint/analyzer/pull/1297#discussion_r1477804502 *)
-  let rec exp_may_signed_overflow man exp =
+  let rec exp_may_overflow man exp ~unsigned =
     let res = match Cilfacade.get_ikind_exp exp with
       | exception (Cilfacade.TypeOfError _) (* Cilfacade.typeOf *)
       | exception (Invalid_argument _) -> (* get_ikind *)
@@ -1383,20 +1383,20 @@ struct
         | Imag e
         | SizeOfE e
         | AlignOfE e
-        | CastE (_, e) -> exp_may_signed_overflow man e
+        | CastE (_, e) -> exp_may_overflow man e ~unsigned:unsigned
         | UnOp (unop, e, _) ->
           (* check if the current operation causes a signed overflow *)
           begin match unop with
             | Neg -> (* an overflow happens when the lower bound of the interval is less than MIN_INT *)
-              Cil.isSigned ik && checkPredicate e (Z.gt)
+              (unsigned || Cil.isSigned ik) && checkPredicate e (Z.gt)
             (* operations that do not result in overflow in C: *)
             | BNot|LNot -> false
           end
           (* look for overflow in subexpression *)
-          || exp_may_signed_overflow man e
+          || exp_may_overflow man e ~unsigned:unsigned
         | BinOp (binop, e1, e2, _) ->
           (* check if the current operation causes a signed overflow *)
-          (Cil.isSigned ik && begin match binop with
+          ((unsigned || Cil.isSigned ik) && begin match binop with
               | PlusA|PlusPI|IndexPI -> checkBinop e1 e2 (GobOption.map2 Z.(+))
               | MinusA|MinusPI|MinusPP -> checkBinop e1 e2 (GobOption.map2 Z.(-))
               | Mult -> checkBinop e1 e2 (GobOption.map2 Z.mul)
@@ -1408,27 +1408,27 @@ struct
               (* Shiftlt can cause overflow and also undefined behaviour in case the second operand is non-positive*)
               | Shiftlt -> true end)
           (* look for overflow in subexpression *)
-          || exp_may_signed_overflow man e1 || exp_may_signed_overflow man e2
+          || exp_may_overflow man e1 ~unsigned:unsigned || exp_may_overflow man e2 ~unsigned:unsigned
         | Question (e1, e2, e3, _) ->
           (* does not result in overflow in C *)
-          exp_may_signed_overflow man e1 || exp_may_signed_overflow man e2 || exp_may_signed_overflow man e3
+          exp_may_overflow man e1 ~unsigned:unsigned || exp_may_overflow man e2 ~unsigned:unsigned || exp_may_overflow man e3 ~unsigned:unsigned
         | Lval lval
         | AddrOf lval
-        | StartOf lval -> lval_may_signed_overflow man lval
+        | StartOf lval -> lval_may_overflow man lval ~unsigned:unsigned
     in
-    if M.tracing then M.trace "signed_overflow" "base exp_may_signed_overflow %a. Result = %b" d_plainexp exp res; res
-  and lval_may_signed_overflow man (lval : lval) =
+    if M.tracing then M.trace "signed_overflow" "base exp_may_overflow %a. Result = %b" d_plainexp exp res; res
+  and lval_may_overflow man (lval : lval) ~unsigned =
     let (host, offset) = lval in
-    let host_may_signed_overflow = function
+    let host_may_overflow = function
       | Var v -> false
-      | Mem e -> exp_may_signed_overflow man e
+      | Mem e -> exp_may_overflow man e ~unsigned:unsigned
     in
-    let rec offset_may_signed_overflow = function
+    let rec offset_may_overflow = function
       | NoOffset -> false
-      | Index (e, o) -> exp_may_signed_overflow man e || offset_may_signed_overflow o
-      | Field (f, o) -> offset_may_signed_overflow o
+      | Index (e, o) -> exp_may_overflow man e ~unsigned:unsigned || offset_may_overflow o
+      | Field (f, o) -> offset_may_overflow o
     in
-    host_may_signed_overflow host || offset_may_signed_overflow offset
+    host_may_overflow host || offset_may_overflow offset
 
   let query man (type a) (q: a Q.t): a Q.result =
     match q with
@@ -1601,9 +1601,12 @@ struct
     | Q.InvariantGlobal g ->
       let g: V.t = Obj.obj g in
       query_invariant_global man g
-    | Q.MaySignedOverflow e -> (let res = exp_may_signed_overflow man e in
-                                if M.tracing then M.trace "signed_overflow" "base exp_may_signed_overflow %a. Result = %b" d_plainexp e res; res
-                               )
+    | Q.MaySignedOverflow e ->
+      let res = exp_may_overflow man e ~unsigned:false in
+      if M.tracing then M.trace "signed_overflow" "base exp_may_overflow %a. Result = %b" d_plainexp e res; res
+    | Q.MayOverflow e ->
+      let res = exp_may_overflow man e ~unsigned:true in
+      if M.tracing then M.trace "overflow" "base exp_may_overflow %a. Result = %b" d_plainexp e res; res
     | _ -> Q.Result.top q
 
   let update_variable variable typ value cpa =
