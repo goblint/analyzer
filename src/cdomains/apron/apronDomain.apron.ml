@@ -544,17 +544,37 @@ struct
           d
       end
 
-  let invariant x =
+  (** Keep only box-representable constraints.
+      Used for [diff-box] in {!invariant}. *)
+  let boxify d =
+    let {box1_env; interval_array}: A.box1 = A.to_box Man.mgr d in
+    let ivs, fvs = Environment.vars box1_env in
+    assert (Array.length fvs = 0); (* shouldn't ever contain floats *)
+    A.of_box Man.mgr box1_env ivs interval_array
+
+  let to_lincons_set d =
+    Lincons1Set.of_earray (A.to_lincons_array Man.mgr d)
+
+  let invariant d =
     (* Would like to minimize to get rid of multi-var constraints directly derived from one-var constraints,
        but not implemented in Apron at all: https://github.com/antoinemine/apron/issues/44 *)
-    (* let x = A.copy Man.mgr x in
-       A.minimize Man.mgr x; *)
-    let {lincons0_array; array_env}: Lincons1.earray = A.to_lincons_array Man.mgr x in
-    Array.to_seq lincons0_array
-    |> Seq.map (fun (lincons0: Lincons0.t) -> Lincons1.{lincons0; env = array_env})
-    |> Lincons1Set.of_seq
+    (* let d = A.copy Man.mgr d in
+       A.minimize Man.mgr d; *)
+    let lcd = to_lincons_set d in
+    if GobConfig.get_bool "ana.apron.invariant.diff-box" then (
+      (* diff via lincons *)
+      (* TODO: is there benefit to also Lincons1Set.simplify before diff? might make a difference if y=0 is represented as y>=0 && y<=0 or not *)
+      let b = boxify d in (* convert back to same Apron domain (instead of box) to make lincons use the same format (e.g. oct doesn't return equalities, but box does) *)
+      let lcb = to_lincons_set b in
+      Lincons1Set.diff lcd lcb
+    )
+    else
+      lcd
+
+  let invariant d =
+    invariant d
     |> (if Oct.manager_is_oct Man.mgr then Lincons1Set.simplify else Fun.id)
-    |> Lincons1Set.elements
+    |> Lincons1Set.elements (* TODO: remove list conversion? *)
 end
 
 (** With heterogeneous environments. *)
@@ -840,7 +860,7 @@ end
 (** Lift [D] to a non-reduced product with box.
     Both are updated in parallel, but [D] answers to queries.
     Box domain is used to filter out non-relational invariants for output. *)
-module BoxProd0 (D: S3) =
+module BoxProd0 (D: S3) = (* TODO: remove? *)
 struct
   module BoxD = D2 (IntervalManager)
 
