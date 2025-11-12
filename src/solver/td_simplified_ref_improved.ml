@@ -26,15 +26,20 @@ module Base : GenericEqSolver =
       called: bool;
     }
 
+    module OM = HM
+    let source x = x
+
+(*
     module OM = Hashtbl.Make(Node)
     let source = S.Var.node
+*)
 
     type origin = {
       init: S.Dom.t; 
       from: (S.Dom.t * int * int * bool) OM.t
     }
 
-    let gas_default = ref (10,3)
+    let gas_default = ref (10,0)
 
     let warrow (a,delay,gas,narrow) b = 
       let (delay0,_) = !gas_default in
@@ -81,12 +86,11 @@ module Base : GenericEqSolver =
                 called = false 
               } in
             HM.replace data x data_x;
-            (if is_global x then
-               let orig_x = {
-                 init = S.Dom.bot();
-                 from = OM.create 10;
-               } in
-               HM.add origin x orig_x);
+            let orig_x = {
+              init = S.Dom.bot();
+              from = OM.create 10;
+            } in
+            HM.add origin x orig_x;
             data_x
           end
       in
@@ -117,7 +121,7 @@ module Base : GenericEqSolver =
         if tracing then trace "sol_query" "entering query for %a; stable %b; called %b" S.Var.pretty_trace y (!y_ref.stable) (!y_ref.called);
         get_var_event y;
         if not (!y_ref.called) then (
-          if S.system y = None then (
+          if is_global y then (
             y_ref := { !y_ref with stable = true };
           ) else (
             y_ref := { !y_ref with called = true };
@@ -134,7 +138,7 @@ module Base : GenericEqSolver =
         tmp
 
       and side x y d = (* side from x to y; only to variables y w/o rhs; x only used for trace *)
-        assert (S.system y = None);
+        assert (is_global y);
         let sx = source x in
         let y_ref = init y in
         if tracing then trace "side" "side to %a (wpx: %b) from %a ## value: %a" S.Var.pretty_trace y (!y_ref.wpoint) S.Var.pretty_trace x S.Dom.pretty d;
@@ -145,10 +149,11 @@ module Base : GenericEqSolver =
             let tuple = (S.Dom.bot (),delay,gas,false) in
             let () = OM.add from sx tuple in
             tuple in
-        let (new_xy,delay,gas,narrow) = warrow (old_xy,delay,gas,narrow) d in
+        let (new_xy,delay,gas,narrow) = 
+          if M.tracing then M.trace "wpoint" "side widen %a" S.Var.pretty_trace y;
+          warrow (old_xy,delay,gas,narrow) d in
 (*
         let widen a b =
-          if M.tracing then M.trace "wpoint" "side widen %a" S.Var.pretty_trace y;
           S.Dom.widen a (S.Dom.join a b)
         in
         let op a b = if !y_ref.wpoint then widen a b else S.Dom.join a b
@@ -158,12 +163,15 @@ module Base : GenericEqSolver =
         y_ref := { !y_ref with stable = true };
 *)
         if S.Dom.equal new_xy old_xy then ()
-        else
+        else (
           OM.replace from sx (new_xy,delay,gas,narrow);
-        let new_y = get_global_value init from in
-        if S.Dom.equal new_y !y_ref.value then ()
-        else 
-          y_ref := { !y_ref with value = new_y }
+          let new_y = get_global_value init from in
+          if S.Dom.equal new_y !y_ref.value then ()
+          else (
+            y_ref := { !y_ref with value = new_y };
+            destabilize y
+          )
+        )
         (*
         if not (S.Dom.leq tmp old) then (
           if tracing && not (S.Dom.is_bot old) then trace "update" "side to %a (wpx: %b) from %a: %a -> %a" S.Var.pretty_trace y (!y_ref.wpoint) S.Var.pretty_trace x S.Dom.pretty old S.Dom.pretty tmp;
@@ -218,7 +226,7 @@ module Base : GenericEqSolver =
       let set_start (x,d) =
         let x_ref = init x in
         x_ref := { !x_ref with value = d; stable = true };
-        HM.replace origin x { init = d; from = OM.create 10 }
+        if is_global x then HM.replace origin x { init = d; from = OM.create 10 }
       in
 
       (* beginning of main solve *)
