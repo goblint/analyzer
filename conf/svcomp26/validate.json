@@ -1,0 +1,67 @@
+{
+  "ana": {
+    "sv-comp": {
+      "enabled": true,
+      "functions": true
+    },
+    "int": {
+      "def_exc": true
+    },
+    "context": {
+      "widen": false
+    },
+    "race": {
+      "free": false,
+      "call": false
+    },
+    "autotune": {
+      "enabled": true
+    },
+    "widen": {
+      "tokens": true
+    }
+  },
+  "exp": {
+    "region-offsets": true
+  },
+  "solver": "td3",
+  "solvers": {
+    "td3": {
+      "weak-deps": "lazy"
+    }
+  },
+  "sem": {
+    "unknown_function": {
+      "spawn": false
+    },
+    "int": {
+      "signed_overflow": "assume_none"
+    },
+    "null-pointer": {
+      "dereference": "assume_none"
+    }
+  },
+  "witness": {
+    "yaml": {
+      "enabled": false,
+      "strict": true,
+      "format-version": "2.0",
+      "entry-types": [
+        "invariant_set",
+        "violation_sequence"
+      ],
+      "invariant-types": [
+        "location_invariant",
+        "loop_invariant"
+      ]
+    },
+    "invariant": {
+      "loop-head": true,
+      "after-lock": true,
+      "other": true
+    }
+  },
+  "pre": {
+    "transform-paths": false
+  }
+}

@@ -1,11 +1,6 @@
 {
   "ana": {
-    "sv-comp": {
-      "enabled": true,
-      "functions": true
-    },
     "int": {
-      "def_exc": true,
       "enums": true,
       "congruence": true,
       "bitfield":true,
@@ -50,9 +45,6 @@
       "memLeak",
       "threadflag"
     ],
-    "context": {
-      "widen": false
-    },
     "base": {
       "arrays": {
         "domain": "unroll",
@@ -62,12 +54,7 @@
         "domain": "sets"
       }
     },
-    "race": {
-      "free": false,
-      "call": false
-    },
     "autotune": {
-      "enabled": true,
       "activated": [
         "reduceAnalyses",
         "mallocWrappers",
@@ -79,58 +66,18 @@
         "termination",
         "tmpSpecialAnalysis"
       ]
-    },
-    "widen": {
-      "tokens": true
     }
   },
   "exp": {
-    "region-offsets": true,
     "unrolling-factor": 4
   },
-  "solver": "td3",
   "solvers": {
     "td3": {
-      "weak-deps": "lazy",
       "narrow-globs": {
         "enabled": true
       },
       "widen_gas": 60,
       "side_widen_gas": 60
     }
-  },
-  "sem": {
-    "unknown_function": {
-      "spawn": false
-    },
-    "int": {
-      "signed_overflow": "assume_none"
-    },
-    "null-pointer": {
-      "dereference": "assume_none"
-    }
-  },
-  "witness": {
-    "yaml": {
-      "enabled": false,
-      "strict": true,
-      "format-version": "2.0",
-      "entry-types": [
-        "invariant_set",
-        "violation_sequence"
-      ],
-      "invariant-types": [
-        "location_invariant",
-        "loop_invariant"
-      ]
-    },
-    "invariant": {
-      "loop-head": true,
-      "after-lock": true,
-      "other": true
-    }
-  },
-  "pre": {
-    "transform-paths": false
   }
 }
