@@ -158,14 +158,14 @@ struct
           M.warn ~category:(Behavior undefined_behavior) ~tags:[CWE cwe_number] "lval (%s) points to a maybe freed memory region" v.vname
         end
       in
-      let pointed_to_heap_vars =
-        Queries.AD.fold (fun addr vars ->
-            match addr with
-            | Queries.AD.Addr.Addr (v,_) when oman.ask (Queries.IsAllocVar v) -> v :: vars
-            | _ -> vars
-          ) ad []
-      in
       if not (Queries.AD.is_top ad) then begin
+        let pointed_to_heap_vars =
+          Queries.AD.fold (fun addr vars ->
+              match addr with
+              | Queries.AD.Addr.Addr (v,_) when oman.ask (Queries.IsAllocVar v) -> v :: vars
+              | _ -> vars
+            ) ad []
+        in
         (* Warn for all heap vars that the lval possibly points to *)
         List.iter warn_for_heap_var pointed_to_heap_vars;
         (* Warn for a potential multi-threaded UAF for all heap vars that the lval possibly points to *)
