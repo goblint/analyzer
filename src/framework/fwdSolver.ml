@@ -9,9 +9,14 @@ module FwdSolver (System: FwdGlobConstrSys) = struct
 
   module GM = Hashtbl.Make(System.GVar)
   module LM = Hashtbl.Make(System.LVar)
-  module OM = Hashtbl.Make(Node)
+  module OM = LM
 
+  let source x = x
+
+(*
+  module OM = Hashtbl.Make(Node)
   let source = System.LVar.node
+*)
 
   let gas_default = ref (10,3)
 

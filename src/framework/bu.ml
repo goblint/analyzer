@@ -13,14 +13,18 @@ module FwdBuSolver (System: FwdGlobConstrSys) = struct
 
   module GM = Hashtbl.Make(System.GVar)
   module LM = Hashtbl.Make(System.LVar)
-  module OM = Hashtbl.Make(Node)
 
+  module OM = LM
+  let source x = x
+(*
+  module OM = Hashtbl.Make(Node)
   let source = System.LVar.node
+*)
 (*
   let gwarrow a b = if G.leq b a then G.narrow a b else G.widen a (G.join a b)
   let lwarrow a b = if D.leq b a then D.narrow a b else D.widen a (D.join a b)
 *) 
-  let gas_default = ref (10,0)
+  let gas_default = ref (10,3)
 
   let lwarrow (a,delay,gas,narrow) b =
     let (delay0,_) = !gas_default in
