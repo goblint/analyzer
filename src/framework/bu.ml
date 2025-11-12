@@ -20,7 +20,7 @@ module FwdBuSolver (System: FwdGlobConstrSys) = struct
   let gwarrow a b = if G.leq b a then G.narrow a b else G.widen a (G.join a b)
   let lwarrow a b = if D.leq b a then D.narrow a b else D.widen a (D.join a b)
 *) 
-  let gas_default = ref (10,3)
+  let gas_default = ref (10,0)
 
   let lwarrow (a,delay,gas,narrow) b =
     let (delay0,_) = !gas_default in
