@@ -20,10 +20,6 @@ module FwdBuSolver (System: FwdGlobConstrSys) = struct
   module OM = Hashtbl.Make(Node)
   let source = System.LVar.node
 *)
-(*
-  let gwarrow a b = if G.leq b a then G.narrow a b else G.widen a (G.join a b)
-  let lwarrow a b = if D.leq b a then D.narrow a b else D.widen a (D.join a b)
-*) 
   let gas_default = ref (10,3)
 
   let lwarrow (a,delay,gas,narrow) b =
@@ -162,13 +158,6 @@ module FwdBuSolver (System: FwdGlobConstrSys) = struct
     let (new_xg,delay,gas,narrow) = gwarrow (old_xg,delay,gas,narrow) d in
     if G.equal new_xg old_xg then () 
     else 
-(*
-        let (new_value,delay,gas) = if G.leq d old_value then
-             if gas > 0 then (G.narrow old_value d,delay,gas-1)
-             else (old_value,delay,0)
-           else if delay > 0 then (G.join old_value d,delay-1,gas)
-           else (G.widen old_value (G.join old_value d), 0, gas) in
-*)
       let _ = OM.replace from sx (new_xg,delay,gas,narrow) in
       let new_g = get_global_value init from in
       if G.equal value new_g then
@@ -201,17 +190,6 @@ module FwdBuSolver (System: FwdGlobConstrSys) = struct
       if tracing then trace "set_local" "no change in set_local from %a" System.LVar.pretty_trace x;
     )
     else (
-(*
-        let (new_value,delay,gas) = 
-           (* First attempt, without widening and narrowing *)
-           if !called then 
-             if D.leq d old_value then
-               if gas > 0 then (D.narrow old_value d,delay,gas-1)
-               else (old_value,delay,0)
-             else if delay > 0 then (D.join old_value d,delay-1,gas)
-             else (D.widen old_value (D.join old_value d), 0, gas) 
-           else (d,delay,gas) in
-*)
       (* if tracing then trace "set_local" "new contribution %a" D.pretty new_value; *)
       LM.replace loc_from x (new_xy,delay,gas,narrow);
       let new_y = get_local_value loc_init loc_from in
@@ -271,10 +249,7 @@ module FwdBuSolver (System: FwdGlobConstrSys) = struct
       if !(rloc.aborted) then iterate x
       else ()
 
-
   (* ... now the main solver loop ... *)
-
-
 
   let solve localinit globalinit xs =
     if tracing then trace "solver" "Starting bottom-up fixpoint iteration";

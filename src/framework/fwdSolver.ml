@@ -20,10 +20,6 @@ module FwdSolver (System: FwdGlobConstrSys) = struct
 
   let gas_default = ref (10,3)
 
-(*
-  let gwarrow a b = if G.leq b a then G.narrow a b else G.widen a (G.join a b)
-  let lwarrow a b = if D.leq b a then D.narrow a b else D.widen a (D.join a b)
-*)
   let lwarrow (a,delay,gas,narrow) b =
     let (delay0,_) = !gas_default in
     if D.equal a b then (a,delay,gas,narrow)
@@ -113,13 +109,6 @@ module FwdSolver (System: FwdGlobConstrSys) = struct
     let (old_xg,delay,gas,narrow) = get_old_global_value x from in
     let (new_xg,delay,gas,narrow) = gwarrow (old_xg,delay,gas,narrow) d in
     if G.equal new_xg old_xg then () 
-(*
-    else let (new_value,delay,gas) = if G.leq d old_value then
-             if gas > 0 then (G.narrow old_value d,delay,gas-1)
-             else (old_value,delay,0)
-           else if delay > 0 then (G.join old_value d,delay-1,gas)
-           else (G.widen old_value (G.join old_value d), 0, gas) in
- *)  
     else
       let _ = OM.replace from sx (new_xg,delay,gas,narrow) in
       let new_g = get_global_value init from in
@@ -185,13 +174,6 @@ module FwdSolver (System: FwdGlobConstrSys) = struct
     let (old_xy,delay,gas,narrow) = get_old_local_value x loc_from in
     let (new_xy,delay,gas,narrow) = lwarrow (old_xy,delay,gas,narrow) d in
     if D.equal new_xy old_xy then ()
-    (*
-    else let (new_value,delay,gas) = if D.leq d old_value then
-             if gas > 0 then (D.narrow old_value d,delay,gas-1)
-             else (old_value,delay,0)
-           else if delay > 0 then (D.join old_value d,delay-1,gas)
-           else (D.widen old_value (D.join old_value d), 0, gas) in
-    *)
     else
       let _ = LM.replace loc_from x (new_xy,delay,gas,narrow) in
       let new_y = get_local_value loc_init loc_from in
@@ -219,7 +201,6 @@ module FwdSolver (System: FwdGlobConstrSys) = struct
     let _ = GM.iter (set_global x) tau in
     let _ = LM.iter (set_local x) sigma in
     ()
-
 
   (* ... now the main solver loop ... *)
 
