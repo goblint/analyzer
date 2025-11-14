@@ -415,7 +415,14 @@ struct
     in
     match file with
     | Some fn ->
-      let v = Yojson.Safe.from_channel % BatIO.to_input_channel |> File.with_file_in (Fpath.to_string fn) in
+      let v =
+        let ic = Stdlib.open_in (Fpath.to_string fn) in
+        Fun.protect ~finally:(fun () ->
+            Stdlib.close_in ic
+          ) (fun () ->
+            Yojson.Safe.from_channel ic
+          )
+      in
       merge v;
       if Goblint_tracing.tracing then Goblint_tracing.trace "conf" "Merging with '%a', resulting\n%a." GobFpath.pretty fn GobYojson.pretty !json_conf
     | None -> raise (Sys_error (Printf.sprintf "%s: No such file or directory" (Fpath.to_string fn)))
