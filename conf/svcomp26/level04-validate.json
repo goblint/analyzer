@@ -72,13 +72,5 @@
   },
   "exp": {
     "unrolling-factor": 4
-  },
-  "witness": {
-    "yaml": {
-      "entry-types": [
-        "invariant_set"
-      ],
-      "invariant-types": []
-    }
   }
 }
