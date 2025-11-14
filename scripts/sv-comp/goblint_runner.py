@@ -59,6 +59,7 @@ class GoblintRunner:
                 if verdict == "unknown":
                     continue_portfolio = continue_portfolio or decoded_line.startswith("SV-COMP result: unknown")
         process.wait()
+        print(flush=True) # flush output from this run before logging about starting of the next run
         # handle the returncode:
         if process.returncode != 0 and not continue_portfolio:
             if process.returncode== -11:
