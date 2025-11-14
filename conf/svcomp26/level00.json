@@ -1,12 +1,7 @@
 {
   "ana": {
-    "sv-comp": {
-      "enabled": true,
-      "functions": true
-    },
     "int": {
-      "def_exc": true,
-        "enums": false
+      "enums": false
     },
     "float": {
       "interval": false,
@@ -30,7 +25,9 @@
       "region",
       "thread",
       "threadJoins",
-        "abortUnless"
+      "abortUnless",
+      "mutexGhosts",
+      "pthreadMutexType"
     ],
     "path_sens": [
       "mutex",
@@ -39,10 +36,9 @@
       "expsplit",
       "activeSetjmp",
       "memLeak",
-        "threadflag"
+      "threadflag"
     ],
     "context": {
-      "widen": false,
       "gas_value": 30
     },
     "base": {
@@ -50,12 +46,7 @@
         "domain": "partitioned"
       }
     },
-    "race": {
-      "free": false,
-      "call": false
-    },
     "autotune": {
-      "enabled": true,
       "activated": [
         "reduceAnalyses",
         "mallocWrappers",
@@ -68,42 +59,5 @@
         "tmpSpecialAnalysis"
       ]
     }
-  },
-  "exp": {
-    "region-offsets": true
-  },
-  "solver": "td3",
-  "sem": {
-    "unknown_function": {
-      "spawn": false
-    },
-    "int": {
-      "signed_overflow": "assume_none"
-    },
-    "null-pointer": {
-      "dereference": "assume_none"
-    }
-  },
-  "witness": {
-    "yaml": {
-      "enabled": true,
-      "format-version": "2.0",
-      "entry-types": [
-        "invariant_set"
-      ],
-      "invariant-types": [
-        "loop_invariant"
-      ]
-    },
-    "invariant": {
-      "loop-head": true,
-      "after-lock": false,
-      "other": false,
-      "accessed": false,
-      "exact": true
-    }
-  },
-  "pre": {
-    "enabled": false
   }
 }

@@ -214,7 +214,7 @@ let enableAnalyses reason description analyses =
 (*escape is also still enabled, because otherwise we get a warning*)
 (*does not consider dynamic calls!*)
 let notNeccessaryRaceAnalyses = ["race"; "symb_locks"; "region"]
-let notNeccessaryThreadAnalyses = notNeccessaryRaceAnalyses @ ["deadlock"; "maylocks"; "thread"; "threadid"; "threadJoins"; "threadreturn"; "mhp"; "pthreadMutexType"]
+let notNeccessaryThreadAnalyses = notNeccessaryRaceAnalyses @ ["deadlock"; "maylocks"; "thread"; "threadid"; "threadJoins"; "threadreturn"; "mhp"; "pthreadMutexType"; "mutexGhosts"]
 
 let hasSpec spec = List.mem spec (Svcomp.Specification.of_option ())
 
