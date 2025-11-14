@@ -160,7 +160,7 @@ With diff-box:
   [Warning][Deadcode][CWE-571] condition '1' (possibly inserted by CIL) is always true (52-queuesize.c:56:10-56:11)
   [Warning][Deadcode][CWE-571] condition '1' (possibly inserted by CIL) is always true (52-queuesize.c:78:12-78:13)
   [Info][Witness] witness generation summary:
-    location invariants: 6
+    location invariants: 4
     loop invariants: 0
     flow-insensitive invariants: 0
     total generation entries: 1
@@ -170,6 +170,7 @@ With diff-box:
     unsafe: 0
     total memory locations: 3
 
+TODO: Should (long long )free >= 0LL somehow still remain, because it cannot be inferred by box alone?
   $ yamlWitnessStrip < witness.yml | tee witness-enable-diff-box.yml
   - entry_type: invariant_set
     content:
@@ -189,15 +190,6 @@ With diff-box:
           line: 15
           column: 3
           function: pop
-        value: (long long )free >= 0LL
-        format: c_expression
-    - invariant:
-        type: location_invariant
-        location:
-          file_name: 52-queuesize.c
-          line: 15
-          column: 3
-          function: pop
         value: (long long )used + (long long )free == (long long )capacity
         format: c_expression
     - invariant:
@@ -208,15 +200,6 @@ With diff-box:
           column: 3
           function: push
         value: (long long )capacity >= (long long )free
-        format: c_expression
-    - invariant:
-        type: location_invariant
-        location:
-          file_name: 52-queuesize.c
-          line: 36
-          column: 3
-          function: push
-        value: (long long )free >= 0LL
         format: c_expression
     - invariant:
         type: location_invariant
@@ -245,9 +228,27 @@ Compare witnesses:
       type: location_invariant
       location:
         file_name: 52-queuesize.c
+        line: 36
+        column: 3
+        function: push
+      value: (long long )free >= 0LL
+      format: c_expression
+  - invariant:
+      type: location_invariant
+      location:
+        file_name: 52-queuesize.c
         line: 15
         column: 3
         function: pop
       value: 2147483647LL >= (long long )capacity
+      format: c_expression
+  - invariant:
+      type: location_invariant
+      location:
+        file_name: 52-queuesize.c
+        line: 15
+        column: 3
+        function: pop
+      value: (long long )free >= 0LL
       format: c_expression
   ---

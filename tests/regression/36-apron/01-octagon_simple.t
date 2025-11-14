@@ -196,7 +196,7 @@ With diff-box:
   [Warning][Deadcode][CWE-571] condition '1' (possibly inserted by CIL) is always true (01-octagon_simple.c:44:10-44:11)
   [Info][Witness] witness generation summary:
     location invariants: 0
-    loop invariants: 6
+    loop invariants: 2
     flow-insensitive invariants: 0
     total generation entries: 1
 
@@ -216,52 +216,34 @@ With diff-box:
         type: loop_invariant
         location:
           file_name: 01-octagon_simple.c
-          line: 10
-          column: 3
-          function: main
-        value: 2147483647LL >= (long long )X
-        format: c_expression
-    - invariant:
-        type: loop_invariant
-        location:
-          file_name: 01-octagon_simple.c
-          line: 10
-          column: 3
-          function: main
-        value: 4294967294LL >= (long long )X + (long long )N
-        format: c_expression
-    - invariant:
-        type: loop_invariant
-        location:
-          file_name: 01-octagon_simple.c
           line: 44
           column: 3
           function: two
         value: (long long )N >= (long long )X
-        format: c_expression
-    - invariant:
-        type: loop_invariant
-        location:
-          file_name: 01-octagon_simple.c
-          line: 44
-          column: 3
-          function: two
-        value: 2147483647LL >= (long long )X
-        format: c_expression
-    - invariant:
-        type: loop_invariant
-        location:
-          file_name: 01-octagon_simple.c
-          line: 44
-          column: 3
-          function: two
-        value: 4294967294LL >= (long long )X + (long long )N
         format: c_expression
 
 Compare witnesses:
 
   $ yamlWitnessStripDiff witness-disable-diff-box.yml witness-enable-diff-box.yml
   # Left-only invariants:
+  - invariant:
+      type: loop_invariant
+      location:
+        file_name: 01-octagon_simple.c
+        line: 44
+        column: 3
+        function: two
+      value: 4294967294LL >= (long long )X + (long long )N
+      format: c_expression
+  - invariant:
+      type: loop_invariant
+      location:
+        file_name: 01-octagon_simple.c
+        line: 44
+        column: 3
+        function: two
+      value: 2147483647LL >= (long long )X
+      format: c_expression
   - invariant:
       type: loop_invariant
       location:
@@ -306,6 +288,24 @@ Compare witnesses:
         column: 3
         function: two
       value: (long long )N >= 0LL
+      format: c_expression
+  - invariant:
+      type: loop_invariant
+      location:
+        file_name: 01-octagon_simple.c
+        line: 10
+        column: 3
+        function: main
+      value: 4294967294LL >= (long long )X + (long long )N
+      format: c_expression
+  - invariant:
+      type: loop_invariant
+      location:
+        file_name: 01-octagon_simple.c
+        line: 10
+        column: 3
+        function: main
+      value: 2147483647LL >= (long long )X
       format: c_expression
   - invariant:
       type: loop_invariant
