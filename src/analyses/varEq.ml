@@ -28,7 +28,7 @@ struct
           if B.mem MyCFG.unknown_exp s then
             a
           else (
-            let s' = B.filter (fun x -> not (InvariantCil.exp_contains_tmp x) && InvariantCil.exp_is_in_scope scope x && not (is_str_constant x)) s in
+            let s' = B.filter (fun x -> InvariantCil.exp_is_suitable ~scope x && not (is_str_constant x)) s in
             if B.cardinal s' >= 2 then (
               (* instead of returning quadratically many pairwise equalities from a cluster,
                  output linear number of equalities with just one expression *)

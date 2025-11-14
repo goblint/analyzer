@@ -90,6 +90,14 @@ let exp_contains_tmp e =
   ignore (visitCilExpr visitor e);
   !acc
 
+
+let var_is_suitable ?scope v =
+  not (var_is_tmp v) && GobOption.for_all (fun scope -> var_is_in_scope scope v) scope
+
+let exp_is_suitable ?scope e =
+  not (exp_contains_tmp e) && GobOption.for_all (fun scope -> exp_is_in_scope scope e) scope
+
+
 class exp_contains_anon_type_visitor = object
   inherit nopCilVisitor
   method! vtype (t: typ) =
