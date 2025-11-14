@@ -30,7 +30,9 @@
       "region",
       "thread",
       "threadJoins",
-      "abortUnless"
+      "abortUnless",
+      "mutexGhosts",
+      "pthreadMutexType"
     ],
     "path_sens": [
       "mutex",

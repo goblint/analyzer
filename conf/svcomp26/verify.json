@@ -4,17 +4,20 @@
       "enabled": true,
       "sv-comp-true-only": false,
       "entry-types": [
-        "invariant_set"
+        "invariant_set",
+        "ghost_instrumentation"
       ],
       "invariant-types": [
-        "loop_invariant"
+        "loop_invariant",
+        "flow_insensitive_invariant"
       ]
     },
     "invariant": {
       "after-lock": false,
-      "other": false,
+      "other": true,
       "accessed": false,
-      "exact": true
+      "exact": true,
+      "flow_insensitive-as": "invariant_set-location_invariant"
     }
   }
 }

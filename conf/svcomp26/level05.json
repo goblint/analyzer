@@ -30,6 +30,8 @@
       "thread",
       "threadJoins",
       "abortUnless",
+      "mutexGhosts",
+      "pthreadMutexType",
       "apron"
     ],
     "apron": {
