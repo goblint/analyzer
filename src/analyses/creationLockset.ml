@@ -39,21 +39,15 @@ module CreationLocksetSpec = struct
   let threadspawn man ~multiple lval f args fman =
     let ask = Analyses.ask_of_man man in
     let tid_lifted = ask.f Queries.CurrentThreadId in
-    match tid_lifted with
-    | `Top | `Bot -> ()
-    | `Lifted tid ->
-      let child_ask = Analyses.ask_of_man fman in
-      let child_tid_lifted = child_ask.f Queries.CurrentThreadId in
-      (match child_tid_lifted with
-       | `Top | `Bot -> ()
-       | `Lifted child_tid ->
-         let lockset = ask.f Queries.MustLockset in
-         (* contribution (t_1, l) to global of t_0 for all l in L: *)
-         (* TODO also register for transitive descendants of t_1! *)
-         (* let contribute_lock lock = man.sideg child_tid (G.singleton (tid, lock)) in *)
-         LockDomain.MustLockset.iter
-           (fun l -> contribute_lock man tid l child_tid)
-           lockset)
+    let child_ask = Analyses.ask_of_man fman in
+    let child_tid_lifted = child_ask.f Queries.CurrentThreadId in
+    match tid_lifted, child_tid_lifted with
+    | `Lifted tid, `Lifted child_tid ->
+      let lockset = ask.f Queries.MustLockset in
+      (* contribution (t_1, l) to global of t_0 for all l in L: *)
+      (* TODO also register for transitive descendants of t_1! *)
+      LockDomain.MustLockset.iter (fun l -> contribute_lock man tid l child_tid) lockset
+    | _ -> (* deal with top or bottom? *) ()
   ;;
   (* TODO: consider edge cases (most likely in creation lockset analysis)!
      - `ana.threads.include-node` is false. Two threads created with different locksets may have the same id that way!
