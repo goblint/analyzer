@@ -49,10 +49,22 @@ module CreationLocksetSpec = struct
       LockDomain.MustLockset.iter (fun l -> contribute_lock man tid l child_tid) lockset
     | _ -> (* deal with top or bottom? *) ()
   ;;
+
   (* TODO: consider edge cases (most likely in creation lockset analysis)!
      - `ana.threads.include-node` is false. Two threads created with different locksets may have the same id that way!
      - child thread is not unique and thus could also ancestor of ego thread. In this case, it can also be created with a different lockset!
      - more? *)
+
+  let query man (type a) (x : a Queries.t) : a Queries.result =
+    match x with
+    | Queries.MayCreationLockset ->
+      let ask = Analyses.ask_of_man man in
+      let tid_lifted = ask.f Queries.CurrentThreadId in
+      (match tid_lifted with
+       | `Lifted tid -> (man.global tid : G.t)
+       | _ -> G.top ())
+    | _ -> Queries.Result.top x
+  ;;
 end
 
 module TaintedCreationLocksetSpec = struct
