@@ -90,9 +90,9 @@ module TaintedCreationLocksetSpec = struct
   let name () = "taintedCreationLockset"
 
   (** stolen from mutexGhost.ml. TODO Maybe add to library? *)
-  let mustlock_of_addr (addr : LockDomain.Addr.t) : LockDomain.MustLock.t option =
+  let mustlock_of_addr (addr : LockDomain.Addr.t) : LID.t option =
     match addr with
-    | Addr mv when LockDomain.Mval.is_definite mv -> Some (LockDomain.MustLock.of_mval mv)
+    | Addr mv when LockDomain.Mval.is_definite mv -> Some (LID.of_mval mv)
     | _ -> None
   ;;
 
@@ -106,14 +106,12 @@ module TaintedCreationLocksetSpec = struct
        | `Lifted tid ->
          let may_created_tids = ask.f Queries.CreatedThreads in
          let must_joined_tids = ask.f Queries.MustJoinedThreads in
-         let possibly_running_tids =
-           ConcDomain.ThreadSet.diff may_created_tids must_joined_tids
-         in
+         let possibly_running_tids = TIDs.diff may_created_tids must_joined_tids in
          let lock_opt = mustlock_of_addr addr in
          (match lock_opt with
           | Some lock ->
             (* contribute for all possibly_running_tids: (tid, lock) *)
-            ConcDomain.ThreadSet.iter (contribute_lock man tid lock) possibly_running_tids
+            TIDs.iter (contribute_lock man tid lock) possibly_running_tids
           | None ->
             (* TODO any lock could have been unlocked. Contribute for all possibly_running_tids their full CreationLocksets to invalidate them!! *)
             ()))
