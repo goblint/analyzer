@@ -1,4 +1,11 @@
 {
+  "ana": {
+    "apron": {
+      "invariant": {
+        "diff-box": true
+      }
+    }
+  },
   "witness": {
     "yaml": {
       "enabled": true,
