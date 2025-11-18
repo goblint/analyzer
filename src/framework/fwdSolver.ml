@@ -56,7 +56,7 @@ module FwdSolver (System: FwdGlobConstrSys) = struct
       let _ = work := (xs,s) in
       Some x
 
-  type glob = {value : G.t; init : G.t;  infl : System.LVar.t list; from : (G.t * int * int * bool) OM.t}
+  type glob = {value : G.t; init : G.t;  infl : LS.t; from : (G.t * int * int * bool) OM.t}
        (*
           now table from with widening delay and narrowing gas to ensure termination
        *)
@@ -68,7 +68,7 @@ module FwdSolver (System: FwdGlobConstrSys) = struct
   let get_global_ref g =
     try GM.find glob g
     with _ ->
-      (let rglob = {value = G.bot (); init = G.bot (); infl = []; from = OM.create 10} in
+      (let rglob = {value = G.bot (); init = G.bot (); infl = LS.empty; from = OM.create 10} in
        GM.add glob g rglob;
        rglob
       )
@@ -77,7 +77,7 @@ module FwdSolver (System: FwdGlobConstrSys) = struct
     GM.add glob g {
       value = d;
       init = d;
-      infl = [];
+      infl = LS.empty;
       from = OM.create 10
     }
 
@@ -95,7 +95,8 @@ module FwdSolver (System: FwdGlobConstrSys) = struct
 
   let get_global x g =
     let rglob = get_global_ref g in
-    GM.replace glob g { rglob with infl = x::rglob.infl }; (* ensure the global is in the hashtable *)
+    GM.replace glob g { rglob with infl = LS.add x rglob.infl }; 
+    (* ensure the global is in the hashtable *)
     rglob.value
 
   let set_global x g d =
@@ -115,8 +116,8 @@ module FwdSolver (System: FwdGlobConstrSys) = struct
       if G.equal value new_g then
         ()
       else
-        let _ = List.iter add_work infl in
-        GM.replace glob g {value = new_g; init = init; infl = []; from}
+        let _ = LS.iter add_work infl in
+        GM.replace glob g {value = new_g; init = init; infl = LS.empty; from}
 
   type loc = {loc_value : D.t; loc_init : D.t; loc_infl: System.LVar.t list; loc_from : (D.t * int * int * bool) LM.t}
   (*
@@ -272,7 +273,7 @@ module FwdSolver (System: FwdGlobConstrSys) = struct
           if GM.mem tau_out g then ()
           else (
             GM.add tau_out g value;
-            List.iter add_work infl
+            LS.iter add_work infl
           )
         else (
           Logs.error "Fixpoint not reached for global %a\n Side from %a is %a \n Solver Computed %a\n Diff is %a" System.GVar.pretty_trace g System.LVar.pretty_trace x G.pretty d G.pretty value G.pretty_diff (d,value);
@@ -280,7 +281,7 @@ module FwdSolver (System: FwdGlobConstrSys) = struct
           if GM.mem tau_out g then ()
           else (
             GM.add tau_out g value;
-            List.iter add_work infl
+            LS.iter add_work infl
           )
         ) in
 
