@@ -88,7 +88,6 @@ module TaintedCreationLocksetSpec = struct
   include AncestorLocksetSpec
 
   let name () = "taintedCreationLockset"
-  let eval_exp_addr (a : Queries.ask) exp = a.f (Queries.MayPointTo exp)
 
   (** stolen from mutexGhost.ml. TODO Maybe add to library? *)
   let mustlock_of_addr (addr : LockDomain.Addr.t) : LockDomain.MustLock.t option =
