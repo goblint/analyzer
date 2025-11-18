@@ -3,7 +3,9 @@ module LF = LibraryFunctions
 
 (* TODO use ThreadLifted instead? Are Top or Bot relevant *)
 module TID = ThreadIdDomain.Thread
+module TIDs = ConcDomain.ThreadSet
 module LID = LockDomain.MustLock
+module LIDs = LockDomain.MustLockset
 
 module AncestorLocksetSpec = struct
   include IdentityUnitContextsSpec (* no context necessary(?) *)
@@ -22,6 +24,21 @@ module AncestorLocksetSpec = struct
 
   let contribute_lock man tid lock child_tid =
     man.sideg child_tid (G.singleton (tid, lock))
+  ;;
+
+  (** compute [tids] \times \{[lock]\} *)
+  let singleton_cartesian_prod tids lock =
+    TIDs.fold (fun tid acc -> G.add (tid, lock) acc) tids (G.empty ())
+  ;;
+
+  (** compute the cartesian product [tids] \times [locks] *)
+  let cartesian_prod tids locks =
+    LIDs.fold
+      (fun lock acc ->
+         let tids_times_lock = singleton_cartesian_prod tids lock in
+         G.union tids_times_lock acc)
+      locks
+      (G.empty ())
   ;;
 end
 
@@ -44,9 +61,9 @@ module CreationLocksetSpec = struct
     match tid_lifted, child_tid_lifted with
     | `Lifted tid, `Lifted child_tid ->
       let lockset = ask.f Queries.MustLockset in
-      (* contribution (t_1, l) to global of t_0 for all l in L: *)
+      let to_contribute = cartesian_prod (TIDs.singleton tid) lockset in
+      man.sideg child_tid to_contribute
       (* TODO also register for transitive descendants of t_1! *)
-      LockDomain.MustLockset.iter (fun l -> contribute_lock man tid l child_tid) lockset
     | _ -> (* deal with top or bottom? *) ()
   ;;
 
