@@ -62,7 +62,6 @@
         "noRecursiveIntervals",
         "enums",
         "congruence",
-        "octagon",
         "wideningThresholds",
         "loopUnrollHeuristic",
         "memsafetySpecification",

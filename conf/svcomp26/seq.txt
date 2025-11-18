@@ -5,9 +5,9 @@
 --conf conf/svcomp26/common.json --conf conf/svcomp26/verify.json --conf conf/svcomp26/level00.json
 # standard run based on svcomp 25 settings, but with context gas
 --conf conf/svcomp26/common.json --conf conf/svcomp26/verify.json --conf conf/svcomp26/level01.json
-# apron/affeq run with enums,congruence, bitfield and sets for structs, sporting (side_)widen_gas 30
---conf conf/svcomp26/common.json --conf conf/svcomp26/verify.json --conf conf/svcomp26/level02.json
 # apron/affeq run with enums,congruence, bitfield and sets for structs, sporting (side_)widen_gas 30, no autotuner for apron
+--conf conf/svcomp26/common.json --conf conf/svcomp26/verify.json --conf conf/svcomp26/level02.json
+# apron/affeq run with enums,congruence, bitfield and sets for structs, sporting (side_)widen_gas 30, no autotuner for apron, branchset-sensitive
 --conf conf/svcomp26/common.json --conf conf/svcomp26/verify.json --conf conf/svcomp26/level03.json
 # base-pathsensitive run
 --conf conf/svcomp26/common.json --conf conf/svcomp26/verify.json --conf conf/svcomp26/level04.json

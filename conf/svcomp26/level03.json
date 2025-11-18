@@ -33,7 +33,8 @@
       "mutexGhosts",
       "pthreadMutexType",
       "affeq",
-      "apron"
+      "apron",
+      "branchSet"
     ],
     "apron": {
       "domain": "octagon"
@@ -45,7 +46,8 @@
       "expsplit",
       "activeSetjmp",
       "memLeak",
-      "threadflag"
+      "threadflag",
+      "branchSet"
     ],
     "base": {
       "arrays": {
