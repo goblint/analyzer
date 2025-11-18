@@ -20,15 +20,18 @@ module FwdBuSolver (System: FwdGlobConstrSys) = struct
   module OM = Hashtbl.Make(Node)
   let source = System.LVar.node
 *)
-  let gas_default = ref (10,3)
+  let gas_default = ref (0, 0)
 
   let lwarrow (a,delay,gas,narrow) b =
     let (delay0,_) = !gas_default in
     if D.equal a b then (a,delay,gas,narrow)
     else if D.leq b a then
-      if narrow then (D.narrow a b,delay,gas,true)
-      else if gas<=0 then (a,delay,gas,false)
-      else (D.narrow a b, delay,gas-1,true)
+      (
+        if tracing then trace "bunarrow" "Narrowing: %b" narrow; 
+        if narrow then (D.narrow a b,delay,gas,true)
+        else if gas<=0 then (a,delay,gas,false)
+        else (D.narrow a b, delay,gas-1,true)
+      )
     else if narrow then (D.join a b,delay0,gas,false)
     else if delay <= 0 then (D.widen a (D.join a b),0,gas,false)
     else (D.join a b, delay-1,gas,false)
@@ -72,9 +75,11 @@ module FwdBuSolver (System: FwdGlobConstrSys) = struct
   let get_global_ref g =
     try GM.find glob g
     with _ ->
-      (let rglob = {value = G.bot (); init = G.bot (); infl = []; from = OM.create 10} in
-       GM.add glob g rglob;
-       rglob
+      (
+        if tracing then trace "unknownsize" "Number of globals so far: %d" (GM.length glob);
+        let rglob = {value = G.bot (); init = G.bot (); infl = []; from = OM.create 10} in
+        GM.add glob g rglob;
+        rglob
       )
 
   let init_global (g, d) =
@@ -117,11 +122,13 @@ module FwdBuSolver (System: FwdGlobConstrSys) = struct
   let get_local_ref x =
     try LM.find loc x
     with _ ->
-      (let rloc = {loc_value = D.bot (); loc_init = D.bot (); 
-                   called = ref false; aborted = ref false;
-                   loc_from = LM.create 10} in
-       LM.add loc x rloc;
-       rloc)
+      (
+        if tracing then trace "unknownsize" "Number of locals so far: %d" (LM.length loc);
+        let rloc = {loc_value = D.bot (); loc_init = D.bot (); 
+                    called = ref false; aborted = ref false;
+                    loc_from = LM.create 10} in
+        LM.add loc x rloc;
+        rloc)
 
   let init_local (x, d) =
     LM.add loc x {
@@ -152,24 +159,35 @@ module FwdBuSolver (System: FwdGlobConstrSys) = struct
         reconstructs value of g from contributions;
         propagates infl and updates value - if value has changed
 *)
-    in if tracing then trace "set_global" "set_global %a %a" System.GVar.pretty_trace g G.pretty d;
+    in 
+    (* if tracing then trace "set_global" "set_global: \n From: %a \nOn:%a \n Value: %a" System.LVar.pretty_trace x System.GVar.pretty_trace g G.pretty d; *)
     let {value;init;infl;from} = get_global_ref g in
     let (old_xg,delay,gas,narrow) = get_old_global_value sx from in
     let (new_xg,delay,gas,narrow) = gwarrow (old_xg,delay,gas,narrow) d in
-    if G.equal new_xg old_xg then () 
-    else 
-      let _ = OM.replace from sx (new_xg,delay,gas,narrow) in
-      let new_g = get_global_value init from in
-      if G.equal value new_g then
-        ()
-      else
-        let work = infl in
-        let _ = GM.replace glob g {value = new_g; init = init; infl = []; from} in
-        let doit x = 
-          let r = get_local_ref x in
-          if !(r.called) then r.aborted := true
-          else iterate x in
-        List.iter doit work 
+    if G.equal new_xg old_xg then (
+      if tracing then trace "set_globalc" "no change!"
+    ) 
+    else
+      begin
+        if tracing then trace "set_globalc" "new contribution registered!";
+        let _ = OM.replace from sx (new_xg,delay,gas,narrow) in
+        let new_g = get_global_value init from in
+        if G.equal value new_g then
+          ()
+        else
+          let work = infl in
+          let _ = GM.replace glob g {value = new_g; init = init; infl = []; from} in
+          let doit x = 
+            let r = get_local_ref x in
+            if !(r.called) then r.aborted := true
+            else (
+              if tracing then trace "iter" "set_global caused iter\n By: %a\nLocal:%a" System.GVar.pretty_trace g System.LVar.pretty_trace x;
+              iterate x 
+            )
+          in
+          if tracing then trace "iter" "Size of work: %d" (List.length work);
+          List.iter doit work 
+      end
 
   and set_local x y d =
     (*
@@ -187,10 +205,10 @@ module FwdBuSolver (System: FwdGlobConstrSys) = struct
       else (d,delay,gas,narrow) in
     if D.equal new_xy old_xy then (
       (* If value of x has not changed, nothing to do *)
-      if tracing then trace "set_local" "no change in set_local from %a" System.LVar.pretty_trace x;
+      if tracing then trace "set_localc" "no change";
     )
     else (
-      (* if tracing then trace "set_local" "new contribution %a" D.pretty new_value; *)
+      if tracing then trace "set_localc" "new contribution";
       LM.replace loc_from x (new_xy,delay,gas,narrow);
       let new_y = get_local_value loc_init loc_from in
       if tracing then trace "set_local" "new value for %a is %a" System.LVar.pretty_trace y D.pretty new_y;
@@ -206,6 +224,7 @@ module FwdBuSolver (System: FwdGlobConstrSys) = struct
         )
         else (
           if tracing then trace "set_local" "starting iteration on %a" System.LVar.pretty_trace y;
+          if tracing then trace "iter" "set_local caused iter";
           iterate y 
         )
       )
@@ -236,9 +255,9 @@ module FwdBuSolver (System: FwdGlobConstrSys) = struct
 *)
 
   and iterate x = 
-    if tracing then trace "iter" "iterate %a" System.LVar.pretty_trace x;
+    (* if tracing then trace "iter" "iterate %a" System.LVar.pretty_trace x; *)
     let rloc = get_local_ref x in
-    if tracing then trace "iter" "current value: %a" D.pretty rloc.loc_value;
+    (* if tracing then trace "iter" "current value: %a" D.pretty rloc.loc_value; *)
     let _ = rloc.called := true in
     let _ = rloc.aborted := false in
     match System.system x with
@@ -246,8 +265,13 @@ module FwdBuSolver (System: FwdGlobConstrSys) = struct
     | Some f ->
       let _ = wrap (x,f) rloc.loc_value in
       let _ = rloc.called := false in
-      if !(rloc.aborted) then iterate x
-      else ()
+      if !(rloc.aborted) then (
+        if tracing then trace "iter" "re-iter";
+        iterate x;
+      )
+      else (
+        (* if tracing then trace "iter" "done iterating"; *)
+      )
 
   (* ... now the main solver loop ... *)
 
@@ -255,7 +279,10 @@ module FwdBuSolver (System: FwdGlobConstrSys) = struct
     if tracing then trace "solver" "Starting bottom-up fixpoint iteration";
     List.iter init_local localinit;
     List.iter init_global globalinit;
-    List.iter iterate xs;
+    let toplevel_iterate x =
+      if tracing then trace "iter" "Toplevel iterate on %a" System.LVar.pretty_trace x;
+      iterate x in
+    List.iter toplevel_iterate xs;
     let sigma = LM.to_seq loc |> Seq.map (fun (k,l) -> (k,l.loc_value)) in
     let tau = GM.to_seq glob |> Seq.map (fun (k,l) -> (k,l.value)) in
     (sigma,tau)
