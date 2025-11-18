@@ -112,7 +112,7 @@ module TaintedCreationLocksetSpec = struct
          let lock_opt = mustlock_of_addr addr in
          (match lock_opt with
           | Some lock ->
-            (* contribute possibly_running_tids \times \{lock\} *)
+            (* contribute for all possibly_running_tids: (tid, lock) *)
             ConcDomain.ThreadSet.iter (contribute_lock man tid lock) possibly_running_tids
           | None ->
             (* TODO any lock could have been unlocked. Contribute for all possibly_running_tids their full CreationLocksets to invalidate them!! *)
