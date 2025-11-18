@@ -89,6 +89,16 @@ module TaintedCreationLocksetSpec = struct
 
   let name () = "taintedCreationLockset"
 
+  (** compute all threads that may run along with the ego thread at a program point
+      @param ask ask of ego thread at the program point
+  *)
+  let get_possibly_running_tids (ask : Queries.ask) =
+    let may_created_tids = ask.f Queries.CreatedThreads in
+    (* TODO also consider transitive descendants of may_created_tids *)
+    let must_joined_tids = ask.f Queries.MustJoinedThreads in
+    TIDs.diff may_created_tids must_joined_tids
+  ;;
+
   (** stolen from mutexGhost.ml. TODO Maybe add to library? *)
   let mustlock_of_addr (addr : LockDomain.Addr.t) : LID.t option =
     match addr with
@@ -104,9 +114,7 @@ module TaintedCreationLocksetSpec = struct
       (match tid_lifted with
        | `Top | `Bot -> ()
        | `Lifted tid ->
-         let may_created_tids = ask.f Queries.CreatedThreads in
-         let must_joined_tids = ask.f Queries.MustJoinedThreads in
-         let possibly_running_tids = TIDs.diff may_created_tids must_joined_tids in
+         let possibly_running_tids = get_possibly_running_tids ask in
          let lock_opt = mustlock_of_addr addr in
          (match lock_opt with
           | Some lock ->
