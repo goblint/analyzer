@@ -201,6 +201,6 @@ let _ =
 
 let _ =
   MCP.register_analysis
-    ~dep:[ "threadid"; "mutex"; "threadJoins" ]
+    ~dep:[ "threadid"; "mutex"; "threadJoins"; "creationLockset" ]
     (module TaintedCreationLocksetSpec : MCPSpec)
 ;;
