@@ -139,6 +139,58 @@ module TaintedCreationLocksetSpec = struct
        | _ -> G.top ())
     | _ -> Queries.Result.top x
   ;;
+
+  module A = struct
+    (** ego tid * lockset * inter-threaded lockset *)
+    include Printable.Prod3 (TID) (LIDs) (G)
+
+    let name () = "InterThreadedLockset"
+
+    (** checks if [itls1] has a member ([tp1], [l]) such that [itls2] has a member ([tp2], [l]) with [tp1] != [tp2]
+        @param itls1 inter-threaded lockset of first thread [t1]
+        @param itls2 inter-threaded lockset of second thread [t2]
+        @returns whether [t1] and [t2] must be running mutually exclusive
+    *)
+    let both_protected_inter_threaded itls1 itls2 =
+      let itls2_has_same_lock_other_tid (tp1, l1) =
+        G.exists (fun (tp2, l2) -> l1 = l2 && tp1 <> tp2) itls2
+      in
+      G.exists itls2_has_same_lock_other_tid itls1
+    ;;
+
+    (** checks if [itls1] has a member ([tp1], [l1]) such that [l1] is in [ls2] and [tp1] != [t2]
+        @param itls1 inter-threaded lockset of thread [t1] at first program point
+        @param t2 thread id at second program point
+        @param ls2 lockset at second program point
+        @returns whether [t1] must be running mutually exclusive with second program point
+    *)
+    let one_protected_inter_threaded_other_intra_threaded itls1 t2 ls2 =
+      G.exists (fun (tp1, l1) -> LIDs.mem l1 ls2 && tp1 <> t2) itls1
+    ;;
+
+    let may_race (t1, ls1, itls1) (t2, ls2, itls2) =
+      not
+        (both_protected_inter_threaded itls1 itls2
+         || one_protected_inter_threaded_other_intra_threaded itls1 t2 ls2
+         || one_protected_inter_threaded_other_intra_threaded itls2 t1 ls1)
+    ;;
+
+    let should_print _ = true
+  end
+
+  let access man _ =
+    let ask = Analyses.ask_of_man man in
+    let tid_lifted = ask.f Queries.CurrentThreadId in
+    match tid_lifted with
+    | `Lifted tid ->
+      let lockset = ask.f Queries.MustLockset in
+      let creation_lockset = ask.f Queries.MayCreationLockset in
+      let tainted_creation_lockset = man.global tid in
+      (* all values in creation lockset, but not in tainted creation lockset *)
+      let inter_threaded_lockset = G.diff creation_lockset tainted_creation_lockset in
+      tid, lockset, inter_threaded_lockset
+    | _ -> ThreadIdDomain.UnknownThread, LIDs.empty (), G.empty ()
+  ;;
 end
 
 let _ =
