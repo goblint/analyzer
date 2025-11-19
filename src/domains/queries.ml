@@ -77,7 +77,7 @@ type invariant_context = Invariant.context = {
 
 module YS = SetDomain.ToppedSet (YamlWitnessType.Entry) (struct let topname = "Top" end)
 
-module ALS = SetDomain.Make (Printable.Prod (ThreadIdDomain.Thread) (LockDomain.MustLock))
+module ALS = SetDomain.ToppedSet (Printable.Prod (ThreadIdDomain.Thread) (LockDomain.MustLock)) (struct let topname = "all pairs of threads and locks" end)
 
 (** GADT for queries with specific result type. *)
 type _ t =

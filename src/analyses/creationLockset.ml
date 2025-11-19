@@ -16,8 +16,8 @@ module AncestorLocksetSpec = struct
     include StdV
   end
 
-  module G = SetDomain.Make (Printable.Prod (TID) (LID))
-  (* 2^{T\times L}. TODO: Prod or ProdSimple? *)
+  (** 2 ^ { [TID] \times [LID] } *)
+  module G = Queries.ALS
 
   let startstate _ = D.bot ()
   let exitstate _ = D.bot ()
