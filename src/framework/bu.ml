@@ -20,7 +20,7 @@ module FwdBuSolver (System: FwdGlobConstrSys) = struct
   module OM = Hashtbl.Make(Node)
   let source = System.LVar.node
 *)
-  let gas_default = ref (0, 0)
+  let gas_default = ref (10,3)
 
   let lwarrow (a,delay,gas,narrow) b =
     let (delay0,_) = !gas_default in
@@ -66,7 +66,7 @@ module FwdBuSolver (System: FwdGlobConstrSys) = struct
       let _ = work := (xs,s) in
       Some x
 
-  type glob = {value : G.t; init : G.t;  infl : System.LVar.t list; from : (G.t * int * int * bool) OM.t}
+  type glob = {value : G.t; init : G.t;  infl : LS.t ; from : (G.t * int * int * bool) OM.t}
 
   let glob: glob GM.t = GM.create 100
 
@@ -77,7 +77,7 @@ module FwdBuSolver (System: FwdGlobConstrSys) = struct
     with _ ->
       (
         if tracing then trace "unknownsize" "Number of globals so far: %d" (GM.length glob);
-        let rglob = {value = G.bot (); init = G.bot (); infl = []; from = OM.create 10} in
+        let rglob = {value = G.bot (); init = G.bot (); infl = LS.empty; from = OM.create 10} in
         GM.add glob g rglob;
         rglob
       )
@@ -86,7 +86,7 @@ module FwdBuSolver (System: FwdGlobConstrSys) = struct
     GM.add glob g {
       value = d;
       init = d;
-      infl = [];
+      infl = LS.empty;
       from = OM.create 10
     }
 
@@ -103,7 +103,7 @@ module FwdBuSolver (System: FwdGlobConstrSys) = struct
 
   let get_global x g =
     let rglob = get_global_ref g in
-    GM.replace glob g { rglob with infl = x::rglob.infl }; (* ensure the global is in the hashtable *)
+    GM.replace glob g { rglob with infl = LS.add x rglob.infl }; (* ensure the global is in the hashtable *)
     rglob.value
 
   type loc = {loc_value : D.t; loc_init : D.t; 
@@ -176,7 +176,7 @@ module FwdBuSolver (System: FwdGlobConstrSys) = struct
           ()
         else
           let work = infl in
-          let _ = GM.replace glob g {value = new_g; init = init; infl = []; from} in
+          let _ = GM.replace glob g {value = new_g; init = init; infl = LS.empty; from} in
           let doit x = 
             let r = get_local_ref x in
             if !(r.called) then r.aborted := true
@@ -185,8 +185,10 @@ module FwdBuSolver (System: FwdGlobConstrSys) = struct
               iterate x 
             )
           in
-          if tracing then trace "iter" "Size of work: %d" (List.length work);
-          List.iter doit work 
+(*
+          if tracing then trace "iter" "Size of work: %d" (LS.seq_of work |> Seq.length);
+*)
+          LS.iter doit work 
       end
 
   and set_local x y d =
@@ -258,11 +260,11 @@ module FwdBuSolver (System: FwdGlobConstrSys) = struct
     (* if tracing then trace "iter" "iterate %a" System.LVar.pretty_trace x; *)
     let rloc = get_local_ref x in
     (* if tracing then trace "iter" "current value: %a" D.pretty rloc.loc_value; *)
-    let _ = rloc.called := true in
-    let _ = rloc.aborted := false in
     match System.system x with
     | None -> ()
     | Some f ->
+      let _ = rloc.called := true in
+      let _ = rloc.aborted := false in
       let _ = wrap (x,f) rloc.loc_value in
       let _ = rloc.called := false in
       if !(rloc.aborted) then (
@@ -327,7 +329,7 @@ module FwdBuSolver (System: FwdGlobConstrSys) = struct
           if GM.mem tau_out g then ()
           else (
             GM.add tau_out g value;
-            List.iter add_work infl
+            LS.iter add_work infl
           )
         else (
           Logs.error "Fixpoint not reached for global %a\n Side from %a is %a \n Solver Computed %a\n Diff is %a" System.GVar.pretty_trace g System.LVar.pretty_trace x G.pretty d G.pretty value G.pretty_diff (d,value);
@@ -335,7 +337,7 @@ module FwdBuSolver (System: FwdGlobConstrSys) = struct
           if GM.mem tau_out g then ()
           else (
             GM.add tau_out g value;
-            List.iter add_work infl
+            LS.iter add_work infl
           )
         ) in
 
