@@ -153,7 +153,7 @@ module TaintedCreationLocksetSpec = struct
     *)
     let both_protected_inter_threaded itls1 itls2 =
       let itls2_has_same_lock_other_tid (tp1, l1) =
-        G.exists (fun (tp2, l2) -> l1 = l2 && tp1 <> tp2) itls2
+        G.exists (fun (tp2, l2) -> LID.equal l1 l2 && (not @@ TID.equal tp1 tp2)) itls2
       in
       G.exists itls2_has_same_lock_other_tid itls1
     ;;
@@ -165,7 +165,7 @@ module TaintedCreationLocksetSpec = struct
         @returns whether [t1] must be running mutually exclusive with second program point
     *)
     let one_protected_inter_threaded_other_intra_threaded itls1 t2 ls2 =
-      G.exists (fun (tp1, l1) -> LIDs.mem l1 ls2 && tp1 <> t2) itls1
+      G.exists (fun (tp1, l1) -> LIDs.mem l1 ls2 && (not @@ TID.equal tp1 t2)) itls1
     ;;
 
     let may_race (t1, ls1, itls1) (t2, ls2, itls2) =
