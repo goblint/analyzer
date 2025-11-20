@@ -86,12 +86,7 @@ module CreationLocksetSpec = struct
 
   let query man (type a) (x : a Queries.t) : a Queries.result =
     match x with
-    | Queries.MayCreationLockset ->
-      let ask = Analyses.ask_of_man man in
-      let tid_lifted = ask.f Queries.CurrentThreadId in
-      (match tid_lifted with
-       | `Lifted tid -> (man.global tid : G.t)
-       | _ -> G.top ())
+    | Queries.MayCreationLockset tid -> (man.global tid : G.t)
     | _ -> Queries.Result.top x
   ;;
 end
@@ -139,8 +134,12 @@ module TaintedCreationLocksetSpec = struct
             let to_contribute = G.singleton (tid, lock) in
             TIDs.iter (contribute_lock man to_contribute) possibly_running_tids
           | None ->
-            (* TODO any lock could have been unlocked. Contribute for all possibly_running_tids their full CreationLocksets to invalidate them!! *)
-            ()))
+            (* any lock could have been unlocked. Contribute for all possibly_running_tids their full CreationLocksets to invalidate them!! *)
+            let contribute_creation_lockset des_tid =
+              let creation_lockset = ask.f @@ Queries.MayCreationLockset des_tid in
+              man.sideg des_tid creation_lockset
+            in
+            TIDs.iter contribute_creation_lockset possibly_running_tids))
     | _ -> ()
   ;;
 
@@ -188,7 +187,7 @@ module TaintedCreationLocksetSpec = struct
     match tid_lifted with
     | `Lifted tid ->
       let lockset = ask.f Queries.MustLockset in
-      let creation_lockset = ask.f Queries.MayCreationLockset in
+      let creation_lockset = ask.f @@ Queries.MayCreationLockset tid in
       let tainted_creation_lockset = man.global tid in
       (* all values in creation lockset, but not in tainted creation lockset *)
       let inter_threaded_lockset = G.diff creation_lockset tainted_creation_lockset in
