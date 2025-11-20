@@ -269,7 +269,7 @@ struct
           | None -> ID.bot_of @@ Cilfacade.ptrdiff_ikind ()
         end in
         let e_size = get_size_of_ptr_target man e in
-        let () = begin match e_size with
+        begin match e_size with
           | `Top ->
             (set_mem_safety_flag InvalidDeref;
              M.warn "Size of lval dereference expression %a is top. Out-of-bounds memory access may occur" d_exp e)
@@ -297,7 +297,7 @@ struct
                 (set_mem_safety_flag InvalidDeref;
                  M.warn ~category:(Behavior behavior) ~tags:[CWE cwe_number] "Could not compare size of lval dereference expression (%a) (in bytes) with offset by (%a) (in bytes). Memory out-of-bounds access might occur" ID.pretty casted_es ID.pretty casted_offs)
             end
-        end in
+        end;
         begin match e with
           | Lval (Var v, _) as lval_exp -> check_no_binop_deref man lval_exp
           | BinOp (binop, e1, e2, t) when binop = PlusPI || binop = MinusPI || binop = IndexPI ->

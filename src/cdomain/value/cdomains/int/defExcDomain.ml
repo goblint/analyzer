@@ -1,5 +1,4 @@
 open IntDomain0
-open IntervalDomain
 open GoblintCil
 
 
@@ -70,8 +69,6 @@ struct
   module S = BISet
   module R = Exclusion.R (* range for exclusion *)
 
-  (* Ikind used for intervals representing the domain *)
-  let range_ikind = Cil.IInt
   let size t = let a,b = Size.bits t in -a,b
 
 

@@ -29,7 +29,7 @@ struct
   let init _ =
     collect_local := get_bool "witness.yaml.enabled" && get_bool "witness.invariant.accessed";
     let activated = get_string_list "ana.activated" in
-    emit_single_threaded := List.mem (ModifiedSinceSetjmp.Spec.name ()) activated || List.mem (PoisonVariables.Spec.name ()) activated
+    emit_single_threaded := List.mem (ModifiedSinceSetjmp.Spec.name ()) activated || List.mem (PoisonVariables.Spec.name ()) activated || List.mem (UseAfterFree.Spec.name ()) activated (* TODO: some of these don't have access as dependency *)
 
   let do_access (man: (D.t, G.t, C.t, V.t) man) (kind:AccessKind.t) (reach:bool) (e:exp) =
     if M.tracing then M.trace "access" "do_access %a %a %B" d_exp e AccessKind.pretty kind reach;

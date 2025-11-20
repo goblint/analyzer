@@ -1,0 +1,130 @@
+{
+  "ana": {
+    "sv-comp": {
+      "enabled": true,
+      "functions": true
+    },
+    "int": {
+      "def_exc": true,
+      "enums": true,
+      "congruence": true,
+      "bitfield":true,
+      "interval": true
+    },
+    "float": {
+      "interval": true,
+      "evaluate_math_functions": true
+    },
+    "activated": [
+      "base",
+      "threadid",
+      "threadflag",
+      "threadreturn",
+      "mallocWrapper",
+      "mutexEvents",
+      "mutex",
+      "access",
+      "race",
+      "escape",
+      "expRelation",
+      "mhp",
+      "assert",
+      "var_eq",
+      "symb_locks",
+      "region",
+      "thread",
+      "threadJoins",
+      "abortUnless",
+      "affeq",
+      "apron",
+      "branchSet"
+    ],
+    "apron": {
+      "domain": "octagon"
+    },
+    "path_sens": [
+      "mutex",
+      "malloc_null",
+      "uninit",
+      "expsplit",
+      "activeSetjmp",
+      "memLeak",
+      "threadflag",
+      "branchSet"
+    ],
+    "context": {
+      "widen": false
+    },
+    "base": {
+      "arrays": {
+        "domain": "partitioned"
+      },
+      "structs": {
+        "domain": "sets"
+      }
+    },
+    "race": {
+      "free": false,
+      "call": false
+    },
+    "autotune": {
+      "enabled": true,
+      "activated": [
+        "reduceAnalyses",
+        "mallocWrappers",
+        "noRecursiveIntervals",
+        "enums",
+        "congruence",
+        "wideningThresholds",
+        "loopUnrollHeuristic",
+        "memsafetySpecification",
+        "noOverflows",
+        "termination",
+        "tmpSpecialAnalysis"
+      ]
+    }
+  },
+  "exp": {
+    "region-offsets": true
+  },
+  "solver": "td3",
+  "solvers": {
+    "td3": {
+      "widen_gas": 30,
+      "side_widen_gas": 30
+    }
+  },
+  "sem": {
+    "unknown_function": {
+      "spawn": false
+    },
+    "int": {
+      "signed_overflow": "assume_none"
+    },
+    "null-pointer": {
+      "dereference": "assume_none"
+    }
+  },
+  "witness": {
+    "yaml": {
+      "enabled": true,
+      "format-version": "2.0",
+      "entry-types": [
+        "invariant_set"
+      ],
+      "invariant-types": [
+        "loop_invariant"
+      ]
+    },
+    "invariant": {
+      "loop-head": true,
+      "after-lock": false,
+      "other": false,
+      "accessed": false,
+      "exact": true
+    }
+  },
+  "pre": {
+    "enabled": false
+  }
+}

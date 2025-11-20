@@ -2763,8 +2763,8 @@
               "title": "witness.invariant.flow_insensitive-as",
               "description": "Emit flow-insensitive invariants as location invariants at certain locations.",
               "type": "string",
-              "enum": ["flow_insensitive_invariant", "location_invariant", "invariant_set-location_invariant"],
-              "default": "flow_insensitive_invariant"
+              "enum": ["invariant_set-flow_insensitive_invariant", "invariant_set-location_invariant"],
+              "default": "invariant_set-flow_insensitive_invariant"
             }
           },
           "additionalProperties": false
@@ -2790,11 +2790,11 @@
               "description": "YAML witness format version",
               "type": "string",
               "enum": [
-                "0.1",
                 "2.0",
-                "2.1"
+                "2.1",
+                "2.1-goblint"
               ],
-              "default": "2.0"
+              "default": "2.1"
             },
             "entry-types": {
               "title": "witness.yaml.entry-types",
@@ -2803,10 +2803,6 @@
               "items": {
                 "type": "string",
                 "enum": [
-                  "location_invariant",
-                  "loop_invariant",
-                  "flow_insensitive_invariant",
-                  "precondition_loop_invariant",
                   "invariant_set",
                   "violation_sequence",
                   "ghost_instrumentation"
@@ -2824,7 +2820,8 @@
                 "type": "string",
                 "enum": [
                   "location_invariant",
-                  "loop_invariant"
+                  "loop_invariant",
+                  "flow_insensitive_invariant"
                 ]
               },
               "default": [

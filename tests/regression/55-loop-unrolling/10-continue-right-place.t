@@ -17,6 +17,7 @@
     i = 0;
     j = 10;
     {
+    __loop_condition___0: /* CIL Label */ 
     if (! (i <= 10)) {
       goto loop_end;
     }
@@ -29,6 +30,7 @@
     i ++;
     j --;
     loop_continue_0: /* CIL Label */ ;
+    __loop_condition___1: /* CIL Label */ 
     if (! (i <= 10)) {
       goto loop_end;
     }
@@ -41,6 +43,7 @@
     i ++;
     j --;
     loop_continue_1: /* CIL Label */ ;
+    __loop_condition___2: /* CIL Label */ 
     if (! (i <= 10)) {
       goto loop_end;
     }
@@ -53,6 +56,7 @@
     i ++;
     j --;
     loop_continue_2: /* CIL Label */ ;
+    __loop_condition___3: /* CIL Label */ 
     if (! (i <= 10)) {
       goto loop_end;
     }
@@ -65,6 +69,7 @@
     i ++;
     j --;
     loop_continue_3: /* CIL Label */ ;
+    __loop_condition___4: /* CIL Label */ 
     if (! (i <= 10)) {
       goto loop_end;
     }
@@ -77,6 +82,7 @@
     i ++;
     j --;
     loop_continue_4: /* CIL Label */ ;
+    __loop_condition___5: /* CIL Label */ 
     if (! (i <= 10)) {
       goto loop_end;
     }
@@ -89,6 +95,7 @@
     i ++;
     j --;
     loop_continue_5: /* CIL Label */ ;
+    __loop_condition___6: /* CIL Label */ 
     if (! (i <= 10)) {
       goto loop_end;
     }
@@ -101,6 +108,7 @@
     i ++;
     j --;
     loop_continue_6: /* CIL Label */ ;
+    __loop_condition___7: /* CIL Label */ 
     if (! (i <= 10)) {
       goto loop_end;
     }
@@ -113,6 +121,7 @@
     i ++;
     j --;
     loop_continue_7: /* CIL Label */ ;
+    __loop_condition___8: /* CIL Label */ 
     if (! (i <= 10)) {
       goto loop_end;
     }
@@ -125,6 +134,7 @@
     i ++;
     j --;
     loop_continue_8: /* CIL Label */ ;
+    __loop_condition___9: /* CIL Label */ 
     if (! (i <= 10)) {
       goto loop_end;
     }
@@ -137,6 +147,7 @@
     i ++;
     j --;
     loop_continue_9: /* CIL Label */ ;
+    __loop_condition___10: /* CIL Label */ 
     if (! (i <= 10)) {
       goto loop_end;
     }
@@ -152,6 +163,7 @@
     {
     while (1) {
       while_continue: /* CIL Label */ ;
+      __loop_condition: /* CIL Label */ 
       if (! (i <= 10)) {
         goto while_break;
       }

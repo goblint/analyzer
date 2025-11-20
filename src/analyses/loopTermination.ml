@@ -1,4 +1,6 @@
-(** Termination analysis for loops and [goto] statements ([termination]). *)
+(** Termination analysis for loops and [goto] statements ([termination]).
+
+    @see <https://theses.hal.science/tel-00288805> Halbwachs, N. Détermination automatique de relations linéaires vérifiées par les variables d’un programme. PhD thesis. Section 8.3. *)
 
 open Analyses
 open GoblintCil

@@ -1,0 +1,15 @@
+# Portfolio Configuration Sequence
+# paths are relative to analyzer base directory
+#
+# minimalist run, basically only constants/def_exc, but with context gas
+--conf conf/svcomp26/level00.json
+# standard run based on svcomp 25 settings, but with context gas
+--conf conf/svcomp26/level01.json
+# apron/affeq run with enums,congruence, bitfield and sets for structs, sporting (side_)widen_gas 30, no autotuner for apron
+--conf conf/svcomp26/level02.json
+# apron/affeq run with enums,congruence, bitfield and sets for structs, sporting (side_)widen_gas 30, no autotuner for apron, branchset-sensitive
+--conf conf/svcomp26/level03.json
+# base-pathsensitive run
+--conf conf/svcomp26/level04.json
+# polyhedra analysis
+--conf conf/svcomp26/level05.json

@@ -43,7 +43,7 @@ depends: [
   "conf-autoconf" {= "0.2"}
   "conf-findutils" {= "1"}
   "conf-gcc" {= "1.0"}
-  "conf-gmp" {= "4"}
+  "conf-gmp" {= "5"}
   "conf-gmp-paths" {= "1"}
   "conf-mpfr-paths" {= "1"}
   "conf-perl" {= "2"}
@@ -66,7 +66,7 @@ depends: [
   "fileutils" {= "0.6.4"}
   "fmt" {= "0.9.0"}
   "fpath" {= "0.7.3"}
-  "goblint-cil" {= "2.0.7"}
+  "goblint-cil" {= "2.0.8"}
   "hex" {= "1.5.0"}
   "integers" {= "0.7.0"}
   "json-data-encoding" {= "1.0.1"}
@@ -144,8 +144,8 @@ post-messages: [
 ]
 pin-depends: [
   [
-    "goblint-cil.2.0.7"
-    "git+https://github.com/goblint/cil.git#e5b6287c0c85864c6d44f7fa30d0084a3ae11d6c"
+    "goblint-cil.2.0.8"
+    "git+https://github.com/goblint/cil.git#2e076120a039b52f174fa799e65773f3a78d383c"
   ]
   [
     "apron.v0.9.15"
