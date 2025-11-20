@@ -22,9 +22,12 @@ module AncestorLocksetSpec = struct
   let startstate _ = D.bot ()
   let exitstate _ = D.bot ()
 
-  let contribute_lock man tid lock child_tid =
-    man.sideg child_tid (G.singleton (tid, lock))
-  ;;
+  (** register a contribution to a global: global.[child_tid] \supseteq [to_contribute]
+      @param man man at program point
+      @param to_contribute new edges from [child_tid] to register
+      @param child_tid
+  *)
+  let contribute_lock man to_contribute child_tid = man.sideg child_tid to_contribute
 
   (** compute [tids] \times \{[lock]\} *)
   let singleton_cartesian_prod tids lock =
@@ -39,6 +42,15 @@ module AncestorLocksetSpec = struct
          G.union tids_times_lock acc)
       locks
       (G.empty ())
+  ;;
+
+  (** reflexive-transitive closure of child relation applied to [tid]
+      @param ask any ask
+      @param tid
+  *)
+  let descendants_closure (ask : Queries.ask) tid =
+    let transitive_descendants = ask.f @@ Queries.DescendantThreads tid in
+    TIDs.add tid transitive_descendants
   ;;
 end
 
@@ -60,10 +72,10 @@ module CreationLocksetSpec = struct
     let child_tid_lifted = child_ask.f Queries.CurrentThreadId in
     match tid_lifted, child_tid_lifted with
     | `Lifted tid, `Lifted child_tid ->
+      let descendants = descendants_closure child_ask child_tid in
       let lockset = ask.f Queries.MustLockset in
       let to_contribute = cartesian_prod (TIDs.singleton tid) lockset in
-      man.sideg child_tid to_contribute
-      (* TODO also register for transitive descendants of t_1! *)
+      TIDs.iter (contribute_lock man to_contribute) descendants
     | _ -> (* deal with top or bottom? *) ()
   ;;
 
@@ -94,9 +106,14 @@ module TaintedCreationLocksetSpec = struct
   *)
   let get_possibly_running_tids (ask : Queries.ask) =
     let may_created_tids = ask.f Queries.CreatedThreads in
-    (* TODO also consider transitive descendants of may_created_tids *)
+    let may_transitively_created_tids =
+      TIDs.fold
+        (fun child_tid acc -> TIDs.union acc (descendants_closure ask child_tid))
+        may_created_tids
+        (TIDs.empty ())
+    in
     let must_joined_tids = ask.f Queries.MustJoinedThreads in
-    TIDs.diff may_created_tids must_joined_tids
+    TIDs.diff may_transitively_created_tids must_joined_tids
   ;;
 
   (** stolen from mutexGhost.ml. TODO Maybe add to library? *)
@@ -119,7 +136,8 @@ module TaintedCreationLocksetSpec = struct
          (match lock_opt with
           | Some lock ->
             (* contribute for all possibly_running_tids: (tid, lock) *)
-            TIDs.iter (contribute_lock man tid lock) possibly_running_tids
+            let to_contribute = G.singleton (tid, lock) in
+            TIDs.iter (contribute_lock man to_contribute) possibly_running_tids
           | None ->
             (* TODO any lock could have been unlocked. Contribute for all possibly_running_tids their full CreationLocksets to invalidate them!! *)
             ()))
