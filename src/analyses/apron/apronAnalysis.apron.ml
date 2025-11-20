@@ -15,7 +15,24 @@ let spec_module: (module MCPSpec) Lazy.t =
       let name () = "apron"
     end
     in
-    (module Spec)
+    let narrowing_gas = GobConfig.get_int "ana.apron.narrowing_gas" in
+    if (narrowing_gas > 0) then
+      let module Narrowed =
+      struct
+        module PolyhedraChainParams: Printable.ChainParams =
+        struct
+          let n () = narrowing_gas
+          let names = string_of_int
+        end
+        include NarrowingGas.DLifter (Spec) (PolyhedraChainParams)
+        module A = Spec.A
+        let access = Spec.access
+        let name () = "apron"
+      end
+      in
+      (module Narrowed)
+    else
+      (module Spec)
   )
 
 let get_spec (): (module MCPSpec) =
