@@ -96,6 +96,7 @@ struct
   module Sys = FwdConstraints.FromSpec (Spec) (Cfg) (Inc)
   module FwdSlvr = FwdSolver.FwdSolver (Sys)
   module BuSolver = Bu.FwdBuSolver (Sys)
+  module WBuSolver = Wbu.FwdWBuSolver (Sys)
   (* module Slvr2 = BuSlvr *)
   module GHT = BatHashtbl.Make (Sys.GVar)
 
@@ -473,8 +474,10 @@ struct
       let compare_runs = get_string_list "compare_runs" in
       let gobview = get_bool "gobview" in
       let save_run_str = let o = get_string "save_run" in if o = "" then (if gobview then "run" else "") else o in
-      let solve = if (get_string "solver" = "bu") then BuSolver.solve else FwdSlvr.solve in 
-      let check = if (get_string "solver" = "bu") then BuSolver.check else FwdSlvr.check in 
+      let solve = if (get_string "solver" = "bu") then BuSolver.solve else 
+                  if (get_string "solver" = "wbu") then WBuSolver.solve else FwdSlvr.solve in 
+      let check = if (get_string "solver" = "bu") then BuSolver.check else 
+                  if (get_string "solver" = "wbu") then WBuSolver.solve else FwdSlvr.check in 
       let _ = solve entrystates entrystates_global startvars' in
 
       AnalysisState.should_warn := true; (* reset for postsolver *)
