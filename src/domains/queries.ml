@@ -149,7 +149,6 @@ type _ t =
   | InvariantGlobalNodes: NS.t t (** Nodes where YAML witness flow-insensitive invariants should be emitted as location invariants (if [witness.invariant.flow_insensitive-as] is configured to do so). *) (* [Spec.V.t] argument (as [Obj.t]) could be added, if this should be different for different flow-insensitive invariants. *)
   | DescendantThreads: ThreadIdDomain.Thread.t -> ConcDomain.ThreadSet.t t (* TODO consider returning descendants of ego threads only? *)
   | MayCreationLockset: ALS.t t
-  | InterThreadedLockset: ALS.t t
 
 type 'a result = 'a
 
@@ -227,7 +226,6 @@ struct
     | InvariantGlobalNodes -> (module NS)
     | DescendantThreads _ -> (module ConcDomain.ThreadSet)
     | MayCreationLockset -> (module ALS)
-    | InterThreadedLockset -> (module ALS)
 
   (** Get bottom result for query. *)
   let bot (type a) (q: a t): a result =
@@ -304,7 +302,6 @@ struct
     | InvariantGlobalNodes -> NS.top ()
     | DescendantThreads _ -> ConcDomain.ThreadSet.top ()
     | MayCreationLockset -> ALS.top ()
-    | InterThreadedLockset -> ALS.top ()
 end
 
 (* The type any_query can't be directly defined in Any as t,
@@ -378,7 +375,6 @@ struct
     | Any InvariantGlobalNodes -> 63
     | Any (DescendantThreads _) -> 64
     | Any MayCreationLockset -> 65
-    | Any InterThreadedLockset -> 66
 
   let rec compare a b =
     let r = Stdlib.compare (order a) (order b) in
@@ -555,7 +551,6 @@ struct
     | Any InvariantGlobalNodes -> Pretty.dprintf "InvariantGlobalNodes"
     | Any (DescendantThreads t) -> Pretty.dprintf "DescendantThreads"
     | Any MayCreationLockset -> Pretty.dprintf "MayCreationLockset"
-    | Any InterThreadedLockset -> Pretty.dprintf "InterThreadedLockset"
 end
 
 let to_value_domain_ask (ask: ask) =

@@ -126,20 +126,6 @@ module TaintedCreationLocksetSpec = struct
     | _ -> ()
   ;;
 
-  let query man (type a) (x : a Queries.t) : a Queries.result =
-    match x with
-    | Queries.MayCreationLockset ->
-      let ask = Analyses.ask_of_man man in
-      let creation_lockset = ask.f Queries.MayCreationLockset in
-      let tid_lifted = ask.f Queries.CurrentThreadId in
-      (match tid_lifted with
-       | `Lifted tid ->
-         let tainted_creation_lockset = man.global tid in
-         G.diff creation_lockset tainted_creation_lockset
-       | _ -> G.top ())
-    | _ -> Queries.Result.top x
-  ;;
-
   module A = struct
     (** ego tid * lockset * inter-threaded lockset *)
     include Printable.Prod3 (TID) (LIDs) (G)
