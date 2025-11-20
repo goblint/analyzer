@@ -55,13 +55,20 @@ module FwdWBuSolver (System: FwdGlobConstrSys) = struct
 *)
 
   let work = ref (([] : System.LVar.t list), LS.empty)
+  let set  = ref LS.empty
 
   let add_work x = let (l,s) = !work in
     if LS.mem x s then ()
     else work := (x::l, LS.add x s)
 
-  let in_work x = let (l,s) = !work in
+  let add_set x = 
+    set := (LS.add x !set)
+
+  let in_work x = let (_,s) = !work in
     LS.mem x s
+
+  let in_set x = 
+    LS.mem x !set
 
   let rem_work () = let (l,s) = !work in
     match l with
@@ -70,6 +77,17 @@ module FwdWBuSolver (System: FwdGlobConstrSys) = struct
       let s = LS.remove x s in
       let _ = work := (xs,s) in
       Some x
+
+  let rem_set x = 
+    set := LS.remove x !set
+
+  let extract () = 
+    match LS.choose_opt !set with
+    | None -> None
+    | Some x -> (
+        set := LS.remove x !set;
+        Some x
+      )
 
   type glob = {value : G.t; init : G.t;  infl : LS.t ; from : (G.t * int * int * bool) OM.t}
 
@@ -187,7 +205,7 @@ module FwdWBuSolver (System: FwdGlobConstrSys) = struct
             if !(r.called) then r.aborted := true
             else (
               if tracing then trace "iter" "set_global caused iter\n By: %a\nLocal:%a" System.GVar.pretty_trace g System.LVar.pretty_trace x;
-              add_work x 
+              add_set x 
             )
           in
 (*
@@ -213,6 +231,10 @@ module FwdWBuSolver (System: FwdGlobConstrSys) = struct
     if D.equal new_xy old_xy then (
       (* If value of x has not changed, nothing to do *)
       if tracing then trace "set_localc" "no change";
+      if in_set y then (
+        rem_set y; iterate y
+      )
+      else ()
     )
     else (
       if tracing then trace "set_localc" "new contribution";
@@ -221,6 +243,10 @@ module FwdWBuSolver (System: FwdGlobConstrSys) = struct
       if tracing then trace "set_local" "new value for %a is %a" System.LVar.pretty_trace y D.pretty new_y;
       if D.equal loc_value new_y then (
         if tracing then trace "set_local" "no change in local %a after updating from %a" System.LVar.pretty_trace y System.LVar.pretty_trace x;
+        if in_set y then (
+        rem_set y; iterate y
+        )
+        else ()
       )
       else (
         let y_record = {y_record with loc_value = new_y} in
@@ -232,8 +258,8 @@ module FwdWBuSolver (System: FwdGlobConstrSys) = struct
         else (
           if tracing then trace "set_local" "starting iteration on %a" System.LVar.pretty_trace y;
           if tracing then trace "iter" "set_local caused iter";
-          if in_work y then ()
-          else iterate y 
+          rem_set y;
+          iterate y 
         )
       )
     )
@@ -290,7 +316,7 @@ module FwdWBuSolver (System: FwdGlobConstrSys) = struct
       iterate x in
 
     let rec doit () =
-      match rem_work () with
+      match extract () with
       | None -> ()
       | Some x -> (
           toplevel_iterate x;
@@ -300,7 +326,7 @@ module FwdWBuSolver (System: FwdGlobConstrSys) = struct
     if tracing then trace "solver" "Starting bottom-up fixpoint iteration";
     List.iter init_local localinit;
     List.iter init_global globalinit;
-    List.iter add_work xs;
+    List.iter add_set xs;
     doit ();
     let sigma = LM.to_seq loc |> Seq.map (fun (k,l) -> (k,l.loc_value)) in
     let tau = GM.to_seq glob |> Seq.map (fun (k,l) -> (k,l.value)) in
