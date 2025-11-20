@@ -34,9 +34,14 @@
       "region",
       "thread",
       "threadJoins",
-        "abortUnless",
-        "branchSet"
+      "abortUnless",
+      "affeq",
+      "apron",
+      "branchSet"
     ],
+    "apron": {
+      "domain": "octagon"
+    },
     "path_sens": [
       "mutex",
       "malloc_null",
@@ -44,8 +49,8 @@
       "expsplit",
       "activeSetjmp",
       "memLeak",
-        "threadflag",
-        "branchSet"
+      "threadflag",
+      "branchSet"
     ],
     "context": {
       "widen": false
@@ -57,7 +62,6 @@
       "structs": {
         "domain": "sets"
       }
-
     },
     "race": {
       "free": false,
@@ -71,7 +75,6 @@
         "noRecursiveIntervals",
         "enums",
         "congruence",
-        "octagon",
         "wideningThresholds",
         "loopUnrollHeuristic",
         "memsafetySpecification",
@@ -87,9 +90,8 @@
   "solver": "td3",
   "solvers": {
     "td3": {
-      "narrow-globs": {
-        "enabled": true
-      }
+      "widen_gas": 30,
+      "side_widen_gas": 30
     }
   },
   "sem": {

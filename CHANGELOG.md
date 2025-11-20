@@ -1,3 +1,15 @@
+## v2.7.0 Bamboozled Buffalo (unreleased)
+Functionally equivalent to Goblint in SV-COMP 2026.
+
+* Add sequential portfolio for SV-COMP (#1845, #1867, #1877).
+* Add struct bitfield support (#1739, #1823).
+* Improve bitwise operations for integer domains (#1739).
+* Reimplement HTML output in OCaml (#1752).
+* Remove YAML witness version 0.1 support (#1812, #1817, #1852, #1853, #1855).
+* Fix incorrect invariants in witnesses (#1818, #1876).
+* Simplify relational invariants in witnesses (#1826, #1871, #1873).
+* Fix argument types in Goblint stubs (#1684, #1814, #1779, #1820).
+
 ## v2.6.0 Awkward Aardvark
 * Add division by zero analysis (#1764).
 * Add bitfield domain (#1623).
