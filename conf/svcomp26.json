@@ -9,6 +9,11 @@
       "enums": false,
       "interval": true
     },
+    "apron": {
+      "invariant": {
+        "diff-box": true
+      }
+    },
     "float": {
       "interval": true,
       "evaluate_math_functions": true
