@@ -147,7 +147,7 @@ type _ t =
   | YamlEntryGlobal: Obj.t * YamlWitnessType.Task.t -> YS.t t (** YAML witness entries for a global unknown ([Obj.t] represents [Spec.V.t]) and YAML witness task. *)
   | GhostVarAvailable: WitnessGhostVar.t -> MayBool.t t
   | InvariantGlobalNodes: NS.t t (** Nodes where YAML witness flow-insensitive invariants should be emitted as location invariants (if [witness.invariant.flow_insensitive-as] is configured to do so). *) (* [Spec.V.t] argument (as [Obj.t]) could be added, if this should be different for different flow-insensitive invariants. *)
-  | DescendantThreads: ThreadIdDomain.Thread.t -> ConcDomain.ThreadSet.t t (* TODO consider returning descendants of ego threads only? *)
+  | DescendantThreads: ThreadIdDomain.Thread.t -> ConcDomain.ThreadSet.t t
   | MayCreationLockset: ThreadIdDomain.Thread.t -> ALS.t t
 
 type 'a result = 'a

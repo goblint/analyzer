@@ -36,7 +36,7 @@ module TransitiveDescendants = struct
        | `Lifted child_tid ->
          (* contribute new child *)
          let _ = man.sideg tid (G.singleton child_tid) in
-         (* transitive hull *)
+         (* transitive closure *)
          let child_descendants = man.global child_tid in
          man.sideg tid child_descendants)
   ;;
