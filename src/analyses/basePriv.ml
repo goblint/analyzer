@@ -2031,7 +2031,7 @@ struct
     v
 
   let dump () =
-    let f = open_out_bin (get_string "exp.priv-prec-dump") in
+    let f = open_out_bin (get_string "exp.priv-prec-dump") in (* TODO: Out_channel.with_open_bin *)
     (* LVH.iter (fun (l, x) v ->
         Logs.debug "%a %a = %a" CilType.Location.pretty l CilType.Varinfo.pretty x VD.pretty v
       ) lvh; *)
