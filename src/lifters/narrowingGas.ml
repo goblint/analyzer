@@ -40,7 +40,7 @@ struct
   let widen (b1, i1) (b2, i2) = (Base.widen b1 b2, max i1 i2) 
   let narrow (b1, i1) (b2, i2) = 
     let i' = max i1 i2 in
-    if i' <= ChainParams.n () then
+    if i' < ChainParams.n () then
       (Base.meet b1 b2, i' + 1)  (* Stop narrowing when counter exceeds limit. *)
     else
       (Base.narrow b1 b2, i')
