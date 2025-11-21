@@ -19,7 +19,7 @@ let generate_rule c_dir_file =
   (action
    (progn
     (ignore-outputs
-     (run goblint --conf svcomp.json --disable ana.autotune.enabled --set ana.specification %%{prop} %%{c} --enable exp.arg.uncil --enable exp.arg.stack --enable exp.arg.enabled --set exp.arg.dot.path arg.dot --set exp.arg.dot.node-label empty))
+     (run goblint --conf svcomp25.json --disable ana.autotune.enabled --set ana.specification %%{prop} %%{c} --enable exp.arg.uncil --enable exp.arg.stack --enable exp.arg.enabled --set exp.arg.dot.path arg.dot --set exp.arg.dot.node-label empty))
     (with-outputs-to %%{target}
      (run graph-easy --as=boxart arg.dot)))))
 
