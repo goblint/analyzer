@@ -582,7 +582,9 @@ struct
             end
             in
             (* Yojson.Safe.to_file meta Meta.json; *)
-            Yojson.Safe.pretty_to_channel (Stdlib.open_out (Fpath.to_string meta)) Meta.json; (* the above is compact, this is pretty-printed *)
+            Out_channel.with_open_text (Fpath.to_string meta) (fun oc ->
+                Yojson.Safe.pretty_to_channel oc Meta.json (* the above is compact, this is pretty-printed *)
+              );
             if gobview then (
               Logs.Format.debug "Saving the analysis table to %a, the CIL state to %a, the warning table to %a, and the runtime stats to %a" Fpath.pp analyses Fpath.pp cil Fpath.pp warnings Fpath.pp stats;
               Serialize.marshal MCPRegistry.registered_name analyses;
@@ -789,13 +791,10 @@ struct
         end
         in
         let module ArgDot = ArgTools.Dot (Arg) (NoLabelNodeStyle) in
-        let oc = Batteries.open_out arg_dot_path in
-        Fun.protect (fun () ->
-            let ppf = Format.formatter_of_out_channel oc in
+        Out_channel.with_open_text arg_dot_path (fun oc ->
+            let ppf = Stdlib.Format.formatter_of_out_channel oc in
             ArgDot.dot ppf;
             Format.pp_print_flush ppf ()
-          ) ~finally:(fun () ->
-            Batteries.close_out oc
           )
       );
       ArgTools.current_arg := Some (module Arg);

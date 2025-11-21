@@ -95,7 +95,7 @@ struct
   open Util
 
   let load filename =
-    let f = open_in_bin filename in
+    let f = open_in_bin filename in (* TODO: In_channel.with_open_bin *)
     let dump: dump = Marshal.from_channel f in
     let dump: result = {name = dump.name; results = unmarshal dump.marshalled } in
     close_in_noerr f;

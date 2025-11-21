@@ -22,13 +22,13 @@ let gob_results_dir op =
 let server () = GobConfig.get_bool "server.enabled"
 
 let marshal obj fileName  =
-  let chan = open_out_bin (Fpath.to_string fileName) in
+  let chan = open_out_bin (Fpath.to_string fileName) in (* TODO: Out_channel.with_open_bin *)
   Marshal.output chan obj;
   close_out chan
 
 let unmarshal fileName =
   Logs.debug "Unmarshalling %s... If type of content changed, this will result in a segmentation fault!" (Fpath.to_string fileName);
-  Marshal.input (open_in_bin (Fpath.to_string fileName))
+  Marshal.input (open_in_bin (Fpath.to_string fileName)) (* TODO: In_channel.with_open_bin *)
 
 let results_exist () =
   (* If Goblint did not crash irregularly, the existence of the result directory indicates that there are results *)
