@@ -14,12 +14,13 @@ module FwdBuSolver (System: FwdGlobConstrSys) = struct
   module GM = Hashtbl.Make(System.GVar)
   module LM = Hashtbl.Make(System.LVar)
 
+(*
   module OM = LM
   let source x = x
-(*
+*)
+
   module OM = Hashtbl.Make(Node)
   let source = System.LVar.node
-*)
   let gas_default = ref (10,3)
 
   let lwarrow (a,delay,gas,narrow) b =
@@ -66,7 +67,8 @@ module FwdBuSolver (System: FwdGlobConstrSys) = struct
       let _ = work := (xs,s) in
       Some x
 
-  type glob = {value : G.t; init : G.t;  infl : LS.t ; from : (G.t * int * int * bool) OM.t}
+  type glob = {value : G.t; init : G.t;  infl : LS.t ; last: G.t LM.t; 
+               from : (G.t * int * int * bool * LS.t) OM.t}
 
   let glob: glob GM.t = GM.create 100
 
@@ -77,7 +79,7 @@ module FwdBuSolver (System: FwdGlobConstrSys) = struct
     with _ ->
       (
         if tracing then trace "unknownsize" "Number of globals so far: %d" (GM.length glob);
-        let rglob = {value = G.bot (); init = G.bot (); infl = LS.empty; from = OM.create 10} in
+        let rglob = {value = G.bot (); init = G.bot (); infl = LS.empty; last = LM.create 10; from = OM.create 10} in
         GM.add glob g rglob;
         rglob
       )
@@ -87,17 +89,23 @@ module FwdBuSolver (System: FwdGlobConstrSys) = struct
       value = d;
       init = d;
       infl = LS.empty;
+      last = LM.create 10;
       from = OM.create 10
     }
 
-  let get_global_value init from = OM.fold (fun _ (b,_,_,_) a -> G.join a b) from init
+  let get_global_value init from = OM.fold (fun _ (b,_,_,_,_) a -> G.join a b) from init
 
-  let get_old_global_value x from =
-    try OM.find from x
+  let get_old_global_value orig from =
+    try OM.find from orig
     with _ ->
       let (delay,gas) = !gas_default in
-      OM.add from x (G.bot (),delay,gas,false);
-      (G. bot (),delay,gas,false)
+      OM.add from orig (G.bot (),delay,gas,false,LS.empty);
+      (G.bot (),delay,gas,false,LS.empty)
+
+  let get_last_contrib orig set last = 
+    LS.fold (fun x d -> G.join d (LM.find last x)) set (G.bot()) 
+
+  (* determine the join of all last contribs of unknowns with same orig *)
 
   (* now the getters for globals *)
 
@@ -161,22 +169,26 @@ module FwdBuSolver (System: FwdGlobConstrSys) = struct
 *)
     in 
     (* if tracing then trace "set_global" "set_global: \n From: %a \nOn:%a \n Value: %a" System.LVar.pretty_trace x System.GVar.pretty_trace g G.pretty d; *)
-    let {value;init;infl;from} = get_global_ref g in
-    let (old_xg,delay,gas,narrow) = get_old_global_value sx from in
-    let (new_xg,delay,gas,narrow) = gwarrow (old_xg,delay,gas,narrow) d in
+    let {value;init;infl;last;from} = get_global_ref g in
+    let (old_xg,delay,gas,narrow,set) = get_old_global_value sx from in
+    let () = LM.add last x d in
+    let set = LS.add x set in
+    let d_new = get_last_contrib sx set last in
+    let (new_xg,delay,gas,narrow) = gwarrow (old_xg,delay,gas,narrow) d_new in
+    let () = OM.replace from sx (new_xg,delay,gas,narrow,set) in
     if G.equal new_xg old_xg then (
-      if tracing then trace "set_globalc" "no change!"
+      if tracing then trace "set_globalc" "no change!";
     ) 
     else
       begin
         if tracing then trace "set_globalc" "new contribution registered!";
-        let _ = OM.replace from sx (new_xg,delay,gas,narrow) in
         let new_g = get_global_value init from in
         if G.equal value new_g then
           ()
         else
+          let () = GM.replace glob g {value = new_g; init = init; infl = LS.empty;last;from} in
           let work = infl in
-          let _ = GM.replace glob g {value = new_g; init = init; infl = LS.empty; from} in
+          let _ = GM.replace glob g {value = new_g; init = init; infl = LS.empty; last; from} in
           let doit x = 
             let r = get_local_ref x in
             if !(r.called) then r.aborted := true
