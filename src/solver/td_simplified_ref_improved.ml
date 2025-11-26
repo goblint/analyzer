@@ -26,20 +26,21 @@ module Base : GenericEqSolver =
       called: bool;
     }
 
+(*
     module OM = HM
     let source x = x
+*)
 
-(*
     module OM = Hashtbl.Make(Node)
     let source = S.Var.node
-*)
 
     type origin = {
       init: S.Dom.t; 
-      from: (S.Dom.t * int * int * bool) OM.t
+      from: (S.Dom.t * int * int * bool * VS.t) OM.t;
+      last: S.Dom.t HM.t
     }
 
-    let gas_default = ref (10,0)
+    let gas_default = ref (10,3)
 
     let warrow (a,delay,gas,narrow) b = 
       let (delay0,_) = !gas_default in
@@ -52,7 +53,7 @@ module Base : GenericEqSolver =
       else if delay <= 0 then (S.Dom.widen a (S.Dom.join a b),0,gas,false)
       else (S.Dom.join a b, delay-1,gas,false)
 
-    let get_global_value init from = OM.fold (fun _ (b,_,_,_) a -> S.Dom.join a b) from init
+    let get_global_value init from = OM.fold (fun _ (b,_,_,_,_) a -> S.Dom.join a b) from init
 
     let is_global y = (S.system y = None)
 
@@ -89,6 +90,7 @@ module Base : GenericEqSolver =
             let orig_x = {
               init = S.Dom.bot();
               from = OM.create 10;
+              last = HM.create 10
             } in
             HM.add origin x orig_x;
             data_x
@@ -104,7 +106,7 @@ alternatively, distinguish contribs by session number?
         match S.system x with
         | None -> S.Dom.bot ()
         | Some f -> f get set
-      in
+      in 
 
       let rec destabilize x =
         if tracing then trace "destab" "destabilize %a" S.Var.pretty_trace x;
@@ -146,29 +148,22 @@ alternatively, distinguish contribs by session number?
         let sx = source x in
         let y_ref = init y in
         if tracing then trace "side" "side to %a (wpx: %b) from %a ## value: %a" S.Var.pretty_trace y (!y_ref.wpoint) S.Var.pretty_trace x S.Dom.pretty d;
-        let {init;from} = HM.find origin y in
-        let (old_xy,delay,gas,narrow) = try OM.find from sx 
+        let {init;last;from} = HM.find origin y in
+        let (old_xy,delay,gas,narrow,set) = try OM.find from sx 
           with _ -> 
             let (delay,gas) = !gas_default in
-            let tuple = (S.Dom.bot (),delay,gas,false) in
+            let tuple = (S.Dom.bot (),delay,gas,false,VS.empty) in
             let () = OM.add from sx tuple in
             tuple in
+        let () = HM.add last x d in
+        let set = VS.add x set in
+        let d = VS.fold (fun x d -> S.Dom.join d (HM.find last x)) set d in
         let (new_xy,delay,gas,narrow) = 
           if M.tracing then M.trace "wpoint" "side widen %a" S.Var.pretty_trace y;
           warrow (old_xy,delay,gas,narrow) d in
-(*
-        let widen a b =
-          S.Dom.widen a (S.Dom.join a b)
-        in
-        let op a b = if !y_ref.wpoint then widen a b else S.Dom.join a b
-        in
-        let old = !y_ref.value in
-        let tmp = op old d in
-        y_ref := { !y_ref with stable = true };
-*)
+        OM.replace from sx (new_xy,delay,gas,narrow,set);
         if S.Dom.equal new_xy old_xy then ()
         else (
-          OM.replace from sx (new_xy,delay,gas,narrow);
           let new_y = get_global_value init from in
           if S.Dom.equal new_y !y_ref.value then ()
           else (
@@ -176,18 +171,20 @@ alternatively, distinguish contribs by session number?
             destabilize y
           )
         )
-        (*
-        if not (S.Dom.leq tmp old) then (
-          if tracing && not (S.Dom.is_bot old) then trace "update" "side to %a (wpx: %b) from %a: %a -> %a" S.Var.pretty_trace y (!y_ref.wpoint) S.Var.pretty_trace x S.Dom.pretty old S.Dom.pretty tmp;
-          y_ref := { !y_ref with value = tmp };
-          destabilize y;
-          (* make y a widening point. This will only matter for the next side _ y.  *)
-          if tracing && not (!y_ref.wpoint) then trace "wpoint" "side adding wpoint %a" S.Var.pretty_trace y;
-          y_ref := { !y_ref with wpoint = true };
-        )
-        *)
 
-      and iterate x = (* ~(inner) solve in td3*)
+      and wrap_eq x = 
+        match S.system x with
+        | None -> S.Dom.bot ()
+        | Some f -> 
+          let sigma = HM.create 10 in
+          let add_sigma y d =
+            let d = try S.Dom.join d (HM.find sigma y) with _ -> d in
+            HM.replace sigma y d;
+            side x y d in
+          f (query x) add_sigma 
+
+
+      and iterate x = (* ~(inner) solve in td3 *)
 
         (* begining of iterate*)
         let x_ref = init x in
@@ -196,7 +193,11 @@ alternatively, distinguish contribs by session number?
         if not (!x_ref.stable) then (
           x_ref := { !x_ref with stable = true };
           let wp = !x_ref.wpoint in (* if x becomes a wpoint during eq, checking this will delay widening until next iterate *)
-          let eqd = eq x (query x) (side x) in (* d from equation/rhs *)
+          let eqd = 
+            wrap_eq x in
+                (*
+                eq x (query x) (side x) in (* d from equation/rhs *)
+                *)
           let old = !x_ref.value in (* d from older iterate *)
           let wpd = (* d after widen/narrow (if wp) *)
             if not wp then eqd
@@ -230,7 +231,7 @@ alternatively, distinguish contribs by session number?
       let set_start (x,d) =
         let x_ref = init x in
         x_ref := { !x_ref with value = d; stable = true };
-        if is_global x then HM.replace origin x { init = d; from = OM.create 10 }
+        if is_global x then HM.replace origin x { init = d; from = OM.create 10; last = HM.create 10 }
       in
 
       (* beginning of main solve *)
