@@ -11,7 +11,7 @@ authors: # same authors as in .zenodo.json and dune-project
     orcid: "https://orcid.org/0000-0003-4553-1350"
   - given-names: Michael
     family-names: Schwarz
-    affiliation: "Technische Universität München"
+    affiliation: "National University of Singapore"
     orcid: "https://orcid.org/0000-0002-9828-0308"
   - given-names: Julian
     family-names: Erhard
