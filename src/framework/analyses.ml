@@ -84,6 +84,22 @@ struct
     | `Right _ -> true
 end
 
+module GVarFCNW (V:SpecSysVar) (C:Printable.S) =
+struct
+  include Printable.EitherConf (struct let expand1 = false let expand2 = true end) (V) (Printable.Prod (CilType.Fundec) (C))
+  let name () = "FromSpec"
+  let spec x = `Left x
+  let return (x, c) = `Right (x, c)
+
+  (* from Basetype.Variables *)
+  let var_id = show
+  let node _ = MyCFG.Function Cil.dummyFunDec
+  let pretty_trace = pretty
+  let is_write_only = function
+    | `Left x -> V.is_write_only x
+    | `Right _ -> false
+end
+
 module GVarG (G: Lattice.S) (C: Printable.S) =
 struct
   module CSet =
@@ -116,6 +132,26 @@ struct
     | x -> BatPrintf.fprintf f "<analysis name=\"fromspec\">%a</analysis>" printXml x
 end
 
+module GVarL (G: Lattice.S) (L: Lattice.S) =
+struct
+  include Lattice.Lift2 (G) (L)
+
+  let spec = function
+    | `Bot -> G.bot ()
+    | `Lifted1 x -> x
+    | _ -> failwith "GVarG.spec"
+  let return = function
+    | `Bot -> L.bot ()
+    | `Lifted2 x -> x
+    | _ -> failwith "GVarG.return"
+  let create_spec spec = `Lifted1 spec
+  let create_return return = `Lifted2 return
+
+  let printXml f = function
+    | `Lifted1 x -> G.printXml f x
+    | `Lifted2 x -> L.printXml f x
+    | x -> BatPrintf.fprintf f "<analysis name=\"fromspec\">%a</analysis>" printXml x
+end
 
 exception Deadcode
 
