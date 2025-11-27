@@ -228,17 +228,17 @@ struct
     List.find_map (fun line -> if Str.string_match re line 0 then Some (Str.matched_group 1 line) else None) lines
 
   let extract_invalid_locations lines =
-  let re = Str.regexp "^INFO: Found invalid locations in segments \\[\\(.*\\)\\]$" in
-  List.find_map
-    (fun line ->
-       if Str.string_match re line 0 then
-         let inside = Str.matched_group 1 line in
-         let parts = Str.split (Str.regexp "[ ,]+") inside in
-         let nums = parts |> List.filter (fun s -> s <> "") |> List.map int_of_string in
-         Some nums
-       else
-         None)
-    lines
+    let re = Str.regexp "^INFO: Found invalid locations in segments \\[\\(.*\\)\\]$" in
+    List.find_map
+      (fun line ->
+         if Str.string_match re line 0 then
+           let inside = Str.matched_group 1 line in
+           let parts = Str.split (Str.regexp "[ ,]+") inside in
+           let nums = parts |> List.filter (fun s -> s <> "") |> List.map int_of_string in
+           Some nums
+         else
+           None)
+      lines
 
   (* TODO: find both (result and seg nr) with one traversal *)
   let extract_unreach_seg_nr lines =
@@ -421,12 +421,12 @@ let find_path (type node) (module Arg:ViolationArg with type Node.t = node) (mod
     try bfs nodes []; None with
     | Found violation ->
       Some (List.rev_map (fun (n1, e, n2) -> (n2, e, n1)) (trace_path next_nodes violation)) (* TODO: inefficient rev *)
-    in
+  in
 
-    begin match find_path [Arg.main_entry] with
-      | Some path ->
-        print_path path;
-        begin match Feasibility.check_path path with
+  begin match find_path [Arg.main_entry] with
+    | Some path ->
+      print_path path;
+      begin match Feasibility.check_path path with
         | Feasibility.Feasible ->
           Logs.debug "feasible";
 
