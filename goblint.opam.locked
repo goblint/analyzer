@@ -144,6 +144,12 @@ conflicts: [
 post-messages: [
   "Do not benchmark Goblint on OCaml 5 (https://goblint.readthedocs.io/en/latest/user-guide/benchmarking/)." {ocaml:version >= "5.0.0"}
 ]
+pin-depends: [
+  [
+    "apron.v0.9.15"
+    "git+https://github.com/antoinemine/apron.git#418a217c7a70dae3f422678f3aaba38ae374d91a"
+  ]
+]
 depexts: ["libgraph-easy-perl"] {os-distribution = "ubuntu" & with-test}
 description: """\
 Goblint is a sound static analysis framework for C programs using abstract interpretation.
