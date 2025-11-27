@@ -358,6 +358,9 @@ let posix_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("__inet_pton_chk", unknown [drop "af" []; drop "src" [r]; drop "dst" [w]; drop "os" []]);
     ("__inet_pton_chk_warn", unknown [drop "af" []; drop "src" [r]; drop "dst" [w]; drop "os" []]);
     ("inet_ntop", unknown [drop "af" []; drop "src" [r]; drop "dst" [w]; drop "size" []]);
+    ("__inet_ntop_alias", unknown [drop "af" []; drop "src" [r]; drop "dst" [w]; drop "size" []]);
+    ("__inet_ntop_chk", unknown [drop "af" []; drop "src" [r]; drop "dst" [w]; drop "size" []; drop "os" []]);
+    ("__inet_ntop_chk_warn", unknown [drop "af" []; drop "src" [r]; drop "dst" [w]; drop "size" []; drop "os" []]);
     ("gethostent", unknown ~attrs:[ThreadUnsafe] []);
     ("poll", unknown [drop "fds" [r]; drop "nfds" []; drop "timeout" []]);
     ("semget", unknown [drop "key" []; drop "nsems" []; drop "semflg" []]);
