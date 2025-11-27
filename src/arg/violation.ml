@@ -323,8 +323,8 @@ struct
 
   let check_feasability_with_witch lines path seg =
     match extract_result_line lines with
-    | Some result when String.starts_with ~prefix:"true" result -> Printf.printf "Verification result: %s\n" result; Infeasible (get_unreachable_path lines path seg)
-    | Some result when String.starts_with ~prefix:"false" result -> Printf.printf "Verification result: %s\n" result; Feasible
+    | Some result when String.starts_with ~prefix:"true" result -> Logs.info "Verification result: %s\n" result; Infeasible (get_unreachable_path lines path seg)
+    | Some result when String.starts_with ~prefix:"false" result -> Logs.info "Verification result: %s\n" result; Feasible
     | Some _ -> Unknown
     | None -> Unknown
 

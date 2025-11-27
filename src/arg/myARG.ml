@@ -288,7 +288,7 @@ struct
 end
 
 type path = (edge * node) list
-let cartesian_concat_paths (ps : path list) (qs : path list) : path list = List.concat (List.map (fun p -> List.map (fun q -> p @ q) qs) ps)
+let cartesian_concat_paths (ps : path list) (qs : path list) : path list = List.concat_map (fun p -> List.map (fun q -> p @ q) qs) ps
 let mk_edges (e : edge) (n : node) (paths : path list) : (edge * node * path) list = List.map (fun p -> (e, n, p)) paths
 let combine_and_make (e : edge) (n : node) (lhs : path list) (rhs : path list) : (edge * node * path) list = mk_edges e n (cartesian_concat_paths lhs rhs)
 
