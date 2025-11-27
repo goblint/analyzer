@@ -647,6 +647,7 @@ let glibc_desc_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("ferror_unlocked", unknown [drop "stream" [r_deep; w_deep]]);
     ("fwrite_unlocked", unknown [drop "buffer" [r]; drop "size" []; drop "count" []; drop "stream" [r_deep; w_deep]]);
     ("clearerr_unlocked", unknown [drop "stream" [w]]); (* TODO: why only w? *)
+    ("__fpending", unknown [drop "stream" [r_deep]]);
     ("futimesat", unknown [drop "dirfd" []; drop "pathname" [r]; drop "times" [r]]);
     ("error", unknown ((drop "status" []) :: (drop "errnum" []) :: (drop "format" [r]) :: (VarArgs (drop' [r]))));
     ("warn", unknown (drop "format" [r] :: VarArgs (drop' [r])));
@@ -1104,6 +1105,7 @@ let svcomp_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("__VERIFIER_nondet_loff_t", unknown []); (* cannot give it in sv-comp.c without including stdlib or similar *)
     ("__VERIFIER_nondet_int", unknown []);  (* declare invalidate actions to prevent invalidating globals when extern in regression tests *)
     ("__VERIFIER_nondet_size_t", unknown []); (* cannot give it in sv-comp.c without including stdlib or similar *)
+    ("__VERIFIER_nondet_memory", unknown [drop "mem" [w]; drop "size" []]); (* instead of using reference implementation from SV-COMP rules in sv-comp.c, this avoids supertop warnings *)
     ("__VERIFIER_assert", special [__ "exp" []] @@ fun exp -> Assert { exp; check = true; refine = get_bool "sem.assert.refine" }); (* only used if definition missing (e.g. in evalAssert transformed output) or extraspecial *)
     ("reach_error", special [] @@ Abort); (* only used if definition missing (e.g. in evalAssert transformed output) or extraspecial *)
   ]

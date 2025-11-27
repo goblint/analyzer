@@ -1364,7 +1364,7 @@ struct
             Cilfacade.mkCast ~e ~newt:(TPtr (TVoid [], []))
           in
           let i =
-            if InvariantCil.(not (exp_contains_tmp c_exp) && exp_is_in_scope scope c_exp && not (var_is_tmp vi) && var_is_in_scope scope vi && not (var_is_heap vi)) then
+            if InvariantCil.(exp_is_suitable ~scope c_exp && var_is_suitable ~scope vi && not (var_is_heap vi)) then
               try
                 let addr_exp = AddrOf (Var vi, offset) in (* AddrOf or Lval? *)
                 let addr_exp, c_exp = if typeSig (Cilfacade.typeOf addr_exp) <> typeSig (Cilfacade.typeOf c_exp) then
@@ -1395,7 +1395,7 @@ struct
         | Addr.NullPtr ->
           let i =
             let addr_exp = integer 0 in
-            if InvariantCil.(not (exp_contains_tmp c_exp) && exp_is_in_scope scope c_exp) then
+            if InvariantCil.exp_is_suitable ~scope c_exp then
               Invariant.of_exp Cil.(BinOp (Eq, c_exp, addr_exp, intType))
             else
               Invariant.none
@@ -1417,13 +1417,13 @@ struct
   and vd_invariant ~vs ~offset ~lval = function
     | Compound.Int n ->
       let e = Lval lval in
-      if InvariantCil.(not (exp_contains_tmp e) && exp_is_in_scope scope e) then
+      if InvariantCil.exp_is_suitable ~scope e then
         ID.invariant e n
       else
         Invariant.none
     | Float n ->
       let e = Lval lval in
-      if InvariantCil.(not (exp_contains_tmp e) && exp_is_in_scope scope e) then
+      if InvariantCil.exp_is_suitable ~scope e then
         FD.invariant e n
       else
         Invariant.none

@@ -5,6 +5,8 @@
 (* Helpful link on CIL: https://goblint.github.io/cil/ *)
 (* You may test your analysis on our toy examples by running `ruby scripts/update_suite.rb group tutorials` *)
 (* after removing the `SKIP` from the beginning of the tests in tests/regression/99-tutorials/{03-taint_simple.c,04-taint_inter.c} *)
+(* A tutorial on this analysis is available at:  https://youtu.be/CoVFNbJJfZY *)
+(* Caveat: The second half of it gives away solutions, might be best to attempt solving it yourself first.  *)
 
 open GoblintCil
 open Analyses
@@ -71,8 +73,17 @@ struct
     (* Nothing needs to be done *)
     man.local
 
+  (** For a call to a _special_ function f "lval = f(args)" or "f(args)",
+      computes the caller state after the function call.
+      For this analysis, source and sink functions will be considered _special_ and have to be treated here. *)
+  let special man (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
+    let caller_state = man.local in
+    (* TODO: Check if f is a sink / source and handle it appropriately *)
+    (* To warn about a potential issue in the code, use M.warn. *)
+    caller_state
+
   (** Handles going from start node of function [f] into the function body of [f].
-      Meant to handle e.g. initializiation of local variables. *)
+      Meant to handle e.g. initialization of local variables. *)
   let body man (f:fundec) : D.t =
     (* Nothing needs to be done here, as the (non-formals) locals are initally untainted *)
     man.local
@@ -118,15 +129,6 @@ struct
   let combine_assign man (lval:lval option) fexp (f:fundec) (args:exp list) fc (callee_local:D.t) (f_ask: Queries.ask): D.t =
     let caller_state = man.local in
     (* TODO: Record whether lval was tainted. *)
-    caller_state
-
-  (** For a call to a _special_ function f "lval = f(args)" or "f(args)",
-      computes the caller state after the function call.
-      For this analysis, source and sink functions will be considered _special_ and have to be treated here. *)
-  let special man (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
-    let caller_state = man.local in
-    (* TODO: Check if f is a sink / source and handle it appropriately *)
-    (* To warn about a potential issue in the code, use M.warn. *)
     caller_state
 
   (* You may leave these alone *)

@@ -151,122 +151,6 @@ struct
     {file_name; file_hash; line; column; function_}
 end
 
-module Invariant =
-struct
-  type t = {
-    string: string;
-    type_: string;
-    format: string;
-  }
-  [@@deriving eq, ord, hash]
-
-  let to_yaml {string; type_; format} =
-    `O [
-      ("string", `String string);
-      ("type", `String type_);
-      ("format", `String format);
-    ]
-
-  let of_yaml y =
-    let open GobYaml in
-    let+ string = y |> find "string" >>= to_string
-    and+ type_ = y |> find "type" >>= to_string
-    and+ format = y |> find "format" >>= to_string in
-    {string; type_; format}
-end
-
-module LoopInvariant =
-struct
-  type t = {
-    location: Location.t;
-    loop_invariant: Invariant.t;
-  }
-  [@@deriving eq, ord, hash]
-
-  let entry_type = "loop_invariant"
-
-  let to_yaml' {location; loop_invariant} =
-    [
-      ("location", Location.to_yaml location);
-      ("loop_invariant", Invariant.to_yaml loop_invariant);
-    ]
-
-  let of_yaml y =
-    let open GobYaml in
-    let+ location = y |> find "location" >>= Location.of_yaml
-    and+ loop_invariant = y |> find "loop_invariant" >>= Invariant.of_yaml in
-    {location; loop_invariant}
-end
-
-module LocationInvariant =
-struct
-  type t = {
-    location: Location.t;
-    location_invariant: Invariant.t;
-  }
-  [@@deriving eq, ord, hash]
-
-  let entry_type = "location_invariant"
-
-  let to_yaml' {location; location_invariant} =
-    [
-      ("location", Location.to_yaml location);
-      ("location_invariant", Invariant.to_yaml location_invariant);
-    ]
-
-  let of_yaml y =
-    let open GobYaml in
-    let+ location = y |> find "location" >>= Location.of_yaml
-    and+ location_invariant = y |> find "location_invariant" >>= Invariant.of_yaml in
-    {location; location_invariant}
-end
-
-module FlowInsensitiveInvariant =
-struct
-  type t = {
-    flow_insensitive_invariant: Invariant.t;
-  }
-  [@@deriving eq, ord, hash]
-
-  let entry_type = "flow_insensitive_invariant"
-
-  let to_yaml' {flow_insensitive_invariant} =
-    [
-      ("flow_insensitive_invariant", Invariant.to_yaml flow_insensitive_invariant);
-    ]
-
-  let of_yaml y =
-    let open GobYaml in
-    let+ flow_insensitive_invariant = y |> find "flow_insensitive_invariant" >>= Invariant.of_yaml in
-    {flow_insensitive_invariant}
-end
-
-module PreconditionLoopInvariant =
-struct
-  type t = {
-    location: Location.t;
-    loop_invariant: Invariant.t;
-    precondition: Invariant.t;
-  }
-  [@@deriving eq, ord, hash]
-
-  let entry_type = "precondition_loop_invariant"
-
-  let to_yaml' {location; loop_invariant; precondition} =
-    [
-      ("location", Location.to_yaml location);
-      ("loop_invariant", Invariant.to_yaml loop_invariant);
-      ("precondition", Invariant.to_yaml precondition);
-    ]
-
-  let of_yaml y =
-    let open GobYaml in
-    let+ location = y |> find "location" >>= Location.of_yaml
-    and+ loop_invariant = y |> find "loop_invariant" >>= Invariant.of_yaml
-    and+ precondition = y |> find "precondition" >>= Invariant.of_yaml in
-    {location; loop_invariant; precondition}
-end
-
 module InvariantSet =
 struct
   module LoopInvariant =
@@ -275,24 +159,34 @@ struct
       location: Location.t;
       value: string;
       format: string;
+      labels: string list option;
     }
     [@@deriving eq, ord, hash]
 
     let invariant_type = "loop_invariant"
 
-    let to_yaml' {location; value; format} =
+    let min_version = function
+      | {labels = Some _; _} -> YamlWitnessVersion.V2_1
+      | _ -> YamlWitnessVersion.V2_0
+
+    let to_yaml' {location; value; format; labels} =
       [
         ("location", Location.to_yaml location);
         ("value", `String value);
         ("format", `String format);
-      ]
+      ] @ match labels with
+      | Some labels -> [
+          ("labels", `A (List.map (fun label -> `String label) labels));
+        ]
+      | None -> []
 
     let of_yaml y =
       let open GobYaml in
       let+ location = y |> find "location" >>= Location.of_yaml
       and+ value = y |> find "value" >>= to_string
-      and+ format = y |> find "format" >>= to_string in
-      {location; value; format}
+      and+ format = y |> find "format" >>= to_string
+      and+ labels = y |> Yaml.Util.find "labels" >>= option_map (fun y -> y |> list >>= list_map to_string) in
+      {location; value; format; labels}
   end
 
   module LocationInvariant =
@@ -302,21 +196,77 @@ struct
     let invariant_type = "location_invariant"
   end
 
+  module LoopTransitionInvariant =
+  struct
+    include LoopInvariant
+
+    let invariant_type = "loop_transition_invariant"
+    let min_version _ = YamlWitnessVersion.V2_1
+  end
+
+  module LocationTransitionInvariant =
+  struct
+    include LoopTransitionInvariant
+
+    let invariant_type = "location_transition_invariant"
+    let min_version _ = YamlWitnessVersion.V2_1
+  end
+
+  module FlowInsensitiveInvariant =
+  struct
+    type t = {
+      value: string;
+      format: string;
+    }
+    [@@deriving eq, ord, hash]
+
+    let invariant_type = "flow_insensitive_invariant"
+    let min_version _ = YamlWitnessVersion.V2_1_Goblint
+
+    let to_yaml' {value; format} =
+      [
+        ("value", `String value);
+        ("format", `String format);
+      ]
+
+    let of_yaml y =
+      let open GobYaml in
+      let+ value = y |> find "value" >>= to_string
+      and+ format = y |> find "format" >>= to_string in
+      {value; format}
+  end
+
   (* TODO: could maybe use GADT, but adds ugly existential layer to entry type pattern matching *)
   module InvariantType =
   struct
     type t =
       | LocationInvariant of LocationInvariant.t
       | LoopInvariant of LoopInvariant.t
+      | LoopTransitionInvariant of LoopTransitionInvariant.t
+      | LocationTransitionInvariant of LocationTransitionInvariant.t
+      | FlowInsensitiveInvariant of FlowInsensitiveInvariant.t
     [@@deriving eq, ord, hash]
 
     let invariant_type = function
       | LocationInvariant _ -> LocationInvariant.invariant_type
       | LoopInvariant _ -> LoopInvariant.invariant_type
+      | LoopTransitionInvariant _ -> LoopTransitionInvariant.invariant_type
+      | LocationTransitionInvariant _ -> LocationTransitionInvariant.invariant_type
+      | FlowInsensitiveInvariant _ -> FlowInsensitiveInvariant.invariant_type
+
+    let min_version = function
+      | LocationInvariant x -> LocationInvariant.min_version x
+      | LoopInvariant x -> LoopInvariant.min_version x
+      | LoopTransitionInvariant x -> LoopTransitionInvariant.min_version x
+      | LocationTransitionInvariant x -> LocationTransitionInvariant.min_version x
+      | FlowInsensitiveInvariant x -> FlowInsensitiveInvariant.min_version x
 
     let to_yaml' = function
       | LocationInvariant x -> LocationInvariant.to_yaml' x
       | LoopInvariant x -> LoopInvariant.to_yaml' x
+      | LoopTransitionInvariant x -> LoopTransitionInvariant.to_yaml' x
+      | LocationTransitionInvariant x -> LocationTransitionInvariant.to_yaml' x
+      | FlowInsensitiveInvariant x -> FlowInsensitiveInvariant.to_yaml' x
 
     let of_yaml y =
       let open GobYaml in
@@ -327,6 +277,15 @@ struct
       else if invariant_type = LoopInvariant.invariant_type then
         let+ x = y |> LoopInvariant.of_yaml in
         LoopInvariant x
+      else if invariant_type = LoopTransitionInvariant.invariant_type then
+        let+ x = y |> LoopTransitionInvariant.of_yaml in
+        LoopTransitionInvariant x
+      else if invariant_type = LocationTransitionInvariant.invariant_type then
+        let+ x = y |> LocationTransitionInvariant.of_yaml in
+        LocationTransitionInvariant x
+      else if invariant_type = FlowInsensitiveInvariant.invariant_type then
+        let+ x = y |> FlowInsensitiveInvariant.of_yaml in
+        FlowInsensitiveInvariant x
       else
         Error (`Msg "type")
   end
@@ -337,6 +296,10 @@ struct
       invariant_type: InvariantType.t;
     }
     [@@deriving eq, ord, hash]
+
+    let invariant_kind = "invariant"
+
+    let min_version {invariant_type} = InvariantType.min_version invariant_type
 
     let to_yaml {invariant_type} =
       `O [
@@ -352,19 +315,147 @@ struct
       {invariant_type}
   end
 
+  module FunctionContract =
+  struct
+    type t = {
+      location: Location.t;
+      requires: string;
+      ensures: string;
+      format: string;
+      labels: string list option;
+    }
+    [@@deriving eq, ord, hash]
+
+    let contract_type = "function_contract"
+    let min_version _ = YamlWitnessVersion.V2_1
+
+    let to_yaml' {location; requires; ensures; format; labels} =
+      [
+        ("location", Location.to_yaml location);
+        ("requires", `String requires);
+        ("ensures", `String ensures);
+        ("format", `String format);
+      ] @ match labels with
+      | Some labels -> [
+          ("labels", `A (List.map (fun label -> `String label) labels));
+        ]
+      | None -> []
+
+    let of_yaml y =
+      let open GobYaml in
+      let+ location = y |> find "location" >>= Location.of_yaml
+      and+ requires = y |> find "requires" >>= to_string
+      and+ ensures = y |> find "ensures" >>= to_string
+      and+ format = y |> find "format" >>= to_string
+      and+ labels = y |> Yaml.Util.find "labels" >>= option_map (fun y -> y |> list >>= list_map to_string) in
+      {location; requires; ensures; format; labels}
+  end
+
+  (* TODO: could maybe use GADT, but adds ugly existential layer to entry type pattern matching *)
+  module ContractType =
+  struct
+    type t =
+      | FunctionContract of FunctionContract.t
+    [@@deriving eq, ord, hash]
+
+    let contract_type = function
+      | FunctionContract _ -> FunctionContract.contract_type
+
+    let min_version = function
+      | FunctionContract x -> FunctionContract.min_version x
+
+    let to_yaml' = function
+      | FunctionContract x -> FunctionContract.to_yaml' x
+
+    let of_yaml y =
+      let open GobYaml in
+      let* contract_type = y |> find "type" >>= to_string in
+      if contract_type = FunctionContract.contract_type then
+        let+ x = y |> FunctionContract.of_yaml in
+        FunctionContract x
+      else
+        Error (`Msg "type")
+  end
+
+  module Contract =
+  struct
+    type t = {
+      contract_type: ContractType.t;
+    }
+    [@@deriving eq, ord, hash]
+
+    let invariant_kind = "contract"
+
+    let min_version {contract_type} = ContractType.min_version contract_type
+
+    let to_yaml {contract_type} =
+      `O [
+        ("contract", `O ([
+             ("type", `String (ContractType.contract_type contract_type));
+           ] @ ContractType.to_yaml' contract_type)
+        )
+      ]
+
+    let of_yaml y =
+      let open GobYaml in
+      let+ contract_type = y |> find "contract" >>= ContractType.of_yaml in
+      {contract_type}
+  end
+
+  module InvariantKind =
+  struct
+    type t =
+      | Invariant of Invariant.t
+      | Contract of Contract.t
+    [@@deriving eq, ord, hash]
+
+    let invariant_kind = function
+      | Invariant _ -> Invariant.invariant_kind
+      | Contract _ -> Contract.invariant_kind
+
+    let min_version = function
+      | Invariant x -> Invariant.min_version x
+      | Contract x -> Contract.min_version x
+
+    let to_yaml = function
+      | Invariant x -> Invariant.to_yaml x
+      | Contract x -> Contract.to_yaml x
+
+    let of_yaml y =
+      let open GobYaml in
+      let* entries = y |> entries in
+      match entries with
+      | [(invariant_kind, _)] ->
+        if invariant_kind = Invariant.invariant_kind then
+          let+ x = y |> Invariant.of_yaml in
+          Invariant x
+        else if invariant_kind = Contract.invariant_kind then
+          let+ x = y |> Contract.of_yaml in
+          Contract x
+        else
+          Error (`Msg "kind")
+      | _ ->
+        Error (`Msg "kind")
+  end
+
   type t = {
-    content: Invariant.t list;
+    content: InvariantKind.t list;
   }
   [@@deriving eq, ord, hash]
 
   let entry_type = "invariant_set"
 
+  let min_version {content} =
+    List.to_seq content
+    |> Seq.map InvariantKind.min_version
+    |> Seq.fold_left YamlWitnessVersion.max YamlWitnessVersion.V2_0
+
   let to_yaml' {content} =
-    [("content", `A (List.map Invariant.to_yaml content))]
+    [("content", `A (List.map InvariantKind.to_yaml content))]
 
   let of_yaml y =
     let open GobYaml in
-    let+ content = y |> find "content" >>= list >>= list_map Invariant.of_yaml in
+    let+ content = y |> find "content" >>= list >>= list_map InvariantKind.of_yaml in
     {content}
 end
 
@@ -576,6 +667,7 @@ struct
   [@@deriving eq, ord, hash]
 
   let entry_type = "violation_sequence"
+  let min_version _ = YamlWitnessVersion.V2_0
 
   let to_yaml' {content} =
     [("content", `A (List.map Segment.to_yaml content))]
@@ -689,6 +781,7 @@ struct
   [@@deriving eq, ord, hash]
 
   let entry_type = "ghost_instrumentation"
+  let min_version _ = YamlWitnessVersion.V2_1
 
   let to_yaml' {ghost_variables; ghost_updates} =
     [("content",
@@ -710,29 +803,22 @@ end
 module EntryType =
 struct
   type t =
-    | LocationInvariant of LocationInvariant.t
-    | LoopInvariant of LoopInvariant.t
-    | FlowInsensitiveInvariant of FlowInsensitiveInvariant.t
-    | PreconditionLoopInvariant of PreconditionLoopInvariant.t
     | InvariantSet of InvariantSet.t
     | ViolationSequence of ViolationSequence.t
     | GhostInstrumentation of GhostInstrumentation.t
   [@@deriving eq, ord, hash]
 
   let entry_type = function
-    | LocationInvariant _ -> LocationInvariant.entry_type
-    | LoopInvariant _ -> LoopInvariant.entry_type
-    | FlowInsensitiveInvariant _ -> FlowInsensitiveInvariant.entry_type
-    | PreconditionLoopInvariant _ -> PreconditionLoopInvariant.entry_type
     | InvariantSet _ -> InvariantSet.entry_type
     | ViolationSequence _ -> ViolationSequence.entry_type
     | GhostInstrumentation _ -> GhostInstrumentation.entry_type
 
+  let min_version = function
+    | InvariantSet x -> InvariantSet.min_version x
+    | ViolationSequence x -> ViolationSequence.min_version x
+    | GhostInstrumentation x -> GhostInstrumentation.min_version x
+
   let to_yaml' = function
-    | LocationInvariant x -> LocationInvariant.to_yaml' x
-    | LoopInvariant x -> LoopInvariant.to_yaml' x
-    | FlowInsensitiveInvariant x -> FlowInsensitiveInvariant.to_yaml' x
-    | PreconditionLoopInvariant x -> PreconditionLoopInvariant.to_yaml' x
     | InvariantSet x -> InvariantSet.to_yaml' x
     | ViolationSequence x -> ViolationSequence.to_yaml' x
     | GhostInstrumentation x -> GhostInstrumentation.to_yaml' x
@@ -740,19 +826,7 @@ struct
   let of_yaml y =
     let open GobYaml in
     let* entry_type = y |> find "entry_type" >>= to_string in
-    if entry_type = LocationInvariant.entry_type then
-      let+ x = y |> LocationInvariant.of_yaml in
-      LocationInvariant x
-    else if entry_type = LoopInvariant.entry_type then
-      let+ x = y |> LoopInvariant.of_yaml in
-      LoopInvariant x
-    else if entry_type = FlowInsensitiveInvariant.entry_type then
-      let+ x = y |> FlowInsensitiveInvariant.of_yaml in
-      FlowInsensitiveInvariant x
-    else if entry_type = PreconditionLoopInvariant.entry_type then
-      let+ x = y |> PreconditionLoopInvariant.of_yaml in
-      PreconditionLoopInvariant x
-    else if entry_type = InvariantSet.entry_type then
+    if entry_type = InvariantSet.entry_type then
       let+ x = y |> InvariantSet.of_yaml in
       InvariantSet x
     else if entry_type = ViolationSequence.entry_type then

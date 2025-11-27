@@ -8,8 +8,6 @@ let spec_module: (module MCPSpec) Lazy.t =
   lazy (
     let module Man = (val ApronDomain.get_manager ()) in
     let module AD = ApronDomain.D2 (Man) in
-    let diff_box = GobConfig.get_bool "ana.apron.invariant.diff-box" in
-    let module AD = (val if diff_box then (module ApronDomain.BoxProd (AD): RelationDomain.RD) else (module AD)) in
     let module Priv = (val RelationPriv.get_priv ()) in
     let module Spec =
     struct
@@ -36,7 +34,7 @@ let () =
   Printexc.register_printer
     (function
       | Apron.Manager.Error e ->
-        let () = Apron.Manager.print_exclog Format.str_formatter e in
-        Some(Printf.sprintf "Apron.Manager.Error\n %s" (Format.flush_str_formatter ()))
+        Apron.Manager.print_exclog Format.str_formatter e;
+        Some (Printf.sprintf "Apron.Manager.Error\n %s" (Format.flush_str_formatter ()))
       | _ -> None (* for other exceptions *)
     )

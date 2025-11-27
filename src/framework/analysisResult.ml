@@ -1,8 +1,6 @@
 (** Analysis results. *)
 
 open GoblintCil
-open Pretty
-open GobConfig
 
 module ResultNode: Printable.S with type t = MyCFG.node =
 struct

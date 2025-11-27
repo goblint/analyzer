@@ -13,6 +13,8 @@ authors: [
   "Julian Erhard"
   "Sarah Tilscher"
   "Karoliine Holter"
+  "Michael Petter"
+  "Ali Rasim Kocal"
   "Ralf Vogler"
   "Kalmer Apinis"
   "Vesal Vojdani"
@@ -43,7 +45,7 @@ depends: [
   "conf-autoconf" {= "0.2"}
   "conf-findutils" {= "1"}
   "conf-gcc" {= "1.0"}
-  "conf-gmp" {= "4"}
+  "conf-gmp" {= "5"}
   "conf-gmp-paths" {= "1"}
   "conf-mpfr-paths" {= "1"}
   "conf-perl" {= "2"}
@@ -66,7 +68,7 @@ depends: [
   "fileutils" {= "0.6.4"}
   "fmt" {= "0.9.0"}
   "fpath" {= "0.7.3"}
-  "goblint-cil" {= "2.0.7"}
+  "goblint-cil" {= "2.0.9"}
   "hex" {= "1.5.0"}
   "integers" {= "0.7.0"}
   "json-data-encoding" {= "1.0.1"}
@@ -141,16 +143,6 @@ conflicts: [
 ]
 post-messages: [
   "Do not benchmark Goblint on OCaml 5 (https://goblint.readthedocs.io/en/latest/user-guide/benchmarking/)." {ocaml:version >= "5.0.0"}
-]
-pin-depends: [
-  [
-    "goblint-cil.2.0.7"
-    "git+https://github.com/goblint/cil.git#e5b6287c0c85864c6d44f7fa30d0084a3ae11d6c"
-  ]
-  [
-    "apron.v0.9.15"
-    "git+https://github.com/antoinemine/apron.git#418a217c7a70dae3f422678f3aaba38ae374d91a"
-  ]
 ]
 depexts: ["libgraph-easy-perl"] {os-distribution = "ubuntu" & with-test}
 description: """\

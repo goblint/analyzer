@@ -506,7 +506,7 @@ struct
         foldGlobals !Cilfacade.current_file (fun acc global ->
             match global with
             | GVar (vi, _, _) when not (BaseUtil.is_static vi) ->
-              mkAddrOf (Var vi, NoOffset) :: acc
+              mkAddrOf (Cil.var vi) :: acc
             (* TODO: what about GVarDecl? *)
             | _ -> acc
           ) deep_addrs
@@ -613,7 +613,7 @@ struct
         if (one_var || GobApron.Lincons1.num_vars lincons1 >= 2) && (exact || Apron.Lincons1.get_typ lincons1 <> EQ) then
           RD.cil_exp_of_lincons1 lincons1
           |> Option.map e_inv
-          |> Option.filter (fun exp -> not (InvariantCil.exp_contains_tmp exp) && InvariantCil.exp_is_in_scope scope exp)
+          |> Option.filter (InvariantCil.exp_is_suitable ~scope)
         else
           None
       )

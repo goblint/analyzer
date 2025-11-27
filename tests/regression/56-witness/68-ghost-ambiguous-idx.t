@@ -1,4 +1,4 @@
-  $ goblint --set ana.base.privatization protection --enable witness.yaml.enabled --set ana.activated[+] mutexGhosts --set witness.yaml.entry-types '["flow_insensitive_invariant", "ghost_instrumentation"]' 68-ghost-ambiguous-idx.c
+  $ goblint --set ana.base.privatization protection --enable witness.yaml.enabled --set ana.activated[+] mutexGhosts --set witness.yaml.entry-types[+] ghost_instrumentation --set witness.yaml.invariant-types[*] flow_insensitive_invariant --set witness.yaml.format-version 2.1-goblint 68-ghost-ambiguous-idx.c
   [Warning][Assert] Assertion "data == 0" is unknown. (68-ghost-ambiguous-idx.c:24:3-24:29)
   [Warning][Unknown] unlocking mutex (m[4]) which may not be held (68-ghost-ambiguous-idx.c:25:3-25:30)
   [Info][Deadcode] Logical lines of code (LLoC) summary:
@@ -40,8 +40,9 @@
         - variable: multithreaded
           value: "1"
           format: c_expression
-  - entry_type: flow_insensitive_invariant
-    flow_insensitive_invariant:
-      string: '! multithreaded || (0 <= data && data <= 1)'
-      type: assertion
-      format: C
+  - entry_type: invariant_set
+    content:
+    - invariant:
+        type: flow_insensitive_invariant
+        value: '! multithreaded || (0 <= data && data <= 1)'
+        format: c_expression
