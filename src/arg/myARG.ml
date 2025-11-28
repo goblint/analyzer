@@ -13,7 +13,6 @@ sig
   val path_id: t -> int
   val to_string: t -> string
 
-  val move_opt: t -> MyCFG.node -> t option
   val equal_node_context: t -> t -> bool
 end
 
@@ -131,13 +130,6 @@ struct
     |> List.map Node.to_string
     |> String.concat "@"
 
-  let move_opt nl to_node =
-    let open GobOption.Syntax in
-    match nl with
-    | [] -> None
-    | n :: stack ->
-      let+ to_n = Node.move_opt n to_node in
-      to_n :: stack
   let equal_node_context _ _ = failwith "StackNode: equal_node_context"
 end
 
@@ -415,8 +407,6 @@ module Intra (ArgIntra: SIntraOpt) (Arg: S):
   S with module Node = Arg.Node and module Edge = Arg.Edge =
 struct
   include Arg
-
-  (* TODO: remove Node.move_opt? *)
 
   (** Starting from ARG node [node], follow CFG path [p] to the resulting ARG node.
       Returns multiple ARG nodes if ARG contains path-sensitivity splits on the same CFG path. *)
