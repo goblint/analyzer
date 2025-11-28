@@ -59,7 +59,10 @@ jobs:
         run: ./make.sh headers
 
       - name: Test
-        run: opam exec -- dune runtest --instrument-with bisect_ppx
+        env:
+          BISECT_ENABLE: YES
+          BISECT_FILE: ${{ github.workspace }}/_build/bisect
+        run: opam exec -- dune runtest --force --instrument-with bisect_ppx
 
       - run: opam exec -- bisect-ppx-report send-to Coveralls
         env:
