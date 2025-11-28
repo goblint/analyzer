@@ -73,7 +73,7 @@ cfg = ARGV.last == "-c" && ARGV.pop
 incremental = (ARGV.last == "-i" && ARGV.pop) || cfg
 report = ARGV.last == "-r" && ARGV.pop
 only = ARGV[0] unless ARGV[0].nil?
-if marshal || witness || incremental then
+if witness || incremental then
   sequential = true
 end
 if marshal && incremental then
@@ -549,12 +549,13 @@ class ProjectMarshal < Project
   end
   def run ()
     filename = File.basename(@path)
-    cmd1 = "#{$goblint} #{filename} #{@params} #{ENV['gobopt']} 1>#{@testset.warnfile} --enable dbg.timing.enabled --set save_run run --set goblint-dir .goblint-#{@id.sub('/','-')}-run-save 2>#{@testset.statsfile}"
-    cmd2 = "#{$goblint} #{filename} #{@params} #{ENV['gobopt']} 1>#{@testset.warnfile} --enable dbg.timing.enabled --conf run/config.json --set save_run '' --set load_run run --set goblint-dir .goblint-#{@id.sub('/','-')}-run-load 2>#{@testset.statsfile}"
+    rundir = "run-#{@id.sub('/','-')}"
+    cmd1 = "#{$goblint} #{filename} #{@params} #{ENV['gobopt']} 1>#{@testset.warnfile} --enable dbg.timing.enabled --set save_run #{rundir} --set goblint-dir .goblint-#{@id.sub('/','-')}-run-save 2>#{@testset.statsfile}"
+    cmd2 = "#{$goblint} #{filename} #{@params} #{ENV['gobopt']} 1>#{@testset.warnfile} --enable dbg.timing.enabled --conf #{rundir}/config.json --set save_run '' --set load_run #{rundir} --set goblint-dir .goblint-#{@id.sub('/','-')}-run-load 2>#{@testset.statsfile}"
     starttime = Time.now
     run_testset(@testset, cmd1, starttime)
     run_testset(@testset, cmd2, starttime)
-    FileUtils.rm_rf('run')
+    FileUtils.rm_rf(rundir)
     end
 end
 
