@@ -14,12 +14,13 @@ module FwdWBuSolver (System: FwdGlobConstrSys) = struct
   module GM = Hashtbl.Make(System.GVar)
   module LM = Hashtbl.Make(System.LVar)
 
-(*
   module OM = LM
   let source x = x
-*)
+
+(*
   module OM = Hashtbl.Make(Node)
   let source = System.LVar.node
+*)
 
   let gas_default = ref (10,3)
 
@@ -119,14 +120,14 @@ module FwdWBuSolver (System: FwdGlobConstrSys) = struct
 
   let get_global_value init from = OM.fold (fun _ (b,_,_,_,_) a -> G.join a b) from init
 
-  let get_old_global_value x from =
-    try OM.find from x
+  let get_old_global_value orig from =
+    try OM.find from orig
     with _ ->
       let (delay,gas) = !gas_default in
-      OM.add from x (G.bot (),delay,gas,false,LS.empty);
+      OM.add from orig (G.bot (),delay,gas,false,LS.empty);
       (G. bot (),delay,gas,false,LS.empty)
 
-  let get_last_contrib orig set last = 
+  let get_last_contrib set last = 
     LS.fold (fun x d -> G.join d (LM.find last x)) set (G.bot()) 
 
   (* determine the join of all last contribs of unknowns with same orig *)
@@ -197,7 +198,7 @@ module FwdWBuSolver (System: FwdGlobConstrSys) = struct
     let (old_xg,delay,gas,narrow,set) = get_old_global_value sx from in
     let () = LM.add last x d in
     let set = LS.add x set in
-    let d_new = get_last_contrib sx set last in
+    let d_new = get_last_contrib set last in
     let (new_xg,delay,gas,narrow) = gwarrow (old_xg,delay,gas,narrow) d_new in
     let () = OM.replace from sx (new_xg,delay,gas,narrow,set) in
     if G.equal new_xg old_xg then (
@@ -242,10 +243,7 @@ module FwdWBuSolver (System: FwdGlobConstrSys) = struct
       else (d,delay,gas,narrow) in
     if D.equal new_xy old_xy then (
       (* If value of x has not changed, nothing to do *)
-      if tracing then trace "set_localc" "no change";
-      if in_set y then (
-        rem_set y; iterate y
-      )
+      if tracing then trace "set_localc" "no change"
       else ()
     )
     else (
@@ -254,10 +252,7 @@ module FwdWBuSolver (System: FwdGlobConstrSys) = struct
       let new_y = get_local_value loc_init loc_from in
       if tracing then trace "set_local" "new value for %a is %a" System.LVar.pretty_trace y D.pretty new_y;
       if D.equal loc_value new_y then (
-        if tracing then trace "set_local" "no change in local %a after updating from %a" System.LVar.pretty_trace y System.LVar.pretty_trace x;
-        if in_set y then (
-        rem_set y; iterate y
-        )
+        if tracing then trace "set_local" "no change in local %a after updating from %a" System.LVar.pretty_trace y System.LVar.pretty_trace x
         else ()
       )
       else (
