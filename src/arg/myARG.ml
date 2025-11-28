@@ -250,12 +250,14 @@ end
 module type SIntra =
 sig
   val next: MyCFG.node -> (MyCFG.edge * MyCFG.node * (MyCFG.edge * MyCFG.node) list) list
+  (** @return Inner list is the original CFG path corresponding to the step. *) (* TODO: extract type *)
 end
 
 module type SIntraOpt =
 sig
   include SIntra
   val next_opt: MyCFG.node -> ((MyCFG.edge * MyCFG.node * (MyCFG.edge * MyCFG.node) list) list) option
+  (** @return Inner list is the original CFG path corresponding to the step. *) (* TODO: extract type *)
 end
 
 module CfgIntra (Cfg:CfgForward): SIntraOpt =
@@ -306,7 +308,7 @@ struct
     | _, _-> false *)
 
   let rec is_equiv_chain n1 n2 =
-    Node.equal n1 n2
+    Node.equal n1 n2 (* TODO: is it fine to not detect equivalent chains anymore? if so, could inline this *)
 
   let rec next_opt' n = match n with
     | Statement {sid; skind=If _; _} when GobConfig.get_bool "exp.arg.uncil" ->
@@ -324,6 +326,7 @@ struct
             let exp = BinOp (LAnd, e, e2, intType) in
             Some [
               (Test (exp, true), if_true_next_true_next_n, if_true_next_p @ if_true_next_true_next_p);
+              (* two different paths to same false node *)
               (Test (exp, false), if_true_next_false_next_n, if_true_next_p @ if_true_next_false_next_p);
               (Test (exp, false), if_false_next_n, if_false_next_p)
             ]
@@ -336,6 +339,7 @@ struct
           if is_equiv_chain if_true_next_n if_false_next_true_next_n then
             let exp = BinOp (LOr, e, e2, intType) in
             Some [
+              (* two different paths to same true node *)
               (Test (exp, true), if_true_next_n, if_true_next_p);
               (Test (exp, true), if_false_next_true_next_n, if_false_next_p @ if_false_next_true_next_p);
               (Test (exp, false), if_false_next_false_next_n, if_false_next_p @ if_false_next_false_next_p)
@@ -393,8 +397,11 @@ module Intra (ArgIntra: SIntraOpt) (Arg: S):
 struct
   include Arg
 
-  (* let rec follow node to_n p = Node.move_opt node to_n *)
-  let rec follow node to_n p =
+  (* TODO: remove Node.move_opt? *)
+
+  (** Starting from ARG node [node], follow CFG path [p] to the resulting ARG node.
+      Returns multiple ARG nodes if ARG contains path-sensitivity splits on the same CFG path. *)
+  let rec follow node to_n p = (* TODO: to_n argument unused? *)
     let open GobList.Syntax in
     match p with
     | [] -> [node]
@@ -413,7 +420,8 @@ struct
       next
       |> BatList.concat_map (fun (e, to_n, p) ->
           let+ to_node = follow node to_n p in
+          (* TODO: what's the point of to_n? should it match to_node? *)
           (Edge.embed e, to_node)
         )
-      |> BatList.unique_cmp ~cmp:[%ord: Edge.t * Node.t] (* TODO: avoid generating duplicates in the first place? *)
+      |> BatList.unique_cmp ~cmp:[%ord: Edge.t * Node.t] (* after following paths, there may be duplicates because same ARG node can be reached via same ARG edge via multiple uncilled CFG paths *) (* TODO: avoid generating duplicates in the first place? *)
 end
