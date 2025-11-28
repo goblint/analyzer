@@ -293,29 +293,9 @@ let partition_if_next if_next_n =
 module UnCilLogicIntra (Arg: SIntraOpt): SIntraOpt =
 struct
   open Cil
-  (* TODO: questionable (=) and (==) use here *)
 
-  (* let is_equiv_stmtkind sk1 sk2 = match sk1, sk2 with
-    | Instr is1, Instr is2 -> GobList.equal (=) is1 is2
-    | Return _, Return _ -> sk1 = sk2
-    | _, _ -> false (* TODO: also consider others? not sure if they ever get duplicated *)
-  let is_equiv_stmt s1 s2 = is_equiv_stmtkind s1.skind s2.skind (* TODO: also consider labels *)
-  let is_equiv_node n1 n2 = match n1, n2 with
-    | Statement s1, Statement s2 -> is_equiv_stmt s1 s2
-    | _, _ -> false (* TODO: also consider FunctionEntry & Function? *)
-  let is_equiv_edge e1 e2 = match e1, e2 with
-    | Entry f1, Entry f2 -> f1 == f2 (* physical equality for fundec to avoid cycle *)
-    | Ret (exp1, f1), Ret (exp2, f2) -> exp1 = exp2 && f1 == f2 (* physical equality for fundec to avoid cycle *)
-    | _, _ -> e1 = e2
-  let rec is_equiv_chain n1 n2 =
-    Node.equal n1 n2 || (is_equiv_node n1 n2 && is_equiv_chain_next n1 n2)
-  and is_equiv_chain_next n1 n2 = match Arg.next n1, Arg.next n2 with
-    | [(e1, to_n1)], [(e2, to_n2)] ->
-      is_equiv_edge e1 e2 && is_equiv_chain to_n1 to_n2
-    | _, _-> false *)
-
-  let rec is_equiv_chain n1 n2 =
-    Node.equal n1 n2 (* TODO: is it fine to not detect equivalent chains anymore? if so, could inline this *)
+  let () =
+    assert (not !Cabs2cil.allowDuplication) (* duplication makes it more annoying to detect cilling *)
 
   let rec next_opt' n = match n with
     | Statement {sid; skind=If _; _} when GobConfig.get_bool "exp.arg.uncil" ->
@@ -329,7 +309,7 @@ struct
         | Statement {sid=sid2; skind=If _; _}, _ when sid <> sid2 && CilType.Location.equal loc (Node.location if_true_next_n) ->
           (* get e2 from edge because recursive next returns it there *)
           let (e2, (if_true_next_true_next_n, if_true_next_true_next_p), (if_true_next_false_next_n, if_true_next_false_next_p)) = partition_if_next (next if_true_next_n) in
-          if is_equiv_chain if_false_next_n if_true_next_false_next_n then
+          if Node.equal if_false_next_n if_true_next_false_next_n then
             let exp = BinOp (LAnd, e, e2, intType) in
             Some [
               (Test (exp, true), if_true_next_true_next_n, if_true_next_p @ if_true_next_true_next_p);
@@ -343,7 +323,7 @@ struct
         | _, Statement {sid=sid2; skind=If _; _} when sid <> sid2 && CilType.Location.equal loc (Node.location if_false_next_n) ->
           (* get e2 from edge because recursive next returns it there *)
           let (e2, (if_false_next_true_next_n, if_false_next_true_next_p), (if_false_next_false_next_n, if_false_next_false_next_p)) = partition_if_next (next if_false_next_n) in
-          if is_equiv_chain if_true_next_n if_false_next_true_next_n then
+          if Node.equal if_true_next_n if_false_next_true_next_n then
             let exp = BinOp (LOr, e, e2, intType) in
             Some [
               (* two different paths to same true node *)
