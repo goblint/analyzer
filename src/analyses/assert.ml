@@ -39,7 +39,7 @@ struct
       if refine then raise Analyses.Deadcode else man.local
     | `Lifted true ->
       warn (M.success ~category:Assert "%s") ("Assertion \"" ^ expr ^ "\" will succeed");
-      Checks.safe Checks.Category.AssersionFaillure;
+      Checks.safe Checks.Category.AssersionFaillure ~message:("Assertion \"%s\" will succeed");
       man.local
     | `Bot ->
       M.error ~category:Assert "%s" ("Assertion \"" ^ expr ^ "\" produces a bottom. What does that mean? (currently uninitialized arrays' content is bottom)");
