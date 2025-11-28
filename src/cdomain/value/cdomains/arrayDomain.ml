@@ -998,7 +998,7 @@ struct
 
   module ArrayOobMessage = M.Category.Behavior.Undefined.ArrayOutOfBounds
   let warn_past_end ?loc ?tags fmt = 
-    let () = Checks.error Checks.Category.InvalidMemoryAccess fmt |> ignore in
+    Checks.error Checks.Category.InvalidMemoryAccess fmt |> ignore;
     M.error ~category:ArrayOobMessage.past_end ?loc ?tags fmt
 
   let min_nat_of_idx i = Z.max Z.zero (BatOption.default Z.zero (Idx.minimal i))
@@ -1213,7 +1213,7 @@ struct
     else if Nulls.is_empty Possibly nulls then
       (warn_past_end "May access array past end: potential buffer overflow"; x)
     else
-      let () = Checks.safe Checks.Category.InvalidMemoryAccess in
+      (Checks.safe Checks.Category.InvalidMemoryAccess;
       let min_must_null = Nulls.min_elem Definitely nulls in
       let new_size = Idx.of_int ILong (Z.succ min_must_null) in
       let min_may_null = Nulls.min_elem Possibly nulls in
@@ -1233,7 +1233,7 @@ struct
             let nulls' = Nulls.remove_all Possibly nulls in
             Nulls.filter (Z.leq min_must_null) nulls'
       in
-      (nulls, new_size)
+      (nulls, new_size))
 
   (** [to_n_string index_set n] returns an abstract value with a potential null byte
     * marking the end of the string and if needed followed by further null bytes to obtain
@@ -1286,16 +1286,16 @@ struct
           (* if only must_nulls_set empty, remove indexes >= n from may_nulls_set and add all indexes from minimal may null index to n - 1;
            * warn as in any case, resulting array not guaranteed to contain null byte *)
         else if Nulls.is_empty Possibly nulls then
-          let () = Checks.safe Checks.Category.InvalidMemoryAccess in
+          (Checks.safe Checks.Category.InvalidMemoryAccess;
           let min_may_null = Nulls.min_elem Possibly nulls in
           warn_no_null None min_may_null;
           if min_may_null =. Z.zero then
             Nulls.add_all Possibly nulls
           else
             let nulls = Nulls.add_interval Possibly (min_may_null, Z.pred n) nulls in
-            Nulls.filter (fun x -> x <. n) nulls
+            Nulls.filter (fun x -> x <. n) nulls)
         else
-          let () = Checks.safe Checks.Category.InvalidMemoryAccess in
+          (Checks.safe Checks.Category.InvalidMemoryAccess;
           let min_must_null = Nulls.min_elem Definitely nulls in
           let min_may_null = Nulls.min_elem Possibly nulls in
           (* warn if resulting array may not contain null byte *)
@@ -1313,7 +1313,7 @@ struct
           else
             let nulls = Nulls.remove_all Possibly nulls in
             let nulls = Nulls.add_interval Possibly (min_may_null, Z.pred n) nulls in
-            Nulls.filter (fun x -> x <. n) nulls
+            Nulls.filter (fun x -> x <. n) nulls)
       in
       (nulls,  Idx.of_int ILong n)
 
