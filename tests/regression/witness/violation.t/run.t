@@ -1,57 +1,117 @@
-Violation witness for a correct program can be refuted by proving the program correct and returning `true`:
-
-  $ goblint --enable ana.sv-comp.enabled --set witness.yaml.entry-types[+] violation_sequence --set ana.specification "CHECK( init(main()), LTL(G ! call(reach_error())) )" correct.c --set witness.yaml.validate correct.yml
+  $ goblint --conf svcomp25.json --disable ana.autotune.enabled --set ana.specification "CHECK( init(main()), LTL(G ! call(reach_error())) )"} callfpointer.c --enable exp.arg.stack --enable exp.arg.enabled --set exp.arg.dot.path arg.dot --set exp.arg.dot.node-label empty --enable ana.wp  --set witness.yaml.entry-types[+] violation_sequence --enable witness.yaml.sv-comp-true-only --enable witness.invariant.other 
   [Info] SV-COMP specification: CHECK( init(main()), LTL(G ! call(reach_error())) )
-  [Warning][Deadcode] Function 'reach_error' is uncalled: 1 LLoC (correct.c:1:1-1:20)
-  [Info][Deadcode] Logical lines of code (LLoC) summary:
-    live: 2
-    dead: 1 (1 in uncalled functions)
-    total lines: 3
-  [Info][Witness] witness validation summary:
-    confirmed: 0
-    unconfirmed: 0
-    refuted: 0
-    error: 0
-    unchecked: 0
-    unsupported: 0
-    disabled: 0
-    total validation entries: 0
-  SV-COMP result: true
-
-If a correct progtam cannot be proven correct, return `unknown` for the violation witness:
-
-  $ goblint --set ana.activated[-] expRelation --enable ana.sv-comp.functions --enable ana.sv-comp.enabled --set witness.yaml.entry-types[+] violation_sequence --set ana.specification "CHECK( init(main()), LTL(G ! call(reach_error())) )" correct-hard.c --set witness.yaml.validate correct-hard.yml
-  [Info] SV-COMP specification: CHECK( init(main()), LTL(G ! call(reach_error())) )
-  [Info][Deadcode] Logical lines of code (LLoC) summary:
-    live: 7
-    dead: 0
-    total lines: 7
-  [Info][Witness] witness validation summary:
-    confirmed: 0
-    unconfirmed: 0
-    refuted: 0
-    error: 0
-    unchecked: 0
-    unsupported: 0
-    disabled: 0
-    total validation entries: 0
+  [Warning][Deadcode] Function 'main' does not return
+  [Warning][Deadcode] Function 'f' has dead code:
+    on line 8 (callfpointer.c:8-8)
+  [Warning][Deadcode] Function 'h' has dead code:
+    on line 16 (callfpointer.c:16-16)
+  [Warning][Deadcode] Function 'main' has dead code:
+    on line 20 (callfpointer.c:20-20)
+  [Warning][Deadcode] Logical lines of code (LLoC) summary:
+    live: 8
+    dead: 3
+    total lines: 11
+  [Warning][Deadcode][CWE-571] condition 'i == 1' is always true (callfpointer.c:11:5-11:9)
   SV-COMP result: unknown
 
-Violation witness for an incorrect program cannot be proven correct, so return `unknown`:
+  $ graph-easy --as=boxart arg.dot
+  ┌──────────────────────┐
+  │          _           │
+  └──────────────────────┘
+    │
+    │ Entry main
+    ▼
+  ┌──────────────────────┐
+  │          _           │
+  └──────────────────────┘
+    │
+    │ InlineEntry '(& h)'
+    ▼
+  ┌──────────────────────┐
+  │          _           │
+  └──────────────────────┘
+    │
+    │ Entry f
+    ▼
+  ┌──────────────────────┐
+  │          _           │
+  └──────────────────────┘
+    │
+    │ InlineEntry '(1)'
+    ▼
+  ┌──────────────────────┐
+  │          _           │
+  └──────────────────────┘
+    │
+    │ Entry h
+    ▼
+  ┌──────────────────────┐
+  │          _           │
+  └──────────────────────┘
+    │
+    │ Test (i == 1,true)
+    ▼
+  ┌──────────────────────┐
+  │          _           │
+  └──────────────────────┘
+    │
+    │ InlineEntry '()'
+    ▼
+  ┌──────────────────────┐
+  │          _           │
+  └──────────────────────┘
+    │
+    │ Entry reach_error
+    ▼
+  ┌──────────────────────┐
+  │          _           │
+  └──────────────────────┘
 
-  $ goblint --enable ana.sv-comp.enabled --set witness.yaml.entry-types[+] violation_sequence --set ana.specification "CHECK( init(main()), LTL(G ! call(reach_error())) )" incorrect.c --set witness.yaml.validate incorrect.yml
-  [Info] SV-COMP specification: CHECK( init(main()), LTL(G ! call(reach_error())) )
-  [Info][Deadcode] Logical lines of code (LLoC) summary:
-    live: 4
-    dead: 0
-    total lines: 4
-  [Info][Witness] witness validation summary:
-    confirmed: 0
-    unconfirmed: 0
-    refuted: 0
-    error: 0
-    unchecked: 0
-    unsupported: 0
-    disabled: 0
-    total validation entries: 0
-  SV-COMP result: unknown
+  $ yamlWitnessStrip < witness.yml
+  - entry_type: violation_sequence
+    content:
+    - segment:
+      - waypoint:
+          type: assumption
+          location:
+            file_name: callfpointer.c
+            line: 18
+            column: 2
+            function: main
+          action: follow
+          constraint:
+            value: "1"
+            format: c_expression
+    - segment:
+      - waypoint:
+          type: assumption
+          location:
+            file_name: callfpointer.c
+            line: 7
+            column: 2
+            function: f
+          action: follow
+          constraint:
+            value: "1"
+            format: c_expression
+    - segment:
+      - waypoint:
+          type: branching
+          location:
+            file_name: callfpointer.c
+            line: 11
+            column: 2
+            function: h
+          action: follow
+          constraint:
+            value: "true"
+            format: c_expression
+    - segment:
+      - waypoint:
+          type: target
+          location:
+            file_name: callfpointer.c
+            line: 12
+            column: 11
+            function: h
+          action: follow
