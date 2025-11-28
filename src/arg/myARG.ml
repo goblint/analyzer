@@ -12,8 +12,6 @@ sig
   val context_id: t -> int
   val path_id: t -> int
   val to_string: t -> string
-
-  val equal_node_context: t -> t -> bool
 end
 
 module type Edge =
@@ -129,8 +127,6 @@ struct
     nl
     |> List.map Node.to_string
     |> String.concat "@"
-
-  let equal_node_context _ _ = failwith "StackNode: equal_node_context"
 end
 
 module Stack (Arg: S with module Edge = InlineEdge):
