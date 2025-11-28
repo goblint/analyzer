@@ -12,12 +12,6 @@
     dead: 3
     total lines: 11
   [Warning][Deadcode][CWE-571] condition 'i == 1' is always true (callfpointer.c:11:5-11:9)
-  [Info]   fun316main(12)[7] =[Entry main]=> s11(12)[7]
-  [Info]   s11(12)[7] =[InlineEntry '(& h)']=> fun309f(18)[16]@s11(12)[7]
-  [Info]   fun309f(18)[16]@s11(12)[7] =[Entry f]=> s3(18)[16]@s11(12)[7]
-  [Info]   s3(18)[16]@s11(12)[7] =[InlineEntry '(1)']=> fun313h(24)[21]@s3(18)[16]@s11(12)[7]
-  [Info]   fun313h(24)[21]@s3(18)[16]@s11(12)[7] =[Entry h]=> s5(24)[21]@s3(18)[16]@s11(12)[7]
-  [Info]   s5(24)[21]@s3(18)[16]@s11(12)[7] =[Test (i == 1,true)]=> s7(24)[21]@s3(18)[16]@s11(12)[7]
   SV-COMP result: unknown
 
   $ graph-easy --as=boxart arg.dot
