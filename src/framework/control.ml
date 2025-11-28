@@ -20,7 +20,6 @@ let spec_module: (module Spec) Lazy.t = lazy (
   GobConfig.building_spec := true;
   let arg_enabled = get_bool "exp.arg.enabled" in
   let termination_enabled = List.mem "termination" (get_string_list "ana.activated") in (* check if loop termination analysis is enabled*)
-  let open Batteries in
   (* apply functor F on module X if opt is true *)
   let lift opt (module F : S2S) (module X : Spec) = (module (val if opt then (module F (X)) else (module X) : Spec) : Spec) in
   let module S1 =
@@ -103,6 +102,7 @@ struct
   module LT = SetDomain.HeadlessSet (RT)
   (* Analysis result structure---a hashtable from program points to [LT] *)
   module Result = AnalysisResult.Result (LT) (struct let result_name = "analysis" end)
+  module ResultOutput = AnalysisResultOutput.Make (Result)
 
   module Query = ResultQuery.Query (SpecSys)
 
@@ -322,7 +322,6 @@ struct
         if M.tracing then M.trace "con" "Initializer %a" CilType.Location.pretty loc;
         (*incr count;
           if (get_bool "dbg.verbose")&& (!count mod 1000 = 0)  then Printf.printf "%d %!" !count;    *)
-        Goblint_tracing.current_loc := loc;
         match edge with
         | MyCFG.Entry func        ->
           if M.tracing then M.trace "global_inits" "Entry %a" d_lval (var func.svar);
@@ -342,11 +341,19 @@ struct
           res'
         | _                       -> failwith "Unsupported global initializer edge"
       in
+      let transfer_func st (loc, edge) =
+        let old_loc = !Goblint_tracing.current_loc in
+        Goblint_tracing.current_loc := loc;
+        (* TODO: next_loc? *)
+        Goblint_backtrace.protect ~mark:(fun () -> Constraints.TfLocation loc) ~finally:(fun () ->
+            Goblint_tracing.current_loc := old_loc;
+          ) (fun () ->
+            transfer_func st (loc, edge)
+          )
+      in
       let with_externs = do_extern_inits man file in
       (*if (get_bool "dbg.verbose") then Printf.printf "Number of init. edges : %d\nWorking:" (List.length edges);    *)
-      let old_loc = !Goblint_tracing.current_loc in
       let result : Spec.D.t = List.fold_left transfer_func with_externs edges in
-      Goblint_tracing.current_loc := old_loc;
       if M.tracing then M.trace "global_inits" "startstate: %a" Spec.D.pretty result;
       result, !funs
     in
@@ -646,7 +653,7 @@ struct
            Join abstract values once per location and once per node. *)
         let joined_by_loc, joined_by_node =
           let open Enum in
-          let node_values = LHT.enum lh |> map (Tuple2.map1 fst) in (* drop context from key *)
+          let node_values = LHT.enum lh |> map (Tuple2.map1 fst) in (* drop context from key *) (* nosemgrep: batenum-enum *)
           let hashtbl_size = if fast_count node_values then count node_values else 123 in
           let by_loc, by_node = Hashtbl.create hashtbl_size, NodeH.create hashtbl_size in
           iter (fun (node, v) ->
@@ -754,7 +761,7 @@ struct
     in
 
     if get_bool "exp.cfgdot" then
-      CfgTools.dead_code_cfg (module FileCfg) liveness;
+      CfgTools.dead_code_cfg ~path:(Fpath.v "cfgs") (module FileCfg) liveness;
 
     let warn_global g v =
       (* Logs.debug "warn_global %a %a" EQSys.GVar.pretty_trace g EQSys.G.pretty v; *)
@@ -804,15 +811,19 @@ struct
         None
     in
 
-    if get_bool "ana.sv-comp.enabled" then (
-      (* SV-COMP and witness generation *)
-      let module WResult = Witness.Result (R) in
-      WResult.write yaml_validate_result entrystates
-    );
+    let svcomp_result =
+      if get_bool "ana.sv-comp.enabled" then (
+        (* SV-COMP and witness generation *)
+        let module WResult = Witness.Result (R) in
+        Some (WResult.write yaml_validate_result entrystates)
+      )
+      else
+        None
+    in
 
     if get_bool "witness.yaml.enabled" then (
       let module YWitness = YamlWitness.Make (R) in
-      YWitness.write ()
+      YWitness.write ~svcomp_result
     );
 
     let marshal = Spec.finalize () in
@@ -830,7 +841,7 @@ struct
     if get_string "result" <> "none" then Logs.debug "Generating output: %s" (get_string "result");
 
     Messages.finalize ();
-    Timing.wrap "result output" (Result.output (lazy local_xml) gh make_global_fast_xml) file
+    Timing.wrap "result output" (ResultOutput.output (lazy local_xml) liveness gh make_global_fast_xml) (module FileCfg)
 end
 
 (* This function was originally a part of the [AnalyzeCFG] module, but

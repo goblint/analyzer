@@ -1,6 +1,5 @@
 (** Relational value domain utilities. *)
 open GoblintCil
-open Batteries
 
 open GobApron
 
@@ -211,12 +210,12 @@ struct
       texpr1_expr_of_cil_exp exp
     in
     let exp = Cil.constFold false exp in
-    if M.tracing then 
+    if M.tracing then
       match conv exp with
-      | exception Unsupported_CilExp ex -> 
+      | exception Unsupported_CilExp ex ->
         M.tracel "rel-texpr-cil-conv" "unsuccessfull: %s" (show_unsupported_cilExp ex);
         raise (Unsupported_CilExp ex)
-      | res -> 
+      | res ->
         M.trace "relation" "texpr1_expr_of_cil_exp: %a -> %a (%b)" d_plainexp exp Texpr1.Expr.pretty res (Lazy.force no_ov);
         M.tracel "rel-texpr-cil-conv" "successfull: Good";
         res
@@ -268,44 +267,55 @@ module CilOfApron (V: SV) =
 struct
   exception Unsupported_Linexpr1
 
-  let cil_exp_of_linexpr1 ?scalewith (linexpr1:Linexpr1.t) =
-    let longlong = TInt(ILongLong,[]) in
-    let coeff_to_const consider_flip (c:Coeff.union_5) = match c with
-      | Scalar c ->
-        (match int_of_scalar ?scalewith c with
-         | Some i ->
-           let ci,truncation = truncateCilint ILongLong i in
-           if truncation = NoTruncation then
-             if not consider_flip || Z.compare i Z.zero >= 0 then
-               Const (CInt(i,ILongLong,None)), false
-             else
-               (* attempt to negate if that does not cause an overflow *)
-               let cneg, truncation = truncateCilint ILongLong (Z.neg i) in
-               if truncation = NoTruncation then
-                 Const (CInt((Z.neg i),ILongLong,None)), true
-               else
-                 Const (CInt(i,ILongLong,None)), false
+  let longlong = TInt(ILongLong,[])
+
+
+  (** Returned boolean indicates whether returned expression should be negated. *)
+  let coeff_to_const ~scalewith (c:Coeff.union_5) =
+    match c with
+    | Scalar c ->
+      (match int_of_scalar ?scalewith c with
+       | Some i ->
+         let ci,truncation = truncateCilint ILongLong i in
+         if truncation = NoTruncation then
+           if Z.compare i Z.zero >= 0 then
+             false, Const (CInt(i,ILongLong,None))
            else
-             (M.warn ~category:Analyzer "Invariant Apron: coefficient is not int: %a" Scalar.pretty c; raise Unsupported_Linexpr1)
-         | None -> raise Unsupported_Linexpr1)
-      | _ -> raise Unsupported_Linexpr1
-    in
-    let expr = ref (fst @@ coeff_to_const false (Linexpr1.get_cst linexpr1)) in
+             (* attempt to negate if that does not cause an overflow *)
+             let cneg, truncation = truncateCilint ILongLong (Z.neg i) in
+             if truncation = NoTruncation then
+               true, Const (CInt((Z.neg i),ILongLong,None))
+             else
+               false, Const (CInt(i,ILongLong,None))
+         else
+           (M.warn ~category:Analyzer "Invariant Apron: coefficient is not int: %a" Scalar.pretty c; raise Unsupported_Linexpr1)
+       | None -> raise Unsupported_Linexpr1)
+    | _ -> raise Unsupported_Linexpr1
+
+  (** Returned boolean indicates whether returned expression should be negated. *)
+  let cil_exp_of_linexpr1_term ~scalewith (c: Coeff.t) v =
+    match V.to_cil_varinfo v with
+    | Some vinfo when IntDomain.Size.is_cast_injective ~from_type:vinfo.vtype ~to_type:(TInt(ILongLong,[]))   ->
+      let var = Cilfacade.mkCast ~e:(Lval(Var vinfo,NoOffset)) ~newt:longlong in
+      let flip, coeff = coeff_to_const ~scalewith c in
+      let prod = BinOp(Mult, coeff, var, longlong) in
+      flip, prod
+    | None ->
+      M.warn ~category:Analyzer "Invariant Apron: cannot convert to cil var: %a" Var.pretty v;
+      raise Unsupported_Linexpr1
+    | _ ->
+      M.warn ~category:Analyzer "Invariant Apron: cannot convert to cil var in overflow preserving manner: %a" Var.pretty v;
+      raise Unsupported_Linexpr1
+
+  (** Returned booleans indicates whether returned expressions should be negated. *)
+  let cil_exp_of_linexpr1 ?scalewith (linexpr1:Linexpr1.t) =
+    let terms = ref [coeff_to_const ~scalewith (Linexpr1.get_cst linexpr1)] in
     let append_summand (c:Coeff.union_5) v =
-      match V.to_cil_varinfo v with
-      | Some vinfo when IntDomain.Size.is_cast_injective ~from_type:vinfo.vtype ~to_type:(TInt(ILongLong,[]))   ->
-        let var = Cilfacade.mkCast ~e:(Lval(Var vinfo,NoOffset)) ~newt:longlong in
-        let coeff, flip = coeff_to_const true c in
-        let prod = BinOp(Mult, coeff, var, longlong) in
-        if flip then
-          expr := BinOp(MinusA,!expr,prod,longlong)
-        else
-          expr := BinOp(PlusA,!expr,prod,longlong)
-      | None -> M.warn ~category:Analyzer "Invariant Apron: cannot convert to cil var: %a" Var.pretty v; raise Unsupported_Linexpr1
-      | _ -> M.warn ~category:Analyzer "Invariant Apron: cannot convert to cil var in overflow preserving manner: %a" Var.pretty v; raise Unsupported_Linexpr1
+      if not (Coeff.is_zero c) then
+        terms := cil_exp_of_linexpr1_term ~scalewith c v :: !terms
     in
     Linexpr1.iter append_summand linexpr1;
-    !expr
+    !terms
 
 
   let lcm_den linexpr1 =
@@ -339,13 +349,27 @@ struct
     try
       let linexpr1 = Lincons1.get_linexpr1 lincons1 in
       let common_denominator = lcm_den linexpr1 in
-      let cilexp = cil_exp_of_linexpr1 ~scalewith:common_denominator linexpr1 in
-      match Lincons1.get_typ lincons1 with
-      | EQ -> Some (Cil.constFold false @@ BinOp(Eq, cilexp, zero, TInt(IInt,[])))
-      | SUPEQ -> Some (Cil.constFold false @@ BinOp(Ge, cilexp, zero, TInt(IInt,[])))
-      | SUP -> Some (Cil.constFold false @@ BinOp(Gt, cilexp, zero, TInt(IInt,[])))
-      | DISEQ -> Some (Cil.constFold false @@ BinOp(Ne, cilexp, zero, TInt(IInt,[])))
-      | EQMOD _ -> None
+      let terms = cil_exp_of_linexpr1 ~scalewith:common_denominator linexpr1 in
+      let (nterms, pterms) = BatTuple.Tuple2.mapn (List.map snd) (List.partition fst terms) in (* partition terms into negative (nterms) and positive (pterms) *)
+      let fold_terms terms =
+        List.fold_left (fun acc term ->
+            match acc with
+            | None -> Some term
+            | Some exp -> Some (BinOp (PlusA, exp, term, longlong))
+          ) None terms
+        |> BatOption.default zero
+      in
+      let lhs = fold_terms pterms in
+      let rhs = fold_terms nterms in (* negative terms are moved from Apron's lhs to our rhs, so they all become positive there *)
+      let binop =
+        match Lincons1.get_typ lincons1 with
+        | EQ -> Eq
+        | SUPEQ -> Ge
+        | SUP -> Gt
+        | DISEQ -> Ne
+        | EQMOD _ -> raise Unsupported_Linexpr1
+      in
+      Some (Cil.constFold false @@ BinOp(binop, lhs, rhs, TInt(IInt,[]))) (* constFold removes multiplication by factor 1 *)
     with
       Unsupported_Linexpr1 -> None
 end
@@ -437,7 +461,7 @@ struct
   let add_vars t vars = Vector.timing_wrap "add_vars" (add_vars t) vars
 
   let remove_vars t vars =
-    let t = copy t in 
+    let t = copy t in
     let env' = Environment.remove_vars t.env vars in
     dimchange2_remove t env'
 
@@ -494,20 +518,7 @@ sig
   val eval_interval : Queries.ask -> t -> Texpr1.t -> Z.t option * Z.t option
 end
 
-module Tracked: RelationDomain.Tracked =
-struct
-  let is_pthread_int_type = function
-    | TNamed ({tname = ("pthread_t" | "pthread_key_t" | "pthread_once_t" | "pthread_spinlock_t"); _}, _) -> true (* on Linux these pthread types are integral *)
-    | _ -> false
-
-  let type_tracked typ =
-    isIntegralType typ && not (is_pthread_int_type typ)
-
-  let varinfo_tracked vi =
-    (* no vglob check here, because globals are allowed in relation, but just have to be handled separately *)
-    let hasTrackAttribute = List.exists (fun (Attr(s,_)) -> s = "goblint_relation_track") in
-    type_tracked vi.vtype && (not @@ GobConfig.get_bool "annotation.goblint_relation_track" || hasTrackAttribute vi.vattr)
-end
+module Tracked = RelationCil.Tracked
 
 module AssertionModule (V: SV) (AD: AssertionRelS) (Arg: ConvertArg) =
 struct

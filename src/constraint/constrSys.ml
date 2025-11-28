@@ -132,18 +132,17 @@ struct
     include S
 
     let system x =
-      match S.system x with
-      | None -> None
-      | Some f ->
-        let f' get set demand =
-          let old_current_var = !current_var in
-          current_var := Some x;
-          Fun.protect ~finally:(fun () ->
-              current_var := old_current_var
-            ) (fun () ->
-              f get set demand
-            )
-        in
-        Some f'
+      Option.map (fun f ->
+          let f' get set demand =
+            let old_current_var = !current_var in
+            current_var := Some x;
+            Fun.protect ~finally:(fun () ->
+                current_var := old_current_var
+              ) (fun () ->
+                f get set demand
+              )
+          in
+          f'
+        ) (S.system x)
   end
 end

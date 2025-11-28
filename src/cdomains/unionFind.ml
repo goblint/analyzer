@@ -3,10 +3,11 @@
    This file contains the code for a quantitative union find and the quantitative finite automata.
    They will be necessary in order to construct the congruence closure of terms.
 *)
-open Batteries
 open GoblintCil
 open DuplicateVars
 module M = Messages
+module Tuple3 = Batteries.Tuple3
+module Tuple2 = Batteries.Tuple2
 
 exception Unsat
 
@@ -147,7 +148,7 @@ module T = struct
   (** Returns true if the second parameter contains one of the variables defined in the list "variables". *)
   let contains_variable variables term =
     let term_var = get_var term in
-    List.mem_cmp Var.compare term_var variables
+    BatList.mem_cmp Var.compare term_var variables
 
   (** Use query EvalInt for an expression. *)
   let eval_int (ask:Queries.ask) exp =
@@ -225,7 +226,7 @@ module T = struct
   let offset_to_index ?typ offset =
     let ptr_diff_ikind = Cilfacade.ptrdiff_ikind () in
     let offset_in_bytes = PreValueDomain.Offs.to_index ?typ offset in
-    let bytes_to_bits = IntDomain.of_const (Z.of_int 8, ptr_diff_ikind, None) in
+    let bytes_to_bits = IntDomain.IntDomTuple.of_int  ptr_diff_ikind (Z.of_int 8) in
     IntDomain.IntDomTuple.mul bytes_to_bits offset_in_bytes
 
   (** Convert a Cil offset to an integer offset. *)
@@ -319,7 +320,7 @@ module T = struct
     function
     | Addr v ->
       let varinfo = Var.to_varinfo v in
-      let lval = (Var varinfo, NoOffset) in
+      let lval = Cil.var varinfo in
       AddrOf lval
     | Aux (_, exp)
     | (Deref (_, _, exp)) -> exp
@@ -472,7 +473,7 @@ module T = struct
     if M.tracing then M.trace "c2po-deref" "deref result: %a" d_exp res;
     res
 
-  let get_size = get_size_in_bits % type_of_term
+  let get_size t =  get_size_in_bits @@ type_of_term t
 
   let of_offset ask t off typ exp =
     if off = NoOffset then
@@ -922,7 +923,7 @@ module UnionFind = struct
       compare_repr_v (find_no_pc uf el1) (find_no_pc uf el2)
     in
     let bindings = ValMap.bindings uf in
-    List.group compare bindings
+    BatList.group compare bindings
 
   (** Throws "Unknown value" if the data structure is invalid. *)
   let show_uf uf =
@@ -1055,10 +1056,7 @@ module LookupMap = struct
       [Z.zero, t]
     | Some zmap ->
       let offset_term_product (z, term_set) =
-        let terms = TSet.to_list term_set in
-        List.cartesian_product [z] terms
+        term_set |> TSet.to_seq |> Seq.map (fun term -> (z, term))
       in
-      let zmap_bindings = ZMap.bindings zmap in
-      List.concat_map offset_term_product zmap_bindings
-
+      ZMap.to_seq zmap |> Seq.concat_map offset_term_product |> List.of_seq
 end

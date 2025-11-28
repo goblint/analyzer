@@ -156,7 +156,7 @@ struct
     | n :: stack ->
       let cfgnode = Arg.Node.cfgnode n in
       match cfgnode with
-      | Function _ -> (* TODO: can this be done without cfgnode? *)
+      | Function cfgnode_fd -> (* TODO: can this be done without cfgnode? *)
         begin match stack with
           (* | [] -> failwith "StackArg.next: return stack empty" *)
           | [] -> [] (* main return *)
@@ -171,14 +171,33 @@ struct
                   | _ -> None
                 )
             in
+            let (entry_lval, entry_args) =
+              Arg.next call_n
+              (* filter because infinite loops starting with function call
+                 will have another Neg(1) edge from the head *)
+              |> List.filter_map (fun (edge, to_n) ->
+                  match edge with
+                  | InlineEntry (lval, _, args) -> Some (lval, args)
+                  | _ -> None
+                )
+              |> List.sort_uniq [%ord: CilType.Lval.t option * CilType.Exp.t list] (* TODO: deduplicate unique element in O(n) *)
+              |> (function
+                  | [lval_args] -> lval_args
+                  | _ -> assert false (* all calls from a node must have same args and lval, even if called function might be different via function pointer *)
+                )
+            in
             Arg.next n
             |> List.filter_map (fun (edge, to_n) ->
-                if BatList.mem_cmp Arg.Node.compare to_n call_next then (
-                  let to_n' = to_n :: call_stack in
-                  Some (edge, to_n')
-                )
-                else
-                  None
+                match edge with
+                | InlineReturn (lval, fd, args) ->
+                  assert (CilType.Fundec.equal fd cfgnode_fd); (* fd in return node should be the same as in InlineReturn edge *)
+                  if BatList.mem_cmp Arg.Node.compare to_n call_next && [%eq: CilType.Lval.t option] lval entry_lval && [%eq: CilType.Exp.t list] args entry_args then (
+                    let to_n' = to_n :: call_stack in
+                    Some (edge, to_n')
+                  )
+                  else
+                    None
+                | _ -> assert false
               )
         end
       | _ ->

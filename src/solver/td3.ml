@@ -287,11 +287,11 @@ module Base =
         include WPS (EqS) (HM) (VS)
       end in
 
-      let () = print_solver_stats := fun () ->
+      print_solver_stats := (fun () ->
           print_data data;
           Logs.info "|called|=%d" (HM.length called);
           print_context_stats rho
-      in
+        );
 
       if GobConfig.get_bool "incremental.load" then (
         print_data_verbose data "Loaded data for incremental analysis";
@@ -832,9 +832,9 @@ module Base =
       let rec solver () = (* as while loop in paper *)
         incr i;
         let weak_dep_vs =
-          HM.values weak_dep
-          |> Enum.concat_map VS.enum
-          |> List.of_enum
+          HM.to_seq_values weak_dep
+          |> Seq.concat_map VS.to_seq
+          |> List.of_seq
         in
         let all_vs = vs @ weak_dep_vs in (* vs is singleton for us, so it's cheap to prepend *)
         let unstable_vs = List.filter (neg (HM.mem stable)) all_vs in

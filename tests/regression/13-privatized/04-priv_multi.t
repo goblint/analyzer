@@ -1,4 +1,4 @@
-  $ goblint --set ana.base.privatization protection --enable witness.yaml.enabled --set ana.activated[+] mutexGhosts --set witness.yaml.entry-types '["flow_insensitive_invariant", "ghost_instrumentation"]' 04-priv_multi.c
+  $ goblint --set ana.base.privatization protection --enable witness.yaml.enabled --set ana.activated[+] mutexGhosts --set witness.yaml.entry-types[+] ghost_instrumentation --set witness.yaml.invariant-types[*] flow_insensitive_invariant --set witness.yaml.format-version 2.1-goblint 04-priv_multi.c
   [Success][Assert] Assertion "p == 5" will succeed (04-priv_multi.c:50:7-50:30)
   [Success][Assert] Assertion "A == B" will succeed (04-priv_multi.c:71:5-71:28)
   [Warning][Deadcode] Function 'dispose' has dead code:
@@ -19,7 +19,7 @@
     location invariants: 0
     loop invariants: 0
     flow-insensitive invariants: 3
-    total generation entries: 4
+    total generation entries: 2
   [Info][Race] Memory locations race summary:
     safe: 2
     vulnerable: 0
@@ -166,25 +166,24 @@
         - variable: mutex_A_locked
           value: "0"
           format: c_expression
-  - entry_type: flow_insensitive_invariant
-    flow_insensitive_invariant:
-      string: '! multithreaded || (mutex_B_locked || (mutex_A_locked || B == 5))'
-      type: assertion
-      format: C
-  - entry_type: flow_insensitive_invariant
-    flow_insensitive_invariant:
-      string: '! multithreaded || (mutex_A_locked || A == 5)'
-      type: assertion
-      format: C
-  - entry_type: flow_insensitive_invariant
-    flow_insensitive_invariant:
-      string: '! multithreaded || ((0 <= B && B <= 127) && B != 0)'
-      type: assertion
-      format: C
+  - entry_type: invariant_set
+    content:
+    - invariant:
+        type: flow_insensitive_invariant
+        value: '! multithreaded || ((0 <= B && B <= 127) && B != 0)'
+        format: c_expression
+    - invariant:
+        type: flow_insensitive_invariant
+        value: '! multithreaded || (mutex_A_locked || A == 5)'
+        format: c_expression
+    - invariant:
+        type: flow_insensitive_invariant
+        value: '! multithreaded || (mutex_B_locked || (mutex_A_locked || B == 5))'
+        format: c_expression
 
 Flow-insensitive invariants as location invariants.
 
-  $ goblint --set ana.base.privatization protection --enable witness.yaml.enabled --set ana.activated[+] mutexGhosts --set witness.yaml.entry-types '["flow_insensitive_invariant", "ghost_instrumentation"]' --set witness.invariant.flow_insensitive-as location_invariant 04-priv_multi.c
+  $ goblint --set ana.base.privatization protection --enable witness.yaml.enabled --set ana.activated[+] mutexGhosts --set witness.yaml.entry-types[+] ghost_instrumentation --set witness.yaml.invariant-types[*] flow_insensitive_invariant --set witness.invariant.flow_insensitive-as invariant_set-location_invariant 04-priv_multi.c
   [Success][Assert] Assertion "p == 5" will succeed (04-priv_multi.c:50:7-50:30)
   [Success][Assert] Assertion "A == B" will succeed (04-priv_multi.c:71:5-71:28)
   [Warning][Deadcode] Function 'dispose' has dead code:
@@ -205,7 +204,7 @@ Flow-insensitive invariants as location invariants.
     location invariants: 9
     loop invariants: 0
     flow-insensitive invariants: 0
-    total generation entries: 10
+    total generation entries: 2
   [Info][Race] Memory locations race summary:
     safe: 2
     vulnerable: 0
@@ -217,97 +216,85 @@ Flow-insensitive invariants as location invariants.
 Location invariant at `for` loop in `main` should be on column 3, not 7.
 
   $ diff witness.flow_insensitive.yml witness.location.yml
-  140,141c140,146
-  < - entry_type: flow_insensitive_invariant
-  <   flow_insensitive_invariant:
+  143c143,148
+  <       type: flow_insensitive_invariant
   ---
-  > - entry_type: location_invariant
-  >   location:
-  >     file_name: 04-priv_multi.c
-  >     line: 67
-  >     column: 3
-  >     function: main
-  >   location_invariant:
-  145,146c150,156
-  < - entry_type: flow_insensitive_invariant
-  <   flow_insensitive_invariant:
+  >       type: location_invariant
+  >       location:
+  >         file_name: 04-priv_multi.c
+  >         line: 64
+  >         column: 3
+  >         function: main
+  147c152,157
+  <       type: flow_insensitive_invariant
   ---
-  > - entry_type: location_invariant
-  >   location:
-  >     file_name: 04-priv_multi.c
-  >     line: 67
-  >     column: 3
-  >     function: main
-  >   location_invariant:
-  150,151c160,226
-  < - entry_type: flow_insensitive_invariant
-  <   flow_insensitive_invariant:
+  >       type: location_invariant
+  >       location:
+  >         file_name: 04-priv_multi.c
+  >         line: 64
+  >         column: 3
+  >         function: main
+  151c161,220
+  <       type: flow_insensitive_invariant
   ---
-  > - entry_type: location_invariant
-  >   location:
-  >     file_name: 04-priv_multi.c
-  >     line: 67
-  >     column: 3
-  >     function: main
-  >   location_invariant:
-  >     string: '! multithreaded || ((0 <= B && B <= 127) && B != 0)'
-  >     type: assertion
-  >     format: C
-  > - entry_type: location_invariant
-  >   location:
-  >     file_name: 04-priv_multi.c
-  >     line: 65
-  >     column: 3
-  >     function: main
-  >   location_invariant:
-  >     string: '! multithreaded || (mutex_B_locked || (mutex_A_locked || B == 5))'
-  >     type: assertion
-  >     format: C
-  > - entry_type: location_invariant
-  >   location:
-  >     file_name: 04-priv_multi.c
-  >     line: 65
-  >     column: 3
-  >     function: main
-  >   location_invariant:
-  >     string: '! multithreaded || (mutex_A_locked || A == 5)'
-  >     type: assertion
-  >     format: C
-  > - entry_type: location_invariant
-  >   location:
-  >     file_name: 04-priv_multi.c
-  >     line: 65
-  >     column: 3
-  >     function: main
-  >   location_invariant:
-  >     string: '! multithreaded || ((0 <= B && B <= 127) && B != 0)'
-  >     type: assertion
-  >     format: C
-  > - entry_type: location_invariant
-  >   location:
-  >     file_name: 04-priv_multi.c
-  >     line: 64
-  >     column: 3
-  >     function: main
-  >   location_invariant:
-  >     string: '! multithreaded || (mutex_B_locked || (mutex_A_locked || B == 5))'
-  >     type: assertion
-  >     format: C
-  > - entry_type: location_invariant
-  >   location:
-  >     file_name: 04-priv_multi.c
-  >     line: 64
-  >     column: 3
-  >     function: main
-  >   location_invariant:
-  >     string: '! multithreaded || (mutex_A_locked || A == 5)'
-  >     type: assertion
-  >     format: C
-  > - entry_type: location_invariant
-  >   location:
-  >     file_name: 04-priv_multi.c
-  >     line: 64
-  >     column: 3
-  >     function: main
-  >   location_invariant:
+  >       type: location_invariant
+  >       location:
+  >         file_name: 04-priv_multi.c
+  >         line: 64
+  >         column: 3
+  >         function: main
+  >       value: '! multithreaded || (mutex_B_locked || (mutex_A_locked || B == 5))'
+  >       format: c_expression
+  >   - invariant:
+  >       type: location_invariant
+  >       location:
+  >         file_name: 04-priv_multi.c
+  >         line: 65
+  >         column: 3
+  >         function: main
+  >       value: '! multithreaded || ((0 <= B && B <= 127) && B != 0)'
+  >       format: c_expression
+  >   - invariant:
+  >       type: location_invariant
+  >       location:
+  >         file_name: 04-priv_multi.c
+  >         line: 65
+  >         column: 3
+  >         function: main
+  >       value: '! multithreaded || (mutex_A_locked || A == 5)'
+  >       format: c_expression
+  >   - invariant:
+  >       type: location_invariant
+  >       location:
+  >         file_name: 04-priv_multi.c
+  >         line: 65
+  >         column: 3
+  >         function: main
+  >       value: '! multithreaded || (mutex_B_locked || (mutex_A_locked || B == 5))'
+  >       format: c_expression
+  >   - invariant:
+  >       type: location_invariant
+  >       location:
+  >         file_name: 04-priv_multi.c
+  >         line: 67
+  >         column: 3
+  >         function: main
+  >       value: '! multithreaded || ((0 <= B && B <= 127) && B != 0)'
+  >       format: c_expression
+  >   - invariant:
+  >       type: location_invariant
+  >       location:
+  >         file_name: 04-priv_multi.c
+  >         line: 67
+  >         column: 3
+  >         function: main
+  >       value: '! multithreaded || (mutex_A_locked || A == 5)'
+  >       format: c_expression
+  >   - invariant:
+  >       type: location_invariant
+  >       location:
+  >         file_name: 04-priv_multi.c
+  >         line: 67
+  >         column: 3
+  >         function: main
   [1]

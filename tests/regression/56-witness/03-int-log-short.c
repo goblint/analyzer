@@ -1,4 +1,4 @@
-// PARAM: --set witness.yaml.entry-types[*] location_invariant --set witness.yaml.validate 03-int-log-short.yml
+// PARAM: --set witness.yaml.validate 03-int-log-short.yml
 
 int main() {
   int r;

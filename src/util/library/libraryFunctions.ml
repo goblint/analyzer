@@ -16,6 +16,11 @@ let intmax_t = lazy (
   !res
 )
 
+let stripOuterBoolCast = function
+  | CastE (TInt (IBool, _), e) -> e
+  | Const (CInt (b, IBool, s)) -> Const (CInt (b, IInt, s))
+  | e -> e
+
 (** C standard library functions.
     These are specified by the C standard. *)
 let c_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
@@ -349,7 +354,13 @@ let posix_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("pclose", unknown [drop "stream" [w; f]]);
     ("getcwd", unknown [drop "buf" [w]; drop "size" []]);
     ("inet_pton", unknown [drop "af" []; drop "src" [r]; drop "dst" [w]]);
+    ("__inet_pton_alias", unknown [drop "af" []; drop "src" [r]; drop "dst" [w]]);
+    ("__inet_pton_chk", unknown [drop "af" []; drop "src" [r]; drop "dst" [w]; drop "os" []]);
+    ("__inet_pton_chk_warn", unknown [drop "af" []; drop "src" [r]; drop "dst" [w]; drop "os" []]);
     ("inet_ntop", unknown [drop "af" []; drop "src" [r]; drop "dst" [w]; drop "size" []]);
+    ("__inet_ntop_alias", unknown [drop "af" []; drop "src" [r]; drop "dst" [w]; drop "size" []]);
+    ("__inet_ntop_chk", unknown [drop "af" []; drop "src" [r]; drop "dst" [w]; drop "size" []; drop "os" []]);
+    ("__inet_ntop_chk_warn", unknown [drop "af" []; drop "src" [r]; drop "dst" [w]; drop "size" []; drop "os" []]);
     ("gethostent", unknown ~attrs:[ThreadUnsafe] []);
     ("poll", unknown [drop "fds" [r]; drop "nfds" []; drop "timeout" []]);
     ("semget", unknown [drop "key" []; drop "nsems" []; drop "semflg" []]);
@@ -642,6 +653,7 @@ let glibc_desc_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("ferror_unlocked", unknown [drop "stream" [r_deep; w_deep]]);
     ("fwrite_unlocked", unknown [drop "buffer" [r]; drop "size" []; drop "count" []; drop "stream" [r_deep; w_deep]]);
     ("clearerr_unlocked", unknown [drop "stream" [w]]); (* TODO: why only w? *)
+    ("__fpending", unknown [drop "stream" [r_deep]]);
     ("futimesat", unknown [drop "dirfd" []; drop "pathname" [r]; drop "times" [r]]);
     ("error", unknown ((drop "status" []) :: (drop "errnum" []) :: (drop "format" [r]) :: (VarArgs (drop' [r]))));
     ("warn", unknown (drop "format" [r] :: VarArgs (drop' [r])));
@@ -833,9 +845,9 @@ let linux_kernel_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
 (** Goblint functions. *)
 let goblint_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("__goblint_unknown", unknown [drop' [w]]);
-    ("__goblint_check", special [__ "exp" []] @@ fun exp -> Assert { exp; check = true; refine = false });
-    ("__goblint_assume", special [__ "exp" []] @@ fun exp -> Assert { exp; check = false; refine = true });
-    ("__goblint_assert", special [__ "exp" []] @@ fun exp -> Assert { exp; check = true; refine = get_bool "sem.assert.refine" });
+    ("__goblint_check", special [__ "exp" []] @@ fun exp -> Assert { exp = stripOuterBoolCast exp; check = true; refine = false });
+    ("__goblint_assume", special [__ "exp" []] @@ fun exp -> Assert { exp = stripOuterBoolCast exp; check = false; refine = true });
+    ("__goblint_assert", special [__ "exp" []] @@ fun exp -> Assert { exp = stripOuterBoolCast exp; check = true; refine = get_bool "sem.assert.refine" });
     ("__goblint_globalize", special [__ "ptr" []] @@ fun ptr -> Globalize ptr);
     ("__goblint_split_begin", unknown [drop "exp" []]);
     ("__goblint_split_end", unknown [drop "exp" []]);
@@ -1099,6 +1111,7 @@ let svcomp_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("__VERIFIER_nondet_loff_t", unknown []); (* cannot give it in sv-comp.c without including stdlib or similar *)
     ("__VERIFIER_nondet_int", unknown []);  (* declare invalidate actions to prevent invalidating globals when extern in regression tests *)
     ("__VERIFIER_nondet_size_t", unknown []); (* cannot give it in sv-comp.c without including stdlib or similar *)
+    ("__VERIFIER_nondet_memory", unknown [drop "mem" [w]; drop "size" []]); (* instead of using reference implementation from SV-COMP rules in sv-comp.c, this avoids supertop warnings *)
     ("__VERIFIER_assert", special [__ "exp" []] @@ fun exp -> Assert { exp; check = true; refine = get_bool "sem.assert.refine" }); (* only used if definition missing (e.g. in evalAssert transformed output) or extraspecial *)
     ("reach_error", special [] @@ Abort); (* only used if definition missing (e.g. in evalAssert transformed output) or extraspecial *)
   ]

@@ -159,6 +159,7 @@ module Callstring = Callstring
 module LoopfreeCallstring = LoopfreeCallstring
 module Uninit = Uninit
 module Expsplit = Expsplit
+module BranchSet = BranchSet
 module StackTrace = StackTrace
 
 (** {2 Helper}
@@ -336,6 +337,11 @@ module CompilationDatabase = CompilationDatabase
 module MakefileUtil = MakefileUtil
 module TerminationPreprocessing = TerminationPreprocessing
 
+(** {2 Results} *)
+
+module AnalysisResultOutput = AnalysisResultOutput
+module XsltResultOutput = XsltResultOutput
+
 (** {2 Witnesses}
 
     Witnesses are an exchangeable format for analysis results. *)
@@ -354,6 +360,7 @@ module WitnessUtil = WitnessUtil
 
 module YamlWitness = YamlWitness
 module YamlWitnessType = YamlWitnessType
+module YamlWitnessVersion = YamlWitnessVersion
 module WitnessGhost = WitnessGhost
 
 (** {2 SARIF} *)
@@ -411,6 +418,7 @@ module Timeout = Timeout
 module TimeUtil = TimeUtil
 module MessageUtil = MessageUtil
 module AnsiColors = AnsiColors
+module CodeHighlighter = CodeHighlighter
 module XmlUtil = XmlUtil
 
 module GobExn = GobExn
@@ -454,6 +462,7 @@ module SparseVector = SparseVector
 module ListMatrix = ListMatrix
 module RatOps = RatOps
 
+module RelationCil = RelationCil
 module SharedFunctions = SharedFunctions
 module GobApron = GobApron
 

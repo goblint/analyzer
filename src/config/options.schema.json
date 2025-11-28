@@ -81,7 +81,7 @@
       "description":
         "Result style: none, fast_xml, json, pretty, pretty-deterministic, json-messages, sarif.",
       "type": "string",
-      "enum": ["none", "fast_xml", "json", "pretty", "pretty-deterministic", "json-messages", "sarif"],
+      "enum": ["none", "fast_xml", "g2html", "xslt", "json", "pretty", "pretty-deterministic", "json-messages", "sarif"],
       "default": "none"
     },
     "solver": {
@@ -116,12 +116,6 @@
       "type": "string",
       "enum": ["auto", "always", "never"],
       "default": "auto"
-    },
-    "g2html": {
-      "title": "g2html",
-      "description": "Run g2html.jar on the generated xml.",
-      "type": "boolean",
-      "default": false
     },
     "save_run": {
       "title": "save_run",
@@ -170,6 +164,20 @@
       "description": "Directory used for intermediate data.",
       "type": "string",
       "default": ".goblint"
+    },
+    "std": {
+      "title": "std",
+      "type": "string",
+      "description": "Specify the c standard used for preprocessing and parsing.",
+      "default": "gnu11",
+      "enum": [
+        "c89", "c90",
+        "gnu89", "gnu90",
+        "c99", "c9x",
+        "gnu99", "gnu9x",
+        "c11", "c1x",
+        "gnu11", "gnu1x"
+      ]
     },
     "pre": {
       "title": "Preprocessing",
@@ -276,13 +284,6 @@
           },
           "additionalProperties": false
         },
-        "cstd": {
-          "title": "cil.cstd",
-          "type": "string",
-          "description": "Specify the c standard used for parsing.",
-          "default": "c99",
-          "enum": ["c90", "c99", "c11"]
-        },
         "gnu89inline": {
           "title": "cil.gnu89inline",
           "type": "boolean",
@@ -352,7 +353,7 @@
           "description": "List of path-sensitive analyses",
           "type": "array",
           "items": { "type": "string" },
-          "default": [ "mutex", "malloc_null", "uninit", "expsplit","activeSetjmp","memLeak" ]
+          "default": [ "mutex", "malloc_null", "uninit", "expsplit", "activeSetjmp", "memLeak", "branchSet"]
         },
         "ctx_insens": {
           "title": "ana.ctx_insens",
@@ -2762,8 +2763,8 @@
               "title": "witness.invariant.flow_insensitive-as",
               "description": "Emit flow-insensitive invariants as location invariants at certain locations.",
               "type": "string",
-              "enum": ["flow_insensitive_invariant", "location_invariant", "invariant_set-location_invariant"],
-              "default": "flow_insensitive_invariant"
+              "enum": ["invariant_set-flow_insensitive_invariant", "invariant_set-location_invariant"],
+              "default": "invariant_set-flow_insensitive_invariant"
             }
           },
           "additionalProperties": false
@@ -2778,16 +2779,22 @@
               "type": "boolean",
               "default": false
             },
+            "sv-comp-true-only": {
+              "title": "witness.yaml.sv-comp-true-only",
+              "description": "Only output YAML witness when SV-COMP result is \"true\".",
+              "type": "boolean",
+              "default": false
+            },
             "format-version": {
               "title": "witness.yaml.format-version",
               "description": "YAML witness format version",
               "type": "string",
               "enum": [
-                "0.1",
                 "2.0",
-                "2.1"
+                "2.1",
+                "2.1-goblint"
               ],
-              "default": "2.0"
+              "default": "2.1"
             },
             "entry-types": {
               "title": "witness.yaml.entry-types",
@@ -2796,12 +2803,6 @@
               "items": {
                 "type": "string",
                 "enum": [
-                  "location_invariant",
-                  "loop_invariant",
-                  "flow_insensitive_invariant",
-                  "precondition_loop_invariant",
-                  "loop_invariant_certificate",
-                  "precondition_loop_invariant_certificate",
                   "invariant_set",
                   "violation_sequence",
                   "ghost_instrumentation"
@@ -2819,7 +2820,8 @@
                 "type": "string",
                 "enum": [
                   "location_invariant",
-                  "loop_invariant"
+                  "loop_invariant",
+                  "flow_insensitive_invariant"
                 ]
               },
               "default": [
@@ -2848,12 +2850,6 @@
             "unassume": {
               "title": "witness.yaml.unassume",
               "description": "YAML witness input path",
-              "type": "string",
-              "default": ""
-            },
-            "certificate": {
-              "title": "witness.yaml.certificate",
-              "description": "YAML witness certificate output path",
               "type": "string",
               "default": ""
             }

@@ -9,6 +9,15 @@ open Goblint_constraint.ConstrSys
 open GobConfig
 
 
+type Goblint_backtrace.mark += TfLocation of location
+
+let () = Goblint_backtrace.register_mark_printer (function
+    | TfLocation loc ->
+      Some ("transfer function at " ^ CilType.Location.show loc)
+    | _ -> None (* for other marks *)
+  )
+
+
 module type Increment =
 sig
   val increment: increment_data option
@@ -343,14 +352,6 @@ struct
       | Skip           -> tf_skip var edge prev_node
     end getl sidel demandl getg sideg d
 
-  type Goblint_backtrace.mark += TfLocation of location
-
-  let () = Goblint_backtrace.register_mark_printer (function
-      | TfLocation loc ->
-        Some ("transfer function at " ^ CilType.Location.show loc)
-      | _ -> None (* for other marks *)
-    )
-
   let tf var getl sidel demandl getg sideg prev_node (_,edge) d (f,t) =
     let old_loc  = !Goblint_tracing.current_loc in
     let old_loc2 = !Goblint_tracing.next_loc in
@@ -524,8 +525,8 @@ struct
           mark_node obsolete_ret f (Function f)
       ) part_changed_funs;
 
-    let obsolete = Enum.append (HM.keys obsolete_entry) (HM.keys obsolete_prim) |> List.of_enum in
-    let reluctant = HM.keys obsolete_ret |> List.of_enum in
+    let obsolete = Seq.append (HM.to_seq_keys obsolete_entry) (HM.to_seq_keys obsolete_prim) |> List.of_seq in
+    let reluctant = HM.to_seq_keys obsolete_ret |> List.of_seq in
 
     let marked_for_deletion = HM.create 103 in
 
@@ -561,7 +562,7 @@ struct
         add_pseudo_return f un
       ) part_changed_funs;
 
-    let delete = HM.keys marked_for_deletion |> List.of_enum in
+    let delete = HM.to_seq_keys marked_for_deletion |> List.of_seq in
 
     let restart = match I.increment with
       | Some data ->

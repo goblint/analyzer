@@ -1,4 +1,3 @@
-// SKIP
 #include <pthread.h>
 #include <goblint.h>
 

@@ -76,23 +76,23 @@ module IntDomTupleImpl = struct
     );
     no_ov
 
-  let create2_ovc ik r x ((p1, p2, p3, p4, p5, p6): int_precision) =
+  let create2_ovc ?(suppress_ovwarn = false) ik r x ((p1, p2, p3, p4, p5, p6): int_precision) =
     let f b g = if b then Some (g x) else None in
     let map x = Option.map fst x in
     let intv =  f p2 @@ r.fi2_ovc (module I2) in
     let intv_set = f p5 @@ r.fi2_ovc (module I5) in
     let bf = f p6 @@ r.fi2_ovc (module I6) in
-    ignore (check_ov ~cast:false ik intv intv_set bf);
+    ignore (check_ov ~suppress_ovwarn ~cast:false ik intv intv_set bf);
     map @@ f p1 @@ r.fi2_ovc (module I1), map @@ f p2 @@ r.fi2_ovc (module I2), map @@ f p3 @@ r.fi2_ovc (module I3), map @@ f p4 @@ r.fi2_ovc (module I4), map @@ f p5 @@ r.fi2_ovc (module I5) , map @@ f p6 @@ r.fi2_ovc (module I6)
 
-  let create2_ovc ik r x = (* use where values are introduced *)
-    create2_ovc ik r x (int_precision_from_node_or_config ())
+  let create2_ovc ?(suppress_ovwarn = false) ik r x = (* use where values are introduced *)
+    create2_ovc ~suppress_ovwarn ik r x (int_precision_from_node_or_config ())
 
 
   let opt_map2 f ?no_ov =
     curry @@ function Some x, Some y -> Some (f ?no_ov x y) | _ -> None
 
-  let to_list x = GobTuple.Tuple6.enum x |> List.of_enum |> List.filter_map identity (* contains only the values of activated domains *)
+  let to_list (a,b,c,d,e,f) = List.filter_map identity [a;b;c;d;e;f] (* contains only the values of activated domains *)
   let to_list_some x = List.filter_map identity @@ to_list x (* contains only the Some-values of activated domains *)
 
   let exists = function
@@ -115,14 +115,14 @@ module IntDomTupleImpl = struct
 
   (* f0: constructors *)
   let bot () = create { fi = fun (type a) (module I:SOverflow with type t = a) -> I.bot } ()
-  let top_of = create { fi = fun (type a) (module I:SOverflow with type t = a) -> I.top_of }
+  let top_of ?bitfield = create { fi = fun (type a) (module I:SOverflow with type t = a) -> I.top_of ?bitfield }
   let bot_of = create { fi = fun (type a) (module I:SOverflow with type t = a) -> I.bot_of }
   let of_bool ik = create { fi = fun (type a) (module I:SOverflow with type t = a) -> I.of_bool ik }
   let of_excl_list ik = create2 { fi2 = fun (type a) (module I:SOverflow with type t = a and type int_t = int_t) -> I.of_excl_list ik}
-  let of_int ik = create2_ovc ik { fi2_ovc = fun (type a) (module I:SOverflow with type t = a and type int_t = int_t) -> I.of_int ik }
-  let starting ?(suppress_ovwarn=false) ik = create2_ovc ik { fi2_ovc = fun (type a) (module I:SOverflow with type t = a and type int_t = int_t) -> I.starting ~suppress_ovwarn ik }
-  let ending ?(suppress_ovwarn=false) ik = create2_ovc ik { fi2_ovc = fun (type a) (module I:SOverflow with type t = a and type int_t = int_t) -> I.ending ~suppress_ovwarn ik }
-  let of_interval ?(suppress_ovwarn=false) ik = create2_ovc ik { fi2_ovc = fun (type a) (module I:SOverflow with type t = a and type int_t = int_t) -> I.of_interval ~suppress_ovwarn ik }
+  let of_int ?(suppress_ovwarn=false) ik = create2_ovc ~suppress_ovwarn ik { fi2_ovc = fun (type a) (module I:SOverflow with type t = a and type int_t = int_t) -> I.of_int ik }
+  let starting ?(suppress_ovwarn=false) ik = create2_ovc ~suppress_ovwarn ik { fi2_ovc = fun (type a) (module I:SOverflow with type t = a and type int_t = int_t) -> I.starting ik }
+  let ending ?(suppress_ovwarn=false) ik = create2_ovc ~suppress_ovwarn ik { fi2_ovc = fun (type a) (module I:SOverflow with type t = a and type int_t = int_t) -> I.ending ik }
+  let of_interval ?(suppress_ovwarn=false) ik = create2_ovc ~suppress_ovwarn ik { fi2_ovc = fun (type a) (module I:SOverflow with type t = a and type int_t = int_t) -> I.of_interval ik }
   let of_congruence ik = create2 { fi2 = fun (type a) (module I:SOverflow with type t = a and type int_t = int_t) -> I.of_congruence ik }
   let of_bitfield ik = create2 { fi2 = fun (type a) (module I:SOverflow with type t = a and type int_t = int_t) -> I.of_bitfield ik }
 
@@ -367,7 +367,7 @@ module IntDomTupleImpl = struct
 
   (* fp: projections *)
   let equal_to i x =
-    let xs = mapp2 { fp2 = fun (type a) (module I:SOverflow with type t = a and type int_t = int_t) -> I.equal_to i } x |> GobTuple.Tuple6.enum |> List.of_enum |> List.filter_map identity in
+    let xs = mapp2 { fp2 = fun (type a) (module I:SOverflow with type t = a and type int_t = int_t) -> I.equal_to i } x |> to_list in
     if List.mem `Eq xs then `Eq else
     if List.mem `Neq xs then `Neq else
       `Top
@@ -558,4 +558,4 @@ struct
   let no_bitfield (x: I.t) = {x with v = IntDomTupleImpl.no_bitfield x.v}
 end
 
-let of_const (i, ik, str) = IntDomTuple.of_int ik i
+let of_const (i, ik, str) = IntDomTuple.of_int ~suppress_ovwarn:true ik i

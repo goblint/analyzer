@@ -13,6 +13,8 @@ authors: [
   "Julian Erhard"
   "Sarah Tilscher"
   "Karoliine Holter"
+  "Michael Petter"
+  "Ali Rasim Kocal"
   "Ralf Vogler"
   "Kalmer Apinis"
   "Vesal Vojdani"
@@ -30,7 +32,7 @@ depends: [
   "base-bytes" {= "base"}
   "base-threads" {= "base"}
   "base-unix" {= "base"}
-  "batteries" {= "3.8.0"}
+  "batteries" {= "3.9.0"}
   "benchmark" {= "1.6" & with-test}
   "bigarray-compat" {= "1.1.0"}
   "bigstringaf" {= "0.9.1"}
@@ -43,7 +45,7 @@ depends: [
   "conf-autoconf" {= "0.2"}
   "conf-findutils" {= "1"}
   "conf-gcc" {= "1.0"}
-  "conf-gmp" {= "4"}
+  "conf-gmp" {= "5"}
   "conf-gmp-paths" {= "1"}
   "conf-mpfr-paths" {= "1"}
   "conf-perl" {= "2"}
@@ -66,7 +68,7 @@ depends: [
   "fileutils" {= "0.6.4"}
   "fmt" {= "0.9.0"}
   "fpath" {= "0.7.3"}
-  "goblint-cil" {= "2.0.6"}
+  "goblint-cil" {= "2.0.9"}
   "hex" {= "1.5.0"}
   "integers" {= "0.7.0"}
   "json-data-encoding" {= "1.0.1"}
@@ -135,6 +137,8 @@ dev-repo: "git+https://github.com/goblint/analyzer.git"
 available: os-family != "bsd" & os-distribution != "alpine" & (arch != "arm64" | os = "macos")
 conflicts: [
   "result" {< "1.5"}
+  "apron" {< "v0.9.15"}
+  "camlidl" {< "1.13"}
   "ez-conf-lib" {= "1"}
 ]
 post-messages: [
@@ -142,8 +146,8 @@ post-messages: [
 ]
 pin-depends: [
   [
-    "goblint-cil.2.0.6"
-    "git+https://github.com/goblint/cil.git#8385ab315bc7461f6801af57673c64731bfa036a"
+    "goblint-cil.2.0.9"
+    "git+https://github.com/goblint/cil.git#1b48fc0ce4f3576a51618305251121ffedd0bf1e"
   ]
   [
     "apron.v0.9.15"
