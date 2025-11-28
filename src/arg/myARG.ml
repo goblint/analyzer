@@ -425,7 +425,7 @@ struct
       next
       |> BatList.concat_map (fun (e, to_n, p) ->
           let+ to_node = follow node p in
-          (* TODO: what's the point of to_n? should it match to_node? *)
+          assert (Node0.equal to_n (Node.cfgnode to_node)); (* should always hold by follow filter above *)
           (Edge.embed e, to_node)
         )
       |> BatList.unique_cmp ~cmp:[%ord: Edge.t * Node.t] (* after following paths, there may be duplicates because same ARG node can be reached via same ARG edge via multiple uncilled CFG paths *) (* TODO: avoid generating duplicates in the first place? *)
