@@ -28,9 +28,9 @@ module Base : GenericEqSolver =
     let solve st vs =
       let (data : var_data ref HM.t) = HM.create 10 in
 
-      let () = print_solver_stats := fun () ->
+      print_solver_stats := (fun () ->
           Logs.debug "|data|=%d" (HM.length data);
-      in
+        );
 
       let add_infl y x =
         if tracing then trace "infl" "add_infl %a %a" S.Var.pretty_trace y S.Var.pretty_trace x;
@@ -46,12 +46,12 @@ module Base : GenericEqSolver =
           begin
             new_var_event x;
             if tracing then trace "init" "init %a" S.Var.pretty_trace x;
-            let data_x = ref { 
+            let data_x = ref {
                 infl = VS.empty;
                 value = S.Dom.bot ();
                 wpoint = false;
                 stable = false;
-                called = false 
+                called = false
               } in
             HM.replace data x data_x;
             data_x
@@ -138,7 +138,7 @@ module Base : GenericEqSolver =
               if M.tracing then M.trace "wpoint" "widen %a" S.Var.pretty_trace x;
               box old eqd)
           in
-          if not (Timing.wrap "S.Dom.equal" (fun () -> S.Dom.equal old wpd) ()) then ( 
+          if not (Timing.wrap "S.Dom.equal" (fun () -> S.Dom.equal old wpd) ()) then (
             (* old != wpd *)
             if tracing && not (S.Dom.is_bot old) && !x_ref.wpoint then trace "solchange" "%a (wpx: %b): %a" S.Var.pretty_trace x (!x_ref.wpoint) S.Dom.pretty_diff (wpd, old);
             update_var_event x old wpd;
@@ -148,7 +148,7 @@ module Base : GenericEqSolver =
             (iterate[@tailcall]) x
           ) else (
             (* old == wpd *)
-            if not (!x_ref.stable) then ( 
+            if not (!x_ref.stable) then (
               (* value unchanged, but not stable, i.e. destabilized itself during rhs *)
               if tracing then trace "iter" "iterate still unstable %a" S.Var.pretty_trace x;
               (iterate[@tailcall]) x
@@ -185,12 +185,12 @@ module Base : GenericEqSolver =
             Logs.newline ();
             flush_all ();
           );
-          List.iter (fun x -> 
+          List.iter (fun x ->
               let x_ref = HM.find data x in
               x_ref := { !x_ref with called = true };
               if tracing then trace "multivar" "solving for %a" S.Var.pretty_trace x;
-              iterate x; 
-              x_ref := { !x_ref with called = false } 
+              iterate x;
+              x_ref := { !x_ref with called = false }
             ) unstable_vs;
           solver ();
         )

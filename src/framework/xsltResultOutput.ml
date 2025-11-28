@@ -1,7 +1,6 @@
 (** XSLT analysis result output. *)
 
 open GoblintCil
-open Pretty
 open GobConfig
 open AnalysisResult
 
@@ -288,7 +287,7 @@ struct
     Timing.wrap "graphviz" (ProcessPool.run ~jobs:(GobConfig.jobs ())) tasks
 
   let copy_resources ~result_dir =
-    let xslt_dirs = Fpath.(parent (v Sys.executable_name) / "xslt") :: Goblint_sites.xslt in
+    let xslt_dirs = Fpath.(GobSys.exe_dir / "xslt") :: Goblint_sites.xslt in
     let xslt_dir = List.find_opt (fun dir ->
         let dir_str = Fpath.to_string dir in
         Sys.file_exists dir_str && Sys.is_directory dir_str

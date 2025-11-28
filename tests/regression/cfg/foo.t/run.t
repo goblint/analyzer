@@ -25,10 +25,12 @@
                                                           │ b = 1
                                                           ▼
              ┌──────────────────────────┐               ┌───────────────────────────────┐
-             │ foo.c:7:3-7:11           │               │ foo.c:3:3-6:3 (synthetic)     │
-             │ (foo.c:7:10-7:11)        │               │ (foo.c:3:10-3:20 (synthetic)) │
-             │ YAML loc: foo.c:7:3-7:11 │  Neg(a > 0)   │ YAML loop: foo.c:3:3-6:3      │
-    ┌──────▶ │ server: true             │ ◀──────────── │ server: false                 │ ◀┐
+             │                          │               │ foo.c:3:3-6:3 (synthetic)     │
+             │ foo.c:7:3-7:11           │               │ (foo.c:3:10-3:20 (synthetic)) │
+             │ (foo.c:7:10-7:11)        │               │ [foo.c:3:3-6:3 (synthetic)    │
+             │ YAML loc: foo.c:7:3-7:11 │               │ (unknown)]                    │
+             │ server: true             │  Neg(a > 0)   │ YAML loop: foo.c:3:3-6:3      │
+    ┌──────▶ │                          │ ◀──────────── │ server: false                 │ ◀┐
     │        └──────────────────────────┘               └───────────────────────────────┘  │
     │          │                                          │                                │
     │          │ return 0                                 │ Pos(a > 0)                     │
@@ -57,7 +59,7 @@
                                                         │ server: true                  │ ─┘
                                                         └───────────────────────────────┘
 
-  $ goblint --enable ana.int.interval --enable witness.yaml.enabled --set witness.yaml.entry-types '["location_invariant", "loop_invariant"]' --set sem.int.signed_overflow assume_none foo.c
+  $ goblint --enable ana.int.interval --enable witness.yaml.enabled --set witness.yaml.invariant-types '["location_invariant", "loop_invariant"]' --set sem.int.signed_overflow assume_none foo.c
   [Warning][Integer > Overflow][CWE-190] Signed integer overflow (foo.c:4:5-4:8)
   [Warning][Integer > Overflow][CWE-191] Signed integer underflow (foo.c:5:5-5:8)
   [Info][Deadcode] Logical lines of code (LLoC) summary:
@@ -69,106 +71,98 @@
     location invariants: 8
     loop invariants: 2
     flow-insensitive invariants: 0
-    total generation entries: 10
+    total generation entries: 1
 
   $ yamlWitnessStrip < witness.yml
-  - entry_type: loop_invariant
-    location:
-      file_name: foo.c
-      line: 3
-      column: 3
-      function: main
-    loop_invariant:
-      string: b <= 1
-      type: assertion
-      format: C
-  - entry_type: loop_invariant
-    location:
-      file_name: foo.c
-      line: 3
-      column: 3
-      function: main
-    loop_invariant:
-      string: 1 <= a
-      type: assertion
-      format: C
-  - entry_type: location_invariant
-    location:
-      file_name: foo.c
-      line: 7
-      column: 3
-      function: main
-    location_invariant:
-      string: b == 0
-      type: assertion
-      format: C
-  - entry_type: location_invariant
-    location:
-      file_name: foo.c
-      line: 7
-      column: 3
-      function: main
-    location_invariant:
-      string: 1 <= a
-      type: assertion
-      format: C
-  - entry_type: location_invariant
-    location:
-      file_name: foo.c
-      line: 5
-      column: 5
-      function: main
-    location_invariant:
-      string: b <= 1
-      type: assertion
-      format: C
-  - entry_type: location_invariant
-    location:
-      file_name: foo.c
-      line: 5
-      column: 5
-      function: main
-    location_invariant:
-      string: b != 0
-      type: assertion
-      format: C
-  - entry_type: location_invariant
-    location:
-      file_name: foo.c
-      line: 5
-      column: 5
-      function: main
-    location_invariant:
-      string: 2 <= a
-      type: assertion
-      format: C
-  - entry_type: location_invariant
-    location:
-      file_name: foo.c
-      line: 4
-      column: 5
-      function: main
-    location_invariant:
-      string: b <= 1
-      type: assertion
-      format: C
-  - entry_type: location_invariant
-    location:
-      file_name: foo.c
-      line: 4
-      column: 5
-      function: main
-    location_invariant:
-      string: b != 0
-      type: assertion
-      format: C
-  - entry_type: location_invariant
-    location:
-      file_name: foo.c
-      line: 4
-      column: 5
-      function: main
-    location_invariant:
-      string: 1 <= a
-      type: assertion
-      format: C
+  - entry_type: invariant_set
+    content:
+    - invariant:
+        type: location_invariant
+        location:
+          file_name: foo.c
+          line: 4
+          column: 5
+          function: main
+        value: 1 <= a
+        format: c_expression
+    - invariant:
+        type: location_invariant
+        location:
+          file_name: foo.c
+          line: 4
+          column: 5
+          function: main
+        value: b != 0
+        format: c_expression
+    - invariant:
+        type: location_invariant
+        location:
+          file_name: foo.c
+          line: 4
+          column: 5
+          function: main
+        value: b <= 1
+        format: c_expression
+    - invariant:
+        type: location_invariant
+        location:
+          file_name: foo.c
+          line: 5
+          column: 5
+          function: main
+        value: 2 <= a
+        format: c_expression
+    - invariant:
+        type: location_invariant
+        location:
+          file_name: foo.c
+          line: 5
+          column: 5
+          function: main
+        value: b != 0
+        format: c_expression
+    - invariant:
+        type: location_invariant
+        location:
+          file_name: foo.c
+          line: 5
+          column: 5
+          function: main
+        value: b <= 1
+        format: c_expression
+    - invariant:
+        type: location_invariant
+        location:
+          file_name: foo.c
+          line: 7
+          column: 3
+          function: main
+        value: 1 <= a
+        format: c_expression
+    - invariant:
+        type: location_invariant
+        location:
+          file_name: foo.c
+          line: 7
+          column: 3
+          function: main
+        value: b == 0
+        format: c_expression
+    - invariant:
+        type: loop_invariant
+        location:
+          file_name: foo.c
+          line: 3
+          column: 3
+          function: main
+        value: 1 <= a
+        format: c_expression
+    - invariant:
+        type: loop_invariant
+        location:
+          file_name: foo.c
+          line: 3
+          column: 3
+          function: main
+        value: b <= 1
+        format: c_expression

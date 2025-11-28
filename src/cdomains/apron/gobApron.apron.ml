@@ -44,11 +44,10 @@ struct
   (** Negate linear expression. *)
   let neg (linexpr0: t): t =
     let r = copy linexpr0 in
-    let n = Linexpr0.get_size r in
-    for i = 0 to n - 1 do
-      Linexpr0.set_coeff r i (Coeff.neg (Linexpr0.get_coeff r i))
-    done;
-    Linexpr0.set_cst r (Coeff.neg (Linexpr0.get_cst r));
+    Linexpr0.iter (fun c i ->
+        Linexpr0.set_coeff r i (Coeff.neg c)
+      ) linexpr0;
+    Linexpr0.set_cst r (Coeff.neg (Linexpr0.get_cst linexpr0));
     r
 end
 

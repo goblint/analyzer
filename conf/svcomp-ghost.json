@@ -117,8 +117,10 @@
       "sv-comp-true-only": false,
       "format-version": "2.1",
       "entry-types": [
-        "flow_insensitive_invariant",
         "ghost_instrumentation"
+      ],
+      "invariant-types": [
+        "flow_insensitive_invariant"
       ]
     },
     "invariant": {

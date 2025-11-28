@@ -1,12 +1,9 @@
 {
   "ana": {
-    "sv-comp": {
-      "enabled": true,
-      "functions": true
-    },
     "int": {
-      "def_exc": true,
-      "enums": false,
+      "enums": true,
+      "congruence": true,
+      "bitfield":true,
       "interval": true
     },
     "float": {
@@ -33,8 +30,15 @@
       "thread",
       "threadJoins",
       "abortUnless",
-      "unassume"
+      "mutexGhosts",
+      "pthreadMutexType",
+      "affeq",
+      "apron",
+      "branchSet"
     ],
+    "apron": {
+      "domain": "octagon"
+    },
     "path_sens": [
       "mutex",
       "malloc_null",
@@ -42,29 +46,24 @@
       "expsplit",
       "activeSetjmp",
       "memLeak",
-      "threadflag"
+      "threadflag",
+      "branchSet"
     ],
-    "context": {
-      "widen": false
-    },
     "base": {
       "arrays": {
         "domain": "partitioned"
+      },
+      "structs": {
+        "domain": "sets"
       }
     },
-    "race": {
-      "free": false,
-      "call": false
-    },
     "autotune": {
-      "enabled": true,
       "activated": [
         "reduceAnalyses",
         "mallocWrappers",
         "noRecursiveIntervals",
         "enums",
         "congruence",
-        "octagon",
         "wideningThresholds",
         "loopUnrollHeuristic",
         "memsafetySpecification",
@@ -72,49 +71,12 @@
         "termination",
         "tmpSpecialAnalysis"
       ]
-    },
-    "widen": {
-      "tokens": true
     }
   },
-  "exp": {
-    "region-offsets": true
-  },
-  "solver": "td3",
-  "sem": {
-    "unknown_function": {
-      "spawn": false
-    },
-    "int": {
-      "signed_overflow": "assume_none"
-    },
-    "null-pointer": {
-      "dereference": "assume_none"
+  "solvers": {
+    "td3": {
+      "widen_gas": 30,
+      "side_widen_gas": 30
     }
-  },
-  "witness": {
-    "yaml": {
-      "enabled": false,
-      "strict": true,
-      "format-version": "2.0",
-      "entry-types": [
-        "location_invariant",
-        "loop_invariant",
-        "invariant_set",
-        "violation_sequence"
-      ],
-      "invariant-types": [
-        "location_invariant",
-        "loop_invariant"
-      ]
-    },
-    "invariant": {
-      "loop-head": true,
-      "after-lock": true,
-      "other": true
-    }
-  },
-  "pre": {
-    "enabled": false
   }
 }

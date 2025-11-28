@@ -29,9 +29,11 @@
     │                                                  │ x = 0                               │
     │                                                  ▼                                     │
   ┌─────────────────────────────────┐                ┌────────────────────────────────────┐  │
-  │ pr-758.c:6:3-8:3 (synthetic)    │                │ pr-758.c:6:3-8:3 (synthetic)       │  │
-  │ (pr-758.c:6:7-6:26 (synthetic)) │                │ (pr-758.c:6:7-6:26 (synthetic))    │  │
-  │ server: false                   │  Pos(x < 10)   │ YAML loop: pr-758.c:6:3-8:3        │  │
+  │                                 │                │ pr-758.c:6:3-8:3 (synthetic)       │  │
+  │ pr-758.c:6:3-8:3 (synthetic)    │                │ (pr-758.c:6:7-6:26 (synthetic))    │  │
+  │ (pr-758.c:6:7-6:26 (synthetic)) │                │ [pr-758.c:6:3-8:3 (synthetic)      │  │
+  │ server: false                   │                │ (unknown)]                         │  │
+  │                                 │  Pos(x < 10)   │ YAML loop: pr-758.c:6:3-8:3        │  │
   │                                 │ ◀───────────── │ server: false                      │ ◀┘
   └─────────────────────────────────┘                └────────────────────────────────────┘
                                                        │
@@ -86,7 +88,7 @@
 
 
 
-  $ goblint --enable ana.int.interval --enable witness.yaml.enabled --set witness.yaml.entry-types '["loop_invariant", "location_invariant"]' pr-758.c
+  $ goblint --enable ana.int.interval --enable witness.yaml.enabled --set witness.yaml.invariant-types '["loop_invariant", "location_invariant"]' pr-758.c
   [Info][Deadcode] Logical lines of code (LLoC) summary:
     live: 6
     dead: 0
@@ -95,126 +97,116 @@
     location invariants: 10
     loop invariants: 2
     flow-insensitive invariants: 0
-    total generation entries: 12
+    total generation entries: 1
 
   $ yamlWitnessStrip < witness.yml
-  - entry_type: loop_invariant
-    location:
-      file_name: pr-758.c
-      line: 6
-      column: 3
-      function: main
-    loop_invariant:
-      string: x <= 10
-      type: assertion
-      format: C
-  - entry_type: loop_invariant
-    location:
-      file_name: pr-758.c
-      line: 6
-      column: 3
-      function: main
-    loop_invariant:
-      string: 0 <= x
-      type: assertion
-      format: C
-  - entry_type: location_invariant
-    location:
-      file_name: pr-758.c
-      line: 21
-      column: 3
-      function: main
-    location_invariant:
-      string: x == 10
-      type: assertion
-      format: C
-  - entry_type: location_invariant
-    location:
-      file_name: pr-758.c
-      line: 21
-      column: 3
-      function: main
-    location_invariant:
-      string: k == 0
-      type: assertion
-      format: C
-  - entry_type: location_invariant
-    location:
-      file_name: pr-758.c
-      line: 21
-      column: 3
-      function: main
-    location_invariant:
-      string: i == 0
-      type: assertion
-      format: C
-  - entry_type: location_invariant
-    location:
-      file_name: pr-758.c
-      line: 21
-      column: 3
-      function: main
-    location_invariant:
-      string: a.kaal == 2
-      type: assertion
-      format: C
-  - entry_type: location_invariant
-    location:
-      file_name: pr-758.c
-      line: 21
-      column: 3
-      function: main
-    location_invariant:
-      string: a.hind == 3
-      type: assertion
-      format: C
-  - entry_type: location_invariant
-    location:
-      file_name: pr-758.c
-      line: 20
-      column: 3
-      function: main
-    location_invariant:
-      string: x == 10
-      type: assertion
-      format: C
-  - entry_type: location_invariant
-    location:
-      file_name: pr-758.c
-      line: 20
-      column: 3
-      function: main
-    location_invariant:
-      string: k == 0
-      type: assertion
-      format: C
-  - entry_type: location_invariant
-    location:
-      file_name: pr-758.c
-      line: 20
-      column: 3
-      function: main
-    location_invariant:
-      string: i == 0
-      type: assertion
-      format: C
-  - entry_type: location_invariant
-    location:
-      file_name: pr-758.c
-      line: 12
-      column: 3
-      function: main
-    location_invariant:
-      string: x == 10
-      type: assertion
-      format: C
-  - entry_type: location_invariant
-    location:
-      file_name: pr-758.c
-      line: 6
-      column: 3
-      function: main
-    location_invariant:
-      string: x == 42
-      type: assertion
-      format: C
+  - entry_type: invariant_set
+    content:
+    - invariant:
+        type: location_invariant
+        location:
+          file_name: pr-758.c
+          line: 6
+          column: 3
+          function: main
+        value: x == 42
+        format: c_expression
+    - invariant:
+        type: location_invariant
+        location:
+          file_name: pr-758.c
+          line: 12
+          column: 3
+          function: main
+        value: x == 10
+        format: c_expression
+    - invariant:
+        type: location_invariant
+        location:
+          file_name: pr-758.c
+          line: 20
+          column: 3
+          function: main
+        value: i == 0
+        format: c_expression
+    - invariant:
+        type: location_invariant
+        location:
+          file_name: pr-758.c
+          line: 20
+          column: 3
+          function: main
+        value: k == 0
+        format: c_expression
+    - invariant:
+        type: location_invariant
+        location:
+          file_name: pr-758.c
+          line: 20
+          column: 3
+          function: main
+        value: x == 10
+        format: c_expression
+    - invariant:
+        type: location_invariant
+        location:
+          file_name: pr-758.c
+          line: 21
+          column: 3
+          function: main
+        value: a.hind == 3
+        format: c_expression
+    - invariant:
+        type: location_invariant
+        location:
+          file_name: pr-758.c
+          line: 21
+          column: 3
+          function: main
+        value: a.kaal == 2
+        format: c_expression
+    - invariant:
+        type: location_invariant
+        location:
+          file_name: pr-758.c
+          line: 21
+          column: 3
+          function: main
+        value: i == 0
+        format: c_expression
+    - invariant:
+        type: location_invariant
+        location:
+          file_name: pr-758.c
+          line: 21
+          column: 3
+          function: main
+        value: k == 0
+        format: c_expression
+    - invariant:
+        type: location_invariant
+        location:
+          file_name: pr-758.c
+          line: 21
+          column: 3
+          function: main
+        value: x == 10
+        format: c_expression
+    - invariant:
+        type: loop_invariant
+        location:
+          file_name: pr-758.c
+          line: 6
+          column: 3
+          function: main
+        value: 0 <= x
+        format: c_expression
+    - invariant:
+        type: loop_invariant
+        location:
+          file_name: pr-758.c
+          line: 6
+          column: 3
+          function: main
+        value: x <= 10
+        format: c_expression

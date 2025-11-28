@@ -22,6 +22,8 @@
                                                    ┌──────────────────────────────────────────────────────┐
                                                    │ 11-unrolled-loop-invariant.c:4:3-5:8 (synthetic)     │
                                                    │ (11-unrolled-loop-invariant.c:4:10-4:16 (synthetic)) │
+                                                   │ [11-unrolled-loop-invariant.c:4:3-5:8 (synthetic)    │
+                                                   │ (unknown)]                                           │
                                                    │ YAML loop: 11-unrolled-loop-invariant.c:4:3-5:8      │
                                     ┌───────────── │ server: false                                        │ ·┐
                                     │              └──────────────────────────────────────────────────────┘  :
@@ -35,11 +37,13 @@
                                     │              │ server: true                                         │ ·┼····································································┐
                                     │              └──────────────────────────────────────────────────────┘  :                                                                    :
                                     │                │                                                       :                                                                    :
-                                    │ Neg(i < 10)    │ i = i + 1                                             :                                                                    :
-                                    │                ▼                                                       ▼                                                                    :
+                                    │                │ i = i + 1                                             :                                                                    :
+                                    │ Neg(i < 10)    ▼                                                       ▼                                                                    :
                                     │              ┌───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐  :
                                     │              │ 11-unrolled-loop-invariant.c:4:3-5:8 (synthetic)                                                                          │  :
                                     │              │ (11-unrolled-loop-invariant.c:4:10-4:16 (synthetic))                                                                      │  :
+                                    │              │ [11-unrolled-loop-invariant.c:4:3-5:8 (synthetic)                                                                         │  :
+                                    │              │ (unknown)]                                                                                                                │  :
                                     │              │ YAML loop: 11-unrolled-loop-invariant.c:4:3-5:8                                                                           │  :
                                     │              │ server: false                                                                                                             │  :
                                     │              └───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘  :
@@ -64,10 +68,12 @@
                                                      │ k = 0
                                                      ▼
                                                    ┌──────────────────────────────────────────────────────┐                ┌───────────────────────────────────────────────────┐             ┌──────────────────┐
-                                                   │ 11-unrolled-loop-invariant.c:8:3-12:3 (synthetic)    │                │ 11-unrolled-loop-invariant.c:13:3-13:11           │             │                  │
-                                                   │ (11-unrolled-loop-invariant.c:8:10-8:16 (synthetic)) │                │ (11-unrolled-loop-invariant.c:13:10-13:11)        │             │ return of main() │
-                                                   │ YAML loop: 11-unrolled-loop-invariant.c:8:3-12:3     │  Neg(j < 10)   │ YAML loc: 11-unrolled-loop-invariant.c:13:3-13:11 │  return 0   │                  │
-                                    ┌············· │ server: false                                        │ ─────────────▶ │ server: true                                      │ ──────────▶ │                  │
+                                                   │ 11-unrolled-loop-invariant.c:8:3-12:3 (synthetic)    │                │                                                   │             │                  │
+                                                   │ (11-unrolled-loop-invariant.c:8:10-8:16 (synthetic)) │                │ 11-unrolled-loop-invariant.c:13:3-13:11           │             │                  │
+                                                   │ [11-unrolled-loop-invariant.c:8:3-12:3 (synthetic)   │                │ (11-unrolled-loop-invariant.c:13:10-13:11)        │             │ return of main() │
+                                                   │ (unknown)]                                           │                │ YAML loc: 11-unrolled-loop-invariant.c:13:3-13:11 │             │                  │
+                                                   │ YAML loop: 11-unrolled-loop-invariant.c:8:3-12:3     │  Neg(j < 10)   │ server: true                                      │  return 0   │                  │
+                                    ┌············· │ server: false                                        │ ─────────────▶ │                                                   │ ──────────▶ │                  │
                                     :              └──────────────────────────────────────────────────────┘                └───────────────────────────────────────────────────┘             └──────────────────┘
                                     :                │                                                                       ▲                                                   Neg(j < 10)
                                     :                │ Pos(j < 10)                                                           └──────────────────────────────────────────────────────────────────────────────────────────┐
@@ -75,6 +81,8 @@
                                     :              ┌──────────────────────────────────────────────────────┐                                                                                                             │
                                     :              │ 11-unrolled-loop-invariant.c:9:5-10:10 (synthetic)   │                                                                                                             │
                                     :              │ (11-unrolled-loop-invariant.c:9:12-9:19 (synthetic)) │                                                                                                             │
+                                    :              │ [11-unrolled-loop-invariant.c:9:5-10:10 (synthetic)  │                                                                                                             │
+                                    :              │ (unknown)]                                           │                                                                                                             │
                                     :              │ YAML loop: 11-unrolled-loop-invariant.c:9:5-10:10    │                                                                                                             │
          ┌──────────────────────────┼───────────── │ server: false                                        │ ······································································┐                                     │
          │                          :              └──────────────────────────────────────────────────────┘                                                                       :                                     │
@@ -93,6 +101,8 @@
          │                          :              ┌───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐  :            :                        │             │
          │                          :              │ 11-unrolled-loop-invariant.c:9:5-10:10 (synthetic)                                                                        │  :            :                        │             │
          │                          :              │ (11-unrolled-loop-invariant.c:9:12-9:19 (synthetic))                                                                      │  :            :                        │             │
+         │                          :              │ [11-unrolled-loop-invariant.c:9:5-10:10 (synthetic)                                                                       │  :            :                        │             │
+         │                          :              │ (unknown)]                                                                                                                │  :            :                        │             │
          │                          :              │ YAML loop: 11-unrolled-loop-invariant.c:9:5-10:10                                                                         │  :            :                        │             │
          │                          :              │ server: false                                                                                                             │  :            :                        │             │
          │                          :              └───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘  :            :                        │             │
@@ -120,6 +130,8 @@
     │    :                          :              ┌───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐  :            :                        │             │
     │    :                          :              │ 11-unrolled-loop-invariant.c:9:5-10:10 (synthetic)                                                                        │  :            :                        │             │
     │    :                          :              │ (11-unrolled-loop-invariant.c:9:12-9:19 (synthetic))                                                                      │  :            :                        │             │
+    │    :                          :              │ [11-unrolled-loop-invariant.c:9:5-10:10 (synthetic)                                                                       │  :            :                        │             │
+    │    :                          :              │ (unknown)]                                                                                                                │  :            :                        │             │
     │    :        k = k + 1         :              │ YAML loop: 11-unrolled-loop-invariant.c:9:5-10:10                                                                         │  :            :                        │             │
     │    :    ┌─────────────────────┼────────────▶ │ server: false                                                                                                             │ ◀┼············┼···················┐    │             │
     │    :    │                     :              └───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘  :            :                   :    │             │
@@ -138,7 +150,9 @@
     │    :    │    │                :              ┌───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐  :            :                   :                  │    :
     │    :    │    │                :              │ 11-unrolled-loop-invariant.c:8:3-12:3 (synthetic)                                                                         │  :            :                   :                  │    :
     │    :    │    │                :              │ (11-unrolled-loop-invariant.c:8:10-8:16 (synthetic))                                                                      │  :            :                   :                  │    :
-    │    :    │    │ Neg(k < 100)   :              │ YAML loop: 11-unrolled-loop-invariant.c:8:3-12:3                                                                          │  :            :                   :                  │    :
+    │    :    │    │                :              │ [11-unrolled-loop-invariant.c:8:3-12:3 (synthetic)                                                                        │  :            :                   :                  │    :
+    │    :    │    │ Neg(k < 100)   :              │ (unknown)]                                                                                                                │  :            :                   :                  │    :
+    │    :    │    │                :              │ YAML loop: 11-unrolled-loop-invariant.c:8:3-12:3                                                                          │  :            :                   :                  │    :
     │    :    │    │                └············▶ │ server: false                                                                                                             │ ◀┼────────────┼───────────────────┼────┐             │    :
     │    :    │    │                               └───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘  :            :                   :    │             │    :
     │    :    │    │                                 │                                                                                                                            :            :                   :    │             │    :
@@ -147,7 +161,9 @@
     │    :    │    │                               ┌───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐  :            :                   :    │             │    :
     │    :    │    │                               │ 11-unrolled-loop-invariant.c:9:5-10:10 (synthetic)                                                                        │  :            :                   :    │             │    :
     │    :    │    │                               │ (11-unrolled-loop-invariant.c:9:12-9:19 (synthetic))                                                                      │  :            :                   :    │             │    :
-    │    :    │    │                               │ YAML loop: 11-unrolled-loop-invariant.c:9:5-10:10                                                                         │  :            :                   :    │ j = j + 1   │    :
+    │    :    │    │                               │ [11-unrolled-loop-invariant.c:9:5-10:10 (synthetic)                                                                       │  :            :                   :    │             │    :
+    │    :    │    │                               │ (unknown)]                                                                                                                │  :            :                   :    │ j = j + 1   │    :
+    │    :    │    │                               │ YAML loop: 11-unrolled-loop-invariant.c:9:5-10:10                                                                         │  :            :                   :    │             │    :
     │    :    │    └────────────────────────────── │ server: false                                                                                                             │ ◀┘            :                   :    │             │    :
     │    :    │                                    └───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘               :                   :    │             │    :
     │    :    │                                      │                                                                       :                                                                 :                   :    │             │    :
@@ -174,7 +190,7 @@
                                                      ▲                                                      Neg(k < 100)                                                                                                              │
                                                      └────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
 
-  $ goblint --set lib.activated '[]' --set exp.unrolling-factor 5 --enable ana.int.interval --enable witness.yaml.enabled --set witness.yaml.entry-types '["location_invariant", "loop_invariant"]' 11-unrolled-loop-invariant.c
+  $ goblint --set lib.activated '[]' --set exp.unrolling-factor 5 --enable ana.int.interval --enable witness.yaml.enabled --set witness.yaml.invariant-types '["location_invariant", "loop_invariant"]' 11-unrolled-loop-invariant.c
   [Info] unrolling loop at 11-unrolled-loop-invariant.c:4:3-5:8 with factor 5
   [Info] unrolling loop at 11-unrolled-loop-invariant.c:9:5-10:10 with factor 5
   [Info] unrolling loop at 11-unrolled-loop-invariant.c:8:3-12:3 with factor 5
@@ -206,174 +222,160 @@
     location invariants: 11
     loop invariants: 5
     flow-insensitive invariants: 0
-    total generation entries: 16
+    total generation entries: 1
 
   $ yamlWitnessStrip < witness.yml
-  - entry_type: loop_invariant
-    location:
-      file_name: 11-unrolled-loop-invariant.c
-      line: 9
-      column: 5
-      function: main
-    loop_invariant:
-      string: i == 10
-      type: assertion
-      format: C
-  - entry_type: loop_invariant
-    location:
-      file_name: 11-unrolled-loop-invariant.c
-      line: 9
-      column: 5
-      function: main
-    loop_invariant:
-      string: (((((((k == 100 && (((j == 2 || (5 <= j && j <= 9)) || j == 1) || j ==
-        4)) || ((5 <= k && k <= 100) && j == 0)) || (j == 0 && k == 4)) || (j == 0 &&
-        k == 3)) || (j == 0 && k == 2)) || (j == 0 && k == 1)) || (j == 0 && k == 0))
-        || (j == 3 && k == 100)
-      type: assertion
-      format: C
-  - entry_type: loop_invariant
-    location:
-      file_name: 11-unrolled-loop-invariant.c
-      line: 8
-      column: 3
-      function: main
-    loop_invariant:
-      string: i == 10
-      type: assertion
-      format: C
-  - entry_type: loop_invariant
-    location:
-      file_name: 11-unrolled-loop-invariant.c
-      line: 8
-      column: 3
-      function: main
-    loop_invariant:
-      string: ((k == 100 && (((j == 2 || (5 <= j && j <= 10)) || j == 1) || j == 4))
-        || (j == 0 && k == 0)) || (j == 3 && k == 100)
-      type: assertion
-      format: C
-  - entry_type: loop_invariant
-    location:
-      file_name: 11-unrolled-loop-invariant.c
-      line: 4
-      column: 3
-      function: main
-    loop_invariant:
-      string: (((((5 <= i && i <= 10) || i == 4) || i == 3) || i == 2) || i == 1) ||
-        i == 0
-      type: assertion
-      format: C
-  - entry_type: location_invariant
-    location:
-      file_name: 11-unrolled-loop-invariant.c
-      line: 13
-      column: 3
-      function: main
-    location_invariant:
-      string: k == 100
-      type: assertion
-      format: C
-  - entry_type: location_invariant
-    location:
-      file_name: 11-unrolled-loop-invariant.c
-      line: 13
-      column: 3
-      function: main
-    location_invariant:
-      string: j == 10
-      type: assertion
-      format: C
-  - entry_type: location_invariant
-    location:
-      file_name: 11-unrolled-loop-invariant.c
-      line: 13
-      column: 3
-      function: main
-    location_invariant:
-      string: i == 10
-      type: assertion
-      format: C
-  - entry_type: location_invariant
-    location:
-      file_name: 11-unrolled-loop-invariant.c
-      line: 11
-      column: 5
-      function: main
-    location_invariant:
-      string: k == 100
-      type: assertion
-      format: C
-  - entry_type: location_invariant
-    location:
-      file_name: 11-unrolled-loop-invariant.c
-      line: 11
-      column: 5
-      function: main
-    location_invariant:
-      string: i == 10
-      type: assertion
-      format: C
-  - entry_type: location_invariant
-    location:
-      file_name: 11-unrolled-loop-invariant.c
-      line: 11
-      column: 5
-      function: main
-    location_invariant:
-      string: ((((j == 1 || j == 4) || j == 0) || j == 3) || j == 2) || (5 <= j && j
-        <= 9)
-      type: assertion
-      format: C
-  - entry_type: location_invariant
-    location:
-      file_name: 11-unrolled-loop-invariant.c
-      line: 10
-      column: 7
-      function: main
-    location_invariant:
-      string: j == 0
-      type: assertion
-      format: C
-  - entry_type: location_invariant
-    location:
-      file_name: 11-unrolled-loop-invariant.c
-      line: 10
-      column: 7
-      function: main
-    location_invariant:
-      string: i == 10
-      type: assertion
-      format: C
-  - entry_type: location_invariant
-    location:
-      file_name: 11-unrolled-loop-invariant.c
-      line: 10
-      column: 7
-      function: main
-    location_invariant:
-      string: (((((5 <= k && k <= 99) || k == 4) || k == 3) || k == 2) || k == 1) ||
-        k == 0
-      type: assertion
-      format: C
-  - entry_type: location_invariant
-    location:
-      file_name: 11-unrolled-loop-invariant.c
-      line: 7
-      column: 3
-      function: main
-    location_invariant:
-      string: i == 10
-      type: assertion
-      format: C
-  - entry_type: location_invariant
-    location:
-      file_name: 11-unrolled-loop-invariant.c
-      line: 5
-      column: 5
-      function: main
-    location_invariant:
-      string: (((((5 <= i && i <= 9) || i == 4) || i == 3) || i == 2) || i == 1) ||
-        i == 0
-      type: assertion
-      format: C
+  - entry_type: invariant_set
+    content:
+    - invariant:
+        type: location_invariant
+        location:
+          file_name: 11-unrolled-loop-invariant.c
+          line: 5
+          column: 5
+          function: main
+        value: (((((5 <= i && i <= 9) || i == 4) || i == 3) || i == 2) || i == 1) ||
+          i == 0
+        format: c_expression
+    - invariant:
+        type: location_invariant
+        location:
+          file_name: 11-unrolled-loop-invariant.c
+          line: 7
+          column: 3
+          function: main
+        value: i == 10
+        format: c_expression
+    - invariant:
+        type: location_invariant
+        location:
+          file_name: 11-unrolled-loop-invariant.c
+          line: 10
+          column: 7
+          function: main
+        value: (((((5 <= k && k <= 99) || k == 4) || k == 3) || k == 2) || k == 1) ||
+          k == 0
+        format: c_expression
+    - invariant:
+        type: location_invariant
+        location:
+          file_name: 11-unrolled-loop-invariant.c
+          line: 10
+          column: 7
+          function: main
+        value: i == 10
+        format: c_expression
+    - invariant:
+        type: location_invariant
+        location:
+          file_name: 11-unrolled-loop-invariant.c
+          line: 10
+          column: 7
+          function: main
+        value: j == 0
+        format: c_expression
+    - invariant:
+        type: location_invariant
+        location:
+          file_name: 11-unrolled-loop-invariant.c
+          line: 11
+          column: 5
+          function: main
+        value: ((((j == 1 || j == 4) || j == 0) || j == 3) || j == 2) || (5 <= j &&
+          j <= 9)
+        format: c_expression
+    - invariant:
+        type: location_invariant
+        location:
+          file_name: 11-unrolled-loop-invariant.c
+          line: 11
+          column: 5
+          function: main
+        value: i == 10
+        format: c_expression
+    - invariant:
+        type: location_invariant
+        location:
+          file_name: 11-unrolled-loop-invariant.c
+          line: 11
+          column: 5
+          function: main
+        value: k == 100
+        format: c_expression
+    - invariant:
+        type: location_invariant
+        location:
+          file_name: 11-unrolled-loop-invariant.c
+          line: 13
+          column: 3
+          function: main
+        value: i == 10
+        format: c_expression
+    - invariant:
+        type: location_invariant
+        location:
+          file_name: 11-unrolled-loop-invariant.c
+          line: 13
+          column: 3
+          function: main
+        value: j == 10
+        format: c_expression
+    - invariant:
+        type: location_invariant
+        location:
+          file_name: 11-unrolled-loop-invariant.c
+          line: 13
+          column: 3
+          function: main
+        value: k == 100
+        format: c_expression
+    - invariant:
+        type: loop_invariant
+        location:
+          file_name: 11-unrolled-loop-invariant.c
+          line: 4
+          column: 3
+          function: main
+        value: (((((5 <= i && i <= 10) || i == 4) || i == 3) || i == 2) || i == 1) ||
+          i == 0
+        format: c_expression
+    - invariant:
+        type: loop_invariant
+        location:
+          file_name: 11-unrolled-loop-invariant.c
+          line: 8
+          column: 3
+          function: main
+        value: ((k == 100 && (((j == 2 || (5 <= j && j <= 10)) || j == 1) || j == 4))
+          || (j == 0 && k == 0)) || (j == 3 && k == 100)
+        format: c_expression
+    - invariant:
+        type: loop_invariant
+        location:
+          file_name: 11-unrolled-loop-invariant.c
+          line: 8
+          column: 3
+          function: main
+        value: i == 10
+        format: c_expression
+    - invariant:
+        type: loop_invariant
+        location:
+          file_name: 11-unrolled-loop-invariant.c
+          line: 9
+          column: 5
+          function: main
+        value: (((((((k == 100 && (((j == 2 || (5 <= j && j <= 9)) || j == 1) || j ==
+          4)) || ((5 <= k && k <= 100) && j == 0)) || (j == 0 && k == 4)) || (j == 0
+          && k == 3)) || (j == 0 && k == 2)) || (j == 0 && k == 1)) || (j == 0 && k
+          == 0)) || (j == 3 && k == 100)
+        format: c_expression
+    - invariant:
+        type: loop_invariant
+        location:
+          file_name: 11-unrolled-loop-invariant.c
+          line: 9
+          column: 5
+          function: main
+        value: i == 10
+        format: c_expression

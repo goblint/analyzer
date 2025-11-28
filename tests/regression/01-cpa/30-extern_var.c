@@ -1,9 +1,15 @@
 #include <goblint.h>
 
-extern int q;
+int p; // assumed to be 0-initialized
+extern int q; // not assumed to be 0-initialized
 
-int main(){
-  int i = q ? 1 : 2 ;
-  __goblint_check(0); // FAIL
+int main() {
+  __goblint_check(p == 0);
+  __goblint_check(q == 0); // UNKNOWN!
+
+  p = 42;
+  q = 42; // does not stick because extern may be modified externally
+  __goblint_check(p == 42);
+  __goblint_check(q == 42); // UNKNOWN!
   return 0;
 }

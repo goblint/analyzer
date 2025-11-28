@@ -1,12 +1,9 @@
 {
   "ana": {
-    "sv-comp": {
-      "enabled": true,
-      "functions": true
-    },
     "int": {
-      "def_exc": true,
-      "enums": false,
+      "enums": true,
+      "congruence": true,
+      "bitfield":true,
       "interval": true
     },
     "float": {
@@ -32,8 +29,15 @@
       "region",
       "thread",
       "threadJoins",
-      "abortUnless"
+      "abortUnless",
+      "mutexGhosts",
+      "pthreadMutexType",
+      "affeq",
+      "apron"
     ],
+    "apron": {
+      "domain": "octagon"
+    },
     "path_sens": [
       "mutex",
       "malloc_null",
@@ -43,27 +47,21 @@
       "memLeak",
       "threadflag"
     ],
-    "context": {
-      "widen": false
-    },
     "base": {
       "arrays": {
         "domain": "partitioned"
+      },
+      "structs": {
+        "domain": "sets"
       }
     },
-    "race": {
-      "free": false,
-      "call": false
-    },
     "autotune": {
-      "enabled": true,
       "activated": [
         "reduceAnalyses",
         "mallocWrappers",
         "noRecursiveIntervals",
         "enums",
         "congruence",
-        "octagon",
         "wideningThresholds",
         "loopUnrollHeuristic",
         "memsafetySpecification",
@@ -73,42 +71,10 @@
       ]
     }
   },
-  "exp": {
-    "region-offsets": true
-  },
-  "solver": "td3",
-  "sem": {
-    "unknown_function": {
-      "spawn": false
-    },
-    "int": {
-      "signed_overflow": "assume_none"
-    },
-    "null-pointer": {
-      "dereference": "assume_none"
+  "solvers": {
+    "td3": {
+      "widen_gas": 30,
+      "side_widen_gas": 30
     }
-  },
-  "witness": {
-    "yaml": {
-      "enabled": true,
-      "sv-comp-true-only": false,
-      "format-version": "2.0",
-      "entry-types": [
-        "invariant_set"
-      ],
-      "invariant-types": [
-        "loop_invariant"
-      ]
-    },
-    "invariant": {
-      "loop-head": true,
-      "after-lock": false,
-      "other": false,
-      "accessed": false,
-      "exact": true
-    }
-  },
-  "pre": {
-    "enabled": false
   }
 }

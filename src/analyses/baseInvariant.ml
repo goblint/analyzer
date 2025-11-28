@@ -107,7 +107,7 @@ struct
       if is_some_bot v then contra st
       else (
         if M.tracing then M.tracel "inv" "improve variable %a from %a to %a (c = %a, c' = %a)" CilType.Varinfo.pretty var VD.pretty old_val VD.pretty v pretty c VD.pretty c';
-        let r = set' (Var var,NoOffset) v st in
+        let r = set' (Cil.var var) v st in
         if M.tracing then M.tracel "inv" "st from %a to %a" D.pretty st D.pretty r;
         r
       )

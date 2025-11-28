@@ -17,12 +17,18 @@ struct
   struct
     include PartitionDomain.ExpPartitions
 
+    (* TODO: Should string constants not be added to D in the first place, rather than filtering them for witness invariants? *)
+    let rec is_str_constant = function
+      | Const (CStr _ | CWStr _) -> true
+      | CastE (_, e) -> is_str_constant e
+      | _ -> false
+
     let invariant ~scope ss =
       fold (fun s a ->
           if B.mem MyCFG.unknown_exp s then
             a
           else (
-            let s' = B.filter (fun x -> not (InvariantCil.exp_contains_tmp x) && InvariantCil.exp_is_in_scope scope x) s in
+            let s' = B.filter (fun x -> InvariantCil.exp_is_suitable ~scope x && not (is_str_constant x)) s in
             if B.cardinal s' >= 2 then (
               (* instead of returning quadratically many pairwise equalities from a cluster,
                  output linear number of equalities with just one expression *)
@@ -374,8 +380,8 @@ struct
     && interesting rv
     && is_global_var ask rv = Some false
     && (isIntegralType lvt || isPointerType lvt)
-    then D.add_eq (rv,Lval lv) (remove ask lv st)
-    else remove ask lv st
+    then D.add_eq (rv,Lval lv) st
+    else st
   (*    in
         match rv with
         | Lval rlval -> begin
@@ -389,6 +395,11 @@ struct
             end
         | _ -> st
   *)
+
+  (* removes all equalities with lval and then tries to make a new one: lval=rval *)
+  let assign_eq ask lv rv st =
+    add_eq ask lv rv (remove ask lv st)
+
   (* Give the set of reachables from argument. *)
   let reachables ~deep (ask: Queries.ask) es =
     let reachable acc e =
@@ -402,18 +413,39 @@ struct
   (* Probably ok as is. *)
   let body man f = man.local
 
-  (* Branch could be improved to set invariants like base tries to do. *)
-  let branch man exp tv = man.local
+  (* Assume equalities from expression. *)
+  let rec assume ask exp st =
+    match exp with
+    | BinOp (Eq, e1, e2, t) ->
+      (* Pointer equalities have casts on both sides. Strip them to get to the actual Lval. *)
+      begin match stripCasts e1, stripCasts e2 with
+        | Lval lval, exp
+        | exp, Lval lval ->
+          add_eq ask lval exp st
+        | _, _ ->
+          st
+      end
+    | BinOp (LAnd, e1, e2, _) -> (* Handle for unassume. *)
+      assume ask e2 (assume ask e1 st)
+    | BinOp (LOr, e1, e2, _) -> (* Handle for unassume. *)
+      D.join (assume ask e1 st) (assume ask e2 st)
+    | _ -> st
+
+  let branch man exp tv =
+    if tv then
+      assume (Analyses.ask_of_man man) exp man.local
+    else
+      (* TODO: support != from false branch. *)
+      man.local
 
   (* Just remove things that go out of scope. *)
   let return man exp fundec  =
-    let rm acc v = remove (Analyses.ask_of_man man) (Var v, NoOffset) acc in
+    let rm acc v = remove (Analyses.ask_of_man man) (Cil.var v) acc in
     List.fold_left rm man.local (fundec.sformals@fundec.slocals)
 
-  (* removes all equalities with lval and then tries to make a new one: lval=rval *)
   let assign man (lval:lval) (rval:exp) : D.t  =
     let rval = constFold true (stripCasts rval) in
-    add_eq (Analyses.ask_of_man man) lval rval man.local
+    assign_eq (Analyses.ask_of_man man) lval rval man.local
 
   (* First assign arguments to parameters. Then join it with reachables, to get
      rid of equalities that are not reachable. *)
@@ -423,9 +455,8 @@ struct
       | x::xs, y::ys -> fold_left2 f (f r x y) xs ys
       | _ -> r
     in
-    let assign_one_param st lv exp =
-      let rm = remove (Analyses.ask_of_man man) (Var lv, NoOffset) st in
-      add_eq (Analyses.ask_of_man man) (Var lv, NoOffset) exp rm
+    let assign_one_param st v exp =
+      assign_eq (Analyses.ask_of_man man) (Cil.var v) exp st
     in
     let nst =
       try fold_left2 assign_one_param man.local f.sformals args
@@ -583,6 +614,8 @@ struct
       |> List.fold_left (fun st lv ->
           remove (Analyses.ask_of_man man) lv st
         ) man.local
+      |> assume (Analyses.ask_of_man man) exp (* Still naive unassume to not lose precision unassuming equalities which we know. *)
+      |> D.join man.local
     | Events.Escape vars ->
       if EscapeDomain.EscapedVars.is_top vars then
         D.top ()

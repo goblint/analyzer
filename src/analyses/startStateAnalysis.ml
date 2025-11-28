@@ -55,7 +55,7 @@ struct
       let lval = Lval (Var var, NoOffset) in
       let value = get_value (ask_of_man ctx) lval in
       let duplicated_var = to_varinfo (DuplicVar var) in
-      if M.tracing then M.trace "startState" "added value: var: %a; value: %a" d_lval (Var duplicated_var, NoOffset) AD.pretty value;
+      if M.tracing then M.trace "startState" "added value: var: %a; value: %a" CilType.Varinfo.pretty duplicated_var AD.pretty value;
       D.add duplicated_var value st
     in
     (* assign function parameters *)
