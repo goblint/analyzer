@@ -406,7 +406,7 @@ struct
 
   (** Starting from ARG node [node], follow CFG path [p] to the resulting ARG node.
       Returns multiple ARG nodes if ARG contains path-sensitivity splits on the same CFG path. *)
-  let rec follow node to_n p = (* TODO: to_n argument unused? *)
+  let rec follow node p =
     let open GobList.Syntax in
     match p with
     | [] -> [node]
@@ -415,7 +415,7 @@ struct
           Edge.equal (Edge.embed e) e' && Node0.equal to_n (Node.cfgnode to_node)
         ) (Arg.next node)
       in
-      follow node' to_n p'
+      follow node' p'
 
   let next node =
     let open GobList.Syntax in
@@ -424,7 +424,7 @@ struct
     | Some next ->
       next
       |> BatList.concat_map (fun (e, to_n, p) ->
-          let+ to_node = follow node to_n p in
+          let+ to_node = follow node p in
           (* TODO: what's the point of to_n? should it match to_node? *)
           (Edge.embed e, to_node)
         )
