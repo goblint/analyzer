@@ -253,18 +253,19 @@ struct
     end
 end
 
+type cfg_path = (MyCFG.edge * MyCFG.node) list
 
 module type SIntra =
 sig
-  val next: MyCFG.node -> (MyCFG.edge * MyCFG.node * (MyCFG.edge * MyCFG.node) list) list
-  (** @return Inner list is the original CFG path corresponding to the step. *) (* TODO: extract type *)
+  val next: MyCFG.node -> (MyCFG.edge * MyCFG.node * cfg_path) list
+  (** @return Also the original CFG path corresponding to the step. *)
 end
 
 module type SIntraOpt =
 sig
   include SIntra
-  val next_opt: MyCFG.node -> ((MyCFG.edge * MyCFG.node * (MyCFG.edge * MyCFG.node) list) list) option
-  (** @return Inner list is the original CFG path corresponding to the step. *) (* TODO: extract type *)
+  val next_opt: MyCFG.node -> ((MyCFG.edge * MyCFG.node * cfg_path) list) option
+  (** @return Also the original CFG path corresponding to the step. *)
 end
 
 module CfgIntra (Cfg:CfgForward): SIntraOpt =
