@@ -2031,12 +2031,11 @@ struct
     v
 
   let dump () =
-    let f = open_out_bin (get_string "exp.priv-prec-dump") in
+    Out_channel.with_open_bin (get_string "exp.priv-prec-dump") @@ fun f ->
     (* LVH.iter (fun (l, x) v ->
         Logs.debug "%a %a = %a" CilType.Location.pretty l CilType.Varinfo.pretty x VD.pretty v
       ) lvh; *)
-    Marshal.output f ({name = get_string "ana.base.privatization"; results = lvh}: result);
-    close_out_noerr f
+    Stdlib.Marshal.to_channel f ({name = get_string "ana.base.privatization"; results = lvh}: result) []
 
   let finalize () =
     if !is_dumping then
