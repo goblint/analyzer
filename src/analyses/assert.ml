@@ -14,24 +14,24 @@ struct
   (* transfer functions *)
 
   let assert_fn man e check refine =
-    let expr = CilType.Exp.show e in
-    let warn warn_fn msg =
+    let assert_msg severity fmt =
       if check then
-        warn_fn msg
+        M.msg severity ~category:Assert fmt
+      else
+        GobPretty.igprintf () fmt
     in
-    (* TODO: use format instead of %s for the following messages *)
     match Queries.eval_bool (Analyses.ask_of_man man) e with
     | `Lifted false ->
-      warn (M.error ~category:Assert "%s") ("Assertion \"" ^ expr ^ "\" will fail.");
+      assert_msg Error "Assertion \"%a\" will fail." CilType.Exp.pretty e;
       if refine then raise Analyses.Deadcode else man.local
     | `Lifted true ->
-      warn (M.success ~category:Assert "%s") ("Assertion \"" ^ expr ^ "\" will succeed");
+      assert_msg Success "Assertion \"%a\" will succeed" CilType.Exp.pretty e;
       man.local
     | `Bot ->
-      M.error ~category:Assert "%s" ("Assertion \"" ^ expr ^ "\" produces a bottom. What does that mean? (currently uninitialized arrays' content is bottom)");
+      M.error ~category:Assert "Assertion \"%a\" produces a bottom. What does that mean? (currently uninitialized arrays' content is bottom)" CilType.Exp.pretty e;
       man.local
     | `Top ->
-      warn (M.warn ~category:Assert "%s") ("Assertion \"" ^ expr ^ "\" is unknown.");
+      assert_msg Warning "Assertion \"%a\" is unknown." CilType.Exp.pretty e;
       man.local
 
   let special man (lval: lval option) (f:varinfo) (args:exp list) : D.t =
