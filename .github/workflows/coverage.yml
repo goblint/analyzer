@@ -60,7 +60,6 @@ jobs:
 
       - name: Test
         env:
-          BISECT_ENABLE: YES
           BISECT_FILE: ${{ github.workspace }}/_build/bisect
         run: opam exec -- dune runtest --force --instrument-with bisect_ppx
 
