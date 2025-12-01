@@ -1,0 +1,3 @@
+(cram
+ (applies_to run)
+ (enabled_if (<> %{system} macosx)))
