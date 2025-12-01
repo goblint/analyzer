@@ -278,7 +278,7 @@ struct
   let next_opt _ = None
 end
 
-let cartesian_concat_paths (ps : cfg_path list) (qs : cfg_path list) : cfg_path list = List.concat (List.map (fun p -> List.map (fun q -> p @ q) qs) ps)
+let cartesian_concat_paths (ps : cfg_path list) (qs : cfg_path list) : cfg_path list = List.concat_map (fun p -> List.map (fun q -> p @ q) qs) ps
 
 let partition_if_next if_next =
   let (if_next_trues, if_next_falses) = List.partition (function
