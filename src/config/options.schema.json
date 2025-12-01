@@ -2202,13 +2202,6 @@
           "type": "boolean",
           "default": false
         },
-        "regression": {
-          "title": "dbg.regression",
-          "description":
-            "Only output warnings for assertions that have an unexpected result (no comment, comment FAIL, comment UNKNOWN)",
-          "type": "boolean",
-          "default": false
-        },
         "test": {
           "title": "dbg.test",
           "type": "object",
