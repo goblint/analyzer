@@ -3,15 +3,15 @@
 
 // Empty implementations (instead of asserts) because annotating documentation promises no-op right now.
 
-void __goblint_check(_Bool exp) {
+void __goblint_check_inner(_Bool exp, char *expstr) {
 
 }
 
-void __goblint_assume(_Bool exp) {
+void __goblint_assume_inner(_Bool exp, char *expstr) {
 
 }
 
-void __goblint_assert(_Bool exp) {
+void __goblint_assert_inner(_Bool exp, char *expstr) {
 
 }
 

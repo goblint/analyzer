@@ -1,7 +1,7 @@
 #ifndef GOBLINT_NO_ASSERT
 
-void __goblint_assert(_Bool expression);
+void __goblint_assert_inner(_Bool exp, char *expstr);
 #undef assert
-#define assert(expression) __goblint_assert(expression)
+#define assert(exp) __goblint_assert_inner(exp, #exp)
 
 #endif
