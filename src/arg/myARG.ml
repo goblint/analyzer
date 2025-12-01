@@ -280,6 +280,7 @@ end
 
 let cartesian_concat_paths (ps : cfg_path list) (qs : cfg_path list) : cfg_path list = List.concat (List.map (fun p -> List.map (fun q -> p @ q) qs) ps)
 
+(* TODO: remove *)
 let partition_if_next (if_next_n : (edge * node * cfg_path list) list): exp * (node * cfg_path list) * (node * cfg_path list) =
   (* TODO: refactor *)
   let exp =
@@ -311,6 +312,19 @@ let partition_if_next (if_next_n : (edge * node * cfg_path list) list): exp * (n
       (n, ps)
   in
   (exp, collapse_branch true, collapse_branch false)
+
+let partition_if_next if_next_n =
+  (* TODO: refactor, check extra edges for error *)
+  let test_next b = List.find (function
+      | (Test (_, b'), _, _) when b = b' -> true
+      | (_, _, _) -> false
+    ) if_next_n
+  in
+  assert (List.length if_next_n <= 2);
+  match test_next true, test_next false with
+  | (Test (e_true, true), if_true_next_n, if_true_next_p), (Test (e_false, false), if_false_next_n, if_false_next_p) when Basetype.CilExp.equal e_true e_false ->
+    (e_true, (if_true_next_n, if_true_next_p), (if_false_next_n, if_false_next_p))
+  | _, _ -> failwith "partition_if_next: bad branches"
 
 module UnCilLogicIntra (Arg: SIntraOpt): SIntraOpt =
 struct
