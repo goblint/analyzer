@@ -63,6 +63,9 @@ jobs:
           BISECT_FILE: ${{ github.workspace }}/_build/coverage/bisect
         run: opam exec -- dune runtest --force --instrument-with bisect_ppx
 
+      - name: LS
+        run: ls ${{ github.workspace }}/_build/coverage
+
       - run: opam exec -- bisect-ppx-report send-to Coveralls
         env:
           COVERALLS_REPO_TOKEN: ${{ secrets.COVERALLS_REPO_TOKEN }}
