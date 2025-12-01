@@ -60,7 +60,7 @@ jobs:
 
       - name: Test
         env:
-          BISECT_FILE: ${{ github.workspace }}/_build/bisect
+          BISECT_FILE: ${{ github.workspace }}/_build/coverage/bisect
         run: opam exec -- dune runtest --force --instrument-with bisect_ppx
 
       - run: opam exec -- bisect-ppx-report send-to Coveralls
