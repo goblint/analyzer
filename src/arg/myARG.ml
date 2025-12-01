@@ -313,18 +313,21 @@ let partition_if_next (if_next_n : (edge * node * cfg_path list) list): exp * (n
   in
   (exp, collapse_branch true, collapse_branch false)
 
-let partition_if_next if_next_n =
-  (* TODO: refactor, check extra edges for error *)
-  let test_next b = List.find (function
-      | (Test (_, b'), _, _) when b = b' -> true
-      | (_, _, _) -> false
-    ) if_next_n
+let partition_if_next if_next =
+  let (if_next_trues, if_next_falses) = List.partition (function
+      | (Test (_, b), _, _) -> b
+      | (_, _, _) -> failwith "partition_if_next: not Test edge"
+    ) if_next
   in
-  assert (List.length if_next_n <= 2);
-  match test_next true, test_next false with
-  | (Test (e_true, true), if_true_next_n, if_true_next_p), (Test (e_false, false), if_false_next_n, if_false_next_p) when Basetype.CilExp.equal e_true e_false ->
-    (e_true, (if_true_next_n, if_true_next_p), (if_false_next_n, if_false_next_p))
-  | _, _ -> failwith "partition_if_next: bad branches"
+  match if_next_trues, if_next_falses with
+  | [(Test (e_true, true), if_true_next_n, if_true_next_ps)], [(Test (e_false, false), if_false_next_n, if_false_next_ps)] when Basetype.CilExp.equal e_true e_false ->
+    (e_true, (if_true_next_n, if_true_next_ps), (if_false_next_n, if_false_next_ps))
+  | _, _ ->
+    (* This fails due to any of the following:
+       - Either true or false branch is missing.
+       - Either true or false branch has multiple different exps or nodes (same exp, branch and node should only occur once by construction/assumption).
+       - True and false branch have different exps. *)
+    failwith "partition_if_next: bad branches"
 
 module UnCilLogicIntra (Arg: SIntraOpt): SIntraOpt =
 struct
