@@ -280,39 +280,6 @@ end
 
 let cartesian_concat_paths (ps : cfg_path list) (qs : cfg_path list) : cfg_path list = List.concat (List.map (fun p -> List.map (fun q -> p @ q) qs) ps)
 
-(* TODO: remove *)
-let partition_if_next (if_next_n : (edge * node * cfg_path list) list): exp * (node * cfg_path list) * (node * cfg_path list) =
-  (* TODO: refactor *)
-  let exp =
-    match if_next_n with
-    | [] -> failwith "partition_if_next: empty"
-    | (Test (exp, _), _, _) :: xs ->
-      let all_tests_same_cond =
-        List.for_all
-          (function
-            | (Test (exp', _), _, _) -> Basetype.CilExp.equal exp exp'
-            | _ -> false)
-          xs
-      in
-      if all_tests_same_cond then exp
-      else failwith "partition_if_next: bad branches"
-    | _ -> failwith "partition_if_next: not Test edge"
-  in
-  let collapse_branch b =
-    let paths_for_b = List.filter (function
-        | (Test (_, b'), _, _) when b = b' -> true
-        | _ -> false)
-        if_next_n
-    in
-    match paths_for_b with
-    | [] -> failwith (if b then "partition_if_next: missing true-branch" else "partition_if_next: missing false-branch")
-    | (e, n, ps) :: rest -> (* TODO: rest is ignored, so this List.filter is almost a List.find, except it also checks if nodes are all same (for b) *)
-      let all_same_en = List.for_all (fun (e', n', _) -> Edge.equal e e' && Node.equal n n') paths_for_b in
-      if not all_same_en then failwith "partition_if_next: branch has differing (edge,node) pairs";
-      (n, ps)
-  in
-  (exp, collapse_branch true, collapse_branch false)
-
 let partition_if_next if_next =
   let (if_next_trues, if_next_falses) = List.partition (function
       | (Test (_, b), _, _) -> b
