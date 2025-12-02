@@ -99,70 +99,71 @@ module Check = struct
       Kind.pp check.kind
       check.messages
       (Format.pp_print_option CilType.Location.pp) check.range
-  module CheckMap = Hashtbl.Make (struct
-      type nonrec t = t
-      let equal = equal
-      let hash = hash
-    end)
-
-
-  module CategoryLocationMap = Hashtbl.Make (struct
-      type t = Category.t * CilType.Location.t [@@deriving hash, eq]
-    end)
-
-
-  let checks_list : (bool ref * unit CheckMap.t) CategoryLocationMap.t = CategoryLocationMap.create 113
-
-  let add_check check =
-    match check.range with
-    | Some range -> (
-        (* Mark all ranges as synthetic for hash purposes *)
-        let range = { range with synthetic = true } in
-        let check = { check with range = Some range } in
-        let check_key = (check.title, range) in
-        match CategoryLocationMap.find_opt checks_list check_key with
-        | Some (safe, existing_checks) ->
-          if !safe && Kind.is_safe check.kind then
-            CheckMap.replace existing_checks check ()
-          else if not @@ Kind.is_safe check.kind then (
-            if !safe then CheckMap.clear existing_checks;
-            safe := false;
-            CheckMap.replace existing_checks check ()
-          )
-        | None ->
-          let table = CheckMap.create 10 in
-          CheckMap.replace table check ();
-          CategoryLocationMap.replace checks_list check_key (ref (Kind.is_safe check.kind), table))
-    | None ->
-      ()
-
-  let check kind title fmt =
-    if !AnalysisState.should_warn then (
-      let finish doc =
-        let loc = Option.map UpdateCil0.getLoc !Node0.current_node in
-        let messages = GobPretty.show doc in
-        let check = make ~kind ~title ?range:loc ~messages () in
-        add_check check in
-      GoblintCil.Pretty.gprintf finish fmt)
-    else
-      GobPretty.igprintf () fmt
-
-
-  let export () =
-    `List (
-      List.map to_yojson @@ CategoryLocationMap.fold (
-        fun _ (checks: (bool ref * unit CheckMap.t)) acc ->
-          List.rev_append (CheckMap.to_seq_keys @@ snd checks |> List.of_seq) acc
-      ) checks_list []
-    )
 end
 
-let error category = Check.check Kind.Error category
+module CheckMap = Hashtbl.Make (struct
+    type t = Check.t
+    let equal = Check.equal
+    let hash = Check.hash
+  end)
 
-let warn category = Check.check Kind.Warning category
+
+module CategoryLocationMap = Hashtbl.Make (struct
+    type t = Category.t * CilType.Location.t [@@deriving hash, eq]
+  end)
+
+
+let checks_list : (bool ref * unit CheckMap.t) CategoryLocationMap.t = CategoryLocationMap.create 113
+
+let add_check check =
+  match check.Check.range with
+  | Some range -> (
+      (* Mark all ranges as synthetic for hash purposes *)
+      let range = { range with synthetic = true } in
+      let check = { check with range = Some range } in
+      let check_key = (check.title, range) in
+      match CategoryLocationMap.find_opt checks_list check_key with
+      | Some (safe, existing_checks) ->
+        if !safe && Kind.is_safe check.kind then
+          CheckMap.replace existing_checks check ()
+        else if not @@ Kind.is_safe check.kind then (
+          if !safe then CheckMap.clear existing_checks;
+          safe := false;
+          CheckMap.replace existing_checks check ()
+        )
+      | None ->
+        let table = CheckMap.create 10 in
+        CheckMap.replace table check ();
+        CategoryLocationMap.replace checks_list check_key (ref (Kind.is_safe check.kind), table))
+  | None ->
+    ()
+
+let check kind title fmt =
+  if !AnalysisState.should_warn then (
+    let finish doc =
+      let loc = Option.map UpdateCil0.getLoc !Node0.current_node in
+      let messages = GobPretty.show doc in
+      let check = Check.make ~kind ~title ?range:loc ~messages () in
+      add_check check in
+    GoblintCil.Pretty.gprintf finish fmt)
+  else
+    GobPretty.igprintf () fmt
+
+
+let export () =
+  `List (
+    List.map Check.to_yojson @@ CategoryLocationMap.fold (
+      fun _ (checks: (bool ref * unit CheckMap.t)) acc ->
+        List.rev_append (CheckMap.to_seq_keys @@ snd checks |> List.of_seq) acc
+    ) checks_list []
+  )
+
+let error category = check Kind.Error category
+
+let warn category = check Kind.Warning category
 
 let safe ?(message = "") category = 
   match !Node0.current_node with
   | Some (Statement _) ->
-    Check.check Kind.Safe category "%s" message
+    check Kind.Safe category "%s" message
   | _ -> ()
