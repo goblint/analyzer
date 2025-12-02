@@ -114,6 +114,10 @@ module CategoryLocationMap = Hashtbl.Make (struct
 
 
 let checks_list : (bool ref * unit CheckMap.t) CategoryLocationMap.t = CategoryLocationMap.create 113
+(** Store the list of checks raised by the analysis. The [bool ref] stores whether all checks in the map are safe. 
+    The [unit CheckMap.t] is the set of checks associated with the given [Category.t * CilType.Location.t] pair. 
+    The [bool] is a reference to avoid having to use the [update] function when updating the value. The [CheckMap.t] is mutable anyway
+    so it is not a problem. *)
 
 let add_check check =
   match check.Check.range with
