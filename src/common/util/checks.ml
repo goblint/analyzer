@@ -99,11 +99,8 @@ module Check = struct
       Kind.pp check.kind
       check.messages
       (Format.pp_print_option CilType.Location.pp) check.range
-
-  type check_t = t
-  let check_t_to_yojson = to_yojson
   module CheckMap = Hashtbl.Make (struct
-      type t = check_t
+      type nonrec t = t
       let equal = equal
       let hash = hash
     end)
