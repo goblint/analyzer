@@ -189,7 +189,7 @@ To run `bisect_ppx` locally:
 
 1. Install bisect_ppx with `opam install bisect_ppx`.
 2. Run `make coverage` to build Goblint with bisect_ppx instrumentation.
-3. Run tests with coverage: `dune runtest --instrument-with bisect_ppx` (this will now generate `.coverage` files in various directories).
-4. Generate coverage report with `bisect-ppx-report html`.
-5. After that the generated `.coverage` files can be removed with `find . -type f -name '*.coverage' -delete`.
+3. Run tests with coverage: `mkdir -p _build/coverage ; BISECT_FILE="$(pwd)/_build/coverage/bisect" dune runtest --force --instrument-with bisect_ppx` (this will generate `.coverage` files into the directory `_build/coverage`).
+4. Generate coverage report with `bisect-ppx-report html`.  
+  Note: after that the generated `.coverage` files can be removed (e.g., with `find . -type f -name '*.coverage' -delete` or by deleting `_build/coverage`).
 6. The HTML report can be found in the `_coverage` folder.
