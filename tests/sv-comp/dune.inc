@@ -819,6 +819,94 @@
   (deps
    (sandbox always) ; must sandbox to prevent arg.dot-s from parallel runs from interfering
    (package goblint) ; depend on entire goblint package for svcomp21 conf
+   (:c and_ambiguous_partition1.c)
+   (:prop %{project_root}/tests/sv-comp/unreach-call-__VERIFIER_error.prp))
+  (target and_ambiguous_partition1.output)
+  (enabled_if %{bin-available:graph-easy})
+  (action
+   (progn
+    (ignore-outputs
+     (run goblint --conf svcomp25.json --disable ana.autotune.enabled --set ana.specification %{prop} %{c} --enable exp.arg.uncil --enable exp.arg.stack --enable exp.arg.enabled --set exp.arg.dot.path arg.dot --set exp.arg.dot.node-label empty --set ana.activated[+] expsplit))
+    (with-outputs-to %{target}
+     (run graph-easy --as=boxart arg.dot)))))
+
+ (rule
+  (alias runtest)
+  (enabled_if %{bin-available:graph-easy})
+  (action
+   (diff and_ambiguous_partition1.expected and_ambiguous_partition1.output))))
+
+(subdir cfg/uncil
+ (rule
+  (deps
+   (sandbox always) ; must sandbox to prevent arg.dot-s from parallel runs from interfering
+   (package goblint) ; depend on entire goblint package for svcomp21 conf
+   (:c and_ambiguous_partition2.c)
+   (:prop %{project_root}/tests/sv-comp/unreach-call-__VERIFIER_error.prp))
+  (target and_ambiguous_partition2.output)
+  (enabled_if %{bin-available:graph-easy})
+  (action
+   (progn
+    (ignore-outputs
+     (run goblint --conf svcomp25.json --disable ana.autotune.enabled --set ana.specification %{prop} %{c} --enable exp.arg.uncil --enable exp.arg.stack --enable exp.arg.enabled --set exp.arg.dot.path arg.dot --set exp.arg.dot.node-label empty --set ana.activated[+] expsplit))
+    (with-outputs-to %{target}
+     (run graph-easy --as=boxart arg.dot)))))
+
+ (rule
+  (alias runtest)
+  (enabled_if %{bin-available:graph-easy})
+  (action
+   (diff and_ambiguous_partition2.expected and_ambiguous_partition2.output))))
+
+(subdir cfg/uncil
+ (rule
+  (deps
+   (sandbox always) ; must sandbox to prevent arg.dot-s from parallel runs from interfering
+   (package goblint) ; depend on entire goblint package for svcomp21 conf
+   (:c and_ambiguous_partition3.c)
+   (:prop %{project_root}/tests/sv-comp/unreach-call-__VERIFIER_error.prp))
+  (target and_ambiguous_partition3.output)
+  (enabled_if %{bin-available:graph-easy})
+  (action
+   (progn
+    (ignore-outputs
+     (run goblint --conf svcomp25.json --disable ana.autotune.enabled --set ana.specification %{prop} %{c} --enable exp.arg.uncil --enable exp.arg.stack --enable exp.arg.enabled --set exp.arg.dot.path arg.dot --set exp.arg.dot.node-label empty --set ana.activated[+] expsplit))
+    (with-outputs-to %{target}
+     (run graph-easy --as=boxart arg.dot)))))
+
+ (rule
+  (alias runtest)
+  (enabled_if %{bin-available:graph-easy})
+  (action
+   (diff and_ambiguous_partition3.expected and_ambiguous_partition3.output))))
+
+(subdir cfg/uncil
+ (rule
+  (deps
+   (sandbox always) ; must sandbox to prevent arg.dot-s from parallel runs from interfering
+   (package goblint) ; depend on entire goblint package for svcomp21 conf
+   (:c and_ambiguous_partition4.c)
+   (:prop %{project_root}/tests/sv-comp/unreach-call-__VERIFIER_error.prp))
+  (target and_ambiguous_partition4.output)
+  (enabled_if %{bin-available:graph-easy})
+  (action
+   (progn
+    (ignore-outputs
+     (run goblint --conf svcomp25.json --disable ana.autotune.enabled --set ana.specification %{prop} %{c} --enable exp.arg.uncil --enable exp.arg.stack --enable exp.arg.enabled --set exp.arg.dot.path arg.dot --set exp.arg.dot.node-label empty --set ana.activated[+] expsplit))
+    (with-outputs-to %{target}
+     (run graph-easy --as=boxart arg.dot)))))
+
+ (rule
+  (alias runtest)
+  (enabled_if %{bin-available:graph-easy})
+  (action
+   (diff and_ambiguous_partition4.expected and_ambiguous_partition4.output))))
+
+(subdir cfg/uncil
+ (rule
+  (deps
+   (sandbox always) ; must sandbox to prevent arg.dot-s from parallel runs from interfering
+   (package goblint) ; depend on entire goblint package for svcomp21 conf
    (:c and_copy_true-unreach-call.c)
    (:prop %{project_root}/tests/sv-comp/unreach-call-__VERIFIER_error.prp))
   (target and_copy_true-unreach-call.output)

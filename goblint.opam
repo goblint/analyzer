@@ -100,12 +100,11 @@ dev-repo: "git+https://github.com/goblint/analyzer.git"
 # also remember to generate/adjust goblint.opam.locked!
 x-maintenance-intent: ["(latest)" "(latest).(latest-1)"] # also keep previous minor version (with two releases per year, always keep a SV-COMP release)
 available: os-family != "bsd" & os-distribution != "alpine" & (arch != "arm64" | os = "macos")
-# pin-depends: [
-  # published goblint-cil 2.0.9 is currently up-to-date, so no pin needed
-  # [ "goblint-cil.2.0.9" "git+https://github.com/goblint/cil.git#1b48fc0ce4f3576a51618305251121ffedd0bf1e" ]
+pin-depends: [
+  [ "goblint-cil.2.0.9" "git+https://github.com/goblint/cil.git#1b48fc0ce4f3576a51618305251121ffedd0bf1e" ]
   # pinned for stability (https://github.com/goblint/analyzer/issues/1520), remove after new apron release
-  # [ "apron.v0.9.15" "git+https://github.com/antoinemine/apron.git#418a217c7a70dae3f422678f3aaba38ae374d91a" ]
-# ]
+  [ "apron.v0.9.15" "git+https://github.com/antoinemine/apron.git#418a217c7a70dae3f422678f3aaba38ae374d91a" ]
+]
 depexts: [
   ["libgraph-easy-perl"] {os-distribution = "ubuntu" & with-test} # doesn't work (https://github.com/ocaml/opam/issues/5836)
 ]

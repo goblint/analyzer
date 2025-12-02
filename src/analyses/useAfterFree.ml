@@ -154,7 +154,7 @@ struct
       let cwe_number = if is_free then 415 else 416 in
       let warn_for_heap_var v =
         if HeapVars.mem v freed_heap_vars then begin
-          set_mem_safety_flag InvalidDeref;
+          if is_free then set_mem_safety_flag InvalidFree else set_mem_safety_flag InvalidDeref;
           M.warn ~category:(Behavior undefined_behavior) ~tags:[CWE cwe_number] "lval (%s) points to a maybe freed memory region" v.vname
         end
       in
