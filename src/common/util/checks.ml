@@ -113,7 +113,6 @@ module Check = struct
       type t = Category.t * CilType.Location.t [@@deriving hash, eq]
     end)
 
-  type key = Category.t * CilType.Location.t option [@@deriving yojson]
 
   let checks_list : (bool ref * unit CheckMap.t) CategoryLocationMap.t = CategoryLocationMap.create 113
 
