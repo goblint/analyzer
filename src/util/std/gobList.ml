@@ -58,6 +58,9 @@ let until_last_with (pred: 'a -> bool) (xs: 'a list) =
 let cartesian_map f l1 l2 =
   List.concat_map (fun x -> List.map (f x) l2) l1
 
+let cartesian_concat_map f l1 l2 =
+  List.concat_map (fun x -> List.concat_map (f x) l2) l1
+
 
 (** Open this to use applicative functor/monad syntax for {!list}. *)
 module Syntax =

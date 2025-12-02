@@ -114,7 +114,7 @@ struct
   let binop (x: t) (y: t) op : t = match x, y with
     | [], _ -> []
     | _, [] -> []
-    | _, _ -> canonize @@ List.concat_map op (BatList.cartesian_product x y)
+    | _, _ -> canonize @@ GobList.cartesian_concat_map (Batteries.curry op) x y
 
 
   include Std (struct type nonrec t = t let name = name let top_of = top_of let bot_of = bot_of let show = show let equal = equal end)
@@ -190,7 +190,7 @@ struct
   let binary_op_concat_with_norm op (ik:ikind) (x: t) (y: t) : t*overflow_info = match x, y with
     | [], _ -> ([],{overflow=false; underflow=false})
     | _, [] -> ([],{overflow=false; underflow=false})
-    | _, _ -> norm_intvs ik @@ List.concat_map (fun (x,y) -> op x y) (BatList.cartesian_product x y) (* TODO: GobList.cartesian_concat_map? *)
+    | _, _ -> norm_intvs ik @@ GobList.cartesian_concat_map op x y
 
   let binary_op_with_ovc (x: t) (y: t) op : t*overflow_info = match x, y with
     | [], _ -> ([],{overflow=false; underflow=false})
