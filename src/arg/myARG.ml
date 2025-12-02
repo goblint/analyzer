@@ -366,8 +366,7 @@ struct
         | [(Assign (v_true, e_true), if_true_next_next_n, if_true_next_next_ps)], [(Assign (v_false, e_false), if_false_next_next_n, if_false_next_next_ps)] when v_true = v_false && Node.equal if_true_next_next_n if_false_next_next_n ->
           let exp = ternary e_cond e_true e_false in
           Some [
-            (Assign (v_true, exp), if_true_next_next_n, cartesian_concat_paths if_true_next_ps if_true_next_next_ps);
-            (Assign (v_false, exp), if_false_next_next_n, cartesian_concat_paths if_false_next_ps if_false_next_next_ps)
+            (Assign (v_true, exp), if_true_next_next_n, cartesian_concat_paths if_true_next_ps if_true_next_next_ps @ cartesian_concat_paths if_false_next_ps if_false_next_next_ps) (* concat two different path families with same variable to same node *)
           ]
         | _, _ -> None
       else
