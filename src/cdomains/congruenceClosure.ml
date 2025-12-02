@@ -209,14 +209,11 @@ module Disequalities = struct
     let arg = List.fold_left do_bindings TMap.empty clist in
     (uf, cmap, arg)
 
+  (* TODO: GobList.cartesian_fold_left? *)
   let fold_left2 f acc l1 l2 =
     List.fold_left (
       fun acc x -> List.fold_left (
           fun acc y -> f acc x y) acc l2) acc l1
-
-  let map2 f l1 l2 =
-    let map_f x = List.map (f x) l2 in
-    List.concat_map map_f l1
 
   let map_find_opt (v,r) map =
     let inner_map = TMap.find_opt v map in
