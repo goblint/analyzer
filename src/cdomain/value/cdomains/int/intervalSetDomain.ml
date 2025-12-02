@@ -185,18 +185,18 @@ struct
   let binary_op_with_norm op (ik:ikind) (x: t) (y: t) : t*overflow_info = match x, y with
     | [], _ -> ([],{overflow=false; underflow=false})
     | _, [] -> ([],{overflow=false; underflow=false})
-    | _, _ -> norm_intvs ik @@ List.map (fun (x,y) -> op x y) (BatList.cartesian_product x y)
+    | _, _ -> norm_intvs ik @@ GobList.cartesian_map op x y
 
   let binary_op_concat_with_norm op (ik:ikind) (x: t) (y: t) : t*overflow_info = match x, y with
     | [], _ -> ([],{overflow=false; underflow=false})
     | _, [] -> ([],{overflow=false; underflow=false})
-    | _, _ -> norm_intvs ik @@ List.concat_map (fun (x,y) -> op x y) (BatList.cartesian_product x y)
+    | _, _ -> norm_intvs ik @@ List.concat_map (fun (x,y) -> op x y) (BatList.cartesian_product x y) (* TODO: GobList.cartesian_concat_map? *)
 
   let binary_op_with_ovc (x: t) (y: t) op : t*overflow_info = match x, y with
     | [], _ -> ([],{overflow=false; underflow=false})
     | _, [] -> ([],{overflow=false; underflow=false})
     | _, _ ->
-      let res = List.map op (BatList.cartesian_product x y) in
+      let res = GobList.cartesian_map (Batteries.curry op) x y in
       let intvs = List.concat_map fst res in
       let underflow = List.exists (fun (_,{underflow; _}) -> underflow) res in
       let overflow = List.exists (fun (_,{overflow; _}) -> underflow) res in

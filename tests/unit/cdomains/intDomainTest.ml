@@ -483,7 +483,6 @@ struct
     assert_bool "-5 ?= not (4 | 12)" (I.equal_to (of_int (-5)) (I.lognot ik b12) = `Top)
 
   let of_list ik is = List.fold_left (fun acc x -> I.join ik acc (I.of_int ik x)) (I.bot ()) is
-  let cart_op op a b = List.map (BatTuple.Tuple2.uncurry op) (BatList.cartesian_product a b)
 
   let precision ik = snd @@ IntDomain.Size.bits ik
   let over_precision ik = Int.succ @@ precision ik
@@ -546,7 +545,7 @@ struct
     Test.make ~name:name ~print:shift_test_printer
       test_case_gen
       (fun (a,b) ->
-         let expected_subset = cart_op c_op a b |> of_list ik in
+         let expected_subset = GobList.cartesian_map c_op a b |> of_list ik in
          let result = a_op ik (of_list ik a) (of_list ik b) in
          I.leq expected_subset result
       )

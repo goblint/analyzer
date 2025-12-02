@@ -379,10 +379,10 @@ module Disequalities = struct
     let comp_closure (r1,r2,z) =
       let eq_class1 = LMap.comp_t_cmap_repr cmap r1 in
       let eq_class2 = LMap.comp_t_cmap_repr cmap r2 in
-      let to_diseq ((z1, nt1), (z2, nt2)) =
+      let to_diseq (z1, nt1) (z2, nt2) =
         (nt1, nt2, Z.(-z2+z+z1))
       in
-      List.map to_diseq (BatList.cartesian_product eq_class1 eq_class2)
+      GobList.cartesian_map to_diseq eq_class1 eq_class2
     in
     List.concat_map comp_closure diseqs
 end
