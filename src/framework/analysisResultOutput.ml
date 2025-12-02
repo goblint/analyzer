@@ -97,7 +97,7 @@ struct
       let json = `Assoc [
           ("files", Preprocessor.dependencies_to_yojson ());
           ("time", `Float (if get_bool "dbg.timing.enabled" then timings.cputime else -1.));
-          ("checks", Checks.Check.export ());
+          ("checks", Checks.export ());
         ] in
       Yojson.Safe.to_channel ~std:true out json
     | "none" -> ()
