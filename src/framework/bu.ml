@@ -264,6 +264,22 @@ module FwdBuSolver (System: FwdGlobConstrSys) = struct
     let _ = LM.iter (set_local x) sigma in
     ()
 
+  and wrap_new (x,f) d =
+    let sigma = LM.create 10 in
+    let tau = GM.create 10 in
+    let add_sigma y d =
+      let d = try D.join d (LM.find sigma y) with _ -> d in
+      LM.replace sigma y d in
+    let add_tau g d =
+      let d = try G.join d (GM.find tau g) with _ -> d in
+      GM.replace tau g d;
+      set_global x g d in
+    let _ = f d (fun _ -> raise (Failure "Locals queried in rhs??")) 
+        add_sigma (get_global x) add_tau in
+    let _ = LM.iter (set_local x) sigma in
+    ()
+
+
 (*
         now the actual propagation!
 *)
