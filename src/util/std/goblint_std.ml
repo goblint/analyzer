@@ -25,3 +25,5 @@ module GobQCheck = GobQCheck
 module GobYaml = GobYaml
 module GobYojson = GobYojson
 module GobZ = GobZ
+
+let (let@) f x = f x

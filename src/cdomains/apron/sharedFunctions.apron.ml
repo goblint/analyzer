@@ -153,7 +153,7 @@ struct
                   outside of the apron-related expression conversion.
               *)
               let simplify e =
-                GobRef.wrap AnalysisState.executing_speculative_computations true @@ fun () ->
+                let@ () = GobRef.wrap AnalysisState.executing_speculative_computations true in
                 let ikind = try (Cilfacade.get_ikind_exp e) with Invalid_argument a -> raise (Unsupported_CilExp (Ikind_non_integer a))   in
                 let simp = query e ikind in
                 let const = IntDomain.IntDomTuple.to_int @@ IntDomain.IntDomTuple.cast_to ikind simp in
@@ -177,11 +177,13 @@ struct
                   | false -> (* Cast is not injective - we now try to establish suitable ranges manually  *)
                     let t_ik = Cilfacade.get_ikind t in
                     (* retrieving a valuerange for a non-injective cast works by a query to the value-domain with subsequent value extraction from domtuple - which should be speculative, since it is not program code *)
-                    let const,res = GobRef.wrap AnalysisState.executing_speculative_computations true @@ fun () ->
+                    let const,res =
+                      let@ () = GobRef.wrap AnalysisState.executing_speculative_computations true in
                       (* try to evaluate e by EvalInt Query *)
                       let res = try (query e @@ Cilfacade.get_ikind_exp e) with Invalid_argument a -> raise (Unsupported_CilExp (Ikind_non_integer a))  in
                       (* convert response to a constant *)
-                      IntDomain.IntDomTuple.to_int @@ IntDomain.IntDomTuple.cast_to t_ik res, res in
+                      IntDomain.IntDomTuple.to_int @@ IntDomain.IntDomTuple.cast_to t_ik res, res
+                    in
                     match const with
                     | Some c -> Cst (Coeff.s_of_z c) (* Got a constant value -> use it straight away *)
                     (* I gotten top, we can not guarantee injectivity *)

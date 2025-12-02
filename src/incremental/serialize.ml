@@ -20,7 +20,7 @@ let gob_results_dir op =
 let server () = GobConfig.get_bool "server.enabled"
 
 let marshal obj fileName  =
-  Out_channel.with_open_bin (Fpath.to_string fileName) @@ fun chan ->
+  let@ chan = Out_channel.with_open_bin (Fpath.to_string fileName) in
   Marshal.to_channel chan obj []
 
 let unmarshal fileName =
