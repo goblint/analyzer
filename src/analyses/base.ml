@@ -2237,7 +2237,6 @@ struct
   let special_unknown_invalidate man f args =
     (if CilType.Varinfo.equal f dummyFunDec.svar then (
         M.warn ~category:Imprecise ~tags:[Category Call] "Unknown function ptr called";
-        Checks.warn Checks.Category.InvalidMemoryAccess "Unknown function ptr called"
       ));
     let desc = LF.find f in
     let shallow_addrs = LibraryDesc.Accesses.find desc.accs { kind = Write; deep = false } args in
