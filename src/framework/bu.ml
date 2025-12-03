@@ -270,6 +270,9 @@ module FwdBuSolver (System: FwdGlobConstrSys) = struct
     let add_sigma y d =
       let d = try D.join d (LM.find sigma y) with _ -> d in
       LM.replace sigma y d in
+(*
+      set_local y x d in
+*)
     let add_tau g d =
       let d = try G.join d (GM.find tau g) with _ -> d in
       GM.replace tau g d;
@@ -293,7 +296,7 @@ module FwdBuSolver (System: FwdGlobConstrSys) = struct
     | Some f ->
       let _ = rloc.called := true in
       let _ = rloc.aborted := false in
-      let _ = wrap (x,f) rloc.loc_value in
+      let _ = wrap_new (x,f) rloc.loc_value in
       let _ = rloc.called := false in
       if !(rloc.aborted) then (
         if tracing then trace "iter" "re-iter";
