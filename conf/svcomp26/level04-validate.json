@@ -1,10 +1,11 @@
 {
   "ana": {
     "int": {
-      "enums": true,
       "congruence": true,
       "bitfield":true,
-      "interval": true
+      "enums": true,
+      "interval": true,
+      "interval_threshold_widening": true
     },
     "float": {
       "interval": true,
@@ -31,13 +32,8 @@
       "threadJoins",
       "abortUnless",
       "mutexGhosts",
-      "pthreadMutexType",
-      "affeq",
-      "apron"
+      "pthreadMutexType"
     ],
-    "apron": {
-      "domain": "octagon"
-    },
     "path_sens": [
       "mutex",
       "malloc_null",
@@ -45,11 +41,13 @@
       "expsplit",
       "activeSetjmp",
       "memLeak",
-      "threadflag"
+      "threadflag",
+      "base"
     ],
     "base": {
       "arrays": {
-        "domain": "partitioned"
+        "domain": "unroll",
+        "unrolling-factor": 16
       },
       "structs": {
         "domain": "sets"
@@ -62,6 +60,7 @@
         "noRecursiveIntervals",
         "enums",
         "congruence",
+        "octagon",
         "wideningThresholds",
         "loopUnrollHeuristic",
         "memsafetySpecification",
@@ -71,10 +70,7 @@
       ]
     }
   },
-  "solvers": {
-    "td3": {
-      "widen_gas": 30,
-      "side_widen_gas": 30
-    }
+  "exp": {
+    "unrolling-factor": 4
   }
 }

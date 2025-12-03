@@ -90,7 +90,7 @@ let init () =
   (* lineDirectiveStyle := None; *)
   RmUnused.keepUnused := true;
   print_CIL_Input := true;
-  Cabs2cil.allowDuplication := false;
+  Cabs2cil.allowDuplication := false; (* needed for ARG uncilling, maybe something else as well? *)
   Cabs2cil.silenceLongDoubleWarning := true;
   Cabs2cil.addLoopConditionLabels := true
 

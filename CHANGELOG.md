@@ -1,4 +1,7 @@
-## v2.7.0 Bamboozled Buffalo (unreleased)
+## v2.7.1 Bamboozled Buffalo
+* Add library function specifications for fortified `inet_pton` and `inet_ntop` (#1883).
+
+## v2.7.0 Bamboozled Buffalo
 Functionally equivalent to Goblint in SV-COMP 2026.
 
 * Add sequential portfolio for SV-COMP (#1845, #1867, #1877).
