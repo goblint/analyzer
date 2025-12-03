@@ -1189,10 +1189,8 @@ struct
     if AD.is_top fp then (
       if AD.cardinal fp = 1 then (
         M.warn ~category:Imprecise ~tags:[Category Call] "Unknown call to function %a." d_exp fval;
-        Checks.warn Checks.Category.InvalidMemoryAccess "Unknown call to function %a." d_exp fval
       ) else (
         M.warn ~category:Imprecise ~tags:[Category Call] "Function pointer %a may contain unknown functions." d_exp fval;
-        Checks.warn Checks.Category.InvalidMemoryAccess "Function pointer %a may contain unknown functions." d_exp fval
       )
     );
     fp
