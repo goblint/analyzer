@@ -31,7 +31,7 @@ end
 
 module Category = struct
   type t =
-    | AssersionFaillure
+    | AssertionFailure
     | InvalidMemoryAccess
     | DivisionByZero
     | IntegerOverflow
@@ -43,7 +43,7 @@ module Category = struct
   [@@deriving hash, eq, show]
 
   let to_yojson x = `String (match x with
-      | AssersionFaillure -> "Assertion failure"
+      | AssertionFailure -> "Assertion failure"
       | InvalidMemoryAccess -> "Invalid memory access"
       | DivisionByZero -> "Division by zero"
       | IntegerOverflow -> "Integer overflow"
@@ -54,7 +54,7 @@ module Category = struct
       | StubCondition -> "Stub condition")
 
   let of_yojson = function
-    | `String "Assertion failure" -> Ok AssersionFaillure
+    | `String "Assertion failure" -> Ok AssertionFailure
     | `String "Invalid memory access" -> Ok InvalidMemoryAccess
     | `String "Division by zero" -> Ok DivisionByZero
     | `String "Integer overflow" -> Ok IntegerOverflow

@@ -35,19 +35,19 @@ struct
     match Queries.eval_bool (Analyses.ask_of_man man) e with
     | `Lifted false ->
       warn (M.error ~category:Assert "%s") ~annot:"FAIL" ("Assertion \"" ^ expr ^ "\" will fail.");
-      Checks.error Checks.Category.AssersionFaillure "Assertion \"%s\" will fail." expr;
+      Checks.error Checks.Category.AssertionFailure "Assertion \"%s\" will fail." expr;
       if refine then raise Analyses.Deadcode else man.local
     | `Lifted true ->
       warn (M.success ~category:Assert "%s") ("Assertion \"" ^ expr ^ "\" will succeed");
-      Checks.safe Checks.Category.AssersionFaillure ~message:("Assertion \"%s\" will succeed");
+      Checks.safe Checks.Category.AssertionFailure ~message:("Assertion \"%s\" will succeed");
       man.local
     | `Bot ->
       M.error ~category:Assert "%s" ("Assertion \"" ^ expr ^ "\" produces a bottom. What does that mean? (currently uninitialized arrays' content is bottom)");
-      Checks.error Checks.Category.AssersionFaillure "Assertion \"%s\" produces a bottom. What does that mean? (currently uninitialized arrays' content is bottom)" expr;
+      Checks.error Checks.Category.AssertionFailure "Assertion \"%s\" produces a bottom. What does that mean? (currently uninitialized arrays' content is bottom)" expr;
       man.local
     | `Top ->
       warn (M.warn ~category:Assert "%s") ~annot:"UNKNOWN" ("Assertion \"" ^ expr ^ "\" is unknown.");
-      Checks.warn Checks.Category.AssersionFaillure "Assertion \"%s\" is unknown." expr;
+      Checks.warn Checks.Category.AssertionFailure "Assertion \"%s\" is unknown." expr;
       man.local
 
   let special man (lval: lval option) (f:varinfo) (args:exp list) : D.t =
