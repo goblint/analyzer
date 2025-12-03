@@ -292,8 +292,7 @@ struct
     let inv_bin_int (a, b) ikind c op =
       let warn_and_top_on_zero x =
         if GobOption.exists (Z.equal Z.zero) (ID.to_int x) then
-          (M.error ~category:M.Category.Integer.div_by_zero ~tags:[CWE 369] "Must Undefined Behavior: Second argument of div or mod is 0, continuing with top";
-           ID.top_of ikind)
+          ID.top_of ikind
         else
           x
       in
