@@ -131,10 +131,13 @@ module TaintedCreationLocksetSpec = struct
             let to_contribute = G.singleton (tid, lock) in
             TIDs.iter (contribute_lock man to_contribute) possibly_running_tids
           | None ->
-            (* any lock could have been unlocked. Contribute for all possibly_running_tids their full CreationLocksets to invalidate them!! *)
+            (* any lock could have been unlocked. Contribute for all possibly_running_tids all members of their CreationLocksets with the ego thread to invalidate them!! *)
             let contribute_creation_lockset des_tid =
-              let creation_lockset = ask.f @@ Queries.MayCreationLockset des_tid in
-              man.sideg des_tid creation_lockset
+              let full_creation_lockset = ask.f @@ Queries.MayCreationLockset des_tid in
+              let filtered_creation_lockset =
+                G.filter (fun (t, _l) -> t = tid) full_creation_lockset
+              in
+              man.sideg des_tid filtered_creation_lockset
             in
             TIDs.iter contribute_creation_lockset possibly_running_tids))
     | _ -> ()
