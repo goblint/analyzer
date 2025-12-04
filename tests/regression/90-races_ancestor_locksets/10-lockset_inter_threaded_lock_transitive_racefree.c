@@ -1,8 +1,9 @@
+// PARAM: --set ana.activated[+] taintedCreationLockset --set ana.activated[+] threadJoins --set ana.activated[+] transitiveDescendants --set ana.activated[+] creationLockset
 #include <pthread.h>
 
 int global = 0;
 pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
-pthread_t id1, id2;
+pthread_t id1, id2, id3;
 
 void *t1(void *arg) {
   pthread_mutex_lock(&mutex);
@@ -11,8 +12,14 @@ void *t1(void *arg) {
   return NULL;
 }
 
-void *t2(void *arg) { // t2 is protected by mutex locked in main thread
+void *t3(void *arg) {
   global++; // NORACE
+  return NULL;
+}
+
+void *t2(void *arg) { // t2 is protected by mutex locked in main thread
+  pthread_create(&id3, NULL, t3, NULL);
+  pthread_join(id3, NULL);
   return NULL;
 }
 
