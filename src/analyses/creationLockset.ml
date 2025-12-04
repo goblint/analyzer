@@ -1,3 +1,5 @@
+(** Ancestor-lock analysis. See https://github.com/goblint/analyzer/pull/1865 *)
+
 open Analyses
 module LF = LibraryFunctions
 module TID = ThreadIdDomain.Thread
@@ -68,7 +70,7 @@ module CreationLocksetSpec = struct
     let child_ask = Analyses.ask_of_man fman in
     let child_tid_lifted = child_ask.f Queries.CurrentThreadId in
     match tid_lifted, child_tid_lifted with
-    | `Lifted tid, `Lifted child_tid when TID.must_be_ancestor tid child_tid ->
+    | `Lifted tid, `Lifted child_tid ->
       let descendants = descendants_closure child_ask child_tid in
       let lockset = ask.f Queries.MustLockset in
       let to_contribute = cartesian_prod (TIDs.singleton tid) lockset in
