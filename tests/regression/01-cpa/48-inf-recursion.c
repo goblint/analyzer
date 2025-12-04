@@ -1,4 +1,4 @@
-// SKIP
+// SKIP NOTIMEOUT
 
 // Can be used to try timeouts.
 // With defaults this will create |int| contexts and lead to a stack overflow in
