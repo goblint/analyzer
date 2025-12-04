@@ -147,7 +147,7 @@ module TaintedCreationLocksetSpec = struct
     (** ego tid * lockset * inter-threaded lockset *)
     include Printable.Prod3 (TID) (LIDs) (G)
 
-    let name () = "InterThreadedLockset"
+    let name () = "interThreadedLockset"
 
     (** checks if [itls1] has a member ([tp1], [l]) such that [itls2] has a member ([tp2], [l]) with [tp1] != [tp2]
         @param itls1 inter-threaded lockset of first thread [t1]
