@@ -15,6 +15,7 @@ rule() {
   case $1 in
     # new rules using dune
     clean)
+      eval $(opam env)
       git clean -X -f
       dune clean
     ;; nat*)
@@ -75,7 +76,7 @@ rule() {
     ;; setup)
       echo "Make sure you have the following installed: opam >= 2.0.0, git, patch, m4, autoconf, libgmp-dev, libmpfr-dev, pkg-config"
       echo "For the --html output you also need: graphviz and python3-pygments (optional)"
-      echo "For running the regression tests you also need: ruby, gem, curl, and the `os` gem"
+      echo "For running the regression tests you also need: ruby, gem, curl, and the os gem"
       echo "For reference see ./Dockerfile or ./scripts/travis-ci.sh"
       opam_setup
     ;; dev)

@@ -44,7 +44,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
 
       - name: Set up OCaml ${{ matrix.ocaml-compiler }}
         uses: ocaml/setup-ocaml@v3
@@ -97,7 +97,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
 
       - name: Set up OCaml ${{ matrix.ocaml-compiler }}
         uses: ocaml/setup-ocaml@v3
@@ -147,7 +147,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
 
       - name: Set up OCaml ${{ matrix.ocaml-compiler }}
         uses: ocaml/setup-ocaml@v3
@@ -193,13 +193,13 @@ jobs:
         run: ruby scripts/update_suite.rb group apron-mukherjee -s
 
       - name: Test marshal regression
-        run: ruby scripts/update_suite.rb -m
+        run: ruby scripts/update_suite.rb -m -s
 
       - name: Test incremental regression
-        run: ruby scripts/update_suite.rb -i
+        run: ruby scripts/update_suite.rb -i -s
 
       - name: Test incremental regression with cfg comparison
-        run: ruby scripts/update_suite.rb -c
+        run: ruby scripts/update_suite.rb -c -s
 
   gobview:
     strategy:
@@ -216,7 +216,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
 
       - name: Set up OCaml ${{ matrix.ocaml-compiler }}
         uses: ocaml/setup-ocaml@v3

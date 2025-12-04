@@ -28,7 +28,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
 
       - name: Set up OCaml ${{ matrix.ocaml-compiler }}
         env:
@@ -59,7 +59,11 @@ jobs:
         run: ./make.sh headers
 
       - name: Test
-        run: opam exec -- dune runtest --instrument-with bisect_ppx
+        env:
+          BISECT_FILE: ${{ github.workspace }}/_build/coverage/bisect
+        run: |
+          mkdir -p _build/coverage
+          opam exec -- dune runtest --force --instrument-with bisect_ppx
 
       - run: opam exec -- bisect-ppx-report send-to Coveralls
         env:

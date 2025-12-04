@@ -13,6 +13,8 @@ authors: [
   "Julian Erhard"
   "Sarah Tilscher"
   "Karoliine Holter"
+  "Michael Petter"
+  "Ali Rasim Kocal"
   "Ralf Vogler"
   "Kalmer Apinis"
   "Vesal Vojdani"
@@ -66,7 +68,7 @@ depends: [
   "fileutils" {= "0.6.4"}
   "fmt" {= "0.9.0"}
   "fpath" {= "0.7.3"}
-  "goblint-cil" {= "2.0.8"}
+  "goblint-cil" {= "2.0.9"}
   "hex" {= "1.5.0"}
   "integers" {= "0.7.0"}
   "json-data-encoding" {= "1.0.1"}
@@ -144,8 +146,8 @@ post-messages: [
 ]
 pin-depends: [
   [
-    "goblint-cil.2.0.8"
-    "git+https://github.com/goblint/cil.git#2e076120a039b52f174fa799e65773f3a78d383c"
+    "goblint-cil.2.0.9"
+    "git+https://github.com/goblint/cil.git#1b48fc0ce4f3576a51618305251121ffedd0bf1e"
   ]
   [
     "apron.v0.9.15"

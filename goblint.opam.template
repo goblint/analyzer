@@ -1,8 +1,9 @@
 # on `dune build` goblint.opam will be generated from goblint.opam.template and dune-project
 # also remember to generate/adjust goblint.opam.locked!
+x-maintenance-intent: ["(latest)" "(latest).(latest-1)"] # also keep previous minor version (with two releases per year, always keep a SV-COMP release)
 available: os-family != "bsd" & os-distribution != "alpine" & (arch != "arm64" | os = "macos")
 pin-depends: [
-  [ "goblint-cil.2.0.8" "git+https://github.com/goblint/cil.git#2e076120a039b52f174fa799e65773f3a78d383c" ]
+  [ "goblint-cil.2.0.9" "git+https://github.com/goblint/cil.git#1b48fc0ce4f3576a51618305251121ffedd0bf1e" ]
   # pinned for stability (https://github.com/goblint/analyzer/issues/1520), remove after new apron release
   [ "apron.v0.9.15" "git+https://github.com/antoinemine/apron.git#418a217c7a70dae3f422678f3aaba38ae374d91a" ]
 ]
