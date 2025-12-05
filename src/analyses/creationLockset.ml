@@ -171,7 +171,7 @@ module TaintedCreationLocksetSpec = struct
          || one_protected_inter_threaded_other_intra_threaded itls2 t1 ls1)
     ;;
 
-    let should_print _ = true
+    let should_print (_t, _ls, itls) = not @@ G.is_empty itls
   end
 
   let access man _ =
