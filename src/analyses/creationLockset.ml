@@ -9,7 +9,7 @@ module LIDs = LockDomain.MustLockset
 
 (** common base for [CreationLocksetSpec] and [TaintedCreationLocksetSpec] *)
 module AncestorLocksetSpec = struct
-  include IdentityUnitContextsSpec (* no context necessary(?) *)
+  include IdentityUnitContextsSpec
   module D = Lattice.Unit
 
   module V = struct
