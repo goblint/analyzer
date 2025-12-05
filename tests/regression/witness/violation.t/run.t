@@ -1,57 +1,81 @@
-Violation witness for a correct program can be refuted by proving the program correct and returning `true`:
-
-  $ goblint --enable ana.sv-comp.enabled --set witness.yaml.entry-types[+] violation_sequence --set ana.specification "CHECK( init(main()), LTL(G ! call(reach_error())) )" correct.c --set witness.yaml.validate correct.yml
+  $ goblint --conf svcomp25.json --disable ana.autotune.enabled --set ana.specification "CHECK( init(main()), LTL(G ! call(reach_error())) )"} nec11.c --enable exp.arg.enabled --enable ana.wp --set witness.yaml.entry-types[+] violation_sequence --enable witness.yaml.sv-comp-true-only --enable witness.invariant.other 
   [Info] SV-COMP specification: CHECK( init(main()), LTL(G ! call(reach_error())) )
-  [Warning][Deadcode] Function 'reach_error' is uncalled: 1 LLoC (correct.c:1:1-1:20)
+  [Warning][Integer > Overflow][CWE-190] Signed integer overflow (nec11.c:28:7-28:12)
   [Info][Deadcode] Logical lines of code (LLoC) summary:
-    live: 2
-    dead: 1 (1 in uncalled functions)
-    total lines: 3
-  [Info][Witness] witness validation summary:
-    confirmed: 0
-    unconfirmed: 0
-    refuted: 0
-    error: 0
-    unchecked: 0
-    unsupported: 0
-    disabled: 0
-    total validation entries: 0
-  SV-COMP result: true
-
-If a correct progtam cannot be proven correct, return `unknown` for the violation witness:
-
-  $ goblint --set ana.activated[-] expRelation --enable ana.sv-comp.functions --enable ana.sv-comp.enabled --set witness.yaml.entry-types[+] violation_sequence --set ana.specification "CHECK( init(main()), LTL(G ! call(reach_error())) )" correct-hard.c --set witness.yaml.validate correct-hard.yml
-  [Info] SV-COMP specification: CHECK( init(main()), LTL(G ! call(reach_error())) )
-  [Info][Deadcode] Logical lines of code (LLoC) summary:
-    live: 7
+    live: 16
     dead: 0
-    total lines: 7
-  [Info][Witness] witness validation summary:
-    confirmed: 0
-    unconfirmed: 0
-    refuted: 0
-    error: 0
-    unchecked: 0
-    unsupported: 0
-    disabled: 0
-    total validation entries: 0
+    total lines: 16
   SV-COMP result: unknown
 
-Violation witness for an incorrect program cannot be proven correct, so return `unknown`:
-
-  $ goblint --enable ana.sv-comp.enabled --set witness.yaml.entry-types[+] violation_sequence --set ana.specification "CHECK( init(main()), LTL(G ! call(reach_error())) )" incorrect.c --set witness.yaml.validate incorrect.yml
-  [Info] SV-COMP specification: CHECK( init(main()), LTL(G ! call(reach_error())) )
-  [Info][Deadcode] Logical lines of code (LLoC) summary:
-    live: 4
-    dead: 0
-    total lines: 4
-  [Info][Witness] witness validation summary:
-    confirmed: 0
-    unconfirmed: 0
-    refuted: 0
-    error: 0
-    unchecked: 0
-    unsupported: 0
-    disabled: 0
-    total validation entries: 0
-  SV-COMP result: unknown
+  $ yamlWitnessStrip < witness.yml
+  - entry_type: violation_sequence
+    content:
+    - segment:
+      - waypoint:
+          type: assumption
+          location:
+            file_name: nec11.c
+            line: 16
+            column: 4
+            function: main
+          action: follow
+          constraint:
+            value: "1"
+            format: c_expression
+    - segment:
+      - waypoint:
+          type: assumption
+          location:
+            file_name: nec11.c
+            line: 17
+            column: 4
+            function: main
+          action: follow
+          constraint:
+            value: "1"
+            format: c_expression
+    - segment:
+      - waypoint:
+          type: branching
+          location:
+            file_name: nec11.c
+            line: 21
+            column: 4
+            function: main
+          action: follow
+          constraint:
+            value: "false"
+            format: c_expression
+    - segment:
+      - waypoint:
+          type: assumption
+          location:
+            file_name: nec11.c
+            line: 30
+            column: 4
+            function: main
+          action: follow
+          constraint:
+            value: "1"
+            format: c_expression
+    - segment:
+      - waypoint:
+          type: branching
+          location:
+            file_name: nec11.c
+            line: 6
+            column: 3
+            function: __VERIFIER_assert
+          action: follow
+          constraint:
+            value: "true"
+            format: c_expression
+    - segment:
+      - waypoint:
+          type: target
+          location:
+            file_name: nec11.c
+            line: 7
+            column: 13
+            function: __VERIFIER_assert
+          action: follow
