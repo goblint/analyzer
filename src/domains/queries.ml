@@ -481,8 +481,8 @@ struct
     | Any (MaySignedOverflow e) -> CilType.Exp.hash e
     | Any (GasExhausted f) -> CilType.Fundec.hash f
     | Any (GhostVarAvailable v) -> WitnessGhostVar.hash v
-    | Any (DescendantThreads t) -> ThreadIdDomain.hash_thread t (* TODO is this fine? *)
-    | Any (MayCreationLockset t) -> ThreadIdDomain.hash_thread t
+    | Any (DescendantThreads t) -> ThreadIdDomain.Thread.hash t
+    | Any (MayCreationLockset t) -> ThreadIdDomain.Thread.hash t
     (* IterSysVars:                                                                    *)
     (*   - argument is a function and functions cannot be compared in any meaningful way. *)
     (*   - doesn't matter because IterSysVars is always queried from outside of the analysis, so MCP's query caching is not done for it. *)
