@@ -194,7 +194,7 @@ module FwdBuSolver (System: FwdGlobConstrSys) = struct
             if !(r.called) then r.aborted := true
             else (
               if tracing then trace "iter" "set_global caused iter\n By: %a\nLocal:%a" System.GVar.pretty_trace g System.LVar.pretty_trace x;
-              iterate x 
+              (iterate[@tailcall]) x 
             )
           in
 (*
@@ -239,7 +239,7 @@ module FwdBuSolver (System: FwdGlobConstrSys) = struct
         else (
           if tracing then trace "set_local" "starting iteration on %a" System.LVar.pretty_trace y;
           if tracing then trace "iter" "set_local caused iter";
-          iterate y 
+          (iterate[@tailcall]) y 
         )
       )
     )
@@ -300,7 +300,7 @@ module FwdBuSolver (System: FwdGlobConstrSys) = struct
       let _ = rloc.called := false in
       if !(rloc.aborted) then (
         if tracing then trace "iter" "re-iter";
-        iterate x;
+        (iterate[@tailcall]) x;
       )
       else (
         (* if tracing then trace "iter" "done iterating"; *)
