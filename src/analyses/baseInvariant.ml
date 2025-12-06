@@ -894,6 +894,6 @@ struct
   let invariant man st exp tv =
     (* The computations that happen here are not computations that happen in the programs *)
     (* Any overflow during the forward evaluation will already have been flagged here *)
-    GobRef.wrap AnalysisState.executing_speculative_computations true
-    @@ fun () -> invariant man st exp tv
+    let@ () = GobRef.wrap AnalysisState.executing_speculative_computations true in
+    invariant man st exp tv
 end
