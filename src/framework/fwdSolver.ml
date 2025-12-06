@@ -195,14 +195,17 @@ module FwdSolver (System: FwdGlobConstrSys) = struct
   let wrap (x,f) d =
     let sigma = LM.create 10 in
     let tau = GM.create 10 in
-    let add_sigma x d =
-      let d = try D.join d (LM.find sigma x) with _ -> d in
-      LM.replace sigma x d in
+    let add_sigma y d =
+      let d = try D.join d (LM.find sigma y) with _ -> d in
+      LM.replace sigma y d in
     let add_tau g d =
       let d = try G.join d (GM.find tau g) with _ -> d in
+      set_global x g d;
       GM.replace tau g d in
     let _ = f d (get_local x) add_sigma (get_global x) add_tau in
+(*
     let _ = GM.iter (set_global x) tau in
+*)
     let _ = LM.iter (set_local x) sigma in
     ()
 
@@ -220,7 +223,7 @@ module FwdSolver (System: FwdGlobConstrSys) = struct
              wrap (x,f) rloc.loc_value;
              doit ())
         ) in
-    let _ = doit () in
+    let _ = (doit[@tailcall]) () in
     let sigma = LM.to_seq loc |> Seq.map (fun (k,l) -> (k,l.loc_value)) in
     let tau = GM.to_seq glob |> Seq.map (fun (k,l) -> (k,l.value)) in
     (sigma, tau)
