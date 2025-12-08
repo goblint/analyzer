@@ -281,8 +281,7 @@ struct
       raise Unsupported_Linexpr1
 
   (** Returned boolean indicates whether returned expression should be negated. *)
-  let coeff_to_const ~scalewith (c:Coeff.union_5) =
-    let i = int_of_coeff_warn ~scalewith c in
+  let cil_exp_of_int i =
     let ci,truncation = truncateCilint ILongLong i in
     if truncation = NoTruncation then
       if Z.compare i Z.zero >= 0 then
@@ -302,7 +301,8 @@ struct
     match V.to_cil_varinfo v with
     | Some vinfo when IntDomain.Size.is_cast_injective ~from_type:vinfo.vtype ~to_type:(TInt(ILongLong,[]))   ->
       let var = Cilfacade.mkCast ~e:(Lval(Var vinfo,NoOffset)) ~newt:longlong in
-      let flip, coeff = coeff_to_const ~scalewith c in
+      let i = int_of_coeff_warn ~scalewith c in
+      let flip, coeff = cil_exp_of_int i in
       if Z.equal (Option.get (Cil.getInteger coeff)) Z.one then (* Option.get should succeed by construction *) (* TODO: check (scaled!) coeff directly instead of extracting from exp *)
         flip, var
       else
@@ -322,7 +322,7 @@ struct
       if Coeff.is_zero c then
         ref []
       else
-        ref [coeff_to_const ~scalewith c]
+        ref [cil_exp_of_int (int_of_coeff_warn ~scalewith c)]
     in
     let append_summand (c:Coeff.union_5) v =
       if not (Coeff.is_zero c) then
