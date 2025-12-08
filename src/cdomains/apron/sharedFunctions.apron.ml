@@ -288,8 +288,10 @@ struct
              else
                false, Const (CInt(i,ILongLong,None))
          else
-           (M.warn ~category:Analyzer "Invariant Apron: coefficient is not int: %a" Scalar.pretty c; raise Unsupported_Linexpr1)
-       | None -> raise Unsupported_Linexpr1)
+           raise Unsupported_Linexpr1
+       | None ->
+         M.warn ~category:Analyzer "Invariant Apron: coefficient is not int: %a" Scalar.pretty c;
+         raise Unsupported_Linexpr1)
     | _ -> raise Unsupported_Linexpr1
 
   (** Returned boolean indicates whether returned expression should be negated. *)
