@@ -273,26 +273,28 @@ struct
 
   let longlong = TInt(ILongLong,[])
 
+  let int_of_coeff_warn ?scalewith ?round coeff =
+    match int_of_coeff ?scalewith ?round coeff with
+    | Some i -> i
+    | None ->
+      M.warn ~category:Analyzer "Invariant Apron: coefficient is not int: %a" Coeff.pretty coeff;
+      raise Unsupported_Linexpr1
 
   (** Returned boolean indicates whether returned expression should be negated. *)
   let coeff_to_const ~scalewith (c:Coeff.union_5) =
-    match int_of_coeff ?scalewith c with
-    | Some i ->
-      let ci,truncation = truncateCilint ILongLong i in
-      if truncation = NoTruncation then
-        if Z.compare i Z.zero >= 0 then
-          false, Const (CInt(i,ILongLong,None))
-        else
-          (* attempt to negate if that does not cause an overflow *)
-          let cneg, truncation = truncateCilint ILongLong (Z.neg i) in
-          if truncation = NoTruncation then
-            true, Const (CInt((Z.neg i),ILongLong,None))
-          else
-            false, Const (CInt(i,ILongLong,None))
+    let i = int_of_coeff_warn ?scalewith c in
+    let ci,truncation = truncateCilint ILongLong i in
+    if truncation = NoTruncation then
+      if Z.compare i Z.zero >= 0 then
+        false, Const (CInt(i,ILongLong,None))
       else
-        raise Unsupported_Linexpr1
-    | None ->
-      M.warn ~category:Analyzer "Invariant Apron: coefficient is not int: %a" Coeff.pretty c;
+        (* attempt to negate if that does not cause an overflow *)
+        let cneg, truncation = truncateCilint ILongLong (Z.neg i) in
+        if truncation = NoTruncation then
+          true, Const (CInt((Z.neg i),ILongLong,None))
+        else
+          false, Const (CInt(i,ILongLong,None))
+    else
       raise Unsupported_Linexpr1
 
   (** Returned boolean indicates whether returned expression should be negated. *)
