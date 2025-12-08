@@ -302,12 +302,15 @@ struct
     | Some vinfo when IntDomain.Size.is_cast_injective ~from_type:vinfo.vtype ~to_type:(TInt(ILongLong,[]))   ->
       let var = Cilfacade.mkCast ~e:(Lval(Var vinfo,NoOffset)) ~newt:longlong in
       let i = int_of_coeff_warn ~scalewith c in
-      let flip, coeff = cil_exp_of_int i in
-      if Z.equal (Option.get (Cil.getInteger coeff)) Z.one then (* Option.get should succeed by construction *) (* TODO: check (scaled!) coeff directly instead of extracting from exp *)
-        flip, var
-      else
+      if Z.equal i Z.one then
+        false, var
+      else if Z.equal i Z.minus_one then
+        true, var
+      else (
+        let flip, coeff = cil_exp_of_int i in
         let prod = BinOp(Mult, coeff, var, longlong) in
         flip, prod
+      )
     | None ->
       M.warn ~category:Analyzer "Invariant Apron: cannot convert to cil var: %a" Var.pretty v;
       raise Unsupported_Linexpr1
