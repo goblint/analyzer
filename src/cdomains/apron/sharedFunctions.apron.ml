@@ -273,8 +273,8 @@ struct
 
   let longlong = TInt(ILongLong,[])
 
-  let int_of_coeff_warn ?scalewith ?round coeff =
-    match int_of_coeff ?scalewith ?round coeff with
+  let int_of_coeff_warn ~scalewith coeff =
+    match int_of_coeff ~scalewith coeff with
     | Some i -> i
     | None ->
       M.warn ~category:Analyzer "Invariant Apron: coefficient is not int: %a" Coeff.pretty coeff;
@@ -282,7 +282,7 @@ struct
 
   (** Returned boolean indicates whether returned expression should be negated. *)
   let coeff_to_const ~scalewith (c:Coeff.union_5) =
-    let i = int_of_coeff_warn ?scalewith c in
+    let i = int_of_coeff_warn ~scalewith c in
     let ci,truncation = truncateCilint ILongLong i in
     if truncation = NoTruncation then
       if Z.compare i Z.zero >= 0 then
@@ -316,7 +316,7 @@ struct
       raise Unsupported_Linexpr1
 
   (** Returned booleans indicates whether returned expressions should be negated. *)
-  let cil_exp_of_linexpr1 ?scalewith (linexpr1:Linexpr1.t) =
+  let cil_exp_of_linexpr1 ~scalewith (linexpr1:Linexpr1.t) =
     let terms =
       let c = Linexpr1.get_cst linexpr1 in
       if Coeff.is_zero c then
