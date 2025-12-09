@@ -2,6 +2,7 @@
 #MacOS: needs brew install grep
 if [ $# -lt 2 ]; then
     echo "Usage: $0 group-nr test-nr [extra options]"
+    echo "(Does not check test annotations.)"
     exit 1
 fi
 file=(tests/regression/$1*/$2*.c)
