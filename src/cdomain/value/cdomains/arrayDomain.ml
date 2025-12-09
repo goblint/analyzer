@@ -997,9 +997,13 @@ struct
   type substr = IsNotSubstr | IsSubstrAtIndex0 | IsMaybeSubstr
 
   module ArrayOobMessage = M.Category.Behavior.Undefined.ArrayOutOfBounds
-  let warn_past_end ?loc ?tags fmt = 
-    Checks.error Checks.Category.InvalidMemoryAccess fmt |> ignore;
-    M.error ~category:ArrayOobMessage.past_end ?loc ?tags fmt
+  let warn_past_end ?loc ?tags fmt =
+    (* Must do it this way to use same format string for multiple functions and also pass all arguments after.
+       Just calling Checks.error and M.error with fmt as last argument will silently not call Checks.error! *)
+    Pretty.gprintf (fun doc ->
+        Checks.error Checks.Category.InvalidMemoryAccess "%a" Pretty.insert doc;
+        M.error ~category:ArrayOobMessage.past_end ?loc ?tags "%a" Pretty.insert doc
+      ) fmt
 
   let min_nat_of_idx i = Z.max Z.zero (BatOption.default Z.zero (Idx.minimal i))
 
