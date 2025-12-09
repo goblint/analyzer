@@ -75,7 +75,7 @@ module IntDomTupleImpl = struct
         let overflow = overflow_intv && overflow_intv_set && overflow_bf in
         set_overflow_flag ~cast ~underflow ~overflow ik;
       ) else if not !AnalysisState.executing_speculative_computations && not no_safe then (
-        Checks.safe Checks.Category.IntegerOverflow ~message:("Cast: " ^ string_of_bool cast)
+        Checks.safe_msg Checks.Category.IntegerOverflow "Cast: %B" cast
       )
     );
     no_ov

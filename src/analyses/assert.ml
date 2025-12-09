@@ -27,7 +27,7 @@ struct
       if refine then raise Analyses.Deadcode else man.local
     | `Lifted true ->
       assert_msg Success "Assertion \"%a\" will succeed" CilType.Exp.pretty e;
-      Checks.safe Checks.Category.AssertionFailure ~message:("Assertion \"%s\" will succeed");
+      Checks.safe_msg Checks.Category.AssertionFailure "Assertion \"%a\" will succeed" CilType.Exp.pretty e;
       man.local
     | `Bot ->
       M.error ~category:Assert "Assertion \"%a\" produces a bottom. What does that mean? (currently uninitialized arrays' content is bottom)" CilType.Exp.pretty e;
