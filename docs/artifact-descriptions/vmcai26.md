@@ -43,7 +43,7 @@ Follow these steps to set it up:
 You can then start the VM from the VirtualBox UI.
 Login with user `goblint` and password `goblint`.
 
-The machine is configured for `QWERTY` keyboards by default. If you use a different layout, you can click the small `en` button on the top right of the screen to select you keyboard layout.
+The machine is configured for `QWERTY` keyboards by default. If you use a different layout, you can click the small `en` button on the top right of the screen to select your keyboard layout.
 
 ### 2. Quick Test of the Benchmark Setup
 
@@ -180,7 +180,7 @@ More recent versions of Goblint can be found at <https://github.com/goblint>.
 
 ## Verifier Binaries
 
-A pre-built binary of Goblint is available as `~/analzyer/goblint`.
+A pre-built binary of Goblint is available as `~/analyzer/goblint`.
 See `~/analyzer/GOBLINT_README.md` for information on how to run Goblint.
 To build Goblint from scratch, run `make release`.
 
