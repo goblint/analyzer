@@ -26,7 +26,7 @@ module Kind = struct
     | `String "error" -> Ok Error
     | `String "warning" -> Ok Warning
     | `String "safe" -> Ok Safe
-    | kind -> Error ("Checks.Kind.of_yojson: Invalid kind :" ^ Yojson.Safe.to_string kind)
+    | kind -> Error ("Checks.Kind.of_yojson: Invalid kind: " ^ Yojson.Safe.to_string kind)
 end
 
 module Category = struct
@@ -62,7 +62,7 @@ module Category = struct
     | `String "Invalid pointer subtraction" -> Ok InvalidPointerSubtraction
     | `String "Double free" -> Ok DoubleFree
     | `String "Negative array size" -> Ok NegativeArraySize
-    | category -> Error ("Checks.Category.of_yojson: Invalid category :" ^ Yojson.Safe.to_string category)
+    | category -> Error ("Checks.Category.of_yojson: Invalid category: " ^ Yojson.Safe.to_string category)
 end
 
 module Check = struct
