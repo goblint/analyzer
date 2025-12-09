@@ -41,6 +41,10 @@ let int_of_scalar ?(scalewith=Z.one) ?round (scalar: Scalar.t) =
     | _ ->
       failwith ("int_of_scalar: unsupported: " ^ Scalar.show scalar)
 
+let int_of_coeff ?scalewith ?round (coeff: Coeff.union_5) =
+  match coeff with
+  | Scalar scalar -> int_of_scalar ?scalewith ?round scalar
+  | Interval _ -> None
 
 module type ConvertArg =
 sig
@@ -269,37 +273,44 @@ struct
 
   let longlong = TInt(ILongLong,[])
 
+  let int_of_coeff_warn ~scalewith coeff =
+    match int_of_coeff ~scalewith coeff with
+    | Some i -> i
+    | None ->
+      M.warn ~category:Analyzer "Invariant Apron: coefficient is not int: %a" Coeff.pretty coeff;
+      raise Unsupported_Linexpr1
 
   (** Returned boolean indicates whether returned expression should be negated. *)
-  let coeff_to_const ~scalewith (c:Coeff.union_5) =
-    match c with
-    | Scalar c ->
-      (match int_of_scalar ?scalewith c with
-       | Some i ->
-         let ci,truncation = truncateCilint ILongLong i in
-         if truncation = NoTruncation then
-           if Z.compare i Z.zero >= 0 then
-             false, Const (CInt(i,ILongLong,None))
-           else
-             (* attempt to negate if that does not cause an overflow *)
-             let cneg, truncation = truncateCilint ILongLong (Z.neg i) in
-             if truncation = NoTruncation then
-               true, Const (CInt((Z.neg i),ILongLong,None))
-             else
-               false, Const (CInt(i,ILongLong,None))
-         else
-           (M.warn ~category:Analyzer "Invariant Apron: coefficient is not int: %a" Scalar.pretty c; raise Unsupported_Linexpr1)
-       | None -> raise Unsupported_Linexpr1)
-    | _ -> raise Unsupported_Linexpr1
+  let cil_exp_of_int i =
+    let ci,truncation = truncateCilint ILongLong i in
+    if truncation = NoTruncation then
+      if Z.compare i Z.zero >= 0 then
+        false, Const (CInt(i,ILongLong,None))
+      else
+        (* attempt to negate if that does not cause an overflow *)
+        let cneg, truncation = truncateCilint ILongLong (Z.neg i) in
+        if truncation = NoTruncation then
+          true, Const (CInt((Z.neg i),ILongLong,None))
+        else
+          false, Const (CInt(i,ILongLong,None))
+    else
+      raise Unsupported_Linexpr1
 
   (** Returned boolean indicates whether returned expression should be negated. *)
   let cil_exp_of_linexpr1_term ~scalewith (c: Coeff.t) v =
     match V.to_cil_varinfo v with
     | Some vinfo when IntDomain.Size.is_cast_injective ~from_type:vinfo.vtype ~to_type:(TInt(ILongLong,[]))   ->
       let var = Cilfacade.mkCast ~e:(Lval(Var vinfo,NoOffset)) ~newt:longlong in
-      let flip, coeff = coeff_to_const ~scalewith c in
-      let prod = BinOp(Mult, coeff, var, longlong) in
-      flip, prod
+      let i = int_of_coeff_warn ~scalewith c in
+      if Z.equal i Z.one then
+        false, var
+      else if Z.equal i Z.minus_one then
+        true, var
+      else (
+        let flip, coeff = cil_exp_of_int i in
+        let prod = BinOp(Mult, coeff, var, longlong) in
+        flip, prod
+      )
     | None ->
       M.warn ~category:Analyzer "Invariant Apron: cannot convert to cil var: %a" Var.pretty v;
       raise Unsupported_Linexpr1
@@ -308,8 +319,14 @@ struct
       raise Unsupported_Linexpr1
 
   (** Returned booleans indicates whether returned expressions should be negated. *)
-  let cil_exp_of_linexpr1 ?scalewith (linexpr1:Linexpr1.t) =
-    let terms = ref [coeff_to_const ~scalewith (Linexpr1.get_cst linexpr1)] in
+  let cil_exp_of_linexpr1 ~scalewith (linexpr1:Linexpr1.t) =
+    let terms =
+      let c = Linexpr1.get_cst linexpr1 in
+      if Coeff.is_zero c then
+        ref []
+      else
+        ref [cil_exp_of_int (int_of_coeff_warn ~scalewith c)]
+    in
     let append_summand (c:Coeff.union_5) v =
       if not (Coeff.is_zero c) then
         terms := cil_exp_of_linexpr1_term ~scalewith c v :: !terms
@@ -369,7 +386,7 @@ struct
         | DISEQ -> Ne
         | EQMOD _ -> raise Unsupported_Linexpr1
       in
-      Some (Cil.constFold false @@ BinOp(binop, lhs, rhs, TInt(IInt,[]))) (* constFold removes multiplication by factor 1 *)
+      Some (BinOp(binop, lhs, rhs, TInt(IInt,[])))
     with
       Unsupported_Linexpr1 -> None
 end

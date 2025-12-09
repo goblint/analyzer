@@ -12,14 +12,11 @@ sig
   val context_id: t -> int
   val path_id: t -> int
   val to_string: t -> string
-
-  val move_opt: t -> MyCFG.node -> t option
-  val equal_node_context: t -> t -> bool
 end
 
 module type Edge =
 sig
-  type t
+  type t [@@deriving eq, ord]
 
   val embed: MyCFG.edge -> t
   val to_string: t -> string
@@ -27,7 +24,7 @@ end
 
 module CFGEdge: Edge with type t = MyCFG.edge =
 struct
-  type t = edge
+  type t = Edge.t [@@deriving eq, ord]
 
   let embed e = e
   let to_string e = GobPretty.sprint Edge.pretty_plain e
@@ -102,7 +99,7 @@ end
 
 module InlineEdge: Edge with type t = inline_edge =
 struct
-  type t = inline_edge
+  type t = inline_edge [@@deriving eq, ord]
 
   let embed e = CFGEdge e
   let to_string e = InlineEdgePrintable.show e
@@ -130,15 +127,6 @@ struct
     nl
     |> List.map Node.to_string
     |> String.concat "@"
-
-  let move_opt nl to_node =
-    let open GobOption.Syntax in
-    match nl with
-    | [] -> None
-    | n :: stack ->
-      let+ to_n = Node.move_opt n to_node in
-      to_n :: stack
-  let equal_node_context _ _ = failwith "StackNode: equal_node_context"
 end
 
 module Stack (Arg: S with module Edge = InlineEdge):
@@ -265,16 +253,19 @@ struct
     end
 end
 
+type cfg_path = (MyCFG.edge * MyCFG.node) list
 
 module type SIntra =
 sig
-  val next: MyCFG.node -> (MyCFG.edge * MyCFG.node) list
+  val next: MyCFG.node -> (MyCFG.edge * MyCFG.node * cfg_path list) list
+  (** @return Also the original CFG paths corresponding to the step. *)
 end
 
 module type SIntraOpt =
 sig
   include SIntra
-  val next_opt: MyCFG.node -> ((MyCFG.edge * MyCFG.node) list) option
+  val next_opt: MyCFG.node -> ((MyCFG.edge * MyCFG.node * cfg_path list) list) option
+  (** @return Also the original CFG paths corresponding to the step. *)
 end
 
 module CfgIntra (Cfg:CfgForward): SIntraOpt =
@@ -283,51 +274,38 @@ struct
     let open GobList.Syntax in
     let* (es, to_n) = Cfg.next node in
     let+ (_, e) = es in
-    (e, to_n)
+    (e, to_n, [[(e, to_n)]])
   let next_opt _ = None
 end
 
-let partition_if_next if_next_n =
-  (* TODO: refactor, check extra edges for error *)
-  let test_next b = List.find (function
-      | (Test (_, b'), _) when b = b' -> true
-      | (_, _) -> false
-    ) if_next_n
+let cartesian_concat_paths (ps : cfg_path list) (qs : cfg_path list) : cfg_path list = List.concat_map (fun p -> List.map (fun q -> p @ q) qs) ps
+
+let partition_if_next if_next =
+  let (if_next_trues, if_next_falses) = List.partition (function
+      | (Test (_, b), _, _) -> b
+      | (_, _, _) -> failwith "partition_if_next: not Test edge"
+    ) if_next
   in
-  (* assert (List.length if_next <= 2); *)
-  match test_next true, test_next false with
-  | (Test (e_true, true), if_true_next_n), (Test (e_false, false), if_false_next_n) when Basetype.CilExp.equal e_true e_false ->
-    (e_true, if_true_next_n, if_false_next_n)
-  | _, _ -> failwith "partition_if_next: bad branches"
+  match if_next_trues, if_next_falses with
+  | [(Test (e_true, true), if_true_next_n, if_true_next_ps)], [(Test (e_false, false), if_false_next_n, if_false_next_ps)] when Basetype.CilExp.equal e_true e_false ->
+    (e_true, (if_true_next_n, if_true_next_ps), (if_false_next_n, if_false_next_ps))
+  | _, _ ->
+    (* This fails due to any of the following:
+       - Either true or false branch is missing.
+       - Either true or false branch has multiple different exps or nodes (same exp, branch and node should only occur once by construction/assumption).
+       - True and false branch have different exps. *)
+    failwith "partition_if_next: bad branches"
 
 module UnCilLogicIntra (Arg: SIntraOpt): SIntraOpt =
 struct
   open Cil
-  (* TODO: questionable (=) and (==) use here *)
 
-  let is_equiv_stmtkind sk1 sk2 = match sk1, sk2 with
-    | Instr is1, Instr is2 -> GobList.equal (=) is1 is2
-    | Return _, Return _ -> sk1 = sk2
-    | _, _ -> false (* TODO: also consider others? not sure if they ever get duplicated *)
-  let is_equiv_stmt s1 s2 = is_equiv_stmtkind s1.skind s2.skind (* TODO: also consider labels *)
-  let is_equiv_node n1 n2 = match n1, n2 with
-    | Statement s1, Statement s2 -> is_equiv_stmt s1 s2
-    | _, _ -> false (* TODO: also consider FunctionEntry & Function? *)
-  let is_equiv_edge e1 e2 = match e1, e2 with
-    | Entry f1, Entry f2 -> f1 == f2 (* physical equality for fundec to avoid cycle *)
-    | Ret (exp1, f1), Ret (exp2, f2) -> exp1 = exp2 && f1 == f2 (* physical equality for fundec to avoid cycle *)
-    | _, _ -> e1 = e2
-  let rec is_equiv_chain n1 n2 =
-    Node.equal n1 n2 || (is_equiv_node n1 n2 && is_equiv_chain_next n1 n2)
-  and is_equiv_chain_next n1 n2 = match Arg.next n1, Arg.next n2 with
-    | [(e1, to_n1)], [(e2, to_n2)] ->
-      is_equiv_edge e1 e2 && is_equiv_chain to_n1 to_n2
-    | _, _-> false
-
+  let () =
+    assert (not !Cabs2cil.allowDuplication) (* duplication makes it more annoying to detect cilling *)
 
   let rec next_opt' n = match n with
     | Statement {sid; skind=If _; _} when GobConfig.get_bool "exp.arg.uncil" ->
-      let (e, if_true_next_n,  if_false_next_n) = partition_if_next (Arg.next n) in
+      let (e, (if_true_next_n, if_true_next_ps), (if_false_next_n, if_false_next_ps)) = partition_if_next (Arg.next n) in
       (* avoid infinite recursion with sid <> sid2 in if_nondet_var *)
       (* TODO: why physical comparison if_false_next_n != n doesn't work? *)
       (* TODO: need to handle longer loops? *)
@@ -336,24 +314,24 @@ struct
         (* && *)
         | Statement {sid=sid2; skind=If _; _}, _ when sid <> sid2 && CilType.Location.equal loc (Node.location if_true_next_n) ->
           (* get e2 from edge because recursive next returns it there *)
-          let (e2, if_true_next_true_next_n, if_true_next_false_next_n) = partition_if_next (next if_true_next_n) in
-          if is_equiv_chain if_false_next_n if_true_next_false_next_n then
+          let (e2, (if_true_next_true_next_n, if_true_next_true_next_ps), (if_true_next_false_next_n, if_true_next_false_next_ps)) = partition_if_next (next if_true_next_n) in
+          if Node.equal if_false_next_n if_true_next_false_next_n then
             let exp = BinOp (LAnd, e, e2, intType) in
             Some [
-              (Test (exp, true), if_true_next_true_next_n);
-              (Test (exp, false), if_false_next_n)
+              (Test (exp, true), if_true_next_true_next_n, cartesian_concat_paths if_true_next_ps if_true_next_true_next_ps);
+              (Test (exp, false), if_true_next_false_next_n, if_false_next_ps @ cartesian_concat_paths if_true_next_ps if_true_next_false_next_ps) (* concat two different path families to same false node *)
             ]
           else
             None
         (* || *)
         | _, Statement {sid=sid2; skind=If _; _} when sid <> sid2 && CilType.Location.equal loc (Node.location if_false_next_n) ->
           (* get e2 from edge because recursive next returns it there *)
-          let (e2, if_false_next_true_next_n, if_false_next_false_next_n) = partition_if_next (next if_false_next_n) in
-          if is_equiv_chain if_true_next_n if_false_next_true_next_n then
+          let (e2, (if_false_next_true_next_n, if_false_next_true_next_ps), (if_false_next_false_next_n, if_false_next_false_next_ps)) = partition_if_next (next if_false_next_n) in
+          if Node.equal if_true_next_n if_false_next_true_next_n then
             let exp = BinOp (LOr, e, e2, intType) in
             Some [
-              (Test (exp, true), if_true_next_n);
-              (Test (exp, false), if_false_next_false_next_n)
+              (Test (exp, true), if_false_next_true_next_n, if_true_next_ps @ cartesian_concat_paths if_false_next_ps if_false_next_true_next_ps); (* concat two different path families to same true node *)
+              (Test (exp, false), if_false_next_false_next_n, cartesian_concat_paths if_false_next_ps if_false_next_false_next_ps)
             ]
           else
             None
@@ -381,14 +359,14 @@ struct
 
   let next_opt' n = match n with
     | Statement {skind=If _; _} when GobConfig.get_bool "exp.arg.uncil" ->
-      let (e_cond, if_true_next_n, if_false_next_n) = partition_if_next (Arg.next n) in
+      let (e_cond, (if_true_next_n, if_true_next_ps), (if_false_next_n, if_false_next_ps)) = partition_if_next (Arg.next n) in
       let loc = Node.location n in
       if CilType.Location.equal (Node.location if_true_next_n) loc && CilType.Location.equal (Node.location if_false_next_n) loc then
         match Arg.next if_true_next_n, Arg.next if_false_next_n with
-        | [(Assign (v_true, e_true), if_true_next_next_n)], [(Assign (v_false, e_false), if_false_next_next_n)] when v_true = v_false && Node.equal if_true_next_next_n if_false_next_next_n ->
+        | [(Assign (v_true, e_true), if_true_next_next_n, if_true_next_next_ps)], [(Assign (v_false, e_false), if_false_next_next_n, if_false_next_next_ps)] when v_true = v_false && Node.equal if_true_next_next_n if_false_next_next_n ->
           let exp = ternary e_cond e_true e_false in
           Some [
-            (Assign (v_true, exp), if_true_next_next_n)
+            (Assign (v_true, exp), if_true_next_next_n, cartesian_concat_paths if_true_next_ps if_true_next_next_ps @ cartesian_concat_paths if_false_next_ps if_false_next_next_ps) (* concat two different path families with same variable to same node *)
           ]
         | _, _ -> None
       else
@@ -407,14 +385,30 @@ module Intra (ArgIntra: SIntraOpt) (Arg: S):
 struct
   include Arg
 
+  (** Starting from ARG node [node], follow CFG path [p] to the resulting ARG node.
+      Returns multiple ARG nodes if ARG contains path-sensitivity splits on the same CFG path. *)
+  let rec follow node p =
+    let open GobList.Syntax in
+    match p with
+    | [] -> [node]
+    | (e, to_n) :: p' ->
+      let* (_, node') = List.filter (fun (e', to_node) ->
+          Edge.equal (Edge.embed e) e' && Node0.equal to_n (Node.cfgnode to_node)
+        ) (Arg.next node)
+      in
+      follow node' p'
+
   let next node =
-    let open GobOption.Syntax in
+    let open GobList.Syntax in
     match ArgIntra.next_opt (Node.cfgnode node) with
     | None -> Arg.next node
     | Some next ->
       next
-      |> BatList.filter_map (fun (e, to_n) ->
-          let+ to_node = Node.move_opt node to_n in
+      |> BatList.concat_map (fun (e, to_n, p) ->
+          let* p in
+          let+ to_node = follow node p in
+          assert (Node0.equal to_n (Node.cfgnode to_node)); (* should always hold by follow filter above *)
           (Edge.embed e, to_node)
         )
+      |> BatList.unique_cmp ~cmp:[%ord: Edge.t * Node.t] (* after following paths, there may be duplicates because same ARG node can be reached via same ARG edge via multiple uncilled CFG paths *) (* TODO: avoid generating duplicates in the first place? *)
 end

@@ -481,7 +481,7 @@ module PrintInfluence =
   struct
     module S1 = Sol (S) (HM)
     let solve x y =
-      let ch = Legacy.open_out "test.dot" in
+      Out_channel.with_open_text "test.dot" @@ fun ch ->
       let r = S1.solve x y in
       let f k _ =
         let q = if HM.mem S1.wpoint k then " shape=box style=rounded" else "" in
@@ -498,7 +498,6 @@ module PrintInfluence =
       ignore (Pretty.fprintf ch "digraph G {\nedge [arrowhead=vee];\n");
       HM.iter f r;
       ignore (Pretty.fprintf ch "}\n");
-      Legacy.close_out_noerr ch;
       r
   end
 

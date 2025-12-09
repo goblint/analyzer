@@ -600,12 +600,11 @@ let fprint_hash_dot cfg  =
     let extraNodeStyles node = []
   end
   in
-  let out = open_out "cfg.dot" in
+  Out_channel.with_open_text "cfg.dot" @@ fun out ->
   let iter_edges f = H.iter (fun n es -> List.iter (f n) es) cfg in
   let ppf = Format.formatter_of_out_channel out in
   fprint_dot (module CfgPrinters (NoExtraNodeStyles)) iter_edges ppf;
-  Format.pp_print_flush ppf ();
-  close_out out
+  Format.pp_print_flush ppf ()
 
 
 let getCFG (file: file) : cfg * cfg * _ =
@@ -664,11 +663,10 @@ let dead_code_cfg ~path (module FileCfg: MyCFG.FileCfg) live =
         let dot_file_name = fd.svar.vname^".dot" in
         let file_dir = GobSys.mkdir_or_exists_absolute Fpath.(base_dir / c_file_name) in
         let fname = Fpath.(file_dir / dot_file_name) in
-        let out = open_out (Fpath.to_string fname) in
+        Out_channel.with_open_text (Fpath.to_string fname) @@ fun out ->
         let ppf = Format.formatter_of_out_channel out in
         fprint_fundec_html_dot (module FileCfg.Cfg) live fd ppf;
         Format.pp_print_flush ppf ();
-        close_out out
       | _ -> ()
     )
 
