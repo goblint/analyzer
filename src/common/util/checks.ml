@@ -62,6 +62,7 @@ module Category = struct
     | `String "Invalid pointer subtraction" -> Ok InvalidPointerSubtraction
     | `String "Double free" -> Ok DoubleFree
     | `String "Negative array size" -> Ok NegativeArraySize
+    | `String "Stub condition" -> Ok StubCondition
     | category -> Error ("Checks.Category.of_yojson: Invalid category: " ^ Yojson.Safe.to_string category)
 end
 
