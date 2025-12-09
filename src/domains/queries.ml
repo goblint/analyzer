@@ -551,8 +551,8 @@ struct
     | Any (GasExhausted f) -> Pretty.dprintf "GasExhausted %a" CilType.Fundec.pretty f
     | Any (GhostVarAvailable v) -> Pretty.dprintf "GhostVarAvailable %a" WitnessGhostVar.pretty v
     | Any InvariantGlobalNodes -> Pretty.dprintf "InvariantGlobalNodes"
-    | Any (DescendantThreads t) -> Pretty.dprintf "DescendantThreads"
-    | Any (MayCreationLockset t) -> Pretty.dprintf "MayCreationLockset"
+    | Any (DescendantThreads t) -> Pretty.dprintf "DescendantThreads %a" ThreadIdDomain.Thread.pretty t
+    | Any (MayCreationLockset t) -> Pretty.dprintf "MayCreationLockset %a" ThreadIdDomain.Thread.pretty t
 end
 
 let to_value_domain_ask (ask: ask) =
