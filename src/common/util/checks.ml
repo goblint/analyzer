@@ -1,8 +1,8 @@
 (**
-    Implements a method described in this paper from Raphaël Monat, 
+    Implements a method described in this paper from Raphaël Monat,
     Abdelraouf Ouadjaout and Antoine Miné : https://inria.hal.science/hal-04652657v2
 
-    This allows to track checks performed during the analysis, and to mark whether they are safe, 
+    This allows to track checks performed during the analysis, and to mark whether they are safe,
     unsafe or unknown (resp. Safe, Error, Warning).
 *)
 
@@ -114,8 +114,8 @@ module CategoryLocationMap = Hashtbl.Make (struct
 
 
 let checks_list : (bool ref * unit CheckMap.t) CategoryLocationMap.t = CategoryLocationMap.create 113
-(** Store the list of checks raised by the analysis. The [bool ref] stores whether all checks in the map are safe. 
-    The [unit CheckMap.t] is the set of checks associated with the given [Category.t * CilType.Location.t] pair. 
+(** Store the list of checks raised by the analysis. The [bool ref] stores whether all checks in the map are safe.
+    The [unit CheckMap.t] is the set of checks associated with the given [Category.t * CilType.Location.t] pair.
     The [bool] is a reference to avoid having to use the [update] function when updating the value. The [CheckMap.t] is mutable anyway
     so it is not a problem. *)
 
