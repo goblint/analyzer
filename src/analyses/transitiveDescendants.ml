@@ -21,7 +21,6 @@ module TransitiveDescendants = struct
     match x with
     | Queries.DescendantThreads t -> (man.global t : G.t)
     | _ -> Queries.Result.top x
-  ;;
 
   let threadspawn man ~multiple lval f args fman =
     let ask = Analyses.ask_of_man man in
@@ -39,7 +38,6 @@ module TransitiveDescendants = struct
          (* transitive closure *)
          let child_descendants = man.global child_tid in
          man.sideg tid child_descendants)
-  ;;
 end
 
 let _ = MCP.register_analysis ~dep:[ "threadid" ] (module TransitiveDescendants : MCPSpec)

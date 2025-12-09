@@ -32,7 +32,6 @@ module AncestorLocksetSpec = struct
   (** compute [tids] \times \{[lock]\} *)
   let singleton_cartesian_prod tids lock =
     TIDs.fold (fun tid acc -> G.add (tid, lock) acc) tids (G.empty ())
-  ;;
 
   (** compute the cartesian product [tids] \times [locks] *)
   let cartesian_prod tids locks =
@@ -42,7 +41,6 @@ module AncestorLocksetSpec = struct
          G.union tids_times_lock acc)
       locks
       (G.empty ())
-  ;;
 
   (** reflexive-transitive closure of child relation applied to [tid]
       @param ask any ask
@@ -51,7 +49,6 @@ module AncestorLocksetSpec = struct
   let descendants_closure (ask : Queries.ask) tid =
     let transitive_descendants = ask.f @@ Queries.DescendantThreads tid in
     TIDs.add tid transitive_descendants
-  ;;
 end
 
 (** collects for each thread t_n pairs of ancestors and locks (t_0,l):
@@ -75,13 +72,11 @@ module CreationLocksetSpec = struct
       let to_contribute = cartesian_prod (TIDs.singleton tid) lockset in
       TIDs.iter (contribute_lock man to_contribute) descendants
     | _ -> (* TODO deal with top or bottom? *) ()
-  ;;
 
   let query man (type a) (x : a Queries.t) : a Queries.result =
     match x with
     | Queries.MayCreationLockset tid -> (man.global tid : G.t)
     | _ -> Queries.Result.top x
-  ;;
 end
 
 (** collects for each thread t_n pairs of ancestors and locks (t_0,l):
@@ -105,7 +100,6 @@ module TaintedCreationLocksetSpec = struct
     in
     let must_joined_tids = ask.f Queries.MustJoinedThreads in
     TIDs.diff may_transitively_created_tids must_joined_tids
-  ;;
 
   let event man e _ =
     match e with
@@ -133,7 +127,6 @@ module TaintedCreationLocksetSpec = struct
             in
             TIDs.iter contribute_creation_lockset possibly_running_tids))
     | _ -> ()
-  ;;
 
   module A = struct
     (** ego tid * lockset * inter-threaded lockset *)
@@ -151,7 +144,6 @@ module TaintedCreationLocksetSpec = struct
         G.exists (fun (tp2, l2) -> LID.equal l1 l2 && (not @@ TID.equal tp1 tp2)) itls2
       in
       G.exists itls2_has_same_lock_other_tid itls1
-    ;;
 
     (** checks if [itls1] has a member ([tp1], [l1]) such that [l1] is in [ls2] and [tp1] != [t2]
         @param itls1 inter-threaded lockset of thread [t1] at first program point
@@ -161,14 +153,12 @@ module TaintedCreationLocksetSpec = struct
     *)
     let one_protected_inter_threaded_other_intra_threaded itls1 t2 ls2 =
       G.exists (fun (tp1, l1) -> LIDs.mem l1 ls2 && (not @@ TID.equal tp1 t2)) itls1
-    ;;
 
     let may_race (t1, ls1, itls1) (t2, ls2, itls2) =
       not
         (both_protected_inter_threaded itls1 itls2
          || one_protected_inter_threaded_other_intra_threaded itls1 t2 ls2
          || one_protected_inter_threaded_other_intra_threaded itls2 t1 ls1)
-    ;;
 
     let should_print (_t, _ls, itls) = not @@ G.is_empty itls
   end
@@ -185,14 +175,12 @@ module TaintedCreationLocksetSpec = struct
       let inter_threaded_lockset = G.diff creation_lockset tainted_creation_lockset in
       tid, lockset, inter_threaded_lockset
     | _ -> ThreadIdDomain.UnknownThread, LIDs.empty (), G.empty ()
-  ;;
 end
 
 let _ =
   MCP.register_analysis
     ~dep:[ "threadid"; "mutex"; "race"; "transitiveDescendants" ]
     (module CreationLocksetSpec : MCPSpec)
-;;
 
 let _ =
   MCP.register_analysis
@@ -205,4 +193,3 @@ let _ =
       ; "creationLockset"
       ]
     (module TaintedCreationLocksetSpec : MCPSpec)
-;;
