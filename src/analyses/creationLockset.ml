@@ -1,7 +1,6 @@
 (** Ancestor-lock analysis. See https://github.com/goblint/analyzer/pull/1865 *)
 
 open Analyses
-module LF = LibraryFunctions
 module TID = ThreadIdDomain.Thread
 module TIDs = ConcDomain.ThreadSet
 module LID = LockDomain.MustLock
