@@ -101,12 +101,6 @@ module Spec = struct
        | _ -> ())
     | _ -> ()
 
-  let query man (type a) (x : a Queries.t) : a Queries.result =
-    match x with
-    | Queries.MayCreationLockset tid -> (man.global tid : G.t)
-    | _ -> Queries.Result.top x
-  ;;
-
   module A = struct
     (** ego tid * must-lockset * creation-lockset *)
     include Printable.Prod3 (TID) (LIDs) (G)
