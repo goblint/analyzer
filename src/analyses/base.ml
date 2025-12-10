@@ -1066,7 +1066,7 @@ struct
     match ofs with
     | NoOffset -> `NoOffset
     | Field (fld, ofs) -> `Field (fld, convert_offset ~man st ofs)
-    | Index (exp, ofs) when CilType.Exp.equal exp (Lazy.force Offset.Index.Exp.any) -> (* special offset added by convertToQueryLval *)
+    | Index (exp, ofs) when Offset.Index.Exp.is_any exp -> (* special offset added by convertToQueryLval *)
       `Index (IdxDom.top (), convert_offset ~man st ofs)
     | Index (exp, ofs) ->
       match eval_rv ~man st exp with
