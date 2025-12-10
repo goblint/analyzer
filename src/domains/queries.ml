@@ -77,7 +77,7 @@ type invariant_context = Invariant.context = {
 
 module YS = SetDomain.ToppedSet (YamlWitnessType.Entry) (struct let topname = "Top" end)
 
-module ALS = SetDomain.ToppedSet (Printable.Prod (ThreadIdDomain.Thread) (LockDomain.MustLock)) (struct let topname = "all pairs of threads and locks" end)
+module ALS = MapDomain.MapBot (ThreadIdDomain.Thread) (LockDomain.MustLockset)
 
 (** GADT for queries with specific result type. *)
 type _ t =
@@ -148,7 +148,6 @@ type _ t =
   | GhostVarAvailable: WitnessGhostVar.t -> MayBool.t t
   | InvariantGlobalNodes: NS.t t (** Nodes where YAML witness flow-insensitive invariants should be emitted as location invariants (if [witness.invariant.flow_insensitive-as] is configured to do so). *) (* [Spec.V.t] argument (as [Obj.t]) could be added, if this should be different for different flow-insensitive invariants. *)
   | DescendantThreads: ThreadIdDomain.Thread.t -> ConcDomain.ThreadSet.t t
-  | MayCreationLockset: ThreadIdDomain.Thread.t -> ALS.t t
 
 type 'a result = 'a
 
@@ -225,7 +224,6 @@ struct
     | GhostVarAvailable _ -> (module MayBool)
     | InvariantGlobalNodes -> (module NS)
     | DescendantThreads _ -> (module ConcDomain.ThreadSet)
-    | MayCreationLockset _ -> (module ALS)
 
   (** Get bottom result for query. *)
   let bot (type a) (q: a t): a result =
@@ -301,7 +299,6 @@ struct
     | GhostVarAvailable _ -> MayBool.top ()
     | InvariantGlobalNodes -> NS.top ()
     | DescendantThreads _ -> ConcDomain.ThreadSet.top ()
-    | MayCreationLockset _ -> ALS.top ()
 end
 
 (* The type any_query can't be directly defined in Any as t,
@@ -374,7 +371,6 @@ struct
     | Any (GhostVarAvailable _) -> 62
     | Any InvariantGlobalNodes -> 63
     | Any (DescendantThreads _) -> 64
-    | Any (MayCreationLockset _) -> 65
 
   let rec compare a b =
     let r = Stdlib.compare (order a) (order b) in
@@ -482,7 +478,6 @@ struct
     | Any (GasExhausted f) -> CilType.Fundec.hash f
     | Any (GhostVarAvailable v) -> WitnessGhostVar.hash v
     | Any (DescendantThreads t) -> ThreadIdDomain.Thread.hash t
-    | Any (MayCreationLockset t) -> ThreadIdDomain.Thread.hash t
     (* IterSysVars:                                                                    *)
     (*   - argument is a function and functions cannot be compared in any meaningful way. *)
     (*   - doesn't matter because IterSysVars is always queried from outside of the analysis, so MCP's query caching is not done for it. *)
@@ -552,7 +547,6 @@ struct
     | Any (GhostVarAvailable v) -> Pretty.dprintf "GhostVarAvailable %a" WitnessGhostVar.pretty v
     | Any InvariantGlobalNodes -> Pretty.dprintf "InvariantGlobalNodes"
     | Any (DescendantThreads t) -> Pretty.dprintf "DescendantThreads %a" ThreadIdDomain.Thread.pretty t
-    | Any (MayCreationLockset t) -> Pretty.dprintf "MayCreationLockset %a" ThreadIdDomain.Thread.pretty t
 end
 
 let to_value_domain_ask (ask: ask) =
