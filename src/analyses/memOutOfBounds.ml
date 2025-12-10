@@ -46,7 +46,7 @@ struct
     | SizeOfE e
     | AlignOfE e
     | UnOp (_, e, _)
-    | CastE (_, e) -> exp_contains_a_ptr e
+    | CastE (_, _, e) -> exp_contains_a_ptr e
     | BinOp (_, e1, e2, _) ->
       exp_contains_a_ptr e1 || exp_contains_a_ptr e2
     | Question (e1, e2, e3, _) ->
@@ -170,7 +170,7 @@ struct
       match ofs with
       | NoOffset -> `NoOffset
       | Field (fld, ofs) -> `Field (fld, convert_offset ofs)
-      | Index (exp, ofs) when CilType.Exp.equal exp (Lazy.force Offset.Index.Exp.any) -> (* special offset added by convertToQueryLval *)
+      | Index (exp, ofs) when Offset.Index.Exp.is_any exp -> (* special offset added by convertToQueryLval *)
         `Index (ID.top (), convert_offset ofs)
       | Index (exp, ofs) ->
         let i = match man.ask (Queries.EvalInt exp) with
@@ -352,7 +352,7 @@ struct
     | SizeOfE e
     | AlignOfE e
     | UnOp (_, e, _)
-    | CastE (_, e) -> check_exp_for_oob_access man ~is_implicitly_derefed e
+    | CastE (_, _, e) -> check_exp_for_oob_access man ~is_implicitly_derefed e
     | BinOp (bop, e1, e2, t) ->
       check_exp_for_oob_access man ~is_implicitly_derefed e1;
       check_exp_for_oob_access man ~is_implicitly_derefed e2

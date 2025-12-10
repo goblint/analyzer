@@ -45,7 +45,7 @@ struct
     | Imag e
     | SizeOfE e
     | AlignOfE e
-    | CastE (_,e)
+    | CastE (_,_,e)
     | UnOp (_,e,_) -> is_exp_tainted state e
     | SizeOf _ | SizeOfStr _ | Const _  | AlignOf _ | AddrOfLabel _ -> false
     | Question (b, t, f, _) -> is_exp_tainted state b || is_exp_tainted state t || is_exp_tainted state f

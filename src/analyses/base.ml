@@ -819,7 +819,7 @@ struct
         eval_rv_base_lval ~eval_lv ~man st exp lv
       (* Binary operators *)
       (* Eq/Ne when both values are equal and casted to the same type *)
-      | BinOp ((Eq | Ne) as op, (CastE (t1, e1) as c1), (CastE (t2, e2) as c2), typ) when typeSig t1 = typeSig t2 ->
+      | BinOp ((Eq | Ne) as op, (CastE (_, t1, e1) as c1), (CastE (_, t2, e2) as c2), typ) when typeSig t1 = typeSig t2 ->
         let a1 = eval_rv ~man st e1 in
         let a2 = eval_rv ~man st e2 in
         let extra_is_safe =
@@ -836,7 +836,7 @@ struct
         (* split nested LOr Eqs to equality pairs, if possible *)
         let rec split = function
           (* copied from above to support pointer equalities with implicit casts inserted *)
-          | BinOp (Eq, (CastE (t1, e1) as c1), (CastE (t2, e2) as c2), typ) when typeSig t1 = typeSig t2 ->
+          | BinOp (Eq, (CastE (_, t1, e1) as c1), (CastE (_, t2, e2) as c2), typ) when typeSig t1 = typeSig t2 ->
             Some [binop_remove_same_casts ~extra_is_safe:false ~e1 ~e2 ~t1 ~t2 ~c1 ~c2]
           | BinOp (Eq, arg1, arg2, _) ->
             Some [(arg1, arg2)]
@@ -921,8 +921,8 @@ struct
         let array_ofs = `Index (IdxDom.of_int (Cilfacade.ptrdiff_ikind ()) Z.zero, `NoOffset) in
         let array_start = add_offset_varinfo array_ofs in
         Address (AD.map array_start (eval_lv ~man st lval))
-      | CastE (t, Const (CStr (x,e))) -> (* VD.top () *) eval_rv ~man st (Const (CStr (x,e))) (* TODO safe? *)
-      | CastE  (t, exp) ->
+      | CastE (_, t, Const (CStr (x,e))) -> (* VD.top () *) eval_rv ~man st (Const (CStr (x,e))) (* TODO safe? *)
+      | CastE (_, t, exp) ->
         (let v = eval_rv ~man st exp in
          try
            VD.cast ~torg:(Cilfacade.typeOf exp) t v
@@ -1066,7 +1066,7 @@ struct
     match ofs with
     | NoOffset -> `NoOffset
     | Field (fld, ofs) -> `Field (fld, convert_offset ~man st ofs)
-    | Index (exp, ofs) when CilType.Exp.equal exp (Lazy.force Offset.Index.Exp.any) -> (* special offset added by convertToQueryLval *)
+    | Index (exp, ofs) when Offset.Index.Exp.is_any exp -> (* special offset added by convertToQueryLval *)
       `Index (IdxDom.top (), convert_offset ~man st ofs)
     | Index (exp, ofs) ->
       match eval_rv ~man st exp with
@@ -1383,7 +1383,7 @@ struct
         | Imag e
         | SizeOfE e
         | AlignOfE e
-        | CastE (_, e) -> exp_may_signed_overflow man e
+        | CastE (_, _, e) -> exp_may_signed_overflow man e
         | UnOp (unop, e, _) ->
           (* check if the current operation causes a signed overflow *)
           begin match unop with
@@ -2368,7 +2368,7 @@ struct
                     |> AD.type_of in
       (* when src and destination type coincide, take value from the source, otherwise use top *)
       let value = if (typeSig dest_typ = typeSig src_typ) && dest_size_equal_n then
-          let src_cast_lval = mkMem ~addr:(Cilfacade.mkCast ~e:src ~newt:(TPtr (dest_typ, []))) ~off:NoOffset in
+          let src_cast_lval = mkMem ~addr:(Cilfacade.mkCast ~kind:Unknown ~e:src ~newt:(TPtr (dest_typ, []))) ~off:NoOffset in
           eval_rv ~man st (Lval src_cast_lval)
         else
           VD.top_value (unrollType dest_typ)
