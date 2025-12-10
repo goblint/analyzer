@@ -138,7 +138,7 @@ struct
   let maximal = function None -> None | Some (x,y) -> Some y
   let minimal = function None -> None | Some (x,y) -> Some x
 
-  let cast_to ?torg ?no_ov t = norm ~cast:true t (* norm does all overflow handling *)
+  let cast_to ~kind ?torg ?no_ov t = norm ~cast:true t (* norm does all overflow handling *)
 
   let widen ik x y =
     match x, y with

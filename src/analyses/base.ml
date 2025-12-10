@@ -167,7 +167,7 @@ struct
    * Abstract evaluation functions
    **************************************************************************)
 
-  let iDtoIdx x = ID.cast_to (Cilfacade.ptrdiff_ikind ()) x
+  let iDtoIdx x = ID.cast_to ~kind:Unknown (Cilfacade.ptrdiff_ikind ()) x (* TODO: proper castkind *)
 
   let unop_ID = function
     | Neg  -> ID.neg
@@ -182,7 +182,7 @@ struct
 
   (* Evaluating Cil's unary operators. *)
   let evalunop op typ: value -> value = function
-    | Int v1 -> Int (ID.cast_to (Cilfacade.get_ikind typ) (unop_ID op v1))
+    | Int v1 -> Int (ID.cast_to ~kind:Unknown (Cilfacade.get_ikind typ) (unop_ID op v1)) (* TODO: proper castkind *)
     | Float v -> unop_FD op v
     | Address a when op = LNot ->
       if AD.is_null a then
@@ -326,7 +326,7 @@ struct
       (* Pointer subtracted by a value (e-i) is very similar *)
       (* Cast n to the (signed) ptrdiff_ikind, then add the its negated value. *)
       | MinusPI ->
-        let n = ID.neg (ID.cast_to (Cilfacade.ptrdiff_ikind ()) n) in
+        let n = ID.neg (ID.cast_to ~kind:Unknown (Cilfacade.ptrdiff_ikind ()) n) in (* TODO: proper castkind *)
         Address (ad_concat_map (addToAddr n) p)
       | Mod -> Int (ID.top_of (Cilfacade.ptrdiff_ikind ())) (* we assume that address is actually casted to int first*)
       | _ -> Address AD.top_ptr
@@ -336,11 +336,11 @@ struct
     (* For the integer values, we apply the int domain operator *)
     | Int v1, Int v2 ->
       let result_ik = Cilfacade.get_ikind t in
-      Int (ID.cast_to result_ik (binop_ID result_ik op v1 v2))
+      Int (ID.cast_to ~kind:Unknown result_ik (binop_ID result_ik op v1 v2)) (* TODO: proper castkind *)
     (* For the float values, we apply the float domain operators *)
     | Float v1, Float v2 when is_int_returning_binop_FD op ->
       let result_ik = Cilfacade.get_ikind t in
-      Int (ID.cast_to result_ik (int_returning_binop_FD op v1 v2))
+      Int (ID.cast_to ~kind:Unknown result_ik (int_returning_binop_FD op v1 v2)) (* TODO: proper castkind *)
     | Float v1, Float v2 -> Float (binop_FD (Cilfacade.get_fkind t) op v1 v2)
     (* For address +/- value, we try to do some elementary ptr arithmetic *)
     | Address p, Int n
@@ -522,7 +522,7 @@ struct
         | Int _ ->
           let at = AD.type_of addrs in
           if Cil.isArithmeticType at then
-            VD.cast at x
+            VD.cast ~kind:Unknown at x (* TODO: proper castkind *)
           else
             x
         | _ -> x
@@ -925,9 +925,9 @@ struct
       | CastE (_, t, exp) ->
         (let v = eval_rv ~man st exp in
          try
-           VD.cast ~torg:(Cilfacade.typeOf exp) t v
+           VD.cast ~kind:Unknown ~torg:(Cilfacade.typeOf exp) t v (* TODO: proper castkind *)
          with Cilfacade.TypeOfError _  ->
-           VD.cast t v)
+           VD.cast ~kind:Unknown t v) (* TODO: proper castkind *)
       | SizeOf _
       | Real _
       | Imag _
@@ -993,7 +993,7 @@ struct
           else
             VD.top () (* upcasts not! *)
         in
-        let v' = VD.cast t v in (* cast to the expected type (the abstract type might be something other than t since we don't change addresses upon casts!) *)
+        let v' = VD.cast ~kind:Unknown t v in (* cast to the expected type (the abstract type might be something other than t since we don't change addresses upon casts!) *) (* TODO: proper castkind *)
         if M.tracing then M.tracel "cast" "Ptr-Deref: cast %a to %a = %a!" VD.pretty v d_type t VD.pretty v';
         let v' = VD.eval_offset (Queries.to_value_domain_ask (Analyses.ask_of_man man)) (fun x -> get ~man st x (Some exp)) v' (convert_offset ~man st ofs) (Some exp) None t in (* handle offset *)
         v'
@@ -2048,7 +2048,7 @@ struct
           | `Lifted tid when ThreadReturn.is_current ask ->
             (* Evaluate exp and cast the resulting value to the void-pointer-type.
                 Casting to the right type here avoids precision loss on joins. *)
-            let rv = VD.cast ~torg:(Cilfacade.typeOf exp) Cil.voidPtrType rv in
+            let rv = VD.cast ~kind:Unknown ~torg:(Cilfacade.typeOf exp) Cil.voidPtrType rv in (* TODO: proper castkind *)
             man.sideg (V.thread tid) (G.create_thread rv);
             Priv.thread_return ask (priv_getg man.global) (priv_sideg man.sideg) tid st'
           | _ -> st'
@@ -2302,7 +2302,7 @@ struct
                   let item_typ_size_in_bytes = size_of_type_in_bytes item_typ in
                   begin match man.ask (Queries.EvalLength ptr) with
                     | `Lifted arr_len ->
-                      let arr_len_casted = ID.cast_to (Cilfacade.ptrdiff_ikind ()) arr_len in
+                      let arr_len_casted = ID.cast_to ~kind:Unknown (Cilfacade.ptrdiff_ikind ()) arr_len in (* TODO: proper castkind *)
                       begin
                         try `Lifted (ID.mul item_typ_size_in_bytes arr_len_casted)
                         with IntDomain.ArithmeticOnIntegerBot _ -> `Bot
@@ -2352,8 +2352,8 @@ struct
       let dest_size_equal_n =
         match dest_size, n_intdom with
         | `Lifted ds, `Lifted n ->
-          let casted_ds = ID.cast_to (Cilfacade.ptrdiff_ikind ()) ds in
-          let casted_n = ID.cast_to (Cilfacade.ptrdiff_ikind ()) n in
+          let casted_ds = ID.cast_to ~kind:Unknown (Cilfacade.ptrdiff_ikind ()) ds in (* TODO: proper castkind *)
+          let casted_n = ID.cast_to ~kind:Unknown (Cilfacade.ptrdiff_ikind ()) n in (* TODO: proper castkind *)
           let ds_eq_n =
             begin try ID.eq casted_ds casted_n
               with IntDomain.ArithmeticOnIntegerBot _ -> ID.top_of @@ Cilfacade.ptrdiff_ikind ()
@@ -2445,7 +2445,7 @@ struct
           let ptrdiff_ik = Cilfacade.ptrdiff_ikind () in
           let size = man.ask (Q.BlobSize {exp = s1; base_address = false}) in
           let s_id =
-            try ValueDomainQueries.ID.unlift (ID.cast_to ptrdiff_ik) size
+            try ValueDomainQueries.ID.unlift (ID.cast_to ~kind:Unknown ptrdiff_ik) size (* TODO: proper castkind *)
             with Failure _ -> ID.top_of ptrdiff_ik in
           let empty_array = CArrays.make s_id (Int (ID.top_of IChar)) in
           set ~man st lv_a lv_typ (op_array empty_array array_s2)
@@ -2454,7 +2454,7 @@ struct
           let ptrdiff_ik = Cilfacade.ptrdiff_ikind () in
           let size = man.ask (Q.BlobSize {exp = s1; base_address = false}) in
           let s_id =
-            try ValueDomainQueries.ID.unlift (ID.cast_to ptrdiff_ik) size
+            try ValueDomainQueries.ID.unlift (ID.cast_to ~kind:Unknown ptrdiff_ik) size (* TODO: proper castkind *)
             with Failure _ -> ID.top_of ptrdiff_ik in
           let empty_array = CArrays.make s_id (Int (ID.top_of IChar)) in
           let s2_null_bytes = List.map CArrays.to_null_byte_domain (AD.to_string s2_a) in
@@ -2618,7 +2618,7 @@ struct
         let eval_x = eval_rv ~man st x in
         begin match eval_x with
           | Int int_x ->
-            let xcast = ID.cast_to ik int_x in
+            let xcast = ID.cast_to ~kind:Unknown ik int_x in (* TODO: proper castkind *)
             (* the absolute value of the most-negative value is out of range for 2'complement types *)
             (match (ID.minimal xcast), (ID.minimal (ID.top_of ik)) with
              | _, None
@@ -2637,11 +2637,11 @@ struct
           | Nan (fk, str) when Cil.isPointerType (Cilfacade.typeOf str) -> Float (FD.nan_of fk)
           | Nan _ -> failwith ("non-pointer argument in call to function "^f.vname)
           | Inf fk -> Float (FD.inf_of fk)
-          | Isfinite x -> Int (ID.cast_to IInt (apply_unary FDouble FD.isfinite x))
-          | Isinf x -> Int (ID.cast_to IInt (apply_unary FDouble FD.isinf x))
-          | Isnan x -> Int (ID.cast_to IInt (apply_unary FDouble FD.isnan x))
-          | Isnormal x -> Int (ID.cast_to IInt (apply_unary FDouble FD.isnormal x))
-          | Signbit x -> Int (ID.cast_to IInt (apply_unary FDouble FD.signbit x))
+          | Isfinite x -> Int (ID.cast_to ~kind:Unknown IInt (apply_unary FDouble FD.isfinite x)) (* TODO: proper castkind *)
+          | Isinf x -> Int (ID.cast_to ~kind:Unknown IInt (apply_unary FDouble FD.isinf x)) (* TODO: proper castkind *)
+          | Isnan x -> Int (ID.cast_to ~kind:Unknown IInt (apply_unary FDouble FD.isnan x)) (* TODO: proper castkind *)
+          | Isnormal x -> Int (ID.cast_to ~kind:Unknown IInt (apply_unary FDouble FD.isnormal x)) (* TODO: proper castkind *)
+          | Signbit x -> Int (ID.cast_to ~kind:Unknown IInt (apply_unary FDouble FD.signbit x)) (* TODO: proper castkind *)
           | Ceil (fk,x) -> Float (apply_unary fk FD.ceil x)
           | Floor (fk,x) -> Float (apply_unary fk FD.floor x)
           | Fabs (fk, x) -> Float (apply_unary fk FD.fabs x)
@@ -2652,16 +2652,16 @@ struct
           | Cos (fk, x) -> Float (apply_unary fk FD.cos x)
           | Sin (fk, x) -> Float (apply_unary fk FD.sin x)
           | Tan (fk, x) -> Float (apply_unary fk FD.tan x)
-          | Isgreater (x,y) -> Int(ID.cast_to IInt (apply_binary FDouble FD.gt x y))
-          | Isgreaterequal (x,y) -> Int(ID.cast_to IInt (apply_binary FDouble FD.ge x y))
-          | Isless (x,y) -> Int(ID.cast_to IInt (apply_binary FDouble FD.lt x y))
-          | Islessequal (x,y) -> Int(ID.cast_to IInt (apply_binary FDouble FD.le x y))
-          | Islessgreater (x,y) -> Int(ID.c_logor (ID.cast_to IInt (apply_binary FDouble FD.lt x y)) (ID.cast_to IInt (apply_binary FDouble FD.gt x y)))
-          | Isunordered (x,y) -> Int(ID.cast_to IInt (apply_binary FDouble FD.unordered x y))
+          | Isgreater (x,y) -> Int(ID.cast_to ~kind:Unknown IInt (apply_binary FDouble FD.gt x y)) (* TODO: proper castkind *)
+          | Isgreaterequal (x,y) -> Int(ID.cast_to ~kind:Unknown IInt (apply_binary FDouble FD.ge x y)) (* TODO: proper castkind *)
+          | Isless (x,y) -> Int(ID.cast_to ~kind:Unknown IInt (apply_binary FDouble FD.lt x y)) (* TODO: proper castkind *)
+          | Islessequal (x,y) -> Int(ID.cast_to ~kind:Unknown IInt (apply_binary FDouble FD.le x y)) (* TODO: proper castkind *)
+          | Islessgreater (x,y) -> Int(ID.c_logor (ID.cast_to ~kind:Unknown IInt (apply_binary FDouble FD.lt x y)) (ID.cast_to ~kind:Unknown IInt (apply_binary FDouble FD.gt x y))) (* TODO: proper castkind *)
+          | Isunordered (x,y) -> Int(ID.cast_to ~kind:Unknown IInt (apply_binary FDouble FD.unordered x y)) (* TODO: proper castkind *)
           | Fmax (fd, x ,y) -> Float (apply_binary fd FD.fmax x y)
           | Fmin (fd, x ,y) -> Float (apply_binary fd FD.fmin x y)
           | Sqrt (fk, x) -> Float (apply_unary fk FD.sqrt x)
-          | Abs (ik, x) -> Int (ID.cast_to ik (apply_abs ik x))
+          | Abs (ik, x) -> Int (ID.cast_to ~kind:Unknown ik (apply_abs ik x)) (* TODO: proper castkind *)
         end
       in
       Option.map_default (fun lv -> set ~man st (eval_lv ~man st lv) (Cilfacade.typeOfLval lv) result) st lv
@@ -2724,7 +2724,7 @@ struct
             let blob_set = Option.map_default (fun heap_var -> [heap_var, TVoid [], VD.Blob (VD.bot (), sizeval, ZeroInit.calloc)]) [] heap_var in
             set_many ~man st ((eval_lv ~man st lv, (Cilfacade.typeOfLval lv), Address addr):: blob_set)
           else
-            let blobsize = ID.mul (ID.cast_to ik @@ sizeval) (ID.cast_to ik @@ countval) in
+            let blobsize = ID.mul (ID.cast_to ~kind:Unknown ik @@ sizeval) (ID.cast_to ~kind:Unknown ik @@ countval) in (* TODO: proper castkind *)
             let offset = `Index (IdxDom.of_int (Cilfacade.ptrdiff_ikind ()) Z.zero, `NoOffset) in
             (* the heap_var is the base address of the allocated memory, but we need to keep track of the offset for the blob *)
             let addr_offset = AD.map (fun a -> Addr.add_offset a offset) addr in

@@ -166,7 +166,7 @@ struct
     | _ -> None
 
   (* cast from original type to ikind, set to top if the value doesn't fit into the new type *)
-  let cast_to ?(suppress_ovwarn=false) ?torg ?(no_ov=false) t x =
+  let cast_to ?(suppress_ovwarn=false) ~kind ?torg ?(no_ov=false) t x =
     match x with
     | None -> None
     | Some (c, m) when m =: Z.zero ->
@@ -190,9 +190,9 @@ struct
       | _ -> top ()
 
 
-  let cast_to ?(suppress_ovwarn=false) ?torg ?no_ov (t : Cil.ikind) x =
+  let cast_to ?(suppress_ovwarn=false) ~kind ?torg ?no_ov (t : Cil.ikind) x =
     let pretty_bool _ x = Pretty.text (string_of_bool x) in
-    let res = cast_to ?torg ?no_ov t x in
+    let res = cast_to ~kind ?torg ?no_ov t x in
     if M.tracing then M.trace "cong-cast" "Cast %a to %a (no_ov: %a) = %a" pretty x Cil.d_ikind t (Pretty.docOpt (pretty_bool ())) no_ov pretty res;
     res
 

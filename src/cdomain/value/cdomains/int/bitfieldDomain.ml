@@ -281,7 +281,7 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): Bitfield_SOverflow with type in
     let overflow_info = {underflow; overflow} in
     (norm ~ov:(underflow || overflow) ik (z,o), overflow_info)
 
-  let cast_to ?torg ?(no_ov=false) ik (z,o) =
+  let cast_to ~kind ?torg ?(no_ov=false) ik (z,o) =
     if ik = GoblintCil.IBool then (
       let may_zero =
         if Ints_t.equal z BArith.one_mask then (* zero bit may be in every position (one_mask) *)
