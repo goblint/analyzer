@@ -55,15 +55,20 @@ module Spec = struct
       TIDs.iter (contribute_locks man to_contribute) unique_descendants
     | _ -> ()
 
-  (** compute all descendant threads that may run along with the ego thread at a program point
+  (** compute all descendant threads that may run along with the ego thread at a program point.
+      for all of them, tid must be an ancestor
+      @param tid ego thread id
       @param ask ask of ego thread at the program point
   *)
-  let get_possibly_running_tids (ask : Queries.ask) =
+  let get_unique_running_descendants tid (ask : Queries.ask) =
     let may_created_tids = ask.f Queries.CreatedThreads in
+    let may_unique_created_tids =
+      TIDs.filter (TID.must_be_ancestor tid) may_created_tids
+    in
     let may_transitively_created_tids =
       TIDs.fold
         (fun child_tid acc -> TIDs.union acc (unique_descendants_closure ask child_tid))
-        may_created_tids
+        may_unique_created_tids
         (TIDs.empty ())
     in
     let must_joined_tids = ask.f Queries.MustJoinedThreads in
@@ -94,10 +99,12 @@ module Spec = struct
       let ask = ask_of_man man in
       let tid_lifted = ask.f Queries.CurrentThreadId in
       let lock_opt = LockDomain.MustLock.of_addr addr in
-      let possibly_running_tids = get_possibly_running_tids ask in
-      (match tid_lifted, lock_opt with
-       | `Lifted tid, Some lock -> unlock man tid possibly_running_tids lock
-       | `Lifted tid, None -> unknown_unlock man tid possibly_running_tids
+      (match tid_lifted with
+       | `Lifted tid ->
+         let possibly_running_tids = get_unique_running_descendants tid ask in
+         (match lock_opt with
+          | Some lock -> unlock man tid possibly_running_tids lock
+          | None -> unknown_unlock man tid possibly_running_tids)
        | _ -> ())
     | _ -> ()
 
