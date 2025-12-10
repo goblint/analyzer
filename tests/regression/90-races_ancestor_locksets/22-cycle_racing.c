@@ -1,4 +1,4 @@
-// PARAM: --set ana.activated[+] taintedCreationLockset --set ana.activated[+] threadJoins --set ana.activated[+] transitiveDescendants --set ana.activated[+] creationLockset
+// PARAM: --set ana.activated[+] threadJoins --set ana.activated[+] transitiveDescendants --set ana.activated[+] creationLockset
 #include <pthread.h>
 
 // This program does not make any sense in practice (it produces a deadlock and if it did not, it wouldn't halt)
