@@ -1,4 +1,4 @@
-(** Ancestor-lock analysis. See https://github.com/goblint/analyzer/pull/1865 *)
+(** creation-lockset analysis. See https://github.com/goblint/analyzer/pull/1865 *)
 
 open Analyses
 module TID = ThreadIdDomain.Thread
@@ -6,8 +6,10 @@ module TIDs = ConcDomain.ThreadSet
 module LID = LockDomain.MustLock
 module LIDs = LockDomain.MustLockset
 
-(** common base for [CreationLocksetSpec] and [TaintedCreationLocksetSpec] *)
-module AncestorLocksetSpec = struct
+(** constructs edges on the graph over all threads, where the edges are labelled with must-locksets:
+    t_1 --ls-> t_0 means that t_1 is protected by all members of ls from t_0
+*)
+module Spec = struct
   include IdentityUnitContextsSpec
   module D = Lattice.Unit
 
@@ -16,180 +18,144 @@ module AncestorLocksetSpec = struct
     include StdV
   end
 
-  (** 2 ^ { [TID] \times [LID] } *)
+  (** [TID] -> [LIDs] *)
   module G = Queries.ALS
 
+  let name () = "creationLockset"
   let startstate _ = D.bot ()
   let exitstate _ = D.bot ()
 
-  (** register a contribution to a global: global.[child_tid] \supseteq [to_contribute]
+  (** register a global contribution: global.[child_tid] \supseteq [to_contribute]
       @param man man at program point
-      @param to_contribute new edges from [child_tid] to register
+      @param to_contribute new edges from [child_tid] to ego thread to register
       @param child_tid
   *)
-  let contribute_lock man to_contribute child_tid = man.sideg child_tid to_contribute
-
-  (** compute [tids] \times \{[lock]\} *)
-  let singleton_cartesian_prod tids lock =
-    TIDs.fold (fun tid acc -> G.add (tid, lock) acc) tids (G.empty ())
-
-  (** compute the cartesian product [tids] \times [locks] *)
-  let cartesian_prod tids locks =
-    LIDs.fold
-      (fun lock acc ->
-         let tids_times_lock = singleton_cartesian_prod tids lock in
-         G.union tids_times_lock acc)
-      locks
-      (G.empty ())
+  let contribute_locks man to_contribute child_tid = man.sideg child_tid to_contribute
 
   (** reflexive-transitive closure of child relation applied to [tid]
+      and filtered to only include threads, where [tid] is a must-ancestor
       @param ask any ask
       @param tid
   *)
-  let descendants_closure (ask : Queries.ask) tid =
-    let transitive_descendants = ask.f @@ Queries.DescendantThreads tid in
-    TIDs.add tid transitive_descendants
-end
+  let unique_descendants_closure (ask : Queries.ask) tid =
+    let descendants = ask.f @@ Queries.DescendantThreads tid in
+    let unique_descendants = TIDs.filter (TID.must_be_ancestor tid) descendants in
+    TIDs.add tid unique_descendants
 
-(** collects for each thread t_n pairs of ancestors and locks (t_0,l):
-    when t_n or an ancestor t_1 of t_n was created, the creating thread t_0 must have held l.
-*)
-module CreationLocksetSpec = struct
-  include AncestorLocksetSpec
-
-  let name () = "creationLockset"
-
-  (** create(t_1) in t_0 with lockset L *)
   let threadspawn man ~multiple lval f args fman =
-    let ask = Analyses.ask_of_man man in
+    let ask = ask_of_man man in
     let tid_lifted = ask.f Queries.CurrentThreadId in
-    let child_ask = Analyses.ask_of_man fman in
+    let child_ask = ask_of_man fman in
     let child_tid_lifted = child_ask.f Queries.CurrentThreadId in
     match tid_lifted, child_tid_lifted with
-    | `Lifted tid, `Lifted child_tid ->
-      let descendants = descendants_closure child_ask child_tid in
+    | `Lifted tid, `Lifted child_tid when TID.must_be_ancestor tid child_tid ->
+      let unique_descendants = unique_descendants_closure child_ask child_tid in
       let lockset = ask.f Queries.MustLockset in
-      let to_contribute = cartesian_prod (TIDs.singleton tid) lockset in
-      TIDs.iter (contribute_lock man to_contribute) descendants
-    | _ -> (* TODO deal with top or bottom? *) ()
+      let to_contribute = G.singleton tid lockset in
+      TIDs.iter (contribute_locks man to_contribute) unique_descendants
+    | _ -> ()
 
-  let query man (type a) (x : a Queries.t) : a Queries.result =
-    match x with
-    | Queries.MayCreationLockset tid -> (man.global tid : G.t)
-    | _ -> Queries.Result.top x
-end
-
-(** collects for each thread t_n pairs of ancestors and locks (t_0,l):
-    l may be unlocked in t_0 while t_n could be running.
-*)
-module TaintedCreationLocksetSpec = struct
-  include AncestorLocksetSpec
-
-  let name () = "taintedCreationLockset"
-
-  (** compute all threads that may run along with the ego thread at a program point
+  (** compute all descendant threads that may run along with the ego thread at a program point
       @param ask ask of ego thread at the program point
   *)
   let get_possibly_running_tids (ask : Queries.ask) =
     let may_created_tids = ask.f Queries.CreatedThreads in
     let may_transitively_created_tids =
       TIDs.fold
-        (fun child_tid acc -> TIDs.union acc (descendants_closure ask child_tid))
+        (fun child_tid acc -> TIDs.union acc (unique_descendants_closure ask child_tid))
         may_created_tids
         (TIDs.empty ())
     in
     let must_joined_tids = ask.f Queries.MustJoinedThreads in
     TIDs.diff may_transitively_created_tids must_joined_tids
 
+  (** handle unlock of mutex [lock] *)
+  let unlock man tid possibly_running_tids lock =
+    let shrink_locksets des_tid =
+      let old_creation_lockset = G.find tid (man.global des_tid) in
+      (* Bot - {something} = Bot. This is exactly what we want in this case! *)
+      let updated_creation_lockset = LIDs.remove lock old_creation_lockset in
+      let to_contribute = G.singleton tid updated_creation_lockset in
+      man.sideg des_tid to_contribute
+    in
+    TIDs.iter shrink_locksets possibly_running_tids
+
+  (** handle unlock of an unknown mutex. Assumes that any mutex could have been unlocked *)
+  let unknown_unlock man tid possibly_running_tids =
+    let evaporate_locksets des_tid =
+      let to_contribute = G.singleton tid (LIDs.empty ()) in
+      man.sideg des_tid to_contribute
+    in
+    TIDs.iter evaporate_locksets possibly_running_tids
+
   let event man e _ =
     match e with
     | Events.Unlock addr ->
-      let ask = Analyses.ask_of_man man in
+      let ask = ask_of_man man in
       let tid_lifted = ask.f Queries.CurrentThreadId in
-      (match tid_lifted with
-       | `Top | `Bot -> ()
-       | `Lifted tid ->
-         let possibly_running_tids = get_possibly_running_tids ask in
-         let lock_opt = LockDomain.MustLock.of_addr addr in
-         (match lock_opt with
-          | Some lock ->
-            (* contribute for all possibly_running_tids: (tid, lock) *)
-            let to_contribute = G.singleton (tid, lock) in
-            TIDs.iter (contribute_lock man to_contribute) possibly_running_tids
-          | None ->
-            (* any lock could have been unlocked. Contribute for all possibly_running_tids all members of their CreationLocksets with the ego thread to invalidate them!! *)
-            let contribute_creation_lockset des_tid =
-              let full_creation_lockset = ask.f @@ Queries.MayCreationLockset des_tid in
-              let filtered_creation_lockset =
-                G.filter (fun (t, _l) -> t = tid) full_creation_lockset
-              in
-              man.sideg des_tid filtered_creation_lockset
-            in
-            TIDs.iter contribute_creation_lockset possibly_running_tids))
+      let lock_opt = LockDomain.MustLock.of_addr addr in
+      let possibly_running_tids = get_possibly_running_tids ask in
+      (match tid_lifted, lock_opt with
+       | `Lifted tid, Some lock -> unlock man tid possibly_running_tids lock
+       | `Lifted tid, None -> unknown_unlock man tid possibly_running_tids
+       | _ -> ())
     | _ -> ()
 
+  let query man (type a) (x : a Queries.t) : a Queries.result =
+    match x with
+    | Queries.MayCreationLockset tid -> (man.global tid : G.t)
+    | _ -> Queries.Result.top x
+  ;;
+
   module A = struct
-    (** ego tid * lockset * inter-threaded lockset *)
+    (** ego tid * must-lockset * creation-lockset *)
     include Printable.Prod3 (TID) (LIDs) (G)
 
-    let name () = "interThreadedLockset"
+    let name () = "creationLockset"
 
-    (** checks if [itls1] has a member ([tp1], [l]) such that [itls2] has a member ([tp2], [l]) with [tp1] != [tp2]
-        @param itls1 inter-threaded lockset of first thread [t1]
-        @param itls2 inter-threaded lockset of second thread [t2]
+    (** checks if [cl1] has a member ([tp1] |-> [ls1]) and [cl2] has a member ([tp2] |-> [ls2])
+        such that [ls1] and [ls2] are not disjoint and [tp1] != [tp2]
+        @param cl1 creation-lockset of first thread [t1]
+        @param cl2 creation-lockset of second thread [t2]
         @returns whether [t1] and [t2] must be running mutually exclusive
     *)
-    let both_protected_inter_threaded itls1 itls2 =
-      let itls2_has_same_lock_other_tid (tp1, l1) =
-        G.exists (fun (tp2, l2) -> LID.equal l1 l2 && (not @@ TID.equal tp1 tp2)) itls2
+    let both_protected_inter_threaded cl1 cl2 =
+      let cl2_has_same_lock_other_tid tp1 ls1 =
+        G.exists (fun tp2 ls2 -> not (LIDs.disjoint ls1 ls2 || TID.equal tp1 tp2)) cl2
       in
-      G.exists itls2_has_same_lock_other_tid itls1
+      G.exists cl2_has_same_lock_other_tid cl1
 
-    (** checks if [itls1] has a member ([tp1], [l1]) such that [l1] is in [ls2] and [tp1] != [t2]
-        @param itls1 inter-threaded lockset of thread [t1] at first program point
+    (** checks if [cl1] has a mapping ([tp1] |-> [ls1])
+        such that [ls1] and [ls2] are not disjoint and [tp1] != [t2]
+        @param cl1 creation-lockset of thread [t1] at first program point
         @param t2 thread id at second program point
         @param ls2 lockset at second program point
         @returns whether [t1] must be running mutually exclusive with second program point
     *)
-    let one_protected_inter_threaded_other_intra_threaded itls1 t2 ls2 =
-      G.exists (fun (tp1, l1) -> LIDs.mem l1 ls2 && (not @@ TID.equal tp1 t2)) itls1
+    let one_protected_inter_threaded_other_intra_threaded cl1 t2 ls2 =
+      G.exists (fun tp1 ls1 -> not (LIDs.disjoint ls1 ls2 || TID.equal tp1 t2)) cl1
 
-    let may_race (t1, ls1, itls1) (t2, ls2, itls2) =
+    let may_race (t1, ls1, cl1) (t2, ls2, cl2) =
       not
-        (both_protected_inter_threaded itls1 itls2
-         || one_protected_inter_threaded_other_intra_threaded itls1 t2 ls2
-         || one_protected_inter_threaded_other_intra_threaded itls2 t1 ls1)
+        (both_protected_inter_threaded cl1 cl2
+         || one_protected_inter_threaded_other_intra_threaded cl1 t2 ls2
+         || one_protected_inter_threaded_other_intra_threaded cl2 t1 ls1)
 
-    let should_print (_t, _ls, itls) = not @@ G.is_empty itls
+    let should_print (_t, _ls, cl) = not @@ G.is_empty cl
   end
 
   let access man _ =
-    let ask = Analyses.ask_of_man man in
+    let ask = ask_of_man man in
     let tid_lifted = ask.f Queries.CurrentThreadId in
     match tid_lifted with
     | `Lifted tid ->
       let lockset = ask.f Queries.MustLockset in
-      let creation_lockset = ask.f @@ Queries.MayCreationLockset tid in
-      let tainted_creation_lockset = man.global tid in
-      (* all values in creation lockset, but not in tainted creation lockset *)
-      let inter_threaded_lockset = G.diff creation_lockset tainted_creation_lockset in
-      tid, lockset, inter_threaded_lockset
+      let creation_lockset = man.global tid in
+      tid, lockset, creation_lockset
     | _ -> ThreadIdDomain.UnknownThread, LIDs.empty (), G.empty ()
 end
 
 let _ =
   MCP.register_analysis
-    ~dep:[ "threadid"; "mutex"; "race"; "transitiveDescendants" ]
-    (module CreationLocksetSpec : MCPSpec)
-
-let _ =
-  MCP.register_analysis
-    ~dep:
-      [ "threadid"
-      ; "mutex"
-      ; "threadJoins"
-      ; "race"
-      ; "transitiveDescendants"
-      ; "creationLockset"
-      ]
-    (module TaintedCreationLocksetSpec : MCPSpec)
+    ~dep:[ "threadid"; "mutex"; "race"; "threadJoins"; "transitiveDescendants" ]
+    (module Spec : MCPSpec)
