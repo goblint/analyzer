@@ -17,7 +17,7 @@ let intmax_t = lazy (
 )
 
 let stripOuterBoolCast = function
-  | CastE (TInt (IBool, _), e) -> e
+  | CastE (_, TInt (IBool, _), e) -> e (* TODO: keep explicit cast? *)
   | Const (CInt (b, IBool, s)) -> Const (CInt (b, IInt, s))
   | e -> e
 

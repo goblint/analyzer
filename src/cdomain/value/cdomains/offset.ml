@@ -23,7 +23,7 @@ struct
     let name () = "exp index"
 
     let any = Cilfacade.any_index_exp
-    let all = lazy (CastE (TInt (Cilfacade.ptrdiff_ikind (), []), mkString "all_index"))
+    let all = lazy (CastE (Internal, TInt (Cilfacade.ptrdiff_ikind (), []), mkString "all_index"))
 
     (* Override output *)
     let pretty () x =

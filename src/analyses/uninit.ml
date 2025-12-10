@@ -65,7 +65,7 @@ struct
     | AddrOf lval -> access_lv_byval a lval
     | StartOf lval -> access_lv_byval a lval
     (* Most casts are currently just ignored, that's probably not a good idea! *)
-    | CastE  (t, exp) -> access_one_byval a rw exp
+    | CastE  (_, t, exp) -> access_one_byval a rw exp
     | Question (b, t, f, _) ->
       access_one_byval a rw b @ access_one_byval a rw t @ access_one_byval a rw f
   (* Accesses during the evaluation of an lval, not the lval itself! *)
