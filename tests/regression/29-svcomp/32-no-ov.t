@@ -4,7 +4,7 @@
   [Warning][Integer > Overflow][CWE-190] Unsigned integer overflow in << (32-no-ov.c:5:6-5:159)
   [Warning][Integer > Overflow][CWE-190] Unsigned integer overflow in << (32-no-ov.c:5:6-5:159)
   [Warning][Integer > Overflow][CWE-191] Unsigned integer underflow in - (32-no-ov.c:5:6-5:159)
-  [Warning][Integer > Overflow][CWE-190] Signed integer overflow in unknown cast (32-no-ov.c:5:6-5:159)
+  [Warning][Integer > Overflow][CWE-190] Signed integer overflow in cast (32-no-ov.c:5:6-5:159)
   [Info][Deadcode] Logical lines of code (LLoC) summary:
     live: 3
     dead: 0

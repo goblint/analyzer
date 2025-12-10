@@ -922,12 +922,12 @@ struct
         let array_start = add_offset_varinfo array_ofs in
         Address (AD.map array_start (eval_lv ~man st lval))
       | CastE (_, t, Const (CStr (x,e))) -> (* VD.top () *) eval_rv ~man st (Const (CStr (x,e))) (* TODO safe? *)
-      | CastE (_, t, exp) ->
+      | CastE (kind, t, exp) ->
         (let v = eval_rv ~man st exp in
          try
-           VD.cast ~kind:Unknown ~torg:(Cilfacade.typeOf exp) t v (* TODO: proper castkind *)
+           VD.cast ~kind ~torg:(Cilfacade.typeOf exp) t v
          with Cilfacade.TypeOfError _  ->
-           VD.cast ~kind:Unknown t v) (* TODO: proper castkind *)
+           VD.cast ~kind t v)
       | SizeOf _
       | Real _
       | Imag _
