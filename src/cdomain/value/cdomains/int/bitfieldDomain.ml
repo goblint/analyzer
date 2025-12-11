@@ -636,7 +636,7 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): Bitfield_SOverflow with type in
           Invariant.none
         else (
           let def0 = kintegerCilint ik (Ints_t.to_bigint def0) in
-          Invariant.of_exp (BinOp (Eq, (BinOp (BAnd, UnOp (BNot, e, ik_type), def0, ik_type)), def0, intType))
+          Invariant.of_exp (BinOp (Eq, (BinOp (BAnd, e, def0, ik_type)), kintegerCilint ik Z.zero, intType))
         )
       in
       let i2 =
