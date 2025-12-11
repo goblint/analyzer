@@ -31,8 +31,7 @@
           line: 12
           column: 5
           function: main
-        value: (51 <= i && i <= 99) && ((~ i & (-0x7FFFFFFF-1)) == (-0x7FFFFFFF-1) &&
-          (i & 0) == 0)
+        value: (51 <= i && i <= 99) && (~ i & (-0x7FFFFFFF-1)) == (-0x7FFFFFFF-1)
         format: c_expression
     - invariant:
         type: location_invariant
