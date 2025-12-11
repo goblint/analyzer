@@ -26,21 +26,15 @@ module Spec = struct
     | _ -> Queries.Result.top x
 
   let threadspawn man ~multiple lval f args fman =
-    let ask = Analyses.ask_of_man man in
+    let ask = ask_of_man man in
     let tid_lifted = ask.f Queries.CurrentThreadId in
-    match tid_lifted with
-    | `Top | `Bot -> ()
-    | `Lifted tid ->
-      let child_ask = Analyses.ask_of_man fman in
-      let child_tid_lifted = child_ask.f Queries.CurrentThreadId in
-      (match child_tid_lifted with
-       | `Top | `Bot -> ()
-       | `Lifted child_tid ->
-         (* contribute new child *)
-         let _ = man.sideg tid (G.singleton child_tid) in
-         (* transitive closure *)
-         let child_descendants = man.global child_tid in
-         man.sideg tid child_descendants)
+    let child_ask = ask_of_man fman in
+    let child_tid_lifted = child_ask.f Queries.CurrentThreadId in
+    match tid_lifted, child_tid_lifted with
+    | `Lifted tid, `Lifted child_tid ->
+      let to_contribute = G.add child_tid (man.global child_tid) in
+      man.sideg tid to_contribute
+    | _ -> ()
 end
 
 let _ = MCP.register_analysis ~dep:[ "threadid" ] (module Spec : MCPSpec)
