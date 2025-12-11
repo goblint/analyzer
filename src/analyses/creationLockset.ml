@@ -1,4 +1,9 @@
-(** creation-lockset analysis. See https://github.com/goblint/analyzer/pull/1865 *)
+(** creation lockset analysis [creationLockset]
+    constructs edges on the graph over all threads, where the edges are labelled with must-locksets:
+    (t_1) ---L--> (t_0) is represented by global t_1 t_0 = L and means that t_1 is protected by all members of L from t_0
+
+    @see https://github.com/goblint/analyzer/pull/1865
+*)
 
 open Analyses
 module TID = ThreadIdDomain.Thread
@@ -6,9 +11,6 @@ module TIDs = ConcDomain.ThreadSet
 module LID = LockDomain.MustLock
 module LIDs = LockDomain.MustLockset
 
-(** constructs edges on the graph over all threads, where the edges are labelled with must-locksets:
-    t_1 --ls-> t_0 means that t_1 is protected by all members of ls from t_0
-*)
 module Spec = struct
   include IdentityUnitContextsSpec
   module D = Lattice.Unit
