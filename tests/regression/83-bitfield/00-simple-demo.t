@@ -164,7 +164,7 @@
           line: 28
           column: 3
           function: main
-        value: (~ state & -11) == -11
+        value: (state & -11) == 0
         format: c_expression
     - invariant:
         type: location_invariant
@@ -200,7 +200,7 @@
           line: 29
           column: 1
           function: main
-        value: (~ state & -11) == -11
+        value: (state & -11) == 0
         format: c_expression
     - invariant:
         type: location_invariant

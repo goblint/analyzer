@@ -178,7 +178,7 @@ bitfield only:
           line: 5
           column: 3
           function: main
-        value: (~ x & (_Bool)1) == (_Bool)1
+        value: (x & (_Bool)1) == (_Bool)0
         format: c_expression
     - invariant:
         type: location_invariant
