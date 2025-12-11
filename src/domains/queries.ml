@@ -77,7 +77,6 @@ type invariant_context = Invariant.context = {
 
 module YS = SetDomain.ToppedSet (YamlWitnessType.Entry) (struct let topname = "Top" end)
 
-module ALS = MapDomain.MapBot (ThreadIdDomain.Thread) (LockDomain.MustLockset)
 
 (** GADT for queries with specific result type. *)
 type _ t =

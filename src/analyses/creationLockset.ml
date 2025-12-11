@@ -18,8 +18,7 @@ module Spec = struct
     include StdV
   end
 
-  (** [TID] -> [LIDs] *)
-  module G = Queries.ALS
+  module G = MapDomain.MapBot (TID) (LIDs)
 
   let name () = "creationLockset"
   let startstate _ = D.bot ()
