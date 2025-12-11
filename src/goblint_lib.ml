@@ -120,7 +120,7 @@ module ThreadAnalysis = ThreadAnalysis
 module ThreadJoins = ThreadJoins
 module MHPAnalysis = MHPAnalysis
 module ThreadReturn = ThreadReturn
-module TransitiveDescendants = TransitiveDescendants
+module ThreadDescendants = ThreadDescendants
 
 (** {3 Other} *)
 

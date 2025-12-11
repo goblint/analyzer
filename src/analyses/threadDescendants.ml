@@ -1,8 +1,11 @@
+(** thread descendants analysis [threadDescendants]
+    flow-insensitive construction of descendants may-set for every thread
+*)
+
 open Analyses
 module TID = ThreadIdDomain.Thread
 
-(** flow-insensitive analysis mapping threads to may-sets of descendants *)
-module TransitiveDescendants = struct
+module Spec = struct
   include IdentityUnitContextsSpec
   module D = Lattice.Unit
 
@@ -13,7 +16,7 @@ module TransitiveDescendants = struct
 
   module G = ConcDomain.ThreadSet
 
-  let name () = "transitiveDescendants"
+  let name () = "threadDescendants"
   let startstate _ = D.bot ()
   let exitstate _ = D.bot ()
 
@@ -40,4 +43,4 @@ module TransitiveDescendants = struct
          man.sideg tid child_descendants)
 end
 
-let _ = MCP.register_analysis ~dep:[ "threadid" ] (module TransitiveDescendants : MCPSpec)
+let _ = MCP.register_analysis ~dep:[ "threadid" ] (module Spec : MCPSpec)
