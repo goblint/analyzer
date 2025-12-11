@@ -11,49 +11,13 @@
   [Warning][Deadcode][CWE-571] condition '1' (possibly inserted by CIL) is always true (15-svcomp-sum03-2.c:10:9-10:10)
   [Info][Witness] witness generation summary:
     location invariants: 0
-    loop invariants: 8
+    loop invariants: 4
     flow-insensitive invariants: 0
     total generation entries: 1
 
   $ yamlWitnessStrip < witness.yml
   - entry_type: invariant_set
     content:
-    - invariant:
-        type: loop_invariant
-        location:
-          file_name: 15-svcomp-sum03-2.c
-          line: 10
-          column: 3
-          function: main
-        value: (loop1 & 0U) == 0U
-        format: c_expression
-    - invariant:
-        type: loop_invariant
-        location:
-          file_name: 15-svcomp-sum03-2.c
-          line: 10
-          column: 3
-          function: main
-        value: (n1 & 0U) == 0U
-        format: c_expression
-    - invariant:
-        type: loop_invariant
-        location:
-          file_name: 15-svcomp-sum03-2.c
-          line: 10
-          column: 3
-          function: main
-        value: (sn & 0U) == 0U
-        format: c_expression
-    - invariant:
-        type: loop_invariant
-        location:
-          file_name: 15-svcomp-sum03-2.c
-          line: 10
-          column: 3
-          function: main
-        value: (x & 0U) == 0U
-        format: c_expression
     - invariant:
         type: loop_invariant
         location:

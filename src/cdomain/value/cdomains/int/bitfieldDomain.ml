@@ -624,19 +624,32 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): Bitfield_SOverflow with type in
 
   (* Invariant *)
 
-  let invariant_ikind e ik (z,o) =
-    if z =: BArith.one_mask && o =: BArith.one_mask then
-      Invariant.top ()
-    else if  BArith.is_invalid (z,o) then
-      Invariant.none
-    else
+  let invariant_ikind e ik (z, o) =
+    if BArith.is_invalid (z, o) then
+      Invariant.none (* TODO: should this ever even happen? *)
+    else (
       let open GoblintCil.Cil in
-      let def0 = z &: (!: o) in
-      let def1 = o &: (!: z) in
-      let (def0, def1) = BatTuple.Tuple2.mapn (kintegerCilint ik) (Ints_t.to_bigint def0, Ints_t.to_bigint def1) in
-      let exp0 = Invariant.of_exp (BinOp (Eq, (BinOp (BAnd, (UnOp (BNot, e, TInt(ik,[]))), def0, TInt(ik,[]))), def0, intType)) in
-      let exp1 = Invariant.of_exp (BinOp (Eq, (BinOp (BAnd, e, def1, TInt(ik,[]))), def1, intType)) in
-      Invariant.meet exp0 exp1
+      let ik_type = TInt (ik, []) in
+      let i1 =
+        let def0 = z &: (!: o) in
+        if def0 =: BArith.zero_mask then
+          Invariant.none
+        else (
+          let def0 = kintegerCilint ik (Ints_t.to_bigint def0) in
+          Invariant.of_exp (BinOp (Eq, (BinOp (BAnd, UnOp (BNot, e, ik_type), def0, ik_type)), def0, intType))
+        )
+      in
+      let i2 =
+        let def1 = o &: (!: z) in
+        if def1 =: BArith.zero_mask then
+          Invariant.none
+        else (
+          let def1 = kintegerCilint ik (Ints_t.to_bigint def1) in
+          Invariant.of_exp (BinOp (Eq, (BinOp (BAnd, e, def1, ik_type)), def1, intType))
+        )
+      in
+      Invariant.(i1 && i2)
+    )
 
   let starting ik n =
     let (min_ik, max_ik) = Size.range ik in
