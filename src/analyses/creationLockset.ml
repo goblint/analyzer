@@ -98,10 +98,10 @@ module Spec = struct
     | Events.Unlock addr ->
       let ask = ask_of_man man in
       let tid_lifted = ask.f Queries.CurrentThreadId in
-      let lock_opt = LockDomain.MustLock.of_addr addr in
       (match tid_lifted with
        | `Lifted tid ->
          let possibly_running_tids = get_unique_running_descendants tid ask in
+         let lock_opt = LockDomain.MustLock.of_addr addr in
          (match lock_opt with
           | Some lock -> unlock man tid possibly_running_tids lock
           | None -> unknown_unlock man tid possibly_running_tids)
