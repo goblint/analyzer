@@ -73,13 +73,13 @@ let should_ignore_overflow ik = Cil.isSigned ik && get_string "sem.int.signed_ov
 type overflow_info = IntDomain_intf.overflow_info = { overflow: bool; underflow: bool;}
 type overflow_op = [`Binop of binop | `Unop of unop | `Cast | `Internal]
 
-let set_overflow_flag ~(op:overflow_op) ~underflow ~overflow ik =
+let add_overflow_check ~(op:overflow_op) ~underflow ~overflow ik =
   if !AnalysisState.executing_speculative_computations then
     (* Do not produce warnings when the operations are not actually happening in code *)
     ()
   else
     let signed = Cil.isSigned ik in
-    if !AnalysisState.postsolving && signed && op <> `Cast then
+    if !AnalysisState.postsolving && signed && op <> `Cast && (underflow || overflow) then
       AnalysisState.svcomp_may_overflow := true;
     let sign = if signed then "Signed" else "Unsigned" in
     let op =
@@ -99,7 +99,10 @@ let set_overflow_flag ~(op:overflow_op) ~underflow ~overflow ik =
     | false, true ->
       M.warn ~category:M.Category.Integer.overflow ~tags:[CWE 190] "%s integer overflow in %s" sign op;
       Checks.warn Checks.Category.IntegerOverflow "%s integer overflow in %s" sign op
-    | false, false -> assert false
+    | false, false ->
+      let sign = if signed then "signed" else "unsigned" in (* lowercase constants *)
+      Checks.safe_msg Checks.Category.IntegerOverflow "No %s integer overflow or underflow in %s" sign op
+
 
 let reset_lazy () =
   ana_int_config.interval_threshold_widening <- None;

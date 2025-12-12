@@ -73,24 +73,9 @@ module IntDomTupleImpl = struct
     let {underflow=underflow_bf; overflow=overflow_bf} = get_overflow bf in
     let underflow = underflow_intv && underflow_intv_set && underflow_bf in
     let overflow = overflow_intv && overflow_intv_set && overflow_bf in
-    let no_ov = not (underflow || overflow) in
-    if not suppress_ovwarn && (active_overflow intv || active_overflow intv_set || active_overflow bf) then (
-      if not no_ov then (
-        set_overflow_flag ~op ~underflow ~overflow ik;
-      ) else if not !AnalysisState.executing_speculative_computations then (
-        (* TODO: deduplicate with set_overflow_flag *)
-        let sign = if Cil.isSigned ik then "signed" else "unsigned" in
-        let op =
-          match op with
-          | `Binop bop -> CilType.Binop.show bop
-          | `Unop uop -> CilType.Unop.show uop
-          | `Cast -> "cast"
-          | `Internal -> "internal operation"
-        in
-        Checks.safe_msg Checks.Category.IntegerOverflow "No %s integer overflow or underflow in %s" sign op
-      )
-    );
-    no_ov
+    if not suppress_ovwarn && (active_overflow intv || active_overflow intv_set || active_overflow bf) then
+      add_overflow_check ~op ~underflow ~overflow ik;
+    not (underflow || overflow)
 
   let create2_ovc ?(suppress_ovwarn = false) ik r x ((p1, p2, p3, p4, p5, p6): int_precision) =
     let f b g = if b then Some (g x) else None in
