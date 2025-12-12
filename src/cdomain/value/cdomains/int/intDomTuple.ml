@@ -66,13 +66,17 @@ module IntDomTupleImpl = struct
 
   let check_ov ?(suppress_ovwarn = false) ~cast ik intv intv_set bf =
     let no_ov = (no_overflow ik intv) || (no_overflow ik intv_set) || (no_overflow ik bf) in
-    if not no_ov && not suppress_ovwarn && ( BatOption.is_some intv || BatOption.is_some intv_set || BatOption.is_some bf) then (
-      let (_,{underflow=underflow_intv; overflow=overflow_intv}) = match intv with None -> (I2.bot (), {underflow= true; overflow = true}) | Some x -> x in
-      let (_,{underflow=underflow_intv_set; overflow=overflow_intv_set}) = match intv_set with None -> (I5.bot (), {underflow= true; overflow = true}) | Some x -> x in
-      let (_,{underflow=underflow_bf; overflow=overflow_bf}) = match bf with None -> (I6.bot (), {underflow= true; overflow = true}) | Some x -> x in
-      let underflow = underflow_intv && underflow_intv_set && underflow_bf in
-      let overflow = overflow_intv && overflow_intv_set && overflow_bf in
-      set_overflow_flag ~cast ~underflow ~overflow ik;
+    if not suppress_ovwarn && (BatOption.is_some intv || BatOption.is_some intv_set || BatOption.is_some bf) then (
+      if not no_ov then (
+        let (_,{underflow=underflow_intv; overflow=overflow_intv}) = match intv with None -> (I2.bot (), {underflow= true; overflow = true}) | Some x -> x in
+        let (_,{underflow=underflow_intv_set; overflow=overflow_intv_set}) = match intv_set with None -> (I5.bot (), {underflow= true; overflow = true}) | Some x -> x in
+        let (_,{underflow=underflow_bf; overflow=overflow_bf}) = match bf with None -> (I6.bot (), {underflow= true; overflow = true}) | Some x -> x in
+        let underflow = underflow_intv && underflow_intv_set && underflow_bf in
+        let overflow = overflow_intv && overflow_intv_set && overflow_bf in
+        set_overflow_flag ~cast ~underflow ~overflow ik;
+      ) else if not !AnalysisState.executing_speculative_computations then (
+        Checks.safe_msg Checks.Category.IntegerOverflow "Cast: %B" cast
+      )
     );
     no_ov
 
