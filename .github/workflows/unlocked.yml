@@ -14,36 +14,71 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # These are the common values.
         # We don't want a full matrix because it is too slow, so we only have linear axes overriding these below.
-        os:
-          - ubuntu-24.04
-        ocaml-compiler:
-          - ocaml-variants.4.14.2+options,ocaml-option-flambda # matches opam lock file
-        apron:
-          - true
-        z3:
-          - false
-
         include:
+          # Common configuration
+          - os: ubuntu-24.04
+            ocaml-compiler: ocaml-variants.4.14.2+options,ocaml-option-flambda # matches opam lock file
+            apron: true
+            z3: false
+
           # OCaml versions
-          - ocaml-compiler: 5.4.x
-          - ocaml-compiler: 5.3.x
-          - ocaml-compiler: 5.2.x
-          - ocaml-compiler: 5.1.x
-          - ocaml-compiler: 5.0.x
-          - ocaml-compiler: 4.14.x
+          - os: ubuntu-24.04
+            ocaml-compiler: 5.4.x
+            apron: true
+            z3: false
+          - os: ubuntu-24.04
+            ocaml-compiler: 5.3.x
+            apron: true
+            z3: false
+          - os: ubuntu-24.04
+            ocaml-compiler: 5.2.x
+            apron: true
+            z3: false
+          - os: ubuntu-24.04
+            ocaml-compiler: 5.1.x
+            apron: true
+            z3: false
+          - os: ubuntu-24.04
+            ocaml-compiler: 5.0.x
+            apron: true
+            z3: false
+          - os: ubuntu-24.04
+            ocaml-compiler: 4.14.x
+            apron: true
+            z3: false
 
           # OS-s
           - os: ubuntu-22.04
+            ocaml-compiler: ocaml-variants.4.14.2+options,ocaml-option-flambda # matches opam lock file
+            apron: true
+            z3: false
           - os: macos-26
+            ocaml-compiler: ocaml-variants.4.14.2+options,ocaml-option-flambda # matches opam lock file
+            apron: true
+            z3: false
           - os: macos-15-intel
+            ocaml-compiler: ocaml-variants.4.14.2+options,ocaml-option-flambda # matches opam lock file
+            apron: true
+            z3: false
           - os: macos-15
+            ocaml-compiler: ocaml-variants.4.14.2+options,ocaml-option-flambda # matches opam lock file
+            apron: true
+            z3: false
           - os: macos-14
+            ocaml-compiler: ocaml-variants.4.14.2+options,ocaml-option-flambda # matches opam lock file
+            apron: true
+            z3: false
 
           # Optional dependencies
-          - apron: false
-          - z3: true
+          - os: ubuntu-24.04
+            ocaml-compiler: ocaml-variants.4.14.2+options,ocaml-option-flambda # matches opam lock file
+            apron: false
+            z3: false
+          - os: ubuntu-24.04
+            ocaml-compiler: ocaml-variants.4.14.2+options,ocaml-option-flambda # matches opam lock file
+            apron: true
+            z3: true
 
     # customize name to use readable string for apron instead of just a boolean
     # workaround for missing ternary operator: https://github.com/actions/runner/issues/409
