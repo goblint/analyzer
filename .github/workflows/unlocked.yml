@@ -16,7 +16,7 @@ jobs:
       matrix:
         os:
           - ubuntu-22.04 # https://github.com/ocaml/setup-ocaml/issues/872
-          - macos-13
+          - macos-latest
         ocaml-compiler:
           - 5.2.x
           - 5.1.x
@@ -87,7 +87,7 @@ jobs:
       matrix:
         os:
           - ubuntu-22.04 # https://github.com/ocaml/setup-ocaml/issues/872
-          - macos-13
+          - macos-latest
         ocaml-compiler:
           - ocaml-variants.4.14.2+options,ocaml-option-flambda # matches opam lock file
 
@@ -139,7 +139,7 @@ jobs:
       matrix:
         os:
           - ubuntu-22.04 # https://github.com/ocaml/setup-ocaml/issues/872
-          - macos-13
+          - macos-latest
         ocaml-compiler:
           - ocaml-variants.4.14.2+options,ocaml-option-flambda # matches opam lock file
 
