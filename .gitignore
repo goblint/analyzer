@@ -91,6 +91,9 @@ gobview_out/*
 witness.yml
 witness.certificate.yml
 
+# checks
+checks.json
+
 # transformations
 transformed.c
 
