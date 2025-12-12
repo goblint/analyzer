@@ -107,7 +107,7 @@ jobs:
 
       - name: Install Apron dependencies
         if: ${{ matrix.apron }}
-        run: opam install apron mlgmpidl.1.2.15
+        run: opam install apron mlgmpidl
 
       - name: Install Z3 dependencies
         if: ${{ matrix.z3 }}
@@ -159,7 +159,7 @@ jobs:
         run: sudo gem install os
 
       - name: Install Apron dependencies
-        run: opam install apron mlgmpidl.1.2.15
+        run: opam install apron mlgmpidl
 
       - name: Downgrade dependencies
         # without "+removed" in criteria, because it also removes optional apron
@@ -206,7 +206,7 @@ jobs:
         run: opam install goblint --with-test
 
       - name: Install Apron dependencies
-        run: opam install apron mlgmpidl.1.2.15
+        run: opam install apron mlgmpidl
 
       - name: Symlink installed goblint to repository # because tests want to use locally built one
         run: ln -s $(opam exec -- which goblint) goblint
