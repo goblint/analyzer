@@ -167,15 +167,6 @@ let error category = check Kind.Error category
 
 let warn category = check Kind.Warning category
 
-let safe category =
-  match !Node0.current_node with
-  | Some (Statement _) ->
-    check Kind.Safe category ""
-  | _ -> ()
+let safe category = check Kind.Safe category ""
 
-let safe_msg category =
-  match !Node0.current_node with
-  | Some (Statement _) ->
-    check Kind.Safe category
-  | _ ->
-    GobPretty.igprintf ()
+let safe_msg category = check Kind.Safe category
