@@ -60,19 +60,22 @@ module IntDomTupleImpl = struct
   let create2 r x = (* use where values are introduced *)
     create2 r x (int_precision_from_node_or_config ())
 
-  let no_overflow ik = function
-    | Some(_, {underflow; overflow}) -> not (underflow || overflow)
-    | _ -> false
+
+  let overflow_true = {underflow=true; overflow=true}
+  let get_overflow = function
+    | Some (_, overflow) -> overflow
+    | None -> overflow_true
+  let active_overflow = Option.is_some
 
   let check_ov ?(suppress_ovwarn = false) ~op ik intv intv_set bf =
-    let no_ov = (no_overflow ik intv) || (no_overflow ik intv_set) || (no_overflow ik bf) in
-    if not suppress_ovwarn && (BatOption.is_some intv || BatOption.is_some intv_set || BatOption.is_some bf) then (
+    let {underflow=underflow_intv; overflow=overflow_intv} = get_overflow intv in
+    let {underflow=underflow_intv_set; overflow=overflow_intv_set} = get_overflow intv_set in
+    let {underflow=underflow_bf; overflow=overflow_bf} = get_overflow bf in
+    let underflow = underflow_intv && underflow_intv_set && underflow_bf in
+    let overflow = overflow_intv && overflow_intv_set && overflow_bf in
+    let no_ov = not (underflow || overflow) in
+    if not suppress_ovwarn && (active_overflow intv || active_overflow intv_set || active_overflow bf) then (
       if not no_ov then (
-        let (_,{underflow=underflow_intv; overflow=overflow_intv}) = match intv with None -> (I2.bot (), {underflow= true; overflow = true}) | Some x -> x in
-        let (_,{underflow=underflow_intv_set; overflow=overflow_intv_set}) = match intv_set with None -> (I5.bot (), {underflow= true; overflow = true}) | Some x -> x in
-        let (_,{underflow=underflow_bf; overflow=overflow_bf}) = match bf with None -> (I6.bot (), {underflow= true; overflow = true}) | Some x -> x in
-        let underflow = underflow_intv && underflow_intv_set && underflow_bf in
-        let overflow = overflow_intv && overflow_intv_set && overflow_bf in
         set_overflow_flag ~op ~underflow ~overflow ik;
       ) else if not !AnalysisState.executing_speculative_computations then (
         (* TODO: deduplicate with set_overflow_flag *)
