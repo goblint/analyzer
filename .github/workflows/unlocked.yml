@@ -14,27 +14,36 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
+        # These are the common values.
+        # We don't want a full matrix because it is too slow, so we only have linear axes overriding these below.
         os:
-          - ubuntu-latest
-          - macos-latest
+          - ubuntu-24.04
         ocaml-compiler:
-          - 5.2.x
-          - 5.1.x
-          - 5.0.x
-          - ocaml-variants.4.14.2+options,ocaml-option-flambda
-          - 4.14.x
+          - ocaml-variants.4.14.2+options,ocaml-option-flambda # matches opam lock file
         apron:
-          - false
           - true
         z3:
           - false
 
         include:
-          - os: ubuntu-latest
-            ocaml-compiler: 4.14.x
-            z3: true
-          - os: macos-latest
-            ocaml-compiler: 4.14.x
+          # OCaml versions
+          - ocaml-compiler: 5.4.x
+          - ocaml-compiler: 5.3.x
+          - ocaml-compiler: 5.2.x
+          - ocaml-compiler: 5.1.x
+          - ocaml-compiler: 5.0.x
+          - ocaml-compiler: 4.14.x
+
+          # OS-s
+          - os: ubuntu-22.04
+          - os: macos-26
+          - os: macos-15-intel
+          - os: macos-15
+          - os: macos-14
+
+          # Optional dependencies
+          - apron: false
+          - z3: true
 
     # customize name to use readable string for apron instead of just a boolean
     # workaround for missing ternary operator: https://github.com/actions/runner/issues/409
