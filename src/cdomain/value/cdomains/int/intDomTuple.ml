@@ -96,7 +96,7 @@ module IntDomTupleImpl = struct
     let intv_set = f p5 @@ r.fi2_ovc (module I5) in
     let bf = f p6 @@ r.fi2_ovc (module I6) in
     ignore (check_ov ~suppress_ovwarn ~op:`Internal ik intv intv_set bf);
-    map @@ f p1 @@ r.fi2_ovc (module I1), map @@ f p2 @@ r.fi2_ovc (module I2), map @@ f p3 @@ r.fi2_ovc (module I3), map @@ f p4 @@ r.fi2_ovc (module I4), map @@ f p5 @@ r.fi2_ovc (module I5) , map @@ f p6 @@ r.fi2_ovc (module I6)
+    map @@ f p1 @@ r.fi2_ovc (module I1), map intv, map @@ f p3 @@ r.fi2_ovc (module I3), map @@ f p4 @@ r.fi2_ovc (module I4), map intv_set, map bf
 
   let create2_ovc ?(suppress_ovwarn = false) ik r x = (* use where values are introduced *)
     create2_ovc ~suppress_ovwarn ik r x (int_precision_from_node_or_config ())
