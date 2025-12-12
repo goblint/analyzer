@@ -202,19 +202,25 @@ struct
       fun x y ->
         (match ID.equal_to Z.zero y with
          | `Eq ->
-           M.error ~category:M.Category.Integer.div_by_zero ~tags:[CWE 369] "Second argument of division is zero"
+           M.error ~category:M.Category.Integer.div_by_zero ~tags:[CWE 369] "Second argument of division is zero";
+           Checks.error Checks.Category.DivisionByZero "Second argument of division is zero"
          | `Top ->
-           M.warn ~category:M.Category.Integer.div_by_zero ~tags:[CWE 369] "Second argument of division might be zero"
-         | `Neq -> ());
+           M.warn ~category:M.Category.Integer.div_by_zero ~tags:[CWE 369] "Second argument of division might be zero";
+           Checks.warn Checks.Category.DivisionByZero "Second argument of division might be zero"
+         | `Neq ->
+           Checks.safe Checks.Category.DivisionByZero);
         ID.div x y
     | Mod ->
       fun x y ->
         (match ID.equal_to Z.zero y with
          | `Eq ->
-           M.error ~category:M.Category.Integer.div_by_zero ~tags:[CWE 369] "Second argument of modulo is zero"
+           M.error ~category:M.Category.Integer.div_by_zero ~tags:[CWE 369] "Second argument of modulo is zero";
+           Checks.error Checks.Category.DivisionByZero "Second argument of modulo is zero"
          | `Top ->
-           M.warn ~category:M.Category.Integer.div_by_zero ~tags:[CWE 369] "Second argument of modulo might be zero"
-         | `Neq -> ());
+           M.warn ~category:M.Category.Integer.div_by_zero ~tags:[CWE 369] "Second argument of modulo might be zero";
+           Checks.warn Checks.Category.DivisionByZero "Second argument of modulo might be zero"
+         | `Neq ->
+           Checks.safe Checks.Category.DivisionByZero);
         ID.rem x y
     | Lt -> ID.lt
     | Gt -> ID.gt
@@ -1092,11 +1098,15 @@ struct
           (
             if AD.is_null adr then (
               AnalysisStateUtil.set_mem_safety_flag InvalidDeref;
-              M.error ~category:M.Category.Behavior.Undefined.nullpointer_dereference ~tags:[CWE 476] "Must dereference NULL pointer"
+              M.error ~category:M.Category.Behavior.Undefined.nullpointer_dereference ~tags:[CWE 476] "Must dereference NULL pointer";
+              Checks.error Checks.Category.InvalidMemoryAccess "Must dereference NULL pointer"
             )
             else if AD.may_be_null adr then (
               AnalysisStateUtil.set_mem_safety_flag InvalidDeref;
-              M.warn ~category:M.Category.Behavior.Undefined.nullpointer_dereference ~tags:[CWE 476] "May dereference NULL pointer"
+              M.warn ~category:M.Category.Behavior.Undefined.nullpointer_dereference ~tags:[CWE 476] "May dereference NULL pointer";
+              Checks.warn Checks.Category.InvalidMemoryAccess "May dereference NULL pointer"
+            ) else (
+              Checks.safe Checks.Category.InvalidMemoryAccess
             );
             (* Warn if any of the addresses contains a non-local and non-global variable *)
             if AD.exists (function
@@ -1104,7 +1114,8 @@ struct
                 | _ -> false
               ) adr then (
               AnalysisStateUtil.set_mem_safety_flag InvalidDeref;
-              M.warn "lval %a points to a non-local variable. Invalid pointer dereference may occur" d_lval lval
+              M.warn "lval %a points to a non-local variable. Invalid pointer dereference may occur" d_lval lval;
+              Checks.warn Checks.Category.InvalidMemoryAccess "lval %a points to a non-local variable. Invalid pointer dereference may occur" d_lval lval
             )
           );
           AD.map (add_offset_varinfo (convert_offset ~man st ofs)) adr
@@ -1176,10 +1187,11 @@ struct
   let eval_funvar man fval: Queries.AD.t =
     let fp = eval_fv ~man man.local fval in
     if AD.is_top fp then (
-      if AD.cardinal fp = 1 then
-        M.warn ~category:Imprecise ~tags:[Category Call] "Unknown call to function %a." d_exp fval
-      else
-        M.warn ~category:Imprecise ~tags:[Category Call] "Function pointer %a may contain unknown functions." d_exp fval
+      if AD.cardinal fp = 1 then (
+        M.warn ~category:Imprecise ~tags:[Category Call] "Unknown call to function %a." d_exp fval;
+      ) else (
+        M.warn ~category:Imprecise ~tags:[Category Call] "Function pointer %a may contain unknown functions." d_exp fval;
+      )
     );
     fp
 
@@ -2223,7 +2235,9 @@ struct
     end
 
   let special_unknown_invalidate man f args =
-    (if CilType.Varinfo.equal f dummyFunDec.svar then M.warn ~category:Imprecise ~tags:[Category Call] "Unknown function ptr called");
+    (if CilType.Varinfo.equal f dummyFunDec.svar then (
+        M.warn ~category:Imprecise ~tags:[Category Call] "Unknown function ptr called";
+      ));
     let desc = LF.find f in
     let shallow_addrs = LibraryDesc.Accesses.find desc.accs { kind = Write; deep = false } args in
     let deep_addrs = LibraryDesc.Accesses.find desc.accs { kind = Write; deep = true } args in
@@ -2259,17 +2273,23 @@ struct
     | Address a ->
       if AD.is_top a then (
         AnalysisStateUtil.set_mem_safety_flag InvalidFree;
-        M.warn ~category:(Behavior (Undefined InvalidMemoryDeallocation)) ~tags:[CWE 590] "Points-to set for pointer %a in function %s is top. Potentially invalid memory deallocation may occur" d_exp ptr special_fn.vname
+        M.warn ~category:(Behavior (Undefined InvalidMemoryDeallocation)) ~tags:[CWE 590] "Points-to set for pointer %a in function %s is top. Potentially invalid memory deallocation may occur" d_exp ptr special_fn.vname;
+        Checks.warn Checks.Category.InvalidMemoryAccess "Points-to set for pointer %a in function %s is top. Potentially invalid memory deallocation may occur" d_exp ptr special_fn.vname
       ) else if has_non_heap_var a then (
         AnalysisStateUtil.set_mem_safety_flag InvalidFree;
-        M.warn ~category:(Behavior (Undefined InvalidMemoryDeallocation)) ~tags:[CWE 590] "Free of non-dynamically allocated memory in function %s for pointer %a" special_fn.vname d_exp ptr
+        M.warn ~category:(Behavior (Undefined InvalidMemoryDeallocation)) ~tags:[CWE 590] "Free of non-dynamically allocated memory in function %s for pointer %a" special_fn.vname d_exp ptr;
+        Checks.warn Checks.Category.InvalidMemoryAccess "Free of non-dynamically allocated memory in function %s for pointer %a" special_fn.vname d_exp ptr
       ) else if has_non_zero_offset a then (
         AnalysisStateUtil.set_mem_safety_flag InvalidFree;
-        M.warn ~category:(Behavior (Undefined InvalidMemoryDeallocation)) ~tags:[CWE 761] "Free of memory not at start of buffer in function %s for pointer %a" special_fn.vname d_exp ptr
+        M.warn ~category:(Behavior (Undefined InvalidMemoryDeallocation)) ~tags:[CWE 761] "Free of memory not at start of buffer in function %s for pointer %a" special_fn.vname d_exp ptr;
+        Checks.warn Checks.Category.InvalidMemoryAccess "Free of memory not at start of buffer in function %s for pointer %a" special_fn.vname d_exp ptr
+      ) else (
+        Checks.safe Checks.Category.InvalidMemoryAccess
       )
     | _ ->
       AnalysisStateUtil.set_mem_safety_flag InvalidFree;
-      M.warn ~category:(Behavior (Undefined InvalidMemoryDeallocation)) ~tags:[CWE 590] "Pointer %a in function %s doesn't evaluate to a valid address. Invalid memory deallocation may occur" d_exp ptr special_fn.vname
+      M.warn ~category:(Behavior (Undefined InvalidMemoryDeallocation)) ~tags:[CWE 590] "Pointer %a in function %s doesn't evaluate to a valid address. Invalid memory deallocation may occur" d_exp ptr special_fn.vname;
+      Checks.warn Checks.Category.InvalidMemoryAccess "Pointer %a in function %s doesn't evaluate to a valid address. Invalid memory deallocation may occur" d_exp ptr special_fn.vname
 
   let points_to_heap_only man ptr =
     match man.ask (Queries.MayPointTo ptr) with
@@ -2327,6 +2347,7 @@ struct
         end
       | _ ->
         (M.warn "Pointer %a has a points-to-set of top. An invalid memory access might occur" d_exp ptr;
+         Checks.warn Checks.Category.InvalidMemoryAccess "Pointer %a has a points-to-set of top. An invalid memory access might occur" d_exp ptr;
          `Top)
 
   let special man (lv:lval option) (f: varinfo) (args: exp list) =

@@ -39,7 +39,7 @@ Goblint includes analyses for assertions, overflows, deadlocks, etc and can be e
     (ocaml (>= 4.14))
     (goblint-cil (>= 2.0.9)) ; TODO no way to define as pin-depends? Used goblint.opam.template to add it for now. https://github.com/ocaml/dune/issues/3231. Alternatively, removing this line and adding cil as a git submodule and `(vendored_dirs cil)` as ./dune also works. This way, no more need to reinstall the pinned cil opam package on changes. However, then cil is cleaned and has to be rebuild together with goblint.
     (batteries (>= 3.9.0))
-    (zarith (>= 1.10))
+    (zarith (>= 1.12))
     (yojson (and (>= 2.0.0) (< 3))) ; json-data-encoding has incompatible yojson representation for yojson 3
     (qcheck-core (>= 0.19))
     (ppx_deriving (>= 6.0.2))
@@ -80,6 +80,7 @@ Goblint includes analyses for assertions, overflows, deadlocks, etc and can be e
     (apron (< v0.9.15)) ; lower bounds for depopts seem to not properly constrain in builtin-0install lower-bounds job, so upper bounds for conflicts instead
     (camlidl (< 1.13)) ; for stability (https://github.com/goblint/analyzer/issues/1520)
     (ez-conf-lib (= 1)) ; https://github.com/nberth/ez-conf-lib/issues/3
+    (mlgmpidl (< 1.3.0)) ; to use conf-mpfr-paths to work on MacOS
   )
   (sites
     (share lib)

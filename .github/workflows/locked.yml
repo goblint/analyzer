@@ -17,8 +17,8 @@ jobs:
       fail-fast: false
       matrix:
         os:
-          - ubuntu-22.04 # https://github.com/ocaml/setup-ocaml/issues/872
-          - macos-13
+          - ubuntu-latest
+          - macos-latest
         ocaml-compiler:
           - ocaml-variants.4.14.2+options,ocaml-option-flambda # matches opam lock file
           # don't add any other because they won't be used
@@ -42,7 +42,7 @@ jobs:
           ocaml-compiler: ${{ matrix.ocaml-compiler }}
 
       - name: Install graph-easy # TODO: remove if depext --with-test works (https://github.com/ocaml/opam/issues/5836)
-        if: ${{ matrix.os == 'ubuntu-22.04' }}
+        if: ${{ startsWith(matrix.os, 'ubuntu') }}
         run: sudo apt install -y libgraph-easy-perl
 
       - name: Install dependencies
@@ -73,7 +73,7 @@ jobs:
       fail-fast: false
       matrix:
         os:
-          - ubuntu-22.04 # https://github.com/ocaml/setup-ocaml/issues/872
+          - ubuntu-latest
         ocaml-compiler:
           - ocaml-variants.4.14.2+options,ocaml-option-flambda # matches opam lock file
           # don't add any other because they won't be used
@@ -94,7 +94,7 @@ jobs:
           ocaml-compiler: ${{ matrix.ocaml-compiler }}
 
       - name: Install graph-easy # TODO: remove if depext --with-test works (https://github.com/ocaml/opam/issues/5836)
-        if: ${{ matrix.os == 'ubuntu-22.04' }}
+        if: ${{ startsWith(matrix.os, 'ubuntu') }}
         run: sudo apt install -y libgraph-easy-perl
 
       - name: Install spin
