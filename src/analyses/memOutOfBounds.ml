@@ -305,7 +305,7 @@ struct
                 (set_mem_safety_flag InvalidDeref;
                  M.warn ~category:(Behavior behavior) ~tags:[CWE cwe_number] "Size of lval dereference expression is %a (in bytes). It is offset by %a (in bytes). Memory out-of-bounds access must occur" ID.pretty casted_es ID.pretty casted_offs);
                 Checks.warn Checks.Category.InvalidMemoryAccess "Size of lval dereference expression is %a (in bytes). It is offset by %a (in bytes). Memory out-of-bounds access must occur" ID.pretty casted_es ID.pretty casted_offs
-              | Some false -> 
+              | Some false ->
                 Checks.safe Checks.Category.InvalidMemoryAccess
               | None ->
                 (set_mem_safety_flag InvalidDeref;
@@ -484,7 +484,7 @@ struct
           set_mem_safety_flag InvalidDeref;
           M.warn ~category:(Behavior behavior) ~tags:[CWE cwe_number] "Size of %a in function %s is %a (in bytes) with an address offset of %a (in bytes). Count is %a (in bytes). Memory out-of-bounds access must occur" d_exp ptr fun_name ID.pretty casted_ds ID.pretty casted_ao ID.pretty casted_en;
           Checks.warn Checks.Category.InvalidMemoryAccess "Size of %a in function %s is %a (in bytes) with an address offset of %a (in bytes). Count is %a (in bytes). Memory out-of-bounds access must occur" d_exp ptr fun_name ID.pretty casted_ds ID.pretty casted_ao ID.pretty casted_en
-        | Some false -> 
+        | Some false ->
           Checks.safe Checks.Category.InvalidMemoryAccess
         | None ->
           set_mem_safety_flag InvalidDeref;

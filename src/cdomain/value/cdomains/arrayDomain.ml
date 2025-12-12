@@ -1164,7 +1164,7 @@ struct
         else (
           Checks.safe Checks.Category.NegativeArraySize;
           min_i, None)
-      | None, None -> 
+      | None, None ->
         Checks.safe Checks.Category.NegativeArraySize;
         Z.zero, None
     in
@@ -1265,7 +1265,7 @@ struct
            warn_past_end "Array size is smaller than n bytes; can cause a buffer overflow"
          else if n >. min_size then
            warn_past_end "Array size might be smaller than n bytes; can cause a buffer overflow"
-         else 
+         else
            Checks.safe Checks.Category.InvalidMemoryAccess
        | Some min_size, None ->
          if n >. min_size then
