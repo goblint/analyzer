@@ -40,7 +40,7 @@ module Category = struct
     | DoubleFree
     | NegativeArraySize
     | StubCondition
-  [@@deriving hash, eq, show]
+  [@@deriving hash, eq]
 
   let to_yojson x = `String (match x with
       | AssertionFailure -> "Assertion failure"
@@ -102,12 +102,7 @@ module Check = struct
       (Format.pp_print_option CilType.Location.pp) check.range
 end
 
-module CheckMap = Hashtbl.Make (struct
-    type t = Check.t
-    let equal = Check.equal
-    let hash = Check.hash
-  end)
-
+module CheckMap = Hashtbl.Make (Check)
 
 module CategoryLocationMap = Hashtbl.Make (struct
     type t = Category.t * CilType.Location.t [@@deriving hash, eq]
