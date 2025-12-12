@@ -245,9 +245,9 @@ struct
         else
           `NotUnderstood
       | BinOp(op, rval, Lval x, typ) -> derived_invariant (BinOp(switchedOp op, Lval x, rval, typ)) tv
-      | BinOp(op, CastE (t1, c1), CastE (t2, c2), t) when (op = Eq || op = Ne) && typeSig t1 = typeSig t2 && VD.is_statically_safe_cast t1 (Cilfacade.typeOf c1) && VD.is_statically_safe_cast t2 (Cilfacade.typeOf c2)
+      | BinOp(op, CastE (_, t1, c1), CastE (_, t2, c2), t) when (op = Eq || op = Ne) && typeSig t1 = typeSig t2 && VD.is_statically_safe_cast t1 (Cilfacade.typeOf c1) && VD.is_statically_safe_cast t2 (Cilfacade.typeOf c2)
         -> derived_invariant (BinOp (op, c1, c2, t)) tv
-      | BinOp(op, CastE (t1, Lval x), rval, typ) when Cil.isIntegralType t1 ->
+      | BinOp(op, CastE (_, t1, Lval x), rval, typ) when Cil.isIntegralType t1 ->
         begin match eval_rv ~man st (Lval x) with
           | Int v ->
             if VD.is_dynamically_safe_cast t1 (Cilfacade.typeOfLval x) (Int v) then
@@ -256,8 +256,8 @@ struct
               `NotUnderstood
           | _ -> `NotUnderstood
         end
-      | BinOp(op, rval, CastE (ti, Lval x), typ) when Cil.isIntegralType ti ->
-        derived_invariant (BinOp (switchedOp op, CastE(ti, Lval x), rval, typ)) tv
+      | BinOp(op, rval, CastE (k, ti, Lval x), typ) when Cil.isIntegralType ti ->
+        derived_invariant (BinOp (switchedOp op, CastE(k, ti, Lval x), rval, typ)) tv
       | BinOp(op, (Const _ | AddrOf _), rval, typ) ->
         (* This is last such that we never reach here with rval being Lval (it is swapped around). *)
         `NothingToRefine
@@ -649,7 +649,7 @@ struct
         | UnOp (Neg, e, _), Float c -> inv_exp (unop_FD Neg c) e st
         | UnOp ((BNot|Neg) as op, e, _), Int c -> inv_exp (Int (unop_ID op c)) e st
         (* no equivalent for Float, as VD.is_statically_safe_cast fails for all float types anyways *)
-        | BinOp((Eq | Ne) as op, CastE (t1, e1), CastE (t2, e2), t), Int c when typeSig (Cilfacade.typeOf e1) = typeSig (Cilfacade.typeOf e2) && VD.is_statically_safe_cast t1 (Cilfacade.typeOf e1) && VD.is_statically_safe_cast t2 (Cilfacade.typeOf e2) ->
+        | BinOp((Eq | Ne) as op, CastE (_, t1, e1), CastE (_, t2, e2), t), Int c when typeSig (Cilfacade.typeOf e1) = typeSig (Cilfacade.typeOf e2) && VD.is_statically_safe_cast t1 (Cilfacade.typeOf e1) && VD.is_statically_safe_cast t2 (Cilfacade.typeOf e2) ->
           inv_exp (Int c) (BinOp (op, e1, e2, t)) st
         | BinOp (LOr, arg1, arg2, typ) as exp, Int c ->
           (* copied & modified from eval_rv_base... *)
@@ -657,7 +657,7 @@ struct
           (* split nested LOr Eqs to equality pairs, if possible *)
           let rec split = function
             (* copied from above to support pointer equalities with implicit casts inserted *)
-            | BinOp (Eq, CastE (t1, e1), CastE (t2, e2), typ) when typeSig (Cilfacade.typeOf e1) = typeSig (Cilfacade.typeOf e2) && VD.is_statically_safe_cast t1 (Cilfacade.typeOf e1) && VD.is_statically_safe_cast t2 (Cilfacade.typeOf e2) -> (* slightly different from eval_rv_base... *)
+            | BinOp (Eq, CastE (_, t1, e1), CastE (_, t2, e2), typ) when typeSig (Cilfacade.typeOf e1) = typeSig (Cilfacade.typeOf e2) && VD.is_statically_safe_cast t1 (Cilfacade.typeOf e1) && VD.is_statically_safe_cast t2 (Cilfacade.typeOf e2) -> (* slightly different from eval_rv_base... *)
               Some [(e1, e2)]
             | BinOp (Eq, arg1, arg2, _) ->
               Some [(arg1, arg2)]
@@ -835,7 +835,7 @@ struct
             | _ -> assert false
           end
         | Const _ , _ -> st (* nothing to do *)
-        | CastE (t, e), c_typed ->
+        | CastE (k, t, e), c_typed ->
           begin match Cil.unrollType t, c_typed with
             | TFloat (_, _), Float c ->
               (match unrollType (Cilfacade.typeOf e), FD.get_fkind c with
@@ -864,7 +864,7 @@ struct
                       fallback (fun () -> Pretty.dprintf "CastE: %a evaluates to %a which is bigger than the type it is cast to which is %a" d_plainexp e ID.pretty i CilType.Typ.pretty t) st
                   | x -> fallback (fun () -> Pretty.dprintf "CastE: e did evaluate to Int, but the type did not match %a" CilType.Typ.pretty t) st)
                | v -> fallback (fun () -> Pretty.dprintf "CastE: e did not evaluate to Int, but %a" VD.pretty v) st)
-            | _, _ -> fallback (fun () -> Pretty.dprintf "CastE: %a not implemented" d_plainexp (CastE (t, e))) st
+            | _, _ -> fallback (fun () -> Pretty.dprintf "CastE: %a not implemented" d_plainexp (CastE (k, t, e))) st
           end
         | e, _ -> fallback (fun () -> Pretty.dprintf "%a not implemented" d_plainexp e) st
     in
