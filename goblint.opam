@@ -78,6 +78,7 @@ conflicts: [
   "apron" {< "v0.9.15"}
   "camlidl" {< "1.13"}
   "ez-conf-lib" {= "1"}
+  "mlgmpidl" {< "1.3.0"}
 ]
 build: [
   ["dune" "subst"] {dev}

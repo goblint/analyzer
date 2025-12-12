@@ -80,6 +80,7 @@ Goblint includes analyses for assertions, overflows, deadlocks, etc and can be e
     (apron (< v0.9.15)) ; lower bounds for depopts seem to not properly constrain in builtin-0install lower-bounds job, so upper bounds for conflicts instead
     (camlidl (< 1.13)) ; for stability (https://github.com/goblint/analyzer/issues/1520)
     (ez-conf-lib (= 1)) ; https://github.com/nberth/ez-conf-lib/issues/3
+    (mlgmpidl (< 1.3.0)) ; to use conf-mpfr-paths to work on MacOS
   )
   (sites
     (share lib)
