@@ -66,13 +66,26 @@ module IntDomTupleImpl = struct
 
   let check_ov ?(suppress_ovwarn = false) ~op ik intv intv_set bf =
     let no_ov = (no_overflow ik intv) || (no_overflow ik intv_set) || (no_overflow ik bf) in
-    if not no_ov && not suppress_ovwarn && ( BatOption.is_some intv || BatOption.is_some intv_set || BatOption.is_some bf) then (
-      let (_,{underflow=underflow_intv; overflow=overflow_intv}) = match intv with None -> (I2.bot (), {underflow= true; overflow = true}) | Some x -> x in
-      let (_,{underflow=underflow_intv_set; overflow=overflow_intv_set}) = match intv_set with None -> (I5.bot (), {underflow= true; overflow = true}) | Some x -> x in
-      let (_,{underflow=underflow_bf; overflow=overflow_bf}) = match bf with None -> (I6.bot (), {underflow= true; overflow = true}) | Some x -> x in
-      let underflow = underflow_intv && underflow_intv_set && underflow_bf in
-      let overflow = overflow_intv && overflow_intv_set && overflow_bf in
-      set_overflow_flag ~op ~underflow ~overflow ik;
+    if not suppress_ovwarn && (BatOption.is_some intv || BatOption.is_some intv_set || BatOption.is_some bf) then (
+      if not no_ov then (
+        let (_,{underflow=underflow_intv; overflow=overflow_intv}) = match intv with None -> (I2.bot (), {underflow= true; overflow = true}) | Some x -> x in
+        let (_,{underflow=underflow_intv_set; overflow=overflow_intv_set}) = match intv_set with None -> (I5.bot (), {underflow= true; overflow = true}) | Some x -> x in
+        let (_,{underflow=underflow_bf; overflow=overflow_bf}) = match bf with None -> (I6.bot (), {underflow= true; overflow = true}) | Some x -> x in
+        let underflow = underflow_intv && underflow_intv_set && underflow_bf in
+        let overflow = overflow_intv && overflow_intv_set && overflow_bf in
+        set_overflow_flag ~op ~underflow ~overflow ik;
+      ) else if not !AnalysisState.executing_speculative_computations then (
+        (* TODO: deduplicate with set_overflow_flag *)
+        let sign = if Cil.isSigned ik then "signed" else "unsigned" in
+        let op =
+          match op with
+          | `Binop bop -> CilType.Binop.show bop
+          | `Unop uop -> CilType.Unop.show uop
+          | `Cast -> "cast"
+          | `Internal -> "internal operation"
+        in
+        Checks.safe_msg Checks.Category.IntegerOverflow "No %s integer overflow or underflow in %s" sign op
+      )
     );
     no_ov
 

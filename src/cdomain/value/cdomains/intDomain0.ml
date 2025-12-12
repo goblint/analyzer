@@ -91,11 +91,14 @@ let set_overflow_flag ~(op:overflow_op) ~underflow ~overflow ik =
     in
     match underflow, overflow with
     | true, true ->
-      M.warn ~category:M.Category.Integer.overflow ~tags:[CWE 190; CWE 191] "%s integer overflow and underflow in %s" sign op
+      M.warn ~category:M.Category.Integer.overflow ~tags:[CWE 190; CWE 191] "%s integer overflow and underflow in %s" sign op;
+      Checks.warn Checks.Category.IntegerOverflow "%s integer overflow and underflow in %s" sign op
     | true, false ->
-      M.warn ~category:M.Category.Integer.overflow ~tags:[CWE 191] "%s integer underflow in %s" sign op
+      M.warn ~category:M.Category.Integer.overflow ~tags:[CWE 191] "%s integer underflow in %s" sign op;
+      Checks.warn Checks.Category.IntegerOverflow "%s integer underflow in %s" sign op
     | false, true ->
-      M.warn ~category:M.Category.Integer.overflow ~tags:[CWE 190] "%s integer overflow in %s" sign op
+      M.warn ~category:M.Category.Integer.overflow ~tags:[CWE 190] "%s integer overflow in %s" sign op;
+      Checks.warn Checks.Category.IntegerOverflow "%s integer overflow in %s" sign op
     | false, false -> assert false
 
 let reset_lazy () =
