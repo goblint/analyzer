@@ -17,6 +17,9 @@ sig
 
   (** Is the first TID a must ancestor of the second thread. Always false if the first TID is not unique *)
   val must_be_ancestor: t -> t -> bool
+
+  (** Every TID of the returned list must be an ancestor of the passed TID. Return None if the result cannot be determined *)
+  val must_ancestors: t -> t list option
 end
 
 module type Stateless =
@@ -89,6 +92,7 @@ struct
   let is_unique = is_main
   let may_be_ancestor _ _ = true
   let must_be_ancestor _ _ = false
+  let must_ancestors _ = None
 end
 
 
@@ -168,6 +172,16 @@ struct
       | _ :: _, _ :: _ -> (* prefixes are incompatible *)
         false (* composing cannot fix incompatibility there *)
     )
+
+  let must_ancestors (p, s) =
+    let rec build_ancestors acc p =
+      match p with
+      | [] -> acc
+      | h :: t -> build_ancestors ((h :: t, S.empty ()) :: acc) t
+    in
+    (* for unique threads, the first element of p is the current TID *)
+    let ancestor_edges = if S.is_empty s then List.tl p else p in
+    Some (build_ancestors [] ancestor_edges)
 
   let compose ((p, s) as current) ni =
     if BatList.mem_cmp Base.compare ni p then (
@@ -260,6 +274,12 @@ struct
   let is_unique = unop H.is_unique P.is_unique
   let may_be_ancestor = binop H.may_be_ancestor P.may_be_ancestor
   let must_be_ancestor = binop H.must_be_ancestor P.must_be_ancestor
+
+  let must_ancestors (t: H.t option * P.t option) =
+    match t with
+    | Some ht, None ->
+      Option.map (List.map (fun tid -> Some tid, None)) (H.must_ancestors ht)
+    | _ -> None
 
   let created x d =
     let lifth x' d' =
@@ -364,6 +384,12 @@ struct
     match t1, t2 with
     | Thread tid1, Thread tid2 -> FlagConfiguredTID.must_be_ancestor tid1 tid2
     | _, _ -> false
+
+  let must_ancestors t =
+    match t with
+    | Thread tid ->
+      Option.map (List.map (fun t -> Thread t)) (FlagConfiguredTID.must_ancestors tid)
+    | _ -> None
 
   module D = FlagConfiguredTID.D
 
