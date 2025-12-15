@@ -159,5 +159,5 @@ end
 
 let _ =
   MCP.register_analysis
-    ~dep:[ "threadid"; "mutex"; "race"; "threadJoins"; "threadDescendants" ]
+    ~dep:[ "threadid"; "mutex"; "threadJoins"; "threadDescendants" ]
     (module Spec : MCPSpec)
