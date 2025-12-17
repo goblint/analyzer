@@ -156,7 +156,7 @@ struct
       let open Cilfacade in
       let warn_for_upjumps fundec gotos =
         if FunSet.mem live_funs fundec then (
-          (* set nortermiantion flag *)
+          (* set nontermination flag *)
           AnalysisState.svcomp_may_not_terminate := true;
           (* iterate through locations to produce warnings *)
           LocSet.iter (fun l _ ->
