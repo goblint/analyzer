@@ -8,8 +8,8 @@
 open Analyses
 module TID = ThreadIdDomain.Thread
 module TIDs = ConcDomain.ThreadSet
-module LID = LockDomain.MustLock
-module LIDs = LockDomain.MustLockset
+module Lock = LockDomain.MustLock
+module Lockset = LockDomain.MustLockset
 
 module Spec = struct
   include IdentityUnitContextsSpec
@@ -20,7 +20,7 @@ module Spec = struct
     include StdV
   end
 
-  module G = MapDomain.MapBot (TID) (LIDs)
+  module G = MapDomain.MapBot (TID) (Lockset)
 
   let name () = "creationLockset"
   let startstate _ = D.bot ()
@@ -80,7 +80,7 @@ module Spec = struct
     let shrink_locksets des_tid =
       let old_creation_lockset = G.find tid (man.global des_tid) in
       (* Bot - {something} = Bot. This is exactly what we want in this case! *)
-      let updated_creation_lockset = LIDs.remove lock old_creation_lockset in
+      let updated_creation_lockset = Lockset.remove lock old_creation_lockset in
       let to_contribute = G.singleton tid updated_creation_lockset in
       man.sideg des_tid to_contribute
     in
@@ -89,7 +89,7 @@ module Spec = struct
   (** handle unlock of an unknown mutex. Assumes that any mutex could have been unlocked *)
   let unknown_unlock man tid possibly_running_tids =
     let evaporate_locksets des_tid =
-      let to_contribute = G.singleton tid (LIDs.empty ()) in
+      let to_contribute = G.singleton tid (Lockset.empty ()) in
       man.sideg des_tid to_contribute
     in
     TIDs.iter evaporate_locksets possibly_running_tids
@@ -111,7 +111,7 @@ module Spec = struct
 
   module A = struct
     (** ego tid * must-lockset * creation-lockset *)
-    include Printable.Prod3 (TID) (LIDs) (G)
+    include Printable.Prod3 (TID) (Lockset) (G)
 
     let name () = "creationLockset"
 
@@ -123,7 +123,7 @@ module Spec = struct
     *)
     let both_protected_inter_threaded cl1 cl2 =
       let cl2_has_same_lock_other_tid tp1 ls1 =
-        G.exists (fun tp2 ls2 -> not (LIDs.disjoint ls1 ls2 || TID.equal tp1 tp2)) cl2
+        G.exists (fun tp2 ls2 -> not (Lockset.disjoint ls1 ls2 || TID.equal tp1 tp2)) cl2
       in
       G.exists cl2_has_same_lock_other_tid cl1
 
@@ -135,7 +135,7 @@ module Spec = struct
         @returns whether [t1] must be running mutually exclusive with second program point
     *)
     let one_protected_inter_threaded_other_intra_threaded cl1 t2 ls2 =
-      G.exists (fun tp1 ls1 -> not (LIDs.disjoint ls1 ls2 || TID.equal tp1 t2)) cl1
+      G.exists (fun tp1 ls1 -> not (Lockset.disjoint ls1 ls2 || TID.equal tp1 t2)) cl1
 
     let may_race (t1, ls1, cl1) (t2, ls2, cl2) =
       not
@@ -154,7 +154,7 @@ module Spec = struct
       let lockset = ask.f Queries.MustLockset in
       let creation_lockset = man.global tid in
       tid, lockset, creation_lockset
-    | _ -> ThreadIdDomain.UnknownThread, LIDs.empty (), G.empty ()
+    | _ -> ThreadIdDomain.UnknownThread, Lockset.empty (), G.empty ()
 end
 
 let _ =
