@@ -251,7 +251,7 @@ struct
 
     AnalysisState.should_warn := false; (* reset for server mode *)
 
-    (* exctract global xml from result *)
+    (* extract global xml from result *)
     let make_global_fast_xml f g =
       let open Printf in
       let print_globals k v =
