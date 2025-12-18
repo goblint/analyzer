@@ -156,8 +156,8 @@ The type of code particularly relevant for this paper is best illustrated along 
     - A is defined in `~/analyzer/src/cdomains/threadFlagDomain.ml` (Simple)
     - The functions `threadenter` and `threadspawn` take care of computing appropriate successors
     - ||^? is implemented in the function `may_race`
-      - The `b` components concern interaction with other analysis and can be ignored for now
-      - After checking whether the digest should be used to exclude races `GobConfig.get_bool "ana.race.digests.threadflag"`, the predicate returns T (mapped to `true` here) if both accesses happen in multi-threaded mode, and at least one of the threads is not the unique main thread.
+       - The `b` components concern interaction with other analysis and can be ignored for now
+       - After checking whether the digest should be used to exclude races `GobConfig.get_bool "ana.race.digests.threadflag"`, the predicate returns T (mapped to `true` here) if both accesses happen in multi-threaded mode, and at least one of the threads is not the unique main thread.
 
 ```ocaml
   let may_race (m1,b1) (m2,b2) =
