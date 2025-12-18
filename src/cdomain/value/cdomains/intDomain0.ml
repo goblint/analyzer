@@ -71,7 +71,11 @@ let should_wrap ik = not (Cil.isSigned ik) || get_string "sem.int.signed_overflo
 let should_ignore_overflow ik = Cil.isSigned ik && get_string "sem.int.signed_overflow" = "assume_none"
 
 type overflow_info = IntDomain_intf.overflow_info = { overflow: bool; underflow: bool;}
-type overflow_op = [`Binop of binop | `Unop of unop | `Cast | `Internal]
+type overflow_op =
+  | Binop of binop
+  | Unop of unop
+  | Cast
+  | Internal
 
 let add_overflow_check ~(op:overflow_op) ~underflow ~overflow ik =
   if !AnalysisState.executing_speculative_computations then
@@ -79,15 +83,15 @@ let add_overflow_check ~(op:overflow_op) ~underflow ~overflow ik =
     ()
   else
     let signed = Cil.isSigned ik in
-    if !AnalysisState.postsolving && signed && op <> `Cast && (underflow || overflow) then
+    if !AnalysisState.postsolving && signed && op <> Cast && (underflow || overflow) then
       AnalysisState.svcomp_may_overflow := true;
     let sign = if signed then "Signed" else "Unsigned" in
     let op =
       match op with
-      | `Binop bop -> CilType.Binop.show bop
-      | `Unop uop -> CilType.Unop.show uop
-      | `Cast -> "cast"
-      | `Internal -> "internal operation"
+      | Binop bop -> CilType.Binop.show bop
+      | Unop uop -> CilType.Unop.show uop
+      | Cast -> "cast"
+      | Internal -> "internal operation"
     in
     match underflow, overflow with
     | true, true ->
