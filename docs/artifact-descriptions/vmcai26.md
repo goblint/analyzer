@@ -155,6 +155,7 @@ The type of code particularly relevant for this paper is bes illustrated along a
     - $\cal A$ is defined in `~/analyzer/src/cdomains/threadFlagDomain.ml` (Simple)
     - The functions `threadenter` and `threadspawn` take care of computing appropriate successors
     - ||^? is implemented in the function `may_race`
+
       ```ocaml
         let may_race (m1,b1) (m2,b2) =
           let use_threadflag = GobConfig.get_bool "ana.race.digests.threadflag" in
@@ -162,16 +163,19 @@ The type of code particularly relevant for this paper is bes illustrated along a
           let one_not_main = Flag.is_not_main m1 || Flag.is_not_main m2 in
           ((not use_threadflag) || (both_mt && one_not_main)) && b1 && b2
       ```
+      
       - The `b` components concern interaction with other analysis and can be ignored for now
       - After checking whether the digest should be used to exclude races `GobConfig.get_bool "ana.race.digests.threadflag"`, the predicate returns $\top$ (mapped to `true` here) if both accesses happen in multi-threaded mode, and at least one of the threads is not the unique main thread.
     - The code in all the other digests is conceptually similar to the code provided here.
   - Product of ||^?
     - Consider `~/analyzer/src/analyses/mCPAccess.ml`, here the product construction happens
+
       ```ocaml
       let may_race x y = binop_for_all (fun n (module S: Analyses.MCPA) x y ->
           S.may_race (Obj.obj x) (Obj.obj y)
         ) x y
       ```
+
     - Here a fold over two lists of digests (each corresponding to one activated digest) is performed to get the effect of the definition in Section 5.3)
 
 
