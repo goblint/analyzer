@@ -5,7 +5,7 @@ This is the artifact description for our [VMCAI '26 paper "Data Race Detection b
 The artifact is available on [Zenodo](http://dx.doi.org/10.5281/zenodo.17128591).
 
 **The description here is provided for convenience and not maintained.**
-The artifact contains [Goblint at `race_digest_staging` branch](https://github.com/goblint/analyzer/tree/race_digest_staging).
+The artifact contains [Goblint at `vmcai26` git tag](https://github.com/goblint/analyzer/releases/tag/vmcai26).
 
 ## Overview
 
