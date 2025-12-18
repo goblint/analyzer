@@ -111,9 +111,9 @@ The numbers in Fig. 8 can be directly read off from this table.
 Can be verified by checking that the `incorrect true` number for all configurations is zero.
 
 
-> Discussion in ln. 546ff
+> Discussion on the success of (combinations of) digests
 
-Refers only to numbers in Fig. 8.
+All numbers are from Fig. 8.
 
 
 > With these settings, the system ran out of memory for 4 tasks, 3 tasks timed out, and the analyzer crashed for 7 tasks.
