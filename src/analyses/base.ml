@@ -2058,10 +2058,12 @@ struct
           let st' = set ~man ~t_override nst (return_var ()) t_override rv in
           match ThreadId.get_current ask with
           | `Lifted tid when ThreadReturn.is_current ask ->
-            (* Evaluate exp and cast the resulting value to the void-pointer-type.
-                Casting to the right type here avoids precision loss on joins. *)
-            let rv = VD.cast ~torg:(Cilfacade.typeOf exp) Cil.voidPtrType rv in
-            man.sideg (V.thread tid) (G.create_thread rv);
+            if not (ThreadIdDomain.Thread.is_main tid) then ( (* Only non-main return constitutes an implicit pthread_exit according to man page (https://github.com/goblint/analyzer/issues/1767#issuecomment-3642590227). *)
+              (* Evaluate exp and cast the resulting value to the void-pointer-type.
+                 Casting to the right type here avoids precision loss on joins. *)
+              let rv = VD.cast ~torg:(Cilfacade.typeOf exp) Cil.voidPtrType rv in
+              man.sideg (V.thread tid) (G.create_thread rv)
+            );
             Priv.thread_return ask (priv_getg man.global) (priv_sideg man.sideg) tid st'
           | _ -> st'
         ) nst exp
