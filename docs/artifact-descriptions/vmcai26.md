@@ -165,6 +165,7 @@ The type of code particularly relevant for this paper is best illustrated along 
     ((not use_threadflag) || (both_mt && one_not_main)) && b1 && b2
 ```
 
+
       - The `b` components concern interaction with other analysis and can be ignored for now
       - After checking whether the digest should be used to exclude races `GobConfig.get_bool "ana.race.digests.threadflag"`, the predicate returns T (mapped to `true` here) if both accesses happen in multi-threaded mode, and at least one of the threads is not the unique main thread.
     - The code in all the other digests is conceptually similar to the code provided here.
@@ -176,6 +177,7 @@ The type of code particularly relevant for this paper is best illustrated along 
       S.may_race (Obj.obj x) (Obj.obj y)
     ) x y
 ```
+
 
   - Here a fold over two lists of digests (each corresponding to one activated digest) is performed to get the effect of the definition in Section 5.3)
 
