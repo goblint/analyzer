@@ -177,7 +177,7 @@ The type of code particularly relevant for this paper is best illustrated along 
     ) x y
 ```
 
-    - Here a fold over two lists of digests (each corresponding to one activated digest) is performed to get the effect of the definition in Section 5.3)
+  - Here a fold over two lists of digests (each corresponding to one activated digest) is performed to get the effect of the definition in Section 5.3)
 
 
 More recent versions of Goblint can be found at <https://github.com/goblint>.
