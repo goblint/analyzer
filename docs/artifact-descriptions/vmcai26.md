@@ -172,9 +172,9 @@ The type of code particularly relevant for this paper is best illustrated along 
     - Consider `~/analyzer/src/analyses/mCPAccess.ml`, here the product construction happens
 
 ```ocaml
-let may_race x y = binop_for_all (fun n (module S: Analyses.MCPA) x y ->
-    S.may_race (Obj.obj x) (Obj.obj y)
-  ) x y
+  let may_race x y = binop_for_all (fun n (module S: Analyses.MCPA) x y ->
+      S.may_race (Obj.obj x) (Obj.obj y)
+    ) x y
 ```
 
     - Here a fold over two lists of digests (each corresponding to one activated digest) is performed to get the effect of the definition in Section 5.3)
