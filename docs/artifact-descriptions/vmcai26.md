@@ -24,6 +24,7 @@ The subsequent sections then describe each of these components in detail.
 The final section gives information on how to reuse this artifact.
 
 Remark on license:
+
   - `~/analyzer/LICENSE`: Is the MIT license governing the Goblint system as well as ancillary files such as this README
   - The benchmarks from SV-COMP come with their individual licenses (all allowing for redistribution), where a `LICENSE` file is located in each folder of tasks or the license is otherwise directly recorded in the file header.
 
