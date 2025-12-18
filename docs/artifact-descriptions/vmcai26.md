@@ -166,11 +166,11 @@ The type of code particularly relevant for this paper is best illustrated along 
 ```
 
 
-      - The `b` components concern interaction with other analysis and can be ignored for now
-      - After checking whether the digest should be used to exclude races `GobConfig.get_bool "ana.race.digests.threadflag"`, the predicate returns T (mapped to `true` here) if both accesses happen in multi-threaded mode, and at least one of the threads is not the unique main thread.
-    - The code in all the other digests is conceptually similar to the code provided here.
-  - Product of ||^?
-    - Consider `~/analyzer/src/analyses/mCPAccess.ml`, here the product construction happens
+    - The `b` components concern interaction with other analysis and can be ignored for now
+    - After checking whether the digest should be used to exclude races `GobConfig.get_bool "ana.race.digests.threadflag"`, the predicate returns T (mapped to `true` here) if both accesses happen in multi-threaded mode, and at least one of the threads is not the unique main thread.
+  - The code in all the other digests is conceptually similar to the code provided here.
+- Product of ||^?
+  - Consider `~/analyzer/src/analyses/mCPAccess.ml`, here the product construction happens
 
 ```ocaml
   let may_race x y = binop_for_all (fun n (module S: Analyses.MCPA) x y ->
