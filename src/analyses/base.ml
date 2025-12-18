@@ -207,7 +207,7 @@ struct
          | `Top ->
            M.warn ~category:M.Category.Integer.div_by_zero ~tags:[CWE 369] "Second argument of division might be zero";
            Checks.warn Checks.Category.DivisionByZero "Second argument of division might be zero"
-         | `Neq -> 
+         | `Neq ->
            Checks.safe Checks.Category.DivisionByZero);
         ID.div x y
     | Mod ->
@@ -219,7 +219,7 @@ struct
          | `Top ->
            M.warn ~category:M.Category.Integer.div_by_zero ~tags:[CWE 369] "Second argument of modulo might be zero";
            Checks.warn Checks.Category.DivisionByZero "Second argument of modulo might be zero"
-         | `Neq -> 
+         | `Neq ->
            Checks.safe Checks.Category.DivisionByZero);
         ID.rem x y
     | Lt -> ID.lt
@@ -2058,7 +2058,7 @@ struct
           let st' = set ~man ~t_override nst (return_var ()) t_override rv in
           match ThreadId.get_current ask with
           | `Lifted tid when ThreadReturn.is_current ask ->
-            if not (ThreadIdDomain.Thread.is_main tid) then (
+            if not (ThreadIdDomain.Thread.is_main tid) then ( (* Only non-main return constitutes an implicit pthread_exit according to man page (https://github.com/goblint/analyzer/issues/1767#issuecomment-3642590227). *)
               (* Evaluate exp and cast the resulting value to the void-pointer-type.
                  Casting to the right type here avoids precision loss on joins. *)
               let rv = VD.cast ~torg:(Cilfacade.typeOf exp) Cil.voidPtrType rv in
@@ -2280,7 +2280,7 @@ struct
       ) else if has_non_heap_var a then (
         AnalysisStateUtil.set_mem_safety_flag InvalidFree;
         M.warn ~category:(Behavior (Undefined InvalidMemoryDeallocation)) ~tags:[CWE 590] "Free of non-dynamically allocated memory in function %s for pointer %a" special_fn.vname d_exp ptr;
-        Checks.warn Checks.Category.InvalidMemoryAccess "Free of non-dynamically allocated memory in function %s for pointer %a" special_fn.vname d_exp ptr 
+        Checks.warn Checks.Category.InvalidMemoryAccess "Free of non-dynamically allocated memory in function %s for pointer %a" special_fn.vname d_exp ptr
       ) else if has_non_zero_offset a then (
         AnalysisStateUtil.set_mem_safety_flag InvalidFree;
         M.warn ~category:(Behavior (Undefined InvalidMemoryDeallocation)) ~tags:[CWE 761] "Free of memory not at start of buffer in function %s for pointer %a" special_fn.vname d_exp ptr;
