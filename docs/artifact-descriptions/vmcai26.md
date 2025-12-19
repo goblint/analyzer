@@ -33,7 +33,7 @@ Remark on license:
 
 ### 1. Setup
 
-The artifact is a virtual machine (VM), as the Benchexec system used for reliable benchmarking cannot be installed in docker images. The machine is intended for an x86 machine, behavior on M1 chips is untested.
+The artifact is a virtual machine (VM), as the BenchExec system used for reliable benchmarking cannot be installed in docker images. The machine is intended for an x86 machine, behavior on M1 chips is untested.
 Follow these steps to set it up:
 
 * If you have not done so already, install VirtualBox.
