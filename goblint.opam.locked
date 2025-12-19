@@ -140,6 +140,7 @@ conflicts: [
   "apron" {< "v0.9.15"}
   "camlidl" {< "1.13"}
   "ez-conf-lib" {= "1"}
+  "mlgmpidl" {< "1.3.0"}
 ]
 post-messages: [
   "Do not benchmark Goblint on OCaml 5 (https://goblint.readthedocs.io/en/latest/user-guide/benchmarking/)." {ocaml:version >= "5.0.0"}

@@ -807,22 +807,27 @@ let array_oob_check ( type a ) (module Idx: IntDomain.Z with type t = a) (x, l) 
     (* For an explanation of the warning types check the Pull Request #255 *)
     match idx_after_start, idx_before_end with
     | Some true, Some true -> (* Certainly in bounds on both sides.*)
-      ()
+      Checks.safe Checks.Category.InvalidMemoryAccess
     | Some true, Some false -> (* The following matching differentiates the must and may cases*)
       AnalysisStateUtil.set_mem_safety_flag InvalidDeref;
-      M.error ~category:M.Category.Behavior.Undefined.ArrayOutOfBounds.past_end "Must access array past end"
+      M.error ~category:M.Category.Behavior.Undefined.ArrayOutOfBounds.past_end "Must access array past end";
+      Checks.error Checks.Category.InvalidMemoryAccess "Invalid array access: Must access past end"
     | Some true, None ->
       AnalysisStateUtil.set_mem_safety_flag InvalidDeref;
-      M.warn ~category:M.Category.Behavior.Undefined.ArrayOutOfBounds.past_end "May access array past end"
+      M.warn ~category:M.Category.Behavior.Undefined.ArrayOutOfBounds.past_end "May access array past end";
+      Checks.warn Checks.Category.InvalidMemoryAccess "Invalid array access: May access past end"
     | Some false, Some true ->
       AnalysisStateUtil.set_mem_safety_flag InvalidDeref;
-      M.error ~category:M.Category.Behavior.Undefined.ArrayOutOfBounds.before_start "Must access array before start"
+      M.error ~category:M.Category.Behavior.Undefined.ArrayOutOfBounds.before_start "Must access array before start";
+      Checks.error Checks.Category.InvalidMemoryAccess "Invalid array access: Must access before start"
     | None, Some true ->
       AnalysisStateUtil.set_mem_safety_flag InvalidDeref;
-      M.warn ~category:M.Category.Behavior.Undefined.ArrayOutOfBounds.before_start "May access array before start"
+      M.warn ~category:M.Category.Behavior.Undefined.ArrayOutOfBounds.before_start "May access array before start";
+      Checks.warn Checks.Category.InvalidMemoryAccess "Invalid array access: May access before start"
     | _ ->
       AnalysisStateUtil.set_mem_safety_flag InvalidDeref;
-      M.warn ~category:M.Category.Behavior.Undefined.ArrayOutOfBounds.unknown "May access array out of bounds"
+      M.warn ~category:M.Category.Behavior.Undefined.ArrayOutOfBounds.unknown "May access array out of bounds";
+      Checks.warn Checks.Category.InvalidMemoryAccess "Invalid array access: May access out of bounds"
 
 
 module TrivialWithLength (Val: LatticeWithInvalidate) (Idx: IntDomain.Z): S with type value = Val.t and type idx = Idx.t =
@@ -992,7 +997,13 @@ struct
   type substr = IsNotSubstr | IsSubstrAtIndex0 | IsMaybeSubstr
 
   module ArrayOobMessage = M.Category.Behavior.Undefined.ArrayOutOfBounds
-  let warn_past_end = M.error ~category:ArrayOobMessage.past_end
+  let warn_past_end ?loc ?tags fmt =
+    (* Must do it this way to use same format string for multiple functions and also pass all arguments after.
+       Just calling Checks.error and M.error with fmt as last argument will silently not call Checks.error! *)
+    Pretty.gprintf (fun doc ->
+        Checks.error Checks.Category.InvalidMemoryAccess "%a" Pretty.insert doc;
+        M.error ~category:ArrayOobMessage.past_end ?loc ?tags "%a" Pretty.insert doc
+      ) fmt
 
   let min_nat_of_idx i = Z.max Z.zero (BatOption.default Z.zero (Idx.minimal i))
 
@@ -1127,25 +1138,35 @@ struct
       | Some min_i, Some max_i ->
         if min_i <. Z.zero && max_i <. Z.zero then
           (M.error ~category:ArrayOobMessage.before_start "Tries to create an array of negative size";
+           Checks.error Checks.Category.NegativeArraySize "Tries to create an array of negative size";
            Z.zero, Some Z.zero)
         else if min_i <. Z.zero then
           (M.warn ~category:ArrayOobMessage.before_start "May try to create an array of negative size";
+           Checks.warn Checks.Category.NegativeArraySize "May try to create an array of negative size";
            Z.zero, Some max_i)
-        else
-          min_i, Some max_i
+        else (
+          Checks.safe Checks.Category.NegativeArraySize;
+          min_i, Some max_i)
       | None, Some max_i ->
         if max_i <. Z.zero then
           (M.error ~category:ArrayOobMessage.before_start "Tries to create an array of negative size";
+           Checks.error Checks.Category.NegativeArraySize "Tries to create an array of negative size";
            Z.zero, Some Z.zero)
-        else
+        else (
+          Checks.safe Checks.Category.NegativeArraySize;
           Z.zero, Some max_i
+        )
       | Some min_i, None ->
         if min_i <. Z.zero then
           (M.warn ~category:ArrayOobMessage.before_start "May try to create an array of negative size";
+           Checks.warn Checks.Category.NegativeArraySize "May try to create an array of negative size";
            Z.zero, None)
-        else
-          min_i, None
-      | None, None -> Z.zero, None
+        else (
+          Checks.safe Checks.Category.NegativeArraySize;
+          min_i, None)
+      | None, None ->
+        Checks.safe Checks.Category.NegativeArraySize;
+        Z.zero, None
     in
     let size = BatOption.map_default (fun max -> Idx.of_interval ILong (min_i, max)) (Idx.starting ILong min_i) max_i in
     match Val.is_null v with
@@ -1196,6 +1217,7 @@ struct
     else if Nulls.is_empty Possibly nulls then
       (warn_past_end "May access array past end: potential buffer overflow"; x)
     else
+      (Checks.safe Checks.Category.InvalidMemoryAccess;
       let min_must_null = Nulls.min_elem Definitely nulls in
       let new_size = Idx.of_int ILong (Z.succ min_must_null) in
       let min_may_null = Nulls.min_elem Possibly nulls in
@@ -1215,7 +1237,7 @@ struct
             let nulls' = Nulls.remove_all Possibly nulls in
             Nulls.filter (Z.leq min_must_null) nulls'
       in
-      (nulls, new_size)
+      (nulls, new_size))
 
   (** [to_n_string index_set n] returns an abstract value with a potential null byte
     * marking the end of the string and if needed followed by further null bytes to obtain
@@ -1226,13 +1248,15 @@ struct
     else
       let n = Z.of_int n in
       let warn_no_null min_must_null min_may_null =
-        if Z.geq min_may_null n then
-          M.warn "Resulting string might not be null-terminated because src doesn't contain a null byte in the first n bytes"
+        if Z.geq min_may_null n then (
+          M.warn "Resulting string might not be null-terminated because src doesn't contain a null byte in the first n bytes";
+          Checks.warn Checks.Category.StubCondition "Resulting string might not be null-terminated because src doesn't contain a null byte in the first n bytes")
         else
           (match min_must_null with
-           | Some min_must_null when not (min_must_null >=. n || min_must_null >. min_may_null) -> ()
+           | Some min_must_null when not (min_must_null >=. n || min_must_null >. min_may_null) -> Checks.safe Checks.Category.StubCondition
            | _ ->
-             M.warn "Resulting string might not be null-terminated because src might not contain a null byte in the first n bytes"
+             M.warn "Resulting string might not be null-terminated because src might not contain a null byte in the first n bytes";
+             Checks.warn Checks.Category.StubCondition "Resulting string might not be null-terminated because src might not contain a null byte in the first n bytes"
           )
       in
       (match Idx.minimal size, Idx.maximal size with
@@ -1241,13 +1265,19 @@ struct
            warn_past_end "Array size is smaller than n bytes; can cause a buffer overflow"
          else if n >. min_size then
            warn_past_end "Array size might be smaller than n bytes; can cause a buffer overflow"
+         else
+           Checks.safe Checks.Category.InvalidMemoryAccess
        | Some min_size, None ->
          if n >. min_size then
            warn_past_end "Array size might be smaller than n bytes; can cause a buffer overflow"
+         else
+           Checks.safe Checks.Category.InvalidMemoryAccess
        | None, Some max_size ->
          if n >. max_size then
            warn_past_end "Array size is smaller than n bytes; can cause a buffer overflow"
-       | None, None -> ());
+         else
+           Checks.safe Checks.Category.InvalidMemoryAccess
+       | None, None -> Checks.safe Checks.Category.InvalidMemoryAccess);
       let nulls =
         (* if definitely no null byte in array, i.e. must_nulls_set = may_nulls_set = empty set *)
         if Nulls.is_empty Definitely nulls then
@@ -1260,14 +1290,16 @@ struct
           (* if only must_nulls_set empty, remove indexes >= n from may_nulls_set and add all indexes from minimal may null index to n - 1;
            * warn as in any case, resulting array not guaranteed to contain null byte *)
         else if Nulls.is_empty Possibly nulls then
+          (Checks.safe Checks.Category.InvalidMemoryAccess;
           let min_may_null = Nulls.min_elem Possibly nulls in
           warn_no_null None min_may_null;
           if min_may_null =. Z.zero then
             Nulls.add_all Possibly nulls
           else
             let nulls = Nulls.add_interval Possibly (min_may_null, Z.pred n) nulls in
-            Nulls.filter (fun x -> x <. n) nulls
+            Nulls.filter (fun x -> x <. n) nulls)
         else
+          (Checks.safe Checks.Category.InvalidMemoryAccess;
           let min_must_null = Nulls.min_elem Definitely nulls in
           let min_may_null = Nulls.min_elem Possibly nulls in
           (* warn if resulting array may not contain null byte *)
@@ -1285,7 +1317,7 @@ struct
           else
             let nulls = Nulls.remove_all Possibly nulls in
             let nulls = Nulls.add_interval Possibly (min_may_null, Z.pred n) nulls in
-            Nulls.filter (fun x -> x <. n) nulls
+            Nulls.filter (fun x -> x <. n) nulls)
       in
       (nulls,  Idx.of_int ILong n)
 
@@ -1300,8 +1332,9 @@ struct
       (warn_past_end "Array might not contain a null byte: potential buffer overflow";
        Idx.starting !Cil.kindOfSizeOf (Nulls.min_elem Possibly nulls))
       (* else return interval [minimal may null, minimal must null] *)
-    else
-      Idx.of_interval !Cil.kindOfSizeOf (Nulls.min_elem Possibly nulls, Nulls.min_elem Definitely nulls)
+    else (
+      Checks.safe Checks.Category.InvalidMemoryAccess;
+      Idx.of_interval !Cil.kindOfSizeOf (Nulls.min_elem Possibly nulls, Nulls.min_elem Definitely nulls))
 
   let string_copy (dstnulls, dstsize) ((srcnulls, srcsize) as src) n =
     let must_nulls_set1, may_nulls_set1 = dstnulls in
@@ -1313,7 +1346,9 @@ struct
         (if max_dstsize <. min_srclen then
            warn_past_end "The length of string src is greater than the allocated size for dest"
          else if min_dstsize <. max_srclen then
-           warn_past_end "The length of string src may be greater than the allocated size for dest");
+           warn_past_end "The length of string src may be greater than the allocated size for dest"
+         else
+           Checks.safe Checks.Category.InvalidMemoryAccess);
         let must_nulls_set_result =
           let min_size2 = BatOption.default Z.zero (Idx.minimal truncatedsize) in
           (* get must nulls from src string < minimal size of dest *)
@@ -1331,7 +1366,9 @@ struct
 
       | Some min_size1, None, Some min_len2, Some max_len2 ->
         (if min_size1 <. max_len2 then
-           warn_past_end "The length of string src may be greater than the allocated size for dest");
+           warn_past_end "The length of string src may be greater than the allocated size for dest"
+         else
+           Checks.safe Checks.Category.InvalidMemoryAccess);
         let must_nulls_set_result =
           let min_size2 = BatOption.default Z.zero (Idx.minimal truncatedsize) in
           MustSet.filter ~min_size: min_size2 (Z.gt min_size1) must_nulls_set2'
@@ -1345,7 +1382,9 @@ struct
         (if max_size1 <. min_len2 then
            warn_past_end "The length of string src is greater than the allocated size for dest"
          else if min_size1 <. min_len2 then
-           warn_past_end"The length of string src may be greater than the allocated size for dest");
+           warn_past_end"The length of string src may be greater than the allocated size for dest"
+         else
+           Checks.safe Checks.Category.InvalidMemoryAccess);
         (* do not keep any index of dest as no maximal strlen of src *)
         let must_nulls_set_result =
           let min_size2 = BatOption.default Z.zero (Idx.minimal truncatedsize) in
@@ -1357,7 +1396,9 @@ struct
         ((must_nulls_set_result, may_nulls_set_result), dstsize)
       | Some min_size1, None, Some min_len2, None ->
         (if min_size1 <. min_len2 then
-           warn_past_end "The length of string src may be greater than the allocated size for dest");
+           warn_past_end "The length of string src may be greater than the allocated size for dest"
+         else
+           Checks.safe Checks.Category.InvalidMemoryAccess);
         (* do not keep any index of dest as no maximal strlen of src *)
         let min_size2 = BatOption.default Z.zero (Idx.minimal truncatedsize) in
         let truncatednulls = Nulls.remove_interval Possibly (Z.zero, min_size1) min_size2 truncatednulls in
@@ -1375,21 +1416,31 @@ struct
            warn_past_end "src doesn't contain a null byte at an index smaller than the size of dest"
          else if not (Nulls.exists Definitely (Z.gt min_dstsize) srcnulls) then
            warn_past_end "src may not contain a null byte at an index smaller than the size of dest"
+         else
+           Checks.safe Checks.Category.InvalidMemoryAccess
        | Some min_dstsize, _, _, Some max_srcsize when min_dstsize <. max_srcsize ->
          if not (Nulls.exists Possibly (Z.gt min_dstsize) srcnulls) then
            warn_past_end "src doesn't contain a null byte at an index smaller than the size of dest"
          else if not (Nulls.exists Definitely (Z.gt min_dstsize) srcnulls) then
            warn_past_end "src may not contain a null byte at an index smaller than the size of dest"
+         else
+           Checks.safe Checks.Category.InvalidMemoryAccess
        | Some min_dstsize, _, _, None ->
          if not (Nulls.exists Definitely (Z.gt min_dstsize) srcnulls) then
            warn_past_end "src may not contain a null byte at an index smaller than the size of dest"
+         else
+           Checks.safe Checks.Category.InvalidMemoryAccess
        | _, Some mac_dstsize, _, Some max_srcsize when mac_dstsize <. max_srcsize ->
          if not (Nulls.exists Definitely (Z.gt mac_dstsize) srcnulls) then
            warn_past_end "src may not contain a null byte at an index smaller than the size of dest"
+         else
+           Checks.safe Checks.Category.InvalidMemoryAccess
        |_, Some max_dstsize, _, None ->
          if not (Nulls.exists Definitely (Z.gt max_dstsize) srcnulls) then
            warn_past_end "src may not contain a null byte at an index smaller than the size of dest"
-       | _ -> ()) in
+         else
+           Checks.safe Checks.Category.InvalidMemoryAccess
+       | _ -> Checks.safe Checks.Category.InvalidMemoryAccess) in
 
     match n with
     (* strcpy *)
@@ -1412,7 +1463,7 @@ struct
            "The length of the concatenation of the strings in src and dest is greater than the allocated size for dest"
        else
          (match maxlen1, maxlen2 with
-          | Some maxlen1, Some maxlen2 when min_size1 >. (maxlen1 +. maxlen2) -> ()
+          | Some maxlen1, Some maxlen2 when min_size1 >. (maxlen1 +. maxlen2) -> Checks.safe Checks.Category.InvalidMemoryAccess
           | _ -> warn_past_end
                    "The length of the concatenation of the strings in src and dest may be greater than the allocated size for dest")
       );
@@ -1603,6 +1654,8 @@ struct
           warn_past_end "Array of string %s doesn't contain a null byte: buffer overflow" name
         else if Nulls.is_empty Possibly nulls then
           warn_past_end "Array of string %s might not contain a null byte: potential buffer overflow" name
+        else
+          Checks.safe Checks.Category.InvalidMemoryAccess
       in
       warn_missing_nulls nulls1 "1";
       warn_missing_nulls nulls2 "2";
@@ -1620,7 +1673,7 @@ struct
           warn_past_end "The size of the array of string %s might be smaller than n bytes" name
         | None when n >. min ->
           warn_past_end "The size of the array of string %s might be smaller than n bytes" name
-        | _ -> ()
+        | _ -> Checks.safe Checks.Category.InvalidMemoryAccess
       in
       warn_size size1 "1";
       warn_size size2 "2";

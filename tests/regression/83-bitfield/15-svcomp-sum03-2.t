@@ -1,6 +1,6 @@
   $ goblint --enable ana.sv-comp.functions --enable witness.yaml.enabled --set witness.yaml.invariant-types '["loop_invariant"]' --enable ana.int.bitfield 15-svcomp-sum03-2.c
-  [Warning][Integer > Overflow][CWE-190] Unsigned integer overflow (15-svcomp-sum03-2.c:11:5-11:18)
-  [Warning][Integer > Overflow][CWE-190] Unsigned integer overflow (15-svcomp-sum03-2.c:12:5-12:8)
+  [Warning][Integer > Overflow][CWE-190] Unsigned integer overflow in + (15-svcomp-sum03-2.c:11:5-11:18)
+  [Warning][Integer > Overflow][CWE-190] Unsigned integer overflow in + (15-svcomp-sum03-2.c:12:5-12:8)
   [Warning][Deadcode] Function 'main' does not return
   [Warning][Deadcode] Function 'main' has dead code:
     on line 14 (15-svcomp-sum03-2.c:14-14)

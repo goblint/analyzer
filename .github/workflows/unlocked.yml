@@ -14,27 +14,71 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os:
-          - ubuntu-22.04 # https://github.com/ocaml/setup-ocaml/issues/872
-          - macos-13
-        ocaml-compiler:
-          - 5.2.x
-          - 5.1.x
-          - 5.0.x
-          - ocaml-variants.4.14.2+options,ocaml-option-flambda
-          - 4.14.x
-        apron:
-          - false
-          - true
-        z3:
-          - false
-
+        # We don't want a full matrix because it is too slow, so we only have linear axes overriding these below.
         include:
-          - os: ubuntu-22.04 # https://github.com/ocaml/setup-ocaml/issues/872
+          # Common configuration
+          - os: ubuntu-24.04
+            ocaml-compiler: ocaml-variants.4.14.2+options,ocaml-option-flambda # matches opam lock file
+            apron: true
+            z3: false
+
+          # OCaml versions
+          - os: ubuntu-24.04
+            ocaml-compiler: 5.4.x
+            apron: true
+            z3: false
+          - os: ubuntu-24.04
+            ocaml-compiler: 5.3.x
+            apron: true
+            z3: false
+          - os: ubuntu-24.04
+            ocaml-compiler: 5.2.x
+            apron: true
+            z3: false
+          - os: ubuntu-24.04
+            ocaml-compiler: 5.1.x
+            apron: true
+            z3: false
+          - os: ubuntu-24.04
+            ocaml-compiler: 5.0.x
+            apron: true
+            z3: false
+          - os: ubuntu-24.04
             ocaml-compiler: 4.14.x
+            apron: true
+            z3: false
+
+          # OS-s
+          - os: ubuntu-22.04
+            ocaml-compiler: ocaml-variants.4.14.2+options,ocaml-option-flambda # matches opam lock file
+            apron: true
+            z3: false
+          - os: macos-26
+            ocaml-compiler: ocaml-variants.4.14.2+options,ocaml-option-flambda # matches opam lock file
+            apron: true
+            z3: false
+          - os: macos-15-intel
+            ocaml-compiler: ocaml-variants.4.14.2+options,ocaml-option-flambda # matches opam lock file
+            apron: true
+            z3: false
+          - os: macos-15
+            ocaml-compiler: ocaml-variants.4.14.2+options,ocaml-option-flambda # matches opam lock file
+            apron: true
+            z3: false
+          - os: macos-14
+            ocaml-compiler: ocaml-variants.4.14.2+options,ocaml-option-flambda # matches opam lock file
+            apron: true
+            z3: false
+
+          # Optional dependencies
+          - os: ubuntu-24.04
+            ocaml-compiler: ocaml-variants.4.14.2+options,ocaml-option-flambda # matches opam lock file
+            apron: false
+            z3: false
+          - os: ubuntu-24.04
+            ocaml-compiler: ocaml-variants.4.14.2+options,ocaml-option-flambda # matches opam lock file
+            apron: true
             z3: true
-          - os: macos-latest
-            ocaml-compiler: 4.14.x
 
     # customize name to use readable string for apron instead of just a boolean
     # workaround for missing ternary operator: https://github.com/actions/runner/issues/409
@@ -52,7 +96,7 @@ jobs:
           ocaml-compiler: ${{ matrix.ocaml-compiler }}
 
       - name: Install graph-easy # TODO: remove if depext --with-test works (https://github.com/ocaml/opam/issues/5836)
-        if: ${{ matrix.os == 'ubuntu-22.04' }}
+        if: ${{ startsWith(matrix.os, 'ubuntu') }}
         run: sudo apt install -y libgraph-easy-perl
 
       - name: Install dependencies
@@ -63,7 +107,7 @@ jobs:
 
       - name: Install Apron dependencies
         if: ${{ matrix.apron }}
-        run: opam install apron mlgmpidl.1.2.15
+        run: opam install apron mlgmpidl
 
       - name: Install Z3 dependencies
         if: ${{ matrix.z3 }}
@@ -86,8 +130,8 @@ jobs:
       fail-fast: false
       matrix:
         os:
-          - ubuntu-22.04 # https://github.com/ocaml/setup-ocaml/issues/872
-          - macos-13
+          - ubuntu-latest
+          - macos-latest
         ocaml-compiler:
           - ocaml-variants.4.14.2+options,ocaml-option-flambda # matches opam lock file
 
@@ -105,7 +149,7 @@ jobs:
           ocaml-compiler: ${{ matrix.ocaml-compiler }}
 
       - name: Install graph-easy # TODO: remove if depext --with-test works (https://github.com/ocaml/opam/issues/5836)
-        if: ${{ matrix.os == 'ubuntu-22.04' }}
+        if: ${{ startsWith(matrix.os, 'ubuntu') }}
         run: sudo apt install -y libgraph-easy-perl
 
       - name: Install dependencies
@@ -115,7 +159,7 @@ jobs:
         run: sudo gem install os
 
       - name: Install Apron dependencies
-        run: opam install apron mlgmpidl.1.2.15
+        run: opam install apron mlgmpidl
 
       - name: Downgrade dependencies
         # without "+removed" in criteria, because it also removes optional apron
@@ -138,8 +182,8 @@ jobs:
       fail-fast: false
       matrix:
         os:
-          - ubuntu-22.04 # https://github.com/ocaml/setup-ocaml/issues/872
-          - macos-13
+          - ubuntu-latest
+          - macos-latest
         ocaml-compiler:
           - ocaml-variants.4.14.2+options,ocaml-option-flambda # matches opam lock file
 
@@ -155,14 +199,14 @@ jobs:
           ocaml-compiler: ${{ matrix.ocaml-compiler }}
 
       - name: Install graph-easy # TODO: remove if depext --with-test works (https://github.com/ocaml/opam/issues/5836)
-        if: ${{ matrix.os == 'ubuntu-22.04' }}
+        if: ${{ startsWith(matrix.os, 'ubuntu') }}
         run: sudo apt install -y libgraph-easy-perl
 
       - name: Install Goblint with test
         run: opam install goblint --with-test
 
       - name: Install Apron dependencies
-        run: opam install apron mlgmpidl.1.2.15
+        run: opam install apron mlgmpidl
 
       - name: Symlink installed goblint to repository # because tests want to use locally built one
         run: ln -s $(opam exec -- which goblint) goblint
@@ -206,7 +250,7 @@ jobs:
       fail-fast: false
       matrix:
         os:
-          - ubuntu-22.04 # https://github.com/ocaml/setup-ocaml/issues/872
+          - ubuntu-latest
         ocaml-compiler:
           - ocaml-variants.5.0.0+options,ocaml-option-flambda
         node-version:
