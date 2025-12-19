@@ -1,7 +1,7 @@
 # VMCAI '26 Artifact Description
 ## Data Race Detection by Digest-Driven Abstract Interpretation
 
-This is the artifact description for our [VMCAI '26 paper "Data Race Detection by Digest-Driven Abstract Interpretation](https://arxiv.org/abs/2511.11055).
+This is the artifact description for our [VMCAI '26 paper "Data Race Detection by Digest-Driven Abstract Interpretation"](https://arxiv.org/abs/2511.11055).
 The artifact is available on [Zenodo](https://doi.org/10.5281/zenodo.17128591).
 
 **The description here is provided for convenience and not maintained.**
