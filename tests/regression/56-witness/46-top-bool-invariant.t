@@ -154,7 +154,7 @@ bitfield only:
     dead: 0
     total lines: 2
   [Info][Witness] witness generation summary:
-    location invariants: 3
+    location invariants: 2
     loop invariants: 0
     flow-insensitive invariants: 0
     total generation entries: 1
@@ -170,15 +170,6 @@ bitfield only:
           column: 3
           function: main
         value: (_Bool)0 <= x
-        format: c_expression
-    - invariant:
-        type: location_invariant
-        location:
-          file_name: 46-top-bool-invariant.c
-          line: 5
-          column: 3
-          function: main
-        value: (x & (_Bool)1) == (_Bool)0
         format: c_expression
     - invariant:
         type: location_invariant
