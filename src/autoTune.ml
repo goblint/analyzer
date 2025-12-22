@@ -62,7 +62,7 @@ class findAllocsInLoops = object
 
   method! vinst = function
     | Call (_, Lval (Var f, NoOffset), args,_,_) when LibraryFunctions.is_special f ->
-      Goblint_backtrace.protect ~mark:(fun () -> Cilfacade.FunVarinfo f) ~finally:Fun.id @@ fun () ->
+      let@ () = Goblint_backtrace.protect ~mark:(fun () -> Cilfacade.FunVarinfo f) ~finally:Fun.id in
       let desc = LibraryFunctions.find f in
       begin match desc.special args with
         | Malloc _
@@ -96,7 +96,7 @@ let functionArgs fd = (ResettableLazy.force functionCallMaps).argLists |> Functi
 
 let findMallocWrappers () =
   let isMalloc f =
-    Goblint_backtrace.wrap_val ~mark:(Cilfacade.FunVarinfo f) @@ fun () ->
+    let@ () = Goblint_backtrace.wrap_val ~mark:(Cilfacade.FunVarinfo f) in
     if LibraryFunctions.is_special f then
       let desc = LibraryFunctions.find f in
       let args = functionArgs f in
@@ -177,7 +177,7 @@ let disableIntervalContextsInRecursiveFunctions () =
 
 let hasFunction pred =
   let relevant_static var =
-    Goblint_backtrace.wrap_val ~mark:(Cilfacade.FunVarinfo var) @@ fun () ->
+    let@ () = Goblint_backtrace.wrap_val ~mark:(Cilfacade.FunVarinfo var) in
     if LibraryFunctions.is_special var then
       let desc = LibraryFunctions.find var in
       GobOption.exists (fun args -> pred desc args) (functionArgs var)
@@ -185,7 +185,7 @@ let hasFunction pred =
       false
   in
   let relevant_dynamic var =
-    Goblint_backtrace.wrap_val ~mark:(Cilfacade.FunVarinfo var) @@ fun () ->
+    let@ () = Goblint_backtrace.wrap_val ~mark:(Cilfacade.FunVarinfo var) in
     if LibraryFunctions.is_special var then
       let desc = LibraryFunctions.find var in
       (* We don't really have arguments at hand, so we cheat and just feed it a list of MyCFG.unknown_exp of appropriate length *)
