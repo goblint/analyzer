@@ -348,7 +348,7 @@ let rec typeOf (e: exp) : typ =
   | UnOp (_, _, t)
   | BinOp (_, _, _, t)
   | Question (_, _, _, t)
-  | CastE (t, _) -> t
+  | CastE (_, t, _) -> t
   | AddrOf (lv) -> TPtr(typeOfLval lv, [])
   | AddrOfLabel (lv) -> voidPtrType
   | StartOf (lv) -> begin
@@ -417,14 +417,14 @@ let bytesOffsetOnly t o =
 
 
 (** {!Cil.mkCast} using our {!typeOf}. *)
-let mkCast ~(e: exp) ~(newt: typ) =
+let mkCast ~kind ~(e: exp) ~(newt: typ) =
   let oldt =
     try
       typeOf e
     with TypeOfError _ -> (* e might involve alloc variables, weird offsets, etc *)
       Cil.voidType (* oldt is only used for avoiding duplicate cast, so this falls back to adding cast *)
   in
-  Cil.mkCastT ~e ~oldt ~newt
+  Cil.mkCastT ~kind ~e ~oldt ~newt
 
 (** @raise TypeOfError
     @raise Invalid_argument if not integral type. *)
@@ -805,4 +805,4 @@ let add_function_declarations (file: Cil.file): unit =
 (** Special index expression for some unknown index.
     Weakly updates array in assignment.
     Used for [exp.fast_global_inits]. *)
-let any_index_exp = lazy (CastE (TInt (ptrdiff_ikind (), []), mkString "any_index")) (* TODO: move back to Offset *)
+let any_index_exp = lazy (CastE (Internal, TInt (ptrdiff_ikind (), []), mkString "any_index")) (* TODO: move back to Offset *)

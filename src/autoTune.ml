@@ -342,7 +342,7 @@ let isComparison = function
 
 let rec extractVar = function
   | UnOp (Neg, e, _)
-  | CastE (_, e) -> extractVar e
+  | CastE (_, _, e) -> extractVar e
   | Lval ((Var info),_) when OctagonTracked.varinfo_tracked info -> Some info
   | _ -> None
 
