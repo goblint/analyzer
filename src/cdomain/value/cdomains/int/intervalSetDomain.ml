@@ -114,7 +114,7 @@ struct
   let binop (x: t) (y: t) op : t = match x, y with
     | [], _ -> []
     | _, [] -> []
-    | _, _ -> canonize @@ List.concat_map op (BatList.cartesian_product x y)
+    | _, _ -> canonize @@ GobList.cartesian_concat_map op x y
 
 
   include Std (struct type nonrec t = t let name = name let top_of = top_of let bot_of = bot_of let show = show let equal = equal end)
@@ -185,18 +185,18 @@ struct
   let binary_op_with_norm op (ik:ikind) (x: t) (y: t) : t*overflow_info = match x, y with
     | [], _ -> ([],{overflow=false; underflow=false})
     | _, [] -> ([],{overflow=false; underflow=false})
-    | _, _ -> norm_intvs ik @@ List.map (fun (x,y) -> op x y) (BatList.cartesian_product x y)
+    | _, _ -> norm_intvs ik @@ GobList.cartesian_map op x y
 
   let binary_op_concat_with_norm op (ik:ikind) (x: t) (y: t) : t*overflow_info = match x, y with
     | [], _ -> ([],{overflow=false; underflow=false})
     | _, [] -> ([],{overflow=false; underflow=false})
-    | _, _ -> norm_intvs ik @@ List.concat_map (fun (x,y) -> op x y) (BatList.cartesian_product x y)
+    | _, _ -> norm_intvs ik @@ GobList.cartesian_concat_map op x y
 
   let binary_op_with_ovc (x: t) (y: t) op : t*overflow_info = match x, y with
     | [], _ -> ([],{overflow=false; underflow=false})
     | _, [] -> ([],{overflow=false; underflow=false})
     | _, _ ->
-      let res = List.map op (BatList.cartesian_product x y) in
+      let res = GobList.cartesian_map op x y in
       let intvs = List.concat_map fst res in
       let underflow = List.exists (fun (_,{underflow; _}) -> underflow) res in
       let overflow = List.exists (fun (_,{overflow; _}) -> underflow) res in
@@ -307,7 +307,7 @@ struct
   let interval_to_int i = Interval.to_int (Some i)
   let interval_to_bool i = Interval.to_bool (Some i)
 
-  let log f ik (i1, i2) =
+  let log f ik i1 i2 =
     match (interval_to_bool i1, interval_to_bool i2) with
     | Some x, Some y -> of_bool ik (f x y)
     | _ -> top_of ik
@@ -319,7 +319,7 @@ struct
     | _ -> top_of ik
 
 
-  let bitcomp f ik (i1, i2) =
+  let bitcomp f ik i1 i2 =
     match (interval_to_int i1, interval_to_int i2) with
     | Some x, Some y -> (try of_int ik (f x y) with Division_by_zero | Invalid_argument _ -> (top_of ik,{overflow=false; underflow=false}))
     | _, _ -> (top_of ik,{overflow=false; underflow=false})
@@ -340,7 +340,7 @@ struct
     Ints_t.sub (Ints_t.shift_left Ints_t.one (Z.numbits @@ Z.abs @@ Ints_t.to_bigint x)) Ints_t.one
 
   (* TODO: deduplicate with IntervalDomain? *)
-  let interval_logand ik (i1, i2) =
+  let interval_logand ik i1 i2 =
     match bit Ints_t.logand ik (i1, i2) with
     | result when not (is_top_of ik result) -> result
     | _ ->
@@ -361,7 +361,7 @@ struct
   let logand ik x y = binop x y (interval_logand ik)
 
   (* TODO: deduplicate with IntervalDomain? *)
-  let interval_logor ik (i1, i2) =
+  let interval_logor ik i1 i2 =
     match bit Ints_t.logor ik (i1, i2) with
     | result when not (is_top_of ik result) -> result
     | _ ->
@@ -381,7 +381,7 @@ struct
   let logor ik x y = binop x y (interval_logor ik)
 
   (* TODO: deduplicate with IntervalDomain? *)
-  let interval_logxor ik (i1, i2) =
+  let interval_logxor ik i1 i2 =
     match bit Ints_t.logxor ik (i1, i2) with
     | result when not (is_top_of ik result) && not (is_bot result) -> result (* TODO: why bot check here, but not elsewhere? *)
     | _ ->
@@ -426,7 +426,7 @@ struct
     binary_op_with_ovc x y interval_shiftleft
 
   (* TODO: deduplicate with IntervalDomain? *)
-  let interval_shiftright ik (i1, i2) =
+  let interval_shiftright ik i1 i2 =
     match interval_to_int i1, interval_to_int i2 with
     | Some x, Some y -> (try of_int ik (Ints_t.shift_right x (Ints_t.to_int y)) with Division_by_zero | Invalid_argument _ -> (top_of ik, {overflow=false; underflow=false}))
     | _, _ ->
@@ -472,7 +472,7 @@ struct
     binary_op_concat_with_norm interval_div ik x y
 
   let rem ik x y =
-    let interval_rem (x, y) =
+    let interval_rem x y =
       if Interval.is_top_of ik (Some x) && Interval.is_top_of ik (Some y) then
         top_of ik
       else
