@@ -160,7 +160,7 @@ struct
                 GobRef.wrap AnalysisState.executing_speculative_computations true @@ fun () ->
                 let ikind = try (Cilfacade.get_ikind_exp e) with Invalid_argument a -> raise (Unsupported_CilExp (Ikind_non_integer a))   in
                 let simp = query e ikind in
-                let const = IntDomain.IntDomTuple.to_int @@ IntDomain.IntDomTuple.cast_to ikind simp in
+                let const = IntDomain.IntDomTuple.to_int @@ IntDomain.IntDomTuple.cast_to ~kind:Unknown ikind simp in (* TODO: proper castkind *)
                 if M.tracing then M.trace "relation" "texpr1_expr_of_cil_exp/simplify: %a -> %a" d_plainexp e IntDomain.IntDomTuple.pretty simp;
                 BatOption.map_default (fun c -> Const (CInt (c, ikind, None))) e const
               in
@@ -185,7 +185,7 @@ struct
                       (* try to evaluate e by EvalInt Query *)
                       let res = try (query e @@ Cilfacade.get_ikind_exp e) with Invalid_argument a -> raise (Unsupported_CilExp (Ikind_non_integer a))  in
                       (* convert response to a constant *)
-                      IntDomain.IntDomTuple.to_int @@ IntDomain.IntDomTuple.cast_to t_ik res, res in
+                      IntDomain.IntDomTuple.to_int @@ IntDomain.IntDomTuple.cast_to ~kind:Unknown t_ik res, res in (* TODO: proper castkind *)
                     match const with
                     | Some c -> Cst (Coeff.s_of_z c) (* Got a constant value -> use it straight away *)
                     (* I gotten top, we can not guarantee injectivity *)

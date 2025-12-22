@@ -125,7 +125,7 @@ struct
                 let st = set' lv lval_a st in
                 let orig = AD.Addr.add_offset base_a original_offset in
                 let old_val = get ~man st (AD.singleton orig) None in
-                let old_val = VD.cast (Cilfacade.typeOfLval x) old_val in (* needed as the type of this pointer may be different *)
+                let old_val = VD.cast ~kind:Unknown (Cilfacade.typeOfLval x) old_val in (* needed as the type of this pointer may be different *) (* TODO: proper castkind *)
                 (* this what I would originally have liked to do, but eval_rv_lval_refine uses queries and thus stale values *)
                 (* let old_val = eval_rv_lval_refine ~man st exp x in *)
                 let old_val = map_oldval old_val (Cilfacade.typeOfLval x) in
@@ -157,7 +157,7 @@ struct
         (match value with
          | Int n ->
            let ikind = Cilfacade.get_ikind_exp (Lval lval) in
-           `Refine (x, Int (ID.cast_to ikind n))
+           `Refine (x, Int (ID.cast_to ~kind:Unknown ikind n)) (* TODO: proper castkind *)
          | _ -> `Refine (x, value))
       (* The false-branch for x == value: *)
       | Eq, x, value, false -> begin
@@ -194,7 +194,7 @@ struct
           match value with
           | Int n -> begin
               let ikind = Cilfacade.get_ikind_exp (Lval lval) in
-              let n = ID.cast_to ikind n in
+              let n = ID.cast_to ~kind:Unknown ikind n in (* TODO: proper castkind *)
               let range_from x = if tv then ID.ending ikind (Z.pred x) else ID.starting ikind x in
               let limit_from = if tv then ID.maximal else ID.minimal in
               match limit_from n with
@@ -209,7 +209,7 @@ struct
           match value with
           | Int n -> begin
               let ikind = Cilfacade.get_ikind_exp (Lval lval) in
-              let n = ID.cast_to ikind n in
+              let n = ID.cast_to ~kind:Unknown ikind n in (* TODO: proper castkind *)
               let range_from x = if tv then ID.ending ikind x else ID.starting ikind (Z.succ x) in
               let limit_from = if tv then ID.maximal else ID.minimal in
               match limit_from n with
@@ -241,7 +241,7 @@ struct
         let v = eval_rv ~man st rval in
         let x_type = Cilfacade.typeOfLval x in
         if VD.is_dynamically_safe_cast x_type (Cilfacade.typeOf rval) v then
-          helper op x (VD.cast x_type v) tv
+          helper op x (VD.cast ~kind:Unknown x_type v) tv (* TODO: proper castkind *)
         else
           `NotUnderstood
       | BinOp(op, rval, Lval x, typ) -> derived_invariant (BinOp(switchedOp op, Lval x, rval, typ)) tv
@@ -757,7 +757,7 @@ struct
              | a1, a2 -> fallback (fun () -> Pretty.dprintf "binop: got abstract values that are not Int: %a and %a" VD.pretty a1 VD.pretty a2) st)
             (* use closures to avoid unused casts *)
           in (match c_typed with
-              | Int c -> invert_binary_op c ID.pretty (fun ik -> ID.cast_to ik c) (fun fk -> FD.of_int fk c)
+              | Int c -> invert_binary_op c ID.pretty (fun ik -> ID.cast_to ~kind:Unknown ik c) (fun fk -> FD.of_int fk c) (* TODO: proper castkind *)
               | Float c -> invert_binary_op c FD.pretty (fun ik -> FD.to_int ik c) (fun fk -> FD.cast_to fk c)
               | _ -> failwith "unreachable")
         | Lval x, (Int _ | Float _ | Address _) -> (* meet x with c *)
@@ -769,7 +769,7 @@ struct
               let c' = match t with
                 | TPtr _ -> VD.Address (AD.of_int c)
                 | TInt (ik, _)
-                | TEnum ({ekind = ik; _}, _) -> Int (ID.cast_to ik c)
+                | TEnum ({ekind = ik; _}, _) -> Int (ID.cast_to ~kind:Unknown ik c) (* TODO: proper castkind *)
                 | TFloat (fk, _) -> Float (FD.of_int fk c)
                 | _ -> Int c
               in
@@ -781,7 +781,7 @@ struct
                   if M.tracing then M.trace "invSpecial" "qry Result: %a" Queries.ML.pretty tmpSpecial;
                   begin match tmpSpecial with
                     | `Lifted (Abs (ik, xInt)) ->
-                      let c' = ID.cast_to ik c in (* different ik! *)
+                      let c' = ID.cast_to ~kind:Unknown ik c in (* different ik! *) (* TODO: proper castkind *)
                       inv_exp (Int (ID.join c' (ID.neg c'))) xInt st
                     | tmpSpecial ->
                       BatOption.map_default_delayed (fun tv ->
@@ -854,8 +854,8 @@ struct
                     if VD.is_dynamically_safe_cast t t' (Int i) then
                       (* let c' = ID.cast_to ik_e c in *)
                       (* Suppressing overflow warnings as this is not a computation that comes from the program *)
-                      let res_range = (ID.cast_to ~suppress_ovwarn:true ik (ID.top_of ik_e)) in
-                      let c' = ID.cast_to ik_e (ID.meet c res_range) in (* TODO: cast without overflow, is this right for normal invariant? *)
+                      let res_range = (ID.cast_to ~suppress_ovwarn:true ~kind:Unknown ik (ID.top_of ik_e)) in (* TODO: proper castkind *)
+                      let c' = ID.cast_to ~kind:Unknown ik_e (ID.meet c res_range) in (* TODO: cast without overflow, is this right for normal invariant? *) (* TODO: proper castkind *)
                       if M.tracing then M.tracel "inv" "cast: %a from %a to %a: i = %a; cast c = %a to %a = %a" d_exp e d_ikind ik_e d_ikind ik ID.pretty i ID.pretty c d_ikind ik_e ID.pretty c';
                       inv_exp (Int c') e st
                     else
