@@ -21,10 +21,10 @@ module FwdBuSolver (System: FwdGlobConstrSys) = struct
 
   module OM = Hashtbl.Make(Node)
   let source = System.LVar.node
-  let gas_default = ref (10,3)
+  let gas_default = ref (3,10,3)
 
   let lwarrow (a,delay,gas,narrow) b =
-    let (delay0,_) = !gas_default in
+    let (_,delay0,_) = !gas_default in
     if D.equal a b then (a,delay,gas,narrow)
     else if D.leq b a then
       (
@@ -38,7 +38,7 @@ module FwdBuSolver (System: FwdGlobConstrSys) = struct
     else (D.join a b, delay-1,gas,false)
 
   let gwarrow (a,delay,gas,narrow) b =
-    let (delay0,_) = !gas_default in
+    let (_,delay0,_) = !gas_default in
     if G.equal a b then (a,delay,gas,narrow)
     else if G.leq b a then
       if narrow then (G.narrow a b,delay,gas,true)
@@ -98,7 +98,7 @@ module FwdBuSolver (System: FwdGlobConstrSys) = struct
   let get_old_global_value orig from =
     try OM.find from orig
     with _ ->
-      let (delay,gas) = !gas_default in
+      let (_,delay,gas) = !gas_default in
       OM.add from orig (G.bot (),delay,gas,false,LS.empty);
       (G.bot (),delay,gas,false,LS.empty)
 
@@ -116,7 +116,7 @@ module FwdBuSolver (System: FwdGlobConstrSys) = struct
 
   type loc = {loc_value : D.t; loc_init : D.t; 
               called: bool ref; aborted: bool ref;
-              loc_from : (D.t * int * int * bool) LM.t}
+              loc_from : (D.t * int * int * int * bool) LM.t}
 (*
     init may contain some initial value not provided by separate origin;
     perhaps, dynamic tracking of dependencies required for certain locals?
@@ -147,13 +147,13 @@ module FwdBuSolver (System: FwdGlobConstrSys) = struct
       loc_from = LM.create 10
     }
 
-  let get_local_value init from = LM.fold (fun _ (b,_,_,_) a -> D.join a b) from init
+  let get_local_value init from = LM.fold (fun _ (b,_,_,_,_) a -> D.join a b) from init
 
   let get_old_local_value x from =
     try LM.find from x
-    with _ -> let (delay,gas) = !gas_default in
-      LM.add from x (D.bot (),delay,gas,false);
-      (D.bot (),delay,gas,false)
+    with _ -> let (reset,delay,gas) = !gas_default in
+      LM.add from x (D.bot (),reset,delay,gas,false);
+      (D.bot (),reset,delay,gas,false)
 
   (* 
         Now the main solving consisting of the mutual recursive functions
@@ -213,17 +213,19 @@ module FwdBuSolver (System: FwdGlobConstrSys) = struct
     if tracing then trace "set_local" "set_local %a from %a" System.LVar.pretty_trace y System.LVar.pretty_trace x;
     if tracing then trace "set_local" "value: %a" D.pretty d;
     let {loc_value;loc_init;called;aborted;loc_from} as y_record = get_local_ref y in
-    let (old_xy,delay,gas,narrow) = get_old_local_value x loc_from in
+    let (old_xy,reset,delay,gas,narrow) = get_old_local_value x loc_from in
     let (new_xy,delay,gas,narrow) = 
       if !called then lwarrow (old_xy,delay,gas,narrow) d 
       else (d,delay,gas,narrow) in
     if D.equal new_xy old_xy then (
       (* If value of x has not changed, nothing to do *)
       if tracing then trace "set_localc" "no change";
+      if !called && reset > 0 then 
+      LM.replace loc_from x (D.bot(),reset-1,delay,gas,narrow);
     )
     else (
       if tracing then trace "set_localc" "new contribution";
-      LM.replace loc_from x (new_xy,delay,gas,narrow);
+      LM.replace loc_from x (new_xy,reset,delay,gas,narrow);
       let new_y = get_local_value loc_init loc_from in
       if tracing then trace "set_local" "new value for %a is %a" System.LVar.pretty_trace y D.pretty new_y;
       if D.equal loc_value new_y then (
