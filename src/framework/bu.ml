@@ -221,7 +221,7 @@ module FwdBuSolver (System: FwdGlobConstrSys) = struct
       (* If value of x has not changed, nothing to do *)
       if tracing then trace "set_localc" "no change";
       if !called && reset > 0 then 
-      LM.replace loc_from x (D.bot(),reset-1,delay,gas,narrow);
+        LM.replace loc_from x (D.bot(),reset-1,delay,gas,narrow);
     )
     else (
       if tracing then trace "set_localc" "new contribution";
