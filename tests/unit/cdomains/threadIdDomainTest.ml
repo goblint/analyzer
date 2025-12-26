@@ -98,10 +98,40 @@ let test_history_may_be_ancestor _ =
      Might be related to untestability with this unit test harness: https://github.com/goblint/analyzer/pull/1561#discussion_r1888149978. *)
   ()
 
+let test_history_must_ancestors _ =
+  let open History in
+  let compare_ancestors a1 a2 = (List.equal equal) a1 a2 in
+  let print_ancestors l =
+    let string_of_thread t =
+      GoblintCil.Pretty.sprint ~width:max_int (History.pretty () t)
+    in
+    "[" ^ String.concat ", " (List.map string_of_thread l) ^ "]"
+  in
+
+  let assert_equal =
+    assert_equal ?printer:(Some print_ancestors) ?cmp:(Some compare_ancestors)
+  in
+
+  (* unique tids *)
+  assert_equal ([]) (must_ancestors main);
+  assert_equal ([ main ]) (must_ancestors (main >> a));
+  assert_equal ([ main; main >> a; main >> a >> b; main >> a >> b >> c ]) (must_ancestors (main >> a >> b >> c >> d));
+
+  (* non-unique tids *)
+  assert_equal ([ main ]) (must_ancestors (main >> a >> a));
+  assert_equal ([ main ]) (must_ancestors (main >> a >> a >> b));
+  assert_equal ([ main ]) (must_ancestors (main >> a >> b >> c >> a));
+  assert_equal ([ main; main >> a ]) (must_ancestors (main >> a >> b >> c >> b >> d));
+  assert_equal ([ main; main >> a; main >> a >> b ]) (must_ancestors (main >> a >> b >> c >> c));
+
+  ()
+
+
 let tests =
   "threadIdDomainTest" >::: [
     "history" >::: [
       "must_be_ancestor" >:: test_history_must_be_ancestor;
       "may_be_ancestor" >:: test_history_may_be_ancestor;
+      "must_ancestors" >:: test_history_must_ancestors;
     ]
   ]

@@ -120,6 +120,7 @@ module ThreadAnalysis = ThreadAnalysis
 module ThreadJoins = ThreadJoins
 module MHPAnalysis = MHPAnalysis
 module ThreadReturn = ThreadReturn
+module ThreadDescendants = ThreadDescendants
 
 (** {3 Other} *)
 
@@ -131,6 +132,8 @@ module PthreadSignals = PthreadSignals
 module PthreadBarriers = PthreadBarriers
 module ExtractPthread = ExtractPthread
 module PthreadOnce = PthreadOnce
+module CreationLockset = CreationLockset
+module CreationLocksetAlternative = CreationLocksetAlternative
 
 (** {2 Longjmp}
 
