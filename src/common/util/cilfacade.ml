@@ -424,6 +424,7 @@ let mkCast ~kind ~(e: exp) ~(newt: typ) =
     with TypeOfError _ -> (* e might involve alloc variables, weird offsets, etc *)
       Cil.voidType (* oldt is only used for avoiding duplicate cast, so this falls back to adding cast *)
   in
+  let kind = Option.value kind ~default:Internal in
   Cil.mkCastT ~kind ~e ~oldt ~newt
 
 (** @raise TypeOfError

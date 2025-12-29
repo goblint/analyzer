@@ -300,7 +300,7 @@ struct
   let cil_exp_of_linexpr1_term ~scalewith (c: Coeff.t) v =
     match V.to_cil_varinfo v with
     | Some vinfo when IntDomain.Size.is_cast_injective ~from_type:vinfo.vtype ~to_type:(TInt(ILongLong,[]))   ->
-      let var = Cilfacade.mkCast ~kind:Unknown ~e:(Lval(Var vinfo,NoOffset)) ~newt:longlong in
+      let var = Cilfacade.mkCast ~kind:None ~e:(Lval(Var vinfo,NoOffset)) ~newt:longlong in
       let i = int_of_coeff_warn ~scalewith c in
       if Z.equal i Z.one then
         false, var
