@@ -2368,7 +2368,8 @@ struct
                     |> AD.type_of in
       (* when src and destination type coincide, take value from the source, otherwise use top *)
       let value = if (typeSig dest_typ = typeSig src_typ) && dest_size_equal_n then
-          let src_cast_lval = mkMem ~addr:(Cilfacade.mkCast ~kind:None ~e:src ~newt:(TPtr (dest_typ, []))) ~off:NoOffset in
+          (* TODO: why cast if types coincide? *)
+          let src_cast_lval = mkMem ~addr:(Cilfacade.mkCast ~kind:Internal ~e:src ~newt:(TPtr (dest_typ, []))) ~off:NoOffset in
           eval_rv ~man st (Lval src_cast_lval)
         else
           VD.top_value (unrollType dest_typ)

@@ -1361,7 +1361,7 @@ struct
           let offset = Addr.Offs.to_cil offs in
 
           let cast_to_void_ptr e =
-            Cilfacade.mkCast ~kind:None ~e ~newt:(TPtr (TVoid [], []))
+            Cilfacade.mkCast ~kind:Explicit ~e ~newt:(TPtr (TVoid [], []))
           in
           let i =
             if InvariantCil.(exp_is_suitable ~scope c_exp && var_is_suitable ~scope vi && not (var_is_heap vi)) then
@@ -1384,7 +1384,7 @@ struct
               (* Address set for a void* variable contains pointers to values of non-void type,
                   so insert pointer cast to make invariant expression valid (no field/index on void). *)
               let newt = TPtr (typ, []) in
-              let c_exp = Cilfacade.mkCast ~kind:None ~e:c_exp ~newt in
+              let c_exp = Cilfacade.mkCast ~kind:Explicit ~e:c_exp ~newt in
               deref_invariant ~vs vi ~offset ~lval:(Mem c_exp, NoOffset)
             | exception Cilfacade.TypeOfError _ (* typeOffset: Index on a non-array on calloc-ed alloc variables *)
             | _ ->

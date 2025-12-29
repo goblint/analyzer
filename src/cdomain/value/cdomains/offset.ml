@@ -27,7 +27,7 @@ struct
       | CastE (_, TInt (ik, []), Const (CStr ("any_index", No_encoding))) when CilType.Ikind.equal ik (Cilfacade.ptrdiff_ikind ()) -> true
       | _ -> false
 
-    let all = lazy (CastE (Internal, TInt (Cilfacade.ptrdiff_ikind (), []), mkString "all_index"))
+    let all = lazy (CastE (Explicit, TInt (Cilfacade.ptrdiff_ikind (), []), mkString "all_index"))
     let is_all = function
       | CastE (_, TInt (ik, []), Const (CStr ("all_index", No_encoding))) when CilType.Ikind.equal ik (Cilfacade.ptrdiff_ikind ()) -> true
       | _ -> false
