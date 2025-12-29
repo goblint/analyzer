@@ -544,12 +544,10 @@ struct
   module Tracked = Tracked
   module Convert = Convert (V) (Bounds) (Arg) (Tracked)
 
-  let rec exp_is_constraint = function
-    (* constraint *)
-    | BinOp ((Lt | Gt | Le | Ge | Eq | Ne), _, _, _) -> true
-    | BinOp ((LAnd | LOr), e1, e2, _) -> exp_is_constraint e1 && exp_is_constraint e2
-    | UnOp (LNot,e,_) -> exp_is_constraint e
-    (* expression *)
+  (* TODO: deduplicate with BaseInvariant is_cmp *)
+  let exp_is_constraint = function
+    | UnOp (LNot, _, _)
+    | BinOp ((Lt | Gt | Le | Ge | Eq | Ne | LAnd | LOr), _, _, _) -> true
     | _ -> false
 
   (* TODO: move logic-handling assert_constraint from Apron back to here, after fixing affeq bot-bot join *)
@@ -562,6 +560,7 @@ struct
       else
         (* convert non-constraint expression, such that we assert(e != 0) *)
         BinOp (Ne, e, zero, intType)
+        (* TODO: do this per non-constraint subexpression *)
     in
     assert_constraint ask d e' negate no_ov
 
