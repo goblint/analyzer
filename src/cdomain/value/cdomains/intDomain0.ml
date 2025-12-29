@@ -88,6 +88,9 @@ let add_overflow_check ~(op:overflow_op) ~underflow ~overflow ik =
     let sign = if signed then "Signed" else "Unsigned" in
     let op =
       match op with
+      (* explicitly distinguish binary and unary - *)
+      | Binop (MinusA | MinusPP | MinusPI) -> "binary -" (* only MinusA should probably be possible here *)
+      | Unop Neg -> "unary -"
       | Binop bop -> CilType.Binop.show bop
       | Unop uop -> CilType.Unop.show uop
       | Cast -> "cast"
