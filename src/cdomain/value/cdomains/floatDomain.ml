@@ -69,31 +69,31 @@ module type FloatArith = sig
   (** (inv_fabs z -> x) if (z = fabs(x)) *)
 
   (** {b Comparison operators} *)
-  val lt : t -> t -> IntDomain.IntDomTuple.t
+  val lt : t -> t -> bool option
   (** Less than: [x < y] *)
-  val gt : t -> t -> IntDomain.IntDomTuple.t
+  val gt : t -> t -> bool option
   (** Greater than: [x > y] *)
-  val le : t -> t -> IntDomain.IntDomTuple.t
+  val le : t -> t -> bool option
   (** Less than or equal: [x <= y] *)
-  val ge : t -> t -> IntDomain.IntDomTuple.t
+  val ge : t -> t -> bool option
   (** Greater than or equal: [x >= y] *)
-  val eq : t -> t -> IntDomain.IntDomTuple.t
+  val eq : t -> t -> bool option
   (** Equal to: [x == y] *)
-  val ne : t -> t -> IntDomain.IntDomTuple.t
+  val ne : t -> t -> bool option
   (** Not equal to: [x != y] *)
-  val unordered: t -> t -> IntDomain.IntDomTuple.t
+  val unordered: t -> t -> bool option
   (** Unordered *)
 
   (** {unary functions returning int} *)
-  val isfinite : t -> IntDomain.IntDomTuple.t
+  val isfinite : t -> bool option
   (** __builtin_isfinite(x) *)
-  val isinf : t -> IntDomain.IntDomTuple.t
+  val isinf : t -> bool option
   (** __builtin_isinf(x) *)
-  val isnan : t -> IntDomain.IntDomTuple.t
+  val isnan : t -> bool option
   (** __builtin_isnan(x) *)
-  val isnormal : t -> IntDomain.IntDomTuple.t
+  val isnormal : t -> bool option
   (** __builtin_isnormal(x) *)
-  val signbit : t -> IntDomain.IntDomTuple.t
+  val signbit : t -> bool option
   (** __builtin_signbit(x) *)
 end
 
@@ -396,7 +396,7 @@ module FloatIntervalImpl(Float_t : CFloatType) = struct
       | _, v2 when v2 = max -> (1,1) (* first argument cannot be max *)
       | _ -> (0, 1)
     in
-    IntDomain.IntDomTuple.of_interval IBool (Z.of_int a, Z.of_int b)
+    IntDomain.IntDomTuple.(to_bool (of_interval IBool (Z.of_int a, Z.of_int b))) (* TODO: avoid conversion via ID *)
 
   let eval_neg = function
     | (low, high) -> Interval (Float_t.neg high, Float_t.neg low)
@@ -596,8 +596,8 @@ module FloatIntervalImpl(Float_t : CFloatType) = struct
       | MinusInfinity, MinusInfinity -> (1,1)
       | _ -> (0, 0)
     in
-    IntDomain.IntDomTuple.of_interval IBool
-      (Z.of_int l, Z.of_int u)
+    IntDomain.IntDomTuple.(to_bool (of_interval IBool
+      (Z.of_int l, Z.of_int u))) (* TODO: avoid conversion via ID *)
 
   let ne a b =
     Messages.warn
@@ -616,8 +616,8 @@ module FloatIntervalImpl(Float_t : CFloatType) = struct
       | MinusInfinity, MinusInfinity -> (0,0)
       | _ -> (1, 1)
     in
-    IntDomain.IntDomTuple.of_interval IBool
-      (Z.of_int l, Z.of_int u)
+    IntDomain.IntDomTuple.(to_bool (of_interval IBool
+      (Z.of_int l, Z.of_int u))) (* TODO: avoid conversion via ID *)
 
   let unordered op1 op2 =
     let a, b =
@@ -627,11 +627,12 @@ module FloatIntervalImpl(Float_t : CFloatType) = struct
       | Top, _ | _, Top -> (0,1) (*neither of the arguments is Top/Bot/NaN*)
       | _ -> (0, 0)
     in
-    IntDomain.IntDomTuple.of_interval IBool (Z.of_int a, Z.of_int b)
+    IntDomain.IntDomTuple.(to_bool (of_interval IBool (Z.of_int a, Z.of_int b))) (* TODO: avoid conversion via ID *)
 
-  let true_nonZero_IInt () = IntDomain.IntDomTuple.of_excl_list IInt [Z.zero]
-  let false_zero_IInt () = IntDomain.IntDomTuple.of_int IInt Z.zero
-  let unknown_IInt () = IntDomain.IntDomTuple.top_of IInt
+  (* TODO: inline these *)
+  let true_nonZero_IInt () = Some true
+  let false_zero_IInt () = Some false
+  let unknown_IInt () = None
 
   let eval_isnormal = function
     | (l, h) ->
@@ -1174,13 +1175,13 @@ module FloatDomTupleImpl = struct
   let map2 r xa ya = opt_map2 (r.f2 (module F1)) xa ya
   let map2p r xa ya = opt_map2 (r.f2p (module F1)) xa ya
 
-  let map2int r xa ya =
+  let map2int r xa ya = (* TODO: rename *)
     Option.map_default identity
-      (IntDomain.IntDomTuple.top_of IBool) (opt_map2 (r.f2p (module F1)) xa ya)
+      None (opt_map2 (r.f2p (module F1)) xa ya)
 
-  let map1int r xa =
+  let map1int r xa = (* TODO: rename *)
     Option.map_default identity
-      (IntDomain.IntDomTuple.top_of IInt) (BatOption.map (r.fp (module F1)) xa)
+      None (BatOption.map (r.fp (module F1)) xa)
 
   let ( %% ) f g x = f % g x
 

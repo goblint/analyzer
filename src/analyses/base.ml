@@ -174,9 +174,13 @@ struct
     | BNot -> ID.lognot
     | LNot -> ID.c_lognot
 
+  let float_cmp = function
+    | Some b -> ID.of_bool IInt b (* TODO: actually non-0 (not 1) for unary predicates, but actual 1 for binary ones? *)
+    | None -> ID.top_of IInt
+
   let unop_FD = function
     | Neg  -> (fun v -> (Float (FD.neg v):value))
-    | LNot -> (fun c -> Int (FD.eq c (FD.of_const (FD.get_fkind c) 0.)))
+    | LNot -> (fun c -> Int (float_cmp (FD.eq c (FD.of_const (FD.get_fkind c) 0.))))
     | BNot -> failwith "BNot on a value of type float!"
 
 
@@ -256,7 +260,7 @@ struct
     | Ge -> FD.ge
     | Eq -> FD.eq
     | Ne -> FD.ne
-    | _ -> (fun _ _ -> ID.top ())
+    | _ -> (fun _ _ -> None)
 
   let is_int_returning_binop_FD = function
     | Lt | Gt | Le | Ge | Eq | Ne -> true
@@ -345,8 +349,8 @@ struct
       Int (ID.cast_to result_ik (binop_ID result_ik op v1 v2))
     (* For the float values, we apply the float domain operators *)
     | Float v1, Float v2 when is_int_returning_binop_FD op ->
-      let result_ik = Cilfacade.get_ikind t in
-      Int (ID.cast_to result_ik (int_returning_binop_FD op v1 v2))
+      let result_ik = Cilfacade.get_ikind t in (* TODO: isn't this always IInt? *)
+      Int (ID.cast_to result_ik (float_cmp (int_returning_binop_FD op v1 v2))) (* TODO: cast redundant *)
     | Float v1, Float v2 -> Float (binop_FD (Cilfacade.get_fkind t) op v1 v2)
     (* For address +/- value, we try to do some elementary ptr arithmetic *)
     | Address p, Int n
@@ -2660,11 +2664,11 @@ struct
           | Nan (fk, str) when Cil.isPointerType (Cilfacade.typeOf str) -> Float (FD.nan_of fk)
           | Nan _ -> failwith ("non-pointer argument in call to function "^f.vname)
           | Inf fk -> Float (FD.inf_of fk)
-          | Isfinite x -> Int (ID.cast_to IInt (apply_unary FDouble FD.isfinite x))
-          | Isinf x -> Int (ID.cast_to IInt (apply_unary FDouble FD.isinf x))
-          | Isnan x -> Int (ID.cast_to IInt (apply_unary FDouble FD.isnan x))
-          | Isnormal x -> Int (ID.cast_to IInt (apply_unary FDouble FD.isnormal x))
-          | Signbit x -> Int (ID.cast_to IInt (apply_unary FDouble FD.signbit x))
+          | Isfinite x -> Int (float_cmp (apply_unary FDouble FD.isfinite x))
+          | Isinf x -> Int (float_cmp (apply_unary FDouble FD.isinf x))
+          | Isnan x -> Int (float_cmp (apply_unary FDouble FD.isnan x))
+          | Isnormal x -> Int (float_cmp (apply_unary FDouble FD.isnormal x))
+          | Signbit x -> Int (float_cmp (apply_unary FDouble FD.signbit x))
           | Ceil (fk,x) -> Float (apply_unary fk FD.ceil x)
           | Floor (fk,x) -> Float (apply_unary fk FD.floor x)
           | Fabs (fk, x) -> Float (apply_unary fk FD.fabs x)
@@ -2675,12 +2679,12 @@ struct
           | Cos (fk, x) -> Float (apply_unary fk FD.cos x)
           | Sin (fk, x) -> Float (apply_unary fk FD.sin x)
           | Tan (fk, x) -> Float (apply_unary fk FD.tan x)
-          | Isgreater (x,y) -> Int(ID.cast_to IInt (apply_binary FDouble FD.gt x y))
-          | Isgreaterequal (x,y) -> Int(ID.cast_to IInt (apply_binary FDouble FD.ge x y))
-          | Isless (x,y) -> Int(ID.cast_to IInt (apply_binary FDouble FD.lt x y))
-          | Islessequal (x,y) -> Int(ID.cast_to IInt (apply_binary FDouble FD.le x y))
-          | Islessgreater (x,y) -> Int(ID.c_logor (ID.cast_to IInt (apply_binary FDouble FD.lt x y)) (ID.cast_to IInt (apply_binary FDouble FD.gt x y)))
-          | Isunordered (x,y) -> Int(ID.cast_to IInt (apply_binary FDouble FD.unordered x y))
+          | Isgreater (x,y) -> Int(float_cmp (apply_binary FDouble FD.gt x y))
+          | Isgreaterequal (x,y) -> Int(float_cmp (apply_binary FDouble FD.ge x y))
+          | Isless (x,y) -> Int(float_cmp (apply_binary FDouble FD.lt x y))
+          | Islessequal (x,y) -> Int(float_cmp (apply_binary FDouble FD.le x y))
+          | Islessgreater (x,y) -> Int(ID.c_logor (float_cmp (apply_binary FDouble FD.lt x y)) (float_cmp (apply_binary FDouble FD.gt x y)))
+          | Isunordered (x,y) -> Int(float_cmp (apply_binary FDouble FD.unordered x y))
           | Fmax (fd, x ,y) -> Float (apply_binary fd FD.fmax x y)
           | Fmin (fd, x ,y) -> Float (apply_binary fd FD.fmin x y)
           | Sqrt (fk, x) -> Float (apply_unary fk FD.sqrt x)
