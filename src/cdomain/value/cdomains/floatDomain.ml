@@ -1148,25 +1148,16 @@ module FloatDomTupleImpl = struct
     (* use where values are introduced *)
     create r x (float_precision_from_node_or_config ())
 
-  let opt_map2 f =
-    curry @@ function Some x, Some y -> Some (f x y) | _ -> None
-
   let exists = Option.default false
   let for_all = Option.default true
 
+  let map r = BatOption.map (r.f1 (module F1))
   let mapp r = BatOption.map (r.fp (module F1))
+  let map2 r = GobOption.map2 (r.f2 (module F1))
+  let map2p r = GobOption.map2 (r.f2p (module F1))
 
-  let map r a = BatOption.map (r.f1 (module F1)) a
-  let map2 r xa ya = opt_map2 (r.f2 (module F1)) xa ya
-  let map2p r xa ya = opt_map2 (r.f2p (module F1)) xa ya
-
-  let map2int r xa ya = (* TODO: rename *)
-    Option.map_default identity
-      None (opt_map2 (r.f2p (module F1)) xa ya)
-
-  let map1int r xa = (* TODO: rename *)
-    Option.map_default identity
-      None (BatOption.map (r.fp (module F1)) xa)
+  let map1bool r = GobOption.concat_map (r.fp (module F1))
+  let map2bool r = GobOption.concat_map2 (r.f2p (module F1))
 
   let ( %% ) f g x = f % g x
 
@@ -1301,31 +1292,31 @@ module FloatDomTupleImpl = struct
 
   (* f2p: binary ops which return an integer *)
   let lt =
-    map2int { f2p= (fun (type a) (module F : FloatDomain with type t = a) -> F.lt); }
+    map2bool { f2p= (fun (type a) (module F : FloatDomain with type t = a) -> F.lt); }
   let gt =
-    map2int { f2p= (fun (type a) (module F : FloatDomain with type t = a) -> F.gt); }
+    map2bool { f2p= (fun (type a) (module F : FloatDomain with type t = a) -> F.gt); }
   let le =
-    map2int { f2p= (fun (type a) (module F : FloatDomain with type t = a) -> F.le); }
+    map2bool { f2p= (fun (type a) (module F : FloatDomain with type t = a) -> F.le); }
   let ge =
-    map2int { f2p= (fun (type a) (module F : FloatDomain with type t = a) -> F.ge); }
+    map2bool { f2p= (fun (type a) (module F : FloatDomain with type t = a) -> F.ge); }
   let eq =
-    map2int { f2p= (fun (type a) (module F : FloatDomain with type t = a) -> F.eq); }
+    map2bool { f2p= (fun (type a) (module F : FloatDomain with type t = a) -> F.eq); }
   let ne =
-    map2int { f2p= (fun (type a) (module F : FloatDomain with type t = a) -> F.ne); }
+    map2bool { f2p= (fun (type a) (module F : FloatDomain with type t = a) -> F.ne); }
   let unordered =
-    map2int { f2p= (fun (type a) (module F : FloatDomain with type t = a) -> F.unordered); }
+    map2bool { f2p= (fun (type a) (module F : FloatDomain with type t = a) -> F.unordered); }
 
   (* fp: unary functions which return an integer *)
   let isfinite =
-    map1int { fp= (fun (type a) (module F : FloatDomain with type t = a) -> F.isfinite); }
+    map1bool { fp= (fun (type a) (module F : FloatDomain with type t = a) -> F.isfinite); }
   let isinf =
-    map1int { fp= (fun (type a) (module F : FloatDomain with type t = a) -> F.isinf); }
+    map1bool { fp= (fun (type a) (module F : FloatDomain with type t = a) -> F.isinf); }
   let isnan =
-    map1int { fp= (fun (type a) (module F : FloatDomain with type t = a) -> F.isnan); }
+    map1bool { fp= (fun (type a) (module F : FloatDomain with type t = a) -> F.isnan); }
   let isnormal =
-    map1int { fp= (fun (type a) (module F : FloatDomain with type t = a) -> F.isnormal); }
+    map1bool { fp= (fun (type a) (module F : FloatDomain with type t = a) -> F.isnormal); }
   let signbit =
-    map1int { fp= (fun (type a) (module F : FloatDomain with type t = a) -> F.signbit); }
+    map1bool { fp= (fun (type a) (module F : FloatDomain with type t = a) -> F.signbit); }
 
   let pretty_diff () (x, y) = dprintf "%a instead of %a" pretty x pretty y
 
