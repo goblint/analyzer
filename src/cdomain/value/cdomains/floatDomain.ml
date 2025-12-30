@@ -369,34 +369,32 @@ module FloatIntervalImpl(Float_t : CFloatType) = struct
 
   let eval_comparison_binop min max reflexive eval_operation (op1: t) op2 =
     warn_on_specials_comparison op1 op2;
-    let a, b =
-      match (op1, op2) with
-      | Bot, _ | _, Bot -> raise (ArithmeticOnFloatBot (Printf.sprintf "%s op %s" (show op1) (show op2)))
-      | Interval v1, Interval v2 -> eval_operation v1 v2
-      | NaN, _ | _, NaN -> (0,0) (* comparisons involving NaN always return false *)
-      | Top, _ | _, Top -> (0,1) (* comparisons with Top yield top *)
-      (* neither of the arguments below is Top/Bot/NaN *)
-      | v1, v2 when v1 = min ->
-        (* v1 is the minimal element w.r.t. the order *)
-        if v2 <> min || reflexive then
-          (* v2 is different, i.e., greater or the relation is reflexive *)
-          (1,1)
-        else
-          (0,0)
-      | _, v2 when v2 = min ->
-        (* second argument is minimal, first argument cannot be *)
-        (0,0)
-      | v1, v2 when v1 = max ->
-        (* v1 is maximal element w.r.t. the order *)
-        if v2 = max && reflexive then
-          (* v2 is also maximal and the relation is reflexive *)
-          (1,1)
-        else
-          (0,0)
-      | _, v2 when v2 = max -> (1,1) (* first argument cannot be max *)
-      | _ -> (0, 1)
-    in
-    IntDomain.IntDomTuple.(to_bool (of_interval IBool (Z.of_int a, Z.of_int b))) (* TODO: avoid conversion via ID *)
+    (* TODO: don't use polymorphic = and <> here *)
+    match op1, op2 with
+    | Bot, _ | _, Bot -> raise (ArithmeticOnFloatBot (Printf.sprintf "%s op %s" (show op1) (show op2)))
+    | Interval v1, Interval v2 -> eval_operation v1 v2
+    | NaN, _ | _, NaN -> Some false (* comparisons involving NaN always return false *)
+    | Top, _ | _, Top -> None (* comparisons with Top yield top *)
+    (* neither of the arguments below is Top/Bot/NaN *)
+    | v1, v2 when v1 = min ->
+      (* v1 is the minimal element w.r.t. the order *)
+      if v2 <> min || reflexive then
+        (* v2 is different, i.e., greater or the relation is reflexive *)
+        Some true
+      else
+        Some false
+    | _, v2 when v2 = min ->
+      (* second argument is minimal, first argument cannot be *)
+      Some false
+    | v1, v2 when v1 = max ->
+      (* v1 is maximal element w.r.t. the order *)
+      if v2 = max && reflexive then
+        (* v2 is also maximal and the relation is reflexive *)
+        Some true
+      else
+        Some false
+    | _, v2 when v2 = max -> Some true (* first argument cannot be max *)
+    | _ -> None
 
   let eval_neg = function
     | (low, high) -> Interval (Float_t.neg high, Float_t.neg low)
@@ -440,35 +438,37 @@ module FloatIntervalImpl(Float_t : CFloatType) = struct
       Interval (low, high)
 
 
+  (* TODO: don't use polymorphic comparisons here *)
+
   let eval_lt (l1, h1) (l2, h2) =
-    if h1 < l2 then (1, 1)
-    else if l1 >= h2 then (0, 0)
-    else (0, 1)
+    if h1 < l2 then Some true
+    else if l1 >= h2 then Some false
+    else None
 
   let eval_gt (l1, h1) (l2, h2) =
-    if l1 > h2 then (1, 1)
-    else if h1 <= l2 then (0, 0)
-    else (0, 1)
+    if l1 > h2 then Some true
+    else if h1 <= l2 then Some false
+    else None
 
   let eval_le (l1, h1) (l2, h2) =
-    if h1 <= l2 then (1, 1)
-    else if l1 > h2 then (0, 0)
-    else (0, 1)
+    if h1 <= l2 then Some true
+    else if l1 > h2 then Some false
+    else None
 
   let eval_ge (l1, h1) (l2, h2) =
-    if l1 >= h2 then (1, 1)
-    else if h1 < l2 then (0, 0)
-    else (0, 1)
+    if l1 >= h2 then Some true
+    else if h1 < l2 then Some false
+    else None
 
   let eval_eq (l1, h1) (l2, h2) =
-    if h1 < l2 || h2 < l1 then (0, 0)
-    else if h1 = l1 && h2 = l2 && l1 = l2 then (1, 1)
-    else (0, 1)
+    if h1 < l2 || h2 < l1 then Some false
+    else if h1 = l1 && h2 = l2 && l1 = l2 then Some true
+    else None
 
   let eval_ne (l1, h1) (l2, h2) =
-    if h1 < l2 || h2 < l1 then (1, 1)
-    else if h1 = l1 && h2 = l2 && l1 = l2 then (0, 0)
-    else (0, 1)
+    if h1 < l2 || h2 < l1 then Some true
+    else if h1 = l1 && h2 = l2 && l1 = l2 then Some false
+    else None
 
   let eval_fmax (l1, h1) (l2, h2) = (max l1 l2, max h1 h2)
   let eval_fmin (l1, h1) (l2, h2) = (min l1 l2, min h2 h2)
@@ -585,19 +585,15 @@ module FloatIntervalImpl(Float_t : CFloatType) = struct
       ~tags:[CWE 1077]
       "Equality/Inequality between `double` is dangerous!";
     warn_on_specials_comparison a b;
-    let l, u =
-      match (a, b) with
-      | Bot, _ | _, Bot -> raise (ArithmeticOnFloatBot (Printf.sprintf "%s op %s" (show a) (show b)))
-      | Interval v1, Interval v2 -> eval_eq v1 v2
-      | NaN, NaN -> (0,0)
-      | NaN, _ | _, NaN -> (0,0)
-      | Top, _ | _, Top -> (0,1) (*neither of the arguments is Top/Bot/NaN*)
-      | PlusInfinity, PlusInfinity -> (1,1)
-      | MinusInfinity, MinusInfinity -> (1,1)
-      | _ -> (0, 0)
-    in
-    IntDomain.IntDomTuple.(to_bool (of_interval IBool
-      (Z.of_int l, Z.of_int u))) (* TODO: avoid conversion via ID *)
+    match a, b with
+    | Bot, _ | _, Bot -> raise (ArithmeticOnFloatBot (Printf.sprintf "%s op %s" (show a) (show b)))
+    | Interval v1, Interval v2 -> eval_eq v1 v2
+    | NaN, NaN -> Some false
+    | NaN, _ | _, NaN -> Some false
+    | Top, _ | _, Top -> None (*neither of the arguments is Top/Bot/NaN*)
+    | PlusInfinity, PlusInfinity -> Some true
+    | MinusInfinity, MinusInfinity -> Some true
+    | _ -> Some false
 
   let ne a b =
     Messages.warn
@@ -605,50 +601,39 @@ module FloatIntervalImpl(Float_t : CFloatType) = struct
       ~tags:[CWE 1077]
       "Equality/Inequality between `double` is dangerous!";
     warn_on_specials_comparison a b;
-    let l, u =
-      match (a, b) with
-      | Bot, _ | _, Bot -> raise (ArithmeticOnFloatBot (Printf.sprintf "%s op %s" (show a) (show b)))
-      | Interval v1, Interval v2 -> eval_ne v1 v2
-      | NaN, NaN -> (1,1)
-      | NaN, _ | _, NaN -> (0,0)
-      | Top, _ | _, Top -> (0,1) (*neither of the arguments is Top/Bot/NaN*)
-      | PlusInfinity, PlusInfinity -> (0,0)
-      | MinusInfinity, MinusInfinity -> (0,0)
-      | _ -> (1, 1)
-    in
-    IntDomain.IntDomTuple.(to_bool (of_interval IBool
-      (Z.of_int l, Z.of_int u))) (* TODO: avoid conversion via ID *)
+    match a, b with
+    | Bot, _ | _, Bot -> raise (ArithmeticOnFloatBot (Printf.sprintf "%s op %s" (show a) (show b)))
+    | Interval v1, Interval v2 -> eval_ne v1 v2
+    | NaN, NaN -> Some true
+    | NaN, _ | _, NaN -> Some false
+    | Top, _ | _, Top -> None (*neither of the arguments is Top/Bot/NaN*)
+    | PlusInfinity, PlusInfinity -> Some false
+    | MinusInfinity, MinusInfinity -> Some false
+    | _ -> Some true
 
   let unordered op1 op2 =
-    let a, b =
-      match (op1, op2) with
-      | Bot, _ | _, Bot -> raise (ArithmeticOnFloatBot (Printf.sprintf "%s op %s" (show op1) (show op2)))
-      | NaN, _ | _, NaN -> (1,1)
-      | Top, _ | _, Top -> (0,1) (*neither of the arguments is Top/Bot/NaN*)
-      | _ -> (0, 0)
-    in
-    IntDomain.IntDomTuple.(to_bool (of_interval IBool (Z.of_int a, Z.of_int b))) (* TODO: avoid conversion via ID *)
-
-  (* TODO: inline these *)
-  let true_nonZero_IInt () = Some true
-  let false_zero_IInt () = Some false
-  let unknown_IInt () = None
+    match op1, op2 with
+    | Bot, _ | _, Bot -> raise (ArithmeticOnFloatBot (Printf.sprintf "%s op %s" (show op1) (show op2)))
+    | NaN, _ | _, NaN -> Some true
+    | Top, _ | _, Top -> None (*neither of the arguments is Top/Bot/NaN*)
+    | _ -> Some false
 
   let eval_isnormal = function
     | (l, h) ->
+      (* TODO: don't use polymorphic comparisons here *)
       if l >= Float_t.smallest || h <= (Float_t.neg (Float_t.smallest)) then
-        true_nonZero_IInt ()
+        Some true
       else if l > (Float_t.neg (Float_t.smallest)) && h < Float_t.smallest then
-        false_zero_IInt ()
+        Some false
       else
-        unknown_IInt ()
+        None
 
   (**it seems strange not to return an explicit 1 for negative numbers, but in c99 signbit is defined as:
    **<<The signbit macro returns a nonzero value if and only if the sign of its argument value is negative.>> *)
-  let eval_signbit = function
-    | (_, h) when h < Float_t.zero -> true_nonZero_IInt ()
-    | (l, _) when l > Float_t.zero -> false_zero_IInt ()
-    | _ -> unknown_IInt () (* any interval containing zero has to fall in this case, because we do not distinguish between 0. and -0. *)
+  let eval_signbit = function (* TODO: don't use polymorphic comparisons here *)
+    | (_, h) when h < Float_t.zero -> Some true
+    | (l, _) when l > Float_t.zero -> Some false
+    | _ -> None (* any interval containing zero has to fall in this case, because we do not distinguish between 0. and -0. *)
 
   (** returns the max of the given mfun once computed with rounding mode Up and once with rounding mode down*)
   let safe_mathfun_up mfun f = max (mfun Down f) (mfun Up f)
@@ -833,38 +818,38 @@ module FloatIntervalImpl(Float_t : CFloatType) = struct
   let isfinite op =
     match op with
     | Bot -> raise (ArithmeticOnFloatBot (Printf.sprintf "unop %s" (show op)))
-    | Top -> unknown_IInt ()
-    | Interval _  -> true_nonZero_IInt ()
-    | NaN | PlusInfinity | MinusInfinity -> false_zero_IInt ()
+    | Top -> None
+    | Interval _  -> Some true
+    | NaN | PlusInfinity | MinusInfinity -> Some false
 
   let isinf op =
     match op with
     | Bot -> raise (ArithmeticOnFloatBot (Printf.sprintf "unop %s" (show op)))
-    | Top -> unknown_IInt ()
-    | PlusInfinity | MinusInfinity -> true_nonZero_IInt ()
-    | Interval _ | NaN -> false_zero_IInt ()
+    | Top -> None
+    | PlusInfinity | MinusInfinity -> Some true
+    | Interval _ | NaN -> Some false
 
   let isnan op =
     match op with
     | Bot -> raise (ArithmeticOnFloatBot (Printf.sprintf "unop %s" (show op)))
-    | Top -> unknown_IInt ()
-    | Interval _ | PlusInfinity | MinusInfinity -> false_zero_IInt ()
-    | NaN -> true_nonZero_IInt ()
+    | Top -> None
+    | Interval _ | PlusInfinity | MinusInfinity -> Some false
+    | NaN -> Some true
 
   let isnormal op =
     match op with
     | Bot -> raise (ArithmeticOnFloatBot (Printf.sprintf "unop %s" (show op)))
-    | Top -> unknown_IInt ()
+    | Top -> None
     | Interval i -> eval_isnormal i
-    | PlusInfinity | MinusInfinity | NaN -> false_zero_IInt ()
+    | PlusInfinity | MinusInfinity | NaN -> Some false
 
   let signbit op =
     match op with
     | Bot -> raise (ArithmeticOnFloatBot (Printf.sprintf "unop %s" (show op)))
-    | Top | NaN -> unknown_IInt ()
+    | Top | NaN -> None
     | Interval i -> eval_signbit i
-    | PlusInfinity -> false_zero_IInt ()
-    | MinusInfinity  -> true_nonZero_IInt ()
+    | PlusInfinity -> Some false
+    | MinusInfinity  -> Some true
 
   let fabs op =
     warn_on_specials_unop op;
