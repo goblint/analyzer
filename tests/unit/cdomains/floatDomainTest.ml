@@ -25,16 +25,15 @@ struct
   let fi_one = FI.of_const 1.
   let fi_neg_one = FI.of_const (-.1.)
 
-  (* TODO: inline*)
-  let itb_true = Some true
-  let itb_false = Some false
-  let itb_unknown = None
-
   let assert_equal v1 v2 =
     assert_equal ~cmp:FI.equal ~printer:FI.show v1 v2
 
-  let itb_xor v1 v2 = (**returns true, if both IntDomainTuple bool results are either unknown or different *)
-    ((v1 = itb_unknown) && (v2 = itb_unknown)) || ((v1 = itb_true) && (v2 = itb_false)) || ((v1 = itb_false) && (v2 = itb_true))
+  let itb_xor v1 v2 = (**returns true, if both bool results are either unknown or different *)
+    match v1, v2 with
+    | None, None
+    | Some true, Some false
+    | Some false, Some true -> true
+    | _, _ -> false
 
   (**interval tests *)
   let test_FI_nan _ =
