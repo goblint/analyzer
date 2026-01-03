@@ -152,7 +152,8 @@ let init (f:file) =
 
 let reset () =
   TSH.clear typeVar;
-  TSH.clear typeIncl
+  TSH.clear typeIncl;
+  ()
 
 type acc_typ = [ `Type of CilType.Typ.t | `Struct of CilType.Compinfo.t * Offset.Unit.t ] [@@deriving eq, ord, hash]
 (** Old access type inferred from an expression. *)
@@ -484,6 +485,39 @@ struct
       AS.pretty w.node AS.pretty w.prefix AS.pretty w.type_suffix AS.pretty w.type_suffix_prefix
 end
 
+module InterferenceGraph = struct
+  module Vertex = struct
+    type t = A.t
+
+    let compare = A.compare
+    let hash = A.hash
+    let equal = A.equal
+  end
+
+  module G = Graph.Imperative.Graph.Concrete (Vertex)
+
+  type t = G.t
+
+  let of_warn_accs (warn_accs : WarnAccs.t) =
+    let graph = G.create () in
+    let all = WarnAccs.union_all warn_accs in
+    AS.iter (fun acc -> G.add_vertex graph acc) all;
+    let accs = AS.elements all in
+    let rec loop = function
+      | [] -> ()
+      | a :: rest ->
+        List.iter (fun b ->
+            if may_race a b then
+              G.add_edge graph a b
+          ) rest;
+        loop rest
+    in
+    loop accs;
+    graph
+
+  module Coloring = AccessColoring.Make (G)
+end
+
 let group_may_race (warn_accs:WarnAccs.t) =
   if M.tracing then M.tracei "access" "group_may_race %a" WarnAccs.pretty warn_accs;
   (* BFS to traverse one component with may_race edges *)
@@ -594,7 +628,7 @@ let incr_summary ~safe ~vulnerable ~unsafe grouped_accs =
   | Some n when n >= 100 -> is_all_safe := false; incr unsafe
   | Some n -> is_all_safe := false; incr vulnerable
 
-let print_accesses memo grouped_accs =
+let print_accesses ?coloring memo grouped_accs =
   let allglobs = get_bool "allglobs" in
   let race_threshold = get_int "warn.race-threshold" in
   let msgs race_accs =
@@ -602,8 +636,29 @@ let print_accesses memo grouped_accs =
       let doc = dprintf "%a with %a (conf. %d)  (exp: %a)" AccessKind.pretty kind MCPAccess.A.pretty acc conf d_exp exp in
       (doc, Some (Messages.Location.Node node))
     in
-    AS.elements race_accs
-    |> List.map h
+    match coloring with
+    | None ->
+      AS.elements race_accs
+      |> List.map h
+    | Some coloring ->
+      let module IntMap = Map.Make (Int) in
+      let module C = InterferenceGraph.Coloring in
+      let add_to_map acc map =
+        match C.color_of coloring acc with
+        | None -> map
+        | Some c ->
+          IntMap.update c (function
+              | None -> Some [acc]
+              | Some accs -> Some (acc :: accs)
+            ) map
+      in
+      let color_map = AS.fold add_to_map race_accs IntMap.empty in
+      IntMap.bindings color_map
+      |> List.concat_map (fun (color, accs) ->
+          let header = (dprintf "Color %d" color, None) in
+          let acc_msgs = accs |> List.rev |> List.map h in
+          header :: acc_msgs
+        )
   in
   let group_loc = match memo with
     | (`Var v, _) -> Some (M.Location.CilLocation v.vdecl) (* TODO: offset location *)
@@ -630,6 +685,23 @@ let print_accesses memo grouped_accs =
     )
 
 let warn_global ~safe ~vulnerable ~unsafe warn_accs memo =
+  let coloring =
+    match get_string "warn.race-coloring" with
+    | "" | "none" -> None
+    | "greedy" ->
+      let graph = InterferenceGraph.of_warn_accs warn_accs in
+      Some (InterferenceGraph.Coloring.color_with (module InterferenceGraph.Coloring.Greedy) graph)
+    | "dsatur" ->
+      let graph = InterferenceGraph.of_warn_accs warn_accs in
+      Some (InterferenceGraph.Coloring.color_with (module InterferenceGraph.Coloring.Dsatur) graph)
+    | "rlf" ->
+      let graph = InterferenceGraph.of_warn_accs warn_accs in
+      Some (InterferenceGraph.Coloring.color_with (module InterferenceGraph.Coloring.Rlf) graph)
+    | "optimal" ->
+      let graph = InterferenceGraph.of_warn_accs warn_accs in
+      Some (InterferenceGraph.Coloring.color_with (module InterferenceGraph.Coloring.Optimal) graph)
+    | _ -> None
+  in
   let grouped_accs = group_may_race warn_accs in (* do expensive component finding only once *)
   incr_summary ~safe ~vulnerable ~unsafe grouped_accs;
-  print_accesses memo grouped_accs
+  print_accesses ?coloring memo grouped_accs

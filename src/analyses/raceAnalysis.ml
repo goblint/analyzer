@@ -391,6 +391,9 @@ struct
         (Pretty.dprintf "total memory locations: %d" total, None);
       ];
     )
+    else
+      ();
+    ()
 end
 
 let _ =
