@@ -2456,6 +2456,13 @@
           "type": "integer",
           "default": 0
         },
+        "race-coloring": {
+          "title": "warn.race-coloring",
+          "description": "Group race warnings by graph coloring (none, greedy, dsatur, rlf, optimal).",
+          "type": "string",
+          "enum": ["none", "greedy", "dsatur", "rlf", "optimal"],
+          "default": "none"
+        },
         "deterministic": {
           "title": "warn.deterministic",
           "description": "Output messages in deterministic order. Useful for cram testing.",
