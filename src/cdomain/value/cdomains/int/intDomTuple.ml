@@ -60,25 +60,22 @@ module IntDomTupleImpl = struct
   let create2 r x = (* use where values are introduced *)
     create2 r x (int_precision_from_node_or_config ())
 
-  let no_overflow ik = function
-    | Some(_, {underflow; overflow}) -> not (underflow || overflow)
-    | _ -> false
 
-  let check_ov ?(suppress_ovwarn = false) ~cast ik intv intv_set bf =
-    let no_ov = (no_overflow ik intv) || (no_overflow ik intv_set) || (no_overflow ik bf) in
-    if not suppress_ovwarn && (BatOption.is_some intv || BatOption.is_some intv_set || BatOption.is_some bf) then (
-      if not no_ov then (
-        let (_,{underflow=underflow_intv; overflow=overflow_intv}) = match intv with None -> (I2.bot (), {underflow= true; overflow = true}) | Some x -> x in
-        let (_,{underflow=underflow_intv_set; overflow=overflow_intv_set}) = match intv_set with None -> (I5.bot (), {underflow= true; overflow = true}) | Some x -> x in
-        let (_,{underflow=underflow_bf; overflow=overflow_bf}) = match bf with None -> (I6.bot (), {underflow= true; overflow = true}) | Some x -> x in
-        let underflow = underflow_intv && underflow_intv_set && underflow_bf in
-        let overflow = overflow_intv && overflow_intv_set && overflow_bf in
-        set_overflow_flag ~cast ~underflow ~overflow ik;
-      ) else if not !AnalysisState.executing_speculative_computations then (
-        Checks.safe_msg Checks.Category.IntegerOverflow "Cast: %B" cast
-      )
-    );
-    no_ov
+  let overflow_true = {underflow=true; overflow=true}
+  let get_overflow = function
+    | Some (_, overflow) -> overflow
+    | None -> overflow_true
+  let active_overflow = Option.is_some
+
+  let check_ov ?(suppress_ovwarn = false) ~op ik intv intv_set bf =
+    let {underflow=underflow_intv; overflow=overflow_intv} = get_overflow intv in
+    let {underflow=underflow_intv_set; overflow=overflow_intv_set} = get_overflow intv_set in
+    let {underflow=underflow_bf; overflow=overflow_bf} = get_overflow bf in
+    let underflow = underflow_intv && underflow_intv_set && underflow_bf in
+    let overflow = overflow_intv && overflow_intv_set && overflow_bf in
+    if not suppress_ovwarn && (active_overflow intv || active_overflow intv_set || active_overflow bf) then
+      add_overflow_check ~op ~underflow ~overflow ik;
+    not (underflow || overflow)
 
   let create2_ovc ?(suppress_ovwarn = false) ik r x ((p1, p2, p3, p4, p5, p6): int_precision) =
     let f b g = if b then Some (g x) else None in
@@ -86,8 +83,8 @@ module IntDomTupleImpl = struct
     let intv =  f p2 @@ r.fi2_ovc (module I2) in
     let intv_set = f p5 @@ r.fi2_ovc (module I5) in
     let bf = f p6 @@ r.fi2_ovc (module I6) in
-    ignore (check_ov ~suppress_ovwarn ~cast:false ik intv intv_set bf);
-    map @@ f p1 @@ r.fi2_ovc (module I1), map @@ f p2 @@ r.fi2_ovc (module I2), map @@ f p3 @@ r.fi2_ovc (module I3), map @@ f p4 @@ r.fi2_ovc (module I4), map @@ f p5 @@ r.fi2_ovc (module I5) , map @@ f p6 @@ r.fi2_ovc (module I6)
+    ignore (check_ov ~suppress_ovwarn ~op:Internal ik intv intv_set bf);
+    map @@ f p1 @@ r.fi2_ovc (module I1), map intv, map @@ f p3 @@ r.fi2_ovc (module I3), map @@ f p4 @@ r.fi2_ovc (module I4), map intv_set, map bf
 
   let create2_ovc ?(suppress_ovwarn = false) ik r x = (* use where values are introduced *)
     create2_ovc ~suppress_ovwarn ik r x (int_precision_from_node_or_config ())
@@ -304,12 +301,12 @@ module IntDomTupleImpl = struct
 
 
   (* map with overflow check *)
-  let mapovc ?(suppress_ovwarn=false) ?(cast=false) ik r (a, b, c, d, e, f) =
+  let mapovc ?(suppress_ovwarn=false) ~op ik r (a, b, c, d, e, f) =
     let map f ?no_ov = function Some x -> Some (f ?no_ov x) | _ -> None  in
     let intv = map (r.f1_ovc (module I2)) b in
     let intv_set = map (r.f1_ovc (module I5)) e in
     let bf = map (r.f1_ovc (module I6)) f in
-    let no_ov = check_ov ~suppress_ovwarn ~cast ik intv intv_set bf in
+    let no_ov = check_ov ~suppress_ovwarn ~op ik intv intv_set bf in
     let no_ov = no_ov || should_ignore_overflow ik in
     refine ik
       ( map (fun ?no_ov x -> r.f1_ovc ?no_ov (module I1) x |> fst) a
@@ -320,11 +317,11 @@ module IntDomTupleImpl = struct
       , BatOption.map fst bf)
 
   (* map2 with overflow check *)
-  let map2ovc ?(cast=false) ik r (xa, xb, xc, xd, xe, xf) (ya, yb, yc, yd, ye, yf) =
+  let map2ovc ~op ik r (xa, xb, xc, xd, xe, xf) (ya, yb, yc, yd, ye, yf) =
     let intv = opt_map2 (r.f2_ovc (module I2)) xb yb in
     let intv_set = opt_map2 (r.f2_ovc (module I5)) xe ye in
     let bf = opt_map2 (r.f2_ovc (module I6)) xf yf in
-    let no_ov = check_ov ~cast ik intv intv_set bf in
+    let no_ov = check_ov ~op ik intv intv_set bf in
     let no_ov = no_ov || should_ignore_overflow ik in
     refine ik
       ( opt_map2 (fun ?no_ov x y -> r.f2_ovc ?no_ov (module I1) x y |> fst) xa ya
@@ -358,7 +355,7 @@ module IntDomTupleImpl = struct
 
   (* f1: unary ops *)
   let neg ?no_ov ik =
-    mapovc ik {f1_ovc = (fun (type a) (module I : SOverflow with type t = a) ?no_ov -> I.neg ?no_ov ik)}
+    mapovc ~op:(Unop Neg) ik {f1_ovc = (fun (type a) (module I : SOverflow with type t = a) ?no_ov -> I.neg ?no_ov ik)}
 
   let lognot ik =
     map ik {f1 = (fun (type a) (module I : SOverflow with type t = a) ?no_ov -> I.lognot ik)}
@@ -367,7 +364,7 @@ module IntDomTupleImpl = struct
     map ik {f1 = (fun (type a) (module I : SOverflow with type t = a) ?no_ov -> I.c_lognot ik)}
 
   let cast_to ?(suppress_ovwarn=false) ?torg ?no_ov t =
-    mapovc ~suppress_ovwarn ~cast:true t {f1_ovc = (fun (type a) (module I : SOverflow with type t = a) ?no_ov -> I.cast_to ?torg ?no_ov t)}
+    mapovc ~suppress_ovwarn ~op:Cast t {f1_ovc = (fun (type a) (module I : SOverflow with type t = a) ?no_ov -> I.cast_to ?torg ?no_ov t)}
 
   (* fp: projections *)
   let equal_to i x =
@@ -435,19 +432,19 @@ module IntDomTupleImpl = struct
     map2 ik {f2= (fun (type a) (module I : SOverflow with type t = a) ?no_ov -> I.narrow ik)}
 
   let add ?no_ov ik =
-    map2ovc ik
+    map2ovc ~op:(Binop PlusA) ik
       {f2_ovc = (fun (type a) (module I : SOverflow with type t = a) ?no_ov -> I.add ?no_ov ik)}
 
   let sub ?no_ov ik =
-    map2ovc ik
+    map2ovc ~op:(Binop MinusA) ik
       {f2_ovc = (fun (type a) (module I : SOverflow with type t = a) ?no_ov -> I.sub ?no_ov ik)}
 
   let mul ?no_ov ik =
-    map2ovc ik
+    map2ovc ~op:(Binop Mult) ik
       {f2_ovc = (fun (type a) (module I : SOverflow with type t = a) ?no_ov -> I.mul ?no_ov ik)}
 
   let div ?no_ov ik =
-    map2ovc ik
+    map2ovc ~op:(Binop Div) ik
       {f2_ovc = (fun (type a) (module I : SOverflow with type t = a) ?no_ov -> I.div ?no_ov ik)}
 
   let rem ik =
@@ -481,10 +478,10 @@ module IntDomTupleImpl = struct
     map2 ik {f2= (fun (type a) (module I : SOverflow with type t = a) ?no_ov -> I.logxor ik)}
 
   let shift_left ik =
-    map2ovc ik {f2_ovc= (fun (type a) (module I : SOverflow with type t = a) ?no_ov -> I.shift_left ik)}
+    map2ovc ~op:(Binop Shiftlt) ik {f2_ovc= (fun (type a) (module I : SOverflow with type t = a) ?no_ov -> I.shift_left ik)}
 
   let shift_right ik =
-    map2ovc ik {f2_ovc= (fun (type a) (module I : SOverflow with type t = a) ?no_ov -> I.shift_right ik)}
+    map2ovc ~op:(Binop Shiftrt) ik {f2_ovc= (fun (type a) (module I : SOverflow with type t = a) ?no_ov -> I.shift_right ik)}
 
   let c_logand ik =
     map2 ik {f2= (fun (type a) (module I : SOverflow with type t = a) ?no_ov -> I.c_logand ik)}

@@ -278,7 +278,7 @@ struct
   let next_opt _ = None
 end
 
-let cartesian_concat_paths (ps : cfg_path list) (qs : cfg_path list) : cfg_path list = List.concat_map (fun p -> List.map (fun q -> p @ q) qs) ps
+let cartesian_append: cfg_path list -> cfg_path list -> cfg_path list = GobList.cartesian_map (@)
 
 let partition_if_next if_next =
   let (if_next_trues, if_next_falses) = List.partition (function
@@ -318,8 +318,8 @@ struct
           if Node.equal if_false_next_n if_true_next_false_next_n then
             let exp = BinOp (LAnd, e, e2, intType) in
             Some [
-              (Test (exp, true), if_true_next_true_next_n, cartesian_concat_paths if_true_next_ps if_true_next_true_next_ps);
-              (Test (exp, false), if_true_next_false_next_n, if_false_next_ps @ cartesian_concat_paths if_true_next_ps if_true_next_false_next_ps) (* concat two different path families to same false node *)
+              (Test (exp, true), if_true_next_true_next_n, cartesian_append if_true_next_ps if_true_next_true_next_ps);
+              (Test (exp, false), if_true_next_false_next_n, if_false_next_ps @ cartesian_append if_true_next_ps if_true_next_false_next_ps) (* concat two different path families to same false node *)
             ]
           else
             None
@@ -330,8 +330,8 @@ struct
           if Node.equal if_true_next_n if_false_next_true_next_n then
             let exp = BinOp (LOr, e, e2, intType) in
             Some [
-              (Test (exp, true), if_false_next_true_next_n, if_true_next_ps @ cartesian_concat_paths if_false_next_ps if_false_next_true_next_ps); (* concat two different path families to same true node *)
-              (Test (exp, false), if_false_next_false_next_n, cartesian_concat_paths if_false_next_ps if_false_next_false_next_ps)
+              (Test (exp, true), if_false_next_true_next_n, if_true_next_ps @ cartesian_append if_false_next_ps if_false_next_true_next_ps); (* concat two different path families to same true node *)
+              (Test (exp, false), if_false_next_false_next_n, cartesian_append if_false_next_ps if_false_next_false_next_ps)
             ]
           else
             None
@@ -366,7 +366,7 @@ struct
         | [(Assign (v_true, e_true), if_true_next_next_n, if_true_next_next_ps)], [(Assign (v_false, e_false), if_false_next_next_n, if_false_next_next_ps)] when v_true = v_false && Node.equal if_true_next_next_n if_false_next_next_n ->
           let exp = ternary e_cond e_true e_false in
           Some [
-            (Assign (v_true, exp), if_true_next_next_n, cartesian_concat_paths if_true_next_ps if_true_next_next_ps @ cartesian_concat_paths if_false_next_ps if_false_next_next_ps) (* concat two different path families with same variable to same node *)
+            (Assign (v_true, exp), if_true_next_next_n, cartesian_append if_true_next_ps if_true_next_next_ps @ cartesian_append if_false_next_ps if_false_next_next_ps) (* concat two different path families with same variable to same node *)
           ]
         | _, _ -> None
       else

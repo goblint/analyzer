@@ -71,27 +71,45 @@ let should_wrap ik = not (Cil.isSigned ik) || get_string "sem.int.signed_overflo
 let should_ignore_overflow ik = Cil.isSigned ik && get_string "sem.int.signed_overflow" = "assume_none"
 
 type overflow_info = IntDomain_intf.overflow_info = { overflow: bool; underflow: bool;}
+type overflow_op =
+  | Binop of binop
+  | Unop of unop
+  | Cast
+  | Internal
 
-let set_overflow_flag ~cast ~underflow ~overflow ik =
+let add_overflow_check ~(op:overflow_op) ~underflow ~overflow ik =
   if !AnalysisState.executing_speculative_computations then
     (* Do not produce warnings when the operations are not actually happening in code *)
     ()
   else
     let signed = Cil.isSigned ik in
-    if !AnalysisState.postsolving && signed && not cast then
+    if !AnalysisState.postsolving && signed && op <> Cast && (underflow || overflow) then
       AnalysisState.svcomp_may_overflow := true;
     let sign = if signed then "Signed" else "Unsigned" in
+    let op =
+      match op with
+      (* explicitly distinguish binary and unary - *)
+      | Binop (MinusA | MinusPP | MinusPI) -> "binary -" (* only MinusA should probably be possible here *)
+      | Unop Neg -> "unary -"
+      | Binop bop -> CilType.Binop.show bop
+      | Unop uop -> CilType.Unop.show uop
+      | Cast -> "cast"
+      | Internal -> "internal operation"
+    in
     match underflow, overflow with
     | true, true ->
-      M.warn ~category:M.Category.Integer.overflow ~tags:[CWE 190; CWE 191] "%s integer overflow and underflow" sign;
-      Checks.warn Checks.Category.IntegerOverflow "%s integer overflow and underflow" sign
+      M.warn ~category:M.Category.Integer.overflow ~tags:[CWE 190; CWE 191] "%s integer overflow and underflow in %s" sign op;
+      Checks.warn Checks.Category.IntegerOverflow "%s integer overflow and underflow in %s" sign op
     | true, false ->
-      M.warn ~category:M.Category.Integer.overflow ~tags:[CWE 191] "%s integer underflow" sign;
-      Checks.warn Checks.Category.IntegerOverflow "%s integer underflow" sign
+      M.warn ~category:M.Category.Integer.overflow ~tags:[CWE 191] "%s integer underflow in %s" sign op;
+      Checks.warn Checks.Category.IntegerOverflow "%s integer underflow in %s" sign op
     | false, true ->
-      M.warn ~category:M.Category.Integer.overflow ~tags:[CWE 190] "%s integer overflow" sign;
-      Checks.warn Checks.Category.IntegerOverflow "%s integer overflow" sign
-    | false, false -> assert false
+      M.warn ~category:M.Category.Integer.overflow ~tags:[CWE 190] "%s integer overflow in %s" sign op;
+      Checks.warn Checks.Category.IntegerOverflow "%s integer overflow in %s" sign op
+    | false, false ->
+      let sign = if signed then "signed" else "unsigned" in (* lowercase constants *)
+      Checks.safe_msg Checks.Category.IntegerOverflow "No %s integer overflow or underflow in %s" sign op
+
 
 let reset_lazy () =
   ana_int_config.interval_threshold_widening <- None;
