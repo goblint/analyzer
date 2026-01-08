@@ -195,7 +195,7 @@ struct
       let min, max = Size.range ik in
       (* Perform a wrap-around for unsigned values and for signed values (if configured). *)
       if should_wrap ik then (
-        cast_to ~kind:Unknown ik v (* TODO: proper castkind *)
+        cast_to ~kind:Internal ik v (* TODO: proper castkind *)
       )
       else if Z.compare min x <= 0 && Z.compare x max <= 0 then (
         v

@@ -54,7 +54,7 @@ struct
     | Field (f, offset) ->
       begin match lift_f with
         | `Lifted f' ->
-          let v = Values.cast ~kind:Unknown ~torg:f'.ftype f.ftype v in (* TODO: proper castkind *)
+          let v = Values.cast ~kind:Internal ~torg:f'.ftype f.ftype v in (* TODO: proper castkind *)
           value_invariant ~offset ~lval v
         | `Top
         | `Bot ->

@@ -545,7 +545,7 @@ struct
     | Some es ->
       let et = Cilfacade.typeOf e in
       let add x xs =
-        Queries.ES.add (CastE (Unknown,et,x)) xs
+        Queries.ES.add (CastE (Internal,et,x)) xs
       in
       D.B.fold add es (Queries.ES.empty ())
 

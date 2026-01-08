@@ -115,7 +115,7 @@ module Enums : S with type int_t = Z.t = struct
       then top_of ik (* When casting into a signed type and the result does not fit, the behavior is implementation-defined *)
       else Inc casted_xs
 
-  let of_int ikind x = cast_to ~kind:Unknown ikind (Inc (BISet.singleton x)) (* TODO: proper castkind *)
+  let of_int ikind x = cast_to ~kind:Internal ikind (Inc (BISet.singleton x)) (* TODO: proper castkind *)
 
   let of_interval ik (x, y) =
     if Z.compare x y = 0 then

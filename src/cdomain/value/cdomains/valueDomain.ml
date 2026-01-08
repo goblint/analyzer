@@ -212,7 +212,7 @@ struct
     | _ when is_mutex_type t -> Mutex
     | t when is_jmp_buf_type t -> JmpBuf (JmpBufs.top ())
     | t when is_mutexattr_type t -> MutexAttr (MutexAttrDomain.top ())
-    | TInt (ik,_) -> Int (ID.(cast_to ~kind:Unknown ik (top_of ik))) (* TODO: proper castkind *)
+    | TInt (ik,_) -> Int (ID.(cast_to ~kind:Internal ik (top_of ik))) (* TODO: proper castkind *)
     (* TODO: TEnum? *)
     | TFloat (fkind, _) when not (Cilfacade.isComplexFKind fkind) -> Float (FD.top_of fkind)
     | TPtr _ -> Address AD.top_ptr
@@ -707,7 +707,7 @@ struct
     | (x, Top) -> x
     | (Int x, Int y) -> Int (ID.meet x y)
     | (Float x, Float y) -> Float (FD.meet x y)
-    | (Int _, Address _) -> meet x (cast ~kind:Unknown !GoblintCil.upointType y) (* TODO: proper castkind *)
+    | (Int _, Address _) -> meet x (cast ~kind:Internal !GoblintCil.upointType y) (* TODO: proper castkind *)
     | (Address x, Int y) -> Address (AD.meet x (AD.of_int y))
     | (Address x, Address y) -> Address (AD.meet x y)
     | (Struct x, Struct y) -> Struct (Structs.meet x y)
@@ -732,7 +732,7 @@ struct
     match (x,y) with
     | (Int x, Int y) -> Int (ID.narrow x y)
     | (Float x, Float y) -> Float (FD.narrow x y)
-    | (Int _, Address _) -> narrow x (cast ~kind:Unknown !GoblintCil.upointType y) (* TODO: proper castkind *)
+    | (Int _, Address _) -> narrow x (cast ~kind:Internal !GoblintCil.upointType y) (* TODO: proper castkind *)
     | (Address x, Int y) -> Address (AD.narrow x (AD.of_int y))
     | (Address x, Address y) -> Address (AD.narrow x y)
     | (Struct x, Struct y) -> Struct (Structs.narrow x y)
@@ -952,7 +952,7 @@ struct
                  | Float _, t -> top_value t
                  | _, TFloat(fkind, _)  when not (Cilfacade.isComplexFKind fkind)-> Float (FD.top_of fkind)
                  | _ ->
-                   let x = cast ~kind:Unknown ~torg:l_fld.ftype fld.ftype value in (* TODO: proper castkind *)
+                   let x = cast ~kind:Internal ~torg:l_fld.ftype fld.ftype value in (* TODO: proper castkind *)
                    let l', o' = shift_one_over l o in
                    do_eval_offset ask f x offs exp l' o' v t)
               | Union _ -> top ()
@@ -1079,7 +1079,7 @@ struct
                     match bitfield with
                     | Some b when not @@ ID.leq i (ID.top_of ~bitfield:b (ID.ikind i)) ->
                       Messages.warn ~category:Analyzer "Assigned value %a exceeds the representable range of a %d-bit bit-field." pretty value b; Top
-                    | _ -> cast ~kind:Unknown t value (* TODO: proper castkind *)
+                    | _ -> cast ~kind:Internal t value (* TODO: proper castkind *)
                   end
                 | _ -> value
               end
@@ -1222,7 +1222,7 @@ struct
           | Some e ->
             begin
               match eval_exp e with
-              | Int x -> ID.cast_to ~kind:Unknown (Cilfacade.ptrdiff_ikind ())  x (* TODO: proper castkind *)
+              | Int x -> ID.cast_to ~kind:Internal (Cilfacade.ptrdiff_ikind ())  x (* TODO: proper castkind *)
               | _ ->
                 M.debug ~category:Analyzer "Expression for size of VLA did not evaluate to Int at declaration";
                 ID.starting (Cilfacade.ptrdiff_ikind ()) Z.zero
@@ -1361,7 +1361,7 @@ struct
           let offset = Addr.Offs.to_cil offs in
 
           let cast_to_void_ptr e =
-            Cilfacade.mkCast ~kind:Unknown ~e ~newt:(TPtr (TVoid [], []))
+            Cilfacade.mkCast ~kind:Explicit ~e ~newt:(TPtr (TVoid [], []))
           in
           let i =
             if InvariantCil.(exp_is_suitable ~scope c_exp && var_is_suitable ~scope vi && not (var_is_heap vi)) then
@@ -1384,7 +1384,7 @@ struct
               (* Address set for a void* variable contains pointers to values of non-void type,
                   so insert pointer cast to make invariant expression valid (no field/index on void). *)
               let newt = TPtr (typ, []) in
-              let c_exp = Cilfacade.mkCast ~kind:Unknown ~e:c_exp ~newt in
+              let c_exp = Cilfacade.mkCast ~kind:Explicit ~e:c_exp ~newt in
               deref_invariant ~vs vi ~offset ~lval:(Mem c_exp, NoOffset)
             | exception Cilfacade.TypeOfError _ (* typeOffset: Index on a non-array on calloc-ed alloc variables *)
             | _ ->

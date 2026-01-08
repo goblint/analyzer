@@ -94,7 +94,6 @@ let set_overflow_flag ~(op:overflow_op) ~underflow ~overflow ik =
       | `Cast PointerConversion -> "pointer conversion"
       | `Cast Implicit -> "implicit conversion"
       | `Cast Internal -> "internal cast"
-      | `Cast Unknown -> "unknown cast"
       | `Internal -> "internal operation"
     in
     match underflow, overflow with
@@ -177,7 +176,7 @@ struct
   let name () = "IntDomLifter(" ^ (I.name ()) ^ ")"
   let to_yojson x = I.to_yojson x.v
   let invariant e x =
-    let e' = Cilfacade.mkCast ~kind:Unknown ~e ~newt:(TInt (x.ikind, [])) in
+    let e' = Cilfacade.mkCast ~kind:Explicit ~e ~newt:(TInt (x.ikind, [])) in
     I.invariant_ikind e' x.ikind x.v
   let tag x = I.tag x.v
   let arbitrary ik = failwith @@ "Arbitrary not implement for " ^ (name ()) ^ "."

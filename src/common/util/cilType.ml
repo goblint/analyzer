@@ -264,7 +264,6 @@ struct
     | PointerConversion
     | Implicit
     | Internal
-    | Unknown
   [@@deriving hash]
   (* Hashtbl.hash doesn't monomorphize, so derive instead. *)
 
