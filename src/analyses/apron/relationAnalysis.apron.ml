@@ -216,7 +216,7 @@ struct
       | Const x -> e
       | UnOp (unop, e, typ) -> UnOp(unop, inner e, typ)
       | BinOp (binop, e1, e2, typ) -> BinOp (binop, inner e1, inner e2, typ)
-      | CastE (t,e) -> CastE (t, inner e)
+      | CastE (k,t,e) -> CastE (k, t, inner e)
       | Lval (Var v, off) -> Lval (Var v, off)
       | Lval (Mem e, NoOffset) ->
         begin match ask (Queries.MayPointTo e) with

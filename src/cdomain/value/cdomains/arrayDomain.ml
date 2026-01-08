@@ -140,7 +140,7 @@ struct
   let get ?(checkBounds=true) (ask: VDQ.t) a i = a
   let set (ask: VDQ.t) a (ie, i) v =
     match ie with
-    | Some ie when CilType.Exp.equal ie (Lazy.force Offset.Index.Exp.all) ->
+    | Some ie when Offset.Index.Exp.is_all ie ->
       v
     | _ ->
       join a v
@@ -243,7 +243,7 @@ struct
     else ((update_unrolled_values min_i (Z.of_int ((factor ())-1))), (Val.join xr v))
   let set ask (xl, xr) (ie, i) v =
     match ie with
-    | Some ie when CilType.Exp.equal ie (Lazy.force Offset.Index.Exp.all) ->
+    | Some ie when Offset.Index.Exp.is_all ie ->
       (* TODO: Doesn't seem to work for unassume because unrolled elements are top-initialized, not bot-initialized. *)
       (BatList.make (factor ()) v, v)
     | _ ->
@@ -440,7 +440,7 @@ struct
       |	AlignOfE _ -> false
       | Question(e1, e2, e3, _) ->
         contains_array_access e1 || contains_array_access e2 || contains_array_access e3
-      |	CastE(_, e)
+      |	CastE(_, _, e)
       |	UnOp(_, e , _)
       | Real e
       | Imag e -> contains_array_access e
@@ -525,10 +525,10 @@ struct
   let set_with_length length (ask:VDQ.t) x (i,_) a =
     if M.tracing then M.trace "update_offset" "part array set_with_length %a %s %a" pretty x (BatOption.map_default Basetype.CilExp.show "None" i) Val.pretty a;
     match i with
-    | Some i when CilType.Exp.equal i (Lazy.force Offset.Index.Exp.all) ->
+    | Some i when Offset.Index.Exp.is_all i ->
       (* TODO: Doesn't seem to work for unassume. *)
       Joint a
-    | Some i when CilType.Exp.equal i (Lazy.force Offset.Index.Exp.any) ->
+    | Some i when Offset.Index.Exp.is_any i ->
       (assert !AnalysisState.global_initialization; (* just joining with xm here assumes that all values will be set, which is guaranteed during inits *)
        (* the join is needed here! see e.g 30/04 *)
        let o = match x with Partitioned (_, (_, xm, _)) -> xm | Joint v -> v in

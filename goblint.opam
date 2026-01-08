@@ -102,7 +102,7 @@ dev-repo: "git+https://github.com/goblint/analyzer.git"
 x-maintenance-intent: ["(latest)" "(latest).(latest-1)"] # also keep previous minor version (with two releases per year, always keep a SV-COMP release)
 available: os-family != "bsd" & os-distribution != "alpine" & (arch != "arm64" | os = "macos")
 pin-depends: [
-  [ "goblint-cil.2.0.9" "git+https://github.com/goblint/cil.git#1b48fc0ce4f3576a51618305251121ffedd0bf1e" ]
+  [ "goblint-cil.2.0.9" "git+https://github.com/goblint/cil.git#e21285af8f4408ed5354b1674dab840c43e84712" ]
   # pinned for stability (https://github.com/goblint/analyzer/issues/1520), remove after new apron release
   [ "apron.v0.9.15" "git+https://github.com/antoinemine/apron.git#418a217c7a70dae3f422678f3aaba38ae374d91a" ]
 ]

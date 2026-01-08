@@ -238,7 +238,7 @@ module T = struct
         `NoOffset
       | Field (fld, ofs) ->
         `Field (fld, convert_offset ofs)
-      | Index (exp, ofs) when CilType.Exp.equal exp (Lazy.force Offset.Index.Exp.any) -> (* special offset added by convertToQueryLval *)
+      | Index (exp, ofs) when Offset.Index.Exp.is_any exp -> (* special offset added by convertToQueryLval *)
         let exp_ikind = Cilfacade.get_ikind_exp exp in
         `Index (ValueDomain.ID.top_of exp_ikind, convert_offset ofs)
       | Index (exp, ofs) ->
@@ -463,7 +463,7 @@ module T = struct
           | _ ->
             let void_ptr_type = TPtr(TVoid [], []) in
             let offset_plus_exp =  to_cil_sum offset exp in
-            Lval (Mem (CastE (void_ptr_type, offset_plus_exp)), NoOffset)
+            Lval (Mem (CastE (Internal, void_ptr_type, offset_plus_exp)), NoOffset) (* TODO: how can void* be dereferenced? *)
       in
       if check_valid_pointer res then
         res
@@ -537,14 +537,14 @@ module T = struct
         | _ ->
           raise (UnsupportedCilExpression "unsupported BinOp")
       end
-    | CastE (typ, exp)->
+    | CastE (kind, typ, exp)->
       begin match of_cil ask exp with
         | Some (Addr x), z ->
           Some (Addr x), z
         | Some (Aux (x, _)), z ->
-          Some (Aux (x, CastE (typ, exp))), z
+          Some (Aux (x, CastE (kind, typ, exp))), z
         | Some (Deref (x, z, _)), z' ->
-          Some (Deref (x, z, CastE (typ, exp))), z'
+          Some (Deref (x, z, CastE (kind, typ, exp))), z'
         | t, z -> t, z
       end
     | _ -> raise (UnsupportedCilExpression "unsupported Cil Expression")
