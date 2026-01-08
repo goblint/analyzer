@@ -21,7 +21,7 @@ module FwdBuSolver (System: FwdGlobConstrSys) = struct
 
   module OM = Hashtbl.Make(Node)
   let source = System.LVar.node
-  let gas_default = ref (3,10,3)
+  let gas_default = ref (3,4,3)
 
   let lwarrow (a,delay,gas,narrow) b =
     let (_,delay0,_) = !gas_default in
@@ -116,7 +116,7 @@ module FwdBuSolver (System: FwdGlobConstrSys) = struct
 
   type loc = {loc_value : D.t; loc_init : D.t; 
               called: bool ref; aborted: bool ref;
-              loc_from : (D.t * int * int * int * bool) LM.t}
+              loc_from : (D.t * (int * bool) * int * int * bool) LM.t}
 (*
     init may contain some initial value not provided by separate origin;
     perhaps, dynamic tracking of dependencies required for certain locals?
@@ -152,8 +152,8 @@ module FwdBuSolver (System: FwdGlobConstrSys) = struct
   let get_old_local_value x from =
     try LM.find from x
     with _ -> let (reset,delay,gas) = !gas_default in
-      LM.add from x (D.bot (),reset,delay,gas,false);
-      (D.bot (),reset,delay,gas,false)
+      LM.add from x (D.bot (),(reset,false),delay,gas,false);
+      (D.bot (),(reset,false),delay,gas,false)
 
   (* 
         Now the main solving consisting of the mutual recursive functions
@@ -213,19 +213,19 @@ module FwdBuSolver (System: FwdGlobConstrSys) = struct
     if tracing then trace "set_local" "set_local %a from %a" System.LVar.pretty_trace y System.LVar.pretty_trace x;
     if tracing then trace "set_local" "value: %a" D.pretty d;
     let {loc_value;loc_init;called;aborted;loc_from} as y_record = get_local_ref y in
-    let (old_xy,reset,delay,gas,narrow) = get_old_local_value x loc_from in
+    let (old_xy,(reset,bum),delay,gas,narrow) = get_old_local_value x loc_from in
     let (new_xy,delay,gas,narrow) = 
-      if !called then lwarrow (old_xy,delay,gas,narrow) d 
+      if !called && bum then lwarrow (old_xy,delay,gas,narrow) d 
       else (d,delay,gas,narrow) in
     if D.equal new_xy old_xy then (
       (* If value of x has not changed, nothing to do *)
       if tracing then trace "set_localc" "no change";
       if !called && reset > 0 then 
-        LM.replace loc_from x (D.bot(),reset-1,delay,gas,narrow);
+        LM.replace loc_from x (old_xy, (reset-1,false),delay,gas,narrow);
     )
     else (
       if tracing then trace "set_localc" "new contribution";
-      LM.replace loc_from x (new_xy,reset,delay,gas,narrow);
+      LM.replace loc_from x (new_xy,(reset,true),delay,gas,narrow);
       let new_y = get_local_value loc_init loc_from in
       if tracing then trace "set_local" "new value for %a is %a" System.LVar.pretty_trace y D.pretty new_y;
       if D.equal loc_value new_y then (
