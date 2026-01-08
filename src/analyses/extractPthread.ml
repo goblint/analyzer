@@ -1197,7 +1197,7 @@ module Spec : Analyses.MCPSpec = struct
       | Wait {cond = cond_var; mutex = mutex}, _, _ ->
         let cond_vars = ExprEval.eval_ptr man cond_var in
         let mutex_vars = ExprEval.eval_ptr man mutex in
-        let cond_var_action (v, m) =
+        let cond_var_action v m =
           let open Action in
           CondVarWait
             { cond_var_id = Tbls.CondVarIdTbl.get @@ Variable.show v
@@ -1205,8 +1205,7 @@ module Spec : Analyses.MCPSpec = struct
             }
         in
         add_actions
-        @@ List.map cond_var_action
-        @@ List.cartesian_product cond_vars mutex_vars
+        @@ GobList.cartesian_map cond_var_action cond_vars mutex_vars
       | _ -> man.local
 
   let startstate v =
