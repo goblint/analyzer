@@ -23,7 +23,14 @@ struct
     let name () = "exp index"
 
     let any = Cilfacade.any_index_exp
-    let all = lazy (CastE (TInt (Cilfacade.ptrdiff_ikind (), []), mkString "all_index"))
+    let is_any = function
+      | CastE (_, TInt (ik, []), Const (CStr ("any_index", No_encoding))) when CilType.Ikind.equal ik (Cilfacade.ptrdiff_ikind ()) -> true
+      | _ -> false
+
+    let all = lazy (CastE (Explicit, TInt (Cilfacade.ptrdiff_ikind (), []), mkString "all_index"))
+    let is_all = function
+      | CastE (_, TInt (ik, []), Const (CStr ("all_index", No_encoding))) when CilType.Ikind.equal ik (Cilfacade.ptrdiff_ikind ()) -> true
+      | _ -> false
 
     (* Override output *)
     let pretty () x =

@@ -97,7 +97,7 @@ module Enums : S with type int_t = Z.t = struct
       if BISet.mem i x then `Neq
       else `Top
 
-  let cast_to ?(suppress_ovwarn=false) ?torg ?no_ov ik v = norm ik @@ match v with
+  let cast_to ?(suppress_ovwarn=false) ~kind ?torg ?no_ov ik v = norm ik @@ match v with
     | Exc (s,r) ->
       let r' = size ik in
       if R.leq r r' then (* upcast -> no change *)
@@ -115,7 +115,7 @@ module Enums : S with type int_t = Z.t = struct
       then top_of ik (* When casting into a signed type and the result does not fit, the behavior is implementation-defined *)
       else Inc casted_xs
 
-  let of_int ikind x = cast_to ikind (Inc (BISet.singleton x))
+  let of_int ikind x = cast_to ~kind:Internal ikind (Inc (BISet.singleton x)) (* TODO: proper castkind *)
 
   let of_interval ik (x, y) =
     if Z.compare x y = 0 then
