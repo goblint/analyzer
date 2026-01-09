@@ -1242,6 +1242,13 @@ let legacy_libs_misc_list: (string * LibraryDesc.t) list = LibraryDsl.[
   ]
 [@@coverage off]
 
+let ocaml_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
+    ("caml_copy_double", unknown [drop "nptr" []]);
+    (* Eeskuju: ("malloc", special [__ "size" []] @@ fun size -> Malloc size); *)
+    ("caml_alloc_small", special [__ "wosize" []; __ "tag" []] @@ fun wosize tag -> OCamlAlloc wosize);
+  ]
+[@@coverage off]
+
 let libraries = Hashtbl.of_list [
     ("c", c_descs_list @ math_descs_list);
     ("posix", posix_descs_list);
@@ -1259,6 +1266,7 @@ let libraries = Hashtbl.of_list [
     ("zlib", zlib_descs_list);
     ("liblzma", liblzma_descs_list);
     ("legacy", legacy_libs_misc_list);
+    ("ocaml", ocaml_descs_list)
   ]
 
 let libraries =
