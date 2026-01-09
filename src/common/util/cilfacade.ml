@@ -441,6 +441,14 @@ let makeBinOp binop e1 e2 =
   let (_, e) = Cabs2cil.doBinOp binop e1 t1 e2 t2 in
   e
 
+(** Is effectively boolean-returning operation?
+    These operations have type [int], but only have values 0 or 1. *)
+let exp_is_boolean = function
+  (* C11 6.5.13, 6.5.14, 6.5.3.3: LAnd, LOr and LNot also return 0 or 1 *)
+  | UnOp (LNot, _, _)
+  | BinOp ((Lt | Gt | Le | Ge | Eq | Ne | LAnd | LOr), _, _, _) -> true
+  | _ -> false
+
 let anoncomp_name_regexp = Str.regexp {|^__anon\(struct\|union\)\(_\(.+\)\)?_\([0-9]+\)$|}
 
 let split_anoncomp_name name =

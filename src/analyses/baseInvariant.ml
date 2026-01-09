@@ -870,15 +870,9 @@ struct
     in
     if eval_bool exp st = Some (not tv) then contra st (* we already know that the branch is dead *)
     else
-      (* C11 6.5.13, 6.5.14, 6.5.3.3: LAnd, LOr and LNot also return 0 or 1 *)
-      let is_cmp = function
-        | UnOp (LNot, _, _)
-        | BinOp ((Lt | Gt | Le | Ge | Eq | Ne | LAnd | LOr), _, _, _) -> true
-        | _ -> false
-      in
       match Cilfacade.get_ikind_exp exp with
       | ik ->
-        let itv = if not tv || is_cmp exp then (* false is 0, but true can be anything that is not 0, except for comparisons which yield 1 *)
+        let itv = if not tv || Cilfacade.exp_is_boolean exp then (* false is 0, but true can be anything that is not 0, except for comparisons which yield 1 *)
             ID.of_bool ik tv (* this will give 1 for true which is only ok for comparisons *)
           else
             ID.of_excl_list ik [Z.zero] (* Lvals, Casts, arithmetic operations etc. should work with true = non_zero *)

@@ -544,18 +544,12 @@ struct
   module Tracked = Tracked
   module Convert = Convert (V) (Bounds) (Arg) (Tracked)
 
-  (* TODO: deduplicate with BaseInvariant is_cmp *)
-  let exp_is_constraint = function
-    | UnOp (LNot, _, _)
-    | BinOp ((Lt | Gt | Le | Ge | Eq | Ne | LAnd | LOr), _, _, _) -> true
-    | _ -> false
-
   (* TODO: move logic-handling assert_constraint from Apron back to here, after fixing affeq bot-bot join *)
 
   (** Assert any expression. *)
   let assert_inv ask d e negate no_ov =
     let e' =
-      if exp_is_constraint e then
+      if Cilfacade.exp_is_boolean e then
         e
       else
         (* convert non-constraint expression, such that we assert(e != 0) *)
@@ -588,8 +582,8 @@ struct
     | exception Invalid_argument _ ->
       ID.top () (* real top, not a top of any ikind because we don't even know the ikind *)
     | ik ->
-      if M.tracing then M.trace "relation" "eval_int: exp_is_constraint %a = %B" d_plainexp e (exp_is_constraint e);
-      if exp_is_constraint e then
+      if M.tracing then M.trace "relation" "eval_int: exp_is_constraint %a = %B" d_plainexp e (Cilfacade.exp_is_boolean e);
+      if Cilfacade.exp_is_boolean e then
         match check_assert ask d e no_ov with
         | `True -> ID.of_bool ik true
         | `False -> ID.of_bool ik false
