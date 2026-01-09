@@ -199,7 +199,7 @@ sig
 
   (** {b Cast} *)
 
-  val cast_to: ?suppress_ovwarn:bool -> ?torg:Cil.typ -> Cil.ikind -> t -> t
+  val cast_to: ?suppress_ovwarn:bool -> kind:castkind -> ?torg:Cil.typ -> Cil.ikind -> t -> t
   (** Cast from original type [torg] to integer type [Cil.ikind]. Currently, [torg] is only present for actual casts. The function is also called to handle overflows/wrap around after operations. In these cases (where the type stays the same) [torg] is None. *)
 
 end
@@ -241,7 +241,7 @@ sig
   val mul : ?no_ov:bool -> Cil.ikind ->  t -> t -> t
   val div : ?no_ov:bool -> Cil.ikind ->  t -> t -> t
   val neg : ?no_ov:bool -> Cil.ikind ->  t -> t
-  val cast_to : ?suppress_ovwarn:bool -> ?torg:Cil.typ -> ?no_ov:bool -> Cil.ikind -> t -> t
+  val cast_to : ?suppress_ovwarn:bool -> kind:castkind -> ?torg:Cil.typ -> ?no_ov:bool -> Cil.ikind -> t -> t
   (** @param no_ov If true, assume no overflow can occur. *)
 
   val join: Cil.ikind -> t ->  t -> t
@@ -300,7 +300,7 @@ sig
 
   val neg : ?no_ov:bool -> Cil.ikind ->  t -> t * overflow_info
 
-  val cast_to : ?torg:Cil.typ -> ?no_ov:bool -> Cil.ikind -> t -> t * overflow_info
+  val cast_to : kind:castkind -> ?torg:Cil.typ -> ?no_ov:bool -> Cil.ikind -> t -> t * overflow_info
 
   val of_int : Cil.ikind -> int_t -> t * overflow_info
 

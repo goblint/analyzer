@@ -158,7 +158,7 @@ module T = struct
     | ikind ->
       begin match ask.f (Queries.EvalInt exp) with
         | `Lifted i ->
-          let casted_i = IntDomain.IntDomTuple.cast_to ikind i in
+          let casted_i = IntDomain.IntDomTuple.cast_to ~kind:Internal ikind i in (* TODO: proper castkind *)
           let maybe_i = IntDomain.IntDomTuple.to_int casted_i in
           begin match maybe_i with
             | Some i -> i
@@ -245,7 +245,7 @@ module T = struct
         let ptr_diff_ikind = Cilfacade.ptrdiff_ikind () in
         let i = match ask.f (Queries.EvalInt exp) with
           | `Lifted x ->
-            IntDomain.IntDomTuple.cast_to ptr_diff_ikind x
+            IntDomain.IntDomTuple.cast_to ~kind:Internal ptr_diff_ikind x (* TODO: proper castkind *)
           | _ ->
             ValueDomain.ID.top_of ptr_diff_ikind
         in
