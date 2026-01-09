@@ -146,6 +146,7 @@ type _ t =
   | YamlEntryGlobal: Obj.t * YamlWitnessType.Task.t -> YS.t t (** YAML witness entries for a global unknown ([Obj.t] represents [Spec.V.t]) and YAML witness task. *)
   | GhostVarAvailable: WitnessGhostVar.t -> MayBool.t t
   | InvariantGlobalNodes: NS.t t (** Nodes where YAML witness flow-insensitive invariants should be emitted as location invariants (if [witness.invariant.flow_insensitive-as] is configured to do so). *) (* [Spec.V.t] argument (as [Obj.t]) could be added, if this should be different for different flow-insensitive invariants. *)
+  | DescendantThreads: ThreadIdDomain.Thread.t -> ConcDomain.ThreadSet.t t
 
 type 'a result = 'a
 
@@ -221,6 +222,7 @@ struct
     | YamlEntryGlobal _ -> (module YS)
     | GhostVarAvailable _ -> (module MayBool)
     | InvariantGlobalNodes -> (module NS)
+    | DescendantThreads _ -> (module ConcDomain.ThreadSet)
 
   (** Get bottom result for query. *)
   let bot (type a) (q: a t): a result =
@@ -295,6 +297,7 @@ struct
     | YamlEntryGlobal _ -> YS.top ()
     | GhostVarAvailable _ -> MayBool.top ()
     | InvariantGlobalNodes -> NS.top ()
+    | DescendantThreads _ -> ConcDomain.ThreadSet.top ()
 end
 
 (* The type any_query can't be directly defined in Any as t,
@@ -366,6 +369,7 @@ struct
     | Any (MustProtectingLocks _) -> 61
     | Any (GhostVarAvailable _) -> 62
     | Any InvariantGlobalNodes -> 63
+    | Any (DescendantThreads _) -> 64
 
   let rec compare a b =
     let r = Stdlib.compare (order a) (order b) in
@@ -425,6 +429,7 @@ struct
       | Any (MaySignedOverflow e1), Any (MaySignedOverflow e2) -> CilType.Exp.compare e1 e2
       | Any (GasExhausted f1), Any (GasExhausted f2) -> CilType.Fundec.compare f1 f2
       | Any (GhostVarAvailable v1), Any (GhostVarAvailable v2) -> WitnessGhostVar.compare v1 v2
+      | Any (DescendantThreads t1), Any (DescendantThreads t2) -> ThreadIdDomain.Thread.compare t1 t2
       (* only argumentless queries should remain *)
       | _, _ -> Stdlib.compare (order a) (order b)
 
@@ -472,6 +477,7 @@ struct
     | Any (MaySignedOverflow e) -> CilType.Exp.hash e
     | Any (GasExhausted f) -> CilType.Fundec.hash f
     | Any (GhostVarAvailable v) -> WitnessGhostVar.hash v
+    | Any (DescendantThreads t) -> ThreadIdDomain.Thread.hash t
     (* IterSysVars:                                                                    *)
     (*   - argument is a function and functions cannot be compared in any meaningful way. *)
     (*   - doesn't matter because IterSysVars is always queried from outside of the analysis, so MCP's query caching is not done for it. *)
@@ -540,6 +546,7 @@ struct
     | Any (GasExhausted f) -> Pretty.dprintf "GasExhausted %a" CilType.Fundec.pretty f
     | Any (GhostVarAvailable v) -> Pretty.dprintf "GhostVarAvailable %a" WitnessGhostVar.pretty v
     | Any InvariantGlobalNodes -> Pretty.dprintf "InvariantGlobalNodes"
+    | Any (DescendantThreads t) -> Pretty.dprintf "DescendantThreads %a" ThreadIdDomain.Thread.pretty t
 end
 
 let to_value_domain_ask (ask: ask) =
