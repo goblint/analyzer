@@ -20,7 +20,7 @@ struct
     (* TODO: Should string constants not be added to D in the first place, rather than filtering them for witness invariants? *)
     let rec is_str_constant = function
       | Const (CStr _ | CWStr _) -> true
-      | CastE (_, e) -> is_str_constant e
+      | CastE (_, _, e) -> is_str_constant e
       | _ -> false
 
     let invariant ~scope ss =
@@ -97,7 +97,7 @@ struct
     | AddrOf  (Mem e,_)
     | StartOf (Mem e,_)
     | Lval    (Mem e,_)
-    | CastE (_,e)           -> interesting e
+    | CastE (_,_,e)           -> interesting e
 
   (* helper to decide equality *)
   let query_exp_equal ask e1 e2 g s =
@@ -138,7 +138,7 @@ struct
       | Lval (Mem e,o)
       | AddrOf (Mem e,o)
       | StartOf (Mem e,o) -> may_change_t_offset o || type_may_change_t e bt
-      | CastE (t,e) -> type_may_change_t e bt
+      | CastE (_,t,e) -> type_may_change_t e bt
       | Question (b, t, f, _) -> type_may_change_t b bt || type_may_change_t t bt || type_may_change_t f bt
     in
     let bt =  unrollTypeDeep (Cilfacade.typeOf b) in
@@ -174,7 +174,7 @@ struct
       | Lval (Mem e,o)
       | AddrOf (Mem e,o)
       | StartOf (Mem e,o) -> may_change_pt_offset o || lval_may_change_pt e bl
-      | CastE (t,e) -> lval_may_change_pt e bl
+      | CastE (_,t,e) -> lval_may_change_pt e bl
       | Question (b, t, f, _) -> lval_may_change_pt t bl || lval_may_change_pt t bl || lval_may_change_pt f bl
     in
     let bls = pt b in
@@ -235,7 +235,7 @@ struct
       | Lval (Mem e,o)    -> may_change_t_offset o || type_may_change_t true e
       | AddrOf (Mem e,o)  -> may_change_t_offset o || type_may_change_t false e
       | StartOf (Mem e,o) -> may_change_t_offset o || type_may_change_t false e
-      | CastE (t,e) -> type_may_change_t deref e
+      | CastE (_,t,e) -> type_may_change_t deref e
       | Question (b, t, f, _) -> type_may_change_t deref b || type_may_change_t deref t || type_may_change_t deref f
 
     and lval_may_change_pt a bl : bool =
@@ -253,7 +253,7 @@ struct
         | Lval    (Mem e,o) -> Some (AddrOf (Mem e, o))
         | AddrOf  (Mem e,o) -> (match addrOfExp e with Some e -> Some (AddrOf (Mem e, o)) | x -> x)
         | StartOf (Mem e,o) -> (match addrOfExp e with Some e -> Some (AddrOf (Mem e, o)) | x -> x)
-        | CastE   (t,e) -> addrOfExp e
+        | CastE   (_,t,e) -> addrOfExp e
         | _ -> None
       in
       let lval_is_not_disjoint (v,o) aad =
@@ -299,7 +299,7 @@ struct
            | Lval (Mem e,o)
            | AddrOf (Mem e,o)
            | StartOf (Mem e,o) -> may_change_pt_offset o || lval_may_change_pt e bl
-           | CastE (t,e) -> lval_may_change_pt e bl
+           | CastE (_,t,e) -> lval_may_change_pt e bl
            | Question (b, t, f, _) -> lval_may_change_pt b bl || lval_may_change_pt t bl || lval_may_change_pt f bl
     in
     let r =
@@ -361,7 +361,7 @@ struct
             ) ad)
         | _ -> Some true
       end
-    | CastE (t,e) -> is_global_var ask e
+    | CastE (_,t,e) -> is_global_var ask e
     | AddrOf (Var v,_) -> Some (ask.f (Queries.IsMultiple v)) (* Taking an address of a global is fine*)
     | AddrOf lv -> Some false (* TODO: sound?! *)
     | StartOf (Var v,_) ->  Some (ask.f (Queries.IsMultiple v)) (* Taking an address of a global is fine*)
@@ -545,7 +545,7 @@ struct
     | Some es ->
       let et = Cilfacade.typeOf e in
       let add x xs =
-        Queries.ES.add (CastE (et,x)) xs
+        Queries.ES.add (CastE (Internal,et,x)) xs
       in
       D.B.fold add es (Queries.ES.empty ())
 
@@ -557,7 +557,7 @@ struct
         (* TODO: this applies eq_set_clos under the offset, unlike cases below; should generalize? *)
         Queries.ES.fold (fun e acc -> (* filter_map *)
             match e with
-            | CastE (_, StartOf a') -> (* eq_set adds casts *)
+            | CastE (_, _, StartOf a') -> (* eq_set adds casts *)
               let e' = AddrOf (Cil.addOffsetLval (Index (i, os)) a') in (* TODO: re-add cast? *)
               Queries.ES.add e' acc
             | _ -> acc
@@ -583,8 +583,8 @@ struct
         Queries.ES.map (fun e -> mkAddrOrStartOf (mkMem ~addr:e ~off:ofs)) (eq_set_clos e s)
       | Lval    (Mem e,ofs) ->
         Queries.ES.map (fun e -> Lval (mkMem ~addr:e ~off:ofs)) (eq_set_clos e s)
-      | CastE (t,e) ->
-        Queries.ES.map (fun e -> CastE (t,e)) (eq_set_clos e s)
+      | CastE (k,t,e) ->
+        Queries.ES.map (fun e -> CastE (k,t,e)) (eq_set_clos e s)
     in
     if M.tracing then M.traceu "var_eq" "eq_set_clos %a = %a" d_plainexp e Queries.ES.pretty r;
     r

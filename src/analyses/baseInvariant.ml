@@ -125,7 +125,7 @@ struct
                 let st = set' lv lval_a st in
                 let orig = AD.Addr.add_offset base_a original_offset in
                 let old_val = get ~man st (AD.singleton orig) None in
-                let old_val = VD.cast (Cilfacade.typeOfLval x) old_val in (* needed as the type of this pointer may be different *)
+                let old_val = VD.cast ~kind:Internal (Cilfacade.typeOfLval x) old_val in (* needed as the type of this pointer may be different *) (* TODO: proper castkind *)
                 (* this what I would originally have liked to do, but eval_rv_lval_refine uses queries and thus stale values *)
                 (* let old_val = eval_rv_lval_refine ~man st exp x in *)
                 let old_val = map_oldval old_val (Cilfacade.typeOfLval x) in
@@ -157,7 +157,7 @@ struct
         (match value with
          | Int n ->
            let ikind = Cilfacade.get_ikind_exp (Lval lval) in
-           `Refine (x, Int (ID.cast_to ikind n))
+           `Refine (x, Int (ID.cast_to ~kind:Internal ikind n)) (* TODO: proper castkind *)
          | _ -> `Refine (x, value))
       (* The false-branch for x == value: *)
       | Eq, x, value, false -> begin
@@ -194,7 +194,7 @@ struct
           match value with
           | Int n -> begin
               let ikind = Cilfacade.get_ikind_exp (Lval lval) in
-              let n = ID.cast_to ikind n in
+              let n = ID.cast_to ~kind:Internal ikind n in (* TODO: proper castkind *)
               let range_from x = if tv then ID.ending ikind (Z.pred x) else ID.starting ikind x in
               let limit_from = if tv then ID.maximal else ID.minimal in
               match limit_from n with
@@ -209,7 +209,7 @@ struct
           match value with
           | Int n -> begin
               let ikind = Cilfacade.get_ikind_exp (Lval lval) in
-              let n = ID.cast_to ikind n in
+              let n = ID.cast_to ~kind:Internal ikind n in (* TODO: proper castkind *)
               let range_from x = if tv then ID.ending ikind x else ID.starting ikind (Z.succ x) in
               let limit_from = if tv then ID.maximal else ID.minimal in
               match limit_from n with
@@ -241,13 +241,13 @@ struct
         let v = eval_rv ~man st rval in
         let x_type = Cilfacade.typeOfLval x in
         if VD.is_dynamically_safe_cast x_type (Cilfacade.typeOf rval) v then
-          helper op x (VD.cast x_type v) tv
+          helper op x (VD.cast ~kind:Internal x_type v) tv (* TODO: proper castkind *)
         else
           `NotUnderstood
       | BinOp(op, rval, Lval x, typ) -> derived_invariant (BinOp(switchedOp op, Lval x, rval, typ)) tv
-      | BinOp(op, CastE (t1, c1), CastE (t2, c2), t) when (op = Eq || op = Ne) && typeSig t1 = typeSig t2 && VD.is_statically_safe_cast t1 (Cilfacade.typeOf c1) && VD.is_statically_safe_cast t2 (Cilfacade.typeOf c2)
+      | BinOp(op, CastE (_, t1, c1), CastE (_, t2, c2), t) when (op = Eq || op = Ne) && typeSig t1 = typeSig t2 && VD.is_statically_safe_cast t1 (Cilfacade.typeOf c1) && VD.is_statically_safe_cast t2 (Cilfacade.typeOf c2)
         -> derived_invariant (BinOp (op, c1, c2, t)) tv
-      | BinOp(op, CastE (t1, Lval x), rval, typ) when Cil.isIntegralType t1 ->
+      | BinOp(op, CastE (_, t1, Lval x), rval, typ) when Cil.isIntegralType t1 ->
         begin match eval_rv ~man st (Lval x) with
           | Int v ->
             if VD.is_dynamically_safe_cast t1 (Cilfacade.typeOfLval x) (Int v) then
@@ -256,8 +256,8 @@ struct
               `NotUnderstood
           | _ -> `NotUnderstood
         end
-      | BinOp(op, rval, CastE (ti, Lval x), typ) when Cil.isIntegralType ti ->
-        derived_invariant (BinOp (switchedOp op, CastE(ti, Lval x), rval, typ)) tv
+      | BinOp(op, rval, CastE (k, ti, Lval x), typ) when Cil.isIntegralType ti ->
+        derived_invariant (BinOp (switchedOp op, CastE(k, ti, Lval x), rval, typ)) tv
       | BinOp(op, (Const _ | AddrOf _), rval, typ) ->
         (* This is last such that we never reach here with rval being Lval (it is swapped around). *)
         `NothingToRefine
@@ -649,7 +649,7 @@ struct
         | UnOp (Neg, e, _), Float c -> inv_exp (unop_FD Neg c) e st
         | UnOp ((BNot|Neg) as op, e, _), Int c -> inv_exp (Int (unop_ID op c)) e st
         (* no equivalent for Float, as VD.is_statically_safe_cast fails for all float types anyways *)
-        | BinOp((Eq | Ne) as op, CastE (t1, e1), CastE (t2, e2), t), Int c when typeSig (Cilfacade.typeOf e1) = typeSig (Cilfacade.typeOf e2) && VD.is_statically_safe_cast t1 (Cilfacade.typeOf e1) && VD.is_statically_safe_cast t2 (Cilfacade.typeOf e2) ->
+        | BinOp((Eq | Ne) as op, CastE (_, t1, e1), CastE (_, t2, e2), t), Int c when typeSig (Cilfacade.typeOf e1) = typeSig (Cilfacade.typeOf e2) && VD.is_statically_safe_cast t1 (Cilfacade.typeOf e1) && VD.is_statically_safe_cast t2 (Cilfacade.typeOf e2) ->
           inv_exp (Int c) (BinOp (op, e1, e2, t)) st
         | BinOp (LOr, arg1, arg2, typ) as exp, Int c ->
           (* copied & modified from eval_rv_base... *)
@@ -657,7 +657,7 @@ struct
           (* split nested LOr Eqs to equality pairs, if possible *)
           let rec split = function
             (* copied from above to support pointer equalities with implicit casts inserted *)
-            | BinOp (Eq, CastE (t1, e1), CastE (t2, e2), typ) when typeSig (Cilfacade.typeOf e1) = typeSig (Cilfacade.typeOf e2) && VD.is_statically_safe_cast t1 (Cilfacade.typeOf e1) && VD.is_statically_safe_cast t2 (Cilfacade.typeOf e2) -> (* slightly different from eval_rv_base... *)
+            | BinOp (Eq, CastE (_, t1, e1), CastE (_, t2, e2), typ) when typeSig (Cilfacade.typeOf e1) = typeSig (Cilfacade.typeOf e2) && VD.is_statically_safe_cast t1 (Cilfacade.typeOf e1) && VD.is_statically_safe_cast t2 (Cilfacade.typeOf e2) -> (* slightly different from eval_rv_base... *)
               Some [(e1, e2)]
             | BinOp (Eq, arg1, arg2, _) ->
               Some [(arg1, arg2)]
@@ -759,7 +759,7 @@ struct
              | a1, a2 -> fallback (fun () -> Pretty.dprintf "binop: got abstract values that are not Int: %a and %a" VD.pretty a1 VD.pretty a2) st)
             (* use closures to avoid unused casts *)
           in (match c_typed with
-              | Int c -> invert_binary_op c ID.pretty (fun ik -> ID.cast_to ik c) (fun fk -> FD.of_int fk c)
+              | Int c -> invert_binary_op c ID.pretty (fun ik -> ID.cast_to ~kind:Internal ik c) (fun fk -> FD.of_int fk c) (* TODO: proper castkind *)
               | Float c -> invert_binary_op c FD.pretty (fun ik -> FD.to_int ik c) (fun fk -> FD.cast_to fk c)
               | _ -> failwith "unreachable")
         | Lval x, (Int _ | Float _ | Address _) -> (* meet x with c *)
@@ -771,7 +771,7 @@ struct
               let c' = match t with
                 | TPtr _ -> VD.Address (AD.of_int c)
                 | TInt (ik, _)
-                | TEnum ({ekind = ik; _}, _) -> Int (ID.cast_to ik c)
+                | TEnum ({ekind = ik; _}, _) -> Int (ID.cast_to ~kind:Internal ik c) (* TODO: proper castkind *)
                 | TFloat (fk, _) -> Float (FD.of_int fk c)
                 | _ -> Int c
               in
@@ -783,7 +783,7 @@ struct
                   if M.tracing then M.trace "invSpecial" "qry Result: %a" Queries.ML.pretty tmpSpecial;
                   begin match tmpSpecial with
                     | `Lifted (Abs (ik, xInt)) ->
-                      let c' = ID.cast_to ik c in (* different ik! *)
+                      let c' = ID.cast_to ~kind:Internal ik c in (* different ik! *) (* TODO: proper castkind *)
                       inv_exp (Int (ID.join c' (ID.neg c'))) xInt st
                     | tmpSpecial ->
                       BatOption.map_default_delayed (fun tv ->
@@ -835,7 +835,7 @@ struct
             | _ -> assert false
           end
         | Const _ , _ -> st (* nothing to do *)
-        | CastE (t, e), c_typed ->
+        | CastE (k, t, e), c_typed ->
           begin match Cil.unrollType t, c_typed with
             | TFloat (_, _), Float c ->
               (match unrollType (Cilfacade.typeOf e), FD.get_fkind c with
@@ -856,29 +856,23 @@ struct
                     if VD.is_dynamically_safe_cast t t' (Int i) then
                       (* let c' = ID.cast_to ik_e c in *)
                       (* Suppressing overflow warnings as this is not a computation that comes from the program *)
-                      let res_range = (ID.cast_to ~suppress_ovwarn:true ik (ID.top_of ik_e)) in
-                      let c' = ID.cast_to ik_e (ID.meet c res_range) in (* TODO: cast without overflow, is this right for normal invariant? *)
+                      let res_range = (ID.cast_to ~suppress_ovwarn:true ~kind:Internal ik (ID.top_of ik_e)) in (* TODO: proper castkind *)
+                      let c' = ID.cast_to ~kind:Internal ik_e (ID.meet c res_range) in (* TODO: cast without overflow, is this right for normal invariant? *) (* TODO: proper castkind *)
                       if M.tracing then M.tracel "inv" "cast: %a from %a to %a: i = %a; cast c = %a to %a = %a" d_exp e d_ikind ik_e d_ikind ik ID.pretty i ID.pretty c d_ikind ik_e ID.pretty c';
                       inv_exp (Int c') e st
                     else
                       fallback (fun () -> Pretty.dprintf "CastE: %a evaluates to %a which is bigger than the type it is cast to which is %a" d_plainexp e ID.pretty i CilType.Typ.pretty t) st
                   | x -> fallback (fun () -> Pretty.dprintf "CastE: e did evaluate to Int, but the type did not match %a" CilType.Typ.pretty t) st)
                | v -> fallback (fun () -> Pretty.dprintf "CastE: e did not evaluate to Int, but %a" VD.pretty v) st)
-            | _, _ -> fallback (fun () -> Pretty.dprintf "CastE: %a not implemented" d_plainexp (CastE (t, e))) st
+            | _, _ -> fallback (fun () -> Pretty.dprintf "CastE: %a not implemented" d_plainexp (CastE (k, t, e))) st
           end
         | e, _ -> fallback (fun () -> Pretty.dprintf "%a not implemented" d_plainexp e) st
     in
     if eval_bool exp st = Some (not tv) then contra st (* we already know that the branch is dead *)
     else
-      (* C11 6.5.13, 6.5.14, 6.5.3.3: LAnd, LOr and LNot also return 0 or 1 *)
-      let is_cmp = function
-        | UnOp (LNot, _, _)
-        | BinOp ((Lt | Gt | Le | Ge | Eq | Ne | LAnd | LOr), _, _, _) -> true
-        | _ -> false
-      in
       match Cilfacade.get_ikind_exp exp with
       | ik ->
-        let itv = if not tv || is_cmp exp then (* false is 0, but true can be anything that is not 0, except for comparisons which yield 1 *)
+        let itv = if not tv || Cilfacade.exp_is_boolean exp then (* false is 0, but true can be anything that is not 0, except for comparisons which yield 1 *)
             ID.of_bool ik tv (* this will give 1 for true which is only ok for comparisons *)
           else
             ID.of_excl_list ik [Z.zero] (* Lvals, Casts, arithmetic operations etc. should work with true = non_zero *)

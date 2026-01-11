@@ -5,7 +5,7 @@ open GoblintCil
 module type Arg =
 sig
   include Lattice.S
-  val cast: ?torg:typ -> typ -> t -> t
+  val cast: kind:castkind -> ?torg:typ -> typ -> t -> t
 end
 
 module type S =
@@ -54,7 +54,7 @@ struct
     | Field (f, offset) ->
       begin match lift_f with
         | `Lifted f' ->
-          let v = Values.cast ~torg:f'.ftype f.ftype v in
+          let v = Values.cast ~kind:Internal ~torg:f'.ftype f.ftype v in (* TODO: proper castkind *)
           value_invariant ~offset ~lval v
         | `Top
         | `Bot ->

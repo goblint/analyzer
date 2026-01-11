@@ -430,10 +430,10 @@ struct
   let test_cast_to _ =
     let b1 = I.of_int ik (of_int 1234) in
 
-    assert_equal (I.of_int IUChar (of_int (210))) (I.cast_to IUChar b1);
-    assert_equal (I.of_int IUChar (of_int (-46))) (I.cast_to IUChar b1);
+    assert_equal (I.of_int IUChar (of_int (210))) (I.cast_to ~kind:Internal IUChar b1);
+    assert_equal (I.of_int IUChar (of_int (-46))) (I.cast_to ~kind:Internal IUChar b1);
 
-    assert_equal (I.of_int IUInt128 (of_int 1234)) (I.cast_to IUInt128 b1)
+    assert_equal (I.of_int IUInt128 (of_int 1234)) (I.cast_to ~kind:Internal IUInt128 b1)
 
   (* Bitwise  *)
 

@@ -46,7 +46,7 @@ struct
     | SizeOfE e
     | AlignOfE e
     | UnOp (_, e, _)
-    | CastE (_, e) -> exp_contains_a_ptr e
+    | CastE (_, _, e) -> exp_contains_a_ptr e
     | BinOp (_, e1, e2, _) ->
       exp_contains_a_ptr e1 || exp_contains_a_ptr e2
     | Question (e1, e2, e3, _) ->
@@ -98,7 +98,7 @@ struct
                   let item_typ_size_in_bytes = size_of_type_in_bytes item_typ in
                   begin match man.ask (Queries.EvalLength ptr) with
                     | `Lifted arr_len ->
-                      let arr_len_casted = ID.cast_to (Cilfacade.ptrdiff_ikind ()) arr_len in
+                      let arr_len_casted = ID.cast_to ~kind:Internal (Cilfacade.ptrdiff_ikind ()) arr_len in (* TODO: proper castkind *)
                       begin
                         try `Lifted (ID.mul item_typ_size_in_bytes arr_len_casted)
                         with IntDomain.ArithmeticOnIntegerBot _ -> `Bot
@@ -137,7 +137,7 @@ struct
     let ptr_contents_typ_size_in_bytes = size_of_type_in_bytes ptr_contents_typ in
     match eval_offset with
     | `Lifted eo ->
-      let casted_eo = ID.cast_to (Cilfacade.ptrdiff_ikind ()) eo in
+      let casted_eo = ID.cast_to ~kind:Internal (Cilfacade.ptrdiff_ikind ()) eo in (* TODO: proper castkind *)
       begin
         try `Lifted (ID.mul casted_eo ptr_contents_typ_size_in_bytes)
         with IntDomain.ArithmeticOnIntegerBot _ -> `Bot
@@ -172,11 +172,11 @@ struct
       match ofs with
       | NoOffset -> `NoOffset
       | Field (fld, ofs) -> `Field (fld, convert_offset ofs)
-      | Index (exp, ofs) when CilType.Exp.equal exp (Lazy.force Offset.Index.Exp.any) -> (* special offset added by convertToQueryLval *)
+      | Index (exp, ofs) when Offset.Index.Exp.is_any exp -> (* special offset added by convertToQueryLval *)
         `Index (ID.top (), convert_offset ofs)
       | Index (exp, ofs) ->
         let i = match man.ask (Queries.EvalInt exp) with
-          | `Lifted x -> ID.cast_to (Cilfacade.ptrdiff_ikind ()) x
+          | `Lifted x -> ID.cast_to ~kind:Internal (Cilfacade.ptrdiff_ikind ()) x (* TODO: proper castkind *)
           | _ -> ID.top_of @@ Cilfacade.ptrdiff_ikind ()
         in
         `Index (i, convert_offset ofs)
@@ -289,8 +289,8 @@ struct
              M.warn "Size of lval dereference expression %a is bot. Out-of-bounds memory access may occur" d_exp e);
             Checks.warn Checks.Category.InvalidMemoryAccess "Size of lval dereference expression %a is bot. Out-of-bounds memory access may occur" d_exp e
           | `Lifted es ->
-            let casted_es = ID.cast_to (Cilfacade.ptrdiff_ikind ()) es in
-            let casted_offs = ID.cast_to (Cilfacade.ptrdiff_ikind ()) offs_intdom in
+            let casted_es = ID.cast_to ~kind:Internal (Cilfacade.ptrdiff_ikind ()) es in (* TODO: proper castkind *)
+            let casted_offs = ID.cast_to ~kind:Internal (Cilfacade.ptrdiff_ikind ()) offs_intdom in (* TODO: proper castkind *)
             let ptr_size_lt_offs =
               let one = intdom_of_int 1 in
               let casted_es = ID.sub casted_es one in
@@ -342,8 +342,8 @@ struct
           M.warn ~category:(Behavior behavior) ~tags:[CWE cwe_number] "Size of pointer %a is bot. Memory out-of-bounds access might occur due to pointer arithmetic" d_exp lval_exp;
           Checks.warn Checks.Category.InvalidMemoryAccess "Size of pointer %a is bot. Memory out-of-bounds access might occur due to pointer arithmetic" d_exp lval_exp
         | `Lifted ps, ao ->
-          let casted_ps = ID.cast_to (Cilfacade.ptrdiff_ikind ()) ps in
-          let casted_ao = ID.cast_to (Cilfacade.ptrdiff_ikind ()) ao in
+          let casted_ps = ID.cast_to ~kind:Internal (Cilfacade.ptrdiff_ikind ()) ps in (* TODO: proper castkind *)
+          let casted_ao = ID.cast_to ~kind:Internal (Cilfacade.ptrdiff_ikind ()) ao in (* TODO: proper castkind *)
           let ptr_size_lt_offs = ID.lt casted_ps casted_ao in
           begin match ID.to_bool ptr_size_lt_offs with
             | Some true ->
@@ -372,7 +372,7 @@ struct
     | SizeOfE e
     | AlignOfE e
     | UnOp (_, e, _)
-    | CastE (_, e) -> check_exp_for_oob_access man ~is_implicitly_derefed e
+    | CastE (_, _, e) -> check_exp_for_oob_access man ~is_implicitly_derefed e
     | BinOp (bop, e1, e2, t) ->
       check_exp_for_oob_access man ~is_implicitly_derefed e1;
       check_exp_for_oob_access man ~is_implicitly_derefed e2
@@ -403,8 +403,8 @@ struct
           (* Make sure to add the address offset to the binop offset *)
           let offset_size_with_addr_size = match offset_size with
             | `Lifted os ->
-              let casted_os = ID.cast_to (Cilfacade.ptrdiff_ikind ()) os in
-              let casted_ao = ID.cast_to (Cilfacade.ptrdiff_ikind ()) addr_offs in
+              let casted_os = ID.cast_to ~kind:Internal (Cilfacade.ptrdiff_ikind ()) os in (* TODO: proper castkind *)
+              let casted_ao = ID.cast_to ~kind:Internal (Cilfacade.ptrdiff_ikind ()) addr_offs in (* TODO: proper castkind *)
               begin
                 try `Lifted (ID.add casted_os casted_ao)
                 with IntDomain.ArithmeticOnIntegerBot _ -> `Bot
@@ -430,8 +430,8 @@ struct
               M.warn ~category:(Behavior behavior) ~tags:[CWE cwe_number] "Operand value for pointer arithmetic in expression %a is bottom. Memory out-of-bounds access might occur" d_exp binopexp;
               Checks.warn Checks.Category.InvalidMemoryAccess "Operand value for pointer arithmetic in expression %a is bottom. Memory out-of-bounds access might occur" d_exp binopexp
             | `Lifted ps, `Lifted o ->
-              let casted_ps = ID.cast_to (Cilfacade.ptrdiff_ikind ()) ps in
-              let casted_o = ID.cast_to (Cilfacade.ptrdiff_ikind ()) o in
+              let casted_ps = ID.cast_to ~kind:Internal (Cilfacade.ptrdiff_ikind ()) ps in (* TODO: proper castkind *)
+              let casted_o = ID.cast_to ~kind:Internal (Cilfacade.ptrdiff_ikind ()) o in (* TODO: proper castkind *)
               let ptr_size_lt_offs = ID.lt casted_ps casted_o in
               begin match ID.to_bool ptr_size_lt_offs with
                 | Some true ->
@@ -475,9 +475,9 @@ struct
       M.warn ~category:(Behavior behavior) ~tags:[CWE cwe_number] "Count parameter, passed to function %s is bottom" fun_name;
       Checks.warn Checks.Category.InvalidMemoryAccess "Count parameter, passed to function %s is bottom" fun_name
     | `Lifted ds, `Lifted en ->
-      let casted_ds = ID.cast_to (Cilfacade.ptrdiff_ikind ()) ds in
-      let casted_en = ID.cast_to (Cilfacade.ptrdiff_ikind ()) en in
-      let casted_ao = ID.cast_to (Cilfacade.ptrdiff_ikind ()) addr_offs in
+      let casted_ds = ID.cast_to ~kind:Internal (Cilfacade.ptrdiff_ikind ()) ds in (* TODO: proper castkind *)
+      let casted_en = ID.cast_to ~kind:Internal (Cilfacade.ptrdiff_ikind ()) en in (* TODO: proper castkind *)
+      let casted_ao = ID.cast_to ~kind:Internal (Cilfacade.ptrdiff_ikind ()) addr_offs in (* TODO: proper castkind *)
       let dest_size_lt_count = ID.lt casted_ds (ID.add casted_en casted_ao) in
       begin match ID.to_bool dest_size_lt_count with
         | Some true ->

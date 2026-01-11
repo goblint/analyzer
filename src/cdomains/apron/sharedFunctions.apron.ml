@@ -160,7 +160,7 @@ struct
                 GobRef.wrap AnalysisState.executing_speculative_computations true @@ fun () ->
                 let ikind = try (Cilfacade.get_ikind_exp e) with Invalid_argument a -> raise (Unsupported_CilExp (Ikind_non_integer a))   in
                 let simp = query e ikind in
-                let const = IntDomain.IntDomTuple.to_int @@ IntDomain.IntDomTuple.cast_to ikind simp in
+                let const = IntDomain.IntDomTuple.to_int @@ IntDomain.IntDomTuple.cast_to ~kind:Internal ikind simp in (* TODO: proper castkind *)
                 if M.tracing then M.trace "relation" "texpr1_expr_of_cil_exp/simplify: %a -> %a" d_plainexp e IntDomain.IntDomTuple.pretty simp;
                 BatOption.map_default (fun c -> Const (CInt (c, ikind, None))) e const
               in
@@ -174,7 +174,7 @@ struct
               | BinOp (Mod, e1, e2, _) -> bop_near Mod e1 e2
               | BinOp (Div, e1, e2, _) ->
                 Binop (Div, texpr1 e1, texpr1 e2, Int, Zero)
-              | CastE (t, e) when Cil.isIntegralType t ->
+              | CastE (_, t, e) when Cil.isIntegralType t ->
                 begin match  IntDomain.Size.is_cast_injective ~from_type:(Cilfacade.typeOf e) ~to_type:t with (* TODO: unnecessary cast check due to overflow check below? or maybe useful in general to also assume type bounds based on argument types? *)
                   | exception Invalid_argument a -> raise (Unsupported_CilExp (Ikind_non_integer a))
                   | true -> texpr1 e
@@ -185,7 +185,7 @@ struct
                       (* try to evaluate e by EvalInt Query *)
                       let res = try (query e @@ Cilfacade.get_ikind_exp e) with Invalid_argument a -> raise (Unsupported_CilExp (Ikind_non_integer a))  in
                       (* convert response to a constant *)
-                      IntDomain.IntDomTuple.to_int @@ IntDomain.IntDomTuple.cast_to t_ik res, res in
+                      IntDomain.IntDomTuple.to_int @@ IntDomain.IntDomTuple.cast_to ~kind:Internal t_ik res, res in (* TODO: proper castkind *)
                     match const with
                     | Some c -> Cst (Coeff.s_of_z c) (* Got a constant value -> use it straight away *)
                     (* I gotten top, we can not guarantee injectivity *)
@@ -300,7 +300,7 @@ struct
   let cil_exp_of_linexpr1_term ~scalewith (c: Coeff.t) v =
     match V.to_cil_varinfo v with
     | Some vinfo when IntDomain.Size.is_cast_injective ~from_type:vinfo.vtype ~to_type:(TInt(ILongLong,[]))   ->
-      let var = Cilfacade.mkCast ~e:(Lval(Var vinfo,NoOffset)) ~newt:longlong in
+      let var = Cilfacade.mkCast ~kind:Explicit ~e:(Lval(Var vinfo,NoOffset)) ~newt:longlong in
       let i = int_of_coeff_warn ~scalewith c in
       if Z.equal i Z.one then
         false, var
@@ -544,24 +544,17 @@ struct
   module Tracked = Tracked
   module Convert = Convert (V) (Bounds) (Arg) (Tracked)
 
-  let rec exp_is_constraint = function
-    (* constraint *)
-    | BinOp ((Lt | Gt | Le | Ge | Eq | Ne), _, _, _) -> true
-    | BinOp ((LAnd | LOr), e1, e2, _) -> exp_is_constraint e1 && exp_is_constraint e2
-    | UnOp (LNot,e,_) -> exp_is_constraint e
-    (* expression *)
-    | _ -> false
-
   (* TODO: move logic-handling assert_constraint from Apron back to here, after fixing affeq bot-bot join *)
 
   (** Assert any expression. *)
   let assert_inv ask d e negate no_ov =
     let e' =
-      if exp_is_constraint e then
+      if Cilfacade.exp_is_boolean e then
         e
       else
         (* convert non-constraint expression, such that we assert(e != 0) *)
         BinOp (Ne, e, zero, intType)
+        (* TODO: do this per non-constraint subexpression *)
     in
     assert_constraint ask d e' negate no_ov
 
@@ -589,8 +582,8 @@ struct
     | exception Invalid_argument _ ->
       ID.top () (* real top, not a top of any ikind because we don't even know the ikind *)
     | ik ->
-      if M.tracing then M.trace "relation" "eval_int: exp_is_constraint %a = %B" d_plainexp e (exp_is_constraint e);
-      if exp_is_constraint e then
+      if M.tracing then M.trace "relation" "eval_int: exp_is_constraint %a = %B" d_plainexp e (Cilfacade.exp_is_boolean e);
+      if Cilfacade.exp_is_boolean e then
         match check_assert ask d e no_ov with
         | `True -> ID.of_bool ik true
         | `False -> ID.of_bool ik false
