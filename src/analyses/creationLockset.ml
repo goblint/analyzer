@@ -35,44 +35,42 @@ module Spec = struct
 
   (** reflexive-transitive closure of child relation applied to [tid]
       and filtered to only include threads, where [tid] is a must-ancestor
-      @param ask any ask
+      @param man any man
       @param tid
   *)
-  let must_ancestor_descendants_closure (ask : Queries.ask) tid =
-    let descendants = ask.f @@ Queries.DescendantThreads tid in
+  let must_ancestor_descendants_closure man tid =
+    let descendants = man.ask @@ Queries.DescendantThreads tid in
     let must_ancestors_descendants = TIDs.filter (TID.must_be_ancestor tid) descendants in
     TIDs.add tid must_ancestors_descendants
 
   let threadspawn man ~multiple lval f args fman =
-    let ask = ask_of_man man in
-    let tid_lifted = ask.f Queries.CurrentThreadId in
-    let child_ask = ask_of_man fman in
-    let child_tid_lifted = child_ask.f Queries.CurrentThreadId in
+    let tid_lifted = man.ask Queries.CurrentThreadId in
+    let child_tid_lifted = fman.ask Queries.CurrentThreadId in
     match tid_lifted, child_tid_lifted with
     | `Lifted tid, `Lifted child_tid when TID.must_be_ancestor tid child_tid ->
-      let must_ancestor_descendants = must_ancestor_descendants_closure child_ask child_tid in
-      let lockset = ask.f Queries.MustLockset in
+      let must_ancestor_descendants = must_ancestor_descendants_closure fman child_tid in
+      let lockset = man.ask Queries.MustLockset in
       let to_contribute = G.singleton tid lockset in
       TIDs.iter (contribute_locks man to_contribute) must_ancestor_descendants
     | _ -> ()
 
   (** compute all descendant threads that may run along with the ego thread at a program point.
       for all of them, tid must be an ancestor
+      @param man man of ego thread at the program point
       @param tid ego thread id
-      @param ask ask of ego thread at the program point
   *)
-  let get_must_ancestor_running_descendants tid (ask : Queries.ask) =
-    let may_created_tids = ask.f Queries.CreatedThreads in
+  let get_must_ancestor_running_descendants man tid =
+    let may_created_tids = man.ask Queries.CreatedThreads in
     let may_must_ancestor_created_tids =
       TIDs.filter (TID.must_be_ancestor tid) may_created_tids
     in
     let may_transitively_created_tids =
       TIDs.fold
-        (fun child_tid acc -> TIDs.union acc (must_ancestor_descendants_closure ask child_tid))
+        (fun child_tid acc -> TIDs.union acc (must_ancestor_descendants_closure man child_tid))
         may_must_ancestor_created_tids
         (TIDs.empty ())
     in
-    let must_joined_tids = ask.f Queries.MustJoinedThreads in
+    let must_joined_tids = man.ask Queries.MustJoinedThreads in
     TIDs.diff may_transitively_created_tids must_joined_tids
 
   (** handle unlock of mutex [lock] *)
@@ -97,11 +95,10 @@ module Spec = struct
   let event man e _ =
     match e with
     | Events.Unlock addr ->
-      let ask = ask_of_man man in
-      let tid_lifted = ask.f Queries.CurrentThreadId in
+      let tid_lifted = man.ask Queries.CurrentThreadId in
       (match tid_lifted with
        | `Lifted tid ->
-         let possibly_running_tids = get_must_ancestor_running_descendants tid ask in
+         let possibly_running_tids = get_must_ancestor_running_descendants man tid in
          let lock_opt = LockDomain.MustLock.of_addr addr in
          (match lock_opt with
           | Some lock -> unlock man tid possibly_running_tids lock
@@ -147,11 +144,10 @@ module Spec = struct
   end
 
   let access man _ =
-    let ask = ask_of_man man in
-    let tid_lifted = ask.f Queries.CurrentThreadId in
+    let tid_lifted = man.ask Queries.CurrentThreadId in
     match tid_lifted with
     | `Lifted tid ->
-      let lockset = ask.f Queries.MustLockset in
+      let lockset = man.ask Queries.MustLockset in
       let creation_lockset = man.global tid in
       tid, lockset, creation_lockset
     | _ -> ThreadIdDomain.UnknownThread, Lockset.empty (), G.empty ()

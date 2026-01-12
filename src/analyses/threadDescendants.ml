@@ -24,19 +24,16 @@ module Spec = struct
     match x with
     | Queries.DescendantThreads t ->
       let children = man.global t in
-      let ask = ask_of_man man in
       (G.fold
-         (fun e acc -> G.union (ask.f @@ Queries.DescendantThreads e) acc)
+         (fun e acc -> G.union (man.ask @@ Queries.DescendantThreads e) acc)
          children
          children
        : G.t)
     | _ -> Queries.Result.top x
 
   let threadspawn man ~multiple lval f args fman =
-    let ask = ask_of_man man in
-    let tid_lifted = ask.f Queries.CurrentThreadId in
-    let child_ask = ask_of_man fman in
-    let child_tid_lifted = child_ask.f Queries.CurrentThreadId in
+    let tid_lifted = man.ask Queries.CurrentThreadId in
+    let child_tid_lifted = fman.ask Queries.CurrentThreadId in
     match tid_lifted, child_tid_lifted with
     | `Lifted tid, `Lifted child_tid -> man.sideg tid (G.singleton child_tid)
     | _ -> ()
