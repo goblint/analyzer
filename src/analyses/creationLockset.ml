@@ -112,18 +112,6 @@ module Spec = struct
 
     let name () = "creationLockset"
 
-    (** checks if [cl1] has a member ([tp1] |-> [ls1]) and [cl2] has a member ([tp2] |-> [ls2])
-        such that [ls1] and [ls2] are not disjoint and [tp1] != [tp2]
-        @param cl1 creation-lockset of first thread [t1]
-        @param cl2 creation-lockset of second thread [t2]
-        @returns whether [t1] and [t2] must be running mutually exclusive
-    *)
-    let both_protected_inter_threaded cl1 cl2 =
-      let cl2_has_same_lock_other_tid tp1 ls1 =
-        G.exists (fun tp2 ls2 -> not (Lockset.disjoint ls1 ls2 || TID.equal tp1 tp2)) cl2
-      in
-      G.exists cl2_has_same_lock_other_tid cl1
-
     (** checks if [cl1] has a mapping ([tp1] |-> [ls1])
         such that [ls1] and [ls2] are not disjoint and [tp1] != [t2]
         @param cl1 creation-lockset of thread [t1] at first program point
@@ -133,6 +121,15 @@ module Spec = struct
     *)
     let one_protected_inter_threaded_other_intra_threaded cl1 t2 ls2 =
       G.exists (fun tp1 ls1 -> not (Lockset.disjoint ls1 ls2 || TID.equal tp1 t2)) cl1
+
+    (** checks if [cl1] has a member ([tp1] |-> [ls1]) and [cl2] has a member ([tp2] |-> [ls2])
+        such that [ls1] and [ls2] are not disjoint and [tp1] != [tp2]
+        @param cl1 creation-lockset of first thread [t1]
+        @param cl2 creation-lockset of second thread [t2]
+        @returns whether [t1] and [t2] must be running mutually exclusive
+    *)
+    let both_protected_inter_threaded cl1 cl2 =
+      G.exists (one_protected_inter_threaded_other_intra_threaded cl1) cl2
 
     let may_race (t1, ls1, cl1) (t2, ls2, cl2) =
       not
