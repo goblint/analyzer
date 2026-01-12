@@ -250,6 +250,41 @@ struct
     )
 end
 
+module Castkind: S with type t = castkind =
+struct
+  include Std
+
+  (* Re-export constructors for monomorphization and deriving. *)
+  type t = castkind =
+    | Explicit
+    | IntegerPromotion
+    | DefaultArgumentPromotion
+    | ArithmeticConversion
+    | ConditionalConversion
+    | PointerConversion
+    | Implicit
+    | Internal
+  [@@deriving hash]
+  (* Hashtbl.hash doesn't monomorphize, so derive instead. *)
+
+  let name () = "castkind"
+
+  (* Identity *)
+  (* Enum type, so polymorphic identity is fine. *)
+  (* Monomorphize polymorphic operations for optimization. *)
+  let equal (x: t) (y: t) = x = y
+  let compare (x: t) (y: t) = Stdlib.compare x y
+
+  (* Output *)
+  let pretty () x = d_castkind () x
+  include Printable.SimplePretty (
+    struct
+      type nonrec t = t
+      let pretty = pretty
+    end
+    )
+end
+
 module Wstring_type: S with type t = wstring_type =
 struct
   include Std
@@ -652,7 +687,7 @@ struct
     | UnOp of Unop.t * t * Typ.t
     | BinOp of Binop.t * t * t * Typ.t
     | Question of t * t * t * Typ.t
-    | CastE of Typ.t * t
+    | CastE of Castkind.t * Typ.t * t
     | AddrOf of Lval.t
     | AddrOfLabel of Stmt.t ref
     | StartOf of Lval.t

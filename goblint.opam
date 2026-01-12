@@ -17,6 +17,8 @@ authors: [
   "Julian Erhard"
   "Sarah Tilscher"
   "Karoliine Holter"
+  "Michael Petter"
+  "Ali Rasim Kocal"
   "Ralf Vogler"
   "Kalmer Apinis"
   "Vesal Vojdani"
@@ -37,9 +39,9 @@ bug-reports: "https://github.com/goblint/analyzer/issues"
 depends: [
   "dune" {>= "3.13"}
   "ocaml" {>= "4.14"}
-  "goblint-cil" {>= "2.0.7"}
+  "goblint-cil" {>= "2.0.9"}
   "batteries" {>= "3.9.0"}
-  "zarith" {>= "1.10"}
+  "zarith" {>= "1.12"}
   "yojson" {>= "2.0.0" & < "3"}
   "qcheck-core" {>= "0.19"}
   "ppx_deriving" {>= "6.0.2"}
@@ -76,6 +78,7 @@ conflicts: [
   "apron" {< "v0.9.15"}
   "camlidl" {< "1.13"}
   "ez-conf-lib" {= "1"}
+  "mlgmpidl" {< "1.3.0"}
 ]
 build: [
   ["dune" "subst"] {dev}
@@ -99,7 +102,7 @@ dev-repo: "git+https://github.com/goblint/analyzer.git"
 x-maintenance-intent: ["(latest)" "(latest).(latest-1)"] # also keep previous minor version (with two releases per year, always keep a SV-COMP release)
 available: os-family != "bsd" & os-distribution != "alpine" & (arch != "arm64" | os = "macos")
 pin-depends: [
-  [ "goblint-cil.2.0.8" "git+https://github.com/goblint/cil.git#2e076120a039b52f174fa799e65773f3a78d383c" ]
+  [ "goblint-cil.2.0.9" "git+https://github.com/goblint/cil.git#e21285af8f4408ed5354b1674dab840c43e84712" ]
   # pinned for stability (https://github.com/goblint/analyzer/issues/1520), remove after new apron release
   [ "apron.v0.9.15" "git+https://github.com/antoinemine/apron.git#418a217c7a70dae3f422678f3aaba38ae374d91a" ]
 ]

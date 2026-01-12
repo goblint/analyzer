@@ -16,7 +16,7 @@ jobs:
       fail-fast: false
       matrix:
         os:
-          - ubuntu-22.04 # https://github.com/ocaml/setup-ocaml/issues/872
+          - ubuntu-latest
         ocaml-compiler:
           - ocaml-variants.4.14.2+options,ocaml-option-flambda # matches opam lock file
           # don't add any other because they won't be used
@@ -28,7 +28,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
 
       - name: Set up OCaml ${{ matrix.ocaml-compiler }}
         env:
@@ -40,7 +40,7 @@ jobs:
           ocaml-compiler: ${{ matrix.ocaml-compiler }}
 
       - name: Install graph-easy # TODO: remove if depext --with-test works (https://github.com/ocaml/opam/issues/5836)
-        if: ${{ matrix.os == 'ubuntu-22.04' }}
+        if: ${{ startsWith(matrix.os, 'ubuntu') }}
         run: sudo apt install -y libgraph-easy-perl
 
       - name: Install dependencies
@@ -59,14 +59,18 @@ jobs:
         run: ./make.sh headers
 
       - name: Test
-        run: opam exec -- dune runtest --instrument-with bisect_ppx
+        env:
+          BISECT_FILE: ${{ github.workspace }}/_build/coverage/bisect
+        run: |
+          mkdir -p _build/coverage
+          opam exec -- dune runtest --force --instrument-with bisect_ppx
 
       - run: opam exec -- bisect-ppx-report send-to Coveralls
         env:
           COVERALLS_REPO_TOKEN: ${{ secrets.COVERALLS_REPO_TOKEN }}
           PULL_REQUEST_NUMBER: ${{ github.event.number }}
 
-      - uses: actions/upload-artifact@v5
+      - uses: actions/upload-artifact@v6
         if: always()
         with:
           name: suite_result

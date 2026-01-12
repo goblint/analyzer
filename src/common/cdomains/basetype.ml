@@ -60,7 +60,7 @@ struct
     | SizeOfE e
     | AlignOfE e -> occurs x e
     | BinOp (_,e1,e2,_) -> occurs x e1 || occurs x e2
-    | CastE (_,e) -> occurs x e
+    | CastE (_,_,e) -> occurs x e
     | Question (b, t, f, _) -> occurs x b || occurs x t || occurs x f
     | Const _
     | SizeOf _
@@ -86,7 +86,7 @@ struct
       | StartOf l -> StartOf (replace_lv l)
       | UnOp (op,e,t) -> UnOp (op, replace_rv e, t)
       | BinOp (op,e1,e2,t) -> BinOp (op, replace_rv e1, replace_rv e2, t)
-      | CastE (t,e) -> CastE(t, replace_rv e)
+      | CastE (k,t,e) -> CastE(k, t, replace_rv e)
       | Real e -> Real (replace_rv e)
       | Imag e -> Imag (replace_rv e)
       | SizeOfE e -> SizeOfE (replace_rv e)
@@ -113,7 +113,7 @@ struct
     | AddrOf _
     | StartOf _ -> [] (* TODO: return not empty, some may contain vars! *)
     | UnOp (_, e, _ )
-    | CastE (_, e)
+    | CastE (_, _, e)
     | Real e
     | Imag e -> get_vars e
     | BinOp (_, e1, e2, _) -> (get_vars e1)@(get_vars e2)

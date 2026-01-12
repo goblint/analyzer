@@ -17,7 +17,7 @@ let intmax_t = lazy (
 )
 
 let stripOuterBoolCast = function
-  | CastE (TInt (IBool, _), e) -> e
+  | CastE (_, TInt (IBool, _), e) -> e (* TODO: keep explicit cast? *)
   | Const (CInt (b, IBool, s)) -> Const (CInt (b, IInt, s))
   | e -> e
 
@@ -354,7 +354,13 @@ let posix_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("pclose", unknown [drop "stream" [w; f]]);
     ("getcwd", unknown [drop "buf" [w]; drop "size" []]);
     ("inet_pton", unknown [drop "af" []; drop "src" [r]; drop "dst" [w]]);
+    ("__inet_pton_alias", unknown [drop "af" []; drop "src" [r]; drop "dst" [w]]);
+    ("__inet_pton_chk", unknown [drop "af" []; drop "src" [r]; drop "dst" [w]; drop "os" []]);
+    ("__inet_pton_chk_warn", unknown [drop "af" []; drop "src" [r]; drop "dst" [w]; drop "os" []]);
     ("inet_ntop", unknown [drop "af" []; drop "src" [r]; drop "dst" [w]; drop "size" []]);
+    ("__inet_ntop_alias", unknown [drop "af" []; drop "src" [r]; drop "dst" [w]; drop "size" []]);
+    ("__inet_ntop_chk", unknown [drop "af" []; drop "src" [r]; drop "dst" [w]; drop "size" []; drop "os" []]);
+    ("__inet_ntop_chk_warn", unknown [drop "af" []; drop "src" [r]; drop "dst" [w]; drop "size" []; drop "os" []]);
     ("gethostent", unknown ~attrs:[ThreadUnsafe] []);
     ("poll", unknown [drop "fds" [r]; drop "nfds" []; drop "timeout" []]);
     ("semget", unknown [drop "key" []; drop "nsems" []; drop "semflg" []]);

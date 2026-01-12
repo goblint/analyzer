@@ -281,7 +281,7 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): Bitfield_SOverflow with type in
     let overflow_info = {underflow; overflow} in
     (norm ~ov:(underflow || overflow) ik (z,o), overflow_info)
 
-  let cast_to ?torg ?(no_ov=false) ik (z,o) =
+  let cast_to ~kind ?torg ?(no_ov=false) ik (z,o) =
     if ik = GoblintCil.IBool then (
       let may_zero =
         if Ints_t.equal z BArith.one_mask then (* zero bit may be in every position (one_mask) *)
@@ -624,19 +624,39 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): Bitfield_SOverflow with type in
 
   (* Invariant *)
 
-  let invariant_ikind e ik (z,o) =
-    if z =: BArith.one_mask && o =: BArith.one_mask then
-      Invariant.top ()
-    else if  BArith.is_invalid (z,o) then
-      Invariant.none
-    else
-      let open GoblintCil.Cil in
+  let invariant_ikind e ik (z, o) =
+    assert (not (BArith.is_invalid (z, o)));
+    let open GoblintCil.Cil in
+    let ik_type = TInt (ik, []) in
+    let i1 =
       let def0 = z &: (!: o) in
+      if def0 =: BArith.zero_mask then
+        Invariant.none
+      else (
+        let def0 = Ints_t.to_bigint def0 in
+        if fitsInInt ik def0 then ( (* At least for _Bool and unsigned types, kintegerCilint can give an incorrect mask if doesn't fit. See https://github.com/goblint/analyzer/pull/1897/changes#r2610251390. *)
+          let def0 = kintegerCilint ik def0 in
+          Invariant.of_exp (BinOp (Eq, (BinOp (BAnd, e, def0, ik_type)), kintegerCilint ik Z.zero, intType))
+        )
+        else
+          Invariant.none
+      )
+    in
+    let i2 =
       let def1 = o &: (!: z) in
-      let (def0, def1) = BatTuple.Tuple2.mapn (kintegerCilint ik) (Ints_t.to_bigint def0, Ints_t.to_bigint def1) in
-      let exp0 = Invariant.of_exp (BinOp (Eq, (BinOp (BAnd, (UnOp (BNot, e, TInt(ik,[]))), def0, TInt(ik,[]))), def0, intType)) in
-      let exp1 = Invariant.of_exp (BinOp (Eq, (BinOp (BAnd, e, def1, TInt(ik,[]))), def1, intType)) in
-      Invariant.meet exp0 exp1
+      if def1 =: BArith.zero_mask then
+        Invariant.none
+      else (
+        let def1 = Ints_t.to_bigint def1 in
+        if fitsInInt ik def1 then ( (* At least for _Bool and unsigned types, kintegerCilint can give an incorrect mask if doesn't fit. See https://github.com/goblint/analyzer/pull/1897/changes#r2610251390. *)
+          let def1 = kintegerCilint ik def1 in
+          Invariant.of_exp (BinOp (Eq, (BinOp (BAnd, e, def1, ik_type)), def1, intType))
+        )
+        else
+          Invariant.none
+      )
+    in
+    Invariant.(i1 && i2)
 
   let starting ik n =
     let (min_ik, max_ik) = Size.range ik in

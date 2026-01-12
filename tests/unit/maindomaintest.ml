@@ -88,12 +88,11 @@ let nonAssocTestsuite =
     )
 
 let old_intdomains intDomains =
-  BatList.cartesian_product intDomains ikinds
-  |> List.map (fun (d, ik) ->
+  GobList.cartesian_map (fun d ik ->
       let module D = (val d: IntDomainProperties.S2) in
       let module Ikind = struct let ikind () = ik end in
       (module IntDomainProperties.WithIkind (D) (Ikind): IntDomainProperties.OldSWithIkind)
-    )
+    ) intDomains ikinds
 let intTestsuite =
   old_intdomains intDomains
   |> List.concat_map (fun d ->
