@@ -315,12 +315,21 @@ struct
           | `Neq -> AD.unknown_ptr
           | `Top -> AD.top_ptr
         end
-      | UnknownPtr
-      | StrPtr _ ->
+      | UnknownPtr ->
         begin match ID.equal_to Z.zero n with
           | `Eq -> AD.singleton addr (* remains unchanged *)
           | `Neq
           | `Top -> AD.top_ptr
+        end
+      | StrPtr s ->
+        begin match ID.equal_to Z.zero n with
+          | `Eq -> AD.singleton addr (* remains unchanged *)
+          | `Neq
+          | `Top ->
+            begin match ID.to_int n, StringDomain.to_string s with
+              | Some i, Some s' when Z.(compare i (of_int (String.length s')) <= 0) -> AD.singleton (StrPtr (StringDomain.of_string (String.tail s' (Z.to_int i))))
+              | _, _ -> AD.top_ptr
+           end
         end
     in
     let ad_concat_map f a = AD.fold (fun a acc -> AD.join (f a) acc) a (AD.empty ()) in
@@ -521,7 +530,11 @@ struct
             | _ -> assert false
           end
         | Addr.UnknownPtr -> top (* top may be more precise than VD.top, e.g. for address sets, such that known addresses are kept for soundness *)
-        | Addr.StrPtr _ -> Int (ID.top_of IChar)
+        | Addr.StrPtr s ->
+          match StringDomain.to_string s with
+          | None -> Int (ID.top_of IChar)
+          | Some "" -> Int (ID.of_int IChar Z.zero)
+          | Some s' -> Int (ID.of_int IChar (Z.of_int (Char.code s'.[0])))
       in
       (* We form the collecting function by joining *)
       let c (x:value) = match x with (* If address type is arithmetic, and our value is an int, we cast to the correct ik *)
@@ -989,6 +1002,7 @@ struct
                   false
           end
         | NullPtr | UnknownPtr -> true (* TODO: are these sound? *)
+        | StrPtr _ -> true
         | _ -> false
       in
       (** Lookup value at base address [addr] with given offset [ofs]. *)
