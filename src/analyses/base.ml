@@ -358,8 +358,9 @@ struct
       Int (ID.cast_to ~kind:Internal result_ik (binop_ID result_ik op v1 v2)) (* TODO: proper castkind *)
     (* For the float values, we apply the float domain operators *)
     | Float v1, Float v2 when is_int_returning_binop_FD op ->
-      let result_ik = Cilfacade.get_ikind t in (* TODO: isn't this always IInt? *)
-      Int (ID.cast_to ~kind:Internal result_ik (fd_binary_pred (int_returning_binop_FD op v1 v2))) (* TODO: cast redundant/proper castkind *)
+      let result_ik = Cilfacade.get_ikind t in
+      assert (result_ik = IInt);
+      Int (fd_binary_pred (int_returning_binop_FD op v1 v2))
     | Float v1, Float v2 -> Float (binop_FD (Cilfacade.get_fkind t) op v1 v2)
     (* For address +/- value, we try to do some elementary ptr arithmetic *)
     | Address p, Int n
