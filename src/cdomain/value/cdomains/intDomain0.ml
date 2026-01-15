@@ -234,7 +234,7 @@ struct
   let c_logand = lift2 I.c_logand
   let c_logor = lift2 I.c_logor
 
-  let cast_to ?(suppress_ovwarn=false) ~kind ikind x = {v = I.cast_to  ~suppress_ovwarn ~kind ~torg:(TInt(x.ikind,[])) ikind x.v; ikind}
+  let cast_to ?(suppress_ovwarn=false) ~kind ikind x = {v = I.cast_to  ~suppress_ovwarn ~kind ~from_ik:x.ikind ikind x.v; ikind}
 
   let is_top_of ik x = ik = x.ikind && I.is_top_of ik x.v
 
@@ -537,7 +537,7 @@ module SOverflowUnlifter (D : SOverflow) : S2 with type int_t = D.int_t and type
 
   let neg ?no_ov ik x = fst @@ D.neg ?no_ov ik x
 
-  let cast_to ?suppress_ovwarn ~kind ?torg ?no_ov ik x = fst @@ D.cast_to ~kind ?torg ?no_ov ik x
+  let cast_to ?suppress_ovwarn ~kind ?from_ik ?no_ov ik x = fst @@ D.cast_to ~kind ?from_ik ?no_ov ik x
 
   let of_int ?suppress_ovwarn ik x = fst @@ D.of_int ik x
 
@@ -789,7 +789,7 @@ module SOverflowLifter (D : S) : SOverflow with type int_t = D.int_t and type t 
 
   let neg ?no_ov ik x = lift @@ D.neg ?no_ov ik x
 
-  let cast_to ~kind ?torg ?no_ov ik x = lift @@ D.cast_to ~kind ?torg ?no_ov ik x
+  let cast_to ~kind ?from_ik ?no_ov ik x = lift @@ D.cast_to ~kind ?from_ik ?no_ov ik x
 
   let of_int ik x = lift @@ D.of_int ik x
 

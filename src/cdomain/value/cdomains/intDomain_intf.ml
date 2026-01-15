@@ -241,10 +241,10 @@ sig
   val mul : ?no_ov:bool -> Cil.ikind ->  t -> t -> t
   val div : ?no_ov:bool -> Cil.ikind ->  t -> t -> t
   val neg : ?no_ov:bool -> Cil.ikind ->  t -> t
-  val cast_to : ?suppress_ovwarn:bool -> kind:castkind -> ?torg:Cil.typ -> ?no_ov:bool -> Cil.ikind -> t -> t
+  val cast_to : ?suppress_ovwarn:bool -> kind:castkind -> ?from_ik:Cil.ikind -> ?no_ov:bool -> Cil.ikind -> t -> t
   (** Cast to {!Cil.ikind}.
       The function is also called to handle overflow/wraparound after operations.
-      @param torg Only present for actual casts, missing for overflow/wraparound (where the type stays the same).
+      @param from_ik Only present for actual casts, missing for overflow/wraparound (where the type stays the same).
       @param no_ov If true, assume no overflow can occur. *)
 
   val join: Cil.ikind -> t ->  t -> t
@@ -303,10 +303,10 @@ sig
 
   val neg : ?no_ov:bool -> Cil.ikind ->  t -> t * overflow_info
 
-  val cast_to : kind:castkind -> ?torg:Cil.typ -> ?no_ov:bool -> Cil.ikind -> t -> t * overflow_info
+  val cast_to : kind:castkind -> ?from_ik:Cil.ikind -> ?no_ov:bool -> Cil.ikind -> t -> t * overflow_info
   (** Cast to {!Cil.ikind}.
       The function is also called to handle overflow/wraparound after operations.
-      @param torg Only present for actual casts, missing for overflow/wraparound (where the type stays the same).
+      @param from_ik Only present for actual casts, missing for overflow/wraparound (where the type stays the same).
       @param no_ov If true, assume no overflow can occur. *)
 
   val of_int : Cil.ikind -> int_t -> t * overflow_info
