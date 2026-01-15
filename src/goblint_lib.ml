@@ -134,6 +134,7 @@ module PthreadBarriers = PthreadBarriers
 module ExtractPthread = ExtractPthread
 module PthreadOnce = PthreadOnce
 module CreationLockset = CreationLockset
+module DescendantLockset = DescendantLockset
 
 (** {2 Longjmp}
 
