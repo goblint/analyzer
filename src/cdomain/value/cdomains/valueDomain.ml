@@ -26,7 +26,7 @@ sig
   val invalidate_abstract_value: t -> t
   val is_statically_safe_cast: typ -> typ -> bool
   val is_dynamically_safe_cast: typ -> typ -> t -> bool
-  val cast: kind:castkind -> ?torg:typ -> typ -> t -> t
+  val cast: kind:castkind -> typ -> t -> t
   val smart_join: (exp -> Z.t option) -> (exp -> Z.t option) -> t -> t ->  t
   val smart_widen: (exp -> Z.t option) -> (exp -> Z.t option) ->  t -> t -> t
   val smart_leq: (exp -> Z.t option) -> (exp -> Z.t option) -> t -> t -> bool
@@ -476,8 +476,8 @@ struct
    * 1. normal casts
    * 2. dereferencing pointers (needed?)
   *)
-  let cast ~kind ?torg t v =
-    (*if v = Bot || (match torg with Some x -> is_safe_cast t x | None -> false) then v else*)
+  let cast ~kind t v =
+    (*if v = Bot then v else*)
     match v with
     | Bot
     | Thread _
@@ -563,8 +563,7 @@ struct
           log_top __POS__; Top
         | _ -> log_top __POS__; assert false
       in
-      let s_torg = match torg with Some t -> CilType.Typ.show t | None -> "?" in
-      if Messages.tracing then Messages.tracel "cast" "cast %a from %s to %a is %a!" pretty v s_torg d_type t pretty v';
+      if Messages.tracing then Messages.tracel "cast" "cast %a to %a is %a!" pretty v d_type t pretty v';
       v'
 
 
@@ -952,7 +951,7 @@ struct
                  | Float _, t -> top_value t
                  | _, TFloat(fkind, _)  when not (Cilfacade.isComplexFKind fkind)-> Float (FD.top_of fkind)
                  | _ ->
-                   let x = cast ~kind:Internal ~torg:l_fld.ftype fld.ftype value in (* TODO: proper castkind *)
+                   let x = cast ~kind:Internal fld.ftype value in (* TODO: proper castkind *)
                    let l', o' = shift_one_over l o in
                    do_eval_offset ask f x offs exp l' o' v t)
               | Union _ -> top ()
