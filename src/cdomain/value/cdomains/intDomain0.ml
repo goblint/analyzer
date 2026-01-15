@@ -234,7 +234,7 @@ struct
   let c_logand = lift2 I.c_logand
   let c_logor = lift2 I.c_logor
 
-  let cast_to ?(suppress_ovwarn=false) ~kind ?torg ikind x = {v = I.cast_to  ~suppress_ovwarn ~kind ~torg:(TInt(x.ikind,[])) ikind x.v; ikind}
+  let cast_to ?(suppress_ovwarn=false) ~kind ikind x = {v = I.cast_to  ~suppress_ovwarn ~kind ~torg:(TInt(x.ikind,[])) ikind x.v; ikind}
 
   let is_top_of ik x = ik = x.ikind && I.is_top_of ik x.v
 
@@ -605,7 +605,7 @@ struct
   let c_lognot n1    = of_bool (not (to_bool' n1))
   let c_logand n1 n2 = of_bool ((to_bool' n1) && (to_bool' n2))
   let c_logor  n1 n2 = of_bool ((to_bool' n1) || (to_bool' n2))
-  let cast_to ?(suppress_ovwarn=false) ~kind ?torg t x =  failwith @@ "Cast_to not implemented for " ^ (name ()) ^ "."
+  let cast_to ?(suppress_ovwarn=false) ~kind t x =  failwith @@ "Cast_to not implemented for " ^ (name ()) ^ "."
   let arbitrary ik = QCheck.map ~rev:Ints_t.to_int64 Ints_t.of_int64 GobQCheck.Arbitrary.int64 (* TODO: use ikind *)
   let invariant _ _ = Invariant.none (* TODO *)
 end
@@ -635,7 +635,7 @@ struct
 
 
   let name () = "flat integers"
-  let cast_to ?(suppress_ovwarn=false) ~kind ?torg t = function
+  let cast_to ?(suppress_ovwarn=false) ~kind t = function
     | `Lifted x -> `Lifted (Base.cast_to ~kind t x)
     | x -> x
 
@@ -716,7 +716,7 @@ struct
   include StdTop (struct type nonrec t = t let top_of = top_of end)
 
   let name () = "lifted integers"
-  let cast_to ?(suppress_ovwarn=false) ~kind ?torg t = function
+  let cast_to ?(suppress_ovwarn=false) ~kind t = function
     | `Lifted x -> `Lifted (Base.cast_to ~kind t x)
     | x -> x
 

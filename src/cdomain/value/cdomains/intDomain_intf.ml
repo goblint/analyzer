@@ -199,9 +199,9 @@ sig
 
   (** {b Cast} *)
 
-  val cast_to: ?suppress_ovwarn:bool -> kind:castkind -> ?torg:Cil.typ -> Cil.ikind -> t -> t
-  (** Cast from original type [torg] to integer type [Cil.ikind]. Currently, [torg] is only present for actual casts. The function is also called to handle overflows/wrap around after operations. In these cases (where the type stays the same) [torg] is None. *)
-
+  val cast_to: ?suppress_ovwarn:bool -> kind:castkind -> Cil.ikind -> t -> t
+  (** Cast to {!Cil.ikind}.
+      The function is also called to handle overflow/wraparound after operations. *)
 end
 
 (** The signature of integral value domains. They need to support all integer
@@ -242,7 +242,10 @@ sig
   val div : ?no_ov:bool -> Cil.ikind ->  t -> t -> t
   val neg : ?no_ov:bool -> Cil.ikind ->  t -> t
   val cast_to : ?suppress_ovwarn:bool -> kind:castkind -> ?torg:Cil.typ -> ?no_ov:bool -> Cil.ikind -> t -> t
-  (** @param no_ov If true, assume no overflow can occur. *)
+  (** Cast to {!Cil.ikind}.
+      The function is also called to handle overflow/wraparound after operations.
+      @param torg Only present for actual casts, missing for overflow/wraparound (where the type stays the same).
+      @param no_ov If true, assume no overflow can occur. *)
 
   val join: Cil.ikind -> t ->  t -> t
   val meet: Cil.ikind -> t -> t -> t
@@ -301,6 +304,10 @@ sig
   val neg : ?no_ov:bool -> Cil.ikind ->  t -> t * overflow_info
 
   val cast_to : kind:castkind -> ?torg:Cil.typ -> ?no_ov:bool -> Cil.ikind -> t -> t * overflow_info
+  (** Cast to {!Cil.ikind}.
+      The function is also called to handle overflow/wraparound after operations.
+      @param torg Only present for actual casts, missing for overflow/wraparound (where the type stays the same).
+      @param no_ov If true, assume no overflow can occur. *)
 
   val of_int : Cil.ikind -> int_t -> t * overflow_info
 

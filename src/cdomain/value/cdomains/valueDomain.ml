@@ -490,7 +490,7 @@ struct
       let t = unrollType t in
       let v' = match t with
         | TInt (ik,_) ->
-          Int (ID.cast_to ~kind ?torg ik (match v with
+          Int (ID.cast_to ~kind ik (match v with
               | Int x -> x
               | Address x -> AD.to_int x
               | Float x -> FD.to_int ik x
@@ -507,14 +507,14 @@ struct
            | _ -> log_top __POS__; Top)
         | TFloat _ -> log_top __POS__; Top (*ignore complex numbers by going to top*)
         | TEnum ({ekind=ik; _},_) ->
-          Int (ID.cast_to ~kind ?torg ik (match v with
+          Int (ID.cast_to ~kind ik (match v with
               | Int x -> (* TODO warn if x is not in the constant values of ei.eitems? (which is totally valid (only ik is relevant for wrapping), but might be unintended) *) x
               | _ -> log_top __POS__; ID.top_of ik
             ))
         | TPtr (t,_) when isVoidType t || isVoidPtrType t ->
           (match v with
            | Address a -> v
-           | Int i -> Int(ID.cast_to ~kind ?torg (Cilfacade.ptr_ikind ()) i)
+           | Int i -> Int(ID.cast_to ~kind (Cilfacade.ptr_ikind ()) i)
            | _ -> v (* TODO: Does it make sense to have things here that are neither Address nor Int? *)
           )
         (* cast to voidPtr are ignored TODO what happens if our value does not fit? *)
