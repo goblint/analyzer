@@ -109,6 +109,7 @@ module MayLocks = MayLocks
 module SymbLocks = SymbLocks
 module Deadlock = Deadlock
 module MutexGhosts = MutexGhosts
+module MustlockHistory = MustlockHistory
 
 (** {3 Threads}
 
