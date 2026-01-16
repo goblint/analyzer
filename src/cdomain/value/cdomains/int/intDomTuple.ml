@@ -363,8 +363,8 @@ module IntDomTupleImpl = struct
   let c_lognot ik =
     map ik {f1 = (fun (type a) (module I : SOverflow with type t = a) ?no_ov -> I.c_lognot ik)}
 
-  let cast_to ?(suppress_ovwarn=false) ~kind ?torg ?no_ov t =
-    mapovc ~suppress_ovwarn ~op:(Cast kind) t {f1_ovc = (fun (type a) (module I : SOverflow with type t = a) ?no_ov -> I.cast_to ~kind ?torg ?no_ov t)}
+  let cast_to ?(suppress_ovwarn=false) ~kind ?from_ik ?no_ov t =
+    mapovc ~suppress_ovwarn ~op:(Cast kind) t {f1_ovc = (fun (type a) (module I : SOverflow with type t = a) ?no_ov -> I.cast_to ~kind ?from_ik ?no_ov t)}
 
   (* fp: projections *)
   let equal_to i x =

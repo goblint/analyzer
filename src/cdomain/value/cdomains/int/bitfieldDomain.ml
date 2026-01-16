@@ -263,25 +263,25 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): Bitfield_SOverflow with type in
       else
         top_of ik
 
-  let cast_to ?torg ?(no_ov=false) ik (z,o) =
+  let cast_to ?from_ik ?(no_ov=false) ik (z,o) =
     let (min_ik, max_ik) = Size.range ik in
-    let (underflow, overflow) = match torg with
+    let (underflow, overflow) = match from_ik with
       | None -> (false, false) (* ik does not change *)
-      | Some (GoblintCil.Cil.TInt (old_ik, _) | TEnum ({ekind = old_ik; _}, _)) ->
+      | Some old_ik ->
         let underflow = Z.compare (BArith.min old_ik (z,o)) min_ik < 0 in
         let overflow = Z.compare max_ik (BArith.max old_ik (z,o)) < 0 in
         (underflow, overflow)
-      | _ ->
-        let isPos = z <: Ints_t.zero in
-        let isNeg = o <: Ints_t.zero in
-        let underflow = if GoblintCil.isSigned ik then (((Ints_t.of_bigint min_ik) &: z) <>: Ints_t.zero) && isNeg else isNeg in
-        let overflow = (((!:(Ints_t.of_bigint max_ik)) &: o) <>: Ints_t.zero) && isPos in
-        (underflow, overflow)
+      (* | _ -> (* TODO: what is this case? was it always dead? *)
+           let isPos = z <: Ints_t.zero in
+           let isNeg = o <: Ints_t.zero in
+           let underflow = if GoblintCil.isSigned ik then (((Ints_t.of_bigint min_ik) &: z) <>: Ints_t.zero) && isNeg else isNeg in
+           let overflow = (((!:(Ints_t.of_bigint max_ik)) &: o) <>: Ints_t.zero) && isPos in
+           (underflow, overflow) *)
     in
     let overflow_info = {underflow; overflow} in
     (norm ~ov:(underflow || overflow) ik (z,o), overflow_info)
 
-  let cast_to ~kind ?torg ?(no_ov=false) ik (z,o) =
+  let cast_to ~kind ?from_ik ?(no_ov=false) ik (z,o) =
     if ik = GoblintCil.IBool then (
       let may_zero =
         if Ints_t.equal z BArith.one_mask then (* zero bit may be in every position (one_mask) *)
@@ -298,7 +298,7 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): Bitfield_SOverflow with type in
       (BArith.join may_zero may_one, {underflow=false; overflow=false})
     )
     else
-      cast_to ?torg ~no_ov ik (z,o)
+      cast_to ?from_ik ~no_ov ik (z,o)
 
   let join ik b1 b2 = norm ik @@ (BArith.join b1 b2)
 

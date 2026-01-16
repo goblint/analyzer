@@ -946,11 +946,8 @@ struct
         Address (AD.map array_start (eval_lv ~man st lval))
       | CastE (_, t, Const (CStr (x,e))) -> (* VD.top () *) eval_rv ~man st (Const (CStr (x,e))) (* TODO safe? *)
       | CastE (kind, t, exp) ->
-        (let v = eval_rv ~man st exp in
-         try
-           VD.cast ~kind ~torg:(Cilfacade.typeOf exp) t v
-         with Cilfacade.TypeOfError _  ->
-           VD.cast ~kind t v)
+        let v = eval_rv ~man st exp in
+        VD.cast ~kind t v
       | SizeOf _
       | Real _
       | Imag _
@@ -2078,7 +2075,7 @@ struct
             if not (ThreadIdDomain.Thread.is_main tid) then ( (* Only non-main return constitutes an implicit pthread_exit according to man page (https://github.com/goblint/analyzer/issues/1767#issuecomment-3642590227). *)
               (* Evaluate exp and cast the resulting value to the void-pointer-type.
                  Casting to the right type here avoids precision loss on joins. *)
-              let rv = VD.cast ~kind:Internal ~torg:(Cilfacade.typeOf exp) Cil.voidPtrType rv in (* TODO: proper castkind *)
+              let rv = VD.cast ~kind:Internal Cil.voidPtrType rv in (* TODO: proper castkind *)
               man.sideg (V.thread tid) (G.create_thread rv)
             );
             Priv.thread_return ask (priv_getg man.global) (priv_sideg man.sideg) tid st'
