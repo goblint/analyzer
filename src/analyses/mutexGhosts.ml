@@ -61,11 +61,6 @@ struct
     let create_update = create_threadcreate
   end
 
-  let mustlock_of_addr (addr: LockDomain.Addr.t): LockDomain.MustLock.t option =
-    match addr with
-    | Addr mv when LockDomain.Mval.is_definite mv -> Some (LockDomain.MustLock.of_mval mv)
-    | _ -> None
-
   let event man e oman =
     let verifier_atomic_addr = LockDomain.Addr.of_var LibraryFunctions.verifier_atomic_var in
     begin match e with
@@ -78,7 +73,7 @@ struct
             Locked.iter (fun lock ->
                 Option.iter (fun lock ->
                     man.sideg (V.lock lock) (G.create_lock true)
-                  ) (mustlock_of_addr lock)
+                  ) (LockDomain.MustLock.of_addr lock)
               ) locked
           );
         )
@@ -91,7 +86,7 @@ struct
             Locked.iter (fun lock ->
                 Option.iter (fun lock ->
                     man.sideg (V.lock lock) (G.create_lock true)
-                  ) (mustlock_of_addr lock)
+                  ) (LockDomain.MustLock.of_addr lock)
               ) unlocked
           );
         )
@@ -128,7 +123,7 @@ struct
               let (locked, unlocked, multithread) = G.node (man.global (V.node node)) in
               let variables' =
                 Locked.fold (fun l acc ->
-                    match mustlock_of_addr l with
+                    match LockDomain.MustLock.of_addr l with
                     | Some l when ghost_var_available man (Locked l) ->
                       let variable = WitnessGhost.variable' (Locked l) in
                       VariableSet.add variable acc
@@ -138,7 +133,7 @@ struct
               in
               let updates =
                 Locked.fold (fun l acc ->
-                    match mustlock_of_addr l with
+                    match LockDomain.MustLock.of_addr l with
                     | Some l when ghost_var_available man (Locked l) ->
                       let update = WitnessGhost.update' (Locked l) GoblintCil.one in
                       update :: acc
@@ -148,7 +143,7 @@ struct
               in
               let updates =
                 Unlocked.fold (fun l acc ->
-                    match mustlock_of_addr l with
+                    match LockDomain.MustLock.of_addr l with
                     | Some l when ghost_var_available man (Locked l) ->
                       let update = WitnessGhost.update' (Locked l) GoblintCil.zero in
                       update :: acc
