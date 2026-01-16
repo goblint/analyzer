@@ -1,6 +1,8 @@
 // PARAM: --enable ana.int.interval_set
 // extracted from SV-COMP task ldv-memsafety/memleaks_test12-2.i
 // CRAM
+#include <stdlib.h>
+
 typedef unsigned int size_t;
 struct ldv_list_head {
     struct ldv_list_head *next, *prev;

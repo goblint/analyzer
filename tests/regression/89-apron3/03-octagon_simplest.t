@@ -5,7 +5,7 @@ Without diff-box:
     live: 8
     dead: 0
     total lines: 8
-  [Warning][Deadcode][CWE-570] condition 'N < 0' is always false (03-octagon_simplest.c:9:6-9:11)
+  [Warning][Deadcode][CWE-570] condition 'N < 0' is always false (03-octagon_simplest.c:10:6-10:11)
   [Info][Witness] witness generation summary:
     location invariants: 0
     loop invariants: 17
@@ -19,7 +19,7 @@ Without diff-box:
         type: loop_invariant
         location:
           file_name: 03-octagon_simplest.c
-          line: 11
+          line: 12
           column: 3
           function: main
         value: (long long )N >= (long long )X
@@ -28,7 +28,7 @@ Without diff-box:
         type: loop_invariant
         location:
           file_name: 03-octagon_simplest.c
-          line: 11
+          line: 12
           column: 3
           function: main
         value: (long long )N >= (long long )Y
@@ -37,7 +37,7 @@ Without diff-box:
         type: loop_invariant
         location:
           file_name: 03-octagon_simplest.c
-          line: 11
+          line: 12
           column: 3
           function: main
         value: (long long )N >= 0LL
@@ -46,7 +46,7 @@ Without diff-box:
         type: loop_invariant
         location:
           file_name: 03-octagon_simplest.c
-          line: 11
+          line: 12
           column: 3
           function: main
         value: (long long )X + (long long )N >= 0LL
@@ -55,7 +55,7 @@ Without diff-box:
         type: loop_invariant
         location:
           file_name: 03-octagon_simplest.c
-          line: 11
+          line: 12
           column: 3
           function: main
         value: (long long )X + 2147483647LL >= (long long )N
@@ -64,7 +64,7 @@ Without diff-box:
         type: loop_invariant
         location:
           file_name: 03-octagon_simplest.c
-          line: 11
+          line: 12
           column: 3
           function: main
         value: (long long )X >= (long long )Y
@@ -73,7 +73,7 @@ Without diff-box:
         type: loop_invariant
         location:
           file_name: 03-octagon_simplest.c
-          line: 11
+          line: 12
           column: 3
           function: main
         value: (long long )X >= 0LL
@@ -82,7 +82,7 @@ Without diff-box:
         type: loop_invariant
         location:
           file_name: 03-octagon_simplest.c
-          line: 11
+          line: 12
           column: 3
           function: main
         value: (long long )Y + (long long )N >= 0LL
@@ -91,7 +91,7 @@ Without diff-box:
         type: loop_invariant
         location:
           file_name: 03-octagon_simplest.c
-          line: 11
+          line: 12
           column: 3
           function: main
         value: (long long )Y + (long long )X >= 0LL
@@ -100,7 +100,7 @@ Without diff-box:
         type: loop_invariant
         location:
           file_name: 03-octagon_simplest.c
-          line: 11
+          line: 12
           column: 3
           function: main
         value: (long long )Y + 2147483647LL >= (long long )N
@@ -109,7 +109,7 @@ Without diff-box:
         type: loop_invariant
         location:
           file_name: 03-octagon_simplest.c
-          line: 11
+          line: 12
           column: 3
           function: main
         value: (long long )Y + 2147483647LL >= (long long )X
@@ -118,7 +118,7 @@ Without diff-box:
         type: loop_invariant
         location:
           file_name: 03-octagon_simplest.c
-          line: 11
+          line: 12
           column: 3
           function: main
         value: (long long )Y == 0LL
@@ -127,7 +127,7 @@ Without diff-box:
         type: loop_invariant
         location:
           file_name: 03-octagon_simplest.c
-          line: 11
+          line: 12
           column: 3
           function: main
         value: 2147483647LL >= (long long )N
@@ -136,7 +136,7 @@ Without diff-box:
         type: loop_invariant
         location:
           file_name: 03-octagon_simplest.c
-          line: 11
+          line: 12
           column: 3
           function: main
         value: 2147483647LL >= (long long )X
@@ -145,7 +145,7 @@ Without diff-box:
         type: loop_invariant
         location:
           file_name: 03-octagon_simplest.c
-          line: 11
+          line: 12
           column: 3
           function: main
         value: 2147483647LL >= (long long )Y + (long long )N
@@ -154,7 +154,7 @@ Without diff-box:
         type: loop_invariant
         location:
           file_name: 03-octagon_simplest.c
-          line: 11
+          line: 12
           column: 3
           function: main
         value: 2147483647LL >= (long long )Y + (long long )X
@@ -163,7 +163,7 @@ Without diff-box:
         type: loop_invariant
         location:
           file_name: 03-octagon_simplest.c
-          line: 11
+          line: 12
           column: 3
           function: main
         value: 4294967294LL >= (long long )X + (long long )N
@@ -176,7 +176,7 @@ With diff-box:
     live: 8
     dead: 0
     total lines: 8
-  [Warning][Deadcode][CWE-570] condition 'N < 0' is always false (03-octagon_simplest.c:9:6-9:11)
+  [Warning][Deadcode][CWE-570] condition 'N < 0' is always false (03-octagon_simplest.c:10:6-10:11)
   [Info][Witness] witness generation summary:
     location invariants: 0
     loop invariants: 1
@@ -190,7 +190,7 @@ With diff-box:
         type: loop_invariant
         location:
           file_name: 03-octagon_simplest.c
-          line: 11
+          line: 12
           column: 3
           function: main
         value: (long long )N >= (long long )X
@@ -204,7 +204,7 @@ Compare witnesses:
       type: loop_invariant
       location:
         file_name: 03-octagon_simplest.c
-        line: 11
+        line: 12
         column: 3
         function: main
       value: 4294967294LL >= (long long )X + (long long )N
@@ -213,7 +213,7 @@ Compare witnesses:
       type: loop_invariant
       location:
         file_name: 03-octagon_simplest.c
-        line: 11
+        line: 12
         column: 3
         function: main
       value: 2147483647LL >= (long long )Y + (long long )X
@@ -222,7 +222,7 @@ Compare witnesses:
       type: loop_invariant
       location:
         file_name: 03-octagon_simplest.c
-        line: 11
+        line: 12
         column: 3
         function: main
       value: 2147483647LL >= (long long )Y + (long long )N
@@ -231,7 +231,7 @@ Compare witnesses:
       type: loop_invariant
       location:
         file_name: 03-octagon_simplest.c
-        line: 11
+        line: 12
         column: 3
         function: main
       value: 2147483647LL >= (long long )X
@@ -240,7 +240,7 @@ Compare witnesses:
       type: loop_invariant
       location:
         file_name: 03-octagon_simplest.c
-        line: 11
+        line: 12
         column: 3
         function: main
       value: 2147483647LL >= (long long )N
@@ -249,7 +249,7 @@ Compare witnesses:
       type: loop_invariant
       location:
         file_name: 03-octagon_simplest.c
-        line: 11
+        line: 12
         column: 3
         function: main
       value: (long long )Y == 0LL
@@ -258,7 +258,7 @@ Compare witnesses:
       type: loop_invariant
       location:
         file_name: 03-octagon_simplest.c
-        line: 11
+        line: 12
         column: 3
         function: main
       value: (long long )Y + 2147483647LL >= (long long )X
@@ -267,7 +267,7 @@ Compare witnesses:
       type: loop_invariant
       location:
         file_name: 03-octagon_simplest.c
-        line: 11
+        line: 12
         column: 3
         function: main
       value: (long long )Y + 2147483647LL >= (long long )N
@@ -276,7 +276,7 @@ Compare witnesses:
       type: loop_invariant
       location:
         file_name: 03-octagon_simplest.c
-        line: 11
+        line: 12
         column: 3
         function: main
       value: (long long )Y + (long long )X >= 0LL
@@ -285,7 +285,7 @@ Compare witnesses:
       type: loop_invariant
       location:
         file_name: 03-octagon_simplest.c
-        line: 11
+        line: 12
         column: 3
         function: main
       value: (long long )Y + (long long )N >= 0LL
@@ -294,7 +294,7 @@ Compare witnesses:
       type: loop_invariant
       location:
         file_name: 03-octagon_simplest.c
-        line: 11
+        line: 12
         column: 3
         function: main
       value: (long long )X >= 0LL
@@ -303,7 +303,7 @@ Compare witnesses:
       type: loop_invariant
       location:
         file_name: 03-octagon_simplest.c
-        line: 11
+        line: 12
         column: 3
         function: main
       value: (long long )X >= (long long )Y
@@ -312,7 +312,7 @@ Compare witnesses:
       type: loop_invariant
       location:
         file_name: 03-octagon_simplest.c
-        line: 11
+        line: 12
         column: 3
         function: main
       value: (long long )X + 2147483647LL >= (long long )N
@@ -321,7 +321,7 @@ Compare witnesses:
       type: loop_invariant
       location:
         file_name: 03-octagon_simplest.c
-        line: 11
+        line: 12
         column: 3
         function: main
       value: (long long )X + (long long )N >= 0LL
@@ -330,7 +330,7 @@ Compare witnesses:
       type: loop_invariant
       location:
         file_name: 03-octagon_simplest.c
-        line: 11
+        line: 12
         column: 3
         function: main
       value: (long long )N >= 0LL
@@ -339,7 +339,7 @@ Compare witnesses:
       type: loop_invariant
       location:
         file_name: 03-octagon_simplest.c
-        line: 11
+        line: 12
         column: 3
         function: main
       value: (long long )N >= (long long )Y

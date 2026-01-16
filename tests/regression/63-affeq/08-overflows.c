@@ -1,4 +1,5 @@
 //SKIP PARAM: --set ana.activated[+] affeq  --enable ana.int.interval
+#include <goblint.h>
 
 int main() {
     //Overflow

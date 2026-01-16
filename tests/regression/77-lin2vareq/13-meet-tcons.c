@@ -1,5 +1,5 @@
 // SKIP PARAM: --set ana.activated[+] lin2vareq --set sem.int.signed_overflow assume_none
-
+#include <goblint.h>
 
 int main(void) {
   int x, y, z;

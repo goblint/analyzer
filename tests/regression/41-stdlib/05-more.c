@@ -1,5 +1,7 @@
 // PARAM: --set pre.cppflags[+] -DGOBLINT_NO_QSORT
 #include<goblint.h>
+#include <stdlib.h>
+#include <string.h>
 #include <wchar.h>
 #include <stdio.h>
 

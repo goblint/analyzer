@@ -1,4 +1,6 @@
 // PARAM: --enable ana.int.interval_set --set ana.context.gas_value 3 --set ana.context.gas_scope function
+#include <goblint.h>
+
 int nr(int x, int y) {
     // Non-recursive, but would fail with global scope as gas for f is exhausted
     __goblint_check(x==y);

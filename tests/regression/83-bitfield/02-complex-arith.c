@@ -1,5 +1,6 @@
 // PARAM: --disable ana.int.interval --disable ana.int.def_exc --enable ana.int.bitfield
 #include <stdlib.h>
+#include <stdio.h>
 #include <goblint.h>
 
 int main() {

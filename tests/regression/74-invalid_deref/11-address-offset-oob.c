@@ -1,4 +1,6 @@
 // PARAM: --set ana.activated[+] memOutOfBounds --enable ana.int.interval --disable warn.info --set sem.int.signed_overflow assume_none
+#include <stdlib.h>
+
 int main() {
     int *p = malloc(2 * sizeof(int));
     int *q = p;
