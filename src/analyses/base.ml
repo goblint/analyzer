@@ -1654,16 +1654,16 @@ struct
     (* Blob cannot contain arrays *)
     | _ ->  st
 
+  let update_variable x t y z =
+    if M.tracing then M.tracel "set" ~var:x.vname "update_variable: start '%s' '%a'\nto\n%a" x.vname VD.pretty y CPA.pretty z;
+    let r = update_variable x t y z in (* refers to definition above *)
+    if M.tracing then M.tracel "set" ~var:x.vname "update_variable: start '%s' '%a'\nto\n%a\nresults in\n%a" x.vname VD.pretty y CPA.pretty z CPA.pretty r;
+    r
+
   (** [set st addr val] returns a state where [addr] is set to [val]
    * it is always ok to put None for lval_raw and rval_raw, this amounts to not using/maintaining
    * precise information about arrays. *)
   let set ~(man: _ man) ?(invariant=false) ?(blob_destructive=false) ?lval_raw ?rval_raw ?t_override (st: store) (lval: AD.t) (lval_type: Cil.typ) (value: value) : store =
-    let update_variable x t y z =
-      if M.tracing then M.tracel "set" ~var:x.vname "update_variable: start '%s' '%a'\nto\n%a" x.vname VD.pretty y CPA.pretty z;
-      let r = update_variable x t y z in (* refers to definition that is outside of set *)
-      if M.tracing then M.tracel "set" ~var:x.vname "update_variable: start '%s' '%a'\nto\n%a\nresults in\n%a" x.vname VD.pretty y CPA.pretty z CPA.pretty r;
-      r
-    in
     let firstvar = if M.tracing then match AD.to_var_may lval with [] -> "" | x :: _ -> x.vname else "" in
     let lval_raw = (Option.map (fun x -> Lval x) lval_raw) in
     if M.tracing then M.tracel "set" ~var:firstvar "lval: %a\nvalue: %a\nstate: %a" AD.pretty lval VD.pretty value CPA.pretty st.cpa;
