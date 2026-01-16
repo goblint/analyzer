@@ -48,6 +48,8 @@ type special =
   | Alloca of Cil.exp
   | Malloc of Cil.exp
   | OCamlAlloc of Cil.exp
+  (* TODO: Rethink OCamlParam's placement and make the params a list. *)
+  | OCamlParam of { param1: Cil.exp option; param2: Cil.exp option; param3: Cil.exp option; param4: Cil.exp option; param5: Cil.exp option; }
   | Calloc of { count: Cil.exp; size: Cil.exp; }
   | Realloc of { ptr: Cil.exp; size: Cil.exp; }
   | Free of Cil.exp

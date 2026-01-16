@@ -170,10 +170,57 @@ struct
     (* caller_state *)
     let desc = LibraryFunctions.find f in
     match desc.special arglist with
-    (* TODO: Add a source function that registers variables and add the non-buggy Bagnall code to the test. *)
+    | OCamlParam params ->
+      (* Variables are registered with a Param macro. *)
+      (* TODO: Which pattern below do the params in fact match? Does it vary? *)
+      (* The function extract_varinfo is from AI - the code can be shortened when we know what the params are. *)
+      let rec extract_varinfo (e: Cil.exp): varinfo option = match e with
+        (* Direct variable lvalue *)
+        | Lval (Var v, _) -> Some v
+        (* Dereferenced pointer - try to extract from inner expression *)
+        | Lval (Mem inner, _) -> extract_varinfo inner
+        (* Address of variable *)
+        | AddrOf (Var v, _) -> Some v (* TODO: Maybe this is the only thing a param can be. *)
+        (* Address of dereferenced - try to extract from inner *)
+        | AddrOf (Mem inner, _) -> extract_varinfo inner
+        (* Array start of variable *)
+        | StartOf (Var v, _) -> Some v
+        (* Array start of dereferenced *)
+        | StartOf (Mem inner, _) -> extract_varinfo inner
+        (* Type cast - extract from inner expression *)
+        | CastE (_, inner) -> extract_varinfo inner
+        (* Unary operations - extract from operand *)
+        | UnOp (_, inner, _) -> extract_varinfo inner
+        (* Real/imaginary parts *)
+        | Real inner | Imag inner -> extract_varinfo inner
+        (* Binary operations - try both operands *)
+        | BinOp (_, e1, e2, _) ->
+          (match extract_varinfo e1 with
+           | Some v -> Some v
+           | None -> extract_varinfo e2)
+        (* Size and alignment - may contain var info in the type *)
+        | SizeOfE inner | AlignOfE inner -> extract_varinfo inner
+        (* Constants, SizeOf, AlignOf, SizeOfStr, AddrOfLabel - no varinfo *)
+        | Const _ | SizeOf _ | AlignOf _ | SizeOfStr _ | AddrOfLabel _ -> None
+        (* Question conditional *)
+        | Question (cond, e1, e2, _) ->
+          (match extract_varinfo cond with
+           | Some v -> Some v
+           | None ->
+             (match extract_varinfo e1 with
+              | Some v -> Some v
+              | None -> extract_varinfo e2))
+      in
+      List.fold_left (fun state param -> 
+          match param with
+          | Some e -> 
+            (match extract_varinfo e with
+             | Some v -> D.add_r v state
+             | None -> state)
+          | None -> state) caller_state [params.param1; params.param2; params.param3; params.param4; params.param5]
     | OCamlAlloc size_exp ->
       (* Garbage collection may trigger here and overwrite unregistered variables *)
-      let _ = M.info "Garbage collection triggers" in (match lval with
+      let _ = M.debug "Garbage collection triggers" in (match lval with
           | Some (Var v, _) -> D.add_a v (D.after_gc caller_state)
           | _ ->
             (* if not (List.for_all (exp_accounted_for caller_state) arglist) then let _ = M.warn "GC might delete value" in D.empty () else *) D.empty ()
@@ -185,7 +232,7 @@ struct
         | _ -> caller_state
       else
       if is_sink f then (* Warns if unaccounted variables reach the function. Empties the state of unregistered variables. *)
-        let _ = M.info "Garbage collection triggers" in match lval with
+        let _ = M.debug "Garbage collection triggers" in match lval with
         | Some (Var v, _) -> D.add_a v (D.after_gc caller_state)
         | _ ->
           (* if not (List.for_all (exp_accounted_for caller_state) arglist) then let _ = M.warn "GC might delete value" in D.empty () else *)

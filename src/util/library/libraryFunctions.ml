@@ -1243,9 +1243,15 @@ let legacy_libs_misc_list: (string * LibraryDesc.t) list = LibraryDsl.[
 [@@coverage off]
 
 let ocaml_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
-    ("caml_copy_double", unknown [drop "nptr" []]);
+    ("caml_copy_double", special [drop "nptr" []] (OCamlAlloc (GoblintCil.integer 1)));
     (* Eeskuju: ("malloc", special [__ "size" []] @@ fun size -> Malloc size); *)
     ("caml_alloc_small", special [__ "wosize" []; __ "tag" []] @@ fun wosize tag -> OCamlAlloc wosize);
+    ("__goblint_caml_param0", special [] @@ OCamlParam {param1 = None; param2 = None; param3 = None; param4 = None; param5 = None});
+    ("__goblint_caml_param1", special [__ "param" []] @@ fun param -> OCamlParam {param1 = Some param; param2 = None; param3 = None; param4 = None; param5 = None});
+    ("__goblint_caml_param2", special [__ "param1" []; __ "param2" []] @@ fun param1 param2 -> OCamlParam {param1 = Some param1; param2 = Some param2; param3 = None; param4 = None; param5 = None});
+    ("__goblint_caml_param3", special [__ "param1" []; __ "param2" []; __ "param3" []] @@ fun param1 param2 param3 -> OCamlParam {param1 = Some param1; param2 = Some param2; param3 = Some param3; param4 = None; param5 = None});
+    ("__goblint_caml_param4", special [__ "param1" []; __ "param2" []; __ "param3" []; __ "param4" []] @@ fun param1 param2 param3 param4 -> OCamlParam {param1 = Some param1; param2 = Some param2; param3 = Some param3; param4 = Some param4; param5 = None});
+    ("__goblint_caml_param5", special [__ "param1" []; __ "param2" []; __ "param3" []; __ "param4" []; __ "param5" []] @@ fun param1 param2 param3 param4 param5 -> OCamlParam {param1 = Some param1; param2 = Some param2; param3 = Some param3; param4 = Some param4; param5 = Some param5});
   ]
 [@@coverage off]
 
