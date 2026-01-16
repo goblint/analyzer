@@ -481,7 +481,7 @@ module PrintInfluence =
   struct
     module S1 = Sol (S) (HM)
     let solve x y =
-      Out_channel.with_open_text "test.dot" @@ fun ch ->
+      let@ ch = Out_channel.with_open_text "test.dot" in
       let r = S1.solve x y in
       let f k _ =
         let q = if HM.mem S1.wpoint k then " shape=box style=rounded" else "" in

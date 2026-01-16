@@ -169,6 +169,19 @@ struct
 
   let iDtoIdx x = ID.cast_to ~kind:Internal (Cilfacade.ptrdiff_ikind ()) x (* TODO: proper castkind *)
 
+  (** Unary float predicates return non-zero for [true].
+      @see C11 7.12.3 *)
+  let fd_unary_pred = function
+    | Some true -> ID.of_excl_list IInt [Z.zero]
+    | Some false -> ID.of_int IInt Z.zero
+    | None -> ID.top_of IInt
+
+  (** Binary float predicates return one for [true].
+      @see C11 7.12.14, 6.5.8, 6.5.9 *)
+  let fd_binary_pred = function
+    | Some b -> ID.of_bool IInt b
+    | None -> ID.top_of IInt
+
   let unop_ID = function
     | Neg  -> ID.neg
     | BNot -> ID.lognot
@@ -176,7 +189,7 @@ struct
 
   let unop_FD = function
     | Neg  -> (fun v -> (Float (FD.neg v):value))
-    | LNot -> (fun c -> Int (FD.eq c (FD.of_const (FD.get_fkind c) 0.)))
+    | LNot -> (fun c -> Int (fd_unary_pred (FD.eq c (FD.of_const (FD.get_fkind c) 0.))))
     | BNot -> failwith "BNot on a value of type float!"
 
 
@@ -256,7 +269,7 @@ struct
     | Ge -> FD.ge
     | Eq -> FD.eq
     | Ne -> FD.ne
-    | _ -> (fun _ _ -> ID.top ())
+    | _ -> (fun _ _ -> None)
 
   let is_int_returning_binop_FD = function
     | Lt | Gt | Le | Ge | Eq | Ne -> true
@@ -280,7 +293,7 @@ struct
       let rec addToOffset n (t:typ option) = function
         | `Index (i, `NoOffset) ->
           (* Binary operations on pointer types should not generate warnings in SV-COMP *)
-          GobRef.wrap AnalysisState.executing_speculative_computations true @@ fun () ->
+          let@ () = GobRef.wrap AnalysisState.executing_speculative_computations true in
           (* If we have arrived at the last Offset and it is an Index, we add our integer to it *)
           `Index(IdxDom.add i (iDtoIdx n), `NoOffset)
         | `Field (f, `NoOffset) ->
@@ -346,7 +359,8 @@ struct
     (* For the float values, we apply the float domain operators *)
     | Float v1, Float v2 when is_int_returning_binop_FD op ->
       let result_ik = Cilfacade.get_ikind t in
-      Int (ID.cast_to ~kind:Internal result_ik (int_returning_binop_FD op v1 v2)) (* TODO: proper castkind *)
+      assert (result_ik = IInt);
+      Int (fd_binary_pred (int_returning_binop_FD op v1 v2))
     | Float v1, Float v2 -> Float (binop_FD (Cilfacade.get_fkind t) op v1 v2)
     (* For address +/- value, we try to do some elementary ptr arithmetic *)
     | Address p, Int n
@@ -2661,11 +2675,11 @@ struct
           | Nan (fk, str) when Cil.isPointerType (Cilfacade.typeOf str) -> Float (FD.nan_of fk)
           | Nan _ -> failwith ("non-pointer argument in call to function "^f.vname)
           | Inf fk -> Float (FD.inf_of fk)
-          | Isfinite x -> Int (ID.cast_to ~kind:Internal IInt (apply_unary FDouble FD.isfinite x)) (* TODO: proper castkind *)
-          | Isinf x -> Int (ID.cast_to ~kind:Internal IInt (apply_unary FDouble FD.isinf x)) (* TODO: proper castkind *)
-          | Isnan x -> Int (ID.cast_to ~kind:Internal IInt (apply_unary FDouble FD.isnan x)) (* TODO: proper castkind *)
-          | Isnormal x -> Int (ID.cast_to ~kind:Internal IInt (apply_unary FDouble FD.isnormal x)) (* TODO: proper castkind *)
-          | Signbit x -> Int (ID.cast_to ~kind:Internal IInt (apply_unary FDouble FD.signbit x)) (* TODO: proper castkind *)
+          | Isfinite x -> Int (fd_unary_pred (apply_unary FDouble FD.isfinite x))
+          | Isinf x -> Int (fd_unary_pred (apply_unary FDouble FD.isinf x))
+          | Isnan x -> Int (fd_unary_pred (apply_unary FDouble FD.isnan x))
+          | Isnormal x -> Int (fd_unary_pred (apply_unary FDouble FD.isnormal x))
+          | Signbit x -> Int (fd_unary_pred (apply_unary FDouble FD.signbit x))
           | Ceil (fk,x) -> Float (apply_unary fk FD.ceil x)
           | Floor (fk,x) -> Float (apply_unary fk FD.floor x)
           | Fabs (fk, x) -> Float (apply_unary fk FD.fabs x)
@@ -2676,12 +2690,12 @@ struct
           | Cos (fk, x) -> Float (apply_unary fk FD.cos x)
           | Sin (fk, x) -> Float (apply_unary fk FD.sin x)
           | Tan (fk, x) -> Float (apply_unary fk FD.tan x)
-          | Isgreater (x,y) -> Int(ID.cast_to ~kind:Internal IInt (apply_binary FDouble FD.gt x y)) (* TODO: proper castkind *)
-          | Isgreaterequal (x,y) -> Int(ID.cast_to ~kind:Internal IInt (apply_binary FDouble FD.ge x y)) (* TODO: proper castkind *)
-          | Isless (x,y) -> Int(ID.cast_to ~kind:Internal IInt (apply_binary FDouble FD.lt x y)) (* TODO: proper castkind *)
-          | Islessequal (x,y) -> Int(ID.cast_to ~kind:Internal IInt (apply_binary FDouble FD.le x y)) (* TODO: proper castkind *)
-          | Islessgreater (x,y) -> Int(ID.c_logor (ID.cast_to ~kind:Internal IInt (apply_binary FDouble FD.lt x y)) (ID.cast_to ~kind:Internal IInt (apply_binary FDouble FD.gt x y))) (* TODO: proper castkind *)
-          | Isunordered (x,y) -> Int(ID.cast_to ~kind:Internal IInt (apply_binary FDouble FD.unordered x y)) (* TODO: proper castkind *)
+          | Isgreater (x,y) -> Int(fd_binary_pred (apply_binary FDouble FD.gt x y))
+          | Isgreaterequal (x,y) -> Int(fd_binary_pred (apply_binary FDouble FD.ge x y))
+          | Isless (x,y) -> Int(fd_binary_pred (apply_binary FDouble FD.lt x y))
+          | Islessequal (x,y) -> Int(fd_binary_pred (apply_binary FDouble FD.le x y))
+          | Islessgreater (x,y) -> Int(ID.c_logor (fd_binary_pred (apply_binary FDouble FD.lt x y)) (fd_binary_pred (apply_binary FDouble FD.gt x y)))
+          | Isunordered (x,y) -> Int(fd_binary_pred (apply_binary FDouble FD.unordered x y))
           | Fmax (fd, x ,y) -> Float (apply_binary fd FD.fmax x y)
           | Fmin (fd, x ,y) -> Float (apply_binary fd FD.fmin x y)
           | Sqrt (fk, x) -> Float (apply_unary fk FD.sqrt x)
