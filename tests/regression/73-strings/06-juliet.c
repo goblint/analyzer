@@ -3,6 +3,7 @@
 #include <goblint.h>
 #include <string.h>
 #include <stdlib.h>
+#include <stdio.h>
 
 // TODO: tackle memset -> map it to for loop with set for each cell
 
@@ -14,7 +15,7 @@ int main() {
     CWE571_Expression_Always_True__string_equals_01_bad();
     CWE665_Improper_Initialization__char_cat_01_bad();
     CWE665_Improper_Initialization__char_ncat_11_bad();
-    
+
     return 0;
 }
 
@@ -124,14 +125,14 @@ void CWE665_Improper_Initialization__char_cat_01_bad()
     }
 }
 
-void CWE571_Expression_Always_True__string_equals_01_bad() 
+void CWE571_Expression_Always_True__string_equals_01_bad()
 {
     char charString[10] = "true";
     int cmp = strcmp(charString, "true");
     __goblint_check(cmp == 0); // UNKNOWN
 
     /* FLAW: This expression is always true */
-    if (cmp == 0) 
+    if (cmp == 0)
     {
         printf("always prints");
     }

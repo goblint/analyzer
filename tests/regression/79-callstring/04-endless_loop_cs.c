@@ -1,5 +1,6 @@
 // PARAM: --set ana.context.callString_length 10 --set "ana.activated[+]" call_string --set ana.ctx_sens "['call_string']" --enable ana.int.interval_set
 // Without context-insensitive analysis: endless loop
+#include <goblint.h>
 
 int num_iterat = 2;
 

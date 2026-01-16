@@ -1,9 +1,10 @@
 // SKIP PARAM: --set ana.activated[+] lin2vareq
+#include <goblint.h>
 
 /**
  * This test shows an instance where MaySignedOverflow raised
  * an uncaught division by zero in the treatment of main's sole statement
- * 
+ *
  * Fixed in #1419
  */
 int a;

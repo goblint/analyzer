@@ -1,4 +1,5 @@
 //SKIP PARAM: --set ana.activated[+] affeq --set sem.int.signed_overflow assume_top --enable ana.int.interval
+#include <goblint.h>
 
 int main() {
     int top;
