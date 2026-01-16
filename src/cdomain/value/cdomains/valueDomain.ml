@@ -907,26 +907,26 @@ struct
 
   (* Funny, this does not compile without the final type annotation! *)
   let rec eval_offset (ask: VDQ.t) f (x: t) (offs:offs) (exp:exp option) (v:lval option) (t:typ): t =
-    let rec do_eval_offset (ask:VDQ.t) f (x:t) (offs:offs) (exp:exp option) (l:lval option) (o:offset option) (v:lval option) (t:typ): t =
+    let rec do_eval_offset (x:t) (offs:offs) (l:lval option) (o:offset option): t =
       if M.tracing then M.traceli "eval_offset" "do_eval_offset %a %a (%a)" pretty x Offs.pretty offs (Pretty.docOpt (CilType.Exp.pretty ())) exp;
       let r =
         match x, offs with
         | Blob((va, _, zeroinit) as c), `Index (_, ox) ->
           begin
             let l', o' = shift_one_over l o in
-            let ev = do_eval_offset ask f (Blobs.value c) ox exp l' o' v t in
+            let ev = do_eval_offset (Blobs.value c) ox l' o' in
             zero_init_calloced_memory zeroinit ev t
           end
         | Blob((va, _, zeroinit) as c), `Field _ ->
           begin
             let l', o' = shift_one_over l o in
-            let ev = do_eval_offset ask f (Blobs.value c) offs exp l' o' v t in
+            let ev = do_eval_offset (Blobs.value c) offs l' o' in
             zero_init_calloced_memory zeroinit ev t
           end
         | Blob((va, _, zeroinit) as c), `NoOffset ->
           begin
             let l', o' = shift_one_over l o in
-            let ev = do_eval_offset ask f (Blobs.value c) offs exp l' o' v t in
+            let ev = do_eval_offset (Blobs.value c) offs l' o' in
             zero_init_calloced_memory zeroinit ev t
           end
         | Bot, _ -> Bot
@@ -938,7 +938,7 @@ struct
               | Struct str ->
                 let x = Structs.get str fld in
                 let l', o' = shift_one_over l o in
-                do_eval_offset ask f x offs exp l' o' v t
+                do_eval_offset x offs l' o'
               | Top -> M.info ~category:Imprecise "Trying to read a field, but the struct is unknown"; top ()
               | _ -> M.warn ~category:Imprecise ~tags:[Category Program] "Trying to read a field, but was not given a struct"; top ()
             end
@@ -953,7 +953,7 @@ struct
                  | _ ->
                    let x = cast ~kind:Internal fld.ftype value in (* TODO: proper castkind *)
                    let l', o' = shift_one_over l o in
-                   do_eval_offset ask f x offs exp l' o' v t)
+                   do_eval_offset x offs l' o')
               | Union _ -> top ()
               | Top -> M.info ~category:Imprecise "Trying to read a field, but the union is unknown"; top ()
               | _ -> M.warn ~category:Imprecise ~tags:[Category Program] "Trying to read a field, but was not given a union"; top ()
@@ -963,12 +963,12 @@ struct
               match x with
               | Array x ->
                 let e = determine_offset ask l o exp v in
-                do_eval_offset ask f (CArrays.get ask x (e, idx)) offs exp l' o' v t
+                do_eval_offset (CArrays.get ask x (e, idx)) offs l' o'
               | Address _ ->
                 begin
-                  do_eval_offset ask f x offs exp l' o' v t (* this used to be `blob `address -> we ignore the index *)
+                  do_eval_offset x offs l' o' (* this used to be `blob `address -> we ignore the index *)
                 end
-              | x when GobOption.exists (Z.equal Z.zero) (IndexDomain.to_int idx) -> eval_offset ask f x offs exp v t
+              | x when GobOption.exists (Z.equal Z.zero) (IndexDomain.to_int idx) -> eval_offset ask f x offs exp v t (* TODO: why recursive call to outer function? *)
               | Top -> M.info ~category:Imprecise "Trying to read an index, but the array is unknown"; top ()
               | _ -> M.warn ~category:Imprecise ~tags:[Category Program] "Trying to read an index, but was not given an array (%a)" pretty x; top ()
             end
@@ -980,7 +980,7 @@ struct
       | Some(Lval (x,o)) -> Some ((x, NoOffset)), Some(o)
       | _ -> None, None
     in
-    do_eval_offset ask f x offs exp l o v t
+    do_eval_offset x offs l o
 
   let update_offset ?(blob_destructive=false) (ask: VDQ.t) (x:t) (offs:offs) (value:t) (exp:exp option) (v:lval) (t:typ): t =
     let rec do_update_offset ?(bitfield:int option=None) (ask:VDQ.t) (x:t) (offs:offs) (value:t) (exp:exp option) (l:lval option) (o:offset option) (v:lval) (t:typ):t =
