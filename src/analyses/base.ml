@@ -2044,11 +2044,10 @@ struct
       refine ()
 
   let body man f =
-    (* First we create a variable-initvalue pair for each variable *)
-    let init_var v = (AD.of_var v, v.vtype, VD.init_value ~varAttr:v.vattr v.vtype) in
-    (* Apply it to all the locals and then assign them all *)
-    let inits = List.map init_var f.slocals in
-    set_many ~man man.local inits
+    let init_var (acc: store) v: store =
+      set_var ~man acc v v.vtype (VD.init_value ~varAttr:v.vattr v.vtype)
+    in
+    List.fold_left init_var man.local f.slocals
 
   let return man exp fundec: store =
     if Cil.hasAttribute "noreturn" fundec.svar.vattr then
