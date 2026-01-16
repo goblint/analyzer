@@ -23,6 +23,7 @@ sig
   val convert_offset: man:(D.t, G.t, _, V.t) Analyses.man -> D.t -> offset -> ID.t Offset.t
 
   val get_var: man:(D.t, G.t, _, V.t) Analyses.man -> D.t -> varinfo -> VD.t
+  val get_mval: man:(D.t, G.t, _, V.t) Analyses.man -> D.t -> PreValueDomain.Addr.Mval.t -> exp option -> VD.t
   val get: man:(D.t, G.t, _, V.t) Analyses.man -> D.t -> AD.t -> exp option -> VD.t
   val set: man:(D.t, G.t, _, V.t) Analyses.man -> D.t -> AD.t -> typ -> ?lval_raw:lval -> VD.t -> D.t
 
@@ -119,12 +120,12 @@ struct
       let res = AD.fold (fun base_a acc ->
           Option.bind acc (fun acc ->
               match base_a with
-              | Addr _ ->
+              | Addr base_mval ->
                 let (lval_a:VD.t) = Address (AD.singleton base_a) in
                 if M.tracing then M.tracel "inv" "Consider case of lval %a = %a" d_lval lv VD.pretty lval_a;
                 let st = set' lv lval_a st in
-                let orig = AD.Addr.add_offset base_a original_offset in
-                let old_val = get ~man st (AD.singleton orig) None in
+                let orig = PreValueDomain.Addr.Mval.add_offset base_mval original_offset in
+                let old_val = get_mval ~man st orig None in
                 let old_val = VD.cast ~kind:Internal (Cilfacade.typeOfLval x) old_val in (* needed as the type of this pointer may be different *) (* TODO: proper castkind *)
                 (* this what I would originally have liked to do, but eval_rv_lval_refine uses queries and thus stale values *)
                 (* let old_val = eval_rv_lval_refine ~man st exp x in *)
