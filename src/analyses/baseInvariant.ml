@@ -103,7 +103,7 @@ struct
       let old_val = get_var ~man st var in
       let old_val = map_oldval old_val var.vtype in
       let offs = convert_offset ~man st o in
-      let new_val = VD.update_offset (Queries.to_value_domain_ask (Analyses.ask_of_man man)) old_val offs c' (Some exp) x (var.vtype) in
+      let new_val = VD.update_offset (Queries.to_value_domain_ask (Analyses.ask_of_man man)) old_val offs c' (Some exp) x (Cilfacade.typeOfLval x) in
       let v = apply_invariant ~old_val ~new_val in
       if is_some_bot v then contra st
       else (
