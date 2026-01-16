@@ -1884,6 +1884,7 @@ struct
     let convert_offset = convert_offset
 
     let get_var = get_var
+    let get_mval ~man st mval exp = get_mval ~man st mval exp
     let get ~man st addrs exp = get ~man st addrs exp
     let set ~man st lval lval_type ?lval_raw value = set ~man ~invariant:true st lval lval_type ?lval_raw value
 
@@ -3061,6 +3062,7 @@ struct
           (* all updates happen in man with top values *)
           let get_var = get_var
           let get ~man st addrs exp = get ~man st addrs exp
+          let get_mval ~man st mval exp = get_mval ~man st mval exp
           let set ~man st lval lval_type ?lval_raw value = set ~man ~invariant:false st lval lval_type ?lval_raw value (* TODO: should have invariant false? doesn't work with empty cpa then, because meets *)
 
           let refine_entire_var = false
