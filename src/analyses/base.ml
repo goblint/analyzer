@@ -2665,7 +2665,8 @@ struct
              | _, None
              | None, _ -> ID.top_of ik
              | Some mx, Some mm when Z.equal mx mm -> ID.top_of ik
-             | _, _ ->
+             | _, _ -> (* ID.neg will not overflow *)
+               let@ () = GobRef.wrap AnalysisState.executing_speculative_computations true in (* ID.neg is our internal implementation of abs *)
                let x1 = ID.neg (ID.meet (ID.ending ik Z.zero) xcast) in
                let x2 = ID.meet (ID.starting ik Z.zero) xcast in
                ID.join x1 x2
