@@ -518,25 +518,26 @@ struct
       | Blob (c,s,_) -> c
       | x -> x
 
+  and get_addr ~man ?(top=VD.top ()) ?full (st: store) (addr: Addr.t) (exp:exp option) =
+    match addr with
+    | Addr.Addr mval -> get_mval ~man ?full st mval exp
+    | Addr.NullPtr ->
+      begin match get_string "sem.null-pointer.dereference" with
+        | "assume_none" -> VD.bot ()
+        | "assume_top" -> top
+        | _ -> assert false
+      end
+    | Addr.UnknownPtr -> top (* top may be more precise than VD.top, e.g. for address sets, such that known addresses are kept for soundness *)
+    | Addr.StrPtr _ -> Int (ID.top_of IChar)
+
   (** [get st addr] returns the value corresponding to [addr] in [st]
    *  adding proper dependencies.
    *  For the exp argument it is always ok to put None. This means not using precise information about
    *  which part of an array is involved.  *)
-  and get ~man ?(top=VD.top ()) ?full (st: store) (addrs:address) (exp:exp option) : value =
+  and get ~man ?top ?full (st: store) (addrs:address) (exp:exp option) : value =
     if M.tracing then M.traceli "get" "Address: %a\nState: %a" AD.pretty addrs CPA.pretty st.cpa;
     (* Finding a single varinfo*offset pair *)
     let res =
-      let f = function
-        | Addr.Addr mval -> get_mval ~man ?full st mval exp
-        | Addr.NullPtr ->
-          begin match get_string "sem.null-pointer.dereference" with
-            | "assume_none" -> VD.bot ()
-            | "assume_top" -> top
-            | _ -> assert false
-          end
-        | Addr.UnknownPtr -> top (* top may be more precise than VD.top, e.g. for address sets, such that known addresses are kept for soundness *)
-        | Addr.StrPtr _ -> Int (ID.top_of IChar)
-      in
       (* We form the collecting function by joining *)
       let c (x:value) = match x with (* If address type is arithmetic, and our value is an int, we cast to the correct ik *)
         | Int _ ->
@@ -547,7 +548,7 @@ struct
             x
         | _ -> x
       in
-      let f x a = VD.join (c @@ f x) a in      (* Finally we join over all the addresses in the set. *)
+      let f x a = VD.join (c @@ get_addr ~man ?top ?full st x exp) a in      (* Finally we join over all the addresses in the set. *)
       AD.fold f addrs (VD.bot ())
     in
     if M.tracing then M.traceu "get" "Result: %a" VD.pretty res;
@@ -1006,7 +1007,7 @@ struct
       let lookup_with_offs addr =
         let v = (* abstract base value *)
           if cast_ok addr then
-            get ~man ~top:(VD.top_value t) st (AD.singleton addr) (Some exp)  (* downcasts are safe *)
+            get_addr ~man ~top:(VD.top_value t) st addr (Some exp)  (* downcasts are safe *)
           else
             VD.top () (* upcasts not! *)
         in
