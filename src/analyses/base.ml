@@ -499,6 +499,7 @@ struct
   let publish_all man reason =
     ignore (sync' reason man)
 
+  (* TODO: This isn't a simpler version of get_mval, it doesn't do some Blob handling that get_mval does with `NoOffset, so use that instead if in doubt. *)
   let get_var ~man (st: store) (x: varinfo): value =
     let ask = Analyses.ask_of_man man in
     if (!earlyglobs || ThreadFlag.has_ever_been_multi ask) && is_global ask x then
@@ -508,25 +509,25 @@ struct
       CPA.find x st.cpa
     end
 
+  let rec get_mval ~man ?(full=false) (st: store) ((x, offs): Addr.Mval.t) (exp:exp option) =
+    (* get hold of the variable value, either from local or global state *)
+    let var = get_var ~man st x in
+    let v = VD.eval_offset (Queries.to_value_domain_ask (Analyses.ask_of_man man)) (fun x -> get ~man st x exp) var offs exp (Some (Var x, Offs.to_cil_offset offs)) x.vtype in
+    if M.tracing then M.tracec "get" "var = %a, %a = %a" VD.pretty var AD.pretty (AD.of_mval (x, offs)) VD.pretty v;
+    if full then var else match v with
+      | Blob (c,s,_) -> c
+      | x -> x
+
   (** [get st addr] returns the value corresponding to [addr] in [st]
    *  adding proper dependencies.
    *  For the exp argument it is always ok to put None. This means not using precise information about
    *  which part of an array is involved.  *)
-  let rec get ~man ?(top=VD.top ()) ?(full=false) (st: store) (addrs:address) (exp:exp option): value =
+  and get ~man ?(top=VD.top ()) ?full (st: store) (addrs:address) (exp:exp option) : value =
     if M.tracing then M.traceli "get" "Address: %a\nState: %a" AD.pretty addrs CPA.pretty st.cpa;
     (* Finding a single varinfo*offset pair *)
     let res =
-      let f_addr (x, offs) =
-        (* get hold of the variable value, either from local or global state *)
-        let var = get_var ~man st x in
-        let v = VD.eval_offset (Queries.to_value_domain_ask (Analyses.ask_of_man man)) (fun x -> get ~man st x exp) var offs exp (Some (Var x, Offs.to_cil_offset offs)) x.vtype in
-        if M.tracing then M.tracec "get" "var = %a, %a = %a" VD.pretty var AD.pretty (AD.of_mval (x, offs)) VD.pretty v;
-        if full then var else match v with
-          | Blob (c,s,_) -> c
-          | x -> x
-      in
       let f = function
-        | Addr.Addr (x, o) -> f_addr (x, o)
+        | Addr.Addr mval -> get_mval ~man ?full st mval exp
         | Addr.NullPtr ->
           begin match get_string "sem.null-pointer.dereference" with
             | "assume_none" -> VD.bot ()
@@ -2851,7 +2852,7 @@ struct
   let combine_st man (local_st : store) (fun_st : store) (tainted_lvs : AD.t) : store =
     AD.fold (fun addr (st: store) ->
         match addr with
-        | Addr.Addr (v,o) when CPA.mem v fun_st.cpa ->
+        | Addr.Addr ((v,o) as mval) when CPA.mem v fun_st.cpa ->
           begin
             let lval_type = Addr.type_of addr in
             if M.tracing then M.trace "taintPC" "updating %a; type: %a" Addr.Mval.pretty (v,o) d_type lval_type;
@@ -2863,7 +2864,7 @@ struct
             | Some voidVal when Addr.type_of addr = voidType -> {st with cpa = CPA.add v voidVal st.cpa}
             | _ ->
               let address = AD.singleton addr in
-              let new_val = get ~man fun_st address None in
+              let new_val = get_mval ~man fun_st mval None in
               if M.tracing then M.trace "taintPC" "update val: %a" VD.pretty new_val;
               let st' = set_savetop ~man st address lval_type new_val in
               (* if a var partitions an array, all cpa-info for arrays it may partition are added from callee to caller *)
@@ -2931,10 +2932,10 @@ struct
 
   let combine_assign man (lval: lval option) fexp (f: fundec) (args: exp list) fc (after: D.t) (f_ask: Q.ask) : D.t =
     let combine_one (st: D.t) (fun_st: D.t) =
-      let return_var = return_var () in
+      let return_var = return_varinfo () in
       let return_val =
-        if CPA.mem (return_varinfo ()) fun_st.cpa
-        then get ~man fun_st return_var None
+        if CPA.mem return_var fun_st.cpa
+        then get_mval ~man fun_st (return_var, `NoOffset) None
         else VD.top ()
       in
 
