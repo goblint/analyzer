@@ -77,6 +77,8 @@ type invariant_context = Invariant.context = {
 
 module YS = SetDomain.ToppedSet (YamlWitnessType.Entry) (struct let topname = "Top" end)
 
+module LH = MapDomain.MapTop (LockDomain.MustLock) (SetDomain.Reverse (ConcDomain.ThreadSet))
+
 
 (** GADT for queries with specific result type. *)
 type _ t =
@@ -147,6 +149,7 @@ type _ t =
   | GhostVarAvailable: WitnessGhostVar.t -> MayBool.t t
   | InvariantGlobalNodes: NS.t t (** Nodes where YAML witness flow-insensitive invariants should be emitted as location invariants (if [witness.invariant.flow_insensitive-as] is configured to do so). *) (* [Spec.V.t] argument (as [Obj.t]) could be added, if this should be different for different flow-insensitive invariants. *)
   | DescendantThreads: ThreadIdDomain.Thread.t -> ConcDomain.ThreadSet.t t
+  | MustlockHistory: LH.t t
 
 type 'a result = 'a
 
@@ -223,6 +226,7 @@ struct
     | GhostVarAvailable _ -> (module MayBool)
     | InvariantGlobalNodes -> (module NS)
     | DescendantThreads _ -> (module ConcDomain.ThreadSet)
+    | MustlockHistory -> (module LH)
 
   (** Get bottom result for query. *)
   let bot (type a) (q: a t): a result =
@@ -298,6 +302,7 @@ struct
     | GhostVarAvailable _ -> MayBool.top ()
     | InvariantGlobalNodes -> NS.top ()
     | DescendantThreads _ -> ConcDomain.ThreadSet.top ()
+    | MustlockHistory -> LH.top ()
 end
 
 (* The type any_query can't be directly defined in Any as t,
@@ -370,6 +375,7 @@ struct
     | Any (GhostVarAvailable _) -> 62
     | Any InvariantGlobalNodes -> 63
     | Any (DescendantThreads _) -> 64
+    | Any (MustlockHistory) -> 65
 
   let rec compare a b =
     let r = Stdlib.compare (order a) (order b) in
@@ -547,6 +553,7 @@ struct
     | Any (GhostVarAvailable v) -> Pretty.dprintf "GhostVarAvailable %a" WitnessGhostVar.pretty v
     | Any InvariantGlobalNodes -> Pretty.dprintf "InvariantGlobalNodes"
     | Any (DescendantThreads t) -> Pretty.dprintf "DescendantThreads %a" ThreadIdDomain.Thread.pretty t
+    | Any (MustlockHistory) -> Pretty.dprintf "MustlockHistory"
 end
 
 let to_value_domain_ask (ask: ask) =
