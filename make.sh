@@ -18,7 +18,7 @@ pplite_setup() {
   autoreconf --install
   mkdir build && cd build
   ../configure --prefix="$PPLITE_PREFIX"
-  make
+  make -j4
   make install
   cd "$DIR"
 }
