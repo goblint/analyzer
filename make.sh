@@ -3,9 +3,30 @@ set -e # exit immediately if a command fails
 set -o pipefail # or all $? in pipe instead of returning exit code of the last command only
 
 TARGET=src/goblint
+PPLITE_PREFIX="$(pwd)"/local
+
+pplite_setup() {
+  #sudo apt-get install make autoconf automake libtool
+  #sudo apt-get install libgmp-dev libmpfr-dev libflint-dev
+  set -x
+  local DIR; DIR=$(pwd)
+  rm -rf local
+  mkdir local
+  rm -rf PPLite
+  git clone https://github.com/ezaffanella/PPLite.git
+  cd PPLite
+  autoreconf --install
+  mkdir build && cd build
+  ../configure --prefix="$PPLITE_PREFIX"
+  make
+  make install
+  cd "$DIR"
+}
 
 opam_setup() {
   set -x
+  pplite_setup
+  export PPLITE_PREFIX
   opam init -y -a --bare $SANDBOXING # sandboxing is disabled in travis and docker
   opam update
   opam switch -y create . --deps-only --packages=ocaml-variants.4.14.2+options,ocaml-option-flambda --locked

@@ -16,7 +16,7 @@
       (-> gobApron.no-apron.ml)
     )
     (select apronDomain.ml from
-      (apron apron.octD apron.boxD apron.polkaMPQ zarith_mlgmpidl -> apronDomain.apron.ml)
+      (apron apron.octD apron.boxD apron.polkaMPQ apron.pplite zarith_mlgmpidl -> apronDomain.apron.ml)
       (-> apronDomain.no-apron.ml)
     )
     (select apronPrecCompareUtil.ml from

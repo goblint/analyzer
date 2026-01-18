@@ -56,10 +56,10 @@ end
 module PolyhedraManager =
 struct
   (** We chose a the loose polyhedra here, i.e. with polyhedra with no strict inequalities *)
-  type mt = Polka.loose Polka.t
+  type mt = Pplite.loose Pplite.t
   type t = mt Manager.t
   (* Create manager that fits to loose polyhedra *)
-  let mgr = Polka.manager_alloc_loose ()
+  let mgr = Pplite.manager_alloc_loose ()
   let name () = "Polyhedra"
 end
 
