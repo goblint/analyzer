@@ -2123,31 +2123,32 @@ struct
     if exps <> [] then M.info ~category:Imprecise "Invalidating expressions: %a" (d_list ", " d_exp) exps;
     (* To invalidate a single address, we create a pair with its corresponding
      * top value. *)
-    let invalidate_address st a =
-      let t = try AD.type_of a with Not_found -> voidType in (* TODO: why is this called with empty a to begin with? *)
-      let v = get ~man st a None in (* None here is ok, just causes us to be a bit less precise *)
+    let invalidate_addr st (a: Addr.t) =
+      let t = Addr.type_of a in
+      let v = get_addr ~man st a None in (* None here is ok, just causes us to be a bit less precise *)
       let nv =  VD.invalidate_value (Queries.to_value_domain_ask (Analyses.ask_of_man man)) t v in
       (a, t, nv)
     in
     (* We define the function that invalidates all the values that an address
      * expression e may point to *)
     let invalidate_exp exps =
-      let args = collect_invalidate ~deep ~man ~warn:true st exps in
-      List.map (invalidate_address st) args
+      let args = collect_invalidate ~deep ~man ~warn:true st exps in (* NB! the returned list isn't necessarily as long as exps *)
+      let args = List.concat_map AD.elements args in (* split all address sets up because each address of different type (and with different current value) should get a different invalidated value *)
+      List.map (invalidate_addr st) args
     in
     let invalids = invalidate_exp exps in
     let is_fav_addr x =
-      List.exists BaseUtil.is_excluded_from_invalidation (AD.to_var_may x)
+      GobOption.exists BaseUtil.is_excluded_from_invalidation (Addr.to_var_may x)
     in
     let invalids' = List.filter (fun (x,_,_) -> not (is_fav_addr x)) invalids in
     if M.tracing && exps <> [] then (
       let addrs = List.map (Tuple3.first) invalids' in
       let vs = List.map (Tuple3.third) invalids' in
-      M.tracel "invalidate" "Setting addresses [%a] to values [%a]" (d_list ", " AD.pretty) addrs (d_list ", " VD.pretty) vs
+      M.tracel "invalidate" "Setting addresses [%a] to values [%a]" (d_list ", " Addr.pretty) addrs (d_list ", " VD.pretty) vs
     );
     (* copied from set_many *)
-    let f (acc: store) ((lval:AD.t),(typ:Cil.typ),(value:value)): store =
-      let acc' = set ~man acc lval typ value in
+    let f (acc: store) ((lval:Addr.t),(typ:Cil.typ),(value:value)): store =
+      let acc' = set_addr ~man acc lval typ value in
       if must then
         acc'
       else
