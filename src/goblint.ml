@@ -5,8 +5,8 @@ open Maingoblint
 (** the main function *)
 let main () =
   try
-    Cilfacade.init ();
     Maingoblint.parse_arguments ();
+    Cilfacade.init ();
 
     (* Timing. *)
     Maingoblint.reset_stats ();
@@ -37,7 +37,7 @@ let main () =
     Logs.debug "%s" GobSys.command_line;
     (* When analyzing a termination specification, activate the termination analysis before pre-processing. *)
     if get_string "ana.specification" <> "" then AutoSoundConfig.enableAnalysesForTerminationSpecification ();
-    if AutoTune.specificationTerminationIsActivated () then AutoTune.focusOnTermination ();
+    if AutoTune.isActivated "termination" then AutoTune.focusOnTermination ();
     let file = lazy (Fun.protect ~finally:GoblintDir.finalize preprocess_parse_merge) in
     if get_bool "server.enabled" then (
       let file =
@@ -61,10 +61,10 @@ let main () =
       if get_string "ana.specification" <> "" then AutoSoundConfig.enableAnalysesForSpecification ();
       if get_bool "ana.autotune.enabled" then AutoTune.chooseConfig file;
       file |> do_analyze changeInfo;
-      do_html_output ();
       do_gobview file;
       do_stats ();
       Goblint_timing.teardown_tef ();
+      (* TODO: generalize exit codes for AnalysisState.unsound_both_branches_dead? *)
       if !AnalysisState.verified = Some false then exit 3 (* verifier failed! *)
     )
   with

@@ -36,3 +36,11 @@ let postsolving = ref false
 
 (* None if verification is disabled, Some true if verification succeeded, Some false if verification failed *)
 let verified : bool option ref = ref None
+
+let unsound_both_branches_dead: bool option ref = ref None
+(** [Some true] if unsound both branches dead occurs in analysis results.
+    [Some false] if it doesn't occur.
+    [None] if [ana.dead-code.branches] option is disabled and this isn't checked. *)
+
+(* Comparison mode where blobs with bot content that are not zero-initalized are considered equivalent to top-level bot *)
+let bot_in_blob_leq_bot = ref false

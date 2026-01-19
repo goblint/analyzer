@@ -1,3 +1,65 @@
+## v2.7.1 Bamboozled Buffalo
+* Add library function specifications for fortified `inet_pton` and `inet_ntop` (#1883).
+
+## v2.7.0 Bamboozled Buffalo
+Functionally equivalent to Goblint in SV-COMP 2026.
+
+* Add sequential portfolio for SV-COMP (#1845, #1867, #1877).
+* Add struct bitfield support (#1739, #1823).
+* Improve bitwise operations for integer domains (#1739).
+* Reimplement HTML output in OCaml (#1752).
+* Remove YAML witness version 0.1 support (#1812, #1817, #1852, #1853, #1855).
+* Fix incorrect invariants in witnesses (#1818, #1876).
+* Simplify relational invariants in witnesses (#1826, #1871, #1873).
+* Fix argument types in Goblint stubs (#1684, #1814, #1779, #1820).
+
+## v2.6.0 Awkward Aardvark
+* Add division by zero analysis (#1764).
+* Add bitfield domain (#1623).
+* Add weakly-relational C-2PO pointer analysis (#1485).
+* Add widening delay (#1358, #1442, #1483).
+* Add narrowing of globals to top-down solver (#1636).
+* Add weak dependencies to top-down solver (#1746, #1747).
+* Add YAML ghost witness generation (#1394).
+* Remove GraphML witness generation (#1732, #1733, #1738).
+* Use C standard option for preprocessing (#1807).
+* Add bash completion for array options (#1670, #1705, #1750).
+* Make `malloc(0)` semantics configurable (#1418, #1777).
+* Update path-sensitive analyses (#1785, #1791, #1792).
+* Fix evaluation of library function arguments (#1758, #1761).
+* Optimize affine equalities analysis using sparse matrices (#1459, #1625).
+* Prepare for parallelism (#1708, #1744, #1748, #1781, #1790).
+
+## v2.5.0
+Functionally equivalent to Goblint in SV-COMP 2025.
+
+* Add 32bit vs 64bit architecture support (#54, #1574).
+* Add per-function context gas analysis (#1569, #1570, #1598).
+* Adapt automatic static loop unrolling (#1516, #1582, #1583, #1584, #1590, #1595, #1599).
+* Adapt automatic configuration tuning (#1450, #1612, #1181, #1604).
+* Simplify non-relational integer invariants in witnesses (#1517).
+* Fix excessive hash collisions (#1594, #1602).
+* Clean up various code (#1095, #1523, #1554, #1575, #1588, #1597, #1614).
+
+## v2.4.0
+* Remove unmaintained analyses: spec, file (#1281).
+* Add linear two-variable equalities analysis (#1297, #1412, #1466).
+* Add callstring, loopfree callstring and context gas analyses (#1038, #1340, #1379, #1427, #1439).
+* Add non-relational thread-modular value analyses with thread IDs (#1366, #1398, #1399).
+* Add NULL byte array domain (#1076).
+* Fix spurious overflow warnings from internal evaluations (#1406, #1411, #1511).
+* Refactor non-definite mutex handling to fix unsoundness (#1430, #1500, #1503, #1409).
+* Fix non-relational thread-modular value analysis unsoundness with ambiguous points-to sets (#1457, #1458).
+* Fix mutex type analysis unsoundness and enable it by default (#1414, #1416, #1510).
+* Add points-to set refinement on mutex path splitting (#1287, #1343, #1374, #1396, #1407).
+* Improve narrowing operators (#1502, #1540, #1543).
+* Extract automatic configuration tuning for soundness (#1469).
+* Fix many locations in witnesses (#1355, #1372, #1400, #1403).
+* Improve output readability (#1294, #1312, #1405, #1497).
+* Refactor logging (#1117).
+* Modernize all library function specifications (#1029, #688, #1174, #1289, #1447, #1487).
+* Remove OCaml 4.10, 4.11, 4.12 and 4.13 support (#1448).
+
 ## v2.3.0
 Functionally equivalent to Goblint in SV-COMP 2024.
 

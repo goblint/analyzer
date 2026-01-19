@@ -1,12 +1,12 @@
 (** Relational value domain utilities. *)
 open GoblintCil
-open Batteries
 
 open GobApron
 
+
 module M = Messages
 
-let int_of_scalar ?round (scalar: Scalar.t) =
+let int_of_scalar ?(scalewith=Z.one) ?round (scalar: Scalar.t) =
   if Scalar.is_infty scalar <> 0 then (* infinity means unbounded *)
     None
   else
@@ -20,24 +20,31 @@ let int_of_scalar ?round (scalar: Scalar.t) =
         | None when Stdlib.Float.is_integer f -> Some f
         | None -> None
       in
-      Z.of_float f
+      Z.(of_float f * scalewith)
     | Mpqf scalar -> (* octMPQ, boxMPQ, polkaMPQ *)
       let n = Mpqf.get_num scalar in
       let d = Mpqf.get_den scalar in
+      let scale = Z_mlgmpidl.mpz_of_z scalewith in
       let+ z =
         if Mpzf.cmp_int d 1 = 0 then (* exact integer (denominator 1) *)
-          Some n
+          Some (Mpzf.mul scale n)
         else
           begin match round with
-            | Some `Floor -> Some (Mpzf.fdiv_q n d) (* floor division *)
-            | Some `Ceil -> Some (Mpzf.cdiv_q n d) (* ceiling division *)
-            | None -> None
+            | Some `Floor -> Some (Mpzf.mul scale (Mpzf.fdiv_q n d)) (* floor division *)
+            | Some `Ceil ->  Some (Mpzf.mul scale (Mpzf.cdiv_q n d)) (* ceiling division *)
+            | None -> let product = Mpzf.mul scale n in if Mpz.divisible_p product d then
+                Some (Mpzf.divexact product d) (* scale, preferably with common denominator *)
+              else None
           end
       in
       Z_mlgmpidl.z_of_mpzf z
     | _ ->
-      failwith ("int_of_scalar: unsupported: " ^ Scalar.to_string scalar)
+      failwith ("int_of_scalar: unsupported: " ^ Scalar.show scalar)
 
+let int_of_coeff ?scalewith ?round (coeff: Coeff.union_5) =
+  match coeff with
+  | Scalar scalar -> int_of_scalar ?scalewith ?round scalar
+  | Interval _ -> None
 
 module type ConvertArg =
 sig
@@ -49,12 +56,18 @@ module type SV =  RelationDomain.RV with type t = Var.t
 type unsupported_cilExp =
   | Var_not_found of CilType.Varinfo.t (** Variable not found in Apron environment. *)
   | Cast_not_injective of CilType.Typ.t (** Cast is not injective, i.e. may under-/overflow. *)
-  | Exp_not_supported (** Expression constructor not supported. *)
+  | Exp_not_supported of exp[@printer fun ppf e -> Format.pp_print_string ppf (GobPretty.show (Cil.d_plainexp () e))]
   | Overflow (** May overflow according to Apron bounds. *)
   | Exp_typeOf of exn [@printer fun ppf e -> Format.pp_print_string ppf (Printexc.to_string e)] (** Expression type could not be determined. *)
-  | BinOp_not_supported (** BinOp constructor not supported. *)
+  | BinOp_not_supported of binop [@printer fun ppf op -> Format.pp_print_string ppf (match op with
+        | BAnd | BOr | BXor -> "Bitwise binop"
+        | Shiftlt | Shiftrt -> "Shift binop"
+        | PlusPI | MinusPI | IndexPI | MinusPP -> "Pointer binop"
+        | LAnd | LOr -> "Logical binop"
+        | Lt | Gt | Le | Ge | Eq | Ne -> "Comparison binop"
+        | _ -> "other binop")](** BinOp constructor not supported. *)
+  | Ikind_non_integer of string (** Exception during trying to get ikind of a non-integer typed expression *)
 [@@deriving show { with_path = false }]
-
 
 (** Interface for Bounds which calculates bounds for expressions and is used inside the - Convert module. *)
 module type ConvBounds =
@@ -88,7 +101,7 @@ struct
       established by other analyses.*)
   let overflow_handling no_ov ik env expr d exp =
     match Cilfacade.get_ikind_exp exp with
-    | exception Invalid_argument e ->  raise (Unsupported_CilExp Exp_not_supported)       (* expression is not an integer expression, i.e. float *)
+    | exception Invalid_argument a ->  raise (Unsupported_CilExp (Ikind_non_integer a))       (* expression is not an integer expression, i.e. float *)
     | ik ->
       if IntDomain.should_wrap ik || not (Lazy.force no_ov) then (
         let (type_min, type_max) = IntDomain.Size.range ik in
@@ -106,7 +119,7 @@ struct
       let query e ik =
         let res =
           match ask.f (EvalInt e) with
-          | `Bot -> raise (Unsupported_CilExp Exp_not_supported) (* This should never happen according to Michael Schwarz *)
+          | `Bot  (* This happens when called on a pointer type; -> we can safely return top *)
           | `Top -> IntDomain.IntDomTuple.top_of ik
           | `Lifted x -> x (* Cast should be unnecessary because it should be taken care of by EvalInt. *) in
         if M.tracing then M.trace "relation-query" "texpr1_expr_of_cil_exp/query: %a -> %a" d_plainexp e IntDomain.IntDomTuple.pretty res;
@@ -129,7 +142,7 @@ struct
           else
             failwith "texpr1_expr_of_cil_exp: globals must be replaced with temporary locals"
         | Const (CInt (i, _, _)) ->
-          Cst (Coeff.s_of_mpqf (Mpqf.of_mpz (Z_mlgmpidl.mpz_of_z i)))
+          Cst (Coeff.s_of_z i)
         | exp ->
           match Cilfacade.get_ikind_exp exp with
           | ik ->
@@ -139,15 +152,15 @@ struct
                   might be able to be represented by means of 2 var equalities
 
                   This simplification happens during a time, when there are temporary variables a#in and a#out part of the expression,
-                  but are not represented in the ctx, thus queries may result in top for these variables. Wrapping this in speculative
+                  but are not represented in the man, thus queries may result in top for these variables. Wrapping this in speculative
                   mode is a stop-gap measure to avoid flagging overflows. We however should address simplification in a more generally useful way.
                   outside of the apron-related expression conversion.
               *)
               let simplify e =
-                GobRef.wrap AnalysisState.executing_speculative_computations true @@ fun () ->
-                let ikind = try (Cilfacade.get_ikind_exp e) with Invalid_argument _ -> raise (Unsupported_CilExp Exp_not_supported)   in
+                let@ () = GobRef.wrap AnalysisState.executing_speculative_computations true in
+                let ikind = try (Cilfacade.get_ikind_exp e) with Invalid_argument a -> raise (Unsupported_CilExp (Ikind_non_integer a))   in
                 let simp = query e ikind in
-                let const = IntDomain.IntDomTuple.to_int @@ IntDomain.IntDomTuple.cast_to ikind simp in
+                let const = IntDomain.IntDomTuple.to_int @@ IntDomain.IntDomTuple.cast_to ~kind:Internal ikind simp in (* TODO: proper castkind *)
                 if M.tracing then M.trace "relation" "texpr1_expr_of_cil_exp/simplify: %a -> %a" d_plainexp e IntDomain.IntDomTuple.pretty simp;
                 BatOption.map_default (fun c -> Const (CInt (c, ikind, None))) e const
               in
@@ -161,17 +174,22 @@ struct
               | BinOp (Mod, e1, e2, _) -> bop_near Mod e1 e2
               | BinOp (Div, e1, e2, _) ->
                 Binop (Div, texpr1 e1, texpr1 e2, Int, Zero)
-              | CastE (TInt (t_ik, _) as t, e) ->
+              | CastE (_, t, e) when Cil.isIntegralType t ->
                 begin match  IntDomain.Size.is_cast_injective ~from_type:(Cilfacade.typeOf e) ~to_type:t with (* TODO: unnecessary cast check due to overflow check below? or maybe useful in general to also assume type bounds based on argument types? *)
-                  | exception Invalid_argument _ -> raise (Unsupported_CilExp Exp_not_supported)
+                  | exception Invalid_argument a -> raise (Unsupported_CilExp (Ikind_non_integer a))
                   | true -> texpr1 e
                   | false -> (* Cast is not injective - we now try to establish suitable ranges manually  *)
-                    (* try to evaluate e by EvalInt Query *)
-                    let res = try (query e @@ Cilfacade.get_ikind_exp e) with Invalid_argument _ -> raise (Unsupported_CilExp Exp_not_supported)  in
-                    (* convert response to a constant *)
-                    let const = IntDomain.IntDomTuple.to_int @@ IntDomain.IntDomTuple.cast_to t_ik res in
+                    let t_ik = Cilfacade.get_ikind t in
+                    (* retrieving a valuerange for a non-injective cast works by a query to the value-domain with subsequent value extraction from domtuple - which should be speculative, since it is not program code *)
+                    let const,res =
+                      let@ () = GobRef.wrap AnalysisState.executing_speculative_computations true in
+                      (* try to evaluate e by EvalInt Query *)
+                      let res = try (query e @@ Cilfacade.get_ikind_exp e) with Invalid_argument a -> raise (Unsupported_CilExp (Ikind_non_integer a))  in
+                      (* convert response to a constant *)
+                      IntDomain.IntDomTuple.to_int @@ IntDomain.IntDomTuple.cast_to ~kind:Internal t_ik res, res (* TODO: proper castkind *)
+                    in
                     match const with
-                    | Some c -> Cst (Coeff.s_of_mpqf (Mpqf.of_mpz (Z_mlgmpidl.mpz_of_z c))) (* Got a constant value -> use it straight away *)
+                    | Some c -> Cst (Coeff.s_of_z c) (* Got a constant value -> use it straight away *)
                     (* I gotten top, we can not guarantee injectivity *)
                     | None -> if IntDomain.IntDomTuple.is_top_of t_ik res then raise (Unsupported_CilExp (Cast_not_injective t))
                       else ( (* Got a ranged value different from top, so let's check bounds manually *)
@@ -183,21 +201,31 @@ struct
                     | exception Invalid_argument _ ->
                       raise (Unsupported_CilExp (Cast_not_injective t))
                 end
-              | _ ->
-                raise (Unsupported_CilExp Exp_not_supported)
+              | BinOp (op, _,_,_) ->
+                raise (Unsupported_CilExp (BinOp_not_supported op))
+              | e ->
+                raise (Unsupported_CilExp (Exp_not_supported e))
             in
             overflow_handling no_ov ik env expr d exp;
             expr
-          | exception (Cilfacade.TypeOfError _ as e)
-          | exception (Invalid_argument _ as e) ->
+          | exception (Cilfacade.TypeOfError _ as e) ->
             raise (Unsupported_CilExp (Exp_typeOf e))
+          | exception (Invalid_argument a) ->
+            raise (Unsupported_CilExp (Ikind_non_integer a))
       in
       texpr1_expr_of_cil_exp exp
     in
     let exp = Cil.constFold false exp in
-    let res = conv exp in
-    if M.tracing then M.trace "relation" "texpr1_expr_of_cil_exp: %a -> %s (%b)" d_plainexp exp (Format.asprintf "%a" Texpr1.print_expr res) (Lazy.force no_ov);
-    res
+    if M.tracing then
+      match conv exp with
+      | exception Unsupported_CilExp ex ->
+        M.tracel "rel-texpr-cil-conv" "unsuccessfull: %s" (show_unsupported_cilExp ex);
+        raise (Unsupported_CilExp ex)
+      | res ->
+        M.trace "relation" "texpr1_expr_of_cil_exp: %a -> %a (%b)" d_plainexp exp Texpr1.Expr.pretty res (Lazy.force no_ov);
+        M.tracel "rel-texpr-cil-conv" "successfull: Good";
+        res
+    else conv exp
 
   let texpr1_of_cil_exp ask d env e no_ov =
     let res = texpr1_expr_of_cil_exp ask d env e no_ov in
@@ -218,9 +246,9 @@ struct
           | Ge -> (texpr1_1, texpr1_2, SUPEQ) (* e1 >= e2  ==>  e1 - e2 >= 0 *)
           | Eq -> (texpr1_1, texpr1_2, EQ)    (* e1 == e2  ==>  e1 - e2 == 0 *)
           | Ne -> (texpr1_1, texpr1_2, DISEQ) (* e1 != e2  ==>  e1 - e2 != 0 *)
-          | _ -> raise (Unsupported_CilExp BinOp_not_supported)
+          | _ -> raise (Unsupported_CilExp (BinOp_not_supported r))
         end
-      | _ -> raise (Unsupported_CilExp Exp_not_supported)
+      | _ -> raise (Unsupported_CilExp (Exp_not_supported e))
     in
     let inverse_typ = function
       | EQ -> DISEQ
@@ -245,57 +273,122 @@ module CilOfApron (V: SV) =
 struct
   exception Unsupported_Linexpr1
 
-  let cil_exp_of_linexpr1 (linexpr1:Linexpr1.t) =
-    let longlong = TInt(ILongLong,[]) in
-    let coeff_to_const consider_flip (c:Coeff.union_5) = match c with
-      | Scalar c ->
-        (match int_of_scalar c with
-         | Some i ->
-           let ci,truncation = truncateCilint ILongLong i in
-           if truncation = NoTruncation then
-             if not consider_flip || Z.compare i Z.zero >= 0 then
-               Const (CInt(i,ILongLong,None)), false
-             else
-               (* attempt to negate if that does not cause an overflow *)
-               let cneg, truncation = truncateCilint ILongLong (Z.neg i) in
-               if truncation = NoTruncation then
-                 Const (CInt((Z.neg i),ILongLong,None)), true
-               else
-                 Const (CInt(i,ILongLong,None)), false
-           else
-             (M.warn ~category:Analyzer "Invariant Apron: coefficient is not int: %s" (Scalar.to_string c); raise Unsupported_Linexpr1)
-         | None -> raise Unsupported_Linexpr1)
-      | _ -> raise Unsupported_Linexpr1
-    in
-    let expr = ref (fst @@ coeff_to_const false (Linexpr1.get_cst linexpr1)) in
-    let append_summand (c:Coeff.union_5) v =
-      match V.to_cil_varinfo v with
-      | Some vinfo ->
-        (* TODO: What to do with variables that have a type that cannot be stored into ILongLong to avoid overflows? *)
-        let var = Cilfacade.mkCast ~e:(Lval(Var vinfo,NoOffset)) ~newt:longlong in
-        let coeff, flip = coeff_to_const true c in
-        let prod = BinOp(Mult, coeff, var, longlong) in
-        if flip then
-          expr := BinOp(MinusA,!expr,prod,longlong)
+  let longlong = TInt(ILongLong,[])
+
+  let int_of_coeff_warn ~scalewith coeff =
+    match int_of_coeff ~scalewith coeff with
+    | Some i -> i
+    | None ->
+      M.warn ~category:Analyzer "Invariant Apron: coefficient is not int: %a" Coeff.pretty coeff;
+      raise Unsupported_Linexpr1
+
+  (** Returned boolean indicates whether returned expression should be negated. *)
+  let cil_exp_of_int i =
+    let ci,truncation = truncateCilint ILongLong i in
+    if truncation = NoTruncation then
+      if Z.compare i Z.zero >= 0 then
+        false, Const (CInt(i,ILongLong,None))
+      else
+        (* attempt to negate if that does not cause an overflow *)
+        let cneg, truncation = truncateCilint ILongLong (Z.neg i) in
+        if truncation = NoTruncation then
+          true, Const (CInt((Z.neg i),ILongLong,None))
         else
-          expr := BinOp(PlusA,!expr,prod,longlong)
-      | None -> M.warn ~category:Analyzer "Invariant Apron: cannot convert to cil var: %s"  (Var.to_string v); raise Unsupported_Linexpr1
+          false, Const (CInt(i,ILongLong,None))
+    else
+      raise Unsupported_Linexpr1
+
+  (** Returned boolean indicates whether returned expression should be negated. *)
+  let cil_exp_of_linexpr1_term ~scalewith (c: Coeff.t) v =
+    match V.to_cil_varinfo v with
+    | Some vinfo when IntDomain.Size.is_cast_injective ~from_type:vinfo.vtype ~to_type:(TInt(ILongLong,[]))   ->
+      let var = Cilfacade.mkCast ~kind:Explicit ~e:(Lval(Var vinfo,NoOffset)) ~newt:longlong in
+      let i = int_of_coeff_warn ~scalewith c in
+      if Z.equal i Z.one then
+        false, var
+      else if Z.equal i Z.minus_one then
+        true, var
+      else (
+        let flip, coeff = cil_exp_of_int i in
+        let prod = BinOp(Mult, coeff, var, longlong) in
+        flip, prod
+      )
+    | None ->
+      M.warn ~category:Analyzer "Invariant Apron: cannot convert to cil var: %a" Var.pretty v;
+      raise Unsupported_Linexpr1
+    | _ ->
+      M.warn ~category:Analyzer "Invariant Apron: cannot convert to cil var in overflow preserving manner: %a" Var.pretty v;
+      raise Unsupported_Linexpr1
+
+  (** Returned booleans indicates whether returned expressions should be negated. *)
+  let cil_exp_of_linexpr1 ~scalewith (linexpr1:Linexpr1.t) =
+    let terms =
+      let c = Linexpr1.get_cst linexpr1 in
+      if Coeff.is_zero c then
+        ref []
+      else
+        ref [cil_exp_of_int (int_of_coeff_warn ~scalewith c)]
+    in
+    let append_summand (c:Coeff.union_5) v =
+      if not (Coeff.is_zero c) then
+        terms := cil_exp_of_linexpr1_term ~scalewith c v :: !terms
     in
     Linexpr1.iter append_summand linexpr1;
-    !expr
+    !terms
 
+
+  let lcm_den linexpr1 =
+    let exception UnsupportedScalar
+    in
+    let frac_of_scalar scalar =
+      if Scalar.is_infty scalar <> 0 then (* infinity means unbounded *)
+        None
+      else match scalar with
+        | Float f -> if Stdlib.Float.is_integer f then Some (Q.of_float f) else None
+        | Mpqf f -> Some (Z_mlgmpidl.q_of_mpqf f)
+        | _ -> raise UnsupportedScalar
+    in
+    let extract_den (c:Coeff.union_5) =
+      match c with
+      | Scalar c -> BatOption.map Q.den (frac_of_scalar c)
+      | _ -> None
+    in
+    let lcm_denom = ref (BatOption.default Z.one (extract_den (Linexpr1.get_cst linexpr1))) in
+    let lcm_coeff (c:Coeff.union_5) _ =
+      match (extract_den c) with
+      | Some z -> lcm_denom := Z.lcm z !lcm_denom
+      | _      -> ()
+    in
+    try
+      Linexpr1.iter lcm_coeff linexpr1; !lcm_denom
+    with UnsupportedScalar -> Z.one
 
   let cil_exp_of_lincons1 (lincons1:Lincons1.t) =
     let zero = Cil.kinteger ILongLong 0 in
     try
       let linexpr1 = Lincons1.get_linexpr1 lincons1 in
-      let cilexp = cil_exp_of_linexpr1 linexpr1 in
-      match Lincons1.get_typ lincons1 with
-      | EQ -> Some (Cil.constFold false @@ BinOp(Eq, cilexp, zero, TInt(IInt,[])))
-      | SUPEQ -> Some (Cil.constFold false @@ BinOp(Ge, cilexp, zero, TInt(IInt,[])))
-      | SUP -> Some (Cil.constFold false @@ BinOp(Gt, cilexp, zero, TInt(IInt,[])))
-      | DISEQ -> Some (Cil.constFold false @@ BinOp(Ne, cilexp, zero, TInt(IInt,[])))
-      | EQMOD _ -> None
+      let common_denominator = lcm_den linexpr1 in
+      let terms = cil_exp_of_linexpr1 ~scalewith:common_denominator linexpr1 in
+      let (nterms, pterms) = BatTuple.Tuple2.mapn (List.map snd) (List.partition fst terms) in (* partition terms into negative (nterms) and positive (pterms) *)
+      let fold_terms terms =
+        List.fold_left (fun acc term ->
+            match acc with
+            | None -> Some term
+            | Some exp -> Some (BinOp (PlusA, exp, term, longlong))
+          ) None terms
+        |> BatOption.default zero
+      in
+      let lhs = fold_terms pterms in
+      let rhs = fold_terms nterms in (* negative terms are moved from Apron's lhs to our rhs, so they all become positive there *)
+      let binop =
+        match Lincons1.get_typ lincons1 with
+        | EQ -> Eq
+        | SUPEQ -> Ge
+        | SUP -> Gt
+        | DISEQ -> Ne
+        | EQMOD _ -> raise Unsupported_Linexpr1
+      in
+      Some (BinOp(binop, lhs, rhs, TInt(IInt,[])))
     with
       Unsupported_Linexpr1 -> None
 end
@@ -323,8 +416,10 @@ sig
 
   (** is_empty is true, if the domain representation has a dimension size of zero *)
   val is_empty : t -> bool
+  (** interpret dimension addition in change2.add semantics, see https://antoinemine.github.io/Apron/doc/api/ocaml/Dim.html*)
   val dim_add : Apron.Dim.change -> t -> t
-  val dim_remove : Apron.Dim.change -> t -> del:bool-> t
+  (** interpret dimension removal in change2.remove semantics, see https://antoinemine.github.io/Apron/doc/api/ocaml/Dim.html*)
+  val dim_remove : Apron.Dim.change -> t -> t
 end
 
 (* Shared operations for the management of the Matrix or Array representations of the domains,
@@ -349,49 +444,47 @@ struct
 
   let copy t = {t with d = Option.map RelDomain.copy t.d}
 
-  let change_d t new_env ~add ~del =
+  let dimchange2_add t new_env =
     if Environment.equal t.env new_env then
       t
     else
       match t.d with
       | None -> bot_env
       | Some m ->
-        let dim_change = (* using Environment.dimchange with swapped parameters is not the originally inteded way for APRON dimchanges if keeping to the spec;
-                            instead, we should make use of Environment.dimchange2, which explicitely provides different format for diff arrays for adding and removing.
-                            We here however produce add_dimension format in both cases.
-                            Weirdly, affineEqualities needs an overhaul of its dim_add and dim_remove before this can be migrated to APRON standard, since it internally
-                            ironically converts from add_dimensions format into remove_dimensions format in both cases;
-                            lin2var already has the correct implementation that can handle the respective diff arrays,
-                            but as a stopgap transforms add_dimensions into remove_dimension format itself for the dim_remove case to be compatible to change_d
-                         *)
-          if add then
-            Environment.dimchange t.env new_env
-          else
-            Environment.dimchange new_env t.env
-        in
-        {d = Some (if add then RelDomain.dim_add dim_change m else RelDomain.dim_remove dim_change m ~del:del); env = new_env}
+        let dim_change2 = Environment.dimchange2 t.env new_env in
+        {
+          d = Some (RelDomain.dim_add (Option.get dim_change2.add) m );
+          env = new_env
+        }
 
-  let change_d t new_env ~add ~del = VectorMatrix.timing_wrap "dimension change" (fun del -> change_d t new_env ~add:add ~del:del) del
+  let dimchange2_remove t new_env =
+    if Environment.equal t.env new_env then
+      t
+    else
+      match t.d with
+      | None -> bot_env
+      | Some m ->
+        let dim_change2 = Environment.dimchange2 t.env new_env in
+        {
+          d = Some (RelDomain.dim_remove (Option.get dim_change2.remove) m);
+          env = new_env
+        }
 
   let vars x = Environment.ivars_only x.env
 
   let add_vars t vars =
     let t = copy t in
     let env' = Environment.add_vars t.env vars in
-    change_d t env' ~add:true ~del:false
+    dimchange2_add t env'
 
-  let add_vars t vars = VectorMatrix.timing_wrap "add_vars" (add_vars t) vars
+  let add_vars t vars = Vector.timing_wrap "add_vars" (add_vars t) vars
 
-  let drop_vars t vars ~del =
+  let remove_vars t vars =
     let t = copy t in
     let env' = Environment.remove_vars t.env vars in
-    change_d t env' ~add:false ~del:del
+    dimchange2_remove t env'
 
-  let drop_vars t vars = VectorMatrix.timing_wrap "drop_vars" (drop_vars t) vars
-
-  let remove_vars t vars = drop_vars t vars ~del:false
-
-  let remove_vars t vars = VectorMatrix.timing_wrap "remove_vars" (remove_vars t) vars
+  let remove_vars t vars = Vector.timing_wrap "remove_vars" (remove_vars t) vars
 
   let remove_vars_with t vars =
     let t' = remove_vars t vars in
@@ -400,9 +493,9 @@ struct
 
   let remove_filter t f =
     let env' = Environment.remove_filter t.env f in
-    change_d t env' ~add:false ~del:false
+    dimchange2_remove t env'
 
-  let remove_filter t f = VectorMatrix.timing_wrap "remove_filter" (remove_filter t) f
+  let remove_filter t f = Vector.timing_wrap "remove_filter" (remove_filter t) f
 
   let remove_filter_with t f =
     let t' = remove_filter t f in
@@ -412,16 +505,16 @@ struct
   let keep_filter t f =
     let t = copy t in
     let env' = Environment.keep_filter t.env f in
-    change_d t env' ~add:false ~del:false
+    dimchange2_remove t env'
 
-  let keep_filter t f = VectorMatrix.timing_wrap "keep_filter" (keep_filter t) f
+  let keep_filter t f = Vector.timing_wrap "keep_filter" (keep_filter t) f
 
   let keep_vars t vs =
     let t = copy t in
     let env' = Environment.keep_vars t.env vs in
-    change_d t env' ~add:false ~del:false
+    dimchange2_remove t env'
 
-  let keep_vars t vs = VectorMatrix.timing_wrap "keep_vars" (keep_vars t) vs
+  let keep_vars t vs = Vector.timing_wrap "keep_vars" (keep_vars t) vs
 
   let mem_var t var = Environment.mem_var t.env var
 
@@ -444,20 +537,7 @@ sig
   val eval_interval : Queries.ask -> t -> Texpr1.t -> Z.t option * Z.t option
 end
 
-module Tracked: RelationDomain.Tracked =
-struct
-  let is_pthread_int_type = function
-    | TNamed ({tname = ("pthread_t" | "pthread_key_t" | "pthread_once_t" | "pthread_spinlock_t"); _}, _) -> true (* on Linux these pthread types are integral *)
-    | _ -> false
-
-  let type_tracked typ =
-    isIntegralType typ && not (is_pthread_int_type typ)
-
-  let varinfo_tracked vi =
-    (* no vglob check here, because globals are allowed in relation, but just have to be handled separately *)
-    let hasTrackAttribute = List.exists (fun (Attr(s,_)) -> s = "goblint_relation_track") in
-    type_tracked vi.vtype && (not @@ GobConfig.get_bool "annotation.goblint_relation_track" || hasTrackAttribute vi.vattr)
-end
+module Tracked = RelationCil.Tracked
 
 module AssertionModule (V: SV) (AD: AssertionRelS) (Arg: ConvertArg) =
 struct
@@ -466,24 +546,17 @@ struct
   module Tracked = Tracked
   module Convert = Convert (V) (Bounds) (Arg) (Tracked)
 
-  let rec exp_is_constraint = function
-    (* constraint *)
-    | BinOp ((Lt | Gt | Le | Ge | Eq | Ne), _, _, _) -> true
-    | BinOp ((LAnd | LOr), e1, e2, _) -> exp_is_constraint e1 && exp_is_constraint e2
-    | UnOp (LNot,e,_) -> exp_is_constraint e
-    (* expression *)
-    | _ -> false
-
   (* TODO: move logic-handling assert_constraint from Apron back to here, after fixing affeq bot-bot join *)
 
   (** Assert any expression. *)
   let assert_inv ask d e negate no_ov =
     let e' =
-      if exp_is_constraint e then
+      if Cilfacade.exp_is_boolean e then
         e
       else
         (* convert non-constraint expression, such that we assert(e != 0) *)
         BinOp (Ne, e, zero, intType)
+        (* TODO: do this per non-constraint subexpression *)
     in
     assert_constraint ask d e' negate no_ov
 
@@ -511,8 +584,8 @@ struct
     | exception Invalid_argument _ ->
       ID.top () (* real top, not a top of any ikind because we don't even know the ikind *)
     | ik ->
-      if M.tracing then M.trace "relation" "eval_int: exp_is_constraint %a = %B" d_plainexp e (exp_is_constraint e);
-      if exp_is_constraint e then
+      if M.tracing then M.trace "relation" "eval_int: exp_is_constraint %a = %B" d_plainexp e (Cilfacade.exp_is_boolean e);
+      if Cilfacade.exp_is_boolean e then
         match check_assert ask d e no_ov with
         | `True -> ID.of_bool ik true
         | `False -> ID.of_bool ik false

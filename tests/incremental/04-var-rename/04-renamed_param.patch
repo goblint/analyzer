@@ -1,6 +1,7 @@
 --- tests/incremental/04-var-rename/04-renamed_param.c
 +++ tests/incremental/04-var-rename/04-renamed_param.c
 @@ -2,5 +2,5 @@
+ // CRAM
 -void method(int a) {
 -    int c = a;
 +void method(int b) {

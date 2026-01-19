@@ -13,7 +13,7 @@ sig
   val to_bool: t -> bool option
   val of_excl_list: Cil.ikind -> Z.t list -> t
   val is_excl_list: t -> bool
-  val to_excl_list: t -> (Z.t list * (int64 * int64)) option
+  val to_excl_list: t -> (Z.t list * (int * int)) option
 end
 
 module type OldSWithIkind =
@@ -23,9 +23,20 @@ sig
 end
 
 module type S = IntDomain.S with type int_t = Z.t
+module type S2 = IntDomain.S2 with type int_t = Z.t
+
+module MakeS2 (I: S): S2 =
+struct
+  include I
+
+  let of_int ?suppress_ovwarn ik x = of_int ik x
+  let starting ?suppress_ovwarn ik x = starting ik x
+  let ending ?suppress_ovwarn ik x = ending ik x
+  let of_interval ?suppress_ovwarn ik x = of_interval ik x
+end
 
 (* TODO: deduplicate with IntDomain, extension of IntDomWithDefaultIkind, inverse of OldDomainFacade? *)
-module WithIkind (I: S) (Ik: IntDomain.Ikind): OldSWithIkind =
+module WithIkind (I: S2) (Ik: IntDomain.Ikind): OldSWithIkind =
 struct
   include I
   module Ikind = Ik
@@ -81,7 +92,7 @@ struct
   let name () = "integerset"
 
   let lift1 = map
-  let lift2 f x y = BatList.cartesian_product (elements x) (elements y) |> List.map (Batteries.uncurry f) |> of_list
+  let lift2 f x y = GobList.cartesian_map f (elements x) (elements y) |> of_list
 
   let neg  = lift1 Base.neg
   let add  = lift2 Base.add

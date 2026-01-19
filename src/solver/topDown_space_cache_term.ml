@@ -2,7 +2,7 @@
     Simpler version of {!Td3} without incremental. *)
 
 open Batteries
-open ConstrSys
+open Goblint_constraint.ConstrSys
 open Messages
 
 module WP =
@@ -170,7 +170,7 @@ module WP =
         )
       in
       (* restore values for non-widening-points *)
-      if GobConfig.get_bool "solvers.wp.restore" then (
+      if GobConfig.get_bool "solvers.td3.space_restore" then (
         Logs.debug "Restoring missing values.";
         let restore () =
           let get x =
@@ -195,4 +195,4 @@ module WP =
   end
 
 let _ =
-  Selector.add_solver ("topdown_space_cache_term", (module PostSolver.EqIncrSolverFromEqSolver (WP)));
+  Selector.add_solver ("topdown_space_cache_term", (module PostSolver.DemandEqIncrSolverFromEqSolver (WP)));

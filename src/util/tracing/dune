@@ -4,7 +4,9 @@
  (name goblint_tracing)
  (public_name goblint.tracing)
  (libraries
+   goblint_parallel
    goblint_std
    goblint_logs
    goblint-cil
-   goblint_build_info))
+   goblint_build_info)
+ (instrumentation (backend bisect_ppx)))

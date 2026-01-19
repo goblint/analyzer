@@ -7,3 +7,5 @@ let from_fun f = make_map ~gen:f
 let force cache = cache.get ()
 
 let reset cache = cache.del ()
+
+let map f cache = from_fun (fun () -> f (force cache))

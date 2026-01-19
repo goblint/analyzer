@@ -1,10 +1,8 @@
 (** Deprecated top-down solver ([topdown_deprecated]). *)
 
 open Batteries
-open ConstrSys
+open Goblint_constraint.ConstrSys
 open Messages
-
-exception SolverCannotDoGlobals
 
 
 (** modified SLR3 as top down solver *)
@@ -93,7 +91,7 @@ module TD3 =
         HM.find rho y
       and sides x =
         let w = try HM.find set x with Not_found -> VS.empty in
-        let d = Enum.fold (fun d z -> try S.Dom.join d (HPM.find rho' (z,x)) with Not_found -> d) (S.Dom.bot ()) (VS.enum w) in
+        let d = VS.fold (fun z d -> try S.Dom.join d (HPM.find rho' (z,x)) with Not_found -> d) w (S.Dom.bot ()) in
         if tracing then trace "sol2" "sides %a ## %a" S.Var.pretty_trace x S.Dom.pretty d;
         d
       and side x y d =
@@ -163,4 +161,4 @@ module TD3 =
   end
 
 let _ =
-  Selector.add_solver ("topdown_deprecated", (module PostSolver.EqIncrSolverFromEqSolver (TD3)));
+  Selector.add_solver ("topdown_deprecated", (module PostSolver.DemandEqIncrSolverFromEqSolver (TD3)));

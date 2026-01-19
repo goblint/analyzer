@@ -6,6 +6,21 @@ open GobConfig
 
 module M = Messages
 
+let intmax_t = lazy (
+  let res = ref None in
+  GoblintCil.iterGlobals !Cilfacade.current_file (function
+      | GType ({tname = "intmax_t"; ttype; _}, _) ->
+        res := Some ttype;
+      | _ -> ()
+    );
+  !res
+)
+
+let stripOuterBoolCast = function
+  | CastE (_, TInt (IBool, _), e) -> e (* TODO: keep explicit cast? *)
+  | Const (CInt (b, IBool, s)) -> Const (CInt (b, IInt, s))
+  | e -> e
+
 (** C standard library functions.
     These are specified by the C standard. *)
 let c_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
@@ -139,13 +154,13 @@ let c_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("abs", special [__ "j" []] @@ fun j -> Math { fun_args = (Abs (IInt, j)) });
     ("labs", special [__ "j" []] @@ fun j -> Math { fun_args = (Abs (ILong, j)) });
     ("llabs", special [__ "j" []] @@ fun j -> Math { fun_args = (Abs (ILongLong, j)) });
-    ("imaxabs", unknown [drop "j" []]);
+    ("imaxabs", special [__ "j" []] @@ fun j -> Math { fun_args = (Abs (Cilfacade.get_ikind (Option.get (Lazy.force intmax_t)), j)) });
     ("localtime_r", unknown [drop "timep" [r]; drop "result" [w]]);
     ("strpbrk", unknown [drop "s" [r]; drop "accept" [r]]);
     ("_setjmp", special [__ "env" [w]] @@ fun env -> Setjmp { env }); (* only has one underscore *)
     ("setjmp", special [__ "env" [w]] @@ fun env -> Setjmp { env });
     ("longjmp", special [__ "env" [r]; __ "value" []] @@ fun env value -> Longjmp { env; value });
-    ("atexit", unknown [drop "function" [s]]);
+    ("atexit", unknown [drop "function" [if_ (fun () -> not (get_bool "sem.atexit.ignore")) s]]);
     ("atoi", unknown [drop "nptr" [r]]);
     ("atol", unknown [drop "nptr" [r]]);
     ("atoll", unknown [drop "nptr" [r]]);
@@ -339,7 +354,13 @@ let posix_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("pclose", unknown [drop "stream" [w; f]]);
     ("getcwd", unknown [drop "buf" [w]; drop "size" []]);
     ("inet_pton", unknown [drop "af" []; drop "src" [r]; drop "dst" [w]]);
+    ("__inet_pton_alias", unknown [drop "af" []; drop "src" [r]; drop "dst" [w]]);
+    ("__inet_pton_chk", unknown [drop "af" []; drop "src" [r]; drop "dst" [w]; drop "os" []]);
+    ("__inet_pton_chk_warn", unknown [drop "af" []; drop "src" [r]; drop "dst" [w]; drop "os" []]);
     ("inet_ntop", unknown [drop "af" []; drop "src" [r]; drop "dst" [w]; drop "size" []]);
+    ("__inet_ntop_alias", unknown [drop "af" []; drop "src" [r]; drop "dst" [w]; drop "size" []]);
+    ("__inet_ntop_chk", unknown [drop "af" []; drop "src" [r]; drop "dst" [w]; drop "size" []; drop "os" []]);
+    ("__inet_ntop_chk_warn", unknown [drop "af" []; drop "src" [r]; drop "dst" [w]; drop "size" []; drop "os" []]);
     ("gethostent", unknown ~attrs:[ThreadUnsafe] []);
     ("poll", unknown [drop "fds" [r]; drop "nfds" []; drop "timeout" []]);
     ("semget", unknown [drop "key" []; drop "nsems" []; drop "semflg" []]);
@@ -454,6 +475,7 @@ let pthread_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("pthread_create", special [__ "thread" [w]; drop "attr" [r]; __ "start_routine" [s]; __ "arg" []] @@ fun thread start_routine arg -> ThreadCreate { thread; start_routine; arg; multiple = false }); (* For precision purposes arg is not considered accessed here. Instead all accesses (if any) come from actually analyzing start_routine. *)
     ("pthread_exit", special [__ "retval" []] @@ fun retval -> ThreadExit { ret_val = retval }); (* Doesn't dereference the void* itself, but just passes to pthread_join. *)
     ("pthread_join", special [__ "thread" []; __ "retval" [w]] @@ fun thread retval -> ThreadJoin {thread; ret_var = retval});
+    ("pthread_once", special [__ "once_control" []; __ "init_routine" []] @@ fun once_control init_routine -> Once {once_control; init_routine});
     ("pthread_kill", unknown [drop "thread" []; drop "sig" []]);
     ("pthread_equal", unknown [drop "t1" []; drop "t2" []]);
     ("pthread_cond_init", unknown [drop "cond" [w]; drop "attr" [r]]);
@@ -504,12 +526,14 @@ let pthread_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("pthread_attr_setstacksize", unknown [drop "attr" [w]; drop "stacksize" []]);
     ("pthread_attr_getscope", unknown [drop "attr" [r]; drop "scope" [w]]);
     ("pthread_attr_setscope", unknown [drop "attr" [w]; drop "scope" []]);
-    ("pthread_self", unknown []);
+    ("pthread_self", special [] ThreadSelf);
     ("pthread_sigmask", unknown [drop "how" []; drop "set" [r]; drop "oldset" [w]]);
     ("pthread_setspecific", unknown ~attrs:[InvalidateGlobals] [drop "key" []; drop "value" [w_deep]]);
     ("pthread_getspecific", unknown ~attrs:[InvalidateGlobals] [drop "key" []]);
     ("pthread_key_create", unknown [drop "key" [w]; drop "destructor" [s]]);
     ("pthread_key_delete", unknown [drop "key" [f]]);
+    ("pthread_barrier_init", special [__ "barrier" []; __ "attr" []; __ "count" []] @@ fun barrier attr count -> BarrierInit {barrier; attr; count});
+    ("pthread_barrier_wait", special [__ "barrier" []] @@ fun barrier -> BarrierWait barrier);
     ("pthread_cancel", unknown [drop "thread" []]);
     ("pthread_testcancel", unknown []);
     ("pthread_setcancelstate", unknown [drop "state" []; drop "oldstate" [w]]);
@@ -629,6 +653,7 @@ let glibc_desc_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("ferror_unlocked", unknown [drop "stream" [r_deep; w_deep]]);
     ("fwrite_unlocked", unknown [drop "buffer" [r]; drop "size" []; drop "count" []; drop "stream" [r_deep; w_deep]]);
     ("clearerr_unlocked", unknown [drop "stream" [w]]); (* TODO: why only w? *)
+    ("__fpending", unknown [drop "stream" [r_deep]]);
     ("futimesat", unknown [drop "dirfd" []; drop "pathname" [r]; drop "times" [r]]);
     ("error", unknown ((drop "status" []) :: (drop "errnum" []) :: (drop "format" [r]) :: (VarArgs (drop' [r]))));
     ("warn", unknown (drop "format" [r] :: VarArgs (drop' [r])));
@@ -712,7 +737,7 @@ let linux_userspace_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("__errno", unknown []);
     ("__errno_location", unknown []);
     ("__h_errno_location", unknown []);
-    ("__printf_chk", unknown [drop "flag" []; drop "format" [r]]);
+    ("__printf_chk", unknown (drop "flag" [] :: drop "format" [r] :: VarArgs (drop' [r])));
     ("__fprintf_chk", unknown (drop "stream" [r_deep; w_deep] :: drop "flag" [] :: drop "format" [r] :: VarArgs (drop' [r])));
     ("__vfprintf_chk", unknown [drop "stream" [r_deep; w_deep]; drop "flag" []; drop "format" [r]; drop "ap" [r_deep]]);
     ("sysinfo", unknown [drop "info" [w_deep]]);
@@ -820,9 +845,9 @@ let linux_kernel_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
 (** Goblint functions. *)
 let goblint_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("__goblint_unknown", unknown [drop' [w]]);
-    ("__goblint_check", special [__ "exp" []] @@ fun exp -> Assert { exp; check = true; refine = false });
-    ("__goblint_assume", special [__ "exp" []] @@ fun exp -> Assert { exp; check = false; refine = true });
-    ("__goblint_assert", special [__ "exp" []] @@ fun exp -> Assert { exp; check = true; refine = get_bool "sem.assert.refine" });
+    ("__goblint_check", special [__ "exp" []] @@ fun exp -> Assert { exp = stripOuterBoolCast exp; check = true; refine = false });
+    ("__goblint_assume", special [__ "exp" []] @@ fun exp -> Assert { exp = stripOuterBoolCast exp; check = false; refine = true });
+    ("__goblint_assert", special [__ "exp" []] @@ fun exp -> Assert { exp = stripOuterBoolCast exp; check = true; refine = get_bool "sem.assert.refine" });
     ("__goblint_globalize", special [__ "ptr" []] @@ fun ptr -> Globalize ptr);
     ("__goblint_split_begin", unknown [drop "exp" []]);
     ("__goblint_split_end", unknown [drop "exp" []]);
@@ -1086,7 +1111,9 @@ let svcomp_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("__VERIFIER_nondet_loff_t", unknown []); (* cannot give it in sv-comp.c without including stdlib or similar *)
     ("__VERIFIER_nondet_int", unknown []);  (* declare invalidate actions to prevent invalidating globals when extern in regression tests *)
     ("__VERIFIER_nondet_size_t", unknown []); (* cannot give it in sv-comp.c without including stdlib or similar *)
+    ("__VERIFIER_nondet_memory", unknown [drop "mem" [w]; drop "size" []]); (* instead of using reference implementation from SV-COMP rules in sv-comp.c, this avoids supertop warnings *)
     ("__VERIFIER_assert", special [__ "exp" []] @@ fun exp -> Assert { exp; check = true; refine = get_bool "sem.assert.refine" }); (* only used if definition missing (e.g. in evalAssert transformed output) or extraspecial *)
+    ("reach_error", special [] @@ Abort); (* only used if definition missing (e.g. in evalAssert transformed output) or extraspecial *)
   ]
 [@@coverage off]
 
@@ -1277,7 +1304,7 @@ let reset_lazy () =
   ResettableLazy.reset activated_library_descs
 
 let lib_funs = ref (Set.String.of_list ["__raw_read_unlock"; "__raw_write_unlock"; "spin_trylock"])
-let add_lib_funs funs = lib_funs := List.fold_right Set.String.add funs !lib_funs
+let add_lib_funs funs = lib_funs := List.fold_left (Fun.flip Set.String.add) !lib_funs funs
 let use_special fn_name = Set.String.mem fn_name !lib_funs
 
 let kernel_safe_uncalled = Set.String.of_list ["__inittest"; "init_module"; "__exittest"; "cleanup_module"]
@@ -1287,7 +1314,7 @@ let is_safe_uncalled fn_name =
   List.exists (fun r -> Str.string_match r fn_name 0) kernel_safe_uncalled_regex
 
 
-let unknown_desc f : LibraryDesc.t =
+let unknown_desc f ~nowarn : LibraryDesc.t =
   let accs args : (LibraryDesc.Access.t * 'a list) list = [
     ({ kind = Read; deep = true; }, if GobConfig.get_bool "sem.unknown_function.read.args" then args else []);
     ({ kind = Write; deep = true; }, if GobConfig.get_bool "sem.unknown_function.invalidate.args" then args else []);
@@ -1303,7 +1330,7 @@ let unknown_desc f : LibraryDesc.t =
       []
   in
   (* TODO: remove hack when all classify are migrated *)
-  if not (CilType.Varinfo.equal f dummyFunDec.svar) && not (use_special f.vname) then (
+  if not nowarn && not (CilType.Varinfo.equal f dummyFunDec.svar) && not (use_special f.vname) then (
     M.msg_final Error ~category:Imprecise ~tags:[Category Unsound] "Function definition missing";
     M.error ~category:Imprecise ~tags:[Category Unsound] "Function definition missing for %s" f.vname
   );
@@ -1313,12 +1340,11 @@ let unknown_desc f : LibraryDesc.t =
     special = fun _ -> Unknown;
   }
 
-let find f =
+let find ?(nowarn=false) f =
   let name = f.vname in
   match Hashtbl.find_option (ResettableLazy.force activated_library_descs) name with
   | Some desc -> desc
-  | None -> unknown_desc f
-
+  | None -> unknown_desc ~nowarn f
 
 let is_special fv =
   if use_special fv.vname then

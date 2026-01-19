@@ -6,41 +6,45 @@ open Batteries
 open GoblintCil
 open MyCFG
 open Analyses
-open ConstrSys
+open Goblint_constraint.ConstrSys
+open Goblint_constraint.Translators
+open Goblint_constraint.SolverTypes
 open GobConfig
 open Constraints
+open SpecLifters
 
-module type S2S = functor (X : Spec) -> Spec
+module type S2S = Spec2Spec
 
 (* spec is lazy, so HConsed table in Hashcons lifters is preserved between analyses in server mode *)
 let spec_module: (module Spec) Lazy.t = lazy (
   GobConfig.building_spec := true;
-  let arg_enabled = get_bool "witness.graphml.enabled" || get_bool "exp.arg.enabled" in
+  let arg_enabled = get_bool "exp.arg.enabled" in
   let termination_enabled = List.mem "termination" (get_string_list "ana.activated") in (* check if loop termination analysis is enabled*)
-  let open Batteries in
   (* apply functor F on module X if opt is true *)
   let lift opt (module F : S2S) (module X : Spec) = (module (val if opt then (module F (X)) else (module X) : Spec) : Spec) in
   let module S1 =
     (val
       (module MCP.MCP2 : Spec)
-      |> lift (get_int "ana.context.gas_value" >= 0) (module ContextGasLifter)
+      |> lift (get_int "ana.context.gas_value" >= 0) (ContextGasLifter.get_gas_lifter ())
       |> lift true (module WidenContextLifterSide) (* option checked in functor *)
+      |> lift (get_int "ana.widen.delay.local" > 0) (module WideningDelay.DLifter)
       (* hashcons before witness to reduce duplicates, because witness re-uses contexts in domain and requires tag for PathSensitive3 *)
       |> lift (get_bool "ana.opt.hashcons" || arg_enabled) (module HashconsContextLifter)
+      |> lift (get_bool "ana.opt.hashcached") (module HashCachedContextLifter)
       |> lift arg_enabled (module HashconsLifter)
-      |> lift arg_enabled (module WitnessConstraints.PathSensitive3)
+      |> lift arg_enabled (module ArgConstraints.PathSensitive3)
       |> lift (not arg_enabled) (module PathSensitive2)
       |> lift (get_bool "ana.dead-code.branches") (module DeadBranchLifter)
       |> lift true (module DeadCodeLifter)
       |> lift (get_bool "dbg.slice.on") (module LevelSliceLifter)
-      |> lift (get_int "dbg.limit.widen" > 0) (module LimitLifter)
       |> lift (get_bool "ana.opt.equal" && not (get_bool "ana.opt.hashcons")) (module OptEqual)
       |> lift (get_bool "ana.opt.hashcons") (module HashconsLifter)
       (* Widening tokens must be outside of hashcons, because widening token domain ignores token sets for identity, so hashcons doesn't allow adding tokens.
          Also must be outside of deadcode, because deadcode splits (like mutex lock event) don't pass on tokens. *)
-      |> lift (get_bool "ana.widen.tokens") (module WideningTokens.Lifter)
-      |> lift true (module LongjmpLifter)
-      |> lift termination_enabled (module RecursionTermLifter) (* Always activate the recursion termination analysis, when the loop termination analysis is activated*)
+      |> lift (get_bool "ana.widen.tokens") (module WideningTokenLifter.Lifter)
+      |> lift true (module LongjmpLifter.Lifter)
+      |> lift termination_enabled (module RecursionTermLifter.Lifter) (* Always activate the recursion termination analysis, when the loop termination analysis is activated*)
+      |> lift (get_int "ana.widen.delay.global" > 0) (module WideningDelay.GLifter)
     )
   in
   GobConfig.building_spec := false;
@@ -54,7 +58,7 @@ let get_spec (): (module Spec) =
 
 let current_node_state_json : (Node.t -> Yojson.Safe.t option) ref = ref (fun _ -> None)
 
-let current_varquery_global_state_json: (VarQuery.t option -> Yojson.Safe.t) ref = ref (fun _ -> `Null)
+let current_varquery_global_state_json: (Goblint_constraint.VarQuery.t option -> Yojson.Safe.t) ref = ref (fun _ -> `Null)
 
 (** Given a [Cfg], a [Spec], and an [Inc], computes the solution to [MCP.Path] *)
 module AnalyzeCFG (Cfg:CfgBidirSkip) (Spec:Spec) (Inc:Increment) =
@@ -90,7 +94,7 @@ struct
   end
   module Slvr  = (GlobSolverFromEqSolver (Goblint_solver.Selector.Make (PostSolverArg))) (EQSys) (LHT) (GHT)
   (* The comparator *)
-  module CompareGlobSys = Constraints.CompareGlobSys (SpecSys)
+  module CompareGlobSys = CompareConstraints.CompareGlobSys (SpecSys)
 
   (* Triple of the function, context, and the local value. *)
   module RT = AnalysisResult.ResultType2 (Spec)
@@ -98,6 +102,7 @@ struct
   module LT = SetDomain.HeadlessSet (RT)
   (* Analysis result structure---a hashtable from program points to [LT] *)
   module Result = AnalysisResult.Result (LT) (struct let result_name = "analysis" end)
+  module ResultOutput = AnalysisResultOutput.Make (Result)
 
   module Query = ResultQuery.Query (SpecSys)
 
@@ -148,7 +153,7 @@ struct
       let open Cilfacade in
       let warn_for_upjumps fundec gotos =
         if FunSet.mem live_funs fundec then (
-          (* set nortermiantion flag *)
+          (* set nontermination flag *)
           AnalysisState.svcomp_may_not_terminate := true;
           (* iterate through locations to produce warnings *)
           LocSet.iter (fun l _ ->
@@ -243,7 +248,7 @@ struct
 
     AnalysisState.should_warn := false; (* reset for server mode *)
 
-    (* exctract global xml from result *)
+    (* extract global xml from result *)
     let make_global_fast_xml f g =
       let open Printf in
       let print_globals k v =
@@ -253,7 +258,7 @@ struct
     in
 
     (* add extern variables to local state *)
-    let do_extern_inits ctx (file : file) : Spec.D.t =
+    let do_extern_inits man (file : file) : Spec.D.t =
       let module VS = Set.Make (Basetype.Variables) in
       let add_glob s = function
           GVar (v,_,_) -> VS.add v s
@@ -261,7 +266,7 @@ struct
       in
       let vars = foldGlobals file add_glob VS.empty in
       let set_bad v st =
-        Spec.assign {ctx with local = st} (var v) MyCFG.unknown_exp
+        Spec.assign {man with local = st} (var v) MyCFG.unknown_exp
       in
       let is_std = function
         | {vname = ("__tzname" | "__daylight" | "__timezone"); _} (* unix time.h *)
@@ -294,13 +299,13 @@ struct
 
     (* analyze cil's global-inits function to get a starting state *)
     let do_global_inits (file: file) : Spec.D.t * fundec list =
-      let ctx =
+      let man =
         { ask     = (fun (type a) (q: a Queries.t) -> Queries.Result.top q)
         ; emit   = (fun _ -> failwith "Cannot \"emit\" in global initializer context.")
         ; node    = MyCFG.dummy_node
         ; prev_node = MyCFG.dummy_node
-        ; control_context = (fun () -> ctx_failwith "Global initializers have no context.")
-        ; context = (fun () -> ctx_failwith "Global initializers have no context.")
+        ; control_context = (fun () -> man_failwith "Global initializers have no context.")
+        ; context = (fun () -> man_failwith "Global initializers have no context.")
         ; edge    = MyCFG.Skip
         ; local   = Spec.D.top ()
         ; global  = (fun g -> EQSys.G.spec (getg (EQSys.GVar.spec g)))
@@ -317,11 +322,10 @@ struct
         if M.tracing then M.trace "con" "Initializer %a" CilType.Location.pretty loc;
         (*incr count;
           if (get_bool "dbg.verbose")&& (!count mod 1000 = 0)  then Printf.printf "%d %!" !count;    *)
-        Goblint_tracing.current_loc := loc;
         match edge with
         | MyCFG.Entry func        ->
           if M.tracing then M.trace "global_inits" "Entry %a" d_lval (var func.svar);
-          Spec.body {ctx with local = st} func
+          Spec.body {man with local = st} func
         | MyCFG.Assign (lval,exp) ->
           if M.tracing then M.trace "global_inits" "Assign %a = %a" d_lval lval d_exp exp;
           begin match lval, exp with
@@ -330,18 +334,26 @@ struct
               (try funs := Cilfacade.find_varinfo_fundec f :: !funs with Not_found -> ())
             | _ -> ()
           end;
-          let res = Spec.assign {ctx with local = st} lval exp in
+          let res = Spec.assign {man with local = st} lval exp in
           (* Needed for privatizations (e.g. None) that do not side immediately *)
-          let res' = Spec.sync {ctx with local = res} `Normal in
+          let res' = Spec.sync {man with local = res} `Normal in
           if M.tracing then M.trace "global_inits" "\t\t -> state:%a" Spec.D.pretty res;
           res'
         | _                       -> failwith "Unsupported global initializer edge"
       in
-      let with_externs = do_extern_inits ctx file in
+      let transfer_func st (loc, edge) =
+        let old_loc = !Goblint_tracing.current_loc in
+        Goblint_tracing.current_loc := loc;
+        (* TODO: next_loc? *)
+        Goblint_backtrace.protect ~mark:(fun () -> Constraints.TfLocation loc) ~finally:(fun () ->
+            Goblint_tracing.current_loc := old_loc;
+          ) (fun () ->
+            transfer_func st (loc, edge)
+          )
+      in
+      let with_externs = do_extern_inits man file in
       (*if (get_bool "dbg.verbose") then Printf.printf "Number of init. edges : %d\nWorking:" (List.length edges);    *)
-      let old_loc = !Goblint_tracing.current_loc in
       let result : Spec.D.t = List.fold_left transfer_func with_externs edges in
-      Goblint_tracing.current_loc := old_loc;
       if M.tracing then M.trace "global_inits" "startstate: %a" Spec.D.pretty result;
       result, !funs
     in
@@ -400,12 +412,12 @@ struct
 
     let enter_with st fd =
       let st = st fd.svar in
-      let ctx =
+      let man =
         { ask     = (fun (type a) (q: a Queries.t) -> Queries.Result.top q)
         ; emit   = (fun _ -> failwith "Cannot \"emit\" in enter_with context.")
         ; node    = MyCFG.dummy_node
         ; prev_node = MyCFG.dummy_node
-        ; control_context = (fun () -> ctx_failwith "enter_with has no control_context.")
+        ; control_context = (fun () -> man_failwith "enter_with has no control_context.")
         ; context = Spec.startcontext
         ; edge    = MyCFG.Skip
         ; local   = st
@@ -416,7 +428,7 @@ struct
         }
       in
       let args = List.map (fun x -> MyCFG.unknown_exp) fd.sformals in
-      let ents = Spec.enter ctx None fd args in
+      let ents = Spec.enter man None fd args in
       List.map (fun (_,s) -> fd, s) ents
     in
 
@@ -432,13 +444,13 @@ struct
 
     let exitvars = List.map (enter_with Spec.exitstate) exitfuns in
     let otherstate st v =
-      let ctx =
+      let man =
         { ask     = (fun (type a) (q: a Queries.t) -> Queries.Result.top q)
         ; emit   = (fun _ -> failwith "Cannot \"emit\" in otherstate context.")
         ; node    = MyCFG.dummy_node
         ; prev_node = MyCFG.dummy_node
-        ; control_context = (fun () -> ctx_failwith "enter_func has no context.")
-        ; context = (fun () -> ctx_failwith "enter_func has no context.")
+        ; control_context = (fun () -> man_failwith "enter_func has no context.")
+        ; context = (fun () -> man_failwith "enter_func has no context.")
         ; edge    = MyCFG.Skip
         ; local   = st
         ; global  = (fun g -> EQSys.G.spec (getg (EQSys.GVar.spec g)))
@@ -448,7 +460,7 @@ struct
         }
       in
       (* TODO: don't hd *)
-      List.hd (Spec.threadenter ctx ~multiple:false None v [])
+      List.hd (Spec.threadenter man ~multiple:false None v [])
       (* TODO: do threadspawn to mainfuns? *)
     in
     let prestartstate = Spec.startstate MyCFG.dummy_func.svar in (* like in do_extern_inits *)
@@ -459,12 +471,12 @@ struct
 
     AnalysisState.global_initialization := false;
 
-    let ctx e =
+    let man e =
       { ask     = (fun (type a) (q: a Queries.t) -> Queries.Result.top q)
       ; emit   = (fun _ -> failwith "Cannot \"emit\" in enter_with context.")
       ; node    = MyCFG.dummy_node
       ; prev_node = MyCFG.dummy_node
-      ; control_context = (fun () -> ctx_failwith "enter_with has no control_context.")
+      ; control_context = (fun () -> man_failwith "enter_with has no control_context.")
       ; context = Spec.startcontext
       ; edge    = MyCFG.Skip
       ; local   = e
@@ -476,12 +488,12 @@ struct
     in
     let startvars' =
       if get_bool "exp.forward" then
-        List.map (fun (n,e) -> (MyCFG.FunctionEntry n, Spec.context (ctx e) n e)) startvars
+        List.map (fun (n,e) -> (MyCFG.FunctionEntry n, Spec.context (man e) n e)) startvars
       else
-        List.map (fun (n,e) -> (MyCFG.Function n, Spec.context (ctx e) n e)) startvars
+        List.map (fun (n,e) -> (MyCFG.Function n, Spec.context (man e) n e)) startvars
     in
 
-    let entrystates = List.map (fun (n,e) -> (MyCFG.FunctionEntry n, Spec.context (ctx e) n e), e) startvars in
+    let entrystates = List.map (fun (n,e) -> (MyCFG.FunctionEntry n, Spec.context (man e) n e), e) startvars in
     let entrystates_global = GHT.to_list gh in
 
     let uncalled_dead = ref 0 in
@@ -502,8 +514,8 @@ struct
           match compare_runs with
           | d1::d2::[] -> (* the directories of the runs *)
             if d1 = d2 then Logs.warn "Beware that you are comparing a run with itself! There should be no differences.";
-            (* instead of rewriting Compare for EqConstrSys, just transform unmarshaled EqConstrSys solutions to GlobConstrSys soltuions *)
-            let module Splitter = GlobConstrSolFromEqConstrSol (EQSys) (LHT) (GHT) in
+            (* instead of rewriting Compare for EqConstrSys, just transform unmarshaled EqConstrSys solutions to GlobConstrSys solutions *)
+            let module Splitter = GlobConstrSolFromEqConstrSol (EQSys: DemandGlobConstrSys) (LHT) (GHT) in
             let module S2 = Splitter.S2 in
             let module VH = Splitter.VH in
             let (r1, r1'), (r2, r2') = Tuple2.mapn (fun d ->
@@ -521,15 +533,15 @@ struct
             if get_bool "dbg.compare_runs.globsys" then
               CompareGlobSys.compare (d1, d2) r1 r2;
 
-            let module CompareEqSys = Constraints.CompareEqSys (S2) (VH) in
+            let module CompareEqSys = CompareConstraints.CompareEqSys (EqConstrSysFromDemandConstrSys (S2) ) (VH) in
             if get_bool "dbg.compare_runs.eqsys" then
               CompareEqSys.compare (d1, d2) r1' r2';
 
-            let module CompareGlobal = Constraints.CompareGlobal (EQSys.GVar) (EQSys.G) (GHT) in
+            let module CompareGlobal = CompareConstraints.CompareGlobal (EQSys.GVar) (EQSys.G) (GHT) in
             if get_bool "dbg.compare_runs.global" then
               CompareGlobal.compare (d1, d2) (snd r1) (snd r2);
 
-            let module CompareNode = Constraints.CompareNode (Spec.C) (EQSys.D) (LHT) in
+            let module CompareNode = CompareConstraints.CompareNode (Spec.C) (EQSys.D) (LHT) in
             if get_bool "dbg.compare_runs.node" then
               CompareNode.compare (d1, d2) (fst r1) (fst r2);
 
@@ -570,7 +582,9 @@ struct
             end
             in
             (* Yojson.Safe.to_file meta Meta.json; *)
-            Yojson.Safe.pretty_to_channel (Stdlib.open_out (Fpath.to_string meta)) Meta.json; (* the above is compact, this is pretty-printed *)
+            Out_channel.with_open_text (Fpath.to_string meta) (fun oc ->
+                Yojson.Safe.pretty_to_channel oc Meta.json (* the above is compact, this is pretty-printed *)
+              );
             if gobview then (
               Logs.Format.debug "Saving the analysis table to %a, the CIL state to %a, the warning table to %a, and the runtime stats to %a" Fpath.pp analyses Fpath.pp cil Fpath.pp warnings Fpath.pp stats;
               Serialize.marshal MCPRegistry.registered_name analyses;
@@ -584,7 +598,7 @@ struct
       in
 
       if get_string "comparesolver" <> "" then (
-        let compare_with (module S2 : GenericEqIncrSolver) =
+        let compare_with (module S2 : DemandEqIncrSolver) =
           let module PostSolverArg2 =
           struct
             include PostSolverArg
@@ -641,7 +655,7 @@ struct
            Join abstract values once per location and once per node. *)
         let joined_by_loc, joined_by_node =
           let open Enum in
-          let node_values = LHT.enum lh |> map (Tuple2.map1 fst) in (* drop context from key *)
+          let node_values = LHT.enum lh |> map (Tuple2.map1 fst) in (* drop context from key *) (* nosemgrep: batenum-enum *)
           let hashtbl_size = if fast_count node_values then count node_values else 123 in
           let by_loc, by_node = Hashtbl.create hashtbl_size, NodeH.create hashtbl_size in
           iter (fun (node, v) ->
@@ -749,7 +763,7 @@ struct
     in
 
     if get_bool "exp.cfgdot" then
-      CfgTools.dead_code_cfg (module FileCfg) liveness;
+      CfgTools.dead_code_cfg ~path:(Fpath.v "cfgs") (module FileCfg) liveness;
 
     let warn_global g v =
       (* Logs.debug "warn_global %a %a" EQSys.GVar.pretty_trace g EQSys.G.pretty v; *)
@@ -777,13 +791,10 @@ struct
         end
         in
         let module ArgDot = ArgTools.Dot (Arg) (NoLabelNodeStyle) in
-        let oc = Batteries.open_out arg_dot_path in
-        Fun.protect (fun () ->
-            let ppf = Format.formatter_of_out_channel oc in
+        Out_channel.with_open_text arg_dot_path (fun oc ->
+            let ppf = Stdlib.Format.formatter_of_out_channel oc in
             ArgDot.dot ppf;
             Format.pp_print_flush ppf ()
-          ) ~finally:(fun () ->
-            Batteries.close_out oc
           )
       );
       ArgTools.current_arg := Some (module Arg);
@@ -799,15 +810,19 @@ struct
         None
     in
 
-    if get_bool "ana.sv-comp.enabled" then (
-      (* SV-COMP and witness generation *)
-      let module WResult = Witness.Result (R) in
-      WResult.write yaml_validate_result entrystates
-    );
+    let svcomp_result =
+      if get_bool "ana.sv-comp.enabled" then (
+        (* SV-COMP and witness generation *)
+        let module WResult = Witness.Result (R) in
+        Some (WResult.write yaml_validate_result entrystates)
+      )
+      else
+        None
+    in
 
     if get_bool "witness.yaml.enabled" then (
       let module YWitness = YamlWitness.Make (R) in
-      YWitness.write ()
+      YWitness.write ~svcomp_result
     );
 
     let marshal = Spec.finalize () in
@@ -825,7 +840,7 @@ struct
     if get_string "result" <> "none" then Logs.debug "Generating output: %s" (get_string "result");
 
     Messages.finalize ();
-    Timing.wrap "result output" (Result.output (lazy local_xml) gh make_global_fast_xml) file
+    Timing.wrap "result output" (ResultOutput.output (lazy local_xml) liveness gh make_global_fast_xml) (module FileCfg)
 end
 
 (* This function was originally a part of the [AnalyzeCFG] module, but

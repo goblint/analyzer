@@ -2,7 +2,7 @@
     Simpler version of {!SLRphased} without phases. *)
 
 open Batteries
-open ConstrSys
+open Goblint_constraint.ConstrSys
 open Messages
 open SLR
 
@@ -49,13 +49,13 @@ module SLR3term =
       let count  = ref 0 in
       let count_side  = ref (max_int - 1) in
 
-      let () = print_solver_stats := fun () ->
+      print_solver_stats := (fun () ->
           Logs.info "wpoint: %d, rho: %d, rho': %d, q: %d, count: %d, count_side: %d" (HM.length wpoint) (HM.length rho) (HPM.length rho') (H.size !q) (Int.neg !count) (max_int - !count_side);
           let histo = Hashtbl.create 13 in (* histogram: node id -> number of contexts *)
           HM.iter (fun k _ -> Hashtbl.modify_def 1 (S.Var.var_id k) ((+)1) histo) rho;
           let vid,n = Hashtbl.fold (fun k v (k',v') -> if v > v' then k,v else k',v') histo (Obj.magic (), 0) in
           Logs.info "max #contexts: %d for var_id %s" n vid
-      in
+        );
 
       let init ?(side=false) x =
         if not (HM.mem rho x) then begin
@@ -69,7 +69,7 @@ module SLR3term =
       in
       let sides x =
         let w = try HM.find set x with Not_found -> VS.empty in
-        let v = Enum.fold (fun d z -> try S.Dom.join d (HPM.find rho' (z,x)) with Not_found -> d) (S.Dom.bot ()) (VS.enum w) in
+        let v = VS.fold (fun z d -> try S.Dom.join d (HPM.find rho' (z,x)) with Not_found -> d) w (S.Dom.bot ()) in
         if tracing then trace "sol" "SIDES: Var: %a\nVal: %a" S.Var.pretty_trace x S.Dom.pretty v; v
       in
       let rec iterate b_old prio =
@@ -180,7 +180,7 @@ module SLR3term =
           HM.replace rho x val_new;
           let w = try HM.find infl x with Not_found -> VS.empty in
           (* let w = if wpx then VS.add x w else w in *)
-          q := Enum.fold (fun x y -> H.add y x) !q (VS.enum w);
+          q := VS.fold H.add w !q;
           HM.replace infl x VS.empty
         end;
         b_new
@@ -224,4 +224,4 @@ module SLR3term =
   end
 
 let _ =
-  Selector.add_solver ("slr3t", (module PostSolver.EqIncrSolverFromEqSolver (SLR3term))); (* same as S2 but number of W-points may also shrink + terminating? *)
+  Selector.add_solver ("slr3t", (module PostSolver.DemandEqIncrSolverFromEqSolver (SLR3term))); (* same as S2 but number of W-points may also shrink + terminating? *)

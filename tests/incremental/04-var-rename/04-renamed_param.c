@@ -1,4 +1,5 @@
 // function param is renamed (no semantic changes)
+// CRAM
 void method(int a) {
     int c = a;
 }

@@ -14,24 +14,70 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os:
-          - ubuntu-latest
-          - macos-13
-        ocaml-compiler:
-          - 5.2.x
-          - 5.1.x
-          - 5.0.x
-          - ocaml-variants.4.14.0+options,ocaml-option-flambda
-          - 4.14.x
-        apron:
-          - false
-          - true
-        z3:
-          - false
-
+        # We don't want a full matrix because it is too slow, so we only have linear axes overriding these below.
         include:
-          - os: ubuntu-latest
+          # Common configuration
+          - os: ubuntu-24.04
+            ocaml-compiler: ocaml-variants.4.14.2+options,ocaml-option-flambda # matches opam lock file
+            apron: true
+            z3: false
+
+          # OCaml versions
+          - os: ubuntu-24.04
+            ocaml-compiler: 5.4.x
+            apron: true
+            z3: false
+          - os: ubuntu-24.04
+            ocaml-compiler: 5.3.x
+            apron: true
+            z3: false
+          - os: ubuntu-24.04
+            ocaml-compiler: 5.2.x
+            apron: true
+            z3: false
+          - os: ubuntu-24.04
+            ocaml-compiler: 5.1.x
+            apron: true
+            z3: false
+          - os: ubuntu-24.04
+            ocaml-compiler: 5.0.x
+            apron: true
+            z3: false
+          - os: ubuntu-24.04
             ocaml-compiler: 4.14.x
+            apron: true
+            z3: false
+
+          # OS-s
+          - os: ubuntu-22.04
+            ocaml-compiler: ocaml-variants.4.14.2+options,ocaml-option-flambda # matches opam lock file
+            apron: true
+            z3: false
+          - os: macos-26
+            ocaml-compiler: ocaml-variants.4.14.2+options,ocaml-option-flambda # matches opam lock file
+            apron: true
+            z3: false
+          - os: macos-15-intel
+            ocaml-compiler: ocaml-variants.4.14.2+options,ocaml-option-flambda # matches opam lock file
+            apron: true
+            z3: false
+          - os: macos-15
+            ocaml-compiler: ocaml-variants.4.14.2+options,ocaml-option-flambda # matches opam lock file
+            apron: true
+            z3: false
+          - os: macos-14
+            ocaml-compiler: ocaml-variants.4.14.2+options,ocaml-option-flambda # matches opam lock file
+            apron: true
+            z3: false
+
+          # Optional dependencies
+          - os: ubuntu-24.04
+            ocaml-compiler: ocaml-variants.4.14.2+options,ocaml-option-flambda # matches opam lock file
+            apron: false
+            z3: false
+          - os: ubuntu-24.04
+            ocaml-compiler: ocaml-variants.4.14.2+options,ocaml-option-flambda # matches opam lock file
+            apron: true
             z3: true
 
     # customize name to use readable string for apron instead of just a boolean
@@ -42,32 +88,30 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Set up OCaml ${{ matrix.ocaml-compiler }}
-        uses: ocaml/setup-ocaml@v2
+        uses: ocaml/setup-ocaml@v3
         with:
           ocaml-compiler: ${{ matrix.ocaml-compiler }}
-          opam-depext-flags: --with-test # doesn't work (https://github.com/ocaml/opam/issues/5836)
 
-      - name: Install graph-easy # TODO: remove if depext --with-test works
-        if: ${{ matrix.os == 'ubuntu-latest' }}
+      - name: Install graph-easy # TODO: remove if depext --with-test works (https://github.com/ocaml/opam/issues/5836)
+        if: ${{ startsWith(matrix.os, 'ubuntu') }}
         run: sudo apt install -y libgraph-easy-perl
 
       - name: Install dependencies
         run: opam install . --deps-only --with-test
 
+      - name: Install os gem for operating system detection
+        run: sudo gem install os
+
       - name: Install Apron dependencies
         if: ${{ matrix.apron }}
-        run: |
-          opam depext apron
-          opam install apron mlgmpidl.1.2.15
+        run: opam install apron mlgmpidl
 
       - name: Install Z3 dependencies
         if: ${{ matrix.z3 }}
-        run: |
-          opam depext z3
-          opam install z3
+        run: opam install z3
 
       - name: Build
         run: ./make.sh nat
@@ -82,58 +126,44 @@ jobs:
         run: ruby scripts/update_suite.rb -m
 
   lower-bounds-downgrade:
-    # use external 0install solver to downgrade: https://github.com/ocaml-opam/opam-0install-solver
-    # TODO: will be built in in opam 2.2: https://github.com/ocaml/opam/pull/4909
-
     strategy:
       fail-fast: false
       matrix:
         os:
           - ubuntu-latest
-          - macos-13
+          - macos-latest
         ocaml-compiler:
-          - ocaml-variants.4.14.0+options,ocaml-option-flambda # matches opam lock file, downgrade deps step
+          - ocaml-variants.4.14.2+options,ocaml-option-flambda # matches opam lock file
 
     name: lower-bounds (${{ matrix.os }}, ${{ matrix.ocaml-compiler }}, downgrade)
 
     runs-on: ${{ matrix.os }}
 
-    env:
-      OPAMCONFIRMLEVEL: unsafe-yes # allow opam depext to yes package manager prompts
-
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Set up OCaml ${{ matrix.ocaml-compiler }}
-        uses: ocaml/setup-ocaml@v2
+        uses: ocaml/setup-ocaml@v3
         with:
           ocaml-compiler: ${{ matrix.ocaml-compiler }}
-          opam-depext-flags: --with-test # doesn't work (https://github.com/ocaml/opam/issues/5836)
 
-      - name: Install graph-easy # TODO: remove if depext --with-test works
-        if: ${{ matrix.os == 'ubuntu-latest' }}
+      - name: Install graph-easy # TODO: remove if depext --with-test works (https://github.com/ocaml/opam/issues/5836)
+        if: ${{ startsWith(matrix.os, 'ubuntu') }}
         run: sudo apt install -y libgraph-easy-perl
 
       - name: Install dependencies
         run: opam install . --deps-only --with-test
 
+      - name: Install os gem for operating system detection
+        run: sudo gem install os
+
       - name: Install Apron dependencies
-        run: |
-          opam depext apron
-          opam install apron mlgmpidl.1.2.15
-
-      - name: Build
-        if: ${{ false }}
-        run: ./make.sh nat
-
-      - name: Install opam-0install
-        run: opam install opam-0install
+        run: opam install apron mlgmpidl
 
       - name: Downgrade dependencies
-        # must specify ocaml-base-compiler again to prevent it from being downgraded
-        # prevent num downgrade to avoid dune/jbuilder error: https://github.com/ocaml/dune/issues/5280
-        run: opam install $(opam exec -- opam-0install --prefer-oldest goblint ocaml-variants.4.14.0+options ocaml-option-flambda num.1.5)
+        # without "+removed" in criteria, because it also removes optional apron
+        run: opam install --solver=builtin-0install --criteria="+count[version-lag,solution]" . --deps-only --with-test
 
       - name: Build
         run: ./make.sh nat
@@ -147,74 +177,36 @@ jobs:
       - name: Test marshal regression # not part of @runtest due to time
         run: ruby scripts/update_suite.rb -m
 
-  lower-bounds-docker:
-    # use builtin-0install solver to remove and downgrade, opam normally compiled without, Docker images have it compiled
-
-    if: ${{ false }}
-
-    name: lower-bounds (docker)
-
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3 # needed for GitHub Actions Cache in build-push-action
-
-      - name: Build dev Docker image
-        id: build
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          target: dev
-          load: true # load into docker instead of immediately pushing
-          tags: dev
-          cache-from: type=gha
-          cache-to: type=gha,mode=max # max mode caches all layers for multi-stage image
-
-      - name: Run opam downgrade and tests in dev Docker image
-        uses: addnab/docker-run-action@v3
-        with:
-          image: dev
-          run: |
-            OPAMCRITERIA=+removed,+count[version-lag,solution] OPAMEXTERNALSOLVER=builtin-0install opam-2.1 install . --deps-only --with-test --confirm-level=unsafe-yes
-            opam exec -- dune runtest
-
   opam-install:
     strategy:
       fail-fast: false
       matrix:
         os:
           - ubuntu-latest
-          - macos-13
+          - macos-latest
         ocaml-compiler:
-          - ocaml-variants.4.14.0+options,ocaml-option-flambda # matches opam lock file
+          - ocaml-variants.4.14.2+options,ocaml-option-flambda # matches opam lock file
 
     runs-on: ${{ matrix.os }}
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Set up OCaml ${{ matrix.ocaml-compiler }}
-        uses: ocaml/setup-ocaml@v2
+        uses: ocaml/setup-ocaml@v3
         with:
           ocaml-compiler: ${{ matrix.ocaml-compiler }}
-          opam-depext-flags: --with-test # doesn't work (https://github.com/ocaml/opam/issues/5836)
 
-      - name: Install graph-easy # TODO: remove if depext --with-test works
-        if: ${{ matrix.os == 'ubuntu-latest' }}
+      - name: Install graph-easy # TODO: remove if depext --with-test works (https://github.com/ocaml/opam/issues/5836)
+        if: ${{ startsWith(matrix.os, 'ubuntu') }}
         run: sudo apt install -y libgraph-easy-perl
 
       - name: Install Goblint with test
         run: opam install goblint --with-test
 
       - name: Install Apron dependencies
-        run: |
-          opam depext apron
-          opam install apron mlgmpidl.1.2.15
+        run: opam install apron mlgmpidl
 
       - name: Symlink installed goblint to repository # because tests want to use locally built one
         run: ln -s $(opam exec -- which goblint) goblint
@@ -245,10 +237,56 @@ jobs:
         run: ruby scripts/update_suite.rb group apron-mukherjee -s
 
       - name: Test marshal regression
-        run: ruby scripts/update_suite.rb -m
+        run: ruby scripts/update_suite.rb -m -s
 
       - name: Test incremental regression
-        run: ruby scripts/update_suite.rb -i
+        run: ruby scripts/update_suite.rb -i -s
 
       - name: Test incremental regression with cfg comparison
-        run: ruby scripts/update_suite.rb -c
+        run: ruby scripts/update_suite.rb -c -s
+
+  gobview:
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-latest
+        ocaml-compiler:
+          - ocaml-variants.5.0.0+options,ocaml-option-flambda
+        node-version:
+          - 14
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Set up OCaml ${{ matrix.ocaml-compiler }}
+        uses: ocaml/setup-ocaml@v3
+        with:
+          ocaml-compiler: ${{ matrix.ocaml-compiler }}
+
+      - name: Set up Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v6
+        with:
+          node-version: ${{ matrix.node-version }}
+
+      - name: Install dependencies
+        run: opam install . --deps-only
+
+      - name: Setup Gobview
+        run: ./make.sh setup_gobview
+
+      - name: Build
+        run: ./make.sh nat
+
+      - name: Build Gobview
+        run: ./make.sh view
+
+      - name: Install selenium
+        run: pip3 install selenium webdriver-manager
+
+      - name: Test Gobview
+        run: |
+          python3 scripts/test-gobview.py

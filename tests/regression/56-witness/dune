@@ -21,10 +21,13 @@
      (run %{update_suite} hh-ex3 -q)
      (run %{update_suite} bh-ex1-poly -q)
      (run %{update_suite} apron-unassume-precheck -q)
-     (run %{update_suite} apron-tracked-global-annot -q)))))
+     (run %{update_suite} apron-tracked-global-annot -q)
+     (run %{update_suite} apron-unassume-no-strengthening -q)
+     (run %{update_suite} apron-unassume-set-tokens -q)
+     (run %{update_suite} apron-unassume-extra-trivial -q)))))
 
 (cram
- (deps (glob_files *.c) (glob_files ??-*.yml)))
+ (deps (glob_files *.c) (glob_files ??-*.yml) (glob_files strip-ghost-alloc.sh)))
 
 (cram
  (applies_to 54-witness-lifter-abortUnless)

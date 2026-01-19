@@ -177,7 +177,8 @@ struct
     in
     let x_list = HS.elements x in
     let y_list = HS.elements y in
-    List.concat_map (fun xss -> List.map (fun yss -> (xss, yss)) y_list) x_list
+    (* TODO: GobList.cartesian_filter_map? or just Seq? *)
+    BatList.cartesian_product x_list y_list
     |> List.filter (fun (ssx, ssy) -> maps_overlap ssx ssy)
     |> List.map (fun (ssx, ssy) -> f ssx ssy)
     |> HS.of_list
@@ -195,7 +196,7 @@ struct
   let widen_with_fct f =
     let product_widen op a b = (* assumes b to be bigger than a *) (* from HS.product_widen *)
       let xs,ys = HS.elements a, HS.elements b in
-      List.concat_map (fun x -> List.map (fun y -> op x y) ys) xs |> fun x -> HS.of_list (List.append x ys)
+      GobList.cartesian_map op xs ys |> fun x -> HS.of_list (List.append x ys)
     in
     product_widen (fun x y -> if SS.leq x y then (SS.widen_with_fct f) x y else SS.bot ())
 
@@ -269,18 +270,16 @@ struct
         match rem_fields with
         | [] -> second_choice
         | h::t -> begin
-            match (h.ftype, get_bool "ana.base.structs.key.prefer-ptrs", get_bool "ana.base.structs.key.avoid-ints") with
+            match Cil.unrollType h.ftype, get_bool "ana.base.structs.key.prefer-ptrs", get_bool "ana.base.structs.key.avoid-ints" with
             | (TPtr (_, _), _, _) -> h
-            | (TInt (_, _), true, _)
-            | (TInt (_, _), _, true) -> first_appropriate_key t second_choice
-            | (TInt (_, _), _, _) -> h
+            | ((TInt _ | TEnum _), true, _)
+            | ((TInt _ | TEnum _), _, true) -> first_appropriate_key t second_choice
+            | ((TInt _ | TEnum _), _, _) -> h
             | (_, false, _) -> h
             | (_, _, false) -> first_appropriate_key t second_choice
             | (_, _, _) ->
-              let second = match second_choice.ftype with
-                | TInt (_,_) -> h
-                | _ -> second_choice
-              in first_appropriate_key t second
+              let second = if Cil.isIntegralType second_choice.ftype then h else second_choice in
+              first_appropriate_key t second
           end
       in Some (first_appropriate_key fields (List.hd fields))
 
@@ -369,7 +368,7 @@ struct
       let ((sx, kx), (sy, ky)) = (x, y) in
       let x_list = HS.elements sx in
       let y_list = HS.elements sy in
-      let s = List.concat_map (fun xss -> List.map (fun yss -> (xss, yss)) y_list) x_list
+      let s = BatList.cartesian_product x_list y_list (* TODO: GobList.cartesian_filter_map? or just Seq? *)
               |> List.filter (fun (ssx, ssy) -> maps_overlap ssx ssy)
               |> List.map (fun (ssx, ssy) -> f ssx ssy)
               |> HS.of_list
@@ -397,7 +396,7 @@ struct
   let widen_with_fct f (x, kx) (y, ky) =
     let product_widen op a b = (* assumes b to be bigger than a *) (* from HS.product_widen *)
       let xs,ys = HS.elements a, HS.elements b in
-      List.concat_map (fun x -> List.map (op x) ys) xs |> fun x -> HS.of_list (List.append x ys)
+      GobList.cartesian_map op xs ys |> fun x -> HS.of_list (List.append x ys)
     in
     let s = product_widen (fun x y -> if SS.leq x y then (SS.widen_with_fct f) x y else SS.bot ()) x y
     in reduce_key (s, take_some_key kx ky s)
@@ -503,8 +502,8 @@ struct
   let chosen_domain () = get_string "ana.base.structs.domain"
 
   let pick_combined setting (comp: compinfo) =
-    let all_bool () = List.for_all (fun f -> match f.ftype with TInt(IBool, _) -> true | _ -> false) comp.cfields in
-    let has_ptr () = List.exists (fun f -> match f.ftype with TPtr(_, _) -> true | _ -> false) comp.cfields in
+    let all_bool () = List.for_all (fun f -> Cilfacade.isBoolType f.ftype) comp.cfields in
+    let has_ptr () = List.exists (fun f -> Cil.isPointerType f.ftype) comp.cfields in
     match setting with
     | "combined-sk" -> if has_ptr () then "keyed" else "simple"
     | "combined-all" ->

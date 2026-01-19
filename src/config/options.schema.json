@@ -79,9 +79,9 @@
     "result": {
       "title": "result",
       "description":
-        "Result style: none, fast_xml, json, pretty, json-messages, sarif.",
+        "Result style: none, fast_xml, json, pretty, pretty-deterministic, json-messages, sarif, dashboard.",
       "type": "string",
-      "enum": ["none", "fast_xml", "json", "pretty", "json-messages", "sarif"],
+      "enum": ["none", "fast_xml", "g2html", "xslt", "json", "pretty", "pretty-deterministic", "json-messages", "sarif", "dashboard"],
       "default": "none"
     },
     "solver": {
@@ -116,12 +116,6 @@
       "type": "string",
       "enum": ["auto", "always", "never"],
       "default": "auto"
-    },
-    "g2html": {
-      "title": "g2html",
-      "description": "Run g2html.jar on the generated xml.",
-      "type": "boolean",
-      "default": false
     },
     "save_run": {
       "title": "save_run",
@@ -170,6 +164,20 @@
       "description": "Directory used for intermediate data.",
       "type": "string",
       "default": ".goblint"
+    },
+    "std": {
+      "title": "std",
+      "type": "string",
+      "description": "Specify the c standard used for preprocessing and parsing.",
+      "default": "gnu11",
+      "enum": [
+        "c89", "c90",
+        "gnu89", "gnu90",
+        "c99", "c9x",
+        "gnu99", "gnu9x",
+        "c11", "c1x",
+        "gnu11", "gnu1x"
+      ]
     },
     "pre": {
       "title": "Preprocessing",
@@ -276,13 +284,6 @@
           },
           "additionalProperties": false
         },
-        "cstd": {
-          "title": "cil.cstd",
-          "type": "string",
-          "description": "Specify the c standard used for parsing.",
-          "default": "c99",
-          "enum": ["c90", "c99", "c11"]
-        },
         "gnu89inline": {
           "title": "cil.gnu89inline",
           "type": "boolean",
@@ -352,7 +353,7 @@
           "description": "List of path-sensitive analyses",
           "type": "array",
           "items": { "type": "string" },
-          "default": [ "mutex", "malloc_null", "uninit", "expsplit","activeSetjmp","memLeak" ]
+          "default": [ "mutex", "malloc_null", "uninit", "expsplit", "activeSetjmp", "memLeak", "branchSet"]
         },
         "ctx_insens": {
           "title": "ana.ctx_insens",
@@ -411,6 +412,13 @@
               "title": "ana.int.enums",
               "description":
                 "Use IntDomain.Enums: Inclusion/Exclusion sets. Go to top on arithmetic operations (except for some easy cases, e.g. multiplication with 0). Joins on widen, i.e. precise integers as long as not derived from arithmetic expressions.",
+              "type": "boolean",
+              "default": false
+            },
+            "bitfield": {
+              "title": "ana.int.bitfield",
+              "description":
+                "Use IntDomain.Bitfield: Bitfield domain for integers.",
               "type": "boolean",
               "default": false
             },
@@ -506,6 +514,13 @@
               "type": "boolean",
               "default": true
             },
+            "hashcached": {
+              "title": "ana.opt.hashcached",
+              "description":
+                "Should we try to save memory and speed up equality by caching hashes of contexts? This is useful when hashconsing is off",
+              "type": "boolean",
+              "default": false
+            },
             "equal": {
               "title": "ana.opt.equal",
               "description":
@@ -534,8 +549,7 @@
                 "type": "string",
                 "enum": [
                   "congruence",
-                  "singleThreaded",
-                  "specification",
+                  "reduceAnalyses",
                   "mallocWrappers",
                   "noRecursiveIntervals",
                   "enums",
@@ -545,14 +559,15 @@
                   "octagon",
                   "wideningThresholds",
                   "memsafetySpecification",
+                  "concurrencySafetySpecification",
+                  "noOverflows",
                   "termination",
                   "tmpSpecialAnalysis"
                 ]
               },
               "default": [
                 "congruence",
-                "singleThreaded",
-                "specification",
+                "reduceAnalyses",
                 "mallocWrappers",
                 "noRecursiveIntervals",
                 "enums",
@@ -561,6 +576,8 @@
                 "octagon",
                 "wideningThresholds",
                 "memsafetySpecification",
+                "concurrencySafetySpecification",
+                "noOverflows",
                 "termination",
                 "tmpSpecialAnalysis"
               ]
@@ -637,6 +654,12 @@
                   "title": "ana.base.context.interval_set",
                   "description":
                     "Integer values of the IntervalSet domain in function contexts.",
+                  "type": "boolean",
+                  "default": true
+                },
+                "bitfield": {
+                  "title": "ana.base.context.bitfield",
+                  "description": "Bitfield values in function contexts.",
                   "type": "boolean",
                   "default": true
                 }
@@ -759,15 +782,29 @@
             "privatization": {
               "title": "ana.base.privatization",
               "description":
-                "Which privatization to use? none/mutex-oplus/mutex-meet/mutex-meet-tid/protection/protection-read/mine/mine-nothread/mine-W/mine-W-noinit/lock/lock-tid/write/write-tid/write+lock/write+lock-tid",
+                "Which privatization to use? none/vojdani/mutex-oplus/mutex-meet/mutex-meet-tid/protection/protection-read/mine/mine-nothread/mine-W/mine-W-noinit/lock/lock-tid/write/write-tid/write+lock/write+lock-tid",
               "type": "string",
-              "enum": ["none", "mutex-oplus", "mutex-meet", "protection", "protection-tid", "protection-atomic", "protection-read", "protection-read-tid", "protection-read-atomic", "mine", "mine-nothread", "mine-W", "mine-W-noinit", "lock", "lock-tid", "write", "write-tid", "write+lock", "write+lock-tid", "mutex-meet-tid"],
+              "enum": ["none", "vojdani", "mutex-oplus", "mutex-meet", "protection", "protection-tid", "protection-atomic", "protection-read", "protection-read-tid", "protection-read-atomic", "mine", "mine-nothread", "mine-W", "mine-W-noinit", "lock", "lock-tid", "write", "write-tid", "write+lock", "write+lock-tid", "mutex-meet-tid"],
               "default": "protection-read"
             },
             "priv": {
               "title": "ana.base.priv",
               "type": "object",
               "properties": {
+                "protection": {
+                  "title": "ana.base.priv.protection",
+                  "description": "Options for protection based privatization schemes.",
+                  "type": "object",
+                  "properties": {
+                    "changes-only": {
+                      "title": "ana.base.priv.protection.changes-only",
+                      "description": "Only propagate changes to globals on unlock, don't side the full value of the privatized global.",
+                      "type": "boolean",
+                      "default": false
+                    }
+                  },
+                  "additionalProperties": false
+                },
                 "not-started": {
                   "title": "ana.base.priv.not-started",
                   "description":
@@ -795,6 +832,18 @@
                   "type": "boolean",
                   "default": true
                 },
+                "local": {
+                  "title": "ana.base.invariant.local",
+                  "description": "Keep local variables in invariants",
+                  "type": "boolean",
+                  "default": true
+                },
+                "global": {
+                  "title": "ana.base.invariant.global",
+                  "description": "Keep global variables in invariants",
+                  "type": "boolean",
+                  "default": true
+                },
                 "blobs": {
                   "title": "ana.base.invariant.blobs",
                   "description": "Whether to dump assertions about all blobs. Enabling this option may lead to unsound asserts.",
@@ -807,6 +856,20 @@
                   "type": "string",
                   "enum": ["once", "fixpoint"],
                   "default": "once"
+                },
+                "int": {
+                  "title": "ana.base.invariant.int",
+                  "type": "object",
+                  "properties": {
+                    "simplify": {
+                      "title": "ana.base.invariant.int.simplify",
+                      "description": "How much to simplify int domain invariants. Value \"int\" only simplifies definite integers. Without int domain refinement \"all\" might not be maximally precise.",
+                      "type": "string",
+                      "enum": ["none", "int", "all"],
+                      "default": "all"
+                    }
+                  },
+                  "additionalProperties": false
                 }
               },
               "additionalProperties": false
@@ -984,6 +1047,14 @@
               "type": "integer",
               "default": -1
             },
+            "gas_scope": {
+              "title": "ana.context.gas_scope",
+              "description":
+                "Whether the gas should be  'global' (default) or per 'function'",
+              "type": "string",
+              "enum": ["global","function"],
+              "default": "global"
+            },
             "callString_length": {
               "title": "ana.context.callString_length",
               "description": "Length of the call string that should be used as context for the call_string and/or call_site analyses. In case the value is zero, the analysis is context-insensitive. For a negative value, an infinite call string is used! For this option to have an effect, one of the analyses in `callstring.ml` must be activated.",
@@ -1126,6 +1197,58 @@
               "description": "Delay widenings using widening tokens.",
               "type": "boolean",
               "default": false
+            },
+            "delay": {
+              "title": "ana.widen.delay",
+              "type": "object",
+              "properties": {
+                "local": {
+                  "title": "ana.widen.delay.local",
+                  "description": "Delay local constraint unknown widenings by count.",
+                  "type": "integer",
+                  "default": 0
+                },
+                "global": {
+                  "title": "ana.widen.delay.global",
+                  "description": "Delay global constraint unknown widenings by count.",
+                  "type": "integer",
+                  "default": 0
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "additionalProperties": false
+        },
+        "c2po": {
+          "title": "ana.c2po",
+          "type": "object",
+          "properties": {
+            "askbase": {
+              "title": "ana.c2po.askbase",
+              "description": "If true, the C-2PO Analysis uses the MayPointTo query to infer additional disequalities.",
+              "type": "boolean",
+              "default": true
+            },
+            "join_algorithm": {
+              "title": "ana.c2po.join_algorithm",
+              "description": "Which join algorithm 'c2po' should use. Values: 'partition' (default): the more efficient version, it uses only the partition to compute the join. Circular equalities are lost during the join; 'precise': a more precise version, uses the automaton to compute the join.",
+              "type": "string",
+              "enum": [
+                "precise",
+                "partition"
+              ],
+              "default": "partition"
+            },
+            "equal": {
+              "title": "ana.c2po.equal",
+              "description": "Which equal algorithm 'c2po' should use. Values: 'partition' (default): it compares the partitions each time; 'normal_form': computes a normal form of the domain to compare them. It is lazily computed. The two possibilities are equivalent in precision, but in some cases computing the normal form is more efficient, as it is computed only once per distinct domain element.",
+              "type": "string",
+              "enum": [
+                "normal_form",
+                "partition"
+              ],
+              "default": "partition"
             }
           },
           "additionalProperties": false
@@ -1139,6 +1262,39 @@
               "description": "Check if invariant contradicts reached state before unassuming.",
               "type": "boolean",
               "default": false
+            }
+          },
+          "additionalProperties": false
+        },
+        "var_eq": {
+          "title": "ana.var_eq",
+          "type": "object",
+          "properties": {
+            "invariant": {
+              "title": "ana.var_eq.invariant",
+              "type": "object",
+              "properties": {
+                "enabled": {
+                  "title": "ana.var_eq.invariant.enabled",
+                  "description": "Generate var_eq analysis invariants",
+                  "type": "boolean",
+                  "default": true
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "additionalProperties": false
+        },
+        "affeq": {
+          "title": "ana.affeq",
+          "type": "object",
+          "properties": {
+            "sparse": {
+              "title": "ana.affeq.sparse",
+              "description": "Use sparse implementation of Affine Equality analysis (using lists). If set to false, the dense version is used (using arrays). Default is true (sparse implementation)",
+              "type": "boolean",
+              "default": true
             }
           },
           "additionalProperties": false
@@ -1489,9 +1645,16 @@
             "fail": {
               "title": "sem.malloc.fail",
               "description":
-                "Consider the case where malloc or calloc fails.",
+                "Consider the case where malloc or calloc fails when called with an argument other than zero. For the case of zero, see `sem.malloc.zero`.",
               "type": "boolean",
               "default": false
+            },
+            "zero": {
+              "title": "sem.malloc.zero",
+              "description": "What happens when allocating zero bytes? 'null': Return null pointer, 'pointer': Return a pointer to valid memory of size 0, 'either': Consider both cases.",
+              "type": "string",
+              "enum": ["null", "pointer","either"],
+              "default": "either"
             }
           },
           "additionalProperties": false
@@ -1519,6 +1682,19 @@
               "description": "Standard assert refines state",
               "type": "boolean",
               "default": true
+            }
+          },
+          "additionalProperties": false
+        },
+        "atexit": {
+          "title": "sem.atexit",
+          "type": "object",
+          "properties": {
+            "ignore": {
+              "title": "sem.atexit.ignore",
+              "description": "Ignore atexit callbacks (unsound).",
+              "type": "boolean",
+              "default": false
             }
           },
           "additionalProperties": false
@@ -1561,6 +1737,26 @@
           "description": "Output filename for transformations that output a transformed file.",
           "type":"string",
           "default": "transformed.c"
+        },
+        "assert" : {
+          "title": "trans.assert",
+          "type": "object",
+          "properties": {
+            "function": {
+              "title": "trans.assert.function",
+              "description": "Function to use for assertions in output.",
+              "type": "string",
+              "enum": ["assert", "__goblint_check", "__VERIFIER_assert"],
+              "default": "__VERIFIER_assert"
+            },
+            "wrap-atomic": {
+              "title": "trans.assert.wrap-atomic",
+              "description": "Wrap assertions in __VERIFIER_atomic_begin and __VERIFIER_atomic_end.",
+              "type": "boolean",
+              "default": true
+            }
+          },
+          "additionalProperties": false
         }
       },
       "additionalProperties": false
@@ -1612,7 +1808,7 @@
             "type": "array",
             "items": {
               "type": "string",
-              "enum": ["base.no-non-ptr", "base.non-ptr", "base.no-int", "base.int", "base.no-interval", "base.no-interval_set","base.interval", "base.interval_set","relation.no-context", "relation.context", "no-widen", "widen"]
+              "enum": ["base.no-non-ptr", "base.non-ptr", "base.no-int", "base.int", "base.no-interval", "base.no-interval_set", "base.no-bitfield", "base.interval", "base.interval_set", "base.bitfield", "relation.no-context", "relation.context", "no-widen", "widen"]
             },
             "default": []
           }
@@ -1828,6 +2024,26 @@
               "type": "boolean",
               "default": false
             },
+            "id": {
+              "title": "exp.arg.id",
+              "description": "Which ARG node IDs to use? node/enumerate",
+              "type": "string",
+              "enum": ["node", "enumerate"],
+              "default": "node"
+            },
+            "uncil": {
+              "title": "exp.arg.uncil",
+              "description":
+                "Try to undo CIL control flow transformations in ARG",
+              "type": "boolean",
+              "default": false
+            },
+            "stack": {
+              "title": "exp.arg.stack",
+              "description": "Construct stacktrace-based ARG nodes",
+              "type": "boolean",
+              "default": false
+            },
             "dot": {
               "title": "exp.arg.dot",
               "description": "ARG output as .dot file",
@@ -1979,31 +2195,10 @@
           },
           "additionalProperties": false
         },
-        "limit": {
-          "title": "dbg.limit",
-          "type": "object",
-          "properties": {
-            "widen": {
-              "title": "dbg.limit.widen",
-              "description":
-                "Limit for number of widenings per node (0 = no limit).",
-              "type": "integer",
-              "default": 0
-            }
-          },
-          "additionalProperties": false
-        },
         "warn_with_context": {
           "title": "dbg.warn_with_context",
           "description":
             "Keep warnings for different contexts apart (currently only done for asserts).",
-          "type": "boolean",
-          "default": false
-        },
-        "regression": {
-          "title": "dbg.regression",
-          "description":
-            "Only output warnings for assertions that have an unexpected result (no comment, comment FAIL, comment UNKNOWN)",
           "type": "boolean",
           "default": false
         },
@@ -2106,6 +2301,12 @@
         "full-output": {
           "title": "dbg.full-output",
           "description": "Output abstract values, etc. with full internal details, without readability-oriented simplifications.",
+          "type": "boolean",
+          "default": false
+        },
+        "termination-bounds": {
+          "title": "dbg.termination-bounds",
+          "description": "Output loop iteration bounds for terminating loops when termination analysis is activated.",
           "type": "boolean",
           "default": false
         }
@@ -2306,6 +2507,20 @@
               "enum": ["never", "always", "sides", "cycle", "unstable_called", "unstable_self", "sides-pp","sides-local"],
               "default": "sides"
             },
+            "side_widen_gas": {
+              "title": "solvers.td3.side_widen_gas",
+              "description":
+                "Delay widening globals through side-effects. With a widening gas of N, the solver will perform widening only once unknown has grown through side-effects N times and the widening condition according to the side_widen policy has been met. A value of 0 behaves as before the feature was introduced.",
+              "type": "integer",
+              "default": 0
+            },
+            "widen_gas": {
+              "title": "solvers.td3.widen_gas",
+              "description":
+                "Delay widening non-globals, i.e. unknowns with right hand sides. With a widening gas of N, the solver will perform widening only once unknown has grown N times. A value of 0 behaves as before the feature was introduced.",
+              "type": "integer",
+              "default": 0
+            },
             "space": {
               "title": "solvers.td3.space",
               "description":
@@ -2331,6 +2546,43 @@
               "description": "Reuse value when switching from widening to narrowing phase. Avoids one unnecessary re-evaluation.",
               "type": "boolean",
               "default": true
+            },
+            "narrow-globs": {
+              "title": "solvers.td3.narrow-globs",
+              "type": "object",
+              "properties": {
+                "enabled": {
+                  "title": "solvers.td3.narrow-globs.enabled",
+                  "description": "Individually track side-effects from different unknowns to enable narrowing of globals.",
+                  "type": "boolean",
+                  "default": false
+                },
+                "conservative-widen": {
+                  "title": "solvers.td3.narrow-globs.conservative-widen",
+                  "description": "Controls when to widen divided sides. true: Only widen on a side-effect, if joining would affect the overall value of the global. false: Always widen increasing/incomparable side-effects",
+                  "type": "boolean",
+                  "default": true
+                },
+                "immediate-growth": {
+                  "title": "solvers.td3.narrow-globs.immediate-growth",
+                  "description": "Controls when growing side-effects are applied. true: immediately when they are triggered. false: after the source unknown has been fully evaluated",
+                  "type": "boolean",
+                  "default": true
+                },
+                "narrow-gas": {
+                  "title": "solvers.td3.narrow-globs.narrow-gas",
+                  "description": "Limits the number of times a side-effect can switch from widening to narrowing to enforce termination. 0 disables narrowing, -1 allows narrowing infinitely often.",
+                  "type": "integer",
+                  "default": 5
+                },
+                "eliminate-dead": {
+                  "title": "solvers.td3.narrow-globs.eliminate-dead",
+                  "description": "side-effects that no longer occur are narrowed with bot.",
+                  "type": "boolean",
+                  "default": false
+                }
+              },
+              "additionalProperties": false
             },
             "remove-wpoint": {
               "title": "solvers.td3.remove-wpoint",
@@ -2375,6 +2627,19 @@
               "description": "Check TD3 data structure invariants",
               "type": "boolean",
               "default": false
+            },
+            "parallel_domains" :{
+              "title": "solvers.td3.parallel_domains",
+              "description": "Maximal number of Domains that the solver can use in parallel. Only applies, when a solver of the 'td_parallel_*' family is used. If left at -1, the value of jobs will be used.",
+              "type": "integer",
+              "default": -1
+            },
+            "weak-deps": {
+              "title": "solvers.td3.weak-deps",
+              "description": "Handling of weak dependencies from demand: 'none' - as normal dependencies, 'eager' - solve immediately, 'lazy' - solve at top level.",
+              "type": "string",
+              "enum": ["none", "eager", "lazy"],
+              "default": "none"
             }
           },
           "additionalProperties": false
@@ -2400,57 +2665,6 @@
       "title": "witness",
       "type": "object",
       "properties": {
-        "graphml": {
-          "title": "witness.graphml",
-          "type": "object",
-          "properties": {
-            "enabled": {
-              "title": "witness.graphml.enabled",
-              "description": "Output GraphML witness",
-              "type": "boolean",
-              "default": false
-            },
-            "path": {
-              "title": "witness.graphml.path",
-              "description": "GraphML witness output path",
-              "type": "string",
-              "default": "witness.graphml"
-            },
-            "id": {
-              "title": "witness.graphml.id",
-              "description": "Which witness node IDs to use? node/enumerate",
-              "type": "string",
-              "enum": ["node", "enumerate"],
-              "default": "node"
-            },
-            "minimize": {
-              "title": "witness.graphml.minimize",
-              "description": "Try to minimize the witness",
-              "type": "boolean",
-              "default": false
-            },
-            "uncil": {
-              "title": "witness.graphml.uncil",
-              "description":
-                "Try to undo CIL control flow transformations in witness",
-              "type": "boolean",
-              "default": false
-            },
-            "stack": {
-              "title": "witness.graphml.stack",
-              "description": "Construct stacktrace-based witness nodes",
-              "type": "boolean",
-              "default": true
-            },
-            "unknown": {
-              "title": "witness.graphml.unknown",
-              "description": "Output witness for unknown result",
-              "type": "boolean",
-              "default": true
-            }
-          },
-          "additionalProperties": false
-        },
         "invariant": {
           "title": "witness.invariant",
           "type": "object",
@@ -2537,6 +2751,13 @@
               "description": "Emit invariants with typedef-ed types (e.g. in casts). Our validator cannot parse these.",
               "type": "boolean",
               "default": true
+            },
+            "flow_insensitive-as": {
+              "title": "witness.invariant.flow_insensitive-as",
+              "description": "Emit flow-insensitive invariants as location invariants at certain locations.",
+              "type": "string",
+              "enum": ["invariant_set-flow_insensitive_invariant", "invariant_set-location_invariant"],
+              "default": "invariant_set-flow_insensitive_invariant"
             }
           },
           "additionalProperties": false
@@ -2551,15 +2772,22 @@
               "type": "boolean",
               "default": false
             },
+            "sv-comp-true-only": {
+              "title": "witness.yaml.sv-comp-true-only",
+              "description": "Only output YAML witness when SV-COMP result is \"true\".",
+              "type": "boolean",
+              "default": false
+            },
             "format-version": {
               "title": "witness.yaml.format-version",
               "description": "YAML witness format version",
               "type": "string",
               "enum": [
-                "0.1",
-                "2.0"
+                "2.0",
+                "2.1",
+                "2.1-goblint"
               ],
-              "default": "0.1"
+              "default": "2.1"
             },
             "entry-types": {
               "title": "witness.yaml.entry-types",
@@ -2568,21 +2796,12 @@
               "items": {
                 "type": "string",
                 "enum": [
-                  "location_invariant",
-                  "loop_invariant",
-                  "flow_insensitive_invariant",
-                  "precondition_loop_invariant",
-                  "loop_invariant_certificate",
-                  "precondition_loop_invariant_certificate",
-                  "invariant_set"
+                  "invariant_set",
+                  "violation_sequence",
+                  "ghost_instrumentation"
                 ]
               },
               "default": [
-                "location_invariant",
-                "loop_invariant",
-                "flow_insensitive_invariant",
-                "loop_invariant_certificate",
-                "precondition_loop_invariant_certificate",
                 "invariant_set"
               ]
             },
@@ -2594,7 +2813,8 @@
                 "type": "string",
                 "enum": [
                   "location_invariant",
-                  "loop_invariant"
+                  "loop_invariant",
+                  "flow_insensitive_invariant"
                 ]
               },
               "default": [
@@ -2616,19 +2836,13 @@
             },
             "strict": {
               "title": "witness.yaml.strict",
-              "description": "",
+              "description": "Fail YAML witness validation if there's an error/unsupported/disabled entry.",
               "type": "boolean",
               "default": false
             },
             "unassume": {
               "title": "witness.yaml.unassume",
               "description": "YAML witness input path",
-              "type": "string",
-              "default": ""
-            },
-            "certificate": {
-              "title": "witness.yaml.certificate",
-              "description": "YAML witness certificate output path",
               "type": "string",
               "default": ""
             }

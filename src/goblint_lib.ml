@@ -21,8 +21,8 @@ module CfgTools = CfgTools
     A dynamic composition of analyses is combined with CFGs to produce a constraint system. *)
 
 module Analyses = Analyses
-module ConstrSys = ConstrSys
 module Constraints = Constraints
+module CompareConstraints = CompareConstraints
 module AnalysisState = AnalysisState
 module AnalysisStateUtil = AnalysisStateUtil
 module ControlSpecC = ControlSpecC
@@ -48,7 +48,6 @@ module Events = Events
 
 module AnalysisResult = AnalysisResult
 module ResultQuery = ResultQuery
-module VarQuery = VarQuery
 
 (** {2 Configuration}
 
@@ -81,6 +80,7 @@ module LinearTwoVarEqualityAnalysis = LinearTwoVarEqualityAnalysis
 module VarEq = VarEq
 module CondVars = CondVars
 module TmpSpecial = TmpSpecial
+module C2poAnalysis = C2poAnalysis
 
 (** {2 Heap}
 
@@ -108,6 +108,7 @@ module MutexAnalysis = MutexAnalysis
 module MayLocks = MayLocks
 module SymbLocks = SymbLocks
 module Deadlock = Deadlock
+module MutexGhosts = MutexGhosts
 
 (** {3 Threads}
 
@@ -119,6 +120,7 @@ module ThreadAnalysis = ThreadAnalysis
 module ThreadJoins = ThreadJoins
 module MHPAnalysis = MHPAnalysis
 module ThreadReturn = ThreadReturn
+module ThreadDescendants = ThreadDescendants
 
 (** {3 Other} *)
 
@@ -127,7 +129,10 @@ module BasePriv = BasePriv
 module RelationPriv = RelationPriv
 module ThreadEscape = ThreadEscape
 module PthreadSignals = PthreadSignals
+module PthreadBarriers = PthreadBarriers
 module ExtractPthread = ExtractPthread
+module PthreadOnce = PthreadOnce
+module CreationLockset = CreationLockset
 
 (** {2 Longjmp}
 
@@ -156,6 +161,7 @@ module Callstring = Callstring
 module LoopfreeCallstring = LoopfreeCallstring
 module Uninit = Uninit
 module Expsplit = Expsplit
+module BranchSet = BranchSet
 module StackTrace = StackTrace
 
 (** {2 Helper}
@@ -169,6 +175,21 @@ module UnassumeAnalysis = UnassumeAnalysis
 module ExpRelation = ExpRelation
 module AbortUnless = AbortUnless
 module PtranalAnalysis = PtranalAnalysis
+module StartStateAnalysis = StartStateAnalysis
+module SingleThreadedLifter = SingleThreadedLifter
+
+
+(** {1 Analysis lifters}
+
+    Transformations of analyses into extended analyses. *)
+
+module SpecLifters = SpecLifters
+module LongjmpLifter = LongjmpLifter
+module RecursionTermLifter = RecursionTermLifter
+module ContextGasLifter = ContextGasLifter
+module WideningDelay = WideningDelay
+module WideningToken = WideningToken
+module WideningTokenLifter = WideningTokenLifter
 
 
 (** {1 Domains}
@@ -244,7 +265,15 @@ module ValueDomainQueries = ValueDomainQueries
 module RelationDomain = RelationDomain
 module ApronDomain = ApronDomain
 module AffineEqualityDomain = AffineEqualityDomain
+module AffineEqualityDenseDomain = AffineEqualityDenseDomain
 module LinearTwoVarEqualityDomain = LinearTwoVarEqualityDomain
+
+(** {5 2-Pointer Logic}
+
+    Domains for {!C2poAnalysis}. *)
+module CongruenceClosure = CongruenceClosure
+module UnionFind = UnionFind
+module C2poDomain = C2poDomain
 
 (** {3 Concurrency} *)
 
@@ -300,6 +329,7 @@ module CilMaps = CilMaps
 
 module Messages = Messages
 module Logs = Logs
+module Checks = Checks
 
 (** {2 Front-end}
 
@@ -310,10 +340,16 @@ module CompilationDatabase = CompilationDatabase
 module MakefileUtil = MakefileUtil
 module TerminationPreprocessing = TerminationPreprocessing
 
+(** {2 Results} *)
+
+module AnalysisResultOutput = AnalysisResultOutput
+module XsltResultOutput = XsltResultOutput
+
 (** {2 Witnesses}
 
     Witnesses are an exchangeable format for analysis results. *)
 
+module Witness = Witness
 module Svcomp = Svcomp
 module SvcompSpec = SvcompSpec
 
@@ -321,39 +357,39 @@ module Invariant = Invariant
 module InvariantCil = InvariantCil
 module WitnessUtil = WitnessUtil
 
-(** {3 GraphML}
-
-    Automaton-based GraphML witnesses used in SV-COMP. *)
-
-module MyARG = MyARG
-module WitnessConstraints = WitnessConstraints
-module ArgTools = ArgTools
-module Witness = Witness
-module Graphml = Graphml
-
 (** {3 YAML}
 
     Entry-based YAML witnesses to be used in SV-COMP. *)
 
 module YamlWitness = YamlWitness
 module YamlWitnessType = YamlWitnessType
-module WideningTokens = WideningTokens
-
-(** {3 Violation}
-
-    Experimental generation of violation witness automata or refinement with observer automata. *)
-
-module Violation = Violation
-module ViolationZ3 = ViolationZ3
-module ObserverAutomaton = ObserverAutomaton
-module ObserverAnalysis = ObserverAnalysis
-module Refinement = Refinement
+module YamlWitnessVersion = YamlWitnessVersion
+module WitnessGhost = WitnessGhost
 
 (** {2 SARIF} *)
 
 module Sarif = Sarif
 module SarifType = SarifType
 module SarifRules = SarifRules
+
+(** {2 ARG}
+
+    Abstract reachability graphs (ARGs).
+    Used to be for automaton-based GraphML witnesses used in SV-COMP, now for abstract debugging. *)
+
+module MyARG = MyARG
+module ArgConstraints = ArgConstraints
+module ArgTools = ArgTools
+
+(** {3 Violation}
+
+    Experimental refinement with observer automata. *)
+
+module Violation = Violation
+module ViolationZ3 = ViolationZ3
+module ObserverAutomaton = ObserverAutomaton
+module ObserverAnalysis = ObserverAnalysis
+module Refinement = Refinement
 
 
 (** {1 Transformations}
@@ -385,6 +421,7 @@ module Timeout = Timeout
 module TimeUtil = TimeUtil
 module MessageUtil = MessageUtil
 module AnsiColors = AnsiColors
+module CodeHighlighter = CodeHighlighter
 module XmlUtil = XmlUtil
 
 module GobExn = GobExn
@@ -395,6 +432,7 @@ module CilType = CilType
 module Cilfacade = Cilfacade
 module CilLocation = CilLocation
 module RichVarinfo = RichVarinfo
+module DuplicateVars = DuplicateVars
 
 module CilCfg = CilCfg
 module LoopUnrolling = LoopUnrolling
@@ -418,7 +456,16 @@ module BaseInvariant = BaseInvariant
 module CommonPriv = CommonPriv
 module WideningThresholds = WideningThresholds
 
-module VectorMatrix = VectorMatrix
+(* There might be a more elegant solution. *)
+module Vector = Vector
+module Matrix = Matrix
+module ArrayVector = ArrayVector
+module ArrayMatrix = ArrayMatrix
+module SparseVector = SparseVector
+module ListMatrix = ListMatrix
+module RatOps = RatOps
+
+module RelationCil = RelationCil
 module SharedFunctions = SharedFunctions
 module GobApron = GobApron
 

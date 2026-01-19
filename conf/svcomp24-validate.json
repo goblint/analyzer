@@ -10,7 +10,8 @@
       "interval": true
     },
     "float": {
-      "interval": true
+      "interval": true,
+      "evaluate_math_functions": true
     },
     "activated": [
       "base",
@@ -78,7 +79,7 @@
     "autotune": {
       "enabled": true,
       "activated": [
-        "singleThreaded",
+        "reduceAnalyses",
         "mallocWrappers",
         "noRecursiveIntervals",
         "enums",
@@ -108,19 +109,18 @@
     },
     "null-pointer": {
       "dereference": "assume_none"
+    },
+    "malloc": {
+      "fail": false,
+      "zero": "pointer"
     }
   },
   "witness": {
-    "graphml": {
-      "enabled": false
-    },
     "yaml": {
       "enabled": false,
       "strict": true,
       "format-version": "2.0",
       "entry-types": [
-        "location_invariant",
-        "loop_invariant",
         "invariant_set"
       ],
       "invariant-types": [

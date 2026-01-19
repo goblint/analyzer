@@ -95,6 +95,12 @@ sig
       On set abstractions this lists only canonical elements,
       not all subsumed elements. *)
 
+  val to_seq: t -> elt Seq.t
+  (** See {!Set.S.to_seq}.
+
+      On set abstractions this lists only canonical elements,
+      not all subsumed elements. *)
+
   val of_list: elt list -> t
 
   val min_elt: t -> elt
@@ -184,7 +190,7 @@ struct
     end
     )
 
-  let hash x = fold (fun x y -> y + Base.hash x) x 0
+  let hash x = fold (fun x y -> 13 * y + Base.hash x) x 0
 
   let relift x = map Base.relift x
 
@@ -332,6 +338,7 @@ struct
   let exists f = schema_default true (S.exists f)
   let filter f = schema (fun t -> `Lifted (S.filter f t)) "filter on `Top"
   let elements = schema S.elements "elements on `Top"
+  let to_seq = schema S.to_seq "to_seq on `Top"
   let of_list xs = `Lifted (S.of_list xs)
   let cardinal = schema S.cardinal "cardinal on `Top"
   let min_elt = schema S.min_elt "min_elt on `Top"
@@ -471,6 +478,7 @@ struct
   let mem e e' = E.leq e e'
   let choose e = e
   let elements e = [e]
+  let to_seq e = Seq.return e
   let remove e e' =
     if E.leq e' e then
       E.bot () (* NB! strong removal *)

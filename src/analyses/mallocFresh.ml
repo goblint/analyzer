@@ -26,38 +26,38 @@ struct
       ) ad -> D.empty ()
     | _ -> local
 
-  let assign ctx lval rval =
-    assign_lval (Analyses.ask_of_ctx ctx) lval ctx.local
+  let assign man lval rval =
+    assign_lval (Analyses.ask_of_man man) lval man.local
 
-  let combine_env ctx lval fexp f args fc au f_ask =
-    ctx.local (* keep local as opposed to IdentitySpec *)
+  let combine_env man lval fexp f args fc au f_ask =
+    man.local (* keep local as opposed to IdentitySpec *)
 
-  let combine_assign ctx lval f fd args context f_local (f_ask: Queries.ask) =
+  let combine_assign man lval f fd args context f_local (f_ask: Queries.ask) =
     match lval with
     | None -> f_local
-    | Some lval -> assign_lval (Analyses.ask_of_ctx ctx) lval f_local
+    | Some lval -> assign_lval (Analyses.ask_of_man man) lval f_local
 
-  let special ctx lval f args =
+  let special man lval f args =
     let desc = LibraryFunctions.find f in
-    let alloc_var on_stack =
-      match ctx.ask (AllocVar {on_stack = on_stack}) with
-      | `Lifted var -> D.add var ctx.local
-      | _ -> ctx.local
+    let alloc_var location =
+      match man.ask (AllocVar location) with
+      | `Lifted var -> D.add var man.local
+      | _ -> man.local
     in
     match desc.special args with
     | Malloc _
     | Calloc _
-    | Realloc _ -> alloc_var false
-    | Alloca _ -> alloc_var true
+    | Realloc _ -> alloc_var Heap
+    | Alloca _ -> alloc_var Stack
     | _ ->
       match lval with
-      | None -> ctx.local
-      | Some lval -> assign_lval (Analyses.ask_of_ctx ctx) lval ctx.local
+      | None -> man.local
+      | Some lval -> assign_lval (Analyses.ask_of_man man) lval man.local
 
-  let threadenter ctx ~multiple lval f args =
+  let threadenter man ~multiple lval f args =
     [D.empty ()]
 
-  let threadspawn ctx ~multiple lval f args fctx =
+  let threadspawn man ~multiple lval f args fman =
     D.empty ()
 
   module A =
@@ -67,10 +67,10 @@ struct
     let may_race f1 f2 = not (f1 || f2)
     let should_print f = f
   end
-  let access ctx (a: Queries.access) =
+  let access man (a: Queries.access) =
     match a with
     | Memory {var_opt = Some v; _} ->
-      D.mem v ctx.local
+      D.mem v man.local
     | _ ->
       false
 end

@@ -18,7 +18,7 @@ jobs:
         os:
           - ubuntu-latest
         ocaml-compiler:
-          - ocaml-variants.4.14.0+options,ocaml-option-flambda # matches opam lock file
+          - ocaml-variants.4.14.2+options,ocaml-option-flambda # matches opam lock file
           # don't add any other because they won't be used
 
     runs-on: ${{ matrix.os }}
@@ -28,24 +28,26 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Set up OCaml ${{ matrix.ocaml-compiler }}
         env:
           # otherwise setup-ocaml pins non-locked dependencies
           # https://github.com/ocaml/setup-ocaml/issues/166
           OPAMLOCKED: locked
-        uses: ocaml/setup-ocaml@v2
+        uses: ocaml/setup-ocaml@v3
         with:
           ocaml-compiler: ${{ matrix.ocaml-compiler }}
-          opam-depext-flags: --with-test # doesn't work (https://github.com/ocaml/opam/issues/5836)
 
-      - name: Install graph-easy # TODO: remove if depext --with-test works
-        if: ${{ matrix.os == 'ubuntu-latest' }}
+      - name: Install graph-easy # TODO: remove if depext --with-test works (https://github.com/ocaml/opam/issues/5836)
+        if: ${{ startsWith(matrix.os, 'ubuntu') }}
         run: sudo apt install -y libgraph-easy-perl
 
       - name: Install dependencies
         run: opam install . --deps-only --locked --with-test
+
+      - name: Install os gem for operating system detection
+        run: sudo gem install os
 
       - name: Install coverage dependencies
         run: opam install bisect_ppx
@@ -57,14 +59,18 @@ jobs:
         run: ./make.sh headers
 
       - name: Test
-        run: opam exec -- dune runtest --instrument-with bisect_ppx
+        env:
+          BISECT_FILE: ${{ github.workspace }}/_build/coverage/bisect
+        run: |
+          mkdir -p _build/coverage
+          opam exec -- dune runtest --force --instrument-with bisect_ppx
 
       - run: opam exec -- bisect-ppx-report send-to Coveralls
         env:
           COVERALLS_REPO_TOKEN: ${{ secrets.COVERALLS_REPO_TOKEN }}
           PULL_REQUEST_NUMBER: ${{ github.event.number }}
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         if: always()
         with:
           name: suite_result

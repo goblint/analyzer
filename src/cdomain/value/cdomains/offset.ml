@@ -23,7 +23,14 @@ struct
     let name () = "exp index"
 
     let any = Cilfacade.any_index_exp
-    let all = lazy (CastE (TInt (Cilfacade.ptrdiff_ikind (), []), mkString "all_index"))
+    let is_any = function
+      | CastE (_, TInt (ik, []), Const (CStr ("any_index", No_encoding))) when CilType.Ikind.equal ik (Cilfacade.ptrdiff_ikind ()) -> true
+      | _ -> false
+
+    let all = lazy (CastE (Explicit, TInt (Cilfacade.ptrdiff_ikind (), []), mkString "all_index"))
+    let is_all = function
+      | CastE (_, TInt (ik, []), Const (CStr ("all_index", No_encoding))) when CilType.Ikind.equal ik (Cilfacade.ptrdiff_ikind ()) -> true
+      | _ -> false
 
     (* Override output *)
     let pretty () x =
@@ -202,6 +209,8 @@ struct
     | `Index (_,o) -> `Index (Idx.top (), of_exp o)
     | `Field (f,o) -> `Field (f, of_exp o)
 
+  let eight = Z.of_int 8
+
   let to_index ?typ (offs: t): Idx.t =
     let idx_of_int x =
       Idx.of_int (Cilfacade.ptrdiff_ikind ()) (Z.of_int x)
@@ -211,22 +220,29 @@ struct
       | `Field (field, o) ->
         let field_as_offset = Field (field, NoOffset) in
         let bits_offset, _size = GoblintCil.bitsOffset (TComp (field.fcomp, [])) field_as_offset  in
-        let bits_offset = idx_of_int bits_offset in
+        let bits_offset = Z.of_int bits_offset in
+        (* Interval of floor and ceil division in case bitfield offset. *)
+        let bytes_offset = Idx.of_interval (Cilfacade.ptrdiff_ikind ()) Z.(fdiv bits_offset eight, cdiv bits_offset eight) in
         let remaining_offset = offset_to_index_offset ~typ:field.ftype o in
-        GobRef.wrap AnalysisState.executing_speculative_computations true @@ fun () -> Idx.add bits_offset remaining_offset
+        let@ () = GobRef.wrap AnalysisState.executing_speculative_computations true in
+        Idx.add bytes_offset remaining_offset
       | `Index (x, o) ->
-        let (item_typ, item_size_in_bits) =
+        let (item_typ, item_size_in_bytes) =
           match Option.map unrollType typ with
           | Some TArray(item_typ, _, _) ->
-            let item_size_in_bits = bitsSizeOf item_typ in
-            (Some item_typ, idx_of_int item_size_in_bits)
+            let item_size_in_bytes = Cilfacade.bytesSizeOf item_typ in
+            (Some item_typ, idx_of_int item_size_in_bytes)
           | _ ->
             (None, Idx.top ())
         in
         (* Binary operations on offsets should not generate overflow warnings in SV-COMP *)
-        let bits_offset = GobRef.wrap AnalysisState.executing_speculative_computations true @@ fun () -> Idx.mul item_size_in_bits x in
+        let bytes_offset =
+          let@ () = GobRef.wrap AnalysisState.executing_speculative_computations true in
+          Idx.mul item_size_in_bytes x
+        in
         let remaining_offset = offset_to_index_offset ?typ:item_typ o in
-        GobRef.wrap AnalysisState.executing_speculative_computations true @@ fun () -> Idx.add bits_offset remaining_offset
+        let@ () = GobRef.wrap AnalysisState.executing_speculative_computations true in
+        Idx.add bytes_offset remaining_offset
     in
     offset_to_index_offset ?typ offs
 

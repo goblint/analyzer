@@ -18,8 +18,8 @@ module M = Messages
     - heterogeneous environments: https://link.springer.com/chapter/10.1007%2F978-3-030-17184-1_26 (Section 4.1) *)
 
 let widening_thresholds_apron = ResettableLazy.from_fun (fun () ->
-    let t = if GobConfig.get_string "ana.apron.threshold_widening_constants" = "comparisons" then WideningThresholds.octagon_thresholds () else WideningThresholds.thresholds_incl_mul2 () in
-    let r = List.map (fun x -> Apron.Scalar.of_mpqf @@ Mpqf.of_mpz @@ Z_mlgmpidl.mpz_of_z x) t in
+    let t = if GobConfig.get_string "ana.apron.threshold_widening_constants" = "comparisons" then WideningThresholds.octagon_thresholds else WideningThresholds.thresholds_incl_mul2 in
+    let r = List.map Scalar.of_z (WideningThresholds.Thresholds.elements (ResettableLazy.force t)) in
     Array.of_list r
   )
 
@@ -283,7 +283,7 @@ struct
   let assign_exp_with ask nd v e no_ov =
     match Convert.texpr1_of_cil_exp ask nd (A.env nd) e no_ov with
     | texpr1 ->
-      if M.tracing then M.trace "apron" "assign_exp converted: %s" (Format.asprintf "%a" Texpr1.print texpr1);
+      if M.tracing then M.trace "apron" "assign_exp converted: %a" Texpr1.pretty texpr1;
       A.assign_texpr_with Man.mgr nd v texpr1 None
     | exception Convert.Unsupported_CilExp _ ->
       if M.tracing then M.trace "apron" "assign_exp unsupported";
@@ -295,27 +295,28 @@ struct
     (* partition assigns with supported and unsupported exps *)
     let (supported, unsupported) =
       ves
-      |> List.enum
-      |> Enum.map (Tuple2.map2 (fun e ->
+      |> List.to_seq
+      |> Seq.map (Tuple2.map2 (fun e ->
           match Convert.texpr1_of_cil_exp ask nd env e (Lazy.from_val no_ov) with
           | texpr1 -> Some texpr1
           | exception Convert.Unsupported_CilExp _ -> None
         ))
-      |> Enum.partition (fun (_, e_opt) -> Option.is_some e_opt)
+      |> Seq.memoize
+      |> Seq.partition (fun (_, e_opt) -> Option.is_some e_opt)
     in
     (* parallel assign supported *)
     let (supported_vs, texpr1s) =
       supported
-      |> Enum.map (Tuple2.map2 Option.get)
-      |> Enum.uncombine
-      |> Tuple2.map Array.of_enum Array.of_enum
+      |> Seq.map (Tuple2.map2 Option.get)
+      |> Seq.unzip
+      |> Tuple2.map Array.of_seq Array.of_seq
     in
     A.assign_texpr_array_with Man.mgr nd supported_vs texpr1s None;
     (* forget unsupported *)
     let unsupported_vs =
       unsupported
-      |> Enum.map fst
-      |> Array.of_enum
+      |> Seq.map fst
+      |> Array.of_seq
     in
     A.forget_array_with Man.mgr nd unsupported_vs false
 
@@ -328,10 +329,10 @@ struct
     let env = A.env nd in
     let (vs, texpr1s) =
       vv's
-      |> List.enum
-      |> Enum.map (Tuple2.map2 (Texpr1.var env))
-      |> Enum.uncombine
-      |> Tuple2.map Array.of_enum Array.of_enum
+      |> List.to_seq
+      |> Seq.map (Tuple2.map2 (Texpr1.var env))
+      |> Seq.unzip
+      |> Tuple2.map Array.of_seq Array.of_seq
     in
     A.assign_texpr_array_with Man.mgr nd vs texpr1s None
 
@@ -341,9 +342,9 @@ struct
     let vs = Array.of_list vs in
     let texpr1s =
       v's
-      |> List.enum
-      |> Enum.map (Texpr1.var env)
-      |> Array.of_enum
+      |> List.to_seq
+      |> Seq.map (Texpr1.var env)
+      |> Array.of_seq
     in
     A.assign_texpr_array Man.mgr d vs texpr1s None
 
@@ -360,27 +361,28 @@ struct
     (* partition substitutes with supported and unsupported exps *)
     let (supported, unsupported) =
       ves
-      |> List.enum
-      |> Enum.map (Tuple2.map2 (fun e ->
+      |> List.to_seq
+      |> Seq.map (Tuple2.map2 (fun e ->
           match Convert.texpr1_of_cil_exp ask nd env e no_ov with
           | texpr1 -> Some texpr1
           | exception Convert.Unsupported_CilExp _ -> None
         ))
-      |> Enum.partition (fun (_, e_opt) -> Option.is_some e_opt)
+      |> Seq.memoize
+      |> Seq.partition (fun (_, e_opt) -> Option.is_some e_opt)
     in
     (* parallel substitute supported *)
     let (supported_vs, texpr1s) =
       supported
-      |> Enum.map (Tuple2.map2 Option.get)
-      |> Enum.uncombine
-      |> Tuple2.map Array.of_enum Array.of_enum
+      |> Seq.map (Tuple2.map2 Option.get)
+      |> Seq.unzip
+      |> Tuple2.map Array.of_seq Array.of_seq
     in
     A.substitute_texpr_array_with Man.mgr nd supported_vs texpr1s None;
     (* forget unsupported *)
     let unsupported_vs =
       unsupported
-      |> Enum.map fst
-      |> Array.of_enum
+      |> Seq.map fst
+      |> Array.of_seq
     in
     A.forget_array_with Man.mgr nd unsupported_vs false
 
@@ -442,7 +444,7 @@ struct
   let invariant _ = []
 
   let show (x:t) =
-    Format.asprintf "%a (env: %a)" A.print x (Environment.print: Format.formatter -> Environment.t -> unit) (A.env x)
+    GobFormat.asprintf "%a (env: %a)" A.print x Environment.pp (A.env x)
   let pretty () (x:t) = text (show x)
 
   let equal x y =
@@ -451,10 +453,10 @@ struct
   let hash (x:t) =
     A.hash Man.mgr x
 
-  let compare (x:t) y: int =
-    (* there is no A.compare, but polymorphic compare should delegate to Abstract0 and Environment compare's implemented in Apron's C *)
-    Stdlib.compare x y
-  let printXml f x = BatPrintf.fprintf f "<value>\n<map>\n<key>\nconstraints\n</key>\n<value>\n%s</value>\n<key>\nenv\n</key>\n<value>\n%s</value>\n</map>\n</value>\n" (XmlUtil.escape (Format.asprintf "%a" A.print x)) (XmlUtil.escape (Format.asprintf "%a" (Environment.print: Format.formatter -> Environment.t -> unit) (A.env x)))
+  let compare (x: t) (y: t): int =
+    failwith "Apron.Abstract1 doesn't have total order" (* https://github.com/antoinemine/apron/issues/99 *)
+
+  let printXml f x = BatPrintf.fprintf f "<value>\n<map>\n<key>\nconstraints\n</key>\n<value>\n%s</value>\n<key>\nenv\n</key>\n<value>\n%a</value>\n</map>\n</value>\n" (XmlUtil.escape (GobFormat.asprint A.print x)) Environment.printXml (A.env x)
 
   let to_yojson (x: t) =
     let constraints =
@@ -463,11 +465,9 @@ struct
       |> Lincons1Set.elements
       |> List.map (fun lincons1 -> `String (Lincons1.show lincons1))
     in
-    let env = `String (Format.asprintf "%a" (Environment.print: Format.formatter -> Environment.t -> unit) (A.env x))
-    in
     `Assoc [
       ("constraints", `List constraints);
-      ("env", env);
+      ("env", Environment.to_yojson (A.env x));
     ]
 
   let unify x y =
@@ -533,9 +533,9 @@ struct
     | _ ->
       begin match Convert.tcons1_of_cil_exp ask d (A.env d) e negate no_ov with
         | tcons1 ->
-          if M.tracing then M.trace "apron" "assert_constraint %a %s" d_exp e (Format.asprintf "%a" Tcons1.print tcons1);
+          if M.tracing then M.trace "apron" "assert_constraint %a %a" d_exp e Tcons1.pretty tcons1;
           if M.tracing then M.trace "apron" "assert_constraint st: %a" D.pretty d;
-          if M.tracing then M.trace "apron" "assert_constraint tcons1: %s" (Format.asprintf "%a" Tcons1.print tcons1);
+          if M.tracing then M.trace "apron" "assert_constraint tcons1: %a" Tcons1.pretty tcons1;
           let r = meet_tcons ask d tcons1 e in
           if M.tracing then M.trace "apron" "assert_constraint r: %a" D.pretty r;
           r
@@ -544,17 +544,37 @@ struct
           d
       end
 
-  let invariant x =
+  (** Keep only box-representable constraints.
+      Used for [diff-box] in {!invariant}. *)
+  let boxify d =
+    let {box1_env; interval_array}: A.box1 = A.to_box Man.mgr d in
+    let ivs, fvs = Environment.vars box1_env in
+    assert (Array.length fvs = 0); (* shouldn't ever contain floats *)
+    A.of_box Man.mgr box1_env ivs interval_array
+
+  let to_lincons_set d =
+    Lincons1Set.of_earray (A.to_lincons_array Man.mgr d)
+
+  let invariant d =
     (* Would like to minimize to get rid of multi-var constraints directly derived from one-var constraints,
        but not implemented in Apron at all: https://github.com/antoinemine/apron/issues/44 *)
-    (* let x = A.copy Man.mgr x in
-       A.minimize Man.mgr x; *)
-    let {lincons0_array; array_env}: Lincons1.earray = A.to_lincons_array Man.mgr x in
-    Array.enum lincons0_array
-    |> Enum.map (fun (lincons0: Lincons0.t) ->
-        Lincons1.{lincons0; env = array_env}
-      )
-    |> List.of_enum
+    (* let d = A.copy Man.mgr d in
+       A.minimize Man.mgr d; *)
+    let lcd = to_lincons_set d in
+    if GobConfig.get_bool "ana.apron.invariant.diff-box" then (
+      (* diff via lincons *)
+      (* TODO: is there benefit to also Lincons1Set.simplify before diff? might make a difference if y=0 is represented as y>=0 && y<=0 or not *)
+      let b = boxify d in (* convert back to same Apron domain (instead of box) to make lincons use the same format (e.g. oct doesn't return equalities, but box does) *)
+      let lcb = to_lincons_set b in
+      Lincons1Set.diff lcd lcb
+    )
+    else
+      lcd
+
+  let invariant d =
+    invariant d
+    |> (if Oct.manager_is_oct Man.mgr then Lincons1Set.simplify else Fun.id)
+    |> Lincons1Set.elements (* TODO: remove list conversion? *)
 end
 
 (** With heterogeneous environments. *)
@@ -598,7 +618,7 @@ struct
     let x_cons = A.to_lincons_array Man.mgr x_j in
     let y_cons = A.to_lincons_array Man.mgr y_j in
     let try_add_con j con1 =
-      if M.tracing then M.tracei "apron" "try_add_con %s" (Format.asprintf "%a" (Lincons1.print: Format.formatter -> Lincons1.t -> unit) con1);
+      if M.tracing then M.tracei "apron" "try_add_con %a" Lincons1.pretty con1;
       let t = meet_lincons j con1 in
       let t_x = A.change_environment Man.mgr t x_env false in
       let t_y = A.change_environment Man.mgr t y_env false in
@@ -637,7 +657,7 @@ struct
       in
       let env_exists_mem_con1 env con1 =
         let r = env_exists_mem_con1 env con1 in
-        if M.tracing then M.trace "apron" "env_exists_mem_con1 %s %s -> %B" (Format.asprintf "%a" (Environment.print: Format.formatter -> Environment.t -> unit) env) (Lincons1.show con1) r;
+        if M.tracing then M.trace "apron" "env_exists_mem_con1 %a %a -> %B" Environment.pretty env Lincons1.pretty con1 r;
         r
       in
       (* Heuristically reorder constraints to pass 36/12 with singlethreaded->multithreaded mode switching. *)
@@ -738,7 +758,7 @@ struct
           in
           let tcons1_earray: Tcons1.earray = {
             array_env = y_env;
-            tcons0_array = tcons1s |> List.enum |> Enum.map Tcons1.get_tcons0 |> Array.of_enum
+            tcons0_array = tcons1s |> List.to_seq |> Seq.map Tcons1.get_tcons0 |> Array.of_seq
           }
           in
           let w = A.widening Man.mgr x y in
@@ -810,6 +830,7 @@ sig
 
   module V: RV
   module Tracked: RelationDomain.Tracked
+  module Man: Manager
 
   val assert_inv : Queries.ask -> t -> exp -> bool -> bool Lazy.t -> t
   val eval_int : Queries.ask -> t -> exp -> bool Lazy.t -> Queries.ID.t
@@ -834,111 +855,4 @@ struct
     OctagonD.marshal @@ convert_single t
 
   let unmarshal (m: marshal) = Oct.Abstract1.of_oct @@ OctagonD.unmarshal m
-end
-
-(** Lift [D] to a non-reduced product with box.
-    Both are updated in parallel, but [D] answers to queries.
-    Box domain is used to filter out non-relational invariants for output. *)
-module BoxProd0 (D: S3) =
-struct
-  module BoxD = D2 (IntervalManager)
-
-  include Printable.Prod (BoxD) (D)
-
-  let equal (_, d1) (_, d2) = D.equal d1 d2
-  let hash (_, d) = D.hash d
-  let compare (_, d1) (_, d2) = D.compare d1 d2
-
-  let leq (_, d1) (_, d2) = D.leq d1 d2
-  let join (b1, d1) (b2, d2) = (BoxD.join b1 b2, D.join d1 d2)
-  let meet (b1, d1) (b2, d2) = (BoxD.meet b1 b2, D.meet d1 d2)
-  let widen (b1, d1) (b2, d2) = (BoxD.widen b1 b2, D.widen d1 d2)
-  let narrow (b1, d1) (b2, d2) = (BoxD.narrow b1 b2, D.narrow d1 d2)
-
-  let top () = (BoxD.top (), D.top ())
-  let bot () = (BoxD.bot (), D.bot ())
-  let is_top (_, d) = D.is_top d
-  let is_bot (_, d) = D.is_bot d
-  let top_env env = (BoxD.top_env env, D.top_env env)
-  let bot_env env = (BoxD.bot_env env, D.bot_env env)
-  let is_top_env (_, d) = D.is_top_env d
-  let is_bot_env (_, d) = D.is_bot_env d
-  let unify (b1, d1) (b2, d2) = (BoxD.unify b1 b2, D.unify d1 d2)
-  let copy (b, d) = (BoxD.copy b, D.copy d)
-
-  type marshal = BoxD.marshal * D.marshal
-
-  let marshal (b, d) = (BoxD.marshal b, D.marshal d)
-  let unmarshal (b, d) = (BoxD.unmarshal b, D.unmarshal d)
-
-  let mem_var (_, d) v = D.mem_var d v
-  let vars (_, d) = D.vars d
-
-  let pretty_diff () ((_, d1), (_, d2)) = D.pretty_diff () (d1, d2)
-
-  let add_vars_with (b, d) vs =
-    BoxD.add_vars_with b vs;
-    D.add_vars_with d vs
-  let remove_vars_with (b, d) vs =
-    BoxD.remove_vars_with b vs;
-    D.remove_vars_with d vs
-  let remove_filter_with (b, d) f =
-    BoxD.remove_filter_with b f;
-    D.remove_filter_with d f
-  let keep_filter_with (b, d) f =
-    BoxD.keep_filter_with b f;
-    D.keep_filter_with d f
-  let keep_vars_with (b, d) vs =
-    BoxD.keep_vars_with b vs;
-    D.keep_vars_with d vs
-  let forget_vars_with (b, d) vs =
-    BoxD.forget_vars_with b vs;
-    D.forget_vars_with d vs
-  let assign_exp_with ask (b, d) v e no_ov =
-    BoxD.assign_exp_with ask b v e no_ov;
-    D.assign_exp_with ask d v e no_ov
-  let assign_exp_parallel_with ask (b, d) ves no_ov =
-    BoxD.assign_exp_parallel_with ask b ves no_ov;
-    D.assign_exp_parallel_with ask d ves no_ov
-  let assign_var_with (b, d) v e =
-    BoxD.assign_var_with b v e;
-    D.assign_var_with d v e
-  let assign_var_parallel_with (b, d) vvs =
-    BoxD.assign_var_parallel_with b vvs;
-    D.assign_var_parallel_with d vvs
-  let assign_var_parallel' (b, d) vs v's =
-    (BoxD.assign_var_parallel' b vs v's, D.assign_var_parallel' d vs v's)
-  let substitute_exp_with ask (b, d) v e no_ov =
-    BoxD.substitute_exp_with ask b v e no_ov;
-    D.substitute_exp_with ask d v e no_ov
-  let substitute_exp_parallel_with ask (b, d) ves no_ov =
-    BoxD.substitute_exp_parallel_with ask b ves no_ov;
-    D.substitute_exp_parallel_with ask d ves no_ov
-  let substitute_var_with (b, d) v1 v2 =
-    BoxD.substitute_var_with b v1 v2;
-    D.substitute_var_with d v1 v2
-  let meet_tcons ask (b, d) c e = (BoxD.meet_tcons ask b c e, D.meet_tcons ask d c e)
-  let to_lincons_array (_, d) = D.to_lincons_array d
-  let of_lincons_array a = (BoxD.of_lincons_array a, D.of_lincons_array a)
-
-  let cil_exp_of_lincons1 = D.cil_exp_of_lincons1
-  let assert_inv ask (b, d) e n no_ov = (BoxD.assert_inv ask b e n no_ov, D.assert_inv ask d e n no_ov)
-  let eval_int ask (_, d) = D.eval_int ask d
-
-  let invariant (b, d) =
-    (* diff via lincons *)
-    let lcb = D.to_lincons_array (D.of_lincons_array (BoxD.to_lincons_array b)) in (* convert through D to make lincons use the same format *)
-    let lcd = D.to_lincons_array d in
-    Lincons1Set.(diff (of_earray lcd) (of_earray lcb))
-    |> Lincons1Set.elements
-end
-
-module BoxProd (D: S3): RD =
-struct
-  module V = D.V
-  type var = V.t
-  module BP0 = BoxProd0 (D)
-  module Tracked = SharedFunctions.Tracked
-  include BP0
-  include AOpsPureOfImperative (BP0)
 end

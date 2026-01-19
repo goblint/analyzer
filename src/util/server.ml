@@ -5,6 +5,7 @@ open Jsonrpc
 open GoblintCil
 
 module InvariantParser = WitnessUtil.InvariantParser
+module VarQuery = Goblint_constraint.VarQuery
 
 module type ArgWrapper =
 sig
@@ -320,6 +321,7 @@ let () =
     let process { reset } serve =
       try
         analyze serve ~reset;
+        (* TODO: generalize VerifyError for AnalysisState.unsound_both_branches_dead *)
         {status = if !AnalysisState.verified = Some false then VerifyError else Success}
       with
       | Sys.Break ->
