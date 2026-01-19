@@ -2122,20 +2122,17 @@ struct
     if exps <> [] then M.info ~category:Imprecise "Invalidating expressions: %a" (d_list ", " d_exp) exps;
     (* To invalidate a single address, we create a pair with its corresponding
      * top value. *)
-    let invalidate_addr st (a: Addr.t) =
+    let invalidate_addr (a: Addr.t) =
       let t = Addr.type_of a in
       let v = get_addr ~man st a None in (* None here is ok, just causes us to be a bit less precise *)
       let nv =  VD.invalidate_value (Queries.to_value_domain_ask (Analyses.ask_of_man man)) t v in
       (a, t, nv)
     in
-    (* We define the function that invalidates all the values that an address
-     * expression e may point to *)
-    let invalidate_exp exps =
+    let invalids =
       let args = collect_invalidate ~deep ~man ~warn:true st exps in (* NB! the returned list isn't necessarily as long as exps *)
       let args = List.concat_map AD.elements args in (* split all address sets up because each address of different type (and with different current value) should get a different invalidated value *)
-      List.map (invalidate_addr st) args
+      List.map invalidate_addr args
     in
-    let invalids = invalidate_exp exps in
     let is_fav_addr x =
       GobOption.exists BaseUtil.is_excluded_from_invalidation (Addr.to_var_may x)
     in
