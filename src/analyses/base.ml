@@ -615,7 +615,7 @@ struct
    * This section is very confusing, because I use the same construct, a set of
    * addresses, as both AD elements abstracting individual (ambiguous) addresses
    * and the workset of visited addresses. *)
-  let reachable_vars ~man (st: store) (args: address): address list =
+  let reachable_vars ~man (st: store) (args: address): address =
     if M.tracing then M.traceli "reachability" "Checking reachable arguments from %a!" AD.pretty args;
     let empty = AD.empty () in
     (* We begin looking at the parameters: *)
@@ -633,7 +633,7 @@ struct
     done;
     (* Return the list of elements that have been visited. *)
     if M.tracing then M.traceu "reachability" "All reachable vars: %a" AD.pretty !visited;
-    List.map AD.singleton (AD.elements !visited)
+    !visited
 
   let reachable_vars ~man st args = Timing.wrap "reachability" (reachable_vars ~man st) args
 
@@ -1567,11 +1567,10 @@ struct
         | Address a ->
           let a' = AD.remove Addr.UnknownPtr a in (* run reachable_vars without unknown just to be safe: TODO why? *)
           let addrs = reachable_vars ~man man.local a' in
-          let addrs' = List.fold_left (AD.join) (AD.empty ()) addrs in
           if AD.may_be_unknown a then
-            AD.add UnknownPtr addrs' (* add unknown back *)
+            AD.add UnknownPtr addrs (* add unknown back *)
           else
-            addrs'
+            addrs
         | Int i ->
           begin match Cilfacade.typeOf e with
             | t when Cil.isPointerType t -> AD.of_int i (* integer used as pointer *)
@@ -2105,7 +2104,7 @@ struct
       let immediately_reachable = reachable_from_value ask (eval_rv ~man st e) (Cilfacade.typeOf e) (CilType.Exp.show e) in
       reachable_vars ~man st immediately_reachable
     in
-    List.concat_map do_exp exps
+    List.map do_exp exps
 
   let collect_invalidate ~deep ~man ?(warn=false) (st:store) (exps: exp list) =
     if deep then
@@ -2180,7 +2179,7 @@ struct
     add_to_array_map fundec pa;
     let new_cpa = CPA.add_list pa st'.cpa in
     (* List of reachable variables *)
-    let reachable = List.concat_map AD.to_var_may (reachable_vars ~man st (get_ptrs vals)) in
+    let reachable = AD.to_var_may (reachable_vars ~man st (get_ptrs vals)) in
     let reachable = List.filter (fun v -> CPA.mem v st.cpa) reachable in
     let new_cpa = CPA.add_list_fun reachable (fun v -> CPA.find v st.cpa) new_cpa in
 
