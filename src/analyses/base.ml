@@ -2100,21 +2100,21 @@ struct
   (** From a list of expressions, collect a list of addresses that they might point to, or contain pointers to. *)
   let collect_funargs ~man ?(warn=false) (st:store) (exps: exp list) =
     let ask = Analyses.ask_of_man man in
-    let do_exp e =
+    let do_exp acc e =
       let immediately_reachable = reachable_from_value ask (eval_rv ~man st e) (Cilfacade.typeOf e) (CilType.Exp.show e) in
-      reachable_vars ~man st immediately_reachable
+      AD.join acc (reachable_vars ~man st immediately_reachable)
     in
-    List.map do_exp exps
+    List.fold_left do_exp (AD.empty ()) exps
 
   let collect_invalidate ~deep ~man ?(warn=false) (st:store) (exps: exp list) =
     if deep then
       collect_funargs ~man ~warn st exps
     else (
-      let mpt e = match eval_rv_address ~man st e with
-        | Address a -> AD.remove NullPtr a
-        | _ -> AD.empty ()
+      let mpt acc e = match eval_rv_address ~man st e with
+        | Address a -> AD.join acc (AD.remove NullPtr a)
+        | _ -> acc
       in
-      List.map mpt exps
+      List.fold_left mpt (AD.empty ()) exps
     )
 
   let invalidate ~(must: bool) ?(deep=true) ~man (st:store) (exps: exp list): store =
@@ -2129,8 +2129,8 @@ struct
       (a, t, nv)
     in
     let invalids =
-      let args = collect_invalidate ~deep ~man ~warn:true st exps in (* NB! the returned list isn't necessarily as long as exps *)
-      let args = List.concat_map AD.elements args in (* split all address sets up because each address of different type (and with different current value) should get a different invalidated value *)
+      let args = collect_invalidate ~deep ~man ~warn:true st exps in
+      let args = AD.elements args in (* split all address sets up because each address of different type (and with different current value) should get a different invalidated value *)
       List.map invalidate_addr args
     in
     let is_fav_addr x =
@@ -2236,8 +2236,8 @@ struct
       let deep_args = LibraryDesc.Accesses.find desc.accs { kind = Spawn; deep = true } args in
       let shallow_flist = collect_invalidate ~deep:false ~man man.local shallow_args in
       let deep_flist = collect_invalidate ~deep:true ~man man.local deep_args in
-      let flist = shallow_flist @ deep_flist in
-      let addrs = List.concat_map AD.to_var_may flist in
+      let flist = AD.join shallow_flist deep_flist in
+      let addrs = AD.to_var_may flist in
       if addrs <> [] then M.debug ~category:Analyzer "Spawning non-unique functions from unknown function: %a" (d_list ", " CilType.Varinfo.pretty) addrs;
       List.filter_map (create_thread ~multiple:true None None) addrs
 
