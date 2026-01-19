@@ -585,9 +585,9 @@ struct
       if not (VD.is_immediate_type t) then M.info ~category:Unsound "Unknown value in %s could be an escaped pointer address!" description; empty
     | Bot -> (*M.debug ~category:Analyzer "A bottom value when computing reachable addresses!";*) empty
     | Address adrs when AD.is_top adrs ->
-      M.info ~category:Unsound "Unknown address in %s has escaped." description; AD.remove Addr.NullPtr adrs (* return known addresses still to be a bit more sane (but still unsound) *)
+      M.info ~category:Unsound "Unknown address in %s has escaped." description; adrs (* return known addresses still to be a bit more sane (but still unsound) *)
     (* The main thing is to track where pointers go: *)
-    | Address adrs -> AD.remove Addr.NullPtr adrs
+    | Address adrs -> adrs
     (* Unions are easy, I just ingore the type info. *)
     | Union (f,e) -> reachable_from_value ask e t description
     (* For arrays, we ask to read from an unknown index, this will cause it
@@ -1567,13 +1567,9 @@ struct
         | Top -> Queries.Result.top q
         | Bot -> Queries.Result.bot q (* TODO: remove *)
         | Address a ->
-          let a' = AD.remove Addr.UnknownPtr a in (* run reachable_vars without unknown just to be safe: TODO why? *)
-          let addrs = reachable_vars ~man man.local [a'] in
-          let addrs' = List.fold_left (AD.join) (AD.empty ()) addrs in
-          if AD.may_be_unknown a then
-            AD.add UnknownPtr addrs' (* add unknown back *)
-          else
-            addrs'
+          [a]
+          |> reachable_vars ~man man.local
+          |> List.fold_left (AD.join) (AD.empty ())
         | Int i ->
           begin match Cilfacade.typeOf e with
             | t when Cil.isPointerType t -> AD.of_int i (* integer used as pointer *)
@@ -1814,23 +1810,20 @@ struct
   let set ~(man: _ man) ?invariant ?blob_destructive ?lval_raw ?rval_raw ?t_override (st: store) (lval: AD.t) (lval_type: Cil.typ) (value: value) : store =
     let lval_raw = (Option.map (fun x -> Lval x) lval_raw) in
     if M.tracing then M.tracel "set" "lval: %a\nvalue: %a\nstate: %a" AD.pretty lval VD.pretty value CPA.pretty st.cpa;
-    let update_one x store =
-      Option.map_default (fun x -> set_mval ~man ?invariant ?blob_destructive ?lval_raw ?rval_raw ?t_override store x lval_type value) store (Addr.to_mval x)
-    in try
-      (* We start from the current state and an empty list of global deltas,
-       * and we assign to all the the different possible places: *)
-      let nst = AD.fold update_one lval st in
-      (* if M.tracing then M.tracel "set" "new state1 %a" CPA.pretty nst; *)
-      (* If the address was definite, then we just return it. If the address
-       * was ambiguous, we have to join it with the initial state. *)
-      let nst = if AD.cardinal lval > 1 then D.join st nst else nst in
-      (* if M.tracing then M.tracel "set" "new state2 %a" CPA.pretty nst; *)
-      nst
-    with
-    (* If any of the addresses are unknown, we ignore it!?! *)
-    | SetDomain.Unsupported x ->
-      (* if M.tracing then M.tracel "set" "set got an exception '%s'" x; *)
-      M.info ~category:Unsound "Assignment to unknown address, assuming no write happened."; st
+    let update_one (x : Addr.t) store =
+      match x with
+      | Addr x -> set_mval ~man ?invariant ?blob_destructive ?lval_raw ?rval_raw ?t_override store x lval_type value
+      | NullPtr ->
+        begin match get_string "sem.null-pointer.dereference" with
+          | "assume_none" -> D.bot ()
+          | "assume_top" -> store
+          | _ -> assert false
+        end
+      | UnknownPtr
+      | StrPtr _ -> store
+    in
+    assert (not @@ AD.is_empty lval);
+    AD.fold (fun addr acc -> D.join (update_one addr st) acc) lval (D.bot ())
 
   let set_many ~man (st: store) lval_value_list: store =
     (* Maybe this can be done with a simple fold *)
@@ -2111,14 +2104,14 @@ struct
       collect_funargs ~man ~warn st exps
     else (
       let mpt e = match eval_rv_address ~man st e with
-        | Address a -> AD.remove NullPtr a
+        | Address a -> a
         | _ -> AD.empty ()
       in
       List.map mpt exps
     )
 
   let invalidate ~(must: bool) ?(deep=true) ~man (st:store) (exps: exp list): store =
-    if M.tracing && exps <> [] then M.tracel "invalidate" "Will invalidate expressions [%a]" (d_list ", " d_plainexp) exps;
+    if M.tracing && exps <> [] then M.tracel "invalidate" "Will invalidate expressions [%a]" (d_list ", " d_exp) exps;
     if exps <> [] then M.info ~category:Imprecise "Invalidating expressions: %a" (d_list ", " d_exp) exps;
     (* To invalidate a single address, we create a pair with its corresponding
      * top value. *)
