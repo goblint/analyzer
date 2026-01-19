@@ -605,9 +605,9 @@ struct
   (* Get the list of addresses accessable immediately from a given address, thus
    * all pointers within a structure should be considered, but we don't follow
    * pointers. We return a flattend representation, thus simply an address (set). *)
-  let reachable_from_address ~man st (adr: address): address =
-    if M.tracing then M.tracei "reachability" "Checking for %a" AD.pretty adr;
-    let res = reachable_from_value (Analyses.ask_of_man man) (get ~man st adr None) (AD.type_of adr) (AD.show adr) in
+  let reachable_from_addr ~man st (addr: Addr.t): address =
+    if M.tracing then M.tracei "reachability" "Checking for %a" Addr.pretty addr;
+    let res = reachable_from_value (Analyses.ask_of_man man) (get_addr ~man st addr None) (Addr.type_of addr) (Addr.show addr) in
     if M.tracing then M.traceu "reachability" "Reachable addresses: %a" AD.pretty res;
     res
 
@@ -627,8 +627,7 @@ struct
       visited := AD.union !visited !workset;
       (* ok, let's visit all the variables in the workset and collect the new variables *)
       let visit_and_collect var (acc: address): address =
-        let var = AD.singleton var in (* Very bad hack! Pathetic really! *)
-        AD.union (reachable_from_address ~man st var) acc in
+        AD.union (reachable_from_addr ~man st var) acc in
       let collected = AD.fold visit_and_collect !workset empty in
       (* And here we remove the already visited variables *)
       workset := AD.diff collected !visited
