@@ -87,7 +87,7 @@ let main () =
 
   GoblintCil.iterGlobals ast (function
       | GFun (fd, _) ->
-        Out_channel.with_open_text (fd.svar.vname ^ ".dot") @@ fun out ->
+        let@ out = Out_channel.with_open_text (fd.svar.vname ^ ".dot") in
         let iter_edges = CfgTools.iter_fd_edges (module Cfg) fd in
         let ppf = Format.formatter_of_out_channel out in
         CfgTools.fprint_dot (module CfgTools.CfgPrinters (LocationExtraNodeStyles)) iter_edges ppf;
