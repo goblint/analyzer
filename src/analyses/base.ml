@@ -564,18 +564,18 @@ struct
 
   (* From a list of values, presumably arguments to a function, simply extract
    * the pointer arguments. *)
-  let get_ptrs (vals: value list): address list =
+  let get_ptrs (vals: value list): address =
     let f acc (x:value) = match x with
       | Address adrs when AD.is_top adrs ->
         M.info ~category:Unsound "Unknown address given as function argument"; acc
       | Address adrs when AD.to_var_may adrs = [] -> acc
       | Address adrs ->
         let typ = AD.type_of adrs in
-        if isFunctionType typ then acc else adrs :: acc
+        if isFunctionType typ then acc else AD.join adrs acc
       | Top -> M.info ~category:Unsound "Unknown value type given as function argument"; acc
       | _ -> acc
     in
-    List.fold_left f [] vals
+    List.fold_left f (AD.empty ()) vals
 
   let rec reachable_from_value ask (value: value) (t: typ) (description: string)  =
     let empty = AD.empty () in
@@ -615,12 +615,11 @@ struct
    * This section is very confusing, because I use the same construct, a set of
    * addresses, as both AD elements abstracting individual (ambiguous) addresses
    * and the workset of visited addresses. *)
-  let reachable_vars ~man (st: store) (args: address list): address list =
-    if M.tracing then M.traceli "reachability" "Checking reachable arguments from [%a]!" (d_list ", " AD.pretty) args;
+  let reachable_vars ~man (st: store) (args: address): address list =
+    if M.tracing then M.traceli "reachability" "Checking reachable arguments from %a!" AD.pretty args;
     let empty = AD.empty () in
     (* We begin looking at the parameters: *)
-    let argset = List.fold_left (AD.join) empty args in
-    let workset = ref argset in
+    let workset = ref args in
     (* And we keep a set of already visited variables *)
     let visited = ref empty in
     while not (AD.is_empty !workset) do
@@ -1567,7 +1566,7 @@ struct
         | Bot -> Queries.Result.bot q (* TODO: remove *)
         | Address a ->
           let a' = AD.remove Addr.UnknownPtr a in (* run reachable_vars without unknown just to be safe: TODO why? *)
-          let addrs = reachable_vars ~man man.local [a'] in
+          let addrs = reachable_vars ~man man.local a' in
           let addrs' = List.fold_left (AD.join) (AD.empty ()) addrs in
           if AD.may_be_unknown a then
             AD.add UnknownPtr addrs' (* add unknown back *)
@@ -2101,7 +2100,7 @@ struct
     let ask = Analyses.ask_of_man man in
     let do_exp e =
       let immediately_reachable = reachable_from_value ask (eval_rv ~man st e) (Cilfacade.typeOf e) (CilType.Exp.show e) in
-      reachable_vars ~man st [immediately_reachable]
+      reachable_vars ~man st immediately_reachable
     in
     List.concat_map do_exp exps
 
