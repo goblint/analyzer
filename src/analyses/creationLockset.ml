@@ -20,7 +20,7 @@ module Spec = struct
     include StdV
   end
 
-  module G = MapDomain.MapBot (TID) (Lockset)
+  module G = Queries.CL
 
   let name () = "creationLockset"
   let startstate _ = D.bot ()
@@ -148,6 +148,11 @@ module Spec = struct
       let creation_lockset = man.global tid in
       tid, lockset, creation_lockset
     | _ -> ThreadIdDomain.UnknownThread, Lockset.empty (), G.empty ()
+
+  let query man (type a) (x : a Queries.t) : a Queries.result =
+    match x with
+    | Queries.CreationLockset t -> (man.global  t : G.t)
+    | _ -> Queries.Result.top x
 end
 
 let _ =
