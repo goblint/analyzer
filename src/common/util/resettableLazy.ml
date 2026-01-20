@@ -1,4 +1,4 @@
-open BatCache
+open GobCache
 
 type 'a t = (unit, 'a) manual_cache
 

@@ -1,8 +1,8 @@
-type t = Fpath.t -> string BatEnum.t
+type t = Fpath.t -> string Seq.t
 
 let none: t = fun file ->
-  BatFile.lines_of (Fpath.to_string file)
-  |> BatEnum.map XmlUtil.escape  (* nosemgrep: batenum-module *)
+  GobFile.lines_of (Fpath.to_string file)
+  |> Seq.map XmlUtil.escape
 
 let pygments_command = "pygmentize"
 let pygments_style = "default"
@@ -15,8 +15,7 @@ let make_pygments ~(style_css_file): t option =
     let pygments file =
       let command = Filename.quote_command pygments_command (Fpath.to_string file :: pygments_arguments) in
       let ic = Unix.open_process_in command in
-      let ic' = BatIO.input_channel ic in
-      BatIO.lines_of ic'
+      GobIO.lines_of ic
     in
     Some pygments
   | _ ->

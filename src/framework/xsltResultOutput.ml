@@ -108,7 +108,10 @@ struct
       Format.pp_print_flush timing_ppf ();
       BatPrintf.fprintf f "</statistics>";
       BatPrintf.fprintf f "<result>\n";
-      BatEnum.iter (fun b -> BatPrintf.fprintf f "<file name=\"%s\" path=\"%s\">\n%a</file>\n" (Filename.basename b) b p_funs (SH.find_all file2funs b)) (BatEnum.uniq @@ SH.keys file2funs); (* nosemgrep: batenum-module *)
+      (* Deduplicate keys using a Set and convert to Seq *)
+      let module StrSet = Set.Make(String) in
+      let unique_keys = SH.to_seq_keys file2funs |> StrSet.of_seq |> StrSet.to_seq in
+      Seq.iter (fun b -> BatPrintf.fprintf f "<file name=\"%s\" path=\"%s\">\n%a</file>\n" (Filename.basename b) b p_funs (SH.find_all file2funs b)) unique_keys;
       BatPrintf.fprintf f "%a" printXml (Lazy.force table);
       gtfxml f gtable;
       printXmlWarning f ();
@@ -244,7 +247,7 @@ struct
 |xml};
         Timing.wrap "highlighter" (fun () ->
             let lines = code_highlighter (Fpath.v file) in
-            BatEnum.iteri (printXml_line f) lines (* nosemgrep: batenum-module *)
+            Seq.iteri (printXml_line f) lines
           ) ();
         BatPrintf.fprintf f "</file>";
       )

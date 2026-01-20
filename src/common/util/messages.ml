@@ -204,10 +204,10 @@ let print ?(ppf= !formatter) (m: Message.t) =
     Format.fprintf ppf "@{<%s>%s@}%a" severity_stag (Piece.text_with_context piece) pp_loc piece.loc
   in
   let pp_quote ppf (loc: GoblintCil.location) =
-    let lines = BatFile.lines_of loc.file in
-    BatEnum.drop (loc.line - 1) lines; (* nosemgrep: batenum-module *)
-    let lines = BatEnum.take (loc.endLine - loc.line + 1) lines in (* nosemgrep: batenum-module *)
-    let lines = BatList.of_enum lines in (* nosemgrep: batenum-of_enum *)
+    let lines = GobFile.lines_of loc.file in
+    let lines = Seq.drop (loc.line - 1) lines in
+    let lines = Seq.take (loc.endLine - loc.line + 1) lines in
+    let lines = List.of_seq lines in
     match lines with
     | [] -> assert false
     | [line] ->

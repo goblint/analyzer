@@ -125,16 +125,18 @@ let files_of_message (message: Messages.Message.t): string list =
 (* TODO: just get all files from AST? *)
 let artifacts_of_messages (messages: Messages.Message.t list): Artifact.t list =
   messages
-  |> List.enum (* nosemgrep: batenum-enum *)
-  |> Enum.map files_of_message (* nosemgrep: batenum-module *)
-  |> Enum.map List.enum (* nosemgrep: batenum-module, batenum-enum *)
-  |> Enum.flatten (* nosemgrep: batenum-module *)
-  |> Enum.uniq (* nosemgrep: batenum-module *) (* polymorphic equality fine on string *)
-  |> Enum.map (fun file -> { (* nosemgrep: batenum-module *)
+  |> List.to_seq
+  |> Seq.flat_map (fun msg -> List.to_seq (files_of_message msg))
+  |> (fun files ->
+      (* Deduplicate files using a Set *)
+      let module StrSet = Set.Make(String) in
+      files |> StrSet.of_seq |> StrSet.to_seq
+    )
+  |> Seq.map (fun file -> {
         Artifact.location = { uri = file };
       }
     )
-  |> List.of_enum (* nosemgrep: batenum-of_enum *)
+  |> List.of_seq
 
 let to_yojson messages =
   SarifLog.to_yojson {

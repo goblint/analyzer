@@ -63,7 +63,16 @@ struct
           | GFun (fd,loc) -> SH.add file2funs loc.file fd.svar.vname
           | _ -> ()
         );
-      let p_enum p f xs = BatEnum.print ~first:"[\n  " ~last:"\n]" ~sep:",\n  " p f xs in (* nosemgrep: batenum-module *)
+      let p_seq p f xs =
+        let first = ref true in
+        fprintf f "[\n  ";
+        Seq.iter (fun x ->
+          if not !first then fprintf f ",\n  ";
+          first := false;
+          p f x
+        ) xs;
+        fprintf f "\n]"
+      in
       let p_list p f xs = BatList.print ~first:"[\n  " ~last:"\n]" ~sep:",\n  " p f xs in
       (*let p_kv f (k,p,v) = fprintf f "\"%s\": %a" k p v in*)
       (*let p_obj f xs = BatList.print ~first:"{\n  " ~last:"\n}" ~sep:",\n  " p_kv xs in*)
@@ -74,7 +83,7 @@ struct
       let write_file f fn =
         Logs.info "Writing json to temp. file: %s" fn;
         fprintf f "{\n  \"parameters\": \"%s\",\n  " GobSys.command_line;
-        fprintf f "\"files\": %a,\n  " (p_enum p_file) (SH.keys file2funs);
+        fprintf f "\"files\": %a,\n  " (p_seq p_file) (SH.to_seq_keys file2funs);
         fprintf f "\"results\": [\n  %a\n]\n" printJson (Lazy.force table);
         (*gtfxml f gtable;*)
         (*printXmlWarning f ();*)

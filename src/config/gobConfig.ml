@@ -317,8 +317,8 @@ struct
   let get_conf () = get_json ""
 
   (** Convenience functions for reading values. *)
-  (* memoize for each type with BatCache: *)
-  let memo gen = BatCache.make_ht ~gen ~init_size:5 (* uses hashtable; fine since our options are bounded *)
+  (* memoize for each type with GobCache: *)
+  let memo gen = GobCache.make_ht ~gen ~init_size:5 (* uses hashtable; fine since our options are bounded *)
   let memog f = memo @@ get_path_string f
 
   let memo_int    = memog Yojson.Safe.Util.to_int
@@ -328,9 +328,9 @@ struct
 
   let drop_memo ()  =
     (* The explicit polymorphism is needed to make it compile *)
-    let drop:'a. (string,'a) BatCache.manual_cache -> _ = fun m ->
+    let drop:'a. (string,'a) GobCache.manual_cache -> _ = fun m ->
       let r = m.enum () in
-      BatEnum.force r; BatEnum.iter (fun (k,v) -> m.del k) r (* nosemgrep: batenum-module *)
+      Seq.iter (fun (k,v) -> m.del k) r
     in
     drop memo_int; drop memo_bool; drop memo_string; drop memo_list
 
