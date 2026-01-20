@@ -7,7 +7,6 @@ The artifact is available on [Zenodo](https://zenodo.org/records/15245617).
 
 **The description here is provided for convenience and not maintained.**
 The artifact contains Goblint at `pldi25_eval_runtime` and `pldi25_eval_stats` git tags.
-The source code repository is available at <https://github.com/tum-cit-pl/precision-recovery-mixed-flowsens-benchmarks>.
 
 For convenience, this file is also included in the VM (at `~/precision-recovery-mixed-flowsens-benchmarks/README.md`) to be able to copy commands.
 
