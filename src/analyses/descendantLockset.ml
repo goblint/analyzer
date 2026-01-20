@@ -2,7 +2,6 @@ open Analyses
 module TID = ThreadIdDomain.Thread
 module TIDs = ConcDomain.ThreadSet
 module Lockset = LockDomain.MustLockset
-module TidToLocksetMapTop = MapDomain.MapBot (TID) (Lockset)
 
 module Spec = struct
   include IdentityUnitContextsSpec
@@ -13,7 +12,7 @@ module Spec = struct
       [{ t_d |-> L }] is the descendant lockset valid for the [V] value,
       because [t_d] was created in [t_0] with the lockset being a superset of L.
   *)
-  module G = MapDomain.MapBot (TID) (TidToLocksetMapTop)
+  module G = MapDomain.MapBot (TID) (D)
 
   module V = struct
     include TID
@@ -42,9 +41,9 @@ module Spec = struct
           (fun t_l l_dl acc ->
              let l_cl = Queries.CL.find tid creation_lockset in
              let l_inter = Lockset.inter l_cl l_dl in
-             TidToLocksetMapTop.add t_l l_inter acc)
+             D.add t_l l_inter acc)
           descendant_lockset
-          (TidToLocksetMapTop.empty ())
+          (D.empty ())
       in
       man.sideg t_d (G.singleton tid to_contribute)
     in
