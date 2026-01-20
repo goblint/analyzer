@@ -82,17 +82,20 @@ module Spec = struct
     let must_joined_tids = man.ask Queries.MustJoinedThreads in
     TIDs.diff may_transitively_created_tids must_joined_tids
 
-  let unlock man tid possibly_running_tids lock =
+  let unlock man possibly_running_tids lock =
     TIDs.fold
-      (fun tid ->
-         let old_value = D.find tid man.local in
+      (fun des_tid ->
+         let old_value = D.find des_tid man.local in
          let new_value = Lockset.remove lock old_value in
-         D.add tid new_value)
+         D.add des_tid new_value)
       possibly_running_tids
       (D.empty ())
 
-  let unknown_unlock man tid possibly_running_tids =
-    TIDs.fold (fun tid -> D.add tid (Lockset.empty ())) possibly_running_tids (D.empty ())
+  let unknown_unlock man possibly_running_tids =
+    TIDs.fold
+      (fun des_tid -> D.add des_tid (Lockset.empty ()))
+      possibly_running_tids
+      (D.empty ())
 
   let event man e _ =
     match e with
@@ -103,8 +106,8 @@ module Spec = struct
          let possibly_running_tids = get_must_ancestor_running_descendants man tid in
          let lock_opt = LockDomain.MustLock.of_addr addr in
          (match lock_opt with
-          | Some lock -> unlock man tid possibly_running_tids lock
-          | None -> unknown_unlock man tid possibly_running_tids)
+          | Some lock -> unlock man possibly_running_tids lock
+          | None -> unknown_unlock man possibly_running_tids)
        | _ -> man.local)
     | _ -> man.local
 
