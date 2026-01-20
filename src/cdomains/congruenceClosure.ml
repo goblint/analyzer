@@ -1109,7 +1109,7 @@ let remove_terms_from_eq predicate cc =
     (uf, new_reps, new_cc, reachable_old_reps)
   in
   let uf, new_reps, new_cc, reachable_old_reps =
-    (* Only perform add_atom on those that do not fullfill the predicate *)
+    (* Only perform add_atom on those that do not fulfill the predicate *)
     let filter_out acc x =
       if predicate x then
         acc
