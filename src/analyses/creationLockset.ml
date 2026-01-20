@@ -151,7 +151,7 @@ module Spec = struct
 
   let query man (type a) (x : a Queries.t) : a Queries.result =
     match x with
-    | Queries.CreationLockset t -> (man.global  t : G.t)
+    | Queries.CreationLockset t -> (man.global t : G.t)
     | _ -> Queries.Result.top x
 end
 
