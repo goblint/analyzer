@@ -341,7 +341,7 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): Bitfield_SOverflow with type in
     let endv= Ints_t.min y (Ints_t.of_bigint max_ik) in
 
     (* constructs a bitfield of the interval: for each bit check if the smallest number that is greater than startv and has the bit flipped is still in the interval *)
-    (* If the flipped value is still in the interval, the bit can be 0 or 1 which means it must be described as top, otherwise the bit cant change and is the same as in startv *)
+    (* If the flipped value is still in the interval, the bit can be 0 or 1 which means it must be described as top, otherwise the bit can't change and is the same as in startv *)
     (* Runtime: O(bits) *)
     let rec construct_bitfield pos (acc_z, acc_o) =
       if pos < 0 then (acc_z, acc_o)

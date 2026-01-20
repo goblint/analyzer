@@ -15,7 +15,7 @@ struct
   let name () = "taintPartialContexts"
   module D = AD
 
-  (* Add Lval or any Lval which it may point to to the set *)
+  (* Add Lval or any Lval which it may point to the set *)
   let taint_lval man (lval:lval) : D.t =
     D.union (man.ask (Queries.MayPointTo (AddrOf lval))) man.local
 

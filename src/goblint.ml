@@ -56,7 +56,7 @@ let main () =
         else
           None
       in
-      (* This is run independant of the autotuner being enabled or not to be sound for programs with longjmp *)
+      (* This is run independent of the autotuner being enabled or not to be sound for programs with longjmp *)
       AutoSoundConfig.activateLongjmpAnalysesWhenRequired ();
       if get_string "ana.specification" <> "" then AutoSoundConfig.enableAnalysesForSpecification ();
       if get_bool "ana.autotune.enabled" then AutoTune.chooseConfig file;
