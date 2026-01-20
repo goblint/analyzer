@@ -2,7 +2,7 @@
 #include <pthread.h>
 
 int global = 0;
-pthread_mutex_t mutex1, mutex2 = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t mutex1 = PTHREAD_MUTEX_INITIALIZER, mutex2 = PTHREAD_MUTEX_INITIALIZER;
 pthread_t id1;
 
 void *t1(void *arg) {
