@@ -13,8 +13,6 @@ open GobConfig
 open Constraints
 open SpecLifters
 
-module M = Messages
-
 module type S2S = Spec2Spec
 
 (* spec is lazy, so HConsed table in Hashcons lifters is preserved between analyses in server mode *)
@@ -22,17 +20,7 @@ let spec_module: (module Spec) Lazy.t = lazy (
   GobConfig.building_spec := true;
   let arg_enabled = get_bool "exp.arg.enabled" in
   let termination_enabled = List.mem "termination" (get_string_list "ana.activated") in (* check if loop termination analysis is enabled*)
-  let apron_enabled = List.mem "apron" (get_string_list "ana.activated") in
   let hashcons_enabled = get_bool "ana.opt.hashcons" in
-  
-  (* Warn if hashconsing is disabled but will be force-enabled by other settings *)
-  if not hashcons_enabled then (
-    if arg_enabled then
-      M.warn_noloc "Hashconsing (ana.opt.hashcons) is disabled, but is implicitly enabled because ARG is enabled (exp.arg.enabled)";
-    if apron_enabled then
-      M.warn_noloc "Hashconsing (ana.opt.hashcons) is disabled, but may be required for Apron domain (ana.activated includes 'apron')";
-  );
-  
   (* apply functor F on module X if opt is true *)
   let lift opt (module F : S2S) (module X : Spec) = (module (val if opt then (module F (X)) else (module X) : Spec) : Spec) in
   let module S1 =
