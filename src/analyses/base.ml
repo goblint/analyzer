@@ -1818,7 +1818,7 @@ struct
       Option.map_default (fun x -> set_mval ~man ?invariant ?blob_destructive ?lval_raw ?rval_raw ?t_override store x lval_type value) store (Addr.to_mval x)
     in try
       (* We start from the current state and an empty list of global deltas,
-       * and we assign to all the the different possible places: *)
+       * and we assign to all the different possible places: *)
       let nst = AD.fold update_one lval st in
       (* if M.tracing then M.tracel "set" "new state1 %a" CPA.pretty nst; *)
       (* If the address was definite, then we just return it. If the address
