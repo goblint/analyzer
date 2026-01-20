@@ -32,14 +32,6 @@ There are two branches of the `analyzer` repository of relevance here:
 
 In the artifact, `analyzer` is already checked out and dependencies are installed. If recreating the artifact from scratch proceed to **General setup of the analyzer** at the bottom.
 
-## Requirements
-
-* [VirtualBox](https://www.virtualbox.org/)
-* At least 2 CPU cores (more recommended for full reproduction)
-* At least 8 GB RAM (more recommended for full reproduction)
-* Several GB of disk space
-* Up to several days for full reproduction (depending on configuration)
-
 ## Getting Started
 
 - For help importing the virtual machine, see <https://docs.oracle.com/cd/E26217_01/E26796/html/qs-import-vm.html>
