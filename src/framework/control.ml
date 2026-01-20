@@ -30,7 +30,7 @@ let spec_module: (module Spec) Lazy.t = lazy (
     if arg_enabled then
       M.warn_noloc "Hashconsing (ana.opt.hashcons) is disabled, but is implicitly enabled because ARG is enabled (exp.arg.enabled)";
     if apron_enabled then
-      M.warn_noloc "Hashconsing (ana.opt.hashcons) is disabled, but may be required for Apron domain (ana.activated includes 'apron')"
+      M.warn_noloc "Hashconsing (ana.opt.hashcons) is disabled, but may be required for Apron domain (ana.activated includes 'apron')";
   );
   
   (* apply functor F on module X if opt is true *)
