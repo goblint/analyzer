@@ -20,6 +20,7 @@ void *t3(void *arg) { // t3 is joined into main before unlock happens
 
 void *t2(void *arg) {
   pthread_create(&id3, NULL, t3, NULL);
+  return NULL;
 }
 
 int main(void) {
