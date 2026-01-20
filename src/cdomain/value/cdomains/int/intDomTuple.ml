@@ -399,7 +399,7 @@ module IntDomTupleImpl = struct
   (** Project tuple t to precision p
    * We have to deactivate IntDomains after the refinement, since we might
    * lose information if we do it before. E.g. only "Interval" is active
-   * and shall be projected to only "Def_Exc". By seting "Interval" to None
+   * and shall be projected to only "Def_Exc". By setting "Interval" to None
    * before refinement we have no information for "Def_Exc".
    *
    * Thus we have 3 Steps:
