@@ -972,7 +972,7 @@ struct
   z - a >= 0, -z + b >= 0 for all z in t.env with z in [a, b]
   *)
   let invariant (t:t) : GobApron.Lincons1Set.elt list = 
-    (* It`s safe to assume that t.d <> None. *)
+    (* It's safe to assume that t.d <> None. *)
     let ({boxes; subs}: Pntg.t) = Option.get t.d in
     let s_of_int i: Coeff.union_5 = (GobApron.Coeff.s_of_int i) in
     let s_of_zext (z: ZExt.t): Coeff.union_5 = 
