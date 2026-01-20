@@ -3,10 +3,11 @@
 
 This is the artifact description for our PLDI '25 paper "Taking out the Toxic Trash: Recovering Precision in Mixed Flow-Sensitive Static Analyses" by F. Stemmler, M. Schwarz, J. Erhard, S. Tilscher, and H. Seidl.
 
-The artifact is available from the external repository at <https://github.com/tum-cit-pl/precision-recovery-mixed-flowsens-benchmarks>.
+The artifact is available on [Zenodo](https://zenodo.org/records/15245617).
 
 **The description here is provided for convenience and not maintained.**
 The artifact contains Goblint at `pldi25_eval_runtime` and `pldi25_eval_stats` git tags.
+The source code repository is available at <https://github.com/tum-cit-pl/precision-recovery-mixed-flowsens-benchmarks>.
 
 For convenience, this file is also included in the VM (at `~/precision-recovery-mixed-flowsens-benchmarks/README.md`) to be able to copy commands.
 
@@ -102,7 +103,7 @@ From this directory, run `./run-sv-comp.rb --pin --clean --reduced > svcomp-raw.
 
 **Expected Runtime**: Around 1h40min
 
-If you want to keep track of the progress you can open an additional terminal `tail -f progress.text`.
+If you want to keep track of the progress you can open an additional terminal `tail -f progress.txt`.
 
 ##### Option C
 
@@ -294,7 +295,7 @@ The folder structure for this RQ (`~/precision-recovery-mixed-flowsens-benchmark
 There are several levels of reproduction possible here:
 
 - **A**: The folder `paper-runs` contains the data produced by the runs we used for the paper. This allows reproducing the plots and data from our raw results. **(Recommended)**
-- **B**: We provide a subset of the benchmarks which realistically be reproduced inside the VM **(Recommended)**
+- **B**: We provide a subset of the benchmarks which can realistically be reproduced inside the VM **(Recommended)**
 - **C**: We provide the scripts for a full reproduction. The runtime for this is several days. **(Not Recommended)**
 
 #### Producing the raw data
@@ -468,7 +469,7 @@ The Goblint analyzer comes with extensive documentation (see `analyzer/docs`) or
 - The accessible step-by-step tutorial on adding custom analyses to the framework at <https://goblint.readthedocs.io/en/latest/developer-guide/firstanalysis/>. In the interest of a concise file, we opted against inlining this tutorial here.
 - Any newly added analysis will be able to benefit from the update rules provided here.
 
-Thus, the framework can serve as a testbed for new ideas for static analysis, allowing researchers to focus on the aspect of the system they are interested on while relying on the framework for everything else.
+Thus, the framework can serve as a testbed for new ideas for static analysis, allowing researchers to focus on the aspect of the system they are interested in while relying on the framework for everything else.
 The changes made to Goblint to implement the update rules are outlined in the external repository's [CODE.md](https://github.com/tum-cit-pl/precision-recovery-mixed-flowsens-benchmarks/blob/main/CODE.md).
 
 ### Example
