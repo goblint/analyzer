@@ -14,8 +14,8 @@ void *t1(void *arg) {
 }
 
 void *t2(void *arg) { // t2 is joined into main before unlock happens
-    global++; // RACE!
-    return NULL;
+  global++; // RACE!
+  return NULL;
 }
 
 int main(void) {
