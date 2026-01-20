@@ -1,9 +1,9 @@
 name: unlocked
 
 on:
-  # pull_request: # save CI time on PRs, run manually if needed (before merge) or find out failures from scheduled run (after merge)
-  #   paths-ignore:
-  #     - 'docs/**'
+  pull_request:
+    paths-ignore:
+      - 'docs/**'
   workflow_dispatch:
 
   schedule:
