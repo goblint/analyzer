@@ -1,6 +1,6 @@
 open Z
 (** 
-   Extension of the Zarith types and funcitons.
+   Extension of the Zarith types and functions.
    The values represent arbitrary precision integers and also negative or positive infinity.
 *)
 module ZExt =
