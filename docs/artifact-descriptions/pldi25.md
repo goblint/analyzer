@@ -469,12 +469,12 @@ The Goblint analyzer comes with extensive documentation (see `analyzer/docs`) or
 - Any newly added analysis will be able to benefit from the update rules provided here.
 
 Thus, the framework can serve as a testbed for new ideas for static analysis, allowing researchers to focus on the aspect of the system they are interested in while relying on the framework for everything else.
-The changes made to Goblint to implement the update rules are outlined in the external repository's [CODE.md](https://github.com/tum-cit-pl/precision-recovery-mixed-flowsens-benchmarks/blob/main/CODE.md).
+The changes made to Goblint to implement the update rules are outlined in the external repository's [CODE.md](https://github.com/tum-cit-pl/precision-recovery-mixed-flowsens-benchmarks/blob/master/CODE.md).
 
 ### Example
 
 An example program `example.c` is provided in the top folder of `analyzer` to highlight precision differences between configurations.
-For details see the external repository's [EXAMPLE.md](https://github.com/tum-cit-pl/precision-recovery-mixed-flowsens-benchmarks/blob/main/EXAMPLE.md).
+For details see the external repository's [EXAMPLE.md](https://github.com/tum-cit-pl/precision-recovery-mixed-flowsens-benchmarks/blob/master/EXAMPLE.md).
 
 ### Experiment with further programs within this VM
 
