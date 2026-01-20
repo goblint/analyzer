@@ -123,7 +123,7 @@ module Base : GenericEqSolver =
 
       and iterate x = (* ~(inner) solve in td3*)
 
-        (* begining of iterate*)
+        (* beginning of iterate*)
         let x_ref = init x in
         if tracing then trace "iter" "iterate %a, called: %b, stable: %b, wpoint: %b" S.Var.pretty_trace x (!x_ref.called) (!x_ref.stable) (!x_ref.wpoint);
         assert (S.system x <> None);
