@@ -93,7 +93,8 @@ let add_overflow_check ~(op:overflow_op) ~underflow ~overflow ik =
       | false, (Unop Neg | Binop (PlusA | MinusA | Mult | Div | Mod)) -> Some UnsignedIntegerOverflowInArithmetic
       | false, Cast Explicit -> Some UnsignedIntegerOverflowInExplicitCast
       | false, Cast (IntegerPromotion | DefaultArgumentPromotion | ArithmeticConversion | ConditionalConversion | PointerConversion | Implicit) -> Some UnsignedIntegerOverflowInImplicitCast
-      | _, _ -> None (* TODO: left shifts could also go somewhere *)
+      | _, Binop Shiftlt -> Some InvalidShift
+      | _, _ -> None
     in
     let op =
       match op with

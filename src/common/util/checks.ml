@@ -40,6 +40,7 @@ module Category = struct
     | UnsignedIntegerOverflowInArithmetic
     | UnsignedIntegerOverflowInExplicitCast
     | UnsignedIntegerOverflowInImplicitCast
+    | InvalidShift
     | InvalidPointerComparison
     | InvalidPointerSubtraction
     | DoubleFree
@@ -57,6 +58,7 @@ module Category = struct
       | UnsignedIntegerOverflowInArithmetic -> "Unsigned integer overflow in arithmetic"
       | UnsignedIntegerOverflowInExplicitCast -> "Unsigned integer overflow in explicit cast"
       | UnsignedIntegerOverflowInImplicitCast -> "Unsigned integer overflow in implicit cast"
+      | InvalidShift -> "Invalid shift"
       | InvalidPointerComparison -> "Invalid pointer comparison"
       | InvalidPointerSubtraction -> "Invalid pointer subtraction"
       | DoubleFree -> "Double free"
@@ -73,6 +75,7 @@ module Category = struct
     | `String "Unsigned integer overflow in arithmetic" -> Ok UnsignedIntegerOverflowInArithmetic
     | `String "Unsigned integer overflow in explicit cast" -> Ok UnsignedIntegerOverflowInExplicitCast
     | `String "Unsigned integer overflow in implicit cast" -> Ok UnsignedIntegerOverflowInImplicitCast
+    | `String "Invalid shift" -> Ok InvalidShift
     | `String "Invalid pointer comparison" -> Ok InvalidPointerComparison
     | `String "Invalid pointer subtraction" -> Ok InvalidPointerSubtraction
     | `String "Double free" -> Ok DoubleFree
