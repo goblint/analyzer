@@ -34,7 +34,12 @@ module Category = struct
     | AssertionFailure
     | InvalidMemoryAccess
     | DivisionByZero
-    | IntegerOverflow
+    | SignedIntegerOverflowInArithmetic
+    | SignedIntegerOverflowInExplicitCast
+    | SignedIntegerOverflowInImplicitCast
+    | UnsignedIntegerOverflowInArithmetic
+    | UnsignedIntegerOverflowInExplicitCast
+    | UnsignedIntegerOverflowInImplicitCast
     | InvalidPointerComparison
     | InvalidPointerSubtraction
     | DoubleFree
@@ -46,7 +51,12 @@ module Category = struct
       | AssertionFailure -> "Assertion failure"
       | InvalidMemoryAccess -> "Invalid memory access"
       | DivisionByZero -> "Division by zero"
-      | IntegerOverflow -> "Integer overflow"
+      | SignedIntegerOverflowInArithmetic -> "Signed integer overflow in arithmetic"
+      | SignedIntegerOverflowInExplicitCast -> "Signed integer overflow in explicit cast"
+      | SignedIntegerOverflowInImplicitCast -> "Signed integer overflow in implicit cast"
+      | UnsignedIntegerOverflowInArithmetic -> "Unsigned integer overflow in arithmetic"
+      | UnsignedIntegerOverflowInExplicitCast -> "Unsigned integer overflow in explicit cast"
+      | UnsignedIntegerOverflowInImplicitCast -> "Unsigned integer overflow in implicit cast"
       | InvalidPointerComparison -> "Invalid pointer comparison"
       | InvalidPointerSubtraction -> "Invalid pointer subtraction"
       | DoubleFree -> "Double free"
@@ -57,7 +67,12 @@ module Category = struct
     | `String "Assertion failure" -> Ok AssertionFailure
     | `String "Invalid memory access" -> Ok InvalidMemoryAccess
     | `String "Division by zero" -> Ok DivisionByZero
-    | `String "Integer overflow" -> Ok IntegerOverflow
+    | `String "Signed integer overflow in arithmetic" -> Ok SignedIntegerOverflowInArithmetic
+    | `String "Signed integer overflow in explicit cast" -> Ok SignedIntegerOverflowInExplicitCast
+    | `String "Signed integer overflow in implicit cast" -> Ok SignedIntegerOverflowInImplicitCast
+    | `String "Unsigned integer overflow in arithmetic" -> Ok UnsignedIntegerOverflowInArithmetic
+    | `String "Unsigned integer overflow in explicit cast" -> Ok UnsignedIntegerOverflowInExplicitCast
+    | `String "Unsigned integer overflow in implicit cast" -> Ok UnsignedIntegerOverflowInImplicitCast
     | `String "Invalid pointer comparison" -> Ok InvalidPointerComparison
     | `String "Invalid pointer subtraction" -> Ok InvalidPointerSubtraction
     | `String "Double free" -> Ok DoubleFree
