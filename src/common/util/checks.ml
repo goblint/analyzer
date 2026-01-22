@@ -52,10 +52,10 @@ module Category = struct
       | AssertionFailure -> "Assertion failure"
       | InvalidMemoryAccess -> "Invalid memory access"
       | DivisionByZero -> "Division by zero"
-      | SignedIntegerOverflowInArithmetic -> "Signed integer overflow in arithmetic"
+      | SignedIntegerOverflowInArithmetic -> "Signed integer overflow in arithmetic operator"
       | SignedIntegerOverflowInExplicitCast -> "Signed integer overflow in explicit cast"
       | SignedIntegerOverflowInImplicitCast -> "Signed integer overflow in implicit cast"
-      | UnsignedIntegerOverflowInArithmetic -> "Unsigned integer overflow in arithmetic"
+      | UnsignedIntegerOverflowInArithmetic -> "Unsigned integer overflow in arithmetic operator"
       | UnsignedIntegerOverflowInExplicitCast -> "Unsigned integer overflow in explicit cast"
       | UnsignedIntegerOverflowInImplicitCast -> "Unsigned integer overflow in implicit cast"
       | InvalidShift -> "Invalid shift"
@@ -69,10 +69,10 @@ module Category = struct
     | `String "Assertion failure" -> Ok AssertionFailure
     | `String "Invalid memory access" -> Ok InvalidMemoryAccess
     | `String "Division by zero" -> Ok DivisionByZero
-    | `String "Signed integer overflow in arithmetic" -> Ok SignedIntegerOverflowInArithmetic
+    | `String "Signed integer overflow in arithmetic operator" -> Ok SignedIntegerOverflowInArithmetic
     | `String "Signed integer overflow in explicit cast" -> Ok SignedIntegerOverflowInExplicitCast
     | `String "Signed integer overflow in implicit cast" -> Ok SignedIntegerOverflowInImplicitCast
-    | `String "Unsigned integer overflow in arithmetic" -> Ok UnsignedIntegerOverflowInArithmetic
+    | `String "Unsigned integer overflow in arithmetic operator" -> Ok UnsignedIntegerOverflowInArithmetic
     | `String "Unsigned integer overflow in explicit cast" -> Ok UnsignedIntegerOverflowInExplicitCast
     | `String "Unsigned integer overflow in implicit cast" -> Ok UnsignedIntegerOverflowInImplicitCast
     | `String "Invalid shift" -> Ok InvalidShift
