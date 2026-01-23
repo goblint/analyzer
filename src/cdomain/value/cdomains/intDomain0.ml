@@ -85,7 +85,17 @@ let add_overflow_check ~(op:overflow_op) ~underflow ~overflow ik =
     let signed = Cil.isSigned ik in
     if !AnalysisState.postsolving && signed && (match op with Cast _ -> false | _ -> true) && (underflow || overflow) then
       AnalysisState.svcomp_may_overflow := true;
-    let sign = if signed then "Signed" else "Unsigned" in
+    let check: Checks.Category.t option =
+      match signed, op with
+      | true, (Unop Neg | Binop (PlusA | MinusA | Mult | Div | Mod)) -> Some SignedIntegerOverflowInArithmetic
+      | true, Cast Explicit -> Some SignedIntegerOverflowInExplicitCast
+      | true, Cast (IntegerPromotion | DefaultArgumentPromotion | ArithmeticConversion | ConditionalConversion | PointerConversion | Implicit) -> Some SignedIntegerOverflowInImplicitCast
+      | false, (Unop Neg | Binop (PlusA | MinusA | Mult | Div | Mod)) -> Some UnsignedIntegerOverflowInArithmetic
+      | false, Cast Explicit -> Some UnsignedIntegerOverflowInExplicitCast
+      | false, Cast (IntegerPromotion | DefaultArgumentPromotion | ArithmeticConversion | ConditionalConversion | PointerConversion | Implicit) -> Some UnsignedIntegerOverflowInImplicitCast
+      | _, Binop Shiftlt -> Some InvalidShift
+      | _, _ -> None
+    in
     let op =
       match op with
       (* explicitly distinguish binary and unary - *)
@@ -103,19 +113,38 @@ let add_overflow_check ~(op:overflow_op) ~underflow ~overflow ik =
       | Cast Internal -> "internal cast"
       | Internal -> "internal operation"
     in
+    let message =
+      let sign = if signed then "Signed" else "Unsigned" in
+      match underflow, overflow with
+      | true, true ->
+        Printf.sprintf "%s integer overflow and underflow in %s" sign op
+      | true, false ->
+        Printf.sprintf "%s integer underflow in %s" sign op
+      | false, true ->
+        Printf.sprintf "%s integer overflow in %s" sign op
+      | false, false ->
+        let sign = if signed then "signed" else "unsigned" in (* lowercase constants *)
+        Printf.sprintf "No %s integer overflow or underflow in %s" sign op
+    in
+    let tags: M.Tag.t list =
+      match underflow, overflow with
+      | true, true -> [CWE 190; CWE 191]
+      | true, false -> [CWE 191]
+      | false, true -> [CWE 190]
+      | false, false -> []
+    in
     match underflow, overflow with
-    | true, true ->
-      M.warn ~category:M.Category.Integer.overflow ~tags:[CWE 190; CWE 191] "%s integer overflow and underflow in %s" sign op;
-      Checks.warn Checks.Category.IntegerOverflow "%s integer overflow and underflow in %s" sign op
-    | true, false ->
-      M.warn ~category:M.Category.Integer.overflow ~tags:[CWE 191] "%s integer underflow in %s" sign op;
-      Checks.warn Checks.Category.IntegerOverflow "%s integer underflow in %s" sign op
+    | true, true
+    | true, false
     | false, true ->
-      M.warn ~category:M.Category.Integer.overflow ~tags:[CWE 190] "%s integer overflow in %s" sign op;
-      Checks.warn Checks.Category.IntegerOverflow "%s integer overflow in %s" sign op
+      M.warn ~category:M.Category.Integer.overflow ~tags "%s" message;
+      Option.iter (fun check ->
+          Checks.warn check "%s" message
+        ) check
     | false, false ->
-      let sign = if signed then "signed" else "unsigned" in (* lowercase constants *)
-      Checks.safe_msg Checks.Category.IntegerOverflow "No %s integer overflow or underflow in %s" sign op
+      Option.iter (fun check ->
+          Checks.safe_msg check "%s" message
+        ) check
 
 
 let reset_lazy () =
