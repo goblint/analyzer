@@ -2760,33 +2760,8 @@ struct
         | _ -> st
       end
     (* TODO: Rethink OCamlParam's placement *)
-    | OCamlParam {param1; param2; param3; param4; param5}, _ ->
-      begin match param1 with
-        | Some p1 ->
-          let _ = eval_rv ~man st p1 in
-          begin match param2 with
-            | Some p2 ->
-              let _ = eval_rv ~man st p2 in
-              begin match param3 with
-                | Some p3 ->
-                  let _ = eval_rv ~man st p3 in
-                  begin match param4 with
-                    | Some p4 ->
-                      let _ = eval_rv ~man st p4 in
-                      begin match param5 with
-                        | Some p5 ->
-                          let _ = eval_rv ~man st p5 in
-                          st
-                        | _ -> st
-                      end
-                    | _ -> st
-                  end
-                | _ -> st
-              end
-            | _ -> st
-          end
-        | _ -> st
-      end
+    | OCamlParam params, _ ->
+      List.fold_left (fun acc param -> let _ = eval_rv ~man acc param in acc) st params
     | Calloc { count = n; size }, _ ->
       begin match lv with
         | Some lv -> (* array length is set to one, as num*size is done when turning into `Calloc *)

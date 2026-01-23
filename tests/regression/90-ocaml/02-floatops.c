@@ -1,4 +1,4 @@
-// PARAM: --set "ana.activated[+]" ocaml --set "mainfun[+]" "UNARY_OP" --set "mainfun[+]" "BINARY_OP" --set "mainfun[+]" "atof_double" --set "mainfun[+]" "atof_float" --set "mainfun[+]" "max_float" --set "mainfun[+]" "smallest_float" --set "mainfun[+]" "pi_float" --disable warn.imprecise --set "exp.extraspecials[+]" printInt
+// PARAM: --set "ana.activated[+]" ocaml --set "mainfun[+]" "sqrt_double" --set "mainfun[+]" "sqrt_float" --set "mainfun[+]" "acos_double" --set "mainfun[+]" "acos_float" --set "mainfun[+]" "asin_double" --set "mainfun[+]" "asin_float" --set "mainfun[+]" "atan_double" --set "mainfun[+]" "atan_float" --set "mainfun[+]" "cos_double" --set "mainfun[+]" "cos_float" --set "mainfun[+]" "sin_double" --set "mainfun[+]" "sin_float" --set "mainfun[+]" "tan_double" --set "mainfun[+]" "tan_float" --set "mainfun[+]" "add_double" --set "mainfun[+]" "add_float" --set "mainfun[+]" "sub_double" --set "mainfun[+]" "sub_float" --set "mainfun[+]" "mul_double" --set "mainfun[+]" "mul_float" --set "mainfun[+]" "div_double" --set "mainfun[+]" "div_float" --set "mainfun[+]" "atof_double" --set "mainfun[+]" "atof_float" --set "mainfun[+]" "max_float" --set "mainfun[+]" "smallest_float" --set "mainfun[+]" "pi_float" --disable warn.imprecise --set "exp.extraspecials[+]" printInt
 
 // Code from stubs.c in src/common/cdomains/floatOps that should be correct despite missing CAMLparam, as discussed in https://github.com/goblint/analyzer/issues/1371.
 
@@ -69,20 +69,20 @@ static void change_round_mode(int mode)
         /* No need to use CAMLreturn because we don't use CAMLparam. */ \
     }
 
-UNARY_OP(sqrt, double, sqrt);
-UNARY_OP(sqrt, float, sqrtf);
-UNARY_OP(acos, double, acos);
-UNARY_OP(acos, float, acosf);
-UNARY_OP(asin, double, asin);
-UNARY_OP(asin, float, asinf);
-UNARY_OP(atan, double, atan);
-UNARY_OP(atan, float, atanf);
-UNARY_OP(cos, double, cos);
-UNARY_OP(cos, float, cosf);
-UNARY_OP(sin, double, sin);
-UNARY_OP(sin, float, sinf);
-UNARY_OP(tan, double, tan);
-UNARY_OP(tan, float, tanf);
+UNARY_OP(sqrt, double, sqrt); // NOWARN
+UNARY_OP(sqrt, float, sqrtf); // NOWARN
+UNARY_OP(acos, double, acos); // NOWARN
+UNARY_OP(acos, float, acosf); // NOWARN
+UNARY_OP(asin, double, asin); // NOWARN
+UNARY_OP(asin, float, asinf); // NOWARN
+UNARY_OP(atan, double, atan); // NOWARN
+UNARY_OP(atan, float, atanf); // NOWARN
+UNARY_OP(cos, double, cos); // NOWARN
+UNARY_OP(cos, float, cosf); // NOWARN
+UNARY_OP(sin, double, sin); // NOWARN
+UNARY_OP(sin, float, sinf); // NOWARN
+UNARY_OP(tan, double, tan); // NOWARN
+UNARY_OP(tan, float, tanf); // NOWARN
 
 #define BINARY_OP(name, type, op)                                \
     CAMLprim value name##_##type(value mode, value x, value y)   \
@@ -99,14 +99,14 @@ UNARY_OP(tan, float, tanf);
         /* No need to use CAMLreturn because we don't use CAMLparam. */ \
     }
 
-BINARY_OP(add, double, +);
-BINARY_OP(add, float, +);
-BINARY_OP(sub, double, -);
-BINARY_OP(sub, float, -);
-BINARY_OP(mul, double, *);
-BINARY_OP(mul, float, *);
-BINARY_OP(div, double, /);
-BINARY_OP(div, float, /);
+BINARY_OP(add, double, +); // NOWARN
+BINARY_OP(add, float, +); // NOWARN
+BINARY_OP(sub, double, -); // NOWARN
+BINARY_OP(sub, float, -); // NOWARN
+BINARY_OP(mul, double, *); // NOWARN
+BINARY_OP(mul, float, *); // NOWARN
+BINARY_OP(div, double, /); // NOWARN
+BINARY_OP(div, float, /); // NOWARN
 
 CAMLprim value atof_double(value mode, value str)
 {
@@ -115,7 +115,7 @@ CAMLprim value atof_double(value mode, value str)
     // We have already read their values by then.
     const char *s = String_val(str);
     volatile double r;
-    int old_roundingmode = fegetround();
+    int old_roundingmode = fegetround(); // NOWARN
     change_round_mode(Int_val(mode));
     r = atof(s);
     fesetround(old_roundingmode);

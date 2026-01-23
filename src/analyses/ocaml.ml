@@ -27,32 +27,42 @@ struct
   let name () = "ocaml"
   module D =
   struct
-    (* The first set contains variables of type value that are definitely in order. The second contains definitely registered variables. *)
-    module P = Lattice.Prod (VarinfoSet) (VarinfoSet)
+    (* The first set contains variables of type value that are definitely in order. The second contains definitely registered variables. The third contains variables the analysis tracks. *)
+    module P = Lattice.Prod3 (VarinfoSet) (VarinfoSet) (VarinfoSet)
     include P
 
-    let empty () = (VarinfoSet.empty (), VarinfoSet.empty ())
+    let empty () = (VarinfoSet.empty (), VarinfoSet.empty (), VarinfoSet.empty ())
 
     (* After garbage collection, the second set is written to the first set *)
-    let after_gc (accounted, registered) = (registered, registered)
+    let after_gc (accounted, registered, tracked) = (registered, registered, tracked)
 
-    let mem_a v (accounted, registered) =
+    (* Untracked variables are always fine. *)
+    let mem_a v (accounted, registered, tracked) =
       VarinfoSet.mem v accounted
 
-    let mem_r v (accounted, registered) =
+    let mem_r v (accounted, registered, tracked) =
       VarinfoSet.mem v registered
 
-    let add_a v (accounted, registered) =
-      (VarinfoSet.add v accounted, registered)
+    let mem_t v (accounted, registered, tracked) =
+      VarinfoSet.mem v tracked
 
-    let add_r v (accounted, registered) =
-      (accounted, VarinfoSet.add v registered)
+    let add_a v (accounted, registered, tracked) =
+      (VarinfoSet.add v accounted, registered, tracked)
 
-    let remove_a v (accounted, registered) =
-      (VarinfoSet.remove v accounted, registered)
+    let add_r v (accounted, registered, tracked) =
+      (accounted, VarinfoSet.add v registered, tracked)
 
-    let remove_r v (accounted, registered) =
-      (accounted, VarinfoSet.remove v registered)
+    let add_t v (accounted, registered, tracked) =
+      (accounted, registered, VarinfoSet.add v tracked)
+
+    let remove_a v (accounted, registered, tracked) =
+      (VarinfoSet.remove v accounted, registered, tracked)
+
+    let remove_r v (accounted, registered, tracked) =
+      (accounted, VarinfoSet.remove v registered, tracked)
+
+    let remove_t v (accounted, registered, tracked) =
+      (accounted, registered, VarinfoSet.remove v tracked)
   end
   module C = Printable.Unit
 
@@ -79,9 +89,31 @@ struct
   and lval_accounted_for state = function
     | (Var v, _) ->
       (* Checks whether variable v is accounted for *) (*false*)
-      if D.mem_a v state then true else let _ = M.warn "Value %a might be garbage collected" CilType.Varinfo.pretty v in false
+      if D.mem_a v state || not (D.mem_t v state) then true else let _ = M.warn "Value %a might be garbage collected" CilType.Varinfo.pretty v in false
     | _ ->
       (* The Gemara asks: is using an offset safe for the expression? The Gemara answers: by default, no. We assume our language has no pointers *)
+      false
+
+  (** Determines whether an expression [e] has parts in the OCaml heap, given a [state]. *)
+  let rec exp_tracked (state:D.t) (e:Cil.exp) = match e with
+    (* Recurse over the structure in the expression, returning true if some varinfo appearing in the expression is tracked *)
+    | AddrOf v
+    | StartOf v
+    | Lval v -> lval_tracked state v
+    | BinOp (_,e1,e2,_) -> exp_tracked state e1 || exp_tracked state e2
+    | Real e
+    | Imag e
+    | SizeOfE e
+    | AlignOfE e
+    | CastE (_,e)
+    | UnOp (_,e,_) -> exp_tracked state e
+    | SizeOf _ | SizeOfStr _ | Const _  | AlignOf _ | AddrOfLabel _ -> false
+    | Question (b, t, f, _) -> exp_tracked state b || exp_tracked state t || exp_tracked state f
+  and lval_tracked state = function
+    | (Var v, _) ->
+      (* Checks whether variable v is tracked *)
+      D.mem_t v state
+    | _ ->
       false
 
   (* transfer functions *)
@@ -92,8 +124,10 @@ struct
     match lval with
     | Var v,_ ->
       (* If lval is of type value, checks whether rval is accounted for, handles assignment to v accordingly *) (* state *)
-      if exp_accounted_for state rval then D.add_a v state
-      else D.remove_a v state
+      if exp_accounted_for state rval then
+        if exp_tracked state rval then D.add_a v (D.add_t v state)
+        else D.add_a v (D.remove_t v state)
+      else let _ = M.info "The above is being assigned" in D.remove_a v (D.add_t v state)
     | _ -> state
 
   (** Handles conditional branching yielding truth value [tv]. *)
@@ -104,9 +138,9 @@ struct
   (** Handles going from start node of function [f] into the function body of [f].
       Meant to handle e.g. initializiation of local variables. *)
   let body ctx (f:fundec) : D.t =
-    (* The (non-formals) locals are initially accounted for *)
+    (* The (non-formals) locals are tracked and initially accounted for *)
     let state = ctx.local in
-    List.fold_left (fun st v -> D.add_a v st) state f.sformals
+    List.fold_left (fun st v -> D.add_a v (D.add_t v st)) state f.sformals
 
   (** Handles the [return] statement, i.e. "return exp" or "return", in function [f]. *)
   let return ctx (exp:exp option) (f:fundec) : D.t =
@@ -115,6 +149,7 @@ struct
     | Some e ->
       (* Checks that value returned is accounted for. *)
       (* Return_varinfo is used in place of a "real" variable. *)
+      (* TODO: Consider how the return_varinfo needs to be tracked. *)
       (* state *)
       if exp_accounted_for state e then D.add_a return_varinfo state
       else let _ = M.warn "Value returned might be garbage collected" in D.remove_a return_varinfo state
@@ -155,6 +190,7 @@ struct
   let combine_assign ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (callee_local:D.t) (f_ask: Queries.ask): D.t =
     let caller_state = ctx.local in
     (* Records whether lval was accounted for. *) (* caller_state *)
+    (* TODO: Consider how the return_varinfo needs to be tracked. *)
     match lval with (* The variable returned is played by return_varinfo *)
     | Some (Var v, _) -> if D.mem_a return_varinfo callee_local then D.add_a v caller_state
       else let _ = M.warn "Returned value may be garbage-collected" in D.remove_a v caller_state
@@ -170,54 +206,14 @@ struct
     (* caller_state *)
     let desc = LibraryFunctions.find f in
     match desc.special arglist with
+    (* Variables are registered with a Param macro. *)
     | OCamlParam params ->
-      (* Variables are registered with a Param macro. *)
-      (* TODO: Which pattern below do the params in fact match? Does it vary? *)
-      (* The function extract_varinfo is from AI - the code can be shortened when we know what the params are. *)
-      let rec extract_varinfo (e: Cil.exp): varinfo option = match e with
-        (* Direct variable lvalue *)
-        | Lval (Var v, _) -> Some v
-        (* Dereferenced pointer - try to extract from inner expression *)
-        | Lval (Mem inner, _) -> extract_varinfo inner
-        (* Address of variable *)
-        | AddrOf (Var v, _) -> Some v (* TODO: Maybe this is the only thing a param can be. *)
-        (* Address of dereferenced - try to extract from inner *)
-        | AddrOf (Mem inner, _) -> extract_varinfo inner
-        (* Array start of variable *)
-        | StartOf (Var v, _) -> Some v
-        (* Array start of dereferenced *)
-        | StartOf (Mem inner, _) -> extract_varinfo inner
-        (* Type cast - extract from inner expression *)
-        | CastE (_, inner) -> extract_varinfo inner
-        (* Unary operations - extract from operand *)
-        | UnOp (_, inner, _) -> extract_varinfo inner
-        (* Real/imaginary parts *)
-        | Real inner | Imag inner -> extract_varinfo inner
-        (* Binary operations - try both operands *)
-        | BinOp (_, e1, e2, _) ->
-          (match extract_varinfo e1 with
-           | Some v -> Some v
-           | None -> extract_varinfo e2)
-        (* Size and alignment - may contain var info in the type *)
-        | SizeOfE inner | AlignOfE inner -> extract_varinfo inner
-        (* Constants, SizeOf, AlignOf, SizeOfStr, AddrOfLabel - no varinfo *)
-        | Const _ | SizeOf _ | AlignOf _ | SizeOfStr _ | AddrOfLabel _ -> None
-        (* Question conditional *)
-        | Question (cond, e1, e2, _) ->
-          (match extract_varinfo cond with
-           | Some v -> Some v
-           | None ->
-             (match extract_varinfo e1 with
-              | Some v -> Some v
-              | None -> extract_varinfo e2))
-      in
-      List.fold_left (fun state param -> 
-          match param with
-          | Some e -> 
-            (match extract_varinfo e with
-             | Some v -> D.add_r v state
-             | None -> state)
-          | None -> state) caller_state [params.param1; params.param2; params.param3; params.param4; params.param5]
+      List.fold_left (fun state param -> let _ = M.info "We reach here" in
+                       match param with
+                       | AddrOf (Var v, _) -> let _ = M.info "Address of" in
+                         D.add_r v state
+                       | _ -> state
+                     ) caller_state params
     | OCamlAlloc size_exp ->
       (* Garbage collection may trigger here and overwrite unregistered variables *)
       let _ = M.debug "Garbage collection triggers" in (match lval with
