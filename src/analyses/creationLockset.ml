@@ -143,7 +143,7 @@ module Spec = struct
     let to_yojson (_, _, cl) = G.to_yojson cl
     let printXml f (_, _, cl) = G.printXml f cl
 
-    let should_print (_t, _ls, cl) = not @@ G.is_empty cl
+    let should_print (_t, _ls, cl) = G.exists (fun _ ls -> not @@ Lockset.is_empty ls) cl
   end
 
   let access man _ =
