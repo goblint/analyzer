@@ -564,18 +564,18 @@ struct
 
   (* From a list of values, presumably arguments to a function, simply extract
    * the pointer arguments. *)
-  let get_ptrs (vals: value list): address list =
+  let get_ptrs (vals: value list): address =
     let f acc (x:value) = match x with
       | Address adrs when AD.is_top adrs ->
         M.info ~category:Unsound "Unknown address given as function argument"; acc
       | Address adrs when AD.to_var_may adrs = [] -> acc
       | Address adrs ->
         let typ = AD.type_of adrs in
-        if isFunctionType typ then acc else adrs :: acc
+        if isFunctionType typ then acc else AD.join adrs acc
       | Top -> M.info ~category:Unsound "Unknown value type given as function argument"; acc
       | _ -> acc
     in
-    List.fold_left f [] vals
+    List.fold_left f (AD.empty ()) vals
 
   let rec reachable_from_value ask (value: value) (t: typ) (description: string)  =
     let empty = AD.empty () in
@@ -605,9 +605,9 @@ struct
   (* Get the list of addresses accessable immediately from a given address, thus
    * all pointers within a structure should be considered, but we don't follow
    * pointers. We return a flattend representation, thus simply an address (set). *)
-  let reachable_from_address ~man st (adr: address): address =
-    if M.tracing then M.tracei "reachability" "Checking for %a" AD.pretty adr;
-    let res = reachable_from_value (Analyses.ask_of_man man) (get ~man st adr None) (AD.type_of adr) (AD.show adr) in
+  let reachable_from_addr ~man st (addr: Addr.t): address =
+    if M.tracing then M.tracei "reachability" "Checking for %a" Addr.pretty addr;
+    let res = reachable_from_value (Analyses.ask_of_man man) (get_addr ~man st addr None) (Addr.type_of addr) (Addr.show addr) in
     if M.tracing then M.traceu "reachability" "Reachable addresses: %a" AD.pretty res;
     res
 
@@ -615,27 +615,25 @@ struct
    * This section is very confusing, because I use the same construct, a set of
    * addresses, as both AD elements abstracting individual (ambiguous) addresses
    * and the workset of visited addresses. *)
-  let reachable_vars ~man (st: store) (args: address list): address list =
-    if M.tracing then M.traceli "reachability" "Checking reachable arguments from [%a]!" (d_list ", " AD.pretty) args;
+  let reachable_vars ~man (st: store) (args: address): address =
+    if M.tracing then M.traceli "reachability" "Checking reachable arguments from %a!" AD.pretty args;
     let empty = AD.empty () in
     (* We begin looking at the parameters: *)
-    let argset = List.fold_left (AD.join) empty args in
-    let workset = ref argset in
+    let workset = ref args in
     (* And we keep a set of already visited variables *)
     let visited = ref empty in
     while not (AD.is_empty !workset) do
       visited := AD.union !visited !workset;
       (* ok, let's visit all the variables in the workset and collect the new variables *)
       let visit_and_collect var (acc: address): address =
-        let var = AD.singleton var in (* Very bad hack! Pathetic really! *)
-        AD.union (reachable_from_address ~man st var) acc in
+        AD.union (reachable_from_addr ~man st var) acc in
       let collected = AD.fold visit_and_collect !workset empty in
       (* And here we remove the already visited variables *)
       workset := AD.diff collected !visited
     done;
     (* Return the list of elements that have been visited. *)
     if M.tracing then M.traceu "reachability" "All reachable vars: %a" AD.pretty !visited;
-    List.map AD.singleton (AD.elements !visited)
+    !visited
 
   let reachable_vars ~man st args = Timing.wrap "reachability" (reachable_vars ~man st) args
 
@@ -1568,12 +1566,11 @@ struct
         | Bot -> Queries.Result.bot q (* TODO: remove *)
         | Address a ->
           let a' = AD.remove Addr.UnknownPtr a in (* run reachable_vars without unknown just to be safe: TODO why? *)
-          let addrs = reachable_vars ~man man.local [a'] in
-          let addrs' = List.fold_left (AD.join) (AD.empty ()) addrs in
+          let addrs = reachable_vars ~man man.local a' in
           if AD.may_be_unknown a then
-            AD.add UnknownPtr addrs' (* add unknown back *)
+            AD.add UnknownPtr addrs (* add unknown back *)
           else
-            addrs'
+            addrs
         | Int i ->
           begin match Cilfacade.typeOf e with
             | t when Cil.isPointerType t -> AD.of_int i (* integer used as pointer *)
@@ -1808,6 +1805,9 @@ struct
   let set_var ~(man: _ man) ?invariant ?blob_destructive ?lval_raw ?rval_raw ?t_override (st: store) (x: Cil.varinfo) (lval_type: Cil.typ) (value: value): store =
     set_mval ~man ?invariant ?blob_destructive ?lval_raw ?rval_raw ?t_override st (x, `NoOffset) lval_type value
 
+  let set_addr ~(man: _ man) ?invariant ?blob_destructive ?lval_raw ?rval_raw ?t_override (st: store) (x: Addr.t) (lval_type: Cil.typ) (value: value): store =
+    Option.map_default (fun x -> set_mval ~man ?invariant ?blob_destructive ?lval_raw ?rval_raw ?t_override st x lval_type value) st (Addr.to_mval x)
+
   (** [set st addr val] returns a state where [addr] is set to [val]
    * it is always ok to put None for lval_raw and rval_raw, this amounts to not using/maintaining
    * precise information about arrays. *)
@@ -1815,7 +1815,7 @@ struct
     let lval_raw = (Option.map (fun x -> Lval x) lval_raw) in
     if M.tracing then M.tracel "set" "lval: %a\nvalue: %a\nstate: %a" AD.pretty lval VD.pretty value CPA.pretty st.cpa;
     let update_one x store =
-      Option.map_default (fun x -> set_mval ~man ?invariant ?blob_destructive ?lval_raw ?rval_raw ?t_override store x lval_type value) store (Addr.to_mval x)
+      set_addr ~man ?invariant ?blob_destructive ?lval_raw ?rval_raw ?t_override store x lval_type value
     in try
       (* We start from the current state and an empty list of global deltas,
        * and we assign to all the different possible places: *)
@@ -2100,21 +2100,21 @@ struct
   (** From a list of expressions, collect a list of addresses that they might point to, or contain pointers to. *)
   let collect_funargs ~man ?(warn=false) (st:store) (exps: exp list) =
     let ask = Analyses.ask_of_man man in
-    let do_exp e =
+    let do_exp acc e =
       let immediately_reachable = reachable_from_value ask (eval_rv ~man st e) (Cilfacade.typeOf e) (CilType.Exp.show e) in
-      reachable_vars ~man st [immediately_reachable]
+      AD.join acc (reachable_vars ~man st immediately_reachable)
     in
-    List.concat_map do_exp exps
+    List.fold_left do_exp (AD.empty ()) exps
 
   let collect_invalidate ~deep ~man ?(warn=false) (st:store) (exps: exp list) =
     if deep then
       collect_funargs ~man ~warn st exps
     else (
-      let mpt e = match eval_rv_address ~man st e with
-        | Address a -> AD.remove NullPtr a
-        | _ -> AD.empty ()
+      let mpt acc e = match eval_rv_address ~man st e with
+        | Address a -> AD.join acc (AD.remove NullPtr a)
+        | _ -> acc
       in
-      List.map mpt exps
+      List.fold_left mpt (AD.empty ()) exps
     )
 
   let invalidate ~(must: bool) ?(deep=true) ~man (st:store) (exps: exp list): store =
@@ -2122,31 +2122,29 @@ struct
     if exps <> [] then M.info ~category:Imprecise "Invalidating expressions: %a" (d_list ", " d_exp) exps;
     (* To invalidate a single address, we create a pair with its corresponding
      * top value. *)
-    let invalidate_address st a =
-      let t = try AD.type_of a with Not_found -> voidType in (* TODO: why is this called with empty a to begin with? *)
-      let v = get ~man st a None in (* None here is ok, just causes us to be a bit less precise *)
+    let invalidate_addr (a: Addr.t) =
+      let t = Addr.type_of a in
+      let v = get_addr ~man st a None in (* None here is ok, just causes us to be a bit less precise *)
       let nv =  VD.invalidate_value (Queries.to_value_domain_ask (Analyses.ask_of_man man)) t v in
       (a, t, nv)
     in
-    (* We define the function that invalidates all the values that an address
-     * expression e may point to *)
-    let invalidate_exp exps =
+    let invalids =
       let args = collect_invalidate ~deep ~man ~warn:true st exps in
-      List.map (invalidate_address st) args
+      let args = AD.elements args in (* split all address sets up because each address of different type (and with different current value) should get a different invalidated value *)
+      List.map invalidate_addr args
     in
-    let invalids = invalidate_exp exps in
     let is_fav_addr x =
-      List.exists BaseUtil.is_excluded_from_invalidation (AD.to_var_may x)
+      GobOption.exists BaseUtil.is_excluded_from_invalidation (Addr.to_var_may x)
     in
     let invalids' = List.filter (fun (x,_,_) -> not (is_fav_addr x)) invalids in
     if M.tracing && exps <> [] then (
       let addrs = List.map (Tuple3.first) invalids' in
       let vs = List.map (Tuple3.third) invalids' in
-      M.tracel "invalidate" "Setting addresses [%a] to values [%a]" (d_list ", " AD.pretty) addrs (d_list ", " VD.pretty) vs
+      M.tracel "invalidate" "Setting addresses [%a] to values [%a]" (d_list ", " Addr.pretty) addrs (d_list ", " VD.pretty) vs
     );
     (* copied from set_many *)
-    let f (acc: store) ((lval:AD.t),(typ:Cil.typ),(value:value)): store =
-      let acc' = set ~man acc lval typ value in
+    let f (acc: store) ((lval:Addr.t),(typ:Cil.typ),(value:value)): store =
+      let acc' = set_addr ~man acc lval typ value in
       if must then
         acc'
       else
@@ -2178,7 +2176,7 @@ struct
     add_to_array_map fundec pa;
     let new_cpa = CPA.add_list pa st'.cpa in
     (* List of reachable variables *)
-    let reachable = List.concat_map AD.to_var_may (reachable_vars ~man st (get_ptrs vals)) in
+    let reachable = AD.to_var_may (reachable_vars ~man st (get_ptrs vals)) in
     let reachable = List.filter (fun v -> CPA.mem v st.cpa) reachable in
     let new_cpa = CPA.add_list_fun reachable (fun v -> CPA.find v st.cpa) new_cpa in
 
@@ -2238,8 +2236,8 @@ struct
       let deep_args = LibraryDesc.Accesses.find desc.accs { kind = Spawn; deep = true } args in
       let shallow_flist = collect_invalidate ~deep:false ~man man.local shallow_args in
       let deep_flist = collect_invalidate ~deep:true ~man man.local deep_args in
-      let flist = shallow_flist @ deep_flist in
-      let addrs = List.concat_map AD.to_var_may flist in
+      let flist = AD.join shallow_flist deep_flist in
+      let addrs = AD.to_var_may flist in
       if addrs <> [] then M.debug ~category:Analyzer "Spawning non-unique functions from unknown function: %a" (d_list ", " CilType.Varinfo.pretty) addrs;
       List.filter_map (create_thread ~multiple:true None None) addrs
 
