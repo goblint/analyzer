@@ -1,5 +1,5 @@
 (** Construction of a {{!Goblint_constraint} constraint system} from an {{!Analyses.Spec} analysis specification} and {{!MyCFG.CfgBackward} CFGs}.
-    Transformatons of analysis specifications as functors. *)
+    Transformations of analysis specifications as functors. *)
 
 open Batteries
 open GoblintCil
