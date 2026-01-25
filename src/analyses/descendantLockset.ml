@@ -128,8 +128,10 @@ module Spec = struct
     | _ -> man.local
 
   module A = struct
+    module DlProd = Printable.Prod (D) (G)
+
     (** ego tid * lock history * (local descendant lockset * global descendant lockset) *)
-    include Printable.Prod3 (TID) (Queries.LH) (Printable.Prod (D) (G))
+    include Printable.Prod3 (TID) (Queries.LH) (DlProd)
 
     let happens_before (t1, dl1) (t2, lh2) =
       let locks_held_creating_t2 = D.find t2 dl1 in
@@ -162,7 +164,16 @@ module Spec = struct
          || happens_before_global dlg1 (t2, lh2)
          || happens_before_global dlg2 (t1, lh1))
 
-    let should_print _ = false
+    (* only descendant locksets need to be printed *)
+    let pretty () (_, _, dl) = DlProd.pretty () dl
+    let show (_, _, dl) = DlProd.show dl
+    let to_yojson (_, _, dl) = DlProd.to_yojson dl
+    let printXml f (_, _, dl) = DlProd.printXml f dl
+
+    let should_print (_, _, (dl, dlg)) =
+      let ls_not_empty _ ls = not @@ Lockset.is_empty ls in
+      D.exists (ls_not_empty) dl
+      || G.exists (fun _ -> TidToLocksetMapTop.exists (ls_not_empty)) dlg
   end
 
   let access man _ =
