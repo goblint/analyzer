@@ -1,9 +1,21 @@
+(** must-lock history analysis [mustlockHistory]
+    collects for locks, in which threads a lock operation must have happened
+    before reaching the current program point.
+
+    @see https://github.com/goblint/analyzer/pull/1923
+*)
+
 open Analyses
 module TIDs = SetDomain.Reverse (ConcDomain.ThreadSet)
 module Lock = LockDomain.MustLock
 
 module Spec = struct
   include IdentityUnitContextsSpec
+
+  (** [{ l |-> T }]
+
+      [l] must have been in all members of [T].
+  *)
   module D = Queries.LH
 
   let name () = "mustlockHistory"
