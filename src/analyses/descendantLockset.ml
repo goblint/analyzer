@@ -1,3 +1,11 @@
+(** descendant lockset analysis [descendantLockset]
+    analyzes a happened-before relationship related to thread creations with mutexes held.
+
+    Enabling [creationLockset] may improve the precision of this analysis.
+
+    @see https://github.com/goblint/analyzer/pull/1923
+*)
+
 open Analyses
 module TID = ThreadIdDomain.Thread
 module TIDs = ConcDomain.ThreadSet
@@ -6,12 +14,20 @@ module TidToLocksetMapTop = MapDomain.MapTop (TID) (Lockset)
 
 module Spec = struct
   include IdentityUnitContextsSpec
+
+  (** [{ t_d |-> L }]
+
+      [t_d] was transitively created with all members of [L] held.
+      Additionally, no member of [L] could have been unlocked after the creation of [t_d]
+  *)
   module D = MapDomain.MapBot (TID) (Lockset)
 
   (** [{ t_0 |-> { t_d |-> L } }]
 
       [{ t_d |-> L }] is the descendant lockset valid for the [V] value,
       because [t_d] was created in [t_0] with the lockset being a superset of L.
+
+      We suspect [MapBot] to suffice for the inner map. To ensure soundness, we use [MapTop] instead
   *)
   module G = MapDomain.MapBot (TID) (TidToLocksetMapTop)
 
