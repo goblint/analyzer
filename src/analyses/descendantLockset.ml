@@ -2,6 +2,7 @@ open Analyses
 module TID = ThreadIdDomain.Thread
 module TIDs = ConcDomain.ThreadSet
 module Lockset = LockDomain.MustLockset
+module TidToLocksetMapTop = MapDomain.MapTop (TID) (Lockset)
 
 module Spec = struct
   include IdentityUnitContextsSpec
@@ -12,7 +13,7 @@ module Spec = struct
       [{ t_d |-> L }] is the descendant lockset valid for the [V] value,
       because [t_d] was created in [t_0] with the lockset being a superset of L.
   *)
-  module G = MapDomain.MapBot (TID) (D)
+  module G = MapDomain.MapBot (TID) (TidToLocksetMapTop)
 
   module V = struct
     include TID
@@ -41,9 +42,9 @@ module Spec = struct
           (fun t_l l_dl acc ->
              let l_cl = Queries.CL.find tid creation_lockset in
              let l_inter = Lockset.inter l_cl l_dl in
-             D.add t_l l_inter acc)
+             TidToLocksetMapTop.add t_l l_inter acc)
           descendant_lockset
-          (D.empty ())
+          (TidToLocksetMapTop.empty ())
       in
       man.sideg t_d (G.singleton tid to_contribute)
     in
@@ -132,7 +133,11 @@ module Spec = struct
           relevant_lh2_threads)
 
     let happens_before_global dlg1 (t2, lh2) =
-      G.exists (fun t dl -> happens_before (t, dl) (t2, lh2)) dlg1
+      G.exists
+        (fun t dl_map_top ->
+           let dl_map_bot = TidToLocksetMapTop.fold D.add dl_map_top (D.empty ()) in (* convert MapTop to MapBot *)
+           happens_before (t, dl_map_bot) (t2, lh2))
+        dlg1
 
     let may_race (t1, lh1, (dl1, dlg1)) (t2, lh2, (dl2, dlg2)) =
       not
