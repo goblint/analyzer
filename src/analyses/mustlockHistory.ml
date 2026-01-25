@@ -44,7 +44,4 @@ module Spec = struct
     | _ -> Queries.Result.top x
 end
 
-let _ =
-  MCP.register_analysis
-    ~dep:[ "threadid"; "threadJoins"; "threadDescendants" ]
-    (module Spec : MCPSpec)
+let _ = MCP.register_analysis ~dep:[ "threadid" ] (module Spec : MCPSpec)
