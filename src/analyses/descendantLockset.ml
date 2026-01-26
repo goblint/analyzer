@@ -113,8 +113,15 @@ module Spec = struct
     (** ego tid * lock history * (local descendant lockset * global descendant lockset) *)
     include Printable.Prod3 (TID) (Queries.LH) (DlProd)
 
-    let happens_before (t1, dl1) (t2, lh2) =
-      let locks_held_creating_t2 = D.find t2 dl1 in
+    module type TidToLs = MapDomain.S with type key = TID.t and type value = Lockset.t
+
+    (** checks if program point 1 must happen before program point 2
+        @param (t1,dl1) thread id and descendant lockset of program point 1
+        @param (t2,lh2) thread id and mustlock history of program point 2
+        @param M module of [dl1]
+    *)
+    let happens_before (type t) (t1, dl1) (t2, lh2) (module M : TidToLs with type t = t) =
+      let locks_held_creating_t2 = M.find t2 dl1 in
       if Lockset.is_bot locks_held_creating_t2
       then false
       else (
@@ -130,17 +137,19 @@ module Spec = struct
              && (TID.equal t_lh t2 || TID.must_be_ancestor t_lh t2))
           relevant_lh2_threads)
 
+    (** checks if the entire execution of a thread must happen before a program point
+        @param dlg1 glabal descendant lockset of the thread
+        @param (t2,lh2) thread id and mustlock history of the program point
+    *)
     let happens_before_global dlg1 (t2, lh2) =
       G.exists
-        (fun t dl_map_top ->
-           let dl_map_bot = TidToLocksetMapTop.fold D.add dl_map_top (D.empty ()) in (* convert MapTop to MapBot *)
-           happens_before (t, dl_map_bot) (t2, lh2))
+        (fun t dl_map -> happens_before (t, dl_map) (t2, lh2) (module TidToLocksetMapTop))
         dlg1
 
     let may_race (t1, lh1, (dl1, dlg1)) (t2, lh2, (dl2, dlg2)) =
       not
-        (happens_before (t1, dl1) (t2, lh2)
-         || happens_before (t2, dl2) (t1, lh1)
+        (happens_before (t1, dl1) (t2, lh2) (module D)
+         || happens_before (t2, dl2) (t1, lh1) (module D)
          || happens_before_global dlg1 (t2, lh2)
          || happens_before_global dlg2 (t1, lh1))
 
