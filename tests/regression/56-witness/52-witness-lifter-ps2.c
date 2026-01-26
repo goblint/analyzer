@@ -1,5 +1,6 @@
 // PARAM: --enable ana.sv-comp.enabled --enable ana.sv-comp.functions --enable exp.arg.enabled --set ana.specification 'CHECK( init(main()), LTL(G valid-memtrack) )' --set ana.activated[+] memLeak --set ana.path_sens[+] memLeak --set ana.malloc.unique_address_count 1
 // NOCRASH
+#include <stdlib.h>
 struct _twoIntsStruct {
    int intOne ;
    int intTwo ;

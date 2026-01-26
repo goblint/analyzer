@@ -1,5 +1,7 @@
 // PARAM: --enable ana.int.bitfield --enable ana.int.enums --enable ana.int.congruence --enable ana.int.interval --set ana.int.refinement fixpoint
 // FIXPOINT
+#include <assert.h>
+
 int main(void)
 {
   unsigned int c = 3;

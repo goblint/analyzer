@@ -1,5 +1,8 @@
 // PARAM: --set ana.base.privatization write
 #include<pthread.h>
+#include <string.h>
+#include <goblint.h>
+
 struct a {
   char* b;
 };

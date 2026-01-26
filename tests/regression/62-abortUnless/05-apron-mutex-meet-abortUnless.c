@@ -1,6 +1,7 @@
 // SKIP PARAM: --set ana.activated[+] apron --set ana.activated[+] abortUnless --set ana.path_sens[+] threadflag
 // Minimized SV-COMP version of our regression test
 // NOTIMEOUT
+#include <stdlib.h>
 #include <assert.h>
 #include <pthread.h>
 

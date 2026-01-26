@@ -2,6 +2,7 @@
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <goblint.h>
 
 #define ANY_ERROR 5  // 0b0101
 

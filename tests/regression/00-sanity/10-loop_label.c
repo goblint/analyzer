@@ -1,3 +1,5 @@
+#include <goblint.h>
+
 int main () {
   while (1) {
     while_1_continue: /* CIL label */ ;
