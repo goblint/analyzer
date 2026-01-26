@@ -137,7 +137,13 @@ module Spec = struct
          || one_protected_inter_threaded_other_intra_threaded cl1 t2 ls2
          || one_protected_inter_threaded_other_intra_threaded cl2 t1 ls1)
 
-    let should_print (_t, _ls, cl) = not @@ G.is_empty cl
+    (* TID and Lockset components are directly queried from other analyses and already are printed by them *)
+    let pretty () (_, _, cl) = G.pretty () cl
+    let show (_, _, cl) = G.show cl
+    let to_yojson (_, _, cl) = G.to_yojson cl
+    let printXml f (_, _, cl) = G.printXml f cl
+
+    let should_print (_t, _ls, cl) = G.exists (fun _ ls -> not @@ Lockset.is_empty ls) cl
   end
 
   let access man _ =
