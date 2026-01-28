@@ -2763,7 +2763,10 @@ struct
             let blob_set = Option.map_default (fun heap_var -> [heap_var, TVoid [], VD.Blob (VD.bot (), sizeval, ZeroInit.calloc)]) [] heap_var in
             set_many ~man st ((eval_lv ~man st lv, (Cilfacade.typeOfLval lv), Address addr):: blob_set)
           else
-            let blobsize = ID.mul (ID.cast_to ~kind:Internal ik @@ sizeval) (ID.cast_to ~kind:Internal ik @@ countval) in (* TODO: proper castkind *)
+            let blobsize = (* only speculative during ID.mul *)
+              let@ () = GobRef.wrap AnalysisState.executing_speculative_computations true in
+              ID.mul (ID.cast_to ~kind:Internal ik @@ sizeval) (ID.cast_to ~kind:Internal ik @@ countval) (* TODO: proper castkind *)
+            in
             let offset = `Index (IdxDom.of_int (Cilfacade.ptrdiff_ikind ()) Z.zero, `NoOffset) in
             (* the heap_var is the base address of the allocated memory, but we need to keep track of the offset for the blob *)
             let addr_offset = AD.map (fun a -> Addr.add_offset a offset) addr in
