@@ -821,21 +821,22 @@ struct
     in
     let r =
       (* query functions were no help ... now try with values*)
-      match constFold true exp with
+      match exp with (* TODO: support all cases from [constFold true] directly *)
       (* Integer literals *)
       (* seems like constFold already converts CChr to CInt *)
       | Const (CChr x) -> eval_rv ~man st (Const (charConstToInt x)) (* char becomes int, see Cil doc/ISO C 6.4.4.4.10 *)
       | Const (CInt (num,ikind,str)) -> Int (IntDomain.of_const (num,ikind,str)) (* no cast to ikind needed: CIL ensures that the literal fits ikind, either by silently truncating it (!) or having an explicit CastE around this *)
+      | Const (CEnum (v, _, _)) -> eval_rv ~man st v (* based on [Cil.constFold true] *)
       | Const (CReal (_,fkind, Some str)) when not (Cilfacade.isComplexFKind fkind) -> Float (FD.of_string fkind str) (* prefer parsing from string due to higher precision *)
       | Const (CReal (num, fkind, None)) when not (Cilfacade.isComplexFKind fkind) && num = 0.0 -> Float (FD.of_const fkind num) (* constant 0 is ok, CIL creates these for zero-initializers; it is safe across float types *)
       | Const (CReal (_, fkind, None)) when not (Cilfacade.isComplexFKind fkind) ->  assert false (* Cil does not create other CReal without string representation *)
       (* String literals *)
+      | Const (CReal _) -> VD.top ()
       | Const (CStr (x,_)) -> Address (AD.of_string x) (* normal 8-bit strings, type: char* *)
       | Const (CWStr (xs,_) as c) -> (* wide character strings, type: wchar_t* *)
         let x = CilType.Constant.show c in (* escapes, see impl. of d_const in cil.ml *)
         let x = String.sub x 2 (String.length x - 3) in (* remove surrounding quotes: L"foo" -> foo *)
         Address (AD.of_string x) (* Address (AD.str_ptr ()) *)
-      | Const _ -> VD.top ()
       (* Variables and address expressions *)
       | Lval lv ->
         eval_rv_base_lval ~eval_lv ~man st exp lv
@@ -945,12 +946,27 @@ struct
         Address (AD.map array_start (eval_lv ~man st lval))
       | CastE (_, t, Const (CStr (x,e))) -> (* VD.top () *) eval_rv ~man st (Const (CStr (x,e))) (* TODO safe? *)
       | CastE (kind, t, exp) ->
-        let v = eval_rv ~man st exp in
+        let v: VD.t = match exp with
+          | AddrOf (Mem (CastE (_, TPtr (bt, _), z)), off) when isZero z -> (* offsetof hack, based on [Cil.constFold true] *)
+            begin match Cilfacade.bytesOffsetOnly bt off with
+              | bytes_offset -> Int (ID.of_int !kindOfSizeOf (Z.of_int bytes_offset))
+              | exception SizeOfError _ -> eval_rv ~man st exp (* TODO: does this ever happen? *)
+            end
+          | _ -> eval_rv ~man st exp
+        in
         VD.cast ~kind t v
-      | SizeOf _
+      | SizeOf t -> (* based on [Cil.constFold true] *)
+        begin match Cilfacade.bytesSizeOf t with
+          | bytes -> Int (ID.of_int !Cil.kindOfSizeOf (Z.of_int bytes))
+          | exception SizeOfError _ -> Int (ID.top_of !Cil.kindOfSizeOf) (* TODO: does this ever happen? *)
+        end
+      | SizeOfE e -> (* based on [Cil.constFold true] and inlined SizeOf *)
+        begin match Cilfacade.bytesSizeOf (Cilfacade.typeOf e) with
+          | bytes -> Int (ID.of_int !Cil.kindOfSizeOf (Z.of_int bytes))
+          | exception SizeOfError _ -> Int (ID.top_of !Cil.kindOfSizeOf) (* TODO: does this ever happen? *)
+        end
       | Real _
       | Imag _
-      | SizeOfE _
       | SizeOfStr _
       | AlignOf _
       | AlignOfE _

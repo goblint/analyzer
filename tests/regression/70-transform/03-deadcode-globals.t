@@ -20,11 +20,11 @@
   
   
     {
-    return ((int )(x->field1 + 1));
+    return ((int )(x->field1 + (int const   )1));
   }
   }
   int const   global1  =    (int const   )1;
-  int const   global2  =    global1 + 7;
+  int const   global2  =    global1 + (int const   )7;
   int main(void) 
   { 
     struct1_named1 x ;
