@@ -821,7 +821,7 @@ struct
     in
     let r =
       (* query functions were no help ... now try with values*)
-      match constFold true exp with
+      match exp with (* TODO: support all cases from [constFold true] directly *)
       (* Integer literals *)
       (* seems like constFold already converts CChr to CInt *)
       | Const (CChr x) -> eval_rv ~man st (Const (charConstToInt x)) (* char becomes int, see Cil doc/ISO C 6.4.4.4.10 *)
