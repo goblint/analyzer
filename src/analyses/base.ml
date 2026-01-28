@@ -826,16 +826,17 @@ struct
       (* seems like constFold already converts CChr to CInt *)
       | Const (CChr x) -> eval_rv ~man st (Const (charConstToInt x)) (* char becomes int, see Cil doc/ISO C 6.4.4.4.10 *)
       | Const (CInt (num,ikind,str)) -> Int (IntDomain.of_const (num,ikind,str)) (* no cast to ikind needed: CIL ensures that the literal fits ikind, either by silently truncating it (!) or having an explicit CastE around this *)
+      | Const (CEnum (v, _, _)) -> eval_rv ~man st v (* based on [Cil.constFold true] *)
       | Const (CReal (_,fkind, Some str)) when not (Cilfacade.isComplexFKind fkind) -> Float (FD.of_string fkind str) (* prefer parsing from string due to higher precision *)
       | Const (CReal (num, fkind, None)) when not (Cilfacade.isComplexFKind fkind) && num = 0.0 -> Float (FD.of_const fkind num) (* constant 0 is ok, CIL creates these for zero-initializers; it is safe across float types *)
       | Const (CReal (_, fkind, None)) when not (Cilfacade.isComplexFKind fkind) ->  assert false (* Cil does not create other CReal without string representation *)
       (* String literals *)
+      | Const (CReal _) -> VD.top ()
       | Const (CStr (x,_)) -> Address (AD.of_string x) (* normal 8-bit strings, type: char* *)
       | Const (CWStr (xs,_) as c) -> (* wide character strings, type: wchar_t* *)
         let x = CilType.Constant.show c in (* escapes, see impl. of d_const in cil.ml *)
         let x = String.sub x 2 (String.length x - 3) in (* remove surrounding quotes: L"foo" -> foo *)
         Address (AD.of_string x) (* Address (AD.str_ptr ()) *)
-      | Const _ -> VD.top ()
       (* Variables and address expressions *)
       | Lval lv ->
         eval_rv_base_lval ~eval_lv ~man st exp lv
