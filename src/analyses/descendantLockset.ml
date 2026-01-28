@@ -108,10 +108,10 @@ module Spec = struct
     | _ -> man.local
 
   module A = struct
-    module DlProd = Printable.Prod (D) (G)
+    module DlLhProd = Printable.Prod3 (D) (G) (Queries.LH)
 
-    (** ego tid * lock history * (local descendant lockset * global descendant lockset) *)
-    include Printable.Prod3 (TID) (Queries.LH) (DlProd)
+    (** ego tid * (local descendant lockset * global descendant lockset * lock history) *)
+    include Printable.Prod (TID) (DlLhProd)
 
     module type TidToLs = MapDomain.S with type key = TID.t and type value = Lockset.t
 
@@ -146,31 +146,32 @@ module Spec = struct
         (fun t dl_map -> happens_before (t, dl_map) (t2, lh2) (module TidToLocksetMapTop))
         dlg1
 
-    let may_race (t1, lh1, (dl1, dlg1)) (t2, lh2, (dl2, dlg2)) =
+    let may_race (t1, (dl1, dlg1, lh1)) (t2, (dl2, dlg2, lh2)) =
       not
         (happens_before (t1, dl1) (t2, lh2) (module D)
          || happens_before (t2, dl2) (t1, lh1) (module D)
          || happens_before_global dlg1 (t2, lh2)
          || happens_before_global dlg2 (t1, lh1))
 
-    (* only descendant locksets need to be printed *)
-    let pretty () (_, _, dl) = DlProd.pretty () dl
-    let show (_, _, dl) = DlProd.show dl
-    let to_yojson (_, _, dl) = DlProd.to_yojson dl
-    let printXml f (_, _, dl) = DlProd.printXml f dl
+    (* ego tid is already printed elsewhere *)
+    let pretty () (_, dl_dlg_lh) = DlLhProd.pretty () dl_dlg_lh
+    let show (_, dl_dlg_lh) = DlLhProd.show dl_dlg_lh
+    let to_yojson (_, dl_dlg_lh) = DlLhProd.to_yojson dl_dlg_lh
+    let printXml f (_, dl_dlg_lh) = DlLhProd.printXml f dl_dlg_lh
 
-    let should_print (_, _, (dl, dlg)) =
+    let should_print (_, (dl, dlg, lh)) =
       let ls_not_empty _ ls = not @@ Lockset.is_empty ls in
-      D.exists (ls_not_empty) dl
-      || G.exists (fun _ -> TidToLocksetMapTop.exists (ls_not_empty)) dlg
+      D.exists ls_not_empty dl
+      || G.exists (fun _ -> TidToLocksetMapTop.exists ls_not_empty) dlg
+      || Queries.LH.exists (fun l tids -> not @@ TIDs.is_empty tids) lh
   end
 
   let access man _ =
     let lh = man.ask Queries.MustlockHistory in
     let tid_lifted = man.ask Queries.CurrentThreadId in
     match tid_lifted with
-    | `Lifted tid -> tid, lh, (man.local, man.global tid)
-    | _ -> ThreadIdDomain.UnknownThread, Queries.LH.empty (), (D.empty (), G.empty ())
+    | `Lifted tid -> tid, (man.local, man.global tid, lh)
+    | _ -> ThreadIdDomain.UnknownThread, (D.empty (), G.empty (), Queries.LH.empty ())
 end
 
 let _ =
