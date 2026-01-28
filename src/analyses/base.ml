@@ -960,9 +960,13 @@ struct
           | bytes -> Int (ID.of_int !Cil.kindOfSizeOf (Z.of_int bytes))
           | exception SizeOfError _ -> Int (ID.top_of !Cil.kindOfSizeOf) (* TODO: does this ever happen? *)
         end
+      | SizeOfE e -> (* based on [Cil.constFold true] and inlined SizeOf *)
+        begin match Cilfacade.bytesSizeOf (Cilfacade.typeOf e) with
+          | bytes -> Int (ID.of_int !Cil.kindOfSizeOf (Z.of_int bytes))
+          | exception SizeOfError _ -> Int (ID.top_of !Cil.kindOfSizeOf) (* TODO: does this ever happen? *)
+        end
       | Real _
       | Imag _
-      | SizeOfE _
       | SizeOfStr _
       | AlignOf _
       | AlignOfE _
