@@ -947,7 +947,11 @@ struct
       | CastE (kind, t, exp) ->
         let v = eval_rv ~man st exp in
         VD.cast ~kind t v
-      | SizeOf _
+      | SizeOf t -> (* based on [Cil.constFold true] *)
+        begin match Cilfacade.bytesSizeOf t with
+          | bytes -> Int (ID.of_int !Cil.kindOfSizeOf (Z.of_int bytes))
+          | exception SizeOfError _ -> Int (ID.top_of !Cil.kindOfSizeOf) (* TODO: does this ever happen? *)
+        end
       | Real _
       | Imag _
       | SizeOfE _

@@ -405,6 +405,7 @@ let typeSigBlendAttributes baseAttrs =
   typeSigAddAttrs contageous
 
 
+(** @raise SizeOfError *)
 let bytesSizeOf t =
   let bits = bitsSizeOf t in
   assert (bits mod 8 = 0);
