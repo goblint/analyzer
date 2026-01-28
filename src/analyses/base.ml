@@ -1562,6 +1562,7 @@ struct
         | _ -> Queries.Result.top q
       end
     | Q.MayPointTo e -> begin
+        let@ () = GobRef.wrap AnalysisState.executing_speculative_computations true in (* TODO: speculate other queries too? *)
         match eval_rv_address ~man man.local e with
         | Address a -> a
         | Bot -> Queries.Result.bot q (* TODO: remove *)
