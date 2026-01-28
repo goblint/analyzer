@@ -946,7 +946,14 @@ struct
         Address (AD.map array_start (eval_lv ~man st lval))
       | CastE (_, t, Const (CStr (x,e))) -> (* VD.top () *) eval_rv ~man st (Const (CStr (x,e))) (* TODO safe? *)
       | CastE (kind, t, exp) ->
-        let v = eval_rv ~man st exp in
+        let v: VD.t = match exp with
+          | AddrOf (Mem (CastE (_, TPtr (bt, _), z)), off) when isZero z -> (* offsetof hack, based on [Cil.constFold true] *)
+            begin match Cilfacade.bytesOffsetOnly bt off with
+              | bytes_offset -> Int (ID.of_int !kindOfSizeOf (Z.of_int bytes_offset))
+              | exception SizeOfError _ -> eval_rv ~man st exp (* TODO: does this ever happen? *)
+            end
+          | _ -> eval_rv ~man st exp
+        in
         VD.cast ~kind t v
       | SizeOf t -> (* based on [Cil.constFold true] *)
         begin match Cilfacade.bytesSizeOf t with
