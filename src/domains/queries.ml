@@ -550,7 +550,10 @@ struct
 end
 
 let to_value_domain_ask (ask: ask) =
-  let eval_int e = ask.f (EvalInt e) in
+  let eval_int e =
+    let@ () = GobRef.wrap AnalysisState.executing_speculative_computations true in
+    ask.f (EvalInt e)
+  in
   let may_point_to e = ask.f (MayPointTo e) in
   let is_multiple v = ask.f (IsMultiple v) in
   { VDQ.eval_int; may_point_to; is_multiple }
