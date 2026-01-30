@@ -10,13 +10,6 @@ open Analyses
 
 module VarinfoSet = SetDomain.Make(CilType.Varinfo)
 
-(* Use to check if a specific function is a sink / source *)
-(* Sources take value-typed arguments *)
-(* Sinks may trigger garbage collection *)
-let is_sink varinfo = Cil.hasAttribute "ocaml_sink" varinfo.vattr
-let is_source varinfo = Cil.hasAttribute "ocaml_source" varinfo.vattr
-
-
 (** "Fake" variable to handle returning from a function *)
 let return_varinfo = dummyFunDec.svar
 
@@ -84,12 +77,12 @@ struct
     | AlignOfE e
     | CastE (_,e)
     | UnOp (_,e,_) -> exp_accounted_for state e
-    | SizeOf _ | SizeOfStr _ | Const _  | AlignOf _ | AddrOfLabel _ -> false
+    | SizeOf _ | SizeOfStr _ | Const _  | AlignOf _ | AddrOfLabel _ -> true
     | Question (b, t, f, _) -> exp_accounted_for state b && exp_accounted_for state t && exp_accounted_for state f
   and lval_accounted_for state = function
     | (Var v, _) ->
       (* Checks whether variable v is accounted for *) (*false*)
-      if D.mem_a v state || not (D.mem_t v state) then true else let _ = M.warn "Value %a might be garbage collected" CilType.Varinfo.pretty v in false
+      if D.mem_a v state || not (D.mem_t v state) then true else (M.warn "Value %a might be garbage collected" CilType.Varinfo.pretty v; false)
     | _ ->
       (* The Gemara asks: is using an offset safe for the expression? The Gemara answers: by default, no. We assume our language has no pointers *)
       false
@@ -123,11 +116,15 @@ struct
     let state = ctx.local in
     match lval with
     | Var v,_ ->
-      (* If lval is of type value, checks whether rval is accounted for, handles assignment to v accordingly *) (* state *)
-      if exp_accounted_for state rval then
-        if exp_tracked state rval then D.add_a v (D.add_t v state)
-        else D.add_a v (D.remove_t v state)
-      else let _ = M.info "The above is being assigned" in D.remove_a v (D.add_t v state)
+      (* If rval is a pointer, checks whether rval is accounted for, handles assignment to v accordingly *) (* state *)
+      (* Emits an event for the variable v not being zero. *)
+      ctx.emit (Events.SplitBranch (Cil.BinOp (Cil.Eq, Cil.Lval lval, Cil.zero, Cil.intType), false));
+      if Cil.isPointerType (Cil.typeOf rval) then
+        if exp_accounted_for state rval then
+          if exp_tracked state rval then D.add_a v (D.add_t v state)
+          else D.add_a v (D.remove_t v state) (* TODO: Is add_a necessary for untracked variables? *)
+        else (M.info "The above is being assigned"; D.remove_a v (D.add_t v state))
+      else D.remove_t v state
     | _ -> state
 
   (** Handles conditional branching yielding truth value [tv]. *)
@@ -152,7 +149,7 @@ struct
       (* TODO: Consider how the return_varinfo needs to be tracked. *)
       (* state *)
       if exp_accounted_for state e then D.add_a return_varinfo state
-      else let _ = M.warn "Value returned might be garbage collected" in D.remove_a return_varinfo state
+      else (M.warn "Value returned might be garbage collected"; D.remove_a return_varinfo state)
     | None -> state
 
   (** For a function call "lval = f(args)" or "f(args)",
@@ -193,7 +190,7 @@ struct
     (* TODO: Consider how the return_varinfo needs to be tracked. *)
     match lval with (* The variable returned is played by return_varinfo *)
     | Some (Var v, _) -> if D.mem_a return_varinfo callee_local then D.add_a v caller_state
-      else let _ = M.warn "Returned value may be garbage-collected" in D.remove_a v caller_state
+      else (M.warn "Returned value may be garbage-collected"; D.remove_a v caller_state)
     | _ -> caller_state
 
   (** For a call to a _special_ function f "lval = f(args)" or "f(args)",
@@ -206,34 +203,25 @@ struct
     (* caller_state *)
     let desc = LibraryFunctions.find f in
     match desc.special arglist with
-    (* Variables are registered with a Param macro. *)
     | OCamlParam params ->
-      List.fold_left (fun state param -> let _ = M.info "We reach here" in
+      (* Variables are registered with a Param macro. Such variables are also tracked. *)
+      List.fold_left (fun state param -> M.debug "We reach here";
                        match param with
-                       | AddrOf (Var v, _) -> let _ = M.info "Address of" in
-                         D.add_r v state
+                       | AddrOf (Var v, _) -> M.debug "Address of";
+                         D.add_r v (D.add_t v state)
                        | _ -> state
                      ) caller_state params
     | OCamlAlloc size_exp ->
-      (* Garbage collection may trigger here and overwrite unregistered variables *)
-      let _ = M.debug "Garbage collection triggers" in (match lval with
-          | Some (Var v, _) -> D.add_a v (D.after_gc caller_state)
-          | _ ->
-            (* if not (List.for_all (exp_accounted_for caller_state) arglist) then let _ = M.warn "GC might delete value" in D.empty () else *) D.empty ()
-        )
+      (* Garbage collection may trigger here and overwrite unregistered variables. *)
+      M.debug "Garbage collection triggers";
+      List.iter (fun e -> ignore (exp_accounted_for caller_state e)) arglist; (* Just to trigger warnings *)
+      (match lval with
+       | Some (Var v, _) -> D.add_a v (D.add_t v (D.after_gc caller_state))
+       | _ -> D.after_gc caller_state
+      )
     | _ ->
-      List.iter (fun e -> ignore (exp_accounted_for caller_state e)) arglist; (* Just to trigger warnings for arguments passed to sinks/sources *)
-      if is_source f then match lval with (* Assigning the source's result makes the variable accounted for. *)
-        | Some (Var v, _) -> D.add_a v caller_state
-        | _ -> caller_state
-      else
-      if is_sink f then (* Warns if unaccounted variables reach the function. Empties the state of unregistered variables. *)
-        let _ = M.debug "Garbage collection triggers" in match lval with
-        | Some (Var v, _) -> D.add_a v (D.after_gc caller_state)
-        | _ ->
-          (* if not (List.for_all (exp_accounted_for caller_state) arglist) then let _ = M.warn "GC might delete value" in D.empty () else *)
-          D.after_gc caller_state
-      else caller_state
+      List.iter (fun e -> ignore (exp_accounted_for caller_state e)) arglist; (* Just to trigger warnings for arguments passed to special functions *)
+      caller_state
 
   (* You may leave these alone *)
   let startstate v = D.bot ()

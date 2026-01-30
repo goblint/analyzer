@@ -1247,6 +1247,8 @@ let ocaml_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("caml_copy_double", special [drop "nptr" []] (OCamlAlloc (GoblintCil.integer 1)));
     (* Eeskuju: ("malloc", special [__ "size" []] @@ fun size -> Malloc size); *)
     ("caml_alloc_small", special [__ "wosize" []; __ "tag" []] @@ fun wosize tag -> OCamlAlloc wosize);
+    (* TODO: This specification is not correct because it doesn't warn where it should. Also rethink the argument names. *)
+    ("caml_alloc_3", special [__ "tag" []; __ "arg1" [r]; __ "arg2" [r]; __ "arg3" [r]] @@ fun tag _arg1 _arg2 _arg3 -> OCamlAlloc (GoblintCil.integer 3));
     ("__goblint_caml_param0", special [] @@ OCamlParam []);
     ("__goblint_caml_param1", special [__ "param" []] @@ fun param -> OCamlParam [param]);
     ("__goblint_caml_param2", special [__ "param1" []; __ "param2" []] @@ fun param1 param2 -> OCamlParam [param1; param2]);
