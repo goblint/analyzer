@@ -86,6 +86,15 @@ sig
   val postmortem: v -> v list
 end
 
+module type BaseGlobConstrSys =
+sig
+  module LVar : VarType
+  module GVar : VarType
+
+  module D : Lattice.S
+  module G : Lattice.S
+end
+
 (** A side-effecting system that supports [demand] calls *)
 module type DemandEqConstrSys =
 sig
@@ -96,11 +105,7 @@ end
 (** A side-effecting system with globals. *)
 module type GlobConstrSys =
 sig
-  module LVar : VarType
-  module GVar : VarType
-
-  module D : Lattice.S
-  module G : Lattice.S
+  include BaseGlobConstrSys
   val system : LVar.t -> ((LVar.t -> D.t) -> (LVar.t -> D.t -> unit) -> (GVar.t -> G.t) -> (GVar.t -> G.t -> unit) -> D.t) option
   val iter_vars: (LVar.t -> D.t) -> (GVar.t -> G.t) -> VarQuery.t -> LVar.t VarQuery.f -> GVar.t VarQuery.f -> unit
   val sys_change: (LVar.t -> D.t) -> (GVar.t -> G.t) -> [`L of LVar.t | `G of GVar.t] sys_change_info
@@ -110,22 +115,14 @@ end
 (** A side-effecting system with globals. *)
 module type FwdGlobConstrSys =
 sig
-  module LVar : VarType
-  module GVar : VarType
-
-  module D : Lattice.S
-  module G : Lattice.S
+  include BaseGlobConstrSys
   val system : LVar.t -> (D.t -> (LVar.t -> D.t) -> (LVar.t -> D.t -> unit) -> (GVar.t -> G.t) -> (GVar.t -> G.t -> unit) -> unit) option
 end
 
 (** A side-effecting system with globals that supports [demand] calls *)
 module type DemandGlobConstrSys =
 sig
-  module LVar : VarType
-  module GVar : VarType
-
-  module D : Lattice.S
-  module G : Lattice.S
+  include BaseGlobConstrSys
   val system: LVar.t -> ((LVar.t -> D.t) -> (LVar.t -> D.t -> unit) -> (LVar.t -> unit) -> (GVar.t -> G.t) -> (GVar.t -> G.t -> unit) -> D.t) option
   val iter_vars: (LVar.t -> D.t) -> (GVar.t -> G.t) -> VarQuery.t -> LVar.t VarQuery.f -> GVar.t VarQuery.f -> unit
   val sys_change: (LVar.t -> D.t) -> (GVar.t -> G.t) -> [`L of LVar.t | `G of GVar.t] sys_change_info
