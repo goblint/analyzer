@@ -6,7 +6,7 @@ int main() {
     int x, y;
     bad = x % y; // WARN (div by zero and overflow, distinguished in cram test)
     if (y != 0) {
-        bad = x % y; // TODO WARN (overflow)
+        bad = x % y; // WARN (overflow)
     }
     return 0;
 }
