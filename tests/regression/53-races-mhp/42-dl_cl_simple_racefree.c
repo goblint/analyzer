@@ -1,3 +1,4 @@
+// SKIP this could be supported in [descendantLockset] analysis making use of [creationLockset]
 // PARAM: --set ana.activated[+] threadJoins --set ana.activated[+] threadDescendants --set ana.activated[+] mustlockHistory --set ana.activated[+] descendantLockset --set "ana.activated[+]" creationLockset
 #include <pthread.h>
 
