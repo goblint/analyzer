@@ -52,6 +52,22 @@ sig
   include Goblint_constraint.ConstrSys.SysVar with type t := t
 end
 
+
+module GVarPretty (V: SpecSysVar) =
+struct
+  include Printable.EitherConf (struct let expand1 = false let expand2 = true end) (V) (CilType.Fundec)
+  let name () = "FromSpec"
+  let spec x = `Left x
+
+  (* from Basetype.Variables *)
+  let var_id = show
+  let node _ = MyCFG.Function Cil.dummyFunDec
+  let pretty_trace = pretty
+  let is_write_only = function
+    | `Left x -> V.is_write_only x
+    | `Right _ -> true
+end
+
 module GVarF (V: SpecSysVar) =
 struct
   include Printable.EitherConf (struct let expand1 = false let expand2 = true end) (V) (CilType.Fundec)
@@ -82,6 +98,22 @@ struct
   let is_write_only = function
     | `Left x -> V.is_write_only x
     | `Right _ -> true
+end
+
+module GVarFN (V: SpecSysVar) =
+struct
+  include Printable.EitherConf (struct let expand1 = false let expand2 = true end) (V) (CilType.Fundec)
+  let name () = "FromSpec"
+  let spec x = `Left x
+  let return (x, c) = `Right (x, c)
+
+  (* from Basetype.Variables *)
+  let var_id = show
+  let node _ = MyCFG.Function Cil.dummyFunDec
+  let pretty_trace = pretty
+  let is_write_only = function
+    | `Left x -> V.is_write_only x
+    | `Right _ -> false
 end
 
 module GVarFCNW (V:SpecSysVar) (C:Printable.S) =
@@ -203,6 +235,7 @@ let ask_of_man man: Queries.ask = { Queries.f = man.ask }
 
 module type Spec =
 sig
+  (** Lattice for the abstract domain of the locals *)
   module D : Lattice.S
   module G : Lattice.S
   module C : Printable.S
@@ -461,13 +494,36 @@ module ValueContexts (D:Lattice.S) = struct
   let startcontext () = D.bot ()
 end
 
+module type ComparableSpecSys =
+sig
+  module Spec: Spec
+  module EQSys: Goblint_constraint.ConstrSys.BaseGlobConstrSys 
+    with module LVar = VarF (Spec.C)
+     (* and module GVar = GVarPretty (Spec.V) *)
+     and module D = Spec.D
+  (* and module G = GVarG (Spec.G) (Spec.C) *)
+  module LHT: BatHashtbl.S with type key = EQSys.LVar.t
+  module GHT: BatHashtbl.S with type key = EQSys.GVar.t
+end
+
+module type FwdSpecSys =
+sig
+  module Spec: Spec
+  module EQSys: Goblint_constraint.ConstrSys.FwdGlobConstrSys with module LVar = VarF (Spec.C)
+                                                               and module GVar = GVarFCNW (Spec.V) (Spec.C)
+                                                               and module D = Spec.D
+                                                               and module G = GVarL (Spec.G) (Spec.D)
+  module LHT: BatHashtbl.S with type key = EQSys.LVar.t
+  module GHT: BatHashtbl.S with type key = EQSys.GVar.t
+end
+
 module type SpecSys =
 sig
   module Spec: Spec
   module EQSys: Goblint_constraint.ConstrSys.DemandGlobConstrSys with module LVar = VarF (Spec.C)
-                               and module GVar = GVarF (Spec.V)
-                               and module D = Spec.D
-                               and module G = GVarG (Spec.G) (Spec.C)
+                                                                  and module GVar = GVarF (Spec.V)
+                                                                  and module D = Spec.D
+                                                                  and module G = GVarG (Spec.G) (Spec.C)
   module LHT: BatHashtbl.S with type key = EQSys.LVar.t
   module GHT: BatHashtbl.S with type key = EQSys.GVar.t
 end

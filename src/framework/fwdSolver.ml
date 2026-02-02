@@ -1,4 +1,5 @@
 open Goblint_constraint.ConstrSys
+open Messages
 
 module FwdSolver (System: FwdGlobConstrSys) = struct
 
@@ -212,6 +213,7 @@ module FwdSolver (System: FwdGlobConstrSys) = struct
   (* ... now the main solver loop ... *)
 
   let solve xs =
+    if tracing then trace "solver" "fwd";
     let _ = List.iter add_work xs in
     let rec doit () = match rem_work () with
       | None -> ()

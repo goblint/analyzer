@@ -64,7 +64,7 @@ let current_varquery_global_state_json: (Goblint_constraint.VarQuery.t option ->
 module AnalyzeCFG (Cfg:CfgBidirSkip) (Spec:Spec) (Inc:Increment) =
 struct
 
-  module SpecSys =
+  module SpecSys: FwdSpecSys with module Spec = Spec =
   struct
     (* Must be created in module, because cannot be wrapped in a module later. *)
     module Spec = Spec
@@ -94,11 +94,15 @@ struct
   end
 
   module Sys = FwdConstraints.FromSpec (Spec) (Cfg) (Inc)
-  module FwdSlvr = FwdSolver.FwdSolver (Sys)
+  module FwdSolver = FwdSolver.FwdSolver (Sys)
   module BuSolver = Bu.FwdBuSolver (Sys)
   module WBuSolver = Wbu.FwdWBuSolver (Sys)
   (* module Slvr2 = BuSlvr *)
-  module GHT = BatHashtbl.Make (Sys.GVar)
+
+  module CompareGlobSys = CompareConstraints.CompareGlobSys (SpecSys)
+  (* TODO remove those witnesses once the mismatch is solved *)
+  let _ : EQSys.G.t -> BuSolver.G.t = fun x -> x
+  let _ : 'a CompareGlobSys.GH.t -> 'a GHT.t = fun x -> x
 
 
   (* Triple of the function, context, and the local value. *)
@@ -476,10 +480,10 @@ struct
       let compare_runs = get_string_list "compare_runs" in
       let gobview = get_bool "gobview" in
       let save_run_str = let o = get_string "save_run" in if o = "" then (if gobview then "run" else "") else o in
-      let solve = if (get_string "solver" = "bu") then BuSolver.solve else 
-                  if (get_string "solver" = "wbu") then WBuSolver.solve else FwdSlvr.solve in 
+      let solve = if (get_string "solver" = "bu") then BuSolver.solve else
+        if (get_string "solver" = "wbu") then WBuSolver.solve else FwdSolver.solve in 
       let check = if (get_string "solver" = "bu") then BuSolver.check else 
-                  if (get_string "solver" = "wbu") then WBuSolver.solve else FwdSlvr.check in 
+        if (get_string "solver" = "wbu") then WBuSolver.solve else FwdSolver.check in 
       let _ = solve entrystates entrystates_global startvars' in
 
       AnalysisState.should_warn := true; (* reset for postsolver *)
@@ -520,6 +524,30 @@ struct
 
       if get_bool "dump_globs" then
         print_globals gh;
+
+      (**)
+      (* AnalysisState.should_warn := true; (* reset for postsolver *) *)
+      (* AnalysisState.postsolving := true; *)
+      (* (* postsolver *) *)
+      (**)
+      (* let rho,tau = check entrystates entrystates_global startvars' in *)
+      (* let lh, gh = LHT.of_seq rho, GHT.of_seq tau in *)
+
+      if get_string "comparesolver" <> "" then (
+        if M.tracing then M.trace "comparesolver" "here";
+        let compare_with solve check =
+          let _ = solve entrystates entrystates_global startvars' in
+          let rho,tau = check entrystates entrystates_global startvars' in
+          let lh2, gh2 = LHT.of_seq rho, GHT.of_seq tau in
+          CompareGlobSys.compare (get_string "solver", get_string "comparesolver") (lh,gh) (lh2, gh2)
+        in
+        let solve = if (get_string "comparesolver" = "bu") then BuSolver.solve else 
+            (if (get_string "comparesolver" = "fwd") then FwdSolver.solve else WBuSolver.solve) in
+
+        let check = if (get_string "comparesolver" = "bu") then BuSolver.check else 
+            (if (get_string "comparesolver" = "fwd") then FwdSolver.check else WBuSolver.check) in
+        compare_with solve check;
+      );
 
       lh, gh
     in
@@ -595,9 +623,21 @@ struct
     let marshal = Spec.finalize () in
     (* copied from solve_and_postprocess *)
     let gobview = get_bool "gobview" in
-    let save_run = let o = get_string "save_run" in if o = "" then (if gobview then "run" else "") else o in
-    if save_run <> "" then (
-      Serialize.marshal marshal Fpath.(v save_run / "spec_marshal")
+    let save_run_str = let o = get_string "save_run" in if o = "" then (if gobview then "run" else "") else o in
+    if save_run_str <> "" then (
+      if M.tracing then M.trace "marshal" "marshalling";
+      let save_run = Fpath.v save_run_str in
+      let analyses = Fpath.(save_run / "analyses.marshalled") in
+      let config = Fpath.(save_run / "config.json") in
+      let meta = Fpath.(save_run / "meta.json") in
+      let solver_stats = Fpath.(save_run / "solver_stats.csv") in (* see Generic.SolverStats... *)
+      let cil = Fpath.(save_run / "cil.marshalled") in
+      let warnings = Fpath.(save_run / "warnings.marshalled") in
+      let stats = Fpath.(save_run / "stats.marshalled") in
+      Logs.Format.debug "Saving the current configuration to %a, meta-data about this run to %a, and solver statistics to %a" Fpath.pp config Fpath.pp meta Fpath.pp solver_stats;
+      GobSys.mkdir_or_exists save_run;
+      GobConfig.write_file config;
+      Serialize.marshal marshal Fpath.(save_run / "spec_marshal")
     );
     if get_bool "incremental.save" then (
       Serialize.Cache.(update_data AnalysisData marshal);
