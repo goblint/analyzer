@@ -72,6 +72,7 @@ let make () : t =
 (** JSON Schema helpers *)
 let string_schema = `Assoc [("type", `String "string")]
 let bool_schema = `Assoc [("type", `String "boolean")]
+let int_schema = `Assoc [("type", `String "integer")]
 
 let object_schema properties required = `Assoc [
   ("type", `String "object");
@@ -88,6 +89,20 @@ let tools : ToolInput.t list = [
       ("option", string_schema);
       ("value", `Assoc [("type", `String "string")])
     ] ["option"; "value"]
+  };
+  {
+    name = "merge_config";
+    description = Some "Merge JSON configuration into current Goblint configuration.";
+    inputSchema = object_schema [
+      ("config", `Assoc [("type", `String "object")])
+    ] ["config"]
+  };
+  {
+    name = "read_config";
+    description = Some "Read and merge configuration from a file.";
+    inputSchema = object_schema [
+      ("file", string_schema)
+    ] ["file"]
   };
   {
     name = "reset_config";
@@ -116,9 +131,74 @@ let tools : ToolInput.t list = [
     inputSchema = object_schema [] []
   };
   {
+    name = "get_files";
+    description = Some "Get list of files that were analyzed, including dependencies.";
+    inputSchema = object_schema [] []
+  };
+  {
     name = "get_functions";
     description = Some "Get list of functions found in the analyzed code.";
     inputSchema = object_schema [] []
+  };
+  {
+    name = "get_varinfos";
+    description = Some "Get information about all variables in the analyzed code (vid, name, type, location, role).";
+    inputSchema = object_schema [] []
+  };
+  {
+    name = "get_cfg";
+    description = Some "Get control flow graph (CFG) for a specific function in DOT format.";
+    inputSchema = object_schema [
+      ("function", string_schema)
+    ] ["function"]
+  };
+  {
+    name = "cfg_lookup";
+    description = Some "Look up CFG node information by node ID or location.";
+    inputSchema = object_schema [
+      ("node", string_schema);
+      ("location", `Assoc [
+        ("type", `String "object");
+        ("properties", `Assoc [
+          ("file", string_schema);
+          ("line", int_schema);
+          ("column", int_schema)
+        ])
+      ])
+    ] []
+  };
+  {
+    name = "arg_lookup";
+    description = Some "Look up ARG (Abstract Reachability Graph) node information.";
+    inputSchema = object_schema [
+      ("node", string_schema);
+      ("cfg_node", string_schema);
+      ("location", `Assoc [
+        ("type", `String "object");
+        ("properties", `Assoc [
+          ("file", string_schema);
+          ("line", int_schema);
+          ("column", int_schema)
+        ])
+      ])
+    ] []
+  };
+  {
+    name = "arg_eval";
+    description = Some "Evaluate an expression at a specific ARG node.";
+    inputSchema = object_schema [
+      ("node", string_schema);
+      ("expression", string_schema);
+      ("vid", int_schema)
+    ] ["node"]
+  };
+  {
+    name = "arg_eval_int";
+    description = Some "Evaluate an integer expression at a specific ARG node.";
+    inputSchema = object_schema [
+      ("node", string_schema);
+      ("expression", string_schema)
+    ] ["node"; "expression"]
   };
   {
     name = "query_state";
@@ -126,6 +206,14 @@ let tools : ToolInput.t list = [
     inputSchema = object_schema [
       ("node", string_schema)
     ] ["node"]
+  };
+  {
+    name = "global_state";
+    description = Some "Query global state for a variable or at a specific node.";
+    inputSchema = object_schema [
+      ("vid", int_schema);
+      ("node", string_schema)
+    ] []
   };
 ]
 
@@ -168,6 +256,18 @@ let handle_tools_call (mcp_serv: t) (call: ToolCall.t) =
         GobConfig.set_auto option value_str;
         Maingoblint.handle_options ();
         ToolResult.make_text (Printf.sprintf "Configuration option '%s' set successfully" option)
+      
+      | "merge_config" ->
+        let config = Yojson.Safe.Util.member "config" args in
+        GobConfig.merge config;
+        Maingoblint.handle_options ();
+        ToolResult.make_text "Configuration merged successfully"
+      
+      | "read_config" ->
+        let file = Yojson.Safe.Util.member "file" args |> Yojson.Safe.Util.to_string in
+        GobConfig.merge_file (Fpath.v file);
+        Maingoblint.handle_options ();
+        ToolResult.make_text (Printf.sprintf "Configuration loaded from '%s'" file)
       
       | "reset_config" ->
         GobConfig.set_conf Options.defaults;
@@ -215,6 +315,10 @@ let handle_tools_call (mcp_serv: t) (call: ToolCall.t) =
         let json = `List (List.map Messages.Message.to_yojson messages) in
         ToolResult.make_text (Yojson.Safe.to_string json)
       
+      | "get_files" ->
+        let files_json = Preprocessor.dependencies_to_yojson () in
+        ToolResult.make_text (Yojson.Safe.to_string files_json)
+      
       | "get_functions" ->
         begin match mcp_serv.server.file with
           | Some file ->
@@ -223,6 +327,207 @@ let handle_tools_call (mcp_serv: t) (call: ToolCall.t) =
             ToolResult.make_text (Yojson.Safe.to_string json)
           | None ->
             ToolResult.make_error "No file has been analyzed yet"
+        end
+      
+      | "get_varinfos" ->
+        let varinfos = Cilfacade.VarinfoH.fold (fun vi role acc ->
+            let role_str = match role with
+              | Cilfacade.Formal _ -> "formal"
+              | Local _ -> "local"
+              | Cilfacade.Function -> "function"
+              | Global -> "global"
+            in
+            let function_ = match role with
+              | Cilfacade.Formal fd
+              | Local fd -> Some fd
+              | Cilfacade.Function
+              | Global -> None
+            in
+            let data = `Assoc [
+              ("vid", `Int vi.vid);
+              ("name", `String vi.vname);
+              ("type", CilType.Typ.to_yojson vi.vtype);
+              ("location", CilType.Location.to_yojson vi.vdecl);
+              ("original_name", match Cilfacade.find_original_name vi with
+                | Some n -> `String n
+                | None -> `Null);
+              ("role", `String role_str);
+              ("function", match function_ with
+                | Some fd -> CilType.Fundec.to_yojson fd
+                | None -> `Null);
+            ]
+            in
+            data :: acc
+          ) (ResettableLazy.force Cilfacade.varinfo_roles) []
+        in
+        ToolResult.make_text (Yojson.Safe.to_string (`List varinfos))
+      
+      | "get_cfg" ->
+        let fname = Yojson.Safe.Util.member "function" args |> Yojson.Safe.Util.to_string in
+        let fundec = Cilfacade.find_name_fundec fname in
+        let live _ = true in
+        let cfg = CfgTools.sprint_fundec_html_dot (module (val !MyCFG.current_cfg: MyCFG.CfgBidirSkip): MyCFG.CfgBidir) live fundec in
+        ToolResult.make_text cfg
+      
+      | "cfg_lookup" ->
+        let node_opt = try Some (Yojson.Safe.Util.member "node" args |> Yojson.Safe.Util.to_string) with _ -> None in
+        let location_opt = try
+            let loc_json = Yojson.Safe.Util.member "location" args in
+            Some (CilType.Location.of_yojson loc_json |> Result.get_ok)
+          with _ -> None
+        in
+        let node = match node_opt, location_opt with
+          | Some node_id, None ->
+            Node.of_id node_id
+          | None, Some location ->
+            let node_opt =
+              let open GobOption.Syntax in
+              let* nodes = Server.Locator.find_opt (ResettableLazy.force Server.node_locator) location in
+              Server.Locator.ES.choose_opt nodes
+            in
+            Option.get_exn node_opt (Failure "cannot find node for location")
+          | _, _ ->
+            raise (Failure "requires node xor location")
+        in
+        let node_id = Node.show_id node in
+        let location = UpdateCil.getLoc node in
+        let function_ = Node.find_fundec node in
+        let module Cfg = (val !MyCFG.current_cfg) in
+        let next = Cfg.next node |> List.map (fun (edges, to_node) ->
+            (List.map snd edges, Node.show_id to_node)
+          ) in
+        let prev = Cfg.prev node |> List.map (fun (edges, to_node) ->
+            (List.map snd edges, Node.show_id to_node)
+          ) in
+        let result = `Assoc [
+          ("node", `String node_id);
+          ("location", CilType.Location.to_yojson location);
+          ("function", CilType.Fundec.to_yojson function_);
+          ("next", `List (List.map (fun (edges, nid) ->
+              `Assoc [("edges", `List (List.map Edge.to_yojson edges)); ("node", `String nid)]
+            ) next));
+          ("prev", `List (List.map (fun (edges, nid) ->
+              `Assoc [("edges", `List (List.map Edge.to_yojson edges)); ("node", `String nid)]
+            ) prev));
+        ] in
+        ToolResult.make_text (Yojson.Safe.to_string result)
+      
+      | "arg_lookup" ->
+        let module ArgWrapper = (val (ResettableLazy.force mcp_serv.server.arg_wrapper)) in
+        let open ArgWrapper in
+        let node_opt = try Some (Yojson.Safe.Util.member "node" args |> Yojson.Safe.Util.to_string) with _ -> None in
+        let cfg_node_opt = try Some (Yojson.Safe.Util.member "cfg_node" args |> Yojson.Safe.Util.to_string) with _ -> None in
+        let location_opt = try
+            let loc_json = Yojson.Safe.Util.member "location" args in
+            Some (CilType.Location.of_yojson loc_json |> Result.get_ok)
+          with _ -> None
+        in
+        let nodes = match node_opt, location_opt, cfg_node_opt with
+          | None, None, None -> [Arg.main_entry]
+          | Some node_id, None, None ->
+            begin try [ArgWrapper.find_node node_id]
+            with Not_found -> []
+            end
+          | None, Some location, None ->
+            let nodes_opt =
+              let open GobOption.Syntax in
+              let+ nodes = Locator.find_opt locator location in
+              Locator.ES.elements nodes
+            in
+            Option.default [] nodes_opt
+          | None, None, Some cfg_node ->
+            ArgWrapper.find_cfg_node cfg_node
+          | _, _, _ ->
+            raise (Failure "requires at most one of node, location and cfg_node")
+        in
+        let results = List.map (fun n ->
+            let cfg_node = Arg.Node.cfgnode n in
+            let cfg_node_id = Node.show_id cfg_node in
+            let location = UpdateCil.getLoc cfg_node in
+            let next = Arg.next n |> List.map (fun (edge, to_node) ->
+                let cfg_to_node = Arg.Node.cfgnode to_node in
+                `Assoc [
+                  ("edge", MyARG.inline_edge_to_yojson edge);
+                  ("node", `String (Arg.Node.to_string to_node));
+                  ("cfg_node", `String (Node.show_id cfg_to_node));
+                  ("location", CilType.Location.to_yojson (UpdateCil.getLoc cfg_to_node));
+                  ("function", CilType.Fundec.to_yojson (Node.find_fundec cfg_to_node));
+                ]
+              ) in
+            let prev = Arg.prev n |> List.map (fun (edge, to_node) ->
+                let cfg_to_node = Arg.Node.cfgnode to_node in
+                `Assoc [
+                  ("edge", MyARG.inline_edge_to_yojson edge);
+                  ("node", `String (Arg.Node.to_string to_node));
+                  ("cfg_node", `String (Node.show_id cfg_to_node));
+                  ("location", CilType.Location.to_yojson (UpdateCil.getLoc cfg_to_node));
+                  ("function", CilType.Fundec.to_yojson (Node.find_fundec cfg_to_node));
+                ]
+              ) in
+            `Assoc [
+              ("node", `String (Arg.Node.to_string n));
+              ("cfg_node", `String cfg_node_id);
+              ("location", CilType.Location.to_yojson location);
+              ("function", CilType.Fundec.to_yojson (Node.find_fundec cfg_node));
+              ("next", `List next);
+              ("prev", `List prev);
+            ]
+          ) nodes
+        in
+        ToolResult.make_text (Yojson.Safe.to_string (`List results))
+      
+      | "arg_eval" ->
+        let module ArgWrapper = (val (ResettableLazy.force mcp_serv.server.arg_wrapper)) in
+        let open ArgWrapper in
+        let node_id = Yojson.Safe.Util.member "node" args |> Yojson.Safe.Util.to_string in
+        let exp_opt = try Some (Yojson.Safe.Util.member "expression" args |> Yojson.Safe.Util.to_string) with _ -> None in
+        let vid_opt = try Some (Yojson.Safe.Util.member "vid" args |> Yojson.Safe.Util.to_int) with _ -> None in
+        let n = ArgWrapper.find_node node_id in
+        let exp = match exp_opt, vid_opt with
+          | Some exp_str, None ->
+            begin match WitnessUtil.InvariantParser.parse_cabs exp_str with
+              | Ok exp_cabs ->
+                let cfg_node = Arg.Node.cfgnode n in
+                let fundec = Node.find_fundec cfg_node in
+                let loc = UpdateCil.getLoc cfg_node in
+                begin match WitnessUtil.InvariantParser.parse_cil (ResettableLazy.force mcp_serv.server.invariant_parser) ~fundec ~loc exp_cabs with
+                  | Ok exp -> exp
+                  | Error _ -> raise (Failure "CIL couldn't parse expression")
+                end
+              | Error _ -> raise (Failure "Frontc couldn't parse expression")
+            end
+          | None, Some vid ->
+            let vi = {Cil.dummyFunDec.svar with vid} in
+            Cil.Lval (Cil.var vi)
+          | _, _ ->
+            raise (Failure "requires expression xor vid")
+        in
+        let value = Arg.query n (Queries.EvalValue exp) in
+        ToolResult.make_text (Yojson.Safe.to_string (Queries.VD.to_yojson value))
+      
+      | "arg_eval_int" ->
+        let module ArgWrapper = (val (ResettableLazy.force mcp_serv.server.arg_wrapper)) in
+        let open ArgWrapper in
+        let node_id = Yojson.Safe.Util.member "node" args |> Yojson.Safe.Util.to_string in
+        let exp_str = Yojson.Safe.Util.member "expression" args |> Yojson.Safe.Util.to_string in
+        let n = ArgWrapper.find_node node_id in
+        begin match WitnessUtil.InvariantParser.parse_cabs exp_str with
+          | Ok exp_cabs ->
+            let cfg_node = Arg.Node.cfgnode n in
+            let fundec = Node.find_fundec cfg_node in
+            let loc = UpdateCil.getLoc cfg_node in
+            begin match WitnessUtil.InvariantParser.parse_cil (ResettableLazy.force mcp_serv.server.invariant_parser) ~fundec ~loc exp_cabs with
+              | Ok exp ->
+                let x = Arg.query n (Queries.EvalInt exp) in
+                let result = `Assoc [
+                  ("raw", Queries.ID.to_yojson x);
+                  ("int", match Queries.ID.to_int x with Some i -> `String (GobZ.to_string i) | None -> `Null);
+                  ("bool", match Queries.ID.to_bool x with Some b -> `Bool b | None -> `Null);
+                ] in
+                ToolResult.make_text (Yojson.Safe.to_string result)
+              | Error _ -> ToolResult.make_error "CIL couldn't parse expression"
+            end
+          | Error _ -> ToolResult.make_error "Frontc couldn't parse expression"
         end
       
       | "query_state" ->
@@ -237,6 +542,23 @@ let handle_tools_call (mcp_serv: t) (call: ToolCall.t) =
             ToolResult.make_error "Node not found"
         end
       
+      | "global_state" ->
+        let vid_opt = try Some (Yojson.Safe.Util.member "vid" args |> Yojson.Safe.Util.to_int) with _ -> None in
+        let node_opt = try Some (Yojson.Safe.Util.member "node" args |> Yojson.Safe.Util.to_string) with _ -> None in
+        let vq_opt = match vid_opt, node_opt with
+          | None, None -> None
+          | Some vid, None ->
+            let vi = {Cil.dummyFunDec.svar with vid} in
+            Some (Goblint_constraint.VarQuery.Global vi)
+          | None, Some node_id ->
+            let node = Node.of_id node_id in
+            Some (Goblint_constraint.VarQuery.Node {node; fundec = None})
+          | Some _, Some _ ->
+            raise (Failure "requires at most one of vid and node")
+        in
+        let state_json = !Control.current_varquery_global_state_json vq_opt in
+        ToolResult.make_text (Yojson.Safe.to_string state_json)
+      
       | _ ->
         ToolResult.make_error (Printf.sprintf "Unknown tool: %s" call.name)
     in
@@ -248,6 +570,10 @@ let handle_tools_call (mcp_serv: t) (call: ToolCall.t) =
     ToolResult.(to_yojson (make_error ("Missing required argument: " ^ msg)))
   | Maingoblint.FrontendError message ->
     ToolResult.(to_yojson (make_error ("Frontend error: " ^ message)))
+  | Failure msg ->
+    ToolResult.(to_yojson (make_error msg))
+  | Not_found ->
+    ToolResult.(to_yojson (make_error "Resource not found"))
   | exn ->
     ToolResult.(to_yojson (make_error ("Error: " ^ Printexc.to_string exn)))
 

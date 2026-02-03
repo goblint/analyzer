@@ -198,6 +198,144 @@ Query the analysis state at a specific program location.
 }
 ```
 
+#### 8. merge_config
+
+Merge JSON configuration into current Goblint configuration.
+
+**Input Schema:**
+```json
+{
+  "config": "object"
+}
+```
+
+#### 9. read_config
+
+Read and merge configuration from a file.
+
+**Input Schema:**
+```json
+{
+  "file": "string"
+}
+```
+
+#### 10. get_files
+
+Get list of files that were analyzed, including dependencies.
+
+**Input Schema:**
+```json
+{}
+```
+
+**Returns:** JSON object with file dependency information.
+
+#### 11. get_varinfos
+
+Get information about all variables in the analyzed code.
+
+**Input Schema:**
+```json
+{}
+```
+
+**Returns:** JSON array with variable information including vid, name, type, location, role (formal/local/function/global), and function context.
+
+#### 12. get_cfg
+
+Get control flow graph (CFG) for a specific function in DOT format.
+
+**Input Schema:**
+```json
+{
+  "function": "string"
+}
+```
+
+**Returns:** CFG in DOT graph format for visualization.
+
+#### 13. cfg_lookup
+
+Look up CFG node information by node ID or location.
+
+**Input Schema:**
+```json
+{
+  "node": "string (optional)",
+  "location": {
+    "file": "string",
+    "line": "integer",
+    "column": "integer"
+  } "(optional)"
+}
+```
+
+**Returns:** Node information including location, function, and adjacent nodes.
+
+#### 14. arg_lookup
+
+Look up ARG (Abstract Reachability Graph) node information.
+
+**Input Schema:**
+```json
+{
+  "node": "string (optional)",
+  "cfg_node": "string (optional)",
+  "location": {
+    "file": "string",
+    "line": "integer",
+    "column": "integer"
+  } "(optional)"
+}
+```
+
+**Returns:** ARG node information with edges and context.
+
+#### 15. arg_eval
+
+Evaluate an expression at a specific ARG node.
+
+**Input Schema:**
+```json
+{
+  "node": "string",
+  "expression": "string (optional)",
+  "vid": "integer (optional)"
+}
+```
+
+**Note:** Provide either `expression` (C expression string) or `vid` (variable ID), not both.
+
+#### 16. arg_eval_int
+
+Evaluate an integer expression at a specific ARG node.
+
+**Input Schema:**
+```json
+{
+  "node": "string",
+  "expression": "string"
+}
+```
+
+**Returns:** Integer value with raw, int, and bool representations.
+
+#### 17. global_state
+
+Query global state for a variable or at a specific node.
+
+**Input Schema:**
+```json
+{
+  "vid": "integer (optional)",
+  "node": "string (optional)"
+}
+```
+
+**Note:** Provide at most one of `vid` or `node`.
+
+
 ## Integration with LLM Frameworks
 
 ### Claude Desktop
@@ -286,9 +424,8 @@ To enable debug logging, configure Goblint before analyzing:
 
 ## Limitations
 
-- The MCP server currently supports a subset of Goblint's full functionality
-- Complex queries and incremental analysis features from the standard Goblint server mode are not yet exposed via MCP
 - Large projects may take significant time to analyze
+- Some advanced incremental analysis features may require specific configuration
 
 ## See Also
 
