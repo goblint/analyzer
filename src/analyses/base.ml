@@ -1934,6 +1934,16 @@ struct
    * Simple defs for the transfer functions
    **************************************************************************)
   let assign man (lval:lval) (rval:exp):store  =
+    let wrapper =
+      let is_init_counter v =
+        CilType.Typ.equal v.vtype Cil.uintType && v.vdescrpure && v.vdescr = text "init counter" (* TODO: bad = *)
+      in
+      match lval, rval with
+      | (Var lvalv, NoOffset), BinOp(PlusA, Lval (Var rvalv, NoOffset), Const(CInt(one, IUInt, None)), TInt(IUInt,[])) when is_init_counter lvalv && CilType.Varinfo.equal lvalv rvalv && Z.equal one Z.one ->
+        GobRef.wrap AnalysisState.executing_speculative_computations true
+      | _, _ -> fun f -> f ()
+    in
+    let@ () = wrapper in
     let lval_t = Cilfacade.typeOfLval lval in
     let char_array_hack () =
       let rec split_offset = function
@@ -2107,7 +2117,11 @@ struct
       man.local
     else
       let current_value = eval_rv ~man man.local (Lval (Var v, NoOffset)) in
-      let new_value = VD.update_array_lengths (eval_rv ~man man.local) current_value v.vtype in
+      let eval_exp e =
+        (* let@ () = GobRef.wrap AnalysisState.executing_speculative_computations true in *)
+        eval_rv ~man man.local e
+      in
+      let new_value = VD.update_array_lengths eval_exp current_value v.vtype in
       set_var ~man man.local v v.vtype new_value
 
   (**************************************************************************
