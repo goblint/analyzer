@@ -293,7 +293,7 @@ To enable debug logging, configure Goblint before analyzing:
 ## See Also
 
 - [Goblint Documentation](https://goblint.readthedocs.io/)
-- [Model Context Protocol Specification](https://modelcontextprotocol.io/)
+- [Model Context Protocol Specification](https://spec.modelcontextprotocol.io/)
 - [Goblint Server Mode Documentation](../user-guide/inspecting.md)
 
 ## Contributing

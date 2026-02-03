@@ -155,8 +155,17 @@ let handle_tools_call (mcp_serv: t) (call: ToolCall.t) =
     let result = match call.name with
       | "configure" ->
         let option = Yojson.Safe.Util.member "option" args |> Yojson.Safe.Util.to_string in
-        let value = Yojson.Safe.Util.member "value" args in
-        GobConfig.set_auto option (Yojson.Safe.to_string value);
+        let value_json = Yojson.Safe.Util.member "value" args in
+        (* Convert JSON value to appropriate string representation for GobConfig *)
+        let value_str = match value_json with
+          | `String s -> Printf.sprintf "\"%s\"" s  (* Keep quotes for string values *)
+          | `Bool b -> if b then "true" else "false"
+          | `Int i -> string_of_int i
+          | `Float f -> string_of_float f
+          | `Null -> "null"
+          | other -> Yojson.Safe.to_string other  (* For arrays, objects, etc. *)
+        in
+        GobConfig.set_auto option value_str;
         Maingoblint.handle_options ();
         ToolResult.make_text (Printf.sprintf "Configuration option '%s' set successfully" option)
       
@@ -309,13 +318,17 @@ let serve mcp_serv =
         handle_packet mcp_serv packet
       with
       | Yojson.Json_error msg ->
-        Logs.error "JSON parse error: %s" msg
+        (* Log JSON parse errors with input context for debugging *)
+        let truncated_line = if String.length line > 100 then String.sub line 0 100 ^ "..." else line in
+        Logs.error "JSON parse error: %s (input: %s)" msg truncated_line
       | exn ->
         Logs.error "Error handling packet: %s" (Printexc.to_string exn)
       end;
       read_loop ()
     with
-    | End_of_file -> ()
+    | End_of_file ->
+      (* Clean shutdown when stdin is closed *)
+      Logs.info "MCP server shutting down (stdin closed)"
   in
   read_loop ()
 
