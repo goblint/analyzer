@@ -85,7 +85,7 @@ let init () =
   initCIL ();
   removeBranchingOnConstants := false;
   addReturnOnNoreturnFallthrough := true;
-  lowerConstants := true;
+  lowerConstants := false; (* disabled to prevent CIL from constFold-ing constant expressions which still need to be checked (e.g. for overflows) *) (* TODO: lowering enum constants, etc should be separate from general constFold in CIL *)
   Mergecil.ignore_merge_conflicts := true;
   (* lineDirectiveStyle := None; *)
   RmUnused.keepUnused := true;
@@ -405,11 +405,13 @@ let typeSigBlendAttributes baseAttrs =
   typeSigAddAttrs contageous
 
 
+(** @raise SizeOfError *)
 let bytesSizeOf t =
   let bits = bitsSizeOf t in
   assert (bits mod 8 = 0);
   bits / 8
 
+(** @raise SizeOfError *)
 let bytesOffsetOnly t o =
   let bits_offset, _ = bitsOffset t o in
   assert (bits_offset mod 8 = 0);
