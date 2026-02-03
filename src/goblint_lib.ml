@@ -5,6 +5,7 @@
 module Maingoblint = Maingoblint
 module Control = Control
 module Server = Server
+module McpServer = McpServer
 
 (** {2 CFG}
 
