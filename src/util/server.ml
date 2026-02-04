@@ -7,14 +7,8 @@ open GoblintCil
 module InvariantParser = WitnessUtil.InvariantParser
 module VarQuery = Goblint_constraint.VarQuery
 
-module type ArgWrapper =
-sig
-  module Arg: ArgTools.BiArg
-  module Locator: module type of WitnessUtil.Locator (Arg.Node)
-  val locator: Locator.t
-  val find_node: string -> Arg.Node.t
-  val find_cfg_node: string -> Arg.Node.t list
-end
+(** Re-export ArgWrapper type from ServerUtil *)
+module type ArgWrapper = ServerUtil.ArgWrapper
 
 type t = {
   mutable file: Cil.file option;
@@ -243,35 +237,7 @@ let increment_data (s: t) file reparsed = match Serialize.Cache.get_opt_data Sol
 
 
 module Locator = WitnessUtil.Locator (Node)
-let node_locator: Locator.t ResettableLazy.t =
-  ResettableLazy.from_fun (fun () ->
-      let module Cfg = (val !MyCFG.current_cfg) in
-      let locator = Locator.create () in
-
-      (* DFS, copied from CfgTools.find_backwards_reachable *)
-      let module NH = MyCFG.NodeH in
-      let reachable = NH.create 100 in
-      let rec iter_node node =
-        if not (NH.mem reachable node) then begin
-          NH.replace reachable node ();
-          let loc = UpdateCil.getLoc node in
-          if is_server_node node then
-            Locator.add locator loc node;
-          List.iter (fun (_, prev_node) ->
-              iter_node prev_node
-            ) (Cfg.prev node)
-        end
-      in
-
-      Cil.iterGlobals !Cilfacade.current_file (function
-          | GFun (fd, _) ->
-            let return_node = Node.Function fd in
-            iter_node return_node
-          | _ -> ()
-        );
-
-      locator
-    )
+let node_locator: Locator.t ResettableLazy.t = ServerUtil.create_node_locator ()
 
 let analyze ?(reset=false) (s: t) =
   Messages.Table.(MH.clear messages_table);

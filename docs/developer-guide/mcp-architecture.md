@@ -34,6 +34,17 @@ The MCP (Model Context Protocol) server provides a standardized way for LLMs and
 
 ## Key Components
 
+### serverUtil.ml
+
+Shared utilities for both JSON-RPC and MCP server implementations:
+
+- **ArgWrapper Creation**: Builds ARG access with node lookup capabilities
+- **InvariantParser Creation**: Creates parsers for C expression evaluation
+- **NodeLocator Creation**: Provides CFG node lookup by source location
+- **is_server_node**: Filters synthetic nodes for server operations
+
+This module eliminates code duplication between different server implementations.
+
 ### mcpServer.ml
 
 The main MCP server implementation:
@@ -42,7 +53,7 @@ The main MCP server implementation:
 - **Tool Definitions**: Specifies available tools with JSON schemas
 - **Request Handlers**: Processes MCP requests and calls Goblint functions directly
 - **I/O Loop**: Reads JSON-RPC from stdin, writes to stdout
-- **State Management**: Manages CIL file, ARG wrapper, invariant parser, and node locator
+- **State Management**: Manages CIL file and reuses ServerUtil components for ARG, invariant parsing, and node location
 
 ### goblint_mcp_server.ml
 
@@ -122,12 +133,14 @@ For production testing, integrate with actual MCP clients like Claude Desktop.
 
 ## Related Modules
 
+- **ServerUtil** (src/util/serverUtil.ml): Shared server utilities for ARG access, invariant parsing, and node location
+- **Server** (src/util/server.ml): Existing JSON-RPC server (also uses ServerUtil)
 - **Maingoblint**: Entry points for preprocessing, parsing, and analysis execution
 - **GobConfig**: Configuration management
 - **Messages**: Analysis warning/error collection
 - **Cilfacade**: CIL interface and variable information
-- **ArgTools**: ARG (Abstract Reachability Graph) access
-- **WitnessUtil**: Invariant parsing and location lookup
+- **ArgTools**: ARG (Abstract Reachability Graph) infrastructure
+- **WitnessUtil**: Invariant parsing and location lookup infrastructure
 
 ## Dependencies
 
