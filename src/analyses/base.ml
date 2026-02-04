@@ -2764,6 +2764,7 @@ struct
             set_many ~man st ((eval_lv ~man st lv, (Cilfacade.typeOfLval lv), Address addr):: blob_set)
           else
             let blobsize = (* only speculative during ID.mul *)
+              (* TODO: Since C23, calloc returns NULL when this multiplication would overflow, but int domains don't return overflow information here currently; needs refactor to not produce overflow warnings inside domains *)
               let@ () = GobRef.wrap AnalysisState.executing_speculative_computations true in
               ID.mul (ID.cast_to ~kind:Internal ik @@ sizeval) (ID.cast_to ~kind:Internal ik @@ countval) (* TODO: proper castkind *)
             in
