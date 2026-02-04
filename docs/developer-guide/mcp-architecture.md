@@ -76,10 +76,6 @@ Each tool follows this pattern:
   (* 4. Return result *)
   ToolResult.make_text "Success message"
 ```
-  
-  (* 4. Return result *)
-  ToolResult.make_text "Success message"
-```
 
 ## Configuration Handling
 

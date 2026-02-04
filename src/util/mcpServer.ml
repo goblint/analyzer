@@ -187,6 +187,9 @@ let analyze ?(reset=false) (mcp_serv: t) =
   (* Run analysis *)
   Maingoblint.do_analyze None file;
   Maingoblint.do_gobview file;
+  
+  (* Mark as analyzed *)
+  mcp_serv.analyzed <- true
 
 (** JSON Schema helpers *)
 let string_schema = `Assoc [("type", `String "string")]
@@ -405,7 +408,6 @@ let handle_tools_call (mcp_serv: t) (call: ToolCall.t) =
         
         (* Run analysis directly *)
         analyze mcp_serv ~reset;
-        mcp_serv.analyzed <- true;
         
         let status = if !AnalysisState.verified = Some false then "VerifyError" else "Success" in
         let msg_count = List.length (Messages.Table.to_list ()) in
@@ -423,7 +425,6 @@ let handle_tools_call (mcp_serv: t) (call: ToolCall.t) =
         
         (* Run analysis directly *)
         analyze mcp_serv ~reset;
-        mcp_serv.analyzed <- true;
         
         let status = if !AnalysisState.verified = Some false then "VerifyError" else "Success" in
         let msg_count = List.length (Messages.Table.to_list ()) in
