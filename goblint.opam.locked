@@ -148,7 +148,7 @@ post-messages: [
 pin-depends: [
   [
     "goblint-cil.2.0.9"
-    "git+https://github.com/goblint/cil.git#e21285af8f4408ed5354b1674dab840c43e84712"
+    "git+https://github.com/goblint/cil.git#abe64c5705d939b34bf08a186661fce4efcbda53"
   ]
   [
     "apron.v0.9.15"
