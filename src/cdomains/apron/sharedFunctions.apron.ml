@@ -301,8 +301,9 @@ struct
   (** Returned boolean indicates whether returned expression should be negated. *)
   let cil_exp_of_linexpr1_term ~scalewith (c: Coeff.t) v =
     match V.to_cil_varinfo v with
-    | Some vinfo when IntDomain.Size.is_cast_injective ~from_type:vinfo.vtype ~to_type:(TInt(ILongLong,[]))   ->
-      let var = Cilfacade.mkCast ~kind:Explicit ~e:(Lval(Var vinfo,NoOffset)) ~newt:longlong in
+    | Some vinfo (*when IntDomain.Size.is_cast_injective ~from_type:vinfo.vtype ~to_type:(TInt(ILongLong,[]))  *) ->
+      (*let var = Cilfacade.mkCast ~kind:Explicit ~e:(Lval(Var vinfo,NoOffset)) ~newt:longlong in*)
+      let var = (Lval(Var vinfo,NoOffset)) in
       let i = int_of_coeff_warn ~scalewith c in
       if Z.equal i Z.one then
         false, var
@@ -316,9 +317,9 @@ struct
     | None ->
       M.warn ~category:Analyzer "Invariant Apron: cannot convert to cil var: %a" Var.pretty v;
       raise Unsupported_Linexpr1
-    | _ ->
+    (*| _ ->
       M.warn ~category:Analyzer "Invariant Apron: cannot convert to cil var in overflow preserving manner: %a" Var.pretty v;
-      raise Unsupported_Linexpr1
+      raise Unsupported_Linexpr1*)
 
   (** Returned booleans indicates whether returned expressions should be negated. *)
   let cil_exp_of_linexpr1 ~scalewith (linexpr1:Linexpr1.t) =

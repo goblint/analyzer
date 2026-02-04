@@ -7,7 +7,7 @@
   (name goblint_lib)
   (public_name goblint.lib)
   (modules :standard \ goblint privPrecCompare apronPrecCompare messagesCompare)
-  (libraries goblint.sites goblint.build-info goblint-cil goblint-cil.pta goblint-cil.syntacticsearch batteries.unthreaded qcheck-core.runner sha json-data-encoding jsonrpc cpu arg-complete fpath yaml yaml.unix uuidm goblint_timing catapult goblint_backtrace fileutils goblint_std goblint_config goblint_common goblint_domain goblint_constraint goblint_solver goblint_library goblint_cdomain_value goblint_incremental goblint_tracing goblint_logs domain_shims
+  (libraries goblint.sites goblint.build-info goblint-cil goblint-cil.pta goblint-cil.syntacticsearch batteries.unthreaded qcheck-core.runner sha json-data-encoding jsonrpc cpu arg-complete fpath yaml yaml.unix uuidm goblint_timing catapult goblint_backtrace fileutils goblint_std goblint_config goblint_common goblint_domain goblint_constraint goblint_solver goblint_library goblint_cdomain_value goblint_incremental goblint_tracing goblint_logs domain_shims ocplib-simplex
     ; Conditionally compile based on whether apron optional dependency is installed or not.
     ; Alternative dependencies seem like the only way to optionally depend on optional dependencies.
     ; See: https://dune.readthedocs.io/en/stable/reference/library-dependencies.html#alternative-dependencies
@@ -92,7 +92,7 @@
   (public_names goblint)
   (modes byte native) ; https://dune.readthedocs.io/en/stable/dune-files.html#linking-modes
   (modules goblint)
-  (libraries goblint.lib goblint_std)
+  (libraries goblint.lib goblint_std ocplib-simplex)
   (preprocess (pps ppx_deriving.std ppx_deriving_hash ppx_deriving_yojson))
   (flags :standard -linkall -open Goblint_std)
   (instrumentation (backend bisect_ppx))

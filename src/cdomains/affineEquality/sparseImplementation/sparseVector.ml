@@ -8,6 +8,7 @@ open Batteries
 module type SparseVector =
 sig
   include Vector
+  val add: t -> t -> t
   val push_first: t -> int -> num -> t
 
   val is_zero_vec: t -> bool
@@ -367,4 +368,18 @@ module SparseVector: SparseVectorFunctor =
     let rev v =
       let entries = List.rev_map (fun (idx, value) -> (v.len - 1 - idx, value)) v.entries in
       {entries; len = v.len}
+
+    let add a b =
+      if a.len <> b.len then raise (Invalid_argument "Unequal lengths") else
+        let rec aux a b =
+          match a, b with
+          | [], b -> b
+          | a, [] -> a
+          | (ix, vx)::xs, (iy, vy)::ys when ix = iy ->
+            let sum = A.add vx vy in
+            if A.compare sum A.zero = 0 then aux xs ys
+            else (ix, A.add vx vy) :: aux xs ys
+          | (ix, vx)::xs, (iy, _)::_ when ix < iy -> (ix, vx) :: aux xs b
+          | _, y::ys -> y :: aux a ys
+        in {entries = aux a.entries b.entries; len = a.len}
   end
