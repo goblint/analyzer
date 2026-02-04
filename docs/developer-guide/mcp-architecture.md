@@ -18,23 +18,16 @@ The MCP (Model Context Protocol) server provides a standardized way for LLMs and
 ┌─────────────────┐
 │  mcpServer.ml   │ MCP Protocol Layer
 │  - Tool defs    │ - Handles MCP initialize/tools/call
-│  - Request      │ - Converts MCP calls to Goblint ops
+│  - Request      │ - Calls Goblint functionality directly
 │    handling     │
 └────────┬────────┘
          │
          ▼
 ┌─────────────────┐
-│   server.ml     │ Existing Goblint Server
-│  - analyze()    │ - Core analysis infrastructure
-│  - file parsing │ - Incremental analysis support
-│  - query APIs   │
-└────────┬────────┘
-         │
-         ▼
-┌─────────────────┐
 │  Goblint Core   │ Analysis Engine
-│  - CIL          │
-│  - Solvers      │
+│  - Maingoblint  │ - Preprocessing and analysis
+│  - CIL          │ - Configuration
+│  - Solvers      │ - Query APIs
 │  - Analyses     │
 └─────────────────┘
 ```
@@ -47,8 +40,9 @@ The main MCP server implementation:
 
 - **Protocol Types**: Defines MCP-specific types (ToolInput, ToolCall, ToolResult)
 - **Tool Definitions**: Specifies available tools with JSON schemas
-- **Request Handlers**: Processes MCP requests and dispatches to Goblint
+- **Request Handlers**: Processes MCP requests and calls Goblint functions directly
 - **I/O Loop**: Reads JSON-RPC from stdin, writes to stdout
+- **State Management**: Manages CIL file, ARG wrapper, invariant parser, and node locator
 
 ### goblint_mcp_server.ml
 
@@ -76,8 +70,12 @@ Each tool follows this pattern:
   (* 2. Configure Goblint if needed *)
   GobConfig.set_* "option" value;
   
-  (* 3. Execute operation *)
-  Server.analyze mcp_serv.server ~reset;
+  (* 3. Execute operation directly *)
+  Maingoblint.do_analyze None file;
+  
+  (* 4. Return result *)
+  ToolResult.make_text "Success message"
+```
   
   (* 4. Return result *)
   ToolResult.make_text "Success message"
@@ -128,10 +126,12 @@ For production testing, integrate with actual MCP clients like Claude Desktop.
 
 ## Related Modules
 
-- **Server** (src/util/server.ml): Existing JSON-RPC server infrastructure
-- **Maingoblint**: Entry points for analysis execution
+- **Maingoblint**: Entry points for preprocessing, parsing, and analysis execution
 - **GobConfig**: Configuration management
 - **Messages**: Analysis warning/error collection
+- **Cilfacade**: CIL interface and variable information
+- **ArgTools**: ARG (Abstract Reachability Graph) access
+- **WitnessUtil**: Invariant parsing and location lookup
 
 ## Dependencies
 

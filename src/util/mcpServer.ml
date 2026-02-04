@@ -57,17 +57,136 @@ end
 
 (** MCP Server state *)
 type t = {
-  server: Server.t;
+  mutable file: Cil.file option;
+  mutable max_ids: MaxIdUtil.max_ids;
   mutable analyzed: bool;
+  arg_wrapper: (module Server.ArgWrapper) ResettableLazy.t;
+  invariant_parser: WitnessUtil.InvariantParser.t ResettableLazy.t;
+  node_locator: WitnessUtil.Locator(Node).t ResettableLazy.t;
 }
 
+(** Is node valid for lookup by location? *)
+let is_server_node cfgnode =
+  let loc = UpdateCil.getLoc cfgnode in
+  not loc.synthetic
+
 let make () : t =
-  (* Create server with stdin/stdout streams *)
-  let server = Server.make None in
+  (* Create arg_wrapper lazily *)
+  let arg_wrapper = ResettableLazy.from_fun (fun () ->
+      let module Arg = (val (Option.get_exn !ArgTools.current_arg (Failure "not analyzed or arg disabled"))) in
+      let module Locator = WitnessUtil.Locator (Arg.Node) in
+      let module StringH = Hashtbl.Make (Printable.Strings) in
+
+      let locator = Locator.create () in
+      let ids = StringH.create 113 in
+      let cfg_nodes = StringH.create 113 in
+      Arg.iter_nodes (fun n ->
+          let cfgnode = Arg.Node.cfgnode n in
+          let loc = UpdateCil.getLoc cfgnode in
+          if is_server_node cfgnode then
+            Locator.add locator loc n;
+          StringH.replace ids (Arg.Node.to_string n) n;
+          StringH.add cfg_nodes (Node.show_id cfgnode) n
+        );
+
+      let module ArgWrapper =
+      struct
+        module Arg = Arg
+        module Locator = Locator
+        let locator = locator
+        let find_node = StringH.find ids
+        let find_cfg_node = StringH.find_all cfg_nodes
+      end
+      in
+      (module ArgWrapper: Server.ArgWrapper)
+    )
+  in
+  
+  (* Create invariant_parser lazily *)
+  let invariant_parser = ResettableLazy.from_fun (fun () ->
+      WitnessUtil.InvariantParser.create !Cilfacade.current_file
+    )
+  in
+  
+  (* Create node_locator lazily *)
+  let node_locator = ResettableLazy.from_fun (fun () ->
+      let module Cfg = (val !MyCFG.current_cfg) in
+      let module Locator = WitnessUtil.Locator (Node) in
+      let locator = Locator.create () in
+
+      (* DFS, copied from CfgTools.find_backwards_reachable *)
+      let module NH = MyCFG.NodeH in
+      let reachable = NH.create 100 in
+      let rec iter_node node =
+        if not (NH.mem reachable node) then begin
+          NH.replace reachable node ();
+          let loc = UpdateCil.getLoc node in
+          if is_server_node node then
+            Locator.add locator loc node;
+          List.iter (fun (_, prev_node) ->
+              iter_node prev_node
+            ) (Cfg.prev node)
+        end
+      in
+
+      Cil.iterGlobals !Cilfacade.current_file (function
+          | GFun (fd, _) ->
+            let return_node = Node.Function fd in
+            iter_node return_node
+          | _ -> ()
+        );
+
+      locator
+    )
+  in
+  
   {
-    server;
+    file = None;
+    max_ids = MaxIdUtil.get_file_max_ids Cil.dummyFile;
     analyzed = false;
+    arg_wrapper;
+    invariant_parser;
+    node_locator;
   }
+
+(** Analyze the configured files directly *)
+let analyze ?(reset=false) (mcp_serv: t) =
+  Messages.Table.(MH.clear messages_table);
+  Messages.(Table.MH.clear final_table);
+  Messages.Table.messages_list := [];
+  
+  (* Preprocess and parse files *)
+  GoblintDir.init ();
+  let file = Fun.protect ~finally:GoblintDir.finalize Maingoblint.preprocess_parse_merge in
+  
+  if reset then (
+    let max_ids = MaxIdUtil.get_file_max_ids file in
+    mcp_serv.max_ids <- max_ids;
+    Serialize.Cache.reset_data SolverData;
+    Serialize.Cache.reset_data AnalysisData;
+  );
+  
+  (* Reset lazy modules *)
+  ResettableLazy.reset mcp_serv.node_locator;
+  ResettableLazy.reset mcp_serv.arg_wrapper;
+  ResettableLazy.reset mcp_serv.invariant_parser;
+  Cilfacade.reset_lazy ();
+  InvariantCil.reset_lazy ();
+  WideningThresholds.reset_lazy ();
+  IntDomain.reset_lazy ();
+  FloatDomain.reset_lazy ();
+  StringDomain.reset_lazy ();
+  PrecisionUtil.reset_lazy ();
+  ApronDomain.reset_lazy ();
+  AutoTune.reset_lazy ();
+  LibraryFunctions.reset_lazy ();
+  Access.reset ();
+  
+  mcp_serv.file <- Some file;
+  
+  (* Run analysis *)
+  Maingoblint.do_analyze None file;
+  Maingoblint.do_gobview file;
 
 (** JSON Schema helpers *)
 let string_schema = `Assoc [("type", `String "string")]
@@ -284,8 +403,8 @@ let handle_tools_call (mcp_serv: t) (call: ToolCall.t) =
         (* Set the file to analyze *)
         GobConfig.set_list "files" [`String file];
         
-        (* Run analysis *)
-        Server.analyze mcp_serv.server ~reset;
+        (* Run analysis directly *)
+        analyze mcp_serv ~reset;
         mcp_serv.analyzed <- true;
         
         let status = if !AnalysisState.verified = Some false then "VerifyError" else "Success" in
@@ -302,8 +421,8 @@ let handle_tools_call (mcp_serv: t) (call: ToolCall.t) =
         (* Set compilation database *)
         GobConfig.set_string "pre.compdb.file" comp_db;
         
-        (* Run analysis *)
-        Server.analyze mcp_serv.server ~reset;
+        (* Run analysis directly *)
+        analyze mcp_serv ~reset;
         mcp_serv.analyzed <- true;
         
         let status = if !AnalysisState.verified = Some false then "VerifyError" else "Success" in
@@ -320,11 +439,17 @@ let handle_tools_call (mcp_serv: t) (call: ToolCall.t) =
         ToolResult.make_text (Yojson.Safe.to_string files_json)
       
       | "get_functions" ->
-        begin match mcp_serv.server.file with
+        begin match mcp_serv.file with
           | Some file ->
-            let functions = Server.Function.getFunctionsList file.globals in
-            let json = `List (List.map Server.Function.to_yojson functions) in
-            ToolResult.make_text (Yojson.Safe.to_string json)
+            let functions = List.filter_map (function
+                | Cil.GFun (fd, loc) -> Some `Assoc [
+                    ("funName", `String fd.svar.vname);
+                    ("location", CilType.Location.to_yojson loc)
+                  ]
+                | _ -> None
+              ) file.globals
+            in
+            ToolResult.make_text (Yojson.Safe.to_string (`List functions))
           | None ->
             ToolResult.make_error "No file has been analyzed yet"
         end
@@ -380,10 +505,11 @@ let handle_tools_call (mcp_serv: t) (call: ToolCall.t) =
           | Some node_id, None ->
             Node.of_id node_id
           | None, Some location ->
+            let module Locator = WitnessUtil.Locator (Node) in
             let node_opt =
               let open GobOption.Syntax in
-              let* nodes = Server.Locator.find_opt (ResettableLazy.force Server.node_locator) location in
-              Server.Locator.ES.choose_opt nodes
+              let* nodes = Locator.find_opt (ResettableLazy.force mcp_serv.node_locator) location in
+              Locator.ES.choose_opt nodes
             in
             Option.get_exn node_opt (Failure "cannot find node for location")
           | _, _ ->
@@ -490,7 +616,7 @@ let handle_tools_call (mcp_serv: t) (call: ToolCall.t) =
                 let cfg_node = Arg.Node.cfgnode n in
                 let fundec = Node.find_fundec cfg_node in
                 let loc = UpdateCil.getLoc cfg_node in
-                begin match WitnessUtil.InvariantParser.parse_cil (ResettableLazy.force mcp_serv.server.invariant_parser) ~fundec ~loc exp_cabs with
+                begin match WitnessUtil.InvariantParser.parse_cil (ResettableLazy.force mcp_serv.invariant_parser) ~fundec ~loc exp_cabs with
                   | Ok exp -> exp
                   | Error _ -> raise (Failure "CIL couldn't parse expression")
                 end
@@ -516,7 +642,7 @@ let handle_tools_call (mcp_serv: t) (call: ToolCall.t) =
             let cfg_node = Arg.Node.cfgnode n in
             let fundec = Node.find_fundec cfg_node in
             let loc = UpdateCil.getLoc cfg_node in
-            begin match WitnessUtil.InvariantParser.parse_cil (ResettableLazy.force mcp_serv.server.invariant_parser) ~fundec ~loc exp_cabs with
+            begin match WitnessUtil.InvariantParser.parse_cil (ResettableLazy.force mcp_serv.invariant_parser) ~fundec ~loc exp_cabs with
               | Ok exp ->
                 let x = Arg.query n (Queries.EvalInt exp) in
                 let result = `Assoc [
