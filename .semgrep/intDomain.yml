@@ -1,0 +1,9 @@
+rules:
+  - id: intDomain-to_int-equal
+    pattern-either:
+      - pattern: ID.to_int $X = Some $Y
+      - pattern: GobOption.exists (Z.equal $Y) (ID.to_int $X)
+    fix: ID.equal_to $Y $X = `Eq
+    message: use dedicated and optimized function instead
+    languages: [ocaml]
+    severity: WARNING

@@ -2542,7 +2542,7 @@ struct
       let dest_a, dest_typ = addr_type_of_exp dest in
       let value =
         match eval_ch with
-        | Int i when ID.to_int i = Some Z.zero ->
+        | Int i when ID.equal_to Z.zero i = `Eq ->
           VD.zero_init_value dest_typ
         | _ ->
           VD.top_value dest_typ
@@ -2712,7 +2712,7 @@ struct
       let st' =
         (* TODO: should invalidate shallowly? https://github.com/goblint/analyzer/pull/1224#discussion_r1405826773 *)
         match eval_rv ~man st ret_var with
-        | Int n when GobOption.exists (Z.equal Z.zero) (ID.to_int n) -> st
+        | Int n when ID.equal_to Z.zero n = `Eq -> st
         | Address ret_a ->
           begin match eval_rv ~man st id with
             | Thread a when ValueDomain.Threads.is_top a -> invalidate ~must:true ~man st [ret_var]
@@ -2759,7 +2759,7 @@ struct
           let ik = Cilfacade.ptrdiff_ikind () in
           let sizeval = eval_int ~man st size in
           let countval = eval_int ~man st n in
-          if ID.to_int countval = Some Z.one then
+          if ID.equal_to Z.one countval = `Eq then
             let blob_set = Option.map_default (fun heap_var -> [heap_var, TVoid [], VD.Blob (VD.bot (), sizeval, ZeroInit.calloc)]) [] heap_var in
             set_many ~man st ((eval_lv ~man st lv, (Cilfacade.typeOfLval lv), Address addr):: blob_set)
           else
@@ -2781,7 +2781,7 @@ struct
             match p_rv with
             | Address a -> a
             (* TODO: don't we already have logic for this? *)
-            | Int i when ID.to_int i = Some Z.zero -> AD.null_ptr
+            | Int i when ID.equal_to Z.zero i = `Eq -> AD.null_ptr
             | Int i -> AD.top_ptr
             | _ -> AD.top_ptr (* TODO: why does this ever happen? *)
           in
