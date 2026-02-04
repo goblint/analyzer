@@ -291,11 +291,12 @@ struct
 
   type retnull = Null | NotNull | Maybe
   let is_null = function
-    | Int n  when ID.equal_to Z.zero n = `Eq -> Null
     | Int n ->
-      (* TODO: could use ID.equal_to here? *)
-      let zero_ik = ID.of_int (ID.ikind n) Z.zero in
-      if ID.to_bool (ID.ne n zero_ik) = Some true then NotNull else Maybe
+      begin match ID.equal_to Z.zero n with
+        | `Eq -> Null
+        | `Neq -> NotNull
+        | `Top -> Maybe
+      end
     | _ -> Maybe
 
   let get_ikind = function
@@ -612,10 +613,10 @@ struct
     | (Int x, Int y) -> (try Int (ID.join x y) with IntDomain.IncompatibleIKinds m -> Messages.warn ~category:Analyzer ~tags:[Category Imprecise] "%s" m; Top)
     | (Float x, Float y) -> Float (FD.join x y)
     | (Int x, Address y)
-    | (Address y, Int x) -> Address (match ID.to_int x with (* TODO: could match on ID.equal_to? *)
-        | Some x when Z.equal x Z.zero -> AD.join AD.null_ptr y
-        | Some x -> AD.(join y not_null)
-        | None -> AD.join y AD.top_ptr)
+    | (Address y, Int x) -> Address (match ID.equal_to Z.zero x with (* TODO: AD.of_int? *)
+        | `Eq -> AD.join AD.null_ptr y
+        | `Neq -> AD.(join y not_null)
+        | `Top -> AD.join y AD.top_ptr)
     | (Address x, Address y) -> Address (AD.join x y)
     | (Struct x, Struct y) -> Struct (Structs.join x y)
     | (Union x, Union y) -> Union (Unions.join x y)
@@ -645,10 +646,10 @@ struct
     | (Float x, Float y) -> Float (FD.widen x y)
     (* TODO: symmetric widen, wtf? *)
     | (Int x, Address y)
-    | (Address y, Int x) -> Address (match ID.to_int x with (* TODO: could match on ID.equal_to? *)
-        | Some x when Z.equal x Z.zero -> AD.widen AD.null_ptr (AD.join AD.null_ptr y)
-        | Some x -> AD.(widen y (join y not_null))
-        | None -> AD.widen y (AD.join y AD.top_ptr))
+    | (Address y, Int x) -> Address (match ID.equal_to Z.zero x with (* TODO: AD.of_int? *)
+        | `Eq -> AD.widen AD.null_ptr (AD.join AD.null_ptr y)
+        | `Neq -> AD.(widen y (join y not_null))
+        | `Top -> AD.widen y (AD.join y AD.top_ptr))
     | (Address x, Address y) -> Address (AD.widen x y)
     | (Struct x, Struct y) -> Struct (Structs.widen x y)
     | (Union x, Union y) -> Union (Unions.widen x y)
