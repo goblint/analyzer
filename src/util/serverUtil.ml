@@ -10,7 +10,13 @@ open GoblintCil
 module InvariantParser = WitnessUtil.InvariantParser
 
 (** Is node valid for lookup by location?
-    Used for abstract debugging breakpoints. *)
+    
+    Filters out synthetic nodes (e.g., artificially created for analysis purposes)
+    that don't correspond to actual source code locations. This is used for
+    abstract debugging breakpoints and interactive queries.
+    
+    @param cfgnode The CFG node to check
+    @return true if the node is valid for location-based lookup *)
 let is_server_node cfgnode =
   let loc = UpdateCil.getLoc cfgnode in
   not loc.synthetic
@@ -26,10 +32,16 @@ sig
 end
 
 (** Create arg_wrapper as a resettable lazy value.
-    Provides access to the ARG with node lookup by string ID and CFG node. *)
+    
+    Provides access to the Abstract Reachability Graph (ARG) with node lookup
+    capabilities by string ID and CFG node. The ARG must be computed by an
+    analysis before this can be accessed.
+    
+    @raise Failure if analysis hasn't been run or ARG is disabled in configuration *)
 let create_arg_wrapper () : (module ArgWrapper) ResettableLazy.t =
   ResettableLazy.from_fun (fun () ->
-      let module Arg = (val (Option.get_exn !ArgTools.current_arg (Failure "not analyzed or arg disabled"))) in
+      let module Arg = (val (Option.get_exn !ArgTools.current_arg 
+        (Failure "ARG not available: either analysis hasn't been run yet or ARG is disabled in configuration"))) in
       let module Locator = WitnessUtil.Locator (Arg.Node) in
       let module StringH = Hashtbl.Make (Printable.Strings) in
 

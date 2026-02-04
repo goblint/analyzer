@@ -55,7 +55,10 @@ module ToolResult = struct
   }
 end
 
-(** MCP Server state *)
+(** MCP Server state 
+    
+    ResettableLazy fields (arg_wrapper, invariant_parser, node_locator) need to be
+    reset between analyses to reflect the new analysis results and parsed files. *)
 type t = {
   mutable file: Cil.file option;
   mutable max_ids: MaxIdUtil.max_ids;
