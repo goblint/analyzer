@@ -10,7 +10,7 @@ int main ()
   __goblint_check(y == 1); //UNKNOWN!
 
   int *p = three; // implicit cast of 3 to pointer
-  __goblint_check(p); // TODO
+  __goblint_check(p);
 
   return 0;
 }

@@ -222,14 +222,10 @@ struct
   let to_bool x      = if is_null x then Some false else if is_not_null x then Some true else None
 
   let of_int i =
-    if ID.equal_to Z.zero i = `Eq then
-      null_ptr
-    else if ID.equal_to Z.one i = `Eq then
-      not_null
-    else
-      match ID.to_excl_list i with
-      | Some (xs, _) when List.exists BigIntOps.(equal (zero)) xs -> not_null
-      | _ -> top_ptr
+    match ID.equal_to Z.zero i with
+    | `Eq -> null_ptr
+    | `Neq -> not_null
+    | `Top -> top_ptr
 
   let to_int x =
     let ik = Cilfacade.ptr_ikind () in

@@ -522,8 +522,7 @@ struct
         (* cast to voidPtr are ignored TODO what happens if our value does not fit? *)
         | TPtr (t,_) ->
           Address (match v with
-              | Int x when ID.equal_to Z.zero x = `Eq -> AD.null_ptr
-              | Int x -> AD.top_ptr
+              | Int x -> AD.of_int x
               (* we ignore casts to void* (above)! TODO report UB! *)
               | Address x -> cast_addr t x
               (*| Address x -> x*)
