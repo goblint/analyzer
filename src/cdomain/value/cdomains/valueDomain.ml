@@ -291,8 +291,9 @@ struct
 
   type retnull = Null | NotNull | Maybe
   let is_null = function
-    | Int n  when GobOption.exists (Z.equal Z.zero) (ID.to_int n) -> Null
+    | Int n  when ID.equal_to Z.zero n = `Eq -> Null
     | Int n ->
+      (* TODO: could use ID.equal_to here? *)
       let zero_ik = ID.of_int (ID.ikind n) Z.zero in
       if ID.to_bool (ID.ne n zero_ik) = Some true then NotNull else Maybe
     | _ -> Maybe
@@ -520,7 +521,7 @@ struct
         (* cast to voidPtr are ignored TODO what happens if our value does not fit? *)
         | TPtr (t,_) ->
           Address (match v with
-              | Int x when ID.to_int x = Some Z.zero -> AD.null_ptr
+              | Int x when ID.equal_to Z.zero x = `Eq -> AD.null_ptr
               | Int x -> AD.top_ptr
               (* we ignore casts to void* (above)! TODO report UB! *)
               | Address x -> cast_addr t x
@@ -584,7 +585,7 @@ struct
         false
     | (Int x, Int y) -> ID.leq x y
     | (Float x, Float y) -> FD.leq x y
-    | (Int x, Address y) when ID.to_int x = Some Z.zero && not (AD.is_not_null y) -> true
+    | (Int x, Address y) when ID.equal_to Z.zero x = `Eq && not (AD.is_not_null y) -> true
     | (Int _, Address y) when AD.may_be_unknown y -> true
     | (Address _, Int y) when ID.is_top_of (Cilfacade.ptrdiff_ikind ()) y -> true
     | (Address x, Address y) -> AD.leq x y
@@ -611,7 +612,7 @@ struct
     | (Int x, Int y) -> (try Int (ID.join x y) with IntDomain.IncompatibleIKinds m -> Messages.warn ~category:Analyzer ~tags:[Category Imprecise] "%s" m; Top)
     | (Float x, Float y) -> Float (FD.join x y)
     | (Int x, Address y)
-    | (Address y, Int x) -> Address (match ID.to_int x with
+    | (Address y, Int x) -> Address (match ID.to_int x with (* TODO: could match on ID.equal_to? *)
         | Some x when Z.equal x Z.zero -> AD.join AD.null_ptr y
         | Some x -> AD.(join y not_null)
         | None -> AD.join y AD.top_ptr)
@@ -644,7 +645,7 @@ struct
     | (Float x, Float y) -> Float (FD.widen x y)
     (* TODO: symmetric widen, wtf? *)
     | (Int x, Address y)
-    | (Address y, Int x) -> Address (match ID.to_int x with
+    | (Address y, Int x) -> Address (match ID.to_int x with (* TODO: could match on ID.equal_to? *)
         | Some x when Z.equal x Z.zero -> AD.widen AD.null_ptr (AD.join AD.null_ptr y)
         | Some x -> AD.(widen y (join y not_null))
         | None -> AD.widen y (AD.join y AD.top_ptr))
@@ -1008,12 +1009,9 @@ struct
               match v with
               | (Var var, Field (fld,_)) ->
                 let toptype = fld.fcomp in
-                let blob_size_opt = ID.to_int s in
                 not @@ ask.is_multiple var
                 && not @@ Cil.isVoidType t      (* Size of value is known *)
-                && GobOption.exists (fun blob_size -> (* Size of blob is known *)
-                    Z.equal blob_size (Z.of_int @@ Cilfacade.bytesSizeOf (TComp (toptype, [])))
-                  ) blob_size_opt
+                && ID.equal_to (Z.of_int @@ Cilfacade.bytesSizeOf (TComp (toptype, []))) s = `Eq (* Size of blob is known *)
               | _ -> false
             in
             if do_strong_update then
@@ -1034,6 +1032,7 @@ struct
                   | (Var var, _) ->
                     let blob_size_opt = ID.to_int s in
                     not @@ ask.is_multiple var
+                    (* TODO: could use ID.equal_to, but only if blob_destructive doesn't actually need known (but ignored!) size *)
                     && GobOption.exists (fun blob_size -> (* Size of blob is known *)
                         (not @@ Cil.isVoidType t     (* Size of value is known *)
                          && Z.equal blob_size (Z.of_int @@ Cil.alignOf_int t))

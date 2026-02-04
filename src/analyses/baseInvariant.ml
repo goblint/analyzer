@@ -348,7 +348,8 @@ struct
          * If the upper bound of a is divisible by b, we can also meet with the result of a/b*b - c to get the precise [3,3].
          * If b is negative we have to look at the lower bound. *)
         let is_divisible bound =
-          GobOption.exists (fun ba -> ID.rem (ID.of_int ikind ba) b |> ID.to_int = Some Z.zero) (bound a)
+          (* TODO: could check divisibility directly, instead of via ID? *)
+          GobOption.exists (fun ba -> ID.equal_to Z.zero (ID.rem (ID.of_int ikind ba) b) = `Eq) (bound a)
         in
         let max_pos = match ID.maximal b with None -> true | Some x -> Z.compare x Z.zero >= 0 in
         let min_neg = match ID.minimal b with None -> true | Some x -> Z.compare x Z.zero < 0 in
@@ -372,11 +373,11 @@ struct
         let callerFundec = Node.find_fundec man.node in
         let a = if PrecisionUtil.(is_congruence_active (int_precision_from_fundec_or_config callerFundec)) then
             let two = Z.of_int 2 in
-            match ID.to_int b, ID.to_excl_list c with
-            | Some b, Some ([v], _) when Z.equal b two ->
+            match ID.to_excl_list c with
+            | Some ([v], _) when ID.equal_to two b = `Eq ->
               let k = if Z.equal (Z.abs (Z.rem v two)) Z.zero then Z.one else Z.zero in
-              ID.meet (ID.of_congruence ikind (k, b)) a
-            | _, _ -> a
+              ID.meet (ID.of_congruence ikind (k, two)) a
+            | _ -> a
           else a
         in
         a, b
@@ -457,26 +458,25 @@ struct
         else
           a, b
       | BAnd ->
-        (* we only attempt to refine a here *)
-        let b_int = ID.to_int b in
+        (* we only attempt to refine a here *) (* TODO: why? *)
         let a =
-          match b_int with
-          | Some x when Z.equal x Z.one ->
-            (match ID.to_bool c with
-             | Some true -> ID.meet a (ID.of_congruence ikind (Z.one, Z.of_int 2))
-             | Some false -> ID.meet a (ID.of_congruence ikind (Z.zero, Z.of_int 2))
-             | None -> a)
-          | _ -> a
+          if ID.equal_to Z.one b = `Eq then (
+            match ID.to_bool c with
+            | Some true -> ID.meet a (ID.of_congruence ikind (Z.one, Z.of_int 2))
+            | Some false -> ID.meet a (ID.of_congruence ikind (Z.zero, Z.of_int 2))
+            | None -> a
+          )
+          else (
+            if M.tracing then M.tracel "inv" "Unhandled operator %a" d_binop op;
+            a
+          )
         in
         if PrecisionUtil.get_bitfield () then
           (* refinement based on the following idea: bit set to zero in c and set to one in b must be zero in a and bit set to one in c must be one in a too (analogously for b) *)
           let ((az, ao), (bz, bo)) = BitfieldDomain.Bitfield.refine_band (ID.to_bitfield ikind a) (ID.to_bitfield ikind b) (ID.to_bitfield ikind c) in
           ID.meet a (ID.of_bitfield ikind (az, ao)), ID.meet b (ID.of_bitfield ikind (bz, bo))
-        else if b_int = None then
-          (if M.tracing then M.tracel "inv" "Unhandled operator %a" d_binop op;
-           (a, b)
-          )
-        else a, b
+        else
+          (a, b)
       | op ->
         if M.tracing then M.tracel "inv" "Unhandled operator %a" d_binop op;
         a, b
