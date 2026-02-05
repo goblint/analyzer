@@ -1,6 +1,6 @@
 // SKIP TERM PARAM: --set "ana.activated[+]" termination --set ana.activated[+] apron --enable ana.int.interval --set ana.apron.domain polyhedra
 
-// Termination only provable by more complex algorithm?
+// x is strictly monotonously decreasing, but the classical termination analysis doesn't work
 
 #include <stdlib.h>
 

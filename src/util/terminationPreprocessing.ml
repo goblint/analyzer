@@ -21,6 +21,8 @@ let string_of_loop_info loop_info =
       | If _ -> "If"
       | _ -> "Something else") loop_info)
 
+let rec exisis_nested_loop = List.exists (fun s -> match s.skind with Loop _ -> true | _ -> false)
+
 class loopCounterVisitor lc (fd : fundec) = object(self)
   inherit nopCilVisitor
 

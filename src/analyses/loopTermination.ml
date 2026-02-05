@@ -64,7 +64,6 @@ module SparseVec = SparseVector (Rat)
 module VarSet = Set.Make(String)
 
 let string_of_constraints (constraints: Invariant.t) =
-  "CONSTRAINTS: " ^
   match constraints with
   | `Top -> "Top"
   | `Bot -> "Bot"
@@ -74,7 +73,7 @@ let exp_list_of_constraints (constraints : Invariant.t) =
   match constraints with
   | `Top -> []
   | `Bot -> failwith "Constraints are Bot"
-  | `Lifted constraints ->
+  | `Lifted cs ->
     (* Split Eq into two Le's and mirror Ge into Le *)
     let to_leq acc = function
       | BinOp (Le, _, _, _) as e -> e :: acc
@@ -83,9 +82,11 @@ let exp_list_of_constraints (constraints : Invariant.t) =
       | BinOp (Ne, _, _, _) -> acc
       | _ -> failwith "Found something else, help me" in
     let cs =
-      constraints |> Invariant.Exp.process |> List.map Invariant.Exp.to_cil |> List.fold_left to_leq []
+      cs |> Invariant.Exp.process |> List.map Invariant.Exp.to_cil |> List.fold_left to_leq []
     in
-    Printf.printf "Number of constraints after conversion to Leq list: %i\n" (List.length cs);
+    if M.tracing then
+      (M.trace "termination" "Constraints: %s" (string_of_constraints constraints);
+       M.trace "termination" "Number of constraints after conversion to Leq list: %i" (List.length cs));
     cs
 
 let coeff_in_exp vname e =
@@ -137,7 +138,7 @@ let const_in_exp e =
      | None, Some c -> c)
   | _ -> failwith "This shouldn't happen"
 
-let rec transposed_matrices_of_exp_list (cs : exp list) =
+let transposed_matrices_of_exp_list (cs : exp list) =
   let rec vars_from_exp acc = function
     | BinOp (_, e1, e2, _) -> VarSet.union (vars_from_exp acc e1) (vars_from_exp acc e2)
     | UnOp (_, e, _) -> vars_from_exp acc e
@@ -168,9 +169,10 @@ let termination_provable a_transposed a'_transposed b =
         let l1_ri = Matrix.get_row a'_transposed i
           |> SparseVec.to_sparse_list
           |> List.map (fun (idx, v) -> "x" ^ string_of_int idx, v)
-
         in
-        l1_ri |> List.map (fun (var, value) -> (Printf.sprintf "(%s * %s)" (Rat.to_string value) var)) |> String.concat " + " |> Printf.printf "l1_r%i: %s\n" i;
+        if M.tracing then
+          M.trace "termination" "l1_r%i = %s" i
+            (l1_ri |> List.map (fun (var, value) -> (Printf.sprintf "(%s * %s)" (Rat.to_string value) var)) |> String.concat " + ");
 
         let sim = fst @@
           match l1_ri with
@@ -186,7 +188,7 @@ let termination_provable a_transposed a'_transposed b =
         in aux (i + 1) sim
     in aux 0 sim
   in
-  let rec ass_l1_minus_l2_atr_eq_zero sim =
+  let ass_l1_minus_l2_atr_eq_zero sim =
     let rec aux i sim =
       if i >= Matrix.num_rows a_transposed then sim else
         let l1_m_l2_ri = Matrix.get_row a_transposed i
@@ -195,7 +197,9 @@ let termination_provable a_transposed a'_transposed b =
              map doesn't work here because we double the number of list elements *)
           |> List.fold_left (fun l (idx, v) -> ("x" ^ string_of_int idx, v) :: ("y" ^ string_of_int idx, Rat.mul Rat.m_one v) :: l) []
         in
-        l1_m_l2_ri |> List.map (fun (var, value) -> (Printf.sprintf "(%s * %s)" (Rat.to_string value) var)) |> String.concat " + " |> Printf.printf "l1_m_l2_r%i: %s\n" i;
+        if M.tracing then
+          M.trace "termination" "l1_m_l2_r%i = %s" i
+            (l1_m_l2_ri |> List.map (fun (var, value) -> (Printf.sprintf "(%s * %s)" (Rat.to_string value) var)) |> String.concat " + ");
 
         let sim = fst @@
           match l1_m_l2_ri with
@@ -208,7 +212,7 @@ let termination_provable a_transposed a'_transposed b =
         in aux (i + 1) sim
     in aux 0 sim
   in    
-  let rec ass_l2_atr_plus_a'tr_eq_zero sim =
+  let ass_l2_atr_plus_a'tr_eq_zero sim =
     let m = Matrix.add a_transposed a'_transposed in
     let rec aux i sim =
       if i >= Matrix.num_rows m then sim else
@@ -216,7 +220,9 @@ let termination_provable a_transposed a'_transposed b =
           |> SparseVec.to_sparse_list
           |> List.map (fun (idx, v) -> "y" ^ string_of_int idx, v)
         in
-        l2_ri |> List.map (fun (var, value) -> (Printf.sprintf "(%s * %s)" (Rat.to_string value) var)) |> String.concat " + " |> Printf.printf "l2_r%i: %s\n" i;
+        if M.tracing then
+          M.trace "termination" "l2_r%i = %s" i
+            (l2_ri |> List.map (fun (var, value) -> (Printf.sprintf "(%s * %s)" (Rat.to_string value) var)) |> String.concat " + ");
 
         let sim = fst @@
           match l2_ri with
@@ -236,7 +242,9 @@ let termination_provable a_transposed a'_transposed b =
       |> SparseVec.to_sparse_list
       |> List.map (fun (i, v) -> "y" ^ string_of_int i, v)
     in
-    l2_b |> List.map (fun (var, value) -> (Printf.sprintf "(%s * %s)" (Rat.to_string value) var)) |> String.concat " + " |> Printf.printf "l2_b: %s\n";
+    if M.tracing then
+      M.trace "termination" "l2_b = %s"
+        (l2_b |> List.map (fun (var, value) -> (Printf.sprintf "(%s * %s)" (Rat.to_string value) var)) |> String.concat " + ");
 
     fst @@
     match l2_b with
@@ -370,12 +378,11 @@ struct
             end
           | None ->
             (*failwith "Encountered a call to __goblint_bounded with an unknown loop counter variable."*)
-            Printf.printf "%s\n" (string_of_constraints (man.ask (Queries.Invariant Invariant.default_context)));
             let atr, a'tr, b = man.ask (Queries.Invariant Invariant.default_context) |> exp_list_of_constraints |> transposed_matrices_of_exp_list in
-            if Matrix.is_empty atr then Printf.printf "nothing to see here" else
-              let term_provable = termination_provable atr a'tr b in
-              Printf.printf "\n%s\n%s\n%s\nTermination%s provable\n" (Matrix.show atr) (Matrix.show a'tr) (SparseVec.show b) (if term_provable then "" else " not");
-              
+            let term_provable = termination_provable atr a'tr b in
+            if term_provable then (M.success ~category:Termination "Loop terminates")
+            else (M.warn ~category:Termination "The program might not terminate! (Loop analysis)")
+
         end
       | "__goblint_bounded", _ ->
         failwith "__goblint_bounded call unexpected arguments"

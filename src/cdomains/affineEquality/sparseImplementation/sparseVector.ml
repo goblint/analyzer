@@ -377,8 +377,8 @@ module SparseVector: SparseVectorFunctor =
           | a, [] -> a
           | (ix, vx)::xs, (iy, vy)::ys when ix = iy ->
             let sum = A.add vx vy in
-            if A.compare sum A.zero = 0 then aux xs ys
-            else (ix, A.add vx vy) :: aux xs ys
+            if sum = A.zero then aux xs ys
+            else (ix, sum) :: aux xs ys
           | (ix, vx)::xs, (iy, _)::_ when ix < iy -> (ix, vx) :: aux xs b
           | _, y::ys -> y :: aux a ys
         in {entries = aux a.entries b.entries; len = a.len}
