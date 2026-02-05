@@ -6,19 +6,7 @@
 #include <string.h>
 #include <caml/mlvalues.h>
 #include <caml/alloc.h>
-#include <caml/memory.h>
-
-/* A small definition of the LXM state so sizeof works - from AI */
-struct LXM_state { uint64_t a; uint64_t x[2]; uint64_t s; };
-
-/* Minimal macros to mimic expected behaviour */
-#define Wsizeof(ty) ((sizeof(ty) + sizeof(value) - 1) / sizeof(value))
-#define LXM_val(v) ((struct LXM_state *) Data_abstract_val(v))
-
-#define CAMLparam1(x) __goblint_caml_param1(&x)
-#define CAMLreturn(x) return (x) // From AI - CAMLreturn needs some variable named caml__frame, which is not available in our mock CAMLparam1, so we mock the return as well.
-
-/*CAMLextern value caml_alloc_small (mlsize_t wosize, tag_t)  __attribute__((__ocaml_sink__));*/
+#include "goblint_caml.h"
 
 CAMLprim value pringo_LXM_copy(value v)
 {

@@ -118,7 +118,7 @@ struct
     | Var v,_ ->
       (* If rval is a pointer, checks whether rval is accounted for, handles assignment to v accordingly *) (* state *)
       (* Emits an event for the variable v not being zero. *)
-      ctx.emit (Events.SplitBranch (Cil.BinOp (Cil.Eq, Cil.Lval lval, Cil.zero, Cil.intType), false));
+
       if Cil.isPointerType (Cil.typeOf rval) then
         if exp_accounted_for state rval then
           if exp_tracked state rval then D.add_a v (D.add_t v state)
@@ -137,7 +137,14 @@ struct
   let body ctx (f:fundec) : D.t =
     (* The (non-formals) locals are tracked and initially accounted for *)
     let state = ctx.local in
-    List.fold_left (fun st v -> D.add_a v (D.add_t v st)) state f.sformals
+    (* It is assumed that value-typed arguments are never nptrs. *)
+    let is_value_type (t:typ): bool = match t with
+      | TNamed (info, attr) -> info.tname = "value"
+      | _ -> false in
+    List.fold_left (fun st v -> if is_value_type v.vtype then
+                       (ctx.emit (Events.SplitBranch (Cil.Lval (Cil.var v), true)); D.add_a v (D.add_t v st))
+                     else D.add_a v (D.add_t v st))
+      state f.sformals
 
   (** Handles the [return] statement, i.e. "return exp" or "return", in function [f]. *)
   let return ctx (exp:exp option) (f:fundec) : D.t =
@@ -205,12 +212,10 @@ struct
     match desc.special arglist with
     | OCamlParam params ->
       (* Variables are registered with a Param macro. Such variables are also tracked. *)
-      List.fold_left (fun state param -> M.debug "We reach here";
-                       match param with
-                       | AddrOf (Var v, _) -> M.debug "Address of";
-                         D.add_r v (D.add_t v state)
-                       | _ -> state
-                     ) caller_state params
+      List.fold_left (fun state param -> match param with
+          | AddrOf (Var v, _) -> D.add_r v (D.add_t v state)
+          | _ -> state
+        ) caller_state params
     | OCamlAlloc size_exp ->
       (* Garbage collection may trigger here and overwrite unregistered variables. *)
       M.debug "Garbage collection triggers";
