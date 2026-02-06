@@ -221,9 +221,9 @@ module FwdSolver (System: FwdGlobConstrSys) = struct
           | Some f ->
             (let rloc = get_local_ref x in
              wrap (x,f) rloc.loc_value;
-             doit ())
+             (doit[@tailcall]) ())
         ) in
-    let _ = (doit[@tailcall]) () in
+    let _ = doit () in
     let sigma = LM.to_seq loc |> Seq.map (fun (k,l) -> (k,l.loc_value)) in
     let tau = GM.to_seq glob |> Seq.map (fun (k,l) -> (k,l.value)) in
     (sigma, tau)
