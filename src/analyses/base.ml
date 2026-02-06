@@ -322,12 +322,7 @@ struct
       in
       match addr with
       | Addr (x, o) -> AD.of_mval (x, addToOffset n (Some x.vtype) o)
-      | NullPtr ->
-        begin match ID.equal_to Z.zero n with
-          | `Eq -> AD.null_ptr
-          | `Neq -> AD.unknown_ptr
-          | `Top -> AD.top_ptr
-        end
+      | NullPtr -> AD.of_int n
       | UnknownPtr
       | StrPtr _ ->
         begin match ID.equal_to Z.zero n with
@@ -2784,9 +2779,7 @@ struct
           let p_addr =
             match p_rv with
             | Address a -> a
-            (* TODO: don't we already have logic for this? *)
-            | Int i when ID.equal_to Z.zero i = `Eq -> AD.null_ptr
-            | Int i -> AD.top_ptr
+            | Int i -> AD.of_int i
             | _ -> AD.top_ptr (* TODO: why does this ever happen? *)
           in
           let p_addr' = AD.remove NullPtr p_addr in (* realloc with NULL is same as malloc, remove to avoid unknown value from NullPtr access *)
