@@ -304,7 +304,7 @@ struct
     assert (not !Cabs2cil.allowDuplication) (* duplication makes it more annoying to detect cilling *)
 
   let rec next_opt' n = match n with
-    | Statement {sid; skind=If _; _} when GobConfig.get_bool "exp.arg.uncil" ->
+    | Statement {sid; skind=If _; _} ->
       let (e, (if_true_next_n, if_true_next_ps), (if_false_next_n, if_false_next_ps)) = partition_if_next (Arg.next n) in
       (* avoid infinite recursion with sid <> sid2 in if_nondet_var *)
       (* TODO: why physical comparison if_false_next_n != n doesn't work? *)
@@ -358,7 +358,7 @@ struct
       Question(e_cond, e_true, e_false, Cilfacade.typeOf e_false)
 
   let next_opt' n = match n with
-    | Statement {skind=If _; _} when GobConfig.get_bool "exp.arg.uncil" ->
+    | Statement {skind=If _; _} ->
       let (e_cond, (if_true_next_n, if_true_next_ps), (if_false_next_n, if_false_next_ps)) = partition_if_next (Arg.next n) in
       let loc = Node.location n in
       if CilType.Location.equal (Node.location if_true_next_n) loc && CilType.Location.equal (Node.location if_false_next_n) loc then
@@ -380,8 +380,7 @@ struct
     | None -> Arg.next n
 end
 
-module Intra (ArgIntra: SIntraOpt) (Arg: S):
-  S with module Node = Arg.Node and module Edge = Arg.Edge =
+module Intra (ArgIntra: SIntraOpt) (Arg: S) =
 struct
   include Arg
 
@@ -398,6 +397,18 @@ struct
       in
       follow node' p'
 
+  let rec follow' (node : Node.t) p : (Node.t * (Edge.t * Node.t) list) list =
+    let open GobList.Syntax in
+    match p with
+    | [] -> [node, []]
+    | (e, to_n) :: p' ->
+      let* (_, node') = List.filter (fun (e', to_node) ->
+          Edge.equal (Edge.embed e) e' && Node0.equal to_n (Node.cfgnode to_node)
+        ) (Arg.next node)
+      in
+      let+ (n, l) = follow' node' p' in
+      (n, (Edge.embed e, node') :: l)
+
   let next node =
     let open GobList.Syntax in
     match ArgIntra.next_opt (Node.cfgnode node) with
@@ -411,4 +422,19 @@ struct
           (Edge.embed e, to_node)
         )
       |> BatList.unique_cmp ~cmp:[%ord: Edge.t * Node.t] (* after following paths, there may be duplicates because same ARG node can be reached via same ARG edge via multiple uncilled CFG paths *) (* TODO: avoid generating duplicates in the first place? *)
+
+  let next' node =
+    let open GobList.Syntax in
+    match ArgIntra.next_opt (Node.cfgnode node) with
+    | None ->
+      Arg.next node
+      |> List.map (fun (e,n) -> (e,n, [e, n]))
+    | Some next ->
+      next
+      |> BatList.concat_map (fun (e, to_n, p) ->
+          let* p in
+          let+ (to_node, path) = follow' node p in
+          assert (Node0.equal to_n (Node.cfgnode to_node)); (* should always hold by follow' filter above *)
+          (Edge.embed e, to_node, path)
+        )
 end

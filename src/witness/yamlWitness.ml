@@ -119,7 +119,53 @@ struct
     with_metadata ~task @@ GhostInstrumentation {
       ghost_variables = variables;
       ghost_updates = location_updates;
-    }
+  }
+
+  let constraint_ ~value : ViolationSequence.Constraint.t = {
+    value = value;
+    format = Some "c_expression";
+  }
+
+  let assumption ~location ~constraint_ : ViolationSequence.Assumption.t = {
+    location = location;
+    action = "follow";
+    constraint_ = constraint_;
+  }
+
+  let violation_target ~location : ViolationSequence.Target.t = {
+    location = location;
+    action = "follow";
+  }
+
+  let function_enter ~location ~action : ViolationSequence.FunctionEnter.t = {
+    location = location;
+    action = action;
+  }
+
+  let function_return ~location ~action ~constraint_ : ViolationSequence.FunctionReturn.t = {
+    location = location;
+    action = action;
+    constraint_ = constraint_;
+  }
+
+  let branching ~location ~action ~constraint_ : ViolationSequence.Branching.t = {
+    location = location;
+    action = action;
+    constraint_ = constraint_;
+  }
+
+  let waypoint ~waypoint_type : ViolationSequence.Waypoint.t = {
+    waypoint_type = waypoint_type;
+  }
+
+  let segment ~waypoints : ViolationSequence.Segment.t = {
+    segment = waypoints;
+  }
+
+  let violation_sequence ~task ~(violation): Entry.t =
+    with_metadata ~task @@ ViolationSequence {
+      content = violation;
+    };
 end
 
 let yaml_entries_to_file yaml_entries file =

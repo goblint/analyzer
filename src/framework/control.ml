@@ -16,7 +16,7 @@ open SpecLifters
 module type S2S = Spec2Spec
 
 (* spec is lazy, so HConsed table in Hashcons lifters is preserved between analyses in server mode *)
-let spec_module: (module Spec) Lazy.t = lazy (
+let spec_module: (module Spec) ResettableLazy.t = ResettableLazy.from_fun (fun () ->
   GobConfig.building_spec := true;
   let arg_enabled = get_bool "exp.arg.enabled" in
   let termination_enabled = List.mem "termination" (get_string_list "ana.activated") in (* check if loop termination analysis is enabled*)
@@ -49,12 +49,12 @@ let spec_module: (module Spec) Lazy.t = lazy (
   in
   GobConfig.building_spec := false;
   ControlSpecC.control_spec_c := (module S1.C);
-  (module S1)
+  (module S1 : Spec)
 )
 
 (** gets Spec for current options *)
 let get_spec (): (module Spec) =
-  Lazy.force spec_module
+  ResettableLazy.force spec_module
 
 let current_node_state_json : (Node.t -> Yojson.Safe.t option) ref = ref (fun _ -> None)
 
@@ -859,6 +859,7 @@ let rec analyze_loop (module CFG : CfgBidirSkip) file fs change_info =
         Whoever raised the exception should've modified some global state
         to do a more precise analysis next time. *)
     (* TODO: do some more incremental refinement and reuse parts of solution *)
+    ResettableLazy.reset spec_module;
     analyze_loop (module CFG) file fs change_info
 
 (** The main function to perform the selected analyses. *)

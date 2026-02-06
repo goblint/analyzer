@@ -2067,6 +2067,12 @@
             }
           },
           "additionalProperties": false
+        },
+        "witch": {
+          "title": "exp.witch",
+          "description": "Path to the Witch executable for result refinement.",
+          "type": "string",
+          "default": ""
         }
       },
       "additionalProperties": false

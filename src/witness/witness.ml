@@ -54,6 +54,7 @@ let write_file filename (module Task:Task) (module Arg: MyARG.S with type Edge.t
 
 
 let print_svcomp_result (s: string): unit =
+  if GobConfig.get_string "exp.witch" <> "" then Logs.info "Witch runs: %d" !Violation.witch_runs;
   Logs.result "SV-COMP result: %s" s
 
 let print_task_result result: unit =
@@ -87,18 +88,35 @@ struct
 
   let determine_result entrystates (module Task:Task) (spec: Svcomp.Specification.t): Svcomp.Result.t =
     let module Arg: BiArgInvariant =
-    struct
-      module Node = ArgTool.Node
-      module Edge = MyARG.InlineEdge
-      let next _ = []
-      let prev _ = []
-      let find_invariant _ = Invariant.none
-      let main_entry =
-        let lvar = WitnessUtil.find_main_entry entrystates in
-        (fst lvar, snd lvar, -1)
-      let iter_nodes f = f main_entry
-      let query _ q = Queries.Result.top q
-    end
+      (val if GobConfig.get_bool "exp.arg.enabled" then (
+           let module Arg = (val ArgTool.create entrystates) in
+           let module Arg =
+           struct
+             include Arg
+
+             let find_invariant _ = Invariant.none
+           end
+           in
+           (module Arg: BiArgInvariant)
+         )
+         else (
+           let module Arg =
+           struct
+             module Node = ArgTool.Node
+             module Edge = MyARG.InlineEdge
+             let next _ = []
+             let prev _ = []
+             let find_invariant _ = Invariant.none
+             let main_entry =
+               let lvar = WitnessUtil.find_main_entry entrystates in
+               (fst lvar, snd lvar, -1)
+             let iter_nodes f = f main_entry
+             let query _ q = Queries.Result.top q
+           end
+           in
+           (module Arg: BiArgInvariant)
+         )
+      )
     in
 
     match spec with
@@ -149,7 +167,7 @@ struct
           Result.Unknown
         in
         if get_bool "ana.wp" then (
-          match Violation.find_path (module ViolationArg) (module ViolationZ3.WP (ViolationArg.Node)) with
+          match Violation.find_path (module ViolationArg) (module ViolationZ3.WP (ViolationArg)) with
           | Feasible (module PathArg) ->
             (* TODO: add assumptions *)
             Result.False (Some spec)

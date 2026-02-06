@@ -199,10 +199,16 @@ struct
     end
     in
     let module Arg =
+      (val if GobConfig.get_bool "exp.arg.uncil" then
+          let open MyARG in
+          (module Intra (UnCilTernaryIntra (UnCilLogicIntra (CfgIntra (FileCfg.Cfg)))) (Arg): MyARG.S with type Node.t = Arg.Node.t and type Edge.t = Arg.Edge.t)
+        else
+          (module Arg)
+      )
+    in
+    let module Arg =
     struct
-      open MyARG
-      module ArgIntra = UnCilTernaryIntra (UnCilLogicIntra (CfgIntra (FileCfg.Cfg)))
-      include Intra (ArgIntra) (Arg)
+      include Arg
 
       let prev = witness_prev
 
