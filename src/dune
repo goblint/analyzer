@@ -88,10 +88,10 @@
 (copy_files# arg/z3/*.ml)
 
 (executables
-  (names goblint)
-  (public_names goblint)
+  (names goblint goblint_mcp_server)
+  (public_names goblint goblint-mcp-server)
   (modes byte native) ; https://dune.readthedocs.io/en/stable/dune-files.html#linking-modes
-  (modules goblint)
+  (modules goblint goblint_mcp_server)
   (libraries goblint.lib goblint_std)
   (preprocess (pps ppx_deriving.std ppx_deriving_hash ppx_deriving_yojson))
   (flags :standard -linkall -open Goblint_std)
