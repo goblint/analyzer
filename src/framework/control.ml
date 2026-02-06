@@ -20,6 +20,7 @@ let spec_module: (module Spec) Lazy.t = lazy (
   GobConfig.building_spec := true;
   let arg_enabled = get_bool "exp.arg.enabled" in
   let termination_enabled = List.mem "termination" (get_string_list "ana.activated") in (* check if loop termination analysis is enabled*)
+  let hashcons_enabled = get_bool "ana.opt.hashcons" in
   (* apply functor F on module X if opt is true *)
   let lift opt (module F : S2S) (module X : Spec) = (module (val if opt then (module F (X)) else (module X) : Spec) : Spec) in
   let module S1 =
@@ -29,7 +30,7 @@ let spec_module: (module Spec) Lazy.t = lazy (
       |> lift true (module WidenContextLifterSide) (* option checked in functor *)
       |> lift (get_int "ana.widen.delay.local" > 0) (module WideningDelay.DLifter)
       (* hashcons before witness to reduce duplicates, because witness re-uses contexts in domain and requires tag for PathSensitive3 *)
-      |> lift (get_bool "ana.opt.hashcons" || arg_enabled) (module HashconsContextLifter)
+      |> lift (hashcons_enabled || arg_enabled) (module HashconsContextLifter)
       |> lift (get_bool "ana.opt.hashcached") (module HashCachedContextLifter)
       |> lift arg_enabled (module HashconsLifter)
       |> lift arg_enabled (module ArgConstraints.PathSensitive3)
@@ -37,8 +38,8 @@ let spec_module: (module Spec) Lazy.t = lazy (
       |> lift (get_bool "ana.dead-code.branches") (module DeadBranchLifter)
       |> lift true (module DeadCodeLifter)
       |> lift (get_bool "dbg.slice.on") (module LevelSliceLifter)
-      |> lift (get_bool "ana.opt.equal" && not (get_bool "ana.opt.hashcons")) (module OptEqual)
-      |> lift (get_bool "ana.opt.hashcons") (module HashconsLifter)
+      |> lift (get_bool "ana.opt.equal" && not hashcons_enabled) (module OptEqual)
+      |> lift hashcons_enabled (module HashconsLifter)
       (* Widening tokens must be outside of hashcons, because widening token domain ignores token sets for identity, so hashcons doesn't allow adding tokens.
          Also must be outside of deadcode, because deadcode splits (like mutex lock event) don't pass on tokens. *)
       |> lift (get_bool "ana.widen.tokens") (module WideningTokenLifter.Lifter)
