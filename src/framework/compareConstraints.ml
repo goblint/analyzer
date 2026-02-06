@@ -4,7 +4,7 @@ open Goblint_constraint.ConstrSys
 open GobConfig
 
 
-module CompareGlobSys (SpecSys: SpecSys) =
+module CompareGlobSys (SpecSys: ComparableSpecSys) =
 struct
   open SpecSys
   module Sys = EQSys
@@ -47,7 +47,17 @@ struct
     GH.iter f g1;
     Logs.info "globals:\tequal = %d\tleft = %d\tright = %d\tincomparable = %d" !eq !le !gr !uk
 
-  let compare_locals h1 h2 =
+  let compare_locals l1 l2 =
+    let one_ctx (node,_) v h =
+      PP.replace h node (try D.join v (PP.find h node) with Not_found -> v);
+      h
+    in
+    (* these contain results where the contexts per node have been joined *)
+    let h1 = PP.create 113 in
+    let h2 = PP.create 113 in
+    let _  = LH.fold one_ctx l1 h1 in
+    let _  = LH.fold one_ctx l2 h2 in
+
     let eq, le, gr, uk = ref 0, ref 0, ref 0, ref 0 in
     let f k v1 =
       if PP.mem h2 k then
@@ -121,19 +131,10 @@ struct
     Logs.info "locals_ctx:\tequal = %d\tleft = %d\tright = %d\tincomparable = %d\tno_ctx_in_right = %d\tno_ctx_in_left = %d" !eq !le !gr !uk !no2 !no1
 
   let compare (name1,name2) (l1,g1) (l2,g2) =
-    let one_ctx (n,_) v h =
-      PP.replace h n (try D.join v (PP.find h n) with Not_found -> v);
-      h
-    in
-    (* these contain results where the contexts per node have been joined *)
-    let h1 = PP.create 113 in
-    let h2 = PP.create 113 in
-    let _  = LH.fold one_ctx l1 h1 in
-    let _  = LH.fold one_ctx l2 h2 in
     Logs.newline ();
     Logs.info "Comparing GlobConstrSys precision of %s (left) with %s (right):" name1 name2;
     compare_globals g1 g2;
-    compare_locals h1 h2;
+    compare_locals l1 l2;
     compare_locals_ctx l1 l2;
     Logs.newline ();
 end
