@@ -2,6 +2,7 @@ open GoblintCil
 (* module Z = Big_int_Z *)
 
 module VarToStmt = Map.Make(CilType.Varinfo) (* maps varinfos (= loop counter variable) to the statement of the corresponding loop*)
+module VarSet = Set.Make(CilType.Varinfo)
 
 let counter_ikind = IULongLong
 let counter_typ = TInt (counter_ikind, [])
@@ -11,6 +12,16 @@ let min_int_exp =
     Const(CInt(Z.shift_left Cilint.mone_cilint ((bytesSizeOfInt counter_ikind)*8-1), IInt, None))
   else
     Const(CInt(Z.zero, counter_ikind, None))
+
+let string_of_loop_info loop_info =
+  String.concat "; " (List.map (fun s -> match s.skind with
+      | Instr is -> Printf.sprintf "Instrs(%s)" (String.concat "; " (List.map
+                                                                       (fun i -> match i with | Set ((Var v, _), _, loc, _) -> Printf.sprintf "%i: %s" loc.line v.vname | Call _ -> "Call" | _ -> "Some other instr") is))
+      | Break _ -> "Break"
+      | If _ -> "If"
+      | _ -> "Something else") loop_info)
+
+let rec exisis_nested_loop = List.exists (fun s -> match s.skind with Loop _ -> true | _ -> false)
 
 class loopCounterVisitor lc (fd : fundec) = object(self)
   inherit nopCilVisitor
@@ -46,17 +57,65 @@ class loopCounterVisitor lc (fd : fundec) = object(self)
 
     let action s = match s.skind with
       | Loop (b, loc, eloc, _, _) ->
-        let vname = "term" ^ string_of_int loc.line ^ "_" ^ string_of_int loc.column ^ "_id" ^ (string_of_int !vcounter) in
-        incr vcounter;
-        let v = Cil.makeLocalVar fd vname counter_typ in (*Not tested for incremental mode*)
-        let lval = Lval (Var v, NoOffset) in
-        let init_stmt = mkStmtOneInstr @@ Set (var v, min_int_exp, loc, eloc) in
-        let inc_stmt = mkStmtOneInstr @@ Set (var v, increment_expression lval, loc, eloc) in
-        let exit_stmt = mkStmtOneInstr @@ Call (None, f_bounded, [lval], loc, locUnknown) in
-        b.bstmts <- exit_stmt :: inc_stmt :: b.bstmts;
-        lc := VarToStmt.add (v: varinfo) (s: stmt) !lc;
-        let nb = mkBlock [init_stmt; mkStmt s.skind] in
-        s.skind <- Block nb;
+        (*let vname = "term" ^ string_of_int loc.line ^ "_" ^ string_of_int loc.column ^ "_id" ^ (string_of_int !vcounter) in
+          incr vcounter;
+          let v = Cil.makeLocalVar fd vname counter_typ in (*Not tested for incremental mode*)
+          let lval = Lval (Var v, NoOffset) in
+          let init_stmt = mkStmtOneInstr @@ Set (var v, min_int_exp, loc, eloc) in
+          let inc_stmt = mkStmtOneInstr @@ Set (var v, increment_expression lval, loc, eloc) in
+          let exit_stmt = mkStmtOneInstr @@ Call (None, f_bounded, [lval], loc, locUnknown) in
+          (*Printf.printf "Before additions\n%s\n\n" (string_of_loop_info b.bstmts);*)
+          b.bstmts <- exit_stmt :: inc_stmt :: b.bstmts;
+          lc := VarToStmt.add (v: varinfo) (s: stmt) !lc;
+          let nb = mkBlock [init_stmt; mkStmt s.skind] in
+          s.skind <- Block nb;*)
+
+        let rec vars_from_exp = function
+          | BinOp (_, e1, e2, _) -> VarSet.union (vars_from_exp e1) (vars_from_exp e2)
+          | UnOp (_, e, _) -> vars_from_exp e
+          | Lval (Var v, _) -> VarSet.singleton v
+          | CastE _ -> failwith "Encountered cast"
+          | Question _ -> failwith "Encountered question"
+          | _ -> VarSet.empty
+
+        in
+        let rec get_vars = function
+          | [] -> VarSet.empty
+          | s::ss -> (match s.skind with
+              | Instr instrs ->
+                let rec get_vars_helper = function
+                  | [] -> get_vars ss
+                  | i::is -> (match i with
+                      | Set ((Var v, NoOffset), e, _, _) -> (match v.vtype with
+                          | TInt (_, _) -> VarSet.union (VarSet.add v (vars_from_exp e)) (get_vars_helper is)
+                          | _ -> get_vars_helper is)
+                      | _ -> get_vars_helper is) in
+                get_vars_helper instrs
+              | Break _ -> (*Printf.printf "\nfound a break\n";*) get_vars ss
+              | If (_, b1, b2, _, _) -> VarSet.union (VarSet.union (get_vars b1.bstmts) (get_vars b2.bstmts)) (get_vars ss)
+              | _ -> get_vars ss)
+        in
+        let vars = get_vars b.bstmts |> VarSet.elements in
+        (*Printf.printf "Loop Info: %s\nModified Vars: %s\n" (string_of_loop_info b.bstmts) (String.concat ", " (List.map (fun v -> v.vname) modified_vars));*)
+
+        if vars <> [] then
+          (match b.bstmts with
+           | s1 :: ss ->
+             (match s1.skind with
+              | If (_, _, _, loc, eloc) ->
+                let lval v = Lval (Var v, NoOffset) in
+                let init_old_var v =
+                  let old_vname = "old_" ^ v.vname in
+                  (*incr vcounter;*)
+                  let v' = Cil.makeLocalVar fd old_vname counter_typ in
+                  Set (var v', lval v, loc, eloc)
+                in
+                b.bstmts <- s1 ::
+                            mkStmt (Instr ((List.map init_old_var vars))) ::
+                            ss @
+                            [mkStmtOneInstr (Call (None, f_bounded, [lval (List.hd vars)], loc, eloc))]; (* TODO: replace f_bounded by something appropriate; replace loc by the correct location *)
+              | _ -> (*Printf.printf "Some other structure\n"*) ())
+           | _ -> (*Printf.printf "Some other structure\n"*) ());
         s
       | Goto (sref, l) ->
         let goto_jmp_stmt = sref.contents in
