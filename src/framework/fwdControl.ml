@@ -483,7 +483,7 @@ struct
       let solve = if (get_string "solver" = "bu") then BuSolver.solve else
         if (get_string "solver" = "wbu") then WBuSolver.solve else FwdSolver.solve in 
       let check = if (get_string "solver" = "bu") then BuSolver.check else 
-        if (get_string "solver" = "wbu") then WBuSolver.solve else FwdSolver.check in 
+        if (get_string "solver" = "wbu") then WBuSolver.check else FwdSolver.check in 
       let _ = solve entrystates entrystates_global startvars' in
 
       AnalysisState.should_warn := true; (* reset for postsolver *)
