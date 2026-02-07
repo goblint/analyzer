@@ -14,13 +14,13 @@ module FwdWBuSolver (System: FwdGlobConstrSys) = struct
   module GM = Hashtbl.Make(System.GVar)
   module LM = Hashtbl.Make(System.LVar)
 
+(*
   module OM = LM
   let source x = x
+*)
 
-(*
   module OM = Hashtbl.Make(Node)
   let source = System.LVar.node
-*)
 
   let gas_default = ref (10,3)
 
@@ -42,15 +42,12 @@ module FwdWBuSolver (System: FwdGlobConstrSys) = struct
     let (delay0,_) = !gas_default in
     if G.equal a b then (a,delay,gas,narrow)
     else if G.leq b a then
-      (
-        if narrow then (G.narrow a b,delay,gas,true)
-        else if gas<=0 then (a,delay,gas,false)
-        else (G.narrow a b, delay,gas-1,true)
-      )
+      if narrow then (G.narrow a b,delay,gas,true)
+      else if gas<=0 then (a,delay,gas,false)
+      else (G.narrow a b, delay,gas-1,true)
     else if narrow then (G.join a b,delay0,gas,false)
     else if delay <= 0 then (G.widen a (G.join a b),0,gas,false)
     else (G.join a b, delay-1,gas,false)
-
 
 (*
        work list just for checking ...
@@ -94,7 +91,6 @@ module FwdWBuSolver (System: FwdGlobConstrSys) = struct
   type glob = {value : G.t; init : G.t;  infl : LS.t ; last: G.t LM.t; 
                from : (G.t * int * int * bool * LS.t) OM.t}
 
-
   let glob: glob GM.t = GM.create 100
 
   (* auxiliary functions for globals *)
@@ -131,7 +127,6 @@ module FwdWBuSolver (System: FwdGlobConstrSys) = struct
     LS.fold (fun x d -> G.join d (LM.find last x)) set (G.bot()) 
 
   (* determine the join of all last contribs of unknowns with same orig *)
-
   (* now the getters for globals *)
 
   let get_global x g =
@@ -291,6 +286,24 @@ module FwdWBuSolver (System: FwdGlobConstrSys) = struct
     let _ = LM.iter (set_local x) sigma in
     ()
 
+  and wrap_new (x,f) d =
+    let sigma = LM.create 10 in
+    let tau = GM.create 10 in
+    let add_sigma y d =
+      let d = try D.join d (LM.find sigma y) with _ -> d in
+      LM.replace sigma y d in
+(*
+      set_local y x d in
+*)
+    let add_tau g d =
+      let d = try G.join d (GM.find tau g) with _ -> d in
+      GM.replace tau g d;
+      set_global x g d in
+    let _ = f d (fun _ -> raise (Failure "Locals queried in rhs??"))
+        add_sigma (get_global x) add_tau in
+    let _ = LM.iter (set_local x) sigma in
+    ()
+
 (*
         now the actual propagation!
 *)
@@ -304,7 +317,7 @@ module FwdWBuSolver (System: FwdGlobConstrSys) = struct
     | Some f ->
       let _ = rloc.called := true in
       let _ = rloc.aborted := false in
-      let _ = wrap (x,f) rloc.loc_value in
+      let _ = wrap_new (x,f) rloc.loc_value in
       let _ = rloc.called := false in
       if !(rloc.aborted) then (
         if tracing then trace "iter" "re-iter";
