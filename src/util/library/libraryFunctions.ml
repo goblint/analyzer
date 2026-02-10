@@ -162,6 +162,7 @@ let c_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("longjmp", special [__ "env" [r]; __ "value" []] @@ fun env value -> Longjmp { env; value });
     ("atexit", unknown [drop "function" [if_ (fun () -> not (get_bool "sem.atexit.ignore")) s]]);
     ("atoi", unknown [drop "nptr" [r]]);
+    ("atof", unknown [drop "nptr" [r]]); (* TODO: Rethink atof's position in this list. *)
     ("atol", unknown [drop "nptr" [r]]);
     ("atoll", unknown [drop "nptr" [r]]);
     ("setlocale", unknown [drop "category" []; drop "locale" [r]]);
@@ -1242,6 +1243,23 @@ let legacy_libs_misc_list: (string * LibraryDesc.t) list = LibraryDsl.[
   ]
 [@@coverage off]
 
+let ocaml_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
+    ("caml_copy_double", special [drop "nptr" []] (OCamlAlloc (GoblintCil.integer 1)));
+    (* Example: ("malloc", special [__ "size" []] @@ fun size -> Malloc size); *)
+    ("caml_alloc_small", special [__ "wosize" []; __ "tag" []] @@ fun wosize tag -> OCamlAlloc wosize);
+    ("caml_alloc_2", special [__ "tag" []; __ "arg1" [r]; __ "arg2" [r]] @@ fun tag _arg1 _arg2 -> OCamlAlloc (GoblintCil.integer 2));
+    ("caml_alloc_3", special [__ "tag" []; __ "arg1" [r]; __ "arg2" [r]; __ "arg3" [r]] @@ fun tag _arg1 _arg2 _arg3 -> OCamlAlloc (GoblintCil.integer 3));
+    ("caml_alloc_4", special [__ "tag" []; __ "arg1" [r]; __ "arg2" [r]; __ "arg3" [r]; __ "arg4" [r]] @@ fun tag _arg1 _arg2 _arg3 _arg4 -> OCamlAlloc (GoblintCil.integer 4));
+    ("caml_alloc_5", special [__ "tag" []; __ "arg1" [r]; __ "arg2" [r]; __ "arg3" [r]; __ "arg4" [r]; __ "arg5" [r]] @@ fun tag _arg1 _arg2 _arg3 _arg4 _arg5 -> OCamlAlloc (GoblintCil.integer 5));
+    ("__goblint_caml_param0", special [] @@ OCamlParam []);
+    ("__goblint_caml_param1", special [__ "param" []] @@ fun param -> OCamlParam [param]);
+    ("__goblint_caml_param2", special [__ "param1" []; __ "param2" []] @@ fun param1 param2 -> OCamlParam [param1; param2]);
+    ("__goblint_caml_param3", special [__ "param1" []; __ "param2" []; __ "param3" []] @@ fun param1 param2 param3 -> OCamlParam [param1; param2; param3]);
+    ("__goblint_caml_param4", special [__ "param1" []; __ "param2" []; __ "param3" []; __ "param4" []] @@ fun param1 param2 param3 param4 -> OCamlParam [param1; param2; param3; param4]);
+    ("__goblint_caml_param5", special [__ "param1" []; __ "param2" []; __ "param3" []; __ "param4" []; __ "param5" []] @@ fun param1 param2 param3 param4 param5 -> OCamlParam [param1; param2; param3; param4; param5]);
+  ]
+[@@coverage off]
+
 let libraries = Hashtbl.of_list [
     ("c", c_descs_list @ math_descs_list);
     ("posix", posix_descs_list);
@@ -1259,6 +1277,7 @@ let libraries = Hashtbl.of_list [
     ("zlib", zlib_descs_list);
     ("liblzma", liblzma_descs_list);
     ("legacy", legacy_libs_misc_list);
+    ("ocaml", ocaml_descs_list)
   ]
 
 let libraries =
