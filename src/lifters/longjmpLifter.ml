@@ -9,6 +9,8 @@ struct
 
   let name () = "Longjmp (" ^ S.name () ^ ")"
 
+  module A = S.A
+
   module V =
   struct
     include Printable.Either3Conf (struct let expand1 = false let expand2 = true let expand3 = true end) (S.V) (Printable.Prod (Node) (C)) (Printable.Prod (CilType.Fundec) (C))
@@ -252,4 +254,5 @@ struct
   let skip man = S.skip (conv man)
   let asm man = S.asm (conv man)
   let event man e oman = S.event (conv man) e (conv oman)
+  let access man a = S.access (conv man) a
 end

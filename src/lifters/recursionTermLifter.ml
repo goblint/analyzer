@@ -53,6 +53,8 @@ struct
 
   end
 
+  module A = S.A
+
   let name () = "RecursionTermLifter (" ^ S.name () ^ ")"
 
   let conv (man: (_, G.t, _, V.t) man): (_, S.G.t, _, S.V.t) man =
@@ -150,4 +152,6 @@ struct
   let skip man = S.skip (conv man)
   let asm man = S.asm (conv man)
   let event man e oman = S.event (conv man) e (conv oman)
+  let access man a =
+    S.access (conv man) a
 end

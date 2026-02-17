@@ -96,6 +96,7 @@ struct
   module C = Spec.C
   module V = Spec.V
   module P = UnitP
+  module A = Spec.A
 
   let name () = "PathSensitive3("^Spec.name ()^")"
 
@@ -330,4 +331,8 @@ struct
     in
     let d = Dom.fold_keys k (fst d) (Dom.bot (), Sync.bot ()) in
     if Dom.is_bot (fst d) then raise Deadcode else d
+
+  let access man a =
+    let cd = Dom.choose_key (fst man.local) in
+    Spec.access (conv man cd) a
 end

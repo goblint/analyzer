@@ -12,13 +12,15 @@ module MCP2 : Analyses.Spec
    and module G = DomVariantLattice (GlobalDomainListSpec)
    and module C = DomListPrintable (ContextListSpec)
    and module V = DomVariantSysVar (VarListSpec)
-   and module P = DomListRepresentative (PathListSpec) =
+   and module P = DomListRepresentative (PathListSpec)
+   and module A = DomListMCPA (AccListSpec) =
 struct
   module D = DomListLattice (LocalDomainListSpec)
   module G = DomVariantLattice (GlobalDomainListSpec)
   module C = DomListPrintable (ContextListSpec)
   module V = DomVariantSysVar (VarListSpec)
   module P = DomListRepresentative (PathListSpec)
+  module A = DomListMCPA (AccListSpec)
 
   open List
   let v_of n v = (n, Obj.repr v)
@@ -630,4 +632,12 @@ struct
 
   (* Just to satisfy signature *)
   let paths_as_set man = [man.local]
+
+  let access man a =
+    let man'' = outer_man "access_computation" man in
+    let x = spec_list man.local in
+    filter_map (fun (n,(module S:MCPSpec),d) ->
+        let man' : (S.D.t, S.G.t, S.C.t, S.V.t) man = inner_man "access_computation" man'' n d in
+        Some (n, Obj.repr @@ S.access man' a)
+      ) x
 end

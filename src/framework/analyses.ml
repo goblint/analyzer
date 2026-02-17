@@ -233,7 +233,7 @@ let man_failwith s = raise (Man_failure s) (* TODO: use everywhere in man *)
 let ask_of_man man: Queries.ask = { Queries.f = man.ask }
 
 
-module type Spec =
+module type Spec' =
 sig
   (** Lattice for the abstract domain of the locals *)
   module D : Lattice.S
@@ -331,8 +331,6 @@ sig
   val event : (D.t, G.t, C.t, V.t) man -> Events.t -> (D.t, G.t, C.t, V.t) man -> D.t
 end
 
-module type Spec2Spec = functor (S: Spec) -> Spec
-
 module type MCPA =
 sig
   include Printable.S
@@ -340,13 +338,18 @@ sig
   val should_print: t -> bool (** Whether value should be printed in race output. *)
 end
 
-module type MCPSpec =
+module type Spec =
 sig
-  include Spec
+  include Spec'
 
   module A: MCPA
   val access: (D.t, G.t, C.t, V.t) man -> Queries.access -> A.t
 end
+
+
+module type Spec2Spec = functor (S: Spec) -> Spec
+
+module type MCPSpec = Spec
 
 type increment_data = {
   server: bool;
@@ -497,7 +500,7 @@ end
 module type ComparableSpecSys =
 sig
   module Spec: Spec
-  module EQSys: Goblint_constraint.ConstrSys.BaseGlobConstrSys 
+  module EQSys: Goblint_constraint.ConstrSys.BaseGlobConstrSys
     with module LVar = VarF (Spec.C)
      (* and module GVar = GVarPretty (Spec.V) *)
      and module D = Spec.D

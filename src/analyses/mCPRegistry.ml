@@ -217,6 +217,43 @@ struct
   let relift = unop_map (fun (module S: Printable.S) x -> Obj.repr (S.relift (Obj.obj x)))
 end
 
+module DomListMCPA (DLSpec : DomainListMCPASpec)
+  : MCPA with type t = (int * Obj.t) list
+=
+struct
+  module DLSpec2 =
+  struct
+    include DLSpec
+
+    let domain_list () =
+      let list = domain_list () in
+      let list = List.map (fun (n, (module S: MCPA)) -> (n, (module S : Printable.S))) list in
+      list
+
+    let assoc_dom n =
+      let module M = (val assoc_dom n : MCPA) in
+      (module M : Printable.S)
+  end
+
+  include DomListPrintable (DLSpec2)
+  let name () = "MCP.A"
+
+  let may_race xs b =
+    let modules = DLSpec.domain_list () in
+    let modules = Seq.of_list modules in
+    let pairs = Seq.product (Seq.of_list xs) (Seq.of_list b) in
+    Seq.exists2 (fun (_, (module S: MCPA)) ((_, x), (_, y)) ->
+        S.may_race (Obj.obj x) (Obj.obj y)
+      ) modules pairs
+
+  let should_print xs =
+    let modules = DLSpec.domain_list () in
+    List.exists2 (fun (_, (module S: MCPA)) (_, x) ->
+        let a' = Obj.obj x in
+        S.should_print a'
+      ) modules xs
+end
+
 module DomVariantPrintable (DLSpec : DomainListPrintableSpec)
   : Printable.S with type t = int * Obj.t
 =
@@ -452,3 +489,4 @@ struct
   let assoc_dom n = (find_spec n).path
   let domain_list () = List.map (fun (n,p) -> n, p.path) !activated_path_sens
 end
+

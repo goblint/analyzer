@@ -41,6 +41,7 @@ struct
     include S.P
     let of_elt (x, _) = of_elt x
   end
+  module A = S.A
 
   (* returns context gas value of the given man *)
   let cg_val man = snd man.local
@@ -97,6 +98,7 @@ struct
   let paths_as_set man                            = List.map (fun (x) -> (x, cg_val man)) @@ S.paths_as_set (conv man)
   let threadspawn man ~multiple lval f args fman  = S.threadspawn (conv man) ~multiple lval f args (conv fman), cg_val man
   let event man e oman                            = S.event (conv man) e (conv oman), cg_val man
+  let access man a = S.access (conv man) a
 end
 
 let get_gas_lifter () =
