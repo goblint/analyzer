@@ -932,6 +932,12 @@
               "enum": ["octagon", "interval", "polyhedra", "affeq"],
               "default": "octagon"
             },
+            "narrowing_gas": {
+              "title": "ana.apron.narrowing_gas",
+              "description": "Per state perform narrowing via meet as long as gas is left (0 to disable)",
+              "type": "integer",
+              "default": 0
+            },
             "threshold_widening": {
               "title": "ana.apron.threshold_widening",
               "description":
