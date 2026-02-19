@@ -39,13 +39,20 @@ module Spec = struct
 
   let threadspawn_contribute_globals man tid must_ancestor_descendants =
     let descendant_lockset = man.local in
+
+    (* intersect locksets, but return bot if any arg is bot *)
+    let lockset_inter_sticky_bot = function
+      | `Top, _ | _, `Top -> Lockset.bot ()
+      | ls1, ls2 -> Lockset.inter ls1 ls2
+    in
+
     let contribute_for_descendant t_d =
       let creation_lockset = man.ask @@ Queries.CreationLockset t_d in
       let to_contribute =
         D.fold
           (fun t_l l_dl acc ->
              let l_cl = Queries.CL.find tid creation_lockset in
-             let l_inter = Lockset.inter l_cl l_dl in
+             let l_inter = lockset_inter_sticky_bot (l_cl, l_dl) in
              D.add t_l l_inter acc)
           descendant_lockset
           (D.empty ())
