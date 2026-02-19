@@ -73,34 +73,20 @@ module Spec = struct
       threadspawn_compute_local_contribution man tid must_ancestor_descendants
     | _ -> man.local
 
-  let unlock man possibly_running_tids lock =
-    TIDs.fold
-      (fun des_tid ->
-         let old_value = D.find des_tid man.local in
-         let new_value = Lockset.remove lock old_value in
-         D.add des_tid new_value)
-      possibly_running_tids
-      (D.empty ())
+  let unlock man lock =
+    D.map (Lockset.remove lock) man.local
 
-  let unknown_unlock man possibly_running_tids =
-    TIDs.fold
-      (fun des_tid -> D.add des_tid (Lockset.empty ()))
-      possibly_running_tids
-      (D.empty ())
+  let unknown_unlock man =
+    D.map (fun _ -> Lockset.empty ()) man.local
 
   let event man e _ =
     match e with
     | Events.Unlock addr ->
       let tid_lifted = man.ask Queries.CurrentThreadId in
-      (match tid_lifted with
-       | `Lifted tid ->
-         let possibly_running_tids =
-           ThreadDescendants.must_ancestor_running_descendants (ask_of_man man) tid
-         in
-         let lock_opt = LockDomain.MustLock.of_addr addr in
-         (match lock_opt with
-          | Some lock -> unlock man possibly_running_tids lock
-          | None -> unknown_unlock man possibly_running_tids)
+      let lock_opt = LockDomain.MustLock.of_addr addr in
+      (match tid_lifted, lock_opt with
+       | `Lifted tid, Some lock -> unlock man lock
+       | `Lifted tid, None -> unknown_unlock man
        | _ -> man.local)
     | _ -> man.local
 
