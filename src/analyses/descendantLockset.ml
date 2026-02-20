@@ -37,6 +37,8 @@ module Spec = struct
   let startstate _ = D.empty ()
   let exitstate _ = D.empty ()
 
+  let threadenter man ~multiple lval f args = [ D.empty () ]
+
   let threadspawn_contribute_globals man tid must_ancestor_descendants =
     let descendant_lockset = man.local in
 
