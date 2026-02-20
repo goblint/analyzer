@@ -309,6 +309,8 @@ module FwdBuSolver (System: FwdGlobConstrSys) = struct
   (* ... now the main solver loop ... *)
 
   let solve localinit globalinit xs =
+    let starttime_ms = int_of_float (Unix.gettimeofday () *. 1000.) in
+    Logs.info "Solver start: %d" starttime_ms;
     if tracing then trace "solver" "Starting bottom-up fixpoint iteration";
     List.iter init_local localinit;
     List.iter init_global globalinit;
@@ -318,6 +320,8 @@ module FwdBuSolver (System: FwdGlobConstrSys) = struct
     List.iter toplevel_iterate xs;
     let sigma = LM.to_seq loc |> Seq.map (fun (k,l) -> (k,l.loc_value)) in
     let tau = GM.to_seq glob |> Seq.map (fun (k,l) -> (k,l.value)) in
+    let endtime_ms = int_of_float (Unix.gettimeofday () *. 1000.) in
+    Logs.info "Solver end: %d" endtime_ms;
     (sigma,tau)
 
   (* ... now the checker! *)

@@ -232,12 +232,17 @@ module FwdSolver (System: FwdGlobConstrSys) = struct
 
 
   let solve localinit globalinit startvars =
+    let starttime_ms = int_of_float (Unix.gettimeofday () *. 1000.) in
+    Logs.info "Solver start: %d" starttime_ms;
     let _ = List.iter init_local localinit in
     let _ = List.iter init_global globalinit in
 (*
     ignore (solve startvars);
 *)
-    solve startvars
+    let solution = solve startvars in
+    let endtime_ms = int_of_float (Unix.gettimeofday () *. 1000.) in
+    Logs.info "Solver end: %d" endtime_ms;
+    solution
 
   (* ... now the checker! *)
 
