@@ -97,16 +97,19 @@ module Base : GenericEqSolver =
           end
       in
 
-(*
-introduce wrapper to make sure that there is at most one contrib per origin ...
-alternatively, distinguish contribs by session number?
-*)
+(* now obsolete:
       let eq x get set =
         if tracing then trace "eq" "eq %a" S.Var.pretty_trace x;
         match S.system x with
         | None -> S.Dom.bot ()
         | Some f -> f get set
       in 
+*)
+
+(*
+introduce wrapper to make sure that there is at most one contrib per origin ...
+alternatively, distinguish contribs by session number?
+*)
 
       let rec destabilize x =
         if tracing then trace "destab" "destabilize %a" S.Var.pretty_trace x;
