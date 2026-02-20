@@ -6,6 +6,7 @@
 #include <string.h>
 #include <caml/mlvalues.h>
 #include <caml/alloc.h>
+#include <caml/memory.h>
 #include "goblint_caml.h"
 
 CAMLprim value pringo_LXM_copy(value v)
