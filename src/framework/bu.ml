@@ -103,8 +103,9 @@ module FwdBuSolver (System: FwdGlobConstrSys) = struct
     try OM.find from orig
     with _ ->
       let (delay,gas) = !gas_default in
-      OM.add from orig (G.bot (),delay,gas,false,LS.empty);
-      (G.bot (),delay,gas,false,LS.empty)
+      let first = (G.bot (),delay,gas,false,LS.empty) in
+      OM.add from orig first;
+      first
 
   let get_last_contrib set last = 
     LS.fold (fun x d -> G.join d (LM.find last x)) set (G.bot()) 
@@ -187,7 +188,9 @@ module FwdBuSolver (System: FwdGlobConstrSys) = struct
     else
       begin
         if tracing then trace "set_globalc" "new contribution registered!";
-        let new_g = get_global_value init from in
+        let new_g = if G.leq old_xg new_xg then 
+          G.join new_xg value 
+        else get_global_value init from in
         if G.equal value new_g then
           ()
         else
