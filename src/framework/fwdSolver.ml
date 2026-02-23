@@ -116,14 +116,15 @@ module FwdSolver (System: FwdGlobConstrSys) = struct
     OM.replace from sx (new_xg,delay,gas,narrow,set);
     if G.equal new_xg old_xg then () 
     else
-      let new_g = get_global_value init from in
+      let new_g = if G.leq old_xg new_xg then G.join value new_xg
+        else get_global_value init from in
       if G.equal value new_g then
         ()
       else
         let _ = LS.iter add_work infl in
         GM.replace glob g {value = new_g; init = init; infl = LS.empty; last; from}
 
-  type loc = {loc_value : D.t; loc_init : D.t; loc_infl: System.LVar.t list; loc_from : (D.t * int * int * bool) LM.t}
+  type loc = {mutable loc_value : D.t; loc_init : D.t; mutable loc_infl: System.LVar.t list; loc_from : (D.t * int * int * bool) LM.t}
   (*
     init may contain some initial value not provided by separate origin;
     perhaps, dynamic tracking of dependencies required for certain locals?
@@ -175,7 +176,7 @@ module FwdSolver (System: FwdGlobConstrSys) = struct
       reconstructs value of y from contributions;
       propagates infl together with y and updates value - if value has changed
     *)
-    let {loc_value;loc_init;loc_infl;loc_from} = get_local_ref y in
+    let {loc_value;loc_init;loc_infl;loc_from} as y_record = get_local_ref y in
     let (old_xy,delay,gas,narrow) = get_old_local_value x loc_from in
     let (new_xy,delay,gas,narrow) = lwarrow (old_xy,delay,gas,narrow) d in
     if D.equal new_xy old_xy then ()
@@ -186,7 +187,8 @@ module FwdSolver (System: FwdGlobConstrSys) = struct
         ()
       else let _ = add_work y in
         let _ = List.iter add_work loc_infl in
-        LM.replace loc y {loc_value = new_y; loc_init; loc_infl = []; loc_from}
+        y_record.loc_value <- new_y;
+        y_record.loc_infl <- [] 
 
 (*
         wrapper around propagation function to collect multiple contributions to same unknowns;
@@ -201,12 +203,12 @@ module FwdSolver (System: FwdGlobConstrSys) = struct
       LM.replace sigma y d in
     let add_tau g d =
       let d = try G.join d (GM.find tau g) with _ -> d in
+(*
       set_global x g d;
+*)
       GM.replace tau g d in
     let _ = f d (get_local x) add_sigma (get_global x) add_tau in
-(*
     let _ = GM.iter (set_global x) tau in
-*)
     let _ = LM.iter (set_local x) sigma in
     ()
 
