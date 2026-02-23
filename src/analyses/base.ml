@@ -322,12 +322,7 @@ struct
       in
       match addr with
       | Addr (x, o) -> AD.of_mval (x, addToOffset n (Some x.vtype) o)
-      | NullPtr ->
-        begin match ID.equal_to Z.zero n with
-          | `Eq -> AD.null_ptr
-          | `Neq -> AD.unknown_ptr
-          | `Top -> AD.top_ptr
-        end
+      | NullPtr -> AD.of_int n
       | UnknownPtr
       | StrPtr _ ->
         begin match ID.equal_to Z.zero n with
@@ -2542,7 +2537,7 @@ struct
       let dest_a, dest_typ = addr_type_of_exp dest in
       let value =
         match eval_ch with
-        | Int i when ID.to_int i = Some Z.zero ->
+        | Int i when ID.equal_to Z.zero i = `Eq ->
           VD.zero_init_value dest_typ
         | _ ->
           VD.top_value dest_typ
@@ -2712,7 +2707,7 @@ struct
       let st' =
         (* TODO: should invalidate shallowly? https://github.com/goblint/analyzer/pull/1224#discussion_r1405826773 *)
         match eval_rv ~man st ret_var with
-        | Int n when GobOption.exists (Z.equal Z.zero) (ID.to_int n) -> st
+        | Int n when ID.equal_to Z.zero n = `Eq -> st
         | Address ret_a ->
           begin match eval_rv ~man st id with
             | Thread a when ValueDomain.Threads.is_top a -> invalidate ~must:true ~man st [ret_var]
@@ -2759,11 +2754,15 @@ struct
           let ik = Cilfacade.ptrdiff_ikind () in
           let sizeval = eval_int ~man st size in
           let countval = eval_int ~man st n in
-          if ID.to_int countval = Some Z.one then
+          if ID.equal_to Z.one countval = `Eq then
             let blob_set = Option.map_default (fun heap_var -> [heap_var, TVoid [], VD.Blob (VD.bot (), sizeval, ZeroInit.calloc)]) [] heap_var in
             set_many ~man st ((eval_lv ~man st lv, (Cilfacade.typeOfLval lv), Address addr):: blob_set)
           else
-            let blobsize = ID.mul (ID.cast_to ~kind:Internal ik @@ sizeval) (ID.cast_to ~kind:Internal ik @@ countval) in (* TODO: proper castkind *)
+            let blobsize = (* only speculative during ID.mul *)
+              (* TODO: Since C23, calloc returns NULL when this multiplication would overflow, but int domains don't return overflow information here currently; needs refactor to not produce overflow warnings inside domains *)
+              let@ () = GobRef.wrap AnalysisState.executing_speculative_computations true in
+              ID.mul (ID.cast_to ~kind:Internal ik @@ sizeval) (ID.cast_to ~kind:Internal ik @@ countval) (* TODO: proper castkind *)
+            in
             let offset = `Index (IdxDom.of_int (Cilfacade.ptrdiff_ikind ()) Z.zero, `NoOffset) in
             (* the heap_var is the base address of the allocated memory, but we need to keep track of the offset for the blob *)
             let addr_offset = AD.map (fun a -> Addr.add_offset a offset) addr in
@@ -2780,9 +2779,7 @@ struct
           let p_addr =
             match p_rv with
             | Address a -> a
-            (* TODO: don't we already have logic for this? *)
-            | Int i when ID.to_int i = Some Z.zero -> AD.null_ptr
-            | Int i -> AD.top_ptr
+            | Int i -> AD.of_int i
             | _ -> AD.top_ptr (* TODO: why does this ever happen? *)
           in
           let p_addr' = AD.remove NullPtr p_addr in (* realloc with NULL is same as malloc, remove to avoid unknown value from NullPtr access *)

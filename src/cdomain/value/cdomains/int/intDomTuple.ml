@@ -448,7 +448,12 @@ module IntDomTupleImpl = struct
       {f2_ovc = (fun (type a) (module I : SOverflow with type t = a) ?no_ov -> I.div ?no_ov ik)}
 
   let rem ik =
-    map2 ik {f2= (fun (type a) (module I : SOverflow with type t = a) ?no_ov -> I.rem ik)}
+    map2ovc ~op:(Binop Mod) ik
+      {f2_ovc = (fun (type a) (module I : SOverflow with type t = a) ?no_ov x y ->
+           (* C11 6.5.5.6: if [x/y] is not representable (i.e. overflows), then [x%y] is undefined (let's also call it overflow) *)
+           let (_, div_ov) = I.div ?no_ov ik x y in
+           (I.rem ik x y, div_ov) (* TODO: should [div] overflow check be moved into each [rem] in each int domain? *)
+         )}
 
   let lt ik =
     map2 ik {f2= (fun (type a) (module I : SOverflow with type t = a) ?no_ov -> I.lt ik)}
