@@ -189,8 +189,8 @@ module FwdBuSolver (System: FwdGlobConstrSys) = struct
       begin
         if tracing then trace "set_globalc" "new contribution registered!";
         let new_g = if G.leq old_xg new_xg then 
-          G.join new_xg value 
-        else get_global_value init from in
+            G.join new_xg value 
+          else get_global_value init from in
         if G.equal value new_g then
           ()
         else
