@@ -134,8 +134,8 @@ module FwdWBuSolver (System: FwdGlobConstrSys) = struct
     GM.replace glob g { rglob with infl = LS.add x rglob.infl }; (* ensure the global is in the hashtable *)
     rglob.value
 
-  type loc = {loc_value : D.t; loc_init : D.t; 
-              called: bool ref; aborted: bool ref;
+  type loc = {mutable loc_value : D.t; loc_init : D.t; 
+              mutable called: bool; mutable aborted: bool;
               loc_from : (D.t * int * int * bool) LM.t}
 (*
     init may contain some initial value not provided by separate origin;
@@ -153,7 +153,7 @@ module FwdWBuSolver (System: FwdGlobConstrSys) = struct
       (
         if tracing then trace "unknownsize" "Number of locals so far: %d" (LM.length loc);
         let rloc = {loc_value = D.bot (); loc_init = D.bot (); 
-                    called = ref false; aborted = ref false;
+                    called = false; aborted = false;
                     loc_from = LM.create 10} in
         LM.add loc x rloc;
         rloc)
@@ -162,8 +162,8 @@ module FwdWBuSolver (System: FwdGlobConstrSys) = struct
     LM.add loc x {
       loc_value = d;
       loc_init = d;
-      called = ref false;
-      aborted = ref false;
+      called = false;
+      aborted = false;
       loc_from = LM.create 10
     }
 
@@ -210,7 +210,7 @@ module FwdWBuSolver (System: FwdGlobConstrSys) = struct
           let _ = GM.replace glob g {value = new_g; init = init; infl = LS.empty; last; from} in
           let doit x = 
             let r = get_local_ref x in
-            if !(r.called) then r.aborted := true
+            if r.called then r.aborted <- true
             else (
               if tracing then trace "iter" "set_global caused iter\n By: %a\nLocal:%a" System.GVar.pretty_trace g System.LVar.pretty_trace x;
               add_set x 
@@ -234,7 +234,7 @@ module FwdWBuSolver (System: FwdGlobConstrSys) = struct
     let {loc_value;loc_init;called;aborted;loc_from} as y_record = get_local_ref y in
     let (old_xy,delay,gas,narrow) = get_old_local_value x loc_from in
     let (new_xy,delay,gas,narrow) = 
-      if !called then lwarrow (old_xy,delay,gas,narrow) d 
+      if called then lwarrow (old_xy,delay,gas,narrow) d 
       else (d,delay,gas,narrow) in
     if D.equal new_xy old_xy then (
       (* If value of x has not changed, nothing to do *)
@@ -251,10 +251,9 @@ module FwdWBuSolver (System: FwdGlobConstrSys) = struct
         else ()
       )
       else (
-        let y_record = {y_record with loc_value = new_y} in
-        LM.replace loc y y_record;
-        if !called then (
-          aborted := true;
+        y_record.loc_value <- new_y;
+        if called then (
+          y_record.aborted <- true;
           if tracing then trace "set_local" "aborting local %a update from %a" System.LVar.pretty_trace y System.LVar.pretty_trace x;
         )
         else (
@@ -297,10 +296,13 @@ module FwdWBuSolver (System: FwdGlobConstrSys) = struct
 *)
     let add_tau g d =
       let d = try G.join d (GM.find tau g) with _ -> d in
-      GM.replace tau g d;
+      GM.replace tau g d in
+(*
       set_global x g d in
+*)
     let _ = f d (fun _ -> raise (Failure "Locals queried in rhs??"))
         add_sigma (get_global x) add_tau in
+    let _ = GM.iter (set_global x) tau in
     let _ = LM.iter (set_local x) sigma in
     ()
 
@@ -315,11 +317,11 @@ module FwdWBuSolver (System: FwdGlobConstrSys) = struct
     match System.system x with
     | None -> ()
     | Some f ->
-      let _ = rloc.called := true in
-      let _ = rloc.aborted := false in
+      let _ = rloc.called <- true in
+      let _ = rloc.aborted <- false in
       let _ = wrap_new (x,f) rloc.loc_value in
-      let _ = rloc.called := false in
-      if !(rloc.aborted) then (
+      let _ = rloc.called <- false in
+      if rloc.aborted then (
         if tracing then trace "iter" "re-iter";
         iterate x;
       )
