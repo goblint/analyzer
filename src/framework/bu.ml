@@ -30,16 +30,16 @@ module FwdBuSolver (System: FwdGlobConstrSys) = struct
   let lwarrow (a,delay,gas,narrow) b =
     let (delay0,_) = !gas_default in
     if D.equal a b then (a,delay,gas,narrow)
-    else if D.leq b a then
-      (
-        if tracing then trace "bunarrow" "Narrowing: %b" narrow; 
-        if narrow then (D.narrow a b,delay,gas,true)
-        else if gas<=0 then (a,delay,gas,false)
-        else (D.narrow a b, delay,gas-1,true)
-      )
-    else if narrow then (D.join a b,delay0,gas,false)
-    else if delay <= 0 then (D.widen a (D.join a b),0,gas,false)
-    else (D.join a b, delay-1,gas,false)
+    else if D.leq b a then (
+      if narrow then (D.narrow a b,delay,gas,true)
+      else if gas<=0 then (a,delay,gas,false)
+      else (D.narrow a b, delay,gas-1,true)
+    ) 
+    else (
+      if narrow then (D.join a b,delay0,gas,false)
+      else if delay <= 0 then (D.widen a (D.join a b),0,gas,false)
+      else (D.join a b, delay-1,gas,false)
+    )
 
   let gwarrow (a,delay,gas,narrow) b =
     let (delay0,_) = !gas_default in
