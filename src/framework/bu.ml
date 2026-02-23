@@ -27,50 +27,53 @@ module FwdBuSolver (System: FwdGlobConstrSys) = struct
   *) 
   let gas_default = ref (10,3)
 
-  let lwarrow (a,delay,gas,narrow) b =
-    let (delay0,_) = !gas_default in
-    if D.equal a b then (a,delay,gas,narrow)
-    else if D.leq b a then (
-      if narrow then (D.narrow a b,delay,gas,true)
-      else if gas<=0 then (a,delay,gas,false)
-      else (D.narrow a b, delay,gas-1,true)
-    ) 
-    else (
-      if narrow then (D.join a b,delay0,gas,false)
-      else if delay <= 0 then (D.widen a (D.join a b),0,gas,false)
-      else (D.join a b, delay-1,gas,false)
-    )
+  (** Manage warrowing
 
-  let gwarrow (a,delay,gas,narrow) b =
-    let (delay0,_) = !gas_default in
-    if G.equal a b then (a,delay,gas,narrow)
-    else if G.leq b a then
-      if narrow then (G.narrow a b,delay,gas,true)
-      else if gas<=0 then (a,delay,gas,false)
-      else (G.narrow a b, delay,gas-1,true)
-    else if narrow then (G.join a b,delay0,gas,false)
-    else if delay <= 0 then (G.widen a (G.join a b),0,gas,false)
-    else (G.join a b, delay-1,gas,false)
+      Widening will be delayed 'delay' times in each phase
+      There will be at most 'gas' narrowing phases.
+  *)
+  module Warrow (L : Lattice.S) = struct
+    (** (value, delay, gas, narrowing_flag) 
+        Narrowing flag denotes if the last update lead
+        to a narrowing. This is required to maintain delay/gas values.
+    *)
+    type state = L.t * int * int * bool
+
+    let warrow (current, delay, gas, narrow_flag) newval =
+      let (delay0, _) = !gas_default in
+      if L.equal current newval then (current, delay, gas, narrow_flag)
+
+      else if L.leq newval current then (
+        if narrow_flag then (L.narrow current newval, delay, gas, true)
+        else if gas <= 0 then (current, delay, gas, false)
+        else (L.narrow current newval, delay, gas - 1, true)
+      )
+
+      else (
+        if narrow_flag then (L.join current newval, delay0, gas, false)
+        else if delay <= 0 then (L.widen current (L.join current newval), 0, gas, false)
+        else (L.join current newval, delay - 1, gas, false)
+      )
+  end
+
+  module LWarrow = Warrow(System.D)
+  let lwarrow = LWarrow.warrow
+
+  module GWarrow = Warrow(System.G)
+  let gwarrow = GWarrow.warrow
 
 
-(*
-       work list just for checking ...
-*)
+  (** Values for globals
 
-  let work = ref (([] : System.LVar.t list), LS.empty)
+      value: The value of the global, as calculated from init and from. Since
+      this calculation is costly, we save the result
 
-  let add_work x = let (l,s) = !work in
-    if LS.mem x s then ()
-    else work := (x::l, LS.add x s)
+      init: Initial value of this global. We will never narrow below this value.
 
-  let rem_work () = let (l,s) = !work in
-    match l with
-    | [] -> None
-    | x::xs ->
-      let s = LS.remove x s in
-      let _ = work := (xs,s) in
-      Some x
+      last: ?
 
+      from: A map of contributions from each origin with the corresponding warrowing data.
+  *)
   type glob = {value : G.t; init : G.t;  infl : LS.t ; last: G.t LM.t; 
                from : (G.t * int * int * bool * LS.t) OM.t}
 
@@ -78,16 +81,17 @@ module FwdBuSolver (System: FwdGlobConstrSys) = struct
 
   (* auxiliary functions for globals *)
 
-  let get_global_ref g =
-    try GM.find glob g
-    with _ ->
-      (
-        if tracing then trace "unknownsize" "Number of globals so far: %d" (GM.length glob);
-        let rglob = {value = G.bot (); init = G.bot (); infl = LS.empty; last = LM.create 10; from = OM.create 10} in
-        GM.add glob g rglob;
-        rglob
-      )
+  (** Get data for the global g,
+      an entry in globals dictionary will be created
+      if not already present *)
+  let get_global_data g =
+    let make_new_glob () = 
+      let rglob = {value = G.bot (); init = G.bot (); infl = LS.empty; last = LM.create 10; from = OM.create 10} in
+      GM.add glob g rglob;
+      rglob in
+    BatOption.default_delayed make_new_glob (GM.find_opt glob g)
 
+  (** Initialize a global with the value d *)
   let init_global (g, d) =
     GM.add glob g {
       value = d;
@@ -115,7 +119,7 @@ module FwdBuSolver (System: FwdGlobConstrSys) = struct
   (* now the getters for globals *)
 
   let get_global x g =
-    let glob_data = get_global_ref g in
+    let glob_data = get_global_data g in
     GM.replace glob g { glob_data with infl = LS.add x glob_data.infl }; 
     (* ensure the global is in the hashtable *)
     glob_data.value
@@ -175,7 +179,7 @@ module FwdBuSolver (System: FwdGlobConstrSys) = struct
 *)
     in 
     (* if tracing then trace "set_global" "set_global: \n From: %a \nOn:%a \n Value: %a" System.LVar.pretty_trace x System.GVar.pretty_trace g G.pretty d; *)
-    let {value;init;infl;last;from} = get_global_ref g in
+    let {value;init;infl;last;from} = get_global_data g in
     let (old_xg,delay,gas,narrow,set) = get_old_global_value sx from in
     let () = LM.add last x d in
     let set = LS.add x set in
@@ -338,6 +342,24 @@ module FwdBuSolver (System: FwdGlobConstrSys) = struct
 
   (* ... now the checker! *)
 
+(*
+       work list just for checking ...
+*)
+
+  let work = ref (([] : System.LVar.t list), LS.empty)
+
+  let add_work x = let (l,s) = !work in
+    if LS.mem x s then ()
+    else work := (x::l, LS.add x s)
+
+  let rem_work () = let (l,s) = !work in
+    match l with
+    | [] -> None
+    | x::xs ->
+      let s = LS.remove x s in
+      let _ = work := (xs,s) in
+      Some x
+
   let check localinit globalinit xs =
 
     let sigma_out = LM.create 100 in
@@ -371,7 +393,7 @@ module FwdBuSolver (System: FwdGlobConstrSys) = struct
       else if System.GVar.is_write_only g then
         GM.replace tau_out g (G.join (GM.find_opt tau_out g |> BatOption.default (G.bot ())) d)
       else
-        let {value;infl;_} = get_global_ref g in
+        let {value;infl;_} = get_global_data g in
         if G.leq d value then
           if GM.mem tau_out g then ()
           else (
@@ -414,7 +436,7 @@ module FwdBuSolver (System: FwdGlobConstrSys) = struct
         AnalysisState.verified := Some false)
     in
     let check_global (g,d) =
-      if G.leq d (get_global_ref g).value then ()
+      if G.leq d (get_global_data g).value then ()
       else (
         Logs.error "initialization not subsumed for global %a" System.GVar.pretty_trace g;
         AnalysisState.verified := Some false;
