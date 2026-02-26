@@ -37,7 +37,7 @@ int main() {
     // if (rand) {
     //     h = &g;
     // }
-    int d = (*h)(a, c);
+    int d = f (a, c);
     
     // a = -100;
 

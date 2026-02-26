@@ -68,7 +68,6 @@ struct
     | `Forw v -> `Forw (GV_forw.contexts v)
     | `Backw v ->  `Backw (GV_backw.contexts v)
 
-
   let var_id = show
 
   let arbitrary () =
@@ -87,9 +86,6 @@ module BidirFromSpec (S_forw:Spec) (S_backw:BackwSpec with type D_forw.t = S_for
   end 
 = 
 struct
-  (* type lv = [ `lv_forw of MyCFG.node * S_forw.C.t | `lv_back of MyCFG.node * S_forw.C.t] *)
-  (* type ld = Lattice.Lift2(S_forw.D)(S_backw.D).t *)
-
   module LV = VarF (S_forw.C)
   module LVar =
   struct
@@ -121,82 +117,31 @@ struct
   end
 
   module D = Lattice.Lift2(S_forw.D)(S_backw.D)
-  (* module GV_forw = GVarF (S_forw.V)
-     module GV_backw = GVarF (S_backw.V) *)
   module GVar = GVarF2(S_forw.V)(S_backw.V)
 
   module G_forw = GVarG (S_forw.G) (S_forw.C)
   module G_backw = GVarG (S_backw.G) (S_forw.C)
-  module G = GVarG (Lattice.Lift2(S_forw.G)(S_backw.G)) (S_forw.C)
+  module G  = GVarG (Lattice.Lift2(S_forw.G)(S_backw.G)) (S_forw.C)
 
-  module Forward = Constraints.FromSpec (S_forw) (Cfg) (I)
-  (* module Backward = Constraints_wp.FromSpec (S_backw) (Cfg)  *)
+  module Forward = Constraints.FromSpec(S_forw)(Cfg)(I)
 
-  (* functions for converting between forwards and backwards types*)
-  let getl_backw_wrapper (getl: LVar.t -> D.t) (v: node * S_forw.C.t) : S_backw.D.t =
-    match getl (`L_backw v) with
-    | `Lifted2 d -> d
-    | `Bot -> S_backw.D.bot ()
-    | `Top -> S_backw.D.top ()
-    | `Lifted1 _ -> failwith "bidirConstrains: backward local got forward value" 
-
-  let getl_forw_wrapper (getl: LVar.t -> D.t) (v: node * S_forw.C.t) : S_forw.D.t =
-    match getl (`L_forw v) with
-    | `Lifted2 _ -> failwith "bidirConstrains: forward local got backward value" 
-    | `Bot -> S_forw.D.bot ()
-    | `Top -> S_forw.D.top ()
-    | `Lifted1 d -> d  
-
-  (* let getg_backw_wrapper (getg) (v) =
-     match v with 
-     | `Left v -> 
-     | `Right v -> 
-
-     match getg (`Backw v) with
-     | `Lifted1 (`Lifted2 g) -> G_backw.create_spec g
-     | `Lifted1 (`Lifted1 g) -> failwith "bidirConstrains: backward global got forward value"
-     | `Lifted1 `Bot -> `Bot
-     | `Lifted1 `Top -> `Top *)
-  (* let getg_forw_wrapper (getg: GVar.t -> G.t) (v: GVar.GV_forw.t) : G_forw.t =
-     match getg (`G_forw v) with
-     | `Lifted1 (`Left g) -> G_forw.create_spec g
-     | _ -> failwith "bidirConstrains: backward global got forward value or non-lifted value" *)
-
-  let lv_of_backw ((n,c)) : LV.t = (n, Obj.magic c)
-
-  let to_l_backw (v:LVar.t) = 
-    match v with
-    | `L_forw (n, l) -> `L_backw (n, l)
-    | `L_backw (n, l) -> `L_backw (n, l)
-
-  let cset_to_forw c =
-    G.CSet.fold (fun x acc -> Forward.G.CSet.add x acc) c (Forward.G.CSet.empty ())
-
-  let cset_of_forw c =
-    Forward.G.CSet.fold (fun x acc -> G.CSet.add x acc) c (G.CSet.empty ())
-
-  let cset_to_backw c =
-    G.CSet.fold (fun x acc -> G_backw.CSet.add (Obj.magic x) acc) c (G_backw.CSet.empty ())
-
-  let cset_of_backw c =
-    G_backw.CSet.fold (fun x acc -> G.CSet.add (Obj.magic x) acc) c (G.CSet.empty ())
-
+  (* Lowering functions for local values.*)
   let to_forw_d (d: D.t) : S_forw.D.t =
     match d with
     | `Lifted1 d -> d
     | `Bot -> S_forw.D.bot ()
     | `Top -> S_forw.D.top ()
-    | `Lifted2 _ -> failwith "bidirConstrains: forward local got backward value"
+    | `Lifted2 _ -> failwith "bidirConstrains: forward local has backward value"
 
   let to_backw_d (d: D.t) : S_backw.D.t =
     match d with
     | `Lifted2 d -> d
     | `Bot -> S_backw.D.bot ()
     | `Top -> S_backw.D.top ()
-    | `Lifted1 _ -> failwith "bidirConstrains: backward local got forward value"
+    | `Lifted1 _ -> failwith "bidirConstrains: backward local has forward value"
 
-  let of_forw_d (d: S_forw.D.t) : D.t = `Lifted1 d
-  let of_backw_d (d: S_backw.D.t) : D.t = `Lifted2 d
+  (* Lowering and lifting functions to deal with different global values. This is convoluted -- but tbh, it is not that much worse than the G module in the existing forwards analysis. 
+   * The conversion between the CSets is quite disgusting though. *) 
 
   let to_forw_g (g: G.t) : Forward.G.t =
     match g with
@@ -204,7 +149,7 @@ struct
     | `Lifted1 `Bot -> `Bot
     | `Lifted1 `Top -> `Top
     | `Lifted1 (`Lifted2 _) -> failwith "bidirConstrains: forward global got backward value"
-    | `Lifted2 c -> `Lifted2 (cset_to_forw c)
+    | `Lifted2 c -> `Lifted2 (G_forw.CSet.of_list (G.CSet.elements c))
     | `Bot -> `Bot
     | `Top -> `Top
 
@@ -214,26 +159,26 @@ struct
     | `Lifted1 `Bot -> `Bot
     | `Lifted1 `Top -> `Top
     | `Lifted1 (`Lifted1 _) -> failwith "bidirConstrains: backward global got forward value"
-    | `Lifted2 c -> `Lifted2 (cset_to_backw c)
+    | `Lifted2 c -> `Lifted2 (G_backw.CSet.of_list (G.CSet.elements c))
     | `Bot -> `Bot
     | `Top -> `Top
 
   let of_forw_g (g: Forward.G.t) : G.t =
     match g with
     | `Lifted1 g -> `Lifted1 (`Lifted1 g)
-    | `Lifted2 c -> `Lifted2 (cset_of_forw c)
+    | `Lifted2 c -> `Lifted2 (G.CSet.of_list (G_forw.CSet.elements c))
     | `Bot -> `Bot
     | `Top -> `Top
 
   let of_backw_g (g: G_backw.t) : G.t =
     match g with
     | `Lifted1 g -> `Lifted1 (`Lifted2 g)
-    | `Lifted2 c -> `Lifted2 (cset_of_backw c)
+    | `Lifted2 c -> `Lifted2 (G.CSet.of_list (G_backw.CSet.elements c))
     | `Bot -> `Bot
     | `Top -> `Top
 
 
-  (* actually relevant (transfer) functions*)
+  (* actually relevant (transfer) functions *)
   let sync_backw man man_forw =
     match man.prev_node, Cfg.next man.prev_node with
     | _, _ :: _ :: _ -> (* Join in CFG. *)
@@ -695,23 +640,11 @@ struct
   let system_backw (v,c) =
 
     match v with
-    | FunctionEntry _ ->
-      let tf_backw getl sidel demandl getg sideg =
-        let getl_backw = getl_backw_wrapper getl in
-        let getl_forw =  getl_forw_wrapper getl in
-        let getg_backw v = getg (`Backw v) |> to_backw_g in
-        let getg_forw v = getg (`Forw v) |> to_forw_g in
-        let tf' eu = tf_backw (v,c) eu getl_backw getl_forw sidel demandl getg_backw getg_forw sideg in
-        let xs = List.map tf' (Cfg.next v) in
-        List.fold_left S_backw.D.join (S_backw.D.bot ()) xs
-      in
-      Some tf_backw
-    | Function _ ->
-      None
+    | Function _ -> None
     | _ ->
       let tf_backw getl sidel demandl getg sideg =
-        let getl_backw = getl_backw_wrapper getl in
-        let getl_forw =  getl_forw_wrapper getl in
+        let getl_backw d =  getl (`L_backw d) |> to_backw_d in
+        let getl_forw d =  getl (`L_forw d) |> to_forw_d in
         let getg_backw v = getg (`Backw v) |> to_backw_g in
         let getg_forw v = getg (`Forw v) |> to_forw_g in
         let tf' eu = tf_backw (v,c) eu getl_backw getl_forw sidel demandl getg_backw getg_forw sideg in
@@ -720,28 +653,25 @@ struct
       in
       Some tf_backw
 
-  (* TODO: non-problematic but weird inconsisteny between forward and backward variable types*)
   let system var =
     match var with
     | `L_forw v ->
       Forward.system v
       |> Option.map (fun tf getl sidel demandl getg sideg ->
           let getl' v = getl (`L_forw v) |> to_forw_d in
-          let sidel' v d = sidel (`L_forw v) (of_forw_d d) in
+          let sidel' v d = sidel (`L_forw v) (`Lifted1 d) in
           let demandl' v = demandl (`L_forw v) in
           let getg' v = getg (`Forw v) |> to_forw_g in
           let sideg' v d = sideg (`Forw v) (of_forw_g d) in
-          tf getl' sidel' demandl' getg' sideg' |> of_forw_d
+          tf getl' sidel' demandl' getg' sideg' |> (fun d -> `Lifted1 d)
         )
     | `L_backw v ->
       system_backw v
       |> Option.map (fun tf getl sidel demandl getg sideg ->
-          (* let getl' (v : Backward.LVar.t) : (S_backw.D.t) = getl (`L_backw (forw_lv_of_backw v)) |> to_backw_d in *)
-          let sidel' v d = sidel (`L_backw (lv_of_backw v)) (of_backw_d d) in
-          let demandl' v = demandl (`L_backw (lv_of_backw v)) in
-          (* let getg' v = getg (`G_backw v) |> to_backw_g in *)
+          let sidel' v d = sidel (`L_backw v) (`Lifted2 d) in
+          let demandl' v = demandl (`L_backw v) in
           let sideg' v d = sideg (`Backw v) (of_backw_g d) in
-          tf getl sidel' demandl' getg sideg' |> of_backw_d
+          tf getl sidel' demandl' getg sideg' |> (fun d -> `Lifted2 d)
         )
 
   let iter_vars getl getg vq fl fg =
