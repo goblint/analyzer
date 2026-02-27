@@ -61,8 +61,6 @@ let main () =
       if get_string "ana.specification" <> "" then AutoSoundConfig.enableAnalysesForSpecification ();
       if get_bool "ana.autotune.enabled" then AutoTune.chooseConfig file;
       file |> do_analyze changeInfo;
-      (*TODO: BACKWARDS ANALYSIS *)
-
       do_gobview file;
       do_stats ();
       Goblint_timing.teardown_tef ();

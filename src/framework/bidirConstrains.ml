@@ -74,7 +74,6 @@ struct
     failwith "no arbitrary"
 end 
 
-
 module BidirFromSpec (S_forw:Spec) (S_backw:BackwSpec with type D_forw.t = S_forw.D.t and type G_forw.t = S_forw.G.t and type C.t = S_forw.C.t and type V_forw.t = S_forw.V.t) (Cfg:CfgBidir) (I:Increment)
   : sig
     module LVar : Goblint_constraint.ConstrSys.VarType with type t = [ `L_forw of VarF(S_forw.C).t | `L_backw of VarF(S_forw.C).t ]
