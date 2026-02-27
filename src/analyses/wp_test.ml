@@ -262,9 +262,11 @@ struct
     aux [] e
 
 
+
   let assign man man_forw (lval:lval) (rval:exp) =
     let v = vars_from_lval lval in
 
+    (* This is wrong. If the variabes describe a memory location, they should instead all be added to the set of live variables!*)
     match v with
     | [] -> D.join man.local (D.of_list (vars_from_expr rval)) (*if I do not know what the value is assigned to, then all RHS-Variables might be relevant*)
     | v-> 
@@ -315,7 +317,7 @@ struct
 
     in
 
-    [man.local, vars]
+    [man.local, man.local]
 
   (* TODO *)
   let combine_env man man_forw (lval:lval option) fexp (f:fundec) (args:exp list) fc au (f_ask: Queries.ask) =
@@ -342,40 +344,31 @@ struct
     D.join man.local relevant_arg_vars 
 
   let combine_assign man man_forw (lval:lval option) fexp (f:fundec) (args:exp list) fc au (f_ask: Queries.ask) =
-    (* Logs.debug "=== combine_assign of function %s ===" f.svar.vname;
-       (*how do I know which args are important? i.e. how do I match the local name of the variable in the function with the passed parameters (if there are several)*)
-       let args_pretty = String.concat ", " (List.map CilType.Exp.show args) in
-       Logs.debug "    args: %s" args_pretty; *)
-
+    (* SHOULD JUST USE THE SIMPLE ASSIGN I ALREADY IMPLEMENT *)
     let exp_vars = D.of_list(vars_from_expr fexp) in 
-
+    (* 
     Logs.debug "(!) combine_assign: fexp = %s" (CilType.Exp.show fexp);
     (* Type of the expression:*)
     let exp_type = Cil.typeOf fexp in
     Logs.debug "(!) combine_assign: type of fexp = %s" (CilType.Typ.show exp_type);
-    Logs.debug "(!) combine_assign: exp_vars = %s" (String.concat ", " (List.map (fun v -> v.vname) (D.elements exp_vars)));
+    Logs.debug "(!) combine_assign: exp_vars = %s" (String.concat ", " (List.map (fun v -> v.vname) (D.elements exp_vars))); *)
 
-    let simple_assign lval exp acc =
-      let v = vars_from_lval lval
-      in
-      match v with
-      | [] -> acc  (*D.join acc (vars_from_expr exp) if I do not know what the value is assigned to, then all RHS-Variables might be relevant *)
-      |  v -> 
-        let l = (D.diff acc (D.of_list v)) in
-        (* if D.mem v acc then D.join l (vars_from_expr exp)
-           else l *)
-        l
-    in
-
+    (* this is problematic. I should only remove the lvar-vars if lval is a simple variable. If it is used to reference memory the variabes are actually wuite important*)
     match lval with 
-    | Some lval -> D.union (List.fold_right (fun exp acc -> simple_assign lval exp acc) args man.local) exp_vars
-    | _ -> man.local
-
+    | Some lval -> 
+      let lval_vars = D.of_list (vars_from_lval lval) in
+      if (D.exists (fun e -> D.mem e man.local) lval_vars) then (
+        let a = (D.union man.local exp_vars) in
+        D.diff a lval_vars)
+      else man.local
+    |  _ -> man.local
 
 
   (** A transfer function which handles the return statement, i.e.,
       "return exp" or "return" in the passed function (fundec) *)
   let return man man_forw (exp: exp option) (f:fundec) : D.t =
+
+    (* this does not really work that well, as I pass all live vars which does not generally make the function important *)
     let return_val_is_important = (not (D.is_bot man.local)) || (String.equal f.svar.vname "main") in (*this does not take globals int account, only checks for "temp"*)
 
     match exp with

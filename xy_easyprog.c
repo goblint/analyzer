@@ -1,4 +1,4 @@
- #include <stdlib.h>
+#include <stdlib.h>
 
 int f(int x, int y) {
     int i = 2;
