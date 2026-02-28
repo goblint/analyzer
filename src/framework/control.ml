@@ -155,7 +155,7 @@ struct
       let open Cilfacade in
       let warn_for_upjumps fundec gotos =
         if FunSet.mem live_funs fundec then (
-          (* set nortermiantion flag *)
+          (* set nontermination flag *)
           AnalysisState.svcomp_may_not_terminate := true;
           (* iterate through locations to produce warnings *)
           LocSet.iter (fun l _ ->
@@ -250,7 +250,7 @@ struct
 
     AnalysisState.should_warn := false; (* reset for server mode *)
 
-    (* exctract global xml from result *)
+    (* extract global xml from result *)
     let make_global_fast_xml f g =
       let open Printf in
       let print_globals k v =
@@ -501,68 +501,119 @@ struct
     let uncalled_dead = ref 0 in
 
     let solve_and_postprocess () =
-      let lh, gh =
-        let solver_data =
-          match Inc.increment with
-          | Some {solver_data; server; _} ->
-            if server then
-              Some (Slvr.copy_marshal solver_data) (* Copy, so that we can abort and reuse old data unmodified. *)
-            else if GobConfig.get_bool "ana.opt.hashcons" then
-              Some (Slvr.relift_marshal solver_data)
-            else
-              Some solver_data
-          | None -> None
-        in
-        Logs.debug "%s" ("Solving the constraint system with " ^ get_string "solver" ^ ". Solver statistics are shown every " ^ string_of_int (get_int "dbg.solver-stats-interval") ^ "s or by signal " ^ get_string "dbg.solver-signal" ^ ".");
-        AnalysisState.should_warn := get_string "warn_at" = "early";
+      (* handle save_run/load_run *)
+      let solver_file = "solver.marshalled" in
+      let load_run = get_string "load_run" in
+      let compare_runs = get_string_list "compare_runs" in
+      let gobview = get_bool "gobview" in
+      let save_run_str = let o = get_string "save_run" in if o = "" then (if gobview then "run" else "") else o in
 
-        let log_analysis_inputs () =
-          Logs.debug "=== Analysis Inputs ===";
+      let lh, gh = if load_run <> "" then (
+          let module S2' = (GlobSolverFromEqSolver (Goblint_solver.Generic.LoadRunIncrSolver (PostSolverArg))) (EQSys) (LHT) (GHT) in
+          let (r2, _) = S2'.solve entrystates entrystates_global startvars' None in (* TODO: has incremental data? *)
+          r2
+        ) else if compare_runs <> [] then (
+          match compare_runs with
+          | d1::d2::[] -> (* the directories of the runs *)
+            if d1 = d2 then Logs.warn "Beware that you are comparing a run with itself! There should be no differences.";
+            (* instead of rewriting Compare for EqConstrSys, just transform unmarshaled EqConstrSys solutions to GlobConstrSys solutions *)
+            let module Splitter = GlobConstrSolFromEqConstrSol (EQSys: DemandGlobConstrSys) (LHT) (GHT) in
+            let module S2 = Splitter.S2 in
+            let module VH = Splitter.VH in
+            let (r1, r1'), (r2, r2') = Tuple2.mapn (fun d ->
+                let vh = Serialize.unmarshal Fpath.(v d / solver_file) in
 
-          (* Log entrystates *)
-          Logs.debug "--- Entry States (count: %d) ---" (List.length entrystates);
-          List.iteri (fun i ((node, ctx), state) ->
-              Logs.debug "EntryState %d:" (i + 1);
-              Logs.debug "  Node: %a" Node.pretty_trace node;
-              Logs.debug "  Context: %a" Spec.C.pretty ctx;
-              Logs.debug "  State: %a" Spec.D.pretty state;
-            ) entrystates;
+                let vh' = VH.create (VH.length vh) in
+                VH.iter (fun k v ->
+                    VH.replace vh' (S2.Var.relift k) (S2.Dom.relift v)
+                  ) vh;
 
-          (* Log entrystates_global *)
-          Logs.debug "--- Global Entry States (count: %d) ---" (List.length entrystates_global);
-          List.iteri (fun i (gvar, gstate) ->
-              Logs.debug "GlobalEntryState %d:" (i + 1);
-              Logs.debug "  GVar: %a" EQSys.GVar.pretty gvar;
-              Logs.debug "  GState: %a" EQSys.G.pretty gstate;
-            ) entrystates_global;
+                (Splitter.split_solution vh', vh')
+              ) (d1, d2)
+            in
 
-          (* Log startvars' *)
-          Logs.debug "--- Start Variables (count: %d) ---" (List.length startvars');
-          List.iteri (fun i (node, ctx) ->
-              Logs.debug "StartVar %d:" (i + 1);
-              Logs.debug "  Node: %a" Node.pretty_trace node;
-              Logs.debug "  Context: %a" Spec.C.pretty ctx;
-            ) startvars';
+            if get_bool "dbg.compare_runs.globsys" then
+              CompareGlobSys.compare (d1, d2) r1 r2;
 
-          (* Log startvars (without apostrophe) *)
-          Logs.debug "--- Start Variables (no apostrophe) (count: %d) ---" (List.length startvars);
-          List.iteri (fun i (node, state) ->
-              Logs.debug "StartVar (no apostrophe) %d:" (i + 1);
-              Logs.debug "  Node: %a" CilType.Fundec.pretty node;
-              Logs.debug "  State: (of type EQSys.D.t) %a" Spec.D.pretty state;
-            ) startvars;
+            let module CompareEqSys = CompareConstraints.CompareEqSys (EqConstrSysFromDemandConstrSys (S2) ) (VH) in
+            if get_bool "dbg.compare_runs.eqsys" then
+              CompareEqSys.compare (d1, d2) r1' r2';
 
-          Logs.debug "=== End Analysis Inputs ==="
-        in
-        log_analysis_inputs ();
+            let module CompareGlobal = CompareConstraints.CompareGlobal (EQSys.GVar) (EQSys.G) (GHT) in
+            if get_bool "dbg.compare_runs.global" then
+              CompareGlobal.compare (d1, d2) (snd r1) (snd r2);
 
+            let module CompareNode = CompareConstraints.CompareNode (Spec.C) (EQSys.D) (LHT) in
+            if get_bool "dbg.compare_runs.node" then
+              CompareNode.compare (d1, d2) (fst r1) (fst r2);
 
-        let (lh, gh), solver_data = Timing.wrap "solving" (Slvr.solve entrystates entrystates_global startvars') solver_data in
-        if GobConfig.get_bool "incremental.save" then
-          Serialize.Cache.(update_data SolverData solver_data);
-        lh, gh
-
+            r1 (* return the result of the first run for further options -- maybe better to exit early since compare_runs is its own mode. Only excluded verify below since it's on by default. *)
+          | _ -> failwith "Currently only two runs can be compared!";
+        ) else (
+          let solver_data =
+            match Inc.increment with
+            | Some {solver_data; server; _} ->
+              if server then
+                Some (Slvr.copy_marshal solver_data) (* Copy, so that we can abort and reuse old data unmodified. *)
+              else if GobConfig.get_bool "ana.opt.hashcons" then
+                Some (Slvr.relift_marshal solver_data)
+              else
+                Some solver_data
+            | None -> None
+          in
+          Logs.debug "%s" ("Solving the constraint system with " ^ get_string "solver" ^ ". Solver statistics are shown every " ^ string_of_int (get_int "dbg.solver-stats-interval") ^ "s or by signal " ^ get_string "dbg.solver-signal" ^ ".");
+          AnalysisState.should_warn := get_string "warn_at" = "early" || gobview;
+          let (lh, gh), solver_data = Timing.wrap "solving" (Slvr.solve entrystates entrystates_global startvars') solver_data in
+          if GobConfig.get_bool "incremental.save" then
+            Serialize.Cache.(update_data SolverData solver_data);
+          if save_run_str <> "" then (
+            let save_run = Fpath.v save_run_str in
+            let analyses = Fpath.(save_run / "analyses.marshalled") in
+            let config = Fpath.(save_run / "config.json") in
+            let meta = Fpath.(save_run / "meta.json") in
+            let solver_stats = Fpath.(save_run / "solver_stats.csv") in (* see Generic.SolverStats... *)
+            let cil = Fpath.(save_run / "cil.marshalled") in
+            let warnings = Fpath.(save_run / "warnings.marshalled") in
+            let stats = Fpath.(save_run / "stats.marshalled") in
+            Logs.Format.debug "Saving the current configuration to %a, meta-data about this run to %a, and solver statistics to %a" Fpath.pp config Fpath.pp meta Fpath.pp solver_stats;
+            GobSys.mkdir_or_exists save_run;
+            GobConfig.write_file config;
+            let module Meta = struct
+              type t = { command : string; version: string; timestamp : float; localtime : string } [@@deriving to_yojson]
+              let json = to_yojson { command = GobSys.command_line; version = Goblint_build_info.version; timestamp = Unix.time (); localtime = GobUnix.localtime () }
+            end
+            in
+            (* Yojson.Safe.to_file meta Meta.json; *)
+            Out_channel.with_open_text (Fpath.to_string meta) (fun oc ->
+                Yojson.Safe.pretty_to_channel oc Meta.json (* the above is compact, this is pretty-printed *)
+              );
+            if gobview then (
+              Logs.Format.debug "Saving the analysis table to %a, the CIL state to %a, the warning table to %a, and the runtime stats to %a" Fpath.pp analyses Fpath.pp cil Fpath.pp warnings Fpath.pp stats;
+              Serialize.marshal MCPRegistry.registered_name analyses;
+              Serialize.marshal (file, Cabs2cil.environment) cil;
+              Serialize.marshal !Messages.Table.messages_list warnings;
+            );
+            GobSys.(self_signal (signal_of_string (get_string "dbg.solver-signal"))); (* write solver_stats after solving (otherwise no rows if faster than dbg.solver-stats-interval). TODO better way to write solver_stats without terminal output? *)
+          );
+          lh, gh
+        )
       in
+
+      if get_string "comparesolver" <> "" then (
+        let compare_with (module S2 : DemandEqIncrSolver) =
+          let module PostSolverArg2 =
+          struct
+            include PostSolverArg
+            let should_warn = false (* we already warn from main solver *)
+            let should_save_run = false (* we already save main solver *)
+          end
+          in
+          let module S2' = (GlobSolverFromEqSolver (S2 (PostSolverArg2))) (EQSys) (LHT) (GHT) in
+          let (r2, _) = S2'.solve entrystates entrystates_global startvars' None in (* TODO: has incremental data? *)
+          CompareGlobSys.compare (get_string "solver", get_string "comparesolver") (lh,gh) (r2)
+        in
+        compare_with (Goblint_solver.Selector.choose_solver (get_string "comparesolver"))
+      );
 
       (* Most warnings happen before during postsolver, but some happen later (e.g. in finalize), so enable this for the rest (if required by option). *)
       AnalysisState.should_warn := PostSolverArg.should_warn;
@@ -580,7 +631,6 @@ struct
         not (LibraryFunctions.is_safe_uncalled fn.vname) &&
         not (Cil.hasAttribute "goblint_stub" fn.vattr)
       in
-
       let print_and_calculate_uncalled = function
         | GFun (fn, loc) when is_bad_uncalled fn.svar loc->
           let cnt = Cilfacade.countLoc fn in
@@ -795,7 +845,7 @@ struct
     Timing.wrap "result output" (ResultOutput.output (lazy local_xml) liveness gh make_global_fast_xml) (module FileCfg)
 end
 
-(** Given a [Cfg], a [Spec_forw], [Spec_back], and an unused [Inc], computes the solution] *)
+(** Given a [Cfg], a [Spec_forw], [Spec_back], and an unused [Inc], computes the solution*)
 module AnalyzeCFG_bidir (Cfg:CfgBidirSkip) (Spec_forw:Spec) (BackwSpecSpec : BackwAnalyses.BackwSpecSpec) (Inc:Increment) =
 struct
   module Spec_backw = BackwSpecSpec (Spec_forw)
@@ -1313,7 +1363,7 @@ struct
         let startvars' = List.map (fun (n,e) -> (MyCFG.FunctionEntry n, Spec_backw.context (man e) n e)) startvars in
         let entrystates = List.map (fun (n,e) -> (MyCFG.Function n, Spec_backw.context (man e) n e), e) startvars in *)
 
-        (* Using dummy contexts which will be replaced by the contextx of the forward functions*)
+        (* Using dummy contexts which will be replaced by the contexts of the forward functions*)
         let startvars' = List.map (fun (n,e) -> (MyCFG.FunctionEntry n, Spec_forw.startcontext ())) startvars in
         let entrystates = List.map (fun (n,e) -> (MyCFG.Function n, Spec_forw.startcontext ()), e) startvars in
 
@@ -1454,10 +1504,10 @@ struct
       in
       log_lh_contents lh;
 
-      let joined_by_loc_backw, joined_by_node_backw =
-        let open Enum in
-        let node_values = LHT.enum lh in
-        let node_backw_values =  filter_map (
+      (* let joined_by_loc_backw, joined_by_node_backw =
+         let open Enum in
+         let node_values = LHT.enum lh in
+         let node_backw_values =  filter_map (
             fun (key, d) -> 
               match key with 
               | `L_forw (_,_)  ->  None 
@@ -1466,10 +1516,10 @@ struct
                  | `Lifted2 d -> Some (node, d)
                  | _ -> None)
           ) node_values 
-        in
-        let hashtbl_size = if fast_count node_values then count node_values else 123 in
-        let by_loc, by_node = Hashtbl.create hashtbl_size, NodeH.create hashtbl_size in
-        iter (fun (node, v) ->
+         in
+         let hashtbl_size = if fast_count node_values then count node_values else 123 in
+         let by_loc, by_node = Hashtbl.create hashtbl_size, NodeH.create hashtbl_size in
+         iter (fun (node, v) ->
             let loc = match node with
               | Statement s -> Cil.get_stmtLoc s.skind (* nosemgrep: cilfacade *) (* Must use CIL's because syntactic search is in CIL. *)
               | FunctionEntry _ | Function _ -> Node.location node
@@ -1479,8 +1529,8 @@ struct
             Hashtbl.modify_opt loc join by_loc;
             NodeH.modify_opt node join by_node;
           ) node_backw_values; 
-        by_loc, by_node
-      in
+         by_loc, by_node
+         in *)
 
       (* NodeH.iter (fun node d -> 
          match node with 
@@ -1573,7 +1623,7 @@ let rec analyze_loop (module CFG : CfgBidirSkip) file fs change_info =
     let (module Spec) = get_spec () in
 
     if (GobConfig.get_bool "ana.wp_run") then (
-      let module LivenesSpec = Wp_test.BackwSpec in
+      let module LivenesSpec = Liveness.BackwSpec in
       let module A = AnalyzeCFG_bidir (CFG) (Spec) (LivenesSpec) (struct let increment = change_info end) in
       GobConfig.with_immutable_conf (fun () -> A.analyze file fs) 
     ) else (
