@@ -22,6 +22,8 @@ module FwdWBuSolver (System: FwdGlobConstrSys) = struct
   module OM = Hashtbl.Make(Node)
   let source = System.LVar.node
 
+  let rhs_eval_count = ref 0 
+
   let gas_default = ref (10,3)
 
   let lwarrow (a,delay,gas,narrow) b =
@@ -287,6 +289,7 @@ module FwdWBuSolver (System: FwdGlobConstrSys) = struct
     ()
 
   and wrap_new (x,f) d =
+    rhs_eval_count := !rhs_eval_count + 1;
     let sigma = LM.create 10 in
     let tau = GM.create 10 in
     let add_sigma y d =
@@ -358,6 +361,7 @@ module FwdWBuSolver (System: FwdGlobConstrSys) = struct
     let tau = GM.to_seq glob |> Seq.map (fun (k,l) -> (k,l.value)) in
     let endtime_ms = int_of_float (Unix.gettimeofday () *. 1000.) in
     Logs.info "Solver end: %d" endtime_ms;
+    Logs.info "RHS: %d" !rhs_eval_count;
     (sigma,tau)
 
   (* ... now the checker! *)

@@ -19,6 +19,7 @@ module FwdSolver (System: FwdGlobConstrSys) = struct
   let source = System.LVar.node
 
   let gas_default = ref (10,3)
+  let rhs_eval_count = ref 0
 
   let lwarrow (a,delay,gas,narrow) b =
     let (delay0,_) = !gas_default in
@@ -196,6 +197,7 @@ module FwdSolver (System: FwdGlobConstrSys) = struct
 *)
 
   let wrap (x,f) d =
+    rhs_eval_count := !rhs_eval_count + 1;
     let sigma = LM.create 10 in
     let tau = GM.create 10 in
     let add_sigma y d =
@@ -244,6 +246,7 @@ module FwdSolver (System: FwdGlobConstrSys) = struct
     let solution = solve startvars in
     let endtime_ms = int_of_float (Unix.gettimeofday () *. 1000.) in
     Logs.info "Solver end: %d" endtime_ms;
+    Logs.info "RHS: %d" !rhs_eval_count;
     solution
 
   (* ... now the checker! *)

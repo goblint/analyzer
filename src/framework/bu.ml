@@ -27,6 +27,8 @@ module FwdBuSolver (System: FwdGlobConstrSys) = struct
   *) 
   let gas_default = ref (10,3)
 
+  let rhs_eval_count = ref 0
+
   (** Manage warrowing
 
       Widening will be delayed 'delay' times in each phase
@@ -304,6 +306,7 @@ module FwdBuSolver (System: FwdGlobConstrSys) = struct
 *)
 
   and iterate x = 
+    rhs_eval_count := !rhs_eval_count + 1;
     (* if tracing then trace "iter" "iterate %a" System.LVar.pretty_trace x; *)
     let rloc = get_local_ref x in
     (* if tracing then trace "iter" "current value: %a" D.pretty rloc.loc_value; *)
@@ -338,6 +341,7 @@ module FwdBuSolver (System: FwdGlobConstrSys) = struct
     let tau = GM.to_seq glob |> Seq.map (fun (k,l) -> (k,l.value)) in
     let endtime_ms = int_of_float (Unix.gettimeofday () *. 1000.) in
     Logs.info "Solver end: %d" endtime_ms;
+    Logs.info "RHS: %d" !rhs_eval_count;
     (sigma,tau)
 
   (* ... now the checker! *)
