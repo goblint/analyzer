@@ -78,6 +78,20 @@ struct
     module GHT   = BatHashtbl.Make (EQSys.GVar)
   end
 
+  module FwdSpecSys: FwdSpecSys with module Spec = Spec =
+  struct
+    (* Must be created in module, because cannot be wrapped in a module later. *)
+    module Spec = Spec
+
+    (* The Equation system *)
+    module EQSys = FwdConstraints.FromSpec (Spec) (Cfg) (Inc)
+
+    (* Hashtbl for locals *)
+    module LHT   = BatHashtbl.Make (EQSys.LVar)
+    (* Hashtbl for globals *)
+    module GHT   = BatHashtbl.Make (EQSys.GVar)
+  end
+
   open SpecSys
 
   (* The solver *)
@@ -92,7 +106,16 @@ struct
       let save_run = let o = get_string "save_run" in if o = "" then (if gobview then "run" else "") else o in
       save_run <> ""
   end
-  module Slvr  = (GlobSolverFromEqSolver (Goblint_solver.Selector.Make (PostSolverArg))) (EQSys) (LHT) (GHT)
+
+  module type MySolverType = sig
+    val copy_marshal: Obj.t -> Obj.t
+    val relift_marshal: Obj.t -> Obj.t
+
+    val solve : ('l*'ld) list -> ('g*'gd) list -> 'v list -> 'marshal option -> 'ht * 'marshal
+
+  end
+
+  module Slvr = (GlobSolverFromEqSolver (Goblint_solver.Selector.Make (PostSolverArg))) (EQSys) (LHT) (GHT)
   (* The comparator *)
   module CompareGlobSys = CompareConstraints.CompareGlobSys (SpecSys)
 

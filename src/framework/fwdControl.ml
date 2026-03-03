@@ -64,7 +64,7 @@ let current_varquery_global_state_json: (Goblint_constraint.VarQuery.t option ->
 module AnalyzeCFG (Cfg:CfgBidirSkip) (Spec:Spec) (Inc:Increment) =
 struct
 
-  module SpecSys: FwdSpecSys with module Spec = Spec =
+ module SpecSys: FwdSpecSys with module Spec = Spec =
   struct
     (* Must be created in module, because cannot be wrapped in a module later. *)
     module Spec = Spec
