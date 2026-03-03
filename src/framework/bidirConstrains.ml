@@ -202,14 +202,14 @@ struct
       { ask     = (fun (type a) (q: a Queries.t) -> S_forw.query man_forw q)
       ; emit    = (fun _ -> failwith "emit outside MCP")
       ; node    = fst var
-      ; prev_node = prev_node (*This is a bit problematic, as prev node is actually the next node!!*)
-      ; control_context = (fun () -> failwith "control context not implemented yet for forward manager") (*TODO*)
+      ; prev_node = MyCFG.dummy_node (*I do not have *)
+      ; control_context = (fun () -> failwith "control context not implemented (yet) for forward manager.")
       ; context = context
       ; edge    = edge
-      ; local   =  getl_forw (node, context()) (*getl_forw (fst var, (snd var |> Obj.obj))*)
-      ; global  = (fun g -> Logs.debug "(!) getg_forw was usccesfully used"; G_forw.spec (getg_forw (GVar.GV_forw.spec g))) (*(fun _ -> failwith "getg_forw not implemented yet") TODO*)
+      ; local   =  getl_forw (node, context())
+      ; global  = (fun g -> G_forw.spec (getg_forw (GVar.GV_forw.spec g))) (*(fun _ -> failwith "getg_forw not implemented yet") TODO*)
       ; spawn   = (fun ?multiple _ _ _ -> failwith "spawn should not be called from forward manager")
-      ; split   = (fun _ _ -> failwith "split? what does this do?") (*(fun (d:S_forw.D.t) es -> assert (List.is_empty es); r := d::!r) What does this do?*)
+      ; split   = (fun _ _ -> failwith "split? what does this do?")
       ; sideg   = (fun _ _ -> failwith "sideg should not be called from forward manager")
       }
     in 
@@ -424,7 +424,7 @@ struct
     (* context = S_forw.context (S_forw.enter (getl_forw [this_node_, this_context])) *)
 
     let r = ref [] in
-    let rec man_forw =
+    let man_forw =
       { ask     = (fun (type a) (q: a Queries.t) -> failwith "manager for calculating context does not support queries")
       ; emit    = (fun _ -> failwith "emit outside MCP")
       ; node    = man.node
@@ -674,14 +674,16 @@ struct
         )
 
   let iter_vars getl getg vq fl fg =
-    failwith "damn"
+    failwith "iter_vars not implemented for bidirectional constraint system."
 
   let sys_change getl getg =
-    failwith "damn"
+    failwith "sys_change not implemented for bidirectional constraint system."
 
-  let postmortem_backw = function
-    | FunctionEntry fd, c -> [(Function fd, c)]
-    | _ -> []
+  let postmortem_backw v =
+    failwith "postmortem not implemented for backward analysis"
+  (* match v with
+     | Function fd, c -> [(FunctionEntry fd, c)]
+     | _ -> [] *)
 
   let postmortem = function
     | `L_forw v -> List.map (fun v -> `L_forw v) (Forward.postmortem v)

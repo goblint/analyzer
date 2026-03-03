@@ -861,7 +861,7 @@ struct
   module PostSolverArg =
   struct
     let should_prune = true
-    let should_verify = true (*get_bool "verify"*)
+    let should_verify = get_bool "verify"
     let should_warn = get_string "warn_at" <> "never"
     let should_save_run =
       (* copied from solve_and_postprocess *)
@@ -890,7 +890,7 @@ struct
     module ResultOutput = AnalysisResultOutput.Make (Result)
   end
 
-  (** this function converts the LHT to two Results of type forwards and backwards *)
+  (** this function converts the LHT to two Results of forward type*)
   let solver2source_result h  = 
     let res_forw = ResBundle_forw.Result.create 113 in
     (* let res_backw = ResBundle_backw.Result.create 113 in *)
@@ -967,21 +967,14 @@ struct
     let sideg v d = GHT.replace gh v (EQSys.G.join (getg v) d)
     in
 
-    (* the intit globals should not depend on each other*)
-    let getg v = EQSys.G.bot () in
-
     (** this function calculates and returns  [startvars'_forw] and [entrystates_forw] *)
     let do_forward_inits () : (node * Spec_forw.C.t) list * ((node * Spec_forw.C.t) * Spec_forw.D.t) list = 
 
       (* wrapping functions accessing and modifying global variables *)
       let sideg_forw v d = sideg (`Forw (v)) ((`Lifted1 d)) in
-      let getg_forw v =
-        match EQSys.G.spec (getg (`Forw v)) with
-        | `Lifted1 g -> G_forw.create_spec g
-        | `Bot ->  failwith "Unexpected global state" (*G_forw.bot (); *)
-        | `Top ->  failwith "Unexpected global state" (*G_forw.top ()*)
-        | `Lifted2 _ -> failwith "Unexpected backward global state"
-      in
+
+      (* the intit globals should not depend on each other*)
+      let getg_forw v = G_forw.bot () in
 
       let do_extern_inits_forw man (file: file) : Spec_forw.D.t =
         let module VS = Set.Make (Basetype.Variables) in
@@ -1022,7 +1015,7 @@ struct
           ; context = (fun () -> man_failwith "Global initializers have no context.")
           ; edge    = MyCFG.Skip
           ; local   = Spec_forw.D.top ()
-          ; global  = (fun g -> G_forw.spec (getg (GV_forw.spec g)))
+          ; global  = (fun g -> G_forw.spec (getg_forw (GV_forw.spec g)))
           ; spawn   = (fun ?(multiple=false) _ -> failwith "Global initializers should never spawn threads. What is going on?")
           ; split   = (fun _ -> failwith "Global initializers trying to split paths.")
           ; sideg   = (fun g d -> sideg_forw (GV_forw.spec g) (G_forw.create_spec d))
@@ -1150,13 +1143,9 @@ struct
     let do_backward_inits () : (node * Spec_backw.C.t) list * ((node * Spec_forw.C.t) * Spec_backw.D.t) list = 
 
       let sideg_backw v d = sideg (`Backw v) (EQSys.G.create_spec (`Lifted2 d)) in
-      let getg_backw v =
-        match EQSys.G.spec (getg (`Backw v)) with
-        | `Lifted1 _ -> failwith "Unexpected backward global state"
-        | `Bot -> G_backw.bot ()
-        | `Top -> G_backw.top ()
-        | `Lifted2 g -> G_backw.create_spec g
-      in
+
+      (* the intit globals should not depend on each other*)
+      let getg_backw v = G_backw.bot () in
 
       let do_extern_inits_backw man man_forw (file: file) : Spec_backw.D.t =
         let module VS = Set.Make (Basetype.Variables) in
@@ -1197,7 +1186,7 @@ struct
           ; context = (fun () -> man_failwith "Global initializers have no context.")
           ; edge    = MyCFG.Skip
           ; local   = Spec_backw.D.top ()
-          ; global  = (fun _ -> Spec_backw.G.bot ())
+          ; global  = (fun g -> G_backw.spec (getg_backw (GV_backw.spec g)))
           ; spawn   = (fun ?(multiple=false) _ -> failwith "Global initializers should never spawn threads. What is going on?")
           ; split   = (fun _ -> failwith "Global initializers trying to split paths.")
           ; sideg   = (fun g d -> sideg_backw (GV_backw.spec g) d)
@@ -1212,7 +1201,7 @@ struct
           ; control_context = (fun () -> man_failwith "Global initializers have no context.")
           ; context = (fun () -> man_failwith "Global initializers have no context.")
           ; edge    = MyCFG.Skip
-          ; local   = Spec_forw.D.top () (*TODO: SOULD I GET THE VALUE FROM THE FORWARD INITIALIZATION?*)
+          ; local   = Spec_forw.D.top () (*Should probably use local from already initialized forward variable.*)
           ; global  = (fun _ -> Spec_forw.G.bot ())
           ; spawn   = (fun ?(multiple=false) _ -> failwith "Global initializers should never spawn threads. What is going on?")
           ; split   = (fun _ -> failwith "Global initializers trying to split paths.")
@@ -1272,12 +1261,12 @@ struct
             { ask     = (fun (type a) (q: a Queries.t) -> Queries.Result.top q)
             ; emit   = (fun _ -> failwith "Cannot \"emit\" in global initializer context.")
             ; node    = man.node
-            ; prev_node = MyCFG.dummy_node (* SHOULD I USE DUMMY NODES HERE IN GENERAL? I PROBABLY SHOULÖD*)
+            ; prev_node = MyCFG.dummy_node
             ; control_context = (fun () -> man_failwith "Global initializers have no context.")
             ; context = man.context
             ; edge    = MyCFG.Skip
-            ; local   = Spec_forw.D.top () (*TODO: SOULD I GET THE VALUE FROM THE FORWARD INITIALIZATION?*)
-            ; global  = (fun _ -> Spec_forw.G.bot ()) (*TODO: SHOULD I ALLOW TO ASK FOR GLOBALS?*)
+            ; local   = Spec_forw.D.top () (*Should probably use local from already initialized forward variable.*)
+            ; global  = (fun _ -> Spec_forw.G.bot ())
             ; spawn   = (fun ?(multiple=false) _ -> failwith "Global initializers should never spawn threads. What is going on?")
             ; split   = (fun _ -> failwith "Global initializers trying to split paths.")
             ; sideg   = (fun _ _ -> failwith "forw_man in the backwards initialization should not be used to sideeffect globals.")
@@ -1386,7 +1375,7 @@ struct
       let startvars'_forw, entrystates_forw = do_forward_inits () in
       let startvars'_backw, entrystates_backw = do_backward_inits () in
 
-      (* Let's assume there is onyl one entrystate and startvar each. In what examples is this not the case?*)
+      (* Let's assume there is only one entrystate and startvar each. In what examples is this not the case?*)
       let forward_context = match startvars'_forw with
         | (_, ctx) :: _ -> ctx
         | [] -> failwith "No startvars from forward analysis"
@@ -1504,43 +1493,6 @@ struct
       in
       log_lh_contents lh;
 
-      (* let joined_by_loc_backw, joined_by_node_backw =
-         let open Enum in
-         let node_values = LHT.enum lh in
-         let node_backw_values =  filter_map (
-            fun (key, d) -> 
-              match key with 
-              | `L_forw (_,_)  ->  None 
-              | `L_backw (node, context) -> 
-                (match d with 
-                 | `Lifted2 d -> Some (node, d)
-                 | _ -> None)
-          ) node_values 
-         in
-         let hashtbl_size = if fast_count node_values then count node_values else 123 in
-         let by_loc, by_node = Hashtbl.create hashtbl_size, NodeH.create hashtbl_size in
-         iter (fun (node, v) ->
-            let loc = match node with
-              | Statement s -> Cil.get_stmtLoc s.skind (* nosemgrep: cilfacade *) (* Must use CIL's because syntactic search is in CIL. *)
-              | FunctionEntry _ | Function _ -> Node.location node
-            in
-            (* join values once for the same location and once for the same node *)
-            let join = Option.some % function None -> v | Some v' -> Spec_backw.D.join v v' in
-            Hashtbl.modify_opt loc join by_loc;
-            NodeH.modify_opt node join by_node;
-          ) node_backw_values; 
-         by_loc, by_node
-         in *)
-
-      (* NodeH.iter (fun node d -> 
-         match node with 
-         | Statement s -> (
-          match s. with 
-          | _ -> ()
-         )
-         | _ -> ()
-         ) joined_by_node_backw; *)
-
       let make_global_fast_xml f g =
         let open Printf in
         let print_globals k v =
@@ -1554,9 +1506,8 @@ struct
       let local_xml_forw = solver2source_result lh in
 
       ResBundle_forw.ResultOutput.output (lazy local_xml_forw) liveness gh make_global_fast_xml (module FileCfg); 
-      (* ResBundle_backw.ResultOutput.output (lazy local_xml_backw) liveness gh make_global_fast_xml (module FileCfg) *)
 
-      (*This is disgusting, but I have more imprtant things to do right now*)
+      (*This is disgusting, but I have more important things to do right now.*)
       let output_wp_results_to_xml lh =
         (* iterate through all nodes and update corresponding .xml in result/nodes *)
         LHT.iter (fun v state ->
@@ -1578,9 +1529,10 @@ struct
                     Stdlib.close_in ic;
 
                     (* Create WP analysis data *)
-                    let wp_res = Pretty.sprint 100 (Spec_backw.D.pretty () state) in
+                    let wp_res = Pretty.sprint ~width:100 (Spec_backw.D.pretty () state) in
+                    let wp_res_escaped = XmlUtil.escape wp_res in
                     let wp_data =
-                      "\n<wp_path>\n<analysis name=\"wp_test\">\n<value>\n<data>" ^ wp_res ^" \n</data>\n</value>\n</analysis>\n</wp_path>\n"
+                      "\n<wp_path>\n<analysis name=\"wp_test\">\n<value>\n<data>" ^ wp_res_escaped ^" \n</data>\n</value>\n</analysis>\n</wp_path>\n"
                     in
 
                     (* Insert before </path>*)

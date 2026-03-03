@@ -146,22 +146,17 @@ struct
   let body man man_forw (f:fundec) =
     man.local
 
-  let return man man_forw (exp:exp option) (f:fundec) =
-    match exp with
-    | None -> man.local
-    | Some e -> D.join man.local (D.of_list(vars_from_expr e))
-
   (* TODO *)
   let enter man man_forw (lval: lval option) (f:fundec) (args:exp list) =
     (* Logs.debug "=== enter function %s with args %s ===" f.svar.vname 
        (String.concat ", " (List.map (CilType.Exp.show) args)); *)
 
-    let vars =
-      match lval with 
-      | None -> man.local
-      | Some lv -> man.local (*i have to check for every arg ... no wait... I do not care about the args here, i care about those at the combine!!!!*)
+    (* let vars =
+       match lval with 
+       | None -> man.local
+       | Some lv -> man.local (*i have to check for every arg ... no wait... I do not care about the args here, i care about those at the combine!!!!*)
 
-    in
+       in *)
 
     [man.local, man.local]
 

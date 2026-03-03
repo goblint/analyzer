@@ -91,8 +91,8 @@ let init () =
   RmUnused.keepUnused := true;
   print_CIL_Input := true;
   Cabs2cil.allowDuplication := false; (* needed for ARG uncilling, maybe something else as well? *)
-  Cabs2cil.silenceLongDoubleWarning := true
-(* Cabs2cil.addLoopConditionLabels := true *)
+  Cabs2cil.silenceLongDoubleWarning := true;
+  Cabs2cil.addLoopConditionLabels := true
 
 let current_file = ref dummyFile
 

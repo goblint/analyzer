@@ -1,6 +1,4 @@
 open GoblintCil
-open Pretty
-open GobConfig
 open Analyses
 
 module M  = Messages
