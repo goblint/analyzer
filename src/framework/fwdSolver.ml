@@ -18,30 +18,14 @@ module FwdSolver (System: FwdGlobConstrSys) = struct
   module OM = Hashtbl.Make(Node)
   let source = System.LVar.node
 
-  let gas_default = ref (1,3)
   let rhs_eval_count = ref 0
 
-  let lwarrow (a,delay,gas,narrow) b =
-    let (delay0,_) = !gas_default in
-    if D.equal a b then (a,delay,gas,narrow)
-    else if D.leq b a then
-      if narrow then (D.narrow a b,delay,gas,true)
-      else if gas<=0 then (a,delay,gas,false)
-      else (D.narrow a b, delay,gas-1,true)
-    else if narrow then (D.join a b,delay0,gas,false)
-    else if delay <= 0 then (D.widen a (D.join a b),0,gas,false)
-    else (D.join a b, delay-1,gas,false)
+  module LWarrow = FwdWarrow.Warrow(System.D)
+  let lwarrow = LWarrow.warrow
+  let gas_default = LWarrow.gas_default
 
-  let gwarrow (a,delay,gas,narrow) b =
-    let (delay0,_) = !gas_default in
-    if G.equal a b then (a,delay,gas,narrow)
-    else if G.leq b a then
-      if narrow then (G.narrow a b,delay,gas,true)
-      else if gas<=0 then (a,delay,gas,false)
-      else (G.narrow a b, delay,gas-1,true)
-    else if narrow then (G.join a b,delay0,gas,false)
-    else if delay <= 0 then (G.widen a (G.join a b),0,gas,false)
-    else (G.join a b, delay-1,gas,false)
+  module GWarrow = FwdWarrow.Warrow(System.G)
+  let gwarrow = GWarrow.warrow
 
   let work = ref (([] : System.LVar.t list), LS.empty)
 
@@ -122,8 +106,10 @@ module FwdSolver (System: FwdGlobConstrSys) = struct
       if G.equal value new_g then
         ()
       else
-        let _ = LS.iter add_work infl in
-        GM.replace glob g {value = new_g; init = init; infl = LS.empty; last; from}
+        begin
+          GM.replace glob g {value = new_g; init = init; infl = LS.empty; last; from};
+          LS.iter add_work infl 
+        end
 
   type loc = {mutable loc_value : D.t; loc_init : D.t; loc_from : (D.t * int * int * bool) LM.t}
   (*
@@ -184,8 +170,10 @@ module FwdSolver (System: FwdGlobConstrSys) = struct
         else get_local_value loc_init loc_from in
       if D.equal loc_value new_y then
         ()
-      else (add_work y;
-            y_record.loc_value <- new_y)
+      else (
+        y_record.loc_value <- new_y;
+        add_work y
+      )
 
 (*
         wrapper around propagation function to collect multiple contributions to same unknowns;
@@ -201,9 +189,6 @@ module FwdSolver (System: FwdGlobConstrSys) = struct
       LM.replace sigma y d in
     let add_tau g d =
       let d = try G.join d (GM.find tau g) with _ -> d in
-(*
-      set_global x g d;
-*)
       GM.replace tau g d in
     let _ = f d (get_local x) add_sigma (get_global x) add_tau in
     let _ = GM.iter (set_global x) tau in
