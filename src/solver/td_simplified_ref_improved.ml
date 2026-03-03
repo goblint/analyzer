@@ -97,14 +97,14 @@ module Base : GenericEqSolver =
           end
       in
 
-(* now obsolete:
-      let eq x get set =
-        if tracing then trace "eq" "eq %a" S.Var.pretty_trace x;
-        match S.system x with
-        | None -> S.Dom.bot ()
-        | Some f -> f get set
-      in 
-*)
+      (* now obsolete:
+            let eq x get set =
+              if tracing then trace "eq" "eq %a" S.Var.pretty_trace x;
+              match S.system x with
+              | None -> S.Dom.bot ()
+              | Some f -> f get set
+            in 
+      *)
 
 (*
 introduce wrapper to make sure that there is at most one contrib per origin ...
@@ -167,7 +167,9 @@ alternatively, distinguish contribs by session number?
         OM.replace from sx (new_xy,delay,gas,narrow,set);
         if S.Dom.equal new_xy old_xy then ()
         else (
-          let new_y = get_global_value init from in
+          let new_y = if S.Dom.leq old_xy new_xy then
+              S.Dom.join !y_ref.value new_xy
+            else get_global_value init from in
           if S.Dom.equal new_y !y_ref.value then ()
           else (
             y_ref := { !y_ref with value = new_y };

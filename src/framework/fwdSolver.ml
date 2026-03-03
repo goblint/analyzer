@@ -125,7 +125,7 @@ module FwdSolver (System: FwdGlobConstrSys) = struct
         let _ = LS.iter add_work infl in
         GM.replace glob g {value = new_g; init = init; infl = LS.empty; last; from}
 
-  type loc = {mutable loc_value : D.t; loc_init : D.t; mutable loc_infl: System.LVar.t list; loc_from : (D.t * int * int * bool) LM.t}
+  type loc = {mutable loc_value : D.t; loc_init : D.t; loc_from : (D.t * int * int * bool) LM.t}
   (*
     init may contain some initial value not provided by separate origin;
     perhaps, dynamic tracking of dependencies required for certain locals?
@@ -144,7 +144,7 @@ module FwdSolver (System: FwdGlobConstrSys) = struct
   let get_local_ref x =
     try LM.find loc x
     with _ ->
-      (let rloc = {loc_value = D.bot (); loc_init = D.bot (); loc_infl = []; loc_from = LM.create 10} in
+      (let rloc = {loc_value = D.bot (); loc_init = D.bot (); loc_from = LM.create 10} in
        LM.add loc x rloc;
        rloc)
 
@@ -152,7 +152,6 @@ module FwdSolver (System: FwdGlobConstrSys) = struct
     LM.add loc x {
       loc_value = d;
       loc_init = d;
-      loc_infl = [];
       loc_from = LM.create 10
     }
 
@@ -166,10 +165,7 @@ module FwdSolver (System: FwdGlobConstrSys) = struct
 
   (* now the getters and setters for locals, setters with warrowing per origin *)
 
-  let get_local x y =
-    let rloc = get_local_ref y in
-    LM.replace loc y {rloc with loc_infl = x :: rloc.loc_infl};
-    rloc.loc_value
+  let get_local x y = raise (Failure "locals should not be queried!")
 
   let set_local x y d =
     (*
@@ -177,19 +173,19 @@ module FwdSolver (System: FwdGlobConstrSys) = struct
       reconstructs value of y from contributions;
       propagates infl together with y and updates value - if value has changed
     *)
-    let {loc_value;loc_init;loc_infl;loc_from} as y_record = get_local_ref y in
+    let {loc_value;loc_init;loc_from} as y_record = get_local_ref y in
     let (old_xy,delay,gas,narrow) = get_old_local_value x loc_from in
     let (new_xy,delay,gas,narrow) = lwarrow (old_xy,delay,gas,narrow) d in
     if D.equal new_xy old_xy then ()
     else
       let _ = LM.replace loc_from x (new_xy,delay,gas,narrow) in
-      let new_y = get_local_value loc_init loc_from in
+      let new_y = if D.leq old_xy new_xy then
+          D.join loc_value new_xy
+        else get_local_value loc_init loc_from in
       if D.equal loc_value new_y then
         ()
-      else let _ = add_work y in
-        let _ = List.iter add_work loc_infl in
-        y_record.loc_value <- new_y;
-        y_record.loc_infl <- [] 
+      else (add_work y;
+            y_record.loc_value <- new_y)
 
 (*
         wrapper around propagation function to collect multiple contributions to same unknowns;
@@ -259,13 +255,12 @@ module FwdSolver (System: FwdGlobConstrSys) = struct
     let get_local x = try (LM.find loc x).loc_value with _ -> D.bot () in
 
     let check_local x d = if D.leq d (D.bot ()) then ()
-      else let {loc_value:D.t;loc_init;loc_infl;loc_from} = get_local_ref x in
+      else let {loc_value:D.t;loc_init;loc_from} = get_local_ref x in
         if D.leq d loc_value then
           if LM.mem sigma_out x then ()
           else (
             LM.add sigma_out x loc_value;
-            add_work x;
-            List.iter add_work loc_infl
+            add_work x
           )
         else (
           Logs.error "Fixpoint not reached for local %a" System.LVar.pretty_trace x;
@@ -273,8 +268,7 @@ module FwdSolver (System: FwdGlobConstrSys) = struct
           if LM.mem sigma_out x then ()
           else (
             LM.add sigma_out x loc_value;
-            add_work x;
-            List.iter add_work loc_infl
+            add_work x
           )
         ) in
 
