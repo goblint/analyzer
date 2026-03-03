@@ -237,7 +237,9 @@ module FwdBuSolver (System: FwdGlobConstrSys) = struct
     else (
       if tracing then trace "set_localc" "new contribution";
       LM.replace loc_from x (new_xy,delay,gas,narrow);
-      let new_y = get_local_value loc_init loc_from in
+      let new_y = if D.leq old_xy new_xy then 
+          D.join loc_value new_xy
+        else get_local_value loc_init loc_from in
       if tracing then trace "set_local" "new value for %a is %a" System.LVar.pretty_trace y D.pretty new_y;
       if D.equal loc_value new_y then (
         if tracing then trace "set_local" "no change in local %a after updating from %a" System.LVar.pretty_trace y System.LVar.pretty_trace x;
