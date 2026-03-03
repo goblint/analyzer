@@ -66,7 +66,7 @@ struct
         let acc1 = aux acc e1 in
         let acc2 = aux acc1 e2 in
         aux acc2 e3
-      | CastE (_, e1)         ->   aux acc e1
+      (* | CastE (_, e1)         ->   aux acc e1  This appeaers to make problems when building for jobs*)
       | AddrOf (l1)          ->   (match vars_from_lval l1 with
           | [] -> acc
           |  v -> (v @ acc)
