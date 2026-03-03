@@ -18,7 +18,7 @@ module FwdSolver (System: FwdGlobConstrSys) = struct
   module OM = Hashtbl.Make(Node)
   let source = System.LVar.node
 
-  let gas_default = ref (10,3)
+  let gas_default = ref (1,3)
   let rhs_eval_count = ref 0
 
   let lwarrow (a,delay,gas,narrow) b =
