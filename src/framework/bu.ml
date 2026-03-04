@@ -187,13 +187,13 @@ module FwdBuSolver (System: FwdGlobConstrSys) = struct
     let set = LS.add x set in
     let d_new = get_last_contrib set last in
     let (new_xg,delay,gas,narrow) = gwarrow (old_xg,delay,gas,narrow) d_new in
-    let () = OM.replace from sx (new_xg,delay,gas,narrow,set) in
     if G.equal new_xg old_xg then (
       if tracing then trace "set_globalc" "no change!";
     ) 
     else
       begin
         if tracing then trace "set_globalc" "new contribution registered!";
+        let () = OM.replace from sx (new_xg,delay,gas,narrow,set) in
         let new_g = if G.leq old_xg new_xg then 
             G.join new_xg value 
           else get_global_value init from in

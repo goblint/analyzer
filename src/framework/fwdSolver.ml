@@ -114,9 +114,9 @@ module FwdSolver (System: FwdGlobConstrSys) = struct
     let set = LS.add x set in
     let d = LS.fold (fun x d -> G.join d (LM.find last x)) set d in
     let (new_xg,delay,gas,narrow) = gwarrow (old_xg,delay,gas,narrow) d in
-    OM.replace from sx (new_xg,delay,gas,narrow,set);
     if G.equal new_xg old_xg then () 
     else
+      let _ = OM.replace from sx (new_xg,delay,gas,narrow,set) in
       let new_g = if G.leq old_xg new_xg then G.join value new_xg
         else get_global_value init from in
       if G.equal value new_g then
