@@ -28,7 +28,7 @@ int main()
 
   int (*h) (int, int) = &f;
 
-  int c;
+  int c = rand();
   if (c) {
     h = &g;
   }
@@ -37,3 +37,5 @@ int main()
 
   return z;
 }
+
+// no warnings here, since we cannot determine which function is called and y is used if h evaluates to f, so we have to assume that y is used

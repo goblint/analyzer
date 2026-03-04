@@ -207,7 +207,7 @@ struct
       ; context = context
       ; edge    = edge
       ; local   =  getl_forw (node, context())
-      ; global  = (fun g -> G_forw.spec (getg_forw (GVar.GV_forw.spec g))) (*(fun _ -> failwith "getg_forw not implemented yet") TODO*)
+      ; global  = (fun g -> G_forw.spec (getg_forw (GVar.GV_forw.spec g)))
       ; spawn   = (fun ?multiple _ _ _ -> failwith "spawn should not be called from forward manager")
       ; split   = (fun _ _ -> failwith "split? what does this do?")
       ; sideg   = (fun _ _ -> failwith "sideg should not be called from forward manager")
@@ -416,26 +416,23 @@ struct
       (* Logs.debug "combined local: %a" S_backw.D.pretty r; *)
       r
     in
-    let paths = 
-      Logs.debug "manager info at call to %a" Node.pretty man.node;
-      S_backw.enter man man_forw lv f args in
-    (* Wollen eig vorwärts-kontext benutzen *)
+    let paths = S_backw.enter man man_forw lv f args in
+
     (* getl_forw should query the corresopoding unknown from the forward analysis *)
     (* context = S_forw.context (S_forw.enter (getl_forw [this_node_, this_context])) *)
 
-    let r = ref [] in
     let man_forw =
       { ask     = (fun (type a) (q: a Queries.t) -> failwith "manager for calculating context does not support queries")
       ; emit    = (fun _ -> failwith "emit outside MCP")
       ; node    = man.node
-      ; prev_node = man.prev_node (* this is problematic, as this is backwards *)
+      ; prev_node = MyCFG.dummy_node
       ; control_context = man.control_context
       ; context = man.context
       ; edge    = man.edge
       ; local   = (getl_forw (man.node, man.context ()))
-      ; global  = (fun _ -> failwith "manager for calculating context does not have globals")
+      ; global  = (fun g -> G_forw.spec (getg_forw (GVar.GV_forw.spec g)))
       ; spawn   = (fun ?multiple _ _ _ -> failwith "manager for calculating context does not support spawn")
-      ; split   = (fun (d:S_forw.D.t) es -> assert (List.is_empty es); r := d::!r) 
+      ; split   = (fun _ _ -> failwith "manager for calculating context does not support split") 
       ; sideg   = (fun _ _ -> failwith "manager for calculating context does not support sideg")
       } in
 
@@ -448,15 +445,17 @@ struct
     (* filter paths were the forward analysis found out they are unreachable*)
     let paths = List.filter (fun ((c,v),(_,b)) -> not (S_forw.D.is_bot b)) paths in 
 
-
     (* this list now uses forward contexts*)
     let paths = List.map (fun ((c,v),(_,b)) -> (c, S_forw.context man_forw f b, v)) paths in
-    (* List.iter (fun (c,fc,v) -> if not (S_backw.D.is_bot v) then sidel (FunctionEntry f, fc) v) paths; *)
 
-    List.iter (fun (c,fc,v) -> if not (S_backw.D.is_bot v) then sidel (Function f, fc) v) paths; 
-    (* let paths = List.map (fun (c,fc,v) -> (c, fc, if S_backw.D.is_bot v then v else getl (Function f, fc))) paths; *)
-    (* *)
-    let paths = List.map (fun (c,fc,v) -> (c, fc, if S_backw.D.is_bot v then v else getl (FunctionEntry f, fc))) paths in
+    (* The two lines below is what I should use. *)
+    (* List.iter (fun (c,fc,v) -> if not (S_backw.D.is_bot v) then sidel (Function f, fc) v) paths;  *)
+    (* let paths = List.map (fun (c,fc,v) -> (c, fc, if S_backw.D.is_bot v then v else getl (FunctionEntry f, fc))) paths in *)
+
+    (* A problem with my liveness analysis is that D.empty = D.bot, but I still need to evaluate a function since variables might become live inside. This is not optimal and the liveness analysis should be changed.*)
+    List.iter (fun (c,fc,v) -> sidel (Function f, fc) v) paths;
+    let paths = List.map (fun (c,fc,v) -> (c, fc, getl (FunctionEntry f, fc))) paths in
+
 
     (* Don't filter bot paths, otherwise LongjmpLifter is not called. *)
     (* let paths = List.filter (fun (c,fc,v) -> not (D.is_bot v)) paths in *)
@@ -469,7 +468,6 @@ struct
     (* Logs.debug "combined: %a" S_backw.D.pretty r; *)
     r
 
-  (*TODO: HERE AS WELL*)
   let rec tf_proc_backw var edge prev_node lv e args getl (getl_forw: node * S_forw.C.t -> S_forw.D.t) sidel demandl getg getg_forw sideg d =
     let tf_special_call man man_forw f =
       let once once_control init_routine =

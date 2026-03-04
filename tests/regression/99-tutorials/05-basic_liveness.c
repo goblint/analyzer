@@ -5,7 +5,7 @@ int main()
 {
   int x = 1;
   int y = 2;
-  int z = 3;
+  int z = 3;  // this assignment should yield a warning
 
   int a = rand();
 
@@ -15,3 +15,4 @@ int main()
 
   return x;
 }
+
