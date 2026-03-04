@@ -467,18 +467,15 @@ let posix_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("getdelim", unknown [drop "lineptr" [r_deep; w_deep]; drop "n" [r; w]; drop "delimiter" []; drop "stream" [r_deep; w_deep]]);
     ("__getdelim", unknown [drop "lineptr" [r_deep; w_deep]; drop "n" [r; w]; drop "delimiter" []; drop "stream" [r_deep; w_deep]]);
     ("getwdelim", unknown [drop "lineptr" [r_deep; w_deep]; drop "n" [r; w]; drop "delimiter" []; drop "stream" [r_deep; w_deep]]);
-    ("chroot", unknown [drop "path" [r]]);
     ("execlp", unknown (drop "file" [r] :: drop "arg" [r] :: VarArgs (drop' [r])));
     ("gai_strerror", unknown [drop "errcode" []]);
     ("getegid", unknown []);
     ("getgroups", unknown [drop "size" []; drop "list" [w]]);
-    ("getpass", unknown ~attrs:[ThreadUnsafe] [drop "prompt" [r]]);
     ("initgroups", unknown [drop "user" [r]; drop "group" []]);
     ("mknod", unknown [drop "pathname" [r]; drop "mode" []; drop "dev" []]);
     ("openat", unknown (drop "dirfd" [] :: drop "pathname" [r] :: drop "flags" [] :: VarArgs (drop "mode" [])));
     ("seteuid", unknown [drop "uid" []]);
     ("setgid", unknown [drop "gid" []]);
-    ("setgroups", unknown [drop "size" []; drop "list" [r]]);
     ("setuid", unknown [drop "uid" []]);
     ("socketpair", unknown [drop "domain" []; drop "type" []; drop "protocol" []; drop "sv" [w]]);
     ("tcgetpgrp", unknown [drop "fd" []]);
@@ -744,6 +741,9 @@ let glibc_desc_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("mallinfo2", unknown []);
     ("strlcat", unknown [drop "dst" [r; w]; drop "src" [r]; drop "dstsize" []]);
     ("strlcpy", unknown [drop "dst" [w]; drop "src" [r]; drop "dstsize" []]);
+    ("chroot", unknown [drop "path" [r]]);
+    ("getpass", unknown ~attrs:[ThreadUnsafe] [drop "prompt" [r]]);
+    ("setgroups", unknown [drop "size" []; drop "list" [r]]);
   ]
 [@@coverage off]
 
