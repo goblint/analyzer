@@ -22,7 +22,7 @@ module FwdSolver (System: FwdGlobConstrSys) = struct
 
   module LWarrow = FwdWarrow.Warrow(System.D)
   let lwarrow = LWarrow.warrow
-  let gas_default = LWarrow.gas_default
+  let gas_default = FwdWarrow.gas_default
 
   module GWarrow = FwdWarrow.Warrow(System.G)
   let gwarrow = GWarrow.warrow
