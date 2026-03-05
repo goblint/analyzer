@@ -29,33 +29,34 @@ module FwdBuSolver (System: FwdGlobConstrSys) = struct
     Gbl.add_infl glob_data g x;
     glob_data.value
 
+  (**
+          replaces old contribution with the new one;
+
+          reconstructs value of g from contributions;
+          propagates infl and updates value - if value has changed
+  *)
   let rec set_global x g d =
-    let sx = source x in 
-(*
-        replaces old contribution with the new one;
-        reconstructs value of g from contributions;
-        propagates infl and updates value - if value has changed
-*)
+    let sx = source x in
     let g_record = Gbl.get g in
-    let old_contribution: Gbl.contribution = Gbl.get_contribution sx g_record in
+    let old_contribution = Gbl.get_contribution sx g_record in
     LM.add g_record.last x d;
     let set = LS.add x old_contribution.set in
     let d_new = Gbl.get_last_contrib set g_record.last in
     let new_contribution = Gbl.warrow old_contribution d_new set in
-    OM.replace g_record.from sx new_contribution;
     if not (G.equal new_contribution.value old_contribution.value) then (
+      OM.replace g_record.from sx new_contribution;
       let new_g = if G.leq old_contribution.value new_contribution.value then 
           G.join new_contribution.value g_record.value 
         else Gbl.construct_value g_record in
       if not (G.equal g_record.value new_g) then (
-        let (work : Gbl.LS.t) = g_record.infl in
-        Gbl.replace g {g_record with value = new_g; infl = Gbl.LS.empty};
-        let doit (x : Gbl.LM.key) = 
+        let work = g_record.infl in
+        Gbl.replace g {g_record with value = new_g; infl = LS.empty};
+        let doit x = 
           let r = Lcl.get x in
           if r.called then r.aborted <- true
           else (iterate[@tailcall]) x 
         in
-        Gbl.LS.iter doit work 
+        LS.iter doit work 
       )
     )
 
