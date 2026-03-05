@@ -101,7 +101,7 @@ struct
 
   module CompareGlobSys = CompareConstraints.CompareGlobSys (SpecSys)
   (* TODO remove those witnesses once the mismatch is solved *)
-  let _ : EQSys.G.t -> BuSolver.G.t = fun x -> x
+  let _ : EQSys.G.t -> EQSys.G.t = fun x -> x
   let _ : 'a CompareGlobSys.GH.t -> 'a GHT.t = fun x -> x
 
 
