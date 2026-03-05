@@ -20,11 +20,11 @@ module FwdSolver (System: FwdGlobConstrSys) = struct
 
   let rhs_eval_count = ref 0
 
-  module LWarrow = FwdWarrow.Warrow(System.D)
+  module LWarrow = FwdCommon.Warrow(System.D)
   let lwarrow = LWarrow.warrow
-  let gas_default = FwdWarrow.gas_default
+  let gas_default = FwdCommon.gas_default
 
-  module GWarrow = FwdWarrow.Warrow(System.G)
+  module GWarrow = FwdCommon.Warrow(System.G)
   let gwarrow = GWarrow.warrow
 
   let work = ref (([] : System.LVar.t list), LS.empty)

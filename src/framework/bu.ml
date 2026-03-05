@@ -20,10 +20,10 @@ module FwdBuSolver (System: FwdGlobConstrSys) = struct
   let rhs_eval_count = ref 0
 
   (* TODO make this proper default read from a common module or config *)
-  let gas_default = FwdWarrow.gas_default
+  let gas_default = FwdCommon.gas_default
 
-  module Gbl = FwdWarrow.SolverGlobals(System)(LS)(LM)(GM)(OM)
-  module Lcl = FwdWarrow.SolverLocals(System)(LM)
+  module Gbl = FwdCommon.SolverGlobals(System)(LS)(LM)(GM)(OM)
+  module Lcl = FwdCommon.SolverLocals(System)(LM)
 
   let get_global x g =
     let glob_data = Gbl.get g in
@@ -160,6 +160,6 @@ module FwdBuSolver (System: FwdGlobConstrSys) = struct
        work list just for checking ...
 *)
 
-  module Checker = FwdWarrow.Checker(System)(Lcl)(Gbl)
+  module Checker = FwdCommon.Checker(System)(Lcl)(Gbl)
   let check = Checker.check
 end
