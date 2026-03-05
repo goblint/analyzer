@@ -790,6 +790,7 @@ let linux_userspace_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("__ctype_b_loc", unknown []);
     ("_IO_getc", unknown [drop "f" [r_deep; w_deep]]);
     ("fallocate", unknown [drop "fd" []; drop "mode" []; drop "offset" []; drop "len" []]);
+    ("ioctl", unknown (drop "fd" [] :: drop "request" [] :: VarArgs (drop' [r_deep; w_deep])));
   ]
 [@@coverage off]
 
@@ -859,7 +860,6 @@ let linux_kernel_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("usb_alloc_urb", special [__ "iso_packets" []; drop "mem_flags" []] @@ fun iso_packets -> Malloc MyCFG.unknown_exp);
     ("usb_submit_urb", unknown [drop "urb" [r_deep; w_deep; c_deep]; drop "mem_flags" []]); (* old comment: first argument is written to but according to specification must not be read from anymore *)
     ("dev_driver_string", unknown [drop "dev" [r_deep]]);
-    ("ioctl", unknown (drop "fd" [] :: drop "request" [] :: VarArgs (drop' [r_deep; w_deep])));
     ("idr_pre_get", unknown [drop "idp" [r_deep]; drop "gfp_mask" []]);
     ("printk", unknown (drop "fmt" [r] :: VarArgs (drop' [r])));
     ("kmem_cache_create", unknown [drop "name" [r]; drop "size" []; drop "align" []; drop "flags" []; drop "ctor" [r; c]]);
