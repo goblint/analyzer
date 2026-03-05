@@ -377,3 +377,18 @@ module Checker (System: FwdGlobConstrSys)
 
     check localinit globalinit xs
 end
+
+module SolverStats (Sys: FwdGlobConstrSys) = struct
+  let rhs_event_count = ref 0
+
+  let eval_rhs_event x = rhs_event_count := !rhs_event_count + 1
+
+  let solver_start_event () =
+    let starttime_ms = int_of_float (Unix.gettimeofday () *. 1000.) in
+    Logs.info "Solver start: %d" starttime_ms
+
+  let solver_end_event () =
+    let endtime_ms = int_of_float (Unix.gettimeofday () *. 1000.) in
+    Logs.info "Solver end: %d" endtime_ms;
+    Logs.info "RHS: %d" !rhs_event_count
+end
