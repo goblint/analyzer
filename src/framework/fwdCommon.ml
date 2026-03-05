@@ -136,12 +136,12 @@ module SolverLocals (Sys: FwdGlobConstrSys) (LM: Hashtbl.S with type key=Sys.LVa
 
   type updated_contribution = Updated of t | NotUpdated of t
 
-  let update_contribution contributor y d =
+  let update_contribution contributor y d always_warrow =
     let y_record = get y in
     let old_contribution = get_contribution contributor y_record in
     let new_contribution =
       (* Automatic detection of warrowing points *)
-      if y_record.called then warrow old_contribution d 
+      if (always_warrow || y_record.called) then warrow old_contribution d 
       else {old_contribution with value=d} in
 
     if (D.equal new_contribution.value old_contribution.value) then NotUpdated y_record

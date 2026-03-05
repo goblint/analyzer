@@ -43,7 +43,7 @@ module FwdWBuSolver (System: FwdGlobConstrSys) = struct
   and get_local _ = raise (Failure "Locals should not be queried in rhs") 
 
   and set_local contributor y d =
-    match Lcl.update_contribution contributor y d with
+    match Lcl.update_contribution contributor y d false with
     | Updated y_record -> (
         if y_record.called then y_record.aborted <- true
         else (
