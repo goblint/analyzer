@@ -134,9 +134,36 @@ module SolverLocals (Sys: FwdGlobConstrSys) (LM: Hashtbl.S with type key=Sys.LVa
 
   let warrow = LWarrow.warrowc
 
+  type updated_contribution = Updated of t | NotUpdated of t
+
+  let update_contribution contributor y d =
+    let y_record = get y in
+    let old_contribution = get_contribution contributor y_record in
+    let new_contribution =
+      (* Automatic detection of warrowing points *)
+      if y_record.called then warrow old_contribution d 
+      else {old_contribution with value=d} in
+
+    if (D.equal new_contribution.value old_contribution.value) then NotUpdated y_record
+    else (
+      LM.replace y_record.loc_from contributor new_contribution;
+      let new_y = if D.leq old_contribution.value new_contribution.value then 
+          (* If the contribution is strictly greater than previous,
+               the join with the new contribution is equal to the value on the else
+               branch, but much cheaper to calculate *)
+          D.join y_record.loc_value new_contribution.value
+        else construct_value y_record in
+      if (D.equal y_record.loc_value new_y) then NotUpdated y_record
+      else (
+        y_record.loc_value <- new_y;
+        Updated y_record
+      )
+    )
+
+  let to_seq () = LM.to_seq loc |> Seq.map (fun (k, l) -> (k,l.loc_value))
 end
 
-module SolverGlobals (Sys: FwdGlobConstrSys) (LS: Set.S with type elt = Sys.LVar.t) (LM: Hashtbl.S with type key = Sys.LVar.t) (GM: Hashtbl.S with type key = Sys.GVar.t) (OM: Hashtbl.S with type key = Node0.t) = struct
+module SolverGlobals (Sys: FwdGlobConstrSys) (LS: Set.S with type elt = Sys.LVar.t) (LM: Hashtbl.S with type key = Sys.LVar.t) (GM: Hashtbl.S with type key = Sys.GVar.t) = struct
 
   module Sys = Sys
 
@@ -145,7 +172,13 @@ module SolverGlobals (Sys: FwdGlobConstrSys) (LS: Set.S with type elt = Sys.LVar
   module LS = LS
   module LM = LM
   module GM = GM
-  module OM = OM
+
+  (* Use this to set origins to unknown (vs. program point as below)
+     module OM = LM
+     let source x = x
+  *)
+  module OM = Hashtbl.Make(Node)
+  let source = Sys.LVar.node
 
   type gt = G.t
 
@@ -227,6 +260,33 @@ module SolverGlobals (Sys: FwdGlobConstrSys) (LS: Set.S with type elt = Sys.LVar
 
   let get_last_contrib set last = 
     LS.fold (fun x d -> G.join d (LM.find last x)) set (G.bot()) 
+
+  type updated_contribution = Updated of t | NotUpdated of t
+
+  let update_contribution x g d =
+    let sx = source x in
+    let g_record = get g in
+    let old_contribution = get_contribution sx g_record in
+    LM.add g_record.last x d;
+    let set = LS.add x old_contribution.set in
+    let d_new = get_last_contrib set g_record.last in
+    let new_contribution = warrow old_contribution d_new set in
+
+    if G.equal new_contribution.value old_contribution.value then (NotUpdated g_record)
+    else (
+      OM.replace g_record.from sx new_contribution;
+      let new_g = if G.leq old_contribution.value new_contribution.value then 
+          G.join new_contribution.value g_record.value 
+        else construct_value g_record in
+      if (G.equal g_record.value new_g) then (NotUpdated g_record)
+      else (
+        replace g {g_record with value=new_g};
+        Updated {g_record with value=new_g}
+      )
+    )
+
+
+  let to_seq () = GM.to_seq glob |> Seq.map (fun (k, l ) -> (k,l.value))
 
 end
 
@@ -392,3 +452,40 @@ module SolverStats (Sys: FwdGlobConstrSys) = struct
     Logs.info "Solver end: %d" endtime_ms;
     Logs.info "RHS: %d" !rhs_event_count
 end
+
+module BaseFwdSolver (System: FwdGlobConstrSys) = struct
+  module D = System.D
+  module G = System.G
+
+  module LS = Set.Make (System.LVar)
+  module GM = Hashtbl.Make(System.GVar)
+  module LM = Hashtbl.Make(System.LVar)
+
+
+  module Gbl = SolverGlobals(System)(LS)(LM)(GM)
+  module Lcl = SolverLocals(System)(LM)
+
+  (**
+        wrapper around propagation function to collect multiple contributions to same unknowns;
+        contributions are delayed until the very end
+  *)
+  let wrap get_local get_global set_local set_global rhs x d =
+    let local_updates = LM.create 10 in
+    let global_updates = GM.create 10 in
+
+    let collect_local y d =
+      let d = LM.find_opt local_updates y |> BatOption.map_default (D.join d) d in 
+      LM.replace local_updates y d in
+
+    let collect_global g d =
+      let d = GM.find_opt global_updates g |> BatOption.map_default (G.join d) d in
+      GM.replace global_updates g d in
+
+    (* Use the collect functions for set, so that we can delay and re-order the
+       contributions *)
+    rhs d get_local collect_local (get_global x) collect_global;
+    GM.iter (set_global x) global_updates;
+    LM.iter (set_local x) local_updates;
+    (* possibly better with reversed ordering *)
+end
+
