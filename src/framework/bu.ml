@@ -17,13 +17,12 @@ module FwdBuSolver (System: FwdGlobConstrSys) = struct
 
   module OM = Hashtbl.Make(Node)
   let source = System.LVar.node
-  let rhs_eval_count = ref 0
-
-  (* TODO make this proper default read from a common module or config *)
-  let gas_default = FwdCommon.gas_default
 
   module Gbl = FwdCommon.SolverGlobals(System)(LS)(LM)(GM)(OM)
   module Lcl = FwdCommon.SolverLocals(System)(LM)
+
+  module SolverStats = FwdCommon.SolverStats(System)
+  open SolverStats
 
   let get_global x g =
     let glob_data = Gbl.get g in
@@ -110,6 +109,7 @@ module FwdBuSolver (System: FwdGlobConstrSys) = struct
       let d = GM.find_opt global_updates g |> BatOption.map_default (G.join d) d in
       GM.replace global_updates g d in
 
+    eval_rhs_event x;
     (* Use the collect functions for set, so that we can delay and re-order the
        contributions *)
     rhs d get_local collect_local (get_global x) collect_global;
@@ -118,9 +118,8 @@ module FwdBuSolver (System: FwdGlobConstrSys) = struct
     (* possibly better with reversed ordering *)
 
 
-    (* now the actual propagation! *)
+    (* the actual propagation! *)
   and iterate x = 
-    rhs_eval_count := !rhs_eval_count + 1;
     let rloc = Lcl.get x in
     match System.system x with
     | None -> ()
@@ -132,18 +131,7 @@ module FwdBuSolver (System: FwdGlobConstrSys) = struct
         if rloc.aborted then (iterate[@tailcall]) x
       )
 
-  (* ... now the main solver loop ... *)
-
-  (*  These should be handled via event hooks *)
-  let solver_start_event () =
-    let starttime_ms = int_of_float (Unix.gettimeofday () *. 1000.) in
-    Logs.info "Solver start: %d" starttime_ms
-
-  let solver_end_event () =
-    let endtime_ms = int_of_float (Unix.gettimeofday () *. 1000.) in
-    Logs.info "Solver end: %d" endtime_ms;
-    Logs.info "RHS: %d" !rhs_eval_count
-
+  (* the main solver loop ... *)
   let solve localinit globalinit start_unknowns =
     solver_start_event ();
     List.iter Lcl.init localinit;
@@ -153,12 +141,6 @@ module FwdBuSolver (System: FwdGlobConstrSys) = struct
     let tau = GM.to_seq Gbl.glob |> Seq.map (fun (k,(l : Gbl.t)) -> (k,l.value)) in
     solver_end_event ();
     (sigma,tau)
-
-  (* ... now the checker! *)
-
-(*
-       work list just for checking ...
-*)
 
   module Checker = FwdCommon.Checker(System)(Lcl)(Gbl)
   let check = Checker.check
