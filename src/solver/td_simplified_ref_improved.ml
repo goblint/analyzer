@@ -1,6 +1,8 @@
 (** Top-down solver with side effects. Baseline for comparisons with td_parallel solvers     ([td_simplified_ref]).
     This is the same as ([td_simplified]), but it uses records for solver that instead of multiple hashmaps.
-    Additionally, an origin hashmap is maintained to allow for narrowing on globals ...
+    This solver implements update rules with widening delay and narrowing gas.
+    An origin hashmap is maintained to allow for narrowing on globals to terminate more often.
+    Also, abstract GC is supported - if desired.
 *)
 
 open Batteries
@@ -24,6 +26,7 @@ module Base : GenericEqSolver =
       wpoint: bool;
       stable: bool;
       called: bool;
+      contrib: VS.t
     }
 
 (*
@@ -41,6 +44,7 @@ module Base : GenericEqSolver =
     }
 
     let gas_default = ref (10,3)
+    let abs_GC = ref true
 
     let warrow (a,delay,gas,narrow) b = 
       let (delay0,_) = !gas_default in
@@ -84,7 +88,8 @@ module Base : GenericEqSolver =
                 value = S.Dom.bot ();
                 wpoint = false;
                 stable = false;
-                called = false 
+                called = false;
+                contrib = VS.empty 
               } in
             HM.replace data x data_x;
             let orig_x = {
@@ -182,12 +187,19 @@ alternatively, distinguish contribs by session number?
         | None -> S.Dom.bot ()
         | Some f -> 
           let sigma = HM.create 10 in
+          let new_set = ref VS.empty in
           let add_sigma y d =
             let d = try S.Dom.join d (HM.find sigma y) with _ -> d in
             HM.replace sigma y d;
+            new_set := VS.add y !new_set;
             side x y d in
-          f (query x) add_sigma 
-
+          let d = f (query x) add_sigma in
+          let x_ref = init x in
+          let old_set = !x_ref.contrib in
+          let _ = x_ref := {!x_ref with contrib = !new_set} in    
+          let _ = if !abs_GC then VS.iter (fun y -> try HM.find sigma y; () with 
+              | _ -> side x y (S.Dom.bot ())) old_set in
+          d
 
       and iterate x = (* ~(inner) solve in td3 *)
 
