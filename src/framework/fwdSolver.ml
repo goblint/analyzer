@@ -7,7 +7,6 @@ module FwdSolver (System: FwdGlobConstrSys) = struct
   module G = System.G
 
   module LS = Set.Make (System.LVar)
-  module GS = Set.Make (System.GVar)
 
   module GM = Hashtbl.Make(System.GVar)
   module LM = Hashtbl.Make(System.LVar)
@@ -112,11 +111,7 @@ module FwdSolver (System: FwdGlobConstrSys) = struct
           LS.iter add_work infl 
         end
 
-  type loc = {mutable loc_value : D.t; 
-              loc_init : D.t; 
-              loc_from : (D.t * int * int * bool) LM.t;
-              mutable to_glob : GS.t;
-              mutable to_loc : LS.t}
+  type loc = {mutable loc_value : D.t; loc_init : D.t; loc_from : (D.t * int * int * bool) LM.t}
   (*
     init may contain some initial value not provided by separate origin;
     perhaps, dynamic tracking of dependencies required for certain locals?
@@ -125,8 +120,6 @@ module FwdSolver (System: FwdGlobConstrSys) = struct
     for rewoking vacuous previous contributions - important if large values 
     are prematurely propagated which later become obsolete (no contrib from that
     origin anymore ...
-
-    to_glob /to_loc für abstract GC
   *)
 
   let loc: loc LM.t = LM.create 100
@@ -137,7 +130,7 @@ module FwdSolver (System: FwdGlobConstrSys) = struct
   let get_local_ref x =
     try LM.find loc x
     with _ ->
-      (let rloc = {loc_value = D.bot (); loc_init = D.bot (); loc_from = LM.create 10; to_loc = LS.empty; to_glob = GS.empty } in
+      (let rloc = {loc_value = D.bot (); loc_init = D.bot (); loc_from = LM.create 10} in
        LM.add loc x rloc;
        rloc)
 
@@ -145,9 +138,7 @@ module FwdSolver (System: FwdGlobConstrSys) = struct
     LM.add loc x {
       loc_value = d;
       loc_init = d;
-      loc_from = LM.create 10;
-      to_loc = LS.empty; 
-      to_glob = GS.empty
+      loc_from = LM.create 10
     }
 
   let get_local_value init from = LM.fold (fun _ (b,_,_,_) a -> D.join a b) from init
@@ -168,7 +159,7 @@ module FwdSolver (System: FwdGlobConstrSys) = struct
       reconstructs value of y from contributions;
       propagates infl together with y and updates value - if value has changed
     *)
-    let {loc_value;loc_init;loc_from;to_loc;to_glob} as y_record = get_local_ref y in
+    let {loc_value;loc_init;loc_from} as y_record = get_local_ref y in
     let (old_xy,delay,gas,narrow) = get_old_local_value x loc_from in
     let (new_xy,delay,gas,narrow) = lwarrow (old_xy,delay,gas,narrow) d in
     if D.equal new_xy old_xy then ()
@@ -191,7 +182,6 @@ module FwdSolver (System: FwdGlobConstrSys) = struct
 
   let wrap (x,f) d =
     rhs_eval_count := !rhs_eval_count + 1;
-    let x_record = get_local_ref x in
     let sigma = LM.create 10 in
     let tau = GM.create 10 in
     let add_sigma y d =
@@ -201,16 +191,6 @@ module FwdSolver (System: FwdGlobConstrSys) = struct
       let d = try G.join d (GM.find tau g) with _ -> d in
       GM.replace tau g d in
     let _ = f d (get_local x) add_sigma (get_global x) add_tau in
-    let old_globs = x_record.to_glob in
-    let () = x_record.to_loc <- LM.fold (fun y _ set -> LS.add y set) sigma LS.empty in
-(*
-    let old_locs = x_record.to_loc in
-    let () = LS.iter (fun y -> try LM.find sigma y;() with 
-      | _ -> LM.add sigma y (D.bot ())) old_locs in
-*)
-    let () = x_record.to_glob <- GM.fold (fun g _ set -> GS.add g set) tau GS.empty in
-    let () = GS.iter (fun y -> try GM.find tau y;() with 
-      | _ -> GM.add tau y (G.bot ())) old_globs in
     let _ = GM.iter (set_global x) tau in
     let _ = LM.iter (set_local x) sigma in
     ()
@@ -260,7 +240,7 @@ module FwdSolver (System: FwdGlobConstrSys) = struct
     let get_local x = try (LM.find loc x).loc_value with _ -> D.bot () in
 
     let check_local x d = if D.leq d (D.bot ()) then ()
-      else let {loc_value:D.t;loc_init;loc_from;to_loc;to_glob} = get_local_ref x in
+      else let {loc_value:D.t;loc_init;loc_from} = get_local_ref x in
         if D.leq d loc_value then
           if LM.mem sigma_out x then ()
           else (
