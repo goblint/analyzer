@@ -2747,6 +2747,32 @@ struct
           set_many ~man st ((eval_lv ~man st lv, (Cilfacade.typeOfLval lv), VD.Address addr) :: blob_set)
         | _ -> st
       end
+    | OCamlAlloc wosize, _ ->
+      (*begin match lv with
+        | Some lv ->
+          let heap_var = AD.unknown_ptr (*AD.of_var (heap_var false ctx)*) in
+          let sizeval = eval_int ~ctx st wosize in
+          set_many ~ctx st [
+            (heap_var, TVoid [], Blob (VD.bot (), sizeval, true));
+            (eval_lv ~ctx st lv, (Cilfacade.typeOfLval lv), Address heap_var)
+          ]
+        | _ -> st
+        end*)
+      let open Queries.AllocationLocation in
+      begin
+        (* The behavior for alloc(0) is implementation defined. Here, we rely on the options specified for the malloc also applying to alloca. *)
+        match lv with
+        | Some lv ->
+          let loc = Heap in
+          let (heap_var, addr) = alloc loc wosize in
+          (* ignore @@ printf "alloca will allocate %a bytes\n" ID.pretty (eval_int ~man size); *)
+          let blob_set = Option.map_default (fun heap_var -> [(heap_var, TVoid [], VD.Blob (VD.bot (), eval_int ~man st wosize, ZeroInit.malloc))]) [] heap_var in
+          set_many ~man st ((eval_lv ~man st lv, (Cilfacade.typeOfLval lv), VD.Address addr) :: blob_set)
+        | _ -> st
+      end
+    (* TODO: Rethink OCamlParam's placement *)
+    | OCamlParam params, _ ->
+      List.fold_left (fun acc param -> let _ = eval_rv ~man acc param in acc) st params
     | Calloc { count = n; size }, _ ->
       begin match lv with
         | Some lv -> (* array length is set to one, as num*size is done when turning into `Calloc *)
