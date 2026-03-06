@@ -139,8 +139,8 @@ let check_arguments () =
   if not (get_bool "ana.opt.hashcons") then (
     if get_bool "exp.arg.enabled" then
       warn "Disabling ana.opt.hashcons has no effect because hashconsing is implicitly enabled by exp.arg.enabled";
-    if List.mem "apron" (get_string_list "ana.activated") then
-      warn "Disabling ana.opt.hashcons has no effect because hashconsing is implicitly enabled by Apron (ana.activated includes 'apron')";
+    if MCPRegistry.any_activated_uses_apron () then
+      fail "Disabling ana.opt.hashcons is not supported when using Apron domains";
   );
   if List.mem "remove_dead_code" @@ get_string_list "trans.activated" then (
     (* 'assert' transform happens before 'remove_dead_code' transform *)
