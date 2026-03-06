@@ -20,14 +20,14 @@ struct
   let name () = "ocaml"
   module D =
   struct
-    (* The first set contains variables of type value that are definitely in order. The second contains definitely registered variables. The third contains variables the analysis tracks. *)
-    module P = Lattice.Prod (VarinfoSet) (VarinfoSet)
+    (* The first set contains variables of type value that are definitely accounted. The second contains definitely registered variables. *)
+    module P = Lattice.Reverse (Lattice.Prod (VarinfoSet) (VarinfoSet))
     include P
 
     let empty () = (VarinfoSet.empty (), VarinfoSet.empty ())
 
-    (* After garbage collection, the second set is written to the first set *)
-    let after_gc (accounted, registered) = (registered, registered)
+    (* After garbage collection, the first set loses variables not in the second set. *)
+    let after_gc (accounted, registered) = (VarinfoSet.inter accounted registered, registered)
 
     (* Untracked variables are always fine. *)
     let mem_a v (accounted, registered) =
@@ -200,6 +200,7 @@ struct
     (* To warn about a potential issue in the code, use M.warn. *)
     (* caller_state *)
     let desc = LibraryFunctions.find f in
+    List.iter (fun e -> ignore (exp_accounted_for caller_state e)) arglist; (* Just to trigger warnings for arguments passed to special functions *)
     match desc.special arglist with
     | OCamlParam params ->
       (* Variables are registered with a Param macro. *)
@@ -210,17 +211,14 @@ struct
     | OCamlAlloc size_exp ->
       (* Garbage collection may trigger here and overwrite unregistered variables. *)
       M.debug "Garbage collection triggers";
-      List.iter (fun e -> ignore (exp_accounted_for caller_state e)) arglist; (* Just to trigger warnings *)
       (match lval with
        | Some (Var v, _) -> D.add_a v (D.after_gc caller_state)
        | _ -> D.after_gc caller_state
       )
-    | _ ->
-      List.iter (fun e -> ignore (exp_accounted_for caller_state e)) arglist; (* Just to trigger warnings for arguments passed to special functions *)
-      caller_state
+    | _ -> caller_state
 
   (* You may leave these alone *)
-  let startstate v = D.bot ()
+  let startstate v = D.empty ()
   let threadenter ctx ~multiple lval f args = [D.top ()]
   let threadspawn ctx ~multiple lval f args fctx = ctx.local
   let exitstate  v = D.top ()

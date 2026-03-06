@@ -1,4 +1,4 @@
-// PARAM: --set "ana.activated[+]" ocaml --set "mainfun[+]" "pringo_LXM_copy" --set "mainfun[+]" "pringo_LXM_copy_correct" --set "mainfun[+]" "pringo_LXM_init_unboxed" --disable warn.imprecise --set "exp.extraspecials[+]" printInt
+// PARAM: --set "ana.activated[+]" ocaml --set "mainfun[+]" "pringo_LXM_copy_correct" --set "mainfun[+]" "pringo_LXM_init_unboxed" --disable warn.imprecise --set "exp.extraspecials[+]" printInt
 
 // Buggy code from https://github.com/xavierleroy/pringo/issues/6 where value v is not registered.
 

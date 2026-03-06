@@ -1,5 +1,4 @@
 /* Redefinitions of caml macros for the C-stub analysis. This file replaces caml/memory.h in tests' imports. */
-// TODO: add undefs
 
 /* A small definition of the LXM state so sizeof works - from AI */
 struct LXM_state { uint64_t a; uint64_t x[2]; uint64_t s; };
@@ -7,6 +6,10 @@ struct LXM_state { uint64_t a; uint64_t x[2]; uint64_t s; };
 /* Minimal macros to mimic expected behaviour */
 #define Wsizeof(ty) ((sizeof(ty) + sizeof(value) - 1) / sizeof(value))
 #define LXM_val(v) ((struct LXM_state *) Data_abstract_val(v))
+
+// Redefine CAMLprim to have the annotate attribute marking it as c_stub.
+#undef CAMLprim
+#define CAMLprim extern __attribute__((c_stub))
 
 // Param and local macros redefined to register variables as GC roots, and CAMLreturn mocked to work with them.
 #undef CAMLparam0
