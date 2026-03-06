@@ -137,10 +137,10 @@ let check_arguments () =
   if get_bool "exp.basic-blocks" && not (get_bool "justcil") && List.mem "assert" @@ get_string_list "trans.activated" then (set_bool "exp.basic-blocks" false; warn "The option exp.basic-blocks implicitly disabled by activating the \"assert\" transformation.");
   if (not @@ get_bool "witness.invariant.all-locals") && (not @@ get_bool "cil.addNestedScopeAttr") then (set_bool "cil.addNestedScopeAttr" true; warn "Disabling witness.invariant.all-locals implicitly enables cil.addNestedScopeAttr.");
   if not (get_bool "ana.opt.hashcons") then (
-    if get_bool "exp.arg.enabled" then
-      warn "Disabling ana.opt.hashcons has no effect because hashconsing is implicitly enabled by exp.arg.enabled";
     if MCPRegistry.any_activated_uses_apron () then
       fail "Disabling ana.opt.hashcons is not supported when using Apron domains";
+    if get_bool "exp.arg.enabled" then
+      warn "Disabling ana.opt.hashcons has no effect because hashconsing is implicitly enabled by exp.arg.enabled";
   );
   if List.mem "remove_dead_code" @@ get_string_list "trans.activated" then (
     (* 'assert' transform happens before 'remove_dead_code' transform *)
