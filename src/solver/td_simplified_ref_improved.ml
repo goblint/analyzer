@@ -197,8 +197,9 @@ alternatively, distinguish contribs by session number?
           let x_ref = init x in
           let old_set = !x_ref.contrib in
           let _ = x_ref := {!x_ref with contrib = !new_set} in    
-          let _ = if !abs_GC then VS.iter (fun y -> try HM.find sigma y; () with 
-              | _ -> side x y (S.Dom.bot ())) old_set in
+          let _ = if !abs_GC then 
+              let rem_set = VS.filter (fun g -> not (VS.mem g !new_set)) old_set in
+              VS.iter (fun g -> side x g (S.Dom.bot ())) rem_set in
           d
 
       and iterate x = (* ~(inner) solve in td3 *)
