@@ -48,7 +48,7 @@ struct
     Logs.info "globals:\tequal = %d\tleft = %d\tright = %d\tincomparable = %d" !eq !le !gr !uk
 
   let compare_locals l1 l2 =
-    let one_ctx (node,_) v h =
+    let one_ctx (node,_,_) v h =
       PP.replace h node (try D.join v (PP.find h node) with Not_found -> v);
       h
     in
