@@ -1,17 +1,20 @@
 open Goblint_constraint.ConstrSys
 
-
-let gas_default = (10,3)
 (* TODO make these config options *)
 let do_local_gc = false
 let do_global_gc = false
+
+module type WarrowConfig = sig
+  val delay_default: int
+  val gas_default: int
+end
 
 (** Manage warrowing
 
       Widening will be delayed 'delay' times in each phase
       There will be at most 'gas' narrowing phases.
 *)
-module Warrow (L : Lattice.S) = struct
+module Warrow (L : Lattice.S) (Conf: WarrowConfig) = struct
   (** (value, delay, gas, narrowing_flag) 
         Narrowing flag denotes if the last update lead
         to a narrowing. This is required to maintain delay/gas values.
@@ -23,11 +26,9 @@ module Warrow (L : Lattice.S) = struct
     last_was_narrow: bool;
   }
 
-  let default () =
-    let (delay,gas) = gas_default in { value = L.bot (); delay; gas; last_was_narrow=false }
+  let default () = { value = L.bot (); delay = Conf.delay_default; gas = Conf.gas_default; last_was_narrow=false }
 
-  let warrowc contribution new_value =
-    let (delay0, _) = gas_default in
+  let warrow contribution new_value =
 
     let narrow () =
       if contribution.last_was_narrow then
@@ -48,7 +49,7 @@ module Warrow (L : Lattice.S) = struct
         { contribution with
           value = L.join contribution.value new_value;
           last_was_narrow = false;
-          delay = delay0
+          delay = Conf.delay_default
         }
       else if contribution.delay <= 0 then
         { contribution with value = L.widen contribution.value (L.join contribution.value new_value) }
@@ -64,24 +65,6 @@ module Warrow (L : Lattice.S) = struct
     else if L.leq new_value current_value then narrow ()
     else widen ()
 
-
-  (* Legacy warrow with tuples instead of contribution types *)
-  (* remove once all solvers are migrated *)
-  let warrow (current, delay, gas, narrow_flag) newval =
-    let (delay0, _) = gas_default in
-    if L.equal current newval then (current, delay, gas, narrow_flag)
-
-    else if L.leq newval current then (
-      if narrow_flag then (L.narrow current newval, delay, gas, true)
-      else if gas <= 0 then (current, delay, gas, false)
-      else (L.narrow current newval, delay, gas - 1, true)
-    )
-
-    else (
-      if narrow_flag then (L.join current newval, delay0, gas, false)
-      else if delay <= 0 then (L.widen current (L.join current newval), 0, gas, false)
-      else (L.join current newval, delay - 1, gas, false)
-    )
 end
 
 module SolverLocals (Sys: FwdGlobConstrSys)
@@ -89,9 +72,15 @@ module SolverLocals (Sys: FwdGlobConstrSys)
     (GS: Set.S with type elt=Sys.GVar.t)
 = struct
 
+  module WarrowConf = struct
+    (* TODO this for locals? *)
+    let gas_default = GobConfig.get_int "solvers.td3.narrow-globs.narrow-gas"
+    let delay_default = GobConfig.get_int "solvers.td3.widen_gas"
+  end
+
   module System = Sys
   module D = Sys.D
-  module LWarrow = Warrow(D)
+  module LWarrow = Warrow(D)(WarrowConf)
   module LM = LM
   module GS = GS
 
@@ -141,7 +130,7 @@ module SolverLocals (Sys: FwdGlobConstrSys)
     ) in
     BatOption.default_delayed add_default (LM.find_opt data.loc_from contributor)
 
-  let warrow = LWarrow.warrowc
+  let warrow = LWarrow.warrow
 
   type updated_contribution = Updated of t | NotUpdated of t
 
@@ -174,10 +163,15 @@ end
 
 module SolverGlobals (Sys: FwdGlobConstrSys) (LS: Set.S with type elt = Sys.LVar.t) (LM: Hashtbl.S with type key = Sys.LVar.t) (GM: Hashtbl.S with type key = Sys.GVar.t) = struct
 
+  module WarrowConf = struct
+    let gas_default = GobConfig.get_int "solvers.td3.narrow-globs.narrow-gas"
+    let delay_default = GobConfig.get_int "solvers.td3.side_widen_gas"
+  end
+
   module Sys = Sys
 
   module G = Sys.G
-  module GWarrow = Warrow(G)
+  module GWarrow = Warrow(G)(WarrowConf)
   module LS = LS
   module LM = LM
   module GM = GM
@@ -208,7 +202,7 @@ module SolverGlobals (Sys: FwdGlobConstrSys) (LS: Set.S with type elt = Sys.LVar
       gas = old_contribution.gas;
       last_was_narrow = old_contribution.last_was_narrow
     } in
-    let c = GWarrow.warrowc warrow_contribution d in
+    let c = GWarrow.warrow warrow_contribution d in
     {
       value = c.value;
       delay = c.delay;
@@ -218,8 +212,7 @@ module SolverGlobals (Sys: FwdGlobConstrSys) (LS: Set.S with type elt = Sys.LVar
     }
 
   let default_contribution () =
-    let (delay,gas) = gas_default in 
-    { value = G.bot (); delay; gas; last_was_narrow=false; set=LS.empty}
+    { value = G.bot (); delay = WarrowConf.delay_default; gas=WarrowConf.gas_default; last_was_narrow=false; set=LS.empty}
 
   (** Values for globals
 
