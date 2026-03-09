@@ -117,7 +117,7 @@ struct
 
   module Slvr = (GlobSolverFromEqSolver (Goblint_solver.Selector.Make (PostSolverArg))) (EQSys) (LHT) (GHT)
   (* The comparator *)
-  module CompareGlobSys = CompareConstraints.CompareGlobSys (SpecSys)
+  (* module CompareGlobSys = CompareConstraints.CompareGlobSys (SpecSys) *)
 
   (* Triple of the function, context, and the local value. *)
   module RT = AnalysisResult.ResultType2 (Spec)
@@ -552,7 +552,8 @@ struct
                 (Splitter.split_solution vh', vh')
               ) (d1, d2)
             in
-
+            (* TODO: Fix the implementation of CompareConstraints below *)
+(*
             if get_bool "dbg.compare_runs.globsys" then
               CompareGlobSys.compare (d1, d2) r1 r2;
 
@@ -566,7 +567,7 @@ struct
 
             let module CompareNode = CompareConstraints.CompareNode (Spec.C) (EQSys.D) (LHT) in
             if get_bool "dbg.compare_runs.node" then
-              CompareNode.compare (d1, d2) (fst r1) (fst r2);
+              CompareNode.compare (d1, d2) (fst r1) (fst r2); *)
 
             r1 (* return the result of the first run for further options -- maybe better to exit early since compare_runs is its own mode. Only excluded verify below since it's on by default. *)
           | _ -> failwith "Currently only two runs can be compared!";
@@ -619,19 +620,21 @@ struct
       in
 
       if get_string "comparesolver" <> "" then (
-        let compare_with (module S2 : DemandEqIncrSolver) =
-          let module PostSolverArg2 =
-          struct
+        failwith "Comparison not implemented for backward constraint systems."
+        (** TODO: Fix implementation below *)
+        (* let compare_with (module S2 : DemandEqIncrSolver) =
+           let module PostSolverArg2 =
+           struct
             include PostSolverArg
             let should_warn = false (* we already warn from main solver *)
             let should_save_run = false (* we already save main solver *)
-          end
-          in
-          let module S2' = (GlobSolverFromEqSolver (S2 (PostSolverArg2))) (EQSys) (LHT) (GHT) in
-          let (r2, _) = S2'.solve entrystates entrystates_global startvars' None in (* TODO: has incremental data? *)
-          CompareGlobSys.compare (get_string "solver", get_string "comparesolver") (lh,gh) (r2)
-        in
-        compare_with (Goblint_solver.Selector.choose_solver (get_string "comparesolver"))
+           end
+           in
+           let module S2' = (GlobSolverFromEqSolver (S2 (PostSolverArg2))) (EQSys) (LHT) (GHT) in
+           let (r2, _) = S2'.solve entrystates entrystates_global startvars' None in (* TODO: has incremental data? *)
+           CompareGlobSys.compare (get_string "solver", get_string "comparesolver") (lh,gh) (r2)
+           in
+           compare_with (Goblint_solver.Selector.choose_solver (get_string "comparesolver")) *)
       );
 
       (* Most warnings happen before during postsolver, but some happen later (e.g. in finalize), so enable this for the rest (if required by option). *)

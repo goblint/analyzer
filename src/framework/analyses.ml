@@ -46,6 +46,34 @@ struct
   let is_write_only _ = false
 end
 
+(** Functor for locals with digests. *)
+module VarDigestF (C: Printable.S) (P : Printable.S) =
+struct
+  type t = Node.t * C.t * P.t [@@deriving eq, ord, hash]
+  let relift (n,x,p) = n, C.relift x, P.relift p
+
+  let getLocation (n,d,p) = Node.location n
+
+  let pretty_trace () ((n,c,p) as x) =
+    if get_bool "dbg.trace.context" then (* Print context and digest *)
+      dprintf "(%a, %a, %a) on %a" Node.pretty_trace n C.pretty c P.pretty p CilType.Location.pretty (getLocation x)
+    else
+      dprintf "%a on %a" Node.pretty_trace n CilType.Location.pretty (getLocation x)
+
+  let printXml f (n,c,p) =
+    Var.printXml f n;
+    BatPrintf.fprintf f "<context>\n";
+    C.printXml f c;
+    (* Print digest, for now as part of <context>; not sure how this is parsed. *)
+    P.printXml f p;
+    BatPrintf.fprintf f "</context>\n"
+
+  let var_id (n,_,_) = Var.var_id n
+  let node (n,_,_) = n
+  let is_write_only _ = false
+end
+
+
 module type SpecSysVar =
 sig
   include Printable.S
@@ -497,8 +525,8 @@ end
 module type ComparableSpecSys =
 sig
   module Spec: Spec
-  module EQSys: Goblint_constraint.ConstrSys.BaseGlobConstrSys 
-    with module LVar = VarF (Spec.C)
+  module EQSys: Goblint_constraint.ConstrSys.BaseGlobConstrSys
+    with module LVar = VarDigestF (Spec.C) (Spec.P)
      (* and module GVar = GVarPretty (Spec.V) *)
      and module D = Spec.D
   (* and module G = GVarG (Spec.G) (Spec.C) *)
@@ -509,7 +537,7 @@ end
 module type FwdSpecSys =
 sig
   module Spec: Spec
-  module EQSys: Goblint_constraint.ConstrSys.FwdGlobConstrSys with module LVar = VarF (Spec.C)
+  module EQSys: Goblint_constraint.ConstrSys.FwdGlobConstrSys with module LVar = VarDigestF (Spec.C) (Spec.P)
                                                                and module GVar = GVarFCNW (Spec.V) (Spec.C)
                                                                and module D = Spec.D
                                                                and module G = GVarL (Spec.G) (Spec.D)

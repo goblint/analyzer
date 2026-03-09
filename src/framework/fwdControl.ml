@@ -225,7 +225,8 @@ struct
     let res = Result.create 113 in
 
     (* Adding the state at each system variable to the final result *)
-    let add_local_var (n,es) state =
+    (* TODO: Consider digest in result? *)
+    let add_local_var (n,es,_) state =
       (* Not using Node.location here to have updated locations in incremental analysis.
           See: https://github.com/goblint/analyzer/issues/290#issuecomment-881258091. *)
       let loc = UpdateCil.getLoc n in
@@ -445,8 +446,8 @@ struct
     in
     let prestartstate = Spec.startstate MyCFG.dummy_func.svar in (* like in do_extern_inits *)
     let othervars = List.map (enter_with (otherstate prestartstate)) otherfuns in
-    let startvars = List.concat (startvars @ exitvars @ othervars) in
-    if startvars = [] then
+    let startfuns = List.concat (startvars @ exitvars @ othervars) in
+    if startfuns = [] then
       failwith "BUG: Empty set of start variables; may happen if enter_func of any analysis returns an empty list.";
 
     AnalysisState.global_initialization := false;
@@ -466,9 +467,21 @@ struct
       ; sideg   = (fun g d -> sideg (EQSys.GVar.spec g) (EQSys.G.create_spec d))
       }
     in
-    let startvars' = List.map (fun (n,e) -> (MyCFG.FunctionEntry n, Spec.context (man e) n e)) startvars in
+    let startvars' =
+      let to_startvar (n,e) =
+        let context = Spec.context (man e) n e in
+        let digest = Spec.P.of_elt e in
+        (MyCFG.FunctionEntry n, context, digest)
+      in
+      List.map to_startvar startfuns in
 
-    let entrystates = List.map (fun (n,e) -> (MyCFG.FunctionEntry n, Spec.context (man e) n e), e) startvars in
+    let entrystates =
+      let to_entrystate (n,e) =
+        let context = Spec.context (man e) n e in
+        let digest = Spec.P.of_elt e in
+        ((MyCFG.FunctionEntry n, context, digest), e)
+      in
+      List.map to_entrystate startfuns in
     let entrystates_global = GHT.to_list gh in
 
     let uncalled_dead = ref 0 in
@@ -481,9 +494,9 @@ struct
       let gobview = get_bool "gobview" in
       let save_run_str = let o = get_string "save_run" in if o = "" then (if gobview then "run" else "") else o in
       let solve = if (get_string "solver" = "bu") then BuSolver.solve else
-        if (get_string "solver" = "wbu") then WBuSolver.solve else FwdSolver.solve in 
-      let check = if (get_string "solver" = "bu") then BuSolver.check else 
-        if (get_string "solver" = "wbu") then WBuSolver.check else FwdSolver.check in 
+        if (get_string "solver" = "wbu") then WBuSolver.solve else FwdSolver.solve in
+      let check = if (get_string "solver" = "bu") then BuSolver.check else
+        if (get_string "solver" = "wbu") then WBuSolver.check else FwdSolver.check in
       let _ = solve entrystates entrystates_global startvars' in
 
       AnalysisState.should_warn := true; (* reset for postsolver *)
@@ -496,7 +509,7 @@ struct
       (* Most warnings happen before during postsolver, but some happen later (e.g. in finalize), so enable this for the rest (if required by option). *)
       AnalysisState.should_warn := PostSolverArg.should_warn;
       let insrt k _ s = match k with
-        | (MyCFG.FunctionEntry fn,_) -> Set.Int.add fn.svar.vid s
+        | (MyCFG.FunctionEntry fn,_,_) -> Set.Int.add fn.svar.vid s
         | _ -> s
       in
       (* set of ids of called functions *)
@@ -541,10 +554,10 @@ struct
           let lh2, gh2 = LHT.of_seq rho, GHT.of_seq tau in
           CompareGlobSys.compare (get_string "solver", get_string "comparesolver") (lh,gh) (lh2, gh2)
         in
-        let solve = if (get_string "comparesolver" = "bu") then BuSolver.solve else 
+        let solve = if (get_string "comparesolver" = "bu") then BuSolver.solve else
             (if (get_string "comparesolver" = "fwd") then FwdSolver.solve else WBuSolver.solve) in
 
-        let check = if (get_string "comparesolver" = "bu") then BuSolver.check else 
+        let check = if (get_string "comparesolver" = "bu") then BuSolver.check else
             (if (get_string "comparesolver" = "fwd") then FwdSolver.check else WBuSolver.check) in
         compare_with solve check;
       );
