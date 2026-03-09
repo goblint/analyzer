@@ -34,7 +34,7 @@ module FwdBuSolver (System: FwdGlobConstrSys) = struct
       )
     | NotUpdated _ -> ()
 
-  and wrapped rhs x d = (wrap get_local get_global set_local set_global) rhs x d
+  and wrapped rhs x = (wrap get_local get_global set_local set_global) rhs x
 
   and iterate x = 
     let rloc = Lcl.get x in
@@ -43,7 +43,7 @@ module FwdBuSolver (System: FwdGlobConstrSys) = struct
     | Some rhs -> (
         rloc.called <- true;
         rloc.aborted <- false;
-        wrapped rhs x rloc.loc_value;
+        wrapped rhs x;
         rloc.called <- false;
         if rloc.aborted then (iterate[@tailcall]) x
       )

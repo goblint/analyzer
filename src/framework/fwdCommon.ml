@@ -1,7 +1,10 @@
 open Goblint_constraint.ConstrSys
 
 
-let gas_default = ref (10,3)
+let gas_default = (10,3)
+(* TODO make these config options *)
+let do_local_gc = false
+let do_global_gc = false
 
 (** Manage warrowing
 
@@ -13,8 +16,6 @@ module Warrow (L : Lattice.S) = struct
         Narrowing flag denotes if the last update lead
         to a narrowing. This is required to maintain delay/gas values.
   *)
-  type state = L.t * int * int * bool
-
   type contribution = {
     value: L.t;
     delay: int;
@@ -23,10 +24,10 @@ module Warrow (L : Lattice.S) = struct
   }
 
   let default () =
-    let (delay,gas) = !gas_default in { value = L.bot (); delay; gas; last_was_narrow=false }
+    let (delay,gas) = gas_default in { value = L.bot (); delay; gas; last_was_narrow=false }
 
   let warrowc contribution new_value =
-    let (delay0, _) = !gas_default in
+    let (delay0, _) = gas_default in
 
     let narrow () =
       if contribution.last_was_narrow then
@@ -67,7 +68,7 @@ module Warrow (L : Lattice.S) = struct
   (* Legacy warrow with tuples instead of contribution types *)
   (* remove once all solvers are migrated *)
   let warrow (current, delay, gas, narrow_flag) newval =
-    let (delay0, _) = !gas_default in
+    let (delay0, _) = gas_default in
     if L.equal current newval then (current, delay, gas, narrow_flag)
 
     else if L.leq newval current then (
@@ -83,12 +84,16 @@ module Warrow (L : Lattice.S) = struct
     )
 end
 
-module SolverLocals (Sys: FwdGlobConstrSys) (LM: Hashtbl.S with type key=Sys.LVar.t) = struct
+module SolverLocals (Sys: FwdGlobConstrSys)
+    (LM: Hashtbl.S with type key=Sys.LVar.t) 
+    (GS: Set.S with type elt=Sys.GVar.t)
+= struct
 
   module System = Sys
   module D = Sys.D
   module LWarrow = Warrow(D)
   module LM = LM
+  module GS = GS
 
   type lt = System.LVar.t
 
@@ -99,7 +104,10 @@ module SolverLocals (Sys: FwdGlobConstrSys) (LM: Hashtbl.S with type key=Sys.LVa
     loc_init : D.t; 
     mutable called: bool;
     mutable aborted: bool;
-    loc_from : contribution LM.t}
+    loc_from : contribution LM.t;
+    (** Globals that take contributions from this local, needed for GC *)
+    mutable contribs: GS.t;
+  }
 
   let loc: t LM.t = LM.create 100
 
@@ -107,7 +115,7 @@ module SolverLocals (Sys: FwdGlobConstrSys) (LM: Hashtbl.S with type key=Sys.LVa
     let add_default () = 
       let default = {loc_value = D.bot (); loc_init = D.bot (); 
                      called = false; aborted = false;
-                     loc_from = LM.create 10} in
+                     loc_from = LM.create 10; contribs = GS.empty} in
       LM.add loc x default; 
       default in
     BatOption.default_delayed add_default (LM.find_opt loc x)
@@ -118,7 +126,8 @@ module SolverLocals (Sys: FwdGlobConstrSys) (LM: Hashtbl.S with type key=Sys.LVa
       loc_init = d;
       called = false;
       aborted = false;
-      loc_from = LM.create 10
+      loc_from = LM.create 10;
+      contribs = GS.empty;
     }
 
   let construct_value data =
@@ -209,7 +218,7 @@ module SolverGlobals (Sys: FwdGlobConstrSys) (LS: Set.S with type elt = Sys.LVar
     }
 
   let default_contribution () =
-    let (delay,gas) = !gas_default in 
+    let (delay,gas) = gas_default in 
     { value = G.bot (); delay; gas; last_was_narrow=false; set=LS.empty}
 
   (** Values for globals
@@ -293,6 +302,7 @@ end
 module type SolverLocalsSig = sig
   module System : FwdGlobConstrSys
   module LM : Hashtbl.S with type key = System.LVar.t
+  module GS : Set.S with type elt = System.GVar.t
 
   type contribution 
 
@@ -301,7 +311,9 @@ module type SolverLocalsSig = sig
     loc_init : System.D.t; 
     mutable called: bool;
     mutable aborted: bool;
-    loc_from : contribution LM.t}
+    loc_from : contribution LM.t;
+    mutable contribs: GS.t;
+  }
 
   val get : System.LVar.t -> t
 end
@@ -358,7 +370,7 @@ module Checker (System: FwdGlobConstrSys)
     let get_local x = try (Lcl.get x).loc_value with _ -> D.bot () in
 
     let check_local x d = if D.leq d (D.bot ()) then ()
-      else let {loc_value:D.t;loc_init;called;aborted;loc_from}: Lcl.t = Lcl.get x in
+      else let {loc_value:D.t;loc_init;called;aborted;loc_from; contribs}: Lcl.t = Lcl.get x in
         if D.leq d loc_value then
           if LM.mem sigma_out x then ()
           else (
@@ -458,20 +470,24 @@ module BaseFwdSolver (System: FwdGlobConstrSys) = struct
   module G = System.G
 
   module LS = Set.Make (System.LVar)
+  module GS = Set.Make (System.GVar)
   module GM = Hashtbl.Make(System.GVar)
   module LM = Hashtbl.Make(System.LVar)
 
 
   module Gbl = SolverGlobals(System)(LS)(LM)(GM)
-  module Lcl = SolverLocals(System)(LM)
+  module Lcl = SolverLocals(System)(LM)(GS)
 
   (**
         wrapper around propagation function to collect multiple contributions to same unknowns;
         contributions are delayed until the very end
   *)
-  let wrap get_local get_global set_local set_global rhs x d =
+  let wrap get_local get_global set_local set_global rhs x =
     let local_updates = LM.create 10 in
     let global_updates = GM.create 10 in
+
+    let x_record = Lcl.get x in
+    let d = x_record.loc_value in
 
     let collect_local y d =
       let d = LM.find_opt local_updates y |> BatOption.map_default (D.join d) d in 
@@ -483,8 +499,18 @@ module BaseFwdSolver (System: FwdGlobConstrSys) = struct
 
     (* Use the collect functions for set, so that we can delay and re-order the
        contributions *)
-    rhs d get_local collect_local (get_global x) collect_global;
-    GM.iter (set_global x) global_updates;
+    if do_global_gc then (
+      let old_contribs = x_record.contribs in
+      rhs d get_local collect_local (get_global x) collect_global;
+      let new_contribs = GM.fold (fun g _ s -> GS.add g s) global_updates GS.empty in 
+      x_record.contribs <- new_contribs;
+      GM.iter (set_global x) global_updates;
+      let removed_contribs = GS.filter (fun g -> not @@ GS.mem g new_contribs) old_contribs in
+      GS.iter (fun g -> set_global x g (G.bot ())) removed_contribs
+    ) else (
+      rhs d get_local collect_local (get_global x) collect_global;
+      GM.iter (set_global x) global_updates
+    );
     LM.iter (set_local x) local_updates;
     (* possibly better with reversed ordering *)
 end

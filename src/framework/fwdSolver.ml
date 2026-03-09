@@ -48,12 +48,12 @@ module FwdSolver (System: FwdGlobConstrSys) = struct
     | Updated y_record -> WorkSet.add y
     | NotUpdated _ -> ()
 
-  let wrapped rhs x d = (wrap get_local get_global set_local set_global) rhs x d
+  let wrapped rhs x = (wrap get_local get_global set_local set_global) rhs x
 
   let evaluate x =
     match System.system x with
     | None -> ()
-    | Some f -> wrapped f x (Lcl.get x).loc_value
+    | Some f -> wrapped f x
 
   let solve localinit globalinit start_unknowns =
     solver_start_event ();
