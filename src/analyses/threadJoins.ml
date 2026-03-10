@@ -58,6 +58,8 @@ struct
         | [tid] when TID.is_unique tid->
           let (local_joined, local_clean) = man.local in
           let (other_joined, other_clean) = man.global tid in
+          (* other_joined is bot iff. tid has no termination yet *)
+          if TIDs.is_bot other_joined then raise Deadcode;
           (MustTIDs.union (MustTIDs.add tid local_joined) other_joined, local_clean && other_clean)
         | _ -> man.local (* if multiple possible thread ids are joined, none of them is must joined *)
         (* Possible improvement: Do the intersection first, things that are must joined in all possibly joined threads are must-joined *)
