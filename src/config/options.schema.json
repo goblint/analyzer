@@ -2488,6 +2488,19 @@
       "title": "solvers",
       "type": "object",
       "properties": {
+        "fwd": {
+          "title": "solvers.fwd",
+          "type": "object",
+          "properties": {
+            "update_gas": {
+              "title": "solvers.fwd.update_gas",
+              "description": "How often a contribution should simply overwrite the old one when incomparible instead of widening",
+              "type": "integer",
+              "default": 0
+            }
+          },
+          "additionalProperties": false
+        },
         "td3": {
           "title": "solvers.td3",
           "type": "object",

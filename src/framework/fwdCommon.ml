@@ -7,6 +7,7 @@ let do_global_gc = false
 module type WarrowConfig = sig
   val delay_default: int
   val gas_default: int
+  val update_gas: int
 end
 
 (** Manage warrowing
@@ -23,10 +24,11 @@ module Warrow (L : Lattice.S) (Conf: WarrowConfig) = struct
     value: L.t;
     delay: int;
     gas: int;
+    update_gas: int;
     last_was_narrow: bool;
   }
 
-  let default () = { value = L.bot (); delay = Conf.delay_default; gas = Conf.gas_default; last_was_narrow=false }
+  let default () = { value = L.bot (); delay = Conf.delay_default; gas = Conf.gas_default; update_gas = Conf.update_gas; last_was_narrow=false }
 
   let warrow contribution new_value =
 
@@ -63,7 +65,11 @@ module Warrow (L : Lattice.S) (Conf: WarrowConfig) = struct
     let current_value = contribution.value in
     if L.equal new_value current_value then contribution
     else if L.leq new_value current_value then narrow ()
-    else widen ()
+    else if L.leq current_value new_value then widen ()
+    else (
+      if contribution.update_gas > 0 then { contribution with value = new_value; update_gas = contribution.update_gas - 1 }
+      else widen () 
+    )
 
 end
 
@@ -76,7 +82,9 @@ module SolverLocals (Sys: FwdGlobConstrSys)
     (* TODO this for locals? *)
     let gas_default = GobConfig.get_int "solvers.td3.narrow-globs.narrow-gas"
     let delay_default = GobConfig.get_int "solvers.td3.widen_gas"
+    let update_gas = GobConfig.get_int "solvers.fwd.update_gas"
   end
+
 
   module System = Sys
   module D = Sys.D
@@ -166,6 +174,7 @@ module SolverGlobals (Sys: FwdGlobConstrSys) (LS: Set.S with type elt = Sys.LVar
   module WarrowConf = struct
     let gas_default = GobConfig.get_int "solvers.td3.narrow-globs.narrow-gas"
     let delay_default = GobConfig.get_int "solvers.td3.side_widen_gas"
+    let update_gas = GobConfig.get_int "solvers.fwd.update_gas"
   end
 
   module Sys = Sys
@@ -189,6 +198,7 @@ module SolverGlobals (Sys: FwdGlobConstrSys) (LS: Set.S with type elt = Sys.LVar
     value: G.t;
     delay: int;
     gas: int;
+    update_gas: int;
     last_was_narrow: bool;
     set: LS.t;
   }
@@ -200,6 +210,7 @@ module SolverGlobals (Sys: FwdGlobConstrSys) (LS: Set.S with type elt = Sys.LVar
       value = old_contribution.value;
       delay = old_contribution.delay;
       gas = old_contribution.gas;
+      update_gas = old_contribution.update_gas;
       last_was_narrow = old_contribution.last_was_narrow
     } in
     let c = GWarrow.warrow warrow_contribution d in
@@ -207,12 +218,13 @@ module SolverGlobals (Sys: FwdGlobConstrSys) (LS: Set.S with type elt = Sys.LVar
       value = c.value;
       delay = c.delay;
       gas = c.gas;
+      update_gas = c.update_gas;
       last_was_narrow = c.last_was_narrow;
       set = set
     }
 
   let default_contribution () =
-    { value = G.bot (); delay = WarrowConf.delay_default; gas=WarrowConf.gas_default; last_was_narrow=false; set=LS.empty}
+    { value = G.bot (); delay = WarrowConf.delay_default; gas=WarrowConf.gas_default; update_gas=WarrowConf.update_gas; last_was_narrow=false; set=LS.empty}
 
   (** Values for globals
 
