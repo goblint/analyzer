@@ -26,11 +26,11 @@ module FromSpec (S:Spec) (Cfg:CfgForward) (I: Increment)
   end
 =
 struct
-  type lv = MyCFG.node * S.C.t * S.P.t
+  module LVar = VarDigestF (S.C) (S.P)
+  type lv = LVar.t
   (* type gv = varinfo *)
   type ld = S.D.t
   (* type gd = S.G.t *)
-  module LVar = VarDigestF (S.C) (S.P)
   module GVar = GVarFCNW (S.V)(S.C)
   module D = S.D
   module G = GVarL (S.G) (S.D)
@@ -45,7 +45,7 @@ struct
       S.sync man (`JoinCall f)
     | _ -> S.sync man `Join
 
-  let common_man' (var: node * Obj.t * Obj.t) edge target_node pval (getl:lv -> ld) sidel getg sideg : (D.t, S.G.t, S.C.t, S.V.t) man * D.t list ref * (lval option * varinfo * exp list * D.t * bool) list ref =
+  let common_man' (var : LVar.t) edge target_node pval (getl:lv -> ld) (sidel : lv -> ld -> unit) getg sideg : (D.t, S.G.t, S.C.t, S.V.t) man * D.t list ref * (lval option * varinfo * exp list * D.t * bool) list ref =
     let r = ref [] in
     let spawns = ref [] in
     (* now watch this ... *)
@@ -53,9 +53,9 @@ struct
       { ask     = (fun (type a) (q: a Queries.t) -> S.query man q)
       ; emit    = (fun _ -> failwith "emit outside MCP")
       ; node    = target_node
-      ; prev_node = Tuple3.first var
-      ; control_context = (fun () -> Tuple3.second var |> Obj.obj)
-      ; context = (fun () -> Tuple3.second var |> Obj.obj)
+      ; prev_node = var.node
+      ; control_context = (fun () -> Obj.magic var.context) (** TODO: Just for testing *)
+      ; context = (fun () -> Obj.magic var.context)
       ; edge    = edge
       ; local   = pval
       ; global  = (fun g -> G.spec (getg (GVar.spec g)))
@@ -74,7 +74,8 @@ struct
             let c = S.context man fd d in
             (* Derive digest from abstract state *)
             let p = S.P.of_elt d in
-            sidel (FunctionEntry fd, c, p) d
+            let target_unknown  : lv = {node = FunctionEntry fd; context = c; original_digest = p; current_digest = p} in
+            sidel target_unknown d
           | exception Not_found ->
             (* unknown function *)
             M.error ~category:Imprecise ~tags:[Category Unsound] "Created a thread from unknown function %s" f.vname;
@@ -227,7 +228,8 @@ struct
     let sidel_entries (c,fc,v) =
       if not (S.D.is_bot v) then begin
         let p = S.P.of_elt v in
-        sidel (FunctionEntry f, fc, p) v
+        let target_unknown : lv = {node = FunctionEntry f; context = fc; original_digest = p; current_digest = p}  in
+        sidel target_unknown v
       end
     in
     List.iter sidel_entries paths;
@@ -331,33 +333,37 @@ struct
     let d = S.skip man in (* Force transfer function to be evaluated before dereferencing in common_join argument. *)
     common_join man d !r !spawns
 
-  let tf ((n,c,p) as var) getl sidel getg sideg target_node edge d =
+  let tf (x : lv) getl sidel getg sideg target_node edge d =
+    let target_unknown d : lv =
+      let current_digest = S.P.of_elt d in
+      {node = target_node; context = x.context; original_digest = x.original_digest; current_digest }
+    in
     begin match edge with
       | Assign (lv,rv) ->
-        let r = tf_assign var edge target_node lv rv getl sidel getg sideg d in
-        sidel (target_node, Obj.obj c, Obj.obj p) r
+        let r = tf_assign x edge target_node lv rv getl sidel getg sideg d in
+        sidel (target_unknown r) r
       | VDecl (v)      ->
-        let r = tf_vdecl var edge target_node v getl sidel getg sideg d in
-        sidel (target_node, Obj.obj c, Obj.obj p) r
+        let r = tf_vdecl x edge target_node v getl sidel getg sideg d in
+        sidel (target_unknown r) r
       | Proc (r,f,ars) ->
-        let r = tf_proc var edge target_node r f ars getl sidel getg sideg d in
-        sidel (target_node, Obj.obj c, Obj.obj p) r
+        let r = tf_proc x edge target_node r f ars getl sidel getg sideg d in
+        sidel (target_unknown r) r
       | Entry f        ->
-        let r = tf_entry var edge target_node f getl sidel getg sideg d in
-        sidel (target_node, Obj.obj c, Obj.obj p) r
+        let r = tf_entry x edge target_node f getl sidel getg sideg d in
+        sidel (target_unknown r) r
       | Ret (r,fd)     ->
-        let r = tf_ret var edge target_node r fd getl sidel getg sideg d in
-        sidel (target_node, Obj.obj c, Obj.obj p) r;
-        sideg (GVar.return (fd,Obj.obj c)) (G.create_return r)
+        let r = tf_ret x edge target_node r fd getl sidel getg sideg d in
+        sidel (target_unknown r) r;
+        sideg (GVar.return (fd, x.context)) (G.create_return r)
       | Test (e,b)     ->
-        let r = tf_test var edge target_node e b getl sidel getg sideg d in
-        sidel (target_node, Obj.obj c, Obj.obj p) r
+        let r = tf_test x edge target_node e b getl sidel getg sideg d in
+        sidel (target_unknown r) r
       | ASM (_, _, _)  ->
-        let r = tf_asm var edge target_node getl sidel getg sideg d in
-        sidel (target_node, Obj.obj c, Obj.obj p) r
+        let r = tf_asm x edge target_node getl sidel getg sideg d in
+        sidel (target_unknown r) r
       | Skip           ->
-        let r = tf_skip var edge target_node getl sidel getg sideg d in
-        sidel (target_node, Obj.obj c, Obj.obj p) r
+        let r = tf_skip x edge target_node getl sidel getg sideg d in
+        sidel (target_unknown r) r
     end
 
   type Goblint_backtrace.mark += TfLocation of location
@@ -368,7 +374,7 @@ struct
       | _ -> None (* for other marks *)
     )
 
-  let tf var getl sidel getg sideg target_node (_,edge) d (f,t):unit =
+  let tf x getl sidel getg sideg target_node (_,edge) d (f,t):unit =
     let old_loc  = !Goblint_tracing.current_loc in
     let old_loc2 = !Goblint_tracing.next_loc in
     Goblint_tracing.current_loc := f;
@@ -377,37 +383,37 @@ struct
         Goblint_tracing.current_loc := old_loc;
         Goblint_tracing.next_loc := old_loc2
       ) (fun () ->
-        tf var getl sidel getg sideg target_node edge d
+        tf x getl sidel getg sideg target_node edge d
       )
 
-  let tf_fwd value (v,c,p) (edges, u) getl sidel getg sideg:unit =
+  let tf_fwd value (x : lv) (edges, u) getl sidel getg sideg:unit =
     let pval = value in
-    let _, locs = List.fold_right (fun (f,e) (t,xs) -> f, (f,t)::xs) edges (Node.location v,[]) in
-    let es = List.map (tf (v,Obj.repr c, Obj.repr p) getl sidel getg sideg u) edges in
+    let _, locs = List.fold_right (fun (f,e) (t,xs) -> f, (f,t)::xs) edges (Node.location x.node,[]) in
+    let es = List.map (tf x getl sidel getg sideg u) edges in
     List.iter2 (fun e l -> e pval l) es locs
 
-  let tf value (v,c,p) (e,u) getl sidel getg sideg =
+  let tf value (x : lv) (e,u) getl sidel getg sideg =
     let old_node = !current_node in
     let old_fd = Option.map Node.find_fundec old_node |? Cil.dummyFunDec in
-    let new_fd = Node.find_fundec v in
+    let new_fd = Node.find_fundec x.node in
     if not (CilType.Fundec.equal old_fd new_fd) then
       Timing.Program.enter new_fd.svar.vname;
     let old_context = !M.current_context in
-    current_node := Some v;
-    M.current_context := Some (Obj.magic c); (* magic is fine because Spec is top-level Control Spec *)
+    current_node := Some x.node;
+    M.current_context := Some (Obj.magic x.context); (* magic is fine because Spec is top-level Control Spec *)
     Fun.protect ~finally:(fun () ->
         current_node := old_node;
         M.current_context := old_context;
         if not (CilType.Fundec.equal old_fd new_fd) then
           Timing.Program.exit new_fd.svar.vname
       ) (fun () ->
-        tf_fwd value (v,c,p) (e,u) getl sidel getg sideg
+        tf_fwd value x (e,u) getl sidel getg sideg
       )
 
-  let system (v,c,p) =
+  let system (x : lv) =
     let tf value getl sidel getg sideg =
-      let tf' eu = tf value (v,c,p) eu getl sidel getg sideg in
-      let xs = Cfg.next v in
+      let tf' eu = tf value x eu getl sidel getg sideg in
+      let xs = Cfg.next x.node in
       List.iter (fun eu -> tf' eu) xs
     in
     Some tf

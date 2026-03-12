@@ -48,8 +48,8 @@ struct
     Logs.info "globals:\tequal = %d\tleft = %d\tright = %d\tincomparable = %d" !eq !le !gr !uk
 
   let compare_locals l1 l2 =
-    let one_ctx (node,_,_) v h =
-      PP.replace h node (try D.join v (PP.find h node) with Not_found -> v);
+    let one_ctx (x : Sys.LVar.t) v h =
+      PP.replace h x.node (try D.join v (PP.find h x.node) with Not_found -> v);
       h
     in
     (* these contain results where the contexts per node have been joined *)
