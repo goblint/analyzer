@@ -683,7 +683,7 @@ module T = struct
       pos_t, neg_t
 
   (** `prop_of_cil e pos` parses the expression `e` (or `not e` if `pos = false`) and
-      returns a list of length 1 with the parsed expresion or an empty list if
+      returns a list of length 1 with the parsed expression or an empty list if
         the expression can't be expressed with the type `prop`. *)
   let rec prop_of_cil ask e pos =
     let e = Cil.constFold false e in
@@ -850,7 +850,7 @@ module UnionFind = struct
               let uf = modify_size v' uf ((+) size_v) in
               Z.(r0 + r''), uf
             in
-            (* perform path compresion *)
+            (* perform path compression *)
             let (r', uf) = List.fold_left f (Z.zero, uf) (v::list)
             in v', r', uf
           else

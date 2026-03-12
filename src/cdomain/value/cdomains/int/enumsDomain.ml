@@ -97,7 +97,7 @@ module Enums : S with type int_t = Z.t = struct
       if BISet.mem i x then `Neq
       else `Top
 
-  let cast_to ?(suppress_ovwarn=false) ~kind ?torg ?no_ov ik v = norm ik @@ match v with
+  let cast_to ?(suppress_ovwarn=false) ~kind ?from_ik ?no_ov ik v = norm ik @@ match v with
     | Exc (s,r) ->
       let r' = size ik in
       if R.leq r r' then (* upcast -> no change *)

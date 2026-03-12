@@ -2,7 +2,7 @@ Should have no overflow warning (on line 32).
 Now has NULL dereference warning there still.
 
   $ goblint --enable ana.int.interval_set 12-loop-no-overflows.c
-  [Warning][Behavior > Undefined > NullPointerDereference][CWE-476] May dereference NULL pointer (12-loop-no-overflows.c:34:9-34:550)
+  [Warning][Behavior > Undefined > NullPointerDereference][CWE-476] May dereference NULL pointer (12-loop-no-overflows.c:34:346-34:384)
   [Warning][Behavior > Undefined > NullPointerDereference][CWE-476] May dereference NULL pointer (12-loop-no-overflows.c:36:9-36:33)
   [Info][Unsound] Unknown address given as function argument (12-loop-no-overflows.c:36:9-36:33)
   [Warning][Behavior > Undefined > NullPointerDereference][CWE-476] May dereference NULL pointer (12-loop-no-overflows.c:22:5-22:45)

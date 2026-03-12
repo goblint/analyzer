@@ -541,6 +541,7 @@ struct
         let n = ask.eval_int e in
         VDQ.ID.to_int n
       in
+      (* TODO: use ID.equal_to here, VDQ.ID doesn't have though *)
       let equals_zero e = GobOption.exists (Z.equal Z.zero) (exp_value e) in
       let equals_maxIndex e =
         GobOption.exists2 (fun l -> Z.equal (Z.pred l)) (Option.bind length Idx.to_int) (exp_value e)
