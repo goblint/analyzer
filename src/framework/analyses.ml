@@ -49,27 +49,28 @@ end
 (** Functor for locals with digests. *)
 module VarDigestF (C: Printable.S) (P : Printable.S) =
 struct
-  type t = Node.t * C.t * P.t [@@deriving eq, ord, hash]
-  let relift (n,x,p) = n, C.relift x, P.relift p
+  type t = {node: Node.t; context: C.t; original_digest: P.t; current_digest: P.t} [@@deriving eq, ord, hash]
+  let relift {node; context; original_digest; current_digest} = {node; context = C.relift context; original_digest = P.relift original_digest; current_digest = P.relift current_digest}
 
-  let getLocation (n,d,p) = Node.location n
+  let getLocation {node; context; original_digest; current_digest} = Node.location node
 
-  let pretty_trace () ((n,c,p) as x) =
+  let pretty_trace () x =
     if get_bool "dbg.trace.context" then (* Print context and digest *)
-      dprintf "(%a, %a, %a) on %a" Node.pretty_trace n C.pretty c P.pretty p CilType.Location.pretty (getLocation x)
+      dprintf "(%a, %a, %a) on %a" Node.pretty_trace x.node C.pretty x.context P.pretty x.original_digest CilType.Location.pretty (getLocation x)
     else
-      dprintf "%a on %a" Node.pretty_trace n CilType.Location.pretty (getLocation x)
+      dprintf "%a on %a" Node.pretty_trace x.node CilType.Location.pretty (getLocation x)
 
-  let printXml f (n,c,p) =
-    Var.printXml f n;
+  let printXml f x =
+    Var.printXml f x.node;
     BatPrintf.fprintf f "<context>\n";
-    C.printXml f c;
-    (* Print digest, for now as part of <context>; not sure how this is parsed. *)
-    P.printXml f p;
+    C.printXml f x.context;
+    (* Print original digest and current digest, for now as part of <context>; not sure how this is parsed. *)
+    P.printXml f x.original_digest;
+    P.printXml f x.current_digest;
     BatPrintf.fprintf f "</context>\n"
 
-  let var_id (n,_,_) = Var.var_id n
-  let node (n,_,_) = n
+  let var_id x = Var.var_id x.node
+  let node x = x.node
   let is_write_only _ = false
 end
 

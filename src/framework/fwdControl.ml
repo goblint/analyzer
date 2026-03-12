@@ -64,7 +64,7 @@ let current_varquery_global_state_json: (Goblint_constraint.VarQuery.t option ->
 module AnalyzeCFG (Cfg:CfgBidirSkip) (Spec:Spec) (Inc:Increment) =
 struct
 
- module SpecSys: FwdSpecSys with module Spec = Spec =
+  module SpecSys: FwdSpecSys with module Spec = Spec =
   struct
     (* Must be created in module, because cannot be wrapped in a module later. *)
     module Spec = Spec
@@ -226,23 +226,23 @@ struct
 
     (* Adding the state at each system variable to the final result *)
     (* TODO: Consider digest in result? *)
-    let add_local_var (n,es,_) state =
+    let add_local_var (x : LHT.key) state =
       (* Not using Node.location here to have updated locations in incremental analysis.
           See: https://github.com/goblint/analyzer/issues/290#issuecomment-881258091. *)
-      let loc = UpdateCil.getLoc n in
+      let loc = UpdateCil.getLoc x.node in
       if loc <> locUnknown then try
-          let fundec = Node.find_fundec n in
-          if Result.mem res n then
+          let fundec = Node.find_fundec x.node in
+          if Result.mem res x.node then
             (* If this source location has been added before, we look it up
               * and add another node to it information to it. *)
-            let prev = Result.find res n in
-            Result.replace res n (LT.add (es,state,fundec) prev)
+            let prev = Result.find res x.node in
+            Result.replace res x.node (LT.add (x.context,state,fundec) prev)
           else
-            Result.add res n (LT.singleton (es,state,fundec))
+            Result.add res x.node (LT.singleton (x.context,state,fundec))
         (* If the function is not defined, and yet has been included to the
           * analysis result, we generate a warning. *)
         with Not_found ->
-          Messages.debug ~category:Analyzer ~loc:(CilLocation loc) "Calculated state for undefined function: unexpected node %a" Node.pretty_trace n
+          Messages.debug ~category:Analyzer ~loc:(CilLocation loc) "Calculated state for undefined function: unexpected node %a" Node.pretty_trace x.node
     in
     LHT.iter add_local_var h;
     res
@@ -467,19 +467,19 @@ struct
       ; sideg   = (fun g d -> sideg (EQSys.GVar.spec g) (EQSys.G.create_spec d))
       }
     in
+    let to_startvar (n,e) =
+      let context = Spec.context (man e) n e in
+      let digest = Spec.P.of_elt e in
+      let startvar : LHT.key = {node = MyCFG.FunctionEntry n; context; original_digest = digest; current_digest = digest} in
+      startvar
+    in
     let startvars' =
-      let to_startvar (n,e) =
-        let context = Spec.context (man e) n e in
-        let digest = Spec.P.of_elt e in
-        (MyCFG.FunctionEntry n, context, digest)
-      in
       List.map to_startvar startfuns in
 
     let entrystates =
       let to_entrystate (n,e) =
-        let context = Spec.context (man e) n e in
-        let digest = Spec.P.of_elt e in
-        ((MyCFG.FunctionEntry n, context, digest), e)
+        let startvar = to_startvar (n,e) in
+        (startvar, e)
       in
       List.map to_entrystate startfuns in
     let entrystates_global = GHT.to_list gh in
@@ -508,8 +508,8 @@ struct
 
       (* Most warnings happen before during postsolver, but some happen later (e.g. in finalize), so enable this for the rest (if required by option). *)
       AnalysisState.should_warn := PostSolverArg.should_warn;
-      let insrt k _ s = match k with
-        | (MyCFG.FunctionEntry fn,_,_) -> Set.Int.add fn.svar.vid s
+      let insrt (k : LHT.key) _ s = match k.node with
+        | MyCFG.FunctionEntry fn -> Set.Int.add fn.svar.vid s
         | _ -> s
       in
       (* set of ids of called functions *)
