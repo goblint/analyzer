@@ -1,7 +1,6 @@
 include AddressDomain_intf
 
 open GoblintCil
-open IntOps
 
 module M = Messages
 module Mval_outer = Mval
