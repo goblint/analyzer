@@ -397,25 +397,6 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): Bitfield_SOverflow with type in
       norm ik (z,o)
     else top_of ik
 
-  (* Logic *)
-
-  let log1 f ik i1 = match to_bool i1 with
-    | None -> top_of ik
-    | Some x -> of_bool ik (f x)
-
-  let log2 f ~annihilator ik i1 i2 = match to_bool i1, to_bool i2 with
-    | Some x, _ when x = annihilator -> of_bool ik annihilator
-    | _, Some y when y = annihilator -> of_bool ik annihilator
-    | Some x, Some y -> of_bool ik (f x y)
-    | _              -> top_of ik
-
-  let c_logor = log2 (||) ~annihilator:true
-
-  let c_logand = log2 (&&) ~annihilator:false
-
-  let c_lognot ik i1 = log1 not ik i1
-
-
   (* Bitwise *)
 
   let logxor ik i1 i2 = BArith.logxor i1 i2 |> norm ik

@@ -304,11 +304,6 @@ struct
   let interval_to_int i = Interval.to_int (Some i)
   let interval_to_bool i = Interval.to_bool (Some i)
 
-  let log f ik i1 i2 =
-    match (interval_to_bool i1, interval_to_bool i2) with
-    | Some x, Some y -> of_bool ik (f x y)
-    | _ -> top_of ik
-
 
   let bit f ik (i1, i2) =
     match (interval_to_int i1), (interval_to_int i2) with
@@ -434,23 +429,6 @@ struct
       | _, _ -> (top_of ik, {underflow=false; overflow=false})
 
   let shift_right ik x y = binary_op_with_ovc x y (interval_shiftright ik)
-
-  let c_lognot ik x =
-    let log1 f ik i1 =
-      match interval_to_bool i1 with
-      | Some x -> of_bool ik (f x)
-      | _ -> top_of ik
-    in
-    let interval_lognot = log1 not ik in
-    unop x interval_lognot
-
-  let c_logand ik x y =
-    let interval_logand = log (&&) ik in
-    binop x y interval_logand
-
-  let c_logor ik x y =
-    let interval_logor = log (||) ik in
-    binop x y interval_logor
 
   let add ?no_ov = binary_op_with_norm IArith.add
   let sub ?no_ov = binary_op_with_norm IArith.sub

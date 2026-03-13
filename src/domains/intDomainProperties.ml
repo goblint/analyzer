@@ -62,9 +62,6 @@ struct
   let logxor = logxor (Ik.ikind ())
   let shift_left = shift_left (Ik.ikind ())
   let shift_right = shift_right (Ik.ikind ())
-  let c_lognot = c_lognot (Ik.ikind ())
-  let c_logand = c_logand (Ik.ikind ())
-  let c_logor = c_logor (Ik.ikind ())
 
   let of_int = of_int (Ik.ikind ())
   let of_bool = of_bool (Ik.ikind ())
@@ -127,10 +124,6 @@ struct
   let logxor = lift2 Base.logxor
   let shift_left  = lift2 Base.shift_left
   let shift_right = lift2 Base.shift_right
-
-  let c_lognot = lift1 Base.c_lognot
-  let c_logand = lift2 Base.c_logand
-  let c_logor  = lift2 Base.c_logor
 end
 
 
@@ -182,10 +175,6 @@ struct
   let valid_shift_left = make_valid2 ~name:"shift_left" ~cond:shift_cond CD.shift_left AD.shift_left
   let valid_shift_right = make_valid2 ~name:"shift_right" ~cond:shift_cond CD.shift_right AD.shift_right
 
-  let valid_c_lognot = make_valid1 ~name:"c_lognot" ~cond:not_bot CD.c_lognot AD.c_lognot
-  let valid_c_logand = make_valid2 ~name:"c_logand" ~cond:none_bot CD.c_logand AD.c_logand
-  let valid_c_logor = make_valid2 ~name:"c_logor" ~cond:none_bot CD.c_logor AD.c_logor
-
   let tests = [
     valid_neg;
     valid_add;
@@ -207,10 +196,6 @@ struct
     valid_logxor;
     valid_shift_left;
     valid_shift_right;
-
-    valid_c_lognot;
-    valid_c_logand;
-    valid_c_logor
   ]
 end
 

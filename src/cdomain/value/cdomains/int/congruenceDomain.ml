@@ -205,29 +205,6 @@ struct
 
   let narrow = meet
 
-  let log f ik i1 i2 =
-    match is_bot i1, is_bot i2 with
-    | true, true -> bot_of ik
-    | true, _
-    | _   , true -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show i1) (show i2)))
-    | _ ->
-      match to_bool i1, to_bool i2 with
-      | Some x, Some y -> of_bool ik (f x y)
-      | _              -> top_of ik
-
-  let c_logor = log (||)
-  let c_logand = log (&&)
-
-  let log1 f ik i1 =
-    if is_bot i1 then
-      bot_of ik
-    else
-      match to_bool i1 with
-      | Some x -> of_bool ik (f ik x)
-      | _      -> top_of ik
-
-  let c_lognot = log1 (fun _ik -> not)
-
   let shift_right _ _ _ = top()
 
   let shift_right ik x y =
