@@ -1,4 +1,5 @@
 //PARAM: --set ana.ctx_insens[+] base --set ana.activated[+] taintPartialContexts --set ana.base.arrays.domain unroll --set ana.base.arrays.unrolling-factor 2
+#include <stdlib.h>
 #include <goblint.h>
 
 struct myStruct {
@@ -7,7 +8,7 @@ struct myStruct {
 };
 
 struct myStruct globStrct;
-    
+
 int globArry[2];
 int globInt;
 
@@ -28,7 +29,7 @@ int main () {
     globArry[1] = 1;
     *(locMem) = 1;
     *(locMem + 1) = 1;
-    
+
     f(locMem);
 
     //change

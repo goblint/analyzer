@@ -1,5 +1,6 @@
 // PARAM: --enable ana.int.interval_set --set ana.context.gas_value 15
 #include <stdio.h>
+#include <goblint.h>
 
 int f(int i);
 

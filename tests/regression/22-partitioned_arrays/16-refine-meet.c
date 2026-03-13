@@ -2,6 +2,8 @@
 // NOCHECK
 int garr[7];
 
+void fundef_missing();
+
 int main(int argc, char **argv)
 {
 	// Call to a function with a missing fundef causes invalidation of garr

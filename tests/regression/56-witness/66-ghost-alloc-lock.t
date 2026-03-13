@@ -46,7 +46,7 @@
           column: 3
           function: t_fun
         updates:
-        - variable: ALLOC_VAR1_LOCKED
+        - variable: ALLOC_VAR2_LOCKED
           value: "1"
           format: c_expression
       - location:
@@ -55,7 +55,7 @@
           column: 3
           function: t_fun
         updates:
-        - variable: ALLOC_VAR1_LOCKED
+        - variable: ALLOC_VAR2_LOCKED
           value: "0"
           format: c_expression
       - location:
@@ -64,7 +64,7 @@
           column: 3
           function: t_fun
         updates:
-        - variable: ALLOC_VAR2_LOCKED
+        - variable: ALLOC_VAR1_LOCKED
           value: "1"
           format: c_expression
       - location:
@@ -73,7 +73,7 @@
           column: 3
           function: t_fun
         updates:
-        - variable: ALLOC_VAR2_LOCKED
+        - variable: ALLOC_VAR1_LOCKED
           value: "0"
           format: c_expression
       - location:
@@ -91,7 +91,7 @@
           column: 3
           function: main
         updates:
-        - variable: ALLOC_VAR1_LOCKED
+        - variable: ALLOC_VAR2_LOCKED
           value: "1"
           format: c_expression
       - location:
@@ -100,7 +100,7 @@
           column: 3
           function: main
         updates:
-        - variable: ALLOC_VAR1_LOCKED
+        - variable: ALLOC_VAR2_LOCKED
           value: "0"
           format: c_expression
       - location:
@@ -109,7 +109,7 @@
           column: 3
           function: main
         updates:
-        - variable: ALLOC_VAR2_LOCKED
+        - variable: ALLOC_VAR1_LOCKED
           value: "1"
           format: c_expression
       - location:
@@ -118,7 +118,7 @@
           column: 3
           function: main
         updates:
-        - variable: ALLOC_VAR2_LOCKED
+        - variable: ALLOC_VAR1_LOCKED
           value: "0"
           format: c_expression
   - entry_type: invariant_set
@@ -133,9 +133,9 @@
         format: c_expression
     - invariant:
         type: flow_insensitive_invariant
-        value: '! multithreaded || (ALLOC_VAR1_LOCKED || g1 == 0)'
+        value: '! multithreaded || (ALLOC_VAR1_LOCKED || g2 == 0)'
         format: c_expression
     - invariant:
         type: flow_insensitive_invariant
-        value: '! multithreaded || (ALLOC_VAR2_LOCKED || g2 == 0)'
+        value: '! multithreaded || (ALLOC_VAR2_LOCKED || g1 == 0)'
         format: c_expression
