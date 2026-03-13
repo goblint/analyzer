@@ -92,6 +92,14 @@ struct
         ]
       in
       Yojson.Safe.to_channel ~std:true out json
+    | "dashboard" ->
+      let timings = Timing.Default.root_with_current () in
+      let json = `Assoc [
+          ("files", Preprocessor.dependencies_to_yojson ());
+          ("time", `Float (if get_bool "dbg.timing.enabled" then timings.cputime else -1.));
+          ("checks", Checks.export ());
+        ] in
+      Yojson.Safe.to_channel ~std:true out json
     | "none" -> ()
     | s -> failwith @@ "Unsupported value for option `result`: "^s
 end

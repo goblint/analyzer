@@ -131,10 +131,10 @@ let check_arguments () =
   if get_bool "ana.base.context.interval" && not (get_bool "ana.base.context.int") then (set_bool "ana.base.context.interval" false; warn "ana.base.context.interval implicitly disabled by ana.base.context.int");
   if get_bool "ana.base.priv.protection.changes-only" && not @@ List.mem (get_string "ana.base.privatization") ["protection"; "protection-tid"; "protection-atomic"; "protection-read"; "protection-read-tid"; "protection-read-atomic"] then
     warn "ana.base.priv.protection.changes-only requires ana.base.privatization to be protection based";
-  if get_bool "incremental.only-rename" then (set_bool "incremental.load" true; warn "incremental.only-rename implicitly activates incremental.load. Previous AST is loaded for diff and rename, but analyis results are not reused.");
+  if get_bool "incremental.only-rename" then (set_bool "incremental.load" true; warn "incremental.only-rename implicitly activates incremental.load. Previous AST is loaded for diff and rename, but analysis results are not reused.");
   if get_bool "incremental.restart.sided.enabled" && get_string_list "incremental.restart.list" <> [] then warn "Passing a non-empty list to incremental.restart.list (manual restarting) while incremental.restart.sided.enabled (automatic restarting) is activated.";
   if get_bool "ana.autotune.enabled" && get_bool "incremental.load" then (set_bool "ana.autotune.enabled" false; warn "ana.autotune.enabled implicitly disabled by incremental.load");
-  if get_bool "exp.basic-blocks" && not (get_bool "justcil") && List.mem "assert" @@ get_string_list "trans.activated" then (set_bool "exp.basic-blocks" false; warn "The option exp.basic-blocks implicitely disabled by activating the \"assert\" tranformation.");
+  if get_bool "exp.basic-blocks" && not (get_bool "justcil") && List.mem "assert" @@ get_string_list "trans.activated" then (set_bool "exp.basic-blocks" false; warn "The option exp.basic-blocks implicitly disabled by activating the \"assert\" transformation.");
   if (not @@ get_bool "witness.invariant.all-locals") && (not @@ get_bool "cil.addNestedScopeAttr") then (set_bool "cil.addNestedScopeAttr" true; warn "Disabling witness.invariant.all-locals implicitly enables cil.addNestedScopeAttr.");
   if List.mem "remove_dead_code" @@ get_string_list "trans.activated" then (
     (* 'assert' transform happens before 'remove_dead_code' transform *)

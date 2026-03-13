@@ -3,7 +3,7 @@ There should be overflow on ILP32:
   $ goblint --enable ana.sv-comp.enabled --set ana.specification "CHECK( init(main()), LTL(G ! overflow) )" --set exp.architecture 32bit 36-svcomp-arch.c
   [Info] Setting "ana.int.interval" to true
   [Info] SV-COMP specification: CHECK( init(main()), LTL(G ! overflow) )
-  [Warning][Integer > Overflow][CWE-190] Signed integer overflow (36-svcomp-arch.c:6:8-6:17)
+  [Warning][Integer > Overflow][CWE-190] Signed integer overflow in * (36-svcomp-arch.c:6:8-6:17)
   [Info][Deadcode] Logical lines of code (LLoC) summary:
     live: 4
     dead: 0

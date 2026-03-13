@@ -158,7 +158,7 @@ module T = struct
     | ikind ->
       begin match ask.f (Queries.EvalInt exp) with
         | `Lifted i ->
-          let casted_i = IntDomain.IntDomTuple.cast_to ikind i in
+          let casted_i = IntDomain.IntDomTuple.cast_to ~kind:Internal ikind i in (* TODO: proper castkind *)
           let maybe_i = IntDomain.IntDomTuple.to_int casted_i in
           begin match maybe_i with
             | Some i -> i
@@ -238,14 +238,14 @@ module T = struct
         `NoOffset
       | Field (fld, ofs) ->
         `Field (fld, convert_offset ofs)
-      | Index (exp, ofs) when CilType.Exp.equal exp (Lazy.force Offset.Index.Exp.any) -> (* special offset added by convertToQueryLval *)
+      | Index (exp, ofs) when Offset.Index.Exp.is_any exp -> (* special offset added by convertToQueryLval *)
         let exp_ikind = Cilfacade.get_ikind_exp exp in
         `Index (ValueDomain.ID.top_of exp_ikind, convert_offset ofs)
       | Index (exp, ofs) ->
         let ptr_diff_ikind = Cilfacade.ptrdiff_ikind () in
         let i = match ask.f (Queries.EvalInt exp) with
           | `Lifted x ->
-            IntDomain.IntDomTuple.cast_to ptr_diff_ikind x
+            IntDomain.IntDomTuple.cast_to ~kind:Internal ptr_diff_ikind x (* TODO: proper castkind *)
           | _ ->
             ValueDomain.ID.top_of ptr_diff_ikind
         in
@@ -463,7 +463,7 @@ module T = struct
           | _ ->
             let void_ptr_type = TPtr(TVoid [], []) in
             let offset_plus_exp =  to_cil_sum offset exp in
-            Lval (Mem (CastE (void_ptr_type, offset_plus_exp)), NoOffset)
+            Lval (Mem (CastE (Internal, void_ptr_type, offset_plus_exp)), NoOffset) (* TODO: how can void* be dereferenced? *)
       in
       if check_valid_pointer res then
         res
@@ -537,14 +537,14 @@ module T = struct
         | _ ->
           raise (UnsupportedCilExpression "unsupported BinOp")
       end
-    | CastE (typ, exp)->
+    | CastE (kind, typ, exp)->
       begin match of_cil ask exp with
         | Some (Addr x), z ->
           Some (Addr x), z
         | Some (Aux (x, _)), z ->
-          Some (Aux (x, CastE (typ, exp))), z
+          Some (Aux (x, CastE (kind, typ, exp))), z
         | Some (Deref (x, z, _)), z' ->
-          Some (Deref (x, z, CastE (typ, exp))), z'
+          Some (Deref (x, z, CastE (kind, typ, exp))), z'
         | t, z -> t, z
       end
     | _ -> raise (UnsupportedCilExpression "unsupported Cil Expression")
@@ -683,7 +683,7 @@ module T = struct
       pos_t, neg_t
 
   (** `prop_of_cil e pos` parses the expression `e` (or `not e` if `pos = false`) and
-      returns a list of length 1 with the parsed expresion or an empty list if
+      returns a list of length 1 with the parsed expression or an empty list if
         the expression can't be expressed with the type `prop`. *)
   let rec prop_of_cil ask e pos =
     let e = Cil.constFold false e in
@@ -850,7 +850,7 @@ module UnionFind = struct
               let uf = modify_size v' uf ((+) size_v) in
               Z.(r0 + r''), uf
             in
-            (* perform path compresion *)
+            (* perform path compression *)
             let (r', uf) = List.fold_left f (Z.zero, uf) (v::list)
             in v', r', uf
           else

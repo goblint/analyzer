@@ -153,7 +153,7 @@ struct
       let open Cilfacade in
       let warn_for_upjumps fundec gotos =
         if FunSet.mem live_funs fundec then (
-          (* set nortermiantion flag *)
+          (* set nontermination flag *)
           AnalysisState.svcomp_may_not_terminate := true;
           (* iterate through locations to produce warnings *)
           LocSet.iter (fun l _ ->
@@ -248,7 +248,7 @@ struct
 
     AnalysisState.should_warn := false; (* reset for server mode *)
 
-    (* exctract global xml from result *)
+    (* extract global xml from result *)
     let make_global_fast_xml f g =
       let open Printf in
       let print_globals k v =

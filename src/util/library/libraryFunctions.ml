@@ -17,7 +17,7 @@ let intmax_t = lazy (
 )
 
 let stripOuterBoolCast = function
-  | CastE (TInt (IBool, _), e) -> e
+  | CastE (_, TInt (IBool, _), e) -> e (* TODO: keep explicit cast? *)
   | Const (CInt (b, IBool, s)) -> Const (CInt (b, IInt, s))
   | e -> e
 
@@ -467,6 +467,18 @@ let posix_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("getdelim", unknown [drop "lineptr" [r_deep; w_deep]; drop "n" [r; w]; drop "delimiter" []; drop "stream" [r_deep; w_deep]]);
     ("__getdelim", unknown [drop "lineptr" [r_deep; w_deep]; drop "n" [r; w]; drop "delimiter" []; drop "stream" [r_deep; w_deep]]);
     ("getwdelim", unknown [drop "lineptr" [r_deep; w_deep]; drop "n" [r; w]; drop "delimiter" []; drop "stream" [r_deep; w_deep]]);
+    ("execlp", unknown (drop "file" [r] :: drop "arg" [r] :: VarArgs (drop' [r])));
+    ("gai_strerror", unknown [drop "errcode" []]);
+    ("getegid", unknown []);
+    ("getgroups", unknown [drop "size" []; drop "list" [w]]);
+    ("initgroups", unknown [drop "user" [r]; drop "group" []]);
+    ("mknod", unknown [drop "pathname" [r]; drop "mode" []; drop "dev" []]);
+    ("openat", unknown (drop "dirfd" [] :: drop "pathname" [r] :: drop "flags" [] :: VarArgs (drop "mode" [])));
+    ("seteuid", unknown [drop "uid" []]);
+    ("setgid", unknown [drop "gid" []]);
+    ("setuid", unknown [drop "uid" []]);
+    ("socketpair", unknown [drop "domain" []; drop "type" []; drop "protocol" []; drop "sv" [w]]);
+    ("tcgetpgrp", unknown [drop "fd" []]);
   ]
 [@@coverage off]
 
@@ -721,6 +733,17 @@ let glibc_desc_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("svc_register", unknown [drop "xprt" [r_deep; w_deep]; drop "prognum" []; drop "versnum" []; drop "dispatch" [r; w; c]; drop "protocol" []]);
     ("svc_run", unknown []); (* TODO: make new special kind "NoReturn" for this: the following node will be dead (like Abort), but the program doesn't exit (so it shouldn't be Abort) *)
     (* RPC library end *)
+    ("getgrouplist", unknown [drop "user" [r]; drop "group" []; drop "groups" [w]; drop "ngroups" [r; w]]);
+    ("innetgr", unknown [drop "netgroup" [r]; drop "host" [r]; drop "user" [r]; drop "domain" [r]]);
+    ("lchmod", unknown [drop "path" [r]; drop "mode" []]);
+    ("lseek64", unknown [drop "fd" []; drop "offset" []; drop "whence" []]);
+    ("lutimes", unknown [drop "filename" [r]; drop "times" [r]]);
+    ("mallinfo2", unknown []);
+    ("strlcat", unknown [drop "dst" [r; w]; drop "src" [r]; drop "dstsize" []]);
+    ("strlcpy", unknown [drop "dst" [w]; drop "src" [r]; drop "dstsize" []]);
+    ("chroot", unknown [drop "path" [r]]);
+    ("getpass", unknown ~attrs:[ThreadUnsafe] [drop "prompt" [r]]);
+    ("setgroups", unknown [drop "size" []; drop "list" [r]]);
   ]
 [@@coverage off]
 
@@ -766,6 +789,8 @@ let linux_userspace_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("__fxstat", unknown [drop "ver" []; drop "fildes" []; drop "stat_buf" [w]]);
     ("__ctype_b_loc", unknown []);
     ("_IO_getc", unknown [drop "f" [r_deep; w_deep]]);
+    ("fallocate", unknown [drop "fd" []; drop "mode" []; drop "offset" []; drop "len" []]);
+    ("ioctl", unknown (drop "fd" [] :: drop "request" [] :: VarArgs (drop' [r_deep; w_deep])));
   ]
 [@@coverage off]
 
@@ -835,7 +860,6 @@ let linux_kernel_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("usb_alloc_urb", special [__ "iso_packets" []; drop "mem_flags" []] @@ fun iso_packets -> Malloc MyCFG.unknown_exp);
     ("usb_submit_urb", unknown [drop "urb" [r_deep; w_deep; c_deep]; drop "mem_flags" []]); (* old comment: first argument is written to but according to specification must not be read from anymore *)
     ("dev_driver_string", unknown [drop "dev" [r_deep]]);
-    ("ioctl", unknown (drop "fd" [] :: drop "request" [] :: VarArgs (drop' [r_deep; w_deep])));
     ("idr_pre_get", unknown [drop "idp" [r_deep]; drop "gfp_mask" []]);
     ("printk", unknown (drop "fmt" [r] :: VarArgs (drop' [r])));
     ("kmem_cache_create", unknown [drop "name" [r]; drop "size" []; drop "align" []; drop "flags" []; drop "ctor" [r; c]]);

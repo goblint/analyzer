@@ -60,8 +60,8 @@
                                                         └───────────────────────────────┘
 
   $ goblint --enable ana.int.interval --enable witness.yaml.enabled --set witness.yaml.invariant-types '["location_invariant", "loop_invariant"]' --set sem.int.signed_overflow assume_none foo.c
-  [Warning][Integer > Overflow][CWE-190] Signed integer overflow (foo.c:4:5-4:8)
-  [Warning][Integer > Overflow][CWE-191] Signed integer underflow (foo.c:5:5-5:8)
+  [Warning][Integer > Overflow][CWE-190] Signed integer overflow in + (foo.c:4:5-4:8)
+  [Warning][Integer > Overflow][CWE-191] Signed integer underflow in binary - (foo.c:5:5-5:8)
   [Info][Deadcode] Logical lines of code (LLoC) summary:
     live: 6
     dead: 0

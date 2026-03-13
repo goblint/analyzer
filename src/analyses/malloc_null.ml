@@ -70,7 +70,7 @@ struct
 
   let get_concrete_exp (exp:exp) gl (st:D.t) =
     match constFold true exp with
-    | CastE (_,Lval (Var v, offs))
+    | CastE (_,_,Lval (Var v, offs))
     | Lval (Var v, offs) -> Some (Var v,offs)
     | _ -> None
 

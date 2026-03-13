@@ -73,42 +73,42 @@ module type FloatArith = sig
 
   (** {b Comparison operators} *)
 
-  val lt : t -> t -> IntDomain.IntDomTuple.t
+  val lt : t -> t -> bool option
   (** Less than: [x < y] *)
 
-  val gt : t -> t -> IntDomain.IntDomTuple.t
+  val gt : t -> t -> bool option
   (** Greater than: [x > y] *)
 
-  val le : t -> t -> IntDomain.IntDomTuple.t
+  val le : t -> t -> bool option
   (** Less than or equal: [x <= y] *)
 
-  val ge : t -> t -> IntDomain.IntDomTuple.t
+  val ge : t -> t -> bool option
   (** Greater than or equal: [x >= y] *)
 
-  val eq : t -> t -> IntDomain.IntDomTuple.t
+  val eq : t -> t -> bool option
   (** Equal to: [x == y] *)
 
-  val ne : t -> t -> IntDomain.IntDomTuple.t
+  val ne : t -> t -> bool option
   (** Not equal to: [x != y] *)
 
-  val unordered: t -> t -> IntDomain.IntDomTuple.t
+  val unordered: t -> t -> bool option
   (** Unordered *)
 
   (** {b Unary functions returning [int]} *)
 
-  val isfinite : t -> IntDomain.IntDomTuple.t
+  val isfinite : t -> bool option
   (** [__builtin_isfinite(x)] *)
 
-  val isinf : t -> IntDomain.IntDomTuple.t
+  val isinf : t -> bool option
   (** [__builtin_isinf(x)] *)
 
-  val isnan : t -> IntDomain.IntDomTuple.t
+  val isnan : t -> bool option
   (** [__builtin_isnan(x)] *)
 
-  val isnormal : t -> IntDomain.IntDomTuple.t
+  val isnormal : t -> bool option
   (** [__builtin_isnormal(x)] *)
 
-  val signbit : t -> IntDomain.IntDomTuple.t
+  val signbit : t -> bool option
   (** [__builtin_signbit(x)] *)
 end
 

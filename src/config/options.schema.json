@@ -79,9 +79,9 @@
     "result": {
       "title": "result",
       "description":
-        "Result style: none, fast_xml, json, pretty, pretty-deterministic, json-messages, sarif.",
+        "Result style: none, fast_xml, json, pretty, pretty-deterministic, json-messages, sarif, dashboard.",
       "type": "string",
-      "enum": ["none", "fast_xml", "g2html", "xslt", "json", "pretty", "pretty-deterministic", "json-messages", "sarif"],
+      "enum": ["none", "fast_xml", "g2html", "xslt", "json", "pretty", "pretty-deterministic", "json-messages", "sarif", "dashboard"],
       "default": "none"
     },
     "solver": {
@@ -2199,13 +2199,6 @@
           "title": "dbg.warn_with_context",
           "description":
             "Keep warnings for different contexts apart (currently only done for asserts).",
-          "type": "boolean",
-          "default": false
-        },
-        "regression": {
-          "title": "dbg.regression",
-          "description":
-            "Only output warnings for assertions that have an unexpected result (no comment, comment FAIL, comment UNKNOWN)",
           "type": "boolean",
           "default": false
         },

@@ -16,17 +16,24 @@ Regression tests can be run with various granularity:
 
 * Run all (non-Apron) regression tests with: `./scripts/update_suite.rb`.
 * Run all Apron tests with: `dune build @runaprontest`.
-* Run a group of tests with: `./scripts/update_suite.rb group sanity`.
+* Run a group of tests (by directory, without number) with: `./scripts/update_suite.rb group sanity`.
 
     Unfortunately this also runs skipped tests.
     This is a bug that is used as a feature in the tests with Apron, as not all CI jobs have the Apron library installed.
 
-* Run a single test with: `./scripts/update_suite.rb assert`.
-* Run a single test with full output: `./regtest.sh 00 01`.
+* Run a single test (by name, without group or number) with: `./scripts/update_suite.rb assert`.
 
-    Additional options are also passed to Goblint.
+    This compares Goblint output with test annotations (described below) and only outputs mismatches (i.e. test failures).
+    It is useful for checking if the test passes (or which parts don't).
+    Since group name is not specified, beware of same test name in multiple groups.
 
-To pass additional options to Goblint with `update_suite.rb`, use the `gobopt` environment variable, e.g.:
+* Run a single test (by group and test number) with full output: `./regtest.sh 00 01`.
+
+    This _does not_ compare Goblint output with test annotations, but directly shows all Goblint output.
+    It is useful for debugging the test.
+    Additional command-line options are also passed to Goblint.
+
+To pass additional command-line options to Goblint with `update_suite.rb`, use the `gobopt` environment variable, e.g.:
 ```
 gobopt='--set ana.base.privatization write+lock' ./scripts/update_suite.rb
 ```

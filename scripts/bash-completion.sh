@@ -25,7 +25,7 @@ _goblint ()
     IFS=$'\n'
     local words cword cur
     _get_comp_words_by_ref -n = cur words cword # Bypass = in COMP_WORDBREAKS (https://stackoverflow.com/a/57437406/854540)
-    COMPREPLY=($(${words[0]} --complete "${words[@]:1:cword}"))
+    COMPREPLY=($(${words[0]/#\~/$HOME} --complete "${words[@]:1:cword}"))
     __ltrim_equal_completions "$cur" # Bypass = in COMP_WORDBREAKS (https://stackoverflow.com/a/57437406/854540)
 }
 
@@ -45,7 +45,7 @@ _regtest ()
         *)
             local words cword cur
             _get_comp_words_by_ref -n = cur words cword # Bypass = in COMP_WORDBREAKS (https://stackoverflow.com/a/57437406/854540)
-            COMPREPLY=($($(dirname ${words[0]})/goblint --complete "${words[@]:3:cword}"))
+            COMPREPLY=($($(dirname ${words[0]/#\~/$HOME})/goblint --complete "${words[@]:3:cword}"))
             __ltrim_equal_completions "$cur" # Bypass = in COMP_WORDBREAKS (https://stackoverflow.com/a/57437406/854540)
             ;;
     esac

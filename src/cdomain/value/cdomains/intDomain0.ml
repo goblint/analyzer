@@ -71,24 +71,81 @@ let should_wrap ik = not (Cil.isSigned ik) || get_string "sem.int.signed_overflo
 let should_ignore_overflow ik = Cil.isSigned ik && get_string "sem.int.signed_overflow" = "assume_none"
 
 type overflow_info = IntDomain_intf.overflow_info = { overflow: bool; underflow: bool;}
+type overflow_op =
+  | Binop of binop
+  | Unop of unop
+  | Cast of castkind
+  | Internal
 
-let set_overflow_flag ~cast ~underflow ~overflow ik =
+let add_overflow_check ~(op:overflow_op) ~underflow ~overflow ik =
   if !AnalysisState.executing_speculative_computations then
     (* Do not produce warnings when the operations are not actually happening in code *)
     ()
   else
     let signed = Cil.isSigned ik in
-    if !AnalysisState.postsolving && signed && not cast then
+    if !AnalysisState.postsolving && signed && (match op with Cast _ -> false | _ -> true) && (underflow || overflow) then
       AnalysisState.svcomp_may_overflow := true;
-    let sign = if signed then "Signed" else "Unsigned" in
+    let check: Checks.Category.t option =
+      match signed, op with
+      | true, (Unop Neg | Binop (PlusA | MinusA | Mult | Div | Mod)) -> Some SignedIntegerOverflowInArithmetic
+      | true, Cast Explicit -> Some SignedIntegerOverflowInExplicitCast
+      | true, Cast (IntegerPromotion | DefaultArgumentPromotion | ArithmeticConversion | ConditionalConversion | PointerConversion | Implicit) -> Some SignedIntegerOverflowInImplicitCast
+      | false, (Unop Neg | Binop (PlusA | MinusA | Mult | Div | Mod)) -> Some UnsignedIntegerOverflowInArithmetic
+      | false, Cast Explicit -> Some UnsignedIntegerOverflowInExplicitCast
+      | false, Cast (IntegerPromotion | DefaultArgumentPromotion | ArithmeticConversion | ConditionalConversion | PointerConversion | Implicit) -> Some UnsignedIntegerOverflowInImplicitCast
+      | _, Binop Shiftlt -> Some InvalidShift
+      | _, _ -> None
+    in
+    let op =
+      match op with
+      (* explicitly distinguish binary and unary - *)
+      | Binop (MinusA | MinusPP | MinusPI) -> "binary -" (* only MinusA should probably be possible here *)
+      | Unop Neg -> "unary -"
+      | Binop bop -> CilType.Binop.show bop
+      | Unop uop -> CilType.Unop.show uop
+      | Cast Explicit -> "cast"
+      | Cast IntegerPromotion -> "integer promotion"
+      | Cast DefaultArgumentPromotion -> "default argument promotion"
+      | Cast ArithmeticConversion -> "arithmethic conversion"
+      | Cast ConditionalConversion -> "conditional conversion"
+      | Cast PointerConversion -> "pointer conversion"
+      | Cast Implicit -> "implicit conversion"
+      | Cast Internal -> "internal cast"
+      | Internal -> "internal operation"
+    in
+    let message =
+      let sign = if signed then "Signed" else "Unsigned" in
+      match underflow, overflow with
+      | true, true ->
+        Printf.sprintf "%s integer overflow and underflow in %s" sign op
+      | true, false ->
+        Printf.sprintf "%s integer underflow in %s" sign op
+      | false, true ->
+        Printf.sprintf "%s integer overflow in %s" sign op
+      | false, false ->
+        let sign = if signed then "signed" else "unsigned" in (* lowercase constants *)
+        Printf.sprintf "No %s integer overflow or underflow in %s" sign op
+    in
+    let tags: M.Tag.t list =
+      match underflow, overflow with
+      | true, true -> [CWE 190; CWE 191]
+      | true, false -> [CWE 191]
+      | false, true -> [CWE 190]
+      | false, false -> []
+    in
     match underflow, overflow with
-    | true, true ->
-      M.warn ~category:M.Category.Integer.overflow ~tags:[CWE 190; CWE 191] "%s integer overflow and underflow" sign
-    | true, false ->
-      M.warn ~category:M.Category.Integer.overflow ~tags:[CWE 191] "%s integer underflow" sign
+    | true, true
+    | true, false
     | false, true ->
-      M.warn ~category:M.Category.Integer.overflow ~tags:[CWE 190] "%s integer overflow" sign
-    | false, false -> assert false
+      M.warn ~category:M.Category.Integer.overflow ~tags "%s" message;
+      Option.iter (fun check ->
+          Checks.warn check "%s" message
+        ) check
+    | false, false ->
+      Option.iter (fun check ->
+          Checks.safe_msg check "%s" message
+        ) check
+
 
 let reset_lazy () =
   ana_int_config.interval_threshold_widening <- None;
@@ -161,7 +218,7 @@ struct
   let name () = "IntDomLifter(" ^ (I.name ()) ^ ")"
   let to_yojson x = I.to_yojson x.v
   let invariant e x =
-    let e' = Cilfacade.mkCast ~e ~newt:(TInt (x.ikind, [])) in
+    let e' = Cilfacade.mkCast ~kind:Explicit ~e ~newt:(TInt (x.ikind, [])) in
     I.invariant_ikind e' x.ikind x.v
   let tag x = I.tag x.v
   let arbitrary ik = failwith @@ "Arbitrary not implement for " ^ (name ()) ^ "."
@@ -206,7 +263,7 @@ struct
   let c_logand = lift2 I.c_logand
   let c_logor = lift2 I.c_logor
 
-  let cast_to ?(suppress_ovwarn=false) ?torg ikind x = {v = I.cast_to  ~suppress_ovwarn ~torg:(TInt(x.ikind,[])) ikind x.v; ikind}
+  let cast_to ?(suppress_ovwarn=false) ~kind ikind x = {v = I.cast_to  ~suppress_ovwarn ~kind ~from_ik:x.ikind ikind x.v; ikind}
 
   let is_top_of ik x = ik = x.ikind && I.is_top_of ik x.v
 
@@ -509,7 +566,7 @@ module SOverflowUnlifter (D : SOverflow) : S2 with type int_t = D.int_t and type
 
   let neg ?no_ov ik x = fst @@ D.neg ?no_ov ik x
 
-  let cast_to ?suppress_ovwarn ?torg ?no_ov ik x = fst @@ D.cast_to ?torg ?no_ov ik x
+  let cast_to ?suppress_ovwarn ~kind ?from_ik ?no_ov ik x = fst @@ D.cast_to ~kind ?from_ik ?no_ov ik x
 
   let of_int ?suppress_ovwarn ik x = fst @@ D.of_int ik x
 
@@ -577,7 +634,7 @@ struct
   let c_lognot n1    = of_bool (not (to_bool' n1))
   let c_logand n1 n2 = of_bool ((to_bool' n1) && (to_bool' n2))
   let c_logor  n1 n2 = of_bool ((to_bool' n1) || (to_bool' n2))
-  let cast_to ?(suppress_ovwarn=false) ?torg t x =  failwith @@ "Cast_to not implemented for " ^ (name ()) ^ "."
+  let cast_to ?(suppress_ovwarn=false) ~kind t x =  failwith @@ "Cast_to not implemented for " ^ (name ()) ^ "."
   let arbitrary ik = QCheck.map ~rev:Ints_t.to_int64 Ints_t.of_int64 GobQCheck.Arbitrary.int64 (* TODO: use ikind *)
   let invariant _ _ = Invariant.none (* TODO *)
 end
@@ -607,8 +664,8 @@ struct
 
 
   let name () = "flat integers"
-  let cast_to ?(suppress_ovwarn=false) ?torg t = function
-    | `Lifted x -> `Lifted (Base.cast_to t x)
+  let cast_to ?(suppress_ovwarn=false) ~kind t = function
+    | `Lifted x -> `Lifted (Base.cast_to ~kind t x)
     | x -> x
 
   let equal_to i = function
@@ -688,8 +745,8 @@ struct
   include StdTop (struct type nonrec t = t let top_of = top_of end)
 
   let name () = "lifted integers"
-  let cast_to ?(suppress_ovwarn=false) ?torg t = function
-    | `Lifted x -> `Lifted (Base.cast_to t x)
+  let cast_to ?(suppress_ovwarn=false) ~kind t = function
+    | `Lifted x -> `Lifted (Base.cast_to ~kind t x)
     | x -> x
 
   let equal_to i = function
@@ -761,7 +818,7 @@ module SOverflowLifter (D : S) : SOverflow with type int_t = D.int_t and type t 
 
   let neg ?no_ov ik x = lift @@ D.neg ?no_ov ik x
 
-  let cast_to ?torg ?no_ov ik x = lift @@ D.cast_to ?torg ?no_ov ik x
+  let cast_to ~kind ?from_ik ?no_ov ik x = lift @@ D.cast_to ~kind ?from_ik ?no_ov ik x
 
   let of_int ik x = lift @@ D.of_int ik x
 
