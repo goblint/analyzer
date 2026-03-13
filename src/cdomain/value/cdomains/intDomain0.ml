@@ -181,7 +181,7 @@ struct
   (* For logical operations the result is of type int *)
   let lift_logical op x = {v = op x.ikind x.v; ikind = Cil.IInt}
   let lift2 op x y = check_ikinds x y; {x with v = op x.ikind x.v y.v }
-  let lift2_cmp op x y = check_ikinds x y; I.to_bool (op x.ikind x.v y.v)
+  let lift2_cmp op x y = check_ikinds x y; op x.ikind x.v y.v
 
   let bot_of ikind = { v = I.bot_of ikind; ikind}
   let bot () = failwith "bot () is not implemented for IntDomLifter."

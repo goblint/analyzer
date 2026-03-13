@@ -390,7 +390,7 @@ struct
       raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y)))
 
   (* The equality check: *)
-  let eq ik x y = match x,y with
+  let eq ik x y = to_bool @@ match x,y with (* TODO: avoid to_bool *)
     (* Not much to do with two exclusion sets: *)
     | `Excluded _, `Excluded _ -> top_of IInt
     (* Is x equal to an exclusion set, if it is a member then NO otherwise we
@@ -405,7 +405,7 @@ struct
       raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y)))
 
   (* The inequality check: *)
-  let ne ik x y = match x,y with
+  let ne ik x y = to_bool @@ match x,y with (* TODO: avoid to_bool *)
     (* Not much to do with two exclusion sets: *)
     | `Excluded _, `Excluded _ -> top_of IInt
     (* Is x unequal to an exclusion set, if it is a member then Yes otherwise we
@@ -442,7 +442,7 @@ struct
     | _, _ -> f ()
 
   let lt ik x y =
-    handle_bot x y (fun () ->
+    to_bool @@ handle_bot x y (fun () -> (* TODO: avoid to_bool *)
         match minimal x, maximal x, minimal y, maximal y with
         | _, Some x2, Some y1, _ when Z.compare x2 y1 < 0 -> of_bool ik true
         | Some x1, _, _, Some y2 when Z.compare x1 y2 >= 0 -> of_bool ik false
@@ -451,7 +451,7 @@ struct
   let gt ik x y = lt ik y x
 
   let le ik x y =
-    handle_bot x y (fun () ->
+    to_bool @@ handle_bot x y (fun () -> (* TODO: avoid to_bool *)
         match minimal x, maximal x, minimal y, maximal y with
         | _, Some x2, Some y1, _ when Z.compare x2 y1 <= 0 -> of_bool ik true
         | Some x1, _, _, Some y2 when Z.compare x1 y2 > 0 -> of_bool ik false
@@ -576,7 +576,7 @@ struct
       of_bool ik true
     | _, _ ->
       lift2 IntOps.BigIntOps.c_logor ik x y
-  let c_lognot ik = eq ik (of_int ik Z.zero)
+  let c_lognot ik x = match eq ik (of_int ik Z.zero) x with None -> top_of IInt | Some x -> of_bool IInt x (* TODO: avoid conversion *)
 
   let invariant_ikind e ik (x:t) =
     match x with

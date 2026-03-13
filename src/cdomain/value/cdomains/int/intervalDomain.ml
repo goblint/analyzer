@@ -391,7 +391,7 @@ struct
         (r, ov)
 
   let ne ik x y =
-    match x, y with
+    to_bool @@ match x, y with (* TODO: avoid to_bool *)
     | None, None -> bot_of ik
     | None, _ | _, None -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y)))
     | Some (x1,x2), Some (y1,y2) ->
@@ -402,7 +402,7 @@ struct
       else top_bool
 
   let eq ik x y =
-    match x, y with
+    to_bool @@ match x, y with (* TODO: avoid to_bool *)
     | None, None -> bot_of ik
     | None, _ | _, None -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y)))
     | Some (x1,x2), Some (y1,y2) ->
@@ -413,7 +413,7 @@ struct
       else top_bool
 
   let ge ik x y =
-    match x, y with
+    to_bool @@ match x, y with (* TODO: avoid to_bool *)
     | None, None -> bot_of ik
     | None, _ | _, None -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y)))
     | Some (x1,x2), Some (y1,y2) ->
@@ -422,7 +422,7 @@ struct
       else top_bool
 
   let le ik x y =
-    match x, y with
+    to_bool @@ match x, y with (* TODO: avoid to_bool *)
     | None, None -> bot_of ik
     | None, _ | _, None -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y)))
     | Some (x1,x2), Some (y1,y2) ->
@@ -431,7 +431,7 @@ struct
       else top_bool
 
   let gt ik x y =
-    match x, y with
+    to_bool @@ match x, y with (* TODO: avoid to_bool *)
     | None, None -> bot_of ik
     | None, _ | _, None -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y)))
     | Some (x1,x2), Some (y1,y2) ->
@@ -440,7 +440,7 @@ struct
       else top_bool
 
   let lt ik x y =
-    match x, y with
+    to_bool @@ match x, y with
     | None, None -> bot_of ik
     | None, _ | _, None -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y)))
     | Some (x1,x2), Some (y1,y2) ->

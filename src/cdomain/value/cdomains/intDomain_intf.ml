@@ -108,22 +108,22 @@ sig
 
   (** {b Comparison operators} *)
 
-  val lt: Cil.ikind -> t -> t -> t
+  val lt: Cil.ikind -> t -> t -> bool option
   (** Less than: [x < y] *)
 
-  val gt: Cil.ikind -> t -> t -> t
+  val gt: Cil.ikind -> t -> t -> bool option
   (** Greater than: [x > y] *)
 
-  val le: Cil.ikind -> t -> t -> t
+  val le: Cil.ikind -> t -> t -> bool option
   (** Less than or equal: [x <= y] *)
 
-  val ge: Cil.ikind -> t -> t -> t
+  val ge: Cil.ikind -> t -> t -> bool option
   (** Greater than or equal: [x >= y] *)
 
-  val eq: Cil.ikind -> t -> t -> t
+  val eq: Cil.ikind -> t -> t -> bool option
   (** Equal to: [x == y] *)
 
-  val ne: Cil.ikind -> t -> t -> t
+  val ne: Cil.ikind -> t -> t -> bool option
   (** Not equal to: [x != y] *)
 
 

@@ -238,10 +238,7 @@ struct
   let one = [IArith.one]
   let top_bool = [IArith.top_bool]
 
-  let not_bool (x:t) =
-    let is_false x = equal x zero in
-    let is_true x = equal x one in
-    if is_true x then zero else if is_false x then one else top_bool
+  let not_bool = Option.map not
 
   let to_bool = function
     | [(l,u)] when l =. Ints_t.zero && u =. Ints_t.zero -> Some false
@@ -263,7 +260,7 @@ struct
   let of_int ik (x: int_t) = of_interval ik (x, x)
 
   let lt ik x y =
-    match x, y with
+    to_bool @@ match x, y with (* TODO: avoid to_bool *)
     | [], [] -> bot_of ik
     | [], _ | _, [] -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y)))
     | _, _ ->
@@ -277,7 +274,7 @@ struct
         top_bool
 
   let le ik x y =
-    match x, y with
+    to_bool @@ match x, y with (* TODO: avoid to_bool *)
     | [], [] -> bot_of ik
     | [], _ | _, [] -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y)))
     | _, _ ->
@@ -294,7 +291,7 @@ struct
 
   let ge ik x y = not_bool @@ lt ik x y
 
-  let eq ik x y = match x, y with
+  let eq ik x y = to_bool @@ match x, y with (* TODO: avoid to_bool *)
     | (a, b)::[], (c, d)::[] when a =. b && c =. d && a =. c ->
       one
     | _ ->
