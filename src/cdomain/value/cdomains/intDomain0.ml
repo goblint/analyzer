@@ -181,7 +181,7 @@ struct
   (* For logical operations the result is of type int *)
   let lift_logical op x = {v = op x.ikind x.v; ikind = Cil.IInt}
   let lift2 op x y = check_ikinds x y; {x with v = op x.ikind x.v y.v }
-  let lift2_cmp op x y = check_ikinds x y; {v = op x.ikind x.v y.v; ikind = Cil.IInt}
+  let lift2_cmp op x y = check_ikinds x y; I.to_bool (op x.ikind x.v y.v)
 
   let bot_of ikind = { v = I.bot_of ikind; ikind}
   let bot () = failwith "bot () is not implemented for IntDomLifter."
@@ -619,12 +619,12 @@ struct
   let mul  = Ints_t.mul
   let div  = Ints_t.div
   let rem  = Ints_t.rem
-  let lt n1 n2 = of_bool (n1 <  n2)
-  let gt n1 n2 = of_bool (n1 >  n2)
-  let le n1 n2 = of_bool (n1 <= n2)
-  let ge n1 n2 = of_bool (n1 >= n2)
-  let eq n1 n2 = of_bool (n1 =  n2)
-  let ne n1 n2 = of_bool (n1 <> n2)
+  let lt n1 n2 = Some (n1 <  n2)
+  let gt n1 n2 = Some (n1 >  n2)
+  let le n1 n2 = Some (n1 <= n2)
+  let ge n1 n2 = Some (n1 >= n2)
+  let eq n1 n2 = Some (n1 =  n2)
+  let ne n1 n2 = Some (n1 <> n2)
   let lognot = Ints_t.lognot
   let logand = Ints_t.logand
   let logor  = Ints_t.logor
@@ -704,6 +704,11 @@ struct
       (try `Lifted (f x y) with Unknown -> `Top | Error -> `Bot)
     | `Bot, `Bot -> `Bot
     | _ -> `Top
+  let lift2_bool f x y = match x,y with
+    | `Lifted x, `Lifted y ->
+      (try f x y with Unknown -> None | Error -> None)
+    | `Bot, `Bot -> None
+    | _ -> None
 
   let neg  = lift1 Base.neg
   let add  = lift2 Base.add
@@ -711,12 +716,12 @@ struct
   let mul  = lift2 Base.mul
   let div  = lift2 Base.div
   let rem  = lift2 Base.rem
-  let lt = lift2 Base.lt
-  let gt = lift2 Base.gt
-  let le = lift2 Base.le
-  let ge = lift2 Base.ge
-  let eq = lift2 Base.eq
-  let ne = lift2 Base.ne
+  let lt = lift2_bool Base.lt
+  let gt = lift2_bool Base.gt
+  let le = lift2_bool Base.le
+  let ge = lift2_bool Base.ge
+  let eq = lift2_bool Base.eq
+  let ne = lift2_bool Base.ne
   let lognot = lift1 Base.lognot
   let logand = lift2 Base.logand
   let logor  = lift2 Base.logor
@@ -771,6 +776,10 @@ struct
     | `Lifted x, `Lifted y -> `Lifted (f x y)
     | `Bot, `Bot -> `Bot
     | _ -> `Top
+  let lift2_bool f x y = match x,y with
+    | `Lifted x, `Lifted y -> f x y
+    | `Bot, `Bot -> None
+    | _ -> None
 
   let neg  = lift1 Base.neg
   let add  = lift2 Base.add
@@ -778,12 +787,12 @@ struct
   let mul  = lift2 Base.mul
   let div  = lift2 Base.div
   let rem  = lift2 Base.rem
-  let lt = lift2 Base.lt
-  let gt = lift2 Base.gt
-  let le = lift2 Base.le
-  let ge = lift2 Base.ge
-  let eq = lift2 Base.eq
-  let ne = lift2 Base.ne
+  let lt = lift2_bool Base.lt
+  let gt = lift2_bool Base.gt
+  let le = lift2_bool Base.le
+  let ge = lift2_bool Base.ge
+  let eq = lift2_bool Base.eq
+  let ne = lift2_bool Base.ne
   let lognot = lift1 Base.lognot
   let logand = lift2 Base.logand
   let logor  = lift2 Base.logor

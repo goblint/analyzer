@@ -169,6 +169,11 @@ struct
 
   let iDtoIdx x = ID.cast_to ~kind:Internal (Cilfacade.ptrdiff_ikind ()) x (* TODO: proper castkind *)
 
+  let id_binary_pred result_ik f x y =
+    match f x y with
+    | Some b -> ID.of_bool result_ik b
+    | None -> ID.of_interval result_ik (Z.zero, Z.one)
+
   (** Unary float predicates return non-zero for [true].
       @see C11 7.12.3 *)
   let fd_unary_pred = function
@@ -180,7 +185,7 @@ struct
       @see C11 7.12.14, 6.5.8, 6.5.9 *)
   let fd_binary_pred = function
     | Some b -> ID.of_bool IInt b
-    | None -> ID.top_of IInt
+    | None -> ID.top_of IInt (* TODO: [0,1] interval instead? *)
 
   let unop_ID = function
     | Neg  -> ID.neg
@@ -235,17 +240,17 @@ struct
          | `Neq ->
            Checks.safe Checks.Category.DivisionByZero);
         ID.rem x y
-    | Lt -> ID.lt
-    | Gt -> ID.gt
-    | Le -> ID.le
-    | Ge -> ID.ge
-    | Eq -> ID.eq
+    | Lt -> id_binary_pred result_ik ID.lt
+    | Gt -> id_binary_pred result_ik ID.gt
+    | Le -> id_binary_pred result_ik ID.le
+    | Ge -> id_binary_pred result_ik ID.ge
+    | Eq -> id_binary_pred result_ik ID.eq
     (* TODO: This causes inconsistent results:
        def_exc and interval definitely in conflict:
          evalint: base eval_rv m -> (Not {0, 1}([-31,31]),[1,1])
          evalint: base eval_rv 1 -> (1,[1,1])
          evalint: base query_evalint m == 1 -> (0,[1,1]) *)
-    | Ne -> ID.ne
+    | Ne -> id_binary_pred result_ik ID.ne
     | BAnd -> ID.logand
     | BOr -> ID.logor
     | BXor -> ID.logxor
@@ -306,7 +311,7 @@ struct
             | Some t ->
               let f_offset_bytes = Cilfacade.bytesOffsetOnly t (Field (f, NoOffset)) in
               let f_offset = IdxDom.of_int (Cilfacade.ptrdiff_ikind ()) (Z.of_int f_offset_bytes) in
-              begin match IdxDom.(to_bool (eq f_offset (neg n_offset))) with
+              begin match IdxDom.(eq f_offset (neg n_offset)) with
                 | Some true -> `NoOffset
                 | _ -> `Field (f, `Index (n_offset, `NoOffset))
               end
@@ -2388,10 +2393,10 @@ struct
           let casted_n = ID.cast_to ~kind:Internal (Cilfacade.ptrdiff_ikind ()) n in (* TODO: proper castkind *)
           let ds_eq_n =
             begin try ID.eq casted_ds casted_n
-              with IntDomain.ArithmeticOnIntegerBot _ -> ID.top_of @@ Cilfacade.ptrdiff_ikind ()
+              with IntDomain.ArithmeticOnIntegerBot _ -> None
             end
           in
-          Option.default false (ID.to_bool ds_eq_n)
+          Option.default false ds_eq_n
         | _ -> false
       in
       let dest_a, dest_typ = addr_type_of_exp dst in

@@ -29,22 +29,22 @@ sig
 
   (** {b Comparison operators} *)
 
-  val lt: t -> t -> t
+  val lt: t -> t -> bool option
   (** Less than: [x < y] *)
 
-  val gt: t -> t -> t
+  val gt: t -> t -> bool option
   (** Greater than: [x > y] *)
 
-  val le: t -> t -> t
+  val le: t -> t -> bool option
   (** Less than or equal: [x <= y] *)
 
-  val ge: t -> t -> t
+  val ge: t -> t -> bool option
   (** Greater than or equal: [x >= y] *)
 
-  val eq: t -> t -> t
+  val eq: t -> t -> bool option
   (** Equal to: [x == y] *)
 
-  val ne: t -> t -> t
+  val ne: t -> t -> bool option
   (** Not equal to: [x != y] *)
 
 

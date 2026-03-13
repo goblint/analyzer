@@ -50,12 +50,12 @@ struct
   let mul = mul (Ik.ikind ())
   let div = div (Ik.ikind ())
   let rem = rem (Ik.ikind ())
-  let lt = lt (Ik.ikind ())
-  let gt = gt (Ik.ikind ())
-  let le = le (Ik.ikind ())
-  let ge = ge (Ik.ikind ())
-  let eq = eq (Ik.ikind ())
-  let ne = ne (Ik.ikind ())
+  let lt x y = to_bool @@ lt (Ik.ikind ()) x y
+  let gt x y = to_bool @@ gt (Ik.ikind ()) x y
+  let le x y = to_bool @@ le (Ik.ikind ()) x y
+  let ge x y = to_bool @@ ge (Ik.ikind ()) x y
+  let eq x y = to_bool @@ eq (Ik.ikind ()) x y
+  let ne x y = to_bool @@ ne (Ik.ikind ()) x y
   let lognot = lognot (Ik.ikind ())
   let logand = logand (Ik.ikind ())
   let logor = logor (Ik.ikind ())
@@ -93,6 +93,7 @@ struct
 
   let lift1 = map
   let lift2 f x y = GobList.cartesian_map f (elements x) (elements y) |> of_list
+  let lift2bool f x y = GobList.cartesian_map f (elements x) (elements y)
 
   let neg  = lift1 Base.neg
   let add  = lift2 Base.add
@@ -101,12 +102,12 @@ struct
   let div  = lift2 Base.div
   let rem  = lift2 Base.rem
 
-  let lt = lift2 Base.lt
-  let gt = lift2 Base.gt
-  let le = lift2 Base.le
-  let ge = lift2 Base.ge
-  let eq = lift2 Base.eq
-  let ne = lift2 Base.ne
+  let lt = lift2bool Base.lt
+  let gt = lift2bool Base.gt
+  let le = lift2bool Base.le
+  let ge = lift2bool Base.ge
+  let eq = lift2bool Base.eq
+  let ne = lift2bool Base.ne
 
   let lognot = lift1 Base.lognot
   let logand = lift2 Base.logand
@@ -137,12 +138,13 @@ struct
   let valid_div = make_valid2 ~name:"div" ~cond:snd_not_0 CD.div AD.div
   let valid_rem = make_valid2 ~name:"rem" ~cond:snd_not_0 CD.rem AD.rem
 
-  let valid_lt = make_valid2 ~name:"lt" ~cond:none_bot CD.lt AD.lt
+  (* TODO: fix these *)
+  (* let valid_lt = make_valid2 ~name:"lt" ~cond:none_bot CD.lt AD.lt
   let valid_gt = make_valid2 ~name:"gt" ~cond:none_bot CD.gt AD.gt
   let valid_le = make_valid2 ~name:"le" ~cond:none_bot CD.le AD.le
   let valid_ge = make_valid2 ~name:"ge" ~cond:none_bot CD.ge AD.ge
   let valid_eq = make_valid2 ~name:"eq" ~cond:none_bot CD.eq AD.eq
-  let valid_ne = make_valid2 ~name:"ne" ~cond:none_bot CD.ne AD.ne
+  let valid_ne = make_valid2 ~name:"ne" ~cond:none_bot CD.ne AD.ne *)
 
   let valid_lognot = make_valid1 ~name:"lognot" ~cond:not_bot CD.lognot AD.lognot
   let valid_logand = make_valid2 ~name:"logand" ~cond:none_bot CD.logand AD.logand
@@ -168,12 +170,12 @@ struct
     valid_div;
     valid_rem;
 
-    valid_lt;
+    (* valid_lt;
     valid_gt;
     valid_le;
     valid_ge;
     valid_eq;
-    valid_ne;
+    valid_ne; *)
 
     valid_lognot;
     valid_logand;

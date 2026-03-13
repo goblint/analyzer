@@ -37,12 +37,12 @@ struct
     assert_poly_equal (Some false) (I.to_bool izero);
     assert_poly_equal (Some true ) (I.to_bool itrue);
     assert_poly_equal (Some false) (I.to_bool ifalse);
-    assert_equal itrue  (I.lt ione  itwo);
-    assert_equal ifalse (I.gt ione  itwo);
-    assert_equal itrue  (I.le ione  ione);
-    assert_equal ifalse (I.ge izero itwo);
-    assert_equal itrue  (I.eq izero izero);
-    assert_equal ifalse (I.ne ione  ione)
+    assert_poly_equal (Some true)  (I.lt ione  itwo);
+    assert_poly_equal (Some false) (I.gt ione  itwo);
+    assert_poly_equal (Some true)  (I.le ione  ione);
+    assert_poly_equal (Some false) (I.ge izero itwo);
+    assert_poly_equal (Some true)  (I.eq izero izero);
+    assert_poly_equal (Some false) (I.ne ione  ione)
 
 
   let test_neg _ =
