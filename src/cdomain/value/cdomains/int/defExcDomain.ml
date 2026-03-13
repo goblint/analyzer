@@ -298,7 +298,6 @@ struct
     | `Definite x -> Some (IntOps.BigIntOps.to_bool x)
     | `Excluded (s,r) when S.mem Z.zero s -> Some true
     | _ -> None
-  let top_bool = `Excluded (S.empty (), (0, 1))
 
   let of_interval ik (x,y) =
     if Z.compare x y = 0 then

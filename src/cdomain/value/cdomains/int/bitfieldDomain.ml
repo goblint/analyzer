@@ -52,7 +52,6 @@ module BitfieldArith (Ints_t : IntOps.IntOps) = struct
 
   let one = of_int Ints_t.one
   let zero = of_int Ints_t.zero
-  let top_bool = join one zero
 
   let bits_known (z,o) = z ^: o
   let bits_invalid (z,o) = !:(z |: o)

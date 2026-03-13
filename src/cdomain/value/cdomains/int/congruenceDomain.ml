@@ -124,7 +124,6 @@ struct
   let of_int ik (x: int_t) = normalize ik @@ Some (x, Z.zero)
   let zero = Some (Z.zero, Z.zero)
   let one  = Some (Z.one, Z.zero)
-  let top_bool = top()
 
   let of_bool _ik = function true -> one | false -> zero
 

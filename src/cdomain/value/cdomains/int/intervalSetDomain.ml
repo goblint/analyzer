@@ -236,7 +236,6 @@ struct
 
   let zero = [IArith.zero]
   let one = [IArith.one]
-  let top_bool = [IArith.top_bool]
 
   let not_bool = Option.map not
 

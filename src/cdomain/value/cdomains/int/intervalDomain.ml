@@ -114,7 +114,6 @@ struct
   let of_int ik (x: int_t) = of_interval ik (x,x)
   let zero = Some IArith.zero
   let one  = Some IArith.one
-  let top_bool = Some IArith.top_bool
 
   let to_bitfield ik z =
     match z with
