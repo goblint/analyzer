@@ -597,10 +597,7 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): Bitfield_SOverflow with type in
     else
       None
 
-  let ne ik x y = match eq ik x y with (* TODO: simplify *)
-    | Some true -> Some false
-    | Some false -> Some true
-    | _ -> None
+  let ne ik x y = Option.map not (eq ik x y)
 
   let le ik x y =
     if Z.compare (BArith.max ik x) (BArith.min ik y) <= 0 then

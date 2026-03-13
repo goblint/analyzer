@@ -260,45 +260,45 @@ struct
   let of_int ik (x: int_t) = of_interval ik (x, x)
 
   let lt ik x y =
-    to_bool @@ match x, y with (* TODO: avoid to_bool *)
-    | [], [] -> bot_of ik
+    match x, y with
+    | [], [] -> None
     | [], _ | _, [] -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y)))
     | _, _ ->
       let (max_x, min_y) = (maximal x |> Option.get, minimal y |> Option.get) in
       let (min_x, max_y) = (minimal x |> Option.get, maximal y |> Option.get) in
       if max_x <. min_y then
-        of_bool ik true
+        Some true
       else if min_x >=. max_y then
-        of_bool ik false
+        Some false
       else
-        top_bool
+        None
 
   let le ik x y =
-    to_bool @@ match x, y with (* TODO: avoid to_bool *)
-    | [], [] -> bot_of ik
+    match x, y with
+    | [], [] -> None
     | [], _ | _, [] -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y)))
     | _, _ ->
       let (max_x, min_y) = (maximal x |> Option.get, minimal y |> Option.get) in
       let (min_x, max_y) = (minimal x |> Option.get, maximal y |> Option.get) in
       if max_x <=. min_y then
-        of_bool ik true
+        Some true
       else if min_x >. max_y then
-        of_bool ik false
+        Some false
       else
-        top_bool
+        None
 
   let gt ik x y = not_bool @@ le ik x y
 
   let ge ik x y = not_bool @@ lt ik x y
 
-  let eq ik x y = to_bool @@ match x, y with (* TODO: avoid to_bool *)
+  let eq ik x y = match x, y with
     | (a, b)::[], (c, d)::[] when a =. b && c =. d && a =. c ->
-      one
+      Some true
     | _ ->
       if is_bot (meet ik x y) then
-        zero
+        Some false
       else
-        top_bool
+        None
 
   let ne ik x y = not_bool @@ eq ik x y
   let interval_to_int i = Interval.to_int (Some i)

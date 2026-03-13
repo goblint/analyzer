@@ -443,50 +443,52 @@ struct
         res ;
     res
 
-  let ne ik (x: t) (y: t) = to_bool @@ match x, y with (* TODO: avoid to_bool *)
-    | Some (c1, m1), Some (c2, m2) when (m1 =: Z.zero) && (m2 =: Z.zero) -> of_bool ik (not (c1 =: c2 ))
-    | x, y -> if meet ik x y = None then of_bool ik true else top_bool
+  let ne ik (x: t) (y: t) = match x, y with
+    | Some (c1, m1), Some (c2, m2) when (m1 =: Z.zero) && (m2 =: Z.zero) -> Some (not (c1 =: c2))
+    | x, y -> if meet ik x y = None then Some true else None
 
-  let eq ik (x: t) (y: t) = to_bool @@ match x, y with (* TODO: avoid to_bool *)
-    | Some (c1, m1), Some (c2, m2) when (m1 =: Z.zero) && (m2 =: Z.zero) -> of_bool ik (c1 =: c2)
-    | x, y -> if meet ik x y <> None then top_bool else of_bool ik false
+  let eq ik (x: t) (y: t) = match x, y with
+    | Some (c1, m1), Some (c2, m2) when (m1 =: Z.zero) && (m2 =: Z.zero) -> Some (c1 =: c2)
+    | x, y -> if meet ik x y <> None then None else Some false
 
   let comparison ik op x y = match x, y with
-    | None, None -> bot_of ik
+    | None, None -> None
     | None, _ | _, None -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y)))
     | Some (c1, m1), Some (c2, m2) ->
       if m1 =: Z.zero && m2 =: Z.zero then
-        if op c1 c2 then of_bool ik true else of_bool ik false
+        Some (op c1 c2)
       else
-        top_bool
+        None
 
   let ge ik x y = comparison ik (>=:) x y
 
+  let pretty_bool_option = Pretty.docOpt (Pretty.dprintf "%B")
+
   let ge ik x y =
     let res = ge ik x y in
-    if M.tracing then  M.trace "congruence" "greater or equal : %a %a -> %a " pretty x pretty y pretty res;
-    to_bool res (* TODO: avoid to_bool *)
+    if M.tracing then  M.trace "congruence" "greater or equal : %a %a -> %a" pretty x pretty y pretty_bool_option res;
+    res
 
   let le ik x y = comparison ik (<=:) x y
 
   let le ik x y =
     let res = le ik x y in
-    if M.tracing then  M.trace "congruence" "less or equal : %a %a -> %a " pretty x pretty y pretty res;
-    to_bool res (* TODO: avoid to_bool *)
+    if M.tracing then  M.trace "congruence" "less or equal : %a %a -> %a" pretty x pretty y pretty_bool_option res;
+    res
 
   let gt ik x y = comparison ik (>:) x y
 
   let gt ik x y =
     let res = gt ik x y in
-    if M.tracing then  M.trace "congruence" "greater than : %a %a -> %a " pretty x pretty y pretty res;
-    to_bool res (* TODO: avoid to_bool *)
+    if M.tracing then  M.trace "congruence" "greater than : %a %a -> %a" pretty x pretty y pretty_bool_option res;
+    res
 
   let lt ik x y = comparison ik (<:) x y
 
   let lt ik x y =
     let res = lt ik x y in
-    if M.tracing then  M.trace "congruence" "less than : %a %a -> %a " pretty x pretty y pretty res;
-    to_bool res (* TODO: avoid to_bool *)
+    if M.tracing then  M.trace "congruence" "less than : %a %a -> %a" pretty x pretty y pretty_bool_option res;
+    res
 
   let invariant_ikind e ik x =
     match x with

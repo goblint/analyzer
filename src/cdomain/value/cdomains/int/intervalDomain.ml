@@ -391,62 +391,62 @@ struct
         (r, ov)
 
   let ne ik x y =
-    to_bool @@ match x, y with (* TODO: avoid to_bool *)
-    | None, None -> bot_of ik
+    match x, y with
+    | None, None -> None
     | None, _ | _, None -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y)))
     | Some (x1,x2), Some (y1,y2) ->
       if Ints_t.compare y2 x1 < 0 || Ints_t.compare x2 y1 < 0 then
-        of_bool ik true
+        Some true
       else if Ints_t.compare x2 y1 <= 0 && Ints_t.compare y2 x1 <= 0 then
-        of_bool ik false
-      else top_bool
+        Some false
+      else None
 
   let eq ik x y =
-    to_bool @@ match x, y with (* TODO: avoid to_bool *)
-    | None, None -> bot_of ik
+    match x, y with
+    | None, None -> None
     | None, _ | _, None -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y)))
     | Some (x1,x2), Some (y1,y2) ->
       if Ints_t.compare y2 x1 <= 0 && Ints_t.compare x2 y1 <= 0 then
-        of_bool ik true
+        Some true
       else if Ints_t.compare y2 x1 < 0 || Ints_t.compare x2 y1 < 0 then
-        of_bool ik false
-      else top_bool
+        Some false
+      else None
 
   let ge ik x y =
-    to_bool @@ match x, y with (* TODO: avoid to_bool *)
-    | None, None -> bot_of ik
+    match x, y with
+    | None, None -> None
     | None, _ | _, None -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y)))
     | Some (x1,x2), Some (y1,y2) ->
-      if Ints_t.compare y2 x1 <= 0 then of_bool ik true
-      else if Ints_t.compare x2 y1 < 0 then of_bool ik false
-      else top_bool
+      if Ints_t.compare y2 x1 <= 0 then Some true
+      else if Ints_t.compare x2 y1 < 0 then Some false
+      else None
 
   let le ik x y =
-    to_bool @@ match x, y with (* TODO: avoid to_bool *)
-    | None, None -> bot_of ik
+    match x, y with
+    | None, None -> None
     | None, _ | _, None -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y)))
     | Some (x1,x2), Some (y1,y2) ->
-      if Ints_t.compare x2 y1 <= 0 then of_bool ik true
-      else if Ints_t.compare  y2 x1 < 0 then of_bool ik false
-      else top_bool
+      if Ints_t.compare x2 y1 <= 0 then Some true
+      else if Ints_t.compare y2 x1 < 0 then Some false
+      else None
 
   let gt ik x y =
-    to_bool @@ match x, y with (* TODO: avoid to_bool *)
-    | None, None -> bot_of ik
+    match x, y with
+    | None, None -> None
     | None, _ | _, None -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y)))
     | Some (x1,x2), Some (y1,y2) ->
-      if Ints_t.compare y2 x1 < 0 then of_bool ik true
-      else if Ints_t.compare x2 y1 <= 0 then of_bool ik false
-      else top_bool
+      if Ints_t.compare y2 x1 < 0 then Some true
+      else if Ints_t.compare x2 y1 <= 0 then Some false
+      else None
 
   let lt ik x y =
-    to_bool @@ match x, y with
-    | None, None -> bot_of ik
+    match x, y with
+    | None, None -> None
     | None, _ | _, None -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y)))
     | Some (x1,x2), Some (y1,y2) ->
-      if Ints_t.compare x2 y1 < 0 then of_bool ik true
-      else if Ints_t.compare y2 x1 <= 0 then of_bool ik false
-      else top_bool
+      if Ints_t.compare x2 y1 < 0 then Some true
+      else if Ints_t.compare y2 x1 <= 0 then Some false
+      else None
 
   let invariant_ikind e ik = function
     | Some (x1, x2) ->
