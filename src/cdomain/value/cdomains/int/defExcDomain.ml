@@ -560,22 +560,6 @@ struct
 
   let shift_right =
     shift Z.shift_right
-  (* TODO: lift does not treat Not {0} as true. *)
-  let c_logand ik x y =
-    match to_bool x, to_bool y with
-    | Some false, _
-    | _, Some false ->
-      of_bool ik false
-    | _, _ ->
-      lift2 IntOps.BigIntOps.c_logand ik x y
-  let c_logor ik x y =
-    match to_bool x, to_bool y with
-    | Some true, _
-    | _, Some true ->
-      of_bool ik true
-    | _, _ ->
-      lift2 IntOps.BigIntOps.c_logor ik x y
-  let c_lognot ik x = match eq ik (of_int ik Z.zero) x with None -> top_of IInt | Some x -> of_bool IInt x (* TODO: avoid conversion *)
 
   let invariant_ikind e ik (x:t) =
     match x with

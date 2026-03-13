@@ -362,9 +362,6 @@ module IntDomTupleImpl = struct
   let lognot ik =
     map ik {f1 = (fun (type a) (module I : SOverflow with type t = a) ?no_ov -> I.lognot ik)}
 
-  let c_lognot ik =
-    map ik {f1 = (fun (type a) (module I : SOverflow with type t = a) ?no_ov -> I.c_lognot ik)}
-
   let cast_to ?(suppress_ovwarn=false) ~kind ?from_ik ?no_ov t =
     mapovc ~suppress_ovwarn ~op:(Cast kind) t {f1_ovc = (fun (type a) (module I : SOverflow with type t = a) ?no_ov -> I.cast_to ~kind ?from_ik ?no_ov t)}
 
@@ -489,12 +486,6 @@ module IntDomTupleImpl = struct
 
   let shift_right ik =
     map2ovc ~op:(Binop Shiftrt) ik {f2_ovc= (fun (type a) (module I : SOverflow with type t = a) ?no_ov -> I.shift_right ik)}
-
-  let c_logand ik =
-    map2 ik {f2= (fun (type a) (module I : SOverflow with type t = a) ?no_ov -> I.c_logand ik)}
-
-  let c_logor ik =
-    map2 ik {f2= (fun (type a) (module I : SOverflow with type t = a) ?no_ov -> I.c_logor ik)}
 
 
   (* printing boilerplate *)
