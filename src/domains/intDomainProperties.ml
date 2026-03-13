@@ -93,7 +93,19 @@ struct
 
   let lift1 = map
   let lift2 f x y = GobList.cartesian_map f (elements x) (elements y) |> of_list
-  let lift2bool f x y = GobList.cartesian_map f (elements x) (elements y)
+
+  let join_bool_option x y =
+    match x, y with
+    | None, _
+    | _, None -> None
+    | Some true, Some false
+    | Some false, Some true -> None
+    | Some true, Some true -> Some true
+    | Some false, Some false -> Some false
+  let lift2bool f x y =
+    match GobList.cartesian_map f (elements x) (elements y) with
+    | [] -> None (* TODO: strange: bot is top, but that's already how ID.to_bool behaves *)
+    | xs -> BatList.reduce join_bool_option xs
 
   let neg  = lift1 Base.neg
   let add  = lift2 Base.add
@@ -138,13 +150,25 @@ struct
   let valid_div = make_valid2 ~name:"div" ~cond:snd_not_0 CD.div AD.div
   let valid_rem = make_valid2 ~name:"rem" ~cond:snd_not_0 CD.rem AD.rem
 
-  (* TODO: fix these *)
-  (* let valid_lt = make_valid2 ~name:"lt" ~cond:none_bot CD.lt AD.lt
-  let valid_gt = make_valid2 ~name:"gt" ~cond:none_bot CD.gt AD.gt
-  let valid_le = make_valid2 ~name:"le" ~cond:none_bot CD.le AD.le
-  let valid_ge = make_valid2 ~name:"ge" ~cond:none_bot CD.ge AD.ge
-  let valid_eq = make_valid2 ~name:"eq" ~cond:none_bot CD.eq AD.eq
-  let valid_ne = make_valid2 ~name:"ne" ~cond:none_bot CD.ne AD.ne *)
+  let make_valid2_bool ~name ?(cond=fun _ -> true) cf af =
+    let full_name = "valid " ^ name in
+    make ~name:full_name (QCheck.pair arb arb) QCheck.(fun a ->
+        assume (cond a); (* assume is lazy, ==> is eager *)
+        match Batteries.uncurry cf a, Batteries.uncurry af (BatTuple.Tuple2.mapn AF.abstract a) with
+        | _, None -> true
+        | Some true, Some true -> true
+        | Some false, Some false -> true
+        | Some true, Some false
+        | Some false, Some true -> false
+        | None, Some _ -> false
+      )
+
+  let valid_lt = make_valid2_bool ~name:"lt" ~cond:none_bot CD.lt AD.lt
+  let valid_gt = make_valid2_bool ~name:"gt" ~cond:none_bot CD.gt AD.gt
+  let valid_le = make_valid2_bool ~name:"le" ~cond:none_bot CD.le AD.le
+  let valid_ge = make_valid2_bool ~name:"ge" ~cond:none_bot CD.ge AD.ge
+  let valid_eq = make_valid2_bool ~name:"eq" ~cond:none_bot CD.eq AD.eq
+  let valid_ne = make_valid2_bool ~name:"ne" ~cond:none_bot CD.ne AD.ne
 
   let valid_lognot = make_valid1 ~name:"lognot" ~cond:not_bot CD.lognot AD.lognot
   let valid_logand = make_valid2 ~name:"logand" ~cond:none_bot CD.logand AD.logand
@@ -170,12 +194,12 @@ struct
     valid_div;
     valid_rem;
 
-    (* valid_lt;
+    valid_lt;
     valid_gt;
     valid_le;
     valid_ge;
     valid_eq;
-    valid_ne; *)
+    valid_ne;
 
     valid_lognot;
     valid_logand;
