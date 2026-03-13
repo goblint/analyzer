@@ -68,7 +68,8 @@
         "noRecursiveIntervals",
         "enums",
         "congruence",
-        "octagon",
+        "octagonAnalysis",
+        "octagonVars",
         "wideningThresholds",
         "loopUnrollHeuristic"
       ]
