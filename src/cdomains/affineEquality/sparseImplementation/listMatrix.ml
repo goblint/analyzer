@@ -11,6 +11,7 @@ let timing_wrap = Vector.timing_wrap
 module type SparseMatrix =
 sig
   include Matrix
+  val add: t -> t -> t
   val get_col_upper_triangular: t -> int -> vec
 
   val swap_rows: t -> int -> int -> t
@@ -507,5 +508,7 @@ module ListMatrix: SparseMatrixFunctor =
       let res = rev_matrix @@ lindisjunc_aux 0 0 m1 m2 pseudoempty in
       if M.tracing then M.tracel "linear_disjunct" "linear_disjunct between \n%s and \n%s =>\n%s" (show m1)  (show m2) (show res);
       res
+
+  let add = List.map2 V.add
 
   end
