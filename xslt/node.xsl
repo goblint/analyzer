@@ -111,13 +111,34 @@
         @<xsl:value-of select="@file" />:<xsl:value-of select="@line" />:<xsl:value-of select="@column" />-<xsl:value-of select="@endLine" />:<xsl:value-of select="@endColumn" /> (synthetic: <xsl:value-of select="@synthetic" />)
       </div>
     </a>
-    <div class="toggle off">
-      <span>context:</span>
+    <div>
+      <span>Analysis Results:</span>
       <div>
-        <xsl:apply-templates select="context" />
+        <xsl:for-each select="tuple">
+          <div class="tuple">
+            <strong>Result entry <xsl:value-of select="position()"/>:</strong>
+              <div class="toggle off">
+                <span>Context</span>
+                <div>
+                  <xsl:apply-templates select="context"/>
+                </div>
+              </div>
+              <div class="toggle off">
+                <span>Current Digest</span>
+                <div>
+                  <xsl:apply-templates select="current_digest"/>
+                </div>
+              </div>
+              <div class="toggle off">
+                <span>Path</span>
+                <div>
+                  <xsl:apply-templates select="path"/>
+                </div>
+              </div>
+          </div>
+        </xsl:for-each>
       </div>
     </div>
-    <xsl:apply-templates select="path" />
   </xsl:template>
 
 

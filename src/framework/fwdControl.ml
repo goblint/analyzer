@@ -33,7 +33,7 @@ let spec_module: (module Spec) Lazy.t = lazy (
       |> lift (get_bool "ana.opt.hashcached") (module HashCachedContextLifter)
       |> lift arg_enabled (module HashconsLifter)
       |> lift arg_enabled (module ArgConstraints.PathSensitive3)
-      |> lift (not arg_enabled) (module PathSensitive2)
+      (* |> lift (not arg_enabled) (module PathSensitive2) *)
       |> lift (get_bool "ana.dead-code.branches") (module DeadBranchLifter)
       |> lift true (module DeadCodeLifter)
       |> lift (get_bool "dbg.slice.on") (module LevelSliceLifter)
@@ -106,7 +106,7 @@ struct
 
 
   (* Triple of the function, context, and the local value. *)
-  module RT = AnalysisResult.ResultType2 (Spec)
+  module RT = AnalysisResult.ResultType2Digest (Spec)
   (* Set of triples [RT] *)
   module LT = SetDomain.HeadlessSet (RT)
   (* Analysis result structure---a hashtable from program points to [LT] *)
@@ -138,7 +138,7 @@ struct
         FunSet.replace live_funs f ();
         let add_fun  = BatISet.add l.line in
         let add_file = StringMap.modify_def BatISet.empty f.svar.vname add_fun in
-        let is_dead = LT.for_all (fun (_,x,f) -> Spec.D.is_bot x) v in
+        let is_dead = LT.for_all (fun (_,_,x,f) -> Spec.D.is_bot x) v in
         if is_dead then (
           dead_lines := StringMap.modify_def StringMap.empty l.file add_file !dead_lines
         ) else (
@@ -236,9 +236,9 @@ struct
             (* If this source location has been added before, we look it up
               * and add another node to it information to it. *)
             let prev = Result.find res x.node in
-            Result.replace res x.node (LT.add (x.context,state,fundec) prev)
+            Result.replace res x.node (LT.add (x.context,x.current_digest,state,fundec) prev)
           else
-            Result.add res x.node (LT.singleton (x.context,state,fundec))
+            Result.add res x.node (LT.singleton (x.context,x.current_digest,state,fundec))
         (* If the function is not defined, and yet has been included to the
           * analysis result, we generate a warning. *)
         with Not_found ->

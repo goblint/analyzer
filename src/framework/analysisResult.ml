@@ -57,3 +57,16 @@ struct
   let printXml f (c,d,fd) =
     BatPrintf.fprintf f "<context>\n%a</context>\n%a" C.printXml c D.printXml d
 end
+
+module ResultType2Digest (S: Analyses.Spec) =
+struct
+  open S
+  include Printable.Prod4 (C) (P) (D) (CilType.Fundec)
+  let show (es,current_diget,x,f:t) = D.show x
+  let pretty () (_,current_digest,x,_) = D.pretty () x
+  let printXml f (c,current_digest,d,fd) =
+    BatPrintf.fprintf f "<tuple>\n<context>\n%a</context><current_digest>\n%a</current_digest>\n<path>\n%a</path>\n</tuple>" C.printXml c P.printXml current_digest D.printXml d
+end
+
+
+

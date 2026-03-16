@@ -126,17 +126,22 @@ struct
   let common_join man d splits spawns =
     thread_spawns man (bigsqcup (d :: splits)) spawns
 
-  let common_joins man ds splits spawns = common_join man (bigsqcup ds) splits spawns
+  let common_split man d splits spawns =
+    let ds = d :: splits in
+    List.map (fun d -> common_join man d [] spawns) ds
+
+  let common_joins man ds splits spawns =
+    common_split man (bigsqcup ds) splits spawns
 
   let tf_assign var edge target_node lv e getl sidel getg sideg d =
     let man, r, spawns = common_man' var edge target_node d getl sidel getg sideg in
     let d = S.assign man lv e in (* Force transfer function to be evaluated before dereferencing in common_join argument. *)
-    common_join man d !r !spawns
+    common_split man d !r !spawns
 
   let tf_vdecl var edge target_node v getl sidel getg sideg d =
     let man, r, spawns = common_man' var edge target_node d getl sidel getg sideg in
     let d = S.vdecl man v in (* Force transfer function to be evaluated before dereferencing in common_join argument. *)
-    common_join man d !r !spawns
+    common_split man d !r !spawns
 
   let normal_return r fd man sideg =
     let spawning_return = S.return man r fd in
@@ -158,17 +163,17 @@ struct
       then toplevel_kernel_return ret fd man sideg
       else normal_return ret fd man sideg
     in
-    common_join man d !r !spawns
+    common_join man d !r !spawns (*TODO: common_split? *)
 
   let tf_entry var edge target_node fd getl sidel getg sideg d =
     let man, r, spawns = common_man' var edge target_node d getl sidel getg sideg in
     let d = S.body man fd in (* Force transfer function to be evaluated before dereferencing in common_join argument. *)
-    common_join man d !r !spawns
+    common_split man d !r !spawns
 
   let tf_test var edge target_node e tv getl sidel getg sideg d =
     let man, r, spawns = common_man' var edge target_node d getl sidel getg sideg in
     let d = S.branch man e tv in (* Force transfer function to be evaluated before dereferencing in common_join argument. *)
-    common_join man d !r !spawns
+    common_split man d !r !spawns
 
   let tf_normal_call man lv e (f:fundec) args getl (sidel : lv -> ld -> unit) getg sideg =
     let combine (cd, fc, fd) =
@@ -267,13 +272,15 @@ struct
           tf_proc var edge target_node None init_routine [] getl sidel getg sideg d'
         in
         let later_call = S.event man (Events.EnterOnce { once_control;  ran = true }) man in
-        D.join (leave_once first_call) (leave_once later_call)
+        let first_calls = List.map leave_once first_call in
+        let later_call = leave_once later_call in
+        List.map (D.join later_call) first_calls
       in
       let is_once = LibraryFunctions.find ~nowarn:true f in
       (* If the prototpye for a library function is wrong, this will throw an exception. Such exceptions are usually unrelated to pthread_once, it is just that the call to `is_once.special` raises here *)
       match is_once.special args with
       | Once { once_control; init_routine } -> once once_control init_routine
-      | _  -> S.special man lv f args
+      | _  -> [S.special man lv f args]
     in
     let man, r, spawns = common_man' var edge target_node d getl sidel getg sideg in
     let functions =
@@ -301,7 +308,8 @@ struct
                M.info ~category:Analyzer "Using special for defined function %s" f.vname;
                tf_special_call man f
              | fd ->
-               tf_normal_call man lv e fd args getl sidel getg sideg
+               (* TODO: Handle this properly by handling splitting also here. *)
+               [tf_normal_call man lv e fd args getl sidel getg sideg]
              | exception Not_found ->
                tf_special_call man f)
           in
@@ -316,54 +324,63 @@ struct
         None
     in
     let funs = List.filter_map one_function functions in
+    let funs = List.flatten funs in
     if [] = funs && not (S.D.is_bot man.local) then begin
       M.msg_final Warning ~category:Unsound ~tags:[Category Call] "No suitable function to call";
       M.warn ~category:Unsound ~tags:[Category Call] "No suitable function to be called at call site. Continuing with state before call.";
-      d (* because LevelSliceLifter *)
+      [d]
     end else
-      common_joins man funs !r !spawns
+      let ds = List.map (fun f -> common_split man f !r !spawns) funs in
+      List.flatten ds
 
   let tf_asm var edge target_node getl sidel getg sideg d =
     let man, r, spawns = common_man' var edge target_node d getl sidel getg sideg in
     let d = S.asm man in (* Force transfer function to be evaluated before dereferencing in common_join argument. *)
-    common_join man d !r !spawns
+    common_split man d !r !spawns
 
   let tf_skip var edge target_node getl sidel getg sideg d =
     let man, r, spawns = common_man' var edge target_node d getl sidel getg sideg in
     let d = S.skip man in (* Force transfer function to be evaluated before dereferencing in common_join argument. *)
-    common_join man d !r !spawns
+    common_split man d !r !spawns
 
   let tf (x : lv) getl sidel getg sideg target_node edge d =
     let target_unknown d : lv =
       let current_digest = S.P.of_elt d in
       {node = target_node; context = x.context; original_digest = x.original_digest; current_digest }
     in
+    let sidel_target_unkonwn d =
+      let target_unknown = target_unknown d in
+      sidel target_unknown d
+    in
+    let sidel_target_unknowns ds =
+      List.iter sidel_target_unkonwn ds
+    in
     begin match edge with
       | Assign (lv,rv) ->
         let r = tf_assign x edge target_node lv rv getl sidel getg sideg d in
-        sidel (target_unknown r) r
+        sidel_target_unknowns r
       | VDecl (v)      ->
         let r = tf_vdecl x edge target_node v getl sidel getg sideg d in
-        sidel (target_unknown r) r
+        sidel_target_unknowns r
       | Proc (r,f,ars) ->
         let r = tf_proc x edge target_node r f ars getl sidel getg sideg d in
-        sidel (target_unknown r) r
+        sidel_target_unknowns r
       | Entry f        ->
         let r = tf_entry x edge target_node f getl sidel getg sideg d in
-        sidel (target_unknown r) r
+        sidel_target_unknowns r
       | Ret (r,fd)     ->
         let r = tf_ret x edge target_node r fd getl sidel getg sideg d in
         sidel (target_unknown r) r;
         sideg (GVar.return (fd, x.context)) (G.create_return r)
       | Test (e,b)     ->
         let r = tf_test x edge target_node e b getl sidel getg sideg d in
-        sidel (target_unknown r) r
+        sidel_target_unknowns r
       | ASM (_, _, _)  ->
         let r = tf_asm x edge target_node getl sidel getg sideg d in
-        sidel (target_unknown r) r
+        sidel_target_unknowns r
       | Skip           ->
         let r = tf_skip x edge target_node getl sidel getg sideg d in
-        sidel (target_unknown r) r
+        sidel_target_unknowns r
     end
 
   type Goblint_backtrace.mark += TfLocation of location
