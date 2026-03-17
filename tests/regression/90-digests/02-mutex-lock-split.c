@@ -7,10 +7,6 @@
 pthread_mutex_t m1;
 pthread_mutex_t m2;
 
-void my_lock(pthread_mutex_t* m) {
-	pthread_mutex_lock(m);
-}
-
 
 int main(int argc, char const *argv[])
 {
