@@ -16,7 +16,7 @@ open SpecLifters
 module type S2S = Spec2Spec
 
 (* spec is lazy, so HConsed table in Hashcons lifters is preserved between analyses in server mode *)
-let spec_module: (module Spec) Lazy.t = lazy (
+let spec_module: (module Spec') Lazy.t = lazy (
   GobConfig.building_spec := true;
   let arg_enabled = get_bool "exp.arg.enabled" in
   let termination_enabled = List.mem "termination" (get_string_list "ana.activated") in (* check if loop termination analysis is enabled*)
@@ -49,11 +49,12 @@ let spec_module: (module Spec) Lazy.t = lazy (
   in
   GobConfig.building_spec := false;
   ControlSpecC.control_spec_c := (module S1.C);
+  let module S1 = Spec2Spec' (S1) in
   (module S1)
 )
 
 (** gets Spec for current options *)
-let get_spec (): (module Spec) =
+let get_spec (): (module Spec') =
   Lazy.force spec_module
 
 let current_node_state_json : (Node.t -> Yojson.Safe.t option) ref = ref (fun _ -> None)
@@ -61,7 +62,7 @@ let current_node_state_json : (Node.t -> Yojson.Safe.t option) ref = ref (fun _ 
 let current_varquery_global_state_json: (Goblint_constraint.VarQuery.t option -> Yojson.Safe.t) ref = ref (fun _ -> `Null)
 
 (** Given a [Cfg], a [Spec], and an [Inc], computes the solution to [MCP.Path] *)
-module AnalyzeCFG (Cfg:CfgBidirSkip) (Spec:Spec) (Inc:Increment) =
+module AnalyzeCFG (Cfg:CfgBidirSkip) (Spec:Spec') (Inc:Increment) =
 struct
 
   module SpecSys: SpecSys with module Spec = Spec =
@@ -77,6 +78,8 @@ struct
     (* Hashtbl for globals *)
     module GHT   = BatHashtbl.Make (EQSys.GVar)
   end
+
+
 
   module FwdSpecSys: FwdSpecSys with module Spec = Spec =
   struct

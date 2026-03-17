@@ -17,23 +17,25 @@ end
 
 
 (** The main point of this file---generating a [FwdGlobConstrSys] from a [Spec]. *)
-module FromSpec (S:Spec) (Cfg:CfgForward) (I: Increment)
+module FromSpec (S:Spec') (Cfg:CfgForward) (I: Increment)
   : sig
     include FwdGlobConstrSys with module LVar = VarDigestF (S.C) (S.P)
-                              and module GVar = GVarFCNW (S.V)(S.C)
+                              and module GVar = GVarFCNW (S.V) (S.C) (S.P)
                               and module D = S.D
-                              and module G = GVarL (S.G) (S.D)
+                              and module G = GVarL (S.G) (S.LVarDMap)
   end
 =
 struct
+
   module LVar = VarDigestF (S.C) (S.P)
+
   type lv = LVar.t
   (* type gv = varinfo *)
   type ld = S.D.t
   (* type gd = S.G.t *)
-  module GVar = GVarFCNW (S.V)(S.C)
+  module GVar = GVarFCNW (S.V) (S.C) (S.P)
   module D = S.D
-  module G = GVarL (S.G) (S.D)
+  module G = GVarL (S.G) (S.LVarDMap)
 
   (* Two global invariants:
      1. S.V -> S.G  --  used for Spec
@@ -163,7 +165,7 @@ struct
       then toplevel_kernel_return ret fd man sideg
       else normal_return ret fd man sideg
     in
-    common_join man d !r !spawns (*TODO: common_split? *)
+    common_split man d !r !spawns (*TODO: common_split? *)
 
   let tf_entry var edge target_node fd getl sidel getg sideg d =
     let man, r, spawns = common_man' var edge target_node d getl sidel getg sideg in
@@ -228,6 +230,9 @@ struct
       if M.tracing then M.traceu "combine" "combined local: %a" S.D.pretty r;
       r
     in
+    let combine_each (cd, fc, fd_list) =
+      List.map (fun fd -> combine (cd, fc, fd)) fd_list
+    in
     let paths = S.enter man lv f args in
     let paths = List.map (fun (c,v) -> (c, S.context man f v, v)) paths in
     let sidel_entries (c,fc,v) =
@@ -239,16 +244,22 @@ struct
     in
     List.iter sidel_entries paths;
     let paths = List.map (fun (c,fc,v) ->
-        let endvar = (GVar.return (f,fc)) in
-        (c, fc, if S.D.is_bot v then v else G.return @@ getg endvar)) paths in
+        let p = S.P.of_elt v in
+        let endvar = (GVar.return (f,fc,p)) in
+        let end_paths = if S.D.is_bot v then [v]
+          else
+            let return_nodes = G.return @@ getg endvar in
+            S.LVarDMap.bindings return_nodes |> List.map snd
+        in
+        (c, fc, end_paths)) paths
+    in
     (* Don't filter bot paths, otherwise LongjmpLifter is not called. *)
     (* let paths = List.filter (fun (c,fc,v) -> not (D.is_bot v)) paths in *)
     let paths = List.map (Tuple3.map2 Option.some) paths in
     if M.tracing then M.traceli "combine" "combining";
-    let paths = List.map combine paths in
-    let r = List.fold_left D.join (D.bot ()) paths in
-    if M.tracing then M.traceu "combine" "combined: %a" S.D.pretty r;
-    r
+    let paths = List.map combine_each paths in
+    let paths = List.flatten paths in
+    paths
 
 
   let rec tf_proc var edge target_node lv e args getl sidel getg sideg d =
@@ -309,7 +320,7 @@ struct
                tf_special_call man f
              | fd ->
                (* TODO: Handle this properly by handling splitting also here. *)
-               [tf_normal_call man lv e fd args getl sidel getg sideg]
+               tf_normal_call man lv e fd args getl sidel getg sideg
              | exception Not_found ->
                tf_special_call man f)
           in
@@ -370,8 +381,15 @@ struct
         sidel_target_unknowns r
       | Ret (r,fd)     ->
         let r = tf_ret x edge target_node r fd getl sidel getg sideg d in
-        sidel (target_unknown r) r;
-        sideg (GVar.return (fd, x.context)) (G.create_return r)
+        sidel_target_unknowns r;
+        let map = S.LVarDMap.bot () in
+        let add_entry map d =
+          let target_unknown = target_unknown d in
+          S.LVarDMap.add target_unknown d map
+        in
+        let g = GVar.return (fd, x.context, x.original_digest) in
+        let contrib = List.fold add_entry map r |> G.create_return in
+        sideg g contrib
       | Test (e,b)     ->
         let r = tf_test x edge target_node e b getl sidel getg sideg d in
         sidel_target_unknowns r
