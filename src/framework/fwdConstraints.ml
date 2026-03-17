@@ -165,7 +165,7 @@ struct
       then toplevel_kernel_return ret fd man sideg
       else normal_return ret fd man sideg
     in
-    common_split man d !r !spawns (*TODO: common_split? *)
+    common_split man d !r !spawns
 
   let tf_entry var edge target_node fd getl sidel getg sideg d =
     let man, r, spawns = common_man' var edge target_node d getl sidel getg sideg in
