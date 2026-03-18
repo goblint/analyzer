@@ -3,8 +3,8 @@
 int g = 0;
 
 void handler(int sig) {
-  g = 1; // TODO NORACE
-  g = 2; // TODO NORACE
+  g = 1; // NORACE
+  g = 2; // NORACE
 }
 
 int main() {

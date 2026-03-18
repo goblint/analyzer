@@ -2226,6 +2226,20 @@ struct
         in
         List.filter_map (create_thread ~multiple (Some (Mem id, NoOffset)) (Some ptc_arg)) start_funvars_with_unknown
       end
+    | SignalHandler { signal; handler }, _ -> begin
+        (* extra sync so that we do not analyze new threads with bottom global invariant *)
+        publish_all man `Thread;
+        (* Collect the threads. *)
+        let start_addr = eval_tv ~man man.local handler in
+        let start_funvars = AD.to_var_may start_addr in
+        let start_funvars_with_unknown =
+          if AD.mem Addr.UnknownPtr start_addr then
+            dummyFunDec.svar :: start_funvars
+          else
+            start_funvars
+        in
+        List.filter_map (create_thread ~multiple:false None (Some signal)) start_funvars_with_unknown
+      end
     | _, _ ->
       let shallow_args = LibraryDesc.Accesses.find desc.accs { kind = Spawn; deep = false } args in
       let deep_args = LibraryDesc.Accesses.find desc.accs { kind = Spawn; deep = true } args in
