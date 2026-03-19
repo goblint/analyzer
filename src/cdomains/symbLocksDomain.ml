@@ -30,7 +30,7 @@ struct
       | AddrOf  (Mem e,o)
       | StartOf (Mem e,o)
       | Lval    (Mem e,o) -> cv true e || offs_contains o
-      | CastE (_,e)           -> cv deref e
+      | CastE (_,_,e)           -> cv deref e
       | Lval    (Var v2,o) -> CilType.Varinfo.equal v v2 || offs_contains o
       | AddrOf  (Var v2,o)
       | StartOf (Var v2,o) ->
@@ -105,7 +105,7 @@ struct
     | AddrOf (Mem e,o)                     -> AddrOf (Mem (replace_base (v,offs) q e), o)
     | StartOf (Mem e,o) when simple_eq e q -> StartOf (Var v, addOffset o (Offset.Exp.to_cil offs))
     | StartOf (Mem e,o)                    -> StartOf (Mem (replace_base (v,offs) q e), o)
-    | CastE (t,e) -> CastE (t, replace_base (v,offs) q e)
+    | CastE (k,t,e) -> CastE (k, t, replace_base (v,offs) q e)
 
 
   let rec conc i =
@@ -157,7 +157,7 @@ struct
       end
     | AddrOf (Mem e, NoOffset) -> one_unknown_array_index e
     | StartOf (Mem e, NoOffset) -> one_unknown_array_index e
-    | CastE (t,e) -> one_unknown_array_index e
+    | CastE (_,t,e) -> one_unknown_array_index e
     | _ -> None
 end
 
@@ -221,7 +221,7 @@ struct
       | AddrOf (Mem e, os) -> helper e @ [EDeref] @ conv_o os @ [EAddr]
       | StartOf (Var v, os) -> EVar v :: conv_o os @ [EAddr]
       | StartOf (Mem e, os) -> helper e @ [EDeref] @ conv_o os @ [EAddr]
-      | CastE (_,e) -> helper e
+      | CastE (_,_,e) -> helper e
     in
     try helper exp
     with NotSimpleEnough -> []
@@ -350,7 +350,7 @@ struct
        | AddrOf  (Mem e,ofs) -> S.map (fun e -> AddrOf  (Mem e,ofs)) (eq_set ask e)
        | StartOf (Mem e,ofs) -> S.map (fun e -> StartOf (Mem e,ofs)) (eq_set ask e)
        | Lval    (Mem e,ofs) -> S.map (fun e -> Lval    (Mem e,ofs)) (eq_set ask e)
-       | CastE (_,e)           -> eq_set ask e
+       | CastE (_,_,e)           -> eq_set ask e
       )
 
   let add (ask: Queries.ask) e st =

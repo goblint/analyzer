@@ -92,7 +92,7 @@ struct
   let name () = "integerset"
 
   let lift1 = map
-  let lift2 f x y = BatList.cartesian_product (elements x) (elements y) |> List.map (Batteries.uncurry f) |> of_list
+  let lift2 f x y = GobList.cartesian_map f (elements x) (elements y) |> of_list
 
   let neg  = lift1 Base.neg
   let add  = lift2 Base.add

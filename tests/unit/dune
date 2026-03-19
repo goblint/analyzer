@@ -11,7 +11,7 @@
     )
   )
   (preprocess (pps ppx_deriving.std ppx_deriving_hash ppx_deriving_yojson))
-  (flags :standard -linkall))
+  (flags :standard -open Goblint_std -linkall))
 
 (env
   (dev

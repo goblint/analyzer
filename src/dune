@@ -95,6 +95,7 @@
   (libraries goblint.lib goblint_std)
   (preprocess (pps ppx_deriving.std ppx_deriving_hash ppx_deriving_yojson))
   (flags :standard -linkall -open Goblint_std)
+  (instrumentation (backend bisect_ppx))
 )
 
 (executable

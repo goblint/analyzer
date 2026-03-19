@@ -263,25 +263,25 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): Bitfield_SOverflow with type in
       else
         top_of ik
 
-  let cast_to ?torg ?(no_ov=false) ik (z,o) =
+  let cast_to ?from_ik ?(no_ov=false) ik (z,o) =
     let (min_ik, max_ik) = Size.range ik in
-    let (underflow, overflow) = match torg with
+    let (underflow, overflow) = match from_ik with
       | None -> (false, false) (* ik does not change *)
-      | Some (GoblintCil.Cil.TInt (old_ik, _) | TEnum ({ekind = old_ik; _}, _)) ->
+      | Some old_ik ->
         let underflow = Z.compare (BArith.min old_ik (z,o)) min_ik < 0 in
         let overflow = Z.compare max_ik (BArith.max old_ik (z,o)) < 0 in
         (underflow, overflow)
-      | _ ->
-        let isPos = z <: Ints_t.zero in
-        let isNeg = o <: Ints_t.zero in
-        let underflow = if GoblintCil.isSigned ik then (((Ints_t.of_bigint min_ik) &: z) <>: Ints_t.zero) && isNeg else isNeg in
-        let overflow = (((!:(Ints_t.of_bigint max_ik)) &: o) <>: Ints_t.zero) && isPos in
-        (underflow, overflow)
+        (* | _ -> (* TODO: what is this case? was it always dead? *)
+             let isPos = z <: Ints_t.zero in
+             let isNeg = o <: Ints_t.zero in
+             let underflow = if GoblintCil.isSigned ik then (((Ints_t.of_bigint min_ik) &: z) <>: Ints_t.zero) && isNeg else isNeg in
+             let overflow = (((!:(Ints_t.of_bigint max_ik)) &: o) <>: Ints_t.zero) && isPos in
+             (underflow, overflow) *)
     in
     let overflow_info = {underflow; overflow} in
     (norm ~ov:(underflow || overflow) ik (z,o), overflow_info)
 
-  let cast_to ?torg ?(no_ov=false) ik (z,o) =
+  let cast_to ~kind ?from_ik ?(no_ov=false) ik (z,o) =
     if ik = GoblintCil.IBool then (
       let may_zero =
         if Ints_t.equal z BArith.one_mask then (* zero bit may be in every position (one_mask) *)
@@ -298,7 +298,7 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): Bitfield_SOverflow with type in
       (BArith.join may_zero may_one, {underflow=false; overflow=false})
     )
     else
-      cast_to ?torg ~no_ov ik (z,o)
+      cast_to ?from_ik ~no_ov ik (z,o)
 
   let join ik b1 b2 = norm ik @@ (BArith.join b1 b2)
 
@@ -341,7 +341,7 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): Bitfield_SOverflow with type in
     let endv= Ints_t.min y (Ints_t.of_bigint max_ik) in
 
     (* constructs a bitfield of the interval: for each bit check if the smallest number that is greater than startv and has the bit flipped is still in the interval *)
-    (* If the flipped value is still in the interval, the bit can be 0 or 1 which means it must be described as top, otherwise the bit cant change and is the same as in startv *)
+    (* If the flipped value is still in the interval, the bit can be 0 or 1 which means it must be described as top, otherwise the bit can't change and is the same as in startv *)
     (* Runtime: O(bits) *)
     let rec construct_bitfield pos (acc_z, acc_o) =
       if pos < 0 then (acc_z, acc_o)
@@ -624,19 +624,39 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): Bitfield_SOverflow with type in
 
   (* Invariant *)
 
-  let invariant_ikind e ik (z,o) =
-    if z =: BArith.one_mask && o =: BArith.one_mask then
-      Invariant.top ()
-    else if  BArith.is_invalid (z,o) then
-      Invariant.none
-    else
-      let open GoblintCil.Cil in
+  let invariant_ikind e ik (z, o) =
+    assert (not (BArith.is_invalid (z, o)));
+    let open GoblintCil.Cil in
+    let ik_type = TInt (ik, []) in
+    let i1 =
       let def0 = z &: (!: o) in
+      if def0 =: BArith.zero_mask then
+        Invariant.none
+      else (
+        let def0 = Ints_t.to_bigint def0 in
+        if fitsInInt ik def0 then ( (* At least for _Bool and unsigned types, kintegerCilint can give an incorrect mask if doesn't fit. See https://github.com/goblint/analyzer/pull/1897/changes#r2610251390. *)
+          let def0 = kintegerCilint ik def0 in
+          Invariant.of_exp (BinOp (Eq, (BinOp (BAnd, e, def0, ik_type)), kintegerCilint ik Z.zero, intType))
+        )
+        else
+          Invariant.none
+      )
+    in
+    let i2 =
       let def1 = o &: (!: z) in
-      let (def0, def1) = BatTuple.Tuple2.mapn (kintegerCilint ik) (Ints_t.to_bigint def0, Ints_t.to_bigint def1) in
-      let exp0 = Invariant.of_exp (BinOp (Eq, (BinOp (BAnd, (UnOp (BNot, e, TInt(ik,[]))), def0, TInt(ik,[]))), def0, intType)) in
-      let exp1 = Invariant.of_exp (BinOp (Eq, (BinOp (BAnd, e, def1, TInt(ik,[]))), def1, intType)) in
-      Invariant.meet exp0 exp1
+      if def1 =: BArith.zero_mask then
+        Invariant.none
+      else (
+        let def1 = Ints_t.to_bigint def1 in
+        if fitsInInt ik def1 then ( (* At least for _Bool and unsigned types, kintegerCilint can give an incorrect mask if doesn't fit. See https://github.com/goblint/analyzer/pull/1897/changes#r2610251390. *)
+          let def1 = kintegerCilint ik def1 in
+          Invariant.of_exp (BinOp (Eq, (BinOp (BAnd, e, def1, ik_type)), def1, intType))
+        )
+        else
+          Invariant.none
+      )
+    in
+    Invariant.(i1 && i2)
 
   let starting ik n =
     let (min_ik, max_ik) = Size.range ik in

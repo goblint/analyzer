@@ -14,36 +14,28 @@ struct
   (* transfer functions *)
 
   let assert_fn man e check refine =
-    let expr = CilType.Exp.show e in
-    let warn warn_fn ?annot msg = if check then
-        if get_bool "dbg.regression" then ( (* This only prints unexpected results (with the difference) as indicated by the comment behind the assert (same as used by the regression test script). *)
-          let loc = !M.current_loc in
-          let line = List.at (List.of_enum @@ File.lines_of loc.file) (loc.line-1) in (* nosemgrep: batenum-of_enum *)
-          let open Str in
-          let expected = if string_match (regexp ".+//.*\\(FAIL\\|UNKNOWN\\).*") line 0 then Some (matched_group 1 line) else None in
-          if expected <> annot then (
-            let result = if annot = None && (expected = Some ("NOWARN") || (expected = Some ("UNKNOWN") && not (String.exists line "UNKNOWN!"))) then "improved" else "failed" in
-            (* Expressions with logical connectives like a && b are calculated in temporary variables by CIL. Instead of the original expression, we then see something like tmp___0. So we replace expr in msg by the original source if this is the case. *)
-            let assert_expr = if string_match (regexp ".*assert(\\(.+\\));.*") line 0 then matched_group 1 line else expr in
-            let msg = if expr <> assert_expr then String.nreplace ~str:msg ~sub:expr ~by:assert_expr else msg in
-            warn_fn (msg ^ " Expected: " ^ (expected |? "SUCCESS") ^ " -> " ^ result)
-          )
-        ) else
-          warn_fn msg
+    let assert_msg severity fmt =
+      if check then
+        M.msg severity ~category:Assert fmt
+      else
+        GobPretty.igprintf () fmt
     in
-    (* TODO: use format instead of %s for the following messages *)
     match Queries.eval_bool (Analyses.ask_of_man man) e with
     | `Lifted false ->
-      warn (M.error ~category:Assert "%s") ~annot:"FAIL" ("Assertion \"" ^ expr ^ "\" will fail.");
+      assert_msg Error "Assertion \"%a\" will fail." CilType.Exp.pretty e;
+      Checks.error Checks.Category.AssertionFailure "Assertion \"%a\" will fail." CilType.Exp.pretty e;
       if refine then raise Analyses.Deadcode else man.local
     | `Lifted true ->
-      warn (M.success ~category:Assert "%s") ("Assertion \"" ^ expr ^ "\" will succeed");
+      assert_msg Success "Assertion \"%a\" will succeed" CilType.Exp.pretty e;
+      Checks.safe_msg Checks.Category.AssertionFailure "Assertion \"%a\" will succeed" CilType.Exp.pretty e;
       man.local
     | `Bot ->
-      M.error ~category:Assert "%s" ("Assertion \"" ^ expr ^ "\" produces a bottom. What does that mean? (currently uninitialized arrays' content is bottom)");
+      M.error ~category:Assert "Assertion \"%a\" produces a bottom. What does that mean? (currently uninitialized arrays' content is bottom)" CilType.Exp.pretty e;
+      Checks.error Checks.Category.AssertionFailure "Assertion \"%a\" produces a bottom. What does that mean? (currently uninitialized arrays' content is bottom)" CilType.Exp.pretty e;
       man.local
     | `Top ->
-      warn (M.warn ~category:Assert "%s") ~annot:"UNKNOWN" ("Assertion \"" ^ expr ^ "\" is unknown.");
+      assert_msg Warning "Assertion \"%a\" is unknown." CilType.Exp.pretty e;
+      Checks.warn Checks.Category.AssertionFailure "Assertion \"%a\" is unknown." CilType.Exp.pretty e;
       man.local
 
   let special man (lval: lval option) (f:varinfo) (args:exp list) : D.t =

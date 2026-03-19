@@ -19,6 +19,14 @@ module Coeff =
 struct
   include Coeff
 
+  let pp = print
+  include Printable.SimpleFormat (
+    struct
+      type nonrec t = t
+      let pp = pp
+    end
+    )
+
   let s_of_z z = Coeff.s_of_mpqf (Mpqf.of_mpz (Z_mlgmpidl.mpz_of_z z))
 end
 
