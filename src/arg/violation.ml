@@ -191,7 +191,12 @@ struct
             SegMap.add prev this_seg segmap, segToPathMap, segNr
         in
 
-        let segmap, segToPathMap, _ = build_segments path SegNrToPathMap.empty 0 ~prev_path_elem:None in
+        let segmap, segToPathMap, seg_count = build_segments path SegNrToPathMap.empty 0 ~prev_path_elem:None in
+        let segToPathMap =
+          SegNrToPathMap.fold (fun rev_seg_nr sub_path acc ->
+              SegNrToPathMap.add (seg_count - rev_seg_nr - 1) sub_path acc
+            ) segToPathMap SegNrToPathMap.empty
+        in
         let segments =
           match path with
           | [] -> []
@@ -312,12 +317,8 @@ struct
       check path
     in
 
-    let seg_nr_to_rev_seg_nr seg_nr =
-      List.length segments - seg_nr - 1
-    in
-
     let path_prefix_until_unreachable seg_nr =
-      match SegNrToPathMap.find_opt (seg_nr_to_rev_seg_nr seg_nr - 1) segToPathMap with
+      match SegNrToPathMap.find_opt (seg_nr + 1) segToPathMap with
       | Some suffix_after_unreachable ->
         BatList.take (List.length path - List.length suffix_after_unreachable) path
       | None ->
@@ -327,8 +328,8 @@ struct
     match extract_unreach_seg_nr lines with
     | Some seg_nr when has_no_branching_before_unreachable segments seg_nr && not (has_setjump_calls path) ->
       (* TODO: consider seg_nr = 0 separately *)
-      let path_suffix = SegNrToPathMap.find (seg_nr_to_rev_seg_nr seg_nr) segToPathMap in
-      let path_suffix_plus_one = BatList.drop (List.length path - List.length path_suffix -1) path in
+      let path_suffix = SegNrToPathMap.find seg_nr segToPathMap in
+      let path_suffix_plus_one = BatList.drop (List.length path - List.length path_suffix - 1) path in
       if not (is_within_loop (List.hd path_suffix_plus_one)) then path_suffix_plus_one
       else path
     | Some seg_nr ->
