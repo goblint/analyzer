@@ -312,13 +312,27 @@ struct
       check path
     in
 
+    let seg_nr_to_rev_seg_nr seg_nr =
+      List.length segments - seg_nr - 1
+    in
+
+    let path_prefix_until_unreachable seg_nr =
+      match SegNrToPathMap.find_opt (seg_nr_to_rev_seg_nr seg_nr - 1) segToPathMap with
+      | Some suffix_after_unreachable ->
+        BatList.take (List.length path - List.length suffix_after_unreachable) path
+      | None ->
+        path
+    in
+
     match extract_unreach_seg_nr lines with
     | Some seg_nr when has_no_branching_before_unreachable segments seg_nr && not (has_setjump_calls path) ->
       (* TODO: consider seg_nr = 0 separately *)
-      let path_suffix = SegNrToPathMap.find (List.length segments - seg_nr -1) segToPathMap in
+      let path_suffix = SegNrToPathMap.find (seg_nr_to_rev_seg_nr seg_nr) segToPathMap in
       let path_suffix_plus_one = BatList.drop (List.length path - List.length path_suffix -1) path in
       if not (is_within_loop (List.hd path_suffix_plus_one)) then path_suffix_plus_one
       else path
+    | Some seg_nr ->
+      path_prefix_until_unreachable seg_nr
     | _ -> path
 
   let check_feasability_with_witch lines path seg =
