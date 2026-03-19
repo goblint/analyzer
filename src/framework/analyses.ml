@@ -161,10 +161,22 @@ end
 
 module GVarFCNW (V:SpecSysVar) (C:Printable.S) (P: Printable.S) =
 struct
+
+  (* For return vars given by function, context, original digest *)
   module ReturnVars = Printable.Prod3 (CilType.Fundec) (C) (P)
-  include Printable.EitherConf (struct let expand1 = false let expand2 = true end) (V) (ReturnVars)
+  (* For return vars given by function, context, original digest and current digest *)
+  module SingleReturnVars = VarDigestF (C) (P)
+
+  module Either3Conf = struct
+    let expand1 = false
+    let expand2 = true
+    let expand3 = true
+  end
+
+  include Printable.Either3Conf (Either3Conf) (V) (SingleReturnVars) (ReturnVars)
   let name () = "FromSpec"
   let spec x = `Left x
+  let single_return x = `Middle x
   let return (x, c, p) = `Right (x, c, p)
 
   (* from Basetype.Variables *)
@@ -173,6 +185,7 @@ struct
   let pretty_trace = pretty
   let is_write_only = function
     | `Left x -> V.is_write_only x
+    | `Middle _ -> false
     | `Right _ -> false
 end
 
@@ -236,19 +249,17 @@ struct
   let spec = function
     | `Bot -> G.bot ()
     | `Lifted1 x -> x
-    | _ -> failwith "GVarG.spec"
+    | _ -> failwith "GVar3.spec"
 
   let single_return = function
-    | `Bot -> S.bot ()
+    | `Bot -> L.bot ()
     | `Lifted2 x -> x
-    | _ -> failwith "GVarG.single_retunr"
-
+    | _ -> failwith "GVar3.single_return"
 
   let return = function
-    | `Bot -> L.bot ()
+    | `Bot -> S.bot ()
     | `Lifted3 x -> x
-    | _ -> failwith "GVarG.return"
-
+    | _ -> failwith "GVar3.return"
 
   let create_spec spec = `Lifted1 spec
   let create_single_return single_return = `Lifted2 single_return
@@ -409,13 +420,13 @@ end
 
 module type Spec' = sig
   include Spec
-  module LVarDMap : MapDomain.S with type key = VarDigestF (C) (P).t and type value = D.t
+  module LVarSet : SetDomain.S with type elt = VarDigestF (C) (P).t
 end
 
 module Spec2Spec' (S: Spec) =
 struct
   include S
-  module LVarDMap = MapDomain.MapBot (VarDigestF (C) (P)) (D)
+  module LVarSet = SetDomain.Make (VarDigestF (C) (P))
 end
 
 module type Spec2Spec = functor (S: Spec) -> Spec
@@ -599,7 +610,7 @@ sig
   module EQSys: Goblint_constraint.ConstrSys.FwdGlobConstrSys with module LVar = VarDigestF (Spec.C) (Spec.P)
                                                                and module GVar = GVarFCNW (Spec.V) (Spec.C) (Spec.P)
                                                                and module D = Spec.D
-                                                               and module G = GVar2 (Spec.G) (Spec.LVarDMap)
+                                                               and module G = GVar3 (Spec.G) (Spec.D) (Spec.LVarSet)
   module LHT: BatHashtbl.S with type key = EQSys.LVar.t
   module GHT: BatHashtbl.S with type key = EQSys.GVar.t
 end

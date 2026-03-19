@@ -619,7 +619,8 @@ struct
       match g with
       | `Left g -> (* Spec global *)
         Query.ask_global gh (WarnGlobal (Obj.repr g))
-      | `Right _ -> (* contexts global *)
+      | `Middle _ (* return global *)
+      | `Right _ ->
         ()
     in
     Timing.wrap "warn_global" (GHT.iter warn_global) gh;

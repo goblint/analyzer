@@ -22,7 +22,7 @@ module FromSpec (S:Spec') (Cfg:CfgForward) (I: Increment)
     include FwdGlobConstrSys with module LVar = VarDigestF (S.C) (S.P)
                               and module GVar = GVarFCNW (S.V) (S.C) (S.P)
                               and module D = S.D
-                              and module G = GVar2 (S.G) (S.LVarDMap)
+                              and module G = GVar3 (S.G) (S.D) (S.LVarSet)
   end
 =
 struct
@@ -35,7 +35,7 @@ struct
   (* type gd = S.G.t *)
   module GVar = GVarFCNW (S.V) (S.C) (S.P)
   module D = S.D
-  module G = GVar2 (S.G) (S.LVarDMap)
+  module G = GVar3 (S.G) (S.D) (S.LVarSet)
 
   (* Two global invariants:
      1. S.V -> S.G  --  used for Spec
@@ -248,8 +248,12 @@ struct
         let endvar = (GVar.return (f,fc,p)) in
         let end_paths = if S.D.is_bot v then [v]
           else
-            let return_nodes = G.return @@ getg endvar in
-            S.LVarDMap.bindings return_nodes |> List.map snd
+            let return_nodes = G.return @@ getg endvar |> S.LVarSet.to_seq in
+            let return_value x =
+              G.single_return @@ getg (GVar.single_return x)
+            in
+            let s = Seq.map return_value return_nodes in
+            List.of_seq s
         in
         (c, fc, end_paths)) paths
     in
@@ -359,6 +363,11 @@ struct
       let current_digest = S.P.of_elt d in
       {node = target_node; context = x.context; original_digest = x.original_digest; current_digest }
     in
+    let return_unknown d =
+      let target_unknown = target_unknown d in
+      (* GVar.single_return *)
+      target_unknown
+    in
     let sidel_target_unkonwn d =
       let target_unknown = target_unknown d in
       sidel target_unknown d
@@ -381,14 +390,23 @@ struct
         sidel_target_unknowns r
       | Ret (r,fd)     ->
         let r = tf_ret x edge target_node r fd getl sidel getg sideg d in
-        sidel_target_unknowns r;
-        let map = S.LVarDMap.bot () in
-        let add_entry map d =
+        let sideg_target_unkonwn d =
           let target_unknown = target_unknown d in
-          S.LVarDMap.add target_unknown d map
+          let target_unknown_g = GVar.single_return target_unknown  in
+          sideg target_unknown_g (G.create_single_return d)
+        in
+
+        List.iter sideg_target_unkonwn r;
+        (* TODO: Remove need to also propagate to locals for returns *)
+        sidel_target_unknowns r;
+
+        let set = S.LVarSet.bot () in
+        let add_entry set d =
+          let return_unknown = return_unknown d in
+          S.LVarSet.add return_unknown set
         in
         let g = GVar.return (fd, x.context, x.original_digest) in
-        let contrib = List.fold add_entry map r |> G.create_return in
+        let contrib = List.fold add_entry set r |> G.create_return in
         sideg g contrib
       | Test (e,b)     ->
         let r = tf_test x edge target_node e b getl sidel getg sideg d in
