@@ -381,6 +381,95 @@ end
 
 module Lift2 = Lift2Conf (Printable.DefaultConf)
 
+module Lift3Conf (Conf: Printable.Lift3Conf) (Base1: PO) (Base2: PO) (Base3: PO) =
+struct
+  include Printable.Lift3Conf (Conf) (Base1) (Base2) (Base3)
+
+  let bot () = `Bot
+  let is_bot x = x = `Bot
+  let top () = `Top
+  let is_top x = x = `Top
+
+  let leq x y =
+    match (x,y) with
+    | (_, `Top) -> true
+    | (`Top, _) -> false
+    | (`Bot, _) -> true
+    | (_, `Bot) -> false
+    | (`Lifted1 x, `Lifted1 y) -> Base1.leq x y
+    | (`Lifted2 x, `Lifted2 y) -> Base2.leq x y
+    | (`Lifted3 x, `Lifted3 y) -> Base3.leq x y
+    | _ -> false
+
+  let pretty_diff () ((x:t),(y:t)): Pretty.doc =
+    match x, y with
+    | `Lifted1 x, `Lifted1 y -> Base1.pretty_diff () (x, y)
+    | `Lifted2 x, `Lifted2 y -> Base2.pretty_diff () (x, y)
+    | `Lifted3 x, `Lifted3 y -> Base3.pretty_diff () (x, y)
+    | _ when leq x y -> Pretty.text "No Changes"
+    | _ -> Pretty.dprintf "%a instead of %a" pretty x pretty y
+
+  let join x y =
+    match (x,y) with
+    | (`Top, _) -> `Top
+    | (_, `Top) -> `Top
+    | (`Bot, x) -> x
+    | (x, `Bot) -> x
+    | (`Lifted1 x, `Lifted1 y) -> begin
+        try `Lifted1 (Base1.join x y)
+        with TopValue -> `Top
+      end
+    | (`Lifted2 x, `Lifted2 y) -> begin
+        try `Lifted2 (Base2.join x y)
+        with TopValue -> `Top
+      end
+    | (`Lifted3 x, `Lifted3 y) -> begin
+        try `Lifted3 (Base3.join x y)
+        with TopValue -> `Top
+      end
+    | _ -> `Top
+
+  let meet x y =
+    match (x,y) with
+    | (`Bot, _) -> `Bot
+    | (_, `Bot) -> `Bot
+    | (`Top, x) -> x
+    | (x, `Top) -> x
+    | (`Lifted1 x, `Lifted1 y) -> begin
+        try `Lifted1 (Base1.meet x y)
+        with BotValue -> `Bot
+      end
+    | (`Lifted2 x, `Lifted2 y) -> begin
+        try `Lifted2 (Base2.meet x y)
+        with BotValue -> `Bot
+      end
+    | (`Lifted3 x, `Lifted3 y) -> begin
+        try `Lifted3 (Base3.meet x y)
+        with BotValue -> `Bot
+      end
+    | _ -> `Bot
+
+  let widen x y =
+    match (x,y) with
+    | (`Lifted1 x, `Lifted1 y) -> `Lifted1 (Base1.widen x y)
+    | (`Lifted2 x, `Lifted2 y) -> `Lifted2 (Base2.widen x y)
+    | (`Lifted3 x, `Lifted3 y) -> `Lifted3 (Base3.widen x y)
+    | _ -> y
+
+  let narrow x y =
+    match (x,y) with
+    | (`Lifted1 x, `Lifted1 y) -> `Lifted1 (Base1.narrow x y)
+    | (`Lifted2 x, `Lifted2 y) -> `Lifted2 (Base2.narrow x y)
+    | (`Lifted3 x, `Lifted3 y) -> `Lifted3 (Base3.narrow x y)
+    | (_, `Bot) -> `Bot
+    | (`Top, y) -> y
+    | _ -> x
+end
+
+module Lift3 = Lift3Conf (Printable.DefaultConf)
+
+
+
 module ProdConf (C: Printable.ProdConfiguration) (Base1: S) (Base2: S) =
 struct
   open struct (* open to avoid leaking P and causing conflicts *)

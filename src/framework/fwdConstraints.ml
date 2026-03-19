@@ -22,7 +22,7 @@ module FromSpec (S:Spec') (Cfg:CfgForward) (I: Increment)
     include FwdGlobConstrSys with module LVar = VarDigestF (S.C) (S.P)
                               and module GVar = GVarFCNW (S.V) (S.C) (S.P)
                               and module D = S.D
-                              and module G = GVarL (S.G) (S.LVarDMap)
+                              and module G = GVar2 (S.G) (S.LVarDMap)
   end
 =
 struct
@@ -35,7 +35,7 @@ struct
   (* type gd = S.G.t *)
   module GVar = GVarFCNW (S.V) (S.C) (S.P)
   module D = S.D
-  module G = GVarL (S.G) (S.LVarDMap)
+  module G = GVar2 (S.G) (S.LVarDMap)
 
   (* Two global invariants:
      1. S.V -> S.G  --  used for Spec

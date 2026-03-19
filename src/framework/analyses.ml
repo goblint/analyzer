@@ -208,7 +208,7 @@ struct
     | x -> BatPrintf.fprintf f "<analysis name=\"fromspec\">%a</analysis>" printXml x
 end
 
-module GVarL (G: Lattice.S) (L: Lattice.S) =
+module GVar2 (G: Lattice.S) (L: Lattice.S) =
 struct
   include Lattice.Lift2 (G) (L)
 
@@ -226,6 +226,38 @@ struct
   let printXml f = function
     | `Lifted1 x -> G.printXml f x
     | `Lifted2 x -> L.printXml f x
+    | x -> BatPrintf.fprintf f "<analysis name=\"fromspec\">%a</analysis>" printXml x
+end
+
+module GVar3 (G: Lattice.S) (L: Lattice.S) (S: Lattice.S) =
+struct
+  include Lattice.Lift3 (G) (L) (S)
+
+  let spec = function
+    | `Bot -> G.bot ()
+    | `Lifted1 x -> x
+    | _ -> failwith "GVarG.spec"
+
+  let single_return = function
+    | `Bot -> S.bot ()
+    | `Lifted2 x -> x
+    | _ -> failwith "GVarG.single_retunr"
+
+
+  let return = function
+    | `Bot -> L.bot ()
+    | `Lifted3 x -> x
+    | _ -> failwith "GVarG.return"
+
+
+  let create_spec spec = `Lifted1 spec
+  let create_single_return single_return = `Lifted2 single_return
+  let create_return return = `Lifted3 return
+
+  let printXml f = function
+    | `Lifted1 x -> G.printXml f x
+    | `Lifted2 x -> L.printXml f x
+    | `Lifted3 x -> S.printXml f x
     | x -> BatPrintf.fprintf f "<analysis name=\"fromspec\">%a</analysis>" printXml x
 end
 
@@ -567,7 +599,7 @@ sig
   module EQSys: Goblint_constraint.ConstrSys.FwdGlobConstrSys with module LVar = VarDigestF (Spec.C) (Spec.P)
                                                                and module GVar = GVarFCNW (Spec.V) (Spec.C) (Spec.P)
                                                                and module D = Spec.D
-                                                               and module G = GVarL (Spec.G) (Spec.LVarDMap)
+                                                               and module G = GVar2 (Spec.G) (Spec.LVarDMap)
   module LHT: BatHashtbl.S with type key = EQSys.LVar.t
   module GHT: BatHashtbl.S with type key = EQSys.GVar.t
 end

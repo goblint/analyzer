@@ -470,6 +470,63 @@ struct
     | `Lifted2 x -> Base2.to_yojson x
 end
 
+module type Lift3Conf =
+sig
+  include Lift2Conf
+  val expand3: bool
+end
+
+module Lift3Conf (Conf: Lift3Conf) (Base1: S) (Base2: S) (Base3: S) =
+struct
+  open struct
+    module Base1 = PrefixName (struct let expand = Conf.expand1 end) (Base1)
+    module Base2 = PrefixName (struct let expand = Conf.expand2 end) (Base2)
+    module Base3 = PrefixName (struct let expand = Conf.expand3 end) (Base3)
+  end
+
+  type t = [`Bot | `Lifted1 of Base1.t | `Lifted2 of Base2.t | `Lifted3 of Base3.t | `Top] [@@deriving eq, ord, hash]
+  include Std
+  open Conf
+
+  let pretty () (state:t) =
+    match state with
+    | `Lifted1 n ->  Base1.pretty () n
+    | `Lifted2 n ->  Base2.pretty () n
+    | `Lifted3 n ->  Base3.pretty () n
+    | `Bot -> text bot_name
+    | `Top -> text top_name
+
+  let show state =
+    match state with
+    | `Lifted1 n ->  Base1.show n
+    | `Lifted2 n ->  Base2.show n
+    | `Lifted3 n ->  Base3.show n
+    | `Bot -> bot_name
+    | `Top -> top_name
+
+  let relift x = match x with
+    | `Lifted1 n -> `Lifted1 (Base1.relift n)
+    | `Lifted2 n -> `Lifted2 (Base2.relift n)
+    | `Lifted3 n -> `Lifted3 (Base3.relift n)
+    | `Bot | `Top -> x
+
+  let name () = "lifted " ^ Base1.name () ^ " and " ^ Base2.name () ^ " and " ^ Base3.name ()
+
+  let printXml f = function
+    | `Bot       -> BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" bot_name
+    | `Top       -> BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" top_name
+    | `Lifted1 x -> Base1.printXml f x
+    | `Lifted2 x -> Base2.printXml f x
+    | `Lifted3 x -> Base3.printXml f x
+
+  let to_yojson = function
+    | `Bot -> `String bot_name
+    | `Top -> `String top_name
+    | `Lifted1 x -> Base1.to_yojson x
+    | `Lifted2 x -> Base2.to_yojson x
+    | `Lifted3 x -> Base3.to_yojson x
+end
+
 module type ProdConfiguration =
 sig
   val expand_fst: bool
