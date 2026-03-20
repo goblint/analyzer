@@ -25,8 +25,8 @@ int main()
 
     __goblint_check((a < 10.) == 1);
     __goblint_check((a > 10.) == 0);
-    __goblint_check((x == 2.) >= 0); // TODO
-    __goblint_check((x == 2.) <= 1); // TODO
+    __goblint_check((x == 2.) >= 0);
+    __goblint_check((x == 2.) <= 1);
 
     __goblint_check(c == 2.f); // SUCCESS
     __goblint_check(c < 10.f); // SUCCESS

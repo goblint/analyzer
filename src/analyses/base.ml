@@ -185,7 +185,7 @@ struct
       @see C11 7.12.14, 6.5.8, 6.5.9 *)
   let fd_binary_pred = function
     | Some b -> ID.of_bool IInt b
-    | None -> ID.top_of IInt (* TODO: [0,1] interval instead? *)
+    | None -> ID.of_interval IInt (Z.zero, Z.one)
 
   let unop_ID = function
     | Neg  -> ID.neg
