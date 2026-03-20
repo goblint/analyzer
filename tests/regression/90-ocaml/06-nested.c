@@ -1,6 +1,6 @@
 // PARAM: --set "ana.activated[+]" ocaml --disable warn.imprecise --set "exp.extraspecials[+]" printInt
 
-// Buggy code from https://github.com/xavierleroy/pringo/issues/6 where value v is not registered.
+// Artificial tests with one C-stub calling another inside it.
 
 #include <stdint.h>
 #include <string.h>
@@ -10,10 +10,11 @@
 #include "goblint_caml.h"
 
 CAMLprim value pringo_LXM_copy(value v)
-{
+{ 
+  value res1 = pringo_LXM_copy_correct(v); // NOWARN
   value res = caml_alloc_small(Wsizeof(struct LXM_state), Abstract_tag);
   memcpy(LXM_val(res), LXM_val(v), sizeof(struct LXM_state)); // WARN
-  return res;
+  return res1;
 }
 
 CAMLprim value pringo_LXM_copy_correct(value v)

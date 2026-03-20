@@ -9,7 +9,7 @@ struct LXM_state { uint64_t a; uint64_t x[2]; uint64_t s; };
 
 // Redefine CAMLprim to have the annotate attribute marking it as c_stub.
 #undef CAMLprim
-#define CAMLprim extern __attribute__((c_stub))
+#define CAMLprim __attribute__((c_stub))
 
 // Param and local macros redefined to register variables as GC roots, and CAMLreturn mocked to work with them.
 #undef CAMLparam0

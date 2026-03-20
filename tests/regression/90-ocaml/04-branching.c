@@ -1,4 +1,4 @@
-// PARAM: --set "ana.activated[+]" ocaml --set "mainfun[+]" "branching_test" --disable warn.imprecise --set "exp.extraspecials[+]" printInt
+// PARAM: --set "ana.activated[+]" ocaml --disable warn.imprecise --set "exp.extraspecials[+]" printInt
 
 // Artificial test where one branch registers the argument v and the other does not, but both branches use v.
 

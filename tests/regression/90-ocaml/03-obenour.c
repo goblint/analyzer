@@ -1,4 +1,4 @@
-// PARAM: --set "ana.activated[+]" ocaml --set "mainfun[+]" "caml_gc_counters" --set "mainfun[+]" "caml_gc_counters_correct_1" --set "mainfun[+]" "caml_gc_counters_correct_2" --disable warn.imprecise --set "exp.extraspecials[+]" printInt
+// PARAM: --set "ana.activated[+]" ocaml --disable warn.imprecise --set "exp.extraspecials[+]" printInt
 
 // Buggy code from https://github.com/ocaml/ocaml/pull/13370 where unregistered temporary variables may be garbage-collected.
 

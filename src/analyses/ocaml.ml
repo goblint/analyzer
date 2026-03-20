@@ -100,6 +100,10 @@ struct
     | _ ->
       false
 
+  let is_value_type (t:typ): bool = match t with
+    | TNamed (info, attr) -> info.tname = "value"
+    | _ -> false
+
   (* transfer functions *)
 
   (** Handles assignment of [rval] to [lval]. *)
@@ -120,7 +124,8 @@ struct
 
   (** Handles conditional branching yielding truth value [tv]. *)
   let branch ctx (exp:exp) (tv:bool) : D.t =
-    (* Nothing needs to be done *)
+    (* The expression checked must be accounted for *)
+    ignore (exp_accounted_for ctx.local exp);
     ctx.local
 
   (** Handles going from start node of function [f] into the function body of [f].
@@ -129,9 +134,6 @@ struct
     (* The (non-formals) locals are tracked and initially accounted for *)
     let state = ctx.local in
     (* It is assumed that value-typed arguments are never nptrs. *)
-    let is_value_type (t:typ): bool = match t with
-      | TNamed (info, attr) -> info.tname = "value"
-      | _ -> false in
     List.fold_left (fun st v -> if is_value_type v.vtype then
                        (ctx.emit (Events.SplitBranch (Cil.Lval (Cil.var v), true)); D.add_a v st)
                      else D.add_a v (D.add_r v st))
@@ -156,18 +158,8 @@ struct
       will compute the caller state after the function call, given the return state of the callee. *)
   let enter ctx (lval: lval option) (f:fundec) (args:exp list) : (D.t * D.t) list =
     let caller_state = ctx.local in
-    (* Create list of (formal, actual_exp)*)
-    (*
-    let zipped = List.combine f.sformals args in
-    (* TODO: For the initial callee_state, collect formal parameters where the actual is healthy. *)
-    let callee_state = List.fold_left (fun ts (f,a) ->
-        if exp_accounted_for caller_state a
-        then D.add f ts (* TODO: Change accumulator ts here? *)
-        else D.remove f ts)
-        (D.bot ())
-        zipped in
-    *)
-    (* TODO: Should this be checked with locals or formals, and how exactly? Likely with locals. *)
+    List.iter (fun e -> ignore (exp_accounted_for caller_state e)) args;
+    (* Entering a function doesn't change the caller state *)
     let callee_state = caller_state in
     (* first component is state of caller, second component is state of callee *)
     [caller_state, callee_state]
@@ -176,16 +168,17 @@ struct
       computes the global environment state of the caller after the call.
       Argument [callee_local] is the state of [f] at its return node. *)
   let combine_env ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (callee_local:D.t) (f_ask: Queries.ask): D.t =
-    (* Nothing needs to be done *)
-    ctx.local
+    (* If GC could have triggered during the call, the caller state loses variables not registered in the callee. *)
+    (* Since the callee state is copied from the caller, the caller state changes the same way through the callee's GCs. *)
+    callee_local
 
   (** For a function call "lval = f(args)" or "f(args)",
       computes the state of the caller after assigning the return value from the call.
       Argument [callee_local] is the state of [f] at its return node. *)
   let combine_assign ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (callee_local:D.t) (f_ask: Queries.ask): D.t =
     let caller_state = ctx.local in
-    (* Records whether lval was accounted for. *) (* caller_state *)
-    (* TODO: Consider how the return_varinfo needs to be tracked. *)
+    (* Records whether lval was accounted for. Registration for v must already be handled. *)
+    (* TODO: What happens if a pointer to a value is returned? *)
     match lval with (* The variable returned is played by return_varinfo *)
     | Some (Var v, _) -> if D.mem_a return_varinfo callee_local then D.add_a v caller_state
       else (M.warn "Returned value may be garbage-collected"; D.remove_a v caller_state)
