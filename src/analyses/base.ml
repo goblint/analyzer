@@ -176,14 +176,14 @@ struct
 
   let id_unary_log = function
     | Some b -> ID.of_bool IInt b
-    | None -> ID.top_of IInt (* TODO: [0,1] interval instead? *)
+    | None -> ID.of_interval IInt (Z.zero, Z.one)
 
   let id_binary_log f ~annihilator ik i1 i2 =
     match ID.to_bool i1, ID.to_bool i2 with
     | Some x, _ when x = annihilator -> ID.of_bool ik annihilator
     | _, Some y when y = annihilator -> ID.of_bool ik annihilator
     | Some x, Some y -> ID.of_bool ik (f x y)
-    | _              -> ID.top_of ik (* TODO: [0,1] interval instead? *)
+    | _              -> ID.of_interval ik (Z.zero, Z.one)
 
   (** Unary float predicates return non-zero for [true].
       @see C11 7.12.3 *)
