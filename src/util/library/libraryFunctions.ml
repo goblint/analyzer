@@ -789,6 +789,9 @@ let linux_userspace_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("__fxstat", unknown [drop "ver" []; drop "fildes" []; drop "stat_buf" [w]]);
     ("__ctype_b_loc", unknown []);
     ("_IO_getc", unknown [drop "f" [r_deep; w_deep]]);
+    ("pool_alloc", special [drop "p" []; __ "size" []; drop "msg" []] @@ fun size -> Malloc size);
+    ("pool_free", special [drop "p" []; drop "size" []; __ "ptr" [f]] @@ fun ptr -> Free ptr);
+    ("parse_arguments", unknown ~attrs:[InvalidateGlobals] [drop "argc" [r]; drop "argv" []]);
     ("fallocate", unknown [drop "fd" []; drop "mode" []; drop "offset" []; drop "len" []]);
     ("ioctl", unknown (drop "fd" [] :: drop "request" [] :: VarArgs (drop' [r_deep; w_deep])));
   ]
