@@ -260,7 +260,6 @@ struct
     (* Don't filter bot paths, otherwise LongjmpLifter is not called. *)
     (* let paths = List.filter (fun (c,fc,v) -> not (D.is_bot v)) paths in *)
     let paths = List.map (Tuple3.map2 Option.some) paths in
-    if M.tracing then M.traceli "combine" "combining";
     let paths = List.map combine_each paths in
     let paths = List.flatten paths in
     paths
@@ -339,12 +338,12 @@ struct
         None
     in
     let funs = List.filter_map one_function functions in
-    let funs = List.flatten funs in
     if [] = funs && not (S.D.is_bot man.local) then begin
       M.msg_final Warning ~category:Unsound ~tags:[Category Call] "No suitable function to call";
       M.warn ~category:Unsound ~tags:[Category Call] "No suitable function to be called at call site. Continuing with state before call.";
       [d]
     end else
+      let funs = List.flatten funs in
       let ds = List.map (fun f -> common_split man f !r !spawns) funs in
       List.flatten ds
 
