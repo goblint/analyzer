@@ -173,11 +173,11 @@ struct
             let target = segment ~waypoints:[waypoint ~waypoint_type:(Target (violation_target ~location:(loc node l)))] in
             let this_seg, segToPathMap, segNr = match segment_for_edge path_elem prev_path_elem with
               | Some seg ->
-                let segToPathMap1 = SegNrToPathMap.add 0 sub_path segToPathMap in
+                let segToPathMap1 = SegNrToPathMap.add 0 [] segToPathMap in
                 let segToPathMap2 = SegNrToPathMap.add 1 sub_path segToPathMap1 in
                 seg :: [target], segToPathMap2, 2
               | None ->
-                [target], SegNrToPathMap.add 0 sub_path segToPathMap, 1
+                [target], SegNrToPathMap.add 0 [] segToPathMap, 1
             in
             let segmap = SegMap.singleton node [target] in
             SegMap.add prev this_seg segmap, segToPathMap, segNr
