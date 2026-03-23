@@ -397,17 +397,22 @@ struct
       in
       follow node' p'
 
-  let rec follow' (node : Node.t) p : (Node.t * (Edge.t * Node.t) list) list =
+  let rec follow' (node : Node.t) p : (Node.t option * Node.t * (Edge.t * Node.t) list) list =
     let open GobList.Syntax in
-    match p with
-    | [] -> [node, []]
-    | (e, to_n) :: p' ->
-      let* (_, node') = List.filter (fun (e', to_node) ->
+    let matching_successors (e, to_n) =
+      List.filter (fun (e', to_node) ->
           Edge.equal (Edge.embed e) e' && Node0.equal to_n (Node.cfgnode to_node)
         ) (Arg.next node)
-      in
-      let+ (n, l) = follow' node' p' in
-      (n, (Edge.embed e, node') :: l)
+    in
+    match p with
+    | [] -> [None, node, []]
+    | [(e, to_n)] ->
+      let* (_, node') = matching_successors (e, to_n) in
+      [Some node, node', [(Edge.embed e, node')]]
+    | (e, to_n) :: p' ->
+      let* (_, node') = matching_successors (e, to_n) in
+      let+ (n1, n2, l) = follow' node' p' in
+      n1, n2, (Edge.embed e, node') :: l
 
   let next node =
     let open GobList.Syntax in
@@ -428,13 +433,13 @@ struct
     match ArgIntra.next_opt (Node.cfgnode node) with
     | None ->
       Arg.next node
-      |> List.map (fun (e,n) -> (e,n, [e, n]))
+      |> List.map (fun (e,n) -> (Some node, e, n, [e, n]))
     | Some next ->
       next
       |> BatList.concat_map (fun (e, to_n, p) ->
           let* p in
-          let+ (to_node, path) = follow' node p in
+          let+ (prev_node, to_node, path) = follow' node p in
           assert (Node0.equal to_n (Node.cfgnode to_node)); (* should always hold by follow' filter above *)
-          (Edge.embed e, to_node, path)
+          (prev_node, Edge.embed e, to_node, path)
         )
 end

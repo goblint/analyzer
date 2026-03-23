@@ -159,8 +159,9 @@ struct
             | (e,n)::xs, (_, e1, n1)::ys -> Node.equal n n1 && Arg.Edge.equal e e1 && is_prefix xs ys
           in
           let nexts = UnCilArg.next' prev in
-          let (new_edge, new_node, p) = List.find (fun (_, _, p) -> is_prefix p sub_path) nexts in
-          (new_edge, new_node)
+          let (n1, new_edge, new_node, p) = List.find (fun (_, _, _, p) -> is_prefix p sub_path) nexts in
+          let last_path_elem = Option.map (fun prev_node -> (prev_node, new_edge, new_node)) n1 in
+          (new_edge, new_node, p, last_path_elem)
         in
 
         let rec build_segments path segToPathMap segNr ~prev_path_elem =
@@ -180,9 +181,11 @@ struct
             in
             let segmap = SegMap.singleton node [target] in
             SegMap.add prev this_seg segmap, segToPathMap, segNr
-          | (prev, _, _) as path_elem :: rest as sub_path ->
-            let segmap, segToPathMap, segNr = build_segments rest segToPathMap segNr ~prev_path_elem:(Some path_elem) in
-            let new_edge, new_node = uncil prev sub_path in
+          | ((prev, _, _) as path_elem) :: _ as sub_path ->
+            let new_edge, new_node, uncilled_p, last_p_elem = uncil prev sub_path in
+            let rest = BatList.drop (List.length uncilled_p) path in
+            let prev_path_elem = Option.some @@ Option.value ~default:path_elem last_p_elem in
+            let segmap, segToPathMap, segNr = build_segments rest segToPathMap segNr ~prev_path_elem in
             let segments = Option.get (SegMap.find_opt new_node segmap) in
             let this_seg, segToPathMap, segNr = match segment_for_edge (prev, new_edge, new_node) prev_path_elem with
               | Some seg -> seg :: segments, SegNrToPathMap.add segNr sub_path segToPathMap, segNr + 1
