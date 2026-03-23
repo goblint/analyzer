@@ -321,12 +321,15 @@ struct
     in
 
     let path_prefix_until_unreachable seg_nr =
-      match SegNrToPathMap.find_opt seg_nr segToPathMap with
-      | Some suffix_from_unreachable ->
-        let suffix_after_unreachable_len = List.length suffix_from_unreachable - 1 in
-        BatList.take (List.length path - suffix_after_unreachable_len) path
-      | None ->
+      let next_seg_nr = seg_nr + 1 in
+      if next_seg_nr >= List.length segments then
         path
+      else
+        match SegNrToPathMap.find_opt next_seg_nr segToPathMap with
+        | Some suffix_after_unreachable ->
+          BatList.take (List.length path - List.length suffix_after_unreachable) path
+        | None ->
+          path
     in
 
     match extract_unreach_seg_nr lines with
