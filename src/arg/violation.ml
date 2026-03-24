@@ -129,10 +129,13 @@ struct
             | MyARG.CFGEdge Ret (None, _) -> None
             | MyARG.CFGEdge Test (_, b) ->
               let cfgNode = Node.cfgnode prev in
+              let skips_loop = b = false && check_if_skips_loop () in
+              let location_location = WitnessInvariant.location_location cfgNode in
+              let loop_location = WitnessInvariant.loop_location cfgNode in
               let+ location =
-                match WitnessInvariant.location_location cfgNode, WitnessInvariant.loop_location cfgNode with
-                | Some l1, Some l2 when b = false && check_if_skips_loop () -> assert (CilType.Location.equal l1 l2); Some (loc prev l1)
-                | _, Some l when b = false && check_if_skips_loop () -> Some (loc prev l)
+                match location_location, loop_location with
+                | Some l1, Some l2 when skips_loop -> assert (CilType.Location.equal l1 l2); Some (loc prev l1)
+                | _, Some l when skips_loop -> Some (loc prev l)
                 | Some l, _ -> Some (loc prev l)
                 | _ -> None
               in
@@ -291,7 +294,7 @@ struct
     List.iter (fun (node, edge, next_node) -> collect_callstack node edge next_node) path;
 
     let has_no_branching_before_unreachable segments seg_nr =
-      let rec check i: YamlWitnessType.ViolationSequence.Segment.t list -> bool = function
+      let rec check i: Segment.t list -> bool = function
         | _ when i = seg_nr -> true
         | [] -> true
         | {segment = {waypoint_type = Branching _} :: _} :: _ -> false
