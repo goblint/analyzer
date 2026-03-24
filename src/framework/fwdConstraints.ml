@@ -286,9 +286,8 @@ struct
           tf_proc var edge target_node None init_routine [] getl sidel getg sideg d'
         in
         let later_call = S.event man (Events.EnterOnce { once_control;  ran = true }) man in
-        let first_calls = List.map leave_once first_call in
-        let later_call = leave_once later_call in
-        List.map (D.join later_call) first_calls
+        let first_call = List.fold D.join (D.bot ()) first_call in
+        [D.join (leave_once first_call) (leave_once later_call)]
       in
       let is_once = LibraryFunctions.find ~nowarn:true f in
       (* If the prototpye for a library function is wrong, this will throw an exception. Such exceptions are usually unrelated to pthread_once, it is just that the call to `is_once.special` raises here *)
