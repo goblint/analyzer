@@ -20,4 +20,5 @@ int main(){
 
 	__goblint_check(z == 0);
 	pthread_mutex_unlock(&m1);
+	return 0;
 }

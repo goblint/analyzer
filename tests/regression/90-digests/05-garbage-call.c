@@ -26,4 +26,5 @@ int main(){
 	int h = foo(ptr, i);
 	int x = identity(0);
 	__goblint_check(x < 11); //TODO
+	return 0;
 }
