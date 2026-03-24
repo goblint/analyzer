@@ -47,6 +47,14 @@ sig
 end
 
 module CfgNode = Node
+module Segment = YamlWitnessType.ViolationSequence.Segment
+
+type cache_entry = {
+  segments: Segment.t list;
+  lines: string list;
+}
+
+let witness_cache : cache_entry list ref = ref []
 
 module UnknownFeasibility (Arg: ArgTools.BiArg): Feasibility with module Node = Arg.Node =
 struct
@@ -277,6 +285,24 @@ struct
     let command = Printf.sprintf "%s --witness-check %s --witness %s --prp %s %s %s --guide-only %s" witch_path_s witness_file_path witness_file_path property data_model check_locs_flag files in
     read_command_output command
 
+  let rec is_prefix eq prefix full =
+    match prefix, full with
+    | [], _ -> true
+    | _, [] -> false
+    | x :: xs, y :: ys -> eq x y && is_prefix eq xs ys
+
+  let same_segments segments1 segments2 =
+    List.length segments1 = List.length segments2 && is_prefix Segment.equal segments1 segments2
+
+  let cache_lookup (_, segments) =
+    List.find_map (fun entry ->
+        if same_segments entry.segments segments then Some entry.lines else None
+      ) witness_cache.contents
+
+  let cache_store lines segments =
+    if cache_lookup (SegNrToPathMap.empty, segments) = None then
+      witness_cache := {segments; lines} :: witness_cache.contents
+
   let get_unreachable_path lines (path: (Node.t * inline_edge * Node.t) list) (segToPathMap, segments) =
     let module NHT = BatHashtbl.Make (Arg.Node) in
     let node_to_stack = NHT.create 100 in
@@ -348,25 +374,32 @@ struct
       path_prefix_until_unreachable seg_nr
     | _ -> path
 
-  let check_feasability_with_witch lines path seg =
+  let check_feasability_with_witch lines path ((_, segments) as seg) =
     match extract_result_line lines with
-    | Some result when String.starts_with ~prefix:"true" result -> Printf.printf "Verification result: %s\n" result; Infeasible (get_unreachable_path lines path seg)
-    | Some result when String.starts_with ~prefix:"false" result -> Printf.printf "Verification result: %s\n" result; Feasible
+    | Some result when String.starts_with ~prefix:"true" result ->
+      Printf.printf "Verification result: %s\n" result;
+      cache_store lines segments;
+      Infeasible (get_unreachable_path lines path seg)
+    | Some result when String.starts_with ~prefix:"false" result ->
+      Printf.printf "Verification result: %s\n" result;
+      cache_store lines segments;
+      Feasible
     | Some _ -> Unknown
     | None -> Unknown
 
-  let check_and_remove_invalid_locs lines path (segToPathMap, segments as seg) =
+  let write_segments segments =
+    let entries = [YamlWitness.Entry.violation_sequence ~task ~violation:segments] in
+    let yaml_entries = List.rev_map YamlWitnessType.Entry.to_yaml entries in
+    (* TODO: "witness generation summary" message *)
+    YamlWitness.yaml_entries_to_file yaml_entries (Fpath.v (GobConfig.get_string "witness.yaml.path"))
+
+  let check_and_remove_invalid_locs lines (segToPathMap, segments) =
     match extract_invalid_locations lines with
     | Some seg_nrs ->
       let segments' = List.filteri (fun i _ -> not @@ List.mem i seg_nrs) segments in
-      let entries = [YamlWitness.Entry.violation_sequence ~task ~violation:segments'] in
-      let yaml_entries = List.rev_map YamlWitnessType.Entry.to_yaml entries in
-      (* TODO: "witness generation summary" message *)
-      YamlWitness.yaml_entries_to_file yaml_entries (Fpath.v (GobConfig.get_string "witness.yaml.path"));
-      let seg' = (segToPathMap, segments') in
-      let lines' = run_witch ~check_locs:false in
-      lines', seg'
-    | _ -> lines, seg
+      write_segments segments';
+      (segToPathMap, segments', true)
+    | _ -> (segToPathMap, segments, false)
 
   let check_path path =
     let seg, has_branching = write path in
@@ -374,13 +407,27 @@ struct
     match witch with
     | "" -> Unknown
     | _ ->
-      if has_branching then
-        let lines = run_witch ~check_locs:true in
-        let lines', seg' = check_and_remove_invalid_locs lines path seg in
-        check_feasability_with_witch lines' path seg'
-      else
-        let lines = run_witch ~check_locs:false in
-        check_feasability_with_witch lines path seg
+      match cache_lookup seg with
+      | Some lines -> check_feasability_with_witch lines path seg
+      | None ->
+        if has_branching then begin
+          let lines = run_witch ~check_locs:true in
+          let seg', changed =
+            match check_and_remove_invalid_locs lines seg with
+            | segToPathMap, segments, changed -> (segToPathMap, segments), changed
+          in
+          if not changed then
+            check_feasability_with_witch lines path seg
+          else
+            match cache_lookup seg' with
+            | Some lines' -> check_feasability_with_witch lines' path seg'
+            | None ->
+              let lines' = run_witch ~check_locs:false in
+              check_feasability_with_witch lines' path seg'
+        end
+        else
+          let lines = run_witch ~check_locs:false in
+          check_feasability_with_witch lines path seg
 end
 
 
