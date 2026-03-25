@@ -140,7 +140,7 @@ struct
         FunSet.replace live_funs f ();
         let add_fun  = BatISet.add l.line in
         let add_file = StringMap.modify_def BatISet.empty f.svar.vname add_fun in
-        let is_dead = LT.for_all (fun (_,_,x,f) -> Spec.D.is_bot x) v in
+        let is_dead = LT.for_all (fun (_,_,_,x) -> Spec.D.is_bot x) v in
         if is_dead then (
           dead_lines := StringMap.modify_def StringMap.empty l.file add_file !dead_lines
         ) else (
@@ -233,14 +233,13 @@ struct
           See: https://github.com/goblint/analyzer/issues/290#issuecomment-881258091. *)
       let loc = UpdateCil.getLoc x.node in
       if loc <> locUnknown then try
-          let fundec = Node.find_fundec x.node in
           if Result.mem res x.node then
             (* If this source location has been added before, we look it up
               * and add another node to it information to it. *)
             let prev = Result.find res x.node in
-            Result.replace res x.node (LT.add (x.context,x.current_digest,state,fundec) prev)
+            Result.replace res x.node (LT.add (x.context,x.original_digest, x.current_digest,state) prev)
           else
-            Result.add res x.node (LT.singleton (x.context,x.current_digest,state,fundec))
+            Result.add res x.node (LT.singleton (x.context,x.original_digest, x.current_digest,state))
         (* If the function is not defined, and yet has been included to the
           * analysis result, we generate a warning. *)
         with Not_found ->

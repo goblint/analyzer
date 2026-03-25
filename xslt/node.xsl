@@ -130,9 +130,9 @@
                 </div>
               </div>
               <div class="toggle off">
-                <span>Path</span>
+                <span>Abstract State</span>
                 <div>
-                  <xsl:apply-templates select="path"/>
+                  <xsl:apply-templates select="abstract_state"/>
                 </div>
               </div>
           </div>
