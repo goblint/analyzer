@@ -33,7 +33,7 @@ let spec_module: (module Spec') Lazy.t = lazy (
       |> lift (get_bool "ana.opt.hashcached") (module HashCachedContextLifter)
       |> lift arg_enabled (module HashconsLifter)
       |> lift arg_enabled (module ArgConstraints.PathSensitive3)
-      (* |> lift (not arg_enabled) (module PathSensitive2) *)
+      |> lift (not arg_enabled && not (get_bool "solvers.fwd.digests")) (module PathSensitive2)
       |> lift (get_bool "ana.dead-code.branches") (module DeadBranchLifter)
       |> lift true (module DeadCodeLifter)
       |> lift (get_bool "dbg.slice.on") (module LevelSliceLifter)
@@ -45,6 +45,7 @@ let spec_module: (module Spec') Lazy.t = lazy (
       |> lift true (module LongjmpLifter.Lifter)
       |> lift termination_enabled (module RecursionTermLifter.Lifter) (* Always activate the recursion termination analysis, when the loop termination analysis is activated*)
       |> lift (get_int "ana.widen.delay.global" > 0) (module WideningDelay.GLifter)
+      |> lift (not (get_bool "solvers.fwd.digests")) (module NoDigestLifter.Lifter) (* Exposes only unit to be used as digest *)
     )
   in
   GobConfig.building_spec := false;
