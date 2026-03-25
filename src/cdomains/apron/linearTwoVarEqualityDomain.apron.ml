@@ -813,6 +813,8 @@ struct
     in
     BatOption.get t.d |> fun (_,map) -> EConj.IntMap.fold (fun lhs rhs list -> get_const list lhs rhs) map []
 
+  let invariant_set _ = failwith "not needed here"
+
   let cil_exp_of_lincons1 = Convert.cil_exp_of_lincons1
 
   let env t = t.env

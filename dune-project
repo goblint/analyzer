@@ -69,6 +69,7 @@ Goblint includes analyses for assertions, overflows, deadlocks, etc and can be e
     conf-gcc ; ensures opam-repository CI installs real gcc from homebrew on MacOS
     domain-local-await
     domain_shims
+    ocplib-simplex
   )
   (depopts
     apron

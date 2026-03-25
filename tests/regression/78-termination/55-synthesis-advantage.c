@@ -8,10 +8,11 @@ int main() {
     int x;
 
     while (x >= 2) {
-        if (x == 42) {
+        x = x == 42 ? x - 1 : x / 2;
+        /*if (x == 42) {
             x--;
         } else {
             x = x / 2;
-        }
+        }*/
     }
 }

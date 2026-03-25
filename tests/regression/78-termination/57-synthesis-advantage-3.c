@@ -1,7 +1,7 @@
 // SKIP TERM PARAM: --set "ana.activated[+]" termination --set ana.activated[+] apron --enable ana.int.interval --set ana.apron.domain polyhedra
 
 // from: https://dl.acm.org/doi/pdf/10.1145/1941487.1941509, Figure 2
-// Linear ranking function exists only if numbers are bounded, otherwise lexicographic needed
+// Linear ranking function exists only if numbers are bounded (e.g.: 2^32x + y), otherwise lexicographic needed
 
 #include <stdlib.h>
 

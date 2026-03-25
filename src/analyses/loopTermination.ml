@@ -7,6 +7,7 @@ open GoblintCil
 open TerminationPreprocessing
 open ListMatrix
 open SparseVector
+open GobApron
 
 (** Contains all loop counter variables (varinfo) and maps them to their corresponding loop statement. *)
 let loop_counters : stmt VarToStmt.t ref = ref VarToStmt.empty
@@ -61,9 +62,9 @@ module Matrix = ListMatrix (Rat) (SparseVector)
 
 module SparseVec = SparseVector (Rat)
 
-module VarSet = Set.Make(String)
+module StringSet = Set.Make (String)
 
-let string_of_constraints (constraints: Invariant.t) =
+let string_of_invariant (constraints: Invariant.t) =
   match constraints with
   | `Top -> "Top"
   | `Bot -> "Bot"
@@ -80,12 +81,12 @@ let exp_list_of_constraints (constraints : Invariant.t) =
       | BinOp (Ge, e1, e2, t) -> (BinOp (Le, e2, e1, t)) :: acc
       | BinOp (Eq, e1, e2, t) -> (BinOp (Le, e1, e2, t)) :: (BinOp (Le, e2, e1, t)) :: acc
       | BinOp (Ne, _, _, _) -> acc
-      | _ -> failwith "Found something else, help me" in
+      | _ -> failwith "Found something else" in
     let cs =
       cs |> Invariant.Exp.process |> List.map Invariant.Exp.to_cil |> List.fold_left to_leq []
     in
     if M.tracing then
-      (M.trace "termination" "Constraints: %s" (string_of_constraints constraints);
+      (M.trace "termination" "Constraints: %s" (string_of_invariant constraints);
        M.trace "termination" "Number of constraints after conversion to Leq list: %i" (List.length cs));
     cs
 
@@ -98,15 +99,12 @@ let coeff_in_exp vname e =
        | c, None | None, c -> c)
     | BinOp (MinusA, e1, e2, _) ->
       failwith "found a Minus"
-    (*(match find_coeff v e1, find_coeff v e2 with
-      | Some c1, Some c2 -> failwith "This shouldn't happen"
-      | c, None -> c
-      | None, Some c -> Some (Rat.mult Rat.m_one c))*)
     | BinOp (Mult, Const (CInt (c, _, _)), Lval (Var v, _), _) -> if v.vname = vname then Some (c |> cilint_to_int |> Rat.of_int) else None
     | BinOp (Mult, _, _, _) -> failwith "found another Mult"
     | Const (CInt (c, _, _)) -> None
     | Lval (Var v, _) -> if v.vname = vname then Some Rat.one else None
-    | _ -> failwith "found something else"
+    | BinOp (Mod, _, _, _) -> None
+    | _ -> failwith "found something unexpected"
   in
   match e with
   | BinOp (Le, e1, e2, _) ->
@@ -117,6 +115,19 @@ let coeff_in_exp vname e =
      | None, Some c -> Rat.neg c)
   | _ -> failwith "This shouldn't happen"
 
+let get_var vname env =
+  let vars, _ = Environment.vars env in
+  Array.find_map (fun v -> if Var.to_string v = vname then Some v else None) vars
+
+let coeff_in_lincons1 vname (e: Lincons1.t) =
+  match get_var vname e.env with
+  | None -> Rat.zero
+  | Some v ->
+    match Lincons1.get_coeff e v with
+    | Interval _ -> failwith "Lincons1 coeff is an interval, this shouldn't happen"
+    | Scalar s ->
+      s |> SharedFunctions.int_of_scalar |> Option.get |> Z.to_int |> Rat.of_int |> Rat.minus (* negate the coefficient because of SUPEQ typ *)
+
 let const_in_exp e =
   let rec inner = function
     | BinOp (PlusA, e1, e2, _) ->
@@ -126,6 +137,7 @@ let const_in_exp e =
        | c, None | None, c -> c)
     | Const (CInt (c, _, _)) -> if Z.compare c Z.zero = 0 then None else Some (c |> cilint_to_int |> Rat.of_int)
     | BinOp (Mult, _, _, _) -> None
+    | BinOp (Mod, _, _, _) -> None
     | Lval (Var v, _) -> None
     | _ -> failwith "found something else"
   in
@@ -138,27 +150,65 @@ let const_in_exp e =
      | None, Some c -> c)
   | _ -> failwith "This shouldn't happen"
 
-let transposed_matrices_of_exp_list (cs : exp list) =
+let const_in_lincons1 (e: Lincons1.t) =
+  match Lincons1.get_cst e with
+  | Interval _ -> failwith "Lincons1 coeff is an interval, this shouldn't happen"
+  | Scalar s ->
+    match e.lincons0.typ with
+    | SUPEQ -> s |> SharedFunctions.int_of_scalar |> Option.get |> Z.to_int |> Rat.of_int (* don't negate here because cst is on the correct side *)
+    | _ -> failwith "wrong typ"
+
+let transposed_matrices_of_exp_list id (cs : exp list) =
   let rec vars_from_exp acc = function
-    | BinOp (_, e1, e2, _) -> VarSet.union (vars_from_exp acc e1) (vars_from_exp acc e2)
+    | BinOp (_, e1, e2, _) -> StringSet.union (vars_from_exp acc e1) (vars_from_exp acc e2)
     | UnOp (_, e, _) -> vars_from_exp acc e
     | Lval (Var v, _) ->
-      let len = String.length v.vname in
-      if String.starts_with ~prefix:"old_" v.vname then
-        VarSet.add (String.sub v.vname 4 (len - 4)) acc
-      else
-        VarSet.add v.vname acc
+      (match String.split_on_char '_' v.vname with
+       | "id"::_::"old"::_ -> acc (* TODO: maybe I'm forgetting too much here, could keep old_vars with the correct id *)
+       | _ -> StringSet.add v.vname acc)
     | CastE _ -> failwith "Encountered cast"
     | Question _ -> failwith "Encountered question"
     | _ -> acc
   in
-  let vars = cs |> List.fold_left vars_from_exp VarSet.empty |> VarSet.elements in
-  let old_vars = List.map (String.cat "old_") vars in
+  let vars = cs |> List.fold_left vars_from_exp StringSet.empty |> StringSet.elements in
+  let old_vars = List.map (String.cat @@ "id_" ^ id ^ "_old_") vars in
+  (* TODO: could this result in invalid expressions where some terms are missing? *)
   let atr = List.fold_left (fun m v -> cs |> List.map (coeff_in_exp v) |> SparseVec.of_list |> Matrix.append_row m) (Matrix.empty ()) old_vars in
   let a'tr = List.fold_left (fun m v -> cs |> List.map (coeff_in_exp v) |> SparseVec.of_list |> Matrix.append_row m) (Matrix.empty ()) vars in
   let b = cs |> List.map const_in_exp |> SparseVec.of_list in
   atr, a'tr, b
 
+let transposed_matrices_of_lincons1set id (cs : Lincons1Set.t) =
+  let to_supeq_set e a =
+    match Lincons1.get_typ e with
+    | SUPEQ -> Lincons1Set.add e a
+    | EQ ->
+      let pos_e = Lincons1.make (Lincons1.get_linexpr1 e) SUPEQ in
+      let neg_e = Lincons1.make (Linexpr1.neg (Lincons1.get_linexpr1 e)) SUPEQ in
+      a |> Lincons1Set.add pos_e |> Lincons1Set.add neg_e
+    | _ -> failwith "Wrong typ in Lincons1Set"
+  in
+  let c = Lincons1Set.find_first (Fun.const true) cs in
+  let remove_old v =
+    match v |> Var.to_string |> String.split_on_char '_' with
+    | "id"::_::"old"::_ -> false (* TODO: maybe I'm forgetting too much here, could keep old_vars with the correct id *)
+    | _ -> true
+  in
+  let vars, _ = Environment.vars c.env in
+  let vars = vars |> Array.to_list |> List.filter remove_old in
+  let cs = Lincons1Set.fold to_supeq_set cs Lincons1Set.empty in
+  let atr = List.fold_left
+      (fun m v -> cs |> Lincons1Set.elements |>
+        List.map (coeff_in_lincons1 (Printf.sprintf "id_%s_old_%s" id (Var.to_string v))) |> SparseVec.of_list |> Matrix.append_row m) (Matrix.empty ()) vars in
+  let a'tr = List.fold_left (fun m v -> cs |> Lincons1Set.elements |> List.map (coeff_in_lincons1 (Var.to_string v)) |> SparseVec.of_list |> Matrix.append_row m) (Matrix.empty ()) vars in
+  let b = cs |> Lincons1Set.elements |> List.map const_in_lincons1 |> SparseVec.of_list in
+  atr, a'tr, b
+
+let string_of_my_invariant (constraints : MyInvariant.t) =
+  match constraints with
+  | `Top -> "Top"
+  | `Bot -> "Bot"
+  | `Lifted cs -> cs |> Lincons1Set.elements |> List.map Lincons1.show |> String.concat "; "
 
 let termination_provable a_transposed a'_transposed b =
   let num_constraints = Matrix.num_cols a_transposed in
@@ -277,53 +327,6 @@ let termination_provable a_transposed a'_transposed b =
   | SAT -> true
   | UNK -> failwith "Simplex returned UNK, this shouldn't happen"
 
-let test_termination_provable () =
-  let zero = Rat.zero in
-  let one = Rat.one in
-  let two = Rat.of_int 2 in
-  let m_one = Rat.m_one in
-  let m_two = Rat.of_int (-2) in
-
-  (* From regression test 52: *)
-  (*let a_transposed = Matrix.append_row (Matrix.append_row (Matrix.append_row (Matrix.append_row (Matrix.empty ())
-    (SparseVec.of_list [m_one; zero; zero; zero; m_one; zero; zero; zero; zero; zero; one; m_one; zero; zero])) (*i*)
-    (SparseVec.of_list [zero; zero; zero; one; one; zero; zero; zero; one; one; zero; zero; one; m_one])) (*j*)
-    (SparseVec.of_list [zero; m_one; zero; zero; zero; zero; zero; zero; zero; zero; zero; zero; zero; zero])) (*nat*)
-    (SparseVec.of_list [zero; zero; m_one; zero; zero; zero; zero; zero; zero; zero; zero; zero; zero; zero]) (*pos*)
-    in
-    let a'_transposed = Matrix.append_row (Matrix.append_row (Matrix.append_row (Matrix.append_row (Matrix.empty ())
-    (SparseVec.of_list [zero; zero; zero; zero; zero; zero; zero; zero; zero; m_one; m_one; one; zero; zero])) (*i'*)
-    (SparseVec.of_list [zero; zero; zero; zero; zero; m_one; zero; zero; m_one; zero; zero; zero; m_one; one])) (*j'*)
-    (SparseVec.of_list [zero; zero; zero; zero; zero; zero; m_one; zero; zero; m_one; m_one; one; zero; zero])) (*nat'*)
-    (SparseVec.of_list [zero; zero; zero; zero; zero; zero; zero; m_one; zero; zero; zero; zero; one; m_one]) (*pos'*)
-    in
-    let b = SparseVec.of_list [Rat.of_int 2147483647; zero; m_one; Rat.of_int 2147483646; m_one;
-    Rat.of_int 2147483647; zero; m_one; m_one; m_one;
-    zero; zero; zero; zero]*)
-
-  (* From regression test 53: *)
-  (*let a_transposed = Matrix.append_row (Matrix.append_row (Matrix.empty ())
-    (SparseVec.of_list [zero; m_one; zero; zero; zero; m_one; one; zero; zero])) (*x1*)
-    (SparseVec.of_list [m_one; zero; zero; zero; zero; zero; zero; m_one; one]) (*x2*)
-    in
-    let a'_transposed = Matrix.append_row (Matrix.append_row (Matrix.empty ())
-    (SparseVec.of_list [zero; zero; m_one; zero; one; two; m_two; zero; zero])) (*x1'*)
-    (SparseVec.of_list [zero; zero; zero; m_one; zero; zero; zero; one; m_one]) (*x2'*)
-    in
-    let b = SparseVec.of_list [zero; m_two; m_one; m_one; Rat.of_int 1073741823;
-    zero; two; one; m_one]*)
-
-  (* From regression test 53, simplified: *)
-  let a_transposed = Matrix.append_row (Matrix.empty ())
-      (SparseVec.of_list [m_one; zero; m_one; one]) (*x1*)
-  in
-  let a'_transposed = Matrix.append_row (Matrix.empty ())
-      (SparseVec.of_list [zero; one; two; m_two]) (*x1'*)
-  in
-  let b = SparseVec.of_list [m_one; Rat.of_int 1073741823; zero; two]
-  in
-  termination_provable a_transposed a'_transposed b
-
 (** Checks whether a variable can be bounded. *)
 let ask_bound man varinfo =
   let open IntDomain.IntDomTuple in
@@ -378,10 +381,21 @@ struct
             end
           | None ->
             (*failwith "Encountered a call to __goblint_bounded with an unknown loop counter variable."*)
-            let atr, a'tr, b = man.ask (Queries.Invariant Invariant.default_context) |> exp_list_of_constraints |> transposed_matrices_of_exp_list in
+            let loop_id = loop_counter.vname |> String.split_on_char '_' |> (function _::id::_ -> id | _ -> "-1")
+            in
+            (*let atr, a'tr, b = man.ask (Queries.Invariant Invariant.default_context) |> exp_list_of_constraints |> transposed_matrices_of_exp_list loop_id in*)
+
+            let my_inv = man.ask (Queries.MyInvariant MyInvariant.default_context) in
+            let lincons1set =
+              match my_inv with
+              | `Lifted cs -> cs
+              | `Top | `Bot -> Lincons1Set.empty
+            in
+            let atr, a'tr, b = transposed_matrices_of_lincons1set loop_id lincons1set in
+
             let term_provable = termination_provable atr a'tr b in
-            if term_provable then (M.success ~category:Termination "Loop terminates")
-            else (M.warn ~category:Termination "The program might not terminate! (Loop analysis)")
+            if term_provable then ((*if GobConfig.get_bool "dbg.termination-bounds" then*) M.success ~category:Termination "Loop terminates")
+            else (M.warn ~category:Termination "The program might not terminate!")
 
         end
       | "__goblint_bounded", _ ->

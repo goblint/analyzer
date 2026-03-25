@@ -70,14 +70,15 @@ class loopCounterVisitor lc (fd : fundec) = object(self)
           let nb = mkBlock [init_stmt; mkStmt s.skind] in
           s.skind <- Block nb;*)
 
+        incr vcounter; (* TODO: synchronize with existing termination analysis *)
+
         let rec vars_from_exp = function
           | BinOp (_, e1, e2, _) -> VarSet.union (vars_from_exp e1) (vars_from_exp e2)
           | UnOp (_, e, _) -> vars_from_exp e
           | Lval (Var v, _) -> VarSet.singleton v
-          | CastE _ -> failwith "Encountered cast"
+          | CastE (_, _, e) -> vars_from_exp e (* TODO: special handling needed? *)
           | Question _ -> failwith "Encountered question"
           | _ -> VarSet.empty
-
         in
         let rec get_vars = function
           | [] -> VarSet.empty
@@ -91,32 +92,38 @@ class loopCounterVisitor lc (fd : fundec) = object(self)
                           | _ -> get_vars_helper is)
                       | _ -> get_vars_helper is) in
                 get_vars_helper instrs
+              | If (e, b1, b2, _, _) -> vars_from_exp e |> VarSet.union (get_vars b1.bstmts) |> VarSet.union (get_vars b2.bstmts) |> VarSet.union (get_vars ss)
               | Break _ -> (*Printf.printf "\nfound a break\n";*) get_vars ss
-              | If (_, b1, b2, _, _) -> VarSet.union (VarSet.union (get_vars b1.bstmts) (get_vars b2.bstmts)) (get_vars ss)
               | _ -> get_vars ss)
         in
         let vars = get_vars b.bstmts |> VarSet.elements in
-        (*Printf.printf "Loop Info: %s\nModified Vars: %s\n" (string_of_loop_info b.bstmts) (String.concat ", " (List.map (fun v -> v.vname) modified_vars));*)
 
-        if vars <> [] then
-          (match b.bstmts with
-           | s1 :: ss ->
-             (match s1.skind with
-              | If (_, _, _, loc, eloc) ->
-                let lval v = Lval (Var v, NoOffset) in
-                let init_old_var v =
-                  let old_vname = "old_" ^ v.vname in
-                  (*incr vcounter;*)
-                  let v' = Cil.makeLocalVar fd old_vname counter_typ in
-                  Set (var v', lval v, loc, eloc)
-                in
-                b.bstmts <- s1 ::
-                            mkStmt (Instr ((List.map init_old_var vars))) ::
-                            ss @
-                            [mkStmtOneInstr (Call (None, f_bounded, [lval (List.hd vars)], loc, eloc))]; (* TODO: replace f_bounded by something appropriate; replace loc by the correct location *)
-              | _ -> (*Printf.printf "Some other structure\n"*) ())
-           | _ -> (*Printf.printf "Some other structure\n"*) ());
+        if vars <> [] then (
+          match b.bstmts with
+          | [] -> ()
+          | s1 :: ss ->
+            match s1.skind with
+             | If (_, _, _, loc, eloc) ->
+               let lval v = Lval (Var v, NoOffset) in
+               let init_old_var v =
+                 let old_vname = "id_" ^ (string_of_int !vcounter) ^ "_old_" ^ v.vname in
+                 let old_v = Cil.makeLocalVar fd old_vname v.vtype in
+                 Set (var old_v, lval v, loc, eloc)
+               in
+               let init_old_vars = List.map init_old_var vars in
+               let first_old_var =
+                 match List.hd init_old_vars with
+                 | Set ((Var first_old_var, NoOffset), _, _, _) -> first_old_var
+                 | _ -> failwith "impossible"
+               in
+               b.bstmts <- s1 ::
+                           mkStmt (Instr init_old_vars) ::
+                           ss @
+                           [mkStmtOneInstr (Call (None, f_bounded, [lval first_old_var], loc, eloc))]; (* TODO: replace f_bounded by something appropriate; replace loc by the correct location *)
+             | _ -> (*Printf.printf "Some other structure\n"*) ()
+        );
         s
+
       | Goto (sref, l) ->
         let goto_jmp_stmt = sref.contents in
         let loc_stmt = Cilfacade.get_stmtLoc goto_jmp_stmt in

@@ -71,6 +71,7 @@ depends: [
   "conf-gcc"
   "domain-local-await"
   "domain_shims"
+  "ocplib-simplex"
 ]
 depopts: ["apron" "z3" "domainslib"]
 conflicts: [

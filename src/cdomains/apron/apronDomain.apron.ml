@@ -555,7 +555,7 @@ struct
   let to_lincons_set d =
     Lincons1Set.of_earray (A.to_lincons_array Man.mgr d)
 
-  let invariant d =
+  let invariant_set d =
     (* Would like to minimize to get rid of multi-var constraints directly derived from one-var constraints,
        but not implemented in Apron at all: https://github.com/antoinemine/apron/issues/44 *)
     (* let d = A.copy Man.mgr d in
@@ -572,9 +572,15 @@ struct
       lcd
 
   let invariant d =
-    invariant d
+    let res =
+    invariant_set d
     |> (if Oct.manager_is_oct Man.mgr then Lincons1Set.simplify else Fun.id)
     |> Lincons1Set.elements (* TODO: remove list conversion? *)
+    in
+    if M.tracing then
+      (M.trace "termination" "RD.invariant: (%s)" (res |> List.map Lincons1.show |> String.concat ", "));
+    res
+
 end
 
 (** With heterogeneous environments. *)

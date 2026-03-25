@@ -84,6 +84,7 @@ depends: [
   "ocaml-variants" {= "4.14.2+options"}
   "ocamlbuild" {= "0.14.3"}
   "ocamlfind" {= "1.9.8"}
+  "ocplib-simplex" {= "0.5.1"}
   "odoc" {= "3.0.0" & with-doc}
   "odoc-parser" {= "3.0.0" & with-doc}
   "ordering" {= "3.19.1"}

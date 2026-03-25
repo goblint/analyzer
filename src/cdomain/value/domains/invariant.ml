@@ -62,7 +62,7 @@ struct
 end
 
 
-(** Lift {!ExpLat} such that join/meet folds don't introduce excessive [|| 0|] or [&& 1] expressions. *)
+(** Lift {!ExpLat} such that join/meet folds don't introduce excessive [|| 0] or [&& 1] expressions. *)
 
 module N =
 struct

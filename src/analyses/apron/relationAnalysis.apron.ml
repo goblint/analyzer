@@ -76,7 +76,7 @@ struct
             if VH.mem v_ins v then
               VH.find v_ins v
             else
-              let v_in = Cilfacade.create_var @@ makeVarinfo false (v.vname ^ "#in") v.vtype in (* temporary local g#in for global g *)
+              let v_in = Cilfacade.create_var @@ makeVarinfo false (v.vname ^  "#in") v.vtype in (* temporary local g#in for global g *)
               v_in.vattr <- v.vattr; (* preserve goblint_relation_track attribute *)
               VH.replace v_ins v v_in;
               v_in
@@ -613,7 +613,7 @@ struct
         if (one_var || GobApron.Lincons1.num_vars lincons1 >= 2) && (exact || Apron.Lincons1.get_typ lincons1 <> EQ) then
           RD.cil_exp_of_lincons1 lincons1
           |> Option.map e_inv
-          (*|> Option.filter (InvariantCil.exp_is_suitable ~scope)*)
+          |> Option.filter (InvariantCil.exp_is_suitable ~scope)
         else
           None
       )
@@ -627,6 +627,8 @@ struct
     )
     else
       Invariant.none
+
+  let query_my_invariant man = MyInvariant.of_lincons1_set (RD.invariant_set man.local.rel)
 
   let query man (type a) (q: a Queries.t): a Queries.result =
     let open Queries in
@@ -652,6 +654,7 @@ struct
     | Queries.InvariantGlobal g ->
       let g: V.t = Obj.obj g in
       query_invariant_global man g
+    | Queries.MyInvariant _ -> query_my_invariant man
     | _ -> Result.top q
 
 
