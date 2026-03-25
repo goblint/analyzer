@@ -792,6 +792,21 @@ let linux_userspace_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("pool_alloc", special [drop "p" []; __ "size" []; drop "msg" []] @@ fun size -> Malloc size);
     ("pool_free", special [drop "p" []; drop "size" []; __ "ptr" [f]] @@ fun ptr -> Free ptr);
     ("parse_arguments", unknown ~attrs:[InvalidateGlobals] [drop "argc" [r]; drop "argv" []]);
+    ("write_buf", unknown [drop "fd" []; drop "buf" [r]; drop "count" []]);
+    ("do_stat", unknown [drop "pathname" [r]; drop "statbuf" [w]]);
+    ("rprintf", unknown (drop "code" [] :: drop "format" [r] :: VarArgs (drop' [r])));
+    ("do_lstat", unknown [drop "pathname" [r]; drop "statbuf" [w]]);
+    ("safe_read_125061", unknown [drop "fd" []; drop "buf" [w]; drop "count" []]);
+    ("safe_write_125081", unknown [drop "fd" []; drop "buf" [r]; drop "count" []]);
+    ("do_rename" , unknown [drop "oldpath" [r]; drop "newpath" [r];]);
+    ("do_open", unknown (drop "pathname" [r] :: drop "flags" [] :: VarArgs (drop "mode" [])));
+    ("do_open_nofollow", unknown (drop "pathname" [r] :: drop "flags" [] :: VarArgs (drop "mode" [])));
+    ("do_open_checklinks", unknown [drop "pathname" [r]]);
+    ("do_unlink", unknown [drop "pathname" [r]]);
+    ("do_utimensat", unknown [drop "pathname" [r]; drop "stat" [w]]);
+    ("do_lutimes", unknown [drop "filename" [r]; drop "times" [r]]);
+    ("do_utimes", unknown [drop "filename" [r]; drop "times" [r]]);
+    ("do_lchown", unknown [drop "pathname" [r]; drop "owner" []; drop "group" []]);
     ("fallocate", unknown [drop "fd" []; drop "mode" []; drop "offset" []; drop "len" []]);
     ("ioctl", unknown (drop "fd" [] :: drop "request" [] :: VarArgs (drop' [r_deep; w_deep])));
   ]
