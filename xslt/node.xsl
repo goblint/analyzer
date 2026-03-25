@@ -124,6 +124,12 @@
                 </div>
               </div>
               <div class="toggle off">
+                <span>Calling Digest</span>
+                <div>
+                  <xsl:apply-templates select="original_digest"/>
+                </div>
+              </div>
+              <div class="toggle off">
                 <span>Current Digest</span>
                 <div>
                   <xsl:apply-templates select="current_digest"/>
