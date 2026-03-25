@@ -18,7 +18,7 @@ int main(){
 		z = 7;
 	}
 
-	__goblint_check(z == 0);
+	__goblint_check(z == 0); //TODO
 	pthread_mutex_unlock(&m1);
 	return 0;
 }
