@@ -246,14 +246,19 @@ struct
     let paths = List.map (fun (c,fc,v) ->
         let p = S.P.of_elt v in
         let endvar = (GVar.return (f,fc,p)) in
-        let end_paths = if S.D.is_bot v then [v]
+        let end_paths =
+          if S.D.is_bot v then [S.D.bot ()]
           else
             let return_nodes = G.return @@ getg endvar |> S.LVarSet.to_seq in
             let return_value x =
               G.single_return @@ getg (GVar.single_return x)
             in
             let s = Seq.map return_value return_nodes in
-            List.of_seq s
+            if Seq.is_empty s then
+              (* In case the calle does not return, create one bottom return path for LongjmpLifter to do its work *)
+              [S.D.bot ()]
+            else
+              List.of_seq s
         in
         (c, fc, end_paths)) paths
     in
