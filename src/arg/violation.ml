@@ -162,6 +162,12 @@ struct
               segment ~waypoints
         in
 
+        let target_segment node =
+          let cfgNode = Node.cfgnode node in
+          let l = Option.get (WitnessInvariant.location_location cfgNode) in
+          segment ~waypoints:[waypoint ~waypoint_type:(Target (violation_target ~location:(loc node l)))]
+        in
+
         let uncil prev (sub_path : (Node.t * inline_edge * Node.t) list) =
           let rec is_prefix prefix full =
             match prefix, full with
@@ -179,9 +185,7 @@ struct
           match path with
           | [] -> SegMap.empty, segToPathMap, 0
           | [(prev, _, node) as path_elem] as sub_path ->
-            let cfgNode = Node.cfgnode node in
-            let l = Option.get (WitnessInvariant.location_location cfgNode) in
-            let target = segment ~waypoints:[waypoint ~waypoint_type:(Target (violation_target ~location:(loc node l)))] in
+            let target = target_segment node in
             let this_seg, segToPathMap, segNr = match segment_for_edge path_elem prev_path_elem with
               | Some seg ->
                 let segToPathMap1 = SegNrToPathMap.add 0 [] segToPathMap in
@@ -196,9 +200,16 @@ struct
             let new_edge, new_node, uncilled_p, last_p_elem = uncil prev sub_path in
             (* The recursive suffix needs the uncilled predecessor context,
             but the current segment must still be checked against the original caller context. *)
-            let rest = BatList.drop (List.length uncilled_p) path in
-            let prev_path_elem_for_rest = Option.some @@ Option.value ~default:path_elem last_p_elem in
-            let segmap, segToPathMap, segNr = build_segments rest segToPathMap segNr ~prev_path_elem:prev_path_elem_for_rest in
+            let rest = BatList.drop (List.length uncilled_p) path in   
+            let segmap, segToPathMap, segNr =
+              if rest = [] then
+                let target = target_segment new_node in
+                let segmap = SegMap.singleton new_node [target] in
+                segmap, SegNrToPathMap.add 0 [] segToPathMap, 1
+              else
+                let prev_path_elem_for_rest = Option.some @@ Option.value ~default:path_elem last_p_elem in
+                build_segments rest segToPathMap segNr ~prev_path_elem:prev_path_elem_for_rest
+            in
             let segments = Option.get (SegMap.find_opt new_node segmap) in
             let this_seg, segToPathMap, segNr = match segment_for_edge (prev, new_edge, new_node) prev_path_elem with
               | Some seg -> seg :: segments, SegNrToPathMap.add segNr sub_path segToPathMap, segNr + 1
