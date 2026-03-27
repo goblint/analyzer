@@ -123,18 +123,22 @@
                   <xsl:apply-templates select="context"/>
                 </div>
               </div>
-              <div class="toggle off">
-                <span>Calling Digest</span>
-                <div>
-                  <xsl:apply-templates select="original_digest"/>
+              <xsl:if test="normalize-space(original_digest) != ''">
+                <div class="toggle off">
+                  <span>Calling Digest</span>
+                  <div>
+                    <xsl:apply-templates select="original_digest"/>
+                  </div>
                 </div>
-              </div>
-              <div class="toggle off">
-                <span>Current Digest</span>
-                <div>
-                  <xsl:apply-templates select="current_digest"/>
+              </xsl:if>
+              <xsl:if test="normalize-space(current_digest) != ''">
+                <div class="toggle off">
+                  <span>Current Digest</span>
+                  <div>
+                    <xsl:apply-templates select="current_digest"/>
+                  </div>
                 </div>
-              </div>
+              </xsl:if>
               <div class="toggle off">
                 <span>Abstract State</span>
                 <div>
