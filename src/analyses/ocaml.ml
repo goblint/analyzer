@@ -12,6 +12,8 @@ module VarinfoSet = SetDomain.Make(CilType.Varinfo)
 
 (** "Fake" variable to handle returning from a function *)
 let return_varinfo = dummyFunDec.svar
+(** Flag for first function entered *)
+let first_function = true
 
 module Spec : Analyses.MCPSpec =
 struct
@@ -114,7 +116,7 @@ struct
       (* If rval is a pointer, checks whether rval is accounted for, handles assignment to v accordingly *) (* state *)
       (* Emits an event for the variable v not being zero. *)
 
-      if Cil.isPointerType (Cil.typeOf rval) then
+      if Cil.isPointerType (Cil.typeOf rval) || is_value_type (Cil.typeOf rval) then
         if exp_accounted_for state rval then
           if exp_registered state rval then D.add_a v (D.add_r v state)
           else D.add_a v (D.remove_r v state)
@@ -131,13 +133,16 @@ struct
   (** Handles going from start node of function [f] into the function body of [f].
       Meant to handle e.g. initializiation of local variables. *)
   let body ctx (f:fundec) : D.t =
-    (* The (non-formals) locals are tracked and initially accounted for *)
+    (* The (non-formals) locals are initially accounted for *)
     let state = ctx.local in
-    (* It is assumed that value-typed arguments are never nptrs. *)
-    List.fold_left (fun st v -> if is_value_type v.vtype then
+    (* It is assumed that the startstate's values are not nptrs. *)
+    let state = List.fold_left (fun st v -> if first_function && is_value_type v.vtype then
                        (ctx.emit (Events.SplitBranch (Cil.Lval (Cil.var v), true)); D.add_a v st)
                      else D.add_a v (D.add_r v st))
-      state f.sformals
+      state f.sformals in
+    (* TODO: Is there a way without a flag to only emit at the start? *)
+    let first_function = false in
+    state
 
   (** Handles the [return] statement, i.e. "return exp" or "return", in function [f]. *)
   let return ctx (exp:exp option) (f:fundec) : D.t =
@@ -147,9 +152,16 @@ struct
       (* Checks that value returned is accounted for. *)
       (* Return_varinfo is used in place of a "real" variable. *)
       (* TODO: Consider how the return_varinfo needs to be tracked. *)
-      (* state *)
-      if exp_accounted_for state e then D.add_a return_varinfo state
-      else (M.warn "Value returned might be garbage collected"; D.remove_a return_varinfo state)
+      let return_state =
+        if Cil.isPointerType (Cil.typeOf e) || is_value_type (Cil.typeOf e) then
+          if exp_accounted_for state e then
+            if exp_registered state e then D.add_a return_varinfo (D.add_r return_varinfo state)
+            else D.add_a return_varinfo (D.remove_r return_varinfo state)
+          else (M.warn "Value returned might be garbage collected"; D.remove_a return_varinfo state)
+        else D.add_a return_varinfo (D.add_r return_varinfo state)
+      in
+      (* Remove this function's formals and locals *)
+      List.fold_left (fun st v -> D.remove_a v (D.remove_r v st)) return_state (f.sformals @ f.slocals)
     | None -> state
 
   (** For a function call "lval = f(args)" or "f(args)",
@@ -160,7 +172,17 @@ struct
     let caller_state = ctx.local in
     List.iter (fun e -> ignore (exp_accounted_for caller_state e)) args;
     (* Entering a function doesn't change the caller state *)
-    let callee_state = caller_state in
+    let callee_state = List.fold_left2 (fun st v rval ->
+      (* At the start, arguments are accounted for and not registered. *)
+      if rval == MyCFG.unknown_exp then D.add_a v (D.remove_r v st) else
+      (* Arguments of inner functions inherit the caller's state. *)
+      if Cil.isPointerType (Cil.typeOf rval) || is_value_type (Cil.typeOf rval) then
+        if exp_accounted_for st rval then
+          if exp_registered st rval then D.add_a v (D.add_r v st)
+          else D.add_a v (D.remove_r v st)
+        else (M.info "The above is being assigned"; D.remove_a v st)
+      else D.add_a v (D.add_r v st))
+      caller_state f.sformals args in
     (* first component is state of caller, second component is state of callee *)
     [caller_state, callee_state]
 
@@ -169,7 +191,7 @@ struct
       Argument [callee_local] is the state of [f] at its return node. *)
   let combine_env ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (callee_local:D.t) (f_ask: Queries.ask): D.t =
     (* If GC could have triggered during the call, the caller state loses variables not registered in the callee. *)
-    (* Since the callee state is copied from the caller, the caller state changes the same way through the callee's GCs. *)
+    (* Since the callee state is basically copied from the caller, the caller state changes the same way through the callee's GCs. *)
     callee_local
 
   (** For a function call "lval = f(args)" or "f(args)",
@@ -179,9 +201,17 @@ struct
     let caller_state = ctx.local in
     (* Records whether lval was accounted for. Registration for v must already be handled. *)
     (* TODO: What happens if a pointer to a value is returned? *)
+    (* TODO: Rethink type checking with return_varinfo. *)
     match lval with (* The variable returned is played by return_varinfo *)
-    | Some (Var v, _) -> if D.mem_a return_varinfo callee_local then D.add_a v caller_state
-      else (M.warn "Returned value may be garbage-collected"; D.remove_a v caller_state)
+    | Some (Var v, _) ->
+      let state =
+        if Cil.isPointerType return_varinfo.vtype || is_value_type return_varinfo.vtype then
+          if D.mem_a return_varinfo callee_local then
+            if D.mem_r return_varinfo callee_local then D.add_a v (D.add_r v caller_state)
+            else D.add_a v (D.remove_r v caller_state)
+          else (M.warn "Returned value may be garbage-collected"; D.remove_a v caller_state)
+        else D.add_a v (D.add_r v caller_state) in
+      D.remove_a return_varinfo (D.remove_r return_varinfo state)
     | _ -> caller_state
 
   (** For a call to a _special_ function f "lval = f(args)" or "f(args)",
