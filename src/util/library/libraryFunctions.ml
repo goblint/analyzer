@@ -792,6 +792,9 @@ let linux_userspace_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("pool_alloc", special [drop "p" []; __ "size" []; drop "msg" []] @@ fun size -> Malloc size);
     ("pool_free", special [drop "p" []; drop "size" []; __ "ptr" [f]] @@ fun ptr -> Free ptr);
     ("parse_arguments", unknown ~attrs:[InvalidateGlobals] [drop "argc" [r]; drop "argv" []]);
+    ("_exit_cleanup", unknown ~attrs:[InvalidateGlobals] [drop "code" []; drop "file" []; drop "line" []]);
+    ("change_pathname", unknown [drop "file" [w]; drop "dir" [r]; drop "dirlen" []]);
+    ("rsyserr", unknown ~attrs:[InvalidateGlobals] (drop "code" [] :: drop "errcode" [] :: drop "format" [r] :: VarArgs (drop "mode" [])));
     ("write_buf", unknown [drop "fd" []; drop "buf" [r]; drop "count" []]);
     ("do_stat", unknown [drop "pathname" [r]; drop "statbuf" [w]]);
     ("rprintf", unknown (drop "code" [] :: drop "format" [r] :: VarArgs (drop' [r])));
