@@ -101,7 +101,7 @@ struct
   module WBuSolver = Wbu.FwdWBuSolver (Sys)
   (* module Slvr2 = BuSlvr *)
 
-  module CompareGlobSys = CompareConstraints.CompareGlobSys (SpecSys)
+  module CompareGlobSys = FwdCompareConstraints.CompareGlobSys (SpecSys)
   (* TODO remove those witnesses once the mismatch is solved *)
   let _ : EQSys.G.t -> EQSys.G.t = fun x -> x
   let _ : 'a CompareGlobSys.GH.t -> 'a GHT.t = fun x -> x
