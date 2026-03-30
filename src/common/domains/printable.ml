@@ -470,6 +470,63 @@ struct
     | `Lifted2 x -> Base2.to_yojson x
 end
 
+module type Lift3Conf =
+sig
+  include Lift2Conf
+  val expand3: bool
+end
+
+module Lift3Conf (Conf: Lift3Conf) (Base1: S) (Base2: S) (Base3: S) =
+struct
+  open struct
+    module Base1 = PrefixName (struct let expand = Conf.expand1 end) (Base1)
+    module Base2 = PrefixName (struct let expand = Conf.expand2 end) (Base2)
+    module Base3 = PrefixName (struct let expand = Conf.expand3 end) (Base3)
+  end
+
+  type t = [`Bot | `Lifted1 of Base1.t | `Lifted2 of Base2.t | `Lifted3 of Base3.t | `Top] [@@deriving eq, ord, hash]
+  include Std
+  open Conf
+
+  let pretty () (state:t) =
+    match state with
+    | `Lifted1 n ->  Base1.pretty () n
+    | `Lifted2 n ->  Base2.pretty () n
+    | `Lifted3 n ->  Base3.pretty () n
+    | `Bot -> text bot_name
+    | `Top -> text top_name
+
+  let show state =
+    match state with
+    | `Lifted1 n ->  Base1.show n
+    | `Lifted2 n ->  Base2.show n
+    | `Lifted3 n ->  Base3.show n
+    | `Bot -> bot_name
+    | `Top -> top_name
+
+  let relift x = match x with
+    | `Lifted1 n -> `Lifted1 (Base1.relift n)
+    | `Lifted2 n -> `Lifted2 (Base2.relift n)
+    | `Lifted3 n -> `Lifted3 (Base3.relift n)
+    | `Bot | `Top -> x
+
+  let name () = "lifted " ^ Base1.name () ^ " and " ^ Base2.name () ^ " and " ^ Base3.name ()
+
+  let printXml f = function
+    | `Bot       -> BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" bot_name
+    | `Top       -> BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" top_name
+    | `Lifted1 x -> Base1.printXml f x
+    | `Lifted2 x -> Base2.printXml f x
+    | `Lifted3 x -> Base3.printXml f x
+
+  let to_yojson = function
+    | `Bot -> `String bot_name
+    | `Top -> `String top_name
+    | `Lifted1 x -> Base1.to_yojson x
+    | `Lifted2 x -> Base2.to_yojson x
+    | `Lifted3 x -> Base3.to_yojson x
+end
+
 module type ProdConfiguration =
 sig
   val expand_fst: bool
@@ -569,6 +626,61 @@ struct
   let name () = Base1.name () ^ " * " ^ Base2.name () ^ " * " ^ Base3.name ()
 
   let arbitrary () = QCheck.triple (Base1.arbitrary ()) (Base2.arbitrary ()) (Base3.arbitrary ())
+end
+
+module Prod4 (Base1: S) (Base2: S) (Base3: S) (Base4: S) =
+struct
+  type t = Base1.t * Base2.t * Base3.t * Base4.t [@@deriving eq, ord, hash, relift]
+  include Std
+
+  let show (x,y,z,w) =
+    (* TODO: remove ref *)
+    let first = ref "" in
+    let second= ref "" in
+    let third = ref "" in
+    let fourth = ref "" in
+    first  := Base1.show x;
+    second := Base2.show y;
+    third  := Base3.show z;
+    fourth := Base4.show w;
+    "(" ^ !first ^ ", " ^ !second ^ ", " ^ !third ^ ", " ^ !fourth ^ ")"
+
+  let pretty () (x,y,z,w) =
+    text "("
+    ++ text (Base1.name ())
+    ++ text ":"
+    ++ align
+    ++ Base1.pretty () x
+    ++ unalign
+    ++ text ", "
+    ++ text (Base2.name ())
+    ++ text ":"
+    ++ align
+    ++ Base2.pretty () y
+    ++ unalign
+    ++ text ", "
+    ++ text (Base3.name ())
+    ++ text ":"
+    ++ align
+    ++ Base3.pretty () z
+    ++ unalign
+    ++ text ", "
+    ++ text (Base4.name ())
+    ++ text ":"
+    ++ align
+    ++ Base4.pretty () w
+    ++ unalign
+    ++ text ")"
+
+  let printXml f (x,y,z,w) =
+    BatPrintf.fprintf f "<value>\n<map>\n<key>\n%s\n</key>\n%a<key>\n%s\n</key>\n%a<key>\n%s\n</key>\n%a<key>\n%s\n</key>\n%a</map>\n</value>\n" (XmlUtil.escape (Base1.name ())) Base1.printXml x (XmlUtil.escape (Base2.name ())) Base2.printXml y (XmlUtil.escape (Base3.name ())) Base3.printXml z (XmlUtil.escape (Base4.name ())) Base4.printXml w
+
+  let to_yojson (x, y, z, w) =
+    `Assoc [ (Base1.name (), Base1.to_yojson x); (Base2.name (), Base2.to_yojson y); (Base3.name (), Base3.to_yojson z); (Base4.name (), Base4.to_yojson w) ]
+
+  let name () = Base1.name () ^ " * " ^ Base2.name () ^ " * " ^ Base3.name () ^ " * " ^ Base4.name ()
+
+  let arbitrary () = QCheck.tup4 (Base1.arbitrary ()) (Base2.arbitrary ()) (Base3.arbitrary ()) (Base4.arbitrary ())
 end
 
 module PQueue (Base: S) =

@@ -46,6 +46,49 @@ struct
   let is_write_only _ = false
 end
 
+(** Functor for locals with digests. *)
+module VarDigestF (C: Printable.S) (P : Printable.S) =
+struct
+  include Printable.Std
+
+  type t = {node: Node.t; context: C.t; original_digest: P.t; current_digest: P.t} [@@deriving eq, ord, hash]
+
+  let name () = "VarDigestF"
+
+  let show x =
+    Printf.sprintf "(%s, %s, %s, %s)" (Node.show_id x.node) (C.show x.context) (P.show x.original_digest) (P.show x.current_digest)
+
+  module Show = struct
+    type nonrec t = t
+    let show = show
+  end
+  include Printable.SimpleShow (Show)
+
+  let relift {node; context; original_digest; current_digest} = {node; context = C.relift context; original_digest = P.relift original_digest; current_digest = P.relift current_digest}
+
+  let getLocation {node; context; original_digest; current_digest} = Node.location node
+
+  let pretty_trace () x =
+    if get_bool "dbg.trace.context" then (* Print context and digest *)
+      dprintf "(%a, %a, %a) on %a" Node.pretty_trace x.node C.pretty x.context P.pretty x.original_digest CilType.Location.pretty (getLocation x)
+    else
+      dprintf "%a on %a" Node.pretty_trace x.node CilType.Location.pretty (getLocation x)
+
+  let printXml f x =
+    Var.printXml f x.node;
+    BatPrintf.fprintf f "<context>\n";
+    C.printXml f x.context;
+    (* Print original digest and current digest, for now as part of <context>; not sure how this is parsed. *)
+    P.printXml f x.original_digest;
+    P.printXml f x.current_digest;
+    BatPrintf.fprintf f "</context>\n"
+
+  let var_id x = Var.var_id x.node
+  let node x = x.node
+  let is_write_only _ = false
+end
+
+
 module type SpecSysVar =
 sig
   include Printable.S
@@ -116,12 +159,25 @@ struct
     | `Right _ -> false
 end
 
-module GVarFCNW (V:SpecSysVar) (C:Printable.S) =
+module GVarFCNW (V:SpecSysVar) (C:Printable.S) (P: Printable.S) =
 struct
-  include Printable.EitherConf (struct let expand1 = false let expand2 = true end) (V) (Printable.Prod (CilType.Fundec) (C))
+
+  (* For return vars given by function, context, original digest *)
+  module ReturnVars = Printable.Prod3 (CilType.Fundec) (C) (P)
+  (* For return vars given by function, context, original digest and current digest *)
+  module SingleReturnVars = VarDigestF (C) (P)
+
+  module Either3Conf = struct
+    let expand1 = false
+    let expand2 = true
+    let expand3 = true
+  end
+
+  include Printable.Either3Conf (Either3Conf) (V) (SingleReturnVars) (ReturnVars)
   let name () = "FromSpec"
   let spec x = `Left x
-  let return (x, c) = `Right (x, c)
+  let single_return x = `Middle x
+  let return (x, c, p) = `Right (x, c, p)
 
   (* from Basetype.Variables *)
   let var_id = show
@@ -129,6 +185,7 @@ struct
   let pretty_trace = pretty
   let is_write_only = function
     | `Left x -> V.is_write_only x
+    | `Middle _ -> false
     | `Right _ -> false
 end
 
@@ -164,7 +221,7 @@ struct
     | x -> BatPrintf.fprintf f "<analysis name=\"fromspec\">%a</analysis>" printXml x
 end
 
-module GVarL (G: Lattice.S) (L: Lattice.S) =
+module GVar2 (G: Lattice.S) (L: Lattice.S) =
 struct
   include Lattice.Lift2 (G) (L)
 
@@ -182,6 +239,36 @@ struct
   let printXml f = function
     | `Lifted1 x -> G.printXml f x
     | `Lifted2 x -> L.printXml f x
+    | x -> BatPrintf.fprintf f "<analysis name=\"fromspec\">%a</analysis>" printXml x
+end
+
+module GVar3 (G: Lattice.S) (L: Lattice.S) (S: Lattice.S) =
+struct
+  include Lattice.Lift3 (G) (L) (S)
+
+  let spec = function
+    | `Bot -> G.bot ()
+    | `Lifted1 x -> x
+    | _ -> failwith "GVar3.spec"
+
+  let single_return = function
+    | `Bot -> L.bot ()
+    | `Lifted2 x -> x
+    | _ -> failwith "GVar3.single_return"
+
+  let return = function
+    | `Bot -> S.bot ()
+    | `Lifted3 x -> x
+    | _ -> failwith "GVar3.return"
+
+  let create_spec spec = `Lifted1 spec
+  let create_single_return single_return = `Lifted2 single_return
+  let create_return return = `Lifted3 return
+
+  let printXml f = function
+    | `Lifted1 x -> G.printXml f x
+    | `Lifted2 x -> L.printXml f x
+    | `Lifted3 x -> S.printXml f x
     | x -> BatPrintf.fprintf f "<analysis name=\"fromspec\">%a</analysis>" printXml x
 end
 
@@ -329,6 +416,17 @@ sig
   val threadspawn : (D.t, G.t, C.t, V.t) man -> multiple:bool -> lval option -> varinfo -> exp list -> (D.t, G.t, C.t, V.t) man -> D.t
 
   val event : (D.t, G.t, C.t, V.t) man -> Events.t -> (D.t, G.t, C.t, V.t) man -> D.t
+end
+
+module type Spec' = sig
+  include Spec
+  module LVarSet : SetDomain.S with type elt = VarDigestF (C) (P).t
+end
+
+module Spec2Spec' (S: Spec) =
+struct
+  include S
+  module LVarSet = SetDomain.Make (VarDigestF (C) (P))
 end
 
 module type Spec2Spec = functor (S: Spec) -> Spec
@@ -497,8 +595,8 @@ end
 module type ComparableSpecSys =
 sig
   module Spec: Spec
-  module EQSys: Goblint_constraint.ConstrSys.BaseGlobConstrSys 
-    with module LVar = VarF (Spec.C)
+  module EQSys: Goblint_constraint.ConstrSys.BaseGlobConstrSys
+    with module LVar = VarDigestF (Spec.C) (Spec.P)
      (* and module GVar = GVarPretty (Spec.V) *)
      and module D = Spec.D
   (* and module G = GVarG (Spec.G) (Spec.C) *)
@@ -508,18 +606,18 @@ end
 
 module type FwdSpecSys =
 sig
-  module Spec: Spec
-  module EQSys: Goblint_constraint.ConstrSys.FwdGlobConstrSys with module LVar = VarF (Spec.C)
-                                                               and module GVar = GVarFCNW (Spec.V) (Spec.C)
+  module Spec: Spec'
+  module EQSys: Goblint_constraint.ConstrSys.FwdGlobConstrSys with module LVar = VarDigestF (Spec.C) (Spec.P)
+                                                               and module GVar = GVarFCNW (Spec.V) (Spec.C) (Spec.P)
                                                                and module D = Spec.D
-                                                               and module G = GVarL (Spec.G) (Spec.D)
+                                                               and module G = GVar3 (Spec.G) (Spec.D) (Spec.LVarSet)
   module LHT: BatHashtbl.S with type key = EQSys.LVar.t
   module GHT: BatHashtbl.S with type key = EQSys.GVar.t
 end
 
 module type SpecSys =
 sig
-  module Spec: Spec
+  module Spec: Spec'
   module EQSys: Goblint_constraint.ConstrSys.DemandGlobConstrSys with module LVar = VarF (Spec.C)
                                                                   and module GVar = GVarF (Spec.V)
                                                                   and module D = Spec.D

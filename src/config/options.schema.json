@@ -2497,6 +2497,12 @@
               "description": "How often a contribution should simply overwrite the old one when incomparible instead of widening",
               "type": "integer",
               "default": 0
+            },
+            "digests": {
+              "title": "solvers.fwd.digests",
+              "description": "Whether the constraint system to be solved should use digests to realize path-sensitivity.",
+              "type": "boolean",
+              "default": false
             }
           },
           "additionalProperties": false
