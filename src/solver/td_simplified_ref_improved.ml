@@ -43,7 +43,12 @@ module Base : GenericEqSolver =
       last: S.Dom.t HM.t
     }
 
-    let gas_default = ref (10,3,10)
+    let gas_default = ref (
+        GobConfig.get_int "solvers.td3.narrow-globs.narrow-gas",
+        GobConfig.get_int "solvers.td3.side_widen_gas",
+        GobConfig.get_int "solvers.fwd.update_gas"
+      )
+
     let abs_GC = ref true
 
     let warrow (a,delay,gas,narrow,update) b = 
