@@ -361,7 +361,7 @@ module T = struct
     res
 
   (** Returns the integer offset of a field of a struct. *)
-  let get_field_offset finfo =
+  let get_field_offset finfo = (* TODO: Cilfacade.fieldBitsOffsetOnly? *)
     let field = `Field (finfo, `NoOffset) in
     let field_to_index = offset_to_index field in
     match IntDomain.IntDomTuple.to_int field_to_index with

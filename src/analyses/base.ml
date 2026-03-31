@@ -304,7 +304,7 @@ struct
           let n_offset = iDtoIdx n in
           begin match t with
             | Some t ->
-              let f_offset_bytes = Cilfacade.bytesOffsetOnly t (Field (f, NoOffset)) in
+              let f_offset_bytes = Cilfacade.bytesOffsetOnly t (Field (f, NoOffset)) in (* TODO: Cilfacade.fieldBitsOffsetOnly? *)
               let f_offset = IdxDom.of_int (Cilfacade.ptrdiff_ikind ()) (Z.of_int f_offset_bytes) in
               begin match IdxDom.(to_bool (eq f_offset (neg n_offset))) with
                 | Some true -> `NoOffset

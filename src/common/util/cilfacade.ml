@@ -415,6 +415,10 @@ let bytesOffsetOnly t o =
   assert (bits_offset mod 8 = 0);
   bits_offset / 8
 
+let fieldBitsOffsetOnly fi = (* TODO: cache *)
+  let bits_offset, _ = bitsOffset (TComp (fi.fcomp, [])) (Field (fi, NoOffset)) in
+  bits_offset
+
 
 (** {!Cil.mkCast} using our {!typeOf}. *)
 let mkCast ~kind ~(e: exp) ~(newt: typ) =
