@@ -10,5 +10,6 @@ struct
   module P = struct
     include Printable.Unit
     let of_elt _ = ()
+    let printXml _ _ = ()
   end
 end
