@@ -2497,6 +2497,18 @@
               "description": "How often a contribution should simply overwrite the old one when incomparible instead of widening",
               "type": "integer",
               "default": 0
+            },
+            "global_gc": {
+              "title": "solvers.fwd.global_gc",
+              "description": "Whether garbage collection should take place for globals",
+              "type": "boolean",
+              "default": false
+            },
+            "local_gc": {
+              "title": "solvers.fwd.local_gc",
+              "description": "Whether garbage collection should take place for locals",
+              "type": "boolean",
+              "default": false
             }
           },
           "additionalProperties": false
