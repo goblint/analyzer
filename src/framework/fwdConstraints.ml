@@ -393,13 +393,13 @@ struct
         sidel_target_unknowns r
       | Ret (r,fd)     ->
         let r = tf_ret x edge target_node r fd getl sidel getg sideg d in
-        let sideg_target_unkonwn d =
+        let sideg_target_unknown d =
           let target_unknown = target_unknown d in
           let target_unknown_g = GVar.single_return target_unknown  in
           sideg target_unknown_g (G.create_single_return d)
         in
 
-        List.iter sideg_target_unkonwn r;
+        List.iter sideg_target_unknown r;
         (* TODO: Remove need to also propagate to locals for returns *)
         sidel_target_unknowns r;
 
