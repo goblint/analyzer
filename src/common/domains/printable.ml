@@ -634,16 +634,11 @@ struct
   include Std
 
   let show (x,y,z,w) =
-    (* TODO: remove ref *)
-    let first = ref "" in
-    let second= ref "" in
-    let third = ref "" in
-    let fourth = ref "" in
-    first  := Base1.show x;
-    second := Base2.show y;
-    third  := Base3.show z;
-    fourth := Base4.show w;
-    "(" ^ !first ^ ", " ^ !second ^ ", " ^ !third ^ ", " ^ !fourth ^ ")"
+    let first  = Base1.show x in
+    let second = Base2.show y in
+    let third  = Base3.show z in
+    let fourth = Base4.show w in
+    "(" ^ first ^ ", " ^ second ^ ", " ^ third ^ ", " ^ fourth ^ ")"
 
   let pretty () (x,y,z,w) =
     text "("
