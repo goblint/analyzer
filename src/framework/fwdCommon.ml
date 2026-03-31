@@ -2,9 +2,6 @@ open Goblint_constraint.ConstrSys
 
 (* TODO make these config options *)
 
-let do_local_gc = GobConfig.get_bool "solvers.fwd.local_gc"
-let do_global_gc = GobConfig.get_bool "solvers.fwd.global_gc"
-
 module type WarrowConfig = sig
   val delay_default: int
   val gas_default: int
@@ -195,8 +192,10 @@ module SolverGlobals (Sys: FwdGlobConstrSys) (LS: Set.S with type elt = Sys.LVar
      module OM = LM
      let source x = x
   *)
-  module OM = Hashtbl.Make(Node)
-  let source = Sys.LVar.node
+  module OM = LM
+  let source x = x
+  (* module OM = Hashtbl.Make(Node) *)
+  (* let source = Sys.LVar.node *)
 
   type gt = G.t
 
@@ -360,6 +359,7 @@ module Checker (System: FwdGlobConstrSys)
   module GM = Gbl.GM
   module LS = Gbl.LS
 
+
   let work = ref (([] : System.LVar.t list), LS.empty)
 
   let add_work x = let (l,s) = !work in
@@ -490,6 +490,9 @@ module BaseFwdSolver (System: FwdGlobConstrSys) = struct
 
   module Gbl = SolverGlobals(System)(LS)(LM)(GM)
   module Lcl = SolverLocals(System)(LM)(GS)(LS)
+
+  let do_local_gc = GobConfig.get_bool "solvers.fwd.local_gc"
+  let do_global_gc = GobConfig.get_bool "solvers.fwd.global_gc"
 
   (**
         wrapper around propagation function to collect multiple contributions to same unknowns;
