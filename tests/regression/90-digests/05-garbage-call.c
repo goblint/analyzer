@@ -2,15 +2,15 @@
 #include <stdio.h>
 #include <goblint.h>
 
+int identity(int z){
+	return z;
+}
+
 int foo(int* ptr, int z){
 	__goblint_check(z < 11); // TODO
 	int r = identity(z);
 	__goblint_check(z < 11); // TODO
 	return r;
-}
-
-int identity(int z){
-	return z;
 }
 
 int main(){
