@@ -1245,6 +1245,17 @@ let zlib_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("gzclose", unknown [drop "file" [f_deep]]);
     ("uncompress", unknown [drop "dest" [w]; drop "destLen" [r; w]; drop "source" [r]; drop "sourceLen" []]);
     ("compress2", unknown [drop "dest" [w]; drop "destLen" [r; w]; drop "source" [r]; drop "sourceLen" []; drop "level" []]);
+    ("deflateBound", unknown [drop "strm" [r_deep; w_deep]; drop "sourceLen" []]);
+    ("deflateCopy", unknown [drop "dest" [r_deep; w_deep]; drop "source" [r]]);
+    ("deflateInit_", unknown [drop "strm" [r_deep; w_deep]; drop "level" []; drop "version" []; drop "stream_size" []]);
+    ("deflateParams", unknown [drop "strm" [r_deep; w_deep]; drop "level" []; drop "strategy" []]);
+    ("deflatePending", unknown [drop "strm" [r_deep; w_deep]; drop "pending" [w]; drop "bits" [w]]);
+    ("deflatePrime", unknown [drop "strm" [r_deep; w_deep]; drop "bits" []; drop "value" []]);
+    ("deflateReset", unknown [drop "strm" [r_deep; w_deep]]);
+    ("deflateResetKeep", unknown [drop "strm" [r_deep; w_deep]]);
+    ("deflateSetDictionary", unknown [drop "strm" [r_deep; w_deep]; drop "dictionary" [r]; drop "dictLength" []]);
+    ("deflateSetHeader", unknown [drop "strm" [r_deep; w_deep]; drop "head" [w]]);
+    ("deflateTune", unknown [drop "strm" [r_deep; w_deep]; drop "good_length" []; drop "max_lazy" []; drop "nice_length" []; drop "max_chain" []]);
   ]
 [@@coverage off]
 
