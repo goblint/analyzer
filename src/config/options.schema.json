@@ -2502,7 +2502,7 @@
               "title": "solvers.fwd.digests",
               "description": "Whether the constraint system to be solved should use digests to realize path-sensitivity.",
               "type": "boolean",
-              "default": false
+              "default": true
             }
           },
           "additionalProperties": false
