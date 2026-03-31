@@ -255,7 +255,7 @@ struct
             in
             let s = Seq.map return_value return_nodes in
             if Seq.is_empty s then
-              (* In case the calle does not return, create one bottom return path for LongjmpLifter to do its work *)
+              (* In case the callee does not return, create one bottom return path for LongjmpLifter to do its work *)
               [S.D.bot ()]
             else
               List.of_seq s
