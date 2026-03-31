@@ -973,7 +973,6 @@ struct
       let t = Cilfacade.typeOfLval b in (* static type of base *)
       let p = eval_lv ~man st b in (* abstract base addresses *)
       (* pre VLA: *)
-      (* let cast_ok = function Addr a -> sizeOf t <= sizeOf (get_type_addr a) | _ -> false in *)
       let cast_ok a =
         let open Addr in
         match a with
@@ -984,9 +983,9 @@ struct
             if at = TVoid [] then (* HACK: cast from alloc variable is always fine *)
               true
             else
-              match Cil.getInteger (sizeOf t), Cil.getInteger (sizeOf at) with
-              | Some i1, Some i2 -> Z.compare i1 i2 <= 0
-              | _ ->
+              match Cilfacade.bytesSizeOf t, Cilfacade.bytesSizeOf at with
+              | i1, i2 -> i1 <= i2
+              | exception (SizeOfError _) ->
                 if contains_vla t || contains_vla (Addr.Mval.type_of (x, o)) then
                   begin
                     (* TODO: Is this ok? *)
