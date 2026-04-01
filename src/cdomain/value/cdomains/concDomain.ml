@@ -1,5 +1,8 @@
 (** Domains for thread sets and their uniqueness. *)
 
+(* Must thread set, join is intersection, meet is union. Bottom denotes unreachability *)
+module MustThreadSet = SetDomain.Reverse (SetDomain.ToppedSet (ThreadIdDomain.FlagConfiguredTID) (struct let topname = "All Threads" end))
+
 module ThreadSet =
 struct
   include SetDomain.Make (ThreadIdDomain.Thread)
@@ -19,8 +22,13 @@ struct
 
   let narrow x y = merge (fun x y -> widen x (join x y)) narrow x y
 
+  let diff_mustset x (y: MustThreadSet.t) =
+    filter (fun t ->
+        match t with
+        | ThreadIdDomain.Thread ft -> not (MustThreadSet.mem ft y)
+        | ThreadIdDomain.UnknownThread -> true
+      ) x
 end
-module MustThreadSet = SetDomain.Reverse (SetDomain.ToppedSet (ThreadIdDomain.FlagConfiguredTID) (struct let topname = "All Threads" end))
 
 module CreatedThreadSet = ThreadSet
 
