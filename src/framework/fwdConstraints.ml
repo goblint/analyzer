@@ -56,7 +56,7 @@ struct
       ; emit    = (fun _ -> failwith "emit outside MCP")
       ; node    = target_node
       ; prev_node = var.node
-      ; control_context = (fun () -> Obj.magic var.context) (** TODO: Just for testing *)
+      ; control_context = (fun () -> Obj.magic var.context)
       ; context = (fun () -> Obj.magic var.context)
       ; edge    = edge
       ; local   = pval
