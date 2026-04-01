@@ -666,7 +666,7 @@ module Base =
           else
             destabilize_normal;
 
-        let sys_change = S.sys_change (fun v -> HM.find_default rho v (S.Dom.bot ())) in
+        let sys_change = S.sys_change (fun v -> try HM.find rho v with Not_found -> S.Dom.bot ()) in
 
         let old_ret = HM.create 103 in
         if reluctant then (
@@ -861,7 +861,7 @@ module Base =
       let check_side x y d =
         HM.replace visited y ();
         let mem = HM.mem rho y in
-        let d' = HM.find_default rho y (S.Dom.bot ()) in
+        let d' = try HM.find rho y with Not_found -> S.Dom.bot () in
         if not (S.Dom.leq d d') then Logs.error "TDFP Fixpoint not reached in restore step at side-effected variable (mem: %b) %a from %a: %a not leq %a" mem S.Var.pretty_trace y S.Var.pretty_trace x S.Dom.pretty d S.Dom.pretty d'
       in
       let rec eq check x =
@@ -1049,7 +1049,7 @@ module Base =
           if incr_verify then (
             HM.iter (fun x w ->
                 HM.iter (fun y d ->
-                    let old_d = HM.find_default rho y (S.Dom.bot ()) in
+                    let old_d = try HM.find rho y with Not_found -> S.Dom.bot () in
                     (* Logs.debug "rho_write retrigger %a %a %a %a" S.Var.pretty_trace x S.Var.pretty_trace y S.Dom.pretty old_d S.Dom.pretty d; *)
                     HM.replace rho y (S.Dom.join old_d d);
                     HM.replace init_reachable y ();

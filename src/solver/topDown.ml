@@ -102,7 +102,7 @@ module WP =
         d
       and side x y d =
         if tracing then trace "sol2" "side %a ## %a (wpx: %b) ## %a" S.Var.pretty_trace x S.Var.pretty_trace y (HM.mem rho y) S.Dom.pretty d;
-        let old = HPM.find_default rho' (x,y) (S.Dom.bot ()) in
+        let old = try HPM.find rho' (x,y) with Not_found -> S.Dom.bot () in
         if not (S.Dom.equal old d) then (
           add_set x y (S.Dom.join old d);
           HM.remove stable y;
