@@ -192,10 +192,8 @@ module SolverGlobals (Sys: FwdGlobConstrSys) (LS: Set.S with type elt = Sys.LVar
      module OM = LM
      let source x = x
   *)
-  module OM = LM
-  let source x = x
-  (* module OM = Hashtbl.Make(Node) *)
-  (* let source = Sys.LVar.node *)
+  module OM = Hashtbl.Make(Node)
+  let source = Sys.LVar.node
 
   type gt = G.t
 
