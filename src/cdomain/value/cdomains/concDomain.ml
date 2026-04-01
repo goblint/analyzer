@@ -20,7 +20,7 @@ struct
   let narrow x y = merge (fun x y -> widen x (join x y)) narrow x y
 
 end
-module MustThreadSet = SetDomain.Reverse(ThreadSet)
+module MustThreadSet = SetDomain.Reverse (SetDomain.ToppedSet (ThreadIdDomain.FlagConfiguredTID) (struct let topname = "All Threads" end))
 
 module CreatedThreadSet = ThreadSet
 

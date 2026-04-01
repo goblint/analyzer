@@ -636,7 +636,12 @@ struct
       )
       else (
         (* fold throws if the thread set is top *)
-        let tids' = ConcDomain.ThreadSet.diff tids (ask.f Q.MustJoinedThreads) in (* avoid unnecessary imprecision by force joining already must-joined threads, e.g. 46-apron2/04-other-assume-inprec *)
+        let must_joined = ask.f Q.MustJoinedThreads in
+        let tids' = ConcDomain.ThreadSet.filter (fun t ->
+            match t with
+            | ThreadIdDomain.Thread ft -> not (ConcDomain.MustThreadSet.mem ft must_joined)
+            | ThreadIdDomain.UnknownThread -> true
+          ) tids in (* avoid unnecessary imprecision by force joining already must-joined threads, e.g. 46-apron2/04-other-assume-inprec *)
         let (lmust', l') = ConcDomain.ThreadSet.fold (fun tid (lmust, l) ->
             let lmust',l' = G.thread (getg (V.thread tid)) in
             (LMust.union lmust' lmust, L.join l l')
