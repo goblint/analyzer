@@ -32,8 +32,8 @@ module TD3 =
       let rho    = HM.create  10 in
       let rho'   = HPM.create 10 in (* x,y -> d *)
 
-      let add_infl y x = HM.replace infl y (VS.add x (try HM.find infl y with Not_found -> VS.empty)) in
-      let add_set x y d = HM.replace set y (VS.add x (try HM.find set y with Not_found -> VS.empty)); HPM.add rho' (x,y) d; HM.add sidevs y () in
+      let add_infl y x = HM.replace infl y (VS.add x (HM.find_default infl y VS.empty)) in
+      let add_set x y d = HM.replace set y (VS.add x (HM.find_default set y VS.empty)); HPM.add rho' (x,y) d; HM.add sidevs y () in
       let is_side x = HM.mem set x in
       let make_wpoint x =
         if tracing then trace "sol2" "make_wpoint %a" S.Var.pretty_trace x;
@@ -90,7 +90,7 @@ module TD3 =
         add_infl y x;
         HM.find rho y
       and sides x =
-        let w = try HM.find set x with Not_found -> VS.empty in
+        let w = HM.find_default set x VS.empty in
         let d = VS.fold (fun z d -> try S.Dom.join d (HPM.find rho' (z,x)) with Not_found -> d) w (S.Dom.bot ()) in
         if tracing then trace "sol2" "sides %a ## %a" S.Var.pretty_trace x S.Dom.pretty d;
         d

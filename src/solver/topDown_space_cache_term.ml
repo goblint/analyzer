@@ -30,7 +30,7 @@ module WP =
 
       let add_infl y x =
         if tracing then trace "sol2" "add_infl %a %a" S.Var.pretty_trace y S.Var.pretty_trace x;
-        HM.replace infl y (VS.add x (try HM.find infl y with Not_found -> VS.empty))
+        HM.replace infl y (VS.add x (HM.find_default infl y VS.empty))
       in
       let rec destabilize x =
         if tracing then trace "sol2" "destabilize %a" S.Var.pretty_trace x;
@@ -45,7 +45,7 @@ module WP =
           let old = HM.find rho x in
           let l = HM.create 10 in
           let tmp = eq x (eval l x) (side l) in
-          let tmp = S.Dom.join tmp (try HM.find rho' x with Not_found -> S.Dom.bot ()) in
+          let tmp = S.Dom.join tmp (HM.find_default rho' x (S.Dom.bot ())) in
           if tracing then trace "sol" "Var: %a" S.Var.pretty_trace x ;
           if tracing then trace "sol" "Contrib:%a" S.Dom.pretty tmp;
           HM.remove called x;
@@ -94,7 +94,7 @@ module WP =
         tmp
       and side l y d =
         if tracing then trace "sol2" "side to %a (wpx: %b) ## value: %a" S.Var.pretty_trace y (HM.mem rho y) S.Dom.pretty d;
-        let old = try HM.find rho' y with Not_found -> S.Dom.bot () in
+        let old = HM.find_default rho' y (S.Dom.bot ()) in
         if not (S.Dom.leq d old) then (
           HM.replace rho' y (S.Dom.join old d);
           HM.remove l y;
@@ -148,7 +148,7 @@ module WP =
         ) else (
           HM.replace visited x ();
           let check_side y d =
-            let d' = try HM.find rho y with Not_found -> S.Dom.bot () in
+            let d' = HM.find_default rho y (S.Dom.bot ()) in
             if not (S.Dom.leq d d') then Logs.error "Fixpoint not reached in restore step at side-effected variable %a: %a not leq %a" S.Var.pretty_trace y S.Dom.pretty d S.Dom.pretty d'
           in
           let eq x =

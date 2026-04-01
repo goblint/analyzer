@@ -26,9 +26,9 @@ let rec to_pat ~loc = function
     ppat_var ~loc (Located.mk ~loc s)
 let rec to_exps ~loc = function
   | Record xs ->
-    List.flatten (List.map (fun (_, x) -> to_exps ~loc x) xs)
+    List.concat_map (fun (_, x) -> to_exps ~loc x) xs
   | Tuple xs ->
-    List.flatten (List.map (to_exps ~loc) xs)
+    List.concat_map (to_exps ~loc) xs
   | Unit ->
     []
   | Base s ->
