@@ -326,7 +326,6 @@ struct
                M.info ~category:Analyzer "Using special for defined function %s" f.vname;
                tf_special_call man f
              | fd ->
-               (* TODO: Handle this properly by handling splitting also here. *)
                tf_normal_call man lv e fd args getl sidel getg sideg
              | exception Not_found ->
                tf_special_call man f)
