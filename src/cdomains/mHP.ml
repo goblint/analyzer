@@ -35,7 +35,7 @@ let pretty () {tid; created; must_joined} =
       Some (Pretty.dprintf "created=%a" ConcDomain.ThreadSet.pretty created)
   in
   let must_joined_doc =
-    if ConcDomain.MustThreadSet.is_top must_joined then
+    if ConcDomain.MustThreadSet.is_empty must_joined then
       None
     else
       Some (Pretty.dprintf "must_joined=%a" ConcDomain.MustThreadSet.pretty must_joined)
