@@ -399,7 +399,10 @@ struct
         in
 
         List.iter sideg_target_unknown r;
-        (* TODO: Remove need to also propagate to locals for returns *)
+
+        (* Propagate to locals for returns. Currently only needed for the result view at return nodes.
+           The analysis will look up the return state at the global for the return. *)
+        (* TODO: Adapt generation of result view so that this can be avoided. *)
         sidel_target_unknowns r;
 
         let set = S.LVarSet.bot () in
