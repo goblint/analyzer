@@ -1,6 +1,6 @@
 (** Domains for thread sets and their uniqueness. *)
 
-(* Must thread set, join is intersection, meet is union. Bottom denotes unrechability *)
+(* Must thread set, join is intersection, meet is union. Bottom denotes unreachability *)
 module MustThreadSet = SetDomain.Reverse (SetDomain.ToppedSet (ThreadIdDomain.FlagConfiguredTID) (struct let topname = "All Threads" end))
 
 module ThreadSet =
