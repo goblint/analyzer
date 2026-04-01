@@ -15,7 +15,7 @@ struct
     let should_print {tid; created; must_joined} =
       GobConfig.get_bool "dbg.full-output" ||
       (not (ConcDomain.ThreadSet.is_empty created) ||
-       not (ConcDomain.MustThreadSet.is_empty must_joined))
+       not (ConcDomain.FiniteMustThreadSet.is_empty must_joined))
   end
 
   let access man _: MHP.t = MHP.current (Analyses.ask_of_man man)

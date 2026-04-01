@@ -126,7 +126,7 @@ type _ t =
   | ActiveJumpBuf: JmpBufDomain.ActiveLongjmps.t t
   | ValidLongJmp: JmpBufDomain.JmpBufSet.t t
   | CreatedThreads: ConcDomain.ThreadSet.t t
-  | MustJoinedThreads: ConcDomain.MustThreadSet.t t
+  | MustJoinedThreads: ConcDomain.FiniteMustThreadSet.t t
   | ThreadsJoinedCleanly: MustBool.t t
   | MustProtectedVars: mustprotectedvars -> VS.t t
   | MustProtectingLocks: mustprotectinglocks -> LockDomain.MustLockset.t t
@@ -202,7 +202,7 @@ struct
     | ActiveJumpBuf -> (module JmpBufDomain.ActiveLongjmps)
     | ValidLongJmp ->  (module JmpBufDomain.JmpBufSet)
     | CreatedThreads ->  (module ConcDomain.ThreadSet)
-    | MustJoinedThreads -> (module ConcDomain.MustThreadSet)
+    | MustJoinedThreads -> (module ConcDomain.FiniteMustThreadSet)
     | ThreadsJoinedCleanly -> (module MustBool)
     | MustProtectedVars _ -> (module VS)
     | MustProtectingLocks _ -> (module LockDomain.MustLockset)
@@ -277,7 +277,7 @@ struct
     | ActiveJumpBuf -> JmpBufDomain.ActiveLongjmps.top ()
     | ValidLongJmp -> JmpBufDomain.JmpBufSet.top ()
     | CreatedThreads -> ConcDomain.ThreadSet.top ()
-    | MustJoinedThreads -> ConcDomain.MustThreadSet.top ()
+    | MustJoinedThreads -> ConcDomain.FiniteMustThreadSet.top ()
     | ThreadsJoinedCleanly -> MustBool.top ()
     | MustProtectedVars _ -> VS.top ()
     | MustProtectingLocks _ -> LockDomain.MustLockset.top ()

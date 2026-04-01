@@ -108,7 +108,9 @@ struct
 
   let query man (type a) (q: a Queries.t): a Queries.result =
     match q with
-    | Queries.MustJoinedThreads -> (fst man.local:ConcDomain.MustThreadSet.t) (* type annotation needed to avoid "would escape the scope of its equation" *)
+    | Queries.MustJoinedThreads ->
+      let elems = MustTIDs.elements (fst man.local) in
+      (ConcDomain.FiniteMustThreadSet.of_list elems)
     | Queries.ThreadsJoinedCleanly -> (snd man.local:bool)
     | _ ->  Queries.Result.top q
 
