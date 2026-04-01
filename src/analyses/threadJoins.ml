@@ -34,7 +34,16 @@ struct
       let (j,joined_clean) = man.local in
       (* the current thread has been exited cleanly if all joined threads where exited cleanly, and all created threads are joined *)
       let created = man.ask Queries.CreatedThreads in
-      let clean = TIDs.subset created j in
+      let clean =
+        if MustTIDs.is_bot j then
+          true (* all threads joined, so certainly all created threads too *)
+        else
+          TIDs.for_all (fun t ->
+            match t with
+            | ThreadIdDomain.Thread ft -> MustTIDs.mem ft j
+            | ThreadIdDomain.UnknownThread -> false
+          ) created
+      in
       man.sideg tid (j, joined_clean && clean)
     | _ -> () (* correct? *)
 
@@ -58,7 +67,8 @@ struct
         | [tid] when TID.is_unique tid->
           let (local_joined, local_clean) = man.local in
           let (other_joined, other_clean) = man.global tid in
-          (MustTIDs.union (MustTIDs.add tid local_joined) other_joined, local_clean && other_clean)
+          let tid_ft = match tid with ThreadIdDomain.Thread ft -> ft | ThreadIdDomain.UnknownThread -> assert false in
+          (MustTIDs.union (MustTIDs.add tid_ft local_joined) other_joined, local_clean && other_clean)
         | _ -> man.local (* if multiple possible thread ids are joined, none of them is must joined *)
         (* Possible improvement: Do the intersection first, things that are must joined in all possibly joined threads are must-joined *)
       )
@@ -76,7 +86,8 @@ struct
           M.info ~category:Unsound "Ambiguous thread ID assume-joined, assuming all of those threads must-joined.";
         List.fold_left (fun (joined, clean) tid ->
             let (other_joined, other_clean) = man.global tid in
-            (MustTIDs.union (MustTIDs.add tid joined) other_joined, clean && other_clean)
+            let tid_ft = match tid with ThreadIdDomain.Thread ft -> ft | ThreadIdDomain.UnknownThread -> assert false in
+            (MustTIDs.union (MustTIDs.add tid_ft joined) other_joined, clean && other_clean)
           ) (man.local) threads
       )
     | _, _ -> man.local
@@ -90,7 +101,8 @@ struct
       match ThreadId.get_current (Analyses.ask_of_man fman) with
       | `Lifted tid ->
         let (j, clean) = man.local in
-        (MustTIDs.remove tid j, clean)
+        let tid_ft = match tid with ThreadIdDomain.Thread ft -> ft | ThreadIdDomain.UnknownThread -> assert false in
+        (MustTIDs.remove tid_ft j, clean)
       | _ ->
         man.local
 
