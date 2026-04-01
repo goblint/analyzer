@@ -374,54 +374,54 @@ struct
       let target_unknown = target_unknown d in
       sidel target_unknown d
     in
-    let sidel_target_unknowns ds =
+    (** Takes a list of values and propagates them to the appropriate successor local unknowns . *)
+    let propagate ds =
       List.iter sidel_target_unkonwn ds
     in
     begin match edge with
       | Assign (lv,rv) ->
         let r = tf_assign x edge target_node lv rv getl sidel getg sideg d in
-        sidel_target_unknowns r
+        propagate r
       | VDecl (v)      ->
         let r = tf_vdecl x edge target_node v getl sidel getg sideg d in
-        sidel_target_unknowns r
+        propagate r
       | Proc (r,f,ars) ->
         let r = tf_proc x edge target_node r f ars getl sidel getg sideg d in
-        sidel_target_unknowns r
+        propagate r
       | Entry f        ->
         let r = tf_entry x edge target_node f getl sidel getg sideg d in
-        sidel_target_unknowns r
+        propagate r
       | Ret (r,fd)     ->
         let r = tf_ret x edge target_node r fd getl sidel getg sideg d in
-        let sideg_target_unknown d =
+        let propagate_to_return_global d =
           let target_unknown = target_unknown d in
           let target_unknown_g = GVar.single_return target_unknown  in
           sideg target_unknown_g (G.create_single_return d)
         in
-
-        List.iter sideg_target_unknown r;
+        List.iter propagate_to_return_global r;
 
         (* Propagate to locals for returns. Currently only needed for the result view at return nodes.
            The analysis will look up the return state at the global for the return. *)
         (* TODO: Adapt generation of result view so that this can be avoided. *)
-        sidel_target_unknowns r;
+        propagate r;
 
         let set = S.LVarSet.bot () in
         let add_entry set d =
           let return_unknown = return_unknown d in
           S.LVarSet.add return_unknown set
         in
-        let g = GVar.return (fd, x.context, x.original_digest) in
-        let contrib = List.fold add_entry set r |> G.create_return in
-        sideg g contrib
+        let return_collector = GVar.return (fd, x.context, x.original_digest) in
+        let return_set = List.fold add_entry set r |> G.create_return in
+        sideg return_collector return_set
       | Test (e,b)     ->
         let r = tf_test x edge target_node e b getl sidel getg sideg d in
-        sidel_target_unknowns r
+        propagate r
       | ASM (_, _, _)  ->
         let r = tf_asm x edge target_node getl sidel getg sideg d in
-        sidel_target_unknowns r
+        propagate r
       | Skip           ->
         let r = tf_skip x edge target_node getl sidel getg sideg d in
-        sidel_target_unknowns r
+        propagate r
     end
 
   type Goblint_backtrace.mark += TfLocation of location
