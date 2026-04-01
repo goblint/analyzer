@@ -365,11 +365,6 @@ struct
       let current_digest = S.P.of_elt d in
       {node = target_node; context = x.context; original_digest = x.original_digest; current_digest }
     in
-    let return_unknown d =
-      let target_unknown = target_unknown d in
-      (* GVar.single_return *)
-      target_unknown
-    in
     let sidel_target_unkonwn d =
       let target_unknown = target_unknown d in
       sidel target_unknown d
@@ -407,7 +402,7 @@ struct
 
         let set = S.LVarSet.bot () in
         let add_entry set d =
-          let return_unknown = return_unknown d in
+          let return_unknown = target_unknown d in
           S.LVarSet.add return_unknown set
         in
         let return_collector = GVar.return (fd, x.context, x.original_digest) in
