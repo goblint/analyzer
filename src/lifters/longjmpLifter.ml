@@ -188,9 +188,8 @@ struct
           }
         in
         let longjmped = S.event jmp_man (Events.Longjmped {lval=lv}) jmp_man in
-        man.split normal_return [];
         man.split longjmped [];
-        D.bot ()
+        normal_return
       )
     | Longjmp {env; value} ->
       let current_fundec = Node.find_fundec man.node in
