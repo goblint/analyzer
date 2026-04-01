@@ -11,7 +11,7 @@ module HeapVars = SetDomain.ToppedSet(CilType.Varinfo)(struct let topname = "All
 (* Heap vars created by alloca() and deallocated at function exit * Heap vars deallocated by free() *)
 module StackAndHeapVars = Lattice.Prod(AllocaVars)(HeapVars)
 
-module ThreadIdToJoinedThreadsMap = MapDomain.MapBot(ThreadIdDomain.ThreadLifted)(ConcDomain.MustThreadSet)
+module ThreadIdToJoinedThreadsMap = MapDomain.MapBot(ThreadIdDomain.ThreadLifted)(ConcDomain.FiniteMustThreadSet)
 
 module Spec : Analyses.MCPSpec =
 struct
@@ -47,7 +47,7 @@ struct
           let possibly_started = not not_started in
           (* If [current] is possibly running together with [tid], but is also joined before the free() in [tid], then no need to WARN *)
           let current_joined_before_free = match current with
-            | ThreadIdDomain.Thread ft -> ConcDomain.MustThreadSet.mem ft joined_threads
+            | ThreadIdDomain.Thread ft -> ConcDomain.FiniteMustThreadSet.mem ft joined_threads
             | ThreadIdDomain.UnknownThread -> false
           in
           possibly_started && not current_joined_before_free
