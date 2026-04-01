@@ -132,9 +132,6 @@ struct
     let ds = d :: splits in
     List.map (fun d -> common_join man d [] spawns) ds
 
-  let common_joins man ds splits spawns =
-    common_split man (bigsqcup ds) splits spawns
-
   let tf_assign var edge target_node lv e getl sidel getg sideg d =
     let man, r, spawns = common_man' var edge target_node d getl sidel getg sideg in
     let d = S.assign man lv e in (* Force transfer function to be evaluated before dereferencing in common_join argument. *)
