@@ -46,11 +46,7 @@ struct
           let not_started = MHP.definitely_not_started (current, created_threads) tid in
           let possibly_started = not not_started in
           (* If [current] is possibly running together with [tid], but is also joined before the free() in [tid], then no need to WARN *)
-          let current_joined_before_free = match current with
-            | ThreadIdDomain.Thread ft -> ConcDomain.FiniteMustThreadSet.mem ft joined_threads
-            | ThreadIdDomain.UnknownThread -> false
-          in
-          possibly_started && not current_joined_before_free
+          possibly_started && not (ConcDomain.FiniteMustThreadSet.mem_lifted current joined_threads)
         | `Top -> true
         | `Bot -> false
       in
