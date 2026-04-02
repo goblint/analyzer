@@ -373,16 +373,6 @@ module Enums : S with type int_t = Z.t = struct
     let l_ik,_ = Size.range ikind in
     of_interval ikind (l_ik, x)
 
-  let c_lognot ik x =
-    if is_bot x
-    then x
-    else
-      match to_bool x with
-      | Some b -> of_bool ik (not b)
-      | None -> top_bool
-
-  let c_logand = lift2 IntOps.BigIntOps.c_logand
-  let c_logor  = lift2 IntOps.BigIntOps.c_logor
   let maximal = function
     | Inc xs when not (BISet.is_empty xs) -> Some (BISet.max_elt xs)
     | Exc (excl,r) ->
@@ -436,7 +426,7 @@ module Enums : S with type int_t = Z.t = struct
           else
             None)
 
-  let ne ik x y = to_bool (c_lognot ik (match eq ik x y with None -> top_bool | Some x -> of_bool ik x)) (* TODO: avoid conversion *)
+  let ne ik x y = Option.map not (eq ik x y)
 
   let invariant_ikind e ik x =
     match x with

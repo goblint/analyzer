@@ -174,6 +174,17 @@ struct
     | Some b -> ID.of_bool result_ik b
     | None -> ID.of_interval result_ik (Z.zero, Z.one)
 
+  let id_unary_log = function
+    | Some b -> ID.of_bool IInt b
+    | None -> ID.of_interval IInt (Z.zero, Z.one)
+
+  let id_binary_log f ~annihilator ik i1 i2 =
+    match ID.to_bool i1, ID.to_bool i2 with
+    | Some x, _ when x = annihilator -> ID.of_bool ik annihilator
+    | _, Some y when y = annihilator -> ID.of_bool ik annihilator
+    | Some x, Some y -> ID.of_bool ik (f x y)
+    | _              -> ID.of_interval ik (Z.zero, Z.one)
+
   (** Unary float predicates return non-zero for [true].
       @see C11 7.12.3 *)
   let fd_unary_pred = function
@@ -190,7 +201,7 @@ struct
   let unop_ID = function
     | Neg  -> ID.neg
     | BNot -> ID.lognot
-    | LNot -> ID.c_lognot
+    | LNot -> (fun x-> id_unary_log (Option.map not (ID.to_bool x)))
 
   let unop_FD = function
     | Neg  -> (fun v -> (Float (FD.neg v):value))
@@ -256,8 +267,8 @@ struct
     | BXor -> ID.logxor
     | Shiftlt -> ID.shift_left
     | Shiftrt -> ID.shift_right
-    | LAnd -> ID.c_logand
-    | LOr -> ID.c_logor
+    | LAnd -> id_binary_log (&&) ~annihilator:false result_ik
+    | LOr -> id_binary_log (||) ~annihilator:true result_ik
     | b -> (fun x y -> (ID.top_of result_ik))
 
   let binop_FD (result_fk: Cil.fkind) = function
@@ -2695,7 +2706,7 @@ struct
           | Isgreaterequal (x,y) -> Int(fd_binary_pred (apply_binary FDouble FD.ge x y))
           | Isless (x,y) -> Int(fd_binary_pred (apply_binary FDouble FD.lt x y))
           | Islessequal (x,y) -> Int(fd_binary_pred (apply_binary FDouble FD.le x y))
-          | Islessgreater (x,y) -> Int(ID.c_logor (fd_binary_pred (apply_binary FDouble FD.lt x y)) (fd_binary_pred (apply_binary FDouble FD.gt x y)))
+          | Islessgreater (x,y) -> Int(id_binary_log (||) ~annihilator:true IInt (fd_binary_pred (apply_binary FDouble FD.lt x y)) (fd_binary_pred (apply_binary FDouble FD.gt x y))) (* TODO: avoid intermediate ID conversions *)
           | Isunordered (x,y) -> Int(fd_binary_pred (apply_binary FDouble FD.unordered x y))
           | Fmax (fd, x ,y) -> Float (apply_binary fd FD.fmax x y)
           | Fmin (fd, x ,y) -> Float (apply_binary fd FD.fmin x y)

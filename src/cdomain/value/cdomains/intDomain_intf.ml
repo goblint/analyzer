@@ -67,19 +67,6 @@ sig
 
   val shift_right: t -> t -> t
   (** Shifting bits right: [x >> y] *)
-
-
-  (** {b Logical operators} *)
-
-  val c_lognot: t -> t
-  (** Logical not: [!x] *)
-
-  val c_logand: t -> t -> t
-  (** Logical and: [x && y] *)
-
-  val c_logor : t -> t -> t
-  (** Logical or: [x || y] *)
-
 end
 
 module type ArithIkind =
@@ -146,19 +133,6 @@ sig
 
   val shift_right: Cil.ikind -> t -> t -> t
   (** Shifting bits right: [x >> y] *)
-
-
-  (** {b Logical operators} *)
-
-  val c_lognot: Cil.ikind -> t -> t
-  (** Logical not: [!x] *)
-
-  val c_logand: Cil.ikind -> t -> t -> t
-  (** Logical and: [x && y] *)
-
-  val c_logor : Cil.ikind -> t -> t -> t
-  (** Logical or: [x || y] *)
-
 end
 
 (* Shared signature of IntDomain implementations and the lifted IntDomains *)
