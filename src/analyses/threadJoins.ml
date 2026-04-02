@@ -36,7 +36,7 @@ struct
       let created = man.ask Queries.CreatedThreads in
       let clean =
         if MustTIDs.is_bot j then
-          true (* all threads joined, so certainly all created threads too *)
+          raise Deadcode
         else
           TIDs.for_all (fun t ->
             match t with
@@ -92,14 +92,13 @@ struct
     | _, _ -> man.local
 
   let threadspawn man ~multiple lval f args fman =
-    if D.is_bot man.local then ( (* bot is All threads *)
-      M.info ~category:Imprecise "Thread created while ALL threads must-joined, continuing with no threads joined.";
-      D.top () (* top is no threads *)
+    let (j, clean) = man.local in
+    if MustTIDs.is_bot j then ( (* bot is All threads *)
+      raise Deadcode
     )
     else
       match ThreadId.get_current (Analyses.ask_of_man fman) with
       | `Lifted (ThreadIdDomain.Thread tid) ->
-        let (j, clean) = man.local in
         (MustTIDs.remove tid j, clean)
       | _ ->
         man.local
@@ -109,7 +108,7 @@ struct
     | Queries.MustJoinedThreads ->
       (match ((fst man.local):ConcDomain.MustThreadSet.t) with
        | `Lifted set -> set
-       | `Top -> Queries.Result.top q (* This is the lifted top of the reversed lattice, i.e., bottom *)
+       | `Top -> Queries.Result.top q (* This is the lifted top of the reversed lattice, i.e., bottom, needed because of https://github.com/goblint/analyzer/issues/1978 *)
       )
     | Queries.ThreadsJoinedCleanly -> (snd man.local:bool)
     | _ ->  Queries.Result.top q
@@ -117,6 +116,7 @@ struct
   let combine_env man lval fexp f args fc au f_ask =
     let (caller_joined, local_clean) = man.local in
     let (callee_joined, callee_clean) = au in
+    if (MustTIDs.is_bot callee_joined) then raise Deadcode;
     (MustTIDs.union caller_joined callee_joined, local_clean && callee_clean)
 
 
