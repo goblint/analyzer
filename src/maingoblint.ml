@@ -25,7 +25,7 @@ let print_version ~libraries (logger: logger): unit =
   );
   logger.f "Build time:      %s" Goblint_build_info.datetime
 
-let print_version_and_exit ch =
+let print_version_and_exit () =
   Logs.Level.current := Logs.Level.of_string (get_string "dbg.level"); (* duplicated from handle_options to be affected by -v *)
   print_version ~libraries:(Logs.Level.should_log Debug) { f = Logs.result };
   exit 0
