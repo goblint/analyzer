@@ -193,9 +193,9 @@
     basic1(7);
     basic1(3);
     basic1(6);
-    basic2(-3);
-    basic2(-6);
-    basic2(-12);
+    basic2(- 3);
+    basic2(- 6);
+    basic2(- 12);
     one_branch_dead(9);
     one_branch_dead(12);
     f = & uncalled_but_referenced_function;

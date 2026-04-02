@@ -1,4 +1,5 @@
 open Goblint_constraint.ConstrSys
+open Messages
 
 (* TODO make these config options *)
 
@@ -192,6 +193,8 @@ module SolverGlobals (Sys: FwdGlobConstrSys) (LS: Set.S with type elt = Sys.LVar
      module OM = LM
      let source x = x
   *)
+  (* module OM = LM *)
+  (* let source x = x *)
   module OM = Hashtbl.Make(Node)
   let source = Sys.LVar.node
 
@@ -521,7 +524,11 @@ module BaseFwdSolver (System: FwdGlobConstrSys) = struct
       let new_contribs = GM.fold (fun g _ s -> GS.add g s) global_updates GS.empty in 
       x_record.global_contribs <- new_contribs;
       let removed_contribs = GS.filter (fun g -> not @@ GS.mem g new_contribs) old_global_contribs in
-      GS.iter (fun g -> set_global x g (G.bot ())) removed_contribs
+      GS.iter 
+        ( fun g -> (
+              if tracing then trace "gc" "Collecting global %a" System.GVar.pretty_trace g;
+              set_global x g (G.bot ())
+            )) removed_contribs;
     );
 
     if do_local_gc then (
@@ -532,7 +539,7 @@ module BaseFwdSolver (System: FwdGlobConstrSys) = struct
     );
 
     GM.iter (set_global x) global_updates;
-    LM.iter (set_local x) local_updates;
+    LM.iter (set_local x) local_updates
     (* possibly better with reversed ordering *)
 end
 
