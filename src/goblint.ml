@@ -6,6 +6,7 @@ open Maingoblint
 let main () =
   try
     Maingoblint.parse_arguments ();
+    Maingoblint.print_version ~libraries:false { f = Logs.debug };
     Cilfacade.init ();
 
     (* Timing. *)
