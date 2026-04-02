@@ -75,22 +75,20 @@ struct
       let id = List.hd arglist in
       let threads = man.ask (Queries.EvalThread id) in
       if TIDs.is_top threads then (
-        M.info ~category:Unsound "Unknown thread ID assume-joined, assuming ALL threads must-joined.";
-        (MustTIDs.bot(), true) (* consider everything joined, MustTIDs is reversed so bot is All threads *)
-      )
-      else (
-        (* all elements are known *)
-        let threads = TIDs.elements threads in
-        if List.compare_length_with threads 1 > 0 then
-          M.info ~category:Unsound "Ambiguous thread ID assume-joined, assuming all of those threads must-joined.";
-        List.fold_left (fun (joined, clean) tid ->
-            match tid with
-            | ThreadIdDomain.Thread tid_ft ->
-              let (other_joined, other_clean) = man.global tid in
-              (MustTIDs.union (MustTIDs.add tid_ft joined) other_joined, clean && other_clean)
-            | ThreadIdDomain.UnknownThread -> assert false (* unreachable *)
-          ) (man.local) threads
-      )
+        M.info ~category:Unsound "Unknown thread ID assume-joined, continuing with known thread ids.";
+      );
+      let threads = TIDs.remove (ThreadIdDomain.UnknownThread) threads in
+      (* all elements are known *)
+      let threads = TIDs.elements threads in
+      if List.compare_length_with threads 1 > 0 then
+        M.info ~category:Unsound "Ambiguous thread ID assume-joined, assuming all of those threads must-joined.";
+      List.fold_left (fun (joined, clean) tid ->
+          match tid with
+          | ThreadIdDomain.Thread tid_ft ->
+            let (other_joined, other_clean) = man.global tid in
+            (MustTIDs.union (MustTIDs.add tid_ft joined) other_joined, clean && other_clean)
+          | ThreadIdDomain.UnknownThread -> assert false (* unreachable *)
+        ) (man.local) threads
     | _, _ -> man.local
 
   let threadspawn man ~multiple lval f args fman =
@@ -109,8 +107,10 @@ struct
   let query man (type a) (q: a Queries.t): a Queries.result =
     match q with
     | Queries.MustJoinedThreads ->
-      let elems = MustTIDs.elements (fst man.local) in
-      (ConcDomain.FiniteMustThreadSet.of_list elems)
+      (match ((fst man.local):ConcDomain.MustThreadSet.t) with
+       | `Lifted set -> set
+       | `Top -> Queries.Result.top q (* This is the lifted top of the reversed lattice, i.e., bottom *)
+      )
     | Queries.ThreadsJoinedCleanly -> (snd man.local:bool)
     | _ ->  Queries.Result.top q
 
