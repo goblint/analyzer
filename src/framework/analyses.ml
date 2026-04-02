@@ -162,10 +162,12 @@ end
 module GVarFCNW (V:SpecSysVar) (C:Printable.S) (P: Printable.S) =
 struct
 
-  (* For return vars given by function, context, original digest *)
-  module ReturnVars = Printable.Prod3 (CilType.Fundec) (C) (P)
-  (* For return vars given by function, context, original digest and current digest *)
+  (** For return vars given by function, context, original digest and current digest *)
   module SingleReturnVars = VarDigestF (C) (P)
+
+  (** For return vars given by function, context, original digest.
+      These are used for collecting which return unknowns of the type SingleReturnVars.t may not be bottom. *)
+  module ReturnVars = Printable.Prod3 (CilType.Fundec) (C) (P)
 
   module Either3Conf = struct
     let expand1 = false
