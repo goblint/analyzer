@@ -65,11 +65,8 @@ let definitely_not_started (current, created) other =
 let exists_definitely_not_started_in_joined (current,created) other_joined =
   ConcDomain.FiniteMustThreadSet.exists (fun ft -> definitely_not_started (current, created) (ThreadIdDomain.Thread ft)) other_joined
 
-(** Must the thread with thread id other be already joined  *)
-let must_be_joined other joined =
-  match other with
-  | ThreadIdDomain.Thread ft -> ConcDomain.FiniteMustThreadSet.mem ft joined
-  | ThreadIdDomain.UnknownThread -> false
+(** Must the thread be already joined  *)
+let must_be_joined = ConcDomain.FiniteMustThreadSet.mem_lifted
 
 (** May two program points with respective MHP information happen in parallel *)
 let may_happen_in_parallel one two =
