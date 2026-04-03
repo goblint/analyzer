@@ -1,6 +1,7 @@
 //SKIP PARAM: --set ana.activated[+] affeq --enable ana.int.interval --set sem.int.signed_overflow assume_none
 #include <assert.h>
 #include <stdio.h>
+#include <goblint.h>
 
 int main(){
     unsigned int i;

@@ -1,4 +1,5 @@
 #include <stdlib.h>
+#include <goblint.h>
 
 extern void *malloc(size_t);
 extern int scanf(char *, ...);
