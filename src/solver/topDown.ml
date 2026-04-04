@@ -21,6 +21,8 @@ module WP =
 
     module HPM = Hashtbl.Make (P)
 
+    let find_default_delayed h k f = Option.default_delayed f (HPM.find_option h k)
+
     let solve st vs =
       let stable = HM.create  10 in
       let infl   = HM.create  10 in (* y -> xs *)
@@ -33,10 +35,10 @@ module WP =
 
       let add_infl y x =
         if tracing then trace "sol2" "add_infl %a %a" S.Var.pretty_trace y S.Var.pretty_trace x;
-        HM.replace infl y (VS.add x (try HM.find infl y with Not_found -> VS.empty))
+        HM.replace infl y (VS.add x (HM.find_default infl y VS.empty))
       in
       let add_set x y d =
-        HM.replace set y (VS.add x (try HM.find set y with Not_found -> VS.empty));
+        HM.replace set y (VS.add x (HM.find_default set y VS.empty));
         HPM.add rho' (x,y) d;
         HM.replace sidevs y ()
       in
@@ -96,13 +98,13 @@ module WP =
         add_infl y x;
         HM.find rho y
       and sides x =
-        let w = try HM.find set x with Not_found -> VS.empty in
+        let w = HM.find_default set x VS.empty in
         let d = VS.fold (fun y d -> let r = try S.Dom.join d (HPM.find rho' (y,x)) with Not_found -> d in if tracing then trace "sol2" "sides: side %a from %a: %a" S.Var.pretty_trace x S.Var.pretty_trace y S.Dom.pretty r; r) w (S.Dom.bot ()) in
         if tracing then trace "sol2" "sides %a ## %a" S.Var.pretty_trace x S.Dom.pretty d;
         d
       and side x y d =
         if tracing then trace "sol2" "side %a ## %a (wpx: %b) ## %a" S.Var.pretty_trace x S.Var.pretty_trace y (HM.mem rho y) S.Dom.pretty d;
-        let old = try HPM.find rho' (x,y) with Not_found -> S.Dom.bot () in
+        let old = find_default_delayed rho' (x,y) S.Dom.bot in
         if not (S.Dom.equal old d) then (
           add_set x y (S.Dom.join old d);
           HM.remove stable y;

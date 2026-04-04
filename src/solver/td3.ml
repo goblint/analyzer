@@ -58,6 +58,8 @@ module Base =
 
     let exists_key f hm = HM.exists (fun k _ -> f k) hm
 
+    let find_default_delayed h k f = Option.default_delayed f (HM.find_option h k)
+
     let assert_can_receive_side x =
       if Hooks.system x <> None then (
         failwith ("side-effect to unknown w/ rhs: " ^ GobPretty.sprint S.Var.pretty_trace x);
@@ -302,10 +304,10 @@ module Base =
 
       let add_infl y x =
         if tracing then trace "sol2" "add_infl %a %a" S.Var.pretty_trace y S.Var.pretty_trace x;
-        HM.replace infl y (VS.add x (try HM.find infl y with Not_found -> VS.empty));
+        HM.replace infl y (VS.add x (HM.find_default infl y VS.empty));
         HM.replace dep x (VS.add y (HM.find_default dep x VS.empty));
       in
-      let add_sides y x = HM.replace sides y (VS.add x (try HM.find sides y with Not_found -> VS.empty)) in
+      let add_sides y x = HM.replace sides y (VS.add x (HM.find_default sides y VS.empty)) in
 
       let destabilize_ref: (S.v -> unit) ref = ref (fun _ -> failwith "no destabilize yet") in
       let destabilize x = !destabilize_ref x in (* must be eta-expanded to use changed destabilize_ref *)
@@ -522,10 +524,10 @@ module Base =
         match weak_deps_handling with
         | "none" -> ignore (eval l x y)
         | "eager" ->
-          HM.replace weak_dep x (VS.add y (try HM.find weak_dep x with Not_found -> VS.empty));
+          HM.replace weak_dep x (VS.add y (HM.find_default weak_dep x VS.empty));
           solve y Widen
         | "lazy" ->
-          HM.replace weak_dep x (VS.add y (try HM.find weak_dep x with Not_found -> VS.empty))
+          HM.replace weak_dep x (VS.add y (HM.find_default weak_dep x VS.empty))
         | _ -> assert false
       and init x =
         if tracing then trace "sol2" "init %a" S.Var.pretty_trace x;
@@ -666,7 +668,7 @@ module Base =
           else
             destabilize_normal;
 
-        let sys_change = S.sys_change (fun v -> try HM.find rho v with Not_found -> S.Dom.bot ()) in
+        let sys_change = S.sys_change (fun v -> find_default_delayed rho v S.Dom.bot) in
 
         let old_ret = HM.create 103 in
         if reluctant then (
@@ -861,7 +863,7 @@ module Base =
       let check_side x y d =
         HM.replace visited y ();
         let mem = HM.mem rho y in
-        let d' = try HM.find rho y with Not_found -> S.Dom.bot () in
+        let d' = find_default_delayed rho y S.Dom.bot in
         if not (S.Dom.leq d d') then Logs.error "TDFP Fixpoint not reached in restore step at side-effected variable (mem: %b) %a from %a: %a not leq %a" mem S.Var.pretty_trace y S.Var.pretty_trace x S.Dom.pretty d S.Dom.pretty d'
       in
       let rec eq check x =
@@ -967,8 +969,8 @@ module Base =
         (* However, this currently breaks some tests https://github.com/goblint/analyzer/pull/713#issuecomment-1114764937 *)
         let one_side ~vh ~x ~y ~d =
           (* Also record side-effects caused by post-solver *)
-          HM.replace side_dep y (VS.add x (try HM.find side_dep y with Not_found -> VS.empty));
-          HM.replace side_infl x (VS.add y (try HM.find side_infl x with Not_found -> VS.empty));
+          HM.replace side_dep y (VS.add x (HM.find_default side_dep y VS.empty));
+          HM.replace side_infl x (VS.add y (HM.find_default side_infl x VS.empty));
       end
       in
 
@@ -1049,7 +1051,7 @@ module Base =
           if incr_verify then (
             HM.iter (fun x w ->
                 HM.iter (fun y d ->
-                    let old_d = try HM.find rho y with Not_found -> S.Dom.bot () in
+                    let old_d = find_default_delayed rho y S.Dom.bot in
                     (* Logs.debug "rho_write retrigger %a %a %a %a" S.Var.pretty_trace x S.Var.pretty_trace y S.Dom.pretty old_d S.Dom.pretty d; *)
                     HM.replace rho y (S.Dom.join old_d d);
                     HM.replace init_reachable y ();

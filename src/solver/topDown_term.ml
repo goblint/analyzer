@@ -20,6 +20,8 @@ module WP =
 
     type phase = Widen | Narrow
 
+    let find_default_delayed h k f = Option.default_delayed f (HM.find_option h k)
+
     let solve st vs =
       let stable = HM.create  10 in
       let infl   = HM.create  10 in (* y -> xs *)
@@ -30,7 +32,7 @@ module WP =
 
       let add_infl y x =
         if tracing then trace "sol2" "add_infl %a %a" S.Var.pretty_trace y S.Var.pretty_trace x;
-        HM.replace infl y (VS.add x (try HM.find infl y with Not_found -> VS.empty))
+        HM.replace infl y (VS.add x (HM.find_default infl y VS.empty))
       in
       let rec destabilize x =
         if tracing then trace "sol2" "destabilize %a" S.Var.pretty_trace x;
@@ -49,7 +51,7 @@ module WP =
           init x;
           let old = HM.find rho x in
           let tmp = eq x (eval x) side in
-          let tmp = S.Dom.join tmp (try HM.find rho' x with Not_found -> S.Dom.bot ()) in
+          let tmp = S.Dom.join tmp (find_default_delayed rho' x S.Dom.bot) in
           if tracing then trace "sol" "Var: %a" S.Var.pretty_trace x ;
           if tracing then trace "sol" "Contrib:%a" S.Dom.pretty tmp;
           HM.remove called x;
@@ -83,7 +85,7 @@ module WP =
         add_infl y x;
         HM.find rho y
       and side y d =
-        let old = try HM.find rho' y with Not_found -> S.Dom.bot () in
+        let old = find_default_delayed rho' y S.Dom.bot in
         if not (S.Dom.leq d old) then (
           HM.replace rho' y (S.Dom.widen old (S.Dom.join old d));
           HM.remove stable y;

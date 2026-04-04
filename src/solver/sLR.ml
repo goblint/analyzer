@@ -51,8 +51,8 @@ module SLR3 =
       let rho'   = HPM.create 10 in
       let q      = ref H.empty in
 
-      let add_infl y x = HM.replace infl y (VS.add x (try HM.find infl y with Not_found -> VS.empty)) in
-      let add_set x y d = HM.replace set y (VS.add x (try HM.find set y with Not_found -> VS.empty)); HPM.add rho' (x,y) d in
+      let add_infl y x = HM.replace infl y (VS.add x (HM.find_default infl y VS.empty)) in
+      let add_set x y d = HM.replace set y (VS.add x (HM.find_default set y VS.empty)); HPM.add rho' (x,y) d in
       let make_wpoint x = HM.replace wpoint x () in
       let rec solve x =
         if not (HM.mem stable x) then begin
@@ -74,7 +74,7 @@ module SLR3 =
             update_var_event x old tmp;
             if tracing then trace "sol" "New Value:%a" S.Dom.pretty tmp;
             HM.replace rho x tmp;
-            let w = try HM.find infl x with Not_found -> VS.empty in
+            let w = HM.find_default infl x VS.empty in
             let w = if wpx then VS.add x w else w in
             q := VS.fold H.add w !q;
             HM.replace infl x VS.empty;
@@ -106,7 +106,7 @@ module SLR3 =
         add_infl y x;
         HM.find rho y
       and sides x =
-        let w = try HM.find set x with Not_found -> VS.empty in
+        let w = HM.find_default set x VS.empty in
         VS.fold (fun z d -> try S.Dom.join d (HPM.find rho' (z,x)) with Not_found -> d) w (S.Dom.bot ())
       and side x y d =
         HM.add globals y ();

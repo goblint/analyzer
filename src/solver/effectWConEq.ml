@@ -53,7 +53,7 @@ module Make =
       and eval x y =
         get_var_event y;
         if not (HM.mem stable y) then solve y;
-        HM.replace infl y (VS.add x (try HM.find infl y with Not_found -> VS.empty));
+        HM.replace infl y (VS.add x (HM.find_default infl y VS.empty));
         HM.find rho y
 
       and set x d =
@@ -63,7 +63,7 @@ module Make =
         update_var_event x old tmp;
         if not (S.Dom.equal old tmp) then begin
           HM.replace rho x tmp;
-          let w = try HM.find infl x with Not_found -> VS.empty in
+          let w = HM.find_default infl x VS.empty in
           HM.replace infl x VS.empty;
           VS.iter (HM.remove stable) w;
           VS.iter solve w

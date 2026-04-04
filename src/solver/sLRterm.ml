@@ -68,7 +68,7 @@ module SLR3term =
         end
       in
       let sides x =
-        let w = try HM.find set x with Not_found -> VS.empty in
+        let w = HM.find_default set x VS.empty in
         let v = VS.fold (fun z d -> try S.Dom.join d (HPM.find rho' (z,x)) with Not_found -> d) w (S.Dom.bot ()) in
         if tracing then trace "sol" "SIDES: Var: %a\nVal: %a" S.Var.pretty_trace x S.Dom.pretty v; v
       in
@@ -100,7 +100,7 @@ module SLR3term =
           if HM.find key x <= HM.find key y then begin
             HM.replace wpoint y ()
           end;
-          HM.replace infl y (VS.add x (try HM.find infl y with Not_found -> VS.empty));
+          HM.replace infl y (VS.add x (HM.find_default infl y VS.empty));
           HM.find rho y
         in
         let effects = ref Set.empty in
@@ -126,7 +126,7 @@ module SLR3term =
           effects := Set.add y !effects;
           if first then (
             HPM.replace rho' (x,y) d;
-            HM.replace set y (VS.add x (try HM.find set y with Not_found -> VS.empty));
+            HM.replace set y (VS.add x (HM.find_default set y VS.empty));
             if not (HM.mem rho y) then (
               init ~side:true y;
               ignore @@ do_var false y
@@ -178,7 +178,7 @@ module SLR3term =
           update_var_event x old val_new;
           if tracing then trace "sol" "New Value:%a" S.Dom.pretty val_new;
           HM.replace rho x val_new;
-          let w = try HM.find infl x with Not_found -> VS.empty in
+          let w = HM.find_default infl x VS.empty in
           (* let w = if wpx then VS.add x w else w in *)
           q := VS.fold H.add w !q;
           HM.replace infl x VS.empty

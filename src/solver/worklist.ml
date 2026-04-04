@@ -31,7 +31,7 @@ module Make =
       in
       let eval x y =
         get_var_event y;
-        HM.replace infl y (VS.add x (try HM.find infl y with Not_found -> VS.empty));
+        HM.replace infl y (VS.add x (HM.find_default infl y VS.empty));
         try HM.find rho y
         with Not_found ->
           new_var_event y;
@@ -44,7 +44,7 @@ module Make =
         if not (leq d old) then begin
           update_var_event x old d;
           HM.replace rho x (join old d);
-          let q = try HM.find infl x with Not_found -> VS.empty in
+          let q = HM.find_default infl x VS.empty in
           HM.replace infl x VS.empty;
           vs := (VS.fold VS.add q !vs)
         end
