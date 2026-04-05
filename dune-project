@@ -74,6 +74,7 @@ Goblint includes analyses for assertions, overflows, deadlocks, etc and can be e
     apron
     z3
     domainslib
+    memtrace
   )
   (conflicts
     (result (< 1.5)) ; transitive dependency, overrides standard Result module and doesn't have map_error, bind

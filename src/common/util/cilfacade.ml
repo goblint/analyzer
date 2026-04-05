@@ -405,11 +405,13 @@ let typeSigBlendAttributes baseAttrs =
   typeSigAddAttrs contageous
 
 
+(** @raise SizeOfError *)
 let bytesSizeOf t =
   let bits = bitsSizeOf t in
   assert (bits mod 8 = 0);
   bits / 8
 
+(** @raise SizeOfError *)
 let bytesOffsetOnly t o =
   let bits_offset, _ = bitsOffset t o in
   assert (bits_offset mod 8 = 0);

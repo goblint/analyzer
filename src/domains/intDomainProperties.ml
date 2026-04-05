@@ -62,9 +62,6 @@ struct
   let logxor = logxor (Ik.ikind ())
   let shift_left = shift_left (Ik.ikind ())
   let shift_right = shift_right (Ik.ikind ())
-  let c_lognot = c_lognot (Ik.ikind ())
-  let c_logand = c_logand (Ik.ikind ())
-  let c_logor = c_logor (Ik.ikind ())
 
   let of_int = of_int (Ik.ikind ())
   let of_bool = of_bool (Ik.ikind ())
@@ -94,6 +91,19 @@ struct
   let lift1 = map
   let lift2 f x y = GobList.cartesian_map f (elements x) (elements y) |> of_list
 
+  let join_bool_option x y =
+    match x, y with
+    | None, _
+    | _, None -> None
+    | Some true, Some false
+    | Some false, Some true -> None
+    | Some true, Some true -> Some true
+    | Some false, Some false -> Some false
+  let lift2bool f x y =
+    match GobList.cartesian_map f (elements x) (elements y) with
+    | [] -> None (* TODO: strange: bot is top, but that's already how ID.to_bool behaves *)
+    | xs -> BatList.reduce join_bool_option xs
+
   let neg  = lift1 Base.neg
   let add  = lift2 Base.add
   let sub  = lift2 Base.sub
@@ -101,12 +111,12 @@ struct
   let div  = lift2 Base.div
   let rem  = lift2 Base.rem
 
-  let lt = lift2 Base.lt
-  let gt = lift2 Base.gt
-  let le = lift2 Base.le
-  let ge = lift2 Base.ge
-  let eq = lift2 Base.eq
-  let ne = lift2 Base.ne
+  let lt = lift2bool Base.lt
+  let gt = lift2bool Base.gt
+  let le = lift2bool Base.le
+  let ge = lift2bool Base.ge
+  let eq = lift2bool Base.eq
+  let ne = lift2bool Base.ne
 
   let lognot = lift1 Base.lognot
   let logand = lift2 Base.logand
@@ -114,10 +124,6 @@ struct
   let logxor = lift2 Base.logxor
   let shift_left  = lift2 Base.shift_left
   let shift_right = lift2 Base.shift_right
-
-  let c_lognot = lift1 Base.c_lognot
-  let c_logand = lift2 Base.c_logand
-  let c_logor  = lift2 Base.c_logor
 end
 
 
@@ -137,12 +143,25 @@ struct
   let valid_div = make_valid2 ~name:"div" ~cond:snd_not_0 CD.div AD.div
   let valid_rem = make_valid2 ~name:"rem" ~cond:snd_not_0 CD.rem AD.rem
 
-  let valid_lt = make_valid2 ~name:"lt" ~cond:none_bot CD.lt AD.lt
-  let valid_gt = make_valid2 ~name:"gt" ~cond:none_bot CD.gt AD.gt
-  let valid_le = make_valid2 ~name:"le" ~cond:none_bot CD.le AD.le
-  let valid_ge = make_valid2 ~name:"ge" ~cond:none_bot CD.ge AD.ge
-  let valid_eq = make_valid2 ~name:"eq" ~cond:none_bot CD.eq AD.eq
-  let valid_ne = make_valid2 ~name:"ne" ~cond:none_bot CD.ne AD.ne
+  let make_valid2_bool ~name ?(cond=fun _ -> true) cf af =
+    let full_name = "valid " ^ name in
+    make ~name:full_name (QCheck.pair arb arb) QCheck.(fun a ->
+        assume (cond a); (* assume is lazy, ==> is eager *)
+        match Batteries.uncurry cf a, Batteries.uncurry af (BatTuple.Tuple2.mapn AF.abstract a) with
+        | _, None -> true
+        | Some true, Some true -> true
+        | Some false, Some false -> true
+        | Some true, Some false
+        | Some false, Some true -> false
+        | None, Some _ -> false
+      )
+
+  let valid_lt = make_valid2_bool ~name:"lt" ~cond:none_bot CD.lt AD.lt
+  let valid_gt = make_valid2_bool ~name:"gt" ~cond:none_bot CD.gt AD.gt
+  let valid_le = make_valid2_bool ~name:"le" ~cond:none_bot CD.le AD.le
+  let valid_ge = make_valid2_bool ~name:"ge" ~cond:none_bot CD.ge AD.ge
+  let valid_eq = make_valid2_bool ~name:"eq" ~cond:none_bot CD.eq AD.eq
+  let valid_ne = make_valid2_bool ~name:"ne" ~cond:none_bot CD.ne AD.ne
 
   let valid_lognot = make_valid1 ~name:"lognot" ~cond:not_bot CD.lognot AD.lognot
   let valid_logand = make_valid2 ~name:"logand" ~cond:none_bot CD.logand AD.logand
@@ -155,10 +174,6 @@ struct
   let shift_cond p = none_bot p && defined_shift p
   let valid_shift_left = make_valid2 ~name:"shift_left" ~cond:shift_cond CD.shift_left AD.shift_left
   let valid_shift_right = make_valid2 ~name:"shift_right" ~cond:shift_cond CD.shift_right AD.shift_right
-
-  let valid_c_lognot = make_valid1 ~name:"c_lognot" ~cond:not_bot CD.c_lognot AD.c_lognot
-  let valid_c_logand = make_valid2 ~name:"c_logand" ~cond:none_bot CD.c_logand AD.c_logand
-  let valid_c_logor = make_valid2 ~name:"c_logor" ~cond:none_bot CD.c_logor AD.c_logor
 
   let tests = [
     valid_neg;
@@ -181,10 +196,6 @@ struct
     valid_logxor;
     valid_shift_left;
     valid_shift_right;
-
-    valid_c_lognot;
-    valid_c_logand;
-    valid_c_logor
   ]
 end
 

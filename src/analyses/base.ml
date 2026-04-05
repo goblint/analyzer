@@ -169,6 +169,22 @@ struct
 
   let iDtoIdx x = ID.cast_to ~kind:Internal (Cilfacade.ptrdiff_ikind ()) x (* TODO: proper castkind *)
 
+  let id_binary_pred result_ik f x y =
+    match f x y with
+    | Some b -> ID.of_bool result_ik b
+    | None -> ID.of_interval result_ik (Z.zero, Z.one)
+
+  let id_unary_log = function
+    | Some b -> ID.of_bool IInt b
+    | None -> ID.of_interval IInt (Z.zero, Z.one)
+
+  let id_binary_log f ~annihilator ik i1 i2 =
+    match ID.to_bool i1, ID.to_bool i2 with
+    | Some x, _ when x = annihilator -> ID.of_bool ik annihilator
+    | _, Some y when y = annihilator -> ID.of_bool ik annihilator
+    | Some x, Some y -> ID.of_bool ik (f x y)
+    | _              -> ID.of_interval ik (Z.zero, Z.one)
+
   (** Unary float predicates return non-zero for [true].
       @see C11 7.12.3 *)
   let fd_unary_pred = function
@@ -180,12 +196,12 @@ struct
       @see C11 7.12.14, 6.5.8, 6.5.9 *)
   let fd_binary_pred = function
     | Some b -> ID.of_bool IInt b
-    | None -> ID.top_of IInt
+    | None -> ID.of_interval IInt (Z.zero, Z.one)
 
   let unop_ID = function
     | Neg  -> ID.neg
     | BNot -> ID.lognot
-    | LNot -> ID.c_lognot
+    | LNot -> (fun x-> id_unary_log (Option.map not (ID.to_bool x)))
 
   let unop_FD = function
     | Neg  -> (fun v -> (Float (FD.neg v):value))
@@ -235,24 +251,24 @@ struct
          | `Neq ->
            Checks.safe Checks.Category.DivisionByZero);
         ID.rem x y
-    | Lt -> ID.lt
-    | Gt -> ID.gt
-    | Le -> ID.le
-    | Ge -> ID.ge
-    | Eq -> ID.eq
+    | Lt -> id_binary_pred result_ik ID.lt
+    | Gt -> id_binary_pred result_ik ID.gt
+    | Le -> id_binary_pred result_ik ID.le
+    | Ge -> id_binary_pred result_ik ID.ge
+    | Eq -> id_binary_pred result_ik ID.eq
     (* TODO: This causes inconsistent results:
        def_exc and interval definitely in conflict:
          evalint: base eval_rv m -> (Not {0, 1}([-31,31]),[1,1])
          evalint: base eval_rv 1 -> (1,[1,1])
          evalint: base query_evalint m == 1 -> (0,[1,1]) *)
-    | Ne -> ID.ne
+    | Ne -> id_binary_pred result_ik ID.ne
     | BAnd -> ID.logand
     | BOr -> ID.logor
     | BXor -> ID.logxor
     | Shiftlt -> ID.shift_left
     | Shiftrt -> ID.shift_right
-    | LAnd -> ID.c_logand
-    | LOr -> ID.c_logor
+    | LAnd -> id_binary_log (&&) ~annihilator:false result_ik
+    | LOr -> id_binary_log (||) ~annihilator:true result_ik
     | b -> (fun x y -> (ID.top_of result_ik))
 
   let binop_FD (result_fk: Cil.fkind) = function
@@ -973,7 +989,6 @@ struct
       let t = Cilfacade.typeOfLval b in (* static type of base *)
       let p = eval_lv ~man st b in (* abstract base addresses *)
       (* pre VLA: *)
-      (* let cast_ok = function Addr a -> sizeOf t <= sizeOf (get_type_addr a) | _ -> false in *)
       let cast_ok a =
         let open Addr in
         match a with
@@ -984,9 +999,9 @@ struct
             if at = TVoid [] then (* HACK: cast from alloc variable is always fine *)
               true
             else
-              match Cil.getInteger (sizeOf t), Cil.getInteger (sizeOf at) with
-              | Some i1, Some i2 -> Z.compare i1 i2 <= 0
-              | _ ->
+              match Cilfacade.bytesSizeOf t, Cilfacade.bytesSizeOf at with
+              | i1, i2 -> i1 <= i2
+              | exception (SizeOfError _) ->
                 if contains_vla t || contains_vla (Addr.Mval.type_of (x, o)) then
                   begin
                     (* TODO: Is this ok? *)
@@ -2388,10 +2403,10 @@ struct
           let casted_n = ID.cast_to ~kind:Internal (Cilfacade.ptrdiff_ikind ()) n in (* TODO: proper castkind *)
           let ds_eq_n =
             begin try ID.eq casted_ds casted_n
-              with IntDomain.ArithmeticOnIntegerBot _ -> ID.top_of @@ Cilfacade.ptrdiff_ikind ()
+              with IntDomain.ArithmeticOnIntegerBot _ -> None
             end
           in
-          Option.default false (ID.to_bool ds_eq_n)
+          Option.default false ds_eq_n
         | _ -> false
       in
       let dest_a, dest_typ = addr_type_of_exp dst in
@@ -2690,7 +2705,7 @@ struct
           | Isgreaterequal (x,y) -> Int(fd_binary_pred (apply_binary FDouble FD.ge x y))
           | Isless (x,y) -> Int(fd_binary_pred (apply_binary FDouble FD.lt x y))
           | Islessequal (x,y) -> Int(fd_binary_pred (apply_binary FDouble FD.le x y))
-          | Islessgreater (x,y) -> Int(ID.c_logor (fd_binary_pred (apply_binary FDouble FD.lt x y)) (fd_binary_pred (apply_binary FDouble FD.gt x y)))
+          | Islessgreater (x,y) -> Int(id_binary_log (||) ~annihilator:true IInt (fd_binary_pred (apply_binary FDouble FD.lt x y)) (fd_binary_pred (apply_binary FDouble FD.gt x y))) (* TODO: avoid intermediate ID conversions *)
           | Isunordered (x,y) -> Int(fd_binary_pred (apply_binary FDouble FD.unordered x y))
           | Fmax (fd, x ,y) -> Float (apply_binary fd FD.fmax x y)
           | Fmin (fd, x ,y) -> Float (apply_binary fd FD.fmin x y)
