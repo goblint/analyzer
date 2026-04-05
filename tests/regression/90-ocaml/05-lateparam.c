@@ -1,6 +1,7 @@
 // PARAM: --set "ana.activated[+]" ocaml --disable warn.imprecise --set "exp.extraspecials[+]" printInt
 
 // Artificial test where the argument v is registered after GC could delete it.
+// TODO: Add late local as well.
 
 #include <stdint.h>
 #include <string.h>

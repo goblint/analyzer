@@ -37,7 +37,13 @@ struct LXM_state { uint64_t a; uint64_t x[2]; uint64_t s; };
 #define CAMLlocal5(x, y, z, w, v) value x = Val_unit; value y = Val_unit; value z = Val_unit; value w = Val_unit; value v = Val_unit; __goblint_caml_param5(&x, &y, &z, &w, &v)
 
 #undef CAMLreturn
-#define CAMLreturn(x) return (x) // The real CAMLreturn needs some variable named caml__frame, which is not available in our redefinitions above.
+#define CAMLreturn(x) __goblint_caml_return(); return (x) // The real CAMLreturn needs some variable named caml__frame, which is not available in our redefinitions above.
+
+// Marking roots is like registering and deregistering them.
+#undef Begin_roots1
+#undef End_roots
+#define Begin_roots1(x) __goblint_caml_param1(&x)
+#define End_roots() __goblint_caml_return()
 
 // A reference to caml_gc_minor_words_unboxed can be found in _opam/lib/ocaml/ml/gc.ml.
 #define caml_gc_minor_words_unboxed() (0.0)

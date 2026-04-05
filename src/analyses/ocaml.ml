@@ -13,7 +13,9 @@ module VarinfoSet = SetDomain.Make(CilType.Varinfo)
 (** "Fake" variable to handle returning from a function *)
 let return_varinfo = dummyFunDec.svar
 (** Flag for first function entered *)
-let first_function = true
+let first_function = (emptyFunction "@first").svar
+(** Flag for deregistering at return *)
+let to_deregister = (emptyFunction "@dereg").svar
 
 module Spec : Analyses.MCPSpec =
 struct
@@ -106,22 +108,22 @@ struct
     | TNamed (info, attr) -> info.tname = "value"
     | _ -> false
 
+  let assignment (v:varinfo) (rval:exp) (state:D.t) (warning:string): D.t =
+    (* If rval is a pointer, checks whether rval is accounted for, handles assignment to v accordingly *)    
+    if Cil.isPointerType (Cil.typeOf rval) || is_value_type (Cil.typeOf rval) then
+      if exp_accounted_for state rval then
+        if exp_registered state rval then D.add_a v (D.add_r v state)
+        else D.add_a v (D.remove_r v state)
+      else (M.info "%s" warning; D.remove_a v state)
+    else D.add_a v (D.add_r v state)
+
   (* transfer functions *)
 
   (** Handles assignment of [rval] to [lval]. *)
   let assign ctx (lval:lval) (rval:exp) : D.t =
     let state = ctx.local in
     match lval with
-    | Var v,_ ->
-      (* If rval is a pointer, checks whether rval is accounted for, handles assignment to v accordingly *) (* state *)
-      (* Emits an event for the variable v not being zero. *)
-
-      if Cil.isPointerType (Cil.typeOf rval) || is_value_type (Cil.typeOf rval) then
-        if exp_accounted_for state rval then
-          if exp_registered state rval then D.add_a v (D.add_r v state)
-          else D.add_a v (D.remove_r v state)
-        else (M.info "The above is being assigned"; D.remove_a v state)
-      else D.add_a v (D.add_r v state)
+    | Var v,_ -> assignment v rval state "The above is being assigned"
     | _ -> state
 
   (** Handles conditional branching yielding truth value [tv]. *)
@@ -133,16 +135,14 @@ struct
   (** Handles going from start node of function [f] into the function body of [f].
       Meant to handle e.g. initializiation of local variables. *)
   let body ctx (f:fundec) : D.t =
-    (* The (non-formals) locals are initially accounted for *)
     let state = ctx.local in
-    (* It is assumed that the startstate's values are not nptrs. *)
-    let state = List.fold_left (fun st v -> if first_function && is_value_type v.vtype then
-                       (ctx.emit (Events.SplitBranch (Cil.Lval (Cil.var v), true)); D.add_a v st)
-                     else D.add_a v (D.add_r v st))
-      state f.sformals in
+    (* It is assumed that the startstate's values are not nptrs. This avoids warnings from other analyses. *)
+    if D.mem_r first_function state then
+      List.iter (fun v -> (if is_value_type v.vtype then
+                             (ctx.emit (Events.SplitBranch (Cil.Lval (Cil.var v), true)))))
+        f.sformals;
     (* TODO: Is there a way without a flag to only emit at the start? *)
-    let first_function = false in
-    state
+    D.remove_r first_function state
 
   (** Handles the [return] statement, i.e. "return exp" or "return", in function [f]. *)
   let return ctx (exp:exp option) (f:fundec) : D.t =
@@ -151,17 +151,11 @@ struct
     | Some e ->
       (* Checks that value returned is accounted for. *)
       (* Return_varinfo is used in place of a "real" variable. *)
-      (* TODO: Consider how the return_varinfo needs to be tracked. *)
-      let return_state =
-        if Cil.isPointerType (Cil.typeOf e) || is_value_type (Cil.typeOf e) then
-          if exp_accounted_for state e then
-            if exp_registered state e then D.add_a return_varinfo (D.add_r return_varinfo state)
-            else D.add_a return_varinfo (D.remove_r return_varinfo state)
-          else (M.warn "Value returned might be garbage collected"; D.remove_a return_varinfo state)
-        else D.add_a return_varinfo (D.add_r return_varinfo state)
-      in
-      (* Remove this function's formals and locals *)
-      List.fold_left (fun st v -> D.remove_a v (D.remove_r v st)) return_state (f.sformals @ f.slocals)
+      let return_state = assignment return_varinfo e state "The above is being returned" in
+      (* Remove this function's formals and locals if correctly returned *)
+      D.remove_r to_deregister (if D.mem_r to_deregister return_state then
+                                  List.fold_left (fun st v -> D.remove_a v (D.remove_r v st)) return_state (f.sformals @ f.slocals)
+                                else return_state)
     | None -> state
 
   (** For a function call "lval = f(args)" or "f(args)",
@@ -173,16 +167,13 @@ struct
     List.iter (fun e -> ignore (exp_accounted_for caller_state e)) args;
     (* Entering a function doesn't change the caller state *)
     let callee_state = List.fold_left2 (fun st v rval ->
-      (* At the start, arguments are accounted for and not registered. *)
-      if rval == MyCFG.unknown_exp then D.add_a v (D.remove_r v st) else
-      (* Arguments of inner functions inherit the caller's state. *)
-      if Cil.isPointerType (Cil.typeOf rval) || is_value_type (Cil.typeOf rval) then
-        if exp_accounted_for st rval then
-          if exp_registered st rval then D.add_a v (D.add_r v st)
-          else D.add_a v (D.remove_r v st)
-        else (M.info "The above is being assigned"; D.remove_a v st)
-      else D.add_a v (D.add_r v st))
-      caller_state f.sformals args in
+        (* At the start, arguments are accounted for and not registered. The first_function flag is added.*)
+        if rval == MyCFG.unknown_exp then
+          if is_value_type v.vtype then D.add_r first_function (D.add_a v (D.remove_r v st))
+          else D.add_a v (D.add_r v st)
+          (* Arguments of inner functions inherit the caller's state. *)
+        else assignment v rval st "Entering function with possibly deleted argument")
+        caller_state f.sformals args in
     (* first component is state of caller, second component is state of callee *)
     [caller_state, callee_state]
 
@@ -201,15 +192,15 @@ struct
     let caller_state = ctx.local in
     (* Records whether lval was accounted for. Registration for v must already be handled. *)
     (* TODO: What happens if a pointer to a value is returned? *)
-    (* TODO: Rethink type checking with return_varinfo. *)
     match lval with (* The variable returned is played by return_varinfo *)
     | Some (Var v, _) ->
       let state =
-        if Cil.isPointerType return_varinfo.vtype || is_value_type return_varinfo.vtype then
-          if D.mem_a return_varinfo callee_local then
-            if D.mem_r return_varinfo callee_local then D.add_a v (D.add_r v caller_state)
+        (* TODO: It never warns about being combined. Is there a problem with the svar type? *)
+        if Cil.isPointerType f.svar.vtype || is_value_type f.svar.vtype then
+          if D.mem_a return_varinfo caller_state then
+            if D.mem_r return_varinfo caller_state then D.add_a v (D.add_r v caller_state)
             else D.add_a v (D.remove_r v caller_state)
-          else (M.warn "Returned value may be garbage-collected"; D.remove_a v caller_state)
+          else (M.info "The above is being combined"; D.remove_a v caller_state)
         else D.add_a v (D.add_r v caller_state) in
       D.remove_a return_varinfo (D.remove_r return_varinfo state)
     | _ -> caller_state
@@ -219,7 +210,6 @@ struct
       For this analysis, source and sink functions will be considered _special_ and have to be treated here. *)
   let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
     let caller_state = ctx.local in
-    (* TODO: Check if f is a sink / source and handle it appropriately *)
     (* To warn about a potential issue in the code, use M.warn. *)
     (* caller_state *)
     let desc = LibraryFunctions.find f in
@@ -238,6 +228,10 @@ struct
        | Some (Var v, _) -> D.add_a v (D.after_gc caller_state)
        | _ -> D.after_gc caller_state
       )
+    (* TODO: Does not deregister, but queues it. This is unsound if deregistration is done before returning instead of at the same time. *)
+    | OCamlReturn ->
+      (* Marks a function as deregistering at return *)
+      D.add_r to_deregister caller_state
     | _ -> caller_state
 
   (* You may leave these alone *)

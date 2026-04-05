@@ -50,6 +50,7 @@ type special =
   | OCamlAlloc of Cil.exp
   (* TODO: Rethink OCamlParam's placement. *)
   | OCamlParam of Cil.exp list
+  | OCamlReturn
   | Calloc of { count: Cil.exp; size: Cil.exp; }
   | Realloc of { ptr: Cil.exp; size: Cil.exp; }
   | Free of Cil.exp
