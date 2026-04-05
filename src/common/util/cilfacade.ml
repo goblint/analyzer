@@ -417,6 +417,21 @@ let bytesOffsetOnly t o =
   assert (bits_offset mod 8 = 0);
   bits_offset / 8
 
+let fieldBitsOffsetOnly fi = (* uncached *)
+  let bits_offset, _ = bitsOffset (TComp (fi.fcomp, [])) (Field (fi, NoOffset)) in
+  bits_offset
+
+module FieldinfoH = GobHashtbl.Make (CilType.Fieldinfo)
+let fieldBitsOffsetOnly_memo = FieldinfoH.create 13
+
+let fieldBitsOffsetOnly = (* cached *)
+  FieldinfoH.find_or_add_default_delayed ~default:fieldBitsOffsetOnly fieldBitsOffsetOnly_memo
+
+let fieldBytesOffsetOnly fi =
+  let bits_offset = fieldBitsOffsetOnly fi in
+  assert (bits_offset mod 8 = 0);
+  bits_offset / 8
+
 
 (** {!Cil.mkCast} using our {!typeOf}. *)
 let mkCast ~kind ~(e: exp) ~(newt: typ) =
@@ -778,6 +793,7 @@ let funs_with_upjumping_gotos: unit LocSet.t FunLocH.t = FunLocH.create 13
 
 let reset_lazy ?(keepupjumpinggotos=false) () =
   StmtH.clear pseudo_return_to_fun;
+  FieldinfoH.clear fieldBitsOffsetOnly_memo;
   if not keepupjumpinggotos then FunLocH.clear funs_with_upjumping_gotos;
   ResettableLazy.reset stmt_fundecs;
   ResettableLazy.reset varinfo_fundecs;

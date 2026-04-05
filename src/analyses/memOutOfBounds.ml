@@ -149,8 +149,7 @@ struct
     match offs with
     | `NoOffset -> intdom_of_int 0
     | `Field (field, o) ->
-      let field_as_offset = Field (field, NoOffset) in
-      let bytes_offset = Cilfacade.bytesOffsetOnly (TComp (field.fcomp, [])) field_as_offset in
+      let bytes_offset = Cilfacade.fieldBytesOffsetOnly field in
       let bytes_offset = intdom_of_int bytes_offset in
       let remaining_offset = offs_to_idx field.ftype o in
       begin

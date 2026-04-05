@@ -360,15 +360,6 @@ module T = struct
     if M.tracing then M.trace "c2po-2cil" "exp: %a; offset: %s; res: %a" d_exp cil_t (Z.to_string off) d_exp res;
     res
 
-  (** Returns the integer offset of a field of a struct. *)
-  let get_field_offset finfo =
-    let field = `Field (finfo, `NoOffset) in
-    let field_to_index = offset_to_index field in
-    match IntDomain.IntDomTuple.to_int field_to_index with
-    | Some i -> i
-    | None ->
-      raise (UnsupportedCilExpression "unknown offset")
-
   let is_field = function
     | Field _ -> true
     | _ -> false
@@ -427,7 +418,7 @@ module T = struct
       let find_field cinfo =
         try
           let equal_to_offset field =
-            Z.equal (get_field_offset field) offset
+            Z.equal (Z.of_int (Cilfacade.fieldBitsOffsetOnly field)) offset
           in
           let field_equal_to_offset = List.find equal_to_offset cinfo.cfields in
           Field (field_equal_to_offset, NoOffset)

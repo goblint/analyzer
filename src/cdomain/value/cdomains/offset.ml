@@ -218,8 +218,7 @@ struct
     let rec offset_to_index_offset ?typ offs = match offs with
       | `NoOffset -> idx_of_int 0
       | `Field (field, o) ->
-        let field_as_offset = Field (field, NoOffset) in
-        let bits_offset, _size = GoblintCil.bitsOffset (TComp (field.fcomp, [])) field_as_offset  in
+        let bits_offset = Cilfacade.fieldBitsOffsetOnly field in
         let bits_offset = Z.of_int bits_offset in
         (* Interval of floor and ceil division in case bitfield offset. *)
         let bytes_offset = Idx.of_interval (Cilfacade.ptrdiff_ikind ()) Z.(fdiv bits_offset eight, cdiv bits_offset eight) in
