@@ -279,6 +279,9 @@ module Base =
 
       let var_messages = data.var_messages in
       let rho_write = data.rho_write in
+
+      (* dep is only needed for some incremental pruning. *)
+      let collect_dep = GobConfig.get_bool "incremental.load" || GobConfig.get_bool "incremental.save" in
       let dep = data.dep in
       let weak_dep = data.weak_dep in
 
@@ -303,7 +306,8 @@ module Base =
       let add_infl y x =
         if tracing then trace "sol2" "add_infl %a %a" S.Var.pretty_trace y S.Var.pretty_trace x;
         HM.replace infl y (VS.add x (try HM.find infl y with Not_found -> VS.empty));
-        HM.replace dep x (VS.add y (HM.find_default dep x VS.empty));
+        if collect_dep then
+          HM.replace dep x (VS.add y (HM.find_default dep x VS.empty));
       in
       let add_sides y x = HM.replace sides y (VS.add x (try HM.find sides y with Not_found -> VS.empty)) in
 
@@ -369,7 +373,8 @@ module Base =
               d
             | _ ->
               (* The RHS is re-evaluated, all deps are re-trigerred *)
-              HM.replace dep x VS.empty;
+              if collect_dep then
+                HM.replace dep x VS.empty;
               eq_wrapper x (fun side -> eq x (eval l x) side (demand l x))
           in
           HM.remove called x;
