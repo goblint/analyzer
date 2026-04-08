@@ -152,7 +152,7 @@ struct
       List.iter (fun (lval, args, multiple) -> man.spawn ~multiple lval v args) d
     in
     if get_bool "exp.single-threaded" then
-      M.msg_final Error ~category:Unsound "Thread not spawned"
+      M.msg_final Error ~category:Unsound "Thread not spawned" (* TODO: non-final error *) (* TODO: only final error if xs is non-empty *)
     else
       iter (uncurry spawn_one) @@ group_assoc_eq Basetype.Variables.equal xs
 
