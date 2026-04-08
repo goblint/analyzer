@@ -112,7 +112,7 @@ struct
         if M.tracing then M.tracel "inv" "st from %a to %a" D.pretty st D.pretty r;
         r
       )
-    | Mem (Lval lv), off ->
+    | Mem (Lval lv), off when GobConfig.get_bool "ana.base.branch.refine-pointer-by-pointee" ->
       (* Underlying lvals (may have offsets themselves), e.g., for struct members NOT including any offset appended to outer Mem *)
       let lvals = eval_lv ~man st (Mem (Lval lv), NoOffset) in
       (* Additional offset of value being refined in Addr Offset type *)
