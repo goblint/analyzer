@@ -10,7 +10,7 @@ module Pretty = GoblintCil.Pretty
 type t = {
   tid: ThreadIdDomain.ThreadLifted.t;
   created: ConcDomain.ThreadSet.t;
-  must_joined: ConcDomain.MustThreadSet.t;
+  must_joined: ConcDomain.ThreadSet.t;
 } [@@deriving eq, ord, hash, relift]
 
 let current (ask:Queries.ask) =
@@ -35,10 +35,10 @@ let pretty () {tid; created; must_joined} =
       Some (Pretty.dprintf "created=%a" ConcDomain.ThreadSet.pretty created)
   in
   let must_joined_doc =
-    if ConcDomain.MustThreadSet.is_top must_joined then
+    if ConcDomain.ThreadSet.is_empty must_joined then
       None
     else
-      Some (Pretty.dprintf "must_joined=%a" ConcDomain.MustThreadSet.pretty must_joined)
+      Some (Pretty.dprintf "must_joined=%a" ConcDomain.ThreadSet.pretty must_joined)
   in
   let docs = List.filter_map Fun.id [tid_doc; created_doc; must_joined_doc] in
   Pretty.dprintf "{%a}" (Pretty.d_list "; " Pretty.insert) docs
@@ -63,19 +63,17 @@ let definitely_not_started (current, created) other =
       not @@ ConcDomain.ThreadSet.exists (ident_or_may_be_created) created
 
 let exists_definitely_not_started_in_joined (current,created) other_joined =
-  if ConcDomain.MustThreadSet.is_bot other_joined then
+  if ConcDomain.ThreadSet.is_top other_joined then
     false
   else
-    ConcDomain.MustThreadSet.exists (fun ft -> definitely_not_started (current, created) (ThreadIdDomain.Thread ft)) other_joined
+    ConcDomain.ThreadSet.exists (definitely_not_started (current,created)) other_joined
 
 (** Must the thread with thread id other be already joined  *)
 let must_be_joined other joined =
-  if ConcDomain.MustThreadSet.is_bot joined then
-    true (* bot means all threads are joined, so [other] must be as well *)
+  if ConcDomain.ThreadSet.is_top joined then
+    true (* top means all threads are joined, so [other] must be as well *)
   else
-    match other with
-    | ThreadIdDomain.Thread ft -> ConcDomain.MustThreadSet.mem ft joined
-    | ThreadIdDomain.UnknownThread -> false
+    ConcDomain.ThreadSet.mem other joined
 
 (** May two program points with respective MHP information happen in parallel *)
 let may_happen_in_parallel one two =

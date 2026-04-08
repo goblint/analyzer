@@ -271,12 +271,12 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): Bitfield_SOverflow with type in
         let underflow = Z.compare (BArith.min old_ik (z,o)) min_ik < 0 in
         let overflow = Z.compare max_ik (BArith.max old_ik (z,o)) < 0 in
         (underflow, overflow)
-        (* | _ -> (* TODO: what is this case? was it always dead? *)
-             let isPos = z <: Ints_t.zero in
-             let isNeg = o <: Ints_t.zero in
-             let underflow = if GoblintCil.isSigned ik then (((Ints_t.of_bigint min_ik) &: z) <>: Ints_t.zero) && isNeg else isNeg in
-             let overflow = (((!:(Ints_t.of_bigint max_ik)) &: o) <>: Ints_t.zero) && isPos in
-             (underflow, overflow) *)
+      (* | _ -> (* TODO: what is this case? was it always dead? *)
+           let isPos = z <: Ints_t.zero in
+           let isNeg = o <: Ints_t.zero in
+           let underflow = if GoblintCil.isSigned ik then (((Ints_t.of_bigint min_ik) &: z) <>: Ints_t.zero) && isNeg else isNeg in
+           let overflow = (((!:(Ints_t.of_bigint max_ik)) &: o) <>: Ints_t.zero) && isPos in
+           (underflow, overflow) *)
     in
     let overflow_info = {underflow; overflow} in
     (norm ~ov:(underflow || overflow) ik (z,o), overflow_info)

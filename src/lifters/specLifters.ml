@@ -870,24 +870,19 @@ struct
   let context man = S.context (conv man)
 
   let branch man exp tv =
-    let prev_node =
-      match man.prev_node with
-      | Statement s -> Node.Statement (LoopUnrolling.find_original s) (* aggregate all unrolled copies under original to avoid conflicting warnings about same source branch *)
-      | n -> n (* never unrolled *)
-    in
     if !AnalysisState.postsolving then (
       try
         let r = branch man exp tv in
         (* branch is live *)
-        man.sideg (V.node prev_node) (G.create_node (EM.singleton exp (`Lifted tv))); (* record expression with reached tv *)
+        man.sideg (V.node man.prev_node) (G.create_node (EM.singleton exp (`Lifted tv))); (* record expression with reached tv *)
         r
       with Deadcode ->
         (* branch is dead *)
-        man.sideg (V.node prev_node) (G.create_node (EM.singleton exp `Bot)); (* record expression without reached tv *)
+        man.sideg (V.node man.prev_node) (G.create_node (EM.singleton exp `Bot)); (* record expression without reached tv *)
         raise Deadcode
     )
     else (
-      man.sideg (V.node prev_node) (G.create_node (EM.bot ())); (* create global variable during solving, to allow postsolving leq hack to pass verify *)
+      man.sideg (V.node man.prev_node) (G.create_node (EM.bot ())); (* create global variable during solving, to allow postsolving leq hack to pass verify *)
       branch man exp tv
     )
 

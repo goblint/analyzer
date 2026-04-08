@@ -66,7 +66,7 @@
     f_both(3);
     f_both(9);
     f_true(12);
-    f_false(- 3);
+    f_false(-3);
     }
     return (0);
   }
