@@ -5,8 +5,8 @@
 int g;
 
 int main() {
-  __goblint_check(g == 0); // TODO SUCCESS (forced single-threaded)
-  g = 1; // TODO NORACE (forced single-threaded)
-  __goblint_check(g == 1); // TODO SUCCESS (forced single-threaded)
+  __goblint_check(g == 0); // SUCCESS (forced single-threaded)
+  g = 1; // NORACE (forced single-threaded)
+  __goblint_check(g == 1); // SUCCESS (forced single-threaded)
   return 0;
 }
