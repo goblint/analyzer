@@ -72,7 +72,7 @@ depends: [
   "domain-local-await"
   "domain_shims"
 ]
-depopts: ["apron" "z3" "domainslib"]
+depopts: ["apron" "z3" "domainslib" "memtrace"]
 conflicts: [
   "result" {< "1.5"}
   "apron" {< "v0.9.15"}
