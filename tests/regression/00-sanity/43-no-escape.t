@@ -20,8 +20,8 @@ Assertions should succeed.
 
   $ goblint --set ana.activated[-] escape --enable exp.earlyglobs --enable exp.single-threaded 43-no-escape.c
   [Warning] Without thread escape analysis, every local variable whose address is taken is considered escaped, i.e., global!
-  [Warning][Assert] Assertion "x == 0" is unknown. (43-no-escape.c:7:3-7:26)
-  [Warning][Assert] Assertion "x == 1" is unknown. (43-no-escape.c:9:3-9:26)
+  [Success][Assert] Assertion "x == 0" will succeed (43-no-escape.c:7:3-7:26)
+  [Success][Assert] Assertion "x == 1" will succeed (43-no-escape.c:9:3-9:26)
   [Info][Deadcode] Logical lines of code (LLoC) summary:
     live: 7
     dead: 0
