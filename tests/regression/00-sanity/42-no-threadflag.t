@@ -33,7 +33,6 @@ Assertions should succeed, race should not be present.
     live: 5
     dead: 0
     total lines: 5
-  [Error][Unsound] Thread not spawned
 
 
 With single-threaded mode forced, but earlyglobs enabled.
@@ -46,5 +45,4 @@ Assertions should be unknown, race should not be present.
     live: 5
     dead: 0
     total lines: 5
-  [Error][Unsound] Thread not spawned
 

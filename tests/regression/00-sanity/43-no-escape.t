@@ -26,5 +26,4 @@ Assertions should succeed.
     live: 7
     dead: 0
     total lines: 7
-  [Error][Unsound] Thread not spawned
 
