@@ -6,7 +6,7 @@ open Analyses
 module M = Messages
 module AD = Queries.AD
 
-let has_escaped (ask: Queries.ask) (v: varinfo): bool =
+let has_escaped (ask: Queries.ask) (v: varinfo): bool = (* TODO: use everywhere instead of query *)
   (* TODO: exp.single-threaded override *)
   assert (not v.vglob);
   if not v.vaddrof then

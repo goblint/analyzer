@@ -23,7 +23,7 @@ Assertions should be unknown, race should be present.
     total memory locations: 1
 
 
-With single-threaded more forced.
+With single-threaded mode forced.
 Assertions should succeed, race should not be present.
 
   $ goblint --set ana.activated[-] threadflag --set ana.activated[-] threadid --disable exp.earlyglobs --enable exp.single-threaded 42-no-threadflag.c
