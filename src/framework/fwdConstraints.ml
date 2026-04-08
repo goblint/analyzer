@@ -125,22 +125,20 @@ struct
       in
       bigsqcup (List.map one_spawn spawns)
 
-  let common_join man d splits spawns =
-    thread_spawns man (bigsqcup (d :: splits)) spawns
-
-  let common_split man d splits spawns =
+  (** Handle *)
+  let map_thread_spawns man d splits spawns =
     let ds = d :: splits in
-    List.map (fun d -> common_join man d [] spawns) ds
+    List.map (fun d -> thread_spawns man d spawns) ds
 
   let tf_assign var edge target_node lv e getl sidel getg sideg d =
     let man, r, spawns = common_man' var edge target_node d getl sidel getg sideg in
     let d = S.assign man lv e in (* Force transfer function to be evaluated before dereferencing in common_join argument. *)
-    common_split man d !r !spawns
+    map_thread_spawns man d !r !spawns
 
   let tf_vdecl var edge target_node v getl sidel getg sideg d =
     let man, r, spawns = common_man' var edge target_node d getl sidel getg sideg in
     let d = S.vdecl man v in (* Force transfer function to be evaluated before dereferencing in common_join argument. *)
-    common_split man d !r !spawns
+    map_thread_spawns man d !r !spawns
 
   let normal_return r fd man sideg =
     let spawning_return = S.return man r fd in
@@ -162,17 +160,17 @@ struct
       then toplevel_kernel_return ret fd man sideg
       else normal_return ret fd man sideg
     in
-    common_split man d !r !spawns
+    map_thread_spawns man d !r !spawns
 
   let tf_entry var edge target_node fd getl sidel getg sideg d =
     let man, r, spawns = common_man' var edge target_node d getl sidel getg sideg in
     let d = S.body man fd in (* Force transfer function to be evaluated before dereferencing in common_join argument. *)
-    common_split man d !r !spawns
+    map_thread_spawns man d !r !spawns
 
   let tf_test var edge target_node e tv getl sidel getg sideg d =
     let man, r, spawns = common_man' var edge target_node d getl sidel getg sideg in
     let d = S.branch man e tv in (* Force transfer function to be evaluated before dereferencing in common_join argument. *)
-    common_split man d !r !spawns
+    map_thread_spawns man d !r !spawns
 
   let tf_normal_call man lv e (f:fundec) args getl (sidel : lv -> ld -> unit) getg sideg =
     let combine (cd, fc, fd) =
@@ -344,18 +342,18 @@ struct
       [d]
     end else
       let funs = List.flatten funs in
-      let ds = List.map (fun f -> common_split man f !r !spawns) funs in
+      let ds = List.map (fun f -> map_thread_spawns man f !r !spawns) funs in
       List.flatten ds
 
   let tf_asm var edge target_node getl sidel getg sideg d =
     let man, r, spawns = common_man' var edge target_node d getl sidel getg sideg in
     let d = S.asm man in (* Force transfer function to be evaluated before dereferencing in common_join argument. *)
-    common_split man d !r !spawns
+    map_thread_spawns man d !r !spawns
 
   let tf_skip var edge target_node getl sidel getg sideg d =
     let man, r, spawns = common_man' var edge target_node d getl sidel getg sideg in
     let d = S.skip man in (* Force transfer function to be evaluated before dereferencing in common_join argument. *)
-    common_split man d !r !spawns
+    map_thread_spawns man d !r !spawns
 
   let tf (x : lv) getl sidel getg sideg target_node edge d =
     let target_unknown d : lv =
