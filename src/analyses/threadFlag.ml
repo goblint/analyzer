@@ -6,10 +6,12 @@ open GoblintCil
 open Analyses
 
 let is_currently_multi (ask: Queries.ask): bool =
+  (* TODO: exp.single-threaded override *)
   if !AnalysisState.global_initialization then false else
     not (ask.f (Queries.MustBeSingleThreaded {since_start = false}))
 
 let has_ever_been_multi (ask: Queries.ask): bool =
+  (* TODO: exp.single-threaded override *)
   if !AnalysisState.global_initialization then false else
     not (ask.f (Queries.MustBeSingleThreaded {since_start = true}))
 

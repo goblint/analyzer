@@ -471,7 +471,7 @@ struct
     let d_local =
       (* if we are multithreaded, we run the risk, that some mutex protected variables got unlocked, so in this case caller state goes to top
          TODO: !!Unsound, this analysis does not handle this case -> regtest 63 08!! *)
-      if Queries.AD.is_top tainted || not (man.ask (Queries.MustBeSingleThreaded {since_start = true})) then
+      if Queries.AD.is_top tainted || ThreadFlag.has_ever_been_multi (Analyses.ask_of_man man) then
         D.top ()
       else
         let taint_exp =

@@ -7,6 +7,7 @@ module M = Messages
 module AD = Queries.AD
 
 let has_escaped (ask: Queries.ask) (v: varinfo): bool =
+  (* TODO: exp.single-threaded override *)
   assert (not v.vglob);
   if not v.vaddrof then
     false (* Cannot have escaped without taking address. Override provides extra precision for degenerate ask in base eval_exp used for partitioned arrays. *)

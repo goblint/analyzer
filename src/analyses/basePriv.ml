@@ -579,7 +579,7 @@ struct
     let digest = Digest.current ask in
     let sidev = GMutex.singleton digest (CPA.singleton x v) in
     let l' = L.add lm (CPA.singleton x v) l in
-    let is_recovered_st = ask.f (Queries.MustBeSingleThreaded {since_start = false}) && not @@ ask.f (Queries.MustBeSingleThreaded {since_start = true}) in
+    let is_recovered_st = ThreadFlag.has_ever_been_multi ask && not @@ ThreadFlag.is_currently_multi ask in
     let l' = if is_recovered_st then
         (* update value of local record for all where it appears *)
         L.map (update_if_mem x v) l'
@@ -705,7 +705,7 @@ struct
     {st with cpa = CPA.bot (); priv = (W.bot (),lmust,l)}
 
   let threadspawn (ask:Queries.ask) get set (st: BaseComponents (D).t) =
-    let is_recovered_st = ask.f (Queries.MustBeSingleThreaded {since_start = false}) && not @@ ask.f (Queries.MustBeSingleThreaded {since_start = true}) in
+    let is_recovered_st = ThreadFlag.has_ever_been_multi ask && not @@ ThreadFlag.is_currently_multi ask in
     let unprotected_after x = ask.f (Q.MayBePublic {global=x; kind=Write; protection=Weak}) in
     if is_recovered_st then
       (* Remove all things that are now unprotected *)
