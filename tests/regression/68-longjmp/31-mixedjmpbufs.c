@@ -28,12 +28,12 @@ int blub(int x,int y) {
 int main(void) {
 
   if(setjmp(error0)) {
-    printf("error0 occured");
+    printf("error0 occurred");
     return -1;
   }
 
   if(setjmp(error1)) {
-    printf("error1 occured");
+    printf("error1 occurred");
     return -2;
   }
 

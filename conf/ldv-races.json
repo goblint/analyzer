@@ -1,7 +1,6 @@
 {
   "pre": {
     "cppflags": [
-      "-DGOBLINT_NO_PTHREAD_ONCE",
       "-DGOBLINT_NO_QSORT",
       "-DGOBLINT_NO_BSEARCH"
     ]
@@ -29,7 +28,9 @@
       "escape",
       "expRelation",
       "mhp",
-      "assert"
+      "assert",
+      "var_eq",
+      "symb_locks"
     ],
     "malloc": {
       "wrappers": [
@@ -52,12 +53,18 @@
       ]
     }
   },
-  "witness": {
-    "graphml": {
-      "enabled": true,
-      "id": "enumerate",
-      "unknown": false
-    }
+  "lib": {
+    "activated": [
+      "c",
+      "posix",
+      "pthread",
+      "gcc",
+      "glibc",
+      "linux-userspace",
+      "goblint",
+      "ncurses",
+      "klever"
+    ]
   },
   "solver": "td3",
   "sem": {

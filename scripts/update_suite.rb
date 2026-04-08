@@ -29,6 +29,7 @@ class String
   def cyan; colorize(36) end
   def white; colorize(37) end
   def bg_black; colorize(40) end # gray for me
+  def bold; colorize(1) end
   def gray; colorize("38;5;240") end
 end
 class Array
@@ -36,7 +37,11 @@ class Array
 end
 # clear the current line
 def clearline
-  print "\r\e[K"
+  if $stdout.isatty
+    print "\r\e[K"
+  else
+    print "\n"
+  end
 end
 
 $goblint = File.join(Dir.getwd,"goblint")
@@ -59,6 +64,7 @@ has_linux_headers = File.exist? "linux-headers" # skip kernel tests if make head
 #Command line parameters
 #Either only run a single test, or
 #"future" will also run tests we normally skip
+quiet = ARGV.last == "-q" && ARGV.pop
 $dump = ARGV.last == "-d" && ARGV.pop
 sequential = ARGV.last == "-s" && ARGV.pop
 marshal = ARGV.last == "-m" && ARGV.pop
@@ -67,9 +73,6 @@ cfg = ARGV.last == "-c" && ARGV.pop
 incremental = (ARGV.last == "-i" && ARGV.pop) || cfg
 report = ARGV.last == "-r" && ARGV.pop
 only = ARGV[0] unless ARGV[0].nil?
-if marshal || witness || incremental then
-  sequential = true
-end
 if marshal && incremental then
   fail "Marshal (-m) and Incremental (-i) tests can not be activated at the same time!"
 end
@@ -81,11 +84,30 @@ elsif only == "group" then
   future = thegroup.start_with?"-"
   future = !future # why does negation above fail?
   only = nil
+  descr = " group #{thegroup}"
 else
   future = false
+  if only.nil? then
+    descr = ""
+  else
+    descr = " #{only}"
+  end
 end
 
+if cfg then
+  descr = " incremental cfg"
+elsif incremental then
+  descr = " incremental ast"
+end
+
+print "update_suite#{descr}: ".bold
+
 $testresults = File.expand_path("tests/suite_result")
+begin
+  Dir.mkdir($testresults)
+rescue
+  # exited or was created in parallel
+end
 testfiles    = if incremental then
                  File.expand_path("tests/incremental")
                else
@@ -221,6 +243,8 @@ class Tests
         check.call warnings[idx] != "race"
       when "nodeadlock"
         check.call warnings[idx] != "deadlock"
+      when "nocrash", "fixpoint", "notimeout", "cram", "nocheck"
+        check.call true
       end
     end
   end
@@ -299,6 +323,18 @@ class Project
       if obj =~ /#line ([0-9]+).*$/ then
         i = $1.to_i - 1
       end
+      # test annotations are stored by line, use impossible line -42 for these metaproperties
+      if obj =~ /NOCRASH/ then
+        tests[-42] = "nocrash"
+      elsif obj =~ /FIXPOINT/ then
+        tests[-42] = "fixpoint"
+      elsif obj =~ /NOTIMEOUT/ then
+        tests[-42] = "notimeout"
+      elsif obj =~ /CRAM/ then
+        tests[-42] = "cram"
+      elsif obj =~ /NOCHECK/ then
+        tests[-42] = "nocheck"
+      end
       next if obj =~ /^\s*\/\// || obj =~ /^\s*\/\*([^*]|\*+[^*\/])*\*\/$/
       todo << i if obj =~ /TODO|SKIP/
       tests_line[i] = obj
@@ -331,6 +367,7 @@ class Project
       end
     end
     case lines[0]
+    # test annotations are stored by line, use impossible line -1 for these whole-program properties
     when /NONTERM/
       tests[-1] = "nonterm"
     when /TERM/
@@ -338,6 +375,10 @@ class Project
     end
     if lines[0] =~ /TODO/ then
       todo << -1
+    end
+    if tests.empty? then
+      puts "No automatic checks in #{@id} (maybe NOCRASH/FIXPOINT/NOTIMEOUT/CRAM?)"
+      exit 1
     end
     Tests.new(self, tests, tests_line, todo)
   end
@@ -461,8 +502,9 @@ class ProjectIncr < Project
 
   def run
     filename = File.basename(@path)
-    cmd = "#{$goblint} #{filename} #{@params} #{ENV['gobopt']} 1>#{@testset.warnfile} --enable dbg.timing.enabled --enable incremental.save --set goblint-dir .goblint-#{@id.sub('/','-')}-incr-save 2>#{@testset.statsfile}"
-    cmd_incr = "#{$goblint} #{filename} #{@params} #{ENV['gobopt']} 1>#{@testset_incr.warnfile} --enable dbg.timing.enabled --enable incremental.load --set goblint-dir .goblint-#{@id.sub('/','-')}-incr-load 2>#{@testset_incr.statsfile}"
+    incrdir = "incremental_data-#{@id.sub('/','-')}"
+    cmd = "#{$goblint} #{filename} #{@params} #{ENV['gobopt']} 1>#{@testset.warnfile} --enable dbg.timing.enabled --enable incremental.save --set incremental.save-dir #{incrdir} --set goblint-dir .goblint-#{@id.sub('/','-')}-incr-save 2>#{@testset.statsfile}"
+    cmd_incr = "#{$goblint} #{filename} #{@params} #{ENV['gobopt']} 1>#{@testset_incr.warnfile} --enable dbg.timing.enabled --enable incremental.load --set incremental.load-dir #{incrdir} --set goblint-dir .goblint-#{@id.sub('/','-')}-incr-load 2>#{@testset_incr.statsfile}"
     starttime = Time.now
     run_testset(@testset_incr, cmd, starttime)
     # apply patch
@@ -471,7 +513,7 @@ class ProjectIncr < Project
     run_testset(@testset_incr, cmd_incr, starttime)
     # revert patch
     `patch -p3 -b -R <#{@patch_path}`
-    FileUtils.rm_rf('incremental_data')
+    FileUtils.rm_rf(incrdir)
   end
 
   def report
@@ -505,12 +547,13 @@ class ProjectMarshal < Project
   end
   def run ()
     filename = File.basename(@path)
-    cmd1 = "#{$goblint} #{filename} #{@params} #{ENV['gobopt']} 1>#{@testset.warnfile} --enable dbg.timing.enabled --set save_run run --set goblint-dir .goblint-#{@id.sub('/','-')}-run-save 2>#{@testset.statsfile}"
-    cmd2 = "#{$goblint} #{filename} #{@params} #{ENV['gobopt']} 1>#{@testset.warnfile} --enable dbg.timing.enabled --conf run/config.json --set save_run '' --set load_run run --set goblint-dir .goblint-#{@id.sub('/','-')}-run-load 2>#{@testset.statsfile}"
+    rundir = "run-#{@id.sub('/','-')}"
+    cmd1 = "#{$goblint} #{filename} #{@params} #{ENV['gobopt']} 1>#{@testset.warnfile} --enable dbg.timing.enabled --set save_run #{rundir} --set goblint-dir .goblint-#{@id.sub('/','-')}-run-save 2>#{@testset.statsfile}"
+    cmd2 = "#{$goblint} #{filename} #{@params} #{ENV['gobopt']} 1>#{@testset.warnfile} --enable dbg.timing.enabled --conf #{rundir}/config.json --set save_run '' --set load_run #{rundir} --set goblint-dir .goblint-#{@id.sub('/','-')}-run-load 2>#{@testset.statsfile}"
     starttime = Time.now
     run_testset(@testset, cmd1, starttime)
     run_testset(@testset, cmd2, starttime)
-    FileUtils.rm_rf('run')
+    FileUtils.rm_rf(rundir)
     end
 end
 
@@ -521,14 +564,24 @@ class ProjectWitness < Project
   end
   def run ()
     filename = File.basename(@path)
-    cmd1 = "#{$goblint} #{filename} #{@params} #{ENV['gobopt']} 1>#{@testset.warnfile}0 --enable warn.debug --set dbg.timing.enabled true --enable witness.yaml.enabled --set goblint-dir .goblint-#{@id.sub('/','-')}-witness1 2>#{@testset.statsfile}0"
-    cmd2 = "#{$goblint} #{filename} #{@params} #{ENV['gobopt']} 1>#{@testset.warnfile} --set ana.activated[+] unassume --enable warn.debug --set dbg.timing.enabled true --set witness.yaml.unassume witness.yml --set goblint-dir .goblint-#{@id.sub('/','-')}-witness2 2>#{@testset.statsfile}"
+    witness = "witness-#{@id.sub('/','-')}.yml"
+    cmd1 = "#{$goblint} #{filename} #{@params} #{ENV['gobopt']} 1>#{@testset.warnfile}0 --enable warn.debug --set dbg.timing.enabled true --enable witness.yaml.enabled --set witness.yaml.path #{witness} --set goblint-dir .goblint-#{@id.sub('/','-')}-witness1 2>#{@testset.statsfile}0"
+    cmd2 = "#{$goblint} #{filename} #{@params} #{ENV['gobopt']} 1>#{@testset.warnfile} --set ana.activated[+] unassume --enable warn.debug --set dbg.timing.enabled true --set witness.yaml.unassume #{witness} --set goblint-dir .goblint-#{@id.sub('/','-')}-witness2 2>#{@testset.statsfile}"
     starttime = Time.now
     run_testset(@testset, cmd1, starttime)
     starttime = Time.now
     run_testset(@testset, cmd2, starttime)
-    FileUtils.rm_f('witness.yml')
+    FileUtils.rm_f(witness)
     end
+end
+
+maybemac = true
+
+begin
+    require 'os'
+    maybemac = OS.mac?
+rescue LoadError => e
+    puts "Missing os gem (install with: gem install os), skipping tests that do not work on mac"
 end
 
 #processing the file information
@@ -559,6 +612,7 @@ regs.sort.each do |d|
     lines = IO.readlines(path, :encoding => "UTF-8")
 
     next if not future and only.nil? and lines[0] =~ /SKIP/
+    next if maybemac and lines[0] =~ /NOMAC/
     next if marshal and lines[0] =~ /NOMARSHAL/
     next if not has_linux_headers and lines[0] =~ /kernel/
     if incremental then
@@ -599,9 +653,10 @@ doproject = lambda do |p|
   dirname = File.dirname(filepath)
   filename = File.basename(filepath)
   Dir.chdir(dirname)
-  clearline
+  clearline unless quiet
   id = "#{p.id} #{p.group}/#{p.name}"
-  print "Testing #{id}"
+  print "Testing #{id}" unless quiet
+  print "." if quiet
   begin
     Dir.mkdir(File.join($testresults, p.group)) unless Dir.exist?(File.join($testresults, p.group))
   rescue
@@ -679,7 +734,7 @@ if report then
   puts ("Results: " + theresultfile)
 end
 if $alliswell then
-  puts "No errors :)".green
+  puts "No errors :)".green unless quiet
 else
   puts "#{$failed.length} test(s) failed: #{$failed}".red
 end

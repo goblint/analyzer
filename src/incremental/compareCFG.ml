@@ -17,8 +17,8 @@ let (&&<>) (prev_result: bool * rename_mapping) f : bool * rename_mapping =
 
 let eq_node (x, fun1) (y, fun2) ~rename_mapping =
   let isPseudoReturn f sid =
-    let pid = CfgTools.get_pseudo_return_id f in
-    sid == pid in
+    let pid = Cilfacade.get_pseudo_return_id f in
+    sid = pid in
   match x,y with
   | Statement s1, Statement s2 ->
     let p1 = isPseudoReturn fun1 s1.sid in
@@ -93,11 +93,11 @@ let compareCfgs (module CfgOld : CfgForward) (module CfgNew : CfgForward) fun1 f
        * of fromNode2 in the new CFG using findMatch. *)
       let iterOuts (locEdgeList1, toNode1) rename_mapping : rename_mapping =
         let edgeList1 = to_edge_list locEdgeList1 in
-        (* Differentiate between a possibly duplicate Test(1,false) edge and a single occurence. In the first
+        (* Differentiate between a possibly duplicate Test(1,false) edge and a single occurrence. In the first
          * case the edge is directly added to the diff set to avoid undetected ambiguities during the recursive
          * call. *)
         let testFalseEdge edge = match edge with
-          | Test (p,b) -> p = Cil.one && b = false
+          | Test (p,false) -> p = Cil.one
           | _ -> false in
         let posAmbigEdge edgeList = let findTestFalseEdge (ll,_) = testFalseEdge (snd (List.hd ll)) in
           let numDuplicates l = List.length (List.find_all findTestFalseEdge l) in
@@ -131,7 +131,7 @@ let reexamine f1 f2 (same : biDirectionNodeMap) (diffNodes1 : unit NH.t) (module
           false
         end in
     let cond n2 = Node.equal n2 (FunctionEntry f2) || check_all_nodes_in_same (List.map snd (CfgNew.prev n2)) n2 in
-    let forall = NH.fold (fun n2 n1 acc -> acc && cond n2) same.node2to1 true in
+    let forall = NH.fold (fun n2 n1 acc -> acc && cond n2) same.node2to1 true in (* nosemgrep: fold-for_all *) (* cond does side effects *)
     if not forall then repeat () in
   repeat ();
   NH.to_seq same.node1to2, NH.to_seq_keys diffNodes1

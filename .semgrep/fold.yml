@@ -1,0 +1,26 @@
+rules:
+  - id: fold-exists
+    patterns:
+      - pattern-either:
+        - pattern: $D.fold ... false
+        - pattern: $D.fold_left ... false
+        - pattern: $D.fold_right ... false
+        - pattern: fold ... false
+        - pattern: fold_left ... false
+        - pattern: fold_right ... false
+    message: consider replacing fold with exists
+    languages: [ocaml]
+    severity: WARNING
+
+  - id: fold-for_all
+    patterns:
+      - pattern-either:
+        - pattern: $D.fold ... true
+        - pattern: $D.fold_left ... true
+        - pattern: $D.fold_right ... true
+        - pattern: fold ... true
+        - pattern: fold_left ... true
+        - pattern: fold_right ... true
+    message: consider replacing fold with for_all
+    languages: [ocaml]
+    severity: WARNING

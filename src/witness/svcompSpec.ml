@@ -19,37 +19,31 @@ let of_string s =
   let regexp_single = Str.regexp "CHECK( init(main()), LTL(G \\(.*\\)) )" in
   let regexp_negated = Str.regexp "CHECK( init(main()), LTL(G ! \\(.*\\)) )" in
   let regexp_finally = Str.regexp "CHECK( init(main()), LTL(F \\(.*\\)) )" in
-  if Str.string_match regexp_negated s 0 then
-    let global_not = Str.matched_group 1 s in
-    if global_not = "data-race" then
-      NoDataRace
-    else if global_not = "overflow" then
-      NoOverflow
-    else
+  if Str.string_match regexp_negated s 0 then (
+    match Str.matched_group 1 s with
+    | "data-race" -> NoDataRace
+    | "overflow" -> NoOverflow
+    | global_not ->
       let call_regex = Str.regexp "call(\\(.*\\)())" in
       if Str.string_match call_regex global_not 0 then
         let f = Str.matched_group 1 global_not in
         UnreachCall f
       else
         failwith "Svcomp.Specification.of_string: unknown global not expression"
-  else if Str.string_match regexp_single s 0 then
-    let global = Str.matched_group 1 s in
-    if global = "valid-free" then
-      ValidFree
-    else if global = "valid-deref" then
-      ValidDeref
-    else if global = "valid-memtrack" then
-      ValidMemtrack
-    else if global = "valid-memcleanup" then
-      ValidMemcleanup
-    else
-      failwith "Svcomp.Specification.of_string: unknown global expression"
-  else if Str.string_match regexp_finally s 0 then
-    let finally = Str.matched_group 1 s in
-    if finally = "end" then
-      Termination
-    else
-      failwith "Svcomp.Specification.of_string: unknown finally expression"
+  )
+  else if Str.string_match regexp_single s 0 then (
+    match Str.matched_group 1 s with
+    | "valid-free" -> ValidFree
+    | "valid-deref" -> ValidDeref
+    | "valid-memtrack" -> ValidMemtrack
+    | "valid-memcleanup" -> ValidMemcleanup
+    | _ -> failwith "Svcomp.Specification.of_string: unknown global expression"
+  )
+  else if Str.string_match regexp_finally s 0 then (
+    match Str.matched_group 1 s with
+    | "end" -> Termination
+    | _ -> failwith "Svcomp.Specification.of_string: unknown finally expression"
+  )
   else
     failwith "Svcomp.Specification.of_string: unknown expression"
 

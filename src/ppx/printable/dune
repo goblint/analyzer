@@ -1,0 +1,5 @@
+(library
+ (name ppx_deriving_printable)
+ (kind ppx_deriver)
+ (libraries ppxlib ppx_easy_deriving)
+ (preprocess (pps ppxlib.metaquot)))

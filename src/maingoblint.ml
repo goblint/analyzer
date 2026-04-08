@@ -7,20 +7,27 @@ open GoblintCil
 
 let writeconffile = ref None
 
-(** Print version and bail. *)
-let print_version ch =
-  printf "Goblint version: %s\n" Goblint_build_info.version;
-  printf "Cil version:     %s\n" Cil.cilVersion;
-  printf "Dune profile:    %s\n" Goblint_build_info.dune_profile;
-  printf "OCaml version:   %s\n" Sys.ocaml_version;
-  printf "OCaml flambda:   %s\n" Goblint_build_info.ocaml_flambda;
-  if get_bool "dbg.verbose" then (
-    printf "Library versions:\n";
+(* Need second-order polymorphism to pass either Logs.result or Logs.debug to print_version. *)
+type logger = { f: 'a. ('a, unit, Pretty.doc, unit) format4 -> 'a } [@@unboxed]
+
+let print_version ~libraries (logger: logger): unit =
+  logger.f "Goblint version: %s" Goblint_build_info.version;
+  logger.f "Cil version:     %s" Cil.cilVersion;
+  logger.f "Dune profile:    %s" Goblint_build_info.dune_profile;
+  logger.f "OCaml version:   %s" Sys.ocaml_version;
+  logger.f "OCaml flambda:   %s" Goblint_build_info.ocaml_flambda;
+  if libraries then (
+    logger.f "Library versions:";
     List.iter (fun (name, version) ->
         let version = Option.default "[unknown]" version in
-        printf "  %s: %s\n" name version
+        logger.f "  %s: %s" name version
       ) Goblint_build_info.statically_linked_libraries
   );
+  logger.f "Build time:      %s" Goblint_build_info.datetime
+
+let print_version_and_exit () =
+  Logs.Level.current := Logs.Level.of_string (get_string "dbg.level"); (* duplicated from handle_options to be affected by -v *)
+  print_version ~libraries:(Logs.Level.should_log Debug) { f = Logs.result };
   exit 0
 
 (** Print helpful messages. *)
@@ -53,17 +60,11 @@ let rec option_spec_list: Arg_complete.speclist Lazy.t = lazy (
   let add_string l = let f str = l := str :: !l in Arg_complete.String (f, Arg_complete.empty) in
   let add_int    l = let f str = l := str :: !l in Arg_complete.Int (f, Arg_complete.empty) in
   let set_trace sys =
-    if Messages.tracing then Tracing.addsystem sys
-    else (prerr_endline "Goblint has been compiled without tracing, recompile in trace profile (./scripts/trace_on.sh)"; raise Stdlib.Exit)
+    if Messages.tracing then Goblint_tracing.addsystem sys
+    else (Logs.error "Goblint has been compiled without tracing, recompile in trace profile (./scripts/trace_on.sh)"; raise Stdlib.Exit)
   in
   let configure_html () =
-    if (get_string "outfile" = "") then
-      set_string "outfile" "result";
-    if get_string "exp.g2html_path" = "" then
-      set_string "exp.g2html_path" (Fpath.to_string GobSys.exe_dir);
-    set_bool "exp.cfgdot" true;
-    set_bool "g2html" true;
-    set_string "result" "fast_xml"
+    set_string "result" "xslt"
   in
   let configure_sarif () =
     if (get_string "outfile" = "") then
@@ -86,63 +87,66 @@ let rec option_spec_list: Arg_complete.speclist Lazy.t = lazy (
     Arg_complete.strings Options.paths s
   in
   let complete_bool_option s =
-    let cs = complete_option s in
-    let is_bool c =
-      match GobConfig.get_json c with
-      | `Bool _ -> true
-      | _ -> false
-    in
-    List.filter is_bool cs
+    Arg_complete.strings Options.bool_paths s
   in
   let complete_last_option_value s =
     complete_option_value !last_complete_option s
   in
   [ "-o"                   , Arg_complete.String (set_string "outfile", Arg_complete.empty), ""
-  ; "-v"                   , Arg_complete.Unit (fun () -> set_bool "dbg.verbose" true; set_bool "dbg.timing.enabled" true), ""
+  ; "-v"                   , Arg_complete.Unit (fun () -> set_string "dbg.level" "debug"; set_bool "dbg.timing.enabled" true), ""
   ; "-j"                   , Arg_complete.Int (set_int "jobs", Arg_complete.empty), ""
   ; "-I"                   , Arg_complete.String (set_string "pre.includes[+]", Arg_complete.empty), ""
   ; "-IK"                  , Arg_complete.String (set_string "pre.kernel_includes[+]", Arg_complete.empty), ""
   ; "--set"                , Arg_complete.Tuple [Arg_complete.Set_string (tmp_arg, complete_option); Arg_complete.String ((fun x -> set_auto !tmp_arg x), complete_last_option_value)], ""
-  ; "--sets"               , Arg_complete.Tuple [Arg_complete.Set_string (tmp_arg, complete_option); Arg_complete.String ((fun x -> prerr_endline "--sets is deprecated, use --set instead."; set_string !tmp_arg x), complete_last_option_value)], ""
+  ; "--sets"               , Arg_complete.Tuple [Arg_complete.Set_string (tmp_arg, complete_option); Arg_complete.String ((fun x -> Logs.warn "--sets is deprecated, use --set instead."; set_string !tmp_arg x), complete_last_option_value)], ""
   ; "--enable"             , Arg_complete.String ((fun x -> set_bool x true), complete_bool_option), ""
   ; "--disable"            , Arg_complete.String ((fun x -> set_bool x false), complete_bool_option), ""
   ; "--conf"               , Arg_complete.String ((fun fn -> merge_file (Fpath.v fn)), Arg_complete.empty), ""
   ; "--writeconf"          , Arg_complete.String ((fun fn -> writeconffile := Some (Fpath.v fn)), Arg_complete.empty), ""
-  ; "--version"            , Arg_complete.Unit print_version, ""
+  ; "--version"            , Arg_complete.Unit print_version_and_exit, ""
   ; "--print_options"      , Arg_complete.Unit (fun () -> Options.print_options (); exit 0), ""
   ; "--print_all_options"  , Arg_complete.Unit (fun () -> Options.print_all_options (); exit 0), ""
   ; "--trace"              , Arg_complete.String (set_trace, Arg_complete.empty), ""
-  ; "--tracevars"          , add_string Tracing.tracevars, ""
-  ; "--tracelocs"          , add_int Tracing.tracelocs, ""
+  ; "--tracevars"          , add_string Goblint_tracing.tracevars, ""
+  ; "--tracelocs"          , add_int Goblint_tracing.tracelocs, ""
   ; "--help"               , Arg_complete.Unit (fun _ -> print_help stdout),""
   ; "--html"               , Arg_complete.Unit (fun _ -> configure_html ()),""
   ; "--sarif"               , Arg_complete.Unit (fun _ -> configure_sarif ()),""
   ; "--compare_runs"       , Arg_complete.Tuple [Arg_complete.Set_string (tmp_arg, Arg_complete.empty); Arg_complete.String ((fun x -> set_auto "compare_runs" (sprintf "['%s','%s']" !tmp_arg x)), Arg_complete.empty)], ""
-  ; "--complete"           , Arg_complete.Rest_all_compat.spec (Lazy.force rest_all_complete), ""
+  ; "--complete"           , Arg_complete.Rest_all (complete, Arg_complete.empty_all), ""
   ] @ defaults_spec_list (* lowest priority *)
 )
-and rest_all_complete = lazy (Arg_complete.Rest_all_compat.create complete Arg_complete.empty_all)
 and complete args =
   Arg_complete.complete_argv args (Lazy.force option_spec_list) Arg_complete.empty
-  |> List.iter print_endline;
+  |> List.iter print_endline; (* nosemgrep: print-not-logging *)
   raise Stdlib.Exit
 
-let eprint_color m = eprintf "%s\n" (MessageUtil.colorize ~fd:Unix.stderr m)
-
 let check_arguments () =
-  let fail m = (let m = "Option failure: " ^ m in eprint_color ("{red}"^m); failwith m) in
-  let warn m = eprint_color ("{yellow}Option warning: "^m) in
-  if get_bool "allfuns" && not (get_bool "exp.earlyglobs") then (set_bool "exp.earlyglobs" true; warn "allfuns enables exp.earlyglobs.\n");
+  let fail m =
+    Logs.error "%s" m;
+    failwith "Option error"
+  in
+  let warn m = Logs.warn "%s" m in
+  if get_bool "allfuns" && not (get_bool "exp.earlyglobs") then (set_bool "exp.earlyglobs" true; warn "allfuns enables exp.earlyglobs.");
   if not @@ List.mem "escape" @@ get_string_list "ana.activated" then warn "Without thread escape analysis, every local variable whose address is taken is considered escaped, i.e., global!";
   if List.mem "malloc_null" @@ get_string_list "ana.activated" && not @@ get_bool "sem.malloc.fail" then (set_bool "sem.malloc.fail" true; warn "The malloc_null analysis enables sem.malloc.fail.");
   if List.mem "memOutOfBounds" @@ get_string_list "ana.activated" && not @@ get_bool "cil.addNestedScopeAttr" then (set_bool "cil.addNestedScopeAttr" true; warn "The memOutOfBounds analysis enables cil.addNestedScopeAttr.");
   if get_bool "ana.base.context.int" && not (get_bool "ana.base.context.non-ptr") then (set_bool "ana.base.context.int" false; warn "ana.base.context.int implicitly disabled by ana.base.context.non-ptr");
   (* order matters: non-ptr=false, int=true -> int=false cascades to interval=false with warning *)
   if get_bool "ana.base.context.interval" && not (get_bool "ana.base.context.int") then (set_bool "ana.base.context.interval" false; warn "ana.base.context.interval implicitly disabled by ana.base.context.int");
-  if get_bool "incremental.only-rename" then (set_bool "incremental.load" true; warn "incremental.only-rename implicitly activates incremental.load. Previous AST is loaded for diff and rename, but analyis results are not reused.");
+  if get_bool "ana.base.priv.protection.changes-only" && not @@ List.mem (get_string "ana.base.privatization") ["protection"; "protection-tid"; "protection-atomic"; "protection-read"; "protection-read-tid"; "protection-read-atomic"] then
+    warn "ana.base.priv.protection.changes-only requires ana.base.privatization to be protection based";
+  if get_bool "incremental.only-rename" then (set_bool "incremental.load" true; warn "incremental.only-rename implicitly activates incremental.load. Previous AST is loaded for diff and rename, but analysis results are not reused.");
   if get_bool "incremental.restart.sided.enabled" && get_string_list "incremental.restart.list" <> [] then warn "Passing a non-empty list to incremental.restart.list (manual restarting) while incremental.restart.sided.enabled (automatic restarting) is activated.";
   if get_bool "ana.autotune.enabled" && get_bool "incremental.load" then (set_bool "ana.autotune.enabled" false; warn "ana.autotune.enabled implicitly disabled by incremental.load");
-  if get_bool "exp.basic-blocks" && not (get_bool "justcil") && List.mem "assert" @@ get_string_list "trans.activated" then (set_bool "exp.basic-blocks" false; warn "The option exp.basic-blocks implicitely disabled by activating the \"assert\" tranformation.");
+  if get_bool "exp.basic-blocks" && not (get_bool "justcil") && List.mem "assert" @@ get_string_list "trans.activated" then (set_bool "exp.basic-blocks" false; warn "The option exp.basic-blocks implicitly disabled by activating the \"assert\" transformation.");
+  if (not @@ get_bool "witness.invariant.all-locals") && (not @@ get_bool "cil.addNestedScopeAttr") then (set_bool "cil.addNestedScopeAttr" true; warn "Disabling witness.invariant.all-locals implicitly enables cil.addNestedScopeAttr.");
+  if not (get_bool "ana.opt.hashcons") then (
+    if MCPRegistry.any_activated_uses_apron () then
+      fail "Disabling ana.opt.hashcons is not supported when using Apron domains";
+    if get_bool "exp.arg.enabled" then
+      warn "Disabling ana.opt.hashcons has no effect because hashconsing is implicitly enabled by exp.arg.enabled";
+  );
   if List.mem "remove_dead_code" @@ get_string_list "trans.activated" then (
     (* 'assert' transform happens before 'remove_dead_code' transform *)
     ignore @@ List.fold_left
@@ -161,17 +165,24 @@ let check_arguments () =
   );
   if get_bool "solvers.td3.space" && get_bool "solvers.td3.remove-wpoint" then fail "solvers.td3.space is incompatible with solvers.td3.remove-wpoint";
   if get_bool "solvers.td3.space" && get_string "solvers.td3.side_widen" = "sides-local" then fail "solvers.td3.space is incompatible with solvers.td3.side_widen = 'sides-local'";
+  if get_bool "solvers.td3.space" && get_bool "solvers.td3.narrow-globs.enabled" then fail "solvers.td3.space is incompatible with solvers.td3.narrow-globs.enabled";
+  if (get_bool "incremental.load" || get_bool "incremental.save") && get_bool "solvers.td3.narrow-globs.enabled" then (
+    fail "solvers.td3.space is incompatible with incremental analsyis.";
+  );
   if List.mem "termination" @@ get_string_list "ana.activated" then (
     if GobConfig.get_bool "incremental.load" || GobConfig.get_bool "incremental.save" then fail "termination analysis is not compatible with incremental analysis";
     set_list "ana.activated" (GobConfig.get_list "ana.activated" @ [`String ("threadflag")]);
     set_string "sem.int.signed_overflow" "assume_none";
     warn "termination analysis implicitly activates threadflag analysis and set sem.int.signed_overflow to assume_none";
   );
-  if not (get_bool "ana.sv-comp.enabled") && get_bool "witness.graphml.enabled" then fail "witness.graphml.enabled: cannot generate GraphML witness without SV-COMP mode (ana.sv-comp.enabled)"
+  if get_bool "dbg.print_wpoints" && not (Logs.Level.should_log Debug) then
+    warn "dbg.print_wpoints requires dbg.level debug";
+  if get_bool "dbg.print_tids" && not (Logs.Level.should_log Debug) then
+    warn "dbg.print_tids requires dbg.level debug"
 
 (** Initialize some globals in other modules. *)
 let handle_flags () =
-  if get_bool "dbg.verbose" then (
+  if Logs.Level.should_log Debug then (
     Printexc.record_backtrace true;
     Errormsg.debugFlag := true;
     Errormsg.verboseFlag := true
@@ -190,11 +201,14 @@ let handle_flags () =
     set_string "outfile" ""
 
 let handle_options () =
+  Logs.Level.current := Logs.Level.of_string (get_string "dbg.level");
   check_arguments ();
-  AfterConfig.run ();
   Sys.set_signal (GobSys.signal_of_string (get_string "dbg.solver-signal")) Signal_ignore; (* Ignore solver-signal before solving (e.g. MyCFG), otherwise exceptions self-signal the default, which crashes instead of printing backtrace. *)
-  if AutoTune.isActivated "memsafetySpecification" && get_string "ana.specification" <> "" then
+  if get_string "ana.specification" <> "" then
+    AutoSoundConfig.enableAnalysesForMemSafetySpecification ();
+  if AutoTune.isActivated "memsafetySpecification" then
     AutoTune.focusOnMemSafetySpecification ();
+  AfterConfig.run ();
   Cilfacade.init_options ();
   handle_flags ()
 
@@ -204,17 +218,11 @@ let parse_arguments () =
   let anon_arg = set_string "files[+]" in
   let arg_speclist = Arg_complete.arg_speclist (Lazy.force option_spec_list) in
   Arg.parse arg_speclist anon_arg "Look up options using 'goblint --help'.";
-  Arg_complete.Rest_all_compat.finish (Lazy.force rest_all_complete);
-  begin match !writeconffile with
-    | Some writeconffile ->
-      GobConfig.write_file writeconffile;
-      raise Stdlib.Exit
-    | None -> ()
-  end;
+  GobOption.iter (fun writeconffile -> GobConfig.write_file writeconffile; raise Stdlib.Exit) !writeconffile;
   handle_options ();
   if not (get_bool "server.enabled") && get_string_list "files" = [] then (
-    prerr_endline "No files for Goblint?";
-    prerr_endline "Try `goblint --help' for more information.";
+    Logs.error "No files for Goblint?";
+    Logs.warn "Try `goblint --help' for more information.";
     raise Stdlib.Exit
   )
 
@@ -248,11 +256,13 @@ let basic_preprocess ?preprocess ~all_cppflags fname =
     let nname = Fpath.append (GoblintDir.preprocessed ()) (Fpath.add_ext ".i" unique_name) in
     let arguments = all_cppflags @ Fpath.to_string fname :: "-o" :: Fpath.to_string nname :: [] in
     let command = Filename.quote_command (Preprocessor.get_cpp ()) arguments in
-    if get_bool "dbg.verbose" then print_endline command;
+    Logs.debug "%s" command;
     (nname, Some {ProcessPool.command; cwd = None})
   )
-  else
+  else (
+    Preprocessor.FpathH.modify_def Fpath.Map.empty fname (Fpath.Map.add fname false) Preprocessor.dependencies; (* record dependency *)
     (fname, None)
+  )
 
 (** Preprocess all files. Return list of preprocessed files and the temp directory name. *)
 let preprocess_files () =
@@ -261,6 +271,17 @@ let preprocess_files () =
 
   (* Preprocessor flags *)
   let cppflags = ref (get_string_list "pre.cppflags") in
+
+  cppflags := ("--std=" ^ get_string "std") :: !cppflags;
+
+  if get_bool "ana.sv-comp.enabled" then (
+    let architecture_flag = match get_string "exp.architecture" with
+      | "32bit" -> "-m32"
+      | "64bit" -> "-m64"
+      | _ -> assert false
+    in
+    cppflags := architecture_flag :: !cppflags
+  );
 
   (* the base include directory *)
   (* TODO: any better way? dune executable promotion doesn't add _build sites *)
@@ -285,15 +306,13 @@ let preprocess_files () =
     List.map (fun p -> Fpath.(p / "stub" / "src")) source_lib_dirs @
     Goblint_sites.lib_stub_src
   in
-  if get_bool "dbg.verbose" then (
-    print_endline "Custom include dirs:";
-    List.iteri (fun i custom_include_dir ->
-        Format.printf "  %d. %a (exists=%B)\n" (i + 1) Fpath.pp custom_include_dir (Sys.file_exists (Fpath.to_string custom_include_dir))
-      ) custom_include_dirs
-  );
+  Logs.debug "Custom include dirs:";
+  List.iteri (fun i custom_include_dir ->
+      Logs.Format.debug "  %d. %a (exists=%B)" (i + 1) Fpath.pp custom_include_dir (Sys.file_exists (Fpath.to_string custom_include_dir))
+    ) custom_include_dirs;
   let custom_include_dirs = List.filter (Sys.file_exists % Fpath.to_string) custom_include_dirs in
   if custom_include_dirs = [] then
-    print_endline "Warning, cannot find goblint's custom include files.";
+    Logs.warn "Warning, cannot find goblint's custom include files.";
 
   let find_custom_include subpath =
     let custom_include_opt = List.find_map_opt (fun custom_include_dir ->
@@ -364,7 +383,7 @@ let preprocess_files () =
   let all_cppflags = !cppflags @ include_args in
 
   (* preprocess all the files *)
-  if get_bool "dbg.verbose" then print_endline "Preprocessing files.";
+  Logs.debug "Preprocessing files.";
 
   let rec preprocess_arg_file ?preprocess = function
     | filename when not (Sys.file_exists (Fpath.to_string filename)) ->
@@ -398,9 +417,6 @@ let preprocess_files () =
   if List.mem "c" (get_string_list "lib.activated") then
     extra_files := find_custom_include (Fpath.v "stdlib.c") :: !extra_files;
 
-  if List.mem "pthread" (get_string_list "lib.activated") then
-    extra_files := find_custom_include (Fpath.v "pthread.c") :: !extra_files;
-
   if List.mem "sv-comp" (get_string_list "lib.activated") then
     extra_files := find_custom_include (Fpath.v "sv-comp.c") :: !extra_files;
 
@@ -427,7 +443,7 @@ let special_path_regexp = Str.regexp "<.+>"
 (** Parse preprocessed files *)
 let parse_preprocessed preprocessed =
   (* get the AST *)
-  if get_bool "dbg.verbose" then print_endline "Parsing files.";
+  Logs.debug "Parsing files.";
 
   let goblint_cwd = GobFpath.cwd () in
   let get_ast_and_record_deps (preprocessed_file, task_opt) =
@@ -503,23 +519,23 @@ let preprocess_parse_merge () =
 
 let do_stats () =
   if get_bool "dbg.timing.enabled" then (
-    print_newline ();
-    SolverStats.print ();
-    print_newline ();
-    print_string "Timings:\n";
+    Logs.newline ();
+    Goblint_solver.SolverStats.print ();
+    Logs.newline ();
+    Logs.info "Timings:";
     Timing.Default.print (Stdlib.Format.formatter_of_out_channel @@ Messages.get_out "timing" Legacy.stderr);
     flush_all ()
   )
 
 let reset_stats () =
-  SolverStats.reset ();
+  Goblint_solver.SolverStats.reset ();
   Timing.Default.reset ();
   Timing.Program.reset ()
 
 (** Perform the analysis over the merged AST.  *)
 let do_analyze change_info merged_AST =
   (* direct the output to file if requested  *)
-  if not (get_bool "g2html" || get_string "outfile" = "") then (
+  if get_string "outfile" <> "" then (
     if !Messages.out <> Legacy.stdout then
       Legacy.close_out !Messages.out;
     Messages.out := Legacy.open_out (get_string "outfile"));
@@ -530,20 +546,17 @@ let do_analyze change_info merged_AST =
     Cilfacade.print merged_AST
   else (
     (* we first find the functions to analyze: *)
-    if get_bool "dbg.verbose" then print_endline "And now...  the Goblin!";
+    Logs.debug "And now...  the Goblin!";
     let (stf,exf,otf as funs) = Cilfacade.getFuns merged_AST in
     if stf@exf@otf = [] then raise (FrontendError "no suitable function to start from");
-    if get_bool "dbg.verbose" then ignore (Pretty.printf "Startfuns: %a\nExitfuns: %a\nOtherfuns: %a\n"
-                                             L.pretty stf L.pretty exf L.pretty otf);
+    Logs.debug "Startfuns: %a\nExitfuns: %a\nOtherfuns: %a" L.pretty stf L.pretty exf L.pretty otf;
     (* and here we run the analysis! *)
 
     let control_analyze ast funs =
-      if get_bool "dbg.verbose" then (
-        let aa = String.concat ", " @@ get_string_list "ana.activated" in
-        let at = String.concat ", " @@ get_string_list "trans.activated" in
-        print_endline @@ "Activated analyses: " ^ aa;
-        print_endline @@ "Activated transformations: " ^ at
-      );
+      let aa = String.concat ", " @@ get_string_list "ana.activated" in
+      let at = String.concat ", " @@ get_string_list "trans.activated" in
+      Logs.debug "Activated analyses: %s" aa;
+      Logs.debug "Activated transformations: %s" at;
       try Control.analyze change_info ast funs
       with e ->
         let backtrace = Printexc.get_raw_backtrace () in (* capture backtrace immediately, otherwise the following loses it (internal exception usage without raise_notrace?) *)
@@ -556,7 +569,7 @@ let do_analyze change_info merged_AST =
         (* trigger Generic.SolverStats...print_stats *)
         GobSys.(self_signal (signal_of_string (get_string "dbg.solver-signal")));
         do_stats ();
-        print_newline ();
+        Logs.newline ();
         Printexc.raise_with_backtrace e backtrace (* re-raise with captured inner backtrace *)
         (* Cilfacade.current_file := ast'; *)
     in
@@ -564,34 +577,9 @@ let do_analyze change_info merged_AST =
     Timing.wrap "analysis" (control_analyze merged_AST) funs
   )
 
-let do_html_output () =
-  if get_bool "g2html" then (
-    let jar = Fpath.(v (get_string "exp.g2html_path") / "g2html.jar") in
-    if Sys.file_exists (Fpath.to_string jar) then (
-      let command = Filename.quote_command "java" [
-          "-jar"; Fpath.to_string jar;
-          "--num-threads"; string_of_int (jobs ());
-          "--dot-timeout"; "0";
-          "--result-dir"; get_string "outfile";
-          !Messages.xml_file_name
-        ]
-      in
-      match Timing.wrap "g2html" Unix.system command with
-      | Unix.WEXITED 0 -> ()
-      | _ -> eprintf "HTML generation failed! Command: %s\n" command
-      | exception Unix.Unix_error (e, f, a) ->
-        eprintf "%s at syscall %s with argument \"%s\".\n" (Unix.error_message e) f a
-    ) else
-      Format.eprintf "Warning: jar file %a not found.\n" Fpath.pp jar
-  )
-
 let do_gobview cilfile =
   let gobview = GobConfig.get_bool "gobview" in
-  let goblint_root = GobFpath.cwd_append (fst (Fpath.split_base (Fpath.v Sys.argv.(0)))) in
-  let dist_dir = Fpath.(goblint_root // (Fpath.v "_build/default/gobview/dist")) in
-  let js_file = Fpath.(dist_dir / "main.js") in
   if gobview then (
-    if Sys.file_exists (Fpath.to_string js_file) then (
       let save_run = GobConfig.get_string "save_run" in
       let run_dir = Fpath.v(if save_run <> "" then save_run else "run") in
       (* copy relevant c files to gobview directory *)
@@ -615,20 +603,7 @@ let do_gobview cilfile =
       (* marshal timing statistics *)
       let stats = Fpath.(run_dir / "stats.marshalled") in
       Serialize.marshal (Timing.Default.root, Gc.quick_stat ()) stats;
-      let dist_files =
-        Sys.files_of (Fpath.to_string dist_dir)
-        |> Enum.filter (fun n -> n <> "dune")
-        |> List.of_enum
-      in
-      List.iter (fun n ->
-          FileUtil.cp
-            [Fpath.to_string (Fpath.(dist_dir / n))]
-            (Fpath.to_string (Fpath.(run_dir / n)))
-        ) dist_files
     )
-    else
-      eprintf "Warning: Cannot locate GobView.\n"
-  )
 
 let handle_extraspecials () =
   let funs = get_string_list "exp.extraspecials" in
@@ -638,7 +613,7 @@ let handle_extraspecials () =
 let diff_and_rename current_file =
   (* Create change info, either from old results, or from scratch if there are no previous results. *)
   let change_info: Analyses.increment_data option =
-    let warn m = eprint_color ("{yellow}Warning: "^m) in
+    let warn m = Logs.warn "%s" m in
     if GobConfig.get_bool "incremental.load" && not (Serialize.results_exist ()) then begin
       warn "incremental.load is activated but no data exists that can be loaded."
     end;
@@ -651,7 +626,7 @@ let diff_and_rename current_file =
         let max_ids = UpdateCil.update_ids old_file max_ids current_file changes in
 
         let restarting = GobConfig.get_string_list "incremental.restart.list" in
-        let restarting, not_found = VarQuery.varqueries_from_names current_file restarting in
+        let restarting, not_found = Goblint_constraint.VarQuery.varqueries_from_names current_file restarting in
         if not (List.is_empty not_found) then begin
           List.iter
             (fun s ->
@@ -682,4 +657,4 @@ let () = (* signal for printing backtrace; other signals in Generic.SolverStats 
   let open Sys in
   (* whether interactive interrupt (ctrl-C) terminates the program or raises the Break exception which we use below to print a backtrace. https://ocaml.org/api/Sys.html#VALcatch_break *)
   catch_break true;
-  set_signal (GobSys.signal_of_string (get_string "dbg.backtrace-signal")) (Signal_handle (fun _ -> Printexc.get_callstack 999 |> Printexc.print_raw_backtrace Stdlib.stderr; print_endline "\n...\n")) (* e.g. `pkill -SIGUSR2 goblint`, or `kill`, `htop` *)
+  set_signal (GobSys.signal_of_string (get_string "dbg.backtrace-signal")) (Signal_handle (fun _ -> Printexc.get_callstack 999 |> Printexc.print_raw_backtrace Stdlib.stderr)) (* e.g. `pkill -SIGUSR2 goblint`, or `kill`, `htop` *)

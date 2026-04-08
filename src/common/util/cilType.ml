@@ -13,9 +13,6 @@ struct
   include Printable.StdLeaf
 end
 
-let hash_float = Hashtbl.hash (* TODO: float hash in ppx_deriving_hash *)
-let hash_ref hash r = hash !r (* TODO: ref in ppx_deriving_hash *)
-
 
 module Location:
 sig
@@ -82,8 +79,8 @@ struct
 
   let of_yojson = function
     | `Assoc l ->
-      begin match List.assoc_opt "file" l, List.assoc_opt "line" l, List.assoc_opt "column" l, List.assoc_opt "byte" l with
-        | Some (`String file), Some (`Int line), Some (`Int column), Some (`Int byte) ->
+      begin match List.assoc_opt "file" l, List.assoc_opt "line" l, List.assoc_opt "column" l, Option.value ~default:(`Int (-1)) (List.assoc_opt "byte" l) with
+        | Some (`String file), Some (`Int line), Some (`Int column), `Int byte ->
           let loc = {file; line; column; byte; endLine = -1; endColumn = -1; endByte = -1; synthetic = false} in
           begin match List.assoc_opt "endLine" l, List.assoc_opt "endColumn" l, List.assoc_opt "endByte" l with
             | Some (`Int endLine), Some (`Int endColumn), Some (`Int endByte) ->
@@ -147,10 +144,12 @@ struct
     | FDouble
     | FLongDouble
     | FFloat128
+    | FFloat16
     | FComplexFloat
     | FComplexDouble
     | FComplexLongDouble
     | FComplexFloat128
+    | FComplexFloat16
   [@@deriving hash]
   (* Hashtbl.hash doesn't monomorphize, so derive instead. *)
 
@@ -243,6 +242,41 @@ struct
 
   (* Output *)
   let pretty () x = d_binop () x
+  include Printable.SimplePretty (
+    struct
+      type nonrec t = t
+      let pretty = pretty
+    end
+    )
+end
+
+module Castkind: S with type t = castkind =
+struct
+  include Std
+
+  (* Re-export constructors for monomorphization and deriving. *)
+  type t = castkind =
+    | Explicit
+    | IntegerPromotion
+    | DefaultArgumentPromotion
+    | ArithmeticConversion
+    | ConditionalConversion
+    | PointerConversion
+    | Implicit
+    | Internal
+  [@@deriving hash]
+  (* Hashtbl.hash doesn't monomorphize, so derive instead. *)
+
+  let name () = "castkind"
+
+  (* Identity *)
+  (* Enum type, so polymorphic identity is fine. *)
+  (* Monomorphize polymorphic operations for optimization. *)
+  let equal (x: t) (y: t) = x = y
+  let compare (x: t) (y: t) = Stdlib.compare x y
+
+  (* Output *)
+  let pretty () x = d_castkind () x
   include Printable.SimplePretty (
     struct
       type nonrec t = t
@@ -653,7 +687,7 @@ struct
     | UnOp of Unop.t * t * Typ.t
     | BinOp of Binop.t * t * t * Typ.t
     | Question of t * t * t * Typ.t
-    | CastE of Typ.t * t
+    | CastE of Castkind.t * Typ.t * t
     | AddrOf of Lval.t
     | AddrOfLabel of Stmt.t ref
     | StartOf of Lval.t
@@ -701,6 +735,7 @@ struct
     | AAddrOf of t
     | AIndex of t * t
     | AQuestion of t * t * t
+    | AAssign of t * t
   [@@deriving eq, ord, hash]
 
   let name () = "attrparam"

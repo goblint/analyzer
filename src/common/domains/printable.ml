@@ -26,7 +26,7 @@ sig
   (* For hashconsing together with incremental we need to re-hashcons old values.
    * For HashconsLifter.D this is done on any lattice operation, so we can replace x with `join bot x` to hashcons it again and get a new tag for it.
    * For HashconsLifter.C we call hashcons only in `context` which is in Analyses.Spec but not in Analyses.GlobConstrSys, i.e. not visible to the solver. *)
-  (* The default for this should be identity, except for HConsed below where we want to have the side-effect and return a value with the updated tag. *)
+  (* The default for functors should pass the call to their argument modules, except for HConsed below where we want to have the side-effect and return a value with the updated tag. *)
   val relift: t -> t
 end
 
@@ -88,6 +88,20 @@ struct
   let to_yojson x = `String (show x)
 end
 
+module type Formatable =
+sig
+  type t
+  val pp: Format.formatter -> t -> unit
+end
+
+module SimpleFormat (P: Formatable) =
+struct
+  let show x = GobFormat.asprint P.pp x
+  let pretty () x = text (show x)
+  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape (show x))
+  let to_yojson x = `String (show x)
+end
+
 
 module type Name = sig val name: string end
 module UnitConf (N: Name) =
@@ -102,18 +116,6 @@ struct
   let arbitrary () = QCheck.unit
 end
 module Unit = UnitConf (struct let name = "()" end)
-
-module type LiftingNames =
-sig
-  val bot_name: string
-  val top_name: string
-end
-
-module DefaultNames =
-struct
-  let bot_name = "bot"
-  let top_name = "top"
-end
 
 (* HAS SIDE-EFFECTS ---- PLEASE INSTANCIATE ONLY ONCE!!! *)
 module HConsed (Base:S) =
@@ -146,12 +148,12 @@ struct
   let equal_debug x y = (* This debug version checks if we call hashcons enough to have up-to-date tags. Comment out the equal below to use this. This will be even slower than with hashcons disabled! *)
     if x.BatHashcons.tag = y.BatHashcons.tag then ( (* x.BatHashcons.obj == y.BatHashcons.obj || *)
       if not (Base.equal x.BatHashcons.obj y.BatHashcons.obj) then
-        ignore @@ Pretty.printf "tags are equal but values are not for %a and %a\n" pretty x pretty y;
+        Logs.error "tags are equal but values are not for %a and %a" pretty x pretty y;
       assert (Base.equal x.BatHashcons.obj y.BatHashcons.obj);
       true
     ) else (
       if Base.equal x.BatHashcons.obj y.BatHashcons.obj then
-        ignore @@ Pretty.printf "tags are not equal but values are for %a and %a\n" pretty x pretty y;
+        Logs.error "tags are not equal but values are for %a and %a" pretty x pretty y;
       assert (not (Base.equal x.BatHashcons.obj y.BatHashcons.obj));
       false
     )
@@ -160,46 +162,103 @@ struct
   let arbitrary () = QCheck.map ~rev:unlift lift (Base.arbitrary ())
 end
 
-module HashCached (M: S) =
+module HashCached (Base: S) =
 struct
-  module LazyHash = LazyEval.Make (struct type t = M.t type result = int let eval = M.hash end)
+  module LazyHash = LazyEval.Make (struct type t = Base.t type result = int let eval = Base.hash end)
 
-  let name () = "HashCached " ^ M.name ()
+  let name () = "HashCached " ^ Base.name ()
 
   type t =
     {
-      m: M.t;
+      m: Base.t;
       lazy_hash: LazyHash.t;
     }
 
   let lift m = {m; lazy_hash = LazyHash.make m}
   let unlift {m; _} = m
+  let relift x = lift @@ Base.relift x.m
 
   let lift_f f x = f (unlift x)
   let lift_f' f x = lift @@ lift_f f x
   let lift_f2 f x y = f (unlift x) (unlift y)
   let lift_f2' f x y = lift @@ lift_f2 f x y
 
-  let equal = lift_f2 M.equal
-  let compare = lift_f2 M.compare
+  let equal = lift_f2 Base.equal
+  let compare = lift_f2 Base.compare
   let hash x = LazyHash.force x.lazy_hash
-  let show = lift_f M.show
+  let show = lift_f Base.show
 
-  let pretty () = lift_f (M.pretty ())
+  let pretty () = lift_f (Base.pretty ())
 
-  let printXml f = lift_f (M.printXml f)
-  let to_yojson = lift_f (M.to_yojson)
+  let printXml f = lift_f (Base.printXml f)
+  let to_yojson = lift_f (Base.to_yojson)
 
-  let arbitrary () = QCheck.map ~rev:unlift lift (M.arbitrary ())
+  let arbitrary () = QCheck.map ~rev:unlift lift (Base.arbitrary ())
 
-  let tag = lift_f M.tag
+  let tag = lift_f Base.tag
 end
 
-module Lift (Base: S) (N: LiftingNames) =
+
+module type PrefixNameConf =
+sig
+  val expand: bool
+end
+
+module PrefixName (Conf: PrefixNameConf) (Base: S): S with type t = Base.t =
 struct
+  include Base
+
+  let pretty () x =
+    if Conf.expand then
+      Pretty.dprintf "%s:%a" (Base.name ()) Base.pretty x
+    else
+      Base.pretty () x
+
+  let show x =
+    if Conf.expand then
+      Base.name () ^ ":" ^ Base.show x
+    else
+      Base.show x
+
+  let printXml f x =
+    if Conf.expand then
+      BatPrintf.fprintf f "<value><map>\n<key>\n%s\n</key>\n%a</map>\n</value>\n" (Base.name ()) Base.printXml x
+    else
+      Base.printXml f x
+
+  let to_yojson x =
+    if Conf.expand then
+      `Assoc [(Base.name (), Base.to_yojson x)]
+    else
+      Base.to_yojson x
+end
+
+
+module type LiftConf =
+sig
+  val bot_name: string
+  val top_name: string
+  val expand1: bool
+end
+
+module DefaultConf =
+struct
+  let bot_name = "bot"
+  let top_name = "top"
+  let expand1 = true
+  let expand2 = true
+  let expand3 = true
+end
+
+module LiftConf (Conf: LiftConf) (Base: S) =
+struct
+  open struct
+    module Base = PrefixName (struct let expand = Conf.expand1 end) (Base)
+  end
+
   type t = [`Bot | `Lifted of Base.t | `Top] [@@deriving eq, ord, hash]
   include Std
-  include N
+  open Conf
 
   let lift x = `Lifted x
 
@@ -217,13 +276,13 @@ struct
 
   let name () = "lifted " ^ Base.name ()
   let printXml f = function
-    | `Bot      -> BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape N.bot_name)
-    | `Top      -> BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape N.top_name)
+    | `Bot      -> BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape bot_name)
+    | `Top      -> BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape top_name)
     | `Lifted x -> Base.printXml f x
 
   let to_yojson = function
-    | `Bot -> `String N.bot_name
-    | `Top -> `String N.top_name
+    | `Bot -> `String bot_name
+    | `Top -> `String top_name
     | `Lifted x -> Base.to_yojson x
 
   let relift x = match x with
@@ -233,9 +292,9 @@ struct
   let arbitrary () =
     let open QCheck.Iter in
     let shrink = function
-      | `Lifted x -> (return `Bot) <+> (MyCheck.shrink (Base.arbitrary ()) x >|= lift)
+      | `Lifted x -> (return `Bot) <+> (GobQCheck.shrink (Base.arbitrary ()) x >|= lift)
       | `Bot -> empty
-      | `Top -> MyCheck.Iter.of_arbitrary ~n:20 (Base.arbitrary ()) >|= lift
+      | `Top -> GobQCheck.Iter.of_arbitrary ~n:20 (Base.arbitrary ()) >|= lift
     in
     QCheck.frequency ~shrink ~print:show [
       20, QCheck.map lift (Base.arbitrary ());
@@ -244,34 +303,95 @@ struct
     ] (* S TODO: decide frequencies *)
 end
 
-module Either (Base1: S) (Base2: S) =
+module type EitherConf =
+sig
+  val expand1: bool
+  val expand2: bool
+end
+
+module EitherConf (Conf: EitherConf) (Base1: S) (Base2: S) =
 struct
+  open struct
+    module Base1 = PrefixName (struct let expand = Conf.expand1 end) (Base1)
+    module Base2 = PrefixName (struct let expand = Conf.expand2 end) (Base2)
+  end
+
   type t = [`Left of Base1.t | `Right of Base2.t] [@@deriving eq, ord, hash]
   include Std
 
   let pretty () (state:t) =
     match state with
-    | `Left n -> Pretty.dprintf "%s:%a" (Base1.name ()) Base1.pretty n
-    | `Right n -> Pretty.dprintf "%s:%a" (Base2.name ()) Base2.pretty n
+    | `Left n -> Base1.pretty () n
+    | `Right n -> Base2.pretty () n
 
   let show state =
     match state with
-    | `Left n -> (Base1.name ()) ^ ":" ^ Base1.show n
-    | `Right n -> (Base2.name ()) ^ ":" ^ Base2.show n
+    | `Left n -> Base1.show n
+    | `Right n -> Base2.show n
 
   let name () = "either " ^ Base1.name () ^ " or " ^ Base2.name ()
   let printXml f = function
-    | `Left x  -> BatPrintf.fprintf f "<value><map>\n<key>\nLeft\n</key>\n%a</map>\n</value>\n" Base1.printXml x
-    | `Right x -> BatPrintf.fprintf f "<value><map>\n<key>\nRight\n</key>\n%a</map>\n</value>\n" Base2.printXml x
+    | `Left x -> Base1.printXml f x
+    | `Right x -> Base2.printXml f x
 
   let to_yojson = function
-    | `Left x -> `Assoc [ Base1.name (), Base1.to_yojson x ]
-    | `Right x -> `Assoc [ Base2.name (), Base2.to_yojson x ]
+    | `Left x -> Base1.to_yojson x
+    | `Right x -> Base2.to_yojson x
 
   let relift = function
     | `Left x -> `Left (Base1.relift x)
     | `Right x -> `Right (Base2.relift x)
 end
+
+module Either = EitherConf (DefaultConf)
+
+module type Either3Conf =
+sig
+  include EitherConf
+  val expand3: bool
+end
+
+module Either3Conf (Conf: Either3Conf) (Base1: S) (Base2: S) (Base3: S) =
+struct
+  open struct
+    module Base1 = PrefixName (struct let expand = Conf.expand1 end) (Base1)
+    module Base2 = PrefixName (struct let expand = Conf.expand2 end) (Base2)
+    module Base3 = PrefixName (struct let expand = Conf.expand3 end) (Base3)
+  end
+
+  type t = [`Left of Base1.t | `Middle of Base2.t | `Right of Base3.t] [@@deriving eq, ord, hash]
+  include Std
+
+  let pretty () (state:t) =
+    match state with
+    | `Left n -> Base1.pretty () n
+    | `Middle n -> Base2.pretty () n
+    | `Right n -> Base3.pretty () n
+
+  let show state =
+    match state with
+    | `Left n -> Base1.show n
+    | `Middle n -> Base2.show n
+    | `Right n -> Base3.show n
+
+  let name () = "either " ^ Base1.name () ^ " or " ^ Base2.name () ^ " or " ^ Base3.name ()
+  let printXml f = function
+    | `Left x  -> Base1.printXml f x
+    | `Middle x  -> Base2.printXml f x
+    | `Right x -> Base3.printXml f x
+
+  let to_yojson = function
+    | `Left x -> Base1.to_yojson x
+    | `Middle x -> Base2.to_yojson x
+    | `Right x -> Base3.to_yojson x
+
+  let relift = function
+    | `Left x -> `Left (Base1.relift x)
+    | `Middle x -> `Middle (Base2.relift x)
+    | `Right x -> `Right (Base3.relift x)
+end
+
+module Either3 = Either3Conf (DefaultConf)
 
 module Option (Base: S) (N: Name) =
 struct
@@ -300,11 +420,22 @@ struct
   let relift = Option.map Base.relift
 end
 
-module Lift2 (Base1: S) (Base2: S) (N: LiftingNames) =
+module type Lift2Conf =
+sig
+  include LiftConf
+  val expand2: bool
+end
+
+module Lift2Conf (Conf: Lift2Conf) (Base1: S) (Base2: S) =
 struct
+  open struct
+    module Base1 = PrefixName (struct let expand = Conf.expand1 end) (Base1)
+    module Base2 = PrefixName (struct let expand = Conf.expand2 end) (Base2)
+  end
+
   type t = [`Bot | `Lifted1 of Base1.t | `Lifted2 of Base2.t | `Top] [@@deriving eq, ord, hash]
   include Std
-  include N
+  open Conf
 
   let pretty () (state:t) =
     match state with
@@ -327,16 +458,16 @@ struct
 
   let name () = "lifted " ^ Base1.name () ^ " and " ^ Base2.name ()
   let printXml f = function
-    | `Bot       -> BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" N.bot_name
-    | `Top       -> BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" N.top_name
-    | `Lifted1 x -> BatPrintf.fprintf f "<value>\n<map>\n<key>\nLifted1\n</key>\n%a</map>\n</value>\n" Base1.printXml x
-    | `Lifted2 x -> BatPrintf.fprintf f "<value>\n<map>\n<key>\nLifted2\n</key>\n%a</map>\n</value>\n" Base2.printXml x
+    | `Bot       -> BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" bot_name
+    | `Top       -> BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" top_name
+    | `Lifted1 x -> Base1.printXml f x
+    | `Lifted2 x -> Base2.printXml f x
 
   let to_yojson = function
-    | `Bot -> `String N.bot_name
-    | `Top -> `String N.top_name
-    | `Lifted1 x -> `Assoc [ Base1.name (), Base1.to_yojson x ]
-    | `Lifted2 x -> `Assoc [ Base2.name (), Base2.to_yojson x ]
+    | `Bot -> `String bot_name
+    | `Top -> `String top_name
+    | `Lifted1 x -> Base1.to_yojson x
+    | `Lifted2 x -> Base2.to_yojson x
 end
 
 module type ProdConfiguration =
@@ -349,7 +480,7 @@ module ProdConf (C: ProdConfiguration) (Base1: S) (Base2: S)=
 struct
   include C
 
-  type t = Base1.t * Base2.t [@@deriving eq, ord, hash]
+  type t = Base1.t * Base2.t [@@deriving eq, ord, hash, relift]
 
   include Std
 
@@ -388,8 +519,6 @@ struct
     `Assoc [ (Base1.name (), Base1.to_yojson x); (Base2.name (), Base2.to_yojson y) ]
 
   let arbitrary () = QCheck.pair (Base1.arbitrary ()) (Base2.arbitrary ())
-
-  let relift (x,y) = (Base1.relift x, Base2.relift y)
 end
 
 module Prod = ProdConf (struct let expand_fst = true let expand_snd = true end)
@@ -397,7 +526,7 @@ module ProdSimple = ProdConf (struct let expand_fst = false let expand_snd = fal
 
 module Prod3 (Base1: S) (Base2: S) (Base3: S) =
 struct
-  type t = Base1.t * Base2.t * Base3.t [@@deriving eq, ord, hash]
+  type t = Base1.t * Base2.t * Base3.t [@@deriving eq, ord, hash, relift]
   include Std
 
   let show (x,y,z) =
@@ -439,37 +568,44 @@ struct
 
   let name () = Base1.name () ^ " * " ^ Base2.name () ^ " * " ^ Base3.name ()
 
-  let relift (x,y,z) = (Base1.relift x, Base2.relift y, Base3.relift z)
   let arbitrary () = QCheck.triple (Base1.arbitrary ()) (Base2.arbitrary ()) (Base3.arbitrary ())
 end
 
-module Prod4 (Base1: S) (Base2: S) (Base3: S) (Base4: S) = struct
-  type t = Base1.t * Base2.t * Base3.t * Base4.t [@@deriving eq, ord, hash]
+module PQueue (Base: S) =
+struct
+  type t = Base.t BatDeque.dq
   include Std
 
-  let show (x,y,z,w) = "(" ^ Base1.show x ^ ", " ^ Base2.show y ^ ", " ^ Base3.show z ^ ", " ^ Base4.show w ^ ")"
+  let show x = "[" ^ (BatDeque.fold_right (fun a acc -> Base.show a ^ ", " ^ acc) x "]")
 
-  let pretty () (x,y,z,w) =
-    text "(" ++
-    Base1.pretty () x
-    ++ text ", " ++
-    Base2.pretty () y
-    ++ text ", " ++
-    Base3.pretty () z
-    ++ text ", " ++
-    Base4.pretty () w
-    ++ text ")"
+  let pretty () x = text (show x)
+  let name () = Base.name () ^ "queue"
 
-  let printXml f (x,y,z,w) =
-    BatPrintf.fprintf f "<value>\n<map>\n<key>\n%s\n</key>\n%a<key>\n%s\n</key>\n%a<key>\n%s\n</key>\n%a<key>\n%s\n</key>\n%a</map>\n</value>\n" (XmlUtil.escape (Base1.name ())) Base1.printXml x (XmlUtil.escape (Base2.name ())) Base2.printXml y (XmlUtil.escape (Base3.name ())) Base3.printXml z (XmlUtil.escape (Base4.name ())) Base4.printXml w
+  let relift x = BatDeque.map Base.relift x
 
-  let to_yojson (x, y, z, w) =
-    `Assoc [ (Base1.name (), Base1.to_yojson x); (Base2.name (), Base2.to_yojson y); (Base3.name (), Base3.to_yojson z); (Base4.name (), Base4.to_yojson w) ]
+  let printXml f xs =
+    let rec loop n q =
+      match BatDeque.front q with
+      | None -> ()
+      | Some (x, xs) -> (BatPrintf.fprintf f "<key>%d</key>\n%a\n" n Base.printXml x;
+                         loop (n+1) (xs))
+    in
+    BatPrintf.fprintf f "<value>\n<map>\n";
+    loop 0 xs;
+    BatPrintf.fprintf f "</map>\n</value>\n"
 
-  let name () = Base1.name () ^ " * " ^ Base2.name () ^ " * " ^ Base3.name () ^ " * " ^ Base4.name ()
-
-  let relift (x,y,z,w) = (Base1.relift x, Base2.relift y, Base3.relift z, Base4.relift w)
-  let arbitrary () = QCheck.quad (Base1.arbitrary ()) (Base2.arbitrary ()) (Base3.arbitrary ()) (Base4.arbitrary ())
+  let to_yojson q = `List (BatDeque.to_list @@ BatDeque.map (Base.to_yojson) q)
+  let hash q = BatDeque.fold_left (fun acc x -> (acc + 71) * (Base.hash x)) 11 q
+  let equal q1 q2 = BatDeque.eq ~eq:Base.equal q1 q2
+  let compare q1 q2 =
+    match BatDeque.front q1, BatDeque.front q2 with
+    | None, None -> 0
+    | None, Some(_, _) -> -1
+    | Some(_, _), None -> 1
+    | Some(a1, q1'), Some(a2, q2') ->
+      let c = Base.compare a1 a2 in
+      if c <> 0 then c
+      else compare q1' q2'
 end
 
 module Liszt (Base: S) =
@@ -496,16 +632,6 @@ struct
     BatPrintf.fprintf f "<value>\n<map>\n";
     loop 0 xs;
     BatPrintf.fprintf f "</map>\n</value>\n"
-
-  let common_prefix x y =
-    let rec helper acc x y =
-      match x,y with
-      | x::xs, y::ys when Base.equal x y-> helper (x::acc) xs ys
-      | _ -> acc
-    in
-    List.rev (helper [] x y)
-
-  let common_suffix x y = List.rev (common_prefix (List.rev x) (List.rev y))
 end
 
 module type ChainParams = sig
@@ -592,8 +718,8 @@ struct
   let arbitrary () =
     let open QCheck.Iter in
     let shrink = function
-      | `Lifted x -> MyCheck.shrink (Base.arbitrary ()) x >|= lift
-      | `Top -> MyCheck.Iter.of_arbitrary ~n:20 (Base.arbitrary ()) >|= lift
+      | `Lifted x -> GobQCheck.shrink (Base.arbitrary ()) x >|= lift
+      | `Top -> GobQCheck.Iter.of_arbitrary ~n:20 (Base.arbitrary ()) >|= lift
     in
     QCheck.frequency ~shrink ~print:show [
       20, QCheck.map lift (Base.arbitrary ());
@@ -686,4 +812,18 @@ struct
     )
 
   let to_yojson x = x (* override SimplePretty *)
+end
+
+module Z: S with type t = Z.t =
+struct
+  include StdLeaf
+  include GobZ
+  let name () = "Z"
+
+  include SimplePretty (
+    struct
+      type nonrec t = t
+      let pretty = pretty
+    end
+    )
 end

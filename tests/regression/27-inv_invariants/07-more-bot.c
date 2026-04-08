@@ -1,5 +1,6 @@
 // PARAM: --enable ana.int.interval
 // Adapted from sv-comp array-programs/partial_mod_count_1.c
+// NOCHECK
 int N = 1000;
 int main(){
   int i;

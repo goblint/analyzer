@@ -1,4 +1,5 @@
 // PARAM: --enable ana.int.interval  --set ana.base.arrays.domain partitioned --set ana.base.partition-arrays.keep-expr "last"
+// NOCHECK
 int main(void)
 {
   int arr[260];

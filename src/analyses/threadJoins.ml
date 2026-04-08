@@ -7,7 +7,6 @@ open Analyses
 
 module TID  = ThreadIdDomain.Thread
 module TIDs = ConcDomain.ThreadSet
-module MustTIDs = ConcDomain.MustThreadSet
 module CleanExit = Queries.MustBool
 
 module Spec =
@@ -16,10 +15,14 @@ struct
 
   let name () = "threadJoins"
 
+
+  (* Must thread set, join is intersection, meet is union. Bottom denotes unreachability. Put here to not expose weirdness to the outsside *)
+  module MustTIDsWithBot = SetDomain.Reverse (SetDomain.ToppedSet (ThreadIdDomain.FlagConfiguredTID) (struct let topname = "All Threads" end))
+
   (* The first component is the set of must-joined TIDs, the second component tracks whether all TIDs recorded in MustTIDs have been exited cleanly, *)
   (* i.e., all created subthreads have also been joined. This is helpful as there is no set of all transitively created threads available. *)
-  module D = Lattice.Prod(MustTIDs)(CleanExit)
-  module C = D
+  module D = Lattice.Prod(MustTIDsWithBot)(CleanExit)
+  include Analyses.ValueContexts(D)
   module G = D
   module V =
   struct
@@ -28,85 +31,98 @@ struct
   end
 
   (* transfer functions *)
-  let threadreturn ctx =
-    match ctx.ask CurrentThreadId with
+  let threadreturn man =
+    match man.ask CurrentThreadId with
     | `Lifted tid ->
-      let (j,joined_clean) = ctx.local in
+      let (j,joined_clean) = man.local in
       (* the current thread has been exited cleanly if all joined threads where exited cleanly, and all created threads are joined *)
-      let created = ctx.ask Queries.CreatedThreads in
-      let clean = TIDs.subset created j in
-      ctx.sideg tid (j, joined_clean && clean)
+      let created = man.ask Queries.CreatedThreads in
+      let clean =
+        if MustTIDsWithBot.is_bot j then
+          raise Deadcode
+        else
+          TIDs.for_all (function
+              | ThreadIdDomain.Thread ft -> MustTIDsWithBot.mem ft j
+              | ThreadIdDomain.UnknownThread -> false
+            ) created
+      in
+      man.sideg tid (j, joined_clean && clean)
     | _ -> () (* correct? *)
 
 
-  let return ctx (exp:exp option) (f:fundec) : D.t =
-    if ThreadReturn.is_current (Analyses.ask_of_ctx ctx) then threadreturn ctx;
-    ctx.local
+  let return man (exp:exp option) (f:fundec) : D.t =
+    if ThreadReturn.is_current (Analyses.ask_of_man man) then threadreturn man;
+    man.local
 
-  let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
+  let special man (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
     let desc = LibraryFunctions.find f in
     match desc.special arglist, f.vname with
-    | ThreadExit _, _ -> threadreturn ctx; ctx.local
+    | ThreadExit _, _ -> threadreturn man; man.local
     | ThreadJoin { thread = id; ret_var }, _ ->
-      let threads = ctx.ask (Queries.EvalThread id) in
+      let threads = man.ask (Queries.EvalThread id) in
       if TIDs.is_top threads then
-        ctx.local
+        man.local
       else (
-        (* elements throws if the thread set is top *)
+        (* all elements are known *)
         let threads = TIDs.elements threads in
         match threads with
-        | [tid] when TID.is_unique tid->
-          let (local_joined, local_clean) = ctx.local in
-          let (other_joined, other_clean) = ctx.global tid in
-          (MustTIDs.union (MustTIDs.add tid local_joined) other_joined, local_clean && other_clean)
-        | _ -> ctx.local (* if multiple possible thread ids are joined, none of them is must joined *)
+        | [(ThreadIdDomain.Thread tid_ft) as tid] when TID.is_unique tid->
+          let (local_joined, local_clean) = man.local in
+          let (other_joined, other_clean) = man.global tid in
+          (MustTIDsWithBot.union (MustTIDsWithBot.add tid_ft local_joined) other_joined, local_clean && other_clean)
+        | _ -> man.local (* if multiple possible thread ids are joined, none of them is must joined *)
         (* Possible improvement: Do the intersection first, things that are must joined in all possibly joined threads are must-joined *)
       )
     | Unknown, "__goblint_assume_join" ->
       let id = List.hd arglist in
-      let threads = ctx.ask (Queries.EvalThread id) in
+      let threads = man.ask (Queries.EvalThread id) in
       if TIDs.is_top threads then (
-        M.info ~category:Unsound "Unknown thread ID assume-joined, assuming ALL threads must-joined.";
-        (MustTIDs.bot(), true) (* consider everything joined, MustTIDs is reversed so bot is All threads *)
-      )
-      else (
-        (* elements throws if the thread set is top *)
-        let threads = TIDs.elements threads in
-        if List.compare_length_with threads 1 > 0 then
-          M.info ~category:Unsound "Ambiguous thread ID assume-joined, assuming all of those threads must-joined.";
-        List.fold_left (fun (joined, clean) tid ->
-            let (other_joined, other_clean) = ctx.global tid in
-            (MustTIDs.union (MustTIDs.add tid joined) other_joined, clean && other_clean)
-          ) (ctx.local) threads
-      )
-    | _, _ -> ctx.local
+        M.info ~category:Unsound "Unknown thread ID assume-joined, continuing with known thread ids.";
+      );
+      let threads = TIDs.remove (ThreadIdDomain.UnknownThread) threads in
+      (* all elements are known *)
+      let threads = TIDs.elements threads in
+      if List.compare_length_with threads 1 > 0 then
+        M.info ~category:Unsound "Ambiguous thread ID assume-joined, assuming all of those threads must-joined.";
+      List.fold_left (fun (joined, clean) tid ->
+          match tid with
+          | ThreadIdDomain.Thread tid_ft ->
+            let (other_joined, other_clean) = man.global tid in
+            (MustTIDsWithBot.union (MustTIDsWithBot.add tid_ft joined) other_joined, clean && other_clean)
+          | ThreadIdDomain.UnknownThread -> assert false (* unreachable *)
+        ) (man.local) threads
+    | _, _ -> man.local
 
-  let threadspawn ctx ~multiple lval f args fctx =
-    if D.is_bot ctx.local then ( (* bot is All threads *)
-      M.info ~category:Imprecise "Thread created while ALL threads must-joined, continuing with no threads joined.";
-      D.top () (* top is no threads *)
+  let threadspawn man ~multiple lval f args fman =
+    let (j, clean) = man.local in
+    if MustTIDsWithBot.is_bot j then ( (* bot is All threads *)
+      raise Deadcode
     )
     else
-      match ThreadId.get_current (Analyses.ask_of_ctx fctx) with
-      | `Lifted tid ->
-        let (j, clean) = ctx.local in
-        (MustTIDs.remove tid j, clean)
+      match ThreadId.get_current (Analyses.ask_of_man fman) with
+      | `Lifted (ThreadIdDomain.Thread tid) ->
+        (MustTIDsWithBot.remove tid j, clean)
       | _ ->
-        ctx.local
+        man.local
 
-  let query ctx (type a) (q: a Queries.t): a Queries.result =
+  let query man (type a) (q: a Queries.t): a Queries.result =
     match q with
-    | Queries.MustJoinedThreads -> (fst ctx.local:ConcDomain.MustThreadSet.t) (* type annotation needed to avoid "would escape the scope of its equation" *)
-    | Queries.ThreadsJoinedCleanly -> (snd ctx.local:bool)
+    | Queries.MustJoinedThreads ->
+      (match ((fst man.local):MustTIDsWithBot.t) with
+       | `Lifted set -> set
+       | `Top -> Queries.Result.top q (* This is the lifted top of the reversed lattice, i.e., bottom, needed because of https://github.com/goblint/analyzer/issues/1978 *)
+      )
+    | Queries.ThreadsJoinedCleanly -> (snd man.local:bool)
     | _ ->  Queries.Result.top q
 
-  let combine_env ctx lval fexp f args fc au f_ask =
-    let (caller_joined, local_clean) = ctx.local in
+  let combine_env man lval fexp f args fc au f_ask =
+    let (caller_joined, local_clean) = man.local in
     let (callee_joined, callee_clean) = au in
-    (MustTIDs.union caller_joined callee_joined, local_clean && callee_clean)
+    if (MustTIDsWithBot.is_bot callee_joined) then raise Deadcode;
+    (MustTIDsWithBot.union caller_joined callee_joined, local_clean && callee_clean)
 
-  let startstate v = (MustTIDs.empty (), true)
-  let exitstate  v = (MustTIDs.empty (), true)
+  let startstate v = (MustTIDsWithBot.empty (), true)
+  let exitstate  v = (MustTIDsWithBot.empty (), true)
 end
 
 let _ = MCP.register_analysis ~dep:["threadid"] (module Spec : MCPSpec)

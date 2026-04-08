@@ -2,6 +2,8 @@ name: coverage
 
 on:
   pull_request:
+    paths-ignore:
+      - 'docs/**'
 
   workflow_dispatch:
 
@@ -18,7 +20,7 @@ jobs:
         os:
           - ubuntu-latest
         ocaml-compiler:
-          - ocaml-variants.4.14.0+options,ocaml-option-flambda # matches opam lock file
+          - ocaml-variants.4.14.2+options,ocaml-option-flambda # matches opam lock file
           # don't add any other because they won't be used
 
     runs-on: ${{ matrix.os }}
@@ -28,19 +30,26 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Set up OCaml ${{ matrix.ocaml-compiler }}
         env:
           # otherwise setup-ocaml pins non-locked dependencies
           # https://github.com/ocaml/setup-ocaml/issues/166
           OPAMLOCKED: locked
-        uses: ocaml/setup-ocaml@v2
+        uses: ocaml/setup-ocaml@v3
         with:
           ocaml-compiler: ${{ matrix.ocaml-compiler }}
 
+      - name: Install graph-easy # TODO: remove if depext --with-test works (https://github.com/ocaml/opam/issues/5836)
+        if: ${{ startsWith(matrix.os, 'ubuntu') }}
+        run: sudo apt install -y libgraph-easy-perl
+
       - name: Install dependencies
         run: opam install . --deps-only --locked --with-test
+
+      - name: Install os gem for operating system detection
+        run: sudo gem install os
 
       - name: Install coverage dependencies
         run: opam install bisect_ppx
@@ -48,47 +57,22 @@ jobs:
       - name: Build
         run: ./make.sh coverage
 
-      - name: Test regression
-        run: ./make.sh headers testci
+      - name: Download Linux headers
+        run: ./make.sh headers
 
-      - name: Test apron regression # skipped by default but CI has apron, so explicitly test group (which ignores skipping -- it's now a feature!)
+      - name: Test
+        env:
+          BISECT_FILE: ${{ github.workspace }}/_build/coverage/bisect
         run: |
-          ruby scripts/update_suite.rb group apron -s
-          ruby scripts/update_suite.rb group apron2 -s
+          mkdir -p _build/coverage
+          opam exec -- dune runtest --force --instrument-with bisect_ppx
 
-      - name: Test apron octagon regression # skipped by default but CI has apron, so explicitly test group (which ignores skipping -- it's now a feature!)
-        run: ruby scripts/update_suite.rb group octagon -s
-
-      - name: Test apron affeq regression # skipped by default but CI has apron, so explicitly test group (which ignores skipping -- it's now a feature!)
-        run: ruby scripts/update_suite.rb group affeq -s
-
-      - name: Test apron regression (Mukherjee et. al  SAS '17 paper') # skipped by default but CI has apron, so explicitly test group (which ignores skipping -- it's now a feature!)
-        run: ruby scripts/update_suite.rb group apron-mukherjee -s
-
-      - name: Test apron termination regression # skipped by default but CI has apron, so explicitly test group (which ignores skipping -- it's now a feature!)
-        run: ruby scripts/update_suite.rb group termination -s
-
-      - name: Test regression cram
-        run: opam exec -- dune runtest tests/regression
-
-      - name: Test incremental cram
-        run: opam exec -- dune runtest tests/incremental
-
-      - name: Test unit
-        run: opam exec -- dune runtest unittest
-
-      - name: Test incremental regression
-        run: ruby scripts/update_suite.rb -i
-
-      - name: Test incremental regression with cfg comparison
-        run: ruby scripts/update_suite.rb -c
-
-      - run: opam exec -- bisect-ppx-report send-to Coveralls --coverage-path=.
+      - run: opam exec -- bisect-ppx-report send-to Coveralls
         env:
           COVERALLS_REPO_TOKEN: ${{ secrets.COVERALLS_REPO_TOKEN }}
           PULL_REQUEST_NUMBER: ${{ github.event.number }}
 
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: suite_result

@@ -8,7 +8,7 @@ int fun_5b() { return 5; }
 int main () {
   int i,j,k1,k2,k3;
   int *p, **pp;
-  int (*fp)(); //pointer to function
+  int (*fp)(void); //pointer to function
 
   // reading through pointer
   i = 5;

@@ -1,0 +1,16 @@
+(include_subdirs no)
+
+(library
+ (name goblint_logs)
+ (public_name goblint.logs)
+ (libraries
+   batteries.unthreaded
+   goblint_std
+   goblint-cil)
+ (flags :standard -open Goblint_std)
+ (preprocess
+  (pps
+    ppx_deriving.std
+    ppx_deriving_hash
+    ppx_deriving_yojson))
+ (instrumentation (backend bisect_ppx)))

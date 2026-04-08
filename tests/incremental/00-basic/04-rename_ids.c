@@ -1,3 +1,4 @@
+// NOCHECK
 int a;
 void b();
 void c();

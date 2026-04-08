@@ -8,6 +8,9 @@ src_root_path = Path("./src")
 
 goblint_lib_paths = [
     src_root_path / "goblint_lib.ml",
+    src_root_path / "constraint" / "goblint_constraint.ml",
+    src_root_path / "util" / "parallel" / "goblint_parallel.ml",
+    src_root_path / "solver" / "goblint_solver.ml",
     src_root_path / "util" / "std" / "goblint_std.ml",
 ]
 goblint_lib_modules = set()
@@ -30,24 +33,48 @@ exclude_module_names = set([
     "MessagesCompare",
     "PrivPrecCompare",
     "ApronPrecCompare",
-    "Mainspec",
+
+    # executable helpers
+    "Goblint_memtrace",
 
     # libraries
     "Goblint_std",
+    "Goblint_constraint",
+    "Goblint_parallel",
+    "Goblint_solver",
     "Goblint_timing",
     "Goblint_backtrace",
+    "Goblint_tracing",
     "Goblint_sites",
     "Goblint_build_info",
     "Dune_build_info",
 
+    # mocked parallelism: These files are called differently
+    # (x.domainslib.ml or x.no-domainslib.ml) and therefore not recognized
+    # by the script
+    "GobMutex",
+    "Threadpool",
+    "DomainsafeLazy",
+
+    # ppx-s
+    "Ppx_deriving_printable",
+    "Ppx_deriving_lattice",
+
     "MessageCategory", # included in Messages
     "PreValueDomain", # included in ValueDomain
-    "SpecCore", # spec stuff
-    "SpecUtil", # spec stuff
+    "IntervalDomain", # included in IntDomain
+    "IntervalSetDomain", # included in IntDomain
+    "DefExcDomain", # included in IntDomain
+    "EnumsDomain", # included in IntDomain
+    "CongruenceDomain", # included in IntDomain
+    "BitfieldDomain", #included in IntDomain
+    "IntDomTuple", # included in IntDomain
+    "WitnessGhostVar", # included in WitnessGhost
 
     "ConfigVersion",
     "ConfigProfile",
     "ConfigOcaml",
+    "ConfigDatetime",
 ])
 
 src_modules = set()
@@ -65,5 +92,5 @@ for ml_path in src_root_path.glob("**/*.ml"):
 
 missing_modules = src_modules - goblint_lib_modules
 if len(missing_modules) > 0:
-    print(f"Modules missing from {goblint_lib_path}: {missing_modules}")
+    print(f"Modules missing from {goblint_lib_paths[0]}: {missing_modules}")
     sys.exit(1)

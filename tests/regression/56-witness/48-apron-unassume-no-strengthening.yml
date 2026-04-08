@@ -1,0 +1,34 @@
+- entry_type: invariant_set
+  metadata:
+    format_version: "2.0"
+    uuid: 9b19e72a-376d-4c34-80d4-f46020de0c92
+    creation_time: 2025-03-12T12:53:06Z
+    producer:
+      name: Simmo Saan
+      version: n/a
+    task:
+      input_files:
+      - 48-apron-unassume-no-strengthening.c
+      input_file_hashes:
+        48-apron-unassume-no-strengthening.c: 57377f1e739e562d852b16206d5b1092e2188d3a4fe89bfca405a81bde0e1546
+      data_model: LP64
+      language: C
+  content:
+  - invariant:
+      type: location_invariant
+      location:
+        file_name: 48-apron-unassume-no-strengthening.c
+        line: 8
+        column: 5
+        function: main
+      value: i >= 0
+      format: c_expression
+  - invariant:
+      type: location_invariant
+      location:
+        file_name: 48-apron-unassume-no-strengthening.c
+        line: 8
+        column: 5
+        function: main
+      value: i < 100
+      format: c_expression

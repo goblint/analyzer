@@ -24,8 +24,16 @@ val add_mark: exn -> mark -> unit
 val protect: mark:(unit -> mark) -> finally:(unit -> unit) -> (unit -> 'a) -> 'a
 (** {!Fun.protect} with additional [~mark] addition to all exceptions. *)
 
+val wrap_val: mark:mark -> (unit -> 'a) -> 'a
+(** {!protect} with [~mark] value and without [~finally]. *)
+
 val print_marktrace: out_channel -> exn -> unit
 (** Print trace of marks of an exception.
+
+    Used by default for uncaught exceptions. *)
+
+val print_innermost_mark: out_channel -> exn -> unit
+(** Print innermost mark of an exception.
 
     Used by default for uncaught exceptions. *)
 

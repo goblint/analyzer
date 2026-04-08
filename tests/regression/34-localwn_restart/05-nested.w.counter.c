@@ -1,4 +1,5 @@
 // Variant of nested.c with a counter.
+// NOCHECK
 void main()
 {
   int z = 0;

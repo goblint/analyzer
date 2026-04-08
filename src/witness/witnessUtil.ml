@@ -63,6 +63,7 @@ struct
         List.exists (fun (_, edge) ->
             match edge with
             | Proc (_, Lval (Var fv, NoOffset), args) when LibraryFunctions.is_special fv ->
+              let@ () = Goblint_backtrace.wrap_val ~mark:(Cilfacade.FunVarinfo fv) in
               let desc = LibraryFunctions.find fv in
               begin match desc.special args with
                 | Lock _ -> true
@@ -79,39 +80,86 @@ struct
       emit_after_lock
     else
       emit_other
+
+  let find_syntactic_loop_head = function
+    | Statement s ->
+      let n' = Statement (LoopUnrolling.find_original s) in
+      let prevs = Cfg.prev n' in
+      List.find_map (fun (edges, prev) ->
+          let stmts = Cfg.skippedByEdge prev edges n' in
+          List.find_map (fun s' ->
+              match s'.GoblintCil.skind with
+              | Loop (_, loc, _, _, _) -> Some loc
+              | _ -> None
+            ) stmts
+        ) prevs
+    | FunctionEntry _ | Function _ -> None
+
+  let find_syntactic_loop_condition_label s =
+    List.find_map (function
+        | Label (name, loc, false) when String.starts_with ~prefix:"__loop_condition" name -> Some loc
+        | _ -> None
+      ) s.labels
+
+  let find_syntactic_loop_condition = function
+    | Statement s as n ->
+      (* No need to LoopUnrolling.find_original because loop unrolling duplicates __loop_condition labels (with new suffixes). *)
+      begin match find_syntactic_loop_condition_label s with
+        | Some _ as r -> r
+        | None ->
+          (* The __loop_condition label may not be on s itself, but still on the surrounding Block (skipped in CFG) due to basic blocks transformation. *)
+          let prevs = Cfg.prev n in
+          List.find_map (fun (edges, prev) ->
+              let stmts = Cfg.skippedByEdge prev edges n in
+              List.find_map find_syntactic_loop_condition_label stmts
+            ) prevs
+      end
+    | FunctionEntry _ | Function _ -> None
 end
 
-module InvariantExp =
+module YamlInvariant (FileCfg: MyCFG.FileCfg) =
 struct
-  module ES = SetDomain.Make (CilType.Exp)
+  include Invariant (FileCfg)
 
-  (* Turns an expression into alist of conjuncts, pulling out common conjuncts from top-level disjunctions *)
-  let rec pullOutCommonConjuncts e =
-    let rec to_conjunct_set = function
-      | Cil.BinOp(LAnd,e1,e2,_) -> ES.join (to_conjunct_set e1) (to_conjunct_set e2)
-      | e -> ES.singleton e
-    in
-    let combine_conjuncts es = ES.fold (fun e acc -> match acc with | None -> Some e | Some acce -> Some (BinOp(LAnd,acce,e,Cil.intType))) es None in
-    match e with
-    | Cil.BinOp(LOr, e1, e2,t) ->
-      let e1s = pullOutCommonConjuncts e1 in
-      let e2s = pullOutCommonConjuncts e2 in
-      let common = ES.inter e1s e2s in
-      let e1s' = ES.diff e1s e2s in
-      let e2s' = ES.diff e2s e1s in
-      (match combine_conjuncts e1s', combine_conjuncts e2s' with
-       | Some e1e, Some e2e -> ES.add (BinOp(LOr,e1e,e2e,Cil.intType)) common
-       | _ -> common (* if one of the disjuncts is empty, it is equivalent to true here *)
-      )
-    | e -> to_conjunct_set e
+  let is_stub_node n =
+    let fundec = Node.find_fundec n in
+    Cil.hasAttribute "goblint_stub" fundec.svar.vattr
 
-  let process_exp inv =
-    let inv' = InvariantCil.exp_replace_original_name inv in
-    if GobConfig.get_bool "witness.invariant.split-conjunction" then
-      ES.elements (pullOutCommonConjuncts inv')
-    else
-      [inv']
+  let location_location (n : Node.t) = (* great naming... *)
+    match n with
+    | Statement s ->
+      let {loc; _}: CilLocation.locs = CilLocation.get_stmtLoc s in
+      if not loc.synthetic && is_invariant_node n && not (is_stub_node n) then (* TODO: remove is_invariant_node? i.e. exclude witness.invariant.loop-head check *)
+        Some loc
+      else
+        None
+    | FunctionEntry _ | Function _ ->
+      (* avoid FunctionEntry/Function, because their locations are not inside the function where asserts could be inserted *)
+      None
+
+  let is_invariant_node n = Option.is_some (location_location n)
+
+  let loop_location n =
+    find_syntactic_loop_condition n
+    |> BatOption.filter (fun _loc -> not (is_stub_node n))
+
+  let is_loop_head_node n = Option.is_some (loop_location n)
 end
+
+module YamlInvariantValidate (FileCfg: MyCFG.FileCfg) =
+struct
+  include Invariant (FileCfg)
+
+  (* TODO: filter synthetic?
+
+     Almost all loops are transformed by CIL, so the loop constructs all get synthetic locations. Filtering them from the locator could give some odd behavior: if the location is right before the loop and all the synthetic loop head stuff is filtered, then the first non-synthetic node is already inside the loop, not outside where the location actually was.
+     Similarly, if synthetic locations are then filtered, witness.invariant.loop-head becomes essentially useless.
+     I guess at some point during testing and benchmarking I achieved better results with the filtering removed. *)
+
+  let is_loop_head_node = NH.mem loop_heads
+end
+[@@deprecated]
+
 
 module InvariantParser =
 struct
@@ -141,7 +189,7 @@ struct
           let typ = TEnum (e, []) in
           let name = "enum " ^ ename in
           Hashtbl.replace genv name (Cabs2cil.EnvTyp typ, loc);
-          List.iter (fun (name, exp, loc) ->
+          List.iter (fun (name, _, exp, loc) ->
               Hashtbl.replace genv name (Cabs2cil.EnvEnum (exp, typ), loc)
             ) eitems
         | Cil.GVar (v, _, loc)

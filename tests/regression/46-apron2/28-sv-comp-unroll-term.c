@@ -2,7 +2,7 @@
 
 // Minimized from sv-benchmarks/c/ldv-linux-3.4-simple/32_1_cilled_ok_nondet_linux-3.4-32_1-drivers--staging--speakup--speakup_spkout.ko-ldv_main0_sequence_infinite_withcheck_stateful.cil.out.i
 // using loop unrolling of 1.
-// Used to not terminate.
+// NOTIMEOUT: Used to not terminate.
 
 struct speakup_info_t {
   int port_tts;

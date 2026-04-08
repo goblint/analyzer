@@ -1,5 +1,5 @@
 // PARAM: --enable ana.int.interval --enable ana.int.def_exc
-
+// NOCRASH
 int main(){
 
   unsigned long long a ;

@@ -27,7 +27,7 @@ let run_transformations ?(file_output = true) file names ask =
   let active_transformations =
     List.filter_map
       (fun name ->
-         match BatHashtbl.find_option h name with
+         match Hashtbl.find_opt h name with
          | Some t -> Some (name, t)
          | None -> failwith "Transformation %s does not exist!")
       names
@@ -37,10 +37,9 @@ let run_transformations ?(file_output = true) file names ask =
 
   if file_output && List.exists (fun (_, (module T : S)) -> T.requires_file_output) active_transformations then
     let filename = GobConfig.get_string "trans.output" in
-    let oc = Stdlib.open_out filename in
-    GobRef.wrap GoblintCil.lineDirectiveStyle None @@ fun () ->
-    dumpFile defaultCilPrinter oc filename file;
-    Stdlib.close_out oc
+    let@ oc = Out_channel.with_open_text filename in
+    let@ () = GobRef.wrap GoblintCil.lineDirectiveStyle None in
+    dumpFile defaultCilPrinter oc filename file
 
 let run file name = run_transformations ~file_output:false file [name]
 
@@ -50,16 +49,16 @@ module PartialEval = struct
     inherit nopCilVisitor
     method! vstmt s =
       loc := Cilfacade.get_stmtLoc s;
-      (* ignore @@ Pretty.printf "Set loc at stmt %a to %a\n" d_stmt s CilType.Location.pretty !loc; *)
+      (* Logs.debug "Set loc at stmt %a to %a" d_stmt s CilType.Location.pretty !loc; *)
       DoChildren
     method! vexpr e =
       let eval e = match Queries.ID.to_int ((ask !loc).Queries.f (Queries.EvalInt e)) with
         | Some i ->
-          let e' = integer @@ IntOps.BigIntOps.to_int i in
-          ignore @@ Pretty.printf "Replacing non-constant expression %a with %a at %a\n" d_exp e d_exp e' CilType.Location.pretty !loc;
+          let e' = integer (Z.to_int i) in
+          Logs.debug "Replacing non-constant expression %a with %a at %a" d_exp e d_exp e' CilType.Location.pretty !loc;
           e'
         | None ->
-          ignore @@ Pretty.printf "Can't replace expression %a at %a\n" d_exp e CilType.Location.pretty !loc; e
+          Logs.error "Can't replace expression %a at %a" d_exp e CilType.Location.pretty !loc; e
       in
       match e with
       | Const _ -> SkipChildren

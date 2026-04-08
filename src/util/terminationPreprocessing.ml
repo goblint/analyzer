@@ -59,8 +59,8 @@ class loopCounterVisitor lc (fd : fundec) = object(self)
         s.skind <- Block nb;
         s
       | Goto (sref, l) ->
-        let goto_jmp_stmt = sref.contents.skind in
-        let loc_stmt = Cil.get_stmtLoc goto_jmp_stmt in
+        let goto_jmp_stmt = sref.contents in
+        let loc_stmt = Cilfacade.get_stmtLoc goto_jmp_stmt in
         if CilType.Location.compare l loc_stmt >= 0 then (
           (* is pos if first loc is greater -> below the second loc *)
           (* problem: the program might not terminate! *)

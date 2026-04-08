@@ -1,5 +1,5 @@
 #include <pthread.h>
-
+// NOCHECK
 pthread_t id;
 
 extern void magic();

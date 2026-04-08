@@ -1,4 +1,4 @@
-(** Messages (e.g. warnings) from the analysis. *)
+(** Messages (e.g. warnings) presented to the user about the program from the analysis. *)
 
 module Pretty = GoblintCil.Pretty
 
@@ -61,15 +61,17 @@ end
 
 module Piece =
 struct
+  let context_to_yojson context = `Assoc [("tag", `Int (ControlSpecC.tag context))]
+
   type t = {
     loc: Location.t option; (* only *_each warnings have this, used for deduplication *)
     text: string;
-    context: (ControlSpecC.t [@of_yojson fun x -> Result.Error "ControlSpecC"]) option;
+    context: (ControlSpecC.t [@to_yojson context_to_yojson] [@of_yojson fun x -> Result.Error "ControlSpecC"]) option;
   } [@@deriving eq, ord, hash, yojson]
 
   let text_with_context {text; context; _} =
     match context with
-    | Some context when GobConfig.get_bool "dbg.warn_with_context" -> text ^ " in context " ^ string_of_int (ControlSpecC.hash context) (* TODO: this is kind of useless *)
+    | Some context when GobConfig.get_bool "dbg.warn_with_context" -> text ^ " in context " ^ string_of_int (ControlSpecC.tag context) (* TODO: this is kind of useless *)
     | _ -> text
 end
 
@@ -203,9 +205,9 @@ let print ?(ppf= !formatter) (m: Message.t) =
   in
   let pp_quote ppf (loc: GoblintCil.location) =
     let lines = BatFile.lines_of loc.file in
-    BatEnum.drop (loc.line - 1) lines;
-    let lines = BatEnum.take (loc.endLine - loc.line + 1) lines in
-    let lines = BatList.of_enum lines in
+    BatEnum.drop (loc.line - 1) lines; (* nosemgrep: batenum-module *)
+    let lines = BatEnum.take (loc.endLine - loc.line + 1) lines in (* nosemgrep: batenum-module *)
+    let lines = BatList.of_enum lines in (* nosemgrep: batenum-of_enum *)
     match lines with
     | [] -> assert false
     | [line] ->
@@ -339,4 +341,23 @@ let msg_final severity ?(tags=[]) ?(category=Category.Unknown) fmt =
   else
     GobPretty.igprintf () fmt
 
-include Tracing
+
+include Goblint_tracing
+
+open Pretty
+
+let tracel sys ?var fmt =
+  let loc = !current_loc in
+  let docloc sys doc =
+    printtrace sys (dprintf "(%a)@?" CilType.Location.pretty loc ++ indent 2 doc);
+  in
+  gtrace true docloc sys var ~loc ignore fmt
+
+let traceli sys ?var ?(subsys=[]) fmt =
+  let loc = !current_loc in
+  let g () = activate sys subsys in
+  let docloc sys doc: unit =
+    printtrace sys (dprintf "(%a)" CilType.Location.pretty loc ++ indent 2 doc);
+    traceIndent ()
+  in
+  gtrace true docloc sys var ~loc g fmt

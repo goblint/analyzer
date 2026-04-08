@@ -73,7 +73,7 @@ let forward_list_equal ?(propF = (&&>>)) f l1 l2 ~(rename_mapping: rename_mappin
 let compare_name (a: string) (b: string) =
   let anon_struct = "__anonstruct_" in
   let anon_union = "__anonunion_" in
-  if a = b then true else BatString.(starts_with a anon_struct && starts_with b anon_struct || starts_with a anon_union && starts_with b anon_union)
+  if a = b then true else String.(starts_with a ~prefix:anon_struct && starts_with b ~prefix:anon_struct || starts_with a ~prefix:anon_union && starts_with b ~prefix:anon_union)
 
 let rec eq_constant ~(rename_mapping: rename_mapping) ~(acc: (typ * typ) list) (a: constant) (b: constant) : bool * rename_mapping =
   match a, b with
@@ -91,9 +91,9 @@ and eq_exp (a: exp) (b: exp) ~(rename_mapping: rename_mapping) ~(acc: (typ * typ
   | AlignOf typ1, AlignOf typ2 -> eq_typ_acc typ1 typ2 ~rename_mapping ~acc
   | AlignOfE exp1, AlignOfE exp2 -> eq_exp exp1 exp2 ~rename_mapping ~acc
   | UnOp (op1, exp1, typ1), UnOp (op2, exp2, typ2) ->
-    ((op1 == op2), rename_mapping) &&>> eq_exp exp1 exp2 ~acc &&>> eq_typ_acc typ1 typ2 ~acc
+    (CilType.Unop.equal op1 op2, rename_mapping) &&>> eq_exp exp1 exp2 ~acc &&>> eq_typ_acc typ1 typ2 ~acc
   | BinOp (op1, left1, right1, typ1), BinOp (op2, left2, right2, typ2) ->  (op1 = op2, rename_mapping) &&>> eq_exp left1 left2 ~acc &&>> eq_exp right1 right2 ~acc &&>> eq_typ_acc typ1 typ2 ~acc
-  | CastE (typ1, exp1), CastE (typ2, exp2) -> eq_typ_acc typ1 typ2 ~rename_mapping ~acc &&>> eq_exp exp1 exp2 ~acc
+  | CastE (kind1, typ1, exp1), CastE (kind2, typ2, exp2) -> (CilType.Castkind.equal kind1 kind2, rename_mapping) &&>> eq_typ_acc typ1 typ2 ~acc &&>> eq_exp exp1 exp2 ~acc (* TODO: or should ignore cast kind? (changing explicit to implicit or vice versa) *)
   | AddrOf lv1, AddrOf lv2 -> eq_lval lv1 lv2 ~rename_mapping ~acc
   | StartOf lv1, StartOf lv2 -> eq_lval lv1 lv2 ~rename_mapping ~acc
   | Real exp1, Real exp2 -> eq_exp exp1 exp2 ~rename_mapping ~acc
@@ -129,7 +129,7 @@ and eq_typ_acc ?(fun_parameter_name_comparison_enabled: bool = true) (a: typ) (b
     a, b, c, (updatedCompinfoRenames, updatedEnumRenames)
   in
 
-  if Messages.tracing then Messages.tracei "compareast" "eq_typ_acc %a vs %a (%a, %a)\n" d_type a d_type b pretty_length acc pretty_length !global_typ_acc; (* %a makes List.length calls lazy if compareast isn't being traced *)
+  if Messages.tracing then Messages.tracei "compareast" "eq_typ_acc %a vs %a (%a, %a)" d_type a d_type b pretty_length acc pretty_length !global_typ_acc; (* %a makes List.length calls lazy if compareast isn't being traced *)
   let r, updated_rename_mapping = match a, b with
     | TPtr (typ1, attr1), TPtr (typ2, attr2) -> eq_typ_acc typ1 typ2 ~rename_mapping ~acc &&>> forward_list_equal (eq_attribute ~acc) attr1 attr2
     | TArray (typ1, (Some lenExp1), attr1), TArray (typ2, (Some lenExp2), attr2) -> eq_typ_acc typ1 typ2 ~rename_mapping ~acc &&>> eq_exp lenExp1 lenExp2 ~acc &&>>  forward_list_equal (eq_attribute ~acc) attr1 attr2
@@ -150,7 +150,7 @@ and eq_typ_acc ?(fun_parameter_name_comparison_enabled: bool = true) (a: typ) (b
     (* The following two lines are a hack to ensure that anonymous types get the same name and thus, the same typsig *)
     | TComp (compinfo1, attr1), TComp (compinfo2, attr2) ->
       if mem_typ_acc a b acc || mem_typ_acc a b !global_typ_acc then (
-        if Messages.tracing then Messages.trace "compareast" "in acc\n";
+        if Messages.tracing then Messages.trace "compareast" "in acc";
         true, rename_mapping
       )
       else (
@@ -175,11 +175,11 @@ and eq_typ_acc ?(fun_parameter_name_comparison_enabled: bool = true) (a: typ) (b
     | TFloat (fk1, attr1), TFloat (fk2, attr2) -> (fk1 = fk2, rename_mapping) &&>> forward_list_equal (eq_attribute ~acc) attr1 attr2
     | _, _ -> false, rename_mapping
   in
-  if Messages.tracing then Messages.traceu "compareast" "eq_typ_acc %a vs %a\n" d_type a d_type b;
+  if Messages.tracing then Messages.traceu "compareast" "eq_typ_acc %a vs %a" d_type a d_type b;
   (r, updated_rename_mapping)
 
-and eq_eitems (a: string * exp * location) (b: string * exp * location) ~(rename_mapping: rename_mapping) ~(acc: (typ * typ) list) = match a, b with
-    (name1, exp1, _l1), (name2, exp2, _l2) -> (name1 = name2, rename_mapping) &&>> eq_exp exp1 exp2 ~acc
+and eq_eitems (a: string * attributes * exp * location) (b: string * attributes * exp * location) ~(rename_mapping: rename_mapping) ~(acc: (typ * typ) list) = match a, b with
+    (name1, attr1, exp1, _l1), (name2, attr2, exp2, _l2) -> (name1 = name2, rename_mapping) &&>> forward_list_equal (eq_attribute ~acc) attr1 attr2 &&>> eq_exp exp1 exp2 ~acc
 (* Ignore location *)
 
 and eq_enuminfo (a: enuminfo) (b: enuminfo) ~(rename_mapping: rename_mapping) ~(acc: (typ * typ) list) =
@@ -210,6 +210,7 @@ and eq_attrparam (a: attrparam) (b: attrparam) ~(rename_mapping: rename_mapping)
   | AAddrOf attrparam1, AAddrOf attrparam2 -> eq_attrparam attrparam1 attrparam2 ~rename_mapping ~acc
   | AIndex (left1, right1), AIndex (left2, right2) -> eq_attrparam left1 left2 ~rename_mapping ~acc &&>> eq_attrparam right1 right2 ~acc
   | AQuestion (left1, middle1, right1), AQuestion (left2, middle2, right2) -> eq_attrparam left1 left2 ~rename_mapping ~acc &&>> eq_attrparam middle1 middle2 ~acc &&>> eq_attrparam right1 right2 ~acc
+  | AAssign (left1, right1), AAssign (left2, right2) -> eq_attrparam left1 left2 ~rename_mapping ~acc &&>> eq_attrparam right1 right2 ~acc
   | a, b -> a = b, rename_mapping
 
 and eq_attribute (a: attribute) (b: attribute) ~(acc: (typ * typ) list) ~(rename_mapping: rename_mapping) = match a, b with
@@ -272,11 +273,11 @@ and eq_compinfo (a: compinfo) (b: compinfo) (acc: (typ * typ) list) (rename_mapp
   (a.cdefined = b.cdefined) (* Ignore ckey, and ignore creferenced *)
 
 and eq_fieldinfo (a: fieldinfo) (b: fieldinfo) ~(acc: (typ * typ) list) ~(rename_mapping: rename_mapping) =
-  if Messages.tracing then Messages.tracei "compareast" "fieldinfo %s vs %s\n" a.fname b.fname;
+  if Messages.tracing then Messages.tracei "compareast" "fieldinfo %s vs %s" a.fname b.fname;
   let (r, rm) = (a.fname = b.fname, rename_mapping) &&>>
                 eq_typ_acc a.ftype b.ftype ~acc &&> (a.fbitfield = b.fbitfield) &&>>
                 forward_list_equal (eq_attribute ~acc) a.fattr b.fattr in
-  if Messages.tracing then Messages.traceu "compareast" "fieldinfo %s vs %s\n" a.fname b.fname;
+  if Messages.tracing then Messages.traceu "compareast" "fieldinfo %s vs %s" a.fname b.fname;
   (r, rm)
 
 and eq_offset (a: offset) (b: offset) ~(rename_mapping: rename_mapping) ~(acc: (typ * typ) list) : bool * rename_mapping = match a, b with
@@ -339,8 +340,8 @@ let rec eq_stmtkind ?(cfg_comp = false) ((a, af): stmtkind * fundec) ((b, bf): s
   let eq_block' = fun x y ~(rename_mapping:rename_mapping) -> if cfg_comp then true, rename_mapping else eq_block (x, af) (y, bf) ~rename_mapping in
   match a, b with
   | Instr is1, Instr is2 -> forward_list_equal eq_instr is1 is2 ~rename_mapping
-  | Return (Some exp1, _l1), Return (Some exp2, _l2) -> eq_exp exp1 exp2 ~rename_mapping
-  | Return (None, _l1), Return (None, _l2) -> true, rename_mapping
+  | Return (Some exp1, _l1, _el1), Return (Some exp2, _l2, _el2) -> eq_exp exp1 exp2 ~rename_mapping
+  | Return (None, _l1, _el1), Return (None, _l2, _el2) -> true, rename_mapping
   | Return _, Return _ -> false, rename_mapping
   | Goto (st1, _l1), Goto (st2, _l2) -> eq_stmt_with_location (!st1, af) (!st2, bf), rename_mapping
   | Break _, Break _ -> if cfg_comp then failwith "CompareCFG: Invalid stmtkind in CFG" else true, rename_mapping

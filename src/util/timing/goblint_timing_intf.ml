@@ -20,7 +20,7 @@ type tree = {
   mutable cputime: float; (** Accumulated CPU time in seconds. *)
   mutable walltime: float; (** Accumulated wall time in seconds. *)
   mutable allocated: float; (** Accumulated allocated memory in bytes. *)
-  mutable count: int; (** Number of repetitions. Only set if {!Timing.countCalls} is true. *)
+  mutable count: int; (** Number of calls. *)
   mutable children: tree list; (** Child nodes. *)
 }
 
@@ -56,6 +56,10 @@ sig
 
   val print: Format.formatter -> unit
   (** Pretty-print current timing hierarchy. *)
+
+  val root_with_current: unit -> tree
+  (** Root tree with current (entered but not yet exited) frame resources added.
+      This allows printing with in-progress resources also accounted for *)
 
   val root: tree
   (** Root node of timing tree.

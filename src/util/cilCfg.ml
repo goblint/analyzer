@@ -3,33 +3,14 @@
 open GobConfig
 open GoblintCil
 
-class allBBVisitor = object (* puts every instruction into its own basic block *)
-  inherit nopCilVisitor
-  method! vstmt s =
-    match s.skind with
-    | Instr(il) ->
-      let list_of_stmts =
-        List.map (fun one_inst -> mkStmtOneInstr one_inst) il in
-      let block = mkBlock list_of_stmts in
-      ChangeDoChildrenPost(s, (fun _ -> s.skind <- Block(block); s))
-    | _ -> DoChildren
-
-  method! vvdec _ = SkipChildren
-  method! vexpr _ = SkipChildren
-  method! vlval _ = SkipChildren
-  method! vtype _ = SkipChildren
-end
-
-let end_basic_blocks f =
-  let thisVisitor = new allBBVisitor in
-  visitCilFileSameGlobals thisVisitor f
+include CilCfg0
 
 
 class countLoopsVisitor(count) = object
   inherit nopCilVisitor
 
   method! vstmt stmt = match stmt.skind with
-    | Loop _ -> count := !count + 1; DoChildren
+    | Loop _ -> incr count; DoChildren
     | _ -> DoChildren
 
 end

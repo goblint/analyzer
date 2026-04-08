@@ -1,3 +1,4 @@
+// NOCHECK
 extern int printf();
 
 main () {

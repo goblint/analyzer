@@ -1,0 +1,25 @@
+(include_subdirs no)
+
+(library
+ (name goblint_config)
+ (public_name goblint.config)
+ (wrapped false) ; TODO: wrap
+ (libraries
+   batteries.unthreaded
+   goblint_std
+   goblint_logs
+   goblint_tracing
+   fpath
+   yojson
+   json-data-encoding
+   cpu
+   goblint.sites
+   qcheck-core.runner)
+ (flags :standard -open Goblint_std -open Goblint_logs)
+ (preprocess
+  (pps
+    ppx_blob))
+ (preprocessor_deps (file options.schema.json))
+ (instrumentation (backend bisect_ppx)))
+
+(documentation)

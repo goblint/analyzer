@@ -1,6 +1,6 @@
 //PARAM: --set ana.base.arrays.domain unroll --set ana.base.arrays.unrolling-factor 5
 //from sv-comp test c/aws-c-common/memset_using_uint64_harness.i
-
+// NOCRASH
 typedef long unsigned int size_t;
 
 int main() {

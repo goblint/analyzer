@@ -1,6 +1,5 @@
 (** Memory accesses and their manipulation. *)
 
-open Batteries
 open GoblintCil
 open Pretty
 open GobConfig
@@ -12,7 +11,7 @@ module M = Messages
 
 let is_ignorable_comp_name = function
   | "__pthread_mutex_s" | "__pthread_rwlock_arch_t" | "__jmp_buf_tag" | "_pthread_cleanup_buffer" | "__pthread_cleanup_frame" | "__cancel_jmp_buf_tag" | "_IO_FILE" -> true
-  | cname when String.starts_with_stdlib ~prefix:"__anon" cname ->
+  | cname when String.starts_with ~prefix:"__anon" cname ->
     begin match Cilfacade.split_anoncomp_name cname with
       | (true, Some ("__once_flag" | "__pthread_unwind_buf_t" | "__cancel_jmp_buf"), _) -> true (* anonstruct *)
       | (false, Some ("pthread_mutexattr_t" | "pthread_condattr_t" | "pthread_barrierattr_t"), _) -> true (* anonunion *)
@@ -32,7 +31,7 @@ let is_ignorable_attrs attrs =
 let rec is_ignorable_type (t: typ): bool =
   (* efficient pattern matching first *)
   match t with
-  | TNamed ({ tname = "atomic_t" | "pthread_mutex_t" | "pthread_rwlock_t" | "pthread_spinlock_t" | "spinlock_t" | "pthread_cond_t" | "atomic_flag" | "FILE" | "__FILE"; _ }, _) -> true
+  | TNamed ({ tname = "atomic_t" | "pthread_mutex_t" | "pthread_once_t" | "pthread_rwlock_t" | "pthread_spinlock_t" | "spinlock_t" | "pthread_cond_t" | "atomic_flag" | "FILE" | "__FILE"; _ }, _) -> true
   | TComp ({ cname; _}, _) when is_ignorable_comp_name cname -> true
   | TInt (IInt, attr) when hasAttribute "mutex" attr -> true (* kernel? *)
   | TFun _ -> true
@@ -235,7 +234,7 @@ let rec get_type (fb: typ Lazy.t) : exp -> acc_typ = function
     `Type (uintType) (* TODO: Correct types from typeOf? *)
   | UnOp (_,_,t) -> `Type t
   | BinOp (_,_,_,t) -> `Type t
-  | CastE (t,e) ->
+  | CastE (_,t,e) ->
     begin match get_type fb e with
       | `Struct s -> `Struct s
       | _         -> `Type t
@@ -258,7 +257,11 @@ let get_type fb e =
   let r = get_type fb e in
   (* printf "result = %a\n" d_acct r; *)
   match r with
-  | `Type (TPtr (t,a)) -> `Type t (* Why this special case? Almost always taken if not `Struct. *)
+  | `Type t as x ->
+    begin match Cil.unrollType t with
+      | TPtr (t, a) ->  `Type t (* Why this special case? Almost always taken if not `Struct. *)
+      | _ -> x
+    end
   | x -> x (* Mostly for `Struct, but also rare cases with non-pointer `Type. Should they happen at all? *)
 
 let get_val_type e: acc_typ =
@@ -273,7 +276,7 @@ let get_val_type e: acc_typ =
 (** Add access to {!Memo} after distributing. *)
 let add_one ~side memo: unit =
   let ignorable = is_ignorable_memo memo in
-  if M.tracing then M.trace "access" "add_one %a (ignorable = %B)\n" Memo.pretty memo ignorable;
+  if M.tracing then M.trace "access" "add_one %a (ignorable = %B)" Memo.pretty memo ignorable;
   if not ignorable then
     side memo
 
@@ -281,7 +284,7 @@ let add_one ~side memo: unit =
     Empty access sets are needed for prefix-type_suffix race checking. *)
 let rec add_distribute_outer ~side ~side_empty (ts: typsig) (o: Offset.Unit.t) =
   let memo = (`Type ts, o) in
-  if M.tracing then M.tracei "access" "add_distribute_outer %a\n" Memo.pretty memo;
+  if M.tracing then M.tracei "access" "add_distribute_outer %a" Memo.pretty memo;
   add_one ~side memo; (* Add actual access for non-recursive call, or empty access for recursive call when side is side_empty. *)
 
   (* distribute to variables of the type *)
@@ -298,17 +301,17 @@ let rec add_distribute_outer ~side ~side_empty (ts: typsig) (o: Offset.Unit.t) =
       add_distribute_outer ~side:side_empty ~side_empty (TSComp (f.fcomp.cstruct, f.fcomp.cname, [])) (`Field (f, o)) (* Switch to side_empty. *)
     ) fields;
 
-  if M.tracing then M.traceu "access" "add_distribute_outer\n"
+  if M.tracing then M.traceu "access" "add_distribute_outer"
 
 (** Add access to known variable with offsets or unknown variable from expression. *)
 let add ~side ~side_empty e voffs =
   begin match voffs with
     | Some (v, o) -> (* known variable *)
-      if M.tracing then M.traceli "access" "add var %a%a\n" CilType.Varinfo.pretty v CilType.Offset.pretty o;
+      if M.tracing then M.traceli "access" "add var %a%a" CilType.Varinfo.pretty v CilType.Offset.pretty o;
       let memo = (`Var v, Offset.Unit.of_cil o) in
       add_one ~side memo
     | None -> (* unknown variable *)
-      if M.tracing then M.traceli "access" "add type %a\n" CilType.Exp.pretty e;
+      if M.tracing then M.traceli "access" "add type %a" CilType.Exp.pretty e;
       let ty = get_val_type e in (* extract old acc_typ from expression *)
       let (t, o) = match ty with (* convert acc_typ to type-based Memo (components) *)
         | `Struct (c, o) -> (TComp (c, []), o)
@@ -318,7 +321,7 @@ let add ~side ~side_empty e voffs =
       | `NoOffset when not !collect_direct_arithmetic && isArithmeticType t -> ()
       | _ -> add_distribute_outer ~side ~side_empty (Cil.typeSig t) o (* distribute to variables and outer offsets *)
   end;
-  if M.tracing then M.traceu "access" "add\n"
+  if M.tracing then M.traceu "access" "add"
 
 
 (** Distribute to {!AddrOf} of all read lvals in subexpressions. *)
@@ -367,7 +370,7 @@ and distribute_access_exp f = function
     distribute_access_lval_addr f lval
 
   (* Most casts are currently just ignored, that's probably not a good idea! *)
-  | CastE  (t, exp) ->
+  | CastE (_, t, exp) ->
     distribute_access_exp f exp
   | Question (b,t,e,_) ->
     distribute_access_exp f b;
@@ -385,7 +388,7 @@ and distribute_access_exp f = function
 
 and distribute_access_type f = function
   | TArray (et, len, _) ->
-    Option.may (distribute_access_exp f) len;
+    Option.iter (distribute_access_exp f) len;
     distribute_access_type f et
 
   | TVoid _
@@ -434,7 +437,7 @@ struct
   include SetDomain.Make (A)
 
   let max_conf accs =
-    accs |> elements |> List.map (fun {A.conf; _} -> conf) |> (List.max ~cmp:Int.compare)
+    accs |> elements |> List.map (fun {A.conf; _} -> conf) |> (BatList.max ~cmp:Int.compare)
 end
 
 
@@ -444,6 +447,8 @@ let may_race A.{kind; acc; _} A.{kind=kind2; acc=acc2; _} =
   | Read, Read -> false (* two read/read accesses do not race *)
   | Free, _
   | _, Free when not (get_bool "ana.race.free") -> false
+  | Call, _
+  | _, Call when not (get_bool "ana.race.call") -> false
   | _, _ -> MCPAccess.A.may_race acc acc2 (* analysis-specific information excludes race *)
 
 (** Access sets for race detection and warnings. *)
@@ -480,7 +485,7 @@ struct
 end
 
 let group_may_race (warn_accs:WarnAccs.t) =
-  if M.tracing then M.tracei "access" "group_may_race %a\n" WarnAccs.pretty warn_accs;
+  if M.tracing then M.tracei "access" "group_may_race %a" WarnAccs.pretty warn_accs;
   (* BFS to traverse one component with may_race edges *)
   let rec bfs' warn_accs ~todo ~visited =
     let todo_all = WarnAccs.union_all todo in
@@ -537,7 +542,7 @@ let group_may_race (warn_accs:WarnAccs.t) =
     )
   in
   let (comps, warn_accs) = components [] warn_accs in
-  if M.tracing then M.trace "access" "components %a\n" WarnAccs.pretty warn_accs;
+  if M.tracing then M.trace "access" "components %a" WarnAccs.pretty warn_accs;
   (* repeat BFS to find all prefix-type_suffix-only components starting from prefix accesses (symmetric) *)
   let rec components_cross comps ~prefix ~type_suffix =
     if AS.is_empty prefix then
@@ -545,7 +550,7 @@ let group_may_race (warn_accs:WarnAccs.t) =
     else (
       let prefix_acc = AS.choose prefix in
       let (warn_accs', comp) = bfs {(WarnAccs.empty ()) with prefix; type_suffix} {(WarnAccs.empty ()) with prefix=AS.singleton prefix_acc} in
-      if M.tracing then M.trace "access" "components_cross %a\n" WarnAccs.pretty warn_accs';
+      if M.tracing then M.trace "access" "components_cross %a" WarnAccs.pretty warn_accs';
       let comps' =
         if AS.cardinal comp > 1 then
           comp :: comps
@@ -556,7 +561,7 @@ let group_may_race (warn_accs:WarnAccs.t) =
     )
   in
   let components_cross = components_cross comps ~prefix:warn_accs.prefix ~type_suffix:warn_accs.type_suffix in
-  if M.tracing then M.traceu "access" "group_may_race\n";
+  if M.tracing then M.traceu "access" "group_may_race";
   components_cross
 
 let race_conf accs =
@@ -581,7 +586,7 @@ let incr_summary ~safe ~vulnerable ~unsafe grouped_accs =
     |> List.filter_map race_conf
     |> (function
         | [] -> None
-        | confs -> Some (List.max confs)
+        | confs -> Some (BatList.max confs)
       )
   in
   match safety with

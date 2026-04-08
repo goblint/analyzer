@@ -8,22 +8,8 @@ module B = Printable.UnitConf (struct let name = "•" end)
 
 module VFB =
 struct
-  include Printable.Either (VF) (B)
+  include Printable.EitherConf (struct include Printable.DefaultConf let expand1 = false let expand2 = false end) (VF) (B)
   let name () = "region"
-
-  let pretty () = function
-    | `Right () -> Pretty.text "•"
-    | `Left x -> VF.pretty () x
-
-  let show = function
-    | `Right () -> "•"
-    | `Left x -> VF.show x
-
-  let printXml f = function
-    | `Right () ->
-      BatPrintf.fprintf f "<value>\n<data>\n•\n</data>\n</value>\n"
-    | `Left x ->
-      BatPrintf.fprintf f "<value>\n<data>\n%a\n</data>\n</value>\n" VF.printXml x
 
   let collapse (x:t) (y:t): bool =
     match x,y with
@@ -140,7 +126,7 @@ struct
       match rval with
       | Lval lval -> BatOption.map (fun (deref, v, offs) -> (deref, v, `NoOffset)) (eval_lval deref lval)
       | AddrOf lval -> eval_lval deref lval
-      | CastE (typ, exp) -> eval_rval deref exp
+      | CastE (_, typ, exp) -> eval_rval deref exp
       | BinOp (MinusPI, p, i, typ)
       | BinOp (PlusPI, p, i, typ)
       | BinOp (IndexPI, p, i, typ) -> eval_rval deref p
@@ -252,4 +238,4 @@ struct
 end
 
 (* TODO: remove Lift *)
-module RegionDom = Lattice.Lift (RegMap) (struct let top_name = "Unknown" let bot_name = "Error" end)
+module RegionDom = Lattice.LiftConf (struct include Printable.DefaultConf let top_name = "Unknown" let bot_name = "Error" end) (RegMap)

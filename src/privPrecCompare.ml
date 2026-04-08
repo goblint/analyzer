@@ -4,4 +4,5 @@ open Goblint_lib
 module A = PrecCompare.MakeDump (PrivPrecCompareUtil)
 
 let () =
+  AnalysisState.bot_in_blob_leq_bot := true;
   A.main ()

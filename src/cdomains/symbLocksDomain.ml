@@ -30,7 +30,7 @@ struct
       | AddrOf  (Mem e,o)
       | StartOf (Mem e,o)
       | Lval    (Mem e,o) -> cv true e || offs_contains o
-      | CastE (_,e)           -> cv deref e
+      | CastE (_,_,e)           -> cv deref e
       | Lval    (Var v2,o) -> CilType.Varinfo.equal v v2 || offs_contains o
       | AddrOf  (Var v2,o)
       | StartOf (Var v2,o) ->
@@ -105,7 +105,7 @@ struct
     | AddrOf (Mem e,o)                     -> AddrOf (Mem (replace_base (v,offs) q e), o)
     | StartOf (Mem e,o) when simple_eq e q -> StartOf (Var v, addOffset o (Offset.Exp.to_cil offs))
     | StartOf (Mem e,o)                    -> StartOf (Mem (replace_base (v,offs) q e), o)
-    | CastE (t,e) -> CastE (t, replace_base (v,offs) q e)
+    | CastE (k,t,e) -> CastE (k, t, replace_base (v,offs) q e)
 
 
   let rec conc i =
@@ -157,7 +157,7 @@ struct
       end
     | AddrOf (Mem e, NoOffset) -> one_unknown_array_index e
     | StartOf (Mem e, NoOffset) -> one_unknown_array_index e
-    | CastE (t,e) -> one_unknown_array_index e
+    | CastE (_,t,e) -> one_unknown_array_index e
     | _ -> None
 end
 
@@ -221,7 +221,7 @@ struct
       | AddrOf (Mem e, os) -> helper e @ [EDeref] @ conv_o os @ [EAddr]
       | StartOf (Var v, os) -> EVar v :: conv_o os @ [EAddr]
       | StartOf (Mem e, os) -> helper e @ [EDeref] @ conv_o os @ [EAddr]
-      | CastE (_,e) -> helper e
+      | CastE (_,_,e) -> helper e
     in
     try helper exp
     with NotSimpleEnough -> []
@@ -237,7 +237,7 @@ struct
     | _            ,             _ -> raise (Invalid_argument "")
 
   let from_exps a l : t option =
-    if M.tracing then M.tracel "symb_locks" "from_exps %a (%s) %a (%s)\n" d_plainexp a (ees_to_str (toEl a)) d_plainexp l (ees_to_str (toEl l));
+    if M.tracing then M.tracel "symb_locks" "from_exps %a (%s) %a (%s)" d_plainexp a (ees_to_str (toEl a)) d_plainexp l (ees_to_str (toEl l));
     let a, l = toEl a, toEl l in
     (* ignore (printf "from_exps:\n %s\n %s\n" (ees_to_str a) (ees_to_str l)); *)
     (*let rec fold_left2 f a xs ys =
@@ -306,6 +306,7 @@ struct
   end
 
   include AddressDomain.AddressPrintable (Mval.MakePrintable (Offset.MakePrintable (Idx)))
+  let name () = "i-lock"
 
   let rec conv_const_offset x =
     match x with
@@ -315,4 +316,55 @@ struct
     | Field (f,o) -> `Field (f, conv_const_offset o)
 
   let of_mval (v, o) = of_mval (v, conv_const_offset o)
+end
+
+
+module Symbolic =
+struct
+  (* TODO: use SetDomain.Reverse *)
+  module S = SetDomain.ToppedSet (CilType.Exp) (struct let topname = "All mutexes" end)
+  include Lattice.Reverse (S)
+
+  let rec eq_set (ask: Queries.ask) e =
+    S.union
+      (match ask.f (Queries.EqualSet e) with
+       | es when not (Queries.ES.is_bot es) ->
+         Queries.ES.fold S.add es (S.empty ())
+       | _ -> S.empty ())
+      (match e with
+       | SizeOf _
+       | SizeOfE _
+       | SizeOfStr _
+       | AlignOf _
+       | Const _
+       | AlignOfE _
+       | UnOp _
+       | BinOp _
+       | Question _
+       | Real _
+       | Imag _
+       | AddrOfLabel _ -> S.empty ()
+       | AddrOf  (Var _,_)
+       | StartOf (Var _,_)
+       | Lval    (Var _,_) -> S.singleton e
+       | AddrOf  (Mem e,ofs) -> S.map (fun e -> AddrOf  (Mem e,ofs)) (eq_set ask e)
+       | StartOf (Mem e,ofs) -> S.map (fun e -> StartOf (Mem e,ofs)) (eq_set ask e)
+       | Lval    (Mem e,ofs) -> S.map (fun e -> Lval    (Mem e,ofs)) (eq_set ask e)
+       | CastE (_,_,e)           -> eq_set ask e
+      )
+
+  let add (ask: Queries.ask) e st =
+    let no_casts = S.map Expcompare.stripCastsDeepForPtrArith (eq_set ask e) in
+    let addrs = S.filter (function AddrOf _ -> true | _ -> false) no_casts in
+    S.union addrs st
+  let remove ask e st =
+    (* TODO: Removing based on must-equality sets is not sound! *)
+    let no_casts = S.map Expcompare.stripCastsDeepForPtrArith (eq_set ask e) in
+    let addrs = S.filter (function AddrOf _ -> true | _ -> false) no_casts in
+    S.diff st addrs
+  let remove_var v st = S.filter (fun x -> not (Exp.contains_var v x)) st
+
+  let filter = S.filter
+  let fold = S.fold
+
 end

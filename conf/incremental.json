@@ -24,7 +24,7 @@
     "earlyglobs": true
   },
   "dbg": {
-    "verbose": true,
+    "level": "debug",
     "trace": {
       "context": true
     },
