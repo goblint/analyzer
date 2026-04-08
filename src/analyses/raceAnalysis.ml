@@ -321,7 +321,7 @@ struct
         let acc = part_access None in
         Access.add_one ~side:(side_access oman {conf; kind; node; exp; acc}) (`Type (TSComp (ci.cstruct, ci.cname, [])), `NoOffset)
       in
-      let has_escaped g = oman.ask (Queries.MayEscape g) in
+      let oask = Analyses.ask_of_man oman in
       (* The following function adds accesses to the lval-set ls
          -- this is the common case if we have a sound points-to set. *)
       let on_ad ad includes_uk =
@@ -329,7 +329,7 @@ struct
         let conf = if includes_uk then conf - 10 else conf in
         let f addr =
           match addr with
-          | AD.Addr.Addr (g,o) when g.vglob || has_escaped g ->
+          | AD.Addr.Addr (g,o) when g.vglob || ThreadEscape.has_escaped oask g ->
             let coffs = ValueDomain.Offs.to_cil o in
             add_access conf (Some (g, coffs))
           | UnknownPtr -> add_access conf None

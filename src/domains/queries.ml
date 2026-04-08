@@ -85,7 +85,7 @@ type _ t =
   | ReachableFrom: exp -> AD.t t
   | ReachableUkTypes: exp -> TS.t t
   | Regions: exp -> LS.t t
-  | MayEscape: varinfo -> MayBool.t t
+  | MayEscape: varinfo -> MayBool.t t (** Use via {!ThreadEscape.has_escaped}. *)
   | MayBePublic: maybepublic -> MayBool.t t (* old behavior with write=false *)
   | MayBePublicWithout: maybepublicwithout -> MayBool.t t
   | MustBeProtectedBy: mustbeprotectedby -> MustBool.t t

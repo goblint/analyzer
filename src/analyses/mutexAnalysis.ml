@@ -331,10 +331,10 @@ struct
         | None -> M.info ~category:Unsound "Write to unknown address: privatization is unsound."
       in
       let module AD = Queries.AD in
-      let has_escaped g = oman.ask (Queries.MayEscape g) in
+      let oask = Analyses.ask_of_man oman in
       let on_ad ad =
         let f = function
-          | AD.Addr.Addr (g,_) when g.vglob || has_escaped g -> old_access (Some g)
+          | AD.Addr.Addr (g,_) when g.vglob || ThreadEscape.has_escaped oask g -> old_access (Some g)
           | UnknownPtr -> old_access None
           | _ -> ()
         in
