@@ -1673,7 +1673,7 @@ struct
 
   (* Updating a single varinfo*offset pair. NB! This function's type does
    * not include the flag. *)
-  let set_mval ~(man: _ man) ?(invariant=false) ?(blob_destructive=false) ?lval_raw ?rval_raw ?t_override (st: store) ((x, offs): Addr.Mval.t) (lval_type: Cil.typ) (value: value): store =
+  let set_mval ~(man: _ man) ?(invariant=false) ?(blob_destructive=false) ?lval_raw ?rval_raw ?t_override (st: store) ((x, offs): Addr.Mval.t) ~(lval_type: Cil.typ) (value: value): store =
     let ask = Analyses.ask_of_man man in
     let cil_offset = Offs.to_cil_offset offs in
     let t = match t_override with
@@ -1812,20 +1812,20 @@ struct
         effect_on_arrays ask with_dep
       end
 
-  let set_var ~(man: _ man) ?invariant ?blob_destructive ?lval_raw ?rval_raw ?t_override (st: store) (x: Cil.varinfo) (lval_type: Cil.typ) (value: value): store =
-    set_mval ~man ?invariant ?blob_destructive ?lval_raw ?rval_raw ?t_override st (x, `NoOffset) lval_type value
+  let set_var ~(man: _ man) ?invariant ?blob_destructive ?lval_raw ?rval_raw ?t_override (st: store) (x: Cil.varinfo) ~(lval_type: Cil.typ) (value: value): store =
+    set_mval ~man ?invariant ?blob_destructive ?lval_raw ?rval_raw ?t_override st (x, `NoOffset) ~lval_type value
 
-  let set_addr ~(man: _ man) ?invariant ?blob_destructive ?lval_raw ?rval_raw ?t_override (st: store) (x: Addr.t) (lval_type: Cil.typ) (value: value): store =
-    Option.map_default (fun x -> set_mval ~man ?invariant ?blob_destructive ?lval_raw ?rval_raw ?t_override st x lval_type value) st (Addr.to_mval x)
+  let set_addr ~(man: _ man) ?invariant ?blob_destructive ?lval_raw ?rval_raw ?t_override (st: store) (x: Addr.t) ~(lval_type: Cil.typ) (value: value): store =
+    Option.map_default (fun x -> set_mval ~man ?invariant ?blob_destructive ?lval_raw ?rval_raw ?t_override st x ~lval_type value) st (Addr.to_mval x)
 
   (** [set st addr val] returns a state where [addr] is set to [val]
    * it is always ok to put None for lval_raw and rval_raw, this amounts to not using/maintaining
    * precise information about arrays. *)
-  let set ~(man: _ man) ?invariant ?blob_destructive ?lval_raw ?rval_raw ?t_override (st: store) (lval: AD.t) (lval_type: Cil.typ) (value: value) : store =
+  let set ~(man: _ man) ?invariant ?blob_destructive ?lval_raw ?rval_raw ?t_override (st: store) (lval: AD.t) ~(lval_type: Cil.typ) (value: value) : store =
     let lval_raw = (Option.map (fun x -> Lval x) lval_raw) in
     if M.tracing then M.tracel "set" "lval: %a\nvalue: %a\nstate: %a" AD.pretty lval VD.pretty value CPA.pretty st.cpa;
     let update_one x store =
-      set_addr ~man ?invariant ?blob_destructive ?lval_raw ?rval_raw ?t_override store x lval_type value
+      set_addr ~man ?invariant ?blob_destructive ?lval_raw ?rval_raw ?t_override store x ~lval_type value
     in try
       (* We start from the current state and an empty list of global deltas,
        * and we assign to all the different possible places: *)
@@ -1845,7 +1845,7 @@ struct
   let set_many ~man (st: store) lval_value_list: store =
     (* Maybe this can be done with a simple fold *)
     let f (acc: store) ((lval:AD.t),(typ:Cil.typ),(value:value)): store =
-      set ~man acc lval typ value
+      set ~man acc lval ~lval_type:typ value
     in
     (* And fold over the list starting from the store turned wstore: *)
     List.fold_left f st lval_value_list
@@ -1899,7 +1899,7 @@ struct
     let get_var = get_var
     let get_mval ~man st mval exp = get_mval ~man st mval exp
     let get ~man st addrs exp = get ~man st addrs exp
-    let set ~man st lval lval_type ?lval_raw value = set ~man ~invariant:true st lval lval_type ?lval_raw value
+    let set ~man st lval lval_type ?lval_raw value = set ~man ~invariant:true st lval ~lval_type ?lval_raw value (* TODO: name lval_type in BaseInvariant *)
 
     let refine_entire_var = true
     let map_oldval oldval _ = oldval
@@ -1919,8 +1919,8 @@ struct
   let set_savetop ~man ?lval_raw ?rval_raw st adr lval_t v : store =
     if M.tracing then M.tracel "set" "savetop %a %a %a" AD.pretty adr d_type lval_t VD.pretty v;
     match v with
-    | Top -> set ~man st adr lval_t (VD.top_value (AD.type_of adr)) ?lval_raw ?rval_raw
-    | v -> set ~man st adr lval_t v ?lval_raw ?rval_raw
+    | Top -> set ~man st adr ~lval_type:lval_t (VD.top_value (AD.type_of adr)) ?lval_raw ?rval_raw
+    | v -> set ~man st adr ~lval_type:lval_t v ?lval_raw ?rval_raw
 
 
   (**************************************************************************
@@ -2058,7 +2058,7 @@ struct
 
   let body man f =
     let init_var (acc: store) v: store =
-      set_var ~man acc v v.vtype (VD.init_value ~varAttr:v.vattr v.vtype)
+      set_var ~man acc v ~lval_type:v.vtype (VD.init_value ~varAttr:v.vattr v.vtype)
     in
     List.fold_left init_var man.local f.slocals
 
@@ -2082,7 +2082,7 @@ struct
           let t_override = Cilfacade.fundec_return_type fundec in
           assert (not (Cil.isVoidType t_override)); (* Returning a value from a void function, CIL removes the Return expression for us anyway. *)
           let rv = eval_rv ~man man.local exp in
-          let st' = set_var ~man ~t_override nst (return_varinfo ()) t_override rv in
+          let st' = set_var ~man ~t_override nst (return_varinfo ()) ~lval_type:t_override rv in
           match ThreadId.get_current ask with
           | `Lifted tid when ThreadReturn.is_current ask ->
             if not (ThreadIdDomain.Thread.is_main tid) then ( (* Only non-main return constitutes an implicit pthread_exit according to man page (https://github.com/goblint/analyzer/issues/1767#issuecomment-3642590227). *)
@@ -2101,7 +2101,7 @@ struct
     else
       let current_value = eval_rv ~man man.local (Lval (Var v, NoOffset)) in
       let new_value = VD.update_array_lengths (eval_rv ~man man.local) current_value v.vtype in
-      set_var ~man man.local v v.vtype new_value
+      set_var ~man man.local v ~lval_type:v.vtype new_value
 
   (**************************************************************************
    * Function calls
@@ -2154,7 +2154,7 @@ struct
     );
     (* copied from set_many *)
     let f (acc: store) ((lval:Addr.t),(typ:Cil.typ),(value:value)): store =
-      let acc' = set_addr ~man acc lval typ value in
+      let acc' = set_addr ~man acc lval ~lval_type:typ value in
       if must then
         acc'
       else
@@ -2421,7 +2421,7 @@ struct
         else
           VD.top_value (unrollType dest_typ)
       in
-      set ~man st dest_a dest_typ value in
+      set ~man st dest_a ~lval_type:dest_typ value in
     (* for string functions *)
     let eval_n = function
       (* if only n characters of a given string are needed, evaluate expression n to an integer option *)
@@ -2467,15 +2467,15 @@ struct
             let lv_a = eval_lv ~man st lv_val in
             let lv_typ = Cilfacade.typeOfLval lv_val in
             if all && typeSig s1_typ = typeSig s2_typ && typeSig s2_typ = typeSig lv_typ then (* all types need to coincide *)
-              set ~man st lv_a lv_typ (f s1_a s2_a)
+              set ~man st lv_a ~lval_type:lv_typ (f s1_a s2_a)
             else if not all && typeSig s1_typ = typeSig s2_typ then (* only the types of s1 and s2 need to coincide *)
-              set ~man st lv_a lv_typ (f s1_a s2_a)
+              set ~man st lv_a ~lval_type:lv_typ (f s1_a s2_a)
             else
-              set ~man st lv_a lv_typ (VD.top_value (unrollType lv_typ))
+              set ~man st lv_a ~lval_type:lv_typ (VD.top_value (unrollType lv_typ))
           | _ ->
             (* check if s1 is potentially a string literal as writing to it would be undefined behavior; then return top *)
             let _ = AD.string_writing_defined s1_a in
-            set ~man st s1_a s1_typ (VD.top_value (unrollType s1_typ))
+            set ~man st s1_a ~lval_type:s1_typ (VD.top_value (unrollType s1_typ))
         end
         (* else compute value in array domain *)
       else
@@ -2483,11 +2483,11 @@ struct
           Option.map_default (fun lv -> eval_lv ~man st lv, Cilfacade.typeOfLval lv) (s1_a, s1_typ) lv
         in
         match (get ~man st s1_a None), get ~man st s2_a None with
-        | Array array_s1, Array array_s2 -> set ~man ~blob_destructive:true st lv_a lv_typ (op_array array_s1 array_s2)
+        | Array array_s1, Array array_s2 -> set ~man ~blob_destructive:true st lv_a ~lval_type:lv_typ (op_array array_s1 array_s2)
         | Array array_s1, _ when CilType.Typ.equal s2_typ charPtrType ->
           let s2_null_bytes = List.map CArrays.to_null_byte_domain (AD.to_string s2_a) in
           let array_s2 = List.fold_left CArrays.join (CArrays.bot ()) s2_null_bytes in
-          set ~man ~blob_destructive:true st lv_a lv_typ (op_array array_s1 array_s2)
+          set ~man ~blob_destructive:true st lv_a ~lval_type:lv_typ (op_array array_s1 array_s2)
         | Bot, Array array_s2 ->
           (* If we have bot inside here, we assume the blob is used as a char array and create one inside *)
           let ptrdiff_ik = Cilfacade.ptrdiff_ikind () in
@@ -2496,7 +2496,7 @@ struct
             try ValueDomainQueries.ID.unlift (ID.cast_to ~kind:Internal ptrdiff_ik) size (* TODO: proper castkind *)
             with Failure _ -> ID.top_of ptrdiff_ik in
           let empty_array = CArrays.make s_id (Int (ID.top_of IChar)) in
-          set ~man st lv_a lv_typ (op_array empty_array array_s2)
+          set ~man st lv_a ~lval_type:lv_typ (op_array empty_array array_s2)
         | Bot , _ when CilType.Typ.equal s2_typ charPtrType ->
           (* If we have bot inside here, we assume the blob is used as a char array and create one inside *)
           let ptrdiff_ik = Cilfacade.ptrdiff_ikind () in
@@ -2507,19 +2507,19 @@ struct
           let empty_array = CArrays.make s_id (Int (ID.top_of IChar)) in
           let s2_null_bytes = List.map CArrays.to_null_byte_domain (AD.to_string s2_a) in
           let array_s2 = List.fold_left CArrays.join (CArrays.bot ()) s2_null_bytes in
-          set ~man st lv_a lv_typ (op_array empty_array array_s2)
+          set ~man st lv_a ~lval_type:lv_typ (op_array empty_array array_s2)
         | _, Array array_s2 when CilType.Typ.equal s1_typ charPtrType ->
           (* if s1 is string literal, str(n)cpy and str(n)cat are undefined *)
           if op_addr = None then
             (* triggers warning, function only evaluated for side-effects *)
             let _ = AD.string_writing_defined s1_a in
-            set ~man st s1_a s1_typ (VD.top_value (unrollType s1_typ))
+            set ~man st s1_a ~lval_type:s1_typ (VD.top_value (unrollType s1_typ))
           else
             let s1_null_bytes = List.map CArrays.to_null_byte_domain (AD.to_string s1_a) in
             let array_s1 = List.fold_left CArrays.join (CArrays.bot ()) s1_null_bytes in
-            set ~man st lv_a lv_typ (op_array array_s1 array_s2)
+            set ~man st lv_a ~lval_type:lv_typ (op_array array_s1 array_s2)
         | _ ->
-          set ~man st lv_a lv_typ (VD.top_value (unrollType lv_typ))
+          set ~man st lv_a ~lval_type:lv_typ (VD.top_value (unrollType lv_typ))
     in
     (* Returns a tuple, the first is the address of the blob if one was allocated, the second is the returned address (may contain null pointer or be only null-pointer) *)
     let alloc loc size =
@@ -2557,13 +2557,13 @@ struct
         | _ ->
           VD.top_value dest_typ
       in
-      set ~man st dest_a dest_typ value
+      set ~man st dest_a ~lval_type:dest_typ value
     | Bzero { dest; count; }, _ ->
       (* TODO: share something with memset special case? *)
       (* TODO: check count *)
       let dest_a, dest_typ = addr_type_of_exp dest in
       let value = VD.zero_init_value dest_typ in
-      set ~man st dest_a dest_typ value
+      set ~man st dest_a ~lval_type:dest_typ value
     | Memcpy { dest = dst; src; n; }, _ -> (* TODO: use n *)
       memory_copying dst src (Some n)
     | Strcpy { dest = dst; src; n }, _ -> string_manipulation dst src None false None (fun ar1 ar2 -> Array (CArrays.string_copy ar1 ar2 (eval_n n)))
@@ -2585,7 +2585,7 @@ struct
               | Array array_s -> Int (CArrays.to_string_length array_s)
               | _ -> VD.top_value (unrollType dest_typ)
           in
-          set ~man st dest_a dest_typ value
+          set ~man st dest_a ~lval_type:dest_typ value
         ) st lv
     | Strstr { haystack; needle }, _ ->
       Option.map_default (fun lv_val ->
@@ -2634,12 +2634,12 @@ struct
         let dst_lval = mkMem ~addr:(Cil.stripCasts attr) ~off:NoOffset in
         let dest_typ = get_type dst_lval in
         let dest_a = eval_lv ~man st dst_lval in
-        let fallback () = set ~man st dest_a dest_typ (MutexAttr (ValueDomain.MutexAttr.top ())) in
+        let fallback () = set ~man st dest_a ~lval_type:dest_typ (MutexAttr (ValueDomain.MutexAttr.top ())) in
         match eval_rv ~man st mtyp with
         | Int x ->
           Option.map_default_delayed (fun z ->
               if M.tracing then M.tracel "attr" "setting";
-              set ~man st dest_a dest_typ (MutexAttr (ValueDomain.MutexAttr.of_int z))
+              set ~man st dest_a ~lval_type:dest_typ (MutexAttr (ValueDomain.MutexAttr.of_int z))
             ) fallback (ID.to_int x)
         | _ -> fallback ()
       end
@@ -2713,7 +2713,7 @@ struct
           | Abs (ik, x) -> Int (ID.cast_to ~kind:Internal ik (apply_abs ik x)) (* TODO: proper castkind *)
         end
       in
-      Option.map_default (fun lv -> set ~man st (eval_lv ~man st lv) (Cilfacade.typeOfLval lv) result) st lv
+      Option.map_default (fun lv -> set ~man st (eval_lv ~man st lv) ~lval_type:(Cilfacade.typeOfLval lv) result) st lv
     (* handling thread creations *)
     | ThreadCreate _, _ ->
       invalidate_ret_lv man.local (* actual results joined via threadspawn *)
@@ -2729,7 +2729,7 @@ struct
             | Thread a ->
               let v = List.fold VD.join (VD.bot ()) (List.map (fun x -> G.thread (man.global (V.thread x))) (ValueDomain.Threads.elements a)) in
               (* TODO: is this type right? *)
-              set ~man st ret_a (Cilfacade.typeOf ret_var) v
+              set ~man st ret_a ~lval_type:(Cilfacade.typeOf ret_var) v
             | _      -> invalidate ~must:true ~man st [ret_var]
           end
         | _      -> invalidate ~must:true ~man st [ret_var]
@@ -2742,7 +2742,7 @@ struct
     | ThreadSelf, _ ->
       begin match lv, ThreadId.get_current (Analyses.ask_of_man man) with
         | Some lv, `Lifted tid ->
-          set ~man st (eval_lv ~man st lv) (Cilfacade.typeOfLval lv) (Thread (ValueDomain.Threads.singleton tid))
+          set ~man st (eval_lv ~man st lv) ~lval_type:(Cilfacade.typeOfLval lv) (Thread (ValueDomain.Threads.singleton tid))
         | Some lv, _ ->
           invalidate_ret_lv st
         | None, _ ->
@@ -2816,13 +2816,13 @@ struct
       let st' = match eval_rv ~man st env with
         | Address jmp_buf ->
           let value = VD.JmpBuf (ValueDomain.JmpBufs.Bufs.singleton (Target (man.prev_node, man.control_context ())), false) in
-          let r = set ~man st jmp_buf (Cilfacade.typeOf env) value in
+          let r = set ~man st jmp_buf ~lval_type:(Cilfacade.typeOf env) value in
           if M.tracing then M.tracel "setjmp" "setting setjmp %a on %a -> %a" d_exp env D.pretty st D.pretty r;
           r
         | _ -> failwith "problem?!"
       in
       Option.map_default (fun lv ->
-          set ~man st' (eval_lv ~man st lv) (Cilfacade.typeOfLval lv) (Int (ID.of_int IInt Z.zero))
+          set ~man st' (eval_lv ~man st lv) ~lval_type:(Cilfacade.typeOfLval lv) (Int (ID.of_int IInt Z.zero))
         ) st' lv
     | Longjmp {env; value}, _ ->
       let ensure_not_zero (rv:value) = match rv with
@@ -2843,11 +2843,11 @@ struct
       in
       let rv = ensure_not_zero @@ eval_rv ~man man.local value in
       let t = Cilfacade.typeOf value in
-      set_var ~man ~t_override:t man.local !longjmp_return t rv (* Not raising Deadcode here, deadcode is raised at a higher level! *)
+      set_var ~man ~t_override:t man.local !longjmp_return ~lval_type:t rv (* Not raising Deadcode here, deadcode is raised at a higher level! *)
     | Rand, _ ->
       Option.map_default (fun x ->
           let result:value = (Int (ID.starting IInt Z.zero)) in
-          set ~man st (eval_lv ~man st x) (Cilfacade.typeOfLval x) result
+          set ~man st (eval_lv ~man st x) ~lval_type:(Cilfacade.typeOfLval x) result
         ) st lv
     | _, _ ->
       let st =
@@ -3076,7 +3076,7 @@ struct
           let get_var = get_var
           let get ~man st addrs exp = get ~man st addrs exp
           let get_mval ~man st mval exp = get_mval ~man st mval exp
-          let set ~man st lval lval_type ?lval_raw value = set ~man ~invariant:false st lval lval_type ?lval_raw value (* TODO: should have invariant false? doesn't work with empty cpa then, because meets *)
+          let set ~man st lval lval_type ?lval_raw value = set ~man ~invariant:false st lval ~lval_type ?lval_raw value (* TODO: should have invariant false? doesn't work with empty cpa then, because meets *)
 
           let refine_entire_var = false
           let map_oldval oldval t_lval =
@@ -3119,7 +3119,7 @@ struct
     let e_d' =
       WideningTokenLifter.with_side_tokens (WideningTokenLifter.TS.of_list uuids) (fun () ->
           CPA.fold (fun x v acc ->
-              set_var ~man ~invariant:false acc x x.vtype v
+              set_var ~man ~invariant:false acc x ~lval_type:x.vtype v
             ) e_d.cpa man.local
         )
     in
@@ -3146,7 +3146,7 @@ struct
       Priv.enter_multithreaded ask (priv_getg man.global) (priv_sideg man.sideg) st
     | Events.AssignSpawnedThread (lval, tid) ->
       (* TODO: is this type right? *)
-      set ~man man.local (eval_lv ~man man.local lval) (Cilfacade.typeOfLval lval) (Thread (ValueDomain.Threads.singleton tid))
+      set ~man man.local (eval_lv ~man man.local lval) ~lval_type:(Cilfacade.typeOfLval lval) (Thread (ValueDomain.Threads.singleton tid))
     | Events.Assert exp ->
       assert_fn man exp true
     | Events.Unassume {exp; tokens} ->
