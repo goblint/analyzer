@@ -288,6 +288,7 @@ module SolverGlobals (Sys: FwdGlobConstrSys) (LS: Set.S with type elt = Sys.LVar
     let set = LS.add x old_contribution.set in
     let d_new = get_last_contrib set g_record.last in
     let new_contribution = warrow old_contribution d_new set in
+    OM.replace g_record.from sx new_contribution;
 
     if G.equal new_contribution.value old_contribution.value then (NotUpdated g_record)
     else (
