@@ -1311,6 +1311,13 @@
             }
           },
           "additionalProperties": false
+        },
+         "wp_run": {
+          "title": "ana.wp_run",
+          "description":
+            "Do a wp analysis, in this case the liveness analysis.",
+          "type": "boolean",
+          "default": false
         }
       },
       "additionalProperties": false

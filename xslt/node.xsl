@@ -101,6 +101,27 @@
     </xsl:choose>
   </xsl:template>
 
+  <xsl:template match="wp_path">
+    <xsl:choose>
+      <xsl:when test="analysis//value">
+        <div class="toggle">
+          <span>wp_path:</span>
+          <div>
+            <xsl:apply-templates select="analysis" />
+          </div>
+        </div>
+      </xsl:when>
+      <xsl:otherwise>
+        <div class="nontoggle">
+          <span>wp_path:</span>
+          <span>
+            <xsl:apply-templates select="analysis" />
+          </span>
+        </div>
+      </xsl:otherwise>
+    </xsl:choose>
+  </xsl:template>
+
   <xsl:template match="call">
     <a target="_top" class="node-wrap">
         <xsl:attribute name="href">../frame.html?file=<xsl:value-of select="@file"/>&amp;fun=<xsl:value-of select="@fun"/>&amp;node=<xsl:value-of select="@id" /></xsl:attribute>
@@ -118,6 +139,7 @@
       </div>
     </div>
     <xsl:apply-templates select="path" />
+    <xsl:apply-templates select="wp_path" />
   </xsl:template>
 
 
