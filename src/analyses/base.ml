@@ -1842,6 +1842,9 @@ struct
       (* if M.tracing then M.tracel "set" "set got an exception '%s'" x; *)
       M.info ~category:Unsound "Assignment to unknown address, assuming no write happened."; st
 
+  let set_lval ~(man: _ man) ?invariant ?blob_destructive ?lval_raw ?rval_raw ?t_override (st: store) (lv: Cil.lval) ?(lval_type: Cil.typ = Cilfacade.typeOfLval lv) (value: value): store = (* TODO: push default lval_type into set? *)
+    set ~man ?invariant ?blob_destructive ?lval_raw ?rval_raw ?t_override st (eval_lv ~man st lv) ~lval_type value
+
   let set_many ~man (st: store) lval_value_list: store =
     (* Maybe this can be done with a simple fold *)
     let f (acc: store) ((lval:AD.t),(typ:Cil.typ),(value:value)): store =
@@ -2464,14 +2467,13 @@ struct
         begin match lv, op_addr with
           | Some lv_val, Some f ->
             (* when whished types coincide, compute result of operation op_addr, otherwise use top *)
-            let lv_a = eval_lv ~man st lv_val in
             let lv_typ = Cilfacade.typeOfLval lv_val in
             if all && typeSig s1_typ = typeSig s2_typ && typeSig s2_typ = typeSig lv_typ then (* all types need to coincide *)
-              set ~man st lv_a ~lval_type:lv_typ (f s1_a s2_a)
+              set_lval ~man st lv_val (f s1_a s2_a)
             else if not all && typeSig s1_typ = typeSig s2_typ then (* only the types of s1 and s2 need to coincide *)
-              set ~man st lv_a ~lval_type:lv_typ (f s1_a s2_a)
+              set_lval ~man st lv_val (f s1_a s2_a)
             else
-              set ~man st lv_a ~lval_type:lv_typ (VD.top_value (unrollType lv_typ))
+              set_lval ~man st lv_val (VD.top_value (unrollType lv_typ))
           | _ ->
             (* check if s1 is potentially a string literal as writing to it would be undefined behavior; then return top *)
             let _ = AD.string_writing_defined s1_a in
@@ -2570,8 +2572,6 @@ struct
     | Strcat { dest = dst; src; n }, _ -> string_manipulation dst src None false None (fun ar1 ar2 -> Array (CArrays.string_concat ar1 ar2 (eval_n n)))
     | Strlen s, _ ->
       Option.map_default (fun lv ->
-          let dest_a = eval_lv ~man st lv in
-          let dest_typ = Cilfacade.typeOfLval lv in
           let v = eval_rv ~man st s in
           let a = address_from_value v in
           let value:value =
@@ -2583,9 +2583,9 @@ struct
             else
               match get ~man st a None with
               | Array array_s -> Int (CArrays.to_string_length array_s)
-              | _ -> VD.top_value (unrollType dest_typ)
+              | _ -> VD.top_value (unrollType (Cilfacade.typeOfLval lv))
           in
-          set ~man st dest_a ~lval_type:dest_typ value
+          set_lval ~man st lv value
         ) st lv
     | Strstr { haystack; needle }, _ ->
       Option.map_default (fun lv_val ->
@@ -2713,7 +2713,7 @@ struct
           | Abs (ik, x) -> Int (ID.cast_to ~kind:Internal ik (apply_abs ik x)) (* TODO: proper castkind *)
         end
       in
-      Option.map_default (fun lv -> set ~man st (eval_lv ~man st lv) ~lval_type:(Cilfacade.typeOfLval lv) result) st lv
+      Option.map_default (fun lv -> set_lval ~man st lv result) st lv
     (* handling thread creations *)
     | ThreadCreate _, _ ->
       invalidate_ret_lv man.local (* actual results joined via threadspawn *)
@@ -2742,7 +2742,7 @@ struct
     | ThreadSelf, _ ->
       begin match lv, ThreadId.get_current (Analyses.ask_of_man man) with
         | Some lv, `Lifted tid ->
-          set ~man st (eval_lv ~man st lv) ~lval_type:(Cilfacade.typeOfLval lv) (Thread (ValueDomain.Threads.singleton tid))
+          set_lval ~man st lv (Thread (ValueDomain.Threads.singleton tid))
         | Some lv, _ ->
           invalidate_ret_lv st
         | None, _ ->
@@ -2822,7 +2822,7 @@ struct
         | _ -> failwith "problem?!"
       in
       Option.map_default (fun lv ->
-          set ~man st' (eval_lv ~man st lv) ~lval_type:(Cilfacade.typeOfLval lv) (Int (ID.of_int IInt Z.zero))
+          set ~man st' (eval_lv ~man st lv) ~lval_type:(Cilfacade.typeOfLval lv) (Int (ID.of_int IInt Z.zero)) (* TODO: why lv is evaled in st but set in st'? *)
         ) st' lv
     | Longjmp {env; value}, _ ->
       let ensure_not_zero (rv:value) = match rv with
@@ -2847,7 +2847,7 @@ struct
     | Rand, _ ->
       Option.map_default (fun x ->
           let result:value = (Int (ID.starting IInt Z.zero)) in
-          set ~man st (eval_lv ~man st x) ~lval_type:(Cilfacade.typeOfLval x) result
+          set_lval ~man st x result
         ) st lv
     | _, _ ->
       let st =
@@ -3146,7 +3146,7 @@ struct
       Priv.enter_multithreaded ask (priv_getg man.global) (priv_sideg man.sideg) st
     | Events.AssignSpawnedThread (lval, tid) ->
       (* TODO: is this type right? *)
-      set ~man man.local (eval_lv ~man man.local lval) ~lval_type:(Cilfacade.typeOfLval lval) (Thread (ValueDomain.Threads.singleton tid))
+      set_lval ~man man.local lval (Thread (ValueDomain.Threads.singleton tid))
     | Events.Assert exp ->
       assert_fn man exp true
     | Events.Unassume {exp; tokens} ->
