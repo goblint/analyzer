@@ -2413,9 +2413,7 @@ struct
         | _ -> false
       in
       let dest_a, dest_typ = addr_type_of_exp dst in
-      let src_lval = mkMem ~addr:(Cil.stripCasts src) ~off:NoOffset in
-      let src_typ = eval_lv ~man man.local src_lval
-                    |> AD.type_of in
+      let _, src_typ = addr_type_of_exp src in
       (* when src and destination type coincide, take value from the source, otherwise use top *)
       let value = if (typeSig dest_typ = typeSig src_typ) && dest_size_equal_n then
           (* TODO: why cast if types coincide? *)
@@ -2627,13 +2625,7 @@ struct
       raise Deadcode
     | MutexAttrSetType {attr = attr; typ = mtyp}, _ ->
       begin
-        let get_type lval =
-          let address = eval_lv ~man st lval in
-          AD.type_of address
-        in
-        let dst_lval = mkMem ~addr:(Cil.stripCasts attr) ~off:NoOffset in
-        let dest_typ = get_type dst_lval in
-        let dest_a = eval_lv ~man st dst_lval in
+        let dest_a, dest_typ = addr_type_of_exp attr in
         let fallback () = set ~man st dest_a ~lval_type:dest_typ (MutexAttr (ValueDomain.MutexAttr.top ())) in
         match eval_rv ~man st mtyp with
         | Int x ->
