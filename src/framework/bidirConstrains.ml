@@ -651,6 +651,14 @@ struct
       Some tf_backw
 
   let system var =
+
+    (* let log () = 
+       match var with
+       | `L_forw (v, _)  -> Logs.debug "(*) Creating tf for forward variable %a" Node.pretty v
+       | `L_backw (v, _) -> Logs.debug "(*) Creating tf for backward variable %a" Node.pretty v
+       in
+       log(); *)
+
     match var with
     | `L_forw v ->
       Forward.system v

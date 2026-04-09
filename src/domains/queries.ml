@@ -146,6 +146,8 @@ type _ t =
   | YamlEntryGlobal: Obj.t * YamlWitnessType.Task.t -> YS.t t (** YAML witness entries for a global unknown ([Obj.t] represents [Spec.V.t]) and YAML witness task. *)
   | GhostVarAvailable: WitnessGhostVar.t -> MayBool.t t
   | InvariantGlobalNodes: NS.t t (** Nodes where YAML witness flow-insensitive invariants should be emitted as location invariants (if [witness.invariant.flow_insensitive-as] is configured to do so). *) (* [Spec.V.t] argument (as [Obj.t]) could be added, if this should be different for different flow-insensitive invariants. *)
+  | IsDeadVar: varinfo -> MayBool.t t (* Whether a variable is dead at a program point, i.e., not read afterwards. *)
+  | MayBeDeadAssignment: lval -> MayBool.t t (* Whether an assignment is dead, i.e., the assigned variable is not read afterwards. *) 
 
 type 'a result = 'a
 
@@ -221,6 +223,8 @@ struct
     | YamlEntryGlobal _ -> (module YS)
     | GhostVarAvailable _ -> (module MayBool)
     | InvariantGlobalNodes -> (module NS)
+    | IsDeadVar _ -> (module MayBool)
+    | MayBeDeadAssignment _ -> (module MayBool)
 
   (** Get bottom result for query. *)
   let bot (type a) (q: a t): a result =
@@ -295,6 +299,8 @@ struct
     | YamlEntryGlobal _ -> YS.top ()
     | GhostVarAvailable _ -> MayBool.top ()
     | InvariantGlobalNodes -> NS.top ()
+    | IsDeadVar _ -> MayBool.top ()
+    | MayBeDeadAssignment _ -> MayBool.top ()
 end
 
 (* The type any_query can't be directly defined in Any as t,
@@ -366,6 +372,8 @@ struct
     | Any (MustProtectingLocks _) -> 61
     | Any (GhostVarAvailable _) -> 62
     | Any InvariantGlobalNodes -> 63
+    | Any (IsDeadVar _) -> 64
+    | Any (MayBeDeadAssignment _) -> 65
 
   let rec compare a b =
     let r = Stdlib.compare (order a) (order b) in
@@ -540,6 +548,8 @@ struct
     | Any (GasExhausted f) -> Pretty.dprintf "GasExhausted %a" CilType.Fundec.pretty f
     | Any (GhostVarAvailable v) -> Pretty.dprintf "GhostVarAvailable %a" WitnessGhostVar.pretty v
     | Any InvariantGlobalNodes -> Pretty.dprintf "InvariantGlobalNodes"
+    | Any (IsDeadVar v) -> Pretty.dprintf "IsDeadVar %a" CilType.Varinfo.pretty v
+    | Any (MayBeDeadAssignment s) -> Pretty.dprintf "MayBeDeadAssignment %a" CilType.Lval.pretty s
 end
 
 let to_value_domain_ask (ask: ask) =

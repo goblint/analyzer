@@ -1385,10 +1385,12 @@ struct
 
       (* Lifting and combining the startvars and entrystates from forwards and backwards analysis*)
       let startvars' = List. append (List.map (fun v -> `L_forw v) startvars'_forw) (List.map (fun v -> `L_backw v) startvars'_backw) in
+      (* let startvars' = List. append (List.map (fun v -> `L_backw v) startvars'_backw) (List.map (fun v -> `L_forw v) startvars'_forw) in *)
       let entrystates = List.append (List.map (fun (v, d) -> (`L_forw v, `Lifted1 d)) entrystates_forw) (List.map (fun (v, d) -> (`L_backw v, `Lifted2 d)) entrystates_backw) in
 
       startvars', entrystates, entrystates_global
     in
+
 
     (** solves constraint system*)
     let solve () = 
@@ -1396,7 +1398,7 @@ struct
       let startvars', entrystates, entrystates_global = calculate_solver_input () in
 
       let log_analysis_inputs () =
-        Logs.debug "=== Analysis Inputs ===";
+        Logs.debug "================= Analysis Inputs ================";
 
         (* Log entrystates *)
         Logs.debug "--- Entry States (count: %d) ---" (List.length entrystates);
@@ -1441,57 +1443,145 @@ struct
                Logs.debug "  Context: %a" Spec_forw.C.pretty ctx
                ) *)
           ) startvars';
-
-        Logs.debug "=== End Analysis Inputs ==="
+        Logs.debug "=============== End Analysis Inputs =============="
       in
       log_analysis_inputs ();
+
+      AnalysisState.should_warn := true; 
 
       let (lh, gh), solver_data = Slvr.solve entrystates entrystates_global startvars' solver_data in
 
       let log_lh_contents lh = 
         let print_forw_entries : bool = false in
-        let print_backw_entries : bool = true in
+        let print_backw_entries : bool = false in
 
-        Logs.debug "=== LHT Contents ===";
-        Logs.debug "LHT size: %d" (LHT.length lh);
-        let count = ref 0 in
+        if print_forw_entries || print_backw_entries then (
 
-        Logs.debug "--- Full entry details ---";
-        LHT.iter (fun v state ->
-            incr count;
-            Logs.debug "Entry %d:" !count;
-            if (match v with `L_forw _ -> print_forw_entries | `L_backw _ -> print_backw_entries)
-            then (
-              Logs.debug "  Var: %a" EQSys.LVar.pretty_trace v;
-              Logs.debug "  Context: %a" Spec_forw.C.pretty (match v with
-                  | `L_forw (_, ctx)
-                  | `L_backw (_, ctx) -> ctx);
-              (match state with 
-               | `Lifted1 d -> 
-                 (try
-                    Logs.debug "  State:%a" Spec_forw.D.pretty d
-                  with e ->
-                    Logs.debug "  State: ERROR - %s" (Printexc.to_string e))
-               | `Lifted2 d ->
-                 (try
-                    Logs.debug "  State: %a" Spec_backw.D.pretty d
-                  with e ->
-                    Logs.debug "  State: ERROR - %s" (Printexc.to_string e)
-                 );
-               | `Top ->
-                 Logs.debug "  State kind: Top";
-               | `Bot ->
-                 Logs.debug "  State kind: Bot"
-              );
-            ) else (
-              Logs.debug "  (Entry skipped in log)"
+          Logs.debug "================= LHT Contents ===================";
+          Logs.debug "LHT size: %d" (LHT.length lh);
+          let count = ref 0 in
+
+          Logs.debug "--- Full entry details ---";
+          LHT.iter (fun v state ->
+              incr count;
+              Logs.debug "Entry %d:" !count;
+              if (match v with `L_forw _ -> print_forw_entries | `L_backw _ -> print_backw_entries)
+              then (
+                Logs.debug "  Var: %a" EQSys.LVar.pretty_trace v;
+                Logs.debug "  Context: %a" Spec_forw.C.pretty (match v with
+                    | `L_forw (_, ctx)
+                    | `L_backw (_, ctx) -> ctx);
+                (match state with 
+                 | `Lifted1 d -> 
+                   (try
+                      Logs.debug "  State:%a" Spec_forw.D.pretty d
+                    with e ->
+                      Logs.debug "  State: ERROR - %s" (Printexc.to_string e))
+                 | `Lifted2 d ->
+                   (try
+                      Logs.debug "  State: %a" Spec_backw.D.pretty d
+                    with e ->
+                      Logs.debug "  State: ERROR - %s" (Printexc.to_string e)
+                   );
+                 | `Top ->
+                   Logs.debug "  State kind: Top";
+                 | `Bot ->
+                   Logs.debug "  State kind: Bot"
+                );
+              ) else (
+                Logs.debug "  (Entry skipped in log)"
+              )
             )
-          )
-          lh;
-        Logs.debug "Total entries in LHT: %d" !count;
-        Logs.debug "=== End LHT Contents ===";
+            lh;
+          Logs.debug "Total entries in LHT: %d" !count;
+          Logs.debug "=============== End LHT Contents =================";
+        ) else ();
       in
       log_lh_contents lh;
+
+      (* To check for unnacessary assigns, one has to take the join over all variables for that programm point*)
+      let warn_unnecessary_assignments () =
+        let post_backward_states_for_node (node: Node.t) : Spec_backw.D.t list =
+          let succ_nodes = List.map snd (Cfg.next node) in
+          LHT.fold (fun key state acc ->
+              match key, state with
+              | `L_backw (node', _), `Lifted2 d when List.exists (Node.equal node') succ_nodes -> d :: acc
+              | _ -> acc
+            ) lh []
+        in
+
+        let may_be_dead_assignment_in_state (node: Node.t) (state: Spec_backw.D.t) (lv: lval) : bool =
+          (* log *)
+          (* Logs.debug "Checking if assignment may be dead at node %a in state %a" Node.pretty_trace node Spec_backw.D.pretty state; *)
+
+          let man_backw =
+            { ask = (fun (type a) (q: a Queries.t) -> Queries.Result.top q)
+            ; emit = (fun _ -> failwith "Cannot \"emit\" in dead-assignment query helper.")
+            ; node = node
+            ; prev_node = MyCFG.dummy_node
+            ; control_context = (fun () -> man_failwith "dead-assignment query helper has no control_context.")
+            ; context = (fun () -> man_failwith "dead-assignment query helper has no context.")
+            ; edge = MyCFG.Skip
+            ; local = state
+            ; global = (fun _ -> Spec_backw.G.bot ())
+            ; spawn = (fun ?(multiple=false) _ -> failwith "dead-assignment query helper cannot spawn threads.")
+            ; split = (fun _ -> failwith "dead-assignment query helper cannot split paths.")
+            ; sideg = (fun _ _ -> failwith "dead-assignment query helper cannot side-effect globals.")
+            }
+          in
+          let man_forw =
+            { ask = (fun (type a) (q: a Queries.t) -> Queries.Result.top q)
+            ; emit = (fun _ -> failwith "Cannot \"emit\" in dead-assignment query helper.")
+            ; node = node
+            ; prev_node = MyCFG.dummy_node
+            ; control_context = (fun () -> man_failwith "dead-assignment query helper has no control_context.")
+            ; context = (fun () -> man_failwith "dead-assignment query helper has no context.")
+            ; edge = MyCFG.Skip
+            ; local = Spec_forw.D.top ()
+            ; global = (fun _ -> Spec_forw.G.bot ())
+            ; spawn = (fun ?(multiple=false) _ -> failwith "dead-assignment query helper cannot spawn threads.")
+            ; split = (fun _ -> failwith "dead-assignment query helper cannot split paths.")
+            ; sideg = (fun _ _ -> failwith "dead-assignment query helper cannot side-effect globals.")
+            }
+          in
+          Spec_backw.query man_backw man_forw (Queries.MayBeDeadAssignment lv)
+        in
+
+        let assigned_lvals_of_stmt (s: stmt) : lval list =
+          match s.skind with
+          | Instr instrs ->
+            List.fold_left (fun acc instr ->
+                match instr with
+                | Set (lv, _, _, _) -> lv :: acc
+                | Call (Some lv, _, _, _, _) -> lv :: acc
+                | _ -> acc
+              ) [] instrs
+          | _ -> []
+        in
+
+        let warn_assignment_stmt (s: stmt) =
+          let node = Statement s in
+          let assigned_lvals = assigned_lvals_of_stmt s in
+          match assigned_lvals with
+          | [] -> ()
+          | _ ->
+            let states = post_backward_states_for_node node in
+            if states <> [] then (
+              List.iter (fun lv ->
+                  let dead_in_all_contexts =
+                    List.for_all (fun st -> may_be_dead_assignment_in_state node st lv) states
+                  in
+                  if dead_in_all_contexts then
+                    M.warn ~loc:(M.Location.Node node) ~category:MessageCategory.Program "Unnecessary assignment: this assignment may be dead in every post-assignment context."
+                ) assigned_lvals
+            )
+        in
+        List.iter (function
+            | GFun (fd, _) -> List.iter warn_assignment_stmt fd.sallstmts
+            | _ -> ()
+          ) file.globals
+      in
+      warn_unnecessary_assignments ();
 
       let make_global_fast_xml f g =
         let open Printf in
@@ -1551,7 +1641,7 @@ struct
                     let oc = Stdlib.open_out xml_path in
                     Stdlib.output_string oc updated_content;
                     Stdlib.close_out oc;
-                    Logs.debug "Updated XML file for node %s" node_id_str
+                    (* Logs.debug "Updated XML file for node %s" node_id_str *)
                   )
                 with _ -> ()  (* Skip errors silently *)
               )

@@ -91,8 +91,8 @@ struct
         in
         D.union rval_vars (D.diff man.local (D.singleton v))
       ) else (
-        let loc = M.Location.Node man.node in
-        M.warn ~loc:loc ~category:MessageCategory.Program "Unnecessary assignment to variable '%s', as it is not live at this program point." v.vname;
+        (* let loc = M.Location.Node man.node in *)
+        (* M.warn ~loc:loc ~category:MessageCategory.Program "Unnecessary assignment to variable '%s', as it is not live at this program point." v.vname; *)
         man.local
       )
     | Mem exp, _ -> 
@@ -188,4 +188,48 @@ struct
 
   let threadenter man man_forw ~multiple lval f args = [man.local]
   let threadspawn man man_forw ~multiple lval f args fman = man.local
+
+  let query man (type a) man_forw (q: a Queries.t): a Queries.result =
+
+    (* Die recursion ist nicht sauber durchdacht *)
+    let rec is_dead_assign man man_forw (lval:lval) (rval:exp) (is_dead:bool) : (D.t * bool) =
+
+      match lval with
+      | Var v, _ ->
+        Logs.debug "D.mem v man.local is %b" (D.mem v man.local);
+        Logs.debug "v.glob is %b" v.vglob;
+        if (D.mem v man.local || v.vglob) then 
+          let rval_vars = D.of_list (vars_from_expr rval man_forw)
+          in
+          (D.union rval_vars (D.diff man.local (D.singleton v)), false)
+        else (
+          Logs.debug "Variable '%s' is not live at this program point." v.vname;
+          (man.local, true)
+        )
+      | Mem exp, _ -> (
+          Logs.debug "lval is expression";
+          let may_point_to = Queries.AD.to_var_may (man_forw.ask (MayPointTo exp)) in
+          let lval_vars = D.of_list (vars_from_expr exp man_forw) in
+          let rval_vars = D.of_list (vars_from_expr rval man_forw) in
+
+          match may_point_to with  (*POSSIBLY UNSOUND: could also be an overapproximation, depending on whether assumption is true*)
+          | [v] ->
+            let rec_assign_result, is_dead = 
+              match (is_dead_assign  man man_forw (Var v, NoOffset) rval is_dead) with 
+              | (res, new_is_dead) -> res, new_is_dead
+            in 
+            (D.union rec_assign_result lval_vars, is_dead)(* We assume that if it my only point to one variable, we can treat this as if we just assigned to that variable*)
+          | _ ->  ((D.union rval_vars (D.union lval_vars man.local)), is_dead)
+        )
+    in 
+
+    let open Queries in
+
+    match q with
+    | IsDeadVar v -> not (D.mem v man.local)
+    | MayBeDeadAssignment lval -> (
+        Logs.debug "Checking if assignment to lval %a may be dead at node %a with local state %a" d_lval lval Node.pretty_trace man.node D.pretty man.local;
+        match is_dead_assign man man_forw lval (Const (CInt (Z.zero, IInt, None))) false with
+        | (_, is_dead) -> Logs.debug "isdead is %b" is_dead ; is_dead )
+    | _ -> Result.top q
 end
