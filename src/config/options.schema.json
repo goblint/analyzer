@@ -886,6 +886,19 @@
                 }
               },
               "additionalProperties": false
+            },
+            "branch": {
+              "title": "ana.base.branch",
+              "type": "object",
+              "properties": {
+                "refine-pointer-by-pointee": {
+                  "title": "ana.base.branch.refine-pointer-by-pointee",
+                  "description": "Refine points-to sets by dereferenced value when branching.",
+                  "type": "boolean",
+                  "default": true
+                }
+              },
+              "additionalProperties": false
             }
           },
           "additionalProperties": false
