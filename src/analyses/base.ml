@@ -1812,7 +1812,7 @@ struct
         effect_on_arrays ask with_dep
       end
 
-  let set_var ~(man: _ man) ?invariant ?blob_destructive ?lval_raw ?rval_raw ?t_override (st: store) (x: Cil.varinfo) ~(lval_type: Cil.typ) (value: value): store =
+  let set_var ~(man: _ man) ?invariant ?blob_destructive ?lval_raw ?rval_raw ?t_override (st: store) (x: Cil.varinfo) ?(lval_type: Cil.typ = x.vtype) (value: value): store = (* TODO: push default lval_type into set_mval *)
     set_mval ~man ?invariant ?blob_destructive ?lval_raw ?rval_raw ?t_override st (x, `NoOffset) ~lval_type value
 
   let set_addr ~(man: _ man) ?invariant ?blob_destructive ?lval_raw ?rval_raw ?t_override (st: store) (x: Addr.t) ~(lval_type: Cil.typ) (value: value): store =
@@ -2058,7 +2058,7 @@ struct
 
   let body man f =
     let init_var (acc: store) v: store =
-      set_var ~man acc v ~lval_type:v.vtype (VD.init_value ~varAttr:v.vattr v.vtype)
+      set_var ~man acc v (VD.init_value ~varAttr:v.vattr v.vtype)
     in
     List.fold_left init_var man.local f.slocals
 
@@ -2082,7 +2082,7 @@ struct
           let t_override = Cilfacade.fundec_return_type fundec in
           assert (not (Cil.isVoidType t_override)); (* Returning a value from a void function, CIL removes the Return expression for us anyway. *)
           let rv = eval_rv ~man man.local exp in
-          let st' = set_var ~man ~t_override nst (return_varinfo ()) ~lval_type:t_override rv in
+          let st' = set_var ~man ~t_override nst (return_varinfo ()) ~lval_type:t_override rv in (* TODO: lval_type is ignored if t_override is provided, so doesn't matter *)
           match ThreadId.get_current ask with
           | `Lifted tid when ThreadReturn.is_current ask ->
             if not (ThreadIdDomain.Thread.is_main tid) then ( (* Only non-main return constitutes an implicit pthread_exit according to man page (https://github.com/goblint/analyzer/issues/1767#issuecomment-3642590227). *)
@@ -2101,7 +2101,7 @@ struct
     else
       let current_value = eval_rv ~man man.local (Lval (Var v, NoOffset)) in
       let new_value = VD.update_array_lengths (eval_rv ~man man.local) current_value v.vtype in
-      set_var ~man man.local v ~lval_type:v.vtype new_value
+      set_var ~man man.local v new_value
 
   (**************************************************************************
    * Function calls
@@ -2843,7 +2843,7 @@ struct
       in
       let rv = ensure_not_zero @@ eval_rv ~man man.local value in
       let t = Cilfacade.typeOf value in
-      set_var ~man ~t_override:t man.local !longjmp_return ~lval_type:t rv (* Not raising Deadcode here, deadcode is raised at a higher level! *)
+      set_var ~man ~t_override:t man.local !longjmp_return ~lval_type:t rv (* Not raising Deadcode here, deadcode is raised at a higher level! *) (* TODO: lval_type is ignored if t_override is provided, so doesn't matter *)
     | Rand, _ ->
       Option.map_default (fun x ->
           let result:value = (Int (ID.starting IInt Z.zero)) in
@@ -3119,7 +3119,7 @@ struct
     let e_d' =
       WideningTokenLifter.with_side_tokens (WideningTokenLifter.TS.of_list uuids) (fun () ->
           CPA.fold (fun x v acc ->
-              set_var ~man ~invariant:false acc x ~lval_type:x.vtype v
+              set_var ~man ~invariant:false acc x v
             ) e_d.cpa man.local
         )
     in
