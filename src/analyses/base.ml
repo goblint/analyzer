@@ -2002,7 +2002,7 @@ struct
               let t = v.vtype in
               let iv = VD.bot_value ~varAttr:v.vattr t in (* correct bottom value for top level variable *)
               if M.tracing then M.tracel "set" "init bot value (%a): %a" d_plaintype t VD.pretty iv;
-              let nv = VD.update_offset (Queries.to_value_domain_ask (Analyses.ask_of_man man)) iv offs rval_val (Some  (Lval lval)) lval t in (* do desired update to value *)
+              let nv = VD.update_offset (Queries.to_value_domain_ask (Analyses.ask_of_man man)) iv offs rval_val (Some  (Lval lval)) lval lval_t in (* do desired update to value *)
               set_savetop ~man  man.local (AD.of_var v) lval_t nv ~lval_raw:lval ~rval_raw:rval (* set top-level variable to updated value *)
             | _ ->
               set_savetop ~man man.local lval_val lval_t rval_val ~lval_raw:lval ~rval_raw:rval
