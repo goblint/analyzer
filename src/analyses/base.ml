@@ -586,7 +586,9 @@ struct
    * the pointer arguments. *)
   let get_ptrs (vals: value list): address =
     let f acc (x:value) = match x with
-      | Address adrs when AD.is_top adrs -> acc (* TODO: keep Addrs *)
+      | Address adrs when AD.is_top adrs ->
+        M.info ~category:Unsound "Unknown address given as function argument"; 
+        acc (* TODO: keep Addrs *)
       | Address adrs when AD.to_var_may adrs = [] -> acc
       | Address adrs ->
         let typ = AD.type_of adrs in
