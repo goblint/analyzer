@@ -19,6 +19,18 @@ type unknownKind =
   | Unknown
 [@@deriving eq, ord, hash]
 
+let show_unknownKind = function
+  | Cast -> "Cast"
+  | Invalidate -> "Invalidate"
+  | Join -> "Join"
+  | Null -> "Null"
+  | PointerArithmetic -> "PointerArithmetic"
+  | String -> "String"
+  | TypeMismatch -> "TypeMismatch"
+  | Uninitialized -> "Uninitialized"
+  | Union -> "Union"
+  | Unknown -> "Unknown"
+
 type unknownOrigin = {
   node : Node.t option;
   kind : unknownKind;
@@ -39,8 +51,8 @@ struct
   let show = function
     | Addr m -> Mval.show m
     | StrPtr s   -> StringDomain.show s
-    | UnknownPtr {node = Some node; _} -> "? origin:" ^ Node.show node
-    | UnknownPtr {node = None; _} -> "?"
+    | UnknownPtr {node = Some node; kind} -> "? (kind:" ^ show_unknownKind kind ^ " origin:" ^ Node.show node ^ ")"
+    | UnknownPtr {node = None; kind} -> "? (kind:" ^ show_unknownKind kind ^ ")"
     | NullPtr    -> "NULL"
 
   include Printable.SimpleShow (
@@ -434,7 +446,10 @@ struct
   let unknownptrs_origins doc ad =
     fold (fun addr acc ->
         match addr with
-        | Addr.UnknownPtr {node = Some node; _} -> (doc, Some (M.Location.Node node)) :: acc
+        | Addr.UnknownPtr {node = Some node; kind} ->
+          let label = GobPretty.show doc in
+          let doc = Pretty.dprintf "%s (kind:%s, node:%s)" label (show_unknownKind kind) (Node.show node) in
+          (doc, Some (M.Location.Node node)) :: acc
         | _ -> acc
       ) ad []
 end
