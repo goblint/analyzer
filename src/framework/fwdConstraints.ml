@@ -400,8 +400,11 @@ struct
           let return_unknown = target_unknown d in
           S.LVarSet.add return_unknown set
         in
-        let return_collector = GVar.return (fd, x.context, x.original_digest) in
+
+        (* Set of return unkonwns, split by current digest, that this transfer function contributes to. *)
         let return_set = List.fold add_entry set r |> G.create_return in
+        (* Unknown, consisting of function, context and original (calling) digest, where the possible unknowns, split by current digest, are collected *)
+        let return_collector = GVar.return (fd, x.context, x.original_digest) in
         sideg return_collector return_set
       | Test (e,b)     ->
         let r = tf_test x edge target_node e b getl sidel getg sideg d in
