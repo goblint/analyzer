@@ -125,7 +125,7 @@ struct
       in
       bigsqcup (List.map one_spawn spawns)
 
-  (** Handle *)
+  (** Handle thread spawns for the provided state and the list of splits *)
   let map_thread_spawns man d splits spawns =
     let ds = d :: splits in
     List.map (fun d -> thread_spawns man d spawns) ds
