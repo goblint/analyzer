@@ -20,7 +20,8 @@ int main() {
   res = 8 << 0; //NOWARN
   res = 8 >> 0; //NOWARN
 
-  // Possibly negative shift amount (top): warn
+  // Possibly negative shift amount: warn
+  // (top is uninitialized, representing a non-deterministic value — a common convention in goblint tests)
   if (top) { neg = -1; } else { neg = 1; }
   res = 8 << neg; //WARN
   res = 8 >> neg; //WARN

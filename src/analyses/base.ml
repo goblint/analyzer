@@ -227,13 +227,10 @@ struct
     (* Classify the shift amount as definitely non-negative, definitely negative,
        or possibly negative, to check for undefined behavior. *)
     let shift_amount_negcheck y =
-      match ID.minimal y with
-      | Some min_y when Z.geq min_y Z.zero -> `NonNeg
-      | _ ->
-        begin match ID.maximal y with
-        | Some max_y when Z.lt max_y Z.zero -> `Neg
-        | _ -> `MayNeg
-        end
+      match ID.minimal y, ID.maximal y with
+      | Some min_y, _ when Z.geq min_y Z.zero -> `NonNeg
+      | _, Some max_y when Z.lt max_y Z.zero -> `Neg
+      | _ -> `MayNeg
     in
     function
     | PlusA -> ID.add
