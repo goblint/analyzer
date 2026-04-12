@@ -35,7 +35,7 @@ To use one of the pre-defined configurations, run:
 In some cases, when using the default configuration, Goblint might not terminate in reasonable time on recursive programs, or
 crash in a stack overflow (indicated by the error message `exception Stack overflow`). If the stack overflow occurs within a C function called by Goblint, it will result in the following error message: `Command terminated by signal 11`.
 
-The recommended way to handle this is to use context gas [(Schwarz et al., 2024)](https://dl.acm.org/doi/10.1145/3652588.3663321), which limits the number of context-sensitive function calls in a call stack.
+The recommended way to handle this is to use context gas [(Erhard et al., 2024)](https://dl.acm.org/doi/10.1145/3652588.3663321), which limits the number of context-sensitive function calls in a call stack.
 Any calls beyond the limit are analyzed context-insensitively (with an empty context).
 Setting the option `--set ana.context.gas_value N` (where `N` is a non-negative integer) enables context gas.
 A higher value of `N` gives a more precise analysis, while a lower value reduces the risk of stack overflows and non-termination.
