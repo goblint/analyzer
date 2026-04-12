@@ -223,7 +223,19 @@ struct
     | Bot -> Bot
     | _ -> VD.top ()
 
-  let binop_ID (result_ik: Cil.ikind) = function
+  let binop_ID (result_ik: Cil.ikind) =
+    (* Classify the shift amount as definitely non-negative, definitely negative,
+       or possibly negative, to check for undefined behavior. *)
+    let shift_amount_negcheck y =
+      match ID.minimal y with
+      | Some min_y when Z.geq min_y Z.zero -> `NonNeg
+      | _ ->
+        begin match ID.maximal y with
+        | Some max_y when Z.lt max_y Z.zero -> `Neg
+        | _ -> `MayNeg
+        end
+    in
+    function
     | PlusA -> ID.add
     | MinusA -> ID.sub
     | Mult -> ID.mul
@@ -265,8 +277,30 @@ struct
     | BAnd -> ID.logand
     | BOr -> ID.logor
     | BXor -> ID.logxor
-    | Shiftlt -> ID.shift_left
-    | Shiftrt -> ID.shift_right
+    | Shiftlt ->
+      fun x y ->
+        (* If the shift amount is negative, the result is undefined behavior in C *)
+        (match shift_amount_negcheck y with
+         | `NonNeg -> Checks.safe Checks.Category.InvalidShift
+         | `Neg ->
+           M.error ~category:M.Category.Integer.overflow ~tags:[CWE 758] "Shift-left by negative amount is undefined behavior";
+           Checks.error Checks.Category.InvalidShift "Shift-left by negative amount is undefined behavior"
+         | `MayNeg ->
+           M.warn ~category:M.Category.Integer.overflow ~tags:[CWE 758] "Shift-left by possibly negative amount may be undefined behavior";
+           Checks.warn Checks.Category.InvalidShift "Shift-left by possibly negative amount may be undefined behavior");
+        ID.shift_left x y
+    | Shiftrt ->
+      fun x y ->
+        (* If the shift amount is negative, the result is undefined behavior in C *)
+        (match shift_amount_negcheck y with
+         | `NonNeg -> Checks.safe Checks.Category.InvalidShift
+         | `Neg ->
+           M.error ~category:M.Category.Integer.overflow ~tags:[CWE 758] "Shift-right by negative amount is undefined behavior";
+           Checks.error Checks.Category.InvalidShift "Shift-right by negative amount is undefined behavior"
+         | `MayNeg ->
+           M.warn ~category:M.Category.Integer.overflow ~tags:[CWE 758] "Shift-right by possibly negative amount may be undefined behavior";
+           Checks.warn Checks.Category.InvalidShift "Shift-right by possibly negative amount may be undefined behavior");
+        ID.shift_right x y
     | LAnd -> id_binary_log (&&) ~annihilator:false result_ik
     | LOr -> id_binary_log (||) ~annihilator:true result_ik
     | b -> (fun x y -> (ID.top_of result_ik))
