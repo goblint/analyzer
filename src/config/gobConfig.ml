@@ -279,7 +279,7 @@ struct
 
   (** Set of config paths (trimmed strings) that have been read via [get_*_analysis].
       If any of these paths are subsequently modified via [set_*], [UsedForAnalysis] is raised. *)
-  let analysis_reads : (string, unit) Hashtbl.t = Hashtbl.create 17
+  let analysis_reads : (string, unit) Hashtbl.t = Hashtbl.create 5 (* uses hashtable; fine since our options are bounded *)
 
   exception UsedForAnalysis of string
 
