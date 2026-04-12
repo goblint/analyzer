@@ -70,6 +70,8 @@ struct
     PrivD.pretty () r.priv
     ++ text ")"
 
+  let pp ppf r = Format.pp_print_string ppf (show r)
+
   let printXml f r =
     let e = XmlUtil.escape in
     BatPrintf.fprintf f "<value>\n<map>\n<key>\n%s\n</key>\n%a<key>\n%s\n</key>\n%a<key>\n%s\n</key>\n%a\n<key>\n%s\n</key>\n%a</map>\n</value>\n"

@@ -118,7 +118,7 @@ struct
 
   let to_varinfo v =
     let res = VarVarinfoMap.to_varinfo v in
-    if M.tracing then M.trace "c2po-varinfo" "to_varinfo: %a -> %a" d_type (get_type v) d_type res.vtype;
+    if M.tracing then M.trace "c2po-varinfo" "to_varinfo: %a -> %a" CilType.Typ.pp (get_type v) CilType.Typ.pp res.vtype;
     res
 
 end

@@ -408,7 +408,7 @@ class copyandPatchLabelsVisitor(loopEnd, currentIterationEnd, gotos) = object
       (* this makes new physical copy*)
       let new_s = {sn with labels = new_labels} in
       CopyOfHashTable.replace copyof new_s s;
-      if M.tracing then M.trace "cfg" "Marking %a as copy of %a" CilType.Stmt.pretty new_s CilType.Stmt.pretty s;
+      if M.tracing then M.trace "cfg" "Marking %a as copy of %a" CilType.Stmt.pp new_s CilType.Stmt.pp s;
       if new_s.labels <> [] then
         (* Use original s, ns might be temporay e.g. if the type of statement changed *)
         (* record that goto s; appearing in the current fragment should later be patched to goto new_s *)

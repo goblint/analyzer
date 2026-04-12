@@ -201,6 +201,7 @@ struct
       "⊤"
     else
       I.show x.v  (* TODO add ikind to output *)
+  let pp ppf x = Format.pp_print_string ppf (show x)
   let pretty () x =
     if not (GobConfig.get_bool "dbg.full-output") && I.is_top_of x.ikind x.v then
       Pretty.text "⊤"
@@ -306,7 +307,7 @@ module Size = struct (* size in bits as int, range as int64 *)
   let is_cast_injective ~from_type ~to_type =
     let (from_min, from_max) = range (Cilfacade.get_ikind from_type) in
     let (to_min, to_max) = range (Cilfacade.get_ikind to_type) in
-    if M.tracing then M.trace "int" "is_cast_injective %a (%a, %a) -> %a (%a, %a)" CilType.Typ.pretty from_type GobZ.pretty from_min GobZ.pretty from_max CilType.Typ.pretty to_type GobZ.pretty to_min GobZ.pretty to_max;
+    if M.tracing then M.trace "int" "is_cast_injective %a (%a, %a) -> %a (%a, %a)" CilType.Typ.pp from_type GobZ.pp from_min GobZ.pp from_max CilType.Typ.pp to_type GobZ.pp to_min GobZ.pp to_max;
     Z.compare to_min from_min <= 0 && Z.compare from_max to_max <= 0
 
   let cast t x = (* TODO: overflow is implementation-dependent! *)
@@ -321,7 +322,7 @@ module Size = struct (* size in bits as int, range as int64 *)
         else if Z.lt y a then Z.add y c
         else y
       in
-      if M.tracing then M.tracel "cast" "Cast %a to range [%a, %a] (%a) = %a (%s in int64)" GobZ.pretty x GobZ.pretty a GobZ.pretty b GobZ.pretty c GobZ.pretty y (if is_int64_big_int y then "fits" else "does not fit");
+      if M.tracing then M.tracel "cast" "Cast %a to range [%a, %a] (%a) = %a (%s in int64)" GobZ.pp x GobZ.pp a GobZ.pp b GobZ.pp c GobZ.pp y (if is_int64_big_int y then "fits" else "does not fit");
       y
 
   (** @return Bit range always includes 0. *)

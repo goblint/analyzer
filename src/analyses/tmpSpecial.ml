@@ -22,7 +22,7 @@ struct
 
   (* transfer functions *)
   let assign man (lval:lval) (rval:exp) : D.t =
-    if M.tracing then M.tracel "tmpSpecial" "assignment of %a" d_lval lval;
+    if M.tracing then M.tracel "tmpSpecial" "assignment of %a" CilType.Lval.pp lval;
     (* Invalidate all entrys from the map that are possibly written by the assignment *)
     invalidate (Analyses.ask_of_man man) (mkAddrOf lval) man.local
 
@@ -41,7 +41,7 @@ struct
     (* Just dbg prints *)
     (if M.tracing then
        match lval with
-       | Some lv -> if M.tracing then M.tracel "tmpSpecial" "Special: %s with lval %a" f.vname d_lval lv
+       | Some lv -> if M.tracing then M.tracel "tmpSpecial" "Special: %s with lval %a" f.vname CilType.Lval.pp lv
        | _ -> if M.tracing then M.tracel "tmpSpecial" "Special: %s" f.vname);
 
 
@@ -73,7 +73,7 @@ struct
 
     in
 
-    if M.tracing then M.tracel "tmpSpecial" "Result: %a" D.pretty d;
+    if M.tracing then M.tracel "tmpSpecial" "Result: %a" D.pp d;
     d
 
 

@@ -146,7 +146,7 @@ struct
         | Target (target_node, target_context) ->
           let target_fundec = Node.find_fundec target_node in
           if CilType.Fundec.equal target_fundec current_fundec && ControlSpecC.equal target_context (man.control_context ()) then (
-            if M.tracing then Messages.tracel "longjmp" "Fun: Potentially from same context, side-effect to %a" Node.pretty target_node;
+            if M.tracing then Messages.tracel "longjmp" "Fun: Potentially from same context, side-effect to %a" Node.pp target_node;
             man.sideg (V.longjmpto (target_node, man.context ())) (G.create_local (Lazy.force combined))
             (* No need to propagate this outwards here, the set of valid longjumps is part of the context, we can never have the same context setting the longjmp multiple times *)
           )
@@ -160,9 +160,9 @@ struct
       in
       JmpBufDomain.JmpBufSet.iter handle_target active_targets
     in
-    if M.tracing then M.tracel "longjmp" "longfd getg %a" CilType.Fundec.pretty f;
+    if M.tracing then M.tracel "longjmp" "longfd getg %a" CilType.Fundec.pp f;
     let longfd = G.local (man.global (V.longjmpret (f, Option.get fc))) in
-    if M.tracing then M.tracel "longjmp" "longfd %a" D.pretty longfd;
+    if M.tracing then M.tracel "longjmp" "longfd %a" D.pp longfd;
     if not (D.is_bot longfd) then
       handle_longjmp (man.local, fc, longfd);
     S.combine_env (conv_man) lv e f args fc fd f_ask
@@ -215,7 +215,7 @@ struct
         (* Eval `env` again to avoid having to construct bespoke man to ask *)
         let targets = path_man.ask (EvalJumpBuf env) in
         let valid_targets = path_man.ask ValidLongJmp in
-        if M.tracing then Messages.tracel "longjmp" "Jumping to %a" JmpBufDomain.JmpBufSet.pretty targets;
+        if M.tracing then Messages.tracel "longjmp" "Jumping to %a" JmpBufDomain.JmpBufSet.pp targets;
         let handle_target target = match target with
           | JmpBufDomain.BufferEntryOrTop.AllTargets ->
             M.warn ~category:Imprecise "Longjmp to potentially invalid target, as contents of buffer %a may be unknown! (imprecision due to heap?)" d_exp env;
@@ -223,7 +223,7 @@ struct
           | Target (target_node, target_context) ->
             let target_fundec = Node.find_fundec target_node in
             if CilType.Fundec.equal target_fundec current_fundec && ControlSpecC.equal target_context (man.control_context ()) then (
-              if M.tracing then Messages.tracel "longjmp" "Potentially from same context, side-effect to %a" Node.pretty target_node;
+              if M.tracing then Messages.tracel "longjmp" "Potentially from same context, side-effect to %a" Node.pp target_node;
               man.sideg (V.longjmpto (target_node, man.context ())) (G.create_local (Lazy.force specialed))
             )
             else if JmpBufDomain.JmpBufSet.mem target valid_targets then (

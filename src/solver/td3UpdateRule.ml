@@ -124,11 +124,11 @@ module Narrow:S =
               )
             ) new_acc;
         and divided_side (phase:divided_side_mode) x y d: bool =
-          if tracing then trace "side" "divided side to %a from %a ## value: %a" S.Var.pretty_trace y S.Var.pretty_trace x S.Dom.pretty d;
-          if tracing then trace "sol2" "divided side to %a from %a ## value: %a" S.Var.pretty_trace y S.Var.pretty_trace x S.Dom.pretty d;
+          if tracing then trace "side" "divided side to %a from %a ## value: %a" S.Var.pp_trace y S.Var.pp_trace x S.Dom.pp d;
+          if tracing then trace "sol2" "divided side to %a from %a ## value: %a" S.Var.pp_trace y S.Var.pp_trace x S.Dom.pp d;
           assert_can_receive_side y;
           init y;
-          if tracing then trace "sol2" "stable add %a" S.Var.pretty_trace y;
+          if tracing then trace "sol2" "stable add %a" S.Var.pp_trace y;
           HM.replace stable y ();
 
           let sided = GobOption.exists (VS.mem x) (HM.find_option sides y) in
@@ -169,7 +169,7 @@ module Narrow:S =
             in
 
             if not (S.Dom.equal old_side new_side) then (
-              if tracing then trace "side" "divided side to %a from %a changed (phase: %s) Old value: %a ## New value: %a" S.Var.pretty_trace y S.Var.pretty_trace x (show_divided_side_mode phase) S.Dom.pretty old_side S.Dom.pretty new_side;
+              if tracing then trace "side" "divided side to %a from %a changed (phase: %s) Old value: %a ## New value: %a" S.Var.pp_trace y S.Var.pp_trace x (show_divided_side_mode phase) S.Dom.pp old_side S.Dom.pp new_side;
 
               if S.Dom.is_bot new_side && narrow_gas = None then
                 HM.remove y_sides x
@@ -192,7 +192,7 @@ module Narrow:S =
               in
               if not (S.Dom.equal y_newval y_oldval) then (
                 if tracing then trace "side" "value of %a changed by side from %a (phase: %s) Old value: %a ## New value: %a"
-                    S.Var.pretty_trace y S.Var.pretty_trace x (show_divided_side_mode phase) S.Dom.pretty y_oldval S.Dom.pretty y_newval;
+                    S.Var.pp_trace y S.Var.pp_trace x (show_divided_side_mode phase) S.Dom.pp y_oldval S.Dom.pp y_newval;
                 HM.replace rho y y_newval;
                 destabilize y;
               );

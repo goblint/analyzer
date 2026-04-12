@@ -47,6 +47,9 @@ let pretty () = function
   | Skip -> Pretty.text "skip"
   | VDecl v -> Cil.defaultCilPrinter#pVDecl () v
 
+let show x = GobPretty.sprint pretty x
+let pp ppf x = Format.pp_print_string ppf (show x)
+
 let pretty_plain () = function
   | Assign (lv,rv) -> dprintf "Assign '%a = %a' " d_lval lv d_exp rv
   | Proc (None  ,f,ars) -> dprintf "Proc '%a(%a)'" d_exp f (d_list ", " d_exp) ars

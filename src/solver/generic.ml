@@ -46,7 +46,7 @@ struct
   let increase (v:Var.t) =
     let set v c =
       if not full_trace && (c > start_c && c > !max_c && not (GobOption.exists (Var.equal v) !max_var)) then begin
-        if tracing then trace "sol" "Switched tracing to %a" Var.pretty_trace v;
+        if tracing then trace "sol" "Switched tracing to %a" Var.pp_trace v;
         max_c := c;
         max_var := Some v
       end
@@ -64,20 +64,20 @@ struct
 
   let new_var_event x =
     incr SolverStats.vars;
-    if tracing then trace "sol" "New %a" Var.pretty_trace x
+    if tracing then trace "sol" "New %a" Var.pp_trace x
 
   let get_var_event x =
-    if tracing && full_trace then trace "sol" "Querying %a" Var.pretty_trace x
+    if tracing && full_trace then trace "sol" "Querying %a" Var.pp_trace x
 
   let eval_rhs_event x =
-    if tracing && full_trace then trace "sol" "(Re-)evaluating %a" Var.pretty_trace x;
+    if tracing && full_trace then trace "sol" "(Re-)evaluating %a" Var.pp_trace x;
     incr SolverStats.evals;
     if (get_bool "dbg.solver-progress") then (incr stack_d; Logs.debug "%d" !stack_d)
 
   let update_var_event x o n =
     if tracing then increase x;
     if full_trace || (not (Dom.is_bot o) && GobOption.exists (Var.equal x) !max_var) then begin
-      if tracing then tracei "sol_max" "(%d) Update to %a" !max_c Var.pretty_trace x;
+      if tracing then tracei "sol_max" "(%d) Update to %a" !max_c Var.pp_trace x;
       if tracing then traceu "sol_max" "%a" Dom.pretty_diff (n, o)
     end
 

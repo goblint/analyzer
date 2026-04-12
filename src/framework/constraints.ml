@@ -188,8 +188,8 @@ struct
 
   let tf_normal_call man lv e (f:fundec) args getl sidel demandl getg sideg =
     let combine (cd, fc, fd) =
-      if M.tracing then M.traceli "combine" "local: %a" S.D.pretty cd;
-      if M.tracing then M.trace "combine" "function: %a" S.D.pretty fd;
+      if M.tracing then M.traceli "combine" "local: %a" S.D.pp cd;
+      if M.tracing then M.trace "combine" "function: %a" S.D.pp fd;
       let rec cd_man =
         { man with
           ask = (fun (type a) (q: a Queries.t) -> S.query cd_man q);
@@ -236,7 +236,7 @@ struct
           S.D.join acc (S.combine_assign combine_assign_man lv e f args fc fd1_man.local (Analyses.ask_of_man fd1_man))
         ) (S.D.bot ()) (S.paths_as_set fd_man)
       in
-      if M.tracing then M.traceu "combine" "combined local: %a" S.D.pretty r;
+      if M.tracing then M.traceu "combine" "combined local: %a" S.D.pp r;
       r
     in
     let paths = S.enter man lv f args in
@@ -249,7 +249,7 @@ struct
     if M.tracing then M.traceli "combine" "combining";
     let paths = List.map combine paths in
     let r = List.fold_left D.join (D.bot ()) paths in
-    if M.tracing then M.traceu "combine" "combined: %a" S.D.pretty r;
+    if M.tracing then M.traceu "combine" "combined: %a" S.D.pp r;
     r
 
 

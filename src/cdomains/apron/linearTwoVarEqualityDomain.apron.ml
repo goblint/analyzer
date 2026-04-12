@@ -328,7 +328,7 @@ struct
 
   let simplified_monomials_from_texp (t: t) texp =
     let res = simplified_monomials_from_texp t texp in
-    if M.tracing then M.tracel "from_texp" "%s %a -> %s" (EConj.show @@ snd @@ BatOption.get t.d) Texpr1.Expr.pretty texp
+    if M.tracing then M.tracel "from_texp" "%s %a -> %s" (EConj.show @@ snd @@ BatOption.get t.d) Texpr1.Expr.pp texp
         (BatOption.map_default (fun (l,(o,d)) -> List.fold_right (fun (a,x,b) acc -> Printf.sprintf "%s*var_%d/%s + %s" (Z.to_string a) x (Z.to_string b) acc) l ((Z.to_string o)^"/"^(Z.to_string d))) "" res);
     res
 
@@ -358,7 +358,7 @@ struct
     else
       match simplify_to_ref_and_offset t (Texpr1.to_expr texpr) with
       | Some (None, offset, divisor) when Z.equal (Z.rem offset divisor) Z.zero -> let res = Z.div offset divisor in
-        (if M.tracing then M.tracel "bounds" "min: %a max: %a" GobZ.pretty res GobZ.pretty res;
+        (if M.tracing then M.tracel "bounds" "min: %a max: %a" GobZ.pp res GobZ.pp res;
          Some res, Some res)
       | _ -> None, None
 
@@ -424,6 +424,7 @@ struct
         EConj.show_formatted (show_var varM.env) (snd arr) ^ (to_subscript @@ fst arr)
 
   let pretty () (x:t) = text (show x)
+  let pp ppf x = Format.pp_print_string ppf (show x)
   let printXml f x = BatPrintf.fprintf f "<value>\n<map>\n<key>\nequalities\n</key>\n<value>\n%s</value>\n<key>\nenv\n</key>\n<value>\n%a</value>\n</map>\n</value>\n" (XmlUtil.escape (show x)) Environment.printXml x.env
   let eval_interval ask = Bounds.bound_texpr
 
@@ -646,7 +647,7 @@ struct
 
   let assign_var t v v' =
     let res = assign_var t v v' in
-    if M.tracing then M.tracel "ops" "assign_var t:\n %s \n v: %a \n v': %a\n -> %s" (show t) Var.pretty v Var.pretty v' (show res);
+    if M.tracing then M.tracel "ops" "assign_var t:\n %s \n v: %a \n v': %a\n -> %s" (show t) Var.pp v Var.pp v' (show res);
     res
 
   (** Parallel assignment of variables.
@@ -699,7 +700,7 @@ struct
 
   let substitute_exp ask t var exp no_ov =
     let res = substitute_exp ask t var exp no_ov in
-    if M.tracing then M.tracel "ops" "Substitute_expr t: \n %s \n var: %a \n exp: %a \n -> \n %s" (show t) Var.pretty var d_exp exp (show res);
+    if M.tracing then M.tracel "ops" "Substitute_expr t: \n %s \n var: %a \n exp: %a \n -> \n %s" (show t) Var.pp var CilType.Exp.pp exp (show res);
     res
 
   let substitute_exp ask t var exp no_ov = Timing.wrap "substitution" (substitute_exp ask t var exp) no_ov
@@ -754,7 +755,7 @@ struct
           | _ -> t (* For equalities of more then 2 vars we just return t *))
 
   let meet_tcons ask t tcons original_expr no_ov  =
-    if M.tracing then M.tracel "meet_tcons" "meet_tcons with expr: %a no_ov:%b" d_exp original_expr (Lazy.force no_ov);
+    if M.tracing then M.tracel "meet_tcons" "meet_tcons with expr: %a no_ov:%b" CilType.Exp.pp original_expr (Lazy.force no_ov);
     meet_tcons ask t tcons original_expr no_ov
 
   let meet_tcons t tcons expr = Timing.wrap "meet_tcons" (meet_tcons t tcons) expr

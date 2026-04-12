@@ -316,7 +316,7 @@ struct
           else (Messages.warn ~category:Analyzer ~msg:("Keep " ^sprint 80 (Exp.pretty () a)^" because of "^sprint 80 (Exp.pretty () b)) (); r)
           Messages.warn ~category:Analyzer ~msg:(sprint 80 (Exp.pretty () b) ^" changed lvalues: "^sprint 80 (Queries.LS.pretty () bls)) ();
     *)
-    if M.tracing then M.tracel "var_eq" "may_change %a %a = %B" CilType.Exp.pretty b CilType.Exp.pretty a r;
+    if M.tracing then M.tracel "var_eq" "may_change %a %a = %B" CilType.Exp.pp b CilType.Exp.pp a r;
     r
 
   (* Remove elements, that would change if the given lval would change.*)
@@ -372,8 +372,8 @@ struct
     let lvt = unrollType @@ Cilfacade.typeOfLval lv in
     if M.tracing then (
       M.tracel "var_eq" "add_eq is_global_var %a = %B" d_plainlval lv (is_global_var ask (Lval lv) = Some false);
-      M.tracel "var_eq" "add_eq interesting %a = %B" d_plainexp rv (interesting rv);
-      M.tracel "var_eq" "add_eq is_global_var %a = %B" d_plainexp rv (is_global_var ask rv = Some false);
+      M.tracel "var_eq" "add_eq interesting %a = %B" CilType.Exp.pp rv (interesting rv);
+      M.tracel "var_eq" "add_eq is_global_var %a = %B" CilType.Exp.pp rv (is_global_var ask rv = Some false);
       M.tracel "var_eq" "add_eq type %a = %B" d_plainlval lv (isIntegralType lvt || isPointerType lvt);
     );
     if is_global_var ask (Lval lv) = Some false
@@ -493,7 +493,7 @@ struct
 
   let remove_reachable ~deep ask es st =
     let rs = reachables ~deep ask es in
-    if M.tracing then M.tracel "var_eq" "remove_reachable %a: %a" (Pretty.d_list ", " d_exp) es AD.pretty rs;
+    if M.tracing then M.tracel "var_eq" "remove_reachable %a: %a" (Pretty.d_list ", " CilType.Exp.pp) es AD.pp rs;
     (* Prior to https://github.com/goblint/analyzer/pull/694 checks were done "in the other direction":
        each expression in st was checked for reachability from es/rs using very conservative but also unsound reachable_from.
        It is unknown, why that was necessary. *)
@@ -550,7 +550,7 @@ struct
       D.B.fold add es (Queries.ES.empty ())
 
   let rec eq_set_clos e s =
-    if M.tracing then M.traceli "var_eq" "eq_set_clos %a" d_plainexp e;
+    if M.tracing then M.traceli "var_eq" "eq_set_clos %a" CilType.Exp.pp e;
     let r = match e with
       | AddrOf (Mem (BinOp (IndexPI, a, i, _)), os) ->
         (* convert IndexPI to Index offset *)
@@ -586,7 +586,7 @@ struct
       | CastE (k,t,e) ->
         Queries.ES.map (fun e -> CastE (k,t,e)) (eq_set_clos e s)
     in
-    if M.tracing then M.traceu "var_eq" "eq_set_clos %a = %a" d_plainexp e Queries.ES.pretty r;
+    if M.tracing then M.traceu "var_eq" "eq_set_clos %a = %a" CilType.Exp.pp e Queries.ES.pp r;
     r
 
 
@@ -596,7 +596,7 @@ struct
       Queries.ID.of_bool (Cilfacade.get_ikind t) true
     | Queries.EqualSet e ->
       let r = eq_set_clos e man.local in
-      if M.tracing then M.tracel "var_eq" "equalset %a = %a" d_plainexp e Queries.ES.pretty r;
+      if M.tracing then M.tracel "var_eq" "equalset %a = %a" CilType.Exp.pp e Queries.ES.pp r;
       r
     | Queries.Invariant context when GobConfig.get_bool "ana.var_eq.invariant.enabled" && GobConfig.get_bool "witness.invariant.exact" -> (* only exact equalities here *)
       let scope = Node.find_fundec man.node in

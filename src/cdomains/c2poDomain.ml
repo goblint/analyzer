@@ -281,7 +281,7 @@ module D = struct
   (** Remove terms from the data structure.
       It removes all terms that may point to one of the tainted addresses.*)
   let remove_tainted_terms ask address cc =
-    if M.tracing then M.tracel "c2po-tainted" "remove_tainted_terms: %a\n" MayBeEqual.AD.pretty address;
+    if M.tracing then M.tracel "c2po-tainted" "remove_tainted_terms: %a\n" MayBeEqual.AD.pp address;
     let may_be_tainted =
       MayBeEqual.may_point_to_one_of_these_addresses ask address cc
     in

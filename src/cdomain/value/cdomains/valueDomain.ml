@@ -337,6 +337,8 @@ struct
     | Bot -> bot_name
     | Top -> top_name
 
+  let pp ppf x = Format.pp_print_string ppf (show x)
+
   let pretty_diff () (x,y) =
     match (x,y) with
     | (Int x, Int y) -> ID.pretty_diff () (x,y)
@@ -471,7 +473,7 @@ struct
       | x -> x (* TODO we should also keep track of the type here *)
     in
     let a' = AD.map one_addr a in
-    if M.tracing then M.tracel "cast" "cast_addr %a to %a is %a!" AD.pretty a d_type t AD.pretty a';
+    if M.tracing then M.tracel "cast" "cast_addr %a to %a is %a!" AD.pp a CilType.Typ.pp t AD.pp a';
     a'
 
   (* this is called for:
@@ -488,7 +490,7 @@ struct
     | JmpBuf _ ->
       v
     | _ ->
-      let log_top (_,l,_,_) = if Messages.tracing then Messages.tracel "cast" "log_top at %d: %a to %a is top!" l pretty v d_type t in
+      let log_top (_,l,_,_) = if Messages.tracing then Messages.tracel "cast" "log_top at %d: %a to %a is top!" l pretty v CilType.Typ.pp t in
       let t = unrollType t in
       let v' = match t with
         | TInt (ik,_) ->
@@ -564,7 +566,7 @@ struct
           log_top __POS__; Top
         | _ -> log_top __POS__; assert false
       in
-      if Messages.tracing then Messages.tracel "cast" "cast %a to %a is %a!" pretty v d_type t pretty v';
+      if Messages.tracing then Messages.tracel "cast" "cast %a to %a is %a!" pretty v CilType.Typ.pp t pretty v';
       v'
 
 
@@ -903,7 +905,7 @@ struct
   (* Funny, this does not compile without the final type annotation! *)
   let rec eval_offset (ask: VDQ.t) f (x: t) (offs:offs) (exp:exp option) (v:lval option) (t:typ): t =
     let rec do_eval_offset (x:t) (offs:offs) (l:lval option) (o:offset option): t =
-      if M.tracing then M.traceli "eval_offset" "do_eval_offset %a %a (%a)" pretty x Offs.pretty offs (Pretty.docOpt (CilType.Exp.pretty ())) exp;
+      if M.tracing then M.traceli "eval_offset" "do_eval_offset %a %a (%a)" pretty x Offs.pp offs (Pretty.docOpt (CilType.Exp.pp ())) exp;
       let r =
         match x, offs with
         | Blob((va, _, zeroinit) as c), `Index (_, ox) ->
@@ -979,7 +981,7 @@ struct
 
   let update_offset ?(blob_destructive=false) (ask: VDQ.t) (x:t) (offs:offs) (value:t) (exp:exp option) (v:lval) (t:typ): t =
     let rec do_update_offset ?(bitfield:int option=None) (x:t) (offs:offs) (l:lval option) (o:offset option) (t:typ):t = (* TODO: why does inner t argument change here, but not in eval_offset? *)
-      if M.tracing then M.traceli "update_offset" "do_update_offset %a %a (%a) %a" pretty x Offs.pretty offs (Pretty.docOpt (CilType.Exp.pretty ())) exp pretty value;
+      if M.tracing then M.traceli "update_offset" "do_update_offset %a %a (%a) %a" pretty x Offs.pp offs (Pretty.docOpt (CilType.Exp.pp ())) exp pretty value;
       let mu = function Blob (Blob (y, s', zeroinit), s, _) -> Blob (y, ID.join s s', zeroinit) | x -> x in
       let r =
         match x, offs with

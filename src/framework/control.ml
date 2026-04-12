@@ -291,7 +291,7 @@ struct
     let gh = GHT.create 13 in
     let getg v = GHT.find_default gh v (EQSys.G.bot ()) in
     let sideg v d =
-      if M.tracing then M.trace "global_inits" "sideg %a = %a" EQSys.GVar.pretty v EQSys.G.pretty d;
+      if M.tracing then M.trace "global_inits" "sideg %a = %a" EQSys.GVar.pp v EQSys.G.pp d;
       GHT.replace gh v (EQSys.G.join (getg v) d)
     in
     (* Old-style global function for context.
@@ -320,15 +320,15 @@ struct
       let funs = ref [] in
       (*let count = ref 0 in*)
       let transfer_func (st : Spec.D.t) (loc, edge) : Spec.D.t =
-        if M.tracing then M.trace "con" "Initializer %a" CilType.Location.pretty loc;
+        if M.tracing then M.trace "con" "Initializer %a" CilType.Location.pp loc;
         (*incr count;
           if (get_bool "dbg.verbose")&& (!count mod 1000 = 0)  then Printf.printf "%d %!" !count;    *)
         match edge with
         | MyCFG.Entry func        ->
-          if M.tracing then M.trace "global_inits" "Entry %a" d_lval (var func.svar);
+          if M.tracing then M.trace "global_inits" "Entry %a" CilType.Lval.pp (var func.svar);
           Spec.body {man with local = st} func
         | MyCFG.Assign (lval,exp) ->
-          if M.tracing then M.trace "global_inits" "Assign %a = %a" d_lval lval d_exp exp;
+          if M.tracing then M.trace "global_inits" "Assign %a = %a" CilType.Lval.pp lval CilType.Exp.pp exp;
           begin match lval, exp with
             | (Var v,o), (AddrOf (Var f,NoOffset))
               when v.vstorage <> Static && isFunctionType f.vtype ->
@@ -338,7 +338,7 @@ struct
           let res = Spec.assign {man with local = st} lval exp in
           (* Needed for privatizations (e.g. None) that do not side immediately *)
           let res' = Spec.sync {man with local = res} `Normal in
-          if M.tracing then M.trace "global_inits" "\t\t -> state:%a" Spec.D.pretty res;
+          if M.tracing then M.trace "global_inits" "\t\t -> state:%a" Spec.D.pp res;
           res'
         | _                       -> failwith "Unsupported global initializer edge"
       in
@@ -355,7 +355,7 @@ struct
       let with_externs = do_extern_inits man file in
       (*if (get_bool "dbg.verbose") then Printf.printf "Number of init. edges : %d\nWorking:" (List.length edges);    *)
       let result : Spec.D.t = List.fold_left transfer_func with_externs edges in
-      if M.tracing then M.trace "global_inits" "startstate: %a" Spec.D.pretty result;
+      if M.tracing then M.trace "global_inits" "startstate: %a" Spec.D.pp result;
       result, !funs
     in
 

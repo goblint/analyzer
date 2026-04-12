@@ -276,7 +276,7 @@ let get_val_type e: acc_typ =
 (** Add access to {!Memo} after distributing. *)
 let add_one ~side memo: unit =
   let ignorable = is_ignorable_memo memo in
-  if M.tracing then M.trace "access" "add_one %a (ignorable = %B)" Memo.pretty memo ignorable;
+  if M.tracing then M.trace "access" "add_one %a (ignorable = %B)" Memo.pp memo ignorable;
   if not ignorable then
     side memo
 
@@ -284,7 +284,7 @@ let add_one ~side memo: unit =
     Empty access sets are needed for prefix-type_suffix race checking. *)
 let rec add_distribute_outer ~side ~side_empty (ts: typsig) (o: Offset.Unit.t) =
   let memo = (`Type ts, o) in
-  if M.tracing then M.tracei "access" "add_distribute_outer %a" Memo.pretty memo;
+  if M.tracing then M.tracei "access" "add_distribute_outer %a" Memo.pp memo;
   add_one ~side memo; (* Add actual access for non-recursive call, or empty access for recursive call when side is side_empty. *)
 
   (* distribute to variables of the type *)
@@ -307,11 +307,11 @@ let rec add_distribute_outer ~side ~side_empty (ts: typsig) (o: Offset.Unit.t) =
 let add ~side ~side_empty e voffs =
   begin match voffs with
     | Some (v, o) -> (* known variable *)
-      if M.tracing then M.traceli "access" "add var %a%a" CilType.Varinfo.pretty v CilType.Offset.pretty o;
+      if M.tracing then M.traceli "access" "add var %a%a" CilType.Varinfo.pp v CilType.Offset.pp o;
       let memo = (`Var v, Offset.Unit.of_cil o) in
       add_one ~side memo
     | None -> (* unknown variable *)
-      if M.tracing then M.traceli "access" "add type %a" CilType.Exp.pretty e;
+      if M.tracing then M.traceli "access" "add type %a" CilType.Exp.pp e;
       let ty = get_val_type e in (* extract old acc_typ from expression *)
       let (t, o) = match ty with (* convert acc_typ to type-based Memo (components) *)
         | `Struct (c, o) -> (TComp (c, []), o)
@@ -485,7 +485,7 @@ struct
 end
 
 let group_may_race (warn_accs:WarnAccs.t) =
-  if M.tracing then M.tracei "access" "group_may_race %a" WarnAccs.pretty warn_accs;
+  if M.tracing then M.tracei "access" "group_may_race %a" WarnAccs.pp warn_accs;
   (* BFS to traverse one component with may_race edges *)
   let rec bfs' warn_accs ~todo ~visited =
     let todo_all = WarnAccs.union_all todo in
@@ -542,7 +542,7 @@ let group_may_race (warn_accs:WarnAccs.t) =
     )
   in
   let (comps, warn_accs) = components [] warn_accs in
-  if M.tracing then M.trace "access" "components %a" WarnAccs.pretty warn_accs;
+  if M.tracing then M.trace "access" "components %a" WarnAccs.pp warn_accs;
   (* repeat BFS to find all prefix-type_suffix-only components starting from prefix accesses (symmetric) *)
   let rec components_cross comps ~prefix ~type_suffix =
     if AS.is_empty prefix then
@@ -550,7 +550,7 @@ let group_may_race (warn_accs:WarnAccs.t) =
     else (
       let prefix_acc = AS.choose prefix in
       let (warn_accs', comp) = bfs {(WarnAccs.empty ()) with prefix; type_suffix} {(WarnAccs.empty ()) with prefix=AS.singleton prefix_acc} in
-      if M.tracing then M.trace "access" "components_cross %a" WarnAccs.pretty warn_accs';
+      if M.tracing then M.trace "access" "components_cross %a" WarnAccs.pp warn_accs';
       let comps' =
         if AS.cardinal comp > 1 then
           comp :: comps

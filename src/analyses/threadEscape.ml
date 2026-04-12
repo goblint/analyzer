@@ -36,7 +36,7 @@ struct
       Queries.AD.fold to_extra ad (D.empty ())
     (* Ignore soundness warnings, as invalidation proper will raise them. *)
     | ad ->
-      if M.tracing then M.tracel "escape" "reachable %a: %a" d_exp e Queries.AD.pretty ad;
+      if M.tracing then M.tracel "escape" "reachable %a: %a" CilType.Exp.pp e Queries.AD.pp ad;
       D.empty ()
 
   let mpt (ask: Queries.ask) e: D.t =
@@ -50,7 +50,7 @@ struct
       AD.fold to_extra (AD.remove UnknownPtr ad) (D.empty ())
     (* Ignore soundness warnings, as invalidation proper will raise them. *)
     | ad ->
-      if M.tracing then M.tracel "escape" "mpt %a: %a" d_exp e AD.pretty ad;
+      if M.tracing then M.tracel "escape" "mpt %a: %a" CilType.Exp.pp e AD.pp ad;
       D.empty ()
 
   let thread_id man =
@@ -174,7 +174,7 @@ struct
       (* not reusing fman.local to avoid unnecessarily early join of extra *)
       let escaped = reachable (Analyses.ask_of_man man) ptc_arg in
       let escaped = D.filter (fun v -> not v.vglob) escaped in
-      if M.tracing then M.tracel "escape" "%a: %a" d_exp ptc_arg D.pretty escaped;
+      if M.tracing then M.tracel "escape" "%a: %a" CilType.Exp.pp ptc_arg D.pp escaped;
       let thread_id = thread_id man in
       emit_escape_event man escaped;
       side_effect_escape man escaped thread_id;

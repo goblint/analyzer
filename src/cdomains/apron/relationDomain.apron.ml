@@ -161,6 +161,8 @@ struct
     let third  = PrivD.show r.priv in
     "(" ^ first ^ ", " ^ third  ^ ")"
 
+  let pp ppf r = Format.pp_print_string ppf (show r)
+
   let pretty () r =
     text "(" ++
     RD.pretty () r.rel
