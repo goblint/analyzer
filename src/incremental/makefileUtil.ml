@@ -2,8 +2,6 @@
 
 open Unix
 
-let buff_size = 1024
-
 (* Suffix of files combined by CIL *)
 let comb_suffix = "_comb.c"
 
@@ -16,18 +14,10 @@ let exec_command ?path (command: string) =
     ) path;
   Logs.debug "%s" ("executing command `" ^ command ^ "` in " ^ Sys.getcwd ());
   let (std_out, std_in) = open_process command in
-  let output = Buffer.create buff_size in
-  try
-    while true do
-      let line = input_char std_out in
-      Buffer.add_char output line
-    done;
-    assert false;
-  with End_of_file ->
-    let exit_code = close_process (std_out,std_in) in
-    let output = Buffer.contents output in
-    Sys.chdir current_dir;
-    (exit_code, output)
+  let output = In_channel.input_all std_out in
+  let exit_code = close_process (std_out, std_in) in
+  Sys.chdir current_dir;
+  (exit_code, output)
 
 
 (* BFS for a file with a given suffix in a directory or any subdirectoy *)

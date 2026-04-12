@@ -106,9 +106,9 @@ struct
     if save_run_str <> "" then (
       let save_run = Fpath.v save_run_str in
       GobSys.mkdir_or_exists save_run;
-      Fpath.(to_string (save_run / "solver_stats.csv")) |> open_out |> Option.some
+      Fpath.(to_string (save_run / "solver_stats.csv")) |> Out_channel.open_text |> Option.some
     ) else None
-  let write_csv xs oc = output_string oc @@ String.concat ",\t" xs ^ "\n"
+  let write_csv xs oc = Out_channel.output_string oc @@ String.concat ",\t" xs ^ "\n"
 
   (* print generic and specific stats *)
   let print_stats _ =
@@ -123,7 +123,7 @@ struct
     Logs.newline ();
     (* Timing.print (M.get_out "timing" Legacy.stdout) "Timings:\n"; *)
     (* Gc.print_stat stdout; (* too verbose, slow and words instead of MB *) *)
-    let gc = GobGc.print_quick_stat Legacy.stderr in
+    let gc = GobGc.print_quick_stat Out_channel.stderr in
     Logs.newline ();
     Option.may (write_csv [GobSys.string_of_time (); string_of_int !SolverStats.vars; string_of_int !SolverStats.evals; string_of_int !ncontexts; string_of_int gc.Gc.top_heap_words]) stats_csv
     (* print_string "Do you want to continue? [Y/n]"; *)

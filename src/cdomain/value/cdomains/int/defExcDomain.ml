@@ -7,7 +7,9 @@ module BISet = struct
   let is_singleton s = cardinal s = 1
 
   let map_reduce f g s =
-    s |> to_seq |> Seq.map f |> BatSeq.reduce g
+    match s |> to_seq |> Seq.map f |> Seq.uncons with
+    | None -> invalid_arg "BISet.map_reduce"
+    | Some (x, rest) -> Seq.fold_left g x rest
 end
 
 (* The module [Exclusion] constains common functionality about handling of exclusion sets between [DefExc] and [Enums] *)
