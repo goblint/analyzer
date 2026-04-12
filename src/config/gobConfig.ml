@@ -99,18 +99,18 @@ sig
       Should be called after all configuration setup (including autotuner) is complete and before analysis starts. *)
   val freeze : unit -> unit
 
-  (** Raised when [set_*] is called on a config key that was already read via [get_*_analysis]. *)
+  (** Raised when [set_*] is called after any [get_*_analysis] read has occurred. *)
   exception UsedForAnalysis of string
 
   (** Functions to query conf variables for use during analysis.
-      Records the accessed path so that any subsequent [set_*] call for that path raises [UsedForAnalysis]. *)
+      Once called, any subsequent [set_*] call raises [UsedForAnalysis]. *)
   val get_int_analysis    : string -> int
   val get_bool_analysis   : string -> bool
   val get_string_analysis : string -> string
   val get_list_analysis   : string -> Yojson.Safe.t list
   val get_string_list_analysis : string -> string list
 
-  (** Clear the set of paths that have been read via [get_*_analysis].
+  (** Clear the analysis-read flag.
       Should be called between analysis runs in server mode so that new [set_*] calls succeed. *)
   val clear_analysis_reads : unit -> unit
 end
@@ -277,19 +277,19 @@ struct
     frozen := true;
     set_immutable true
 
-  (** Set of config paths (trimmed strings) that have been read via [get_*_analysis].
-      If any of these paths are subsequently modified via [set_*], [UsedForAnalysis] is raised. *)
-  let analysis_reads : (string, unit) Hashtbl.t = Hashtbl.create 5 (* uses hashtable; fine since our options are bounded *)
+  (** Flag indicating that some config value has been read for analysis.
+      Once set, any [set_*] call raises [UsedForAnalysis]. *)
+  let analysis_read = ref false
 
   exception UsedForAnalysis of string
 
   let () = Printexc.register_printer @@
     function
     | UsedForAnalysis st ->
-      Some (Printf.sprintf "GobConfig: config key '%s' was already read for analysis but is being modified; this is a configuration timing error" st)
+      Some (Printf.sprintf "GobConfig: config key '%s' is being modified after analysis-phase reads have occurred; this is a configuration timing error" st)
     | _ -> None
 
-  let clear_analysis_reads () = Hashtbl.clear analysis_reads
+  let clear_analysis_reads () = analysis_read := false
 
   let with_immutable_conf f =
     (* allow nesting *)
@@ -396,10 +396,9 @@ struct
   let get_string_list = List.map Yojson.Safe.Util.to_string % get_list
 
   (** Getter wrapper for analysis-phase reads.
-      Records the accessed path so that any subsequent [set_*] to that path raises [UsedForAnalysis]. *)
+      Sets the analysis-read flag so that any subsequent [set_*] raises [UsedForAnalysis]. *)
   let wrap_get_analysis f x =
-    let x' = String.trim x in
-    Hashtbl.replace analysis_reads x' ();
+    analysis_read := true;
     f x
 
   let get_int_analysis    = wrap_get_analysis get_int
@@ -420,13 +419,12 @@ struct
   (** Helper function for writing values. Handles the tracing.
       @raise Failure if path couldn't be parsed.
       @raise Immutable
-      @raise UsedForAnalysis if the path was already read via [get_*_analysis]
+      @raise UsedForAnalysis if any [get_*_analysis] call has occurred
       @raise TypeError
       @raise Invalid_argument
       @raise Json_encoding.Cannot_destruct *)
   let set_path_string st v =
-    let st' = String.trim st in
-    if Hashtbl.mem analysis_reads st' then raise (UsedForAnalysis st');
+    if !analysis_read then raise (UsedForAnalysis st);
     if Goblint_tracing.tracing then Goblint_tracing.trace "conf" "Setting '%s' to %a." st GobYojson.pretty v;
     set_value v json_conf (parse_path st)
 
