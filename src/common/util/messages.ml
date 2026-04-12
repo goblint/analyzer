@@ -8,6 +8,8 @@ module Category = MessageCategory
 
 open GobResult.Syntax
 
+module Format = BatFormat
+
 
 module Severity =
 struct
@@ -195,10 +197,14 @@ let print ?(ppf= !formatter) (m: Message.t) =
     | Debug -> "white" (* non-bright white is actually some gray *)
     | Success -> "green"
   in
-  let pp_prefix = Format.dprintf "@{<%s>[%a]%a@}" severity_stag Severity.pp m.severity Tags.pp m.tags in
+  let pp_print_option ?(none = fun _ () -> ()) pp_v ppf = function
+    | None -> none ppf ()
+    | Some v -> pp_v ppf v
+  in
+  let pp_prefix = (fun ppf -> Format.fprintf ppf "@{<%s>[%a]%a@}" severity_stag Severity.pp m.severity Tags.pp m.tags) in
   let pp_loc ppf = Format.fprintf ppf " @{<violet>(%a)@}" CilType.Location.pp in
   let pp_loc ppf loc =
-    Format.fprintf ppf "%a" (Format.pp_print_option pp_loc) (Option.map Location.to_cil loc)
+    Format.fprintf ppf "%a" (pp_print_option pp_loc) (Option.map Location.to_cil loc)
   in
   let pp_piece ppf piece =
     Format.fprintf ppf "@{<%s>%s@}%a" severity_stag (Piece.text_with_context piece) pp_loc piece.loc
@@ -229,7 +235,7 @@ let print ?(ppf= !formatter) (m: Message.t) =
   let pp_quote ppf loc =
     if get_bool "warn.quote-code" then (
       let pp_cut_quote ppf = Format.fprintf ppf "@,@[<v 0>%a@,@]" pp_quote in
-      (Format.pp_print_option pp_cut_quote) ppf (Option.map Location.to_cil loc)
+      (pp_print_option pp_cut_quote) ppf (Option.map Location.to_cil loc)
     )
   in
   let pp_piece ppf piece = Format.fprintf ppf "%a%a" pp_piece piece pp_quote piece.loc in
