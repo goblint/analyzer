@@ -91,6 +91,13 @@ sig
 
   (** Run the given computation with modification to configuration disabled. *)
   val with_immutable_conf : (unit -> 'a) -> 'a
+
+  (** Check whether the configuration has been frozen (i.e., analysis phase has started). *)
+  val is_frozen : unit -> bool
+
+  (** Freeze the configuration, permanently preventing further modifications.
+      Should be called after all configuration setup (including autotuner) is complete and before analysis starts. *)
+  val freeze : unit -> unit
 end
 
 (** The implementation of the [gobConfig] module. *)
@@ -244,6 +251,16 @@ struct
   let set_immutable = (:=) immutable
 
   let is_immutable () = !immutable
+
+  (** (Global) flag indicating that the configuration has been frozen for the analysis phase. *)
+  let frozen = ref false
+
+  let is_frozen () = !frozen
+
+  (** Freeze the configuration, permanently preventing further modifications. *)
+  let freeze () =
+    frozen := true;
+    set_immutable true
 
   let with_immutable_conf f =
     (* allow nesting *)
