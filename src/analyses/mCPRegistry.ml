@@ -169,6 +169,8 @@ struct
     in
     IO.to_string (List.print ~first:"[" ~last:"]" ~sep:", " String.print) (rev xs)
 
+  let pp ppf x = Format.pp_print_string ppf (show x)
+
   let to_yojson xs =
     let f a n (module S : Printable.S) x =
       let name = find_spec_name n in
@@ -245,6 +247,8 @@ struct
       let analysis_name = find_spec_name n in
       analysis_name ^ ":" ^ S.show (Obj.obj x)
     )
+
+  let pp ppf x = Format.pp_print_string ppf (show x)
 
   let to_yojson x =
     `Assoc [

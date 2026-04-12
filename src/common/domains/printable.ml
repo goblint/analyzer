@@ -12,6 +12,7 @@ sig
   val compare: t -> t -> int
   val show: t -> string
   val pretty: unit -> t -> doc
+  val pp: Format.formatter -> t -> unit
   (* These two lets us reuse the short function, and allows some overriding
    * possibilities. *)
   val printXml : 'a BatInnerIO.output -> t -> unit
@@ -35,6 +36,7 @@ struct
   type t = | [@@deriving eq, ord, hash]
   let show (x: t) = match x with _ -> .
   let pretty () (x: t) = match x with _ -> .
+  let pp _ (x: t) = match x with _ -> .
   let printXml _ (x: t) = match x with _ -> .
   let name () = "empty"
   let to_yojson (x: t) = match x with _ -> .
@@ -71,6 +73,7 @@ end
 module SimpleShow (P: Showable) =
 struct
   let pretty () x = text (P.show x)
+  let pp ppf x = Format.pp_print_string ppf (P.show x)
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape (P.show x))
   let to_yojson x = `String (P.show x)
 end
@@ -84,6 +87,7 @@ end
 module SimplePretty (P: Prettyable) =
 struct
   let show x = GobPretty.sprint P.pretty x
+  let pp ppf x = Format.pp_print_string ppf (show x)
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape (show x))
   let to_yojson x = `String (show x)
 end
@@ -96,6 +100,7 @@ end
 
 module SimpleFormat (P: Formatable) =
 struct
+  let pp = P.pp
   let show x = GobFormat.asprint P.pp x
   let pretty () x = text (show x)
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape (show x))
@@ -109,6 +114,7 @@ struct
   type t = unit [@@deriving eq, ord, hash]
   include StdLeaf
   let pretty () _ = text N.name
+  let pp ppf _ = Format.pp_print_string ppf N.name
   let show _ = N.name
   let name () = "Unit"
   let printXml f () = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape N.name)
@@ -132,6 +138,7 @@ struct
 
   let show = lift_f Base.show
   let pretty () = lift_f (Base.pretty ())
+  let pp ppf = lift_f (Base.pp ppf)
 
   (* Debug printing with tags *)
   (* let pretty () x = Pretty.dprintf "%a[%d,%d]" Base.pretty x.BatHashcons.obj x.BatHashcons.tag x.BatHashcons.hcode
@@ -189,6 +196,7 @@ struct
   let show = lift_f Base.show
 
   let pretty () = lift_f (Base.pretty ())
+  let pp ppf = lift_f (Base.pp ppf)
 
   let printXml f = lift_f (Base.printXml f)
   let to_yojson = lift_f (Base.to_yojson)
@@ -219,6 +227,8 @@ struct
       Base.name () ^ ":" ^ Base.show x
     else
       Base.show x
+
+  let pp ppf x = Format.pp_print_string ppf (show x)
 
   let printXml f x =
     if Conf.expand then
@@ -267,6 +277,8 @@ struct
     | `Lifted n ->  Base.show n
     | `Bot -> bot_name
     | `Top -> top_name
+
+  let pp ppf x = Format.pp_print_string ppf (show x)
 
   let pretty () (state:t) =
     match state with
@@ -329,6 +341,8 @@ struct
     | `Left n -> Base1.show n
     | `Right n -> Base2.show n
 
+  let pp ppf x = Format.pp_print_string ppf (show x)
+
   let name () = "either " ^ Base1.name () ^ " or " ^ Base2.name ()
   let printXml f = function
     | `Left x -> Base1.printXml f x
@@ -374,6 +388,8 @@ struct
     | `Middle n -> Base2.show n
     | `Right n -> Base3.show n
 
+  let pp ppf x = Format.pp_print_string ppf (show x)
+
   let name () = "either " ^ Base1.name () ^ " or " ^ Base2.name () ^ " or " ^ Base3.name ()
   let printXml f = function
     | `Left x  -> Base1.printXml f x
@@ -407,6 +423,8 @@ struct
     match state with
     | None -> N.name
     | Some n -> Base.show n
+
+  let pp ppf x = Format.pp_print_string ppf (show x)
 
   let name () = Base.name () ^ " option"
   let printXml f = function
@@ -450,6 +468,8 @@ struct
     | `Lifted2 n ->  Base2.show n
     | `Bot -> bot_name
     | `Top -> top_name
+
+  let pp ppf x = Format.pp_print_string ppf (show x)
 
   let relift x = match x with
     | `Lifted1 n -> `Lifted1 (Base1.relift n)
@@ -512,6 +532,8 @@ struct
     else
       text (show (x,y))
 
+  let pp ppf x = Format.pp_print_string ppf (show x)
+
   let printXml f (x,y) =
     BatPrintf.fprintf f "<value>\n<map>\n<key>\n%s\n</key>\n%a<key>\n%s\n</key>\n%a</map>\n</value>\n" (XmlUtil.escape (Base1.name ())) Base1.printXml x (XmlUtil.escape (Base2.name ())) Base2.printXml y
 
@@ -560,6 +582,8 @@ struct
     ++ unalign
     ++ text ")"
 
+  let pp ppf x = Format.pp_print_string ppf (show x)
+
   let printXml f (x,y,z) =
     BatPrintf.fprintf f "<value>\n<map>\n<key>\n%s\n</key>\n%a<key>\n%s\n</key>\n%a<key>\n%s\n</key>\n%a</map>\n</value>\n" (XmlUtil.escape (Base1.name ())) Base1.printXml x (XmlUtil.escape (Base2.name ())) Base2.printXml y (XmlUtil.escape (Base3.name ())) Base3.printXml z
 
@@ -579,6 +603,7 @@ struct
   let show x = "[" ^ (BatDeque.fold_right (fun a acc -> Base.show a ^ ", " ^ acc) x "]")
 
   let pretty () x = text (show x)
+  let pp ppf x = Format.pp_print_string ppf (show x)
   let name () = Base.name () ^ "queue"
 
   let relift x = BatDeque.map Base.relift x
@@ -618,6 +643,7 @@ struct
     "[" ^ (String.concat ", " elems) ^ "]"
 
   let pretty () x = text (show x)
+  let pp ppf x = Format.pp_print_string ppf (show x)
 
   let relift x = List.map Base.relift x
 
@@ -647,6 +673,7 @@ struct
 
   let show x = P.names x
   let pretty () x = text (show x)
+  let pp ppf x = Format.pp_print_string ppf (show x)
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (P.names x)
   let to_yojson x = `String (P.names x)
 
@@ -664,6 +691,8 @@ struct
     match state with
     | `Lifted n ->  Base.show n
     | `Bot -> "bot of " ^ (Base.name ())
+
+  let pp ppf x = Format.pp_print_string ppf (show x)
 
   let pretty () (state:t) =
     match state with
@@ -695,6 +724,8 @@ struct
     match state with
     | `Lifted n ->  Base.show n
     | `Top -> "top of " ^ (Base.name ())
+
+  let pp ppf x = Format.pp_print_string ppf (show x)
 
   let pretty () (state:t) =
     match state with
@@ -733,6 +764,7 @@ struct
   type t = string [@@deriving eq, ord, hash, to_yojson]
   include StdLeaf
   let pretty () n = text n
+  let pp ppf n = Format.pp_print_string ppf n
   let show n = n
   let name () = "String"
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" x
@@ -756,6 +788,7 @@ struct
 
   let show _ = failwith Message.message
   let pretty _ _ = failwith Message.message
+  let pp _ _ = failwith Message.message
   let printXml _ _ = failwith Message.message
   let to_yojson _ = failwith Message.message
 

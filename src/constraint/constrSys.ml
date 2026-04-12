@@ -13,6 +13,7 @@ sig
   include Hashtbl.HashedType
   include SysVar with type t := t
   val pretty_trace: unit -> t -> GoblintCil.Pretty.doc
+  val pp_trace: Format.formatter -> t -> unit
   val compare : t -> t -> int
 
   val printXml : 'a BatInnerIO.output -> t -> unit
@@ -36,6 +37,8 @@ struct
   let pretty_trace () = function
     | `L a -> GoblintCil.Pretty.dprintf "L:%a" LV.pretty_trace a
     | `G a -> GoblintCil.Pretty.dprintf "G:%a" GV.pretty_trace a
+
+  let pp_trace ppf x = Format.pp_print_string ppf (GobPretty.sprint pretty_trace x)
 
   let printXml f = function
     | `L a -> LV.printXml f a

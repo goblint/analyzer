@@ -31,6 +31,7 @@ struct
     | _ -> failwith Msg.msg
 
   let show = unop L.show R.show
+  let pp ppf x = Format.pp_print_string ppf (show x)
   let pretty () = unop (L.pretty ()) (R.pretty ())
   let printXml f = unop (L.printXml f) (R.printXml f)
   let to_yojson = unop L.to_yojson R.to_yojson

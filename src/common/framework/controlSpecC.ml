@@ -31,6 +31,7 @@ let tag x =
 let show x =
   let module C = (val !control_spec_c) in
   C.show (Obj.obj x)
+let pp ppf x = Format.pp_print_string ppf (show x)
 let pretty () x =
   let module C = (val !control_spec_c) in
   C.pretty () (Obj.obj x)

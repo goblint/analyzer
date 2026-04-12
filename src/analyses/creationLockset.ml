@@ -140,6 +140,7 @@ module Spec = struct
     (* TID and Lockset components are directly queried from other analyses and already are printed by them *)
     let pretty () (_, _, cl) = G.pretty () cl
     let show (_, _, cl) = G.show cl
+    let pp ppf x = Format.pp_print_string ppf (show x)
     let to_yojson (_, _, cl) = G.to_yojson cl
     let printXml f (_, _, cl) = G.printXml f cl
 
