@@ -280,10 +280,10 @@ struct
         (match shift_amount_negcheck y with
          | `NonNeg -> Checks.safe Checks.Category.InvalidShift
          | `Neg ->
-           M.error ~category:M.Category.Integer.overflow ~tags:[CWE 758] "Shift-left by negative amount is undefined behavior";
+           M.error ~category:M.Category.Behavior.Undefined.other ~tags:[CWE 758] "Shift-left by negative amount is undefined behavior";
            Checks.error Checks.Category.InvalidShift "Shift-left by negative amount is undefined behavior"
          | `MayNeg ->
-           M.warn ~category:M.Category.Integer.overflow ~tags:[CWE 758] "Shift-left by possibly negative amount may be undefined behavior";
+           M.warn ~category:M.Category.Behavior.Undefined.other ~tags:[CWE 758] "Shift-left by possibly negative amount may be undefined behavior";
            Checks.warn Checks.Category.InvalidShift "Shift-left by possibly negative amount may be undefined behavior");
         ID.shift_left x y
     | Shiftrt ->
@@ -292,10 +292,10 @@ struct
         (match shift_amount_negcheck y with
          | `NonNeg -> Checks.safe Checks.Category.InvalidShift
          | `Neg ->
-           M.error ~category:M.Category.Integer.overflow ~tags:[CWE 758] "Shift-right by negative amount is undefined behavior";
+           M.error ~category:M.Category.Behavior.Undefined.other ~tags:[CWE 758] "Shift-right by negative amount is undefined behavior";
            Checks.error Checks.Category.InvalidShift "Shift-right by negative amount is undefined behavior"
          | `MayNeg ->
-           M.warn ~category:M.Category.Integer.overflow ~tags:[CWE 758] "Shift-right by possibly negative amount may be undefined behavior";
+           M.warn ~category:M.Category.Behavior.Undefined.other ~tags:[CWE 758] "Shift-right by possibly negative amount may be undefined behavior";
            Checks.warn Checks.Category.InvalidShift "Shift-right by possibly negative amount may be undefined behavior");
         ID.shift_right x y
     | LAnd -> id_binary_log (&&) ~annihilator:false result_ik
