@@ -455,7 +455,11 @@ let apronOctagonOption factors file =
     set_string "ana.apron.threshold_widening_constants" "comparisons";
     Logs.info "Enabled octagon domain ONLY for:";
     Logs.info "%s" @@ String.concat ", " @@ List.map (fun info -> info.vname) allVars;
-    List.iter (fun info -> info.vattr <- addAttribute (Attr("goblint_relation_track",[])) info.vattr) allVars
+    List.iter (fun info -> info.vattr <- addAttribute (Attr("goblint_relation_track",[])) info.vattr) allVars;
+    (* Sync formal parameter attributes back to function types for correct CIL printing *)
+    iterGlobals file (function
+        | GFun (fd, _) -> setFormals fd fd.sformals
+        | _ -> ())
   in
   {
     value = 50 * (List.length allVars) ;
