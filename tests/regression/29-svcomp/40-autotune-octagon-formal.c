@@ -7,3 +7,7 @@ int fun(int two) {
   }
   return one;
 }
+
+int main(void) {
+  return fun(42);
+}
