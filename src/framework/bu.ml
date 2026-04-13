@@ -44,7 +44,9 @@ module FwdBuSolver (System: FwdGlobConstrSys) = struct
         rloc.called <- true;
         rloc.aborted <- false;
         wrapped rhs x;
-        rloc.called <- false;
+        rloc.called <- false; 
+        (* NEW! 
+           Lcl.reset_local_contribs x;*)
         if rloc.aborted then (iterate[@tailcall]) x
       )
 

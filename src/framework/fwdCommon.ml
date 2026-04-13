@@ -101,13 +101,18 @@ module SolverLocals (Sys: FwdGlobConstrSys)
     loc_init : D.t; 
     mutable called: bool;
     mutable aborted: bool;
-    loc_from : contribution LM.t;
+    mutable loc_from : contribution LM.t;
     (** Globals that take contributions from this local, needed for GC *)
     mutable global_contribs: GS.t;
     mutable local_contribs: LS.t;
   }
 
   let loc: t LM.t = LM.create 100
+
+  let reset_local_contribs x = 
+    let record = LM.find loc x in
+    record.loc_from <- LM.create 10;
+    record.local_contribs <- LS.empty
 
   let get x =
     let add_default () = 
@@ -321,12 +326,14 @@ module type SolverLocalsSig = sig
     loc_init : System.D.t; 
     mutable called: bool;
     mutable aborted: bool;
-    loc_from : contribution LM.t;
+    mutable loc_from : contribution LM.t;
     mutable global_contribs: GS.t;
     mutable local_contribs: LS.t;
   }
 
   val get : System.LVar.t -> t
+
+  val reset_local_contribs : System.LVar.t -> unit
 end
 
 module type SolverGlobalsSig = sig
