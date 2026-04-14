@@ -439,7 +439,7 @@ let ghost_instr_loc = function
       ghostupdate;
       __VERIFIER_atomic_end();
     ]} *)
-class ghostUpdateVisitor (updates : (Cil.instr list) Hashtbl.t) = object
+class ghostUpdateVisitor (updates : (string, Cil.instr list) Hashtbl.t) = object
   inherit nopCilVisitor
 
   method! vstmt s =
@@ -561,7 +561,7 @@ let init () =
           | _ -> None
         ) file.globals
     in
-    let updates : (Cil.instr list) Hashtbl.t = Hashtbl.create 16 in
+    let updates : (string, Cil.instr list) Hashtbl.t = Hashtbl.create 16 in
     let collect_ghost_updates yaml_entry =
       match YamlWitnessType.Entry.of_yaml yaml_entry with
       | Ok {entry_type = YamlWitnessType.EntryType.GhostInstrumentation {ghost_updates; _}; _} ->
