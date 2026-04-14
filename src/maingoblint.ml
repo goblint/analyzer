@@ -541,6 +541,7 @@ let do_analyze change_info merged_AST =
     Messages.out := Legacy.open_out (get_string "outfile"));
 
   let module L = Printable.Liszt (CilType.Fundec) in
+  YamlWitness.init ();
   if get_bool "justcil" then
     (* if we only want to print the output created by CIL: *)
     Cilfacade.print merged_AST

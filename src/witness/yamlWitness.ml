@@ -415,7 +415,71 @@ let init () =
     if not (Sys.file_exists path) then (
       Logs.error "witness.yaml.validate: %s not found" path;
       Svcomp.errorwith "witness missing"
-    )
+    );
+    let file = !Cilfacade.current_file in
+    let global_vars =
+      file.globals
+      |> List.filter_map (function
+          | Cil.GVar (v, _, _)
+          | Cil.GVarDecl (v, _)
+          | Cil.GFun ({svar = v; _}, _) -> Some (v.vname, Cil.Fv v)
+          | _ -> None
+        )
+    in
+    let has_global name =
+      List.exists (function
+          | Cil.GVar (v, _, _)
+          | Cil.GVarDecl (v, _)
+          | Cil.GFun ({svar = v; _}, _) -> String.equal v.vname name
+          | _ -> false
+        ) file.globals
+    in
+    let parse_type (type_: string): Cil.typ option =
+      try Some (Formatcil.cType type_ []) with
+      | exn when GobExn.catch_all_filter exn ->
+        M.warn_noloc ~category:Witness "ghost variable type parse failed: %s" type_;
+        None
+    in
+    let parse_init (init: string): Cil.exp option =
+      try Some (Formatcil.cExp init global_vars) with
+      | exn when GobExn.catch_all_filter exn ->
+        M.warn_noloc ~category:Witness "ghost variable initializer parse failed: %s" init;
+        None
+    in
+    let instrument_ghost_variable (variable: YamlWitnessType.GhostInstrumentation.Variable.t): unit =
+      if not (String.equal variable.scope "global") then (
+        M.warn_noloc ~category:Witness "unsupported ghost variable scope: %s" variable.scope
+      )
+      else if has_global variable.name then (
+        M.error_noloc ~category:Witness "ghost variable already declared in program: %s" variable.name;
+        Svcomp.errorwith "witness error"
+      )
+      else
+        match parse_type variable.type_, parse_init variable.initial.value with
+        | Some typ, Some init ->
+          let v = makeGlobalVar variable.name typ in
+          let g = GVar (v, {init = Some (SingleInit init)}, locUnknown) in
+          file.globals <- g :: file.globals
+        | _ ->
+          M.error_noloc ~category:Witness "failed to instrument ghost variable declaration: %s" variable.name
+    in
+    let instrument_ghost_variables yaml_entry =
+      match YamlWitnessType.Entry.of_yaml yaml_entry with
+      | Ok {entry_type = YamlWitnessType.EntryType.GhostInstrumentation {ghost_variables; _}; _} ->
+        List.iter instrument_ghost_variable ghost_variables
+      | Ok _ ->
+        ()
+      | Error (`Msg m) ->
+        M.error_noloc ~category:Witness "couldn't parse entry while extracting ghost instrumentation: %s" m
+    in
+    let yaml = match GobResult.Syntax.(Fpath.of_string path >>= Yaml_unix.of_file) with
+      | Ok yaml -> yaml
+      | Error (`Msg m) ->
+        Logs.error "Yaml_unix.of_file: %s" m;
+        Svcomp.errorwith "witness missing"
+    in
+    let yaml_entries = yaml |> GobYaml.list |> BatResult.get_ok in
+    List.iter instrument_ghost_variables yaml_entries
 
 let loc_of_location (location: YamlWitnessType.Location.t): Cil.location = {
   file = location.file_name;
