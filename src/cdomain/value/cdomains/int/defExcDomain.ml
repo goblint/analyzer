@@ -298,7 +298,6 @@ struct
     | `Definite x -> Some (IntOps.BigIntOps.to_bool x)
     | `Excluded (s,r) when S.mem Z.zero s -> Some true
     | _ -> None
-  let top_bool = `Excluded (S.empty (), (0, 1))
 
   let of_interval ik (x,y) =
     if Z.compare x y = 0 then
@@ -392,14 +391,14 @@ struct
   (* The equality check: *)
   let eq ik x y = match x,y with
     (* Not much to do with two exclusion sets: *)
-    | `Excluded _, `Excluded _ -> top_of IInt
+    | `Excluded _, `Excluded _ -> None
     (* Is x equal to an exclusion set, if it is a member then NO otherwise we
      * don't know: *)
-    | `Definite x, `Excluded (s,r) -> if S.mem x s then of_bool IInt false else top_of IInt
-    | `Excluded (s,r), `Definite x -> if S.mem x s then of_bool IInt false else top_of IInt
+    | `Definite x, `Excluded (s,r) -> if S.mem x s then Some false else None
+    | `Excluded (s,r), `Definite x -> if S.mem x s then Some false else None
     (* The good case: *)
-    | `Definite x, `Definite y -> of_bool IInt (x = y)
-    | `Bot, `Bot -> `Bot
+    | `Definite x, `Definite y -> Some (x = y)
+    | `Bot, `Bot -> None
     | _ ->
       (* If only one of them is bottom, we raise an exception that eval_rv will catch *)
       raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y)))
@@ -407,14 +406,14 @@ struct
   (* The inequality check: *)
   let ne ik x y = match x,y with
     (* Not much to do with two exclusion sets: *)
-    | `Excluded _, `Excluded _ -> top_of IInt
+    | `Excluded _, `Excluded _ -> None
     (* Is x unequal to an exclusion set, if it is a member then Yes otherwise we
      * don't know: *)
-    | `Definite x, `Excluded (s,r) -> if S.mem x s then of_bool IInt true else top_of IInt
-    | `Excluded (s,r), `Definite x -> if S.mem x s then of_bool IInt true else top_of IInt
+    | `Definite x, `Excluded (s,r) -> if S.mem x s then Some true else None
+    | `Excluded (s,r), `Definite x -> if S.mem x s then Some true else None
     (* The good case: *)
-    | `Definite x, `Definite y -> of_bool IInt (x <> y)
-    | `Bot, `Bot -> `Bot
+    | `Definite x, `Definite y -> Some (x <> y)
+    | `Bot, `Bot -> None
     | _ ->
       (* If only one of them is bottom, we raise an exception that eval_rv will catch *)
       raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y)))
@@ -436,7 +435,7 @@ struct
 
   (* Comparison handling copied from Enums. *)
   let handle_bot x y f = match x, y with
-    | `Bot, `Bot -> `Bot
+    | `Bot, `Bot -> None
     | `Bot, _
     | _, `Bot -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y)))
     | _, _ -> f ()
@@ -444,18 +443,18 @@ struct
   let lt ik x y =
     handle_bot x y (fun () ->
         match minimal x, maximal x, minimal y, maximal y with
-        | _, Some x2, Some y1, _ when Z.compare x2 y1 < 0 -> of_bool ik true
-        | Some x1, _, _, Some y2 when Z.compare x1 y2 >= 0 -> of_bool ik false
-        | _, _, _, _ -> top_bool)
+        | _, Some x2, Some y1, _ when Z.compare x2 y1 < 0 -> Some true
+        | Some x1, _, _, Some y2 when Z.compare x1 y2 >= 0 -> Some false
+        | _, _, _, _ -> None)
 
   let gt ik x y = lt ik y x
 
   let le ik x y =
     handle_bot x y (fun () ->
         match minimal x, maximal x, minimal y, maximal y with
-        | _, Some x2, Some y1, _ when Z.compare x2 y1 <= 0 -> of_bool ik true
-        | Some x1, _, _, Some y2 when Z.compare x1 y2 > 0 -> of_bool ik false
-        | _, _, _, _ -> top_bool)
+        | _, Some x2, Some y1, _ when Z.compare x2 y1 <= 0 -> Some true
+        | Some x1, _, _, Some y2 when Z.compare x1 y2 > 0 -> Some false
+        | _, _, _, _ -> None)
 
   let ge ik x y = le ik y x
 
@@ -561,22 +560,6 @@ struct
 
   let shift_right =
     shift Z.shift_right
-  (* TODO: lift does not treat Not {0} as true. *)
-  let c_logand ik x y =
-    match to_bool x, to_bool y with
-    | Some false, _
-    | _, Some false ->
-      of_bool ik false
-    | _, _ ->
-      lift2 IntOps.BigIntOps.c_logand ik x y
-  let c_logor ik x y =
-    match to_bool x, to_bool y with
-    | Some true, _
-    | _, Some true ->
-      of_bool ik true
-    | _, _ ->
-      lift2 IntOps.BigIntOps.c_logor ik x y
-  let c_lognot ik = eq ik (of_int ik Z.zero)
 
   let invariant_ikind e ik (x:t) =
     match x with

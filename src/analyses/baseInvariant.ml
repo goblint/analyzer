@@ -112,7 +112,7 @@ struct
         if M.tracing then M.tracel "inv" "st from %a to %a" D.pretty st D.pretty r;
         r
       )
-    | Mem (Lval lv), off ->
+    | Mem (Lval lv), off when GobConfig.get_bool "ana.base.branch.refine-pointer-by-pointee" ->
       (* Underlying lvals (may have offsets themselves), e.g., for struct members NOT including any offset appended to outer Mem *)
       let lvals = eval_lv ~man st (Mem (Lval lv), NoOffset) in
       (* Additional offset of value being refined in Addr Offset type *)
@@ -329,8 +329,8 @@ struct
          * However, a%b will give [-b+1, b-1] for a=top, but we only want the positive/negative side depending on the sign of c*b.
          * If c*b = 0 or it can be positive or negative, we need the full range for the remainder. *)
         let rem =
-          let is_pos = ID.to_bool @@ ID.gt (ID.mul b c) (ID.of_int ikind Z.zero) = Some true in
-          let is_neg = ID.to_bool @@ ID.lt (ID.mul b c) (ID.of_int ikind Z.zero) = Some true in
+          let is_pos = ID.gt (ID.mul b c) (ID.of_int ikind Z.zero) = Some true in
+          let is_neg = ID.lt (ID.mul b c) (ID.of_int ikind Z.zero) = Some true in
           let full = ID.rem a b in
           if is_pos then ID.meet (ID.starting ikind Z.zero) full
           else if is_neg then ID.meet (ID.ending ikind Z.zero) full

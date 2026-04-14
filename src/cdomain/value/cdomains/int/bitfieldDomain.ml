@@ -52,7 +52,6 @@ module BitfieldArith (Ints_t : IntOps.IntOps) = struct
 
   let one = of_int Ints_t.one
   let zero = of_int Ints_t.zero
-  let top_bool = join one zero
 
   let bits_known (z,o) = z ^: o
   let bits_invalid (z,o) = !:(z |: o)
@@ -271,12 +270,12 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): Bitfield_SOverflow with type in
         let underflow = Z.compare (BArith.min old_ik (z,o)) min_ik < 0 in
         let overflow = Z.compare max_ik (BArith.max old_ik (z,o)) < 0 in
         (underflow, overflow)
-      (* | _ -> (* TODO: what is this case? was it always dead? *)
-           let isPos = z <: Ints_t.zero in
-           let isNeg = o <: Ints_t.zero in
-           let underflow = if GoblintCil.isSigned ik then (((Ints_t.of_bigint min_ik) &: z) <>: Ints_t.zero) && isNeg else isNeg in
-           let overflow = (((!:(Ints_t.of_bigint max_ik)) &: o) <>: Ints_t.zero) && isPos in
-           (underflow, overflow) *)
+        (* | _ -> (* TODO: what is this case? was it always dead? *)
+             let isPos = z <: Ints_t.zero in
+             let isNeg = o <: Ints_t.zero in
+             let underflow = if GoblintCil.isSigned ik then (((Ints_t.of_bigint min_ik) &: z) <>: Ints_t.zero) && isNeg else isNeg in
+             let overflow = (((!:(Ints_t.of_bigint max_ik)) &: o) <>: Ints_t.zero) && isPos in
+             (underflow, overflow) *)
     in
     let overflow_info = {underflow; overflow} in
     (norm ~ov:(underflow || overflow) ik (z,o), overflow_info)
@@ -396,25 +395,6 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): Bitfield_SOverflow with type in
       let o = mod_mask |: c in
       norm ik (z,o)
     else top_of ik
-
-  (* Logic *)
-
-  let log1 f ik i1 = match to_bool i1 with
-    | None -> top_of ik
-    | Some x -> of_bool ik (f x)
-
-  let log2 f ~annihilator ik i1 i2 = match to_bool i1, to_bool i2 with
-    | Some x, _ when x = annihilator -> of_bool ik annihilator
-    | _, Some y when y = annihilator -> of_bool ik annihilator
-    | Some x, Some y -> of_bool ik (f x y)
-    | _              -> top_of ik
-
-  let c_logor = log2 (||) ~annihilator:true
-
-  let c_logand = log2 (&&) ~annihilator:false
-
-  let c_lognot ik i1 = log1 not ik i1
-
 
   (* Bitwise *)
 
@@ -591,34 +571,31 @@ module BitfieldFunctor (Ints_t : IntOps.IntOps): Bitfield_SOverflow with type in
 
   let eq ik x y =
     if Z.compare (BArith.max ik x) (BArith.min ik y) <= 0 && Z.compare (BArith.min ik x) (BArith.max ik y) >= 0 then
-      of_bool ik true
+      Some true
     else if Z.compare (BArith.min ik x) (BArith.max ik y) > 0 || Z.compare (BArith.max ik x) (BArith.min ik y) < 0 then
-      of_bool ik false
+      Some false
     else
-      BArith.top_bool
+      None
 
-  let ne ik x y = match eq ik x y with
-    | t when t = of_bool ik true -> of_bool ik false
-    | t when t = of_bool ik false -> of_bool ik true
-    | _ -> BArith.top_bool
+  let ne ik x y = Option.map not (eq ik x y)
 
   let le ik x y =
     if Z.compare (BArith.max ik x) (BArith.min ik y) <= 0 then
-      of_bool ik true
+      Some true
     else if Z.compare (BArith.min ik x) (BArith.max ik y) > 0 then
-      of_bool ik false
+      Some false
     else
-      BArith.top_bool
+      None
 
   let ge ik x y = le ik y x
 
   let lt ik x y =
     if Z.compare (BArith.max ik x) (BArith.min ik y) < 0 then
-      of_bool ik true
+      Some true
     else if Z.compare (BArith.min ik x) (BArith.max ik y) >= 0 then
-      of_bool ik false
+      Some false
     else
-      BArith.top_bool
+      None
 
   let gt ik x y = lt ik y x
 

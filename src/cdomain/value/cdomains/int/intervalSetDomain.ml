@@ -236,12 +236,8 @@ struct
 
   let zero = [IArith.zero]
   let one = [IArith.one]
-  let top_bool = [IArith.top_bool]
 
-  let not_bool (x:t) =
-    let is_false x = equal x zero in
-    let is_true x = equal x one in
-    if is_true x then zero else if is_false x then one else top_bool
+  let not_bool = Option.map not
 
   let to_bool = function
     | [(l,u)] when l =. Ints_t.zero && u =. Ints_t.zero -> Some false
@@ -264,31 +260,31 @@ struct
 
   let lt ik x y =
     match x, y with
-    | [], [] -> bot_of ik
+    | [], [] -> None
     | [], _ | _, [] -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y)))
     | _, _ ->
       let (max_x, min_y) = (maximal x |> Option.get, minimal y |> Option.get) in
       let (min_x, max_y) = (minimal x |> Option.get, maximal y |> Option.get) in
       if max_x <. min_y then
-        of_bool ik true
+        Some true
       else if min_x >=. max_y then
-        of_bool ik false
+        Some false
       else
-        top_bool
+        None
 
   let le ik x y =
     match x, y with
-    | [], [] -> bot_of ik
+    | [], [] -> None
     | [], _ | _, [] -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y)))
     | _, _ ->
       let (max_x, min_y) = (maximal x |> Option.get, minimal y |> Option.get) in
       let (min_x, max_y) = (minimal x |> Option.get, maximal y |> Option.get) in
       if max_x <=. min_y then
-        of_bool ik true
+        Some true
       else if min_x >. max_y then
-        of_bool ik false
+        Some false
       else
-        top_bool
+        None
 
   let gt ik x y = not_bool @@ le ik x y
 
@@ -296,21 +292,16 @@ struct
 
   let eq ik x y = match x, y with
     | (a, b)::[], (c, d)::[] when a =. b && c =. d && a =. c ->
-      one
+      Some true
     | _ ->
       if is_bot (meet ik x y) then
-        zero
+        Some false
       else
-        top_bool
+        None
 
   let ne ik x y = not_bool @@ eq ik x y
   let interval_to_int i = Interval.to_int (Some i)
   let interval_to_bool i = Interval.to_bool (Some i)
-
-  let log f ik i1 i2 =
-    match (interval_to_bool i1, interval_to_bool i2) with
-    | Some x, Some y -> of_bool ik (f x y)
-    | _ -> top_of ik
 
 
   let bit f ik (i1, i2) =
@@ -437,23 +428,6 @@ struct
       | _, _ -> (top_of ik, {underflow=false; overflow=false})
 
   let shift_right ik x y = binary_op_with_ovc x y (interval_shiftright ik)
-
-  let c_lognot ik x =
-    let log1 f ik i1 =
-      match interval_to_bool i1 with
-      | Some x -> of_bool ik (f x)
-      | _ -> top_of ik
-    in
-    let interval_lognot = log1 not ik in
-    unop x interval_lognot
-
-  let c_logand ik x y =
-    let interval_logand = log (&&) ik in
-    binop x y interval_logand
-
-  let c_logor ik x y =
-    let interval_logor = log (||) ik in
-    binop x y interval_logor
 
   let add ?no_ov = binary_op_with_norm IArith.add
   let sub ?no_ov = binary_op_with_norm IArith.sub
