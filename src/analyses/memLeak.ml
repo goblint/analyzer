@@ -22,9 +22,6 @@ struct
 
   let context man _ d = d
 
-  let must_be_single_threaded ~since_start man =
-    man.ask (Queries.MustBeSingleThreaded { since_start })
-
   let was_malloc_called man =
     man.global ()
 
@@ -142,7 +139,7 @@ struct
 
   let warn_for_multi_threaded_due_to_abort man =
     let malloc_called = was_malloc_called man in
-    if not (must_be_single_threaded man ~since_start:true) && malloc_called then (
+    if ThreadFlag.has_ever_been_multi (Analyses.ask_of_man man) && malloc_called then (
       set_mem_safety_flag InvalidMemTrack;
       set_mem_safety_flag InvalidMemcleanup;
       M.warn ~category:(Behavior (Undefined MemoryLeak)) ~tags:[CWE 401] "Program aborted while running in multi-threaded mode. A memory leak might occur"
@@ -184,13 +181,14 @@ struct
   let return man (exp:exp option) (f:fundec) : D.t =
     (* Check for a valid-memcleanup and memtrack violation in a multi-threaded setting *)
     (* The check for multi-threadedness is to ensure that valid-memtrack and valid-memclenaup are treated separately for single-threaded programs *)
-    if (man.ask (Queries.MayBeThreadReturn) &&  not (must_be_single_threaded man ~since_start:true)) then (
+    let ask = Analyses.ask_of_man man in
+    if man.ask (Queries.MayBeThreadReturn) && ThreadFlag.has_ever_been_multi ask then (
       warn_for_thread_return_or_exit man true
     );
     (* Returning from "main" is one possible program exit => need to check for memory leaks *)
     if f.svar.vname = "main" then (
       check_for_mem_leak man;
-      if not (must_be_single_threaded man ~since_start:false) && was_malloc_called man then begin
+      if ThreadFlag.is_currently_multi ask && was_malloc_called man then begin
         set_mem_safety_flag InvalidMemTrack;
         set_mem_safety_flag InvalidMemcleanup;
         M.warn ~category:(Behavior (Undefined MemoryLeak)) ~tags:[CWE 401] "Possible memory leak: Memory was allocated in a multithreaded program, but not all threads are joined."

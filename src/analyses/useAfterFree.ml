@@ -34,7 +34,7 @@ struct
   let warn_for_multi_threaded_access man ?(is_free = false) (heap_var:varinfo) behavior cwe_number =
     let freeing_threads = man.global heap_var in
     (* If we're single-threaded or there are no threads freeing the memory, we have nothing to WARN about *)
-    if man.ask (Queries.MustBeSingleThreaded { since_start = true }) || G.is_empty freeing_threads then ()
+    if not (ThreadFlag.has_ever_been_multi (Analyses.ask_of_man man)) || G.is_empty freeing_threads then ()
     else begin
       let other_possibly_started current tid joined_threads =
         match tid with

@@ -176,7 +176,7 @@ module MallocWrapper : MCPSpec = struct
                              | `Lifted tid -> not (Thread.is_unique tid)
                              | _ ->
                                (* The thread analysis may be completely disabled; in this case we fall back on checking whether the program has been single threaded since start *)
-                               not (man.ask (Q.MustBeSingleThreaded {since_start = true}))
+                               ThreadFlag.has_ever_been_multi (Analyses.ask_of_man man)
                             )
         | None -> false
       end
