@@ -458,7 +458,7 @@ let init () =
         match parse_type variable.type_, parse_init variable.initial.value with
         | Some typ, Some init ->
           let v = makeGlobalVar variable.name typ in
-          let g = GVar (v, {init = SingleInit init}, locUnknown) in
+          let g = GVar (v, {init = Some (SingleInit init)}, locUnknown) in
           file.globals <- g :: file.globals
         | _ ->
           M.error_noloc ~category:Witness "failed to instrument ghost variable declaration: %s" variable.name
