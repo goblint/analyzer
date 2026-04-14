@@ -435,7 +435,7 @@ let init () =
         ) file.globals
     in
     let parse_type (type_: string): Cil.typ option =
-      try Some (Formatcil.cType type_) with
+      try Some (Formatcil.cType type_ []) with
       | exn when GobExn.catch_all_filter exn ->
         M.warn_noloc ~category:Witness "ghost variable type parse failed: %s" type_;
         None
