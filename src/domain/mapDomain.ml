@@ -135,12 +135,56 @@ struct
   (* TODO: groups in XML, JSON? *)
 end
 
-module PMap (Domain: Printable.S) (Range: Lattice.S) : PS with
+module type MapS =
+sig
+  type key
+  type 'a t
+  val empty: 'a t
+  val is_empty: 'a t -> bool
+  val mem:  key -> 'a t -> bool
+  val add: key -> 'a -> 'a t -> 'a t
+  val singleton: key -> 'a -> 'a t
+  val remove: key -> 'a t -> 'a t
+  val merge: (key -> 'a option -> 'b option -> 'c option) -> 'a t -> 'b t -> 'c t
+  val compare: ('a -> 'a -> int) -> 'a t -> 'a t -> int
+  val equal: ('a -> 'a -> bool) -> 'a t -> 'a t -> bool
+  val iter: (key -> 'a -> unit) -> 'a t -> unit
+  val fold: (key -> 'a -> 'b -> 'b) -> 'a t -> 'b -> 'b
+  val for_all: (key -> 'a -> bool) -> 'a t -> bool
+  val exists: (key -> 'a -> bool) -> 'a t -> bool
+  val filter: (key -> 'a -> bool) -> 'a t -> 'a t
+  val cardinal: 'a t -> int
+  val bindings: 'a t -> (key * 'a) list
+  val choose: 'a t -> (key * 'a)
+  val find: key -> 'a t -> 'a
+  val find_opt: key -> 'a t -> 'a option
+  val map: ('a -> 'b) -> 'a t -> 'b t
+  val mapi: (key -> 'a -> 'b) -> 'a t -> 'b t
+end
+
+module StdMap (K: Map.OrderedType): MapS with type key = K.t =
+struct
+  include Map.Make (K)
+end
+
+module PatriciaMap (K: PatriciaTree.KEY): MapS with type key = K.t =
+struct
+  include PatriciaTree.MakeMap (K)
+
+  let equal = reflexive_equal
+  let compare = reflexive_compare
+  let merge = slow_merge (* TODO: get rid of this *)
+  let exists f m = not (for_all (fun k v -> not (f k v)) m)
+  let bindings = to_list
+  let choose m = BatSeq.hd (to_seq m)
+  let map = map_no_share (* TODO: don't do this? *)
+  let mapi = mapi_no_share (* TODO: don't do this? *)
+end
+
+module GenPMap (Domain: Printable.S) (M: MapS with type key = Domain.t) (Range: Lattice.S) : PS with
   type key = Domain.t and
   type value = Range.t =
 struct
-  module M = Map.Make (Domain)
-
   include Printable.Std
   include M
   type key = Domain.t
@@ -382,11 +426,11 @@ struct
   let relift x = M.relift x
 end
 
-module MapBot (Domain: Printable.S) (Range: Lattice.S) : S with
+module GenMapBot (Domain: Printable.S) (M: MapS with type key = Domain.t) (Range: Lattice.S) : S with
   type key = Domain.t and
   type value = Range.t =
 struct
-  include PMap (Domain) (Range)
+  include GenPMap (Domain) (M) (Range)
 
   let leq_with_fct f m1 m2 =
     (* For each key-value in m1, the same key must be in m2 with a geq value: *)
@@ -431,11 +475,14 @@ struct
   let narrow = map2 Range.narrow
 end
 
-module MapTop (Domain: Printable.S) (Range: Lattice.S) : S with
+module MapBot (Domain: Printable.S) (Range: Lattice.S) = GenMapBot (Domain) (StdMap (Domain)) (Range)
+module PatriciaMapBot (Domain: Printable.S) (Range: Lattice.S) = GenMapBot (Domain) (PatriciaMap (struct include Domain let to_int = tag end)) (Range)
+
+module GenMapTop (Domain: Printable.S) (M: MapS with type key = Domain.t) (Range: Lattice.S) : S with
   type key = Domain.t and
   type value = Range.t =
 struct
-  include PMap (Domain) (Range)
+  include GenPMap (Domain) (M) (Range)
 
   let leq_with_fct f m1 m2 = (* TODO use merge or sth faster? *)
     (* For each key-value in m2, the same key must be in m1 with a leq value: *)
@@ -480,6 +527,9 @@ struct
     | Some w -> w
     | None -> Pretty.dprintf "No binding grew."
 end
+
+module MapTop (Domain: Printable.S) (Range: Lattice.S) = GenMapTop (Domain) (StdMap (Domain)) (Range)
+module PatriciaMapTop (Domain: Printable.S) (Range: Lattice.S) = GenMapTop (Domain) (PatriciaMap (struct include Domain let to_int = tag end)) (Range)
 
 exception Fn_over_All of string
 
