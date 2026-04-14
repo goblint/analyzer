@@ -407,6 +407,66 @@ struct
       write ()
 end
 
+let loc_of_location (location: YamlWitnessType.Location.t): Cil.location = {
+  file = location.file_name;
+  line = location.line;
+  column = Option.value location.column ~default:1;
+  byte = -1;
+  endLine = -1;
+  endColumn = -1;
+  endByte = -1;
+  synthetic = false;
+}
+
+let ghost_atomic_begin = makeVarinfo true "__VERIFIER_atomic_begin" (TVoid [])
+let ghost_atomic_end = makeVarinfo true "__VERIFIER_atomic_end" (TVoid [])
+
+(** Get the source location of an instruction, if available. *)
+let ghost_instr_loc = function
+  | Set (_, _, loc, _)
+  | Call (_, _, _, loc, _)
+  | Asm (_, _, _, _, _, loc) -> Some loc
+  | _ -> None
+
+(** CIL visitor that inserts ghost updates around matching statements.
+    [updates] maps ["basename:line"] to the list of assignment instructions
+    to insert after the original instruction at that location.  The original
+    instruction together with the ghost update assignments are wrapped in
+    [__VERIFIER_atomic_begin()] / [__VERIFIER_atomic_end()]:
+    {[
+      __VERIFIER_atomic_begin();
+      originalstatement;
+      ghostupdate;
+      __VERIFIER_atomic_end();
+    ]} *)
+class ghostUpdateVisitor (updates : (Cil.instr list) Hashtbl.t) = object
+  inherit nopCilVisitor
+
+  method! vstmt s =
+    let instrument s =
+      (match s.skind with
+       | Instr il ->
+         let new_il = List.concat_map (fun instr ->
+             match ghost_instr_loc instr with
+             | None -> [instr]
+             | Some loc ->
+               let key = Filename.basename loc.file ^ ":" ^ string_of_int loc.line in
+               (match Hashtbl.find_opt updates key with
+                | None | Some [] -> [instr]
+                | Some update_instrs ->
+                  let abegin = Formatcil.cInstr "%v:__VERIFIER_atomic_begin();" loc
+                      [("__VERIFIER_atomic_begin", Cil.Fv ghost_atomic_begin)] in
+                  let aend = Formatcil.cInstr "%v:__VERIFIER_atomic_end();" loc
+                      [("__VERIFIER_atomic_end", Cil.Fv ghost_atomic_end)] in
+                  abegin :: instr :: update_instrs @ [aend])
+           ) il in
+         s.skind <- Instr new_il
+       | _ -> ());
+      s
+    in
+    ChangeDoChildrenPost (s, instrument)
+end
+
 let init () =
   match GobConfig.get_string "witness.yaml.validate" with
   | "" -> ()
@@ -479,18 +539,60 @@ let init () =
         Svcomp.errorwith "witness missing"
     in
     let yaml_entries = yaml |> GobYaml.list |> BatResult.get_ok in
-    List.iter instrument_ghost_variables yaml_entries
-
-let loc_of_location (location: YamlWitnessType.Location.t): Cil.location = {
-  file = location.file_name;
-  line = location.line;
-  column = Option.value location.column ~default:1;
-  byte = -1;
-  endLine = -1;
-  endColumn = -1;
-  endByte = -1;
-  synthetic = false;
-}
+    (* Phase 1: instrument ghost variable declarations. *)
+    List.iter instrument_ghost_variables yaml_entries;
+    (* Phase 2: instrument ghost updates into the CIL statements.
+       Recompute global_vars after phase 1 so that ghost variables are in scope
+       when parsing update value expressions. *)
+    let global_vars_with_ghosts =
+      file.globals
+      |> List.filter_map (function
+          | Cil.GVar (v, _, _)
+          | Cil.GVarDecl (v, _)
+          | Cil.GFun ({svar = v; _}, _) -> Some (v.vname, Cil.Fv v)
+          | _ -> None
+        )
+    in
+    let find_global_var name =
+      List.find_map (function
+          | Cil.GVar (v, _, _)
+          | Cil.GVarDecl (v, _)
+          | Cil.GFun ({svar = v; _}, _) when String.equal v.vname name -> Some v
+          | _ -> None
+        ) file.globals
+    in
+    let updates : (Cil.instr list) Hashtbl.t = Hashtbl.create 16 in
+    let collect_ghost_updates yaml_entry =
+      match YamlWitnessType.Entry.of_yaml yaml_entry with
+      | Ok {entry_type = YamlWitnessType.EntryType.GhostInstrumentation {ghost_updates; _}; _} ->
+        List.iter (fun (lu: YamlWitnessType.GhostInstrumentation.LocationUpdate.t) ->
+            let loc = loc_of_location lu.location in
+            let key = Filename.basename loc.file ^ ":" ^ string_of_int loc.line in
+            let instrs = List.filter_map (fun (upd: YamlWitnessType.GhostInstrumentation.Update.t) ->
+                match find_global_var upd.variable with
+                | None ->
+                  M.warn_noloc ~category:Witness "ghost update variable not found: %s" upd.variable;
+                  None
+                | Some v ->
+                  (match
+                     try Some (Formatcil.cExp upd.value global_vars_with_ghosts) with
+                     | exn when GobExn.catch_all_filter exn ->
+                       M.warn_noloc ~category:Witness "ghost update value parse failed for %s: %s" upd.variable upd.value;
+                       None
+                   with
+                   | None -> None
+                   | Some value_exp -> Some (Set (Cil.var v, value_exp, loc, locUnknown)))
+              ) lu.updates in
+            if instrs <> [] then
+              Hashtbl.replace updates key instrs
+          ) ghost_updates
+      | Ok _ -> ()
+      | Error (`Msg m) ->
+        M.error_noloc ~category:Witness "couldn't parse entry while extracting ghost updates: %s" m
+    in
+    List.iter collect_ghost_updates yaml_entries;
+    if Hashtbl.length updates > 0 then
+      visitCilFile (new ghostUpdateVisitor updates) file
 
 module ValidationResult =
 struct

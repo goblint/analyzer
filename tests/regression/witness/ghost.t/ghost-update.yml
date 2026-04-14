@@ -1,0 +1,33 @@
+- entry_type: ghost_instrumentation
+  metadata:
+    format_version: "2.1-goblint"
+    uuid: 00000000-0000-0000-0000-000000000002
+    creation_time: 2024-01-01T00:00:00Z
+    producer:
+      name: Test
+      version: "0.0"
+    task:
+      input_files:
+      - ghost-update.c
+      input_file_hashes:
+        ghost-update.c: "0000000000000000000000000000000000000000000000000000000000000000"
+      data_model: LP64
+      language: C
+  content:
+    ghost_variables:
+    - name: g_var
+      scope: global
+      type: int
+      initial:
+        value: "0"
+        format: c_expression
+    ghost_updates:
+    - location:
+        file_name: ghost-update.c
+        line: 3
+        column: 3
+        function: foo
+      updates:
+      - variable: g_var
+        value: "1"
+        format: c_expression
