@@ -418,9 +418,6 @@ let loc_of_location (location: YamlWitnessType.Location.t): Cil.location = {
   synthetic = false;
 }
 
-let ghost_atomic_begin = makeVarinfo true "__VERIFIER_atomic_begin" (TVoid [])
-let ghost_atomic_end = makeVarinfo true "__VERIFIER_atomic_end" (TVoid [])
-
 (** Get the source location of an instruction, if available. *)
 let ghost_instr_loc = function
   | Set (_, _, loc, _)
@@ -439,7 +436,7 @@ let ghost_instr_loc = function
       ghostupdate;
       __VERIFIER_atomic_end();
     ]} *)
-class ghostUpdateVisitor (updates : (string, Cil.instr list) Hashtbl.t) = object
+class ghostUpdateVisitor (updates : (string, Cil.instr list) Hashtbl.t) (atomic_begin : Cil.varinfo) (atomic_end : Cil.varinfo) = object
   inherit nopCilVisitor
 
   method! vstmt s =
@@ -455,9 +452,9 @@ class ghostUpdateVisitor (updates : (string, Cil.instr list) Hashtbl.t) = object
                 | None | Some [] -> [instr]
                 | Some update_instrs ->
                   let abegin = Formatcil.cInstr "%v:__VERIFIER_atomic_begin();" loc
-                      [("__VERIFIER_atomic_begin", Cil.Fv ghost_atomic_begin)] in
+                      [("__VERIFIER_atomic_begin", Cil.Fv atomic_begin)] in
                   let aend = Formatcil.cInstr "%v:__VERIFIER_atomic_end();" loc
-                      [("__VERIFIER_atomic_end", Cil.Fv ghost_atomic_end)] in
+                      [("__VERIFIER_atomic_end", Cil.Fv atomic_end)] in
                   abegin :: instr :: update_instrs @ [aend])
            ) il in
          s.skind <- Instr new_il
@@ -591,8 +588,16 @@ let init () =
         M.error_noloc ~category:Witness "couldn't parse entry while extracting ghost updates: %s" m
     in
     List.iter collect_ghost_updates yaml_entries;
-    if Hashtbl.length updates > 0 then
-      visitCilFile (new ghostUpdateVisitor updates) file
+    if Hashtbl.length updates > 0 then begin
+      let find_or_make name =
+        match find_global_var name with
+        | Some v -> v
+        | None -> makeVarinfo true name (TVoid [])
+      in
+      let atomic_begin = find_or_make "__VERIFIER_atomic_begin" in
+      let atomic_end = find_or_make "__VERIFIER_atomic_end" in
+      visitCilFile (new ghostUpdateVisitor updates atomic_begin atomic_end) file
+    end
 
 module ValidationResult =
 struct
