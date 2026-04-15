@@ -467,9 +467,9 @@ class ghostUpdateVisitor (updates : (string, Cil.instr list) Hashtbl.t) (placed 
     ChangeDoChildrenPost (s, instrument)
 end
 
-(** Set to [true] if any ghost update from [init] could not be placed in the CIL AST.
-    Checked by [Validator.validate] to prevent a successful validation result. *)
-let has_unplaced_ghost_updates = ref false
+(** Ghost updates from [init] that could not be placed in the CIL AST.
+    Checked by [Validator.validate] to emit per-key warnings and prevent a successful validation result. *)
+let unplaced_ghost_updates : string list ref = ref []
 
 let init () =
   match GobConfig.get_string "witness.yaml.validate" with
@@ -606,10 +606,8 @@ let init () =
       let placed : (string, unit) Hashtbl.t = Hashtbl.create 16 in
       visitCilFile (new ghostUpdateVisitor updates placed atomic_begin atomic_end) file;
       Hashtbl.iter (fun key _ ->
-          if not (Hashtbl.mem placed key) then begin
-            M.warn_noloc ~category:Witness "ghost update at %s could not be placed: no matching instruction found" key;
-            has_unplaced_ghost_updates := true
-          end
+          if not (Hashtbl.mem placed key) then
+            unplaced_ghost_updates := key :: !unplaced_ghost_updates
         ) updates
     end
 
@@ -683,8 +681,11 @@ struct
     cnt_disabled := 0;
     (* If any ghost update could not be placed during instrumentation, treat it
        as a validation error so the result cannot be reported as successful. *)
-    if !has_unplaced_ghost_updates then begin
+    if !unplaced_ghost_updates <> [] then begin
       incr cnt_error;
+      List.iter (fun key ->
+          M.warn_noloc ~category:Witness "ghost update at %s could not be placed: no matching instruction found" key
+        ) !unplaced_ghost_updates;
       M.warn_noloc ~category:Witness "validation result cannot be successful: some ghost updates could not be placed"
     end;
 
@@ -844,7 +845,7 @@ struct
       Ok Svcomp.Result.Unknown (* Now valid*->correctness->false gives 1p (negative) points under new validator track scoring schema: https://doi.org/10.1007/978-3-031-57256-2_15. *)
     | _ when !cnt_unconfirmed > 0 ->
       Ok Unknown
-    | _ when !has_unplaced_ghost_updates ->
+    | _ when !unplaced_ghost_updates <> [] ->
       (* Some ghost updates could not be placed; validation cannot be confirmed. *)
       Ok Unknown
     | _ ->
