@@ -467,6 +467,10 @@ class ghostUpdateVisitor (updates : (string, Cil.instr list) Hashtbl.t) (placed 
     ChangeDoChildrenPost (s, instrument)
 end
 
+(** Set to [true] if any ghost update from [init] could not be placed in the CIL AST.
+    Checked by [Validator.validate] to prevent a successful validation result. *)
+let has_unplaced_ghost_updates = ref false
+
 let init () =
   match GobConfig.get_string "witness.yaml.validate" with
   | "" -> ()
@@ -626,10 +630,6 @@ struct
   end
   include Lattice.Chain (ChainParams)
 end
-
-(** Set to [true] if any ghost update from [init] could not be placed in the CIL AST.
-    Checked by [Validator.validate] to prevent a successful validation result. *)
-let has_unplaced_ghost_updates = ref false
 
 (* TODO: record *)
 let cnt_confirmed = ref 0
