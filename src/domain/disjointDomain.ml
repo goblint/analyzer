@@ -572,11 +572,11 @@ struct
   let mapi f m = M.map (fun b ->
       B.mapi f b
     ) m
-  let long_map2 f m1 m2 = M.long_map2 (fun b1 b2 ->
-      B.long_map2 f b1 b2
+  let nonidempotent_union f m1 m2 = M.nonidempotent_union (fun b1 b2 ->
+      B.nonidempotent_union f b1 b2
     ) m1 m2
-  let map2 f m1 m2 = M.map2 (fun b1 b2 ->
-      B.map2 f b1 b2
+  let nonidempotent_inter f m1 m2 = M.nonidempotent_inter (fun b1 b2 ->
+      B.nonidempotent_inter f b1 b2
     ) m1 m2
   let merge f m1 m2 = failwith "ProjectiveMap.merge" (* TODO: ? *)
 
@@ -735,28 +735,28 @@ struct
   let mapi f m = S.map (fun b ->
       B.mapi f b
     ) m
-  let long_map2 f s1 s2 =
+  let nonidempotent_union f s1 s2 =
     let f b2 (s1, acc) =
       let e2 = fst (B.choose b2) in
       let (s1_match, s1_rest) = S.partition (fun b1 -> C.cong (fst (B.choose b1)) e2) s1 in
       let b' = match S.choose s1_match with
         | b1 ->
           assert (S.cardinal s1_match = 1);
-          B.long_map2 f b1 b2
+          B.nonidempotent_union f b1 b2
         | exception Not_found -> b2
       in
       (s1_rest, S.add b' acc)
     in
     let (s1', acc) = S.fold f s2 (s1, empty ()) in
     S.union s1' acc
-  let map2 f s1 s2 =
+  let nonidempotent_inter f s1 s2 =
     let f b2 (s1, acc) =
       let e2 = fst (B.choose b2) in
       let (s1_match, s1_rest) = S.partition (fun b1 -> C.cong (fst (B.choose b1)) e2) s1 in
       let acc' = match S.choose s1_match with
         | b1 ->
           assert (S.cardinal s1_match = 1);
-          begin match B.map2 f b1 b2 with
+          begin match B.nonidempotent_inter f b1 b2 with
             | b' when B.is_bot b' ->
               acc (* remove bot bucket to preserve invariant *)
             | exception Lattice.BotValue ->

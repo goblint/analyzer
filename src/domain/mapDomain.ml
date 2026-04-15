@@ -28,8 +28,8 @@ sig
   val add_list_fun: key list -> (key -> value) -> t -> t
 
   val for_all: (key -> value -> bool) -> t -> bool
-  val map2: (value -> value -> value) -> t -> t -> t
-  val long_map2: (value -> value -> value) -> t -> t -> t
+  val nonidempotent_inter: (value -> value -> value) -> t -> t -> t
+  val nonidempotent_union: (value -> value -> value) -> t -> t -> t
   val merge : (key -> value option -> value option -> value option) -> t -> t -> t (* TODO: unused, remove? *)
 
   val cardinal: t -> int
@@ -210,7 +210,7 @@ struct
   let add_list_fun keys f m =
     List.fold_left (fun acc key -> add key (f key) acc) m keys
 
-  let long_map2 op =
+  let nonidempotent_union op =
     let f k v1 v2 =
       match v1, v2 with
       | Some v1, Some v2 -> Some (op v1 v2)
@@ -220,7 +220,7 @@ struct
     in
     M.merge f
 
-  let map2 op =
+  let nonidempotent_inter op =
     (* Similar to the previous, except we ignore elements that only occur in one
      * of the mappings, so we start from an empty map *)
     let f k v1 v2 =
@@ -289,9 +289,9 @@ struct
 
   let add_list_fun keys f = lift_f' (M.add_list_fun keys f)
 
-  let long_map2 op = lift_f2' (M.long_map2 op)
+  let nonidempotent_union op = lift_f2' (M.nonidempotent_union op)
 
-  let map2 op = lift_f2' (M.map2 op)
+  let nonidempotent_inter op = lift_f2' (M.nonidempotent_inter op)
 
   let leq_with_fct f = lift_f2 (M.leq_with_fct f)
   let join_with_fct f = lift_f2' (M.join_with_fct f)
@@ -342,9 +342,9 @@ struct
 
   let add_list_fun keys f = lift_f' (M.add_list_fun keys f)
 
-  let long_map2 op = lift_f2' (M.long_map2 op)
+  let nonidempotent_union op = lift_f2' (M.nonidempotent_union op)
 
-  let map2 op = lift_f2' (M.map2 op)
+  let nonidempotent_inter op = lift_f2' (M.nonidempotent_inter op)
 
   let leq_with_fct f = lift_f2 (M.leq_with_fct f)
   let join_with_fct f = lift_f2' (M.join_with_fct f)
@@ -414,9 +414,9 @@ struct
   let add_list_set ks v x = time "add_list_set" (M.add_list_set ks v) x
   let add_list_fun ks f x = time "add_list_fun" (M.add_list_fun ks f) x
 
-  let long_map2 f x y = time "long_map2" (M.long_map2 f x) y
+  let nonidempotent_union f x y = time "nonidempotent_union" (M.nonidempotent_union f x) y
 
-  let map2 f x y = time "map2" (M.map2 f x) y
+  let nonidempotent_inter f x y = time "nonidempotent_inter" (M.nonidempotent_inter f x) y
 
   let leq_with_fct f x y = time "leq_with_fct" (M.leq_with_fct f x) y
   let join_with_fct f x y = time "join_with_fct" (M.join_with_fct f x) y
@@ -461,17 +461,17 @@ struct
     | Some w -> w
     | None -> Pretty.dprintf "No binding grew."
 
-  let meet m1 m2 = if m1 == m2 then m1 else map2 Range.meet m1 m2
+  let meet m1 m2 = if m1 == m2 then m1 else nonidempotent_inter Range.meet m1 m2
 
   let join_with_fct f m1 m2 =
-    if m1 == m2 then m1 else long_map2 f m1 m2
+    if m1 == m2 then m1 else nonidempotent_union f m1 m2
   let join = join_with_fct Range.join
 
-  let widen_with_fct f =  long_map2 f
+  let widen_with_fct f =  nonidempotent_union f
   let widen  = widen_with_fct Range.widen
 
 
-  let narrow = map2 Range.narrow
+  let narrow = nonidempotent_inter Range.narrow
 end
 
 module MapBot (Domain: Printable.S) (Range: Lattice.S) = GenMapBot (Domain) (StdMap (Domain)) (Range)
@@ -499,17 +499,17 @@ struct
   let is_bot _ = false
 
   (* let cleanup m = fold (fun k v m -> if Range.is_top v then remove k m else m) m m *)
-  let meet m1 m2 = if m1 == m2 then m1 else long_map2 Range.meet m1 m2
+  let meet m1 m2 = if m1 == m2 then m1 else nonidempotent_union Range.meet m1 m2
 
   let join_with_fct f m1 m2 =
-    if m1 == m2 then m1 else map2 f m1 m2
+    if m1 == m2 then m1 else nonidempotent_inter f m1 m2
 
   let join = join_with_fct Range.join
 
-  let widen_with_fct f = map2 f
+  let widen_with_fct f = nonidempotent_inter f
   let widen = widen_with_fct Range.widen
 
-  let narrow = long_map2 Range.narrow
+  let narrow = nonidempotent_union Range.narrow
 
   let pretty_diff () ((m1:t),(m2:t)): Pretty.doc =
     let diff_key k v acc_opt =
@@ -577,15 +577,15 @@ struct
     | `Top -> `Top
     | `Lifted x -> `Lifted (M.add_list_fun ks f x)
 
-  let map2 f x y =
+  let nonidempotent_inter f x y =
     match x, y with
-    | `Lifted x, `Lifted y -> `Lifted (M.map2 f x y)
-    | _ -> raise (Fn_over_All "map2")
+    | `Lifted x, `Lifted y -> `Lifted (M.nonidempotent_inter f x y)
+    | _ -> raise (Fn_over_All "nonidempotent_inter")
 
-  let long_map2 f x y =
+  let nonidempotent_union f x y =
     match x, y with
-    | `Lifted x, `Lifted y -> `Lifted (M.long_map2 f x y)
-    | _ -> raise (Fn_over_All "long_map2")
+    | `Lifted x, `Lifted y -> `Lifted (M.nonidempotent_union f x y)
+    | _ -> raise (Fn_over_All "nonidempotent_union")
 
   let for_all f = function
     | `Top -> raise (Fn_over_All "for_all")
@@ -705,15 +705,15 @@ struct
     | `Bot -> `Bot
     | `Lifted x -> `Lifted (M.add_list_fun ks f x)
 
-  let map2 f x y =
+  let nonidempotent_inter f x y =
     match x, y with
-    | `Lifted x, `Lifted y -> `Lifted (M.map2 f x y)
-    | _ -> raise (Fn_over_All "map2")
+    | `Lifted x, `Lifted y -> `Lifted (M.nonidempotent_inter f x y)
+    | _ -> raise (Fn_over_All "nonidempotent_inter")
 
-  let long_map2 f x y =
+  let nonidempotent_union f x y =
     match x, y with
-    | `Lifted x, `Lifted y -> `Lifted (M.long_map2 f x y)
-    | _ -> raise (Fn_over_All "long_map2")
+    | `Lifted x, `Lifted y -> `Lifted (M.nonidempotent_union f x y)
+    | _ -> raise (Fn_over_All "nonidempotent_union")
 
   let for_all f = function
     | `Bot -> raise (Fn_over_All "for_all")
@@ -807,8 +807,8 @@ struct
       er
   let map f (e, r) = (e, f r)
   let mapi f (e, r) = (e, f e r)
-  let map2 f (e, r) (e', r') = (E.meet e e', f r r')
-  let long_map2 f (e, r) (e', r') = (E.join e e', f r r')
+  let nonidempotent_inter f (e, r) (e', r') = (E.meet e e', f r r') (* TODO: does this make sense? *)
+  let nonidempotent_union f (e, r) (e', r') = (E.join e e', f r r') (* TODO: does this make sense? *)
   let merge f m1 m2 = failwith "MapDomain.Joined.merge" (* TODO: ? *)
   let fold f (e, r) a = f e r a
   let empty () = (E.bot (), R.bot ())
