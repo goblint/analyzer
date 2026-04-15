@@ -425,9 +425,31 @@ let ghost_instr_loc = function
   | Asm (_, _, _, _, _, loc) -> Some loc
   | _ -> None
 
+let show_ghost_update_location (loc: Cil.location) =
+  Printf.sprintf "%s:%d:%d" loc.file loc.line loc.column
+
+module GhostUpdateLocator = WitnessUtil.Locator (CilType.Location)
+module GhostUpdateLocationH = Hashtbl.Make (CilType.Location)
+
+class ghostUpdateLocationVisitor (locations : GhostUpdateLocator.t) = object
+  inherit nopCilVisitor
+
+  method! vstmt s =
+    (match s.skind with
+     | Instr il ->
+       List.iter (fun instr ->
+           Option.iter (fun loc ->
+               GhostUpdateLocator.add locations loc loc
+             ) (ghost_instr_loc instr)
+         ) il
+     | _ -> ());
+    DoChildren
+end
+
 (** CIL visitor that inserts ghost updates around matching statements.
-    [updates] maps ["basename:line"] to the list of assignment instructions
-    to insert after the original instruction at that location.  The original
+    [updates] maps exact resolved instruction locations to the list of
+    assignment instructions to insert after the original instruction at that
+    location. The original
     instruction together with the ghost update assignments are wrapped in
     [__VERIFIER_atomic_begin()] / [__VERIFIER_atomic_end()]:
     {[
@@ -436,9 +458,9 @@ let ghost_instr_loc = function
       ghostupdate;
       __VERIFIER_atomic_end();
     ]}
-    [placed] is populated with every key from [updates] that was successfully
+    [placed] is populated with every location from [updates] that was successfully
     matched; callers can use this to warn about unmatched keys. *)
-class ghostUpdateVisitor (updates : (string, Cil.instr list) Hashtbl.t) (placed : (string, unit) Hashtbl.t) (atomic_begin : Cil.varinfo) (atomic_end : Cil.varinfo) = object
+class ghostUpdateVisitor (updates : Cil.instr list GhostUpdateLocationH.t) (placed : unit GhostUpdateLocationH.t) (atomic_begin : Cil.varinfo) (atomic_end : Cil.varinfo) = object
   inherit nopCilVisitor
 
   method! vstmt s =
@@ -449,11 +471,10 @@ class ghostUpdateVisitor (updates : (string, Cil.instr list) Hashtbl.t) (placed 
              match ghost_instr_loc instr with
              | None -> [instr]
              | Some loc ->
-               let key = Filename.basename loc.file ^ ":" ^ string_of_int loc.line in
-               (match Hashtbl.find_opt updates key with
+               (match GhostUpdateLocationH.find_opt updates loc with
                 | None | Some [] -> [instr]
                 | Some update_instrs ->
-                  Hashtbl.replace placed key ();
+                  GhostUpdateLocationH.replace placed loc ();
                   let abegin = Formatcil.cInstr "%v:__VERIFIER_atomic_begin();" loc
                       [("__VERIFIER_atomic_begin", Cil.Fv atomic_begin)] in
                   let aend = Formatcil.cInstr "%v:__VERIFIER_atomic_end();" loc
@@ -476,6 +497,7 @@ let ghostVars = ref VarSet.empty
 let unplaced_ghost_updates : string list ref = ref []
 
 let init () =
+  unplaced_ghost_updates := [];
   let file = !Cilfacade.current_file in
   let find_global_var name =
     List.find_map (function
@@ -578,13 +600,21 @@ let init () =
           | _ -> None
         )
     in
-    let updates : (string, Cil.instr list) Hashtbl.t = Hashtbl.create 16 in
+    let instruction_locations = GhostUpdateLocator.create () in
+    visitCilFile (new ghostUpdateLocationVisitor instruction_locations) file;
+    let updates : Cil.instr list GhostUpdateLocationH.t = GhostUpdateLocationH.create 16 in
+    let add_update_instrs resolved_loc instrs =
+      match GhostUpdateLocationH.find_opt updates resolved_loc with
+      | Some old_instrs ->
+        GhostUpdateLocationH.replace updates resolved_loc (old_instrs @ instrs)
+      | None ->
+        GhostUpdateLocationH.replace updates resolved_loc instrs
+    in
     let collect_ghost_updates yaml_entry =
       match YamlWitnessType.Entry.of_yaml yaml_entry with
       | Ok {entry_type = YamlWitnessType.EntryType.GhostInstrumentation {ghost_updates; _}; _} ->
         List.iter (fun (lu: YamlWitnessType.GhostInstrumentation.LocationUpdate.t) ->
             let loc = loc_of_location lu.location in
-            let key = Filename.basename loc.file ^ ":" ^ string_of_int loc.line in
             let instrs = List.filter_map (fun (upd: YamlWitnessType.GhostInstrumentation.Update.t) ->
                 match find_global_var upd.variable with
                 | None ->
@@ -601,26 +631,32 @@ let init () =
                    | Some value_exp -> Some (Set (Cil.var v, value_exp, loc, locUnknown)))
               ) lu.updates in
             if instrs <> [] then
-              Hashtbl.replace updates key instrs
+              match GhostUpdateLocator.find_opt instruction_locations loc with
+              | Some resolved_locs ->
+                GhostUpdateLocator.ES.iter (fun resolved_loc ->
+                    add_update_instrs resolved_loc instrs
+                  ) resolved_locs
+              | None ->
+                unplaced_ghost_updates := show_ghost_update_location loc :: !unplaced_ghost_updates
           ) ghost_updates
       | Ok _ -> ()
       | Error (`Msg m) ->
         M.error_noloc ~category:Witness "couldn't parse entry while extracting ghost updates: %s" m
     in
     List.iter collect_ghost_updates yaml_entries;
-    if Hashtbl.length updates > 0 then begin
+    if GhostUpdateLocationH.length updates > 0 then begin
       let find_or_make name =
         match find_global_var name with
         | Some v -> v
-        | None -> makeVarinfo true name (TVoid [])
+        | None -> makeVarinfo true name (TFun (TVoid [], Some [], false, []))
       in
       let atomic_begin = find_or_make "__VERIFIER_atomic_begin" in
       let atomic_end = find_or_make "__VERIFIER_atomic_end" in
-      let placed : (string, unit) Hashtbl.t = Hashtbl.create 16 in
+      let placed : unit GhostUpdateLocationH.t = GhostUpdateLocationH.create 16 in
       visitCilFile (new ghostUpdateVisitor updates placed atomic_begin atomic_end) file;
-      Hashtbl.iter (fun key _ ->
-          if not (Hashtbl.mem placed key) then
-            unplaced_ghost_updates := key :: !unplaced_ghost_updates
+      GhostUpdateLocationH.iter (fun loc _ ->
+          if not (GhostUpdateLocationH.mem placed loc) then
+            unplaced_ghost_updates := show_ghost_update_location loc :: !unplaced_ghost_updates
         ) updates
     end
 

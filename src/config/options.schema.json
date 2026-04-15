@@ -2849,7 +2849,7 @@
             },
             "extraGhosts": {
               "title": "witness.yaml.extraGhosts",
-              "description": "Existing global variables to additionally treat as ghost variables during YAML witness handling.",
+              "description": "Existing global variables to additionally treat as ghost variables during YAML witness handling. N.B. This will assume the global is used in a way that is consistent with the rules for ghosts in witnesses.",
               "type": "array",
               "items": {
                 "type": "string"
