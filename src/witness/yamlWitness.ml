@@ -467,6 +467,11 @@ class ghostUpdateVisitor (updates : (string, Cil.instr list) Hashtbl.t) (placed 
     ChangeDoChildrenPost (s, instrument)
 end
 
+
+module VarSet = Set.Make (CilType.Varinfo)
+
+let ghostVars = ref VarSet.empty
+
 let init () =
   match GobConfig.get_string "witness.yaml.validate" with
   | "" -> ()
@@ -519,7 +524,8 @@ let init () =
         | Some typ, Some init ->
           let v = makeGlobalVar variable.name typ in
           let g = GVar (v, {init = Some (SingleInit init)}, locUnknown) in
-          file.globals <- g :: file.globals
+          file.globals <- g :: file.globals;
+          ghostVars := VarSet.add v !ghostVars
         | _ ->
           M.error_noloc ~category:Witness "failed to instrument ghost variable declaration: %s" variable.name
     in
