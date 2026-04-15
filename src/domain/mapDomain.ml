@@ -146,6 +146,8 @@ sig
   val singleton: key -> 'a -> 'a t
   val remove: key -> 'a t -> 'a t
   val merge: (key -> 'a option -> 'b option -> 'c option) -> 'a t -> 'b t -> 'c t
+  val nonidempotent_union: ('a -> 'a -> 'a) -> 'a t -> 'a t -> 'a t
+  val nonidempotent_inter: ('a -> 'a -> 'a) -> 'a t -> 'a t -> 'a t
   val reflexive_compare: ('a -> 'a -> int) -> 'a t -> 'a t -> int
   val reflexive_equal: ('a -> 'a -> bool) -> 'a t -> 'a t -> bool
   val iter: (key -> 'a -> unit) -> 'a t -> unit
@@ -168,6 +170,26 @@ struct
 
   let reflexive_equal f x y = x == y || equal f x y
   let reflexive_compare f x y = if x == y then 0 else compare f x y
+
+  let nonidempotent_union op =
+    let f k v1 v2 =
+      match v1, v2 with
+      | Some v1, Some v2 -> Some (op v1 v2)
+      | Some _, _ -> v1
+      | _, Some _ -> v2
+      | _ -> None
+    in
+    merge f
+
+  let nonidempotent_inter op =
+    (* Similar to the previous, except we ignore elements that only occur in one
+     * of the mappings, so we start from an empty map *)
+    let f k v1 v2 =
+      match v1, v2 with
+      | Some v1, Some v2 -> Some (op v1 v2)
+      | _ -> None
+    in
+    merge f
 end
 
 module PatriciaMap (K: PatriciaTree.KEY): MapS with type key = K.t =
@@ -175,6 +197,8 @@ struct
   include PatriciaTree.MakeMap (K)
 
   let merge = slow_merge (* TODO: get rid of this *)
+  let nonidempotent_union f = nonidempotent_union (fun _ v v' -> f v v')
+  let nonidempotent_inter f = nonidempotent_inter_no_share (fun _ v v' -> f v v')
   let exists f m = not (for_all (fun k v -> not (f k v)) m)
   let bindings = to_list
   let choose m = BatSeq.hd (to_seq m)
@@ -209,26 +233,6 @@ struct
 
   let add_list_fun keys f m =
     List.fold_left (fun acc key -> add key (f key) acc) m keys
-
-  let nonidempotent_union op =
-    let f k v1 v2 =
-      match v1, v2 with
-      | Some v1, Some v2 -> Some (op v1 v2)
-      | Some _, _ -> v1
-      | _, Some _ -> v2
-      | _ -> None
-    in
-    M.merge f
-
-  let nonidempotent_inter op =
-    (* Similar to the previous, except we ignore elements that only occur in one
-     * of the mappings, so we start from an empty map *)
-    let f k v1 v2 =
-      match v1, v2 with
-      | Some v1, Some v2 -> Some (op v1 v2)
-      | _ -> None
-    in
-    M.merge f
 
   include Print (Domain) (Range) (
     struct
