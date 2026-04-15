@@ -169,6 +169,7 @@ module StackTrace = StackTrace
     Analyses which only support other analyses. *)
 
 module AccessAnalysis = AccessAnalysis
+module PhaseGhost = PhaseGhost
 module WrapperFunctionAnalysis = WrapperFunctionAnalysis
 module TaintPartialContexts = TaintPartialContexts
 module UnassumeAnalysis = UnassumeAnalysis
