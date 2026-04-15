@@ -11,3 +11,14 @@ Ghost updates from a YAML witness are inserted after the matching statement, wra
     g_var = 1;
     __VERIFIER_atomic_end();
     x = 2;
+
+A ghost update at a line with no matching instruction produces a warning:
+
+  $ goblint --set witness.yaml.validate ghost-update-unplaced.yml ghost-update-unplaced.c 2>&1 | grep "no matching instruction found"
+  [Warning][Witness] ghost update at ghost-update-unplaced.c:99 could not be placed: no matching instruction found
+
+An unplaced ghost update prevents successful validation:
+
+  $ goblint --set witness.yaml.validate ghost-update-unplaced.yml ghost-update-unplaced.c 2>&1 | grep -E "could not be placed|cannot be successful"
+  [Warning][Witness] ghost update at ghost-update-unplaced.c:99 could not be placed: no matching instruction found
+  [Warning][Witness] validation result cannot be successful: some ghost updates could not be placed
