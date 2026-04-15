@@ -1,4 +1,4 @@
-// SKIP PARAM: --enable witness.yaml.enabled --enable ana.sv-comp.functions --set witness.yaml.validate /home/michael/Documents/goblint-cil/analyzer/tests/regression/19-ghost-witness/02-empire-detect.yml --set ana.activated[+] phaseGhost --set ana.activated[+] apron --set ana.path_sens[+] threadflag --set ana.activated[+] threadJoins --set lib.activated[+] sv-comp --set ana.relation.privatization mutex-meet-tid
+// CRAM
 // Dominik's empire thing example
 #include<pthread.h>
 #include<goblint.h>
