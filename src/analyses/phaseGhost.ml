@@ -167,7 +167,7 @@ struct
         M.warn_noloc ~category:Witness "phaseGhost: global %a is accessed by a non-unique or unknown thread id" CilType.Varinfo.pretty g
       else
         (match TIDs.elements tidset with
-         | [tid] ->
+         | [tid] when TID.is_unique tid ->
            if inc_by_one then
              M.info_noloc ~category:Witness "phaseGhost: global %a is only accessed by unique thread %a and is only ever increased by one" CilType.Varinfo.pretty g TID.pretty tid
            else

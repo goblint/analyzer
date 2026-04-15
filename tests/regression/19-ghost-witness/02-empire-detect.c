@@ -1,12 +1,11 @@
-// SKIP PARAM: --witness.yaml.extraGhosts[+] ghost_a --witness.yaml.extraGhosts[+] ghost_b --witness.yaml.extraGhosts[+] ghost_c --set ana.activated[+] phaseGhost --set ana.activated[+] apron --set ana.path_sens[+] threadflag --set ana.activated[+] threadJoins --set lib.activated[+] sv-comp --set ana.relation.privatization mutex-meet-tid
+// SKIP PARAM: --enable witness.yaml.enabled --enable ana.sv-comp.functions --set witness.yaml.validate /home/michael/Documents/goblint-cil/analyzer/tests/regression/19-ghost-witness/02-empire-detect.yml --set ana.activated[+] phaseGhost --set ana.activated[+] apron --set ana.path_sens[+] threadflag --set ana.activated[+] threadJoins --set lib.activated[+] sv-comp --set ana.relation.privatization mutex-meet-tid
 // Dominik's empire thing example
 #include<pthread.h>
 #include<goblint.h>
-int x;
+extern void __VERIFIER_atomic_begin();
+extern void __VERIFIER_atomic_end();
 
-int ghost_a;
-int ghost_b;
-int ghost_c = 3;
+int x;
 
 
 void fun() {
@@ -15,11 +14,7 @@ void fun() {
         y--;
     }
 
-    __VERIFIER_atomic_begin();
     x++;
-    ghost_a = 1;
-    ghost_c = 3+1;
-    __VERIFIER_atomic_end();
 }
 
 int main(void) {
@@ -35,16 +30,12 @@ int main(void) {
         z--;
     }
 
-    __VERIFIER_atomic_begin();
     x++;
-    ghost_b = 1;
-    __VERIFIER_atomic_end();
 
     pthread_join(thread, NULL);
 
-    __goblint_check(ghost_a == 1); // Succeeds
-    __goblint_check(ghost_b == 1); // Succeeds
-    __goblint_check(x > 2); //TODO
+    top = 8;
+    top = 3;
 
     return 0;
 }
