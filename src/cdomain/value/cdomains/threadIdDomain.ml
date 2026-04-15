@@ -127,6 +127,7 @@ struct
       Pretty.dprintf "%a, %a" P.pretty p S.pretty s
 
   let show x = GobPretty.sprint pretty x
+  let pp ppf x = Format.pp_print_string ppf (show x)
 
   module D = Lattice.Prod (struct
       include S
@@ -325,6 +326,8 @@ struct
     match t with
     | Thread tid -> FlagConfiguredTID.show tid
     | UnknownThread -> "Unknown thread id"
+
+  let pp ppf t = Format.pp_print_string ppf (show t)
 
   let printXml f t =
     match t with

@@ -162,6 +162,11 @@ struct
     let content = List.fold_left (++) nil separated in
     (text "{") ++ content ++ (text "}")
 
+  let pp ppf x =
+    let pp_sep ppf () = Format.fprintf ppf ", " in
+    Format.fprintf ppf "{%a}"
+      (Format.pp_print_list ~pp_sep E.pp) (elements x)
+
   let pretty_diff () ((x:t),(y:t)): Pretty.doc =
     Pretty.dprintf "HoarePO: %a not leq %a" pretty x pretty y
   let printXml f x =

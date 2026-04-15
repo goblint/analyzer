@@ -11,6 +11,7 @@ struct
       let description = RichVarinfo.BiVarinfoMap.Collection.describe_varinfo x in
       "(" ^ x.vname ^ ", " ^ description ^ ")"
     else x.vname
+  let pp ppf x = Format.pp_print_string ppf (show x)
   let pretty () x = Pretty.text (show x)
   type group = Global | Local | Parameter | Temp [@@deriving ord, show { with_path = false }]
   let to_group = function
@@ -28,6 +29,7 @@ struct
   open Pretty
   type t = string [@@deriving eq, ord, hash, to_yojson]
   let show x = "\"" ^ x ^ "\""
+  let pp ppf x = Format.pp_print_string ppf (show x)
   let pretty () x = text (show x)
   let name () = "raw strings"
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape (show x))
@@ -125,6 +127,7 @@ module CilStmt: Printable.S with type t = stmt =
 struct
   include CilType.Stmt
   let show x = "<stmt>"
+  let pp ppf x = Format.pp_print_string ppf (show x)
   let pretty = Cilfacade.stmt_pretty_short
 
   let name () = "expressions"

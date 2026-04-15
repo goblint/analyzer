@@ -136,6 +136,7 @@ struct
 
   let show x = "Array: " ^ Val.show x
   let pretty () x = text "Array: " ++ pretty () x
+  let pp ppf x = Format.pp_print_string ppf (show x)
   let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
   let get ?(checkBounds=true) (ask: VDQ.t) a i = a
   let set (ask: VDQ.t) a (ie, i) v =
@@ -201,6 +202,7 @@ struct
     "Array (unrolled to " ^ (Stdlib.string_of_int (factor ())) ^ "): " ^
     (show_list xl) ^ Val.show xr ^ ")"
   let pretty () x = text "Array: " ++ text (show x)
+  let pp ppf x = Format.pp_print_string ppf (show x)
   let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
   let get ?(checkBounds=true)  (ask: VDQ.t) (xl, xr) (_,i) =
     let search_unrolled_values min_i max_i =
@@ -376,6 +378,7 @@ struct
       Val.show xr ^ ")"
 
   let pretty () x = text "Array: " ++ text (show x)
+  let pp ppf x = Format.pp_print_string ppf (show x)
   let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
 
   let printXml f = function
@@ -523,7 +526,7 @@ struct
   let move_if_affected ?replace_with_const = move_if_affected_with_length ?replace_with_const None
 
   let set_with_length length (ask:VDQ.t) x (i,_) a =
-    if M.tracing then M.trace "update_offset" "part array set_with_length %a %s %a" pretty x (BatOption.map_default Basetype.CilExp.show "None" i) Val.pretty a;
+    if M.tracing then M.trace "update_offset" "part array set_with_length %a %s %a" pretty x (BatOption.map_default Basetype.CilExp.show "None" i) Val.pp a;
     match i with
     | Some i when Offset.Index.Exp.is_all i ->
       (* TODO: Doesn't seem to work for unassume. *)
@@ -1848,6 +1851,7 @@ struct
   let printXml f x = delegate_if_no_nullbytes x (printXml f) (A.printXml f)
   let to_yojson x = delegate_if_no_nullbytes x to_yojson A.to_yojson
   let pretty () x = delegate_if_no_nullbytes x (pretty ()) (A.pretty ())
+  let pp ppf x = Format.pp_print_string ppf (show x)
 
   let construct a n =
     if get_bool "ana.base.arrays.nullbytes" then

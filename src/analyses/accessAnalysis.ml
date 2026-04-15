@@ -32,7 +32,7 @@ struct
     emit_single_threaded := List.mem (ModifiedSinceSetjmp.Spec.name ()) activated || List.mem (PoisonVariables.Spec.name ()) activated || List.mem (UseAfterFree.Spec.name ()) activated (* TODO: some of these don't have access as dependency *)
 
   let do_access (man: (D.t, G.t, C.t, V.t) man) (kind:AccessKind.t) (reach:bool) (e:exp) =
-    if M.tracing then M.trace "access" "do_access %a %a %B" d_exp e AccessKind.pretty kind reach;
+    if M.tracing then M.trace "access" "do_access %a %a %B" CilType.Exp.pp e AccessKind.pp kind reach;
     let reach_or_mpt: _ Queries.t = if reach then ReachableFrom e else MayPointTo e in
     let ad = man.ask reach_or_mpt in
     man.emit (Access {exp=e; ad; kind; reach})
@@ -42,7 +42,7 @@ struct
       + [deref=true], [reach=false] - Access [exp] by dereferencing once (may-point-to), used for lval writes and shallow special accesses.
       + [deref=true], [reach=true] - Access [exp] by dereferencing transitively (reachable), used for deep special accesses. *)
   let access_one_top ?(force=false) ?(deref=false) man (kind: AccessKind.t) reach exp =
-    if M.tracing then M.traceli "access" "access_one_top %a (kind = %a, reach = %B, deref = %B)" CilType.Exp.pretty exp AccessKind.pretty kind reach deref;
+    if M.tracing then M.traceli "access" "access_one_top %a (kind = %a, reach = %B, deref = %B)" CilType.Exp.pp exp AccessKind.pp kind reach deref;
     if force || !collect_local || !emit_single_threaded || ThreadFlag.has_ever_been_multi (Analyses.ask_of_man man) then (
       if deref && Cil.isPointerType (Cilfacade.typeOf exp) then (* avoid dereferencing integers to unknown pointers, which cause many spurious type-based accesses *)
         do_access man kind reach exp;

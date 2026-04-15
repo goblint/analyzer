@@ -79,6 +79,17 @@ struct
 
   let show map = GobPretty.sprint pretty map
 
+  let pp ppf map =
+    let first = ref true in
+    Format.fprintf ppf "@[{";
+    M.iter (fun k v ->
+        if !first then (first := false; Format.fprintf ppf "@[<v 2>@,")
+        else Format.fprintf ppf "@,";
+        Format.fprintf ppf "@[%a ->@ @[%a@]@]" D.pp k R.pp v
+      ) map;
+    if !first then Format.fprintf ppf "}"
+    else Format.fprintf ppf "@]}@]"
+
   let printXml f map =
     BatPrintf.fprintf f "<value>\n<map>\n";
     M.iter (fun k v ->
@@ -131,6 +142,28 @@ struct
     dprintf "@[{\n  @[%t@]}@]" pretty_groups
 
   let show map = GobPretty.sprint pretty map
+
+  let pp ppf mapping =
+    let groups =
+      M.fold (fun k v acc ->
+          GroupMap.update (D.to_group k) (fun kvs ->
+              let kvs = Option.value kvs ~default:[] in
+              Some ((k, v) :: kvs)
+            ) acc
+        ) mapping GroupMap.empty
+    in
+    Format.fprintf ppf "@[{";
+    let first_group = ref true in
+    GroupMap.iter (fun group kvs ->
+        if !first_group then (first_group := false; Format.fprintf ppf "@[<v 2>@,")
+        else Format.fprintf ppf "@,";
+        Format.fprintf ppf "@[%s {@ @[<v>%a@]}@]" (D.show_group group)
+          (Format.pp_print_list (fun ppf (k, v) ->
+               Format.fprintf ppf "@[%a ->@ @[%a@]@]" D.pp k R.pp v))
+          (List.rev kvs)
+      ) groups;
+    if !first_group then Format.fprintf ppf "}"
+    else Format.fprintf ppf "@]}@]"
 
   (* TODO: groups in XML, JSON? *)
 end

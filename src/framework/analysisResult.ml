@@ -53,6 +53,7 @@ struct
   open S
   include Printable.Prod3 (C) (D) (CilType.Fundec)
   let show (es,x,f:t) = D.show x
+  let pp ppf x = Format.pp_print_string ppf (show x)
   let pretty () (_,x,_) = D.pretty () x
   let printXml f (c,d,fd) =
     BatPrintf.fprintf f "<context>\n%a</context>\n%a" C.printXml c D.printXml d

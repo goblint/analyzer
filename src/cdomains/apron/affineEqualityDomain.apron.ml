@@ -137,7 +137,7 @@ struct
     let res = bound_texpr d texpr1 in
     (if M.tracing then
        match res with
-       | Some min, Some max -> M.tracel "bounds" "min: %a max: %a" GobZ.pretty min GobZ.pretty max
+       | Some min, Some max -> M.tracel "bounds" "min: %a max: %a" GobZ.pp min GobZ.pp max
        | _ -> ()
     );
     res
@@ -212,6 +212,7 @@ struct
       "[|"^ (String.concat "; " constraint_list) ^"|]"
 
   let pretty () (x:t) = text (show x)
+  let pp ppf x = Format.pp_print_string ppf (show x)
   let printXml f x = BatPrintf.fprintf f "<value>\n<map>\n<key>\nmatrix\n</key>\n<value>\n%s</value>\n<key>\nenv\n</key>\n<value>\n%a</value>\n</map>\n</value>\n" (XmlUtil.escape (show x)) Environment.printXml x.env
   let eval_interval ask = Bounds.bound_texpr
 
@@ -397,7 +398,7 @@ struct
 
   let assign_var t v v' =
     let res = assign_var t v v' in
-    if M.tracing then M.tracel "ops" "assign_var t:\n %s \n v: %a \n v': %a\n -> %s" (show t) Var.pretty v Var.pretty v' (show res);
+    if M.tracing then M.tracel "ops" "assign_var t:\n %s \n v: %a \n v': %a\n -> %s" (show t) Var.pp v Var.pp v' (show res);
     res
 
   let assign_var_parallel t vv's =                                (* vv's is a list of pairs of lhs-variables and their rhs-values *)
@@ -465,7 +466,7 @@ struct
 
   let substitute_exp ask t var exp no_ov =
     let res = substitute_exp ask t var exp no_ov in
-    if M.tracing then M.tracel "ops" "Substitute_expr t: \n %s \n var: %a \n exp: %a \n -> \n %s" (show t) Var.pretty var d_exp exp (show res);
+    if M.tracing then M.tracel "ops" "Substitute_expr t: \n %s \n var: %a \n exp: %a \n -> \n %s" (show t) Var.pp var CilType.Exp.pp exp (show res);
     res
 
   let substitute_exp ask t var exp no_ov = timing_wrap "substitution" (substitute_exp ask t var exp) no_ov
@@ -524,7 +525,7 @@ struct
     res
 
   let assert_constraint ask d e negate no_ov =
-    if M.tracing then M.tracel "assert_constraint" "assert_constraint with expr: %a %b" d_exp e (Lazy.force no_ov);
+    if M.tracing then M.tracel "assert_constraint" "assert_constraint with expr: %a %b" CilType.Exp.pp e (Lazy.force no_ov);
     match Convert.tcons1_of_cil_exp ask d d.env e negate no_ov with
     | tcons1 -> meet_tcons ask d tcons1 e
     | exception Convert.Unsupported_CilExp _ -> d

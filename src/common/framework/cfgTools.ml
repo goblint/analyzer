@@ -122,6 +122,10 @@ let rec pretty_edges () = function
   | [_,x] -> Edge.pretty_plain () x
   | (_,x)::xs -> Pretty.dprintf "%a; %a" Edge.pretty_plain x pretty_edges xs
 
+let pp_edges ppf edges =
+  let pp_sep ppf () = Format.pp_print_string ppf "; " in
+  Format.pp_print_list ~pp_sep (fun ppf (_,e) -> Edge.pp ppf e) ppf edges
+
 let node_scc_global = NH.create 113
 
 exception Not_connect of fundec
@@ -149,9 +153,9 @@ let createCFG (file: file) =
   let addEdges ?(skippedStatements = []) fromNode edges toNode =
     if Messages.tracing then
       Messages.trace "cfg" "Adding edges [%a] from\n\t%a\nto\n\t%a ... "
-        pretty_edges edges
-        Node.pretty_trace fromNode
-        Node.pretty_trace toNode;
+        pp_edges edges
+        Node.pp_trace fromNode
+        Node.pp_trace toNode;
     NH.replace fd_nodes fromNode ();
     NH.replace fd_nodes toNode ();
     H.modify_def [] toNode (List.cons (edges,fromNode)) cfgB;

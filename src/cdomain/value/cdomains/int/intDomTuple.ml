@@ -382,6 +382,7 @@ module IntDomTupleImpl = struct
     | _ -> mapp { fp = fun (type a) (module I:SOverflow with type t = a) x -> I.name () ^ ":" ^ (I.show x) } x
            |> to_list
            |> String.concat "; "
+  let pp ppf x = Format.pp_print_string ppf (show x)
   let to_yojson = [%to_yojson: Yojson.Safe.t list] % to_list % mapp { fp = fun (type a) (module I:SOverflow with type t = a) x -> I.to_yojson x }
 
   (* `map/opt_map` are used by `project` *)

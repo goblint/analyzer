@@ -202,7 +202,7 @@ module Cycle : S =
     let should_mark_wpoint state called old_sides x y cycle =
       match cycle with
       | Some cycle ->
-        if tracing && cycle then trace "side_widen" "cycle: should mark wpoint %a" S.Var.pretty_trace y;
+        if tracing && cycle then trace "side_widen" "cycle: should mark wpoint %a" S.Var.pp_trace y;
         cycle
       | None ->
         failwith "destabilize_vs information not provided to side_widen cycle strategy";

@@ -100,6 +100,8 @@ struct
     let content () = fold f mapping nil in
     dprintf "@[%s {\n  @[%t@]}@]" (show mapping) content
 
+  let pp ppf x = Format.pp_print_string ppf (show x)
+
   let add_old = add
   let rec add (x,y) fd d =
     if V.equal x y || mem (x,y) d then d else

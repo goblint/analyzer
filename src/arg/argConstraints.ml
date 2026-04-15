@@ -226,11 +226,11 @@ struct
     | Queries.IterPrevVars f ->
       if M.tracing then M.tracei "witness" "IterPrevVars";
       Dom.iter (fun x r ->
-          if M.tracing then M.tracei "witness" "x = %a" Spec.D.pretty x;
+          if M.tracing then M.tracei "witness" "x = %a" Spec.D.pp x;
           R.iter (function ((n, c, j), e) ->
               if M.tracing then M.tracec "witness" "n = %a" Node.pretty_plain n;
-              if M.tracing then M.tracec "witness" "c = %a" Spec.C.pretty c;
-              if M.tracing then M.tracec "witness" "j = %a" Spec.D.pretty j;
+              if M.tracing then M.tracec "witness" "c = %a" Spec.C.pp c;
+              if M.tracing then M.tracec "witness" "j = %a" Spec.D.pp j;
               f (I.to_int x) (n, Obj.repr c, I.to_int j) e
             ) r;
           if M.tracing then M.traceu "witness" "" (* unindent! *)

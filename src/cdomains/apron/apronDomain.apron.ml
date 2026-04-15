@@ -283,7 +283,7 @@ struct
   let assign_exp_with ask nd v e no_ov =
     match Convert.texpr1_of_cil_exp ask nd (A.env nd) e no_ov with
     | texpr1 ->
-      if M.tracing then M.trace "apron" "assign_exp converted: %a" Texpr1.pretty texpr1;
+      if M.tracing then M.trace "apron" "assign_exp converted: %a" Texpr1.pp texpr1;
       A.assign_texpr_with Man.mgr nd v texpr1 None
     | exception Convert.Unsupported_CilExp _ ->
       if M.tracing then M.trace "apron" "assign_exp unsupported";
@@ -446,6 +446,7 @@ struct
   let show (x:t) =
     GobFormat.asprintf "%a (env: %a)" A.print x Environment.pp (A.env x)
   let pretty () (x:t) = text (show x)
+  let pp ppf x = Format.pp_print_string ppf (show x)
 
   let equal x y =
     Environment.equal (A.env x) (A.env y) && A.is_eq Man.mgr x y
@@ -501,7 +502,7 @@ struct
       LAnd, LOr, LNot are directly supported by Apron domain in order to
       confirm logic-containing Apron invariants from witness while deep-query is disabled *)
   let rec assert_constraint ask d e negate (no_ov: bool Lazy.t) =
-    if M.tracing then M.trace "assert_constraint_apron" "%a ;;; %a" d_exp e d_plainexp e;
+    if M.tracing then M.trace "assert_constraint_apron" "%a ;;; %a" CilType.Exp.pp e CilType.Exp.pp e;
     match e with
     (* Apron doesn't properly meet with DISEQ constraints: https://github.com/antoinemine/apron/issues/37.
        Join Gt and Lt versions instead. *)
@@ -533,14 +534,14 @@ struct
     | _ ->
       begin match Convert.tcons1_of_cil_exp ask d (A.env d) e negate no_ov with
         | tcons1 ->
-          if M.tracing then M.trace "apron" "assert_constraint %a %a" d_exp e Tcons1.pretty tcons1;
-          if M.tracing then M.trace "apron" "assert_constraint st: %a" D.pretty d;
-          if M.tracing then M.trace "apron" "assert_constraint tcons1: %a" Tcons1.pretty tcons1;
+          if M.tracing then M.trace "apron" "assert_constraint %a %a" CilType.Exp.pp e Tcons1.pp tcons1;
+          if M.tracing then M.trace "apron" "assert_constraint st: %a" D.pp d;
+          if M.tracing then M.trace "apron" "assert_constraint tcons1: %a" Tcons1.pp tcons1;
           let r = meet_tcons ask d tcons1 e in
-          if M.tracing then M.trace "apron" "assert_constraint r: %a" D.pretty r;
+          if M.tracing then M.trace "apron" "assert_constraint r: %a" D.pp r;
           r
         | exception Convert.Unsupported_CilExp reason ->
-          if M.tracing then M.trace "apron" "assert_constraint %a unsupported: %s" d_exp e (SharedFunctions.show_unsupported_cilExp reason);
+          if M.tracing then M.trace "apron" "assert_constraint %a unsupported: %s" CilType.Exp.pp e (SharedFunctions.show_unsupported_cilExp reason);
           d
       end
 
@@ -618,7 +619,7 @@ struct
     let x_cons = A.to_lincons_array Man.mgr x_j in
     let y_cons = A.to_lincons_array Man.mgr y_j in
     let try_add_con j con1 =
-      if M.tracing then M.tracei "apron" "try_add_con %a" Lincons1.pretty con1;
+      if M.tracing then M.tracei "apron" "try_add_con %a" Lincons1.pp con1;
       let t = meet_lincons j con1 in
       let t_x = A.change_environment Man.mgr t x_env false in
       let t_y = A.change_environment Man.mgr t y_env false in
@@ -657,7 +658,7 @@ struct
       in
       let env_exists_mem_con1 env con1 =
         let r = env_exists_mem_con1 env con1 in
-        if M.tracing then M.trace "apron" "env_exists_mem_con1 %a %a -> %B" Environment.pretty env Lincons1.pretty con1 r;
+        if M.tracing then M.trace "apron" "env_exists_mem_con1 %a %a -> %B" Environment.pp env Lincons1.pp con1 r;
         r
       in
       (* Heuristically reorder constraints to pass 36/12 with singlethreaded->multithreaded mode switching. *)

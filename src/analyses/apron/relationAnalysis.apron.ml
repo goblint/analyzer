@@ -89,7 +89,7 @@ struct
     let e' = visitCilExpr visitor e in
     let rel = RD.add_vars st.rel (List.map RV.local (VH.to_seq_values v_ins |> List.of_seq)) in (* add temporary g#in-s *)
     let rel' = VH.fold (fun v v_in rel ->
-        if M.tracing then M.trace "relation" "read_global %a %a" CilType.Varinfo.pretty v CilType.Varinfo.pretty v_in;
+        if M.tracing then M.trace "relation" "read_global %a %a" CilType.Varinfo.pp v CilType.Varinfo.pp v_in;
         read_global ask getg {st with rel} v v_in (* g#in = g; *)
       ) v_ins rel
     in
@@ -124,7 +124,7 @@ struct
 
   let assign_from_globals_wrapper ask getg st e f =
     let (rel', e', v_ins) = read_globals_to_locals ask getg st e in
-    if M.tracing then M.trace "relation" "assign_from_globals_wrapper %a" d_exp e';
+    if M.tracing then M.trace "relation" "assign_from_globals_wrapper %a" CilType.Exp.pp e';
     let rel' = f rel' e' in (* x = e; *)
     let rel'' = RD.remove_vars rel' (List.map RV.local (VH.to_seq_values v_ins |> List.of_seq)) in (* remove temporary g#in-s *)
     rel''
@@ -155,7 +155,7 @@ struct
         v_out.vattr <- v.vattr; (*copy the attributes because the tracking may depend on them. Otherwise an assertion fails *)
         let st = {st with rel = RD.add_vars st.rel [RV.local v_out]} in (* add temporary g#out *)
         let st' = {st with rel = f st v_out} in (* g#out = e; *)
-        if M.tracing then M.trace "relation" "write_global %a %a" CilType.Varinfo.pretty v CilType.Varinfo.pretty v_out;
+        if M.tracing then M.trace "relation" "write_global %a %a" CilType.Varinfo.pp v CilType.Varinfo.pp v_out;
         let st' = write_global ask getg sideg st' v v_out in (* g = g#out; *)
         let rel'' = RD.remove_vars st'.rel [RV.local v_out] in (* remove temporary g#out *)
         {st' with rel = rel''}
@@ -192,7 +192,7 @@ struct
 
   let no_overflow man exp = lazy (
     let res = no_overflow man exp in
-    if M.tracing then M.tracel "no_ov" "no_ov %b exp: %a" res d_exp exp;
+    if M.tracing then M.tracel "no_ov" "no_ov %b exp: %a" res CilType.Exp.pp exp;
     res
   )
 
@@ -249,20 +249,20 @@ struct
   let assign man (lv:lval) e =
     let st = man.local in
     let simplified_e = replace_deref_exps man.ask e in
-    if M.tracing then M.traceli "relation" "assign %a = %a (simplified to %a)" d_lval lv  d_exp e d_exp simplified_e;
+    if M.tracing then M.traceli "relation" "assign %a = %a (simplified to %a)" CilType.Lval.pp lv  CilType.Exp.pp e CilType.Exp.pp simplified_e;
     let ask = Analyses.ask_of_man man in
     let r = assign_to_global_wrapper ask man.global man.sideg st lv (fun st v ->
         assign_from_globals_wrapper ask man.global st simplified_e (fun apr' e' ->
-            if M.tracing then M.traceli "relation" "assign inner %a = %a (%a)" CilType.Varinfo.pretty v d_exp e' d_plainexp e';
-            if M.tracing then M.trace "relation" "st: %a" RD.pretty apr';
+            if M.tracing then M.traceli "relation" "assign inner %a = %a (%a)" CilType.Varinfo.pp v CilType.Exp.pp e' CilType.Exp.pp e';
+            if M.tracing then M.trace "relation" "st: %a" RD.pp apr';
             let r = RD.assign_exp ask apr' (RV.local v) e' (no_overflow ask simplified_e) in
             let r' = assert_type_bounds ask r v in
-            if M.tracing then M.traceu "relation" "-> %a" RD.pretty r';
+            if M.tracing then M.traceu "relation" "-> %a" RD.pp r';
             r'
           )
       )
     in
-    if M.tracing then M.traceu "relation" "-> %a" D.pretty r;
+    if M.tracing then M.traceu "relation" "-> %a" D.pp r;
     r
 
   let branch man e b =
@@ -331,7 +331,7 @@ struct
         | Some (Arg _) when not (List.mem_cmp Apron.Var.compare var arg_vars) -> true (* remove caller args, but keep just added args *)
         | _ -> false (* keep everything else (just added args, globals, global privs) *)
       );
-    if M.tracing then M.tracel "combine" "relation enter newd: %a" RD.pretty new_rel;
+    if M.tracing then M.tracel "combine" "relation enter newd: %a" RD.pp new_rel;
     new_rel
 
   let enter man r f args =
@@ -386,11 +386,11 @@ struct
     let st = man.local in
     let reachable_from_args = reachable_from_args man args in
     let fundec = Node.find_fundec man.node in
-    if M.tracing then M.tracel "combine-rel" "relation f: %a" CilType.Varinfo.pretty f.svar;
-    if M.tracing then M.tracel "combine-rel" "relation formals: %a" (d_list "," CilType.Varinfo.pretty) f.sformals;
-    if M.tracing then M.tracel "combine-rel" "relation args: %a" (d_list "," d_exp) args;
-    if M.tracing then M.tracel "combine-rel" "relation st: %a" D.pretty st;
-    if M.tracing then M.tracel "combine-rel" "relation fun_st: %a" D.pretty fun_st;
+    if M.tracing then M.tracel "combine-rel" "relation f: %a" CilType.Varinfo.pp f.svar;
+    if M.tracing then M.tracel "combine-rel" "relation formals: %a" (d_list "," CilType.Varinfo.pp) f.sformals;
+    if M.tracing then M.tracel "combine-rel" "relation args: %a" (d_list "," CilType.Exp.pp) args;
+    if M.tracing then M.tracel "combine-rel" "relation st: %a" D.pp st;
+    if M.tracing then M.tracel "combine-rel" "relation fun_st: %a" D.pp fun_st;
     let new_fun_rel = RD.add_vars fun_st.rel (RD.vars st.rel) in
     let arg_substitutes =
       let filter_actuals (x,e) =
@@ -416,7 +416,7 @@ struct
     in
     let any_local_reachable = any_local_reachable fundec reachable_from_args in
     let arg_vars = f.sformals |> List.filter (RD.Tracked.varinfo_tracked) |> List.map RV.arg in
-    if M.tracing then M.tracel "combine-rel" "relation remove vars: %a" (docList (GobApron.Var.pretty ())) arg_vars;
+    if M.tracing then M.tracel "combine-rel" "relation remove vars: %a" (docList (GobApron.Var.pp ())) arg_vars;
     RD.remove_vars_with new_fun_rel arg_vars; (* fine to remove arg vars that also exist in caller because unify from new_rel adds them back with proper constraints *)
     let tainted = f_ask.f Queries.MayBeTainted in
     let tainted_vars = TaintPartialContexts.conv_varset tainted in
@@ -430,7 +430,7 @@ struct
       )
     in
     let unify_rel = RD.unify new_rel new_fun_rel in (* TODO: unify_with *)
-    if M.tracing then M.tracel "combine-rel" "relation unifying %a %a = %a" RD.pretty new_rel RD.pretty new_fun_rel RD.pretty unify_rel;
+    if M.tracing then M.tracel "combine-rel" "relation unifying %a %a = %a" RD.pp new_rel RD.pp new_fun_rel RD.pp unify_rel;
     {fun_st with rel = unify_rel}
 
   let combine_assign man r fe f args fc fun_st (f_ask : Queries.ask) =
@@ -640,10 +640,10 @@ struct
     in
     match q with
     | EvalInt e ->
-      if M.tracing then M.traceli "evalint" "relation query %a (%a)" d_exp e d_plainexp e;
-      if M.tracing then M.trace "evalint" "relation st: %a" D.pretty man.local;
+      if M.tracing then M.traceli "evalint" "relation query %a (%a)" CilType.Exp.pp e CilType.Exp.pp e;
+      if M.tracing then M.trace "evalint" "relation st: %a" D.pp man.local;
       let r = eval_int e (no_overflow (Analyses.ask_of_man man) e) in
-      if M.tracing then M.traceu "evalint" "relation query %a -> %a" d_exp e ID.pretty r;
+      if M.tracing then M.traceu "evalint" "relation query %a -> %a" CilType.Exp.pp e ID.pp r;
       r
     | Queries.IterSysVars (vq, vf) ->
       let vf' x = vf (Obj.repr x) in
@@ -720,9 +720,9 @@ struct
           in
           match q with
           | EvalInt e ->
-            if M.tracing then M.traceli "relation" "evalint query %a (%a), man %a" d_exp e d_plainexp e D.pretty man.local;
+            if M.tracing then M.traceli "relation" "evalint query %a (%a), man %a" CilType.Exp.pp e CilType.Exp.pp e D.pp man.local;
             let r = eval_int e (no_overflow (dummyask) e) in
-            if M.tracing then M.trace "relation" "evalint response %a -> %a" d_exp e ValueDomainQueries.ID.pretty r;
+            if M.tracing then M.trace "relation" "evalint response %a -> %a" CilType.Exp.pp e ValueDomainQueries.ID.pp r;
             r
           |_ -> Queries.Result.top q
         in

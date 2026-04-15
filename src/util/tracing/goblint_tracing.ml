@@ -7,7 +7,6 @@
 open Goblint_std
 open Goblint_parallel
 open GoblintCil
-open Pretty
 
 module Strs = Set.Make (String)
 
@@ -35,16 +34,15 @@ let indent_level = ref 0
 let traceIndent () = indent_level := !indent_level + 2
 let traceOutdent () = indent_level := !indent_level - 2
 
-let traceTag (sys : string) : Pretty.doc =
+let traceTag (sys : string) : string =
   let rec ind (i : int) : string = if (i <= 0) then "" else " " ^ (ind (i-1)) in
-  (text ((ind !indent_level) ^ "%%% " ^ sys ^ ": "))
+  (ind !indent_level) ^ "%%% " ^ sys ^ ": "
 
 let trace_mutex = GobMutex.create ()
 
-let printtrace sys d: unit =
+let printtrace sys (s: string): unit =
   GobMutex.lock trace_mutex;
-  fprint stderr ~width:max_int ((traceTag sys) ++ d ++ line);
-  flush stderr;
+  Printf.eprintf "%s%s\n%!" (traceTag sys) s;
   GobMutex.unlock trace_mutex
 
 let gtrace always f sys var ?loc do_subsys fmt =
@@ -60,9 +58,14 @@ let gtrace always f sys var ?loc do_subsys fmt =
   in
   if cond then begin
     do_subsys ();
-    gprintf (f sys) fmt
+    let buf = Buffer.create 64 in
+    let ppf = Format.formatter_of_buffer buf in
+    Format.kfprintf (fun ppf ->
+        Format.pp_print_flush ppf ();
+        f sys (Buffer.contents buf)
+      ) ppf fmt
   end else
-    GobPretty.igprintf () fmt
+    Format.ifprintf Format.err_formatter fmt
 
 let trace sys ?var fmt = gtrace true printtrace sys var ignore fmt
 
@@ -74,13 +77,13 @@ let trace sys ?var fmt = gtrace true printtrace sys var ignore fmt
 *)
 
 let tracei (sys:string) ?var ?(subsys=[]) fmt =
-  let f sys d = printtrace sys d; traceIndent () in
+  let f sys s = printtrace sys s; traceIndent () in
   let g () = activate sys subsys in
   gtrace true f sys var g fmt
 
 let tracec sys fmt = gtrace false printtrace sys None ignore fmt
 
 let traceu sys fmt =
-  let f sys d = printtrace sys d; traceOutdent () in
+  let f sys s = printtrace sys s; traceOutdent () in
   let g () = deactivate sys in
   gtrace true f sys None g fmt

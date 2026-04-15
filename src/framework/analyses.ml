@@ -35,6 +35,8 @@ struct
     (* if get_bool "dbg.trace.context" then dprintf "(%a, %d) on %a" Node.pretty_trace n (LD.tag c) CilType.Location.pretty (getLocation x) *)
     else dprintf "%a on %a" Node.pretty_trace n CilType.Location.pretty (getLocation x)
 
+  let pp_trace ppf x = Format.pp_print_string ppf (GobPretty.sprint pretty_trace x)
+
   let printXml f (n,c) =
     Var.printXml f n;
     BatPrintf.fprintf f "<context>\n";
@@ -63,6 +65,7 @@ struct
   let var_id = show
   let node _ = MyCFG.Function Cil.dummyFunDec
   let pretty_trace = pretty
+  let pp_trace = pp
   let is_write_only = function
     | `Left x -> V.is_write_only x
     | `Right _ -> true
@@ -79,6 +82,7 @@ struct
   let var_id = show
   let node _ = MyCFG.Function Cil.dummyFunDec
   let pretty_trace = pretty
+  let pp_trace = pp
   let is_write_only = function
     | `Left x -> V.is_write_only x
     | `Right _ -> true

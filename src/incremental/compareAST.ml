@@ -129,7 +129,7 @@ and eq_typ_acc ?(fun_parameter_name_comparison_enabled: bool = true) (a: typ) (b
     a, b, c, (updatedCompinfoRenames, updatedEnumRenames)
   in
 
-  if Messages.tracing then Messages.tracei "compareast" "eq_typ_acc %a vs %a (%a, %a)" d_type a d_type b pretty_length acc pretty_length !global_typ_acc; (* %a makes List.length calls lazy if compareast isn't being traced *)
+  if Messages.tracing then Messages.tracei "compareast" "eq_typ_acc %a vs %a (%a, %a)" CilType.Typ.pp a CilType.Typ.pp b pretty_length acc pretty_length !global_typ_acc; (* %a makes List.length calls lazy if compareast isn't being traced *)
   let r, updated_rename_mapping = match a, b with
     | TPtr (typ1, attr1), TPtr (typ2, attr2) -> eq_typ_acc typ1 typ2 ~rename_mapping ~acc &&>> forward_list_equal (eq_attribute ~acc) attr1 attr2
     | TArray (typ1, (Some lenExp1), attr1), TArray (typ2, (Some lenExp2), attr2) -> eq_typ_acc typ1 typ2 ~rename_mapping ~acc &&>> eq_exp lenExp1 lenExp2 ~acc &&>>  forward_list_equal (eq_attribute ~acc) attr1 attr2
@@ -175,7 +175,7 @@ and eq_typ_acc ?(fun_parameter_name_comparison_enabled: bool = true) (a: typ) (b
     | TFloat (fk1, attr1), TFloat (fk2, attr2) -> (fk1 = fk2, rename_mapping) &&>> forward_list_equal (eq_attribute ~acc) attr1 attr2
     | _, _ -> false, rename_mapping
   in
-  if Messages.tracing then Messages.traceu "compareast" "eq_typ_acc %a vs %a" d_type a d_type b;
+  if Messages.tracing then Messages.traceu "compareast" "eq_typ_acc %a vs %a" CilType.Typ.pp a CilType.Typ.pp b;
   (r, updated_rename_mapping)
 
 and eq_eitems (a: string * attributes * exp * location) (b: string * attributes * exp * location) ~(rename_mapping: rename_mapping) ~(acc: (typ * typ) list) = match a, b with

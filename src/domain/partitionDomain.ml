@@ -54,6 +54,7 @@ struct
   type elem = S.elt
 
   let show _ = "Partitions"
+  let pp ppf x = Format.pp_print_string ppf (show x)
 
   let leq x y =
     for_all (fun p -> exists (S.leq p) y) x
@@ -105,6 +106,7 @@ struct
   type partition = t
 
   let show _ = "Partitions"
+  let pp ppf x = Format.pp_print_string ppf (show x)
 
   (* Top and bottom are reversed:
      Bottom will be All (equations), i.e. contradiction,

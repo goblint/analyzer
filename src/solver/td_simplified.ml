@@ -34,38 +34,38 @@ module Base : GenericEqSolver =
         );
 
       let add_infl y x =
-        if tracing then trace "infl" "add_infl %a %a" S.Var.pretty_trace y S.Var.pretty_trace x;
+        if tracing then trace "infl" "add_infl %a %a" S.Var.pp_trace y S.Var.pp_trace x;
         HM.replace infl y (VS.add x (HM.find_default infl y VS.empty));
       in
 
       let init x =
         if not (HM.mem rho x) then (
           new_var_event x;
-          if tracing then trace "init" "init %a" S.Var.pretty_trace x;
+          if tracing then trace "init" "init %a" S.Var.pp_trace x;
           HM.replace rho x (S.Dom.bot ())
         )
       in
 
       let eq x get set =
-        if tracing then trace "eq" "eq %a" S.Var.pretty_trace x;
+        if tracing then trace "eq" "eq %a" S.Var.pp_trace x;
         match S.system x with
         | None -> S.Dom.bot ()
         | Some f -> f get set
       in
 
       let rec destabilize x =
-        if tracing then trace "destab" "destabilize %a" S.Var.pretty_trace x;
+        if tracing then trace "destab" "destabilize %a" S.Var.pp_trace x;
         let w = HM.find_default infl x VS.empty in
         HM.replace infl x VS.empty;
         VS.iter (fun y ->
-            if tracing then trace "destab" "stable remove %a" S.Var.pretty_trace y;
+            if tracing then trace "destab" "stable remove %a" S.Var.pp_trace y;
             HM.remove stable y;
             destabilize y
           ) w
       in
 
       let rec query x y = (* ~eval in td3 *)
-        if tracing then trace "solver_query" "entering query for %a; stable %b; called %b" S.Var.pretty_trace y (HM.mem stable y) (HM.mem called y);
+        if tracing then trace "solver_query" "entering query for %a; stable %b; called %b" S.Var.pp_trace y (HM.mem stable y) (HM.mem called y);
         get_var_event y;
         if not (HM.mem called y) then (
           if S.system y = None then (
@@ -77,20 +77,20 @@ module Base : GenericEqSolver =
             iterate y;
             HM.remove called y)
         ) else (
-          if tracing && not (HM.mem wpoint y) then trace "wpoint" "query adding wpoint %a" S.Var.pretty_trace y;
+          if tracing && not (HM.mem wpoint y) then trace "wpoint" "query adding wpoint %a" S.Var.pp_trace y;
           HM.replace wpoint y ();
         );
         let tmp = HM.find rho y in
         add_infl y x;
-        if tracing then trace "answer" "exiting query for %a\nanswer: %a" S.Var.pretty_trace y S.Dom.pretty tmp;
+        if tracing then trace "answer" "exiting query for %a\nanswer: %a" S.Var.pp_trace y S.Dom.pp tmp;
         tmp
 
       and side x y d = (* side from x to y; only to variables y w/o rhs; x only used for trace *)
-        if tracing then trace "side" "side to %a (wpx: %b) from %a; value: %a" S.Var.pretty_trace y (HM.mem wpoint y) S.Var.pretty_trace x S.Dom.pretty d;
+        if tracing then trace "side" "side to %a (wpx: %b) from %a; value: %a" S.Var.pp_trace y (HM.mem wpoint y) S.Var.pp_trace x S.Dom.pp d;
         assert (S.system y = None);
         init y;
         let widen a b =
-          if M.tracing then M.trace "wpoint" "side widen %a" S.Var.pretty_trace y;
+          if M.tracing then M.trace "wpoint" "side widen %a" S.Var.pp_trace y;
           S.Dom.widen a (S.Dom.join a b)
         in
         let op a b = if HM.mem wpoint y then widen a b else S.Dom.join a b
@@ -99,16 +99,16 @@ module Base : GenericEqSolver =
         let tmp = op old d in
         HM.replace stable y ();
         if not (S.Dom.leq tmp old) then (
-          if tracing && not (S.Dom.is_bot old) then trace "update" "side to %a (wpx: %b) from %a new: %a" S.Var.pretty_trace y (HM.mem wpoint y) S.Var.pretty_trace x S.Dom.pretty tmp;
+          if tracing && not (S.Dom.is_bot old) then trace "update" "side to %a (wpx: %b) from %a new: %a" S.Var.pp_trace y (HM.mem wpoint y) S.Var.pp_trace x S.Dom.pp tmp;
           HM.replace rho y tmp;
           destabilize y;
           (* make y a widening point. This will only matter for the next side _ y.  *)
-          if tracing && not (HM.mem wpoint y) then trace "wpoint" "side adding wpoint %a" S.Var.pretty_trace y;
+          if tracing && not (HM.mem wpoint y) then trace "wpoint" "side adding wpoint %a" S.Var.pp_trace y;
           HM.replace wpoint y ()
         )
 
       and iterate x = (* ~(inner) solve in td3*)
-        if tracing then trace "iter" "begin iterate %a, called: %b, stable: %b, wpoint: %b" S.Var.pretty_trace x (HM.mem called x) (HM.mem stable x) (HM.mem wpoint x);
+        if tracing then trace "iter" "begin iterate %a, called: %b, stable: %b, wpoint: %b" S.Var.pp_trace x (HM.mem called x) (HM.mem stable x) (HM.mem wpoint x);
         init x;
         assert (S.system x <> None);
         if not (HM.mem stable x) then (
@@ -119,26 +119,26 @@ module Base : GenericEqSolver =
           let wpd = (* d after widen/narrow (if wp) *)
             if not wp then eqd
             else (
-              if M.tracing then M.trace "wpoint" "widen %a" S.Var.pretty_trace x;
+              if M.tracing then M.trace "wpoint" "widen %a" S.Var.pp_trace x;
               box old eqd)
           in
           if not (Timing.wrap "S.Dom.equal" (fun () -> S.Dom.equal old wpd) ()) then (
             (* old != wpd *)
-            if tracing && not (S.Dom.is_bot old) then trace "update" "%a (wpx: %b): %a" S.Var.pretty_trace x (HM.mem wpoint x) S.Dom.pretty_diff (wpd, old);
+            if tracing && not (S.Dom.is_bot old) then trace "update" "%a (wpx: %b): %a" S.Var.pp_trace x (HM.mem wpoint x) S.Dom.pretty_diff (wpd, old);
             update_var_event x old wpd;
             HM.replace  rho x wpd;
             destabilize x;
-            if tracing then trace "iter" "iterate changed %a" S.Var.pretty_trace x;
+            if tracing then trace "iter" "iterate changed %a" S.Var.pp_trace x;
             (iterate[@tailcall]) x
           ) else (
             (* old == wpd *)
             if not (HM.mem stable x) then (
               (* value unchanged, but not stable, i.e. destabilized itself during rhs *)
-              if tracing then trace "iter" "iterate still unstable %a" S.Var.pretty_trace x;
+              if tracing then trace "iter" "iterate still unstable %a" S.Var.pp_trace x;
               (iterate[@tailcall]) x
             ) else (
               (* this makes e.g. nested loops precise, ex. tests/regression/34-localization/01-nested.c - if we do not remove wpoint, the inner loop head will stay a wpoint and widen the outer loop variable. *)
-              if tracing && (HM.mem wpoint x) then trace "wpoint" "iterate removing wpoint %a" S.Var.pretty_trace x;
+              if tracing && (HM.mem wpoint x) then trace "wpoint" "iterate removing wpoint %a" S.Var.pp_trace x;
               HM.remove wpoint x
             )
           )
@@ -171,7 +171,7 @@ module Base : GenericEqSolver =
             flush_all ();
           );
           List.iter (fun x -> HM.replace called x ();
-                      if tracing then trace "multivar" "solving for %a" S.Var.pretty_trace x;
+                      if tracing then trace "multivar" "solving for %a" S.Var.pp_trace x;
                       iterate x;
                       HM.remove called x
                     ) unstable_vs;

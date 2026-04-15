@@ -40,6 +40,8 @@ include Printable.SimplePretty (
   )
 (* TODO: deriving to_yojson gets overridden by SimplePretty *)
 
+let pp_trace ppf x = Format.pp_print_string ppf (show x)
+
 (** Show node ID for CFG and results output. *)
 let show_id = function
   | Statement stmt   -> string_of_int stmt.sid

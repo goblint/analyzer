@@ -30,3 +30,5 @@ let print (ch: 'a BatIO.output) json =
 
 let pretty () json =
   GoblintCil.Pretty.text (Yojson.Safe.to_string json)
+
+let pp ppf json = Format.pp_print_string ppf (Yojson.Safe.to_string json)

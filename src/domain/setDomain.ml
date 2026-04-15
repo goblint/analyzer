@@ -152,6 +152,11 @@ struct
     let all_elems : string list = List.map E.show (S.elements x) in
     Printable.get_short_list "{" "}" all_elems
 
+  let pp ppf x =
+    let pp_sep ppf () = Format.fprintf ppf ",@ " in
+    Format.fprintf ppf "@[{%a}@]"
+      (Format.pp_print_list ~pp_sep E.pp) (S.elements x)
+
   let to_yojson x = [%to_yojson: E.t list] (S.elements x)
 
   let printXml f xs =
@@ -361,6 +366,11 @@ struct
     | `Top -> N.topname
     | `Lifted t -> S.show t
 
+  let pp ppf x =
+    match x with
+    | `Top -> Format.pp_print_string ppf N.topname
+    | `Lifted t -> S.pp ppf t
+
 
   (* Lattice implementation *)
   (* Lift separately because lattice order might be different from subset order, e.g. after Reverse *)
@@ -429,6 +439,10 @@ struct
     let separated = separate content in
     let content = List.fold_left (++) nil separated in
     content
+
+  let pp ppf x =
+    let pp_sep ppf () = Format.fprintf ppf ", " in
+    Format.pp_print_list ~pp_sep Base.pp ppf (elements x)
 
   let pretty_diff () ((x:t),(y:t)): Pretty.doc =
     Pretty.dprintf "%s: %a not leq %a" (name ()) pretty x pretty y

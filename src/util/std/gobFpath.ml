@@ -4,6 +4,8 @@ let hash p = Hashtbl.hash (Fpath.to_string p)
 
 let pretty () p = GoblintCil.Pretty.text (Fpath.to_string p)
 
+let pp ppf p = Format.pp_print_string ppf (Fpath.to_string p)
+
 let to_yojson p = `String (Fpath.to_string p)
 
 let of_yojson = function

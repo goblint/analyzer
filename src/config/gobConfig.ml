@@ -304,7 +304,7 @@ struct
     try
       let st = String.trim st in
       let x = get_value !json_conf (parse_path st) in
-      if Goblint_tracing.tracing then Goblint_tracing.trace "conf-reads" "Reading '%s', it is %a." st GobYojson.pretty x;
+      if Goblint_tracing.tracing then Goblint_tracing.trace "conf-reads" "Reading '%s', it is %a." st GobYojson.pp x;
       try f x
       with Yojson.Safe.Util.Type_error (s, _) ->
         Logs.error "The value for '%s' has the wrong type: %s" st s;
@@ -362,7 +362,7 @@ struct
       @raise Invalid_argument
       @raise Json_encoding.Cannot_destruct *)
   let set_path_string st v =
-    if Goblint_tracing.tracing then Goblint_tracing.trace "conf" "Setting '%s' to %a." st GobYojson.pretty v;
+    if Goblint_tracing.tracing then Goblint_tracing.trace "conf" "Setting '%s' to %a." st GobYojson.pp v;
     set_value v json_conf (parse_path st)
 
   let set_json st j =
@@ -417,7 +417,7 @@ struct
     | Some fn ->
       let v = In_channel.with_open_text (Fpath.to_string fn) Yojson.Safe.from_channel in
       merge v;
-      if Goblint_tracing.tracing then Goblint_tracing.trace "conf" "Merging with '%a', resulting\n%a." GobFpath.pretty fn GobYojson.pretty !json_conf
+      if Goblint_tracing.tracing then Goblint_tracing.trace "conf" "Merging with '%a', resulting\n%a." GobFpath.pp fn GobYojson.pp !json_conf
     | None -> raise (Sys_error (Printf.sprintf "%s: No such file or directory" (Fpath.to_string fn)))
 end
 

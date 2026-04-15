@@ -215,9 +215,9 @@ struct
           let oman' : (S.D.t, S.G.t, S.C.t, S.V.t) man = inner_man "do_emits" ~splits ~post_all oman'' n od in
           n, Obj.repr @@ S.event man' e oman'
         in
-        if M.tracing then M.traceli "event" "%a\n  before: %a" Events.pretty e D.pretty man.local;
+        if M.tracing then M.traceli "event" "%a\n  before: %a" Events.pp e D.pp man.local;
         let d, q = map_deadcode f @@ spec_list2 man.local oman.local in
-        if M.tracing then M.traceu "event" "%a\n  after:%a" Events.pretty e D.pretty d;
+        if M.tracing then M.traceu "event" "%a\n  after:%a" Events.pp e D.pp d;
         do_sideg man !sides;
         do_spawns man !spawns;
         do_splits man d !splits !emits;
@@ -267,7 +267,7 @@ struct
   (* Explicitly polymorphic type required here for recursive GADT call in ask. *)
   and query': type a. querycache:Obj.t Queries.Hashtbl.t -> Queries.Set.t -> (D.t, G.t, C.t, V.t) man -> a Queries.t -> a Queries.result = fun ~querycache asked man q ->
     let anyq = Queries.Any q in
-    if M.tracing then M.traceli "query" "query %a" Queries.Any.pretty anyq;
+    if M.tracing then M.traceli "query" "query %a" Queries.Any.pp anyq;
     let r = match Queries.Hashtbl.find_option querycache anyq with
       | Some r ->
         if M.tracing then M.trace "query" "cached";
@@ -293,7 +293,7 @@ struct
             in
             (* meet results so that precision from all analyses is combined *)
             let res = S.query man' q in
-            if M.tracing then M.trace "queryanswers" "analysis %s query %a -> answer %a" (S.name ()) Queries.Any.pretty anyq Result.pretty res;
+            if M.tracing then M.trace "queryanswers" "analysis %s query %a -> answer %a" (S.name ()) Queries.Any.pp anyq Result.pp res;
             Result.meet a @@ res
           in
           match q with
@@ -339,7 +339,7 @@ struct
     in
     if M.tracing then (
       let module Result = (val Queries.Result.lattice q) in
-      M.traceu "query" "-> %a" Result.pretty r
+      M.traceu "query" "-> %a" Result.pp r
     );
     r
 

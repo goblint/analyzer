@@ -61,7 +61,7 @@ struct
     let f a prop =
       try
         let exp = T.prop_to_cil prop in (* May raise UnsupportedCilExpression *)
-        if M.tracing then M.trace "c2po-invariant" "Adding invariant: %a" d_exp exp;
+        if M.tracing then M.trace "c2po-invariant" "Adding invariant: %a" CilType.Exp.pp exp;
         Invariant.(a && of_exp exp)
       with T.UnsupportedCilExpression _ ->
         a
@@ -100,7 +100,7 @@ struct
     | lval_size, (Some rterm, Some roffset) ->
       let dummy_var = MayBeEqual.dummy_var lval_t in
 
-      if M.tracing then M.trace "c2po-assign" "assigning: var: %s; expr: %s + %s. \nTo_cil: lval: %a; expr: %a\n" (T.show lterm) (T.show rterm) (Z.to_string roffset) d_exp (T.to_cil lterm) d_exp (T.to_cil rterm);
+      if M.tracing then M.trace "c2po-assign" "assigning: var: %s; expr: %s + %s. \nTo_cil: lval: %a; expr: %a\n" (T.show lterm) (T.show rterm) (Z.to_string roffset) CilType.Exp.pp (T.to_cil lterm) CilType.Exp.pp (T.to_cil rterm);
 
       let equal_dummy_rterm = [Equal (dummy_var, rterm, roffset)] in
       let equal_dummy_lterm = [Equal (lterm, dummy_var, Z.zero)] in
@@ -126,7 +126,7 @@ struct
          We have to forget all the information we had.
          This should almost never happen.
          Except if the left hand side is a complicated expression like myStruct.field1[i]->field2[z+k], and Goblint can't infer the offset.*)
-      if M.tracing then M.trace "c2po-invalidate" "Invalidate lval: %a" d_lval lval;
+      if M.tracing then M.trace "c2po-invalidate" "Invalidate lval: %a" CilType.Lval.pp lval;
       C2PODomain.top ()
 
   let assign ctx lval expr =
@@ -138,7 +138,7 @@ struct
       let cc = assign_lval d ask lval (T.of_cil ask expr) in
       let cc = reset_normal_form cc in
       let res = `Lifted cc in
-      if M.tracing then M.trace "c2po-assign" "assign: var: %a; expr: %a; result: %s.\n" d_lval lval d_plainexp expr (D.show res);
+      if M.tracing then M.trace "c2po-assign" "assign: var: %a; expr: %a; result: %s.\n" CilType.Lval.pp lval CilType.Exp.pp expr (D.show res);
       res
 
   let branch ctx e pos =
@@ -158,7 +158,7 @@ struct
           with Unsat ->
             `Bot
     in
-    if M.tracing then M.trace "c2po" "branch:\n Actual equality: %a; pos: %b; valid_prop_list: %s; is_bot: %b\n" d_exp e pos (show_conj valid_props) (D.is_bot res);
+    if M.tracing then M.trace "c2po" "branch:\n Actual equality: %a; pos: %b; valid_prop_list: %s; is_bot: %b\n" CilType.Exp.pp e pos (show_conj valid_props) (D.is_bot res);
     if D.is_bot res then raise Deadcode;
     res
 
@@ -188,7 +188,7 @@ struct
         end
       | None -> ctx.local
     in
-    if M.tracing then M.trace "c2po-function" "return: exp_opt: %a; state: %s; result: %s\n" d_exp (BatOption.default (MayBeEqual.dummy_lval_print (TVoid [])) exp_opt) (D.show ctx.local) (D.show res);
+    if M.tracing then M.trace "c2po-function" "return: exp_opt: %a; state: %s; result: %s\n" CilType.Exp.pp (BatOption.default (MayBeEqual.dummy_lval_print (TVoid [])) exp_opt) (D.show ctx.local) (D.show res);
     res
 
   (** var_opt is the variable we assign to. It has type lval. v=malloc.*)
@@ -249,7 +249,7 @@ struct
       if M.tracing then begin
         let dummy_lval = Cil.var (Var.dummy_varinfo (TVoid [])) in
         let lval = BatOption.default dummy_lval var_opt in
-        M.trace "c2po-function" "enter1: var_opt: %a; state: %s; state_with_ghosts: %s\n" d_lval lval (D.show ctx.local) (C2PODomain.show state_with_ghosts);
+        M.trace "c2po-function" "enter1: var_opt: %a; state: %s; state_with_ghosts: %s\n" CilType.Lval.pp lval (D.show ctx.local) (C2PODomain.show state_with_ghosts);
       end;
       (* remove callee vars that are not reachable and not global *)
       let reachable_variables =
@@ -285,7 +285,7 @@ struct
 
       (*remove all variables that were tainted by the function*)
       let tainted = f_ask.f (MayBeTainted) in
-      if M.tracing then M.trace "c2po-tainted" "combine_env1: %a\n" MayBeEqual.AD.pretty tainted;
+      if M.tracing then M.trace "c2po-tainted" "combine_env1: %a\n" MayBeEqual.AD.pp tainted;
 
       let local = D.remove_tainted_terms caller_ask tainted state_with_assignments.data in
       let local = data_to_t local in
@@ -297,7 +297,7 @@ struct
         if M.tracing then begin
           let dummy_lval = Cil.var (Var.dummy_varinfo (TVoid[])) in
           let lval = BatOption.default dummy_lval lval_opt in
-          M.trace "c2po-function" "combine_env2: var_opt: %a; local_state: %s; f_state: %s; meeting everything: %s\n" d_lval lval (D.show ctx.local) (D.show f_d) (C2PODomain.show d)
+          M.trace "c2po-function" "combine_env2: var_opt: %a; local_state: %s; f_state: %s; meeting everything: %s\n" CilType.Lval.pp lval (D.show ctx.local) (D.show f_d) (C2PODomain.show d)
         end;
         `Lifted d
 

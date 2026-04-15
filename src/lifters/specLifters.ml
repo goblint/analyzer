@@ -722,10 +722,10 @@ struct
     assert (D.cardinal man.local = 1);
     let cd = D.choose man.local in
     let k x y =
-      if M.tracing then M.traceli "combine" "function: %a" Spec.D.pretty x;
+      if M.tracing then M.traceli "combine" "function: %a" Spec.D.pp x;
       try
         let r = Spec.combine_env (conv man cd) l fe f a fc x f_ask in
-        if M.tracing then M.traceu "combine" "combined function: %a" Spec.D.pretty r;
+        if M.tracing then M.traceu "combine" "combined function: %a" Spec.D.pp r;
         D.add r y
       with Deadcode ->
         if M.tracing then M.traceu "combine" "combined function: dead";
@@ -738,10 +738,10 @@ struct
     assert (D.cardinal man.local = 1);
     let cd = D.choose man.local in
     let k x y =
-      if M.tracing then M.traceli "combine" "function: %a" Spec.D.pretty x;
+      if M.tracing then M.traceli "combine" "function: %a" Spec.D.pp x;
       try
         let r = Spec.combine_assign (conv man cd) l fe f a fc x f_ask in
-        if M.tracing then M.traceu "combine" "combined function: %a" Spec.D.pretty r;
+        if M.tracing then M.traceu "combine" "combined function: %a" Spec.D.pp r;
         D.add r y
       with Deadcode ->
         if M.tracing then M.traceu "combine" "combined function: dead";

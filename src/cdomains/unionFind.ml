@@ -357,7 +357,7 @@ module T = struct
         let const = to_cil_constant off (Some typ) in
         BinOp (PlusPI, cil_t, const, typ)
     in
-    if M.tracing then M.trace "c2po-2cil" "exp: %a; offset: %s; res: %a" d_exp cil_t (Z.to_string off) d_exp res;
+    if M.tracing then M.trace "c2po-2cil" "exp: %a; offset: %s; res: %a" CilType.Exp.pp cil_t (Z.to_string off) CilType.Exp.pp res;
     res
 
   let is_field = function
@@ -413,7 +413,7 @@ module T = struct
   (** Get a Cil expression that is equivalent to *(exp + offset),
       by taking into account type correctness.*)
   let dereference_exp exp offset =
-    if M.tracing then M.trace "c2po-deref" "exp: %a, offset: %s" d_exp exp (Z.to_string offset);
+    if M.tracing then M.trace "c2po-deref" "exp: %a, offset: %s" CilType.Exp.pp exp (Z.to_string offset);
     let res =
       let find_field cinfo =
         try
@@ -461,7 +461,7 @@ module T = struct
       else
         raise (UnsupportedCilExpression "not a pointer variable")
     in
-    if M.tracing then M.trace "c2po-deref" "deref result: %a" d_exp res;
+    if M.tracing then M.trace "c2po-deref" "deref result: %a" CilType.Exp.pp res;
     res
 
   let get_size t =  get_size_in_bits @@ type_of_term t
@@ -603,14 +603,14 @@ module T = struct
     | false ->
       let res = match of_cil_neg ask neg (Cil.constFold false e) with
         | exception (UnsupportedCilExpression s) ->
-          if M.tracing then M.trace "c2po-cil-conversion" "unsupported exp: %a\n%s\n" d_plainexp e s;
+          if M.tracing then M.trace "c2po-cil-conversion" "unsupported exp: %a\n%s\n" CilType.Exp.pp e s;
           None, None
         | t, z -> t, Some z
       in
       (if M.tracing && not neg then
          match res with
-         | None, Some z ->  M.trace "c2po-cil-conversion" "constant exp: %a --> %s\n" d_plainexp e (Z.to_string z)
-         | Some t, Some z -> M.trace "c2po-cil-conversion" "exp: %a --> %s + %s\n" d_plainexp e (show t) (Z.to_string z);
+         | None, Some z ->  M.trace "c2po-cil-conversion" "constant exp: %a --> %s\n" CilType.Exp.pp e (Z.to_string z)
+         | Some t, Some z -> M.trace "c2po-cil-conversion" "exp: %a --> %s + %s\n" CilType.Exp.pp e (show t) (Z.to_string z);
          | _ -> ());
       res
 
@@ -625,7 +625,7 @@ module T = struct
       if check_valid_pointer exp then
         Some t, Some z
       else begin
-        if M.tracing then M.trace "c2po-cil-conversion" "invalid exp: %a --> %s + %s\n" d_plainexp e (show t) (Z.to_string z);
+        if M.tracing then M.trace "c2po-cil-conversion" "invalid exp: %a --> %s + %s\n" CilType.Exp.pp e (show t) (Z.to_string z);
         None, None
       end
     | t, z -> t, z
