@@ -602,8 +602,10 @@ let init () =
       let placed : (string, unit) Hashtbl.t = Hashtbl.create 16 in
       visitCilFile (new ghostUpdateVisitor updates placed atomic_begin atomic_end) file;
       Hashtbl.iter (fun key _ ->
-          if not (Hashtbl.mem placed key) then
-            M.warn_noloc ~category:Witness "ghost update at %s could not be placed: no matching instruction found" key
+          if not (Hashtbl.mem placed key) then begin
+            M.warn_noloc ~category:Witness "ghost update at %s could not be placed: no matching instruction found" key;
+            has_unplaced_ghost_updates := true
+          end
         ) updates
     end
 
@@ -624,6 +626,10 @@ struct
   end
   include Lattice.Chain (ChainParams)
 end
+
+(** Set to [true] if any ghost update from [init] could not be placed in the CIL AST.
+    Checked by [Validator.validate] to prevent a successful validation result. *)
+let has_unplaced_ghost_updates = ref false
 
 (* TODO: record *)
 let cnt_confirmed = ref 0
@@ -675,6 +681,12 @@ struct
     cnt_unsupported := 0;
     cnt_error := 0;
     cnt_disabled := 0;
+    (* If any ghost update could not be placed during instrumentation, treat it
+       as a validation error so the result cannot be reported as successful. *)
+    if !has_unplaced_ghost_updates then begin
+      incr cnt_error;
+      M.warn_noloc ~category:Witness "validation result cannot be successful: some ghost updates could not be placed"
+    end;
 
     let validate_entry (entry: YamlWitnessType.Entry.t): unit =
       let target_type = YamlWitnessType.EntryType.entry_type entry.entry_type in
@@ -831,6 +843,9 @@ struct
       (* Ok (Svcomp.Result.False None) *) (* Wasn't a problem because valid*->correctness->false gave 0 points under old validator track scoring schema: https://doi.org/10.1007/978-3-031-22308-2_8. *)
       Ok Svcomp.Result.Unknown (* Now valid*->correctness->false gives 1p (negative) points under new validator track scoring schema: https://doi.org/10.1007/978-3-031-57256-2_15. *)
     | _ when !cnt_unconfirmed > 0 ->
+      Ok Unknown
+    | _ when !has_unplaced_ghost_updates ->
+      (* Some ghost updates could not be placed; validation cannot be confirmed. *)
       Ok Unknown
     | _ ->
       Ok True
