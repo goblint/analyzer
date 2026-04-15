@@ -435,8 +435,10 @@ let ghost_instr_loc = function
       originalstatement;
       ghostupdate;
       __VERIFIER_atomic_end();
-    ]} *)
-class ghostUpdateVisitor (updates : (string, Cil.instr list) Hashtbl.t) (atomic_begin : Cil.varinfo) (atomic_end : Cil.varinfo) = object
+    ]}
+    [placed] is populated with every key from [updates] that was successfully
+    matched; callers can use this to warn about unmatched keys. *)
+class ghostUpdateVisitor (updates : (string, Cil.instr list) Hashtbl.t) (placed : (string, unit) Hashtbl.t) (atomic_begin : Cil.varinfo) (atomic_end : Cil.varinfo) = object
   inherit nopCilVisitor
 
   method! vstmt s =
@@ -451,6 +453,7 @@ class ghostUpdateVisitor (updates : (string, Cil.instr list) Hashtbl.t) (atomic_
                (match Hashtbl.find_opt updates key with
                 | None | Some [] -> [instr]
                 | Some update_instrs ->
+                  Hashtbl.replace placed key ();
                   let abegin = Formatcil.cInstr "%v:__VERIFIER_atomic_begin();" loc
                       [("__VERIFIER_atomic_begin", Cil.Fv atomic_begin)] in
                   let aend = Formatcil.cInstr "%v:__VERIFIER_atomic_end();" loc
@@ -596,7 +599,12 @@ let init () =
       in
       let atomic_begin = find_or_make "__VERIFIER_atomic_begin" in
       let atomic_end = find_or_make "__VERIFIER_atomic_end" in
-      visitCilFile (new ghostUpdateVisitor updates atomic_begin atomic_end) file
+      let placed : (string, unit) Hashtbl.t = Hashtbl.create 16 in
+      visitCilFile (new ghostUpdateVisitor updates placed atomic_begin atomic_end) file;
+      Hashtbl.iter (fun key _ ->
+          if not (Hashtbl.mem placed key) then
+            M.warn_noloc ~category:Witness "ghost update at %s could not be placed: no matching instruction found" key
+        ) updates
     end
 
 module ValidationResult =
