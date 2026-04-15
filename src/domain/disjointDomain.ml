@@ -633,6 +633,7 @@ struct
 
   let filter p m = failwith "ProjectiveMap.filter"
 
+  let reflexive_subset_domain_for_all2 _ _ _ = failwith "ProjectiveMap.reflexive_subset_domain_for_all2"
   let leq_with_fct _ _ _ = failwith "ProjectiveMap.leq_with_fct"
   let join_with_fct _ _ _ = failwith "ProjectiveMap.join_with_fct"
   let widen_with_fct _ _ _ = failwith "ProjectiveMap.widen_with_fct"
@@ -893,6 +894,7 @@ struct
 
   let filter p s = failwith "PairwiseMap.filter"
 
+  let reflexive_subset_domain_for_all2 _ _ _ = failwith "PairwiseMap.reflexive_subset_domain_for_all2"
   let leq_with_fct _ _ _ = failwith "PairwiseMap.leq_with_fct"
   let join_with_fct _ _ _ = failwith "PairwiseMap.join_with_fct"
   let widen_with_fct _ _ _ = failwith "PairwiseMap.widen_with_fct"

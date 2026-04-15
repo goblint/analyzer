@@ -28,6 +28,7 @@ sig
   val add_list_fun: key list -> (key -> value) -> t -> t
 
   val for_all: (key -> value -> bool) -> t -> bool
+  val reflexive_subset_domain_for_all2: (value -> value -> bool) -> t -> t -> bool
   val idempotent_inter: (value -> value -> value) -> t -> t -> t
   val nonidempotent_inter: (value -> value -> value) -> t -> t -> t
   val idempotent_union: (value -> value -> value) -> t -> t -> t
@@ -154,6 +155,7 @@ sig
   val nonidempotent_inter: ('a -> 'a -> 'a) -> 'a t -> 'a t -> 'a t
   val reflexive_compare: ('a -> 'a -> int) -> 'a t -> 'a t -> int
   val reflexive_equal: ('a -> 'a -> bool) -> 'a t -> 'a t -> bool
+  val reflexive_subset_domain_for_all2: ('a -> 'a -> bool) -> 'a t -> 'a t -> bool
   val iter: (key -> 'a -> unit) -> 'a t -> unit
   val fold: (key -> 'a -> 'b -> 'b) -> 'a t -> 'b -> 'b
   val for_all: (key -> 'a -> bool) -> 'a t -> bool
@@ -174,6 +176,13 @@ struct
 
   let reflexive_equal f x y = x == y || equal f x y
   let reflexive_compare f x y = if x == y then 0 else compare f x y
+
+  let reflexive_subset_domain_for_all2 f m1 m2 =
+    (* For each key-value in m1, the same key must be in m2 with a geq value: *)
+    let p key value =
+      try f value (find key m2) with Not_found -> false
+    in
+    m1 == m2 || for_all p m1
 
   let nonidempotent_union op =
     let f k v1 v2 =
@@ -211,6 +220,7 @@ struct
   let nonidempotent_union f = nonidempotent_union (fun _ v v' -> f v v')
   let idempotent_inter f = idempotent_inter (fun _ v v' -> f v v')
   let nonidempotent_inter f = nonidempotent_inter_no_share (fun _ v v' -> f v v')
+  let reflexive_subset_domain_for_all2 f = reflexive_subset_domain_for_all2 (fun _ v v' -> f v v')
   let exists f m = not (for_all (fun k v -> not (f k v)) m)
   let bindings = to_list
   let choose m = BatSeq.hd (to_seq m)
@@ -311,6 +321,7 @@ struct
   let idempotent_inter op = lift_f2' (M.idempotent_inter op)
   let nonidempotent_inter op = lift_f2' (M.nonidempotent_inter op)
 
+  let reflexive_subset_domain_for_all2 f = lift_f2 (M.reflexive_subset_domain_for_all2 f)
   let leq_with_fct f = lift_f2 (M.leq_with_fct f)
   let join_with_fct f = lift_f2' (M.join_with_fct f)
   let widen_with_fct f = lift_f2' (M.widen_with_fct f)
@@ -366,6 +377,7 @@ struct
   let idempotent_inter op = lift_f2' (M.idempotent_inter op)
   let nonidempotent_inter op = lift_f2' (M.nonidempotent_inter op)
 
+  let reflexive_subset_domain_for_all2 f = lift_f2 (M.reflexive_subset_domain_for_all2 f)
   let leq_with_fct f = lift_f2 (M.leq_with_fct f)
   let join_with_fct f = lift_f2' (M.join_with_fct f)
   let widen_with_fct f = lift_f2' (M.widen_with_fct f)
@@ -440,6 +452,7 @@ struct
   let idempotent_inter f x y = time "idempotent_inter" (M.idempotent_inter f x) y
   let nonidempotent_inter f x y = time "nonidempotent_inter" (M.nonidempotent_inter f x) y
 
+  let reflexive_subset_domain_for_all2 f x y = time "reflexive_subset_domain_for_all2" (M.reflexive_subset_domain_for_all2 f x) y
   let leq_with_fct f x y = time "leq_with_fct" (M.leq_with_fct f x) y
   let join_with_fct f x y = time "join_with_fct" (M.join_with_fct f x) y
   let widen_with_fct f x y = time "widen_with_fct" (M.widen_with_fct f x) y
@@ -453,13 +466,7 @@ module GenMapBot (Domain: Printable.S) (M: MapS with type key = Domain.t) (Range
 struct
   include GenPMap (Domain) (M) (Range)
 
-  let leq_with_fct f m1 m2 =
-    (* For each key-value in m1, the same key must be in m2 with a geq value: *)
-    let p key value =
-      try f value (find key m2) with Not_found -> false
-    in
-    m1 == m2 || for_all p m1
-
+  let leq_with_fct = reflexive_subset_domain_for_all2
   let leq = leq_with_fct Range.leq
 
   let find x m = try find x m with | Not_found -> Range.bot ()
@@ -504,13 +511,7 @@ module GenMapTop (Domain: Printable.S) (M: MapS with type key = Domain.t) (Range
 struct
   include GenPMap (Domain) (M) (Range)
 
-  let leq_with_fct f m1 m2 = (* TODO use merge or sth faster? *)
-    (* For each key-value in m2, the same key must be in m1 with a leq value: *)
-    let p key value =
-      try f (find key m1) value with Not_found -> false
-    in
-    m1 == m2 || for_all p m2
-
+  let leq_with_fct f m1 m2 = reflexive_subset_domain_for_all2 (Fun.flip f) m2 m1
   let leq = leq_with_fct Range.leq
 
   let find x m = try find x m with | Not_found -> Range.top ()
@@ -639,6 +640,12 @@ struct
     match x, y with
     | `Lifted x, `Lifted y -> `Lifted (M.merge f x y)
     | _ -> raise (Fn_over_All "merge")
+
+  let reflexive_subset_domain_for_all2 f x y =
+    match (x,y) with
+    | (_, `Top) -> true
+    | (`Top, _) -> false
+    | (`Lifted x, `Lifted y) -> M.reflexive_subset_domain_for_all2 f x y
 
   let leq_with_fct f x y =
     match (x,y) with
@@ -789,6 +796,12 @@ struct
     | (`Lifted x, `Lifted y) -> `Lifted(M.widen_with_fct f x y)
     | _ -> y
 
+  let reflexive_subset_domain_for_all2 f x y =
+    match (x,y) with
+    | (`Bot, _) -> true
+    | (_, `Bot) -> false
+    | (`Lifted x, `Lifted y) -> M.reflexive_subset_domain_for_all2 f x y
+
   let leq_with_fct f x y =
     match (x,y) with
     | (`Bot, _) -> true
@@ -883,6 +896,7 @@ struct
       add e (f e) acc
     ) m es
 
+  let reflexive_subset_domain_for_all2 _ _ _ = failwith "MapDomain.Joined.reflexive_subset_domain_for_all2"
   let leq_with_fct _ _ _ = failwith "MapDomain.Joined.leq_with_fct"
   let join_with_fct _ _ _ = failwith "MapDomain.Joined.join_with_fct"
   let widen_with_fct _ _ _ = failwith "MapDomain.Joined.widen_with_fct"
