@@ -612,7 +612,7 @@ let init () =
       let find_or_make name =
         match find_global_var name with
         | Some v -> v
-        | None -> makeVarinfo true name (TVoid [])
+        | None -> makeVarinfo true name (TFun (TVoid [], Some [], false, []))
       in
       let atomic_begin = find_or_make "__VERIFIER_atomic_begin" in
       let atomic_end = find_or_make "__VERIFIER_atomic_end" in
