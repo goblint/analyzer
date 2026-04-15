@@ -14,7 +14,7 @@ Ghost updates from a YAML witness are inserted after the matching statement, wra
 
 A ghost update at a line with no matching instruction produces a warning:
 
-  $ goblint --enable justcil --set dbg.justcil-printer clean --set witness.yaml.validate ghost-update-unplaced.yml ghost-update-unplaced.c 2>&1 | grep "could not be placed"
+  $ goblint --set witness.yaml.validate ghost-update-unplaced.yml ghost-update-unplaced.c 2>&1 | grep "could not be placed"
   [Warning][Witness] ghost update at ghost-update-unplaced.c:99 could not be placed: no matching instruction found
 
 An unplaced ghost update prevents successful validation:
