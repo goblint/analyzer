@@ -146,8 +146,8 @@ sig
   val singleton: key -> 'a -> 'a t
   val remove: key -> 'a t -> 'a t
   val merge: (key -> 'a option -> 'b option -> 'c option) -> 'a t -> 'b t -> 'c t
-  val compare: ('a -> 'a -> int) -> 'a t -> 'a t -> int
-  val equal: ('a -> 'a -> bool) -> 'a t -> 'a t -> bool
+  val reflexive_compare: ('a -> 'a -> int) -> 'a t -> 'a t -> int
+  val reflexive_equal: ('a -> 'a -> bool) -> 'a t -> 'a t -> bool
   val iter: (key -> 'a -> unit) -> 'a t -> unit
   val fold: (key -> 'a -> 'b -> 'b) -> 'a t -> 'b -> 'b
   val for_all: (key -> 'a -> bool) -> 'a t -> bool
@@ -165,14 +165,15 @@ end
 module StdMap (K: Map.OrderedType): MapS with type key = K.t =
 struct
   include Map.Make (K)
+
+  let reflexive_equal f x y = x == y || equal f x y
+  let reflexive_compare f x y = if x == y then 0 else compare f x y
 end
 
 module PatriciaMap (K: PatriciaTree.KEY): MapS with type key = K.t =
 struct
   include PatriciaTree.MakeMap (K)
 
-  let equal = reflexive_equal
-  let compare = reflexive_compare
   let merge = slow_merge (* TODO: get rid of this *)
   let exists f m = not (for_all (fun k v -> not (f k v)) m)
   let bindings = to_list
@@ -193,10 +194,8 @@ struct
 
   let name () = "map"
 
-  (* And one less brainy definition *)
-  let for_all2 = M.equal
-  let equal x y = x == y || for_all2 Range.equal x y
-  let compare x y = if equal x y then 0 else M.compare Range.compare x y
+  let equal = reflexive_equal Range.equal
+  let compare = reflexive_compare Range.compare
   let hash xs = fold (fun k v a -> a + (Domain.hash k * Range.hash v)) xs 0
 
   let empty () = M.empty
