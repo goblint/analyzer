@@ -1675,7 +1675,7 @@ struct
    * not include the flag. *)
   let set_mval ~(man: _ man) ?(invariant=false) ?(blob_destructive=false) ?lval_raw ?rval_raw ?t_override (st: store) ((x, offs): Addr.Mval.t) (lval_type: Cil.typ) (value: value): store =
     let ask = Analyses.ask_of_man man in
-    let cil_offset = Offs.to_cil_offset offs in
+    let cil_offset = Offs.to_cil_offset offs in (* Only for partitioned arrays! Drops indices. *)
     let t = match t_override with
       | Some t -> t
       | None ->
@@ -1685,11 +1685,11 @@ struct
           lval_type
         else
           try
-            Cilfacade.typeOfLval (Var x, cil_offset)
-          with Cilfacade.TypeOfError _ ->
+            Offs.type_of ~base:x.vtype offs
+          with Offset.Type_of_error _ ->
             (* If we cannot determine the correct type here, we go with the one of the LVal *)
             (* This will usually lead to a type mismatch in the ValueDomain (and hence supertop) *)
-            M.debug ~category:Analyzer "Cilfacade.typeOfLval failed Could not obtain the type of %a" d_lval (Var x, cil_offset);
+            M.debug ~category:Analyzer "Could not obtain the type of %a" Addr.Mval.pretty (x, offs);
             lval_type
     in
     let update_offset old_value =
@@ -1708,7 +1708,7 @@ struct
       else
         new_value
     in
-    if M.tracing then M.tracel "set" "update_one_addr: start with '%a' (type '%a') \nstate:%a" AD.pretty (AD.of_mval (x,offs)) d_type x.vtype D.pretty st;
+    if M.tracing then M.tracel "set" "update_one_addr: start with '%a' (type '%a') \nstate:%a" Addr.Mval.pretty (x,offs) d_type t D.pretty st;
     if isFunctionType x.vtype then begin
       if M.tracing then M.tracel "set" "update_one_addr: returning: '%a' is a function type " d_type x.vtype;
       st
@@ -2002,7 +2002,7 @@ struct
               let t = v.vtype in
               let iv = VD.bot_value ~varAttr:v.vattr t in (* correct bottom value for top level variable *)
               if M.tracing then M.tracel "set" "init bot value (%a): %a" d_plaintype t VD.pretty iv;
-              let nv = VD.update_offset (Queries.to_value_domain_ask (Analyses.ask_of_man man)) iv offs rval_val (Some  (Lval lval)) lval t in (* do desired update to value *)
+              let nv = VD.update_offset (Queries.to_value_domain_ask (Analyses.ask_of_man man)) iv offs rval_val (Some  (Lval lval)) lval lval_t in (* do desired update to value *)
               set_savetop ~man  man.local (AD.of_var v) lval_t nv ~lval_raw:lval ~rval_raw:rval (* set top-level variable to updated value *)
             | _ ->
               set_savetop ~man man.local lval_val lval_t rval_val ~lval_raw:lval ~rval_raw:rval
