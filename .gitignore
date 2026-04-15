@@ -18,6 +18,7 @@ tests/bench.txt
 _build
 *.native
 *.byte
+.codex
 doc
 doclist.odocl
 autom4te.cache
