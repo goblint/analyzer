@@ -197,7 +197,7 @@ let handle_flags () =
   match get_string "dbg.dump" with
   | "" -> ()
   | path ->
-    Messages.formatter := Format.formatter_of_out_channel (Out_channel.open_text (Filename.concat path "warnings.out"));
+    Messages.formatter := Format.formatter_of_out_channel (open_out (Legacy.Filename.concat path "warnings.out"));
     set_string "outfile" ""
 
 let handle_options () =
@@ -487,7 +487,7 @@ let parse_preprocessed preprocessed =
 (** Merge parsed files *)
 let merge_parsed parsed =
   let cilout =
-    if get_string "dbg.cilout" = "" then Out_channel.stderr else Out_channel.open_text (get_string "dbg.cilout")
+    if get_string "dbg.cilout" = "" then Legacy.stderr else Legacy.open_out (get_string "dbg.cilout")
   in
 
   Errormsg.logChannel := Messages.get_out "cil" cilout;
@@ -523,7 +523,7 @@ let do_stats () =
     Goblint_solver.SolverStats.print ();
     Logs.newline ();
     Logs.info "Timings:";
-    Timing.Default.print (Stdlib.Format.formatter_of_out_channel @@ Messages.get_out "timing" Out_channel.stderr);
+    Timing.Default.print (Stdlib.Format.formatter_of_out_channel @@ Messages.get_out "timing" Legacy.stderr);
     flush_all ()
   )
 
@@ -536,9 +536,9 @@ let reset_stats () =
 let do_analyze change_info merged_AST =
   (* direct the output to file if requested  *)
   if get_string "outfile" <> "" then (
-    if !Messages.out <> Out_channel.stdout then
-      Out_channel.close !Messages.out;
-    Messages.out := Out_channel.open_text (get_string "outfile"));
+    if !Messages.out <> Legacy.stdout then
+      Legacy.close_out !Messages.out;
+    Messages.out := Legacy.open_out (get_string "outfile"));
 
   let module L = Printable.Liszt (CilType.Fundec) in
   if get_bool "justcil" then
