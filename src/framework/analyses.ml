@@ -69,8 +69,8 @@ struct
   let getLocation {node; context; original_digest; current_digest} = Node.location node
 
   let pretty_trace () x =
-    if get_bool "dbg.trace.context" then (* Print context and digest *)
-      dprintf "(%a, %a, %a) on %a" Node.pretty_trace x.node C.pretty x.context P.pretty x.original_digest CilType.Location.pretty (getLocation x)
+    if get_bool "dbg.trace.context" then (* Print context and digests *)
+      dprintf "(%a, %a, %a, %a) on %a" Node.pretty_trace x.node C.pretty x.context P.pretty x.original_digest P.pretty x.current_digest CilType.Location.pretty (getLocation x)
     else
       dprintf "%a on %a" Node.pretty_trace x.node CilType.Location.pretty (getLocation x)
 
