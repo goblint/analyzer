@@ -808,9 +808,8 @@ struct
       | false, (InvariantSet _ | ViolationSequence _) ->
         incr cnt_disabled;
         M.info_noloc ~category:Witness "disabled entry of type %s" target_type
-      | _ ->
-        incr cnt_unsupported;
-        M.warn_noloc ~category:Witness "cannot validate entry of type %s" target_type
+      | _, GhostInstrumentation _ ->
+        ()
     in
 
     List.iter (fun yaml_entry ->
