@@ -29,22 +29,22 @@ sig
 
   (** {b Comparison operators} *)
 
-  val lt: t -> t -> t
+  val lt: t -> t -> bool option
   (** Less than: [x < y] *)
 
-  val gt: t -> t -> t
+  val gt: t -> t -> bool option
   (** Greater than: [x > y] *)
 
-  val le: t -> t -> t
+  val le: t -> t -> bool option
   (** Less than or equal: [x <= y] *)
 
-  val ge: t -> t -> t
+  val ge: t -> t -> bool option
   (** Greater than or equal: [x >= y] *)
 
-  val eq: t -> t -> t
+  val eq: t -> t -> bool option
   (** Equal to: [x == y] *)
 
-  val ne: t -> t -> t
+  val ne: t -> t -> bool option
   (** Not equal to: [x != y] *)
 
 
@@ -67,19 +67,6 @@ sig
 
   val shift_right: t -> t -> t
   (** Shifting bits right: [x >> y] *)
-
-
-  (** {b Logical operators} *)
-
-  val c_lognot: t -> t
-  (** Logical not: [!x] *)
-
-  val c_logand: t -> t -> t
-  (** Logical and: [x && y] *)
-
-  val c_logor : t -> t -> t
-  (** Logical or: [x || y] *)
-
 end
 
 module type ArithIkind =
@@ -108,22 +95,22 @@ sig
 
   (** {b Comparison operators} *)
 
-  val lt: Cil.ikind -> t -> t -> t
+  val lt: Cil.ikind -> t -> t -> bool option
   (** Less than: [x < y] *)
 
-  val gt: Cil.ikind -> t -> t -> t
+  val gt: Cil.ikind -> t -> t -> bool option
   (** Greater than: [x > y] *)
 
-  val le: Cil.ikind -> t -> t -> t
+  val le: Cil.ikind -> t -> t -> bool option
   (** Less than or equal: [x <= y] *)
 
-  val ge: Cil.ikind -> t -> t -> t
+  val ge: Cil.ikind -> t -> t -> bool option
   (** Greater than or equal: [x >= y] *)
 
-  val eq: Cil.ikind -> t -> t -> t
+  val eq: Cil.ikind -> t -> t -> bool option
   (** Equal to: [x == y] *)
 
-  val ne: Cil.ikind -> t -> t -> t
+  val ne: Cil.ikind -> t -> t -> bool option
   (** Not equal to: [x != y] *)
 
 
@@ -146,19 +133,6 @@ sig
 
   val shift_right: Cil.ikind -> t -> t -> t
   (** Shifting bits right: [x >> y] *)
-
-
-  (** {b Logical operators} *)
-
-  val c_lognot: Cil.ikind -> t -> t
-  (** Logical not: [!x] *)
-
-  val c_logand: Cil.ikind -> t -> t -> t
-  (** Logical and: [x && y] *)
-
-  val c_logor : Cil.ikind -> t -> t -> t
-  (** Logical or: [x || y] *)
-
 end
 
 (* Shared signature of IntDomain implementations and the lifted IntDomains *)

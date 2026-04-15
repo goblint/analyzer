@@ -71,7 +71,7 @@ module Spec = struct
         (TIDs.empty ())
     in
     let must_joined_tids = man.ask Queries.MustJoinedThreads in
-    TIDs.diff may_transitively_created_tids must_joined_tids
+    TIDs.diff_mustset may_transitively_created_tids must_joined_tids
 
   (** handle unlock of mutex [lock] *)
   let unlock man tid possibly_running_tids lock =

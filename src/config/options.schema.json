@@ -2503,6 +2503,18 @@
               "description": "Whether the constraint system to be solved should use digests to realize path-sensitivity.",
               "type": "boolean",
               "default": true
+            },
+            "global_gc": {
+              "title": "solvers.fwd.global_gc",
+              "description": "Whether garbage collection should take place for globals",
+              "type": "boolean",
+              "default": false
+            },
+            "local_gc": {
+              "title": "solvers.fwd.local_gc",
+              "description": "Whether garbage collection should take place for locals",
+              "type": "boolean",
+              "default": false
             }
           },
           "additionalProperties": false
