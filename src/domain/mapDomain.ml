@@ -28,7 +28,9 @@ sig
   val add_list_fun: key list -> (key -> value) -> t -> t
 
   val for_all: (key -> value -> bool) -> t -> bool
+  val idempotent_inter: (value -> value -> value) -> t -> t -> t
   val nonidempotent_inter: (value -> value -> value) -> t -> t -> t
+  val idempotent_union: (value -> value -> value) -> t -> t -> t
   val nonidempotent_union: (value -> value -> value) -> t -> t -> t
   val merge : (key -> value option -> value option -> value option) -> t -> t -> t (* TODO: unused, remove? *)
 
@@ -146,7 +148,9 @@ sig
   val singleton: key -> 'a -> 'a t
   val remove: key -> 'a t -> 'a t
   val merge: (key -> 'a option -> 'b option -> 'c option) -> 'a t -> 'b t -> 'c t
+  val idempotent_union: ('a -> 'a -> 'a) -> 'a t -> 'a t -> 'a t
   val nonidempotent_union: ('a -> 'a -> 'a) -> 'a t -> 'a t -> 'a t
+  val idempotent_inter: ('a -> 'a -> 'a) -> 'a t -> 'a t -> 'a t
   val nonidempotent_inter: ('a -> 'a -> 'a) -> 'a t -> 'a t -> 'a t
   val reflexive_compare: ('a -> 'a -> int) -> 'a t -> 'a t -> int
   val reflexive_equal: ('a -> 'a -> bool) -> 'a t -> 'a t -> bool
@@ -181,6 +185,9 @@ struct
     in
     merge f
 
+  let idempotent_union f m1 m2 =
+    if m1 == m2 then m1 else nonidempotent_union f m1 m2
+
   let nonidempotent_inter op =
     (* Similar to the previous, except we ignore elements that only occur in one
      * of the mappings, so we start from an empty map *)
@@ -190,6 +197,9 @@ struct
       | _ -> None
     in
     merge f
+
+  let idempotent_inter f m1 m2 =
+    if m1 == m2 then m1 else nonidempotent_inter f m1 m2
 end
 
 module PatriciaMap (K: PatriciaTree.KEY): MapS with type key = K.t =
@@ -197,7 +207,9 @@ struct
   include PatriciaTree.MakeMap (K)
 
   let merge = slow_merge (* TODO: get rid of this *)
+  let idempotent_union f = idempotent_union (fun _ v v' -> f v v')
   let nonidempotent_union f = nonidempotent_union (fun _ v v' -> f v v')
+  let idempotent_inter f = idempotent_inter (fun _ v v' -> f v v')
   let nonidempotent_inter f = nonidempotent_inter_no_share (fun _ v v' -> f v v')
   let exists f m = not (for_all (fun k v -> not (f k v)) m)
   let bindings = to_list
@@ -293,8 +305,10 @@ struct
 
   let add_list_fun keys f = lift_f' (M.add_list_fun keys f)
 
+  let idempotent_union op = lift_f2' (M.idempotent_union op)
   let nonidempotent_union op = lift_f2' (M.nonidempotent_union op)
 
+  let idempotent_inter op = lift_f2' (M.idempotent_inter op)
   let nonidempotent_inter op = lift_f2' (M.nonidempotent_inter op)
 
   let leq_with_fct f = lift_f2 (M.leq_with_fct f)
@@ -346,8 +360,10 @@ struct
 
   let add_list_fun keys f = lift_f' (M.add_list_fun keys f)
 
+  let idempotent_union op = lift_f2' (M.idempotent_union op)
   let nonidempotent_union op = lift_f2' (M.nonidempotent_union op)
 
+  let idempotent_inter op = lift_f2' (M.idempotent_inter op)
   let nonidempotent_inter op = lift_f2' (M.nonidempotent_inter op)
 
   let leq_with_fct f = lift_f2 (M.leq_with_fct f)
@@ -418,8 +434,10 @@ struct
   let add_list_set ks v x = time "add_list_set" (M.add_list_set ks v) x
   let add_list_fun ks f x = time "add_list_fun" (M.add_list_fun ks f) x
 
+  let idempotent_union f x y = time "idempotent_union" (M.idempotent_union f x) y
   let nonidempotent_union f x y = time "nonidempotent_union" (M.nonidempotent_union f x) y
 
+  let idempotent_inter f x y = time "idempotent_inter" (M.idempotent_inter f x) y
   let nonidempotent_inter f x y = time "nonidempotent_inter" (M.nonidempotent_inter f x) y
 
   let leq_with_fct f x y = time "leq_with_fct" (M.leq_with_fct f x) y
@@ -465,17 +483,16 @@ struct
     | Some w -> w
     | None -> Pretty.dprintf "No binding grew."
 
-  let meet m1 m2 = if m1 == m2 then m1 else nonidempotent_inter Range.meet m1 m2
+  let meet = idempotent_inter Range.meet
 
-  let join_with_fct f m1 m2 =
-    if m1 == m2 then m1 else nonidempotent_union f m1 m2
+  let join_with_fct = idempotent_union
   let join = join_with_fct Range.join
 
-  let widen_with_fct f =  nonidempotent_union f
+  let widen_with_fct = idempotent_union
   let widen  = widen_with_fct Range.widen
 
 
-  let narrow = nonidempotent_inter Range.narrow
+  let narrow = idempotent_inter Range.narrow
 end
 
 module MapBot (Domain: Printable.S) (Range: Lattice.S) = GenMapBot (Domain) (StdMap (Domain)) (Range)
@@ -503,17 +520,16 @@ struct
   let is_bot _ = false
 
   (* let cleanup m = fold (fun k v m -> if Range.is_top v then remove k m else m) m m *)
-  let meet m1 m2 = if m1 == m2 then m1 else nonidempotent_union Range.meet m1 m2
+  let meet = idempotent_union Range.meet
 
-  let join_with_fct f m1 m2 =
-    if m1 == m2 then m1 else nonidempotent_inter f m1 m2
+  let join_with_fct = idempotent_inter
 
   let join = join_with_fct Range.join
 
-  let widen_with_fct f = nonidempotent_inter f
+  let widen_with_fct f = idempotent_inter f
   let widen = widen_with_fct Range.widen
 
-  let narrow = nonidempotent_union Range.narrow
+  let narrow = idempotent_union Range.narrow
 
   let pretty_diff () ((m1:t),(m2:t)): Pretty.doc =
     let diff_key k v acc_opt =
@@ -581,10 +597,20 @@ struct
     | `Top -> `Top
     | `Lifted x -> `Lifted (M.add_list_fun ks f x)
 
+  let idempotent_inter f x y =
+    match x, y with
+    | `Lifted x, `Lifted y -> `Lifted (M.idempotent_inter f x y)
+    | _ -> raise (Fn_over_All "idempotent_inter")
+
   let nonidempotent_inter f x y =
     match x, y with
     | `Lifted x, `Lifted y -> `Lifted (M.nonidempotent_inter f x y)
     | _ -> raise (Fn_over_All "nonidempotent_inter")
+
+  let idempotent_union f x y =
+    match x, y with
+    | `Lifted x, `Lifted y -> `Lifted (M.idempotent_union f x y)
+    | _ -> raise (Fn_over_All "idempotent_union")
 
   let nonidempotent_union f x y =
     match x, y with
@@ -709,10 +735,20 @@ struct
     | `Bot -> `Bot
     | `Lifted x -> `Lifted (M.add_list_fun ks f x)
 
+  let idempotent_inter f x y =
+    match x, y with
+    | `Lifted x, `Lifted y -> `Lifted (M.idempotent_inter f x y)
+    | _ -> raise (Fn_over_All "idempotent_inter")
+
   let nonidempotent_inter f x y =
     match x, y with
     | `Lifted x, `Lifted y -> `Lifted (M.nonidempotent_inter f x y)
     | _ -> raise (Fn_over_All "nonidempotent_inter")
+
+  let idempotent_union f x y =
+    match x, y with
+    | `Lifted x, `Lifted y -> `Lifted (M.idempotent_union f x y)
+    | _ -> raise (Fn_over_All "idempotent_union")
 
   let nonidempotent_union f x y =
     match x, y with
@@ -811,7 +847,9 @@ struct
       er
   let map f (e, r) = (e, f r)
   let mapi f (e, r) = (e, f e r)
+  let idempotent_inter f (e, r) (e', r') = (E.meet e e', f r r') (* TODO: does this make sense? *)
   let nonidempotent_inter f (e, r) (e', r') = (E.meet e e', f r r') (* TODO: does this make sense? *)
+  let idempotent_union f (e, r) (e', r') = (E.join e e', f r r') (* TODO: does this make sense? *)
   let nonidempotent_union f (e, r) (e', r') = (E.join e e', f r r') (* TODO: does this make sense? *)
   let merge f m1 m2 = failwith "MapDomain.Joined.merge" (* TODO: ? *)
   let fold f (e, r) a = f e r a
