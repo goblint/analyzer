@@ -473,6 +473,23 @@ module VarSet = Set.Make (CilType.Varinfo)
 let ghostVars = ref VarSet.empty
 
 let init () =
+  let file = !Cilfacade.current_file in
+  let find_global_var name =
+    List.find_map (function
+        | Cil.GVar (v, _, _)
+        | Cil.GVarDecl (v, _)
+        | Cil.GFun ({svar = v; _}, _) when String.equal v.vname name -> Some v
+        | _ -> None
+      ) file.globals
+  in
+  GobConfig.get_string_list "witness.yaml.extraGhosts"
+  |> List.iter (fun name ->
+      match find_global_var name with
+      | Some v ->
+        ghostVars := VarSet.add v !ghostVars
+      | None ->
+        M.warn_noloc ~category:Witness "extra ghost variable not found: %s" name
+    );
   match GobConfig.get_string "witness.yaml.validate" with
   | "" -> ()
   | path ->
@@ -481,7 +498,6 @@ let init () =
       Logs.error "witness.yaml.validate: %s not found" path;
       Svcomp.errorwith "witness missing"
     );
-    let file = !Cilfacade.current_file in
     let global_vars =
       file.globals
       |> List.filter_map (function
@@ -558,14 +574,6 @@ let init () =
           | Cil.GFun ({svar = v; _}, _) -> Some (v.vname, Cil.Fv v)
           | _ -> None
         )
-    in
-    let find_global_var name =
-      List.find_map (function
-          | Cil.GVar (v, _, _)
-          | Cil.GVarDecl (v, _)
-          | Cil.GFun ({svar = v; _}, _) when String.equal v.vname name -> Some v
-          | _ -> None
-        ) file.globals
     in
     let updates : (string, Cil.instr list) Hashtbl.t = Hashtbl.create 16 in
     let collect_ghost_updates yaml_entry =
