@@ -16,7 +16,7 @@ open SpecLifters
 module type S2S = Spec2Spec
 
 (* spec is lazy, so HConsed table in Hashcons lifters is preserved between analyses in server mode *)
-let spec_module: (module Spec) Lazy.t = lazy (
+let spec_module: (module Spec') Lazy.t = lazy (
   GobConfig.building_spec := true;
   let arg_enabled = get_bool "exp.arg.enabled" in
   let termination_enabled = List.mem "termination" (get_string_list "ana.activated") in (* check if loop termination analysis is enabled*)
@@ -33,7 +33,7 @@ let spec_module: (module Spec) Lazy.t = lazy (
       |> lift (get_bool "ana.opt.hashcached") (module HashCachedContextLifter)
       |> lift arg_enabled (module HashconsLifter)
       |> lift arg_enabled (module ArgConstraints.PathSensitive3)
-      |> lift (not arg_enabled) (module PathSensitive2)
+      |> lift (not arg_enabled && not (get_bool "solvers.fwd.digests")) (module PathSensitive2)
       |> lift (get_bool "ana.dead-code.branches") (module DeadBranchLifter)
       |> lift true (module DeadCodeLifter)
       |> lift (get_bool "dbg.slice.on") (module LevelSliceLifter)
@@ -45,15 +45,17 @@ let spec_module: (module Spec) Lazy.t = lazy (
       |> lift true (module LongjmpLifter.Lifter)
       |> lift termination_enabled (module RecursionTermLifter.Lifter) (* Always activate the recursion termination analysis, when the loop termination analysis is activated*)
       |> lift (get_int "ana.widen.delay.global" > 0) (module WideningDelay.GLifter)
+      |> lift (not (get_bool "solvers.fwd.digests")) (module NoDigestLifter.Lifter) (* Exposes only unit to be used as digest *)
     )
   in
   GobConfig.building_spec := false;
   ControlSpecC.control_spec_c := (module S1.C);
+  let module S1 = Spec2Spec' (S1) in
   (module S1)
 )
 
 (** gets Spec for current options *)
-let get_spec (): (module Spec) =
+let get_spec (): (module Spec') =
   Lazy.force spec_module
 
 let current_node_state_json : (Node.t -> Yojson.Safe.t option) ref = ref (fun _ -> None)
@@ -61,10 +63,10 @@ let current_node_state_json : (Node.t -> Yojson.Safe.t option) ref = ref (fun _ 
 let current_varquery_global_state_json: (Goblint_constraint.VarQuery.t option -> Yojson.Safe.t) ref = ref (fun _ -> `Null)
 
 (** Given a [Cfg], a [Spec], and an [Inc], computes the solution to [MCP.Path] *)
-module AnalyzeCFG (Cfg:CfgBidirSkip) (Spec:Spec) (Inc:Increment) =
+module AnalyzeCFG (Cfg:CfgBidirSkip) (Spec:Spec') (Inc:Increment) =
 struct
 
- module SpecSys: FwdSpecSys with module Spec = Spec =
+  module SpecSys: FwdSpecSys with module Spec = Spec =
   struct
     (* Must be created in module, because cannot be wrapped in a module later. *)
     module Spec = Spec
@@ -99,14 +101,14 @@ struct
   module WBuSolver = Wbu.FwdWBuSolver (Sys)
   (* module Slvr2 = BuSlvr *)
 
-  module CompareGlobSys = CompareConstraints.CompareGlobSys (SpecSys)
+  module CompareGlobSys = FwdCompareConstraints.CompareGlobSys (SpecSys)
   (* TODO remove those witnesses once the mismatch is solved *)
   let _ : EQSys.G.t -> EQSys.G.t = fun x -> x
   let _ : 'a CompareGlobSys.GH.t -> 'a GHT.t = fun x -> x
 
 
   (* Triple of the function, context, and the local value. *)
-  module RT = AnalysisResult.ResultType2 (Spec)
+  module RT = AnalysisResult.ResultType2Digest (Spec)
   (* Set of triples [RT] *)
   module LT = SetDomain.HeadlessSet (RT)
   (* Analysis result structure---a hashtable from program points to [LT] *)
@@ -138,7 +140,7 @@ struct
         FunSet.replace live_funs f ();
         let add_fun  = BatISet.add l.line in
         let add_file = StringMap.modify_def BatISet.empty f.svar.vname add_fun in
-        let is_dead = LT.for_all (fun (_,x,f) -> Spec.D.is_bot x) v in
+        let is_dead = LT.for_all (fun (_,_,_,x) -> Spec.D.is_bot x) v in
         if is_dead then (
           dead_lines := StringMap.modify_def StringMap.empty l.file add_file !dead_lines
         ) else (
@@ -225,23 +227,23 @@ struct
     let res = Result.create 113 in
 
     (* Adding the state at each system variable to the final result *)
-    let add_local_var (n,es) state =
+    (* TODO: Consider digest in result? *)
+    let add_local_var (x : LHT.key) state =
       (* Not using Node.location here to have updated locations in incremental analysis.
           See: https://github.com/goblint/analyzer/issues/290#issuecomment-881258091. *)
-      let loc = UpdateCil.getLoc n in
+      let loc = UpdateCil.getLoc x.node in
       if loc <> locUnknown then try
-          let fundec = Node.find_fundec n in
-          if Result.mem res n then
+          if Result.mem res x.node then
             (* If this source location has been added before, we look it up
               * and add another node to it information to it. *)
-            let prev = Result.find res n in
-            Result.replace res n (LT.add (es,state,fundec) prev)
+            let prev = Result.find res x.node in
+            Result.replace res x.node (LT.add (x.context,x.original_digest, x.current_digest,state) prev)
           else
-            Result.add res n (LT.singleton (es,state,fundec))
+            Result.add res x.node (LT.singleton (x.context,x.original_digest, x.current_digest,state))
         (* If the function is not defined, and yet has been included to the
           * analysis result, we generate a warning. *)
         with Not_found ->
-          Messages.debug ~category:Analyzer ~loc:(CilLocation loc) "Calculated state for undefined function: unexpected node %a" Node.pretty_trace n
+          Messages.debug ~category:Analyzer ~loc:(CilLocation loc) "Calculated state for undefined function: unexpected node %a" Node.pretty_trace x.node
     in
     LHT.iter add_local_var h;
     res
@@ -445,8 +447,8 @@ struct
     in
     let prestartstate = Spec.startstate MyCFG.dummy_func.svar in (* like in do_extern_inits *)
     let othervars = List.map (enter_with (otherstate prestartstate)) otherfuns in
-    let startvars = List.concat (startvars @ exitvars @ othervars) in
-    if startvars = [] then
+    let startfuns = List.concat (startvars @ exitvars @ othervars) in
+    if startfuns = [] then
       failwith "BUG: Empty set of start variables; may happen if enter_func of any analysis returns an empty list.";
 
     AnalysisState.global_initialization := false;
@@ -466,9 +468,21 @@ struct
       ; sideg   = (fun g d -> sideg (EQSys.GVar.spec g) (EQSys.G.create_spec d))
       }
     in
-    let startvars' = List.map (fun (n,e) -> (MyCFG.FunctionEntry n, Spec.context (man e) n e)) startvars in
+    let to_startvar (n,e) =
+      let context = Spec.context (man e) n e in
+      let digest = Spec.P.of_elt e in
+      let startvar : LHT.key = {node = MyCFG.FunctionEntry n; context; original_digest = digest; current_digest = digest} in
+      startvar
+    in
+    let startvars' =
+      List.map to_startvar startfuns in
 
-    let entrystates = List.map (fun (n,e) -> (MyCFG.FunctionEntry n, Spec.context (man e) n e), e) startvars in
+    let entrystates =
+      let to_entrystate (n,e) =
+        let startvar = to_startvar (n,e) in
+        (startvar, e)
+      in
+      List.map to_entrystate startfuns in
     let entrystates_global = GHT.to_list gh in
 
     let uncalled_dead = ref 0 in
@@ -481,9 +495,9 @@ struct
       let gobview = get_bool "gobview" in
       let save_run_str = let o = get_string "save_run" in if o = "" then (if gobview then "run" else "") else o in
       let solve = if (get_string "solver" = "bu") then BuSolver.solve else
-        if (get_string "solver" = "wbu") then WBuSolver.solve else FwdSolver.solve in 
-      let check = if (get_string "solver" = "bu") then BuSolver.check else 
-        if (get_string "solver" = "wbu") then WBuSolver.check else FwdSolver.check in 
+        if (get_string "solver" = "wbu") then WBuSolver.solve else FwdSolver.solve in
+      let check = if (get_string "solver" = "bu") then BuSolver.check else
+        if (get_string "solver" = "wbu") then WBuSolver.check else FwdSolver.check in
       let _ = solve entrystates entrystates_global startvars' in
 
       AnalysisState.should_warn := true; (* reset for postsolver *)
@@ -495,8 +509,8 @@ struct
 
       (* Most warnings happen before during postsolver, but some happen later (e.g. in finalize), so enable this for the rest (if required by option). *)
       AnalysisState.should_warn := PostSolverArg.should_warn;
-      let insrt k _ s = match k with
-        | (MyCFG.FunctionEntry fn,_) -> Set.Int.add fn.svar.vid s
+      let insrt (k : LHT.key) _ s = match k.node with
+        | MyCFG.FunctionEntry fn -> Set.Int.add fn.svar.vid s
         | _ -> s
       in
       (* set of ids of called functions *)
@@ -541,10 +555,10 @@ struct
           let lh2, gh2 = LHT.of_seq rho, GHT.of_seq tau in
           CompareGlobSys.compare (get_string "solver", get_string "comparesolver") (lh,gh) (lh2, gh2)
         in
-        let solve = if (get_string "comparesolver" = "bu") then BuSolver.solve else 
+        let solve = if (get_string "comparesolver" = "bu") then BuSolver.solve else
             (if (get_string "comparesolver" = "fwd") then FwdSolver.solve else WBuSolver.solve) in
 
-        let check = if (get_string "comparesolver" = "bu") then BuSolver.check else 
+        let check = if (get_string "comparesolver" = "bu") then BuSolver.check else
             (if (get_string "comparesolver" = "fwd") then FwdSolver.check else WBuSolver.check) in
         compare_with solve check;
       );
@@ -605,7 +619,8 @@ struct
       match g with
       | `Left g -> (* Spec global *)
         Query.ask_global gh (WarnGlobal (Obj.repr g))
-      | `Right _ -> (* contexts global *)
+      | `Middle _ (* return global *)
+      | `Right _ ->
         ()
     in
     Timing.wrap "warn_global" (GHT.iter warn_global) gh;

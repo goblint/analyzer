@@ -38,7 +38,7 @@ module Base : GenericEqSolver =
     let source = S.Var.node
 
     type origin = {
-      init: S.Dom.t; 
+      init: S.Dom.t;
       from: (S.Dom.t * int * int * bool * int * VS.t) OM.t;
       last: S.Dom.t HM.t
     }
@@ -51,14 +51,14 @@ module Base : GenericEqSolver =
 
     let abs_GC = ref true
 
-    let warrow (a,delay,gas,narrow,update) b = 
+    let warrow (a,delay,gas,narrow,update) b =
       let (delay0,_,_) = !gas_default in
       if S.Dom.equal a b then (a,delay,gas,narrow,update)
-      else if S.Dom.leq b a then 
+      else if S.Dom.leq b a then
         if narrow then (S.Dom.narrow a b,delay,gas,true,update)
-        else if gas<=0 then (a,delay,gas,false,update) 
+        else if gas<=0 then (a,delay,gas,false,update)
         else (S.Dom.narrow a b, delay,gas-1,true,update)
-      else if S.Dom.leq a b then 
+      else if S.Dom.leq a b then
         if narrow then (b,delay0,gas,false,update)
         else if delay <= 0 then (S.Dom.widen a b,0,gas,false,update)
         else (b,delay-1,gas,false,update)
@@ -92,13 +92,13 @@ module Base : GenericEqSolver =
           begin
             new_var_event x;
             if tracing then trace "init" "init %a" S.Var.pretty_trace x;
-            let data_x = ref { 
+            let data_x = ref {
                 infl = VS.empty;
                 value = S.Dom.bot ();
                 wpoint = false;
                 stable = false;
                 called = false;
-                contrib = VS.empty 
+                contrib = VS.empty
               } in
             HM.replace data x data_x;
             let orig_x = {
@@ -117,7 +117,7 @@ module Base : GenericEqSolver =
               match S.system x with
               | None -> S.Dom.bot ()
               | Some f -> f get set
-            in 
+            in
       *)
 
 (*
@@ -134,7 +134,7 @@ alternatively, distinguish contribs by session number?
             if tracing then trace "destab" "stable remove %a" S.Var.pretty_trace y;
             let y_ref = HM.find data y in
             y_ref := { !y_ref with stable = false };
-            if !y_ref.called then () 
+            if !y_ref.called then ()
             else destabilize y
           ) w
       in
@@ -166,8 +166,8 @@ alternatively, distinguish contribs by session number?
         let y_ref = init y in
         if tracing then trace "side" "side to %a (wpx: %b) from %a ## value: %a" S.Var.pretty_trace y (!y_ref.wpoint) S.Var.pretty_trace x S.Dom.pretty d;
         let {init;last;from} = HM.find origin y in
-        let (old_xy,delay,gas,narrow,update,set) = try OM.find from sx 
-          with _ -> 
+        let (old_xy,delay,gas,narrow,update,set) = try OM.find from sx
+          with _ ->
             let (delay,gas,update) = !gas_default in
             let tuple = (S.Dom.bot (),delay,gas,false,update,VS.empty) in
             let () = OM.add from sx tuple in
@@ -175,7 +175,7 @@ alternatively, distinguish contribs by session number?
         let () = HM.add last x d in
         let set = VS.add x set in
         let d = VS.fold (fun x d -> S.Dom.join d (HM.find last x)) set d in
-        let (new_xy,delay,gas,narrow,update) = 
+        let (new_xy,delay,gas,narrow,update) =
           if M.tracing then M.trace "wpoint" "side widen %a" S.Var.pretty_trace y;
           warrow (old_xy,delay,gas,narrow,update) d in
         OM.replace from sx (new_xy,delay,gas,narrow,update,set);
@@ -191,10 +191,10 @@ alternatively, distinguish contribs by session number?
           )
         )
 
-      and wrap_eq x = 
+      and wrap_eq x =
         match S.system x with
         | None -> S.Dom.bot ()
-        | Some f -> 
+        | Some f ->
           let sigma = HM.create 10 in
           let new_set = ref VS.empty in
           let add_sigma y d =
@@ -205,8 +205,8 @@ alternatively, distinguish contribs by session number?
           let d = f (query x) add_sigma in
           let x_ref = init x in
           let old_set = !x_ref.contrib in
-          let _ = x_ref := {!x_ref with contrib = !new_set} in    
-          let _ = if !abs_GC then 
+          let _ = x_ref := {!x_ref with contrib = !new_set} in
+          let _ = if !abs_GC then
               let rem_set = VS.filter (fun g -> not (VS.mem g !new_set)) old_set in
               VS.iter (fun g -> side x g (S.Dom.bot ())) rem_set in
           d
@@ -220,7 +220,7 @@ alternatively, distinguish contribs by session number?
         if not (!x_ref.stable) then (
           x_ref := { !x_ref with stable = true };
           let wp = !x_ref.wpoint in (* if x becomes a wpoint during eq, checking this will delay widening until next iterate *)
-          let eqd = 
+          let eqd =
             wrap_eq x in
                 (*
                 eq x (query x) (side x) in (* d from equation/rhs *)
@@ -232,7 +232,7 @@ alternatively, distinguish contribs by session number?
               if M.tracing then M.trace "wpoint" "widen %a" S.Var.pretty_trace x;
               box old eqd)
           in
-          if not (Timing.wrap "S.Dom.equal" (fun () -> S.Dom.equal old wpd) ()) then ( 
+          if not (Timing.wrap "S.Dom.equal" (fun () -> S.Dom.equal old wpd) ()) then (
             (* old != wpd *)
             if tracing && not (S.Dom.is_bot old) && !x_ref.wpoint then trace "solchange" "%a (wpx: %b): %a" S.Var.pretty_trace x (!x_ref.wpoint) S.Dom.pretty_diff (wpd, old);
             update_var_event x old wpd;
@@ -242,7 +242,7 @@ alternatively, distinguish contribs by session number?
             (iterate[@tailcall]) x
           ) else (
             (* old == wpd *)
-            if not (!x_ref.stable) then ( 
+            if not (!x_ref.stable) then (
               (* value unchanged, but not stable, i.e. destabilized itself during rhs *)
               if tracing then trace "iter" "iterate still unstable %a" S.Var.pretty_trace x;
               (iterate[@tailcall]) x
@@ -280,12 +280,12 @@ alternatively, distinguish contribs by session number?
             Logs.newline ();
             flush_all ();
           );
-          List.iter (fun x -> 
+          List.iter (fun x ->
               let x_ref = HM.find data x in
               x_ref := { !x_ref with called = true };
               if tracing then trace "multivar" "solving for %a" S.Var.pretty_trace x;
-              iterate x; 
-              x_ref := { !x_ref with called = false } 
+              iterate x;
+              x_ref := { !x_ref with called = false }
             ) unstable_vs;
           solver ();
         )
