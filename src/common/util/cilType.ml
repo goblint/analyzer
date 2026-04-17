@@ -365,6 +365,7 @@ struct
   let equal x y = x.vid = y.vid
   let compare x y = Stdlib.compare x.vid y.vid
   let hash x = x.vid
+  let tag x = x.vid
 
   (* Output *)
   let show x = x.vname

@@ -5,7 +5,7 @@ module VD = ValueDomain.Compound
 
 module CPA =
 struct
-  module M0 = MapDomain.MapBot (Basetype.Variables) (VD)
+  module M0 = MapDomain.PatriciaMapBot (Basetype.Variables) (VD)
   module M =
   struct
     include M0
