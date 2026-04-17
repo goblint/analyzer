@@ -1,7 +1,7 @@
 open Batteries
 
 (** The normal haskell zip that throws no exception *)
-let rec combine_short l1 l2 = match l1, l2 with
+let[@tail_mod_cons] rec combine_short l1 l2 = match l1, l2 with
   | x1 :: l1, x2 :: l2 -> (x1, x2) :: combine_short l1 l2
   | _, _ -> []
 
