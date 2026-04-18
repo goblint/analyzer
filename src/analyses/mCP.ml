@@ -239,13 +239,22 @@ struct
   and context man fd x =
     let man'' = outer_man "context_computation" man in
     let x = spec_list x in
-    filter_map (fun (n,(module S:MCPSpec),d) ->
-        if Set.is_empty !act_cont_sens || not (Set.mem n !act_cont_sens) then (*n is insensitive*)
-          None
-        else
-          let man' : (S.D.t, S.G.t, S.C.t, S.V.t) man = inner_man "context_computation" man'' n d in
-          Some (n, Obj.repr @@ S.context man' fd (Obj.obj d))
-      ) x
+    (* Check if this function should be analyzed context-insensitively *)
+    let no_ctx =
+      ContextUtil.has_attribute "goblint_context" "no-context" fd.svar.vattr
+      || ContextUtil.has_option "goblint_context" "no-context" fd
+      || List.mem fd.svar.vname (get_string_list "ana.context.no_fun")
+    in
+    if no_ctx then
+      [] (* context-insensitive: return empty context list *)
+    else
+      filter_map (fun (n,(module S:MCPSpec),d) ->
+          if Set.is_empty !act_cont_sens || not (Set.mem n !act_cont_sens) then (*n is insensitive*)
+            None
+          else
+            let man' : (S.D.t, S.G.t, S.C.t, S.V.t) man = inner_man "context_computation" man'' n d in
+            Some (n, Obj.repr @@ S.context man' fd (Obj.obj d))
+        ) x
 
   and branch (man:(D.t, G.t, C.t, V.t) man) (e:exp) (tv:bool) =
     let spawns = ref [] in
