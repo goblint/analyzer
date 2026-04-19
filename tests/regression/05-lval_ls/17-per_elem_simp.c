@@ -1,5 +1,6 @@
-// PARAM: --set ana.activated[+] "'symb_locks'"  --set ana.activated[+] "'var_eq'" 
+// PARAM: --set ana.activated[+] "'symb_locks'"  --set ana.activated[+] "'var_eq'"
 #include <stdlib.h>
+#include <pthread.h>
 
 typedef long long pthread_t;
 typedef long long pthread_mutex_t;
@@ -15,8 +16,8 @@ struct t {
 };
 
 #define pack(v) (v)
-#define start_unpack(v) 
-#define end_unpack(v) 
+#define start_unpack(v)
+#define end_unpack(v)
 
 void* f(struct t* in) {
   start_unpack(in);
@@ -41,9 +42,9 @@ int main() {
     p = pack(s);
     random--;
   }
-  
+
   if (p == 0) exit(-1);
-  
+
   pthread_create(&t1, 0, f, p);
   pthread_create(&t2, 0, f, p);
   return 1;
