@@ -27,3 +27,7 @@
    (package goblint)
    %{bin:yamlWitnessStrip}
    %{bin:yamlWitnessStripDiff}))
+
+(cram
+ (applies_to violation)
+ (enabled_if (<> %{system} macosx)))
