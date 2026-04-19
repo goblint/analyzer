@@ -1514,7 +1514,8 @@
               "pcre",
               "zlib",
               "liblzma",
-              "legacy"
+              "legacy",
+              "ocaml"
             ]
           },
           "default": [
@@ -1526,7 +1527,8 @@
             "linux-userspace",
             "goblint",
             "ncurses",
-            "legacy"
+            "legacy",
+            "ocaml"
           ]
         }
       },
