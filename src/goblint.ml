@@ -66,6 +66,7 @@ let main () =
       AutoSoundConfig.activateLongjmpAnalysesWhenRequired ();
       if get_string "ana.specification" <> "" then AutoSoundConfig.enableAnalysesForSpecification ();
       if get_bool "ana.autotune.enabled" then AutoTune.chooseConfig file;
+      GobConfig.freeze ();
       file |> do_analyze changeInfo;
       do_gobview file;
       do_stats ();
