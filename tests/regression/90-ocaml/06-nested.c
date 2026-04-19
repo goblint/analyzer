@@ -14,7 +14,7 @@ CAMLprim value pringo_LXM_copy(value v)
   value res1 = pringo_LXM_copy_correct(v); // NOWARN
   value res = caml_alloc_small(Wsizeof(struct LXM_state), Abstract_tag);
   memcpy(LXM_val(res), LXM_val(v), sizeof(struct LXM_state)); // WARN
-  return res1;
+  return res1; // WARN
 }
 
 CAMLprim value pringo_LXM_copy_correct(value v)
@@ -22,7 +22,7 @@ CAMLprim value pringo_LXM_copy_correct(value v)
   CAMLparam1(v);
   value res = caml_alloc_small(Wsizeof(struct LXM_state), Abstract_tag);
   memcpy(LXM_val(res), LXM_val(v), sizeof(struct LXM_state)); // NOWARN
-  CAMLreturn(res);
+  CAMLreturn(res); // NOWARN
 }
 
 CAMLprim value pringo_LXM_copy_1(value v)
@@ -37,16 +37,16 @@ CAMLprim value pringo_LXM_copy_2(value v)
   CAMLparam1(v);
   value res = caml_alloc_small(Wsizeof(struct LXM_state), Abstract_tag);
   v = pringo_LXM_copy_1(v); // WARN
-  memcpy(LXM_val(res), LXM_val(v), sizeof(struct LXM_state));
-  CAMLreturn(res);
+  memcpy(LXM_val(res), LXM_val(v), sizeof(struct LXM_state)); // WARN
+  CAMLreturn(res); // WARN
 }
 
 CAMLprim value pringo_LXM_copy_3(value v)
 {
   value res = caml_alloc_small(Wsizeof(struct LXM_state), Abstract_tag);
   value r = pringo_LXM_copy_1(v); // WARN
-  memcpy(LXM_val(res), LXM_val(r), sizeof(struct LXM_state));
-  CAMLreturn(res);
+  memcpy(LXM_val(res), LXM_val(r), sizeof(struct LXM_state)); // WARN
+  CAMLreturn(res); // WARN
 }
 
 CAMLprim value pringo_LXM_init_unboxed(uint64_t i1, uint64_t i2,

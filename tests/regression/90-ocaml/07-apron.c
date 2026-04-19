@@ -17,7 +17,7 @@ CAMLprim value camlidl_apron_policy_optr_c2ml(value p)
     return Val_int(0);
   } else {
     value v,v2=0;
-    Begin_roots1(v2);
+    Begin_roots1(v2); // WARN
     v2 = camlidl_apron_policy_ptr_c2ml(p);
     v = caml_alloc_small(1,0);
     Field(v,0) = v2;
@@ -32,7 +32,7 @@ CAMLprim value camlidl_apron_policy_optr_c2ml_correct(value p)
     return Val_int(0);
   } else {
     value v,v2 = Val_unit;
-    Begin_roots1(v2);
+    Begin_roots1(v2); // NOWARN
     v2 = camlidl_apron_policy_ptr_c2ml(p);
     v = caml_alloc_small(1,0);
     Field(v,0) = v2;
