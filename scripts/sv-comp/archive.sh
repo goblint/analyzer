@@ -2,6 +2,8 @@
 
 # must have goblint checked out into goblint not analyzer directory
 
+set -e # Make script fail if any command fails.
+
 make clean
 
 eval $(opam env)
