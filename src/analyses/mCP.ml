@@ -173,13 +173,13 @@ struct
     in
     iter (uncurry side_one) @@ group_assoc_eq V.equal xs
 
-  let rec do_splits man pv (xs:(int * (Obj.t * Events.t list)) list) emits =
+  let rec do_splits ?(local_tf=Fun.id) man pv (xs:(int * (Obj.t * Events.t list)) list) emits =
     let split_one n (d,emits') =
       let nv = assoc_replace (n,d) pv in
       (* Do split-specific emits before general emits.
          [emits] and [do_emits] are in reverse order.
          [emits'] is in normal order. *)
-      man.split (do_emits man (emits @ List.rev emits') nv false) []
+      man.split (local_tf (do_emits man (emits @ List.rev emits') nv false)) []
     in
     iter (uncurry split_one) xs
 
@@ -510,7 +510,7 @@ struct
     let d = do_emits man !emits d q in
     if q then raise Deadcode else d
 
-  let sync (man:(D.t, G.t, C.t, V.t) man) reason =
+  let rec sync_with_split_tf apply_split_tf (man:(D.t, G.t, C.t, V.t) man) reason =
     let spawns = ref [] in
     let splits = ref [] in
     let sides  = ref [] in
@@ -523,9 +523,18 @@ struct
     let d, q = map_deadcode f @@ spec_list man.local in
     do_sideg man !sides;
     do_spawns man !spawns;
-    do_splits man d !splits !emits;
+    let local_tf =
+      if apply_split_tf then
+        fun d -> sync_with_split_tf false {man with local = d} reason
+      else
+        Fun.id
+    in
+    do_splits ~local_tf man d !splits !emits;
     let d = do_emits man !emits d q in
     if q then raise Deadcode else d
+
+  and sync (man:(D.t, G.t, C.t, V.t) man) reason =
+    sync_with_split_tf true man reason
 
   let enter (man:(D.t, G.t, C.t, V.t) man) r f a =
     let spawns = ref [] in
