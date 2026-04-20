@@ -221,7 +221,7 @@ struct
 end
 
 (** Ego-Lane Derived digest based on whether given threads have been started yet, can be used to refine any analysis
-    @see PhD thesis of M. Schwarz once it is published ;)
+    @see M. Schwarz "Thread-Modular Abstract Interpretation: The Local Perspective", https://d-nb.info/137113345X/34
 *)
 module ThreadNotStartedDigest:Digest =
 struct
