@@ -510,7 +510,7 @@ struct
     let d = do_emits man !emits d q in
     if q then raise Deadcode else d
 
-  let rec sync_with_split_tf apply_split_tf (man:(D.t, G.t, C.t, V.t) man) reason =
+  let rec sync_with_split_tf should_transform_splits (man:(D.t, G.t, C.t, V.t) man) reason =
     let spawns = ref [] in
     let splits = ref [] in
     let sides  = ref [] in
@@ -524,7 +524,7 @@ struct
     do_sideg man !sides;
     do_spawns man !spawns;
     let local_tf =
-      if apply_split_tf then
+      if should_transform_splits then
         fun d -> sync_with_split_tf false {man with local = d} reason
       else
         Fun.id
