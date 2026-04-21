@@ -94,6 +94,7 @@ type _ t =
   | MustBeSingleThreaded: {since_start: bool} -> MustBool.t t
   | MustBeUniqueThread: MustBool.t t
   | CurrentThreadId: ThreadIdDomain.ThreadLifted.t t
+  | Owner: varinfo -> ThreadIdDomain.ThreadLifted.t t
   | ThreadCreateIndexedNode: ThreadNodeLattice.t t
   | MayBeThreadReturn: MayBool.t t
   | EvalFunvar: exp -> AD.t t
@@ -187,6 +188,7 @@ struct
     | EvalValue _ -> (module VD)
     | BlobSize _ -> (module ID)
     | CurrentThreadId -> (module ThreadIdDomain.ThreadLifted)
+    | Owner _ -> (module ThreadIdDomain.ThreadLifted)
     | ThreadCreateIndexedNode -> (module ThreadNodeLattice)
     | AllocVar _ -> (module VI)
     | EvalStr _ -> (module SD)
@@ -263,6 +265,7 @@ struct
     | EvalValue _ -> VD.top ()
     | BlobSize _ -> ID.top ()
     | CurrentThreadId -> ThreadIdDomain.ThreadLifted.top ()
+    | Owner _ -> ThreadIdDomain.ThreadLifted.top ()
     | ThreadCreateIndexedNode -> ThreadNodeLattice.top ()
     | AllocVar _ -> VI.top ()
     | EvalStr _ -> SD.top ()
@@ -324,12 +327,13 @@ struct
     | Any (MustBeSingleThreaded _)-> 12
     | Any MustBeUniqueThread -> 13
     | Any CurrentThreadId -> 14
-    | Any MayBeThreadReturn -> 15
-    | Any (EvalFunvar _) -> 16
-    | Any (EvalInt _) -> 17
-    | Any (EvalStr _) -> 18
-    | Any (EvalLength _) -> 19
-    | Any (BlobSize _) -> 20
+    | Any (Owner _) -> 15
+    | Any MayBeThreadReturn -> 16
+    | Any (EvalFunvar _) -> 17
+    | Any (EvalInt _) -> 18
+    | Any (EvalStr _) -> 19
+    | Any (EvalLength _) -> 20
+    | Any (BlobSize _) -> 21
     | Any (CondVars _) -> 22
     | Any (PartAccess _) -> 23
     | Any (IterPrevVars _) -> 24
@@ -387,6 +391,7 @@ struct
       | Any (MayBePublicWithout x1), Any (MayBePublicWithout x2) -> compare_maybepublicwithout x1 x2
       | Any (MustBeProtectedBy x1), Any (MustBeProtectedBy x2) -> compare_mustbeprotectedby x1 x2
       | Any (EvalFunvar e1), Any (EvalFunvar e2) -> CilType.Exp.compare e1 e2
+      | Any (Owner v1), Any (Owner v2) -> CilType.Varinfo.compare v1 v2
       | Any (EvalInt e1), Any (EvalInt e2) -> CilType.Exp.compare e1 e2
       | Any (EvalStr e1), Any (EvalStr e2) -> CilType.Exp.compare e1 e2
       | Any (EvalLength e1), Any (EvalLength e2) -> CilType.Exp.compare e1 e2
@@ -446,6 +451,7 @@ struct
     | Any (MayBePublicWithout x) -> hash_maybepublicwithout x
     | Any (MustBeProtectedBy x) -> hash_mustbeprotectedby x
     | Any (EvalFunvar e) -> CilType.Exp.hash e
+    | Any (Owner v) -> CilType.Varinfo.hash v
     | Any (EvalInt e) -> CilType.Exp.hash e
     | Any (EvalStr e) -> CilType.Exp.hash e
     | Any (EvalLength e) -> CilType.Exp.hash e
@@ -501,6 +507,7 @@ struct
     | Any (MustBeSingleThreaded {since_start}) -> Pretty.dprintf "MustBeSingleThreaded since_start=%b" since_start
     | Any MustBeUniqueThread -> Pretty.dprintf "MustBeUniqueThread"
     | Any CurrentThreadId -> Pretty.dprintf "CurrentThreadId"
+    | Any (Owner v) -> Pretty.dprintf "Owner %a" CilType.Varinfo.pretty v
     | Any ThreadCreateIndexedNode -> Pretty.dprintf "ThreadCreateIndexedNode"
     | Any MayBeThreadReturn -> Pretty.dprintf "MayBeThreadReturn"
     | Any (EvalFunvar e) -> Pretty.dprintf "EvalFunvar %a" CilType.Exp.pretty e

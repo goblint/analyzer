@@ -239,6 +239,15 @@ struct
     | _ -> false
 end
 
+module GhostPhase:Digest =
+struct
+  include Lattice.Unit
+
+  let current (ask: Q.ask) = ()
+  let accounted_for (ask:Q.ask)  ~(current: t) ~(other: t) = false
+end
+
+
 module PerMutexTidCommon (Digest: Digest) (LD:Lattice.S) (Cluster:Printable.S) =
 struct
   include ConfCheck.RequireThreadFlagPathSensInit

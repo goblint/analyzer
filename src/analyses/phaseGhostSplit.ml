@@ -1,4 +1,4 @@
-(** Analysis for checking whether ghost globals are only accessed by one unique thread ([phaseGhost]). *)
+(** Analysis for checking whether ghost globals are only accessed by one unique thread ([phaseGhostSplit]). *)
 
 open Analyses
 open GoblintCil
@@ -12,31 +12,18 @@ struct
   let name () = "ghost-constant"
 end
 
-module IncByOne =
-struct
-  include BoolDomain.MustBool
-  let name () = "increment-by-one"
-end
-
 module Spec =
 struct
   include IdentitySpec
 
-  let name () = "phaseGhost"
+  let name () = "phaseGhostSplit"
 
   module D = MapDomain.MapBot (Basetype.Variables) (Const)
   include ValueContexts (D)
-  module P = UnitP
+  module P = IdentityP (D)
 
   module V = VarinfoV
-  module G =
-  struct
-    include Lattice.Prod (TIDs) (IncByOne)
-    let tids = fst
-    let inc_by_one = snd
-    let create_tids tids = (tids, IncByOne.bot ())
-    let create_inc_by_one inc_by_one = (TIDs.bot (), inc_by_one)
-  end
+  module G = Lattice.Chain (struct let n () = 99 let names i = string_of_int(i) end)
 
   let initial_ghost_values () =
     List.fold_left (fun acc -> function
@@ -127,19 +114,66 @@ struct
     | _ ->
       false
 
-  let event man e oman =
-    match e with
-    | Events.Access {ad; _} ->
-      let tids = tids_of_current_thread man in
-      Queries.AD.iter (function
-          | Queries.AD.Addr.Addr (var, _) when YamlWitness.VarSet.mem var !(YamlWitness.ghostVars) ->
-            man.sideg var (G.create_tids tids)
-          | _ ->
-            ()
-        ) ad;
+
+
+
+  let sync man reason =
+    if !AnalysisState.global_initialization then
       man.local
-    | _ ->
-      man.local
+    else
+      let may_be_advanced_here var =
+        match man.ask (Queries.Owner var), man.ask Queries.CurrentThreadId with
+        | `Bot, _
+        | _, `Bot ->
+          false
+        | `Lifted owner, `Lifted tid ->
+          if TID.equal owner tid then
+            false
+          else
+            let created_threads = man.ask Queries.CreatedThreads in
+            let owner_possibly_started =
+              not (MHP.definitely_not_started (tid, created_threads) owner)
+            in
+            let owner_not_must_joined =
+              not (ConcDomain.FiniteMustThreadSet.mem_lifted owner (man.ask Queries.MustJoinedThreads))
+            in
+            let below_max =
+              match D.find var man.local with
+              | `Lifted z ->
+                let max = man.global var in
+                Z.to_int z < max
+              | _ -> failwith "invariant"
+            in
+            owner_possibly_started && owner_not_must_joined && below_max
+        | `Lifted _, `Top -> true
+        | `Top, `Lifted _
+        | `Top, `Top ->
+          failwith "assumption about ghost owner violated"
+      in
+      let rec handle_vars m = function
+        | []  -> man.split m []
+        | var :: vars ->
+          if may_be_advanced_here var then
+            (let v' = (match (D.find var m) with
+                 | `Lifted x -> Z.succ x
+                 | _ -> failwith "assumption")
+             in
+             let advanced = D.add var (`Lifted v') m in
+             handle_vars advanced vars;
+             handle_vars m vars)
+          else
+            handle_vars m vars
+      in
+      YamlWitness.VarSet.iter (fun var ->
+          let owner = man.ask (Queries.Owner var) in
+          let may_advance = may_be_advanced_here var in
+          M.warn ~category:Witness "phaseGhostSplit: ghost %a has owner %a and may %s be advanced here"
+            CilType.Varinfo.pretty var ThreadIdDomain.ThreadLifted.pretty owner
+            (if may_advance then "" else " not ")
+        ) !(YamlWitness.ghostVars);
+      handle_vars man.local (YamlWitness.VarSet.elements !(YamlWitness.ghostVars));
+      raise Deadcode
+
 
   let assign man lval rval =
     if !AnalysisState.global_initialization then
@@ -147,46 +181,17 @@ struct
     else
       match lval with
       | Var var, NoOffset when YamlWitness.VarSet.mem var !(YamlWitness.ghostVars) ->
-        let inc_by_one = is_increment_by_one man.local lval rval in
-        let local =
-          match inc_by_one, eval_const man.local rval with
-          | true, Some z -> D.add var (`Lifted z) man.local
-          | _ -> D.add var (Const.top ()) man.local
-        in
-        man.sideg var (G.create_inc_by_one inc_by_one);
-        local
+        (match eval_const man.local (Lval lval) with
+         | Some z ->
+           (let v = Z.succ z in
+            let i = Z.to_int v in
+            man.sideg var i;
+            M.warn ~category:Witness "phaseGhostSplit: ghost %a has max %i" CilType.Varinfo.pretty var i;
+            D.add var (`Lifted v) man.local)
+         | None -> failwith "Failed to evaluate ghost to constant")
       | _ ->
         man.local
-
-  let query man (type a) (q: a Queries.t): a Queries.result =
-    match q with
-    | Queries.Owner var when YamlWitness.VarSet.mem var !(YamlWitness.ghostVars) ->
-      let tidset = G.tids (man.global var) in
-      begin match TIDs.elements tidset with
-        | [] ->
-          `Bot
-        | [tid] when TID.is_unique tid ->
-          `Lifted tid
-        | _ ->
-          `Top
-      end
-    | Queries.WarnGlobal g ->
-      let g: V.t = Obj.obj g in
-      let (tidset, inc_by_one) = man.global g in
-      if TIDs.is_top tidset then
-        M.warn_noloc ~category:Witness "phaseGhost: global %a is accessed by a non-unique or unknown thread id" CilType.Varinfo.pretty g
-      else
-        (match TIDs.elements tidset with
-         | [tid] when TID.is_unique tid ->
-           if inc_by_one then
-             M.info_noloc ~category:Witness "phaseGhost: global %a is only accessed by unique thread %a and is only ever increased by one" CilType.Varinfo.pretty g TID.pretty tid
-           else
-             M.warn_noloc ~category:Witness "phaseGhost: global %a is only accessed by unique thread %a, but is not only ever increased by one" CilType.Varinfo.pretty g TID.pretty tid
-         | _ ->
-           M.warn_noloc ~category:Witness "phaseGhost: global %a is accessed by multiple unique threads: %a" CilType.Varinfo.pretty g TIDs.pretty tidset)
-    | _ ->
-      Queries.Result.top q
 end
 
 let _ =
-  MCP.register_analysis ~dep:["access"; "threadid"] (module Spec : MCPSpec)
+  MCP.register_analysis ~dep:["access"; "threadid"; "phaseGhost"] (module Spec : MCPSpec)
