@@ -4,6 +4,9 @@ Run witness validation with `phaseGhost` on the empire example and confirm the e
 
 The witness invariants, including the new `fun`-exit disjunction, are confirmed.
 
+  $ grep -F "invariant confirmed: ghost_a == 1" 05-empire-detect-bounds.out
+  [Success][Witness] invariant confirmed: ghost_a == 1 (05-empire-detect-bounds.c:37:5)
+
   $ grep -F "invariant confirmed: ghost_b == 1" 05-empire-detect-bounds.out
   [Success][Witness] invariant confirmed: ghost_b == 1 (05-empire-detect-bounds.c:37:5)
 

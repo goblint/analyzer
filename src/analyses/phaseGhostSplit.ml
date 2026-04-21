@@ -5,6 +5,7 @@ open GoblintCil
 
 module TID = ThreadIdDomain.Thread
 module TIDs = ConcDomain.ThreadSet
+module LF = LibraryFunctions
 
 module Const =
 struct
@@ -23,7 +24,20 @@ struct
   module P = IdentityP (D)
 
   module V = VarinfoV
-  module G = Lattice.Chain (struct let n () = 99 let names i = string_of_int(i) end)
+  module Max =
+  struct
+    include Lattice.Chain (struct let n () = 99 let names i = string_of_int(i) end)
+    let name () = "ghost-max"
+  end
+  module G =
+  struct
+    include Lattice.Prod (Max) (Const)
+    let max = fst
+    let const = snd
+    let create_max max = (max, Const.bot ())
+    let create_const const = (Max.bot (), const)
+    let create max const = (max, const)
+  end
 
   let initial_ghost_values () =
     List.fold_left (fun acc -> function
@@ -140,7 +154,7 @@ struct
             let below_max =
               match D.find var man.local with
               | `Lifted z ->
-                let max = man.global var in
+                let max = G.max (man.global var) in
                 Z.to_int z < max
               | _ -> failwith "invariant"
             in
@@ -185,12 +199,70 @@ struct
          | Some z ->
            (let v = Z.succ z in
             let i = Z.to_int v in
-            man.sideg var i;
+            man.sideg var (G.create_max i);
             M.warn ~category:Witness "phaseGhostSplit: ghost %a has max %i" CilType.Varinfo.pretty var i;
             D.add var (`Lifted v) man.local)
          | None -> failwith "Failed to evaluate ghost to constant")
       | _ ->
         man.local
+
+
+  let handle_return man =
+    let handle_ghost tid varinfo =
+      match man.ask (Queries.Owner varinfo) with
+      | `Lifted gtid when TID.equal tid gtid ->
+        (match D.find_opt varinfo man.local with
+         | Some v -> man.sideg varinfo (G.create_const v)
+         | _ -> ())
+      | _ -> ()
+    in
+    match ThreadId.get_current (Analyses.ask_of_man man) with
+    | `Lifted tid when TID.is_unique tid ->
+      List.iter (handle_ghost tid) (YamlWitness.VarSet.elements !(YamlWitness.ghostVars));
+    | _ -> ()
+
+
+
+  let return man exp fundec =
+    if ThreadReturn.is_current (Analyses.ask_of_man man) then
+      handle_return man
+    ;
+    man.local
+
+
+
+  let special man (lv:lval option) (f: varinfo) (args: exp list) =
+    let desc = LF.find f in
+    let st = match desc.special args, f.vname with
+      | ThreadExit _, _ ->
+        handle_return man; man.local
+      | ThreadJoin { thread = id; _ }, _ ->
+        let handle_ghost tid varinfo  =
+          match man.ask (Owner varinfo) with
+          | `Lifted gtid when TID.equal tid gtid ->
+            (match G.const (man.global varinfo) with
+             | `Lifted z ->
+               begin match D.find_opt varinfo man.local with
+                 | Some (`Lifted z')  when not (Z.equal z z') -> raise Deadcode
+                 | _ -> ()
+               end
+             | _ -> ())
+          | _ -> ()
+        in
+        let tids = man.ask (Queries.EvalThread id) in
+        if TIDs.is_top tids || TIDs.is_empty tids || TIDs.is_bot tids then
+          man.local
+        else
+          (match TIDs.elements tids with
+           | [tid] when TID.is_unique tid ->
+             List.iter (handle_ghost tid) (YamlWitness.VarSet.elements !(YamlWitness.ghostVars));
+
+             man.local
+           | _ -> man.local)
+      | _ -> man.local
+    in
+    st
+
 
   let query man (type a) (q: a Queries.t): a Queries.result =
     let open Queries in
