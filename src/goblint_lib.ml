@@ -170,6 +170,7 @@ module StackTrace = StackTrace
 
 module AccessAnalysis = AccessAnalysis
 module PhaseGhost = PhaseGhost
+module PhaseGhostSplit = PhaseGhostSplit
 module WrapperFunctionAnalysis = WrapperFunctionAnalysis
 module TaintPartialContexts = TaintPartialContexts
 module UnassumeAnalysis = UnassumeAnalysis
