@@ -140,15 +140,48 @@ struct
 
   let common_joins man ds splits spawns = common_join man (bigsqcup ds) splits spawns
 
+  let man_with_local (man: (D.t, S.G.t, S.C.t, S.V.t) man) (local: D.t) : (D.t, S.G.t, S.C.t, S.V.t) man =
+    let rec man' =
+      { man with
+        ask = (fun (type a) (q: a Queries.t) -> S.query man' q);
+        local;
+      }
+    in
+    man'
+
+  let transfer_on_synced_splits man r (f: (D.t, S.G.t, S.C.t, S.V.t) man -> D.t) =
+    let sync_splits = !r in
+    r := [];
+    let d = f man in
+    let ds =
+      List.filter_map (fun split_d ->
+          try Some (f (man_with_local man split_d))
+          with Deadcode -> None
+        ) sync_splits
+    in
+    d :: ds
+
+  let transfer_on_synced_splits_with_local_fallback man r (f: (D.t, S.G.t, S.C.t, S.V.t) man -> D.t -> D.t) fallback =
+    let sync_splits = !r in
+    r := [];
+    let d = f man fallback in
+    let ds =
+      List.filter_map (fun split_d ->
+          try Some (f (man_with_local man split_d) split_d)
+          with Deadcode -> None
+        ) sync_splits
+    in
+    d :: ds
+
   let tf_assign var edge prev_node lv e getl sidel demandl getg sideg d =
     let man, r, spawns = common_man var edge prev_node d getl sidel demandl getg sideg in
-    let d = S.assign man lv e in (* Force transfer function to be evaluated before dereferencing in common_join argument. *)
-    common_join man d !r !spawns
+    let ds = transfer_on_synced_splits man r (fun man -> S.assign man lv e) in (* Force transfer function to be evaluated before dereferencing in common_join argument. *)
+    common_joins man ds !r !spawns
 
   let tf_vdecl var edge prev_node v getl sidel demandl getg sideg d =
     let man, r, spawns = common_man var edge prev_node d getl sidel demandl getg sideg in
-    let d = S.vdecl man v in (* Force transfer function to be evaluated before dereferencing in common_join argument. *)
-    common_join man d !r !spawns
+    let ds = transfer_on_synced_splits man r (fun man -> S.vdecl man v) in (* Force transfer function to be evaluated before dereferencing in common_join argument. *)
+    common_joins man ds !r !spawns
 
   let normal_return r fd man sideg =
     let spawning_return = S.return man r fd in
@@ -163,14 +196,15 @@ struct
 
   let tf_ret var edge prev_node ret fd getl sidel demandl getg sideg d =
     let man, r, spawns = common_man var edge prev_node d getl sidel demandl getg sideg in
-    let d = (* Force transfer function to be evaluated before dereferencing in common_join argument. *)
+    let tf man = (* Force transfer function to be evaluated before dereferencing in common_join argument. *)
       if (CilType.Fundec.equal fd MyCFG.dummy_func ||
           List.mem fd.svar.vname (get_string_list "mainfun")) &&
          get_bool "kernel"
       then toplevel_kernel_return ret fd man sideg
       else normal_return ret fd man sideg
     in
-    common_join man d !r !spawns
+    let ds = transfer_on_synced_splits man r tf in
+    common_joins man ds !r !spawns
 
   let tf_entry var edge prev_node fd getl sidel demandl getg sideg d =
     (* Side effect function context here instead of at sidel to FunctionEntry,
@@ -178,13 +212,13 @@ struct
     let c: unit -> S.C.t = snd var |> Obj.obj in
     side_context sideg fd (c ());
     let man, r, spawns = common_man var edge prev_node d getl sidel demandl getg sideg in
-    let d = S.body man fd in (* Force transfer function to be evaluated before dereferencing in common_join argument. *)
-    common_join man d !r !spawns
+    let ds = transfer_on_synced_splits man r (fun man -> S.body man fd) in (* Force transfer function to be evaluated before dereferencing in common_join argument. *)
+    common_joins man ds !r !spawns
 
   let tf_test var edge prev_node e tv getl sidel demandl getg sideg d =
     let man, r, spawns = common_man var edge prev_node d getl sidel demandl getg sideg in
-    let d = S.branch man e tv in (* Force transfer function to be evaluated before dereferencing in common_join argument. *)
-    common_join man d !r !spawns
+    let ds = transfer_on_synced_splits man r (fun man -> S.branch man e tv) in (* Force transfer function to be evaluated before dereferencing in common_join argument. *)
+    common_joins man ds !r !spawns
 
   let tf_normal_call man lv e (f:fundec) args getl sidel demandl getg sideg =
     let combine (cd, fc, fd) =
@@ -283,62 +317,66 @@ struct
       | _  -> S.special man lv f args
     in
     let man, r, spawns = common_man var edge prev_node d getl sidel demandl getg sideg in
-    let functions =
-      match e with
-      | Lval (Var v, NoOffset) ->
-        (* Handle statically known function call directly.
-           Allows deactivating base. *)
-        [v]
-      | _ ->
-        (* Depends on base for query. *)
-        let ad = man.ask (Queries.EvalFunvar e) in
-        Queries.AD.to_var_may ad (* TODO: don't convert, handle UnknownPtr below *)
-    in
-    let one_function f =
-      match Cil.unrollType f.vtype with
-      | TFun (_, params, var_arg, _)  ->
-        let arg_length = List.length args in
-        let p_length = Option.map_default List.length 0 params in
-        (* Check whether number of arguments fits. *)
-        (* If params is None, the function or its parameters are not declared, so we still analyze the unknown function call. *)
-        if Option.is_none params || p_length = arg_length || (var_arg && arg_length >= p_length) then
-          let d =
-            (match Cilfacade.find_varinfo_fundec f with
-             | fd when LibraryFunctions.use_special f.vname ->
-               M.info ~category:Analyzer "Using special for defined function %s" f.vname;
-               tf_special_call man f
-             | fd ->
-               tf_normal_call man lv e fd args getl sidel demandl getg sideg
-             | exception Not_found ->
-               tf_special_call man f)
-          in
-          Some d
-        else begin
-          let geq = if var_arg then ">=" else "" in
-          M.warn ~category:Unsound ~tags:[Category Call; CWE 685] "Potential call to function %a with wrong number of arguments (expected: %s%d, actual: %d). This call will be ignored." CilType.Varinfo.pretty f geq p_length arg_length;
+    let one_man man fallback =
+      let functions =
+        match e with
+        | Lval (Var v, NoOffset) ->
+          (* Handle statically known function call directly.
+             Allows deactivating base. *)
+          [v]
+        | _ ->
+          (* Depends on base for query. *)
+          let ad = man.ask (Queries.EvalFunvar e) in
+          Queries.AD.to_var_may ad (* TODO: don't convert, handle UnknownPtr below *)
+      in
+      let one_function f =
+        match Cil.unrollType f.vtype with
+        | TFun (_, params, var_arg, _)  ->
+          let arg_length = List.length args in
+          let p_length = Option.map_default List.length 0 params in
+          (* Check whether number of arguments fits. *)
+          (* If params is None, the function or its parameters are not declared, so we still analyze the unknown function call. *)
+          if Option.is_none params || p_length = arg_length || (var_arg && arg_length >= p_length) then
+            let d =
+              (match Cilfacade.find_varinfo_fundec f with
+               | fd when LibraryFunctions.use_special f.vname ->
+                 M.info ~category:Analyzer "Using special for defined function %s" f.vname;
+                 tf_special_call man f
+               | fd ->
+                 tf_normal_call man lv e fd args getl sidel demandl getg sideg
+               | exception Not_found ->
+                 tf_special_call man f)
+            in
+            Some d
+          else begin
+            let geq = if var_arg then ">=" else "" in
+            M.warn ~category:Unsound ~tags:[Category Call; CWE 685] "Potential call to function %a with wrong number of arguments (expected: %s%d, actual: %d). This call will be ignored." CilType.Varinfo.pretty f geq p_length arg_length;
+            None
+          end
+        | _ ->
+          M.warn ~category:Call "Something that is not a function (%a) is called." CilType.Varinfo.pretty f;
           None
-        end
-      | _ ->
-        M.warn ~category:Call "Something that is not a function (%a) is called." CilType.Varinfo.pretty f;
-        None
+      in
+      let funs = List.filter_map one_function functions in
+      if [] = funs && not (S.D.is_bot man.local) then begin
+        M.msg_final Warning ~category:Unsound ~tags:[Category Call] "No suitable function to call";
+        M.warn ~category:Unsound ~tags:[Category Call] "No suitable function to be called at call site. Continuing with state before call.";
+        fallback (* because LevelSliceLifter; per-path fallback is provided by transfer_on_synced_splits_with_local_fallback *)
+      end else
+        bigsqcup funs
     in
-    let funs = List.filter_map one_function functions in
-    if [] = funs && not (S.D.is_bot man.local) then begin
-      M.msg_final Warning ~category:Unsound ~tags:[Category Call] "No suitable function to call";
-      M.warn ~category:Unsound ~tags:[Category Call] "No suitable function to be called at call site. Continuing with state before call.";
-      d (* because LevelSliceLifter *)
-    end else
-      common_joins man funs !r !spawns
+    let ds = transfer_on_synced_splits_with_local_fallback man r one_man d in
+    common_joins man ds !r !spawns
 
   let tf_asm var edge prev_node getl sidel demandl getg sideg d =
     let man, r, spawns = common_man var edge prev_node d getl sidel demandl getg sideg in
-    let d = S.asm man in (* Force transfer function to be evaluated before dereferencing in common_join argument. *)
-    common_join man d !r !spawns
+    let ds = transfer_on_synced_splits man r (fun man -> S.asm man) in (* Force transfer function to be evaluated before dereferencing in common_join argument. *)
+    common_joins man ds !r !spawns
 
   let tf_skip var edge prev_node getl sidel demandl getg sideg d =
     let man, r, spawns = common_man var edge prev_node d getl sidel demandl getg sideg in
-    let d = S.skip man in (* Force transfer function to be evaluated before dereferencing in common_join argument. *)
-    common_join man d !r !spawns
+    let ds = transfer_on_synced_splits man r (fun man -> S.skip man) in (* Force transfer function to be evaluated before dereferencing in common_join argument. *)
+    common_joins man ds !r !spawns
 
   let tf var getl sidel demandl getg sideg prev_node edge d =
     begin match edge with
