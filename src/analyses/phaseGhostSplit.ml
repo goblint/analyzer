@@ -75,7 +75,7 @@ struct
 
   (* This local constant folding intentionally disregards writes from other threads.
      It is only for the phaseGhost checker itself. *)
-  (* This information must **not** be used to refine other analyses or returned by any query,
+  (* This information must **not** be used to refine other analyses,
      because it is unsound in the presence of other threads interfering. By the same token, it must
      be not used to raise Deadcode in branch. *)
   let rec eval_const state e =
@@ -191,6 +191,19 @@ struct
          | None -> failwith "Failed to evaluate ghost to constant")
       | _ ->
         man.local
+
+  let query man (type a) (q: a Queries.t): a Queries.result =
+    let open Queries in
+    match q with
+    | EvalInt e ->
+      begin match eval_const man.local e with
+        | Some z ->
+          ID.of_int (Cilfacade.get_ikind_exp e) z
+        | None ->
+          Result.top q
+      end
+    | _ ->
+      Result.top q
 end
 
 let _ =
