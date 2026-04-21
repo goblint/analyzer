@@ -149,7 +149,19 @@ struct
     in
     man'
 
-  let transfer_on_synced_splits_with_fallback man r (f: (D.t, S.G.t, S.C.t, S.V.t) man -> D.t -> D.t) fallback =
+  let transfer_on_synced_splits man r (f: (D.t, S.G.t, S.C.t, S.V.t) man -> D.t) =
+    let sync_splits = !r in
+    r := [];
+    let d = f man in
+    let ds =
+      List.filter_map (fun split_d ->
+          try Some (f (man_with_local man split_d))
+          with Deadcode -> None
+        ) sync_splits
+    in
+    d :: ds
+
+  let transfer_on_synced_splits_with_local_fallback man r (f: (D.t, S.G.t, S.C.t, S.V.t) man -> D.t -> D.t) fallback =
     let sync_splits = !r in
     r := [];
     let d = f man fallback in
@@ -160,9 +172,6 @@ struct
         ) sync_splits
     in
     d :: ds
-
-  let transfer_on_synced_splits man r (f: (D.t, S.G.t, S.C.t, S.V.t) man -> D.t) =
-    transfer_on_synced_splits_with_fallback man r (fun man _ -> f man) (D.bot ())
 
   let tf_assign var edge prev_node lv e getl sidel demandl getg sideg d =
     let man, r, spawns = common_man var edge prev_node d getl sidel demandl getg sideg in
@@ -352,11 +361,11 @@ struct
       if [] = funs && not (S.D.is_bot man.local) then begin
         M.msg_final Warning ~category:Unsound ~tags:[Category Call] "No suitable function to call";
         M.warn ~category:Unsound ~tags:[Category Call] "No suitable function to be called at call site. Continuing with state before call.";
-        fallback (* because LevelSliceLifter *)
+        fallback (* because LevelSliceLifter; per-path fallback is provided by transfer_on_synced_splits_with_local_fallback *)
       end else
         bigsqcup funs
     in
-    let ds = transfer_on_synced_splits_with_fallback man r one_man d in
+    let ds = transfer_on_synced_splits_with_local_fallback man r one_man d in
     common_joins man ds !r !spawns
 
   let tf_asm var edge prev_node getl sidel demandl getg sideg d =
