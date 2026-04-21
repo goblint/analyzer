@@ -149,17 +149,20 @@ struct
     in
     man'
 
-  let transfer_on_synced_splits man r (f: (D.t, S.G.t, S.C.t, S.V.t) man -> D.t) =
+  let transfer_on_synced_splits_with_fallback man r (f: (D.t, S.G.t, S.C.t, S.V.t) man -> D.t -> D.t) fallback =
     let sync_splits = !r in
     r := [];
-    let d = f man in
+    let d = f man fallback in
     let ds =
       List.filter_map (fun split_d ->
-          try Some (f (man_with_local man split_d))
+          try Some (f (man_with_local man split_d) split_d)
           with Deadcode -> None
         ) sync_splits
     in
     d :: ds
+
+  let transfer_on_synced_splits man r (f: (D.t, S.G.t, S.C.t, S.V.t) man -> D.t) =
+    transfer_on_synced_splits_with_fallback man r (fun man _ -> f man) (D.bot ())
 
   let tf_assign var edge prev_node lv e getl sidel demandl getg sideg d =
     let man, r, spawns = common_man var edge prev_node d getl sidel demandl getg sideg in
@@ -305,8 +308,6 @@ struct
       | _  -> S.special man lv f args
     in
     let man, r, spawns = common_man var edge prev_node d getl sidel demandl getg sideg in
-    let sync_splits = !r in
-    r := [];
     let one_man man fallback =
       let functions =
         match e with
@@ -355,14 +356,8 @@ struct
       end else
         bigsqcup funs
     in
-    let d = one_man man d in
-    let ds =
-      List.filter_map (fun split_d ->
-          try Some (one_man (man_with_local man split_d) split_d)
-          with Deadcode -> None
-        ) sync_splits
-    in
-    common_joins man (d :: ds) !r !spawns
+    let ds = transfer_on_synced_splits_with_fallback man r one_man d in
+    common_joins man ds !r !spawns
 
   let tf_asm var edge prev_node getl sidel demandl getg sideg d =
     let man, r, spawns = common_man var edge prev_node d getl sidel demandl getg sideg in
