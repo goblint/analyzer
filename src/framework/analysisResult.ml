@@ -55,5 +55,18 @@ struct
   let show (es,x,f:t) = D.show x
   let pretty () (_,x,_) = D.pretty () x
   let printXml f (c,d,fd) =
-    BatPrintf.fprintf f "<context>\n%a</context>\n%a" C.printXml c D.printXml d
+    BatPrintf.fprintf f "<tuple>\n<context>\n%a</context>\n<abstract_state>\n%a</abstract_state>\n</tuple>" C.printXml c D.printXml d
 end
+
+module ResultType2Digest (S: Analyses.Spec) =
+struct
+  open S
+  include Printable.Prod4 (C) (P) (P) (D)
+  let show (es,original_digst, current_diget,x) = D.show x
+  let pretty () (_,original_digst,current_diget, x) = D.pretty () x
+  let printXml f (c,original_digst,current_digest,d) =
+    BatPrintf.fprintf f "<tuple>\n<context>\n%a</context>\n<original_digest>\n%a</original_digest>\n<current_digest>\n%a</current_digest>\n<abstract_state>\n%a</abstract_state>\n</tuple>" C.printXml c P.printXml original_digst P.printXml current_digest D.printXml d
+end
+
+
+
