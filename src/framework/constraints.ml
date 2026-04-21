@@ -140,10 +140,27 @@ struct
 
   let common_joins man ds splits spawns = common_join man (bigsqcup ds) splits spawns
 
+  let man_with_local (man: (D.t, S.G.t, S.C.t, S.V.t) man) (local: D.t) : (D.t, S.G.t, S.C.t, S.V.t) man =
+    let rec man' =
+      { man with
+        ask = (fun (type a) (q: a Queries.t) -> S.query man' q);
+        local;
+      }
+    in
+    man'
+
   let tf_assign var edge prev_node lv e getl sidel demandl getg sideg d =
     let man, r, spawns = common_man var edge prev_node d getl sidel demandl getg sideg in
+    let sync_splits = !r in
+    r := [];
     let d = S.assign man lv e in (* Force transfer function to be evaluated before dereferencing in common_join argument. *)
-    common_join man d !r !spawns
+    let ds =
+      List.filter_map (fun split_d ->
+          try Some (S.assign (man_with_local man split_d) lv e)
+          with Deadcode -> None
+        ) sync_splits
+    in
+    common_joins man (d :: ds) !r !spawns
 
   let tf_vdecl var edge prev_node v getl sidel demandl getg sideg d =
     let man, r, spawns = common_man var edge prev_node d getl sidel demandl getg sideg in
