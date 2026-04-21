@@ -237,6 +237,7 @@ struct
       | ThreadExit _, _ ->
         handle_return man; man.local
       | ThreadJoin { thread = id; _ }, _ ->
+        (** Also handle transitively joined threads *)
         let handle_ghost tid varinfo  =
           match man.ask (Owner varinfo) with
           | `Lifted gtid when TID.equal tid gtid ->
