@@ -244,7 +244,11 @@ struct
   include Q.PhaseDigest
 
   let current (ask: Q.ask) = ask.f Q.PhaseDigest
-  let accounted_for (ask:Q.ask)  ~(current: t) ~(other: t) = false
+  let accounted_for (ask:Q.ask)  ~(current: t) ~(other: t) =
+    (* If the phase digest is different from the one being consulted, this cannot be the right one,
+       and it thus accounted for *)
+    (* TODO: Local writes should also be considered accounted for through some additional mechanism *)
+    not (equal current other)
 end
 
 
