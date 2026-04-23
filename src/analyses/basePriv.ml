@@ -72,6 +72,7 @@ module type PrivatizationWrapper = functor(GBase:Lattice.S) ->
 sig
   module G: Lattice.S
 
+  val requiresActionOnPhaseChange: bool
   val getg: Q.ask -> ('a -> G.t) -> 'a -> GBase.t
   val sideg: Q.ask -> ('a -> G.t -> unit) -> 'a -> GBase.t -> unit
 end
@@ -81,6 +82,7 @@ module NoWrapper:PrivatizationWrapper = functor (GBase:Lattice.S) ->
   (struct
     module G = GBase
 
+    let requiresActionOnPhaseChange = false
     let getg _ getg = getg
     let sideg _ sideg = sideg
   end)
@@ -88,6 +90,8 @@ module NoWrapper:PrivatizationWrapper = functor (GBase:Lattice.S) ->
 module DigestWrapper(Digest: Digest):PrivatizationWrapper =  functor (GBase:Lattice.S) ->
   (struct
     module G = MapDomain.MapBot_LiftTop (Digest) (GBase)
+
+    let requiresActionOnPhaseChange = Digest.requiresActionOnPhaseChange
 
     let getg ask getg x =
       let vs = getg x in

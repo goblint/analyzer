@@ -190,6 +190,7 @@ module type Digest =
 sig
   include Printable.S
 
+  val requiresActionOnPhaseChange: bool
   val current: Q.ask -> t
   val accounted_for: Q.ask -> current:t -> other:t -> bool
 end
@@ -202,6 +203,8 @@ struct
   include ThreadIdDomain.ThreadLifted
 
   module TID = ThreadIdDomain.Thread
+
+  let requiresActionOnPhaseChange = false
 
   let current (ask: Q.ask) =
     ThreadId.get_current ask
@@ -229,6 +232,8 @@ struct
 
   module TID = ThreadIdDomain.Thread
 
+  let requiresActionOnPhaseChange = false
+
   let current (ask: Q.ask) =
     ThreadId.get_current ask
 
@@ -242,6 +247,8 @@ end
 module GhostPhase:Digest =
 struct
   include Q.PhaseDigest
+
+  let requiresActionOnPhaseChange = true
 
   let current (ask: Q.ask) = ask.f Q.PhaseDigest
   let accounted_for (ask:Q.ask)  ~(current: t) ~(other: t) =
