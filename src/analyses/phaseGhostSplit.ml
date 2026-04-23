@@ -178,13 +178,13 @@ struct
           else
             handle_vars m vars
       in
-      YamlWitness.VarSet.iter (fun var ->
+      (* YamlWitness.VarSet.iter (fun var ->
           let owner = man.ask (Queries.Owner var) in
           let may_advance = may_be_advanced_here var in
           M.warn ~category:Witness "phaseGhostSplit: ghost %a has owner %a and may %s be advanced here"
             CilType.Varinfo.pretty var ThreadIdDomain.ThreadLifted.pretty owner
             (if may_advance then "" else " not ")
-        ) !(YamlWitness.ghostVars);
+         ) !(YamlWitness.ghostVars); *)
       handle_vars man.local (YamlWitness.VarSet.elements !(YamlWitness.ghostVars));
       raise Deadcode
 
@@ -204,7 +204,7 @@ struct
             (* TODO: Prolong until after atomic is over? *)
             if not (D.equal man.local local) then
               man.emit (Events.PhaseChange {old_phase = `Lifted man.local; new_phase = `Lifted local});
-            M.warn ~category:Witness "phaseGhostSplit: ghost %a has max %i" CilType.Varinfo.pretty var i;
+            (* M.warn ~category:Witness "phaseGhostSplit: ghost %a has max %i" CilType.Varinfo.pretty var i; *)
             local)
          | None -> failwith "Failed to evaluate ghost to constant")
       | _ ->

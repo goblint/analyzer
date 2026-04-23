@@ -1079,6 +1079,7 @@ struct
   let phase_change ask old_phase new_phase getg sideg st =
     if Wrapper.requiresActionOnPhaseChange then
       let publish_global_to_newphase g =
+        M.warn "Phases: progating value for %s from %s to %s" g.vname (Queries.PhaseDigest.show old_phase) (Queries.PhaseDigest.show new_phase);
         let old_phase_magic = Obj.magic old_phase in
         let old_phase_getg = Wrapper.getg_digest_override old_phase_magic ask getg in
         let old_protected = old_phase_getg (V.protected g) in
@@ -1089,6 +1090,7 @@ struct
       in
       (* TODO: Other globals! *)
       List.iter (function
+          (* TODO: Can ghost vars really be omitted here? *)
           | GVar (x, _, _) when not (YamlWitness.VarSet.mem x !(YamlWitness.ghostVars)) ->
             publish_global_to_newphase x
           | _ -> ()

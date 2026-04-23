@@ -1,4 +1,4 @@
-// SKIP PARAM: --set ana.activated[+] phaseGhostSplit --set ana.activated[+] threadJoins --set ana.activated[+] phaseGhost  --set witness.yaml.extraGhosts[+] ghost_a --set witness.yaml.extraGhosts[+] ghost_b --set ana.path_sens[+] threadflag --set ana.activated[+] threadJoins --set lib.activated[+] sv-comp --set ana.relation.privatization mutex-meet-tid
+// SKIP PARAM: --set ana.activated[+] phaseGhostSplit --set ana.activated[+] threadJoins --set ana.activated[+] phaseGhost --set ana.base.privatization protection-atomic-ghost  --set witness.yaml.extraGhosts[+] ghost_a --set witness.yaml.extraGhosts[+] ghost_b --set ana.path_sens[+] threadflag --set ana.activated[+] threadJoins --set lib.activated[+] sv-comp --enable ana.int.interval
 // Dominik's empire thing example
 #include<pthread.h>
 #include<goblint.h>
