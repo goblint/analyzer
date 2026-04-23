@@ -25,7 +25,8 @@ let emit_on_deadcode = function
   | Unlock _ (* Privatization must still publish. *)
   | Escape _ (* Privatization must still handle escapes. *)
   | EnterMultiThreaded (* Privatization must still publish. *)
-  | Access _ -> (* Protection and races must still consider access. *)
+  | Access _ (* Protection and races must still consider access. *)
+  | PhaseChange _ -> (* Not sure, but save default *)
     true
   | Lock _ (* Doesn't need to publish. *)
   | SplitBranch _ (* only emitted in split, which is never dead. *)
@@ -36,8 +37,7 @@ let emit_on_deadcode = function
   | Assert _ (* Pointless to refine dead. *)
   | Longjmped _
   | EnterOnce _
-  | LeaveOnce _
-  | PhaseChange _ ->
+  | LeaveOnce _ ->
     false
 
 let pretty () = function
