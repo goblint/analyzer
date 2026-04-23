@@ -9,7 +9,7 @@ module LF = LibraryFunctions
 
 module Const =
 struct
-  include Lattice.Flat (IntOps.BigIntOps)
+  include Queries.PhaseDigestConst
   let name () = "ghost-constant"
 end
 
@@ -19,7 +19,7 @@ struct
 
   let name () = "phaseGhostSplit"
 
-  module D = MapDomain.MapBot (Basetype.Variables) (Const)
+  module D = Queries.PhaseDigestState
   include ValueContexts (D)
   module P = IdentityP (D)
 
@@ -268,6 +268,8 @@ struct
   let query man (type a) (q: a Queries.t): a Queries.result =
     let open Queries in
     match q with
+    | PhaseDigest ->
+      `Lifted man.local
     | EvalInt e ->
       begin match eval_const man.local e with
         | Some z ->

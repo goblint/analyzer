@@ -241,9 +241,9 @@ end
 
 module GhostPhase:Digest =
 struct
-  include Lattice.Unit
+  include Q.PhaseDigest
 
-  let current (ask: Q.ask) = ()
+  let current (ask: Q.ask) = ask.f Q.PhaseDigest
   let accounted_for (ask:Q.ask)  ~(current: t) ~(other: t) = false
 end
 

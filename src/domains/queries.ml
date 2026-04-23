@@ -22,6 +22,24 @@ module VI = Lattice.Flat (Basetype.Variables)
 
 module VarQuery = Goblint_constraint.VarQuery
 
+module PhaseDigestConst =
+struct
+  include Lattice.Flat (IntOps.BigIntOps)
+  let name () = "phase-digest-constant"
+end
+
+module PhaseDigestState =
+struct
+  include MapDomain.MapBot (Basetype.Variables) (PhaseDigestConst)
+  let name () = "phase-digest-state"
+end
+
+module PhaseDigest =
+struct
+  include Lattice.LiftTop (PhaseDigestState)
+  let name () = "phase-digest"
+end
+
 type iterprevvar = int -> (MyCFG.node * Obj.t * int) -> MyARG.inline_edge -> unit
 type itervar = int -> unit
 let compare_itervar _ _ = 0
@@ -128,6 +146,7 @@ type _ t =
   | ValidLongJmp: JmpBufDomain.JmpBufSet.t t
   | CreatedThreads: ConcDomain.ThreadSet.t t
   | MustJoinedThreads: ConcDomain.FiniteMustThreadSet.t t
+  | PhaseDigest: PhaseDigest.t t
   | ThreadsJoinedCleanly: MustBool.t t
   | MustProtectedVars: mustprotectedvars -> VS.t t
   | MustProtectingLocks: mustprotectinglocks -> LockDomain.MustLockset.t t
@@ -205,6 +224,7 @@ struct
     | ValidLongJmp ->  (module JmpBufDomain.JmpBufSet)
     | CreatedThreads ->  (module ConcDomain.ThreadSet)
     | MustJoinedThreads -> (module ConcDomain.FiniteMustThreadSet)
+    | PhaseDigest -> (module PhaseDigest)
     | ThreadsJoinedCleanly -> (module MustBool)
     | MustProtectedVars _ -> (module VS)
     | MustProtectingLocks _ -> (module LockDomain.MustLockset)
@@ -281,6 +301,7 @@ struct
     | ValidLongJmp -> JmpBufDomain.JmpBufSet.top ()
     | CreatedThreads -> ConcDomain.ThreadSet.top ()
     | MustJoinedThreads -> ConcDomain.FiniteMustThreadSet.top ()
+    | PhaseDigest -> PhaseDigest.top ()
     | ThreadsJoinedCleanly -> MustBool.top ()
     | MustProtectedVars _ -> VS.top ()
     | MustProtectingLocks _ -> LockDomain.MustLockset.top ()
@@ -374,6 +395,7 @@ struct
     | Any (GhostVarAvailable _) -> 62
     | Any InvariantGlobalNodes -> 63
     | Any (DescendantThreads _) -> 64
+    | Any PhaseDigest -> 65
 
   let rec compare a b =
     let r = Stdlib.compare (order a) (order b) in
@@ -554,6 +576,7 @@ struct
     | Any (GhostVarAvailable v) -> Pretty.dprintf "GhostVarAvailable %a" WitnessGhostVar.pretty v
     | Any InvariantGlobalNodes -> Pretty.dprintf "InvariantGlobalNodes"
     | Any (DescendantThreads t) -> Pretty.dprintf "DescendantThreads %a" ThreadIdDomain.Thread.pretty t
+    | Any PhaseDigest -> Pretty.dprintf "PhaseDigest"
 end
 
 let to_value_domain_ask (ask: ask) =
