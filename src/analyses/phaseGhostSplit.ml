@@ -201,6 +201,7 @@ struct
             let i = Z.to_int v in
             let local = D.add var (`Lifted v) man.local in
             man.sideg var (G.create_max i);
+            (* TODO: Prolong until after atomic is over? *)
             if not (D.equal man.local local) then
               man.emit Events.PhaseChange;
             M.warn ~category:Witness "phaseGhostSplit: ghost %a has max %i" CilType.Varinfo.pretty var i;

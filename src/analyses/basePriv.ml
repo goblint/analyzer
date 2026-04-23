@@ -39,6 +39,7 @@ sig
   val enter_multithreaded: Q.ask -> (V.t -> G.t) -> (V.t -> G.t -> unit) -> BaseComponents (D).t -> BaseComponents (D).t
   val threadenter: Q.ask -> BaseComponents (D).t -> BaseComponents (D).t
   val threadspawn: Q.ask -> (V.t -> G.t) -> (V.t -> G.t -> unit) -> BaseComponents (D).t -> BaseComponents (D).t
+  val phase_change: Q.ask -> (V.t -> G.t) -> (V.t -> G.t -> unit) -> BaseComponents (D).t -> BaseComponents (D).t
   val iter_sys_vars: (V.t -> G.t) -> VarQuery.t -> V.t VarQuery.f -> unit
 
   val thread_join: ?force:bool -> Q.ask -> (V.t -> G.t) -> Cil.exp -> BaseComponents (D).t -> BaseComponents (D).t
@@ -51,9 +52,11 @@ sig
   val finalize: unit -> unit
 end
 
-module NoFinalize =
+module NoFinalizeNoPhase =
 struct
   let finalize () = ()
+
+  let phase_change _ _ _ st = st
 end
 
 let old_threadenter (type d) ask (st: d BaseDomain.basecomponents_t) =
@@ -65,7 +68,6 @@ let old_threadenter (type d) ask (st: d BaseDomain.basecomponents_t) =
 
 let startstate_threadenter (type d) (startstate: unit -> d) ask (st: d BaseDomain.basecomponents_t) =
   {st with cpa = CPA.bot (); priv = startstate ()}
-
 
 (** Wrappers. *)
 module type PrivatizationWrapper = functor(GBase:Lattice.S) ->
@@ -110,7 +112,7 @@ module DigestWrapper(Digest: Digest):PrivatizationWrapper =  functor (GBase:Latt
 (** No Privatization. *)
 module NonePriv: S =
 struct
-  include NoFinalize
+  include NoFinalizeNoPhase
 
   module G = VD
   module V = VarinfoV
@@ -205,7 +207,7 @@ end
 
 module PerMutexPrivBase =
 struct
-  include NoFinalize
+  include NoFinalizeNoPhase
   include ConfCheck.RequireMutexActivatedInit
   include MutexGlobals
   include Protection
@@ -708,6 +710,8 @@ struct
     (* so the cpa component of st is bot. *)
     {st with cpa = CPA.bot (); priv = (W.bot (),lmust,l)}
 
+  let phase_change ask _getg _sideg st = st
+
   let threadspawn (ask:Queries.ask) get set (st: BaseComponents (D).t) =
     let is_recovered_st = ask.f (Queries.MustBeSingleThreaded {since_start = false}) && not @@ ask.f (Queries.MustBeSingleThreaded {since_start = true}) in
     let unprotected_after x = ask.f (Q.MayBePublic {global=x; kind=Write; protection=Weak}) in
@@ -743,7 +747,7 @@ end
 (** Vojdani privatization with eager reading. *)
 module VojdaniPriv: S =
 struct
-  include NoFinalize
+  include NoFinalizeNoPhase
   include ConfCheck.RequireMutexActivatedInit
   open Protection
 
@@ -936,7 +940,7 @@ end
 (** Protection-Based Reading. *)
 module ProtectionBasedPriv (D: ProtectionDom) (Param: PerGlobalPrivParam)(Wrapper:PrivatizationWrapper): S =
 struct
-  include NoFinalize
+  include NoFinalizeNoPhase
   include ConfCheck.RequireMutexActivatedInit
   open Protection
 
@@ -1063,6 +1067,12 @@ struct
 
   let threadenter = startstate_threadenter startstate
   let threadspawn ask get set st = st
+
+  let phase_change ask getg sideg st =
+    if Wrapper.requiresActionOnPhaseChange then
+      st
+    else
+      st
 
   let thread_join ?(force=false) ask get e st = st
   let thread_return ask get set tid st = st
@@ -1207,7 +1217,7 @@ end
 
 module MinePrivBase =
 struct
-  include NoFinalize
+  include NoFinalizeNoPhase
   include ConfCheck.RequireMutexPathSensOneMainInit
   include MutexGlobals (* explicit not needed here because G is Prod anyway? *)
 
@@ -1998,6 +2008,7 @@ struct
   let lock ask getg cpa m = time "lock" (Priv.lock ask getg cpa) m
   let unlock ask getg sideg st m = time "unlock" (Priv.unlock ask getg sideg st) m
   let sync ask getg sideg st reason = time "sync" (Priv.sync ask getg sideg st) reason
+  let phase_change ask getg sideg st = time "phase_change" (Priv.phase_change ask getg sideg) st
   let escape ask getg sideg st escaped = time "escape" (Priv.escape ask getg sideg st) escaped
   let enter_multithreaded ask getg sideg st = time "enter_multithreaded" (Priv.enter_multithreaded ask getg sideg) st
   let threadenter ask st = time "threadenter" (Priv.threadenter ask) st
