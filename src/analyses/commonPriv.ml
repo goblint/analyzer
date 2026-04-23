@@ -223,6 +223,14 @@ struct
     | _ -> false
 end
 
+module UnitDigest:Digest = struct
+  include Printable.Unit
+  let requiresActionOnPhaseChange = false
+
+  let current (ask:Q.ask) = ()
+  let accounted_for (ask:Q.ask) ~current ~other = false
+end
+
 (** Ego-Lane Derived digest based on whether given threads have been started yet, can be used to refine any analysis
     @see M. Schwarz "Thread-Modular Abstract Interpretation: The Local Perspective", https://d-nb.info/137113345X/34
 *)

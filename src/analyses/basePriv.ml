@@ -73,9 +73,11 @@ let startstate_threadenter (type d) (startstate: unit -> d) ask (st: d BaseDomai
 module type PrivatizationWrapper = functor(GBase:Lattice.S) ->
 sig
   module G: Lattice.S
+  module Digest: CommonPriv.Digest
 
   val requiresActionOnPhaseChange: bool
   val getg: Q.ask -> ('a -> G.t) -> 'a -> GBase.t
+  val getg_digest_override: Digest.t -> Q.ask -> ('a -> G.t) -> 'a -> GBase.t
   val sideg: Q.ask -> ('a -> G.t -> unit) -> 'a -> GBase.t -> unit
 end
 
@@ -83,15 +85,18 @@ end
 module NoWrapper:PrivatizationWrapper = functor (GBase:Lattice.S) ->
   (struct
     module G = GBase
+    module Digest = CommonPriv.UnitDigest
 
     let requiresActionOnPhaseChange = false
     let getg _ getg = getg
     let sideg _ sideg = sideg
+    let getg_digest_override _ = getg
   end)
 
 module DigestWrapper(Digest: Digest):PrivatizationWrapper =  functor (GBase:Lattice.S) ->
   (struct
     module G = MapDomain.MapBot_LiftTop (Digest) (GBase)
+    module Digest = Digest
 
     let requiresActionOnPhaseChange = Digest.requiresActionOnPhaseChange
 
