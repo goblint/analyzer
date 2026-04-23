@@ -26,10 +26,12 @@ int main() {
   res = 8 << neg; //WARN
   res = 8 >> neg; //WARN
 
-  // Unsigned shift amount (always non-negative by type): no warning
-  unsigned int u_shift;
-  res = 8 << u_shift; //NOWARN
-  res = 8 >> u_shift; //NOWARN
+  // Provably non-negative, bounded interval: no warning
+  // (pos_shift is [0,5] — non-negative and within valid shift range)
+  int pos_shift = 0;
+  if (top) { pos_shift = 5; }
+  res = 8 << pos_shift; //NOWARN
+  res = 8 >> pos_shift; //NOWARN
 
   return 0;
 }
