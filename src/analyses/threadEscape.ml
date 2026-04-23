@@ -10,6 +10,8 @@ let has_escaped (ask: Queries.ask) (v: varinfo): bool =
   assert (not v.vglob);
   if not v.vaddrof then
     false (* Cannot have escaped without taking address. Override provides extra precision for degenerate ask in base eval_exp used for partitioned arrays. *)
+  else if GobConfig.get_bool "exp.single-threaded" then
+    false (* Cannot have escaped if no other threads are assumed to exist. Override provides extra precision for analyzing single-threaded programs without escape analysis. *)
   else
     ask.f (Queries.MayEscape v)
 

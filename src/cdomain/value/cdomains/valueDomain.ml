@@ -978,7 +978,7 @@ struct
     do_eval_offset x offs l o
 
   let update_offset ?(blob_destructive=false) (ask: VDQ.t) (x:t) (offs:offs) (value:t) (exp:exp option) (v:lval) (t:typ): t =
-    let rec do_update_offset ?(bitfield:int option=None) (x:t) (offs:offs) (l:lval option) (o:offset option) (t:typ):t = (* TODO: why does inner t argument change here, but not in eval_offset? *)
+    let rec do_update_offset ?(bitfield:int option=None) (x:t) (offs:offs) (l:lval option) (o:offset option):t =
       if M.tracing then M.traceli "update_offset" "do_update_offset %a %a (%a) %a" pretty x Offs.pretty offs (Pretty.docOpt (CilType.Exp.pretty ())) exp pretty value;
       let mu = function Blob (Blob (y, s', zeroinit), s, _) -> Blob (y, ID.join s s', zeroinit) | x -> x in
       let r =
@@ -989,7 +989,7 @@ struct
           begin
             let l', o' = shift_one_over l o in
             let x = zero_init_calloced_memory zeroinit x t in
-            mu (Blob (join x (do_update_offset x ofs l' o' t), s, zeroinit))
+            mu (Blob (join x (do_update_offset x ofs l' o'), s, zeroinit))
           end
         | Blob (x,s,zeroinit), `Field(f, _) ->
           begin
@@ -1009,9 +1009,9 @@ struct
               | _ -> false
             in
             if do_strong_update then
-              Blob ((do_update_offset x offs l' o' t), s, zeroinit)
+              Blob ((do_update_offset x offs l' o'), s, zeroinit)
             else
-              mu (Blob (join x (do_update_offset x offs l' o' t), s, zeroinit))
+              mu (Blob (join x (do_update_offset x offs l' o'), s, zeroinit))
           end
         | Blob (x,s,zeroinit), `NoOffset -> (* `NoOffset is only remaining possibility for Blob here *)
           begin
@@ -1036,9 +1036,9 @@ struct
                 end
               in
               if do_strong_update then
-                Blob ((do_update_offset x offs l' o' t), s, zeroinit)
+                Blob ((do_update_offset x offs l' o'), s, zeroinit)
               else
-                mu (Blob (join x (do_update_offset x offs l' o' t), s, zeroinit))
+                mu (Blob (join x (do_update_offset x offs l' o'), s, zeroinit))
           end
         | Thread _, _ ->
           (* hack for pthread_t variables *)
@@ -1076,12 +1076,11 @@ struct
                 | _ -> value
               end
             | `Field (fld, offs) when fld.fcomp.cstruct -> begin
-                let t = fld.ftype in
                 match x with
                 | Struct str ->
                   begin
                     let l', o' = shift_one_over l o in
-                    let value' = do_update_offset ~bitfield:fld.fbitfield (Structs.get str fld) offs l' o' t in
+                    let value' = do_update_offset ~bitfield:fld.fbitfield (Structs.get str fld) offs l' o' in
                     Struct (Structs.replace str fld value')
                   end
                 | Bot ->
@@ -1092,12 +1091,11 @@ struct
                   in
                   let strc = init_comp fld.fcomp in
                   let l', o' = shift_one_over l o in
-                  Struct (Structs.replace strc fld (do_update_offset Bot offs l' o' t))
+                  Struct (Structs.replace strc fld (do_update_offset Bot offs l' o'))
                 | Top -> M.warn ~category:Imprecise "Trying to update a field, but the struct is unknown"; top ()
                 | _ -> M.warn ~category:Imprecise "Trying to update a field, but was not given a struct"; top ()
               end
             | `Field (fld, offs) -> begin
-                let t = fld.ftype in
                 let l', o' = shift_one_over l o in
                 match x with
                 | Union (last_fld, prev_val) ->
@@ -1125,8 +1123,8 @@ struct
                         top (), offs
                     end
                   in
-                  Union (`Lifted fld, do_update_offset tempval tempoffs l' o' t)
-                | Bot -> Union (`Lifted fld, do_update_offset Bot offs l' o' t)
+                  Union (`Lifted fld, do_update_offset tempval tempoffs l' o')
+                | Bot -> Union (`Lifted fld, do_update_offset Bot offs l' o')
                 | Top -> M.warn ~category:Imprecise "Trying to update a field, but the union is unknown"; top ()
                 | _ -> M.warn ~category:Imprecise "Trying to update a field, but was not given a union"; top ()
               end
@@ -1134,11 +1132,8 @@ struct
                 let l', o' = shift_one_over l o in
                 match x with
                 | Array x' ->
-                  let t = (match Cil.unrollType t with
-                      | TArray(t1 ,_,_) -> t1
-                      | _ -> t) in (* This is necessary because t is not a TArray in case of calloc *)
                   let e = determine_offset ask l o exp (Some v) in
-                  let new_value_at_index = do_update_offset (CArrays.get ask x' (e,idx)) offs l' o' t in
+                  let new_value_at_index = do_update_offset (CArrays.get ask x' (e,idx)) offs l' o' in
                   let new_array_value = CArrays.set ask x' (e, idx) new_value_at_index in
                   Array new_array_value
                 | Bot ->
@@ -1147,7 +1142,7 @@ struct
                       | _ -> t, None) in (* This is necessary because t is not a TArray in case of calloc *)
                   let x' = CArrays.bot () in
                   let e = determine_offset ask l o exp (Some v) in
-                  let new_value_at_index = do_update_offset Bot offs l' o' t in
+                  let new_value_at_index = do_update_offset Bot offs l' o' in
                   let new_array_value =  CArrays.set ask x' (e, idx) new_value_at_index in
                   let len_ci = BatOption.bind len (fun e -> Cil.getInteger @@ Cil.constFold true e) in
                   let len_id = BatOption.map (IndexDomain.of_int (Cilfacade.ptrdiff_ikind ())) len_ci in
@@ -1155,7 +1150,7 @@ struct
                   let new_array_value = CArrays.update_length newl new_array_value in
                   Array new_array_value
                 | Top -> M.warn ~category:Imprecise "Trying to update an index, but the array is unknown"; top ()
-                | x when GobOption.exists (Z.equal Z.zero) (IndexDomain.to_int idx) -> do_update_offset x offs l' o' t
+                | x when GobOption.exists (Z.equal Z.zero) (IndexDomain.to_int idx) -> do_update_offset x offs l' o'
                 | _ -> M.warn ~category:Imprecise "Trying to update an index, but was not given an array(%a)" pretty x; top ()
               end
           in mu result
@@ -1167,7 +1162,7 @@ struct
       | Some(Lval (x,o)) -> Some ((x, NoOffset)), Some(o)
       | _ -> None, None
     in
-    do_update_offset x offs l o t
+    do_update_offset x offs l o
 
   let rec affect_move ?(replace_with_const=false) ask (x:t) (v:varinfo) movement_for_expr:t =
     let move_fun x = affect_move ~replace_with_const:replace_with_const ask x v movement_for_expr in
