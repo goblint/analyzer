@@ -3156,8 +3156,8 @@ struct
           let st' = assign man lval (Lval (Cil.var !longjmp_return)) in
           {st' with cpa = CPA.remove !longjmp_return st'.cpa}
         ) man.local lval
-    | Events.PhaseChange ->
-      Priv.phase_change ask (priv_getg man.global) (priv_sideg man.sideg) st
+    | Events.PhaseChange {old_phase; new_phase} ->
+      Priv.phase_change ask old_phase new_phase (priv_getg man.global) (priv_sideg man.sideg) st
     | _ ->
       man.local
 end

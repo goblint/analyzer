@@ -18,7 +18,7 @@ type t =
   | Longjmped of {lval: CilType.Lval.t option}
   | EnterOnce of {once_control: CilType.Exp.t; ran:bool} (** Once is transformed into a sequence of: enter_once(o) if(!ran(o)) f() leave_once(o) *)
   | LeaveOnce of {once_control: CilType.Exp.t}
-  | PhaseChange
+  | PhaseChange of {old_phase: Queries.PhaseDigest.t; new_phase: Queries.PhaseDigest.t}
 
 (** Should event be emitted after transfer function raises [Deadcode]? *)
 let emit_on_deadcode = function
@@ -37,7 +37,7 @@ let emit_on_deadcode = function
   | Longjmped _
   | EnterOnce _
   | LeaveOnce _
-  | PhaseChange ->
+  | PhaseChange _ ->
     false
 
 let pretty () = function
@@ -55,4 +55,4 @@ let pretty () = function
   | Longjmped {lval} -> dprintf "Longjmped {lval=%a}" (docOpt (CilType.Lval.pretty ())) lval
   | EnterOnce {once_control; ran} -> dprintf "EnterOnce {once_control=%a; ran=%B}" CilType.Exp.pretty once_control ran
   | LeaveOnce {once_control} -> dprintf "LeaveOnce {once_control=%a}" CilType.Exp.pretty once_control
-  | PhaseChange -> text "PhaseChange"
+  | PhaseChange {old_phase; new_phase} -> dprintf "PhaseChange {old_phase=%a; new_phase=%a}" Queries.PhaseDigest.pretty old_phase Queries.PhaseDigest.pretty new_phase

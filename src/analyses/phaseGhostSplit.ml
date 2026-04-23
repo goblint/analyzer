@@ -203,7 +203,7 @@ struct
             man.sideg var (G.create_max i);
             (* TODO: Prolong until after atomic is over? *)
             if not (D.equal man.local local) then
-              man.emit Events.PhaseChange;
+              man.emit (Events.PhaseChange {old_phase = `Lifted man.local; new_phase = `Lifted local});
             M.warn ~category:Witness "phaseGhostSplit: ghost %a has max %i" CilType.Varinfo.pretty var i;
             local)
          | None -> failwith "Failed to evaluate ghost to constant")
