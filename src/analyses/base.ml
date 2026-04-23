@@ -224,13 +224,18 @@ struct
     | _ -> VD.top ()
 
   let binop_ID (result_ik: Cil.ikind) =
-    (* Classify the shift amount as definitely non-negative, definitely negative,
-       or possibly negative, to check for undefined behavior. *)
-    let shift_amount_negcheck y =
+    (* Check the shift amount for negative values (undefined behavior in C), emitting
+       appropriate warnings/errors based on bounds analysis. *)
+    let check_shift_neg dir y =
       match ID.minimal y, ID.maximal y with
-      | Some min_y, _ when Z.geq min_y Z.zero -> `NonNeg
-      | _, Some max_y when Z.lt max_y Z.zero -> `Neg
-      | _ -> `MayNeg
+      | Some min_y, _ when Z.geq min_y Z.zero ->
+        Checks.safe Checks.Category.InvalidShift
+      | _, Some max_y when Z.lt max_y Z.zero ->
+        M.error ~category:M.Category.Behavior.Undefined.other ~tags:[CWE 758] "Shift-%s by negative amount is undefined behavior" dir;
+        Checks.error Checks.Category.InvalidShift "Shift-%s by negative amount is undefined behavior" dir
+      | _ ->
+        M.warn ~category:M.Category.Behavior.Undefined.other ~tags:[CWE 758] "Shift-%s by possibly negative amount may be undefined behavior" dir;
+        Checks.warn Checks.Category.InvalidShift "Shift-%s by possibly negative amount may be undefined behavior" dir
     in
     function
     | PlusA -> ID.add
@@ -276,27 +281,11 @@ struct
     | BXor -> ID.logxor
     | Shiftlt ->
       fun x y ->
-        (* If the shift amount is negative, the result is undefined behavior in C *)
-        (match shift_amount_negcheck y with
-         | `NonNeg -> Checks.safe Checks.Category.InvalidShift
-         | `Neg ->
-           M.error ~category:M.Category.Behavior.Undefined.other ~tags:[CWE 758] "Shift-left by negative amount is undefined behavior";
-           Checks.error Checks.Category.InvalidShift "Shift-left by negative amount is undefined behavior"
-         | `MayNeg ->
-           M.warn ~category:M.Category.Behavior.Undefined.other ~tags:[CWE 758] "Shift-left by possibly negative amount may be undefined behavior";
-           Checks.warn Checks.Category.InvalidShift "Shift-left by possibly negative amount may be undefined behavior");
+        check_shift_neg "left" y;
         ID.shift_left x y
     | Shiftrt ->
       fun x y ->
-        (* If the shift amount is negative, the result is undefined behavior in C *)
-        (match shift_amount_negcheck y with
-         | `NonNeg -> Checks.safe Checks.Category.InvalidShift
-         | `Neg ->
-           M.error ~category:M.Category.Behavior.Undefined.other ~tags:[CWE 758] "Shift-right by negative amount is undefined behavior";
-           Checks.error Checks.Category.InvalidShift "Shift-right by negative amount is undefined behavior"
-         | `MayNeg ->
-           M.warn ~category:M.Category.Behavior.Undefined.other ~tags:[CWE 758] "Shift-right by possibly negative amount may be undefined behavior";
-           Checks.warn Checks.Category.InvalidShift "Shift-right by possibly negative amount may be undefined behavior");
+        check_shift_neg "right" y;
         ID.shift_right x y
     | LAnd -> id_binary_log (&&) ~annihilator:false result_ik
     | LOr -> id_binary_log (||) ~annihilator:true result_ik

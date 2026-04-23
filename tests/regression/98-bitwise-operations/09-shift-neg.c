@@ -26,11 +26,10 @@ int main() {
   res = 8 << neg; //WARN
   res = 8 >> neg; //WARN
 
-  // Definitely non-negative interval: no warning
-  int nonneg;
-  if (nonneg < 0) { nonneg = 0; }
-  res = 8 << nonneg; //NOWARN
-  res = 8 >> nonneg; //NOWARN
+  // Unsigned shift amount (always non-negative by type): no warning
+  unsigned int u_shift;
+  res = 8 << u_shift; //NOWARN
+  res = 8 >> u_shift; //NOWARN
 
   return 0;
 }
