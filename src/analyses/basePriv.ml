@@ -108,6 +108,9 @@ module DigestWrapper(Digest: Digest):PrivatizationWrapper =  functor (GBase:Latt
           else
             acc) vs (GBase.bot ())
 
+    let getg_digest_override digest ask getg x =
+      G.find digest (getg x)
+
     let sideg ask sideg x v =
       let sidev = G.singleton (Digest.current ask) v in
       sideg x sidev
@@ -1073,8 +1076,23 @@ struct
   let threadenter = startstate_threadenter startstate
   let threadspawn ask get set st = st
 
-  let phase_change ask _old_phase _new_phase getg sideg st =
+  let phase_change ask old_phase new_phase getg sideg st =
     if Wrapper.requiresActionOnPhaseChange then
+      let publish_global_to_newphase g =
+        let old_phase_magic = Obj.magic old_phase in
+        let old_phase_getg = Wrapper.getg_digest_override old_phase_magic ask getg in
+        let old_protected = old_phase_getg (V.protected g) in
+        let old_unprotected = old_phase_getg (V.unprotected g) in
+        Wrapper.sideg ask sideg (V.protected g) old_protected;
+        Wrapper.sideg ask sideg (V.unprotected g) old_unprotected;
+        ()
+      in
+      (* TODO: Other globals! *)
+      List.iter (function
+          | GVar (x, _, _) when not (YamlWitness.VarSet.mem x !(YamlWitness.ghostVars)) ->
+            publish_global_to_newphase x
+          | _ -> ()
+        ) !Cilfacade.current_file.globals;
       st
     else
       st
