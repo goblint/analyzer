@@ -199,9 +199,12 @@ struct
          | Some z ->
            (let v = Z.succ z in
             let i = Z.to_int v in
+            let local = D.add var (`Lifted v) man.local in
             man.sideg var (G.create_max i);
+            if not (D.equal man.local local) then
+              man.emit Events.PhaseChange;
             M.warn ~category:Witness "phaseGhostSplit: ghost %a has max %i" CilType.Varinfo.pretty var i;
-            D.add var (`Lifted v) man.local)
+            local)
          | None -> failwith "Failed to evaluate ghost to constant")
       | _ ->
         man.local
