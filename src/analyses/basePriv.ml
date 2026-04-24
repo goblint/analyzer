@@ -39,6 +39,7 @@ sig
   val enter_multithreaded: Q.ask -> (V.t -> G.t) -> (V.t -> G.t -> unit) -> BaseComponents (D).t -> BaseComponents (D).t
   val threadenter: Q.ask -> BaseComponents (D).t -> BaseComponents (D).t
   val threadspawn: Q.ask -> (V.t -> G.t) -> (V.t -> G.t -> unit) -> BaseComponents (D).t -> BaseComponents (D).t
+  val phase_change: Q.ask -> Q.PhaseDigest.t -> Q.PhaseDigest.t -> (V.t -> G.t) -> (V.t -> G.t -> unit) -> BaseComponents (D).t -> BaseComponents (D).t
   val iter_sys_vars: (V.t -> G.t) -> VarQuery.t -> V.t VarQuery.f -> unit
 
   val thread_join: ?force:bool -> Q.ask -> (V.t -> G.t) -> Cil.exp -> BaseComponents (D).t -> BaseComponents (D).t
@@ -51,9 +52,11 @@ sig
   val finalize: unit -> unit
 end
 
-module NoFinalize =
+module NoFinalizeNoPhase =
 struct
   let finalize () = ()
+
+  let phase_change _ _ _ _ _ st = st
 end
 
 let old_threadenter (type d) ask (st: d BaseDomain.basecomponents_t) =
@@ -66,13 +69,15 @@ let old_threadenter (type d) ask (st: d BaseDomain.basecomponents_t) =
 let startstate_threadenter (type d) (startstate: unit -> d) ask (st: d BaseDomain.basecomponents_t) =
   {st with cpa = CPA.bot (); priv = startstate ()}
 
-
 (** Wrappers. *)
 module type PrivatizationWrapper = functor(GBase:Lattice.S) ->
 sig
   module G: Lattice.S
+  module Digest: CommonPriv.Digest
 
+  val requiresActionOnPhaseChange: bool
   val getg: Q.ask -> ('a -> G.t) -> 'a -> GBase.t
+  val getg_digest_override: Digest.t -> Q.ask -> ('a -> G.t) -> 'a -> GBase.t
   val sideg: Q.ask -> ('a -> G.t -> unit) -> 'a -> GBase.t -> unit
 end
 
@@ -80,14 +85,20 @@ end
 module NoWrapper:PrivatizationWrapper = functor (GBase:Lattice.S) ->
   (struct
     module G = GBase
+    module Digest = CommonPriv.UnitDigest
 
+    let requiresActionOnPhaseChange = false
     let getg _ getg = getg
     let sideg _ sideg = sideg
+    let getg_digest_override _ = getg
   end)
 
 module DigestWrapper(Digest: Digest):PrivatizationWrapper =  functor (GBase:Lattice.S) ->
   (struct
     module G = MapDomain.MapBot_LiftTop (Digest) (GBase)
+    module Digest = Digest
+
+    let requiresActionOnPhaseChange = Digest.requiresActionOnPhaseChange
 
     let getg ask getg x =
       let vs = getg x in
@@ -96,6 +107,9 @@ module DigestWrapper(Digest: Digest):PrivatizationWrapper =  functor (GBase:Latt
             GBase.join v acc
           else
             acc) vs (GBase.bot ())
+
+    let getg_digest_override digest ask getg x =
+      G.find digest (getg x)
 
     let sideg ask sideg x v =
       let sidev = G.singleton (Digest.current ask) v in
@@ -106,7 +120,7 @@ module DigestWrapper(Digest: Digest):PrivatizationWrapper =  functor (GBase:Latt
 (** No Privatization. *)
 module NonePriv: S =
 struct
-  include NoFinalize
+  include NoFinalizeNoPhase
 
   module G = VD
   module V = VarinfoV
@@ -201,7 +215,7 @@ end
 
 module PerMutexPrivBase =
 struct
-  include NoFinalize
+  include NoFinalizeNoPhase
   include ConfCheck.RequireMutexActivatedInit
   include MutexGlobals
   include Protection
@@ -704,6 +718,8 @@ struct
     (* so the cpa component of st is bot. *)
     {st with cpa = CPA.bot (); priv = (W.bot (),lmust,l)}
 
+  let phase_change ask _old_phase _new_phase _getg _sideg st = st
+
   let threadspawn (ask:Queries.ask) get set (st: BaseComponents (D).t) =
     let is_recovered_st = ask.f (Queries.MustBeSingleThreaded {since_start = false}) && not @@ ask.f (Queries.MustBeSingleThreaded {since_start = true}) in
     let unprotected_after x = ask.f (Q.MayBePublic {global=x; kind=Write; protection=Weak}) in
@@ -739,7 +755,7 @@ end
 (** Vojdani privatization with eager reading. *)
 module VojdaniPriv: S =
 struct
-  include NoFinalize
+  include NoFinalizeNoPhase
   include ConfCheck.RequireMutexActivatedInit
   open Protection
 
@@ -932,7 +948,7 @@ end
 (** Protection-Based Reading. *)
 module ProtectionBasedPriv (D: ProtectionDom) (Param: PerGlobalPrivParam)(Wrapper:PrivatizationWrapper): S =
 struct
-  include NoFinalize
+  include NoFinalizeNoPhase
   include ConfCheck.RequireMutexActivatedInit
   open Protection
 
@@ -1059,6 +1075,39 @@ struct
 
   let threadenter = startstate_threadenter startstate
   let threadspawn ask get set st = st
+
+  let phase_change ask old_phase new_phase getg sideg (st: BaseComponents (D).t) =
+    if Wrapper.requiresActionOnPhaseChange then
+      let publish_global_to_newphase g =
+        if (P.mem g @@ D.getP st.priv) then (
+          (* TODO: Or not propagate at all, will be published later? *)
+          let v = CPA.find g st.cpa in
+          if M.tracing then M.tracel "phase" "Propagating !!local!! value %s for %s from %s to %s" g.vname (VD.show v) (Queries.PhaseDigest.show old_phase) (Queries.PhaseDigest.show new_phase);
+          Wrapper.sideg ask sideg (V.protected g) v;
+          Wrapper.sideg ask sideg (V.unprotected g) v;
+          ()
+        )
+        else (
+          if M.tracing then M.tracel "phase" "Propagating value for %s from %s to %s" g.vname (Queries.PhaseDigest.show old_phase) (Queries.PhaseDigest.show new_phase);
+          let old_phase_magic = Option.get @@ Wrapper.Digest.of_phase old_phase in
+          let old_phase_getg = Wrapper.getg_digest_override old_phase_magic ask getg in
+          let old_protected = old_phase_getg (V.protected g) in
+          let old_unprotected = old_phase_getg (V.unprotected g) in
+          Wrapper.sideg ask sideg (V.protected g) old_protected;
+          Wrapper.sideg ask sideg (V.unprotected g) old_unprotected;
+          ()
+        )
+      in
+      (* TODO: Other globals! *)
+      List.iter (function
+          (* TODO: Can ghost vars really be omitted here? *)
+          | GVar (x, _, _) when not (YamlWitness.VarSet.mem x !(YamlWitness.ghostVars)) ->
+            publish_global_to_newphase x
+          | _ -> ()
+        ) !Cilfacade.current_file.globals;
+      st
+    else
+      st
 
   let thread_join ?(force=false) ask get e st = st
   let thread_return ask get set tid st = st
@@ -1203,7 +1252,7 @@ end
 
 module MinePrivBase =
 struct
-  include NoFinalize
+  include NoFinalizeNoPhase
   include ConfCheck.RequireMutexPathSensOneMainInit
   include MutexGlobals (* explicit not needed here because G is Prod anyway? *)
 
@@ -1994,6 +2043,7 @@ struct
   let lock ask getg cpa m = time "lock" (Priv.lock ask getg cpa) m
   let unlock ask getg sideg st m = time "unlock" (Priv.unlock ask getg sideg st) m
   let sync ask getg sideg st reason = time "sync" (Priv.sync ask getg sideg st) reason
+  let phase_change ask old_phase new_phase getg sideg st = time "phase_change" (Priv.phase_change ask old_phase new_phase getg sideg) st
   let escape ask getg sideg st escaped = time "escape" (Priv.escape ask getg sideg st) escaped
   let enter_multithreaded ask getg sideg st = time "enter_multithreaded" (Priv.enter_multithreaded ask getg sideg) st
   let threadenter ask st = time "threadenter" (Priv.threadenter ask) st
@@ -2167,10 +2217,12 @@ let priv_module: (module S) Lazy.t =
         | "vojdani" -> (module VojdaniPriv: S)
         | "mutex-oplus" -> (module PerMutexOplusPriv)
         | "mutex-meet" -> (module PerMutexMeetPriv)
+        | "mutex-meet-ghost" -> (module PerMutexMeetTIDPriv (GhostPhase))
         | "mutex-meet-tid" -> (module PerMutexMeetTIDPriv (ThreadDigest))
         | "protection" -> (module ProtectionBasedPriv (ProtDom) (struct let check_read_unprotected = false let handle_atomic = false end)(NoWrapper))
         | "protection-tid" -> (module ProtectionBasedPriv (ProtDom) (struct let check_read_unprotected = false let handle_atomic = false end)(DigestWrapper(ThreadNotStartedDigest)))
         | "protection-atomic" -> (module ProtectionBasedPriv (ProtDom) (struct let check_read_unprotected = false let handle_atomic = true end)(NoWrapper)) (* experimental *)
+        | "protection-atomic-ghost" -> (module ProtectionBasedPriv (ProtDom) (struct let check_read_unprotected = false let handle_atomic = true end)(DigestWrapper(GhostPhase))) (* experimental *)
         | "protection-read" -> (module ProtectionBasedPriv (ProtDom) (struct let check_read_unprotected = true let handle_atomic = false end)(NoWrapper))
         | "protection-read-tid" -> (module ProtectionBasedPriv (ProtDom) (struct let check_read_unprotected = true let handle_atomic = false end)(DigestWrapper(ThreadNotStartedDigest)))
         | "protection-read-atomic" -> (module ProtectionBasedPriv (ProtDom) (struct let check_read_unprotected = true let handle_atomic = true end)(NoWrapper)) (* experimental *)

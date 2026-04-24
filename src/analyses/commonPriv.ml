@@ -190,6 +190,9 @@ module type Digest =
 sig
   include Printable.S
 
+  val requiresActionOnPhaseChange: bool
+  val of_phase: Queries.PhaseDigest.t -> t option
+
   val current: Q.ask -> t
   val accounted_for: Q.ask -> current:t -> other:t -> bool
 end
@@ -202,6 +205,9 @@ struct
   include ThreadIdDomain.ThreadLifted
 
   module TID = ThreadIdDomain.Thread
+
+  let requiresActionOnPhaseChange = false
+  let of_phase _ = None
 
   let current (ask: Q.ask) =
     ThreadId.get_current ask
@@ -220,14 +226,26 @@ struct
     | _ -> false
 end
 
+module UnitDigest:Digest = struct
+  include Printable.Unit
+  let requiresActionOnPhaseChange = false
+  let of_phase _ = None
+
+  let current (ask:Q.ask) = ()
+  let accounted_for (ask:Q.ask) ~current ~other = false
+end
+
 (** Ego-Lane Derived digest based on whether given threads have been started yet, can be used to refine any analysis
-    @see PhD thesis of M. Schwarz once it is published ;)
+    @see M. Schwarz "Thread-Modular Abstract Interpretation: The Local Perspective", https://d-nb.info/137113345X/34
 *)
 module ThreadNotStartedDigest:Digest =
 struct
   include ThreadIdDomain.ThreadLifted
 
   module TID = ThreadIdDomain.Thread
+
+  let requiresActionOnPhaseChange = false
+  let of_phase _ = None
 
   let current (ask: Q.ask) =
     ThreadId.get_current ask
@@ -238,6 +256,22 @@ struct
       MHP.definitely_not_started (current, ask.f Q.CreatedThreads) other
     | _ -> false
 end
+
+module GhostPhase:Digest =
+struct
+  include Q.PhaseDigest
+
+  let requiresActionOnPhaseChange = true
+  let of_phase d = Some d
+
+  let current (ask: Q.ask) = ask.f Q.PhaseDigest
+  let accounted_for (ask:Q.ask)  ~(current: t) ~(other: t) =
+    (* If the phase digest is different from the one being consulted, this cannot be the right one,
+       and it thus accounted for *)
+    (* TODO: Local writes should also be considered accounted for through some additional mechanism *)
+    not (equal current other)
+end
+
 
 module PerMutexTidCommon (Digest: Digest) (LD:Lattice.S) (Cluster:Printable.S) =
 struct

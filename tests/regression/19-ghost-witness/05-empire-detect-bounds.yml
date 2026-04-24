@@ -1,0 +1,91 @@
+- entry_type: ghost_instrumentation
+  metadata:
+    format_version: "2.1-goblint"
+    uuid: 00000000-0000-0000-0000-000000000021
+    creation_time: 2026-04-21T00:00:00Z
+    producer:
+      name: Test
+      version: "0.0"
+    task:
+      input_files:
+      - 05-empire-detect-bounds.c
+      input_file_hashes:
+        05-empire-detect-bounds.c: "0000000000000000000000000000000000000000000000000000000000000000"
+      data_model: LP64
+      language: C
+  content:
+    ghost_variables:
+    - name: ghost_a
+      scope: global
+      type: int
+      initial:
+        value: "0"
+        format: c_expression
+    - name: ghost_b
+      scope: global
+      type: int
+      initial:
+        value: "0"
+        format: c_expression
+    ghost_updates:
+    - location:
+        file_name: 05-empire-detect-bounds.c
+        line: 17
+        column: 5
+        function: fun
+      updates:
+      - variable: ghost_a
+        value: "ghost_a + 1"
+        format: c_expression
+    - location:
+        file_name: 05-empire-detect-bounds.c
+        line: 33
+        column: 5
+        function: main
+      updates:
+      - variable: ghost_b
+        value: "ghost_b + 1"
+        format: c_expression
+- entry_type: invariant_set
+  metadata:
+    format_version: "2.0"
+    uuid: 00000000-0000-0000-0000-000000000022
+    creation_time: 2026-04-21T00:00:00Z
+    producer:
+      name: Test
+      version: "0.0"
+    task:
+      input_files:
+      - 05-empire-detect-bounds.c
+      input_file_hashes:
+        05-empire-detect-bounds.c: "0000000000000000000000000000000000000000000000000000000000000000"
+      data_model: LP64
+      language: C
+  content:
+  - invariant:
+      type: location_invariant
+      location:
+        file_name: 05-empire-detect-bounds.c
+        line: 18
+        column: 1
+        function: fun
+      value: (ghost_b == 0 && x >= 1) || (ghost_b == 1 && x >= 2)
+      format: c_expression
+  - invariant:
+      type: location_invariant
+      location:
+        file_name: 05-empire-detect-bounds.c
+        line: 37
+        column: 5
+        function: main
+      value: ghost_a == 1 && x >= 2
+      format: c_expression
+  - invariant:
+      type: location_invariant
+      location:
+        file_name: 05-empire-detect-bounds.c
+        line: 37
+        column: 5
+        function: main
+      value: ghost_b == 1 && x >= 2
+      format: c_expression

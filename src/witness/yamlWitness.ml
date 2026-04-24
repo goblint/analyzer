@@ -687,6 +687,8 @@ let cnt_unsupported = ref 0
 let cnt_error = ref 0
 let cnt_disabled = ref 0
 
+let ghost_usage_hypothesis_unconfirmed = ref false
+
 module Validator (R: ResultQuery.SpecSysSol2) =
 struct
   open R
@@ -738,13 +740,17 @@ struct
       M.warn_noloc ~category:Witness "validation result cannot be successful: some ghost updates could not be placed"
     end;
 
+    if !ghost_usage_hypothesis_unconfirmed then begin
+      M.warn_noloc ~category:Witness "validation result cannot be successful: hypothesis about ghost usage could not be confirmed"
+    end;
+
     let validate_entry (entry: YamlWitnessType.Entry.t): unit =
       let target_type = YamlWitnessType.EntryType.entry_type entry.entry_type in
 
       let validate_lvars_invariant ~loc ~lvars inv =
         let msgLoc: M.Location.t = CilLocation loc in
         match InvariantParser.parse_cabs inv with
-        | Ok inv_cabs ->
+        | Ok inv_cabs when (not !ghost_usage_hypothesis_unconfirmed) && !unplaced_ghost_updates = []  ->
 
           let result = LvarS.fold (fun ((n, _) as lvar) (acc: VR.t) ->
               let fundec = Node.find_fundec n in
@@ -779,6 +785,8 @@ struct
               M.error ~category:Witness ~loc:msgLoc "CIL couldn't parse invariant: %s" inv;
               M.info ~category:Witness ~loc:msgLoc "invariant has undefined variables or side effects: %s" inv
           end
+        | Ok _ ->
+          incr cnt_error
         | Error e ->
           incr cnt_error;
           M.error ~category:Witness ~loc:msgLoc "Frontc couldn't parse invariant: %s" inv;
@@ -881,6 +889,11 @@ struct
     ];
 
     match GobConfig.get_bool "witness.yaml.strict" with
+    | _ when !unplaced_ghost_updates <> [] ->
+      (* Some ghost updates could not be placed; validation cannot be confirmed. *)
+      Error "some ghost updates could not be placed"
+    | _ when !ghost_usage_hypothesis_unconfirmed ->
+      Error "the hypothesis about how ghosts are used could not be confirmed"
     | true when !cnt_error > 0 ->
       Error "witness error"
     | true when !cnt_unsupported > 0 ->
@@ -892,9 +905,6 @@ struct
       (* Ok (Svcomp.Result.False None) *) (* Wasn't a problem because valid*->correctness->false gave 0 points under old validator track scoring schema: https://doi.org/10.1007/978-3-031-22308-2_8. *)
       Ok Svcomp.Result.Unknown (* Now valid*->correctness->false gives 1p (negative) points under new validator track scoring schema: https://doi.org/10.1007/978-3-031-57256-2_15. *)
     | _ when !cnt_unconfirmed > 0 ->
-      Ok Unknown
-    | _ when !unplaced_ghost_updates <> [] ->
-      (* Some ghost updates could not be placed; validation cannot be confirmed. *)
       Ok Unknown
     | _ ->
       Ok True

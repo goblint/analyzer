@@ -18,13 +18,15 @@ type t =
   | Longjmped of {lval: CilType.Lval.t option}
   | EnterOnce of {once_control: CilType.Exp.t; ran:bool} (** Once is transformed into a sequence of: enter_once(o) if(!ran(o)) f() leave_once(o) *)
   | LeaveOnce of {once_control: CilType.Exp.t}
+  | PhaseChange of {old_phase: Queries.PhaseDigest.t; new_phase: Queries.PhaseDigest.t}
 
 (** Should event be emitted after transfer function raises [Deadcode]? *)
 let emit_on_deadcode = function
   | Unlock _ (* Privatization must still publish. *)
   | Escape _ (* Privatization must still handle escapes. *)
   | EnterMultiThreaded (* Privatization must still publish. *)
-  | Access _ -> (* Protection and races must still consider access. *)
+  | Access _ (* Protection and races must still consider access. *)
+  | PhaseChange _ -> (* Not sure, but save default *)
     true
   | Lock _ (* Doesn't need to publish. *)
   | SplitBranch _ (* only emitted in split, which is never dead. *)
@@ -53,3 +55,4 @@ let pretty () = function
   | Longjmped {lval} -> dprintf "Longjmped {lval=%a}" (docOpt (CilType.Lval.pretty ())) lval
   | EnterOnce {once_control; ran} -> dprintf "EnterOnce {once_control=%a; ran=%B}" CilType.Exp.pretty once_control ran
   | LeaveOnce {once_control} -> dprintf "LeaveOnce {once_control=%a}" CilType.Exp.pretty once_control
+  | PhaseChange {old_phase; new_phase} -> dprintf "PhaseChange {old_phase=%a; new_phase=%a}" Queries.PhaseDigest.pretty old_phase Queries.PhaseDigest.pretty new_phase
