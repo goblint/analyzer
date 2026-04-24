@@ -21,7 +21,7 @@ int main(void) {
     int z;
     int top;
 
-    if(top) { x = 10000; } else { x = 1; }
+    if(top) { x = 10000; }
 
     pthread_t thread;
     pthread_create(&thread, NULL, (void*)fun, NULL);
