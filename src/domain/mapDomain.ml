@@ -490,7 +490,7 @@ struct
     | Some w -> w
     | None -> Pretty.dprintf "No binding grew."
 
-  let meet = idempotent_inter Range.meet
+  let meet = nonidempotent_inter Range.meet (* TODO: idempotent_inter if not using int domain refinement *)
 
   let join_with_fct = idempotent_union
   let join = join_with_fct Range.join
@@ -499,7 +499,7 @@ struct
   let widen  = widen_with_fct Range.widen
 
 
-  let narrow = idempotent_inter Range.narrow
+  let narrow = nonidempotent_inter Range.narrow (* TODO: idempotent_inter if not using int domain refinement *)
 end
 
 module MapBot (Domain: Printable.S) (Range: Lattice.S) = GenMapBot (Domain) (StdMap (Domain)) (Range)
@@ -521,7 +521,7 @@ struct
   let is_bot _ = false
 
   (* let cleanup m = fold (fun k v m -> if Range.is_top v then remove k m else m) m m *)
-  let meet = idempotent_union Range.meet
+  let meet = nonidempotent_union Range.meet (* TODO: idempotent_union if not using int domain refinement *)
 
   let join_with_fct = idempotent_inter
 
@@ -530,7 +530,7 @@ struct
   let widen_with_fct f = idempotent_inter f
   let widen = widen_with_fct Range.widen
 
-  let narrow = idempotent_union Range.narrow
+  let narrow = nonidempotent_union Range.narrow (* TODO: idempotent_union if not using int domain refinement *)
 
   let pretty_diff () ((m1:t),(m2:t)): Pretty.doc =
     let diff_key k v acc_opt =
