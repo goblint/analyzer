@@ -191,6 +191,8 @@ sig
   include Printable.S
 
   val requiresActionOnPhaseChange: bool
+  val of_phase: Queries.PhaseDigest.t -> t option
+
   val current: Q.ask -> t
   val accounted_for: Q.ask -> current:t -> other:t -> bool
 end
@@ -205,6 +207,7 @@ struct
   module TID = ThreadIdDomain.Thread
 
   let requiresActionOnPhaseChange = false
+  let of_phase _ = None
 
   let current (ask: Q.ask) =
     ThreadId.get_current ask
@@ -226,6 +229,7 @@ end
 module UnitDigest:Digest = struct
   include Printable.Unit
   let requiresActionOnPhaseChange = false
+  let of_phase _ = None
 
   let current (ask:Q.ask) = ()
   let accounted_for (ask:Q.ask) ~current ~other = false
@@ -241,6 +245,7 @@ struct
   module TID = ThreadIdDomain.Thread
 
   let requiresActionOnPhaseChange = false
+  let of_phase _ = None
 
   let current (ask: Q.ask) =
     ThreadId.get_current ask
@@ -257,6 +262,7 @@ struct
   include Q.PhaseDigest
 
   let requiresActionOnPhaseChange = true
+  let of_phase d = Some d
 
   let current (ask: Q.ask) = ask.f Q.PhaseDigest
   let accounted_for (ask:Q.ask)  ~(current: t) ~(other: t) =
