@@ -74,6 +74,7 @@ depends: [
 ]
 depopts: ["apron" "z3" "domainslib" "memtrace"]
 conflicts: [
+  "dune" {>= "3.22.0"}
   "result" {< "1.5"}
   "apron" {< "v0.9.15"}
   "camlidl" {< "1.13"}
