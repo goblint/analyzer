@@ -22,6 +22,7 @@ struct
       | `Middle _ -> true
       | `Right false -> false
       | `Right true -> true
+    let use_digest _ = false
   end
 
   module Locked =

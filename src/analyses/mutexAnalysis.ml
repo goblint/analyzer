@@ -41,6 +41,7 @@ struct
       let is_write_only = function
         | `Left _ -> false
         | `Right _ -> true
+      let use_digest _ = false
     end
 
     module MakeP (G0: Lattice.S) = struct

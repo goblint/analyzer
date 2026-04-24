@@ -50,6 +50,9 @@ struct
     let priv x = `Left x
     let thread x = `Right x
     include StdV
+    let use_digest = function
+      | `Left x -> true
+      | `Right _ -> false
   end
 
   module G =

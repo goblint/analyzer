@@ -19,6 +19,9 @@ struct
     let is_write_only = function
       | `Left x -> S.V.is_write_only x
       | _ -> false
+    let use_digest = function
+      | `Left x -> S.V.use_digest x
+      | _ -> false
   end
 
   module G =

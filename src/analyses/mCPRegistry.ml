@@ -302,6 +302,9 @@ struct
   let is_write_only = unop_map (fun n (module S: SpecSysVar) x ->
       S.is_write_only (Obj.obj x)
     )
+  let use_digest = unop_map (fun n (module S: SpecSysVar) x ->
+      S.use_digest (Obj.obj x)
+    )
 end
 
 module DomListRepresentative (DLSpec : DomainListRepresentativeSpec)

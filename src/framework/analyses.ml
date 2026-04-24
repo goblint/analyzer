@@ -93,6 +93,9 @@ module type SpecSysVar =
 sig
   include Printable.S
   include Goblint_constraint.ConstrSys.SysVar with type t := t
+
+  (** Whether the variable should be enhanced with a digest *)
+  val use_digest : t -> bool
 end
 
 
@@ -141,6 +144,9 @@ struct
   let is_write_only = function
     | `Left x -> V.is_write_only x
     | `Right _ -> true
+  let use_digest = function
+    | `Left x -> V.use_digest x
+    | `Right _ -> false
 end
 
 module GVarFN (V: SpecSysVar) =
@@ -462,6 +468,8 @@ type increment_data = {
 module StdV =
 struct
   let is_write_only _ = false
+  (* Safe default implementation, overwrite where desired *)
+  let use_digest _ = false
 end
 
 module UnitV =

@@ -770,6 +770,9 @@ struct
     let is_write_only = function
       | `Left x -> S.V.is_write_only x
       | `Right _ -> true
+    let use_digest = function
+      | `Left x -> S.V.use_digest x
+      | `Right _ -> false
   end
 
   module EM =
