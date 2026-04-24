@@ -1076,17 +1076,27 @@ struct
   let threadenter = startstate_threadenter startstate
   let threadspawn ask get set st = st
 
-  let phase_change ask old_phase new_phase getg sideg st =
+  let phase_change ask old_phase new_phase getg sideg (st: BaseComponents (D).t) =
     if Wrapper.requiresActionOnPhaseChange then
       let publish_global_to_newphase g =
-        M.warn "Phases: progating value for %s from %s to %s" g.vname (Queries.PhaseDigest.show old_phase) (Queries.PhaseDigest.show new_phase);
-        let old_phase_magic = Obj.magic old_phase in
-        let old_phase_getg = Wrapper.getg_digest_override old_phase_magic ask getg in
-        let old_protected = old_phase_getg (V.protected g) in
-        let old_unprotected = old_phase_getg (V.unprotected g) in
-        Wrapper.sideg ask sideg (V.protected g) old_protected;
-        Wrapper.sideg ask sideg (V.unprotected g) old_unprotected;
-        ()
+        if (P.mem g @@ D.getP st.priv) then (
+          (* TODO: Or not propagate at all, will be published later? *)
+          let v = CPA.find g st.cpa in
+          if M.tracing then M.tracel "phase" "Propagating !!local!! value %s for %s from %s to %s" g.vname (VD.show v) (Queries.PhaseDigest.show old_phase) (Queries.PhaseDigest.show new_phase);
+          Wrapper.sideg ask sideg (V.protected g) v;
+          Wrapper.sideg ask sideg (V.unprotected g) v;
+          ()
+        )
+        else (
+          if M.tracing then M.tracel "phase" "Propagating value for %s from %s to %s" g.vname (Queries.PhaseDigest.show old_phase) (Queries.PhaseDigest.show new_phase);
+          let old_phase_magic = Obj.magic old_phase in
+          let old_phase_getg = Wrapper.getg_digest_override old_phase_magic ask getg in
+          let old_protected = old_phase_getg (V.protected g) in
+          let old_unprotected = old_phase_getg (V.unprotected g) in
+          Wrapper.sideg ask sideg (V.protected g) old_protected;
+          Wrapper.sideg ask sideg (V.unprotected g) old_unprotected;
+          ()
+        )
       in
       (* TODO: Other globals! *)
       List.iter (function

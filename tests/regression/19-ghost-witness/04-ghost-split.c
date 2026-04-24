@@ -1,5 +1,4 @@
-// SKIP PARAM: --set ana.activated[+] phaseGhostSplit --set ana.activated[+] threadJoins --set ana.activated[+] phaseGhost --set ana.base.privatization protection-atomic-ghost  --set witness.yaml.extraGhosts[+] ghost_a --set witness.yaml.extraGhosts[+] ghost_b --set ana.path_sens[+] threadflag --set ana.activated[+] threadJoins --set lib.activated[+] sv-comp --enable ana.int.interval
-// Dominik's empire thing example
+// PARAM: --set ana.activated[+] phaseGhostSplit --set ana.activated[+] threadJoins --set ana.activated[+] phaseGhost --set ana.base.privatization protection-atomic-ghost  --set witness.yaml.extraGhosts[+] ghost_a --set witness.yaml.extraGhosts[+] ghost_b --set ana.path_sens[+] threadflag --set ana.activated[+] threadJoins --set lib.activated[+] sv-comp --enable ana.int.interval
 #include<pthread.h>
 #include<goblint.h>
 int x;
@@ -8,31 +7,21 @@ int ghost_a;
 int ghost_b;
 
 void fun() {
-    int y = x;
-    while (y> 0) {
-        y--;
-    }
-
     __VERIFIER_atomic_begin();
     x++;
     ghost_a = 1;
     __VERIFIER_atomic_end();
-
-    __goblint_check(y < x); //TODO
 }
 
 int main(void) {
-    int z;
     int top;
 
-    if(top) { x = 10000; } else { x = 1; }
+    if(top) { x = 10000; }
 
     pthread_t thread;
     pthread_create(&thread, NULL, (void*)fun, NULL);
 
-    while(z != 0) {
-        z--;
-    }
+
 
     __VERIFIER_atomic_begin();
     x++;
@@ -41,7 +30,8 @@ int main(void) {
 
     pthread_join(thread, NULL);
 
-    __goblint_check(x > 2); //TODO
+    __goblint_check(x >= 2);
+    __goblint_check(x <= 10002);
 
     return 0;
 }

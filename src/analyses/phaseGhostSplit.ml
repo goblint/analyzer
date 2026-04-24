@@ -136,33 +136,36 @@ struct
       man.local
     else
       let may_be_advanced_here var =
-        match man.ask (Queries.Owner var), man.ask Queries.CurrentThreadId with
-        | `Bot, _
-        | _, `Bot ->
-          false
-        | `Lifted owner, `Lifted tid ->
-          if TID.equal owner tid then
+        if man.ask Queries.MustBeAtomic then
+          (if M.tracing then M.tracel "phaseGhost" "Is atomic -> not advancing phase"; false)
+        else
+          match man.ask (Queries.Owner var), man.ask Queries.CurrentThreadId with
+          | `Bot, _
+          | _, `Bot ->
             false
-          else
-            let created_threads = man.ask Queries.CreatedThreads in
-            let owner_possibly_started =
-              not (MHP.definitely_not_started (tid, created_threads) owner)
-            in
-            let owner_not_must_joined =
-              not (ConcDomain.FiniteMustThreadSet.mem_lifted owner (man.ask Queries.MustJoinedThreads))
-            in
-            let below_max =
-              match D.find var man.local with
-              | `Lifted z ->
-                let max = G.max (man.global var) in
-                Z.to_int z < max
-              | _ -> failwith "invariant"
-            in
-            owner_possibly_started && owner_not_must_joined && below_max
-        | `Lifted _, `Top -> true
-        | `Top, `Lifted _
-        | `Top, `Top ->
-          failwith "assumption about ghost owner violated"
+          | `Lifted owner, `Lifted tid ->
+            if TID.equal owner tid then
+              false
+            else
+              let created_threads = man.ask Queries.CreatedThreads in
+              let owner_possibly_started =
+                not (MHP.definitely_not_started (tid, created_threads) owner)
+              in
+              let owner_not_must_joined =
+                not (ConcDomain.FiniteMustThreadSet.mem_lifted owner (man.ask Queries.MustJoinedThreads))
+              in
+              let below_max =
+                match D.find var man.local with
+                | `Lifted z ->
+                  let max = G.max (man.global var) in
+                  Z.to_int z < max
+                | _ -> failwith "invariant"
+              in
+              owner_possibly_started && owner_not_must_joined && below_max
+          | `Lifted _, `Top -> true
+          | `Top, `Lifted _
+          | `Top, `Top ->
+            failwith "assumption about ghost owner violated"
       in
       let rec handle_vars m = function
         | []  -> man.split m []
@@ -178,13 +181,16 @@ struct
           else
             handle_vars m vars
       in
-      (* YamlWitness.VarSet.iter (fun var ->
-          let owner = man.ask (Queries.Owner var) in
-          let may_advance = may_be_advanced_here var in
-          M.warn ~category:Witness "phaseGhostSplit: ghost %a has owner %a and may %s be advanced here"
-            CilType.Varinfo.pretty var ThreadIdDomain.ThreadLifted.pretty owner
-            (if may_advance then "" else " not ")
-         ) !(YamlWitness.ghostVars); *)
+      let traceEvolution () =
+        YamlWitness.VarSet.iter (fun var ->
+            let owner = man.ask (Queries.Owner var) in
+            let may_advance = may_be_advanced_here var in
+            M.tracel "phaseGhost" "Ghost %a has owner %a and may %s be advanced here" (* nosemgrep: trace-not-in-tracing *)
+              CilType.Varinfo.pretty var ThreadIdDomain.ThreadLifted.pretty owner
+              (if may_advance then "" else " not ")
+          ) !(YamlWitness.ghostVars)
+      in
+      if M.tracing then traceEvolution ();
       handle_vars man.local (YamlWitness.VarSet.elements !(YamlWitness.ghostVars));
       raise Deadcode
 
