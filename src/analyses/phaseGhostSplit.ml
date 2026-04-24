@@ -161,6 +161,7 @@ struct
                   Z.to_int z < max
                 | _ -> failwith "invariant"
               in
+              (* TODO: Also exploit MHP information here! *)
               owner_possibly_started && owner_not_must_joined && below_max
           | `Lifted _, `Top -> true
           | `Top, `Lifted _
