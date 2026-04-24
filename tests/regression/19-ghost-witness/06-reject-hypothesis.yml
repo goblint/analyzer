@@ -1,0 +1,67 @@
+- entry_type: ghost_instrumentation
+  metadata:
+    format_version: "2.1-goblint"
+    uuid: 00000000-0000-0000-0000-000000000061
+    creation_time: 2026-04-24T00:00:00Z
+    producer:
+      name: Test
+      version: "0.0"
+    task:
+      input_files:
+      - 06-reject-hypothesis.c
+      input_file_hashes:
+        06-reject-hypothesis.c: "0000000000000000000000000000000000000000000000000000000000000000"
+      data_model: LP64
+      language: C
+  content:
+    ghost_variables:
+    - name: ghost_a
+      scope: global
+      type: int
+      initial:
+        value: "0"
+        format: c_expression
+    ghost_updates:
+    - location:
+        file_name: 06-reject-hypothesis.c
+        line: 17
+        column: 5
+        function: fun
+      updates:
+      - variable: ghost_a
+        value: "ghost_a + 1"
+        format: c_expression
+    - location:
+        file_name: 06-reject-hypothesis.c
+        line: 33
+        column: 5
+        function: main
+      updates:
+      - variable: ghost_a
+        value: "ghost_a + 1"
+        format: c_expression
+- entry_type: invariant_set
+  metadata:
+    format_version: "2.0"
+    uuid: 00000000-0000-0000-0000-000000000062
+    creation_time: 2026-04-24T00:00:00Z
+    producer:
+      name: Test
+      version: "0.0"
+    task:
+      input_files:
+      - 06-reject-hypothesis.c
+      input_file_hashes:
+        06-reject-hypothesis.c: "0000000000000000000000000000000000000000000000000000000000000000"
+      data_model: LP64
+      language: C
+  content:
+  - invariant:
+      type: location_invariant
+      location:
+        file_name: 06-reject-hypothesis.c
+        line: 40
+        column: 5
+        function: main
+      value: top == 3
+      format: c_expression
