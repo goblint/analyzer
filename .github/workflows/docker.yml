@@ -65,8 +65,10 @@ jobs:
           load: true # load into docker instead of immediately pushing
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max # max mode caches all layers for multi-stage image
+          # Using scoped cache to prevent stale reference issues (fixes "failed to compute cache key" errors)
+          # See: https://github.com/docker/buildx/issues/681
+          cache-from: type=gha,scope=build-${{ github.ref_name }}
+          cache-to: type=gha,scope=build-${{ github.ref_name }},mode=max # max mode caches all layers for multi-stage image
 
       - name: Check Docker image
         run: docker run --rm -v $(pwd):/data ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.meta.outputs.version }} /data/tests/regression/04-mutex/01-simple_rc.c # run image by version in case multiple tags
