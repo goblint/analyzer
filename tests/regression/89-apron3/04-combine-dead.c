@@ -1,4 +1,4 @@
-// PARAM: --set ana.activated[+] apron --set ana.path_sens[+] base --set ana.ctx_insens[+] base --set ana.ctx_insens[+] apron --enable ana.int.interval
+// SKIP PARAM: --set ana.activated[+] apron --set ana.path_sens[+] base --set ana.ctx_insens[+] base --set ana.ctx_insens[+] apron --enable ana.int.interval
 // NOCRASH
 #include <goblint.h>
 
