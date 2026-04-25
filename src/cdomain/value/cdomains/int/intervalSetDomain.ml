@@ -301,7 +301,6 @@ struct
 
   let ne ik x y = not_bool @@ eq ik x y
   let interval_to_int i = Interval.to_int (Some i)
-  let interval_to_bool i = Interval.to_bool (Some i)
 
 
   let bit f ik (i1, i2) =
