@@ -860,7 +860,7 @@ let rec analyze_loop (module CFG : CfgBidirSkip) file fs change_info =
         Whoever raised the exception should've modified some global state
         to do a more precise analysis next time. *)
     (* TODO: do some more incremental refinement and reuse parts of solution *)
-    analyze_loop (module CFG) file fs change_info
+    analyze_loop (module CFG: CfgBidirSkip) file fs change_info (* explicit module type needed for OCaml 5.5: https://github.com/goblint/analyzer/issues/2006 *)
 
 (** The main function to perform the selected analyses. *)
 let analyze change_info (file: file) fs =
