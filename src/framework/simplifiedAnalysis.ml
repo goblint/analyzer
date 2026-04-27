@@ -17,10 +17,9 @@ type ('g,'c,'v) man =
   ; sideg     : 'v -> 'g -> unit
   }
 
-
+module type UnknownSet = Printable.S
 
 module type SimplifiedSpec = sig
-  module type UnknownSet = Printable.S
 
   module V : UnknownSet      (** Set of globals. *)
 
