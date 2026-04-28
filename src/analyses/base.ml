@@ -223,7 +223,21 @@ struct
     | Bot -> Bot
     | _ -> VD.top ()
 
-  let binop_ID (result_ik: Cil.ikind) = function
+  let binop_ID (result_ik: Cil.ikind) =
+    (* Check the shift amount for negative values (undefined behavior in C), emitting
+       appropriate warnings/errors based on bounds analysis. *)
+    let check_shift_neg dir y =
+      match ID.minimal y, ID.maximal y with
+      | Some min_y, _ when Z.geq min_y Z.zero ->
+        Checks.safe Checks.Category.InvalidShift
+      | _, Some max_y when Z.lt max_y Z.zero ->
+        M.error ~category:M.Category.Behavior.Undefined.other ~tags:[CWE 758] "Shift-%s by negative amount is undefined behavior" dir;
+        Checks.error Checks.Category.InvalidShift "Shift-%s by negative amount is undefined behavior" dir
+      | _ ->
+        M.warn ~category:M.Category.Behavior.Undefined.other ~tags:[CWE 758] "Shift-%s by possibly negative amount may be undefined behavior" dir;
+        Checks.warn Checks.Category.InvalidShift "Shift-%s by possibly negative amount may be undefined behavior" dir
+    in
+    function
     | PlusA -> ID.add
     | MinusA -> ID.sub
     | Mult -> ID.mul
@@ -265,8 +279,14 @@ struct
     | BAnd -> ID.logand
     | BOr -> ID.logor
     | BXor -> ID.logxor
-    | Shiftlt -> ID.shift_left
-    | Shiftrt -> ID.shift_right
+    | Shiftlt ->
+      fun x y ->
+        check_shift_neg "left" y;
+        ID.shift_left x y
+    | Shiftrt ->
+      fun x y ->
+        check_shift_neg "right" y;
+        ID.shift_right x y
     | LAnd -> id_binary_log (&&) ~annihilator:false result_ik
     | LOr -> id_binary_log (||) ~annihilator:true result_ik
     | b -> (fun x y -> (ID.top_of result_ik))
