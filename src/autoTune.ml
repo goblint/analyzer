@@ -423,7 +423,14 @@ let congruenceOption factors file =
     activate;
   }
 
-let apronOctagonOption factors file =
+let activateOctagonAnalysis  () =
+  set_string "ana.apron.domain" "octagon";
+  set_auto "ana.activated[+]" "apron";
+  set_bool "ana.apron.threshold_widening" true;
+  set_string "ana.apron.threshold_widening_constants" "comparisons";
+  Logs.info "Enabled octagon domain."
+
+let octagonVarsOption factors file =
   let locals =
     if List.mem "specification" (get_string_list "ana.autotune.activated" ) && get_string "ana.specification" <> "" then
       if List.mem Svcomp.Specification.NoOverflow (Svcomp.Specification.of_option ()) then
@@ -447,13 +454,9 @@ let apronOctagonOption factors file =
   let allVars = (selectedGlobals @ selectedLocals) in
   let cost = (Batteries.Int.pow (locals + globals) 3) * (factors.instructions / 70) in
   let activateVars () =
-    Logs.debug "Octagon: %d" cost;
+    Logs.debug "Octagon vars: %d" cost;
     set_bool "annotation.goblint_relation_track" true;
-    set_string "ana.apron.domain" "octagon";
-    set_auto "ana.activated[+]" "apron";
-    set_bool "ana.apron.threshold_widening" true;
-    set_string "ana.apron.threshold_widening_constants" "comparisons";
-    Logs.info "Enabled octagon domain ONLY for:";
+    Logs.info "Restricted octagon analysis to following tracked variables:";
     Logs.info "%s" @@ String.concat ", " @@ List.map (fun info -> info.vname) allVars;
     List.iter (fun info -> info.vattr <- addAttribute (Attr("goblint_relation_track",[])) info.vattr) allVars
   in
@@ -556,10 +559,16 @@ let chooseConfig file =
   if isActivated "tmpSpecialAnalysis" then
     activateTmpSpecialAnalysis ();
 
+  let non_termination_task = not (isTerminationTask ()) in
+
+  (* octagonVars implies octagonAnalysis *)
+  if non_termination_task && (isActivated "octagonAnalysis" || isActivated "octagonVars") then
+    activateOctagonAnalysis ();
+
   let options = [] in
   let options = if isActivated "congruence" then (congruenceOption factors file)::options else options in
   (* Termination analysis uses apron in a different configuration. *)
-  let options = if isActivated "octagon" && not (isTerminationTask ()) then (apronOctagonOption factors file)::options else options in
+  let options = if non_termination_task && isActivated "octagonVars" then (octagonVarsOption factors file)::options else options in
   let options = if isActivated "wideningThresholds" then (wideningOption factors file)::options else options in
 
   List.iter (fun o -> o.activate ()) @@ chooseFromOptions (totalTarget - fileCompplexity) options
