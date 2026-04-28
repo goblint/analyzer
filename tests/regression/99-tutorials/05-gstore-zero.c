@@ -1,4 +1,4 @@
-// PARAM: --set ana.activated '["gStoreWideningSol","assert"]'
+// PARAM: --set ana.activated '["gStoreWidening","assert"]'
 #include <goblint.h>
 
 int main() {
