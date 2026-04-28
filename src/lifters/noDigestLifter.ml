@@ -12,4 +12,5 @@ struct
     let of_elt _ = ()
     let printXml _ _ = ()
   end
+  let compatible _ _ _ = failwith "compatible called with deactivated digests"
 end

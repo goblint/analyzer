@@ -424,6 +424,8 @@ sig
   val threadspawn : (D.t, G.t, C.t, V.t) man -> multiple:bool -> lval option -> varinfo -> exp list -> (D.t, G.t, C.t, V.t) man -> D.t
 
   val event : (D.t, G.t, C.t, V.t) man -> Events.t -> (D.t, G.t, C.t, V.t) man -> D.t
+
+  val compatible : (D.t, G.t, C.t, V.t) man -> P.t -> P.t -> bool
 end
 
 module type Spec' = sig
@@ -555,6 +557,8 @@ struct
 
   module A = UnitA
   let access _ _ = ()
+
+  let compatible _ _ _ = true
 end
 
 (* Even more default implementations. Most transfer functions acting as identity functions. *)

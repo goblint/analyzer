@@ -150,4 +150,5 @@ struct
   let skip man = S.skip (conv man)
   let asm man = S.asm (conv man)
   let event man e oman = S.event (conv man) e (conv oman)
+  let compatible man a a' = S.compatible (conv man) a a'
 end

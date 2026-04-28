@@ -79,6 +79,7 @@ struct
   let threadenter man ~multiple lval f args = [D.top ()]
   let threadspawn man ~multiple lval f args fman = man.local
   let exitstate  v = D.top ()
+  let compatible _ _ _ = true
 end
 
 

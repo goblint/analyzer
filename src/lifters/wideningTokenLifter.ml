@@ -182,4 +182,5 @@ struct
   let threadenter man  ~multiple lval f args = lift_fun man (fun l ts -> List.map (Fun.flip lift' ts) l) (S.threadenter ~multiple) ((|>) args % (|>) f % (|>) lval )
   let threadspawn man ~multiple lval f args fman = lift_fun man lift' (S.threadspawn ~multiple) ((|>) (conv fman) % (|>) args % (|>) f % (|>) lval)
   let event man e oman = lift_fun man lift' S.event ((|>) (conv oman) % (|>) e)
+  let compatible man a a' = S.compatible (conv man) a a'
 end

@@ -97,6 +97,7 @@ struct
   let paths_as_set man                            = List.map (fun (x) -> (x, cg_val man)) @@ S.paths_as_set (conv man)
   let threadspawn man ~multiple lval f args fman  = S.threadspawn (conv man) ~multiple lval f args (conv fman), cg_val man
   let event man e oman                            = S.event (conv man) e (conv oman), cg_val man
+  let compatible man a a' = S.compatible (conv man) a a'
 end
 
 let get_gas_lifter () =

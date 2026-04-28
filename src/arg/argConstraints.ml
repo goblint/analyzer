@@ -330,4 +330,6 @@ struct
     in
     let d = Dom.fold_keys k (fst d) (Dom.bot (), Sync.bot ()) in
     if Dom.is_bot (fst d) then raise Deadcode else d
+
+  let compatible _ _ _ = failwith "compatible not implemented for PathSensitive3"
 end
