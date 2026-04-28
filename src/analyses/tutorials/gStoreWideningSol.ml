@@ -19,7 +19,7 @@ open GStoreWideningHelper
    You can access these by spinning up a HTTP server, e.g., by calling `python3 -m http.server`
 
    First fix the TODO: 1) to ensure unreachable code is marked as dead.
-   Then, tackle TODO: 2) to change this analysis so it tracks
+   Then, tackle TODO: 2) to change this analysis so it tracks global variables
 
    After modifying things, don't forget to compile by running `make`
 *)
