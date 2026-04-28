@@ -1,3 +1,5 @@
+#include <goblint.h>
+
 extern int *printf(char *, ...);
 extern char *strcpy(char *str1, const char *str2);
 

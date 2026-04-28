@@ -1,3 +1,6 @@
+#include <stdio.h>
+#include <goblint.h>
+
 int deslash(unsigned char *str) {
     unsigned char *wp, *rp;
 
