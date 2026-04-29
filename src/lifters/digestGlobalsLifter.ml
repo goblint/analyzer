@@ -8,7 +8,7 @@ open GobConfig
 
 module M = Messages
 
-module DigestGlobalsLifter (S:Spec)
+module Lifter (S:Spec)
   : Spec with module D = S.D
           and module C = S.C
           and module G = S.G
@@ -27,7 +27,7 @@ struct
     let var_with_digest (v, digest) = `Right (var, digest)
 
     (* Does not matter, not used in lifters above *)
-    let use_digest _ = false
+    let use_digest _ = failwith "use_digest not implemented for DigestGlobalLifter.V"
   end
 
 
