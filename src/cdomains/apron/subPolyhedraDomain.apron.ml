@@ -31,17 +31,26 @@ module SubPoly (Var : Var) = struct
   let copy = Fun.id
   let empty () = ()
   let is_empty _ = failwith "SubPolyhedraDomain.SubPoly.is_empty: not implemented"
+  
+  (*reuse leanies index shifts to implement dim add and remove.*)
   let dim_add (_ch: Apron.Dim.change) _t = failwith "SubPolyhedraDomain.SubPoly.dim_add: not implemented"
   let dim_remove (_ch: Apron.Dim.change) _t = failwith "SubPolyhedraDomain.SubPoly.dim_remove: not implemented"
 
   let string_of _ = "<subpoly>"
 
+  (* include meet/join/widen etc. *)
+  (*get the subpoly methods implemented here, befor ewiring to oursite world in D*)
+  let meet _a _b = failwith "SubPolyhedraDomain.meet: not implemented"
+  let leq _a _b = failwith "SubPolyhedraDomain.leq: not implemented"
+  let join _a _b = failwith "SubPolyhedraDomain.join: not implemented"
+  let widen _a _b = failwith "SubPolyhedraDomain.widen: not implemented"
+  let narrow _a _b = failwith "SubPolyhedraDomain.narrow: not implemented"
+  let unify _a _b = failwith "SubPolyhedraDomain.unify: not implemented"
+
+
   let _ = Var.string_of (* silence unused-functor-arg warning until Var is actually used *)
 end
 
-(** [VarManagement] defines the type t of the subpolyhedra domain (a record that contains an optional subpolyhedron and an apron environment)
-        and provides the functions needed for handling variables (which are defined by [RelationDomain.D2]) such as [add_vars], [remove_vars].
-*)
 module VarManagement =
 struct
   module Str = struct
@@ -54,6 +63,7 @@ struct
   include SharedFunctions.VarManagementOps (SubPolyDomain)
 
   let dim_add = SubPolyDomain.dim_add
+  (*potentially add dim_remove here, not sure though*)  
   let size _t = failwith "SubPolyhedraDomain.size: not implemented"
 end
 

@@ -106,3 +106,5 @@ site/
 *.coverage
 # bisect-ppx-report
 _coverage/*
+
+g2html
