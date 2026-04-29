@@ -132,6 +132,8 @@ struct
 
 
   let sync man reason =
+    (* TODO:
+       Observation from ZA: Probably can get away with doing this after release-like operations, all possible advancing would already have been done prior for others *)
     if !AnalysisState.global_initialization then
       man.local
     else
