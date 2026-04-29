@@ -1080,7 +1080,9 @@ struct
     if Wrapper.requiresActionOnPhaseChange then
       let publish_global_to_newphase g =
         if (P.mem g @@ D.getP st.priv) then (
-          (* TODO: Or not propagate at all, will be published later? *)
+          (* TODO: Or propagate only unprotected, proteced will be published later?
+             - unprotected needs to be published right away to account for other changing phase and observing this right away
+          *)
           let v = CPA.find g st.cpa in
           if M.tracing then M.tracel "phase" "Propagating !!local!! value %s for %s from %s to %s" g.vname (VD.show v) (Queries.PhaseDigest.show old_phase) (Queries.PhaseDigest.show new_phase);
           Wrapper.sideg ask sideg (V.protected g) v;
