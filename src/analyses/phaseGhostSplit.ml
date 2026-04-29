@@ -168,6 +168,7 @@ struct
           | `Top, `Top ->
             failwith "assumption about ghost owner violated"
       in
+      (* TODO: Fixpoint under advance! *)
       let rec handle_vars m = function
         | []  -> man.split m []
         | var :: vars ->
