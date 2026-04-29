@@ -10,6 +10,40 @@ open GobApron
 
 module Mpqf = SharedFunctions.Mpqf
 
+(* Since we need a custom interval domain, we define it here. *)
+module type IntervalDomain = sig
+  type t [@@deriving eq, ord, hash]
+
+  val top : t
+  val is_top : t -> bool
+
+  val meet : t -> t -> t option
+  val join : t -> t -> t
+  val leq : t -> t -> bool
+
+  val show : t -> string
+end
+
+(* Example instantiation of the IntervalDomain signature. *)
+module RationalInterval : IntervalDomain = struct
+  type t = {
+    lower: Mpqf.t option;
+    upper: Mpqf.t option;
+  } [@@deriving eq, ord, hash]
+
+  let top = { lower = None; upper = None }
+
+  let is_top = function
+    | { lower = None; upper = None } -> true
+    | _ -> false
+
+  let meet _ _ = failwith "RationalInterval.meet: TODO"
+  let join _ _ = failwith "RationalInterval.join: TODO"
+  let leq _ _ = failwith "RationalInterval.leq: TODO"
+
+  let show _ = "<interval>"
+end
+
 (** Variable
  * type t, basically ordered and printable
 *)
@@ -24,9 +58,34 @@ end
  * - internal representation of a consistent subpolyhedron
  * TODO: pick a type t, maybe (affine-equality, interval map)
  *)
-module SubPoly (Var : Var) = struct
-  (** Placeholder internal type. Replace with (affeq, interval-map, ...) once designed. *)
-  type t = unit [@@deriving eq, ord, hash]
+module SubPoly (Var : Var) (I : IntervalDomain) = struct
+
+  (* Reuse the SparseVector and ListMatrix modules from the AffineEqualityDomain. *)
+  module Vector = SparseVector.SparseVector
+  module Matrix =
+    AffineEqualityDomain.AffineEqualityMatrix
+      (Vector)
+      (ListMatrix.ListMatrix)
+
+  (* Map for dim to interval for the interval managment *)
+  module DimMap = Map.Make(Int) 
+
+  (*alias affine_equalities, interval, intervalmap*)
+  type affeq = Matrix.t [@@deriving eq, ord, hash]
+  type interval = I.t [@@deriving eq, ord, hash]
+  type interval_map = interval DimMap.t [@@deriving eq, ord]
+
+  (*hash function for the interval map*)
+  let hash_interval_map m =
+  DimMap.fold (fun dim interval acc ->
+    Hashtbl.hash (dim, I.hash interval, acc)
+  ) m 0
+
+  (*internal representation of a consistent subpolyhedron*)
+  type t = {
+    affeq: affeq;
+    intervals: interval_map;
+  } [@@deriving eq, ord, hash]
 
   let copy = Fun.id
   let empty () = ()
@@ -59,7 +118,7 @@ struct
     let string_of = Fun.id
     let hash = Hashtbl.hash
   end
-  module SubPolyDomain = SubPoly(Str)
+  module SubPolyDomain = SubPoly(Str)(RationalInterval)
   include SharedFunctions.VarManagementOps (SubPolyDomain)
 
   let dim_add = SubPolyDomain.dim_add
