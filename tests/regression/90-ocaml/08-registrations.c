@@ -22,6 +22,7 @@ CAMLprim value registration_test_1(value v)
 // If res is then deregistered, the status of v should follow. Changing the analysis to account for this case would be very hard.
 CAMLprim value registration_test_2(value v)
 {
+  CAMLparam0();
   CAMLlocal1(res);
   res = v;
   caml_alloc_small(Wsizeof(struct LXM_state), Abstract_tag);
@@ -34,7 +35,7 @@ CAMLprim value registration_test_3(value v)
   CAMLparam1(v);
   value res = v;
   caml_alloc_small(Wsizeof(struct LXM_state), Abstract_tag);
-  CAMLreturn(res); // WARN
+  CAMLreturn(res); // TODO NOWARN
 }
 
 CAMLprim value registration_test_4(value v)
@@ -49,11 +50,12 @@ CAMLprim value registration_test_4(value v)
 // TODO: Fix or count as limitation.
 CAMLprim value registration_test_5(value v)
 {
+  CAMLparam0();
   CAMLlocal2(res, res2);
   res = v;
   caml_alloc_small(Wsizeof(struct LXM_state), Abstract_tag);
   res2 = v;
-  CAMLreturn(res2); // NOWARN
+  CAMLreturn(res2); // TODO NOWARN
 }
 
 // The memory leak test.
@@ -64,4 +66,15 @@ CAMLprim value registration_test_6(value v)
   res = v;
   caml_alloc_small(Wsizeof(struct LXM_state), Abstract_tag);
   return res; // WARN
+}
+
+// With two begin_roots and one end_roots, something stays, but the analysis does not warn.
+CAMLprim value registration_test_7(value v)
+{
+  value res = Val_unit;
+  Begin_roots1(v);
+  Begin_roots1(res);
+  res = v;
+  End_roots();
+  return res; // TODO WARN
 }

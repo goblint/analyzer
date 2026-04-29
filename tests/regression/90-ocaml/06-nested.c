@@ -60,3 +60,18 @@ CAMLprim value pringo_LXM_init_unboxed(uint64_t i1, uint64_t i2,
   st->s = i4;
   return v;
 }
+
+// If entering does not copy registration status, this function will give false positives.
+CAMLprim value enter_test_1(value v)
+{
+  CAMLparam1(v);
+  value res = enter_test_2(v); // NOWARN
+  CAMLreturn(res); // NOWARN
+}
+
+CAMLprim value enter_test_2(value v)
+{
+  value res = caml_alloc_small(Wsizeof(struct LXM_state), Abstract_tag);
+  // TODO: Inner function warns of memory leak. Are inner and outer registration the same or different? Investigate.
+  return v; // WARN
+}

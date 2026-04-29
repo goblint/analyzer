@@ -1252,13 +1252,14 @@ let ocaml_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("caml_alloc_3", special [__ "tag" []; __ "arg1" [r]; __ "arg2" [r]; __ "arg3" [r]] @@ fun tag _arg1 _arg2 _arg3 -> OCamlAlloc (GoblintCil.integer 3));
     ("caml_alloc_4", special [__ "tag" []; __ "arg1" [r]; __ "arg2" [r]; __ "arg3" [r]; __ "arg4" [r]] @@ fun tag _arg1 _arg2 _arg3 _arg4 -> OCamlAlloc (GoblintCil.integer 4));
     ("caml_alloc_5", special [__ "tag" []; __ "arg1" [r]; __ "arg2" [r]; __ "arg3" [r]; __ "arg4" [r]; __ "arg5" [r]] @@ fun tag _arg1 _arg2 _arg3 _arg4 _arg5 -> OCamlAlloc (GoblintCil.integer 5));
-    ("__goblint_caml_param0", special [] @@ OCamlParam []);
+    ("__goblint_caml_param0", special [] @@ OCamlParam0);
     ("__goblint_caml_param1", special [__ "param" []] @@ fun param -> OCamlParam [param]);
     ("__goblint_caml_param2", special [__ "param1" []; __ "param2" []] @@ fun param1 param2 -> OCamlParam [param1; param2]);
     ("__goblint_caml_param3", special [__ "param1" []; __ "param2" []; __ "param3" []] @@ fun param1 param2 param3 -> OCamlParam [param1; param2; param3]);
     ("__goblint_caml_param4", special [__ "param1" []; __ "param2" []; __ "param3" []; __ "param4" []] @@ fun param1 param2 param3 param4 -> OCamlParam [param1; param2; param3; param4]);
     ("__goblint_caml_param5", special [__ "param1" []; __ "param2" []; __ "param3" []; __ "param4" []; __ "param5" []] @@ fun param1 param2 param3 param4 param5 -> OCamlParam [param1; param2; param3; param4; param5]);
-    ("__goblint_caml_return", special [] @@ OCamlReturn);
+    ("__goblint_caml_drop", special [] @@ OCamlDrop);
+    ("__goblint_caml_end_roots", special [] @@ OCamlEndRoots);
   ]
 [@@coverage off]
 
