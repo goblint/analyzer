@@ -63,6 +63,22 @@ struct
     | Queries.InvariantGlobal v ->
       let v = conv_v v in
       S.query (conv man) (InvariantGlobal v)
+    | Queries.YamlEntryGlobal (v, t) ->
+      let v = conv_v v in
+      S.query (conv man) (YamlEntryGlobal (v, t))
+    | Queries.IterSysVars (vq, vqf) ->
+      let vqf (v (*: S.V.t as Obj.t*)) =
+        let v : S.V.t = Obj.obj v in
+        let v = if S.V.use_digest v then
+            let digest = S.P.of_elt man.local in
+            V.var_with_digest (v, digest)
+          else
+            V.var v
+        in
+        let v = Obj.repr v in
+        vqf v
+      in
+      S.query (conv man) (Queries.IterSysVars (vq, vqf))
     | _ ->
       S.query (conv man) q
 
