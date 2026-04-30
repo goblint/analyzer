@@ -23,6 +23,10 @@ struct
       | `Left var -> S.V.is_write_only var
       | `Right (var, _digest) -> S.V.is_write_only var
 
+    let get_var = function
+      | `Left var
+      | `Right (var, _) -> var
+
     let var v = `Left v
     let var_with_digest (v, digest) = `Right (var, digest)
 
@@ -46,7 +50,21 @@ struct
   let context man f d = S.context (conv man) f d
 
   let sync man reason = S.sync (conv man) reason
-  let query man q = S.query (conv man) q
+  let query man (type a) (q : a Queries.t) : a Queries.result =
+    let conv_v v =
+      let v : V.t = Obj.obj v in
+      let v = V.get_var v in
+      Obj.repr v
+    in
+    match (q : a Queries.t) with
+    | Queries.WarnGlobal v ->
+      let v = conv_v v in
+      S.query (conv man) (WarnGlobal v)
+    | Queries.InvariantGlobal v ->
+      let v = conv_v v in
+      S.query (conv man) (InvariantGlobal v)
+    | _ ->
+      S.query (conv man) q
 
   let assign man l e = S.assign (conv man) l e
 

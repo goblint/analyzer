@@ -46,6 +46,7 @@ let spec_module: (module Spec') Lazy.t = lazy (
       |> lift termination_enabled (module RecursionTermLifter.Lifter) (* Always activate the recursion termination analysis, when the loop termination analysis is activated*)
       |> lift (get_int "ana.widen.delay.global" > 0) (module WideningDelay.GLifter)
       |> lift (not (get_bool "solvers.fwd.digests")) (module NoDigestLifter.Lifter) (* Exposes only unit to be used as digest *)
+      |> lift (get_bool "solvers.fwd.digests") (module DigestGlobalsLifter.Lifter)
     )
   in
   GobConfig.building_spec := false;
