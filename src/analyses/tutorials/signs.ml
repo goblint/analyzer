@@ -58,11 +58,11 @@ struct
   include Analyses.IdentitySpec
 
   (* This should now evaluate expressions. *)
-  let eval (d: D.t) (exp: exp): SL.t = match exp with
-    | Const (CInt (i, _, _)) -> SL.top () (* TODO: Fix me! *)
-    | Lval (Var x, NoOffset) -> D.find x d
-    | UnOp (Neg, Const _, _) -> SL.top () (* TODO: Fix me! *)
-    | _ -> SL.top ()
+let eval (d: D.t) (exp: exp): SL.t = match exp with
+| Const (CInt (i, _, _)) -> SL.top () (* TODO: Fix me! *)
+| UnOp (Neg, Const (CInt (i, _, _)), _) -> SL.top () (* TODO: Fix me! *)
+| Lval (Var x, NoOffset) -> D.find x d
+| _ -> SL.top ()
 
 
   (* Transfer functions: we only implement assignments here.
