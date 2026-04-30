@@ -1647,7 +1647,6 @@ struct
               )
           ) lh
       in
-
       output_wp_results_to_xml lh;
     in
 

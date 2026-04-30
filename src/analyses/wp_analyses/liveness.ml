@@ -66,7 +66,7 @@ struct
       | BinOp (_, e1, e2, _)  ->
         let acc1 = aux acc e1 in
         aux acc1 e2
-      | UnOp (_, e1, _)       ->  aux acc e1
+      | UnOp (_, e1, _)       -> aux acc e1
       | SizeOfE e1            -> aux acc e1
       | AlignOfE e1           -> aux acc e1
       | Question (e1, e2, e3, _) -> 
@@ -85,25 +85,51 @@ struct
 
   let rec assign man man_forw (lval:lval) (rval:exp) =
     match lval with
-    | Var v, _ -> 
-      if (D.mem v man.local || v.vglob) then ( (* Global variables are considered live when writing to them. *)
-        let rval_vars = D.of_list (vars_from_expr rval man_forw)
+    | Var v, offset -> 
+      if (D.mem v man.local) then ( (* Global variables are considered live when writing to them -> No, not anymore. This of course does not wark with concurrent programs, but I am already excluding those. *)
+        let rval_vars = D.of_list (vars_from_expr rval man_forw)in
+        let rval_vars = D.filter (fun v -> not (Cil.isFunctionType v.vtype)) rval_vars in (*remove variables that are just function names*)
+
+        let offset_vars = D.of_list (vars_from_offset offset man_forw) in
+        let base_live =
+          match offset with
+          | NoOffset -> D.diff man.local (D.singleton v)
+          | _ -> man.local
         in
-        D.union rval_vars (D.diff man.local (D.singleton v))
+
+        D.union rval_vars (D.union offset_vars base_live)
       ) else (
         (* let loc = M.Location.Node man.node in *)
         (* M.warn ~loc:loc ~category:MessageCategory.Program "Unnecessary assignment to variable '%s', as it is not live at this program point." v.vname; *)
         man.local
       )
-    | Mem exp, _ -> 
-      let may_point_to = Queries.AD.to_var_may (man_forw.ask (MayPointTo exp)) in
+    | Mem exp, off -> 
+      let ad = man_forw.ask (MayPointTo exp) in
       let lval_vars = D.of_list (vars_from_expr exp man_forw) in
       let rval_vars = D.of_list (vars_from_expr rval man_forw) in
+      let rval_vars = D.filter (fun v -> not (Cil.isFunctionType v.vtype)) rval_vars in (*remove variables that are just function names*)
 
-      match may_point_to with  (*POSSIBLY UNSOUND: could also be an overapproximation, depending on whether assumption is true*)
-      | [v] ->
-        D.union (assign  man man_forw (Var v, NoOffset) rval) lval_vars  (* We assume that if it my only point to one variable, we can treat this as if we just assigned to that variable*)
-      | _ ->  D.union rval_vars (D.union lval_vars man.local)
+      let strong_target =
+        match off, Queries.AD.to_mval ad with
+        | NoOffset, [(v, `NoOffset)] when Queries.AD.is_element (Queries.AD.Addr.of_mval (v, `NoOffset)) ad -> Some v
+        | _ -> None
+      in
+
+
+      let log_this ()= 
+        Logs.debug "(!) Assignment to memory location %a with may-point-to set [?]" d_exp exp;
+        Logs.debug "Variables in the lval: %s" (String.concat ", " (List.map (fun v -> v.vname) (D.elements lval_vars)));
+        Logs.debug "Variables in the rval: %s" (String.concat ", " (List.map (fun v -> v.vname) (D.elements rval_vars)));
+        match strong_target with
+        | Some v -> Logs.debug "Strong target variable: %s" v.vname
+        | None -> Logs.debug "No strong target variable identified"
+      in
+      log_this (); 
+
+      match strong_target with
+      | Some v ->
+        D.union (assign man man_forw (Var v, NoOffset) rval) lval_vars
+      | None -> D.union rval_vars (D.union lval_vars man.local)
 
   let branch man man_forw (exp:exp) (tv:bool) =  
     (* This just randomly asks whether all loops terimante to use getg_forw utilized in man.global *)
@@ -128,15 +154,22 @@ struct
 
   let enter man man_forw (lval: lval option) (f:fundec) (args:exp list) =
 
-    match lval with
-    | Some (Var v, _) -> 
-      if (D.mem v man.local) then ( 
-        [man.local, (D.singleton v)]
-      ) else (
-        [man.local, D.empty()]
-      )
-    | Some (Mem exp, _) -> [man.local, D.of_list (vars_from_expr exp man_forw)] 
-    | None -> [man.local, D.empty()]
+    let global_vars_in_d = D.filter (fun v -> v.vglob) man.local in
+
+    let callee_d = 
+      match lval with
+      | Some (Var v, _) -> 
+        if (D.mem v man.local) then ( 
+          (D.singleton v) 
+        ) else (
+          D.empty()
+        )
+      | Some (Mem exp, _) -> D.of_list (vars_from_expr exp man_forw)
+      | None -> D.empty()
+    in
+
+    [man.local, (D.union callee_d global_vars_in_d)]
+
 
   let combine_env man man_forw (lval:lval option) fexp (f:fundec) (args:exp list) fc au (f_ask: Queries.ask) =
 
@@ -166,10 +199,10 @@ struct
     let return_val_is_important = (not (D.is_bot man.local)) || (String.equal f.svar.vname "main") in
 
     match exp with
-    | None -> D.empty()
+    | None -> man.local
     | Some e -> if return_val_is_important
-      then D.of_list (vars_from_expr e man_forw)
-      else D.empty()
+      then D.of_list (vars_from_expr e man_forw) |> D.union man.local
+      else man.local
 
 
   let special man man_forw (lval: lval option) (f:varinfo) (arglist:exp list) =
@@ -198,28 +231,34 @@ struct
       | Var v, _ ->
         Logs.debug "D.mem v man.local is %b" (D.mem v man.local);
         Logs.debug "v.glob is %b" v.vglob;
-        if (D.mem v man.local || v.vglob) then 
+        if (D.mem v man.local) then ( (*I used to care whether a variable is global, I no longer do.*)
           let rval_vars = D.of_list (vars_from_expr rval man_forw)
           in
           (D.union rval_vars (D.diff man.local (D.singleton v)), false)
-        else (
+        )else (
           Logs.debug "Variable '%s' is not live at this program point." v.vname;
           (man.local, true)
         )
-      | Mem exp, _ -> (
+      | Mem exp, off -> (
           Logs.debug "lval is expression";
-          let may_point_to = Queries.AD.to_var_may (man_forw.ask (MayPointTo exp)) in
+          let ad = man_forw.ask (MayPointTo exp) in
           let lval_vars = D.of_list (vars_from_expr exp man_forw) in
           let rval_vars = D.of_list (vars_from_expr rval man_forw) in
 
-          match may_point_to with  (*POSSIBLY UNSOUND: could also be an overapproximation, depending on whether assumption is true*)
-          | [v] ->
+          let strong_target =
+            match off, Queries.AD.to_mval ad with
+            | NoOffset, [(v, `NoOffset)] when Queries.AD.is_element (Queries.AD.Addr.of_mval (v, `NoOffset)) ad -> Some v
+            | _ -> None
+          in
+
+          match strong_target with
+          | Some v ->
             let rec_assign_result, is_dead = 
-              match (is_dead_assign  man man_forw (Var v, NoOffset) rval is_dead) with 
+              match (is_dead_assign man man_forw (Var v, NoOffset) rval is_dead) with 
               | (res, new_is_dead) -> res, new_is_dead
             in 
-            (D.union rec_assign_result lval_vars, is_dead)(* We assume that if it my only point to one variable, we can treat this as if we just assigned to that variable*)
-          | _ ->  ((D.union rval_vars (D.union lval_vars man.local)), is_dead)
+            (D.union rec_assign_result lval_vars, is_dead)
+          | None ->  ((D.union rval_vars (D.union lval_vars man.local)), is_dead)
         )
     in 
 
