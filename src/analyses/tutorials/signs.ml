@@ -61,7 +61,7 @@ struct
   let eval (d: D.t) (exp: exp): SL.t = match exp with
     | Const (CInt (i, _, _)) -> SL.top () (* TODO: Fix me! *)
     | Lval (Var x, NoOffset) -> D.find x d
-    | UnOp (Neg, e, _) -> SL.top () (* TODO: Fix me! *)
+    | UnOp (Neg, Const _, _) -> SL.top () (* TODO: Fix me! *)
     | _ -> SL.top ()
 
 
