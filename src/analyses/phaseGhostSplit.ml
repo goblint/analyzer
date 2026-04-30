@@ -132,12 +132,14 @@ struct
 
 
   let sync man reason =
+    (* TODO: This is only called _after_ a release-like thing, need to check if invariants placed directly after account for phase having advanced.
+       See 19/07 if line is changed back *)
     (* TODO:
        Observation from ZA: Probably can get away with doing this after release-like operations, all possible advancing would already have been done prior for others *)
     if !AnalysisState.global_initialization then
       man.local
     else
-      let may_be_advanced_here var =
+      let may_be_advanced_here m var =
         if man.ask Queries.MustBeAtomic then
           (if M.tracing then M.tracel "phaseGhost" "Is atomic -> not advancing phase"; false)
         else
@@ -157,7 +159,7 @@ struct
                 not (ConcDomain.FiniteMustThreadSet.mem_lifted owner (man.ask Queries.MustJoinedThreads))
               in
               let below_max =
-                match D.find var man.local with
+                match D.find var m with
                 | `Lifted z ->
                   let max = G.max (man.global var) in
                   Z.to_int z < max
@@ -170,17 +172,16 @@ struct
           | `Top, `Top ->
             failwith "assumption about ghost owner violated"
       in
-      (* TODO: Fixpoint under advance! *)
       let rec handle_vars m = function
         | []  -> man.split m []
         | var :: vars ->
-          if may_be_advanced_here var then
+          if may_be_advanced_here m var then
             (let v' = (match (D.find var m) with
                  | `Lifted x -> Z.succ x
                  | _ -> failwith "assumption")
              in
              let advanced = D.add var (`Lifted v') m in
-             handle_vars advanced vars;
+             handle_vars advanced (var::vars);
              handle_vars m vars)
           else
             handle_vars m vars
@@ -188,7 +189,7 @@ struct
       let traceEvolution () =
         YamlWitness.VarSet.iter (fun var ->
             let owner = man.ask (Queries.Owner var) in
-            let may_advance = may_be_advanced_here var in
+            let may_advance = may_be_advanced_here man.local var in
             M.tracel "phaseGhost" "Ghost %a has owner %a and may %s be advanced here" (* nosemgrep: trace-not-in-tracing *)
               CilType.Varinfo.pretty var ThreadIdDomain.ThreadLifted.pretty owner
               (if may_advance then "" else " not ")

@@ -60,7 +60,7 @@
       type: location_invariant
       location:
         file_name: 07-sync-double-advance.c
-        line: 17
+        line: 18
         column: 5
         function: main
       value: ghost_a == 0 || ghost_a == 1

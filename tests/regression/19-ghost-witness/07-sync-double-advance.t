@@ -8,14 +8,14 @@ current support is broken and still confirms it.
     live: 9
     dead: 0
     total lines: 9
+  [Warning][Witness] invariant unconfirmed: ghost_a == 0 || ghost_a == 1 (07-sync-double-advance.c:18:5)
   [Info][Witness] phaseGhost: global ghost_a is only accessed by unique thread [main, fun@07-sync-double-advance.c:15:5-15:51] and is only ever increased by one
   [Info][Witness] witness validation summary:
-    confirmed: 1
-    unconfirmed: 0
+    confirmed: 0
+    unconfirmed: 1
     refuted: 0
     error: 0
     unchecked: 0
     unsupported: 0
     disabled: 0
     total validation entries: 1
-  [Success][Witness] invariant confirmed: ghost_a == 0 || ghost_a == 1 (07-sync-double-advance.c:17:5)
