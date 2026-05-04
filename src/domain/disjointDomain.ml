@@ -756,7 +756,7 @@ struct
     in
     let (s1', acc) = S.fold f s2 (s1, empty ()) in
     S.union s1' acc
-  let idempotent_union _ _ _ = failwith "TODO" (* TODO: ? *)
+  let idempotent_union _ _ _ = failwith "PairwiseMap.idempotent_union" (* TODO: ? *)
   let nonidempotent_inter f s1 s2 =
     let f b2 (s1, acc) =
       let e2 = fst (B.choose b2) in
@@ -777,7 +777,7 @@ struct
       (s1_rest, acc')
     in
     snd (S.fold f s2 (s1, S.empty ()))
-  let idempotent_inter _ _ _ = failwith "TODO" (* TODO: ? *)
+  let idempotent_inter _ _ _ = failwith "PairwiseMap.idempotent_inter" (* TODO: ? *)
   let merge f m1 m2 = failwith "PairwiseMap.merge" (* TODO: ? *)
 
   let leq s1 s2 =
