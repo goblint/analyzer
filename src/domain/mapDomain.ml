@@ -36,7 +36,6 @@ sig
   val idempotent_union: (value -> value -> value) -> t -> t -> t
   val nonidempotent_union: (value -> value -> value) -> t -> t -> t
   val difference: (value -> value -> value option) -> t -> t -> t
-  val merge : (key -> value option -> value option -> value option) -> t -> t -> t (* TODO: remove? *)
 
   val cardinal: t -> int
   val choose: t -> key * value
@@ -151,7 +150,6 @@ sig
   val add: key -> 'a -> 'a t -> 'a t
   val singleton: key -> 'a -> 'a t
   val remove: key -> 'a t -> 'a t
-  val merge: (key -> 'a option -> 'b option -> 'c option) -> 'a t -> 'b t -> 'c t
   val idempotent_union: ('a -> 'a -> 'a) -> 'a t -> 'a t -> 'a t
   val nonidempotent_union: ('a -> 'a -> 'a) -> 'a t -> 'a t -> 'a t
   val idempotent_inter: ('a -> 'a -> 'a) -> 'a t -> 'a t -> 'a t
@@ -240,7 +238,6 @@ module PatriciaMap (K: PatriciaTree.KEY): MapS with type key = K.t =
 struct
   include PatriciaTree.MakeMap (K)
 
-  let merge = slow_merge (* TODO: get rid of this *)
   let idempotent_union f = idempotent_union (fun _ v v' -> f v v')
   let nonidempotent_union f = nonidempotent_union (fun _ v v' -> f v v')
   let idempotent_inter f = idempotent_inter (fun _ v v' -> f v v')
@@ -323,7 +320,6 @@ struct
   let mapi f = lift_f' (M.mapi f)
   let fold f x a = M.fold f (unlift x) a
   let filter f = lift_f' (M.filter f)
-  let merge f = lift_f2' (M.merge f)
   let for_all f = lift_f (M.for_all f)
 
   let cardinal = lift_f M.cardinal
@@ -383,7 +379,6 @@ struct
   let mapi f = lift_f' (M.mapi f)
   let fold f x a = M.fold f (unlift x) a
   let filter f = lift_f' (M.filter f)
-  let merge f = lift_f2' (M.merge f)
   let for_all f = lift_f (M.for_all f)
 
   let cardinal = lift_f M.cardinal
@@ -464,7 +459,6 @@ struct
   let mapi f x = time "mapi" (M.mapi f) x
   let fold f x a = time "fold" (M.fold f x) a
   let filter f x = time "filter" (M.filter f) x
-  let merge f x y = time "merge" (M.merge f x) y
   let for_all f x = time "for_all" (M.for_all f) x
 
   let cardinal x = time "cardinal" M.cardinal x
@@ -689,11 +683,6 @@ struct
     | `Top -> raise (Fn_over_All "filter")
     | `Lifted x -> `Lifted (M.filter f x)
 
-  let merge f x y  =
-    match x, y with
-    | `Lifted x, `Lifted y -> `Lifted (M.merge f x y)
-    | _ -> raise (Fn_over_All "merge")
-
   let reflexive_subset_domain_for_all2 f x y =
     match (x,y) with
     | (_, `Top) -> true
@@ -848,11 +837,6 @@ struct
     | `Bot -> raise (Fn_over_All "filter")
     | `Lifted x -> `Lifted (M.filter f x)
 
-  let merge f x y  =
-    match x, y with
-    | `Lifted x, `Lifted y -> `Lifted (M.merge f x y)
-    | _ -> raise (Fn_over_All "merge")
-
   let join_with_fct f x y =
     match (x,y) with
     | (`Bot, x) -> x
@@ -935,7 +919,6 @@ struct
   let idempotent_union f (e, r) (e', r') = (E.join e e', f r r') (* TODO: does this make sense? *)
   let nonidempotent_union f (e, r) (e', r') = (E.join e e', f r r') (* TODO: does this make sense? *)
   let difference f m1 m2 = failwith "MapDomain.Joined.difference" (* TODO: ? *)
-  let merge f m1 m2 = failwith "MapDomain.Joined.merge" (* TODO: ? *)
   let fold f (e, r) a = f e r a
   let empty () = (E.bot (), R.bot ())
   let add e r (e', r') = (E.join e e', R.join r r')

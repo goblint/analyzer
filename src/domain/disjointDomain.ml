@@ -586,7 +586,6 @@ struct
       | b' ->
         Some b'
     ) m1 m2
-  let merge f m1 m2 = failwith "ProjectiveMap.merge" (* TODO: ? *)
 
   let widen m1 m2 =
     Lattice.assert_valid_widen ~leq ~pretty_diff m1 m2;
@@ -775,7 +774,6 @@ struct
   let idempotent_inter_filter _ _ _ = failwith "PairwiseMap.idempotent_inter_filter" (* TODO: ? *)
   let nonidempotent_inter_filter _ _ _ = failwith "PairwiseMap.nonidempotent_inter_filter" (* TODO: ? *)
   let difference _ _ _ = failwith "PairwiseMap.difference" (* TODO: ? *)
-  let merge f m1 m2 = failwith "PairwiseMap.merge" (* TODO: ? *)
 
   let leq s1 s2 =
     S.for_all (fun b1 ->
