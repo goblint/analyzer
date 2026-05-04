@@ -122,32 +122,24 @@ struct
     M.widen m1 m2
 
   let meet m1 m2 =
-    M.merge (fun _ b1 b2 ->
-        match b1, b2 with
-        | Some b1, Some b2 ->
-          begin match B.meet b1 b2 with
-            | b' when B.is_bot b' ->
-              None (* remove bot bucket to preserve invariant *)
-            | exception Lattice.BotValue ->
-              None (* remove bot bucket to preserve invariant *)
-            | b' ->
-              Some b'
-          end
-        | _, _ -> None
+    M.nonidempotent_inter_filter (fun b1 b2 -> (* TODO: idempotent_inter_filter if not using int domain refinement *)
+        match B.meet b1 b2 with
+        | b' when B.is_bot b' ->
+          None (* remove bot bucket to preserve invariant *)
+        | exception Lattice.BotValue ->
+          None (* remove bot bucket to preserve invariant *)
+        | b' ->
+          Some b'
       ) m1 m2
   let narrow m1 m2 =
-    M.merge (fun _ b1 b2 ->
-        match b1, b2 with
-        | Some b1, Some b2 ->
-          begin match B.narrow b1 b2 with
-            | b' when B.is_bot b' ->
-              None (* remove bot bucket to preserve invariant *)
-            | exception Lattice.BotValue ->
-              None (* remove bot bucket to preserve invariant *)
-            | b' ->
-              Some b'
-          end
-        | _, _ -> None
+    M.nonidempotent_inter_filter (fun b1 b2 -> (* TODO: idempotent_inter_filter if not using int domain refinement *)
+        match B.narrow b1 b2 with
+        | b' when B.is_bot b' ->
+          None (* remove bot bucket to preserve invariant *)
+        | exception Lattice.BotValue ->
+          None (* remove bot bucket to preserve invariant *)
+        | b' ->
+          Some b'
       ) m1 m2
 
   let union = join
@@ -579,6 +571,12 @@ struct
   let nonidempotent_inter f m1 m2 = M.nonidempotent_inter (fun b1 b2 ->
       B.nonidempotent_inter f b1 b2 (* TODO: should remove bot bucket to preserve invariant? *)
     ) m1 m2
+  let idempotent_inter_filter f m1 m2 = M.idempotent_inter (fun b1 b2 ->
+      B.idempotent_inter_filter f b1 b2 (* TODO: should remove bot bucket to preserve invariant? *)
+    ) m1 m2
+  let nonidempotent_inter_filter f m1 m2 = M.nonidempotent_inter (fun b1 b2 ->
+      B.nonidempotent_inter_filter f b1 b2 (* TODO: should remove bot bucket to preserve invariant? *)
+    ) m1 m2
   let difference f m1 m2 = M.difference (fun b1 b2 ->
       match B.difference f b1 b2 with
       | b' when B.is_bot b' ->
@@ -595,32 +593,24 @@ struct
     M.widen m1 m2
 
   let meet m1 m2 =
-    M.merge (fun _ b1 b2 ->
-        match b1, b2 with
-        | Some b1, Some b2 ->
-          begin match B.meet b1 b2 with
-            | b' when B.is_bot b' ->
-              None (* remove bot bucket to preserve invariant *)
-            | exception Lattice.BotValue ->
-              None (* remove bot bucket to preserve invariant *)
-            | b' ->
-              Some b'
-          end
-        | _, _ -> None
+    M.nonidempotent_inter_filter (fun b1 b2 -> (* TODO: idempotent_inter_filter if not using int domain refinement *)
+        match B.meet b1 b2 with
+        | b' when B.is_bot b' ->
+          None (* remove bot bucket to preserve invariant *)
+        | exception Lattice.BotValue ->
+          None (* remove bot bucket to preserve invariant *)
+        | b' ->
+          Some b'
       ) m1 m2
   let narrow m1 m2 =
-    M.merge (fun _ b1 b2 ->
-        match b1, b2 with
-        | Some b1, Some b2 ->
-          begin match B.narrow b1 b2 with
-            | b' when B.is_bot b' ->
-              None (* remove bot bucket to preserve invariant *)
-            | exception Lattice.BotValue ->
-              None (* remove bot bucket to preserve invariant *)
-            | b' ->
-              Some b'
-          end
-        | _, _ -> None
+    M.nonidempotent_inter_filter (fun b1 b2 -> (* TODO: idempotent_inter_filter if not using int domain refinement *)
+        match B.narrow b1 b2 with
+        | b' when B.is_bot b' ->
+          None (* remove bot bucket to preserve invariant *)
+        | exception Lattice.BotValue ->
+          None (* remove bot bucket to preserve invariant *)
+        | b' ->
+          Some b'
       ) m1 m2
 
   include MapDomain.Print (E) (V) (
@@ -782,6 +772,8 @@ struct
     in
     snd (S.fold f s2 (s1, S.empty ()))
   let idempotent_inter _ _ _ = failwith "PairwiseMap.idempotent_inter" (* TODO: ? *)
+  let idempotent_inter_filter _ _ _ = failwith "PairwiseMap.idempotent_inter_filter" (* TODO: ? *)
+  let nonidempotent_inter_filter _ _ _ = failwith "PairwiseMap.nonidempotent_inter_filter" (* TODO: ? *)
   let difference _ _ _ = failwith "PairwiseMap.difference" (* TODO: ? *)
   let merge f m1 m2 = failwith "PairwiseMap.merge" (* TODO: ? *)
 

@@ -31,6 +31,8 @@ sig
   val reflexive_subset_domain_for_all2: (value -> value -> bool) -> t -> t -> bool
   val idempotent_inter: (value -> value -> value) -> t -> t -> t
   val nonidempotent_inter: (value -> value -> value) -> t -> t -> t
+  val idempotent_inter_filter: (value -> value -> value option) -> t -> t -> t
+  val nonidempotent_inter_filter: (value -> value -> value option) -> t -> t -> t
   val idempotent_union: (value -> value -> value) -> t -> t -> t
   val nonidempotent_union: (value -> value -> value) -> t -> t -> t
   val difference: (value -> value -> value option) -> t -> t -> t
@@ -154,6 +156,8 @@ sig
   val nonidempotent_union: ('a -> 'a -> 'a) -> 'a t -> 'a t -> 'a t
   val idempotent_inter: ('a -> 'a -> 'a) -> 'a t -> 'a t -> 'a t
   val nonidempotent_inter: ('a -> 'a -> 'a) -> 'a t -> 'a t -> 'a t
+  val idempotent_inter_filter: ('a -> 'a -> 'a option) -> 'a t -> 'a t -> 'a t
+  val nonidempotent_inter_filter: ('a -> 'a -> 'a option) -> 'a t -> 'a t -> 'a t
   val difference: ('a -> 'a -> 'a option) -> 'a t -> 'a t -> 'a t
   val reflexive_compare: ('a -> 'a -> int) -> 'a t -> 'a t -> int
   val reflexive_equal: ('a -> 'a -> bool) -> 'a t -> 'a t -> bool
@@ -212,6 +216,17 @@ struct
   let idempotent_inter f m1 m2 =
     if m1 == m2 then m1 else nonidempotent_inter f m1 m2
 
+  let nonidempotent_inter_filter op =
+    let f k v1 v2 =
+      match v1, v2 with
+      | Some v1, Some v2 -> op v1 v2
+      | _ -> None
+    in
+    merge f
+
+  let idempotent_inter_filter f m1 m2 =
+    if m1 == m2 then m1 else nonidempotent_inter_filter f m1 m2
+
   let difference f =
     merge (fun _ v1 v2 ->
         match v1, v2 with
@@ -230,6 +245,8 @@ struct
   let nonidempotent_union f = nonidempotent_union (fun _ v v' -> f v v')
   let idempotent_inter f = idempotent_inter (fun _ v v' -> f v v')
   let nonidempotent_inter f = nonidempotent_inter_no_share (fun _ v v' -> f v v')
+  let idempotent_inter_filter f = idempotent_inter_filter (fun _ v v' -> f v v')
+  let nonidempotent_inter_filter f = nonidempotent_inter_filter_no_share (fun _ v v' -> f v v')
   let difference f = difference (fun _ v v' -> f v v')
   let reflexive_subset_domain_for_all2 f = reflexive_subset_domain_for_all2 (fun _ v v' -> f v v')
   let exists f m = not (for_all (fun k v -> not (f k v)) m)
@@ -329,6 +346,8 @@ struct
 
   let idempotent_inter op = lift_f2' (M.idempotent_inter op)
   let nonidempotent_inter op = lift_f2' (M.nonidempotent_inter op)
+  let idempotent_inter_filter op = lift_f2' (M.idempotent_inter_filter op)
+  let nonidempotent_inter_filter op = lift_f2' (M.nonidempotent_inter_filter op)
 
   let difference op = lift_f2' (M.difference op)
 
@@ -387,6 +406,8 @@ struct
 
   let idempotent_inter op = lift_f2' (M.idempotent_inter op)
   let nonidempotent_inter op = lift_f2' (M.nonidempotent_inter op)
+  let idempotent_inter_filter op = lift_f2' (M.idempotent_inter_filter op)
+  let nonidempotent_inter_filter op = lift_f2' (M.nonidempotent_inter_filter op)
 
   let difference op = lift_f2' (M.difference op)
 
@@ -464,6 +485,8 @@ struct
 
   let idempotent_inter f x y = time "idempotent_inter" (M.idempotent_inter f x) y
   let nonidempotent_inter f x y = time "nonidempotent_inter" (M.nonidempotent_inter f x) y
+  let idempotent_inter_filter f x y = time "idempotent_inter_filter" (M.idempotent_inter_filter f x) y
+  let nonidempotent_inter_filter f x y = time "nonidempotent_inter_filter" (M.nonidempotent_inter_filter f x) y
 
   let difference f x y = time "difference" (M.difference f x) y
 
@@ -623,6 +646,16 @@ struct
     | `Lifted x, `Lifted y -> `Lifted (M.nonidempotent_inter f x y)
     | _ -> raise (Fn_over_All "nonidempotent_inter")
 
+  let idempotent_inter_filter f x y =
+    match x, y with
+    | `Lifted x, `Lifted y -> `Lifted (M.idempotent_inter_filter f x y)
+    | _ -> raise (Fn_over_All "idempotent_inter_filter")
+
+  let nonidempotent_inter_filter f x y =
+    match x, y with
+    | `Lifted x, `Lifted y -> `Lifted (M.nonidempotent_inter_filter f x y)
+    | _ -> raise (Fn_over_All "nonidempotent_inter_filter")
+
   let idempotent_union f x y =
     match x, y with
     | `Lifted x, `Lifted y -> `Lifted (M.idempotent_union f x y)
@@ -772,6 +805,16 @@ struct
     | `Lifted x, `Lifted y -> `Lifted (M.nonidempotent_inter f x y)
     | _ -> raise (Fn_over_All "nonidempotent_inter")
 
+  let idempotent_inter_filter f x y =
+    match x, y with
+    | `Lifted x, `Lifted y -> `Lifted (M.idempotent_inter_filter f x y)
+    | _ -> raise (Fn_over_All "idempotent_inter_filter")
+
+  let nonidempotent_inter_filter f x y =
+    match x, y with
+    | `Lifted x, `Lifted y -> `Lifted (M.nonidempotent_inter_filter f x y)
+    | _ -> raise (Fn_over_All "nonidempotent_inter_filter")
+
   let idempotent_union f x y =
     match x, y with
     | `Lifted x, `Lifted y -> `Lifted (M.idempotent_union f x y)
@@ -887,6 +930,8 @@ struct
   let mapi f (e, r) = (e, f e r)
   let idempotent_inter f (e, r) (e', r') = (E.meet e e', f r r') (* TODO: does this make sense? *)
   let nonidempotent_inter f (e, r) (e', r') = (E.meet e e', f r r') (* TODO: does this make sense? *)
+  let idempotent_inter_filter f (e, r) (e', r') = failwith "MapDomain.Joined.idempotent_inter_filter" (* TODO: ? *)
+  let nonidempotent_inter_filter f (e, r) (e', r') = failwith "MapDomain.Joined.nonidempotent_inter_filter" (* TODO: ? *)
   let idempotent_union f (e, r) (e', r') = (E.join e e', f r r') (* TODO: does this make sense? *)
   let nonidempotent_union f (e, r) (e', r') = (E.join e e', f r r') (* TODO: does this make sense? *)
   let difference f m1 m2 = failwith "MapDomain.Joined.difference" (* TODO: ? *)
