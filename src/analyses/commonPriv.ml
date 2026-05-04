@@ -169,7 +169,7 @@ struct
 
   module W =
   struct
-    include MapDomain.MapBot_LiftTop (Basetype.Variables) (MinLocksets)
+    include MapDomain.PatriciaMapBot_LiftTop (Basetype.Variables) (MinLocksets)
     let name () = "W"
   end
 
@@ -178,7 +178,7 @@ struct
     (* Note different Map order! *)
     (* MapTop because default value in P must be top of MinLocksets,
        as opposed to bottom in W. *)
-    include MapDomain.MapTop_LiftBot (Basetype.Variables) (MinLocksets)
+    include MapDomain.PatriciaMapTop_LiftBot (Basetype.Variables) (MinLocksets)
     let name () = "P"
 
     (* TODO: change MinLocksets.exists/top instead? *)

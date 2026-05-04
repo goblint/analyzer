@@ -31,9 +31,11 @@ sig
   val reflexive_subset_domain_for_all2: (value -> value -> bool) -> t -> t -> bool
   val idempotent_inter: (value -> value -> value) -> t -> t -> t
   val nonidempotent_inter: (value -> value -> value) -> t -> t -> t
+  val idempotent_inter_filter: (value -> value -> value option) -> t -> t -> t
+  val nonidempotent_inter_filter: (value -> value -> value option) -> t -> t -> t
   val idempotent_union: (value -> value -> value) -> t -> t -> t
   val nonidempotent_union: (value -> value -> value) -> t -> t -> t
-  val merge : (key -> value option -> value option -> value option) -> t -> t -> t (* TODO: unused, remove? *)
+  val difference: (value -> value -> value option) -> t -> t -> t
 
   val cardinal: t -> int
   val choose: t -> key * value
@@ -148,11 +150,13 @@ sig
   val add: key -> 'a -> 'a t -> 'a t
   val singleton: key -> 'a -> 'a t
   val remove: key -> 'a t -> 'a t
-  val merge: (key -> 'a option -> 'b option -> 'c option) -> 'a t -> 'b t -> 'c t
   val idempotent_union: ('a -> 'a -> 'a) -> 'a t -> 'a t -> 'a t
   val nonidempotent_union: ('a -> 'a -> 'a) -> 'a t -> 'a t -> 'a t
   val idempotent_inter: ('a -> 'a -> 'a) -> 'a t -> 'a t -> 'a t
   val nonidempotent_inter: ('a -> 'a -> 'a) -> 'a t -> 'a t -> 'a t
+  val idempotent_inter_filter: ('a -> 'a -> 'a option) -> 'a t -> 'a t -> 'a t
+  val nonidempotent_inter_filter: ('a -> 'a -> 'a option) -> 'a t -> 'a t -> 'a t
+  val difference: ('a -> 'a -> 'a option) -> 'a t -> 'a t -> 'a t
   val reflexive_compare: ('a -> 'a -> int) -> 'a t -> 'a t -> int
   val reflexive_equal: ('a -> 'a -> bool) -> 'a t -> 'a t -> bool
   val reflexive_subset_domain_for_all2: ('a -> 'a -> bool) -> 'a t -> 'a t -> bool
@@ -209,17 +213,38 @@ struct
 
   let idempotent_inter f m1 m2 =
     if m1 == m2 then m1 else nonidempotent_inter f m1 m2
+
+  let nonidempotent_inter_filter op =
+    let f k v1 v2 =
+      match v1, v2 with
+      | Some v1, Some v2 -> op v1 v2
+      | _ -> None
+    in
+    merge f
+
+  let idempotent_inter_filter f m1 m2 =
+    if m1 == m2 then m1 else nonidempotent_inter_filter f m1 m2
+
+  let difference f =
+    merge (fun _ v1 v2 ->
+        match v1, v2 with
+        | Some v1, Some v2 -> f v1 v2
+        | Some _, None -> v1
+        | None, _ -> None
+      )
 end
 
 module PatriciaMap (K: PatriciaTree.KEY): MapS with type key = K.t =
 struct
   include PatriciaTree.MakeMap (K)
 
-  let merge = slow_merge (* TODO: get rid of this *)
   let idempotent_union f = idempotent_union (fun _ v v' -> f v v')
   let nonidempotent_union f = nonidempotent_union (fun _ v v' -> f v v')
   let idempotent_inter f = idempotent_inter (fun _ v v' -> f v v')
   let nonidempotent_inter f = nonidempotent_inter_no_share (fun _ v v' -> f v v')
+  let idempotent_inter_filter f = idempotent_inter_filter (fun _ v v' -> f v v')
+  let nonidempotent_inter_filter f = nonidempotent_inter_filter_no_share (fun _ v v' -> f v v')
+  let difference f = difference (fun _ v v' -> f v v')
   let reflexive_subset_domain_for_all2 f = reflexive_subset_domain_for_all2 (fun _ v v' -> f v v')
   let exists f m = not (for_all (fun k v -> not (f k v)) m)
   let bindings = to_list
@@ -295,7 +320,6 @@ struct
   let mapi f = lift_f' (M.mapi f)
   let fold f x a = M.fold f (unlift x) a
   let filter f = lift_f' (M.filter f)
-  let merge f = lift_f2' (M.merge f)
   let for_all f = lift_f (M.for_all f)
 
   let cardinal = lift_f M.cardinal
@@ -318,6 +342,10 @@ struct
 
   let idempotent_inter op = lift_f2' (M.idempotent_inter op)
   let nonidempotent_inter op = lift_f2' (M.nonidempotent_inter op)
+  let idempotent_inter_filter op = lift_f2' (M.idempotent_inter_filter op)
+  let nonidempotent_inter_filter op = lift_f2' (M.nonidempotent_inter_filter op)
+
+  let difference op = lift_f2' (M.difference op)
 
   let reflexive_subset_domain_for_all2 f = lift_f2 (M.reflexive_subset_domain_for_all2 f)
   let leq_with_fct f = lift_f2 (M.leq_with_fct f)
@@ -351,7 +379,6 @@ struct
   let mapi f = lift_f' (M.mapi f)
   let fold f x a = M.fold f (unlift x) a
   let filter f = lift_f' (M.filter f)
-  let merge f = lift_f2' (M.merge f)
   let for_all f = lift_f (M.for_all f)
 
   let cardinal = lift_f M.cardinal
@@ -374,6 +401,10 @@ struct
 
   let idempotent_inter op = lift_f2' (M.idempotent_inter op)
   let nonidempotent_inter op = lift_f2' (M.nonidempotent_inter op)
+  let idempotent_inter_filter op = lift_f2' (M.idempotent_inter_filter op)
+  let nonidempotent_inter_filter op = lift_f2' (M.nonidempotent_inter_filter op)
+
+  let difference op = lift_f2' (M.difference op)
 
   let reflexive_subset_domain_for_all2 f = lift_f2 (M.reflexive_subset_domain_for_all2 f)
   let leq_with_fct f = lift_f2 (M.leq_with_fct f)
@@ -428,7 +459,6 @@ struct
   let mapi f x = time "mapi" (M.mapi f) x
   let fold f x a = time "fold" (M.fold f x) a
   let filter f x = time "filter" (M.filter f) x
-  let merge f x y = time "merge" (M.merge f x) y
   let for_all f x = time "for_all" (M.for_all f) x
 
   let cardinal x = time "cardinal" M.cardinal x
@@ -449,6 +479,10 @@ struct
 
   let idempotent_inter f x y = time "idempotent_inter" (M.idempotent_inter f x) y
   let nonidempotent_inter f x y = time "nonidempotent_inter" (M.nonidempotent_inter f x) y
+  let idempotent_inter_filter f x y = time "idempotent_inter_filter" (M.idempotent_inter_filter f x) y
+  let nonidempotent_inter_filter f x y = time "nonidempotent_inter_filter" (M.nonidempotent_inter_filter f x) y
+
+  let difference f x y = time "difference" (M.difference f x) y
 
   let reflexive_subset_domain_for_all2 f x y = time "reflexive_subset_domain_for_all2" (M.reflexive_subset_domain_for_all2 f x) y
   let leq_with_fct f x y = time "leq_with_fct" (M.leq_with_fct f x) y
@@ -606,6 +640,16 @@ struct
     | `Lifted x, `Lifted y -> `Lifted (M.nonidempotent_inter f x y)
     | _ -> raise (Fn_over_All "nonidempotent_inter")
 
+  let idempotent_inter_filter f x y =
+    match x, y with
+    | `Lifted x, `Lifted y -> `Lifted (M.idempotent_inter_filter f x y)
+    | _ -> raise (Fn_over_All "idempotent_inter_filter")
+
+  let nonidempotent_inter_filter f x y =
+    match x, y with
+    | `Lifted x, `Lifted y -> `Lifted (M.nonidempotent_inter_filter f x y)
+    | _ -> raise (Fn_over_All "nonidempotent_inter_filter")
+
   let idempotent_union f x y =
     match x, y with
     | `Lifted x, `Lifted y -> `Lifted (M.idempotent_union f x y)
@@ -615,6 +659,11 @@ struct
     match x, y with
     | `Lifted x, `Lifted y -> `Lifted (M.nonidempotent_union f x y)
     | _ -> raise (Fn_over_All "nonidempotent_union")
+
+  let difference f x y =
+    match x, y with
+    | `Lifted x, `Lifted y -> `Lifted (M.difference f x y)
+    | _ -> raise (Fn_over_All "difference")
 
   let for_all f = function
     | `Top -> raise (Fn_over_All "for_all")
@@ -633,11 +682,6 @@ struct
     match x with
     | `Top -> raise (Fn_over_All "filter")
     | `Lifted x -> `Lifted (M.filter f x)
-
-  let merge f x y  =
-    match x, y with
-    | `Lifted x, `Lifted y -> `Lifted (M.merge f x y)
-    | _ -> raise (Fn_over_All "merge")
 
   let reflexive_subset_domain_for_all2 f x y =
     match (x,y) with
@@ -686,13 +730,16 @@ struct
     | `Lifted x -> `Lifted (M.mapi f x)
 end
 
-module MapBot_LiftTop (Domain: Printable.S) (Range: Lattice.S) : S with
+module GenMapBot_LiftTop (Domain: Printable.S) (M: MapS with type key = Domain.t) (Range: Lattice.S) : S with
   type key = Domain.t and
   type value = Range.t =
 struct
-  module M = MapBot (Domain) (Range)
+  module M = GenMapBot (Domain) (M) (Range)
   include LiftTop (Range) (M)
 end
+
+module MapBot_LiftTop (Domain: Printable.S) (Range: Lattice.S) = GenMapBot_LiftTop (Domain) (StdMap (Domain)) (Range)
+module PatriciaMapBot_LiftTop (Domain: Printable.S) (Range: Lattice.S) = GenMapBot_LiftTop (Domain) (PatriciaMap (struct include Domain let to_int = tag end)) (Range)
 
 
 module LiftBot (Range: Lattice.S) (M: S with type value = Range.t): S with
@@ -750,6 +797,16 @@ struct
     | `Lifted x, `Lifted y -> `Lifted (M.nonidempotent_inter f x y)
     | _ -> raise (Fn_over_All "nonidempotent_inter")
 
+  let idempotent_inter_filter f x y =
+    match x, y with
+    | `Lifted x, `Lifted y -> `Lifted (M.idempotent_inter_filter f x y)
+    | _ -> raise (Fn_over_All "idempotent_inter_filter")
+
+  let nonidempotent_inter_filter f x y =
+    match x, y with
+    | `Lifted x, `Lifted y -> `Lifted (M.nonidempotent_inter_filter f x y)
+    | _ -> raise (Fn_over_All "nonidempotent_inter_filter")
+
   let idempotent_union f x y =
     match x, y with
     | `Lifted x, `Lifted y -> `Lifted (M.idempotent_union f x y)
@@ -759,6 +816,11 @@ struct
     match x, y with
     | `Lifted x, `Lifted y -> `Lifted (M.nonidempotent_union f x y)
     | _ -> raise (Fn_over_All "nonidempotent_union")
+
+  let difference f x y =
+    match x, y with
+    | `Lifted x, `Lifted y -> `Lifted (M.difference f x y)
+    | _ -> raise (Fn_over_All "difference")
 
   let for_all f = function
     | `Bot -> raise (Fn_over_All "for_all")
@@ -777,11 +839,6 @@ struct
     match x with
     | `Bot -> raise (Fn_over_All "filter")
     | `Lifted x -> `Lifted (M.filter f x)
-
-  let merge f x y  =
-    match x, y with
-    | `Lifted x, `Lifted y -> `Lifted (M.merge f x y)
-    | _ -> raise (Fn_over_All "merge")
 
   let join_with_fct f x y =
     match (x,y) with
@@ -830,13 +887,16 @@ struct
     | `Lifted x -> `Lifted (M.mapi f x)
 end
 
-module MapTop_LiftBot (Domain: Printable.S) (Range: Lattice.S): S with
+module GenMapTop_LiftBot (Domain: Printable.S) (M: MapS with type key = Domain.t) (Range: Lattice.S): S with
   type key = Domain.t and
   type value = Range.t =
 struct
-  module M = MapTop (Domain) (Range)
+  module M = GenMapTop (Domain) (M) (Range)
   include LiftBot (Range) (M)
 end
+
+module MapTop_LiftBot (Domain: Printable.S) (Range: Lattice.S) = GenMapTop_LiftBot (Domain) (StdMap (Domain)) (Range)
+module PatriciaMapTop_LiftBot (Domain: Printable.S) (Range: Lattice.S) = GenMapTop_LiftBot (Domain) (PatriciaMap (struct include Domain let to_int = tag end)) (Range)
 
 (** Map abstracted by a single (joined) key. *)
 module Joined (E: Lattice.S) (R: Lattice.S): S with type key = E.t and type value = R.t =
@@ -860,9 +920,11 @@ struct
   let mapi f (e, r) = (e, f e r)
   let idempotent_inter f (e, r) (e', r') = (E.meet e e', f r r') (* TODO: does this make sense? *)
   let nonidempotent_inter f (e, r) (e', r') = (E.meet e e', f r r') (* TODO: does this make sense? *)
+  let idempotent_inter_filter f (e, r) (e', r') = failwith "MapDomain.Joined.idempotent_inter_filter" (* TODO: ? *)
+  let nonidempotent_inter_filter f (e, r) (e', r') = failwith "MapDomain.Joined.nonidempotent_inter_filter" (* TODO: ? *)
   let idempotent_union f (e, r) (e', r') = (E.join e e', f r r') (* TODO: does this make sense? *)
   let nonidempotent_union f (e, r) (e', r') = (E.join e e', f r r') (* TODO: does this make sense? *)
-  let merge f m1 m2 = failwith "MapDomain.Joined.merge" (* TODO: ? *)
+  let difference f m1 m2 = failwith "MapDomain.Joined.difference" (* TODO: ? *)
   let fold f (e, r) a = f e r a
   let empty () = (E.bot (), R.bot ())
   let add e r (e', r') = (E.join e e', R.join r r')

@@ -390,6 +390,7 @@ struct
   let equal x y = Varinfo.equal x.svar y.svar
   let compare x y = Varinfo.compare x.svar y.svar
   let hash x = Varinfo.hash x.svar
+  let tag x = Varinfo.tag x.svar
 
   (* Output *)
   let pretty () x = Varinfo.pretty () x.svar
@@ -512,6 +513,7 @@ struct
   let equal x y = x.sid = y.sid
   let compare x y = Stdlib.compare x.sid y.sid
   let hash x = x.sid
+  let tag x = x.sid
 
   (* Output *)
   let pretty () x = dn_stmt () x

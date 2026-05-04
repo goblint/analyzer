@@ -20,7 +20,7 @@ end
 module PartDeps =
 struct
   module VarSet = SetDomain.Make(Basetype.Variables)
-  include MapDomain.MapBot_LiftTop(Basetype.Variables)(VarSet)
+  include MapDomain.PatriciaMapBot_LiftTop(Basetype.Variables)(VarSet)
   let name () = "array partitioning deps"
 end
 
