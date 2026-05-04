@@ -232,6 +232,7 @@ let getFuns fileAST : startfuns =
       Logs.debug "Cleanup function: %s" mn; set_string "exitfun[+]" mn; add_exit def acc
     | GFun ({svar={vstorage=NoStorage; vattr; _}; _} as def, _) when get_bool "nonstatic" && not (Cil.hasAttribute "goblint_stub" vattr) -> add_other def acc
     | GFun ({svar={vattr; _}; _} as def, _) when get_bool "allfuns" && not (Cil.hasAttribute "goblint_stub" vattr) ->  add_other def  acc
+    | GFun({svar={vname=mn; vattr=attr; vtype= TFun (t, _, _, _); _}; _} as def, _) when Cil.hasAttribute "c_stub" attr || Cil.hasAttribute "c_stub" (Cil.typeAttrs(t)) -> add_main def acc
     | _ -> acc
   in
   foldGlobals fileAST f ([],[],[])
