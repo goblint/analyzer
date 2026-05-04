@@ -390,6 +390,7 @@ struct
   let equal x y = Varinfo.equal x.svar y.svar
   let compare x y = Varinfo.compare x.svar y.svar
   let hash x = Varinfo.hash x.svar
+  let tag x = Varinfo.tag x.svar
 
   (* Output *)
   let pretty () x = Varinfo.pretty () x.svar

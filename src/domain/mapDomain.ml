@@ -730,13 +730,16 @@ struct
     | `Lifted x -> `Lifted (M.mapi f x)
 end
 
-module MapBot_LiftTop (Domain: Printable.S) (Range: Lattice.S) : S with
+module GenMapBot_LiftTop (Domain: Printable.S) (M: MapS with type key = Domain.t) (Range: Lattice.S) : S with
   type key = Domain.t and
   type value = Range.t =
 struct
-  module M = MapBot (Domain) (Range)
+  module M = GenMapBot (Domain) (M) (Range)
   include LiftTop (Range) (M)
 end
+
+module MapBot_LiftTop (Domain: Printable.S) (Range: Lattice.S) = GenMapBot_LiftTop (Domain) (StdMap (Domain)) (Range)
+module PatriciaMapBot_LiftTop (Domain: Printable.S) (Range: Lattice.S) = GenMapBot_LiftTop (Domain) (PatriciaMap (struct include Domain let to_int = tag end)) (Range)
 
 
 module LiftBot (Range: Lattice.S) (M: S with type value = Range.t): S with
@@ -884,13 +887,16 @@ struct
     | `Lifted x -> `Lifted (M.mapi f x)
 end
 
-module MapTop_LiftBot (Domain: Printable.S) (Range: Lattice.S): S with
+module GenMapTop_LiftBot (Domain: Printable.S) (M: MapS with type key = Domain.t) (Range: Lattice.S): S with
   type key = Domain.t and
   type value = Range.t =
 struct
-  module M = MapTop (Domain) (Range)
+  module M = GenMapTop (Domain) (M) (Range)
   include LiftBot (Range) (M)
 end
+
+module MapTop_LiftBot (Domain: Printable.S) (Range: Lattice.S) = GenMapTop_LiftBot (Domain) (StdMap (Domain)) (Range)
+module PatriciaMapTop_LiftBot (Domain: Printable.S) (Range: Lattice.S) = GenMapTop_LiftBot (Domain) (PatriciaMap (struct include Domain let to_int = tag end)) (Range)
 
 (** Map abstracted by a single (joined) key. *)
 module Joined (E: Lattice.S) (R: Lattice.S): S with type key = E.t and type value = R.t =
