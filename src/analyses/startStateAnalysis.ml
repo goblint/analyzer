@@ -12,7 +12,7 @@ module Spec : Analyses.MCPSpec =
 struct
   let name () = "startState"
   module AD = ValueDomain.AD
-  module D = MapDomain.MapBot (Basetype.Variables) (AD)
+  module D = MapDomain.PatriciaMapBot (Basetype.Variables) (AD)
   module C = D
 
   include Analyses.IdentitySpec

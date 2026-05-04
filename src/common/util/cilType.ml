@@ -512,6 +512,7 @@ struct
   let equal x y = x.sid = y.sid
   let compare x y = Stdlib.compare x.sid y.sid
   let hash x = x.sid
+  let tag x = x.sid
 
   (* Output *)
   let pretty () x = dn_stmt () x
