@@ -277,7 +277,7 @@ struct
 
   let elements (s: t): (key * R.t) list = bindings s
   let of_list (l: (key * R.t) list): t = List.fold_left (fun acc (x, r) -> add x r acc) (empty ()) l
-  let union = nonidempotent_union R.union
+  let union = idempotent_union R.union
 
 
   (* copied & modified from SetDomain.Hoare_NoTop *)
