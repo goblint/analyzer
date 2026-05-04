@@ -87,6 +87,7 @@ type special =
   | Bounded of { exp: Cil.exp}  (** Used to check for bounds for termination analysis. *)
   | Rand
   | Once of { once_control: Cil.exp; init_routine: Cil.exp; }
+  | SignalHandler of { signal: Cil.exp; handler: Cil.exp; }
   | Unknown (** Anything not belonging to other types. *) (* TODO: rename to Other? *)
 
 
