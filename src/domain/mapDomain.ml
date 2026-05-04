@@ -28,8 +28,11 @@ sig
   val add_list_fun: key list -> (key -> value) -> t -> t
 
   val for_all: (key -> value -> bool) -> t -> bool
-  val map2: (value -> value -> value) -> t -> t -> t
-  val long_map2: (value -> value -> value) -> t -> t -> t
+  val reflexive_subset_domain_for_all2: (value -> value -> bool) -> t -> t -> bool
+  val idempotent_inter: (value -> value -> value) -> t -> t -> t
+  val nonidempotent_inter: (value -> value -> value) -> t -> t -> t
+  val idempotent_union: (value -> value -> value) -> t -> t -> t
+  val nonidempotent_union: (value -> value -> value) -> t -> t -> t
   val merge : (key -> value option -> value option -> value option) -> t -> t -> t (* TODO: unused, remove? *)
 
   val cardinal: t -> int
@@ -135,12 +138,98 @@ struct
   (* TODO: groups in XML, JSON? *)
 end
 
-module PMap (Domain: Printable.S) (Range: Lattice.S) : PS with
+module type MapS =
+sig
+  type key
+  type 'a t
+  val empty: 'a t
+  val is_empty: 'a t -> bool
+  val mem:  key -> 'a t -> bool
+  val add: key -> 'a -> 'a t -> 'a t
+  val singleton: key -> 'a -> 'a t
+  val remove: key -> 'a t -> 'a t
+  val merge: (key -> 'a option -> 'b option -> 'c option) -> 'a t -> 'b t -> 'c t
+  val idempotent_union: ('a -> 'a -> 'a) -> 'a t -> 'a t -> 'a t
+  val nonidempotent_union: ('a -> 'a -> 'a) -> 'a t -> 'a t -> 'a t
+  val idempotent_inter: ('a -> 'a -> 'a) -> 'a t -> 'a t -> 'a t
+  val nonidempotent_inter: ('a -> 'a -> 'a) -> 'a t -> 'a t -> 'a t
+  val reflexive_compare: ('a -> 'a -> int) -> 'a t -> 'a t -> int
+  val reflexive_equal: ('a -> 'a -> bool) -> 'a t -> 'a t -> bool
+  val reflexive_subset_domain_for_all2: ('a -> 'a -> bool) -> 'a t -> 'a t -> bool
+  val iter: (key -> 'a -> unit) -> 'a t -> unit
+  val fold: (key -> 'a -> 'b -> 'b) -> 'a t -> 'b -> 'b
+  val for_all: (key -> 'a -> bool) -> 'a t -> bool
+  val exists: (key -> 'a -> bool) -> 'a t -> bool
+  val filter: (key -> 'a -> bool) -> 'a t -> 'a t
+  val cardinal: 'a t -> int
+  val bindings: 'a t -> (key * 'a) list
+  val choose: 'a t -> (key * 'a)
+  val find: key -> 'a t -> 'a
+  val find_opt: key -> 'a t -> 'a option
+  val map: ('a -> 'a) -> 'a t -> 'a t
+  val mapi: (key -> 'a -> 'a) -> 'a t -> 'a t
+end
+
+module StdMap (K: Map.OrderedType): MapS with type key = K.t =
+struct
+  include Map.Make (K)
+
+  let reflexive_equal f x y = x == y || equal f x y
+  let reflexive_compare f x y = if x == y then 0 else compare f x y
+
+  let reflexive_subset_domain_for_all2 f m1 m2 =
+    (* For each key-value in m1, the same key must be in m2 with a geq value: *)
+    let p key value =
+      try f value (find key m2) with Not_found -> false
+    in
+    m1 == m2 || for_all p m1
+
+  let nonidempotent_union op =
+    let f k v1 v2 =
+      match v1, v2 with
+      | Some v1, Some v2 -> Some (op v1 v2)
+      | Some _, _ -> v1
+      | _, Some _ -> v2
+      | _ -> None
+    in
+    merge f
+
+  let idempotent_union f m1 m2 =
+    if m1 == m2 then m1 else nonidempotent_union f m1 m2
+
+  let nonidempotent_inter op =
+    (* Similar to the previous, except we ignore elements that only occur in one
+     * of the mappings, so we start from an empty map *)
+    let f k v1 v2 =
+      match v1, v2 with
+      | Some v1, Some v2 -> Some (op v1 v2)
+      | _ -> None
+    in
+    merge f
+
+  let idempotent_inter f m1 m2 =
+    if m1 == m2 then m1 else nonidempotent_inter f m1 m2
+end
+
+module PatriciaMap (K: PatriciaTree.KEY): MapS with type key = K.t =
+struct
+  include PatriciaTree.MakeMap (K)
+
+  let merge = slow_merge (* TODO: get rid of this *)
+  let idempotent_union f = idempotent_union (fun _ v v' -> f v v')
+  let nonidempotent_union f = nonidempotent_union (fun _ v v' -> f v v')
+  let idempotent_inter f = idempotent_inter (fun _ v v' -> f v v')
+  let nonidempotent_inter f = nonidempotent_inter_no_share (fun _ v v' -> f v v')
+  let reflexive_subset_domain_for_all2 f = reflexive_subset_domain_for_all2 (fun _ v v' -> f v v')
+  let exists f m = not (for_all (fun k v -> not (f k v)) m)
+  let bindings = to_list
+  let choose m = BatSeq.hd (to_seq m)
+end
+
+module GenPMap (Domain: Printable.S) (M: MapS with type key = Domain.t) (Range: Lattice.S) : PS with
   type key = Domain.t and
   type value = Range.t =
 struct
-  module M = Map.Make (Domain)
-
   include Printable.Std
   include M
   type key = Domain.t
@@ -149,10 +238,8 @@ struct
 
   let name () = "map"
 
-  (* And one less brainy definition *)
-  let for_all2 = M.equal
-  let equal x y = x == y || for_all2 Range.equal x y
-  let compare x y = if equal x y then 0 else M.compare Range.compare x y
+  let equal = reflexive_equal Range.equal
+  let compare = reflexive_compare Range.compare
   let hash xs = fold (fun k v a -> a + (Domain.hash k * Range.hash v)) xs 0
 
   let empty () = M.empty
@@ -166,26 +253,6 @@ struct
 
   let add_list_fun keys f m =
     List.fold_left (fun acc key -> add key (f key) acc) m keys
-
-  let long_map2 op =
-    let f k v1 v2 =
-      match v1, v2 with
-      | Some v1, Some v2 -> Some (op v1 v2)
-      | Some _, _ -> v1
-      | _, Some _ -> v2
-      | _ -> None
-    in
-    M.merge f
-
-  let map2 op =
-    (* Similar to the previous, except we ignore elements that only occur in one
-     * of the mappings, so we start from an empty map *)
-    let f k v1 v2 =
-      match v1, v2 with
-      | Some v1, Some v2 -> Some (op v1 v2)
-      | _ -> None
-    in
-    M.merge f
 
   include Print (Domain) (Range) (
     struct
@@ -246,10 +313,13 @@ struct
 
   let add_list_fun keys f = lift_f' (M.add_list_fun keys f)
 
-  let long_map2 op = lift_f2' (M.long_map2 op)
+  let idempotent_union op = lift_f2' (M.idempotent_union op)
+  let nonidempotent_union op = lift_f2' (M.nonidempotent_union op)
 
-  let map2 op = lift_f2' (M.map2 op)
+  let idempotent_inter op = lift_f2' (M.idempotent_inter op)
+  let nonidempotent_inter op = lift_f2' (M.nonidempotent_inter op)
 
+  let reflexive_subset_domain_for_all2 f = lift_f2 (M.reflexive_subset_domain_for_all2 f)
   let leq_with_fct f = lift_f2 (M.leq_with_fct f)
   let join_with_fct f = lift_f2' (M.join_with_fct f)
   let widen_with_fct f = lift_f2' (M.widen_with_fct f)
@@ -299,10 +369,13 @@ struct
 
   let add_list_fun keys f = lift_f' (M.add_list_fun keys f)
 
-  let long_map2 op = lift_f2' (M.long_map2 op)
+  let idempotent_union op = lift_f2' (M.idempotent_union op)
+  let nonidempotent_union op = lift_f2' (M.nonidempotent_union op)
 
-  let map2 op = lift_f2' (M.map2 op)
+  let idempotent_inter op = lift_f2' (M.idempotent_inter op)
+  let nonidempotent_inter op = lift_f2' (M.nonidempotent_inter op)
 
+  let reflexive_subset_domain_for_all2 f = lift_f2 (M.reflexive_subset_domain_for_all2 f)
   let leq_with_fct f = lift_f2 (M.leq_with_fct f)
   let join_with_fct f = lift_f2' (M.join_with_fct f)
   let widen_with_fct f = lift_f2' (M.widen_with_fct f)
@@ -371,10 +444,13 @@ struct
   let add_list_set ks v x = time "add_list_set" (M.add_list_set ks v) x
   let add_list_fun ks f x = time "add_list_fun" (M.add_list_fun ks f) x
 
-  let long_map2 f x y = time "long_map2" (M.long_map2 f x) y
+  let idempotent_union f x y = time "idempotent_union" (M.idempotent_union f x) y
+  let nonidempotent_union f x y = time "nonidempotent_union" (M.nonidempotent_union f x) y
 
-  let map2 f x y = time "map2" (M.map2 f x) y
+  let idempotent_inter f x y = time "idempotent_inter" (M.idempotent_inter f x) y
+  let nonidempotent_inter f x y = time "nonidempotent_inter" (M.nonidempotent_inter f x) y
 
+  let reflexive_subset_domain_for_all2 f x y = time "reflexive_subset_domain_for_all2" (M.reflexive_subset_domain_for_all2 f x) y
   let leq_with_fct f x y = time "leq_with_fct" (M.leq_with_fct f x) y
   let join_with_fct f x y = time "join_with_fct" (M.join_with_fct f x) y
   let widen_with_fct f x y = time "widen_with_fct" (M.widen_with_fct f x) y
@@ -382,19 +458,13 @@ struct
   let relift x = M.relift x
 end
 
-module MapBot (Domain: Printable.S) (Range: Lattice.S) : S with
+module GenMapBot (Domain: Printable.S) (M: MapS with type key = Domain.t) (Range: Lattice.S) : S with
   type key = Domain.t and
   type value = Range.t =
 struct
-  include PMap (Domain) (Range)
+  include GenPMap (Domain) (M) (Range)
 
-  let leq_with_fct f m1 m2 =
-    (* For each key-value in m1, the same key must be in m2 with a geq value: *)
-    let p key value =
-      try f value (find key m2) with Not_found -> false
-    in
-    m1 == m2 || for_all p m1
-
+  let leq_with_fct = reflexive_subset_domain_for_all2
   let leq = leq_with_fct Range.leq
 
   let find x m = try find x m with | Not_found -> Range.bot ()
@@ -418,32 +488,28 @@ struct
     | Some w -> w
     | None -> Pretty.dprintf "No binding grew."
 
-  let meet m1 m2 = if m1 == m2 then m1 else map2 Range.meet m1 m2
+  let meet = nonidempotent_inter Range.meet (* TODO: idempotent_inter if not using int domain refinement *)
 
-  let join_with_fct f m1 m2 =
-    if m1 == m2 then m1 else long_map2 f m1 m2
+  let join_with_fct = idempotent_union
   let join = join_with_fct Range.join
 
-  let widen_with_fct f =  long_map2 f
+  let widen_with_fct = idempotent_union
   let widen  = widen_with_fct Range.widen
 
 
-  let narrow = map2 Range.narrow
+  let narrow = nonidempotent_inter Range.narrow (* TODO: idempotent_inter if not using int domain refinement *)
 end
 
-module MapTop (Domain: Printable.S) (Range: Lattice.S) : S with
+module MapBot (Domain: Printable.S) (Range: Lattice.S) = GenMapBot (Domain) (StdMap (Domain)) (Range)
+module PatriciaMapBot (Domain: Printable.S) (Range: Lattice.S) = GenMapBot (Domain) (PatriciaMap (struct include Domain let to_int = tag end)) (Range)
+
+module GenMapTop (Domain: Printable.S) (M: MapS with type key = Domain.t) (Range: Lattice.S) : S with
   type key = Domain.t and
   type value = Range.t =
 struct
-  include PMap (Domain) (Range)
+  include GenPMap (Domain) (M) (Range)
 
-  let leq_with_fct f m1 m2 = (* TODO use merge or sth faster? *)
-    (* For each key-value in m2, the same key must be in m1 with a leq value: *)
-    let p key value =
-      try f (find key m1) value with Not_found -> false
-    in
-    m1 == m2 || for_all p m2
-
+  let leq_with_fct f m1 m2 = reflexive_subset_domain_for_all2 (Fun.flip f) m2 m1
   let leq = leq_with_fct Range.leq
 
   let find x m = try find x m with | Not_found -> Range.top ()
@@ -453,17 +519,16 @@ struct
   let is_bot _ = false
 
   (* let cleanup m = fold (fun k v m -> if Range.is_top v then remove k m else m) m m *)
-  let meet m1 m2 = if m1 == m2 then m1 else long_map2 Range.meet m1 m2
+  let meet = nonidempotent_union Range.meet (* TODO: idempotent_union if not using int domain refinement *)
 
-  let join_with_fct f m1 m2 =
-    if m1 == m2 then m1 else map2 f m1 m2
+  let join_with_fct = idempotent_inter
 
   let join = join_with_fct Range.join
 
-  let widen_with_fct f = map2 f
+  let widen_with_fct f = idempotent_inter f
   let widen = widen_with_fct Range.widen
 
-  let narrow = long_map2 Range.narrow
+  let narrow = nonidempotent_union Range.narrow (* TODO: idempotent_union if not using int domain refinement *)
 
   let pretty_diff () ((m1:t),(m2:t)): Pretty.doc =
     let diff_key k v acc_opt =
@@ -480,6 +545,9 @@ struct
     | Some w -> w
     | None -> Pretty.dprintf "No binding grew."
 end
+
+module MapTop (Domain: Printable.S) (Range: Lattice.S) = GenMapTop (Domain) (StdMap (Domain)) (Range)
+module PatriciaMapTop (Domain: Printable.S) (Range: Lattice.S) = GenMapTop (Domain) (PatriciaMap (struct include Domain let to_int = tag end)) (Range)
 
 exception Fn_over_All of string
 
@@ -528,15 +596,25 @@ struct
     | `Top -> `Top
     | `Lifted x -> `Lifted (M.add_list_fun ks f x)
 
-  let map2 f x y =
+  let idempotent_inter f x y =
     match x, y with
-    | `Lifted x, `Lifted y -> `Lifted (M.map2 f x y)
-    | _ -> raise (Fn_over_All "map2")
+    | `Lifted x, `Lifted y -> `Lifted (M.idempotent_inter f x y)
+    | _ -> raise (Fn_over_All "idempotent_inter")
 
-  let long_map2 f x y =
+  let nonidempotent_inter f x y =
     match x, y with
-    | `Lifted x, `Lifted y -> `Lifted (M.long_map2 f x y)
-    | _ -> raise (Fn_over_All "long_map2")
+    | `Lifted x, `Lifted y -> `Lifted (M.nonidempotent_inter f x y)
+    | _ -> raise (Fn_over_All "nonidempotent_inter")
+
+  let idempotent_union f x y =
+    match x, y with
+    | `Lifted x, `Lifted y -> `Lifted (M.idempotent_union f x y)
+    | _ -> raise (Fn_over_All "idempotent_union")
+
+  let nonidempotent_union f x y =
+    match x, y with
+    | `Lifted x, `Lifted y -> `Lifted (M.nonidempotent_union f x y)
+    | _ -> raise (Fn_over_All "nonidempotent_union")
 
   let for_all f = function
     | `Top -> raise (Fn_over_All "for_all")
@@ -560,6 +638,12 @@ struct
     match x, y with
     | `Lifted x, `Lifted y -> `Lifted (M.merge f x y)
     | _ -> raise (Fn_over_All "merge")
+
+  let reflexive_subset_domain_for_all2 f x y =
+    match (x,y) with
+    | (_, `Top) -> true
+    | (`Top, _) -> false
+    | (`Lifted x, `Lifted y) -> M.reflexive_subset_domain_for_all2 f x y
 
   let leq_with_fct f x y =
     match (x,y) with
@@ -656,15 +740,25 @@ struct
     | `Bot -> `Bot
     | `Lifted x -> `Lifted (M.add_list_fun ks f x)
 
-  let map2 f x y =
+  let idempotent_inter f x y =
     match x, y with
-    | `Lifted x, `Lifted y -> `Lifted (M.map2 f x y)
-    | _ -> raise (Fn_over_All "map2")
+    | `Lifted x, `Lifted y -> `Lifted (M.idempotent_inter f x y)
+    | _ -> raise (Fn_over_All "idempotent_inter")
 
-  let long_map2 f x y =
+  let nonidempotent_inter f x y =
     match x, y with
-    | `Lifted x, `Lifted y -> `Lifted (M.long_map2 f x y)
-    | _ -> raise (Fn_over_All "long_map2")
+    | `Lifted x, `Lifted y -> `Lifted (M.nonidempotent_inter f x y)
+    | _ -> raise (Fn_over_All "nonidempotent_inter")
+
+  let idempotent_union f x y =
+    match x, y with
+    | `Lifted x, `Lifted y -> `Lifted (M.idempotent_union f x y)
+    | _ -> raise (Fn_over_All "idempotent_union")
+
+  let nonidempotent_union f x y =
+    match x, y with
+    | `Lifted x, `Lifted y -> `Lifted (M.nonidempotent_union f x y)
+    | _ -> raise (Fn_over_All "nonidempotent_union")
 
   let for_all f = function
     | `Bot -> raise (Fn_over_All "for_all")
@@ -699,6 +793,12 @@ struct
     match (x,y) with
     | (`Lifted x, `Lifted y) -> `Lifted(M.widen_with_fct f x y)
     | _ -> y
+
+  let reflexive_subset_domain_for_all2 f x y =
+    match (x,y) with
+    | (`Bot, _) -> true
+    | (_, `Bot) -> false
+    | (`Lifted x, `Lifted y) -> M.reflexive_subset_domain_for_all2 f x y
 
   let leq_with_fct f x y =
     match (x,y) with
@@ -758,8 +858,10 @@ struct
       er
   let map f (e, r) = (e, f r)
   let mapi f (e, r) = (e, f e r)
-  let map2 f (e, r) (e', r') = (E.meet e e', f r r')
-  let long_map2 f (e, r) (e', r') = (E.join e e', f r r')
+  let idempotent_inter f (e, r) (e', r') = (E.meet e e', f r r') (* TODO: does this make sense? *)
+  let nonidempotent_inter f (e, r) (e', r') = (E.meet e e', f r r') (* TODO: does this make sense? *)
+  let idempotent_union f (e, r) (e', r') = (E.join e e', f r r') (* TODO: does this make sense? *)
+  let nonidempotent_union f (e, r) (e', r') = (E.join e e', f r r') (* TODO: does this make sense? *)
   let merge f m1 m2 = failwith "MapDomain.Joined.merge" (* TODO: ? *)
   let fold f (e, r) a = f e r a
   let empty () = (E.bot (), R.bot ())
@@ -792,6 +894,7 @@ struct
       add e (f e) acc
     ) m es
 
+  let reflexive_subset_domain_for_all2 _ _ _ = failwith "MapDomain.Joined.reflexive_subset_domain_for_all2"
   let leq_with_fct _ _ _ = failwith "MapDomain.Joined.leq_with_fct"
   let join_with_fct _ _ _ = failwith "MapDomain.Joined.join_with_fct"
   let widen_with_fct _ _ _ = failwith "MapDomain.Joined.widen_with_fct"

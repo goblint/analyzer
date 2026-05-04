@@ -442,7 +442,7 @@ struct
       (* Additionally filter get_m in case it contains variables it no longer protects. *)
       let is_in_Gm x _ = is_protected_by ask m x in
       let get_m = CPA.filter is_in_Gm get_m in
-      let long_meet m1 m2 = CPA.long_map2 VD.meet m1 m2 in
+      let long_meet m1 m2 = CPA.nonidempotent_union VD.meet m1 m2 in (* TODO: idempotent_union if not using int domain refinement *)
       let meet = long_meet st.cpa get_m in
       if M.tracing then M.tracel "priv" "LOCK %a:\n  get_m: %a\n  meet: %a" LockDomain.MustLock.pretty m CPA.pretty get_m CPA.pretty meet;
       {st with cpa = meet}
@@ -508,7 +508,7 @@ struct
     | VarQuery.Global g -> vf (V.global g)
     | _ -> ()
 
-  let long_meet m1 m2 = CPA.long_map2 VD.meet m1 m2
+  let long_meet m1 m2 = CPA.nonidempotent_union VD.meet m1 m2 (* TODO: idempotent_union if not using int domain refinement *)
 
   let update_if_mem var value m =
     if CPA.mem var m then

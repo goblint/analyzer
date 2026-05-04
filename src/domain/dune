@@ -8,7 +8,8 @@
    batteries.unthreaded
    goblint_std
    goblint_common
-   goblint-cil)
+   goblint-cil
+   patricia-tree)
  (flags :standard -open Goblint_std)
  (preprocess
   (pps
