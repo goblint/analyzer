@@ -98,19 +98,14 @@ struct
       end
     | None -> m
   let diff m1 m2 =
-    M.merge (fun _ b1 b2 ->
-        match b1, b2 with
-        | Some b1, Some b2 ->
-          begin match B.diff b1 b2 with
-            | b' when B.is_bot b' ->
-              None (* remove bot bucket to preserve invariant *)
-            | exception Lattice.BotValue ->
-              None (* remove bot bucket to preserve invariant *)
-            | b' ->
-              Some b'
-          end
-        | Some _, None -> b1
-        | None, _ -> None
+    M.difference (fun b1 b2 ->
+        match B.diff b1 b2 with
+        | b' when B.is_bot b' ->
+          None (* remove bot bucket to preserve invariant *)
+        | exception Lattice.BotValue ->
+          None (* remove bot bucket to preserve invariant *)
+        | b' ->
+          Some b'
       ) m1 m2
 
   let of_list es = List.fold_left (fun acc e ->
@@ -579,10 +574,19 @@ struct
       B.nonidempotent_union f b1 b2
     ) m1 m2
   let idempotent_inter f m1 m2 = M.idempotent_inter (fun b1 b2 ->
-      B.idempotent_inter f b1 b2
+      B.idempotent_inter f b1 b2 (* TODO: should remove bot bucket to preserve invariant? *)
     ) m1 m2
   let nonidempotent_inter f m1 m2 = M.nonidempotent_inter (fun b1 b2 ->
-      B.nonidempotent_inter f b1 b2
+      B.nonidempotent_inter f b1 b2 (* TODO: should remove bot bucket to preserve invariant? *)
+    ) m1 m2
+  let difference f m1 m2 = M.difference (fun b1 b2 ->
+      match B.difference f b1 b2 with
+      | b' when B.is_bot b' ->
+        None (* remove bot bucket to preserve invariant *)
+      | exception Lattice.BotValue ->
+        None (* remove bot bucket to preserve invariant *)
+      | b' ->
+        Some b'
     ) m1 m2
   let merge f m1 m2 = failwith "ProjectiveMap.merge" (* TODO: ? *)
 
@@ -778,6 +782,7 @@ struct
     in
     snd (S.fold f s2 (s1, S.empty ()))
   let idempotent_inter _ _ _ = failwith "PairwiseMap.idempotent_inter" (* TODO: ? *)
+  let difference _ _ _ = failwith "PairwiseMap.difference" (* TODO: ? *)
   let merge f m1 m2 = failwith "PairwiseMap.merge" (* TODO: ? *)
 
   let leq s1 s2 =
