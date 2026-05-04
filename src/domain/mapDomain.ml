@@ -223,7 +223,7 @@ struct
   let reflexive_subset_domain_for_all2 f = reflexive_subset_domain_for_all2 (fun _ v v' -> f v v')
   let exists f m = not (for_all (fun k v -> not (f k v)) m)
   let bindings = to_list
-  let choose m = BatSeq.hd (to_seq m)
+  let choose = unsigned_min_binding
 end
 
 module GenPMap (Domain: Printable.S) (M: MapS with type key = Domain.t) (Range: Lattice.S) : PS with
