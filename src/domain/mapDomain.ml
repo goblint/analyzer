@@ -166,8 +166,8 @@ sig
   val choose: 'a t -> (key * 'a)
   val find: key -> 'a t -> 'a
   val find_opt: key -> 'a t -> 'a option
-  val map: ('a -> 'b) -> 'a t -> 'b t
-  val mapi: (key -> 'a -> 'b) -> 'a t -> 'b t
+  val map: ('a -> 'a) -> 'a t -> 'a t
+  val mapi: (key -> 'a -> 'a) -> 'a t -> 'a t
 end
 
 module StdMap (K: Map.OrderedType): MapS with type key = K.t =
@@ -224,8 +224,6 @@ struct
   let exists f m = not (for_all (fun k v -> not (f k v)) m)
   let bindings = to_list
   let choose m = BatSeq.hd (to_seq m)
-  let map = map_no_share (* TODO: don't do this? *)
-  let mapi = mapi_no_share (* TODO: don't do this? *)
 end
 
 module GenPMap (Domain: Printable.S) (M: MapS with type key = Domain.t) (Range: Lattice.S) : PS with
