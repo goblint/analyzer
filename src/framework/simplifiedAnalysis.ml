@@ -1,6 +1,4 @@
 open GoblintCil
-open Pretty
-open Analyses
 
 
 (** Man(ager) is passed to transfer functions and allows accessing the
