@@ -14,12 +14,7 @@ module Lockset = LockDomain.MustLockset
 module Spec = struct
   include IdentityUnitContextsSpec
   module D = Lattice.Unit
-
-  module V = struct
-    include TID
-    include StdV
-  end
-
+  module V = TIDV
   module G = Queries.CL
 
   let name () = "creationLockset"

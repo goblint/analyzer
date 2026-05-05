@@ -28,10 +28,7 @@ module Spec = struct
   *)
   module G = MapDomain.MapBot (TID) (D)
 
-  module V = struct
-    include TID
-    include StdV
-  end
+  module V = TIDV
 
   let name () = "descendantLockset"
   let startstate _ = D.empty ()

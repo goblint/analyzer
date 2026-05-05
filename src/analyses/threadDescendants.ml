@@ -37,12 +37,7 @@ let get_must_ancestor_running_descendants man tid =
 module Spec = struct
   include IdentityUnitContextsSpec
   module D = Lattice.Unit
-
-  module V = struct
-    include TID
-    include StdV
-  end
-
+  module V = TIDV
   module G = ConcDomain.ThreadSet
 
   let name () = "threadDescendants"

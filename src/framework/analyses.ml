@@ -307,6 +307,12 @@ struct
   include StdV
 end
 
+module TIDV =
+struct
+  include ThreadIdDomain.Thread
+  include StdV
+end
+
 module EmptyV =
 struct
   include Printable.Empty
