@@ -275,7 +275,8 @@ struct
         | {vname = "getdate_err"; _} (* unix time.h, but somehow always in MacOS even without include *)
         | {vname = ("stdin" | "stdout" | "stderr"); _} (* standard stdio.h *)
         | {vname = ("optarg" | "optind" | "opterr" | "optopt" ); _} (* unix unistd.h *)
-        | {vname = ("__environ"); _} -> (* Linux Standard Base Core Specification *)
+        | {vname = ("__environ"); _} (* Linux Standard Base Core Specification *)
+        | {vname = ("__mb_cur_max"); _} -> (* MacOS stdlib.h *)
           true
         | _ -> false
       in

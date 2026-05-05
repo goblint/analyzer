@@ -1,4 +1,5 @@
 // PARAM: --disable ana.base.context.non-ptr --set ana.activated[+] taintPartialContexts
+#include <stdlib.h>
 #include <goblint.h>
 
 int glob;

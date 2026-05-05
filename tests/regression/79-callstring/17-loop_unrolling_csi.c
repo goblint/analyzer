@@ -1,4 +1,5 @@
 // PARAM: --set ana.context.callString_length 2 --set "ana.activated[+]" call_site --set ana.ctx_sens "['call_site']" --enable ana.int.interval_set --set exp.unrolling-factor 2
+#include <goblint.h>
 
 int f(int i)
 {

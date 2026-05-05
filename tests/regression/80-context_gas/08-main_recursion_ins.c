@@ -1,6 +1,7 @@
 // PARAM: --enable ana.int.interval_set --set ana.context.gas_value 10
 // Without context-insensitive analysis: Stack Overflow
 #include <stdio.h>
+#include <goblint.h>
 
 int num_iterat = 200000;
 

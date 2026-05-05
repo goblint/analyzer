@@ -2,7 +2,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <setjmp.h>
-// #include <goblint.h>
+#include <goblint.h>
 
 struct buf_struct {
    jmp_buf buf;
