@@ -40,10 +40,7 @@ struct
 
   let get_global_struct_non_ptr_vars () =
     get_global_vars ()
-    |> List.filter (fun v ->
-        match unrollType v.vtype with
-        | TComp (ci, _) -> ci.cstruct
-        | _ -> false)
+    |> List.filter (fun v -> Cilfacade.isStructType v.vtype)
 
   let get_reachable_mem_from_globals (global_vars:varinfo list) man =
     global_vars
