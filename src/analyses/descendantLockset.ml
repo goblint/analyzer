@@ -111,7 +111,7 @@ module Spec = struct
       let locks_held_creating_t2 = D.find t2 dl1 in
       if Lockset.is_bot locks_held_creating_t2
       then false
-      else (
+      else
         let relevant_lh2_threads =
           Lockset.fold
             (fun lock -> TIDs.union (Queries.LH.find lock lh2))
@@ -122,7 +122,7 @@ module Spec = struct
           (fun t_lh ->
              TID.must_be_ancestor t1 t_lh
              && (TID.equal t_lh t2 || TID.must_be_ancestor t_lh t2))
-          relevant_lh2_threads)
+          relevant_lh2_threads
 
     (** checks if the entire execution of a thread must happen before a program point
         @param dlg1 glabal descendant lockset of the thread
