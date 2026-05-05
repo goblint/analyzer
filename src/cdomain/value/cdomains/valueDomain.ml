@@ -167,7 +167,6 @@ struct
       Array (CArrays.make ~varAttr ~typAttr len (bot_value ai))
     | t when is_thread_type t -> Thread (ConcDomain.ThreadSet.empty ())
     | t when is_mutexattr_type t -> MutexAttr (MutexAttrDomain.bot ())
-    | t when is_jmp_buf_type t -> JmpBuf (JmpBufs.Bufs.empty (), false)
     | TNamed ({ttype=t; _}, _) -> bot_value ~varAttr t
     | _ -> Bot
 
