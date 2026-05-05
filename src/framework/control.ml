@@ -275,7 +275,7 @@ struct
         | {vname = ("stdin" | "stdout" | "stderr"); _} (* standard stdio.h *)
         | {vname = ("optarg" | "optind" | "opterr" | "optopt" ); _} (* unix unistd.h *)
         | {vname = ("__environ"); _} (* Linux Standard Base Core Specification *)
-        | {vname = ("__mb_cur_max"); _} -> (* something on MacOS *)
+        | {vname = ("__mb_cur_max"); _} -> (* MacOS stdlib.h *)
           true
         | _ -> false
       in
