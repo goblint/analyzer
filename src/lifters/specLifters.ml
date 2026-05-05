@@ -108,8 +108,8 @@ struct
   let event man e oman =
     D.lift @@ S.event (conv man) e (conv oman)
 
-  let compatible man a a' =
-    S.compatible (conv man) a a'
+  let compatible d a a' =
+    S.compatible (D.unlift d) a a'
 end
 
 module GlobalDomainLifter (N: NameLifter) (F: LatticeLifter) (S:Spec):
@@ -194,8 +194,8 @@ struct
   let paths_as_set man = S.paths_as_set (conv man)
   let event man e oman = S.event (conv man) e (conv oman)
 
-  let compatible man a a' =
-    S.compatible (conv man) a a'
+  let compatible d a a' =
+    S.compatible d a a'
 end
 
 (** Lifts a [Spec] so that the domain is [Hashcons]d *)
@@ -311,8 +311,8 @@ struct
   let paths_as_set man = S.paths_as_set (conv man)
   let event man e oman = S.event (conv man) e (conv oman)
 
-  let compatible man a a' =
-    S.compatible (conv man) a a'
+  let compatible d a a' =
+    S.compatible d a a'
 end
 
 (** Lifts a [Spec] so that the context is [Hashcons]d. *)
@@ -453,8 +453,8 @@ struct
         query' man (Queries.EvalFunvar e)
     | q -> query' man q
 
-  let compatible man a a' =
-    S.compatible (conv man) a a'
+  let compatible (d, _) a a' =
+    S.compatible d a a'
 end
 
 (* widening on contexts, keeps contexts for calls only in D *)
@@ -543,7 +543,7 @@ struct
   let combine_env man r fe f args fc es f_ask = lift_fun man S.combine_env (fun p -> p r fe f args fc (fst es) f_ask)
   let combine_assign man r fe f args fc es f_ask = lift_fun man S.combine_assign (fun p -> p r fe f args fc (fst es) f_ask)
 
-  let compatible man a b = S.compatible (conv man) a b
+  let compatible (d, _) a b = S.compatible d a b
 end
 
 
@@ -618,8 +618,8 @@ struct
   let threadspawn man ~multiple lval f args fman = lift_fun man D.lift (S.threadspawn ~multiple) ((|>) (conv fman) % (|>) args % (|>) f % (|>) lval) `Bot
 
   let event (man:(D.t,G.t,C.t,V.t) man) (e:Events.t) (oman:(D.t,G.t,C.t,V.t) man):D.t = lift_fun man D.lift S.event ((|>) (conv oman) % (|>) e) `Bot
-  let compatible man a a' = match a, a' with
-    | Some a, Some a' -> S.compatible (conv man) a a'
+  let compatible d a a' = match a, a' with
+    | Some a, Some a' -> S.compatible (D.unlift d) a a'
     | _, _ -> false
 end
 
@@ -767,7 +767,7 @@ struct
     let d = D.fold k d (D.bot ()) in
     if D.is_bot d then raise Deadcode else d
 
-  let compatible man a a' = failwith "compatible should not be called in PathSensitive2. Use digests instead."
+  let compatible d a a' = failwith "compatible should not be called in PathSensitive2. Use digests instead."
 end
 
 module DeadBranchLifter (S: Spec): Spec =
@@ -923,5 +923,5 @@ struct
   let skip man = S.skip (conv man)
   let asm man = S.asm (conv man)
   let event man e oman = S.event (conv man) e (conv oman)
-  let compatible man a a' = S.compatible (conv man) a a'
+  let compatible d a a' = S.compatible d a a'
 end

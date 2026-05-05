@@ -425,7 +425,7 @@ sig
 
   val event : (D.t, G.t, C.t, V.t) man -> Events.t -> (D.t, G.t, C.t, V.t) man -> D.t
 
-  val compatible : (D.t, G.t, C.t, V.t) man -> P.t -> P.t -> bool
+  val compatible : D.t -> P.t -> P.t -> bool
 end
 
 module type Spec' = sig

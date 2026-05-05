@@ -631,11 +631,11 @@ struct
   (* Just to satisfy signature *)
   let paths_as_set man = [man.local]
 
-  let compatible man (a : P.t) (b : P.t) : bool =
-    let zipped = GobList.fold_left3 (fun acc (n, a) (m, b) (o, inner_man)  ->  assert (n = m && m = o); (n, (a, b, inner_man))::acc) [] a b man.local in
+  let compatible (d : D.t) (a : P.t) (b : P.t) : bool =
+    let zipped = List.fold_left2 (fun acc (n, a) (m, b) ->  assert (n = m); (n, (a, b))::acc) [] a b in
     let zipped_with_spec = spec_list zipped in
-    let compatible (n, (module S: MCPSpec), (a, b, inner_man)) =
-      S.compatible (Obj.obj inner_man) (Obj.obj a) (Obj.obj b)
+    let compatible (n, (module S: MCPSpec), (a, b)) =
+      S.compatible (Obj.obj (List.assoc n d)) (Obj.obj a) (Obj.obj b)
     in
     List.for_all compatible zipped_with_spec
 end

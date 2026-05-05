@@ -55,7 +55,7 @@ struct
   end
 
 
-  let conv man : (S.D.t, S.G.t, S.C.t, S.V.t) Analyses.man =
+  let rec conv man : (S.D.t, S.G.t, S.C.t, S.V.t) Analyses.man =
     (* TODO: This should look up use_digest, and potentially look up variables with all possible digests that are compatible with the current digest *)
     let global (v : S.V.t) : S.G.t =
       if S.V.use_digest v then
@@ -68,7 +68,7 @@ struct
         let current_digest = P.of_elt man.local in
 
         let read_and_add_digest d acc =
-          if true then (* TODO: Use [compatible man current_digest digest as check *)
+          if S.compatible man.local current_digest d then
             let g = man.global (V.var_with_digest (v, d)) in
             let g = G.global g in
             S.G.join acc g
@@ -161,5 +161,5 @@ struct
 
   let event man event oman = S.event (conv man) event (conv oman)
 
-  let compatible man p p' = S.compatible (conv man) p p'
+  let compatible d p p' = S.compatible d p p'
 end
