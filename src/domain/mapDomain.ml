@@ -238,6 +238,8 @@ module PatriciaMap (K: PatriciaTree.KEY): MapS with type key = K.t =
 struct
   include PatriciaTree.MakeMap (K)
 
+  (* The following intentionally do not use [(fun _ -> f)] to avoid extra closure allocations and applications from partial application. *)
+  (* TODO: Benchmark this theory. *)
   let idempotent_union f = idempotent_union (fun _ v v' -> f v v')
   let nonidempotent_union f = nonidempotent_union (fun _ v v' -> f v v')
   let idempotent_inter f = idempotent_inter (fun _ v v' -> f v v')
@@ -246,9 +248,10 @@ struct
   let nonidempotent_inter_filter f = nonidempotent_inter_filter_no_share (fun _ v v' -> f v v')
   let difference f = difference (fun _ v v' -> f v v')
   let reflexive_subset_domain_for_all2 f = reflexive_subset_domain_for_all2 (fun _ v v' -> f v v')
+
   let exists f m = not (for_all (fun k v -> not (f k v)) m)
   let bindings = to_list
-  let choose m = BatSeq.hd (to_seq m)
+  let choose = unsigned_min_binding
 end
 
 module GenPMap (Domain: Printable.S) (M: MapS with type key = Domain.t) (Range: Lattice.S) : PS with
@@ -918,12 +921,12 @@ struct
       er
   let map f (e, r) = (e, f r)
   let mapi f (e, r) = (e, f e r)
-  let idempotent_inter f (e, r) (e', r') = (E.meet e e', f r r') (* TODO: does this make sense? *)
-  let nonidempotent_inter f (e, r) (e', r') = (E.meet e e', f r r') (* TODO: does this make sense? *)
+  let idempotent_inter f (e, r) (e', r') = (E.meet e e', f r r')
+  let nonidempotent_inter f (e, r) (e', r') = (E.meet e e', f r r')
   let idempotent_inter_filter f (e, r) (e', r') = failwith "MapDomain.Joined.idempotent_inter_filter" (* TODO: ? *)
   let nonidempotent_inter_filter f (e, r) (e', r') = failwith "MapDomain.Joined.nonidempotent_inter_filter" (* TODO: ? *)
-  let idempotent_union f (e, r) (e', r') = (E.join e e', f r r') (* TODO: does this make sense? *)
-  let nonidempotent_union f (e, r) (e', r') = (E.join e e', f r r') (* TODO: does this make sense? *)
+  let idempotent_union f (e, r) (e', r') = (E.join e e', f r r')
+  let nonidempotent_union f (e, r) (e', r') = (E.join e e', f r r')
   let difference f m1 m2 = failwith "MapDomain.Joined.difference" (* TODO: ? *)
   let fold f (e, r) a = f e r a
   let empty () = (E.bot (), R.bot ())
