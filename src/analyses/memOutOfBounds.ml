@@ -34,6 +34,27 @@ struct
   let size_of_type_in_bytes typ =
     intdom_of_int (Cilfacade.bytesSizeOf typ)
 
+  let offs_lt_zero offs =
+    try ID.lt offs (intdom_of_int 0)
+    with IntDomain.ArithmeticOnIntegerBot _ -> None
+
+  let check_deref_offset_bounds ptr_size offs =
+    let ptr_size_lt_offs =
+      try
+        let one = intdom_of_int 1 in
+        let max_valid_offs = ID.sub ptr_size one in
+        ID.lt max_valid_offs offs
+      with IntDomain.ArithmeticOnIntegerBot _ -> None
+    in
+    offs_lt_zero offs, ptr_size_lt_offs
+
+  let check_ptr_offset_bounds ptr_size offs =
+    let ptr_size_lt_offs =
+      try ID.lt ptr_size offs
+      with IntDomain.ArithmeticOnIntegerBot _ -> None
+    in
+    offs_lt_zero offs, ptr_size_lt_offs
+
   let rec exp_contains_a_ptr (exp:exp) =
     match exp with
     | Const _
@@ -290,21 +311,9 @@ struct
           | `Lifted es ->
             let casted_es = ID.cast_to ~kind:Internal (Cilfacade.ptrdiff_ikind ()) es in (* TODO: proper castkind *)
             let casted_offs = ID.cast_to ~kind:Internal (Cilfacade.ptrdiff_ikind ()) offs_intdom in (* TODO: proper castkind *)
-            let ptr_size_lt_offs =
-              let one = intdom_of_int 1 in
-              let casted_es = ID.sub casted_es one in
-              begin try ID.lt casted_es casted_offs
-                with IntDomain.ArithmeticOnIntegerBot _ -> None
-              end
-            in
-            let offs_lt_zero =
-              let zero = intdom_of_int 0 in
-              try ID.lt casted_offs zero
-              with IntDomain.ArithmeticOnIntegerBot _ -> None
-            in
             let behavior = Undefined MemoryOutOfBoundsAccess in
             let cwe_number = 823 in
-            begin match offs_lt_zero, ptr_size_lt_offs with
+            begin match check_deref_offset_bounds casted_es casted_offs with
               | Some true, _
               | _, Some true ->
                 (set_mem_safety_flag InvalidDeref;
@@ -349,15 +358,7 @@ struct
         | `Lifted ps, ao ->
           let casted_ps = ID.cast_to ~kind:Internal (Cilfacade.ptrdiff_ikind ()) ps in (* TODO: proper castkind *)
           let casted_ao = ID.cast_to ~kind:Internal (Cilfacade.ptrdiff_ikind ()) ao in (* TODO: proper castkind *)
-          let offs_lt_zero =
-            try ID.lt casted_ao (intdom_of_int 0)
-            with IntDomain.ArithmeticOnIntegerBot _ -> None
-          in
-          let ptr_size_lt_offs = 
-            try ID.lt casted_ps casted_ao
-            with IntDomain.ArithmeticOnIntegerBot _ -> None
-          in
-          begin match offs_lt_zero, ptr_size_lt_offs with
+          begin match check_ptr_offset_bounds casted_ps casted_ao with
             | Some true, _
             | _, Some true ->
               set_mem_safety_flag InvalidDeref;
@@ -445,15 +446,7 @@ struct
             | `Lifted ps, `Lifted o ->
               let casted_ps = ID.cast_to ~kind:Internal (Cilfacade.ptrdiff_ikind ()) ps in (* TODO: proper castkind *)
               let casted_o = ID.cast_to ~kind:Internal (Cilfacade.ptrdiff_ikind ()) o in (* TODO: proper castkind *)
-              let offs_lt_zero =
-                try ID.lt casted_o (intdom_of_int 0)
-                with IntDomain.ArithmeticOnIntegerBot _ -> None
-              in
-              let ptr_size_lt_offs =
-                try ID.lt casted_ps casted_o
-                with IntDomain.ArithmeticOnIntegerBot _ -> None
-              in
-              begin match offs_lt_zero, ptr_size_lt_offs with
+              begin match check_ptr_offset_bounds casted_ps casted_o with
                 | Some true, _
                 | _, Some true ->
                   set_mem_safety_flag InvalidDeref;
