@@ -3,10 +3,11 @@
 {
     "name": "Goblint",
 
-    "build": {
-        "dockerfile": "./Dockerfile",
-        "context": ".."
-    },
+    // "build": {
+    //     "dockerfile": "./Dockerfile",
+    //     "context": ".."
+    // },
+    "image": "ghcr.io/goblint/analyzer-devcontainer:fm26-tutorial",
     "remoteUser": "opam",
     "postCreateCommand": "ln -s /home/opam/docker/analyzer/_opam .",
 
