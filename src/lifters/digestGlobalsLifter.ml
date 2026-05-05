@@ -11,10 +11,30 @@ module M = Messages
 module Lifter (S:Spec)
   : Spec with module D = S.D
           and module C = S.C
-          and module G = S.G
+          (* and module G = S.G *)
 =
 struct
   include S
+
+  module DigestSet = SetDomain.Make(S.P)
+  module G = struct
+    include Lattice.Lift2 (S.G) (DigestSet)
+
+    let to_global g = `Lifted1 g
+    let to_digest_set g = `Lifted2 g
+
+    let global (g: t) = match g with
+      | `Lifted1 g -> g
+      | `Bot -> G.bot ()
+      | `Top
+      | `Lifted2 _ -> failwith "Expected Lifted1"
+
+    let digest_set (g: t) = match g with
+      | `Lifted2 g -> g
+      | `Bot -> DigestSet.bot ()
+      | `Top
+      | `Lifted1 _ -> failwith "Expected Lifted2"
+  end
 
   module VarWithDigest = Printable.Prod (S.V) (S.P)
   module V = struct
@@ -28,7 +48,7 @@ struct
       | `Right (var, _) -> var
 
     let var v = `Left v
-    let var_with_digest (v, digest) = `Right (var, digest)
+    let var_with_digest (v, digest) : t = `Right (v, digest)
 
     (* Does not matter, not used in lifters above *)
     let use_digest _ = failwith "use_digest not implemented for DigestGlobalLifter.V"
@@ -37,10 +57,37 @@ struct
 
   let conv man : (S.D.t, S.G.t, S.C.t, S.V.t) Analyses.man =
     (* TODO: This should look up use_digest, and potentially look up variables with all possible digests that are compatible with the current digest *)
-    let global (v : S.V.t) : S.G.t = man.global (V.var v) in
+    let global (v : S.V.t) : S.G.t =
+      if S.V.use_digest v then
+        (* TODO: Should actually read from all compatible digests *)
+        (* TODO: There be a need for some analysis to read the value for the current digest *)
 
-    (* TODO: This should look up use_digest, and potentially add the current digest *)
-    let sideg (v: S.V.t) (g: S.G.t) : unit = man.sideg (V.var v)  g in
+        let digests = man.global (V.var v) in
+        let digests = G.digest_set digests in
+
+        let current_digest = P.of_elt man.local in
+
+        let read_and_add_digest d acc =
+          if true then (* TODO: Use [compatible man current_digest digest as check *)
+            let g = man.global (V.var_with_digest (v, d)) in
+            let g = G.global g in
+            S.G.join acc g
+          else
+            acc
+        in
+        DigestSet.fold read_and_add_digest digests (S.G.bot ())
+      else
+        G.global (man.global (V.var v))
+    in
+    let sideg (v: S.V.t) (g: S.G.t) : unit =
+      let g = G.to_global g in
+      if S.V.use_digest v then
+        let digest = P.of_elt man.local in
+        man.sideg (V.var v) (G.to_digest_set (DigestSet.singleton digest));
+        man.sideg (V.var_with_digest (v, digest)) g
+      else
+        man.sideg (V.var v) g
+    in
     {
       man with
       global;
