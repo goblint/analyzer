@@ -900,6 +900,28 @@ struct
     else
       x (* This already contains some value *)
 
+  let effective_array_length (ask: VDQ.t) (array: CArrays.t) (elem_typ: typ) =
+    let ik = Cilfacade.ptrdiff_ikind () in
+    let elem_typ =
+      match Cil.unrollType elem_typ with
+      | TArray (elem_typ, _, _) -> elem_typ
+      | TPtr (elem_typ, _) -> elem_typ
+      | elem_typ -> elem_typ
+    in
+    match CArrays.length array with
+    | Some l when not (ID.is_bot l) && ID.equal_to Z.one l = `Eq -> begin
+        match CArrays.get ~checkBounds:false ask array (None, IndexDomain.of_int ik Z.zero) with
+        | Blob (_, size, _) -> begin
+            try
+              let elem_size = ID.of_int ik (Z.of_int (Cilfacade.bytesSizeOf elem_typ)) in
+              ID.div size elem_size
+            with Cilfacade.TypeOfError _ -> l
+          end
+        | _ -> l
+      end
+    | Some l -> l
+    | None -> ID.top_of ik
+
   (* Funny, this does not compile without the final type annotation! *)
   let rec eval_offset (ask: VDQ.t) f (x: t) (offs:offs) (exp:exp option) (v:lval option) (t:typ): t =
     let rec do_eval_offset (x:t) (offs:offs) (l:lval option) (o:offset option): t =
@@ -958,6 +980,7 @@ struct
               match x with
               | Array x ->
                 let e = determine_offset ask l o exp v in
+                let x = CArrays.update_length (effective_array_length ask x t) x in
                 do_eval_offset (CArrays.get ask x (e, idx)) offs l' o'
               | Address _ ->
                 begin
@@ -1133,6 +1156,7 @@ struct
                 match x with
                 | Array x' ->
                   let e = determine_offset ask l o exp (Some v) in
+                  let x' = CArrays.update_length (effective_array_length ask x' t) x' in
                   let new_value_at_index = do_update_offset (CArrays.get ask x' (e,idx)) offs l' o' in
                   let new_array_value = CArrays.set ask x' (e, idx) new_value_at_index in
                   Array new_array_value
