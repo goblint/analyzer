@@ -1,6 +1,7 @@
 // SKIP PARAM: --set ana.activated[+] apron --set ana.path_sens[+] threadflag --set ana.activated[-] threadJoins
 #include <pthread.h>
 #include <stdio.h>
+#include <goblint.h>
 
 int x;
 pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;

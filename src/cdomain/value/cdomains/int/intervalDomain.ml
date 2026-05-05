@@ -114,7 +114,6 @@ struct
   let of_int ik (x: int_t) = of_interval ik (x,x)
   let zero = Some IArith.zero
   let one  = Some IArith.one
-  let top_bool = Some IArith.top_bool
 
   let to_bitfield ik z =
     match z with
@@ -179,31 +178,6 @@ struct
       meet ik x y
     else
       narrow ik x y
-
-  let log f ~annihilator ik i1 i2 =
-    match is_bot i1, is_bot i2 with
-    | true, true -> bot_of ik
-    | true, _
-    | _   , true -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show i1) (show i2)))
-    | _ ->
-      match to_bool i1, to_bool i2 with
-      | Some x, _ when x = annihilator -> of_bool ik annihilator
-      | _, Some y when y = annihilator -> of_bool ik annihilator
-      | Some x, Some y -> of_bool ik (f x y)
-      | _              -> top_of ik
-
-  let c_logor = log (||) ~annihilator:true
-  let c_logand = log (&&) ~annihilator:false
-
-  let log1 f ik i1 =
-    if is_bot i1 then
-      bot_of ik
-    else
-      match to_bool i1 with
-      | Some x -> of_bool ik (f ik x)
-      | _      -> top_of ik
-
-  let c_lognot = log1 (fun _ik -> not)
 
   let bit f ik i1 i2 =
     match is_bot i1, is_bot i2 with
@@ -392,61 +366,61 @@ struct
 
   let ne ik x y =
     match x, y with
-    | None, None -> bot_of ik
+    | None, None -> None
     | None, _ | _, None -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y)))
     | Some (x1,x2), Some (y1,y2) ->
       if Ints_t.compare y2 x1 < 0 || Ints_t.compare x2 y1 < 0 then
-        of_bool ik true
+        Some true
       else if Ints_t.compare x2 y1 <= 0 && Ints_t.compare y2 x1 <= 0 then
-        of_bool ik false
-      else top_bool
+        Some false
+      else None
 
   let eq ik x y =
     match x, y with
-    | None, None -> bot_of ik
+    | None, None -> None
     | None, _ | _, None -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y)))
     | Some (x1,x2), Some (y1,y2) ->
       if Ints_t.compare y2 x1 <= 0 && Ints_t.compare x2 y1 <= 0 then
-        of_bool ik true
+        Some true
       else if Ints_t.compare y2 x1 < 0 || Ints_t.compare x2 y1 < 0 then
-        of_bool ik false
-      else top_bool
+        Some false
+      else None
 
   let ge ik x y =
     match x, y with
-    | None, None -> bot_of ik
+    | None, None -> None
     | None, _ | _, None -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y)))
     | Some (x1,x2), Some (y1,y2) ->
-      if Ints_t.compare y2 x1 <= 0 then of_bool ik true
-      else if Ints_t.compare x2 y1 < 0 then of_bool ik false
-      else top_bool
+      if Ints_t.compare y2 x1 <= 0 then Some true
+      else if Ints_t.compare x2 y1 < 0 then Some false
+      else None
 
   let le ik x y =
     match x, y with
-    | None, None -> bot_of ik
+    | None, None -> None
     | None, _ | _, None -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y)))
     | Some (x1,x2), Some (y1,y2) ->
-      if Ints_t.compare x2 y1 <= 0 then of_bool ik true
-      else if Ints_t.compare  y2 x1 < 0 then of_bool ik false
-      else top_bool
+      if Ints_t.compare x2 y1 <= 0 then Some true
+      else if Ints_t.compare y2 x1 < 0 then Some false
+      else None
 
   let gt ik x y =
     match x, y with
-    | None, None -> bot_of ik
+    | None, None -> None
     | None, _ | _, None -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y)))
     | Some (x1,x2), Some (y1,y2) ->
-      if Ints_t.compare y2 x1 < 0 then of_bool ik true
-      else if Ints_t.compare x2 y1 <= 0 then of_bool ik false
-      else top_bool
+      if Ints_t.compare y2 x1 < 0 then Some true
+      else if Ints_t.compare x2 y1 <= 0 then Some false
+      else None
 
   let lt ik x y =
     match x, y with
-    | None, None -> bot_of ik
+    | None, None -> None
     | None, _ | _, None -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y)))
     | Some (x1,x2), Some (y1,y2) ->
-      if Ints_t.compare x2 y1 < 0 then of_bool ik true
-      else if Ints_t.compare y2 x1 <= 0 then of_bool ik false
-      else top_bool
+      if Ints_t.compare x2 y1 < 0 then Some true
+      else if Ints_t.compare y2 x1 <= 0 then Some false
+      else None
 
   let invariant_ikind e ik = function
     | Some (x1, x2) ->

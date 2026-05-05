@@ -7,22 +7,27 @@ open GoblintCil
 
 let writeconffile = ref None
 
-(** Print version and bail. *)
-let print_version ch =
-  Logs.Level.current := Logs.Level.of_string (get_string "dbg.level"); (* duplicated from handle_options to be affected by -v *)
-  Logs.result "Goblint version: %s" Goblint_build_info.version;
-  Logs.result "Cil version:     %s" Cil.cilVersion;
-  Logs.result "Dune profile:    %s" Goblint_build_info.dune_profile;
-  Logs.result "OCaml version:   %s" Sys.ocaml_version;
-  Logs.result "OCaml flambda:   %s" Goblint_build_info.ocaml_flambda;
-  if Logs.Level.should_log Debug then (
-    Logs.result "Library versions:";
+(* Need second-order polymorphism to pass either Logs.result or Logs.debug to print_version. *)
+type logger = { f: 'a. ('a, unit, Pretty.doc, unit) format4 -> 'a } [@@unboxed]
+
+let print_version ~libraries (logger: logger): unit =
+  logger.f "Goblint version: %s" Goblint_build_info.version;
+  logger.f "Cil version:     %s" Cil.cilVersion;
+  logger.f "Dune profile:    %s" Goblint_build_info.dune_profile;
+  logger.f "OCaml version:   %s" Sys.ocaml_version;
+  logger.f "OCaml flambda:   %s" Goblint_build_info.ocaml_flambda;
+  if libraries then (
+    logger.f "Library versions:";
     List.iter (fun (name, version) ->
         let version = Option.default "[unknown]" version in
-        Logs.result "  %s: %s" name version
+        logger.f "  %s: %s" name version
       ) Goblint_build_info.statically_linked_libraries
   );
-  Logs.result "Build time:      %s" Goblint_build_info.datetime;
+  logger.f "Build time:      %s" Goblint_build_info.datetime
+
+let print_version_and_exit () =
+  Logs.Level.current := Logs.Level.of_string (get_string "dbg.level"); (* duplicated from handle_options to be affected by -v *)
+  print_version ~libraries:(Logs.Level.should_log Debug) { f = Logs.result };
   exit 0
 
 (** Print helpful messages. *)
@@ -98,7 +103,7 @@ let rec option_spec_list: Arg_complete.speclist Lazy.t = lazy (
   ; "--disable"            , Arg_complete.String ((fun x -> set_bool x false), complete_bool_option), ""
   ; "--conf"               , Arg_complete.String ((fun fn -> merge_file (Fpath.v fn)), Arg_complete.empty), ""
   ; "--writeconf"          , Arg_complete.String ((fun fn -> writeconffile := Some (Fpath.v fn)), Arg_complete.empty), ""
-  ; "--version"            , Arg_complete.Unit print_version, ""
+  ; "--version"            , Arg_complete.Unit print_version_and_exit, ""
   ; "--print_options"      , Arg_complete.Unit (fun () -> Options.print_options (); exit 0), ""
   ; "--print_all_options"  , Arg_complete.Unit (fun () -> Options.print_all_options (); exit 0), ""
   ; "--trace"              , Arg_complete.String (set_trace, Arg_complete.empty), ""
@@ -123,7 +128,7 @@ let check_arguments () =
   in
   let warn m = Logs.warn "%s" m in
   if get_bool "allfuns" && not (get_bool "exp.earlyglobs") then (set_bool "exp.earlyglobs" true; warn "allfuns enables exp.earlyglobs.");
-  if not @@ List.mem "escape" @@ get_string_list "ana.activated" then warn "Without thread escape analysis, every local variable whose address is taken is considered escaped, i.e., global!";
+  if not (get_bool "exp.single-threaded") && not @@ List.mem "escape" @@ get_string_list "ana.activated" then warn "Without thread escape analysis, every local variable whose address is taken is considered escaped, i.e., global! (Except when exp.single-threaded is enabled.)";
   if List.mem "malloc_null" @@ get_string_list "ana.activated" && not @@ get_bool "sem.malloc.fail" then (set_bool "sem.malloc.fail" true; warn "The malloc_null analysis enables sem.malloc.fail.");
   if List.mem "memOutOfBounds" @@ get_string_list "ana.activated" && not @@ get_bool "cil.addNestedScopeAttr" then (set_bool "cil.addNestedScopeAttr" true; warn "The memOutOfBounds analysis enables cil.addNestedScopeAttr.");
   if get_bool "ana.base.context.int" && not (get_bool "ana.base.context.non-ptr") then (set_bool "ana.base.context.int" false; warn "ana.base.context.int implicitly disabled by ana.base.context.non-ptr");
@@ -136,6 +141,12 @@ let check_arguments () =
   if get_bool "ana.autotune.enabled" && get_bool "incremental.load" then (set_bool "ana.autotune.enabled" false; warn "ana.autotune.enabled implicitly disabled by incremental.load");
   if get_bool "exp.basic-blocks" && not (get_bool "justcil") && List.mem "assert" @@ get_string_list "trans.activated" then (set_bool "exp.basic-blocks" false; warn "The option exp.basic-blocks implicitly disabled by activating the \"assert\" transformation.");
   if (not @@ get_bool "witness.invariant.all-locals") && (not @@ get_bool "cil.addNestedScopeAttr") then (set_bool "cil.addNestedScopeAttr" true; warn "Disabling witness.invariant.all-locals implicitly enables cil.addNestedScopeAttr.");
+  if not (get_bool "ana.opt.hashcons") then (
+    if MCPRegistry.any_activated_uses_apron () then
+      fail "Disabling ana.opt.hashcons is not supported when using Apron domains";
+    if get_bool "exp.arg.enabled" then
+      warn "Disabling ana.opt.hashcons has no effect because hashconsing is implicitly enabled by exp.arg.enabled";
+  );
   if List.mem "remove_dead_code" @@ get_string_list "trans.activated" then (
     (* 'assert' transform happens before 'remove_dead_code' transform *)
     ignore @@ List.fold_left

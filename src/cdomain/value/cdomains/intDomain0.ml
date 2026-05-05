@@ -178,10 +178,8 @@ struct
   (* Helper functions *)
   let check_ikinds x y = if x.ikind <> y.ikind then raise (IncompatibleIKinds (GobPretty.sprintf "ikinds %a and %a are incompatible. Values: %a and %a" CilType.Ikind.pretty x.ikind CilType.Ikind.pretty y.ikind I.pretty x.v I.pretty y.v))
   let lift op x = {x with v = op x.ikind x.v }
-  (* For logical operations the result is of type int *)
-  let lift_logical op x = {v = op x.ikind x.v; ikind = Cil.IInt}
   let lift2 op x y = check_ikinds x y; {x with v = op x.ikind x.v y.v }
-  let lift2_cmp op x y = check_ikinds x y; {v = op x.ikind x.v y.v; ikind = Cil.IInt}
+  let lift2_cmp op x y = check_ikinds x y; op x.ikind x.v y.v
 
   let bot_of ikind = { v = I.bot_of ikind; ikind}
   let bot () = failwith "bot () is not implemented for IntDomLifter."
@@ -259,9 +257,6 @@ struct
   let logxor = lift2 I.logxor
   let shift_left x y = {x with v = I.shift_left x.ikind x.v y.v } (* TODO check ikinds*)
   let shift_right x y = {x with v = I.shift_right x.ikind x.v y.v } (* TODO check ikinds*)
-  let c_lognot = lift_logical I.c_lognot
-  let c_logand = lift2 I.c_logand
-  let c_logor = lift2 I.c_logor
 
   let cast_to ?(suppress_ovwarn=false) ~kind ikind x = {v = I.cast_to  ~suppress_ovwarn ~kind ~from_ik:x.ikind ikind x.v; ikind}
 
@@ -619,21 +614,18 @@ struct
   let mul  = Ints_t.mul
   let div  = Ints_t.div
   let rem  = Ints_t.rem
-  let lt n1 n2 = of_bool (n1 <  n2)
-  let gt n1 n2 = of_bool (n1 >  n2)
-  let le n1 n2 = of_bool (n1 <= n2)
-  let ge n1 n2 = of_bool (n1 >= n2)
-  let eq n1 n2 = of_bool (n1 =  n2)
-  let ne n1 n2 = of_bool (n1 <> n2)
+  let lt n1 n2 = Some (n1 <  n2)
+  let gt n1 n2 = Some (n1 >  n2)
+  let le n1 n2 = Some (n1 <= n2)
+  let ge n1 n2 = Some (n1 >= n2)
+  let eq n1 n2 = Some (n1 =  n2)
+  let ne n1 n2 = Some (n1 <> n2)
   let lognot = Ints_t.lognot
   let logand = Ints_t.logand
   let logor  = Ints_t.logor
   let logxor = Ints_t.logxor
   let shift_left  n1 n2 = Ints_t.shift_left n1 (Ints_t.to_int n2)
   let shift_right n1 n2 = Ints_t.shift_right n1 (Ints_t.to_int n2)
-  let c_lognot n1    = of_bool (not (to_bool' n1))
-  let c_logand n1 n2 = of_bool ((to_bool' n1) && (to_bool' n2))
-  let c_logor  n1 n2 = of_bool ((to_bool' n1) || (to_bool' n2))
   let cast_to ?(suppress_ovwarn=false) ~kind t x =  failwith @@ "Cast_to not implemented for " ^ (name ()) ^ "."
   let arbitrary ik = QCheck.map ~rev:Ints_t.to_int64 Ints_t.of_int64 GobQCheck.Arbitrary.int64 (* TODO: use ikind *)
   let invariant _ _ = Invariant.none (* TODO *)
@@ -704,6 +696,11 @@ struct
       (try `Lifted (f x y) with Unknown -> `Top | Error -> `Bot)
     | `Bot, `Bot -> `Bot
     | _ -> `Top
+  let lift2_bool f x y = match x,y with
+    | `Lifted x, `Lifted y ->
+      (try f x y with Unknown -> None | Error -> None)
+    | `Bot, `Bot -> None
+    | _ -> None
 
   let neg  = lift1 Base.neg
   let add  = lift2 Base.add
@@ -711,21 +708,18 @@ struct
   let mul  = lift2 Base.mul
   let div  = lift2 Base.div
   let rem  = lift2 Base.rem
-  let lt = lift2 Base.lt
-  let gt = lift2 Base.gt
-  let le = lift2 Base.le
-  let ge = lift2 Base.ge
-  let eq = lift2 Base.eq
-  let ne = lift2 Base.ne
+  let lt = lift2_bool Base.lt
+  let gt = lift2_bool Base.gt
+  let le = lift2_bool Base.le
+  let ge = lift2_bool Base.ge
+  let eq = lift2_bool Base.eq
+  let ne = lift2_bool Base.ne
   let lognot = lift1 Base.lognot
   let logand = lift2 Base.logand
   let logor  = lift2 Base.logor
   let logxor = lift2 Base.logxor
   let shift_left  = lift2 Base.shift_left
   let shift_right = lift2 Base.shift_right
-  let c_lognot = lift1 Base.c_lognot
-  let c_logand = lift2 Base.c_logand
-  let c_logor  = lift2 Base.c_logor
 
   let invariant e = function
     | `Lifted x -> Base.invariant e x
@@ -771,6 +765,10 @@ struct
     | `Lifted x, `Lifted y -> `Lifted (f x y)
     | `Bot, `Bot -> `Bot
     | _ -> `Top
+  let lift2_bool f x y = match x,y with
+    | `Lifted x, `Lifted y -> f x y
+    | `Bot, `Bot -> None
+    | _ -> None
 
   let neg  = lift1 Base.neg
   let add  = lift2 Base.add
@@ -778,21 +776,18 @@ struct
   let mul  = lift2 Base.mul
   let div  = lift2 Base.div
   let rem  = lift2 Base.rem
-  let lt = lift2 Base.lt
-  let gt = lift2 Base.gt
-  let le = lift2 Base.le
-  let ge = lift2 Base.ge
-  let eq = lift2 Base.eq
-  let ne = lift2 Base.ne
+  let lt = lift2_bool Base.lt
+  let gt = lift2_bool Base.gt
+  let le = lift2_bool Base.le
+  let ge = lift2_bool Base.ge
+  let eq = lift2_bool Base.eq
+  let ne = lift2_bool Base.ne
   let lognot = lift1 Base.lognot
   let logand = lift2 Base.logand
   let logor  = lift2 Base.logor
   let logxor = lift2 Base.logxor
   let shift_left  = lift2 Base.shift_left
   let shift_right = lift2 Base.shift_right
-  let c_lognot = lift1 Base.c_lognot
-  let c_logand = lift2 Base.c_logand
-  let c_logor  = lift2 Base.c_logor
 
   let invariant e = function
     | `Lifted x -> Base.invariant e x

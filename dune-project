@@ -74,8 +74,10 @@ Goblint includes analyses for assertions, overflows, deadlocks, etc and can be e
     apron
     z3
     domainslib
+    memtrace
   )
   (conflicts
+    (dune (>= 3.22.0)) ; TODO: remove if fixed (https://github.com/ocaml/dune/issues/14085)
     (result (< 1.5)) ; transitive dependency, overrides standard Result module and doesn't have map_error, bind
     (apron (< v0.9.15)) ; lower bounds for depopts seem to not properly constrain in builtin-0install lower-bounds job, so upper bounds for conflicts instead
     (camlidl (< 1.13)) ; for stability (https://github.com/goblint/analyzer/issues/1520)

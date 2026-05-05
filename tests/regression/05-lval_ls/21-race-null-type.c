@@ -1,6 +1,7 @@
 // PARAM: --enable ana.race.direct-arithmetic
 #include <pthread.h>
 #include <stdio.h>
+#include <goblint.h>
 
 void *t_fun(void *arg) {
   void *top;

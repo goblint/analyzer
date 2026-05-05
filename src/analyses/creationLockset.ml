@@ -39,7 +39,7 @@ module Spec = struct
     match tid_lifted, child_tid_lifted with
     | `Lifted tid, `Lifted child_tid when TID.must_be_ancestor tid child_tid ->
       let must_ancestor_descendants =
-        ThreadDescendants.must_ancestor_descendants_closure (ask_of_man fman) child_tid
+        ThreadDescendants.must_ancestor_descendants_closure fman child_tid
       in
       let lockset = man.ask Queries.MustLockset in
       let to_contribute = G.singleton tid lockset in
@@ -72,7 +72,7 @@ module Spec = struct
       (match tid_lifted with
        | `Lifted tid ->
          let possibly_running_tids =
-           ThreadDescendants.must_ancestor_running_descendants (ask_of_man man) tid
+           ThreadDescendants.get_must_ancestor_running_descendants man tid
          in
          let lock_opt = LockDomain.MustLock.of_addr addr in
          (match lock_opt with

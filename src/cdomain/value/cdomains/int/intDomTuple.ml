@@ -352,6 +352,8 @@ module IntDomTupleImpl = struct
     in
     if norefine then r else refine ik r
 
+  let map2bool ik (r: bool option poly2_pr) =
+    same string_of_bool %% map2p r (* TODO: string-based hack copied from to_bool... contradictions go to top! *)
 
   (* f1: unary ops *)
   let neg ?no_ov ik =
@@ -359,9 +361,6 @@ module IntDomTupleImpl = struct
 
   let lognot ik =
     map ik {f1 = (fun (type a) (module I : SOverflow with type t = a) ?no_ov -> I.lognot ik)}
-
-  let c_lognot ik =
-    map ik {f1 = (fun (type a) (module I : SOverflow with type t = a) ?no_ov -> I.c_lognot ik)}
 
   let cast_to ?(suppress_ovwarn=false) ~kind ?from_ik ?no_ov t =
     mapovc ~suppress_ovwarn ~op:(Cast kind) t {f1_ovc = (fun (type a) (module I : SOverflow with type t = a) ?no_ov -> I.cast_to ~kind ?from_ik ?no_ov t)}
@@ -456,22 +455,22 @@ module IntDomTupleImpl = struct
          )}
 
   let lt ik =
-    map2 ik {f2= (fun (type a) (module I : SOverflow with type t = a) ?no_ov -> I.lt ik)}
+    map2bool ik {f2p= (fun (type a) (module I : SOverflow with type t = a) ?no_ov -> I.lt ik)}
 
   let gt ik =
-    map2 ik {f2= (fun (type a) (module I : SOverflow with type t = a) ?no_ov -> I.gt ik)}
+    map2bool ik {f2p= (fun (type a) (module I : SOverflow with type t = a) ?no_ov -> I.gt ik)}
 
   let le ik =
-    map2 ik {f2= (fun (type a) (module I : SOverflow with type t = a) ?no_ov -> I.le ik)}
+    map2bool ik {f2p= (fun (type a) (module I : SOverflow with type t = a) ?no_ov -> I.le ik)}
 
   let ge ik =
-    map2 ik {f2= (fun (type a) (module I : SOverflow with type t = a) ?no_ov -> I.ge ik)}
+    map2bool ik {f2p= (fun (type a) (module I : SOverflow with type t = a) ?no_ov -> I.ge ik)}
 
   let eq ik =
-    map2 ik {f2= (fun (type a) (module I : SOverflow with type t = a) ?no_ov -> I.eq ik)}
+    map2bool ik {f2p= (fun (type a) (module I : SOverflow with type t = a) ?no_ov -> I.eq ik)}
 
   let ne ik =
-    map2 ik {f2= (fun (type a) (module I : SOverflow with type t = a) ?no_ov -> I.ne ik)}
+    map2bool ik {f2p= (fun (type a) (module I : SOverflow with type t = a) ?no_ov -> I.ne ik)}
 
   let logand ik =
     map2 ik {f2= (fun (type a) (module I : SOverflow with type t = a) ?no_ov -> I.logand ik)}
@@ -487,12 +486,6 @@ module IntDomTupleImpl = struct
 
   let shift_right ik =
     map2ovc ~op:(Binop Shiftrt) ik {f2_ovc= (fun (type a) (module I : SOverflow with type t = a) ?no_ov -> I.shift_right ik)}
-
-  let c_logand ik =
-    map2 ik {f2= (fun (type a) (module I : SOverflow with type t = a) ?no_ov -> I.c_logand ik)}
-
-  let c_logor ik =
-    map2 ik {f2= (fun (type a) (module I : SOverflow with type t = a) ?no_ov -> I.c_logor ik)}
 
 
   (* printing boilerplate *)

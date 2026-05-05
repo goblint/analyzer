@@ -76,7 +76,7 @@ module Spec = struct
     match tid_lifted, child_tid_lifted with
     | `Lifted tid, `Lifted child_tid when TID.must_be_ancestor tid child_tid ->
       let must_ancestor_descendants =
-        ThreadDescendants.must_ancestor_descendants_closure (ask_of_man fman) child_tid
+        ThreadDescendants.must_ancestor_descendants_closure fman child_tid
       in
       threadspawn_contribute_globals man tid must_ancestor_descendants;
       threadspawn_compute_local_contribution man tid must_ancestor_descendants

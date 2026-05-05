@@ -103,7 +103,7 @@ struct
       let old_val = get_var ~man st var in
       let old_val = map_oldval old_val var.vtype in
       let offs = convert_offset ~man st o in
-      let new_val = VD.update_offset (Queries.to_value_domain_ask (Analyses.ask_of_man man)) old_val offs c' (Some exp) x (var.vtype) in
+      let new_val = VD.update_offset (Queries.to_value_domain_ask (Analyses.ask_of_man man)) old_val offs c' (Some exp) x (Cilfacade.typeOfLval x) in
       let v = apply_invariant ~old_val ~new_val in
       if is_some_bot v then contra st
       else (
@@ -112,7 +112,7 @@ struct
         if M.tracing then M.tracel "inv" "st from %a to %a" D.pretty st D.pretty r;
         r
       )
-    | Mem (Lval lv), off ->
+    | Mem (Lval lv), off when GobConfig.get_bool "ana.base.branch.refine-pointer-by-pointee" ->
       (* Underlying lvals (may have offsets themselves), e.g., for struct members NOT including any offset appended to outer Mem *)
       let lvals = eval_lv ~man st (Mem (Lval lv), NoOffset) in
       (* Additional offset of value being refined in Addr Offset type *)
@@ -293,12 +293,9 @@ struct
     let inv_bin_int (a, b) ikind c op =
       let warn_and_top_on_zero x =
         if ID.equal_to Z.zero x = `Eq then
-          (M.error ~category:M.Category.Integer.div_by_zero ~tags:[CWE 369] "Must Undefined Behavior: Second argument of div or mod is 0, continuing with top";
-           Checks.error Checks.Category.DivisionByZero "Must Undefined Behavior: Second argument of div or mod is 0, continuing with top";
-           ID.top_of ikind)
-        else (
-          Checks.safe Checks.Category.DivisionByZero;
-          x)
+          ID.top_of ikind
+        else
+          x
       in
       let meet_bin a' b'  = id_meet_down ~old:a ~c:a', id_meet_down ~old:b ~c:b' in
       let meet_com oi = (* commutative *)
@@ -329,8 +326,8 @@ struct
          * However, a%b will give [-b+1, b-1] for a=top, but we only want the positive/negative side depending on the sign of c*b.
          * If c*b = 0 or it can be positive or negative, we need the full range for the remainder. *)
         let rem =
-          let is_pos = ID.to_bool @@ ID.gt (ID.mul b c) (ID.of_int ikind Z.zero) = Some true in
-          let is_neg = ID.to_bool @@ ID.lt (ID.mul b c) (ID.of_int ikind Z.zero) = Some true in
+          let is_pos = ID.gt (ID.mul b c) (ID.of_int ikind Z.zero) = Some true in
+          let is_neg = ID.lt (ID.mul b c) (ID.of_int ikind Z.zero) = Some true in
           let full = ID.rem a b in
           if is_pos then ID.meet (ID.starting ikind Z.zero) full
           else if is_neg then ID.meet (ID.ending ikind Z.zero) full

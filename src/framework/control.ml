@@ -20,6 +20,7 @@ let spec_module: (module Spec) Lazy.t = lazy (
   GobConfig.building_spec := true;
   let arg_enabled = get_bool "exp.arg.enabled" in
   let termination_enabled = List.mem "termination" (get_string_list "ana.activated") in (* check if loop termination analysis is enabled*)
+  let hashcons_enabled = get_bool "ana.opt.hashcons" in
   (* apply functor F on module X if opt is true *)
   let lift opt (module F : S2S) (module X : Spec) = (module (val if opt then (module F (X)) else (module X) : Spec) : Spec) in
   let module S1 =
@@ -29,7 +30,7 @@ let spec_module: (module Spec) Lazy.t = lazy (
       |> lift true (module WidenContextLifterSide) (* option checked in functor *)
       |> lift (get_int "ana.widen.delay.local" > 0) (module WideningDelay.DLifter)
       (* hashcons before witness to reduce duplicates, because witness re-uses contexts in domain and requires tag for PathSensitive3 *)
-      |> lift (get_bool "ana.opt.hashcons" || arg_enabled) (module HashconsContextLifter)
+      |> lift (hashcons_enabled || arg_enabled) (module HashconsContextLifter)
       |> lift (get_bool "ana.opt.hashcached") (module HashCachedContextLifter)
       |> lift arg_enabled (module HashconsLifter)
       |> lift arg_enabled (module ArgConstraints.PathSensitive3)
@@ -37,8 +38,8 @@ let spec_module: (module Spec) Lazy.t = lazy (
       |> lift (get_bool "ana.dead-code.branches") (module DeadBranchLifter)
       |> lift true (module DeadCodeLifter)
       |> lift (get_bool "dbg.slice.on") (module LevelSliceLifter)
-      |> lift (get_bool "ana.opt.equal" && not (get_bool "ana.opt.hashcons")) (module OptEqual)
-      |> lift (get_bool "ana.opt.hashcons") (module HashconsLifter)
+      |> lift (get_bool "ana.opt.equal" && not hashcons_enabled) (module OptEqual)
+      |> lift hashcons_enabled (module HashconsLifter)
       (* Widening tokens must be outside of hashcons, because widening token domain ignores token sets for identity, so hashcons doesn't allow adding tokens.
          Also must be outside of deadcode, because deadcode splits (like mutex lock event) don't pass on tokens. *)
       |> lift (get_bool "ana.widen.tokens") (module WideningTokenLifter.Lifter)
@@ -274,7 +275,8 @@ struct
         | {vname = "getdate_err"; _} (* unix time.h, but somehow always in MacOS even without include *)
         | {vname = ("stdin" | "stdout" | "stderr"); _} (* standard stdio.h *)
         | {vname = ("optarg" | "optind" | "opterr" | "optopt" ); _} (* unix unistd.h *)
-        | {vname = ("__environ"); _} -> (* Linux Standard Base Core Specification *)
+        | {vname = ("__environ"); _} (* Linux Standard Base Core Specification *)
+        | {vname = ("__mb_cur_max"); _} -> (* MacOS stdlib.h *)
           true
         | _ -> false
       in
@@ -859,7 +861,7 @@ let rec analyze_loop (module CFG : CfgBidirSkip) file fs change_info =
         Whoever raised the exception should've modified some global state
         to do a more precise analysis next time. *)
     (* TODO: do some more incremental refinement and reuse parts of solution *)
-    analyze_loop (module CFG) file fs change_info
+    analyze_loop (module CFG: CfgBidirSkip) file fs change_info (* explicit module type needed for OCaml 5.5: https://github.com/goblint/analyzer/issues/2006 *)
 
 (** The main function to perform the selected analyses. *)
 let analyze change_info (file: file) fs =

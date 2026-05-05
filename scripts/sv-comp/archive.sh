@@ -2,6 +2,8 @@
 
 # must have goblint checked out into goblint not analyzer directory
 
+set -e # Make script fail if any command fails.
+
 make clean
 
 eval $(opam env)
@@ -26,7 +28,7 @@ cp -r scripts/sv-comp/smoketests .
 # done outside to ensure archive contains goblint/ directory
 cd ..
 
-rm goblint/scripts/sv-comp/goblint.zip
+rm -f goblint/scripts/sv-comp/goblint.zip
 
 zip -r goblint/scripts/sv-comp/goblint.zip \
     goblint/goblint \

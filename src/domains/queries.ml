@@ -89,13 +89,13 @@ type _ t =
   | ReachableFrom: exp -> AD.t t
   | ReachableUkTypes: exp -> TS.t t
   | Regions: exp -> LS.t t
-  | MayEscape: varinfo -> MayBool.t t
+  | MayEscape: varinfo -> MayBool.t t (** Use via {!ThreadEscape.has_escaped}. *)
   | MayBePublic: maybepublic -> MayBool.t t (* old behavior with write=false *)
   | MayBePublicWithout: maybepublicwithout -> MayBool.t t
   | MustBeProtectedBy: mustbeprotectedby -> MustBool.t t
   | MustLockset: LockDomain.MustLockset.t t
   | MustBeAtomic: MustBool.t t
-  | MustBeSingleThreaded: {since_start: bool} -> MustBool.t t
+  | MustBeSingleThreaded: {since_start: bool} -> MustBool.t t (** Use via {!ThreadFlag.is_currently_multi} and {!ThreadFlag.has_ever_been_multi}. *)
   | MustBeUniqueThread: MustBool.t t
   | CurrentThreadId: ThreadIdDomain.ThreadLifted.t t
   | ThreadCreateIndexedNode: ThreadNodeLattice.t t
@@ -130,7 +130,7 @@ type _ t =
   | ActiveJumpBuf: JmpBufDomain.ActiveLongjmps.t t
   | ValidLongJmp: JmpBufDomain.JmpBufSet.t t
   | CreatedThreads: ConcDomain.ThreadSet.t t
-  | MustJoinedThreads: ConcDomain.MustThreadSet.t t
+  | MustJoinedThreads: ConcDomain.FiniteMustThreadSet.t t
   | ThreadsJoinedCleanly: MustBool.t t
   | MustProtectedVars: mustprotectedvars -> VS.t t
   | MustProtectingLocks: mustprotectinglocks -> LockDomain.MustLockset.t t
@@ -208,7 +208,7 @@ struct
     | ActiveJumpBuf -> (module JmpBufDomain.ActiveLongjmps)
     | ValidLongJmp ->  (module JmpBufDomain.JmpBufSet)
     | CreatedThreads ->  (module ConcDomain.ThreadSet)
-    | MustJoinedThreads -> (module ConcDomain.MustThreadSet)
+    | MustJoinedThreads -> (module ConcDomain.FiniteMustThreadSet)
     | ThreadsJoinedCleanly -> (module MustBool)
     | MustProtectedVars _ -> (module VS)
     | MustProtectingLocks _ -> (module LockDomain.MustLockset)
@@ -285,7 +285,7 @@ struct
     | ActiveJumpBuf -> JmpBufDomain.ActiveLongjmps.top ()
     | ValidLongJmp -> JmpBufDomain.JmpBufSet.top ()
     | CreatedThreads -> ConcDomain.ThreadSet.top ()
-    | MustJoinedThreads -> ConcDomain.MustThreadSet.top ()
+    | MustJoinedThreads -> ConcDomain.FiniteMustThreadSet.top ()
     | ThreadsJoinedCleanly -> MustBool.top ()
     | MustProtectedVars _ -> VS.top ()
     | MustProtectingLocks _ -> LockDomain.MustLockset.top ()

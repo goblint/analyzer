@@ -102,7 +102,7 @@ struct
 
   let sync (ask: Q.ask) getg sideg (st: relation_components_t) reason =
     let branched_sync () =
-      if ask.f (Q.MustBeSingleThreaded {since_start = true}) then
+      if not (ThreadFlag.has_ever_been_multi ask) then
         st
       else
         (* must be like enter_multithreaded *)
@@ -351,7 +351,7 @@ struct
 
   let sync (ask:Q.ask) getg sideg (st: relation_components_t) reason =
     let branched_sync () =
-      if ask.f (Q.MustBeSingleThreaded { since_start= true }) then
+      if not (ThreadFlag.has_ever_been_multi ask) then
         st
       else
         (* must be like enter_multithreaded *)
@@ -647,7 +647,7 @@ struct
 
   let sync (ask:Q.ask) getg sideg (st: relation_components_t) reason =
     let branched_sync () =
-      if ask.f (Q.MustBeSingleThreaded {since_start = true}) then
+      if not (ThreadFlag.has_ever_been_multi ask) then
         st
       else
         let rel = st.rel in
@@ -1242,7 +1242,7 @@ struct
       )
       else (
         (* fold throws if the thread set is top *)
-        let tids' = ConcDomain.ThreadSet.diff tids (ask.f Q.MustJoinedThreads) in (* avoid unnecessary imprecision by force joining already must-joined threads, e.g. 46-apron2/04-other-assume-inprec *)
+        let tids' = ConcDomain.ThreadSet.diff_mustset tids (ask.f Q.MustJoinedThreads) in (* avoid unnecessary imprecision by force joining already must-joined threads, e.g. 46-apron2/04-other-assume-inprec *)
         let (lmust', l') = ConcDomain.ThreadSet.fold (fun tid (lmust, l) ->
             let lmust',l' = G.thread (getg (V.thread tid)) in
             (LMust.union lmust' lmust, L.join l l')
@@ -1272,7 +1272,7 @@ struct
 
   let sync (ask:Q.ask) getg sideg (st: relation_components_t) reason =
     let branched_sync () =
-      if ask.f (Q.MustBeSingleThreaded {since_start = true}) then
+      if not (ThreadFlag.has_ever_been_multi ask) then
         st
       else
         let rel = st.rel in

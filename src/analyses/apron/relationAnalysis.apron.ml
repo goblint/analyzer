@@ -431,6 +431,10 @@ struct
     in
     let unify_rel = RD.unify new_rel new_fun_rel in (* TODO: unify_with *)
     if M.tracing then M.tracel "combine-rel" "relation unifying %a %a = %a" RD.pretty new_rel RD.pretty new_fun_rel RD.pretty unify_rel;
+    if RD.is_bot_env unify_rel then begin
+      if M.tracing then M.tracel "combine-rel" "raising Deadcode after bottom unify";
+      raise Deadcode
+    end;
     {fun_st with rel = unify_rel}
 
   let combine_assign man r fe f args fc fun_st (f_ask : Queries.ask) =

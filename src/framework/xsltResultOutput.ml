@@ -182,7 +182,7 @@ struct
     iter (fun n v ->
         write_node ~nodes_dir n v;
         let loc = UpdateCil.getLoc n in (* from printXml_node *)
-        let line2nodes = SH.find_or_add_default_delayed file2line2nodes loc.file ~default:(fun () -> IH.create 100) in
+        let line2nodes = SH.find_or_add_default_delayed file2line2nodes loc.file ~default:(fun _ -> IH.create 100) in
         IH.add line2nodes loc.line n
       ) (Lazy.force table);
     file2line2nodes
@@ -207,7 +207,7 @@ struct
         in
         List.iter (fun (loc: Messages.Location.t) ->
             let loc = Messages.Location.to_cil loc in
-            let line2warns = SH.find_or_add_default_delayed file2line2warns loc.file ~default:(fun () -> IH.create 100) in
+            let line2warns = SH.find_or_add_default_delayed file2line2warns loc.file ~default:(fun _ -> IH.create 100) in
             IH.add line2warns loc.line (i + 1)
           ) (List.filter_map Fun.id locs)
       ) !Messages.Table.messages_list;

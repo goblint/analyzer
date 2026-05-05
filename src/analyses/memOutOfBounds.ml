@@ -149,8 +149,7 @@ struct
     match offs with
     | `NoOffset -> intdom_of_int 0
     | `Field (field, o) ->
-      let field_as_offset = Field (field, NoOffset) in
-      let bytes_offset = Cilfacade.bytesOffsetOnly (TComp (field.fcomp, [])) field_as_offset in
+      let bytes_offset = Cilfacade.fieldBytesOffsetOnly field in
       let bytes_offset = intdom_of_int bytes_offset in
       let remaining_offset = offs_to_idx field.ftype o in
       begin
@@ -295,12 +294,12 @@ struct
               let one = intdom_of_int 1 in
               let casted_es = ID.sub casted_es one in
               begin try ID.lt casted_es casted_offs
-                with IntDomain.ArithmeticOnIntegerBot _ -> ID.bot_of @@ Cilfacade.ptrdiff_ikind ()
+                with IntDomain.ArithmeticOnIntegerBot _ -> None
               end
             in
             let behavior = Undefined MemoryOutOfBoundsAccess in
             let cwe_number = 823 in
-            begin match ID.to_bool ptr_size_lt_offs with
+            begin match ptr_size_lt_offs with
               | Some true ->
                 (set_mem_safety_flag InvalidDeref;
                  M.warn ~category:(Behavior behavior) ~tags:[CWE cwe_number] "Size of lval dereference expression is %a (in bytes). It is offset by %a (in bytes). Memory out-of-bounds access must occur" ID.pretty casted_es ID.pretty casted_offs);
@@ -345,7 +344,7 @@ struct
           let casted_ps = ID.cast_to ~kind:Internal (Cilfacade.ptrdiff_ikind ()) ps in (* TODO: proper castkind *)
           let casted_ao = ID.cast_to ~kind:Internal (Cilfacade.ptrdiff_ikind ()) ao in (* TODO: proper castkind *)
           let ptr_size_lt_offs = ID.lt casted_ps casted_ao in
-          begin match ID.to_bool ptr_size_lt_offs with
+          begin match ptr_size_lt_offs with
             | Some true ->
               set_mem_safety_flag InvalidDeref;
               M.warn ~category:(Behavior behavior) ~tags:[CWE cwe_number] "Size of pointer is %a (in bytes). It is offset by %a (in bytes) due to pointer arithmetic. Memory out-of-bounds access must occur" ID.pretty casted_ps ID.pretty casted_ao;
@@ -433,7 +432,7 @@ struct
               let casted_ps = ID.cast_to ~kind:Internal (Cilfacade.ptrdiff_ikind ()) ps in (* TODO: proper castkind *)
               let casted_o = ID.cast_to ~kind:Internal (Cilfacade.ptrdiff_ikind ()) o in (* TODO: proper castkind *)
               let ptr_size_lt_offs = ID.lt casted_ps casted_o in
-              begin match ID.to_bool ptr_size_lt_offs with
+              begin match ptr_size_lt_offs with
                 | Some true ->
                   set_mem_safety_flag InvalidDeref;
                   M.warn ~category:(Behavior behavior) ~tags:[CWE cwe_number] "Size of pointer in expression %a is %a (in bytes). It is offset by %a (in bytes). Memory out-of-bounds access must occur" d_exp binopexp ID.pretty casted_ps ID.pretty casted_o;
@@ -479,7 +478,7 @@ struct
       let casted_en = ID.cast_to ~kind:Internal (Cilfacade.ptrdiff_ikind ()) en in (* TODO: proper castkind *)
       let casted_ao = ID.cast_to ~kind:Internal (Cilfacade.ptrdiff_ikind ()) addr_offs in (* TODO: proper castkind *)
       let dest_size_lt_count = ID.lt casted_ds (ID.add casted_en casted_ao) in
-      begin match ID.to_bool dest_size_lt_count with
+      begin match dest_size_lt_count with
         | Some true ->
           set_mem_safety_flag InvalidDeref;
           M.warn ~category:(Behavior behavior) ~tags:[CWE cwe_number] "Size of %a in function %s is %a (in bytes) with an address offset of %a (in bytes). Count is %a (in bytes). Memory out-of-bounds access must occur" d_exp ptr fun_name ID.pretty casted_ds ID.pretty casted_ao ID.pretty casted_en;
