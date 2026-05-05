@@ -1,4 +1,6 @@
 // PARAM: --set ana.activated[+] threadJoins --set ana.activated[+] threadDescendants --set ana.activated[+] mustlockHistory --set ana.activated[+] descendantLockset
+extern int __VERIFIER_nondet_int();
+
 #include <pthread.h>
 
 int global = 0;
@@ -15,7 +17,7 @@ void *t1(void *arg) {
 
 int main(void) {
   pthread_mutex_lock(&mutex);
-  int maybe;
+  int maybe = __VERIFIER_nondet_int();
   if (maybe) {
     pthread_create(&id1, NULL, t1, NULL);
   }
