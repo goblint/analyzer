@@ -353,7 +353,10 @@ struct
             try ID.lt casted_ao (intdom_of_int 0)
             with IntDomain.ArithmeticOnIntegerBot _ -> None
           in
-          let ptr_size_lt_offs = ID.lt casted_ps casted_ao in
+          let ptr_size_lt_offs = 
+            try ID.lt casted_ps casted_ao
+            with IntDomain.ArithmeticOnIntegerBot _ -> None
+          in
           begin match offs_lt_zero, ptr_size_lt_offs with
             | Some true, _
             | _, Some true ->
@@ -446,7 +449,10 @@ struct
                 try ID.lt casted_o (intdom_of_int 0)
                 with IntDomain.ArithmeticOnIntegerBot _ -> None
               in
-              let ptr_size_lt_offs = ID.lt casted_ps casted_o in
+              let ptr_size_lt_offs =
+                try ID.lt casted_ps casted_o
+                with IntDomain.ArithmeticOnIntegerBot _ -> None
+              in
               begin match offs_lt_zero, ptr_size_lt_offs with
                 | Some true, _
                 | _, Some true ->
