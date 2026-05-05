@@ -3,7 +3,7 @@
 
     Enabling [creationLockset] may improve the precision of this analysis.
 
-    @see https://github.com/goblint/analyzer/pull/1923
+    @see Bachelor's Thesis "Leveraging th Potential of Inter-Threaded Locksets in Abstract Interpretation". Available upon request.
 *)
 
 open Analyses
