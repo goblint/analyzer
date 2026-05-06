@@ -3,7 +3,7 @@
 
     Enabling [creationLockset] may improve the precision of this analysis.
 
-    @see Bachelor's Thesis "Leveraging th Potential of Inter-Threaded Locksets in Abstract Interpretation". Available upon request.
+    @see Daniel Bund. "Leveraging the Potential of Inter-Threaded Locksets in Abstract Interpretation", B.Sc. thesis at TUM. Available upon request.
 *)
 
 open Analyses
