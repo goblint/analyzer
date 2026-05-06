@@ -12,11 +12,11 @@ void *t1(void *arg) {
 }
 
 int main(void) {
-  for (int i = 0; i < 2; i++) {
-    if (i == 1) { 
+  for (int i = 0; i < 3; i++) {
+    if (i == 2) { 
       pthread_mutex_lock(&mutex);
     }
-    pthread_create(&id1, NULL, t1, NULL);  // Both copies receive same TID
+    pthread_create(&id1, NULL, t1, NULL); // Same TID created multiple times with different locksets
   }
 
   global++; // RACE!
