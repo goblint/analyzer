@@ -150,10 +150,11 @@ module Spec = struct
   end
 
   let access man _ =
-    let lh = man.ask Queries.MustlockHistory in
     let tid_lifted = man.ask Queries.CurrentThreadId in
     match tid_lifted with
-    | `Lifted tid -> tid, (man.local, man.global tid, lh)
+    | `Lifted tid ->
+      let lh = man.ask Queries.MustlockHistory in
+      tid, (man.local, man.global tid, lh)
     | _ -> ThreadIdDomain.UnknownThread, (D.empty (), G.empty (), Queries.LH.empty ())
 end
 
