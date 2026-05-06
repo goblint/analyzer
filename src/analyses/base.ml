@@ -613,10 +613,15 @@ struct
     | JmpBuf _ -> empty (* Jump buffers are abstract and nothing known can be reached from them *)
     | Mutex -> empty (* mutexes are abstract and nothing known can be reached from them *)
 
+  let reachable_from_value ask (value: value) (t: typ) (description: string) =
+    let@ () = GobRef.wrap AnalysisState.executing_speculative_computations true in
+    reachable_from_value ask value t description
+
   (* Get the list of addresses accessible immediately from a given address, thus
    * all pointers within a structure should be considered, but we don't follow
    * pointers. We return a flattend representation, thus simply an address (set). *)
   let reachable_from_addr ~man st (addr: Addr.t): address =
+    let@ () = GobRef.wrap AnalysisState.executing_speculative_computations true in
     if M.tracing then M.tracei "reachability" "Checking for %a" Addr.pretty addr;
     let res = reachable_from_value (Analyses.ask_of_man man) (get_addr ~man st addr None) (Addr.type_of addr) (Addr.show addr) in
     if M.tracing then M.traceu "reachability" "Reachable addresses: %a" AD.pretty res;
@@ -696,6 +701,7 @@ struct
 
 
   let reachable_top_pointers_types man (ps: AD.t) : Queries.TS.t =
+    let@ () = GobRef.wrap AnalysisState.executing_speculative_computations true in
     let module TS = Queries.TS in
     let empty = AD.empty () in
     let reachable_from_address (adr: address) =
