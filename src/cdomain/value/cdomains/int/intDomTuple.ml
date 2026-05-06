@@ -89,10 +89,6 @@ module IntDomTupleImpl = struct
   let create2_ovc ?(suppress_ovwarn = false) ik r x = (* use where values are introduced *)
     create2_ovc ~suppress_ovwarn ik r x (int_precision_from_node_or_config ())
 
-
-  let opt_map2 f =
-    curry @@ function Some x, Some y -> Some (f x y) | _ -> None
-
   let to_list (a,b,c,d,e,f) = List.filter_map identity [a;b;c;d;e;f] (* contains only the values of activated domains *)
   let to_list_some x = List.filter_map identity @@ to_list x (* contains only the Some-values of activated domains *)
 
@@ -210,12 +206,12 @@ module IntDomTupleImpl = struct
   let is_excl_list = exists % mapp { fp = fun (type a) (module I:SOverflow with type t = a) -> I.is_excl_list }
 
   let map2p r (xa, xb, xc, xd, xe, xf) (ya, yb, yc, yd, ye, yf) =
-    ( opt_map2 (r.f2p (module I1)) xa ya
-    , opt_map2 (r.f2p (module I2)) xb yb
-    , opt_map2 (r.f2p (module I3)) xc yc
-    , opt_map2 (r.f2p (module I4)) xd yd
-    , opt_map2 (r.f2p (module I5)) xe ye
-    , opt_map2 (r.f2p (module I6)) xf yf)
+    ( GobOption.map2 (r.f2p (module I1)) xa ya
+    , GobOption.map2 (r.f2p (module I2)) xb yb
+    , GobOption.map2 (r.f2p (module I3)) xc yc
+    , GobOption.map2 (r.f2p (module I4)) xd yd
+    , GobOption.map2 (r.f2p (module I5)) xe ye
+    , GobOption.map2 (r.f2p (module I6)) xf yf)
 
   (* f2p: binary projections *)
   let (%%) f g x = f % (g x) (* composition for binary function g *)
@@ -318,16 +314,16 @@ module IntDomTupleImpl = struct
 
   (* map2 with overflow check *)
   let map2ovc ~op ik r (xa, xb, xc, xd, xe, xf) (ya, yb, yc, yd, ye, yf) =
-    let intv = opt_map2 (r.f2_ovc (module I2)) xb yb in
-    let intv_set = opt_map2 (r.f2_ovc (module I5)) xe ye in
-    let bf = opt_map2 (r.f2_ovc (module I6)) xf yf in
+    let intv = GobOption.map2 (r.f2_ovc (module I2)) xb yb in
+    let intv_set = GobOption.map2 (r.f2_ovc (module I5)) xe ye in
+    let bf = GobOption.map2 (r.f2_ovc (module I6)) xf yf in
     let no_ov = check_ov ~op ik intv intv_set bf in
     let no_ov = no_ov || should_ignore_overflow ik in
     refine ik
-      ( opt_map2 (fun x y -> r.f2_ovc (module I1) x y |> fst) xa ya (* TODO: why isn't no_ov passed? *)
+      ( GobOption.map2 (fun x y -> r.f2_ovc (module I1) x y |> fst) xa ya (* TODO: why isn't no_ov passed? *)
       , BatOption.map fst intv
-      , opt_map2 (fun x y -> r.f2_ovc (module I3) x y |> fst) xc yc (* TODO: why isn't no_ov passed? *)
-      , opt_map2 (fun x y -> r.f2_ovc ~no_ov (module I4) x y |> fst) xd yd
+      , GobOption.map2 (fun x y -> r.f2_ovc (module I3) x y |> fst) xc yc (* TODO: why isn't no_ov passed? *)
+      , GobOption.map2 (fun x y -> r.f2_ovc ~no_ov (module I4) x y |> fst) xd yd
       , BatOption.map fst intv_set
       , BatOption.map fst bf)
 
@@ -343,12 +339,12 @@ module IntDomTupleImpl = struct
 
   let map2 ?(norefine=false) ik r (xa, xb, xc, xd, xe, xf) (ya, yb, yc, yd, ye, yf) =
     let r =
-      ( opt_map2 (r.f2 (module I1)) xa ya
-      , opt_map2 (r.f2 (module I2)) xb yb
-      , opt_map2 (r.f2 (module I3)) xc yc
-      , opt_map2 (r.f2 (module I4)) xd yd
-      , opt_map2 (r.f2 (module I5)) xe ye
-      , opt_map2 (r.f2 (module I6)) xf yf)
+      ( GobOption.map2 (r.f2 (module I1)) xa ya
+      , GobOption.map2 (r.f2 (module I2)) xb yb
+      , GobOption.map2 (r.f2 (module I3)) xc yc
+      , GobOption.map2 (r.f2 (module I4)) xd yd
+      , GobOption.map2 (r.f2 (module I5)) xe ye
+      , GobOption.map2 (r.f2 (module I6)) xf yf)
     in
     if norefine then r else refine ik r
 
