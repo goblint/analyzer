@@ -13,7 +13,7 @@ pthread_t id1;
 void *t1(void *arg) {
   pthread_mutex_lock(&mutex);
   pthread_mutex_unlock(&mutex);
-  global++;
+  global++; // RACE!
   return NULL;
 }
 
