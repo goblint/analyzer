@@ -167,7 +167,7 @@ struct
       Array (CArrays.make ~varAttr ~typAttr len (bot_value ai))
     | t when is_thread_type t -> Thread (ConcDomain.ThreadSet.empty ())
     | t when is_mutexattr_type t -> MutexAttr (MutexAttrDomain.bot ())
-    | TNamed ({ttype=t; _}, _) -> bot_value ~varAttr t
+    | TNamed ({ttype=t; _}, _) -> bot_value ~varAttr t (* TODO: Should this add attributes from TNamed to t like unrollType? *)
     | _ -> Bot
 
   let is_bot_value x =
@@ -203,7 +203,7 @@ struct
       let len = array_length_idx (IndexDomain.bot ()) length in
       Array (CArrays.make ~varAttr ~typAttr len (if can_recover_from_top then (init_value ai) else (bot_value ai)))
     (* | t when is_thread_type t -> Thread (ConcDomain.ThreadSet.empty ()) *)
-    | TNamed ({ttype=t; _}, _) -> init_value ~varAttr t
+    | TNamed ({ttype=t; _}, _) -> init_value ~varAttr t (* TODO: Should this add attributes from TNamed to t like unrollType? *)
     | _ -> Top
 
   let rec top_value ?(varAttr=[]) (t: typ): t =
@@ -221,7 +221,7 @@ struct
       let typAttr = typeAttrs ai in
       let len = array_length_idx (IndexDomain.top ()) length in
       Array (CArrays.make ~varAttr ~typAttr len (top_value ai))
-    | TNamed ({ttype=t; _}, _) -> top_value ~varAttr t
+    | TNamed ({ttype=t; _}, _) -> top_value ~varAttr t (* TODO: Should this add attributes from TNamed to t like unrollType? *)
     | _ -> Top
 
   let is_top_value x (t: typ) =
@@ -265,7 +265,7 @@ struct
       let len = array_length_idx (IndexDomain.top ()) length in
       Array (CArrays.make ~varAttr ~typAttr len (zero_init_value ai))
     (* | t when is_thread_type t -> Thread (ConcDomain.ThreadSet.empty ()) *)
-    | TNamed ({ttype=t; _}, _) -> zero_init_value ~varAttr t
+    | TNamed ({ttype=t; _}, _) -> zero_init_value ~varAttr t (* TODO: Should this add attributes from TNamed to t like unrollType? *)
     | _ -> Top
 
   let show_tag : t -> string = function
