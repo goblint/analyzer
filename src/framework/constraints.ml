@@ -135,11 +135,6 @@ struct
       in
       bigsqcup (List.map one_spawn spawns)
 
-  let common_join man d splits spawns =
-    thread_spawns man (bigsqcup (d :: splits)) spawns
-
-  let common_joins man ds splits spawns = common_join man (bigsqcup ds) splits spawns
-
   let man_with_local (man: (D.t, S.G.t, S.C.t, S.V.t) man) (local: D.t) : (D.t, S.G.t, S.C.t, S.V.t) man =
     let rec man' =
       { man with
@@ -149,39 +144,49 @@ struct
     in
     man'
 
+  let paths_with_splits r f =
+    let ds =
+      try
+        let d = f () in
+        d :: !r
+      with Deadcode ->
+        !r
+    in
+    r := [];
+    ds
+
+  let sync_with_splits man r d =
+    paths_with_splits r (fun () -> sync (man_with_local man d))
+
+  let common_join man r d splits spawns =
+    let d = thread_spawns man (bigsqcup (d :: splits)) spawns in
+    bigsqcup (sync_with_splits man r d)
+
+  let common_joins man r ds splits spawns = common_join man r (bigsqcup ds) splits spawns
+
   let transfer_on_synced_splits man r (f: (D.t, S.G.t, S.C.t, S.V.t) man -> D.t) =
     let sync_splits = !r in
     r := [];
-    let d = f man in
-    let ds =
-      List.filter_map (fun split_d ->
-          try Some (f (man_with_local man split_d))
-          with Deadcode -> None
-        ) sync_splits
-    in
-    d :: ds
+    List.concat_map
+      (fun local -> paths_with_splits r (fun () -> f (man_with_local man local)))
+      (man.local :: sync_splits)
 
   let transfer_on_synced_splits_with_local_fallback man r (f: (D.t, S.G.t, S.C.t, S.V.t) man -> D.t -> D.t) fallback =
     let sync_splits = !r in
     r := [];
-    let d = f man fallback in
-    let ds =
-      List.filter_map (fun split_d ->
-          try Some (f (man_with_local man split_d) split_d)
-          with Deadcode -> None
-        ) sync_splits
-    in
-    d :: ds
+    List.concat_map
+      (fun (local, fallback) -> paths_with_splits r (fun () -> f (man_with_local man local) fallback))
+      ((man.local, fallback) :: List.map (fun split_d -> (split_d, split_d)) sync_splits)
 
   let tf_assign var edge prev_node lv e getl sidel demandl getg sideg d =
     let man, r, spawns = common_man var edge prev_node d getl sidel demandl getg sideg in
     let ds = transfer_on_synced_splits man r (fun man -> S.assign man lv e) in (* Force transfer function to be evaluated before dereferencing in common_join argument. *)
-    common_joins man ds !r !spawns
+    common_joins man r ds !r !spawns
 
   let tf_vdecl var edge prev_node v getl sidel demandl getg sideg d =
     let man, r, spawns = common_man var edge prev_node d getl sidel demandl getg sideg in
     let ds = transfer_on_synced_splits man r (fun man -> S.vdecl man v) in (* Force transfer function to be evaluated before dereferencing in common_join argument. *)
-    common_joins man ds !r !spawns
+    common_joins man r ds !r !spawns
 
   let normal_return r fd man sideg =
     let spawning_return = S.return man r fd in
@@ -204,7 +209,7 @@ struct
       else normal_return ret fd man sideg
     in
     let ds = transfer_on_synced_splits man r tf in
-    common_joins man ds !r !spawns
+    common_joins man r ds !r !spawns
 
   let tf_entry var edge prev_node fd getl sidel demandl getg sideg d =
     (* Side effect function context here instead of at sidel to FunctionEntry,
@@ -213,12 +218,12 @@ struct
     side_context sideg fd (c ());
     let man, r, spawns = common_man var edge prev_node d getl sidel demandl getg sideg in
     let ds = transfer_on_synced_splits man r (fun man -> S.body man fd) in (* Force transfer function to be evaluated before dereferencing in common_join argument. *)
-    common_joins man ds !r !spawns
+    common_joins man r ds !r !spawns
 
   let tf_test var edge prev_node e tv getl sidel demandl getg sideg d =
     let man, r, spawns = common_man var edge prev_node d getl sidel demandl getg sideg in
     let ds = transfer_on_synced_splits man r (fun man -> S.branch man e tv) in (* Force transfer function to be evaluated before dereferencing in common_join argument. *)
-    common_joins man ds !r !spawns
+    common_joins man r ds !r !spawns
 
   let tf_normal_call man lv e (f:fundec) args getl sidel demandl getg sideg =
     let combine (cd, fc, fd) =
@@ -366,17 +371,17 @@ struct
         bigsqcup funs
     in
     let ds = transfer_on_synced_splits_with_local_fallback man r one_man d in
-    common_joins man ds !r !spawns
+    common_joins man r ds !r !spawns
 
   let tf_asm var edge prev_node getl sidel demandl getg sideg d =
     let man, r, spawns = common_man var edge prev_node d getl sidel demandl getg sideg in
     let ds = transfer_on_synced_splits man r (fun man -> S.asm man) in (* Force transfer function to be evaluated before dereferencing in common_join argument. *)
-    common_joins man ds !r !spawns
+    common_joins man r ds !r !spawns
 
   let tf_skip var edge prev_node getl sidel demandl getg sideg d =
     let man, r, spawns = common_man var edge prev_node d getl sidel demandl getg sideg in
     let ds = transfer_on_synced_splits man r (fun man -> S.skip man) in (* Force transfer function to be evaluated before dereferencing in common_join argument. *)
-    common_joins man ds !r !spawns
+    common_joins man r ds !r !spawns
 
   let tf var getl sidel demandl getg sideg prev_node edge d =
     begin match edge with
