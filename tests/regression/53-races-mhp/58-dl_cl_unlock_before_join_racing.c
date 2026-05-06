@@ -7,13 +7,13 @@ pthread_t id1, id2;
 
 void *t1(void *arg) {
   pthread_mutex_lock(&mutex);
-  // everything from here must happen after unlock in main
+  // everything from here must happen after unlock in main. Doesn't help here, though.
   pthread_mutex_unlock(&mutex);
   global++; // RACE!
   return NULL;
 }
 
-void *t2(void *arg) { // t2 is joined into main before unlock happens
+void *t2(void *arg) { // t2 is joined into main after unlock happens!
   global++; // RACE!
   return NULL;
 }
