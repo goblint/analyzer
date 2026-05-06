@@ -1,4 +1,4 @@
-// PARAM: --set ana.activated[+] threadJoins --set ana.activated[+] threadDescendants --set ana.activated[+] creationLockset
+// PARAM: --set ana.activated[+] threadJoins --set ana.activated[+] threadDescendants --set ana.activated[+] creationLockset --enable ana.sv-comp.functions
 extern int __VERIFIER_nondet_int();
 
 #include <pthread.h>

@@ -1,4 +1,4 @@
-// PARAM: --set ana.activated[+] threadJoins --set ana.activated[+] threadDescendants --set ana.activated[+] mustlockHistory --set ana.activated[+] descendantLockset --disable ana.thread.include-node
+// PARAM: --set ana.activated[+] threadJoins --set ana.activated[+] threadDescendants --set ana.activated[+] mustlockHistory --set ana.activated[+] descendantLockset --disable ana.thread.include-node --enable ana.sv-comp.functions
 extern int __VERIFIER_nondet_int();
 
 #include <pthread.h>
