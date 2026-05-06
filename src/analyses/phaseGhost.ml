@@ -22,6 +22,8 @@ module Spec =
 struct
   include IdentitySpec
 
+  (* TODO: Do we allow multiple ghosts per thread? *)
+
   let name () = "phaseGhost"
 
   module D = MapDomain.MapBot (Basetype.Variables) (Const)
