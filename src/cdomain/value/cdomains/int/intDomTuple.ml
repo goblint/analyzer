@@ -43,10 +43,10 @@ module IntDomTupleImpl = struct
 
   type 'b poly_pr  = { fp  : 'a. 'a m -> 'a -> 'b } [@@unboxed] (* project *)
   type 'b poly_pr2  = { fp2  : 'a. 'a m2 -> 'a -> 'b } [@@unboxed] (* project for functions that depend on int_t *)
-  type 'b poly2_pr = {f2p: 'a. 'a m -> ?no_ov:bool -> 'a -> 'a -> 'b} [@@unboxed]
+  type 'b poly2_pr = {f2p: 'a. 'a m -> 'a -> 'a -> 'b} [@@unboxed]
   type poly1 = {f1: 'a. 'a m -> 'a -> 'a} [@@unboxed] (* needed b/c above 'b must be different from 'a *)
   type poly1_ovc = {f1_ovc: 'a. 'a m -> ?no_ov:bool -> 'a -> 'a * overflow_info } [@@unboxed] (* needed b/c above 'b must be different from 'a *)
-  type poly2 = {f2: 'a. 'a m -> ?no_ov:bool -> 'a -> 'a -> 'a} [@@unboxed]
+  type poly2 = {f2: 'a. 'a m -> 'a -> 'a -> 'a} [@@unboxed]
   type poly2_ovc = {f2_ovc: 'a. 'a m -> ?no_ov:bool -> 'a -> 'a -> 'a * overflow_info } [@@unboxed]
   type 'b poly3 = { f3: 'a. 'a m -> 'a option } [@@unboxed] (* used for projection to given precision *)
   let create r x ((p1, p2, p3, p4, p5, p6): int_precision) =
@@ -90,8 +90,8 @@ module IntDomTupleImpl = struct
     create2_ovc ~suppress_ovwarn ik r x (int_precision_from_node_or_config ())
 
 
-  let opt_map2 f ?no_ov =
-    curry @@ function Some x, Some y -> Some (f ?no_ov x y) | _ -> None
+  let opt_map2 f =
+    curry @@ function Some x, Some y -> Some (f x y) | _ -> None
 
   let to_list (a,b,c,d,e,f) = List.filter_map identity [a;b;c;d;e;f] (* contains only the values of activated domains *)
   let to_list_some x = List.filter_map identity @@ to_list x (* contains only the Some-values of activated domains *)
@@ -222,7 +222,7 @@ module IntDomTupleImpl = struct
 
   let leq =
     for_all
-    %% map2p {f2p= (fun (type a) (module I : SOverflow with type t = a) ?no_ov -> I.leq)}
+    %% map2p {f2p= (fun (type a) (module I : SOverflow with type t = a) -> I.leq)}
 
   let flat f x = match to_list_some x with [] -> None | xs -> Some (f xs)
 
@@ -324,10 +324,10 @@ module IntDomTupleImpl = struct
     let no_ov = check_ov ~op ik intv intv_set bf in
     let no_ov = no_ov || should_ignore_overflow ik in
     refine ik
-      ( opt_map2 (fun ?no_ov x y -> r.f2_ovc ?no_ov (module I1) x y |> fst) xa ya
+      ( opt_map2 (fun x y -> r.f2_ovc (module I1) x y |> fst) xa ya (* TODO: why isn't no_ov passed? *)
       , BatOption.map fst intv
-      , opt_map2 (fun ?no_ov x y -> r.f2_ovc ?no_ov (module I3) x y |> fst) xc yc
-      , opt_map2 (fun ?no_ov x y -> r.f2_ovc ?no_ov (module I4) x y |> fst) ~no_ov:no_ov xd yd
+      , opt_map2 (fun x y -> r.f2_ovc (module I3) x y |> fst) xc yc (* TODO: why isn't no_ov passed? *)
+      , opt_map2 (fun x y -> r.f2_ovc ~no_ov (module I4) x y |> fst) xd yd
       , BatOption.map fst intv_set
       , BatOption.map fst bf)
 
@@ -419,16 +419,16 @@ module IntDomTupleImpl = struct
 
   (* f2: binary ops *)
   let join ik =
-    map2 ~norefine:true ik {f2= (fun (type a) (module I : SOverflow with type t = a) ?no_ov -> I.join ik)}
+    map2 ~norefine:true ik {f2= (fun (type a) (module I : SOverflow with type t = a) -> I.join ik)}
 
   let meet ik =
-    map2 ik {f2= (fun (type a) (module I : SOverflow with type t = a) ?no_ov -> I.meet ik)}
+    map2 ik {f2= (fun (type a) (module I : SOverflow with type t = a) -> I.meet ik)}
 
   let widen ik =
-    map2 ~norefine:true ik {f2= (fun (type a) (module I : SOverflow with type t = a) ?no_ov -> I.widen ik)}
+    map2 ~norefine:true ik {f2= (fun (type a) (module I : SOverflow with type t = a) -> I.widen ik)}
 
   let narrow ik =
-    map2 ik {f2= (fun (type a) (module I : SOverflow with type t = a) ?no_ov -> I.narrow ik)}
+    map2 ik {f2= (fun (type a) (module I : SOverflow with type t = a) -> I.narrow ik)}
 
   let add ?no_ov ik =
     map2ovc ~op:(Binop PlusA) ik
@@ -455,31 +455,31 @@ module IntDomTupleImpl = struct
          )}
 
   let lt ik =
-    map2bool ik {f2p= (fun (type a) (module I : SOverflow with type t = a) ?no_ov -> I.lt ik)}
+    map2bool ik {f2p= (fun (type a) (module I : SOverflow with type t = a) -> I.lt ik)}
 
   let gt ik =
-    map2bool ik {f2p= (fun (type a) (module I : SOverflow with type t = a) ?no_ov -> I.gt ik)}
+    map2bool ik {f2p= (fun (type a) (module I : SOverflow with type t = a) -> I.gt ik)}
 
   let le ik =
-    map2bool ik {f2p= (fun (type a) (module I : SOverflow with type t = a) ?no_ov -> I.le ik)}
+    map2bool ik {f2p= (fun (type a) (module I : SOverflow with type t = a) -> I.le ik)}
 
   let ge ik =
-    map2bool ik {f2p= (fun (type a) (module I : SOverflow with type t = a) ?no_ov -> I.ge ik)}
+    map2bool ik {f2p= (fun (type a) (module I : SOverflow with type t = a) -> I.ge ik)}
 
   let eq ik =
-    map2bool ik {f2p= (fun (type a) (module I : SOverflow with type t = a) ?no_ov -> I.eq ik)}
+    map2bool ik {f2p= (fun (type a) (module I : SOverflow with type t = a) -> I.eq ik)}
 
   let ne ik =
-    map2bool ik {f2p= (fun (type a) (module I : SOverflow with type t = a) ?no_ov -> I.ne ik)}
+    map2bool ik {f2p= (fun (type a) (module I : SOverflow with type t = a) -> I.ne ik)}
 
   let logand ik =
-    map2 ik {f2= (fun (type a) (module I : SOverflow with type t = a) ?no_ov -> I.logand ik)}
+    map2 ik {f2= (fun (type a) (module I : SOverflow with type t = a) -> I.logand ik)}
 
   let logor ik =
-    map2 ik {f2= (fun (type a) (module I : SOverflow with type t = a) ?no_ov -> I.logor ik)}
+    map2 ik {f2= (fun (type a) (module I : SOverflow with type t = a) -> I.logor ik)}
 
   let logxor ik =
-    map2 ik {f2= (fun (type a) (module I : SOverflow with type t = a) ?no_ov -> I.logxor ik)}
+    map2 ik {f2= (fun (type a) (module I : SOverflow with type t = a) -> I.logxor ik)}
 
   let shift_left ik =
     map2ovc ~op:(Binop Shiftlt) ik {f2_ovc= (fun (type a) (module I : SOverflow with type t = a) ?no_ov -> I.shift_left ik)}
