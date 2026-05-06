@@ -298,17 +298,16 @@ module IntDomTupleImpl = struct
 
   (* map with overflow check *)
   let mapovc ?(suppress_ovwarn=false) ~op ik r (a, b, c, d, e, f) =
-    let map f ?no_ov = function Some x -> Some (f ?no_ov x) | _ -> None  in
-    let intv = map (r.f1_ovc (module I2)) b in
-    let intv_set = map (r.f1_ovc (module I5)) e in
-    let bf = map (r.f1_ovc (module I6)) f in
+    let intv = BatOption.map (r.f1_ovc (module I2)) b in
+    let intv_set = BatOption.map (r.f1_ovc (module I5)) e in
+    let bf = BatOption.map (r.f1_ovc (module I6)) f in
     let no_ov = check_ov ~suppress_ovwarn ~op ik intv intv_set bf in
     let no_ov = no_ov || should_ignore_overflow ik in
     refine ik
-      ( map (fun ?no_ov x -> r.f1_ovc ?no_ov (module I1) x |> fst) a
+      ( BatOption.map (fun x -> r.f1_ovc (module I1) x |> fst) a (* TODO: why isn't no_ov passed? *)
       , BatOption.map fst intv
-      , map (fun ?no_ov x -> r.f1_ovc ?no_ov (module I3) x |> fst) c
-      , map (fun ?no_ov x -> r.f1_ovc ?no_ov (module I4) x |> fst) ~no_ov d
+      , BatOption.map (fun x -> r.f1_ovc (module I3) x |> fst) c (* TODO: why isn't no_ov passed? *)
+      , BatOption.map (fun x -> r.f1_ovc ~no_ov (module I4) x |> fst) d
       , BatOption.map fst intv_set
       , BatOption.map fst bf)
 
