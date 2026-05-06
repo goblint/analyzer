@@ -29,14 +29,37 @@ struct
     include Lattice.Chain (struct let n () = 99 let names i = string_of_int(i) end)
     let name () = "ghost-max"
   end
+  module PhaseAccess =
+  struct
+    include Printable.Prod (MHP) (LockDomain.MustLockset)
+    let name () = "ghost-phase-access"
+
+    let may_happen_in_parallel (mhp, locks) (mhp', locks') =
+      MHP.may_happen_in_parallel mhp mhp' &&
+      (LockDomain.MustLockset.is_all locks ||
+       LockDomain.MustLockset.is_all locks' ||
+       LockDomain.MustLockset.disjoint locks locks')
+  end
+  module PhaseAccesses =
+  struct
+    include SetDomain.ToppedSet (PhaseAccess) (struct let topname = "All phase accesses" end)
+    let name () = "ghost-phase-accesses"
+  end
+  module PhaseChanges =
+  struct
+    include MapDomain.MapBot (Const) (PhaseAccesses)
+    let name () = "ghost-phase-changes"
+  end
   module G =
   struct
-    include Lattice.Prod (Max) (Const)
-    let max = fst
-    let const = snd
-    let create_max max = (max, Const.bot ())
-    let create_const const = (Max.bot (), const)
-    let create max const = (max, const)
+    include Lattice.Prod3 (Max) (Const) (PhaseChanges)
+    let max (max, _, _) = max
+    let const (_, const, _) = const
+    let changes (_, _, changes) = changes
+    let create_max max = (max, Const.bot (), PhaseChanges.bot ())
+    let create_const const = (Max.bot (), const, PhaseChanges.bot ())
+    let create_change phase access = (Max.bot (), Const.bot (), PhaseChanges.singleton phase (PhaseAccesses.singleton access))
+    let create max const = (max, const, PhaseChanges.bot ())
   end
 
   let initial_ghost_values () =
@@ -128,8 +151,19 @@ struct
     | _ ->
       false
 
+  let current_phase_access man =
+    (MHP.current (Analyses.ask_of_man man), man.ask Queries.MustLockset)
 
-
+  let phase_change_may_happen_in_parallel man var phase =
+    let current_access = current_phase_access man in
+    let changes = G.changes (man.global var) in
+    match PhaseChanges.find_opt (`Lifted phase) changes with
+    | None ->
+      false
+    | Some accesses ->
+      PhaseAccesses.exists (fun access ->
+          PhaseAccess.may_happen_in_parallel access current_access
+        ) accesses
 
   let sync man reason =
     (* TODO: This is only called _after_ a release-like thing, need to check if invariants placed directly after account for phase having advanced.
@@ -165,8 +199,13 @@ struct
                   Z.to_int z < max
                 | _ -> failwith "invariant"
               in
-              (* TODO: Also exploit MHP information here! *)
-              owner_possibly_started && owner_not_must_joined && below_max
+              let phase_change_may_happen =
+                match D.find var m with
+                | `Lifted z ->
+                  phase_change_may_happen_in_parallel man var (Z.succ z)
+                | _ -> failwith "invariant"
+              in
+              owner_possibly_started && owner_not_must_joined && below_max && phase_change_may_happen
           | `Lifted _, `Top -> true
           | `Top, `Lifted _
           | `Top, `Top ->
@@ -212,6 +251,7 @@ struct
             let i = Z.to_int v in
             let local = D.add var (`Lifted v) man.local in
             man.sideg var (G.create_max i);
+            man.sideg var (G.create_change (`Lifted v) (current_phase_access man));
             (* TODO: Prolong until after atomic is over? *)
             if not (D.equal man.local local) then
               man.emit (Events.PhaseChange {old_phase = `Lifted man.local; new_phase = `Lifted local});
