@@ -340,7 +340,7 @@ module Enums : S with type int_t = Z.t = struct
     | Exc (e,_) when BISet.is_empty e -> None
     | Inc zero when BISet.is_singleton zero && BISet.choose zero = Z.zero -> Some false
     | Inc xs when not (BISet.mem Z.zero xs) -> Some true
-    | Exc (xs,_) when BISet.exists ((=) Z.zero) xs -> Some true
+    | Exc (xs,_) when BISet.mem Z.zero xs -> Some true
     | _ -> None
   let to_int = function Inc x when BISet.is_singleton x -> Some (BISet.choose x) | _ -> None
 
