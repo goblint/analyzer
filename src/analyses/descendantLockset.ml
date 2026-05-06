@@ -88,12 +88,10 @@ module Spec = struct
   let event man e _ =
     match e with
     | Events.Unlock addr ->
-      let tid_lifted = man.ask Queries.CurrentThreadId in
       let lock_opt = LockDomain.MustLock.of_addr addr in
-      (match tid_lifted, lock_opt with
-       | `Lifted tid, Some lock -> unlock man lock
-       | `Lifted tid, None -> unknown_unlock man
-       | _ -> man.local)
+      (match lock_opt with
+       | Some lock -> unlock man lock
+       | None -> unknown_unlock man)
     | _ -> man.local
 
   module A = struct
