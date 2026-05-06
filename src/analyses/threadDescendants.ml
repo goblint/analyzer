@@ -15,6 +15,7 @@ let must_ancestor_descendants_closure man tid =
   let descendants = man.ask @@ Queries.DescendantThreads tid in
   let must_ancestors_descendants = TIDs.filter (TID.must_be_ancestor tid) descendants in
   TIDs.add tid must_ancestors_descendants
+
 (** compute all descendant threads that may run along with the ego thread at a program point.
     for all of them, tid must be an ancestor
     @param man man of ego thread at the program point
