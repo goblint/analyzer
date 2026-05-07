@@ -244,7 +244,7 @@ struct
       || List.mem fd.svar.vname (get_string_list "ana.context.no_fun")
     in
     if no_ctx then
-      [] (* context-insensitive: return empty context list *)
+      startcontext () (* context-insensitive: return a fixed context so all callers share one analysis node *)
     else
       filter_map (fun (n,(module S:MCPSpec),d) ->
           if Set.is_empty !act_cont_sens || not (Set.mem n !act_cont_sens) then (*n is insensitive*)
