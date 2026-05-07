@@ -56,6 +56,14 @@ struct
     try ID.add x y
     with IntDomain.ArithmeticOnIntegerBot _ -> ID.bot_of @@ Cilfacade.ptrdiff_ikind ()
 
+  let is_ptr_arith_binop = function
+    | PlusPI | MinusPI | IndexPI -> true
+    | _ -> false
+
+  let exp_is_explicit_ptr_arith = function
+    | BinOp (binop, _, _, _) -> is_ptr_arith_binop binop
+    | _ -> false
+
   let rec exp_contains_a_ptr (exp:exp) =
     match exp with
     | Const _
@@ -204,7 +212,6 @@ struct
     in
     PreValueDomain.Offs.to_index (convert_offset offs)
 
-
   let check_unknown_addr_deref man ptr =
     let may_contain_unknown_addr =
       match man.ask (Queries.EvalValue ptr) with
@@ -294,20 +301,25 @@ struct
       | (Var _, _), false -> ()
       | (Var v, _), true -> check_no_binop_deref man (Lval lval)
       | (Mem e, o), _ ->
-        let ptr_deref_type = get_ptr_deref_type @@ typeOf e in
-        let offs_intdom = begin match ptr_deref_type with
-          | Some t -> cil_offs_to_idx man t o
+        let get_lval_offset ptr_deref_type offs =
+          match ptr_deref_type with
+          | Some t -> cil_offs_to_idx man t offs
           | None -> ID.bot_of @@ Cilfacade.ptrdiff_ikind ()
-        end in
-        let offs_intdom =
-          match e with
-          | BinOp (binop, _, _, _) when binop = PlusPI || binop = MinusPI || binop = IndexPI ->
-            offs_intdom
-          | _ ->
-            let addr_offs = get_addr_offs man e in
-            let casted_addr_offs = ID.cast_to ~kind:Internal (Cilfacade.ptrdiff_ikind ()) addr_offs in (* TODO: proper castkind *)
-            add_offsets casted_addr_offs offs_intdom
         in
+        let get_stored_addr_offset e =
+          let addr_offs = get_addr_offs man e in
+          ID.cast_to ~kind:Internal (Cilfacade.ptrdiff_ikind ()) addr_offs (* TODO: proper castkind *)
+        in
+        let get_deref_offset ptr_deref_type e offs =
+          let lval_offs = get_lval_offset ptr_deref_type offs in
+          match exp_is_explicit_ptr_arith e with
+          | true -> (* Explicit pointer arithmetic is checked separately by check_binop_exp; do not add it here again. *)
+            lval_offs
+          | false ->
+            add_offsets (get_stored_addr_offset e) lval_offs
+        in
+        let ptr_deref_type = get_ptr_deref_type @@ typeOf e in
+        let offs_intdom = get_deref_offset ptr_deref_type e o in
         let e_size = get_size_of_ptr_target man e in
         begin match e_size with
           | `Top ->
