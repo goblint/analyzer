@@ -52,6 +52,10 @@ struct
     in
     offs_lt_zero offs, ptr_size_lt_offs
 
+  let add_offsets x y =
+    try ID.add x y
+    with IntDomain.ArithmeticOnIntegerBot _ -> ID.bot_of @@ Cilfacade.ptrdiff_ikind ()
+
   let rec exp_contains_a_ptr (exp:exp) =
     match exp with
     | Const _
@@ -295,6 +299,15 @@ struct
           | Some t -> cil_offs_to_idx man t o
           | None -> ID.bot_of @@ Cilfacade.ptrdiff_ikind ()
         end in
+        let offs_intdom =
+          match e with
+          | BinOp (binop, _, _, _) when binop = PlusPI || binop = MinusPI || binop = IndexPI ->
+            offs_intdom
+          | _ ->
+            let addr_offs = get_addr_offs man e in
+            let casted_addr_offs = ID.cast_to ~kind:Internal (Cilfacade.ptrdiff_ikind ()) addr_offs in (* TODO: proper castkind *)
+            add_offsets casted_addr_offs offs_intdom
+        in
         let e_size = get_size_of_ptr_target man e in
         begin match e_size with
           | `Top ->
