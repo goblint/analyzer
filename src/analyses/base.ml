@@ -227,10 +227,12 @@ struct
     (* Check the shift amount for negative values (undefined behavior in C), emitting
        appropriate warnings/errors based on bounds analysis. *)
     let check_shift_neg dir y =
-      match ID.minimal y, ID.maximal y with
-      | Some min_y, _ when Z.geq min_y Z.zero ->
+      let ik = ID.ikind y in
+      let zero = ID.of_int ik Z.zero in
+      match ID.ge y zero, ID.lt y zero with
+      | Some true, _ ->
         Checks.safe Checks.Category.InvalidShift
-      | _, Some max_y when Z.lt max_y Z.zero ->
+      | _, Some true ->
         M.error ~category:M.Category.Behavior.Undefined.other ~tags:[CWE 758] "Shift-%s by negative amount is undefined behavior" dir;
         Checks.error Checks.Category.InvalidShift "Shift-%s by negative amount is undefined behavior" dir
       | _ ->
