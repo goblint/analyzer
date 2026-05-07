@@ -4,6 +4,8 @@ open YamlWitnessStripCommon
 
 
 module InvariantKindSet = Set.Make (InvariantSet.InvariantKind)
+module GhostVariableSet = Set.Make (GhostInstrumentation.Variable)
+module GhostUpdateSet = Set.Make (GhostInstrumentation.LocationUpdate)
 
 let print_invariants invariants =
   let yaml_invariants =
@@ -12,6 +14,34 @@ let print_invariants invariants =
   in
 
   let stripped_yaml = `A yaml_invariants in
+  (* to_file/to_string uses a fixed-size buffer... *)
+  let stripped_yaml_str = match GobYaml.to_string' stripped_yaml with
+    | Ok text -> text
+    | Error (`Msg m) -> failwith ("Yaml.to_string: " ^ m)
+  in
+  Batteries.output_string Batteries.stdout stripped_yaml_str
+
+let print_ghost_variables ghost_variables =
+  let yaml_ghost_variables =
+    GhostVariableSet.elements ghost_variables
+    |> List.rev_map YamlWitnessType.GhostInstrumentation.Variable.to_yaml
+  in
+
+  let stripped_yaml = `A yaml_ghost_variables in
+  (* to_file/to_string uses a fixed-size buffer... *)
+  let stripped_yaml_str = match GobYaml.to_string' stripped_yaml with
+    | Ok text -> text
+    | Error (`Msg m) -> failwith ("Yaml.to_string: " ^ m)
+  in
+  Batteries.output_string Batteries.stdout stripped_yaml_str
+
+let print_ghost_updates ghost_updates =
+  let yaml_ghost_updates =
+    GhostUpdateSet.elements ghost_updates
+    |> List.rev_map YamlWitnessType.GhostInstrumentation.LocationUpdate.to_yaml
+  in
+
+  let stripped_yaml = `A yaml_ghost_updates in
   (* to_file/to_string uses a fixed-size buffer... *)
   let stripped_yaml_str = match GobYaml.to_string' stripped_yaml with
     | Ok text -> text
@@ -63,6 +93,33 @@ let main () =
       (left_stripped_entries, InvariantKindSet.empty, right_stripped_entries, InvariantKindSet.empty)
   in
 
+  let left_ghost_instrumentations = StrippedEntrySet.filter (function
+      | {entry_type = GhostInstrumentation _} -> true
+      | _ -> false
+    ) left_stripped_entries
+  in
+  let right_ghost_instrumentations = StrippedEntrySet.filter (function
+      | {entry_type = GhostInstrumentation _} -> true
+      | _ -> false
+    ) right_stripped_entries
+  in
+  let (left_stripped_entries, left_ghost_variables, left_ghost_updates, right_stripped_entries, right_ghost_variables, right_ghost_updates) =
+    if StrippedEntrySet.cardinal left_ghost_instrumentations = 1 && StrippedEntrySet.cardinal right_ghost_instrumentations = 1 then (
+      match StrippedEntrySet.choose left_ghost_instrumentations, StrippedEntrySet.choose right_ghost_instrumentations with
+      | ({entry_type = GhostInstrumentation {ghost_variables = left_ghost_variables; ghost_updates = left_ghost_updates}} as left_entry), ({entry_type = GhostInstrumentation {ghost_variables = right_ghost_variables; ghost_updates = right_ghost_updates}} as right_entry) ->
+        let left_stripped_entries = StrippedEntrySet.remove left_entry left_stripped_entries in
+        let left_ghost_variables = GhostVariableSet.of_list left_ghost_variables in
+        let left_ghost_updates = GhostUpdateSet.of_list left_ghost_updates in
+        let right_stripped_entries = StrippedEntrySet.remove right_entry right_stripped_entries in
+        let right_ghost_variables = GhostVariableSet.of_list right_ghost_variables in
+        let right_ghost_updates = GhostUpdateSet.of_list right_ghost_updates in
+        (left_stripped_entries, left_ghost_variables, left_ghost_updates, right_stripped_entries, right_ghost_variables, right_ghost_updates)
+      | _, _ -> assert false
+    )
+    else
+      (left_stripped_entries, GhostVariableSet.empty, GhostUpdateSet.empty, right_stripped_entries, GhostVariableSet.empty, GhostUpdateSet.empty)
+  in
+
   let left_only_stripped_entries = StrippedEntrySet.diff left_stripped_entries right_stripped_entries in
   if not (StrippedEntrySet.is_empty left_only_stripped_entries) then (
     print_endline "# Left-only entries:";
@@ -77,6 +134,20 @@ let main () =
     print_endline "---";
   );
 
+  let left_only_ghost_variables = GhostVariableSet.diff left_ghost_variables right_ghost_variables in
+  if not (GhostVariableSet.is_empty left_only_ghost_variables) then (
+    print_endline "# Left-only ghost variables:";
+    print_ghost_variables left_only_ghost_variables;
+    print_endline "---";
+  );
+
+  let left_only_ghost_updates = GhostUpdateSet.diff left_ghost_updates right_ghost_updates in
+  if not (GhostUpdateSet.is_empty left_only_ghost_updates) then (
+    print_endline "# Left-only ghost updates:";
+    print_ghost_updates left_only_ghost_updates;
+    print_endline "---";
+  );
+
   let right_only_stripped_entries = StrippedEntrySet.diff right_stripped_entries left_stripped_entries in
   if not (StrippedEntrySet.is_empty right_only_stripped_entries) then (
     print_endline "# Right-only entries:";
@@ -88,6 +159,20 @@ let main () =
   if not (InvariantKindSet.is_empty right_only_invariants) then (
     print_endline "# Right-only invariants:";
     print_invariants right_only_invariants;
+    print_endline "---";
+  );
+
+  let right_only_ghost_variables = GhostVariableSet.diff right_ghost_variables left_ghost_variables in
+  if not (GhostVariableSet.is_empty right_only_ghost_variables) then (
+    print_endline "# Right-only ghost variables:";
+    print_ghost_variables right_only_ghost_variables;
+    print_endline "---";
+  );
+
+  let right_only_ghost_updates = GhostUpdateSet.diff right_ghost_updates left_ghost_updates in
+  if not (GhostUpdateSet.is_empty right_only_ghost_updates) then (
+    print_endline "# Right-only ghost updates:";
+    print_ghost_updates right_only_ghost_updates;
     print_endline "---";
   )
 
