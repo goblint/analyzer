@@ -7,6 +7,7 @@ int main(void) {
   char *end;
   end = buf + 4; //NOWARN
   printf("%p", (void *) end); //NOWARN
+  printf("%c", *end); //WARN
   free(buf);
   return 0;
 }
