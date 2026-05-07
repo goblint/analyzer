@@ -24,11 +24,6 @@ struct
   module P = IdentityP (D)
 
   module V = VarinfoV
-  module Max =
-  struct
-    include Lattice.Chain (struct let n () = 99 let names i = string_of_int(i) end)
-    let name () = "ghost-max"
-  end
 
   module MHPs =
   struct
@@ -43,25 +38,24 @@ struct
   struct
     include MapDomain.MapBot (Const) (MHPs)
     let name () = "ghost-phase-changes"
-
-    let can_change_to x target currmhp =
-      match find_opt target x with
-      | None ->
-        false
-      | Some accesses ->
-        MHPs.can_any_mhp currmhp accesses
   end
 
   module G =
   struct
-    include Lattice.Prod3 (Max) (Const) (PhaseChanges)
-    let max (max, _, _) = max
-    let const (_, const, _) = const
-    let changes (_, _, changes) = changes
-    let create_max max = (max, Const.bot (), PhaseChanges.bot ())
-    let create_const const = (Max.bot (), const, PhaseChanges.bot ())
-    let create_change phase mhp = (Max.bot (), Const.bot (), PhaseChanges.singleton phase (MHPs.singleton mhp))
-    let create max const = (max, const, PhaseChanges.bot ())
+    (* fist component: constant value when the thread returns *)
+    (* secone component: map from target of phase change to MHP information under which this change can happen  *)
+    include Lattice.Prod (Const) (PhaseChanges)
+    let const_at_thread_end (const, _) = const
+    let changes (_, changes) = changes
+    let create_const_at_thread_end const = (const, PhaseChanges.bot ())
+    let create_change phase mhp = (Const.bot (), PhaseChanges.singleton phase (MHPs.singleton mhp))
+
+    let can_change_to (_,changes) target currmhp =
+      match PhaseChanges.find_opt (`Lifted target) changes with
+      | None ->
+        false
+      | Some accesses ->
+        MHPs.can_any_mhp currmhp accesses
   end
 
   let initial_ghost_values () =
@@ -156,14 +150,7 @@ struct
   let current_mhp man: MCPAccess.A.t =
     Obj.obj (man.ask (PartAccess Point))
 
-  let phase_change_may_happen_in_parallel man var phase =
-    let current_mhp = current_mhp man in
-    let changes = G.changes (man.global var) in
-    PhaseChanges.can_change_to changes (`Lifted phase) current_mhp
-
   let sync man reason =
-    (* TODO: This is only called _after_ a release-like thing, need to check if invariants placed directly after account for phase having advanced.
-       See 19/07 if line is changed back *)
     (* TODO:
        Observation from ZA: Probably can get away with doing this after release-like operations, all possible advancing would already have been done prior for others *)
     if !AnalysisState.global_initialization then
@@ -171,40 +158,16 @@ struct
     else
       let may_be_advanced_here m var =
         if man.ask Queries.MustBeAtomic then
+          (* Shortcut, would also be caught below, but as it is common cheaper to check here *)
           (if M.tracing then M.tracel "phaseGhost" "Is atomic -> not advancing phase"; false)
         else
-          match man.ask (Queries.Owner var), man.ask Queries.CurrentThreadId with
-          | `Bot, _
-          | _, `Bot ->
+          match man.ask (Queries.Owner var), man.ask Queries.CurrentThreadId, D.find var m  with
+          | `Bot, _, _
+          | _, `Bot, _ ->
             false
-          | `Lifted owner, `Lifted tid ->
-            if TID.equal owner tid then
-              false
-            else
-              let created_threads = man.ask Queries.CreatedThreads in
-              let owner_possibly_started =
-                not (MHP.definitely_not_started (tid, created_threads) owner)
-              in
-              let owner_not_must_joined =
-                not (ConcDomain.FiniteMustThreadSet.mem_lifted owner (man.ask Queries.MustJoinedThreads))
-              in
-              let below_max =
-                match D.find var m with
-                | `Lifted z ->
-                  let max = G.max (man.global var) in
-                  Z.to_int z < max
-                | _ -> failwith "invariant"
-              in
-              let phase_change_may_happen =
-                match D.find var m with
-                | `Lifted z ->
-                  phase_change_may_happen_in_parallel man var (Z.succ z)
-                | _ -> failwith "invariant"
-              in
-              owner_possibly_started && owner_not_must_joined && below_max && phase_change_may_happen
-          | `Lifted _, `Top -> true
-          | `Top, `Lifted _
-          | `Top, `Top ->
+          | `Lifted owner, _ , `Lifted z ->
+            G.can_change_to (man.global var) (Z.succ z) (current_mhp man)
+          | _ ->
             failwith "assumption about ghost owner violated"
       in
       let rec handle_vars m = function
@@ -244,14 +207,11 @@ struct
         (match eval_const man.local (Lval lval) with
          | Some z ->
            (let v = Z.succ z in
-            let i = Z.to_int v in
             let local = D.add var (`Lifted v) man.local in
-            man.sideg var (G.create_max i);
             man.sideg var (G.create_change (`Lifted v) (current_mhp man));
             (* TODO: Prolong until after atomic is over? *)
             if not (D.equal man.local local) then
               man.emit (Events.PhaseChange {old_phase = `Lifted man.local; new_phase = `Lifted local});
-            (* M.warn ~category:Witness "phaseGhostSplit: ghost %a has max %i" CilType.Varinfo.pretty var i; *)
             local)
          | None -> failwith "Failed to evaluate ghost to constant")
       | _ ->
@@ -263,7 +223,7 @@ struct
       match man.ask (Queries.Owner varinfo) with
       | `Lifted gtid when TID.equal tid gtid ->
         (match D.find_opt varinfo man.local with
-         | Some v -> man.sideg varinfo (G.create_const v)
+         | Some v -> man.sideg varinfo (G.create_const_at_thread_end v)
          | _ -> ())
       | _ -> ()
     in
@@ -292,7 +252,7 @@ struct
         let handle_ghost tid varinfo  =
           match man.ask (Owner varinfo) with
           | `Lifted gtid when TID.equal tid gtid ->
-            (match G.const (man.global varinfo) with
+            (match G.const_at_thread_end (man.global varinfo) with
              | `Lifted z ->
                begin match D.find_opt varinfo man.local with
                  | Some (`Lifted z')  when not (Z.equal z z') -> raise Deadcode
