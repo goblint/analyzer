@@ -39,12 +39,11 @@ struct
     with IntDomain.ArithmeticOnIntegerBot _ -> None
 
   let check_deref_offset_bounds ptr_size offs =
-    let ptr_size_lt_offs =
-      try
-        ID.le ptr_size offs
+    let ptr_size_le_offs =
+      try ID.le ptr_size offs
       with IntDomain.ArithmeticOnIntegerBot _ -> None
     in
-    offs_lt_zero offs, ptr_size_lt_offs
+    offs_lt_zero offs, ptr_size_le_offs
 
   let check_ptr_offset_bounds ptr_size offs =
     let ptr_size_lt_offs =
