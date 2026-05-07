@@ -131,7 +131,11 @@ struct
 
   let event man e oman =
     match e with
-    | Events.Access {ad; _} ->
+    | Events.Access {ad; kind ; _ }  when kind = AccessKind.Read ->
+      (* Reads are fine *)
+      man.local
+    | Events.Access {ad; _; } ->
+      (* TODO: This is very involved to iterate over everything here *)
       let tids = tids_of_current_thread man in
       Queries.AD.iter (function
           | Queries.AD.Addr.Addr (var, _) when YamlWitness.VarSet.mem var !(YamlWitness.ghostVars) ->
@@ -162,6 +166,18 @@ struct
 
   let query man (type a) (q: a Queries.t): a Queries.result =
     match q with
+    | Queries.IsPhaseGhost var when YamlWitness.VarSet.mem var !(YamlWitness.ghostVars) ->
+      let unique_owner tids =
+        match TIDs.elements tids with
+        | [] ->
+          true
+        | [tid] when TID.is_unique tid ->
+          true
+        | _ ->
+          false
+      in
+      let (tids, inc_by_one) = man.global var in
+      inc_by_one && unique_owner tids
     | Queries.Owner var when YamlWitness.VarSet.mem var !(YamlWitness.ghostVars) ->
       let tidset = G.tids (man.global var) in
       begin match TIDs.elements tidset with
@@ -176,19 +192,16 @@ struct
       let g: V.t = Obj.obj g in
       let (tidset, inc_by_one) = man.global g in
       if TIDs.is_top tidset then
-        (M.warn_noloc ~category:Witness "phaseGhost: global %a is accessed by a non-unique or unknown thread id" CilType.Varinfo.pretty g;
-         YamlWitness.ghost_usage_hypothesis_unconfirmed := true)
+        (M.warn_noloc ~category:Witness "phaseGhost: global %a is accessed by a non-unique or unknown thread id" CilType.Varinfo.pretty g;)
       else
         (match TIDs.elements tidset with
          | [tid] when TID.is_unique tid ->
            if inc_by_one then
              M.info_noloc ~category:Witness "phaseGhost: global %a is only accessed by unique thread %a and is only ever increased by one" CilType.Varinfo.pretty g TID.pretty tid
            else
-             (M.warn_noloc ~category:Witness "phaseGhost: global %a is only accessed by unique thread %a, but is not only ever increased by one" CilType.Varinfo.pretty g TID.pretty tid;
-              YamlWitness.ghost_usage_hypothesis_unconfirmed := true)
+             M.warn_noloc ~category:Witness "phaseGhost: global %a is only accessed by unique thread %a, but is not only ever increased by one" CilType.Varinfo.pretty g TID.pretty tid
          | _ ->
-           (M.warn_noloc ~category:Witness "phaseGhost: global %a is accessed by multiple unique threads: %a" CilType.Varinfo.pretty g TIDs.pretty tidset;
-            YamlWitness.ghost_usage_hypothesis_unconfirmed := true))
+           M.warn_noloc ~category:Witness "phaseGhost: global %a is accessed by multiple unique threads: %a" CilType.Varinfo.pretty g TIDs.pretty tidset)
     | _ ->
       Queries.Result.top q
 end

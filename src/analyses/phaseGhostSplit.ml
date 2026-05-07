@@ -79,6 +79,20 @@ struct
   let startstate _ = initial_ghost_values ()
   let exitstate _ = initial_ghost_values ()
 
+  let is_phase_ghost man var = man.ask (Queries.IsPhaseGhost var)
+
+  let phase_ghosts man =
+    YamlWitness.VarSet.elements !(YamlWitness.ghostVars)
+    |> List.filter (is_phase_ghost man)
+
+  let top_non_phase_ghosts man state =
+    YamlWitness.VarSet.fold (fun var state ->
+        if is_phase_ghost man var then
+          state
+        else
+          D.add var (Const.top ()) state
+      ) !(YamlWitness.ghostVars) state
+
   let tids_of_current_thread man =
     match man.ask Queries.CurrentThreadId with
     | `Lifted tid when TID.is_unique tid -> TIDs.singleton tid
@@ -156,6 +170,7 @@ struct
     if !AnalysisState.global_initialization then
       man.local
     else
+      let local = top_non_phase_ghosts man man.local in
       let may_be_advanced_here m var =
         if man.ask Queries.MustBeAtomic then
           (* Shortcut, would also be caught below, but as it is common cheaper to check here *)
@@ -187,14 +202,17 @@ struct
       let traceEvolution () =
         YamlWitness.VarSet.iter (fun var ->
             let owner = man.ask (Queries.Owner var) in
-            let may_advance = may_be_advanced_here man.local var in
-            M.tracel "phaseGhost" "Ghost %a has owner %a and may %s be advanced here" (* nosemgrep: trace-not-in-tracing *)
-              CilType.Varinfo.pretty var ThreadIdDomain.ThreadLifted.pretty owner
+            let phase_ghost = is_phase_ghost man var in
+            let may_advance = phase_ghost && may_be_advanced_here local var in
+            M.tracel "phaseGhost" "Ghost %a is %sa phase ghost, has owner %a and may %s be advanced here" (* nosemgrep: trace-not-in-tracing *)
+              CilType.Varinfo.pretty var
+              (if phase_ghost then "" else "not ")
+              ThreadIdDomain.ThreadLifted.pretty owner
               (if may_advance then "" else " not ")
           ) !(YamlWitness.ghostVars)
       in
       if M.tracing then traceEvolution ();
-      handle_vars man.local (YamlWitness.VarSet.elements !(YamlWitness.ghostVars));
+      handle_vars local (phase_ghosts man);
       raise Deadcode
 
 
@@ -202,20 +220,23 @@ struct
     if !AnalysisState.global_initialization then
       man.local
     else
+      let local = top_non_phase_ghosts man man.local in
       match lval with
-      | Var var, NoOffset when YamlWitness.VarSet.mem var !(YamlWitness.ghostVars) ->
-        (match eval_const man.local (Lval lval) with
+      | Var var, NoOffset when YamlWitness.VarSet.mem var !(YamlWitness.ghostVars) && not (is_phase_ghost man var) ->
+        D.add var (Const.top ()) local
+      | Var var, NoOffset when is_phase_ghost man var ->
+        (match eval_const local (Lval lval) with
          | Some z ->
            (let v = Z.succ z in
-            let local = D.add var (`Lifted v) man.local in
+            let local_new = D.add var (`Lifted v) local in
             man.sideg var (G.create_change (`Lifted v) (current_mhp man));
             (* TODO: Prolong until after atomic is over? *)
-            if not (D.equal man.local local) then
-              man.emit (Events.PhaseChange {old_phase = `Lifted man.local; new_phase = `Lifted local});
-            local)
+            if not (D.equal local local_new) then
+              man.emit (Events.PhaseChange {old_phase = `Lifted local; new_phase = `Lifted local_new});
+            local_new)
          | None -> failwith "Failed to evaluate ghost to constant")
       | _ ->
-        man.local
+        local
 
 
   let handle_return man =
@@ -229,7 +250,7 @@ struct
     in
     match ThreadId.get_current (Analyses.ask_of_man man) with
     | `Lifted tid when TID.is_unique tid ->
-      List.iter (handle_ghost tid) (YamlWitness.VarSet.elements !(YamlWitness.ghostVars));
+      List.iter (handle_ghost tid) (phase_ghosts man);
     | _ -> ()
 
 
@@ -238,7 +259,7 @@ struct
     if ThreadReturn.is_current (Analyses.ask_of_man man) then
       handle_return man
     ;
-    man.local
+    top_non_phase_ghosts man man.local
 
 
 
@@ -267,22 +288,21 @@ struct
         else
           (match TIDs.elements tids with
            | [tid] when TID.is_unique tid ->
-             List.iter (handle_ghost tid) (YamlWitness.VarSet.elements !(YamlWitness.ghostVars));
-
+             List.iter (handle_ghost tid) (phase_ghosts man);
              man.local
            | _ -> man.local)
       | _ -> man.local
     in
-    st
+    top_non_phase_ghosts man st
 
 
   let query man (type a) (q: a Queries.t): a Queries.result =
     let open Queries in
     match q with
     | PhaseDigest ->
-      `Lifted man.local
+      `Lifted (top_non_phase_ghosts man man.local)
     | EvalInt e ->
-      begin match eval_const man.local e with
+      begin match eval_const (top_non_phase_ghosts man man.local) e with
         | Some z ->
           ID.of_int (Cilfacade.get_ikind_exp e) z
         | None ->

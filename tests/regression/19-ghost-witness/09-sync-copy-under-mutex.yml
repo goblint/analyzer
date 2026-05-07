@@ -1,16 +1,16 @@
 - entry_type: ghost_instrumentation
   metadata:
     format_version: "2.1-goblint"
-    uuid: 00000000-0000-0000-0000-000000000061
-    creation_time: 2026-04-24T00:00:00Z
+    uuid: 00000000-0000-0000-0000-000000000091
+    creation_time: 2026-05-06T00:00:00Z
     producer:
       name: Test
       version: "0.0"
     task:
       input_files:
-      - 06-reject-hypothesis.c
+      - 09-sync-copy-under-mutex.c
       input_file_hashes:
-        06-reject-hypothesis.c: "0000000000000000000000000000000000000000000000000000000000000000"
+        09-sync-copy-under-mutex.c: "0000000000000000000000000000000000000000000000000000000000000000"
       data_model: LP64
       language: C
   content:
@@ -21,10 +21,16 @@
       initial:
         value: "0"
         format: c_expression
+    - name: ghost_b
+      scope: global
+      type: int
+      initial:
+        value: "0"
+        format: c_expression
     ghost_updates:
     - location:
-        file_name: 06-reject-hypothesis.c
-        line: 17
+        file_name: 09-sync-copy-under-mutex.c
+        line: 13
         column: 5
         function: fun
       updates:
@@ -32,36 +38,36 @@
         value: "ghost_a + 1"
         format: c_expression
     - location:
-        file_name: 06-reject-hypothesis.c
-        line: 33
+        file_name: 09-sync-copy-under-mutex.c
+        line: 24
         column: 5
         function: main
       updates:
-      - variable: ghost_a
-        value: "ghost_a + 1"
+      - variable: ghost_b
+        value: "ghost_a"
         format: c_expression
 - entry_type: invariant_set
   metadata:
     format_version: "2.0"
-    uuid: 00000000-0000-0000-0000-000000000062
-    creation_time: 2026-04-24T00:00:00Z
+    uuid: 00000000-0000-0000-0000-000000000092
+    creation_time: 2026-05-06T00:00:00Z
     producer:
       name: Test
       version: "0.0"
     task:
       input_files:
-      - 06-reject-hypothesis.c
+      - 09-sync-copy-under-mutex.c
       input_file_hashes:
-        06-reject-hypothesis.c: "0000000000000000000000000000000000000000000000000000000000000000"
+        09-sync-copy-under-mutex.c: "0000000000000000000000000000000000000000000000000000000000000000"
       data_model: LP64
       language: C
   content:
   - invariant:
       type: location_invariant
       location:
-        file_name: 06-reject-hypothesis.c
-        line: 40
+        file_name: 09-sync-copy-under-mutex.c
+        line: 25
         column: 5
         function: main
-      value: ghost_a == 1
+      value: ghost_b == ghost_a
       format: c_expression
