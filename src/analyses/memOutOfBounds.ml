@@ -277,12 +277,11 @@ struct
         end
     end
 
-  let check_ptr_value_access man ptr_exp =
+  let check_ptr_value_access man ptr_exp addr_offs =
     match get_ptr_deref_type @@ typeOf ptr_exp with
     | Some _ ->
       check_unknown_addr_deref man ptr_exp;
       let ptr_size = get_size_of_ptr_target man ptr_exp in
-      let addr_offs = get_addr_offs man ptr_exp in
       begin match ptr_size, addr_offs with
         | `Top, _ ->
           set_mem_safety_flag InvalidDeref;
@@ -322,7 +321,7 @@ struct
       ()
     (* Pointer arithmetic / pointer value access. *)
     | _ when isPointerType (typeOf exp) && not (ptr_only_has_str_addr man exp) ->
-      check_ptr_value_access man exp
+      check_ptr_value_access man exp (get_addr_offs_from_ad man exp ad)
     | _ ->
       ()
 
@@ -381,7 +380,7 @@ struct
           | AddrOf lval
           | StartOf lval ->
             let ptr_exp = Lval lval in
-            check_ptr_value_access man ptr_exp
+            check_ptr_value_access man ptr_exp (get_addr_offs man ptr_exp)
           | _ ->
             ()
       ) arglist;
