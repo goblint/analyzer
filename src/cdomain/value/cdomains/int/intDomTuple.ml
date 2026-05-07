@@ -304,9 +304,9 @@ module IntDomTupleImpl = struct
     let no_ov = check_ov ~suppress_ovwarn ~op ik intv intv_set bf in
     let no_ov = no_ov || should_ignore_overflow ik in
     refine ik
-      ( BatOption.map (fun x -> r.f1_ovc (module I1) x |> fst) a (* TODO: why isn't no_ov passed? *)
+      ( BatOption.map (fun x -> r.f1_ovc ~no_ov (module I1) x |> fst) a
       , BatOption.map fst intv
-      , BatOption.map (fun x -> r.f1_ovc (module I3) x |> fst) c (* TODO: why isn't no_ov passed? *)
+      , BatOption.map (fun x -> r.f1_ovc ~no_ov (module I3) x |> fst) c
       , BatOption.map (fun x -> r.f1_ovc ~no_ov (module I4) x |> fst) d
       , BatOption.map fst intv_set
       , BatOption.map fst bf)
@@ -319,9 +319,9 @@ module IntDomTupleImpl = struct
     let no_ov = check_ov ~op ik intv intv_set bf in
     let no_ov = no_ov || should_ignore_overflow ik in
     refine ik
-      ( GobOption.map2 (fun x y -> r.f2_ovc (module I1) x y |> fst) xa ya (* TODO: why isn't no_ov passed? *)
+      ( GobOption.map2 (fun x y -> r.f2_ovc ~no_ov (module I1) x y |> fst) xa ya
       , BatOption.map fst intv
-      , GobOption.map2 (fun x y -> r.f2_ovc (module I3) x y |> fst) xc yc (* TODO: why isn't no_ov passed? *)
+      , GobOption.map2 (fun x y -> r.f2_ovc ~no_ov (module I3) x y |> fst) xc yc
       , GobOption.map2 (fun x y -> r.f2_ovc ~no_ov (module I4) x y |> fst) xd yd
       , BatOption.map fst intv_set
       , BatOption.map fst bf)
