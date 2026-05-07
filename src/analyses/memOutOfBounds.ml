@@ -56,14 +56,6 @@ struct
     try ID.add x y
     with IntDomain.ArithmeticOnIntegerBot _ -> ID.bot_of @@ Cilfacade.ptrdiff_ikind ()
 
-  let is_ptr_arith_binop = function
-    | PlusPI | MinusPI | IndexPI -> true
-    | _ -> false
-
-  let exp_is_explicit_ptr_arith = function
-    | BinOp (binop, _, _, _) -> is_ptr_arith_binop binop
-    | _ -> false
-
   let rec exp_contains_a_ptr (exp:exp) =
     match exp with
     | Const _
@@ -312,10 +304,11 @@ struct
         in
         let get_deref_offset ptr_deref_type e offs =
           let lval_offs = get_lval_offset ptr_deref_type offs in
-          match exp_is_explicit_ptr_arith e with
-          | true -> (* Explicit pointer arithmetic is checked separately by check_binop_exp; do not add it here again. *)
+          match e with
+          | BinOp ((PlusPI | MinusPI | IndexPI), _, _, _) ->
+            (* Explicit pointer arithmetic is checked separately by check_binop_exp; do not add it here again. *)
             lval_offs
-          | false ->
+          | _ ->
             add_offsets (get_stored_addr_offset e) lval_offs
         in
         let ptr_deref_type = get_ptr_deref_type @@ typeOf e in
@@ -351,8 +344,8 @@ struct
         end;
         begin match e with
           | Lval (Var v, _) as lval_exp -> check_no_binop_deref man lval_exp
-          | BinOp (binop, e1, e2, t) when binop = PlusPI || binop = MinusPI || binop = IndexPI ->
-            check_binop_exp man binop e1 e2 t;
+          | BinOp ((PlusPI | MinusPI | IndexPI), e1, e2, _) as binopexp ->
+            check_binop_exp man binopexp;
             check_exp_for_oob_access man ~is_implicitly_derefed e1;
             check_exp_for_oob_access man ~is_implicitly_derefed e2
           | _ -> check_exp_for_oob_access man ~is_implicitly_derefed e
@@ -420,15 +413,12 @@ struct
     | StartOf lval
     | AddrOf lval -> check_lval_for_oob_access man ~is_implicitly_derefed lval
 
-  and check_binop_exp man binop e1 e2 t =
-    check_unknown_addr_deref man e1;
-    let binopexp = BinOp (binop, e1, e2, t) in
-    let behavior = Undefined MemoryOutOfBoundsAccess in
-    let cwe_number = 823 in
-    match binop with
-    | PlusPI
-    | IndexPI
-    | MinusPI ->
+  and check_binop_exp man binopexp =
+    match binopexp with
+    | BinOp ((PlusPI | MinusPI | IndexPI), e1, e2, _) ->
+      check_unknown_addr_deref man e1;
+      let behavior = Undefined MemoryOutOfBoundsAccess in
+      let cwe_number = 823 in
       let ptr_size = get_size_of_ptr_target man e1 in
       let addr_offs = get_addr_offs man e1 in
       let ptr_type = typeOf e1 in
@@ -484,7 +474,8 @@ struct
           end
         | _ -> M.error "Binary expression %a doesn't have a pointer" d_exp binopexp
       end
-    | _ -> ()
+    | _ ->
+      M.error "check_binop_exp called with non-pointer-arithmetic expression %a" d_exp binopexp
 
   (* For memset() and memcpy() *)
   let check_count man fun_name ptr n =
