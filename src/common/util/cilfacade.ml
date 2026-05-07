@@ -827,6 +827,13 @@ let add_function_declarations (file: Cil.file): unit =
   let globals = upto_last_type @ fun_decls @ non_types @ functions in
   file.globals <- globals
 
+(** Sync formal parameter attributes back to function types for correct CIL printing *)
+let sync_formals file =
+  iterGlobals file (function
+      | GFun (fd, _) -> setFormals fd fd.sformals
+      | _ -> ()
+    )
+
 
 (** Special index expression for some unknown index.
     Weakly updates array in assignment.
