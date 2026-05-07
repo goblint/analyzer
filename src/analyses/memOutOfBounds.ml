@@ -41,9 +41,7 @@ struct
   let check_deref_offset_bounds ptr_size offs =
     let ptr_size_lt_offs =
       try
-        let one = intdom_of_int 1 in
-        let max_valid_offs = ID.sub ptr_size one in
-        ID.lt max_valid_offs offs
+        ID.le ptr_size offs
       with IntDomain.ArithmeticOnIntegerBot _ -> None
     in
     offs_lt_zero offs, ptr_size_lt_offs
