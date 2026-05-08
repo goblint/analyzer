@@ -16,6 +16,7 @@ module type IntervalDomain = sig
 
   val top : t
   val is_top : t -> bool
+  val of_bounds : lower:Mpqf.t option -> upper:Mpqf.t option -> t
 
   val meet : t -> t -> t option
   val join : t -> t -> t
@@ -32,16 +33,62 @@ module RationalInterval : IntervalDomain = struct
   } [@@deriving eq, ord, hash]
 
   let top = { lower = None; upper = None }
+  let of_bounds ~(lower: Mpqf.t option) ~(upper: Mpqf.t option) = { lower; upper }
 
-  let is_top = function
+  let is_top (i: t) = match i with
     | { lower = None; upper = None } -> true
     | _ -> false
 
-  let meet _ _ = failwith "RationalInterval.meet: TODO"
-  let join _ _ = failwith "RationalInterval.join: TODO"
-  let leq _ _ = failwith "RationalInterval.leq: TODO"
+  let min_bound (a: Mpqf.t option) (b: Mpqf.t option) = match a, b with
+    | None, _
+    | _, None -> None
+    | Some a, Some b -> Some (if Mpqf.compare a b <= 0 then a else b)
 
-  let show _ = "<interval>"
+  let max_bound (a: Mpqf.t option) (b: Mpqf.t option) = match a, b with
+    | None, x
+    | x, None -> x
+    | Some a, Some b -> Some (if Mpqf.compare a b >= 0 then a else b)
+
+  let meet (a: t) (b: t) =
+    let lower = max_bound a.lower b.lower in
+    let upper = min_bound a.upper b.upper in
+    match lower, upper with
+    | Some lower, Some upper when Mpqf.compare lower upper > 0 -> None
+    | _ -> Some { lower; upper }
+
+  let join (a: t) (b: t) =
+    {
+      lower = min_bound a.lower b.lower;
+      upper = max_bound a.upper b.upper;
+    }
+
+  let lower_leq (a: Mpqf.t option) (b: Mpqf.t option) = match a, b with
+    | None, _ -> true
+    | Some _, None -> false
+    | Some a, Some b -> Mpqf.compare a b <= 0
+
+  let upper_leq (a: Mpqf.t option) (b: Mpqf.t option) = match a, b with
+    | _, None -> true
+    | None, Some _ -> false
+    | Some a, Some b -> Mpqf.compare a b <= 0
+
+  let leq (a: t) (b: t) =
+    lower_leq b.lower a.lower && upper_leq a.upper b.upper
+
+  let show_bound (bound: Mpqf.t option) = match bound with
+    | None -> "inf"
+    | Some x ->
+      let num = Mpqf.get_num x in
+      let den = Mpqf.get_den x in
+      if Z.equal den Z.one then
+        Z.to_string num
+      else
+        Z.to_string num ^ "/" ^ Z.to_string den
+
+  let show (i: t) =
+    let lower = match i.lower with None -> "-inf" | Some x -> show_bound (Some x) in
+    let upper = match i.upper with None -> "inf" | Some x -> show_bound (Some x) in
+    "[" ^ lower ^ ", " ^ upper ^ "]"
 end
 
 (** Variable
@@ -49,6 +96,7 @@ end
 *)
 module type Var = sig
   type t [@@deriving hash]
+  val equal : t -> t -> bool
   val compare : t -> t -> int
   val string_of : t -> string
 end
@@ -62,49 +110,78 @@ module SubPoly (Var : Var) (I : IntervalDomain) = struct
 
   (* Reuse the SparseVector and ListMatrix modules from the AffineEqualityDomain. *)
   module Vector = SparseVector.SparseVector
+  module CoeffVector = Vector(Mpqf)
   module Matrix =
     AffineEqualityDomain.AffineEqualityMatrix
       (Vector)
       (ListMatrix.ListMatrix)
 
-  (* Map for dim to interval for the interval managment *)
-  module DimMap = Map.Make(Int) 
+  (* Map keyed by variables. *)
+  module VarMap = Map.Make(Var) 
 
-  (*alias affine_equalities, interval, intervalmap*)
+  (*alias affine_equalities, interval, intervalmap, slackintervals*)
   type affeq = Matrix.t [@@deriving eq, ord, hash]
   type interval = I.t [@@deriving eq, ord, hash]
-  type interval_map = interval DimMap.t [@@deriving eq, ord]
+  type interval_map = interval VarMap.t [@@deriving eq, ord]
+  type slackintervals = interval_map [@@deriving eq, ord]
+  type slack_map = interval VarMap.t [@@deriving eq, ord]
 
   (*hash function for the interval map*)
-  let hash_interval_map m =
-  DimMap.fold (fun dim interval acc ->
-    Hashtbl.hash (dim, I.hash interval, acc)
+  let hash_interval_map (m: interval_map) =
+  VarMap.fold (fun var interval acc ->
+    Hashtbl.hash (Var.hash var, I.hash interval, acc)
   ) m 0
+  let hash_slackintervals = hash_interval_map
+
+  (*hash function for the slack map*)
+  let hash_slack_map = hash_interval_map
 
   (*internal representation of a consistent subpolyhedron*)
   type t = {
     affeq: affeq;
-    intervals: interval_map;
+    intervals: slackintervals;
+    slacks: slack_map;
   } [@@deriving eq, ord, hash]
 
   let copy = Fun.id
-  let empty () = ()
-  let is_empty _ = failwith "SubPolyhedraDomain.SubPoly.is_empty: not implemented"
+  let empty () = { affeq = Matrix.empty (); intervals = VarMap.empty; slacks = VarMap.empty }
+  let is_empty (t: t) = Matrix.is_empty t.affeq && VarMap.is_empty t.intervals && VarMap.is_empty t.slacks
+  let set_interval (var: Var.t) (interval: interval) (t: t) =
+    { t with intervals = VarMap.add var interval t.intervals }
+  let set_slack (var: Var.t) (interval: interval) (t: t) =
+    { t with slacks = VarMap.add var interval t.slacks }
+  let mem_slack (var: Var.t) (t: t) =
+    VarMap.mem var t.slacks
+  let add_affeq_row (row: CoeffVector.t) (t: t) =
+    { t with affeq = Matrix.append_row t.affeq row }
   
   (*reuse leanies index shifts to implement dim add and remove.*)
-  let dim_add (_ch: Apron.Dim.change) _t = failwith "SubPolyhedraDomain.SubPoly.dim_add: not implemented"
-  let dim_remove (_ch: Apron.Dim.change) _t = failwith "SubPolyhedraDomain.SubPoly.dim_remove: not implemented"
+  let dim_add (ch: Apron.Dim.change) (t: t) =
+    { t with affeq = Matrix.dim_add ch t.affeq }
+  let dim_remove (ch: Apron.Dim.change) (t: t) =
+    { t with affeq = Matrix.dim_remove ch t.affeq }
 
-  let string_of _ = "<subpoly>"
+  let string_of_interval_map (m: interval_map) =
+    VarMap.bindings m
+    |> List.map (fun (var, interval) -> Var.string_of var ^ " -> " ^ I.show interval)
+    |> String.concat "; "
+
+  let string_of (t: t) =
+    "{ affeq = " ^ Matrix.show t.affeq
+    ^ "; intervals = [" ^ string_of_interval_map t.intervals ^ "]"
+    ^ "; slacks = [" ^ string_of_interval_map t.slacks ^ "] }"
 
   (* include meet/join/widen etc. *)
   (*get the subpoly methods implemented here, befor ewiring to oursite world in D*)
-  let meet _a _b = failwith "SubPolyhedraDomain.meet: not implemented"
-  let leq _a _b = failwith "SubPolyhedraDomain.leq: not implemented"
-  let join _a _b = failwith "SubPolyhedraDomain.join: not implemented"
-  let widen _a _b = failwith "SubPolyhedraDomain.widen: not implemented"
-  let narrow _a _b = failwith "SubPolyhedraDomain.narrow: not implemented"
-  let unify _a _b = failwith "SubPolyhedraDomain.unify: not implemented"
+  let meet (a: t) (b: t) =
+    if equal a b then a else empty ()
+  let leq (a: t) (b: t) =
+    equal a b || is_empty b
+  let join (a: t) (b: t) =
+    if equal a b then a else empty ()
+  let widen = join
+  let narrow (a: t) (_b: t) = a
+  let unify = meet
 
 
   let _ = Var.string_of (* silence unused-functor-arg warning until Var is actually used *)
@@ -114,6 +191,7 @@ module VarManagement =
 struct
   module Str = struct
     type t = string
+    let equal = String.equal
     let compare = String.compare
     let string_of = Fun.id
     let hash = Hashtbl.hash
@@ -123,13 +201,13 @@ struct
 
   let dim_add = SubPolyDomain.dim_add
   (*potentially add dim_remove here, not sure though*)  
-  let size _t = failwith "SubPolyhedraDomain.size: not implemented"
+  let size (t: t) = Environment.size t.env
 end
 
 module ExpressionBounds: (SharedFunctions.ConvBounds with type t = VarManagement.t) =
 struct
   include VarManagement
-  let bound_texpr _t _texpr = failwith "SubPolyhedraDomain.bound_texpr: not implemented"
+  let bound_texpr (_t: t) (_texpr: Texpr1.t) = None, None
 end
 
 module D =
@@ -147,52 +225,189 @@ struct
 
   let name () = "subpoly"
 
+  let mpqf_of_z (z: Z.t) =
+    Mpqf.of_mpz @@ Z_mlgmpidl.mpzf_of_z z
+
+  let var_key (var: Var.t) = Var.to_string var
+
+  let map_d (f: SubPolyDomain.t -> SubPolyDomain.t) (t: t) =
+    match t.d with
+    | None -> t
+    | Some d -> { t with d = Some (f d) }
+
+  let const_mpqf_of_exp (exp: exp) = match exp with
+    | Const (CInt (i, _, _)) -> Some (mpqf_of_z i)
+    | _ -> None
+
+  type linexpr = {
+    terms: (Var.t * Mpqf.t) list;
+    const: Mpqf.t;
+  }
+
+  let zero_linexpr = { terms = []; const = Mpqf.zero }
+
+  let add_linexpr (a: linexpr) (b: linexpr) =
+    { terms = a.terms @ b.terms; const = a.const +: b.const }
+
+  let neg_linexpr (a: linexpr) =
+    { terms = List.map (fun (var, coeff) -> var, Mpqf.neg coeff) a.terms; const = Mpqf.neg a.const }
+
+  let sub_linexpr (a: linexpr) (b: linexpr) =
+    add_linexpr a (neg_linexpr b)
+
+  let option_map2 (f: 'a -> 'b -> 'c) (a: 'a option) (b: 'b option) =
+    match a, b with
+    | Some a, Some b -> Some (f a b)
+    | _ -> None
+
+  let rec linexpr_of_exp (exp: exp) = match exp with
+    | Const (CInt (i, _, _)) -> Some { zero_linexpr with const = mpqf_of_z i }
+    | Lval (Var v, NoOffset) -> Some { zero_linexpr with terms = [V.local v, Mpqf.one] }
+    | UnOp (Neg, e, _) -> Option.map neg_linexpr (linexpr_of_exp e)
+    | CastE (_, _, e) -> linexpr_of_exp e
+    | BinOp (PlusA, e1, e2, _) ->
+      option_map2 add_linexpr (linexpr_of_exp e1) (linexpr_of_exp e2)
+    | BinOp (MinusA, e1, e2, _) ->
+      option_map2 sub_linexpr (linexpr_of_exp e1) (linexpr_of_exp e2)
+    | _ -> None
+
+  let interval_of_constraint_op (op: binop) (bound: Mpqf.t) =
+    match op with
+    | Lt
+    | Le -> Some (RationalInterval.of_bounds ~lower:None ~upper:(Some bound))
+    | Gt
+    | Ge -> Some (RationalInterval.of_bounds ~lower:(Some bound) ~upper:None)
+    | Eq -> Some (RationalInterval.of_bounds ~lower:(Some bound) ~upper:(Some bound))
+    | _ -> None
+
+  let rec simple_constraint (exp: exp) = match exp with
+    | CastE (_, _, e) -> simple_constraint e
+    | BinOp ((Lt | Le | Gt | Ge | Eq as op), lhs, rhs, _) ->
+      begin match linexpr_of_exp lhs, const_mpqf_of_exp rhs with
+        | Some linexpr, Some bound when List.length linexpr.terms > 1 ->
+          Option.map (fun interval -> linexpr, interval) (interval_of_constraint_op op bound)
+        | _ -> None
+      end
+    | _ -> None
+
+  let slack_var_of_constraint (linexpr: linexpr) (interval: RationalInterval.t) =
+    let term_key = List.map (fun (var, coeff) -> Var.to_string var, Mpqf.hash coeff) linexpr.terms in
+    let key = Hashtbl.hash (term_key, Mpqf.hash linexpr.const, RationalInterval.hash interval) in
+    Var.of_string ("#subpoly_slack:" ^ string_of_int key)
+
+  let row_of_slack (env: Environment.t) (slack: Var.t) (linexpr: linexpr) =
+    let row = SubPolyDomain.CoeffVector.zero_vec (Environment.size env + 1) in
+    let row = SubPolyDomain.CoeffVector.set_nth row (Environment.dim_of_var env slack) Mpqf.one in
+    let row = List.fold_left (fun row (var, coeff) ->
+        let dim = Environment.dim_of_var env var in
+        let coeff' = SubPolyDomain.CoeffVector.nth row dim -: coeff in
+        SubPolyDomain.CoeffVector.set_nth row dim coeff'
+      ) row linexpr.terms
+    in
+    let const_dim = SubPolyDomain.CoeffVector.length row - 1 in
+    SubPolyDomain.CoeffVector.set_nth row const_dim (Mpqf.neg linexpr.const)
+
+  let add_constant_interval (t: t) (var: Var.t) (c: Mpqf.t) =
+    let interval = RationalInterval.of_bounds ~lower:(Some c) ~upper:(Some c) in
+    map_d (SubPolyDomain.set_interval (var_key var) interval) t
+
+  let add_slack_constraint (t: t) (linexpr: linexpr) (interval: RationalInterval.t) =
+    let slack = slack_var_of_constraint linexpr interval in
+    let vars = slack :: List.map fst linexpr.terms in
+    let t = add_vars t vars in
+    let row = row_of_slack t.env slack linexpr in
+    map_d (fun d ->
+        if SubPolyDomain.mem_slack (var_key slack) d then
+          d
+        else
+        d
+        |> SubPolyDomain.add_affeq_row row
+        |> SubPolyDomain.set_slack (var_key slack) interval
+      ) t
+
   let to_yojson _ = failwith "SubPolyhedraDomain.to_yojson: not implemented"
 
   (* pretty printing *)
-  let show t = match t.d with
-    | None -> "\tBot\n"
-    | Some d -> SubPolyDomain.string_of d
-  let pretty () x = text (show x)
-  let pretty_diff () (x, y) =
+  let show (t: t) =
+    let env = Environment.show t.env in
+    match t.d with
+    | None -> "\tBot env = " ^ env ^ "\n"
+    | Some d -> SubPolyDomain.string_of d ^ "; env = " ^ env
+  let pretty () (x: t) = text (show x)
+  let pretty_diff () ((x, y): t * t) =
     dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
-  let printXml _f _x = failwith "SubPolyhedraDomain.printXml: not implemented"
+  let printXml (f: _ BatInnerIO.output) (x: t) = BatPrintf.fprintf f "<value>\n%s</value>\n" (XmlUtil.escape (show x))
 
   (* basic lattice handling *)
-  let top () = failwith "SubPolyhedraDomain.top: not implemented"
-  let is_top _ = failwith "SubPolyhedraDomain.is_top: not implemented"
-  let is_bot _ = failwith "SubPolyhedraDomain.is_bot: not implemented"
+  let top () = { d = Some (SubPolyDomain.empty ()); env = empty_env }
+  let is_top (t: t) = GobOption.exists SubPolyDomain.is_empty t.d
+  let is_bot = is_bot_env
 
   (* fixpoint iteration handling *)
-  let meet _a _b = failwith "SubPolyhedraDomain.meet: not implemented"
-  let leq _a _b = failwith "SubPolyhedraDomain.leq: not implemented"
-  let join _a _b = failwith "SubPolyhedraDomain.join: not implemented"
-  let widen _a _b = failwith "SubPolyhedraDomain.widen: not implemented"
-  let narrow _a _b = failwith "SubPolyhedraDomain.narrow: not implemented"
-  let unify _a _b = failwith "SubPolyhedraDomain.unify: not implemented"
+  let meet (a: t) (b: t) =
+    match a.d, b.d with
+    | None, _
+    | _, None -> bot ()
+    | Some ad, Some bd when Environment.equal a.env b.env ->
+      { d = Some (SubPolyDomain.meet ad bd); env = a.env }
+    | _ -> top ()
+
+  let leq (a: t) (b: t) =
+    is_bot a || is_top b || equal a b
+
+  let join (a: t) (b: t) =
+    match a.d, b.d with
+    | None, _ -> b
+    | _, None -> a
+    | Some ad, Some bd when Environment.equal a.env b.env ->
+      { d = Some (SubPolyDomain.join ad bd); env = a.env }
+    | _ -> top ()
+
+  let widen = join
+  let narrow (a: t) (_b: t) = a
+  let unify = meet
 
   (* transfer functions *)
-  let forget_var _t _v = failwith "SubPolyhedraDomain.forget_var: not implemented"
-  let forget_vars _t _vs = failwith "SubPolyhedraDomain.forget_vars: not implemented"
-  let assign_exp _ask _t _var _exp _ = failwith "SubPolyhedraDomain.assign_exp: not implemented"
-  let assign_var _t _v _v' = failwith "SubPolyhedraDomain.assign_var: not implemented"
-  let assign_var_parallel _t _vvs = failwith "SubPolyhedraDomain.assign_var_parallel: not implemented"
-  let assign_var_parallel_with _t _vvs = failwith "SubPolyhedraDomain.assign_var_parallel_with: not implemented"
-  let assign_var_parallel' _t _vvs = failwith "SubPolyhedraDomain.assign_var_parallel': not implemented"
-  let substitute_exp _ask _t _var _exp _no_ov = failwith "SubPolyhedraDomain.substitute_exp: not implemented"
+  let forget_var (t: t) (v: V.t) = remove_vars t [v]
+  let forget_vars = remove_vars
+  let assign_exp (_ask: Queries.ask) (t: t) (var: V.t) (exp: exp) (_no_ov: bool Lazy.t) =
+    let t = add_vars t [var] in
+    match const_mpqf_of_exp exp with
+    | Some c -> add_constant_interval t var c
+    | None -> t
+  let assign_var (t: t) (v: V.t) (v': V.t) = add_vars t [v; v']
+  let assign_var_parallel (t: t) (vvs: (V.t * V.t) list) =
+    add_vars t (List.concat_map (fun (v, v') -> [v; v']) vvs)
+  let assign_var_parallel_with (t: t) (vvs: (V.t * V.t) list) =
+    let t' = assign_var_parallel t vvs in
+    t.d <- t'.d;
+    t.env <- t'.env
+  let assign_var_parallel' (t: t) (vs1: V.t list) (vs2: V.t list) =
+    assign_var_parallel t (List.combine vs1 vs2)
+  let substitute_exp (_ask: Queries.ask) (t: t) (var: V.t) (_exp: exp) (_no_ov: bool Lazy.t) = forget_var t var
   let cil_exp_of_lincons1 = Convert.cil_exp_of_lincons1
 
   (* Module AssertionRels demands: *)
-  let assert_constraint _ask _d _e _negate (_no_ov: bool Lazy.t) = failwith "SubPolyhedraDomain.assert_constraint: not implemented"
-  let env t = t.env
+  let assert_constraint (_ask: Queries.ask) (d: t) (e: exp) (negate: bool) (_no_ov: bool Lazy.t) =
+    let res =
+      if negate then
+        d
+      else
+        match simple_constraint e with
+        | Some (linexpr, interval) -> add_slack_constraint d linexpr interval
+        | None -> d
+    in
+    if M.tracing then M.tracel "relation" "subpoly assert_constraint %a -> %s" d_exp e (show res);
+    res
+  let env (t: t) = t.env
   let eval_interval _ask = Bounds.bound_texpr
-  let invariant _t = failwith "SubPolyhedraDomain.invariant: not implemented"
+  let invariant (_t: t) = []
 
   type marshal = t
   (* marshal is not compatible with apron, therefore we don't have to implement it *)
-  let marshal t = t
-  let unmarshal t = t
-  let relift t = t
+  let marshal (t: t) = t
+  let unmarshal (t: marshal) = t
+  let relift (t: t) = t
 end
 
 module D2: RelationDomain.RD with type var = Var.t =
