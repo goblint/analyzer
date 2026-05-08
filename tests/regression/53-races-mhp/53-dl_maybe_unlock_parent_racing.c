@@ -18,7 +18,7 @@ int main(void) {
   pthread_create(&id1, NULL, t1, NULL);
   int maybe = __VERIFIER_nondet_int();
   if (maybe) {
-  pthread_mutex_unlock(&mutex);
+    pthread_mutex_unlock(&mutex);
   }
   global++; // RACE!
   return 0;
