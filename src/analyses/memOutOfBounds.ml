@@ -161,14 +161,7 @@ struct
 
   let check_unknown_addr_deref man ptr =
     let may_contain_unknown_addr =
-      match man.ask (Queries.EvalValue ptr) with
-      | a when not (Queries.VD.is_top a) ->
-        begin match a with
-          | Address a -> ValueDomain.AD.may_be_unknown a
-          | _ -> false
-        end
-      (* Intuition: if ptr evaluates to top, it could potentially evaluate to the unknown address *)
-      | _ -> true
+      ValueDomain.AD.may_be_unknown (man.ask (Queries.MayPointTo ptr))
     in
     if may_contain_unknown_addr then begin
       report_oob "Pointer %a contains an unknown address. Invalid dereference may occur" d_exp ptr
