@@ -5,7 +5,7 @@ extern int __VERIFIER_nondet_int();
 
 int global = 0;
 pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
-pthread_t id1, id2, id3;
+pthread_t id1, id2;
 
 void *t1(void *arg) {
   pthread_mutex_lock(&mutex);
