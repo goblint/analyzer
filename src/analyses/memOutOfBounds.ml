@@ -222,11 +222,21 @@ struct
   let report_unknown_object_size access_desc d_exp ptr_exp size_desc =
     report_oob "Size of object %s %a is %s. Memory out-of-bounds access might occur" access_desc d_exp ptr_exp size_desc
 
-  let report_must_offset_oob access_desc d_exp ptr_exp object_size offset =
-    report_oob "Size of object %s %a is %a (in bytes). It is offset by %a (in bytes). Memory out-of-bounds access must occur" access_desc d_exp ptr_exp ID.pretty object_size ID.pretty offset
-
-  let report_may_offset_oob access_desc d_exp ptr_exp object_size offset =
-    report_oob "Could not compare size of object %s %a (%a) (in bytes) with offset (%a) (in bytes). Memory out-of-bounds access might occur" access_desc d_exp ptr_exp ID.pretty object_size ID.pretty offset
+  let check_offset_against_object_size access_desc bounds_check man ptr_exp object_size offset =
+    let ptrdiff_ikind = Cilfacade.ptrdiff_ikind () in
+    let casted_object_size = ID.cast_to ~kind:Internal ptrdiff_ikind object_size in (* TODO: proper castkind *)
+    let casted_offset = ID.cast_to ~kind:Internal ptrdiff_ikind offset in (* TODO: proper castkind *)
+    begin match bounds_check casted_object_size casted_offset with
+      | Some true, _
+      | _, Some true ->
+        report_oob "Size of object %s %a is %a (in bytes). It is offset by %a (in bytes). Memory out-of-bounds access must occur"
+          access_desc d_exp ptr_exp ID.pretty casted_object_size ID.pretty casted_offset
+      | Some false, Some false ->
+        Checks.safe Checks.Category.InvalidMemoryAccess
+      | _ ->
+        report_oob "Could not compare size of object %s %a (%a) (in bytes) with offset (%a) (in bytes). Memory out-of-bounds access may occur"
+          access_desc d_exp ptr_exp ID.pretty casted_object_size ID.pretty casted_offset
+    end
 
   let check_ptr_deref_access man ptr_exp offs =
     check_unknown_addr_deref man ptr_exp;
@@ -243,17 +253,7 @@ struct
           | None -> ID.bot_of @@ Cilfacade.ptrdiff_ikind ()
         in
         let offs_intdom = add_offsets stored_addr_offs lval_offs in
-        let casted_es = ID.cast_to ~kind:Internal (Cilfacade.ptrdiff_ikind ()) es in (* TODO: proper castkind *)
-        let casted_offs = ID.cast_to ~kind:Internal (Cilfacade.ptrdiff_ikind ()) offs_intdom in (* TODO: proper castkind *)
-        begin match check_deref_offset_bounds casted_es casted_offs with
-          | Some true, _
-          | _, Some true ->
-            report_must_offset_oob "accessed through" d_exp ptr_exp casted_es casted_offs;
-          | Some false, Some false ->
-            Checks.safe Checks.Category.InvalidMemoryAccess
-          | _ ->
-            report_may_offset_oob "accessed through" d_exp ptr_exp casted_es casted_offs;
-        end
+        check_offset_against_object_size "accessed through" check_deref_offset_bounds man ptr_exp es offs_intdom
     end
 
   let check_ptr_value_access man ptr_exp addr_offs =
@@ -267,17 +267,7 @@ struct
         | `Bot, _ ->
           report_unknown_object_size "pointed to by" d_exp ptr_exp "bot"
         | `Lifted ps, ao ->
-          let casted_ps = ID.cast_to ~kind:Internal (Cilfacade.ptrdiff_ikind ()) ps in (* TODO: proper castkind *)
-          let casted_ao = ID.cast_to ~kind:Internal (Cilfacade.ptrdiff_ikind ()) ao in (* TODO: proper castkind *)
-          begin match check_ptr_offset_bounds casted_ps casted_ao with
-            | Some true, _
-            | _, Some true ->
-              report_must_offset_oob "pointed to by" d_exp ptr_exp casted_ps casted_ao
-            | Some false, Some false ->
-              Checks.safe Checks.Category.InvalidMemoryAccess
-            | _ ->
-              report_may_offset_oob "pointed to by" d_exp ptr_exp casted_ps casted_ao
-          end
+          check_offset_against_object_size "pointed to by" check_ptr_offset_bounds man ptr_exp ps ao
       end
     | _ -> M.error "Expression %a is not a pointer" d_exp ptr_exp
 
