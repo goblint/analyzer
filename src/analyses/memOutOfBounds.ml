@@ -175,16 +175,6 @@ struct
     end else
       Checks.safe Checks.Category.InvalidMemoryAccess
 
-  let ptr_only_has_str_addr man ptr =
-    match man.ask (Queries.EvalValue ptr) with
-    | a when not (Queries.VD.is_top a) ->
-      begin match a with
-        | Address a -> ValueDomain.AD.for_all (fun addr -> match addr with | StrPtr _ -> true | _ -> false) a
-        | _ -> false
-      end
-    (* Intuition: if ptr evaluates to top, it could all sorts of things and not only string addresses *)
-    | _ -> false
-
   let get_addr_offs_from_ad man ptr a =
     match a with
     | a when not (VDQ.AD.is_top a) ->
@@ -272,16 +262,19 @@ struct
     | _ -> M.error "Expression %a is not a pointer" d_exp ptr_exp
 
   let check_access_for_oob man exp ad =
+    let ptr_only_has_str_addr ptr =
+      ValueDomain.AD.for_all (function StrPtr _ -> true | _ -> false) (man.ask (Queries.MayPointTo ptr))
+    in
     let exp = Cil.stripCasts exp in
     match exp with
     (* Actual dereference/access through a pointer. *)
-    | AddrOf (Mem e, o) when not (ptr_only_has_str_addr man e) ->
+    | AddrOf (Mem e, o) when not (ptr_only_has_str_addr e) ->
       check_ptr_deref_access man e o
     (* Taking the address of something is not an access itself. *)
     | AddrOf _ ->
       ()
     (* Pointer arithmetic / pointer value access. *)
-    | _ when isPointerType (typeOf exp) && not (ptr_only_has_str_addr man exp) ->
+    | _ when isPointerType (typeOf exp) && not (ptr_only_has_str_addr exp) ->
       check_ptr_value_access man exp (get_addr_offs_from_ad man exp ad)
     | _ ->
       ()
