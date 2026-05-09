@@ -15,6 +15,11 @@ type ('g,'c,'v) man =
   ; sideg     : 'v -> 'g -> unit
   }
 
+(** Convert [man] to [Queries.ask]. *)
+let ask_of_man man: Queries.ask = { Queries.f = man.ask }
+
+
+
 module type UnknownSet = Printable.S
 
 module type SimplifiedSpec = sig
