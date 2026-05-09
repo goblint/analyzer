@@ -3,19 +3,48 @@ open SimplifiedAnalysis
 open GStoreWideningHelper
 
 (**
-    There are two regression tests for this analysis, which you can run by calling:
+  This analysis proceeds in steps, with the steps building on each other.
+
+  For the sake of this analysis, we are assuming that all variables are of integer type.
+  This allows us to keep the analysis simple in the beginning.
+
+
+  1) First, a simple  interval analysis is implemented which tracks intervals
+     for local variables only. 
+
+    The majority of the code is already provided, there is one place where
+    changes need to be made, namely the handling of branches. 
+    It is marked with TODO: 1).
+
+  2) Then the analysis is extended to also track values for globals via global store widening
+
+    To this end, one should fix which set of globals to track, and their domain.
+    Then, assignment and evaluation functions should be changed appropriately.
+    These are marked with TODO: 2).
+  
+  
+  
+  
+  
+  After modifying things, don't forget to compile by running `make`
+
+    There are regression tests for this analysis, which you can run by calling:
    -  ./regtest.sh 99 05
    -  ./regtest.sh 99 06
 
-    Running these scripts also produces a visualization of the analysis results as a HTML file in the folder
-    result.
+  After fixing the TODO: 1), the first regression test should pass.
+  After fixing the TODO: 2), both the first and the second tests should pass.
 
-    You can access these by spinning up a HTTP server, e.g., by calling `python3 -m http.server`
+  Running a regression test also produces a visualization of the analysis results as a HTML file in the folder
+  result.
 
-    First fix the TODO: 1) to ensure unreachable code is marked as dead.
-    Then, tackle TODO: 2) to change this analysis so it tracks global variables
+  You can access these by spinning up a HTTP server for the result directory, 
+  e.g., by calling `python3 -m http.server --directory result`.
+  Then open `index.xml` in your browser.
 
-    After modifying things, don't forget to compile by running `make`
+  (When using devcontainer, VSCode will automatically detect the server and 
+  provide a link to open the visualization in your browser.)
+
 *)
 
 
@@ -150,7 +179,7 @@ module Analysis: SimplifiedSpec = struct
     state
 
 
-  (* Glue code, does not need to be modified for this tutorial *)
+  (* The code below does not need to be modified *)
   let set_lval_top state = function
     | Some (Var v, NoOffset) when is_tracked_var v && not v.vglob ->
       D.add v (I.top_of (ikind_of_typ v.vtype)) state
