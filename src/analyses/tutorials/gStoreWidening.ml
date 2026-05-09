@@ -22,9 +22,23 @@ open GStoreWideningHelper
     Then, assignment and evaluation functions should be changed appropriately.
     These are marked with TODO: 2).
   
+  3) Define a helper analysis which tracks for each variable which thread ids are used to write to it,
+    and use this information to determine whether a variable is effectively local
+    (i.e., only written by one thread).
+
+    This requires modifying the domain to store thread ids, and modifying the assign function 
+    to record thread ids for global variables. 
+    Then, the query function should be modified to check whether there is only one thread
+    accessing this variable, and whether it is the current one. 
+    These are marked with TODO: 3).
   
-  
-  
+  4) Modify the first analysis to exploit the infromation from the helper analysis to
+     track the values of effectively local variables more precisely in the thread that
+     owns them, while keeping applying global store widening to obtain the perspective
+     of other threads.
+
+     This will amount to modifying some of the places changed in step 2)
+
   
   After modifying things, don't forget to compile by running `make`
 
@@ -48,7 +62,7 @@ open GStoreWideningHelper
 *)
 
 
-module Analysis: SimplifiedSpec = struct
+module GStoreWideningAnalysis: SimplifiedSpec = struct
   let name = "gStoreWidening"
 
   module I = GStoreWideningHelper.Intervals
@@ -222,5 +236,60 @@ module Analysis: SimplifiedSpec = struct
       ) (D.bot ()) f.sformals
 end
 
+module ThreadSet = ConcDomain.ThreadSet 
+
+module EffectivelyLocalAnalysis:SimplifiedSpec = struct
+  let name = "effectivelyLocal"
+
+  module D = Lattice.Unit
+  module C = Printable.Unit
+
+  (** TODO: 3) Modify so we store for each variable which thread ids are used to write to it *)
+  module V = Printable.Unit
+  module G = Lattice.Unit
+
+  let startstate = ()
+  let startcontext = ()
+
+  let assign man state lval rval =
+    let tid = ThreadId.get_current_unlift (SimplifiedAnalysis.ask_of_man man) in
+    let singleton_set = ThreadSet.singleton tid in
+    match is_tracked_lval lval with
+    | Some v ->
+      (* TODO: 3) check if this is a global variable and if it is, record the thread id *)
+      state
+    | None ->
+      state
+  
+  let query man state (type a) (q: a Queries.t): a Queries.result =
+    match q with
+    | Queries.TutorialEffectivelyLocal v ->
+      (* TODO: 3) Get the current thread id, and check whether there is only one thread
+       accessing this variable, and whether it is the current one *)
+      Queries.Result.top q
+    | _ -> Queries.Result.top q
+
+  let branch man state e tv = state
+
+  let return _ state _ _ =
+    state
+
+  let body _ state f = ()
+
+  let enter man state _ f args = ()
+
+  let combine _ state _ lval _ _ = ()
+  let special man state lval _ _ = ()
+
+  let context _ (_, c) _ _ =
+    c
+
+  let threadenter _ _ f _ = ()
+end
+
+
+
+
 let _ =
-  MCPRegistry.registered_simplified_analysis (module Analysis:SimplifiedSpec)
+  MCPRegistry.registered_simplified_analysis (module GStoreWideningAnalysis:SimplifiedSpec);
+  MCPRegistry.registered_simplified_analysis (module EffectivelyLocalAnalysis:SimplifiedSpec)
