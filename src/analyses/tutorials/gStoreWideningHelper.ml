@@ -1,4 +1,4 @@
-(** Contains some defintions that are helpful for the tutorial but out of scope *)
+(** Contains some definitions that are helpful for the tutorial but out of scope *)
 open GoblintCil
 
 (* Complicated definition for technical reasons relating to different int types *)
