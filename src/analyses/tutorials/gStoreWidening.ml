@@ -32,7 +32,7 @@ open GStoreWideningHelper
     accessing this variable, and whether it is the current one. 
     These are marked with TODO: 3).
   
-  4) Modify the first analysis to exploit the infromation from the helper analysis to
+  4) Modify the first analysis to exploit the information from the helper analysis to
      track the values of effectively local variables more precisely in the thread that
      owns them, while keeping applying global store widening to obtain the perspective
      of other threads.
