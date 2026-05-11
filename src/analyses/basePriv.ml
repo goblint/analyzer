@@ -980,7 +980,7 @@ struct
     let atomic = Param.handle_atomic && LockDomain.MustLock.equal m (LockDomain.MustLock.of_var LibraryFunctions.verifier_atomic_var) in
     (* TODO: what about G_m globals in cpa that weren't actually written? *)
     CPA.fold (fun x v (st: BaseComponents (D).t) ->
-        if is_protected_by ask m x then ( (* is_in_Gm *)
+        if (atomic && is_global ask x && not (VD.is_immediate_type x.vtype)) || is_protected_by ask m x then ( (* is_in_Gm *)
           (* Only apply sides for values that were actually written to globals!
              This excludes invariants inferred through guards. *)
           begin match D.precise_side x v st.priv with
