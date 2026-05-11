@@ -2,8 +2,8 @@ open GoblintCil
 
 
 (** Man(ager) is passed to transfer functions and allows accessing the
-    the context, read values from globals, side-effect values to globals,
-    	and query information from other analyses *)
+    context, read values from globals, side-effect values to globals,
+    and query information from other analyses *)
 type ('g,'c,'v) man =
   {   ask       : 'a. 'a Queries.t -> 'a Queries.result
   (* To communicate with other analyses *)
