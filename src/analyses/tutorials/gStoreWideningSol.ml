@@ -8,20 +8,6 @@ open GStoreWideningHelper
   **    THIS IS THE SOLUTION TO THIS TUTORIAL ANALYSIS, READING THIS BEFORE DOING THE TUTORIAL WILL SPOIL THE FUN.    **
   **                                          YOU HAVE BEEN WARNED.                                                   **
   **********************************************************************************************************************
-
-   There are two regression tests for this analysis, which you can run by calling:
-   -  ./regtest.sh 99 05
-   -  ./regtest.sh 99 06
-
-   Running these scripts also produces a visualization of the analysis results as a HTML file in the folder
-   result.
-
-   You can access these by spinning up a HTTP server, e.g., by calling `python3 -m http.server`
-
-   First fix the TODO: 1) to ensure unreachable code is marked as dead.
-   Then, tackle TODO: 2) to change this analysis so it tracks global variables
-
-   After modifying things, don't forget to compile by running `make`
 *)
 
 
@@ -42,7 +28,8 @@ module Analysis: SimplifiedSpec = struct
 
   (* Evaluate a single variable given a local state *)
   let eval_varinfo man state v =
-    if v.vglob then
+    if v.vglob &&  not (man.ask (Queries.TutorialEffectivelyLocal v))  then
+      (* TODO: 2) Modify so that we get values for globals *)
       man.global v
     else
       D.find v state
@@ -145,7 +132,10 @@ module Analysis: SimplifiedSpec = struct
       else
         (** TODO: 2) Modify so that we store values for globals *)
         (man.sideg v (cast_to_typ v.vtype (eval man state rval));
-         state)
+         if man.ask (Queries.TutorialEffectivelyLocal v) then
+           D.add v (cast_to_typ v.vtype (eval man state rval)) state
+         else
+           state)
     | None ->
       state
 
@@ -201,5 +191,70 @@ module Analysis: SimplifiedSpec = struct
       ) (D.bot ()) f.sformals
 end
 
+module ThreadSet = ConcDomain.ThreadSet
+
+module EffectivelyLocalAnalysis:SimplifiedSpec = struct
+  let name = "effectivelyLocalSol"
+
+  module D = Lattice.Unit
+  module C = Printable.Unit
+
+  (** TODO: 3) Modify so we store for each variable which thread ids are used to write to it *)
+  module V = Basetype.Variables
+  module G = ThreadSet
+
+  let startstate = ()
+  let startcontext = ()
+
+  let assign man state lval rval =
+    (* When the global initializers are evaluated, no threads exists yet *)
+    if !AnalysisState.global_initialization then
+      state
+    else
+      let tid = ThreadId.get_current_unlift (SimplifiedAnalysis.ask_of_man man) in
+      let singleton_set = ThreadSet.singleton tid in
+      match is_tracked_lval lval with
+      | Some v ->
+        (* TODO: 3) check if this is a global variable and if it is, record the thread id *)
+        if v.vglob then
+          (man.sideg v singleton_set; state)
+        else
+          state
+      | None ->
+        state
+
+  let query man state (type a) (q: a Queries.t): a Queries.result =
+    match q with
+    | Queries.TutorialEffectivelyLocal v when not !AnalysisState.global_initialization ->
+      (* TODO: 3) Get the current thread id, and check whether there is only one thread
+         accessing this variable, and whether it is the current one *)
+      let tid = ThreadId.get_current_unlift (SimplifiedAnalysis.ask_of_man man) in
+      let singleton_set = ThreadSet.singleton tid in
+      let writers = man.global v in
+      ThreadSet.equal singleton_set writers
+    | _ -> Queries.Result.top q
+
+  let branch man state e tv = state
+
+  let return _ state _ _ =
+    state
+
+  let body _ state f = ()
+
+  let enter man state _ f args = ()
+
+  let combine _ state _ lval _ _ = ()
+  let special man state lval _ _ = ()
+
+  let context _ (_, c) _ _ =
+    c
+
+  let threadenter _ _ f _ = ()
+end
+
+
+
+
 let _ =
-  MCPRegistry.registered_simplified_analysis (module Analysis:SimplifiedSpec)
+  MCPRegistry.registered_simplified_analysis (module Analysis:SimplifiedSpec);
+  MCPRegistry.registered_simplified_analysis (module EffectivelyLocalAnalysis:SimplifiedSpec)

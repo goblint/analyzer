@@ -1,4 +1,4 @@
-// SKIP PARAM: --set ana.activated '["gStoreWidening","assert"]'
+// SKIP PARAM: --set ana.activated '["gStoreWidening","assert","escape"]'
 #include <goblint.h>
 
 int main() {

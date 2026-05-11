@@ -3,61 +3,63 @@ open SimplifiedAnalysis
 open GStoreWideningHelper
 
 (**
-  This analysis proceeds in steps, with the steps building on each other.
+   This analysis proceeds in steps, with the steps building on each other.
 
-  For the sake of this analysis, we are assuming that all variables are of integer type.
-  This allows us to keep the analysis simple in the beginning.
+   For the sake of this analysis, we are assuming that all variables are of integer type.
+   This allows us to keep the analysis simple in the beginning.
 
 
-  1) First, a simple  interval analysis is implemented which tracks intervals
-     for local variables only. 
+   1) First, a simple  interval analysis is implemented which tracks intervals
+     for local variables only.
 
     The majority of the code is already provided, there is one place where
-    changes need to be made, namely the handling of branches. 
+    changes need to be made, namely the handling of branches.
     It is marked with TODO: 1).
 
-  2) Then the analysis is extended to also track values for globals via global store widening
+   2) Then the analysis is extended to also track values for globals via global store widening
 
     To this end, one should fix which set of globals to track, and their domain.
     Then, assignment and evaluation functions should be changed appropriately.
     These are marked with TODO: 2).
-  
-  3) Define a helper analysis which tracks for each variable which thread ids are used to write to it,
+
+   3) Define a helper analysis which tracks for each variable which thread ids are used to write to it,
     and use this information to determine whether a variable is effectively local
     (i.e., only written by one thread).
 
-    This requires modifying the domain to store thread ids, and modifying the assign function 
-    to record thread ids for global variables. 
+    This requires modifying the domain to store thread ids, and modifying the assign function
+    to record thread ids for global variables.
     Then, the query function should be modified to check whether there is only one thread
-    accessing this variable, and whether it is the current one. 
+    accessing this variable, and whether it is the current one.
     These are marked with TODO: 3).
-  
-  4) Modify the first analysis to exploit the information from the helper analysis to
+
+   4) Modify the first analysis to exploit the information from the helper analysis to
      track the values of effectively local variables more precisely in the thread that
      owns them, while keeping applying global store widening to obtain the perspective
      of other threads.
 
      This will amount to modifying some of the places changed in step 2)
 
-  
-  After modifying things, don't forget to compile by running `make`
+
+   After modifying things, don't forget to compile by running `make`
 
     There are regression tests for this analysis, which you can run by calling:
    -  ./regtest.sh 99 05
    -  ./regtest.sh 99 06
+   -  ./regtest.sh 99 07
 
-  After fixing the TODO: 1), the first regression test should pass.
-  After fixing the TODO: 2), both the first and the second tests should pass.
+   After fixing the TODO: 1), the first regression test should pass.
+   After fixing the TODO: 2), both the first and the second tests should pass.
+   After fixing the last TODO:, all three tests should pass
 
-  Running a regression test also produces a visualization of the analysis results as a HTML file in the folder
-  result.
+   Running a regression test also produces a visualization of the analysis results as a HTML file in the folder
+   result.
 
-  You can access these by spinning up a HTTP server for the result directory, 
-  e.g., by calling `python3 -m http.server --directory result`.
-  Then open `index.xml` in your browser.
+   You can access these by spinning up a HTTP server for the result directory,
+   e.g., by calling `python3 -m http.server --directory result`.
+   Then open `index.xml` in your browser.
 
-  (When using devcontainer, VSCode will automatically detect the server and 
-  provide a link to open the visualization in your browser.)
+   (When using devcontainer, VSCode will automatically detect the server and
+   provide a link to open the visualization in your browser.)
 
 *)
 
@@ -80,7 +82,7 @@ module GStoreWideningAnalysis: SimplifiedSpec = struct
   (* Evaluate a single variable given a local state *)
   let eval_varinfo man state v =
     if v.vglob then
-      (** TODO: 2) Modify so that we store values for globals *)
+      (* TODO: 2) Modify so that we get values for globals *)
       top_of_var v
     else
       D.find v state
@@ -236,7 +238,7 @@ module GStoreWideningAnalysis: SimplifiedSpec = struct
       ) (D.bot ()) f.sformals
 end
 
-module ThreadSet = ConcDomain.ThreadSet 
+module ThreadSet = ConcDomain.ThreadSet
 
 module EffectivelyLocalAnalysis:SimplifiedSpec = struct
   let name = "effectivelyLocal"
@@ -252,20 +254,24 @@ module EffectivelyLocalAnalysis:SimplifiedSpec = struct
   let startcontext = ()
 
   let assign man state lval rval =
-    let tid = ThreadId.get_current_unlift (SimplifiedAnalysis.ask_of_man man) in
-    let singleton_set = ThreadSet.singleton tid in
-    match is_tracked_lval lval with
-    | Some v ->
-      (* TODO: 3) check if this is a global variable and if it is, record the thread id *)
+    (* When the global initializers are evaluated, no threads exists yet *)
+    if !AnalysisState.global_initialization then
       state
-    | None ->
-      state
-  
+    else
+      let tid = ThreadId.get_current_unlift (SimplifiedAnalysis.ask_of_man man) in
+      let singleton_set = ThreadSet.singleton tid in
+      match is_tracked_lval lval with
+      | Some v ->
+        (* TODO: 3) check if this is a global variable and if it is, record the thread id *)
+        state
+      | None ->
+        state
+
   let query man state (type a) (q: a Queries.t): a Queries.result =
     match q with
     | Queries.TutorialEffectivelyLocal v ->
       (* TODO: 3) Get the current thread id, and check whether there is only one thread
-       accessing this variable, and whether it is the current one *)
+         accessing this variable, and whether it is the current one *)
       Queries.Result.top q
     | _ -> Queries.Result.top q
 
