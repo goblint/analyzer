@@ -13,12 +13,12 @@ int main(void) {
   printf("%p", (void *) (end + 1)); // TODO WARN (imprecise due to %p)
 
   end = buf + 4; // NOWARN
-  printf("%s", end); // TODO WARN! (unsound)
-  printf("%p", (void *) end); // TODO WARN (imprecise due to %p)
-  printf("%s", end + 1); // TODO WARN! (unsound)
-  printf("%p", (void *) (end + 1)); // TODO WARN (imprecise due to %p)
-  printf("%s", end - 1); // NOWARN
-  printf("%p", (void *) (end - 1)); // NOWARN
+  printf("%s", end); // WARN!
+  printf("%p", (void *) end); // WARN (imprecise due to %p)
+  printf("%s", end + 1); // WARN! (unsound)
+  printf("%p", (void *) (end + 1)); // WARN (imprecise due to %p)
+  printf("%s", end - 1); // TODO NOWARN (imprecise)
+  printf("%p", (void *) (end - 1)); // TODO NOWARN (imprecise)
 
   end = buf + 5; // NOWARN
   printf("%s", end); // WARN!
