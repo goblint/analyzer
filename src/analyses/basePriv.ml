@@ -1100,11 +1100,14 @@ struct
           ()
         )
       in
-      (* Propagate for syntactic globals *)
+      let is_phase_ghost x =
+        YamlWitness.VarSet.mem x !(YamlWitness.ghostVars) && ask.f (Q.IsPhaseGhost x)
+      in
+      (* Propagate for syntactic globals. Phase ghosts are represented by the phase digest,
+         but non-phase witness ghosts are ordinary globals and still need their values
+         carried over to the new phase. *)
       List.iter (function
-          (* TODO: Can ghost vars really be omitted here? *)
-          (* TODO: Should probably be limited to things that we have determined to be phaseGhosts *)
-          | GVar (x, _, _) when not (YamlWitness.VarSet.mem x !(YamlWitness.ghostVars)) ->
+          | GVar (x, _, _) when not (is_phase_ghost x) ->
             publish_global_to_newphase x
           | _ -> ()
         ) !Cilfacade.current_file.globals;
