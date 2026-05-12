@@ -1091,7 +1091,7 @@ struct
         )
         else (
           if M.tracing then M.tracel "phase" "Propagating value for %s from %s to %s" g.vname (Queries.PhaseDigest.show old_phase) (Queries.PhaseDigest.show new_phase);
-          let old_phase_magic = Option.get @@ Wrapper.Digest.of_phase old_phase in
+          let old_phase_magic = Option.get @@ Wrapper.Digest.of_phase ask old_phase in
           let old_phase_getg = Wrapper.getg_digest_override old_phase_magic ask getg in
           let old_protected = old_phase_getg (V.protected g) in
           let old_unprotected = old_phase_getg (V.unprotected g) in
@@ -2226,8 +2226,8 @@ let priv_module: (module S) Lazy.t =
         | "vojdani" -> (module VojdaniPriv: S)
         | "mutex-oplus" -> (module PerMutexOplusPriv)
         | "mutex-meet" -> (module PerMutexMeetPriv)
-        (* | "mutex-meet-ghost" -> (module PerMutexMeetTIDPriv (GhostPhase)) *) (* TODO: Implement *)
         | "mutex-meet-tid" -> (module PerMutexMeetTIDPriv (ThreadDigest))
+        | "mutex-meet-tid-ghost" -> (module PerMutexMeetTIDPriv (GhostPhase)) (* TODO: Implement *)
         | "protection" -> (module ProtectionBasedPriv (ProtDom) (struct let check_read_unprotected = false let handle_atomic = false end)(NoWrapper))
         | "protection-tid" -> (module ProtectionBasedPriv (ProtDom) (struct let check_read_unprotected = false let handle_atomic = false end)(DigestWrapper(ThreadNotStartedDigest)))
         | "protection-atomic" -> (module ProtectionBasedPriv (ProtDom) (struct let check_read_unprotected = false let handle_atomic = true end)(NoWrapper)) (* experimental *)

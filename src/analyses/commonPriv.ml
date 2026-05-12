@@ -191,7 +191,7 @@ sig
   include Printable.S
 
   val requiresActionOnPhaseChange: bool
-  val of_phase: Queries.PhaseDigest.t -> t option
+  val of_phase: Q.ask -> Queries.PhaseDigest.t -> t option
 
   val current: Q.ask -> t
   val accounted_for: Q.ask -> current:t -> other:t -> bool
@@ -207,7 +207,7 @@ struct
   module TID = ThreadIdDomain.Thread
 
   let requiresActionOnPhaseChange = false
-  let of_phase _ = None
+  let of_phase _ _ = None
 
   let current (ask: Q.ask) =
     ThreadId.get_current ask
@@ -229,7 +229,7 @@ end
 module UnitDigest:Digest = struct
   include Printable.Unit
   let requiresActionOnPhaseChange = false
-  let of_phase _ = None
+  let of_phase _ _ = None
 
   let current (ask:Q.ask) = ()
   let accounted_for (ask:Q.ask) ~current ~other = false
@@ -245,7 +245,7 @@ struct
   module TID = ThreadIdDomain.Thread
 
   let requiresActionOnPhaseChange = false
-  let of_phase _ = None
+  let of_phase _ _ = None
 
   let current (ask: Q.ask) =
     ThreadId.get_current ask
@@ -262,7 +262,7 @@ struct
   include Q.PhaseDigest
 
   let requiresActionOnPhaseChange = true
-  let of_phase d = Some d
+  let of_phase (ask:Q.ask) d = Some d
 
   let current (ask: Q.ask) = ask.f Q.PhaseDigest
   let accounted_for (ask:Q.ask)  ~(current: t) ~(other: t) =
@@ -271,6 +271,30 @@ struct
     (* TODO: Local writes should also be considered accounted for through some additional mechanism *)
     not (equal current other)
 end
+
+module GhostPhaseLifter(Inner:Digest):Digest =
+struct
+  include Printable.Prod (Q.PhaseDigest) (Inner)
+
+  let requiresActionOnPhaseChange = true
+  let of_phase ask p =
+    (*
+
+     TODO: Is this correct here? Always take current digest of inner?
+      - Do I need this at all or can I just publish my local view?
+      - What about threads that are not unique?
+
+    *)
+    let inner = Inner.current ask in
+    Some (p, inner)
+
+
+  let current (ask:Q.ask) = (ask.f Q.PhaseDigest, Inner.current ask)
+
+  let accounted_for (ask:Q.ask)  ~current:((currentPhase, currentinner): t) ~other:((otherPhase, otherinner): t) =
+    not (Q.PhaseDigest.equal currentPhase otherPhase) || Inner.accounted_for ask ~current:currentinner ~other:otherinner
+end
+
 
 
 module PerMutexTidCommon (Digest: Digest) (LD:Lattice.S) (Cluster:Printable.S) =
