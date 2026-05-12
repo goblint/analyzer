@@ -730,7 +730,42 @@ struct
     (* so the cpa component of st is bot. *)
     {st with cpa = CPA.bot (); priv = (W.bot (),lmust,l)}
 
-  let phase_change ask _old_phase _new_phase _getg _sideg st = st
+  let phase_change ask _old_phase _new_phase getg sideg (st: BaseComponents (D).t) =
+    if Digest.requiresActionOnPhaseChange then
+      (* getg will refer to incorrect phase here by default, namely new_phase(!) *)
+      (* can publish to others can skip publishing to those that are must-accounted for in the local
+         state ? *)
+      begin
+        (* Iterate over all mutexes, carry forward L component, as well as other global views (?) *)
+        (* What about other threads? Should only carry forward their globals? *)
+        (* What is the timing of the phaseChange Event relative to unlocks? *)
+        (* Skip those that are currently held, these will be published on unlock *)
+        let (w, lmust, l) = st.priv in
+        let publish_l (lock:LLock.t) (value:L.value) =
+          let digest = Digest.current ask in
+          let sideval = GMutex.singleton digest value in
+          match lock with
+          | `Left mutex ->
+            if Locksets.((MustLockset.mem mutex (current_lockset ask))) then
+              (* Do not propagate to next phase here already, unlock will propagate appropriate value *)
+              ()
+            else
+              sideg (V.mutex mutex) (G.create_mutex sideval)
+          | `Right g ->
+            (* Publishing here is unconditional,  *)
+            sideg (V.global g) (G.create_global sideval)
+        in
+        L.iter publish_l l;
+        let publish_others l (lock:LLock.t) =
+          let other_map = getg (V.mutex l) in
+
+          ()
+
+        in
+        st
+      end
+    else
+      st
 
   let threadspawn (ask:Queries.ask) get set (st: BaseComponents (D).t) =
     let is_recovered_st = ThreadFlag.has_ever_been_multi ask && not @@ ThreadFlag.is_currently_multi ask in
