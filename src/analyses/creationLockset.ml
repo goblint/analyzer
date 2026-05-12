@@ -1,6 +1,7 @@
 (** creation lockset analysis [creationLockset]
     constructs edges on the graph over all threads, where the edges are labelled with must-locksets:
     (t_1) ---L--> (t_0) is represented by global t_1 t_0 = L and means that t_1 is protected by all members of L from t_0
+    If L is bot, this does not represent "all mutexes". Instead, it indicates that t_1 is never (transitively) created from t_0
 
     @see Daniel Bund. "Leveraging the Potential of Inter-Threaded Locksets in Abstract Interpretation", B.Sc. thesis at TUM. Available upon request.
 *)

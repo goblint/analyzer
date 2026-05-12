@@ -18,6 +18,7 @@ module Spec = struct
 
       [t_d] was transitively created with all members of [L] held.
       Additionally, no member of [L] could have been unlocked after the creation of [t_d]
+      If [L] is bot, this does not represent "all mutexes". Instead, it indicates no (transitive) creation of [t_d] has happened
   *)
   module D = MapDomain.MapBot (TID) (Lockset)
 
