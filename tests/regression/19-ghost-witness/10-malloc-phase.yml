@@ -1,0 +1,73 @@
+- entry_type: ghost_instrumentation
+  metadata:
+    format_version: "2.1-goblint"
+    uuid: 00000000-0000-0000-0000-000000000031
+    creation_time: 2026-04-21T00:00:00Z
+    producer:
+      name: Test
+      version: "0.0"
+    task:
+      input_files:
+      - 10-malloc-phase.c
+      input_file_hashes:
+        10-malloc-phase.c: "0000000000000000000000000000000000000000000000000000000000000000"
+      data_model: LP64
+      language: C
+  content:
+    ghost_variables:
+    - name: ghost_a
+      scope: global
+      type: int
+      initial:
+        value: "0"
+        format: c_expression
+    - name: ghost_b
+      scope: global
+      type: int
+      initial:
+        value: "0"
+        format: c_expression
+    ghost_updates:
+    - location:
+        file_name: 10-malloc-phase.c
+        line: 19
+        column: 5
+        function: fun
+      updates:
+      - variable: ghost_a
+        value: "ghost_a + 1"
+        format: c_expression
+    - location:
+        file_name: 10-malloc-phase.c
+        line: 40
+        column: 5
+        function: main
+      updates:
+      - variable: ghost_b
+        value: "ghost_b + 1"
+        format: c_expression
+- entry_type: invariant_set
+  metadata:
+    format_version: "2.0"
+    uuid: 00000000-0000-0000-0000-000000000032
+    creation_time: 2026-04-21T00:00:00Z
+    producer:
+      name: Test
+      version: "0.0"
+    task:
+      input_files:
+      - 10-malloc-phase.c
+      input_file_hashes:
+        10-malloc-phase.c: "0000000000000000000000000000000000000000000000000000000000000000"
+      data_model: LP64
+      language: C
+  content:
+  - invariant:
+      type: location_invariant
+      location:
+        file_name: 10-malloc-phase.c
+        line: 46
+        column: 5
+        function: main
+      value: "*published == 10"
+      format: c_expression

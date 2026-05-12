@@ -1080,7 +1080,7 @@ struct
     if Wrapper.requiresActionOnPhaseChange then
       let publish_global_to_newphase g =
         if (P.mem g @@ D.getP st.priv) then (
-          (* TODO: Or propagate only unprotected, proteced will be published later?
+          (* TODO: Or propagate only unprotected, protected will be published later?
              - unprotected needs to be published right away to account for other changing phase and observing this right away
           *)
           let v = CPA.find g st.cpa in
@@ -1100,13 +1100,17 @@ struct
           ()
         )
       in
-      (* TODO: Other globals! *)
+      (* Propagate for syntactic globals *)
       List.iter (function
           (* TODO: Can ghost vars really be omitted here? *)
+          (* TODO: Should probably be limited to things that we have determined to be phaseGhosts *)
           | GVar (x, _, _) when not (YamlWitness.VarSet.mem x !(YamlWitness.ghostVars)) ->
             publish_global_to_newphase x
           | _ -> ()
         ) !Cilfacade.current_file.globals;
+      (* Propagate for heap variables *)
+      let alloc_varinfos = ask.f Queries.AllocVars in
+      Q.VS.iter publish_global_to_newphase alloc_varinfos;
       st
     else
       st

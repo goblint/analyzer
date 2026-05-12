@@ -132,6 +132,7 @@ type _ t =
   | AllocVar: AllocationLocation.t -> VI.t t
   (* Create a variable representing a dynamic allocation-site *)
   (* If on_stack is [true], then the dynamic allocation is on the stack (i.e., alloca() or a similar function was called). Otherwise, allocation is on the heap *)
+  | AllocVars: VS.t t (* Variables representing dynamic allocation-sites *)
   | IsAllocVar: varinfo -> MayBool.t t (* [true] if variable represents dynamically allocated memory *)
   | IsHeapVar: varinfo -> MayBool.t t (* TODO: is may or must? *)
   | IsMultiple: varinfo -> MustBool.t t
@@ -211,6 +212,7 @@ struct
     | Owner _ -> (module ThreadIdDomain.ThreadLifted)
     | ThreadCreateIndexedNode -> (module ThreadNodeLattice)
     | AllocVar _ -> (module VI)
+    | AllocVars -> (module VS)
     | EvalStr _ -> (module SD)
     | IterPrevVars _ -> (module Unit)
     | IterVars _ -> (module Unit)
@@ -290,6 +292,7 @@ struct
     | Owner _ -> ThreadIdDomain.ThreadLifted.top ()
     | ThreadCreateIndexedNode -> ThreadNodeLattice.top ()
     | AllocVar _ -> VI.top ()
+    | AllocVars -> VS.top ()
     | EvalStr _ -> SD.top ()
     | IterPrevVars _ -> Unit.top ()
     | IterVars _ -> Unit.top ()
@@ -363,6 +366,7 @@ struct
     | Any (IterPrevVars _) -> 24
     | Any (IterVars _) -> 25
     | Any (AllocVar _) -> 29
+    | Any AllocVars -> 67
     | Any (IsHeapVar _) -> 30
     | Any (IsMultiple _) -> 31
     | Any (EvalThread _) -> 32
@@ -490,6 +494,7 @@ struct
     | Any (IterPrevVars i) -> 0
     | Any (IterVars i) -> 0
     | Any (AllocVar location) -> AllocationLocation.hash location
+    | Any AllocVars -> 0
     | Any (PathQuery (i, q)) -> 31 * i + hash (Any q)
     | Any (IsHeapVar v) -> CilType.Varinfo.hash v
     | Any (MustTermLoop s) -> CilType.Stmt.hash s
@@ -550,6 +555,7 @@ struct
     | Any (IterVars i) -> Pretty.dprintf "IterVars _"
     | Any (PathQuery (i, q)) -> Pretty.dprintf "PathQuery (%d, %a)" i pretty (Any q)
     | Any (AllocVar location) -> Pretty.dprintf "AllocVar _"
+    | Any AllocVars -> Pretty.dprintf "AllocVars"
     | Any (IsHeapVar v) -> Pretty.dprintf "IsHeapVar %a" CilType.Varinfo.pretty v
     | Any (IsAllocVar v) -> Pretty.dprintf "IsAllocVar %a" CilType.Varinfo.pretty v
     | Any (IsMultiple v) -> Pretty.dprintf "IsMultiple %a" CilType.Varinfo.pretty v

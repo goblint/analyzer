@@ -165,6 +165,10 @@ module MallocWrapper : MCPSpec = struct
       var.vdecl <- UpdateCil.getLoc node; (* TODO: does this do anything bad for incremental? *)
       if location = Stack then var.vattr <- addAttribute (Attr ("stack_alloca", [])) var.vattr; (* If the call was for stack allocation, add an attr to mark the heap var *)
       `Lifted var
+    | Q.AllocVars ->
+      NodeVarinfoMap.bindings ()
+      |> List.map snd
+      |> Q.VS.of_list
     | Q.IsHeapVar v ->
       NodeVarinfoMap.mem_varinfo v && not @@ hasAttribute "stack_alloca" v.vattr
     | Q.IsAllocVar v ->
