@@ -758,9 +758,8 @@ struct
         L.iter publish_l l;
         let publish_others l (lock:LLock.t) =
           let other_map = getg (V.mutex l) in
-
-          ()
-
+          let mtx = G.mutex other_map in
+          GMutex.fold (fun _ _ _ -> ()) mtx ()
         in
         st
       end
