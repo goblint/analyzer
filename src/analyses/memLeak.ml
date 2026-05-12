@@ -34,18 +34,13 @@ struct
     |> List.filter (fun v ->
         match unrollType v.vtype with
         | TPtr (TComp (ci,_), _)
-        | TPtr ((TNamed ({ttype = TComp (ci, _); _}, _)), _) -> ci.cstruct
-        | TComp (_, _)
-        | (TNamed ({ttype = TComp _; _}, _)) -> false
+        | TPtr ((TNamed ({ttype = TComp (ci, _); _}, _)), _) -> ci.cstruct (* TODO: unrollTypeDeep? *)
+        | TComp (_, _) -> false
         | _ -> false)
 
   let get_global_struct_non_ptr_vars () =
     get_global_vars ()
-    |> List.filter (fun v ->
-        match unrollType v.vtype with
-        | TComp (ci, _)
-        | (TNamed ({ttype = TComp (ci,_); _}, _)) -> ci.cstruct
-        | _ -> false)
+    |> List.filter (fun v -> Cilfacade.isStructType v.vtype)
 
   let get_reachable_mem_from_globals (global_vars:varinfo list) man =
     global_vars

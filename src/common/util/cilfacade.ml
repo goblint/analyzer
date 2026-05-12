@@ -49,6 +49,11 @@ let isStructOrUnionType t =
   | TComp _ -> true
   | _ -> false
 
+let isStructType t =
+  match Cil.unrollType t with
+  | TComp (ci, _) -> ci.cstruct
+  | _ -> false
+
 let is_first_field x = match x.fcomp.cfields with
   | [] -> false
   | f :: _ -> CilType.Fieldinfo.equal f x
