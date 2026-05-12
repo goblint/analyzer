@@ -2226,7 +2226,7 @@ let priv_module: (module S) Lazy.t =
         | "vojdani" -> (module VojdaniPriv: S)
         | "mutex-oplus" -> (module PerMutexOplusPriv)
         | "mutex-meet" -> (module PerMutexMeetPriv)
-        | "mutex-meet-ghost" -> (module PerMutexMeetTIDPriv (GhostPhase))
+        (* | "mutex-meet-ghost" -> (module PerMutexMeetTIDPriv (GhostPhase)) *) (* TODO: Implement *)
         | "mutex-meet-tid" -> (module PerMutexMeetTIDPriv (ThreadDigest))
         | "protection" -> (module ProtectionBasedPriv (ProtDom) (struct let check_read_unprotected = false let handle_atomic = false end)(NoWrapper))
         | "protection-tid" -> (module ProtectionBasedPriv (ProtDom) (struct let check_read_unprotected = false let handle_atomic = false end)(DigestWrapper(ThreadNotStartedDigest)))
