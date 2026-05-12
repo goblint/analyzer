@@ -107,3 +107,4 @@ site/
 *.coverage
 # bisect-ppx-report
 _coverage/*
+tests/regression/*/result/*
