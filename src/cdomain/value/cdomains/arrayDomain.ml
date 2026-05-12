@@ -802,7 +802,9 @@ end
 
 (* This is the main array out of bounds check *)
 let array_oob_check ( type a ) (module Idx: IntDomain.Z with type t = a) (x, l) (e, v) =
-  if GobConfig.get_bool "ana.arrayoob" then (* The purpose of the following 2 lines is to give the user extra info about the array oob *)
+  if !AnalysisState.executing_speculative_computations then
+    ()
+  else if GobConfig.get_bool "ana.arrayoob" then (* The purpose of the following 2 lines is to give the user extra info about the array oob *)
     let idx_before_end = Idx.lt v l in (* check whether index is before the end of the array *)
     let idx_after_start = Idx.ge v (Idx.of_int (Cilfacade.ptrdiff_ikind ()) Z.zero) in (* check whether the index is non-negative *)
     (* For an explanation of the warning types check the Pull Request #255 *)

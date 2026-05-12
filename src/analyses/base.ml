@@ -223,7 +223,23 @@ struct
     | Bot -> Bot
     | _ -> VD.top ()
 
-  let binop_ID (result_ik: Cil.ikind) = function
+  let binop_ID (result_ik: Cil.ikind) =
+    (* Check the shift amount for negative values (undefined behavior in C), emitting
+       appropriate warnings/errors based on bounds analysis. *)
+    let check_shift_neg dir y =
+      let ik = ID.ikind y in
+      let zero = ID.of_int ik Z.zero in
+      match ID.ge y zero, ID.lt y zero with
+      | Some true, _ ->
+        Checks.safe Checks.Category.InvalidShift
+      | _, Some true ->
+        M.error ~category:M.Category.Behavior.Undefined.other ~tags:[CWE 758] "Shift-%s by negative amount is undefined behavior" dir;
+        Checks.error Checks.Category.InvalidShift "Shift-%s by negative amount is undefined behavior" dir
+      | _ ->
+        M.warn ~category:M.Category.Behavior.Undefined.other ~tags:[CWE 758] "Shift-%s by possibly negative amount may be undefined behavior" dir;
+        Checks.warn Checks.Category.InvalidShift "Shift-%s by possibly negative amount may be undefined behavior" dir
+    in
+    function
     | PlusA -> ID.add
     | MinusA -> ID.sub
     | Mult -> ID.mul
@@ -265,8 +281,14 @@ struct
     | BAnd -> ID.logand
     | BOr -> ID.logor
     | BXor -> ID.logxor
-    | Shiftlt -> ID.shift_left
-    | Shiftrt -> ID.shift_right
+    | Shiftlt ->
+      fun x y ->
+        check_shift_neg "left" y;
+        ID.shift_left x y
+    | Shiftrt ->
+      fun x y ->
+        check_shift_neg "right" y;
+        ID.shift_right x y
     | LAnd -> id_binary_log (&&) ~annihilator:false result_ik
     | LOr -> id_binary_log (||) ~annihilator:true result_ik
     | b -> (fun x y -> (ID.top_of result_ik))
@@ -613,10 +635,15 @@ struct
     | JmpBuf _ -> empty (* Jump buffers are abstract and nothing known can be reached from them *)
     | Mutex -> empty (* mutexes are abstract and nothing known can be reached from them *)
 
+  let reachable_from_value ask (value: value) (t: typ) (description: string) =
+    let@ () = GobRef.wrap AnalysisState.executing_speculative_computations true in
+    reachable_from_value ask value t description
+
   (* Get the list of addresses accessible immediately from a given address, thus
    * all pointers within a structure should be considered, but we don't follow
    * pointers. We return a flattend representation, thus simply an address (set). *)
   let reachable_from_addr ~man st (addr: Addr.t): address =
+    let@ () = GobRef.wrap AnalysisState.executing_speculative_computations true in
     if M.tracing then M.tracei "reachability" "Checking for %a" Addr.pretty addr;
     let res = reachable_from_value (Analyses.ask_of_man man) (get_addr ~man st addr None) (Addr.type_of addr) (Addr.show addr) in
     if M.tracing then M.traceu "reachability" "Reachable addresses: %a" AD.pretty res;
@@ -696,6 +723,7 @@ struct
 
 
   let reachable_top_pointers_types man (ps: AD.t) : Queries.TS.t =
+    let@ () = GobRef.wrap AnalysisState.executing_speculative_computations true in
     let module TS = Queries.TS in
     let empty = AD.empty () in
     let reachable_from_address (adr: address) =
@@ -2419,7 +2447,7 @@ struct
           let src_cast_lval = mkMem ~addr:(Cilfacade.mkCast ~kind:Internal ~e:src ~newt:(TPtr (dest_typ, []))) ~off:NoOffset in
           eval_rv ~man st (Lval src_cast_lval)
         else
-          VD.top_value (unrollType dest_typ)
+          VD.top_value dest_typ
       in
       set ~man st dest_a dest_typ value in
     (* for string functions *)
@@ -2471,11 +2499,11 @@ struct
             else if not all && typeSig s1_typ = typeSig s2_typ then (* only the types of s1 and s2 need to coincide *)
               set ~man st lv_a lv_typ (f s1_a s2_a)
             else
-              set ~man st lv_a lv_typ (VD.top_value (unrollType lv_typ))
+              set ~man st lv_a lv_typ (VD.top_value lv_typ)
           | _ ->
             (* check if s1 is potentially a string literal as writing to it would be undefined behavior; then return top *)
             let _ = AD.string_writing_defined s1_a in
-            set ~man st s1_a s1_typ (VD.top_value (unrollType s1_typ))
+            set ~man st s1_a s1_typ (VD.top_value s1_typ)
         end
         (* else compute value in array domain *)
       else
@@ -2513,13 +2541,13 @@ struct
           if op_addr = None then
             (* triggers warning, function only evaluated for side-effects *)
             let _ = AD.string_writing_defined s1_a in
-            set ~man st s1_a s1_typ (VD.top_value (unrollType s1_typ))
+            set ~man st s1_a s1_typ (VD.top_value s1_typ)
           else
             let s1_null_bytes = List.map CArrays.to_null_byte_domain (AD.to_string s1_a) in
             let array_s1 = List.fold_left CArrays.join (CArrays.bot ()) s1_null_bytes in
             set ~man st lv_a lv_typ (op_array array_s1 array_s2)
         | _ ->
-          set ~man st lv_a lv_typ (VD.top_value (unrollType lv_typ))
+          set ~man st lv_a lv_typ (VD.top_value lv_typ)
     in
     (* Returns a tuple, the first is the address of the blob if one was allocated, the second is the returned address (may contain null pointer or be only null-pointer) *)
     let alloc loc size =
@@ -2583,7 +2611,7 @@ struct
             else
               match get ~man st a None with
               | Array array_s -> Int (CArrays.to_string_length array_s)
-              | _ -> VD.top_value (unrollType dest_typ)
+              | _ -> VD.top_value dest_typ
           in
           set ~man st dest_a dest_typ value
         ) st lv
