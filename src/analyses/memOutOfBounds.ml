@@ -38,19 +38,12 @@ struct
     try ID.lt offs (intdom_of_int 0)
     with IntDomain.ArithmeticOnIntegerBot _ -> None
 
-  let check_deref_offset_bounds ptr_size offs =
+  let check_offset_bounds ptr_size offs =
     let ptr_size_le_offs =
       try ID.le ptr_size offs
       with IntDomain.ArithmeticOnIntegerBot _ -> None
     in
     offs_lt_zero offs, ptr_size_le_offs
-
-  let check_ptr_offset_bounds ptr_size offs =
-    let ptr_size_lt_offs =
-      try ID.lt ptr_size offs
-      with IntDomain.ArithmeticOnIntegerBot _ -> None
-    in
-    offs_lt_zero offs, ptr_size_lt_offs
 
   let rec exp_contains_a_ptr (exp:exp) =
     match exp with
@@ -310,7 +303,7 @@ struct
             let casted_offs = ID.cast_to ~kind:Internal (Cilfacade.ptrdiff_ikind ()) offs_intdom in (* TODO: proper castkind *)
             let behavior = Undefined MemoryOutOfBoundsAccess in
             let cwe_number = 823 in
-            begin match check_deref_offset_bounds casted_es casted_offs with
+            begin match check_offset_bounds casted_es casted_offs with
               | Some true, _
               | _, Some true ->
                 (set_mem_safety_flag InvalidDeref;
@@ -355,7 +348,7 @@ struct
         | `Lifted ps, ao ->
           let casted_ps = ID.cast_to ~kind:Internal (Cilfacade.ptrdiff_ikind ()) ps in (* TODO: proper castkind *)
           let casted_ao = ID.cast_to ~kind:Internal (Cilfacade.ptrdiff_ikind ()) ao in (* TODO: proper castkind *)
-          begin match check_ptr_offset_bounds casted_ps casted_ao with
+          begin match check_offset_bounds casted_ps casted_ao with
             | Some true, _
             | _, Some true ->
               set_mem_safety_flag InvalidDeref;
@@ -443,7 +436,7 @@ struct
             | `Lifted ps, `Lifted o ->
               let casted_ps = ID.cast_to ~kind:Internal (Cilfacade.ptrdiff_ikind ()) ps in (* TODO: proper castkind *)
               let casted_o = ID.cast_to ~kind:Internal (Cilfacade.ptrdiff_ikind ()) o in (* TODO: proper castkind *)
-              begin match check_ptr_offset_bounds casted_ps casted_o with
+              begin match check_offset_bounds casted_ps casted_o with
                 | Some true, _
                 | _, Some true ->
                   set_mem_safety_flag InvalidDeref;
