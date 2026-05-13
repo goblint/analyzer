@@ -1,0 +1,2 @@
+; Keep editor tooling aware of the unqualified modules in this subtree.
+(include_subdirs unqualified)
