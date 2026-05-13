@@ -3,7 +3,8 @@ FROM ocaml/opam:ubuntu-22.04-opam AS dev
 
 # TODO: use opam depext
 RUN sudo apt-get update \
-    && sudo apt-get install -y libgmp-dev libmpfr-dev m4 autoconf gcc-multilib pkg-config ruby gem curl
+    && sudo apt-get install -y libgmp-dev libmpfr-dev m4 autoconf gcc-multilib pkg-config ruby gem curl python3-pygments graphviz \
+    && sudo rm -rf /var/lib/apt/lists/*
 
 # copy only files for make setup to cache docker layers without code changes
 COPY --chown=opam Makefile make.sh goblint.opam goblint.opam.locked /home/opam/docker/analyzer/
@@ -24,11 +25,10 @@ RUN cd /home/opam/opam-repository \
     && opam update
 
 RUN cd /home/opam/docker/analyzer \
-    && make setup 
+    && make setup
 
 RUN cd /home/opam/docker/analyzer \
     && eval $(opam env) \
-    && opam -y install ocaml-lsp-server ocamlformat \
+    && opam install -y ocaml-lsp-server ocamlformat dune=3.19.1 \
     && sudo gem install parallel os
 
-RUN sudo apt-get install -y python3-pygments graphviz 
