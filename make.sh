@@ -84,7 +84,9 @@ rule() {
       echo "Installing opam packages for test and doc..."
       opam install -y . --deps-only --locked --with-test --with-doc
       echo "Installing opam packages for development..."
-      opam install -y ocaml-lsp-server ocp-indent
+      # Here we enforce dune=3.19.1 (matching goblint.opam.locked)
+      # Otherwise it gets upgraded, possibly leading to build failures for goblint
+      opam install -y ocaml-lsp-server ocp-indent dune=3.19.1
       # ocaml-lsp-server is needed for https://github.com/ocamllabs/vscode-ocaml-platform
       echo "Installing Pre-commit hook..."
       cd .git/hooks; ln -sf ../../scripts/hooks/pre-commit; cd -
