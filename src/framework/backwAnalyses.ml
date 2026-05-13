@@ -113,17 +113,18 @@ module type BackwSpecSpec = functor (ForwSpec : Analyses.Spec) -> sig
     with module P_forw = ForwSpec.P  
 end
 
-module DefaultBackwSpec (ForwSpec : Analyses.Spec) =
+module DefaultBackwSpec (ForwSpec : Analyses.Spec)
+=
 struct
   module G = Lattice.Unit
   module C = ForwSpec.C
   module V = EmptyV
   module P = EmptyP
 
-  module D_forw: Lattice.S = ForwSpec.D
-  module G_forw: Lattice.S = ForwSpec.G
-  module V_forw: SpecSysVar = ForwSpec.V (** Global constraint variables. *)
-  module P_forw: DisjointDomain.Representative with type elt := ForwSpec.D.t = ForwSpec.P (*Path-representative.*)
+  module D_forw = ForwSpec.D
+  module G_forw = ForwSpec.G
+  module V_forw = ForwSpec.V (** Global constraint variables. *)
+  module P_forw = ForwSpec.P (*Path-representative.*)
 
   type marshal = unit
   let init _ = ()

@@ -333,7 +333,7 @@ struct
     let d = S_backw.branch man man_forw e tv in (* Force transfer function to be evaluated before dereferencing in common_join argument. *)
     common_join_backw man man_forw d !r !spawns
 
-  (*TODO: THIS HAS TO BE BACKWARDS*) (*forward context not implemented yet*)
+
   let tf_normal_call_backw man man_forw lv e (f:fundec) args getl (getl_forw : node * S_forw.C.t -> S_forw.D.t) sidel demandl getg getg_forw sideg =
     let combine (cd, fc, fd) =
       if M.tracing then M.traceli "combine" "local: %a" S_backw.D.pretty cd;

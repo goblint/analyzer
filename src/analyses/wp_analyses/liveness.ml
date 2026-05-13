@@ -5,18 +5,7 @@ module BackwSpec : BackwAnalyses.BackwSpecSpec = functor (ForwSpec : Analyses.Sp
 struct
 
   include BackwAnalyses.DefaultBackwSpec (ForwSpec)
-  module C = ForwSpec.C
-
-  (* Adding these module definitions because the "include" of the DefaultBackwSpec is not enough*)
-  module D_forw = ForwSpec.D
-  module G_forw = ForwSpec.G
-  module V_forw = ForwSpec.V
-  module P_forw = ForwSpec.P
   let name () = "liveness"
-
-  module G = Lattice.Unit
-  module V = EmptyV
-  module P = EmptyP
 
   module LiveVariableSet =  SetDomain.ToppedSet (Basetype.Variables) (struct let topname = "All variables" end)
   module D =  LiveVariableSet (*Set of program variables as domain*)
