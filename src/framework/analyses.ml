@@ -60,8 +60,7 @@ struct
   let contexts x = `Right x
 
   (* from Basetype.Variables *)
-  let var_id = show
-  let node _ = MyCFG.Function Cil.dummyFunDec
+  let var_id = show  let node _ = MyCFG.Function Cil.dummyFunDec
   let pretty_trace = pretty
   let is_write_only = function
     | `Left x -> V.is_write_only x

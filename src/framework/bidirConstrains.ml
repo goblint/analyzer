@@ -11,110 +11,88 @@ sig
   val increment: increment_data option
 end
 
-module GVarF2 (V_forw: SpecSysVar) (V_backw : SpecSysVar) : 
-sig
-  module GV_forw : module type of GVarF (V_forw)
-  module GV_backw : module type of GVarF (V_backw)  
-  include VarType with type t = [ `Forw of GV_forw.t | `Backw of GV_backw.t ]
-  include SpecSysVar with type t := t
-  val spec : [ `Forw of V_forw.t | `Backw of V_backw.t ] -> [ `Forw of [`Left of V_forw.t] | `Backw of [`Left of V_backw.t] ]
-  val contexts : [ `Forw of V_forw.t | `Backw of V_backw.t ] -> [`Forw of [`Right of V_forw.t] | `Backw of  [`Right of V_backw.t]]
-end
-=
+module GVarF2 (V_forw: SpecSysVar) (V_backw : SpecSysVar) =
 struct
   module GV_forw = GVarF (V_forw)
   module GV_backw = GVarF (V_backw)  
   type t = [ `Forw of GV_forw.t | `Backw of GV_backw.t ] [@@deriving eq, ord, hash]
+
+  (* just forward everything to either GV_forw or  GV_backw*)
   let name () = "BidirFromSpec"
-
-  let tag _ = failwith "Std: no tag"
-
+  let spec : [ `Forw of V_forw.t | `Backw of V_backw.t ] -> [ `Forw of [`Left of V_forw.t] | `Backw of [`Left of V_backw.t] ] = function
+    | `Forw v -> `Forw (GV_forw.spec v )
+    | `Backw v ->  `Backw (GV_backw.spec v )
+  let contexts : [ `Forw of V_forw.t | `Backw of V_backw.t ] -> [`Forw of [`Right of V_forw.t] | `Backw of  [`Right of V_backw.t]] = function
+    | `Forw v -> `Forw (GV_forw.contexts v)
+    | `Backw v ->  `Backw (GV_backw.contexts v)
   let relift = function
     | `Forw x -> `Forw (GV_forw.relift x)
     | `Backw x -> `Backw (GV_backw.relift x)
-
   let pretty_trace () = function
     | `Forw a -> GoblintCil.Pretty.dprintf "G_forw:%a" GV_forw.pretty_trace a
     | `Backw a -> GoblintCil.Pretty.dprintf "G_backw:%a" GV_backw.pretty_trace a
-
   let printXml f = function
     | `Forw a -> GV_forw.printXml f a
     | `Backw a -> GV_backw.printXml f a
-
-  let node = function
-    | `Forw a -> GV_forw.node a
-    | `Backw a -> GV_backw.node a
-
-  let is_write_only = function
-    | `Forw a -> GV_forw.is_write_only a
-    | `Backw a -> GV_backw.is_write_only a
-
   let show = function
     | `Forw a -> GV_forw.show a
     | `Backw a -> GV_backw.show a
-
   let pretty () = function
     | `Forw a -> GV_forw.pretty () a
     | `Backw a -> GV_backw.pretty () a
   let to_yojson = function
     | `Forw a -> GV_forw.to_yojson a
     | `Backw a -> GV_backw.to_yojson a
-
-  let spec : [ `Forw of V_forw.t | `Backw of V_backw.t ] -> [ `Forw of [`Left of V_forw.t] | `Backw of [`Left of V_backw.t] ] = function
-    | `Forw v -> `Forw (GV_forw.spec v )
-    | `Backw v ->  `Backw (GV_backw.spec v )
-
-  let contexts : [ `Forw of V_forw.t | `Backw of V_backw.t ] -> [`Forw of [`Right of V_forw.t] | `Backw of  [`Right of V_backw.t]] = function
-    | `Forw v -> `Forw (GV_forw.contexts v)
-    | `Backw v ->  `Backw (GV_backw.contexts v)
-
   let var_id = show
+  let node = function
+    | `Forw a -> GV_forw.node a
+    | `Backw a -> GV_backw.node a
+  let is_write_only = function
+    | `Forw a -> GV_forw.is_write_only a
+    | `Backw a -> GV_backw.is_write_only a
 
-  let arbitrary () =
-    failwith "no arbitrary"
 end 
+
+module VarF2 (LD : Printable.S) =
+struct
+  module LV = VarF (LD)
+  type t = [ `L_forw of LV.t | `L_backw of LV.t ] [@@deriving eq, ord, hash]
+  let relift = function
+    | `L_forw x -> `L_forw (LV.relift x)
+    | `L_backw x -> `L_backw (LV.relift x)
+
+  let pretty_trace () = function
+    | `L_forw a -> GoblintCil.Pretty.dprintf "L_forw:%a" LV.pretty_trace a
+    | `L_backw a -> GoblintCil.Pretty.dprintf "L_backw:%a" LV.pretty_trace a
+
+  let printXml f = function
+    | `L_forw a -> LV.printXml f a
+    | `L_backw a -> LV.printXml f a
+
+  let var_id = function
+    | `L_forw a -> LV.var_id a
+    | `L_backw a -> LV.var_id a
+
+  let node = function
+    | `L_forw a -> LV.node a
+    | `L_backw a -> LV.node a
+
+  let is_write_only = function
+    | `L_forw a -> LV.is_write_only a
+    | `L_backw a -> LV.is_write_only a
+end
 
 module BidirFromSpec (S_forw:Spec) (S_backw:BackwSpec with type D_forw.t = S_forw.D.t and type G_forw.t = S_forw.G.t and type C.t = S_forw.C.t and type V_forw.t = S_forw.V.t) (Cfg:CfgBidir) (I:Increment)
   : sig
-    module LVar : Goblint_constraint.ConstrSys.VarType with type t = [ `L_forw of VarF(S_forw.C).t | `L_backw of VarF(S_forw.C).t ]
-    module GVar : (module type of GVarF2(S_forw.V)(S_backw.V))
-    include DemandGlobConstrSys with module LVar := LVar
-                                 and module GVar := GVar
+    include DemandGlobConstrSys with module LVar = VarF2(S_forw.C)
+                                 and module GVar = GVarF2(S_forw.V)(S_backw.V)
                                  and module D = Lattice.Lift2(S_forw.D)(S_backw.D)
                                  and module G = GVarG (Lattice.Lift2(S_forw.G)(S_backw.G)) (S_forw.C)
   end 
 = 
 struct
-  module LV = VarF (S_forw.C)
-  module LVar =
-  struct
-    type t = [ `L_forw of LV.t | `L_backw of LV.t ] [@@deriving eq, ord, hash]
 
-    let relift = function
-      | `L_forw x -> `L_forw (LV.relift x)
-      | `L_backw x -> `L_backw (LV.relift x)
-
-    let pretty_trace () = function
-      | `L_forw a -> GoblintCil.Pretty.dprintf "L_forw:%a" LV.pretty_trace a
-      | `L_backw a -> GoblintCil.Pretty.dprintf "L_backw:%a" LV.pretty_trace a
-
-    let printXml f = function
-      | `L_forw a -> LV.printXml f a
-      | `L_backw a -> LV.printXml f a
-
-    let var_id = function
-      | `L_forw a -> LV.var_id a
-      | `L_backw a -> LV.var_id a
-
-    let node = function
-      | `L_forw a -> LV.node a
-      | `L_backw a -> LV.node a
-
-    let is_write_only = function
-      | `L_forw a -> LV.is_write_only a
-      | `L_backw a -> LV.is_write_only a
-  end
-
+  module LVar = VarF2(S_forw.C)
   module D = Lattice.Lift2(S_forw.D)(S_backw.D)
   module GVar = GVarF2(S_forw.V)(S_backw.V)
 
@@ -241,7 +219,6 @@ struct
       (* TODO: adjust man node/edge? *)
       (* TODO: don't repeat for all paths that spawn same *)
 
-      (* TODO: This needs to be changed for backwards!! Context is created using S_backw.context*)
       let ds = S_backw.threadenter ~multiple man man_forw lval f args in
       List.iter (fun (d : S_backw.D.t) ->
           spawns := (lval, f, args, d, multiple) :: !spawns;
