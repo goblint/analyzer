@@ -12,16 +12,34 @@ module Mpqf = SharedFunctions.Mpqf
 
 (* Since we need a custom interval domain, we define it here. *)
 module type IntervalDomain = sig
+  (** Abstract interval value. *)
   type t [@@deriving eq, ord, hash]
 
+  (** The unconstrained interval [-inf, +inf]. *)
   val top : t
+
+  (** Returns [true] iff the interval is unconstrained. *)
   val is_top : t -> bool
+
+  (** Builds an interval from optional rational bounds.
+
+      [lower = None] means no lower bound. [upper = None] means no upper bound. *)
   val of_bounds : lower:Q.t option -> upper:Q.t option -> t
 
+  (** Intersects two intervals.
+
+      Returns [None] if the intersection is empty. *)
   val meet : t -> t -> t option
+
+  (** Returns the smallest interval containing both arguments. *)
   val join : t -> t -> t
+
+  (** Inclusion order on intervals.
+
+      [leq x y] holds when [x] is contained in [y]. *)
   val leq : t -> t -> bool
 
+  (** Human-readable representation of an interval. *)
   val show : t -> string
 end
 
