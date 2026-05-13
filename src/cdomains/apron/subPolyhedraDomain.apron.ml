@@ -16,7 +16,7 @@ module type IntervalDomain = sig
 
   val top : t
   val is_top : t -> bool
-  val of_bounds : lower:Mpqf.t option -> upper:Mpqf.t option -> t
+  val of_bounds : lower:Q.t option -> upper:Q.t option -> t
 
   val meet : t -> t -> t option
   val join : t -> t -> t
@@ -27,67 +27,73 @@ end
 
 (* Example instantiation of the IntervalDomain signature. *)
 module RationalInterval : IntervalDomain = struct
-  type t = {
-    lower: Mpqf.t option;
-    upper: Mpqf.t option;
-  } [@@deriving eq, ord, hash]
+  type t = Q.t option * Q.t option
 
-  let top = { lower = None; upper = None }
-  let of_bounds ~(lower: Mpqf.t option) ~(upper: Mpqf.t option) = { lower; upper }
-
-  let is_top (i: t) = match i with
-    | { lower = None; upper = None } -> true
+  let equal ((l1, u1) as interval_1) ((l2, u2) as interval_2) =
+    match interval_1, interval_2 with
+    | (None, None) , (None, None) -> true
+    | (Some l1, Some l2), (Some u1, Some u2) -> Q.equal l1 l2 && Q.equal u1 u2
     | _ -> false
 
-  let min_bound (a: Mpqf.t option) (b: Mpqf.t option) = match a, b with
-    | None, _
-    | _, None -> None
-    | Some a, Some b -> Some (if Mpqf.compare a b <= 0 then a else b)
+  let compare ((l1, u1) as i1) ((l2, u2) as i2) =
+    match i1, i2 with
+    | (None, None) , (None, None) -> 0
+    | (Some l1, Some l2), (Some u1, Some u2) ->
+      let c_lower = Q.compare l1 l2 in
+      if c_lower <> 0 then c_lower else Q.compare u1 u2
+    | _ -> 1
 
-  let max_bound (a: Mpqf.t option) (b: Mpqf.t option) = match a, b with
-    | None, x
-    | x, None -> x
-    | Some a, Some b -> Some (if Mpqf.compare a b >= 0 then a else b)
+    let hash_q q =
+      Hashtbl.hash (q.Q.num, q.Q.den)
+    
+    let hash (u, l)= 
+      Hashtbl.hash (Option.map hash_q l, Option.map hash_q u)
 
-  let meet (a: t) (b: t) =
-    let lower = max_bound a.lower b.lower in
-    let upper = min_bound a.upper b.upper in
+  let top = (None, None)
+  let of_bounds ~lower ~upper = (lower, upper)
+
+  let is_top = function (None, None) -> true | _ -> false
+
+  let min_bound a b = match a, b with
+    | None, _ | _, None -> None
+    | Some a, Some b -> Some (if Q.compare a b <= 0 then a else b)
+
+  let max_bound a b = match a, b with
+    | None, x | x, None -> x
+    | Some a, Some b -> Some (if Q.compare a b >= 0 then a else b)
+
+  let meet (l1, u1) (l2, u2) =
+    let lower = max_bound l1 l2 in
+    let upper = min_bound u1 u2 in
     match lower, upper with
-    | Some lower, Some upper when Mpqf.compare lower upper > 0 -> None
-    | _ -> Some { lower; upper }
+    | Some l, Some u when Q.compare l u > 0 -> None
+    | _ -> Some (lower, upper)
 
-  let join (a: t) (b: t) =
-    {
-      lower = min_bound a.lower b.lower;
-      upper = max_bound a.upper b.upper;
-    }
+  let join (l1, u1) (l2, u2) =
+    (min_bound l1 l2, max_bound u1 u2)
 
-  let lower_leq (a: Mpqf.t option) (b: Mpqf.t option) = match a, b with
+  let lower_leq a b = match a, b with
     | None, _ -> true
     | Some _, None -> false
-    | Some a, Some b -> Mpqf.compare a b <= 0
+    | Some a, Some b -> Q.compare a b <= 0
 
-  let upper_leq (a: Mpqf.t option) (b: Mpqf.t option) = match a, b with
+  let upper_leq a b = match a, b with
     | _, None -> true
     | None, Some _ -> false
-    | Some a, Some b -> Mpqf.compare a b <= 0
+    | Some a, Some b -> Q.compare a b <= 0
 
-  let leq (a: t) (b: t) =
-    lower_leq b.lower a.lower && upper_leq a.upper b.upper
+  let leq (l1, u1) (l2, u2) =
+    lower_leq l2 l1 && upper_leq u1 u2
 
-  let show_bound (bound: Mpqf.t option) = match bound with
+  let show_bound = function
     | None -> "inf"
     | Some x ->
-      let num = Mpqf.get_num x in
-      let den = Mpqf.get_den x in
-      if Z.equal den Z.one then
-        Z.to_string num
-      else
-        Z.to_string num ^ "/" ^ Z.to_string den
+      if Z.equal x.Q.den Z.one then Z.to_string x.Q.num
+      else Z.to_string x.Q.num ^ "/" ^ Z.to_string x.Q.den
 
-  let show (i: t) =
-    let lower = match i.lower with None -> "-inf" | Some x -> show_bound (Some x) in
-    let upper = match i.upper with None -> "inf" | Some x -> show_bound (Some x) in
+  let show (l, u) =
+    let lower = match l with None -> "-inf" | Some _ -> show_bound l in
+    let upper = show_bound u in
     "[" ^ lower ^ ", " ^ upper ^ "]"
 end
 
@@ -144,14 +150,20 @@ module SubPoly (Var : Var) (I : IntervalDomain) = struct
   } [@@deriving eq, ord, hash]
 
   let copy = Fun.id
+
   let empty () = { affeq = Matrix.empty (); intervals = VarMap.empty; slacks = VarMap.empty }
+ 
   let is_empty (t: t) = Matrix.is_empty t.affeq && VarMap.is_empty t.intervals && VarMap.is_empty t.slacks
+  
   let set_interval (var: Var.t) (interval: interval) (t: t) =
     { t with intervals = VarMap.add var interval t.intervals }
+  
   let set_slack (var: Var.t) (interval: interval) (t: t) =
     { t with slacks = VarMap.add var interval t.slacks }
+  
   let mem_slack (var: Var.t) (t: t) =
     VarMap.mem var t.slacks
+  
   let add_affeq_row (row: CoeffVector.t) (t: t) =
     { t with affeq = Matrix.append_row t.affeq row }
   
@@ -239,6 +251,10 @@ struct
     | Const (CInt (i, _, _)) -> Some (mpqf_of_z i)
     | _ -> None
 
+  let const_q_of_exp (exp: exp) = match exp with
+    | Const (CInt (i, _, _)) -> Some (Q.of_bigint i)
+    | _ -> None
+
   type linexpr = {
     terms: (Var.t * Mpqf.t) list;
     const: Mpqf.t;
@@ -271,7 +287,7 @@ struct
       option_map2 sub_linexpr (linexpr_of_exp e1) (linexpr_of_exp e2)
     | _ -> None
 
-  let interval_of_constraint_op (op: binop) (bound: Mpqf.t) =
+  let interval_of_constraint_op (op: binop) (bound: Q.t) =
     match op with
     | Lt
     | Le -> Some (RationalInterval.of_bounds ~lower:None ~upper:(Some bound))
@@ -283,7 +299,7 @@ struct
   let rec simple_constraint (exp: exp) = match exp with
     | CastE (_, _, e) -> simple_constraint e
     | BinOp ((Lt | Le | Gt | Ge | Eq as op), lhs, rhs, _) ->
-      begin match linexpr_of_exp lhs, const_mpqf_of_exp rhs with
+      begin match linexpr_of_exp lhs, const_q_of_exp rhs with
         | Some linexpr, Some bound when List.length linexpr.terms > 1 ->
           Option.map (fun interval -> linexpr, interval) (interval_of_constraint_op op bound)
         | _ -> None
@@ -307,7 +323,7 @@ struct
     let const_dim = SubPolyDomain.CoeffVector.length row - 1 in
     SubPolyDomain.CoeffVector.set_nth row const_dim (Mpqf.neg linexpr.const)
 
-  let add_constant_interval (t: t) (var: Var.t) (c: Mpqf.t) =
+  let add_constant_interval (t: t) (var: Var.t) (c: Q.t) =
     let interval = RationalInterval.of_bounds ~lower:(Some c) ~upper:(Some c) in
     map_d (SubPolyDomain.set_interval (var_key var) interval) t
 
@@ -372,7 +388,7 @@ struct
   let forget_vars = remove_vars
   let assign_exp (_ask: Queries.ask) (t: t) (var: V.t) (exp: exp) (_no_ov: bool Lazy.t) =
     let t = add_vars t [var] in
-    match const_mpqf_of_exp exp with
+    match const_q_of_exp exp with
     | Some c -> add_constant_interval t var c
     | None -> t
   let assign_var (t: t) (v: V.t) (v': V.t) = add_vars t [v; v']
