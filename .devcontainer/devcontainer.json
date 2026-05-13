@@ -9,9 +9,9 @@
     // },
     "image": "ghcr.io/goblint/analyzer-devcontainer:fm26-tutorial",
     "remoteUser": "opam",
-    "postCreateCommand": "ln -s /home/opam/docker/analyzer/_opam .",
+    "updateRemoteUserUID": true,
 
-    "runArgs": ["--init", "--env-file", ".devcontainer/devcontainer.env"], // TODO: why --init added by default?
+    "postCreateCommand": "if [ ! -e _opam ] && [ ! -L _opam ]; then ln -s /home/opam/docker/analyzer/_opam .; fi",
 
     "extensions": [
 		"ocamllabs.ocaml-platform",
