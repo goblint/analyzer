@@ -12,7 +12,7 @@ from pathlib import Path
 
 
 def main():
-    queries_ml = Path(__file__).parent.parent / "src" / "domains" / "queries.ml"
+    queries_ml = Path(__file__).resolve().parent.parent / "src" / "domains" / "queries.ml"
 
     if not queries_ml.exists():
         print(f"ERROR: {queries_ml} not found", file=sys.stderr)

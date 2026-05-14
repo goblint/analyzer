@@ -13,3 +13,8 @@
   (action (copy src/goblint.bc goblint.byte))
   (mode (promote (until-clean) (only goblint.byte))) ; replace existing file in source tree, even if releasing (only overrides)
 )
+
+(rule
+  (alias runtest)
+  (deps scripts/check-queries-order.py src/domains/queries.ml)
+  (action (run python3 scripts/check-queries-order.py)))
