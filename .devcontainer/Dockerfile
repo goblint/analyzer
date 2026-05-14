@@ -25,10 +25,10 @@ RUN cd /home/opam/opam-repository \
     && opam update
 
 RUN cd /home/opam/docker/analyzer \
-    && make setup 
+    && make setup
 
 RUN cd /home/opam/docker/analyzer \
     && eval $(opam env) \
-    && opam -y install ocaml-lsp-server ocamlformat dune=3.19.1 \
+    && opam install -y ocaml-lsp-server ocamlformat dune=3.19.1 \
     && sudo gem install parallel os
 
