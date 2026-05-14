@@ -24,11 +24,13 @@ struct
   let name () = "ocaml2"
   module D =
   struct
-    (* The first set contains variables of type value that are definitely accounted. The second contains definitely registered variables. *)
+    (* The first set contains variables of type value that are definitely accounted for. The second contains definitely registered variables. *)
     module P = Lattice.Prod (Lattice.Reverse (VarinfoSet)) (Lattice.Liszt (Lattice.Reverse (VarinfoSet)))
     include P
 
     let empty () = (VarinfoSet.empty (), [])
+
+    let is_empty_r (_, r) = r = []
 
     (* Puts all registered variables into a single set. *)
     let flatten_r (accounted, registered) =
@@ -61,6 +63,14 @@ struct
     let remove_a v (accounted, registered) =
       (VarinfoSet.remove v accounted, registered)
 
+    let rec remover v registered =
+      match registered with
+      | [] -> []
+      | r::rs -> (VarinfoSet.remove v r)::(remover v rs)
+
+    let remove_r v (accounted, registered) =
+      (accounted, remover v registered)
+
     (* Simulates End_roots by removing one block. *)
     (* TODO: End_roots actually removes blocks until it has removed one named caml_roots_block. *)
     let pop_r (accounted, registered) =
@@ -80,12 +90,24 @@ struct
           after_drop vs (accounted, rs)
         else (accounted, registered)
   end
+  (*module C = Printable.Unit*)
+
+  (* We are context sensitive in this analysis *)
   module C = Printable.Unit
 
   (* We are context insensitive in this analysis *)
   let context man _ _ = ()
   let startcontext () = ()
 
+  module P =
+  struct
+    let name () = "p"
+    type t = int
+    [@@deriving eq, ord, show, hash]
+    include Printable.SimpleShow(struct type nonrec t = t let show = show end)
+    include Printable.StdLeaf
+    let of_elt (a, r) = List.length r
+  end
 
   (** Determines whether an expression [e] is healthy, given a [state]. *)
   let rec exp_accounted_for (state:D.t) (e:Cil.exp) = match e with
@@ -140,11 +162,10 @@ struct
     (* If rval is a pointer, checks whether rval is accounted for, handles assignment to v accordingly *)    
     if Cil.isPointerType rval_type || is_value_type rval_type then
       if exp_accounted_for state rval then
-        if exp_registered state rval then D.add_a v state
-        else D.add_a v state
+        D.add_a v state
       else (M.info "%s" warning; D.remove_a v state)
       (* TODO: End_roots should not remove untracked variables like tracked ones. *)
-    else D.add_a v (D.add_r v state)
+    else D.add_a v (D.add_r v (if D.is_empty_r state then D.push_r state else state))
 
   (* transfer functions *)
 
@@ -215,7 +236,7 @@ struct
         if Cil.isPointerType (Cil.typeOf rval) || is_value_type (Cil.typeOf rval) then
           if exp_accounted_for st rval then
             if exp_registered st rval then D.add_a v (D.add_r v (D.push_r st))
-            else D.add_a v st
+            else D.add_a v (D.remove_r v st)
           else (M.info "Entering function with possibly deleted argument"; D.remove_a v st)
         else D.add_a v (D.add_r v (D.push_r st)))
         caller_state f.sformals args in
@@ -244,7 +265,7 @@ struct
                             | TFun (t, _, _, _) ->
                               assignment v (Cil.Lval (Cil.var return_varinfo)) t caller_state "The above is being combined"
                             | _ -> caller_state) in
-      D.remove_a return_varinfo state
+      D.remove_a return_varinfo (D.remove_r return_varinfo state)
     | _ -> caller_state
 
   (** For a call to a _special_ function f "lval = f(args)" or "f(args)",

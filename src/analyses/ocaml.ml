@@ -112,8 +112,7 @@ struct
     (* If rval is a pointer, checks whether rval is accounted for, handles assignment to v accordingly *)    
     if Cil.isPointerType rval_type || is_value_type rval_type then
       if exp_accounted_for state rval then
-        if exp_registered state rval then D.add_a v state
-        else D.add_a v state
+        D.add_a v state
       else (M.info "%s" warning; D.remove_a v state)
     else D.add_a v (D.add_r v state)
 
@@ -179,7 +178,6 @@ struct
           if is_value_type v.vtype then D.add_r first_function (D.add_a v (D.remove_r v st))
           else D.add_a v (D.add_r v st)
           (* Arguments of inner functions inherit the caller's state. *)
-          (* TODO: Assignment was changed and no longer copies registration. It must be passed using other means. *)
         else (*assignment v rval (Cil.typeOf rval) st "Entering function with possibly deleted argument")*)
         if Cil.isPointerType (Cil.typeOf rval) || is_value_type (Cil.typeOf rval) then
           if exp_accounted_for st rval then
@@ -245,7 +243,6 @@ struct
       )
     | OCamlDrop | OCamlEndRoots ->
       (* Deregisters all formal and local variables. *)
-      (* TODO: Write tests to check not too much is deregistered. *)
       let caller_fun = Node.find_fundec man.node in
       List.fold_left (fun st v -> D.remove_r v st) caller_state (caller_fun.sformals @ caller_fun.slocals)
     | _ -> caller_state
