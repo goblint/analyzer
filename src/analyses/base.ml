@@ -548,7 +548,7 @@ struct
   let rec get_mval ~man ?(full=false) (st: store) ((x, offs): Addr.Mval.t) (exp:exp option) =
     (* get hold of the variable value, either from local or global state *)
     let var = get_var ~man st x in
-    let v = VD.eval_offset (Queries.to_value_domain_ask (Analyses.ask_of_man man)) (fun x -> get ~man st x exp) var offs exp (Some (Var x, Offs.to_cil_offset offs)) x.vtype in
+    let v = VD.eval_offset (Queries.to_value_domain_ask (Analyses.ask_of_man man)) var offs exp (Some (Var x, Offs.to_cil_offset offs)) x.vtype in
     if M.tracing then M.tracec "get" "var = %a, %a = %a" VD.pretty var AD.pretty (AD.of_mval (x, offs)) VD.pretty v;
     if full then var else match v with
       | Blob (c,s,_) -> c
@@ -1052,7 +1052,7 @@ struct
         in
         let v' = VD.cast ~kind:Internal t v in (* cast to the expected type (the abstract type might be something other than t since we don't change addresses upon casts!) *) (* TODO: proper castkind *)
         if M.tracing then M.tracel "cast" "Ptr-Deref: cast %a to %a = %a!" VD.pretty v d_type t VD.pretty v';
-        let v' = VD.eval_offset (Queries.to_value_domain_ask (Analyses.ask_of_man man)) (fun x -> get ~man st x (Some exp)) v' (convert_offset ~man st ofs) (Some exp) None t in (* handle offset *)
+        let v' = VD.eval_offset (Queries.to_value_domain_ask (Analyses.ask_of_man man)) v' (convert_offset ~man st ofs) (Some exp) None t in (* handle offset *)
         v'
       in
       AD.fold (fun a acc -> VD.join acc (lookup_with_offs a)) p (VD.bot ())
