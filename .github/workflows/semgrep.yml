@@ -21,6 +21,9 @@ jobs:
       - name: Run semgrep
         run: semgrep scan --config .semgrep/ --sarif > semgrep.sarif
 
+      - name: Check for duplicate order values in queries.ml
+        run: python3 scripts/check-queries-order.py
+
       - name: Upload SARIF file to GitHub Advanced Security Dashboard
         uses: github/codeql-action/upload-sarif@v4
         with:
