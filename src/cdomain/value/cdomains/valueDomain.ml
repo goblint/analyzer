@@ -17,7 +17,7 @@ module type S =
 sig
   include Lattice.S
   type offs
-  val eval_offset: VDQ.t -> (AD.t -> t) -> t-> offs -> exp option -> lval option -> typ -> t
+  val eval_offset: VDQ.t -> t-> offs -> exp option -> lval option -> typ -> t
   val update_offset: ?blob_destructive:bool -> VDQ.t -> t -> offs -> t -> exp option -> lval -> typ -> t
   val update_array_lengths: (exp -> t) -> t -> Cil.typ -> t
   val affect_move: ?replace_with_const:bool -> VDQ.t -> t -> varinfo -> (exp -> int option) -> t
@@ -900,7 +900,7 @@ struct
       x (* This already contains some value *)
 
   (* Funny, this does not compile without the final type annotation! *)
-  let rec eval_offset (ask: VDQ.t) f (x: t) (offs:offs) (exp:exp option) (v:lval option) (t:typ): t =
+  let rec eval_offset (ask: VDQ.t) (x: t) (offs:offs) (exp:exp option) (v:lval option) (t:typ): t =
     let rec do_eval_offset (x:t) (offs:offs) (l:lval option) (o:offset option): t =
       if M.tracing then M.traceli "eval_offset" "do_eval_offset %a %a (%a)" pretty x Offs.pretty offs (Pretty.docOpt (CilType.Exp.pretty ())) exp;
       let r =
@@ -962,7 +962,7 @@ struct
                 begin
                   do_eval_offset x offs l' o' (* this used to be `blob `address -> we ignore the index *)
                 end
-              | x when IndexDomain.equal_to Z.zero idx = `Eq -> eval_offset ask f x offs exp v t (* TODO: why recursive call to outer function? *)
+              | x when IndexDomain.equal_to Z.zero idx = `Eq -> eval_offset ask x offs exp v t (* TODO: why recursive call to outer function? *)
               | Top -> M.info ~category:Imprecise "Trying to read an index, but the array is unknown"; top ()
               | _ -> M.warn ~category:Imprecise ~tags:[Category Program] "Trying to read an index, but was not given an array (%a)" pretty x; top ()
             end
