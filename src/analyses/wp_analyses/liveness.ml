@@ -187,11 +187,16 @@ struct
 
     let return_val_is_important = (not (D.is_bot man.local)) || (String.equal f.svar.vname "main") in
 
+    (* We can safely remove any local variables. The only way a local variable gets here is by beeing in the left side 
+       of an assignment of the return value *)
+
+    let d_without_locals = D.filter (fun v -> v.vglob) man.local in 
+
     match exp with
-    | None -> man.local
+    | None -> d_without_locals
     | Some e -> if return_val_is_important
-      then D.of_list (vars_from_expr e man_forw) |> D.union man.local
-      else man.local
+      then D.of_list (vars_from_expr e man_forw) |> D.union d_without_locals
+      else d_without_locals
 
 
   let special man man_forw (lval: lval option) (f:varinfo) (arglist:exp list) =

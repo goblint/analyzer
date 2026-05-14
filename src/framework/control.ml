@@ -848,6 +848,8 @@ end
 (** Given a [Cfg], a [Spec_forw], [Spec_back], and an unused [Inc], computes the solution*)
 module AnalyzeCFG_bidir (Cfg:CfgBidirSkip) (Spec_forw:Spec) (BackwSpecSpec : BackwAnalyses.BackwSpecSpec) (Inc:Increment) =
 struct
+
+
   module Spec_backw = BackwSpecSpec (Spec_forw)
   (* The Equation system *)
   module EQSys = BidirConstrains.BidirFromSpec (Spec_forw) (Spec_backw) (Cfg) (Inc)
@@ -871,63 +873,175 @@ struct
   end
   module Slvr  = (GlobSolverFromEqSolver (Goblint_solver.Selector.Make (PostSolverArg))) (EQSys) (LHT) (GHT)
 
-  (* Forward result module *)
-  (* Triple of the function, context, and the local value. It uses Spec and therefore has the wrong types.*)
-  module type ResultBundle = sig
-    module Spec : Spec
-    module RT : module type of AnalysisResult.ResultType2 (Spec)
-    module LT : module type of SetDomain.HeadlessSet (RT)
-    module Result : module type of AnalysisResult.Result (LT) (struct let result_name = "" end)
-    module ResultOutput : module type of AnalysisResultOutput.Make (Result)
-  end
 
-  module ResBundle_forw : ResultBundle with module Spec = Spec_forw = 
+  (* To modules packaging forward-related stuff so that I can steal from AnalyzeCFG *)
+  module ForwSpecSys : SpecSys with module Spec = Spec_forw =
   struct
+    (* Must be created in module, because cannot be wrapped in a module later. *)
     module Spec = Spec_forw
+
+    (* The Equation system *)
+    module EQSys : Goblint_constraint.ConstrSys.DemandGlobConstrSys
+      with module LVar = VarF (Spec.C)
+       and module GVar = GVarF (Spec.V)
+       and module D = Spec.D
+       and module G = GVarG (Spec.G) (Spec.C)
+      = FromSpec (Spec) (Cfg) (Inc)
+
+    (* Hashtbl for locals *)
+    module LHT   = BatHashtbl.Make (EQSys.LVar)
+    (* Hashtbl for globals *)
+    module GHT   = BatHashtbl.Make (EQSys.GVar)
+
     module RT = AnalysisResult.ResultType2 (Spec_forw)
     module LT = SetDomain.HeadlessSet (RT)
     module Result = AnalysisResult.Result (LT) (struct let result_name = "analysis_forw" end)
     module ResultOutput = AnalysisResultOutput.Make (Result)
   end
 
-  (** this function converts the LHT to two Results of forward type*)
-  let solver2source_result h  = 
-    let res_forw = ResBundle_forw.Result.create 113 in
-    (* let res_backw = ResBundle_backw.Result.create 113 in *)
+  module ForwResult = 
+  struct
+    module Spec = Spec_forw
+    module RT = AnalysisResult.ResultType2 (Spec_forw)
+    module LT = SetDomain.HeadlessSet (RT)
+    module Result = AnalysisResult.Result (LT) (struct let result_name = "analysis_forw" end)
+    module ResultOutput = AnalysisResultOutput.Make (Result)
+  end 
+
+  module Query = ResultQuery.Query (ForwSpecSys)
+
+
+  (* from AnalyzeCFG! print out information about dead code *)
+  let print_dead_code (xs:ForwResult.Result.t) uncalled_fn_loc =
+    let module NH = Hashtbl.Make (Node) in
+    let live_nodes : unit NH.t = NH.create 10 in
+    let count = ref 0 in (* Is only populated if "ana.dead-code.lines" or "ana.dead-code.branches" is true *)
+    let module StringMap = BatMap.Make (String) in
+    let live_lines = ref StringMap.empty in
+    let dead_lines = ref StringMap.empty in
+    let module FunSet = Hashtbl.Make (CilType.Fundec) in
+    let live_funs: unit FunSet.t = FunSet.create 13 in
+    let add_one n v =
+      match n with
+      | Statement s when Cilfacade.(StmtH.mem pseudo_return_to_fun s) ->
+        (* Exclude pseudo returns from dead lines counting. No user code at "}". *)
+        ()
+      | _ ->
+        (* Not using Node.location here to have updated locations in incremental analysis.
+           See: https://github.com/goblint/analyzer/issues/290#issuecomment-881258091. *)
+        let l = UpdateCil.getLoc n in
+        let f = Node.find_fundec n in
+        FunSet.replace live_funs f ();
+        let add_fun  = BatISet.add l.line in
+        let add_file = StringMap.modify_def BatISet.empty f.svar.vname add_fun in
+        let is_dead = ForwResult.LT.for_all (fun (_,x,f) -> Spec_forw.D.is_bot x) v in
+        if is_dead then (
+          dead_lines := StringMap.modify_def StringMap.empty l.file add_file !dead_lines
+        ) else (
+          live_lines := StringMap.modify_def StringMap.empty l.file add_file !live_lines;
+          NH.add live_nodes n ()
+        );
+    in
+    ForwResult.Result.iter add_one xs;
+    let live_count = StringMap.fold (fun _ file_lines acc ->
+        StringMap.fold (fun _ fun_lines acc ->
+            acc + ISet.cardinal fun_lines
+          ) file_lines acc
+      ) !live_lines 0
+    in
+    let live file fn =
+      try StringMap.find fn (StringMap.find file !live_lines)
+      with Not_found -> BatISet.empty
+    in
+    if List.mem "termination" @@ get_string_list "ana.activated" then (
+      (* check if we have upjumping gotos *)
+      let open Cilfacade in
+      let warn_for_upjumps fundec gotos =
+        if FunSet.mem live_funs fundec then (
+          (* set nontermination flag *)
+          AnalysisState.svcomp_may_not_terminate := true;
+          (* iterate through locations to produce warnings *)
+          LocSet.iter (fun l _ ->
+              M.warn ~loc:(M.Location.CilLocation l) ~category:Termination "The program might not terminate! (Upjumping Goto)"
+            ) gotos
+        )
+      in
+      FunLocH.iter warn_for_upjumps funs_with_upjumping_gotos
+    );
+    dead_lines := StringMap.mapi (fun fi -> StringMap.mapi (fun fu ded -> BatISet.diff ded (live fi fu))) !dead_lines;
+    dead_lines := StringMap.map (StringMap.filter (fun _ x -> not (BatISet.is_empty x))) !dead_lines;
+    dead_lines := StringMap.filter (fun _ x -> not (StringMap.is_empty x)) !dead_lines;
+    let warn_func file f xs =
+      let warn_range b e =
+        count := !count + (e - b + 1); (* for total count below *)
+        let doc =
+          if b = e then
+            Pretty.dprintf "on line %d" b
+          else
+            Pretty.dprintf "on lines %d..%d" b e
+        in
+        let loc: Cil.location = {
+          file;
+          line = b;
+          column = -1; (* not shown *)
+          byte = 0; (* wrong, but not shown *)
+          endLine = e;
+          endColumn = -1; (* not shown *)
+          endByte = 0; (* wrong, but not shown *)
+          synthetic = false;
+        }
+        in
+        (doc, Some (Messages.Location.CilLocation loc)) (* CilLocation is fine because always printed from scratch *)
+      in
+      let msgs =
+        BatISet.fold_range (fun b e acc ->
+            warn_range b e :: acc
+          ) xs []
+      in
+      let msgs = List.rev msgs in (* lines in ascending order *)
+      M.msg_group Warning ~category:Deadcode "Function '%s' has dead code" f msgs (* TODO: function location for group *)
+    in
+    let warn_file f = StringMap.iter (warn_func f) in
+    if get_bool "ana.dead-code.lines" then (
+      StringMap.iter warn_file !dead_lines; (* populates count by side-effect *)
+      let severity: M.Severity.t = if StringMap.is_empty !dead_lines then Info else Warning in
+      let dead_total = !count + uncalled_fn_loc in
+      let total = live_count + dead_total in (* We can only give total LoC if we counted dead code *)
+      M.msg_group severity ~category:Deadcode "Logical lines of code (LLoC) summary" [
+        (Pretty.dprintf "live: %d" live_count, None);
+        (Pretty.dprintf "dead: %d%s" dead_total (if uncalled_fn_loc > 0 then Printf.sprintf " (%d in uncalled functions)" uncalled_fn_loc else ""), None);
+        (Pretty.dprintf "total lines: %d" total, None);
+      ]
+    );
+    NH.mem live_nodes
+
+  (* from AnalyzeCFG! convert result that can be out-put *)
+  let solver2source_result h : ForwResult.Result.t =
+    (* processed result *)
+    let res = ForwResult.Result.create 113 in
 
     (* Adding the state at each system variable to the final result *)
-    let add_local_var_forw (n,es) state  =
+    let add_local_var (n,es) state =
       (* Not using Node.location here to have updated locations in incremental analysis.
           See: https://github.com/goblint/analyzer/issues/290#issuecomment-881258091. *)
-      let state = match state with
-        | `Lifted1 s -> s
-        | `Bot -> Spec_forw.D.bot ()
-        | `Top -> Spec_forw.D.top ()
-        | `Lifted2 _ -> failwith "Unexpected backward state in forward result"
-      in
-
       let loc = UpdateCil.getLoc n in
       if loc <> locUnknown then try
           let fundec = Node.find_fundec n in
-          if ResBundle_forw.Result.mem res_forw n then
+          if ForwResult.Result.mem res n then
             (* If this source location has been added before, we look it up
               * and add another node to it information to it. *)
-            let prev = ResBundle_forw.Result.find res_forw n in
-            ResBundle_forw.Result.replace res_forw n (ResBundle_forw.LT.add (es,state,fundec) prev)
+            let prev = ForwResult.Result.find res n in
+            ForwResult.Result.replace res n (ForwResult.LT.add (es,state,fundec) prev)
           else
-            ResBundle_forw.Result.add res_forw n (ResBundle_forw.LT.singleton (es,state,fundec))
+            ForwResult.Result.add res n (ForwResult.LT.singleton (es,state,fundec))
         (* If the function is not defined, and yet has been included to the
           * analysis result, we generate a warning. *)
         with Not_found ->
           Messages.debug ~category:Analyzer ~loc:(CilLocation loc) "Calculated state for undefined function: unexpected node %a" Node.pretty_trace n
     in
+    ForwSpecSys.LHT.iter add_local_var h;
+    res
 
-    LHT.iter (fun key -> 
-        match key with  
-        | `L_forw (n,es) -> add_local_var_forw (n,es)
-        | `L_backw (n,es) -> (fun _ -> ())  (* add_local_var_backw (n, es))*) ) h;
-
-    res_forw(*, res_backw*)
 
 
   (** [analyze file startfuns exitfuns otherfuns] is the main function to preform the selected analyses.*)
@@ -1499,155 +1613,426 @@ struct
       in
       log_lh_contents lh;
 
-      (* To check for unnacessary assigns, one has to take the join over all variables for that programm point*)
-      let warn_unnecessary_assignments () =
-        let post_backward_states_for_node (node: Node.t) : Spec_backw.D.t list =
-          let succ_nodes = List.map snd (Cfg.next node) in
-          LHT.fold (fun key state acc ->
-              match key, state with
-              | `L_backw (node', _), `Lifted2 d when List.exists (Node.equal node') succ_nodes -> d :: acc
-              | _ -> acc
-            ) lh []
-        in
-
-        let may_be_dead_assignment_in_state (node: Node.t) (state: Spec_backw.D.t) (lv: lval) : bool =
-          (* log *)
-          (* Logs.debug "Checking if assignment may be dead at node %a in state %a" Node.pretty_trace node Spec_backw.D.pretty state; *)
-
-          let man_backw =
-            { ask = (fun (type a) (q: a Queries.t) -> Queries.Result.top q)
-            ; emit = (fun _ -> failwith "Cannot \"emit\" in dead-assignment query helper.")
-            ; node = node
-            ; prev_node = MyCFG.dummy_node
-            ; control_context = (fun () -> man_failwith "dead-assignment query helper has no control_context.")
-            ; context = (fun () -> man_failwith "dead-assignment query helper has no context.")
-            ; edge = MyCFG.Skip
-            ; local = state
-            ; global = (fun _ -> Spec_backw.G.bot ())
-            ; spawn = (fun ?(multiple=false) _ -> failwith "dead-assignment query helper cannot spawn threads.")
-            ; split = (fun _ -> failwith "dead-assignment query helper cannot split paths.")
-            ; sideg = (fun _ _ -> failwith "dead-assignment query helper cannot side-effect globals.")
-            }
-          in
-          let man_forw =
-            { ask = (fun (type a) (q: a Queries.t) -> Queries.Result.top q)
-            ; emit = (fun _ -> failwith "Cannot \"emit\" in dead-assignment query helper.")
-            ; node = node
-            ; prev_node = MyCFG.dummy_node
-            ; control_context = (fun () -> man_failwith "dead-assignment query helper has no control_context.")
-            ; context = (fun () -> man_failwith "dead-assignment query helper has no context.")
-            ; edge = MyCFG.Skip
-            ; local = Spec_forw.D.top ()
-            ; global = (fun _ -> Spec_forw.G.bot ())
-            ; spawn = (fun ?(multiple=false) _ -> failwith "dead-assignment query helper cannot spawn threads.")
-            ; split = (fun _ -> failwith "dead-assignment query helper cannot split paths.")
-            ; sideg = (fun _ _ -> failwith "dead-assignment query helper cannot side-effect globals.")
-            }
-          in
-          Spec_backw.query man_backw man_forw (Queries.MayBeDeadAssignment lv)
-        in
-
-        let assigned_lvals_of_stmt (s: stmt) : lval list =
-          match s.skind with
-          | Instr instrs ->
-            List.fold_left (fun acc instr ->
-                match instr with
-                | Set (lv, _, _, _) -> lv :: acc
-                | Call (Some lv, _, _, _, _) -> lv :: acc
-                | _ -> acc
-              ) [] instrs
-          | _ -> []
-        in
-
-        let warn_assignment_stmt (s: stmt) =
-          let node = Statement s in
-          let assigned_lvals = assigned_lvals_of_stmt s in
-          match assigned_lvals with
-          | [] -> ()
-          | _ ->
-            let states = post_backward_states_for_node node in
-            if states <> [] then (
-              List.iter (fun lv ->
-                  let dead_in_all_contexts =
-                    List.for_all (fun st -> may_be_dead_assignment_in_state node st lv) states
-                  in
-                  if dead_in_all_contexts then
-                    M.warn ~loc:(M.Location.Node node) ~category:MessageCategory.Program "Unnecessary assignment: this assignment may be dead in every post-assignment context."
-                ) assigned_lvals
+      (* creating forward lh and gh so that I can reuse the postprocessing etv drom AnalyzeCFG *)
+      let lh_forw = ForwSpecSys.LHT.create 13 in
+      let gh_forw: ForwSpecSys.EQSys.G.t ForwSpecSys.GHT.t = ForwSpecSys.GHT.create 13 in
+      let _ = LHT.iter (fun k v -> 
+          match k with 
+          | `L_forw k -> (
+              match v with 
+              | `Lifted1 d -> ForwSpecSys.LHT.add lh_forw k d
+              | _ -> ();
             )
+          | _ -> ();
+        ) lh 
+      in ();
+      let _ = GHT.iter (fun k v -> 
+          match k with 
+          | `Forw k -> (
+              match v with 
+              | `Lifted1 (`Lifted1 d) -> ForwSpecSys.GHT.add gh_forw k (`Lifted1 d)
+              | `Lifted2 cset ->
+                let cset' = ForwSpecSys.EQSys.G.CSet.of_list (EQSys.G.CSet.elements cset) in
+                ForwSpecSys.GHT.add gh_forw k (`Lifted2 cset')
+              | `Top -> ForwSpecSys.GHT.add gh_forw k `Top
+              | `Bot -> ForwSpecSys.GHT.add gh_forw k `Bot
+              | _ -> ();
+            )
+          | _ -> ();
+        ) gh 
+      in ();
+
+      (* taken from AnalyzeCFG *)
+      let uncalled_dead = ref 0 in
+      let forward_postprocessing (lh:Spec_forw.D.t ForwSpecSys.LHT.t) (gh: ForwSpecSys.EQSys.G.t ForwSpecSys.GHT.t) = 
+
+        let print_globals glob =
+          let out = M.get_out (Spec_forw.name ()) !M.out in
+          let print_one v st =
+            ignore (Pretty.fprintf out "%a -> %a\n" ForwSpecSys.EQSys.GVar.pretty_trace v ForwSpecSys.EQSys.G.pretty st)
+          in
+          ForwSpecSys.GHT.iter print_one glob
         in
-        List.iter (function
-            | GFun (fd, _) -> List.iter warn_assignment_stmt fd.sallstmts
-            | _ -> ()
-          ) file.globals
-      in
-      warn_unnecessary_assignments ();
 
-      let make_global_fast_xml f g =
-        let open Printf in
-        let print_globals k v =
-          fprintf f "\n<glob><key>%s</key>%a</glob>" (XmlUtil.escape (EQSys.GVar.show k)) EQSys.G.printXml v;
+
+        AnalysisState.should_warn := PostSolverArg.should_warn;
+
+        let insrt k _ s = match k with
+          | MyCFG.Function fn,_ -> if not (get_bool "exp.forward") then Set.Int.add fn.svar.vid s else s
+          | MyCFG.FunctionEntry fn,_ -> if (get_bool "exp.forward") then Set.Int.add fn.svar.vid s else s
+          | _ -> s
         in
-        GHT.iter print_globals g
-      in
+        (* set of ids of called functions *)
+        let calledFuns = ForwSpecSys.LHT.fold insrt lh Set.Int.empty in
+        let is_bad_uncalled fn loc =
+          not (Set.Int.mem fn.vid calledFuns) &&
+          not (Str.last_chars loc.file 2 = ".h") &&
+          not (LibraryFunctions.is_safe_uncalled fn.vname) &&
+          not (Cil.hasAttribute "goblint_stub" fn.vattr)
+        in
+        let print_and_calculate_uncalled = function
+          | GFun (fn, loc) when is_bad_uncalled fn.svar loc->
+            let cnt = Cilfacade.countLoc fn in
+            uncalled_dead := !uncalled_dead + cnt;
+            if get_bool "ana.dead-code.functions" then
+              M.warn ~loc:(CilLocation loc) ~category:Deadcode "Function '%a' is uncalled: %d LLoC" CilType.Fundec.pretty fn cnt  (* CilLocation is fine because always printed from scratch *)
+          | _ -> ()
+        in
+        List.iter print_and_calculate_uncalled file.globals;
 
-      let liveness _ = true in
+        let forward_startvars = List.filter_map (function
+            | `L_forw (node, ctx) -> Some (node, ctx)
+            | _ -> None
+          ) startvars' in
 
-      let local_xml_forw = solver2source_result lh in
+        (* check for dead code at the last state: *)
+        let main_sol = try ForwSpecSys.LHT.find lh (List.hd forward_startvars) with Not_found -> Spec_forw.D.bot () in
+        if Spec_forw.D.is_bot main_sol then
+          M.warn_noloc ~category:Deadcode "Function 'main' does not return";
 
-      ResBundle_forw.ResultOutput.output (lazy local_xml_forw) liveness gh make_global_fast_xml (module FileCfg); 
+        if get_bool "dump_globs" then
+          print_globals gh;
 
-      (*This is disgusting, but I have more important things to do right now.*)
-      let output_wp_results_to_xml lh =
-        (* iterate through all nodes and update corresponding .xml in result/nodes *)
-        LHT.iter (fun v state ->
-            match v with
-            | `L_forw _ -> ()
-            | `L_backw (node, c) -> (
-                let state = match state with
-                  | `Lifted2 d -> d
-                  | _ -> failwith "Expected backward state"
+        (* run activated transformations with the analysis result *)
+        let active_transformations = get_string_list "trans.activated" in
+        if active_transformations <> [] then (
+
+          (* Most transformations use the locations of statements, since they run using Cil visitors.
+             Join abstract values once per location and once per node. *)
+          let joined_by_loc, joined_by_node =
+            let open Enum in
+            let node_values = ForwSpecSys.LHT.enum lh |> map (Tuple2.map1 fst) in (* drop context from key *) (* nosemgrep: batenum-enum *)
+            let hashtbl_size = if fast_count node_values then count node_values else 123 in
+            let by_loc, by_node = Hashtbl.create hashtbl_size, NodeH.create hashtbl_size in
+            iter (fun (node, v) ->
+                let loc = match node with
+                  | Statement s -> Cil.get_stmtLoc s.skind (* nosemgrep: cilfacade *) (* Must use CIL's because syntactic search is in CIL. *)
+                  | FunctionEntry _ | Function _ -> Node.location node
                 in
-                try
-                  let node_id_str = Node.show_id node in
+                (* join values once for the same location and once for the same node *)
+                let join = Option.some % function None -> v | Some v' -> Spec_forw.D.join v v' in
+                Hashtbl.modify_opt loc join by_loc;
+                NodeH.modify_opt node join by_node;
+              ) node_values;
+            by_loc, by_node
+          in
 
-                  let xml_path = Filename.concat "./result/nodes" (node_id_str ^ ".xml") in
-                  if Sys.file_exists xml_path then (
-                    (* Read existing XML *)
-                    let ic = Stdlib.open_in xml_path in
-                    let content = Stdlib.really_input_string ic (Stdlib.in_channel_length ic) in
-                    Stdlib.close_in ic;
+          let ask ?(node = MyCFG.dummy_node) loc =
+            let f (type a) (q : a Queries.t) : a =
+              match Hashtbl.find_option joined_by_loc loc with
+              | None -> Queries.Result.bot q
+              | Some local -> Query.ask_local_node gh node local q
+            in
+            ({ f } : Queries.ask)
+          in
 
-                    (* Create WP analysis data *)
-                    let wp_res = Pretty.sprint ~width:100 (Spec_backw.D.pretty () state) in
-                    let wp_res_escaped = XmlUtil.escape wp_res in
-                    let wp_data =
-                      "\n<wp_path>\n<analysis name=\"wp_test\">\n<value>\n<data>" ^ wp_res_escaped ^" \n</data>\n</value>\n</analysis>\n</wp_path>\n"
-                    in
+          (* A node is dead when its abstract value is bottom in all contexts;
+             it holds that: bottom in all contexts iff. bottom in the join of all contexts.
+             Therefore, we just answer whether the (stored) join is bottom. *)
+          let must_be_dead node =
+            NodeH.find_option joined_by_node node
+            (* nodes that didn't make it into the result are definitely dead (hence for_all) *)
+            |> GobOption.for_all Spec_forw.D.is_bot
+          in
 
-                    (* Insert before </path>*)
-                    let close_pattern = "</call>" in
-                    let updated_content =
-                      try
-                        let insert_pos = Str.search_backward (Str.regexp_string close_pattern) content (String.length content) in
-                        let before = String.sub content 0 insert_pos in
-                        let after = String.sub content insert_pos (String.length content - insert_pos) in
-                        before ^ wp_data ^ after
-                      with Not_found ->
-                        content ^ wp_data
-                    in
+          let must_be_uncalled fd = not @@ BatSet.Int.mem fd.svar.vid calledFuns in
 
-                    (* Write back *)
-                    let oc = Stdlib.open_out xml_path in
-                    Stdlib.output_string oc updated_content;
-                    Stdlib.close_out oc;
-                    (* Logs.debug "Updated XML file for node %s" node_id_str *)
-                  )
-                with _ -> ()  (* Skip errors silently *)
-              )
-          ) lh
+          let skipped_statements from_node edge to_node =
+            try
+              Cfg.skippedByEdge from_node edge to_node
+            with Not_found ->
+              []
+          in
+
+          Transform.run_transformations file active_transformations
+            { ask ; must_be_dead ; must_be_uncalled ;
+              cfg_forward = Cfg.next ; cfg_backward = Cfg.prev ; skipped_statements };
+        );
       in
-      output_wp_results_to_xml lh;
+      forward_postprocessing lh_forw gh_forw;
+
+      let backward_postprocessing () = 
+        let warn_unnecessary_assignments () =
+          let post_backward_states_for_node (node: Node.t) : Spec_backw.D.t list =
+            let succ_nodes = List.map snd (Cfg.next node) in
+            LHT.fold (fun key state acc ->
+                match key, state with
+                | `L_backw (node', _), `Lifted2 d when List.exists (Node.equal node') succ_nodes -> d :: acc
+                | _ -> acc
+              ) lh []
+          in
+
+          let may_be_dead_assignment_in_state (node: Node.t) (state: Spec_backw.D.t) (lv: lval) : bool =
+            (* log *)
+            (* Logs.debug "Checking if assignment may be dead at node %a in state %a" Node.pretty_trace node Spec_backw.D.pretty state; *)
+
+            let man_backw =
+              { ask = (fun (type a) (q: a Queries.t) -> Queries.Result.top q)
+              ; emit = (fun _ -> failwith "Cannot \"emit\" in dead-assignment query helper.")
+              ; node = node
+              ; prev_node = MyCFG.dummy_node
+              ; control_context = (fun () -> man_failwith "dead-assignment query helper has no control_context.")
+              ; context = (fun () -> man_failwith "dead-assignment query helper has no context.")
+              ; edge = MyCFG.Skip
+              ; local = state
+              ; global = (fun _ -> Spec_backw.G.bot ())
+              ; spawn = (fun ?(multiple=false) _ -> failwith "dead-assignment query helper cannot spawn threads.")
+              ; split = (fun _ -> failwith "dead-assignment query helper cannot split paths.")
+              ; sideg = (fun _ _ -> failwith "dead-assignment query helper cannot side-effect globals.")
+              }
+            in
+            let man_forw =
+              { ask = (fun (type a) (q: a Queries.t) -> Queries.Result.top q)
+              ; emit = (fun _ -> failwith "Cannot \"emit\" in dead-assignment query helper.")
+              ; node = node
+              ; prev_node = MyCFG.dummy_node
+              ; control_context = (fun () -> man_failwith "dead-assignment query helper has no control_context.")
+              ; context = (fun () -> man_failwith "dead-assignment query helper has no context.")
+              ; edge = MyCFG.Skip
+              ; local = Spec_forw.D.top ()
+              ; global = (fun _ -> Spec_forw.G.bot ())
+              ; spawn = (fun ?(multiple=false) _ -> failwith "dead-assignment query helper cannot spawn threads.")
+              ; split = (fun _ -> failwith "dead-assignment query helper cannot split paths.")
+              ; sideg = (fun _ _ -> failwith "dead-assignment query helper cannot side-effect globals.")
+              }
+            in
+            Spec_backw.query man_backw man_forw (Queries.MayBeDeadAssignment lv)
+          in
+
+          let assigned_lvals_of_stmt (s: stmt) : lval list =
+            match s.skind with
+            | Instr instrs ->
+              List.fold_left (fun acc instr ->
+                  match instr with
+                  | Set (lv, _, _, _) -> lv :: acc
+                  | Call (Some lv, _, _, _, _) -> lv :: acc
+                  | _ -> acc
+                ) [] instrs
+            | _ -> []
+          in
+
+          let warn_assignment_stmt (s: stmt) =
+            let node = Statement s in
+            let assigned_lvals = assigned_lvals_of_stmt s in
+            match assigned_lvals with
+            | [] -> ()
+            | _ ->
+              let states = post_backward_states_for_node node in
+              if states <> [] then (
+                List.iter (fun lv ->
+                    let dead_in_all_contexts =
+                      List.for_all (fun st -> may_be_dead_assignment_in_state node st lv) states
+                    in
+                    if dead_in_all_contexts then
+                      M.warn ~loc:(M.Location.Node node) ~category:MessageCategory.Program "Unnecessary assignment: this assignment may be dead in every post-assignment context."
+                  ) assigned_lvals
+              )
+          in
+          List.iter (function
+              | GFun (fd, _) -> List.iter warn_assignment_stmt fd.sallstmts
+              | _ -> ()
+            ) file.globals
+        in
+        warn_unnecessary_assignments ();
+      in 
+      backward_postprocessing ();
+
+      (* taken from AnalyzeCFG *)
+      let forward_result_handling (lh:ForwSpecSys.EQSys.D.t ForwSpecSys.LHT.t) (gh: ForwSpecSys.EQSys.G.t ForwSpecSys.GHT.t)= 
+        let module SpecSysSol: SpecSysSol with module SpecSys = ForwSpecSys =
+        struct
+          module SpecSys = ForwSpecSys
+          let lh = lh
+          let gh = gh
+        end
+        in
+        let module R: ResultQuery.SpecSysSol2 with module SpecSys = ForwSpecSys = ResultQuery.Make (FileCfg) (SpecSysSol) in
+
+        let local_xml = solver2source_result lh in
+        current_node_state_json := (fun node -> Option.map ForwResult.LT.to_yojson (ForwResult.Result.find_option local_xml node));
+
+        current_varquery_global_state_json := (fun vq_opt ->
+            let iter_vars f = match vq_opt with
+              | None -> ForwSpecSys.GHT.iter (fun v _ -> f v) gh
+              | Some vq ->
+                ForwSpecSys.EQSys.iter_vars
+                  (fun x -> try ForwSpecSys.LHT.find lh x with Not_found -> ForwSpecSys.EQSys.D.bot ())
+                  (fun x -> try ForwSpecSys.GHT.find gh x with Not_found -> ForwSpecSys.EQSys.G.bot ())
+                  vq
+                  (fun _ -> ())
+                  f
+            in
+            (* TODO: optimize this once server has a way to properly convert vid -> varinfo *)
+            let vars = ForwSpecSys.GHT.create 113 in
+            iter_vars (fun x ->
+                ForwSpecSys.GHT.replace vars x ()
+              );
+            let assoc = ForwSpecSys.GHT.fold (fun x g acc ->
+                if ForwSpecSys.GHT.mem vars x then
+                  (ForwSpecSys.EQSys.GVar.show x, ForwSpecSys.EQSys.G.to_yojson g) :: acc
+                else
+                  acc
+              ) gh []
+            in
+            `Assoc assoc
+          );
+
+        let liveness =
+          if get_bool "ana.dead-code.lines" || get_bool "ana.dead-code.branches" then
+            print_dead_code local_xml !uncalled_dead
+          else
+            fun _ -> true (* TODO: warn about conflicting options *)
+        in
+
+        if get_bool "exp.cfgdot" then
+          CfgTools.dead_code_cfg ~path:(Fpath.v "cfgs") (module FileCfg) liveness;
+
+        let warn_global g v =
+          (* Logs.debug "warn_global %a %a" EQSys.GVar.pretty_trace g EQSys.G.pretty v; *)
+          match g with
+          | `Left g -> (* Spec global *)
+            R.ask_global (WarnGlobal (Obj.repr g))
+          | `Right _ -> (* contexts global *)
+            ()
+        in
+        Timing.wrap "warn_global" (ForwSpecSys.GHT.iter warn_global) gh;
+
+        let entrystates_forw = List.filter_map (function
+            | (`L_forw v, `Lifted1 d) -> Some (v, d)
+            | _ -> None
+          ) entrystates in
+
+        if get_bool "exp.arg.enabled" then (
+          let module ArgTool = ArgTools.Make (R) in
+          let module Arg = (val ArgTool.create entrystates_forw) in
+          let arg_dot_path = get_string "exp.arg.dot.path" in
+          if arg_dot_path <> "" then (
+            let module NoLabelNodeStyle =
+            struct
+              type node = Arg.Node.t
+              let extra_node_styles node =
+                match GobConfig.get_string "exp.arg.dot.node-label" with
+                | "node" -> []
+                | "empty" -> ["label=\"_\""] (* can't have empty string because graph-easy will default to node ID then... *)
+                | _ -> assert false
+            end
+            in
+            let module ArgDot = ArgTools.Dot (Arg) (NoLabelNodeStyle) in
+            Out_channel.with_open_text arg_dot_path (fun oc ->
+                let ppf = Stdlib.Format.formatter_of_out_channel oc in
+                ArgDot.dot ppf;
+                Format.pp_print_flush ppf ()
+              )
+          );
+          ArgTools.current_arg := Some (module Arg);
+        );
+
+        (* Before SV-COMP, so result can depend on YAML witness validation. *)
+        let yaml_validate_result =
+          if get_string "witness.yaml.validate" <> "" then (
+            let module YWitness = YamlWitness.Validator (R) in
+            Some (YWitness.validate ())
+          )
+          else
+            None
+        in
+
+        let svcomp_result =
+          if get_bool "ana.sv-comp.enabled" then (
+            (* SV-COMP and witness generation *)
+            let module WResult = Witness.Result (R) in
+            Some (WResult.write yaml_validate_result entrystates_forw)
+          )
+          else
+            None
+        in
+
+        if get_bool "witness.yaml.enabled" then (
+          let module YWitness = YamlWitness.Make (R) in
+          YWitness.write ~svcomp_result
+        );
+
+        let marshal = Spec_forw.finalize () in
+        (* copied from solve_and_postprocess *)
+        let gobview = get_bool "gobview" in
+        let save_run = let o = get_string "save_run" in if o = "" then (if gobview then "run" else "") else o in
+        if save_run <> "" then (
+          Serialize.marshal marshal Fpath.(v save_run / "spec_marshal")
+        );
+        if get_bool "incremental.save" then (
+          Serialize.Cache.(update_data AnalysisData marshal);
+          if not (get_bool "server.enabled") then
+            Serialize.Cache.store_data ()
+        );
+        if get_string "result" <> "none" then Logs.debug "Generating output: %s" (get_string "result");
+
+        Messages.finalize ();
+
+        let make_global_fast_xml f g =
+          let open Printf in
+          let print_globals k v =
+            fprintf f "\n<glob><key>%s</key>%a</glob>" (XmlUtil.escape (ForwSpecSys.EQSys.GVar.show k)) ForwSpecSys.EQSys.G.printXml v;
+          in
+          ForwSpecSys.GHT.iter print_globals g
+        in
+        Timing.wrap "result output" (ForwResult.ResultOutput.output (lazy local_xml) liveness gh make_global_fast_xml) (module FileCfg)
+      in
+      forward_result_handling lh_forw gh_forw;
+
+      let backward_result_handling () =
+        let output_wp_results_to_xml lh =
+          (* iterate through all nodes and update corresponding .xml in result/nodes *)
+          LHT.iter (fun v state ->
+              match v with
+              | `L_forw _ -> ()
+              | `L_backw (node, c) -> (
+                  let state = match state with
+                    | `Lifted2 d -> d
+                    | _ -> failwith "Expected backward state"
+                  in
+                  try
+                    let node_id_str = Node.show_id node in
+
+                    let xml_path = Filename.concat "./result/nodes" (node_id_str ^ ".xml") in
+                    if Sys.file_exists xml_path then (
+                      (* Read existing XML *)
+                      let ic = Stdlib.open_in xml_path in
+                      let content = Stdlib.really_input_string ic (Stdlib.in_channel_length ic) in
+                      Stdlib.close_in ic;
+
+                      (* Create WP analysis data *)
+                      let wp_res = Pretty.sprint ~width:100 (Spec_backw.D.pretty () state) in
+                      let wp_res_escaped = XmlUtil.escape wp_res in
+                      let wp_data =
+                        "\n<wp_path>\n<analysis name=\"wp_test\">\n<value>\n<data>" ^ wp_res_escaped ^" \n</data>\n</value>\n</analysis>\n</wp_path>\n"
+                      in
+
+                      (* Insert before </path>*)
+                      let close_pattern = "</call>" in
+                      let updated_content =
+                        try
+                          let insert_pos = Str.search_backward (Str.regexp_string close_pattern) content (String.length content) in
+                          let before = String.sub content 0 insert_pos in
+                          let after = String.sub content insert_pos (String.length content - insert_pos) in
+                          before ^ wp_data ^ after
+                        with Not_found ->
+                          content ^ wp_data
+                      in
+
+                      (* Write back *)
+                      let oc = Stdlib.open_out xml_path in
+                      Stdlib.output_string oc updated_content;
+                      Stdlib.close_out oc;
+                      (* Logs.debug "Updated XML file for node %s" node_id_str *)
+                    )
+                  with _ -> ()  (* Skip errors silently *)
+                )
+            ) lh
+        in
+        output_wp_results_to_xml lh;
+      in
+      backward_result_handling ();
+
     in
 
     solve();
