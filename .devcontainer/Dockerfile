@@ -25,7 +25,7 @@ RUN cd /home/opam/opam-repository \
     && opam update
 
 RUN cd /home/opam/docker/analyzer \
-    && make setup
+    && OPAMWITHTEST=true make setup
 
 RUN cd /home/opam/docker/analyzer \
     && eval $(opam env) \
