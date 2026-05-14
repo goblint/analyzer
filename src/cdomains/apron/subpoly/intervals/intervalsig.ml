@@ -16,6 +16,11 @@ module type IntervalSig = sig
       [lower = None] means no lower bound. [upper = None] means no upper bound. *)
   val of_bounds : lower:bound option -> upper:bound option -> t
 
+  (** Scales both interval bounds by the given factor.
+
+      If the factor is negative, lower and upper bounds are swapped. *)
+  val scale : bound -> t -> t
+
   (** Intersects two intervals.
 
       Returns [None] if the intersection is empty. *)

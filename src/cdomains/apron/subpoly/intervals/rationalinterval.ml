@@ -39,6 +39,17 @@ module RationalInterval : Intervalsig.IntervalSig with type bound = Q.t = struct
 
   let of_bounds ~lower ~upper = (lower, upper)
 
+  (* scale *)
+
+  let scale_bound (factor : bound) (b : bound option) =
+    Option.map (fun x -> Q.mul factor x) b
+
+  let scale (factor : bound) ((l, u) : t) =
+    if Q.compare factor Q.zero < 0 then
+      scale_bound factor u, scale_bound factor l
+    else
+      scale_bound factor l, scale_bound factor u
+
   (* meet *)
 
   let min_bound (a : bound option) (b : bound option) =
