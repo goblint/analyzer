@@ -496,15 +496,7 @@ struct
       let save_run_str = let o = get_string "save_run" in if o = "" then (if gobview then "run" else "") else o in
       let solve = if (get_string "solver" = "bu") then BuSolver.solve else
         if (get_string "solver" = "wbu") then WBuSolver.solve else FwdSolver.solve in
-      let check = if (get_string "solver" = "bu") then BuSolver.check else
-        if (get_string "solver" = "wbu") then WBuSolver.check else FwdSolver.check in
-      let _ = solve entrystates entrystates_global startvars' in
-
-      AnalysisState.should_warn := true; (* reset for postsolver *)
-      AnalysisState.postsolving := true;
-      (* postsolver *)
-
-      let rho,tau = check entrystates entrystates_global startvars' in
+      let rho, tau = Timing.wrap "solving" (solve entrystates entrystates_global) startvars' in
       let lh, gh = LHT.of_seq rho, GHT.of_seq tau in
 
       (* Most warnings happen before during postsolver, but some happen later (e.g. in finalize), so enable this for the rest (if required by option). *)
@@ -549,18 +541,15 @@ struct
 
       if get_string "comparesolver" <> "" then (
         if M.tracing then M.trace "comparesolver" "here";
-        let compare_with solve check =
-          let _ = solve entrystates entrystates_global startvars' in
-          let rho,tau = check entrystates entrystates_global startvars' in
+        let compare_with solve2 =
+          let rho,tau = solve2 entrystates entrystates_global startvars' in
           let lh2, gh2 = LHT.of_seq rho, GHT.of_seq tau in
           CompareGlobSys.compare (get_string "solver", get_string "comparesolver") (lh,gh) (lh2, gh2)
         in
-        let solve = if (get_string "comparesolver" = "bu") then BuSolver.solve else
+        let solve2 = if (get_string "comparesolver" = "bu") then BuSolver.solve else
             (if (get_string "comparesolver" = "fwd") then FwdSolver.solve else WBuSolver.solve) in
 
-        let check = if (get_string "comparesolver" = "bu") then BuSolver.check else
-            (if (get_string "comparesolver" = "fwd") then FwdSolver.check else WBuSolver.check) in
-        compare_with solve check;
+        compare_with solve2;
       );
 
       lh, gh

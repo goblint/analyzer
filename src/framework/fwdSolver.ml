@@ -53,7 +53,9 @@ module FwdSolver (System: FwdGlobConstrSys) = struct
   let evaluate x =
     match System.system x with
     | None -> ()
-    | Some f -> wrapped f x
+    | Some f -> eval_rhs_event x; wrapped f x
+
+  module Checker = FwdCommon.Checker(System)(Lcl)(Gbl)
 
   let solve localinit globalinit start_unknowns =
     solver_start_event ();
@@ -61,10 +63,8 @@ module FwdSolver (System: FwdGlobConstrSys) = struct
     List.iter Gbl.init globalinit;
     List.iter WorkSet.add start_unknowns;
     WorkSet.map_until_empty evaluate;
-    let solution = (Lcl.to_seq (), Gbl.to_seq ()) in
     solver_end_event ();
-    solution
-
-  module Checker = FwdCommon.Checker(System)(Lcl)(Gbl)
-  let check = Checker.check
+    AnalysisState.should_warn := true;
+    AnalysisState.postsolving := true;
+    Checker.check localinit globalinit start_unknowns
 end
