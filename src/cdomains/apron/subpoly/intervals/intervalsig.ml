@@ -21,6 +21,12 @@ module type IntervalSig = sig
       If the factor is negative, lower and upper bounds are swapped. *)
   val scale : bound -> t -> t
 
+  (** Add a constant to every finite bound; [None] bounds stay unbounded.
+
+      To pull a linear constant [k] out of the expression into the interval, use
+      [add_const (neg k)]: bounds shift by [-k] while the stored linexpr constant becomes zero. *)
+  val add_const : bound -> t -> t
+
   (** Intersects two intervals.
 
       Returns [None] if the intersection is empty. *)

@@ -50,6 +50,11 @@ module RationalInterval : Intervalsig.IntervalSig with type bound = Q.t = struct
     else
       scale_bound factor l, scale_bound factor u
 
+
+  let add_const (c : bound) ((l, u) : t) =
+    let add_opt = Option.map (fun x -> Q.add x c) in
+    add_opt l, add_opt u
+
   (* meet *)
 
   let min_bound (a : bound option) (b : bound option) =

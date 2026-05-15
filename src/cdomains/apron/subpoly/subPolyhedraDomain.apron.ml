@@ -167,6 +167,14 @@ module Slack_managment = struct
     | Eq -> Some (RationalInterval.of_bounds ~lower:(Some bound) ~upper:(Some bound))
     | _ -> None
 
+  (** Move [linexpr.const] into the rational interval so the linear form has constant zero *)
+  let absorb_linexpr_const_into_interval (linexpr: linexpr) (interval: RationalInterval.t) =
+    if Mpqf.compare linexpr.const Mpqf.zero = 0 then
+      linexpr, interval
+    else
+      let c_q = Q.make (Mpqf.get_num linexpr.const) (Mpqf.get_den linexpr.const) in
+      { linexpr with const = Mpqf.zero }, RationalInterval.add_const (Q.neg c_q) interval
+
   let rec simple_constraint (t: t) (exp: exp) : (t * linexpr * RationalInterval.t) option = match exp with
     | CastE (_, _, e) -> simple_constraint t e
     | BinOp ((Lt | Le | Gt | Ge | Eq as op), lhs, rhs, _) ->
@@ -204,13 +212,20 @@ module Slack_managment = struct
     let slack = slack_var_of_constraint linexpr interval in
     let t = add_vars t [slack] in
     let row = row_of_slack t.env slack linexpr in
+    let slack_info: SubPolyDomain.slack = {
+      expr = {
+        terms = List.map (fun (var, coeff) -> var_key var, coeff) linexpr.terms;
+        const = linexpr.const;
+      };
+      info = interval;
+    } in
     map_d (fun d ->
         if SubPolyDomain.mem_slack (var_key slack) d then
           d
         else
           d
           |> SubPolyDomain.add_affeq_row row
-          |> SubPolyDomain.set_slack (var_key slack) interval
+          |> SubPolyDomain.set_slack (var_key slack) slack_info
       ) t
 end
 
@@ -312,7 +327,8 @@ struct
     let res =
       if negate then d else
         match simple_constraint d e with
-        | Some (d, linexpr, interval) -> 
+        | Some (d, linexpr, interval) ->
+          let linexpr, interval = absorb_linexpr_const_into_interval linexpr interval in
           begin match normalize_linexpr linexpr with
             | Some (normalized_linexpr, pivot) ->
               (* convert pivot to q, which is what we do the relational interval with *)

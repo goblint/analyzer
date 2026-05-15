@@ -27,7 +27,15 @@ module SubPoly (Var : Var) (I : IntervalSig) = struct
   type interval = I.t [@@deriving eq, ord, hash]
   type interval_map = interval VarMap.t [@@deriving eq, ord]
   type slackintervals = interval_map [@@deriving eq, ord]
-  type slack_map = interval VarMap.t [@@deriving eq, ord]
+  type slack_expr = {
+    terms: (Var.t * Mpqf.t) list;
+    const: Mpqf.t;
+  } [@@deriving eq, ord, hash]
+  type slack = {
+    expr: slack_expr;
+    info: interval;
+  } [@@deriving eq, ord, hash]
+  type slack_map = slack VarMap.t [@@deriving eq, ord]
 
   let hash_interval_map (m: interval_map) =
     VarMap.fold (fun var interval acc ->
@@ -35,7 +43,11 @@ module SubPoly (Var : Var) (I : IntervalSig) = struct
       ) m 0
 
   let hash_slackintervals = hash_interval_map
-  let hash_slack_map = hash_interval_map
+
+  let hash_slack_map (m: slack_map) =
+    VarMap.fold (fun var slack acc ->
+        Hashtbl.hash (Var.hash var, hash_slack slack, acc)
+      ) m 0
 
   type t = {
     affeq: affeq;
@@ -56,8 +68,8 @@ module SubPoly (Var : Var) (I : IntervalSig) = struct
   let set_interval (var: Var.t) (interval: interval) (t: t) =
     { t with intervals = VarMap.add var interval t.intervals }
 
-  let set_slack (var: Var.t) (interval: interval) (t: t) =
-    { t with slacks = VarMap.add var interval t.slacks }
+  let set_slack (var: Var.t) (slack: slack) (t: t) =
+    { t with slacks = VarMap.add var slack t.slacks }
 
   let mem_slack (var: Var.t) (t: t) =
     VarMap.mem var t.slacks
@@ -76,10 +88,38 @@ module SubPoly (Var : Var) (I : IntervalSig) = struct
     |> List.map (fun (var, interval) -> Var.string_of var ^ " -> " ^ I.show interval)
     |> String.concat "; "
 
+  let string_of_slack_expr (e: slack_expr) =
+    let term_str =
+      match e.terms with
+      | [] -> ""
+      | terms ->
+        terms
+        |> List.map (fun (v, c) -> Mpqf.to_string c ^ "*" ^ Var.string_of v)
+        |> String.concat " + "
+    in
+    let const_str =
+      if Mpqf.compare e.const Mpqf.zero = 0 then
+        ""
+      else if term_str = "" then
+        Mpqf.to_string e.const
+      else
+        " + " ^ Mpqf.to_string e.const
+    in
+    term_str ^ const_str
+
+  let string_of_slack (s: slack) =
+    I.show s.info ^ "  (" ^ string_of_slack_expr s.expr ^ ")"
+
+  let string_of_slack_map (m: slack_map) =
+    VarMap.bindings m
+    |> List.map (fun (var, slack) ->
+        Var.string_of var ^ " -> " ^ string_of_slack slack)
+    |> String.concat "; "
+
   let string_of (t: t) =
     "{ affeq = " ^ Matrix.show t.affeq
     ^ "; intervals = [" ^ string_of_interval_map t.intervals ^ "]"
-    ^ "; slacks = [" ^ string_of_interval_map t.slacks ^ "] }"
+    ^ "; slacks = [" ^ string_of_slack_map t.slacks ^ "] }"
 
   let meet (a: t) (b: t) =
     if equal a b then a else empty ()
