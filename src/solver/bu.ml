@@ -5,6 +5,8 @@ module FwdBuSolver (System: FwdGlobConstrSys) = struct
   open FwdCommon.BaseFwdSolver(System)
   open FwdCommon.SolverStats(System)
 
+  let abort = GobConfig.get_bool "solvers.bu.abort"
+
   let get_global x g =
     let glob_data = Gbl.get g in
     Gbl.add_infl glob_data g x;
@@ -26,7 +28,9 @@ module FwdBuSolver (System: FwdGlobConstrSys) = struct
   and get_local _ = raise (Failure "Locals should not be queried in rhs") 
 
   and set_local contributor y d =
-    match Lcl.update_contribution contributor y d false with
+    let contributor_record = Lcl.get contributor in
+    if abort && contributor_record.called && contributor_record.aborted then ()
+    else match Lcl.update_contribution contributor y d false with
     | Updated y_record -> (
         if y_record.called then y_record.aborted <- true
         else (iterate[@tailcall]) y 

@@ -2532,6 +2532,19 @@
           },
           "additionalProperties": false
         },
+        "bu": {
+          "title": "solvers.bu",
+          "type": "object",
+          "properties": {
+            "abort": {
+              "title": "solvers.bu.abort",
+              "description": "Suppress propagations from contributor locals that are currently being iterated and have been aborted.",
+              "type": "boolean",
+              "default": true
+            }
+          },
+          "additionalProperties": false
+        },
         "td3": {
           "title": "solvers.td3",
           "type": "object",

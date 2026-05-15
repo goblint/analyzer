@@ -26,6 +26,8 @@ module FwdWBuSolver (System: FwdGlobConstrSys) = struct
         )
   end
 
+  let abort = GobConfig.get_bool "solvers.bu.abort"
+
   let get_global x g =
     let glob_data = Gbl.get g in
     Gbl.add_infl glob_data g x;
@@ -48,7 +50,7 @@ module FwdWBuSolver (System: FwdGlobConstrSys) = struct
 
   and set_local contributor y d =
     let contributor_record = Lcl.get contributor in
-    if contributor_record.called && contributor_record.aborted then ()
+    if abort && contributor_record.called && contributor_record.aborted then ()
     else
       (* Commented out for the TODO below, should also be removed *)
       (* let old_y_record = Lcl.get y in *)
