@@ -5,7 +5,6 @@
 module Maingoblint = Maingoblint
 module Control = Control
 module FwdControl = FwdControl
-module FwdSolver = FwdSolver
 module Server = Server
 
 (** {2 CFG}

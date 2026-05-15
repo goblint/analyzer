@@ -96,9 +96,9 @@ struct
   end
 
   module Sys = FwdConstraints.FromSpec (Spec) (Cfg) (Inc)
-  module FwdSolver = FwdSolver.FwdSolver (Sys)
-  module BuSolver = Bu.FwdBuSolver (Sys)
-  module WBuSolver = Wbu.FwdWBuSolver (Sys)
+  module FwdSolver = Goblint_solver.FwdSolver.FwdSolver (Sys)
+  module BuSolver = Goblint_solver.Bu.FwdBuSolver (Sys)
+  module WBuSolver = Goblint_solver.Wbu.FwdWBuSolver (Sys)
   (* module Slvr2 = BuSlvr *)
 
   module CompareGlobSys = FwdCompareConstraints.CompareGlobSys (SpecSys)

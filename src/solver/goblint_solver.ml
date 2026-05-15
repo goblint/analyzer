@@ -34,3 +34,10 @@ module SolverBox = SolverBox
 
 module SideWPointSelect = SideWPointSelect
 module Td3UpdateRule = Td3UpdateRule
+
+(** {1 Forward} *)
+
+module FwdCommon = FwdCommon
+module FwdSolver = FwdSolver
+module Bu = Bu
+module Wbu = Wbu
