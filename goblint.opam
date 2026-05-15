@@ -72,6 +72,8 @@ depends: [
   "conf-gcc"
   "domain-local-await"
   "domain_shims"
+  "ocaml-lsp-server" {with-dev-setup}
+  "ocp-indent" {with-dev-setup}
 ]
 depopts: ["apron" "z3" "domainslib" "memtrace"]
 conflicts: [
