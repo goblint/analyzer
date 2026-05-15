@@ -29,7 +29,7 @@ depends: [
   "arg-complete" {= "0.2.1"}
   "astring" {= "0.8.5"}
   "base-bigarray" {= "base"}
-  "base-bytes" {= "base"}
+  "base-bytes" {= "base" & with-dev-setup}
   "base-threads" {= "base"}
   "base-unix" {= "base"}
   "batteries" {= "3.9.0"}
@@ -41,7 +41,8 @@ depends: [
   "camlp-streams" {= "5.0.1"}
   "catapult" {= "0.2"}
   "catapult-file" {= "0.2"}
-  "cmdliner" {= "1.3.0" & with-doc}
+  "chrome-trace" {= "3.19.1" & with-dev-setup}
+  "cmdliner" {= "1.3.0"}
   "conf-autoconf" {= "0.2"}
   "conf-findutils" {= "1"}
   "conf-gcc" {= "1.0"}
@@ -49,6 +50,7 @@ depends: [
   "conf-gmp-paths" {= "1"}
   "conf-mpfr-paths" {= "1"}
   "conf-perl" {= "2"}
+  "conf-pkg-config" {= "4"}
   "conf-ruby" {= "1.0.0" & with-test}
   "cppo" {= "1.6.9"}
   "cpu" {= "2.0.0"}
@@ -62,9 +64,11 @@ depends: [
   "dune-build-info" {= "3.19.1"}
   "dune-configurator" {= "3.19.1"}
   "dune-private-libs" {= "3.19.1"}
+  "dune-rpc" {= "3.19.1" & with-dev-setup}
   "dune-site" {= "3.19.1"}
   "dyn" {= "3.19.1"}
   "ez-conf-lib" {= "2"}
+  "fiber" {= "3.7.0" & with-dev-setup}
   "fileutils" {= "0.6.4"}
   "fmt" {= "0.9.0"}
   "fpath" {= "0.7.3"}
@@ -74,16 +78,21 @@ depends: [
   "json-data-encoding" {= "1.0.1"}
   "jsonrpc" {= "1.17.0"}
   "logs" {= "0.7.0"}
+  "merlin-lib" {= "4.16-414" & with-dev-setup}
   "mlgmpidl" {= "1.3.0"}
   "num" {= "1.5"}
   "ocaml" {= "4.14.2"}
   "ocaml-compiler-libs" {= "v0.12.4"}
   "ocaml-config" {= "2"}
+  "ocaml-lsp-server" {= "1.17.0" & with-dev-setup}
   "ocaml-option-flambda" {= "1"}
   "ocaml-syntax-shims" {= "1.0.0"}
   "ocaml-variants" {= "4.14.2+options"}
   "ocamlbuild" {= "0.14.3"}
+  "ocamlc-loc" {= "3.19.1" & with-dev-setup}
   "ocamlfind" {= "1.9.8"}
+  "ocamlformat-rpc-lib" {= "0.29.0" & with-dev-setup}
+  "ocp-indent" {= "1.8.1" & with-dev-setup}
   "odoc" {= "3.0.0" & with-doc}
   "odoc-parser" {= "3.0.0" & with-doc}
   "ordering" {= "3.19.1"}
@@ -95,6 +104,7 @@ depends: [
   "ppx_deriving" {= "6.0.2"}
   "ppx_deriving_hash" {= "0.1.2"}
   "ppx_deriving_yojson" {= "3.8.0"}
+  "ppx_yojson_conv_lib" {= "v0.16.0" & with-dev-setup}
   "ppxlib" {= "0.35.0"}
   "ptime" {= "1.2.0" & with-doc}
   "qcheck-core" {= "0.25"}
@@ -105,6 +115,7 @@ depends: [
   "seq" {= "base"}
   "sexplib0" {= "v0.16.0"}
   "sha" {= "1.15.4"}
+  "spawn" {= "v0.17.0" & with-dev-setup}
   "stdlib-shims" {= "0.3.0"}
   "stdune" {= "3.19.1"}
   "stringext" {= "1.6.0"}
@@ -114,6 +125,7 @@ depends: [
   "uri" {= "4.4.0"}
   "uuidm" {= "0.9.8"}
   "uutf" {= "1.0.3" & with-doc}
+  "xdg" {= "3.19.1" & with-dev-setup}
   "yaml" {= "3.2.0"}
   "yojson" {= "2.2.1"}
   "zarith" {= "1.14"}
