@@ -1,5 +1,4 @@
 open Goblint_constraint.ConstrSys
-open Messages
 
 module FwdSolver (System: FwdGlobConstrSys) = struct
 

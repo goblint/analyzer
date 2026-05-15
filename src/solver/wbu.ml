@@ -1,5 +1,4 @@
 open Goblint_constraint.ConstrSys
-open Messages
 
 (* This was included in some experiments;  *)
 (* but it should make no difference. *)
@@ -51,7 +50,8 @@ module FwdWBuSolver (System: FwdGlobConstrSys) = struct
     let contributor_record = Lcl.get contributor in
     if contributor_record.called && contributor_record.aborted then ()
     else
-      let old_y_record = Lcl.get y in
+      (* Commented out for the TODO below, should also be removed *)
+      (* let old_y_record = Lcl.get y in *)
       match Lcl.update_contribution contributor y d false with
       | Updated y_record -> (
           if y_record.called then y_record.aborted <- true

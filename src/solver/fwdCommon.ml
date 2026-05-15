@@ -387,7 +387,7 @@ module Checker (System: FwdGlobConstrSys)
     let get_local x = try (Lcl.get x).loc_value with _ -> D.bot () in
 
     let check_local x d = if D.leq d (D.bot ()) then ()
-      else let {loc_value:D.t;loc_init;called;aborted;loc_from; global_contribs}: Lcl.t = Lcl.get x in
+      else let {loc_value:D.t;loc_init;called;aborted;loc_from; global_contribs; local_contribs}: Lcl.t = Lcl.get x in
         if D.leq d loc_value then
           if LM.mem sigma_out x then ()
           else (
