@@ -61,7 +61,8 @@ module type ZeroInit =
 sig
   include Lattice.S
 
-  val is_malloc : t -> bool
+  val may_malloc : t -> bool
+  val may_calloc : t -> bool
   val malloc : t
   val calloc : t
 end
@@ -69,12 +70,19 @@ end
 (* ZeroInit is false if malloc was used to allocate memory and true if calloc was used *)
 module ZeroInit : ZeroInit =
 struct
-  include Lattice.Fake (BoolDomain.Bool)
+  include BoolDomain.FlatBool
   let name () = "zeroinit"
 
-  let is_malloc x = not x
-  let malloc = false
-  let calloc = true
+  let may_malloc = function
+    | `Top | `Lifted false -> true
+    | `Bot | `Lifted true -> false
+
+  let may_calloc = function
+    | `Top | `Lifted true -> true
+    | `Bot | `Lifted false -> false
+
+  let malloc = `Lifted false
+  let calloc = `Lifted true
 end
 
 module Blob (Value: S) (Size: IntDomain.Z)=
@@ -890,14 +898,25 @@ struct
     | _, _ ->  None
 
   let zero_init_calloced_memory zeroinit x t =
-    if ZeroInit.is_malloc zeroinit then
-      (* This Blob came from malloc *)
-      x
-    else if x = Bot then
-      (* This Blob came from calloc *)
-      zero_init_value t (* This should be zero initialized *)
-    else
-      x (* This already contains some value *)
+    let malloc =
+      if ZeroInit.may_malloc zeroinit then
+        (* This Blob came from malloc *)
+        x
+      else
+        Bot
+    in
+    let calloc =
+      if ZeroInit.may_calloc zeroinit then (
+        (* This Blob came from calloc *)
+        if x = Bot then
+          zero_init_value t (* This should be zero initialized *)
+        else
+          x (* This already contains some value *)
+      )
+      else
+        Bot
+    in
+    join malloc calloc
 
   (* Funny, this does not compile without the final type annotation! *)
   let rec eval_offset (ask: VDQ.t) (x: t) (offs:offs) (exp:exp option) (v:lval option) (t:typ): t =

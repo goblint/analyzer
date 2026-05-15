@@ -14,6 +14,6 @@ int main() {
   int r;
   int *p;
   p = myalloc(sizeof(int), r);
-  __goblint_check(1); // TODO reachable
+  __goblint_check(1); // reachable
   return 0;
 }
