@@ -112,6 +112,7 @@ module MayLocks = MayLocks
 module SymbLocks = SymbLocks
 module Deadlock = Deadlock
 module MutexGhosts = MutexGhosts
+module MustlockHistory = MustlockHistory
 
 (** {3 Threads}
 
@@ -136,6 +137,7 @@ module PthreadBarriers = PthreadBarriers
 module ExtractPthread = ExtractPthread
 module PthreadOnce = PthreadOnce
 module CreationLockset = CreationLockset
+module DescendantLockset = DescendantLockset
 
 (** {2 Longjmp}
 

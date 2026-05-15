@@ -41,6 +41,7 @@ depends: [
   "ocaml" {>= "4.14"}
   "goblint-cil" {>= "2.0.9"}
   "batteries" {>= "3.9.0"}
+  "patricia-tree" {>= "0.13.0"}
   "zarith" {>= "1.12"}
   "yojson" {>= "2.0.0" & < "3"}
   "qcheck-core" {>= "0.19"}
@@ -74,6 +75,7 @@ depends: [
 ]
 depopts: ["apron" "z3" "domainslib" "memtrace"]
 conflicts: [
+  "dune" {>= "3.22.0"}
   "result" {< "1.5"}
   "apron" {< "v0.9.15"}
   "camlidl" {< "1.13"}

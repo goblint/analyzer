@@ -454,7 +454,7 @@ struct
     include S.D
     let printXml f d = BatPrintf.fprintf f "<value>%a</value>" printXml d
   end
-  module M = MapDomain.MapBot (Basetype.Variables) (DD) (* should be CilFun -> S.C, but CilFun is not Groupable, and S.C is no Lattice *)
+  module M = MapDomain.PatriciaMapBot (Basetype.Variables) (DD) (* should be CilFun -> S.C, but CilFun is not Groupable, and S.C is no Lattice *)
 
   module D = struct
     include Lattice.Prod (S.D) (M)

@@ -1,5 +1,6 @@
 #include <stdlib.h>
 #include <pthread.h>
+#include <goblint.h>
 
 struct ZSTD_CCtx_s {
   int bmi2;

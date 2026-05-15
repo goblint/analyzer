@@ -2,6 +2,8 @@
 #include<pthread.h>
 #include<stdlib.h>
 #include<string.h>
+#include <goblint.h>
+
 union g {
   int h;
   int i;

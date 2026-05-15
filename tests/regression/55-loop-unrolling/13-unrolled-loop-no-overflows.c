@@ -1,5 +1,6 @@
 // PARAM: --enable ana.int.interval_set
 // extracted from SV-COMP task ldv-memsafety/memleaks_test12-2.i with --set exp.unrolling-factor 1
+#include <stdlib.h>
 
 typedef unsigned int size_t;
 struct ldv_list_head {

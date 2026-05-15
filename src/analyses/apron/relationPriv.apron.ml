@@ -102,7 +102,7 @@ struct
 
   let sync (ask: Q.ask) getg sideg (st: relation_components_t) reason =
     let branched_sync () =
-      if ask.f (Q.MustBeSingleThreaded {since_start = true}) then
+      if not (ThreadFlag.has_ever_been_multi ask) then
         st
       else
         (* must be like enter_multithreaded *)
@@ -351,7 +351,7 @@ struct
 
   let sync (ask:Q.ask) getg sideg (st: relation_components_t) reason =
     let branched_sync () =
-      if ask.f (Q.MustBeSingleThreaded { since_start= true }) then
+      if not (ThreadFlag.has_ever_been_multi ask) then
         st
       else
         (* must be like enter_multithreaded *)
@@ -647,7 +647,7 @@ struct
 
   let sync (ask:Q.ask) getg sideg (st: relation_components_t) reason =
     let branched_sync () =
-      if ask.f (Q.MustBeSingleThreaded {since_start = true}) then
+      if not (ThreadFlag.has_ever_been_multi ask) then
         st
       else
         let rel = st.rel in
@@ -1272,7 +1272,7 @@ struct
 
   let sync (ask:Q.ask) getg sideg (st: relation_components_t) reason =
     let branched_sync () =
-      if ask.f (Q.MustBeSingleThreaded {since_start = true}) then
+      if not (ThreadFlag.has_ever_been_multi ask) then
         st
       else
         let rel = st.rel in

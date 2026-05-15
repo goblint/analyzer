@@ -24,11 +24,7 @@ struct
   module D = Lattice.Prod(MustTIDsWithBot)(CleanExit)
   include Analyses.ValueContexts(D)
   module G = D
-  module V =
-  struct
-    include TID
-    include StdV
-  end
+  module V = TIDV
 
   (* transfer functions *)
   let threadreturn man =

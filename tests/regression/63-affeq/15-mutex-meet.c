@@ -1,5 +1,5 @@
 //SKIP PARAM:  --set ana.activated[+] "affeq" --set sem.int.signed_overflow assume_none --set ana.relation.privatization mutex-meet
-
+#include <goblint.h>
 #include <assert.h>
 
 extern int __VERIFIER_nondet_int();

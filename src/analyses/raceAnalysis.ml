@@ -302,10 +302,19 @@ struct
         ) (G.vars (man.global (V.vars g)))
     | _ -> Queries.Result.top q
 
+  let stripOuterVoidPtrCast = function
+    | CastE (_, TPtr (TVoid _, _), e) -> e (* TODO: keep explicit cast? *)
+    | e -> e
+
   let event man e oman =
     match e with
     | Events.Access {exp; ad; kind; reach} when ThreadFlag.is_currently_multi (Analyses.ask_of_man man) -> (* threadflag query in post-threadspawn man *)
       (* must use original (pre-assign, etc) man queries *)
+      let exp =
+        match kind with
+        | Free -> stripOuterVoidPtrCast exp (* free has implicit cast to void*, which makes all type-based accesses to void even if the pointer actually isn't *)
+        | _ -> exp
+      in
       let conf = 110 in
       let module AD = Queries.AD in
       let part_access (vo:varinfo option): MCPAccess.A.t =
@@ -321,7 +330,7 @@ struct
         let acc = part_access None in
         Access.add_one ~side:(side_access oman {conf; kind; node; exp; acc}) (`Type (TSComp (ci.cstruct, ci.cname, [])), `NoOffset)
       in
-      let has_escaped g = oman.ask (Queries.MayEscape g) in
+      let oask = Analyses.ask_of_man oman in
       (* The following function adds accesses to the lval-set ls
          -- this is the common case if we have a sound points-to set. *)
       let on_ad ad includes_uk =
@@ -329,7 +338,7 @@ struct
         let conf = if includes_uk then conf - 10 else conf in
         let f addr =
           match addr with
-          | AD.Addr.Addr (g,o) when g.vglob || has_escaped g ->
+          | AD.Addr.Addr (g,o) when g.vglob || ThreadEscape.has_escaped oask g ->
             let coffs = ValueDomain.Offs.to_cil o in
             add_access conf (Some (g, coffs))
           | UnknownPtr -> add_access conf None
