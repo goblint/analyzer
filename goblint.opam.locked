@@ -42,7 +42,7 @@ depends: [
   "catapult" {= "0.2"}
   "catapult-file" {= "0.2"}
   "chrome-trace" {= "3.19.1" & with-dev-setup}
-  "cmdliner" {= "1.3.0"}
+  "cmdliner" {= "1.3.0" & (with-doc | with-dev-setup)}
   "conf-autoconf" {= "0.2"}
   "conf-findutils" {= "1"}
   "conf-gcc" {= "1.0"}
