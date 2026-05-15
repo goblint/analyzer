@@ -617,11 +617,69 @@ struct
 
     if get_bool "exp.arg.enabled" then ( failwith "no_arg" );
 
-    (* Before SV-COMP, so result can depend on YAML witness validation. *)
-    let yaml_validate_result =
-
-      None
+    let svcomp_result =
+      if get_bool "ana.sv-comp.enabled" then (
+        (* TODO: generalize by implementing FwdResultQuery.Make and widening SpecSysSol2 to accept FwdSpecSys,
+           then delegate to Witness.Result (R) as control.ml does *)
+        let module Task = (val (BatOption.get !Svcomp.task)) in
+        let determine_spec (spec : Svcomp.Specification.t) : Svcomp.Result.t =
+          match spec with
+          | UnreachCall _ ->
+            let is_unreach_call =
+              LHT.for_all (fun (k : LHT.key) v ->
+                  match k.node with
+                  | FunctionEntry f when Svcomp.is_error_function f.svar -> Spec.D.is_bot v
+                  | _ -> true
+                ) lh
+            in
+            if is_unreach_call then True else Unknown
+          | NoDataRace ->
+            if !Access.is_all_safe then True else Unknown
+          | Termination ->
+            if not !AnalysisState.svcomp_may_not_terminate then True else Unknown
+          | NoOverflow ->
+            if not !AnalysisState.svcomp_may_overflow then True else Unknown
+          | ValidFree ->
+            if not !AnalysisState.svcomp_may_invalid_free then True else Unknown
+          | ValidDeref ->
+            if not !AnalysisState.svcomp_may_invalid_deref then True else Unknown
+          | ValidMemtrack ->
+            if not !AnalysisState.svcomp_may_invalid_memtrack then True else Unknown
+          | ValidMemcleanup ->
+            if not !AnalysisState.svcomp_may_invalid_memcleanup then True else Unknown
+        in
+        let task_result =
+          Task.specification
+          |> List.fold_left (fun acc spec ->
+              let r = determine_spec spec in
+              match acc with
+              | None -> Some r
+              | Some acc ->
+                let open Svcomp.Result in
+                Some (match acc, r with
+                    | False _, True | False _, Unknown | Unknown, True -> acc
+                    | True, False _ | Unknown, False _ | True, Unknown -> r
+                    | True, True | Unknown, Unknown -> acc
+                    | False _, False _ -> failwith "multiple violations")
+            ) None
+          |> Option.get
+        in
+        let result =
+          match !AnalysisState.verified, !AnalysisState.unsound_both_branches_dead with
+          | _, Some true -> Stdlib.Error "both branches dead"
+          | Some false, _ -> Stdlib.Error "verify"
+          | _ -> Ok task_result
+        in
+        (match result with
+         | Stdlib.Error msg -> Witness.print_svcomp_result ("ERROR (" ^ msg ^ ")")
+         | Ok r -> Witness.print_task_result r);
+        (* TODO: support yaml witness writing once generalization is done *)
+        Some result
+      )
+      else
+        None
     in
+    ignore svcomp_result;
 
 
     let marshal = Spec.finalize () in

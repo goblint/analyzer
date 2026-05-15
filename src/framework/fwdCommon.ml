@@ -1,5 +1,4 @@
 open Goblint_constraint.ConstrSys
-open Messages
 
 module type WarrowConfig = sig
   val delay_default: int
