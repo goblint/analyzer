@@ -81,11 +81,8 @@ rule() {
       opam_setup
     ;; dev)
       eval $(opam env)
-      echo "Installing opam packages for test and doc..."
-      opam install -y . --deps-only --locked --with-test --with-doc
-      echo "Installing opam packages for development..."
-      opam install -y ocaml-lsp-server ocp-indent
-      # ocaml-lsp-server is needed for https://github.com/ocamllabs/vscode-ocaml-platform
+      echo "Installing opam packages for test, doc and dev-setup..."
+      opam install -y . --deps-only --locked --with-test --with-doc --with-dev-setup
       echo "Installing Pre-commit hook..."
       cd .git/hooks; ln -sf ../../scripts/hooks/pre-commit; cd -
       # Use `git commit -n` to temporarily bypass the hook if necessary.
