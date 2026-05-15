@@ -2528,6 +2528,13 @@
               "description": "Whether garbage collection should take place for locals",
               "type": "boolean",
               "default": false
+            },
+            "work_iteration": {
+              "title": "solvers.fwd.work_iteration",
+              "description": "Iteration strategy for the forward worklist solvers. lifo: last-in first-out (stack); set: set-ordered (minimum element first).",
+              "type": "string",
+              "enum": ["lifo", "set"],
+              "default": "lifo"
             }
           },
           "additionalProperties": false
