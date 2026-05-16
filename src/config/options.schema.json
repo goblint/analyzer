@@ -157,7 +157,7 @@
       "title": "jobs",
       "description": "Maximum number of parallel jobs. If 0, then number of cores is used. Currently used for preprocessing and g2html.",
       "type": "integer",
-      "default": 1
+      "default": 0
     },
     "goblint-dir": {
       "title": "goblint-dir",
