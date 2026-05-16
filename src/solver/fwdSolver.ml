@@ -5,26 +5,12 @@ module FwdSolver (System: FwdGlobConstrSys) = struct
   open FwdCommon.BaseFwdSolver(System)
   open FwdCommon.SolverStats(System)
 
-  module WorkSet = struct 
-    let list = ref ([]: System.LVar.t list)
-    let set = ref LS.empty
-
-    let add x = 
-      if not (LS.mem x !set) then (
-        list := x::!list;
-        set := LS.add x !set 
-      )
-
-    let rec map_until_empty f =
-      match !list with
-      | [] -> ()
-      | x::xs -> (
-          set := LS.remove x !set;
-          list := xs;
-          f x;
-          map_until_empty f
-        )
-  end
+  module WorkSet = (val
+                     match GobConfig.get_string "solvers.fwd.work_iteration" with
+                     | "lifo" -> (module FwdCommon.LIFOWorkList(System.LVar) : FwdCommon.WorkListS with type elt = System.LVar.t)
+                     | "set"  -> (module FwdCommon.SetWorkList(System.LVar)  : FwdCommon.WorkListS with type elt = System.LVar.t)
+                     | s      -> failwith ("Unknown work_iteration strategy: " ^ s)
+                   )
 
   let get_global x g =
     let glob_data = Gbl.get g in

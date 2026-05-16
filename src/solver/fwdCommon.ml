@@ -542,3 +542,53 @@ module BaseFwdSolver (System: FwdGlobConstrSys) = struct
     (* possibly better with reversed ordering *)
 end
 
+module type WorkListS = sig
+  type elt
+  val add : elt -> unit
+  val remove : elt -> unit
+  val map_until_empty : (elt -> unit) -> unit
+end
+
+module LIFOWorkList (Var: Set.OrderedType) : WorkListS with type elt = Var.t = struct
+  module S = Set.Make(Var)
+  type elt = Var.t
+  let list = ref ([] : elt list)
+  let set = ref S.empty
+
+  let add x =
+    if not (S.mem x !set) then (
+      list := x :: !list;
+      set := S.add x !set
+    )
+
+  let remove x =
+    set := S.remove x !set;
+    list := List.filter (fun y -> Var.compare x y <> 0) !list
+
+  let rec map_until_empty f =
+    match !list with
+    | [] -> ()
+    | x :: xs ->
+      set := S.remove x !set;
+      list := xs;
+      f x;
+      map_until_empty f
+end
+
+module SetWorkList (Var: Set.OrderedType) : WorkListS with type elt = Var.t = struct
+  module S = Set.Make(Var)
+  type elt = Var.t
+  let set = ref S.empty
+
+  let add x = set := S.add x !set
+  let remove x = set := S.remove x !set
+
+  let rec map_until_empty f =
+    match S.choose_opt !set with
+    | None -> ()
+    | Some x ->
+      set := S.remove x !set;
+      f x;
+      map_until_empty f
+end
+

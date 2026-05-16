@@ -2534,7 +2534,7 @@
               "description": "Iteration strategy for the forward worklist solvers. lifo: last-in first-out (stack); set: set-ordered (minimum element first).",
               "type": "string",
               "enum": ["lifo", "set"],
-              "default": "lifo"
+              "default": "set"
             }
           },
           "additionalProperties": false

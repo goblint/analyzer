@@ -10,21 +10,12 @@ module FwdWBuSolver (System: FwdGlobConstrSys) = struct
   open FwdCommon.BaseFwdSolver(System)
   open FwdCommon.SolverStats(System)
 
-  module WorkSet = struct
-    let set  = ref LS.empty
-
-    let add x = set := (LS.add x !set)
-    let remove x = set := LS.remove x !set
-
-    let rec map_until_empty f =
-      match LS.choose_opt !set with
-      | None -> ()
-      | Some x -> (
-          set := LS.remove x !set;
-          f x;
-          map_until_empty f
-        )
-  end
+  module WorkSet = (val
+                     match GobConfig.get_string "solvers.fwd.work_iteration" with
+                     | "lifo" -> (module FwdCommon.LIFOWorkList(System.LVar) : FwdCommon.WorkListS with type elt = System.LVar.t)
+                     | "set"  -> (module FwdCommon.SetWorkList(System.LVar)  : FwdCommon.WorkListS with type elt = System.LVar.t)
+                     | s      -> failwith ("Unknown work_iteration strategy: " ^ s)
+                   )
 
   let abort = GobConfig.get_bool "solvers.bu.abort"
 
