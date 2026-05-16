@@ -1,0 +1,28 @@
+{
+  "solver": "wbu",
+  "ana": {
+    "sv-comp": {
+      "enabled": true,
+      "functions": true
+    }
+  },
+  "solvers": {
+    "td3": {
+      "narrow-globs": {
+        "narrow-gas": 3
+      },
+      "widen_gas": 10,
+      "side_widen_gas": 10
+    },
+    "fwd": {
+      "update_gas": 10,
+      "local_gc": true,
+      "global_gc": true,
+      "digests": false,
+      "work_iteration": "lifo"
+    },
+    "bu": {
+      "abort": true
+    }
+  }
+}
