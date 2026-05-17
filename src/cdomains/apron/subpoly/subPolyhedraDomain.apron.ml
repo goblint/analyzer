@@ -46,7 +46,7 @@ module Linexpr_managment = struct
   module V = RelationDomain.V
   type linexpr = {
     terms: (Var.t * Mpqf.t) list;
-    const: Mpqf.t;
+    const: Mpqf.t; (*QUESTION: here again, are the constants not in the slack var anyways?*)
   }
 
   (* Helper functionts for linexpr management, specifically for linexpr of c expr *)
@@ -304,8 +304,13 @@ struct
       let rows = List.init (SubPolyDomain.Matrix.num_rows affeq) (SubPolyDomain.Matrix.get_row affeq) in
       let filtered = List.filter (fun row -> SubPolyDomain.CoeffVector.nth row var =: Mpqf.zero) rows in
       List.fold_left SubPolyDomain.Matrix.append_row (SubPolyDomain.Matrix.empty ()) filtered
+
+  (*******************
+    This function takes a slack_map and removes all slack variables whose info contains mention of the var.
+    Used in forget_vars.
+  *******************)    
   let rem_slacks_containing_var (slacks : SubPolyDomain.slack_map) (var : int) : SubPolyDomain.slack_map = 
-    slacks (*TODO implement this: should look through the info to find var and remove if var is contained in info.*)
+     SubPolyDomain.VarMap.filter (fun _ (slack : SubPolyDomain.slack) -> not (List.mem var (List.map fst slack.info.terms))) slacks 
 
   (* transfer functions *)
   let forget_var (t: t) (v: V.t) = remove_vars t [v]
