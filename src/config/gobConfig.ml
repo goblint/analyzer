@@ -91,6 +91,28 @@ sig
 
   (** Run the given computation with modification to configuration disabled. *)
   val with_immutable_conf : (unit -> 'a) -> 'a
+
+  (** Check whether the configuration has been frozen (i.e., analysis phase has started). *)
+  val is_frozen : unit -> bool
+
+  (** Freeze the configuration, permanently preventing further modifications.
+      Should be called after all configuration setup (including autotuner) is complete and before analysis starts. *)
+  val freeze : unit -> unit
+
+  (** Raised when [set_*] is called after any [get_*_analysis] read has occurred. *)
+  exception UsedForAnalysis of string
+
+  (** Functions to query conf variables for use during analysis.
+      Once called, any subsequent [set_*] call raises [UsedForAnalysis]. *)
+  val get_int_analysis    : string -> int
+  val get_bool_analysis   : string -> bool
+  val get_string_analysis : string -> string
+  val get_list_analysis   : string -> Yojson.Safe.t list
+  val get_string_list_analysis : string -> string list
+
+  (** Clear the analysis-read flag.
+      Should be called between analysis runs in server mode so that new [set_*] calls succeed. *)
+  val clear_analysis_reads : unit -> unit
 end
 
 (** The implementation of the [gobConfig] module. *)
@@ -245,12 +267,39 @@ struct
 
   let is_immutable () = !immutable
 
+  (** (Global) flag indicating that the configuration has been frozen for the analysis phase. *)
+  let frozen = ref false
+
+  let is_frozen () = !frozen
+
+  (** Freeze the configuration, permanently preventing further modifications. *)
+  let freeze () =
+    frozen := true;
+    set_immutable true
+
+  (** Flag indicating that some config value has been read for analysis.
+      Once set, any [set_*] call raises [UsedForAnalysis]. *)
+  let analysis_read = ref false
+
+  exception UsedForAnalysis of string
+
+  let () = Printexc.register_printer @@
+    function
+    | UsedForAnalysis st ->
+      Some (Printf.sprintf "GobConfig: config key '%s' is being modified after analysis-phase reads have occurred; this is a configuration timing error" st)
+    | _ -> None
+
+  let clear_analysis_reads () = analysis_read := false
+
   let with_immutable_conf f =
     (* allow nesting *)
     if is_immutable () then f ()
     else (
       set_immutable true;
-      Fun.protect ~finally:(fun () -> set_immutable false) f
+      Fun.protect ~finally:(fun () ->
+          set_immutable false;
+          clear_analysis_reads ()
+        ) f
     )
 
   (** The main function to write new values into the conf. Use [set_value] to properly invalidate cache and check immutability.
@@ -346,6 +395,18 @@ struct
   let get_list   = wrap_get memo_list.get
   let get_string_list = List.map Yojson.Safe.Util.to_string % get_list
 
+  (** Getter wrapper for analysis-phase reads.
+      Sets the analysis-read flag so that any subsequent [set_*] raises [UsedForAnalysis]. *)
+  let wrap_get_analysis f x =
+    analysis_read := true;
+    f x
+
+  let get_int_analysis    = wrap_get_analysis get_int
+  let get_bool_analysis   = wrap_get_analysis get_bool
+  let get_string_analysis = wrap_get_analysis get_string
+  let get_list_analysis   = wrap_get_analysis get_list
+  let get_string_list_analysis = List.map Yojson.Safe.Util.to_string % get_list_analysis
+
   (** Helper functions for writing values. *)
 
   (** Sets a value, preventing changes when the configuration is immutable and invalidating the cache.
@@ -358,10 +419,12 @@ struct
   (** Helper function for writing values. Handles the tracing.
       @raise Failure if path couldn't be parsed.
       @raise Immutable
+      @raise UsedForAnalysis if any [get_*_analysis] call has occurred
       @raise TypeError
       @raise Invalid_argument
       @raise Json_encoding.Cannot_destruct *)
   let set_path_string st v =
+    if !analysis_read then raise (UsedForAnalysis st);
     if Goblint_tracing.tracing then Goblint_tracing.trace "conf" "Setting '%s' to %a." st GobYojson.pretty v;
     set_value v json_conf (parse_path st)
 
