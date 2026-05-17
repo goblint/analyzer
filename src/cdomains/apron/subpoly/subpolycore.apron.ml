@@ -27,13 +27,17 @@ module SubPoly (Var : Var) (I : IntervalSig) = struct
   type interval = I.t [@@deriving eq, ord, hash]
   type interval_map = interval VarMap.t [@@deriving eq, ord]
   type slackintervals = interval_map [@@deriving eq, ord]
+  (* QUESTION: Would the slack_expr have a constant? I thought we wanted to pull out constants into intervals?
+               Then it also wouldn't be so nested because the slack_expr can be the info rightaway.            *)
   type slack_expr = {
     terms: (Var.t * Mpqf.t) list;
     const: Mpqf.t;
   } [@@deriving eq, ord, hash]
+  
+  (* REFACTORING: I renamed info to intv and expr to info, as the slack_expr coinicides with the info terminology from the paper.*)
   type slack = {
-    expr: slack_expr;
-    info: interval;
+    info: slack_expr;
+    intv: interval;
   } [@@deriving eq, ord, hash]
   type slack_map = slack VarMap.t [@@deriving eq, ord]
 
@@ -50,8 +54,8 @@ module SubPoly (Var : Var) (I : IntervalSig) = struct
       ) m 0
 
   type t = {
-    affeq: affeq;
-    intervals: slackintervals;
+    affeq: affeq; (*Affine Equalities stored as (sparse?) Matrix*)
+    intervals: slackintervals; (*Program variable intervals. QUESTION: Do we actually keep track of these?*)
     slacks: slack_map;
   } [@@deriving eq, ord, hash]
 
@@ -106,9 +110,9 @@ module SubPoly (Var : Var) (I : IntervalSig) = struct
         " + " ^ Mpqf.to_string e.const
     in
     term_str ^ const_str
-
+  (*changed info and intv below to match renaming of type t.*)
   let string_of_slack (s: slack) =
-    I.show s.info ^ "  (" ^ string_of_slack_expr s.expr ^ ")"
+    I.show s.intv ^ "  (" ^ string_of_slack_expr s.info ^ ")"
 
   let string_of_slack_map (m: slack_map) =
     VarMap.bindings m
