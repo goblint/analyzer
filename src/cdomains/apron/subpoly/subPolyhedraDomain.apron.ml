@@ -14,14 +14,14 @@ module RationalInterval = Rationalinterval.RationalInterval
 
 module VarManagement =
 struct
-  module Str = struct
-    type t = string
-    let equal = String.equal
-    let compare = String.compare
-    let string_of = Fun.id
+  module Int = struct
+    type t = int
+    let equal = Int.equal
+    let compare = Int.compare
+    let string_of = Int.to_string
     let hash = Hashtbl.hash
   end
-  module SubPolyDomain = SubPoly(Str)(RationalInterval)
+  module SubPolyDomain = SubPoly(Int)(RationalInterval)
   include SharedFunctions.VarManagementOps (SubPolyDomain)
 
   let dim_add = SubPolyDomain.dim_add
@@ -206,26 +206,26 @@ module Slack_managment = struct
 
   let add_constant_interval (t: t) (var: Var.t) (c: Q.t) =
     let interval = RationalInterval.of_bounds ~lower:(Some c) ~upper:(Some c) in
-    map_d (SubPolyDomain.set_interval (var_key var) interval) t
+    map_d (SubPolyDomain.set_interval (Environment.dim_of_var t.env var) interval) t
 
   let add_slack_constraint (t: t) (linexpr: linexpr) (interval: RationalInterval.t) =
     let slack = slack_var_of_constraint linexpr interval in
     let t = add_vars t [slack] in
     let row = row_of_slack t.env slack linexpr in
     let slack_info: SubPolyDomain.slack = {
-      expr = {
-        terms = List.map (fun (var, coeff) -> var_key var, coeff) linexpr.terms;
+      info = {
+        terms = List.map (fun (var, coeff) -> Environment.dim_of_var t.env var, coeff) linexpr.terms;
         const = linexpr.const;
       };
-      info = interval;
+      intv = interval;
     } in
     map_d (fun d ->
-        if SubPolyDomain.mem_slack (var_key slack) d then
+        if SubPolyDomain.mem_slack (Environment.dim_of_var t.env slack) d then
           d
         else
           d
           |> SubPolyDomain.add_affeq_row row
-          |> SubPolyDomain.set_slack (var_key slack) slack_info
+          |> SubPolyDomain.set_slack (Environment.dim_of_var t.env slack) slack_info
       ) t
 end
 
@@ -293,10 +293,36 @@ struct
   
   let unify = meet
 
+  (*******************
+    This function first uses the Matrix interface to get a list of the rows, then filters based on if the var 
+    is 0 which essentially removes all rows where var is non-zero. It then builds the matrix again from the list.
+    It is a bit clunky because Ocaml does not know that the Matrix is already implemented as a list of Vectors.
+  ********************)
+  let rem_rows_containing_var (affeq : SubPolyDomain.affeq) (var: int) : SubPolyDomain.affeq =
+    if SubPolyDomain.Matrix.is_empty affeq then affeq 
+    else
+      let rows = List.init (SubPolyDomain.Matrix.num_rows affeq) (SubPolyDomain.Matrix.get_row affeq) in
+      let filtered = List.filter (fun row -> SubPolyDomain.CoeffVector.nth row var =: Mpqf.zero) rows in
+      List.fold_left SubPolyDomain.Matrix.append_row (SubPolyDomain.Matrix.empty ()) filtered
+  let rem_slacks_containing_var (slacks : SubPolyDomain.slack_map) (var : int) : SubPolyDomain.slack_map = 
+    slacks (*TODO implement this: should look through the info to find var and remove if var is contained in info.*)
+
   (* transfer functions *)
   let forget_var (t: t) (v: V.t) = remove_vars t [v]
+    
   
-  let forget_vars = remove_vars
+  (**************
+    Removes all rows in the affeq Matrix containing the vars, removes the corresponding entry in the 
+  **************)
+  let forget_vars t vars =
+    if vars = [] || is_bot t || is_top t then t
+    else 
+      let d = Option.get t.d in 
+      let dims = List.map (Environment.dim_of_var t.env) vars in (*map of vars in Env. to dimensions in matrix.*)
+      let new_affeq = List.fold_left rem_rows_containing_var d.affeq dims in
+      let new_intervals = List.fold_left (flip SubPolyDomain.VarMap.remove) d.intervals dims in
+      let new_slacks = List.fold_left rem_slacks_containing_var d.slacks dims in
+      {d = Some {affeq = new_affeq ; intervals = new_intervals ; slacks = new_slacks}; env = t.env} 
   
   let assign_exp (_ask: Queries.ask) (t: t) (var: V.t) (exp: exp) (_no_ov: bool Lazy.t) =
     let t = add_vars t [var] in
