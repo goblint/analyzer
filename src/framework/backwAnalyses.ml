@@ -104,7 +104,7 @@ sig
   val event : (D.t, G.t, C.t, V.t) man -> (D_forw.t, G_forw.t, C.t, V_forw.t) man -> Events.t -> (D.t, G.t, C.t, V.t) man -> D.t
 end
 
-module type BackwSpecSpec = functor (ForwSpec : Analyses.Spec) -> sig
+module type BackwSpecFunctor = functor (ForwSpec : Analyses.Spec) -> sig
   include BackwSpec 
     with module C = ForwSpec.C
     with module D_forw = ForwSpec.D

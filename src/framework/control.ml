@@ -846,11 +846,11 @@ struct
 end
 
 (** Given a [Cfg], a [Spec_forw], [Spec_back], and an unused [Inc], computes the solution*)
-module AnalyzeCFG_bidir (Cfg:CfgBidirSkip) (Spec_forw:Spec) (BackwSpecSpec : BackwAnalyses.BackwSpecSpec) (Inc:Increment) =
+module AnalyzeCFG_bidir (Cfg:CfgBidirSkip) (Spec_forw:Spec) (BackwSpecFunctor : BackwAnalyses.BackwSpecFunctor) (Inc:Increment) =
 struct
 
 
-  module Spec_backw = BackwSpecSpec (Spec_forw)
+  module Spec_backw = BackwSpecFunctor (Spec_forw)
   (* The Equation system *)
   module EQSys = BidirConstrains.BidirFromSpec (Spec_forw) (Spec_backw) (Cfg) (Inc)
 

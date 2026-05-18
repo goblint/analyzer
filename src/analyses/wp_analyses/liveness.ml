@@ -1,7 +1,7 @@
 open GoblintCil
 open Analyses
 
-module BackwSpec : BackwAnalyses.BackwSpecSpec = functor (ForwSpec : Analyses.Spec) ->
+module BackwSpec : BackwAnalyses.BackwSpecFunctor = functor (ForwSpec : Analyses.Spec) ->
 struct
 
   include BackwAnalyses.DefaultBackwSpec (ForwSpec)
