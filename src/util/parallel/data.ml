@@ -1,4 +1,5 @@
 open Batteries
+open Saturn
 
 module type DefaultType = sig
   type t
@@ -69,7 +70,7 @@ end
 
 (* This is a custom implementation, because we leave out operations
     that we do not need to enable a more efficient implementation. *)
-module ConcurrentHashmap =
+module OwnConcurrentHashmap =
   functor (H: Hashtbl.HashedType) ->
   functor (D: DefaultType) ->
   functor (HM:Hashtbl.S with type key = H.t) ->
@@ -191,3 +192,39 @@ module ConcurrentHashmap =
       Seq.iter (fun (k, v) -> HM.add ht k (Atomic.get v)) seq;
       ht
   end
+
+
+module SaturnConcurrentHashmap (H: Hashtbl.HashedType) (D: DefaultType) (HM:Hashtbl.S with type key = H.t) = struct
+  type t = (H.t, D.t Atomic.t) Htbl.t
+  type key = H.t
+  type value = D.t Atomic.t
+
+  let create () = Htbl.create ~hashed_type:(module H) ()
+
+  let to_seq = Htbl.to_seq
+  let to_list hm = to_seq hm |> List.of_seq
+
+  let find_option = Htbl.find_opt
+  let find = Htbl.find_exn
+  let mem = Htbl.mem
+
+  let find_create (hm : t) (key : H.t) =
+    let found_val = Htbl.find_opt hm key in
+    match found_val with 
+    | Some found_val -> (found_val, false)
+    | None -> begin
+        let new_val = Atomic.make @@ D.default () in
+        let added = Htbl.try_add hm key new_val in
+        if added then (new_val, true) else (Htbl.find_exn hm key, false)
+      end
+
+  let to_hashtbl hm =
+    let ht = HM.create 10 in
+    let seq = to_seq hm in
+    Seq.iter (fun (k, v) -> HM.add ht k (Atomic.get v)) seq;
+    ht
+
+end
+
+
+module ConcurrentHashmap = OwnConcurrentHashmap
