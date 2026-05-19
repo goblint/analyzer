@@ -16,18 +16,18 @@
     unsafe: 0
     total memory locations: 4
 
-  $ (yamlWitnessStrip < witness.yml) > new-stripped.yml
-  $ ./66-ghost-alloc-lock-strip.sh new-stripped.yml
+  $ ./66-ghost-alloc-lock-strip.sh witness.yml > stripped.yml
+  $ yamlWitnessStrip < stripped.yml
   - entry_type: ghost_instrumentation
     content:
       ghost_variables:
-      - name: ALLOC_VAR2_LOCKED
+      - name: ALLOC_VAR1_LOCKED
         scope: global
         type: int
         initial:
           value: "0"
           format: c_expression
-      - name: ALLOC_VAR1_LOCKED
+      - name: ALLOC_VAR2_LOCKED
         scope: global
         type: int
         initial:
@@ -133,9 +133,9 @@
         format: c_expression
     - invariant:
         type: flow_insensitive_invariant
-        value: '! multithreaded || (ALLOC_VAR2_LOCKED || g2 == 0)'
+        value: '! multithreaded || (ALLOC_VAR1_LOCKED || g1 == 0)'
         format: c_expression
     - invariant:
         type: flow_insensitive_invariant
-        value: '! multithreaded || (ALLOC_VAR1_LOCKED || g1 == 0)'
+        value: '! multithreaded || (ALLOC_VAR2_LOCKED || g2 == 0)'
         format: c_expression
