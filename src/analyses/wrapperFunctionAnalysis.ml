@@ -118,7 +118,7 @@ module MallocWrapper : MCPSpec = struct
         let wrappers () = get_string_list "ana.malloc.wrappers"
 
         let is_wrapped = function
-          | LibraryDesc.(Malloc _ | Calloc _ | Realloc _) -> true
+          | LibraryDesc.(Malloc _ | Calloc _ | Realloc _) -> true (* TODO: why not Alloca? *)
           | _ -> false
       end)
 
