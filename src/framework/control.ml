@@ -846,7 +846,7 @@ struct
 end
 
 (** Given a [Cfg], a [Spec_forw], [Spec_back], and an unused [Inc], computes the solution*)
-module AnalyzeCFG_bidir (Cfg:CfgBidirSkip) (Spec_forw:Spec) (BackwSpecFunctor : BackwAnalyses.BackwSpecFunctor) (Inc:Increment) =
+module BidirAnalyzeCFG (Cfg:CfgBidirSkip) (Spec_forw:Spec) (BackwSpecFunctor : BackwAnalyses.BackwSpecFunctor) (Inc:Increment) =
 struct
 
 
@@ -2050,7 +2050,7 @@ let rec analyze_loop (module CFG : CfgBidirSkip) file fs change_info =
 
     if (GobConfig.get_bool "ana.wp_run") then (
       let module LivenesSpec = Liveness.BackwSpec in
-      let module A = AnalyzeCFG_bidir (CFG) (Spec) (LivenesSpec) (struct let increment = change_info end) in
+      let module A = BidirAnalyzeCFG(CFG) (Spec) (LivenesSpec) (struct let increment = change_info end) in
       GobConfig.with_immutable_conf (fun () -> A.analyze file fs) 
     ) else (
       let module A = AnalyzeCFG (CFG) (Spec) (struct let increment = change_info end) in
