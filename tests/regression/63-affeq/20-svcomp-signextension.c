@@ -1,5 +1,7 @@
 // SKIP PARAM: --set ana.activated[+] affeq --set sem.int.signed_overflow assume_none
 #include <stdio.h>
+#include <goblint.h>
+
 int main() {
 
   unsigned short int allbits = -1;

@@ -10,7 +10,7 @@ let rec merge x y =
       | Some v , None    -> Some v
       | None   , None    -> None
     in
-    let nm = Object.bindings @@ Object.merge merger (m1 |> BatList.enum |> Object.of_enum) (m2 |> BatList.enum |> Object.of_enum) in
+    let nm = Object.bindings @@ Object.merge merger (m1 |> Object.of_list) (m2 |> Object.of_list) in
     `Assoc nm
   | `List l1, `List l2 ->
     let rec zipWith' x y =

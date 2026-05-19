@@ -16,7 +16,7 @@ jobs:
     strategy:
       matrix:
         os:
-          - ubuntu-22.04 # https://github.com/ocaml/setup-ocaml/issues/872
+          - ubuntu-latest
         ocaml-compiler:
           - ocaml-variants.4.14.2+options,ocaml-option-flambda # matches opam lock file
           # don't add any other because they won't be used
@@ -25,7 +25,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Check for undocumented modules
         run: python scripts/goblint-lib-modules.py
@@ -41,7 +41,7 @@ jobs:
 
       - name: Setup Pages
         id: pages
-        uses: actions/configure-pages@v5
+        uses: actions/configure-pages@v6
 
       - name: Install dependencies
         run: opam install . --deps-only --locked --with-doc
@@ -50,7 +50,7 @@ jobs:
         run: opam exec -- dune build @doc
 
       - name: Upload artifact
-        uses: actions/upload-pages-artifact@v3
+        uses: actions/upload-pages-artifact@v5
         with:
           path: _build/default/_doc/_html/
 
@@ -67,4 +67,4 @@ jobs:
     steps:
       - name: Deploy to GitHub Pages
         id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5

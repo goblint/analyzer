@@ -1,0 +1,25 @@
+- entry_type: invariant_set
+  metadata:
+    format_version: "2.0"
+    uuid: 828f8b0f-590b-4180-bef1-d2b18cc240e7
+    creation_time: 2025-10-24T11:09:00Z
+    producer:
+      name: Simmo Saan
+      version: n/a
+    task:
+      input_files:
+      - 75-var_eq-unassume-equal.c
+      input_file_hashes:
+        75-var_eq-unassume-equal.c: a1dbab3d2dc60945ace118bcacd88e4d448ddb3aaa5e9aebe3d0872266256f89
+      data_model: LP64
+      language: C
+  content:
+  - invariant:
+      type: location_invariant
+      location:
+        file_name: 75-var_eq-unassume-equal.c
+        line: 7
+        column: 3
+        function: main
+      value: i == j
+      format: c_expression

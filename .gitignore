@@ -54,6 +54,7 @@ goblint.bc.js
 *.rej
 
 sv-comp/goblint.zip
+scripts/sv-comp/goblint.zip
 
 privPrecCompare
 privPrecCompare-creduce
@@ -89,6 +90,9 @@ gobview_out/*
 # witnesses
 witness.yml
 witness.certificate.yml
+
+# checks
+checks.json
 
 # transformations
 transformed.c

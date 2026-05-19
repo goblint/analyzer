@@ -49,13 +49,27 @@ let isStructOrUnionType t =
   | TComp _ -> true
   | _ -> false
 
+let isStructType t =
+  match Cil.unrollType t with
+  | TComp (ci, _) -> ci.cstruct
+  | _ -> false
+
 let is_first_field x = match x.fcomp.cfields with
   | [] -> false
   | f :: _ -> CilType.Fieldinfo.equal f x
 
 let init_options () =
   Mergecil.merge_inlines := get_bool "cil.merge.inlines";
-  Cil.cstd := Cil.cstd_of_string (get_string "cil.cstd");
+  Cil.cstd := (
+    match get_string "std" with
+    | "c89" | "c90"
+    | "gnu89" | "gnu90" -> C90
+    | "c99" | "c9x"
+    | "gnu99" | "gnu9x" -> C99
+    | "c11" | "c1x"
+    | "gnu11" | "gnu1x" -> C11
+    | _ -> assert false
+  );
   Cil.gnu89inline := get_bool "cil.gnu89inline";
   Cabs2cil.addNestedScopeAttr := get_bool "cil.addNestedScopeAttr";
 
@@ -81,8 +95,9 @@ let init () =
   (* lineDirectiveStyle := None; *)
   RmUnused.keepUnused := true;
   print_CIL_Input := true;
-  Cabs2cil.allowDuplication := false;
-  Cabs2cil.silenceLongDoubleWarning := true
+  Cabs2cil.allowDuplication := false; (* needed for ARG uncilling, maybe something else as well? *)
+  Cabs2cil.silenceLongDoubleWarning := true;
+  Cabs2cil.addLoopConditionLabels := true
 
 let current_file = ref dummyFile
 
@@ -288,10 +303,12 @@ let typeOfRealAndImagComponents t =
       | FDouble -> FDouble     (* [double] *)
       | FLongDouble -> FLongDouble (* [long double] *)
       | FFloat128 -> FFloat128 (* [float128] *)
+      | FFloat16 -> FFloat16 (* [_Float16] *)
       | FComplexFloat -> FFloat
       | FComplexDouble -> FDouble
       | FComplexLongDouble -> FLongDouble
       | FComplexFloat128 -> FComplexFloat128
+      | FComplexFloat16 -> FComplexFloat16
     in
     TFloat (newfkind fkind, attrs)
   | _ -> raise (TypeOfError RealImag_NonNumerical)
@@ -300,11 +317,13 @@ let isComplexFKind = function
   | FFloat
   | FDouble
   | FLongDouble
-  | FFloat128 -> false
+  | FFloat128
+  | FFloat16 -> false
   | FComplexFloat
   | FComplexDouble
   | FComplexLongDouble
-  | FComplexFloat128 -> true
+  | FComplexFloat128
+  | FComplexFloat16 -> true
 
 (** @raise TypeOfError *)
 let rec typeOf (e: exp) : typ =
@@ -334,7 +353,7 @@ let rec typeOf (e: exp) : typ =
   | UnOp (_, _, t)
   | BinOp (_, _, _, t)
   | Question (_, _, _, t)
-  | CastE (t, _) -> t
+  | CastE (_, t, _) -> t
   | AddrOf (lv) -> TPtr(typeOfLval lv, [])
   | AddrOfLabel (lv) -> voidPtrType
   | StartOf (lv) -> begin
@@ -391,26 +410,43 @@ let typeSigBlendAttributes baseAttrs =
   typeSigAddAttrs contageous
 
 
+(** @raise SizeOfError *)
 let bytesSizeOf t =
   let bits = bitsSizeOf t in
   assert (bits mod 8 = 0);
   bits / 8
 
+(** @raise SizeOfError *)
 let bytesOffsetOnly t o =
   let bits_offset, _ = bitsOffset t o in
   assert (bits_offset mod 8 = 0);
   bits_offset / 8
 
+let fieldBitsOffsetOnly fi = (* uncached *)
+  let bits_offset, _ = bitsOffset (TComp (fi.fcomp, [])) (Field (fi, NoOffset)) in
+  bits_offset
+
+module FieldinfoH = GobHashtbl.Make (CilType.Fieldinfo)
+let fieldBitsOffsetOnly_memo = FieldinfoH.create 13
+
+let fieldBitsOffsetOnly = (* cached *)
+  FieldinfoH.find_or_add_default_delayed ~default:fieldBitsOffsetOnly fieldBitsOffsetOnly_memo
+
+let fieldBytesOffsetOnly fi =
+  let bits_offset = fieldBitsOffsetOnly fi in
+  assert (bits_offset mod 8 = 0);
+  bits_offset / 8
+
 
 (** {!Cil.mkCast} using our {!typeOf}. *)
-let mkCast ~(e: exp) ~(newt: typ) =
+let mkCast ~kind ~(e: exp) ~(newt: typ) =
   let oldt =
     try
       typeOf e
     with TypeOfError _ -> (* e might involve alloc variables, weird offsets, etc *)
       Cil.voidType (* oldt is only used for avoiding duplicate cast, so this falls back to adding cast *)
   in
-  Cil.mkCastT ~e ~oldt ~newt
+  Cil.mkCastT ~kind ~e ~oldt ~newt
 
 (** @raise TypeOfError
     @raise Invalid_argument if not integral type. *)
@@ -426,6 +462,14 @@ let makeBinOp binop e1 e2 =
   let t2 = typeOf e2 in
   let (_, e) = Cabs2cil.doBinOp binop e1 t1 e2 t2 in
   e
+
+(** Is effectively boolean-returning operation?
+    These operations have type [int], but only have values 0 or 1. *)
+let exp_is_boolean = function
+  (* C11 6.5.13, 6.5.14, 6.5.3.3: LAnd, LOr and LNot also return 0 or 1 *)
+  | UnOp (LNot, _, _)
+  | BinOp ((Lt | Gt | Le | Ge | Eq | Ne | LAnd | LOr), _, _, _) -> true
+  | _ -> false
 
 let anoncomp_name_regexp = Str.regexp {|^__anon\(struct\|union\)\(_\(.+\)\)?_\([0-9]+\)$|}
 
@@ -754,6 +798,7 @@ let funs_with_upjumping_gotos: unit LocSet.t FunLocH.t = FunLocH.create 13
 
 let reset_lazy ?(keepupjumpinggotos=false) () =
   StmtH.clear pseudo_return_to_fun;
+  FieldinfoH.clear fieldBitsOffsetOnly_memo;
   if not keepupjumpinggotos then FunLocH.clear funs_with_upjumping_gotos;
   ResettableLazy.reset stmt_fundecs;
   ResettableLazy.reset varinfo_fundecs;
@@ -787,8 +832,15 @@ let add_function_declarations (file: Cil.file): unit =
   let globals = upto_last_type @ fun_decls @ non_types @ functions in
   file.globals <- globals
 
+(** Sync formal parameter attributes back to function types for correct CIL printing *)
+let sync_formals file =
+  iterGlobals file (function
+      | GFun (fd, _) -> setFormals fd fd.sformals
+      | _ -> ()
+    )
+
 
 (** Special index expression for some unknown index.
     Weakly updates array in assignment.
     Used for [exp.fast_global_inits]. *)
-let any_index_exp = lazy (CastE (TInt (ptrdiff_ikind (), []), mkString "any_index")) (* TODO: move back to Offset *)
+let any_index_exp = lazy (CastE (Explicit, TInt (ptrdiff_ikind (), []), mkString "any_index")) (* TODO: move back to Offset *)

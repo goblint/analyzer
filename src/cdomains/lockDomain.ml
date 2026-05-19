@@ -29,6 +29,11 @@ struct
   let of_mval ((v, o): Mval.t): t =
     (v, Offset.Poly.map_indices (fun i -> IndexDomain.to_int i |> Option.get) o)
 
+  let of_addr (addr : Addr.t) : t option =
+    match addr with
+    | Addr mv when Mval.is_definite mv -> Some (of_mval mv)
+    | _ -> None
+
   let to_mval ((v, o): t): Mval.t =
     (v, Offset.Poly.map_indices (IndexDomain.of_int (Cilfacade.ptrdiff_ikind ())) o)
 end

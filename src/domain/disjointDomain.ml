@@ -98,25 +98,21 @@ struct
       end
     | None -> m
   let diff m1 m2 =
-    M.merge (fun _ b1 b2 ->
-        match b1, b2 with
-        | Some b1, Some b2 ->
-          begin match B.diff b1 b2 with
-            | b' when B.is_bot b' ->
-              None (* remove bot bucket to preserve invariant *)
-            | exception Lattice.BotValue ->
-              None (* remove bot bucket to preserve invariant *)
-            | b' ->
-              Some b'
-          end
-        | Some _, None -> b1
-        | None, _ -> None
+    M.difference (fun b1 b2 ->
+        match B.diff b1 b2 with
+        | b' when B.is_bot b' ->
+          None (* remove bot bucket to preserve invariant *)
+        | exception Lattice.BotValue ->
+          None (* remove bot bucket to preserve invariant *)
+        | b' ->
+          Some b'
       ) m1 m2
 
   let of_list es = List.fold_left (fun acc e ->
       add e acc
     ) (empty ()) es
   let elements m = fold List.cons m [] (* no intermediate per-bucket lists *)
+  let to_seq m = fold Seq.cons m Seq.empty (* Less efficient than possible, eagerly folds over set *)
   let map f m = fold (fun e acc ->
       add (f e) acc
     ) m (empty ()) (* no intermediate lists *)
@@ -126,32 +122,24 @@ struct
     M.widen m1 m2
 
   let meet m1 m2 =
-    M.merge (fun _ b1 b2 ->
-        match b1, b2 with
-        | Some b1, Some b2 ->
-          begin match B.meet b1 b2 with
-            | b' when B.is_bot b' ->
-              None (* remove bot bucket to preserve invariant *)
-            | exception Lattice.BotValue ->
-              None (* remove bot bucket to preserve invariant *)
-            | b' ->
-              Some b'
-          end
-        | _, _ -> None
+    M.nonidempotent_inter_filter (fun b1 b2 -> (* TODO: idempotent_inter_filter if not using int domain refinement *)
+        match B.meet b1 b2 with
+        | b' when B.is_bot b' ->
+          None (* remove bot bucket to preserve invariant *)
+        | exception Lattice.BotValue ->
+          None (* remove bot bucket to preserve invariant *)
+        | b' ->
+          Some b'
       ) m1 m2
   let narrow m1 m2 =
-    M.merge (fun _ b1 b2 ->
-        match b1, b2 with
-        | Some b1, Some b2 ->
-          begin match B.narrow b1 b2 with
-            | b' when B.is_bot b' ->
-              None (* remove bot bucket to preserve invariant *)
-            | exception Lattice.BotValue ->
-              None (* remove bot bucket to preserve invariant *)
-            | b' ->
-              Some b'
-          end
-        | _, _ -> None
+    M.nonidempotent_inter_filter (fun b1 b2 -> (* TODO: idempotent_inter_filter if not using int domain refinement *)
+        match B.narrow b1 b2 with
+        | b' when B.is_bot b' ->
+          None (* remove bot bucket to preserve invariant *)
+        | exception Lattice.BotValue ->
+          None (* remove bot bucket to preserve invariant *)
+        | b' ->
+          Some b'
       ) m1 m2
 
   let union = join
@@ -323,6 +311,7 @@ struct
       add e acc
     ) (empty ()) es
   let elements m = fold List.cons m [] (* no intermediate per-bucket lists *)
+  let to_seq m = fold Seq.cons m Seq.empty (* Less efficient than possible, eagerly folds over set *)
   let map f s = fold (fun e acc ->
       add (f e) acc
     ) s (empty ()) (* no intermediate lists *)
@@ -570,45 +559,81 @@ struct
   let mapi f m = M.map (fun b ->
       B.mapi f b
     ) m
-  let long_map2 f m1 m2 = M.long_map2 (fun b1 b2 ->
-      B.long_map2 f b1 b2
+  let idempotent_union f m1 m2 = M.idempotent_union (fun b1 b2 ->
+      B.idempotent_union f b1 b2
     ) m1 m2
-  let map2 f m1 m2 = M.map2 (fun b1 b2 ->
-      B.map2 f b1 b2
+  let nonidempotent_union f m1 m2 = M.nonidempotent_union (fun b1 b2 ->
+      B.nonidempotent_union f b1 b2
     ) m1 m2
-  let merge f m1 m2 = failwith "ProjectiveMap.merge" (* TODO: ? *)
+  let idempotent_inter f m1 m2 = M.idempotent_inter_filter (fun b1 b2 ->
+      match B.idempotent_inter f b1 b2 with
+      | b' when B.is_bot b' ->
+        None (* remove bot bucket to preserve invariant *)
+      | exception Lattice.BotValue ->
+        None (* remove bot bucket to preserve invariant *)
+      | b' ->
+        Some b'
+    ) m1 m2
+  let nonidempotent_inter f m1 m2 = M.nonidempotent_inter_filter (fun b1 b2 ->
+      match B.nonidempotent_inter f b1 b2 with
+      | b' when B.is_bot b' ->
+        None (* remove bot bucket to preserve invariant *)
+      | exception Lattice.BotValue ->
+        None (* remove bot bucket to preserve invariant *)
+      | b' ->
+        Some b'
+    ) m1 m2
+  let idempotent_inter_filter f m1 m2 = M.idempotent_inter_filter (fun b1 b2 ->
+      match B.idempotent_inter_filter f b1 b2 with
+      | b' when B.is_bot b' ->
+        None (* remove bot bucket to preserve invariant *)
+      | exception Lattice.BotValue ->
+        None (* remove bot bucket to preserve invariant *)
+      | b' ->
+        Some b'
+    ) m1 m2
+  let nonidempotent_inter_filter f m1 m2 = M.nonidempotent_inter_filter (fun b1 b2 ->
+      match B.nonidempotent_inter_filter f b1 b2 with
+      | b' when B.is_bot b' ->
+        None (* remove bot bucket to preserve invariant *)
+      | exception Lattice.BotValue ->
+        None (* remove bot bucket to preserve invariant *)
+      | b' ->
+        Some b'
+    ) m1 m2
+  let difference f m1 m2 = M.difference (fun b1 b2 ->
+      match B.difference f b1 b2 with
+      | b' when B.is_bot b' ->
+        None (* remove bot bucket to preserve invariant *)
+      | exception Lattice.BotValue ->
+        None (* remove bot bucket to preserve invariant *)
+      | b' ->
+        Some b'
+    ) m1 m2
 
   let widen m1 m2 =
     Lattice.assert_valid_widen ~leq ~pretty_diff m1 m2;
     M.widen m1 m2
 
   let meet m1 m2 =
-    M.merge (fun _ b1 b2 ->
-        match b1, b2 with
-        | Some b1, Some b2 ->
-          begin match B.meet b1 b2 with
-            | b' when B.is_bot b' ->
-              None (* remove bot bucket to preserve invariant *)
-            | exception Lattice.BotValue ->
-              None (* remove bot bucket to preserve invariant *)
-            | b' ->
-              Some b'
-          end
-        | _, _ -> None
+    M.nonidempotent_inter_filter (fun b1 b2 -> (* TODO: idempotent_inter_filter if not using int domain refinement *)
+        match B.meet b1 b2 with
+        | b' when B.is_bot b' ->
+          None (* remove bot bucket to preserve invariant *)
+        | exception Lattice.BotValue ->
+          None (* remove bot bucket to preserve invariant *)
+        | b' ->
+          Some b'
       ) m1 m2
   let narrow m1 m2 =
-    M.merge (fun _ b1 b2 ->
-        match b1, b2 with
-        | Some b1, Some b2 ->
-          begin match B.narrow b1 b2 with
-            | b' when B.is_bot b' ->
-              None (* remove bot bucket to preserve invariant *)
-            | exception Lattice.BotValue ->
-              None (* remove bot bucket to preserve invariant *)
-            | b' ->
-              Some b'
-          end
-        | _, _ -> None
+    M.nonidempotent_inter_filter (fun b1 b2 -> (* TODO: idempotent_inter_filter if not using int domain refinement *)
+        match B.narrow b1 b2 with
+        | b' when B.is_bot b' ->
+          None (* remove bot bucket to preserve invariant *)
+        | exception Lattice.BotValue ->
+          None (* remove bot bucket to preserve invariant *)
+        | b' ->
+          Some b'
       ) m1 m2
 
   include MapDomain.Print (E) (V) (
@@ -625,6 +650,7 @@ struct
 
   let filter p m = failwith "ProjectiveMap.filter"
 
+  let reflexive_subset_domain_for_all2 _ _ _ = failwith "ProjectiveMap.reflexive_subset_domain_for_all2"
   let leq_with_fct _ _ _ = failwith "ProjectiveMap.leq_with_fct"
   let join_with_fct _ _ _ = failwith "ProjectiveMap.join_with_fct"
   let widen_with_fct _ _ _ = failwith "ProjectiveMap.widen_with_fct"
@@ -733,28 +759,29 @@ struct
   let mapi f m = S.map (fun b ->
       B.mapi f b
     ) m
-  let long_map2 f s1 s2 =
+  let nonidempotent_union f s1 s2 =
     let f b2 (s1, acc) =
       let e2 = fst (B.choose b2) in
       let (s1_match, s1_rest) = S.partition (fun b1 -> C.cong (fst (B.choose b1)) e2) s1 in
       let b' = match S.choose s1_match with
         | b1 ->
           assert (S.cardinal s1_match = 1);
-          B.long_map2 f b1 b2
+          B.nonidempotent_union f b1 b2
         | exception Not_found -> b2
       in
       (s1_rest, S.add b' acc)
     in
     let (s1', acc) = S.fold f s2 (s1, empty ()) in
     S.union s1' acc
-  let map2 f s1 s2 =
+  let idempotent_union _ _ _ = failwith "PairwiseMap.idempotent_union" (* TODO: ? *)
+  let nonidempotent_inter f s1 s2 =
     let f b2 (s1, acc) =
       let e2 = fst (B.choose b2) in
       let (s1_match, s1_rest) = S.partition (fun b1 -> C.cong (fst (B.choose b1)) e2) s1 in
       let acc' = match S.choose s1_match with
         | b1 ->
           assert (S.cardinal s1_match = 1);
-          begin match B.map2 f b1 b2 with
+          begin match B.nonidempotent_inter f b1 b2 with
             | b' when B.is_bot b' ->
               acc (* remove bot bucket to preserve invariant *)
             | exception Lattice.BotValue ->
@@ -767,7 +794,10 @@ struct
       (s1_rest, acc')
     in
     snd (S.fold f s2 (s1, S.empty ()))
-  let merge f m1 m2 = failwith "PairwiseMap.merge" (* TODO: ? *)
+  let idempotent_inter _ _ _ = failwith "PairwiseMap.idempotent_inter" (* TODO: ? *)
+  let idempotent_inter_filter _ _ _ = failwith "PairwiseMap.idempotent_inter_filter" (* TODO: ? *)
+  let nonidempotent_inter_filter _ _ _ = failwith "PairwiseMap.nonidempotent_inter_filter" (* TODO: ? *)
+  let difference _ _ _ = failwith "PairwiseMap.difference" (* TODO: ? *)
 
   let leq s1 s2 =
     S.for_all (fun b1 ->
@@ -883,6 +913,7 @@ struct
 
   let filter p s = failwith "PairwiseMap.filter"
 
+  let reflexive_subset_domain_for_all2 _ _ _ = failwith "PairwiseMap.reflexive_subset_domain_for_all2"
   let leq_with_fct _ _ _ = failwith "PairwiseMap.leq_with_fct"
   let join_with_fct _ _ _ = failwith "PairwiseMap.join_with_fct"
   let widen_with_fct _ _ _ = failwith "PairwiseMap.widen_with_fct"

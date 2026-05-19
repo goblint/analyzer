@@ -16,28 +16,31 @@ let () =
   (* Yojson.Safe.pretty_to_channel (Stdlib.open_out "options.defaults.json") defaults; *)
   ()
 
-let rec element_paths (element: element): string list =
-  match element.kind with
-  | String _
-  | Boolean
-  | Integer _
-  | Number _ ->
+let rec element_paths ~bool (element: element): string list =
+  match element.kind, bool with
+  | String _, false
+  | Boolean, _
+  | Integer _, false
+  | Number _, false ->
     [""]
-  | Monomorphic_array _ ->
+  | Monomorphic_array _, false ->
     [""; "[+]"; "[-]"; "[*]"]
-  | Object object_specs ->
+  | Object object_specs, _ ->
     List.concat_map (fun (name, field_element, _, _) ->
-        List.map (fun path -> "." ^ name ^ path) (element_paths field_element)
+        List.map (fun path -> "." ^ name ^ path) (element_paths ~bool field_element)
       ) object_specs.properties
+  | _, true ->
+    []
   | _ ->
     Logs.Format.error "%a" Json_schema.pp (create element);
     failwith "element_paths"
 
-let schema_paths (schema: schema): string list =
-  element_paths (root schema)
+let schema_paths ~bool (schema: schema): string list =
+  element_paths ~bool (root schema)
   |> List.map BatString.lchop (* remove first '.' *)
 
-let paths = schema_paths schema
+let paths = schema_paths ~bool:false schema
+let bool_paths = schema_paths ~bool:true schema
 
 let rec element_completions (element: element): (string * string list) list =
   let default_completion () =

@@ -1,4 +1,4 @@
-// PARAM: --enable ana.int.interval --set witness.yaml.entry-types[*] location_invariant --set ana.activated[+] unassume --set witness.yaml.unassume 31-base-unassume-mem-ex.yml
+// PARAM: --enable ana.int.interval --set ana.activated[+] unassume --set witness.yaml.unassume 31-base-unassume-mem-ex.yml
 #include <goblint.h>
 int main() {
   int i, j;

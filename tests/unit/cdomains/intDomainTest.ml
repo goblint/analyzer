@@ -37,12 +37,12 @@ struct
     assert_poly_equal (Some false) (I.to_bool izero);
     assert_poly_equal (Some true ) (I.to_bool itrue);
     assert_poly_equal (Some false) (I.to_bool ifalse);
-    assert_equal itrue  (I.lt ione  itwo);
-    assert_equal ifalse (I.gt ione  itwo);
-    assert_equal itrue  (I.le ione  ione);
-    assert_equal ifalse (I.ge izero itwo);
-    assert_equal itrue  (I.eq izero izero);
-    assert_equal ifalse (I.ne ione  ione)
+    assert_poly_equal (Some true)  (I.lt ione  itwo);
+    assert_poly_equal (Some false) (I.gt ione  itwo);
+    assert_poly_equal (Some true)  (I.le ione  ione);
+    assert_poly_equal (Some false) (I.ge izero itwo);
+    assert_poly_equal (Some true)  (I.eq izero izero);
+    assert_poly_equal (Some false) (I.ne ione  ione)
 
 
   let test_neg _ =
@@ -115,11 +115,11 @@ end
 module Ikind = struct let ikind () = Cil.ILong end
 module A = IntTest (IntDomain.Integers (IntOps.BigIntOps))
 module B = IntTest (IntDomain.Flat (IntDomain.Integers (IntOps.BigIntOps)))
-module C = IntTest (IntDomainProperties.WithIkind (IntDomain.DefExc) (Ikind))
+module C = IntTest (IntDomainProperties.WithIkind (IntDomainProperties.MakeS2 (IntDomain.DefExc)) (Ikind))
 
 module D = struct
   module T = struct
-    include IntDomainProperties.WithIkind (IntDomain.DefExc) (Ikind)
+    include IntDomainProperties.WithIkind (IntDomainProperties.MakeS2 (IntDomain.DefExc)) (Ikind)
     let of_excl_list xs = of_excl_list Cil.ILong xs
   end
 
@@ -253,10 +253,14 @@ struct
     assert_equal i_minus_one_zero narrowed;
     assert_equal widened narrowed2
 
+  let test_interval_logand _ =
+    assert_equal (I.of_interval ik (Z.zero, Z.of_int 4)) (I.logand ik (I.of_interval ik (Z.of_int (-4), Z.of_int (-2))) (I.of_int ik (Z.of_int 4)))
+
   let test () = [
     "test_interval_rem" >:: test_interval_rem;
     "test_interval_widen" >:: test_interval_widen;
     "test_interval_narrow" >:: test_interval_narrow;
+    "test_interval_logand" >:: test_interval_logand;
   ]
 end
 
@@ -426,10 +430,10 @@ struct
   let test_cast_to _ =
     let b1 = I.of_int ik (of_int 1234) in
 
-    assert_equal (I.of_int IUChar (of_int (210))) (I.cast_to IUChar b1);
-    assert_equal (I.of_int IUChar (of_int (-46))) (I.cast_to IUChar b1);
+    assert_equal (I.of_int IUChar (of_int (210))) (I.cast_to ~kind:Internal IUChar b1);
+    assert_equal (I.of_int IUChar (of_int (-46))) (I.cast_to ~kind:Internal IUChar b1);
 
-    assert_equal (I.of_int IUInt128 (of_int 1234)) (I.cast_to IUInt128 b1)
+    assert_equal (I.of_int IUInt128 (of_int 1234)) (I.cast_to ~kind:Internal IUInt128 b1)
 
   (* Bitwise  *)
 
@@ -479,7 +483,6 @@ struct
     assert_bool "-5 ?= not (4 | 12)" (I.equal_to (of_int (-5)) (I.lognot ik b12) = `Top)
 
   let of_list ik is = List.fold_left (fun acc x -> I.join ik acc (I.of_int ik x)) (I.bot ()) is
-  let cart_op op a b = List.map (BatTuple.Tuple2.uncurry op) (BatList.cartesian_product a b)
 
   let precision ik = snd @@ IntDomain.Size.bits ik
   let over_precision ik = Int.succ @@ precision ik
@@ -542,7 +545,7 @@ struct
     Test.make ~name:name ~print:shift_test_printer
       test_case_gen
       (fun (a,b) ->
-         let expected_subset = cart_op c_op a b |> of_list ik in
+         let expected_subset = GobList.cartesian_map c_op a b |> of_list ik in
          let result = a_op ik (of_list ik a) (of_list ik b) in
          I.leq expected_subset result
       )
@@ -734,99 +737,99 @@ struct
     let b1 = I.of_int ik (of_int 5) in
     let b2 = I.of_int ik (of_int 17) in
 
-    assert_bool "5 == 5" (I.eq ik b1 b1 = I.of_bool ik true);
-    assert_bool "5 == 17" (I.eq ik b1 b2 = I.of_bool ik false);
+    assert_bool "5 == 5" (I.eq ik b1 b1 = Some true);
+    assert_bool "5 == 17" (I.eq ik b1 b2 = Some false);
 
     let b12 = I.join ik b1 b2 in
-    assert_bool "5 == (5 | 17)" (I.eq ik b1 b12 = (I.join ik (I.of_bool ik true) (I.of_bool ik false)))
+    assert_bool "5 == (5 | 17)" (I.eq ik b1 b12 = None)
 
   let test_ne _ =
     let b1 = I.of_int ik (of_int 5) in
     let b2 = I.of_int ik (of_int 17) in
 
-    assert_bool "5 != 5" (I.ne ik b1 b1 = I.of_bool ik false);
-    assert_bool "5 != 17" (I.ne ik b1 b2 = I.of_bool ik true);
+    assert_bool "5 != 5" (I.ne ik b1 b1 = Some false);
+    assert_bool "5 != 17" (I.ne ik b1 b2 = Some true);
 
     let b12 = I.join ik b1 b2 in
-    assert_bool "5 != (5 | 17)" (I.ne ik b1 b12 = (I.join ik (I.of_bool ik false) (I.of_bool ik true)))
+    assert_bool "5 != (5 | 17)" (I.ne ik b1 b12 = None)
 
   let test_le _ =
     let b1 = I.of_int ik (of_int 5) in
     let b2 = I.of_int ik (of_int 14) in
 
-    assert_bool "5 <= 5" (I.le ik b1 b1 = I.of_bool ik true);
-    assert_bool "5 <= 14" (I.le ik b1 b2 = I.of_bool ik true);
-    assert_bool "14 <= 5" (I.le ik b2 b1 = I.of_bool ik false);
+    assert_bool "5 <= 5" (I.le ik b1 b1 = Some true);
+    assert_bool "5 <= 14" (I.le ik b1 b2 = Some true);
+    assert_bool "14 <= 5" (I.le ik b2 b1 = Some false);
 
     let b12 = I.join ik b1 b2 in
 
     let b3 = I.of_int ik (of_int 17) in
-    assert_bool "17 <= (5 | 14)" (I.le ik b3 b12 = I.of_bool ik false);
+    assert_bool "17 <= (5 | 14)" (I.le ik b3 b12 = Some false);
 
     let b4 = I.of_int ik (of_int 13) in
-    assert_bool "13 <= (5 | 14)" (I.le ik b4 b12 = (I.join ik (I.of_bool ik false) (I.of_bool ik true)));
+    assert_bool "13 <= (5 | 14)" (I.le ik b4 b12 = None);
 
     let b5 = I.of_int ik (of_int 5) in
-    assert_bool "5 <= (5 | 14)" (I.le ik b5 b12 = I.join ik (I.of_bool ik true) (I.of_bool ik false));
+    assert_bool "5 <= (5 | 14)" (I.le ik b5 b12 = None);
 
     let b6 = I.of_int ik (of_int 4) in
-    assert_bool "4 <= (5 | 14)" (I.le ik b6 b12 = I.of_bool ik true)
+    assert_bool "4 <= (5 | 14)" (I.le ik b6 b12 = Some true)
 
 
   let test_ge _ =
     let b1 = I.of_int ik (of_int 5) in
     let b2 = I.of_int ik (of_int 14) in
 
-    assert_bool "5 >= 5" (I.ge ik b1 b1 = I.of_bool ik true);
-    assert_bool "5 >= 14" (I.ge ik b1 b2 = I.of_bool ik false);
-    assert_bool "14 >= 5" (I.ge ik b2 b1 = I.of_bool ik true);
+    assert_bool "5 >= 5" (I.ge ik b1 b1 = Some true);
+    assert_bool "5 >= 14" (I.ge ik b1 b2 = Some false);
+    assert_bool "14 >= 5" (I.ge ik b2 b1 = Some true);
 
     let b12 = I.join ik b1 b2 in
 
     let b3 = I.of_int ik (of_int 2) in
-    assert_bool "2 >= (5 | 14)" (I.ge ik b3 b12 = I.of_bool ik false);
+    assert_bool "2 >= (5 | 14)" (I.ge ik b3 b12 = Some false);
 
     let b4 = I.of_int ik (of_int 13) in
-    assert_bool "13 >= (5 | 14)" (I.ge ik b4 b12 = (I.join ik (I.of_bool ik true) (I.of_bool ik false)));
+    assert_bool "13 >= (5 | 14)" (I.ge ik b4 b12 = None);
 
     let b6 = I.of_int ik (of_int 15) in
-    assert_bool "15 >= (5 | 14)" (I.ge ik b6 b12 = I.of_bool ik true)
+    assert_bool "15 >= (5 | 14)" (I.ge ik b6 b12 = Some true)
 
   let test_lt _ =
     let b1 = I.of_int ik (of_int 7) in
     let b2 = I.of_int ik (of_int 13) in
 
-    assert_bool "7 < 7" (I.lt ik b1 b1 = I.of_bool ik false);
-    assert_bool "7 < 13" (I.lt ik b1 b2 = I.of_bool ik true);
+    assert_bool "7 < 7" (I.lt ik b1 b1 = Some false);
+    assert_bool "7 < 13" (I.lt ik b1 b2 = Some true);
 
     let b12 = I.join ik b1 b2 in
     let b3 = I.of_int ik (of_int 4) in
-    assert_bool "4 < (7 | 13)" (I.lt ik b3 b12 = I.of_bool ik true);
+    assert_bool "4 < (7 | 13)" (I.lt ik b3 b12 = Some true);
 
     let b4 = I.of_int ik (of_int 8) in
-    assert_bool "8 < (7 | 13)" (I.lt ik b4 b12 = I.join ik (I.of_bool ik false) (I.of_bool ik true))
+    assert_bool "8 < (7 | 13)" (I.lt ik b4 b12 = None)
 
   let test_gt _ =
     let b1 = I.of_int ik (of_int 5) in
     let b2 = I.of_int ik (of_int 14) in
 
-    assert_bool "5 > 5" (I.gt ik b1 b1 = I.of_bool ik false);
-    assert_bool "5 > 14" (I.gt ik b1 b2 = I.of_bool ik false);
-    assert_bool "14 > 5" (I.gt ik b2 b1 = I.of_bool ik true);
+    assert_bool "5 > 5" (I.gt ik b1 b1 = Some false);
+    assert_bool "5 > 14" (I.gt ik b1 b2 = Some false);
+    assert_bool "14 > 5" (I.gt ik b2 b1 = Some true);
 
     let b12 = I.join ik b1 b2 in
 
     let b3 = I.of_int ik (of_int 2) in
-    assert_bool "2 > (5 | 14)" (I.gt ik b3 b12 = I.of_bool ik false);
+    assert_bool "2 > (5 | 14)" (I.gt ik b3 b12 = Some false);
 
     let b4 = I.of_int ik (of_int 13) in
-    assert_bool "13 > (5 | 14)" (I.gt ik b4 b12 = (I.join ik (I.of_bool ik false) (I.of_bool ik true)));
+    assert_bool "13 > (5 | 14)" (I.gt ik b4 b12 = None);
 
     let b5 = I.of_int ik (of_int 5) in
-    assert_bool "5 > (5 | 14)" (I.gt ik b5 b12 = I.join ik (I.of_bool ik false) (I.of_bool ik true));
+    assert_bool "5 > (5 | 14)" (I.gt ik b5 b12 = None);
 
     let b6 = I.of_int ik (of_int 4) in
-    assert_bool "4 > (5 | 14)" (I.gt ik b6 b12 = (I.of_bool ik false) )
+    assert_bool "4 > (5 | 14)" (I.gt ik b6 b12 = (Some false) )
 
   let test_starting _ =
     let bf1 = I.starting ik (of_int 17) in
@@ -954,7 +957,7 @@ module IntDomTuple =
 struct
   let exists0 =
     let open Batteries in
-    let to_list x = Tuple4.enum x |> List.of_enum |> List.filter_map identity in
+    let to_list (a,b,c,d) = List.filter_map identity [a;b;c;d] in
     let f g = g identity % to_list in
     List.(f exists)
 
@@ -976,7 +979,7 @@ struct
 
   let for_all0 =
     let open Batteries in
-    let to_list x = Tuple4.enum x |> List.of_enum |> List.filter_map identity in
+    let to_list (a,b,c,d) = List.filter_map identity [a;b;c;d] in
     let f g = g identity % to_list in
     List.(f for_all)
 

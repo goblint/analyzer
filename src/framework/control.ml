@@ -20,7 +20,7 @@ let spec_module: (module Spec) Lazy.t = lazy (
   GobConfig.building_spec := true;
   let arg_enabled = get_bool "exp.arg.enabled" in
   let termination_enabled = List.mem "termination" (get_string_list "ana.activated") in (* check if loop termination analysis is enabled*)
-  let open Batteries in
+  let hashcons_enabled = get_bool "ana.opt.hashcons" in
   (* apply functor F on module X if opt is true *)
   let lift opt (module F : S2S) (module X : Spec) = (module (val if opt then (module F (X)) else (module X) : Spec) : Spec) in
   let module S1 =
@@ -30,7 +30,7 @@ let spec_module: (module Spec) Lazy.t = lazy (
       |> lift true (module WidenContextLifterSide) (* option checked in functor *)
       |> lift (get_int "ana.widen.delay.local" > 0) (module WideningDelay.DLifter)
       (* hashcons before witness to reduce duplicates, because witness re-uses contexts in domain and requires tag for PathSensitive3 *)
-      |> lift (get_bool "ana.opt.hashcons" || arg_enabled) (module HashconsContextLifter)
+      |> lift (hashcons_enabled || arg_enabled) (module HashconsContextLifter)
       |> lift (get_bool "ana.opt.hashcached") (module HashCachedContextLifter)
       |> lift arg_enabled (module HashconsLifter)
       |> lift arg_enabled (module ArgConstraints.PathSensitive3)
@@ -38,8 +38,8 @@ let spec_module: (module Spec) Lazy.t = lazy (
       |> lift (get_bool "ana.dead-code.branches") (module DeadBranchLifter)
       |> lift true (module DeadCodeLifter)
       |> lift (get_bool "dbg.slice.on") (module LevelSliceLifter)
-      |> lift (get_bool "ana.opt.equal" && not (get_bool "ana.opt.hashcons")) (module OptEqual)
-      |> lift (get_bool "ana.opt.hashcons") (module HashconsLifter)
+      |> lift (get_bool "ana.opt.equal" && not hashcons_enabled) (module OptEqual)
+      |> lift hashcons_enabled (module HashconsLifter)
       (* Widening tokens must be outside of hashcons, because widening token domain ignores token sets for identity, so hashcons doesn't allow adding tokens.
          Also must be outside of deadcode, because deadcode splits (like mutex lock event) don't pass on tokens. *)
       |> lift (get_bool "ana.widen.tokens") (module WideningTokenLifter.Lifter)
@@ -103,6 +103,7 @@ struct
   module LT = SetDomain.HeadlessSet (RT)
   (* Analysis result structure---a hashtable from program points to [LT] *)
   module Result = AnalysisResult.Result (LT) (struct let result_name = "analysis" end)
+  module ResultOutput = AnalysisResultOutput.Make (Result)
 
   module Query = ResultQuery.Query (SpecSys)
 
@@ -153,7 +154,7 @@ struct
       let open Cilfacade in
       let warn_for_upjumps fundec gotos =
         if FunSet.mem live_funs fundec then (
-          (* set nortermiantion flag *)
+          (* set nontermination flag *)
           AnalysisState.svcomp_may_not_terminate := true;
           (* iterate through locations to produce warnings *)
           LocSet.iter (fun l _ ->
@@ -248,7 +249,7 @@ struct
 
     AnalysisState.should_warn := false; (* reset for server mode *)
 
-    (* exctract global xml from result *)
+    (* extract global xml from result *)
     let make_global_fast_xml f g =
       let open Printf in
       let print_globals k v =
@@ -274,7 +275,8 @@ struct
         | {vname = "getdate_err"; _} (* unix time.h, but somehow always in MacOS even without include *)
         | {vname = ("stdin" | "stdout" | "stderr"); _} (* standard stdio.h *)
         | {vname = ("optarg" | "optind" | "opterr" | "optopt" ); _} (* unix unistd.h *)
-        | {vname = ("__environ"); _} -> (* Linux Standard Base Core Specification *)
+        | {vname = ("__environ"); _} (* Linux Standard Base Core Specification *)
+        | {vname = ("__mb_cur_max"); _} -> (* MacOS stdlib.h *)
           true
         | _ -> false
       in
@@ -322,7 +324,6 @@ struct
         if M.tracing then M.trace "con" "Initializer %a" CilType.Location.pretty loc;
         (*incr count;
           if (get_bool "dbg.verbose")&& (!count mod 1000 = 0)  then Printf.printf "%d %!" !count;    *)
-        Goblint_tracing.current_loc := loc;
         match edge with
         | MyCFG.Entry func        ->
           if M.tracing then M.trace "global_inits" "Entry %a" d_lval (var func.svar);
@@ -342,11 +343,19 @@ struct
           res'
         | _                       -> failwith "Unsupported global initializer edge"
       in
+      let transfer_func st (loc, edge) =
+        let old_loc = !Goblint_tracing.current_loc in
+        Goblint_tracing.current_loc := loc;
+        (* TODO: next_loc? *)
+        Goblint_backtrace.protect ~mark:(fun () -> Constraints.TfLocation loc) ~finally:(fun () ->
+            Goblint_tracing.current_loc := old_loc;
+          ) (fun () ->
+            transfer_func st (loc, edge)
+          )
+      in
       let with_externs = do_extern_inits man file in
       (*if (get_bool "dbg.verbose") then Printf.printf "Number of init. edges : %d\nWorking:" (List.length edges);    *)
-      let old_loc = !Goblint_tracing.current_loc in
       let result : Spec.D.t = List.fold_left transfer_func with_externs edges in
-      Goblint_tracing.current_loc := old_loc;
       if M.tracing then M.trace "global_inits" "startstate: %a" Spec.D.pretty result;
       result, !funs
     in
@@ -575,7 +584,9 @@ struct
             end
             in
             (* Yojson.Safe.to_file meta Meta.json; *)
-            Yojson.Safe.pretty_to_channel (Stdlib.open_out (Fpath.to_string meta)) Meta.json; (* the above is compact, this is pretty-printed *)
+            Out_channel.with_open_text (Fpath.to_string meta) (fun oc ->
+                Yojson.Safe.pretty_to_channel oc Meta.json (* the above is compact, this is pretty-printed *)
+              );
             if gobview then (
               Logs.Format.debug "Saving the analysis table to %a, the CIL state to %a, the warning table to %a, and the runtime stats to %a" Fpath.pp analyses Fpath.pp cil Fpath.pp warnings Fpath.pp stats;
               Serialize.marshal MCPRegistry.registered_name analyses;
@@ -646,7 +657,7 @@ struct
            Join abstract values once per location and once per node. *)
         let joined_by_loc, joined_by_node =
           let open Enum in
-          let node_values = LHT.enum lh |> map (Tuple2.map1 fst) in (* drop context from key *)
+          let node_values = LHT.enum lh |> map (Tuple2.map1 fst) in (* drop context from key *) (* nosemgrep: batenum-enum *)
           let hashtbl_size = if fast_count node_values then count node_values else 123 in
           let by_loc, by_node = Hashtbl.create hashtbl_size, NodeH.create hashtbl_size in
           iter (fun (node, v) ->
@@ -754,7 +765,7 @@ struct
     in
 
     if get_bool "exp.cfgdot" then
-      CfgTools.dead_code_cfg (module FileCfg) liveness;
+      CfgTools.dead_code_cfg ~path:(Fpath.v "cfgs") (module FileCfg) liveness;
 
     let warn_global g v =
       (* Logs.debug "warn_global %a %a" EQSys.GVar.pretty_trace g EQSys.G.pretty v; *)
@@ -782,13 +793,10 @@ struct
         end
         in
         let module ArgDot = ArgTools.Dot (Arg) (NoLabelNodeStyle) in
-        let oc = Batteries.open_out arg_dot_path in
-        Fun.protect (fun () ->
-            let ppf = Format.formatter_of_out_channel oc in
+        Out_channel.with_open_text arg_dot_path (fun oc ->
+            let ppf = Stdlib.Format.formatter_of_out_channel oc in
             ArgDot.dot ppf;
             Format.pp_print_flush ppf ()
-          ) ~finally:(fun () ->
-            Batteries.close_out oc
           )
       );
       ArgTools.current_arg := Some (module Arg);
@@ -804,15 +812,19 @@ struct
         None
     in
 
-    if get_bool "ana.sv-comp.enabled" then (
-      (* SV-COMP and witness generation *)
-      let module WResult = Witness.Result (R) in
-      WResult.write yaml_validate_result entrystates
-    );
+    let svcomp_result =
+      if get_bool "ana.sv-comp.enabled" then (
+        (* SV-COMP and witness generation *)
+        let module WResult = Witness.Result (R) in
+        Some (WResult.write yaml_validate_result entrystates)
+      )
+      else
+        None
+    in
 
     if get_bool "witness.yaml.enabled" then (
       let module YWitness = YamlWitness.Make (R) in
-      YWitness.write ()
+      YWitness.write ~svcomp_result
     );
 
     let marshal = Spec.finalize () in
@@ -830,7 +842,7 @@ struct
     if get_string "result" <> "none" then Logs.debug "Generating output: %s" (get_string "result");
 
     Messages.finalize ();
-    Timing.wrap "result output" (Result.output (lazy local_xml) gh make_global_fast_xml) file
+    Timing.wrap "result output" (ResultOutput.output (lazy local_xml) liveness gh make_global_fast_xml) (module FileCfg)
 end
 
 (* This function was originally a part of the [AnalyzeCFG] module, but
@@ -849,7 +861,7 @@ let rec analyze_loop (module CFG : CfgBidirSkip) file fs change_info =
         Whoever raised the exception should've modified some global state
         to do a more precise analysis next time. *)
     (* TODO: do some more incremental refinement and reuse parts of solution *)
-    analyze_loop (module CFG) file fs change_info
+    analyze_loop (module CFG: CfgBidirSkip) file fs change_info (* explicit module type needed for OCaml 5.5: https://github.com/goblint/analyzer/issues/2006 *)
 
 (** The main function to perform the selected analyses. *)
 let analyze change_info (file: file) fs =

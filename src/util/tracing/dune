@@ -8,4 +8,5 @@
    goblint_std
    goblint_logs
    goblint-cil
-   goblint_build_info))
+   goblint_build_info)
+ (instrumentation (backend bisect_ppx)))

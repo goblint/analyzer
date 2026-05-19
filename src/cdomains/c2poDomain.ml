@@ -293,7 +293,7 @@ module D = struct
     let not_in_scope t =
       let var = T.get_var t in
       let var = Var.to_varinfo var in
-      InvariantCil.var_is_tmp var || not (InvariantCil.var_is_in_scope scope  var)
+      not (InvariantCil.var_is_suitable ~scope var)
     in
     remove_terms not_in_scope cc
 end

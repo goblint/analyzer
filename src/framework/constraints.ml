@@ -9,6 +9,15 @@ open Goblint_constraint.ConstrSys
 open GobConfig
 
 
+type Goblint_backtrace.mark += TfLocation of location
+
+let () = Goblint_backtrace.register_mark_printer (function
+    | TfLocation loc ->
+      Some ("transfer function at " ^ CilType.Location.show loc)
+    | _ -> None (* for other marks *)
+  )
+
+
 module type Increment =
 sig
   val increment: increment_data option
@@ -243,9 +252,36 @@ struct
     if M.tracing then M.traceu "combine" "combined: %a" S.D.pretty r;
     r
 
-  let tf_special_call man lv f args = S.special man lv f args
 
-  let tf_proc var edge prev_node lv e args getl sidel demandl getg sideg d =
+  let rec tf_proc var edge prev_node lv e args getl sidel demandl getg sideg d =
+    let tf_special_call man f =
+      let once once_control init_routine =
+        (* Executes leave event for new local state d if it is not bottom *)
+        let leave_once d =
+          if not (S.D.is_bot d) then
+            let rec man' =
+              { man with
+                ask = (fun (type a) (q: a Queries.t) -> S.query man' q);
+                local = d;
+              }
+            in
+            S.event man' (Events.LeaveOnce { once_control }) man'
+          else
+            S.D.bot ()
+        in
+        let first_call =
+          let d' = S.event man (Events.EnterOnce { once_control;  ran = false }) man in
+          tf_proc var edge prev_node None init_routine [] getl sidel demandl getg sideg d'
+        in
+        let later_call = S.event man (Events.EnterOnce { once_control;  ran = true }) man in
+        D.join (leave_once first_call) (leave_once later_call)
+      in
+      let is_once = LibraryFunctions.find ~nowarn:true f in
+      (* If the prototpye for a library function is wrong, this will throw an exception. Such exceptions are usually unrelated to pthread_once, it is just that the call to `is_once.special` raises here *)
+      match is_once.special args with
+      | Once { once_control; init_routine } -> once once_control init_routine
+      | _  -> S.special man lv f args
+    in
     let man, r, spawns = common_man var edge prev_node d getl sidel demandl getg sideg in
     let functions =
       match e with
@@ -260,21 +296,27 @@ struct
     in
     let one_function f =
       match Cil.unrollType f.vtype with
-      | TFun (_, params, var_arg, _)  ->
+      | TFun (_, params, var_arg, attrs)  ->
+        if Cil.hasAttribute "missingproto" attrs then (
+          M.msg_final Warning ~category:Program "Function declaration missing";
+          M.warn ~category:Program "Function declaration missing for %s" f.vname
+        );
         let arg_length = List.length args in
         let p_length = Option.map_default List.length 0 params in
         (* Check whether number of arguments fits. *)
         (* If params is None, the function or its parameters are not declared, so we still analyze the unknown function call. *)
         if Option.is_none params || p_length = arg_length || (var_arg && arg_length >= p_length) then
-          begin Some (match Cilfacade.find_varinfo_fundec f with
-              | fd when LibraryFunctions.use_special f.vname ->
-                M.info ~category:Analyzer "Using special for defined function %s" f.vname;
-                tf_special_call man lv f args
-              | fd ->
-                tf_normal_call man lv e fd args getl sidel demandl getg sideg
-              | exception Not_found ->
-                tf_special_call man lv f args)
-          end
+          let d =
+            (match Cilfacade.find_varinfo_fundec f with
+             | fd when LibraryFunctions.use_special f.vname ->
+               M.info ~category:Analyzer "Using special for defined function %s" f.vname;
+               tf_special_call man f
+             | fd ->
+               tf_normal_call man lv e fd args getl sidel demandl getg sideg
+             | exception Not_found ->
+               tf_special_call man f)
+          in
+          Some d
         else begin
           let geq = if var_arg then ">=" else "" in
           M.warn ~category:Unsound ~tags:[Category Call; CWE 685] "Potential call to function %a with wrong number of arguments (expected: %s%d, actual: %d). This call will be ignored." CilType.Varinfo.pretty f geq p_length arg_length;
@@ -313,14 +355,6 @@ struct
       | ASM (_, _, _)  -> tf_asm var edge prev_node (* TODO: use ASM fields for something? *)
       | Skip           -> tf_skip var edge prev_node
     end getl sidel demandl getg sideg d
-
-  type Goblint_backtrace.mark += TfLocation of location
-
-  let () = Goblint_backtrace.register_mark_printer (function
-      | TfLocation loc ->
-        Some ("transfer function at " ^ CilType.Location.show loc)
-      | _ -> None (* for other marks *)
-    )
 
   let tf var getl sidel demandl getg sideg prev_node (_,edge) d (f,t) =
     let old_loc  = !Goblint_tracing.current_loc in
@@ -495,8 +529,8 @@ struct
           mark_node obsolete_ret f (Function f)
       ) part_changed_funs;
 
-    let obsolete = Enum.append (HM.keys obsolete_entry) (HM.keys obsolete_prim) |> List.of_enum in
-    let reluctant = HM.keys obsolete_ret |> List.of_enum in
+    let obsolete = Seq.append (HM.to_seq_keys obsolete_entry) (HM.to_seq_keys obsolete_prim) |> List.of_seq in
+    let reluctant = HM.to_seq_keys obsolete_ret |> List.of_seq in
 
     let marked_for_deletion = HM.create 103 in
 
@@ -532,7 +566,7 @@ struct
         add_pseudo_return f un
       ) part_changed_funs;
 
-    let delete = HM.keys marked_for_deletion |> List.of_enum in
+    let delete = HM.to_seq_keys marked_for_deletion |> List.of_seq in
 
     let restart = match I.increment with
       | Some data ->

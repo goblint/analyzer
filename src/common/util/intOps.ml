@@ -1,7 +1,5 @@
 (** Unified interface for integer types. *)
 
-open Batteries
-
 (* IntOps
  * Wrapper around integer types providing unified interface for
  * arithmetic and logical operations. *)

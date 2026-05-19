@@ -357,7 +357,7 @@ struct
     | `Thread ->
       st
 
-  let invariant_vars ask getg st = protected_vars ask
+  let invariant_vars ask getg st = protected_vars ask ~kind:Write
 end
 
 module PerMutexMeetPrivBase =
@@ -370,7 +370,7 @@ struct
       if atomic || ask.f (GhostVarAvailable (Locked m')) then (
         let cpa = get_m_with_mutex_inits ask getg m' in (* Could be more precise if mutex_inits invariant is added by disjunction instead of joining abstract values. *)
         let inv = CPA.fold (fun v _ acc ->
-            if ask.f (MustBeProtectedBy {mutex = m'; global = v; write = true; protection = Strong}) then
+            if ask.f (MustBeProtectedBy {mutex = m'; global = v; kind = Write; protection = Strong}) then
               let inv = ValueDomain.invariant_global (fun g -> CPA.find g cpa) v in
               Invariant.(acc && inv)
             else
@@ -442,7 +442,7 @@ struct
       (* Additionally filter get_m in case it contains variables it no longer protects. *)
       let is_in_Gm x _ = is_protected_by ask m x in
       let get_m = CPA.filter is_in_Gm get_m in
-      let long_meet m1 m2 = CPA.long_map2 VD.meet m1 m2 in
+      let long_meet m1 m2 = CPA.nonidempotent_union VD.meet m1 m2 in (* TODO: idempotent_union if not using int domain refinement *)
       let meet = long_meet st.cpa get_m in
       if M.tracing then M.tracel "priv" "LOCK %a:\n  get_m: %a\n  meet: %a" LockDomain.MustLock.pretty m CPA.pretty get_m CPA.pretty meet;
       {st with cpa = meet}
@@ -508,7 +508,7 @@ struct
     | VarQuery.Global g -> vf (V.global g)
     | _ -> ()
 
-  let long_meet m1 m2 = CPA.long_map2 VD.meet m1 m2
+  let long_meet m1 m2 = CPA.nonidempotent_union VD.meet m1 m2 (* TODO: idempotent_union if not using int domain refinement *)
 
   let update_if_mem var value m =
     if CPA.mem var m then
@@ -579,7 +579,7 @@ struct
     let digest = Digest.current ask in
     let sidev = GMutex.singleton digest (CPA.singleton x v) in
     let l' = L.add lm (CPA.singleton x v) l in
-    let is_recovered_st = ask.f (Queries.MustBeSingleThreaded {since_start = false}) && not @@ ask.f (Queries.MustBeSingleThreaded {since_start = true}) in
+    let is_recovered_st = ThreadFlag.has_ever_been_multi ask && not @@ ThreadFlag.is_currently_multi ask in
     let l' = if is_recovered_st then
         (* update value of local record for all where it appears *)
         L.map (update_if_mem x v) l'
@@ -636,7 +636,7 @@ struct
       )
       else (
         (* fold throws if the thread set is top *)
-        let tids' = ConcDomain.ThreadSet.diff tids (ask.f Q.MustJoinedThreads) in (* avoid unnecessary imprecision by force joining already must-joined threads, e.g. 46-apron2/04-other-assume-inprec *)
+        let tids' = ConcDomain.ThreadSet.diff_mustset tids (ask.f Q.MustJoinedThreads) in (* avoid unnecessary imprecision by force joining already must-joined threads, e.g. 46-apron2/04-other-assume-inprec *)
         let (lmust', l') = ConcDomain.ThreadSet.fold (fun tid (lmust, l) ->
             let lmust',l' = G.thread (getg (V.thread tid)) in
             (LMust.union lmust' lmust, L.join l l')
@@ -705,8 +705,8 @@ struct
     {st with cpa = CPA.bot (); priv = (W.bot (),lmust,l)}
 
   let threadspawn (ask:Queries.ask) get set (st: BaseComponents (D).t) =
-    let is_recovered_st = ask.f (Queries.MustBeSingleThreaded {since_start = false}) && not @@ ask.f (Queries.MustBeSingleThreaded {since_start = true}) in
-    let unprotected_after x = ask.f (Q.MayBePublic {global=x; write=true; protection=Weak}) in
+    let is_recovered_st = ThreadFlag.has_ever_been_multi ask && not @@ ThreadFlag.is_currently_multi ask in
+    let unprotected_after x = ask.f (Q.MayBePublic {global=x; kind=Write; protection=Weak}) in
     if is_recovered_st then
       (* Remove all things that are now unprotected *)
       let cpa' = CPA.fold (fun x v cpa ->
@@ -750,14 +750,14 @@ struct
   let startstate () = ()
 
   let read_global (ask: Queries.ask) getg (st: BaseComponents (D).t) x =
-    if is_unprotected ask ~write:false x then
+    if is_unprotected ask ~kind:ReadWrite x then
       VD.join (CPA.find x st.cpa) (getg x)
     else
       CPA.find x st.cpa
 
   let write_global ?(invariant=false) (ask: Queries.ask) getg sideg (st: BaseComponents (D).t) x v =
     if not invariant then (
-      if is_unprotected ask ~write:false x then
+      if is_unprotected ask ~kind:ReadWrite x then
         sideg x v;
       if !earlyglobs then (* earlyglobs workaround for 13/60 *)
         sideg x v (* TODO: is this needed for anything? 13/60 doesn't work for other reasons *)
@@ -766,7 +766,7 @@ struct
 
   let lock ask getg (st: BaseComponents (D).t) m =
     let cpa' = CPA.mapi (fun x v ->
-        if is_protected_by ask ~write:false m x && is_unprotected ask ~write:false x then (* is_in_Gm *)
+        if is_protected_by ask ~kind:ReadWrite m x && is_unprotected ask ~kind:ReadWrite x then (* is_in_Gm *)
           VD.join (CPA.find x st.cpa) (getg x)
         else
           v
@@ -776,8 +776,8 @@ struct
 
   let unlock ask getg sideg (st: BaseComponents (D).t) m =
     CPA.iter (fun x v  ->
-        if is_protected_by ask ~write:false m x then ( (* is_in_Gm *)
-          if is_unprotected_without ask ~write:false x m then (* is_in_V' *)
+        if is_protected_by ask ~kind:ReadWrite m x then ( (* is_in_Gm *)
+          if is_unprotected_without ask ~kind:ReadWrite x m then (* is_in_V' *)
             sideg x v
         )
       ) st.cpa;
@@ -787,7 +787,7 @@ struct
     let branched_sync () =
       (* required for branched thread creation *)
       CPA.iter (fun x v ->
-          if is_global ask x && is_unprotected ask ~write:false x then
+          if is_global ask x && is_unprotected ask ~kind:ReadWrite x then
             sideg x v
         ) st.cpa;
       st
@@ -832,7 +832,7 @@ struct
     | _ -> ()
 
   let invariant_global (ask: Q.ask) getg g =
-    let locks = ask.f (Q.MustProtectingLocks {global = g; write = false}) in
+    let locks = ask.f (Q.MustProtectingLocks {global = g; kind = ReadWrite}) in
     if LockDomain.MustLockset.is_all locks then
       Invariant.none
     else (
@@ -856,7 +856,7 @@ struct
         ) locks inv
     )
 
-  let invariant_vars ask getg st = protected_vars ask
+  let invariant_vars ask getg st = protected_vars ask ~kind:ReadWrite
 end
 
 
@@ -980,7 +980,7 @@ struct
     let atomic = Param.handle_atomic && LockDomain.MustLock.equal m (LockDomain.MustLock.of_var LibraryFunctions.verifier_atomic_var) in
     (* TODO: what about G_m globals in cpa that weren't actually written? *)
     CPA.fold (fun x v (st: BaseComponents (D).t) ->
-        if is_protected_by ask m x then ( (* is_in_Gm *)
+        if (atomic && is_global ask x && not (VD.is_immediate_type x.vtype)) || is_protected_by ask m x then ( (* is_in_Gm *)
           (* Only apply sides for values that were actually written to globals!
              This excludes invariants inferred through guards. *)
           begin match D.precise_side x v st.priv with
@@ -988,7 +988,7 @@ struct
                 (* Extra precision in implementation to pass tests:
                    If global is read-protected by multiple locks,
                    then inner unlock shouldn't yet publish. *)
-                if not Param.check_read_unprotected || is_unprotected_without ask ~write:false x m then
+                if not Param.check_read_unprotected || is_unprotected_without ask ~kind:ReadWrite x m then
                   sideg (V.protected x) v;
                 if atomic then
                   sideg (V.unprotected x) v; (* Publish delayed unprotected write as if it were protected by the atomic section. *)
@@ -1076,7 +1076,7 @@ struct
     | `Left g' -> (* unprotected *)
       ValueDomain.invariant_global (fun g -> getg (V.unprotected g)) g'
     | `Right g' -> (* protected *)
-      let locks = ask.f (Q.MustProtectingLocks {global = g'; write = true}) in
+      let locks = ask.f (Q.MustProtectingLocks {global = g'; kind = Write}) in
       if LockDomain.MustLockset.is_all locks || LockDomain.MustLockset.is_empty locks then
         Invariant.none
       else if VD.equal (getg (V.protected g')) (getg (V.unprotected g')) then
@@ -1102,7 +1102,7 @@ struct
           ) locks inv
       )
 
-  let invariant_vars ask getg st = protected_vars ask
+  let invariant_vars ask getg st = protected_vars ask ~kind:Write
 end
 
 module AbstractLockCenteredGBase (WeakRange: Lattice.S) (SyncRange: Lattice.S) =
@@ -2031,12 +2031,11 @@ struct
     v
 
   let dump () =
-    let f = open_out_bin (get_string "exp.priv-prec-dump") in
+    let@ f = Out_channel.with_open_bin (get_string "exp.priv-prec-dump") in
     (* LVH.iter (fun (l, x) v ->
         Logs.debug "%a %a = %a" CilType.Location.pretty l CilType.Varinfo.pretty x VD.pretty v
       ) lvh; *)
-    Marshal.output f ({name = get_string "ana.base.privatization"; results = lvh}: result);
-    close_out_noerr f
+    Stdlib.Marshal.to_channel f ({name = get_string "ana.base.privatization"; results = lvh}: result) []
 
   let finalize () =
     if !is_dumping then

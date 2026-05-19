@@ -2,4 +2,5 @@
 
 (library
  (name goblint_backtrace)
- (public_name goblint.backtrace))
+ (public_name goblint.backtrace)
+ (instrumentation (backend bisect_ppx)))

@@ -30,7 +30,7 @@ struct
       D.add l man.local
 
   let remove man l =
-    if not (D.mem l man.local) then M.warn "Releasing a mutex that is definitely not held";
+    if not (D.mem l man.local) then M.error "Releasing a mutex that is definitely not held";
     match D.Addr.to_mval l with
     | Some (v,o) ->
       (let mtype = man.ask (Queries.MutexType (v, Offset.Unit.of_offs o)) in

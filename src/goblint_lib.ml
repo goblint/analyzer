@@ -109,6 +109,7 @@ module MayLocks = MayLocks
 module SymbLocks = SymbLocks
 module Deadlock = Deadlock
 module MutexGhosts = MutexGhosts
+module MustlockHistory = MustlockHistory
 
 (** {3 Threads}
 
@@ -120,6 +121,7 @@ module ThreadAnalysis = ThreadAnalysis
 module ThreadJoins = ThreadJoins
 module MHPAnalysis = MHPAnalysis
 module ThreadReturn = ThreadReturn
+module ThreadDescendants = ThreadDescendants
 
 (** {3 Other} *)
 
@@ -128,7 +130,11 @@ module BasePriv = BasePriv
 module RelationPriv = RelationPriv
 module ThreadEscape = ThreadEscape
 module PthreadSignals = PthreadSignals
+module PthreadBarriers = PthreadBarriers
 module ExtractPthread = ExtractPthread
+module PthreadOnce = PthreadOnce
+module CreationLockset = CreationLockset
+module DescendantLockset = DescendantLockset
 
 (** {2 Longjmp}
 
@@ -157,6 +163,7 @@ module Callstring = Callstring
 module LoopfreeCallstring = LoopfreeCallstring
 module Uninit = Uninit
 module Expsplit = Expsplit
+module BranchSet = BranchSet
 module StackTrace = StackTrace
 
 (** {2 Helper}
@@ -324,6 +331,7 @@ module CilMaps = CilMaps
 
 module Messages = Messages
 module Logs = Logs
+module Checks = Checks
 
 (** {2 Front-end}
 
@@ -333,6 +341,11 @@ module Preprocessor = Preprocessor
 module CompilationDatabase = CompilationDatabase
 module MakefileUtil = MakefileUtil
 module TerminationPreprocessing = TerminationPreprocessing
+
+(** {2 Results} *)
+
+module AnalysisResultOutput = AnalysisResultOutput
+module XsltResultOutput = XsltResultOutput
 
 (** {2 Witnesses}
 
@@ -352,6 +365,7 @@ module WitnessUtil = WitnessUtil
 
 module YamlWitness = YamlWitness
 module YamlWitnessType = YamlWitnessType
+module YamlWitnessVersion = YamlWitnessVersion
 module WitnessGhost = WitnessGhost
 
 (** {2 SARIF} *)
@@ -409,6 +423,7 @@ module Timeout = Timeout
 module TimeUtil = TimeUtil
 module MessageUtil = MessageUtil
 module AnsiColors = AnsiColors
+module CodeHighlighter = CodeHighlighter
 module XmlUtil = XmlUtil
 
 module GobExn = GobExn
@@ -452,6 +467,7 @@ module SparseVector = SparseVector
 module ListMatrix = ListMatrix
 module RatOps = RatOps
 
+module RelationCil = RelationCil
 module SharedFunctions = SharedFunctions
 module GobApron = GobApron
 

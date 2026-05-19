@@ -1,6 +1,6 @@
-- entry_type: location_invariant
+- entry_type: invariant_set
   metadata:
-    format_version: "0.1"
+    format_version: "2.0"
     uuid: d834761a-d0d7-4fea-bf42-2ff2b9a19143
     creation_time: 2022-10-12T10:59:25Z
     producer:
@@ -13,13 +13,13 @@
         37-hh-ex3.c: 9c984e89a790b595d2b37ca8a05e5967a15130592cb2567fac2fae4aff668a4f
       data_model: LP64
       language: C
-  location:
-    file_name: 37-hh-ex3.c
-    file_hash: 9c984e89a790b595d2b37ca8a05e5967a15130592cb2567fac2fae4aff668a4f
-    line: 6
-    column: 5
-    function: main
-  location_invariant:
-    string: 0 <= i && i <= 3
-    type: assertion
-    format: C
+  content:
+  - invariant:
+      type: location_invariant
+      location:
+        file_name: 37-hh-ex3.c
+        line: 6
+        column: 5
+        function: main
+      value: 0 <= i && i <= 3
+      format: c_expression

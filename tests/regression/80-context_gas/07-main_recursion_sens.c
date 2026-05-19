@@ -2,6 +2,7 @@
 // Note: 11 function calls are analyzed context-sensitively
 // -> tracked parameter in domain enables one additional context-sensitively analyzed call value
 #include <stdio.h>
+#include <goblint.h>
 
 int num_iterat = 11;
 

@@ -2,8 +2,10 @@
  (name cfgDot)
  (libraries
    goblint-cil
+   goblint_std
    goblint_logs
    goblint_common
    goblint_lib ; TODO: avoid: extract LoopUnrolling and WitnessUtil node predicates from goblint_lib
    fpath)
+ (flags :standard -open Goblint_std)
  (preprocess (pps ppx_deriving.std)))

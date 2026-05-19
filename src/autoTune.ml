@@ -62,7 +62,7 @@ class findAllocsInLoops = object
 
   method! vinst = function
     | Call (_, Lval (Var f, NoOffset), args,_,_) when LibraryFunctions.is_special f ->
-      Goblint_backtrace.protect ~mark:(fun () -> Cilfacade.FunVarinfo f) ~finally:Fun.id @@ fun () ->
+      let@ () = Goblint_backtrace.protect ~mark:(fun () -> Cilfacade.FunVarinfo f) ~finally:Fun.id in
       let desc = LibraryFunctions.find f in
       begin match desc.special args with
         | Malloc _
@@ -96,16 +96,11 @@ let functionArgs fd = (ResettableLazy.force functionCallMaps).argLists |> Functi
 
 let findMallocWrappers () =
   let isMalloc f =
-    Goblint_backtrace.wrap_val ~mark:(Cilfacade.FunVarinfo f) @@ fun () ->
-    if LibraryFunctions.is_special f then (
+    let@ () = Goblint_backtrace.wrap_val ~mark:(Cilfacade.FunVarinfo f) in
+    if LibraryFunctions.is_special f then
       let desc = LibraryFunctions.find f in
-      match functionArgs f with
-      | None -> false
-      | Some args ->
-        match desc.special args with
-        | Malloc _ -> true
-        | _ -> false
-    )
+      let args = functionArgs f in
+      GobOption.exists (fun args -> match desc.special args with Malloc _ -> true | _ -> false) args
     else
       false
   in
@@ -182,7 +177,7 @@ let disableIntervalContextsInRecursiveFunctions () =
 
 let hasFunction pred =
   let relevant_static var =
-    Goblint_backtrace.wrap_val ~mark:(Cilfacade.FunVarinfo var) @@ fun () ->
+    let@ () = Goblint_backtrace.wrap_val ~mark:(Cilfacade.FunVarinfo var) in
     if LibraryFunctions.is_special var then
       let desc = LibraryFunctions.find var in
       GobOption.exists (fun args -> pred desc args) (functionArgs var)
@@ -190,7 +185,7 @@ let hasFunction pred =
       false
   in
   let relevant_dynamic var =
-    Goblint_backtrace.wrap_val ~mark:(Cilfacade.FunVarinfo var) @@ fun () ->
+    let@ () = Goblint_backtrace.wrap_val ~mark:(Cilfacade.FunVarinfo var) in
     if LibraryFunctions.is_special var then
       let desc = LibraryFunctions.find var in
       (* We don't really have arguments at hand, so we cheat and just feed it a list of MyCFG.unknown_exp of appropriate length *)
@@ -219,7 +214,7 @@ let enableAnalyses reason description analyses =
 (*escape is also still enabled, because otherwise we get a warning*)
 (*does not consider dynamic calls!*)
 let notNeccessaryRaceAnalyses = ["race"; "symb_locks"; "region"]
-let notNeccessaryThreadAnalyses = notNeccessaryRaceAnalyses @ ["deadlock"; "maylocks"; "thread"; "threadid"; "threadJoins"; "threadreturn"; "mhp"; "pthreadMutexType"]
+let notNeccessaryThreadAnalyses = notNeccessaryRaceAnalyses @ ["deadlock"; "maylocks"; "thread"; "threadid"; "threadJoins"; "threadreturn"; "mhp"; "pthreadMutexType"; "mutexGhosts"]
 
 let hasSpec spec = List.mem spec (Svcomp.Specification.of_option ())
 
@@ -325,7 +320,8 @@ end
 let selectArrayDomains file =
   set_bool "annotation.goblint_array_domain" true;
   let thisVisitor = new addTypeAttributeVisitor in
-  ignore (visitCilFileSameGlobals thisVisitor file)
+  ignore (visitCilFileSameGlobals thisVisitor file);
+  Cilfacade.sync_formals file
 (*small unrolled loops also set domain of accessed arrays to unroll, at the point where loops are unrolled*)
 
 
@@ -339,17 +335,16 @@ type option = {
 (*Option for activating the octagon apron domain on selected vars*)
 module VariableMap = Map.Make(CilType.Varinfo)
 module VariableSet = Set.Make(CilType.Varinfo)
+module OctagonTracked = RelationCil.AutotuneTracked
 
 let isComparison = function
   | Lt | Gt |	Le | Ge | Ne | Eq -> true
   | _ -> false
 
-let isGoblintStub v = List.exists (fun (Attr(s,_)) -> s = "goblint_stub") v.vattr
-
 let rec extractVar = function
   | UnOp (Neg, e, _)
-  | CastE (_, e) -> extractVar e
-  | Lval ((Var info),_) when not (isGoblintStub info) -> Some info
+  | CastE (_, _, e) -> extractVar e
+  | Lval ((Var info),_) when OctagonTracked.varinfo_tracked info -> Some info
   | _ -> None
 
 let extractBinOpVars e1 e2 =
@@ -381,7 +376,7 @@ class octagonVariableVisitor(varMap, globals) = object
         List.iter (fun var -> addOrCreateVarMapping varMap var 5 globals) (extractOctagonVars e2);
         DoChildren
       )
-    | Lval ((Var info),_) when not (isGoblintStub info) -> addOrCreateVarMapping varMap info 1 globals; SkipChildren
+    | Lval ((Var info),_) when OctagonTracked.varinfo_tracked info -> addOrCreateVarMapping varMap info 1 globals; SkipChildren
     (*Traverse down only operations fitting for linear equations*)
     | UnOp (LNot, _,_)
     | UnOp (Neg, _,_)
@@ -461,7 +456,8 @@ let apronOctagonOption factors file =
     set_string "ana.apron.threshold_widening_constants" "comparisons";
     Logs.info "Enabled octagon domain ONLY for:";
     Logs.info "%s" @@ String.concat ", " @@ List.map (fun info -> info.vname) allVars;
-    List.iter (fun info -> info.vattr <- addAttribute (Attr("goblint_relation_track",[])) info.vattr) allVars
+    List.iter (fun info -> info.vattr <- addAttribute (Attr("goblint_relation_track",[])) info.vattr) allVars;
+    Cilfacade.sync_formals file
   in
   {
     value = 50 * (List.length allVars) ;

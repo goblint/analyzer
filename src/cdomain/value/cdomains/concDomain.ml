@@ -1,5 +1,14 @@
 (** Domains for thread sets and their uniqueness. *)
 
+module FiniteMustThreadSet = struct
+  include SetDomain.Reverse (SetDomain.Make (ThreadIdDomain.FlagConfiguredTID))
+
+  let mem_lifted lifted_tid set =
+    match lifted_tid with
+    | ThreadIdDomain.Thread ft -> mem ft set
+    | ThreadIdDomain.UnknownThread -> false
+end
+
 module ThreadSet =
 struct
   include SetDomain.Make (ThreadIdDomain.Thread)
@@ -19,8 +28,9 @@ struct
 
   let narrow x y = merge (fun x y -> widen x (join x y)) narrow x y
 
+  let diff_mustset x (y: FiniteMustThreadSet.t) =
+    FiniteMustThreadSet.fold (fun t -> remove (ThreadIdDomain.Thread t)) y x
 end
-module MustThreadSet = SetDomain.Reverse(ThreadSet)
 
 module CreatedThreadSet = ThreadSet
 

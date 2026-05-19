@@ -1,6 +1,7 @@
 // PARAM: --set "ana.activated[+]" loopfree_callstring --set ana.ctx_sens "['loopfree_callstring']" --enable ana.int.interval_set
 // Basic example
 #include <stdio.h>
+#include <goblint.h>
 
 int f(int i);
 

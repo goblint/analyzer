@@ -6,8 +6,8 @@
 int main(void) {
   int *v, *u, r;
 
-  u = (int*)malloc(sizeof(*u));
-  v = (int*)malloc(sizeof(*v));
+  u = (int*)malloc(sizeof(*u)); // NOWARN (u may be NULL, but sizeof does not evaluate)
+  v = (int*)malloc(sizeof(*v)); // NOWARN (v may be NULL, but sizeof does not evaluate)
 
   *u = 10; // WARN
   *v = 10; // WARN
@@ -25,8 +25,8 @@ int main(void) {
   *v = 20; // NOWARN
 
   if (r){
-    u = (int*)malloc(sizeof(*u));
-    v = (int*)malloc(sizeof(*v));
+    u = (int*)malloc(sizeof(*u)); // NOWARN (u is not NULL and sizeof does not evaluate anyway)
+    v = (int*)malloc(sizeof(*v)); // NOWARN (v is not NULL and sizeof does not evaluate anyway)
   }
 
   *u = 30; // WARN

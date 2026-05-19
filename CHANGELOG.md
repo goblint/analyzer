@@ -1,3 +1,35 @@
+## v2.7.1 Bamboozled Buffalo
+* Add library function specifications for fortified `inet_pton` and `inet_ntop` (#1883).
+
+## v2.7.0 Bamboozled Buffalo
+Functionally equivalent to Goblint in SV-COMP 2026.
+
+* Add sequential portfolio for SV-COMP (#1845, #1867, #1877).
+* Add struct bitfield support (#1739, #1823).
+* Improve bitwise operations for integer domains (#1739).
+* Reimplement HTML output in OCaml (#1752).
+* Remove YAML witness version 0.1 support (#1812, #1817, #1852, #1853, #1855).
+* Fix incorrect invariants in witnesses (#1818, #1876).
+* Simplify relational invariants in witnesses (#1826, #1871, #1873).
+* Fix argument types in Goblint stubs (#1684, #1814, #1779, #1820).
+
+## v2.6.0 Awkward Aardvark
+* Add division by zero analysis (#1764).
+* Add bitfield domain (#1623).
+* Add weakly-relational C-2PO pointer analysis (#1485).
+* Add widening delay (#1358, #1442, #1483).
+* Add narrowing of globals to top-down solver (#1636).
+* Add weak dependencies to top-down solver (#1746, #1747).
+* Add YAML ghost witness generation (#1394).
+* Remove GraphML witness generation (#1732, #1733, #1738).
+* Use C standard option for preprocessing (#1807).
+* Add bash completion for array options (#1670, #1705, #1750).
+* Make `malloc(0)` semantics configurable (#1418, #1777).
+* Update path-sensitive analyses (#1785, #1791, #1792).
+* Fix evaluation of library function arguments (#1758, #1761).
+* Optimize affine equalities analysis using sparse matrices (#1459, #1625).
+* Prepare for parallelism (#1708, #1744, #1748, #1781, #1790).
+
 ## v2.5.0
 Functionally equivalent to Goblint in SV-COMP 2025.
 

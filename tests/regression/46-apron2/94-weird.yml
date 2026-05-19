@@ -1,0 +1,30 @@
+- entry_type: invariant_set
+  metadata:
+    format_version: "2.0"
+    uuid: 271d28bc-9fe6-4b18-9b7c-6bb68c7d5dcf
+    creation_time: 2025-07-15T14:56:13Z
+    producer:
+      name: Goblint
+      version: heads/issue_1535-0-g2accba23c-dirty
+      command_line: '''./goblint'' ''--conf'' ''conf/traces-rel.json'' ''--set'' ''ana.activated[+]''
+        ''threadJoins'' ''--set'' ''ana.activated[+]'' ''apron'' ''--set'' ''ana.path_sens[+]''
+        ''threadflag'' ''--set'' ''ana.relation.privatization'' ''mutex-meet-tid''
+        ''2.c'' ''--sets'' ''exp.relation.prec-dump'' ''cluster.prec'' ''--html''
+        ''--enable'' ''witness.yaml.enabled'' ''--set'' ''witness.yaml.path'' ''1.yml'''
+    task:
+      input_files:
+      - 94-weird.c
+      input_file_hashes:
+        94-weird.c: c67808107b2da394e33439894ea1ae3c5e5c3628a08c9371eaa31ee3efbc8414
+      data_model: LP64
+      language: C
+  content:
+  - invariant:
+      type: location_invariant
+      location:
+        file_name: 94-weird.c
+        line: 11
+        column: 3
+        function: main
+      value: (long long )f + 2147483648LL >= (long long )e
+      format: c_expression

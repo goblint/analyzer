@@ -93,7 +93,7 @@ let compareCfgs (module CfgOld : CfgForward) (module CfgNew : CfgForward) fun1 f
        * of fromNode2 in the new CFG using findMatch. *)
       let iterOuts (locEdgeList1, toNode1) rename_mapping : rename_mapping =
         let edgeList1 = to_edge_list locEdgeList1 in
-        (* Differentiate between a possibly duplicate Test(1,false) edge and a single occurence. In the first
+        (* Differentiate between a possibly duplicate Test(1,false) edge and a single occurrence. In the first
          * case the edge is directly added to the diff set to avoid undetected ambiguities during the recursive
          * call. *)
         let testFalseEdge edge = match edge with

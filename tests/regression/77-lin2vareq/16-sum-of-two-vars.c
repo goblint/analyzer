@@ -2,6 +2,7 @@
 
 
 #include <stdio.h>
+#include <goblint.h>
 
 int main() {
   int x, y, z, w, k;

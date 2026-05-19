@@ -69,6 +69,8 @@ type special =
   | SemDestroy of Cil.exp
   | Wait of { cond: Cil.exp; mutex: Cil.exp; }
   | TimedWait of { cond: Cil.exp; mutex: Cil.exp; abstime: Cil.exp; (** Unused *) }
+  | BarrierWait of Cil.exp
+  | BarrierInit of { barrier: Cil.exp; attr:Cil.exp; count: Cil.exp; }
   | Math of { fun_args: math; }
   | Memset of { dest: Cil.exp; ch: Cil.exp; count: Cil.exp; }
   | Bzero of { dest: Cil.exp; count: Cil.exp; }
@@ -84,6 +86,7 @@ type special =
   | Longjmp of { env: Cil.exp; value: Cil.exp; }
   | Bounded of { exp: Cil.exp}  (** Used to check for bounds for termination analysis. *)
   | Rand
+  | Once of { once_control: Cil.exp; init_routine: Cil.exp; }
   | Unknown (** Anything not belonging to other types. *) (* TODO: rename to Other? *)
 
 

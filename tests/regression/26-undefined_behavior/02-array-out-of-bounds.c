@@ -11,6 +11,7 @@ int main()
     for (int i = 0; i < 10; ++i)
     {
         arr[i] = 5; //WARN
+        printf("%d\n", arr[i]); //WARN
     }
     return 0;
 }

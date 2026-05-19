@@ -9,6 +9,7 @@ src_root_path = Path("./src")
 goblint_lib_paths = [
     src_root_path / "goblint_lib.ml",
     src_root_path / "constraint" / "goblint_constraint.ml",
+    src_root_path / "util" / "parallel" / "goblint_parallel.ml",
     src_root_path / "solver" / "goblint_solver.ml",
     src_root_path / "util" / "std" / "goblint_std.ml",
 ]
@@ -33,9 +34,13 @@ exclude_module_names = set([
     "PrivPrecCompare",
     "ApronPrecCompare",
 
+    # executable helpers
+    "Goblint_memtrace",
+
     # libraries
     "Goblint_std",
     "Goblint_constraint",
+    "Goblint_parallel",
     "Goblint_solver",
     "Goblint_timing",
     "Goblint_backtrace",

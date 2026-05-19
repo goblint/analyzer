@@ -39,6 +39,11 @@ module MustBool = BoolDomain.MustBool
 
 module Unit = Lattice.Unit
 
+module ProtectionKind =
+struct
+  type t = ReadWrite | Write [@@deriving ord, hash]
+end
+
 (** Different notions of protection for a global variables g by a mutex m
     m protects g strongly if:
     - whenever g is accessed after the program went multi-threaded for the first time, m is held
@@ -50,12 +55,16 @@ module Protection = struct
   type t = Strong | Weak [@@deriving ord, hash]
 end
 
+module AllocationLocation = struct
+  type t = Stack | Heap [@@deriving ord, hash]
+end
+
 (* Helper definitions for deriving complex parts of Any.compare below. *)
-type maybepublic = {global: CilType.Varinfo.t; write: bool; protection: Protection.t} [@@deriving ord, hash]
-type maybepublicwithout = {global: CilType.Varinfo.t; write: bool; without_mutex: LockDomain.MustLock.t; protection: Protection.t} [@@deriving ord, hash]
-type mustbeprotectedby = {mutex: LockDomain.MustLock.t; global: CilType.Varinfo.t; write: bool; protection: Protection.t} [@@deriving ord, hash]
-type mustprotectedvars = {mutex: LockDomain.MustLock.t; write: bool} [@@deriving ord, hash]
-type mustprotectinglocks = {global: CilType.Varinfo.t; write: bool} [@@deriving ord, hash]
+type maybepublic = {global: CilType.Varinfo.t; kind: ProtectionKind.t; protection: Protection.t} [@@deriving ord, hash]
+type maybepublicwithout = {global: CilType.Varinfo.t; kind: ProtectionKind.t; without_mutex: LockDomain.MustLock.t; protection: Protection.t} [@@deriving ord, hash]
+type mustbeprotectedby = {mutex: LockDomain.MustLock.t; global: CilType.Varinfo.t; kind: ProtectionKind.t; protection: Protection.t} [@@deriving ord, hash]
+type mustprotectedvars = {mutex: LockDomain.MustLock.t; kind: ProtectionKind.t} [@@deriving ord, hash]
+type mustprotectinglocks = {global: CilType.Varinfo.t; kind: ProtectionKind.t} [@@deriving ord, hash]
 type access =
   | Memory of {exp: CilType.Exp.t; var_opt: CilType.Varinfo.t option; kind: AccessKind.t} (** Memory location access (race). *)
   | Point (** Program point and state access (MHP), independent of memory location. *)
@@ -68,6 +77,10 @@ type invariant_context = Invariant.context = {
 
 module YS = SetDomain.ToppedSet (YamlWitnessType.Entry) (struct let topname = "Top" end)
 
+module CL = MapDomain.MapBot_LiftTop (ThreadIdDomain.Thread) (LockDomain.MustLockset)
+
+module LH = MapDomain.MapTop (LockDomain.MustLock) (SetDomain.Reverse (ConcDomain.ThreadSet))
+
 
 (** GADT for queries with specific result type. *)
 type _ t =
@@ -76,13 +89,13 @@ type _ t =
   | ReachableFrom: exp -> AD.t t
   | ReachableUkTypes: exp -> TS.t t
   | Regions: exp -> LS.t t
-  | MayEscape: varinfo -> MayBool.t t
+  | MayEscape: varinfo -> MayBool.t t (** Use via {!ThreadEscape.has_escaped}. *)
   | MayBePublic: maybepublic -> MayBool.t t (* old behavior with write=false *)
   | MayBePublicWithout: maybepublicwithout -> MayBool.t t
   | MustBeProtectedBy: mustbeprotectedby -> MustBool.t t
   | MustLockset: LockDomain.MustLockset.t t
   | MustBeAtomic: MustBool.t t
-  | MustBeSingleThreaded: {since_start: bool} -> MustBool.t t
+  | MustBeSingleThreaded: {since_start: bool} -> MustBool.t t (** Use via {!ThreadFlag.is_currently_multi} and {!ThreadFlag.has_ever_been_multi}. *)
   | MustBeUniqueThread: MustBool.t t
   | CurrentThreadId: ThreadIdDomain.ThreadLifted.t t
   | ThreadCreateIndexedNode: ThreadNodeLattice.t t
@@ -101,7 +114,7 @@ type _ t =
   | IterVars: itervar -> Unit.t t
   | PathQuery: int * 'a t -> 'a t (** Query only one path under witness lifter. *)
   | DYojson: FlatYojson.t t (** Get local state Yojson of one path under [PathQuery]. *)
-  | AllocVar: {on_stack: bool} -> VI.t t
+  | AllocVar: AllocationLocation.t -> VI.t t
   (* Create a variable representing a dynamic allocation-site *)
   (* If on_stack is [true], then the dynamic allocation is on the stack (i.e., alloca() or a similar function was called). Otherwise, allocation is on the heap *)
   | IsAllocVar: varinfo -> MayBool.t t (* [true] if variable represents dynamically allocated memory *)
@@ -117,7 +130,7 @@ type _ t =
   | ActiveJumpBuf: JmpBufDomain.ActiveLongjmps.t t
   | ValidLongJmp: JmpBufDomain.JmpBufSet.t t
   | CreatedThreads: ConcDomain.ThreadSet.t t
-  | MustJoinedThreads: ConcDomain.MustThreadSet.t t
+  | MustJoinedThreads: ConcDomain.FiniteMustThreadSet.t t
   | ThreadsJoinedCleanly: MustBool.t t
   | MustProtectedVars: mustprotectedvars -> VS.t t
   | MustProtectingLocks: mustprotectinglocks -> LockDomain.MustLockset.t t
@@ -137,6 +150,9 @@ type _ t =
   | YamlEntryGlobal: Obj.t * YamlWitnessType.Task.t -> YS.t t (** YAML witness entries for a global unknown ([Obj.t] represents [Spec.V.t]) and YAML witness task. *)
   | GhostVarAvailable: WitnessGhostVar.t -> MayBool.t t
   | InvariantGlobalNodes: NS.t t (** Nodes where YAML witness flow-insensitive invariants should be emitted as location invariants (if [witness.invariant.flow_insensitive-as] is configured to do so). *) (* [Spec.V.t] argument (as [Obj.t]) could be added, if this should be different for different flow-insensitive invariants. *)
+  | DescendantThreads: ThreadIdDomain.Thread.t -> ConcDomain.ThreadSet.t t
+  | CreationLockset: ThreadIdDomain.Thread.t -> CL.t t
+  | MustlockHistory: LH.t t
 
 type 'a result = 'a
 
@@ -192,7 +208,7 @@ struct
     | ActiveJumpBuf -> (module JmpBufDomain.ActiveLongjmps)
     | ValidLongJmp ->  (module JmpBufDomain.JmpBufSet)
     | CreatedThreads ->  (module ConcDomain.ThreadSet)
-    | MustJoinedThreads -> (module ConcDomain.MustThreadSet)
+    | MustJoinedThreads -> (module ConcDomain.FiniteMustThreadSet)
     | ThreadsJoinedCleanly -> (module MustBool)
     | MustProtectedVars _ -> (module VS)
     | MustProtectingLocks _ -> (module LockDomain.MustLockset)
@@ -212,6 +228,9 @@ struct
     | YamlEntryGlobal _ -> (module YS)
     | GhostVarAvailable _ -> (module MayBool)
     | InvariantGlobalNodes -> (module NS)
+    | DescendantThreads _ -> (module ConcDomain.ThreadSet)
+    | CreationLockset _ -> (module CL)
+    | MustlockHistory -> (module LH)
 
   (** Get bottom result for query. *)
   let bot (type a) (q: a t): a result =
@@ -266,7 +285,7 @@ struct
     | ActiveJumpBuf -> JmpBufDomain.ActiveLongjmps.top ()
     | ValidLongJmp -> JmpBufDomain.JmpBufSet.top ()
     | CreatedThreads -> ConcDomain.ThreadSet.top ()
-    | MustJoinedThreads -> ConcDomain.MustThreadSet.top ()
+    | MustJoinedThreads -> ConcDomain.FiniteMustThreadSet.top ()
     | ThreadsJoinedCleanly -> MustBool.top ()
     | MustProtectedVars _ -> VS.top ()
     | MustProtectingLocks _ -> LockDomain.MustLockset.top ()
@@ -286,6 +305,9 @@ struct
     | YamlEntryGlobal _ -> YS.top ()
     | GhostVarAvailable _ -> MayBool.top ()
     | InvariantGlobalNodes -> NS.top ()
+    | DescendantThreads _ -> ConcDomain.ThreadSet.top ()
+    | CreationLockset _ -> CL.top ()
+    | MustlockHistory -> LH.top ()
 end
 
 (* The type any_query can't be directly defined in Any as t,
@@ -357,6 +379,9 @@ struct
     | Any (MustProtectingLocks _) -> 61
     | Any (GhostVarAvailable _) -> 62
     | Any InvariantGlobalNodes -> 63
+    | Any (DescendantThreads _) -> 64
+    | Any (CreationLockset _) -> 65
+    | Any (MustlockHistory) -> 66
 
   let rec compare a b =
     let r = Stdlib.compare (order a) (order b) in
@@ -388,6 +413,7 @@ struct
       | Any (CondVars e1), Any (CondVars e2) -> CilType.Exp.compare e1 e2
       | Any (PartAccess p1), Any (PartAccess p2) -> compare_access p1 p2
       | Any (IterPrevVars ip1), Any (IterPrevVars ip2) -> compare_iterprevvar ip1 ip2
+      | Any (AllocVar location), Any (AllocVar location2) -> AllocationLocation.compare location location2
       | Any (IterVars i1), Any (IterVars i2) -> compare_itervar i1 i2
       | Any (PathQuery (i1, q1)), Any (PathQuery (i2, q2)) ->
         let r = Stdlib.compare i1 i2 in
@@ -415,6 +441,8 @@ struct
       | Any (MaySignedOverflow e1), Any (MaySignedOverflow e2) -> CilType.Exp.compare e1 e2
       | Any (GasExhausted f1), Any (GasExhausted f2) -> CilType.Fundec.compare f1 f2
       | Any (GhostVarAvailable v1), Any (GhostVarAvailable v2) -> WitnessGhostVar.compare v1 v2
+      | Any (DescendantThreads t1), Any (DescendantThreads t2) -> ThreadIdDomain.Thread.compare t1 t2
+      | Any (CreationLockset t1), Any (CreationLockset t2) -> ThreadIdDomain.Thread.compare t1 t2
       (* only argumentless queries should remain *)
       | _, _ -> Stdlib.compare (order a) (order b)
 
@@ -441,6 +469,7 @@ struct
     | Any (PartAccess p) -> hash_access p
     | Any (IterPrevVars i) -> 0
     | Any (IterVars i) -> 0
+    | Any (AllocVar location) -> AllocationLocation.hash location
     | Any (PathQuery (i, q)) -> 31 * i + hash (Any q)
     | Any (IsHeapVar v) -> CilType.Varinfo.hash v
     | Any (MustTermLoop s) -> CilType.Stmt.hash s
@@ -461,6 +490,8 @@ struct
     | Any (MaySignedOverflow e) -> CilType.Exp.hash e
     | Any (GasExhausted f) -> CilType.Fundec.hash f
     | Any (GhostVarAvailable v) -> WitnessGhostVar.hash v
+    | Any (DescendantThreads t) -> ThreadIdDomain.Thread.hash t
+    | Any (CreationLockset t) -> ThreadIdDomain.Thread.hash t
     (* IterSysVars:                                                                    *)
     (*   - argument is a function and functions cannot be compared in any meaningful way. *)
     (*   - doesn't matter because IterSysVars is always queried from outside of the analysis, so MCP's query caching is not done for it. *)
@@ -497,7 +528,7 @@ struct
     | Any (IterPrevVars i) -> Pretty.dprintf "IterPrevVars _"
     | Any (IterVars i) -> Pretty.dprintf "IterVars _"
     | Any (PathQuery (i, q)) -> Pretty.dprintf "PathQuery (%d, %a)" i pretty (Any q)
-    | Any (AllocVar {on_stack = on_stack}) -> Pretty.dprintf "AllocVar %b" on_stack
+    | Any (AllocVar location) -> Pretty.dprintf "AllocVar _"
     | Any (IsHeapVar v) -> Pretty.dprintf "IsHeapVar %a" CilType.Varinfo.pretty v
     | Any (IsAllocVar v) -> Pretty.dprintf "IsAllocVar %a" CilType.Varinfo.pretty v
     | Any (IsMultiple v) -> Pretty.dprintf "IsMultiple %a" CilType.Varinfo.pretty v
@@ -529,6 +560,9 @@ struct
     | Any (GasExhausted f) -> Pretty.dprintf "GasExhausted %a" CilType.Fundec.pretty f
     | Any (GhostVarAvailable v) -> Pretty.dprintf "GhostVarAvailable %a" WitnessGhostVar.pretty v
     | Any InvariantGlobalNodes -> Pretty.dprintf "InvariantGlobalNodes"
+    | Any (DescendantThreads t) -> Pretty.dprintf "DescendantThreads %a" ThreadIdDomain.Thread.pretty t
+    | Any (CreationLockset t) -> Pretty.dprintf "CreationLockset %a" ThreadIdDomain.Thread.pretty t
+    | Any (MustlockHistory) -> Pretty.dprintf "MustlockHistory"
 end
 
 let to_value_domain_ask (ask: ask) =
@@ -549,6 +583,12 @@ let may_be_equal = eval_int_binop (module MayBool) Eq
 
 (** Backwards-compatibility for former [MayBeLess] query. *)
 let may_be_less = eval_int_binop (module MayBool) Lt
+
+let eval_bool (ask: ask) e: BoolDomain.FlatBool.t =
+  let e' = CastE (Internal, TInt (IBool, []), e) in
+  match ask.f (EvalInt e') with
+  | v when ID.is_bot v || ID.is_bot_ikind v -> `Bot
+  | v -> BatOption.map_default (fun b -> `Lifted b) `Top (ID.to_bool v)
 
 
 module Set = BatSet.Make (Any)

@@ -3,10 +3,11 @@
    This file contains the code for a quantitative union find and the quantitative finite automata.
    They will be necessary in order to construct the congruence closure of terms.
 *)
-open Batteries
 open GoblintCil
 open DuplicateVars
 module M = Messages
+module Tuple3 = Batteries.Tuple3
+module Tuple2 = Batteries.Tuple2
 
 exception Unsat
 
@@ -147,7 +148,7 @@ module T = struct
   (** Returns true if the second parameter contains one of the variables defined in the list "variables". *)
   let contains_variable variables term =
     let term_var = get_var term in
-    List.mem_cmp Var.compare term_var variables
+    BatList.mem_cmp Var.compare term_var variables
 
   (** Use query EvalInt for an expression. *)
   let eval_int (ask:Queries.ask) exp =
@@ -157,7 +158,7 @@ module T = struct
     | ikind ->
       begin match ask.f (Queries.EvalInt exp) with
         | `Lifted i ->
-          let casted_i = IntDomain.IntDomTuple.cast_to ikind i in
+          let casted_i = IntDomain.IntDomTuple.cast_to ~kind:Internal ikind i in (* TODO: proper castkind *)
           let maybe_i = IntDomain.IntDomTuple.to_int casted_i in
           begin match maybe_i with
             | Some i -> i
@@ -192,12 +193,8 @@ module T = struct
     | None ->
       Z.one
 
-  let is_struct_type t =
-    match Cil.unrollType t with
-    | TComp _ ->
-      true
-    | _ ->
-      false
+  (* TODO: Should this actually be accounting for unions? *)
+  let is_struct_type = Cilfacade.isStructOrUnionType
 
   let is_struct_ptr_type t =
     match Cil.unrollType t with
@@ -225,7 +222,7 @@ module T = struct
   let offset_to_index ?typ offset =
     let ptr_diff_ikind = Cilfacade.ptrdiff_ikind () in
     let offset_in_bytes = PreValueDomain.Offs.to_index ?typ offset in
-    let bytes_to_bits = IntDomain.of_const (Z.of_int 8, ptr_diff_ikind, None) in
+    let bytes_to_bits = IntDomain.IntDomTuple.of_int  ptr_diff_ikind (Z.of_int 8) in
     IntDomain.IntDomTuple.mul bytes_to_bits offset_in_bytes
 
   (** Convert a Cil offset to an integer offset. *)
@@ -237,14 +234,14 @@ module T = struct
         `NoOffset
       | Field (fld, ofs) ->
         `Field (fld, convert_offset ofs)
-      | Index (exp, ofs) when CilType.Exp.equal exp (Lazy.force Offset.Index.Exp.any) -> (* special offset added by convertToQueryLval *)
+      | Index (exp, ofs) when Offset.Index.Exp.is_any exp -> (* special offset added by convertToQueryLval *)
         let exp_ikind = Cilfacade.get_ikind_exp exp in
         `Index (ValueDomain.ID.top_of exp_ikind, convert_offset ofs)
       | Index (exp, ofs) ->
         let ptr_diff_ikind = Cilfacade.ptrdiff_ikind () in
         let i = match ask.f (Queries.EvalInt exp) with
           | `Lifted x ->
-            IntDomain.IntDomTuple.cast_to ptr_diff_ikind x
+            IntDomain.IntDomTuple.cast_to ~kind:Internal ptr_diff_ikind x (* TODO: proper castkind *)
           | _ ->
             ValueDomain.ID.top_of ptr_diff_ikind
         in
@@ -319,7 +316,7 @@ module T = struct
     function
     | Addr v ->
       let varinfo = Var.to_varinfo v in
-      let lval = (Var varinfo, NoOffset) in
+      let lval = Cil.var varinfo in
       AddrOf lval
     | Aux (_, exp)
     | (Deref (_, _, exp)) -> exp
@@ -358,15 +355,6 @@ module T = struct
     in
     if M.tracing then M.trace "c2po-2cil" "exp: %a; offset: %s; res: %a" d_exp cil_t (Z.to_string off) d_exp res;
     res
-
-  (** Returns the integer offset of a field of a struct. *)
-  let get_field_offset finfo =
-    let field = `Field (finfo, `NoOffset) in
-    let field_to_index = offset_to_index field in
-    match IntDomain.IntDomTuple.to_int field_to_index with
-    | Some i -> i
-    | None ->
-      raise (UnsupportedCilExpression "unknown offset")
 
   let is_field = function
     | Field _ -> true
@@ -426,7 +414,7 @@ module T = struct
       let find_field cinfo =
         try
           let equal_to_offset field =
-            Z.equal (get_field_offset field) offset
+            Z.equal (Z.of_int (Cilfacade.fieldBitsOffsetOnly field)) offset
           in
           let field_equal_to_offset = List.find equal_to_offset cinfo.cfields in
           Field (field_equal_to_offset, NoOffset)
@@ -462,7 +450,7 @@ module T = struct
           | _ ->
             let void_ptr_type = TPtr(TVoid [], []) in
             let offset_plus_exp =  to_cil_sum offset exp in
-            Lval (Mem (CastE (void_ptr_type, offset_plus_exp)), NoOffset)
+            Lval (Mem (CastE (Internal, void_ptr_type, offset_plus_exp)), NoOffset) (* TODO: how can void* be dereferenced? *)
       in
       if check_valid_pointer res then
         res
@@ -472,7 +460,7 @@ module T = struct
     if M.tracing then M.trace "c2po-deref" "deref result: %a" d_exp res;
     res
 
-  let get_size = get_size_in_bits % type_of_term
+  let get_size t =  get_size_in_bits @@ type_of_term t
 
   let of_offset ask t off typ exp =
     if off = NoOffset then
@@ -536,14 +524,14 @@ module T = struct
         | _ ->
           raise (UnsupportedCilExpression "unsupported BinOp")
       end
-    | CastE (typ, exp)->
+    | CastE (kind, typ, exp)->
       begin match of_cil ask exp with
         | Some (Addr x), z ->
           Some (Addr x), z
         | Some (Aux (x, _)), z ->
-          Some (Aux (x, CastE (typ, exp))), z
+          Some (Aux (x, CastE (kind, typ, exp))), z
         | Some (Deref (x, z, _)), z' ->
-          Some (Deref (x, z, CastE (typ, exp))), z'
+          Some (Deref (x, z, CastE (kind, typ, exp))), z'
         | t, z -> t, z
       end
     | _ -> raise (UnsupportedCilExpression "unsupported Cil Expression")
@@ -682,7 +670,7 @@ module T = struct
       pos_t, neg_t
 
   (** `prop_of_cil e pos` parses the expression `e` (or `not e` if `pos = false`) and
-      returns a list of length 1 with the parsed expresion or an empty list if
+      returns a list of length 1 with the parsed expression or an empty list if
         the expression can't be expressed with the type `prop`. *)
   let rec prop_of_cil ask e pos =
     let e = Cil.constFold false e in
@@ -849,7 +837,7 @@ module UnionFind = struct
               let uf = modify_size v' uf ((+) size_v) in
               Z.(r0 + r''), uf
             in
-            (* perform path compresion *)
+            (* perform path compression *)
             let (r', uf) = List.fold_left f (Z.zero, uf) (v::list)
             in v', r', uf
           else
@@ -922,7 +910,7 @@ module UnionFind = struct
       compare_repr_v (find_no_pc uf el1) (find_no_pc uf el2)
     in
     let bindings = ValMap.bindings uf in
-    List.group compare bindings
+    BatList.group compare bindings
 
   (** Throws "Unknown value" if the data structure is invalid. *)
   let show_uf uf =
@@ -1055,10 +1043,7 @@ module LookupMap = struct
       [Z.zero, t]
     | Some zmap ->
       let offset_term_product (z, term_set) =
-        let terms = TSet.to_list term_set in
-        List.cartesian_product [z] terms
+        term_set |> TSet.to_seq |> Seq.map (fun term -> (z, term))
       in
-      let zmap_bindings = ZMap.bindings zmap in
-      List.concat_map offset_term_product zmap_bindings
-
+      ZMap.to_seq zmap |> Seq.concat_map offset_term_product |> List.of_seq
 end

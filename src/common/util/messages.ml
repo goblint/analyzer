@@ -205,9 +205,9 @@ let print ?(ppf= !formatter) (m: Message.t) =
   in
   let pp_quote ppf (loc: GoblintCil.location) =
     let lines = BatFile.lines_of loc.file in
-    BatEnum.drop (loc.line - 1) lines;
-    let lines = BatEnum.take (loc.endLine - loc.line + 1) lines in
-    let lines = BatList.of_enum lines in
+    BatEnum.drop (loc.line - 1) lines; (* nosemgrep: batenum-module *)
+    let lines = BatEnum.take (loc.endLine - loc.line + 1) lines in (* nosemgrep: batenum-module *)
+    let lines = BatList.of_enum lines in (* nosemgrep: batenum-of_enum *)
     match lines with
     | [] -> assert false
     | [line] ->

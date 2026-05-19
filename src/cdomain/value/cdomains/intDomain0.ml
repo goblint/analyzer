@@ -71,24 +71,81 @@ let should_wrap ik = not (Cil.isSigned ik) || get_string "sem.int.signed_overflo
 let should_ignore_overflow ik = Cil.isSigned ik && get_string "sem.int.signed_overflow" = "assume_none"
 
 type overflow_info = IntDomain_intf.overflow_info = { overflow: bool; underflow: bool;}
+type overflow_op =
+  | Binop of binop
+  | Unop of unop
+  | Cast of castkind
+  | Internal
 
-let set_overflow_flag ~cast ~underflow ~overflow ik =
+let add_overflow_check ~(op:overflow_op) ~underflow ~overflow ik =
   if !AnalysisState.executing_speculative_computations then
     (* Do not produce warnings when the operations are not actually happening in code *)
     ()
   else
     let signed = Cil.isSigned ik in
-    if !AnalysisState.postsolving && signed && not cast then
+    if !AnalysisState.postsolving && signed && (match op with Cast _ -> false | _ -> true) && (underflow || overflow) then
       AnalysisState.svcomp_may_overflow := true;
-    let sign = if signed then "Signed" else "Unsigned" in
+    let check: Checks.Category.t option =
+      match signed, op with
+      | true, (Unop Neg | Binop (PlusA | MinusA | Mult | Div | Mod)) -> Some SignedIntegerOverflowInArithmetic
+      | true, Cast Explicit -> Some SignedIntegerOverflowInExplicitCast
+      | true, Cast (IntegerPromotion | DefaultArgumentPromotion | ArithmeticConversion | ConditionalConversion | PointerConversion | Implicit) -> Some SignedIntegerOverflowInImplicitCast
+      | false, (Unop Neg | Binop (PlusA | MinusA | Mult | Div | Mod)) -> Some UnsignedIntegerOverflowInArithmetic
+      | false, Cast Explicit -> Some UnsignedIntegerOverflowInExplicitCast
+      | false, Cast (IntegerPromotion | DefaultArgumentPromotion | ArithmeticConversion | ConditionalConversion | PointerConversion | Implicit) -> Some UnsignedIntegerOverflowInImplicitCast
+      | _, Binop Shiftlt -> Some InvalidShift
+      | _, _ -> None
+    in
+    let op =
+      match op with
+      (* explicitly distinguish binary and unary - *)
+      | Binop (MinusA | MinusPP | MinusPI) -> "binary -" (* only MinusA should probably be possible here *)
+      | Unop Neg -> "unary -"
+      | Binop bop -> CilType.Binop.show bop
+      | Unop uop -> CilType.Unop.show uop
+      | Cast Explicit -> "cast"
+      | Cast IntegerPromotion -> "integer promotion"
+      | Cast DefaultArgumentPromotion -> "default argument promotion"
+      | Cast ArithmeticConversion -> "arithmethic conversion"
+      | Cast ConditionalConversion -> "conditional conversion"
+      | Cast PointerConversion -> "pointer conversion"
+      | Cast Implicit -> "implicit conversion"
+      | Cast Internal -> "internal cast"
+      | Internal -> "internal operation"
+    in
+    let message =
+      let sign = if signed then "Signed" else "Unsigned" in
+      match underflow, overflow with
+      | true, true ->
+        Printf.sprintf "%s integer overflow and underflow in %s" sign op
+      | true, false ->
+        Printf.sprintf "%s integer underflow in %s" sign op
+      | false, true ->
+        Printf.sprintf "%s integer overflow in %s" sign op
+      | false, false ->
+        let sign = if signed then "signed" else "unsigned" in (* lowercase constants *)
+        Printf.sprintf "No %s integer overflow or underflow in %s" sign op
+    in
+    let tags: M.Tag.t list =
+      match underflow, overflow with
+      | true, true -> [CWE 190; CWE 191]
+      | true, false -> [CWE 191]
+      | false, true -> [CWE 190]
+      | false, false -> []
+    in
     match underflow, overflow with
-    | true, true ->
-      M.warn ~category:M.Category.Integer.overflow ~tags:[CWE 190; CWE 191] "%s integer overflow and underflow" sign
-    | true, false ->
-      M.warn ~category:M.Category.Integer.overflow ~tags:[CWE 191] "%s integer underflow" sign
+    | true, true
+    | true, false
     | false, true ->
-      M.warn ~category:M.Category.Integer.overflow ~tags:[CWE 190] "%s integer overflow" sign
-    | false, false -> assert false
+      M.warn ~category:M.Category.Integer.overflow ~tags "%s" message;
+      Option.iter (fun check ->
+          Checks.warn check "%s" message
+        ) check
+    | false, false ->
+      Option.iter (fun check ->
+          Checks.safe_msg check "%s" message
+        ) check
+
 
 let reset_lazy () =
   ana_int_config.interval_threshold_widening <- None;
@@ -110,7 +167,7 @@ sig
 end
 
 
-module IntDomLifter (I : S) =
+module IntDomLifter (I : S2) =
 struct
   open Cil
   type int_t = I.int_t
@@ -121,15 +178,13 @@ struct
   (* Helper functions *)
   let check_ikinds x y = if x.ikind <> y.ikind then raise (IncompatibleIKinds (GobPretty.sprintf "ikinds %a and %a are incompatible. Values: %a and %a" CilType.Ikind.pretty x.ikind CilType.Ikind.pretty y.ikind I.pretty x.v I.pretty y.v))
   let lift op x = {x with v = op x.ikind x.v }
-  (* For logical operations the result is of type int *)
-  let lift_logical op x = {v = op x.ikind x.v; ikind = Cil.IInt}
   let lift2 op x y = check_ikinds x y; {x with v = op x.ikind x.v y.v }
-  let lift2_cmp op x y = check_ikinds x y; {v = op x.ikind x.v y.v; ikind = Cil.IInt}
+  let lift2_cmp op x y = check_ikinds x y; op x.ikind x.v y.v
 
   let bot_of ikind = { v = I.bot_of ikind; ikind}
   let bot () = failwith "bot () is not implemented for IntDomLifter."
   let is_bot x = I.is_bot x.v
-  let top_of ikind = { v = I.top_of ikind; ikind}
+  let top_of ?bitfield ikind = { v = I.top_of ?bitfield ikind; ikind}
   let top () = failwith "top () is not implemented for IntDomLifter."
   let is_top _ = failwith "is_top is not implemented for IntDomLifter."
 
@@ -161,12 +216,12 @@ struct
   let name () = "IntDomLifter(" ^ (I.name ()) ^ ")"
   let to_yojson x = I.to_yojson x.v
   let invariant e x =
-    let e' = Cilfacade.mkCast ~e ~newt:(TInt (x.ikind, [])) in
+    let e' = Cilfacade.mkCast ~kind:Explicit ~e ~newt:(TInt (x.ikind, [])) in
     I.invariant_ikind e' x.ikind x.v
   let tag x = I.tag x.v
   let arbitrary ik = failwith @@ "Arbitrary not implement for " ^ (name ()) ^ "."
   let to_int x = I.to_int x.v
-  let of_int ikind x = { v = I.of_int ikind x; ikind}
+  let of_int ?(suppress_ovwarn=false) ikind x = { v = I.of_int ~suppress_ovwarn ikind x; ikind}
   let equal_to i x = I.equal_to i x.v
   let to_bool x = I.to_bool x.v
   let of_bool ikind b = { v = I.of_bool ikind b; ikind}
@@ -202,11 +257,8 @@ struct
   let logxor = lift2 I.logxor
   let shift_left x y = {x with v = I.shift_left x.ikind x.v y.v } (* TODO check ikinds*)
   let shift_right x y = {x with v = I.shift_right x.ikind x.v y.v } (* TODO check ikinds*)
-  let c_lognot = lift_logical I.c_lognot
-  let c_logand = lift2 I.c_logand
-  let c_logor = lift2 I.c_logor
 
-  let cast_to ?(suppress_ovwarn=false) ?torg ikind x = {v = I.cast_to  ~suppress_ovwarn ~torg:(TInt(x.ikind,[])) ikind x.v; ikind}
+  let cast_to ?(suppress_ovwarn=false) ~kind ikind x = {v = I.cast_to  ~suppress_ovwarn ~kind ~from_ik:x.ikind ikind x.v; ikind}
 
   let is_top_of ik x = ik = x.ikind && I.is_top_of ik x.v
 
@@ -244,7 +296,7 @@ module Size = struct (* size in bits as int, range as int64 *)
   let bits ik = (* highest bits for neg/pos values *)
     let s = bit ik in
     if isSigned ik then s-1, s-1 else 0, s
-  let bits_i64 ik = BatTuple.Tuple2.mapn Int64.of_int (bits ik)
+  (* let bits_i64 ik = BatTuple.Tuple2.mapn Int64.of_int (bits ik) *)
   let range ik =
     let a,b = bits ik in
     let x = if isSigned ik then Z.neg (Z.shift_left Z.one a) (* -2^a *) else Z.zero in
@@ -275,16 +327,16 @@ module Size = struct (* size in bits as int, range as int64 *)
   (** @return Bit range always includes 0. *)
   let min_range_sign_agnostic x =
     let size ik =
-      let a,b = bits_i64 ik in
-      Int64.neg a,b
+      let a,b = bits ik in
+      -a,b
     in
     if sign x = `Signed then
       size (min_for x)
     else
       let a, b = size (min_for x) in
-      if b <= 64L then
-        let upper_bound_less = Int64.sub b 1L in
-        let max_one_less = Z.(pred @@ shift_left Z.one (Int64.to_int upper_bound_less)) in
+      if b <= 64 then
+        let upper_bound_less = b - 1 in
+        let max_one_less = Z.(pred @@ shift_left Z.one upper_bound_less) in
         if x <= max_one_less then
           a, upper_bound_less
         else
@@ -293,15 +345,15 @@ module Size = struct (* size in bits as int, range as int64 *)
         a, b
 
   (* From the number of bits used to represent a positive value, determines the maximal representable value *)
-  let max_from_bit_range pos_bits = Z.(pred @@ shift_left Z.one (to_int (Z.of_int64 pos_bits)))
+  let max_from_bit_range pos_bits = Z.(pred @@ shift_left Z.one (to_int (Z.of_int pos_bits)))
 
   (* From the number of bits used to represent a non-positive value, determines the minimal representable value *)
-  let min_from_bit_range neg_bits = Z.(if neg_bits = 0L then Z.zero else neg @@ shift_left Z.one (to_int (neg (Z.of_int64 neg_bits))))
+  let min_from_bit_range neg_bits = Z.(if neg_bits = 0 then Z.zero else neg @@ shift_left Z.one (to_int (neg (Z.of_int neg_bits))))
 
 end
 
 
-module StdTop (B: sig type t val top_of: Cil.ikind -> t end) = struct
+module StdTop (B: sig type t val top_of: ?bitfield:int -> Cil.ikind -> t end) = struct
   open B
   (* these should be overwritten for better precision if possible: *)
   let to_excl_list    x = None
@@ -320,7 +372,7 @@ end
 module Std (B: sig
     type t
     val name: unit -> string
-    val top_of: Cil.ikind -> t
+    val top_of: ?bitfield:int -> Cil.ikind -> t
     val bot_of: Cil.ikind -> t
     val show: t -> string
     val equal: t -> t -> bool
@@ -346,6 +398,11 @@ end
 
 (* Textbook interval arithmetic, without any overflow handling etc. *)
 module IntervalArith (Ints_t : IntOps.IntOps) = struct
+  type t = Ints_t.t * Ints_t.t [@@deriving eq, ord, hash]
+
+  (* TODO: use this for Interval and IntervalSet *)
+  let show (x,y) = "["^Ints_t.to_string x^","^Ints_t.to_string y^"]"
+
   let min4 a b c d = Ints_t.min (Ints_t.min a b) (Ints_t.min c d)
   let max4 a b c d = Ints_t.max (Ints_t.max a b) (Ints_t.max c d)
 
@@ -361,16 +418,28 @@ module IntervalArith (Ints_t : IntOps.IntOps) = struct
     let y2p = Ints_t.shift_left Ints_t.one y2 in
     mul (x1, x2) (y1p, y2p)
 
-  let div (x1, x2) (y1, y2) =
-    let x1y1n = (Ints_t.div x1 y1) in
-    let x1y2n = (Ints_t.div x1 y2) in
-    let x2y1n = (Ints_t.div x2 y1) in
-    let x2y2n = (Ints_t.div x2 y2) in
-    let x1y1p = (Ints_t.div x1 y1) in
-    let x1y2p = (Ints_t.div x1 y2) in
-    let x2y1p = (Ints_t.div x2 y1) in
-    let x2y2p = (Ints_t.div x2 y2) in
-    (min4 x1y1n x1y2n x2y1n x2y2n, max4 x1y1p x1y2p x2y1p x2y2p)
+  (** Divide mathematical intervals.
+      Excludes 0 from denominator - must be handled as desired by caller.
+
+      @return negative and positive denominator cases separately, if they exist.
+
+      @see <https://mine.perso.lip6.fr/publi/article-mine-FTiPL17.pdf> Miné, A. Tutorial on Static Inference of Numeric Invariants by Abstract Interpretation. Figure 4.6. *)
+  let div (a, b) (c, d) =
+    let pos =
+      if Ints_t.(compare one d) <= 0 then
+        let c = Ints_t.(max one c) in
+        Some (Ints_t.(min (div a c) (div a d), max (div b c) (div b d)))
+      else
+        None
+    in
+    let neg =
+      if Ints_t.(compare c zero) < 0 then
+        let d = Ints_t.(min d (neg one)) in
+        Some (Ints_t.(min (div b c) (div b d), max (div a c) (div a d)))
+      else
+        None
+    in
+    (neg, pos)
 
   let add (x1, x2) (y1, y2) = (Ints_t.add x1 y1, Ints_t.add x2 y2)
   let sub (x1, x2) (y1, y2) = (Ints_t.sub x1 y2, Ints_t.sub x2 y1)
@@ -380,6 +449,20 @@ module IntervalArith (Ints_t : IntOps.IntOps) = struct
   let one = (Ints_t.one, Ints_t.one)
   let zero = (Ints_t.zero, Ints_t.zero)
   let top_bool = (Ints_t.zero, Ints_t.one)
+
+  (* TODO: use these for Interval and IntervalSet *)
+  let maximal = snd
+  let minimal = fst
+
+  (* TODO: use these for Interval and IntervalSet *)
+  let leq (x1,x2) (y1,y2) = Ints_t.compare x1 y1 >= 0 && Ints_t.compare x2 y2 <= 0
+  let join (x1,x2) (y1,y2) = (Ints_t.min x1 y1, Ints_t.max x2 y2)
+  let meet (x1,x2) (y1,y2) =
+    let (r1, r2) as r = (Ints_t.max x1 y1, Ints_t.min x2 y2) in
+    if Ints_t.compare r1 r2 > 0 then
+      None
+    else
+      Some r
 
   let to_int (x1, x2) =
     if Ints_t.equal x1 x2 then Some x1 else None
@@ -465,7 +548,7 @@ struct
       ) (Invariant.top ()) ns
 end
 
-module SOverflowUnlifter (D : SOverflow) : S with type int_t = D.int_t and type t = D.t = struct
+module SOverflowUnlifter (D : SOverflow) : S2 with type int_t = D.int_t and type t = D.t = struct
   include D
 
   let add ?no_ov ik x y = fst @@ D.add ?no_ov ik x y
@@ -478,15 +561,15 @@ module SOverflowUnlifter (D : SOverflow) : S with type int_t = D.int_t and type 
 
   let neg ?no_ov ik x = fst @@ D.neg ?no_ov ik x
 
-  let cast_to ?suppress_ovwarn ?torg ?no_ov ik x = fst @@ D.cast_to ?suppress_ovwarn ?torg ?no_ov ik x
+  let cast_to ?suppress_ovwarn ~kind ?from_ik ?no_ov ik x = fst @@ D.cast_to ~kind ?from_ik ?no_ov ik x
 
-  let of_int ik x = fst @@ D.of_int ik x
+  let of_int ?suppress_ovwarn ik x = fst @@ D.of_int ik x
 
-  let of_interval ?suppress_ovwarn ik x = fst @@ D.of_interval ?suppress_ovwarn ik x
+  let of_interval ?suppress_ovwarn ik x = fst @@ D.of_interval ik x
 
-  let starting ?suppress_ovwarn ik x = fst @@ D.starting ?suppress_ovwarn ik x
+  let starting ?suppress_ovwarn ik x = fst @@ D.starting ik x
 
-  let ending ?suppress_ovwarn ik x = fst @@ D.ending ?suppress_ovwarn ik x
+  let ending ?suppress_ovwarn ik x = fst @@ D.ending ik x
 
   let shift_left ik x y = fst @@ D.shift_left ik x y
 
@@ -503,7 +586,7 @@ struct
   type int_t = Ints_t.t
   let top () = raise Unknown
   let bot () = raise Error
-  let top_of ik = top ()
+  let top_of ?bitfield ik = top ()
   let bot_of ik = bot ()
   let show (x: Ints_t.t) = Ints_t.to_string x
 
@@ -531,22 +614,19 @@ struct
   let mul  = Ints_t.mul
   let div  = Ints_t.div
   let rem  = Ints_t.rem
-  let lt n1 n2 = of_bool (n1 <  n2)
-  let gt n1 n2 = of_bool (n1 >  n2)
-  let le n1 n2 = of_bool (n1 <= n2)
-  let ge n1 n2 = of_bool (n1 >= n2)
-  let eq n1 n2 = of_bool (n1 =  n2)
-  let ne n1 n2 = of_bool (n1 <> n2)
+  let lt n1 n2 = Some (n1 <  n2)
+  let gt n1 n2 = Some (n1 >  n2)
+  let le n1 n2 = Some (n1 <= n2)
+  let ge n1 n2 = Some (n1 >= n2)
+  let eq n1 n2 = Some (n1 =  n2)
+  let ne n1 n2 = Some (n1 <> n2)
   let lognot = Ints_t.lognot
   let logand = Ints_t.logand
   let logor  = Ints_t.logor
   let logxor = Ints_t.logxor
   let shift_left  n1 n2 = Ints_t.shift_left n1 (Ints_t.to_int n2)
   let shift_right n1 n2 = Ints_t.shift_right n1 (Ints_t.to_int n2)
-  let c_lognot n1    = of_bool (not (to_bool' n1))
-  let c_logand n1 n2 = of_bool ((to_bool' n1) && (to_bool' n2))
-  let c_logor  n1 n2 = of_bool ((to_bool' n1) || (to_bool' n2))
-  let cast_to ?(suppress_ovwarn=false) ?torg t x =  failwith @@ "Cast_to not implemented for " ^ (name ()) ^ "."
+  let cast_to ?(suppress_ovwarn=false) ~kind t x =  failwith @@ "Cast_to not implemented for " ^ (name ()) ^ "."
   let arbitrary ik = QCheck.map ~rev:Ints_t.to_int64 Ints_t.of_int64 GobQCheck.Arbitrary.int64 (* TODO: use ikind *)
   let invariant _ _ = Invariant.none (* TODO *)
 end
@@ -571,13 +651,13 @@ struct
       let bot_name = "Error int"
     end) (Base)
 
-  let top_of ik = top ()
+  let top_of ?bitfield ik = top ()
   let bot_of ik = bot ()
 
 
   let name () = "flat integers"
-  let cast_to ?(suppress_ovwarn=false) ?torg t = function
-    | `Lifted x -> `Lifted (Base.cast_to t x)
+  let cast_to ?(suppress_ovwarn=false) ~kind t = function
+    | `Lifted x -> `Lifted (Base.cast_to ~kind t x)
     | x -> x
 
   let equal_to i = function
@@ -616,6 +696,11 @@ struct
       (try `Lifted (f x y) with Unknown -> `Top | Error -> `Bot)
     | `Bot, `Bot -> `Bot
     | _ -> `Top
+  let lift2_bool f x y = match x,y with
+    | `Lifted x, `Lifted y ->
+      (try f x y with Unknown -> None | Error -> None)
+    | `Bot, `Bot -> None
+    | _ -> None
 
   let neg  = lift1 Base.neg
   let add  = lift2 Base.add
@@ -623,21 +708,18 @@ struct
   let mul  = lift2 Base.mul
   let div  = lift2 Base.div
   let rem  = lift2 Base.rem
-  let lt = lift2 Base.lt
-  let gt = lift2 Base.gt
-  let le = lift2 Base.le
-  let ge = lift2 Base.ge
-  let eq = lift2 Base.eq
-  let ne = lift2 Base.ne
+  let lt = lift2_bool Base.lt
+  let gt = lift2_bool Base.gt
+  let le = lift2_bool Base.le
+  let ge = lift2_bool Base.ge
+  let eq = lift2_bool Base.eq
+  let ne = lift2_bool Base.ne
   let lognot = lift1 Base.lognot
   let logand = lift2 Base.logand
   let logor  = lift2 Base.logor
   let logxor = lift2 Base.logxor
   let shift_left  = lift2 Base.shift_left
   let shift_right = lift2 Base.shift_right
-  let c_lognot = lift1 Base.c_lognot
-  let c_logand = lift2 Base.c_logand
-  let c_logor  = lift2 Base.c_logor
 
   let invariant e = function
     | `Lifted x -> Base.invariant e x
@@ -652,13 +734,13 @@ struct
       let bot_name = "MinInt"
     end) (Base)
   type int_t = Base.int_t
-  let top_of ik = top ()
+  let top_of ?bitfield ik = top ()
   let bot_of ik = bot ()
   include StdTop (struct type nonrec t = t let top_of = top_of end)
 
   let name () = "lifted integers"
-  let cast_to ?(suppress_ovwarn=false) ?torg t = function
-    | `Lifted x -> `Lifted (Base.cast_to t x)
+  let cast_to ?(suppress_ovwarn=false) ~kind t = function
+    | `Lifted x -> `Lifted (Base.cast_to ~kind t x)
     | x -> x
 
   let equal_to i = function
@@ -683,6 +765,10 @@ struct
     | `Lifted x, `Lifted y -> `Lifted (f x y)
     | `Bot, `Bot -> `Bot
     | _ -> `Top
+  let lift2_bool f x y = match x,y with
+    | `Lifted x, `Lifted y -> f x y
+    | `Bot, `Bot -> None
+    | _ -> None
 
   let neg  = lift1 Base.neg
   let add  = lift2 Base.add
@@ -690,21 +776,18 @@ struct
   let mul  = lift2 Base.mul
   let div  = lift2 Base.div
   let rem  = lift2 Base.rem
-  let lt = lift2 Base.lt
-  let gt = lift2 Base.gt
-  let le = lift2 Base.le
-  let ge = lift2 Base.ge
-  let eq = lift2 Base.eq
-  let ne = lift2 Base.ne
+  let lt = lift2_bool Base.lt
+  let gt = lift2_bool Base.gt
+  let le = lift2_bool Base.le
+  let ge = lift2_bool Base.ge
+  let eq = lift2_bool Base.eq
+  let ne = lift2_bool Base.ne
   let lognot = lift1 Base.lognot
   let logand = lift2 Base.logand
   let logor  = lift2 Base.logor
   let logxor = lift2 Base.logxor
   let shift_left  = lift2 Base.shift_left
   let shift_right = lift2 Base.shift_right
-  let c_lognot = lift1 Base.c_lognot
-  let c_logand = lift2 Base.c_logand
-  let c_logor  = lift2 Base.c_logor
 
   let invariant e = function
     | `Lifted x -> Base.invariant e x
@@ -730,15 +813,15 @@ module SOverflowLifter (D : S) : SOverflow with type int_t = D.int_t and type t 
 
   let neg ?no_ov ik x = lift @@ D.neg ?no_ov ik x
 
-  let cast_to ?suppress_ovwarn ?torg ?no_ov ik x = lift @@ D.cast_to ?suppress_ovwarn ?torg ?no_ov ik x
+  let cast_to ~kind ?from_ik ?no_ov ik x = lift @@ D.cast_to ~kind ?from_ik ?no_ov ik x
 
   let of_int ik x = lift @@ D.of_int ik x
 
-  let of_interval ?suppress_ovwarn ik x = lift @@ D.of_interval ?suppress_ovwarn ik x
+  let of_interval ik x = lift @@ D.of_interval ik x
 
-  let starting ?suppress_ovwarn ik x = lift @@ D.starting ?suppress_ovwarn ik x
+  let starting ik x = lift @@ D.starting ik x
 
-  let ending ?suppress_ovwarn ik x = lift @@ D.ending ?suppress_ovwarn ik x
+  let ending ik x = lift @@ D.ending ik x
 
   let shift_left ik x y = lift @@ D.shift_left ik x y
 
