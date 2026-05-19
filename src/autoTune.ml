@@ -66,7 +66,9 @@ class findAllocsInLoops = object
       let desc = LibraryFunctions.find f in
       begin match desc.special args with
         | Malloc _
-        | Alloca _ when inloop -> raise Found (* TODO: why not Calloc, Realloc? *)
+        | Calloc _
+        | Realloc _
+        | Alloca _ when inloop -> raise Found
         | _ -> DoChildren
       end
     | _ -> DoChildren
