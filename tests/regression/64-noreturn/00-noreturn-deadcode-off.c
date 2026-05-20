@@ -1,5 +1,6 @@
 //PARAM: --disable sem.noreturn.dead_code
 // tests for warnings about functions marked noreturn, that may return during program execution
+#include <stdlib.h>
 #include <stdnoreturn.h>
 #include <stdio.h>
 

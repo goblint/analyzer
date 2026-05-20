@@ -77,6 +77,10 @@ type invariant_context = Invariant.context = {
 
 module YS = SetDomain.ToppedSet (YamlWitnessType.Entry) (struct let topname = "Top" end)
 
+module CL = MapDomain.MapBot_LiftTop (ThreadIdDomain.Thread) (LockDomain.MustLockset)
+
+module LH = MapDomain.MapTop (LockDomain.MustLock) (SetDomain.Reverse (ConcDomain.ThreadSet))
+
 
 (** GADT for queries with specific result type. *)
 type _ t =
@@ -147,6 +151,8 @@ type _ t =
   | GhostVarAvailable: WitnessGhostVar.t -> MayBool.t t
   | InvariantGlobalNodes: NS.t t (** Nodes where YAML witness flow-insensitive invariants should be emitted as location invariants (if [witness.invariant.flow_insensitive-as] is configured to do so). *) (* [Spec.V.t] argument (as [Obj.t]) could be added, if this should be different for different flow-insensitive invariants. *)
   | DescendantThreads: ThreadIdDomain.Thread.t -> ConcDomain.ThreadSet.t t
+  | CreationLockset: ThreadIdDomain.Thread.t -> CL.t t
+  | MustlockHistory: LH.t t
   | TutorialEffectivelyLocal: varinfo -> MustBool.t t (** Used in tutorial for effectively local variables. *)
 
 type 'a result = 'a
@@ -224,6 +230,8 @@ struct
     | GhostVarAvailable _ -> (module MayBool)
     | InvariantGlobalNodes -> (module NS)
     | DescendantThreads _ -> (module ConcDomain.ThreadSet)
+    | CreationLockset _ -> (module CL)
+    | MustlockHistory -> (module LH)
     | TutorialEffectivelyLocal _ -> (module MustBool)
 
   (** Get bottom result for query. *)
@@ -300,6 +308,8 @@ struct
     | GhostVarAvailable _ -> MayBool.top ()
     | InvariantGlobalNodes -> NS.top ()
     | DescendantThreads _ -> ConcDomain.ThreadSet.top ()
+    | CreationLockset _ -> CL.top ()
+    | MustlockHistory -> LH.top ()
     | TutorialEffectivelyLocal _ -> MustBool.top ()
 end
 
@@ -373,7 +383,9 @@ struct
     | Any (GhostVarAvailable _) -> 62
     | Any InvariantGlobalNodes -> 63
     | Any (DescendantThreads _) -> 64
-    | Any (TutorialEffectivelyLocal _) -> 65
+    | Any (CreationLockset _) -> 65
+    | Any (MustlockHistory) -> 66
+    | Any (TutorialEffectivelyLocal _) -> 67
 
   let rec compare a b =
     let r = Stdlib.compare (order a) (order b) in
@@ -434,6 +446,7 @@ struct
       | Any (GasExhausted f1), Any (GasExhausted f2) -> CilType.Fundec.compare f1 f2
       | Any (GhostVarAvailable v1), Any (GhostVarAvailable v2) -> WitnessGhostVar.compare v1 v2
       | Any (DescendantThreads t1), Any (DescendantThreads t2) -> ThreadIdDomain.Thread.compare t1 t2
+      | Any (CreationLockset t1), Any (CreationLockset t2) -> ThreadIdDomain.Thread.compare t1 t2
       | Any (TutorialEffectivelyLocal v1), Any (TutorialEffectivelyLocal v2) -> CilType.Varinfo.compare v1 v2
       (* only argumentless queries should remain *)
       | _, _ -> Stdlib.compare (order a) (order b)
@@ -483,6 +496,7 @@ struct
     | Any (GasExhausted f) -> CilType.Fundec.hash f
     | Any (GhostVarAvailable v) -> WitnessGhostVar.hash v
     | Any (DescendantThreads t) -> ThreadIdDomain.Thread.hash t
+    | Any (CreationLockset t) -> ThreadIdDomain.Thread.hash t
     (* IterSysVars:                                                                    *)
     (*   - argument is a function and functions cannot be compared in any meaningful way. *)
     (*   - doesn't matter because IterSysVars is always queried from outside of the analysis, so MCP's query caching is not done for it. *)
@@ -552,6 +566,8 @@ struct
     | Any (GhostVarAvailable v) -> Pretty.dprintf "GhostVarAvailable %a" WitnessGhostVar.pretty v
     | Any InvariantGlobalNodes -> Pretty.dprintf "InvariantGlobalNodes"
     | Any (DescendantThreads t) -> Pretty.dprintf "DescendantThreads %a" ThreadIdDomain.Thread.pretty t
+    | Any (CreationLockset t) -> Pretty.dprintf "CreationLockset %a" ThreadIdDomain.Thread.pretty t
+    | Any (MustlockHistory) -> Pretty.dprintf "MustlockHistory"
     | Any (TutorialEffectivelyLocal v) -> Pretty.dprintf "TutorialEffectivelyLocal %a" CilType.Varinfo.pretty v
 end
 

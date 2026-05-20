@@ -1,3 +1,5 @@
+#include <goblint.h>
+
 typedef union {
    char c[4] ; // c needs to be at least as big as l
    long l ;

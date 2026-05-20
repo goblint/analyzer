@@ -1,6 +1,8 @@
 // PARAM: --set ana.base.privatization lock --enable ana.int.enums
 #include<pthread.h>
 #include<stdlib.h>
+#include <goblint.h>
+
 struct a {
   int b;
 };

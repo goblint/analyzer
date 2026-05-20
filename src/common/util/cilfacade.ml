@@ -49,6 +49,11 @@ let isStructOrUnionType t =
   | TComp _ -> true
   | _ -> false
 
+let isStructType t =
+  match Cil.unrollType t with
+  | TComp (ci, _) -> ci.cstruct
+  | _ -> false
+
 let is_first_field x = match x.fcomp.cfields with
   | [] -> false
   | f :: _ -> CilType.Fieldinfo.equal f x
@@ -826,6 +831,13 @@ let add_function_declarations (file: Cil.file): unit =
   let fun_decls = List.filter_map declaration_from_GFun functions in
   let globals = upto_last_type @ fun_decls @ non_types @ functions in
   file.globals <- globals
+
+(** Sync formal parameter attributes back to function types for correct CIL printing *)
+let sync_formals file =
+  iterGlobals file (function
+      | GFun (fd, _) -> setFormals fd fd.sformals
+      | _ -> ()
+    )
 
 
 (** Special index expression for some unknown index.

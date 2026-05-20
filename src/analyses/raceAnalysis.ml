@@ -302,10 +302,19 @@ struct
         ) (G.vars (man.global (V.vars g)))
     | _ -> Queries.Result.top q
 
+  let stripOuterVoidPtrCast = function
+    | CastE (_, TPtr (TVoid _, _), e) -> e (* TODO: keep explicit cast? *)
+    | e -> e
+
   let event man e oman =
     match e with
     | Events.Access {exp; ad; kind; reach} when ThreadFlag.is_currently_multi (Analyses.ask_of_man man) -> (* threadflag query in post-threadspawn man *)
       (* must use original (pre-assign, etc) man queries *)
+      let exp =
+        match kind with
+        | Free -> stripOuterVoidPtrCast exp (* free has implicit cast to void*, which makes all type-based accesses to void even if the pointer actually isn't *)
+        | _ -> exp
+      in
       let conf = 110 in
       let module AD = Queries.AD in
       let part_access (vo:varinfo option): MCPAccess.A.t =
