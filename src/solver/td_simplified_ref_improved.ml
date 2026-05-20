@@ -20,6 +20,13 @@ module Base : GenericEqSolver =
     include Generic.SolverStats (S) (HM)
     module VS = Set.Make (S.Var)
 
+    module WarrowConf = struct
+      let delay_default = GobConfig.get_int "solvers.td3.side_widen_gas"
+      let gas_default   = GobConfig.get_int "solvers.td3.narrow-globs.narrow-gas"
+      let update_gas    = GobConfig.get_int "solvers.fwd.update_gas"
+    end
+    module DomWarrow = FwdCommon.Warrow(S.Dom)(WarrowConf)
+
     type var_data = {
       infl: VS.t;
       value: S.Dom.t;
@@ -37,36 +44,17 @@ module Base : GenericEqSolver =
     module OM = Hashtbl.Make(Node)
     let source = S.Var.node
 
+    type origin_contrib = { contrib: DomWarrow.contribution; set: VS.t }
+
     type origin = {
       init: S.Dom.t;
-      from: (S.Dom.t * int * int * bool * int * VS.t) OM.t;
+      from: origin_contrib OM.t;
       last: S.Dom.t HM.t
     }
 
-    let gas_default = ref (
-        GobConfig.get_int "solvers.td3.narrow-globs.narrow-gas",
-        GobConfig.get_int "solvers.td3.side_widen_gas",
-        GobConfig.get_int "solvers.fwd.update_gas"
-      )
-
     let abs_GC = ref true
 
-    let warrow (a,delay,gas,narrow,update) b =
-      let (delay0,_,_) = !gas_default in
-      if S.Dom.equal a b then (a,delay,gas,narrow,update)
-      else if S.Dom.leq b a then
-        if narrow then (S.Dom.narrow a b,delay,gas,true,update)
-        else if gas<=0 then (a,delay,gas,false,update)
-        else (S.Dom.narrow a b, delay,gas-1,true,update)
-      else if S.Dom.leq a b then
-        if narrow then (b,delay0,gas,false,update)
-        else if delay <= 0 then (S.Dom.widen a b,0,gas,false,update)
-        else (b,delay-1,gas,false,update)
-      else if update > 0 then (b,delay,gas,false,update-1)
-      else if delay > 0 then (S.Dom.join a b,delay-1,gas,false,0)
-      else (S.Dom.widen a (S.Dom.join a b),0,gas,false,0)
-
-    let get_global_value init from = OM.fold (fun _ (b,_,_,_,_,_) a -> S.Dom.join a b) from init
+    let get_global_value init from = OM.fold (fun _ oc a -> S.Dom.join a oc.contrib.value) from init
 
     let is_global y = (S.system y = None)
 
@@ -166,23 +154,21 @@ alternatively, distinguish contribs by session number?
         let y_ref = init y in
         if tracing then trace "side" "side to %a (wpx: %b) from %a ## value: %a" S.Var.pretty_trace y (!y_ref.wpoint) S.Var.pretty_trace x S.Dom.pretty d;
         let {init;last;from} = HM.find origin y in
-        let (old_xy,delay,gas,narrow,update,set) = try OM.find from sx
+        let old_oc = try OM.find from sx
           with _ ->
-            let (delay,gas,update) = !gas_default in
-            let tuple = (S.Dom.bot (),delay,gas,false,update,VS.empty) in
-            let () = OM.add from sx tuple in
-            tuple in
+            let oc = { contrib = DomWarrow.default (); set = VS.empty } in
+            OM.add from sx oc;
+            oc in
         let () = HM.add last x d in
-        let set = VS.add x set in
+        let set = VS.add x old_oc.set in
         let d = VS.fold (fun x d -> S.Dom.join d (HM.find last x)) set d in
-        let (new_xy,delay,gas,narrow,update) =
-          if M.tracing then M.trace "wpoint" "side widen %a" S.Var.pretty_trace y;
-          warrow (old_xy,delay,gas,narrow,update) d in
-        OM.replace from sx (new_xy,delay,gas,narrow,update,set);
-        if S.Dom.equal new_xy old_xy then ()
+        if M.tracing then M.trace "wpoint" "side widen %a" S.Var.pretty_trace y;
+        let new_contrib = DomWarrow.warrow old_oc.contrib d in
+        OM.replace from sx { contrib = new_contrib; set };
+        if S.Dom.equal new_contrib.value old_oc.contrib.value then ()
         else (
-          let new_y = if S.Dom.leq old_xy new_xy then
-              S.Dom.join !y_ref.value new_xy
+          let new_y = if S.Dom.leq old_oc.contrib.value new_contrib.value then
+              S.Dom.join !y_ref.value new_contrib.value
             else get_global_value init from in
           if S.Dom.equal new_y !y_ref.value then ()
           else (
