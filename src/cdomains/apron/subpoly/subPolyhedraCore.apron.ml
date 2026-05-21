@@ -31,8 +31,8 @@ module SubPoly (Var : Var) (I : IntervalSig) = struct
     terms: (Var.t * Mpqf.t) list;
   } [@@deriving eq, ord, hash]
   type slack = {
-    expr: slack_expr;
-    info: interval;
+      info: slack_expr;
+    intv: interval;
   } [@@deriving eq, ord, hash]
   type slack_map = slack VarMap.t [@@deriving eq, ord]
 
@@ -99,7 +99,7 @@ module SubPoly (Var : Var) (I : IntervalSig) = struct
     term_str
 
   let string_of_slack (s: slack) =
-    I.show s.info ^ "  (" ^ string_of_slack_expr s.expr ^ ")"
+    I.show s.intv ^ "  (" ^ string_of_slack_expr s.info ^ ")"
 
   let string_of_slack_map (m: slack_map) =
     VarMap.bindings m

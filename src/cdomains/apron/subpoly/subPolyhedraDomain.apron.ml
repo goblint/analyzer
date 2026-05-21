@@ -23,14 +23,13 @@ end
 
 module VarManagement =
 struct
-  module Str = struct
-    type t = string
-    let equal = String.equal
-    let compare = String.compare
-    let string_of = Fun.id
-    let hash = Hashtbl.hash
+  module Int = struct
+    type t = int [@@deriving hash]
+    let equal = Int.equal
+    let compare = Int.compare
+    let string_of = string_of_int
   end
-  module SubPolyDomain = SubPoly(Str)(RationalInterval)
+  module SubPolyDomain = SubPoly(Int)(RationalInterval)
   include SharedFunctions.VarManagementOps (SubPolyDomain)
 
   let dim_add = SubPolyDomain.dim_add
