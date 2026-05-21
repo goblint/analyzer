@@ -29,7 +29,6 @@ module SubPoly (Var : Var) (I : IntervalSig) = struct
   type slackintervals = interval_map [@@deriving eq, ord]
   type slack_expr = {
     terms: (Var.t * Mpqf.t) list;
-    const: Mpqf.t;
   } [@@deriving eq, ord, hash]
   type slack = {
     expr: slack_expr;

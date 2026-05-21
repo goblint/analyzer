@@ -7,6 +7,7 @@ open GoblintCil
 open Pretty
 module M = Messages
 open GobApron
+open SubPolycore
 
 module Mpqf = SharedFunctions.Mpqf
 module RationalInterval = Rationalinterval.RationalInterval
@@ -212,6 +213,7 @@ struct
 
 
   (* fixpoint iteration handling *)
+  (* here we wire up the things from Core *)
   let meet _a _b = failwith "SubPolyhedraDomain.meet: not implemented"
   let leq _a _b = failwith "SubPolyhedraDomain.leq: not implemented"
   let join _a _b = failwith "SubPolyhedraDomain.join: not implemented"
@@ -220,8 +222,43 @@ struct
   let unify _a _b = failwith "SubPolyhedraDomain.unify: not implemented"
 
   (* transfer functions *)
-  let forget_var _t _v = failwith "SubPolyhedraDomain.forget_var: not implemented"
-  let forget_vars _t _vs = failwith "SubPolyhedraDomain.forget_vars: not implemented"
+
+  (*******************
+    This function first uses the Matrix interface to get a list of the rows, then filters based on if the var 
+    is 0 which essentially removes all rows where var is non-zero. It then builds the matrix again from the list.
+    It is a bit clunky because Ocaml does not know that the Matrix is already implemented as a list of Vectors.
+  ********************)
+  let rem_rows_containing_var (affeq : SubPolyDomain.affeq) (var: int) : SubPolyDomain.affeq =
+    if SubPolyDomain.Matrix.is_empty affeq then affeq 
+    else
+      let rows = List.init (SubPolyDomain.Matrix.num_rows affeq) (SubPolyDomain.Matrix.get_row affeq) in
+      let filtered = List.filter (fun row -> SubPolyDomain.CoeffVector.nth row var =: Mpqf.zero) rows in
+      List.fold_left SubPolyDomain.Matrix.append_row (SubPolyDomain.Matrix.empty ()) filtered
+
+  (*******************
+    This function takes a slack_map and removes all slack variables whose info contains mention of the var.
+    Used in forget_vars.
+  *******************)    
+  let rem_slacks_containing_var (slacks : SubPolyDomain.slack_map) (var : int) : SubPolyDomain.slack_map = 
+     SubPolyDomain.VarMap.filter (fun _ (slack : SubPolyDomain.slack) -> not (List.mem var (List.map fst slack.info.terms))) slacks 
+
+  (* transfer functions *)
+  let forget_var (t: t) (v: V.t) = remove_vars t [v]
+    
+  
+  (**************
+    Removes all rows in the affeq Matrix containing the vars, removes the corresponding entry in the 
+  **************)
+  let forget_vars t vars =
+    if vars = [] || is_bot t || is_top t then t
+    else 
+      let d = Option.get t.d in 
+      let dims = List.map (Environment.dim_of_var t.env) vars in (*map of vars in Env. to dimensions in matrix.*)
+      let new_affeq = List.fold_left rem_rows_containing_var d.affeq dims in
+      let new_intervals = List.fold_left (flip SubPolyDomain.VarMap.remove) d.intervals dims in
+      let new_slacks = List.fold_left rem_slacks_containing_var d.slacks dims in
+      {d = Some {affeq = new_affeq ; intervals = new_intervals ; slacks = new_slacks}; env = t.env} 
+
   let assign_exp _ask _t _var _exp _ = failwith "SubPolyhedraDomain.assign_exp: not implemented"
   let assign_var _t _v _v' = failwith "SubPolyhedraDomain.assign_var: not implemented"
   let assign_var_parallel _t _vvs = failwith "SubPolyhedraDomain.assign_var_parallel: not implemented"
@@ -231,7 +268,35 @@ struct
   let cil_exp_of_lincons1 = Convert.cil_exp_of_lincons1
 
   (* Module AssertionRels demands: *)
-  let assert_constraint _ask _d _e _negate (_no_ov: bool Lazy.t) = failwith "SubPolyhedraDomain.assert_constraint: not implemented"
+    let assert_constraint (_ask: Queries.ask) (d: t) (e: exp) (negate: bool) (_no_ov: bool Lazy.t) =
+    let res =
+      (*check if constraint is negated*)
+      if negate then 
+        (*TODO: add the negated branch fo the assert constraint*)
+        d 
+      else
+        (* parse cil expression into form we can work with,
+          here linexpr and intercal *)
+        match simple_constraint d e with
+        | Some (d, linexpr, interval) ->
+          (* Absorb constant from expression into interval tied to expression, like in paper*)
+          let linexpr, interval = absorb_linexpr_const_into_interval linexpr interval in
+          (*normalize linexpr liek discussed in meeting*)
+          begin match normalize_linexpr linexpr with
+            | Some (normalized_linexpr, pivot) ->
+              (* convert pivot to q, which is what we do the relational interval with *)
+              let pivot_q = Q.make (Mpqf.get_num pivot) (Mpqf.get_den pivot) in
+              let inv_piv = Q.div Q.one pivot_q in
+              let new_interval = RationalInterval.scale inv_piv interval in
+              (*add slack and normalized expr, and adjusted interval by constant*)
+              add_slack_constraint d normalized_linexpr new_interval
+            | None -> d
+          end
+        | None -> d
+    in
+    if M.tracing then M.tracel "relation" "subpoly assert_constraint %a -> %s" d_exp e (show res);
+    res
+
   let env t = t.env
   let eval_interval _ask = Bounds.bound_texpr
   let invariant _t = failwith "SubPolyhedraDomain.invariant: not implemented"
