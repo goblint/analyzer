@@ -153,6 +153,7 @@ type _ t =
   | DescendantThreads: ThreadIdDomain.Thread.t -> ConcDomain.ThreadSet.t t
   | CreationLockset: ThreadIdDomain.Thread.t -> CL.t t
   | MustlockHistory: LH.t t
+  | TutorialEffectivelyLocal: varinfo -> MustBool.t t (** Used in tutorial for effectively local variables. *)
 
 type 'a result = 'a
 
@@ -231,6 +232,7 @@ struct
     | DescendantThreads _ -> (module ConcDomain.ThreadSet)
     | CreationLockset _ -> (module CL)
     | MustlockHistory -> (module LH)
+    | TutorialEffectivelyLocal _ -> (module MustBool)
 
   (** Get bottom result for query. *)
   let bot (type a) (q: a t): a result =
@@ -308,6 +310,7 @@ struct
     | DescendantThreads _ -> ConcDomain.ThreadSet.top ()
     | CreationLockset _ -> CL.top ()
     | MustlockHistory -> LH.top ()
+    | TutorialEffectivelyLocal _ -> MustBool.top ()
 end
 
 (* The type any_query can't be directly defined in Any as t,
@@ -382,6 +385,7 @@ struct
     | Any (DescendantThreads _) -> 64
     | Any (CreationLockset _) -> 65
     | Any (MustlockHistory) -> 66
+    | Any (TutorialEffectivelyLocal _) -> 67
 
   let rec compare a b =
     let r = Stdlib.compare (order a) (order b) in
@@ -443,6 +447,7 @@ struct
       | Any (GhostVarAvailable v1), Any (GhostVarAvailable v2) -> WitnessGhostVar.compare v1 v2
       | Any (DescendantThreads t1), Any (DescendantThreads t2) -> ThreadIdDomain.Thread.compare t1 t2
       | Any (CreationLockset t1), Any (CreationLockset t2) -> ThreadIdDomain.Thread.compare t1 t2
+      | Any (TutorialEffectivelyLocal v1), Any (TutorialEffectivelyLocal v2) -> CilType.Varinfo.compare v1 v2
       (* only argumentless queries should remain *)
       | _, _ -> Stdlib.compare (order a) (order b)
 
@@ -563,6 +568,7 @@ struct
     | Any (DescendantThreads t) -> Pretty.dprintf "DescendantThreads %a" ThreadIdDomain.Thread.pretty t
     | Any (CreationLockset t) -> Pretty.dprintf "CreationLockset %a" ThreadIdDomain.Thread.pretty t
     | Any (MustlockHistory) -> Pretty.dprintf "MustlockHistory"
+    | Any (TutorialEffectivelyLocal v) -> Pretty.dprintf "TutorialEffectivelyLocal %a" CilType.Varinfo.pretty v
 end
 
 let to_value_domain_ask (ask: ask) =
