@@ -348,6 +348,7 @@ struct
          * This range is [0, min xu b] if x is positive, and [max xl -b, min xu b] if x can be negative.
          * The precise bound b is one smaller than the maximum bound. Negative y give the same result as positive. *)
         let pos x = if Ints_t.compare x Ints_t.zero < 0 then Ints_t.neg x else x in
+        (* TODO: handle sem.int.div-by-zero option *)
         let b = Ints_t.sub (Ints_t.max (pos yl) (pos yu)) Ints_t.one in
         let range = if Ints_t.compare xl Ints_t.zero>= 0 then Some (Ints_t.zero, Ints_t.min xu b) else Some (Ints_t.max xl (Ints_t.neg b), Ints_t.min (Ints_t.max (pos xl) (pos xu)) b) in
         meet ik (bit (fun _ik -> Ints_t.rem) ik x y) range
@@ -359,7 +360,7 @@ struct
     | Some x, Some y ->
       let (neg, pos) = IArith.div x y in
       let (r, ov) = norm ik (join_no_norm ik neg pos) in (* normal join drops overflow info *)
-      if leq (of_int ik Ints_t.zero |> fst) (Some y) then
+      if leq (of_int ik Ints_t.zero |> fst) (Some y) && GobConfig.get_string "sem.int.div-by-zero" = "assume_top" then
         (top_of ik, ov)
       else
         (r, ov)
