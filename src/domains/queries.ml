@@ -321,71 +321,18 @@ module Any =
 struct
   type t = any_query
 
+  let order (Any q) =
+    (* This is very type-unsafe, but it's less error-prone than manual numbering. *)
+    let o = Obj.repr q in
+    if Obj.is_block o then (* queries with arguments *)
+      Obj.tag o (* Tags of queries with arguments are numbered up from 0 (only among queries with arguments!). *)
+    else (* queries without arguments *)
+      (* Values of queries without arguments are numbered up from 0 (only among queries without arguments!).
+         To avoid conflicts with queries with arguments, flip these to be negative instead.
+         Also subtract 1 to avoid conflict between tag 0 and value 0. *)
+      -(Obj.obj o: int) - 1
+
   (* deriving ord doesn't work for GADTs (t and any_query) so this must be done manually... *)
-  let order = function
-    | Any (EqualSet _) -> 0
-    | Any (MayPointTo _) -> 1
-    | Any (ReachableFrom _) -> 2
-    | Any (ReachableUkTypes _) -> 3
-    | Any (Regions _) -> 4
-    | Any (MayEscape _) -> 5
-    | Any (MayBePublic _) -> 7
-    | Any (MayBePublicWithout _) -> 8
-    | Any (MustBeProtectedBy _) -> 9
-    | Any MustLockset -> 10
-    | Any MustBeAtomic -> 11
-    | Any (MustBeSingleThreaded _)-> 12
-    | Any MustBeUniqueThread -> 13
-    | Any CurrentThreadId -> 14
-    | Any MayBeThreadReturn -> 15
-    | Any (EvalFunvar _) -> 16
-    | Any (EvalInt _) -> 17
-    | Any (EvalStr _) -> 18
-    | Any (EvalLength _) -> 19
-    | Any (BlobSize _) -> 20
-    | Any (CondVars _) -> 22
-    | Any (PartAccess _) -> 23
-    | Any (IterPrevVars _) -> 24
-    | Any (IterVars _) -> 25
-    | Any (AllocVar _) -> 29
-    | Any (IsHeapVar _) -> 30
-    | Any (IsMultiple _) -> 31
-    | Any (EvalThread _) -> 32
-    | Any CreatedThreads -> 33
-    | Any MustJoinedThreads -> 34
-    | Any (WarnGlobal _) -> 35
-    | Any (Invariant _) -> 36
-    | Any (IterSysVars _) -> 37
-    | Any (InvariantGlobal _) -> 38
-    | Any (MustProtectedVars _) -> 39
-    | Any MayAccessed -> 40
-    | Any MayBeTainted -> 41
-    | Any (PathQuery _) -> 42
-    | Any DYojson -> 43
-    | Any (EvalValue _) -> 44
-    | Any (EvalJumpBuf _) -> 45
-    | Any ActiveJumpBuf -> 46
-    | Any ValidLongJmp -> 47
-    | Any (MayBeModifiedSinceSetjmp _) -> 48
-    | Any (MutexType _) -> 49
-    | Any (EvalMutexAttr _ ) -> 50
-    | Any ThreadCreateIndexedNode -> 51
-    | Any ThreadsJoinedCleanly -> 52
-    | Any (MustTermLoop _) -> 53
-    | Any MustTermAllLoops -> 54
-    | Any IsEverMultiThreaded -> 55
-    | Any (TmpSpecial _) -> 56
-    | Any (IsAllocVar _) -> 57
-    | Any (MaySignedOverflow _) -> 58
-    | Any (GasExhausted _) -> 59
-    | Any (YamlEntryGlobal _) -> 60
-    | Any (MustProtectingLocks _) -> 61
-    | Any (GhostVarAvailable _) -> 62
-    | Any InvariantGlobalNodes -> 63
-    | Any (DescendantThreads _) -> 64
-    | Any (CreationLockset _) -> 65
-    | Any (MustlockHistory) -> 66
-    | Any (TutorialEffectivelyLocal _) -> 67
 
   let rec compare a b =
     let r = Stdlib.compare (order a) (order b) in
