@@ -7,7 +7,7 @@ open GoblintCil
 open Pretty
 module M = Messages
 open GobApron
-open SubPolycore
+open SubPolyhedraCore
 
 module Mpqf = SharedFunctions.Mpqf
 module RationalInterval = Rationalinterval.RationalInterval
@@ -25,11 +25,12 @@ module VarManagement =
 struct
   module Str = struct
     type t = string
+    let equal = String.equal
     let compare = String.compare
     let string_of = Fun.id
     let hash = Hashtbl.hash
   end
-  module SubPolyDomain = SubPoly(Str)
+  module SubPolyDomain = SubPoly(Str)(RationalInterval)
   include SharedFunctions.VarManagementOps (SubPolyDomain)
 
   let dim_add = SubPolyDomain.dim_add

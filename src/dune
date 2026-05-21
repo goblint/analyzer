@@ -51,7 +51,7 @@
       (apron -> subPolyhedraAnalysis.apron.ml)
       (-> subPolyhedraAnalysis.no-apron.ml)
     )
-    (select subPolycore.ml from
+    (select subPolyhedraCore.ml from
       (apron -> subPolyhedraCore.apron.ml)
       (-> subPolyhedraCore.no-apron.ml)
     )

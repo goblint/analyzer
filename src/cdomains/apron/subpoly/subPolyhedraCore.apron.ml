@@ -96,15 +96,7 @@ module SubPoly (Var : Var) (I : IntervalSig) = struct
         |> List.map (fun (v, c) -> Mpqf.to_string c ^ "*" ^ Var.string_of v)
         |> String.concat " + "
     in
-    let const_str =
-      if Mpqf.compare e.const Mpqf.zero = 0 then
-        ""
-      else if term_str = "" then
-        Mpqf.to_string e.const
-      else
-        " + " ^ Mpqf.to_string e.const
-    in
-    term_str ^ const_str
+    term_str
 
   let string_of_slack (s: slack) =
     I.show s.info ^ "  (" ^ string_of_slack_expr s.expr ^ ")"
