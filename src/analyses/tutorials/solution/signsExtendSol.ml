@@ -30,13 +30,16 @@ struct
   let lt x y = match x, y with
     | Neg, Pos | Neg, Zero | Zero, Pos -> true (* TODO: Maybe something missing? *)
     | _ -> false
+
+  let elems = [Neg; Zero; Pos] (* For FiniteSet *)
 end
 
 (* Now we turn this into a lattice by adding Top and Bottom elements.
  * We then lift the above operations to the lattice. *)
 module SL =
 struct
-  include SetDomain.Make (Signs)
+  (* include SetDomain.Make (Signs) *)
+  include SetDomain.FiniteSet (Signs)
   let of_int i = singleton (Signs.of_int i)
 
   let lt x y =
