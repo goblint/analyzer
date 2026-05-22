@@ -2833,6 +2833,7 @@ struct
           let lv_addr = eval_lv ~man st lv in
           let blob_set = Option.map_default (fun heap_addr -> [heap_addr, TVoid [], heap_val]) [] heap_var in
           (* TODO: free (i.e. invalidate) old blob if successful? *)
+          (* TODO: realloc may return the same pointer, is this handled correctly? *)
           set_many ~man st ((lv_addr, Cilfacade.typeOfLval lv, Address addr) :: blob_set)
         ) st lv
     | Free ptr, _ ->

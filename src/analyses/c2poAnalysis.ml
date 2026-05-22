@@ -212,7 +212,7 @@ struct
               let cc = begin match desc.special exprs with
                 | Malloc _
                 | Calloc _
-                | Alloca _ ->
+                | Alloca _ -> (* No Realloc because it may return the same pointer. *)
                   add_block_diseqs cc lterm
                 | _ -> cc
               end

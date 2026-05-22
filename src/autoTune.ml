@@ -66,6 +66,8 @@ class findAllocsInLoops = object
       let desc = LibraryFunctions.find f in
       begin match desc.special args with
         | Malloc _
+        | Calloc _
+        | Realloc _
         | Alloca _ when inloop -> raise Found
         | _ -> DoChildren
       end
@@ -100,7 +102,7 @@ let findMallocWrappers () =
     if LibraryFunctions.is_special f then
       let desc = LibraryFunctions.find f in
       let args = functionArgs f in
-      GobOption.exists (fun args -> match desc.special args with Malloc _ -> true | _ -> false) args
+      GobOption.exists (fun args -> WrapperFunctionAnalysis.MallocWrapper.WrapperArgs.is_wrapped (desc.special args)) args
     else
       false
   in
