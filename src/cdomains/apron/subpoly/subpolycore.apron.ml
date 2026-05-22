@@ -31,7 +31,7 @@ module SubPoly (Var : Var) (I : IntervalSig) = struct
                Then it also wouldn't be so nested because the slack_expr can be the info rightaway.            *)
   type slack_expr = {
     terms: (Var.t * Mpqf.t) list;
-    const: Mpqf.t;
+    const: Mpqf.t; (*Factor how much it was scaled*)
   } [@@deriving eq, ord, hash]
   
   (* REFACTORING: I renamed info to intv and expr to info, as the slack_expr coinicides with the info terminology from the paper.*)
@@ -40,7 +40,46 @@ module SubPoly (Var : Var) (I : IntervalSig) = struct
     intv: interval;
   } [@@deriving eq, ord, hash]
   type slack_map = slack VarMap.t [@@deriving eq, ord]
+(**
+1 3 2   -1
+0 5 4       -1
 
+2 1 0   -2  1
+0 5 4       -1
+
+
+FINAL
+2 1 0   -2   1
+
+
+2 3 1  4 5 -1
+0 2 5  2 5    -1
+0 0 3  4 6        -1
+2 0 0  5 1           -1
+0 3 0  0 5               -1
+4 0 0 10 2 -1
+
+2 3 1  4 5 0 -1
+0 2 5  2 5 0   -1
+0 0 3  4 6 0       -1
+0 0 0  5 1 0          -1
+0 0 0  0 5 0              -1
+0 0 0  0 0 0 -1         2
+0 0 0  0 1 2                 -1
+
+
+When inserting new constraints we should take care not to insert something linearly dependent on 
+anything already in the constraints.
+Thus there should be as many rows as there are variables. By this we should be able to derive 
+the point where slack variables start. 
+
+Need one function like normalize_affeq that puts constraints into row-echelon form 
+and applies proper changes to intervals. (Normalize slacks to -1, thereby we essentially
+get a protocol matrix which tells us which operations were carried our for normalization.)
+Let's add the function to the domain for now and we can change it later if we realize that
+we need to use it inside the core functionality
+
+*)
   let hash_interval_map (m: interval_map) =
     VarMap.fold (fun var interval acc ->
         Hashtbl.hash (Var.hash var, I.hash interval, acc)
@@ -55,7 +94,7 @@ module SubPoly (Var : Var) (I : IntervalSig) = struct
 
   type t = {
     affeq: affeq; (*Affine Equalities stored as (sparse?) Matrix*)
-    intervals: slackintervals; (*Program variable intervals. QUESTION: Do we actually keep track of these?*)
+    intervals: slackintervals; (*Probably won't need these! Program variable intervals. QUESTION: Do we actually keep track of these?*)
     slacks: slack_map;
   } [@@deriving eq, ord, hash]
 
