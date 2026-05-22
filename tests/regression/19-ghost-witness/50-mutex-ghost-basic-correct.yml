@@ -1,0 +1,187 @@
+- entry_type: ghost_instrumentation
+  metadata:
+    format_version: "2.1-goblint"
+    uuid: 00000000-0000-0000-0000-000000000033
+    creation_time: 2026-04-21T00:00:00Z
+    producer:
+      name: Test
+      version: "0.0"
+    task:
+      input_files:
+      - 50-mutex-ghost-basic-correct.c
+      input_file_hashes:
+        50-mutex-ghost-basic-correct.c: "0000000000000000000000000000000000000000000000000000000000000000"
+      data_model: LP64
+      language: C
+  content:
+    ghost_variables:
+    - name: ghost_1
+      scope: global
+      type: int
+      initial:
+        value: "0"
+        format: c_expression
+    - name: ghost_2
+      scope: global
+      type: int
+      initial:
+        value: "0"
+        format: c_expression
+    - name: ghost_3
+      scope: global
+      type: int
+      initial:
+        value: "0"
+        format: c_expression
+    ghost_updates:
+    - location:
+        file_name: 50-mutex-ghost-basic-correct.c
+        line: 9
+        column: 5
+        function: fun
+      updates:
+      - variable: ghost_1
+        value: "1"
+        format: c_expression
+    - location:
+        file_name: 50-mutex-ghost-basic-correct.c
+        line: 15
+        column: 5
+        function: fun
+      updates:
+      - variable: ghost_1
+        value: "0"
+        format: c_expression
+    - location:
+        file_name: 50-mutex-ghost-basic-correct.c
+        line: 20
+        column: 5
+        function: fun
+      updates:
+      - variable: ghost_1
+        value: "1"
+        format: c_expression
+    - location:
+        file_name: 50-mutex-ghost-basic-correct.c
+        line: 22
+        column: 5
+        function: fun
+      updates:
+      - variable: ghost_1
+        value: "0"
+        format: c_expression
+    - location:
+        file_name: 50-mutex-ghost-basic-correct.c
+        line: 38
+        column: 5
+        function: fun
+      updates:
+      - variable: ghost_1
+        value: "1"
+        format: c_expression
+    - location:
+        file_name: 50-mutex-ghost-basic-correct.c
+        line: 40
+        column: 5
+        function: fun
+      updates:
+      - variable: ghost_1
+        value: "0"
+        format: c_expression
+    - location:
+        file_name: 50-mutex-ghost-basic-correct.c
+        line: 10
+        column: 5
+        function: fun
+      updates:
+      - variable: ghost_2
+        value: "1"
+        format: c_expression
+    - location:
+        file_name: 50-mutex-ghost-basic-correct.c
+        line: 13
+        column: 5
+        function: main
+      updates:
+      - variable: ghost_2
+        value: "0"
+        format: c_expression
+    - location:
+        file_name: 50-mutex-ghost-basic-correct.c
+        line: 24
+        column: 5
+        function: main
+      updates:
+      - variable: ghost_2
+        value: "1"
+        format: c_expression
+    - location:
+        file_name: 50-mutex-ghost-basic-correct.c
+        line: 26
+        column: 5
+        function: main
+      updates:
+      - variable: ghost_2
+        value: "0"
+        format: c_expression
+    - location:
+        file_name: 50-mutex-ghost-basic-correct.c
+        line: 10
+        column: 5
+        function: fun
+      updates:
+      - variable: ghost_3
+        value: "1"
+        format: c_expression
+    - location:
+        file_name: 50-mutex-ghost-basic-correct.c
+        line: 13
+        column: 5
+        function: main
+      updates:
+      - variable: ghost_3
+        value: "0"
+        format: c_expression
+    - location:
+        file_name: 50-mutex-ghost-basic-correct.c
+        line: 24
+        column: 5
+        function: main
+      updates:
+      - variable: ghost_3
+        value: "1"
+        format: c_expression
+    - location:
+        file_name: 50-mutex-ghost-basic-correct.c
+        line: 26
+        column: 5
+        function: main
+      updates:
+      - variable: ghost_3
+        value: "0"
+        format: c_expression
+- entry_type: invariant_set
+  metadata:
+    format_version: "2.0"
+    uuid: 00000000-0000-0000-0000-000000000034
+    creation_time: 2026-04-21T00:00:00Z
+    producer:
+      name: Test
+      version: "0.0"
+    task:
+      input_files:
+      - 50-mutex-ghost-basic-correct.c
+      input_file_hashes:
+        50-mutex-ghost-basic-correct.c: "0000000000000000000000000000000000000000000000000000000000000000"
+      data_model: LP64
+      language: C
+  content:
+  - invariant:
+      type: location_invariant
+      location:
+        file_name: 50-mutex-ghost-basic-correct.c
+        line: 43
+        column: 5
+        function: main
+      value: "ghost_1 == 1 || g1 == 0"
+      format: c_expression
