@@ -70,6 +70,8 @@ Goblint includes analyses for assertions, overflows, deadlocks, etc and can be e
     conf-gcc ; ensures opam-repository CI installs real gcc from homebrew on MacOS
     domain-local-await
     domain_shims
+    (ocaml-lsp-server :with-dev-setup) ; needed for https://github.com/ocamllabs/vscode-ocaml-platform
+    (ocp-indent :with-dev-setup) ; needed for pre-commit hook
   )
   (depopts
     apron

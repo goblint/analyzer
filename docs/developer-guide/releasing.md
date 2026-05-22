@@ -41,9 +41,9 @@
     1. Pull Docker image: `docker pull ocaml/opam:ubuntu-22.04-ocaml-4.14` (or newer).
     2. Extract distribution archive.
     3. Run Docker container in extracted directory: `docker run -it --rm -v $(pwd):/goblint ocaml/opam:ubuntu-22.04-ocaml-4.14` (or newer).
-    4. Update opam-repository from git: `opam-2.1 repository add git git+https://github.com/ocaml/opam-repository.git && opam-2.1 update`.
+    4. Update opam-repository from git: `opam-2.2 repository add git git+https://github.com/ocaml/opam-repository.git && opam-2.2 update`.
     5. Navigate to distribution archive inside Docker container: `cd /goblint`.
-    6. Install and test package from distribution archive: `opam-2.1 install --with-test .`.
+    6. Install and test package from distribution archive: `opam-2.2 install --with-test .`.
     7. Activate opam environment: `eval $(opam env)`.
     8. Check version: `goblint --version`.
     9. Check that analysis works: `goblint -v tests/regression/04-mutex/01-simple_rc.c`.

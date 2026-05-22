@@ -74,18 +74,15 @@ rule() {
         opam upgrade -y $(opam list --pinned -s)
       }
     ;; setup)
-      echo "Make sure you have the following installed: opam >= 2.0.0, git, patch, m4, autoconf, libgmp-dev, libmpfr-dev, pkg-config"
+      echo "Make sure you have the following installed: opam >= 2.2.0, git, patch, m4, autoconf, libgmp-dev, libmpfr-dev, pkg-config"
       echo "For the --html output you also need: graphviz and python3-pygments (optional)"
       echo "For running the regression tests you also need: ruby, gem, curl, and the os gem"
       echo "For reference see ./Dockerfile or ./scripts/travis-ci.sh"
       opam_setup
     ;; dev)
       eval $(opam env)
-      echo "Installing opam packages for test and doc..."
-      opam install -y . --deps-only --locked --with-test --with-doc
-      echo "Installing opam packages for development..."
-      opam install -y ocaml-lsp-server ocp-indent
-      # ocaml-lsp-server is needed for https://github.com/ocamllabs/vscode-ocaml-platform
+      echo "Installing opam packages for test, doc and dev-setup..."
+      opam install -y . --deps-only --locked --with-test --with-doc --with-dev-setup
       echo "Installing Pre-commit hook..."
       cd .git/hooks; ln -sf ../../scripts/hooks/pre-commit; cd -
       # Use `git commit -n` to temporarily bypass the hook if necessary.
