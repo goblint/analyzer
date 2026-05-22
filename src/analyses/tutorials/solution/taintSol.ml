@@ -151,7 +151,10 @@ struct
     let caller_state = man.local in
     (* TODO: Record whether lval was tainted. *)
     match lval with
-    | Some (Var v,_) when D.mem return_varinfo callee_local -> D.add v caller_state
+    | Some (Var v,_) ->
+      if D.mem return_varinfo callee_local
+      then D.add v caller_state
+      else D.remove v caller_state
     | _ -> caller_state
 
   (* You may leave these alone *)
