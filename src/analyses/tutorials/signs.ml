@@ -4,6 +4,7 @@
 
 open GoblintCil
 open Analyses
+open SimplifiedAnalysis
 
 module Signs =
 struct
@@ -44,18 +45,18 @@ struct
     | _ -> false
 end
 
-module Spec : Analyses.MCPSpec =
+module Spec : SimplifiedSpec =
 struct
-  let name () = "signs"
+  let name = "signs"
+  module V = Printable.Unit
+  module G = Lattice.Unit
 
   (* Map of integers variables to our signs lattice. *)
   module D = MapDomain.MapBot (Basetype.Variables) (SL)
-  include Analyses.ValueContexts(D)
+  module C = D
 
-  let startstate v = D.bot ()
-  let exitstate = startstate
-
-  include Analyses.IdentitySpec
+  let startstate = D.bot ()
+  let startcontext = D.bot ()
 
   (* This should now evaluate expressions. *)
   let eval (d: D.t) (exp: exp): SL.t = match exp with
@@ -67,8 +68,7 @@ struct
 
   (* Transfer functions: we only implement assignments here.
    * You can leave this code alone... *)
-  let assign man (lval:lval) (rval:exp) : D.t =
-    let d = man.local in
+  let assign _ d (lval:lval) (rval:exp) : D.t =
     match lval with
     | (Var x, NoOffset) when not x.vaddrof -> D.add x (eval d rval) d
     | _ -> D.top ()
@@ -79,17 +79,23 @@ struct
     | BinOp (Lt, e1, e2, _) -> SL.lt (eval d e1) (eval d e2)
     | _ -> false
 
-  (* We should now provide this information to Goblint. Assertions are integer expressions,
-   * so we implement here a response to EvalInt queries.
-   * You should definitely leave this alone... *)
-  let query man (type a) (q: a Queries.t): a Queries.result =
+  let query _ state (type a) (q: a Queries.t): a Queries.result =
     let open Queries in
     match q with
-    | EvalInt e when assert_holds man.local e ->
+    | EvalInt e when assert_holds state e ->
       let ik = Cilfacade.get_ikind_exp e in
       ID.of_bool ik true
     | _ -> Result.top q
+
+  let branch _ state (_: exp) (_: bool) = state
+  let body _ state (_: fundec) = state
+  let return _ state (_: exp option) (_: fundec) = state
+  let enter _ state (_: lval option) (_: fundec) (_: exp list) = state
+  let combine _ state (_: D.t) (_: lval option) (_: fundec) (_: exp list) = state
+  let special _ state (_: lval option) (_: varinfo) (_: exp list) = state
+  let context _ ((state: D.t), _) _ _ = state
+  let threadenter _ state _ _ = state
 end
 
 let _ =
-  MCP.register_analysis (module Spec : MCPSpec)
+  MCPRegistry.registered_simplified_analysis (module Spec : SimplifiedSpec)
