@@ -1,46 +1,49 @@
 (** Simplest possible analysis with unit domain ([unit]). *)
 
 open GoblintCil
-open SimplifiedAnalysis
+open Analyses
 
-module Spec : SimplifiedSpec =
+(* module Spec : Analyses.MCPSpec with module D = Lattice.Unit and module C = Printable.Unit and type marshal = unit = *)
+(* No signature so others can override module G *)
+module Spec =
 struct
-  let name = "unit"
-  module V = Printable.Unit
-  module G = Lattice.Unit
+  include Analyses.DefaultSpec
+
+  let name () = "unit"
   module D = Lattice.Unit
   module C = Printable.Unit
 
   (* transfer functions *)
-  let query _ _ (type a) (q: a Queries.t) : a Queries.result =
-    Queries.Result.top q
+  let assign man (lval:lval) (rval:exp) : D.t =
+    man.local
 
-  let assign _ state (_: lval) (_: exp) : D.t =
-    state
+  let branch man (exp:exp) (tv:bool) : D.t =
+    man.local
 
-  let branch _ state (_: exp) (_: bool) : D.t =
-    state
+  let body man (f:fundec) : D.t =
+    man.local
 
-  let body _ state (_: fundec) : D.t =
-    state
+  let return man (exp:exp option) (f:fundec) : D.t =
+    man.local
 
-  let return _ state (_: exp option) (_: fundec) : D.t =
-    state
+  let enter man (lval: lval option) (f:fundec) (args:exp list) : (D.t * D.t) list =
+    [man.local, man.local]
 
-  let enter _ state (_: lval option) (_: fundec) (_: exp list) : D.t =
-    state
+  let combine_env man lval fexp f args fc au f_ask =
+    au
 
-  let combine _ state (_: D.t) (_: lval option) (_: fundec) (_: exp list) : D.t =
-    state
+  let combine_assign man (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) (f_ask: Queries.ask) : D.t =
+    man.local
 
-  let special _ state (_: lval option) (_: varinfo) (_: exp list) : D.t =
-    state
+  let special man (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
+    man.local
 
-  let startcontext = ()
-  let startstate = D.bot ()
-  let context _ (_, c) _ _ = c
-  let threadenter _ _ _ _ = D.top ()
+  let startcontext () = ()
+  let startstate v = D.bot ()
+  let threadenter man ~multiple lval f args = [D.top ()]
+  let threadspawn man ~multiple lval f args fman = man.local
+  let exitstate  v = D.top ()
 end
 
 let _ =
-  MCPRegistry.registered_simplified_analysis (module Spec : SimplifiedSpec)
+  MCP.register_analysis (module Spec : MCPSpec)
