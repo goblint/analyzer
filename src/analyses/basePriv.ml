@@ -747,15 +747,23 @@ struct
           match lock with
           | `Left mutex ->
             if Locksets.((MustLockset.mem mutex (current_lockset ask))) then
-              (* Do not propagate to next phase here already, unlock will propagate appropriate value *)
-              ()
+              let will_side_on_unlock = W.exists (is_protected_by ~protection:Weak ask mutex) w in
+              if will_side_on_unlock then
+                (* Do not propagate to next phase here already, unlock will propagate appropriate value *)
+                ()
+              else
+                (* Propagate here, as a later unlock may or may not trigger a side-effect here *)
+                (* TODO: To improve precision, we could also consider adding things to W here? *)
+                sideg (V.mutex mutex) (G.create_mutex sideval)
             else
               sideg (V.mutex mutex) (G.create_mutex sideval)
           | `Right g ->
-            (* Publishing here is unconditional,  *)
+            (* Publishing here is unconditional, should this be like this *)
             sideg (V.global g) (G.create_global sideval)
         in
         L.iter publish_l l;
+        (* Actually, we need to propagate only contributions form _other_ threads here *)
+        (* If I am doing the join optimization, I need not publish to unknowns of threads that are must-joined *)
         let publish_others l (lock:LLock.t) =
           let other_map = getg (V.mutex l) in
           let mtx = G.mutex other_map in
