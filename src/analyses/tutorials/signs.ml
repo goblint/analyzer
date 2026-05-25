@@ -47,6 +47,8 @@ end
 
 module Spec : SimplifiedSpec =
 struct
+  include SimplifiedUnitAnalysis.DefaultSpec
+
   let name = "signs"
   module V = Printable.Unit
   module G = Lattice.Unit
@@ -87,14 +89,7 @@ struct
       ID.of_bool ik true
     | _ -> Result.top q
 
-  let branch _ state (_: exp) (_: bool) = state
-  let body _ state (_: fundec) = state
-  let return _ state (_: exp option) (_: fundec) = state
-  let enter _ state (_: lval option) (_: fundec) (_: exp list) = state
-  let combine _ state (_: D.t) (_: lval option) (_: fundec) (_: exp list) = state
-  let special _ state (_: lval option) (_: varinfo) (_: exp list) = state
   let context _ ((state: D.t), _) _ _ = state
-  let threadenter _ state _ _ = state
 end
 
 let _ =
