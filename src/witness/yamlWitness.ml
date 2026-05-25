@@ -451,12 +451,12 @@ end
     assignment instructions to insert after the original instruction at that
     location. The original
     instruction together with the ghost update assignments are wrapped in
-    [__VERIFIER_atomic_begin()] / [__VERIFIER_atomic_end()]:
+    [__VERIFIER_atomic_instrument_begin()] / [__VERIFIER_atomic_instrument_end()]:
     {[
-      __VERIFIER_atomic_begin();
+      __VERIFIER_atomic_instrument_begin();
       originalstatement;
       ghostupdate;
-      __VERIFIER_atomic_end();
+      __VERIFIER_atomic_instrument_end();
     ]}
     [placed] is populated with every location from [updates] that was successfully
     matched; callers can use this to warn about unmatched keys. *)
@@ -475,10 +475,10 @@ class ghostUpdateVisitor (updates : Cil.instr list GhostUpdateLocationH.t) (plac
                 | None | Some [] -> [instr]
                 | Some update_instrs ->
                   GhostUpdateLocationH.replace placed loc ();
-                  let abegin = Formatcil.cInstr "%v:__VERIFIER_atomic_begin();" loc
-                      [("__VERIFIER_atomic_begin", Cil.Fv atomic_begin)] in
-                  let aend = Formatcil.cInstr "%v:__VERIFIER_atomic_end();" loc
-                      [("__VERIFIER_atomic_end", Cil.Fv atomic_end)] in
+                  let abegin = Formatcil.cInstr "%v:__VERIFIER_atomic_instrument_begin();" loc
+                      [("__VERIFIER_atomic_instrument_begin", Cil.Fv atomic_begin)] in
+                  let aend = Formatcil.cInstr "%v:__VERIFIER_atomic_instrument_end();" loc
+                      [("__VERIFIER_atomic_instrument_end", Cil.Fv atomic_end)] in
                   abegin :: instr :: update_instrs @ [aend])
            ) il in
          s.skind <- Instr new_il
@@ -650,8 +650,8 @@ let init () =
         | Some v -> v
         | None -> makeVarinfo true name (TFun (TVoid [], Some [], false, []))
       in
-      let atomic_begin = find_or_make "__VERIFIER_atomic_begin" in
-      let atomic_end = find_or_make "__VERIFIER_atomic_end" in
+      let atomic_begin = find_or_make "__VERIFIER_atomic_instrument_begin" in
+      let atomic_end = find_or_make "__VERIFIER_atomic_instrument_end" in
       let placed : unit GhostUpdateLocationH.t = GhostUpdateLocationH.create 16 in
       visitCilFile (new ghostUpdateVisitor updates placed atomic_begin atomic_end) file;
       GhostUpdateLocationH.iter (fun loc _ ->

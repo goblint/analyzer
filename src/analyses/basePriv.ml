@@ -15,6 +15,18 @@ module VarQuery = Goblint_constraint.VarQuery
 
 open CommonPriv
 
+let is_verifier_atomic_lock m =
+  LockDomain.MustLock.equal m (LockDomain.MustLock.of_var LibraryFunctions.verifier_atomic_var)
+  || LockDomain.MustLock.equal m (LockDomain.MustLock.of_var LibraryFunctions.verifier_atomic_instrument_var)
+
+let is_last_verifier_atomic_unlock ask m =
+  if LockDomain.MustLock.equal m (LockDomain.MustLock.of_var LibraryFunctions.verifier_atomic_var) then
+    not (LockDomain.MustLockset.mem (LockDomain.MustLock.of_var LibraryFunctions.verifier_atomic_instrument_var) (ask Q.MustLockset))
+  else if LockDomain.MustLock.equal m (LockDomain.MustLock.of_var LibraryFunctions.verifier_atomic_instrument_var) then
+    not (LockDomain.MustLockset.mem (LockDomain.MustLock.of_var LibraryFunctions.verifier_atomic_var) (ask Q.MustLockset))
+  else
+    true
+
 
 module type S =
 sig
@@ -380,7 +392,7 @@ struct
 
   let invariant_global (ask: Q.ask) getg = function
     | `Left m' -> (* mutex *)
-      let atomic = LockDomain.MustLock.equal m' (LockDomain.MustLock.of_var LibraryFunctions.verifier_atomic_var) in
+      let atomic = is_verifier_atomic_lock m' in
       if atomic || ask.f (GhostVarAvailable (Locked m')) then (
         let cpa = get_m_with_mutex_inits ask getg m' in (* Could be more precise if mutex_inits invariant is added by disjunction instead of joining abstract values. *)
         let inv = CPA.fold (fun v _ acc ->
@@ -861,7 +873,7 @@ struct
          but conjunction is unsound when one of the mutexes is temporarily unlocked.
          Hypothetical read-protection is also somehow relevant. *)
       LockDomain.MustLockset.fold (fun m acc ->
-          if LockDomain.MustLock.equal m (LockDomain.MustLock.of_var LibraryFunctions.verifier_atomic_var) then
+          if is_verifier_atomic_lock m then
             acc
           else if ask.f (GhostVarAvailable (Locked m)) then (
             let var = WitnessGhost.to_varinfo (Locked m) in
@@ -993,10 +1005,11 @@ struct
 
   let unlock ask getg sideg (st: BaseComponents (D).t) m =
     let sideg = Wrapper.sideg ask sideg in
-    let atomic = Param.handle_atomic && LockDomain.MustLock.equal m (LockDomain.MustLock.of_var LibraryFunctions.verifier_atomic_var) in
+    let atomic = Param.handle_atomic && is_verifier_atomic_lock m in
+    let atomic_publish = atomic && is_last_verifier_atomic_unlock ask.f m in
     (* TODO: what about G_m globals in cpa that weren't actually written? *)
     CPA.fold (fun x v (st: BaseComponents (D).t) ->
-        if (atomic && is_global ask x && not (VD.is_immediate_type x.vtype)) || is_protected_by ask m x then ( (* is_in_Gm *)
+        if (atomic_publish && is_global ask x && not (VD.is_immediate_type x.vtype)) || is_protected_by ask m x then ( (* is_in_Gm *)
           (* Only apply sides for values that were actually written to globals!
              This excludes invariants inferred through guards. *)
           begin match D.precise_side x v st.priv with
@@ -1006,7 +1019,7 @@ struct
                    then inner unlock shouldn't yet publish. *)
                 if not Param.check_read_unprotected || is_unprotected_without ask ~kind:ReadWrite x m then
                   sideg (V.protected x) v;
-                if atomic then
+                if atomic_publish then
                   sideg (V.unprotected x) v; (* Publish delayed unprotected write as if it were protected by the atomic section. *)
               end
             | None -> ()
@@ -1149,7 +1162,7 @@ struct
            but conjunction is unsound when one of the mutexes is temporarily unlocked.
            Hypothetical read-protection is also somehow relevant. *)
         LockDomain.MustLockset.fold (fun m acc ->
-            if LockDomain.MustLock.equal m (LockDomain.MustLock.of_var LibraryFunctions.verifier_atomic_var) then
+            if is_verifier_atomic_lock m then
               acc
             else if ask.f (GhostVarAvailable (Locked m)) then (
               let var = WitnessGhost.to_varinfo (Locked m) in

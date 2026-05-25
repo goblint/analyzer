@@ -1126,12 +1126,16 @@ let math_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
 
 let verifier_atomic_var = Cilfacade.create_var (makeGlobalVar "[__VERIFIER_atomic]" voidType)
 let verifier_atomic = AddrOf (Cil.var (Cilfacade.create_var verifier_atomic_var))
+let verifier_atomic_instrument_var = Cilfacade.create_var (makeGlobalVar "[__VERIFIER_atomic_instrument]" voidType)
+let verifier_atomic_instrument = AddrOf (Cil.var (Cilfacade.create_var verifier_atomic_instrument_var))
 
 (** SV-COMP functions.
     Just the ones that require special handling and cannot be stubbed. *)
 let svcomp_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("__VERIFIER_atomic_begin", special [] @@ Lock { lock = verifier_atomic; try_ = false; write = true; return_on_success = true });
     ("__VERIFIER_atomic_end", special [] @@ Unlock verifier_atomic);
+    ("__VERIFIER_atomic_instrument_begin", special [] @@ Lock { lock = verifier_atomic_instrument; try_ = false; write = true; return_on_success = true });
+    ("__VERIFIER_atomic_instrument_end", special [] @@ Unlock verifier_atomic_instrument);
     ("__VERIFIER_nondet_loff_t", unknown []); (* cannot give it in sv-comp.c without including stdlib or similar *)
     ("__VERIFIER_nondet_int", unknown []);  (* declare invalidate actions to prevent invalidating globals when extern in regression tests *)
     ("__VERIFIER_nondet_size_t", unknown []); (* cannot give it in sv-comp.c without including stdlib or similar *)

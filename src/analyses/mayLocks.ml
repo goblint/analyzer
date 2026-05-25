@@ -10,6 +10,17 @@ struct
   module G = DefaultSpec.G
   module V = DefaultSpec.V
 
+  let verifier_atomic_addr = LockDomain.Addr.of_var LF.verifier_atomic_var
+  let verifier_atomic_instrument_addr = LockDomain.Addr.of_var LF.verifier_atomic_instrument_var
+
+  let atomic_counterpart_held l s =
+    if D.Addr.equal l verifier_atomic_addr then
+      D.mem verifier_atomic_instrument_addr s
+    else if D.Addr.equal l verifier_atomic_instrument_addr then
+      D.mem verifier_atomic_addr s
+    else
+      false
+
   let add man (l,r) =
     if D.mem l man.local then
       let default () =
@@ -30,14 +41,18 @@ struct
       D.add l man.local
 
   let remove man l =
-    if not (D.mem l man.local) then M.error "Releasing a mutex that is definitely not held";
-    match D.Addr.to_mval l with
-    | Some (v,o) ->
-      (let mtype = man.ask (Queries.MutexType (v, Offset.Unit.of_offs o)) in
-       match mtype with
-       | `Lifted MutexAttrDomain.MutexKind.NonRec -> D.remove l man.local
-       | _ -> man.local (* we cannot remove them here *))
-    | None -> man.local (* we cannot remove them here *)
+    if not (D.mem l man.local) && atomic_counterpart_held l man.local then
+      man.local
+    else (
+      if not (D.mem l man.local) then M.error "Releasing a mutex that is definitely not held";
+      match D.Addr.to_mval l with
+      | Some (v,o) ->
+        (let mtype = man.ask (Queries.MutexType (v, Offset.Unit.of_offs o)) in
+         match mtype with
+         | `Lifted MutexAttrDomain.MutexKind.NonRec -> D.remove l man.local
+         | _ -> man.local (* we cannot remove them here *))
+      | None -> man.local (* we cannot remove them here *)
+    )
 end
 
 module Spec =

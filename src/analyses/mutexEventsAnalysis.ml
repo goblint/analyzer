@@ -51,12 +51,18 @@ struct
 
   let return man exp fundec : D.t =
     (* deprecated but still valid SV-COMP convention for atomic block *)
-    if get_bool "ana.sv-comp.functions" && String.starts_with fundec.svar.vname ~prefix:"__VERIFIER_atomic_" then
+    if get_bool "ana.sv-comp.functions"
+    && String.starts_with fundec.svar.vname ~prefix:"__VERIFIER_atomic_"
+    && not (String.starts_with fundec.svar.vname ~prefix:"__VERIFIER_atomic_instrument_")
+    then
       man.emit (Events.Unlock (LockDomain.Addr.of_var LF.verifier_atomic_var))
 
   let body man f : D.t =
     (* deprecated but still valid SV-COMP convention for atomic block *)
-    if get_bool "ana.sv-comp.functions" && String.starts_with f.svar.vname ~prefix:"__VERIFIER_atomic_" then
+    if get_bool "ana.sv-comp.functions"
+    && String.starts_with f.svar.vname ~prefix:"__VERIFIER_atomic_"
+    && not (String.starts_with f.svar.vname ~prefix:"__VERIFIER_atomic_instrument_")
+    then
       man.emit (Events.Lock (LockDomain.Addr.of_var LF.verifier_atomic_var, true))
 
   let special (man: (unit, _, _, _) man) lv f arglist : D.t =

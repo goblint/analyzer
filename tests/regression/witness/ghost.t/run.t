@@ -5,11 +5,11 @@ Ghost variables declared in a YAML witness are injected into the CIL file before
 
 Ghost updates from a YAML witness are inserted after the matching statement, wrapped in atomic blocks:
 
-  $ goblint --enable justcil --set dbg.justcil-printer clean --set witness.yaml.validate ghost-update.yml ghost-update.c | grep -E "atomic_begin|x = 1|g_var = 1|atomic_end|x = 2"
-    __VERIFIER_atomic_begin();
+  $ goblint --enable justcil --set dbg.justcil-printer clean --set witness.yaml.validate ghost-update.yml ghost-update.c | grep -E "atomic_instrument_begin|x = 1|g_var = 1|atomic_instrument_end|x = 2"
+    __VERIFIER_atomic_instrument_begin();
     x = 1;
     g_var = 1;
-    __VERIFIER_atomic_end();
+    __VERIFIER_atomic_instrument_end();
     x = 2;
 
 A ghost update at a line with no matching instruction produces a warning:
