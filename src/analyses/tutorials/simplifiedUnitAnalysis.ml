@@ -23,8 +23,8 @@ struct
   let enter _ state (_: lval option) (_: fundec) (_: exp list) =
     state
 
-  let combine _ state _ (_: lval option) (_: fundec) (_: exp list) =
-    state
+  let combine _ _ callee_local (_: lval option) (_: fundec) (_: exp list) =
+    callee_local
 
   let special _ state (_: lval option) (_: varinfo) (_: exp list) =
     state
