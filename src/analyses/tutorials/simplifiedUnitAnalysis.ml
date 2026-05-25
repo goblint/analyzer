@@ -28,9 +28,6 @@ struct
 
   let special _ state (_: lval option) (_: varinfo) (_: exp list) =
     state
-
-  let context _ (_, c) _ _ = c
-  let threadenter _ state _ _ = state
 end
 
 module Spec : SimplifiedSpec =
@@ -45,6 +42,7 @@ struct
 
   let startstate = D.bot ()
   let startcontext = ()
+  let context _ (_, c) _ _ = c
   let threadenter _ _ _ _ = D.top ()
 end
 

@@ -92,6 +92,7 @@ struct
     | _ -> Result.top q
 
   let context _ ((state: D.t), _) _ _ = state
+  let threadenter _ state _ _ = state
 end
 
 let _ =
