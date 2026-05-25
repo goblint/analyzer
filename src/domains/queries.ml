@@ -95,6 +95,10 @@ type invariant_context = Invariant.context = {
 
 module YS = SetDomain.ToppedSet (YamlWitnessType.Entry) (struct let topname = "Top" end)
 
+module CL = MapDomain.MapBot_LiftTop (ThreadIdDomain.Thread) (LockDomain.MustLockset)
+
+module LH = MapDomain.MapTop (LockDomain.MustLock) (SetDomain.Reverse (ConcDomain.ThreadSet))
+
 
 (** GADT for queries with specific result type. *)
 type _ t =
@@ -103,13 +107,13 @@ type _ t =
   | ReachableFrom: exp -> AD.t t
   | ReachableUkTypes: exp -> TS.t t
   | Regions: exp -> LS.t t
-  | MayEscape: varinfo -> MayBool.t t
+  | MayEscape: varinfo -> MayBool.t t (** Use via {!ThreadEscape.has_escaped}. *)
   | MayBePublic: maybepublic -> MayBool.t t (* old behavior with write=false *)
   | MayBePublicWithout: maybepublicwithout -> MayBool.t t
   | MustBeProtectedBy: mustbeprotectedby -> MustBool.t t
   | MustLockset: LockDomain.MustLockset.t t
   | MustBeAtomic: MustBool.t t
-  | MustBeSingleThreaded: {since_start: bool} -> MustBool.t t
+  | MustBeSingleThreaded: {since_start: bool} -> MustBool.t t (** Use via {!ThreadFlag.is_currently_multi} and {!ThreadFlag.has_ever_been_multi}. *)
   | MustBeUniqueThread: MustBool.t t
   | CurrentThreadId: ThreadIdDomain.ThreadLifted.t t
   | Owner: varinfo -> ThreadIdDomain.ThreadLifted.t t
@@ -169,6 +173,9 @@ type _ t =
   | IsPhaseGhost: varinfo -> MustBool.t t
   | InvariantGlobalNodes: NS.t t (** Nodes where YAML witness flow-insensitive invariants should be emitted as location invariants (if [witness.invariant.flow_insensitive-as] is configured to do so). *) (* [Spec.V.t] argument (as [Obj.t]) could be added, if this should be different for different flow-insensitive invariants. *)
   | DescendantThreads: ThreadIdDomain.Thread.t -> ConcDomain.ThreadSet.t t
+  | CreationLockset: ThreadIdDomain.Thread.t -> CL.t t
+  | MustlockHistory: LH.t t
+  | TutorialEffectivelyLocal: varinfo -> MustBool.t t (** Used in tutorial for effectively local variables. *)
 
 type 'a result = 'a
 
@@ -249,6 +256,9 @@ struct
     | IsPhaseGhost _ -> (module MustBool)
     | InvariantGlobalNodes -> (module NS)
     | DescendantThreads _ -> (module ConcDomain.ThreadSet)
+    | CreationLockset _ -> (module CL)
+    | MustlockHistory -> (module LH)
+    | TutorialEffectivelyLocal _ -> (module MustBool)
 
   (** Get bottom result for query. *)
   let bot (type a) (q: a t): a result =
@@ -328,6 +338,9 @@ struct
     | IsPhaseGhost _ -> MustBool.top ()
     | InvariantGlobalNodes -> NS.top ()
     | DescendantThreads _ -> ConcDomain.ThreadSet.top ()
+    | CreationLockset _ -> CL.top ()
+    | MustlockHistory -> LH.top ()
+    | TutorialEffectivelyLocal _ -> MustBool.top ()
 end
 
 (* The type any_query can't be directly defined in Any as t,
@@ -338,72 +351,18 @@ module Any =
 struct
   type t = any_query
 
+  let order (Any q) =
+    (* This is very type-unsafe, but it's less error-prone than manual numbering. *)
+    let o = Obj.repr q in
+    if Obj.is_block o then (* queries with arguments *)
+      Obj.tag o (* Tags of queries with arguments are numbered up from 0 (only among queries with arguments!). *)
+    else (* queries without arguments *)
+      (* Values of queries without arguments are numbered up from 0 (only among queries without arguments!).
+         To avoid conflicts with queries with arguments, flip these to be negative instead.
+         Also subtract 1 to avoid conflict between tag 0 and value 0. *)
+      -(Obj.obj o: int) - 1
+
   (* deriving ord doesn't work for GADTs (t and any_query) so this must be done manually... *)
-  let order = function
-    | Any (EqualSet _) -> 0
-    | Any (MayPointTo _) -> 1
-    | Any (ReachableFrom _) -> 2
-    | Any (ReachableUkTypes _) -> 3
-    | Any (Regions _) -> 4
-    | Any (MayEscape _) -> 5
-    | Any (MayBePublic _) -> 7
-    | Any (MayBePublicWithout _) -> 8
-    | Any (MustBeProtectedBy _) -> 9
-    | Any MustLockset -> 10
-    | Any MustBeAtomic -> 11
-    | Any (MustBeSingleThreaded _)-> 12
-    | Any MustBeUniqueThread -> 13
-    | Any CurrentThreadId -> 14
-    | Any (Owner _) -> 15
-    | Any MayBeThreadReturn -> 16
-    | Any (EvalFunvar _) -> 17
-    | Any (EvalInt _) -> 18
-    | Any (EvalStr _) -> 19
-    | Any (EvalLength _) -> 20
-    | Any (BlobSize _) -> 21
-    | Any (CondVars _) -> 22
-    | Any (PartAccess _) -> 23
-    | Any (IterPrevVars _) -> 24
-    | Any (IterVars _) -> 25
-    | Any (AllocVar _) -> 29
-    | Any AllocVars -> 67
-    | Any (IsHeapVar _) -> 30
-    | Any (IsMultiple _) -> 31
-    | Any (EvalThread _) -> 32
-    | Any CreatedThreads -> 33
-    | Any MustJoinedThreads -> 34
-    | Any (WarnGlobal _) -> 35
-    | Any (Invariant _) -> 36
-    | Any (IterSysVars _) -> 37
-    | Any (InvariantGlobal _) -> 38
-    | Any (MustProtectedVars _) -> 39
-    | Any MayAccessed -> 40
-    | Any MayBeTainted -> 41
-    | Any (PathQuery _) -> 42
-    | Any DYojson -> 43
-    | Any (EvalValue _) -> 44
-    | Any (EvalJumpBuf _) -> 45
-    | Any ActiveJumpBuf -> 46
-    | Any ValidLongJmp -> 47
-    | Any (MayBeModifiedSinceSetjmp _) -> 48
-    | Any (MutexType _) -> 49
-    | Any (EvalMutexAttr _ ) -> 50
-    | Any ThreadCreateIndexedNode -> 51
-    | Any ThreadsJoinedCleanly -> 52
-    | Any (MustTermLoop _) -> 53
-    | Any MustTermAllLoops -> 54
-    | Any IsEverMultiThreaded -> 55
-    | Any (TmpSpecial _) -> 56
-    | Any (IsAllocVar _) -> 57
-    | Any (MaySignedOverflow _) -> 58
-    | Any (GasExhausted _) -> 59
-    | Any (YamlEntryGlobal _) -> 60
-    | Any (MustProtectingLocks _) -> 61
-    | Any (GhostVarAvailable _) -> 62
-    | Any (IsPhaseGhost _) -> 63
-    | Any InvariantGlobalNodes -> 64
-    | Any (DescendantThreads _) -> 65
-    | Any PhaseDigest -> 66
 
   let rec compare a b =
     let r = Stdlib.compare (order a) (order b) in
@@ -466,6 +425,8 @@ struct
       | Any (GhostVarAvailable v1), Any (GhostVarAvailable v2) -> WitnessGhostVar.compare v1 v2
       | Any (IsPhaseGhost v1), Any (IsPhaseGhost v2) -> CilType.Varinfo.compare v1 v2
       | Any (DescendantThreads t1), Any (DescendantThreads t2) -> ThreadIdDomain.Thread.compare t1 t2
+      | Any (CreationLockset t1), Any (CreationLockset t2) -> ThreadIdDomain.Thread.compare t1 t2
+      | Any (TutorialEffectivelyLocal v1), Any (TutorialEffectivelyLocal v2) -> CilType.Varinfo.compare v1 v2
       (* only argumentless queries should remain *)
       | _, _ -> Stdlib.compare (order a) (order b)
 
@@ -517,6 +478,7 @@ struct
     | Any (GhostVarAvailable v) -> WitnessGhostVar.hash v
     | Any (IsPhaseGhost v) -> CilType.Varinfo.hash v
     | Any (DescendantThreads t) -> ThreadIdDomain.Thread.hash t
+    | Any (CreationLockset t) -> ThreadIdDomain.Thread.hash t
     (* IterSysVars:                                                                    *)
     (*   - argument is a function and functions cannot be compared in any meaningful way. *)
     (*   - doesn't matter because IterSysVars is always queried from outside of the analysis, so MCP's query caching is not done for it. *)
@@ -590,6 +552,9 @@ struct
     | Any InvariantGlobalNodes -> Pretty.dprintf "InvariantGlobalNodes"
     | Any (DescendantThreads t) -> Pretty.dprintf "DescendantThreads %a" ThreadIdDomain.Thread.pretty t
     | Any PhaseDigest -> Pretty.dprintf "PhaseDigest"
+    | Any (CreationLockset t) -> Pretty.dprintf "CreationLockset %a" ThreadIdDomain.Thread.pretty t
+    | Any (MustlockHistory) -> Pretty.dprintf "MustlockHistory"
+    | Any (TutorialEffectivelyLocal v) -> Pretty.dprintf "TutorialEffectivelyLocal %a" CilType.Varinfo.pretty v
 end
 
 let to_value_domain_ask (ask: ask) =

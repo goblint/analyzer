@@ -16,8 +16,8 @@
     unsafe: 0
     total memory locations: 4
 
-  $ (yamlWitnessStrip < witness.yml) > new-stripped.yml
-  $ ./strip-ghost-alloc.sh new-stripped.yml
+  $ ./66-ghost-alloc-lock-strip.sh witness.yml > stripped.yml
+  $ yamlWitnessStrip < stripped.yml
   - entry_type: ghost_instrumentation
     content:
       ghost_variables:

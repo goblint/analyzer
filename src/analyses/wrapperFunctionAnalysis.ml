@@ -40,6 +40,7 @@ struct
   end
 
   module UniqueCount = UniqueCount
+  module WrapperArgs = WrapperArgs
 
   (* Map for counting function call node visits up to n (of the current thread). *)
   module UniqueCallCounter =
@@ -110,7 +111,7 @@ struct
 end
 
 
-module MallocWrapper : MCPSpec = struct
+module MallocWrapper = struct
 
   include SpecBase
       (MallocUniqueCount)
@@ -118,7 +119,7 @@ module MallocWrapper : MCPSpec = struct
         let wrappers () = get_string_list "ana.malloc.wrappers"
 
         let is_wrapped = function
-          | LibraryDesc.(Malloc _ | Calloc _ | Realloc _) -> true
+          | LibraryDesc.(Malloc _ | Calloc _ | Realloc _) -> true (* No Alloca because alloca variables are out of scope and invalid when returned from a wrapper anyway. *)
           | _ -> false
       end)
 
@@ -180,7 +181,7 @@ module MallocWrapper : MCPSpec = struct
                              | `Lifted tid -> not (Thread.is_unique tid)
                              | _ ->
                                (* The thread analysis may be completely disabled; in this case we fall back on checking whether the program has been single threaded since start *)
-                               not (man.ask (Q.MustBeSingleThreaded {since_start = true}))
+                               ThreadFlag.has_ever_been_multi (Analyses.ask_of_man man)
                             )
         | None -> false
       end
@@ -198,7 +199,7 @@ module MallocWrapper : MCPSpec = struct
 end
 
 
-module ThreadCreateWrapper : MCPSpec = struct
+module ThreadCreateWrapper = struct
 
   include SpecBase
       (ThreadCreateUniqueCount)

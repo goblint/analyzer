@@ -170,7 +170,7 @@ module Enums : S with type int_t = Z.t = struct
         (* Check that the xs fit into the range r  *)
         Z.compare min_b min_a <= 0 && Z.compare max_a max_b <= 0 &&
         (* && check that none of the values contained in xs is excluded, i.e. contained in ys. *)
-        BISet.for_all (fun x -> not (BISet.mem x ys)) xs
+        BISet.disjoint xs ys
     | Inc xs, Inc ys ->
       BISet.subset xs ys
     | Exc (xs, r), Exc (ys, s) ->
@@ -339,8 +339,8 @@ module Enums : S with type int_t = Z.t = struct
     | Inc e when BISet.is_empty e -> None
     | Exc (e,_) when BISet.is_empty e -> None
     | Inc zero when BISet.is_singleton zero && BISet.choose zero = Z.zero -> Some false
-    | Inc xs when BISet.for_all ((<>) Z.zero) xs -> Some true
-    | Exc (xs,_) when BISet.exists ((=) Z.zero) xs -> Some true
+    | Inc xs when not (BISet.mem Z.zero xs) -> Some true
+    | Exc (xs,_) when BISet.mem Z.zero xs -> Some true
     | _ -> None
   let to_int = function Inc x when BISet.is_singleton x -> Some (BISet.choose x) | _ -> None
 

@@ -7,13 +7,14 @@ extern void __VERIFIER_atomic_end();
 
 int g;
 
-void fun() {
+void* fun(void* arg) {
     g = 1;
+    return NULL;
 }
 
 int main(void) {
     pthread_t thread;
-    pthread_create(&thread, NULL, (void*)fun, NULL);
+    pthread_create(&thread, NULL, fun, NULL);
 
     __VERIFIER_atomic_begin();
     g = 1;

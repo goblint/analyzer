@@ -103,7 +103,7 @@ struct
       let old_val = get_var ~man st var in
       let old_val = map_oldval old_val var.vtype in
       let offs = convert_offset ~man st o in
-      let new_val = VD.update_offset (Queries.to_value_domain_ask (Analyses.ask_of_man man)) old_val offs c' (Some exp) x (var.vtype) in
+      let new_val = VD.update_offset (Queries.to_value_domain_ask (Analyses.ask_of_man man)) old_val offs c' (Some exp) x (Cilfacade.typeOfLval x) in
       let v = apply_invariant ~old_val ~new_val in
       if is_some_bot v then contra st
       else (
@@ -293,12 +293,9 @@ struct
     let inv_bin_int (a, b) ikind c op =
       let warn_and_top_on_zero x =
         if ID.equal_to Z.zero x = `Eq then
-          (M.error ~category:M.Category.Integer.div_by_zero ~tags:[CWE 369] "Must Undefined Behavior: Second argument of div or mod is 0, continuing with top";
-           Checks.error Checks.Category.DivisionByZero "Must Undefined Behavior: Second argument of div or mod is 0, continuing with top";
-           ID.top_of ikind)
-        else (
-          Checks.safe Checks.Category.DivisionByZero;
-          x)
+          ID.top_of ikind
+        else
+          x
       in
       let meet_bin a' b'  = id_meet_down ~old:a ~c:a', id_meet_down ~old:b ~c:b' in
       let meet_com oi = (* commutative *)

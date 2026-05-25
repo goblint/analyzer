@@ -1,4 +1,6 @@
 // PARAM: --enable ana.int.interval --set ana.base.arrays.domain partitioned  --set ana.base.partition-arrays.keep-expr "last"
+#include <stdlib.h>
+#include <stdio.h>
 #include <goblint.h>
 
 int main(void) {

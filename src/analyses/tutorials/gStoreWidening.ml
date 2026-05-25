@@ -1,0 +1,301 @@
+open GoblintCil
+open SimplifiedAnalysis
+open GStoreWideningHelper
+
+(**
+   This analysis proceeds in steps, with the steps building on each other.
+
+   For the sake of this analysis, we are assuming that all variables are of integer type.
+   This allows us to keep the analysis simple in the beginning.
+
+
+   1) First, a simple  interval analysis is implemented which tracks intervals
+     for local variables only.
+
+    The majority of the code is already provided, there is one place where
+    changes need to be made, namely the handling of branches.
+    It is marked with TODO: 1).
+
+   2) Then the analysis is extended to also track values for globals via global store widening
+
+    To this end, one should fix which set of globals to track, and their domain.
+    Then, assignment and evaluation functions should be changed appropriately.
+    These are marked with TODO: 2).
+
+   3) Define a helper analysis which tracks for each variable which thread ids are used to write to it,
+    and use this information to determine whether a variable is effectively local
+    (i.e., only written by one thread).
+
+    This requires modifying the domain to store thread ids, and modifying the assign function
+    to record thread ids for global variables.
+    Then, the query function should be modified to check whether there is only one thread
+    accessing this variable, and whether it is the current one.
+    These are marked with TODO: 3).
+
+   4) Modify the first analysis to exploit the information from the helper analysis to
+     track the values of effectively local variables more precisely in the thread that
+     owns them, while keeping applying global store widening to obtain the perspective
+     of other threads.
+
+     This will amount to modifying some of the places changed in step 2)
+
+
+   After modifying things, don't forget to compile by running `make`
+
+    There are regression tests for this analysis, which you can run by calling:
+   -  ./regtest.sh 99 05
+   -  ./regtest.sh 99 06
+   -  ./regtest.sh 99 07
+
+   After fixing the TODO: 1), the first regression test should pass.
+   After fixing the TODO: 2), both the first and the second tests should pass.
+   After fixing the last TODO:, all three tests should pass
+
+   Running a regression test also produces a visualization of the analysis results as a HTML file in the folder
+   result.
+
+   You can access these by spinning up a HTTP server for the result directory,
+   e.g., by calling `python3 -m http.server --directory result`.
+   Then open `index.xml` in your browser.
+
+   (When using devcontainer, VSCode will automatically detect the server and
+   provide a link to open the visualization in your browser.)
+
+*)
+
+
+module GStoreWideningAnalysis: SimplifiedSpec = struct
+  let name = "gStoreWidening"
+
+  module I = GStoreWideningHelper.Intervals
+
+  module D = MapDomain.MapBot (Basetype.Variables) (I)
+  module C = Printable.Unit
+
+  (** TODO: 2) Modify so that we store values for globals instead of always assuming they are top *)
+  module V = Printable.Unit
+  module G = Lattice.Unit
+
+  let startstate = D.bot ()
+  let startcontext = ()
+
+  (* Evaluate a single variable given a local state *)
+  let eval_varinfo man state v =
+    if v.vglob then
+      (* TODO: 2) Modify so that we get values for globals *)
+      top_of_var v
+    else
+      D.find v state
+
+  (* evaluate an expression given a local state, can remain unmodified *)
+  let rec eval man (state: D.t) (e: exp) =
+    try
+      match e with
+      | Const (CInt (i, ik, _)) ->
+        const_int ik i
+      | Lval (Var v, NoOffset) when GStoreWideningHelper.is_tracked_var v ->
+        eval_varinfo man state v
+      | CastE (_, t, e) ->
+        cast_to_typ t (eval man state e)
+      | UnOp (Neg, e, t) ->
+        I.neg (cast_to_typ t (eval man state e))
+      | UnOp (BNot, e, t) ->
+        I.lognot (cast_to_typ t (eval man state e))
+      | UnOp (LNot, e, t) ->
+        begin match I.to_bool (eval man state e) with
+          | Some b -> I.of_bool (ikind_of_typ t) (not b)
+          | None -> top_of_typ t
+        end
+      | BinOp (op, e1, e2, t) ->
+        eval_binop man state op e1 e2 t
+      | _ ->
+        top_of_exp e
+    with
+    | IntDomain.ArithmeticOnIntegerBot _
+    | IntDomain.IncompatibleIKinds _
+    | Cilfacade.TypeOfError _ ->
+      top_of_exp e
+
+  (* evaluation of binary operators, can remain unmodified *)
+  and eval_binop man state op e1 e2 t =
+    let ik = ikind_of_typ t in
+    let v1 = cast_to_typ t (eval man state e1) in
+    let v2 = cast_to_typ t (eval man state e2) in
+    match op with
+    | PlusA | PlusPI | IndexPI ->
+      I.add v1 v2
+    | MinusA | MinusPI | MinusPP ->
+      I.sub v1 v2
+    | Mult ->
+      I.mul v1 v2
+    | Div ->
+      I.div v1 v2
+    | Mod ->
+      I.rem v1 v2
+    | BAnd ->
+      I.logand v1 v2
+    | BOr ->
+      I.logor v1 v2
+    | BXor ->
+      I.logxor v1 v2
+    | Shiftlt ->
+      I.shift_left v1 v2
+    | Shiftrt ->
+      I.shift_right v1 v2
+    | Lt | Gt | Le | Ge | Eq | Ne ->
+      let cmp =
+        match op with
+        | Lt -> I.lt v1 v2
+        | Gt -> I.gt v1 v2
+        | Le -> I.le v1 v2
+        | Ge -> I.ge v1 v2
+        | Eq -> I.eq v1 v2
+        | Ne -> I.ne v1 v2
+        | _ -> None
+      in
+      begin match cmp with
+        | Some b -> I.of_bool ik b
+        | None -> I.top_of ik
+      end
+    | LAnd | LOr ->
+      begin match I.to_bool v1, I.to_bool v2 with
+        | Some b1, Some b2 ->
+          let b = if op = LAnd then b1 && b2 else b1 || b2 in
+          I.of_bool ik b
+        | _ -> I.top_of ik
+      end
+
+  let query man state (type a) (q: a Queries.t): a Queries.result =
+    match q with
+    | Queries.EvalInt e ->
+      let ik = ikind_of_exp e in
+      let v = eval man state e in
+      begin match I.minimal v, I.maximal v with
+        | Some l, Some u -> Queries.ID.of_interval ik (l, u)
+        | _ -> Queries.Result.top q
+      end
+    | _ ->
+      Queries.Result.top q
+
+  let assign man state lval rval =
+    match is_tracked_lval lval with
+    | Some v ->
+      if not v.vglob then
+        D.add v (cast_to_typ v.vtype (eval man state rval)) state
+      else
+        (** TODO: 2) Modify so that we store values for globals *)
+        state
+    | None ->
+      state
+
+  (** TODO: 1) raise Analyses.Deadcode if we branch on a condition that is known-to-be false *)
+  (* Returns the state resulting when the expression `e` evaluates to `tv` *)
+  let branch man state e tv =
+    let e_evaluated_to_bool = I.to_bool (eval man state e) in
+    state
+
+
+  (* The code below does not need to be modified *)
+  let set_lval_top state = function
+    | Some (Var v, NoOffset) when is_tracked_var v && not v.vglob ->
+      D.add v (I.top_of (ikind_of_typ v.vtype)) state
+    | _ -> state
+
+  let return _ state _ _ =
+    state
+
+  let body _ state f =
+    List.fold_left (fun acc v ->
+        if is_tracked_var v then
+          D.add v (I.top_of (ikind_of_typ v.vtype)) acc
+        else
+          acc
+      ) state f.slocals
+
+  let enter man state _ f args =
+    List.fold_left2 (fun acc formal actual ->
+        if is_tracked_var formal then
+          D.add formal (cast_to_typ formal.vtype (eval man state actual)) acc
+        else
+          acc
+      ) (D.bot ()) f.sformals args
+
+  let combine _ state _ lval _ _ =
+    set_lval_top state lval
+
+  let special man state lval _ _ =
+    set_lval_top state lval
+
+  let context _ (_, c) _ _ =
+    c
+
+  let threadenter _ _ f _ =
+    List.fold_left (fun acc v ->
+        if is_tracked_var v then
+          D.add v (I.top_of (ikind_of_typ v.vtype)) acc
+        else
+          acc
+      ) (D.bot ()) f.sformals
+end
+
+module ThreadSet = ConcDomain.ThreadSet
+
+module EffectivelyLocalAnalysis:SimplifiedSpec = struct
+  let name = "effectivelyLocal"
+
+  module D = Lattice.Unit
+  module C = Printable.Unit
+
+  (** TODO: 3) Modify so we store for each variable which thread ids are used to write to it *)
+  module V = Printable.Unit
+  module G = Lattice.Unit
+
+  let startstate = ()
+  let startcontext = ()
+
+  let assign man state lval rval =
+    (* When the global initializers are evaluated, no threads exists yet *)
+    if !AnalysisState.global_initialization then
+      state
+    else
+      let tid = ThreadId.get_current_unlift (SimplifiedAnalysis.ask_of_man man) in
+      let singleton_set = ThreadSet.singleton tid in
+      match is_tracked_lval lval with
+      | Some v ->
+        (* TODO: 3) check if this is a global variable and if it is, record the thread id *)
+        state
+      | None ->
+        state
+
+  let query man state (type a) (q: a Queries.t): a Queries.result =
+    match q with
+    | Queries.TutorialEffectivelyLocal v ->
+      (* TODO: 3) Get the current thread id, and check whether there is only one thread
+         accessing this variable, and whether it is the current one *)
+      Queries.Result.top q
+    | _ -> Queries.Result.top q
+
+  let branch man state e tv = state
+
+  let return _ state _ _ =
+    state
+
+  let body _ state f = ()
+
+  let enter man state _ f args = ()
+
+  let combine _ state _ lval _ _ = ()
+  let special man state lval _ _ = ()
+
+  let context _ (_, c) _ _ =
+    c
+
+  let threadenter _ _ f _ = ()
+end
+
+
+
+
+let _ =
+  MCPRegistry.registered_simplified_analysis (module GStoreWideningAnalysis:SimplifiedSpec);
+  MCPRegistry.registered_simplified_analysis (module EffectivelyLocalAnalysis:SimplifiedSpec)

@@ -1,5 +1,8 @@
 //PARAM: --enable ana.int.interval --set ana.activated[+] tmpSpecial
 #include<math.h>
+#include <stdlib.h>
+#include <goblint.h>
+
 int main() {
     int data;
     if (data > (-0x7fffffff - 1))
