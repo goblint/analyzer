@@ -17,6 +17,7 @@
 (documentation "https://goblint.readthedocs.io/en/latest/")
 (authors "Simmo Saan" "Michael Schwarz" "Julian Erhard" "Sarah Tilscher" "Karoliine Holter" "Michael Petter" "Ali Rasim Kocal" "Ralf Vogler" "Kalmer Apinis" "Vesal Vojdani" ) ; same authors as in .zenodo.json and CITATION.cff
 (maintainers "Simmo Saan <simmo.saan@gmail.com>" "Michael Schwarz <michael.schwarz93@gmail.com>" "Karoliine Holter <karoliine.holter@ut.ee>")
+(maintenance_intent "(latest)" "(latest).(latest-1)") ; also keep previous minor version (with two releases per year, always keep a SV-COMP release)
 (license MIT)
 
 (package
