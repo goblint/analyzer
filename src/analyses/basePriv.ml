@@ -1146,8 +1146,8 @@ struct
         )
         else (
           if M.tracing then M.tracel "phase" "Propagating value for %s from %s to %s" g.vname (Queries.PhaseDigest.show old_phase) (Queries.PhaseDigest.show new_phase);
-          let old_phase_magic = Option.get @@ Wrapper.Digest.of_phase ask old_phase in
-          let old_phase_getg = Wrapper.getg_digest_override old_phase_magic ask getg in
+          let old_phase = Option.get @@ Wrapper.Digest.of_phase ask old_phase in
+          let old_phase_getg = Wrapper.getg_digest_override old_phase ask getg in
           let old_protected = old_phase_getg (V.protected g) in
           let old_unprotected = old_phase_getg (V.unprotected g) in
           Wrapper.sideg ask sideg (V.protected g) old_protected;
