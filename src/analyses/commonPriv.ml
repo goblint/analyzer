@@ -356,6 +356,7 @@ struct
       | `Bot -> GThread.bot ()
       | `Lifted2 x -> x
       | _ -> failwith "PerMutexMeetPrivTID.thread"
+
     let create_mutex mutex = `Lifted1 mutex
     let create_global global = `Lifted1 global
     let create_thread thread = `Lifted2 thread

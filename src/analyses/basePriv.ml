@@ -765,8 +765,8 @@ struct
             sideg (V.global g) (G.create_global sideval)
         in
         L.iter publish_l l;
-        let publish_others mutex =
-          let current_bindings = G.mutex @@ getg (V.mutex mutex) in
+        let publish_others (mutex:V.t) =
+          let current_bindings = G.mutex @@ getg mutex in
           (*
             Look up all current bindings and if we find one that belongs to the old phase,
             but is not accounted for, carry it forward.
@@ -786,10 +786,18 @@ struct
               GMutex.add target value acc
           in
           let res = GMutex.fold carry_if_needed current_bindings (GMutex.empty ()) in
-          sideg (V.mutex mutex) (G.create_mutex res)
+          sideg mutex (G.create_mutex res)
         in
         let mutexes = ask.f Queries.AppearingMutexes in
-        LockDomain.AppearingMutexesQuery.iter publish_others mutexes;
+        LockDomain.AppearingMutexesQuery.iter (fun mutex -> publish_others (V.mutex mutex)) mutexes;
+        (* Propagate for syntactic globals. *)
+        List.iter (function
+            | GVar (x, _, _) -> publish_others (V.global x)
+            | _ -> ()
+          ) !Cilfacade.current_file.globals;
+        (* Propagate for heap variables *)
+        let alloc_varinfos = ask.f Queries.AllocVars in
+        Q.VS.iter (fun v -> publish_others (V.global v)) alloc_varinfos;
         st
       end
 
