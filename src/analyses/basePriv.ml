@@ -2310,7 +2310,7 @@ let priv_module: (module S) Lazy.t =
         | "mutex-oplus" -> (module PerMutexOplusPriv)
         | "mutex-meet" -> (module PerMutexMeetPriv)
         | "mutex-meet-tid" -> (module PerMutexMeetTIDPriv (ThreadDigest))
-        | "mutex-meet-tid-ghost" -> (module PerMutexMeetTIDPriv (GhostPhaseLifter(GhostPhase))) (* TODO: Implement *)
+        | "mutex-meet-tid-ghost" -> (module PerMutexMeetTIDPriv (GhostPhaseLifter(ThreadDigest))) (* TODO: Implement *)
         | "protection" -> (module ProtectionBasedPriv (ProtDom) (struct let check_read_unprotected = false let handle_atomic = false end)(NoWrapper))
         | "protection-tid" -> (module ProtectionBasedPriv (ProtDom) (struct let check_read_unprotected = false let handle_atomic = false end)(DigestWrapper(ThreadNotStartedDigest)))
         | "protection-atomic" -> (module ProtectionBasedPriv (ProtDom) (struct let check_read_unprotected = false let handle_atomic = true end)(NoWrapper)) (* experimental *)

@@ -782,9 +782,9 @@
             "privatization": {
               "title": "ana.base.privatization",
               "description":
-                "Which privatization to use? none/vojdani/mutex-oplus/mutex-meet/mutex-meet-tid/protection/protection-read/mine/mine-nothread/mine-W/mine-W-noinit/lock/lock-tid/write/write-tid/write+lock/write+lock-tid",
+                "Which privatization to use? none/vojdani/mutex-oplus/mutex-meet/mutex-meet-tid/mutex-meet-tid-ghost/protection/protection-read/mine/mine-nothread/mine-W/mine-W-noinit/lock/lock-tid/write/write-tid/write+lock/write+lock-tid",
               "type": "string",
-              "enum": ["none", "vojdani", "mutex-oplus", "mutex-meet", "protection", "protection-tid", "protection-atomic", "protection-read", "protection-read-tid", "protection-read-atomic", "mine", "mine-nothread", "mine-W", "mine-W-noinit", "lock", "lock-tid", "write", "write-tid", "write+lock", "write+lock-tid", "mutex-meet-tid","protection-atomic-ghost"],
+              "enum": ["none", "vojdani", "mutex-oplus", "mutex-meet", "mutex-meet-tid-ghost", "protection", "protection-tid", "protection-atomic", "protection-read", "protection-read-tid", "protection-read-atomic", "mine", "mine-nothread", "mine-W", "mine-W-noinit", "lock", "lock-tid", "write", "write-tid", "write+lock", "write+lock-tid", "mutex-meet-tid","protection-atomic-ghost"],
               "default": "protection-read"
             },
             "priv": {
