@@ -732,20 +732,21 @@ struct
     (* so the cpa component of st is bot. *)
     {st with cpa = CPA.bot (); priv = (W.bot (),lmust,l)}
 
-  let phase_change ask old_phase _new_phase getg sideg (st: BaseComponents (D).t) =
+  let phase_change ask old_phase new_phase getg sideg (st: BaseComponents (D).t) =
+    let module Phase = Queries.PhaseDigest in
     match Digest.actionOnPhaseChange with
     | None -> st
-    | Some {of_phase; to_phase} ->
+    | Some {of_phase; to_phase; patch_phase} ->
       (* can publish to others can skip publishing to those that are must-accounted for in the local state ? *)
       begin
-        (* Iterate over all mutexes, carry forward L component, as well as other global views (?) *)
         (* What about other threads? Should only carry forward their globals? *)
         (* What is the timing of the phaseChange Event relative to unlocks? *)
         (* Skip those that are currently held, these will be published on unlock *)
         let (w, lmust, l) = st.priv in
+        let current_digest = Digest.current ask in
         let publish_l (lock:LLock.t) (value:L.value) =
-          let digest = Digest.current ask in
-          let sideval = GMutex.singleton digest value in
+          (* Carry forward L component of current thread *)
+          let sideval = GMutex.singleton current_digest value in
           match lock with
           | `Left mutex ->
             if Locksets.((MustLockset.mem mutex (current_lockset ask))) then
@@ -764,19 +765,26 @@ struct
             sideg (V.global g) (G.create_global sideval)
         in
         L.iter publish_l l;
-        (* Actually, we need to propagate only contributions form _other_ threads here *)
-        (* If I am doing the join optimization, I need not publish to unknowns of threads that are must-joined *)
-        let old_phase = of_phase ask old_phase in
         (* TODO: Where on earth do I get them from? *)
         let publish_others l (lock:LLock.t) =
           let current_bindings = G.mutex @@ getg (V.mutex l) in
           (*
-            Look up all current bindings and if we find one that belongs to the old phase
-            but a different thread, carry it forward
+            Look up all current bindings and if we find one that belongs to the old phase,
+            but is not accounted for, carry it forward.
           *)
           let carry_if_needed (digest:Digest.t) (value:L.value) (acc:GMutex.t) =
-
-            acc
+            let entry_phase = to_phase digest in
+            let target = patch_phase digest new_phase in
+            if not @@ Phase.equal entry_phase old_phase then
+              (* The phase does not match the phase before, no need to propagate *)
+              acc
+            else if Digest.accounted_for ask ~current:current_digest ~other:target then
+              (* New digest would be accounted for; could be because it is the same thread, ... *)
+              (* TODO: Is this correct when considering must-joining? *)
+              (* Reasoning: If I am doing the join optimization, I need not publish to unknowns of threads that are must-joined *)
+              acc
+            else
+              GMutex.add target value acc
           in
           let res = GMutex.fold carry_if_needed current_bindings (GMutex.empty ()) in
           sideg (V.mutex l) (G.create_mutex res)
@@ -1144,7 +1152,7 @@ struct
   let phase_change ask old_phase new_phase getg sideg (st: BaseComponents (D).t) =
     match Wrapper.actionOnPhaseChange with
     | None -> st
-    | Some {of_phase; to_phase} ->
+    | Some {of_phase; to_phase; patch_phase: _ } ->
       let publish_global_to_newphase g =
         if (P.mem g @@ D.getP st.priv) then (
           (* TODO: Or propagate only unprotected, protected will be published later?
