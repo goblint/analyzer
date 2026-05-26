@@ -737,7 +737,7 @@ struct
     match Digest.actionOnPhaseChange with
     | None -> st
     | Some {of_phase; to_phase; patch_phase} ->
-      (* can publish to others can skip publishing to those that are must-accounted for in the local state ? *)
+      (* TODO: What if overall we're still in ST mode? *)
       begin
         (* What about other threads? Should only carry forward their globals? *)
         (* What is the timing of the phaseChange Event relative to unlocks? *)
@@ -749,7 +749,7 @@ struct
           let sideval = GMutex.singleton current_digest value in
           match lock with
           | `Left mutex ->
-            if Locksets.((MustLockset.mem mutex (current_lockset ask))) then
+            if Locksets.(MustLockset.mem mutex (current_lockset ask)) then
               let will_side_on_unlock = W.exists (is_protected_by ~protection:Weak ask mutex) w in
               if will_side_on_unlock then
                 (* Do not propagate to next phase here already, unlock will propagate appropriate value *)
@@ -765,9 +765,8 @@ struct
             sideg (V.global g) (G.create_global sideval)
         in
         L.iter publish_l l;
-        (* TODO: Where on earth do I get them from? *)
-        let publish_others l (lock:LLock.t) =
-          let current_bindings = G.mutex @@ getg (V.mutex l) in
+        let publish_others mutex =
+          let current_bindings = G.mutex @@ getg (V.mutex mutex) in
           (*
             Look up all current bindings and if we find one that belongs to the old phase,
             but is not accounted for, carry it forward.
@@ -787,8 +786,10 @@ struct
               GMutex.add target value acc
           in
           let res = GMutex.fold carry_if_needed current_bindings (GMutex.empty ()) in
-          sideg (V.mutex l) (G.create_mutex res)
+          sideg (V.mutex mutex) (G.create_mutex res)
         in
+        let mutexes = ask.f Queries.AppearingMutexes in
+        LockDomain.AppearingMutexesQuery.iter publish_others mutexes;
         st
       end
 
