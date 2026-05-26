@@ -15,7 +15,13 @@ struct
   include UnitAnalysis.Spec
   let name () = "mutexEvents"
 
+  module G = LockDomain.AppearingMutexes
+  module V = Analyses.UnitV
+
   let eval_exp_addr (a: Queries.ask) exp = a.f (Queries.MayPointTo exp)
+
+  let add_appearing_mutex man addr =
+    CommonPriv.lift_lock (Analyses.ask_of_man man) (fun () m -> man.sideg () (G.singleton m)) () addr
 
   let lock man rw may_fail nonzero_return_when_aquired a lv_opt arg =
     let compute_refine_split (e: Addr.t) = match e with
@@ -31,6 +37,7 @@ struct
     match lv_opt with
     | None ->
       Queries.AD.iter (fun e ->
+          add_appearing_mutex man e;
           man.split () (Events.Lock (e, rw) :: compute_refine_split e)
         ) (eval_exp_addr a arg);
       if may_fail then
@@ -39,6 +46,7 @@ struct
     | Some lv ->
       let sb = Events.SplitBranch (Lval lv, nonzero_return_when_aquired) in
       Queries.AD.iter (fun e ->
+          add_appearing_mutex man e;
           man.split () (sb :: Events.Lock (e, rw) :: compute_refine_split e);
         ) (eval_exp_addr a arg);
       if may_fail then (
@@ -55,7 +63,9 @@ struct
     && String.starts_with fundec.svar.vname ~prefix:"__VERIFIER_atomic_"
     && not (String.starts_with fundec.svar.vname ~prefix:"__VERIFIER_atomic_instrument_")
     then
-      man.emit (Events.Unlock (LockDomain.Addr.of_var LF.verifier_atomic_var))
+      let addr = LockDomain.Addr.of_var LF.verifier_atomic_var in
+      add_appearing_mutex man addr;
+      man.emit (Events.Unlock addr)
 
   let body man f : D.t =
     (* deprecated but still valid SV-COMP convention for atomic block *)
@@ -63,12 +73,15 @@ struct
     && String.starts_with f.svar.vname ~prefix:"__VERIFIER_atomic_"
     && not (String.starts_with f.svar.vname ~prefix:"__VERIFIER_atomic_instrument_")
     then
-      man.emit (Events.Lock (LockDomain.Addr.of_var LF.verifier_atomic_var, true))
+      let addr = LockDomain.Addr.of_var LF.verifier_atomic_var in
+      add_appearing_mutex man addr;
+      man.emit (Events.Lock (addr, true))
 
   let special (man: (unit, _, _, _) man) lv f arglist : D.t =
     let remove_rw x = x in
     let unlock arg remove_fn =
       Queries.AD.iter (fun e ->
+          add_appearing_mutex man e;
           man.split () [Events.Unlock (remove_fn e)]
         ) (eval_exp_addr (Analyses.ask_of_man man) arg);
       raise Analyses.Deadcode
@@ -85,6 +98,7 @@ struct
       (* emit unlock-lock events for privatization *)
       let ms = eval_exp_addr (Analyses.ask_of_man man) m_arg in
       Queries.AD.iter (fun m ->
+          add_appearing_mutex man m;
           (* unlock-lock each possible mutex as a split to be dependent *)
           (* otherwise may-point-to {a, b} might unlock a, but relock b *)
           man.split () [Events.Unlock m; Events.Lock (m, true)];
@@ -92,6 +106,13 @@ struct
       raise Deadcode (* splits cover all cases *)
     | _ ->
       ()
+
+  let query man (type a) (q: a Queries.t): a Queries.result =
+    match q with
+    | Queries.AppearingMutexes ->
+      `Lifted (man.global ())
+    | _ ->
+      Queries.Result.top q
 
 end
 

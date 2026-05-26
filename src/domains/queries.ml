@@ -112,6 +112,7 @@ type _ t =
   | MayBePublicWithout: maybepublicwithout -> MayBool.t t
   | MustBeProtectedBy: mustbeprotectedby -> MustBool.t t
   | MustLockset: LockDomain.MustLockset.t t
+  | AppearingMutexes: LockDomain.AppearingMutexesQuery.t t
   | MustBeAtomic: MustBool.t t
   | MustBeSingleThreaded: {since_start: bool} -> MustBool.t t (** Use via {!ThreadFlag.is_currently_multi} and {!ThreadFlag.has_ever_been_multi}. *)
   | MustBeUniqueThread: MustBool.t t
@@ -198,6 +199,7 @@ struct
     | ReachableFrom _ -> (module AD)
     | Regions _ -> (module LS)
     | MustLockset -> (module LockDomain.MustLockset)
+    | AppearingMutexes -> (module LockDomain.AppearingMutexesQuery)
     | EvalFunvar _ -> (module AD)
     | ReachableUkTypes _ -> (module TS)
     | MayEscape _ -> (module MayBool)
@@ -280,6 +282,7 @@ struct
     | ReachableFrom _ -> AD.top ()
     | Regions _ -> LS.top ()
     | MustLockset -> LockDomain.MustLockset.top ()
+    | AppearingMutexes -> LockDomain.AppearingMutexesQuery.top ()
     | EvalFunvar _ -> AD.top ()
     | ReachableUkTypes _ -> TS.top ()
     | MayEscape _ -> MayBool.top ()
@@ -498,6 +501,7 @@ struct
     | Any (MayBePublicWithout x) -> Pretty.dprintf "MayBePublicWithout _"
     | Any (MustBeProtectedBy x) -> Pretty.dprintf "MustBeProtectedBy _"
     | Any MustLockset -> Pretty.dprintf "MustLockset"
+    | Any AppearingMutexes -> Pretty.dprintf "AppearingMutexes"
     | Any MustBeAtomic -> Pretty.dprintf "MustBeAtomic"
     | Any (MustBeSingleThreaded {since_start}) -> Pretty.dprintf "MustBeSingleThreaded since_start=%b" since_start
     | Any MustBeUniqueThread -> Pretty.dprintf "MustBeUniqueThread"
