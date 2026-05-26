@@ -186,7 +186,7 @@ struct
   end
 end
 
-type 'a phaseChange = { of_phase: Q.ask -> Queries.PhaseDigest.t -> 'a; to_phase: 'a -> Queries.PhaseDigest.t }
+type 'a phaseChange = { of_phase: Q.ask -> Queries.PhaseDigest.t -> 'a; to_phase: 'a -> Queries.PhaseDigest.t; patch_phase: 'a -> Queries.PhaseDigest.t -> 'a }
 
 module type Digest =
 sig
@@ -261,7 +261,8 @@ struct
 
   let actionOnPhaseChange =
     let of_phase (ask:Q.ask) d = d in
-    Some { of_phase; to_phase = Fun.id }
+    let patch_phase _ d = d in
+    Some { of_phase; to_phase = Fun.id; patch_phase }
 
 
   let current (ask: Q.ask) = ask.f Q.PhaseDigest
@@ -288,7 +289,8 @@ struct
       let inner = Inner.current ask in
       (p, inner)
     in
-    Some { of_phase; to_phase = fst }
+    let patch_phase (phase, inner) phase' = (phase', inner) in
+    Some { of_phase; to_phase = fst; patch_phase }
 
   let current (ask:Q.ask) = (ask.f Q.PhaseDigest, Inner.current ask)
 
