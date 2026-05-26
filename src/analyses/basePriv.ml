@@ -87,7 +87,8 @@ sig
   module G: Lattice.S
   module Digest: CommonPriv.Digest
 
-  val requiresActionOnPhaseChange: bool
+  val actionOnPhaseChange: (Digest.t phaseChange) option
+
   val getg: Q.ask -> ('a -> G.t) -> 'a -> GBase.t
   val getg_digest_override: Digest.t -> Q.ask -> ('a -> G.t) -> 'a -> GBase.t
   val sideg: Q.ask -> ('a -> G.t -> unit) -> 'a -> GBase.t -> unit
@@ -99,7 +100,8 @@ module NoWrapper:PrivatizationWrapper = functor (GBase:Lattice.S) ->
     module G = GBase
     module Digest = CommonPriv.UnitDigest
 
-    let requiresActionOnPhaseChange = false
+    let actionOnPhaseChange = None
+
     let getg _ getg = getg
     let sideg _ sideg = sideg
     let getg_digest_override _ = getg
@@ -110,7 +112,7 @@ module DigestWrapper(Digest: Digest):PrivatizationWrapper =  functor (GBase:Latt
     module G = MapDomain.MapBot_LiftTop (Digest) (GBase)
     module Digest = Digest
 
-    let requiresActionOnPhaseChange = Digest.requiresActionOnPhaseChange
+    let actionOnPhaseChange = Digest.actionOnPhaseChange
 
     let getg ask getg x =
       let vs = getg x in
@@ -731,9 +733,9 @@ struct
     {st with cpa = CPA.bot (); priv = (W.bot (),lmust,l)}
 
   let phase_change ask old_phase _new_phase getg sideg (st: BaseComponents (D).t) =
-    if not Digest.requiresActionOnPhaseChange then
-      st
-    else
+    match Digest.actionOnPhaseChange with
+    | None -> st
+    | Some {of_phase; to_phase} ->
       (* can publish to others can skip publishing to those that are must-accounted for in the local state ? *)
       begin
         (* Iterate over all mutexes, carry forward L component, as well as other global views (?) *)
@@ -764,7 +766,7 @@ struct
         L.iter publish_l l;
         (* Actually, we need to propagate only contributions form _other_ threads here *)
         (* If I am doing the join optimization, I need not publish to unknowns of threads that are must-joined *)
-        let old_phase = Option.get @@ Digest.of_phase ask old_phase in
+        let old_phase = of_phase ask old_phase in
         (* TODO: Where on earth do I get them from? *)
         let publish_others l (lock:LLock.t) =
           let current_bindings = G.mutex @@ getg (V.mutex l) in
@@ -773,6 +775,7 @@ struct
             but a different thread, carry it forward
           *)
           let carry_if_needed (digest:Digest.t) (value:L.value) (acc:GMutex.t) =
+
             acc
           in
           let res = GMutex.fold carry_if_needed current_bindings (GMutex.empty ()) in
@@ -1139,7 +1142,9 @@ struct
   let threadspawn ask get set st = st
 
   let phase_change ask old_phase new_phase getg sideg (st: BaseComponents (D).t) =
-    if Wrapper.requiresActionOnPhaseChange then
+    match Wrapper.actionOnPhaseChange with
+    | None -> st
+    | Some {of_phase; to_phase} ->
       let publish_global_to_newphase g =
         if (P.mem g @@ D.getP st.priv) then (
           (* TODO: Or propagate only unprotected, protected will be published later?
@@ -1153,7 +1158,7 @@ struct
         )
         else (
           if M.tracing then M.tracel "phase" "Propagating value for %s from %s to %s" g.vname (Queries.PhaseDigest.show old_phase) (Queries.PhaseDigest.show new_phase);
-          let old_phase = Option.get @@ Wrapper.Digest.of_phase ask old_phase in
+          let old_phase = of_phase ask old_phase in
           let old_phase_getg = Wrapper.getg_digest_override old_phase ask getg in
           let old_protected = old_phase_getg (V.protected g) in
           let old_unprotected = old_phase_getg (V.unprotected g) in
@@ -1177,8 +1182,7 @@ struct
       let alloc_varinfos = ask.f Queries.AllocVars in
       Q.VS.iter publish_global_to_newphase alloc_varinfos;
       st
-    else
-      st
+
 
   let thread_join ?(force=false) ask get e st = st
   let thread_return ask get set tid st = st
