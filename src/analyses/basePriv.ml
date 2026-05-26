@@ -730,11 +730,11 @@ struct
     (* so the cpa component of st is bot. *)
     {st with cpa = CPA.bot (); priv = (W.bot (),lmust,l)}
 
-  let phase_change ask _old_phase _new_phase getg sideg (st: BaseComponents (D).t) =
-    if Digest.requiresActionOnPhaseChange then
-      (* getg will refer to incorrect phase here by default, namely new_phase(!) *)
-      (* can publish to others can skip publishing to those that are must-accounted for in the local
-         state ? *)
+  let phase_change ask old_phase _new_phase getg sideg (st: BaseComponents (D).t) =
+    if not Digest.requiresActionOnPhaseChange then
+      st
+    else
+      (* can publish to others can skip publishing to those that are must-accounted for in the local state ? *)
       begin
         (* Iterate over all mutexes, carry forward L component, as well as other global views (?) *)
         (* What about other threads? Should only carry forward their globals? *)
@@ -758,21 +758,28 @@ struct
             else
               sideg (V.mutex mutex) (G.create_mutex sideval)
           | `Right g ->
-            (* Publishing here is unconditional, should this be like this *)
+            (* Publishing here is unconditional, should this be like this ? *)
             sideg (V.global g) (G.create_global sideval)
         in
         L.iter publish_l l;
         (* Actually, we need to propagate only contributions form _other_ threads here *)
         (* If I am doing the join optimization, I need not publish to unknowns of threads that are must-joined *)
+        let old_phase = Option.get @@ Digest.of_phase ask old_phase in
+        (* TODO: Where on earth do I get them from? *)
         let publish_others l (lock:LLock.t) =
-          let other_map = getg (V.mutex l) in
-          let mtx = G.mutex other_map in
-          GMutex.fold (fun _ _ _ -> ()) mtx ()
+          let current_bindings = G.mutex @@ getg (V.mutex l) in
+          (*
+            Look up all current bindings and if we find one that belongs to the old phase
+            but a different thread, carry it forward
+          *)
+          let carry_if_needed (digest:Digest.t) (value:L.value) (acc:GMutex.t) =
+            acc
+          in
+          let res = GMutex.fold carry_if_needed current_bindings (GMutex.empty ()) in
+          sideg (V.mutex l) (G.create_mutex res)
         in
         st
       end
-    else
-      st
 
   let threadspawn (ask:Queries.ask) get set (st: BaseComponents (D).t) =
     let is_recovered_st = ThreadFlag.has_ever_been_multi ask && not @@ ThreadFlag.is_currently_multi ask in
@@ -2282,7 +2289,7 @@ let priv_module: (module S) Lazy.t =
         | "mutex-oplus" -> (module PerMutexOplusPriv)
         | "mutex-meet" -> (module PerMutexMeetPriv)
         | "mutex-meet-tid" -> (module PerMutexMeetTIDPriv (ThreadDigest))
-        | "mutex-meet-tid-ghost" -> (module PerMutexMeetTIDPriv (GhostPhase)) (* TODO: Implement *)
+        | "mutex-meet-tid-ghost" -> (module PerMutexMeetTIDPriv (GhostPhaseLifter(GhostPhase))) (* TODO: Implement *)
         | "protection" -> (module ProtectionBasedPriv (ProtDom) (struct let check_read_unprotected = false let handle_atomic = false end)(NoWrapper))
         | "protection-tid" -> (module ProtectionBasedPriv (ProtDom) (struct let check_read_unprotected = false let handle_atomic = false end)(DigestWrapper(ThreadNotStartedDigest)))
         | "protection-atomic" -> (module ProtectionBasedPriv (ProtDom) (struct let check_read_unprotected = false let handle_atomic = true end)(NoWrapper)) (* experimental *)
