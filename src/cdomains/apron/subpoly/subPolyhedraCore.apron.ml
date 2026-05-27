@@ -77,6 +77,10 @@ module SubPoly (Var : Var) (I : IntervalSig) = struct
   let add_affeq_row (row: CoeffVector.t) (t: t) =
     { t with affeq = Matrix.append_row t.affeq row }
 
+  let forget_vars (vars: Var.t list) (t: t) = failwith "todo"
+
+  (* HELPER-FUNCTIONS FOR DIMENSIONAL OPERATIONS *)
+
   let dim_add (ch: Apron.Dim.change) (t: t) = 
     let new_affeq = Matrix.dim_add ch t.affeq in
     let list = Array.to_list ch.dim in
@@ -107,7 +111,7 @@ module SubPoly (Var : Var) (I : IntervalSig) = struct
 
   let dim_remove (ch: Apron.Dim.change) (t: t) = 
     let new_affeq = Matrix.dim_remove ch t.affeq in
-    let new_t = failwith "forget_vars (List.map Var.to_t dim_list) t" in (* TODO: forget_vars is corretly in module D, but we need to use this here *)
+    let new_t = forget_vars (List.map Var.to_t dim_list) t in 
     let dim_list = Array.to_list ch.dim in
     let dim_list = List.sort_uniq Int.compare dim_list in (* remove duplicates *)
     let shift_index_remove (old_index : Var.t) (dim_list : int list) : Var.t = 
