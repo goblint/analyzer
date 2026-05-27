@@ -1,6 +1,8 @@
 module Mpqf = SharedFunctions.Mpqf
 open Intervalsig
 
+include Batteries
+
 
 (** Variable type used by the subpolyhedra core. *)
 module type Var = sig
@@ -8,6 +10,8 @@ module type Var = sig
   val equal : t -> t -> bool
   val compare : t -> t -> int
   val string_of : t -> string
+  val to_int : t -> int
+  val to_t : int -> t
 end
 
 (** Internal representation of a consistent subpolyhedron. *)
@@ -40,6 +44,7 @@ module SubPoly (Var : Var) (I : IntervalSig) = struct
     intv: interval;
   } [@@deriving eq, ord, hash]
   type slack_map = slack VarMap.t [@@deriving eq, ord]
+
 (**
 1 3 2   -1
 0 5 4       -1
@@ -120,11 +125,60 @@ we need to use it inside the core functionality
   let add_affeq_row (row: CoeffVector.t) (t: t) =
     { t with affeq = Matrix.append_row t.affeq row }
 
-  let dim_add (ch: Apron.Dim.change) (t: t) =
-    { t with affeq = Matrix.dim_add ch t.affeq }
+  (* HELPER-FUNCTIONS FOR DIMENSIONAL OPERATIONS *)
+  let shift_index_add (old_index : Var.t) (occ_cols : (int * int) list) : Var.t = 
+    (* find all entries that are less or equal to old_index in occ_cols, and count them (=k), then new_index = old_index + k , return new_index *)
+    (let k = List.fold_left (fun acc (index, count) -> if index <= (Var.to_int old_index) then acc + count else acc) 0 occ_cols
+    in let new_index = (Var.to_int old_index) + k 
+    in Var.to_t new_index)
 
-  let dim_remove (ch: Apron.Dim.change) (t: t) =
-    { t with affeq = Matrix.dim_remove ch t.affeq }
+  let shift_index_remove (old_index : Var.t) (dim_list : int list) : Var.t = 
+    (let k = List.fold_left (fun acc index -> if index < (Var.to_int old_index) then acc + 1 else acc) 0 dim_list
+    in let new_index = (Var.to_int old_index) - k 
+    in Var.to_t new_index)
+
+  let new_slacks_add slacks occ_cols  : slack VarMap.t =
+    VarMap.fold (fun var slack acc ->
+      let new_var = shift_index_add var occ_cols in
+      let new_slack = {
+        info = {
+          terms = List.rev (List.fold_left (fun acc (v, c) -> (shift_index_add v occ_cols, c) :: acc) [] slack.info.terms);
+          const = slack.info.const;
+        };
+        intv = slack.intv;
+      } in
+      VarMap.add new_var new_slack acc
+    ) slacks VarMap.empty
+
+  let new_slacks_remove slacks dim_list : slack VarMap.t =
+    VarMap.fold (fun var slack acc ->
+      let new_var = shift_index_remove var dim_list in
+      let new_slack = {
+        info = {
+          terms = List.rev (List.fold_left (fun acc (v, c) -> (shift_index_remove v dim_list, c) :: acc) [] slack.info.terms);
+          const = slack.info.const;
+        };
+        intv = slack.intv;
+      } in
+      VarMap.add new_var new_slack acc
+    ) slacks VarMap.empty
+
+  let dim_add (ch: Apron.Dim.change) (t: t) = 
+    let new_affeq = Matrix.dim_add ch t.affeq in
+    let list = Array.to_list ch.dim in
+    let grouped_indices = List.group Int.compare list in 
+    let occ_cols = List.map (fun group -> ((List.hd group, List.length group))) grouped_indices in 
+    (* Approach from listMatrix.ml: add_empty_columns; Example: cols_list = [1; 3; 3; 5] -> grouped_indices = [[1]; [3; 3]; [5]] -> occ_cols = [(1, 1); (3, 2); (5, 1)] *)
+    let new_slacks = new_slacks_add t.slacks occ_cols in 
+    {t with affeq = new_affeq; slacks = new_slacks}
+
+  let dim_remove (ch: Apron.Dim.change) (t: t) = 
+    let new_affeq = Matrix.dim_remove ch t.affeq in
+    let new_t = failwith "forget_vars (List.map Var.to_t dim_list) t" in (* TODO: forget_vars is corretly in module D, but we need to use this here *)
+    let dim_list = Array.to_list ch.dim in
+    let dim_list = List.sort_uniq Int.compare dim_list in (* remove duplicates *)
+    let new_slacks = new_slacks_remove new_t.slacks dim_list in 
+    {t with affeq = new_affeq; slacks = new_slacks}
 
   let string_of_interval_map (m: interval_map) =
     VarMap.bindings m
