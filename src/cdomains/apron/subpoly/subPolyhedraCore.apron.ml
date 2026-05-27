@@ -1,5 +1,5 @@
 module Mpqf = SharedFunctions.Mpqf
-open Intervalsig
+open Intervalsig (* TODO: below it is called IntervalSig, is that on purpose? *)
 include Batteries
 
 
