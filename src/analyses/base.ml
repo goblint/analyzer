@@ -1901,14 +1901,6 @@ struct
     let f s v = rem_partitioning a s v in
     List.fold_left f st v_list
 
-  (**************************************************************************
-    * Auxillary functions
-    **************************************************************************)
-
-  let is_some_bot (x:value) =
-    match x with
-    | Bot -> false (* HACK: bot is here due to typing conflict (we do not cast appropriately) *)
-    | _ -> VD.is_bot_value x
 
   module InvariantEval =
   struct
