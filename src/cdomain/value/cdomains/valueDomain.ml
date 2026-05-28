@@ -908,6 +908,9 @@ struct
     let calloc =
       if ZeroInit.may_calloc zeroinit then (
         (* This Blob came from calloc *)
+        (* TODO: This might be non-monotonic and unsound, especially when zeroinit is top:
+           If an initialized malloc blob (so not bot) is joined with an uninitialized calloc blob, then this doesn't add the zero-initialization.
+           Dually, if an uninitialized malloc blob (so bot) is joined with an zero-initialized calloc blob, then the malloc also appears zero-initialized. *)
         if x = Bot then
           zero_init_value t (* This should be zero initialized *)
         else
