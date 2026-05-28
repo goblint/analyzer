@@ -16,7 +16,6 @@ module Base : GenericEqSolver =
   functor (S:EqConstrSys) ->
   functor (HM:Hashtbl.S with type key = S.v) ->
   struct
-    open SolverBox.Warrow (S.Dom)
     include Generic.SolverStats (S) (HM)
     module VS = Set.Make (S.Var)
 
@@ -27,13 +26,21 @@ module Base : GenericEqSolver =
     end
     module DomWarrow = FwdCommon.Warrow(S.Dom)(WarrowConf)
 
+    module LocalWarrowConf = struct
+      let delay_default = GobConfig.get_int "solvers.td3.widen_gas"
+      let gas_default   = GobConfig.get_int "solvers.td3.narrow-globs.narrow-gas"
+      let update_gas    = GobConfig.get_int "solvers.fwd.update_gas"
+    end
+    module LocalDomWarrow = FwdCommon.Warrow(S.Dom)(LocalWarrowConf)
+
     type var_data = {
       infl: VS.t;
       value: S.Dom.t;
       wpoint: bool;
       stable: bool;
       called: bool;
-      contrib: VS.t
+      contrib: VS.t;
+      local_contrib: LocalDomWarrow.contribution;
     }
 
 (*
@@ -86,7 +93,8 @@ module Base : GenericEqSolver =
                 wpoint = false;
                 stable = false;
                 called = false;
-                contrib = VS.empty
+                contrib = VS.empty;
+                local_contrib = LocalDomWarrow.default ();
               } in
             HM.replace data x data_x;
             let orig_x = {
@@ -212,12 +220,14 @@ alternatively, distinguish contribs by session number?
                 eq x (query x) (side x) in (* d from equation/rhs *)
                 *)
           let old = !x_ref.value in (* d from older iterate *)
-          let wpd = (* d after widen/narrow (if wp) *)
-            if not wp then eqd
+          let new_lc =
+            if not wp then { !x_ref.local_contrib with value = eqd }
             else (
               if M.tracing then M.trace "wpoint" "widen %a" S.Var.pretty_trace x;
-              box old eqd)
+              LocalDomWarrow.warrow !x_ref.local_contrib eqd)
           in
+          let wpd = new_lc.value in
+          x_ref := { !x_ref with local_contrib = new_lc };
           if not (Timing.wrap "S.Dom.equal" (fun () -> S.Dom.equal old wpd) ()) then (
             (* old != wpd *)
             if tracing && not (S.Dom.is_bot old) && !x_ref.wpoint then trace "solchange" "%a (wpx: %b): %a" S.Var.pretty_trace x (!x_ref.wpoint) S.Dom.pretty_diff (wpd, old);
@@ -243,7 +253,8 @@ alternatively, distinguish contribs by session number?
 
       let set_start (x,d) =
         let x_ref = init x in
-        x_ref := { !x_ref with value = d; stable = true };
+        x_ref := { !x_ref with value = d; stable = true;
+                               local_contrib = { (LocalDomWarrow.default ()) with value = d } };
         if is_global x then HM.replace origin x { init = d; from = OM.create 10; last = HM.create 10 }
       in
 
