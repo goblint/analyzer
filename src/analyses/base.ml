@@ -1532,7 +1532,7 @@ struct
         | _ -> MutexAttrDomain.top ()
       end
     | Q.EvalLength e -> begin
-        match eval_rv_address ~man man.local e with
+        match eval_rv_address ~man man.local e with (* TODO: why doesn't this use length from ArrayDomain? *)
         | Address a ->
           let slen = Seq.map String.length (List.to_seq (AD.to_string a)) in
           let lenOf t =
@@ -2359,12 +2359,12 @@ struct
         begin match addr with
           | Addr (v, _) when man.ask (Queries.IsHeapVar v) ->
             (* Ask for BlobSize from the base address (the second component being set to true) in order to avoid BlobSize giving us bot *)
-            man.ask (Queries.BlobSize {exp = ptr; base_address = true})
+            man.ask (Queries.BlobSize {exp = ptr; base_address = true}) (* TODO: only query for addr/v *)
           | Addr (v, _) ->
             begin match Cil.unrollType v.vtype with
               | TArray (item_typ, _, _) ->
                 let item_typ_size_in_bytes = size_of_type_in_bytes item_typ in
-                begin match man.ask (Queries.EvalLength ptr) with
+                begin match man.ask (Queries.EvalLength ptr) with (* TODO: only query for addr/v *)
                   | `Lifted arr_len ->
                     let arr_len_casted = ID.cast_to ~kind:Internal (Cilfacade.ptrdiff_ikind ()) arr_len in (* TODO: proper castkind *)
                     begin
