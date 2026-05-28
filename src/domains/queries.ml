@@ -99,6 +99,18 @@ module CL = MapDomain.MapBot_LiftTop (ThreadIdDomain.Thread) (LockDomain.MustLoc
 
 module LH = MapDomain.MapTop (LockDomain.MustLock) (SetDomain.Reverse (ConcDomain.ThreadSet))
 
+module LLock =
+struct
+  include Printable.Either (LockDomain.MustLock) (struct include CilType.Varinfo let name () = "global" end)
+  let mutex m = `Left m
+  let global x = `Right x
+end
+
+module LMust =
+struct
+  include SetDomain.Reverse (SetDomain.ToppedSet (LLock) (struct let topname = "All locks" end))
+  let name () = "LMust"
+end
 
 (** GADT for queries with specific result type. *)
 type _ t =
@@ -176,6 +188,7 @@ type _ t =
   | DescendantThreads: ThreadIdDomain.Thread.t -> ConcDomain.ThreadSet.t t
   | CreationLockset: ThreadIdDomain.Thread.t -> CL.t t
   | MustlockHistory: LH.t t
+  | LMust: LMust.t t
   | TutorialEffectivelyLocal: varinfo -> MustBool.t t (** Used in tutorial for effectively local variables. *)
 
 type 'a result = 'a
@@ -260,6 +273,7 @@ struct
     | DescendantThreads _ -> (module ConcDomain.ThreadSet)
     | CreationLockset _ -> (module CL)
     | MustlockHistory -> (module LH)
+    | LMust -> (module LMust)
     | TutorialEffectivelyLocal _ -> (module MustBool)
 
   (** Get bottom result for query. *)
@@ -343,6 +357,7 @@ struct
     | DescendantThreads _ -> ConcDomain.ThreadSet.top ()
     | CreationLockset _ -> CL.top ()
     | MustlockHistory -> LH.top ()
+    | LMust -> LMust.top ()
     | TutorialEffectivelyLocal _ -> MustBool.top ()
 end
 
@@ -558,6 +573,7 @@ struct
     | Any PhaseDigest -> Pretty.dprintf "PhaseDigest"
     | Any (CreationLockset t) -> Pretty.dprintf "CreationLockset %a" ThreadIdDomain.Thread.pretty t
     | Any (MustlockHistory) -> Pretty.dprintf "MustlockHistory"
+    | Any LMust -> Pretty.dprintf "LMust"
     | Any (TutorialEffectivelyLocal v) -> Pretty.dprintf "TutorialEffectivelyLocal %a" CilType.Varinfo.pretty v
 end
 

@@ -34,27 +34,34 @@ struct
     let name () = "ghost-phase-accesses"
   end
 
+  module LMust = Queries.LMust
+
+  module MHPsPlusLMust =
+  struct
+    include Lattice.Prod (MHPs) (Queries.LMust)
+  end
+
   module PhaseChanges =
   struct
-    include MapDomain.MapBot (Const) (MHPs)
+    include MapDomain.MapBot (Const) (MHPsPlusLMust)
     let name () = "ghost-phase-changes"
   end
 
   module G =
   struct
     (* fist component: constant value when the thread returns *)
-    (* secone component: map from target of phase change to MHP information under which this change can happen  *)
+    (* second component: map from target of phase change to MHP information under which this change can happen  *)
     include Lattice.Prod (Const) (PhaseChanges)
     let const_at_thread_end (const, _) = const
     let changes (_, changes) = changes
     let create_const_at_thread_end const = (const, PhaseChanges.bot ())
-    let create_change phase mhp = (Const.bot (), PhaseChanges.singleton phase (MHPs.singleton mhp))
+    let create_change phase mhp lmust = (Const.bot (), (PhaseChanges.singleton phase (MHPs.singleton mhp, lmust)))
 
-    let can_change_to (_,changes) target currmhp =
+    let can_change_to (_, changes) target currmhp =
       match PhaseChanges.find_opt (`Lifted target) changes with
       | None ->
         false
-      | Some accesses ->
+      | Some (accesses, _) ->
         MHPs.can_any_mhp currmhp accesses
   end
 
@@ -229,7 +236,7 @@ struct
          | Some z ->
            (let v = Z.succ z in
             let local_new = D.add var (`Lifted v) local in
-            man.sideg var (G.create_change (`Lifted v) (current_mhp man));
+            man.sideg var (G.create_change (`Lifted v) (current_mhp man) (man.ask LMust));
             (* TODO: Prolong until after atomic is over? *)
             if not (D.equal local local_new) then
               man.emit (Events.PhaseChange {old_phase = `Lifted local; new_phase = `Lifted local_new});

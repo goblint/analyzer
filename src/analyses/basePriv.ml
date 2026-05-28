@@ -60,6 +60,8 @@ sig
   val invariant_global: Q.ask -> (V.t -> G.t) -> V.t -> Invariant.t
   val invariant_vars: Q.ask -> (V.t -> G.t) -> BaseComponents (D).t -> varinfo list
 
+  val lmust: BaseDomain.BaseComponents (D).t -> Queries.LMust.t
+
   val init: unit -> unit
   val finalize: unit -> unit
 end
@@ -69,6 +71,7 @@ struct
   let finalize () = ()
 
   let phase_change _ _ _ _ _ st = st
+  let lmust _ = Queries.LMust.bot ()
 end
 
 let old_threadenter (type d) ask (st: d BaseDomain.basecomponents_t) =
@@ -800,6 +803,11 @@ struct
         Q.VS.iter (fun v -> publish_others (V.global v)) alloc_varinfos;
         st
       end
+
+  let lmust (st: BaseComponents (D).t) =
+    let (_, lmust, _) = st.priv in
+    let elems = List.map fst (LMust.elements lmust) in
+    Queries.LMust.of_list elems
 
   let threadspawn (ask:Queries.ask) get set (st: BaseComponents (D).t) =
     let is_recovered_st = ThreadFlag.has_ever_been_multi ask && not @@ ThreadFlag.is_currently_multi ask in
@@ -2149,6 +2157,7 @@ struct
 
   let init () = time "init" (Priv.init) ()
   let finalize () = time "finalize" (Priv.finalize) ()
+  let lmust st = time "lmust" (Priv.lmust) st
 end
 
 module PrecisionDumpPriv (Priv: S): S with module D = Priv.D =
