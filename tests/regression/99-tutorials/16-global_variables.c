@@ -2,7 +2,7 @@
 
 int x = 0;
 
-int f() 
+void f() 
 {
   x ++;
 }

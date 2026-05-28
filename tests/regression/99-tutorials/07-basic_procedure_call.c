@@ -1,13 +1,7 @@
 // SKIP TERM PARAM: --enable ana.wp_run 
 
 int f(int a, int b) {
-  
-  if (a < 0) {
-    return a + b;
-  } else {
-    return a;
-  }
-
+  return a + 1;
 }
 
 int main()

@@ -2,23 +2,11 @@
 #include <stdlib.h>
 
 int f(int a, int b) {
-  
-  if (a > 0) {
-    return a + b;
-  } else {
-    return a;
-  }
-
+  return a + 1;
 }
 
 int g(int a, int b) {
-  
-  if (a < 0) {
-    return a - b;
-  } else {
-    return a;
-  }
-
+  return b + 1;
 }
 
 int main()
@@ -34,8 +22,7 @@ int main()
   }
 
   int z = h(x, y);
-
   return z;
 }
 
-// no warnings here, since we cannot determine which function is called and y is used if h evaluates to f, so we have to assume that y is used
+// no warnings here, since we cannot determine which function is called

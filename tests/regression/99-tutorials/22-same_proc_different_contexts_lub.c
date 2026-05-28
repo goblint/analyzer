@@ -4,7 +4,7 @@ int f(int a)
 {
   int b = 3; // no warning, as b is used in one call of f
 
-  if (a < 5) {
+  if (a) {
     return a + b;
   } else {
     return a;
@@ -17,7 +17,7 @@ int main()
 
   int u = f (x);
 
-  x = 10;
+  x = 1;
 
   int v = f (x); 
   return u + v;
