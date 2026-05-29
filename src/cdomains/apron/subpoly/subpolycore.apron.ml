@@ -126,7 +126,37 @@ we need to use it inside the core functionality
     { t with affeq = Matrix.append_row t.affeq row }
 
   let forget_vars (vars: Var.t list) (t: t) = failwith "todo"
-  
+    (**************
+    As far as I understand it, were we to normalize our state using integer arithmetic we would lose a lot of precision.
+    Therefore, we should do Matrix.reduce_col and 'invalidate' the slack variables created with the variable we forget.
+    If we can guarantee that the slack variable is >= 0, we can keep it in the matrix and still deduce information from it.
+    Example:
+    y >= x --> y - x - b1 = 0
+    x >= z --> x - z - b2 = 0
+    => forget x!
+    From:
+    x   y   z   b1  b2
+   -1   1   0  -1   0
+    1   0  -1   0  -1
+
+    To:
+    0   1  -1  -1  -1
+    => y - z - b1 - b1 = 0
+    If we know that b1 and b2 are positive we can still deduce that y >= z.
+
+    So forget_var should do the following:
+    Gaussian elimination to remove var from all but one constraint.
+    Remove last constraint containing var.
+    Keep the factors of slack variables and multiple slack variables
+    Invalidate/Anonymize the Intervals if we can guarantee that they are >= 0, which we can take care of during 
+    insertion and evaluation of expressions.
+    This might mean that we need constants in the linear expressions to guarantee slack vars are always >= 0
+    The slack variables always being >= 0 also enables us to evaluate bottom which is when a slack variable
+    is forced to be < 0. This is then unreachable.
+    I think that this constraint is also part of the LP reduction where we maximize with constraints and the constraint 
+    is that slacks are >= 0 (or lower <= beta <= upper with lower >= 0).
+
+    ***************)
 
   (* HELPER-FUNCTIONS FOR DIMENSIONAL OPERATIONS *)
   let shift_index_add (old_index : Var.t) (occ_cols : (int * int) list) : Var.t = 
