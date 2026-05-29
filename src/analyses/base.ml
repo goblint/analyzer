@@ -1532,7 +1532,7 @@ struct
         | _ -> MutexAttrDomain.top ()
       end
     | Q.EvalLength e -> begin
-        match eval_rv_address ~man man.local e with
+        match eval_rv_address ~man man.local e with (* TODO: why doesn't this use length from ArrayDomain? *)
         | Address a ->
           let slen = Seq.map String.length (List.to_seq (AD.to_string a)) in
           let lenOf t =
@@ -2337,64 +2337,54 @@ struct
       M.warn ~category:(Behavior (Undefined InvalidMemoryDeallocation)) ~tags:[CWE 590] "Pointer %a in function %s doesn't evaluate to a valid address. Invalid memory deallocation may occur" d_exp ptr special_fn.vname;
       Checks.warn Checks.Category.InvalidMemoryAccess "Pointer %a in function %s doesn't evaluate to a valid address. Invalid memory deallocation may occur" d_exp ptr special_fn.vname
 
-  let points_to_heap_only man ptr =
-    match man.ask (Queries.MayPointTo ptr) with
-    | a when not (Queries.AD.is_top a)->
-      Queries.AD.for_all (function
-          | Addr (v, _) -> man.ask (Queries.IsHeapVar v)
-          | _ -> false
-        ) a
-    | _ -> false
-
-  let get_size_of_ptr_target man ptr = (* TODO: deduplicate with memOutOfBounds *)
+  let get_size_of_ptr_target man ptr = (* TODO: deduplicate with memOutOfBounds (this uses IsHeapVar) *)
     let intdom_of_int x =
       ID.of_int (Cilfacade.ptrdiff_ikind ()) (Z.of_int x)
     in
     let size_of_type_in_bytes typ =
       intdom_of_int (Cilfacade.bytesSizeOf typ)
     in
-    if points_to_heap_only man ptr then
-      (* Ask for BlobSize from the base address (the second component being set to true) in order to avoid BlobSize giving us bot *)
-      man.ask (Queries.BlobSize {exp = ptr; base_address = true})
-    else
-      match man.ask (Queries.MayPointTo ptr) with
-      | a when not (Queries.AD.is_top a) ->
-        let pts_list = Queries.AD.elements a in
-        let pts_elems_to_sizes (addr: Queries.AD.elt) =
-          begin match addr with
-            | Addr (v, _) ->
-              begin match Cil.unrollType v.vtype with
-                | TArray (item_typ, _, _) ->
-                  let item_typ_size_in_bytes = size_of_type_in_bytes item_typ in
-                  begin match man.ask (Queries.EvalLength ptr) with
-                    | `Lifted arr_len ->
-                      let arr_len_casted = ID.cast_to ~kind:Internal (Cilfacade.ptrdiff_ikind ()) arr_len in (* TODO: proper castkind *)
-                      begin
-                        try `Lifted (ID.mul item_typ_size_in_bytes arr_len_casted)
-                        with IntDomain.ArithmeticOnIntegerBot _ -> `Bot
-                      end
-                    | `Bot -> `Bot
-                    | `Top -> `Top
-                  end
-                | _ ->
-                  let type_size_in_bytes = size_of_type_in_bytes v.vtype in
-                  `Lifted type_size_in_bytes
-              end
-            | _ -> `Top
-          end
-        in
-        (* Map each points-to-set element to its size *)
-        let pts_sizes = List.map pts_elems_to_sizes pts_list in
-        (* Take the smallest of all sizes that ptr's contents may have *)
-        begin match pts_sizes with
-          | [] -> `Bot
-          | [x] -> x
-          | x::xs -> List.fold_left ValueDomainQueries.ID.join x xs
+    match man.ask (Queries.MayPointTo ptr) with
+    | a when not (Queries.AD.is_top a) ->
+      let pts_list = Queries.AD.elements a in
+      let pts_elems_to_sizes (addr: Queries.AD.elt) =
+        begin match addr with
+          | Addr (v, _) when man.ask (Queries.IsHeapVar v) ->
+            (* Ask for BlobSize from the base address (the second component being set to true) in order to avoid BlobSize giving us bot *)
+            man.ask (Queries.BlobSize {exp = ptr; base_address = true}) (* TODO: only query for addr/v *)
+          | Addr (v, _) ->
+            begin match Cil.unrollType v.vtype with
+              | TArray (item_typ, _, _) ->
+                let item_typ_size_in_bytes = size_of_type_in_bytes item_typ in
+                begin match man.ask (Queries.EvalLength ptr) with (* TODO: only query for addr/v *)
+                  | `Lifted arr_len ->
+                    let arr_len_casted = ID.cast_to ~kind:Internal (Cilfacade.ptrdiff_ikind ()) arr_len in (* TODO: proper castkind *)
+                    begin
+                      try `Lifted (ID.mul item_typ_size_in_bytes arr_len_casted)
+                      with IntDomain.ArithmeticOnIntegerBot _ -> `Bot
+                    end
+                  | `Bot -> `Bot
+                  | `Top -> `Top
+                end
+              | _ ->
+                let type_size_in_bytes = size_of_type_in_bytes v.vtype in
+                `Lifted type_size_in_bytes
+            end
+          | _ -> `Top
         end
-      | _ ->
-        (M.warn "Pointer %a has a points-to-set of top. An invalid memory access might occur" d_exp ptr;
-         Checks.warn Checks.Category.InvalidMemoryAccess "Pointer %a has a points-to-set of top. An invalid memory access might occur" d_exp ptr;
-         `Top)
+      in
+      (* Map each points-to-set element to its size *)
+      let pts_sizes = List.map pts_elems_to_sizes pts_list in
+      (* Take the smallest of all sizes that ptr's contents may have *)
+      begin match pts_sizes with
+        | [] -> `Bot
+        | [x] -> x
+        | x::xs -> List.fold_left ValueDomainQueries.ID.join x xs
+      end
+    | _ ->
+      (M.warn "Pointer %a has a points-to-set of top. An invalid memory access might occur" d_exp ptr;
+        Checks.warn Checks.Category.InvalidMemoryAccess "Pointer %a has a points-to-set of top. An invalid memory access might occur" d_exp ptr;
+        `Top)
 
   let special man (lv:lval option) (f: varinfo) (args: exp list) =
     let invalidate_ret_lv st =
