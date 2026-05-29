@@ -66,6 +66,7 @@ module Base : GenericEqSolver =
     let is_global y = (S.system y = None)
 
     let solve st vs =
+      TransferStats.reset ();
       let rhs_event_count = ref 0 in
       let (data : var_data ref HM.t) = HM.create 10 in
       let (origin : origin HM.t)  = HM.create 10 in
@@ -296,6 +297,7 @@ alternatively, distinguish contribs by session number?
 
       Logs.info "Solver end: %d" (int_of_float (Unix.gettimeofday () *. 1000.));
       Logs.info "RHS: %d" !rhs_event_count;
+      Logs.info "TF: %d" (TransferStats.get ());
       if Logs.Level.should_log Debug then (
         Logs.debug "Data after iterate completed";
         Logs.debug "|data|=%d" (HM.length data);

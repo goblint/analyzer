@@ -248,6 +248,7 @@ struct
       ) x
 
   and branch (man:(D.t, G.t, C.t, V.t) man) (e:exp) (tv:bool) =
+    TransferStats.bump ();
     let spawns = ref [] in
     let splits = ref [] in
     let sides  = ref [] in (* why do we need to collect these instead of calling man.sideg directly? *)
@@ -392,6 +393,7 @@ struct
     }
 
   and assign (man:(D.t, G.t, C.t, V.t) man) l e =
+    TransferStats.bump ();
     let spawns = ref [] in
     let splits = ref [] in
     let sides  = ref [] in
@@ -410,6 +412,7 @@ struct
 
 
   let vdecl (man:(D.t, G.t, C.t, V.t) man) v =
+    TransferStats.bump ();
     let spawns = ref [] in
     let splits = ref [] in
     let sides  = ref [] in
@@ -427,6 +430,7 @@ struct
     if q then raise Deadcode else d
 
   let body (man:(D.t, G.t, C.t, V.t) man) f =
+    TransferStats.bump ();
     let spawns = ref [] in
     let splits = ref [] in
     let sides  = ref [] in
@@ -444,6 +448,7 @@ struct
     if q then raise Deadcode else d
 
   let return (man:(D.t, G.t, C.t, V.t) man) e f =
+    TransferStats.bump ();
     let spawns = ref [] in
     let splits = ref [] in
     let sides  = ref [] in
@@ -462,6 +467,7 @@ struct
 
 
   let asm (man:(D.t, G.t, C.t, V.t) man) =
+    TransferStats.bump ();
     let spawns = ref [] in
     let splits = ref [] in
     let sides  = ref [] in
@@ -479,6 +485,7 @@ struct
     if q then raise Deadcode else d
 
   let skip (man:(D.t, G.t, C.t, V.t) man) =
+    TransferStats.bump ();
     let spawns = ref [] in
     let splits = ref [] in
     let sides  = ref [] in
@@ -496,6 +503,7 @@ struct
     if q then raise Deadcode else d
 
   let special (man:(D.t, G.t, C.t, V.t) man) r f a =
+    TransferStats.bump ();
     let spawns = ref [] in
     let splits = ref [] in
     let sides  = ref [] in
@@ -530,6 +538,7 @@ struct
     if q then raise Deadcode else d
 
   let enter (man:(D.t, G.t, C.t, V.t) man) r f a =
+    TransferStats.bump ();
     let spawns = ref [] in
     let sides  = ref [] in
     let man'' = outer_man "enter" ~spawns ~sides man in
@@ -543,6 +552,7 @@ struct
     map (fun xs -> (topo_sort_an @@ map fst xs, topo_sort_an @@ map snd xs)) @@ n_cartesian_product css
 
   let combine_env (man:(D.t, G.t, C.t, V.t) man) r fe f a fc fd f_ask =
+    TransferStats.bump ();
     let spawns = ref [] in
     let sides  = ref [] in
     let emits = ref [] in
@@ -572,6 +582,7 @@ struct
     if q then raise Deadcode else d
 
   let combine_assign (man:(D.t, G.t, C.t, V.t) man) r fe f a fc fd f_ask =
+    TransferStats.bump ();
     let spawns = ref [] in
     let sides  = ref [] in
     let emits = ref [] in

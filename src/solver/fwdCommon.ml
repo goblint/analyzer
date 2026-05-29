@@ -474,13 +474,15 @@ module SolverStats (Sys: FwdGlobConstrSys) = struct
   let eval_rhs_event x = rhs_event_count := !rhs_event_count + 1
 
   let solver_start_event () =
+    TransferStats.reset ();
     let starttime_ms = int_of_float (Unix.gettimeofday () *. 1000.) in
     Logs.info "Solver start: %d" starttime_ms
 
   let solver_end_event () =
     let endtime_ms = int_of_float (Unix.gettimeofday () *. 1000.) in
     Logs.info "Solver end: %d" endtime_ms;
-    Logs.info "RHS: %d" !rhs_event_count
+    Logs.info "RHS: %d" !rhs_event_count;
+    Logs.info "TF: %d" (TransferStats.get ())
 end
 
 module BaseFwdSolver (System: FwdGlobConstrSys) = struct
