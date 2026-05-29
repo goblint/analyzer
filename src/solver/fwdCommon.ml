@@ -295,8 +295,6 @@ module SolverGlobals (Sys: FwdGlobConstrSys) (LS: Set.S with type elt = Sys.LVar
 
     if G.equal new_contribution.value old_contribution.value then (NotUpdated g_record)
     else (
-      (* TODO this is redundant, remove before final test round *)
-      OM.replace g_record.from sx new_contribution;
       let new_g = if G.leq old_contribution.value new_contribution.value then 
           G.join new_contribution.value g_record.value 
         else construct_value g_record in
