@@ -122,13 +122,32 @@ module HConsed (Base:S) =
 struct
   include Std (* for default invariant, tag, ... *)
 
-  module HC = BatHashcons.MakeTable (Base)
+  type h = {
+    obj   : Base.t;
+    tag   : int ;
+    hcode : int ;
+  }
+
+  module HC = Weak.Make (
+    struct
+      type t = h
+      let equal x y = Base.equal x.obj y.obj
+      let hash x = x.hcode
+    end)
   let htable = HC.create 100000
 
-  type t = Base.t BatHashcons.hobj
-  let unlift x = x.BatHashcons.obj
-  let lift = HC.hashcons htable
-  let lift_f f (x:Base.t BatHashcons.hobj) = f (x.BatHashcons.obj)
+  let next_tag = ref 0
+
+  type t = h
+  let unlift (x: h) = x.obj
+  let lift x =
+    let y = {obj = x; tag = !next_tag; hcode = Base.hash x} in
+    let y' = HC.merge htable y in
+    if y == y' then
+      incr next_tag;
+    y'
+
+  let lift_f f (x:h) = f (x.obj)
 
   let show = lift_f Base.show
   let pretty () = lift_f (Base.pretty ())
@@ -137,15 +156,15 @@ struct
   (* let pretty () x = Pretty.dprintf "%a[%d,%d]" Base.pretty x.BatHashcons.obj x.BatHashcons.tag x.BatHashcons.hcode
      let show x = (Base.show x.BatHashcons.obj) ^ "[" ^ string_of_int x.BatHashcons.tag ^ "," ^ string_of_int x.BatHashcons.hcode ^ "]" *)
 
-  let relift x = let y = Base.relift x.BatHashcons.obj in HC.hashcons htable y
+  let relift x = let y = Base.relift x.obj in lift y
   let name () = "HConsed "^Base.name ()
-  let hash x = x.BatHashcons.hcode
-  let tag x = x.BatHashcons.tag
-  let compare x y =  Stdlib.compare x.BatHashcons.tag y.BatHashcons.tag
+  let hash x = x.hcode
+  let tag x = x.tag
+  let compare x y =  Stdlib.compare x.tag y.tag
   let to_yojson = lift_f (Base.to_yojson)
-  let printXml f x = Base.printXml f x.BatHashcons.obj
+  let printXml f x = Base.printXml f x.obj
 
-  let equal_debug x y = (* This debug version checks if we call hashcons enough to have up-to-date tags. Comment out the equal below to use this. This will be even slower than with hashcons disabled! *)
+  (* let equal_debug x y = (* This debug version checks if we call hashcons enough to have up-to-date tags. Comment out the equal below to use this. This will be even slower than with hashcons disabled! *)
     if x.BatHashcons.tag = y.BatHashcons.tag then ( (* x.BatHashcons.obj == y.BatHashcons.obj || *)
       if not (Base.equal x.BatHashcons.obj y.BatHashcons.obj) then
         Logs.error "tags are equal but values are not for %a and %a" pretty x pretty y;
@@ -156,8 +175,8 @@ struct
         Logs.error "tags are not equal but values are for %a and %a" pretty x pretty y;
       assert (not (Base.equal x.BatHashcons.obj y.BatHashcons.obj));
       false
-    )
-  let equal x y = x.BatHashcons.tag = y.BatHashcons.tag
+    ) *)
+  let equal x y = x.tag = y.tag
   (* let equal = equal_debug *)
   let arbitrary () = QCheck.map ~rev:unlift lift (Base.arbitrary ())
 end
