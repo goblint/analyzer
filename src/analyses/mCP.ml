@@ -109,7 +109,7 @@ struct
 
   let map_deadcode f xs =
     let dead = ref false in
-    let one_el xs (n,(module S:MCPSpec),d) = try f xs (n,(module S:MCPSpec),d) :: xs with Deadcode -> dead:=true; (n,Obj.repr @@ S.D.bot ()) :: xs in
+    let one_el xs (n,(module S:MCPSpec),d) = try f (n,(module S:MCPSpec),d) :: xs with Deadcode -> dead:=true; (n,Obj.repr @@ S.D.bot ()) :: xs in
     let ys = fold_left one_el [] xs in
     List.rev ys, !dead
 
@@ -210,9 +210,9 @@ struct
         let emits = ref [] in
         let man'' = outer_man "do_emits" ~spawns ~sides ~emits man in
         let oman'' = outer_man "do_emits" ~spawns ~sides ~emits oman in
-        let f post_all (n,(module S:MCPSpec),(d,od)) =
-          let man' : (S.D.t, S.G.t, S.C.t, S.V.t) man = inner_man "do_emits" ~splits ~post_all man'' n d in
-          let oman' : (S.D.t, S.G.t, S.C.t, S.V.t) man = inner_man "do_emits" ~splits ~post_all oman'' n od in
+        let f (n,(module S:MCPSpec),(d,od)) =
+          let man' : (S.D.t, S.G.t, S.C.t, S.V.t) man = inner_man "do_emits" ~splits man'' n d in
+          let oman' : (S.D.t, S.G.t, S.C.t, S.V.t) man = inner_man "do_emits" ~splits oman'' n od in
           n, Obj.repr @@ S.event man' e oman'
         in
         if M.tracing then M.traceli "event" "%a\n  before: %a" Events.pretty e D.pretty man.local;
@@ -253,8 +253,8 @@ struct
     let sides  = ref [] in (* why do we need to collect these instead of calling man.sideg directly? *)
     let emits = ref [] in
     let man'' = outer_man "branch" ~spawns ~sides ~emits man in
-    let f post_all (n,(module S:MCPSpec),d) =
-      let man' : (S.D.t, S.G.t, S.C.t, S.V.t) man = inner_man "branch" ~splits ~post_all man'' n d in
+    let f (n,(module S:MCPSpec),d) =
+      let man' : (S.D.t, S.G.t, S.C.t, S.V.t) man = inner_man "branch" ~splits man'' n d in
       n, Obj.repr @@ S.branch man' e tv
     in
     let d, q = map_deadcode f @@ spec_list man.local in
@@ -378,7 +378,7 @@ struct
     }
 
   (* Explicitly polymorphic type required here for recursive call in branch. *)
-  and inner_man: type d g c v. string -> ?splits:(int * (Obj.t * Events.t list)) list ref -> ?post_all:(int * Obj.t) list -> (D.t, G.t, C.t, V.t) man -> int -> Obj.t -> (d, g, c, v) man = fun tfname ?splits ?(post_all=[]) man n d ->
+  and inner_man: type d g c v. string -> ?splits:(int * (Obj.t * Events.t list)) list ref -> (D.t, G.t, C.t, V.t) man -> int -> Obj.t -> (d, g, c, v) man = fun tfname ?splits man n d ->
     let split = match splits with
       | Some splits -> (fun d es   -> splits := (n,(Obj.repr d,es)) :: !splits)
       | None -> (fun _ _    -> failwith ("Cannot \"split\" in " ^ tfname ^ " context."))
@@ -397,8 +397,8 @@ struct
     let sides  = ref [] in
     let emits = ref [] in
     let man'' = outer_man "assign" ~spawns ~sides ~emits man in
-    let f post_all (n,(module S:MCPSpec),d) =
-      let man' : (S.D.t, S.G.t, S.C.t, S.V.t) man = inner_man "assign" ~splits ~post_all man'' n d in
+    let f (n,(module S:MCPSpec),d) =
+      let man' : (S.D.t, S.G.t, S.C.t, S.V.t) man = inner_man "assign" ~splits man'' n d in
       n, Obj.repr @@ S.assign man' l e
     in
     let d, q = map_deadcode f @@ spec_list man.local in
@@ -415,8 +415,8 @@ struct
     let sides  = ref [] in
     let emits = ref [] in
     let man'' = outer_man "vdecl" ~spawns ~sides ~emits man in
-    let f post_all (n,(module S:MCPSpec),d) =
-      let man' : (S.D.t, S.G.t, S.C.t, S.V.t) man = inner_man "vdecl" ~splits ~post_all man'' n d in
+    let f (n,(module S:MCPSpec),d) =
+      let man' : (S.D.t, S.G.t, S.C.t, S.V.t) man = inner_man "vdecl" ~splits man'' n d in
       n, Obj.repr @@ S.vdecl man' v
     in
     let d, q = map_deadcode f @@ spec_list man.local in
@@ -432,8 +432,8 @@ struct
     let sides  = ref [] in
     let emits = ref [] in
     let man'' = outer_man "body" ~spawns ~sides ~emits man in
-    let f post_all (n,(module S:MCPSpec),d) =
-      let man' : (S.D.t, S.G.t, S.C.t, S.V.t) man = inner_man "body" ~splits ~post_all man'' n d in
+    let f (n,(module S:MCPSpec),d) =
+      let man' : (S.D.t, S.G.t, S.C.t, S.V.t) man = inner_man "body" ~splits man'' n d in
       n, Obj.repr @@ S.body man' f
     in
     let d, q = map_deadcode f @@ spec_list man.local in
@@ -449,8 +449,8 @@ struct
     let sides  = ref [] in
     let emits = ref [] in
     let man'' = outer_man "return" ~spawns ~sides ~emits man in
-    let f post_all (n,(module S:MCPSpec),d) =
-      let man' : (S.D.t, S.G.t, S.C.t, S.V.t) man = inner_man "return" ~splits ~post_all man'' n d in
+    let f (n,(module S:MCPSpec),d) =
+      let man' : (S.D.t, S.G.t, S.C.t, S.V.t) man = inner_man "return" ~splits man'' n d in
       n, Obj.repr @@ S.return man' e f
     in
     let d, q = map_deadcode f @@ spec_list man.local in
@@ -467,8 +467,8 @@ struct
     let sides  = ref [] in
     let emits = ref [] in
     let man'' = outer_man "asm" ~spawns ~sides ~emits man in
-    let f post_all (n,(module S:MCPSpec),d) =
-      let man' : (S.D.t, S.G.t, S.C.t, S.V.t) man = inner_man "asm" ~splits ~post_all man'' n d in
+    let f (n,(module S:MCPSpec),d) =
+      let man' : (S.D.t, S.G.t, S.C.t, S.V.t) man = inner_man "asm" ~splits man'' n d in
       n, Obj.repr @@ S.asm man'
     in
     let d, q = map_deadcode f @@ spec_list man.local in
@@ -484,8 +484,8 @@ struct
     let sides  = ref [] in
     let emits = ref [] in
     let man'' = outer_man "skip" ~spawns ~sides ~emits man in
-    let f post_all (n,(module S:MCPSpec),d) =
-      let man' : (S.D.t, S.G.t, S.C.t, S.V.t) man = inner_man "skip" ~splits ~post_all man'' n d in
+    let f (n,(module S:MCPSpec),d) =
+      let man' : (S.D.t, S.G.t, S.C.t, S.V.t) man = inner_man "skip" ~splits man'' n d in
       n, Obj.repr @@ S.skip man'
     in
     let d, q = map_deadcode f @@ spec_list man.local in
@@ -501,8 +501,8 @@ struct
     let sides  = ref [] in
     let emits = ref [] in
     let man'' = outer_man "special" ~spawns ~sides ~emits man in
-    let f post_all (n,(module S:MCPSpec),d) =
-      let man' : (S.D.t, S.G.t, S.C.t, S.V.t) man = inner_man "special" ~splits ~post_all man'' n d in
+    let f (n,(module S:MCPSpec),d) =
+      let man' : (S.D.t, S.G.t, S.C.t, S.V.t) man = inner_man "special" ~splits man'' n d in
       n, Obj.repr @@ S.special man' r f a
     in
     let d, q = map_deadcode f @@ spec_list man.local in
@@ -518,8 +518,8 @@ struct
     let sides  = ref [] in
     let emits = ref [] in
     let man'' = outer_man "sync" ~spawns ~sides ~emits man in
-    let f post_all (n,(module S:MCPSpec),d) =
-      let man' : (S.D.t, S.G.t, S.C.t, S.V.t) man = inner_man "sync" ~splits ~post_all man'' n d in
+    let f (n,(module S:MCPSpec),d) =
+      let man' : (S.D.t, S.G.t, S.C.t, S.V.t) man = inner_man "sync" ~splits man'' n d in
       n, Obj.repr @@ S.sync man' reason
     in
     let d, q = map_deadcode f @@ spec_list man.local in
@@ -561,8 +561,8 @@ struct
         spec_list3_rev_acc ((n, spec n, (x, None, z)) :: acc) l1 l2_opt l3
       | _, _, _ -> invalid_arg "MCP.spec_list3_rev_acc"
     in
-    let f post_all (n,(module S:MCPSpec),(d,fc,fd)) =
-      let man' : (S.D.t, S.G.t, S.C.t, S.V.t) man = inner_man "combine_env" ~post_all man'' n d in
+    let f (n,(module S:MCPSpec),(d,fc,fd)) =
+      let man' : (S.D.t, S.G.t, S.C.t, S.V.t) man = inner_man "combine_env" man'' n d in
       n, Obj.repr @@ S.combine_env man' r fe f a (Option.map Obj.obj fc) (Obj.obj fd) f_ask
     in
     let d, q = map_deadcode f @@ List.rev @@ spec_list3_rev_acc [] man.local fc fd in
@@ -590,8 +590,8 @@ struct
         spec_list3_rev_acc ((n, spec n, (x, None, z)) :: acc) l1 l2_opt l3
       | _, _, _ -> invalid_arg "MCP.spec_list3_rev_acc"
     in
-    let f post_all (n,(module S:MCPSpec),(d,fc,fd)) =
-      let man' : (S.D.t, S.G.t, S.C.t, S.V.t) man = inner_man "combine_assign" ~post_all man'' n d in
+    let f (n,(module S:MCPSpec),(d,fc,fd)) =
+      let man' : (S.D.t, S.G.t, S.C.t, S.V.t) man = inner_man "combine_assign" man'' n d in
       n, Obj.repr @@ S.combine_assign man' r fe f a (Option.map Obj.obj fc) (Obj.obj fd) f_ask
     in
     let d, q = map_deadcode f @@ List.rev @@ spec_list3_rev_acc [] man.local fc fd in
@@ -618,9 +618,9 @@ struct
     let emits = ref [] in
     let man'' = outer_man "threadspawn" ~sides ~emits man in
     let fman'' = outer_man "threadspawn" ~sides ~emits fman in
-    let f post_all (n,(module S:MCPSpec),(d,fd)) =
-      let man' : (S.D.t, S.G.t, S.C.t, S.V.t) man = inner_man "threadspawn" ~post_all man'' n d in
-      let fman' : (S.D.t, S.G.t, S.C.t, S.V.t) man = inner_man "threadspawn" ~post_all fman'' n fd in
+    let f (n,(module S:MCPSpec),(d,fd)) =
+      let man' : (S.D.t, S.G.t, S.C.t, S.V.t) man = inner_man "threadspawn" man'' n d in
+      let fman' : (S.D.t, S.G.t, S.C.t, S.V.t) man = inner_man "threadspawn" fman'' n fd in
       n, Obj.repr @@ S.threadspawn ~multiple man' lval f a fman'
     in
     let d, q = map_deadcode f @@ spec_list2 man.local fman.local in
