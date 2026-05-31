@@ -163,12 +163,8 @@ struct
       let side_one_ts ts d =
         (* Do side effects with the tokens that were active at the time.
            Transfer functions have exited the with_side_token wrappers by now. *)
-        let old_side_tokens = !WideningTokenLifter.side_tokens in
-        WideningTokenLifter.side_tokens := ts;
-        Fun.protect (fun () ->
+        GobRef.wrap WideningTokenLifter.side_tokens ts (fun () ->
             man.sideg v @@ fold_left G.join (G.bot ()) d
-          ) ~finally:(fun () ->
-            WideningTokenLifter.side_tokens := old_side_tokens
           )
       in
       iter (uncurry side_one_ts) @@ group_assoc_eq WideningTokenLifter.TS.equal dts
