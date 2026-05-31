@@ -17,6 +17,8 @@ end
 (** Internal representation of a consistent subpolyhedron. *)
 module SubPoly (Var : Var) (I : IntervalSig) = struct
   (* Reuse the SparseVector and ListMatrix modules from the AffineEqualityDomain. *)
+  include RatOps.ConvenienceOps (Mpqf)
+
   module Vector = SparseVector.SparseVector
   module CoeffVector = Vector(Mpqf)
   module Matrix =
@@ -29,7 +31,7 @@ module SubPoly (Var : Var) (I : IntervalSig) = struct
 
   type affeq = Matrix.t [@@deriving eq, ord, hash] (*Our affine equality matrix.*)
   type interval_map = I.t VarMap.t [@@deriving eq, ord] (*Map from Var to Interval*)
-  type info = (Var.t * int) list [@@deriving eq, ord, hash] (*similar to sparse vector, might acutally use sparse vector here? QUESTION*)
+  type info = (Var.t * Mpqf.t) list [@@deriving eq, ord, hash] (*similar to sparse vector, might acutally use sparse vector here? QUESTION*)
   type info_map = info VarMap.t [@@deriving eq, ord] (*Map from Var to info (maybe sparse vector)*)
 
   let hash_interval_map (m: interval_map) =
@@ -73,10 +75,37 @@ module SubPoly (Var : Var) (I : IntervalSig) = struct
 
   let add_affeq_row (row: CoeffVector.t) (t: t) =
     { t with affeq = Matrix.append_row t.affeq row }
+  
 
-  let forget_vars (vars: Var.t list) (t: t) = failwith "todo"
-      (*TODO*)
+  (*******************
+  This function first uses the Matrix interface to get a list of the rows, then filters based on if the var 
+  is 0 which essentially removes all rows where var is non-zero. It then builds the matrix again from the list.
+  It is a bit clunky because Ocaml does not know that the Matrix is already implemented as a list of Vectors.
+  ********************)
+  let rem_rows_containing_var (affeq : affeq) (var: Var.t) : affeq =
+    if Matrix.is_empty affeq then affeq 
+    else
+      let rows = List.init (Matrix.num_rows affeq) (Matrix.get_row affeq) in
+      let filtered = List.filter (fun row -> CoeffVector.nth row (Var.to_int var) =: Mpqf.zero) rows in
+      List.fold_left Matrix.append_row (Matrix.empty ()) filtered
+  
+  
+  (*******************
+    This function takes a slack_map and removes all slack variables whose info contains mention of the var.
+    Used in forget_vars.
+  *******************) 
+  let rem_infos_containing_var (slacks : info_map) (var : Var.t) : info_map = 
+     VarMap.filter (fun _ (info : info) -> not (List.mem var (List.map fst info))) slacks 
 
+  let forget_vars (vars: Var.t list) (t: t) = 
+    let new_affeq = List.fold_left rem_rows_containing_var t.affeq vars in
+    let new_intervals = List.fold_left (flip VarMap.remove) t.intervals vars in
+    let new_infos = List.fold_left rem_infos_containing_var t.infos vars in
+      {affeq = new_affeq ; intervals = new_intervals ; infos = new_infos}
+  
+  let forget_var (var : Var.t) (t: t) : t = 
+    forget_vars [var] t
+  
   (* HELPER-FUNCTIONS FOR DIMENSIONAL OPERATIONS *)
   let shift_index_add (old_index : Var.t) (occ_cols : (int * int) list) : Var.t = 
     (* find all entries that are less or equal to old_index in occ_cols, and count them (=k), then new_index = old_index + k , return new_index *)
@@ -138,7 +167,7 @@ module SubPoly (Var : Var) (I : IntervalSig) = struct
       | [] -> ""
       | terms ->
         terms
-        |> List.map (fun (v, c) -> Int.to_string c ^ "*" ^ Var.string_of v)
+        |> List.map (fun (v, c) -> Mpqf.to_string c ^ "*" ^ Var.string_of v)
         |> String.concat " + "
   let string_of_infos (infos: info_map) = 
     VarMap.bindings infos

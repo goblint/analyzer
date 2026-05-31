@@ -20,6 +20,8 @@ struct
     let compare = Int.compare
     let string_of = Int.to_string
     let hash = Hashtbl.hash
+    let to_int = identity
+    let to_t = identity
   end
   module SubPolyDomain = SubPoly(Int)(RationalInterval)
   include SharedFunctions.VarManagementOps (SubPolyDomain)
@@ -40,13 +42,18 @@ end
 
 (* When changing from coeffvector to Var.t * Mpqf.t ai wrote the add_term and add_linexpr functions. *)
 (* it also touched linexpr of exp *)
+(*
+  QUESTION: why do we not use sparse Vector implementation for Linexpr_management?
+  Not sure if this needs to be changed to work with the new representation of a polyhedron.
+*)
+
 module Linexpr_managment = struct
   include RatOps.ConvenienceOps (Mpqf)
 
   module V = RelationDomain.V
   type linexpr = {
     terms: (Var.t * Mpqf.t) list;
-    const: Mpqf.t; (*QUESTION: here again, are the constants not in the slack var anyways?*)
+    const: Mpqf.t; 
   }
 
   (* Helper functionts for linexpr management, specifically for linexpr of c expr *)
@@ -133,6 +140,9 @@ module Linexpr_managment = struct
   end
 
 (* part of what was originally wired by ai for the smoke test, def to be reviewed. *)
+(* Nico: I had ai rewrite this module for the sake of compilation with the new representation of our type in subpolycore.
+         => still not handwritten/actually useful
+*)
 module Slack_managment = struct
   include Linexpr_managment
   include VarManagement
@@ -145,7 +155,7 @@ module Slack_managment = struct
     | None -> t
     | Some d -> { t with d = Some (f d) }
 
-  let var_key (var: Var.t) = Var.to_string var
+  let var_key (var: Apron.Var.t) = Apron.Var.to_string var
 
   let const_q_of_exp (exp: exp) = match exp with
   | Const (CInt (i, _, _)) -> Some (Q.of_bigint i)
@@ -187,11 +197,11 @@ module Slack_managment = struct
     | _ -> None
 
   let slack_var_of_constraint (linexpr: linexpr) (interval: RationalInterval.t) =
-    let term_key = List.map (fun (var, coeff) -> Var.to_string var, Mpqf.hash coeff) linexpr.terms in
+    let term_key = List.map (fun (var, coeff) -> Apron.Var.to_string var, Mpqf.hash coeff) linexpr.terms in
     let key = Hashtbl.hash (term_key, Mpqf.hash linexpr.const, RationalInterval.hash interval) in
-    Var.of_string ("#subpoly_slack:" ^ string_of_int key)
+    Apron.Var.of_string ("#subpoly_slack:" ^ string_of_int key)
 
-  let row_of_slack (env: Environment.t) (slack: Var.t) (linexpr: linexpr) =
+  let row_of_slack (env: Environment.t) (slack: Apron.Var.t) (linexpr: linexpr) =
     let row = SubPolyDomain.CoeffVector.zero_vec (Environment.size env + 1) in
     let row = SubPolyDomain.CoeffVector.set_nth row (Environment.dim_of_var env slack) Mpqf.one in
     let row = List.fold_left (fun row (var, coeff) ->
@@ -204,29 +214,26 @@ module Slack_managment = struct
     let const' = SubPolyDomain.CoeffVector.nth row const_dim -: linexpr.const in
     SubPolyDomain.CoeffVector.set_nth row const_dim const'
 
-  let add_constant_interval (t: t) (var: Var.t) (c: Q.t) =
+  let add_constant_interval (t: t) (var: Apron.Var.t) (c: Q.t) =
     let interval = RationalInterval.of_bounds ~lower:(Some c) ~upper:(Some c) in
-    map_d (SubPolyDomain.set_interval (Environment.dim_of_var t.env var) interval) t
+    map_d (SubPolyDomain.set_intv (Environment.dim_of_var t.env var) interval) t
 
   let add_slack_constraint (t: t) (linexpr: linexpr) (interval: RationalInterval.t) =
     let slack = slack_var_of_constraint linexpr interval in
     let t = add_vars t [slack] in
     let row = row_of_slack t.env slack linexpr in
-    let slack_info: SubPolyDomain.slack = {
-      info = {
-        terms = List.map (fun (var, coeff) -> Environment.dim_of_var t.env var, coeff) linexpr.terms;
-        const = linexpr.const;
-      };
-      intv = interval;
-    } in
+    let slack_dim = Environment.dim_of_var t.env slack in
+    let slack_info : SubPolyDomain.info = List.map (fun (var, coeff) -> Environment.dim_of_var t.env var, coeff) linexpr.terms in
     map_d (fun d ->
-        if SubPolyDomain.mem_slack (Environment.dim_of_var t.env slack) d then
+        if SubPolyDomain.mem_info slack_dim d then
           d
         else
           d
           |> SubPolyDomain.add_affeq_row row
-          |> SubPolyDomain.set_slack (Environment.dim_of_var t.env slack) slack_info
+          |> SubPolyDomain.set_info slack_dim slack_info
+          |> SubPolyDomain.set_intv slack_dim interval
       ) t
+  
 end
 
 module D =
@@ -293,27 +300,9 @@ struct
   
   let unify = meet
 
-  (*******************
-    This function first uses the Matrix interface to get a list of the rows, then filters based on if the var 
-    is 0 which essentially removes all rows where var is non-zero. It then builds the matrix again from the list.
-    It is a bit clunky because Ocaml does not know that the Matrix is already implemented as a list of Vectors.
-  ********************)
-  let rem_rows_containing_var (affeq : SubPolyDomain.affeq) (var: int) : SubPolyDomain.affeq =
-    if SubPolyDomain.Matrix.is_empty affeq then affeq 
-    else
-      let rows = List.init (SubPolyDomain.Matrix.num_rows affeq) (SubPolyDomain.Matrix.get_row affeq) in
-      let filtered = List.filter (fun row -> SubPolyDomain.CoeffVector.nth row var =: Mpqf.zero) rows in
-      List.fold_left SubPolyDomain.Matrix.append_row (SubPolyDomain.Matrix.empty ()) filtered
-
-  (*******************
-    This function takes a slack_map and removes all slack variables whose info contains mention of the var.
-    Used in forget_vars.
-  *******************)    
-  let rem_slacks_containing_var (slacks : SubPolyDomain.slack_map) (var : int) : SubPolyDomain.slack_map = 
-     SubPolyDomain.VarMap.filter (fun _ (slack : SubPolyDomain.slack) -> not (List.mem var (List.map fst slack.info.terms))) slacks 
 
   (* transfer functions *)
-  let forget_var (t: t) (v: V.t) = remove_vars t [v]
+  
     
   
   (**************
@@ -324,10 +313,9 @@ struct
     else 
       let d = Option.get t.d in 
       let dims = List.map (Environment.dim_of_var t.env) vars in (*map of vars in Env. to dimensions in matrix.*)
-      let new_affeq = List.fold_left rem_rows_containing_var d.affeq dims in
-      let new_intervals = List.fold_left (flip SubPolyDomain.VarMap.remove) d.intervals dims in
-      let new_slacks = List.fold_left rem_slacks_containing_var d.slacks dims in
-      {d = Some {affeq = new_affeq ; intervals = new_intervals ; slacks = new_slacks}; env = t.env} 
+      {t with d = Some (SubPolyDomain.forget_vars dims d)}
+  
+  let forget_var (t: t) (v: V.t) = forget_vars t [v]
   
   let assign_exp (_ask: Queries.ask) (t: t) (var: V.t) (exp: exp) (_no_ov: bool Lazy.t) =
     let t = add_vars t [var] in
