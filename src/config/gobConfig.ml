@@ -241,17 +241,13 @@ struct
   (** (Global) flag to disallow modification of the configuration. *)
   let immutable = ref false
 
-  let set_immutable = (:=) immutable
-
   let is_immutable () = !immutable
 
   let with_immutable_conf f =
     (* allow nesting *)
     if is_immutable () then f ()
-    else (
-      set_immutable true;
-      Fun.protect ~finally:(fun () -> set_immutable false) f
-    )
+    else
+      GobRef.wrap immutable true f
 
   (** The main function to write new values into the conf. Use [set_value] to properly invalidate cache and check immutability.
       @raise Failure
