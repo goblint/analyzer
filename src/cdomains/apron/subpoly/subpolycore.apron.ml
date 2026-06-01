@@ -77,32 +77,40 @@ module SubPoly (Var : Var) (I : IntervalSig) = struct
     { t with affeq = Matrix.append_row t.affeq row }
   
 
-  (*******************
-  This function first uses the Matrix interface to get a list of the rows, then filters based on if the var 
-  is 0 which essentially removes all rows where var is non-zero. It then builds the matrix again from the list.
-  It is a bit clunky because Ocaml does not know that the Matrix is already implemented as a list of Vectors.
-  ********************)
-  let rem_rows_containing_var (affeq : affeq) (var: Var.t) : affeq =
-    if Matrix.is_empty affeq then affeq 
-    else
-      let rows = List.init (Matrix.num_rows affeq) (Matrix.get_row affeq) in
-      let filtered = List.filter (fun row -> CoeffVector.nth row (Var.to_int var) =: Mpqf.zero) rows in
-      List.fold_left Matrix.append_row (Matrix.empty ()) filtered
-  
-  
-  (*******************
-    This function takes a slack_map and removes all slack variables whose info contains mention of the var.
+  (**
+    [rem_row_containing_var affeq var] uses [Matrix.reduce_col] and [Matrix.remove_zero_rows] to remove all occurences of the variable from a matrix. 
+
     Used in forget_vars.
-  *******************) 
+  *)  
+  let rem_rows_containing_var (affeq : affeq) (var : Var.t) : affeq = 
+    if Matrix.is_empty affeq then affeq
+    else 
+      Matrix.remove_zero_rows @@ Matrix.reduce_col affeq (Var.to_int var)
+
+  (**
+    [rem_infos_containing_var slacks var] takes a slack_map and removes all slack variables whose info contains mention of the var.
+
+    Used in forget_vars.
+  *) 
   let rem_infos_containing_var (slacks : info_map) (var : Var.t) : info_map = 
      VarMap.filter (fun _ (info : info) -> not (List.mem var (List.map fst info))) slacks 
 
+  (**
+    [forget_vars vars t] forgets a list of variables in the polyhedron.
+
+    Future TODO: Currently we do Gaussian elimination with the variable as pivot ([Matrix.reduce_col]).
+    This is fine for the affeq, but we do not want to blindly remove any slack variable info containing x
+    from our info_map. Currently this happens, but refinement is needed in the future!
+  *)
   let forget_vars (vars: Var.t list) (t: t) = 
     let new_affeq = List.fold_left rem_rows_containing_var t.affeq vars in
     let new_intervals = List.fold_left (flip VarMap.remove) t.intervals vars in
     let new_infos = List.fold_left rem_infos_containing_var t.infos vars in
       {affeq = new_affeq ; intervals = new_intervals ; infos = new_infos}
   
+  (**
+  [forget_var var t] forgets a single variable using [forget_vars].
+  *)
   let forget_var (var : Var.t) (t: t) : t = 
     forget_vars [var] t
   
