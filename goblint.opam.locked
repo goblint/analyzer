@@ -32,7 +32,7 @@ depends: [
   "base-bytes" {= "base" & with-dev-setup}
   "base-threads" {= "base"}
   "base-unix" {= "base"}
-  "batteries" {= "3.9.0"}
+  "batteries" {= "3.11.0"}
   "benchmark" {= "1.6" & with-test}
   "bigarray-compat" {= "1.1.0"}
   "bigstringaf" {= "0.9.1"}
@@ -163,6 +163,10 @@ pin-depends: [
   [
     "goblint-cil.2.0.9"
     "git+https://github.com/goblint/cil.git#2243aad0e34cb59b7d2d18415ab88a7767c108b7"
+  ]
+  [
+    "batteries.3.11.0"
+    "git+https://github.com/sim642/batteries-included.git#3920bdf614e4a12120fabfa2c97ee913cc246b13"
   ]
   [
     "apron.v0.9.15"
