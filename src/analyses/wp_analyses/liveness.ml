@@ -75,7 +75,7 @@ struct
   let rec assign man man_forw (lval:lval) (rval:exp) =
     match lval with
     | Var v, offset -> 
-      if (D.mem v man.local) then ( (* Global variables are considered live when writing to them -> No, not anymore. This of course does not wark with concurrent programs, but I am already excluding those. *)
+      if (D.mem v man.local) then (
         let rval_vars = D.of_list (vars_from_expr rval man_forw)in
         let rval_vars = D.filter (fun v -> not (Cil.isFunctionType v.vtype)) rval_vars in (*remove variables that are just function names*)
 
@@ -88,8 +88,6 @@ struct
 
         D.union rval_vars (D.union offset_vars base_live)
       ) else (
-        (* let loc = M.Location.Node man.node in *)
-        (* M.warn ~loc:loc ~category:MessageCategory.Program "Unnecessary assignment to variable '%s', as it is not live at this program point." v.vname; *)
         man.local
       )
     | Mem exp, off -> 

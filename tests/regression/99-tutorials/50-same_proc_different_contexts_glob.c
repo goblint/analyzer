@@ -1,5 +1,6 @@
 // SKIP TERM PARAM: --enable ana.wp_run 
 int f(int a, int b);
+int x, y, u, v;
 
 int main(){
   int x = 1;
