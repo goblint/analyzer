@@ -99,6 +99,18 @@ module CL = MapDomain.MapBot_LiftTop (ThreadIdDomain.Thread) (LockDomain.MustLoc
 
 module LH = MapDomain.MapTop (LockDomain.MustLock) (SetDomain.Reverse (ConcDomain.ThreadSet))
 
+module LLock =
+struct
+  include Printable.Either (LockDomain.MustLock) (struct include CilType.Varinfo let name () = "global" end)
+  let mutex m = `Left m
+  let global x = `Right x
+end
+
+module LMust =
+struct
+  include SetDomain.Reverse (SetDomain.ToppedSet (LLock) (struct let topname = "All locks" end))
+  let name () = "LMust"
+end
 
 (** GADT for queries with specific result type. *)
 type _ t =
@@ -112,6 +124,7 @@ type _ t =
   | MayBePublicWithout: maybepublicwithout -> MayBool.t t
   | MustBeProtectedBy: mustbeprotectedby -> MustBool.t t
   | MustLockset: LockDomain.MustLockset.t t
+  | AppearingMutexes: LockDomain.AppearingMutexesQuery.t t
   | MustBeAtomic: MustBool.t t
   | MustBeSingleThreaded: {since_start: bool} -> MustBool.t t (** Use via {!ThreadFlag.is_currently_multi} and {!ThreadFlag.has_ever_been_multi}. *)
   | MustBeUniqueThread: MustBool.t t
@@ -175,6 +188,7 @@ type _ t =
   | DescendantThreads: ThreadIdDomain.Thread.t -> ConcDomain.ThreadSet.t t
   | CreationLockset: ThreadIdDomain.Thread.t -> CL.t t
   | MustlockHistory: LH.t t
+  | LMust: LMust.t t
   | TutorialEffectivelyLocal: varinfo -> MustBool.t t (** Used in tutorial for effectively local variables. *)
 
 type 'a result = 'a
@@ -198,6 +212,7 @@ struct
     | ReachableFrom _ -> (module AD)
     | Regions _ -> (module LS)
     | MustLockset -> (module LockDomain.MustLockset)
+    | AppearingMutexes -> (module LockDomain.AppearingMutexesQuery)
     | EvalFunvar _ -> (module AD)
     | ReachableUkTypes _ -> (module TS)
     | MayEscape _ -> (module MayBool)
@@ -258,6 +273,7 @@ struct
     | DescendantThreads _ -> (module ConcDomain.ThreadSet)
     | CreationLockset _ -> (module CL)
     | MustlockHistory -> (module LH)
+    | LMust -> (module LMust)
     | TutorialEffectivelyLocal _ -> (module MustBool)
 
   (** Get bottom result for query. *)
@@ -280,6 +296,7 @@ struct
     | ReachableFrom _ -> AD.top ()
     | Regions _ -> LS.top ()
     | MustLockset -> LockDomain.MustLockset.top ()
+    | AppearingMutexes -> LockDomain.AppearingMutexesQuery.top ()
     | EvalFunvar _ -> AD.top ()
     | ReachableUkTypes _ -> TS.top ()
     | MayEscape _ -> MayBool.top ()
@@ -340,6 +357,7 @@ struct
     | DescendantThreads _ -> ConcDomain.ThreadSet.top ()
     | CreationLockset _ -> CL.top ()
     | MustlockHistory -> LH.top ()
+    | LMust -> LMust.top ()
     | TutorialEffectivelyLocal _ -> MustBool.top ()
 end
 
@@ -498,6 +516,7 @@ struct
     | Any (MayBePublicWithout x) -> Pretty.dprintf "MayBePublicWithout _"
     | Any (MustBeProtectedBy x) -> Pretty.dprintf "MustBeProtectedBy _"
     | Any MustLockset -> Pretty.dprintf "MustLockset"
+    | Any AppearingMutexes -> Pretty.dprintf "AppearingMutexes"
     | Any MustBeAtomic -> Pretty.dprintf "MustBeAtomic"
     | Any (MustBeSingleThreaded {since_start}) -> Pretty.dprintf "MustBeSingleThreaded since_start=%b" since_start
     | Any MustBeUniqueThread -> Pretty.dprintf "MustBeUniqueThread"
@@ -554,6 +573,7 @@ struct
     | Any PhaseDigest -> Pretty.dprintf "PhaseDigest"
     | Any (CreationLockset t) -> Pretty.dprintf "CreationLockset %a" ThreadIdDomain.Thread.pretty t
     | Any (MustlockHistory) -> Pretty.dprintf "MustlockHistory"
+    | Any LMust -> Pretty.dprintf "LMust"
     | Any (TutorialEffectivelyLocal v) -> Pretty.dprintf "TutorialEffectivelyLocal %a" CilType.Varinfo.pretty v
 end
 

@@ -1666,6 +1666,7 @@ struct
     | Q.MaySignedOverflow e -> (let res = exp_may_signed_overflow man e in
                                 if M.tracing then M.trace "signed_overflow" "base exp_may_signed_overflow %a. Result = %b" d_plainexp e res; res
                                )
+    | Q.LMust -> Priv.lmust man.local
     | _ -> Q.Result.top q
 
   let update_variable variable typ value cpa =
@@ -3169,6 +3170,8 @@ struct
         ) man.local lval
     | Events.PhaseChange {old_phase; new_phase} ->
       Priv.phase_change ask old_phase new_phase (priv_getg man.global) (priv_sideg man.sideg) st
+    | Events.GrowLMust lmust ->
+      Priv.grow_lmust st lmust
     | _ ->
       man.local
 end
