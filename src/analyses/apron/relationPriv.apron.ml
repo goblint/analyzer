@@ -48,11 +48,17 @@ module type S =
     val thread_return: Q.ask -> (V.t -> G.t) -> (V.t -> G.t -> unit) -> ThreadIdDomain.Thread.t -> relation_components_t -> relation_components_t
     val iter_sys_vars: (V.t -> G.t) -> VarQuery.t -> V.t VarQuery.f -> unit (** [Queries.IterSysVars] for apron. *)
 
+    val phase_change: Q.ask -> Q.PhaseDigest.t -> Q.PhaseDigest.t -> (V.t -> G.t) -> (V.t -> G.t -> unit) -> relation_components_t -> relation_components_t
+
     val invariant_global: Q.ask -> (V.t -> G.t) -> V.t -> Invariant.t
     (** Returns flow-insensitive invariant for global unknown. *)
 
     val invariant_vars: Q.ask -> (V.t -> G.t) -> relation_components_t -> varinfo list
     (** Returns global variables which are privatized. *)
+
+
+    val lmust: relation_components_t -> Queries.LMust.t
+    val grow_lmust: relation_components_t -> Queries.LMust.t -> relation_components_t
 
     val init: unit -> unit
     val finalize: unit -> unit
@@ -144,6 +150,10 @@ struct
   let iter_sys_vars getg vq vf = ()
   let invariant_global ask getg g = Invariant.none
   let invariant_vars ask getg st = []
+
+  let phase_change _ _ _ _ _ st = st
+  let lmust _ = Queries.LMust.bot ()
+  let grow_lmust (st: relation_components_t) _ = st
 
   let init () = ()
   let finalize () = ()
@@ -433,6 +443,10 @@ struct
   let invariant_global ask getg g = Invariant.none
   let invariant_vars ask getg st = protected_vars ask ~kind:Write (* TODO: is this right? *)
 
+  let phase_change _ _ _ _ _ st = st
+  let lmust _ = Queries.LMust.bot ()
+  let grow_lmust (st: relation_components_t) _ = st
+
   let finalize () = ()
 
   module P = PS
@@ -456,6 +470,10 @@ struct
       | _ -> false
     in
     RD.keep_filter oct protected
+
+  let phase_change _ _ _ _ _ st = st
+  let lmust _ = Queries.LMust.bot ()
+  let grow_lmust st _ = st
 end
 
 module PerMutexMeetPrivBase (RD: RelationDomain.RD) =
@@ -750,6 +768,11 @@ struct
         Invariant.none
     | g -> (* global *)
       Invariant.none (* Could output unprotected one-variable (so non-relational) invariants, but probably not very useful. [BasePriv] does those anyway. *)
+
+  let phase_change _ _ _ _ _ st = st
+  let lmust _ = Queries.LMust.bot ()
+  let grow_lmust st _ = st
+
 end
 
 (** May written variables. *)
@@ -1334,6 +1357,10 @@ struct
     match vq with
     | VarQuery.Global g -> vf (V.global g)
     | _ -> ()
+
+  let phase_change _ _ _ _ _ st = st
+  let lmust _ = Queries.LMust.bot ()
+  let grow_lmust st _ = st
 
   let finalize () = ()
 
