@@ -276,7 +276,11 @@ sig
   include Spec
 
   module A: MCPA
+  module PInfo: Lattice.S
+
   val access: (D.t, G.t, C.t, V.t) man -> Queries.access -> A.t
+  val pinfo: (D.t, G.t, C.t, V.t) man -> PInfo.t
+  val consume_pinfo: D.t -> PInfo.t -> D.t
 end
 
 type increment_data = {
@@ -350,6 +354,10 @@ struct
   module G = Lattice.Unit
   module V = EmptyV
   module P = EmptyP
+
+  module PInfo = Lattice.Unit
+  let pinfo _ = ()
+  let consume_pinfo d () = d
 
   type marshal = unit
   let init _ = ()
