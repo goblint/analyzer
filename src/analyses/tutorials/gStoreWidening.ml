@@ -261,8 +261,8 @@ module EffectivelyLocalAnalysis:SimplifiedSpec = struct
       match is_tracked_lval lval with
       | Some v ->
         (* TODO: 3) check if this is a global variable and if it is, record the thread id *)
-        (* let tid = ThreadId.get_current_unlift (SimplifiedAnalysis.ask_of_man man) in
-        let singleton_set = ThreadSet.singleton tid in *)
+        (* let tid = ThreadId.get_current_unlift (SimplifiedAnalysis.ask_of_man man) in *)
+        (* let singleton_set = ThreadSet.singleton tid in *)
         state
       | None ->
         state
