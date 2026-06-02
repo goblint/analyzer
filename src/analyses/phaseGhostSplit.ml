@@ -59,10 +59,10 @@ struct
 
     let can_change_to (_, changes) target currmhp =
       match PhaseChanges.find_opt (`Lifted target) changes with
-      | None ->
-        false
-      | Some (accesses, _) ->
-        MHPs.can_any_mhp currmhp accesses
+      | Some (accesses, lmust) when MHPs.can_any_mhp currmhp accesses ->
+        Some lmust
+      | _ ->
+        None
   end
 
   let initial_ghost_values () =
@@ -181,36 +181,39 @@ struct
       let may_be_advanced_here m var =
         if man.ask Queries.MustBeAtomic then
           (* Shortcut, would also be caught below, but as it is common cheaper to check here *)
-          (if M.tracing then M.tracel "phaseGhost" "Is atomic -> not advancing phase"; false)
+          (if M.tracing then M.tracel "phaseGhost" "Is atomic -> not advancing phase"; None)
         else
           match man.ask (Queries.Owner var), man.ask Queries.CurrentThreadId, D.find var m  with
           | `Bot, _, _
           | _, `Bot, _ ->
-            false
+            None
           | `Lifted owner, _ , `Lifted z ->
             G.can_change_to (man.global var) (Z.succ z) (current_mhp man)
           | _ ->
             failwith "assumption about ghost owner violated"
       in
-      let rec handle_vars m = function
-        | []  -> man.split m []
+      let rec handle_vars (m, lmust) = function
+        | []  ->
+          man.split m [Events.GrowLMust lmust]
         | var :: vars ->
-          if may_be_advanced_here m var then
+          match may_be_advanced_here m var with
+          | Some curr_lmust ->
             (let v' = (match (D.find var m) with
                  | `Lifted x -> Z.succ x
                  | _ -> failwith "assumption")
              in
              let advanced = D.add var (`Lifted v') m in
-             handle_vars advanced (var::vars);
-             handle_vars m vars)
-          else
-            handle_vars m vars
+             let lmust' = LMust.union lmust curr_lmust in
+             handle_vars (advanced, lmust') (var::vars);
+             handle_vars (m, lmust) vars)
+          | None ->
+            handle_vars (m, lmust) vars
       in
       let traceEvolution () =
         YamlWitness.VarSet.iter (fun var ->
             let owner = man.ask (Queries.Owner var) in
             let phase_ghost = is_phase_ghost man var in
-            let may_advance = phase_ghost && may_be_advanced_here local var in
+            let may_advance = phase_ghost && Option.is_some (may_be_advanced_here local var) in
             M.tracel "phaseGhost" "Ghost %a is %sa phase ghost, has owner %a and may %s be advanced here" (* nosemgrep: trace-not-in-tracing *)
               CilType.Varinfo.pretty var
               (if phase_ghost then "" else "not ")
@@ -219,7 +222,7 @@ struct
           ) !(YamlWitness.ghostVars)
       in
       if M.tracing then traceEvolution ();
-      handle_vars local (phase_ghosts man);
+      handle_vars (local, LMust.empty ()) (phase_ghosts man);
       raise Deadcode
 
 

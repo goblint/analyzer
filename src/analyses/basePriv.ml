@@ -61,6 +61,7 @@ sig
   val invariant_vars: Q.ask -> (V.t -> G.t) -> BaseComponents (D).t -> varinfo list
 
   val lmust: BaseDomain.BaseComponents (D).t -> Queries.LMust.t
+  val grow_lmust: BaseDomain.BaseComponents (D).t -> Queries.LMust.t -> BaseDomain.BaseComponents (D).t
 
   val init: unit -> unit
   val finalize: unit -> unit
@@ -72,6 +73,7 @@ struct
 
   let phase_change _ _ _ _ _ st = st
   let lmust _ = Queries.LMust.bot ()
+  let grow_lmust st _ = st
 end
 
 let old_threadenter (type d) ask (st: d BaseDomain.basecomponents_t) =
@@ -808,6 +810,13 @@ struct
     let (_, lmust, _) = st.priv in
     let elems = List.map fst (LMust.elements lmust) in
     Queries.LMust.of_list elems
+
+  let grow_lmust (st: BaseComponents (D).t) (lmust: Queries.LMust.t) =
+    let (w, lmust_old, l) = st.priv in
+    let lmust_elems = Queries.LMust.elements lmust in
+    let l' = List.map (fun lm -> (lm, ())) lmust_elems in
+    let new_lmust = LMust.union lmust_old (LMust.of_list l') in
+    {st with priv = (w, new_lmust, l)}
 
   let threadspawn (ask:Queries.ask) get set (st: BaseComponents (D).t) =
     let is_recovered_st = ThreadFlag.has_ever_been_multi ask && not @@ ThreadFlag.is_currently_multi ask in
@@ -2158,6 +2167,7 @@ struct
   let init () = time "init" (Priv.init) ()
   let finalize () = time "finalize" (Priv.finalize) ()
   let lmust st = time "lmust" (Priv.lmust) st
+  let grow_lmust st lmust = time "grow_must" (Priv.grow_lmust st) lmust
 end
 
 module PrecisionDumpPriv (Priv: S): S with module D = Priv.D =
