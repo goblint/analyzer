@@ -656,6 +656,7 @@ struct
     | Queries.InvariantGlobal g ->
       let g: V.t = Obj.obj g in
       query_invariant_global man g
+    | Queries.LMust -> Priv.lmust man.local
     | _ -> Result.top q
 
 
@@ -757,6 +758,10 @@ struct
       st
     | Events.Longjmped {lval} ->
       Option.map_default (invalidate_one ask man st) st lval
+    | Events.PhaseChange {old_phase; new_phase} ->
+      Priv.phase_change ask old_phase new_phase man.global man.sideg st
+    | Events.GrowLMust lmust ->
+      Priv.grow_lmust st lmust
     | _ ->
       st
 
