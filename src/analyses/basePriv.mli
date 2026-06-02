@@ -43,6 +43,8 @@ sig
   (** Returns global variables which are privatized. *)
 
   val lmust: BaseDomain.BaseComponents (D).t -> Queries.LMust.t
+  val grow_lmust: BaseDomain.BaseComponents (D).t -> Queries.LMust.t -> BaseDomain.BaseComponents (D).t
+
 
   val init: unit -> unit
   val finalize: unit -> unit
