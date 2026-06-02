@@ -239,6 +239,7 @@ struct
          | Some z ->
            (let v = Z.succ z in
             let local_new = D.add var (`Lifted v) local in
+            let local_pinfo: MCPAccess.PInfo.t = Obj.obj (man.ask Queries.PhaseInfo) in
             man.sideg var (G.create_change (`Lifted v) (current_mhp man) (man.ask LMust));
             (* TODO: Prolong until after atomic is over? *)
             if not (D.equal local local_new) then

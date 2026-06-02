@@ -171,6 +171,15 @@ struct
     in
     iter (uncurry side_one) @@ group_assoc_eq V.equal xs
 
+  let consume_pinfo (d:D.t) (pinfo:MCPAccess.PInfo.t) =
+    let f (n,(module S:MCPSpec),(d, pinfo)) =
+      let d' = S.consume_pinfo (Obj.obj d) (Obj.obj pinfo n) in
+      n, Obj.repr d'
+    in
+    let ls = spec_list2 d pinfo in
+    let d = map f ls in
+    (d:D.t)
+
   let rec do_splits man pv (xs:(int * (Obj.t * Events.t list)) list) emits =
     let split_one n (d,emits') =
       let nv = assoc_replace (n,d) pv in
@@ -199,6 +208,9 @@ struct
         man_with_local man (branch man exp tv)
       | Events.Assign {lval; exp} ->
         man_with_local man (assign man lval exp)
+      | Events.PropPInfo pinfo ->
+        let pinfo:MCPAccess.PInfo.t = Obj.obj pinfo in
+        man_with_local man (consume_pinfo man.local pinfo)
       | e ->
         let spawns = ref [] in
         let splits = ref [] in
@@ -307,6 +319,8 @@ struct
             f ~q:(YamlEntryGlobal (Obj.repr g, task)) (Result.top ()) (n, spec n, assoc n man.local)
           | Queries.PartAccess a ->
             Obj.repr (access man a)
+          | Queries.PhaseInfo ->
+            Obj.repr (pinfo man)
           | Queries.IterSysVars (vq, fi) ->
             (* IterSysVars is special: argument function is lifted for each analysis *)
             iter (fun ((n,(module S:MCPSpec),d) as t) ->
@@ -348,6 +362,14 @@ struct
     let f (n, (module S: MCPSpec), d) =
       let man' : (S.D.t, S.G.t, S.C.t, S.V.t) man = inner_man "access" man'' n d in
       (n, Obj.repr (S.access man' a))
+    in
+    BatList.map f (spec_list man.local) (* map without deadcode *)
+
+  and pinfo (man:(D.t, G.t, C.t, V.t) man): MCPAccess.PInfo.t =
+    let man'' = outer_man "pinfo" man in
+    let f (n, (module S: MCPSpec), d) =
+      let man' : (S.D.t, S.G.t, S.C.t, S.V.t) man = inner_man "pinfo" man'' n d in
+      (n, Obj.repr (S.pinfo man'))
     in
     BatList.map f (spec_list man.local) (* map without deadcode *)
 

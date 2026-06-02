@@ -24,6 +24,7 @@ module type S =
     module G: Lattice.S
     module V: Printable.S
     module P: DisjointDomain.Representative with type elt := D.t (** Path-representative. *)
+    module PInfo: Lattice.S
 
     type relation_components_t := RelationDomain.RelComponents (RD) (D).t
     val name: unit -> string
@@ -57,7 +58,7 @@ module type S =
     (** Returns global variables which are privatized. *)
 
 
-    val lmust: relation_components_t -> Queries.LMust.t
+    val lmust: relation_components_t -> PInfo.t
     val grow_lmust: relation_components_t -> Queries.LMust.t -> relation_components_t
 
     val init: unit -> unit
@@ -73,6 +74,7 @@ struct
   module V = EmptyV
   module AV = RD.V
   module P = UnitP
+  module PInfo = Lattice.Unit
 
   type relation_components_t = RelComponents (RD) (D).t
 
@@ -152,7 +154,7 @@ struct
   let invariant_vars ask getg st = []
 
   let phase_change _ _ _ _ _ st = st
-  let lmust _ = Queries.LMust.bot ()
+  let lmust _ = ()
   let grow_lmust (st: relation_components_t) _ = st
 
   let init () = ()
@@ -201,6 +203,8 @@ struct
       else
         None
   end
+
+  module PInfo = Lattice.Unit
 
   type relation_components_t = RelationComponents (RD) (D).t
 
@@ -444,7 +448,7 @@ struct
   let invariant_vars ask getg st = protected_vars ask ~kind:Write (* TODO: is this right? *)
 
   let phase_change _ _ _ _ _ st = st
-  let lmust _ = Queries.LMust.bot ()
+  let lmust _ = ()
   let grow_lmust (st: relation_components_t) _ = st
 
   let finalize () = ()
@@ -499,6 +503,8 @@ struct
   module D = Lattice.Unit
   module G = RD
   module P = UnitP
+
+  module PInfo = Lattice.Unit
 
   type relation_components_t = RelationDomain.RelComponents (RD) (D).t
 
@@ -770,7 +776,7 @@ struct
       Invariant.none (* Could output unprotected one-variable (so non-relational) invariants, but probably not very useful. [BasePriv] does those anyway. *)
 
   let phase_change _ _ _ _ _ st = st
-  let lmust _ = Queries.LMust.bot ()
+  let lmust _ = ()
   let grow_lmust st _ = st
 
 end
@@ -1051,6 +1057,8 @@ struct
 
   module AV = RD.V
   module P = UnitP
+
+  module PInfo = LMust
 
   let name () = "PerMutexMeetPrivTID(" ^ (Cluster.name ()) ^ (if GobConfig.get_bool "ana.relation.priv.must-joined" then  ",join"  else "") ^ ")"
 
@@ -1427,8 +1435,7 @@ struct
         st
       end
 
-  let phase_change _ _ _ _ _ st = st
-  let lmust _ = Queries.LMust.bot ()
+  let lmust (st:relation_components_t) = LMust.bot ()
   let grow_lmust st _ = st
 
   let finalize () = ()

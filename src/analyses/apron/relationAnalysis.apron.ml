@@ -33,6 +33,8 @@ struct
     let of_elt {priv; _} = of_elt priv
   end
 
+  module PInfo = Priv.PInfo
+
   module RV = RD.V
 
   module PCU = PCU(RD)
@@ -656,9 +658,12 @@ struct
     | Queries.InvariantGlobal g ->
       let g: V.t = Obj.obj g in
       query_invariant_global man g
-    | Queries.LMust -> Priv.lmust man.local
+    | Queries.LMust -> Queries.LMust.bot ()
     | _ -> Result.top q
 
+
+  let pinfo man = ((Priv.lmust man.local):PInfo.t)
+  let consume_pinfo st pinfo = st
 
   (* Thread transfer functions. *)
 

@@ -40,6 +40,8 @@ struct
   include Analyses.ValueContexts(D)
   module P = IdentityP(Dom)
 
+  module PInfo = Queries.LMust
+
   (* Two global invariants:
      1. Priv.V -> Priv.G  --  used for Priv
      2. thread -> VD  --  used for thread returns *)
@@ -1704,6 +1706,9 @@ struct
                                )
     | Q.LMust -> Priv.lmust man.local
     | _ -> Q.Result.top q
+
+  let pinfo man = Priv.lmust man.local
+  let consume_pinfo st pinfo = Priv.grow_lmust st pinfo
 
   let update_variable variable typ value cpa =
     if ((get_bool "exp.volatiles_are_top") && (is_always_unknown variable)) then

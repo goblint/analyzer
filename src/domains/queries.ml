@@ -144,6 +144,7 @@ type _ t =
   (* If the record's second field is set to true, then address offsets are discarded and the size of the `Blob is asked for the base address. *)
   | CondVars: exp -> ES.t t
   | PartAccess: access -> Obj.t t (** Only queried by access and deadlock analysis. [Obj.t] represents [MCPAccess.A.t], needed to break dependency cycle. *)
+  | PhaseInfo: Obj.t t
   | IterPrevVars: iterprevvar -> Unit.t t
   | IterVars: itervar -> Unit.t t
   | PathQuery: int * 'a t -> 'a t (** Query only one path under witness lifter. *)
@@ -244,6 +245,7 @@ struct
     | PathQuery (_, q) -> lattice q
     | DYojson -> (module FlatYojson)
     | PartAccess _ -> Obj.magic (module Unit: Lattice.S) (* Never used, MCP handles PartAccess specially. Must still return module (instead of failwith) here, but the module is never used. *)
+    | PhaseInfo -> Obj.magic (module Unit: Lattice.S) (* Never used, but needed for MCP to return some result for PhaseInfo queries. *)
     | IsMultiple _ -> (module MustBool) (* see https://github.com/goblint/analyzer/pull/310#discussion_r700056687 on why this needs to be MustBool *)
     | MutexType _ -> (module MutexAttrDomain)
     | EvalThread _ -> (module ConcDomain.ThreadSet)
@@ -330,6 +332,7 @@ struct
     | PathQuery (_, q) -> top q
     | DYojson -> FlatYojson.top ()
     | PartAccess _ -> failwith "Queries.Result.top: PartAccess" (* Never used, MCP handles PartAccess specially. *)
+    | PhaseInfo -> failwith "Queries.Result.top: PhaseInfo" (* Never used, but needed for MCP to return some result for PhaseInfo queries. *)
     | IsMultiple _ -> MustBool.top ()
     | EvalThread _ -> ConcDomain.ThreadSet.top ()
     | EvalJumpBuf _ -> JmpBufDomain.JmpBufSet.top ()
@@ -539,6 +542,7 @@ struct
     | Any (BlobSize {exp = e; base_address = b}) -> Pretty.dprintf "BlobSize %a (base_address: %b)" CilType.Exp.pretty e b
     | Any (CondVars e) -> Pretty.dprintf "CondVars %a" CilType.Exp.pretty e
     | Any (PartAccess p) -> Pretty.dprintf "PartAccess _"
+    | Any PhaseInfo -> Pretty.dprintf "PhaseInfo"
     | Any (IterPrevVars i) -> Pretty.dprintf "IterPrevVars _"
     | Any (IterVars i) -> Pretty.dprintf "IterVars _"
     | Any (PathQuery (i, q)) -> Pretty.dprintf "PathQuery (%d, %a)" i pretty (Any q)

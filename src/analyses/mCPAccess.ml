@@ -40,3 +40,12 @@ struct
       let rest  = List.fold_left (fun p n->p ++ text "," ++ break ++ n) nil y in
       text "[" ++ align ++ x ++ rest ++ unalign ++ text "]"
 end
+
+
+module PInfo =
+struct
+  open AccListSpec
+  open List
+
+  include DomListLattice (PInfoDomainListSpec)
+end
