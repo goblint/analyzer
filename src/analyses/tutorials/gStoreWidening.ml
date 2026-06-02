@@ -191,7 +191,7 @@ module GStoreWideningAnalysis: SimplifiedSpec = struct
   (** TODO: 1) raise Analyses.Deadcode if we branch on a condition that is known-to-be false *)
   (* Returns the state resulting when the expression `e` evaluates to `tv` *)
   let branch man state e tv =
-    let e_evaluated_to_bool = I.to_bool (eval man state e) in
+    (* let e_evaluated_to_bool = I.to_bool (eval man state e) in *)
     state
 
 
@@ -258,11 +258,11 @@ module EffectivelyLocalAnalysis:SimplifiedSpec = struct
     if !AnalysisState.global_initialization then
       state
     else
-      let tid = ThreadId.get_current_unlift (SimplifiedAnalysis.ask_of_man man) in
-      let singleton_set = ThreadSet.singleton tid in
       match is_tracked_lval lval with
       | Some v ->
         (* TODO: 3) check if this is a global variable and if it is, record the thread id *)
+        (* let tid = ThreadId.get_current_unlift (SimplifiedAnalysis.ask_of_man man) in
+        let singleton_set = ThreadSet.singleton tid in *)
         state
       | None ->
         state
