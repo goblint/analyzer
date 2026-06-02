@@ -1358,6 +1358,75 @@ struct
     | VarQuery.Global g -> vf (V.global g)
     | _ -> ()
 
+  let phase_change ask old_phase new_phase getg sideg (st: relation_components_t) =
+    let module Phase = Queries.PhaseDigest in
+    match Digest.actionOnPhaseChange with
+    | None -> st
+    | Some {of_phase; to_phase; patch_phase} ->
+      (* TODO: What if overall we're still in ST mode? *)
+      begin
+        (* What about other threads? Should only carry forward their globals? *)
+        (* What is the timing of the phaseChange Event relative to unlocks? *)
+        (* Skip those that are currently held, these will be published on unlock *)
+        let (w, lmust, l) = st.priv in
+        let current_digest = Digest.current ask in
+        let publish_l (lock:LLock.t) (value:L.value) =
+          (* Carry forward L component of current thread *)
+          let sideval = GMutex.singleton current_digest value in
+          match lock with
+          | `Left mutex ->
+            if Locksets.(MustLockset.mem mutex (current_lockset ask)) then
+              let will_side_on_unlock = W.exists (is_protected_by ~protection:Weak ask mutex) w in
+              if will_side_on_unlock then
+                (* Do not propagate to next phase here already, unlock will propagate appropriate value *)
+                ()
+              else
+                (* Propagate here, as a later unlock may or may not trigger a side-effect here *)
+                (* TODO: To improve precision, we could also consider adding things to W here? *)
+                sideg (V.mutex mutex) (G.create_mutex sideval)
+            else
+              sideg (V.mutex mutex) (G.create_mutex sideval)
+          | `Right g ->
+            (* Publishing here is unconditional, should this be like this ? *)
+            sideg (V.global g) (G.create_global sideval)
+        in
+        L.iter publish_l l;
+        let publish_others (mutex:V.t) =
+          let current_bindings = G.mutex @@ getg mutex in
+          (*
+            Look up all current bindings and if we find one that belongs to the old phase,
+            but is not accounted for, carry it forward.
+          *)
+          let carry_if_needed (digest:Digest.t) (value:L.value) (acc:GMutex.t) =
+            let entry_phase = to_phase digest in
+            let target = patch_phase digest new_phase in
+            if not @@ Phase.equal entry_phase old_phase then
+              (* The phase does not match the phase before, no need to propagate *)
+              acc
+            else if Digest.accounted_for ask ~current:current_digest ~other:target then
+              (* New digest would be accounted for; could be because it is the same thread, ... *)
+              (* TODO: Is this correct when considering must-joining? *)
+              (* Reasoning: If I am doing the join optimization, I need not publish to unknowns of threads that are must-joined *)
+              acc
+            else
+              GMutex.add target value acc
+          in
+          let res = GMutex.fold carry_if_needed current_bindings (GMutex.empty ()) in
+          sideg mutex (G.create_mutex res)
+        in
+        let mutexes = ask.f Queries.AppearingMutexes in
+        LockDomain.AppearingMutexesQuery.iter (fun mutex -> publish_others (V.mutex mutex)) mutexes;
+        (* Propagate for syntactic globals. *)
+        List.iter (function
+            | GVar (x, _, _) -> publish_others (V.global x)
+            | _ -> ()
+          ) !Cilfacade.current_file.globals;
+        (* Propagate for heap variables *)
+        let alloc_varinfos = ask.f Queries.AllocVars in
+        Q.VS.iter (fun v -> publish_others (V.global v)) alloc_varinfos;
+        st
+      end
+
   let phase_change _ _ _ _ _ st = st
   let lmust _ = Queries.LMust.bot ()
   let grow_lmust st _ = st
@@ -1532,6 +1601,7 @@ let priv_module: (module S) Lazy.t =
          | "mutex-meet-atomic" -> (module PerMutexMeetPriv (struct let handle_atomic = true end)) (* experimental *)
          | "mutex-meet-tid" -> (module PerMutexMeetPrivTID (NoAtomic) (ThreadDigest) (NoCluster))
          | "mutex-meet-tid-atomic" -> (module PerMutexMeetPrivTID (struct let handle_atomic = true end) (ThreadDigest) (NoCluster)) (* experimental *)
+         | "mutex-meet-tid-atomic-ghost" -> (module PerMutexMeetPrivTID (struct let handle_atomic = true end) (GhostPhaseLifter(ThreadDigest)) (NoCluster)) (* experimental *)
          | "mutex-meet-tid-cluster12" -> (module PerMutexMeetPrivTID (NoAtomic) (ThreadDigest) (DownwardClosedCluster (Clustering12)))
          | "mutex-meet-tid-cluster2" -> (module PerMutexMeetPrivTID (NoAtomic) (ThreadDigest) (ArbitraryCluster (Clustering2)))
          | "mutex-meet-tid-cluster-max" -> (module PerMutexMeetPrivTID (NoAtomic) (ThreadDigest) (ArbitraryCluster (ClusteringMax)))
