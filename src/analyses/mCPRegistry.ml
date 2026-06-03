@@ -14,7 +14,7 @@ type spec_modules = { name : string
                     ; cont : (module Printable.S)
                     ; var  : (module SpecSysVar)
                     ; acc  : (module MCPA)
-                    ; pinfo : (module Lattice.S)
+                    ; auxphaseinfo : (module Lattice.S)
                     ; path : (module DisjointDomain.Representative)
                     ; usesApron : bool }
 
@@ -42,7 +42,7 @@ let register_analysis =
             ; cont = (module S.C : Printable.S)
             ; var  = (module S.V : SpecSysVar)
             ; acc  = (module S.A : MCPA)
-            ; pinfo = (module S.PInfo : Lattice.S)
+            ; auxphaseinfo = (module S.AuxiliaryPhaseInfo: Lattice.S)
             ; path = (module P : DisjointDomain.Representative)
             ; usesApron
             }
@@ -55,7 +55,7 @@ let registered_simplified_analysis (module S:SimplifiedAnalysis.SimplifiedSpec) 
   let module S':MCPSpec = struct
     include SimplifiedLifter.FromSimplifiedSpec(S)
     module A = UnitA
-    module PInfo = Lattice.Unit
+    module AuxiliaryPhaseInfo = Lattice.Unit
     let access _ _ = ()
     let pinfo _ = ()
     let consume_pinfo d () = d
@@ -442,10 +442,10 @@ struct
   let domain_list () = List.map (fun (n,p) -> n, p.dom) !activated
 end
 
-module PInfoDomainListSpec : DomainListLatticeSpec =
+module AuxiliaryPhaseInfoDomainListSpec : DomainListLatticeSpec =
 struct
-  let assoc_dom n = (find_spec n).pinfo
-  let domain_list () = List.map (fun (n,p) -> n, p.pinfo) !activated
+  let assoc_dom n = (find_spec n).auxphaseinfo
+  let domain_list () = List.map (fun (n,p) -> n, p.auxphaseinfo) !activated
 end
 
 module GlobalDomainListSpec : DomainListLatticeSpec =

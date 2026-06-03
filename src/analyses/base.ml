@@ -40,7 +40,7 @@ struct
   include Analyses.ValueContexts(D)
   module P = IdentityP(Dom)
 
-  module PInfo = Queries.LMust
+  module AuxiliaryPhaseInfo = Queries.LMust
 
   (* Two global invariants:
      1. Priv.V -> Priv.G  --  used for Priv
@@ -3174,8 +3174,6 @@ struct
         ) man.local lval
     | Events.PhaseChange {old_phase; new_phase} ->
       Priv.phase_change ask old_phase new_phase (priv_getg man.global) (priv_sideg man.sideg) st
-    | Events.GrowLMust lmust ->
-      Priv.grow_lmust st lmust
     | _ ->
       man.local
 end
