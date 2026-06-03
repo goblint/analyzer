@@ -57,8 +57,8 @@ let registered_simplified_analysis (module S:SimplifiedAnalysis.SimplifiedSpec) 
     module A = UnitA
     module AuxiliaryPhaseInfo = Lattice.Unit
     let access _ _ = ()
-    let pinfo _ = ()
-    let consume_pinfo d () = d
+    let aux_phase_info _ = ()
+    let consume_aux_phase_info d () = d
   end
   in
   register_analysis (module S')
