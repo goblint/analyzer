@@ -59,7 +59,7 @@ module type S =
 
 
     val lmust: relation_components_t -> PInfo.t
-    val grow_lmust: relation_components_t -> Queries.LMust.t -> relation_components_t
+    val grow_lmust: relation_components_t -> PInfo.t -> relation_components_t
 
     val init: unit -> unit
     val finalize: unit -> unit
