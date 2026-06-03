@@ -40,6 +40,8 @@ struct
   include Analyses.ValueContexts(D)
   module P = IdentityP(Dom)
 
+  module AuxiliaryPhaseInfo = Priv.AuxiliaryPhaseInfo
+
   (* Two global invariants:
      1. Priv.V -> Priv.G  --  used for Priv
      2. thread -> VD  --  used for thread returns *)
@@ -1666,8 +1668,10 @@ struct
     | Q.MaySignedOverflow e -> (let res = exp_may_signed_overflow man e in
                                 if M.tracing then M.trace "signed_overflow" "base exp_may_signed_overflow %a. Result = %b" d_plainexp e res; res
                                )
-    | Q.LMust -> Priv.lmust man.local
     | _ -> Q.Result.top q
+
+  let aux_phase_info man = Priv.aux_phase_info man.local
+  let consume_aux_phase_info = Priv.consume_aux_phase_info
 
   let update_variable variable typ value cpa =
     if ((get_bool "exp.volatiles_are_top") && (is_always_unknown variable)) then
@@ -3170,8 +3174,6 @@ struct
         ) man.local lval
     | Events.PhaseChange {old_phase; new_phase} ->
       Priv.phase_change ask old_phase new_phase (priv_getg man.global) (priv_sideg man.sideg) st
-    | Events.GrowLMust lmust ->
-      Priv.grow_lmust st lmust
     | _ ->
       man.local
 end

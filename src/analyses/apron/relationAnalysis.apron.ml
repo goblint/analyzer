@@ -33,6 +33,8 @@ struct
     let of_elt {priv; _} = of_elt priv
   end
 
+  module AuxiliaryPhaseInfo = Priv.AuxiliaryPhaseInfo
+
   module RV = RD.V
 
   module PCU = PCU(RD)
@@ -659,6 +661,9 @@ struct
     | _ -> Result.top q
 
 
+  let aux_phase_info man = ((Priv.aux_phase_info man.local):AuxiliaryPhaseInfo.t)
+  let consume_aux_phase_info = Priv.consume_aux_phase_info
+
   (* Thread transfer functions. *)
 
   let threadenter man ~multiple lval f args =
@@ -757,6 +762,8 @@ struct
       st
     | Events.Longjmped {lval} ->
       Option.map_default (invalidate_one ask man st) st lval
+    | Events.PhaseChange {old_phase; new_phase} ->
+      Priv.phase_change ask old_phase new_phase man.global man.sideg st
     | _ ->
       st
 

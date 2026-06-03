@@ -106,12 +106,6 @@ struct
   let global x = `Right x
 end
 
-module LMust =
-struct
-  include SetDomain.Reverse (SetDomain.ToppedSet (LLock) (struct let topname = "All locks" end))
-  let name () = "LMust"
-end
-
 (** GADT for queries with specific result type. *)
 type _ t =
   | EqualSet: exp -> ES.t t
@@ -141,7 +135,8 @@ type _ t =
   (* Size of a dynamically allocated `Blob pointed to by exp. *)
   (* If the record's second field is set to true, then address offsets are discarded and the size of the `Blob is asked for the base address. *)
   | CondVars: exp -> ES.t t
-  | PartAccess: access -> Obj.t t (** Only queried by access and deadlock analysis. [Obj.t] represents [MCPAccess.A.t], needed to break dependency cycle. *)
+  | PartAccess: access -> Obj.t t (** Only queried by access, deadlock, and phaseGhostSplit analysis. [Obj.t] represents [MCPAccess.A.t], needed to break dependency cycle. *)
+  | PhaseInfo: Obj.t t (** Only queried by phaseGhostSplit analysis. [Obj.t] represents [MCPAccess.PInfo.t], needed to break dependency cycle. *)
   | IterPrevVars: iterprevvar -> Unit.t t
   | IterVars: itervar -> Unit.t t
   | PathQuery: int * 'a t -> 'a t (** Query only one path under witness lifter. *)
@@ -188,7 +183,6 @@ type _ t =
   | DescendantThreads: ThreadIdDomain.Thread.t -> ConcDomain.ThreadSet.t t
   | CreationLockset: ThreadIdDomain.Thread.t -> CL.t t
   | MustlockHistory: LH.t t
-  | LMust: LMust.t t
   | TutorialEffectivelyLocal: varinfo -> MustBool.t t (** Used in tutorial for effectively local variables. *)
 
 type 'a result = 'a
@@ -241,6 +235,7 @@ struct
     | PathQuery (_, q) -> lattice q
     | DYojson -> (module FlatYojson)
     | PartAccess _ -> Obj.magic (module Unit: Lattice.S) (* Never used, MCP handles PartAccess specially. Must still return module (instead of failwith) here, but the module is never used. *)
+    | PhaseInfo -> Obj.magic (module Unit: Lattice.S) (* Never used, but needed for MCP to return some result for PhaseInfo queries. *)
     | IsMultiple _ -> (module MustBool) (* see https://github.com/goblint/analyzer/pull/310#discussion_r700056687 on why this needs to be MustBool *)
     | MutexType _ -> (module MutexAttrDomain)
     | EvalThread _ -> (module ConcDomain.ThreadSet)
@@ -273,7 +268,6 @@ struct
     | DescendantThreads _ -> (module ConcDomain.ThreadSet)
     | CreationLockset _ -> (module CL)
     | MustlockHistory -> (module LH)
-    | LMust -> (module LMust)
     | TutorialEffectivelyLocal _ -> (module MustBool)
 
   (** Get bottom result for query. *)
@@ -326,6 +320,7 @@ struct
     | PathQuery (_, q) -> top q
     | DYojson -> FlatYojson.top ()
     | PartAccess _ -> failwith "Queries.Result.top: PartAccess" (* Never used, MCP handles PartAccess specially. *)
+    | PhaseInfo -> failwith "Queries.Result.top: PhaseInfo" (* Never used, but needed for MCP to return some result for PhaseInfo queries. *)
     | IsMultiple _ -> MustBool.top ()
     | EvalThread _ -> ConcDomain.ThreadSet.top ()
     | EvalJumpBuf _ -> JmpBufDomain.JmpBufSet.top ()
@@ -357,7 +352,6 @@ struct
     | DescendantThreads _ -> ConcDomain.ThreadSet.top ()
     | CreationLockset _ -> CL.top ()
     | MustlockHistory -> LH.top ()
-    | LMust -> LMust.top ()
     | TutorialEffectivelyLocal _ -> MustBool.top ()
 end
 
@@ -532,6 +526,7 @@ struct
     | Any (BlobSize {exp = e; base_address = b}) -> Pretty.dprintf "BlobSize %a (base_address: %b)" CilType.Exp.pretty e b
     | Any (CondVars e) -> Pretty.dprintf "CondVars %a" CilType.Exp.pretty e
     | Any (PartAccess p) -> Pretty.dprintf "PartAccess _"
+    | Any PhaseInfo -> Pretty.dprintf "PhaseInfo"
     | Any (IterPrevVars i) -> Pretty.dprintf "IterPrevVars _"
     | Any (IterVars i) -> Pretty.dprintf "IterVars _"
     | Any (PathQuery (i, q)) -> Pretty.dprintf "PathQuery (%d, %a)" i pretty (Any q)
@@ -573,7 +568,6 @@ struct
     | Any PhaseDigest -> Pretty.dprintf "PhaseDigest"
     | Any (CreationLockset t) -> Pretty.dprintf "CreationLockset %a" ThreadIdDomain.Thread.pretty t
     | Any (MustlockHistory) -> Pretty.dprintf "MustlockHistory"
-    | Any LMust -> Pretty.dprintf "LMust"
     | Any (TutorialEffectivelyLocal v) -> Pretty.dprintf "TutorialEffectivelyLocal %a" CilType.Varinfo.pretty v
 end
 
