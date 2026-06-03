@@ -35,10 +35,11 @@ struct
   end
 
   module LMust = Queries.LMust
+  module PhaseInfo = MCPAccess.PInfo
 
   module MHPsPlusLMust =
   struct
-    include Lattice.Prod (MHPs) (Queries.LMust)
+    include Lattice.Prod (MHPs) (PhaseInfo)
   end
 
   module PhaseChanges =
@@ -55,12 +56,12 @@ struct
     let const_at_thread_end (const, _) = const
     let changes (_, changes) = changes
     let create_const_at_thread_end const = (const, PhaseChanges.bot ())
-    let create_change phase mhp lmust = (Const.bot (), (PhaseChanges.singleton phase (MHPs.singleton mhp, lmust)))
+    let create_change phase mhp pinfo = (Const.bot (), (PhaseChanges.singleton phase (MHPs.singleton mhp, pinfo)))
 
     let can_change_to (_, changes) target currmhp =
       match PhaseChanges.find_opt (`Lifted target) changes with
-      | Some (accesses, lmust) when MHPs.can_any_mhp currmhp accesses ->
-        Some lmust
+      | Some (accesses, pinfo) when MHPs.can_any_mhp currmhp accesses ->
+        Some pinfo
       | _ ->
         None
   end
@@ -171,6 +172,9 @@ struct
   let current_mhp man: MCPAccess.A.t =
     Obj.obj (man.ask (PartAccess Point))
 
+  let current_pinfo man: PhaseInfo.t =
+    Obj.obj (man.ask PhaseInfo)
+
   let sync man reason =
     (* TODO:
        Observation from ZA: Probably can get away with doing this after release-like operations, all possible advancing would already have been done prior for others *)
@@ -192,22 +196,22 @@ struct
           | _ ->
             failwith "assumption about ghost owner violated"
       in
-      let rec handle_vars (m, lmust) = function
+      let rec handle_vars (m, (pinfo:MCPAccess.PInfo.t)) = function
         | []  ->
-          man.split m [Events.GrowLMust lmust]
+          man.split m [Events.PropPInfo (Obj.repr pinfo)]
         | var :: vars ->
           match may_be_advanced_here m var with
-          | Some curr_lmust ->
+          | Some curr_pinfo ->
             (let v' = (match (D.find var m) with
                  | `Lifted x -> Z.succ x
                  | _ -> failwith "assumption")
              in
              let advanced = D.add var (`Lifted v') m in
-             let lmust' = LMust.union lmust curr_lmust in
-             handle_vars (advanced, lmust') (var::vars);
-             handle_vars (m, lmust) vars)
+             let pinfo' = PhaseInfo.meet pinfo curr_pinfo in
+             handle_vars (advanced, pinfo') (var::vars);
+             handle_vars (m, pinfo) vars)
           | None ->
-            handle_vars (m, lmust) vars
+            handle_vars (m, pinfo) vars
       in
       let traceEvolution () =
         YamlWitness.VarSet.iter (fun var ->
@@ -222,7 +226,7 @@ struct
           ) !(YamlWitness.ghostVars)
       in
       if M.tracing then traceEvolution ();
-      handle_vars (local, LMust.empty ()) (phase_ghosts man);
+      handle_vars (local, PhaseInfo.top ()) (phase_ghosts man);
       raise Deadcode
 
 
@@ -239,8 +243,8 @@ struct
          | Some z ->
            (let v = Z.succ z in
             let local_new = D.add var (`Lifted v) local in
-            let local_pinfo: MCPAccess.PInfo.t = Obj.obj (man.ask Queries.PhaseInfo) in
-            man.sideg var (G.create_change (`Lifted v) (current_mhp man) (man.ask LMust));
+            let local_pinfo = current_pinfo man in
+            man.sideg var (G.create_change (`Lifted v) (current_mhp man) (local_pinfo));
             (* TODO: Prolong until after atomic is over? *)
             if not (D.equal local local_new) then
               man.emit (Events.PhaseChange {old_phase = `Lifted local; new_phase = `Lifted local_new});

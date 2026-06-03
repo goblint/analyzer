@@ -173,7 +173,7 @@ struct
 
   let consume_pinfo (d:D.t) (pinfo:MCPAccess.PInfo.t) =
     let f (n,(module S:MCPSpec),(d, pinfo)) =
-      let d' = S.consume_pinfo (Obj.obj d) (Obj.obj pinfo n) in
+      let d' = S.consume_pinfo (Obj.obj d) (Obj.obj pinfo) in
       n, Obj.repr d'
     in
     let ls = spec_list2 d pinfo in
@@ -210,6 +210,7 @@ struct
         man_with_local man (assign man lval exp)
       | Events.PropPInfo pinfo ->
         let pinfo:MCPAccess.PInfo.t = Obj.obj pinfo in
+        if M.tracing then M.tracel "phaseProp" "consume_pinfo: %s\n" (MCPAccess.PInfo.show pinfo);
         man_with_local man (consume_pinfo man.local pinfo)
       | e ->
         let spawns = ref [] in

@@ -663,7 +663,7 @@ struct
 
 
   let pinfo man = ((Priv.lmust man.local):PInfo.t)
-  let consume_pinfo st pinfo = st
+  let consume_pinfo st pinfo = Priv.grow_lmust st pinfo
 
   (* Thread transfer functions. *)
 
@@ -765,8 +765,6 @@ struct
       Option.map_default (invalidate_one ask man st) st lval
     | Events.PhaseChange {old_phase; new_phase} ->
       Priv.phase_change ask old_phase new_phase man.global man.sideg st
-    | Events.GrowLMust lmust ->
-      Priv.grow_lmust st lmust
     | _ ->
       st
 
