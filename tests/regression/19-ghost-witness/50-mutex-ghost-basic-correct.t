@@ -2,7 +2,7 @@ Check that values of non-phase ghost variables are carried over when phase
 changes are propagated. Otherwise, the branch-local update in the new phase
 would unsoundly confirm the invariant.
 
-  $ goblint --set dbg.level warning --disable warn.race --disable warn.integer --enable warn.deterministic --enable ana.sv-comp.functions --set witness.yaml.validate 50-mutex-ghost-basic-correct.yml --set ana.activated[+] mutexGhost --set ana.path_sens[+] threadflag --set ana.activated[+] threadJoins --set lib.activated[+] sv-comp --enable ana.int.interval --set colors never 50-mutex-ghost-basic-correct.c
+  $ goblint --set dbg.level warning --disable warn.race --disable warn.integer --enable warn.deterministic --enable ana.sv-comp.functions --set witness.yaml.validate 50-mutex-ghost-basic-correct.yml --set ana.activated[+] mutexGhost --set ana.path_sens[+] threadflag --set ana.activated[+] threadJoins --set lib.activated[+] sv-comp --enable ana.int.interval --set ana.base.privatization mutex-meet-tid --set colors never 50-mutex-ghost-basic-correct.c --trace priv
   [Info][Deadcode] Logical lines of code (LLoC) summary:
     live: 28
     dead: 0

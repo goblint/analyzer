@@ -1,0 +1,837 @@
+File "tests/regression/19-ghost-witness/50-mutex-ghost-basic-correct.t", line 1, characters 0-0:
+diff --git a/_build/default/tests/regression/19-ghost-witness/50-mutex-ghost-basic-correct.t b/_build/default/tests/regression/19-ghost-witness/50-mutex-ghost-basic-correct.t.corrected
+index e235963a0..236be2911 100644
+--- a/_build/default/tests/regression/19-ghost-witness/50-mutex-ghost-basic-correct.t
++++ b/_build/default/tests/regression/19-ghost-witness/50-mutex-ghost-basic-correct.t.corrected
+@@ -3,14 +3,67622 @@ changes are propagated. Otherwise, the branch-local update in the new phase
+ would unsoundly confirm the invariant.
+ 
+   $ goblint --set dbg.level warning --disable warn.race --disable warn.integer --enable warn.deterministic --enable ana.sv-comp.functions --set witness.yaml.validate 50-mutex-ghost-basic-correct.yml --set ana.activated[+] mutexGhost --set ana.path_sens[+] threadflag --set ana.activated[+] threadJoins --set lib.activated[+] sv-comp --enable ana.int.interval --set ana.base.privatization mutex-meet-tid --set colors never 50-mutex-ghost-basic-correct.c --trace priv
++  %%% priv: mutexchecking 42
++  %%% priv: mutexchecking & g2
++  %%% priv: mutexchecking 0
++  %%% priv: mutexchecking & ghost_1
++  %%% priv: mutexchecking 0
++  %%% priv: mutexchecking & ghost_2
++  %%% priv: mutexchecking 0
++  %%% priv: mutexchecking & ghost_3
++  %%% priv: mutexchecking (struct __pthread_internal_list *)((void *)0)
++  %%% priv: mutexchecking (void *)0
++  %%% priv: mutexchecking 0
++  %%% priv: mutexchecking mutex2
++  %%% priv: mutexchecking & mutex2.__data.__list.__next
++  %%% priv: mutexchecking (struct __pthread_internal_list *)((void *)0)
++  %%% priv: mutexchecking (void *)0
++  %%% priv: mutexchecking 0
++  %%% priv: mutexchecking (struct __pthread_internal_list *)((void *)0)
++  %%% priv: mutexchecking (void *)0
++  %%% priv: mutexchecking 0
++  %%% priv: mutexchecking mutex2
++  %%% priv: mutexchecking & mutex2.__data.__list.__prev
++  %%% priv: mutexchecking (struct __pthread_internal_list *)((void *)0)
++  %%% priv: mutexchecking (void *)0
++  %%% priv: mutexchecking 0
++  %%% priv: mutexchecking 0
++  %%% priv: mutexchecking & g1
++  %%% priv: mutexchecking 0U
++  %%% priv: mutexchecking mutex1
++  %%% priv: mutexchecking & mutex1.__data.__nusers
++  %%% priv: mutexchecking 0U
++  %%% priv: mutexchecking mutex1
++  %%% priv: mutexchecking & mutex1.__data.__count
++  %%% priv: mutexchecking 0
++  %%% priv: mutexchecking mutex2
++  %%% priv: mutexchecking & mutex2.__data.__kind
++  %%% priv: mutexchecking 0
++  %%% priv: mutexchecking mutex2
++  %%% priv: mutexchecking & mutex2.__data.__owner
++  %%% priv: mutexchecking 0
++  %%% priv: mutexchecking mutex2
++  %%% priv: mutexchecking & mutex2.__data.__lock
++  %%% priv: mutexchecking (struct __pthread_internal_list *)((void *)0)
++  %%% priv: mutexchecking (void *)0
++  %%% priv: mutexchecking 0
++  %%% priv: mutexchecking mutex1
++  %%% priv: mutexchecking & mutex1.__data.__list.__next
++  %%% priv: mutexchecking (struct __pthread_internal_list *)((void *)0)
++  %%% priv: mutexchecking (void *)0
++  %%% priv: mutexchecking 0
++  %%% priv: mutexchecking (struct __pthread_internal_list *)((void *)0)
++  %%% priv: mutexchecking (void *)0
++  %%% priv: mutexchecking 0
++  %%% priv: mutexchecking mutex1
++  %%% priv: mutexchecking & mutex1.__data.__list.__prev
++  %%% priv: mutexchecking (struct __pthread_internal_list *)((void *)0)
++  %%% priv: mutexchecking (void *)0
++  %%% priv: mutexchecking 0
++  %%% priv: mutexchecking 0U
++  %%% priv: mutexchecking mutex2
++  %%% priv: mutexchecking & mutex2.__data.__nusers
++  %%% priv: mutexchecking 0U
++  %%% priv: mutexchecking mutex2
++  %%% priv: mutexchecking & mutex2.__data.__count
++  %%% priv: mutexchecking 0
++  %%% priv: mutexchecking mutex1
++  %%% priv: mutexchecking & mutex1.__data.__kind
++  %%% priv: mutexchecking 0
++  %%% priv: mutexchecking mutex1
++  %%% priv: mutexchecking & mutex1.__data.__owner
++  %%% priv: mutexchecking 0
++  %%% priv: mutexchecking mutex1
++  %%% priv: mutexchecking & mutex1.__data.__lock
++  %%% priv: mutexchecking (short)0
++  %%% priv: mutexchecking mutex2
++  %%% priv: mutexchecking & mutex2.__data.__elision
++  %%% priv: mutexchecking (short)0
++  %%% priv: mutexchecking mutex2
++  %%% priv: mutexchecking & mutex2.__data.__spins
++  %%% priv: mutexchecking (short)0
++  %%% priv: mutexchecking mutex1
++  %%% priv: mutexchecking & mutex1.__data.__elision
++  %%% priv: mutexchecking (short)0
++  %%% priv: mutexchecking mutex1
++  %%% priv: mutexchecking & mutex1.__data.__spins
++  %%% priv: mutexchecking 0
++  %%% priv: mutexchecking & g1
++  %%% priv: mutexchecking 42
++  %%% priv: mutexchecking & g2
++  %%% priv: (50-mutex-ghost-basic-correct.c:35:5-35:40)  sync
++    %%% priv: st: ({
++                     Global {
++                       g1 ->   0
++                       g2 ->   42
++                       mutex1 ->   mutex
++                       mutex2 ->   mutex
++                       ghost_1 ->   0
++                       ghost_2 ->   0
++                       ghost_3 ->   0
++                     }
++                     Local {
++                       id1 ->   ⊤
++                       id2 ->   ⊤
++                     }
++                   }, {}, {}, (W:{}, LMust:{}, L:{}))
++    %%% priv: -> ({
++                    Global {
++                      g1 ->   0
++                      g2 ->   42
++                      mutex1 ->   mutex
++                      mutex2 ->   mutex
++                      ghost_1 ->   0
++                      ghost_2 ->   0
++                      ghost_3 ->   0
++                    }
++                    Local {
++                      id1 ->   ⊤
++                      id2 ->   ⊤
++                    }
++                  }, {}, {}, (W:{}, LMust:{}, L:{}))
++  %%% priv: mutexchecking & t1
++  %%% priv: mutexchecking (pthread_t * __restrict  )(& id1)
++  %%% priv: mutexchecking & id1
++  %%% priv: mutexchecking (pthread_attr_t const   * __restrict  )((void *)0)
++  %%% priv: mutexchecking (void *)0
++  %%% priv: mutexchecking 0
++  %%% priv: mutexchecking & t1
++  %%% priv: mutexchecking (void * __restrict  )((void *)0)
++  %%% priv: mutexchecking (void *)0
++  %%% priv: mutexchecking 0
++  %%% priv: (50-mutex-ghost-basic-correct.c:35:5-35:40)  enter_multithreaded
++    %%% priv: st: ({
++                     Global {
++                       g1 ->   0
++                       g2 ->   42
++                       mutex1 ->   mutex
++                       mutex2 ->   mutex
++                       ghost_1 ->   0
++                       ghost_2 ->   0
++                       ghost_3 ->   0
++                     }
++                     Local {
++                       id1 ->   ⊤
++                       id2 ->   ⊤
++                     }
++                   }, {}, {}, (W:{}, LMust:{}, L:{}))
++    %%% priv: sideg MUTEX_INITS {
++                                  [main] -> {
++                                              Global {
++                                                g1 ->   0
++                                                g2 ->   42
++                                                mutex1 ->   mutex
++                                                mutex2 ->   mutex
++                                                ghost_1 ->   0
++                                                ghost_2 ->   0
++                                                ghost_3 ->   0
++                                              }
++                                            }
++                                }
++    %%% priv: -> ({
++                    Local {
++                      id1 ->   ⊤
++                      id2 ->   ⊤
++                    }
++                  }, {}, {}, (W:{}, LMust:{}, L:{}))
++  %%% priv: mutexchecking (void * __restrict  )((void *)0)
++  %%% priv: mutexchecking (void *)0
++  %%% priv: mutexchecking 0
++  %%% priv: (50-mutex-ghost-basic-correct.c:35:5-35:40)  threadenter
++    %%% priv: st: ({
++                     Global {
++                       g1 ->   0
++                       g2 ->   42
++                       mutex1 ->   mutex
++                       mutex2 ->   mutex
++                       ghost_1 ->   0
++                       ghost_2 ->   0
++                       ghost_3 ->   0
++                     }
++                     Local {
++                       id1 ->   ⊤
++                       id2 ->   ⊤
++                     }
++                   }, {}, {}, (W:{}, LMust:{}, L:{}))
++    %%% priv: -> ({
++                    }, {}, {}, (W:{}, LMust:{}, L:{}))
++  %%% priv: (50-mutex-ghost-basic-correct.c:35:5-35:40)  enter_multithreaded
++    %%% priv: st: ({
++                     Parameter {
++                       arg ->   0
++                     }
++                   }, {}, {}, (W:{}, LMust:{}, L:{}))
++    %%% priv: sideg MUTEX_INITS {
++                                  [main, t1@50-mutex-ghost-basic-correct.c:35:5-35:40] -> {
++                                                                                            }
++                                }
++    %%% priv: -> ({
++                    Parameter {
++                      arg ->   0
++                    }
++                  }, {}, {}, (W:{}, LMust:{}, L:{}))
++  %%% priv: (50-mutex-ghost-basic-correct.c:8:1-17:1)  sync
++    %%% priv: st: ({
++                     Parameter {
++                       arg ->   0
++                     }
++                   }, {}, {}, (W:{}, LMust:{}, L:{}))
++    %%% priv: -> ({
++                    Parameter {
++                      arg ->   0
++                    }
++                  }, {}, {}, (W:{}, LMust:{}, L:{}))
++  %%% priv: (50-mutex-ghost-basic-correct.c:8:1-17:1)  sync
++    %%% priv: st: ({
++                     Parameter {
++                       arg ->   0
++                     }
++                   }, {}, {}, (W:{}, LMust:{}, L:{}))
++    %%% priv: -> ({
++                    Parameter {
++                      arg ->   0
++                    }
++                  }, {}, {}, (W:{}, LMust:{}, L:{}))
++  %%% priv: (50-mutex-ghost-basic-correct.c:9:5-9:32)  sync
++    %%% priv: st: ({
++                     Parameter {
++                       arg ->   0
++                     }
++                   }, {}, {}, (W:{}, LMust:{}, L:{}))
++    %%% priv: -> ({
++                    Parameter {
++                      arg ->   0
++                    }
++                  }, {}, {}, (W:{}, LMust:{}, L:{}))
++  %%% priv: mutexchecking & [__VERIFIER_atomic_instrument]
++  %%% priv: (50-mutex-ghost-basic-correct.c:9:5-9:32)   LOCK EVENT [__VERIFIER_atomic_instrument]
++  %%% priv: (50-mutex-ghost-basic-correct.c:9:5-9:32)  lock [__VERIFIER_atomic_instrument]
++    %%% priv: st: ({
++                     Parameter {
++                       arg ->   0
++                     }
++                   }, {}, {}, (W:{}, LMust:{}, L:{}))
++    %%% priv: getg mutex:[__VERIFIER_atomic_instrument] -> bot
++    %%% priv: getg MUTEX_INITS -> {
++                                    [main, t1@50-mutex-ghost-basic-correct.c:35:5-35:40] -> {
++                                                                                              }
++                                    [main] -> {
++                                                Global {
++                                                  g1 ->   0
++                                                  g2 ->   42
++                                                  mutex1 ->   mutex
++                                                  mutex2 ->   mutex
++                                                  ghost_1 ->   0
++                                                  ghost_2 ->   0
++                                                  ghost_3 ->   0
++                                                }
++                                              }
++                                  }
++    %%% priv: -> ({
++                    Global {
++                      g1 ->   0
++                      g2 ->   42
++                      ghost_1 ->   0
++                      ghost_2 ->   0
++                      ghost_3 ->   0
++                    }
++                    Parameter {
++                      arg ->   0
++                    }
++                  }, {}, {}, (W:{}, LMust:{}, L:{}))
++  %%% priv: (50-mutex-ghost-basic-correct.c:9:5-9:32)  sync
++    %%% priv: st: ({
++                     Global {
++                       g1 ->   0
++                       g2 ->   42
++                       ghost_1 ->   0
++                       ghost_2 ->   0
++                       ghost_3 ->   0
++                     }
++                     Parameter {
++                       arg ->   0
++                     }
++                   }, {}, {}, (W:{}, LMust:{}, L:{}))
++    %%% priv: -> ({
++                    Global {
++                      g1 ->   0
++                      g2 ->   42
++                      ghost_1 ->   0
++                      ghost_2 ->   0
++                      ghost_3 ->   0
++                    }
++                    Parameter {
++                      arg ->   0
++                    }
++                  }, {}, {}, (W:{}, LMust:{}, L:{}))
++  %%% priv: (50-mutex-ghost-basic-correct.c:9:5-9:32)  sync
++    %%% priv: st: ({
++                     Global {
++                       g1 ->   0
++                       g2 ->   42
++                       ghost_1 ->   0
++                       ghost_2 ->   0
++                       ghost_3 ->   0
++                     }
++                     Parameter {
++                       arg ->   0
++                     }
++                   }, {}, {}, (W:{}, LMust:{}, L:{}))
++    %%% priv: -> ({
++                    Global {
++                      g1 ->   0
++                      g2 ->   42
++                      ghost_1 ->   0
++                      ghost_2 ->   0
++                      ghost_3 ->   0
++                    }
++                    Parameter {
++                      arg ->   0
++                    }
++                  }, {}, {}, (W:{}, LMust:{}, L:{}))
++  %%% priv: mutexchecking & mutex1
++  %%% priv: mutexchecking & mutex1
++  %%% priv: (50-mutex-ghost-basic-correct.c:9:5-9:32)   LOCK EVENT mutex1
++  %%% priv: (50-mutex-ghost-basic-correct.c:9:5-9:32)  lock mutex1
++    %%% priv: st: ({
++                     Global {
++                       g1 ->   0
++                       g2 ->   42
++                       ghost_1 ->   0
++                       ghost_2 ->   0
++                       ghost_3 ->   0
++                     }
++                     Parameter {
++                       arg ->   0
++                     }
++                   }, {}, {}, (W:{}, LMust:{}, L:{}))
++    %%% priv: getg mutex:mutex1 -> bot
++    %%% priv: getg MUTEX_INITS -> {
++                                    [main, t1@50-mutex-ghost-basic-correct.c:35:5-35:40] -> {
++                                                                                              }
++                                    [main] -> {
++                                                Global {
++                                                  g1 ->   0
++                                                  g2 ->   42
++                                                  mutex1 ->   mutex
++                                                  mutex2 ->   mutex
++                                                  ghost_1 ->   0
++                                                  ghost_2 ->   0
++                                                  ghost_3 ->   0
++                                                }
++                                              }
++                                  }
++    %%% priv: -> ({
++                    Global {
++                      g1 ->   0
++                      g2 ->   42
++                      ghost_1 ->   0
++                      ghost_2 ->   0
++                      ghost_3 ->   0
++                    }
++                    Parameter {
++                      arg ->   0
++                    }
++                  }, {}, {}, (W:{}, LMust:{}, L:{}))
++  %%% priv: (50-mutex-ghost-basic-correct.c:9:5-9:32)  sync
++    %%% priv: st: ({
++                     Global {
++                       g1 ->   0
++                       g2 ->   42
++                       ghost_1 ->   0
++                       ghost_2 ->   0
++                       ghost_3 ->   0
++                     }
++                     Parameter {
++                       arg ->   0
++                     }
++                   }, {}, {}, (W:{}, LMust:{}, L:{}))
++    %%% priv: -> ({
++                    Global {
++                      g1 ->   0
++                      g2 ->   42
++                      ghost_1 ->   0
++                      ghost_2 ->   0
++                      ghost_3 ->   0
++                    }
++                    Parameter {
++                      arg ->   0
++                    }
++                  }, {}, {}, (W:{}, LMust:{}, L:{}))
++  %%% priv: (50-mutex-ghost-basic-correct.c:9:5)  sync
++    %%% priv: st: ({
++                     Global {
++                       g1 ->   0
++                       g2 ->   42
++                       ghost_1 ->   0
++                       ghost_2 ->   0
++                       ghost_3 ->   0
++                     }
++                     Parameter {
++                       arg ->   0
++                     }
++                   }, {}, {}, (W:{}, LMust:{}, L:{}))
++    %%% priv: -> ({
++                    Global {
++                      g1 ->   0
++                      g2 ->   42
++                      ghost_1 ->   0
++                      ghost_2 ->   0
++                      ghost_3 ->   0
++                    }
++                    Parameter {
++                      arg ->   0
++                    }
++                  }, {}, {}, (W:{}, LMust:{}, L:{}))
++  %%% priv: mutexchecking 1
++  %%% priv: (50-mutex-ghost-basic-correct.c:9:5)  write_global ghost_1 1
++    %%% priv: st: ({
++                     Global {
++                       g1 ->   0
++                       g2 ->   42
++                       ghost_1 ->   0
++                       ghost_2 ->   0
++                       ghost_3 ->   0
++                     }
++                     Parameter {
++                       arg ->   0
++                     }
++                   }, {}, {}, (W:{}, LMust:{}, L:{}))
++    %%% priv: (50-mutex-ghost-basic-correct.c:9:5)   WRITE GLOBAL SIDE ghost_1 = 1
++    %%% priv: sideg global:ghost_1 {
++                                     [main, t1@50-mutex-ghost-basic-correct.c:35:5-35:40] -> {
++                                                                                               Global {
++                                                                                                 ghost_1 ->   1
++                                                                                               }
++                                                                                             }
++                                   }
++    %%% priv: -> ({
++                    Global {
++                      g1 ->   0
++                      g2 ->   42
++                      ghost_1 ->   1
++                      ghost_2 ->   0
++                      ghost_3 ->   0
++                    }
++                    Parameter {
++                      arg ->   0
++                    }
++                  }, {}, {}, (W:{ghost_1}, LMust:{(either lval (offset (Z index)) or global:global:ghost_1, Unit:())}, L:{
++                                                                                                                             global:ghost_1 -> {
++                                                                                                                                                 Global {
++                                                                                                                                                   ghost_1 ->   1
++                                                                                                                                                 }
++                                                                                                                                               }
++                                                                                                                           }))
++  %%% priv: mutexchecking & ghost_1
++  %%% priv: (50-mutex-ghost-basic-correct.c:9:5)  sync
++    %%% priv: st: ({
++                     Global {
++                       g1 ->   0
++                       g2 ->   42
++                       ghost_1 ->   1
++                       ghost_2 ->   0
++                       ghost_3 ->   0
++                     }
++                     Parameter {
++                       arg ->   0
++                     }
++                   }, {}, {}, (W:{ghost_1}, LMust:{(either lval (offset (Z index)) or global:global:ghost_1, Unit:())}, L:{
++                                                                                                                              global:ghost_1 -> {
++                                                                                                                                                  Global {
++                                                                                                                                                    ghost_1 ->   1
++                                                                                                                                                  }
++                                                                                                                                                }
++                                                                                                                            }))
++    %%% priv: -> ({
++                    Global {
++                      g1 ->   0
++                      g2 ->   42
++                      ghost_1 ->   1
++                      ghost_2 ->   0
++                      ghost_3 ->   0
++                    }
++                    Parameter {
++                      arg ->   0
++                    }
++                  }, {}, {}, (W:{ghost_1}, LMust:{(either lval (offset (Z index)) or global:global:ghost_1, Unit:())}, L:{
++                                                                                                                             global:ghost_1 -> {
++                                                                                                                                                 Global {
++                                                                                                                                                   ghost_1 ->   1
++                                                                                                                                                 }
++                                                                                                                                               }
++                                                                                                                           }))
++  %%% priv: (50-mutex-ghost-basic-correct.c:9:5-9:32)  sync
++    %%% priv: st: ({
++                     Global {
++                       g1 ->   0
++                       g2 ->   42
++                       ghost_1 ->   1
++                       ghost_2 ->   0
++                       ghost_3 ->   0
++                     }
++                     Parameter {
++                       arg ->   0
++                     }
++                   }, {}, {}, (W:{ghost_1}, LMust:{(either lval (offset (Z index)) or global:global:ghost_1, Unit:())}, L:{
++                                                                                                                              global:ghost_1 -> {
++                                                                                                                                                  Global {
++                                                                                                                                                    ghost_1 ->   1
++                                                                                                                                                  }
++                                                                                                                                                }
++                                                                                                                            }))
++    %%% priv: -> ({
++                    Global {
++                      g1 ->   0
++                      g2 ->   42
++                      ghost_1 ->   1
++                      ghost_2 ->   0
++                      ghost_3 ->   0
++                    }
++                    Parameter {
++                      arg ->   0
++                    }
++                  }, {}, {}, (W:{ghost_1}, LMust:{(either lval (offset (Z index)) or global:global:ghost_1, Unit:())}, L:{
++                                                                                                                             global:ghost_1 -> {
++                                                                                                                                                 Global {
++                                                                                                                                                   ghost_1 ->   1
++                                                                                                                                                 }
++                                                                                                                                               }
++                                                                                                                           }))
++  %%% priv: mutexchecking & [__VERIFIER_atomic_instrument]
++  %%% priv: (50-mutex-ghost-basic-correct.c:9:5-9:32)  unlock [__VERIFIER_atomic_instrument]
++    %%% priv: st: ({
++                     Global {
++                       g1 ->   0
++                       g2 ->   42
++                       ghost_1 ->   1
++                       ghost_2 ->   0
++                       ghost_3 ->   0
++                     }
++                     Parameter {
++                       arg ->   0
++                     }
++                   }, {}, {}, (W:{ghost_1}, LMust:{(either lval (offset (Z index)) or global:global:ghost_1, Unit:())}, L:{
++                                                                                                                              global:ghost_1 -> {
++                                                                                                                                                  Global {
++                                                                                                                                                    ghost_1 ->   1
++                                                                                                                                                  }
++                                                                                                                                                }
++                                                                                                                            }))
++    %%% priv: sideg mutex:[__VERIFIER_atomic_instrument] {
++                                                           [main, t1@50-mutex-ghost-basic-correct.c:35:5-35:40] -> {
++                                                                                                                     Global {
++                                                                                                                       g1 ->   0
++                                                                                                                       g2 ->   42
++                                                                                                                       ghost_1 ->   1
++                                                                                                                       ghost_2 ->   0
++                                                                                                                       ghost_3 ->   0
++                                                                                                                     }
++                                                                                                                   }
++                                                         }
++    %%% priv: -> ({
++                    Global {
++                      g1 ->   0
++                      g2 ->   42
++                      ghost_1 ->   1
++                      ghost_2 ->   0
++                      ghost_3 ->   0
++                    }
++                    Parameter {
++                      arg ->   0
++                    }
++                  }, {}, {}, (W:{ghost_1}, LMust:{(either lval (offset (Z index)) or global:lval (offset (Z index)):[__VERIFIER_atomic_instrument], Unit:()), (either lval (offset (Z index)) or global:global:ghost_1, Unit:())}, L:{
++                                                                                                                                                                                                                                         lval (offset (Z index)):[__VERIFIER_atomic_instrument] -> {
++                                                                                                                                                                                                                                                                                                     Global {
++                                                                                                                                                                                                                                                                                                       g1 ->   0
++                                                                                                                                                                                                                                                                                                       g2 ->   42
++                                                                                                                                                                                                                                                                                                       ghost_1 ->   1
++                                                                                                                                                                                                                                                                                                       ghost_2 ->   0
++                                                                                                                                                                                                                                                                                                       ghost_3 ->   0
++                                                                                                                                                                                                                                                                                                     }
++                                                                                                                                                                                                                                                                                                   }
++                                                                                                                                                                                                                                         global:ghost_1 -> {
++                                                                                                                                                                                                                                                             Global {
++                                                                                                                                                                                                                                                               ghost_1 ->   1
++                                                                                                                                                                                                                                                             }
++                                                                                                                                                                                                                                                           }
++                                                                                                                                                                                                                                       }))
++  %%% priv: (50-mutex-ghost-basic-correct.c:9:5-9:32)  sync
++    %%% priv: st: ({
++                     Global {
++                       g1 ->   0
++                       g2 ->   42
++                       ghost_1 ->   1
++                       ghost_2 ->   0
++                       ghost_3 ->   0
++                     }
++                     Parameter {
++                       arg ->   0
++                     }
++                   }, {}, {}, (W:{ghost_1}, LMust:{(either lval (offset (Z index)) or global:lval (offset (Z index)):[__VERIFIER_atomic_instrument], Unit:()), (either lval (offset (Z index)) or global:global:ghost_1, Unit:())}, L:{
++                                                                                                                                                                                                                                          lval (offset (Z index)):[__VERIFIER_atomic_instrument] -> {
++                                                                                                                                                                                                                                                                                                      Global {
++                                                                                                                                                                                                                                                                                                        g1 ->   0
++                                                                                                                                                                                                                                                                                                        g2 ->   42
++                                                                                                                                                                                                                                                                                                        ghost_1 ->   1
++                                                                                                                                                                                                                                                                                                        ghost_2 ->   0
++                                                                                                                                                                                                                                                                                                        ghost_3 ->   0
++                                                                                                                                                                                                                                                                                                      }
++                                                                                                                                                                                                                                                                                                    }
++                                                                                                                                                                                                                                          global:ghost_1 -> {
++                                                                                                                                                                                                                                                              Global {
++                                                                                                                                                                                                                                                                ghost_1 ->   1
++                                                                                                                                                                                                                                                              }
++                                                                                                                                                                                                                                                            }
++                                                                                                                                                                                                                                        }))
++    %%% priv: -> ({
++                    Global {
++                      g1 ->   0
++                      g2 ->   42
++                      ghost_1 ->   1
++                      ghost_2 ->   0
++                      ghost_3 ->   0
++                    }
++                    Parameter {
++                      arg ->   0
++                    }
++                  }, {}, {}, (W:{ghost_1}, LMust:{(either lval (offset (Z index)) or global:lval (offset (Z index)):[__VERIFIER_atomic_instrument], Unit:()), (either lval (offset (Z index)) or global:global:ghost_1, Unit:())}, L:{
++                                                                                                                                                                                                                                         lval (offset (Z index)):[__VERIFIER_atomic_instrument] -> {
++                                                                                                                                                                                                                                                                                                     Global {
++                                                                                                                                                                                                                                                                                                       g1 ->   0
++                                                                                                                                                                                                                                                                                                       g2 ->   42
+...TRUNCATED BY DUNE...
++                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      ghost_1 ->   0
++                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    }
++                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  }
++                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                global:ghost_2 -> {
++                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    Global {
++                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      ghost_2 ->   0
++                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    }
++                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  }
++                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                global:ghost_3 -> {
++                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    Global {
++                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      ghost_3 ->   0
++                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    }
++                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  }
++                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              }))
++  %%% priv: mutexchecking ghost_1 == 1 || g1 == 0
++  %%% priv: corresponding mutex mutex1 with g1 == 0
++  %%% priv: (:-1)  lock mutex1
++    %%% priv: st: ({
++                     Local {
++                       id1 ->   {[main, t1@50-mutex-ghost-basic-correct.c:35:5-35:40]}
++                       id2 ->   {[main, t2@50-mutex-ghost-basic-correct.c:36:5-36:40]}
++                     }
++                   }, {}, {}, (W:{}, LMust:{(either lval (offset (Z index)) or global:lval (offset (Z index)):[__VERIFIER_atomic_instrument], Unit:()), (either lval (offset (Z index)) or global:lval (offset (Z index)):mutex1, Unit:()), (either lval (offset (Z index)) or global:global:g1, Unit:()), (either lval (offset (Z index)) or global:global:ghost_1, Unit:())}, L:{
++                                                                                                                                                                                                                                                                                                                                                                                      lval (offset (Z index)):[__VERIFIER_atomic_instrument] -> {
++                                                                                                                                                                                                                                                                                                                                                                                                                                                  Global {
++                                                                                                                                                                                                                                                                                                                                                                                                                                                    ghost_1 ->   0
++                                                                                                                                                                                                                                                                                                                                                                                                                                                    ghost_2 ->   (Unknown int([0,1]),[0,1])
++                                                                                                                                                                                                                                                                                                                                                                                                                                                    ghost_3 ->   (Unknown int([0,1]),[0,1])
++                                                                                                                                                                                                                                                                                                                                                                                                                                                  }
++                                                                                                                                                                                                                                                                                                                                                                                                                                                }
++                                                                                                                                                                                                                                                                                                                                                                                      lval (offset (Z index)):mutex1 -> {
++                                                                                                                                                                                                                                                                                                                                                                                                                          Global {
++                                                                                                                                                                                                                                                                                                                                                                                                                            g1 ->   0
++                                                                                                                                                                                                                                                                                                                                                                                                                          }
++                                                                                                                                                                                                                                                                                                                                                                                                                        }
++                                                                                                                                                                                                                                                                                                                                                                                      global:g1 -> {
++                                                                                                                                                                                                                                                                                                                                                                                                     Global {
++                                                                                                                                                                                                                                                                                                                                                                                                       g1 ->   0
++                                                                                                                                                                                                                                                                                                                                                                                                     }
++                                                                                                                                                                                                                                                                                                                                                                                                   }
++                                                                                                                                                                                                                                                                                                                                                                                      global:ghost_1 -> {
++                                                                                                                                                                                                                                                                                                                                                                                                          Global {
++                                                                                                                                                                                                                                                                                                                                                                                                            ghost_1 ->   0
++                                                                                                                                                                                                                                                                                                                                                                                                          }
++                                                                                                                                                                                                                                                                                                                                                                                                        }
++                                                                                                                                                                                                                                                                                                                                                                                    }))
++    %%% priv: getg mutex:mutex1 -> {
++                                     [main, t1@50-mutex-ghost-basic-correct.c:35:5-35:40] -> {
++                                                                                               Global {
++                                                                                                 g1 ->   0
++                                                                                                 g2 ->   42
++                                                                                                 ghost_1 ->   1
++                                                                                                 ghost_2 ->   0
++                                                                                                 ghost_3 ->   0
++                                                                                               }
++                                                                                             }
++                                     [main, t2@50-mutex-ghost-basic-correct.c:36:5-36:40] -> {
++                                                                                               Global {
++                                                                                                 g1 ->   0
++                                                                                                 g2 ->   42
++                                                                                               }
++                                                                                             }
++                                     [main] -> {
++                                                 Global {
++                                                   g1 ->   0
++                                                 }
++                                               }
++                                   }
++    %%% priv: -> ({
++                    Global {
++                      g1 ->   0
++                    }
++                    Local {
++                      id1 ->   {[main, t1@50-mutex-ghost-basic-correct.c:35:5-35:40]}
++                      id2 ->   {[main, t2@50-mutex-ghost-basic-correct.c:36:5-36:40]}
++                    }
++                  }, {}, {}, (W:{}, LMust:{(either lval (offset (Z index)) or global:lval (offset (Z index)):[__VERIFIER_atomic_instrument], Unit:()), (either lval (offset (Z index)) or global:lval (offset (Z index)):mutex1, Unit:()), (either lval (offset (Z index)) or global:global:g1, Unit:()), (either lval (offset (Z index)) or global:global:ghost_1, Unit:())}, L:{
++                                                                                                                                                                                                                                                                                                                                                                                     lval (offset (Z index)):[__VERIFIER_atomic_instrument] -> {
++                                                                                                                                                                                                                                                                                                                                                                                                                                                 Global {
++                                                                                                                                                                                                                                                                                                                                                                                                                                                   ghost_1 ->   0
++                                                                                                                                                                                                                                                                                                                                                                                                                                                   ghost_2 ->   (Unknown int([0,1]),[0,1])
++                                                                                                                                                                                                                                                                                                                                                                                                                                                   ghost_3 ->   (Unknown int([0,1]),[0,1])
++                                                                                                                                                                                                                                                                                                                                                                                                                                                 }
++                                                                                                                                                                                                                                                                                                                                                                                                                                               }
++                                                                                                                                                                                                                                                                                                                                                                                     lval (offset (Z index)):mutex1 -> {
++                                                                                                                                                                                                                                                                                                                                                                                                                         Global {
++                                                                                                                                                                                                                                                                                                                                                                                                                           g1 ->   0
++                                                                                                                                                                                                                                                                                                                                                                                                                         }
++                                                                                                                                                                                                                                                                                                                                                                                                                       }
++                                                                                                                                                                                                                                                                                                                                                                                     global:g1 -> {
++                                                                                                                                                                                                                                                                                                                                                                                                    Global {
++                                                                                                                                                                                                                                                                                                                                                                                                      g1 ->   0
++                                                                                                                                                                                                                                                                                                                                                                                                    }
++                                                                                                                                                                                                                                                                                                                                                                                                  }
++                                                                                                                                                                                                                                                                                                                                                                                     global:ghost_1 -> {
++                                                                                                                                                                                                                                                                                                                                                                                                         Global {
++                                                                                                                                                                                                                                                                                                                                                                                                           ghost_1 ->   0
++                                                                                                                                                                                                                                                                                                                                                                                                         }
++                                                                                                                                                                                                                                                                                                                                                                                                       }
++                                                                                                                                                                                                                                                                                                                                                                                   }))
++  %%% priv: mutexchecking g1
++  %%% priv: (:-1)  read_global g1
++    %%% priv: st: ({
++                     Local {
++                       id1 ->   {[main, t1@50-mutex-ghost-basic-correct.c:35:5-35:40]}
++                       id2 ->   {[main, t2@50-mutex-ghost-basic-correct.c:36:5-36:40]}
++                     }
++                   }, {}, {}, (W:{}, LMust:{(either lval (offset (Z index)) or global:lval (offset (Z index)):[__VERIFIER_atomic_instrument], Unit:()), (either lval (offset (Z index)) or global:lval (offset (Z index)):mutex1, Unit:()), (either lval (offset (Z index)) or global:global:g1, Unit:()), (either lval (offset (Z index)) or global:global:ghost_1, Unit:())}, L:{
++                                                                                                                                                                                                                                                                                                                                                                                      lval (offset (Z index)):[__VERIFIER_atomic_instrument] -> {
++                                                                                                                                                                                                                                                                                                                                                                                                                                                  Global {
++                                                                                                                                                                                                                                                                                                                                                                                                                                                    ghost_1 ->   0
++                                                                                                                                                                                                                                                                                                                                                                                                                                                    ghost_2 ->   (Unknown int([0,1]),[0,1])
++                                                                                                                                                                                                                                                                                                                                                                                                                                                    ghost_3 ->   (Unknown int([0,1]),[0,1])
++                                                                                                                                                                                                                                                                                                                                                                                                                                                  }
++                                                                                                                                                                                                                                                                                                                                                                                                                                                }
++                                                                                                                                                                                                                                                                                                                                                                                      lval (offset (Z index)):mutex1 -> {
++                                                                                                                                                                                                                                                                                                                                                                                                                          Global {
++                                                                                                                                                                                                                                                                                                                                                                                                                            g1 ->   0
++                                                                                                                                                                                                                                                                                                                                                                                                                          }
++                                                                                                                                                                                                                                                                                                                                                                                                                        }
++                                                                                                                                                                                                                                                                                                                                                                                      global:g1 -> {
++                                                                                                                                                                                                                                                                                                                                                                                                     Global {
++                                                                                                                                                                                                                                                                                                                                                                                                       g1 ->   0
++                                                                                                                                                                                                                                                                                                                                                                                                     }
++                                                                                                                                                                                                                                                                                                                                                                                                   }
++                                                                                                                                                                                                                                                                                                                                                                                      global:ghost_1 -> {
++                                                                                                                                                                                                                                                                                                                                                                                                          Global {
++                                                                                                                                                                                                                                                                                                                                                                                                            ghost_1 ->   0
++                                                                                                                                                                                                                                                                                                                                                                                                          }
++                                                                                                                                                                                                                                                                                                                                                                                                        }
++                                                                                                                                                                                                                                                                                                                                                                                    }))
++    %%% priv: getg global:g1 -> {
++                                  [main, t1@50-mutex-ghost-basic-correct.c:35:5-35:40] -> {
++                                                                                            Global {
++                                                                                              g1 ->   (Unknown int([0,7]),[0,5])
++                                                                                            }
++                                                                                          }
++                                  [main, t2@50-mutex-ghost-basic-correct.c:36:5-36:40] -> {
++                                                                                            Global {
++                                                                                              g1 ->   0
++                                                                                            }
++                                                                                          }
++                                  [main] -> {
++                                              Global {
++                                                g1 ->   0
++                                              }
++                                            }
++                                }
++    %%% priv: (:-1)   READ GLOBAL g1 true {
++                                            Local {
++                                              id1 ->   {[main, t1@50-mutex-ghost-basic-correct.c:35:5-35:40]}
++                                              id2 ->   {[main, t2@50-mutex-ghost-basic-correct.c:36:5-36:40]}
++                                            }
++                                          } = (Unknown int([0,7]),[0,5])
++    %%% priv: -> (Unknown int([0,7]),[0,5])
++  %%% priv: mutexchecking 0
+   [Info][Deadcode] Logical lines of code (LLoC) summary:
+-    live: 28
++    live: 27
+     dead: 0
+-    total lines: 28
+-  [Warning][Witness] invariant unconfirmed: ghost_1 == 1 || g1 == 0 (50-mutex-ghost-basic-correct.c:43:5)
+-  [Info][Witness] mutexGhost: global ghost_1 is only used to mark the boundary of all of the critical sections protected by mutex {&mutex1}
+-  [Info][Witness] mutexGhost: global ghost_2 is only used to mark the boundary of all of the critical sections protected by mutex {&mutex2}
+-  [Info][Witness] mutexGhost: global ghost_3 is only used to mark the boundary of all of the critical sections protected by mutex {&mutex2}
++    total lines: 27
++  [Warning][Unknown] lock mutex1, ghost ghost_1 (50-mutex-ghost-basic-correct.c:9:5-9:32)
++  [Warning][Unknown] mutex1 is definite (50-mutex-ghost-basic-correct.c:9:5-9:32)
++  [Warning][Unknown] lock mutex1, ghost ghost_1 (50-mutex-ghost-basic-correct.c:12:5-12:34)
++  [Warning][Unknown] mutex1 is definite (50-mutex-ghost-basic-correct.c:12:5-12:34)
++  [Warning][Unknown] lock mutex2, ghost ghost_2 (50-mutex-ghost-basic-correct.c:13:5-13:32)
++  [Warning][Unknown] lock mutex2, ghost ghost_3 (50-mutex-ghost-basic-correct.c:13:5-13:32)
++  [Warning][Unknown] mutex2 is definite (50-mutex-ghost-basic-correct.c:13:5-13:32)
++  [Warning][Unknown] lock mutex2, ghost ghost_2 (50-mutex-ghost-basic-correct.c:14:5-14:34)
++  [Warning][Unknown] lock mutex2, ghost ghost_3 (50-mutex-ghost-basic-correct.c:14:5-14:34)
++  [Warning][Unknown] mutex2 is definite (50-mutex-ghost-basic-correct.c:14:5-14:34)
++  [Warning][Unknown] lock mutex1, ghost ghost_1 (50-mutex-ghost-basic-correct.c:20:5-20:32)
++  [Warning][Unknown] mutex1 is definite (50-mutex-ghost-basic-correct.c:20:5-20:32)
++  [Warning][Unknown] lock mutex1, ghost ghost_1 (50-mutex-ghost-basic-correct.c:23:5-23:34)
++  [Warning][Unknown] mutex1 is definite (50-mutex-ghost-basic-correct.c:23:5-23:34)
++  [Warning][Unknown] lock mutex2, ghost ghost_2 (50-mutex-ghost-basic-correct.c:24:5-24:32)
++  [Warning][Unknown] lock mutex2, ghost ghost_3 (50-mutex-ghost-basic-correct.c:24:5-24:32)
++  [Warning][Unknown] mutex2 is definite (50-mutex-ghost-basic-correct.c:24:5-24:32)
++  [Warning][Unknown] lock mutex2, ghost ghost_2 (50-mutex-ghost-basic-correct.c:26:5-26:34)
++  [Warning][Unknown] lock mutex2, ghost ghost_3 (50-mutex-ghost-basic-correct.c:26:5-26:34)
++  [Warning][Unknown] mutex2 is definite (50-mutex-ghost-basic-correct.c:26:5-26:34)
++  [Warning][Unknown] lock mutex1, ghost ghost_1 (50-mutex-ghost-basic-correct.c:38:5-38:32)
++  [Warning][Unknown] mutex1 is definite (50-mutex-ghost-basic-correct.c:38:5-38:32)
++  [Warning][Unknown] lock mutex1, ghost ghost_1 (50-mutex-ghost-basic-correct.c:40:5-40:34)
++  [Warning][Unknown] mutex1 is definite (50-mutex-ghost-basic-correct.c:40:5-40:34)
++  [Warning][Witness] invariant unconfirmed: ghost_1 == 1 || g1 == 0 (50-mutex-ghost-basic-correct.c:41:3)
++  [Info][Witness] mutexGhost: global ghost_1 is only used to mark the boundary of all of the critical sections protected by mutex mutex1
++  [Info][Witness] mutexGhost: global ghost_2 is only used to mark the boundary of all of the critical sections protected by mutex mutex2
++  [Info][Witness] mutexGhost: global ghost_3 is only used to mark the boundary of all of the critical sections protected by mutex mutex2
+   [Info][Witness] witness validation summary:
+     confirmed: 0
+     unconfirmed: 1

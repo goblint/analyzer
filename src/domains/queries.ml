@@ -52,6 +52,8 @@ module SD: Lattice.S with type t = [`Bot | `Lifted of string | `Top] =
 module VD = ValueDomain.Compound
 module AD = ValueDomain.AD
 
+module MutexGhost = Lattice.Flat (LockDomain.MustLock)
+
 module MayBool = BoolDomain.MayBool
 module MustBool = BoolDomain.MustBool
 
@@ -171,7 +173,7 @@ type _ t =
   | YamlEntryGlobal: Obj.t * YamlWitnessType.Task.t -> YS.t t (** YAML witness entries for a global unknown ([Obj.t] represents [Spec.V.t]) and YAML witness task. *)
   | GhostVarAvailable: WitnessGhostVar.t -> MayBool.t t
   | IsPhaseGhost: varinfo -> MustBool.t t
-  | IsMutexGhost: varinfo -> MustBool.t t
+  | IsMutexGhost: varinfo -> MutexGhost.t t
   | InvariantGlobalNodes: NS.t t (** Nodes where YAML witness flow-insensitive invariants should be emitted as location invariants (if [witness.invariant.flow_insensitive-as] is configured to do so). *) (* [Spec.V.t] argument (as [Obj.t]) could be added, if this should be different for different flow-insensitive invariants. *)
   | DescendantThreads: ThreadIdDomain.Thread.t -> ConcDomain.ThreadSet.t t
   | CreationLockset: ThreadIdDomain.Thread.t -> CL.t t
@@ -255,7 +257,7 @@ struct
     | YamlEntryGlobal _ -> (module YS)
     | GhostVarAvailable _ -> (module MayBool)
     | IsPhaseGhost _ -> (module MustBool)
-    | IsMutexGhost _ -> (module MustBool)
+    | IsMutexGhost _ -> (module MutexGhost)
     | InvariantGlobalNodes -> (module NS)
     | DescendantThreads _ -> (module ConcDomain.ThreadSet)
     | CreationLockset _ -> (module CL)
@@ -338,7 +340,7 @@ struct
     | YamlEntryGlobal _ -> YS.top ()
     | GhostVarAvailable _ -> MayBool.top ()
     | IsPhaseGhost _ -> MustBool.top ()
-    | IsMutexGhost _ -> MustBool.top ()
+    | IsMutexGhost _ -> MutexGhost.top ()
     | InvariantGlobalNodes -> NS.top ()
     | DescendantThreads _ -> ConcDomain.ThreadSet.top ()
     | CreationLockset _ -> CL.top ()

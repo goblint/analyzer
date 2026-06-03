@@ -8,9 +8,9 @@
       version: "0.0"
     task:
       input_files:
-      - 50-mutex-ghost-basic-correct.c
+      - 57-mutex-ghost-lockfail.c
       input_file_hashes:
-        50-mutex-ghost-basic-correct.c: "0000000000000000000000000000000000000000000000000000000000000000"
+        57-mutex-ghost-lockfail.c: "0000000000000000000000000000000000000000000000000000000000000000"
       data_model: LP64
       language: C
   content:
@@ -35,153 +35,146 @@
         format: c_expression
     ghost_updates:
     - location:
-        file_name: 50-mutex-ghost-basic-correct.c
-        line: 9
-        column: 5
-        function: fun
+        file_name: 57-mutex-ghost-lockfail.c
+        line: 18
+        column: 8
+        function: t_fun
       updates:
       - variable: ghost_1
         value: "1"
         format: c_expression
     - location:
-        file_name: 50-mutex-ghost-basic-correct.c
-        line: 12
+        file_name: 57-mutex-ghost-lockfail.c
+        line: 21
         column: 5
-        function: fun
+        function: t_fun
       updates:
       - variable: ghost_1
         value: "0"
         format: c_expression
     - location:
-        file_name: 50-mutex-ghost-basic-correct.c
-        line: 20
-        column: 5
-        function: fun
+        file_name: 57-mutex-ghost-lockfail.c
+        line: 27
+        column: 8
+        function: t_fun
       updates:
       - variable: ghost_1
         value: "1"
         format: c_expression
     - location:
-        file_name: 50-mutex-ghost-basic-correct.c
-        line: 23
+        file_name: 57-mutex-ghost-lockfail.c
+        line: 30
         column: 5
-        function: fun
+        function: t_fun
       updates:
       - variable: ghost_1
         value: "0"
         format: c_expression
     - location:
-        file_name: 50-mutex-ghost-basic-correct.c
-        line: 38
-        column: 5
-        function: fun
-      updates:
-      - variable: ghost_1
-        value: "1"
-        format: c_expression
-    - location:
-        file_name: 50-mutex-ghost-basic-correct.c
-        line: 40
-        column: 5
-        function: fun
-      updates:
-      - variable: ghost_1
-        value: "0"
-        format: c_expression
-    - location:
-        file_name: 50-mutex-ghost-basic-correct.c
-        line: 13
-        column: 5
-        function: fun
+        file_name: 57-mutex-ghost-lockfail.c
+        line: 36
+        column: 8
+        function: t_fun
       updates:
       - variable: ghost_2
         value: "1"
         format: c_expression
     - location:
-        file_name: 50-mutex-ghost-basic-correct.c
-        line: 14
+        file_name: 57-mutex-ghost-lockfail.c
+        line: 39
         column: 5
-        function: main
+        function: t_fun
       updates:
       - variable: ghost_2
         value: "0"
         format: c_expression
     - location:
-        file_name: 50-mutex-ghost-basic-correct.c
-        line: 24
-        column: 5
-        function: main
+        file_name: 57-mutex-ghost-lockfail.c
+        line: 45
+        column: 8
+        function: t_fun
       updates:
       - variable: ghost_2
         value: "1"
         format: c_expression
     - location:
-        file_name: 50-mutex-ghost-basic-correct.c
-        line: 26
+        file_name: 57-mutex-ghost-lockfail.c
+        line: 48
         column: 5
-        function: main
+        function: t_fun
       updates:
       - variable: ghost_2
         value: "0"
         format: c_expression
     - location:
-        file_name: 50-mutex-ghost-basic-correct.c
-        line: 13
+        file_name: 57-mutex-ghost-lockfail.c
+        line: 54
+        column: 8
+        function: t_fun
+      updates:
+      - variable: ghost_2
+        value: "1"
+        format: c_expression
+    - location:
+        file_name: 57-mutex-ghost-lockfail.c
+        line: 57
         column: 5
-        function: fun
+        function: t_fun
+      updates:
+      - variable: ghost_2
+        value: "0"
+        format: c_expression
+    - location:
+        file_name: 57-mutex-ghost-lockfail.c
+        line: 63
+        column: 8
+        function: t_fun
+      updates:
+      - variable: ghost_2
+        value: "1"
+        format: c_expression
+    - location:
+        file_name: 57-mutex-ghost-lockfail.c
+        line: 66
+        column: 5
+        function: t_fun
+      updates:
+      - variable: ghost_2
+        value: "0"
+        format: c_expression
+    - location:
+        file_name: 57-mutex-ghost-lockfail.c
+        line: 74
+        column: 8
+        function: t_fun
       updates:
       - variable: ghost_3
         value: "1"
         format: c_expression
     - location:
-        file_name: 50-mutex-ghost-basic-correct.c
-        line: 14
+        file_name: 57-mutex-ghost-lockfail.c
+        line: 77
         column: 5
-        function: main
+        function: t_fun
       updates:
       - variable: ghost_3
         value: "0"
         format: c_expression
     - location:
-        file_name: 50-mutex-ghost-basic-correct.c
-        line: 24
-        column: 5
-        function: main
+        file_name: 57-mutex-ghost-lockfail.c
+        line: 83
+        column: 8
+        function: t_fun
       updates:
       - variable: ghost_3
         value: "1"
         format: c_expression
     - location:
-        file_name: 50-mutex-ghost-basic-correct.c
-        line: 26
+        file_name: 57-mutex-ghost-lockfail.c
+        line: 86
         column: 5
-        function: main
+        function: t_fun
       updates:
       - variable: ghost_3
         value: "0"
         format: c_expression
-- entry_type: invariant_set
-  metadata:
-    format_version: "2.0"
-    uuid: 00000000-0000-0000-0000-000000000034
-    creation_time: 2026-04-21T00:00:00Z
-    producer:
-      name: Test
-      version: "0.0"
-    task:
-      input_files:
-      - 50-mutex-ghost-basic-correct.c
-      input_file_hashes:
-        50-mutex-ghost-basic-correct.c: "0000000000000000000000000000000000000000000000000000000000000000"
-      data_model: LP64
-      language: C
-  content:
-  - invariant:
-      type: location_invariant
-      location:
-        file_name: 50-mutex-ghost-basic-correct.c
-        line: 41
-        column: 3
-        function: main
-      value: "ghost_1 == 1 || g1 == 0"
-      format: c_expression
