@@ -1704,7 +1704,6 @@ struct
     | Q.MaySignedOverflow e -> (let res = exp_may_signed_overflow man e in
                                 if M.tracing then M.trace "signed_overflow" "base exp_may_signed_overflow %a. Result = %b" d_plainexp e res; res
                                )
-    | Q.LMust -> Priv.lmust man.local
     | _ -> Q.Result.top q
 
   let pinfo man = Priv.lmust man.local

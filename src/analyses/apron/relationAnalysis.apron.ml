@@ -658,7 +658,6 @@ struct
     | Queries.InvariantGlobal g ->
       let g: V.t = Obj.obj g in
       query_invariant_global man g
-    | Queries.LMust -> Queries.LMust.bot ()
     | _ -> Result.top q
 
 

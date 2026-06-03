@@ -192,7 +192,6 @@ type _ t =
   | DescendantThreads: ThreadIdDomain.Thread.t -> ConcDomain.ThreadSet.t t
   | CreationLockset: ThreadIdDomain.Thread.t -> CL.t t
   | MustlockHistory: LH.t t
-  | LMust: LMust.t t
   | TutorialEffectivelyLocal: varinfo -> MustBool.t t (** Used in tutorial for effectively local variables. *)
 
 type 'a result = 'a
@@ -279,7 +278,6 @@ struct
     | DescendantThreads _ -> (module ConcDomain.ThreadSet)
     | CreationLockset _ -> (module CL)
     | MustlockHistory -> (module LH)
-    | LMust -> (module LMust)
     | TutorialEffectivelyLocal _ -> (module MustBool)
 
   (** Get bottom result for query. *)
@@ -365,7 +363,6 @@ struct
     | DescendantThreads _ -> ConcDomain.ThreadSet.top ()
     | CreationLockset _ -> CL.top ()
     | MustlockHistory -> LH.top ()
-    | LMust -> LMust.top ()
     | TutorialEffectivelyLocal _ -> MustBool.top ()
 end
 
@@ -585,7 +582,6 @@ struct
     | Any PhaseDigest -> Pretty.dprintf "PhaseDigest"
     | Any (CreationLockset t) -> Pretty.dprintf "CreationLockset %a" ThreadIdDomain.Thread.pretty t
     | Any (MustlockHistory) -> Pretty.dprintf "MustlockHistory"
-    | Any LMust -> Pretty.dprintf "LMust"
     | Any (TutorialEffectivelyLocal v) -> Pretty.dprintf "TutorialEffectivelyLocal %a" CilType.Varinfo.pretty v
 end
 
