@@ -1435,8 +1435,13 @@ struct
         st
       end
 
-  let lmust (st:relation_components_t) = LMust.bot ()
-  let grow_lmust st _ = st
+  let lmust (st:relation_components_t) =
+    let _,lmust,_ = st.priv in
+    lmust
+
+  let grow_lmust st lmust =
+    let (w, lmust_old, l) = st.priv in
+    {st with priv = (w, LMust.union lmust lmust_old, l)}
 
   let finalize () = ()
 
