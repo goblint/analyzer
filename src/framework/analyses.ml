@@ -279,8 +279,8 @@ sig
   module AuxiliaryPhaseInfo: Lattice.S
 
   val access: (D.t, G.t, C.t, V.t) man -> Queries.access -> A.t
-  val pinfo: (D.t, G.t, C.t, V.t) man -> AuxiliaryPhaseInfo.t
-  val consume_pinfo: D.t -> AuxiliaryPhaseInfo.t -> D.t
+  val aux_phase_info: (D.t, G.t, C.t, V.t) man -> AuxiliaryPhaseInfo.t
+  val consume_aux_phase_info: D.t -> AuxiliaryPhaseInfo.t -> D.t
 end
 
 type increment_data = {
@@ -356,8 +356,8 @@ struct
   module P = EmptyP
 
   module AuxiliaryPhaseInfo = Lattice.Unit
-  let pinfo _ = ()
-  let consume_pinfo d () = d
+  let aux_phase_info _ = ()
+  let consume_aux_phase_info d () = d
 
   type marshal = unit
   let init _ = ()

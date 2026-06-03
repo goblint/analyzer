@@ -661,8 +661,8 @@ struct
     | _ -> Result.top q
 
 
-  let pinfo man = ((Priv.lmust man.local):AuxiliaryPhaseInfo.t)
-  let consume_pinfo st pinfo = Priv.grow_lmust st pinfo
+  let aux_phase_info man = ((Priv.lmust man.local):AuxiliaryPhaseInfo.t)
+  let consume_aux_phase_info st pinfo = Priv.grow_lmust st pinfo
 
   (* Thread transfer functions. *)
 

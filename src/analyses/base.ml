@@ -1670,8 +1670,8 @@ struct
                                )
     | _ -> Q.Result.top q
 
-  let pinfo man = Priv.lmust man.local
-  let consume_pinfo st pinfo = Priv.grow_lmust st pinfo
+  let aux_phase_info man = Priv.lmust man.local
+  let consume_aux_phase_info st pinfo = Priv.grow_lmust st pinfo
 
   let update_variable variable typ value cpa =
     if ((get_bool "exp.volatiles_are_top") && (is_always_unknown variable)) then
