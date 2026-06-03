@@ -34,7 +34,6 @@ struct
     let name () = "ghost-phase-accesses"
   end
 
-  module LMust = Queries.LMust
   module MCPPhaseInfo = MCPAccess.AuxiliaryPhaseInfo
 
   module MHPsPlusMCPPhaseInfo =

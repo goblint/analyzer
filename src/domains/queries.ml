@@ -106,12 +106,6 @@ struct
   let global x = `Right x
 end
 
-module LMust =
-struct
-  include SetDomain.Reverse (SetDomain.ToppedSet (LLock) (struct let topname = "All locks" end))
-  let name () = "LMust"
-end
-
 (** GADT for queries with specific result type. *)
 type _ t =
   | EqualSet: exp -> ES.t t
