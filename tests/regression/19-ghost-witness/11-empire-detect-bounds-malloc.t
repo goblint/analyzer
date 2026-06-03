@@ -6,8 +6,8 @@ as a global pointer to a dynamically allocated integer.
     live: 17
     dead: 0
     total lines: 17
-  [Info][Witness] phaseGhost: global ghost_a is only accessed by unique thread [main, fun@11-empire-detect-bounds-malloc.c:30:5-30:51] and is only ever increased by one
-  [Info][Witness] phaseGhost: global ghost_b is only accessed by unique thread [main] and is only ever increased by one
+  [Info][Witness] phaseGhost: global ghost_a is only accessed by unique thread [main, fun@11-empire-detect-bounds-malloc.c:30:5-30:51] and is monotonically increased to known bounds
+  [Info][Witness] phaseGhost: global ghost_b is only accessed by unique thread [main] and is monotonically increased to known bounds
   [Info][Witness] witness validation summary:
     confirmed: 3
     unconfirmed: 0

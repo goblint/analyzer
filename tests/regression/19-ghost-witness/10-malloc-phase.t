@@ -7,8 +7,8 @@ Check that the phase propagation also happens for memory that is dynamically all
     dead: 0
     total lines: 20
   [Warning][Witness] invariant unconfirmed: *published == 10 (10-malloc-phase.c:46:5)
-  [Info][Witness] phaseGhost: global ghost_a is only accessed by unique thread [main] and is only ever increased by one
-  [Info][Witness] phaseGhost: global ghost_b is only accessed by unique thread [main] and is only ever increased by one
+  [Info][Witness] phaseGhost: global ghost_a is only accessed by unique thread [main] and is monotonically increased to known bounds
+  [Info][Witness] phaseGhost: global ghost_b is only accessed by unique thread [main] and is monotonically increased to known bounds
   [Info][Witness] witness validation summary:
     confirmed: 0
     unconfirmed: 1
