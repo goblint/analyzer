@@ -124,9 +124,9 @@ struct
       end
     | _ ->
       (set_mem_safety_flag InvalidDeref;
-        M.warn "Pointer %a has a points-to-set of top. An invalid memory access might occur" d_exp ptr;
-        Checks.warn Checks.Category.InvalidMemoryAccess "Pointer %a has a points-to-set of top. An invalid memory access might occur" d_exp ptr;
-        `Top)
+       M.warn "Pointer %a has a points-to-set of top. An invalid memory access might occur" d_exp ptr;
+       Checks.warn Checks.Category.InvalidMemoryAccess "Pointer %a has a points-to-set of top. An invalid memory access might occur" d_exp ptr;
+       `Top)
 
   let get_ptr_deref_type ptr_typ =
     match Cil.unrollType ptr_typ with

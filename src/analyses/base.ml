@@ -2383,8 +2383,8 @@ struct
       end
     | _ ->
       (M.warn "Pointer %a has a points-to-set of top. An invalid memory access might occur" d_exp ptr;
-        Checks.warn Checks.Category.InvalidMemoryAccess "Pointer %a has a points-to-set of top. An invalid memory access might occur" d_exp ptr;
-        `Top)
+       Checks.warn Checks.Category.InvalidMemoryAccess "Pointer %a has a points-to-set of top. An invalid memory access might occur" d_exp ptr;
+       `Top)
 
   let special man (lv:lval option) (f: varinfo) (args: exp list) =
     let invalidate_ret_lv st =
