@@ -8,7 +8,7 @@ strong because the spawned worker may already have reached the third phase.
     dead: 0
     total lines: 9
   [Warning][Witness] invariant unconfirmed: ghost_a == 0 || ghost_a == 1 (07-sync-double-advance.c:17:5)
-  [Info][Witness] phaseGhost: global ghost_a is only accessed by unique thread [main, fun@07-sync-double-advance.c:15:5-15:51] and is only ever increased by one
+  [Info][Witness] phaseGhost: global ghost_a is only accessed by unique thread [main, fun@07-sync-double-advance.c:15:5-15:51] and is monotonically increased to known bounds
   [Info][Witness] witness validation summary:
     confirmed: 0
     unconfirmed: 1

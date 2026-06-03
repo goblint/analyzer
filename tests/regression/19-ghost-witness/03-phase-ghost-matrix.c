@@ -5,15 +5,15 @@
 extern int __VERIFIER_nondet_int(void);
 
 int ghost_a = 0; // phase ghost: accessed only by main and incremented by 1.
-int ghost_b = 0; // not a phase ghost: accessed only by main, but assigned a constant not equal to old + 1.
+int ghost_b = 0; // phase ghost: accessed only by main and updated from known constant 0 to 5.
 int ghost_c = 0; // phase ghost: accessed only by main and updated syntactically as 1 + ghost_c.
-int ghost_d = 0; // not a phase ghost: accessed only by main, but incremented by 2.
+int ghost_d = 0; // phase ghost: accessed only by main and incremented by 2.
 int ghost_e = 0; // not a phase ghost: accessed only by main, but increment amount is nondeterministic.
 int ghost_f = 0; // not exercised: never accessed in this test.
 int ghost_g = 0; // not a phase ghost: incremented by both main and a different unique worker thread.
 int ghost_h = 0; // not a phase ghost: incremented by a non-unique thread id.
 int ghost_i = 0; // phase ghost: accessed only by one unique worker thread and incremented by 1.
-int ghost_j = 0; // not a phase ghost: accessed only by one unique worker thread, but assigned 7.
+int ghost_j = 0; // phase ghost: accessed only by one unique worker thread and updated from known constant 0 to 7.
 int ghost_k = 0; // phase ghost: accessed only by one unique worker thread and incremented by 1 twice.
 int ghost_l = 0; // not a phase ghost: accessed only by one unique worker thread, but decremented.
 int ghost_m = 0; // not a phase ghost: incremented by both main and a different unique worker thread.
@@ -21,11 +21,11 @@ int ghost_n = 0; // not a phase ghost: updated by 0, so it is not an increment b
 int ghost_o = 0; // not a phase ghost: updated by the constant expression 1 - 1, which is not +1.
 int ghost_p = 0; // not a phase ghost: assigned by a non-unique thread id.
 int ghost_q = 4; // phase ghost: accessed only by main and updated from known constant 4 to 5.
-int ghost_r = 4; // not a phase ghost: accessed only by main, but updated from 4 to 6.
+int ghost_r = 4; // phase ghost: accessed only by main and updated from 4 to 6.
 int ghost_s = 0; // not exercised: never accessed in this test.
 int ghost_t = 0; // not exercised: never accessed in this test.
 int ghost_u = 0; // phase ghost: main first sets it from 0 to 1, then increments it by 1.
-int ghost_v = 0; // not a phase ghost: main sets it from 0 to 2.
+int ghost_v = 0; // phase ghost: main sets it from 0 to 2.
 int ghost_w = 0; // phase ghost: worker_unique sets it from 0 to 1.
 int ghost_x = 0; // not a phase ghost: incremented by a non-unique thread id.
 int ghost_y = 0; // phase ghost: accessed only by main and incremented by 1 twice.

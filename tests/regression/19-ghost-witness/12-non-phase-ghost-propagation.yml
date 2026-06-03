@@ -44,7 +44,7 @@
         function: main
       updates:
       - variable: ghost_non_phase
-        value: "7"
+        value: "ghost_non_phase + 0"
         format: c_expression
     - location:
         file_name: 12-non-phase-ghost-propagation.c
